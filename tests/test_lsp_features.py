@@ -227,15 +227,18 @@ length = 14
 plot(ta.sma(close, length))
 plot(ta.ema(close, length))
 """
+        # Line 4 is plot(... length) — character 25 lands on "length"
         params = lsp.ReferenceParams(
             text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
-            position=lsp.Position(line=4, character=0),  # On "length"
+            position=lsp.Position(line=4, character=25),
             context=lsp.ReferenceContext(include_declaration=True),
         )
 
         result = handle_references(params, source, "file:///test.pine")
-        # Should find 3 references: definition, line 5, line 6
-        assert len(result) >= 1
+        # definition (line 3) + two uses (lines 4 and 5)
+        assert len(result) == 3
+        lines = sorted(r.range.start.line for r in result)
+        assert lines == [3, 4, 5]
 
     def test_handle_references_no_include_declaration(self) -> None:
         """Test find references without including declaration."""
@@ -247,12 +250,37 @@ plot(ta.sma(close, length))
 """
         params = lsp.ReferenceParams(
             text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
-            position=lsp.Position(line=5, character=25),  # On "length"
+            position=lsp.Position(line=4, character=25),  # On "length" use
             context=lsp.ReferenceContext(include_declaration=False),
         )
 
         result = handle_references(params, source, "file:///test.pine")
-        assert len(result) >= 0
+        assert len(result) >= 1
+        # Declaration line must be excluded
+        assert all(r.range.start.line != 3 for r in result)
+
+    def test_handle_references_inside_function_body(self) -> None:
+        """Recursive / in-body references must not be skipped when name matches."""
+        source = """//@version=5
+indicator("T")
+
+myFunc(x) =>
+    myFunc(x - 1)
+
+plot(myFunc(1))
+"""
+        params = lsp.ReferenceParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=3, character=0),  # On "myFunc" def
+            context=lsp.ReferenceContext(include_declaration=True),
+        )
+        result = handle_references(params, source, "file:///test.pine")
+        # def, recursive call inside body, outer plot call
+        assert len(result) >= 3
+        lines = sorted({r.range.start.line for r in result})
+        assert 3 in lines  # definition
+        assert 4 in lines  # recursive body call
+        assert 6 in lines  # plot(myFunc(1))
 
 
 class TestDocumentSymbolsHandler:
@@ -279,14 +307,36 @@ plot(myFunction())
         result = handle_document_symbols(params, source, "file:///test.pine")
         assert len(result) >= 1
 
-        # Check for function symbol
+        # Check for function symbol — exactly once (no double-flush)
         func_symbols = [s for s in result if s.kind == lsp.SymbolKind.Function]
-        assert len(func_symbols) >= 1
+        assert len(func_symbols) == 1
         assert func_symbols[0].name == "myFunction"
 
         # Check for variable symbols
         var_symbols = [s for s in result if s.kind == lsp.SymbolKind.Variable]
         assert len(var_symbols) >= 2
+
+    def test_handle_document_symbols_no_double_flush(self) -> None:
+        """Functions must appear once; top-level vars after a function must not nest."""
+        source = """//@version=5
+indicator("T")
+
+f1() =>
+    1
+
+f2() =>
+    2
+
+x = 3
+"""
+        params = lsp.DocumentSymbolParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+        )
+        result = handle_document_symbols(params, source, "file:///test.pine")
+        func_names = [s.name for s in result if s.kind == lsp.SymbolKind.Function]
+        assert func_names == ["f1", "f2"]
+        var_names = [s.name for s in result if s.kind == lsp.SymbolKind.Variable]
+        assert "x" in var_names
 
     def test_handle_document_symbols_empty(self) -> None:
         """Test document symbols for empty source."""
@@ -317,6 +367,23 @@ settings = MySettings.new()
         type_symbols = [s for s in result if s.kind == lsp.SymbolKind.Class]
         assert len(type_symbols) >= 1
         assert type_symbols[0].name == "MySettings"
+
+    def test_handle_document_symbols_reuses_tree(self) -> None:
+        """Passing a pre-parsed tree must not require re-parse of source."""
+        from pynescript.ast.helper import parse
+
+        source = """//@version=5
+indicator("T")
+length = 14
+"""
+        tree = parse(source, filename="file:///test.pine")
+        params = lsp.DocumentSymbolParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+        )
+        # Empty source would fail if tree were ignored and re-parsed from source.
+        result = handle_document_symbols(params, source=None, uri="file:///test.pine", tree=tree)
+        var_names = [s.name for s in result if s.kind == lsp.SymbolKind.Variable]
+        assert "length" in var_names
 
 
 class TestFormattingHandler:
@@ -367,3 +434,66 @@ plot(ta.sma(close,length))
 
         result = handle_range_formatting(params, source)
         assert result is not None
+
+
+class TestSemanticTokensHandler:
+    """Semantic tokens + workspace AST reuse."""
+
+    def test_handle_semantic_tokens_basic(self) -> None:
+        from pynescript.langserver.features.semantic_tokens import handle_semantic_tokens
+
+        source = """//@version=5
+indicator("T")
+length = 14
+plot(ta.sma(close, length))
+"""
+        params = lsp.SemanticTokensParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+        )
+        result = handle_semantic_tokens(params, source)
+        assert result is not None
+        assert len(result.data) > 0
+        assert len(result.data) % 5 == 0
+
+    def test_handle_semantic_tokens_reuses_tree(self) -> None:
+        from pynescript.ast.helper import parse
+        from pynescript.langserver.features.semantic_tokens import handle_semantic_tokens
+
+        source = """//@version=5
+indicator("T")
+x = 1
+"""
+        tree = parse(source)
+        params = lsp.SemanticTokensParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+        )
+        with_tree = handle_semantic_tokens(params, source=None, tree=tree)
+        without = handle_semantic_tokens(params, source)
+        assert with_tree is not None and without is not None
+        assert with_tree.data == without.data
+
+    def test_handle_semantic_tokens_incomplete_source(self) -> None:
+        from pynescript.langserver.features.semantic_tokens import handle_semantic_tokens
+
+        params = lsp.SemanticTokensParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+        )
+        result = handle_semantic_tokens(params, "//@version=5\nplot(ta.")
+        assert result is not None
+        assert result.data == []
+
+
+class TestCapabilities:
+    """Advertised capabilities must match implemented handlers only."""
+
+    def test_no_unimplemented_signature_help_or_code_action(self) -> None:
+        from pynescript.langserver.config import get_server_capabilities
+
+        caps = get_server_capabilities()
+        assert caps.signature_help_provider is None
+        assert caps.code_action_provider is None or caps.code_action_provider is False
+        assert caps.hover_provider is True
+        assert caps.definition_provider is True
+        assert caps.semantic_tokens_provider is not None
+        assert caps.semantic_tokens_provider.full is True
+        assert caps.semantic_tokens_provider.range is False

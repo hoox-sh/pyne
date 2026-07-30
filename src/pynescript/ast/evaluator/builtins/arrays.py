@@ -697,19 +697,108 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         text = str(name if name is not None else order_arg).lower()
         return "desc" in text
 
-    def _sort_with_na_last(self, sequence: list[Any], *, reverse: bool = False) -> list[Any]:
+    def _parse_sort_args(self, args: list[Any]) -> tuple[bool, Any]:
+        """Return ``(reverse, sort_field)`` from array.sort / sort_indices args.
+
+        TV forms:
+        - ``array.sort(id)``
+        - ``array.sort(id, order)``
+        - ``array.sort(id, order, sort_field)``
+        - kwargs: ``sort_field=`` merges to ``[id, None, field]`` via ``_KWARG_ORDER``.
+        """
+        reverse = False
+        sort_field: Any = None
+        if len(args) <= UNARY:
+            return reverse, sort_field
+        if len(args) >= TERNARY:
+            reverse = self._is_descending_order(args[1])
+            sort_field = args[2]
+            return reverse, sort_field
+        # Binary: order only, or bare sort_field (string field name / field index).
+        second = args[1]
+        if second is None:
+            return reverse, sort_field
+        if isinstance(second, str):
+            low = second.lower()
+            if low in ("ascending", "descending", "asc", "desc"):
+                reverse = self._is_descending_order(second)
+            else:
+                sort_field = second
+            return reverse, sort_field
+        if isinstance(second, (int, float)) and not isinstance(second, bool):
+            # ±1 → order enum; other ints → UDT field index.
+            if float(second) in (1.0, -1.0):
+                reverse = self._is_descending_order(second)
+            else:
+                sort_field = second
+            return reverse, sort_field
+        reverse = self._is_descending_order(second)
+        return reverse, sort_field
+
+    @staticmethod
+    def _udt_field_key(item: Any, sort_field: Any) -> Any:
+        """Extract UDT field by name or int index for sorting."""
+        if item is None or sort_field is None:
+            return item
+        get_field = getattr(item, "get_field", None)
+        if get_field is None:
+            return item
+        if isinstance(sort_field, str):
+            try:
+                return get_field(sort_field)
+            except (AttributeError, KeyError, TypeError):
+                return item
+        if isinstance(sort_field, (int, float)) and not isinstance(sort_field, bool):
+            udt = getattr(item, "udt", None)
+            fields = getattr(udt, "fields", None)
+            if fields:
+                names = list(fields.keys())
+                idx = int(sort_field)
+                if 0 <= idx < len(names):
+                    try:
+                        return get_field(names[idx])
+                    except (AttributeError, KeyError, TypeError):
+                        return item
+        return item
+
+    def _sort_with_na_last(
+        self,
+        sequence: list[Any],
+        *,
+        reverse: bool = False,
+        sort_field: Any = None,
+    ) -> list[Any]:
         """Sort like TradingView: comparable values first, ``na`` always at the end.
 
         Avoids ``TypeError: '<' not supported between instances of 'NoneType' and ...``.
+        When *sort_field* is set, keys UDT elements by that field name/index.
         """
-        non_na = [x for x in sequence if x is not None]
-        na_count = len(sequence) - len(non_na)
+        if sort_field is None:
+            non_na = [x for x in sequence if x is not None]
+            na_count = len(sequence) - len(non_na)
+            try:
+                non_na.sort(reverse=reverse)
+            except TypeError:
+                # Mixed non-numeric types — fall back to string key
+                non_na.sort(key=lambda x: (str(type(x)), str(x)), reverse=reverse)
+            return non_na + [None] * na_count
+
+        keyed: list[tuple[Any, Any]] = []
+        na_items: list[Any] = []
+        for item in sequence:
+            if item is None:
+                na_items.append(item)
+                continue
+            key = self._udt_field_key(item, sort_field)
+            if key is None:
+                na_items.append(item)
+            else:
+                keyed.append((key, item))
         try:
-            non_na.sort(reverse=reverse)
+            keyed.sort(key=lambda x: x[0], reverse=reverse)
         except TypeError:
-            # Mixed non-numeric types — fall back to string key
-            non_na.sort(key=lambda x: (str(type(x)), str(x)), reverse=reverse)
-        return non_na + [None] * na_count
+            keyed.sort(key=lambda x: (str(type(x[0])), str(x[0])), reverse=reverse)
+        return [item for _, item in keyed] + na_items
 
     def _builtin_array_sort(self, args: list[Any]) -> list[Any]:
         if len(args) < UNARY:
@@ -718,9 +807,9 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             args[0],
             "array.sort takes an array argument",
         )
-        reverse = self._is_descending_order(args[1]) if len(args) > 1 else False
-        # In-place, TV semantics: na always last
-        sequence[:] = self._sort_with_na_last(sequence, reverse=reverse)
+        reverse, sort_field = self._parse_sort_args(args)
+        # In-place, TV semantics: na always last; optional UDT sort_field
+        sequence[:] = self._sort_with_na_last(sequence, reverse=reverse, sort_field=sort_field)
         return sequence
 
     def _builtin_array_sum(self, args: list[Any]) -> Any:
@@ -1002,21 +1091,33 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         return statistics.variance(nums)
 
     def _builtin_array_sort_indices(self, args: list[Any]) -> list[int]:
-        """Return indices that would sort the array (``na`` indices last)."""
+        """Return indices that would sort the array (``na`` indices last).
+
+        Honors optional *order* and *sort_field* (UDT field name or index).
+        """
         if len(args) < UNARY:
             self._error("array.sort_indices takes an array argument")
         sequence = self._expect_list(
             args[0],
             "array.sort_indices takes an array argument",
         )
-        reverse = self._is_descending_order(args[1]) if len(args) > 1 else False
+        reverse, sort_field = self._parse_sort_args(args)
 
         if not sequence:
             return []
 
         # Stable partition: comparable values first (sorted), na indices last
-        non_na = [(val, idx) for idx, val in enumerate(sequence) if val is not None]
-        na_idx = [idx for idx, val in enumerate(sequence) if val is None]
+        non_na: list[tuple[Any, int]] = []
+        na_idx: list[int] = []
+        for idx, val in enumerate(sequence):
+            if val is None:
+                na_idx.append(idx)
+                continue
+            key = self._udt_field_key(val, sort_field) if sort_field is not None else val
+            if key is None:
+                na_idx.append(idx)
+            else:
+                non_na.append((key, idx))
         try:
             non_na.sort(key=lambda x: x[0], reverse=reverse)
         except TypeError:
@@ -1043,3 +1144,5 @@ ArrayBuiltinsMixin._builtin_array_remove._KWARG_ORDER = ["id", "index"]
 ArrayBuiltinsMixin._builtin_array_insert._KWARG_ORDER = ["id", "index", "value"]
 ArrayBuiltinsMixin._builtin_array_fill._KWARG_ORDER = ["id", "value", "index_from", "index_to"]
 ArrayBuiltinsMixin._builtin_array_new_empty._KWARG_ORDER = ["size", "initial_value"]
+ArrayBuiltinsMixin._builtin_array_sort._KWARG_ORDER = ["id", "order", "sort_field"]
+ArrayBuiltinsMixin._builtin_array_sort_indices._KWARG_ORDER = ["id", "order", "sort_field"]

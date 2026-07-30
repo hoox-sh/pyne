@@ -2723,3 +2723,141 @@ plot(high1)
             assert res.get("mode") == "compile"
 
 
+class TestCompileRound5IncKernels:
+    """Round 5: dema/tema/swma residual kernels + IR cache cold-JIT UX."""
+
+    def test_dema_tema_swma_emit_inc(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(ta.dema(close, 10), title="dema")
+plot(ta.tema(close, 8), title="tema")
+plot(ta.swma(close), title="swma")
+"""
+        code = transpile(src)
+        assert "numba_dema_inc" in code
+        assert "numba_tema_inc" in code
+        assert "numba_swma" in code
+        assert "__dema_e1" in code
+        assert "__tema_e1" in code and "__tema_e2" in code
+        compiled = compile_script(src)
+        assert not compiled.object_mode
+        o, h, l, c, v = _ohlcv(80)
+        out = compiled.run(o, h, l, c, v)
+        assert not np.isnan(out["dema"][-1])
+        assert not np.isnan(out["tema"][-1])
+        assert not np.isnan(out["swma"][-1])
+
+    def test_dema_tema_swma_kernel_parity(self) -> None:
+        from pynescript.compiler import numba_builtins as nb
+
+        rng = np.random.default_rng(42)
+        n = 400
+        arr = 100.0 + np.cumsum(rng.normal(0, 1, n))
+        for period in (5, 14, 30):
+            st = np.full(3, np.nan)
+            e1 = np.full(n, np.nan)
+            max_err = 0.0
+            for i in range(n):
+                a = nb.numba_dema(arr, period, i)
+                b = nb.numba_dema_inc(arr, period, i, st, e1)
+                if np.isnan(a) and np.isnan(b):
+                    continue
+                max_err = max(max_err, abs(float(a) - float(b)))
+            assert max_err <= 1e-10, f"dema period={period} max_err={max_err}"
+
+            st4 = np.full(4, np.nan)
+            r1 = np.full(n, np.nan)
+            r2 = np.full(n, np.nan)
+            max_err = 0.0
+            for i in range(n):
+                a = nb.numba_tema(arr, period, i)
+                b = nb.numba_tema_inc(arr, period, i, st4, r1, r2)
+                if np.isnan(a) and np.isnan(b):
+                    continue
+                max_err = max(max_err, abs(float(a) - float(b)))
+            assert max_err <= 1e-10, f"tema period={period} max_err={max_err}"
+
+        # gap + rewind dema
+        st = np.full(3, np.nan)
+        e1 = np.full(n, np.nan)
+        mid = n // 2
+        b_end = nb.numba_dema_inc(arr, 10, n - 1, st, e1)
+        a_end = nb.numba_dema(arr, 10, n - 1)
+        if not (np.isnan(a_end) and np.isnan(b_end)):
+            assert abs(float(a_end) - float(b_end)) <= 1e-10
+        b_mid = nb.numba_dema_inc(arr, 10, mid, st, e1)
+        a_mid = nb.numba_dema(arr, 10, mid)
+        if not (np.isnan(a_mid) and np.isnan(b_mid)):
+            assert abs(float(a_mid) - float(b_mid)) <= 1e-10
+
+        for i in range(n):
+            a = nb.numba_swma(arr, i)
+            if i < 3:
+                assert np.isnan(a)
+            else:
+                expected = (arr[i - 3] + 2 * arr[i - 2] + 2 * arr[i - 1] + arr[i]) / 6.0
+                assert abs(float(a) - expected) < 1e-12
+
+    def test_compiled_dema_matches_full_kernel(self) -> None:
+        from pynescript.compiler import numba_builtins as nb
+
+        src = """//@version=5
+indicator("x")
+plot(ta.dema(close, 12), title="d")
+plot(ta.tema(close, 9), title="t")
+plot(ta.swma(close), title="s")
+"""
+        compiled = compile_script(src)
+        rng = np.random.default_rng(9)
+        n = 200
+        c = 100.0 + np.cumsum(rng.normal(0, 1, n))
+        o, h, l, v = c, c + 1, c - 1, np.ones(n)
+        out = compiled.run(o, h, l, c, v)
+        max_d = max_t = max_s = 0.0
+        for i in range(n):
+            fd = nb.numba_dema(c, 12, i)
+            ft = nb.numba_tema(c, 9, i)
+            fs = nb.numba_swma(c, i)
+            if not (np.isnan(fd) and np.isnan(out["d"][i])):
+                max_d = max(max_d, abs(float(fd) - float(out["d"][i])))
+            if not (np.isnan(ft) and np.isnan(out["t"][i])):
+                max_t = max(max_t, abs(float(ft) - float(out["t"][i])))
+            if not (np.isnan(fs) and np.isnan(out["s"][i])):
+                max_s = max(max_s, abs(float(fs) - float(out["s"][i])))
+        assert max_d <= 1e-10, max_d
+        assert max_t <= 1e-10, max_t
+        assert max_s <= 1e-12, max_s
+
+    def test_ir_cache_shares_execute_on_comment_diff(self) -> None:
+        from pynescript.compiler.engine import clear_compile_cache
+
+        clear_compile_cache()
+        src1 = """//@version=5
+indicator("x")
+plot(ta.sma(close, 5), title="s")
+"""
+        src2 = """//@version=5
+// comment-only change — same IR
+indicator("x")
+plot(ta.sma(close, 5), title="s")
+"""
+        a = compile_script(src1)
+        b = compile_script(src2)
+        assert a is not b
+        assert a.execute is b.execute
+        assert a.generated_code == b.generated_code
+        o, h, l, c, v = _ohlcv(40)
+        assert np.allclose(a.run(o, h, l, c, v)["s"], b.run(o, h, l, c, v)["s"], equal_nan=True)
+
+    def test_source_cache_still_identity(self) -> None:
+        from pynescript.compiler.engine import clear_compile_cache
+
+        clear_compile_cache()
+        src = """//@version=5
+indicator("c")
+plot(ta.ema(close, 5), title="e")
+"""
+        a = compile_script(src)
+        b = compile_script(src)
+        assert a is b
+

@@ -176,6 +176,24 @@ plot(ta.sma(close, 5), title="s")
     assert compiled.object_mode is False
 
 
+class TestCompileBrokerCommissionParity:
+    def test_compile_commission_openprofit_and_net(self) -> None:
+        """Entry commission reduces open equity; close realizes entry commission."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0, commission_value=1.0, commission_type="percent")
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.entry("L", "long", 10.0)
+        # 10 * 100 * 1% = 10 entry commission
+        assert b.openprofit == pytest.approx(-10.0)
+        assert b.equity == pytest.approx(9_990.0)
+        b.begin_bar(1, 110.0, 110.0, 110.0, 110.0)
+        b.close("L")
+        assert b.netprofit == pytest.approx(90.0)
+        assert b.position_size == 0.0
+        assert b.position_commission == 0.0
+
+
 class TestStrategyRiskAndQtyNameErrors:
     def test_risk_methods_are_noop(self) -> None:
         src = """//@version=5

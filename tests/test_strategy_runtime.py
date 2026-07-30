@@ -287,5 +287,71 @@ strategy.entry("L", strategy.long, 1.0)
         _set_bar(ev, 0, 42.0)
         ev.evaluate_script(src)
         assert _eval_expr(ev, "strategy.position_size") == 1.0
-        assert _eval_expr(ev, "strategy.position_avg_price") == 42.0
+
+
+class TestStrategyCashAndPyramiding:
+    """Regression: strategy.cash series + market-entry pyramiding / reverse events."""
+
+    def test_strategy_cash_is_free_capital_not_qty_string(self) -> None:
+        """Constants map must not shadow free-cash series with \"cash\" sentinel."""
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        cash = _eval_expr(ev, "strategy.cash")
+        assert isinstance(cash, (int, float))
+        assert cash == 100_000.0
+        # Dual tag still lets default_qty_type=strategy.cash work
+        from pynescript.ast.evaluator.builtins.strategy import StrategyCashAmount
+
+        assert getattr(cash, "_pine_qty_type", None) == "cash"
+        assert isinstance(cash, StrategyCashAmount)
+
+    def test_default_qty_type_cash_still_sizes_from_currency(self) -> None:
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 50.0)
+        m = ev._build_builtin_map()
+        # Evaluate strategy.cash as dual value then pass into declaration
+        cash_const = m["strategy.cash"]([])
+        m["strategy"](["T"], {"default_qty_type": cash_const, "default_qty_value": 500.0})
+        m["strategy.entry"](["L", "long"])  # no explicit qty
+        # 500 cash / 50 price = 10 contracts
+        assert ev._strategy_state.position_size == 10.0
+
+    def test_pyramiding_adds_second_market_entry(self) -> None:
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        m = ev._build_builtin_map()
+        m["strategy"](["T"], {"pyramiding": 1})
+        m["strategy.entry"](["L1", "long", 1.0])
+        m["strategy.entry"](["L2", "long", 2.0])
+        assert ev._strategy_state.position_size == 3.0
+        assert len(ev._strategy_state.open_trades) == 2
+        # Third entry blocked (max = pyramiding+1 = 2)
+        m["strategy.entry"](["L3", "long", 1.0])
+        assert ev._strategy_state.position_size == 3.0
+        assert len(ev._strategy_state.open_trades) == 2
+
+    def test_pyramiding_zero_blocks_second_id(self) -> None:
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        m = ev._build_builtin_map()
+        m["strategy"](["T"], {"pyramiding": 0})
+        m["strategy.entry"](["L1", "long", 1.0])
+        m["strategy.entry"](["L2", "long", 5.0])
+        assert ev._strategy_state.position_size == 1.0
+        assert len(ev._strategy_state.open_trades) == 1
+
+    def test_reverse_entry_emits_close_event(self) -> None:
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        m = ev._build_builtin_map()
+        m["strategy.entry"](["L", "long", 2.0])
+        _set_bar(ev, 1, 105.0)
+        m["strategy.entry"](["S", "short", 2.0])
+        kinds = [ev_.kind for ev_ in ev._strategy_state._events]
+        assert "close" in kinds
+        assert kinds.count("entry") >= 2
+        assert ev._strategy_state.position_direction == "short"
+        assert ev._strategy_state.position_size == 2.0
+        assert any(ev_.comment == "reverse" for ev_ in ev._strategy_state._events)
+        assert _eval_expr(ev, "strategy.position_avg_price") == 105.0
         assert _eval_expr(ev, "strategy.opentrades") == 1

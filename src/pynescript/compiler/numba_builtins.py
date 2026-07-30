@@ -3710,6 +3710,253 @@ def numba_running_min_inc(arr, i, st):
     st[1] = float(i)
     return m
 
+
+@numba.njit(cache=True)
+def numba_swma(arr, i):
+    """Symmetric 4-period WMA: weights 1, 2, 2, 1 over 6 (TV ``ta.swma``).
+
+    O(1) per bar — no sliding state required. Needs ``i >= 3``.
+    """
+    if i < 3:
+        return np.nan
+    a = arr[i - 3]
+    b = arr[i - 2]
+    c = arr[i - 1]
+    d = arr[i]
+    if np.isnan(a) or np.isnan(b) or np.isnan(c) or np.isnan(d):
+        return np.nan
+    return (a + 2.0 * b + 2.0 * c + d) / 6.0
+
+
+@numba.njit(cache=True)
+def numba_dema(arr, period, i):
+    """Double EMA: ``2*EMA(src) - EMA(EMA(src))`` with SMA seed (matches ``numba_ema``).
+
+    First valid bar is ``i >= 2*period - 2``.
+    """
+    period = int(period)
+    if period <= 0 or i < 2 * period - 2:
+        return np.nan
+    alpha = 2.0 / (period + 1.0)
+    e1 = np.empty(i + 1, dtype=np.float64)
+    s = 0.0
+    for k in range(period):
+        v = arr[k]
+        if np.isnan(v):
+            return np.nan
+        s += v
+    e1[period - 1] = s / period
+    for j in range(period, i + 1):
+        v = arr[j]
+        if np.isnan(v):
+            return np.nan
+        e1[j] = alpha * v + (1.0 - alpha) * e1[j - 1]
+    s2 = 0.0
+    for k in range(period):
+        s2 += e1[period - 1 + k]
+    e2 = s2 / period
+    for j in range(2 * period - 1, i + 1):
+        e2 = alpha * e1[j] + (1.0 - alpha) * e2
+    return 2.0 * e1[i] - e2
+
+
+@numba.njit(cache=True)
+def numba_dema_inc(arr, period, i, st, e1_raw):
+    """Amortized O(1) DEMA. ``st``: [e1, e2, last_i]; ``e1_raw`` intermediate EMA series.
+
+    Matches ``numba_dema`` (SMA-seed nested EMAs). Catch-up / rewind safe.
+    """
+    period = int(period)
+    if period <= 0 or i < 0:
+        return np.nan
+    if np.isnan(st[2]):
+        last = -1
+    else:
+        last = int(st[2])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+        st[1] = np.nan
+    alpha = 2.0 / (period + 1.0)
+    e1 = st[0]
+    e2 = st[1]
+    seed2 = 2 * period - 2
+    for j in range(last + 1, i + 1):
+        if j == period - 1:
+            s = 0.0
+            ok = True
+            for k in range(period):
+                v = arr[k]
+                if np.isnan(v):
+                    ok = False
+                    break
+                s += v
+            e1 = s / period if ok else np.nan
+        elif j >= period:
+            v = arr[j]
+            if np.isnan(v) or np.isnan(e1):
+                e1 = np.nan
+            else:
+                e1 = alpha * v + (1.0 - alpha) * e1
+        else:
+            e1 = np.nan
+        e1_raw[j] = e1
+
+        if j == seed2:
+            s2 = 0.0
+            ok2 = True
+            for k in range(period):
+                v = e1_raw[period - 1 + k]
+                if np.isnan(v):
+                    ok2 = False
+                    break
+                s2 += v
+            e2 = s2 / period if ok2 else np.nan
+        elif j > seed2:
+            if np.isnan(e1) or np.isnan(e2):
+                e2 = np.nan
+            else:
+                e2 = alpha * e1 + (1.0 - alpha) * e2
+        else:
+            e2 = np.nan
+    st[0] = e1
+    st[1] = e2
+    st[2] = float(i)
+    if i < seed2 or np.isnan(e1) or np.isnan(e2):
+        return np.nan
+    return 2.0 * e1 - e2
+
+
+@numba.njit(cache=True)
+def numba_tema(arr, period, i):
+    """Triple EMA: ``3*e1 - 3*e2 + e3`` with SMA seed (matches ``numba_ema``).
+
+    First valid bar is ``i >= 3*period - 3``.
+    """
+    period = int(period)
+    if period <= 0 or i < 3 * period - 3:
+        return np.nan
+    alpha = 2.0 / (period + 1.0)
+    n = i + 1
+    e1 = np.empty(n, dtype=np.float64)
+    e2 = np.empty(n, dtype=np.float64)
+    s = 0.0
+    for k in range(period):
+        v = arr[k]
+        if np.isnan(v):
+            return np.nan
+        s += v
+    e1[period - 1] = s / period
+    for j in range(period, n):
+        v = arr[j]
+        if np.isnan(v):
+            return np.nan
+        e1[j] = alpha * v + (1.0 - alpha) * e1[j - 1]
+    s2 = 0.0
+    for k in range(period):
+        s2 += e1[period - 1 + k]
+    e2[2 * period - 2] = s2 / period
+    for j in range(2 * period - 1, n):
+        e2[j] = alpha * e1[j] + (1.0 - alpha) * e2[j - 1]
+    s3 = 0.0
+    for k in range(period):
+        s3 += e2[2 * period - 2 + k]
+    e3 = s3 / period
+    for j in range(3 * period - 2, n):
+        e3 = alpha * e2[j] + (1.0 - alpha) * e3
+    return 3.0 * e1[i] - 3.0 * e2[i] + e3
+
+
+@numba.njit(cache=True)
+def numba_tema_inc(arr, period, i, st, e1_raw, e2_raw):
+    """Amortized O(1) TEMA. ``st``: [e1, e2, e3, last_i]; two intermediate series.
+
+    Matches ``numba_tema``. Catch-up / rewind safe.
+    """
+    period = int(period)
+    if period <= 0 or i < 0:
+        return np.nan
+    if np.isnan(st[3]):
+        last = -1
+    else:
+        last = int(st[3])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+        st[1] = np.nan
+        st[2] = np.nan
+    alpha = 2.0 / (period + 1.0)
+    e1 = st[0]
+    e2 = st[1]
+    e3 = st[2]
+    seed2 = 2 * period - 2
+    seed3 = 3 * period - 3
+    for j in range(last + 1, i + 1):
+        if j == period - 1:
+            s = 0.0
+            ok = True
+            for k in range(period):
+                v = arr[k]
+                if np.isnan(v):
+                    ok = False
+                    break
+                s += v
+            e1 = s / period if ok else np.nan
+        elif j >= period:
+            v = arr[j]
+            if np.isnan(v) or np.isnan(e1):
+                e1 = np.nan
+            else:
+                e1 = alpha * v + (1.0 - alpha) * e1
+        else:
+            e1 = np.nan
+        e1_raw[j] = e1
+
+        if j == seed2:
+            s2 = 0.0
+            ok2 = True
+            for k in range(period):
+                v = e1_raw[period - 1 + k]
+                if np.isnan(v):
+                    ok2 = False
+                    break
+                s2 += v
+            e2 = s2 / period if ok2 else np.nan
+        elif j > seed2:
+            if np.isnan(e1) or np.isnan(e2):
+                e2 = np.nan
+            else:
+                e2 = alpha * e1 + (1.0 - alpha) * e2
+        else:
+            e2 = np.nan
+        e2_raw[j] = e2
+
+        if j == seed3:
+            s3 = 0.0
+            ok3 = True
+            for k in range(period):
+                v = e2_raw[seed2 + k]
+                if np.isnan(v):
+                    ok3 = False
+                    break
+                s3 += v
+            e3 = s3 / period if ok3 else np.nan
+        elif j > seed3:
+            if np.isnan(e2) or np.isnan(e3):
+                e3 = np.nan
+            else:
+                e3 = alpha * e2 + (1.0 - alpha) * e3
+        else:
+            e3 = np.nan
+    st[0] = e1
+    st[1] = e2
+    st[2] = e3
+    st[3] = float(i)
+    if i < seed3 or np.isnan(e1) or np.isnan(e2) or np.isnan(e3):
+        return np.nan
+    return 3.0 * e1 - 3.0 * e2 + e3
+
+
 def array_range(arr):
     """Pine ``array.range(id)`` — max − min of numeric elements; empty → na.
 

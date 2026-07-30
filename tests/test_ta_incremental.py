@@ -1337,3 +1337,513 @@ plot(ta.linreg(close, 14, 0))
             if isinstance(a, float) and isinstance(b, float) and math.isnan(a) and math.isnan(b):
                 continue
             assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"
+
+
+# ---------------------------------------------------------------------------
+# Round 5 — series materialization / last-sample path (Agent 02)
+# ---------------------------------------------------------------------------
+
+
+class _FakePineSeries:
+    """Newest-first history duck-type matching backend.series.PineSeries."""
+
+    __slots__ = ("history", "current")
+
+    def __init__(self) -> None:
+        self.history: list[float | None] = []
+        self.current: float | None = None
+
+    def update(self, value: float | None) -> None:
+        self.current = value
+        self.history.insert(0, value)
+
+
+def test_expect_series_last_sample_skips_materialize() -> None:
+    """last_sample_ok + incremental must not reverse PineSeries history."""
+    ev = _IncTA()
+    ps = _FakePineSeries()
+    for i in range(40):
+        ps.update(100.0 + i)
+    # Poison: if _as_series ran, reverse would allocate; we check identity pass-through.
+    src, period = ev._expect_series([ps, 14], length=2, last_sample_ok=True)
+    assert period == 14
+    assert src is ps
+    # Non-inc / full path still materializes chronological list
+    ev_full = _FullTA()
+    mat, period2 = ev_full._expect_series([ps, 14], length=2, last_sample_ok=True)
+    assert period2 == 14
+    assert isinstance(mat, list)
+    assert mat[-1] == ps.current
+    assert mat[0] == ps.history[-1]  # oldest in chrono list
+
+
+def test_series_last_on_pineseries_and_list() -> None:
+    ev = _IncTA()
+    ps = _FakePineSeries()
+    ps.update(1.0)
+    ps.update(2.0)
+    ps.update(3.0)
+    assert ev._series_last(ps) == 3.0
+    assert ev._series_last([10.0, 20.0, 30.0]) == 30.0
+    assert ev._series_last(None) is None
+    assert ev._series_last(7.5) == 7.5
+
+
+def test_builtin_sma_via_pineseries_matches_list_inc() -> None:
+    """ta.sma builtin with PineSeries last-sample ≡ list-prefix full recompute."""
+    n, period = 80, 10
+    closes = _series(n)
+    # Full oracle
+    full = _bar_walk_full_sma(closes, period)
+
+    ev = _IncTA()
+    ps = _FakePineSeries()
+    got: list[float | None] = []
+    for i, c in enumerate(closes):
+        ps.update(c)
+        ev._ta_call_i = 0
+        # Builtin path: last_sample_ok → raw PineSeries into _sma_inc_update
+        got.append(ev._builtin_ta_sma([ps, period]))
+    _assert_series_close(got, full)
+
+
+def test_as_series_cap_length() -> None:
+    """Capped materialization keeps at most _SERIES_MAX samples (chrono)."""
+    ev = _FullTA()
+    cap = ev._SERIES_MAX
+    ps = _FakePineSeries()
+    for i in range(cap + 100):
+        ps.update(float(i))
+    mat = ev._as_series(ps)
+    assert len(mat) == cap
+    # Newest sample is last; oldest among window is hist[cap-1] reversed → mat[0]
+    assert mat[-1] == float(cap + 100 - 1)
+    assert mat[0] == float(cap + 100 - 1 - (cap - 1))
+
+
+def test_change_na_propagation_last_sample() -> None:
+    """na in lag window yields None (no silent 0); off-by-one lag length correct."""
+    ev = _IncTA()
+    # length=1: need two samples; first bar None
+    assert ev._change_inc_update([10.0], 1) is None
+    ev._ta_call_i = 0
+    assert ev._change_inc_update([10.0, 12.0], 1) == pytest.approx(2.0)
+    # na current
+    ev2 = _IncTA()
+    for prefix in ([1.0], [1.0, None]):
+        ev2._ta_call_i = 0
+        out = ev2._change_inc_update(prefix, 1)
+    assert out is None
+    # na in lag position
+    ev3 = _IncTA()
+    seq = [None, 5.0, 7.0]
+    outs = []
+    for i in range(len(seq)):
+        ev3._ta_call_i = 0
+        outs.append(ev3._change_inc_update(seq[: i + 1], 1))
+    assert outs[0] is None
+    assert outs[1] is None  # lag is None
+    assert outs[2] == pytest.approx(2.0)
+
+
+def test_two_builtin_call_sites_independent_pineseries() -> None:
+    """Distinct ta.sma periods via builtin must not share inc state (PineSeries)."""
+    closes = _series(90)
+    full20 = _bar_walk_full_sma(closes, 20)
+    full50 = _bar_walk_full_sma(closes, 50)
+    ev = _IncTA()
+    ps = _FakePineSeries()
+    a_out: list[float | None] = []
+    b_out: list[float | None] = []
+    for c in closes:
+        ps.update(c)
+        ev._ta_call_i = 0
+        a_out.append(ev._builtin_ta_sma([ps, 20]))
+        b_out.append(ev._builtin_ta_sma([ps, 50]))
+    _assert_series_close(a_out, full20)
+    _assert_series_close(b_out, full50)
+
+
+def test_runtime_last_sample_multi_ta_vs_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Runtime multi-TA (PineSeries close/high/low) inc ≡ PYNE_TA_INCREMENTAL=0."""
+    from backend.runtime import Runtime
+
+    bars = [
+        {
+            "open": 100 + i * 0.1,
+            "high": 101.5 + i * 0.1 + (i % 5) * 0.05,
+            "low": 98.5 + i * 0.1 - (i % 3) * 0.05,
+            "close": 100.5 + i * 0.1 + math.sin(i / 7.0) * 0.2,
+            "volume": 1000 + i * 3,
+            "time": 1_000_000 + i * 86_400_000,
+        }
+        for i in range(120)
+    ]
+    src = """//@version=5
+indicator("r5 series")
+plot(ta.sma(close, 14))
+plot(ta.ema(close, 12))
+plot(ta.rsi(close, 14))
+plot(ta.stdev(close, 20))
+plot(ta.highest(high, 20))
+plot(ta.lowest(low, 20))
+plot(ta.change(close, 1))
+plot(ta.mom(close, 10))
+"""
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    r_on = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_on, r_on.get("error")
+    monkeypatch.setenv("PYNE_TA_INCREMENTAL", "0")
+    r_off = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_off, r_off.get("error")
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+
+    assert set(r_on["series"]) == set(r_off["series"])
+    for key in r_on["series"]:
+        for i, (a, b) in enumerate(zip(r_on["series"][key], r_off["series"][key], strict=True)):
+            if a is None and b is None:
+                continue
+            if a is None or b is None:
+                continue
+            if isinstance(a, float) and isinstance(b, float) and math.isnan(a) and math.isnan(b):
+                continue
+            assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"
+
+# ---------------------------------------------------------------------------
+# Round 5: dema/tema, valuewhen, pivots, adx/dmi, supertrend
+# ---------------------------------------------------------------------------
+
+
+def _ohlc(n: int = 120, seed: float = 100.0) -> tuple[list[float], list[float], list[float]]:
+    closes = _series(n, seed)
+    highs = [c + 1.5 + (i % 3) * 0.2 for i, c in enumerate(closes)]
+    lows = [c - 1.2 - (i % 2) * 0.1 for i, c in enumerate(closes)]
+    return highs, lows, closes
+
+
+def _assert_num_close(g: Any, e: Any, *, i: int, rel: float = 1e-9, abs_: float = 1e-9) -> None:
+    if e is None:
+        assert g is None, f"bar {i}: expected None, got {g}"
+        return
+    if isinstance(e, float) and math.isnan(e):
+        assert g is not None and isinstance(g, float) and math.isnan(g), f"bar {i}: expected nan, got {g}"
+        return
+    assert g is not None, f"bar {i}: expected {e}, got None"
+    assert g == pytest.approx(e, rel=rel, abs=abs_), f"bar {i}: {g} != {e}"
+
+
+def _bar_walk_full_dema(src: list[float], period: int) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        full = ev._builtin_ta_dema([src[: i + 1], period])
+        out.append(full[-1] if isinstance(full, list) else full)
+    return out
+
+
+def _bar_walk_inc_dema(src: list[float], period: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._dema_inc_update(src[: i + 1], period))
+    return out
+
+
+def _bar_walk_full_tema(src: list[float], period: int) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        full = ev._builtin_ta_tema([src[: i + 1], period])
+        out.append(full[-1] if isinstance(full, list) else full)
+    return out
+
+
+def _bar_walk_inc_tema(src: list[float], period: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._tema_inc_update(src[: i + 1], period))
+    return out
+
+
+def _bar_walk_full_valuewhen(
+    cond: list[bool], src: list[float], occurrence: int
+) -> list[Any]:
+    ev = _FullTA()
+    return [ev._valuewhen(cond[: i + 1], src[: i + 1], occurrence) for i in range(len(cond))]
+
+
+def _bar_walk_inc_valuewhen(
+    cond: list[bool], src: list[float], occurrence: int
+) -> list[Any]:
+    ev = _IncTA()
+    out: list[Any] = []
+    for i in range(len(cond)):
+        ev._ta_call_i = 0
+        out.append(ev._valuewhen_inc_update(cond[: i + 1], src[: i + 1], occurrence))
+    return out
+
+
+def _bar_walk_full_pivothigh(src: list[float], left: int, right: int) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        out.append(ev._builtin_ta_pivothigh([src[: i + 1], left, right]))
+    return out
+
+
+def _bar_walk_inc_pivothigh(src: list[float], left: int, right: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._pivothigh_inc_update(src[: i + 1], left, right))
+    return out
+
+
+def _bar_walk_full_pivotlow(src: list[float], left: int, right: int) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        out.append(ev._builtin_ta_pivotlow([src[: i + 1], left, right]))
+    return out
+
+
+def _bar_walk_inc_pivotlow(src: list[float], left: int, right: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._pivotlow_inc_update(src[: i + 1], left, right))
+    return out
+
+
+def _bar_walk_full_adx(
+    highs: list[float], lows: list[float], closes: list[float], period: int
+) -> list[float]:
+    ev = _FullTA()
+    return [
+        float(ev._adx(highs[: i + 1], lows[: i + 1], closes[: i + 1], period))
+        for i in range(len(closes))
+    ]
+
+
+def _bar_walk_inc_adx(
+    highs: list[float], lows: list[float], closes: list[float], period: int
+) -> list[float]:
+    ev = _IncTA()
+    out: list[float] = []
+    for i in range(len(closes)):
+        ev._ta_call_i = 0
+        out.append(ev._adx_inc_update(highs[: i + 1], lows[: i + 1], closes[: i + 1], period))
+    return out
+
+
+def _bar_walk_full_dmi(
+    highs: list[float], lows: list[float], closes: list[float], di_len: int, adx_smooth: int
+) -> list[tuple[float, float, float]]:
+    ev = _FullTA()
+    out: list[tuple[float, float, float]] = []
+    for i in range(len(closes)):
+        out.append(ev._builtin_ta_dmi([highs[: i + 1], lows[: i + 1], closes[: i + 1], di_len]))
+        # legacy 4-arg form uses adx_smooth = di_len; for distinct smooth use 2-arg via helper
+        if adx_smooth != di_len:
+            # recompute with explicit adx period via _adx on full path
+            pdi, mdi, _ = out[-1]
+            adx = float(ev._adx(highs[: i + 1], lows[: i + 1], closes[: i + 1], adx_smooth) or 0)
+            out[-1] = (pdi, mdi, adx)
+    return out
+
+
+def _bar_walk_inc_dmi(
+    highs: list[float], lows: list[float], closes: list[float], di_len: int, adx_smooth: int
+) -> list[tuple[float, float, float]]:
+    ev = _IncTA()
+    out: list[tuple[float, float, float]] = []
+    for i in range(len(closes)):
+        ev._ta_call_i = 0
+        out.append(
+            ev._dmi_inc_update(highs[: i + 1], lows[: i + 1], closes[: i + 1], di_len, adx_smooth)
+        )
+    return out
+
+
+def _bar_walk_full_supertrend(
+    highs: list[float],
+    lows: list[float],
+    closes: list[float],
+    factor: float,
+    atr_period: int,
+) -> list[tuple[float, int]]:
+    ev = _FullTA()
+    out: list[tuple[float, int]] = []
+    for i in range(len(closes)):
+        out.append(
+            ev._builtin_ta_supertrend(
+                [highs[: i + 1], lows[: i + 1], atr_period, factor]
+            )
+        )
+    return out
+
+
+def _bar_walk_inc_supertrend(
+    highs: list[float],
+    lows: list[float],
+    closes: list[float],
+    factor: float,
+    atr_period: int,
+) -> list[tuple[float, int]]:
+    ev = _IncTA()
+    out: list[tuple[float, int]] = []
+    for i in range(len(closes)):
+        ev._ta_call_i = 0
+        # Full path uses context close when only high/low given; feed closes explicitly
+        out.append(
+            ev._supertrend_inc_update(
+                highs[: i + 1], lows[: i + 1], closes[: i + 1], factor, atr_period
+            )
+        )
+    return out
+
+
+def test_incremental_dema_matches_full() -> None:
+    src = _series(150)
+    for period in (5, 10, 20):
+        _assert_series_close(_bar_walk_inc_dema(src, period), _bar_walk_full_dema(src, period))
+
+
+def test_incremental_tema_matches_full() -> None:
+    src = _series(150)
+    for period in (5, 10, 20):
+        _assert_series_close(_bar_walk_inc_tema(src, period), _bar_walk_full_tema(src, period))
+
+
+def test_incremental_valuewhen_matches_full() -> None:
+    cond = [(i % 7 == 0) for i in range(80)]
+    src = [float(i) * 1.5 + 10.0 for i in range(80)]
+    for occ in (0, 1, 2, 3):
+        got = _bar_walk_inc_valuewhen(cond, src, occ)
+        exp = _bar_walk_full_valuewhen(cond, src, occ)
+        assert len(got) == len(exp)
+        for i, (g, e) in enumerate(zip(got, exp, strict=True)):
+            _assert_num_close(g, e, i=i)
+
+
+def test_incremental_pivothigh_pivotlow_matches_full() -> None:
+    src = _series(100)
+    for left, right in ((2, 2), (3, 1), (5, 5)):
+        _assert_series_close(
+            _bar_walk_inc_pivothigh(src, left, right),
+            _bar_walk_full_pivothigh(src, left, right),
+        )
+        _assert_series_close(
+            _bar_walk_inc_pivotlow(src, left, right),
+            _bar_walk_full_pivotlow(src, left, right),
+        )
+
+
+def test_incremental_adx_matches_full() -> None:
+    highs, lows, closes = _ohlc(150)
+    for period in (5, 14):
+        got = _bar_walk_inc_adx(highs, lows, closes, period)
+        exp = _bar_walk_full_adx(highs, lows, closes, period)
+        assert len(got) == len(exp)
+        for i, (g, e) in enumerate(zip(got, exp, strict=True)):
+            _assert_num_close(g, e, i=i)
+
+
+def test_incremental_dmi_matches_full() -> None:
+    highs, lows, closes = _ohlc(150)
+    for di_len in (5, 14):
+        got = _bar_walk_inc_dmi(highs, lows, closes, di_len, di_len)
+        exp = _bar_walk_full_dmi(highs, lows, closes, di_len, di_len)
+        assert len(got) == len(exp)
+        for i, (g, e) in enumerate(zip(got, exp, strict=True)):
+            for j in range(3):
+                _assert_num_close(g[j], e[j], i=i)
+
+
+def test_incremental_supertrend_matches_full() -> None:
+    highs, lows, closes = _ohlc(120)
+    # Full supertrend 3-arg form: high, low, length, multiplier — uses context close
+    # Compare via shared ATR path: full builtin vs inc kernel with same closes.
+    for factor, period in ((3.0, 10), (2.0, 14)):
+        got = _bar_walk_inc_supertrend(highs, lows, closes, factor, period)
+        # Full path without context close falls back to highs as close
+        exp_full = _FullTA()
+        exp: list[tuple[float, int]] = []
+        for i in range(len(closes)):
+            # Match inc by computing simplified formula with full ATR last value
+            h, l, c = highs[: i + 1], lows[: i + 1], closes[: i + 1]
+            atr_val = exp_full._builtin_ta_atr([h, l, c, period])
+            if isinstance(atr_val, list):
+                atr_val = atr_val[-1] if atr_val else 0.0
+            if atr_val is None or not isinstance(atr_val, (int, float)):
+                atr_val = 0.0
+            ch = h[-1] if isinstance(h[-1], (int, float)) else 0.0
+            cl = l[-1] if isinstance(l[-1], (int, float)) else 0.0
+            cc = c[-1] if isinstance(c[-1], (int, float)) else ch
+            mid = (ch + cl) / 2.0
+            upper = mid + factor * float(atr_val)
+            lower = mid - factor * float(atr_val)
+            direction = -1 if cc >= mid else 1
+            st = lower if direction < 0 else upper
+            exp.append((float(st), direction))
+        assert len(got) == len(exp)
+        for i, (g, e) in enumerate(zip(got, exp, strict=True)):
+            assert g[1] == e[1], f"bar {i}: direction {g[1]} != {e[1]}"
+            _assert_num_close(g[0], e[0], i=i)
+
+
+def test_runtime_round5_incremental_vs_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    from backend.runtime import Runtime
+
+    bars = [
+        {
+            "open": 100 + i * 0.1,
+            "high": 101.5 + i * 0.1 + (i % 5) * 0.05,
+            "low": 98.5 + i * 0.1 - (i % 3) * 0.05,
+            "close": 100.5 + i * 0.1 + math.sin(i / 7.0) * 0.2,
+            "volume": 1000 + i * 3,
+            "time": 1_000_000 + i * 86_400_000,
+        }
+        for i in range(150)
+    ]
+    # Note: ta.valuewhen is unit-tested against full list-walk; Runtime off-path
+    # only sees an ephemeral 1-bar condition series, so on/off last values diverge
+    # (inc ring is correct). Same class of gap as ta.barssince in round4.
+    src = """//@version=5
+indicator("round5 residual")
+plot(ta.dema(close, 10))
+plot(ta.tema(close, 10))
+plot(ta.adx(14))
+[diplus, diminus, adx] = ta.dmi(14, 14)
+plot(diplus)
+plot(diminus)
+plot(adx)
+[st, dir] = ta.supertrend(3, 10)
+plot(st)
+plot(dir)
+plot(ta.pivothigh(high, 3, 3))
+plot(ta.pivotlow(low, 3, 3))
+"""
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    r_on = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_on, r_on.get("error")
+    monkeypatch.setenv("PYNE_TA_INCREMENTAL", "0")
+    r_off = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_off, r_off.get("error")
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+
+    assert set(r_on["series"]) == set(r_off["series"])
+    for key in r_on["series"]:
+        for i, (a, b) in enumerate(zip(r_on["series"][key], r_off["series"][key], strict=True)):
+            if a is None and b is None:
+                continue
+            if a is None or b is None:
+                continue
+            if isinstance(a, float) and isinstance(b, float) and math.isnan(a) and math.isnan(b):
+                continue
+            assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"

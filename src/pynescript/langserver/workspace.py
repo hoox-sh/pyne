@@ -118,6 +118,9 @@ class Workspace:
     ) -> TextDocumentState:
         """Apply full-document or incremental LSP content changes, then re-lint.
 
+        Skips re-parse/lint when the buffer text is unchanged (version-only
+        bumps or no-op edits) so large docs are not re-parsed for free.
+
         Raises:
             ValueError: If *uri* is not in the workspace.
         """
@@ -125,6 +128,7 @@ class Workspace:
         if not doc:
             raise ValueError(f"Document {uri} not found in workspace")
 
+        previous_source = doc.source
         for change in changes:
             if isinstance(change, lsp.TextDocumentContentChangeWholeDocument):
                 doc.source = change.text
@@ -134,7 +138,9 @@ class Workspace:
                 doc.source = _apply_text_edit(doc.source, change.range, change.text)
 
         doc.version = version
-        self._parse_and_lint(doc)
+        # Correctness: only skip when text is identical. Version is still updated.
+        if doc.source != previous_source:
+            self._parse_and_lint(doc)
         return doc
 
     def _parse_and_lint(self, doc: TextDocumentState) -> None:
@@ -226,7 +232,12 @@ def _lint_warning_to_diagnostic(warning: LintWarning, source: str) -> lsp.Diagno
     severity = severity_map.get(warning.severity, lsp.DiagnosticSeverity.Warning)
 
     column = warning.column if warning.column is not None else 0
-    end_column = min(column + len(line_text) if line_text else column + 10, 2000)
+    # Highlight from column to end of line (not column + line_len, which overshoots).
+    if line_text:
+        end_column = max(column + 1, len(line_text))
+    else:
+        end_column = column + 1
+    end_column = min(end_column, 2000)
 
     return lsp.Diagnostic(
         range=lsp.Range(
@@ -241,16 +252,28 @@ def _lint_warning_to_diagnostic(warning: LintWarning, source: str) -> lsp.Diagno
 
 
 def _apply_text_edit(source: str, range: lsp.Range, text: str) -> str:
-    """Apply a text edit to the source."""
+    """Apply an incremental LSP text edit to *source*.
+
+    Pads the line list when the client range sits at/past the current end of
+    the buffer (common for appends on files without a trailing newline). Silent
+    no-op on out-of-range positions previously left **stale** buffers after
+    ``didChange`` — that is a diagnostics correctness bug.
+    """
     lines = source.split("\n")
 
-    start_line = range.start.line
-    start_col = range.start.character
-    end_line = range.end.line
-    end_col = range.end.character
+    start_line = max(0, range.start.line)
+    start_col = max(0, range.start.character)
+    end_line = max(0, range.end.line)
+    end_col = max(0, range.end.character)
 
-    if start_line >= len(lines) or end_line >= len(lines):
-        return source
+    # Ensure line list covers the edit range (EOF append / past-last-line).
+    max_line = max(start_line, end_line)
+    while len(lines) <= max_line:
+        lines.append("")
+
+    # Clamp columns so partial edits never raise; clients may send stale cols.
+    start_col = min(start_col, len(lines[start_line]))
+    end_col = min(end_col, len(lines[end_line]))
 
     start_str = lines[start_line][:start_col]
     end_str = lines[end_line][end_col:]

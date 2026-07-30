@@ -1529,6 +1529,482 @@ class TechnicalHelpers:
         st["value"] = slope * (n - 1) + mean_y
         return float(st["value"])
 
+    # ------------------------------------------------------------------
+    # Round 5 residual incremental kernels (dmi/adx, supertrend, valuewhen,
+    # pivots, dema/tema). Nested RMA uses slot-free state helpers.
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _rma_state_new() -> dict[str, Any]:
+        return {
+            "seed_buf": [],
+            "rma": None,
+            "seeded": False,
+            "started": False,
+            "value": None,
+        }
+
+    @staticmethod
+    def _rma_state_step(st: dict[str, Any], raw: Any, period: int) -> float | None:
+        """One RMA sample step matching ``_rma_inc_update`` / full ``_rma``."""
+        if period <= 0:
+            return None
+        if raw is None:
+            x = math.nan
+        else:
+            try:
+                x = float(raw)
+            except (TypeError, ValueError):
+                x = math.nan
+        alpha = 1.0 / period
+        if not st["started"]:
+            if math.isnan(x):
+                st["value"] = None
+                return None
+            st["started"] = True
+        if not st["seeded"]:
+            if not math.isnan(x):
+                st["seed_buf"].append(x)
+            if len(st["seed_buf"]) < period:
+                st["value"] = None
+                return None
+            seed = sum(st["seed_buf"][:period]) / period
+            st["rma"] = seed
+            st["seeded"] = True
+            st["value"] = seed
+            st["seed_buf"] = []
+            return seed
+        if math.isnan(x):
+            st["value"] = st["rma"]
+            return st.get("value")
+        st["rma"] = alpha * x + (1.0 - alpha) * float(st["rma"])
+        st["value"] = st["rma"]
+        return st.get("value")
+
+    @staticmethod
+    def _is_nan_num(v: Any) -> bool:
+        return v is None or (isinstance(v, float) and math.isnan(v))
+
+    def _adx_inc_update(
+        self,
+        highs: list[Any],
+        lows: list[Any],
+        closes: list[Any],
+        period: int,
+    ) -> float:
+        """Incremental ADX matching full ``_adx`` (last non-nan or 0.0).
+
+        Uses nan-first DM (same as ``_adx``), three Wilder RMAs for TR/+DM/-DM
+        and a fourth RMA on DX.
+        """
+        if period <= 0:
+            return 0.0
+        slot = self._ta_next_slot()
+        key = ("adx", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {
+                "prev_h": None,
+                "prev_l": None,
+                "prev_c": None,
+                "n": 0,
+                "rma_tr": self._rma_state_new(),
+                "rma_pdm": self._rma_state_new(),
+                "rma_mdm": self._rma_state_new(),
+                "rma_dx": self._rma_state_new(),
+                "value": 0.0,
+            }
+            bucket[key] = st
+
+        h = self._series_last(highs)
+        l = self._series_last(lows)
+        c = self._series_last(closes)
+        st["n"] = int(st["n"]) + 1
+        n = int(st["n"])
+
+        prev_h, prev_l, prev_c = st["prev_h"], st["prev_l"], st["prev_c"]
+        st["prev_h"], st["prev_l"], st["prev_c"] = h, l, c
+
+        # True range / DM for this bar (bar 0 of series: TR None, DM nan).
+        # Always step RMA state — full path early ``len < period`` only affects
+        # the returned value, not the eventual seeded RMA once len grows.
+        if prev_c is None or prev_h is None or prev_l is None:
+            tr: float | None = None
+            plus_dm: float = math.nan
+            minus_dm: float = math.nan
+        else:
+            try:
+                hf = float(h) if h is not None else float("nan")
+                lf = float(l) if l is not None else float("nan")
+                ph = float(prev_h)
+                pl = float(prev_l)
+                pc = float(prev_c)
+                tr = max(hf - lf, abs(hf - pc), abs(lf - pc))
+                high_diff = hf - ph
+                low_diff = pl - lf
+                plus_dm = high_diff if high_diff > low_diff and high_diff > 0 else 0.0
+                minus_dm = low_diff if low_diff > high_diff and low_diff > 0 else 0.0
+            except (TypeError, ValueError):
+                tr = None
+                plus_dm = math.nan
+                minus_dm = math.nan
+
+        atr_v = self._rma_state_step(st["rma_tr"], tr, period)
+        pd = self._rma_state_step(st["rma_pdm"], plus_dm, period)
+        md = self._rma_state_step(st["rma_mdm"], minus_dm, period)
+
+        # Full ``_adx``: len < period → 0.0 (state still advanced above).
+        if n < period:
+            st["value"] = 0.0
+            return 0.0
+
+        # Full path: if ATR still all-nan → 0.0 without seeding DX from DI.
+        # Once ATR has seeded we step DX every bar (including nan DI → carry).
+        if not st["rma_tr"]["seeded"]:
+            st["value"] = 0.0
+            return 0.0
+
+        if self._is_nan_num(atr_v) or self._is_nan_num(pd) or self._is_nan_num(md):
+            dx_in: float = math.nan
+        else:
+            plus_di = 100.0 * float(pd) / float(atr_v) if atr_v else 0.0
+            minus_di = 100.0 * float(md) / float(atr_v) if atr_v else 0.0
+            denom = plus_di + minus_di
+            dx_in = 100.0 * abs(plus_di - minus_di) / denom if denom else 0.0
+
+        adx_v = self._rma_state_step(st["rma_dx"], dx_in, period)
+        if self._is_nan_num(adx_v):
+            st["value"] = 0.0
+            return 0.0
+        st["value"] = float(adx_v)
+        return float(adx_v)
+
+    def _dmi_inc_update(
+        self,
+        highs: list[Any],
+        lows: list[Any],
+        closes: list[Any],
+        di_len: int,
+        adx_smooth: int,
+    ) -> tuple[float, float, float]:
+        """Incremental DMI matching BasicIndicators ``_builtin_ta_dmi``.
+
+        +DI/-DI use 0-first DM + RMA(di_len); ADX uses nan-first ``_adx`` path
+        with ``adx_smooth`` (separate call-site state via ``_adx_inc_update``).
+        """
+        if di_len < 1:
+            return math.nan, math.nan, math.nan
+        slot = self._ta_next_slot()
+        key = ("dmi", slot, di_len, adx_smooth)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {
+                "prev_h": None,
+                "prev_l": None,
+                "prev_c": None,
+                "rma_tr": self._rma_state_new(),
+                "rma_pdm": self._rma_state_new(),
+                "rma_mdm": self._rma_state_new(),
+                "plus_di": math.nan,
+                "minus_di": math.nan,
+            }
+            bucket[key] = st
+
+        h = self._series_last(highs)
+        l = self._series_last(lows)
+        c = self._series_last(closes)
+        prev_h, prev_l, prev_c = st["prev_h"], st["prev_l"], st["prev_c"]
+        st["prev_h"], st["prev_l"], st["prev_c"] = h, l, c
+
+        # Bar 0 of series: DM = 0.0 (basic dmi), TR = None
+        if prev_h is None or prev_l is None or prev_c is None:
+            tr: float | None = None
+            plus_dm = 0.0
+            minus_dm = 0.0
+        else:
+            try:
+                hf = float(h) if h is not None else 0.0
+                lf = float(l) if l is not None else 0.0
+                ph = float(prev_h) if prev_h is not None else 0.0
+                pl = float(prev_l) if prev_l is not None else 0.0
+                pc = float(prev_c)
+                tr = max(hf - lf, abs(hf - pc), abs(lf - pc))
+                high_diff = hf - ph
+                low_diff = pl - lf
+                plus_dm = high_diff if high_diff > low_diff and high_diff > 0 else 0.0
+                minus_dm = low_diff if low_diff > high_diff and low_diff > 0 else 0.0
+            except (TypeError, ValueError):
+                tr = None
+                plus_dm = 0.0
+                minus_dm = 0.0
+
+        atr_v = self._rma_state_step(st["rma_tr"], tr, di_len)
+        pd = self._rma_state_step(st["rma_pdm"], plus_dm, di_len)
+        md = self._rma_state_step(st["rma_mdm"], minus_dm, di_len)
+
+        if self._is_nan_num(atr_v) or self._is_nan_num(pd) or self._is_nan_num(md):
+            # Full path: nan atr → 100*pd/atr yields nan when atr is nan (truthy)
+            if atr_v is None:
+                plus_di = math.nan
+                minus_di = math.nan
+            elif isinstance(atr_v, float) and math.isnan(atr_v):
+                plus_di = math.nan
+                minus_di = math.nan
+            elif not atr_v:
+                plus_di = 0.0
+                minus_di = 0.0
+            else:
+                pd_f = 0.0 if self._is_nan_num(pd) else float(pd)
+                md_f = 0.0 if self._is_nan_num(md) else float(md)
+                plus_di = 100.0 * pd_f / float(atr_v)
+                minus_di = 100.0 * md_f / float(atr_v)
+        else:
+            if not atr_v:
+                plus_di = 0.0
+                minus_di = 0.0
+            else:
+                plus_di = 100.0 * float(pd) / float(atr_v)
+                minus_di = 100.0 * float(md) / float(atr_v)
+
+        st["plus_di"] = plus_di
+        st["minus_di"] = minus_di
+
+        # ADX: separate call-site (consumes next slot) — same period semantics as full
+        adx = self._adx_inc_update(highs, lows, closes, adx_smooth)
+        return float(plus_di), float(minus_di), float(adx)
+
+    def _supertrend_inc_update(
+        self,
+        highs: list[Any],
+        lows: list[Any],
+        closes: list[Any],
+        factor: float,
+        atr_period: int,
+    ) -> tuple[float, int]:
+        """Incremental supertrend matching BasicIndicators simplified path.
+
+        ATR via ``_atr_inc_update`` (own slot); mid/bands/direction O(1).
+        """
+        atr_val = self._atr_inc_update(highs, lows, closes, atr_period)
+        if atr_val is None or not isinstance(atr_val, (int, float)):
+            atr_val = 0.0
+        try:
+            atr_f = float(atr_val)
+            if math.isnan(atr_f):
+                atr_f = 0.0
+        except (TypeError, ValueError):
+            atr_f = 0.0
+
+        h = self._series_last(highs)
+        l = self._series_last(lows)
+        c = self._series_last(closes)
+        try:
+            current_high = float(h) if h is not None else 0.0
+            current_low = float(l) if l is not None else 0.0
+            current_close = float(c) if c is not None else current_high
+        except (TypeError, ValueError):
+            current_high = current_low = current_close = 0.0
+
+        mid = (current_high + current_low) / 2.0
+        upper = mid + factor * atr_f
+        lower = mid - factor * atr_f
+        direction = -1 if current_close >= mid else 1
+        supertrend = lower if direction < 0 else upper
+        return float(supertrend), direction
+
+    def _valuewhen_inc_update(
+        self,
+        condition: Any,
+        source: Any,
+        occurrence: int,
+    ) -> Any:
+        """Incremental ``ta.valuewhen`` — ring of last (occurrence+1) true sources.
+
+        Matches full ``_valuewhen`` when fed one sample per bar.
+        """
+        if occurrence < 0:
+            return None
+        slot = self._ta_next_slot()
+        key = ("valuewhen", slot, occurrence)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            # Ring of source values at true bars; newest at right.
+            st = {"hits": deque(maxlen=occurrence + 1), "value": None}
+            bucket[key] = st
+
+        # One sample per bar (list prefixes from unit tests use last element).
+        cond = self._series_last(condition) if not isinstance(condition, (bool, int, float)) else condition
+        if isinstance(condition, list):
+            cond = condition[-1] if condition else None
+        src = self._series_last(source)
+        if isinstance(source, list):
+            src = source[-1] if source else None
+
+        # Match ``if flag`` in full ``_valuewhen``: truthy Python semantics.
+        is_true = bool(cond)
+
+        hits: deque[Any] = st["hits"]
+        if is_true:
+            hits.append(src)
+        if len(hits) <= occurrence:
+            st["value"] = None
+            return None
+        # occurrence=0 → most recent; occurrence=1 → second most recent, …
+        st["value"] = hits[-(occurrence + 1)]
+        return st["value"]
+
+    def _pivothigh_inc_update(
+        self,
+        series: list[Any],
+        left_bars: int,
+        right_bars: int,
+    ) -> float | None:
+        """Incremental pivothigh matching BasicIndicators left-only check."""
+        if left_bars < 0 or right_bars < 0:
+            return None
+        slot = self._ta_next_slot()
+        key = ("pivothigh", slot, left_bars, right_bars)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            need = left_bars + 1
+            st = {"window": deque(maxlen=max(need, 1)), "n": 0, "value": None}
+            bucket[key] = st
+        x = self._series_last(series)
+        st["window"].append(x)
+        st["n"] = int(st["n"]) + 1
+        # Full: len(source) <= left + right → None
+        if int(st["n"]) <= left_bars + right_bars:
+            st["value"] = None
+            return None
+        window: deque[Any] = st["window"]
+        if len(window) < left_bars + 1:
+            st["value"] = None
+            return None
+        current = window[-1]
+        if current is None:
+            st["value"] = None
+            return None
+        try:
+            cur_f = float(current)
+        except (TypeError, ValueError):
+            st["value"] = None
+            return None
+        for i in range(1, left_bars + 1):
+            left_val = window[-1 - i]
+            if left_val is None:
+                continue
+            try:
+                if float(left_val) >= cur_f:
+                    st["value"] = None
+                    return None
+            except (TypeError, ValueError):
+                continue
+        st["value"] = cur_f
+        return cur_f
+
+    def _pivotlow_inc_update(
+        self,
+        series: list[Any],
+        left_bars: int,
+        right_bars: int,
+    ) -> float | None:
+        """Incremental pivotlow matching BasicIndicators left-only check."""
+        if left_bars < 0 or right_bars < 0:
+            return None
+        slot = self._ta_next_slot()
+        key = ("pivotlow", slot, left_bars, right_bars)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            need = left_bars + 1
+            st = {"window": deque(maxlen=max(need, 1)), "n": 0, "value": None}
+            bucket[key] = st
+        x = self._series_last(series)
+        st["window"].append(x)
+        st["n"] = int(st["n"]) + 1
+        if int(st["n"]) <= left_bars + right_bars:
+            st["value"] = None
+            return None
+        window: deque[Any] = st["window"]
+        if len(window) < left_bars + 1:
+            st["value"] = None
+            return None
+        current = window[-1]
+        if current is None:
+            st["value"] = None
+            return None
+        try:
+            cur_f = float(current)
+        except (TypeError, ValueError):
+            st["value"] = None
+            return None
+        for i in range(1, left_bars + 1):
+            left_val = window[-1 - i]
+            if left_val is None:
+                continue
+            try:
+                if float(left_val) <= cur_f:
+                    st["value"] = None
+                    return None
+            except (TypeError, ValueError):
+                continue
+        st["value"] = cur_f
+        return cur_f
+
+    def _dema_inc_update(self, series: list[Any], period: int) -> float | None:
+        """Incremental DEMA: 2*EMA(src) - EMA(EMA(src)). Matches full last value."""
+        if period <= 0:
+            return None
+        slot = self._ta_next_slot()
+        key = ("dema", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {
+                "ema1": self._ema_state_new(),
+                "ema2": self._ema_state_new(),
+                "value": None,
+            }
+            bucket[key] = st
+        x = self._series_last(series)
+        e1 = self._ema_state_step(st["ema1"], x, period)
+        e2 = self._ema_state_step(st["ema2"], e1, period)
+        if e1 is None or e2 is None:
+            st["value"] = None
+            return None
+        st["value"] = 2.0 * float(e1) - float(e2)
+        return st.get("value")
+
+    def _tema_inc_update(self, series: list[Any], period: int) -> float | None:
+        """Incremental TEMA: 3*e1 - 3*e2 + e3. Matches full last value."""
+        if period <= 0:
+            return None
+        slot = self._ta_next_slot()
+        key = ("tema", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {
+                "ema1": self._ema_state_new(),
+                "ema2": self._ema_state_new(),
+                "ema3": self._ema_state_new(),
+                "value": None,
+            }
+            bucket[key] = st
+        x = self._series_last(series)
+        e1 = self._ema_state_step(st["ema1"], x, period)
+        e2 = self._ema_state_step(st["ema2"], e1, period)
+        e3 = self._ema_state_step(st["ema3"], e2, period)
+        if e1 is None or e2 is None or e3 is None:
+            st["value"] = None
+            return None
+        st["value"] = 3.0 * float(e1) - 3.0 * float(e2) + float(e3)
+        return st.get("value")
+
     def _finalize_series(self, values: list[Any]) -> Any:
         """Return full series list, or current scalar in bar mode."""
         if not self._bar_mode():
@@ -1543,6 +2019,25 @@ class TechnicalHelpers:
         if n > self._SERIES_MAX:
             return series[-self._SERIES_MAX :]
         return series
+
+    def _last_sample_path(self) -> bool:
+        """True when pure-incremental kernels may skip full series materialization.
+
+        Mirrors ``PYNE_TA_INCREMENTAL`` / ``_use_incremental_ta``: bar mode with
+        call-site state only needs one sample via ``_series_last``.
+        """
+        return self._use_incremental_ta()
+
+    def _as_series_or_raw(self, value: Any, *, last_sample_ok: bool = False) -> Any:
+        """Materialize chronological list, or pass *value* through for inc kernels.
+
+        When ``last_sample_ok`` and incremental TA is active, return *value*
+        unchanged so ``_series_last`` can read ``.current`` / ``history[0]`` /
+        ``list[-1]`` without reversing PineSeries history every bar.
+        """
+        if last_sample_ok and self._last_sample_path():
+            return value
+        return self._as_series(value)
 
     def _as_series(self, value: Any) -> list[Any]:
         """Convert a Pine-series-like object to a list.
@@ -1562,8 +2057,10 @@ class TechnicalHelpers:
           multiple ``ta.*`` calls on the same ``PineSeries`` reverse once.
         - Only the newest ``_SERIES_MAX`` samples are reversed (no full-history
           reverse then slice).
-        - Pure-incremental kernels only need ``series[-1]``; they go through
-          ``_series_last`` which accepts ``PineSeries`` without materializing.
+        - Pure-incremental kernels only need the last sample; prefer
+          ``_as_series_or_raw(..., last_sample_ok=True)`` or
+          ``_expect_series(..., last_sample_ok=True)`` so PineSeries is never
+          reversed on the hot path.
         """
         if isinstance(value, list):
             return self._cap_series_list(value)
@@ -1625,6 +2122,19 @@ class TechnicalHelpers:
         # Fall back to empty — callers treat short series as na
         return []
 
+    def _context_source(self, name: str) -> Any:
+        """Raw context series for last-sample kernels (no cap-slice copy).
+
+        Runtime stores chronological append-only lists in ``current_series``.
+        Incremental kernels only read ``_series_last``; return the live list
+        (or empty) without allocating a capped slice.
+        """
+        series_map = getattr(self, "current_series", None) or {}
+        src = series_map.get(name)
+        if src is None:
+            return []
+        return src
+
     def _is_period_like(self, value: Any) -> bool:
         """True if *value* looks like a length/period (int or whole float)."""
         if isinstance(value, bool):
@@ -1642,7 +2152,8 @@ class TechnicalHelpers:
         *,
         default_source: str | None = "close",
         allow_period_only: bool = False,
-    ) -> tuple[list[Any], int]:
+        last_sample_ok: bool = False,
+    ) -> tuple[Any, int]:
         """Validate and extract series and period arguments.
 
         TradingView allows ``ta.sma(close, 14)`` and, for some functions,
@@ -1650,31 +2161,51 @@ class TechnicalHelpers:
 
         When ``allow_period_only`` is True and a single period-like arg is
         passed, the series is taken from ``current_series[default_source]``.
+
+        **last_sample_ok:** when True *and* incremental TA is active, skip
+        chronological materialization of PineSeries / history wrappers.
+        The returned source is raw (list, PineSeries, scalar) and is only safe
+        for kernels that use ``_series_last`` (pure incremental update paths).
+        Full-recompute paths must leave this False (default).
         """
+        raw_ok = bool(last_sample_ok) and self._last_sample_path()
         if allow_period_only and len(args) == 1 and self._is_period_like(args[0]):
             if not default_source:
                 self._error(f"ta.* function requires {length} argument(s), got 1. Expected: (series, period)")
-            series = self._context_series(default_source)
             period = self._expect_int(args[0], "Period must be an integer")
+            if raw_ok:
+                return self._context_source(default_source), period
+            series = self._context_series(default_source)
             return series, period
         if len(args) != length:
             self._error(f"ta.* function requires {length} argument(s), got {len(args)}. Expected: (series, period)")
-        series = self._as_series(args[0])
-        # If caller passed a scalar as "series" (e.g. intermediate expression),
-        # wrap and continue — period must still resolve.
+        # Period first so invalid periods fail before any materialization work.
         period = self._expect_int(
             args[1],
             "Second argument must be an integer (period)",
         )
+        if raw_ok:
+            return args[0], period
+        series = self._as_series(args[0])
+        # If caller passed a scalar as "series" (e.g. intermediate expression),
+        # wrap and continue — period must still resolve.
         return series, period
 
     def _expect_two_series(
         self,
         args: list[Any],
-    ) -> tuple[list[Any], list[Any]]:
-        """Validate and extract two series arguments."""
+        *,
+        last_sample_ok: bool = False,
+    ) -> tuple[Any, Any]:
+        """Validate and extract two series arguments.
+
+        With ``last_sample_ok`` + incremental TA, pass sources through for
+        stateful crossover / last-sample kernels (no PineSeries reverse).
+        """
         if len(args) != BINARY:
             self._error("Function takes two series arguments")
+        if last_sample_ok and self._last_sample_path():
+            return args[0], args[1]
         return (
             self._as_series(args[0]),
             self._as_series(args[1]),

@@ -59,13 +59,23 @@ def handle_hover(params: lsp.HoverParams, source: str | None) -> lsp.Hover | Non
     if not word:
         return None
 
-    # Try to find builtin documentation
+    # Try full word first (get_word_at_position includes dots: "ta.sma").
     builtin_info = get_builtin(word)
     if builtin_info:
         return _build_builtin_hover(builtin_info, position.line, start, end)
 
-    # Try with module prefix (e.g., "sma" -> "ta.sma")
-    # Check if the word is preceded by a module name
+    # If the word itself is dotted but only the last segment was typed without
+    # a full metadata hit, try the trailing identifier alone (rare).
+    if "." in word:
+        leaf = word.rsplit(".", 1)[-1]
+        # Prefer module.leaf form which is the metadata key.
+        for candidate in (word, leaf):
+            builtin_info = get_builtin(candidate)
+            if builtin_info:
+                return _build_builtin_hover(builtin_info, position.line, start, end)
+
+    # Fallback: bare leaf preceded by "module." (when word pattern missed the
+    # module, e.g. incomplete / mid-edit buffers).
     text_before = line_text[:start]
     words_before = text_before.rstrip().split()
     if words_before:

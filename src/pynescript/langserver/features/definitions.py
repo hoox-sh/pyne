@@ -35,13 +35,21 @@ from pynescript.ast import node as ast
 from pynescript.langserver.protocol.utils import get_word_at_position
 
 
-def handle_definition(params: lsp.DefinitionParams, source: str | None, uri: str) -> list[lsp.Location] | None:
+def handle_definition(
+    params: lsp.DefinitionParams,
+    source: str | None,
+    uri: str,
+    tree: Any | None = ...,
+) -> list[lsp.Location] | None:
     """Find definition location(s) for the symbol under the cursor.
 
     Args:
         params: Client definition params (position).
         source: Document text, or ``None``.
         uri: Document URI for returned :class:`~lsprotocol.types.Location` objects.
+        tree: Pre-parsed AST from the workspace cache. Pass ``None`` when the
+            workspace already failed to parse (skips a redundant re-parse).
+            Omit (default ``...``) to parse from *source*.
 
     Returns:
         Non-empty list of locations, or ``None`` if unknown / unparsable.
@@ -58,12 +66,14 @@ def handle_definition(params: lsp.DefinitionParams, source: str | None, uri: str
     if not word:
         return None
 
-    # Parse the source to get AST
-    try:
-        from pynescript.ast.helper import parse
+    if tree is ...:
+        try:
+            from pynescript.ast.helper import parse
 
-        tree = parse(source, filename=uri)
-    except Exception:
+            tree = parse(source, filename=uri)
+        except Exception:
+            return None
+    if tree is None:
         return None
 
     # Find the definition

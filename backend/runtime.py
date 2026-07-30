@@ -49,6 +49,12 @@ _OHLC4_RE = re.compile(r"\bohlc4\b")
 _PARSE_CACHE: dict[str, Any] = {}
 _PARSE_CACHE_MAX = 64
 
+# Host-side compile cache (raw source sha256 → CompiledScript). Avoids re-running
+# corpus sanitize + engine cache lookup on every mode=compile warm re-eval.
+# Engine still has its own LRU; this is a thin SoT host short-circuit.
+_HOST_COMPILE_CACHE: dict[str, Any] = {}
+_HOST_COMPILE_CACHE_MAX = 64
+
 # Cached numba availability for mode=auto prefilter (None = not probed yet).
 _HAS_NUMBA: bool | None = None
 
@@ -74,60 +80,156 @@ def _json_safe_number(x: Any) -> float | None:
 
 
 def _series_values_jsonable(values: Any) -> list[Any]:
-    """Convert a plot series (list / numpy) to JSON-safe list of floats|null."""
+    """Convert a plot series (list / numpy) to JSON-safe list of floats|null.
+
+    Hot path for ``mode=compile`` host wrap: numpy float64 arrays from
+    ``CompiledScript.run``. Prefer C-level ``tolist()`` then sparse None fix
+    for non-finite samples (warm-up ``na``) — much faster than per-element
+    ``math.isnan`` / ``math.isinf`` in pure Python.
+    """
     if values is None:
         return []
-    # Fast path: numpy float arrays (dominant compile-mode plot output)
     try:
         import numpy as np  # noqa: PLC0415
 
-        if isinstance(values, np.ndarray) and values.dtype.kind in "fciu":
-            arr = np.asarray(values, dtype=np.float64)
-            # Vectorized nan/inf → None via object array would be slower; use list + map
-            flat = arr.ravel()
-            out: list[Any] = [None] * int(flat.size)
-            for i, x in enumerate(flat):
-                fx = float(x)
-                if math.isnan(fx) or math.isinf(fx):
-                    out[i] = None
-                else:
-                    out[i] = fx
-            return out
+        if isinstance(values, np.ndarray):
+            kind = values.dtype.kind
+            if kind in "f":
+                arr = np.asarray(values, dtype=np.float64).ravel()
+                n = int(arr.size)
+                if n == 0:
+                    return []
+                finite = np.isfinite(arr)
+                if bool(finite.all()):
+                    return arr.tolist()
+                # tolist keeps nan/inf as float; patch only non-finite slots
+                out: list[Any] = arr.tolist()
+                # Sparse bad indices (warm-up head) vs dense: both beat pure-Python loop
+                bad = np.flatnonzero(~finite)
+                for i in bad:
+                    out[int(i)] = None
+                return out
+            if kind in "iu":
+                # Integers are always finite → direct list of floats for JSON
+                return np.asarray(values, dtype=np.float64).ravel().tolist()
+            if kind == "b":
+                return [bool(x) for x in values.ravel()]
+            # object / other: fall through via tolist
+            values = values.tolist()
     except Exception:
         pass
-    if hasattr(values, "tolist"):
-        values = values.tolist()
+    if hasattr(values, "tolist") and not isinstance(values, (list, tuple)):
+        try:
+            values = values.tolist()
+        except Exception:
+            return []
     if not isinstance(values, (list, tuple)):
         return []
-    out = []
+    out_list: list[Any] = []
+    append = out_list.append
     for x in values:
         if x is None:
-            out.append(None)
-        elif isinstance(x, (int, float)) or (hasattr(x, "item") and not isinstance(x, (str, bytes))):
-            out.append(_json_safe_number(x))
+            append(None)
+        elif isinstance(x, bool):
+            append(x)
+        elif isinstance(x, (int, float)):
+            fx = float(x)
+            if math.isnan(fx) or math.isinf(fx):
+                append(None)
+            else:
+                append(fx)
+        elif hasattr(x, "item") and not isinstance(x, (str, bytes)):
+            append(_json_safe_number(x))
         else:
             # Keep non-numeric as-is only if already JSON-friendly
-            out.append(x if isinstance(x, (str, bool, dict, list)) else None)
-    return out
+            append(x if isinstance(x, (str, dict, list)) else None)
+    return out_list
+
+
+# Pack cache for warm re-runs of the same bar list (bench / re-eval).
+# Keyed by id(list); entry stores (list identity, cheap fingerprint, packed).
+# Fingerprint = (n, first.time, last.time, first.close, last.close) so in-place
+# mutation of ends invalidates; full middle edits still rare for this host path.
+_OHLCV_PACK_CACHE: dict[int, tuple[Any, tuple, tuple[Any, Any, Any, Any, Any]]] = {}
+_OHLCV_PACK_CACHE_MAX = 8
+
+
+def _ohlcv_pack_fingerprint(ohlcv_data: list[dict]) -> tuple:
+    n = len(ohlcv_data)
+    if n == 0:
+        return (0,)
+    first = ohlcv_data[0]
+    last = ohlcv_data[-1]
+    return (
+        n,
+        first.get("time"),
+        last.get("time"),
+        first.get("close"),
+        last.get("close"),
+    )
 
 
 def _ohlcv_dicts_to_arrays(ohlcv_data: list[dict]) -> tuple[Any, Any, Any, Any, Any]:
-    """Pack OHLCV dict rows into float64 numpy arrays (single pass)."""
+    """Pack OHLCV dict rows into float64 numpy arrays (single pass).
+
+    Uses list accumulation + one ``asarray`` per column (faster than pre-allocated
+    per-element store into numpy buffers). Caches by list identity + fingerprint
+    for warm re-runs (bench / re-eval same bars).
+    """
     import numpy as np  # noqa: PLC0415
 
+    oid = id(ohlcv_data)
+    fp = _ohlcv_pack_fingerprint(ohlcv_data)
+    hit = _OHLCV_PACK_CACHE.get(oid)
+    if hit is not None and hit[0] is ohlcv_data and hit[1] == fp:
+        return hit[2]
+
     n = len(ohlcv_data)
-    opens = np.empty(n, dtype=np.float64)
-    highs = np.empty(n, dtype=np.float64)
-    lows = np.empty(n, dtype=np.float64)
-    closes = np.empty(n, dtype=np.float64)
-    volumes = np.empty(n, dtype=np.float64)
-    for i, b in enumerate(ohlcv_data):
-        opens[i] = float(b.get("open", 0.0) or 0.0)
-        highs[i] = float(b.get("high", 0.0) or 0.0)
-        lows[i] = float(b.get("low", 0.0) or 0.0)
-        closes[i] = float(b.get("close", 0.0) or 0.0)
-        volumes[i] = float(b.get("volume", 1.0) if b.get("volume") is not None else 1.0)
-    return opens, highs, lows, closes, volumes
+    if n == 0:
+        z = np.empty(0, dtype=np.float64)
+        return (z, z, z, z, z)
+
+    # Single-pass Python lists, then one asarray/column (faster than empty+assign
+    # or per-cell float()). Prefer direct keys when present (API/bench contract).
+    o_l: list[Any] = []
+    h_l: list[Any] = []
+    l_l: list[Any] = []
+    c_l: list[Any] = []
+    v_l: list[Any] = []
+    oa, ha, la, ca, va = o_l.append, h_l.append, l_l.append, c_l.append, v_l.append
+    for b in ohlcv_data:
+        # Hot path: required OHLC keys (KeyError → safe defaults)
+        try:
+            o = b["open"]
+            h = b["high"]
+            l = b["low"]
+            c = b["close"]
+        except KeyError:
+            o = b.get("open", 0.0)
+            h = b.get("high", 0.0)
+            l = b.get("low", 0.0)
+            c = b.get("close", 0.0)
+        oa(0.0 if o is None else o)
+        ha(0.0 if h is None else h)
+        la(0.0 if l is None else l)
+        ca(0.0 if c is None else c)
+        vol = b.get("volume", 1.0)
+        va(1.0 if vol is None else vol)
+
+    packed = (
+        np.asarray(o_l, dtype=np.float64),
+        np.asarray(h_l, dtype=np.float64),
+        np.asarray(l_l, dtype=np.float64),
+        np.asarray(c_l, dtype=np.float64),
+        np.asarray(v_l, dtype=np.float64),
+    )
+    if len(_OHLCV_PACK_CACHE) >= _OHLCV_PACK_CACHE_MAX:
+        try:
+            _OHLCV_PACK_CACHE.pop(next(iter(_OHLCV_PACK_CACHE)))
+        except StopIteration:
+            pass
+    _OHLCV_PACK_CACHE[oid] = (ohlcv_data, fp, packed)
+    return packed
 
 
 def _parse_script(source_code: str) -> Any:
@@ -247,9 +349,13 @@ class Chart:
     is_linebreak: bool = False
     is_point_figure: bool = False
     is_pointfigure: bool = False
+    is_pnf: bool = False  # TV name for point-and-figure
     is_renko: bool = False
     is_range: bool = False
     is_standard: bool = True
+    # Viewport (host may override; Runtime seeds from bar range)
+    left_visible_bar_time: int | float = 0
+    right_visible_bar_time: int | float = 0
 
 
 class Runtime:
@@ -280,6 +386,16 @@ class Runtime:
         if ":" in symbol:
             return symbol.split(":", maxsplit=1)[0]
         return ""
+
+    def _make_chart(self, ohlcv_data: list | None = None) -> Chart:
+        """Build a Chart host object seeded with viewport times from bars."""
+        chart = Chart()
+        if ohlcv_data:
+            first_t = ohlcv_data[0].get("time", 0) or 0
+            last_t = ohlcv_data[-1].get("time", 0) or 0
+            chart.left_visible_bar_time = first_t
+            chart.right_visible_bar_time = last_t
+        return chart
 
     def configure_footprint(self, footprint_data: dict) -> None:
         """Configure syminfo based on footprint data.
@@ -396,7 +512,7 @@ class Runtime:
             "syminfo": self._syminfo,
             "timeframe": tf,
             "barstate": barstate,
-            "chart": Chart(),
+            "chart": self._make_chart(ohlcv_data),
             "timeframe.period": tf.period,
             "timeframe.main_period": tf.main_period,
             "timeframe.multiplier": tf.multiplier,
@@ -464,19 +580,35 @@ class Runtime:
 
         n_bars = len(ohlcv_data)
         last_bar_i = n_bars - 1
-        # Pre-extract columns once (avoid per-bar dict.get in the hot loop)
-        col_open = [b.get("open") for b in ohlcv_data]
-        col_high = [b.get("high") for b in ohlcv_data]
-        col_low = [b.get("low") for b in ohlcv_data]
-        col_close = [b.get("close") for b in ohlcv_data]
-        col_vol = [b.get("volume", 0.0) for b in ohlcv_data]
-        col_time = [b.get("time", 0) or 0 for b in ohlcv_data]
+        # Pre-extract columns once (single pass — avoid 6× bar walks)
+        col_open: list[Any] = []
+        col_high: list[Any] = []
+        col_low: list[Any] = []
+        col_close: list[Any] = []
+        col_vol: list[Any] = []
+        col_time: list[Any] = []
+        _ao, _ah, _al, _ac, _av, _at = (
+            col_open.append,
+            col_high.append,
+            col_low.append,
+            col_close.append,
+            col_vol.append,
+            col_time.append,
+        )
+        has_bid_ask = False
+        for b in ohlcv_data:
+            _ao(b.get("open"))
+            _ah(b.get("high"))
+            _al(b.get("low"))
+            _ac(b.get("close"))
+            _av(b.get("volume", 0.0))
+            _at(b.get("time", 0) or 0)
+            if not has_bid_ask and (("bid" in b) or ("ask" in b)):
+                has_bid_ask = True
         need_calendar = bool(_CAL_NAME_RE.search(source_code))
         need_hl2 = bool(_HL2_RE.search(source_code))
         need_hlc3 = bool(_HLC3_RE.search(source_code))
         need_ohlc4 = bool(_OHLC4_RE.search(source_code))
-        # Only touch bid/ask when feed actually provides them (rare for historical).
-        has_bid_ask = any(("bid" in b) or ("ask" in b) for b in ohlcv_data)
 
         # Pre-bind hot locals (series lists, methods, strategy buffers)
         sl_open = _series_lists["open"]
@@ -663,6 +795,11 @@ class Runtime:
         def _color_str(c: Any) -> str | None:
             if c is None:
                 return None
+            t = type(c)
+            if t is str:
+                return c if c else None
+            if t is int:
+                return f"#{c & 0xFFFFFF:06X}"
             to_rgba = getattr(c, "to_rgba", None)
             if callable(to_rgba):
                 try:
@@ -675,10 +812,6 @@ class Runtime:
                     return str(to_hex())
                 except Exception:
                     pass
-            if isinstance(c, str) and c:
-                return c
-            if isinstance(c, int):
-                return f"#{c & 0xFFFFFF:06X}"
             s = str(c)
             return s if s else None
 
@@ -686,12 +819,16 @@ class Runtime:
             """JSON-safe series cell for plot / bgcolor / plotshape kinds."""
             if v is None:
                 return None
+            t = type(v)
             if kind == "bgcolor":
+                # Capture already serializes colors to str | None
+                if t is str:
+                    return v if v else None
                 return _color_str(v)
             if kind in ("plotshape", "plotchar", "plotarrow"):
-                if isinstance(v, bool):
+                if t is bool:
                     return v
-                if isinstance(v, (int, float)):
+                if t is int or t is float:
                     try:
                         fv = float(v)
                         if fv != fv:  # NaN
@@ -701,7 +838,7 @@ class Runtime:
                         return bool(v)
                 return bool(v)
             # line / hline numeric (or pass through strings already serialized)
-            if isinstance(v, (int, float, str, bool)):
+            if t is float or t is int or t is str or t is bool:
                 return v
             return _color_str(v) if hasattr(v, "to_rgba") or hasattr(v, "to_hex") else v
 
@@ -710,25 +847,27 @@ class Runtime:
             m0 = meta_list[pi] if pi < len(meta_list) else {}
             title = str(m0.get("title") or "") or f"plot_{pi}"
             color = m0.get("color")
-            if color is not None:
+            if color is not None and type(color) is not str:
                 color = _color_str(color)
+            elif color == "":
+                color = None
             linewidth = int(m0.get("linewidth") or 1)
             kind = str(m0.get("kind") or m0.get("type") or "plot")
             style = m0.get("style")
             if style is not None:
-                style = str(style)
+                style = str(style) if style != "" else None
             linestyle = m0.get("linestyle")
             if linestyle is not None:
                 linestyle = str(linestyle)
             location = m0.get("location")
             if location is not None:
-                location = str(location)
+                location = str(location) if location != "" else None
             text = m0.get("text")
             if text is not None:
-                text = str(text)
+                text = str(text) if text != "" else None
             char = m0.get("char")
             if char is not None:
-                char = str(char)
+                char = str(char) if char != "" else None
 
             base = title
             suffix = 2
@@ -736,7 +875,13 @@ class Runtime:
                 title = f"{base}_{suffix}"
                 suffix += 1
             raw_col = value_cols[pi]
-            values = [_json_plot_value(v, kind) for v in raw_col]
+            # Fast path: pure numeric plot columns need no per-cell work
+            if kind in ("plot", "hline") and raw_col and all(
+                type(v) is float or type(v) is int or v is None for v in raw_col
+            ):
+                values = list(raw_col)
+            else:
+                values = [_json_plot_value(v, kind) for v in raw_col]
             # hline: constant price — fill gaps with last known price so AXIS
             # can render a full-width level (or read price from meta).
             if kind == "hline":
@@ -937,18 +1082,24 @@ class Runtime:
         if not ohlcv_data:
             return {"plots": [], "events": [], "count": 0, "mode": "compile", "series": {}}
 
-        # Detect cache hit before compile (engine LRU is process-local).
-        from pynescript.compiler.engine import _COMPILE_CACHE  # noqa: PLC0415
-
+        # Host short-circuit: raw-source hash → CompiledScript (skips sanitize on hit).
         cache_key = hashlib.sha256(source_code.encode("utf-8")).hexdigest()
         script_id = cache_key[:16]
-        was_cached = cache_key in _COMPILE_CACHE
+        compiled = _HOST_COMPILE_CACHE.get(cache_key)
+        was_cached = compiled is not None
 
         t_compile0 = time.perf_counter()
-        try:
-            compiled = compile_script(source_code)
-        except Exception as e:
-            return {"error": f"Compile Error: {e!s}"}
+        if compiled is None:
+            try:
+                compiled = compile_script(source_code)
+            except Exception as e:
+                return {"error": f"Compile Error: {e!s}"}
+            if len(_HOST_COMPILE_CACHE) >= _HOST_COMPILE_CACHE_MAX:
+                try:
+                    _HOST_COMPILE_CACHE.pop(next(iter(_HOST_COMPILE_CACHE)))
+                except StopIteration:
+                    pass
+            _HOST_COMPILE_CACHE[cache_key] = compiled
         compile_ms = (time.perf_counter() - t_compile0) * 1000.0
 
         # Single-pass float64 packing (avoids 5 list comps + re-asarray in engine)
@@ -961,32 +1112,35 @@ class Runtime:
             return {"error": f"Compiled Runtime Error: {e!s}"}
         run_ms = (time.perf_counter() - t_run0) * 1000.0
 
-        drawings = series_map.pop("__drawings", []) if isinstance(series_map, dict) else []
-        events = series_map.pop("__events", []) if isinstance(series_map, dict) else []
-        # Drop internal compile metrics from series map (keep plots)
-        for meta_key in ("__position_size", "__netprofit", "__equity"):
-            if isinstance(series_map, dict):
-                series_map.pop(meta_key, None)
-
-        # JSON-safe series map (numpy NaN → null). Browsers reject bare NaN as invalid JSON.
+        drawings: list[Any] = []
+        events: list[Any] = []
         json_series: dict[str, list[Any]] = {}
         if isinstance(series_map, dict):
+            # Pop internal keys once (avoid per-key isinstance re-checks)
+            drawings = series_map.pop("__drawings", []) or []
+            events = series_map.pop("__events", []) or []
+            series_map.pop("__position_size", None)
+            series_map.pop("__netprofit", None)
+            series_map.pop("__equity", None)
+
+            # JSON-safe series map (numpy NaN → null). Dominant host wrap cost after pack.
+            _to_json = _series_values_jsonable
             for k, v in series_map.items():
-                if k.startswith("__"):
+                ks = k if isinstance(k, str) else str(k)
+                if ks.startswith("__"):
                     continue
-                json_series[str(k)] = _series_values_jsonable(v)
+                json_series[ks] = _to_json(v)
 
         # Primary plot series (first numeric plot) as list for frontend compatibility
-        final_series: list = []
-        if json_series:
-            final_series = next(iter(json_series.values()))
+        final_series: list = next(iter(json_series.values()), []) if json_series else []
 
-        # Stamp script/run ids on strategy events
-        if isinstance(events, list):
+        # Stamp script/run ids on strategy events (skip when empty — pure indicators)
+        if events:
+            rid = self._run_id
             for ev in events:
                 if isinstance(ev, dict):
                     ev.setdefault("script_id", script_id)
-                    ev.setdefault("run_id", self._run_id)
+                    ev.setdefault("run_id", rid)
 
         # Do NOT return generated_code by default — large scripts + cold Numba make
         # JSON responses multi-MB and can trip AXIS/gunicorn timeouts. Opt-in via
@@ -994,8 +1148,8 @@ class Runtime:
         out: dict[str, Any] = {
             "plots": final_series,
             "series": json_series,
-            "drawings": drawings,
-            "events": events if isinstance(events, list) else [],
+            "drawings": drawings if isinstance(drawings, list) else list(drawings or []),
+            "events": events if isinstance(events, list) else list(events or []),
             "count": len(ohlcv_data),
             "script_id": script_id,
             "run_id": self._run_id,

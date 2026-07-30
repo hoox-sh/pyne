@@ -98,6 +98,61 @@ plot(as)
     )
 
 
+def test_soft_keywords_type_method_to_by_as_identifiers():
+    """Soft keywords ``type`` / ``method`` / ``to`` / ``by`` are valid identifiers."""
+    _roundtrip(
+        """//@version=5
+indicator("t")
+type = 1
+method = 2
+to = 3
+by = 4
+plot(type + method + to + by)
+"""
+    )
+
+
+def test_soft_keyword_fields_on_udt():
+    """UDT fields may use soft-keyword names."""
+    _roundtrip(
+        """//@version=6
+indicator("t")
+type Box
+    float as
+    int method
+    string type
+b = Box.new(1.0, 2, "x")
+plot(b.as)
+"""
+    )
+
+
+def test_reassignment_equals_and_colon_equals():
+    """Both ``=`` re-bind and ``:=`` reassignment parse."""
+    _roundtrip(
+        """//@version=5
+indicator("t")
+x = 1
+x = 2
+y = 0
+y := y + 1
+plot(x + y)
+"""
+    )
+
+
+def test_multiline_triple_quoted_string_roundtrip():
+    _roundtrip(
+        '''//@version=6
+indicator("t")
+s = """line one
+We do not break mid-string
+line three"""
+plot(1)
+'''
+    )
+
+
 def test_bitwise_ops_shift_and_or():
     tree = parse(
         """//@version=5

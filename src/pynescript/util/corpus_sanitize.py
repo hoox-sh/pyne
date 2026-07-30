@@ -538,11 +538,60 @@ def _is_pine_start_line(cleaned: str) -> bool:
     return bool(_PINE_START_RE.match(cleaned))
 
 
+def _string_state_after_line(line: str, state: str | None) -> str | None:
+    """Track open quote state across lines for sanitize (``None`` | ``\"`` | ``'`` | ``\"\"\"`` | ``'''``).
+
+    Used so prose / chrome heuristics do not fire *inside* multiline string literals.
+    Best-effort; escape handling mirrors the truncated-syntax paren scanner.
+    """
+    i = 0
+    n = len(line)
+    while i < n:
+        ch = line[i]
+        if state is None:
+            if ch == "/" and i + 1 < n and line[i + 1] == "/":
+                break  # rest of line is comment
+            if ch in "\"'":
+                if line.startswith(ch * 3, i):
+                    state = ch * 3
+                    i += 3
+                    continue
+                state = ch
+                i += 1
+                continue
+            i += 1
+            continue
+        # Inside a string
+        if state in ('"""', "'''"):
+            if line.startswith(state, i):
+                state = None
+                i += 3
+                continue
+            i += 1
+            continue
+        # Single-quoted / double-quoted (may span lines only if unclosed scrape)
+        if ch == "\\" and i + 1 < n:
+            i += 2
+            continue
+        if ch == state:
+            state = None
+        i += 1
+    return state
+
+
 def _line_filter(source: str) -> str:
     """Line-oriented chrome removal when no reliable fence body is available."""
     out: list[str] = []
     saw_pine = False
+    str_state: str | None = None
     for line in source.splitlines():
+        # Inside an open multiline / unclosed string: keep the line verbatim and
+        # never apply prose/chrome stops (content often looks like English docs).
+        if str_state is not None:
+            out.append(line)
+            str_state = _string_state_after_line(line, str_state)
+            continue
+
         if _FENCE_RE.match(line):
             # Opening fence before real pine: skip. Closing fence after pine: stop.
             if saw_pine:
@@ -600,6 +649,7 @@ def _line_filter(source: str) -> str:
             saw_pine = True
 
         out.append(cleaned)
+        str_state = _string_state_after_line(cleaned, None)
 
     text = "\n".join(out)
     if source.endswith("\n") and text and not text.endswith("\n"):
@@ -675,6 +725,39 @@ def _looks_like_expr_continuation(ns: str) -> bool:
     return False
 
 
+def _code_without_line_comment(line: str) -> str:
+    """Strip a trailing ``//`` line comment, respecting quotes (best-effort)."""
+    in_str: str | None = None
+    esc = False
+    i = 0
+    n = len(line)
+    while i < n:
+        ch = line[i]
+        if esc:
+            esc = False
+            i += 1
+            continue
+        if in_str:
+            if ch == "\\":
+                esc = True
+            elif ch == in_str:
+                in_str = None
+            i += 1
+            continue
+        if ch in "\"'":
+            # Triple quotes: treat as string open and skip the rest of the line
+            # content for comment-strip purposes (multiline handled elsewhere).
+            if line.startswith(ch * 3, i):
+                return line  # open triple — do not strip // inside
+            in_str = ch
+            i += 1
+            continue
+        if ch == "/" and i + 1 < n and line[i + 1] == "/":
+            return line[:i].rstrip()
+        i += 1
+    return line.rstrip()
+
+
 def _line_has_arg_continuation(line: str, lines: list[str], index: int) -> bool:
     """True if a following non-empty line continues this statement (indent/join)."""
     j = index + 1
@@ -693,8 +776,27 @@ def _line_has_arg_continuation(line: str, lines: list[str], index: int) -> bool:
     ):
         return True
     prev = line.rstrip()
+    prev_code = _code_without_line_comment(prev)
+
+    # Multi-line call / paren wrap: bare open ``(`` means any following non-empty
+    # non-comment line is an argument (Pine allows zero-indent args inside parens).
+    #   plot(
+    #   median,
+    #     "Median")
+    # Without this, truncate-repair rewrote valid wraps to ``plot(na)``.
+    if prev_code.endswith("(") or prev_code.endswith("["):
+        return True
+
+    # Function / lambda body after ``=>`` (optionally ``=> //{`` region comment).
+    # Multi-line signatures often indent the closing ``) =>`` deeper than the body:
+    #   f(a,
+    #          b) =>
+    #       body   # indent 4 < base 7 — still a real body
+    if re.search(r"=>\s*$", prev_code) and nxt_indent > 0:
+        return True
+
     # Same-indent ternary arm continuation: ``x = a ? b :`` / next ``c ? d : e``.
-    if nxt_indent == base_indent and prev.endswith(("?", ":")):
+    if nxt_indent == base_indent and prev_code.endswith(("?", ":")):
         if not ns.startswith(
             ("if ", "for ", "while ", "switch ", "else", "type ", "enum ", "import ", "export ")
         ):
@@ -702,7 +804,7 @@ def _line_has_arg_continuation(line: str, lines: list[str], index: int) -> bool:
     # Same-indent arithmetic / logical / concat after a trailing binary op:
     #   ``… +`` / ``… -`` / ``… *`` / ``… /`` / ``… and`` / ``… or``
     # next term may start with a digit (``2 * x``) or identifier (``td == …``).
-    mop = _TRAILING_BINOP_RE.match(prev)
+    mop = _TRAILING_BINOP_RE.match(prev_code)
     if mop and _looks_like_expr_continuation(ns):
         if nxt_indent >= base_indent:
             return True
@@ -712,7 +814,7 @@ def _line_has_arg_continuation(line: str, lines: list[str], index: int) -> bool:
         if base_indent >= 2 and 1 <= nxt_indent < base_indent:
             return True
     # Also bare endswith for ops that may have no space: ``x+`` rare but ``x +`` covered.
-    if prev.endswith(("+", "-", "*", "/")) and _looks_like_expr_continuation(ns):
+    if prev_code.endswith(("+", "-", "*", "/")) and _looks_like_expr_continuation(ns):
         if nxt_indent >= base_indent or (base_indent >= 2 and 1 <= nxt_indent < base_indent):
             return True
     return False
@@ -847,7 +949,7 @@ def _fix_truncated_syntax(text: str) -> str:
 
         # Empty function / lambda body: ``f(...) =>`` at cut, ``f() =>  // comment``,
         # or body is only //@variable / comments until next real stmt / EOF.
-        code_no_comment = re.sub(r"//.*$", "", stripped_nl).rstrip()
+        code_no_comment = _code_without_line_comment(stripped_nl)
         if re.search(r"=>\s*$", code_no_comment) and not stripped_nl.lstrip().startswith("//"):
             j = i + 1
             only_comments = True

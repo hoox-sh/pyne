@@ -83,23 +83,29 @@ _BUILTIN_NS = frozenset(
 def handle_semantic_tokens(
     _params: lsp.SemanticTokensParams,
     source: str | None,
+    tree: Any | None = ...,
 ) -> lsp.SemanticTokens | None:
     """Return full-document semantic tokens for *source*.
 
     Args:
         _params: Client params (document URI unused; source is passed in).
         source: Document text, or ``None``.
+        tree: Pre-parsed AST from the workspace cache. Pass ``None`` when the
+            workspace already failed to parse (skips a redundant re-parse).
+            Omit (default ``...``) to parse from *source*.
 
     Returns:
         :class:`~lsprotocol.types.SemanticTokens` with encoded ``data``
         (empty list if source missing or parse fails).
     """
-    if not source:
-        return lsp.SemanticTokens(data=[])
-
-    try:
-        tree = ast_helper.parse(source)
-    except Exception:
+    if tree is ...:
+        if not source:
+            return lsp.SemanticTokens(data=[])
+        try:
+            tree = ast_helper.parse(source)
+        except Exception:
+            return lsp.SemanticTokens(data=[])
+    if tree is None:
         return lsp.SemanticTokens(data=[])
 
     raw: list[tuple[int, int, int, int, int]] = []

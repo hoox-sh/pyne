@@ -23,11 +23,19 @@ from typing import Any
 
 from pynescript.ast.evaluator import NodeLiteralEvaluator
 
+_MISSING: Any = object()
+
 
 def _serialize_color(c: Any) -> str | None:
     """JSON-safe color string for plot_meta / bgcolor series values."""
     if c is None:
         return None
+    # Hot path: color.* constants are already hex/rgba strings
+    t = type(c)
+    if t is str:
+        return c if c else None
+    if t is int:
+        return f"#{c & 0xFFFFFF:06X}"
     to_rgba = getattr(c, "to_rgba", None)
     if callable(to_rgba):
         try:
@@ -40,22 +48,23 @@ def _serialize_color(c: Any) -> str | None:
             return str(to_hex())
         except Exception:
             pass
-    if isinstance(c, str):
-        return c if c else None
-    if isinstance(c, int):
-        return f"#{c & 0xFFFFFF:06X}"
     s = str(c)
     return s if s else None
 
 
 def _unwrap_scalar(value: Any) -> Any:
     """Bar-mode: PineSeries / list → current scalar for plot capture."""
-    if hasattr(value, "current") and not isinstance(value, (list, tuple, str, bytes)):
-        current = getattr(value, "current", None)
-        if current is not None or hasattr(value, "history"):
-            value = current
-    if isinstance(value, list):
-        value = value[-1] if value else None
+    t = type(value)
+    # Dominant after incremental TA: already a scalar
+    if t is float or t is int or value is None or t is bool or t is str:
+        return value
+    if t is list:
+        return value[-1] if value else None
+    current = getattr(value, "current", _MISSING)
+    if current is not _MISSING and t is not tuple and t is not bytes:
+        # PineSeries: .current is authoritative (None = na); has .history always
+        if current is not None or getattr(value, "history", _MISSING) is not _MISSING:
+            return current
     return value
 
 
@@ -67,6 +76,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
     Plot capture (bar mode / Runtime host):
       - Values go into columnar ``_plot_value_cols`` (one list per call-site order).
       - Meta (title/color/kind/…) is recorded once in ``_plot_meta_list``.
+      - Steady-state bars append value only (skip color/title coercions).
       - ``plot_outputs`` stays as a per-bar legacy buffer (cleared each bar) for
         any mid-bar readers; Runtime prefers columns when present.
       - ``PlotRegistry`` (super()) is optional: Runtime disables it when the
@@ -118,7 +128,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
                 "linewidth": int(linewidth or 1),
             }
             for k, v in extra.items():
-                if v is not None:
+                if v is not None and v != "":
                     entry[k] = v
             meta.append(entry)
         else:
@@ -126,16 +136,29 @@ class CustomEvaluator(NodeLiteralEvaluator):
             if m.get("color") is None and color_s is not None:
                 m["color"] = color_s
             for k, v in extra.items():
-                if v is not None and m.get(k) is None:
+                if v is not None and v != "" and m.get(k) is None:
                     m[k] = v
         cols[i].append(value)
+
+    def _append_plot_value(self, value: Any) -> int:
+        """Steady-state: known call-site → append value only (no meta work).
+
+        Returns the call-site index used (for optional lazy meta fill).
+        """
+        i = self._plot_capture_i
+        self._plot_capture_i = i + 1
+        self._plot_value_cols[i].append(value)
+        return i
 
     def finish_bar_plots(self) -> None:
         """Pad short columns for call sites not hit this bar; advance bar counter."""
         n = self._plot_capture_i
         cols = self._plot_value_cols
-        for j in range(n, len(cols)):
-            cols[j].append(None)
+        # Common case: every call site hit → empty range
+        n_cols = len(cols)
+        if n < n_cols:
+            for j in range(n, n_cols):
+                cols[j].append(None)
         self._plot_bars_done += 1
         self._plot_capture_i = 0
 
@@ -149,33 +172,90 @@ class CustomEvaluator(NodeLiteralEvaluator):
 
     def _builtin_plot(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
         """Capture plot value + title/color for multi-series AXIS response."""
-        kwargs = kwargs or {}
-        if not args and "series" not in kwargs:
-            return None
+        if kwargs:
+            if not args and "series" not in kwargs:
+                return None
+            raw = kwargs.get("series", args[0] if args else None)
+            value = _unwrap_scalar(raw)
+            # Steady-state: call site already registered → value only
+            if self._plot_capture_i < len(self._plot_value_cols):
+                i = self._append_plot_value(value)
+                # Lazy first non-null color (matches prior post-process)
+                color = kwargs.get("color", args[2] if len(args) > 2 else None)
+                if color is not None:
+                    m = self._plot_meta_list[i]
+                    if m.get("color") is None:
+                        m["color"] = _serialize_color(color)
+                return self._maybe_registry("_builtin_plot", args, kwargs) if self._pine_need_plot_ids else None
 
-        value = _unwrap_scalar(kwargs.get("series", args[0] if args else None))
-        title = kwargs.get("title", args[1] if len(args) > 1 else "")
-        color = kwargs.get("color", args[2] if len(args) > 2 else None)
-        linewidth = kwargs.get("linewidth", args[5] if len(args) > 5 else 1)
+            title = kwargs.get("title", args[1] if len(args) > 1 else "")
+            color = kwargs.get("color", args[2] if len(args) > 2 else None)
+            linewidth = kwargs.get("linewidth", args[5] if len(args) > 5 else 1)
+            color_s = _serialize_color(color) if color is not None else None
+            title_s = str(title or "") or None
+            self._capture_plot("plot", value, title_s, color_s, int(linewidth or 1))
+            return self._maybe_registry("_builtin_plot", args, kwargs) if self._pine_need_plot_ids else None
+
+        # Positional-only: plot(series) / plot(series, title, color, …)
+        if not args:
+            return None
+        value = _unwrap_scalar(args[0])
+        if self._plot_capture_i < len(self._plot_value_cols):
+            i = self._append_plot_value(value)
+            if len(args) > 2:
+                color = args[2]
+                if color is not None:
+                    m = self._plot_meta_list[i]
+                    if m.get("color") is None:
+                        m["color"] = _serialize_color(color)
+            return self._maybe_registry("_builtin_plot", args, None) if self._pine_need_plot_ids else None
+
+        n = len(args)
+        title = args[1] if n > 1 else ""
+        color = args[2] if n > 2 else None
+        linewidth = args[5] if n > 5 else 1
         color_s = _serialize_color(color) if color is not None else None
         title_s = str(title or "") or None
-
         self._capture_plot("plot", value, title_s, color_s, int(linewidth or 1))
-        return self._maybe_registry("_builtin_plot", args, kwargs)
+        return self._maybe_registry("_builtin_plot", args, None) if self._pine_need_plot_ids else None
 
     def _builtin_hline(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
         """Capture hline as a constant-price series for AXIS (kind=hline)."""
-        kwargs = kwargs or {}
-        if not args and "price" not in kwargs:
+        if kwargs:
+            if not args and "price" not in kwargs:
+                return None
+            price = _unwrap_scalar(kwargs.get("price", args[0] if args else None))
+            if self._plot_capture_i < len(self._plot_value_cols):
+                self._append_plot_value(price)
+                return self._maybe_registry("_builtin_hline", args, kwargs) if self._pine_need_plot_ids else None
+            title = kwargs.get("title", args[1] if len(args) > 1 else "hline")
+            color = kwargs.get("color", args[2] if len(args) > 2 else None)
+            linestyle = kwargs.get("linestyle", args[3] if len(args) > 3 else "linestyle_solid")
+            linewidth = kwargs.get("linewidth", args[4] if len(args) > 4 else 1)
+            color_s = _serialize_color(color) if color is not None else None
+            self._capture_plot(
+                "hline",
+                price,
+                str(title or "") or "hline",
+                color_s,
+                int(linewidth or 1),
+                linestyle=str(linestyle or "linestyle_solid"),
+                style="hline",
+            )
+            return self._maybe_registry("_builtin_hline", args, kwargs) if self._pine_need_plot_ids else None
+
+        if not args:
             return None
-
-        price = _unwrap_scalar(kwargs.get("price", args[0] if args else None))
-        title = kwargs.get("title", args[1] if len(args) > 1 else "hline")
-        color = kwargs.get("color", args[2] if len(args) > 2 else None)
-        linestyle = kwargs.get("linestyle", args[3] if len(args) > 3 else "linestyle_solid")
-        linewidth = kwargs.get("linewidth", args[4] if len(args) > 4 else 1)
+        price = _unwrap_scalar(args[0])
+        if self._plot_capture_i < len(self._plot_value_cols):
+            self._append_plot_value(price)
+            return self._maybe_registry("_builtin_hline", args, None) if self._pine_need_plot_ids else None
+        n = len(args)
+        title = args[1] if n > 1 else "hline"
+        color = args[2] if n > 2 else None
+        linestyle = args[3] if n > 3 else "linestyle_solid"
+        linewidth = args[4] if n > 4 else 1
         color_s = _serialize_color(color) if color is not None else None
-
         self._capture_plot(
             "hline",
             price,
@@ -185,71 +265,153 @@ class CustomEvaluator(NodeLiteralEvaluator):
             linestyle=str(linestyle or "linestyle_solid"),
             style="hline",
         )
-        return self._maybe_registry("_builtin_hline", args, kwargs)
+        return self._maybe_registry("_builtin_hline", args, None) if self._pine_need_plot_ids else None
 
     def _builtin_bgcolor(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
         """Capture bgcolor per-bar color for AXIS background bands."""
-        kwargs = kwargs or {}
-        color = _unwrap_scalar(kwargs.get("color", args[0] if args else None))
-        title = kwargs.get("title", args[1] if len(args) > 1 else "bgcolor")
+        if kwargs:
+            color = _unwrap_scalar(kwargs.get("color", args[0] if args else None))
+            color_s = _serialize_color(color)
+            if self._plot_capture_i < len(self._plot_value_cols):
+                i = self._append_plot_value(color_s)
+                if color_s is not None:
+                    m = self._plot_meta_list[i]
+                    if m.get("color") is None:
+                        m["color"] = color_s
+                return self._maybe_registry("_builtin_bgcolor", args, kwargs) if self._pine_need_plot_ids else None
+            title = kwargs.get("title", args[1] if len(args) > 1 else "bgcolor")
+            self._capture_plot(
+                "bgcolor",
+                color_s,
+                str(title or "") or "bgcolor",
+                color_s,
+            )
+            return self._maybe_registry("_builtin_bgcolor", args, kwargs) if self._pine_need_plot_ids else None
+
+        color = _unwrap_scalar(args[0] if args else None)
         color_s = _serialize_color(color)
+        if self._plot_capture_i < len(self._plot_value_cols):
+            i = self._append_plot_value(color_s)
+            if color_s is not None:
+                m = self._plot_meta_list[i]
+                if m.get("color") is None:
+                    m["color"] = color_s
+            return self._maybe_registry("_builtin_bgcolor", args, None) if self._pine_need_plot_ids else None
+        title = args[1] if len(args) > 1 else "bgcolor"
         self._capture_plot(
             "bgcolor",
             color_s,
             str(title or "") or "bgcolor",
             color_s,
         )
-        return self._maybe_registry("_builtin_bgcolor", args, kwargs)
+        return self._maybe_registry("_builtin_bgcolor", args, None) if self._pine_need_plot_ids else None
 
     def _builtin_plotshape(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
         """Capture plotshape condition + style for AXIS bar markers."""
-        kwargs = kwargs or {}
-        if not args and "series" not in kwargs:
+        if kwargs:
+            if not args and "series" not in kwargs:
+                return None
+            value = _unwrap_scalar(kwargs.get("series", args[0] if args else None))
+            if self._plot_capture_i < len(self._plot_value_cols):
+                self._append_plot_value(value)
+                return self._maybe_registry("_builtin_plotshape", args, kwargs) if self._pine_need_plot_ids else None
+            title = kwargs.get("title", args[1] if len(args) > 1 else "shape")
+            style = kwargs.get("style", args[2] if len(args) > 2 else "shape")
+            location = kwargs.get("location", args[3] if len(args) > 3 else "")
+            color = _unwrap_scalar(kwargs.get("color", args[4] if len(args) > 4 else None))
+            text = kwargs.get("text", None)
+            # Treat missing enum constants (None) as empty, not the string "None"
+            style_s = "" if style is None else str(style)
+            location_s = "" if location is None else str(location)
+            self._capture_plot(
+                "plotshape",
+                value,
+                str(title or "") or "shape",
+                _serialize_color(color) if color is not None else None,
+                style=style_s,
+                location=location_s,
+                text=str(text) if text is not None else "",
+            )
+            return self._maybe_registry("_builtin_plotshape", args, kwargs) if self._pine_need_plot_ids else None
+
+        if not args:
             return None
-        value = _unwrap_scalar(kwargs.get("series", args[0] if args else None))
-        title = kwargs.get("title", args[1] if len(args) > 1 else "shape")
-        style = kwargs.get("style", args[2] if len(args) > 2 else "shape")
-        location = kwargs.get("location", args[3] if len(args) > 3 else "")
-        color = _unwrap_scalar(kwargs.get("color", args[4] if len(args) > 4 else None))
-        text = kwargs.get("text", None)
+        value = _unwrap_scalar(args[0])
+        if self._plot_capture_i < len(self._plot_value_cols):
+            self._append_plot_value(value)
+            return self._maybe_registry("_builtin_plotshape", args, None) if self._pine_need_plot_ids else None
+        n = len(args)
+        title = args[1] if n > 1 else "shape"
+        style = args[2] if n > 2 else "shape"
+        location = args[3] if n > 3 else ""
+        color = _unwrap_scalar(args[4] if n > 4 else None)
         self._capture_plot(
             "plotshape",
             value,
             str(title or "") or "shape",
             _serialize_color(color) if color is not None else None,
-            style=str(style or "") if style is not None else "",
-            location=str(location or "") if location is not None else "",
-            text=str(text) if text is not None else "",
+            style="" if style is None else str(style),
+            location="" if location is None else str(location),
+            text="",
         )
-        return self._maybe_registry("_builtin_plotshape", args, kwargs)
+        return self._maybe_registry("_builtin_plotshape", args, None) if self._pine_need_plot_ids else None
 
     def _builtin_plotchar(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
         """Capture plotchar condition + char for AXIS bar markers."""
-        kwargs = kwargs or {}
-        if not args and "series" not in kwargs:
+        if kwargs:
+            if not args and "series" not in kwargs:
+                return None
+            value = _unwrap_scalar(kwargs.get("series", args[0] if args else None))
+            if self._plot_capture_i < len(self._plot_value_cols):
+                self._append_plot_value(value)
+                return self._maybe_registry("_builtin_plotchar", args, kwargs) if self._pine_need_plot_ids else None
+            title = kwargs.get("title", args[1] if len(args) > 1 else "char")
+            char = kwargs.get("char", args[2] if len(args) > 2 else "")
+            location = kwargs.get("location", args[3] if len(args) > 3 else "")
+            color = _unwrap_scalar(kwargs.get("color", args[4] if len(args) > 4 else None))
+            char_s = "" if char is None else str(char)
+            location_s = "" if location is None else str(location)
+            self._capture_plot(
+                "plotchar",
+                value,
+                str(title or "") or "char",
+                _serialize_color(color) if color is not None else None,
+                style="char",
+                location=location_s,
+                text=char_s,
+                char=char_s,
+            )
+            return self._maybe_registry("_builtin_plotchar", args, kwargs) if self._pine_need_plot_ids else None
+
+        if not args:
             return None
-        value = _unwrap_scalar(kwargs.get("series", args[0] if args else None))
-        title = kwargs.get("title", args[1] if len(args) > 1 else "char")
-        char = kwargs.get("char", args[2] if len(args) > 2 else "")
-        location = kwargs.get("location", args[3] if len(args) > 3 else "")
-        color = _unwrap_scalar(kwargs.get("color", args[4] if len(args) > 4 else None))
-        char_s = str(char or "") if char is not None else ""
+        value = _unwrap_scalar(args[0])
+        if self._plot_capture_i < len(self._plot_value_cols):
+            self._append_plot_value(value)
+            return self._maybe_registry("_builtin_plotchar", args, None) if self._pine_need_plot_ids else None
+        n = len(args)
+        title = args[1] if n > 1 else "char"
+        char = args[2] if n > 2 else ""
+        location = args[3] if n > 3 else ""
+        color = _unwrap_scalar(args[4] if n > 4 else None)
+        char_s = "" if char is None else str(char)
         self._capture_plot(
             "plotchar",
             value,
             str(title or "") or "char",
             _serialize_color(color) if color is not None else None,
             style="char",
-            location=str(location or "") if location is not None else "",
+            location="" if location is None else str(location),
             text=char_s,
             char=char_s,
         )
-        return self._maybe_registry("_builtin_plotchar", args, kwargs)
+        return self._maybe_registry("_builtin_plotchar", args, None) if self._pine_need_plot_ids else None
 
     def reset_plots(self):
         # Per-bar index reset; columns accumulate across the run.
         # Legacy plot_outputs kept empty (Runtime uses columns).
-        self.plot_outputs.clear()
+        if self.plot_outputs:
+            self.plot_outputs.clear()
         self._plot_capture_i = 0
 
     def reset_var_declarations(self):

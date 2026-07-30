@@ -59,12 +59,14 @@ class NodeVisitor:
             Whatever the matched handler returns.
         """
         # Local binds shave attribute lookups on the deepest recursive path.
+        # Prefer ``__dict__`` then ``_visitor_cache`` attribute (already warm).
         cache = self._visitor_cache
+        visitor = cache.get(type(node))
+        if visitor is not None:
+            return visitor(node)
         cls = type(node)
-        visitor = cache.get(cls)
-        if visitor is None:
-            visitor = getattr(self, "visit_" + cls.__name__, self.generic_visit)
-            cache[cls] = visitor
+        visitor = getattr(self, "visit_" + cls.__name__, self.generic_visit)
+        cache[cls] = visitor
         return visitor(node)
 
     def generic_visit(self, node: AST) -> Any:

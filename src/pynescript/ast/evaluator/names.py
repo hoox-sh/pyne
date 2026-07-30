@@ -99,6 +99,8 @@ _HOST_ATTR_ALIASES: dict[str, str] = {
     "is_line_break": "is_linebreak",
     "is_pointfigure": "is_point_figure",
     "is_point_figure": "is_pointfigure",
+    # TV ``chart.is_pnf`` (point-and-figure) → host ``is_point_figure``
+    "is_pnf": "is_point_figure",
 }
 
 
@@ -109,14 +111,32 @@ def ast_qualified_name(expr: ast.AST) -> str | None:
     ``strategy.opentrades`` are zero-arg series variables; evaluating them
     while resolving ``strategy.opentrades.entry_price(...)`` would yield an
     int and break the longer qualified path.
+
+    Iterative (not recursive) to avoid call frames on hot ``ta.*`` paths;
+    dominant depth is 2 (``ta.sma``).
     """
+    # Fast path: bare Name
     if isinstance(expr, ast.Name):
         return expr.id
-    if isinstance(expr, ast.Attribute):
-        base = ast_qualified_name(expr.value)
-        if base is None:
-            return None
-        return f"{base}.{expr.attr}"
+    if not isinstance(expr, ast.Attribute):
+        return None
+    # Unroll first Attribute hop (ta.sma / strategy.entry)
+    attr1 = expr.attr
+    base = expr.value
+    if isinstance(base, ast.Name):
+        return f"{base.id}.{attr1}"
+    if not isinstance(base, ast.Attribute):
+        return None
+    # Depth ≥ 3: strategy.opentrades.entry_price etc.
+    parts: list[str] = [attr1, base.attr]
+    cur = base.value
+    while isinstance(cur, ast.Attribute):
+        parts.append(cur.attr)
+        cur = cur.value
+    if isinstance(cur, ast.Name):
+        parts.append(cur.id)
+        parts.reverse()
+        return ".".join(parts)
     return None
 
 

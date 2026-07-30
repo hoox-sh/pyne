@@ -173,6 +173,9 @@ class CompileStrategyBroker:
         self.position_size: float = 0.0  # signed: +long / -short
         self.position_avg_price: float = float("nan")
         self.position_entry_name: str = ""
+        # Remaining entry commission on the open position (interpret-oracle model:
+        # charge on entry, realize into PnL on close; no separate exit commission).
+        self.position_commission: float = 0.0
         self.netprofit: float = 0.0
         self.closed_trades: int = 0
         self.wintrades: int = 0
@@ -401,14 +404,17 @@ class CompileStrategyBroker:
         # Reverse if opposite
         if (d == "long" and self.position_size < 0) or (d == "short" and self.position_size > 0):
             self.close_all(comment="reverse", price=px)
+        comm = self._commission(q, px)
         signed = q if d == "long" else -q
         if (self.position_size > 0 and d == "long") or (self.position_size < 0 and d == "short"):
             old = abs(self.position_size)
             self.position_avg_price = (self.position_avg_price * old + px * q) / (old + q)
             self.position_size += signed
+            self.position_commission += comm
         else:
             self.position_size = signed
             self.position_avg_price = px
+            self.position_commission = comm
         self.position_entry_name = str(entry_id)
         self._emit("entry", id=str(entry_id), direction=d, qty=q, comment=comment)
 
@@ -562,7 +568,8 @@ class CompileStrategyBroker:
             px = self._mark
         else:
             px = float(price)
-        close_qty = abs(self.position_size) if qty is None else min(abs(float(qty)), abs(self.position_size))
+        pos_before = abs(self.position_size)
+        close_qty = pos_before if qty is None else min(abs(float(qty)), pos_before)
         if close_qty <= 0:
             return
         d = "long" if self.position_size > 0 else "short"
@@ -572,7 +579,12 @@ class CompileStrategyBroker:
         else:
             profit = (self.position_avg_price - px) * close_qty
             self.position_size += close_qty
-        profit -= self._commission(close_qty, px)
+        # Realize proportional *entry* commission (match interpret oracle).
+        entry_comm = 0.0
+        if pos_before > 0 and self.position_commission:
+            entry_comm = float(self.position_commission) * (close_qty / pos_before)
+            self.position_commission = max(0.0, float(self.position_commission) - entry_comm)
+        profit -= entry_comm
         self.netprofit += profit
         self.closed_trades += 1
         if profit >= 0:
@@ -585,6 +597,7 @@ class CompileStrategyBroker:
             self.position_size = 0.0
             self.position_avg_price = float("nan")
             self.position_entry_name = ""
+            self.position_commission = 0.0
         self._update_equity_extremes()
         self._emit("close", id=id, qty=close_qty, comment=comment, direction=d)
 
@@ -664,25 +677,25 @@ class CompileStrategyBroker:
     @property
     def equity(self) -> float:
         """Cash + closed netprofit + open MTM at current mark."""
-        mark = self._mark
-        open_pnl = 0.0
-        ps = self.position_size
-        if ps > 0 and mark == mark:
-            open_pnl = (mark - self.position_avg_price) * ps
-        elif ps < 0 and mark == mark:
-            open_pnl = (self.position_avg_price - mark) * (-ps)
-        return self.initial_capital + self.netprofit + open_pnl
+        return self.initial_capital + self.netprofit + self.openprofit
 
     @property
     def openprofit(self) -> float:
-        """Unrealized PnL of the open position at current mark (0 if flat)."""
+        """Unrealized PnL of the open position at current mark (0 if flat).
+
+        Subtracts remaining entry commission so equity dips on fill the same
+        way as the interpret broker.
+        """
         mark = self._mark
         ps = self.position_size
+        mtm = 0.0
         if ps > 0 and mark == mark:
-            return (mark - self.position_avg_price) * ps
-        if ps < 0 and mark == mark:
-            return (self.position_avg_price - mark) * (-ps)
-        return 0.0
+            mtm = (mark - self.position_avg_price) * ps
+        elif ps < 0 and mark == mark:
+            mtm = (self.position_avg_price - mark) * (-ps)
+        else:
+            return 0.0
+        return mtm - float(self.position_commission or 0.0)
 
     def _update_equity_extremes(self) -> None:
         """Track peak/trough equity for max_drawdown / max_runup series."""

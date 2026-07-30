@@ -100,6 +100,25 @@ class TestMatrixRowOperations:
         assert m.get(1, 1) == 2
         assert m.get(1, 2) == 3
 
+    def test_add_row_at_index(self) -> None:
+        """Insert row at index (not only append)."""
+        m: Matrix[Any] = Matrix(2, 2, default_value=0)
+        m.set(0, 0, 1)
+        m.set(1, 0, 2)
+        m.add_row([9, 8], index=0)
+        assert m.rows() == 3
+        assert m.get(0, 0) == 9
+        assert m.get(1, 0) == 1
+        assert m.get(2, 0) == 2
+
+    def test_add_row_empty_matrix_adopts_cols(self) -> None:
+        """0×0 matrix.add_row adopts column count from payload."""
+        m: Matrix[Any] = Matrix(0, 0)
+        m.add_row([1, 2, 3], index=0)
+        assert m.rows() == 1
+        assert m.columns() == 3
+        assert m.get(0, 1) == 2
+
     def test_add_row_wrong_size(self) -> None:
         """Test adding row with wrong size."""
         m: Matrix[Any] = Matrix(1, 3)

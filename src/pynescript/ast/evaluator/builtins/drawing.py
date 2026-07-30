@@ -116,14 +116,14 @@ class DrawingRegistry:
 
     @classmethod
     def is_empty(cls) -> bool:
-        """True when no drawing objects exist (O(1) list-length checks).
+        """True when no *exportable* drawing objects exist (O(1) length checks).
 
         Used by Runtime to skip ``export_for_api`` and bar_times materialization.
+        Linefills are not serialized by :meth:`export_for_api`, so they do not
+        count (avoids allocating bar_times when only linefills exist).
         """
         # truthiness of a list is len != 0 — no iteration
-        return not (
-            cls.lines or cls.boxes or cls.labels or cls.tables or cls.polylines or cls.linefills
-        )
+        return not (cls.lines or cls.boxes or cls.labels or cls.tables or cls.polylines)
 
     @classmethod
     def export_for_api(cls, bar_times: list[int] | None = None) -> list[dict[str, Any]]:

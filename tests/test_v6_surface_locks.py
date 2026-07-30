@@ -122,6 +122,31 @@ plot(1)
     assert any("x=100" in msg and "y=1000" in msg for _, msg in logs)
 
 
+def test_log_info_printf_varargs() -> None:
+    """log.info printf ``%s`` style (corpus residual) formats args."""
+    get_logger().clear()
+    _run(
+        """//@version=6
+indicator("log printf")
+log.info("x=%s y=%s", close, volume)
+log.warning("w=%f", open)
+plot(1)
+"""
+    )
+    logs = get_logger().get_logs()
+    assert any("x=100" in msg and "y=1000" in msg for _, msg in logs)
+    assert any(level == "WARNING" and "w=" in msg and "99" in msg for level, msg in logs)
+
+
+def test_log_format_join_fallback() -> None:
+    """Multi-arg log without placeholders joins parts (no silent drop)."""
+    from pynescript.ast.evaluator.builtins.logging import format_log_message
+
+    assert format_log_message("hi", 1, 2) == "hi 1 2"
+    assert format_log_message("x=%s", None) == "x=na"
+    assert format_log_message("a={0}", 7) == "a=7"
+
+
 def test_polyline_new_delete() -> None:
     """polyline.new / delete (minimal surface) works."""
     DrawingRegistry.reset()
@@ -288,3 +313,48 @@ def test_chart_is_heikinashi_alias() -> None:
     c.is_heikin_ashi = True
     c.is_heikinashi = True
     assert ev.visit(n) is True
+
+
+def test_chart_is_pnf_and_visible_bar_times() -> None:
+    """chart.is_pnf + left/right_visible_bar_time (P0 chart host surface)."""
+    from backend.runtime import Runtime
+
+    bars = [
+        {"open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1.0, "time": 1000 + i * 100}
+        for i in range(5)
+    ]
+    src = """//@version=6
+indicator("chart p0")
+plot(chart.is_pnf ? 1 : 0)
+plot(chart.left_visible_bar_time)
+plot(chart.right_visible_bar_time)
+plot(chart.is_standard ? 1 : 0)
+"""
+    r = Runtime().run(src, bars, mode="interpret")
+    assert "error" not in r, r.get("error")
+    series = r.get("series") or {}
+    # is_pnf false by default; is_standard true
+    assert series["plot_0"][-1] == 0
+    assert series["plot_1"][-1] == 1000
+    assert series["plot_2"][-1] == 1000 + 4 * 100
+    assert series["plot_3"][-1] == 1
+
+
+def test_strategy_cash_default_qty() -> None:
+    """strategy() default_qty_type=cash sizes entry from cash / price."""
+    from backend.runtime import Runtime
+
+    bars = [
+        {"open": 50.0, "high": 50.0, "low": 50.0, "close": 50.0, "volume": 1.0, "time": i}
+        for i in range(3)
+    ]
+    src = """//@version=6
+strategy("cash", overlay=true, initial_capital=100000, default_qty_type=strategy.cash, default_qty_value=5000)
+if bar_index == 0
+    strategy.entry("L", strategy.long)
+plot(strategy.position_size)
+"""
+    r = Runtime().run(src, bars, mode="interpret")
+    assert "error" not in r, r.get("error")
+    # 5000 cash / 50 price → 100 contracts
+    assert abs(float((r.get("plots") or [0])[-1]) - 100.0) < 1e-6

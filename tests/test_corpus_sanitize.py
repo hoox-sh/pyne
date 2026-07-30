@@ -702,3 +702,100 @@ plot(total)
     assert "v + 1" in cleaned
     assert "total = na" not in cleaned
     _roundtrip(cleaned)
+
+
+def test_preserves_multiline_signature_arrow_body() -> None:
+    """Closing ``) =>`` deeper than body indent must not get ``=> na`` injected.
+
+    Multi-line UDF headers commonly wrap parameters so the arrow line is indented
+    further than the function body (QuanTAlib / library scrapes).
+    """
+    raw = """//@version=6
+indicator("t")
+sarext(simple float start_value = 0.0, simple float offset_on_reverse = 0.0,
+       simple float af_init_long = 0.02, simple float af_long = 0.02) =>
+    if af_init_long <= 0
+        runtime.error("bad")
+    start_value
+plot(sarext(0.0, 0.0, 0.02, 0.02))
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert ") => na" not in cleaned
+    assert "=> na" not in cleaned
+    assert "runtime.error" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_preserves_export_multiline_arrow_with_region_comment() -> None:
+    """``) => //{`` multi-line export with real body must not become ``=> na``."""
+    raw = """//@version=5
+library("NN")
+export network (
+     float[] inputs, float[] targets, float[] weights,
+     int[] layer_sizes
+     ) => //{
+    // TODO: notes
+    int n = array.size(inputs)
+    n
+//}
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert ") => na" not in cleaned
+    assert "array.size(inputs)" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_preserves_zero_indent_call_args_inside_parens() -> None:
+    """Line-wrapped ``plot(`` with zero-indent args must not become ``plot(na)``.
+
+    TV release-notes demos intentionally show free indent inside parentheses.
+    """
+    raw = """//@version=6
+indicator("Line wrap demo", overlay = true)
+plot(
+median,              // No indentation.
+  "Median",          // Indented by two spaces.
+   chart.fg_color,   // Indented by three spaces.
+    3                // Indented by four spaces.
+)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "plot(na)" not in cleaned
+    assert "plot(" in cleaned
+    assert "chart.fg_color" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_preserves_multiline_string_english_content() -> None:
+    """Prose-stop heuristics must not cut mid-``\"\"\"`` string (false positive).
+
+    Content lines like ``We do not have to…`` match English-prose patterns that
+    formerly ended the script and left an unclosed triple-quoted string.
+    """
+    raw = '''//@version=6
+indicator("Multiline string demo")
+string multilineStr = """This is a multiline string.
+Each of these code lines literally represents a separate line of text.
+The newline character is automatically included before each new line.
+We do not have to manually add the `\\\\n` escape sequence to separate the lines."""
+if barstate.isfirst
+    log.info(multilineStr)
+'''
+    cleaned = sanitize_corpus_source(raw)
+    assert '"""' in cleaned
+    assert cleaned.count('"""') >= 2
+    assert "We do not have to manually" in cleaned
+    assert "log.info(multilineStr)" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_still_injects_na_for_empty_arrow_at_eof() -> None:
+    """Empty ``f() =>`` at EOF (truncated) still gets ``na`` body."""
+    raw = """//@version=6
+indicator("t")
+upDownColor(float source) =>
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "upDownColor(float source) =>" in cleaned
+    assert re.search(r"=>\s*(na|\n\s+na)", cleaned)
+    _roundtrip(cleaned)

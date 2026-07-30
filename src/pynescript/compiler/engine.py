@@ -61,7 +61,9 @@ Interpret vs compile contracts
 Cache
 -----
 In-process LRU (max 128) keyed by sha256 of the **sanitized** source.
-:func:`clear_compile_cache` for tests / hot-reload.
+Secondary IR cache (max 64) keyed by sha256 of **generated Python** so
+comment-only / whitespace-only source variants reuse the same warm njit
+callable without re-JIT. :func:`clear_compile_cache` clears both.
 """
 
 from __future__ import annotations
@@ -89,6 +91,10 @@ except ImportError:  # pragma: no cover
 # LRU cache: source sha256 → CompiledScript (populated after class defined)
 _COMPILE_CACHE: OrderedDict[str, Any] = OrderedDict()
 _COMPILE_CACHE_MAX = 128
+# Secondary: generated-code sha256 → CompiledScript (share JIT across sources)
+_IR_CACHE: OrderedDict[str, Any] = OrderedDict()
+_IR_CACHE_MAX = 64
+_BUILTINS_WARMED = False
 
 
 def has_numba() -> bool:
@@ -103,6 +109,46 @@ def has_numba() -> bool:
 def clear_compile_cache() -> None:
     """Drop all cached compiled scripts (tests / hot-reload)."""
     _COMPILE_CACHE.clear()
+    _IR_CACHE.clear()
+
+
+def _warm_common_numba_builtins() -> None:
+    """JIT-compile the hottest shared kernels once per process.
+
+    Generated ``execute_script_compiled`` still JITs per IR, but first-touch
+    cost of ``numba_sma_inc`` / ``numba_ema_inc`` / … is paid only once when
+    many distinct scripts share the same builtins.
+    """
+    global _BUILTINS_WARMED
+    if _BUILTINS_WARMED or not _HAS_NUMBA:
+        return
+    _BUILTINS_WARMED = True
+    try:
+        from pynescript.compiler import numba_builtins as nb
+
+        a = np.arange(32, dtype=np.float64)
+        st2 = np.full(2, np.nan)
+        st3 = np.full(3, np.nan)
+        st4 = np.full(4, np.nan)
+        st7 = np.full(7, np.nan)
+        raw = np.full(32, np.nan)
+        raw2 = np.full(32, np.nan)
+        for i in range(32):
+            nb.numba_sma_inc(a, 5, i, st2)
+            nb.numba_ema_inc(a, 5, i, st2)
+            nb.numba_rsi_inc(a, 5, i, st3)
+            nb.numba_stdev_inc(a, 5, i, st3)
+            nb.numba_sum_inc(a, 5, i, st2)
+            nb.numba_wma_inc(a, 5, i, st3)
+            nb.numba_swma(a, i)
+            nb.numba_dema_inc(a, 5, i, st3, raw)
+            nb.numba_tema_inc(a, 5, i, st4, raw, raw2)
+            nb.numba_hma_inc(a, 9, i, st7, raw)
+            nb.numba_change(a, 1, i)
+            nb.numba_nz(float(i), 0.0)
+    except Exception:
+        # Warm-up is best-effort; real compile path surfaces real errors.
+        pass
 
 
 def transpile(source: str) -> str:
@@ -264,29 +310,36 @@ def _is_numba_nopython_failure(exc: BaseException) -> bool:
     return any(m in msg for m in markers)
 
 
-def _compile_once(
+def _transpile_once(
     source: str,
     *,
     force_object_mode: bool = False,
-) -> CompiledScript:
-    """Parse → transpile → exec once. Internal helper for :func:`compile_script`.
-
-    When *force_object_mode* is true, :class:`CompilerVisitor` pins object emit
-    (nopython recovery path). Requires Numba only if the result stays numeric.
-    """
+) -> tuple[str, list[str], bool]:
+    """Parse + emit. Returns ``(generated_code, plot_titles, object_mode)``."""
     tree = parse(source, mode="exec")
     visitor = CompilerVisitor(force_object_mode=force_object_mode)
     code = visitor.visit(tree)
     if not isinstance(code, str) or not code.strip():
         msg = "CompilerVisitor produced empty code"
         raise RuntimeError(msg)
-
     object_mode = bool(visitor.object_mode) or force_object_mode
+    titles = [p.get("title", f"Plot {i}") for i, p in enumerate(visitor.plots)]
+    return code, titles, object_mode
+
+
+def _exec_generated(
+    source: str,
+    code: str,
+    titles: list[str],
+    object_mode: bool,
+) -> CompiledScript:
+    """Exec generated module text and bind ``execute_script_compiled``."""
     if not object_mode and not _HAS_NUMBA:
         msg = "numba is required for numeric compile mode (pip install numba)"
         raise RuntimeError(msg)
 
-    titles = [p.get("title", f"Plot {i}") for i, p in enumerate(visitor.plots)]
+    if not object_mode:
+        _warm_common_numba_builtins()
 
     namespace: dict[str, Any] = {"__name__": "pynescript_compiled"}
     exec(code, namespace)  # noqa: S102 — intentional compile pipeline
@@ -304,6 +357,43 @@ def _compile_once(
     )
 
 
+def _compile_once(
+    source: str,
+    *,
+    force_object_mode: bool = False,
+) -> CompiledScript:
+    """Parse → transpile → exec once. Internal helper for :func:`compile_script`.
+
+    When *force_object_mode* is true, :class:`CompilerVisitor` pins object emit
+    (nopython recovery path). Requires Numba only if the result stays numeric.
+    """
+    code, titles, object_mode = _transpile_once(
+        source, force_object_mode=force_object_mode
+    )
+    return _exec_generated(source, code, titles, object_mode)
+
+
+def _cache_put(cache: OrderedDict[str, Any], key: str, value: Any, maxsize: int) -> None:
+    if len(cache) >= maxsize and key not in cache:
+        try:
+            cache.popitem(last=False)
+        except KeyError:
+            pass
+    cache[key] = value
+    cache.move_to_end(key)
+
+
+def _share_compiled(source: str, base: CompiledScript) -> CompiledScript:
+    """Clone cache entry for a new source string sharing the same IR / execute."""
+    return CompiledScript(
+        source=source,
+        generated_code=base.generated_code,
+        execute=base.execute,
+        plot_titles=list(base.plot_titles),
+        object_mode=base.object_mode,
+    )
+
+
 def compile_script(source: str, *, use_cache: bool = True) -> CompiledScript:
     """Transpile Pine source and load the compiled entry point.
 
@@ -315,7 +405,9 @@ def compile_script(source: str, *, use_cache: bool = True) -> CompiledScript:
 
     Results are cached by source hash (max 128, LRU) so repeated
     ``Runtime.run(..., mode="compile")`` of the same script skips re-transpile
-    and re-JIT warm-up.
+    and re-JIT warm-up. A secondary IR cache (max 64) reuses an already-warm
+    ``execute`` when two sources emit identical generated code (e.g. comment
+    diffs), avoiding a second cold njit of the same entry.
 
     Scraped corpus sources are sanitized first (same as parse/runtime interpret)
     so docs chrome / Expand stubs do not fail compile-only paths.
@@ -331,7 +423,17 @@ def compile_script(source: str, *, use_cache: bool = True) -> CompiledScript:
         _COMPILE_CACHE.move_to_end(cache_key)
         return _COMPILE_CACHE[cache_key]
 
-    compiled = _compile_once(source, force_object_mode=False)
+    code, titles, object_mode = _transpile_once(source, force_object_mode=False)
+    ir_key = hashlib.sha256(code.encode("utf-8")).hexdigest()
+
+    # Same generated IR as a prior script → reuse warm njit callable.
+    if use_cache and ir_key in _IR_CACHE:
+        compiled = _share_compiled(source, _IR_CACHE[ir_key])
+        _cache_put(_COMPILE_CACHE, cache_key, compiled, _COMPILE_CACHE_MAX)
+        _IR_CACHE.move_to_end(ir_key)
+        return compiled
+
+    compiled = _exec_generated(source, code, titles, object_mode)
 
     # Warm-up JIT only for numeric mode (object mode is pure Python).
     if not compiled.object_mode:
@@ -341,17 +443,14 @@ def compile_script(source: str, *, use_cache: bool = True) -> CompiledScript:
         except Exception as exc:
             if _is_numba_nopython_failure(exc):
                 # Structural recovery: re-emit pure-Python object bar loop.
-                compiled = _compile_once(source, force_object_mode=True)
+                code_o, titles_o, _ = _transpile_once(source, force_object_mode=True)
+                compiled = _exec_generated(source, code_o, titles_o, True)
+                ir_key = hashlib.sha256(code_o.encode("utf-8")).hexdigest()
             # else: leave as-is; first real run will surface the error
 
     if use_cache:
-        if len(_COMPILE_CACHE) >= _COMPILE_CACHE_MAX:
-            try:
-                _COMPILE_CACHE.popitem(last=False)
-            except KeyError:
-                pass
-        _COMPILE_CACHE[cache_key] = compiled
-        _COMPILE_CACHE.move_to_end(cache_key)
+        _cache_put(_COMPILE_CACHE, cache_key, compiled, _COMPILE_CACHE_MAX)
+        _cache_put(_IR_CACHE, ir_key, compiled, _IR_CACHE_MAX)
     return compiled
 
 

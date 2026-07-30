@@ -211,22 +211,40 @@ class BuiltinDispatchMixin:
         return {}
 
     def _call_builtin(self, name: str, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
-        dispatch = self._builtin_dispatch
-        if dispatch is None:
-            dispatch = self._build_builtin_map()
-            self._builtin_dispatch = dispatch
-        handler = dispatch.get(name)
-        if handler is None:
-            msg = (
-                f"Unknown built-in function: '{name}'. "
-                f"Available modules: math, str, array, ta, input, request, line, box, label, table, strategy. "
-                f"Use 'ta.<name>' for technical analysis, 'math.<name>' for math functions."
-            )
-            raise ValueError(msg)
+        # Resolved-handler cache: (tag, handler) keyed by name.
+        # tag 0 = constant, 1 = list-style (args,), 2 = plain *args.
+        # Cuts dispatch.get + _is_list_style_handler on every bar after first hit.
+        # Pre-allocated on BaseEvaluator; getattr for partial mixin tests.
+        resolved = getattr(self, "_builtin_resolved", None)
+        if resolved is None:
+            resolved = {}
+            self._builtin_resolved = resolved  # type: ignore[attr-defined]
+        entry = resolved.get(name)
+
+        if entry is None:
+            dispatch = self._builtin_dispatch
+            if dispatch is None:
+                dispatch = self._build_builtin_map()
+                self._builtin_dispatch = dispatch
+            handler = dispatch.get(name)
+            if handler is None:
+                msg = (
+                    f"Unknown built-in function: '{name}'. "
+                    f"Available modules: math, str, array, ta, input, request, line, box, label, table, strategy. "
+                    f"Use 'ta.<name>' for technical analysis, 'math.<name>' for math functions."
+                )
+                raise ValueError(msg)
+            if not callable(handler):
+                entry = (0, handler)
+            elif _is_list_style_handler(handler):
+                entry = (1, handler)
+            else:
+                entry = (2, handler)
+            resolved[name] = entry
+        tag, handler = entry
         # Constant values registered in the map (e.g. color.red, strategy.long)
-        if not callable(handler):
+        if tag == 0:
             return handler
-        kwargs = kwargs or {}
         if kwargs:
             # Some handlers accept (args, kwargs) directly
             # (e.g. _as_builtin_handler which wraps indicator/strategy).
@@ -236,7 +254,7 @@ class BuiltinDispatchMixin:
             except TypeError:
                 pass
             # Plain functions (color.rgb, etc.): unpack kwargs by signature
-            if not _is_list_style_handler(handler):
+            if tag == 2:
                 try:
                     return handler(*args, **kwargs)
                 except TypeError:
@@ -244,12 +262,11 @@ class BuiltinDispatchMixin:
             # Fallback: merge kwargs into positional args for list-style handlers
             bare = name[3:] if name.startswith("ta.") else name
             merged = _merge_kwargs_into_args(args, kwargs, handler, ta_bare=bare)
-            if _is_list_style_handler(handler):
+            if tag == 1:
                 return handler(merged)
             return handler(*merged)
-        # List-style mixin handlers: ``def _builtin_x(self, args: list)``
-        # Plain callables (color.rgb, ticker.*): unpack positional args.
-        if _is_list_style_handler(handler):
+        # Positional-only hot path (ta.sma, plot, …)
+        if tag == 1:
             return handler(args)
         return handler(*args)
 

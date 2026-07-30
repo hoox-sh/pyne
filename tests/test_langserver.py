@@ -21,8 +21,13 @@
 
 from __future__ import annotations
 
+from lsprotocol import types as lsp
+
+from pynescript.ast.linter import LintWarning
 from pynescript.langserver.features.diagnostics import lint_warnings_to_diagnostics
 from pynescript.langserver.workspace import Workspace
+from pynescript.langserver.workspace import _apply_text_edit
+from pynescript.langserver.workspace import _lint_warning_to_diagnostic
 
 
 class TestWorkspace:
@@ -47,7 +52,6 @@ class TestWorkspace:
         doc = ws.put_document("test://test.pine", original)
 
         updated = "//@version=5\nindicator('Updated')\n"
-        from lsprotocol import types as lsp
 
         updated_doc = ws.update_document(
             "test://test.pine",
@@ -85,6 +89,91 @@ class TestWorkspace:
         assert doc.parse_error is not None
         assert doc.ast is None
 
+    def test_diagnostics_clear_after_fix(self) -> None:
+        """Parse error diagnostics must not linger after a successful edit."""
+        ws = Workspace()
+        uri = "test://stale.pine"
+        ws.put_document(uri, "indicator('T')\nplot(ta.", version=1)
+        doc = ws.get_document(uri)
+        assert doc is not None
+        assert doc.parse_error is not None
+        broken_diags = ws._lint_warnings_to_diagnostics(doc)
+        assert any(d.code == "E001" for d in broken_diags)
+
+        fixed = "//@version=5\nindicator('T')\n"
+        ws.update_document(
+            uri,
+            [lsp.TextDocumentContentChangeWholeDocument(text=fixed)],
+            version=2,
+        )
+        doc = ws.get_document(uri)
+        assert doc is not None
+        assert doc.parse_error is None
+        assert doc.ast is not None
+        recovered = ws._lint_warnings_to_diagnostics(doc)
+        assert not any(d.code == "E001" for d in recovered)
+
+    def test_skip_reparse_when_source_unchanged(self) -> None:
+        """No-op content change must not drop the cached AST."""
+        ws = Workspace()
+        uri = "test://noop.pine"
+        source = "//@version=5\nindicator('T')\n"
+        doc = ws.put_document(uri, source, version=1)
+        cached_ast = doc.ast
+        assert cached_ast is not None
+
+        updated = ws.update_document(
+            uri,
+            [lsp.TextDocumentContentChangeWholeDocument(text=source)],
+            version=2,
+        )
+        assert updated.version == 2
+        assert updated.ast is cached_ast  # identity: re-parse was skipped
+
+    def test_incomplete_input_does_not_crash(self) -> None:
+        """Mid-edit fragments must yield diagnostics, not exceptions."""
+        ws = Workspace()
+        fragments = [
+            "",
+            "//@version=5\nindi",
+            "//@version=5\nindicator('T')\nplot(ta.",
+            "//@version=5\nindicator('T')\nx = ",
+        ]
+        for i, fragment in enumerate(fragments):
+            doc = ws.put_document(f"test://inc{i}.pine", fragment, version=1)
+            # Must always produce a document state; features tolerate None AST.
+            assert doc is not None
+            _ = ws._lint_warnings_to_diagnostics(doc)
+
+
+class TestApplyTextEdit:
+    """Incremental textDocument/didChange application."""
+
+    def test_partial_replace(self) -> None:
+        source = "length = 14\n"
+        r = lsp.Range(
+            start=lsp.Position(line=0, character=9),
+            end=lsp.Position(line=0, character=11),
+        )
+        assert _apply_text_edit(source, r, "20") == "length = 20\n"
+
+    def test_append_past_last_line_without_trailing_newline(self) -> None:
+        """EOF range past last line must apply (previously left stale buffer)."""
+        source = "a"
+        r = lsp.Range(
+            start=lsp.Position(line=1, character=0),
+            end=lsp.Position(line=1, character=0),
+        )
+        assert _apply_text_edit(source, r, "b") == "a\nb"
+
+    def test_multiline_insert(self) -> None:
+        source = "a\nc\n"
+        r = lsp.Range(
+            start=lsp.Position(line=1, character=0),
+            end=lsp.Position(line=1, character=0),
+        )
+        assert _apply_text_edit(source, r, "b\n") == "a\nb\nc\n"
+
 
 class TestDiagnostics:
     """Test diagnostics conversion."""
@@ -105,6 +194,32 @@ class TestDiagnostics:
         diagnostics = lint_warnings_to_diagnostics(warnings, source)
 
         assert len(diagnostics) > 0
-        from lsprotocol import types as lsp
-
         assert diagnostics[0].severity == lsp.DiagnosticSeverity.Warning
+
+    def test_end_column_does_not_overshoot_line(self) -> None:
+        """Diagnostic end character must stay within the line length."""
+        source = "0123456789abcdef\n"
+        warning = LintWarning(
+            code="E999",
+            message="boom",
+            severity="error",
+            line=1,
+            column=5,
+        )
+        diag = _lint_warning_to_diagnostic(warning, source)
+        assert diag is not None
+        line_len = len(source.split("\n")[0])
+        assert diag.range.start.character == 5
+        assert diag.range.end.character <= line_len
+        assert diag.range.end.character > diag.range.start.character
+
+    def test_warning_without_line_skipped(self) -> None:
+        warning = LintWarning(
+            code="C004",
+            message="File should end with a newline",
+            severity="info",
+            line=None,
+            column=None,
+        )
+        assert _lint_warning_to_diagnostic(warning, "x\n") is None
+        assert lint_warnings_to_diagnostics([warning], "x\n") == []

@@ -721,7 +721,7 @@ class AdvancedIndicators(TechnicalHelpers):
         AdvancedIndicators wins MRO over Volatility/Basic for this name; keep
         semantics aligned with ``_stdev`` / ``_stdev_inc_update``.
         """
-        series, period = self._expect_series(args, length=BINARY)
+        series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if self._use_incremental_ta():
             return self._stdev_inc_update(series, period)
         return self._stdev(series, period)

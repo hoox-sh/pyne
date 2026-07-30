@@ -35,25 +35,35 @@ from pynescript.ast import NodeVisitor
 from pynescript.ast import node as ast
 
 
-def handle_document_symbols(params: lsp.DocumentSymbolParams, source: str | None, uri: str) -> list[lsp.DocumentSymbol]:
+def handle_document_symbols(
+    params: lsp.DocumentSymbolParams,
+    source: str | None,
+    uri: str,
+    tree: Any | None = ...,
+) -> list[lsp.DocumentSymbol]:
     """Build a hierarchical symbol tree for the document outline view.
 
     Args:
         params: Client document-symbol params.
         source: Document text, or ``None``.
         uri: Document URI (used for context; symbols are position-based).
+        tree: Pre-parsed AST from the workspace cache. Pass ``None`` when the
+            workspace already failed to parse (skips a redundant re-parse).
+            Omit (default ``...``) to parse from *source*.
 
     Returns:
         Top-level :class:`~lsprotocol.types.DocumentSymbol` list (possibly empty).
     """
-    if not source:
-        return []
+    if tree is ...:
+        if not source:
+            return []
+        try:
+            from pynescript.ast.helper import parse
 
-    try:
-        from pynescript.ast.helper import parse
-
-        tree = parse(source, filename=uri)
-    except Exception:
+            tree = parse(source, filename=uri)
+        except Exception:
+            return []
+    if tree is None:
         return []
 
     collector = DocumentSymbolCollector(uri)
@@ -193,11 +203,17 @@ class DocumentSymbolCollector(NodeVisitor):
             self.visit(arg)
 
     def _flush_function(self) -> None:
-        """Flush the current function's symbols."""
+        """Flush the current function's symbols.
+
+        Clears ``_current_function`` so a subsequent flush (e.g. end of
+        :meth:`visit_Script`) does not re-append the same function, and so
+        top-level assignments after a function are not nested under it.
+        """
         if self._current_function:
             self._current_function.children = self._function_vars
             self.symbols.append(self._current_function)
             self._function_vars = []
+            self._current_function = None
 
     def _node_to_range(self, node: Any) -> lsp.Range:
         """Convert AST node to Range."""

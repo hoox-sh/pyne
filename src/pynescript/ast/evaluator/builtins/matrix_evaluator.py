@@ -151,9 +151,15 @@ class MatrixBuiltinsMixin(BuiltinDispatchMixin):
     # ========== CORE OPERATIONS ==========
 
     def _builtin_matrix_new(self, args: list[Any]) -> Matrix[Any]:
-        """matrix.new(rows, cols, default_value) -> Matrix"""
-        if len(args) < BINARY:
-            self._error("matrix.new requires at least rows and cols")
+        """matrix.new() | matrix.new(rows, cols, default_value?) -> Matrix.
+
+        Zero-arg form creates an empty 0×0 matrix (TV ``matrix.new<T>()``).
+        """
+        if not args:
+            return Matrix(0, 0, None)
+        if len(args) == UNARY:
+            # Single arg is non-standard; treat as empty for soft recovery.
+            return Matrix(0, 0, None)
         rows = self._expect_int(args[0], "matrix.new: rows must be int")
         cols = self._expect_int(args[UNARY], "matrix.new: cols must be int")
         default_value = args[BINARY] if len(args) > BINARY else None
@@ -214,11 +220,13 @@ class MatrixBuiltinsMixin(BuiltinDispatchMixin):
 
         TV: omitting the array appends a row of ``na`` (None) values. Instance
         form ``m.add_row()`` is common in scripts such as seasonality.
+        Three-arg form inserts at *row* index (not always append).
         """
         if not args:
             self._error("matrix.add_row requires a matrix")
         matrix = self._expect_matrix(args[0], "matrix.add_row: first arg must be matrix")
         row_data: list[Any]
+        row_index: int | None = None
         if len(args) == 1:
             row_data = [None] * matrix.cols_count
         elif len(args) == BINARY:
@@ -226,10 +234,11 @@ class MatrixBuiltinsMixin(BuiltinDispatchMixin):
             if isinstance(args[UNARY], list):
                 row_data = args[UNARY]
             else:
-                # row index only → insert empty row at index (approximate: append)
-                row_data = [None] * matrix.cols_count
+                row_index = self._expect_int(args[UNARY], "matrix.add_row: row index must be int")
+                row_data = [None] * (matrix.cols_count if matrix.cols_count else 0)
         elif len(args) >= 3:
             # (matrix, row_index, array)
+            row_index = self._expect_int(args[UNARY], "matrix.add_row: row index must be int")
             row_data = (
                 args[2]
                 if isinstance(args[2], list)
@@ -239,8 +248,8 @@ class MatrixBuiltinsMixin(BuiltinDispatchMixin):
             self._error("matrix.add_row requires matrix and optional row data")
             return
         try:
-            matrix.add_row(row_data)
-        except ValueError as e:
+            matrix.add_row(row_data, index=row_index)
+        except (ValueError, IndexError) as e:
             self._error(f"matrix.add_row: {e}")
 
     def _builtin_matrix_remove_row(self, args: list[Any]) -> None:
@@ -335,14 +344,33 @@ class MatrixBuiltinsMixin(BuiltinDispatchMixin):
     # ========== COLUMN OPERATIONS ==========
 
     def _builtin_matrix_add_col(self, args: list[Any]) -> None:
-        """matrix.add_col(matrix, col_data) -> void"""
-        if len(args) != BINARY:
-            self._error("matrix.add_col requires matrix and column data")
+        """matrix.add_col(id) | matrix.add_col(id, array) | matrix.add_col(id, column, array)."""
+        if not args:
+            self._error("matrix.add_col requires a matrix")
         matrix = self._expect_matrix(args[0], "matrix.add_col: first arg must be matrix")
-        col_data = self._expect_list(args[UNARY], "matrix.add_col: second arg must be array")
+        col_data: list[Any]
+        col_index: int | None = None
+        if len(args) == 1:
+            col_data = [None] * matrix.rows_count
+        elif len(args) == BINARY:
+            if isinstance(args[UNARY], list):
+                col_data = args[UNARY]
+            else:
+                col_index = self._expect_int(args[UNARY], "matrix.add_col: column index must be int")
+                col_data = [None] * matrix.rows_count
+        elif len(args) >= 3:
+            col_index = self._expect_int(args[UNARY], "matrix.add_col: column index must be int")
+            col_data = (
+                args[2]
+                if isinstance(args[2], list)
+                else self._expect_list(args[2], "matrix.add_col: array required")
+            )
+        else:
+            self._error("matrix.add_col requires matrix and optional column data")
+            return
         try:
-            matrix.add_col(col_data)
-        except ValueError as e:
+            matrix.add_col(col_data, index=col_index)
+        except (ValueError, IndexError) as e:
             self._error(f"matrix.add_col: {e}")
 
     def _builtin_matrix_remove_col(self, args: list[Any]) -> None:
@@ -607,26 +635,29 @@ class MatrixBuiltinsMixin(BuiltinDispatchMixin):
         matrix.reverse()
 
     def _builtin_matrix_sort(self, args: list[Any]) -> None:
+        """matrix.sort(id, column?, order?, sort_field?) — UDT sort_field supported."""
         if len(args) < UNARY:
             self._error("matrix.sort requires a matrix")
         matrix = self._expect_matrix(args[0], "matrix.sort: first arg must be matrix")
         column = self._expect_int(args[1], "column") if len(args) > 1 and args[1] is not None else 0
         order = args[2] if len(args) > 2 else "ascending"
-        # Optional sort_field (UDT) ignored for scalar matrices; column used.
+        sort_field = args[3] if len(args) > 3 else None
         try:
-            matrix.sort(column, order)
-        except (IndexError, TypeError) as e:
+            matrix.sort(column, order, sort_field=sort_field)
+        except (IndexError, TypeError, ValueError) as e:
             self._error(f"matrix.sort: {e}")
 
     def _builtin_matrix_sort_indices(self, args: list[Any]) -> list[int]:
+        """matrix.sort_indices(id, column?, order?, sort_field?) — UDT sort_field supported."""
         if len(args) < UNARY:
             self._error("matrix.sort_indices requires a matrix")
         matrix = self._expect_matrix(args[0], "matrix.sort_indices: first arg must be matrix")
         column = self._expect_int(args[1], "column") if len(args) > 1 and args[1] is not None else 0
         order = args[2] if len(args) > 2 else "ascending"
+        sort_field = args[3] if len(args) > 3 else None
         try:
-            return matrix.sort_indices(column, order)
-        except (IndexError, TypeError) as e:
+            return matrix.sort_indices(column, order, sort_field=sort_field)
+        except (IndexError, TypeError, ValueError) as e:
             self._error(f"matrix.sort_indices: {e}")
 
     def _builtin_matrix_median(self, args: list[Any]) -> float | None:
@@ -804,3 +835,11 @@ class MatrixBuiltinsMixin(BuiltinDispatchMixin):
         if len(args) != UNARY:
             self._error("matrix.is_stochastic requires one matrix argument")
         return self._expect_matrix(args[0], "matrix.is_stochastic").is_stochastic()
+
+
+# Named-parameter order for list-style matrix handlers (Pine kwargs).
+MatrixBuiltinsMixin._builtin_matrix_sort._KWARG_ORDER = ["id", "column", "order", "sort_field"]
+MatrixBuiltinsMixin._builtin_matrix_sort_indices._KWARG_ORDER = ["id", "column", "order", "sort_field"]
+MatrixBuiltinsMixin._builtin_matrix_add_row._KWARG_ORDER = ["id", "row", "array_id"]
+MatrixBuiltinsMixin._builtin_matrix_add_col._KWARG_ORDER = ["id", "column", "array_id"]
+MatrixBuiltinsMixin._builtin_matrix_new._KWARG_ORDER = ["rows", "columns", "initial_value"]

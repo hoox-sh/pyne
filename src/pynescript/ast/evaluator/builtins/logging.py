@@ -71,6 +71,10 @@ def format_log_message(*parts: Any) -> str:
     - ``str.format`` style: ``log.info("x={0}", close)``
     - printf ``%`` style: ``log.info("x=%s", close)``
     - multi-arg fallback: join with spaces
+
+    Note: bare ``str.format(*args)`` succeeds even when the template has no
+    ``{…}`` placeholders (leaving ``%s`` / extra args unused). Only apply
+    ``.format`` when braces are present so printf templates still work.
     """
     if not parts:
         return ""
@@ -78,14 +82,19 @@ def format_log_message(*parts: Any) -> str:
         return str(parts[0] if parts[0] is not None else "na")
     fmt = str(parts[0] if parts[0] is not None else "")
     args = [_pine_log_arg(p) for p in parts[1:]]
-    try:
-        return fmt.format(*args)
-    except (IndexError, KeyError, ValueError):
-        pass
-    try:
-        return fmt % tuple(args)
-    except (TypeError, ValueError):
-        pass
+    # TV primary path: str.format placeholders
+    if "{" in fmt:
+        try:
+            return fmt.format(*args)
+        except (IndexError, KeyError, ValueError):
+            pass
+    # printf-style (common in corpus / older scripts)
+    if "%" in fmt:
+        try:
+            return fmt % tuple(args)
+        except (TypeError, ValueError):
+            pass
+    # No recognized placeholders — join all parts
     return " ".join(str(a) for a in (_pine_log_arg(p) for p in parts))
 
 

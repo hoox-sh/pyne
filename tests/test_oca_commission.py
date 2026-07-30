@@ -117,3 +117,30 @@ def test_greedy_oca_positional_args_parse():
     assert e._strategy_state.pending_orders["TP"].oca_name == "TPSL"
     assert e._strategy_state.pending_orders["TP"].oca_type == "reduce"
     assert e._strategy_state.pending_orders["SL"].oca_type == "reduce"
+
+
+def test_compile_entry_commission_matches_interpret():
+    """Compile broker must charge entry commission (realize on close), not exit-only."""
+    from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+    # Interpret oracle
+    e = NodeLiteralEvaluator()
+    e.context = {"close": 100.0, "bar_index": 0, "time": 0, "open": 100.0, "high": 100.0, "low": 100.0}
+    m = e._build_builtin_map()
+    m["strategy"](["T"], {"commission_type": "percent", "commission_value": 1.0, "initial_capital": 100_000})
+    m["strategy.entry"](["L", "long", 10.0])
+    assert e._strategy_state.equity(100.0) == 99_990.0  # openprofit = -entry commission
+    e.context["close"] = 110.0
+    m["strategy.close"](["L"])
+    i_net = e._strategy_state.netprofit()
+    assert i_net == 90.0  # (110-100)*10 - 10 entry commission
+
+    # Compile path
+    b = CompileStrategyBroker(initial_capital=100_000, commission_value=1.0, commission_type="percent")
+    b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+    b.entry("L", "long", 10.0)
+    assert b.equity == 99_990.0
+    b.begin_bar(1, 110.0, 110.0, 110.0, 110.0)
+    b.close("L")
+    assert b.netprofit == i_net
+    assert b.equity == 100_000.0 + i_net

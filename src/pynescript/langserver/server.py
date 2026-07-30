@@ -267,8 +267,11 @@ class PynescriptLanguageServer(LanguageServer):
         ) -> list[lsp.Location] | None:
             """Handle textDocument/definition request."""
             uri = params.text_document.uri
-            source = self.pine_workspace.get_source(uri)
-            return definitions_feature.handle_definition(params, source, uri)
+            doc = self.pine_workspace.get_document(uri)
+            if not doc:
+                return definitions_feature.handle_definition(params, None, uri)
+            # Pass workspace AST (or None on parse failure) to skip re-parse.
+            return definitions_feature.handle_definition(params, doc.source, uri, tree=doc.ast)
 
         @self.feature(lsp.TEXT_DOCUMENT_REFERENCES)
         def text_references(
@@ -276,8 +279,10 @@ class PynescriptLanguageServer(LanguageServer):
         ) -> list[lsp.Location]:
             """Handle textDocument/references request."""
             uri = params.text_document.uri
-            source = self.pine_workspace.get_source(uri)
-            return references_feature.handle_references(params, source, uri)
+            doc = self.pine_workspace.get_document(uri)
+            if not doc:
+                return references_feature.handle_references(params, None, uri)
+            return references_feature.handle_references(params, doc.source, uri, tree=doc.ast)
 
         @self.feature(lsp.TEXT_DOCUMENT_DOCUMENT_SYMBOL)
         def text_document_symbol(
@@ -285,8 +290,10 @@ class PynescriptLanguageServer(LanguageServer):
         ) -> list[lsp.DocumentSymbol]:
             """Handle textDocument/documentSymbol request."""
             uri = params.text_document.uri
-            source = self.pine_workspace.get_source(uri)
-            return symbols_feature.handle_document_symbols(params, source, uri)
+            doc = self.pine_workspace.get_document(uri)
+            if not doc:
+                return symbols_feature.handle_document_symbols(params, None, uri)
+            return symbols_feature.handle_document_symbols(params, doc.source, uri, tree=doc.ast)
 
         @self.feature(lsp.TEXT_DOCUMENT_FORMATTING)
         def text_formatting(
@@ -312,8 +319,10 @@ class PynescriptLanguageServer(LanguageServer):
         ) -> list[lsp.InlayHint] | None:
             """Handle textDocument/inlayHint request."""
             uri = params.text_document.uri
-            source = self.pine_workspace.get_source(uri)
-            return inlay_hints_feature.handle_inlay_hints(params, source)
+            doc = self.pine_workspace.get_document(uri)
+            if not doc:
+                return inlay_hints_feature.handle_inlay_hints(params, None)
+            return inlay_hints_feature.handle_inlay_hints(params, doc.source, tree=doc.ast)
 
         @self.feature(lsp.TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL)
         def text_semantic_tokens(
@@ -321,8 +330,10 @@ class PynescriptLanguageServer(LanguageServer):
         ) -> lsp.SemanticTokens | None:
             """Handle textDocument/semanticTokens/full request."""
             uri = params.text_document.uri
-            source = self.pine_workspace.get_source(uri)
-            return semantic_tokens_feature.handle_semantic_tokens(params, source)
+            doc = self.pine_workspace.get_document(uri)
+            if not doc:
+                return semantic_tokens_feature.handle_semantic_tokens(params, None)
+            return semantic_tokens_feature.handle_semantic_tokens(params, doc.source, tree=doc.ast)
 
 
 def _collect_workspace_symbols(doc: Any, uri: str) -> list[lsp.SymbolInformation]:

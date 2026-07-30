@@ -1,6 +1,8 @@
 // Parity fixture: var counter using strategy.entry
-// Counts bars and emits entry on each with id=C<bar_index>
-// Expected: N events with kind=entry, id=f"C{bar_index}", qty=1
+// Counts bars and calls entry with a new id each bar (C1, C2, …).
+// Default pyramiding=0 → only the first market entry fills; later different
+// ids are ignored while the position is open (TV / Agent 07 semantics).
+// Expected: 1 event kind=entry, id="C1", qty=1
 //@version=5
 var int count = 0
 count := count + 1

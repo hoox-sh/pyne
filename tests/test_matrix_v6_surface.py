@@ -104,3 +104,154 @@ def test_ta_percentile_functions():
     near = e._build_builtin_map()["ta.percentile_nearest_rank"]
     assert lin([series, 5, 50]) == 3.0
     assert near([series, 5, 50]) == 3.0
+
+
+def test_order_ascending_descending_constants():
+    """TV order.* used by array/matrix.sort must resolve (not na)."""
+    e = NodeLiteralEvaluator()
+    e.evaluate_script(
+        """
+//@version=5
+indicator("order-const")
+a = order.ascending
+d = order.descending
+"""
+    )
+    assert e.context["a"] == 1
+    assert e.context["d"] == -1
+
+
+def test_matrix_sort_order_descending_numeric():
+    e = NodeLiteralEvaluator()
+    e.evaluate_script(
+        """
+//@version=5
+indicator("m-sort-desc")
+m = matrix.new<float>(3, 1, 0.0)
+matrix.set(m, 0, 0, 1.0)
+matrix.set(m, 1, 0, 3.0)
+matrix.set(m, 2, 0, 2.0)
+matrix.sort(m, 0, order.descending)
+a0 = matrix.get(m, 0, 0)
+a1 = matrix.get(m, 1, 0)
+a2 = matrix.get(m, 2, 0)
+"""
+    )
+    assert (e.context["a0"], e.context["a1"], e.context["a2"]) == (3.0, 2.0, 1.0)
+
+
+def test_matrix_sort_udt_sort_field():
+    """matrix.sort with UDT cells + sort_field must not crash / must key field."""
+    e = NodeLiteralEvaluator()
+    e.evaluate_script(
+        """
+//@version=5
+indicator("m-udt-sort")
+type Item
+    float v = 0.0
+m = matrix.new<Item>(3, 1)
+matrix.set(m, 0, 0, Item.new(5.0))
+matrix.set(m, 1, 0, Item.new(1.0))
+matrix.set(m, 2, 0, Item.new(3.0))
+matrix.sort(m, 0, order.ascending, "v")
+t0 = matrix.get(m, 0, 0)
+t1 = matrix.get(m, 1, 0)
+t2 = matrix.get(m, 2, 0)
+idx = matrix.sort_indices(m, 0, order.descending, "v")
+"""
+    )
+    assert e.context["t0"].get_field("v") == 1.0
+    assert e.context["t1"].get_field("v") == 3.0
+    assert e.context["t2"].get_field("v") == 5.0
+    # After ascending sort, descending indices of sorted matrix: last→first
+    assert e.context["idx"] == [2, 1, 0]
+
+
+def test_matrix_new_empty_and_add_row_at_index():
+    """TV matrix.new<T>() 0×0 + add_row/col at index 0 with array payload."""
+    e = NodeLiteralEvaluator()
+    e.evaluate_script(
+        """
+//@version=5
+indicator("m-empty")
+m = matrix.new<int>()
+a = array.from(1, 3)
+matrix.add_row(m, 0, a)
+r = matrix.rows(m)
+c = matrix.columns(m)
+v00 = matrix.get(m, 0, 0)
+v01 = matrix.get(m, 0, 1)
+m2 = matrix.new<int>()
+b = array.from(1, 3)
+matrix.add_col(m2, 0, b)
+r2 = matrix.rows(m2)
+c2 = matrix.columns(m2)
+w00 = matrix.get(m2, 0, 0)
+w10 = matrix.get(m2, 1, 0)
+"""
+    )
+    assert e.context["r"] == 1
+    assert e.context["c"] == 2
+    assert e.context["v00"] == 1
+    assert e.context["v01"] == 3
+    assert e.context["r2"] == 2
+    assert e.context["c2"] == 1
+    assert e.context["w00"] == 1
+    assert e.context["w10"] == 3
+
+
+def test_matrix_add_row_inserts_not_only_appends():
+    """matrix.add_row(id, row, array) inserts at row index."""
+    e = NodeLiteralEvaluator()
+    e.evaluate_script(
+        """
+//@version=5
+indicator("m-insert")
+m = matrix.new<float>(2, 2, 0.0)
+matrix.set(m, 0, 0, 1.0)
+matrix.set(m, 1, 0, 2.0)
+matrix.add_row(m, 0, array.from(9.0, 8.0))
+r0 = matrix.get(m, 0, 0)
+r1 = matrix.get(m, 1, 0)
+r2 = matrix.get(m, 2, 0)
+rows = matrix.rows(m)
+"""
+    )
+    assert e.context["rows"] == 3
+    assert e.context["r0"] == 9.0
+    assert e.context["r1"] == 1.0
+    assert e.context["r2"] == 2.0
+
+
+def test_array_sort_udt_sort_field():
+    """array.sort / sort_indices honor sort_field by UDT field name."""
+    e = NodeLiteralEvaluator()
+    e.evaluate_script(
+        """
+//@version=5
+indicator("a-udt-sort")
+type Item
+    float v = 0.0
+    int id = 0
+a = array.new<Item>(0)
+array.push(a, Item.new(2.0, 30))
+array.push(a, Item.new(2.0, 10))
+array.push(a, Item.new(1.0, 20))
+array.sort(a, order.ascending, "id")
+i0 = array.get(a, 0)
+i1 = array.get(a, 1)
+i2 = array.get(a, 2)
+b = array.new<Item>(0)
+array.push(b, Item.new(3.0, 1))
+array.push(b, Item.new(1.0, 2))
+array.push(b, Item.new(2.0, 3))
+idx = array.sort_indices(b, order.ascending, "v")
+array.sort(b, sort_field="v")
+bv0 = array.get(b, 0)
+"""
+    )
+    assert e.context["i0"].get_field("id") == 10
+    assert e.context["i1"].get_field("id") == 20
+    assert e.context["i2"].get_field("id") == 30
+    assert e.context["idx"] == [1, 2, 0]
+    assert e.context["bv0"].get_field("v") == 1.0

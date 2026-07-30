@@ -28,6 +28,25 @@ from .base import BuiltinDispatchMixin
 from .base import BuiltinHandler
 
 
+class StrategyCashAmount(float):
+    """Free cash series value that also tags ``default_qty_type=strategy.cash``.
+
+    TradingView uses one name for both the free-capital series and the
+    ``default_qty_type`` sentinel. At runtime the series is a float; the
+    strategy() declaration inspects ``_pine_qty_type`` (or the string
+    ``\"cash\"``) so both call sites work.
+    """
+
+    __slots__ = ()
+    _pine_qty_type = "cash"
+
+    def __new__(cls, value: float) -> StrategyCashAmount:
+        return float.__new__(cls, float(value))
+
+    def __repr__(self) -> str:  # pragma: no cover - debug aid
+        return f"{float(self)}"
+
+
 @dataclass
 class Order:
     """Pending order (may fill over multiple bars / partially)."""
@@ -585,11 +604,16 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         if "currency" in src and src["currency"] is not None:
             st.account_currency = str(src["currency"])
         if "default_qty_type" in src and src["default_qty_type"] is not None:
-            dqt = str(src["default_qty_type"]).replace("strategy.", "").strip().lower()
-            if dqt in {"fixed", "percent_of_equity", "cash", "percent", "percentage"}:
-                if dqt in {"percent", "percentage"}:
-                    dqt = "percent_of_equity"
-                st.default_qty_type = dqt
+            raw_dqt = src["default_qty_type"]
+            # Dual series/constant: strategy.cash returns StrategyCashAmount
+            if getattr(raw_dqt, "_pine_qty_type", None) == "cash":
+                st.default_qty_type = "cash"
+            else:
+                dqt = str(raw_dqt).replace("strategy.", "").strip().lower()
+                if dqt in {"fixed", "percent_of_equity", "cash", "percent", "percentage"}:
+                    if dqt in {"percent", "percentage"}:
+                        dqt = "percent_of_equity"
+                    st.default_qty_type = dqt
         if "default_qty_value" in src and src["default_qty_value"] is not None:
             st.default_qty_value = float(src["default_qty_value"])
 
@@ -723,21 +747,67 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         fill_price = self._apply_slippage(fill_price, "buy" if direction == "long" else "sell")
         commission = self._calc_commission(qty, fill_price)
         self._strategy_state.commission = commission
+        st = self._strategy_state
+        comment = kw.get("comment", None)
 
-        # Close existing position if opposite direction
-        if (direction == "long" and self._strategy_state.position_direction == "short") or (
-            direction == "short" and self._strategy_state.position_direction == "long"
+        # Close existing position if opposite direction (emit close for event parity
+        # with compile broker reverse path / trade consumers).
+        if (direction == "long" and st.position_direction == "short") or (
+            direction == "short" and st.position_direction == "long"
         ):
-            self._close_position(self._mark_price(), self._strategy_state.position_size, bar_time)
+            close_qty = float(st.position_size)
+            close_dir = st.position_direction
+            self._close_position(self._mark_price(), close_qty, bar_time)
+            self._record_strategy_event(
+                StrategyEvent(
+                    kind="close",
+                    id=entry_id,
+                    direction=close_dir if close_dir in {"long", "short"} else None,
+                    qty=close_qty,
+                    order_type=None,
+                    limit=None,
+                    stop=None,
+                    oca_name=None,
+                    comment="reverse",
+                    bar_index=bar_index,
+                    bar_time=bar_time,
+                    ohlc=(0.0, 0.0, 0.0, 0.0),
+                    script_id="",
+                    run_id="",
+                )
+            )
 
-        # Open new position (absolute size + direction)
-        self._strategy_state.position_direction = direction
-        self._strategy_state.entry_price = fill_price
-        self._strategy_state.entry_bar = bar_index
-        self._strategy_state.entry_time = bar_time
-        self._strategy_state.position_size = qty
-        self._strategy_state.position_entry_name = entry_id
-        self._strategy_state.open_trades = [
+        # Same-direction market entry while already in a position:
+        # - same entry id → replace (TV cancels+re-places that id)
+        # - different id + pyramiding room → add
+        # - different id + no pyramiding room → ignore
+        if st.position_direction == direction and st.position_size > 0:
+            same_id = st.position_entry_name == entry_id or any(t.entry_id == entry_id for t in st.open_trades)
+            if not same_id:
+                max_entries = int(st.pyramiding) + 1 if st.pyramiding is not None else 1
+                if st.pyramiding > 0 and len(st.open_trades) < max_entries:
+                    self._open_position_qty(
+                        direction,
+                        qty,
+                        fill_price,
+                        entry_id,
+                        bar_index,
+                        bar_time,
+                        commission,
+                        comment=comment,
+                    )
+                    return
+                # Pyramiding blocked — no new entry
+                return
+
+        # Open / replace position (flat, or same-id re-entry)
+        st.position_direction = direction
+        st.entry_price = fill_price
+        st.entry_bar = bar_index
+        st.entry_time = bar_time
+        st.position_size = qty
+        st.position_entry_name = entry_id
+        st.open_trades = [
             OpenTrade(
                 entry_id=entry_id,
                 entry_bar=bar_index,
@@ -748,8 +818,8 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 commission=commission,
             )
         ]
-        self._strategy_state.note_position_size()
-        self._strategy_state.equity(fill_price)  # sample equity curve
+        st.note_position_size()
+        st.equity(fill_price)  # sample equity curve
 
         self._record_strategy_event(
             StrategyEvent(
@@ -761,7 +831,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 limit=limit_price,
                 stop=stop_price,
                 oca_name=None,
-                comment=kw.get("comment", None),
+                comment=comment,
                 bar_index=bar_index,
                 bar_time=bar_time,
                 ohlc=(0.0, 0.0, 0.0, 0.0),
@@ -1314,6 +1384,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         bar_index: int,
         bar_time: int,
         commission: float = 0.0,
+        comment: str | None = "order_fill",
     ) -> None:
         """Open or add to a position (absolute qty, same direction)."""
         st = self._strategy_state
@@ -1327,6 +1398,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             total = st.position_size + qty
             st.entry_price = (st.entry_price * st.position_size + fill_price * qty) / total
             st.position_size = total
+            st.position_entry_name = entry_id
             st.open_trades.append(
                 OpenTrade(
                     entry_id=entry_id,
@@ -1368,7 +1440,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 limit=None,
                 stop=None,
                 oca_name=None,
-                comment="order_fill",
+                comment=comment,
                 bar_index=bar_index,
                 bar_time=bar_time,
                 ohlc=(0.0, 0.0, 0.0, 0.0),
@@ -1503,7 +1575,8 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         return float(self._strategy_state.initial_capital)
 
     def _handle_strategy_cash(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
-        return self._strategy_state.cash(self._mark_price())
+        """Free capital remaining; also tags default_qty_type=cash via StrategyCashAmount."""
+        return StrategyCashAmount(self._strategy_state.cash(self._mark_price()))
 
     def _handle_strategy_account_currency(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
         return str(self._strategy_state.account_currency)

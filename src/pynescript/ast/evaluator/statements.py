@@ -443,8 +443,9 @@ class StatementEvaluator:
         self._pending_library_exports = {}  # type: ignore[attr-defined]
         self._active_library = None  # type: ignore[attr-defined]
         last: Any = None
+        visit = self.visit
         for stmt in node.body:
-            last = self.visit(stmt)  # type: ignore[attr-defined]
+            last = visit(stmt)  # type: ignore[attr-defined]
             # Detect library("Title") declaration from Expr(Call(...))
             if isinstance(last, ScriptDeclaration) and last.script_type == "library":
                 self._active_library = LibraryModule(title=str(last.title))  # type: ignore[attr-defined]
@@ -490,14 +491,30 @@ class StatementEvaluator:
         Raises:
             ValueError: Unsupported target form
         """
+        mode = node.mode
+        # Dominant bar-loop path: plain ``name = expr`` (no var/const mode).
+        # Avoids isinstance on Var/VarIp/Const for every assign every bar.
+        if mode is None:
+            if node.value:
+                value = self.visit(node.value)  # type: ignore[attr-defined]
+                target = node.target
+                if isinstance(target, ast.Name):
+                    self.context[target.id] = value  # type: ignore[attr-defined]
+                    if getattr(node, "export", None):
+                        self._register_export(target.id, value)
+                    return
+                if isinstance(target, ast.Tuple):
+                    self._assign_tuple_unpack(target, value)
+                    return
+                msg = f"Unsupported assignment target: {type(target)}"
+                self._error(msg)  # type: ignore[attr-defined]
+            return
+
         # -- Handle var / varip: initialize once (first time declaration runs) --
         # Pine ``var`` is not strictly bar_index==0: a ``var`` inside
         # ``if barstate.islast`` or a function body must init on first
         # *execution* of that declaration, which may be a later bar.
-        is_var = node.mode is not None and isinstance(node.mode, (ast.Var, ast.VarIp))
-        is_const = node.mode is not None and isinstance(node.mode, ast.Const)  # v6 const decl
-
-        if is_var:
+        if isinstance(mode, (ast.Var, ast.VarIp)):
             if isinstance(node.target, ast.Name):
                 name: str = node.target.id  # type: ignore[attr-defined]
                 declared: set[str] = self._var_declarations  # type: ignore[attr-defined]
@@ -511,74 +528,76 @@ class StatementEvaluator:
             self._error(msg)  # type: ignore[attr-defined]
             return
 
-        if is_const:
+        if isinstance(mode, ast.Const):
             # v6: const always initializes (no re-init like var)
             if node.value and isinstance(node.target, ast.Name):
                 value = self.visit(node.value)  # type: ignore[attr-defined]
                 self.context[node.target.id] = value  # type: ignore[attr-defined]
             return
 
-        # -- Regular assignment (also covers `const T name = expr` type-qualifier form)
+        # -- Regular assignment with unexpected mode object (fallback)
         if node.value:
             value = self.visit(node.value)  # type: ignore[attr-defined]
             if isinstance(node.target, ast.Name):
                 self.context[node.target.id] = value  # type: ignore[attr-defined]
-                # June 2025: export const / export typed vars from libraries
                 if getattr(node, "export", None):
                     self._register_export(node.target.id, value)
             elif isinstance(node.target, ast.Tuple):
-                # Tuple unpacking: [a, b, c] = expression
-                elts = node.target.elts
-                if isinstance(value, (list, tuple)):
-                    values = list(value)
-                elif hasattr(value, "history") and isinstance(getattr(value, "history", None), list):
-                    # _SeriesResult: if history looks like a multi-value tuple
-                    # (mixed / non-scalar elements), unpack history; else pad current.
-                    hist = list(getattr(value, "history", []) or [])
-                    # history is most-recent-first; multi-value returns store one
-                    # tuple as a single "current" — prefer current when it is a
-                    # sequence matching the unpack arity.
-                    current = getattr(value, "current", None)
-                    if isinstance(current, (list, tuple)) and len(current) == len(elts):
-                        values = list(current)
-                    elif len(hist) == len(elts) and not all(
-                        x is None or isinstance(x, (int, float, bool)) for x in hist
-                    ):
-                        # chronological order for unpack (history is reverse)
-                        values = list(reversed(hist))
-                    else:
-                        values = [current] * len(elts)
-                elif value is not None and hasattr(value, "__iter__") and not isinstance(
-                    value, (str, bytes, dict)
-                ):
-                    # Do NOT iterate Matrix/UDT objects as unpack sources — only
-                    # plain sequences. Matrices are iterable by row and would
-                    # corrupt `[arr, mat] = …` when the RHS is wrongly a matrix.
-                    from pynescript.ast.evaluator.builtins.matrix import Matrix
-
-                    if isinstance(value, Matrix):
-                        values = [None] * len(elts)
-                    else:
-                        try:
-                            values = list(value)
-                        except TypeError:
-                            values = [None] * len(elts)
-                else:
-                    # Soft-fail: assign None to each target (stub libs, na, etc.)
-                    values = [None] * len(elts)
-                # Pad / truncate to target count
-                if len(values) < len(elts):
-                    values = values + [None] * (len(elts) - len(values))
-                for target_node, val in zip(elts, values, strict=False):
-                    if isinstance(target_node, ast.Name):
-                        self.context[target_node.id] = val
-                    else:
-                        msg = f"Unsupported unpack target: {type(target_node)}"
-                        self._error(msg)  # type: ignore[attr-defined]
-                        return
+                self._assign_tuple_unpack(node.target, value)
             else:
                 msg = f"Unsupported assignment target: {type(node.target)}"
                 self._error(msg)  # type: ignore[attr-defined]
+
+    def _assign_tuple_unpack(self, target: ast.Tuple, value: Any) -> None:
+        """Unpack RHS into ``[a, b, …]`` targets (lists, multi-value series, soft-fail)."""
+        elts = target.elts
+        if isinstance(value, (list, tuple)):
+            values = list(value)
+        elif hasattr(value, "history") and isinstance(getattr(value, "history", None), list):
+            # _SeriesResult: if history looks like a multi-value tuple
+            # (mixed / non-scalar elements), unpack history; else pad current.
+            hist = list(getattr(value, "history", []) or [])
+            # history is most-recent-first; multi-value returns store one
+            # tuple as a single "current" — prefer current when it is a
+            # sequence matching the unpack arity.
+            current = getattr(value, "current", None)
+            if isinstance(current, (list, tuple)) and len(current) == len(elts):
+                values = list(current)
+            elif len(hist) == len(elts) and not all(
+                x is None or isinstance(x, (int, float, bool)) for x in hist
+            ):
+                # chronological order for unpack (history is reverse)
+                values = list(reversed(hist))
+            else:
+                values = [current] * len(elts)
+        elif value is not None and hasattr(value, "__iter__") and not isinstance(
+            value, (str, bytes, dict)
+        ):
+            # Do NOT iterate Matrix/UDT objects as unpack sources — only
+            # plain sequences. Matrices are iterable by row and would
+            # corrupt `[arr, mat] = …` when the RHS is wrongly a matrix.
+            from pynescript.ast.evaluator.builtins.matrix import Matrix
+
+            if isinstance(value, Matrix):
+                values = [None] * len(elts)
+            else:
+                try:
+                    values = list(value)
+                except TypeError:
+                    values = [None] * len(elts)
+        else:
+            # Soft-fail: assign None to each target (stub libs, na, etc.)
+            values = [None] * len(elts)
+        # Pad / truncate to target count
+        if len(values) < len(elts):
+            values = values + [None] * (len(elts) - len(values))
+        for target_node, val in zip(elts, values, strict=False):
+            if isinstance(target_node, ast.Name):
+                self.context[target_node.id] = val
+            else:
+                msg = f"Unsupported unpack target: {type(target_node)}"
+                self._error(msg)  # type: ignore[attr-defined]
+                return
 
     def visit_ReAssign(self, node: ast.ReAssign):
         """Handle reassignment (``x := x + 1`` / ``obj.field := value``).

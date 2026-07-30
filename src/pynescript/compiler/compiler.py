@@ -2664,23 +2664,26 @@ class CompilerVisitor(NodeVisitor):
                 return repr("#000000")
             if node.attr in ("bg_color", "background_color"):
                 return repr("#FFFFFF")
-            if node.attr == "is_heikinashi":
+            # Boolean chart mode flags (defaults match backend.runtime.Chart)
+            if node.attr in (
+                "is_heikinashi",
+                "is_heikin_ashi",
+                "is_renko",
+                "is_kagi",
+                "is_linebreak",
+                "is_line_break",
+                "is_pnf",
+                "is_pointfigure",
+                "is_point_figure",
+                "is_range",
+            ):
                 return "False"
-            if node.attr == "is_renko":
-                return "False"
-            if node.attr == "is_kagi":
-                return "False"
-            if node.attr == "is_linebreak":
-                return "False"
-            if node.attr == "is_pnf":
-                return "False"
-            if node.attr == "is_range":
-                return "False"
-            if node.attr == "left_visible_bar_time":
+            if node.attr == "is_standard":
+                return "True"
+            if node.attr in ("left_visible_bar_time", "right_visible_bar_time"):
                 return "0.0"
-            if node.attr == "right_visible_bar_time":
-                return "0.0"
-            return repr(node.attr)
+            # Unknown chart.* → na-ish None, not a truthy qualified string
+            return "None"
         # hline.style_solid / linestyle constants
         if isinstance(node.value, ast.Name) and node.value.id == "hline":
             styles = {
@@ -4144,6 +4147,9 @@ class CompilerVisitor(NodeVisitor):
             "tsi": "ta_tsi",
             "macd": "ta_macd",
             "bb": "ta_bb",
+            "dema": "ta_dema",
+            "tema": "ta_tema",
+            "swma": "ta_swma",
         }
         if func_name in _BARE_TA and func_name not in self.user_funcs:
             func_name = _BARE_TA[func_name]
@@ -4388,6 +4394,49 @@ class CompilerVisitor(NodeVisitor):
             if not _is_series_arr(args[0]):
                 return f"numba_hma_inc(close_arr, int({args[0]}), __bar_idx, {st}, {raw})"
             return f"numba_hma_inc({_arr(args[0])}, 9, __bar_idx, {st}, {raw})"
+        if func_name == "ta_dema":
+            # ta.dema(source, length) — nested EMA + e1 intermediate series
+            if not args:
+                return "np.nan"
+            st = self._alloc_fixed_state("dema", 3)
+            e1 = f"__dema_e1{self._ta_state_i}_arr"
+            self._ta_state_i += 1
+            self.arrays.add(e1)
+            if len(args) >= 2:
+                return (
+                    f"numba_dema_inc({_arr(args[0])}, int({args[1]}), __bar_idx, {st}, {e1})"
+                )
+            if not _is_series_arr(args[0]):
+                return f"numba_dema_inc(close_arr, int({args[0]}), __bar_idx, {st}, {e1})"
+            return f"numba_dema_inc({_arr(args[0])}, 9, __bar_idx, {st}, {e1})"
+        if func_name == "ta_tema":
+            # ta.tema(source, length) — triple nested EMA + two intermediate series
+            if not args:
+                return "np.nan"
+            st = self._alloc_fixed_state("tema", 4)
+            sid = self._ta_state_i
+            self._ta_state_i += 1
+            e1 = f"__tema_e1{sid}_arr"
+            e2 = f"__tema_e2{sid}_arr"
+            self.arrays.add(e1)
+            self.arrays.add(e2)
+            if len(args) >= 2:
+                return (
+                    f"numba_tema_inc({_arr(args[0])}, int({args[1]}), __bar_idx, {st}, "
+                    f"{e1}, {e2})"
+                )
+            if not _is_series_arr(args[0]):
+                return (
+                    f"numba_tema_inc(close_arr, int({args[0]}), __bar_idx, {st}, {e1}, {e2})"
+                )
+            return f"numba_tema_inc({_arr(args[0])}, 9, __bar_idx, {st}, {e1}, {e2})"
+        if func_name == "ta_swma":
+            # ta.swma(source) — fixed 4-period symmetric weights (O(1) full formula)
+            if not args:
+                return "np.nan"
+            if _is_series_arr(args[0]) or args[0].endswith("_arr") or "[" in args[0]:
+                return f"numba_swma({_arr(args[0])}, __bar_idx)"
+            return f"numba_swma(close_arr, __bar_idx)"
         if func_name == "ta_tsi":
             # ta.tsi(source, short, long) or ta.tsi(short, long) on close
             st = self._alloc_fixed_state("tsi", 6)

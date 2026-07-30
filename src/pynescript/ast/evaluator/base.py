@@ -83,6 +83,54 @@ _MATH_CONSTANTS = {
     "size.normal": 12,
     "size.large": 16,
     "size.huge": 20,
+    # array/matrix sort order (TV: ascending=1, descending=-1)
+    "order.ascending": 1,
+    "order.descending": -1,
+    # plotshape / plotchar style & location (compiler emits attr name; interpret needs context)
+    "shape.arrowup": "arrowup",
+    "shape.arrowdown": "arrowdown",
+    "shape.circle": "circle",
+    "shape.cross": "cross",
+    "shape.diamond": "diamond",
+    "shape.flag": "flag",
+    "shape.labelup": "labelup",
+    "shape.labeldown": "labeldown",
+    "shape.square": "square",
+    "shape.triangledown": "triangledown",
+    "shape.triangleup": "triangleup",
+    "shape.xcross": "xcross",
+    "location.abovebar": "abovebar",
+    "location.belowbar": "belowbar",
+    "location.top": "top",
+    "location.bottom": "bottom",
+    "location.absolute": "absolute",
+    # drawing / table placement
+    "xloc.bar_index": "bar_index",
+    "xloc.bar_time": "bar_time",
+    "yloc.price": "price",
+    "yloc.abovebar": "abovebar",
+    "yloc.belowbar": "belowbar",
+    "extend.none": "none",
+    "extend.left": "left",
+    "extend.right": "right",
+    "extend.both": "both",
+    "display.none": "none",
+    "display.all": "all",
+    "display.data_window": "data_window",
+    "display.price_scale": "price_scale",
+    "display.status_line": "status_line",
+    "position.top_left": "top_left",
+    "position.top_center": "top_center",
+    "position.top_right": "top_right",
+    "position.middle_left": "middle_left",
+    "position.middle_center": "middle_center",
+    "position.middle_right": "middle_right",
+    "position.bottom_left": "bottom_left",
+    "position.bottom_center": "bottom_center",
+    "position.bottom_right": "bottom_right",
+    "hline.style_solid": "solid",
+    "hline.style_dashed": "dashed",
+    "hline.style_dotted": "dotted",
     # v6 updated color constants (from design spec)
     "color.red": "#F23645",
     "color.green": "#22AB94",
@@ -151,6 +199,11 @@ class BaseEvaluator(NodeVisitor):
         self._library_registry = LibraryRegistry()
         self._active_library: LibraryModule | None = None
         self._pending_library_exports: dict[str, Any] = {}
+        # Bar-loop call-site caches (pre-allocated so visit_Call avoids None checks).
+        # Keyed by id(Call AST node); AST is stable for the script lifetime.
+        self._call_site_cache: dict[int, tuple] = {}
+        # name → (tag, handler) for _call_builtin after first resolve
+        self._builtin_resolved: dict[str, tuple[int, Any]] = {}
 
     def generic_visit(self, node: ast.AST):
         """Fail closed on AST node types with no ``visit_*`` implementation.

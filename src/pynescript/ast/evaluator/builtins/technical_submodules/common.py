@@ -61,14 +61,14 @@ class CommonIndicators(TechnicalHelpers):
 
     def _builtin_ta_falling(self, args: list[Any]) -> bool:
         """Check if series is falling for length bars."""
-        series, period = self._expect_series(args, length=BINARY)
+        series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if self._use_incremental_ta():
             return self._falling_inc_update(series, period)
         return self._falling(series, period)
 
     def _builtin_ta_rising(self, args: list[Any]) -> bool:
         """Check if series is rising for length bars."""
-        series, period = self._expect_series(args, length=BINARY)
+        series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if self._use_incremental_ta():
             return self._rising_inc_update(series, period)
         return self._rising(series, period)
@@ -77,14 +77,14 @@ class CommonIndicators(TechnicalHelpers):
 
     def _builtin_ta_highestbars(self, args: list[Any]) -> int:
         """Offset to the highest value over length bars."""
-        series, period = self._expect_series(args, length=BINARY)
+        series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if self._use_incremental_ta():
             return self._highestbars_inc_update(series, period)
         return self._highestbars(series, period)
 
     def _builtin_ta_lowestbars(self, args: list[Any]) -> int:
         """Offset to the lowest value over length bars."""
-        series, period = self._expect_series(args, length=BINARY)
+        series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if self._use_incremental_ta():
             return self._lowestbars_inc_update(series, period)
         return self._lowestbars(series, period)
@@ -116,12 +116,14 @@ class CommonIndicators(TechnicalHelpers):
 
     def _builtin_ta_change(self, args: list[Any]) -> float | None:
         """Difference between current value and value length bars ago."""
-        series, period = self._expect_series(args, length=BINARY)
+        series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
+        if self._use_incremental_ta():
+            return self._change_inc_update(series, period)
         return self._change(series, period)
 
     def _builtin_ta_mom(self, args: list[Any]) -> float | None:
         """Momentum = current value - previous value at specified length."""
-        series, period = self._expect_series(args, length=BINARY)
+        series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if self._use_incremental_ta():
             return self._mom_inc_update(series, period)
         return self._momentum(series, period)
@@ -131,17 +133,21 @@ class CommonIndicators(TechnicalHelpers):
         msg = "ta.cum expects a series"
         if len(args) != UNARY:
             self._error(msg)
+        if self._use_incremental_ta():
+            return self._cum_inc_update(args[0])  # type: ignore[return-value]
         series = self._expect_list(args[0], msg)
         return self._cumsum(series)
 
     def _builtin_ta_dev(self, args: list[Any]) -> float | None:
         """Deviation from mean (standard deviation)."""
-        series, period = self._expect_series(args, length=BINARY)
+        series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
+        if self._use_incremental_ta() and hasattr(self, "_dev_inc_update"):
+            return self._dev_inc_update(series, period)
         return self._dev(series, period)
 
     def _builtin_ta_median(self, args: list[Any]) -> float | None:
         """Median value over a period."""
-        series, period = self._expect_series(args, length=BINARY)
+        series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if self._use_incremental_ta():
             return self._median_inc_update(series, period)
         return self._median(series, period)
@@ -153,14 +159,16 @@ class CommonIndicators(TechnicalHelpers):
 
     def _builtin_ta_percentrank(self, args: list[Any]) -> float | None:
         """Percentile rank of current value in period."""
-        series, period = self._expect_series(args, length=BINARY)
+        series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if self._use_incremental_ta():
             return self._percentrank_inc_update(series, period)
         return self._percentrank(series, period)
 
     def _builtin_ta_variance(self, args: list[Any]) -> float | None:
         """Variance over a period."""
-        series, period = self._expect_series(args, length=BINARY)
+        series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
+        if self._use_incremental_ta() and hasattr(self, "_variance_inc_update"):
+            return self._variance_inc_update(series, period)
         return self._variance(series, period)
 
     def _builtin_ta_expected_value(self, args: list[Any]) -> float:
@@ -639,6 +647,8 @@ class CommonIndicators(TechnicalHelpers):
             highs = self._context_series("high")
             lows = self._context_series("low")
             closes = self._context_series("close")
+            if self._use_incremental_ta():
+                return self._adx_inc_update(highs, lows, closes, length)
             return self._adx(highs, lows, closes, length)
         if len(args) == BINARY and self._is_period_like(args[0]) and self._is_period_like(args[1]):
             # diLength + adxSmoothing — use adxSmoothing for the final ADX period
@@ -646,6 +656,8 @@ class CommonIndicators(TechnicalHelpers):
             highs = self._context_series("high")
             lows = self._context_series("low")
             closes = self._context_series("close")
+            if self._use_incremental_ta():
+                return self._adx_inc_update(highs, lows, closes, adx_len)
             return self._adx(highs, lows, closes, adx_len)
         if len(args) != QUATERNARY:
             self._error(msg)
@@ -653,6 +665,8 @@ class CommonIndicators(TechnicalHelpers):
         lows = self._expect_list(args[1], msg)
         closes = self._expect_list(args[2], msg)
         length = self._expect_int(args[3], msg)
+        if self._use_incremental_ta():
+            return self._adx_inc_update(highs, lows, closes, length)
         return self._adx(highs, lows, closes, length)
 
     def _adx(

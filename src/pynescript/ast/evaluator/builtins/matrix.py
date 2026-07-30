@@ -89,12 +89,25 @@ class Matrix(Generic[T]):
 
     # ========== ROW OPERATIONS ==========
 
-    def add_row(self, row_data: list[Any]) -> None:
-        """Add row to end of matrix."""
-        if len(row_data) != self.cols_count:
-            msg = f"Row size {len(row_data)} != matrix columns {self.cols_count}"
+    def add_row(self, row_data: list[Any], index: int | None = None) -> None:
+        """Add row at *index* (or append when *index* is None / past end).
+
+        Empty (0×0) matrices adopt column count from *row_data* so TV form
+        ``matrix.add_row(m, 0, array.from(...))`` works on ``matrix.new<T>()``.
+        """
+        row = list(row_data)
+        if self.rows_count == 0 and self.cols_count == 0:
+            self.cols_count = len(row)
+        elif len(row) != self.cols_count:
+            msg = f"Row size {len(row)} != matrix columns {self.cols_count}"
             raise ValueError(msg)
-        self.data.append(row_data.copy())
+        if index is None or index >= self.rows_count:
+            self.data.append(row)
+        else:
+            if index < 0:
+                msg = f"Row index {index} out of range"
+                raise IndexError(msg)
+            self.data.insert(int(index), row)
         self.rows_count += 1
 
     def remove_row(self, index: int) -> None:
@@ -154,13 +167,30 @@ class Matrix(Generic[T]):
 
     # ========== COLUMN OPERATIONS ==========
 
-    def add_col(self, col_data: list[Any]) -> None:
-        """Add column to end of matrix."""
-        if len(col_data) != self.rows_count:
-            msg = f"Column size {len(col_data)} != matrix rows {self.rows_count}"
+    def add_col(self, col_data: list[Any], index: int | None = None) -> None:
+        """Add column at *index* (or append when *index* is None / past end).
+
+        Empty matrices adopt row count from *col_data* (one row per element).
+        """
+        col = list(col_data)
+        if self.rows_count == 0 and self.cols_count == 0:
+            # 0×0 → N×1 from column values
+            for v in col:
+                self.data.append([v])
+            self.rows_count = len(col)
+            self.cols_count = 1 if col else 0
+            return
+        if len(col) != self.rows_count:
+            msg = f"Column size {len(col)} != matrix rows {self.rows_count}"
             raise ValueError(msg)
+        insert_at = self.cols_count if index is None else int(index)
+        if insert_at < 0:
+            msg = f"Column index {insert_at} out of range"
+            raise IndexError(msg)
+        if insert_at > self.cols_count:
+            insert_at = self.cols_count
         for i in range(self.rows_count):
-            self.data[i].append(col_data[i])
+            self.data[i].insert(insert_at, col[i])
         self.cols_count += 1
 
     def remove_col(self, index: int) -> None:
@@ -444,41 +474,128 @@ class Matrix(Generic[T]):
             return None
         return float(statistics.variance(vals))
 
-    def sort(self, column: int = 0, order: str = "ascending") -> None:
-        """Sort rows by values in ``column`` (TV matrix.sort)."""
+    @staticmethod
+    def _is_descending(order: Any) -> bool:
+        """True for TV ``order.descending`` (-1), ``\"descending\"``, etc."""
+        if order is None:
+            return False
+        if isinstance(order, bool):
+            return order
+        if isinstance(order, (int, float)) and not isinstance(order, bool):
+            # TV: order.ascending = 1, order.descending = -1
+            return float(order) < 0
+        name = getattr(order, "name", None) or getattr(order, "id", None)
+        text = str(name if name is not None else order).lower()
+        return "desc" in text
+
+    @staticmethod
+    def _udt_field_key(value: Any, sort_field: Any) -> Any:
+        """Extract comparable key from a cell (UDT field name or int index)."""
+        if value is None or sort_field is None:
+            return value
+        get_field = getattr(value, "get_field", None)
+        if get_field is None:
+            return value
+        if isinstance(sort_field, str):
+            try:
+                return get_field(sort_field)
+            except (AttributeError, KeyError, TypeError):
+                return value
+        if isinstance(sort_field, (int, float)) and not isinstance(sort_field, bool):
+            udt = getattr(value, "udt", None)
+            fields = getattr(udt, "fields", None)
+            if fields:
+                names = list(fields.keys())
+                idx = int(sort_field)
+                if 0 <= idx < len(names):
+                    try:
+                        return get_field(names[idx])
+                    except (AttributeError, KeyError, TypeError):
+                        return value
+        return value
+
+    @staticmethod
+    def _comparable_key(value: Any) -> Any:
+        """Return a key that sorts without TypeError (string fallback)."""
+        try:
+            _ = value < value  # noqa: B015
+            return value
+        except TypeError:
+            return (str(type(value)), str(value))
+
+    def _cell_sort_value(self, cell: Any, sort_field: Any) -> Any:
+        if sort_field is not None:
+            return self._udt_field_key(cell, sort_field)
+        return cell
+
+    def sort(
+        self,
+        column: int = 0,
+        order: Any = "ascending",
+        sort_field: Any = None,
+    ) -> None:
+        """Sort rows by values in ``column`` (TV matrix.sort).
+
+        Optional *sort_field* (field name or field index) keys UDT cells.
+        ``na`` cells always sort last (TV semantics).
+        """
         if self.rows_count == 0:
             return
         if not (0 <= column < self.cols_count):
             msg = f"Column index {column} out of range"
             raise IndexError(msg)
-        reverse = order in ("descending", "desc") or order == 1
+        reverse = self._is_descending(order)
+
+        non_na: list[list[Any]] = []
+        na_rows: list[list[Any]] = []
+        for row in self.data:
+            v = self._cell_sort_value(row[column], sort_field)
+            if v is None:
+                na_rows.append(row)
+            else:
+                non_na.append(row)
 
         def key_fn(row: list[Any]) -> Any:
-            v = row[column]
-            if v is None:
-                return float("inf") if not reverse else float("-inf")
-            return v
+            return self._comparable_key(self._cell_sort_value(row[column], sort_field))
 
-        self.data.sort(key=key_fn, reverse=reverse)
+        try:
+            non_na.sort(key=key_fn, reverse=reverse)
+        except TypeError:
+            non_na.sort(
+                key=lambda r: (str(type(self._cell_sort_value(r[column], sort_field))),
+                               str(self._cell_sort_value(r[column], sort_field))),
+                reverse=reverse,
+            )
+        self.data = non_na + na_rows
 
-    def sort_indices(self, column: int = 0, order: str = "ascending") -> list[int]:
+    def sort_indices(
+        self,
+        column: int = 0,
+        order: Any = "ascending",
+        sort_field: Any = None,
+    ) -> list[int]:
         """Return row indices that would sort the matrix by ``column``."""
         if self.rows_count == 0:
             return []
         if not (0 <= column < self.cols_count):
             msg = f"Column index {column} out of range"
             raise IndexError(msg)
-        reverse = order in ("descending", "desc") or order == 1
-        indices = list(range(self.rows_count))
+        reverse = self._is_descending(order)
 
-        def key_fn(i: int) -> Any:
-            v = self.data[i][column]
+        non_na: list[tuple[Any, int]] = []
+        na_idx: list[int] = []
+        for i, row in enumerate(self.data):
+            v = self._cell_sort_value(row[column], sort_field)
             if v is None:
-                return float("inf") if not reverse else float("-inf")
-            return v
+                na_idx.append(i)
+            else:
+                non_na.append((v, i))
 
-        indices.sort(key=key_fn, reverse=reverse)
-        return indices
+        try:
+            non_na.sort(key=lambda x: self._comparable_key(x[0]), reverse=reverse)
+        except TypeError:
+            non_na.sort(key=lambda x: (str(type(x[0])), str(x[0])), reverse=reverse)
+        return [idx for _, idx in non_na] + na_idx
 
     def _as_float_grid(self) -> list[list[float]]:
         grid: list[list[float]] = []

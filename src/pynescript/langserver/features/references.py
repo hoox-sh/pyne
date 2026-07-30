@@ -34,13 +34,21 @@ from pynescript.ast import node as ast
 from pynescript.langserver.protocol.utils import get_word_at_position
 
 
-def handle_references(params: lsp.ReferenceParams, source: str | None, uri: str) -> list[lsp.Location]:
+def handle_references(
+    params: lsp.ReferenceParams,
+    source: str | None,
+    uri: str,
+    tree: Any | None = ...,
+) -> list[lsp.Location]:
     """Collect references to the symbol under the cursor.
 
     Args:
         params: Client reference params (position + includeDeclaration).
         source: Document text, or ``None``.
         uri: Document URI for returned locations.
+        tree: Pre-parsed AST from the workspace cache. Pass ``None`` when the
+            workspace already failed to parse (skips a redundant re-parse).
+            Omit (default ``...``) to parse from *source*.
 
     Returns:
         List of :class:`~lsprotocol.types.Location` (empty if none / unparsable).
@@ -57,12 +65,14 @@ def handle_references(params: lsp.ReferenceParams, source: str | None, uri: str)
     if not word:
         return []
 
-    # Parse the source to get AST
-    try:
-        from pynescript.ast.helper import parse
+    if tree is ...:
+        try:
+            from pynescript.ast.helper import parse
 
-        tree = parse(source, filename=uri)
-    except Exception:
+            tree = parse(source, filename=uri)
+        except Exception:
+            return []
+    if tree is None:
         return []
 
     # Find all references
@@ -102,28 +112,24 @@ class ReferencesFinder(NodeVisitor):
                 self.declaration_found = True
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> Any:
-        """Handle function definitions."""
-        # Check if this is the target function
-        if node.name == self.target_name:
-            if self.include_declaration:
-                self._add_location(node.name, node.lineno)
-                self.declaration_found = True
-        else:
-            # Check function body for references
-            for stmt in node.body:
-                self.visit(stmt)
+        """Handle function definitions and always walk the body.
+
+        Previously the body was skipped when ``node.name == target_name``, which
+        missed recursive calls and same-named free variables inside the function.
+        """
+        if node.name == self.target_name and self.include_declaration:
+            self._add_location(node.name, node.lineno)
+            self.declaration_found = True
+        for stmt in node.body:
+            self.visit(stmt)
 
     def visit_TypeDef(self, node: ast.TypeDef) -> Any:
-        """Handle type definitions."""
-        # Check if this is the target type
-        if node.name == self.target_name:
-            if self.include_declaration:
-                self._add_location(node.name, node.lineno)
-                self.declaration_found = True
-        else:
-            # Check type body for references
-            for stmt in node.body:
-                self.visit(stmt)
+        """Handle type definitions and always walk the body (same as FunctionDef)."""
+        if node.name == self.target_name and self.include_declaration:
+            self._add_location(node.name, node.lineno)
+            self.declaration_found = True
+        for stmt in node.body:
+            self.visit(stmt)
 
     def visit_Call(self, node: ast.Call) -> Any:
         """Handle function calls."""

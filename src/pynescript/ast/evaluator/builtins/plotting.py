@@ -221,6 +221,9 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
         In bar mode (Runtime), ``_plot_call_i`` indexes into PlotRegistry so
         each call site keeps a stable handle across bars — O(plots) storage
         and no per-bar dataclass allocation after the first bar.
+
+        Steady-state bars only setattr the provided fields (call site is fixed
+        so kind/title/style defaults do not need a full ``_fill_plot`` rewrite).
         """
         if getattr(self, "_pine_bar_mode", False):
             # _plot_call_i is always an int in Runtime; avoid int() / or 0 each plot
@@ -230,7 +233,11 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
             self._plot_call_i = i + 1  # type: ignore[attr-defined]
             plots = PlotRegistry.plots
             if i < len(plots):
-                return _fill_plot(plots[i], **fields)
+                p = plots[i]
+                for k, v in fields.items():
+                    setattr(p, k, v)
+                p.deleted = False
+                return p
             p = _fill_plot(Plot(), **fields)
             plots.append(p)
             return p

@@ -37,35 +37,35 @@ class MovingAverageIndicators(TechnicalHelpers):
 
     def _builtin_ta_sma(self, args: list[Any]) -> list[float | None]:
         """Simple Moving Average."""
-        series, period = self._expect_series(args, length=BINARY)
+        series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if self._use_incremental_ta():
             return self._sma_inc_update(series, period)
         return self._finalize_series(self._sma(series, period))
 
     def _builtin_ta_ema(self, args: list[Any]) -> list[float | None]:
         """Exponential Moving Average."""
-        series, period = self._expect_series(args, length=BINARY)
+        series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if self._use_incremental_ta():
             return self._ema_inc_update(series, period)
         return self._finalize_series(self._ema(series, period))
 
     def _builtin_ta_wma(self, args: list[Any]) -> float | None:
         """Weighted Moving Average."""
-        series, period = self._expect_series(args, length=BINARY)
+        series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if self._use_incremental_ta():
             return self._wma_inc_update(series, period)
         return self._wma(series, period)
 
     def _builtin_ta_rma(self, args: list[Any]) -> list[float]:
         """Recursive Moving Average (Wilder's smoothing)."""
-        series, period = self._expect_series(args, length=BINARY)
+        series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if self._use_incremental_ta():
             return self._rma_inc_update(series, period)
         return self._finalize_series(self._rma(series, period))
 
     def _builtin_ta_hma(self, args: list[Any]) -> float | None:
         """Hull Moving Average - reduces lag."""
-        series, period = self._expect_series(args, length=BINARY)
+        series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if self._use_incremental_ta():
             return self._hma_inc_update(series, period)
         return self._hma(series, period)
@@ -79,20 +79,29 @@ class MovingAverageIndicators(TechnicalHelpers):
         - ``ta.vwma(length)`` — source=close, volume from context
         """
         if len(args) == UNARY and self._is_period_like(args[0]):
-            series = self._context_series("close")
             period = self._expect_int(args[0], "Period must be an integer")
-            vol = self._context_series("volume")
-            if self._use_incremental_ta() and vol:
-                return self._vwma_inc_update(series, vol, period)
+            if self._use_incremental_ta():
+                series = self._context_source("close")
+                vol = self._context_source("volume")
+                if vol:
+                    return self._vwma_inc_update(series, vol, period)
+            series = self._context_series("close")
             return self._finalize_series(self._vwma(series, period))
         if len(args) == TERNARY:
-            series = self._as_series(args[0])
             period = self._expect_int(args[2], "Period must be an integer")
+            if self._use_incremental_ta():
+                series = args[0]
+                vol = args[1] if not self._is_period_like(args[1]) else self._context_source("volume")
+                if vol:
+                    return self._vwma_inc_update(series, vol, period)
+            series = self._as_series(args[0])
             vol = self._as_series(args[1]) if not self._is_period_like(args[1]) else self._context_series("volume")
-            if self._use_incremental_ta() and vol:
-                return self._vwma_inc_update(series, vol, period)
             return self._finalize_series(self._vwma(series, period))
-        series, period = self._expect_series(args, length=BINARY)
+        series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
+        if self._use_incremental_ta():
+            vol = self._context_source("volume")
+            if vol:
+                return self._vwma_inc_update(series, vol, period)
         vol = self._context_series("volume")
         if self._use_incremental_ta() and vol:
             return self._vwma_inc_update(series, vol, period)
@@ -133,7 +142,7 @@ class MovingAverageIndicators(TechnicalHelpers):
 
         return self._finalize_series(kama_values)
 
-    def _builtin_ta_dema(self, args: list[Any]) -> list[float | None]:
+    def _builtin_ta_dema(self, args: list[Any]) -> list[float | None] | float | None:
         """Double Exponential Moving Average - reduces lag."""
         if len(args) < BINARY:
             msg = "ta.dema() requires 2 arguments: series, length"
@@ -141,6 +150,9 @@ class MovingAverageIndicators(TechnicalHelpers):
 
         series = self._as_series(args[0])
         length = self._expect_int(args[1], "ta.dema length must be integer")
+
+        if self._use_incremental_ta():
+            return self._dema_inc_update(series, length)
 
         ema1 = self._ema(series, length)
         ema2 = self._ema(ema1, length)
@@ -154,7 +166,7 @@ class MovingAverageIndicators(TechnicalHelpers):
 
         return self._finalize_series(dema_values)
 
-    def _builtin_ta_tema(self, args: list[Any]) -> list[float | None]:
+    def _builtin_ta_tema(self, args: list[Any]) -> list[float | None] | float | None:
         """Triple Exponential Moving Average - even less lag than DEMA."""
         if len(args) < BINARY:
             msg = "ta.tema() requires 2 arguments: series, length"
@@ -162,6 +174,9 @@ class MovingAverageIndicators(TechnicalHelpers):
 
         series = self._as_series(args[0])
         length = self._expect_int(args[1], "ta.tema length must be integer")
+
+        if self._use_incremental_ta():
+            return self._tema_inc_update(series, length)
 
         ema1 = self._ema(series, length)
         ema2 = self._ema(ema1, length)

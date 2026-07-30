@@ -35,6 +35,8 @@ from __future__ import annotations
 
 import logging
 
+from typing import Any
+
 from lsprotocol import types as lsp
 
 from pynescript.ast import node as ast
@@ -67,28 +69,34 @@ _BUILTIN_VAR_TYPES: dict[str, str] = {
 def handle_inlay_hints(
     params: lsp.InlayHintParams,
     source: str | None,
+    tree: Any | None = ...,
 ) -> list[lsp.InlayHint] | None:
     """Handle textDocument/inlayHint request.
 
     Args:
         params: The inlay-hint params from the LSP client.
         source: The source text of the document.
+        tree: Pre-parsed AST from the workspace cache. Pass ``None`` when the
+            workspace already failed to parse (skips a redundant re-parse).
+            Omit (default ``...``) to parse from *source*.
 
     Returns:
         A list of `lsp.InlayHint` for variables whose type can be inferred, or
         None if the document could not be parsed.
     """
-    if not source:
-        return []
-
-    try:
-        tree = parse(source, params.text_document.uri)
-    except Exception as exc:
-        logger.debug("inlay_hints: parse failed: %s", exc)
+    if tree is ...:
+        if not source:
+            return []
+        try:
+            tree = parse(source, params.text_document.uri)
+        except Exception as exc:
+            logger.debug("inlay_hints: parse failed: %s", exc)
+            return None
+    if tree is None:
         return None
 
     hints: list[lsp.InlayHint] = []
-    _collect_hints(tree, source, hints)
+    _collect_hints(tree, source or "", hints)
     return hints
 
 

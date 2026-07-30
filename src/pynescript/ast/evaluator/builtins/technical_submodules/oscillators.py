@@ -38,7 +38,7 @@ class OscillatorIndicators(TechnicalHelpers):
 
     def _builtin_ta_rsi(self, args: list[Any]) -> float | None:
         """Relative Strength Index."""
-        series, period = self._expect_series(args, length=BINARY)
+        series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if self._use_incremental_ta():
             return self._rsi_inc_update(series, period)
         return self._rsi(series, period)
@@ -59,10 +59,11 @@ class OscillatorIndicators(TechnicalHelpers):
             return self._stoch_k(source, highs, lows, length)
         # TV form: source, high, low, length
         if len(args) == QUATERNARY:
-            source = self._as_series(args[0])
-            highs = self._as_series(args[1])
-            lows = self._as_series(args[2])
             length = self._expect_int(args[3], "ta.stoch length must be an integer")
+            # Inc %K only needs last samples; full path needs chrono windows.
+            source = self._as_series_or_raw(args[0], last_sample_ok=True)
+            highs = self._as_series_or_raw(args[1], last_sample_ok=True)
+            lows = self._as_series_or_raw(args[2], last_sample_ok=True)
             return self._stoch_k(source, highs, lows, length)
         # Two-arg community form sometimes used as (kLength, dPeriod) — return %K only
         if len(args) == BINARY and self._is_period_like(args[0]) and self._is_period_like(args[1]):
@@ -123,11 +124,11 @@ class OscillatorIndicators(TechnicalHelpers):
         msg = "ta.macd expects series and three lengths"
         if not args:
             self._error(msg)
-        series = self._as_series(args[0])
         # Defaults match TradingView when lengths are omitted
         fast = self._expect_int(args[1], msg) if len(args) > 1 else 12
         slow = self._expect_int(args[2], msg) if len(args) > 2 else 26
         signal = self._expect_int(args[3], msg) if len(args) > 3 else 9
+        series = self._as_series_or_raw(args[0], last_sample_ok=True)
         if self._use_incremental_ta():
             return self._macd_inc_update(series, fast, slow, signal)
         return self._macd(series, fast, slow, signal)
@@ -154,7 +155,7 @@ class OscillatorIndicators(TechnicalHelpers):
                 return self._cci_inc_update(series, series, series, period)
             return self._cci(series, series, series, period)
         if len(args) == BINARY:
-            series, period = self._expect_series(args, length=BINARY)
+            series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
             # Approximate CCI from a single source series (typical price)
             if self._use_incremental_ta():
                 return self._cci_inc_update(series, series, series, period)
@@ -172,7 +173,7 @@ class OscillatorIndicators(TechnicalHelpers):
 
     def _builtin_ta_roc(self, args: list[Any]) -> float:
         """Rate of Change."""
-        series, period = self._expect_series(args, length=BINARY)
+        series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if self._use_incremental_ta():
             return self._roc_inc_update(series, period)
         return self._roc(series, period)
@@ -275,16 +276,18 @@ class OscillatorIndicators(TechnicalHelpers):
         if len(args) == BINARY and self._is_period_like(args[0]) and self._is_period_like(args[1]):
             short_period = self._expect_int(args[0], msg)
             long_period = self._expect_int(args[1], msg)
-            series = self._context_series("close")
             if self._use_incremental_ta():
-                return self._tsi_inc_update(series, long_period, short_period)
+                return self._tsi_inc_update(
+                    self._context_source("close"), long_period, short_period
+                )
+            series = self._context_series("close")
             return self._tsi(series, long_period, short_period)
         if len(args) != TERNARY:
             self._error(msg)
-        series = self._as_series(args[0])
         # TV docs: ta.tsi(source, short_length, long_length)
         short_period = self._expect_int(args[1], msg)
         long_period = self._expect_int(args[2], msg)
+        series = self._as_series_or_raw(args[0], last_sample_ok=True)
         if self._use_incremental_ta():
             return self._tsi_inc_update(series, long_period, short_period)
         return self._tsi(series, long_period, short_period)
@@ -294,9 +297,12 @@ class OscillatorIndicators(TechnicalHelpers):
         msg = "ta.valuewhen expects condition, source, and optional occurrence"
         if len(args) not in {BINARY, TERNARY}:
             self._error(msg)
+        occurrence = self._expect_int(args[2], msg) if len(args) == TERNARY else 0
+        if self._use_incremental_ta():
+            # Prefer last-sample / scalar path; avoid full ``_as_series`` when possible.
+            return self._valuewhen_inc_update(args[0], args[1], occurrence)
         condition = self._as_series(args[0])
         source = self._as_series(args[1])
-        occurrence = self._expect_int(args[2], msg) if len(args) == TERNARY else 0
         return self._valuewhen(condition, source, occurrence)
 
     def _builtin_ta_rsi_oversold_overbought(self, args: list[Any]) -> dict:

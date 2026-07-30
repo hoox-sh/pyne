@@ -66,12 +66,20 @@ def _lint_warning_to_diagnostic(warning: LintWarning, source: str) -> lsp.Diagno
     Returns:
         LSP Diagnostic object or None if the warning can't be converted.
     """
+    if warning.line is None:
+        return None
+
     severity = _severity_to_lsp(warning.severity)
-    line_index = max(0, (warning.line or 1) - 1) if warning.line else 0
+    line_index = max(0, warning.line - 1)
     column = warning.column if warning.column is not None else 0
 
     line_text = _get_line_text(source, line_index)
-    end_column = min(column + len(line_text) if line_text else column + 10, 2000)
+    # Highlight from column to end of line (not column + line_len, which overshoots).
+    if line_text:
+        end_column = max(column + 1, len(line_text))
+    else:
+        end_column = column + 1
+    end_column = min(end_column, 2000)
 
     return lsp.Diagnostic(
         range=lsp.Range(

@@ -41,6 +41,7 @@ from collections.abc import Callable
 from typing import Any
 
 from pynescript.ast import node as ast
+from pynescript.ast.evaluator.names import ast_qualified_name
 from pynescript.ast.evaluator.types import EvaluatorProtocol
 from pynescript.ast.type_system import ObjectInstance
 from pynescript.ast.type_system import UserDefinedType
@@ -52,6 +53,18 @@ _MISSING = object()
 
 # Series wrapper type names (avoid allocating a set on every operand unwrap)
 _SERIES_TYPE_NAMES = frozenset({"PineSeries", "_SeriesResult"})
+
+# Call-site kind tags (stable AST nodes across bars — resolve once per site).
+# ``_SITE_Q``: Attribute whose qualified name is a registered builtin (ta.sma).
+# ``_SITE_QB``: same, with bound (tag, handler) after first invoke.
+# ``_SITE_B``: bare Name that is a registered builtin (plot, na, year).
+# ``_SITE_BB``: bare Name with bound handler (user shadow still checked).
+# ``_SITE_G``: general path (methods, UDFs, UDT.new, recovered attrs).
+_SITE_Q = 0
+_SITE_QB = 3
+_SITE_B = 1
+_SITE_BB = 4
+_SITE_G = 2
 
 
 def _as_scalar_operand(value):
@@ -500,34 +513,59 @@ class ExpressionEvaluator:
         5. **Callable** in context / recovered instance attr; non-callables
            soft-fail to ``None`` (na).
 
+        Call-site resolution is cached by ``id(node)`` across bars: AST nodes
+        are stable for the script lifetime, so qualified-name + registry
+        lookups run once per site (not once per bar).
+
         Args:
             node: Call with func and argument list (positional + named)
 
         Returns:
             Call result, or ``None`` on soft-fail
         """
-        # Early-dispatch for qualified-attribute builtins (subtask 1.1.2):
-        # when ``node.func`` is an ``Attribute`` whose qualified name is a
-        # registered builtin, dispatch by qualified name and return the
-        # result. This must happen BEFORE visiting ``node.func`` because
-        # bare-reference zero-arg builtins like ``strategy.long`` are
-        # eagerly evaluated by ``visit_Attribute`` to the value ``"long"``
-        # — losing the qualified name needed to dispatch the call form.
-        if self._is_qualified_attribute_builtin_call(node):
-            return self._dispatch_qualified_attribute_builtin(node)
+        # Per-Call-node site cache (stable AST across the bar loop).
+        # Pre-allocated on BaseEvaluator; miss → resolve once.
+        site_cache = getattr(self, "_call_site_cache", None)
+        if site_cache is None:
+            site_cache = {}
+            self._call_site_cache = site_cache  # type: ignore[attr-defined]
+        site_key = id(node)
+        site = site_cache.get(site_key)
+        if site is None:
+            site = self._resolve_call_site(node)
+            site_cache[site_key] = site
 
-        # Early-dispatch bare Name builtins (year/time/month/…) BEFORE
-        # visiting the name: hosts often inject scalar ``time``/``year`` into
-        # context for series use, which would otherwise make ``year(ts)``
-        # resolve to a non-callable int and soft-fail to na.
-        #
-        # User-defined functions/methods in context take precedence over bare
-        # ta.* aliases (v3/v4 mirrors like ``cmf``, ``rsi``, ``linreg``). Local
-        # ``cmf(len)`` / ``vwma(src, vol, period)`` must not route to ``ta.cmf``.
-        if isinstance(node.func, ast.Name) and self._is_registered_builtin(node.func.id):
+        kind = site[0]
+
+        # Bound qualified builtin (ta.sma after first bar) — no name lookup.
+        # site = (_SITE_QB, tag, handler, name)
+        if kind is _SITE_QB:
             args, kwargs = self._collect_call_args(node)
-            ctx = getattr(self, "context", None)
-            user = ctx.get(node.func.id) if isinstance(ctx, dict) else None
+            if kwargs:
+                return self._call_builtin(site[3], args, kwargs=kwargs)  # type: ignore[attr-defined]
+            tag, handler = site[1], site[2]
+            if tag == 1:
+                return handler(args)
+            if tag == 0:
+                return handler
+            return handler(*args)
+
+        # Fast path: ta.*/strategy.*/math.* — resolve name once, then bind.
+        if kind is _SITE_Q:
+            args, kwargs = self._collect_call_args(node)
+            name = site[1]
+            result = self._call_builtin(name, args, kwargs=kwargs)  # type: ignore[attr-defined]
+            bound = self._lookup_bound_builtin(name)
+            if bound is not None:
+                site_cache[site_key] = (_SITE_QB, bound[0], bound[1], name)
+            return result
+
+        # Bound bare Name builtin (plot after first bar).
+        # site = (_SITE_BB, name, tag, handler)
+        if kind is _SITE_BB:
+            name, tag, handler = site[1], site[2], site[3]
+            args, kwargs = self._collect_call_args(node)
+            user = self.context.get(name)  # type: ignore[attr-defined]
             if callable(user):
                 try:
                     return user(*args, **kwargs)
@@ -536,52 +574,112 @@ class ExpressionEvaluator:
                         return user(*args)
                     except TypeError:
                         return None
-            return self._call_builtin(node.func.id, args, kwargs=kwargs)
+            if kwargs:
+                return self._call_builtin(name, args, kwargs=kwargs)  # type: ignore[attr-defined]
+            if tag == 1:
+                return handler(args)
+            if tag == 0:
+                return handler
+            return handler(*args)
 
+        # Fast path: bare Name builtins (plot, na, year, …).
+        # User callables in context still shadow each bar (cheap dict.get).
+        if kind is _SITE_B:
+            name = site[1]
+            args, kwargs = self._collect_call_args(node)
+            user = self.context.get(name)  # type: ignore[attr-defined]
+            if callable(user):
+                try:
+                    return user(*args, **kwargs)
+                except TypeError:
+                    try:
+                        return user(*args)
+                    except TypeError:
+                        return None
+            result = self._call_builtin(name, args, kwargs=kwargs)  # type: ignore[attr-defined]
+            bound = self._lookup_bound_builtin(name)
+            if bound is not None:
+                site_cache[site_key] = (_SITE_BB, name, bound[0], bound[1])
+            return result
+
+        # General path: methods, UDFs, UDT.new, recovered attrs.
+        return self._visit_Call_general(node)
+
+    def _lookup_bound_builtin(self: EvaluatorProtocol, name: str) -> tuple[int, Any] | None:
+        """Return ``(tag, handler)`` from the resolved-builtin cache, if present."""
+        resolved = getattr(self, "_builtin_resolved", None)
+        if not resolved:
+            return None
+        return resolved.get(name)
+
+    def _resolve_call_site(self: EvaluatorProtocol, node: ast.Call) -> tuple:
+        """Classify a Call node once for the bar-loop site cache.
+
+        Returns:
+            ``(_SITE_Q, qual_name)``, ``(_SITE_B, bare_name)``, or ``(_SITE_G,)``.
+        """
+        func = node.func
+        # Attribute: prefer AST qualified path (ta.sma, strategy.entry, …).
+        if isinstance(func, ast.Attribute):
+            qual = ast_qualified_name(func)
+            if qual and self._is_registered_builtin(qual):
+                return (_SITE_Q, qual)
+            return (_SITE_G,)
+        # Bare Name: plot / na / year / bare ta aliases.
+        if isinstance(func, ast.Name):
+            name = func.id
+            if self._is_registered_builtin(name):
+                return (_SITE_B, name)
+            return (_SITE_G,)
+        return (_SITE_G,)
+
+    def _visit_Call_general(self: EvaluatorProtocol, node: ast.Call):
+        """Call dispatch for non-static-builtin sites (methods, UDFs, UDT).
+
+        Skips re-checking ``_is_qualified_attribute_builtin_call`` /
+        bare-name registry (already classified as general by the site cache).
+        """
         func = self.visit(node.func)
         args, kwargs = self._collect_call_args(node)
 
-        # Handle method call on UDT objects
-        if isinstance(func, tuple) and len(func) == _METHOD_CALL_TUPLE_LENGTH and func[0] == "_method_call":
-            _, obj_instance, method_name = func
-            return self._invoke_method(obj_instance, method_name, args, kwargs)
-
-        # Array instance methods: ``arr.push(x)`` → ``array.push(arr, x)``
-        if isinstance(func, tuple) and len(func) == 3 and func[0] == "_array_method":
-            _, receiver, method_name = func
-            return self._call_builtin(f"array.{method_name}", [receiver, *args], kwargs=kwargs)  # type: ignore[attr-defined]
-
-        # Drawing/namespace instance methods: ``la.get_text()`` → ``label.get_text(la)``
-        if isinstance(func, tuple) and len(func) == 3 and func[0] == "_ns_method":
-            _, receiver, qual_name = func
-            return self._call_builtin(qual_name, [receiver, *args], kwargs=kwargs)  # type: ignore[attr-defined]
-
-        # Extension methods: ``method addCell(table t, ...)`` + ``display.addCell(...)``
-        if isinstance(func, tuple) and len(func) == 3 and func[0] == "_ext_method":
-            _, receiver, method_name = func
-            ext = self.context.get(method_name)  # type: ignore[attr-defined]
-            if callable(ext):
-                try:
-                    return ext(receiver, *args, **kwargs)
-                except TypeError:
+        # Method markers from visit_Attribute: one type check, then tag.
+        if type(func) is tuple and len(func) == _METHOD_CALL_TUPLE_LENGTH:
+            tag = func[0]
+            if tag == "_method_call":
+                _, obj_instance, method_name = func
+                return self._invoke_method(obj_instance, method_name, args, kwargs)
+            if tag == "_array_method":
+                _, receiver, method_name = func
+                return self._call_builtin(  # type: ignore[attr-defined]
+                    f"array.{method_name}", [receiver, *args], kwargs=kwargs
+                )
+            if tag == "_ns_method":
+                _, receiver, qual_name = func
+                return self._call_builtin(qual_name, [receiver, *args], kwargs=kwargs)  # type: ignore[attr-defined]
+            if tag == "_ext_method":
+                _, receiver, method_name = func
+                ext = self.context.get(method_name)  # type: ignore[attr-defined]
+                if callable(ext):
                     try:
-                        return ext(receiver, *args)
+                        return ext(receiver, *args, **kwargs)
                     except TypeError:
-                        return None
-            return None
+                        try:
+                            return ext(receiver, *args)
+                        except TypeError:
+                            return None
+                return None
 
         # Handle .new() method for UDT instantiation
-        if isinstance(node.func, ast.Attribute):
-            if node.func.attr == "new":
-                type_obj = self._resolve_udt_constructor(node.func.value)
-                if isinstance(type_obj, UserDefinedType):
-                    return self._handle_udt_new(type_obj, args, kwargs)
+        node_func = node.func
+        if isinstance(node_func, ast.Attribute) and node_func.attr == "new":
+            type_obj = self._resolve_udt_constructor(node_func.value)
+            if isinstance(type_obj, UserDefinedType):
+                return self._handle_udt_new(type_obj, args, kwargs)
 
         # Zero-arg call on a UDT/series field: ``this.columns()`` where ``columns``
-        # is an int field (Console uses both ``this.columns`` and ``this.columns()``
-        # / matrix ``this.columns()``). Prefer the field value over "not callable".
+        # is an int field. Prefer the field value over "not callable".
         if (
-            isinstance(node.func, ast.Attribute)
+            isinstance(node_func, ast.Attribute)
             and not args
             and not kwargs
             and not isinstance(func, (str, tuple))
@@ -589,26 +687,23 @@ class ExpressionEvaluator:
         ):
             return func
 
-        # Handle built-in functions
+        # Handle built-in functions recovered as qualified-name strings
         if isinstance(func, str):
-            # Failed attribute resolution often yields AST paths like
-            # ``this.columns`` / ``this.rows``. Recover instance field/method
-            # before treating the string as a global builtin name.
-            if isinstance(node.func, ast.Attribute) and (
+            if isinstance(node_func, ast.Attribute) and (
                 "." in func or not self._is_registered_builtin(func)
             ):
-                recovered = self._recover_instance_attr_call(node.func, args, kwargs)
+                recovered = self._recover_instance_attr_call(node_func, args, kwargs)
                 if recovered is not _ATTR_CALL_MISS:
                     return recovered
-            return self._call_builtin(func, args, kwargs=kwargs)
-        else:
-            # Soft-fail non-callables (stubs, na) — return None
-            if not callable(func):
-                return None
-            try:
-                return func(*args, **kwargs)
-            except TypeError:
-                return None
+            return self._call_builtin(func, args, kwargs=kwargs)  # type: ignore[attr-defined]
+
+        # Soft-fail non-callables (stubs, na) — return None
+        if not callable(func):
+            return None
+        try:
+            return func(*args, **kwargs)
+        except TypeError:
+            return None
 
     def _is_qualified_attribute_builtin_call(
         self: EvaluatorProtocol,
@@ -623,8 +718,6 @@ class ExpressionEvaluator:
         """
         if not isinstance(node.func, ast.Attribute):
             return False
-        from pynescript.ast.evaluator.names import ast_qualified_name
-
         qual = ast_qualified_name(node.func)
         return bool(qual and self._is_registered_builtin(qual))
 
@@ -636,14 +729,14 @@ class ExpressionEvaluator:
         (e.g. ``strategy.entry(...)``). Caller must have already checked
         ``_is_qualified_attribute_builtin_call``. See subtask 1.1.2 and
         1.2.
+
+        Computes the qualified name once (no double ``ast_qualified_name``).
         """
         node_func = node.func
         if not isinstance(node_func, ast.Attribute):
             # Caller violated the precondition; fail loudly so the bug is
             # obvious in development rather than silently miscompiling.
             raise TypeError("_dispatch_qualified_attribute_builtin requires node.func to be ast.Attribute")
-        from pynescript.ast.evaluator.names import ast_qualified_name
-
         qualified_name = ast_qualified_name(node_func)
         if not qualified_name:
             raise TypeError("could not resolve qualified builtin name from AST")
@@ -657,15 +750,25 @@ class ExpressionEvaluator:
         """Walk ``node.args`` and return ``(args, kwargs)`` with each
         value evaluated. Used by both the early-dispatch path and the
         main call path. See subtask 1.1.2.
+
+        Local ``visit`` bind + positional-only empty kwargs (no dict alloc
+        until a named arg appears).
         """
+        arg_nodes = node.args
+        if not arg_nodes:
+            return [], {}
+        visit = self.visit
         args: list[Any] = []
-        kwargs: dict[str, Any] = {}
-        for arg in node.args:
-            if arg.name:  # type: ignore[attr-defined]
-                kwargs[arg.name] = self.visit(arg.value)  # type: ignore[attr-defined]
+        kwargs: dict[str, Any] | None = None
+        for arg in arg_nodes:
+            name = arg.name  # type: ignore[attr-defined]
+            if name:
+                if kwargs is None:
+                    kwargs = {}
+                kwargs[name] = visit(arg.value)  # type: ignore[attr-defined]
             else:
-                args.append(self.visit(arg.value))  # type: ignore[attr-defined]
-        return args, kwargs
+                args.append(visit(arg.value))  # type: ignore[attr-defined]
+        return args, kwargs if kwargs is not None else {}
 
     def _is_registered_builtin(self: EvaluatorProtocol, name: str) -> bool:
         """True if ``name`` is in the builtin dispatch map.
@@ -920,18 +1023,15 @@ class ExpressionEvaluator:
         the subsequent Call dispatches correctly. Uses AST-only base path so
         zero-arg builtins like ``array.new`` are not eagerly evaluated to ``[]``.
         """
-        from pynescript.ast import node as ast_mod
-        from pynescript.ast.evaluator.names import ast_qualified_name
-
         # Prefer AST path for Attribute bases (array.new) — do not evaluate
-        if isinstance(node.value, ast_mod.Attribute):
+        if isinstance(node.value, ast.Attribute):
             base = ast_qualified_name(node.value)
         else:
             base = self.visit(node.value)
 
         type_name: str | None = None
         type_arg = node.args
-        if isinstance(type_arg, ast_mod.Name):
+        if isinstance(type_arg, ast.Name):
             type_name = type_arg.id
         elif type_arg is not None:
             tval = self.visit(type_arg)

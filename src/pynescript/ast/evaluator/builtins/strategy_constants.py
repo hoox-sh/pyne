@@ -51,9 +51,12 @@ class StrategyConstantsMixin(BuiltinDispatchMixin):
             "strategy.direction.short": self._handle_strategy_short,
             "strategy.direction.all": self._handle_direction_all,
             # default_qty_type sentinels (strategy(..., default_qty_type=...))
+            # NOTE: strategy.cash is *not* registered here — it collides with the
+            # free-cash series (StrategyBuiltinsMixin._handle_strategy_cash). That
+            # handler returns a dual float tagged with ``_pine_qty_type = "cash"``
+            # so ``default_qty_type=strategy.cash`` still resolves correctly.
             "strategy.fixed": self._handle_qty_fixed,
             "strategy.percent_of_equity": self._handle_qty_percent_of_equity,
-            "strategy.cash": self._handle_qty_cash,
         }
 
     def _handle_strategy_long(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
