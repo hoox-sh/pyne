@@ -161,6 +161,60 @@ class TestRun:
         assert resp.json["status"] == "success"
         assert len(resp.json["plots"]) == 2
         assert resp.json["plots"] == [102, 105]
+        # Empty log.* scripts still export logs + profile (and under meta).
+        assert resp.json.get("logs") == []
+        profile = resp.json.get("profile")
+        assert isinstance(profile, dict)
+        assert profile.get("mode") in ("interpret", "compile", "auto")
+        assert "total_ms" in profile
+        assert "phases" in profile
+        assert profile.get("lines") == []
+        meta = resp.json.get("meta") or {}
+        assert meta.get("logs") == []
+        assert isinstance(meta.get("profile"), dict)
+
+    def test_run_exports_logs_and_profile(self, client: FlaskClient):
+        """log.info/warning/error appear in response.logs and meta.logs."""
+        bars = [
+            {"open": 100, "high": 105, "low": 98, "close": 102, "time": 1, "volume": 10},
+            {"open": 102, "high": 108, "low": 101, "close": 105, "time": 2, "volume": 12},
+        ]
+        script = """//@version=6
+indicator("logs")
+if barstate.isfirst
+    log.info("hello-info")
+    log.warning("hello-warn")
+    log.error("hello-err")
+plot(close)
+"""
+        resp = client.post(
+            "/run",
+            json={"script": script, "data": bars, "mode": "interpret"},
+        )
+        assert resp.status_code == 200, resp.json
+        body = resp.json
+        assert body["status"] == "success"
+        logs = body.get("logs") or []
+        assert isinstance(logs, list)
+        levels = {e.get("level") for e in logs if isinstance(e, dict)}
+        messages = " ".join(str(e.get("message") or "") for e in logs if isinstance(e, dict))
+        assert "info" in levels
+        assert "warning" in levels
+        assert "error" in levels
+        assert "hello-info" in messages
+        assert "hello-warn" in messages
+        assert "hello-err" in messages
+        # Duplicated under meta for meta-only clients
+        assert body.get("meta", {}).get("logs") == logs
+        profile = body.get("profile") or {}
+        assert profile.get("mode") == "interpret"
+        assert profile.get("bars") == 2
+        assert isinstance(profile.get("total_ms"), (int, float))
+        phases = profile.get("phases") or {}
+        assert "parse_ms" in phases
+        assert "eval_ms" in phases
+        assert profile.get("lines") == []
+        assert body.get("meta", {}).get("profile") == profile
 
     def test_run_mode_compile_body(self, client: FlaskClient):
         """Body mode=compile uses the Numba/object compile path when available."""
@@ -181,6 +235,11 @@ class TestRun:
         assert body["status"] == "success"
         assert body.get("mode") == "compile"
         assert body["plots"] == [102, 105]
+        assert isinstance(body.get("logs"), list)
+        profile = body.get("profile") or {}
+        assert profile.get("mode") == "compile"
+        assert "total_ms" in profile
+        assert body.get("meta", {}).get("profile") == profile
 
     def test_run_mode_compile_query_fallback(self, client: FlaskClient):
         """Legacy clients put mode only on the query string — still honor it."""

@@ -59,6 +59,79 @@ _HOST_COMPILE_CACHE_MAX = 64
 _HAS_NUMBA: bool | None = None
 
 
+def _clear_pine_logger() -> None:
+    """Reset the global Pine ``log.*`` buffer so runs do not leak messages."""
+    try:
+        from pynescript.ast.evaluator.builtins.logging import get_logger
+
+        get_logger().clear()
+    except Exception:  # noqa: BLE001 — logging is optional host plumbing
+        pass
+
+
+def _export_pine_logs() -> list[dict[str, str]]:
+    """Export Pine ``log.*`` messages as JSON-safe ``{level, message}`` dicts."""
+    try:
+        from pynescript.ast.evaluator.builtins.logging import get_logger
+
+        return [
+            {"level": str(level).lower(), "message": str(message)}
+            for level, message in get_logger().get_logs()
+        ]
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _build_run_profile(
+    *,
+    total_ms: float,
+    bars: int,
+    mode: str,
+    parse_ms: float = 0.0,
+    eval_ms: float = 0.0,
+) -> dict[str, Any]:
+    """Lightweight phase timings for AXIS / clients (no line-level cost)."""
+    return {
+        "total_ms": round(float(total_ms), 3),
+        "bars": int(bars),
+        "mode": mode,
+        "phases": {
+            "parse_ms": round(float(parse_ms), 3),
+            "eval_ms": round(float(eval_ms), 3),
+        },
+        "lines": [],
+    }
+
+
+def _attach_logs_profile(
+    result: dict[str, Any],
+    *,
+    total_ms: float,
+    bars: int,
+    mode: str,
+    parse_ms: float = 0.0,
+    eval_ms: float = 0.0,
+) -> dict[str, Any]:
+    """Attach top-level and ``meta`` ``logs`` / ``profile`` fields to a result dict."""
+    logs = _export_pine_logs()
+    profile = _build_run_profile(
+        total_ms=total_ms,
+        bars=bars,
+        mode=mode,
+        parse_ms=parse_ms,
+        eval_ms=eval_ms,
+    )
+    result["logs"] = logs
+    result["profile"] = profile
+    meta = result.get("meta")
+    if not isinstance(meta, dict):
+        meta = {}
+        result["meta"] = meta
+    meta["logs"] = logs
+    meta["profile"] = profile
+    return result
+
+
 def _json_safe_number(x: Any) -> float | None:
     """Map NaN/±Inf (and numpy scalars) to ``None`` for strict JSON / browsers."""
     if x is None:
@@ -464,6 +537,11 @@ class Runtime:
         if mode_norm not in ("interpret",):
             return {"error": f"Unknown mode: {mode!r} (use interpret|compile|auto)"}
 
+        t_total0 = time.perf_counter()
+        # Fresh log buffer per run so messages never leak across /run calls.
+        _clear_pine_logger()
+        n_bars_hint = len(ohlcv_data) if ohlcv_data else 0
+
         # Wire request.* sources: chart bars as historical provider when unset
         try:
             from pynescript.util.data import resolve_request_sources
@@ -479,10 +557,21 @@ class Runtime:
             pass
 
         # Parse once (cached by source hash for multi-run hosts)
+        t_parse0 = time.perf_counter()
         try:
             tree = _parse_script(source_code)
         except Exception as e:
-            return {"error": f"Parse Error: {e!s}"}
+            parse_ms = (time.perf_counter() - t_parse0) * 1000.0
+            return _attach_logs_profile(
+                {"error": f"Parse Error: {e!s}"},
+                total_ms=(time.perf_counter() - t_total0) * 1000.0,
+                bars=n_bars_hint,
+                mode="interpret",
+                parse_ms=parse_ms,
+                eval_ms=0.0,
+            )
+        parse_ms = (time.perf_counter() - t_parse0) * 1000.0
+        t_eval0 = time.perf_counter()
 
         # Initialize Series
         open_series = PineSeries()
@@ -759,12 +848,28 @@ class Runtime:
                 try:
                     process_pending(open_=o, high=h, low=l, close=c)
                 except Exception as e:
-                    return {"error": f"Order fill error at bar {bar_time}: {e!s}"}
+                    eval_ms = (time.perf_counter() - t_eval0) * 1000.0
+                    return _attach_logs_profile(
+                        {"error": f"Order fill error at bar {bar_time}: {e!s}"},
+                        total_ms=(time.perf_counter() - t_total0) * 1000.0,
+                        bars=n_bars,
+                        mode="interpret",
+                        parse_ms=parse_ms,
+                        eval_ms=eval_ms,
+                    )
 
             try:
                 visit(tree)
             except Exception as e:
-                return {"error": f"Runtime Error at bar {bar_time}: {e!s}"}
+                eval_ms = (time.perf_counter() - t_eval0) * 1000.0
+                return _attach_logs_profile(
+                    {"error": f"Runtime Error at bar {bar_time}: {e!s}"},
+                    total_ms=(time.perf_counter() - t_total0) * 1000.0,
+                    bars=n_bars,
+                    mode="interpret",
+                    parse_ms=parse_ms,
+                    eval_ms=eval_ms,
+                )
 
             # Pad short plot columns for call sites not hit this bar
             finish_bar_plots()
@@ -984,27 +1089,36 @@ class Runtime:
         except Exception:
             input_defs = []
 
-        return {
-            "plots": final_series,
-            "series": series_map,
-            "plot_meta": plot_meta,
-            "events": all_events,
-            "drawings": drawings,
-            "inputs": input_defs,
-            "count": n_result_bars,
-            "script_id": script_id,
-            "run_id": self._run_id,
-            "mode": "interpret",
-            "overlay": overlay,
-            "script_name": script_name,
-            "script_type": script_type,
-            "meta": {
+        eval_ms = (time.perf_counter() - t_eval0) * 1000.0
+        total_ms = (time.perf_counter() - t_total0) * 1000.0
+        return _attach_logs_profile(
+            {
+                "plots": final_series,
+                "series": series_map,
+                "plot_meta": plot_meta,
+                "events": all_events,
+                "drawings": drawings,
+                "inputs": input_defs,
+                "count": n_result_bars,
+                "script_id": script_id,
+                "run_id": self._run_id,
+                "mode": "interpret",
                 "overlay": overlay,
                 "script_name": script_name,
                 "script_type": script_type,
-                "inputs": input_defs,
+                "meta": {
+                    "overlay": overlay,
+                    "script_name": script_name,
+                    "script_type": script_type,
+                    "inputs": input_defs,
+                },
             },
-        }
+            total_ms=total_ms,
+            bars=n_result_bars,
+            mode="interpret",
+            parse_ms=parse_ms,
+            eval_ms=eval_ms,
+        )
 
     @staticmethod
     def _compile_eligible(source_code: str) -> tuple[bool, str]:
@@ -1070,17 +1184,36 @@ class Runtime:
 
     def _run_compiled(self, source_code: str, ohlcv_data: list[dict]) -> dict:
         """Execute via Numba-compiled bar loop (supported subset of Pine)."""
+        t_total0 = time.perf_counter()
+        _clear_pine_logger()
+        n_bars_hint = len(ohlcv_data) if ohlcv_data else 0
+
         try:
             from pynescript.compiler.engine import compile_script
             from pynescript.compiler.engine import has_numba
         except ImportError as e:
-            return {"error": f"Compile mode unavailable: {e!s}"}
+            return _attach_logs_profile(
+                {"error": f"Compile mode unavailable: {e!s}"},
+                total_ms=(time.perf_counter() - t_total0) * 1000.0,
+                bars=n_bars_hint,
+                mode="compile",
+            )
 
         if not has_numba():
-            return {"error": "Compile mode requires numba (pip install numba)"}
+            return _attach_logs_profile(
+                {"error": "Compile mode requires numba (pip install numba)"},
+                total_ms=(time.perf_counter() - t_total0) * 1000.0,
+                bars=n_bars_hint,
+                mode="compile",
+            )
 
         if not ohlcv_data:
-            return {"plots": [], "events": [], "count": 0, "mode": "compile", "series": {}}
+            return _attach_logs_profile(
+                {"plots": [], "events": [], "count": 0, "mode": "compile", "series": {}},
+                total_ms=(time.perf_counter() - t_total0) * 1000.0,
+                bars=0,
+                mode="compile",
+            )
 
         # Host short-circuit: raw-source hash → CompiledScript (skips sanitize on hit).
         cache_key = hashlib.sha256(source_code.encode("utf-8")).hexdigest()
@@ -1093,7 +1226,15 @@ class Runtime:
             try:
                 compiled = compile_script(source_code)
             except Exception as e:
-                return {"error": f"Compile Error: {e!s}"}
+                compile_ms = (time.perf_counter() - t_compile0) * 1000.0
+                return _attach_logs_profile(
+                    {"error": f"Compile Error: {e!s}"},
+                    total_ms=(time.perf_counter() - t_total0) * 1000.0,
+                    bars=n_bars_hint,
+                    mode="compile",
+                    parse_ms=compile_ms,
+                    eval_ms=0.0,
+                )
             if len(_HOST_COMPILE_CACHE) >= _HOST_COMPILE_CACHE_MAX:
                 try:
                     _HOST_COMPILE_CACHE.pop(next(iter(_HOST_COMPILE_CACHE)))
@@ -1109,7 +1250,15 @@ class Runtime:
         try:
             series_map = compiled.run(opens, highs, lows, closes, volumes)
         except Exception as e:
-            return {"error": f"Compiled Runtime Error: {e!s}"}
+            run_ms = (time.perf_counter() - t_run0) * 1000.0
+            return _attach_logs_profile(
+                {"error": f"Compiled Runtime Error: {e!s}"},
+                total_ms=(time.perf_counter() - t_total0) * 1000.0,
+                bars=n_bars_hint,
+                mode="compile",
+                parse_ms=compile_ms,
+                eval_ms=run_ms,
+            )
         run_ms = (time.perf_counter() - t_run0) * 1000.0
 
         drawings: list[Any] = []
@@ -1161,4 +1310,12 @@ class Runtime:
         }
         if os.environ.get("PYNESCRIPT_RETURN_GENERATED_CODE", "").strip() in {"1", "true", "yes"}:
             out["generated_code"] = compiled.generated_code
-        return out
+        # Best-effort: map compile → parse_ms, bar loop → eval_ms.
+        return _attach_logs_profile(
+            out,
+            total_ms=(time.perf_counter() - t_total0) * 1000.0,
+            bars=len(ohlcv_data),
+            mode="compile",
+            parse_ms=compile_ms,
+            eval_ms=run_ms,
+        )

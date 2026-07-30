@@ -195,7 +195,7 @@ if sock is None:
 
     _logging.getLogger(__name__).warning(
         "flask-sock not installed — WS /ws/run disabled (AXIS falls back to POST /run). "
-        "Install: pip install 'pynescript[pro]'  or  pip install flask-sock simple-websocket"
+        "Install: pip install 'hoox-pyne[pro]'  or  pip install flask-sock simple-websocket"
     )
 
 
@@ -280,11 +280,18 @@ def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
     )
 
     if "error" in result:
-        return {
+        err_body: dict[str, Any] = {
             "status": "error",
             "code": "EXECUTION_ERROR",
             "message": result["error"],
-        }, 500
+        }
+        if "logs" in result:
+            err_body["logs"] = result["logs"]
+        if "profile" in result:
+            err_body["profile"] = result["profile"]
+        if isinstance(result.get("meta"), dict):
+            err_body["meta"] = result["meta"]
+        return err_body, 500
 
     return {
         "status": "success",
@@ -301,6 +308,8 @@ def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
         "data_source": data_source or "chart",
         "overlay": result.get("overlay", True),
         "script_name": result.get("script_name", "plot"),
+        "logs": result.get("logs", []),
+        "profile": result.get("profile"),
         "meta": {
             **(result.get("meta") or {}),
             "inputs": result.get("inputs", []),
