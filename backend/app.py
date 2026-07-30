@@ -309,10 +309,10 @@ def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
     }, 200
 
 
-@app.route("/", methods=["GET"])
-def health_check():
+def _health_payload() -> dict[str, Any]:
     endpoints = {
         "GET /": "This health check",
+        "GET /health": "Alias of GET /",
         "POST /run": "Run Pine Script (free)",
         "POST /run/batch": "Run multiple Pine scripts on shared OHLCV (free)",
         "POST /lsp/completion": "Pine completion (free, AXIS editor)",
@@ -325,16 +325,20 @@ def health_check():
     }
     if sock is not None:
         endpoints["WS /ws/run"] = "Run Pine Script over WebSocket (prefer WSS when available)"
-    return jsonify(
-        {
-            "status": "healthy",
-            "service": "pynescript-pro-api",
-            "version": "1.0.0",
-            "timestamp": int(time.time()),
-            "websocket": sock is not None,
-            "endpoints": endpoints,
-        }
-    )
+    return {
+        "status": "healthy",
+        "service": "pynescript-pro-api",
+        "version": "1.0.0",
+        "timestamp": int(time.time()),
+        "websocket": sock is not None,
+        "endpoints": endpoints,
+    }
+
+
+@app.route("/", methods=["GET"])
+@app.route("/health", methods=["GET"])
+def health_check():
+    return jsonify(_health_payload())
 
 
 @app.route("/run", methods=["POST"])
