@@ -253,3 +253,67 @@ plot(cl, "cl")
         ) or True  # synthetic bars may coincide; structural unpack is enough
         # Length parity
         assert len(series["hi"]) == len(series["lo"]) == len(series["cl"]) == 8
+
+
+class TestColorNewKwargsDispatch:
+    """color.new with keyword transp must not bind args list as color (R6 fail-closed)."""
+
+    def test_color_new_white_transp_kwarg(self) -> None:
+        """Camarilla++: ``color.new(color.white, transp=75)``."""
+        src = """
+//@version=4
+study("cpr")
+cpr_trans = color.new(color.white, transp=75)
+plot(close, color=cpr_trans)
+"""
+        out = Runtime().run(src, _bars(5), mode="interpret")
+        assert out.get("error") is None, out.get("error")
+
+    def test_camarilla_pp_color_new_no_int_list(self) -> None:
+        """Snippet from Camarilla++ that previously raised int(list) on color.new."""
+        src = """
+//@version=4
+study("Camarilla++", overlay=true)
+showWCPR = input(title="Show Weekly Levels", defval=true)
+cpr_trans = color.new(color.white, transp=75)
+[wIsLast, wH6, wH5, wH4, wH3, wH2, wH1, wL1, wL2, wL3, wL4, wL5, wL6, wP, wPb, wPt] = getData("W")
+getData(t) =>
+    highhtf = security(syminfo.tickerid, t, high[1], lookahead=barmerge.lookahead_on)
+    lowhtf = security(syminfo.tickerid, t, low[1], lookahead=barmerge.lookahead_on)
+    closehtf = security(syminfo.tickerid, t, close[1], lookahead=barmerge.lookahead_on)
+    range = highhtf - lowhtf
+    H4 = closehtf + range * 1.1/2
+    H3 = closehtf + range * 1.1/4
+    L3 = closehtf - range * 1.1/4
+    L4 = closehtf - range * 1.1/2
+    pivot = (highhtf + lowhtf + closehtf) / 3.0
+    bc = (highhtf + lowhtf) / 2.0
+    tc = pivot - bc + pivot
+    [true, na, na, H4, H3, na, na, na, na, L3, L4, na, na, pivot, bc, tc]
+
+// redefine order - functions first for v4
+"""
+        # Use a cleaner ordered snippet (function before call)
+        src = """
+//@version=4
+study("Camarilla++ mini", overlay=true)
+cpr_trans = color.new(color.white, transp=75)
+getData(t) =>
+    highhtf = security(syminfo.tickerid, t, high[1], lookahead=barmerge.lookahead_on)
+    lowhtf = security(syminfo.tickerid, t, low[1], lookahead=barmerge.lookahead_on)
+    closehtf = security(syminfo.tickerid, t, close[1], lookahead=barmerge.lookahead_on)
+    range = highhtf - lowhtf
+    H3 = closehtf + range * 1.1/4
+    L3 = closehtf - range * 1.1/4
+    pivot = (highhtf + lowhtf + closehtf) / 3.0
+    bc = (highhtf + lowhtf) / 2.0
+    tc = pivot - bc + pivot
+    [true, H3, L3, pivot, bc, tc]
+[wIsLast, wH3, wL3, wP, wPb, wPt] = getData("W")
+if true
+    wcpr = line.new(time, wP, time + 60 * 60 * 24, wP, xloc=xloc.bar_time, color=color.white, style=line.style_dashed, extend=extend.right)
+    line.delete(wcpr[1])
+plot(wP, color=cpr_trans)
+"""
+        out = Runtime().run(src, _bars(30), mode="interpret")
+        assert out.get("error") is None, out.get("error")

@@ -304,27 +304,32 @@ class BuiltinDispatchMixin:
         if tag == 0:
             return handler
         if kwargs:
-            # Some handlers accept (args, kwargs) directly
-            # (e.g. _as_builtin_handler which wraps indicator/strategy).
-            # Others like _handle_input_int only accept a single args list.
-            # Only soft-retry signature mismatches; body TypeErrors fail closed.
+            # IMPORTANT: list-style (tag 1) vs plain (tag 2) must not share the
+            # same first attempt. Plain functions like ``color.new(color, transp)``
+            # accept ``*extra, **kwargs`` so ``handler(args_list, kwargs_dict)``
+            # *binds successfully* with color=the whole args list — then body
+            # ``int(color)`` raises TypeError. Round-6 fail-closed would re-raise
+            # that body error and never reach ``handler(*args, **kwargs)``.
+            # Camarilla++: ``color.new(color.white, transp=75)`` hit this path.
+            if tag == 1:
+                # Mixin handlers: (args, kwargs) or (args,) after merge
+                try:
+                    return handler(args, kwargs)
+                except TypeError as e:
+                    # Signature mismatch only (no callee body frame) → merge
+                    if e.__traceback__ is not None and e.__traceback__.tb_next is not None:
+                        raise
+                bare = name[3:] if name.startswith("ta.") else name
+                merged = _merge_kwargs_into_args(args, kwargs, handler, ta_bare=bare)
+                return handler(merged)
+            # Plain functions (color.new, color.rgb, math.*, …): *args, **kwargs
             try:
-                return handler(args, kwargs)
+                return handler(*args, **kwargs)
             except TypeError as e:
                 if e.__traceback__ is not None and e.__traceback__.tb_next is not None:
                     raise
-            # Plain functions (color.rgb, etc.): unpack kwargs by signature
-            if tag == 2:
-                try:
-                    return handler(*args, **kwargs)
-                except TypeError as e:
-                    if e.__traceback__ is not None and e.__traceback__.tb_next is not None:
-                        raise
-            # Fallback: merge kwargs into positional args for list-style handlers
             bare = name[3:] if name.startswith("ta.") else name
             merged = _merge_kwargs_into_args(args, kwargs, handler, ta_bare=bare)
-            if tag == 1:
-                return handler(merged)
             return handler(*merged)
         # Positional-only hot path (ta.sma, plot, …)
         if tag == 1:

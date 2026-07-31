@@ -129,6 +129,11 @@ def color_new(
         color = kwargs["color"]
     if transp is None and "transp" in kwargs:
         transp = kwargs["transp"]
+    # Mis-dispatch defense: list-style call can pass args list as *color*
+    if isinstance(color, (list, tuple)):
+        if not color:
+            return None
+        color = color[0]
     # Pine: color(na) / color.new(na, ...) yields na (no color)
     if color is None:
         return None
@@ -159,16 +164,25 @@ def color_new(
             raise ValueError(msg)
     else:
         # Parse integer color (RGBA format)
-        color_int = int(color)
+        try:
+            color_int = int(color)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return None
         r = (color_int >> 24) & 0xFF
         g = (color_int >> 16) & 0xFF
         b = (color_int >> 8) & 0xFF
         a = color_int & 0xFF
 
-    # Apply transparency if specified
-    if transp is not None:
-        transp_val = max(0, min(100, int(transp)))
-        a = int(255 * (1.0 - transp_val / 100.0))
+    # Apply transparency if specified (ignore non-numeric leaks)
+    if transp is not None and not isinstance(transp, dict):
+        try:
+            if isinstance(transp, (list, tuple)):
+                transp = transp[-1] if transp else None
+            if transp is not None:
+                transp_val = max(0, min(100, int(transp)))  # type: ignore[arg-type]
+                a = int(255 * (1.0 - transp_val / 100.0))
+        except (TypeError, ValueError):
+            pass
 
     return Color(r, g, b, a)
 
