@@ -151,3 +151,6 @@ data/
 # Docker / compose local overrides
 .env.local
 .env.*.local
+
+# VS Code extension packages (build artifacts)
+*.vsix
