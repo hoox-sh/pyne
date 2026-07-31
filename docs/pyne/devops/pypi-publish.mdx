@@ -1,0 +1,121 @@
+# Copyright (C) 2024-2026 jango_blockchained
+#
+# This file is part of pynescript.
+#
+# pynescript is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# pynescript is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+---
+title: "PyPI publish"
+description: "Ship hoox-pyne to PyPI via Trusted Publishing (OIDC). Import package stays pynescript."
+---
+
+# PyPI publish
+
+## Abstract
+
+The Python distribution name on PyPI is **`hoox-pyne`**. After install, the import path and CLIs stay **`pynescript`** / **`pynescript-lsp`**. Automation lives in `.github/workflows/publish.yml` and uses [Trusted Publishing](https://docs.pypi.org/trusted-publishers/) (OIDC) against the GitHub environment **`pypi`**.
+
+> **Why not `pynescript` on PyPI?** That name is already owned by [elbakramer/pynescript](https://github.com/elbakramer/pynescript). Publishing under `hoox-pyne` avoids a name collision while keeping the code package id.
+
+## Install surface
+
+```bash
+pip install hoox-pyne
+pip install "hoox-pyne[lsp]"
+pip install "hoox-pyne[pro]"
+
+python -c "import pynescript; print(pynescript.__version__)"
+pynescript --help
+pynescript-lsp   # stdio language server
+```
+
+## One-time registration (do this before the first tag)
+
+### 1. PyPI pending trusted publisher
+
+1. Sign in at [pypi.org](https://pypi.org) (2FA required).
+2. Account → **Publishing** → **Add a new pending publisher**.
+3. Fill:
+
+| Field | Value |
+| --- | --- |
+| PyPI project name | `hoox-pyne` |
+| Owner | `jango-blockchained` |
+| Repository | `pyne` |
+| Workflow name | `publish.yml` |
+| Environment name | `pypi` |
+
+4. Save. The project is created automatically on the **first successful upload**.
+
+### 2. GitHub environment
+
+Repo **Settings → Environments → New environment → `pypi`**.
+
+Optional: required reviewers, wait timer, or branch policy limited to tags / `main`.
+
+```bash
+# CLI equivalent (no protection rules):
+gh api -X PUT repos/jango-blockchained/pyne/environments/pypi
+```
+
+### 3. Private repo note
+
+`pyne` may be private. Trusted Publishing still works; the workflow only needs `id-token: write` on the publish job (already set).
+
+## Cut a release
+
+```bash
+# 1. Version + changelog on main
+#    src/pynescript/__about__.py  →  e.g. 0.3.0
+#    CHANGELOG.md
+
+# 2. Local smoke (no upload)
+pip install build twine
+rm -rf dist/
+python -m build
+twine check dist/*
+# expect: hoox_pyne-0.3.0-*.whl  and  hoox_pyne-0.3.0.tar.gz
+
+# 3. Push main, then tag
+git tag -a v0.3.0 -m "v0.3.0"
+git push origin v0.3.0
+
+# 4. Watch Actions → Publish
+```
+
+Dry-run without upload: **Actions → Publish → Run workflow → `dry_run=true`**.
+
+## Workflow map
+
+| Job | When | What |
+| --- | --- | --- |
+| `build` | tag `v*` or dispatch | `python -m build` + `twine check` + artifact |
+| `publish-pypi` | tag `v*` **or** dispatch with `dry_run=false` | OIDC upload via `pypa/gh-action-pypi-publish` |
+
+## Failure modes
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| 403 / no trusted publisher | Pending publisher not added or wrong workflow/env name | Re-check PyPI pending publisher fields exactly |
+| Environment not found | Missing GitHub `pypi` env | Create environment |
+| Wrong wheel name `pynescript-*` | Old `pyproject.toml` name | Ensure `name = "hoox-pyne"` |
+| Tag publish skipped | `dry_run` dispatch only | Use a real `v*` tag or `dry_run=false` |
+
+## See also
+
+- [Release](/pyne/docs/devops/release) — LSP binaries + VSIX
+- [CI](/pyne/docs/devops/ci)
+- Root `CONTRIBUTING.md`

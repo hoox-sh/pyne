@@ -980,6 +980,37 @@ def test_incremental_rising_falling_matches_full() -> None:
         assert _bar_walk_inc_falling(falling_src, period) == _bar_walk_full_falling(falling_src, period)
 
 
+def test_rising_falling_highestbars_tolerate_na() -> None:
+    """Pine na (None) must not raise TypeError on rising/falling/highestbars.
+
+    Regression: CommonIndicators used to override TechnicalHelpers with bare
+    ``>=`` / ``max(window)``, crashing MA-STER style scripts on VIDYA warmup:
+    ``'>=' not supported between instances of 'NoneType' and 'NoneType'``.
+    """
+    from pynescript.ast.evaluator import NodeLiteralEvaluator
+
+    ev = NodeLiteralEvaluator()
+    all_na = [None, None, None, None, None, None, None]
+    mixed = [None, None, 1.0, 2.0, 3.0, None, 4.0]
+    assert ev._rising(all_na, 7) is False
+    assert ev._falling(all_na, 7) is False
+    assert ev._rising(mixed, 5) is False
+    assert ev._falling(mixed, 5) is False
+    assert ev._rising([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0], 7) is True
+    assert ev._falling([7.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0], 7) is True
+    # highestbars/lowestbars: skip na, return bars-back offset of extreme
+    assert ev._highestbars([None, None, 1.0], 3) == 0
+    assert ev._highestbars([None, 5.0, 1.0], 3) == -1
+    assert ev._lowestbars([None, None, 1.0], 3) == 0
+    # Incremental path (backend bar-mode) must also soft-fail on na
+    ev_inc = _IncTA()
+    for i in range(len(all_na)):
+        ev_inc._ta_call_i = 0
+        assert ev_inc._rising_inc_update(all_na[: i + 1], 7) is False
+        ev_inc._ta_call_i = 0
+        assert ev_inc._falling_inc_update(all_na[: i + 1], 7) is False
+
+
 def test_incremental_median_matches_full() -> None:
     src = _series(120)
     for period in (5, 14, 21):

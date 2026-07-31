@@ -4,52 +4,124 @@
   "scopeName": "source.pinescript",
   "fileTypes": ["pine", "pinev5", "pinev6"],
   "patterns": [
-    {
-      "include": "#comments"
-    },
-    {
-      "include": "#strings"
-    },
-    {
-      "include": "#numbers"
-    },
-    {
-      "include": "#keywords"
-    },
-    {
-      "include": "#types"
-    },
-    {
-      "include": "#builtins"
-    },
-    {
-      "include": "#identifiers"
-    },
-    {
-      "include": "#operators"
-    }
+    { "include": "#comments" },
+    { "include": "#annotations" },
+    { "include": "#strings" },
+    { "include": "#colors" },
+    { "include": "#numbers" },
+    { "include": "#declarations" },
+    { "include": "#imports" },
+    { "include": "#namespaces" },
+    { "include": "#builtins" },
+    { "include": "#functions" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#constants" },
+    { "include": "#operators" },
+    { "include": "#punctuation" },
+    { "include": "#identifiers" }
   ],
   "repository": {
     "comments": {
       "patterns": [
         {
-          "name": "comment.line.pinescript",
-          "match": "//.*$"
-        },
-        {
           "name": "comment.block.pinescript",
           "begin": "/\\*",
-          "end": "\\*/"
+          "end": "\\*/",
+          "patterns": [
+            {
+              "name": "keyword.other.annotation.pinescript",
+              "match": "@\\w+"
+            }
+          ]
+        },
+        {
+          "name": "comment.line.double-slash.pinescript",
+          "match": "//(?!@).*$"
+        }
+      ]
+    },
+    "annotations": {
+      "patterns": [
+        {
+          "name": "meta.annotation.version.pinescript",
+          "match": "(//@(version))\\s*(=)\\s*(\\d+)",
+          "captures": {
+            "1": { "name": "keyword.control.directive.pinescript" },
+            "2": { "name": "entity.name.tag.directive.pinescript" },
+            "3": { "name": "keyword.operator.assignment.pinescript" },
+            "4": { "name": "constant.numeric.integer.pinescript" }
+          }
+        },
+        {
+          "name": "meta.annotation.pinescript",
+          "begin": "(//@(?:description|strategy_alert_message|type|function|variable|enum|field|param|returns))",
+          "beginCaptures": {
+            "1": { "name": "keyword.control.directive.pinescript" }
+          },
+          "end": "$",
+          "patterns": [
+            { "include": "#strings" },
+            {
+              "name": "string.unquoted.annotation.pinescript",
+              "match": ".+"
+            }
+          ]
+        },
+        {
+          "name": "keyword.control.directive.pinescript",
+          "match": "//@\\w+"
         }
       ]
     },
     "strings": {
       "patterns": [
         {
+          "name": "string.quoted.triple.double.pinescript",
+          "begin": "\"\"\"",
+          "end": "\"\"\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.pinescript",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.triple.single.pinescript",
+          "begin": "'''",
+          "end": "'''",
+          "patterns": [
+            {
+              "name": "constant.character.escape.pinescript",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
           "name": "string.quoted.double.pinescript",
           "begin": "\"",
           "end": "\"",
           "patterns": [
+            {
+              "name": "constant.character.escape.pinescript",
+              "match": "\\\\(n|r|t|\\\\|\"|'|\\d{1,3}|x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4})"
+            },
+            {
+              "name": "constant.character.escape.pinescript",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.pinescript",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.pinescript",
+              "match": "\\\\(n|r|t|\\\\|\"|'|\\d{1,3}|x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4})"
+            },
             {
               "name": "constant.character.escape.pinescript",
               "match": "\\\\."
@@ -58,11 +130,23 @@
         }
       ]
     },
+    "colors": {
+      "patterns": [
+        {
+          "name": "constant.other.color.rgb-value.pinescript",
+          "match": "#[0-9A-Fa-f]{8}\\b|#[0-9A-Fa-f]{6}\\b|#[0-9A-Fa-f]{3}\\b"
+        }
+      ]
+    },
     "numbers": {
       "patterns": [
         {
           "name": "constant.numeric.float.pinescript",
-          "match": "\\b\\d+\\.\\d+\\b"
+          "match": "\\b\\d+\\.\\d*([eE][+-]?\\d+)?\\b|\\b\\d+[eE][+-]?\\d+\\b|\\b\\.\\d+([eE][+-]?\\d+)?\\b"
+        },
+        {
+          "name": "constant.numeric.hex.pinescript",
+          "match": "\\b0[xX][0-9A-Fa-f]+\\b"
         },
         {
           "name": "constant.numeric.integer.pinescript",
@@ -70,43 +154,230 @@
         }
       ]
     },
+    "declarations": {
+      "patterns": [
+        {
+          "name": "meta.function.declaration.pinescript",
+          "match": "^\\s*((?:export\\s+)?(?:method\\s+)?)([A-Za-z_][A-Za-z0-9_]*)\\s*(\\()(?=[^\\n]*\\)=>)",
+          "captures": {
+            "1": { "name": "storage.modifier.pinescript" },
+            "2": { "name": "entity.name.function.pinescript" },
+            "3": { "name": "punctuation.definition.parameters.begin.pinescript" }
+          }
+        },
+        {
+          "name": "meta.type.declaration.pinescript",
+          "match": "\\b(type)\\s+([A-Za-z_][A-Za-z0-9_]*)\\b",
+          "captures": {
+            "1": { "name": "storage.type.class.pinescript" },
+            "2": { "name": "entity.name.type.pinescript" }
+          }
+        },
+        {
+          "name": "meta.enum.declaration.pinescript",
+          "match": "\\b(enum)\\s+([A-Za-z_][A-Za-z0-9_]*)\\b",
+          "captures": {
+            "1": { "name": "storage.type.enum.pinescript" },
+            "2": { "name": "entity.name.type.enum.pinescript" }
+          }
+        }
+      ]
+    },
+    "imports": {
+      "patterns": [
+        {
+          "name": "meta.import.pinescript",
+          "match": "\\b(import)\\s+([A-Za-z0-9_./]+)(?:\\s+(as)\\s+([A-Za-z_][A-Za-z0-9_]*))?",
+          "captures": {
+            "1": { "name": "keyword.control.import.pinescript" },
+            "2": { "name": "entity.name.namespace.import.pinescript" },
+            "3": { "name": "keyword.control.as.pinescript" },
+            "4": { "name": "variable.other.alias.pinescript" }
+          }
+        },
+        {
+          "name": "keyword.control.export.pinescript",
+          "match": "\\bexport\\b"
+        }
+      ]
+    },
+    "functions": {
+      "patterns": [
+        {
+          "name": "meta.function-call.pinescript",
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "entity.name.function.call.pinescript" }
+          }
+        }
+      ]
+    },
     "keywords": {
       "patterns": [
         {
-          "name": "keyword.control.pinescript",
-          "match": "\\b(if|else|for|while|switch|case|default|break|continue|return)\\b"
+          "name": "keyword.control.conditional.pinescript",
+          "match": "\\b(if|else|switch)\\b"
         },
         {
-          "name": "keyword.declaration.pinescript",
-          "match": "\\b(import|export|from|as|type|method|var|varip|const|strategy|indicator|library)\\b"
+          "name": "keyword.control.loop.pinescript",
+          "match": "\\b(for|while|to|by|in|break|continue)\\b"
         },
         {
-          "name": "keyword.operator.pinescript",
-          "match": "\\b(and|or|not|in|to)\\b"
+          "name": "keyword.control.flow.pinescript",
+          "match": "\\b(return)\\b"
         },
         {
-          "name": "keyword.other.pinescript",
-          "match": "\\b(true|false|na|void)\\b"
+          "name": "storage.modifier.pinescript",
+          "match": "\\b(var|varip|const|method|export)\\b"
+        },
+        {
+          "name": "keyword.other.declaration.pinescript",
+          "match": "\\b(indicator|strategy|library)\\b"
+        },
+        {
+          "name": "keyword.operator.logical.pinescript",
+          "match": "\\b(and|or|not)\\b"
+        },
+        {
+          "name": "storage.type.function.arrow.pinescript",
+          "match": "=>"
         }
       ]
     },
     "types": {
       "patterns": [
         {
-          "name": "support.type.pinescript",
-          "match": "\\b(color|series|const|input|simple|var|bool|int|float|string|array|matrix|map|line|label|box|table)\\b"
+          "name": "storage.type.qualifier.pinescript",
+          "match": "\\b(series|simple|const|input|literal)\\b"
+        },
+        {
+          "name": "storage.type.pinescript",
+          "match": "\\b(bool|int|float|string|color|array|matrix|map|line|linefill|label|box|table|polyline|chart\\.point)\\b"
+        },
+        {
+          "name": "support.type.builtin.pinescript",
+          "match": "\\b(void)\\b"
+        }
+      ]
+    },
+    "namespaces": {
+      "patterns": [
+        {
+          "name": "meta.namespace.member.pinescript",
+          "match": "\\b(ta|math|str|array|matrix|map|request|ticker|timeframe|session|syminfo|barstate|chart|runtime|color|line|linefill|label|box|table|polyline|plot|plotshape|plotchar|plotcandle|plotbar|hline|fill|bgcolor|barcolor|alert|alertcondition|strategy|input|timestamp|year|month|weekofyear|dayofmonth|dayofweek|hour|minute|second)\\s*(\\.)\\s*([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "support.module.pinescript" },
+            "2": { "name": "punctuation.accessor.dot.pinescript" },
+            "3": { "name": "support.function.builtin.pinescript" }
+          }
+        },
+        {
+          "name": "support.module.pinescript",
+          "match": "\\b(ta|math|str|array|matrix|map|request|ticker|timeframe|session|syminfo|barstate|chart|runtime|color|strategy|input)\\b(?=\\s*\\.)"
         }
       ]
     },
     "builtins": {
       "patterns": [
         {
-          "name": "support.function.pinescript",
-          "match": "\\b(ta\\.[a-z_]+|strategy\\.[a-z_]+|input\\.[a-z_]+|plot\\.[a-z_]+|array\\.[a-z_]+|matrix\\.[a-z_]+|math\\.[a-z_]+|str\\.[a-z_]+)\\b"
+          "name": "support.function.plot.pinescript",
+          "match": "\\b(plot|plotshape|plotchar|plotcandle|plotbar|hline|fill|bgcolor|barcolor|alert|alertcondition)\\b"
         },
         {
-          "name": "support.function.pinescript",
-          "match": "\\b(plot|plotshape|plotchar|hline|fill|alert|strategy\\.entry|strategy\\.exit|strategy\\.order)\\b"
+          "name": "support.function.drawing.pinescript",
+          "match": "\\b(line\\.(?:new|delete|get_x1|get_x2|get_y1|get_y2|set_x1|set_x2|set_y1|set_y2|set_xy1|set_xy2|set_color|set_style|set_width|set_extend|copy)|label\\.(?:new|delete|get_x|get_y|get_text|set_x|set_y|set_xy|set_text|set_color|set_style|set_textcolor|set_size|set_tooltip|copy)|box\\.(?:new|delete|get_left|get_right|get_top|get_bottom|set_left|set_right|set_top|set_bottom|set_bgcolor|set_border_color|set_border_width|set_border_style|set_extend|set_text|copy)|table\\.(?:new|delete|cell|cell_set_text|cell_set_text_color|cell_set_bgcolor|cell_set_text_halign|cell_set_text_valign|cell_set_text_size|clear|merge_cells)|polyline\\.(?:new|delete|get_points))\\b"
+        },
+        {
+          "name": "variable.language.series.pinescript",
+          "match": "\\b(open|high|low|close|volume|time|time_close|hl2|hlc3|ohlc4|bar_index|last_bar_index|timenow)\\b"
+        },
+        {
+          "name": "variable.language.barstate.pinescript",
+          "match": "\\b(barstate\\.(?:isfirst|islast|ishistory|isrealtime|isnew|isconfirmed|islastconfirmedhistory))\\b"
+        },
+        {
+          "name": "support.constant.color.pinescript",
+          "match": "\\b(color\\.(?:aqua|black|blue|fuchsia|gray|green|lime|maroon|navy|olive|orange|purple|red|silver|teal|white|yellow|new|rgb|r|g|b|t|from_gradient))\\b"
+        },
+        {
+          "name": "support.constant.strategy.pinescript",
+          "match": "\\b(strategy\\.(?:long|short|percent_of_equity|fixed|cash|commission\\.(?:percent|cash_per_order|cash_per_contract)|oca\\.(?:none|cancel|reduce)|direction\\.(?:long|short|all)|closedtrades|opentrades|position_size|position_avg_price|equity|netprofit|openprofit|grossprofit|grossloss|max_contracts_held_all|max_contracts_held_long|max_contracts_held_short|wintrades|losstrades|eventrades|entry|exit|order|close|close_all|cancel|cancel_all|risk\\.(?:allow_entry_in|max_cons_loss_days|max_drawdown|max_intraday_filled_orders|max_intraday_loss|max_position_size)))\\b"
+        },
+        {
+          "name": "support.function.builtin.pinescript",
+          "match": "\\b(nz|na|fix|max|min|abs|pow|sqrt|log|log10|exp|sin|cos|tan|asin|acos|atan|avg|sum|cum|change|mom|roc|stdev|variance|correlation|percentile_nearest_rank|percentile_linear_interpolation|percentrank|rising|falling|cross|crossover|crossunder|highest|lowest|highestbars|lowestbars|barssince|valuewhen|fixnan|timestamp|year|month|weekofyear|dayofmonth|dayofweek|hour|minute|second|time|time_close)\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.pinescript",
+          "match": "\\b(true|false)\\b"
+        },
+        {
+          "name": "constant.language.na.pinescript",
+          "match": "\\bna\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.assignment.compound.pinescript",
+          "match": "(\\+|-|\\*|/|%)="
+        },
+        {
+          "name": "keyword.operator.assignment.reassign.pinescript",
+          "match": ":="
+        },
+        {
+          "name": "keyword.operator.assignment.pinescript",
+          "match": "="
+        },
+        {
+          "name": "keyword.operator.comparison.pinescript",
+          "match": "==|!=|<=|>=|<|>"
+        },
+        {
+          "name": "keyword.operator.ternary.pinescript",
+          "match": "\\?|:"
+        },
+        {
+          "name": "keyword.operator.arithmetic.pinescript",
+          "match": "\\+|-|\\*|/|%"
+        },
+        {
+          "name": "keyword.operator.history-referencing.pinescript",
+          "match": "\\[(?=\\s*\\d|\\s*[A-Za-z_])"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.separator.comma.pinescript",
+          "match": ","
+        },
+        {
+          "name": "punctuation.accessor.dot.pinescript",
+          "match": "\\."
+        },
+        {
+          "name": "punctuation.section.parens.begin.pinescript",
+          "match": "\\("
+        },
+        {
+          "name": "punctuation.section.parens.end.pinescript",
+          "match": "\\)"
+        },
+        {
+          "name": "punctuation.section.brackets.begin.pinescript",
+          "match": "\\["
+        },
+        {
+          "name": "punctuation.section.brackets.end.pinescript",
+          "match": "\\]"
         }
       ]
     },
@@ -114,15 +385,7 @@
       "patterns": [
         {
           "name": "variable.other.pinescript",
-          "match": "\\b[a-z_][a-zA-Z0-9_]*\\b"
-        }
-      ]
-    },
-    "operators": {
-      "patterns": [
-        {
-          "name": "keyword.operator.pinescript",
-          "match": "[+\\-*/%=<>!&|^~?:]+"
+          "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
         }
       ]
     }

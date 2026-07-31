@@ -7,7 +7,8 @@
 	docker-build docker-build-all docker-buildx docker-run docker-up docker-up-full \
 	docker-prod docker-down docker-logs docker-smoke \
 	test-lsp test-backend typecheck build-check build-vscode \
-	corpus-flow corpus-flow-set05 corpus-recompile
+	corpus-flow corpus-flow-set05 corpus-recompile \
+	deploy-vps deploy-vps-build
 
 help:
 	@echo "pyne — Pine Script™ Python toolchain"
@@ -37,6 +38,9 @@ help:
 	@echo "  corpus-flow      Animated full corpus flow (SETS=set05 MODE=auto)"
 	@echo "  corpus-flow-set05  shorthand for set05 full pipeline"
 	@echo "  corpus-recompile   re-run prior OK scripts (FROM=… LIMIT=0)"
+	@echo ""
+	@echo "  deploy-vps       rsync API + AXIS dist to VPS (ed25519 key)"
+	@echo "  deploy-vps-build bun build AXIS then deploy-vps"
 	@echo ""
 	@echo "AXIS charting UI lives in the sister repo:"
 	@echo "  https://github.com/jango-blockchained/axis"
@@ -74,13 +78,20 @@ build-check:
 	python scripts/build/compile.py --check
 
 build-vscode:
-	cd vscode-extension && npm install && npm run compile && npx vsce package --allow-missing-repository
+	cd vscode-extension && npm install && npm run package
 
 run:
 	python -m backend.app
 
 run-lsp:
 	python -m pynescript.langserver
+
+# VPS demo (namecheap): key auth via ~/.ssh/id_ed25519 by default
+deploy-vps:
+	./scripts/deploy_vps.sh
+
+deploy-vps-build:
+	AXIS_BUILD=1 ./scripts/deploy_vps.sh
 
 # Animated corpus pipeline: parse → re-run fails → runtime → report
 # Override: make corpus-flow SETS=set05 WORKERS=6 MODE=auto

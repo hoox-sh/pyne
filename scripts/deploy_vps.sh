@@ -2,16 +2,23 @@
 # Deploy pyne (pynescript) to the namecheap VPS and keep AXIS PWA alive.
 #
 # Usage:
-#   SSHPASS='…' ./scripts/deploy_vps.sh
-#   # or with key-based ssh (no SSHPASS):
 #   ./scripts/deploy_vps.sh
+#   # password auth (optional override):
+#   SSHPASS='…' ./scripts/deploy_vps.sh
+#
+# Defaults to key auth with ~/.ssh/id_ed25519 (matches Host "namecheap" in
+# ~/.ssh/config). Prefer identity file when connecting by IP so HostName
+# matching is not required.
 #
 # Env overrides:
-#   VPS_HOST=162.254.38.194
+#   VPS_HOST=162.254.38.194   # or Host alias e.g. namecheap
 #   VPS_USER=root
 #   VPS_PORT=22
 #   VPS_PATH=/root/pynescript
+#   VPS_IDENTITY_FILE=~/.ssh/id_ed25519
 #   AXIS_REPO=/path/to/axis   (default: sibling ../axis)
+#   AXIS_BUILD=1              # run `bun run build` in AXIS_REPO before rsync
+#   AXIS_SKIP_DIST=1          # skip rsync of axis dist/
 #
 # Copyright (C) 2024-2026 jango_blockchained
 # SPDX-License-Identifier: AGPL-3.0-or-later
@@ -26,14 +33,51 @@ VPS_PATH="${VPS_PATH:-/root/pynescript}"
 AXIS_REPO="${AXIS_REPO:-$(cd "${ROOT}/../axis" 2>/dev/null && pwd || true)}"
 TARGET="${VPS_USER}@${VPS_HOST}:${VPS_PATH}/"
 
-RSYNC_SSH=(ssh -p "${VPS_PORT}" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30)
+# Expand ~ in identity path; default ed25519 key used for namecheap VPS.
+_default_id="${HOME}/.ssh/id_ed25519"
+VPS_IDENTITY_FILE="${VPS_IDENTITY_FILE:-$_default_id}"
+if [[ "${VPS_IDENTITY_FILE}" == ~* ]]; then
+  VPS_IDENTITY_FILE="${VPS_IDENTITY_FILE/#\~/${HOME}}"
+fi
+
+RSYNC_SSH=(
+  ssh
+  -p "${VPS_PORT}"
+  -o StrictHostKeyChecking=accept-new
+  -o ConnectTimeout=30
+)
+
+# Prefer key auth unless SSHPASS is explicitly set.
 if [[ -n "${SSHPASS:-}" ]] && command -v sshpass >/dev/null 2>&1; then
   export SSHPASS
-  RSYNC_E=(sshpass -e "${RSYNC_SSH[@]}" -o PreferredAuthentications=password -o PubkeyAuthentication=no)
-  REMOTE() { sshpass -e "${RSYNC_SSH[@]}" -o PreferredAuthentications=password -o PubkeyAuthentication=no "${VPS_USER}@${VPS_HOST}" "$@"; }
-else
+  RSYNC_SSH+=(
+    -o PreferredAuthentications=password
+    -o PubkeyAuthentication=no
+  )
+  RSYNC_E=(sshpass -e "${RSYNC_SSH[@]}")
+  REMOTE() {
+    sshpass -e "${RSYNC_SSH[@]}" "${VPS_USER}@${VPS_HOST}" "$@"
+  }
+  echo "==> auth: SSHPASS (password)"
+elif [[ -f "${VPS_IDENTITY_FILE}" ]]; then
+  RSYNC_SSH+=(
+    -i "${VPS_IDENTITY_FILE}"
+    -o IdentitiesOnly=yes
+    -o PreferredAuthentications=publickey
+    -o PubkeyAuthentication=yes
+  )
   RSYNC_E=("${RSYNC_SSH[@]}")
-  REMOTE() { "${RSYNC_SSH[@]}" "${VPS_USER}@${VPS_HOST}" "$@"; }
+  REMOTE() {
+    "${RSYNC_SSH[@]}" "${VPS_USER}@${VPS_HOST}" "$@"
+  }
+  echo "==> auth: key ${VPS_IDENTITY_FILE}"
+else
+  # Fall back to ssh agent / config Host entries (e.g. Host namecheap).
+  RSYNC_E=("${RSYNC_SSH[@]}")
+  REMOTE() {
+    "${RSYNC_SSH[@]}" "${VPS_USER}@${VPS_HOST}" "$@"
+  }
+  echo "==> auth: default ssh (no ${VPS_IDENTITY_FILE}; using agent/config)"
 fi
 
 echo "==> rsync ${ROOT}/ → ${TARGET}"
@@ -57,15 +101,38 @@ rsync -az --delete --info=stats1 \
   --exclude 'tests/data/library/' \
   --exclude '.opencode/' \
   --exclude 'logs/' \
+  --exclude 'vscode-extension/*.vsix' \
   "${ROOT}/" "${TARGET}"
 
 # AXIS static server lives in the sister axis repo (not in pyne after frontend extract).
 # systemd unit: ExecStart=python3 /root/pynescript/frontend/axis_pwa_server.py
+# WorkingDirectory + server ROOT → /root/pynescript/frontend/dist
 if [[ -n "${AXIS_REPO}" && -f "${AXIS_REPO}/axis_pwa_server.py" ]]; then
   echo "==> restore AXIS PWA server from ${AXIS_REPO}"
   rsync -az -e "${RSYNC_E[*]}" \
     "${AXIS_REPO}/axis_pwa_server.py" \
     "${VPS_USER}@${VPS_HOST}:${VPS_PATH}/frontend/axis_pwa_server.py"
+
+  if [[ "${AXIS_SKIP_DIST:-0}" != "1" ]]; then
+    if [[ "${AXIS_BUILD:-0}" == "1" ]]; then
+      if command -v bun >/dev/null 2>&1; then
+        echo "==> AXIS_BUILD=1 → bun run build in ${AXIS_REPO}"
+        (cd "${AXIS_REPO}" && bun run build)
+      else
+        echo "!! bun not found — cannot AXIS_BUILD" >&2
+        exit 1
+      fi
+    fi
+    if [[ -d "${AXIS_REPO}/dist" && -f "${AXIS_REPO}/dist/index.html" ]]; then
+      echo "==> rsync AXIS dist → ${VPS_PATH}/frontend/dist/"
+      rsync -az --delete --info=stats1 \
+        -e "${RSYNC_E[*]}" \
+        "${AXIS_REPO}/dist/" \
+        "${VPS_USER}@${VPS_HOST}:${VPS_PATH}/frontend/dist/"
+    else
+      echo "!! no ${AXIS_REPO}/dist/index.html — skip AXIS dist (run: cd axis && bun run build)" >&2
+    fi
+  fi
 else
   echo "!! AXIS_REPO not found or missing axis_pwa_server.py — skipping (axis-pwa may stay down)" >&2
 fi

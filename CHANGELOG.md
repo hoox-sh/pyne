@@ -18,11 +18,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Consolidation of main with recent plan branch work (2026-07-09).
 
 ### Changed
+- **PyPI distribution name is `hoox-pyne`** (import package and CLIs remain `pynescript` / `pynescript-lsp`). Avoids collision with upstream elbakramer `pynescript` on PyPI. Install: `pip install "hoox-pyne[lsp]"`.
+- Version **0.3.0** prepared as first `hoox-pyne` release candidate (tag when ready).
+- VS Code extension rebrand: **PYNE — Pine Script™ for VS Code** (`pyne` 0.2.2), HOOX logo icon, marketplace description as part of the HOOX open trading stack, TradingView® / Pine Script™ trademark disclaimer, and richer TextMate syntax highlighting (namespaces, annotations, colors, UDT/enum, multiline strings).
+- VS Code extension packaging: esbuild-bundle `vscode-languageclient` into the VSIX (fixes palette “command not found” when `node_modules` was omitted), explicit `onCommand` activation, resilient command handlers, and shared output channel.
 - CI rewritten for the post-AXIS-extract repo: Python lint/test matrix, package build, Docker smoke; removed dead `frontend/` jobs.
 - `require_admin_token` enforces `ADMIN_TOKEN` + `X-Admin-Token` (fail-closed); prod compose drops host source mounts via `volumes: !override`.
 - `pyproject.toml` project URLs, Alpha classifier, Python 3.13, `pro` extra includes `redis`.
 - Updated documentation (ROADMAP, missing_features, implementation status, LSP plan, devops Docker) to reflect current state.
 - Backend test collection fixes post-integration.
+
+### Fixed
+- Interpreter: `ta.rising` / `ta.falling` / `ta.highestbars` / `ta.lowestbars` no longer raise
+  `TypeError: '>=' not supported between instances of 'NoneType' and 'NoneType'` when the
+  series contains Pine `na` (e.g. VIDYA warmup on MA-STER). Unsafe `CommonIndicators`
+  overrides were removed so na-safe `TechnicalHelpers` implementations are used.
 
 ### Removed
 - Stale `Dockerfile.api` (folded into multi-target `Dockerfile`).

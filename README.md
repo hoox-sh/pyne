@@ -56,7 +56,7 @@ Local clone layout (typical sibling checkouts):
 Get professional IDE features in VS Code, Neovim, Zed, Emacs, and more:
 
 ```bash
-pip install pynescript[lsp]
+pip install "hoox-pyne[lsp]"
 pynescript-lsp
 ```
 
@@ -189,10 +189,10 @@ curl -s -X POST http://127.0.0.1:5002/auth/create_key \
 ## Installation
 
 ```bash
-# From PyPI (when published)
-pip install pynescript
-pip install "pynescript[lsp]"      # language server
-pip install "pynescript[pro]"      # Flask Pro API stack
+# From PyPI (distribution name hoox-pyne; import remains pynescript)
+pip install hoox-pyne
+pip install "hoox-pyne[lsp]"      # language server
+pip install "hoox-pyne[pro]"      # Flask Pro API stack
 
 # From a git clone (development)
 pip install -e ".[lsp,pro]"

@@ -24,7 +24,7 @@
 Install the latest release from PyPI:
 
 ```console
-pip install pynescript
+pip install hoox-pyne
 ```
 
 To work from a local checkout, install Hatch and activate the project environment with `hatch shell`.

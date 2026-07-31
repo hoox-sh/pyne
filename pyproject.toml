@@ -3,13 +3,15 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pynescript"
+# PyPI distribution name (import package remains `pynescript`).
+# Upstream `pynescript` on PyPI is elbakramer — we ship as hoox-pyne.
+name = "hoox-pyne"
 dynamic = ["version"]
-description = "Parse, inspect, and regenerate TradingView® Pine Script™ from Python"
+description = "PYNE — parse, evaluate, and LSP for TradingView® Pine Script™ (HOOX open trading stack)"
 readme = "README.md"
 license = { text = "AGPL-3.0-or-later" }
 requires-python = ">=3.10"
-keywords = ["python", "tradingview", "pinescript"]
+keywords = ["python", "tradingview", "pinescript", "pyne", "hoox", "lsp"]
 authors = [
   { name = "jango_blockchained" },
 ]

@@ -31,21 +31,51 @@ If you find a bug or have a feature request, please open an issue on GitHub.
 
 ## Release / PyPI publication
 
-Package name on PyPI: **`pynescript`** (repo product name: **pyne**).
+| | |
+|---|---|
+| **PyPI distribution name** | [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) |
+| **Import package** | `pynescript` (unchanged) |
+| **Console scripts** | `pynescript`, `pynescript-lsp` |
+| **Product / repo** | **pyne** · [jango-blockchained/pyne](https://github.com/jango-blockchained/pyne) |
+
+> The historical name `pynescript` on PyPI belongs to
+> [elbakramer/pynescript](https://github.com/elbakramer/pynescript). This project
+> publishes as **`hoox-pyne`** so installs do not collide:
+> `pip install "hoox-pyne[lsp]"` → `import pynescript`.
+
+### One-time PyPI setup (Trusted Publishing)
+
+1. Create a PyPI account (or org) and enable 2FA.
+2. On PyPI → **Publishing** → **Add a new pending publisher**:
+   - **PyPI project name:** `hoox-pyne`
+   - **Owner:** `jango-blockchained`
+   - **Repository:** `pyne`
+   - **Workflow name:** `publish.yml`
+   - **Environment name:** `pypi`
+3. GitHub → repo **Settings → Environments → `pypi`** (create if missing).
+   Optional: required reviewers for production uploads.
+4. First successful tag publish creates the project and attaches the publisher.
+
+### Cut a release
 
 1. Bump `__version__` in `src/pynescript/__about__.py` and update `CHANGELOG.md`.
-2. Ensure CI is green on `main`.
-3. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
-4. GitHub Actions **Publish** builds sdist/wheel and uploads to PyPI via
+2. Align `vscode-extension/package.json` version when shipping the VSIX together.
+3. Ensure CI is green on `main`.
+4. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+5. GitHub Actions **Publish** builds sdist/wheel and uploads via
    [Trusted Publishing](https://docs.pypi.org/trusted-publishers/)
    (environment `pypi`, workflow `publish.yml`).
 
-Dry-run (build only, no upload): Actions → Publish → Run workflow → `dry_run=true`.
+Dry-run (build only, no upload): Actions → **Publish** → Run workflow → `dry_run=true`.
 
-Local check:
+Local check (no upload):
 
 ```bash
-python -m build && twine check dist/*
+pip install build twine
+rm -rf dist/
+python -m build
+twine check dist/*
+# Expected artifacts: hoox_pyne-*.whl  hoox_pyne-*.tar.gz
 ```
 
 AXIS charting UI releases are handled in

@@ -701,36 +701,11 @@ class CommonIndicators(TechnicalHelpers):
         )
 
     # -- Implementation Helpers ---------------------------------------------
-
-    def _falling(self, series: list[float], period: int) -> bool:
-        if len(series) < period:
-            return False
-        for idx in range(1, period):
-            if series[-idx] <= series[-idx - 1]:
-                return False
-        return True
-
-    def _rising(self, series: list[float], period: int) -> bool:
-        if len(series) < period:
-            return False
-        for idx in range(1, period):
-            if series[-idx] >= series[-idx - 1]:
-                return False
-        return True
-
-    def _highestbars(self, series: list[float], period: int) -> int:
-        if len(series) < period:
-            return -1
-        window = series[-period:]
-        value = max(window)
-        return -window[::-1].index(value)
-
-    def _lowestbars(self, series: list[float], period: int) -> int:
-        if len(series) < period:
-            return -1
-        window = series[-period:]
-        value = min(window)
-        return -window[::-1].index(value)
+    # Note: ``_rising`` / ``_falling`` / ``_highestbars`` / ``_lowestbars`` live
+    # on :class:`TechnicalHelpers` (core.py) with na-safe comparisons. Do not
+    # reintroduce bare ``>=``/``max(window)`` here — they raise TypeError when
+    # the series contains Pine ``na`` (None), e.g. early VIDYA warmup bars:
+    # ``Runtime Error: '>=' not supported between instances of 'NoneType'...``.
 
     def _range(self, series: list[float], period: int) -> float | None:
         highest = self._highest(series, period)

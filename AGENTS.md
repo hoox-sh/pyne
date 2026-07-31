@@ -159,7 +159,9 @@ Tests set `ADMIN_TOKEN` via monkeypatch; local `make run` needs
 
 ### Package
 
-- PyPI name: **`pynescript`**; product/repo: **pyne**.
+- PyPI **distribution** name: **`hoox-pyne`** (import / console scripts stay
+  **`pynescript`** / `pynescript-lsp`). Upstream PyPI `pynescript` is elbakramer.
+- Product/repo: **pyne** · install: `pip install "hoox-pyne[lsp]"`.
 - Version: `src/pynescript/__about__.py` (exported as `pynescript.__version__`).
 - Optional extras: `[lsp]`, `[pro]`, `[compile]`, `[data]` / `[datafeed]`.
 - Publish: tag `vX.Y.Z` → `.github/workflows/publish.yml` (Trusted Publishing

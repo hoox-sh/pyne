@@ -203,7 +203,7 @@ CORS must allow the PWA origin via `ALLOWED_ORIGINS`.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install pynescript
+pip install hoox-pyne
 # no env vars required
 pynescript lint strategy.pine --fail-on errors
 ```
@@ -211,7 +211,7 @@ pynescript lint strategy.pine --fail-on errors
 ### Editor workstation
 
 ```bash
-pip install "pynescript[lsp]"
+pip install "hoox-pyne[lsp]"
 # ensure which pynescript-lsp
 # paste clients/neovim.lua or clients/zed.json as documented
 ```

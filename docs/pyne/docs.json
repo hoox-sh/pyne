@@ -173,6 +173,7 @@
               "devops/local-dev",
               "devops/ci",
               "devops/release",
+              "devops/pypi-publish",
               "devops/docker",
               "devops/nuitka-build",
               "devops/metadata-crypto",
