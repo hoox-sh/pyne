@@ -66,6 +66,8 @@ RUN_SCHEMA: dict[str, tuple[type, bool, Any]] = {
     "mode": (str, False, "auto"),  # interpret|compile|auto (default auto = compile+fallback)
     # Pine input.* overrides keyed by title (AXIS Script Settings)
     "inputs": (dict, False, {}),
+    # When true, interpret path collects per-line ms/execs for AXIS profiler gutter
+    "profiler": (bool, False, False),
 }
 
 # Shared OHLCV + many scripts (AXIS multi-indicator). Nested script objects
@@ -77,6 +79,7 @@ RUN_BATCH_SCHEMA: dict[str, tuple[type, bool, Any]] = {
     "data_source": (str, False, ""),
     "data_options": (dict, False, {}),
     "mode": (str, False, "auto"),
+    "profiler": (bool, False, False),
 }
 
 # Hard cap to keep free-tier /run/batch bounded.

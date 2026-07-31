@@ -168,10 +168,48 @@ class TestRun:
         assert profile.get("mode") in ("interpret", "compile", "auto")
         assert "total_ms" in profile
         assert "phases" in profile
-        assert profile.get("lines") == []
+        assert profile.get("lines") == []  # profiler off by default
         meta = resp.json.get("meta") or {}
         assert meta.get("logs") == []
         assert isinstance(meta.get("profile"), dict)
+
+    def test_run_profiler_line_stats(self, client: FlaskClient):
+        """profiler=true returns non-empty per-line timings for interpret."""
+        bars = [
+            {"open": 100, "high": 105, "low": 98, "close": 102, "time": 1, "volume": 10},
+            {"open": 102, "high": 108, "low": 101, "close": 105, "time": 2, "volume": 12},
+            {"open": 105, "high": 110, "low": 104, "close": 108, "time": 3, "volume": 11},
+        ]
+        script = """//@version=5
+indicator("prof")
+length = input.int(2, "Length")
+v = ta.sma(close, length)
+plot(v, "sma")
+"""
+        resp = client.post(
+            "/run",
+            json={
+                "script": script,
+                "data": bars,
+                "mode": "interpret",
+                "profiler": True,
+            },
+        )
+        assert resp.status_code == 200, resp.json
+        body = resp.json
+        assert body["status"] == "success"
+        profile = body.get("profile") or {}
+        assert profile.get("mode") == "interpret"
+        lines = profile.get("lines") or []
+        assert isinstance(lines, list)
+        assert len(lines) >= 1
+        for row in lines:
+            assert "line" in row and int(row["line"]) >= 1
+            assert "ms" in row
+            assert "execs" in row
+            assert "pct" in row
+        # Also under meta for clients that only read meta.profile
+        assert body.get("meta", {}).get("profile", {}).get("lines") == lines
 
     def test_run_exports_logs_and_profile(self, client: FlaskClient):
         """log.info/warning/error appear in response.logs and meta.logs."""
@@ -213,7 +251,8 @@ plot(close)
         phases = profile.get("phases") or {}
         assert "parse_ms" in phases
         assert "eval_ms" in phases
-        assert profile.get("lines") == []
+        # Default profiler off → empty lines; phase profile still present
+        assert isinstance(profile.get("lines"), list)
         assert body.get("meta", {}).get("profile") == profile
 
     def test_run_mode_compile_body(self, client: FlaskClient):

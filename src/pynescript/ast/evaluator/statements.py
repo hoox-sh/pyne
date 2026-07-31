@@ -436,6 +436,10 @@ class StatementEvaluator:
         registers ``export`` members into the in-process library registry at
         the end of the visit.
 
+        When ``_pine_line_profile`` is a ``dict`` (profiler mode), each
+        top-level statement is timed and aggregated by ``lineno`` as
+        ``{line: [ms_sum, execs]}``.
+
         Args:
             node: Root ``Script`` with ``body`` statement list
         """
@@ -444,11 +448,32 @@ class StatementEvaluator:
         self._active_library = None  # type: ignore[attr-defined]
         last: Any = None
         visit = self.visit
-        for stmt in node.body:
-            last = visit(stmt)  # type: ignore[attr-defined]
-            # Detect library("Title") declaration from Expr(Call(...))
-            if isinstance(last, ScriptDeclaration) and last.script_type == "library":
-                self._active_library = LibraryModule(title=str(last.title))  # type: ignore[attr-defined]
+        line_prof: dict[int, list[float]] | None = getattr(self, "_pine_line_profile", None)
+        if line_prof is not None:
+            # Lazy import keeps hot path free of time when profiler is off
+            from time import perf_counter
+
+            for stmt in node.body:
+                ln = int(getattr(stmt, "lineno", 0) or 0)
+                t0 = perf_counter()
+                last = visit(stmt)  # type: ignore[attr-defined]
+                if ln >= 1:
+                    dt_ms = (perf_counter() - t0) * 1000.0
+                    bucket = line_prof.get(ln)
+                    if bucket is None:
+                        line_prof[ln] = [dt_ms, 1.0]
+                    else:
+                        bucket[0] += dt_ms
+                        bucket[1] += 1.0
+                # Detect library("Title") declaration from Expr(Call(...))
+                if isinstance(last, ScriptDeclaration) and last.script_type == "library":
+                    self._active_library = LibraryModule(title=str(last.title))  # type: ignore[attr-defined]
+        else:
+            for stmt in node.body:
+                last = visit(stmt)  # type: ignore[attr-defined]
+                # Detect library("Title") declaration from Expr(Call(...))
+                if isinstance(last, ScriptDeclaration) and last.script_type == "library":
+                    self._active_library = LibraryModule(title=str(last.title))  # type: ignore[attr-defined]
         self._finalize_library_registration()
         return last
 

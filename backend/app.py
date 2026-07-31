@@ -268,6 +268,7 @@ def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
     inputs = validated.get("inputs") or {}
     if not isinstance(inputs, dict):
         inputs = {}
+    profiler = bool(validated.get("profiler"))
 
     runtime = Runtime(symbol=str(symbol))
     result = runtime.run(
@@ -277,6 +278,7 @@ def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
         data_provider=data_provider,
         mode=str(mode),
         inputs=inputs if inputs else None,
+        profiler=profiler,
     )
 
     if "error" in result:

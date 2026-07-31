@@ -82,6 +82,39 @@ def _export_pine_logs() -> list[dict[str, str]]:
         return []
 
 
+def _export_line_profile(evaluator: Any) -> list[dict[str, Any]]:
+    """Convert evaluator ``_pine_line_profile`` map into AXIS gutter rows."""
+    raw = getattr(evaluator, "_pine_line_profile", None)
+    if not isinstance(raw, dict) or not raw:
+        return []
+    total = 0.0
+    for v in raw.values():
+        try:
+            total += float(v[0])
+        except (TypeError, ValueError, IndexError):
+            pass
+    denom = total if total > 0 else 1.0
+    lines: list[dict[str, Any]] = []
+    for ln, bucket in sorted(raw.items(), key=lambda kv: int(kv[0])):
+        try:
+            line_no = int(ln)
+            ms = float(bucket[0])
+            execs = int(bucket[1])
+        except (TypeError, ValueError, IndexError):
+            continue
+        if line_no < 1:
+            continue
+        lines.append(
+            {
+                "line": line_no,
+                "ms": round(ms, 3),
+                "execs": execs,
+                "pct": round((ms / denom) * 100.0, 2),
+            }
+        )
+    return lines
+
+
 def _build_run_profile(
     *,
     total_ms: float,
@@ -89,8 +122,9 @@ def _build_run_profile(
     mode: str,
     parse_ms: float = 0.0,
     eval_ms: float = 0.0,
+    lines: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Lightweight phase timings for AXIS / clients (no line-level cost)."""
+    """Phase timings (+ optional per-line cost when profiler is on)."""
     return {
         "total_ms": round(float(total_ms), 3),
         "bars": int(bars),
@@ -99,7 +133,7 @@ def _build_run_profile(
             "parse_ms": round(float(parse_ms), 3),
             "eval_ms": round(float(eval_ms), 3),
         },
-        "lines": [],
+        "lines": list(lines or []),
     }
 
 
@@ -111,6 +145,7 @@ def _attach_logs_profile(
     mode: str,
     parse_ms: float = 0.0,
     eval_ms: float = 0.0,
+    lines: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Attach top-level and ``meta`` ``logs`` / ``profile`` fields to a result dict."""
     logs = _export_pine_logs()
@@ -120,6 +155,7 @@ def _attach_logs_profile(
         mode=mode,
         parse_ms=parse_ms,
         eval_ms=eval_ms,
+        lines=lines,
     )
     result["logs"] = logs
     result["profile"] = profile
@@ -499,6 +535,7 @@ class Runtime:
         data_provider=None,
         mode: str | None = None,
         inputs: dict | None = None,
+        profiler: bool = False,
     ):
         """
         Execute the script over the provided OHLCV data.
@@ -515,6 +552,8 @@ class Runtime:
                 Default: ``PYNE_RUNTIME_MODE`` env, else ``"interpret"`` (tests/API
                 callers that omit mode: Pro API schema defaults to ``auto``).
             inputs: Optional Pine ``input.*`` overrides keyed by title.
+            profiler: When true, collect per-line timings for AXIS gutter.
+                Forces interpret (compile has no statement walk).
 
         Returns:
             dict with 'series': list of plotted values for each bar.
@@ -524,6 +563,9 @@ class Runtime:
         if mode is None or mode == "":
             mode = os.environ.get("PYNE_RUNTIME_MODE", "interpret")
         mode_norm = (mode or "interpret").strip().lower()
+        # Line profiler needs the AST walker — skip compile when enabled.
+        if profiler and mode_norm in ("compile", "auto"):
+            mode_norm = "interpret"
         if mode_norm == "compile":
             return self._run_compiled(source_code, ohlcv_data)
         if mode_norm == "auto":
@@ -632,6 +674,12 @@ class Runtime:
             evaluator._input_declarations = []  # type: ignore[attr-defined]
         except Exception:
             pass
+        # Per-line timing map (line → [ms_sum, execs]); visit_Script aggregates.
+        if profiler:
+            try:
+                evaluator._pine_line_profile = {}  # type: ignore[attr-defined]
+            except Exception:
+                pass
 
         # fill() needs plot() → Plot handles; skip PlotRegistry otherwise (big host win).
         evaluator._pine_need_plot_ids = bool(_FILL_CALL_RE.search(source_code))  # type: ignore[attr-defined]
@@ -1093,6 +1141,7 @@ class Runtime:
 
         eval_ms = (time.perf_counter() - t_eval0) * 1000.0
         total_ms = (time.perf_counter() - t_total0) * 1000.0
+        line_rows = _export_line_profile(evaluator) if profiler else []
         return _attach_logs_profile(
             {
                 "plots": final_series,
@@ -1120,6 +1169,7 @@ class Runtime:
             mode="interpret",
             parse_ms=parse_ms,
             eval_ms=eval_ms,
+            lines=line_rows,
         )
 
     @staticmethod
