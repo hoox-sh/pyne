@@ -337,14 +337,21 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
 
         # The expression arg is usually already evaluated by the call site.
         # - str: series name like "close" → fetch OHLCV and map
-        # - numeric series list: take current (last) value then treat as scalar
-        # - anything else (tuple/matrix/array/UDT result): return as-is so scripts
-        #   like seasonality's ``request.security(..., calculateMontlyChanges(...))``
-        #   keep their matrix/tuple structure instead of being stringified.
-        if isinstance(expression, list) and expression and all(
-            x is None or isinstance(x, (int, float)) for x in expression
-        ):
-            expression = expression[-1]
+        # - list/tuple of already-evaluated values: return as-is so destructure
+        #   ``[hi, lo, cl] = request.security(..., [high[1], low[1], close[1]])``
+        #   (Camarilla pivots etc.) keeps the multi-value shape.  Do NOT collapse
+        #   multi-element numeric lists to the last sample — that breaks unpack.
+        # - single-element numeric list: unwrap to scalar (legacy series path)
+        # - matrix/array/UDT result: return as-is
+        if isinstance(expression, list):
+            if len(expression) == 1 and (
+                expression[0] is None or isinstance(expression[0], (int, float, bool))
+            ):
+                expression = expression[0]
+            else:
+                return expression
+        if isinstance(expression, tuple):
+            return expression
 
         if not isinstance(expression, str):
             return expression

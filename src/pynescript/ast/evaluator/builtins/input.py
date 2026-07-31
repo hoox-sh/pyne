@@ -101,13 +101,35 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
         decls.append(meta)
 
     def _resolve_override(self, title: str | None, defval: Any) -> Any:
-        """Apply host-provided input overrides keyed by title when present."""
+        """Apply host-provided input overrides keyed by title when present.
+
+        Scalar inputs (int/float/bool/string) must not receive a full series list
+        from AXIS plot-source expansion or last-run snapshots — peel to the
+        current sample so ``plot(..., linewidth=input.int(...))`` does not
+        crash with ``int(list)``.
+        """
         overrides = getattr(self, "_input_overrides", None)
         if not overrides or not title:
             return defval
-        if title in overrides:
-            return overrides[title]
-        return defval
+        if title not in overrides:
+            return defval
+        raw = overrides[title]
+        # input.source intentionally passes list series — leave lists alone when
+        # the default is itself a series name / non-scalar default path.
+        if isinstance(raw, list):
+            # Nested list (e.g. accidental [[1]]) or series of scalars → last
+            if not raw:
+                return defval
+            last = raw[-1]
+            # Full OHLC-like series of numbers for a scalar input → use last bar
+            if isinstance(defval, (int, float, bool, str)) or defval is None:
+                if isinstance(last, list) and last:
+                    last = last[-1]
+                if isinstance(last, (int, float, bool, str)) or last is None:
+                    return last if last is not None else defval
+            # Otherwise keep the list (source series override)
+            return raw
+        return raw
 
     def _handle_input(self, args: list[Any]) -> Any:
         """input(defval, title, tooltip, inline, group, confirm, active) → value."""

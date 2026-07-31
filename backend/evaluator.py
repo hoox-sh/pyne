@@ -68,6 +68,35 @@ def _unwrap_scalar(value: Any) -> Any:
     return value
 
 
+def _as_plot_int(value: Any, default: int = 1) -> int:
+    """Coerce plot linewidth / similar to int without crashing on list/series.
+
+    AXIS may re-send input overrides as full series arrays (or last-run snapshots
+    as lists). ``int([1, 2, 3])`` raises TypeError and aborts the bar loop —
+    unwrap to the current sample first (same as ``_unwrap_scalar``).
+    """
+    v = _unwrap_scalar(value)
+    if v is None:
+        return default
+    # Nested list (e.g. override was [[1]]) — peel once more
+    if type(v) is list:
+        v = v[-1] if v else None
+        if v is None:
+            return default
+    try:
+        if type(v) is bool:
+            return int(v)
+        if type(v) is int:
+            return v
+        if type(v) is float:
+            if v != v:  # NaN
+                return default
+            return int(v)
+        return int(v)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return default
+
+
 class CustomEvaluator(NodeLiteralEvaluator):
     """
     Evaluator that captures plot commands.
@@ -125,7 +154,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
                 "kind": kind,
                 "title": title,
                 "color": color_s,
-                "linewidth": int(linewidth or 1),
+                "linewidth": _as_plot_int(linewidth, 1),
             }
             for k, v in extra.items():
                 if v is not None and v != "":
@@ -203,7 +232,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
             linewidth = kwargs.get("linewidth", args[5] if len(args) > 5 else 1)
             color_s = _serialize_color(color) if color is not None else None
             title_s = str(title or "") or None
-            self._capture_plot("plot", value, title_s, color_s, int(linewidth or 1))
+            self._capture_plot("plot", value, title_s, color_s, _as_plot_int(linewidth, 1))
             return self._maybe_registry("_builtin_plot", args, kwargs) if self._pine_need_plot_ids else None
 
         # Positional-only: plot(series) / plot(series, title, color, …)
@@ -226,7 +255,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
         linewidth = args[5] if n > 5 else 1
         color_s = _serialize_color(color) if color is not None else None
         title_s = str(title or "") or None
-        self._capture_plot("plot", value, title_s, color_s, int(linewidth or 1))
+        self._capture_plot("plot", value, title_s, color_s, _as_plot_int(linewidth, 1))
         return self._maybe_registry("_builtin_plot", args, None) if self._pine_need_plot_ids else None
 
     def _builtin_hline(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
@@ -248,7 +277,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
                 price,
                 str(title or "") or "hline",
                 color_s,
-                int(linewidth or 1),
+                _as_plot_int(linewidth, 1),
                 linestyle=str(linestyle or "linestyle_solid"),
                 style="hline",
             )
@@ -271,7 +300,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
             price,
             str(title or "") or "hline",
             color_s,
-            int(linewidth or 1),
+            _as_plot_int(linewidth, 1),
             linestyle=str(linestyle or "linestyle_solid"),
             style="hline",
         )
