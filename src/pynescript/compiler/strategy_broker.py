@@ -55,6 +55,7 @@ Hot-path notes
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -92,16 +93,34 @@ def _opt_float(value: Any) -> float | None:
         return None
 
 
-def _norm_dir(direction: Any) -> str:
+def _norm_dir(direction: Any) -> str | None:
+    """Normalize to ``long``/``short``; ``None`` if unrecognised (reject, do not fill)."""
     # Compile path almost always passes "long" / "short" already.
     if direction == "long" or direction == "short":
         return direction  # type: ignore[return-value]
-    d = str(direction).lower()
+    if direction is None:
+        return None
+    d = str(direction).lower().strip()
     if d in {"strategy.long", "long", "1", "buy"}:
         return "long"
     if d in {"strategy.short", "short", "-1", "sell"}:
         return "short"
-    return d
+    return None
+
+
+def _parse_qty(qty: Any) -> tuple[str, float]:
+    """Strict qty for compile broker: ``ok`` / ``missing`` / ``invalid``."""
+    if qty is None:
+        return ("missing", 0.0)
+    if isinstance(qty, str) and qty.lower() in {"", "na", "nan", "none"}:
+        return ("missing", 0.0)
+    try:
+        f = float(qty)
+    except (TypeError, ValueError):
+        return ("invalid", 0.0)
+    if not math.isfinite(f) or f < 0:
+        return ("invalid", 0.0)
+    return ("ok", float(f))
 
 
 @dataclass
@@ -159,22 +178,31 @@ class CompileStrategyBroker:
         commission_type: str = "percent",
         slippage_ticks: int = 0,
         mintick: float = 0.01,
+        pyramiding: int = 0,
     ) -> None:
         """Construct broker state for one compiled run.
 
         Parameters mirror Pine ``strategy()`` declaration kwargs when the
         visitor captures them into the generated ctor call.
+
+        Commission model (interpret parity, TV-closer): charge on **entry**
+        (held as ``position_commission`` / openprofit drag) **and** on **exit**
+        fills; both realize into netprofit on close.
         """
         self.initial_capital = float(initial_capital)
         self.commission_value = float(commission_value)
         self.commission_type = str(commission_type)
         self.slippage_ticks = int(slippage_ticks)
         self.mintick = float(mintick)
+        # 0 = one market entry id; n = up to n additional same-direction entries
+        self.pyramiding = int(pyramiding) if pyramiding is not None else 0
         self.position_size: float = 0.0  # signed: +long / -short
         self.position_avg_price: float = float("nan")
         self.position_entry_name: str = ""
-        # Remaining entry commission on the open position (interpret-oracle model:
-        # charge on entry, realize into PnL on close; no separate exit commission).
+        # Count of open entry legs (market path pyramiding / replace parity).
+        self.open_entry_count: int = 0
+        # Remaining entry commission on the open position (openprofit drag).
+        # Exit commission is charged at close time and never sits on the open.
         self.position_commission: float = 0.0
         self.netprofit: float = 0.0
         self.closed_trades: int = 0
@@ -397,26 +425,72 @@ class CompileStrategyBroker:
         px: float,
         entry_id: str,
         comment: str | None,
-    ) -> None:
-        # direction is already "long"/"short" from callers after _norm_dir
+        *,
+        respect_pyramiding: bool = False,
+        replace_same_id: bool = False,
+    ) -> bool:
+        """Open / add / reverse a position.
+
+        Returns False when the entry was blocked (pyramiding / invalid).
+
+        Parameters
+        ----------
+        respect_pyramiding:
+            Market ``strategy.entry`` path: different id needs room;
+            ``replace_same_id`` replaces the open leg when ids match.
+            Pending order fills keep averaging (``respect_pyramiding=False``).
+        """
         d = direction if direction == "long" or direction == "short" else _norm_dir(direction)
+        if d is None:
+            return False
         q = abs(float(qty))
-        # Reverse if opposite
+        if q <= 0 or not math.isfinite(q):
+            return False
+        # Reverse if opposite — emit close only (interpret parity; no close_all).
         if (d == "long" and self.position_size < 0) or (d == "short" and self.position_size > 0):
-            self.close_all(comment="reverse", price=px)
+            self.close(id=str(entry_id), qty=abs(self.position_size), comment="reverse", price=px)
+        same_dir = (self.position_size > 0 and d == "long") or (self.position_size < 0 and d == "short")
+        if same_dir and abs(self.position_size) > 0:
+            same_id = self.position_entry_name == str(entry_id)
+            if respect_pyramiding and replace_same_id and same_id:
+                # Interpret oracle: same-id re-entry overwrites without realizing PnL.
+                pass  # fall through to flat open below
+            elif respect_pyramiding and not same_id:
+                max_entries = int(self.pyramiding) + 1 if self.pyramiding is not None else 1
+                if not (self.pyramiding > 0 and self.open_entry_count < max_entries):
+                    return False  # pyramiding blocked
+                comm = self._commission(q, px)
+                signed = q if d == "long" else -q
+                old = abs(self.position_size)
+                self.position_avg_price = (self.position_avg_price * old + px * q) / (old + q)
+                self.position_size += signed
+                self.position_commission += comm
+                self.position_entry_name = str(entry_id)
+                self.open_entry_count += 1
+                self._emit("entry", id=str(entry_id), direction=d, qty=q, comment=comment)
+                return True
+            elif not (respect_pyramiding and replace_same_id and same_id):
+                # Average-add (pending order fills / non-replace path)
+                comm = self._commission(q, px)
+                signed = q if d == "long" else -q
+                old = abs(self.position_size)
+                self.position_avg_price = (self.position_avg_price * old + px * q) / (old + q)
+                self.position_size += signed
+                self.position_commission += comm
+                self.position_entry_name = str(entry_id)
+                self.open_entry_count = max(1, self.open_entry_count)
+                self._emit("entry", id=str(entry_id), direction=d, qty=q, comment=comment)
+                return True
+        # Flat open, reverse re-entry, or same-id replace overwrite
         comm = self._commission(q, px)
         signed = q if d == "long" else -q
-        if (self.position_size > 0 and d == "long") or (self.position_size < 0 and d == "short"):
-            old = abs(self.position_size)
-            self.position_avg_price = (self.position_avg_price * old + px * q) / (old + q)
-            self.position_size += signed
-            self.position_commission += comm
-        else:
-            self.position_size = signed
-            self.position_avg_price = px
-            self.position_commission = comm
+        self.position_size = signed
+        self.position_avg_price = px
+        self.position_commission = comm
         self.position_entry_name = str(entry_id)
+        self.open_entry_count = 1
         self._emit("entry", id=str(entry_id), direction=d, qty=q, comment=comment)
+        return True
 
     def _slip(self, price: float, direction: str) -> float:
         if self.slippage_ticks <= 0:
@@ -427,6 +501,8 @@ class CompileStrategyBroker:
         if direction == "short":
             return price - slip
         d = _norm_dir(direction)
+        if d is None:
+            return price
         return price + slip if d == "long" else price - slip
 
     def _commission(self, qty: float, price: float) -> float:
@@ -505,7 +581,38 @@ class CompileStrategyBroker:
     ) -> None:
         """Pine ``strategy.entry`` — market fill now or pending limit/stop."""
         d = _norm_dir(direction)
-        q = abs(float(qty))
+        if d is None:
+            self._emit(
+                "order",
+                id=str(id),
+                direction=None,
+                qty=0.0,
+                order_type="market",
+                comment="invalid_direction",
+            )
+            return
+        status, parsed_q = _parse_qty(qty)
+        if status == "invalid":
+            self._emit(
+                "order",
+                id=str(id),
+                direction=d,
+                qty=0.0,
+                order_type="market",
+                comment="invalid_qty",
+            )
+            return
+        q = 1.0 if status == "missing" else abs(parsed_q)
+        if q <= 0:
+            self._emit(
+                "order",
+                id=str(id),
+                direction=d,
+                qty=0.0,
+                order_type="market",
+                comment="invalid_qty",
+            )
+            return
         # Market fast path: no limit/stop → skip classify + opt_float.
         if limit is None and stop is None:
             if price is None or _is_na(price):
@@ -514,7 +621,9 @@ class CompileStrategyBroker:
                 px = float(price)
             if self.slippage_ticks > 0:
                 px = self._slip(px, d)
-            self._open_or_add(d, q, px, str(id), comment)
+            self._open_or_add(
+                d, q, px, str(id), comment, respect_pyramiding=True, replace_same_id=True
+            )
             return
 
         ot = self._classify_order_type(limit, stop)
@@ -550,7 +659,9 @@ class CompileStrategyBroker:
             px = self._slip(px, d)
         else:
             px = float(px)
-        self._open_or_add(d, q, px, str(id), comment)
+        self._open_or_add(
+            d, q, px, str(id), comment, respect_pyramiding=True, replace_same_id=True
+        )
 
     def close(
         self,
@@ -564,27 +675,44 @@ class CompileStrategyBroker:
         if self.position_size == 0:
             self._emit("close", id=id, qty=0.0, comment=comment)
             return
+        if qty is not None and not _is_na(qty):
+            status, parsed = _parse_qty(qty)
+            if status == "invalid":
+                self._emit(
+                    "order",
+                    id=id,
+                    direction=None,
+                    qty=0.0,
+                    order_type="market",
+                    comment="invalid_qty",
+                )
+                return
+        d = "long" if self.position_size > 0 else "short"
         if price is None or _is_na(price):
-            px = self._mark
+            # Exit slip: long close sells (worse), short cover buys (worse).
+            px = self._slip(self._mark, "short" if d == "long" else "long")
         else:
             px = float(price)
         pos_before = abs(self.position_size)
-        close_qty = pos_before if qty is None else min(abs(float(qty)), pos_before)
-        if close_qty <= 0:
+        if qty is None or _is_na(qty):
+            close_qty = pos_before
+        else:
+            close_qty = min(abs(float(qty)), pos_before)
+        if close_qty <= 0 or not math.isfinite(close_qty):
             return
-        d = "long" if self.position_size > 0 else "short"
         if d == "long":
             profit = (px - self.position_avg_price) * close_qty
             self.position_size -= close_qty
         else:
             profit = (self.position_avg_price - px) * close_qty
             self.position_size += close_qty
-        # Realize proportional *entry* commission (match interpret oracle).
+        # Realize proportional *entry* commission + charge *exit* commission.
         entry_comm = 0.0
         if pos_before > 0 and self.position_commission:
             entry_comm = float(self.position_commission) * (close_qty / pos_before)
             self.position_commission = max(0.0, float(self.position_commission) - entry_comm)
-        profit -= entry_comm
+        exit_comm = self._commission(close_qty, px)
+        profit -= entry_comm + exit_comm
         self.netprofit += profit
         self.closed_trades += 1
         if profit >= 0:
@@ -598,6 +726,7 @@ class CompileStrategyBroker:
             self.position_avg_price = float("nan")
             self.position_entry_name = ""
             self.position_commission = 0.0
+            self.open_entry_count = 0
         self._update_equity_extremes()
         self._emit("close", id=id, qty=close_qty, comment=comment, direction=d)
 
@@ -623,7 +752,28 @@ class CompileStrategyBroker:
     ) -> None:
         """Place pending order (market fills on next process_pending_orders)."""
         d = _norm_dir(direction)
-        q = abs(float(qty))
+        if d is None:
+            self._emit(
+                "order",
+                id=str(id),
+                direction=None,
+                qty=0.0,
+                order_type="market",
+                comment="invalid_direction",
+            )
+            return
+        status, parsed_q = _parse_qty(qty)
+        if status == "invalid" or (status == "ok" and parsed_q <= 0):
+            self._emit(
+                "order",
+                id=str(id),
+                direction=d,
+                qty=0.0,
+                order_type="market",
+                comment="invalid_qty",
+            )
+            return
+        q = 1.0 if status == "missing" else abs(parsed_q)
         ot = self._classify_order_type(limit, stop)
         otype = str(oca_type or "none").lower()
         if otype in {"strategy.oca.reduce", "oca.reduce"}:

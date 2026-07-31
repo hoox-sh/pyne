@@ -449,6 +449,9 @@ class StatementEvaluator:
         last: Any = None
         visit = self.visit
         line_prof: dict[int, list[float]] | None = getattr(self, "_pine_line_profile", None)
+        # Hot path: walk body via visitor cache (Assign/Expr/Call already have
+        # lean handlers). Avoid extra per-stmt Python dispatch layers that
+        # regress tiny scripts (minimal = 2 stmts).
         if line_prof is not None:
             # Lazy import keeps hot path free of time when profiler is off
             from time import perf_counter
@@ -521,14 +524,19 @@ class StatementEvaluator:
         # Avoids isinstance on Var/VarIp/Const for every assign every bar.
         if mode is None:
             if node.value:
-                value = self.visit(node.value)  # type: ignore[attr-defined]
+                rhs = node.value
+                # Call RHS is the common case (s = ta.sma(...)); skip visit frame.
+                if type(rhs) is ast.Call:
+                    value = self.visit_Call(rhs)  # type: ignore[attr-defined]
+                else:
+                    value = self.visit(rhs)  # type: ignore[attr-defined]
                 target = node.target
-                if isinstance(target, ast.Name):
+                if type(target) is ast.Name:
                     self.context[target.id] = value  # type: ignore[attr-defined]
                     if getattr(node, "export", None):
                         self._register_export(target.id, value)
                     return
-                if isinstance(target, ast.Tuple):
+                if type(target) is ast.Tuple:
                     self._assign_tuple_unpack(target, value)
                     return
                 msg = f"Unsupported assignment target: {type(target)}"
@@ -658,8 +666,14 @@ class StatementEvaluator:
             try:
                 setattr(obj, node.target.attr, value)
                 return
-            except Exception:
+            except (AttributeError, TypeError):
+                # Expected for frozen/slots objects — try dict-style next.
                 pass
+            except Exception as e:
+                # Unexpected programming errors must not soft-fail to no-op.
+                msg = f"Reassignment failed for attribute {node.target.attr!r}: {e}"
+                self._error(msg)  # type: ignore[attr-defined]
+                return
             if isinstance(obj, dict):
                 obj[node.target.attr] = value
                 return
@@ -859,7 +873,11 @@ class StatementEvaluator:
 
     def visit_Expr(self, node: ast.Expr):
         """Evaluate an expression statement."""
-        return self.visit(node.value)  # type: ignore[attr-defined]
+        value = node.value
+        # Dominant: plot(...)/strategy.* calls — skip visitor.visit frame.
+        if type(value) is ast.Call:
+            return self.visit_Call(value)  # type: ignore[attr-defined]
+        return self.visit(value)  # type: ignore[attr-defined]
 
     def visit_While(self, node: ast.While):
         """Execute a while loop. v6 strict bool.
@@ -1041,8 +1059,31 @@ class StatementEvaluator:
 
         func_name = node.name
 
+        # Pre-bind once: param list + body plan (Expr vs statement). Avoids
+        # re-scanning node.args / isinstance body checks on every UDF call.
+        params = tuple(arg for arg in node.args if isinstance(arg, ast.Param))
+        param_names = tuple(p.name for p in params)
+        defaults: tuple[tuple[str, Any], ...] = tuple(
+            (p.name, p.default) for p in params if p.default is not None
+        )
+        body_plan: list[tuple[bool, Any]] = []
+        for stmt in node.body:
+            if type(stmt) is ast.Expr:
+                body_plan.append((True, stmt.value))
+            else:
+                body_plan.append((False, stmt))
+        body_plan_t = tuple(body_plan)
+        n_params = len(params)
+
         # Create a closure
-        def user_function(*args, **kwargs):
+        def user_function(
+            *args,
+            __names=param_names,
+            __defaults=defaults,
+            __body=body_plan_t,
+            __n=n_params,
+            **kwargs,
+        ):
             """Invoke a UDF with in-place param rebind on the live context.
 
             Hosts mutate the *same* ``context`` dict each bar (``bar_index``,
@@ -1052,7 +1093,6 @@ class StatementEvaluator:
             locals — remain on the shared dict across bars.
             """
             ctx = self.context  # type: ignore[attr-defined]
-            params = [arg for arg in node.args if isinstance(arg, ast.Param)]
             saved: dict[str, Any] = {}
             missing = _CONTEXT_MISSING
 
@@ -1064,25 +1104,30 @@ class StatementEvaluator:
             try:
                 # Bind positional arguments
                 for i, value in enumerate(args):
-                    if i < len(params):
-                        _bind(params[i].name, value)
+                    if i < __n:
+                        _bind(__names[i], value)
 
                 # Bind keyword arguments
                 for key, value in kwargs.items():
                     _bind(key, value)
 
                 # Apply parameter defaults for unbound params
-                for param in params:
-                    if param.name not in saved and param.default is not None:
-                        _bind(param.name, self.visit(param.default))  # type: ignore[attr-defined]
+                for dname, dast in __defaults:
+                    if dname not in saved:
+                        _bind(dname, self.visit(dast))  # type: ignore[attr-defined]
 
-                # Execute body
+                # Execute pre-classified body
                 result = None
-                for stmt in node.body:
-                    if isinstance(stmt, ast.Expr):
-                        result = self.visit(stmt.value)  # type: ignore[attr-defined]
+                visit = self.visit
+                for is_expr, item in __body:
+                    if is_expr:
+                        # Result-producing expression (often a Call).
+                        if type(item) is ast.Call:
+                            result = self.visit_Call(item)  # type: ignore[attr-defined]
+                        else:
+                            result = visit(item)  # type: ignore[attr-defined]
                     else:
-                        self.visit(stmt)  # type: ignore[attr-defined]
+                        visit(item)  # type: ignore[attr-defined]
                 return result
             finally:
                 for name, old in saved.items():

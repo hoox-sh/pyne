@@ -636,3 +636,85 @@ class TestMapEvaluatorIntegration:
         self._call_builtin("map.put", [map_obj, "null_key", None])
         assert self._call_builtin("map.get", [map_obj, "null_key"]) is None
         assert self._call_builtin("map.contains", [map_obj, "null_key"]) is True
+
+
+class TestArrayEdgeCorrectness:
+    """Round 6: array.fill range, insert edges, type-mismatch errors."""
+
+    def setup_method(self) -> None:
+        self.evaluator = BuiltinEvaluator()
+
+    def _call(self, name: str, args: list[Any]) -> Any:
+        return self.evaluator._call_builtin(name, args)
+
+    def test_array_fill_full(self) -> None:
+        a = [1, 2, 3]
+        self._call("array.fill", [a, 9])
+        assert a == [9, 9, 9]
+
+    def test_array_fill_range_half_open(self) -> None:
+        """array.fill(id, value, from, to) fills [from, to)."""
+        a = [0, 0, 0, 0, 0]
+        self._call("array.fill", [a, 7, 1, 4])
+        assert a == [0, 7, 7, 7, 0]
+
+    def test_array_fill_range_to_end(self) -> None:
+        a = [1, 2, 3, 4]
+        self._call("array.fill", [a, 0, 2])
+        assert a == [1, 2, 0, 0]
+
+    def test_array_fill_oob_clamped(self) -> None:
+        a = [1, 2, 3]
+        self._call("array.fill", [a, 5, 0, 99])
+        assert a == [5, 5, 5]
+
+    def test_array_insert_at_end(self) -> None:
+        a = [1, 2, 3]
+        self._call("array.insert", [a, 3, 99])
+        assert a == [1, 2, 3, 99]
+
+    def test_array_insert_past_end_appends(self) -> None:
+        a = [1, 2]
+        self._call("array.insert", [a, 10, 99])
+        assert a == [1, 2, 99]
+
+    def test_array_insert_negative_errors(self) -> None:
+        a = [1, 2]
+        with pytest.raises(ValueError, match="out of bounds|index"):
+            self._call("array.insert", [a, -1, 0])
+
+    def test_array_insert_bad_index_type(self) -> None:
+        a = [1, 2]
+        with pytest.raises(ValueError, match="index must be int|got"):
+            self._call("array.insert", [a, "x", 0])
+
+    def test_array_push_type_mismatch_message(self) -> None:
+        with pytest.raises(ValueError, match="expected array|got"):
+            self._call("array.push", [42, 1])
+
+    def test_array_abs_non_numeric_message(self) -> None:
+        with pytest.raises(ValueError, match="numeric|got"):
+            self._call("array.abs", [["a", "b"]])
+
+    def test_array_pop_empty_soft_na(self) -> None:
+        assert self._call("array.pop", [[]]) is None
+
+    def test_array_first_empty_errors(self) -> None:
+        with pytest.raises(ValueError, match="non-empty"):
+            self._call("array.first", [[]])
+
+    def test_map_type_mismatch_message(self) -> None:
+        with pytest.raises(ValueError, match="expected map|got"):
+            self._call("map.put", [42, "k", 1])
+
+    def test_map_accepts_plain_dict_handle(self) -> None:
+        """Compile-path maps are plain dicts — interpret should still mutate them."""
+        d: dict[Any, Any] = {}
+        self._call("map.put", [d, "k", 3.0])
+        assert d["k"] == 3.0
+        assert self._call("map.get", [d, "k"]) == 3.0
+        assert self._call("map.size", [d]) == 1
+
+    def test_matrix_type_mismatch_message(self) -> None:
+        with pytest.raises(ValueError, match="expected matrix|got"):
+            self._call("matrix.get", [42, 0, 0])

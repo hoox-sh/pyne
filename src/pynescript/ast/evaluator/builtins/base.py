@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import inspect
+import math
 
 from collections.abc import Callable
 from typing import Any
@@ -27,6 +28,63 @@ from typing import NoReturn
 
 
 BuiltinHandler = Callable[[list[Any]], Any]
+
+
+def pine_expect_int(value: Any, message: str, error: Callable[[str], NoReturn]) -> int:
+    """Coerce a Pine value to ``int`` (periods, offsets, indices).
+
+    Hot path: plain ``int`` (not ``bool``) returns immediately — TA periods and
+    plot offsets hit this every bar. Unwraps series wrappers, input dicts, and
+    list last-samples; floors fractional floats (TV length semantics).
+
+    Raises via *error* with ``Got: <type|na|…>`` so type bugs surface clearly
+    instead of a bare message (or silent wrong path).
+    """
+    # Fast path: true int (bool is an int subclass — reject here)
+    if type(value) is int:
+        return value
+
+    # Input.* default dict
+    if type(value) is dict and "default" in value:
+        value = value["default"]
+        if type(value) is int:
+            return value
+
+    # PineSeries / _SeriesResult / _NaValue
+    if not isinstance(value, (list, tuple, str, bytes)) and hasattr(value, "current"):
+        if type(value).__name__ == "_NaValue":
+            error(f"{message}. Got: na")
+        value = value.current
+        if type(value) is int:
+            return value
+
+    # Series of periods → current (last) bar
+    if type(value) is list:
+        if not value:
+            error(f"{message}. Got: empty series")
+        value = value[-1]
+        if type(value) is int:
+            return value
+
+    if value is None:
+        error(f"{message}. Got: na")
+
+    if type(value) is float:
+        if value != value:  # NaN
+            error(f"{message}. Got: na")
+        return int(math.floor(value))
+
+    if type(value) is bool:
+        return int(value)
+
+    if type(value) is str:
+        try:
+            return int(float(value))
+        except ValueError:
+            error(f"{message}. Got: str {value!r}")
+
+    error(f"{message}. Got: {type(value).__name__}")
+    raise AssertionError("unreachable")  # error() is NoReturn; keep type-checkers happy
 
 # TradingView keyword parameter names for list-style ``ta.*`` handlers.
 # Used when the Python handler is ``(self, args)`` and has no real param names.
@@ -249,16 +307,19 @@ class BuiltinDispatchMixin:
             # Some handlers accept (args, kwargs) directly
             # (e.g. _as_builtin_handler which wraps indicator/strategy).
             # Others like _handle_input_int only accept a single args list.
+            # Only soft-retry signature mismatches; body TypeErrors fail closed.
             try:
                 return handler(args, kwargs)
-            except TypeError:
-                pass
+            except TypeError as e:
+                if e.__traceback__ is not None and e.__traceback__.tb_next is not None:
+                    raise
             # Plain functions (color.rgb, etc.): unpack kwargs by signature
             if tag == 2:
                 try:
                     return handler(*args, **kwargs)
-                except TypeError:
-                    pass
+                except TypeError as e:
+                    if e.__traceback__ is not None and e.__traceback__.tb_next is not None:
+                        raise
             # Fallback: merge kwargs into positional args for list-style handlers
             bare = name[3:] if name.startswith("ta.") else name
             merged = _merge_kwargs_into_args(args, kwargs, handler, ta_bare=bare)
@@ -273,6 +334,14 @@ class BuiltinDispatchMixin:
     @staticmethod
     def _error(message: str) -> NoReturn:
         raise ValueError(message)
+
+    def _expect_int(self, value: Any, message: str) -> int:
+        """Canonical int coerce for builtins (periods, offsets, indices).
+
+        Defined on the dispatch base so all mixins share one implementation
+        (avoids MRO shadowing with weaker copies). Fast path for plain int.
+        """
+        return pine_expect_int(value, message, self._error)
 
 
 def _merge_kwargs_into_args(

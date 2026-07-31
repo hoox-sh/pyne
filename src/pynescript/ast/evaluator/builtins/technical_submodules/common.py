@@ -40,6 +40,9 @@ class CommonIndicators(TechnicalHelpers):
 
     def _builtin_ta_crossover(self, args: list[Any]) -> bool:
         """Check if series1 crosses over series2."""
+        if self._use_incremental_ta():
+            series1, series2 = self._expect_two_series(args, last_sample_ok=True)
+            return self._cross_stateful(series1, series2, under=False)
         series1, series2 = self._expect_two_series(args)
         if len(series1) >= 2 and len(series2) >= 2:
             return self._crossover(series1, series2)
@@ -47,6 +50,9 @@ class CommonIndicators(TechnicalHelpers):
 
     def _builtin_ta_crossunder(self, args: list[Any]) -> bool:
         """Check if series1 crosses under series2."""
+        if self._use_incremental_ta():
+            series1, series2 = self._expect_two_series(args, last_sample_ok=True)
+            return self._cross_stateful(series1, series2, under=True)
         series1, series2 = self._expect_two_series(args)
         if len(series1) >= 2 and len(series2) >= 2:
             return self._crossunder(series1, series2)
@@ -54,6 +60,9 @@ class CommonIndicators(TechnicalHelpers):
 
     def _builtin_ta_cross(self, args: list[Any]) -> bool:
         """Check if series1 crosses series2."""
+        if self._use_incremental_ta():
+            series1, series2 = self._expect_two_series(args, last_sample_ok=True)
+            return self._cross_stateful(series1, series2, under=False, either=True)
         series1, series2 = self._expect_two_series(args)
         return self._cross(series1, series2)
 
@@ -64,12 +73,17 @@ class CommonIndicators(TechnicalHelpers):
         series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if self._use_incremental_ta():
             return self._falling_inc_update(series, period)
+        # Bar-mode locals resolve to last-sample scalars — need call-site window.
+        if self._bar_mode() and len(series) < period:
+            return self._falling_inc_update(series, period)
         return self._falling(series, period)
 
     def _builtin_ta_rising(self, args: list[Any]) -> bool:
         """Check if series is rising for length bars."""
         series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if self._use_incremental_ta():
+            return self._rising_inc_update(series, period)
+        if self._bar_mode() and len(series) < period:
             return self._rising_inc_update(series, period)
         return self._rising(series, period)
 
@@ -80,12 +94,16 @@ class CommonIndicators(TechnicalHelpers):
         series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if self._use_incremental_ta():
             return self._highestbars_inc_update(series, period)
+        if self._bar_mode() and len(series) < period:
+            return self._highestbars_inc_update(series, period)
         return self._highestbars(series, period)
 
     def _builtin_ta_lowestbars(self, args: list[Any]) -> int:
         """Offset to the lowest value over length bars."""
         series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if self._use_incremental_ta():
+            return self._lowestbars_inc_update(series, period)
+        if self._bar_mode() and len(series) < period:
             return self._lowestbars_inc_update(series, period)
         return self._lowestbars(series, period)
 
@@ -603,10 +621,23 @@ class CommonIndicators(TechnicalHelpers):
         highest_high = max((h for h in highs[-length:] if h is not None), default=0)
         lowest_low = min((ll for ll in lows[-length:] if ll is not None), default=0)
 
-        basic_ub = (highest_high + lowest_low) / 2 + multiplier * (atr_series[-1] if atr_series else 0)
-        basic_lb = (highest_high + lowest_low) / 2 - multiplier * (atr_series[-1] if atr_series else 0)
+        atr_last = atr_series[-1] if atr_series else 0
+        if atr_last is None or (isinstance(atr_last, float) and math.isnan(atr_last)):
+            atr_last = 0.0
+        basic_ub = (highest_high + lowest_low) / 2 + multiplier * float(atr_last)
+        basic_lb = (highest_high + lowest_low) / 2 - multiplier * float(atr_last)
 
-        direction = 1 if highs[-1] > basic_ub else -1 if lows[-1] < basic_lb else 1
+        # na-safe direction (do not compare None with bands — TypeError on warmup)
+        h_last = highs[-1] if highs else None
+        l_last = lows[-1] if lows else None
+        direction = 1
+        try:
+            if h_last is not None and float(h_last) > float(basic_ub):
+                direction = 1
+            elif l_last is not None and float(l_last) < float(basic_lb):
+                direction = -1
+        except (TypeError, ValueError):
+            direction = 1
 
         return basic_lb, basic_ub, direction
 

@@ -244,6 +244,61 @@ plot(s)
         assert r.get("auto_backend") == "interpret"
         assert "request" in (r.get("compile_fallback_reason") or "").lower()
 
+    def test_auto_inputs_force_interpret(self) -> None:
+        """input.* overrides are interpret-only; auto must not silently use compile defaults."""
+        from backend.runtime import Runtime
+
+        src = """//@version=5
+indicator("x")
+len = input.int(10, "Length")
+plot(ta.sma(close, len), title="sma")
+"""
+        r = Runtime(symbol="T").run(
+            src,
+            self._bars(40),
+            mode="auto",
+            inputs={"Length": 5},
+        )
+        assert "error" not in r, r.get("error")
+        assert r.get("auto_backend") == "interpret"
+        reason = (r.get("compile_fallback_reason") or "").lower()
+        assert "input" in reason
+        assert len(r.get("plots") or []) == 40
+
+    def test_auto_compile_fail_cache_skips_recompile(self, monkeypatch) -> None:
+        """Deterministic compile failures are remembered for subsequent auto runs."""
+        from backend import runtime as rt_mod
+        from backend.runtime import Runtime
+        from pynescript.compiler import engine as eng
+
+        calls = {"n": 0}
+
+        def boom(source: str, **kwargs):  # noqa: ARG001
+            calls["n"] += 1
+            raise RuntimeError("forced compile fail for test")
+
+        monkeypatch.setattr(eng, "compile_script", boom)
+        rt_mod._HOST_COMPILE_CACHE.clear()
+        rt_mod._HOST_COMPILE_FAIL_CACHE.clear()
+
+        src = """//@version=5
+indicator("x")
+plot(close)
+"""
+        rt = Runtime(symbol="T")
+        r1 = rt.run(src, self._bars(10), mode="auto")
+        assert r1.get("auto_backend") == "interpret"
+        reason1 = r1.get("compile_fallback_reason") or ""
+        assert "forced compile" in reason1.lower()
+        assert calls["n"] == 1
+        key = Runtime._source_cache_key(src)
+        assert key in rt_mod._HOST_COMPILE_FAIL_CACHE
+        # Second auto must reuse negative cache — no re-transpile
+        r2 = rt.run(src, self._bars(10), mode="auto")
+        assert r2.get("auto_backend") == "interpret"
+        assert r2.get("compile_fallback_reason") == reason1
+        assert calls["n"] == 1
+
 
 class TestCompileCoverageSprint:
     """High-ROI compile surface gaps closed against corpus buckets."""
@@ -1304,7 +1359,7 @@ plot(ta.vwma(close, 10), title="vw")
 plot(ta.tsi(close, 13, 25), title="tsi")
 """
         code = transpile(src)
-        assert "numba_alma" in code
+        assert "numba_alma" in code  # alma or alma_inc
         assert "numba_hma" in code
         assert "numba_vwma" in code
         assert "numba_tsi" in code
@@ -2860,4 +2915,474 @@ plot(ta.ema(close, 5), title="e")
         a = compile_script(src)
         b = compile_script(src)
         assert a is b
+
+
+class TestCompileRound6DmiSupertrendAlma:
+    """Round 6: dmi/adx/supertrend real kernels; alma_inc; percentrank oracle."""
+
+    def test_dmi_adx_supertrend_emit_inc_numeric(self) -> None:
+        src = """//@version=6
+indicator("x")
+[diplus, diminus, adx] = ta.dmi(14, 14)
+[st, dir] = ta.supertrend(3.0, 10)
+plot(diplus, title="dip")
+plot(diminus, title="dim")
+plot(adx, title="adx")
+plot(st, title="st")
+plot(dir, title="dir")
+plot(ta.adx(14), title="adx2")
+"""
+        code = transpile(src)
+        assert "numba_dmi_inc" in code
+        assert "numba_supertrend_inc" in code
+        assert "numba_adx_inc" in code
+        assert "(0.0, 0.0, 25.0)" not in code  # old dmi stub gone
+        compiled = compile_script(src)
+        assert not compiled.object_mode
+        o, h, l, c, v = _ohlcv(80)
+        out = compiled.run(o, h, l, c, v)
+        assert not np.isnan(out["dip"][-1])
+        assert not np.isnan(out["dim"][-1])
+        assert out["adx"][-1] >= 0.0
+        assert out["dir"][-1] in (-1.0, 1.0)
+        assert not np.isnan(out["st"][-1])
+
+    def test_dmi_adx_supertrend_kernel_parity(self) -> None:
+        from pynescript.compiler import numba_builtins as nb
+
+        rng = np.random.default_rng(7)
+        n = 300
+        c = 100.0 + np.cumsum(rng.normal(0, 1, n))
+        h = c + rng.uniform(0.3, 1.2, n)
+        l = c - rng.uniform(0.3, 1.2, n)
+
+        st_adx = np.full(22, np.nan)
+        max_adx = 0.0
+        for i in range(n):
+            a = nb.numba_adx(h, l, c, 14, i)
+            b = nb.numba_adx_inc(h, l, c, 14, i, st_adx)
+            max_adx = max(max_adx, abs(float(a) - float(b)))
+        assert max_adx <= 1e-10, max_adx
+
+        st_dmi = np.full(40, np.nan)
+        max_dmi = 0.0
+        for i in range(n):
+            fa, fb, fc = nb.numba_dmi(h, l, c, 14, 14, i)
+            ia, ib, ic = nb.numba_dmi_inc(h, l, c, 14, 14, i, st_dmi)
+            for a, b in ((fa, ia), (fb, ib), (fc, ic)):
+                if np.isnan(a) and np.isnan(b):
+                    continue
+                max_dmi = max(max_dmi, abs(float(a) - float(b)))
+        assert max_dmi <= 1e-10, max_dmi
+
+        st_st = np.full(2, np.nan)
+        max_st = 0.0
+        for i in range(n):
+            fv, fd = nb.numba_supertrend(h, l, c, 3.0, 10, i)
+            iv, id_ = nb.numba_supertrend_inc(h, l, c, 3.0, 10, i, st_st)
+            max_st = max(max_st, abs(float(fv) - float(iv)) + abs(float(fd) - float(id_)))
+        assert max_st <= 1e-10, max_st
+
+        # gap + rewind ADX
+        st = np.full(22, np.nan)
+        mid = n // 2
+        b_end = nb.numba_adx_inc(h, l, c, 14, n - 1, st)
+        a_end = nb.numba_adx(h, l, c, 14, n - 1)
+        assert abs(float(a_end) - float(b_end)) <= 1e-10
+        b_mid = nb.numba_adx_inc(h, l, c, 14, mid, st)
+        a_mid = nb.numba_adx(h, l, c, 14, mid)
+        assert abs(float(a_mid) - float(b_mid)) <= 1e-10
+
+    def test_compiled_dmi_supertrend_matches_interpret(self) -> None:
+        from backend.runtime import Runtime
+
+        src = """//@version=6
+indicator("x")
+[diplus, diminus, adx] = ta.dmi(14, 14)
+[st, dir] = ta.supertrend(3.0, 10)
+plot(diplus, title="dip")
+plot(diminus, title="dim")
+plot(adx, title="adx")
+plot(st, title="st")
+plot(dir, title="dir")
+plot(ta.adx(14), title="adx2")
+"""
+        rng = np.random.default_rng(0)
+        n = 100
+        c = 100.0 + np.cumsum(rng.normal(0, 1, n))
+        h = c + rng.uniform(0.2, 1.5, n)
+        l = c - rng.uniform(0.2, 1.5, n)
+        o, v = c.copy(), np.ones(n)
+        bars = [
+            {
+                "open": float(o[i]),
+                "high": float(h[i]),
+                "low": float(l[i]),
+                "close": float(c[i]),
+                "volume": 1.0,
+                "time": i,
+            }
+            for i in range(n)
+        ]
+        interp = Runtime(symbol="T").run(src, bars, mode="interpret")
+        assert "error" not in interp, interp.get("error")
+        S = interp["series"]
+        compiled = compile_script(src)
+        assert not compiled.object_mode
+        out = compiled.run(o, h, l, c, v)
+        for key in ("dip", "dim", "adx", "st", "dir", "adx2"):
+            max_err = 0.0
+            for i in range(n):
+                a, b = out[key][i], S[key][i]
+                if np.isnan(a) and (b is None or (isinstance(b, float) and np.isnan(b))):
+                    continue
+                max_err = max(max_err, abs(float(a) - float(b)))
+            assert max_err <= 1e-9, f"{key} max_err={max_err}"
+
+    def test_alma_inc_emit_and_parity(self) -> None:
+        from pynescript.compiler import numba_builtins as nb
+
+        src = """//@version=6
+indicator("x")
+plot(ta.alma(close, 9, 0.85, 6), title="alma")
+"""
+        code = transpile(src)
+        assert "numba_alma_inc" in code
+        compiled = compile_script(src)
+        assert not compiled.object_mode
+        rng = np.random.default_rng(3)
+        n = 200
+        c = 50.0 + np.cumsum(rng.normal(0, 0.5, n))
+        o, h, l, v = c, c + 1, c - 1, np.ones(n)
+        out = compiled.run(o, h, l, c, v)
+        st = np.full(2 + 9, np.nan)
+        max_err = 0.0
+        for i in range(n):
+            full = nb.numba_alma(c, 9, 0.85, 6.0, i)
+            inc = nb.numba_alma_inc(c, 9, 0.85, 6.0, i, st)
+            comp = out["alma"][i]
+            if np.isnan(full) and np.isnan(inc) and np.isnan(comp):
+                continue
+            max_err = max(max_err, abs(float(full) - float(inc)), abs(float(full) - float(comp)))
+        assert max_err <= 1e-10, max_err
+
+    def test_percentrank_matches_interpret_oracle(self) -> None:
+        from pynescript.compiler import numba_builtins as nb
+        from backend.runtime import Runtime
+
+        src = """//@version=6
+indicator("x")
+plot(ta.percentrank(close, 10), title="pr")
+"""
+        rng = np.random.default_rng(11)
+        n = 60
+        c = 100.0 + np.cumsum(rng.normal(0, 1, n))
+        o, h, l, v = c, c + 1, c - 1, np.ones(n)
+        bars = [
+            {
+                "open": float(o[i]),
+                "high": float(h[i]),
+                "low": float(l[i]),
+                "close": float(c[i]),
+                "volume": 1.0,
+                "time": i,
+            }
+            for i in range(n)
+        ]
+        S = Runtime(symbol="T").run(src, bars, mode="interpret")["series"]["pr"]
+        compiled = compile_script(src)
+        out = compiled.run(o, h, l, c, v)["pr"]
+        max_err = 0.0
+        for i in range(n):
+            k = nb.numba_percentrank(c, 10, i)
+            interp = S[i]
+            comp = out[i]
+            if np.isnan(k) and (interp is None or (isinstance(interp, float) and np.isnan(interp))):
+                assert np.isnan(comp)
+                continue
+            max_err = max(
+                max_err,
+                abs(float(k) - float(interp)),
+                abs(float(k) - float(comp)),
+            )
+        assert max_err <= 1e-9, max_err
+
+
+class TestCompileEngineRound6:
+    """Cold JIT / cache / typed error hardening (Agent 06)."""
+
+    def test_prewarm_idempotent_and_stats(self) -> None:
+        from pynescript.compiler.engine import compile_cache_stats
+        from pynescript.compiler.engine import prewarm_numba_builtins
+
+        assert prewarm_numba_builtins() is True
+        assert prewarm_numba_builtins() is True
+        stats = compile_cache_stats()
+        assert stats["builtins_warmed"] is True
+        assert stats["has_numba"] is True
+        assert stats["source_max"] >= 32
+        assert stats["ir_max"] >= 32
+
+    def test_raw_source_cache_hit_skips_recompile(self) -> None:
+        from pynescript.compiler.engine import clear_compile_cache
+        from pynescript.compiler.engine import compile_cache_stats
+
+        clear_compile_cache()
+        src = """//@version=5
+indicator("c")
+plot(ta.sma(close, 7), title="s")
+"""
+        a = compile_script(src)
+        before = compile_cache_stats()["source_entries"]
+        b = compile_script(src)
+        after = compile_cache_stats()["source_entries"]
+        assert a is b
+        assert after == before  # no new entries on identity hit
+
+    def test_disk_cache_roundtrip(self, tmp_path, monkeypatch) -> None:
+        from pynescript.compiler.engine import clear_compile_cache
+        from pynescript.compiler.engine import clear_disk_compile_cache
+        from pynescript.compiler.engine import compile_script as cs
+
+        monkeypatch.setenv("PYNE_COMPILE_DISK_CACHE", "1")
+        monkeypatch.setenv("PYNE_COMPILE_CACHE_DIR", str(tmp_path / "cc"))
+        clear_compile_cache()
+        clear_disk_compile_cache()
+        src = """//@version=5
+indicator("disk")
+plot(ta.sma(close, 5), title="s")
+"""
+        a = cs(src)
+        assert a.object_mode is False
+        ir_files = list((tmp_path / "cc").glob("ir_*.py"))
+        src_meta = list((tmp_path / "cc").glob("src_*.json"))
+        assert ir_files, "expected disk IR module"
+        assert src_meta, "expected disk source index"
+        # Drop memory caches; disk should rehydrate without re-parse path issues
+        clear_compile_cache()
+        b = cs(src)
+        assert b.generated_code.replace("@numba.njit(cache=True)", "@numba.njit(cache=False)") == a.generated_code.replace(
+            "@numba.njit(cache=True)", "@numba.njit(cache=False)"
+        )
+        o, h, l, c, v = _ohlcv(40)
+        assert np.allclose(a.run(o, h, l, c, v)["s"], b.run(o, h, l, c, v)["s"], equal_nan=True)
+
+    def test_nopython_fallback_reason_on_forced_object_recovery(self, monkeypatch) -> None:
+        """If warm-up reports a nopython failure, reason is recorded and mode is object."""
+        from numba.core.errors import TypingError
+
+        from pynescript.compiler import engine as eng
+
+        eng.clear_compile_cache()
+        real_exec_generated = eng._exec_generated
+
+        def flaky_exec(source, code, titles, object_mode, **kwargs):
+            cs = real_exec_generated(source, code, titles, object_mode, **kwargs)
+            if not object_mode:
+
+                def boom(*_a, **_k):
+                    raise TypingError("Failed in nopython mode (test)")
+
+                cs.execute = boom  # type: ignore[method-assign]
+            return cs
+
+        monkeypatch.setattr(eng, "_exec_generated", flaky_exec)
+        src = """//@version=5
+indicator("x")
+plot(close, title="c")
+"""
+        compiled = eng.compile_script(src, use_cache=False)
+        assert compiled.object_mode is True
+        assert compiled.nopython_fallback_reason
+        assert "nopython" in compiled.nopython_fallback_reason.lower()
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        assert "c" in out
+        assert len(out["c"]) == 20
+
+    def test_typed_emit_error_on_parse_failure(self) -> None:
+        from pynescript.compiler.engine import CompileEmitError
+        from pynescript.compiler.engine import CompileError
+
+        # Corpus sanitize may rewrite bare garbage into a stub; keep a versioned
+        # header so the token error survives sanitize.
+        bad = """//@version=5
+indicator("x")
+@@@
+"""
+        with pytest.raises(CompileEmitError, match="parse failed"):
+            compile_script(bad, use_cache=False)
+        with pytest.raises(CompileError):
+            compile_script(bad, use_cache=False)
+
+    def test_lru_eviction_bounded(self) -> None:
+        from pynescript.compiler.engine import _COMPILE_CACHE
+        from pynescript.compiler.engine import _COMPILE_CACHE_MAX
+        from pynescript.compiler.engine import clear_compile_cache
+
+        clear_compile_cache()
+        # Insert more than max unique scripts (small object-mode to stay fast)
+        n = min(40, _COMPILE_CACHE_MAX + 5)
+        for i in range(n):
+            src = f"""//@version=5
+indicator("x{i}")
+plot(close + {i}, title="c")
+"""
+            compile_script(src)
+        assert len(_COMPILE_CACHE) <= _COMPILE_CACHE_MAX
+
+    def test_runtime_surfaces_nopython_fallback_reason(self, monkeypatch) -> None:
+        from backend.runtime import Runtime
+        from pynescript.compiler import engine as eng
+
+        eng.clear_compile_cache()
+        # Ensure host compile cache does not hide engine field
+        import backend.runtime as rt
+
+        rt._HOST_COMPILE_CACHE.clear()
+
+        real_exec = eng._exec_generated
+
+        def flaky_exec(source, code, titles, object_mode, **kwargs):
+            cs = real_exec(source, code, titles, object_mode, **kwargs)
+            if not object_mode:
+                from numba.core.errors import TypingError
+
+                def boom(*_a, **_k):
+                    raise TypingError("Failed in nopython mode (runtime test)")
+
+                cs.execute = boom  # type: ignore[method-assign]
+            return cs
+
+        monkeypatch.setattr(eng, "_exec_generated", flaky_exec)
+        src = """//@version=5
+indicator("x")
+plot(close, title="c")
+"""
+        bars = [
+            {
+                "open": float(100 + i),
+                "high": float(101 + i),
+                "low": float(99 + i),
+                "close": float(100 + i),
+                "volume": 1.0,
+                "time": i * 86_400_000,
+            }
+            for i in range(15)
+        ]
+        r = Runtime(symbol="T").run(src, bars, mode="compile")
+        assert "error" not in r, r.get("error")
+        assert r.get("object_mode") is True
+        assert "nopython" in (r.get("nopython_fallback_reason") or "").lower()
+
+
+class TestLanguageSurfaceNumeric:
+    """Round 6 Agent 05: keep pure language-surface scripts on nopython path.
+
+    Uses ``use_cache=False`` so stale disk/IR cache from prior object-mode emits
+    of the same source does not mask the numeric path.
+    """
+
+    def test_chart_viewport_times_use_bar_time_model(self) -> None:
+        """left/right visible times match synthetic ``time`` (not both 0.0)."""
+        src = """//@version=5
+indicator("x")
+plot(chart.left_visible_bar_time, title="L")
+plot(chart.right_visible_bar_time, title="R")
+plot(time, title="T")
+"""
+        code = transpile(src)
+        assert "@numba.njit" in code
+        compact = code.replace(" ", "")
+        assert "float(n_bars-1)*60000.0" in compact
+        compiled = compile_script(src, use_cache=False)
+        assert compiled.object_mode is False
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["L"][-1] - 0.0) < 1e-9
+        # last bar synthetic time
+        assert abs(out["R"][-1] - float(9) * 60000.0) < 1e-6
+        assert abs(out["R"][-1] - out["T"][-1]) < 1e-6
+
+    def test_for_loop_sum_stays_numeric(self) -> None:
+        src = """//@version=5
+indicator("x")
+s = 0.0
+for i = 0 to 3
+    s := s + close[i]
+plot(s, title="s")
+"""
+        code = transpile(src)
+        assert "@numba.njit" in code
+        assert "safe_float" not in code
+        compiled = compile_script(src, use_cache=False)
+        assert compiled.object_mode is False
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        # close = 100..119; last bar sum of close[0..3] history = c[-1]+c[-2]+c[-3]+c[-4]
+        expected = float(c[-1] + c[-2] + c[-3] + c[-4])
+        assert abs(out["s"][-1] - expected) < 1e-6
+
+    def test_input_int_float_times_sma_stays_numeric(self) -> None:
+        src = """//@version=5
+indicator("x")
+a = input.int(14)
+b = input.float(2.0)
+plot(ta.sma(close, a) * b, title="p")
+"""
+        code = transpile(src)
+        assert "@numba.njit" in code
+        compiled = compile_script(src, use_cache=False)
+        assert compiled.object_mode is False
+        o, h, l, c, v = _ohlcv(30)
+        out = compiled.run(o, h, l, c, v)
+        # SMA of last 14 closes * 2
+        expected = float(np.mean(c[-14:])) * 2.0
+        assert abs(out["p"][-1] - expected) < 1e-6
+
+    def test_math_random_and_hyperbolic_stay_numeric(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(math.random(0, 1), title="rnd")
+plot(math.tanh(0.0), title="t")
+plot(math.todegrees(math.pi), title="d")
+plot(math.toradians(180.0), title="r")
+"""
+        code = transpile(src)
+        assert "@numba.njit" in code
+        assert "safe_float" not in code
+        compiled = compile_script(src, use_cache=False)
+        assert compiled.object_mode is False
+        o, h, l, c, v = _ohlcv(8)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["rnd"][-1] - 0.5) < 1e-9
+        assert abs(out["t"][-1] - 0.0) < 1e-9
+        assert abs(out["d"][-1] - 180.0) < 1e-6
+        assert abs(out["r"][-1] - np.pi) < 1e-6
+
+    def test_timestamp_stub_stays_numeric(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(timestamp(2020, 1, 1, 0, 0), title="t")
+"""
+        code = transpile(src)
+        assert "@numba.njit" in code
+        compiled = compile_script(src, use_cache=False)
+        assert compiled.object_mode is False
+        o, h, l, c, v = _ohlcv(5)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["t"][-1] - 0.0) < 1e-9
+
+    def test_string_input_still_forces_object_mode(self) -> None:
+        """Regression: string inputs must not silently stay nopython."""
+        src = """//@version=5
+indicator("x")
+s = input.string("EMA", "Method")
+plot(close, title="c")
+"""
+        compiled = compile_script(src, use_cache=False)
+        assert compiled.object_mode is True
+        o, h, l, c, v = _ohlcv(5)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["c"][-1] - c[-1]) < 1e-9
 

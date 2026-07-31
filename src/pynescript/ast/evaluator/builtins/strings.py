@@ -66,26 +66,7 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
             self._error(message)
         return value
 
-    def _expect_int(self, value: Any, message: str) -> int:
-        """Coerce to int. Fractional floats are floored (TV period semantics)."""
-        import math
-
-        # Unwrap common wrappers
-        if isinstance(value, dict) and "default" in value:
-            value = value["default"]
-        if hasattr(value, "current") and not isinstance(value, (list, tuple, str, bytes)):
-            if type(value).__name__ == "_NaValue":
-                self._error(message)
-            value = value.current
-        if value is None:
-            self._error(message)
-        if isinstance(value, float):
-            value = int(math.floor(value))
-        if isinstance(value, bool):
-            value = int(value)
-        if not isinstance(value, int):
-            self._error(message)
-        return value
+    # _expect_int: inherited from BuiltinDispatchMixin (pine_expect_int)
 
     def _builtin_str_length(self, args: list[Any]) -> int | None:
         """str.length(string) → int, or ``na`` when *string* is ``na``.

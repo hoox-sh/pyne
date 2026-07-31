@@ -799,3 +799,175 @@ upDownColor(float source) =>
     assert "upDownColor(float source) =>" in cleaned
     assert re.search(r"=>\s*(na|\n\s+na)", cleaned)
     _roundtrip(cleaned)
+
+
+def test_picks_full_copy_after_truncated_preview_and_ui_chrome() -> None:
+    """hasnocool-style scrape: truncated preview + ``Copy code`` gutter + full //@version copy."""
+    raw = """//@version=5
+strategy("demo", overlay=true)
+a = input.int(8, "EMA 1", minval=1)
+e = input.int(55, "EMA 5", minval=1,...
+PineScript code:
+
+Pine Script strategy
+Copy code
+1
+2
+3
+// This source code is subject to the terms of the Mozilla Public License 2.0
+//@version=5
+strategy("demo", overlay=true)
+a = input.int(8, "EMA 1", minval=1)
+e = input.int(55, "EMA 5", minval=1, maxval=999)
+plot(ta.ema(close, e))
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "Copy code" not in cleaned
+    assert "minval=1,..." not in cleaned
+    assert "maxval=999" in cleaned
+    assert "plot(ta.ema(close, e))" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_strips_import_loading_ui_residual() -> None:
+    """TV library import widget leaves ``loading...`` after hair-space normalize."""
+    raw = """//@version=5
+strategy("t", overlay=true)
+import HeWhoMustNotBeNamed/ta/1 as eta\u200aloading...
+plot(close)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "loading" not in cleaned.lower()
+    assert "import HeWhoMustNotBeNamed/ta/1 as eta" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_repairs_truncated_ternary_at_eof() -> None:
+    """Docs cuts leave ``? color.red :`` / bare true-branch without false arm."""
+    raw = """//@version=5
+indicator("")
+c = open > close ? color.red :
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert re.search(r"color\.red\s*:\s*na", cleaned)
+    _roundtrip(cleaned)
+
+    raw2 = """//@version=6
+indicator("Dynamic session", overlay=true)
+string dynamicSession = (dayofweek >= dayofweek.monday) ? weekdaySessionInput
+"""
+    cleaned2 = sanitize_corpus_source(raw2)
+    assert ": na" in cleaned2
+    _roundtrip(cleaned2)
+
+
+def test_preserves_complete_single_line_ternary() -> None:
+    """Complete ternaries must not gain a spurious ``: na``."""
+    raw = """//@version=5
+indicator("t")
+c = open > close ? color.red : color.green
+plot(close, color=c)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "color.red : color.green" in cleaned or "color.red: color.green" in cleaned.replace(
+        " ", ""
+    )
+    assert ": na" not in cleaned
+    assert "color.green" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_question_mark_inside_string_is_not_ternary() -> None:
+    """``input(title="Highlight ?")`` must not gain a trailing ``: na`` (false positive)."""
+    raw = """//@version=4
+study("t")
+highlight = input(title="Highlight ?", type=input.bool, defval=true)
+labels = input(true, 'Show Labels?')
+plot(close)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert ": na" not in cleaned
+    assert 'title="Highlight ?"' in cleaned
+    assert "Show Labels?" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_curly_apostrophe_prose_stops_after_script() -> None:
+    """TV docs use U+2019 in ``It's important…`` — must stop like ASCII ``It's``."""
+    raw = """//@version=6
+indicator("Label limits example", max_labels_count=100, overlay=true)
+label.new(bar_index, high, str.tostring(high, format.mintick))
+
+It\u2019s important to note when setting any of a drawing object\u2019s properties to na
+the label is not drawn.
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "important to note" not in cleaned
+    assert "label.new" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_promotes_same_indent_type_fields() -> None:
+    """Objects.md scrapes often lose INDENT under ``type Name``."""
+    raw = """//@version=6
+indicator("Pivot labels", overlay=true)
+type pivotPoint
+int x
+float y
+string xloc = xloc.bar_time
+plot(close)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "type pivotPoint" in cleaned
+    # Fields must be indented under the type
+    assert re.search(r"type pivotPoint\n\s+int x", cleaned)
+    assert re.search(r"\n\s+float y", cleaned)
+    _roundtrip(cleaned)
+
+
+def test_same_indent_arrow_body_gets_na_not_parse_fail() -> None:
+    """Local UDF under ``if`` with same-indent body: inject ``=> na`` rather than FAIL.
+
+    Real body lines remain as siblings (still parse); nested empty UDF is harmless.
+    """
+    raw = """//@version=5
+strategy("Accumulate", overlay=true)
+if close > open
+    barsSinceLastEntry() =>
+    strategy.opentrades > 0 ? 1 : na
+plot(close)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "barsSinceLastEntry() => na" in cleaned or re.search(
+        r"barsSinceLastEntry\(\)\s*=>\s*\n\s+na", cleaned
+    )
+    _roundtrip(cleaned)
+
+
+def test_intentional_invalid_indent_demo_still_fails() -> None:
+    """common_errors.md intentional INDENT after declaration must remain FAIL."""
+    from pynescript.ast.error import SyntaxError as PineSyntaxError
+
+    raw = """//@version=6
+indicator("My Script")
+    plot(1)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    try:
+        parse(cleaned)
+        raise AssertionError("expected parse failure for intentional indent error demo")
+    except (PineSyntaxError, SyntaxError):
+        pass
+
+
+def test_mid_call_ellipsis_without_closer() -> None:
+    """``minval=1,...`` mid-call cut → strip ellipsis and close parens."""
+    raw = """//@version=5
+strategy("t", overlay=true)
+e = input.int(55, "EMA 5", minval=1,...
+plot(close)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "..." not in cleaned
+    assert "input.int" in cleaned
+    _roundtrip(cleaned)

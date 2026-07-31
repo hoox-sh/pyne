@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Round 6 multi-agent pass (perf + correctness + error handling + compiler coverage); see `docs/perf_round6/`.
+- Compiler nopython kernels: `ta.dmi` / `ta.adx` / `ta.supertrend` / `ta.alma` / `ta.percentrank` (match interpret oracle).
+- Compiler disk IR/module cache (`PYNE_COMPILE_DISK_CACHE`, default on) + typed `CompileError*` hierarchy + `prewarm_numba_builtins()`.
+- Incremental interpret TA for residual full-history paths: `mfi`, `sar`, `kc`/`kcw`, `alma`, `correlation`, percentiles (behind `PYNE_TA_INCREMENTAL`).
+- Runtime structured errors: `error_kind` (`parse|compile|runtime|data|order|mode`), `error_type`, `error_bar` (API `/run` forwards).
+- Strategy exit commission and exit slippage on interpret + compile paths; bad order args emit events instead of silent fills.
 - Stable `CRYPTO_KEY` / `METADATA_KEY` resolution for Fernet metadata encryption (GitHub secrets wired).
 - Multi-target Docker image (`api` / `api-dev` / `lsp`), `docker-bake.hcl`, prod compose overlay, Makefile docker helpers.
 - Key-store backends selectable via `STORE_BACKEND` (`json` | `sqlite` | `redis`) for multi-worker / multi-replica deploys.
@@ -18,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Consolidation of main with recent plan branch work (2026-07-09).
 
 ### Changed
+- Interpret bar-loop residual wins (visit/Call arg plans, series last-sample, residual TA): ~1.24× `ta_combo` vs Round 5 (~137 ms @ 2k bars).
+- Compiler stays numeric for more history/math/chart surface; viewport right bar time is `(n_bars-1)*60000` in compile mode.
+- Runtime `mode=auto`: non-empty `inputs` forces interpret with clear fallback reason; object-mode compile no longer requires Numba.
 - **PyPI distribution name is `hoox-pyne`** (import package and CLIs remain `pynescript` / `pynescript-lsp`). Avoids collision with upstream elbakramer `pynescript` on PyPI. Install: `pip install "hoox-pyne[lsp]"`.
 - Version **0.3.0** prepared as first `hoox-pyne` release candidate (tag when ready).
 - VS Code extension rebrand: **PYNE — Pine Script™ for VS Code** (`pyne` 0.2.2), HOOX logo icon, marketplace description as part of the HOOX open trading stack, TradingView® / Pine Script™ trademark disclaimer, and richer TextMate syntax highlighting (namespaces, annotations, colors, UDT/enum, multiline strings).
@@ -33,6 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `TypeError: '>=' not supported between instances of 'NoneType' and 'NoneType'` when the
   series contains Pine `na` (e.g. VIDYA warmup on MA-STER). Unsafe `CommonIndicators`
   overrides were removed so na-safe `TechnicalHelpers` implementations are used.
+- Crossover equality aligned with TV/numba (`<=`/`>=` on previous bar); short series rising/falling in bar mode.
+- Body `TypeError` in call dispatch no longer soft-fails to `na` (signature mismatches still soft); strategy `strategy()` apply fails closed.
+- Compile object-mode: `array.sort`/`sort_indices` honor `sort_field`; `array.fill` range; `map.keys`/`values` not coerced via `safe_float`.
+- Corpus sanitize: multi-version islands, UI chrome, safer ternary/call/type-field repairs without FP on `?` in input titles.
 
 ### Removed
 - Stale `Dockerfile.api` (folded into multi-target `Dockerfile`).

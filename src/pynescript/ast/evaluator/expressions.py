@@ -41,10 +41,23 @@ from collections.abc import Callable
 from typing import Any
 
 from pynescript.ast import node as ast
+from pynescript.ast.evaluator.names import _BARE_SERIES_BUILTINS
 from pynescript.ast.evaluator.names import ast_qualified_name
 from pynescript.ast.evaluator.types import EvaluatorProtocol
 from pynescript.ast.type_system import ObjectInstance
 from pynescript.ast.type_system import UserDefinedType
+
+
+def _type_error_from_callee(exc: BaseException) -> bool:
+    """True if *exc* originated inside the called function, not at the call site.
+
+    Signature mismatches (wrong arity / unexpected kwargs) have no deeper frames
+    and may soft-fail to ``na`` for overload/extension dispatch. Body
+    ``TypeError`` / programming bugs must propagate so the Runtime bar loop
+    fails closed instead of silently returning empty/na results.
+    """
+    tb = exc.__traceback__
+    return tb is not None and tb.tb_next is not None
 
 
 # Sentinel: attribute-call recovery did not apply
@@ -60,11 +73,26 @@ _SERIES_TYPE_NAMES = frozenset({"PineSeries", "_SeriesResult"})
 # ``_SITE_B``: bare Name that is a registered builtin (plot, na, year).
 # ``_SITE_BB``: bare Name with bound handler (user shadow still checked).
 # ``_SITE_G``: general path (methods, UDFs, UDT.new, recovered attrs).
+# ``_SITE_GN``: general path with bare Name callee (UDF / local callable).
 _SITE_Q = 0
 _SITE_QB = 3
 _SITE_B = 1
 _SITE_BB = 4
 _SITE_G = 2
+_SITE_GN = 5
+
+# Shared empty kwargs — never mutate (hot path avoids ``{}`` alloc).
+_EMPTY_KW: dict[str, Any] = {}
+
+# Arg-plan opcodes (precompiled per Call site; skips visit frames for Name/Const).
+# Positional: (_AP_NAME, id) | (_AP_CONST, value) | (_AP_VISIT, value_ast)
+# Keyword:    (_AP_KW_NAME, kw, id) | (_AP_KW_CONST, kw, value) | (_AP_KW_VISIT, kw, value_ast)
+_AP_NAME = 0
+_AP_CONST = 1
+_AP_VISIT = 2
+_AP_KW_NAME = 3
+_AP_KW_CONST = 4
+_AP_KW_VISIT = 5
 
 
 def _as_scalar_operand(value):
@@ -515,7 +543,8 @@ class ExpressionEvaluator:
 
         Call-site resolution is cached by ``id(node)`` across bars: AST nodes
         are stable for the script lifetime, so qualified-name + registry
-        lookups run once per site (not once per bar).
+        lookups run once per site (not once per bar). Bound sites also store a
+        precompiled **arg plan** so Name/Constant args skip ``visit`` frames.
 
         Args:
             node: Call with func and argument list (positional + named)
@@ -525,7 +554,7 @@ class ExpressionEvaluator:
         """
         # Per-Call-node site cache (stable AST across the bar loop).
         # Pre-allocated on BaseEvaluator; miss → resolve once.
-        site_cache = getattr(self, "_call_site_cache", None)
+        site_cache = self.__dict__.get("_call_site_cache")
         if site_cache is None:
             site_cache = {}
             self._call_site_cache = site_cache  # type: ignore[attr-defined]
@@ -538,10 +567,11 @@ class ExpressionEvaluator:
         kind = site[0]
 
         # Bound qualified builtin (ta.sma after first bar) — no name lookup.
-        # site = (_SITE_QB, tag, handler, name)
-        if kind is _SITE_QB:
-            args, kwargs = self._collect_call_args(node)
-            if kwargs:
+        # site = (_SITE_QB, tag, handler, name, arg_plan)
+        # Dominant multi-TA path: check first.
+        if kind == _SITE_QB:
+            args, kwargs = self._eval_arg_plan(site[4])
+            if kwargs is not _EMPTY_KW and kwargs:
                 return self._call_builtin(site[3], args, kwargs=kwargs)  # type: ignore[attr-defined]
             tag, handler = site[1], site[2]
             if tag == 1:
@@ -550,31 +580,25 @@ class ExpressionEvaluator:
                 return handler
             return handler(*args)
 
-        # Fast path: ta.*/strategy.*/math.* — resolve name once, then bind.
-        if kind is _SITE_Q:
-            args, kwargs = self._collect_call_args(node)
-            name = site[1]
-            result = self._call_builtin(name, args, kwargs=kwargs)  # type: ignore[attr-defined]
-            bound = self._lookup_bound_builtin(name)
-            if bound is not None:
-                site_cache[site_key] = (_SITE_QB, bound[0], bound[1], name)
-            return result
-
         # Bound bare Name builtin (plot after first bar).
-        # site = (_SITE_BB, name, tag, handler)
-        if kind is _SITE_BB:
-            name, tag, handler = site[1], site[2], site[3]
-            args, kwargs = self._collect_call_args(node)
+        # site = (_SITE_BB, name, tag, handler, arg_plan)
+        if kind == _SITE_BB:
+            name, tag, handler, plan = site[1], site[2], site[3], site[4]
+            args, kwargs = self._eval_arg_plan(plan)
             user = self.context.get(name)  # type: ignore[attr-defined]
             if callable(user):
                 try:
                     return user(*args, **kwargs)
-                except TypeError:
+                except TypeError as e:
+                    if _type_error_from_callee(e):
+                        raise
                     try:
                         return user(*args)
-                    except TypeError:
+                    except TypeError as e2:
+                        if _type_error_from_callee(e2):
+                            raise
                         return None
-            if kwargs:
+            if kwargs is not _EMPTY_KW and kwargs:
                 return self._call_builtin(name, args, kwargs=kwargs)  # type: ignore[attr-defined]
             if tag == 1:
                 return handler(args)
@@ -582,32 +606,70 @@ class ExpressionEvaluator:
                 return handler
             return handler(*args)
 
+        # Fast path: ta.*/strategy.*/math.* — resolve name once, then bind.
+        # site = (_SITE_Q, name, arg_plan)
+        if kind == _SITE_Q:
+            name, plan = site[1], site[2]
+            args, kwargs = self._eval_arg_plan(plan)
+            result = self._call_builtin(name, args, kwargs=kwargs)  # type: ignore[attr-defined]
+            bound = self._lookup_bound_builtin(name)
+            if bound is not None:
+                site_cache[site_key] = (_SITE_QB, bound[0], bound[1], name, plan)
+            return result
+
         # Fast path: bare Name builtins (plot, na, year, …).
         # User callables in context still shadow each bar (cheap dict.get).
-        if kind is _SITE_B:
-            name = site[1]
-            args, kwargs = self._collect_call_args(node)
+        # site = (_SITE_B, name, arg_plan)
+        if kind == _SITE_B:
+            name, plan = site[1], site[2]
+            args, kwargs = self._eval_arg_plan(plan)
             user = self.context.get(name)  # type: ignore[attr-defined]
             if callable(user):
                 try:
                     return user(*args, **kwargs)
-                except TypeError:
+                except TypeError as e:
+                    if _type_error_from_callee(e):
+                        raise
                     try:
                         return user(*args)
-                    except TypeError:
+                    except TypeError as e2:
+                        if _type_error_from_callee(e2):
+                            raise
                         return None
             result = self._call_builtin(name, args, kwargs=kwargs)  # type: ignore[attr-defined]
             bound = self._lookup_bound_builtin(name)
             if bound is not None:
-                site_cache[site_key] = (_SITE_BB, name, bound[0], bound[1])
+                site_cache[site_key] = (_SITE_BB, name, bound[0], bound[1], plan)
             return result
 
-        # General path: methods, UDFs, UDT.new, recovered attrs.
-        return self._visit_Call_general(node)
+        # Bare-name UDF / local callable — skip visit(func) Attribute machinery.
+        # site = (_SITE_GN, name, arg_plan)
+        if kind == _SITE_GN:
+            name, plan = site[1], site[2]
+            args, kwargs = self._eval_arg_plan(plan)
+            func = self.context.get(name)  # type: ignore[attr-defined]
+            if not callable(func):
+                # Name may be lazy string or missing — fall back once.
+                return self._visit_Call_general(node, plan)
+            try:
+                return func(*args, **kwargs)
+            except TypeError as e:
+                if _type_error_from_callee(e):
+                    raise
+                try:
+                    return func(*args)
+                except TypeError as e2:
+                    if _type_error_from_callee(e2):
+                        raise
+                    return None
+
+        # General path: methods, UDT.new, recovered attrs.
+        # site = (_SITE_G, arg_plan)
+        return self._visit_Call_general(node, site[1] if len(site) > 1 else None)
 
     def _lookup_bound_builtin(self: EvaluatorProtocol, name: str) -> tuple[int, Any] | None:
         """Return ``(tag, handler)`` from the resolved-builtin cache, if present."""
-        resolved = getattr(self, "_builtin_resolved", None)
+        resolved = self.__dict__.get("_builtin_resolved")
         if not resolved:
             return None
         return resolved.get(name)
@@ -615,32 +677,182 @@ class ExpressionEvaluator:
     def _resolve_call_site(self: EvaluatorProtocol, node: ast.Call) -> tuple:
         """Classify a Call node once for the bar-loop site cache.
 
-        Returns:
-            ``(_SITE_Q, qual_name)``, ``(_SITE_B, bare_name)``, or ``(_SITE_G,)``.
+        Returns site tuples that always include a precompiled arg plan.
         """
+        plan = self._build_arg_plan(node)
         func = node.func
         # Attribute: prefer AST qualified path (ta.sma, strategy.entry, …).
-        if isinstance(func, ast.Attribute):
+        if type(func) is ast.Attribute:
             qual = ast_qualified_name(func)
             if qual and self._is_registered_builtin(qual):
-                return (_SITE_Q, qual)
-            return (_SITE_G,)
-        # Bare Name: plot / na / year / bare ta aliases.
-        if isinstance(func, ast.Name):
+                return (_SITE_Q, qual, plan)
+            return (_SITE_G, plan)
+        # Bare Name: plot / na / year / bare ta aliases / UDFs.
+        if type(func) is ast.Name:
             name = func.id
             if self._is_registered_builtin(name):
-                return (_SITE_B, name)
-            return (_SITE_G,)
-        return (_SITE_G,)
+                return (_SITE_B, name, plan)
+            return (_SITE_GN, name, plan)
+        return (_SITE_G, plan)
 
-    def _visit_Call_general(self: EvaluatorProtocol, node: ast.Call):
+    def _build_arg_plan(self: EvaluatorProtocol, node: ast.Call) -> tuple:
+        """Precompile Call args into opcodes so hot bars skip visit frames.
+
+        Name → context lookup (same semantics as :meth:`visit_Name` hot path).
+        Constant with ``kind is None`` or ``"#"`` → literal value.
+        Everything else falls back to ``visit(value_ast)``.
+        """
+        arg_nodes = node.args
+        if not arg_nodes:
+            return ()
+        plan: list[tuple] = []
+        for arg in arg_nodes:
+            kw = arg.name  # type: ignore[attr-defined]
+            val = arg.value  # type: ignore[attr-defined]
+            vt = type(val)
+            if vt is ast.Name:
+                if kw:
+                    plan.append((_AP_KW_NAME, kw, val.id))
+                else:
+                    plan.append((_AP_NAME, val.id))
+            elif vt is ast.Constant and (val.kind is None or val.kind == "#"):
+                if kw:
+                    plan.append((_AP_KW_CONST, kw, val.value))
+                else:
+                    plan.append((_AP_CONST, val.value))
+            else:
+                if kw:
+                    plan.append((_AP_KW_VISIT, kw, val))
+                else:
+                    plan.append((_AP_VISIT, val))
+        return tuple(plan)
+
+    def _eval_arg_plan(
+        self: EvaluatorProtocol,
+        plan: tuple,
+    ) -> tuple[list[Any], dict[str, Any]]:
+        """Execute a precompiled arg plan → ``(args, kwargs)``.
+
+        Name resolution mirrors :meth:`~.names.NameEvaluator.visit_Name` for the
+        dominant context-hit path; KeyError falls through to bare-series / lazy
+        name semantics without allocating a temporary AST node.
+
+        Common shapes (plot(x), ta.sma(x, n), ta.bb(x, n, mult)) are unrolled
+        to avoid per-arg opcode branching and list appends.
+        """
+        n = len(plan)
+        if n == 0:
+            return [], _EMPTY_KW
+
+        ctx = self.context  # type: ignore[attr-defined]
+        bare = _BARE_SERIES_BUILTINS
+
+        # --- Unrolled positional-only shapes (no kwargs) ---
+        if n == 1:
+            op = plan[0]
+            code = op[0]
+            if code == _AP_NAME:
+                name = op[1]
+                try:
+                    return [ctx[name]], _EMPTY_KW
+                except KeyError:
+                    if name in bare and self._is_registered_builtin(name):
+                        return [self._call_builtin(name, [])], _EMPTY_KW  # type: ignore[attr-defined]
+                    return [name], _EMPTY_KW
+            if code == _AP_CONST:
+                return [op[1]], _EMPTY_KW
+            if code == _AP_VISIT:
+                return [self.visit(op[1])], _EMPTY_KW
+            # single kwarg — fall through
+
+        elif n == 2:
+            a0, a1 = plan[0], plan[1]
+            c0, c1 = a0[0], a1[0]
+            # ta.sma(close, 14) / ta.highest(high, 20)
+            if c0 == _AP_NAME and c1 == _AP_CONST:
+                name = a0[1]
+                try:
+                    return [ctx[name], a1[1]], _EMPTY_KW
+                except KeyError:
+                    if name in bare and self._is_registered_builtin(name):
+                        return [self._call_builtin(name, []), a1[1]], _EMPTY_KW  # type: ignore[attr-defined]
+                    return [name, a1[1]], _EMPTY_KW
+            if c0 == _AP_NAME and c1 == _AP_NAME:
+                n0, n1 = a0[1], a1[1]
+                try:
+                    return [ctx[n0], ctx[n1]], _EMPTY_KW
+                except KeyError:
+                    pass  # fall through to general
+            if c0 == _AP_CONST and c1 == _AP_CONST:
+                return [a0[1], a1[1]], _EMPTY_KW
+
+        elif n == 3:
+            a0, a1, a2 = plan[0], plan[1], plan[2]
+            # ta.bb(close, 20, 2.0)
+            if a0[0] == _AP_NAME and a1[0] == _AP_CONST and a2[0] == _AP_CONST:
+                name = a0[1]
+                try:
+                    return [ctx[name], a1[1], a2[1]], _EMPTY_KW
+                except KeyError:
+                    if name in bare and self._is_registered_builtin(name):
+                        return [self._call_builtin(name, []), a1[1], a2[1]], _EMPTY_KW  # type: ignore[attr-defined]
+                    return [name, a1[1], a2[1]], _EMPTY_KW
+
+        # --- General opcode interpreter ---
+        visit = self.visit
+        args: list[Any] = []
+        kwargs: dict[str, Any] | None = None
+        for op in plan:
+            code = op[0]
+            if code == _AP_NAME:
+                name = op[1]
+                try:
+                    args.append(ctx[name])
+                except KeyError:
+                    if name in bare and self._is_registered_builtin(name):
+                        args.append(self._call_builtin(name, []))  # type: ignore[attr-defined]
+                    else:
+                        args.append(name)
+            elif code == _AP_CONST:
+                args.append(op[1])
+            elif code == _AP_VISIT:
+                args.append(visit(op[1]))
+            elif code == _AP_KW_NAME:
+                if kwargs is None:
+                    kwargs = {}
+                name = op[2]
+                try:
+                    kwargs[op[1]] = ctx[name]
+                except KeyError:
+                    if name in bare and self._is_registered_builtin(name):
+                        kwargs[op[1]] = self._call_builtin(name, [])  # type: ignore[attr-defined]
+                    else:
+                        kwargs[op[1]] = name
+            elif code == _AP_KW_CONST:
+                if kwargs is None:
+                    kwargs = {}
+                kwargs[op[1]] = op[2]
+            else:  # _AP_KW_VISIT
+                if kwargs is None:
+                    kwargs = {}
+                kwargs[op[1]] = visit(op[2])
+        return args, kwargs if kwargs is not None else _EMPTY_KW
+
+    def _visit_Call_general(
+        self: EvaluatorProtocol,
+        node: ast.Call,
+        arg_plan: tuple | None = None,
+    ):
         """Call dispatch for non-static-builtin sites (methods, UDFs, UDT).
 
         Skips re-checking ``_is_qualified_attribute_builtin_call`` /
         bare-name registry (already classified as general by the site cache).
         """
         func = self.visit(node.func)
-        args, kwargs = self._collect_call_args(node)
+        if arg_plan is not None:
+            args, kwargs = self._eval_arg_plan(arg_plan)
+        else:
+            args, kwargs = self._collect_call_args(node)
 
         # Method markers from visit_Attribute: one type check, then tag.
         if type(func) is tuple and len(func) == _METHOD_CALL_TUPLE_LENGTH:
@@ -662,16 +874,20 @@ class ExpressionEvaluator:
                 if callable(ext):
                     try:
                         return ext(receiver, *args, **kwargs)
-                    except TypeError:
+                    except TypeError as e:
+                        if _type_error_from_callee(e):
+                            raise
                         try:
                             return ext(receiver, *args)
-                        except TypeError:
+                        except TypeError as e2:
+                            if _type_error_from_callee(e2):
+                                raise
                             return None
                 return None
 
         # Handle .new() method for UDT instantiation
         node_func = node.func
-        if isinstance(node_func, ast.Attribute) and node_func.attr == "new":
+        if type(node_func) is ast.Attribute and node_func.attr == "new":
             type_obj = self._resolve_udt_constructor(node_func.value)
             if isinstance(type_obj, UserDefinedType):
                 return self._handle_udt_new(type_obj, args, kwargs)
@@ -679,7 +895,7 @@ class ExpressionEvaluator:
         # Zero-arg call on a UDT/series field: ``this.columns()`` where ``columns``
         # is an int field. Prefer the field value over "not callable".
         if (
-            isinstance(node_func, ast.Attribute)
+            type(node_func) is ast.Attribute
             and not args
             and not kwargs
             and not isinstance(func, (str, tuple))
@@ -689,7 +905,7 @@ class ExpressionEvaluator:
 
         # Handle built-in functions recovered as qualified-name strings
         if isinstance(func, str):
-            if isinstance(node_func, ast.Attribute) and (
+            if type(node_func) is ast.Attribute and (
                 "." in func or not self._is_registered_builtin(func)
             ):
                 recovered = self._recover_instance_attr_call(node_func, args, kwargs)
@@ -702,7 +918,10 @@ class ExpressionEvaluator:
             return None
         try:
             return func(*args, **kwargs)
-        except TypeError:
+        except TypeError as e:
+            # Signature mismatch → na; TypeError raised inside callee → fail closed
+            if _type_error_from_callee(e):
+                raise
             return None
 
     def _is_qualified_attribute_builtin_call(
@@ -756,19 +975,9 @@ class ExpressionEvaluator:
         """
         arg_nodes = node.args
         if not arg_nodes:
-            return [], {}
-        visit = self.visit
-        args: list[Any] = []
-        kwargs: dict[str, Any] | None = None
-        for arg in arg_nodes:
-            name = arg.name  # type: ignore[attr-defined]
-            if name:
-                if kwargs is None:
-                    kwargs = {}
-                kwargs[name] = visit(arg.value)  # type: ignore[attr-defined]
-            else:
-                args.append(visit(arg.value))  # type: ignore[attr-defined]
-        return args, kwargs if kwargs is not None else {}
+            return [], _EMPTY_KW
+        # Prefer precompiled plan (Name/Const skip visit frames).
+        return self._eval_arg_plan(self._build_arg_plan(node))
 
     def _is_registered_builtin(self: EvaluatorProtocol, name: str) -> bool:
         """True if ``name`` is in the builtin dispatch map.
@@ -856,7 +1065,9 @@ class ExpressionEvaluator:
                 if callable(val):
                     try:
                         return val(*args, **(kwargs or {}))
-                    except TypeError:
+                    except TypeError as e:
+                        if _type_error_from_callee(e):
+                            raise
                         return None
 
         # Extension methods (including na receiver)
@@ -864,10 +1075,14 @@ class ExpressionEvaluator:
         if callable(ext) and getattr(ext, "__pine_method__", False):
             try:
                 return ext(receiver, *args, **kwargs)
-            except TypeError:
+            except TypeError as e:
+                if _type_error_from_callee(e):
+                    raise
                 try:
                     return ext(receiver, *args)
-                except TypeError:
+                except TypeError as e2:
+                    if _type_error_from_callee(e2):
+                        raise
                     return None
 
         return _ATTR_CALL_MISS

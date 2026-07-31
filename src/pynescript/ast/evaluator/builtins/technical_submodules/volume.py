@@ -71,8 +71,17 @@ class VolumeIndicators(TechnicalHelpers):
         - ``ta.mfi(source, length)`` — source as typical price + context volume
         - legacy 5-arg HLC+volume+length
         """
+        use_inc = self._use_incremental_ta()
         if len(args) == UNARY and self._is_period_like(args[0]):
             length = self._expect_int(args[0], "ta.mfi length must be int")
+            if use_inc:
+                highs = self._context_source("high")
+                lows = self._context_source("low")
+                closes = self._context_source("close")
+                volumes = self._context_source("volume")
+                if not volumes:
+                    volumes = [0.0]
+                return self._mfi_inc_update(highs, lows, closes, volumes, length)
             highs = self._context_series("high")
             lows = self._context_series("low")
             closes = self._context_series("close")
@@ -82,8 +91,14 @@ class VolumeIndicators(TechnicalHelpers):
                 return None
             return self._mfi(highs[-n:], lows[-n:], closes[-n:], volumes[-n:], length)
         if len(args) == BINARY:
-            series = self._as_series(args[0])
             length = self._expect_int(args[1], "ta.mfi length must be int")
+            if use_inc:
+                series = self._as_series_or_raw(args[0], last_sample_ok=True)
+                volumes = self._context_source("volume")
+                if not volumes:
+                    volumes = [0.0]
+                return self._mfi_inc_update(series, series, series, volumes, length)
+            series = self._as_series(args[0])
             volumes = self._context_series("volume")
             if not volumes:
                 volumes = [0.0] * len(series)
@@ -96,11 +111,13 @@ class VolumeIndicators(TechnicalHelpers):
         msg = "ta.mfi expects source, length (or high, low, close, volume, length)"
         if len(args) != QUINARY:
             self._error(msg)
+        length = self._expect_int(args[4], msg)
+        if use_inc:
+            return self._mfi_inc_update(args[0], args[1], args[2], args[3], length)
         highs = self._expect_list(args[0], msg)
         lows = self._expect_list(args[1], msg)
         closes = self._expect_list(args[2], msg)
         volumes = self._expect_list(args[3], msg)
-        length = self._expect_int(args[4], msg)
         return self._mfi(highs, lows, closes, volumes, length)
 
     def _builtin_ta_accdist(self, args: list[Any]) -> Any:

@@ -31,8 +31,12 @@ class PineSeries:
     Represents a Pine Script series variable.
     Effectively behaves like the 'current value' (scalar) for math operations,
     but supports indexing [x] to access historical values.
+
+    History is **newest-first** (``history[0]`` == current bar == ``series[0]``).
+    Out-of-range offsets return ``None`` (Pine ``na``); never invent ``0``.
     """
 
+    __slots__ = ("history", "current")
     __hash__ = None  # type: ignore
 
     def __init__(self, initial_value: Any = None, history_length: int = 1000):
@@ -42,19 +46,37 @@ class PineSeries:
         if initial_value is not None:
             self.history.appendleft(initial_value)
 
-    def update(self, new_value: Any):
+    def update(self, new_value: Any) -> None:
         """Push a new value for the current bar."""
         self.current = new_value
         self.history.appendleft(new_value)
 
     def __getitem__(self, index: int):
-        """Access historical values. series[0] is current, series[1] is previous."""
+        """Access historical values. series[0] is current, series[1] is previous.
+
+        Float offsets are truncated toward zero (TV coerces length-like floats).
+        ``na`` / non-numeric index → ``None`` (na), not a crash.
+        """
+        t = type(index)
+        if t is not int:
+            if t is float:
+                if index != index:  # NaN
+                    return None
+                index = int(index)
+            elif index is None:
+                return None
+            else:
+                try:
+                    index = int(index)  # type: ignore[arg-type]
+                except (TypeError, ValueError):
+                    return None
         if index < 0:
             msg = "Pine Script does not support negative indexing"
             raise ValueError(msg)
-        if index >= len(self.history):
-            return None  # na
-        return self.history[index]
+        hist = self.history
+        if index >= len(hist):
+            return None  # na — past available history (warmup / lookback)
+        return hist[index]
 
     def _binary_op(self, other: Any, op: Callable) -> Any:
         other_val = other.current if isinstance(other, PineSeries) else other

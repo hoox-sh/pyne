@@ -126,27 +126,33 @@ class MatrixBuiltinsMixin(BuiltinDispatchMixin):
     # ========== HELPER METHODS ==========
 
     def _expect_matrix(self, value: Any, message: str) -> Matrix[Any]:
-        """Validate that value is a Matrix instance."""
-        if not isinstance(value, Matrix):
-            self._error(message)
-        return value
+        """Validate that value is a Matrix instance (or list-of-lists handle)."""
+        if isinstance(value, Matrix):
+            return value
+        if value is None:
+            self._error(f"{message} (got na)")
+        # Compile-path / host bridges use list-of-lists matrices — share storage
+        # so get/set/add_row mutate the original handle.
+        if isinstance(value, list) and (not value or isinstance(value[0], list)):
+            m: Matrix[Any] = Matrix(0, 0, None)
+            m.data = value
+            m.rows_count = len(value)
+            m.cols_count = len(value[0]) if value and isinstance(value[0], list) else 0
+            return m
+        tname = type(value).__name__
+        self._error(f"{message} (got {tname}, expected matrix)")
 
-    def _expect_int(self, value: Any, message: str) -> int:
-        """Validate that value is an integer."""
-        if isinstance(value, float):
-            if value == int(value):
-                value = int(value)
-            else:
-                self._error(message)
-        if not isinstance(value, int):
-            self._error(message)
-        return value
+    # _expect_int: inherited from BuiltinDispatchMixin (pine_expect_int).
+    # Note: floors fractional floats (TV length semantics) rather than rejecting.
 
     def _expect_list(self, value: Any, message: str) -> list[Any]:
         """Validate that value is a list."""
-        if not isinstance(value, list):
-            self._error(message)
-        return value
+        if isinstance(value, list):
+            return value
+        if value is None:
+            self._error(f"{message} (got na)")
+        tname = type(value).__name__
+        self._error(f"{message} (got {tname}, expected array)")
 
     # ========== CORE OPERATIONS ==========
 

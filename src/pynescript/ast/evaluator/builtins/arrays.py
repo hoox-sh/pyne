@@ -98,12 +98,19 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             "array.unshift": self._builtin_array_unshift,
         }
 
+    def _type_name(self, value: Any) -> str:
+        """Short type label for error messages."""
+        if value is None:
+            return "na"
+        t = type(value)
+        return getattr(t, "__name__", str(t))
+
     def _expect_list(self, value: Any, message: str) -> list[Any]:
         """Coerce value to a list; unwrap series wrappers (list or deque history)."""
         if isinstance(value, list):
             return value
         if value is None:
-            self._error(message)
+            self._error(f"{message} (got na)")
         # Series / history wrappers (PineSeries.history is a deque, most-recent-first)
         if hasattr(value, "history"):
             hist = value.history
@@ -120,7 +127,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         # Tuple from failed destructure / fixed-size collections
         if isinstance(value, tuple):
             return list(value)
-        self._error(message)
+        self._error(f"{message} (got {self._type_name(value)}, expected array)")
 
     def _coerce_optional_list(self, value: Any) -> list[Any] | None:
         """Like ``_expect_list`` but returns ``None`` for na / non-array (TV soft-na)."""
@@ -291,21 +298,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             return []
         return sequence[start:end]
 
-    def _expect_int(self, value: Any, message: str) -> int:
-        import math
-
-        value = self._as_scalar(value)
-        if value is None:
-            self._error(message)
-        if isinstance(value, float):
-            if value != value:  # NaN
-                self._error(message)
-            value = int(math.floor(value))
-        if isinstance(value, bool):
-            value = int(value)
-        if not isinstance(value, int):
-            self._error(message)
-        return value
+    # _expect_int: inherited from BuiltinDispatchMixin (pine_expect_int)
 
     def _as_scalar(self, value: Any) -> Any:
         """Extract scalar from PineSeries/_SeriesResult/list."""
@@ -326,7 +319,19 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             args[0],
             "array.abs takes an array argument",
         )
-        return [abs(item) for item in sequence]
+        out: list[Any] = []
+        for item in sequence:
+            if item is None:
+                out.append(None)
+                continue
+            try:
+                out.append(abs(item))
+            except TypeError:
+                self._error(
+                    "array.abs requires numeric elements "
+                    f"(got {self._type_name(item)})"
+                )
+        return out
 
     def _builtin_array_avg(self, args: list[Any]) -> float | None:
         if len(args) != UNARY:
@@ -438,14 +443,59 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         return all(predicate(item) for item in sequence)
 
     def _builtin_array_fill(self, args: list[Any]) -> list[Any]:
-        if len(args) != BINARY:
-            self._error("array.fill takes array and fill value")
+        """``array.fill(id, value)`` or ``array.fill(id, value, index_from, index_to)``.
+
+        Range form fills half-open ``[index_from, index_to)`` (TradingView).
+        Missing / na bounds fill the whole array; OOB bounds are clamped.
+        """
+        if len(args) not in {BINARY, TERNARY + 1}:
+            # Accept ternary as (id, value, index_from) → fill to end
+            if len(args) != TERNARY:
+                self._error(
+                    "array.fill takes array, value, and optional index_from, index_to"
+                )
         sequence = self._expect_list(
             args[0],
             "array.fill takes array and fill value",
         )
         fill_val = args[1]
-        for i in range(len(sequence)):
+        n = len(sequence)
+        if len(args) == BINARY:
+            start, end = 0, n
+        else:
+            raw_from = args[2]
+            raw_to = args[3] if len(args) > 3 else None
+            if raw_from is None:
+                start = 0
+            else:
+                try:
+                    start = self._coerce_index(raw_from, soft=False)
+                except (TypeError, ValueError):
+                    self._error(
+                        "array.fill index_from must be int "
+                        f"(got {self._type_name(raw_from)})"
+                    )
+                if start is None:
+                    start = 0
+            if raw_to is None:
+                end = n
+            else:
+                try:
+                    end = self._coerce_index(raw_to, soft=False)
+                except (TypeError, ValueError):
+                    self._error(
+                        "array.fill index_to must be int "
+                        f"(got {self._type_name(raw_to)})"
+                    )
+                if end is None:
+                    end = n
+            if start < 0:
+                start = 0
+            if end > n:
+                end = n
+            if end < start:
+                return sequence
+        for i in range(start, end):
             sequence[i] = fill_val
         return sequence
 
@@ -485,18 +535,34 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         return sequence.index(value) if value in sequence else -1
 
     def _builtin_array_insert(self, args: list[Any]) -> list[Any]:
+        """``array.insert(id, index, value)`` — insert at index (append if index ≥ size)."""
         if len(args) != TERNARY:
             self._error("array.insert takes array, index, and value")
         sequence = self._expect_list(
             args[0],
             "array.insert takes array, index, and value",
         )
-        index = self._expect_int(
-            args[1],
-            "array.insert takes array, index, and value",
-        )
+        raw_index = self._as_scalar(args[1])
+        if raw_index is None or (
+            isinstance(raw_index, float) and raw_index != raw_index
+        ):
+            self._error("array.insert index must be int (got na)")
+        if isinstance(raw_index, bool):
+            index = int(raw_index)
+        elif isinstance(raw_index, float):
+            index = int(raw_index)
+        elif isinstance(raw_index, int):
+            index = raw_index
+        else:
+            self._error(
+                "array.insert index must be int "
+                f"(got {self._type_name(raw_index)})"
+            )
         if index < 0:
-            self._error("array.insert takes array, index, and value")
+            self._error(
+                f"array.insert index out of bounds: {index} (size={len(sequence)})"
+            )
+        # index > len appends (Python list.insert clamps); allow == len as append
         sequence.insert(index, args[2])
         return sequence
 

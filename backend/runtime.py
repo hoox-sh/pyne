@@ -55,8 +55,59 @@ _PARSE_CACHE_MAX = 64
 _HOST_COMPILE_CACHE: dict[str, Any] = {}
 _HOST_COMPILE_CACHE_MAX = 64
 
-# Cached numba availability for mode=auto prefilter (None = not probed yet).
-_HAS_NUMBA: bool | None = None
+# Auto-mode negative cache: source sha256 → compile failure reason. Skips re-transpile
+# after a deterministic compile-time failure (not data-dependent runtime errors).
+_HOST_COMPILE_FAIL_CACHE: dict[str, str] = {}
+_HOST_COMPILE_FAIL_CACHE_MAX = 128
+
+# Compiler package availability for mode=auto prefilter (None = not probed yet).
+# Numba is NOT required for eligibility — object-mode compile is pure-Python.
+_HAS_COMPILER: bool | None = None
+
+# Structured Runtime error kinds (surfaced as ``error_kind`` on failure payloads).
+# API always keeps the legacy string ``error`` field for backward compatibility.
+ERROR_KIND_PARSE = "parse"
+ERROR_KIND_COMPILE = "compile"
+ERROR_KIND_RUNTIME = "runtime"
+ERROR_KIND_DATA = "data"
+ERROR_KIND_ORDER = "order"
+ERROR_KIND_MODE = "mode"
+
+
+def _error_payload(
+    message: str,
+    *,
+    kind: str,
+    exc: BaseException | None = None,
+    bar_index: int | None = None,
+    bar_time: Any = None,
+) -> dict[str, Any]:
+    """Build a classified Runtime error dict (fail-closed host contract).
+
+    Always includes ``error`` (human message). Adds ``error_kind`` and optional
+    ``error_type`` / ``error_bar`` / ``error_bar_time`` for hosts and tests.
+    """
+    body: dict[str, Any] = {
+        "error": message,
+        "error_kind": kind,
+    }
+    if exc is not None:
+        body["error_type"] = type(exc).__name__
+    if bar_index is not None:
+        body["error_bar"] = int(bar_index)
+    if bar_time is not None:
+        body["error_bar_time"] = bar_time
+    return body
+
+
+def _format_exc_message(prefix: str, exc: BaseException) -> str:
+    """``Prefix: TypeName: detail`` (omit redundant type when message already names it)."""
+    et = type(exc).__name__
+    detail = str(exc).strip() or et
+    # Avoid "TypeError: TypeError: …" when str(exc) is empty-ish
+    if detail == et:
+        return f"{prefix}: {et}"
+    return f"{prefix}: {et}: {detail}"
 
 
 def _clear_pine_logger() -> None:
@@ -547,19 +598,24 @@ class Runtime:
             data_provider: Optional historical provider for request.* .
             mode:
                 ``"interpret"`` — AST walker.
-                ``"compile"`` — Numba/object bar loop (supported subset).
-                ``"auto"`` — try compile; on any failure fall back to interpret.
-                Default: ``PYNE_RUNTIME_MODE`` env, else ``"interpret"`` (tests/API
-                callers that omit mode: Pro API schema defaults to ``auto``).
+                ``"compile"`` — Numba (numeric) or pure-Python object bar loop.
+                ``"auto"`` — try compile; on eligibility fail / compile error /
+                runtime error fall back to interpret (reason in
+                ``compile_fallback_reason``). Non-empty ``inputs`` skip compile
+                (overrides not applied on compile path).
+                Default when omitted: ``PYNE_RUNTIME_MODE`` env, else
+                ``"interpret"``. Pro API ``RUN_SCHEMA`` defaults body ``mode``
+                to ``"auto"`` when the field is absent.
             inputs: Optional Pine ``input.*`` overrides keyed by title.
+                Applied on interpret only; auto with overrides uses interpret.
             profiler: When true, collect per-line timings for AXIS gutter.
                 Forces interpret (compile has no statement walk).
 
         Returns:
             dict with 'series': list of plotted values for each bar.
+            Auto mode also sets ``auto_backend`` (``compile``|``interpret``)
+            and may set ``compile_fallback_reason``.
         """
-        import os
-
         if mode is None or mode == "":
             mode = os.environ.get("PYNE_RUNTIME_MODE", "interpret")
         mode_norm = (mode or "interpret").strip().lower()
@@ -577,14 +633,18 @@ class Runtime:
                 inputs=inputs,
             )
         if mode_norm not in ("interpret",):
-            return {"error": f"Unknown mode: {mode!r} (use interpret|compile|auto)"}
+            return _error_payload(
+                f"Unknown mode: {mode!r} (use interpret|compile|auto)",
+                kind=ERROR_KIND_MODE,
+            )
 
         t_total0 = time.perf_counter()
         # Fresh log buffer per run so messages never leak across /run calls.
         _clear_pine_logger()
         n_bars_hint = len(ohlcv_data) if ohlcv_data else 0
 
-        # Wire request.* sources: chart bars as historical provider when unset
+        # Wire request.* sources: chart bars as historical provider when unset.
+        # Soft-fail by design: missing/broken feeds fall back to request.* mocks.
         try:
             from pynescript.util.data import resolve_request_sources
 
@@ -594,8 +654,7 @@ class Runtime:
                 chart_bars=ohlcv_data,
                 symbol=getattr(self, "symbol", "CHART") or "CHART",
             )
-        except Exception:
-            # Non-fatal: request.* falls back to built-in mocks
+        except Exception:  # noqa: BLE001 — intentional soft-fail → mock data
             pass
 
         # Parse once (cached by source hash for multi-run hosts)
@@ -605,7 +664,11 @@ class Runtime:
         except Exception as e:
             parse_ms = (time.perf_counter() - t_parse0) * 1000.0
             return _attach_logs_profile(
-                {"error": f"Parse Error: {e!s}"},
+                _error_payload(
+                    _format_exc_message("Parse Error", e),
+                    kind=ERROR_KIND_PARSE,
+                    exc=e,
+                ),
                 total_ms=(time.perf_counter() - t_total0) * 1000.0,
                 bars=n_bars_hint,
                 mode="interpret",
@@ -900,7 +963,16 @@ class Runtime:
                 except Exception as e:
                     eval_ms = (time.perf_counter() - t_eval0) * 1000.0
                     return _attach_logs_profile(
-                        {"error": f"Order fill error at bar {bar_time}: {e!s}"},
+                        _error_payload(
+                            _format_exc_message(
+                                f"Order fill error at bar {bar_time} (index {bar_index})",
+                                e,
+                            ),
+                            kind=ERROR_KIND_ORDER,
+                            exc=e,
+                            bar_index=bar_index,
+                            bar_time=bar_time,
+                        ),
                         total_ms=(time.perf_counter() - t_total0) * 1000.0,
                         bars=n_bars,
                         mode="interpret",
@@ -911,9 +983,19 @@ class Runtime:
             try:
                 visit(tree)
             except Exception as e:
+                # Fail closed: never return empty plots for bar-loop exceptions.
                 eval_ms = (time.perf_counter() - t_eval0) * 1000.0
                 return _attach_logs_profile(
-                    {"error": f"Runtime Error at bar {bar_time}: {e!s}"},
+                    _error_payload(
+                        _format_exc_message(
+                            f"Runtime Error at bar {bar_time} (index {bar_index})",
+                            e,
+                        ),
+                        kind=ERROR_KIND_RUNTIME,
+                        exc=e,
+                        bar_index=bar_index,
+                        bar_time=bar_time,
+                    ),
                     total_ms=(time.perf_counter() - t_total0) * 1000.0,
                     bars=n_bars,
                     mode="interpret",
@@ -1177,27 +1259,66 @@ class Runtime:
         """Cheap prefilter before attempting compile (auto mode).
 
         Returns ``(eligible, reason_if_not)``.
-        """
-        global _HAS_NUMBA
-        if _HAS_NUMBA is False:
-            return False, "numba not installed"
-        if _HAS_NUMBA is None:
-            try:
-                from pynescript.compiler.engine import has_numba
 
-                _HAS_NUMBA = bool(has_numba())
+        Numba is **not** required for eligibility: object-mode scripts (strategy,
+        UDT, map/array heavy) compile to a pure-Python bar loop. Missing Numba
+        only fails pure-numeric emit inside ``compile_script`` (auto caches that
+        failure for subsequent runs of the same source).
+        """
+        global _HAS_COMPILER
+        if _HAS_COMPILER is False:
+            return False, "compiler package unavailable"
+        if _HAS_COMPILER is None:
+            try:
+                import pynescript.compiler.engine  # noqa: F401
+
+                _HAS_COMPILER = True
             except ImportError:
-                _HAS_NUMBA = False
+                _HAS_COMPILER = False
                 return False, "compiler package unavailable"
-            if not _HAS_NUMBA:
-                return False, "numba not installed"
         src = source_code or ""
-        # Import / request.* often need interpreter library + data plumbing
+        # Import / request.* need interpreter library + data plumbing
         if re.search(r"(?m)^\s*import\s+\S+", src):
             return False, "import statements not supported in compile path"
         if "request." in src:
             return False, "request.* not supported in compile path"
         return True, ""
+
+    @staticmethod
+    def _source_cache_key(source_code: str) -> str:
+        return hashlib.sha256((source_code or "").encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _is_cacheable_compile_failure(err: str) -> bool:
+        """True for deterministic source/environment failures (not bar-data runtime)."""
+        e = (err or "").strip()
+        if not e:
+            return False
+        # Data-dependent execution failures must not poison auto forever.
+        if e.startswith("Compiled Runtime Error"):
+            return False
+        if e.startswith("Compile Error"):
+            return True
+        if e.startswith("Compile mode unavailable"):
+            return True
+        low = e.lower()
+        if "numba" in low and ("required" in low or "not installed" in low):
+            return True
+        return False
+
+    @staticmethod
+    def _remember_compile_failure(cache_key: str, reason: str) -> None:
+        if not cache_key or not reason:
+            return
+        if (
+            len(_HOST_COMPILE_FAIL_CACHE) >= _HOST_COMPILE_FAIL_CACHE_MAX
+            and cache_key not in _HOST_COMPILE_FAIL_CACHE
+        ):
+            try:
+                _HOST_COMPILE_FAIL_CACHE.pop(next(iter(_HOST_COMPILE_FAIL_CACHE)))
+            except StopIteration:
+                pass
+        _HOST_COMPILE_FAIL_CACHE[cache_key] = reason
 
     def _run_auto(
         self,
@@ -1207,16 +1328,47 @@ class Runtime:
         data_provider=None,
         inputs: dict | None = None,
     ) -> dict:
-        """Try compile; fall back to interpret on eligibility fail or any error."""
-        eligible, reason = self._compile_eligible(source_code)
+        """Try compile; fall back to interpret on eligibility fail or any error.
+
+        Sets ``auto_backend`` to ``compile`` or ``interpret``. On fallback, sets
+        ``compile_fallback_reason`` to a stable human-readable string.
+        """
+        # Compile path does not apply input.* overrides — prefer full host semantics.
+        if inputs:
+            result = self.run(
+                source_code,
+                ohlcv_data,
+                data_feed=data_feed,
+                data_provider=data_provider,
+                mode="interpret",
+                inputs=inputs,
+            )
+            if isinstance(result, dict):
+                result["mode"] = result.get("mode") or "interpret"
+                result["auto_backend"] = "interpret"
+                result["compile_fallback_reason"] = "input.* overrides require interpret path"
+            return result
+
+        src_key = self._source_cache_key(source_code)
+        prior_fail = _HOST_COMPILE_FAIL_CACHE.get(src_key)
+        if prior_fail is not None:
+            eligible, reason = False, prior_fail
+        else:
+            eligible, reason = self._compile_eligible(source_code)
+
         compile_err: str | None = reason or None
         if eligible:
             compiled_result = self._run_compiled(source_code, ohlcv_data)
             if "error" not in compiled_result:
+                _HOST_COMPILE_FAIL_CACHE.pop(src_key, None)
                 compiled_result["mode"] = "compile"
                 compiled_result["auto_backend"] = "compile"
                 return compiled_result
             compile_err = str(compiled_result.get("error") or "compile failed")
+            if self._is_cacheable_compile_failure(compile_err):
+                self._remember_compile_failure(src_key, compile_err)
+        elif reason and self._is_cacheable_compile_failure(reason):
+            self._remember_compile_failure(src_key, reason)
 
         # Interpret fallback (full host semantics)
         result = self.run(
@@ -1235,25 +1387,25 @@ class Runtime:
         return result
 
     def _run_compiled(self, source_code: str, ohlcv_data: list[dict]) -> dict:
-        """Execute via Numba-compiled bar loop (supported subset of Pine)."""
+        """Execute via Numba numeric or pure-Python object-mode bar loop.
+
+        Numba is required only for pure-numeric scripts; object-mode (strategy,
+        collections, drawings) works without it. Host caches successful
+        ``CompiledScript`` values by raw-source sha256.
+        """
         t_total0 = time.perf_counter()
         _clear_pine_logger()
         n_bars_hint = len(ohlcv_data) if ohlcv_data else 0
 
         try:
             from pynescript.compiler.engine import compile_script
-            from pynescript.compiler.engine import has_numba
         except ImportError as e:
             return _attach_logs_profile(
-                {"error": f"Compile mode unavailable: {e!s}"},
-                total_ms=(time.perf_counter() - t_total0) * 1000.0,
-                bars=n_bars_hint,
-                mode="compile",
-            )
-
-        if not has_numba():
-            return _attach_logs_profile(
-                {"error": "Compile mode requires numba (pip install numba)"},
+                _error_payload(
+                    _format_exc_message("Compile mode unavailable", e),
+                    kind=ERROR_KIND_COMPILE,
+                    exc=e,
+                ),
                 total_ms=(time.perf_counter() - t_total0) * 1000.0,
                 bars=n_bars_hint,
                 mode="compile",
@@ -1268,7 +1420,7 @@ class Runtime:
             )
 
         # Host short-circuit: raw-source hash → CompiledScript (skips sanitize on hit).
-        cache_key = hashlib.sha256(source_code.encode("utf-8")).hexdigest()
+        cache_key = self._source_cache_key(source_code)
         script_id = cache_key[:16]
         compiled = _HOST_COMPILE_CACHE.get(cache_key)
         was_cached = compiled is not None
@@ -1280,7 +1432,11 @@ class Runtime:
             except Exception as e:
                 compile_ms = (time.perf_counter() - t_compile0) * 1000.0
                 return _attach_logs_profile(
-                    {"error": f"Compile Error: {e!s}"},
+                    _error_payload(
+                        _format_exc_message("Compile Error", e),
+                        kind=ERROR_KIND_COMPILE,
+                        exc=e,
+                    ),
                     total_ms=(time.perf_counter() - t_total0) * 1000.0,
                     bars=n_bars_hint,
                     mode="compile",
@@ -1293,10 +1449,25 @@ class Runtime:
                 except StopIteration:
                     pass
             _HOST_COMPILE_CACHE[cache_key] = compiled
+            _HOST_COMPILE_FAIL_CACHE.pop(cache_key, None)
         compile_ms = (time.perf_counter() - t_compile0) * 1000.0
 
         # Single-pass float64 packing (avoids 5 list comps + re-asarray in engine)
-        opens, highs, lows, closes, volumes = _ohlcv_dicts_to_arrays(ohlcv_data)
+        try:
+            opens, highs, lows, closes, volumes = _ohlcv_dicts_to_arrays(ohlcv_data)
+        except Exception as e:
+            return _attach_logs_profile(
+                _error_payload(
+                    _format_exc_message("Data Error packing OHLCV", e),
+                    kind=ERROR_KIND_DATA,
+                    exc=e,
+                ),
+                total_ms=(time.perf_counter() - t_total0) * 1000.0,
+                bars=n_bars_hint,
+                mode="compile",
+                parse_ms=compile_ms,
+                eval_ms=0.0,
+            )
 
         t_run0 = time.perf_counter()
         try:
@@ -1304,7 +1475,11 @@ class Runtime:
         except Exception as e:
             run_ms = (time.perf_counter() - t_run0) * 1000.0
             return _attach_logs_profile(
-                {"error": f"Compiled Runtime Error: {e!s}"},
+                _error_payload(
+                    _format_exc_message("Compiled Runtime Error", e),
+                    kind=ERROR_KIND_RUNTIME,
+                    exc=e,
+                ),
                 total_ms=(time.perf_counter() - t_total0) * 1000.0,
                 bars=n_bars_hint,
                 mode="compile",
@@ -1317,12 +1492,9 @@ class Runtime:
         events: list[Any] = []
         json_series: dict[str, list[Any]] = {}
         if isinstance(series_map, dict):
-            # Pop internal keys once (avoid per-key isinstance re-checks)
-            drawings = series_map.pop("__drawings", []) or []
-            events = series_map.pop("__events", []) or []
-            series_map.pop("__position_size", None)
-            series_map.pop("__netprofit", None)
-            series_map.pop("__equity", None)
+            # Read meta keys without mutating the map (safe if engine reuses dicts).
+            drawings = series_map.get("__drawings", []) or []
+            events = series_map.get("__events", []) or []
 
             # JSON-safe series map (numpy NaN → null). Dominant host wrap cost after pack.
             _to_json = _series_values_jsonable
@@ -1360,6 +1532,10 @@ class Runtime:
             "run_ms": round(run_ms, 2),
             "compile_cached": was_cached,
         }
+        # Engine nopython → object recovery (still compile backend; not interpret fallback)
+        nopython_reason = getattr(compiled, "nopython_fallback_reason", None)
+        if nopython_reason:
+            out["nopython_fallback_reason"] = nopython_reason
         if os.environ.get("PYNESCRIPT_RETURN_GENERATED_CODE", "").strip() in {"1", "true", "yes"}:
             out["generated_code"] = compiled.generated_code
         # Best-effort: map compile → parse_ms, bar loop → eval_ms.

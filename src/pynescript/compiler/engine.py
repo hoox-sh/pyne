@@ -23,18 +23,21 @@ Pipeline
 --------
 ::
 
-    source → sanitize_corpus_source (best-effort)
-           → parse
-           → CompilerVisitor.transpile (numeric or object)
-           → exec → execute_script_compiled
+    source → (memory LRU hit by raw or sanitized sha256)
+           → sanitize_corpus_source (best-effort; miss path only)
+           → (optional disk source→IR index hit)
+           → parse + CompilerVisitor.transpile
+           → (IR LRU hit → share warm execute)
+           → exec / import disk module → execute_script_compiled
            → (numeric) warm-up njit; on TypingError → re-emit object mode
            → CompiledScript
 
 Entry points
 ------------
 - :func:`transpile` — parse + emit source string only (no exec / JIT).
-- :func:`compile_script` — full pipeline + LRU cache (sha256 of sanitized source).
+- :func:`compile_script` — full pipeline + LRU cache (sha256 of source).
 - :func:`run_script` — one-shot compile + :meth:`CompiledScript.run`.
+- :func:`prewarm_numba_builtins` — optional host cold-start of shared kernels.
 - :class:`CompiledScript` — holds generated code and the callable.
 
 Interpret vs compile contracts
@@ -50,29 +53,44 @@ Interpret vs compile contracts
   - Bare / legacy mappings may also carry other ``__*`` strategy scalars.
 - **Numba**: required only for pure-numeric mode. Object mode is pure Python +
   numpy (still faster than AST interpret). Missing numba on a numeric emit raises
-  ``RuntimeError("numba is required for numeric compile mode …")``.
-- **Errors**: empty emit / missing ``execute_script_compiled`` → ``RuntimeError``.
-  nopython failures during warm-up are **not** raised; the engine falls back to
-  object mode. Non-nopython errors on warm-up are deferred to the first real run.
+  :class:`CompileNumbaRequiredError`.
+- **Errors**: empty emit / missing ``execute_script_compiled`` →
+  :class:`CompileEmitError` / :class:`CompileLoadError`. nopython failures
+  during warm-up are **not** raised; the engine falls back to object mode and
+  records :attr:`CompiledScript.nopython_fallback_reason`. Non-nopython errors
+  on warm-up are deferred to the first real run (dummy OHLCV may not match
+  production data shapes).
 - **Sanitize-on-compile**: scraped corpus chrome is stripped via
   ``pynescript.util.corpus_sanitize.sanitize_corpus_source`` (same policy as
-  interpret paths). Failures are ignored.
+  interpret paths). Failures keep the raw source. Cache is probed by **raw**
+  hash first so warm hits skip sanitize entirely.
 
 Cache
 -----
-In-process LRU (max 128) keyed by sha256 of the **sanitized** source.
-Secondary IR cache (max 64) keyed by sha256 of **generated Python** so
-comment-only / whitespace-only source variants reuse the same warm njit
-callable without re-JIT. :func:`clear_compile_cache` clears both.
+- In-process source LRU (max 128) keyed by sha256 of **raw and/or sanitized**
+  source (dual-key when they differ).
+- Secondary IR cache (max 64) keyed by sha256 of **generated Python** so
+  comment-only source variants reuse the same warm njit callable.
+- Optional **disk** module cache (default on; ``PYNE_COMPILE_DISK_CACHE=0`` to
+  disable): writes generated modules under ``PYNE_COMPILE_CACHE_DIR`` or
+  ``$XDG_CACHE_HOME/pynescript/compile`` so ``@numba.njit(cache=True)`` can
+  reuse machine code across process restarts. :func:`clear_compile_cache`
+  clears in-process maps only; :func:`clear_disk_compile_cache` removes disk.
 """
 
 from __future__ import annotations
 
 import hashlib
-
+import importlib.util
+import json
+import logging
+import os
+import sys
+import tempfile
 from collections import OrderedDict
 from dataclasses import dataclass
 from dataclasses import field
+from pathlib import Path
 from typing import Any
 from typing import Callable
 
@@ -88,13 +106,49 @@ try:
 except ImportError:  # pragma: no cover
     _HAS_NUMBA = False
 
-# LRU cache: source sha256 → CompiledScript (populated after class defined)
+_log = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Typed exceptions (fail closed / surface cleanly — no silent wrong results)
+# ---------------------------------------------------------------------------
+
+
+class CompileError(RuntimeError):
+    """Base class for compile-pipeline failures.
+
+    Hosts (``mode=auto``) catch this family and set ``compile_fallback_reason``.
+    Subclasses keep messages stable enough for tests and UI strings.
+    """
+
+
+class CompileEmitError(CompileError):
+    """Parser/visitor produced empty or unusable generated code."""
+
+
+class CompileLoadError(CompileError):
+    """Generated module exec/import failed or entry point missing."""
+
+
+class CompileNumbaRequiredError(CompileError):
+    """Numeric mode needs Numba but it is not installed."""
+
+
+class CompileWarmupError(CompileError):
+    """Reserved for forced warm-up failure surfacing (not used for nopython fallback)."""
+
+
+# LRU cache: source sha256 → CompiledScript
 _COMPILE_CACHE: OrderedDict[str, Any] = OrderedDict()
 _COMPILE_CACHE_MAX = 128
 # Secondary: generated-code sha256 → CompiledScript (share JIT across sources)
 _IR_CACHE: OrderedDict[str, Any] = OrderedDict()
 _IR_CACHE_MAX = 64
 _BUILTINS_WARMED = False
+
+# Disk index schema version (bump when metadata layout changes)
+_DISK_META_VERSION = 1
+_NJIT_CACHE_FALSE = "@numba.njit(cache=False)"
+_NJIT_CACHE_TRUE = "@numba.njit(cache=True)"
 
 
 def has_numba() -> bool:
@@ -107,17 +161,84 @@ def has_numba() -> bool:
 
 
 def clear_compile_cache() -> None:
-    """Drop all cached compiled scripts (tests / hot-reload)."""
+    """Drop all **in-process** cached compiled scripts (tests / hot-reload).
+
+    Does **not** remove the optional on-disk module cache — use
+    :func:`clear_disk_compile_cache` for that.
+    """
     _COMPILE_CACHE.clear()
     _IR_CACHE.clear()
+
+
+def clear_disk_compile_cache() -> None:
+    """Remove generated modules / source index under the disk cache directory.
+
+    Best-effort; missing directory is a no-op. Does not clear Numba's own
+    ``__pycache__`` outside this tree (those live beside written ``.py`` files).
+    """
+    try:
+        root = _disk_cache_dir()
+    except Exception as exc:  # pragma: no cover
+        _log.debug("disk cache dir resolve failed: %s", exc)
+        return
+    if not root.is_dir():
+        return
+    for path in root.iterdir():
+        try:
+            if path.is_file() and (
+                path.suffix in {".py", ".json", ".tmp"}
+                or path.name.endswith(".py.tmp")
+            ):
+                path.unlink(missing_ok=True)
+            elif path.is_dir() and path.name == "__pycache__":
+                for child in path.iterdir():
+                    child.unlink(missing_ok=True)
+                path.rmdir()
+        except OSError as exc:
+            _log.debug("disk cache unlink %s failed: %s", path, exc)
+
+
+def compile_cache_stats() -> dict[str, Any]:
+    """Return in-process cache sizes and prewarm / disk flags (diagnostics)."""
+    return {
+        "source_entries": len(_COMPILE_CACHE),
+        "source_max": _COMPILE_CACHE_MAX,
+        "ir_entries": len(_IR_CACHE),
+        "ir_max": _IR_CACHE_MAX,
+        "builtins_warmed": _BUILTINS_WARMED,
+        "disk_cache_enabled": _disk_cache_enabled(),
+        "disk_cache_dir": str(_disk_cache_dir()) if _disk_cache_enabled() else None,
+        "has_numba": _HAS_NUMBA,
+    }
+
+
+def _disk_cache_enabled() -> bool:
+    """Opt-out disk module cache: ``PYNE_COMPILE_DISK_CACHE=0|false|no|off``."""
+    v = os.environ.get("PYNE_COMPILE_DISK_CACHE", "1").strip().lower()
+    return v not in {"0", "false", "no", "off", ""}
+
+
+def _disk_cache_dir() -> Path:
+    """Resolve disk cache root (env override → XDG → ~/.cache)."""
+    env = os.environ.get("PYNE_COMPILE_CACHE_DIR", "").strip()
+    if env:
+        return Path(env).expanduser()
+    xdg = os.environ.get("XDG_CACHE_HOME", "").strip()
+    if xdg:
+        return Path(xdg).expanduser() / "pynescript" / "compile"
+    return Path.home() / ".cache" / "pynescript" / "compile"
+
+
+def _sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def _warm_common_numba_builtins() -> None:
     """JIT-compile the hottest shared kernels once per process.
 
     Generated ``execute_script_compiled`` still JITs per IR, but first-touch
-    cost of ``numba_sma_inc`` / ``numba_ema_inc`` / … is paid only once when
-    many distinct scripts share the same builtins.
+    cost of common ``*_inc`` kernels is paid only once when many distinct
+    scripts share the same builtins.
     """
     global _BUILTINS_WARMED
     if _BUILTINS_WARMED or not _HAS_NUMBA:
@@ -127,6 +248,8 @@ def _warm_common_numba_builtins() -> None:
         from pynescript.compiler import numba_builtins as nb
 
         a = np.arange(32, dtype=np.float64)
+        h = a + 1.0
+        l = a - 1.0
         st2 = np.full(2, np.nan)
         st3 = np.full(3, np.nan)
         st4 = np.full(4, np.nan)
@@ -135,34 +258,67 @@ def _warm_common_numba_builtins() -> None:
         raw2 = np.full(32, np.nan)
         for i in range(32):
             nb.numba_sma_inc(a, 5, i, st2)
-            nb.numba_ema_inc(a, 5, i, st2)
-            nb.numba_rsi_inc(a, 5, i, st3)
-            nb.numba_stdev_inc(a, 5, i, st3)
-            nb.numba_sum_inc(a, 5, i, st2)
-            nb.numba_wma_inc(a, 5, i, st3)
+            nb.numba_ema_inc(a, 5, i, st2.copy())
+            nb.numba_rma_inc(a, 5, i, st2.copy())
+            nb.numba_rsi_inc(a, 5, i, st3.copy())
+            nb.numba_stdev_inc(a, 5, i, st3.copy())
+            nb.numba_sum_inc(a, 5, i, st2.copy())
+            nb.numba_wma_inc(a, 5, i, st3.copy())
+            nb.numba_highest_inc(a, 5, i, st2.copy())
+            nb.numba_lowest_inc(a, 5, i, st2.copy())
+            nb.numba_atr_inc(h, l, a, 5, i, st2.copy())
+            nb.numba_bb_inc(a, 5, 2.0, i, st3.copy())
+            nb.numba_macd_inc(a, 3, 5, 2, i, st4.copy())
             nb.numba_swma(a, i)
-            nb.numba_dema_inc(a, 5, i, st3, raw)
-            nb.numba_tema_inc(a, 5, i, st4, raw, raw2)
-            nb.numba_hma_inc(a, 9, i, st7, raw)
+            nb.numba_dema_inc(a, 5, i, st3.copy(), raw)
+            nb.numba_tema_inc(a, 5, i, st4.copy(), raw, raw2)
+            nb.numba_hma_inc(a, 9, i, st7.copy(), raw)
             nb.numba_change(a, 1, i)
             nb.numba_nz(float(i), 0.0)
-    except Exception:
+            nb.numba_crossover(a, l, i)
+            nb.numba_crossunder(a, h, i)
+    except Exception as exc:
         # Warm-up is best-effort; real compile path surfaces real errors.
-        pass
+        # Do not leave _BUILTINS_WARMED False forever on transient failure —
+        # avoid thrashing; next compile still warms via generated entry.
+        _log.debug("numba builtin prewarm failed (best-effort): %s", exc, exc_info=True)
+
+
+def prewarm_numba_builtins(*, force: bool = False) -> bool:
+    """Public cold-start hook: JIT shared kernels before the first script.
+
+    Parameters
+    ----------
+    force:
+        When true, re-run warm-up even if already completed this process.
+
+    Returns
+    -------
+    bool
+        ``True`` if Numba is available (warm-up attempted or already done),
+        ``False`` if Numba is missing.
+    """
+    global _BUILTINS_WARMED
+    if not _HAS_NUMBA:
+        return False
+    if force:
+        _BUILTINS_WARMED = False
+    _warm_common_numba_builtins()
+    return True
 
 
 def transpile(source: str) -> str:
     """Parse Pine source and return generated Python/Numba source string.
 
     Does **not** sanitize, exec, JIT, or cache. Useful for debugging the emitter.
-    Empty visitor output raises ``RuntimeError``.
+    Empty visitor output raises :class:`CompileEmitError`.
     """
     tree = parse(source, mode="exec")
     visitor = CompilerVisitor()
     code = visitor.visit(tree)
     if not isinstance(code, str) or not code.strip():
         msg = "CompilerVisitor produced empty code"
-        raise RuntimeError(msg)
+        raise CompileEmitError(msg)
     return code
 
 
@@ -191,6 +347,10 @@ class CompiledScript:
     object_mode:
         ``True`` when the emit path (or nopython fallback) used the pure-Python
         bar loop. Controls packing only indirectly — the callable already matches.
+    nopython_fallback_reason:
+        When numeric warm-up failed with a Numba typing/nopython error and the
+        engine re-emitted object mode, a short human-readable cause. ``None``
+        when numeric mode succeeded or object mode was selected by the visitor.
     """
 
     source: str
@@ -198,6 +358,7 @@ class CompiledScript:
     execute: Callable[..., Any]
     plot_titles: list[str] = field(default_factory=list)
     object_mode: bool = False
+    nopython_fallback_reason: str | None = None
 
     def run(
         self,
@@ -296,6 +457,16 @@ def _is_numba_nopython_failure(exc: BaseException) -> bool:
     name = type(exc).__name__
     if name in ("TypingError", "NumbaError", "NumbaTypeError", "LoweringError"):
         return True
+    # Importable numba exception types (when installed)
+    if _HAS_NUMBA:
+        try:
+            from numba.core.errors import NumbaError as _NumbaError
+            from numba.core.errors import TypingError as _TypingError
+
+            if isinstance(exc, (_TypingError, _NumbaError)):
+                return True
+        except Exception:
+            pass
     msg = str(exc)
     markers = (
         "Failed in nopython mode",
@@ -306,8 +477,21 @@ def _is_numba_nopython_failure(exc: BaseException) -> bool:
         "isnan(unicode_type)",
         "unicode_type",
         "array(pyobject",
+        "Unknown attribute",
+        "Invalid use of",
     )
     return any(m in msg for m in markers)
+
+
+def _format_fallback_reason(exc: BaseException) -> str:
+    """Short, user-facing reason for nopython → object-mode recovery."""
+    name = type(exc).__name__
+    msg = str(exc).strip().replace("\n", " ")
+    if len(msg) > 240:
+        msg = msg[:237] + "..."
+    if msg:
+        return f"nopython JIT failed ({name}): {msg}"
+    return f"nopython JIT failed ({name})"
 
 
 def _transpile_once(
@@ -316,15 +500,170 @@ def _transpile_once(
     force_object_mode: bool = False,
 ) -> tuple[str, list[str], bool]:
     """Parse + emit. Returns ``(generated_code, plot_titles, object_mode)``."""
-    tree = parse(source, mode="exec")
+    try:
+        tree = parse(source, mode="exec")
+    except Exception as exc:
+        # Surface parse failures as CompileError so auto-mode reasons stay typed.
+        raise CompileEmitError(f"parse failed: {exc}") from exc
     visitor = CompilerVisitor(force_object_mode=force_object_mode)
     code = visitor.visit(tree)
     if not isinstance(code, str) or not code.strip():
         msg = "CompilerVisitor produced empty code"
-        raise RuntimeError(msg)
+        raise CompileEmitError(msg)
     object_mode = bool(visitor.object_mode) or force_object_mode
     titles = [p.get("title", f"Plot {i}") for i, p in enumerate(visitor.plots)]
     return code, titles, object_mode
+
+
+def _code_for_disk(code: str, *, object_mode: bool) -> str:
+    """Rewrite njit decorator so Numba can cache machine code from a real file."""
+    if object_mode or _NJIT_CACHE_FALSE not in code:
+        return code
+    return code.replace(_NJIT_CACHE_FALSE, _NJIT_CACHE_TRUE)
+
+
+def _write_text_atomic(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        os.replace(tmp_name, path)
+    except Exception:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
+
+
+def _disk_ir_path(ir_key: str) -> Path:
+    return _disk_cache_dir() / f"ir_{ir_key[:40]}.py"
+
+
+def _disk_src_meta_path(source_key: str) -> Path:
+    return _disk_cache_dir() / f"src_{source_key[:40]}.json"
+
+
+def _disk_write_artifacts(
+    *,
+    source_key: str,
+    ir_key: str,
+    code: str,
+    titles: list[str],
+    object_mode: bool,
+    nopython_fallback_reason: str | None,
+) -> None:
+    if not _disk_cache_enabled():
+        return
+    try:
+        disk_code = _code_for_disk(code, object_mode=object_mode)
+        _write_text_atomic(_disk_ir_path(ir_key), disk_code)
+        meta = {
+            "v": _DISK_META_VERSION,
+            "ir_key": ir_key,
+            "titles": list(titles),
+            "object_mode": bool(object_mode),
+            "nopython_fallback_reason": nopython_fallback_reason,
+        }
+        _write_text_atomic(_disk_src_meta_path(source_key), json.dumps(meta, separators=(",", ":")))
+    except OSError as exc:
+        _log.debug("disk compile cache write failed: %s", exc)
+
+
+def _import_disk_module(ir_key: str, code: str, *, object_mode: bool) -> Callable[..., Any] | None:
+    """Load ``execute_script_compiled`` from a disk module (enables Numba file cache)."""
+    if not _disk_cache_enabled():
+        return None
+    try:
+        path = _disk_ir_path(ir_key)
+        disk_code = _code_for_disk(code, object_mode=object_mode)
+        if not path.is_file() or path.read_text(encoding="utf-8") != disk_code:
+            _write_text_atomic(path, disk_code)
+        mod_name = f"pynescript_compiled_{ir_key[:24]}"
+        # Drop stale module so re-compile after IR change reloads.
+        if mod_name in sys.modules:
+            del sys.modules[mod_name]
+        spec = importlib.util.spec_from_file_location(mod_name, path)
+        if spec is None or spec.loader is None:
+            return None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[mod_name] = module
+        spec.loader.exec_module(module)
+        fn = getattr(module, "execute_script_compiled", None)
+        if fn is None or not callable(fn):
+            return None
+        return fn
+    except Exception as exc:
+        _log.debug("disk module import failed for %s: %s", ir_key[:12], exc, exc_info=True)
+        return None
+
+
+def _read_disk_src_meta(source_key: str) -> dict[str, Any] | None:
+    """Load source→IR disk index JSON, or None if missing/invalid."""
+    if not _disk_cache_enabled():
+        return None
+    meta_path = _disk_src_meta_path(source_key)
+    if not meta_path.is_file():
+        return None
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        if int(meta.get("v", 0)) != _DISK_META_VERSION:
+            return None
+        if not meta.get("ir_key"):
+            return None
+        return meta
+    except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+        _log.debug("disk src meta read failed: %s", exc)
+        return None
+
+
+def _try_load_disk_compiled(source: str, source_key: str) -> CompiledScript | None:
+    """Rehydrate CompiledScript from disk source index + IR module (no re-parse)."""
+    meta = _read_disk_src_meta(source_key)
+    if meta is None:
+        return None
+    try:
+        ir_key = str(meta["ir_key"])
+        titles = list(meta.get("titles") or [])
+        object_mode = bool(meta.get("object_mode"))
+        reason = meta.get("nopython_fallback_reason")
+        if reason is not None:
+            reason = str(reason)
+        ir_path = _disk_ir_path(ir_key)
+        if not ir_path.is_file():
+            return None
+        code_disk = ir_path.read_text(encoding="utf-8")
+        # Normalize to in-memory IR form (cache=False) for stable ir_key sharing.
+        gen = code_disk.replace(_NJIT_CACHE_TRUE, _NJIT_CACHE_FALSE)
+        # Prefer import path for Numba file-cache; fall back to exec.
+        fn = _import_disk_module(ir_key, gen, object_mode=object_mode)
+        if fn is None:
+            if not object_mode and not _HAS_NUMBA:
+                raise CompileNumbaRequiredError(
+                    "numba is required for numeric compile mode (pip install numba)"
+                )
+            if not object_mode:
+                _warm_common_numba_builtins()
+            namespace: dict[str, Any] = {"__name__": "pynescript_compiled"}
+            # Disk file may have cache=True — fine for exec if Numba accepts it.
+            exec(code_disk, namespace)  # noqa: S102
+            fn = namespace.get("execute_script_compiled")
+            if fn is None or not callable(fn):
+                return None
+        return CompiledScript(
+            source=source,
+            generated_code=gen,
+            execute=fn,
+            plot_titles=titles,
+            object_mode=object_mode,
+            nopython_fallback_reason=reason,
+        )
+    except CompileError:
+        raise
+    except Exception as exc:
+        _log.debug("disk compiled load failed: %s", exc, exc_info=True)
+        return None
 
 
 def _exec_generated(
@@ -332,21 +671,32 @@ def _exec_generated(
     code: str,
     titles: list[str],
     object_mode: bool,
+    *,
+    ir_key: str | None = None,
+    nopython_fallback_reason: str | None = None,
 ) -> CompiledScript:
     """Exec generated module text and bind ``execute_script_compiled``."""
     if not object_mode and not _HAS_NUMBA:
         msg = "numba is required for numeric compile mode (pip install numba)"
-        raise RuntimeError(msg)
+        raise CompileNumbaRequiredError(msg)
 
     if not object_mode:
         _warm_common_numba_builtins()
 
-    namespace: dict[str, Any] = {"__name__": "pynescript_compiled"}
-    exec(code, namespace)  # noqa: S102 — intentional compile pipeline
-    fn = namespace.get("execute_script_compiled")
-    if fn is None or not callable(fn):
-        msg = "generated code missing execute_script_compiled()"
-        raise RuntimeError(msg)
+    fn: Callable[..., Any] | None = None
+    if ir_key is not None:
+        fn = _import_disk_module(ir_key, code, object_mode=object_mode)
+
+    if fn is None:
+        namespace: dict[str, Any] = {"__name__": "pynescript_compiled"}
+        try:
+            exec(code, namespace)  # noqa: S102 — intentional compile pipeline
+        except Exception as exc:
+            raise CompileLoadError(f"exec generated module failed: {exc}") from exc
+        fn = namespace.get("execute_script_compiled")
+        if fn is None or not callable(fn):
+            msg = "generated code missing execute_script_compiled()"
+            raise CompileLoadError(msg)
 
     return CompiledScript(
         source=source,
@@ -354,6 +704,7 @@ def _exec_generated(
         execute=fn,
         plot_titles=titles,
         object_mode=object_mode,
+        nopython_fallback_reason=nopython_fallback_reason,
     )
 
 
@@ -370,7 +721,8 @@ def _compile_once(
     code, titles, object_mode = _transpile_once(
         source, force_object_mode=force_object_mode
     )
-    return _exec_generated(source, code, titles, object_mode)
+    ir_key = _sha256_text(code)
+    return _exec_generated(source, code, titles, object_mode, ir_key=ir_key)
 
 
 def _cache_put(cache: OrderedDict[str, Any], key: str, value: Any, maxsize: int) -> None:
@@ -391,7 +743,85 @@ def _share_compiled(source: str, base: CompiledScript) -> CompiledScript:
         execute=base.execute,
         plot_titles=list(base.plot_titles),
         object_mode=base.object_mode,
+        nopython_fallback_reason=base.nopython_fallback_reason,
     )
+
+
+def _sanitize_source(source: str) -> str:
+    """Best-effort corpus sanitize; keep raw source if sanitize fails."""
+    try:
+        from pynescript.util.corpus_sanitize import sanitize_corpus_source
+
+        return sanitize_corpus_source(source)
+    except Exception as exc:
+        _log.debug("sanitize_corpus_source failed (using raw): %s", exc)
+        return source
+
+
+def _memory_cache_get(key: str) -> CompiledScript | None:
+    if key not in _COMPILE_CACHE:
+        return None
+    _COMPILE_CACHE.move_to_end(key)
+    return _COMPILE_CACHE[key]
+
+
+def _memory_cache_store(keys: list[str], compiled: CompiledScript) -> None:
+    for key in keys:
+        _cache_put(_COMPILE_CACHE, key, compiled, _COMPILE_CACHE_MAX)
+
+
+def _warm_numeric_or_fallback(
+    source: str,
+    compiled: CompiledScript,
+    *,
+    ir_key: str,
+) -> tuple[CompiledScript, str]:
+    """Warm njit entry; on nopython failure re-emit object mode.
+
+    Returns ``(compiled, ir_key)`` — *ir_key* may change after object re-emit.
+    Never returns a known-broken nopython dispatcher: either warm succeeds,
+    object-mode recovery succeeds, or a :class:`CompileError` is raised.
+    """
+    if compiled.object_mode:
+        return compiled, ir_key
+
+    dummy = np.arange(16, dtype=np.float64)
+    try:
+        compiled.execute(dummy, dummy, dummy, dummy, dummy)
+        return compiled, ir_key
+    except Exception as exc:
+        if not _is_numba_nopython_failure(exc):
+            # Defer non-typing failures to first real run (dummy OHLCV may be
+            # unrepresentative). Do not invent results.
+            _log.debug(
+                "numeric warm-up non-nopython error (deferred to run): %s",
+                exc,
+                exc_info=True,
+            )
+            return compiled, ir_key
+
+        reason = _format_fallback_reason(exc)
+        _log.info("compile nopython → object mode: %s", reason)
+        # Structural recovery: re-emit pure-Python object bar loop.
+        try:
+            code_o, titles_o, _ = _transpile_once(source, force_object_mode=True)
+            ir_key_o = _sha256_text(code_o)
+            recovered = _exec_generated(
+                source,
+                code_o,
+                titles_o,
+                True,
+                ir_key=ir_key_o,
+                nopython_fallback_reason=reason,
+            )
+        except CompileError:
+            raise
+        except Exception as rec_exc:
+            raise CompileLoadError(
+                f"nopython failed and object-mode recovery failed: {rec_exc} "
+                f"(original: {reason})"
+            ) from rec_exc
+        return recovered, ir_key_o
 
 
 def compile_script(source: str, *, use_cache: bool = True) -> CompiledScript:
@@ -401,56 +831,116 @@ def compile_script(source: str, *, use_cache: bool = True) -> CompiledScript:
     uses a pure-Python numpy bar loop (still much faster than AST walking).
 
     If nopython JIT warm-up fails (pyobject arrays, unicode ops, …), re-emits
-    the same script in object mode so ``mode=compile`` still runs.
+    the same script in object mode so ``mode=compile`` still runs, and sets
+    :attr:`CompiledScript.nopython_fallback_reason`.
 
     Results are cached by source hash (max 128, LRU) so repeated
     ``Runtime.run(..., mode="compile")`` of the same script skips re-transpile
-    and re-JIT warm-up. A secondary IR cache (max 64) reuses an already-warm
+    and re-JIT warm-up. Raw source is probed **before** sanitize so warm hits
+    skip sanitizer cost. A secondary IR cache (max 64) reuses an already-warm
     ``execute`` when two sources emit identical generated code (e.g. comment
-    diffs), avoiding a second cold njit of the same entry.
+    diffs). Optional disk cache (see module docstring) reuses modules / Numba
+    file cache across process restarts.
 
-    Scraped corpus sources are sanitized first (same as parse/runtime interpret)
-    so docs chrome / Expand stubs do not fail compile-only paths.
+    Scraped corpus sources are sanitized on cache miss (same as parse/runtime
+    interpret) so docs chrome / Expand stubs do not fail compile-only paths.
     """
-    try:
-        from pynescript.util.corpus_sanitize import sanitize_corpus_source
+    raw_source = source
+    raw_key = _sha256_text(raw_source)
 
-        source = sanitize_corpus_source(source)
-    except Exception:
-        pass
-    cache_key = hashlib.sha256(source.encode("utf-8")).hexdigest()
-    if use_cache and cache_key in _COMPILE_CACHE:
-        _COMPILE_CACHE.move_to_end(cache_key)
-        return _COMPILE_CACHE[cache_key]
+    if use_cache:
+        hit = _memory_cache_get(raw_key)
+        if hit is not None:
+            return hit
+
+    source = _sanitize_source(raw_source)
+    san_key = _sha256_text(source)
+    cache_keys = [raw_key] if raw_key == san_key else [raw_key, san_key]
+
+    if use_cache and san_key != raw_key:
+        hit = _memory_cache_get(san_key)
+        if hit is not None:
+            # Alias raw → sanitized entry so next warm hit skips sanitize.
+            _memory_cache_store([raw_key], hit)
+            return hit
+
+    # Disk source index (cross-process; still warms njit if Numba cache cold).
+    # Prefer in-process IR share when the on-disk meta points at an IR we already
+    # warmed — avoids a second CPUDispatcher for comment-only source variants.
+    if use_cache:
+        disk_meta = _read_disk_src_meta(san_key)
+        if disk_meta is not None:
+            ir_key_meta = str(disk_meta.get("ir_key") or "")
+            if ir_key_meta and ir_key_meta in _IR_CACHE:
+                compiled = _share_compiled(source, _IR_CACHE[ir_key_meta])
+                _memory_cache_store(cache_keys, compiled)
+                _IR_CACHE.move_to_end(ir_key_meta)
+                # Ensure this source hash has a disk index entry too.
+                _disk_write_artifacts(
+                    source_key=san_key,
+                    ir_key=ir_key_meta,
+                    code=compiled.generated_code,
+                    titles=compiled.plot_titles,
+                    object_mode=compiled.object_mode,
+                    nopython_fallback_reason=compiled.nopython_fallback_reason,
+                )
+                return compiled
+
+        disk_hit = _try_load_disk_compiled(source, san_key)
+        if disk_hit is not None:
+            ir_key_d = _sha256_text(disk_hit.generated_code)
+            # Another source may have already warmed this IR while we loaded
+            # from disk (race-free in single-thread; still cheap to re-check).
+            if ir_key_d in _IR_CACHE:
+                disk_hit = _share_compiled(source, _IR_CACHE[ir_key_d])
+            elif not disk_hit.object_mode:
+                disk_hit, ir_key_d = _warm_numeric_or_fallback(
+                    source, disk_hit, ir_key=ir_key_d
+                )
+            _memory_cache_store(cache_keys, disk_hit)
+            _cache_put(_IR_CACHE, ir_key_d, disk_hit, _IR_CACHE_MAX)
+            _disk_write_artifacts(
+                source_key=san_key,
+                ir_key=ir_key_d,
+                code=disk_hit.generated_code,
+                titles=disk_hit.plot_titles,
+                object_mode=disk_hit.object_mode,
+                nopython_fallback_reason=disk_hit.nopython_fallback_reason,
+            )
+            return disk_hit
 
     code, titles, object_mode = _transpile_once(source, force_object_mode=False)
-    ir_key = hashlib.sha256(code.encode("utf-8")).hexdigest()
+    ir_key = _sha256_text(code)
 
     # Same generated IR as a prior script → reuse warm njit callable.
     if use_cache and ir_key in _IR_CACHE:
         compiled = _share_compiled(source, _IR_CACHE[ir_key])
-        _cache_put(_COMPILE_CACHE, cache_key, compiled, _COMPILE_CACHE_MAX)
+        _memory_cache_store(cache_keys, compiled)
         _IR_CACHE.move_to_end(ir_key)
+        _disk_write_artifacts(
+            source_key=san_key,
+            ir_key=ir_key,
+            code=compiled.generated_code,
+            titles=compiled.plot_titles,
+            object_mode=compiled.object_mode,
+            nopython_fallback_reason=compiled.nopython_fallback_reason,
+        )
         return compiled
 
-    compiled = _exec_generated(source, code, titles, object_mode)
-
-    # Warm-up JIT only for numeric mode (object mode is pure Python).
-    if not compiled.object_mode:
-        dummy = np.arange(16, dtype=np.float64)
-        try:
-            compiled.execute(dummy, dummy, dummy, dummy, dummy)
-        except Exception as exc:
-            if _is_numba_nopython_failure(exc):
-                # Structural recovery: re-emit pure-Python object bar loop.
-                code_o, titles_o, _ = _transpile_once(source, force_object_mode=True)
-                compiled = _exec_generated(source, code_o, titles_o, True)
-                ir_key = hashlib.sha256(code_o.encode("utf-8")).hexdigest()
-            # else: leave as-is; first real run will surface the error
+    compiled = _exec_generated(source, code, titles, object_mode, ir_key=ir_key)
+    compiled, ir_key = _warm_numeric_or_fallback(source, compiled, ir_key=ir_key)
 
     if use_cache:
-        _cache_put(_COMPILE_CACHE, cache_key, compiled, _COMPILE_CACHE_MAX)
+        _memory_cache_store(cache_keys, compiled)
         _cache_put(_IR_CACHE, ir_key, compiled, _IR_CACHE_MAX)
+        _disk_write_artifacts(
+            source_key=san_key,
+            ir_key=ir_key,
+            code=compiled.generated_code,
+            titles=compiled.plot_titles,
+            object_mode=compiled.object_mode,
+            nopython_fallback_reason=compiled.nopython_fallback_reason,
+        )
     return compiled
 
 

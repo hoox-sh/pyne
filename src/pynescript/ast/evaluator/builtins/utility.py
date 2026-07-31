@@ -85,7 +85,7 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
             decls = []
             try:
                 self._max_bars_back_decls = decls  # type: ignore[attr-defined]
-            except Exception:
+            except Exception:  # noqa: BLE001 — setattr on frozen/partial mocks
                 return
         decls.append({"var": var, "num": num})
 

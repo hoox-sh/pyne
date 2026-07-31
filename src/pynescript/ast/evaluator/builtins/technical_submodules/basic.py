@@ -158,21 +158,31 @@ class BasicIndicators(TechnicalHelpers):
         return last
 
     def _builtin_ta_crossover(self, args: list[Any]) -> bool:
-        """Crossover check (works with full series or bar-mode scalars)."""
+        """Crossover check (works with full series or bar-mode last-sample)."""
+        if self._use_incremental_ta():
+            # Skip PineSeries reverse; stateful prev pair ≡ list[-2]/[-1]
+            series1, series2 = self._expect_two_series(args, last_sample_ok=True)
+            return self._cross_stateful(series1, series2, under=False)
         series1, series2 = self._expect_two_series(args)
         if len(series1) >= 2 and len(series2) >= 2:
             return self._crossover(series1, series2)
         return self._cross_stateful(series1, series2, under=False)
 
     def _builtin_ta_crossunder(self, args: list[Any]) -> bool:
-        """Crossunder check (works with full series or bar-mode scalars)."""
+        """Crossunder check (works with full series or bar-mode last-sample)."""
+        if self._use_incremental_ta():
+            series1, series2 = self._expect_two_series(args, last_sample_ok=True)
+            return self._cross_stateful(series1, series2, under=True)
         series1, series2 = self._expect_two_series(args)
         if len(series1) >= 2 and len(series2) >= 2:
             return self._crossunder(series1, series2)
         return self._cross_stateful(series1, series2, under=True)
 
     def _builtin_ta_cross(self, args: list[Any]) -> bool:
-        """Cross check."""
+        """Cross check (either direction)."""
+        if self._use_incremental_ta():
+            series1, series2 = self._expect_two_series(args, last_sample_ok=True)
+            return self._cross_stateful(series1, series2, under=False, either=True)
         series1, series2 = self._expect_two_series(args)
         return self._cross(series1, series2)
 
@@ -181,12 +191,18 @@ class BasicIndicators(TechnicalHelpers):
         series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if self._use_incremental_ta():
             return self._falling_inc_update(series, period)
+        # Bar-mode locals are last-sample scalars (len 1) — full `_falling` needs
+        # ``period`` samples; use call-site window (same as inc path).
+        if self._bar_mode() and len(series) < period:
+            return self._falling_inc_update(series, period)
         return self._falling(series, period)
 
     def _builtin_ta_rising(self, args: list[Any]) -> bool:
         """Rising check."""
         series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if self._use_incremental_ta():
+            return self._rising_inc_update(series, period)
+        if self._bar_mode() and len(series) < period:
             return self._rising_inc_update(series, period)
         return self._rising(series, period)
 
@@ -234,6 +250,9 @@ class BasicIndicators(TechnicalHelpers):
         series, period = self._expect_series(
             args, length=BINARY, default_source="high", allow_period_only=True
         )
+        # Derived locals may be last-sample only; keep call-site window in bar mode.
+        if self._bar_mode() and len(series) < period:
+            return self._highestbars_inc_update(series, period)
         return self._highestbars(series, period)
 
     def _builtin_ta_lowestbars(self, args: list[Any]) -> int:
@@ -254,6 +273,8 @@ class BasicIndicators(TechnicalHelpers):
         series, period = self._expect_series(
             args, length=BINARY, default_source="low", allow_period_only=True
         )
+        if self._bar_mode() and len(series) < period:
+            return self._lowestbars_inc_update(series, period)
         return self._lowestbars(series, period)
 
     def _builtin_ta_change(self, args: list[Any]) -> float | None:
@@ -325,20 +346,30 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_sar(self, args: list[Any]) -> Any:
         """Parabolic SAR. TV: ``ta.sar(start, inc, max)`` using high/low context."""
         if len(args) == TERNARY and all(isinstance(a, (int, float)) and not isinstance(a, bool) for a in args):
-            highs = self._context_series("high")
-            lows = self._context_series("low")
             start = float(args[0])
             increment = float(args[1])
             maximum = float(args[2])
+            if self._use_incremental_ta():
+                return self._sar_inc_update(
+                    self._context_source("high"),
+                    self._context_source("low"),
+                    start,
+                    increment,
+                    maximum,
+                )
+            highs = self._context_series("high")
+            lows = self._context_series("low")
             return self._finalize_series(self._sar(highs, lows, start, increment, maximum))
         msg = "ta.sar expects start, increment, max (or high, low, start, increment, max)"
         if len(args) != QUINARY:
             self._error(msg)
-        highs = self._expect_list(args[0], msg)
-        lows = self._expect_list(args[1], msg)
         start = self._expect_number(args[2], msg)
         increment = self._expect_number(args[3], msg)
         maximum = self._expect_number(args[4], msg)
+        if self._use_incremental_ta():
+            return self._sar_inc_update(args[0], args[1], start, increment, maximum)
+        highs = self._expect_list(args[0], msg)
+        lows = self._expect_list(args[1], msg)
         return self._finalize_series(self._sar(highs, lows, start, increment, maximum))
 
     def _builtin_ta_bb(
@@ -401,8 +432,9 @@ class BasicIndicators(TechnicalHelpers):
         TV: ``ta.kc(series, length, mult)``; legacy ``(high, low, close, length)``.
         """
         mult = 1.0
+        use_inc = self._use_incremental_ta()
         if len(args) == TERNARY and self._is_period_like(args[1]):
-            closes = self._as_series(args[0])
+            closes = self._as_series_or_raw(args[0], last_sample_ok=True)
             length = self._expect_int(args[1], "ta.kc length must be integer")
             m = args[2]
             current = getattr(m, "current", None)
@@ -410,21 +442,33 @@ class BasicIndicators(TechnicalHelpers):
                 m = current
             if isinstance(m, (int, float)) and not isinstance(m, bool):
                 mult = float(m)
-            highs = self._context_series("high") or closes
-            lows = self._context_series("low") or closes
+            if use_inc:
+                highs = self._context_source("high") or closes
+                lows = self._context_source("low") or closes
+            else:
+                closes = self._as_series(args[0]) if not isinstance(closes, list) else closes
+                highs = self._context_series("high") or closes
+                lows = self._context_series("low") or closes
         elif len(args) >= QUATERNARY:
-            highs = self._expect_list(args[0], "ta.kc takes high, low, close series, length")
-            lows = self._expect_list(args[1], "ta.kc takes high, low, close series, length")
-            closes = self._expect_list(args[2], "ta.kc takes high, low, close series, length")
             length = self._expect_int(args[3], "ta.kc length must be integer")
             if len(args) > QUATERNARY and isinstance(args[4], (int, float)):
                 mult = float(args[4])
+            if use_inc:
+                highs, lows, closes = args[0], args[1], args[2]
+            else:
+                highs = self._expect_list(args[0], "ta.kc takes high, low, close series, length")
+                lows = self._expect_list(args[1], "ta.kc takes high, low, close series, length")
+                closes = self._expect_list(args[2], "ta.kc takes high, low, close series, length")
         else:
             self._error("ta.kc takes (series, length, mult) or (high, low, close, length)")
             return math.nan, math.nan, math.nan
 
         if length < 1:
             self._error("ta.kc length must be positive")
+
+        if use_inc:
+            return self._kc_inc_update(highs, lows, closes, length, mult)
+
         n = min(len(highs), len(lows), len(closes)) if highs and lows and closes else 0
         if n == 0:
             return math.nan, math.nan, math.nan
@@ -444,9 +488,14 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_kcw(self, args: list[Any]) -> float:
         """Keltner Channels Width."""
         _, upper, lower = self._builtin_ta_kc(args)
-        if math.isnan(upper) or math.isnan(lower):
+        if isinstance(upper, float) and math.isnan(upper):
             return math.nan
-        return upper - lower
+        if isinstance(lower, float) and math.isnan(lower):
+            return math.nan
+        try:
+            return float(upper) - float(lower)
+        except (TypeError, ValueError):
+            return math.nan
 
     def _builtin_ta_dmi(self, args: list[Any]) -> tuple[float, float, float]:
         """Directional Movement Index.
@@ -809,13 +858,16 @@ class BasicIndicators(TechnicalHelpers):
         """ta.percentile_linear_interpolation(source, length, percentage)."""
         if len(args) < 3:
             self._error("ta.percentile_linear_interpolation requires series, length, percentage")
-        series = self._as_series(args[0]) if hasattr(self, "_as_series") else (
-            args[0] if isinstance(args[0], list) else [args[0]]
-        )
         period = self._expect_int(args[1], "length must be int")
         percentage = args[2]
         if not isinstance(percentage, (int, float)):
             self._error("percentage must be number")
+        if self._use_incremental_ta():
+            series = self._as_series_or_raw(args[0], last_sample_ok=True)
+            return self._percentile_linear_inc_update(series, period, float(percentage))
+        series = self._as_series(args[0]) if hasattr(self, "_as_series") else (
+            args[0] if isinstance(args[0], list) else [args[0]]
+        )
         if len(series) < period or period <= 0:
             return None
         window = [v for v in series[-period:] if v is not None]
@@ -835,13 +887,16 @@ class BasicIndicators(TechnicalHelpers):
         """ta.percentile_nearest_rank(source, length, percentage)."""
         if len(args) < 3:
             self._error("ta.percentile_nearest_rank requires series, length, percentage")
-        series = self._as_series(args[0]) if hasattr(self, "_as_series") else (
-            args[0] if isinstance(args[0], list) else [args[0]]
-        )
         period = self._expect_int(args[1], "length must be int")
         percentage = args[2]
         if not isinstance(percentage, (int, float)):
             self._error("percentage must be number")
+        if self._use_incremental_ta():
+            series = self._as_series_or_raw(args[0], last_sample_ok=True)
+            return self._percentile_nearest_rank_inc_update(series, period, float(percentage))
+        series = self._as_series(args[0]) if hasattr(self, "_as_series") else (
+            args[0] if isinstance(args[0], list) else [args[0]]
+        )
         if len(series) < period or period <= 0:
             return None
         window = [v for v in series[-period:] if v is not None]

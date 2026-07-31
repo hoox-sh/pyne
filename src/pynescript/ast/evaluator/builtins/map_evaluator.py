@@ -57,9 +57,17 @@ class MapBuiltinsMixin(BuiltinDispatchMixin):
 
     def _expect_map(self, value: Any, message: str) -> Map[Any, Any]:
         """Validate that value is a Map instance."""
-        if not isinstance(value, Map):
-            self._error(message)
-        return value
+        if isinstance(value, Map):
+            return value
+        if value is None:
+            self._error(f"{message} (got na)")
+        # Plain dict (compile-path / host bridges) — wrap without copy so puts mutate.
+        if isinstance(value, dict):
+            wrapped: Map[Any, Any] = Map()
+            wrapped.data = value
+            return wrapped
+        tname = type(value).__name__
+        self._error(f"{message} (got {tname}, expected map)")
 
     # ========== CORE OPERATIONS ==========
 

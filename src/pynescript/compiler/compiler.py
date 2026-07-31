@@ -625,7 +625,9 @@ class CompilerVisitor(NodeVisitor):
             sid = f"__src{self._expr_src_i}_arr"
         self._expr_src_i += 1
         self.arrays.add(sid)
-        if self.object_mode or self.string_series or self.udt_vars or self.scalar_vars:
+        # Loop counters alone are numeric scalars — do not force object materialize.
+        _obj_scalars = self.scalar_vars - self.loop_counters
+        if self.object_mode or self.string_series or self.udt_vars or _obj_scalars:
             # Coerce non-numeric (list/str handles) via safe_float — avoids
             # ``(list) + 0.0`` TypeError when Pine arrays feed TA sources.
             return f"store_src_py({sid}, {expr}, __bar_idx)"
@@ -663,7 +665,11 @@ class CompilerVisitor(NodeVisitor):
                 self.arrays.add(m)
 
         # String/color/UDT/map series must never enter njit (non-precise pyobject).
-        if self.string_series or self.udt_vars or self.map_vars or self.scalar_vars:
+        # Pure numeric loop counters live in scalar_vars only while the for-body
+        # is visited (and are discarded after); any residual scalar_vars here are
+        # object handles (maps, drawings, string inputs) and force object mode.
+        _obj_scalars = self.scalar_vars - self.loop_counters
+        if self.string_series or self.udt_vars or self.map_vars or _obj_scalars:
             self.object_mode = True
         if self.force_object_mode:
             self.object_mode = True
@@ -751,7 +757,14 @@ class CompilerVisitor(NodeVisitor):
             # Broker ctor kwargs from strategy() declaration when present
             sk = self.strategy_kwargs
             ctor_args = []
-            for key in ("initial_capital", "commission_value", "commission_type", "slippage", "mintick"):
+            for key in (
+                "initial_capital",
+                "commission_value",
+                "commission_type",
+                "slippage",
+                "mintick",
+                "pyramiding",
+            ):
                 if key in sk:
                     py_key = "slippage_ticks" if key == "slippage" else key
                     ctor_args.append(f"{py_key}={sk[key]}")
@@ -1212,6 +1225,16 @@ class CompilerVisitor(NodeVisitor):
                 )
             return f"{arr_n}[__bar_idx] = {val}"
 
+        # Detect map.new *before* bare ``{}`` is classified as a UDT/object handle
+        # (map.new lowers to ``{}`` which would otherwise become m_arr series).
+        if self._is_map_new(node.value):
+            self.object_mode = True
+            self.map_vars.add(name)
+            self.arrays.discard(f"{name}_arr")
+            if is_var:
+                return f"if __bar_idx == 0:\n    {name} = {{}}"
+            return f"{name} = {{}}"
+
         # UDT series / chart.point dict / udt_index handle / UDT ref (p2 = p1)
         # / Type.copy(p1) (shallow dict clone)
         rhs_is_udt_name = (
@@ -1235,14 +1258,6 @@ class CompilerVisitor(NodeVisitor):
                     f"    {name}_arr[__bar_idx] = {name}_arr[__bar_idx - 1]"
                 )
             return f"{name}_arr[__bar_idx] = {val}"
-
-        # Detect map.new assignment
-        if self._is_map_new(node.value):
-            self.object_mode = True
-            self.map_vars.add(name)
-            if is_var:
-                return f"if __bar_idx == 0:\n    {name} = {{}}"
-            return f"{name} = {{}}"
 
         # array.new*/from/copy/slice / matrix.new* / drawing handles → scalar
         if self._is_drawing_new(node.value) or self._looks_like_drawing_handle_expr(val):
@@ -1660,6 +1675,10 @@ class CompilerVisitor(NodeVisitor):
                 "eigenvectors",
             ):
                 return True
+            # map.keys / map.values return array handles (not float series)
+            if f.value.id == "map" and f.attr in ("keys", "values", "copy"):
+                # copy is a map handle; keys/values are arrays — both object
+                return f.attr in ("keys", "values")
             if f.attr in ("sequence_from_series", "sequence_float"):
                 return True
         if isinstance(f, ast.Attribute) and f.attr in (
@@ -1676,12 +1695,19 @@ class CompilerVisitor(NodeVisitor):
             "remove_row",
             "remove_col",
             "remove_column",
+            "keys",
+            "values",
         ):
             # UDT Type.copy / instance.copy yield dict handles, not arrays
             if isinstance(f.value, ast.Name) and (
                 f.value.id in self.udt_types or f.value.id in self.udt_vars
             ):
                 return False
+            # map.copy is a map handle (not a sequence); keys/values are arrays
+            if f.attr == "copy" and isinstance(f.value, ast.Name) and f.value.id == "map":
+                return False
+            if f.attr in ("keys", "values"):
+                return True
             return True
         if isinstance(f, ast.Name) and f.id in (
             "sequence_from_series",
@@ -1692,12 +1718,47 @@ class CompilerVisitor(NodeVisitor):
             "array_normalized",
             "matrix_remove_row",
             "matrix_remove_col",
+            "map_keys",
+            "map_values",
         ):
             return True
         return False
 
+    @staticmethod
+    def _strip_series_index_loads(expr: str) -> str:
+        """Replace ``name_arr[...]`` (balanced brackets) with ``0.0`` for safety scans."""
+        out: list[str] = []
+        i = 0
+        n = len(expr)
+        ident_re = re.compile(r"[A-Za-z_][A-Za-z0-9_]*_arr")
+        while i < n:
+            m = ident_re.match(expr, i)
+            if m and m.end() < n and expr[m.end()] == "[":
+                # Walk balanced [...]
+                j = m.end() + 1
+                depth = 1
+                while j < n and depth:
+                    ch = expr[j]
+                    if ch == "[":
+                        depth += 1
+                    elif ch == "]":
+                        depth -= 1
+                    j += 1
+                if depth == 0:
+                    out.append("0.0")
+                    i = j
+                    continue
+            out.append(expr[i])
+            i += 1
+        return "".join(out)
+
     def _is_safe_numeric_expr(self, val: str) -> bool:
-        """Heuristic: visited expr is safe to store in float64 / use under njit float()."""
+        """Heuristic: visited expr is safe to store in float64 / use under njit float().
+
+        Accepts compound arithmetic of series loads, history ternaries, and
+        ``numba_*`` / ``np.*`` calls so scripts like ``plot(ta.sma(close,a)*b)``
+        and ``for i = 0 to n: s := s + close[i]`` stay on the nopython path.
+        """
         if not isinstance(val, str) or not val:
             return False
         s = val.strip()
@@ -1713,62 +1774,58 @@ class CompilerVisitor(NodeVisitor):
             return True
         except ValueError:
             pass
-        # Simple series element / history access only — not complex exprs that merely
-        # *contain* ``_arr[`` (e.g. UDT field reads nested over ``foo_arr[__bar_idx]``).
-        if s.endswith("[__bar_idx]"):
-            base = s[: -len("[__bar_idx]")]
-            if base.endswith("_arr"):
-                name = base[: -len("_arr")]
-                if name in self.string_series or name in self.udt_vars:
-                    return False
-                if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*_arr", base):
-                    return True
-            # Complex base ending in [__bar_idx] is not a plain numeric series load.
-        elif "_arr[" in s and s.count("[") == 1 and re.match(
-            r"^[A-Za-z_][A-Za-z0-9_]*_arr\[", s
-        ):
-            name = s.split("_arr[", 1)[0]
-            if name in self.string_series or name in self.udt_vars:
+        if s in ("__bar_idx", "n_bars"):
+            return True
+        if s.startswith("float(__bar_idx") or s.startswith("float(n_bars"):
+            return True
+        # Pure numba_/np.* calls (and compounds that only wrap them) are numeric.
+        if s.startswith("numba_") or s.startswith("np."):
+            # Still reject if string/object helpers sneaked in as args.
+            if re.search(r"\b(safe_float|safe_int|nz_py|store_src_py|udt_|str\()\b", s):
+                return False
+            if "'" in s or '"' in s or "{" in s:
                 return False
             return True
-        if s.startswith("numba_") or s.startswith("np."):
-            return True
-        if s in ("__bar_idx", "n_bars") or s.startswith("float(__bar_idx") or s.startswith(
-            "float(n_bars"
-        ):
-            return True
+        # Bare identifiers: only known numeric loop counters / never handles.
         if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", s):
+            if s in self.loop_counters:
+                return True
             if s in self.user_funcs or s in self.scalar_vars or s in self.map_vars:
                 return False
-            if s in self.string_series or s in self.udt_vars:
+            if s in self.string_series or s in self.udt_vars or s in self.string_scalars:
                 return False
             # Unknown bare name might be a function or handle — not safe
             return False
-        if ("'" in s or '"' in s or "{" in s or "[" in s):
+
+        # Object / string helpers force the Python path (not njit-safe).
+        if "'" in s or '"' in s or "{" in s:
             return False
         if re.search(
-            r"\b(str|dict|list|append|__drawings|__type__|safe_float|safe_int)\b", s
+            r"\b(str|dict|list|append|__drawings|__type__|safe_float|safe_int|"
+            r"nz_py|store_src_py|udt_index|udt_set_field|safe_iter|safe_period|"
+            r"safe_len|str_)\b",
+            s,
         ):
             return False
+
+        # Reject string/UDT series buffers anywhere in the expression.
+        for name in self.string_series | self.udt_vars:
+            if re.search(rf"\b{re.escape(name)}_arr\b", s):
+                return False
+
+        # UDF names (call or bare) are not known-numeric.
         for uf in self.user_funcs:
-            if re.search(rf"\b{re.escape(uf)}\b(?!\s*\()", s):
+            if re.search(rf"\b{re.escape(uf)}\b", s):
                 return False
-            # UDF *calls* are not known-numeric (may return string / None / UDT)
-            if re.search(rf"\b{re.escape(uf)}\s*\(", s):
+        for py_name in getattr(self, "func_name_map", {}).values():
+            if py_name and re.search(rf"\b{re.escape(py_name)}\s*\(", s):
                 return False
-        # Any other call that is not numba_/np./safe_* is opaque
-        for m in re.finditer(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(", s):
-            callee = m.group(1)
-            if callee in (
-                "numba_store",
-                "numba_store_src",
-                "store_src_py",
-                "safe_float",
-                "safe_int",
-                "safe_len",
-                "safe_period",
-                "safe_iter",
-                "udt_index",
+
+        # All callees must be numeric-safe under njit.
+        # Match ``np.tanh`` / ``numba_sma_inc`` as a single callee token.
+        # Ternaries look like ``if (`` / ``and (`` — those keywords are not calls.
+        _ALLOWED_CALLEES = frozenset(
+            {
                 "float",
                 "int",
                 "bool",
@@ -1778,14 +1835,76 @@ class CompilerVisitor(NodeVisitor):
                 "sum",
                 "len",
                 "range",
-                "list",
-                "isinstance",
-            ):
+                "numba_store",
+                "numba_store_src",
+            }
+        )
+        _KW_NOT_CALLS = frozenset(
+            {"if", "else", "and", "or", "not", "in", "is", "for", "while", "lambda"}
+        )
+        for m in re.finditer(r"\b((?:np\.)?[A-Za-z_][A-Za-z0-9_]*)\s*\(", s):
+            callee = m.group(1)
+            if callee in _KW_NOT_CALLS or callee in _ALLOWED_CALLEES:
                 continue
-            if callee.startswith("numba_") or callee.startswith("np"):
+            if callee.startswith("numba_") or callee.startswith("np."):
                 continue
             return False
-        if re.fullmatch(r"[\w\s\+\-\*/%\(\)\.\,\<\>\=\!\&\|?:]+", s):
+
+        # Replace known-safe series loads with a numeric placeholder so residual
+        # brackets (if any) fail closed. History uses ``name_arr[expr]`` and the
+        # index may itself contain nested ``other_arr[...]`` (balanced).
+        t2 = self._strip_series_index_loads(s)
+        if "[" in t2 or "]" in t2:
+            return False
+        # ``np.round`` / ``np.nan`` leave a bare attr word after ``np.`` — drop those.
+        t2 = re.sub(r"\bnp\.[A-Za-z_][A-Za-z0-9_]*", "np", t2)
+
+        # Residual bare names must not be object handles.
+        for bare in re.findall(r"\b([A-Za-z_][A-Za-z0-9_]*)\b", t2):
+            if bare in (
+                "np",
+                "nan",
+                "pi",
+                "e",
+                "inf",
+                "True",
+                "False",
+                "None",
+                "if",
+                "else",
+                "and",
+                "or",
+                "not",
+                "in",
+                "is",
+                "float",
+                "int",
+                "bool",
+                "abs",
+                "min",
+                "max",
+                "sum",
+                "len",
+                "range",
+                "__bar_idx",
+                "n_bars",
+            ):
+                continue
+            if bare.startswith("numba_"):
+                continue
+            if bare.endswith("_arr") or bare.endswith("_st"):
+                continue
+            if bare in self.loop_counters:
+                continue
+            if bare in self.user_funcs or bare in self.scalar_vars or bare in self.map_vars:
+                return False
+            if bare in self.string_series or bare in self.udt_vars or bare in self.string_scalars:
+                return False
+            # Unknown free identifier — not proven numeric
+            return False
+
+        # Operators / numbers / allowed calls only
+        if re.fullmatch(r"[\w\s\+\-\*/%\(\)\.\,\<\>\=\!\&\|?:]+", t2):
             return True
         return False
 
@@ -2059,6 +2178,9 @@ class CompilerVisitor(NodeVisitor):
                     "numba_macd(",
                     "numba_macd_inc(",
                     "numba_dmi(",
+                    "numba_dmi_inc(",
+                    "numba_supertrend(",
+                    "numba_supertrend_inc(",
                 )
             )
             # Explicit multi-value stubs like "(0.0, 0.0, 25.0)" only
@@ -2680,8 +2802,13 @@ class CompilerVisitor(NodeVisitor):
                 return "False"
             if node.attr == "is_standard":
                 return "True"
-            if node.attr in ("left_visible_bar_time", "right_visible_bar_time"):
+            # Viewport times: match compile `time` model (bar_index * 60_000 ms).
+            # Interpret Runtime seeds these from first/last bar timestamps; without
+            # a host time array the synthetic series is the consistent default.
+            if node.attr == "left_visible_bar_time":
                 return "0.0"
+            if node.attr == "right_visible_bar_time":
+                return "(float(n_bars - 1) * 60000.0)"
             # Unknown chart.* → na-ish None, not a truthy qualified string
             return "None"
         # hline.style_solid / linestyle constants
@@ -2850,35 +2977,21 @@ class CompilerVisitor(NodeVisitor):
             )
         if func_name == "array_sort":
             # Mutates in place; return id (Pine void / chain-friendly).
-            # UDT dict elements need a key so bare ``.sort()`` does not compare dicts.
-            a = ra(args, kwargs, ("id", "order"), aliases={"sort_field": "order"})
-            # Also accept sort_field as a dedicated kw (array.sort(..., sort_field=…))
-            sort_field = kwargs.get("sort_field")
-            if not a and not sort_field:
+            # Forms: (id), (id, order), (id, order, sort_field), sort_field= kw.
+            a = ra(args, kwargs, ("id", "order", "sort_field"))
+            if not a:
                 return "[]"
-            arr = a[0] if a else "[]"
+            arr = a[0]
             order = a[1] if len(a) > 1 else None
-            reverse = (
-                f"reverse=({order} in ('descending', 'desc', -1, True))"
-                if order is not None
-                else "reverse=False"
-            )
+            sort_field = a[2] if len(a) > 2 else kwargs.get("sort_field")
+            # Prefer helper (na-last + UDT/dict field key) over inline lambda
+            if sort_field is not None and order is not None:
+                return f"array_sort({arr}, {order}, {sort_field})"
             if sort_field is not None:
-                # Field name or index into UDT ordered values
-                return (
-                    f"((lambda __a, __sf: ("
-                    f"__a.sort(key=lambda __e: ("
-                    f"__e.get(__sf, np.nan) if isinstance(__e, dict) and isinstance(__sf, str) "
-                    f"else (list(__e.values())[int(__sf)] if isinstance(__e, dict) "
-                    f"and 0 <= int(safe_int(__sf)) < len(__e) else __e)), "
-                    f"{reverse}), __a)[1])({arr}, {sort_field}))"
-                )
-            return (
-                f"((lambda __a: ("
-                f"__a.sort(key=lambda __e: ("
-                f"next(iter(__e.values()), np.nan) if isinstance(__e, dict) else __e), "
-                f"{reverse}), __a)[1])({arr}))"
-            )
+                return f"array_sort({arr}, 'ascending', {sort_field})"
+            if order is not None:
+                return f"array_sort({arr}, {order})"
+            return f"array_sort({arr})"
         if func_name == "array_reverse":
             a = ra(args, kwargs, ("id",))
             return f"({a[0]}.reverse(), {a[0]})[1]" if a else "[]"
@@ -3214,9 +3327,14 @@ class CompilerVisitor(NodeVisitor):
                 f"len(({a[0]} or [[]])[0]) if {a[0]} else 0))) if {a[0]} else 0.0)"
             )
         if func_name == "array_sort_indices":
-            a = ra(args, kwargs, ("id", "order"))
+            a = ra(args, kwargs, ("id", "order", "sort_field"))
             if not a:
                 return "[]"
+            sort_field = a[2] if len(a) > 2 else kwargs.get("sort_field")
+            if sort_field is not None and len(a) > 1:
+                return f"array_sort_indices({a[0]}, {a[1]}, {sort_field})"
+            if sort_field is not None:
+                return f"array_sort_indices({a[0]}, 'ascending', {sort_field})"
             if len(a) > 1:
                 return f"array_sort_indices({a[0]}, {a[1]})"
             return f"array_sort_indices({a[0]})"
@@ -3225,15 +3343,12 @@ class CompilerVisitor(NodeVisitor):
             if not a:
                 return ""
             val = a[1] if len(a) > 1 else "np.nan"
+            if len(a) >= 4:
+                return f"array_fill({a[0]}, {val}, {a[2]}, {a[3]})"
+            if len(a) == 3:
+                return f"array_fill({a[0]}, {val}, {a[2]})"
             # Dual: matrix (list-of-lists) fills each cell; flat array fills slots
-            return (
-                f"((lambda __a, __v: ("
-                f"[__r.__setitem__(__c, __v) for __r in __a for __c in range(len(__r))] "
-                f"if __a and isinstance(__a, list) and __a and isinstance(__a[0], list) "
-                f"else "
-                f"[__a.__setitem__(__i, __v) for __i in range(len(__a))] "
-                f"if isinstance(__a, list) else None, __a)[1])({a[0]}, {val}))"
-            )
+            return f"array_fill({a[0]}, {val})"
         if func_name == "array_mode":
             a = ra(args, kwargs, ("id",))
             return f"array_mode({a[0]})" if a else "np.nan"
@@ -3301,7 +3416,7 @@ class CompilerVisitor(NodeVisitor):
         if func_name == "array_insert":
             a = ra(args, kwargs, ("id", "index", "value"))
             if len(a) >= 3:
-                return f"{a[0]}.insert(int({a[1]}), {a[2]})"
+                return f"safe_list_insert({a[0]}, {a[1]}, {a[2]})"
             return ""
         if func_name == "array_median":
             a = ra(args, kwargs, ("id",))
@@ -3874,8 +3989,8 @@ class CompilerVisitor(NodeVisitor):
         if func_name == "timeframe_change":
             return "False"
         if func_name == "timestamp":
-            self.object_mode = True
-            return "0"
+            # Stub ms epoch; pure float keeps indicator scripts on nopython path.
+            return "0.0"
 
         if func_name in ("alertcondition", "alert"):
             return ""
@@ -4112,6 +4227,7 @@ class CompilerVisitor(NodeVisitor):
             "change": "ta_change",
             "atr": "ta_atr",
             "dmi": "ta_dmi",
+            "adx": "ta_adx",
             "supertrend": "ta_supertrend",
             "crossover": "ta_crossover",
             "crossunder": "ta_crossunder",
@@ -4229,11 +4345,77 @@ class CompilerVisitor(NodeVisitor):
             length = kwargs.get("length", args[1] if len(args) > 1 else "1")
             return f"numba_change({_arr(args[0])}, {length}, __bar_idx)"
         if func_name == "ta_dmi":
-            # ta.dmi(diLength, adxSmoothing) → (diplus, diminus, adx) stub
-            return "(0.0, 0.0, 25.0)"
+            # ta.dmi(diLength, adxSmoothing) → (+DI, -DI, ADX); legacy 4-arg OHLC
+            st = self._alloc_fixed_state("dmi", 40)
+            if len(args) >= 4 and _is_series_arr(args[0]):
+                di_len = self._emit_period(args[3])
+                return (
+                    f"numba_dmi_inc({_arr(args[0])}, {_arr(args[1])}, {_arr(args[2])}, "
+                    f"{di_len}, {di_len}, __bar_idx, {st})"
+                )
+            if len(args) >= 2:
+                di_len = kwargs.get("diLength", args[0])
+                adx_s = kwargs.get("adxSmoothing", args[1])
+                return (
+                    f"numba_dmi_inc(high_arr, low_arr, close_arr, "
+                    f"{self._emit_period(di_len)}, {self._emit_period(adx_s)}, __bar_idx, {st})"
+                )
+            if len(args) == 1:
+                di_len = self._emit_period(args[0])
+                return (
+                    f"numba_dmi_inc(high_arr, low_arr, close_arr, "
+                    f"{di_len}, {di_len}, __bar_idx, {st})"
+                )
+            return (
+                f"numba_dmi_inc(high_arr, low_arr, close_arr, 14, 14, __bar_idx, {st})"
+            )
+        if func_name == "ta_adx":
+            # ta.adx(length) / ta.adx(diLength, adxSmoothing) / legacy 4-arg
+            st = self._alloc_fixed_state("adx", 22)
+            if len(args) >= 4 and _is_series_arr(args[0]):
+                return (
+                    f"numba_adx_inc({_arr(args[0])}, {_arr(args[1])}, {_arr(args[2])}, "
+                    f"int({args[3]}), __bar_idx, {st})"
+                )
+            if len(args) >= 2 and not _is_series_arr(args[0]):
+                # diLength, adxSmoothing — ADX period is adxSmoothing (interpret)
+                adx_len = kwargs.get("adxSmoothing", args[1])
+                return (
+                    f"numba_adx_inc(high_arr, low_arr, close_arr, "
+                    f"{self._emit_period(adx_len)}, __bar_idx, {st})"
+                )
+            if len(args) == 1:
+                return (
+                    f"numba_adx_inc(high_arr, low_arr, close_arr, "
+                    f"{self._emit_period(args[0])}, __bar_idx, {st})"
+                )
+            length = kwargs.get("length", "14")
+            return (
+                f"numba_adx_inc(high_arr, low_arr, close_arr, "
+                f"{self._emit_period(length)}, __bar_idx, {st})"
+            )
         if func_name == "ta_supertrend":
-            # ta.supertrend(factor, atrPeriod) → (value, direction) stub
-            return "(close_arr[__bar_idx], 1.0)"
+            # ta.supertrend(factor, atrPeriod) → (value, direction); simplified oracle
+            st = self._alloc_fixed_state("st", 2)
+            if len(args) >= 4 and _is_series_arr(args[0]):
+                # legacy (high, low, length, multiplier)
+                factor = args[3]
+                atr_p = args[2]
+                return (
+                    f"numba_supertrend_inc({_arr(args[0])}, {_arr(args[1])}, close_arr, "
+                    f"float({factor}), {self._emit_period(atr_p)}, __bar_idx, {st})"
+                )
+            if len(args) >= 2:
+                factor = kwargs.get("factor", args[0])
+                atr_p = kwargs.get("atrPeriod", args[1])
+                return (
+                    f"numba_supertrend_inc(high_arr, low_arr, close_arr, "
+                    f"float({factor}), {self._emit_period(atr_p)}, __bar_idx, {st})"
+                )
+            return (
+                f"numba_supertrend_inc(high_arr, low_arr, close_arr, "
+                f"3.0, 10, __bar_idx, {st})"
+            )
         if func_name == "ta_atr":
             # ta.atr(length) uses high/low/close from chart arrays
             length = kwargs.get("length", args[0] if args else "14")
@@ -4369,12 +4551,20 @@ class CompilerVisitor(NodeVisitor):
             return "np.nan"
         if func_name == "ta_alma":
             # ta.alma(source, length, offset=0.85, sigma=6)
+            # Const length → weight-precompute alma_inc; else full numba_alma.
             if not args:
                 return "np.nan"
             src = args[0]
             length = args[1] if len(args) > 1 else "9"
             offset = args[2] if len(args) > 2 else "0.85"
             sigma = args[3] if len(args) > 3 else "6.0"
+            length_c = self._try_nonneg_int_const(str(length).strip())
+            if length_c is not None and length_c > 0:
+                st = self._alloc_fixed_state("alma", 2 + length_c)
+                return (
+                    f"numba_alma_inc({_arr(src)}, {length_c}, float({offset}), "
+                    f"float({sigma}), __bar_idx, {st})"
+                )
             return (
                 f"numba_alma({_arr(src)}, {self._emit_period(length)}, float({offset}), "
                 f"float({sigma}), __bar_idx)"
@@ -4814,7 +5004,7 @@ class CompilerVisitor(NodeVisitor):
                 acc = f"np.add({acc}, {a})"
             return f"np.divide({acc}, {float(len(args))})"
         if func_name == "math_random":
-            self.object_mode = True
+            # Deterministic stub (midpoint). Pure float — stay numeric/nopython.
             return "0.5"
         if func_name == "color_rgb":
             self.object_mode = True
@@ -4828,11 +5018,13 @@ class CompilerVisitor(NodeVisitor):
         if func_name in ("math_tan", "tan"):
             return f"np.tan({args[0]})" if args else "np.nan"
         if func_name in ("math_tanh", "tanh"):
-            return f"np.tanh(safe_float({args[0]}))" if args else "np.nan"
+            # Mirror cos/sin: bare np.* so pure-numeric scripts stay nopython
+            # (safe_float is pure Python and thrashing object_mode via plot).
+            return f"np.tanh({args[0]})" if args else "np.nan"
         if func_name in ("math_sinh", "sinh"):
-            return f"np.sinh(safe_float({args[0]}))" if args else "np.nan"
+            return f"np.sinh({args[0]})" if args else "np.nan"
         if func_name in ("math_cosh", "cosh"):
-            return f"np.cosh(safe_float({args[0]}))" if args else "np.nan"
+            return f"np.cosh({args[0]})" if args else "np.nan"
         if func_name in ("math_asin", "asin"):
             return f"np.arcsin({args[0]})" if args else "np.nan"
         if func_name in ("math_acos", "acos"):
@@ -4893,10 +5085,16 @@ class CompilerVisitor(NodeVisitor):
         # math.todegrees / math.toradians (and bare aliases)
         if func_name in ("math_todegrees", "todegrees"):
             a0 = args[0] if args else "0.0"
-            return f"(safe_float({a0}) * 180.0 / 3.141592653589793)"
+            if self.object_mode or not self._is_safe_numeric_expr(a0):
+                self.object_mode = True
+                return f"(safe_float({a0}) * 180.0 / 3.141592653589793)"
+            return f"(({a0}) * 180.0 / 3.141592653589793)"
         if func_name in ("math_toradians", "toradians"):
             a0 = args[0] if args else "0.0"
-            return f"(safe_float({a0}) * 3.141592653589793 / 180.0)"
+            if self.object_mode or not self._is_safe_numeric_expr(a0):
+                self.object_mode = True
+                return f"(safe_float({a0}) * 3.141592653589793 / 180.0)"
+            return f"(({a0}) * 3.141592653589793 / 180.0)"
 
         # Common external-library method stubs (import alias.method → bare name)
         if func_name in ("init", "console_init") or func_name.endswith("_init"):

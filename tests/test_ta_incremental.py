@@ -1002,6 +1002,11 @@ def test_rising_falling_highestbars_tolerate_na() -> None:
     assert ev._highestbars([None, None, 1.0], 3) == 0
     assert ev._highestbars([None, 5.0, 1.0], 3) == -1
     assert ev._lowestbars([None, None, 1.0], 3) == 0
+    assert ev._highestbars(all_na, 7) == -1
+    assert ev._lowestbars(all_na, 7) == -1
+    # Non-numeric junk must not raise (skip like None)
+    assert ev._highestbars([None, "x", 1.0], 3) == 0
+    assert ev._lowestbars([None, "x", 1.0], 3) == 0
     # Incremental path (backend bar-mode) must also soft-fail on na
     ev_inc = _IncTA()
     for i in range(len(all_na)):
@@ -1009,6 +1014,122 @@ def test_rising_falling_highestbars_tolerate_na() -> None:
         assert ev_inc._rising_inc_update(all_na[: i + 1], 7) is False
         ev_inc._ta_call_i = 0
         assert ev_inc._falling_inc_update(all_na[: i + 1], 7) is False
+        ev_inc._ta_call_i = 0
+        assert ev_inc._highestbars_inc_update(all_na[: i + 1], 7) == -1
+        ev_inc._ta_call_i = 0
+        assert ev_inc._lowestbars_inc_update(all_na[: i + 1], 7) == -1
+
+
+def test_common_indicators_does_not_override_na_safe_helpers() -> None:
+    """0.3.0 bug class: CommonIndicators must not reintroduce bare comparisons.
+
+    Rising/falling/highestbars/lowestbars live only on TechnicalHelpers.
+    """
+    from pynescript.ast.evaluator import NodeLiteralEvaluator
+    from pynescript.ast.evaluator.builtins.technical_submodules.common import CommonIndicators
+    from pynescript.ast.evaluator.builtins.technical_submodules.core import TechnicalHelpers
+
+    for name in ("_rising", "_falling", "_highestbars", "_lowestbars", "_crossover", "_crossunder"):
+        assert name not in CommonIndicators.__dict__, f"CommonIndicators must not override {name}"
+        # MRO resolution for live evaluator is TechnicalHelpers (or subclass of it)
+        owners = [c for c in type(NodeLiteralEvaluator()).__mro__ if name in c.__dict__]
+        assert owners, f"{name} missing from MRO"
+        assert issubclass(owners[0], TechnicalHelpers) or owners[0] is TechnicalHelpers
+        assert owners[0] is TechnicalHelpers or TechnicalHelpers in owners[0].__mro__
+
+
+def test_crossover_crossunder_na_and_equal_prev() -> None:
+    """TV semantics: prev <= (crossover) / >= (crossunder); na never raises."""
+    ev = _FullTA()
+    # equal-then-above is a real crossover (matches numba / _cross_stateful)
+    assert ev._crossover([2.0, 3.0], [2.0, 2.0]) is True
+    assert ev._crossover([1.0, 3.0], [2.0, 2.0]) is True
+    assert ev._crossover([2.0, 2.0], [2.0, 2.0]) is False  # curr not strictly above
+    assert ev._crossunder([2.0, 1.0], [2.0, 2.0]) is True
+    assert ev._crossunder([3.0, 1.0], [2.0, 2.0]) is True
+    # na operands → False, no TypeError
+    assert ev._crossover([None, None], [1.0, 2.0]) is False
+    assert ev._crossover([1.0, None], [None, 2.0]) is False
+    assert ev._crossunder([None, 1.0], [2.0, None]) is False
+    assert ev._cross([None, 1.0], [2.0, 0.5]) is False
+    # max/min unary skip na
+    assert ev._builtin_ta_max([[None, None, 3.0, None]]) == 3.0
+    assert ev._builtin_ta_min([[None, None]]) is None
+    assert ev._builtin_ta_max([[None, 1.0, 5.0, 2.0, None], 5]) == 5.0
+    assert ev._builtin_ta_min([[None, 1.0, 5.0, 2.0, None], 5]) == 1.0
+
+
+def test_highestbars_lowestbars_inc_parity_with_na() -> None:
+    """Bar-walk full vs incremental on mixed-na series must stay identical."""
+    mixed = [None, None, 1.0, 3.0, None, 2.0, 5.0, None, 4.0, 0.5, 6.0, None]
+    for period in (3, 5, 7):
+        assert _bar_walk_inc_highestbars(mixed, period) == _bar_walk_full_highestbars(mixed, period)
+        assert _bar_walk_inc_lowestbars(mixed, period) == _bar_walk_full_lowestbars(mixed, period)
+
+
+def test_runtime_warmup_rising_falling_vidya_style(monkeypatch: pytest.MonkeyPatch) -> None:
+    """MA-STER / VIDYA style: rising/falling/highestbars on early-na MA must run.
+
+    SMA is na until ``length`` bars; feeding that into ta.rising used to crash
+    when CommonIndicators overrode helpers with bare ``>=`` / ``max``.
+    """
+    from backend.runtime import Runtime
+
+    bars = [
+        {
+            "open": 100 + i * 0.2,
+            "high": 101 + i * 0.2,
+            "low": 99 + i * 0.2,
+            "close": 100.5 + i * 0.2,
+            "volume": 1000.0,
+            "time": 1_700_000_000_000 + i * 60_000,
+        }
+        for i in range(50)
+    ]
+    src = """//@version=5
+indicator("warmup na rising")
+v = ta.sma(close, 10)
+r = ta.rising(v, 5)
+f = ta.falling(v, 5)
+hb = ta.highestbars(v, 5)
+lb = ta.lowestbars(v, 5)
+x = ta.crossover(close, v)
+u = ta.crossunder(close, v)
+mx = ta.max(v, 5)
+mn = ta.min(v, 5)
+plot(r ? 1.0 : 0.0, title="r")
+plot(f ? 1.0 : 0.0, title="f")
+plot(hb, title="hb")
+plot(lb, title="lb")
+plot(x ? 1.0 : 0.0, title="x")
+plot(u ? 1.0 : 0.0, title="u")
+plot(mx, title="mx")
+plot(mn, title="mn")
+"""
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    r_on = Runtime(symbol="WARM").run(src, bars, mode="interpret")
+    assert "error" not in r_on, r_on.get("error")
+    monkeypatch.setenv("PYNE_TA_INCREMENTAL", "0")
+    r_off = Runtime(symbol="WARM").run(src, bars, mode="interpret")
+    assert "error" not in r_off, r_off.get("error")
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+
+    assert r_on["count"] == 50
+    # Early warmup: rising is false while MA is na / not strictly rising long enough
+    assert r_on["series"]["r"][:10] == [0.0] * 10
+    # After enough rising closes, SMA itself is rising → r becomes 1
+    assert any(v == 1.0 for v in r_on["series"]["r"][10:])
+    # highestbars/lowestbars produce finite ints (no crash sentinel)
+    for key in ("hb", "lb"):
+        assert all(isinstance(v, (int, float)) for v in r_on["series"][key])
+    # Incremental on/off parity for this surface
+    for key in r_on["series"]:
+        for i, (a, b) in enumerate(zip(r_on["series"][key], r_off["series"][key], strict=True)):
+            if a is None and b is None:
+                continue
+            if isinstance(a, float) and isinstance(b, float) and math.isnan(a) and math.isnan(b):
+                continue
+            assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"
 
 
 def test_incremental_median_matches_full() -> None:
@@ -1540,6 +1661,197 @@ plot(ta.mom(close, 10))
                 continue
             assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"
 
+
+# ---------------------------------------------------------------------------
+# Round 6 — series / expect residual (Agent 02)
+# ---------------------------------------------------------------------------
+
+
+def test_expect_int_list_period_and_error_messages() -> None:
+    """Live MRO _expect_int accepts series-of-periods; errors include Got: type."""
+    ev = _IncTA()
+    assert ev._expect_int(14, "Period must be an integer") == 14
+    assert ev._expect_int([10, 12, 14], "Period must be an integer") == 14
+    assert ev._expect_int(14.9, "Period must be an integer") == 14
+    with pytest.raises(ValueError, match=r"Got: str"):
+        ev._expect_int("nope", "Period must be an integer")
+    with pytest.raises(ValueError, match=r"Got: na"):
+        ev._expect_int(None, "Period must be an integer")
+    with pytest.raises(ValueError, match=r"Got: empty series"):
+        ev._expect_int([], "Period must be an integer")
+
+
+def test_expect_int_plain_int_identity() -> None:
+    """Hot path: plain int is returned as-is (no wrap)."""
+    ev = _IncTA()
+    x = 20
+    assert ev._expect_int(x, "p") is x
+
+
+def test_dema_tema_last_sample_skips_as_series() -> None:
+    """dema/tema pure-inc must not reverse PineSeries (last_sample_ok)."""
+    closes = _series(80)
+    full_d: list[float | None] = []
+    full_t: list[float | None] = []
+    fev = _FullTA()
+    for i in range(len(closes)):
+        prefix = closes[: i + 1]
+        ema1 = fev._ema(prefix, 10)
+        ema2 = fev._ema(ema1, 10)
+        dema_series = [
+            (2 * a - b) if a is not None and b is not None else None
+            for a, b in zip(ema1, ema2, strict=True)
+        ]
+        full_d.append(dema_series[-1] if dema_series else None)
+        ema3 = fev._ema(ema2, 10)
+        tema_series = [
+            (3 * a - 3 * b + c) if a is not None and b is not None and c is not None else None
+            for a, b, c in zip(ema1, ema2, ema3, strict=True)
+        ]
+        full_t.append(tema_series[-1] if tema_series else None)
+
+    ev = _IncTA()
+    ps = _FakePineSeries()
+    got_d: list[float | None] = []
+    got_t: list[float | None] = []
+    for c in closes:
+        ps.update(c)
+        ev._ta_call_i = 0
+        got_d.append(ev._builtin_ta_dema([ps, 10]))
+        got_t.append(ev._builtin_ta_tema([ps, 10]))
+    _assert_series_close(got_d, full_d)
+    _assert_series_close(got_t, full_t)
+
+
+def test_crossover_last_sample_matches_full_list() -> None:
+    """Stateful last-sample crossover ≡ list-path (TV: prev ``<=`` then ``>``)."""
+    a = [1.0, 1.0, 3.0]  # prev a==b=1 → equal-then-above is a TV crossover
+    b = [2.0, 1.0, 2.0]
+    fev = _FullTA()
+    assert fev._crossover(a[:2], b[:2]) is False  # 1<=2 but curr 1>1? no
+    assert fev._crossover(a, b) is True  # prev 1<=1 and curr 3>2
+    # True cross: prev a < b, curr a > b
+    a2 = [1.0, 3.0]
+    b2 = [2.0, 2.0]
+    assert fev._crossover(a2, b2) is True
+    # equal-then-above (numba / stateful parity)
+    assert fev._crossover([2.0, 3.0], [2.0, 2.0]) is True
+    assert fev._crossunder([2.0, 1.0], [2.0, 2.0]) is True
+
+    ev = _IncTA()
+    outs = []
+    for i in range(len(a2)):
+        ev._cross_call_i = 0
+        # pass growing chrono lists (stateful uses last only)
+        outs.append(ev._cross_stateful(a2[: i + 1], b2[: i + 1], under=False))
+    assert outs[0] is False
+    assert outs[1] is True
+
+    # PineSeries path via builtin last-sample
+    from backend.series import PineSeries
+
+    pa, pb = PineSeries(), PineSeries()
+    seq_a = [1.0, 1.5, 3.0]
+    seq_b = [2.0, 2.0, 2.0]
+    # cross on last bar: 1.5 <= 2 and 3 > 2
+    got = []
+    for i in range(len(seq_a)):
+        pa.update(seq_a[i])
+        pb.update(seq_b[i])
+        ev._cross_call_i = 0
+        got.append(ev._builtin_ta_crossover([pa, pb]))
+    assert got == [False, False, True]
+
+
+def test_pineseries_history_offset_na_and_float() -> None:
+    """PineSeries[offset]: na OOB, float truncate, None index → na; no silent 0."""
+    from backend.series import PineSeries
+
+    ps = PineSeries()
+    assert ps[0] is None
+    assert ps[None] is None
+    ps.update(10.0)
+    ps.update(20.0)
+    ps.update(30.0)
+    assert ps[0] == 30.0
+    assert ps[1] == 20.0
+    assert ps[2] == 10.0
+    assert ps[3] is None
+    assert ps[1.9] == 20.0  # float → int trunc
+    assert ps[float("nan")] is None
+
+
+def test_subscript_na_index_returns_na() -> None:
+    """close[na] must yield na series, not crash the bar loop."""
+    from backend.runtime import Runtime
+
+    bars = [
+        {
+            "open": 100.0,
+            "high": 101.0,
+            "low": 99.0,
+            "close": 100.0 + i,
+            "volume": 1.0,
+            "time": 1_000_000 + i * 86_400_000,
+        }
+        for i in range(5)
+    ]
+    src = """//@version=5
+indicator("na_idx")
+plot(close[na])
+"""
+    out = Runtime(symbol="T").run(src, bars)
+    assert "error" not in out, out.get("error")
+    series = out.get("series") or {}
+    # All na
+    vals = next(iter(series.values()))
+    assert all(v is None for v in vals)
+
+
+def test_runtime_crossover_dema_parity(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Runtime: crossover + dema last-sample ≡ PYNE_TA_INCREMENTAL=0."""
+    from backend.runtime import Runtime
+
+    bars = [
+        {
+            "open": 100 + i * 0.05,
+            "high": 101 + i * 0.05,
+            "low": 99 + i * 0.05,
+            "close": 100 + math.sin(i / 5.0) * 2 + i * 0.02,
+            "volume": 1000,
+            "time": 1_000_000 + i * 86_400_000,
+        }
+        for i in range(100)
+    ]
+    src = """//@version=5
+indicator("r6 series")
+d = ta.dema(close, 10)
+t = ta.tema(close, 10)
+c = ta.crossover(close, ta.sma(close, 5))
+plot(d)
+plot(t)
+plot(c ? 1 : 0)
+"""
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    r_on = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_on, r_on.get("error")
+    monkeypatch.setenv("PYNE_TA_INCREMENTAL", "0")
+    r_off = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_off, r_off.get("error")
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    for key in r_on["series"]:
+        for i, (a, b) in enumerate(zip(r_on["series"][key], r_off["series"][key], strict=True)):
+            if a is None and b is None:
+                continue
+            if a is None or b is None:
+                # bool plots may differ on first bars if stateful vs list; allow only warmup
+                if i < 2:
+                    continue
+                assert a == b, f"{key} bar {i}: {a} != {b}"
+                continue
+            assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"
+
+
 # ---------------------------------------------------------------------------
 # Round 5: dema/tema, valuewhen, pivots, adx/dmi, supertrend
 # ---------------------------------------------------------------------------
@@ -1859,6 +2171,317 @@ plot(st)
 plot(dir)
 plot(ta.pivothigh(high, 3, 3))
 plot(ta.pivotlow(low, 3, 3))
+"""
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    r_on = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_on, r_on.get("error")
+    monkeypatch.setenv("PYNE_TA_INCREMENTAL", "0")
+    r_off = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_off, r_off.get("error")
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+
+    assert set(r_on["series"]) == set(r_off["series"])
+    for key in r_on["series"]:
+        for i, (a, b) in enumerate(zip(r_on["series"][key], r_off["series"][key], strict=True)):
+            if a is None and b is None:
+                continue
+            if a is None or b is None:
+                continue
+            if isinstance(a, float) and isinstance(b, float) and math.isnan(a) and math.isnan(b):
+                continue
+            assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"
+
+
+# ---------------------------------------------------------------------------
+# Round 6: kc/kcw, mfi, sar, alma, correlation, percentiles
+# ---------------------------------------------------------------------------
+
+
+def _volumes(n: int) -> list[float]:
+    return [1000.0 + (i % 7) * 10.0 + i * 0.5 for i in range(n)]
+
+
+def _bar_walk_full_mfi(
+    highs: list[float], lows: list[float], closes: list[float], vols: list[float], period: int
+) -> list[float]:
+    ev = _FullTA()
+    return [
+        ev._mfi(highs[: i + 1], lows[: i + 1], closes[: i + 1], vols[: i + 1], period)
+        for i in range(len(closes))
+    ]
+
+
+def _bar_walk_inc_mfi(
+    highs: list[float], lows: list[float], closes: list[float], vols: list[float], period: int
+) -> list[float]:
+    ev = _IncTA()
+    out: list[float] = []
+    for i in range(len(closes)):
+        ev._ta_call_i = 0
+        out.append(
+            ev._mfi_inc_update(
+                highs[: i + 1], lows[: i + 1], closes[: i + 1], vols[: i + 1], period
+            )
+        )
+    return out
+
+
+def _bar_walk_full_sar(
+    highs: list[float], lows: list[float], start: float, inc: float, maximum: float
+) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(highs)):
+        full = ev._sar(highs[: i + 1], lows[: i + 1], start, inc, maximum)
+        out.append(full[-1] if full else None)
+    return out
+
+
+def _bar_walk_inc_sar(
+    highs: list[float], lows: list[float], start: float, inc: float, maximum: float
+) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(highs)):
+        ev._ta_call_i = 0
+        out.append(ev._sar_inc_update(highs[: i + 1], lows[: i + 1], start, inc, maximum))
+    return out
+
+
+def _bar_walk_full_alma(
+    src: list[float], length: int, offset: float = 0.85, sigma: float = 6.0
+) -> list[float | None]:
+    ev = _FullTA()
+    return [ev._builtin_ta_alma([src[: i + 1], length, offset, sigma]) for i in range(len(src))]
+
+
+def _bar_walk_inc_alma(
+    src: list[float], length: int, offset: float = 0.85, sigma: float = 6.0
+) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._alma_inc_update(src[: i + 1], length, offset, sigma))
+    return out
+
+
+def _bar_walk_full_correlation(s1: list[float], s2: list[float], length: int) -> list[float | None]:
+    ev = _FullTA()
+    return [
+        ev._builtin_ta_correlation([s1[: i + 1], s2[: i + 1], length]) for i in range(len(s1))
+    ]
+
+
+def _bar_walk_inc_correlation(s1: list[float], s2: list[float], length: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(s1)):
+        ev._ta_call_i = 0
+        out.append(ev._correlation_inc_update(s1[: i + 1], s2[: i + 1], length))
+    return out
+
+
+def _bar_walk_full_kc(
+    highs: list[float], lows: list[float], closes: list[float], length: int, mult: float
+) -> list[tuple[float, float, float]]:
+    ev = _FullTA()
+    return [
+        ev._builtin_ta_kc([highs[: i + 1], lows[: i + 1], closes[: i + 1], length, mult])
+        for i in range(len(closes))
+    ]
+
+
+def _bar_walk_inc_kc(
+    highs: list[float], lows: list[float], closes: list[float], length: int, mult: float
+) -> list[tuple[float, float, float]]:
+    ev = _IncTA()
+    out: list[tuple[float, float, float]] = []
+    for i in range(len(closes)):
+        ev._ta_call_i = 0
+        out.append(ev._kc_inc_update(highs[: i + 1], lows[: i + 1], closes[: i + 1], length, mult))
+    return out
+
+
+def _bar_walk_full_pct_lin(src: list[float], period: int, pct: float) -> list[float | None]:
+    ev = _FullTA()
+    return [
+        ev._builtin_ta_percentile_linear_interpolation([src[: i + 1], period, pct])
+        for i in range(len(src))
+    ]
+
+
+def _bar_walk_inc_pct_lin(src: list[float], period: int, pct: float) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._percentile_linear_inc_update(src[: i + 1], period, pct))
+    return out
+
+
+def _bar_walk_full_pct_nr(src: list[float], period: int, pct: float) -> list[float | None]:
+    ev = _FullTA()
+    return [
+        ev._builtin_ta_percentile_nearest_rank([src[: i + 1], period, pct])
+        for i in range(len(src))
+    ]
+
+
+def _bar_walk_inc_pct_nr(src: list[float], period: int, pct: float) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._percentile_nearest_rank_inc_update(src[: i + 1], period, pct))
+    return out
+
+
+def test_incremental_mfi_matches_full() -> None:
+    highs, lows, closes = _ohlc(150)
+    vols = _volumes(len(closes))
+    for period in (7, 14):
+        _assert_series_close(
+            _bar_walk_inc_mfi(highs, lows, closes, vols, period),
+            _bar_walk_full_mfi(highs, lows, closes, vols, period),
+        )
+
+
+def test_incremental_sar_matches_full() -> None:
+    highs, lows, _ = _ohlc(150)
+    for params in ((0.02, 0.02, 0.2), (0.01, 0.01, 0.1)):
+        _assert_series_close(
+            _bar_walk_inc_sar(highs, lows, *params),
+            _bar_walk_full_sar(highs, lows, *params),
+        )
+
+
+def test_incremental_alma_matches_full() -> None:
+    src = _series(150)
+    for length in (5, 9, 20):
+        _assert_series_close(
+            _bar_walk_inc_alma(src, length),
+            _bar_walk_full_alma(src, length),
+        )
+
+
+def test_incremental_correlation_matches_full() -> None:
+    highs, lows, closes = _ohlc(150)
+    for length in (5, 14, 20):
+        _assert_series_close(
+            _bar_walk_inc_correlation(closes, highs, length),
+            _bar_walk_full_correlation(closes, highs, length),
+        )
+        _assert_series_close(
+            _bar_walk_inc_correlation(closes, lows, length),
+            _bar_walk_full_correlation(closes, lows, length),
+        )
+
+
+def test_incremental_kc_matches_full() -> None:
+    highs, lows, closes = _ohlc(150)
+    for length, mult in ((10, 1.5), (20, 2.0)):
+        got = _bar_walk_inc_kc(highs, lows, closes, length, mult)
+        exp = _bar_walk_full_kc(highs, lows, closes, length, mult)
+        assert len(got) == len(exp)
+        for i, (g, e) in enumerate(zip(got, exp, strict=True)):
+            for j in range(3):
+                _assert_num_close(g[j], e[j], i=i)
+
+
+def test_incremental_kcw_matches_full() -> None:
+    """kcw is upper-lower of kc; compare width from full builtin vs inc bands."""
+    highs, lows, closes = _ohlc(120)
+    length, mult = 20, 2.0
+    evf = _FullTA()
+    evi = _IncTA()
+    for i in range(len(closes)):
+        args = [highs[: i + 1], lows[: i + 1], closes[: i + 1], length, mult]
+        full = evf._builtin_ta_kcw(args)
+        evi._ta_call_i = 0
+        _mid, up, lo = evi._kc_inc_update(*args[:3], length, mult)
+        if (isinstance(up, float) and math.isnan(up)) or (
+            isinstance(lo, float) and math.isnan(lo)
+        ):
+            inc = float("nan")
+        else:
+            inc = float(up) - float(lo)
+        if isinstance(full, float) and math.isnan(full):
+            assert isinstance(inc, float) and math.isnan(inc), f"bar {i}"
+        else:
+            assert inc == pytest.approx(full, rel=1e-9, abs=1e-9), f"bar {i}: {inc} != {full}"
+
+
+def test_incremental_percentile_linear_matches_full() -> None:
+    src = _series(120)
+    for period, pct in ((10, 50.0), (14, 25.0), (20, 90.0)):
+        _assert_series_close(
+            _bar_walk_inc_pct_lin(src, period, pct),
+            _bar_walk_full_pct_lin(src, period, pct),
+        )
+
+
+def test_incremental_percentile_nearest_rank_matches_full() -> None:
+    src = _series(120)
+    for period, pct in ((10, 50.0), (14, 75.0), (20, 100.0)):
+        _assert_series_close(
+            _bar_walk_inc_pct_nr(src, period, pct),
+            _bar_walk_full_pct_nr(src, period, pct),
+        )
+
+
+def test_mfi_sar_alma_na_safe() -> None:
+    """Leading/interstitial na must not raise; soft-fail like full oracle."""
+    highs = [None, None, 10.0, 11.0, 12.0, 13.0, 14.0]
+    lows = [None, None, 9.0, 9.5, 10.0, 10.5, 11.0]
+    closes = [None, None, 9.5, 10.5, 11.0, 12.0, 13.0]
+    vols = [100.0] * 7
+    ev = _IncTA()
+    for i in range(len(closes)):
+        ev._ta_call_i = 0
+        m = ev._mfi_inc_update(highs[: i + 1], lows[: i + 1], closes[: i + 1], vols[: i + 1], 3)
+        assert isinstance(m, float)
+        ev._ta_call_i = 0
+        s = ev._sar_inc_update(highs[: i + 1], lows[: i + 1], 0.02, 0.02, 0.2)
+        assert s is None or isinstance(s, float)
+    src = [None, 1.0, 2.0, 3.0, 4.0]
+    ev2 = _IncTA()
+    for i in range(len(src)):
+        ev2._ta_call_i = 0
+        a = ev2._alma_inc_update(src[: i + 1], 3)
+        if i < 3:
+            # warmup or window containing None → None (no silent 0)
+            assert a is None
+
+
+def test_runtime_round6_residual_incremental_vs_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    from backend.runtime import Runtime
+
+    bars = [
+        {
+            "open": 100 + i * 0.1,
+            "high": 101.5 + i * 0.1 + (i % 5) * 0.05,
+            "low": 98.5 + i * 0.1 - (i % 3) * 0.05,
+            "close": 100.5 + i * 0.1 + math.sin(i / 7.0) * 0.2,
+            "volume": 1000 + i * 3,
+            "time": 1_000_000 + i * 86_400_000,
+        }
+        for i in range(150)
+    ]
+    src = """//@version=5
+indicator("round6 residual")
+[mid, up, lo] = ta.kc(close, 20, 2.0)
+plot(mid)
+plot(up)
+plot(lo)
+plot(ta.kcw(close, 20, 2.0))
+plot(ta.mfi(14))
+plot(ta.sar(0.02, 0.02, 0.2))
+plot(ta.alma(close, 9, 0.85, 6))
+plot(ta.correlation(close, high, 14))
+plot(ta.percentrank(close, 14))
+plot(ta.percentile_nearest_rank(close, 14, 50))
+plot(ta.percentile_linear_interpolation(close, 14, 50))
 """
     monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
     r_on = Runtime(symbol="T").run(src, bars)

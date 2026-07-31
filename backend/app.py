@@ -287,6 +287,13 @@ def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
             "code": "EXECUTION_ERROR",
             "message": result["error"],
         }
+        # Pass through Runtime classification when present (parse/compile/runtime/…).
+        if result.get("error_kind"):
+            err_body["error_kind"] = result["error_kind"]
+        if result.get("error_type"):
+            err_body["error_type"] = result["error_type"]
+        if result.get("error_bar") is not None:
+            err_body["error_bar"] = result["error_bar"]
         if "logs" in result:
             err_body["logs"] = result["logs"]
         if "profile" in result:

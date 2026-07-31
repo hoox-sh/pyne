@@ -144,13 +144,11 @@ class MovingAverageIndicators(TechnicalHelpers):
 
     def _builtin_ta_dema(self, args: list[Any]) -> list[float | None] | float | None:
         """Double Exponential Moving Average - reduces lag."""
-        if len(args) < BINARY:
-            msg = "ta.dema() requires 2 arguments: series, length"
-            self._error(msg)
-
-        series = self._as_series(args[0])
-        length = self._expect_int(args[1], "ta.dema length must be integer")
-
+        series, length = self._expect_series(
+            args,
+            length=BINARY,
+            last_sample_ok=True,
+        )
         if self._use_incremental_ta():
             return self._dema_inc_update(series, length)
 
@@ -168,13 +166,11 @@ class MovingAverageIndicators(TechnicalHelpers):
 
     def _builtin_ta_tema(self, args: list[Any]) -> list[float | None] | float | None:
         """Triple Exponential Moving Average - even less lag than DEMA."""
-        if len(args) < BINARY:
-            msg = "ta.tema() requires 2 arguments: series, length"
-            self._error(msg)
-
-        series = self._as_series(args[0])
-        length = self._expect_int(args[1], "ta.tema length must be integer")
-
+        series, length = self._expect_series(
+            args,
+            length=BINARY,
+            last_sample_ok=True,
+        )
         if self._use_incremental_ta():
             return self._tema_inc_update(series, length)
 
@@ -198,10 +194,9 @@ class MovingAverageIndicators(TechnicalHelpers):
         Also accepts optional length for compatibility.
         """
         if len(args) == 1:
-            series = self._as_series(args[0])
             if self._use_incremental_ta():
-                return self._swma_inc_update(series)
-            return self._swma(series)
+                return self._swma_inc_update(args[0])
+            return self._swma(self._as_series(args[0]))
         series, length = self._expect_series(args, length=BINARY)
 
         if length < 1:

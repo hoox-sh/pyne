@@ -368,6 +368,9 @@ class NameEvaluator:
         slice_ = visit(slice_node) if slice_node is not None else None  # type: ignore[arg-type]
 
         st = type(slice_)
+        # na index → na (do not crash the bar loop)
+        if slice_ is None:
+            return None
         # Pine coerces float offsets (e.g. ``depth / 2``) to int for series[i]
         if st is float:
             if slice_ != slice_:  # NaN

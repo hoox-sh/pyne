@@ -83,20 +83,24 @@ _PROSE_LABEL_RE = re.compile(
     re.I,
 )
 
+# Apostrophe class: ASCII + curly quotes common in TV docs scrapes (U+2019 / U+2018).
+_APOS = r"['\u2019\u2018]"
+
 # English / docs prose that appears after a real script on scraped TV pages.
 _PROSE_CONTINUE_RE = re.compile(
     r"^\s*("
     r"Note that:?|"
     r"Tips?:?|"
-    r"Let['']s\s|"
+    rf"Let{_APOS}s\s|"
     r"We\s+(use|set|provide|define|call|populate|offer|create|do|pass)|"
     r"To\s+(color|plot|use|create|exit|exit|build|learn)|"
     r"You\s+(can|may|will|should)|"
     r"This\s+(example|plots?|script|configuration|function|parameter)|"
-    r"When\s+(creating|populating|the)|"
+    r"When\s+(creating|populating|the|using)|"
     r"The\s+(signature|script|color|maximum|initialization|first|second|third|next|last)|"
     r"There\s+are\s+|"
-    r"It['']s\s+(important|also|possible|useful)|"
+    rf"It{_APOS}s\s+(important|also|possible|useful)|"
+    r"Take note of|"
     r"Specifies\s+|"
     r"Controls\s+the\s+|"
     r"Looking\s+(two|one|at)\s+|"
@@ -111,6 +115,22 @@ _PROSE_CONTINUE_RE = re.compile(
     r")",
     re.I,
 )
+
+# TV / GitHub UI chrome lines that often appear between a truncated preview and
+# the full script copy (set05 hasnocool scrapes).
+_UI_CHROME_LINE_RE = re.compile(
+    r"^\s*("
+    r"PineScript\s+code\s*:?|"
+    r"Pine\s+Script\s*(?:strategy|indicator|library|code)?\s*:?|"
+    r"Copy\s+code|"
+    r"Copied|"
+    r"loading\.\.\.|"
+    r"//\s*This source code is subject to the terms"
+    r")\s*$",
+    re.I,
+)
+# Standalone line-number gutter from "Copy code" widgets: ``1`` .. ``999``.
+_LINE_NUMBER_ONLY_RE = re.compile(r"^\s*\d{1,4}\s*$")
 
 # Lines that look like executable Pine (or annotations / version).
 _PINE_START_RE = re.compile(
@@ -469,6 +489,14 @@ def _polish_code_line(line: str) -> str:
     # Docs placeholder args: ``strategy("x", process_orders_on_close=true, ...)``
     line = re.sub(r",\s*\.\.\.\s*\)", ")", line)
     line = re.sub(r"\(\s*\.\.\.\s*\)", "()", line)
+    # Mid-call docs ellipsis without a closer: ``input.int(55, "EMA 5", minval=1,...``
+    # Strip the ellipsis so paren-balance repair can close the call.
+    if not line.lstrip().startswith("//"):
+        line = re.sub(r",\s*\.\.\.\s*$", "", line)
+        line = re.sub(r"\(\s*\.\.\.\s*$", "(", line)
+    # TV library import UI residual: ``import x/y/1 as eta loading...``
+    if not line.lstrip().startswith("//"):
+        line = re.sub(r"\s+loading\.\.\.\s*$", "", line, flags=re.I)
     # Dangling ``+`` / ``,`` immediately before a closer (cut mid-concat / mid-args).
     line = re.sub(r"\+\s*([\)\]])", r"\1", line)
     line = re.sub(r",\s*([\)\]])", r"\1", line)
@@ -494,9 +522,16 @@ def _strip_line_chrome(line: str) -> str | None:
         return None
     if _TV_PINE_LABEL_RE.match(line) or _COPIED_RE.match(line) or _IMAGE_ONLY_RE.match(line):
         return None
+    if _UI_CHROME_LINE_RE.match(line):
+        return None
+    if _LINE_NUMBER_ONLY_RE.match(line):
+        return None
     if _HTML_COMMENT_OPEN_RE.match(line):
         return None
     if stripped.startswith("##") or stripped.startswith("# "):
+        return None
+    # Fence / inline-code residue common in multi-example docs scrapes.
+    if stripped in ("`", "``", "```", "````"):
         return None
     if stripped in ("[trans]", "[/trans]", "||"):
         return None
@@ -605,6 +640,14 @@ def _line_filter(source: str) -> str:
                 break
             continue
 
+        # UI chrome between truncated preview and full copy (``Copy code``, gutters).
+        if saw_pine and (
+            _UI_CHROME_LINE_RE.match(line)
+            or _LINE_NUMBER_ONLY_RE.match(line)
+            or _TV_PINE_LABEL_RE.match(line)
+        ):
+            break
+
         cleaned = _strip_line_chrome(line)
         if cleaned is None:
             # Footer / docs chrome after substantial pine body → stop
@@ -617,6 +660,7 @@ def _line_filter(source: str) -> str:
                 or _IMAGE_ONLY_RE.match(line)
                 or _PROSE_CONTINUE_RE.match(line)
                 or _MD_HEADING_RE.match(line)
+                or _UI_CHROME_LINE_RE.match(line)
             ):
                 break
             continue
@@ -758,6 +802,94 @@ def _code_without_line_comment(line: str) -> str:
     return line.rstrip()
 
 
+def _incomplete_ternary_suffix(code: str) -> str | None:
+    """If *code* is a truncated ternary, return the suffix to append; else None.
+
+    Quote-aware: question marks inside string literals (``"Highlight ?"``) are
+    ignored so complete input lines are never corrupted.
+    """
+    in_str: str | None = None
+    esc = False
+    last_q = -1
+    last_colon_after_q = -1
+    i = 0
+    n = len(code)
+    while i < n:
+        ch = code[i]
+        if esc:
+            esc = False
+            i += 1
+            continue
+        if in_str:
+            if ch == "\\":
+                esc = True
+            elif ch == in_str:
+                in_str = None
+            i += 1
+            continue
+        if ch in "\"'":
+            # Triple quotes: skip to close or EOL (best-effort)
+            if code.startswith(ch * 3, i):
+                i += 3
+                while i < n and not code.startswith(ch * 3, i):
+                    i += 1
+                i = min(n, i + 3)
+                continue
+            in_str = ch
+            i += 1
+            continue
+        if ch == "?":
+            last_q = i
+            last_colon_after_q = -1
+        elif ch == ":" and last_q >= 0:
+            last_colon_after_q = i
+        i += 1
+    if last_q < 0:
+        return None
+    stripped = code.rstrip()
+    if not stripped:
+        return None
+    if last_colon_after_q >= 0:
+        # Trailing ``:`` with no false-branch token after it.
+        if stripped.endswith(":") and last_colon_after_q == len(stripped) - 1:
+            return " na"
+        return None  # complete ternary on this line
+    # Unquoted ``?`` with no following ``:``
+    if re.search(r"\?\s*$", stripped):
+        return " na : na"
+    # True branch present, false missing: ``… ? expr``
+    if last_q < len(stripped) - 1:
+        return " : na"
+    return None
+
+
+def _next_line_is_new_statement(lines: list[str], index: int) -> bool:
+    """True if the next non-empty non-comment line starts a new statement (or EOF)."""
+    j = index + 1
+    while j < len(lines) and (not lines[j].strip() or lines[j].lstrip().startswith("//")):
+        j += 1
+    if j >= len(lines):
+        return True
+    ns = lines[j].lstrip()
+    if re.match(
+        r"^(if|for|while|switch|else|type|enum|import|export|method|var|varip|"
+        r"indicator|strategy|library|study|plot|plotshape|plotchar|plotcandle|"
+        r"plotbar|fill|bgcolor|barcolor|hline|alertcondition|alert)\b",
+        ns,
+    ):
+        return True
+    # Assignment / reassignment statement
+    if re.match(r"^[A-Za-z_]\w*(?:\.\w+|\[[^\]]*\])*\s*:=?", ns) and not re.match(
+        r"^[A-Za-z_]\w*\s*==", ns
+    ):
+        # ``name =`` / ``name :=`` but not ``name ==``
+        if re.match(r"^[A-Za-z_]\w*(?:\.\w+|\[[^\]]*\])*\s*:=", ns):
+            return True
+        if re.match(r"^[A-Za-z_]\w*(?:\.\w+|\[[^\]]*\])*\s*=(?![=<>])", ns):
+            return True
+    return False
+
+
 def _line_has_arg_continuation(line: str, lines: list[str], index: int) -> bool:
     """True if a following non-empty line continues this statement (indent/join)."""
     j = index + 1
@@ -792,8 +924,14 @@ def _line_has_arg_continuation(line: str, lines: list[str], index: int) -> bool:
     #   f(a,
     #          b) =>
     #       body   # indent 4 < base 7 — still a real body
-    if re.search(r"=>\s*$", prev_code) and nxt_indent > 0:
-        return True
+    # Same-indent next line is *not* a valid Pine body (needs INDENT); treat as
+    # no continuation so empty-arrow repair can inject ``na`` rather than leave
+    # a parse-failing nested UDF (common scrape of local functions under ``if``).
+    if re.search(r"=>\s*$", prev_code):
+        if nxt_indent > base_indent:
+            return True
+        if 0 < nxt_indent < base_indent:
+            return True
 
     # Same-indent ternary arm continuation: ``x = a ? b :`` / next ``c ? d : e``.
     if nxt_indent == base_indent and prev_code.endswith(("?", ":")):
@@ -821,7 +959,12 @@ def _line_has_arg_continuation(line: str, lines: list[str], index: int) -> bool:
 
 
 def _close_trailing_opens_on_line(core: str) -> str:
-    """Close unclosed ``(`` / ``[`` on a truncated line with ``na`` placeholders."""
+    """Close unclosed ``(`` / ``[`` on a truncated line.
+
+    Empty calls (``log.info(``) / trailing commas get a ``na`` placeholder.
+    Partial args that already end with a value (``input.int(1, minval=1``) only
+    need the matching closers — injecting ``na`` would produce invalid syntax.
+    """
     depth_p = 0
     depth_b = 0
     for ch in core:
@@ -835,8 +978,13 @@ def _close_trailing_opens_on_line(core: str) -> str:
             depth_b = max(0, depth_b - 1)
     if depth_p == 0 and depth_b == 0:
         return core
+    stripped = core.rstrip()
+    needs_placeholder = bool(re.search(r"[(,]\s*$", stripped))
     if depth_p > 0:
-        core = core + "na" + (")" * depth_p)
+        if needs_placeholder:
+            core = core + "na" + (")" * depth_p)
+        else:
+            core = core + (")" * depth_p)
     if depth_b > 0:
         depth_b = 0
         for ch in core:
@@ -845,7 +993,10 @@ def _close_trailing_opens_on_line(core: str) -> str:
             elif ch == "]":
                 depth_b = max(0, depth_b - 1)
         if depth_b > 0:
-            core = core + "na" + ("]" * depth_b)
+            if needs_placeholder or core.rstrip().endswith("["):
+                core = core + "na" + ("]" * depth_b)
+            else:
+                core = core + ("]" * depth_b)
     return core
 
 
@@ -928,16 +1079,23 @@ def _fix_truncated_syntax(text: str) -> str:
             i += 1
             continue
 
-        # Incomplete call / open paren: ``log.info(`` / ``label.new(`` at EOF
-        if (
-            re.search(r"\(\s*$", stripped_nl)
-            and not stripped_nl.lstrip().startswith("//")
-            and not _line_has_arg_continuation(line, lines, i)
+        # Incomplete call / open paren: ``log.info(`` / ``label.new(`` at EOF,
+        # or mid-file truncated calls after ellipsis strip: ``input.int(55, minval=1``
+        # when the next line is a new statement (not an arg continuation).
+        if not stripped_nl.lstrip().startswith("//") and not _line_has_arg_continuation(
+            line, lines, i
         ):
-            core = _close_trailing_opens_on_line(stripped_nl.rstrip())
-            out.append(core + eol)
-            i += 1
-            continue
+            code_core = _code_without_line_comment(stripped_nl)
+            depth_p, depth_b = _code_paren_bracket_depth(code_core)
+            bare_open = bool(re.search(r"[\(\[]\s*$", code_core))
+            # Partial-arg truncated line only when the following line is clearly a
+            # new statement (or EOF) — never glue free-indent multi-line args.
+            if depth_p > 0 or depth_b > 0:
+                if bare_open or _next_line_is_new_statement(lines, i):
+                    core = _close_trailing_opens_on_line(stripped_nl.rstrip())
+                    out.append(core + eol)
+                    i += 1
+                    continue
 
         # Incomplete assignment: ``entryLong =`` / ``string alertMessage3 =``
         if _INCOMPLETE_ASSIGN_RE.match(stripped_nl) and not _line_has_arg_continuation(
@@ -999,6 +1157,20 @@ def _fix_truncated_syntax(text: str) -> str:
             out.append(stripped_nl.rstrip() + " na" + eol)
             i += 1
             continue
+
+        # Incomplete ternary at scrape cut (quote-aware — ``"Highlight ?"`` is NOT ternary):
+        #   ``c = open > close ? color.red :``  → append ``na``
+        #   ``x = cond ? weekdaySession``       → append `` : na``
+        # Never fires when a same-indent ternary arm continues on the next line.
+        if not stripped_nl.lstrip().startswith("//") and not _line_has_arg_continuation(
+            line, lines, i
+        ):
+            code_t = _code_without_line_comment(stripped_nl).rstrip()
+            tern_fix = _incomplete_ternary_suffix(code_t)
+            if tern_fix is not None:
+                out.append(stripped_nl.rstrip() + tern_fix + eol)
+                i += 1
+                continue
 
         # Assignment to empty structure: ``x = switch`` / ``x = if c`` / ``x = for …`` /
         # ``x = while …`` with no body (truncated TV docs demos).
@@ -1339,8 +1511,32 @@ def _dedent_if_leading_indent(body: str) -> str:
     return "".join(out)
 
 
+# Field-ish lines after ``type Name`` when docs scrapes lose the INDENT:
+#   type pivotPoint
+#   int x
+#   float y = close
+_TYPE_FIELD_LINE_RE = re.compile(
+    r"^(?:"
+    r"(?:(?:series|simple|const)\s+)?"
+    r"(?:int|float|bool|string|color|line|label|box|table|array|map|matrix|"
+    r"chart\.point)"
+    r"(?:\s*<[^>\n]*>)?"
+    r"(?:\[\])?"
+    r"\s+[A-Za-z_]\w*"
+    r"(?:\s*=.*)?"
+    r"|"
+    r"[A-Za-z_]\w*\s+[A-Za-z_]\w*"  # UDT-typed field: ``pivotPoint p``
+    r"(?:\s*=.*)?"
+    r")\s*$"
+)
+
+
 def _fix_empty_type_body(body: str) -> str:
-    """``type Wrapper`` with no fields (truncated docs) → add a dummy field."""
+    """Repair empty / same-indent ``type`` bodies from truncated docs scrapes.
+
+    - ``type Wrapper`` with no fields → dummy ``float _pad = na``
+    - Fields pasted at the *same* indent as ``type`` (lost INDENT) → promote
+    """
     lines = body.splitlines(keepends=True)
     if not lines:
         return body
@@ -1350,9 +1546,11 @@ def _fix_empty_type_body(body: str) -> str:
         ln = lines[i]
         m = re.match(r"^(\s*)type\s+([A-Za-z_]\w*)\s*$", ln.rstrip("\n"))
         if m and not ln.lstrip().startswith("//"):
-            indent, name = m.group(1), m.group(2)
+            indent, _name = m.group(1), m.group(2)
+            child = "\t" if "\t" in ln else "    "
             j = i + 1
-            has_field = False
+            has_indented_field = False
+            first_same: int | None = None
             while j < len(lines):
                 nxt = lines[j]
                 if not nxt.strip():
@@ -1360,16 +1558,68 @@ def _fix_empty_type_body(body: str) -> str:
                     continue
                 ni = len(nxt) - len(nxt.lstrip(" \t"))
                 if ni <= len(indent) and nxt.strip():
+                    first_same = j
                     break
                 if nxt.lstrip().startswith("//"):
                     j += 1
                     continue
-                has_field = True
+                has_indented_field = True
                 break
             out.append(ln if ln.endswith("\n") else ln + "\n")
-            if not has_field:
-                child = "    "
-                out.append(f"{indent}{child}float _pad = na\n")
+            if has_indented_field:
+                i += 1
+                continue
+            # Promote same-indent type fields (docs HTML→text lost indent).
+            if first_same is not None:
+                k = first_same
+                promoted = 0
+                while k < len(lines):
+                    nxt = lines[k]
+                    if not nxt.strip():
+                        # Blank inside a field block — keep and continue
+                        out.append(nxt if nxt.endswith("\n") else nxt + "\n")
+                        k += 1
+                        continue
+                    ni = len(nxt) - len(nxt.lstrip(" \t"))
+                    if ni < len(indent):
+                        break
+                    ns = nxt.lstrip().rstrip("\n")
+                    if ni == len(indent):
+                        if ns.startswith(
+                            (
+                                "type ",
+                                "enum ",
+                                "import ",
+                                "export ",
+                                "method ",
+                                "if ",
+                                "for ",
+                                "while ",
+                                "switch ",
+                                "indicator(",
+                                "strategy(",
+                                "library(",
+                                "study(",
+                            )
+                        ) or re.match(r"^//@version\b", ns):
+                            break
+                        if not _TYPE_FIELD_LINE_RE.match(ns):
+                            # Non-field sibling (e.g. ``pivotHighPrice = …``)
+                            break
+                        piece = indent + child + ns
+                        out.append(piece if piece.endswith("\n") else piece + "\n")
+                        promoted += 1
+                        k += 1
+                        continue
+                    # Already deeper — keep
+                    out.append(nxt if nxt.endswith("\n") else nxt + "\n")
+                    k += 1
+                    promoted += 1
+                if promoted:
+                    i = k
+                    continue
+            # Truly empty type body
+            out.append(f"{indent}{child}float _pad = na\n")
             i += 1
             continue
         out.append(ln)
@@ -1377,7 +1627,56 @@ def _fix_empty_type_body(body: str) -> str:
     return "".join(out)
 
 
+def _split_version_islands(body: str) -> list[str]:
+    """Split on ``//@version=`` so multi-copy scrapes can pick the best island."""
+    lines = body.splitlines()
+    if not lines:
+        return []
+    islands: list[list[str]] = []
+    current: list[str] = []
+    version_count = 0
+    for ln in lines:
+        if re.match(r"^\s*//@version\s*=", ln):
+            version_count += 1
+            if current and version_count > 1:
+                islands.append(current)
+                current = [ln]
+                continue
+        current.append(ln)
+    if current:
+        islands.append(current)
+    return ["\n".join(isl) for isl in islands]
+
+
+def _pick_best_version_island(body: str) -> str:
+    """When a scrape glued a truncated preview + full copy, keep the best island.
+
+    Prefer islands that parse-score higher (complete ``input`` lines, ``plot``,
+    no trailing ``,...``). Only activates when ≥2 ``//@version`` markers exist.
+    """
+    islands = _split_version_islands(body)
+    if len(islands) < 2:
+        return body
+    best = islands[0]
+    best_score = _score_pine_block(best)
+    # Prefer longer complete copies when scores are close.
+    for isl in islands[1:]:
+        sc = _score_pine_block(isl)
+        # Bonus: no mid-call ellipsis residual
+        if ",..." not in isl and re.search(r",\s*\.\.\.\s*$", isl, re.M) is None:
+            sc += 5
+        # Bonus: balanced-ish paren depth
+        dp, db = _code_paren_bracket_depth(isl)
+        if dp == 0 and db == 0:
+            sc += 10
+        if sc > best_score or (sc == best_score and len(isl) > len(best)):
+            best_score = sc
+            best = isl
+    return best
+
+
 def _finalize(provenance: list[str], body: str, ends_with_nl: bool) -> str:
+    body = _pick_best_version_island(body)
     body = _dedent_if_leading_indent(body)
     body = _fix_truncated_syntax(_fix_missing_decl_commas(body))
     body = _fix_empty_type_body(body)
@@ -1405,6 +1704,24 @@ def _clean_block_body(best: str) -> str:
     return body
 
 
+def _clean_and_score_island(text: str) -> tuple[str, int]:
+    """Line-filter an island and return (cleaned_body, score)."""
+    filtered = _line_filter(text)
+    filt_lines = filtered.splitlines()
+    while filt_lines and _is_provenance(filt_lines[0]):
+        filt_lines.pop(0)
+    while filt_lines and not filt_lines[0].strip():
+        filt_lines.pop(0)
+    body = "\n".join(filt_lines)
+    sc = _score_pine_block(body)
+    dp, db = _code_paren_bracket_depth(body)
+    if dp == 0 and db == 0:
+        sc += 10
+    if re.search(r",\s*\.\.\.\s*$", body, re.M):
+        sc -= 15
+    return body, sc
+
+
 def sanitize_corpus_source(source: str) -> str:
     """Drop or unwrap non-Pine chrome common in scraped corpus scripts."""
     ends_with_nl = source.endswith("\n")
@@ -1430,6 +1747,22 @@ def sanitize_corpus_source(source: str) -> str:
     # to the line filter — embedded //@version in strings would partially leak.
     if _looks_like_foreign(body_text):
         return _finalize(provenance, _MINIMAL_STUB, ends_with_nl)
+
+    # Multi-copy scrapes: truncated preview + full script each with //@version.
+    # Split *before* line-filter so UI chrome between copies cannot drop the full one.
+    version_islands = _split_version_islands(body_text if body_text.strip() else source)
+    if len(version_islands) >= 2:
+        best_body: str | None = None
+        best_sc = -10**9
+        for isl in version_islands:
+            cand, sc = _clean_and_score_island(isl)
+            if not _has_usable_pine(cand):
+                continue
+            if sc > best_sc or (sc == best_sc and best_body is not None and len(cand) > len(best_body)):
+                best_sc = sc
+                best_body = cand
+        if best_body is not None and best_sc >= 40:
+            return _finalize(provenance, best_body, ends_with_nl)
 
     # No usable fence: line-filter the whole file (also cuts trailing chrome).
     filtered = _line_filter(source)

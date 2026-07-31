@@ -134,12 +134,17 @@ class BuiltinEvaluator(
                 decl = _raw_fn(args, kwargs)
                 try:
                     _self._script_declaration = decl  # type: ignore[attr-defined]
-                except Exception:
+                except Exception:  # noqa: BLE001 — setattr on frozen/partial mocks
                     pass
                 if _is_strategy and hasattr(_self, "_apply_strategy_declaration"):
+                    # Fail closed on programming errors (TypeError/AttributeError/
+                    # ValueError) so bad strategy() kwargs surface in the bar loop
+                    # rather than leaving StrategyState silently misconfigured.
                     try:
                         _self._apply_strategy_declaration(decl)
-                    except Exception:
+                    except (TypeError, AttributeError, ValueError):
+                        raise
+                    except Exception:  # noqa: BLE001 — optional host plumbing only
                         pass
                 return decl
 

@@ -137,10 +137,13 @@ class VolatilityIndicators(TechnicalHelpers):
         """
         if len(args) < BINARY:
             self._error("ta.alma requires series and length")
-        series = self._as_series(args[0]) if hasattr(self, "_as_series") else self._expect_list(args[0], "series")
         length = self._expect_int(args[1], "length")
         offset = float(args[2]) if len(args) > 2 and isinstance(args[2], (int, float)) else 0.85
         sigma = float(args[3]) if len(args) > 3 and isinstance(args[3], (int, float)) else 6.0
+        if self._use_incremental_ta():
+            series = self._as_series_or_raw(args[0], last_sample_ok=True)
+            return self._alma_inc_update(series, length, offset, sigma)
+        series = self._as_series(args[0]) if hasattr(self, "_as_series") else self._expect_list(args[0], "series")
         if length <= 0 or len(series) < length:
             return None
         window = series[-length:]
@@ -197,9 +200,13 @@ class VolatilityIndicators(TechnicalHelpers):
         """
         if len(args) != TERNARY:
             self._error("ta.correlation requires source1, source2, length")
+        length = self._expect_int(args[2], "length")
+        if self._use_incremental_ta():
+            s1 = self._as_series_or_raw(args[0], last_sample_ok=True)
+            s2 = self._as_series_or_raw(args[1], last_sample_ok=True)
+            return self._correlation_inc_update(s1, s2, length)
         s1 = self._as_series(args[0]) if hasattr(self, "_as_series") else self._expect_list(args[0], "source1")
         s2 = self._as_series(args[1]) if hasattr(self, "_as_series") else self._expect_list(args[1], "source2")
-        length = self._expect_int(args[2], "length")
         if length < 2:
             return None
         n = min(len(s1), len(s2), length)
@@ -229,9 +236,9 @@ class VolatilityIndicators(TechnicalHelpers):
         still accepted (mult defaults to 1).
         """
         mult = 1.0
+        use_inc = self._use_incremental_ta()
         if len(args) == TERNARY and self._is_period_like(args[1]):
             # TV form: source, length, mult
-            closes = self._as_series(args[0])
             length = self._expect_int(args[1], "ta.kc length must be integer")
             m = args[2]
             current = getattr(m, "current", None)
@@ -239,25 +246,35 @@ class VolatilityIndicators(TechnicalHelpers):
                 m = current
             if isinstance(m, (int, float)) and not isinstance(m, bool):
                 mult = float(m)
+            if use_inc:
+                closes = self._as_series_or_raw(args[0], last_sample_ok=True)
+                highs = self._context_source("high") or closes
+                lows = self._context_source("low") or closes
+                return self._kc_inc_update(highs, lows, closes, length, mult)
+            closes = self._as_series(args[0])
             highs = self._context_series("high") or closes
             lows = self._context_series("low") or closes
         elif len(args) in {TERNARY, QUATERNARY} and not self._is_period_like(args[1]):
             # Legacy: high, low, close [, length]
-            highs = self._expect_list(args[0], "ta.kc takes high, low, close series, length")
-            lows = self._expect_list(args[1], "ta.kc takes high, low, close series, length")
-            closes = self._expect_list(args[2], "ta.kc takes high, low, close series, length")
             length = (
                 self._expect_int(args[3], "ta.kc length must be integer")
                 if len(args) > TERNARY
                 else 20
             )
-        elif len(args) >= QUATERNARY:
+            if use_inc:
+                return self._kc_inc_update(args[0], args[1], args[2], length, mult)
             highs = self._expect_list(args[0], "ta.kc takes high, low, close series, length")
             lows = self._expect_list(args[1], "ta.kc takes high, low, close series, length")
             closes = self._expect_list(args[2], "ta.kc takes high, low, close series, length")
+        elif len(args) >= QUATERNARY:
             length = self._expect_int(args[3], "ta.kc length must be integer")
             if len(args) > QUATERNARY and isinstance(args[4], (int, float)):
                 mult = float(args[4])
+            if use_inc:
+                return self._kc_inc_update(args[0], args[1], args[2], length, mult)
+            highs = self._expect_list(args[0], "ta.kc takes high, low, close series, length")
+            lows = self._expect_list(args[1], "ta.kc takes high, low, close series, length")
+            closes = self._expect_list(args[2], "ta.kc takes high, low, close series, length")
         else:
             self._error("ta.kc takes (series, length, mult) or (high, low, close, length)")
             return math.nan, math.nan, math.nan
@@ -283,9 +300,14 @@ class VolatilityIndicators(TechnicalHelpers):
     def _builtin_ta_kcw(self, args: list[Any]) -> float:
         """Keltner Channels Width."""
         _, upper, lower = self._builtin_ta_kc(args)
-        if math.isnan(upper) or math.isnan(lower):
+        if isinstance(upper, float) and math.isnan(upper):
             return math.nan
-        return upper - lower
+        if isinstance(lower, float) and math.isnan(lower):
+            return math.nan
+        try:
+            return float(upper) - float(lower)
+        except (TypeError, ValueError):
+            return math.nan
 
     def _builtin_ta_linreg(self, args: list[Any]) -> float:
         """Linear Regression value."""

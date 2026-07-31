@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -465,9 +466,13 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         if isinstance(value, str) and value.lower() in {"", "na", "nan", "none"}:
             return float(default)
         try:
-            return float(value)
+            f = float(value)
         except (TypeError, ValueError):
             return float(default)
+        # Non-finite → default (callers that need strict reject use _parse_order_qty)
+        if not math.isfinite(f):
+            return float(default)
+        return f
 
     @classmethod
     def _coerce_optional_price(cls, value: Any) -> float | None:
@@ -482,9 +487,81 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             if value is None:
                 return None
         try:
-            return float(value)
+            f = float(value)
         except (TypeError, ValueError):
             return None
+        if not math.isfinite(f):
+            return None
+        return f
+
+    @classmethod
+    def _parse_order_qty(cls, value: Any) -> tuple[str, float]:
+        """Strict qty parse for entry/order APIs.
+
+        Returns ``(status, qty)`` where *status* is:
+        - ``\"ok\"`` — finite qty ≥ 0 (caller rejects 0 for entries if needed)
+        - ``\"missing\"`` — None / Pine ``na`` (use default_qty or skip)
+        - ``\"invalid\"`` — non-numeric, negative, NaN/Inf (do **not** fill)
+
+        Never silently maps garbage → 1.0 (old ``_coerce_number`` default).
+        """
+        if value is None:
+            return ("missing", 0.0)
+        current = getattr(value, "current", None)
+        if current is not None and not isinstance(value, (int, float, str)):
+            value = current
+            if value is None:
+                return ("missing", 0.0)
+        if isinstance(value, str) and value.lower() in {"", "na", "nan", "none"}:
+            return ("missing", 0.0)
+        try:
+            f = float(value)
+        except (TypeError, ValueError):
+            return ("invalid", 0.0)
+        if not math.isfinite(f) or f < 0:
+            return ("invalid", 0.0)
+        return ("ok", float(f))
+
+    @staticmethod
+    def _normalize_entry_direction(direction: Any) -> str | None:
+        """Map Pine direction tokens to ``long``/``short``; else ``None`` (invalid)."""
+        if direction is None:
+            return None
+        d = str(direction).lower().strip()
+        if d in {"strategy.long", "long", "1", "buy"}:
+            return "long"
+        if d in {"strategy.short", "short", "-1", "sell"}:
+            return "short"
+        return None
+
+    def _emit_rejected_order(
+        self,
+        *,
+        order_id: str,
+        direction: str | None,
+        reason: str,
+        limit: float | None = None,
+        stop: float | None = None,
+    ) -> None:
+        """Record a non-fill diagnostic order event (no position change)."""
+        self._record_strategy_event(
+            StrategyEvent(
+                kind="order",
+                id=order_id,
+                direction=direction if direction in {"long", "short"} else None,
+                qty=0.0,
+                order_type="market",
+                limit=limit,
+                stop=stop,
+                oca_name=None,
+                comment=reason,
+                bar_index=self._bar_index(),
+                bar_time=self._bar_time(),
+                ohlc=(0.0, 0.0, 0.0, 0.0),
+                script_id="",
+                run_id="",
+            )
+        )
 
     def _mark_price(self) -> float:
         """Current mark price for MTM / market fills (prefer close)."""
@@ -652,12 +729,8 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             self._strategy_state = StrategyState()
         kw = kwargs or {}
         entry_id = str(kw.get("id", args[0] if args else "entry"))
-        direction = str(kw.get("direction", args[1] if len(args) > 1 else "long")).lower()
-        # Normalize strategy.long / strategy.short constants
-        if direction in {"strategy.long", "1", "long"}:
-            direction = "long"
-        elif direction in {"strategy.short", "-1", "short"}:
-            direction = "short"
+        raw_dir = kw.get("direction", args[1] if len(args) > 1 else "long")
+        direction = self._normalize_entry_direction(raw_dir)
         # Positional limit is rare; prefer kwargs. stop= for stop-entry is common.
         limit_price = self._coerce_optional_price(kw.get("limit", args[3] if len(args) > 3 else None))
         stop_price = self._coerce_optional_price(kw.get("stop", args[4] if len(args) > 4 else None))
@@ -666,32 +739,44 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         bar_index = self._bar_index()
         bar_time = self._bar_time()
 
-        # Explicit qty= / positional qty wins; else strategy() default_qty_type/value
+        if direction is None:
+            self._emit_rejected_order(
+                order_id=entry_id,
+                direction=None,
+                reason="invalid_direction",
+                limit=limit_price,
+                stop=stop_price,
+            )
+            return
+
+        # Explicit qty= / positional qty wins; else strategy() default_qty_type/value.
+        # Invalid qty must not silent-fill (old path used _coerce_number → 1.0).
         if "qty" in kw or len(args) > 2:
-            qty = self._coerce_number(kw.get("qty", args[2] if len(args) > 2 else 1.0), default=1.0)
+            raw_qty = kw.get("qty", args[2] if len(args) > 2 else None)
+            status, qty = self._parse_order_qty(raw_qty)
+            if status == "invalid":
+                self._emit_rejected_order(
+                    order_id=entry_id,
+                    direction=direction,
+                    reason="invalid_qty",
+                    limit=limit_price,
+                    stop=stop_price,
+                )
+                return
+            if status == "missing":
+                qty = self._resolve_default_entry_qty(fill_price)
         else:
             qty = self._resolve_default_entry_qty(fill_price)
 
         # --- Risk gates (allow_entry_in / entries_blocked / drawdown) ---
         if not self._risk_allows_entry(direction, fill_price):
             # Stay within StrategyEventKind union; hosts filter on comment.
-            self._record_strategy_event(
-                StrategyEvent(
-                    kind="order",
-                    id=entry_id,
-                    direction=direction,
-                    qty=0.0,
-                    order_type="market",
-                    limit=limit_price,
-                    stop=stop_price,
-                    oca_name=None,
-                    comment="risk_blocked",
-                    bar_index=bar_index,
-                    bar_time=bar_time,
-                    ohlc=(0.0, 0.0, 0.0, 0.0),
-                    script_id="",
-                    run_id="",
-                )
+            self._emit_rejected_order(
+                order_id=entry_id,
+                direction=direction,
+                reason="risk_blocked",
+                limit=limit_price,
+                stop=stop_price,
             )
             return
 
@@ -702,7 +787,14 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             max_qty = (equity * (pct / 100.0)) / fill_price
             if qty > max_qty:
                 qty = float(max_qty)
-        if qty <= 0:
+        if qty <= 0 or not math.isfinite(qty):
+            self._emit_rejected_order(
+                order_id=entry_id,
+                direction=direction,
+                reason="invalid_qty",
+                limit=limit_price,
+                stop=stop_price,
+            )
             return
 
         # Stop/limit entries become pending orders (filled by process_pending_orders)
@@ -751,13 +843,16 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         comment = kw.get("comment", None)
 
         # Close existing position if opposite direction (emit close for event parity
-        # with compile broker reverse path / trade consumers).
+        # with compile broker reverse path / trade consumers). Slip exit as the
+        # covering side (long→sell, short→buy).
         if (direction == "long" and st.position_direction == "short") or (
             direction == "short" and st.position_direction == "long"
         ):
             close_qty = float(st.position_size)
             close_dir = st.position_direction
-            self._close_position(self._mark_price(), close_qty, bar_time)
+            exit_action = "sell" if close_dir == "long" else "buy"
+            exit_px = self._apply_slippage(self._mark_price(), exit_action)
+            self._close_position(exit_px, close_qty, bar_time)
             self._record_strategy_event(
                 StrategyEvent(
                     kind="close",
@@ -884,11 +979,23 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         Returns None. Closes position or partial position.
         """
         kw = kwargs or {}
-        qty = float(kw.get("qty", args[2] if len(args) > 2 else self._strategy_state.position_size))
+        raw_qty = kw.get("qty", args[2] if len(args) > 2 else None)
+        if raw_qty is None:
+            qty = float(self._strategy_state.position_size)
+        else:
+            status, parsed = self._parse_order_qty(raw_qty)
+            if status == "invalid":
+                self._emit_rejected_order(
+                    order_id=str(kw.get("id", args[0] if args else "exit")),
+                    direction=None,
+                    reason="invalid_qty",
+                )
+                return
+            qty = float(self._strategy_state.position_size) if status == "missing" else parsed
 
         # v6: evaluate both (limit/profit) and (stop/loss) pairs; choose the one market price would activate first
-        limit_p = kw.get("limit") or kw.get("profit")
-        stop_p = kw.get("stop") or kw.get("loss")
+        limit_p = self._coerce_optional_price(kw.get("limit") or kw.get("profit"))
+        stop_p = self._coerce_optional_price(kw.get("stop") or kw.get("loss"))
         current_p = self._mark_price()
         is_long = self._strategy_state.position_direction == "long"
 
@@ -911,9 +1018,13 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 else:
                     exit_price = max(limit_p, stop_p) if limit_p > stop_p else limit_p
         else:
-            exit_price = float(limit_p or stop_p or current_p)
+            exit_price = float(limit_p if limit_p is not None else stop_p if stop_p is not None else current_p)
 
         if self._strategy_state.position_direction != "flat":
+            # Market exit (no limit/stop) gets slippage; triggered prices already fixed.
+            if limit_p is None and stop_p is None:
+                exit_action = "sell" if is_long else "buy"
+                exit_price = self._apply_slippage(exit_price, exit_action)
             self._close_position(exit_price, qty, self._bar_time())
 
         self._record_strategy_event(
@@ -949,10 +1060,25 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         Returns None.
         """
         kw = kwargs or {}
-        qty = float(kw.get("qty", args[1] if len(args) > 1 else self._strategy_state.position_size))
+        raw_qty = kw.get("qty", args[1] if len(args) > 1 else None)
+        if raw_qty is None:
+            qty = float(self._strategy_state.position_size)
+        else:
+            status, parsed = self._parse_order_qty(raw_qty)
+            if status == "invalid":
+                self._emit_rejected_order(
+                    order_id=str(kw.get("id", args[0] if args else "close")),
+                    direction=None,
+                    reason="invalid_qty",
+                )
+                return
+            qty = float(self._strategy_state.position_size) if status == "missing" else parsed
 
         if self._strategy_state.position_direction != "flat":
-            self._close_position(self._mark_price(), qty, self._bar_time())
+            # Exit slippage: closing long sells (worse), covering short buys (worse).
+            exit_action = "sell" if self._strategy_state.position_direction == "long" else "buy"
+            exit_px = self._apply_slippage(self._mark_price(), exit_action)
+            self._close_position(exit_px, qty, self._bar_time())
 
         self._record_strategy_event(
             StrategyEvent(
@@ -986,7 +1112,9 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         """
         kw = kwargs or {}
         if self._strategy_state.position_direction != "flat":
-            self._close_position(self._mark_price(), self._strategy_state.position_size, self._bar_time())
+            exit_action = "sell" if self._strategy_state.position_direction == "long" else "buy"
+            exit_px = self._apply_slippage(self._mark_price(), exit_action)
+            self._close_position(exit_px, self._strategy_state.position_size, self._bar_time())
 
         self._record_strategy_event(
             StrategyEvent(
@@ -1089,12 +1217,29 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         kw = kwargs or {}
         order_id = str(kw.get("id", args[0] if len(args) > 0 else "order_1"))
         raw_action = kw.get("direction", kw.get("action", args[1] if len(args) > 1 else "buy"))
-        action = str(raw_action).lower()
-        if action in {"strategy.long", "long", "1"}:
-            action = "buy"
-        elif action in {"strategy.short", "short", "-1"}:
-            action = "sell"
-        qty = self._coerce_number(kw.get("qty", args[2] if len(args) > 2 else 1.0), default=1.0)
+        norm = self._normalize_entry_direction(raw_action)
+        if norm is not None:
+            action = "buy" if norm == "long" else "sell"
+        else:
+            action_s = str(raw_action).lower() if raw_action is not None else ""
+            if action_s in {"buy", "sell"}:
+                action = action_s
+            else:
+                self._emit_rejected_order(order_id=order_id, direction=None, reason="invalid_direction")
+                return
+        if "qty" in kw or len(args) > 2:
+            status, qty = self._parse_order_qty(kw.get("qty", args[2] if len(args) > 2 else None))
+            if status == "missing":
+                qty = 1.0  # Pine na qty → unit size
+            elif status == "invalid" or qty <= 0:
+                self._emit_rejected_order(
+                    order_id=order_id,
+                    direction="long" if action == "buy" else "short",
+                    reason="invalid_qty",
+                )
+                return
+        else:
+            qty = 1.0
         limit_price = self._coerce_optional_price(kw.get("limit", args[3] if len(args) > 3 else None))
         stop_price = self._coerce_optional_price(kw.get("stop", args[4] if len(args) > 4 else None))
         # TV: oca_name, oca_type, comment — also tolerate comment before oca
@@ -1472,6 +1617,11 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         exit_bar = self._bar_index()
         exit_price = float(exit_price)
         exit_time = int(exit_time)
+        # TV-style: commission on entry (already on OpenTrade) **and** on exit fill.
+        # Pro-rate exit commission across legs closed in this call.
+        total_close = min(remaining, float(sum(t.size for t in self._strategy_state.open_trades)))
+        exit_comm_total = self._calc_commission(total_close, exit_price) if total_close > 0 else 0.0
+        self._strategy_state.commission = exit_comm_total
 
         new_open: list[OpenTrade] = []
         for ot in self._strategy_state.open_trades:
@@ -1479,12 +1629,14 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 new_open.append(ot)
                 continue
             close_qty = min(ot.size, remaining)
+            entry_comm = ot.commission * (close_qty / ot.size) if ot.size else 0.0
+            exit_comm = exit_comm_total * (close_qty / total_close) if total_close > 0 else 0.0
             if ot.direction == "long":
-                profit = (exit_price - ot.entry_price) * close_qty - ot.commission * (close_qty / ot.size)
+                profit = (exit_price - ot.entry_price) * close_qty - entry_comm - exit_comm
             else:
-                profit = (ot.entry_price - exit_price) * close_qty - ot.commission * (close_qty / ot.size)
+                profit = (ot.entry_price - exit_price) * close_qty - entry_comm - exit_comm
 
-            commission = ot.commission * (close_qty / ot.size) if ot.size else 0.0
+            commission = entry_comm + exit_comm
             self._strategy_state.closed_trades.append(
                 Trade(
                     entry_bar=ot.entry_bar,
@@ -1512,7 +1664,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                         entry_price=ot.entry_price,
                         direction=ot.direction,
                         size=leftover,
-                        commission=ot.commission - commission,
+                        commission=ot.commission - entry_comm,
                     )
                 )
             remaining -= close_qty

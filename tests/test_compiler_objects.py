@@ -319,7 +319,8 @@ plot(-x, title="n")
 hline(0)
 """
         code = transpile(src)
-        assert "na_num" in code or "safe_float" in code
+        # float x = na → np.nan series; -x is safe without na_num when RHS is float64
+        assert "x_arr" in code or "na_num" in code or "safe_float" in code
         compiled = compile_script(src)
         assert compiled.object_mode
         o, h, l, c, v = _ohlcv(5)
@@ -339,4 +340,134 @@ hline(1)
         out = compiled.run(o, h, l, c, v)
         assert np.all(np.isnan(out["p"]))
 
+
+class TestCollectionObjectModeParity:
+    """Round 6: array.fill range, sort_field, map.keys/values compile parity."""
+
+    def test_array_fill_range(self) -> None:
+        src = """//@version=6
+indicator("fill")
+var a = array.from(0.0, 0.0, 0.0, 0.0, 0.0)
+if bar_index == 0
+    array.fill(a, 7.0, 1, 4)
+plot(array.get(a, 0), title="p0")
+plot(array.get(a, 1), title="p1")
+plot(array.get(a, 3), title="p3")
+plot(array.get(a, 4), title="p4")
+"""
+        code = transpile(src)
+        assert "array_fill" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(6)
+        out = compiled.run(o, h, l, c, v)
+        assert np.allclose(out["p0"], 0.0)
+        assert np.allclose(out["p1"], 7.0)
+        assert np.allclose(out["p3"], 7.0)
+        assert np.allclose(out["p4"], 0.0)
+
+    def test_array_sort_udt_sort_field(self) -> None:
+        src = """//@version=6
+indicator("sortf")
+type Item
+    int id
+    float v
+var a = array.new<Item>()
+if bar_index == 0
+    array.push(a, Item.new(2, 20.0))
+    array.push(a, Item.new(1, 10.0))
+    array.push(a, Item.new(3, 30.0))
+    array.sort(a, order.ascending, "id")
+plot(array.get(a, 0).id, title="id0")
+plot(array.get(a, 1).id, title="id1")
+plot(array.get(a, 2).id, title="id2")
+"""
+        code = transpile(src)
+        assert "array_sort" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(5)
+        out = compiled.run(o, h, l, c, v)
+        assert np.allclose(out["id0"], 1.0)
+        assert np.allclose(out["id1"], 2.0)
+        assert np.allclose(out["id2"], 3.0)
+
+    def test_array_sort_indices_udt_sort_field(self) -> None:
+        src = """//@version=6
+indicator("si")
+type Item
+    int id
+    float v
+var a = array.new<Item>()
+if bar_index == 0
+    array.push(a, Item.new(2, 20.0))
+    array.push(a, Item.new(1, 10.0))
+    array.push(a, Item.new(3, 30.0))
+si = array.sort_indices(a, order.ascending, "id")
+plot(array.get(si, 0), title="i0")
+plot(array.get(si, 1), title="i1")
+plot(array.get(si, 2), title="i2")
+"""
+        code = transpile(src)
+        assert "array_sort_indices" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(5)
+        out = compiled.run(o, h, l, c, v)
+        # ids were [2,1,3] → sorted indices [1,0,2]
+        assert np.allclose(out["i0"], 1.0)
+        assert np.allclose(out["i1"], 0.0)
+        assert np.allclose(out["i2"], 2.0)
+
+    def test_map_new_is_scalar_not_series(self) -> None:
+        src = """//@version=6
+indicator("m")
+var m = map.new<string, float>()
+map.put(m, "k", close)
+plot(map.get(m, "k"), title="g")
+"""
+        code = transpile(src)
+        assert "m_arr" not in code
+        assert "m = {}" in code or "m = None" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        np.testing.assert_allclose(out["g"], c)
+
+    def test_map_keys_values_sequence_handles(self) -> None:
+        src = """//@version=6
+indicator("kv")
+var m = map.new<string, float>()
+if bar_index == 0
+    map.put(m, "a", 1.0)
+    map.put(m, "b", 2.0)
+ks = map.keys(m)
+vs = map.values(m)
+plot(map.size(m), title="sz")
+plot(array.size(ks), title="ksz")
+plot(array.get(vs, 0) + array.get(vs, 1), title="vsum")
+"""
+        code = transpile(src)
+        # keys/values must not be forced through safe_float into float series
+        assert "safe_float(list(" not in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(6)
+        out = compiled.run(o, h, l, c, v)
+        assert np.allclose(out["sz"], 2.0)
+        assert np.allclose(out["ksz"], 2.0)
+        assert np.allclose(out["vsum"], 3.0)
+
+    def test_array_insert_at_end_compile(self) -> None:
+        src = """//@version=6
+indicator("ins")
+var a = array.from(1.0, 2.0, 3.0)
+if bar_index == 0
+    array.insert(a, 3, 99.0)
+plot(array.size(a), title="sz")
+plot(array.get(a, 3), title="v")
+"""
+        code = transpile(src)
+        assert "safe_list_insert" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(4)
+        out = compiled.run(o, h, l, c, v)
+        assert np.allclose(out["sz"], 4.0)
+        assert np.allclose(out["v"], 99.0)
 

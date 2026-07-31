@@ -17,6 +17,17 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""request.* builtins — live/historical fetch with intentional mock soft-fail.
+
+Data-path failures (missing feed, network, bad provider payload) are **soft**:
+helpers catch ``Exception`` and fall through to built-in mock prices so
+indicator scripts keep evaluating without a real market data backend.
+
+Do **not** harden these into hard failures without an explicit host flag —
+Runtime hosts and corpus demos rely on mock fallbacks. Programming errors
+inside expression evaluation still propagate via the normal bar loop.
+"""
+
 from __future__ import annotations
 
 import random

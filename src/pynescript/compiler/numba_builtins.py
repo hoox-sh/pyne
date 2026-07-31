@@ -858,18 +858,30 @@ def numba_lowestbars(arr, length, i):
 
 @numba.njit(cache=True)
 def numba_percentrank(arr, length, i):
+    """Percentrank matching interpret ``_percentrank`` (strict ``<`` / valid-only).
+
+    Window is the last ``length`` bars ending at ``i``. Among non-nan samples,
+    returns ``100 * count(v < arr[i]) / n_valid``. Fewer than 2 valid samples
+    → 50.0 (same as interpret). Warm-up / current nan → nan.
+    """
     length = int(length)
-    """Percent of values in the last ``length`` bars that are <= arr[i]."""
     if length <= 0 or i < length - 1:
         return np.nan
     v = arr[i]
     if np.isnan(v):
         return np.nan
-    cnt = 0
+    n_valid = 0
+    n_below = 0
     for j in range(length):
-        if arr[i - j] <= v:
-            cnt += 1
-    return 100.0 * cnt / length
+        x = arr[i - j]
+        if np.isnan(x):
+            continue
+        n_valid += 1
+        if x < v:
+            n_below += 1
+    if n_valid < 2:
+        return 50.0
+    return 100.0 * n_below / n_valid
 
 
 @numba.njit(cache=True)
@@ -1619,12 +1631,135 @@ def safe_list_pop(arr, index=None):
 
 
 def safe_list_insert(arr, index, value):
-    """Insert into a real list; no-op when *arr* is not a list."""
-    if isinstance(arr, list):
+    """Insert into a real list; no-op when *arr* is not a list / bad index."""
+    if not isinstance(arr, list):
+        return arr
+    if index is None:
+        return arr
+    try:
+        idx = int(index)
+    except (TypeError, ValueError):
+        return arr
+    if idx < 0:
+        return arr
+    try:
+        arr.insert(idx, value)
+    except Exception:
+        pass
+    return arr
+
+
+def _udt_sort_key(elem, sort_field):
+    """Extract sort key from UDT dict / ObjectInstance-like for object-mode sorts."""
+    if sort_field is None:
+        if isinstance(elem, dict):
+            # Prefer first non-meta field; skip compiler ``__type__`` marker
+            for k, v in elem.items():
+                if k != "__type__":
+                    return v
+            return next(iter(elem.values()), np.nan) if elem else np.nan
+        return elem
+    if isinstance(elem, dict):
+        if isinstance(sort_field, str):
+            return elem.get(sort_field, np.nan)
         try:
-            arr.insert(int(index), value)
+            idx = int(sort_field)
+        except (TypeError, ValueError):
+            return elem
+        # Prefer field order without ``__type__``
+        keys = [k for k in elem.keys() if k != "__type__"]
+        if 0 <= idx < len(keys):
+            return elem[keys[idx]]
+        vals = list(elem.values())
+        if 0 <= idx < len(vals):
+            return vals[idx]
+        return np.nan
+    get_field = getattr(elem, "get_field", None)
+    if callable(get_field) and isinstance(sort_field, str):
+        try:
+            return get_field(sort_field)
         except Exception:
-            pass
+            return np.nan
+    return elem
+
+
+def _is_sort_na(v) -> bool:
+    if v is None:
+        return True
+    try:
+        return v != v  # NaN
+    except Exception:
+        return False
+
+
+def array_sort(arr, order="ascending", sort_field=None):
+    """Pine ``array.sort(id, order?, sort_field?)`` — in-place, na last.
+
+    Object-mode helper. Supports UDT dict cells keyed by field name/index.
+    """
+    if not isinstance(arr, list):
+        return arr
+    reverse = _pine_is_descending(order)
+    non_na = [x for x in arr if not _is_sort_na(x)]
+    na_vals = [x for x in arr if _is_sort_na(x)]
+
+    def _key(x):
+        return _udt_sort_key(x, sort_field)
+
+    try:
+        non_na.sort(key=_key, reverse=reverse)
+    except TypeError:
+        non_na.sort(
+            key=lambda x: (str(type(_key(x))), str(_key(x))),
+            reverse=reverse,
+        )
+    arr[:] = non_na + na_vals
+    return arr
+
+
+def array_fill(arr, value, index_from=None, index_to=None):
+    """Pine ``array.fill(id, value, index_from?, index_to?)`` half-open range.
+
+    Also fills list-of-lists matrices cell-wise when *arr* is a matrix handle
+    and no range is given.
+    """
+    if not isinstance(arr, list):
+        return arr
+    # Matrix (list-of-lists) full fill when no range
+    if (
+        arr
+        and isinstance(arr[0], list)
+        and index_from is None
+        and index_to is None
+    ):
+        for row in arr:
+            if isinstance(row, list):
+                for c in range(len(row)):
+                    row[c] = value
+        return arr
+    n = len(arr)
+    if index_from is None:
+        start = 0
+    else:
+        try:
+            start = int(index_from)
+        except (TypeError, ValueError):
+            start = 0
+    if index_to is None:
+        end = n
+    else:
+        try:
+            end = int(index_to)
+        except (TypeError, ValueError):
+            end = n
+    if start < 0:
+        start = 0
+    if end > n:
+        end = n
+    if end < start:
+        return arr
+    for i in range(start, end):
+        arr[i] = value
     return arr
 
 
@@ -1691,10 +1826,11 @@ def array_normalized(arr):
     return [((x - lo) / span) if (x == x) else np.nan for x in seq]
 
 
-def array_sort_indices(arr, order="ascending"):
-    """Pine ``array.sort_indices(id, order?)`` → list of indices (na last).
+def array_sort_indices(arr, order="ascending", sort_field=None):
+    """Pine ``array.sort_indices(id, order?, sort_field?)`` → indices (na last).
 
-    Object-mode helper used by the Numba compiler emit path.
+    Object-mode helper used by the Numba compiler emit path. Optional
+    *sort_field* keys UDT/dict elements (field name or field index).
     """
     if arr is None:
         return []
@@ -1706,20 +1842,19 @@ def array_sort_indices(arr, order="ascending"):
         return []
     reverse = _pine_is_descending(order)
 
-    def _is_na(v) -> bool:
-        if v is None:
-            return True
-        try:
-            return v != v  # NaN
-        except Exception:
-            return False
+    non_na = [(val, idx) for idx, val in enumerate(seq) if not _is_sort_na(val)]
+    na_idx = [idx for idx, val in enumerate(seq) if _is_sort_na(val)]
 
-    non_na = [(val, idx) for idx, val in enumerate(seq) if not _is_na(val)]
-    na_idx = [idx for idx, val in enumerate(seq) if _is_na(val)]
+    def _key_pair(pair):
+        return _udt_sort_key(pair[0], sort_field)
+
     try:
-        non_na.sort(key=lambda x: x[0], reverse=reverse)
+        non_na.sort(key=_key_pair, reverse=reverse)
     except TypeError:
-        non_na.sort(key=lambda x: (str(type(x[0])), str(x[0])), reverse=reverse)
+        non_na.sort(
+            key=lambda x: (str(type(_key_pair(x))), str(_key_pair(x))),
+            reverse=reverse,
+        )
     return [idx for _, idx in non_na] + na_idx
 
 
@@ -3955,6 +4090,573 @@ def numba_tema_inc(arr, period, i, st, e1_raw, e2_raw):
     if i < seed3 or np.isnan(e1) or np.isnan(e2) or np.isnan(e3):
         return np.nan
     return 3.0 * e1 - 3.0 * e2 + e3
+
+
+# ---------------------------------------------------------------------------
+# Round 6: ADX / DMI / Supertrend / ALMA_inc (match current interpret oracle)
+# ---------------------------------------------------------------------------
+
+@numba.njit(cache=True)
+def _rma_step4(st, base, x, period):
+    """One Wilder RMA sample; ``st[base:base+4]`` = [rma, seed_sum, seed_count, phase].
+
+    phase: 0 = not started, 1 = seeding, 2 = seeded.
+    Matches interpret ``_rma_state_step`` (skip nan until started; hold on nan).
+    """
+    period = int(period)
+    rma = st[base + 0]
+    seed_sum = st[base + 1]
+    seed_count = st[base + 2]
+    phase = st[base + 3]
+    alpha = 1.0 / float(period)
+
+    if phase < 1.5:
+        if np.isnan(x):
+            st[base + 0] = np.nan
+            return np.nan
+        if phase < 0.5:
+            phase = 1.0
+            seed_sum = 0.0
+            seed_count = 0.0
+        seed_sum = seed_sum + x
+        seed_count = seed_count + 1.0
+        if seed_count < float(period):
+            st[base + 0] = np.nan
+            st[base + 1] = seed_sum
+            st[base + 2] = seed_count
+            st[base + 3] = phase
+            return np.nan
+        rma = seed_sum / seed_count
+        st[base + 0] = rma
+        st[base + 1] = 0.0
+        st[base + 2] = 0.0
+        st[base + 3] = 2.0
+        return rma
+
+    if np.isnan(x):
+        return rma
+    rma = alpha * x + (1.0 - alpha) * rma
+    st[base + 0] = rma
+    return rma
+
+
+@numba.njit(cache=True)
+def _rma_reset4(st, base):
+    st[base + 0] = np.nan
+    st[base + 1] = 0.0
+    st[base + 2] = 0.0
+    st[base + 3] = 0.0
+
+
+@numba.njit(cache=True)
+def _rma_series_full(src, period, n):
+    """Full-series Wilder RMA matching interpret ``_rma`` (nan-aware seed)."""
+    out = np.empty(n, dtype=np.float64)
+    period = int(period)
+    if period <= 0 or n <= 0:
+        for i in range(n):
+            out[i] = np.nan
+        return out
+    alpha = 1.0 / float(period)
+    first_valid = -1
+    for i in range(n):
+        if not np.isnan(src[i]):
+            first_valid = i
+            break
+    if first_valid < 0:
+        for i in range(n):
+            out[i] = np.nan
+        return out
+    for i in range(first_valid):
+        out[i] = np.nan
+    # seed window [first_valid, first_valid+period); filter nans like full path
+    s = 0.0
+    cnt = 0
+    end = first_valid + period
+    if end > n:
+        for i in range(first_valid, n):
+            out[i] = np.nan
+        return out
+    for i in range(first_valid, end):
+        v = src[i]
+        if not np.isnan(v):
+            s += v
+            cnt += 1
+    if cnt == 0:
+        for i in range(n):
+            out[i] = np.nan
+        return out
+    current = s / float(cnt)
+    for i in range(first_valid, first_valid + period - 1):
+        out[i] = np.nan
+    seed_idx = first_valid + period - 1
+    out[seed_idx] = current
+    for i in range(first_valid + period, n):
+        v = src[i]
+        if np.isnan(v):
+            out[i] = current
+        else:
+            current = alpha * v + (1.0 - alpha) * current
+            out[i] = current
+    return out
+
+
+@numba.njit(cache=True)
+def numba_adx(high, low, close, period, i):
+    """ADX at bar ``i`` matching interpret ``_adx`` / ``_adx_inc_update``.
+
+    nan-first DM; Wilder RMA of TR/+DM/-DM and of DX. Returns 0.0 while
+    ``i+1 < period`` or ADX has not seeded yet (not nan).
+    """
+    period = int(period)
+    if period <= 0 or i < 0:
+        return 0.0
+    n = i + 1
+    if n < period:
+        return 0.0
+
+    tr = np.empty(n, dtype=np.float64)
+    plus_dm = np.empty(n, dtype=np.float64)
+    minus_dm = np.empty(n, dtype=np.float64)
+    tr[0] = np.nan
+    plus_dm[0] = np.nan
+    minus_dm[0] = np.nan
+    for j in range(1, n):
+        hj = high[j]
+        lj = low[j]
+        pc = close[j - 1]
+        tr[j] = max(hj - lj, abs(hj - pc), abs(lj - pc))
+        high_diff = hj - high[j - 1]
+        low_diff = low[j - 1] - lj
+        if high_diff > low_diff and high_diff > 0.0:
+            plus_dm[j] = high_diff
+        else:
+            plus_dm[j] = 0.0
+        if low_diff > high_diff and low_diff > 0.0:
+            minus_dm[j] = low_diff
+        else:
+            minus_dm[j] = 0.0
+
+    atr = _rma_series_full(tr, period, n)
+    pd = _rma_series_full(plus_dm, period, n)
+    md = _rma_series_full(minus_dm, period, n)
+
+    # ATR all-nan → 0.0
+    any_atr = False
+    for j in range(n):
+        if not np.isnan(atr[j]) and atr[j] != 0.0:
+            any_atr = True
+            break
+        if not np.isnan(atr[j]):
+            any_atr = True
+            break
+    if not any_atr:
+        return 0.0
+
+    dx = np.empty(n, dtype=np.float64)
+    for j in range(n):
+        a = atr[j]
+        p = pd[j]
+        m = md[j]
+        if np.isnan(a) or np.isnan(p) or np.isnan(m):
+            dx[j] = np.nan
+        else:
+            plus_di = 100.0 * p / a if a != 0.0 else 0.0
+            minus_di = 100.0 * m / a if a != 0.0 else 0.0
+            denom = plus_di + minus_di
+            if denom == 0.0:
+                dx[j] = 0.0
+            else:
+                dx[j] = 100.0 * abs(plus_di - minus_di) / denom
+
+    adx_s = _rma_series_full(dx, period, n)
+    for j in range(n - 1, -1, -1):
+        if not np.isnan(adx_s[j]):
+            return adx_s[j]
+    return 0.0
+
+
+@numba.njit(cache=True)
+def numba_adx_inc(high, low, close, period, i, st):
+    """Amortized O(1) ADX. ``st`` length 22:
+
+    [0:4] rma_tr, [4:8] rma_pdm, [8:12] rma_mdm, [12:16] rma_dx,
+    [16] prev_h, [17] prev_l, [18] prev_c, [19] n_seen, [20] last_i, [21] value.
+    """
+    period = int(period)
+    if period <= 0 or i < 0:
+        return 0.0
+
+    if np.isnan(st[20]):
+        last = -1
+    else:
+        last = int(st[20])
+    if i < last:
+        last = -1
+    if last < 0:
+        for b in (0, 4, 8, 12):
+            _rma_reset4(st, b)
+        st[16] = np.nan
+        st[17] = np.nan
+        st[18] = np.nan
+        st[19] = 0.0
+        st[21] = 0.0
+
+    for j in range(last + 1, i + 1):
+        hj = high[j]
+        lj = low[j]
+        cj = close[j]
+        prev_h = st[16]
+        prev_l = st[17]
+        prev_c = st[18]
+        st[16] = hj
+        st[17] = lj
+        st[18] = cj
+        st[19] = st[19] + 1.0
+        n = int(st[19])
+
+        if np.isnan(prev_c) or np.isnan(prev_h) or np.isnan(prev_l):
+            tr = np.nan
+            plus_dm = np.nan
+            minus_dm = np.nan
+        else:
+            tr = max(hj - lj, abs(hj - prev_c), abs(lj - prev_c))
+            high_diff = hj - prev_h
+            low_diff = prev_l - lj
+            if high_diff > low_diff and high_diff > 0.0:
+                plus_dm = high_diff
+            else:
+                plus_dm = 0.0
+            if low_diff > high_diff and low_diff > 0.0:
+                minus_dm = low_diff
+            else:
+                minus_dm = 0.0
+
+        atr_v = _rma_step4(st, 0, tr, period)
+        pd = _rma_step4(st, 4, plus_dm, period)
+        md = _rma_step4(st, 8, minus_dm, period)
+
+        if n < period:
+            st[21] = 0.0
+            continue
+
+        # ATR not seeded yet
+        if st[3] < 1.5:
+            st[21] = 0.0
+            continue
+
+        if np.isnan(atr_v) or np.isnan(pd) or np.isnan(md):
+            dx_in = np.nan
+        else:
+            plus_di = 100.0 * pd / atr_v if atr_v != 0.0 else 0.0
+            minus_di = 100.0 * md / atr_v if atr_v != 0.0 else 0.0
+            denom = plus_di + minus_di
+            if denom == 0.0:
+                dx_in = 0.0
+            else:
+                dx_in = 100.0 * abs(plus_di - minus_di) / denom
+
+        adx_v = _rma_step4(st, 12, dx_in, period)
+        if np.isnan(adx_v):
+            st[21] = 0.0
+        else:
+            st[21] = adx_v
+
+    st[20] = float(i)
+    return st[21]
+
+
+@numba.njit(cache=True)
+def numba_dmi(high, low, close, di_len, adx_smooth, i):
+    """DMI at bar ``i`` → (+DI, -DI, ADX) matching interpret BasicIndicators.
+
+    +DI/-DI use **0-first** DM + RMA(di_len); ADX uses nan-first ``numba_adx``.
+    """
+    di_len = int(di_len)
+    adx_smooth = int(adx_smooth)
+    if di_len < 1 or i < 0:
+        return np.nan, np.nan, 0.0
+
+    n = i + 1
+    tr = np.empty(n, dtype=np.float64)
+    plus_dm = np.empty(n, dtype=np.float64)
+    minus_dm = np.empty(n, dtype=np.float64)
+    tr[0] = np.nan
+    plus_dm[0] = 0.0
+    minus_dm[0] = 0.0
+    for j in range(1, n):
+        hj = high[j]
+        lj = low[j]
+        pc = close[j - 1]
+        tr[j] = max(hj - lj, abs(hj - pc), abs(lj - pc))
+        high_diff = hj - high[j - 1]
+        low_diff = low[j - 1] - lj
+        if high_diff > low_diff and high_diff > 0.0:
+            plus_dm[j] = high_diff
+        else:
+            plus_dm[j] = 0.0
+        if low_diff > high_diff and low_diff > 0.0:
+            minus_dm[j] = low_diff
+        else:
+            minus_dm[j] = 0.0
+
+    atr = _rma_series_full(tr, di_len, n)
+    pd = _rma_series_full(plus_dm, di_len, n)
+    md = _rma_series_full(minus_dm, di_len, n)
+    a = atr[i]
+    p = pd[i]
+    m = md[i]
+    if np.isnan(a) or np.isnan(p) or np.isnan(m):
+        plus_di = np.nan
+        minus_di = np.nan
+    elif a == 0.0:
+        plus_di = 0.0
+        minus_di = 0.0
+    else:
+        plus_di = 100.0 * p / a
+        minus_di = 100.0 * m / a
+
+    adx = numba_adx(high, low, close, adx_smooth, i)
+    return plus_di, minus_di, adx
+
+
+@numba.njit(cache=True)
+def numba_dmi_inc(high, low, close, di_len, adx_smooth, i, st):
+    """Amortized DMI. ``st`` length 40:
+
+    [0:22] ADX sub-state (same layout as ``numba_adx_inc``),
+    [22:26] DI rma_tr, [26:30] DI rma_pdm, [30:34] DI rma_mdm,
+    [34] DI prev_h, [35] DI prev_l, [36] DI prev_c,
+    [37] last_i, [38] plus_di, [39] minus_di.
+    """
+    di_len = int(di_len)
+    adx_smooth = int(adx_smooth)
+    if di_len < 1 or i < 0:
+        return np.nan, np.nan, 0.0
+
+    if np.isnan(st[37]):
+        last = -1
+    else:
+        last = int(st[37])
+    if i < last:
+        last = -1
+    if last < 0:
+        for b in (0, 4, 8, 12, 22, 26, 30):
+            _rma_reset4(st, b)
+        st[16] = np.nan
+        st[17] = np.nan
+        st[18] = np.nan
+        st[19] = 0.0
+        st[20] = np.nan
+        st[21] = 0.0
+        st[34] = np.nan
+        st[35] = np.nan
+        st[36] = np.nan
+        st[38] = np.nan
+        st[39] = np.nan
+
+    for j in range(last + 1, i + 1):
+        hj = high[j]
+        lj = low[j]
+        cj = close[j]
+
+        # --- DI path (0-first DM) ---
+        prev_h = st[34]
+        prev_l = st[35]
+        prev_c = st[36]
+        st[34] = hj
+        st[35] = lj
+        st[36] = cj
+        if np.isnan(prev_h) or np.isnan(prev_l) or np.isnan(prev_c):
+            tr = np.nan
+            plus_dm = 0.0
+            minus_dm = 0.0
+        else:
+            tr = max(hj - lj, abs(hj - prev_c), abs(lj - prev_c))
+            high_diff = hj - prev_h
+            low_diff = prev_l - lj
+            if high_diff > low_diff and high_diff > 0.0:
+                plus_dm = high_diff
+            else:
+                plus_dm = 0.0
+            if low_diff > high_diff and low_diff > 0.0:
+                minus_dm = low_diff
+            else:
+                minus_dm = 0.0
+
+        atr_v = _rma_step4(st, 22, tr, di_len)
+        pd = _rma_step4(st, 26, plus_dm, di_len)
+        md = _rma_step4(st, 30, minus_dm, di_len)
+
+        if np.isnan(atr_v) or np.isnan(pd) or np.isnan(md):
+            if np.isnan(atr_v):
+                plus_di = np.nan
+                minus_di = np.nan
+            elif atr_v == 0.0:
+                plus_di = 0.0
+                minus_di = 0.0
+            else:
+                pd_f = 0.0 if np.isnan(pd) else pd
+                md_f = 0.0 if np.isnan(md) else md
+                plus_di = 100.0 * pd_f / atr_v
+                minus_di = 100.0 * md_f / atr_v
+        else:
+            if atr_v == 0.0:
+                plus_di = 0.0
+                minus_di = 0.0
+            else:
+                plus_di = 100.0 * pd / atr_v
+                minus_di = 100.0 * md / atr_v
+
+        st[38] = plus_di
+        st[39] = minus_di
+
+        # --- ADX path (nan-first) — mirror numba_adx_inc one bar ---
+        prev_h2 = st[16]
+        prev_l2 = st[17]
+        prev_c2 = st[18]
+        st[16] = hj
+        st[17] = lj
+        st[18] = cj
+        st[19] = st[19] + 1.0
+        n = int(st[19])
+
+        if np.isnan(prev_c2) or np.isnan(prev_h2) or np.isnan(prev_l2):
+            tr2 = np.nan
+            pdm2 = np.nan
+            mdm2 = np.nan
+        else:
+            tr2 = max(hj - lj, abs(hj - prev_c2), abs(lj - prev_c2))
+            high_diff2 = hj - prev_h2
+            low_diff2 = prev_l2 - lj
+            if high_diff2 > low_diff2 and high_diff2 > 0.0:
+                pdm2 = high_diff2
+            else:
+                pdm2 = 0.0
+            if low_diff2 > high_diff2 and low_diff2 > 0.0:
+                mdm2 = low_diff2
+            else:
+                mdm2 = 0.0
+
+        atr2 = _rma_step4(st, 0, tr2, adx_smooth)
+        pd2 = _rma_step4(st, 4, pdm2, adx_smooth)
+        md2 = _rma_step4(st, 8, mdm2, adx_smooth)
+
+        if n < adx_smooth:
+            st[21] = 0.0
+        elif st[3] < 1.5:
+            st[21] = 0.0
+        else:
+            if np.isnan(atr2) or np.isnan(pd2) or np.isnan(md2):
+                dx_in = np.nan
+            else:
+                pdi = 100.0 * pd2 / atr2 if atr2 != 0.0 else 0.0
+                mdi = 100.0 * md2 / atr2 if atr2 != 0.0 else 0.0
+                denom = pdi + mdi
+                if denom == 0.0:
+                    dx_in = 0.0
+                else:
+                    dx_in = 100.0 * abs(pdi - mdi) / denom
+            adx_v = _rma_step4(st, 12, dx_in, adx_smooth)
+            if np.isnan(adx_v):
+                st[21] = 0.0
+            else:
+                st[21] = adx_v
+
+    st[20] = float(i)
+    st[37] = float(i)
+    return st[38], st[39], st[21]
+
+
+@numba.njit(cache=True)
+def numba_supertrend(high, low, close, factor, atr_period, i):
+    """Simplified Supertrend matching interpret BasicIndicators (not TV ratchet).
+
+    Returns ``(supertrend, direction)`` with direction -1 (up) / +1 (down).
+    ATR via ``numba_atr``; nan ATR treated as 0.0.
+    """
+    atr_period = int(atr_period)
+    atr_v = numba_atr(high, low, close, atr_period, i)
+    if np.isnan(atr_v):
+        atr_v = 0.0
+    mid = (high[i] + low[i]) * 0.5
+    upper = mid + factor * atr_v
+    lower = mid - factor * atr_v
+    if close[i] >= mid:
+        direction = -1.0
+        return lower, direction
+    direction = 1.0
+    return upper, direction
+
+
+@numba.njit(cache=True)
+def numba_supertrend_inc(high, low, close, factor, atr_period, i, st):
+    """Incremental Supertrend. ``st`` length 2 — shared with ``numba_atr_inc``."""
+    atr_period = int(atr_period)
+    atr_v = numba_atr_inc(high, low, close, atr_period, i, st)
+    if np.isnan(atr_v):
+        atr_v = 0.0
+    mid = (high[i] + low[i]) * 0.5
+    upper = mid + factor * atr_v
+    lower = mid - factor * atr_v
+    if close[i] >= mid:
+        return lower, -1.0
+    return upper, 1.0
+
+
+@numba.njit(cache=True)
+def numba_alma_inc(arr, length, offset, sigma, i, st):
+    """ALMA with one-time Gaussian weight precompute in ``st``.
+
+    ``st`` layout (length L = int(length)):
+    [0] wsum, [1] last_i, [2 .. 1+L] weights for k=0..L-1 (oldest→newest).
+    Requires ``len(st) >= 2 + L``. Matches ``numba_alma`` / interpret ALMA.
+    """
+    length = int(length)
+    if length <= 0 or i < 0:
+        return np.nan
+    if np.isnan(st[1]):
+        last = -1
+    else:
+        last = int(st[1])
+    if i < last:
+        last = -1
+
+    # (re)build weights when uninitialized (wsum nan) or after rewind
+    if np.isnan(st[0]) or last < 0:
+        if sigma == 0.0:
+            st[0] = np.nan
+            st[1] = float(i)
+            return np.nan
+        m = offset * (length - 1)
+        s = length / sigma
+        s2 = 2.0 * s * s
+        wsum = 0.0
+        for k in range(length):
+            d = float(k) - m
+            w = np.exp(-(d * d) / s2)
+            st[2 + k] = w
+            wsum += w
+        st[0] = wsum
+
+    if i < length - 1:
+        st[1] = float(i)
+        return np.nan
+
+    wsum = st[0]
+    if wsum == 0.0 or np.isnan(wsum):
+        st[1] = float(i)
+        return np.nan
+
+    total = 0.0
+    for k in range(length):
+        v = arr[i - length + 1 + k]
+        if np.isnan(v):
+            st[1] = float(i)
+            return np.nan
+        total += v * st[2 + k]
+    st[1] = float(i)
+    return total / wsum
 
 
 def array_range(arr):

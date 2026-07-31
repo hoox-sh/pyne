@@ -178,7 +178,7 @@ plot(ta.sma(close, 5), title="s")
 
 class TestCompileBrokerCommissionParity:
     def test_compile_commission_openprofit_and_net(self) -> None:
-        """Entry commission reduces open equity; close realizes entry commission."""
+        """Entry commission reduces open equity; close charges entry+exit commission."""
         from pynescript.compiler.strategy_broker import CompileStrategyBroker
 
         b = CompileStrategyBroker(initial_capital=10_000.0, commission_value=1.0, commission_type="percent")
@@ -189,9 +189,27 @@ class TestCompileBrokerCommissionParity:
         assert b.equity == pytest.approx(9_990.0)
         b.begin_bar(1, 110.0, 110.0, 110.0, 110.0)
         b.close("L")
-        assert b.netprofit == pytest.approx(90.0)
+        # gross 100 - entry 10 - exit 11 = 79
+        assert b.netprofit == pytest.approx(79.0)
         assert b.position_size == 0.0
         assert b.position_commission == 0.0
+
+    def test_compile_pyramiding_wired_from_strategy_decl(self) -> None:
+        src = """//@version=6
+strategy("t", pyramiding=1)
+if bar_index == 0
+    strategy.entry("L1", strategy.long, qty=1)
+if bar_index == 1
+    strategy.entry("L2", strategy.long, qty=2)
+plot(strategy.position_size, title="ps")
+"""
+        code = transpile(src)
+        assert "pyramiding=1" in code or "pyramiding = 1" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(5)
+        out = compiled.run(o, h, l, c, v)
+        # two entries allowed with pyramiding=1
+        assert out["__position_size"] == 3.0 or out["ps"][-1] == 3.0
 
 
 class TestStrategyRiskAndQtyNameErrors:

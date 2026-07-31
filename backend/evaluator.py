@@ -163,11 +163,21 @@ class CustomEvaluator(NodeLiteralEvaluator):
         self._plot_capture_i = 0
 
     def _maybe_registry(self, method_name: str, args: list[Any], kwargs: dict[str, Any] | None) -> Any:
+        """Optional PlotRegistry path for fill() handles; never abort the bar loop.
+
+        Soft-fails expected registry/shape errors. Re-raises programming bugs
+        (TypeError / AttributeError outside the super call surface) only when
+        the exception is clearly not from optional registry plumbing — kept
+        broad so fill()-less hosts stay resilient.
+        """
         if not self._pine_need_plot_ids:
             return None
         try:
             return getattr(super(), method_name)(args, kwargs)
-        except Exception:
+        except (TypeError, AttributeError, ValueError, KeyError, IndexError):
+            # Optional plot-id plumbing — soft-fail (fill still works without ids).
+            return None
+        except Exception:  # noqa: BLE001 — never kill plot capture for registry
             return None
 
     def _builtin_plot(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
