@@ -440,7 +440,7 @@ if sock is not None:
                 payload["script"] = msg.get("script")
             if "data" in msg:
                 payload["data"] = msg.get("data")
-            for opt in ("symbol", "mode", "data_source", "data_options"):
+            for opt in ("symbol", "mode", "data_source", "data_options", "inputs", "profiler"):
                 if opt in msg and msg.get(opt) is not None:
                     payload[opt] = msg[opt]
             body, _status = execute_run_payload(payload)
