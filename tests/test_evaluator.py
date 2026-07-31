@@ -1535,6 +1535,32 @@ def test_evaluator_input_source(expression, expected_value):
     assert result == expected_value
     assert evaluator._input_declarations[0]["type"] == "source"
     assert evaluator._input_declarations[0]["default"] == expected_value
+    assert evaluator._input_declarations[0]["options"] == [
+        "open",
+        "high",
+        "low",
+        "close",
+        "hl2",
+        "hlc3",
+        "ohlc4",
+    ]
+
+
+def test_evaluator_input_source_list_override_by_bar_index():
+    """Host-provided series list is sampled at context bar_index."""
+    from pynescript.ast.evaluator.builtins.input import InputBuiltinsMixin
+
+    class _H(InputBuiltinsMixin):
+        pass
+
+    h = _H()
+    h.context = {"bar_index": 2}  # type: ignore[attr-defined]
+    h._input_overrides = {"Source": [10.0, 20.0, 30.0, 40.0]}  # type: ignore[attr-defined]
+    out = h._handle_input_source([ "close", "Source" ])
+    assert out == 30.0
+    h.context = {"bar_index": 0}  # type: ignore[attr-defined]
+    out0 = h._handle_input_source([ "close", "Source" ])
+    assert out0 == 10.0
 
 
 @pytest.mark.parametrize(

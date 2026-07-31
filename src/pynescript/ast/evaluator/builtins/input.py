@@ -45,6 +45,23 @@ def _infer_type(defval: Any) -> str:
     return "float"
 
 
+# Standard ``input.source`` dropdown (TradingView® parity).
+DEFAULT_SOURCE_OPTIONS: tuple[str, ...] = (
+    "open",
+    "high",
+    "low",
+    "close",
+    "hl2",
+    "hlc3",
+    "ohlc4",
+)
+
+# Names resolvable from chart context / current_series (includes volume/tr).
+_BUILTIN_SOURCE_NAMES: frozenset[str] = frozenset(
+    (*DEFAULT_SOURCE_OPTIONS, "volume", "tr")
+)
+
+
 class InputBuiltinsMixin(BuiltinDispatchMixin):
     """Input/parameter configuration for Pine Script indicators and strategies."""
 
@@ -314,8 +331,61 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
         )
         return value
 
+    def _coerce_source_value(self, value: Any) -> Any:
+        """Resolve host overrides into a bar-time series sample.
+
+        Supports:
+        - Built-in names (``close``, ``hlc3``, …) → context PineSeries / current_series
+        - Full series lists from hosts (other-indicator plots) → value at ``bar_index``
+        - Existing series objects / scalars → returned as-is
+        """
+        if isinstance(value, (list, tuple)):
+            ctx = getattr(self, "context", None) or {}
+            try:
+                bi = int(ctx.get("bar_index", 0) or 0)
+            except (TypeError, ValueError):
+                bi = 0
+            if 0 <= bi < len(value):
+                return value[bi]
+            if len(value):
+                return value[-1]
+            return None
+
+        if isinstance(value, str):
+            name = value.strip()
+            if name in _BUILTIN_SOURCE_NAMES:
+                ctx = getattr(self, "context", None) or {}
+                series = ctx.get(name)
+                if series is not None:
+                    return series
+                hist = (getattr(self, "current_series", None) or {}).get(name)
+                if isinstance(hist, list) and hist:
+                    return hist[-1]
+            return value
+
+        return value
+
+    def _source_ui_label(self, value: Any, fallback: str = "close") -> str:
+        """Stable string label for Inputs UI (never a raw series list)."""
+        if isinstance(value, str) and value:
+            return value
+        if isinstance(value, (list, tuple)):
+            return fallback
+        name = getattr(value, "name", None)
+        if isinstance(name, str) and name:
+            return name
+        return fallback
+
     def _handle_input_source(self, args: list[Any]) -> Any:
-        """input.source(...) → series source (string name or series value)."""
+        """input.source(...) → series source (string name or series value).
+
+        Hosts (AXIS settings, etc.) need the standard OHLC enum list when no
+        custom options are provided — mirror TradingView® source dropdown:
+        open, high, low, close, hl2, hlc3, ohlc4.
+
+        Hosts may also pass a full series list (other indicator plot) as the
+        override; it is sampled per ``bar_index``.
+        """
         defval = args[0] if len(args) > 0 else "close"
         title = args[1] if len(args) > 1 else ""
         tooltip = args[2] if len(args) > 2 else ""
@@ -323,18 +393,22 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
         group = args[4] if len(args) > 4 else None
         confirm = args[5] if len(args) > 5 else False
         active = args[6] if len(args) > 6 else True
-        value = self._resolve_override(title or None, defval)
+        raw = self._resolve_override(title or None, defval)
+        value = self._coerce_source_value(raw)
+        default_label = self._source_ui_label(defval, "close")
+        value_label = self._source_ui_label(raw, default_label)
         self._record_input(
             {
                 "type": "source",
-                "default": defval,
-                "value": value,
+                "default": default_label,
+                "value": value_label,
                 "title": title,
                 "tooltip": tooltip,
                 "inline": inline,
                 "group": group,
                 "confirm": confirm,
                 "active": active,
+                "options": list(DEFAULT_SOURCE_OPTIONS),
             }
         )
         return value

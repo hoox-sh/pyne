@@ -756,15 +756,17 @@ class Runtime:
             c = col_close[bar_index]
             v = col_vol[bar_index]
 
-            # One float cast path for derived series + true range
+            # One float cast path for derived series + true range.
+            # Always compute hl2/hlc3/ohlc4 so input.source overrides can pick them
+            # even when the script body never mentions those identifiers.
             try:
                 of = float(o)
                 hf = float(h)
                 lf = float(l)
                 cf = float(c)
-                hl2_val: float | None = (hf + lf) * 0.5 if need_hl2 else None
-                hlc3_val = (hf + lf + cf) / 3.0 if need_hlc3 else None
-                ohlc4_val = (of + hf + lf + cf) * 0.25 if need_ohlc4 else None
+                hl2_val: float | None = (hf + lf) * 0.5
+                hlc3_val = (hf + lf + cf) / 3.0
+                ohlc4_val = (of + hf + lf + cf) * 0.25
                 if prev_close_f is None:
                     tr_val: float | None = hf - lf
                 else:
@@ -785,14 +787,14 @@ class Runtime:
             low_update(l)
             close_update(c)
             volume_update(v)
+            hl2_update(hl2_val)
+            hlc3_update(hlc3_val)
+            ohlc4_update(ohlc4_val)
             if need_hl2:
-                hl2_update(hl2_val)
                 sl_hl2.append(hl2_val)
             if need_hlc3:
-                hlc3_update(hlc3_val)
                 sl_hlc3.append(hlc3_val)
             if need_ohlc4:
-                ohlc4_update(ohlc4_val)
                 sl_ohlc4.append(ohlc4_val)
             tr_update(tr_val)
 
