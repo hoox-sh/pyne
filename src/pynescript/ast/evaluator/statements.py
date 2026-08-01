@@ -42,6 +42,7 @@ from typing import Any
 
 from pynescript.ast import node as ast
 from pynescript.ast.evaluator.builtins.declarations import ScriptDeclaration
+from pynescript.ast.evaluator.libraries import STUB_KNOWN_EXPORTS
 from pynescript.ast.evaluator.libraries import LibraryModule
 from pynescript.ast.helper import parse as parse_pine
 from pynescript.ast.type_system import BuiltinType
@@ -1301,11 +1302,16 @@ class StatementEvaluator:
             try:
                 # Chainable no-op stub so ``lib.Foo.new(...)`` / ``lib.bar()``
                 # do not raise. Missing libraries degrade to empty behaviour.
+                # Known helpers (e.g. ArrayExtension.index_2d_to_1d) are
+                # polyfilled so array.get/set receive real indices.
                 class _StubLib:
                     __pine_import_stub__ = True
                     __pine_import_path__ = path
 
-                    def __getattr__(self, item: str) -> _StubLib:
+                    def __getattr__(self, item: str) -> Any:
+                        known = STUB_KNOWN_EXPORTS.get(item)
+                        if known is not None:
+                            return known
                         return self
 
                     def __call__(self, *a, **k):  # noqa: ANN001

@@ -21,11 +21,20 @@
 
 from __future__ import annotations
 
+import re
+
 from typing import Any
 
 # Hex color string lengths
 HEX_COLOR_SHORT_LEN = 6
 HEX_COLOR_LONG_LEN = 8
+
+# rgb()/rgba() string payloads, e.g. "rgba(255, 0, 0, 0.5)" / "rgb(1,2,3)"
+_RGBA_RE = re.compile(
+    r"^rgba?\(\s*([+-]?\d+(?:\.\d+)?)\s*,\s*([+-]?\d+(?:\.\d+)?)\s*,\s*([+-]?\d+(?:\.\d+)?)"
+    r"(?:\s*,\s*([+-]?\d+(?:\.\d+)?))?\s*\)$",
+    re.IGNORECASE,
+)
 
 # Common Pine Script named colors (hex RGB)
 _NAMED_COLORS: dict[str, str] = {
@@ -140,28 +149,11 @@ def color_new(
     if isinstance(color, Color):
         r, g, b, a = color.r, color.g, color.b, color.a
     elif isinstance(color, str):
-        # Named color reference like "color.fuchsia" or bare "fuchsia"
-        raw = color.strip()
-        if raw.startswith("color."):
-            raw = raw[6:]
-        named = _NAMED_COLORS.get(raw.lower())
-        if named:
-            color_str = named.lstrip("#")
-        else:
-            color_str = color.lstrip("#")
-        if len(color_str) == HEX_COLOR_SHORT_LEN:
-            r = int(color_str[0:2], 16)
-            g = int(color_str[2:4], 16)
-            b = int(color_str[4:6], 16)
-            a = 255
-        elif len(color_str) == HEX_COLOR_LONG_LEN:
-            r = int(color_str[0:2], 16)
-            g = int(color_str[2:4], 16)
-            b = int(color_str[4:6], 16)
-            a = int(color_str[6:8], 16)
-        else:
+        parsed = _parse_color_string(color)
+        if parsed is None:
             msg = f"Invalid hex color: {color}"
             raise ValueError(msg)
+        r, g, b, a = parsed
     else:
         # Parse integer color (RGBA format)
         try:
@@ -187,64 +179,120 @@ def color_new(
     return Color(r, g, b, a)
 
 
-def color_r(c: Color) -> int:
+def _parse_color_string(color: str) -> tuple[int, int, int, int] | None:
+    """Parse hex, named, or rgb(a) color strings into RGBA 0-255 components.
+
+    Accepts:
+    - ``#RRGGBB`` / ``#RRGGBBAA`` (optional ``#``)
+    - bare / ``color.``-prefixed named colors (``red``, ``color.red``)
+    - ``rgb(r,g,b)`` / ``rgba(r,g,b,a)`` with alpha 0-1 or 0-255
+
+    Returns:
+        ``(r, g, b, a)`` or ``None`` if the string is not a recognized color form.
+    """
+    raw = color.strip()
+    if not raw:
+        return None
+
+    # rgb()/rgba() used by drawing defaults and export paths
+    m = _RGBA_RE.match(raw)
+    if m:
+        r = int(round(float(m.group(1))))
+        g = int(round(float(m.group(2))))
+        b = int(round(float(m.group(3))))
+        if m.group(4) is None:
+            a = 255
+        else:
+            alpha_raw = float(m.group(4))
+            # Pine/CSS often use 0-1; drawing sometimes uses 0-255
+            if 0.0 <= alpha_raw <= 1.0:
+                a = int(round(alpha_raw * 255.0))
+            else:
+                a = int(round(alpha_raw))
+        return (
+            max(0, min(255, r)),
+            max(0, min(255, g)),
+            max(0, min(255, b)),
+            max(0, min(255, a)),
+        )
+
+    # Named color reference like "color.fuchsia" or bare "fuchsia"
+    name_key = raw
+    if name_key.lower().startswith("color."):
+        name_key = name_key[6:]
+    named = _NAMED_COLORS.get(name_key.lower())
+    if named:
+        color_str = named.lstrip("#")
+    else:
+        color_str = raw.lstrip("#")
+
+    if len(color_str) == HEX_COLOR_SHORT_LEN:
+        try:
+            r = int(color_str[0:2], 16)
+            g = int(color_str[2:4], 16)
+            b = int(color_str[4:6], 16)
+        except ValueError:
+            return None
+        return (r, g, b, 255)
+    if len(color_str) == HEX_COLOR_LONG_LEN:
+        try:
+            r = int(color_str[0:2], 16)
+            g = int(color_str[2:4], 16)
+            b = int(color_str[4:6], 16)
+            a = int(color_str[6:8], 16)
+        except ValueError:
+            return None
+        return (r, g, b, a)
+    return None
+
+
+def color_r(c: Color | str | int | None) -> int:
     """Get the red component of a color.
 
     Args:
-        c: Color object
+        c: Color object, hex/named/rgb(a) string, or int color
 
     Returns:
         Red component (0-255)
     """
-    if not isinstance(c, Color):
-        msg = f"Expected Color, got {type(c).__name__}"
-        raise TypeError(msg)
-    return c.r
+    return _as_color(c).r
 
 
-def color_g(c: Color) -> int:
+def color_g(c: Color | str | int | None) -> int:
     """Get the green component of a color.
 
     Args:
-        c: Color object
+        c: Color object, hex/named/rgb(a) string, or int color
 
     Returns:
         Green component (0-255)
     """
-    if not isinstance(c, Color):
-        msg = f"Expected Color, got {type(c).__name__}"
-        raise TypeError(msg)
-    return c.g
+    return _as_color(c).g
 
 
-def color_b(c: Color) -> int:
+def color_b(c: Color | str | int | None) -> int:
     """Get the blue component of a color.
 
     Args:
-        c: Color object
+        c: Color object, hex/named/rgb(a) string, or int color
 
     Returns:
         Blue component (0-255)
     """
-    if not isinstance(c, Color):
-        msg = f"Expected Color, got {type(c).__name__}"
-        raise TypeError(msg)
-    return c.b
+    return _as_color(c).b
 
 
-def color_t(c: Color) -> int:
+def color_t(c: Color | str | int | None) -> int:
     """Get the transparency of a color.
 
     Args:
-        c: Color object
+        c: Color object, hex/named/rgb(a) string, or int color
 
     Returns:
         Transparency value (0-100, where 100 is fully transparent)
     """
-    if not isinstance(c, Color):
-        msg = f"Expected Color, got {type(c).__name__}"
-        raise TypeError(msg)
-    transp_percent = int((1.0 - c.a / 255.0) * 100)
+    col = _as_color(c)
+    transp_percent = int((1.0 - col.a / 255.0) * 100)
     return max(0, min(100, transp_percent))
 
 
@@ -276,15 +324,28 @@ def color_rgb(r: int, g: int, b: int, transp: int | float | None = None, a: int 
 
 
 def _as_color(c: Color | str | int | None) -> Color:
-    """Coerce hex/named/int colors to Color."""
+    """Coerce hex/named/rgb(a)/int colors to Color.
+
+    Used by channel accessors and gradients so plot/drawing kwargs that carry
+    hex strings (or context constants like ``color.red`` → ``\"#F23645\"``) do
+    not raise ``TypeError: Expected Color, got str``.
+    """
     if isinstance(c, Color):
         return c
     if c is None:
         return Color(0, 0, 0, 0)
     if isinstance(c, str):
-        return color_new(c)
+        try:
+            result = color_new(c)
+        except (TypeError, ValueError):
+            return Color(0, 0, 0, 0)
+        return result if result is not None else Color(0, 0, 0, 0)
+    if isinstance(c, bool):
+        # bool is a subclass of int; treat as non-color
+        return Color(0, 0, 0, 255)
     if isinstance(c, int):
-        return color_new(c)
+        result = color_new(c)
+        return result if result is not None else Color(0, 0, 0, 0)
     return Color(0, 0, 0, 255)
 
 

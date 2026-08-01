@@ -162,7 +162,7 @@ Call-site state (`_ta_call_i` reset each bar), one sample per site per bar (safe
 | --- | --- | --- |
 | **H1** | Dual-host: port SoT host compile/auto/`error_kind`/fail-cache/inputs→interpret to **pyne-worker** (full package unify later) | P1 — **in progress** (host surface ported Aug 2026; package-level unify still open) |
 | **H2** | Product warm-compile path (SLOs, prewarm, IR cache on in deploy) | P1 |
-| **C1** | Corpus Runtime residual: TIMEOUT / long-tail `RUN_FAIL` | P1 — **progress 2026-08-01**: kwargs `value=na` merge, bare `tonumber`, `math.isfinite`, strategy trade field accessors; residual set01–04 Runtime **~93.7% OK** projected (was ~89.8%); PARSE stubs ~118 remain |
+| **C1** | Corpus Runtime residual: TIMEOUT / long-tail `RUN_FAIL` | P1 — **progress 2026-08-01 (8-agent pass)**: set01–04 Runtime **~94.3% OK** projected (was ~89.8% → 93.7%); PARSE stubs ~118; residual ~21 RUN_FAIL (library stubs, period edges, str ops) |
 | **T1** | Cap unbounded `current_series` lists to `max_bars_back` / `_SERIES_MAX` | P2 |
 | **T2** | Incremental for remaining heavy kernels (`ta.bb`, nested full-list helpers still calling `_ema`/`_sma` outside builtins) | P2 |
 | **F1** | `ta.atr` still **EMA-of-TR** (historical oracle); TV Wilder RMA-ATR only with dedicated goldens | P2 |
@@ -173,9 +173,10 @@ Canonical priority table: `docs/ROADMAP.md`. Round 6 residual notes: `docs/perf_
 #### Corpus Runtime snapshot (set01–set04, 50 bars)
 - Baseline full run (pyne-worker CSV): **1851 / 2477 (74.7%)** OK
 - After earlier fail re-runs: **~2224 / 2477 (89.8%)** projected
-- After C1 residual fixes (2026-08-01, SoT Runtime recheck of 135 non-parse residuals): **~2320 / 2477 (93.7%)** projected — recovered **96** of 135 prior RUN_FAIL/TIMEOUT/FAIL
+- After C1 residual fixes (2026-08-01, first pass): **~2320 / 2477 (93.7%)** projected
+- After C1 **8-agent residual pass** (str.replace, timestamp, series index soft-fail, TA float period, color str, syminfo dual-mode, array.get/set soft index, time-part arity): **~2337 / 2477 (94.3%)** projected — recovered **113** of 135 residual non-parse
 - PARSE_FAIL bucket ≈ **118** (truncated/scrape stubs; not grammar holes)
-- Remaining RUN_FAIL themes: `str.replace` arity, timestamp date strings, negative indices, period float, empty qualified names, library runtime.error scripts
+- Remaining ~21 RUN_FAIL: library `runtime.error` demos, period edges, `str.contains`/`str.tonumber` edges, missing import-only names
 
 ## Recommendations
 - Prefer **golden tests vs current oracle** before changing TA seed rules (ATR→RMA, VWMA volume, etc.).

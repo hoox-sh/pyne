@@ -34,9 +34,99 @@ live on :class:`LibraryModule.exports` and resolve as ``alias.member`` after
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Any
+
+
+def _coerce_stub_int(value: Any) -> int | None:
+    """Best-effort int for stub polyfills; ``None`` / non-numeric → ``None``."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        if value != value:  # NaN
+            return None
+        return int(value)
+    try:
+        return int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+
+
+def _merge_stub_args(
+    args: tuple[Any, ...] | list[Any],
+    kwargs: dict[str, Any],
+    order: list[str],
+) -> list[Any]:
+    """Merge positional + keyword args into a dense list using *order* names."""
+    merged: list[Any] = list(args)
+    for key, val in kwargs.items():
+        if key not in order:
+            continue
+        idx = order.index(key)
+        while len(merged) <= idx:
+            merged.append(None)
+        if idx < len(args) and args[idx] is not None:
+            continue
+        merged[idx] = val
+    return merged
+
+
+def _stub_index_2d_to_1d(*args: Any, **kwargs: Any) -> int | None:
+    """Row-major flatten: ``index_x * dimension_y + index_y`` (ArrayExtension).
+
+    Matches compiler polyfill and RicardoSantos/ArrayExtension export so
+    corpus scripts that ``import …/ArrayExtension`` without a registered
+    source still feed valid indices into ``array.get`` / ``array.set``.
+    """
+    order = ["dimension_x", "dimension_y", "index_x", "index_y"]
+    # Accept common aliases used in demos / older libs
+    alias = {
+        "dim_x": "dimension_x",
+        "dim_y": "dimension_y",
+        "ix": "index_x",
+        "iy": "index_y",
+    }
+    norm_kw = {alias.get(k, k): v for k, v in kwargs.items()}
+    vals = _merge_stub_args(args, norm_kw, order)
+    if len(vals) < 4:
+        return None
+    _dx = _coerce_stub_int(vals[0])
+    dy = _coerce_stub_int(vals[1])
+    ix = _coerce_stub_int(vals[2])
+    iy = _coerce_stub_int(vals[3])
+    if dy is None or ix is None or iy is None:
+        return None
+    return ix * dy + iy
+
+
+def _stub_index_1d_to_2d(*args: Any, **kwargs: Any) -> tuple[int, int] | None:
+    """Inverse of :func:`_stub_index_2d_to_1d` → ``(index_x, index_y)``."""
+    order = ["dimension_x", "dimension_y", "index"]
+    alias = {"dim_x": "dimension_x", "dim_y": "dimension_y", "i": "index"}
+    norm_kw = {alias.get(k, k): v for k, v in kwargs.items()}
+    vals = _merge_stub_args(args, norm_kw, order)
+    if len(vals) < 3:
+        return None
+    _dx = _coerce_stub_int(vals[0])
+    dy = _coerce_stub_int(vals[1])
+    idx = _coerce_stub_int(vals[2])
+    if dy is None or idx is None or dy == 0:
+        return None
+    return idx // dy, idx % dy
+
+
+# Known export polyfills for unresolved remote libraries (import stubs).
+# Name → callable used when ``alias.member(...)`` hits a soft import stub.
+STUB_KNOWN_EXPORTS: dict[str, Callable[..., Any]] = {
+    "index_2d_to_1d": _stub_index_2d_to_1d,
+    "index_1d_to_2d": _stub_index_1d_to_2d,
+}
 
 
 @dataclass

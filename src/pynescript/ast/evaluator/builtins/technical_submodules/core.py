@@ -29,6 +29,7 @@ from collections import deque
 from typing import Any
 
 from pynescript.ast.evaluator.builtins.base import pine_expect_int
+from pynescript.ast.evaluator.builtins.base import pine_period_or_none
 
 
 # Constants
@@ -2580,14 +2581,38 @@ class TechnicalHelpers:
         return src
 
     def _is_period_like(self, value: Any) -> bool:
-        """True if *value* looks like a length/period (int or whole float)."""
+        """True if *value* looks like a length/period (int or whole float).
+
+        Accepts series last-samples of whole floats so ``ta.highest(14.0)`` and
+        list periods work the same as bare ints.
+        """
         if isinstance(value, bool):
             return False
         if isinstance(value, int):
             return True
         if isinstance(value, float) and value == int(value):
             return True
+        # Series / list last sample of a period-like scalar
+        if type(value) is list and value:
+            return self._is_period_like(value[-1])
+        if type(value) is tuple and value:
+            return self._is_period_like(value[-1])
+        if not isinstance(value, (list, tuple, str, bytes)) and hasattr(value, "current"):
+            cur = getattr(value, "current", None)
+            if cur is not None and cur is not value:
+                return self._is_period_like(cur)
         return False
+
+    def _expect_period(self, value: Any, message: str) -> int:
+        """Coerce TA length/period; ``na`` → ``0`` so kernels return na (TV-like).
+
+        Non-na invalid types still raise via :func:`pine_period_or_none`.
+        Period ``<= 0`` is treated as invalid length by SMA/EMA/… kernels.
+        """
+        period = pine_period_or_none(value, message, self._error)
+        if period is None:
+            return 0
+        return period
 
     def _expect_series(
         self,
@@ -2606,6 +2631,9 @@ class TechnicalHelpers:
         When ``allow_period_only`` is True and a single period-like arg is
         passed, the series is taken from ``current_series[default_source]``.
 
+        Float / series-like lengths coerce via :meth:`_expect_period` (near-
+        integer floats → int; ``na`` → period ``0`` / na result).
+
         **last_sample_ok:** when True *and* incremental TA is active, skip
         chronological materialization of PineSeries / history wrappers.
         The returned source is raw (list, PineSeries, scalar) and is only safe
@@ -2619,7 +2647,7 @@ class TechnicalHelpers:
             if type(period_raw) is int:
                 period = period_raw
             else:
-                period = self._expect_int(
+                period = self._expect_period(
                     period_raw,
                     "Second argument must be an integer (period)",
                 )
@@ -2631,7 +2659,7 @@ class TechnicalHelpers:
         if allow_period_only and n == 1 and self._is_period_like(args[0]):
             if not default_source:
                 self._error(f"ta.* function requires {length} argument(s), got 1. Expected: (series, period)")
-            period = self._expect_int(args[0], "Period must be an integer")
+            period = self._expect_period(args[0], "Period must be an integer")
             if raw_ok:
                 return self._context_source(default_source), period
             series = self._context_series(default_source)
@@ -2639,7 +2667,7 @@ class TechnicalHelpers:
         if n != length:
             self._error(f"ta.* function requires {length} argument(s), got {n}. Expected: (series, period)")
         # Period first so invalid periods fail before any materialization work.
-        period = self._expect_int(
+        period = self._expect_period(
             args[1] if length > 1 else args[0],
             "Second argument must be an integer (period)" if length > 1 else "Period must be an integer",
         )

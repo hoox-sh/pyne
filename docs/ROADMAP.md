@@ -90,7 +90,7 @@ Historical Phase A–D “build API / LSP / Jupyter” items are **done**. Do no
 | --- | --- | --- | --- |
 | **H1** | Port R5–R6 host surface to pyne-worker (fail-cache, `error_kind`, inputs→interpret, compile cache) | P1 ✅ host surface (Aug 2026); package-level unify still open | pyne-worker |
 | **H2** | Product warm-compile path (document SLOs; optional prewarm workers; IR cache on in deploy) | P1 | pyne + ops |
-| **C1** | Corpus TIMEOUT / RUN_FAIL residual (set01–04 ~90% → **~93.7%** OK projected after 2026-08 fixes) | P1 ⚙️ ongoing (PARSE stubs ~118) | pyne + pyne-worker |
+| **C1** | Corpus TIMEOUT / RUN_FAIL residual (set01–04 ~90% → **~94.3%** OK projected after 8-agent pass) | P1 ⚙️ ongoing (~21 RUN_FAIL + PARSE stubs ~118) | pyne + pyne-worker |
 | **T1** | Cap `current_series` to `max_bars_back` / `_SERIES_MAX` | P2 | pyne |
 | **T2** | Incremental TA for remaining heavy kernels (`ta.bb`, nested full paths) | P2 | pyne |
 | **F1** | ATR Wilder / TV supertrend re-baseline **only** with dedicated goldens | P2 | pyne |

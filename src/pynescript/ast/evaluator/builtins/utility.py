@@ -19,34 +19,104 @@
 
 from __future__ import annotations
 
+import re
+
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
 from functools import lru_cache
 from typing import Any
 
+
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:  # pragma: no cover — Python < 3.9
+    ZoneInfo = None  # type: ignore[misc, assignment]
+
 from .base import BuiltinDispatchMixin
 from .base import BuiltinHandler
 
 
 @lru_cache(maxsize=4096)
-def _timestamp_ms_from_components(
+def _timestamp_ms_from_components(  # noqa: PLR0913 — year..second + optional UTC offset
     year: int,
     month: int,
     day: int,
     hour: int,
     minute: int,
     second: int,
+    offset_seconds: int = 0,
 ) -> int:
-    """UTC ms for calendar components (day overflow rolls months, matching TV).
+    """Unix ms for calendar components (day overflow rolls months, matching TV).
 
     Cached: scripts often call ``timestamp(y, m, d, h, mi, s)`` with the same
     literals inside hot loops (e.g. TradingView "loop is too long" samples).
+
+    *offset_seconds* is the fixed UTC offset of the local timezone
+    (e.g. ``UTC-5`` → ``-5 * 3600``). Components are interpreted in that zone.
     """
+    tz = timezone.utc if offset_seconds == 0 else timezone(timedelta(seconds=int(offset_seconds)))
     # Anchor on day 1 then add (day-1) so day overflow/underflow rolls months.
-    base = datetime(int(year), int(month), 1, int(hour), int(minute), int(second), tzinfo=timezone.utc)
+    base = datetime(int(year), int(month), 1, int(hour), int(minute), int(second), tzinfo=tz)
     dt = base + timedelta(days=int(day) - 1)
     return int(dt.timestamp() * 1000)
+
+
+def _fixed_offset_tz(sign: str, hours: int, mins: int) -> timezone:
+    mult = 1 if sign == "+" else -1
+    return timezone(mult * timedelta(hours=hours, minutes=mins))
+
+
+def _parse_pine_timezone(tz_spec: Any) -> Any:  # noqa: PLR0911 — early-exit coerce ladder
+    """Parse a Pine timezone string into a ``tzinfo`` (UTC on failure / empty).
+
+    Accepts:
+    - bare ``UTC`` / ``GMT`` / unresolved ``syminfo.timezone``
+    - ``UTC±H``, ``GMT±H``, ``UTC±H:MM``, ``UTC±HHMM``
+    - IANA names via ``zoneinfo`` when available (``America/New_York``)
+    """
+    if tz_spec is None:
+        return timezone.utc
+    current = getattr(tz_spec, "current", None)
+    if current is not None and not isinstance(tz_spec, (str, bytes, int, float)):
+        tz_spec = current
+    if not isinstance(tz_spec, str):
+        return timezone.utc
+    z = tz_spec.strip()
+    if not z or z in {"syminfo.timezone", "UTC", "utc", "Etc/UTC", "GMT", "gmt"}:
+        return timezone.utc
+
+    # GMT/UTC with numeric offset (optional minutes), or bare ±H[:MM]
+    m = re.fullmatch(
+        r"(?:(?:UTC|GMT)\s*)?([+-])\s*(\d{1,2})(?::(\d{2})|(\d{2}))?",
+        z,
+        re.I,
+    )
+    if m:
+        return _fixed_offset_tz(m.group(1), int(m.group(2)), int(m.group(3) or m.group(4) or 0))
+
+    if ZoneInfo is not None:
+        try:
+            return ZoneInfo(z)
+        except Exception:
+            return timezone.utc
+    return timezone.utc
+
+
+def _tz_offset_seconds(tzinfo: Any, ref: datetime | None = None) -> int:
+    """Fixed offset seconds for *tzinfo* at *ref* (or epoch); 0 if unknown."""
+    if tzinfo is None or tzinfo is timezone.utc:
+        return 0
+    try:
+        anchor = ref if ref is not None else datetime(2000, 1, 1, tzinfo=timezone.utc)
+        if anchor.tzinfo is None:
+            anchor = anchor.replace(tzinfo=timezone.utc)
+        # Convert anchor into tz then read utcoffset
+        local = anchor.astimezone(tzinfo)
+        off = local.utcoffset()
+        return 0 if off is None else int(off.total_seconds())
+    except Exception:
+        return 0
 
 
 class UtilityFunctionsMixin(BuiltinDispatchMixin):
@@ -69,7 +139,82 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
             "last_bar_index": self._builtin_last_bar_index,
             "last_bar_time": self._builtin_last_bar_time,
             "max_bars_back": self._builtin_max_bars_back,
+            # Dual-mode: property (0-arg) + function (tickerid) — see ticker.split_symbol
+            "syminfo.prefix": self._builtin_syminfo_prefix,
+            "syminfo.ticker": self._builtin_syminfo_ticker,
         }
+
+    def _syminfo_host(self) -> Any:
+        """Return the host ``syminfo`` object from context, if any."""
+        ctx = getattr(self, "context", {}) or {}
+        return ctx.get("syminfo")
+
+    def _syminfo_tickerid_fallback(self) -> str:
+        """Best-effort chart ticker id for zero-arg ``syminfo.*`` properties."""
+        ctx = getattr(self, "context", {}) or {}
+        flat = ctx.get("syminfo.tickerid")
+        if flat is not None and str(flat):
+            return str(flat)
+        host = ctx.get("syminfo")
+        if host is not None:
+            for attr in ("tickerid", "name", "ticker"):
+                val = getattr(host, attr, None)
+                if val is not None and str(val):
+                    return str(val)
+        return ""
+
+    def _builtin_syminfo_prefix(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
+        """``syminfo.prefix`` / ``syminfo.prefix(tickerid)``.
+
+        Zero-arg returns the chart exchange prefix; one-arg parses the given
+        ticker id (``"NASDAQ:AAPL"`` → ``"NASDAQ"``).
+        """
+        from .ticker import extract_prefix
+
+        kw = kwargs or {}
+        if args or "tickerid" in kw or "symbol" in kw:
+            symbol = args[0] if args else kw.get("tickerid", kw.get("symbol"))
+            return extract_prefix(symbol)
+
+        host = self._syminfo_host()
+        if host is not None:
+            p = getattr(host, "prefix", None)
+            if p is not None and str(p) != "":
+                return str(p)
+            # Derive when host left prefix empty (bare ``AAPL`` chart symbol).
+            return extract_prefix(self._syminfo_tickerid_fallback())
+        flat = (getattr(self, "context", {}) or {}).get("syminfo.prefix")
+        if flat is not None:
+            return str(flat)
+        return extract_prefix(self._syminfo_tickerid_fallback())
+
+    def _builtin_syminfo_ticker(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
+        """``syminfo.ticker`` / ``syminfo.ticker(tickerid)``.
+
+        Zero-arg returns the chart ticker without exchange; one-arg parses the
+        given ticker id (``"NASDAQ:AAPL"`` → ``"AAPL"``).
+        """
+        from .ticker import extract_ticker
+
+        kw = kwargs or {}
+        if args or "tickerid" in kw or "symbol" in kw:
+            symbol = args[0] if args else kw.get("tickerid", kw.get("symbol"))
+            return extract_ticker(symbol)
+
+        host = self._syminfo_host()
+        if host is not None:
+            t = getattr(host, "ticker", None)
+            if t is not None and str(t) != "":
+                return str(t)
+            # Prefer name when it is the bare ticker; else parse tickerid.
+            name = getattr(host, "name", None)
+            if name is not None and ":" not in str(name) and str(name):
+                return str(name)
+            return extract_ticker(self._syminfo_tickerid_fallback())
+        flat = (getattr(self, "context", {}) or {}).get("syminfo.ticker")
+        if flat is not None:
+            return str(flat)
+        return extract_ticker(self._syminfo_tickerid_fallback())
 
     def _builtin_max_bars_back(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
         """max_bars_back(var, num) — declare history buffer depth for a series.
@@ -85,7 +230,7 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
             decls = []
             try:
                 self._max_bars_back_decls = decls  # type: ignore[attr-defined]
-            except Exception:  # noqa: BLE001 — setattr on frozen/partial mocks
+            except Exception:
                 return
         decls.append({"var": var, "num": num})
 
@@ -121,41 +266,62 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
             return int(self._coerce_ctx_number(key, 0))
         return int(self._coerce_ctx_number("time", 0))
 
-    def _resolve_timestamp_arg(self, args: list[Any], *, name: str) -> float | None:
-        """Resolve optional timestamp arg; bare form uses chart ``time``.
+    def _resolve_timestamp_arg(
+        self, args: list[Any], *, name: str
+    ) -> tuple[float | None, Any]:
+        """Resolve optional timestamp + timezone; bare form uses chart ``time``.
 
-        Accepts optional timezone as 2nd arg (``hour(time, \"UTC-5\")``) and
-        ignores it — chart timestamps are treated as UTC ms.
+        Forms (TV):
+        - ``hour()`` / bare series
+        - ``hour(time)``
+        - ``hour(time, timezone)`` e.g. ``hour(timenow, \"UTC-5\")``
 
-        Returns ``None`` (Pine ``na``) when the timestamp is missing — TV's
-        ``year(na)`` / ``month(na)`` yield ``na`` rather than runtime.error.
+        *time* may be a scalar ms, series wrapper (``.current``), or a list
+        series sample (last element). Returns ``(None, tz)`` (Pine ``na``) when
+        the timestamp is missing — TV's ``year(na)`` yields ``na``.
         """
+        tzinfo: Any = timezone.utc
         if len(args) == 0:
-            return float(self._bar_time_ms("time"))
+            return float(self._bar_time_ms("time")), tzinfo
         if len(args) > 2:
-            self._error(f"{name}() takes zero or one argument (timestamp)")
-        # args[1] may be timezone string — ignored
+            self._error(f"{name}() takes at most two arguments (time, timezone)")
+        if len(args) >= 2:
+            tzinfo = _parse_pine_timezone(args[1])
+
         ts = args[0]
-        # Unwrap series wrappers
+        # Unwrap series wrappers (PineSeries / _SeriesResult)
         current = getattr(ts, "current", None)
         if current is not None and not isinstance(ts, (list, tuple, str, bytes, int, float)):
             ts = current
+        # List/tuple series samples → current (last) bar
+        if isinstance(ts, (list, tuple)) and not isinstance(ts, (str, bytes)):
+            if not ts:
+                return None, tzinfo
+            ts = ts[-1]
+            current = getattr(ts, "current", None)
+            if current is not None and not isinstance(ts, (list, tuple, str, bytes, int, float)):
+                ts = current
         if ts is None:
-            return None
+            return None, tzinfo
+        # _NaValue / non-numeric → na
+        if type(ts).__name__ == "_NaValue":
+            return None, tzinfo
         if isinstance(ts, bool) or not isinstance(ts, (int, float)):
             try:
                 ts = float(ts)  # type: ignore[arg-type]
             except (TypeError, ValueError):
-                return None
-        return float(ts)
+                return None, tzinfo
+        return float(ts), tzinfo
 
-    def _dt_from_ts(self, ts: float | None):
-        """datetime from ms timestamp, or None if ts is na/invalid."""
+    def _dt_from_ts(self, ts: float | None, tzinfo: Any = None):
+        """datetime from ms timestamp in *tzinfo* (default UTC), or None if na."""
         if ts is None:
             return None
+        if tzinfo is None:
+            tzinfo = timezone.utc
         try:
-            return datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
-        except (ValueError, OSError, OverflowError):
+            return datetime.fromtimestamp(ts / 1000, tz=tzinfo)
+        except (ValueError, OSError, OverflowError, TypeError):
             return None
 
     def _builtin_time(self, args: list[Any]) -> int:
@@ -171,22 +337,26 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
 
     def _builtin_year(self, args: list[Any]) -> int | None:
         """Extract year from timestamp (bare form uses chart time)."""
-        dt = self._dt_from_ts(self._resolve_timestamp_arg(args, name="year"))
+        ts, tz = self._resolve_timestamp_arg(args, name="year")
+        dt = self._dt_from_ts(ts, tz)
         return None if dt is None else dt.year
 
     def _builtin_month(self, args: list[Any]) -> int | None:
         """Extract month from timestamp (1-12; bare form uses chart time)."""
-        dt = self._dt_from_ts(self._resolve_timestamp_arg(args, name="month"))
+        ts, tz = self._resolve_timestamp_arg(args, name="month")
+        dt = self._dt_from_ts(ts, tz)
         return None if dt is None else dt.month
 
     def _builtin_dayofmonth(self, args: list[Any]) -> int | None:
         """Extract day of month from timestamp (1-31; bare form uses chart time)."""
-        dt = self._dt_from_ts(self._resolve_timestamp_arg(args, name="dayofmonth"))
+        ts, tz = self._resolve_timestamp_arg(args, name="dayofmonth")
+        dt = self._dt_from_ts(ts, tz)
         return None if dt is None else dt.day
 
     def _builtin_dayofweek(self, args: list[Any]) -> int | None:
         """Extract day of week from timestamp (1=Sunday, 7=Saturday)."""
-        dt = self._dt_from_ts(self._resolve_timestamp_arg(args, name="dayofweek"))
+        ts, tz = self._resolve_timestamp_arg(args, name="dayofweek")
+        dt = self._dt_from_ts(ts, tz)
         if dt is None:
             return None
         # Python: 0=Monday, 6=Sunday; PineScript: 1=Sunday, 7=Saturday
@@ -194,17 +364,20 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
 
     def _builtin_hour(self, args: list[Any]) -> int | None:
         """Extract hour from timestamp (0-23; bare form uses chart time)."""
-        dt = self._dt_from_ts(self._resolve_timestamp_arg(args, name="hour"))
+        ts, tz = self._resolve_timestamp_arg(args, name="hour")
+        dt = self._dt_from_ts(ts, tz)
         return None if dt is None else dt.hour
 
     def _builtin_minute(self, args: list[Any]) -> int | None:
         """Extract minute from timestamp (0-59; bare form uses chart time)."""
-        dt = self._dt_from_ts(self._resolve_timestamp_arg(args, name="minute"))
+        ts, tz = self._resolve_timestamp_arg(args, name="minute")
+        dt = self._dt_from_ts(ts, tz)
         return None if dt is None else dt.minute
 
     def _builtin_second(self, args: list[Any]) -> int | None:
         """Extract second from timestamp (0-59; bare form uses chart time)."""
-        dt = self._dt_from_ts(self._resolve_timestamp_arg(args, name="second"))
+        ts, tz = self._resolve_timestamp_arg(args, name="second")
+        dt = self._dt_from_ts(ts, tz)
         return None if dt is None else dt.second
 
     def _builtin_time_close(self, args: list[Any]) -> int:
@@ -221,7 +394,9 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         if len(args) > 1:
             self._error("time_tradingday() takes at most one argument")
         if args:
-            ts = self._resolve_timestamp_arg(args, name="time_tradingday")
+            ts, _tz = self._resolve_timestamp_arg(args[:1], name="time_tradingday")
+            if ts is None:
+                ts = float(self._bar_time_ms("time"))
             now = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
         else:
             ts = self._bar_time_ms("time")
@@ -234,7 +409,8 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
 
     def _builtin_weekofyear(self, args: list[Any]) -> int | None:
         """Get week number of the year (1-53; bare form uses chart time)."""
-        dt = self._dt_from_ts(self._resolve_timestamp_arg(args, name="weekofyear"))
+        ts, tz = self._resolve_timestamp_arg(args, name="weekofyear")
+        dt = self._dt_from_ts(ts, tz)
         return None if dt is None else dt.isocalendar()[1]
 
     def _coerce_timestamp_component(self, value: Any, *, default: int | None = 0, required: bool = False) -> int | None:
@@ -273,13 +449,14 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         - ``08 April 2024 00:00`` (full month, no seconds)
         - ``January 1, 2024`` / ``Jan 1, 2024`` (US comma form)
         - ``2023-01-01`` / ``2023-01-01T12:00:00`` (ISO)
-        - ``01 Jan 2000 00:00:00 GMT+10``, ``UTC-5``, ``+0300``, ``+03:00``
+        - ``2022-01-01T00:00:00+0000`` / ``2013-01-01T00:00:00+08:00`` (ISO+offset)
+        - ``2021 01 01`` (space-separated Y M D)
+        - ``15Aug 2022 14:00 +0000`` (missing day/month space)
+        - ``01 Sept 2021 06:00`` / ``1 Janv 2020`` (month aliases)
+        - ``UTC 01 Jan 2020 00:00`` (leading UTC/GMT)
+        - ``01 Jan 2000 00:00:00 GMT+10``, ``UTC-5``, ``+0300``, ``+000``
+        - ``0000-01-01 09:00:00`` (year 0 → year 1 for Python datetime)
         """
-        import re
-        from datetime import datetime
-        from datetime import timedelta
-        from datetime import timezone
-
         s0 = text.strip()
         if not s0:
             return None
@@ -313,13 +490,48 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
             "%d %B, %Y %H:%M",
             "%d %b, %Y",
             "%d %B, %Y",
-            # ISO
+            # ISO (space or T separator)
             "%Y-%m-%d %H:%M:%S",
             "%Y-%m-%d %H:%M",
             "%Y-%m-%dT%H:%M:%S",
             "%Y-%m-%dT%H:%M",
             "%Y-%m-%d",
+            # Space-separated numeric: "2021 01 01"
+            "%Y %m %d %H:%M:%S",
+            "%Y %m %d %H:%M",
+            "%Y %m %d",
         )
+
+        def _normalize(s: str) -> str:
+            """Light, loss-safe normalizations before strptime."""
+            s = re.sub(r"\s+", " ", s.strip())
+            # Python datetime year range is 1..9999; TV session templates use 0000.
+            s = re.sub(r"\b0000-", "0001-", s)
+            # Odd colon between date and time: "2021-01-13:05:00" → space.
+            s = re.sub(r"(\d{4}-\d{2}-\d{2}):(\d{1,2}:\d{2})", r"\1 \2", s)
+            # Missing space between day and month name: "15Aug 2022" → "15 Aug 2022".
+            # Require 3+ letters so ISO "T" is not split ("2022-01-01T00:00").
+            s = re.sub(r"(\d)([A-Za-z]{3,})", r"\1 \2", s)
+            # English/French month aliases seen in corpus (strptime %b is Sep/Jan).
+            s = re.sub(r"\bSept\b", "Sep", s, flags=re.I)
+            s = re.sub(r"\bJanv\b", "Jan", s, flags=re.I)
+            return s
+
+        def _offset_from_h_m(sign: str, hours: int, mins: int) -> timedelta:
+            mult = 1 if sign == "+" else -1
+            return mult * timedelta(hours=hours, minutes=mins)
+
+        def _offset_from_digits(sign: str, digits: str) -> timedelta | None:
+            """Interpret 1-4 digit numeric offsets: H, HH, HMM/0HH, HHMM."""
+            if not digits or len(digits) > 4 or not digits.isdigit():
+                return None
+            if len(digits) <= 2:
+                hours, mins = int(digits), 0
+            else:
+                # 3-digit: pad left so +000 → 0000, +530 → 0530
+                padded = digits.zfill(4)
+                hours, mins = int(padded[:2]), int(padded[2:])
+            return _offset_from_h_m(sign, hours, mins)
 
         def _try_formats(s: str, tz_offset: timedelta) -> int | None:
             for fmt in formats:
@@ -332,46 +544,80 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
                     continue
             return None
 
+        def _strip_timezone(s: str) -> tuple[str, timedelta]:
+            """Return (date_part, offset) after removing a trailing/leading TZ token."""
+            tz_offset = timedelta(0)
+
+            # Leading "UTC ..." / "GMT ..." (offset 0 unless suffix also present later)
+            m = re.match(r"^(?:UTC|GMT)\s+", s, re.I)
+            if m:
+                s = s[m.end() :].strip()
+
+            # 1) GMT/UTC[+/-H[:MM]] — may omit space: "GMT+10", "UTC-5"
+            m = re.search(
+                r"\s*(?:GMT|UTC)\s*([+-])(\d{1,2})(?::?(\d{2}))?\s*$",
+                s,
+                re.I,
+            )
+            if m:
+                tz_offset = _offset_from_h_m(m.group(1), int(m.group(2)), int(m.group(3) or 0))
+                return s[: m.start()].strip(), tz_offset
+
+            # 2) Trailing Z (Zulu)
+            m = re.search(r"Z\s*$", s, re.I)
+            if m and len(s) > 1:
+                return s[: m.start()].strip(), tz_offset
+
+            # 3) Spaced +HH:MM
+            m = re.search(r"\s+([+-])(\d{1,2}):(\d{2})\s*$", s)
+            if m:
+                tz_offset = _offset_from_h_m(m.group(1), int(m.group(2)), int(m.group(3)))
+                return s[: m.start()].strip(), tz_offset
+
+            # 4) Spaced numeric offset: +0000, +000, +0530, +5 (1-4 digits)
+            m = re.search(r"\s+([+-])(\d{1,4})\s*$", s)
+            if m:
+                off = _offset_from_digits(m.group(1), m.group(2))
+                if off is not None:
+                    return s[: m.start()].strip(), off
+
+            # 5) ISO-attached (no space) after a digit: +08:00 / +0300 / +00:00
+            m = re.search(r"(?<=\d)([+-])(\d{2}):(\d{2})\s*$", s)
+            if m:
+                tz_offset = _offset_from_h_m(m.group(1), int(m.group(2)), int(m.group(3)))
+                return s[: m.start()].strip(), tz_offset
+
+            m = re.search(r"(?<=\d)([+-])(\d{4})\s*$", s)
+            if m:
+                off = _offset_from_digits(m.group(1), m.group(2))
+                if off is not None:
+                    return s[: m.start()].strip(), off
+
+            m = re.search(r"(?<=\d)([+-])(\d{2})\s*$", s)
+            if m:
+                # Only if looks like a time-attached offset (preceded by time-ish colon)
+                head = s[: m.start()]
+                if re.search(r"\d{1,2}:\d{2}$", head) or head.endswith("T") or re.search(r"T\d", head):
+                    off = _offset_from_digits(m.group(1), m.group(2))
+                    if off is not None:
+                        return head.strip(), off
+
+            # 6) Drop bare trailing GMT/UTC without offset
+            s2 = re.sub(r"\s+(?:GMT|UTC)\s*$", "", s, flags=re.I).strip()
+            return s2, tz_offset
+
+        s_norm = _normalize(s0)
+
         # Try without timezone first so ISO dates like "2023-01-01" are not
         # misread as a bare "-01" UTC offset by the suffix stripper below.
-        parsed = _try_formats(s0, timedelta(0))
+        parsed = _try_formats(s_norm, timedelta(0))
         if parsed is not None:
             return parsed
 
-        s = s0
-        tz_offset = timedelta(0)
-
-        # Timezone suffixes. Order matters:
-        # 1) GMT/UTC[+/-H[:MM]] — may omit space: "GMT+10", "UTC-5"
-        # 2) bare +HH:MM / +HHMM — require leading whitespace so we never eat
-        #    the day part of "yyyy-mm-dd" (e.g. trailing "-01").
-        m = re.search(
-            r"\s*(?:GMT|UTC)\s*([+-])(\d{1,2})(?::?(\d{2}))?\s*$",
-            s,
-            re.I,
-        )
-        if m:
-            sign = 1 if m.group(1) == "+" else -1
-            hours = int(m.group(2))
-            mins = int(m.group(3) or 0)
-            tz_offset = sign * timedelta(hours=hours, minutes=mins)
-            s = s[: m.start()].strip()
-        else:
-            m = re.search(r"\s+([+-])(\d{1,2}):(\d{2})\s*$", s)
-            if m:
-                sign = 1 if m.group(1) == "+" else -1
-                tz_offset = sign * timedelta(hours=int(m.group(2)), minutes=int(m.group(3)))
-                s = s[: m.start()].strip()
-            else:
-                m = re.search(r"\s+([+-])(\d{2})(\d{2})\s*$", s)
-                if m:
-                    sign = 1 if m.group(1) == "+" else -1
-                    tz_offset = sign * timedelta(hours=int(m.group(2)), minutes=int(m.group(3)))
-                    s = s[: m.start()].strip()
-                else:
-                    # Drop bare GMT/UTC without offset
-                    s = re.sub(r"\s+(?:GMT|UTC)\s*$", "", s, flags=re.I).strip()
-
+        s, tz_offset = _strip_timezone(s_norm)
+        s = _normalize(s)
+        if not s:
+            return None
         return _try_formats(s, tz_offset)
 
     def _builtin_timestamp(self, args: list[Any]) -> int:
@@ -384,10 +630,13 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         - ``timestamp(timezone, year, month, day[, hour, minute, second])``
           e.g. ``timestamp(\"GMT\", 2019, 8, 5, 12, 0)`` or
           ``timestamp(syminfo.timezone, y, m, d, 0, 0)``
+        - kwargs: ``timestamp(timezone=…, year=…, month=…, day=…, …)``
 
         Accepts overflow/underflow on day (e.g. day=40 or day=-5) via month
         rollover, matching TradingView ``timestamp`` arithmetic used by scripts
         such as dividend_yield.
+
+        Timezone-first form interprets components in that zone and returns UTC ms.
         """
         # Single string form
         if len(args) == 1 and isinstance(args[0], str):
@@ -400,23 +649,29 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
             c = self._coerce_timestamp_component(args[0], required=True)
             return int(c or 0)
 
-        # Optional leading timezone (string or non-year): ignored — components as UTC
-        # e.g. timestamp("GMT", 2019, 8, 5, 12, 0) or timestamp(syminfo.timezone, y, m, d, 0, 0)
+        # Optional leading timezone (string or non-year placeholder)
+        # e.g. timestamp("UTC-5", 2019, 8, 5, 12, 0) or timestamp(syminfo.timezone, y, m, d, 0, 0)
         comp = list(args)
+        tzinfo: Any = timezone.utc
         if comp:
             first = comp[0]
             if isinstance(first, str):
                 if len(comp) >= 4:
+                    tzinfo = _parse_pine_timezone(first)
                     comp = comp[1:]
                 else:
                     parsed = self._parse_timestamp_string(str(first))
                     if parsed is not None:
                         return parsed
                     self._error("timestamp() could not parse date string")
+            elif first is None and len(comp) >= 4:
+                # kwargs merge padding for omitted timezone= slot
+                comp = comp[1:]
             elif len(comp) >= 4:
                 # Non-string timezone placeholder (None / enum) before year
                 year_guess = self._coerce_timestamp_component(first, required=False)
                 if year_guess is None or not (1900 <= year_guess <= 2200):
+                    tzinfo = _parse_pine_timezone(first)
                     comp = comp[1:]
 
         if len(comp) < 3:
@@ -432,9 +687,34 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         assert hour is not None and minute is not None and second is not None
 
         try:
+            off = _tz_offset_seconds(
+                tzinfo,
+                datetime(int(year), max(1, min(12, int(month))), 1, tzinfo=timezone.utc),
+            )
             return _timestamp_ms_from_components(
-                int(year), int(month), int(day), int(hour), int(minute), int(second)
+                int(year), int(month), int(day), int(hour), int(minute), int(second), off
             )
         except (ValueError, OSError, OverflowError) as e:
             self._error(f"Invalid date/time arguments: {e}")
             return 0
+
+
+# Named-parameter order for list-style time helpers (Pine kwargs).
+_TIME_PART_KWARG_ORDER = ["time", "timezone"]
+UtilityFunctionsMixin._builtin_year._KWARG_ORDER = _TIME_PART_KWARG_ORDER
+UtilityFunctionsMixin._builtin_month._KWARG_ORDER = _TIME_PART_KWARG_ORDER
+UtilityFunctionsMixin._builtin_dayofmonth._KWARG_ORDER = _TIME_PART_KWARG_ORDER
+UtilityFunctionsMixin._builtin_dayofweek._KWARG_ORDER = _TIME_PART_KWARG_ORDER
+UtilityFunctionsMixin._builtin_hour._KWARG_ORDER = _TIME_PART_KWARG_ORDER
+UtilityFunctionsMixin._builtin_minute._KWARG_ORDER = _TIME_PART_KWARG_ORDER
+UtilityFunctionsMixin._builtin_second._KWARG_ORDER = _TIME_PART_KWARG_ORDER
+UtilityFunctionsMixin._builtin_weekofyear._KWARG_ORDER = _TIME_PART_KWARG_ORDER
+UtilityFunctionsMixin._builtin_timestamp._KWARG_ORDER = [
+    "timezone",
+    "year",
+    "month",
+    "day",
+    "hour",
+    "minute",
+    "second",
+]

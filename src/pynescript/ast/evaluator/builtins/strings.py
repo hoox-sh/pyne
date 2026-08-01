@@ -178,38 +178,77 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
             n = 0
         return value * n
 
-    def _builtin_str_replace(self, args: list[Any]) -> str:
-        if len(args) != TERNARY:
-            self._error("str.replace takes three string arguments")
-        value = self._expect_string(
-            args[0],
-            "str.replace takes three string arguments",
-        )
-        old = self._expect_string(
-            args[1],
-            "str.replace takes three string arguments",
-        )
-        new = self._expect_string(
-            args[2],
-            "str.replace takes three string arguments",
-        )
-        return value.replace(old, new, 1)
+    @staticmethod
+    def _coerce_str_arg(value: Any) -> str:
+        """Coerce Pine series scalars / na to str for replace family.
 
-    def _builtin_str_replace_all(self, args: list[Any]) -> str:
+        ``na`` → empty string (same soft path as ``str.split``) so corpus
+        scripts that feed ``syminfo.ticker`` before host seeds it do not hard-fail.
+        Non-strings (int/float/bool) → ``str(value)``.
+        """
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value
+        return str(value)
+
+    @staticmethod
+    def _replace_nth(source: str, target: str, replacement: str, occurrence: int) -> str:
+        """Replace the *occurrence*-th match of *target* (0-based), TV semantics.
+
+        If that occurrence does not exist, return *source* unchanged.
+        Empty *target* replaces the zero-width boundary at index *occurrence*
+        (``0..len(source)`` inclusive), matching ``str.replace_all`` boundary inserts.
+        """
+        if occurrence < 0:
+            return source
+        if target == "":
+            if occurrence > len(source):
+                return source
+            return source[:occurrence] + replacement + source[occurrence:]
+        start = 0
+        for n in range(occurrence + 1):
+            idx = source.find(target, start)
+            if idx < 0:
+                return source
+            if n == occurrence:
+                return source[:idx] + replacement + source[idx + len(target) :]
+            start = idx + len(target)
+        return source
+
+    def _builtin_str_replace(self, args: list[Any]) -> str | None:
+        """TV: ``str.replace(source, target, replacement, occurrence=0)``.
+
+        Accepts 3 or 4 arguments. Optional *occurrence* (int, 0-based) selects
+        which match to replace; default ``0`` replaces the first match only.
+        """
+        if len(args) not in (TERNARY, 4):
+            self._error("str.replace takes three string arguments")
+        # Propagate pure-na source (no host string) as na — but only when the
+        # other args are also missing would be stricter; for residual C1 we
+        # coerce so scripts keep running. Prefer: source na → na when all none.
+        if args[0] is None and all(a is None for a in args[1:3]):
+            return None
+        value = self._coerce_str_arg(args[0])
+        old = self._coerce_str_arg(args[1])
+        new = self._coerce_str_arg(args[2])
+        occurrence = 0
+        if len(args) == 4 and args[3] is not None:
+            occurrence = self._expect_int(
+                args[3],
+                "str.replace occurrence must be an int",
+            )
+        return self._replace_nth(value, old, new, occurrence)
+
+    def _builtin_str_replace_all(self, args: list[Any]) -> str | None:
+        """TV: ``str.replace_all(source, target, replacement)``."""
         if len(args) != TERNARY:
             self._error("str.replace_all takes three strings")
-        value = self._expect_string(
-            args[0],
-            "str.replace_all takes three strings",
-        )
-        old = self._expect_string(
-            args[1],
-            "str.replace_all takes three strings",
-        )
-        new = self._expect_string(
-            args[2],
-            "str.replace_all takes three strings",
-        )
+        if args[0] is None and args[1] is None and args[2] is None:
+            return None
+        value = self._coerce_str_arg(args[0])
+        old = self._coerce_str_arg(args[1])
+        new = self._coerce_str_arg(args[2])
         return value.replace(old, new)
 
     def _builtin_str_split(self, args: list[Any]) -> list[str]:
@@ -480,3 +519,17 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         for key in sorted(replacements, key=len, reverse=True):
             formatted = formatted.replace(key, replacements[key])
         return formatted
+
+
+# TV parameter names for kwargs → positional merge (BuiltinDispatchMixin).
+StringBuiltinsMixin._builtin_str_replace._KWARG_ORDER = [  # type: ignore[attr-defined]
+    "source",
+    "target",
+    "replacement",
+    "occurrence",
+]
+StringBuiltinsMixin._builtin_str_replace_all._KWARG_ORDER = [  # type: ignore[attr-defined]
+    "source",
+    "target",
+    "replacement",
+]

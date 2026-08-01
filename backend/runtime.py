@@ -427,6 +427,12 @@ class Syminfo:
     strategy_type: str = "long"
     prefix: str = "NASDAQ"
     name: str = "AAPL"
+    # Bare ticker without exchange (TV ``syminfo.ticker`` property)
+    ticker: str = "AAPL"
+    # Root of continuous futures / same as ticker for stocks
+    root: str = "AAPL"
+    # Exchange IANA timezone (TV ``syminfo.timezone``)
+    timezone: str = "UTC"
 
     # November 2025: ISIN (International Securities Identification Number)
     isin: str = ""  # 12-character ISIN code, empty string if not available
@@ -531,8 +537,12 @@ class Runtime:
         self._run_id = run_id or uuid.uuid4().hex[:16]
         self._syminfo = Syminfo()
         self._syminfo.tickerid = symbol
-        self._syminfo.name = symbol
         self._syminfo.prefix = self._extract_prefix(symbol)
+        bare = self._extract_ticker(symbol)
+        self._syminfo.ticker = bare
+        self._syminfo.root = bare
+        # ``name`` is the bare ticker in TV for most asset classes
+        self._syminfo.name = bare or symbol
 
         # February 2025: bid/ask variables (only available on 1T timeframe)
         self._bid: float | None = None
@@ -546,6 +556,12 @@ class Runtime:
         if ":" in symbol:
             return symbol.split(":", maxsplit=1)[0]
         return ""
+
+    def _extract_ticker(self, symbol: str) -> str:
+        """Extract bare ticker from symbol (e.g., 'AAPL' from 'NASDAQ:AAPL')."""
+        if ":" in symbol:
+            return symbol.split(":", maxsplit=1)[1]
+        return symbol
 
     def _make_chart(self, ohlcv_data: list | None = None) -> Chart:
         """Build a Chart host object seeded with viewport times from bars."""

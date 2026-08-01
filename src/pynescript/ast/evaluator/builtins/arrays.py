@@ -213,6 +213,28 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             self._error(message)
         return coerced
 
+    def _array_index_soft(self, raw_index: Any, message: str) -> int | None:
+        """Coerce array index for get/set with TV-like soft-na.
+
+        * ``na`` / NaN / unresolved import stubs → ``None`` (get returns na,
+          set no-ops) — corpus residual resilience when library index helpers
+          are stubbed.
+        * Containers used as index (``array.get(a, a)``) still hard-error so
+          fail-closed Runtime classification keeps working.
+        """
+        if raw_index is None:
+            return None
+        # Fail closed on clear type confusion (array/map passed as index)
+        if isinstance(raw_index, (list, dict)):
+            self._error(message)
+        # Import stubs (and similar) are non-numeric; soft-na rather than raise
+        if getattr(raw_index, "__pine_import_stub__", False):
+            return None
+        try:
+            return self._coerce_index(raw_index, soft=True)
+        except (TypeError, ValueError):
+            return None
+
     def _builtin_array_size(self, args: list[Any]) -> int | None:
         """``array.size(id)`` — size of array; ``na`` id → ``na`` (TV)."""
         if len(args) != UNARY:
@@ -233,14 +255,8 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         sequence = self._coerce_optional_list(args[0])
         if sequence is None:
             return None
-        raw_index = args[1]
         # Pine: array.get(id, na) → na (Console show loops with optional indices)
-        if raw_index is None:
-            return None
-        try:
-            index = self._coerce_index(raw_index, soft=False)
-        except (TypeError, ValueError):
-            self._error("array.get takes array and index")
+        index = self._array_index_soft(args[1], "array.get takes array and index")
         if index is None:
             return None
         if index < 0 or index >= len(sequence):
@@ -709,13 +725,8 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         # Grow empty / undersized arrays when size was lost (e.g. non-int size
         # to array.new_*). Pine arrays are fixed-size; expanding to index is a
         # pragmatic recovery used by ring-buffer UDFs.
-        raw_index = args[1]
-        if raw_index is None:
-            return sequence  # na index → no-op
-        try:
-            idx_guess = self._coerce_index(raw_index, soft=False)
-        except (TypeError, ValueError):
-            self._error("array.set takes array, index, and value")
+        # na / NaN / stub index → no-op (TV soft-na + corpus residual resilience)
+        idx_guess = self._array_index_soft(args[1], "array.set takes array, index, and value")
         # Negative / na index (e.g. mergeIdx == -1) → no-op, avoid hard fail
         if idx_guess is None or idx_guess < 0:
             return sequence

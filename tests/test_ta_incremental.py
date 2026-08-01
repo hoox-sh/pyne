@@ -1681,6 +1681,41 @@ def test_expect_int_list_period_and_error_messages() -> None:
         ev._expect_int([], "Period must be an integer")
 
 
+def test_expect_int_float_and_series_period_coercion() -> None:
+    """C1: float / series-like lengths coerce; near-integers use int(round)."""
+    from backend.series import PineSeries
+
+    ev = _IncTA()
+    assert ev._expect_int(14.0, "Period must be an integer") == 14
+    assert ev._expect_int(14.0000000001, "Period must be an integer") == 14
+    assert ev._expect_int(13.9999999999, "Period must be an integer") == 14
+    # Fractional → floor (existing TV-like length semantics)
+    assert ev._expect_int(14.9, "Period must be an integer") == 14
+    # Series of float periods → last sample
+    assert ev._expect_int([10.0, 12.0, 14.0], "Period must be an integer") == 14
+    assert ev._expect_int((9.0, 14.0), "Period must be an integer") == 14
+    # PineSeries wrapper
+    assert ev._expect_int(PineSeries(14.0), "Period must be an integer") == 14
+    # numpy scalars when available
+    np = pytest.importorskip("numpy")
+    assert ev._expect_int(np.float64(14.0), "Period must be an integer") == 14
+    assert ev._expect_int(np.int64(20), "Period must be an integer") == 20
+
+
+def test_expect_series_na_period_returns_na() -> None:
+    """TV-like: ta.* with na length yields na (period coerced to 0), not hard error."""
+    ev = _IncTA()
+    series, period = ev._expect_series([_series(30), None], length=2, last_sample_ok=True)
+    assert period == 0
+    # Incremental SMA with period <= 0 → na
+    assert ev._sma_inc_update(series, period) is None
+    # Float period through _expect_series
+    _, p14 = ev._expect_series([_series(30), 14.0], length=2, last_sample_ok=True)
+    assert p14 == 14
+    _, p_list = ev._expect_series([_series(30), [10.0, 14.0]], length=2, last_sample_ok=True)
+    assert p_list == 14
+
+
 def test_expect_int_plain_int_identity() -> None:
     """Hot path: plain int is returned as-is (no wrap)."""
     ev = _IncTA()
@@ -1764,7 +1799,7 @@ def test_crossover_last_sample_matches_full_list() -> None:
 
 
 def test_pineseries_history_offset_na_and_float() -> None:
-    """PineSeries[offset]: na OOB, float truncate, None index → na; no silent 0."""
+    """PineSeries[offset]: na OOB, float truncate, None/negative index → na; no silent 0."""
     from backend.series import PineSeries
 
     ps = PineSeries()
@@ -1779,6 +1814,7 @@ def test_pineseries_history_offset_na_and_float() -> None:
     assert ps[3] is None
     assert ps[1.9] == 20.0  # float → int trunc
     assert ps[float("nan")] is None
+    assert ps[-1] is None  # negative history offset → na (soft-fail)
 
 
 def test_subscript_na_index_returns_na() -> None:

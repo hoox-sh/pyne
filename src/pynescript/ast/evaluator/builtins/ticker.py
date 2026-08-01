@@ -292,6 +292,39 @@ def tickerid_v4(
     return ""
 
 
+def split_symbol(symbol: Any) -> tuple[str, str]:
+    """Split a ticker id into ``(prefix, ticker)``.
+
+    Pine ``syminfo.prefix(tickerid)`` / ``syminfo.ticker(tickerid)`` parse forms:
+
+    - ``"NASDAQ:AAPL"`` → ``("NASDAQ", "AAPL")``
+    - ``"AAPL"`` → ``("", "AAPL")``
+    - ``TickerInfo`` → parse its ``.symbol``
+    - ``None`` / empty → ``("", "")``
+    """
+    if symbol is None:
+        return "", ""
+    if isinstance(symbol, TickerInfo):
+        symbol = symbol.symbol
+    s = str(symbol).strip()
+    if not s:
+        return "", ""
+    if ":" in s:
+        prefix, ticker = s.split(":", 1)
+        return prefix, ticker
+    return "", s
+
+
+def extract_prefix(symbol: Any) -> str:
+    """Exchange prefix of *symbol* (empty when no ``EXCHANGE:`` part)."""
+    return split_symbol(symbol)[0]
+
+
+def extract_ticker(symbol: Any) -> str:
+    """Ticker without exchange prefix (bare symbol or part after ``:``)."""
+    return split_symbol(symbol)[1]
+
+
 def register_ticker_functions(namespace: dict) -> None:
     """Register all ticker functions in the given namespace.
 
@@ -316,3 +349,19 @@ def register_ticker_functions(namespace: dict) -> None:
     namespace["linebreak"] = _as_builtin_handler(ticker_linebreak)
     namespace["pointfigure"] = _as_builtin_handler(ticker_pointfigure)
     namespace["renko"] = _as_builtin_handler(ticker_renko)
+    # Dual-mode free-function fallbacks (no host context). Preferred path is
+    # UtilityFunctionsMixin bound handlers which read chart ``syminfo``.
+    def _prefix_fn(symbol: Any = None, *a: Any, **k: Any) -> str:
+        if symbol is None:
+            symbol = k.get("tickerid", k.get("symbol"))
+        return extract_prefix(symbol)
+
+    def _ticker_fn(symbol: Any = None, *a: Any, **k: Any) -> str:
+        if symbol is None:
+            symbol = k.get("tickerid", k.get("symbol"))
+        return extract_ticker(symbol)
+
+    if "syminfo.prefix" not in namespace:
+        namespace["syminfo.prefix"] = _as_builtin_handler(_prefix_fn)
+    if "syminfo.ticker" not in namespace:
+        namespace["syminfo.ticker"] = _as_builtin_handler(_ticker_fn)

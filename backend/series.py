@@ -55,7 +55,7 @@ class PineSeries:
         """Access historical values. series[0] is current, series[1] is previous.
 
         Float offsets are truncated toward zero (TV coerces length-like floats).
-        ``na`` / non-numeric index → ``None`` (na), not a crash.
+        ``na`` / non-numeric / negative / OOB index → ``None`` (na), not a crash.
         """
         t = type(index)
         if t is not int:
@@ -70,9 +70,11 @@ class PineSeries:
                     index = int(index)  # type: ignore[arg-type]
                 except (TypeError, ValueError):
                     return None
+        # Negative offsets are invalid Pine history refs. Soft-fail to na so
+        # warm-up / for-to with auto step -1 / highestbars(-n) misuse do not
+        # abort the bar loop (TV-like indicator residual behaviour).
         if index < 0:
-            msg = "Pine Script does not support negative indexing"
-            raise ValueError(msg)
+            return None
         hist = self.history
         if index >= len(hist):
             return None  # na — past available history (warmup / lookback)

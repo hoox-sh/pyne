@@ -346,10 +346,12 @@ class NameEvaluator:
         - ``series[0]`` — current bar
         - ``series[1]`` — previous bar
         - ``series[i]`` with ``i >= len`` — ``None`` (na)
+        - ``series[na]`` / NaN / negative offset — ``None`` (na; soft-fail)
 
         Host lists are stored **chronologically** (oldest first), so the
         implementation maps offset ``i`` to ``list[-(i + 1)]``. Float offsets
-        coerce to int; negative offsets raise. Matrix uses ``[row, col]``.
+        coerce to int. Matrix uses ``[row, col]``. String / container OOB
+        (``IndexError`` / ``KeyError``) also soft-fails to na.
 
         Args:
             node: Subscript with value and slice
@@ -358,7 +360,7 @@ class NameEvaluator:
             Indexed element or ``None`` (na / out of range)
 
         Raises:
-            ValueError: Negative index, bad matrix index, or unsupported pair
+            ValueError: Bad matrix index, hard getitem failures, or unsupported pair
         """
         visit = self.visit
         # Evaluate the collection being indexed (e.g., array, series)
@@ -386,10 +388,10 @@ class NameEvaluator:
 
         # Fast path: list/array with integer index (history series / array.get style)
         if vt is list and st is int:
-            # PineScript doesn't support negative indices (backwards indexing)
+            # Negative history offsets are invalid Pine; soft-fail to na
+            # (warmup / for-to auto-step / highestbars misuse) rather than abort.
             if slice_ < 0:
-                msg = "Negative indices not supported in PineScript"
-                raise ValueError(msg)
+                return None
             # Pine: series[0] = current (latest) → list[-1]; series[i] → list[-(i+1)]
             # Bounds: slice_ >= len → na (equivalent to abs(-(i+1)) > len)
             n = len(value)
@@ -408,8 +410,7 @@ class NameEvaluator:
         # list subclasses (rare) — same Pine reverse-index semantics
         if isinstance(value, list) and st is int:
             if slice_ < 0:
-                msg = "Negative indices not supported in PineScript"
-                raise ValueError(msg)
+                return None
             n = len(value)
             if slice_ >= n:
                 return None
@@ -418,17 +419,19 @@ class NameEvaluator:
         if hasattr(value, "__getitem__"):
             try:
                 return value[slice_]
+            except (IndexError, KeyError):
+                # str/list OOB, missing map key, etc. → na (do not abort bar)
+                return None
             except Exception as e:
                 msg = f"Subscript error for {type(value).__name__} with index {slice_}: {e}"
                 raise ValueError(msg) from e
         # When subscripting a non-collection type (scalar), match PineScript
         # semantics: series[0] = current (the scalar itself), series[offset>0]
-        # with no history returns None (PineScript 'na').
+        # with no history returns None (PineScript 'na'). Negative → na.
         if st is int:
-            if slice_ < 0:
-                msg = "Negative indices not supported in PineScript"
-                raise ValueError(msg)
-            return None if slice_ > 0 else value
+            if slice_ < 0 or slice_ > 0:
+                return None
+            return value
         value_type = type(value)
         slice_type = type(slice_)
         msg = f"Subscript not supported for {value_type} with {slice_type}"

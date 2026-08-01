@@ -905,6 +905,13 @@ class ExpressionEvaluator:
 
         # Handle built-in functions recovered as qualified-name strings
         if isinstance(func, str):
+            # Empty string is not a callable name (dual-mode property value).
+            if not func:
+                if type(node_func) is ast.Attribute:
+                    recovered = self._recover_instance_attr_call(node_func, args, kwargs)
+                    if recovered is not _ATTR_CALL_MISS:
+                        return recovered
+                return None
             if type(node_func) is ast.Attribute and (
                 "." in func or not self._is_registered_builtin(func)
             ):

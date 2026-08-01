@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import inspect
 import math
+import numbers
 
 from collections.abc import Callable
 from typing import Any
@@ -29,62 +30,143 @@ from typing import NoReturn
 
 BuiltinHandler = Callable[[list[Any]], Any]
 
+# Floats within this of an integer coerce via int(round(...)) (TV length floats
+# like ``14.0`` / ``14.0000000001``). Larger fractions floor (``14.9`` → ``14``).
+_PERIOD_INT_EPS = 1e-9
+
+
+def _is_na_scalar(value: Any) -> bool:
+    """True for Pine ``na``: ``None``, NaN float, or ``_NaValue`` wrapper."""
+    if value is None or type(value).__name__ == "_NaValue":
+        return True
+    if type(value) is float:
+        return math.isnan(value)
+    if isinstance(value, numbers.Real) and not isinstance(value, bool):
+        try:
+            return math.isnan(float(value))
+        except (TypeError, ValueError):
+            return False
+    return False
+
+
+def _series_current(value: Any) -> Any:
+    """``PineSeries`` / ``_SeriesResult`` current sample (history fallback)."""
+    if type(value).__name__ == "_NaValue":
+        return value
+    cur = value.current
+    if cur is not None or not hasattr(value, "history"):
+        return cur
+    hist = value.history
+    if not hist:
+        return cur
+    try:
+        # deque (newest-first) → [0]; list history may be chronological
+        return hist[0] if not isinstance(hist, list) else hist[-1]
+    except (IndexError, TypeError, KeyError):
+        return cur
+
+
+def _unwrap_period_value(value: Any) -> Any:
+    """Unwrap input dicts, series wrappers, and list/tuple last-samples once.
+
+    Does not coerce to int — caller decides na / numeric handling. Series lists
+    are chronological (oldest first) → last element is current bar. PineSeries
+    / ``_SeriesResult`` prefer ``.current``; if that is ``None`` but history is
+    non-empty, use newest history sample (``history[0]`` for deque, last for list).
+    """
+    if type(value) is dict and "default" in value:
+        value = value["default"]
+
+    if not isinstance(value, (list, tuple, str, bytes)) and hasattr(value, "current"):
+        value = _series_current(value)
+
+    t = type(value)
+    if t is list or t is tuple:
+        if not value:
+            return value  # empty — caller errors
+        value = value[-1]
+        if not isinstance(value, (list, tuple, str, bytes)) and hasattr(value, "current"):
+            value = _series_current(value)
+    return value
+
+
+def _float_to_period_int(value: float) -> int:
+    """Coerce a finite float length to int (near-integer → round, else floor)."""
+    nearest = round(value)
+    if abs(value - nearest) <= _PERIOD_INT_EPS:
+        return int(nearest)
+    return math.floor(value)
+
+
+def _coerce_real_period(value: Any, message: str, error: Callable[[str], NoReturn]) -> int:
+    """Coerce float / numbers.Real / numeric str to period int."""
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        if type(value) is str:
+            error(f"{message}. Got: str {value!r}")
+        error(f"{message}. Got: {type(value).__name__}")
+    if math.isnan(f):
+        error(f"{message}. Got: na")
+    if math.isinf(f):
+        error(f"{message}. Got: float inf")
+    return _float_to_period_int(f)
+
 
 def pine_expect_int(value: Any, message: str, error: Callable[[str], NoReturn]) -> int:
     """Coerce a Pine value to ``int`` (periods, offsets, indices).
 
     Hot path: plain ``int`` (not ``bool``) returns immediately — TA periods and
     plot offsets hit this every bar. Unwraps series wrappers, input dicts, and
-    list last-samples; floors fractional floats (TV length semantics).
+    list/tuple last-samples; finite floats near an integer use ``int(round)``,
+    other finite floats floor (TV length semantics). Accepts ``numbers.Integral``
+    / ``numbers.Real`` (e.g. numpy scalars).
 
     Raises via *error* with ``Got: <type|na|…>`` so type bugs surface clearly
-    instead of a bare message (or silent wrong path).
+    instead of a bare message (or silent wrong path). ``na`` raises; TA call
+    sites that want TV ``na``→``na`` use :func:`pine_period_or_none` /
+    ``_expect_series`` instead.
     """
     # Fast path: true int (bool is an int subclass — reject here)
     if type(value) is int:
         return value
 
-    # Input.* default dict
-    if type(value) is dict and "default" in value:
-        value = value["default"]
-        if type(value) is int:
-            return value
+    value = _unwrap_period_value(value)
 
-    # PineSeries / _SeriesResult / _NaValue
-    if not isinstance(value, (list, tuple, str, bytes)) and hasattr(value, "current"):
-        if type(value).__name__ == "_NaValue":
-            error(f"{message}. Got: na")
-        value = value.current
-        if type(value) is int:
-            return value
-
-    # Series of periods → current (last) bar
-    if type(value) is list:
-        if not value:
-            error(f"{message}. Got: empty series")
-        value = value[-1]
-        if type(value) is int:
-            return value
-
-    if value is None:
+    if type(value) is int:
+        return value
+    if type(value) is list or type(value) is tuple:
+        error(f"{message}. Got: empty series")
+    if _is_na_scalar(value):
         error(f"{message}. Got: na")
-
-    if type(value) is float:
-        if value != value:  # NaN
-            error(f"{message}. Got: na")
-        return int(math.floor(value))
-
     if type(value) is bool:
         return int(value)
-
-    if type(value) is str:
-        try:
-            return int(float(value))
-        except ValueError:
-            error(f"{message}. Got: str {value!r}")
+    # numpy.int64 / other Integral (bool already handled)
+    if isinstance(value, numbers.Integral):
+        return int(value)
+    # float, numpy.float64, numeric strings
+    if type(value) is float or type(value) is str or isinstance(value, numbers.Real):
+        return _coerce_real_period(value, message, error)
 
     error(f"{message}. Got: {type(value).__name__}")
-    raise AssertionError("unreachable")  # error() is NoReturn; keep type-checkers happy
+    _unreachable = "unreachable"
+    raise AssertionError(_unreachable)  # error() is NoReturn; keep type-checkers happy
+
+
+def pine_period_or_none(value: Any, message: str, error: Callable[[str], NoReturn]) -> int | None:
+    """Like :func:`pine_expect_int` but ``na`` → ``None`` (TV TA length na → na).
+
+    Used by TA ``_expect_series`` so ``ta.sma(close, na)`` yields na instead of
+    hard-failing. Non-na invalid types still raise via *error*.
+    """
+    if type(value) is int:
+        return value
+    unwrapped = _unwrap_period_value(value)
+    if (type(unwrapped) is list or type(unwrapped) is tuple) and not unwrapped:
+        error(f"{message}. Got: empty series")
+    if _is_na_scalar(unwrapped):
+        return None
+    return pine_expect_int(unwrapped, message, error)
 
 # TradingView keyword parameter names for list-style ``ta.*`` handlers.
 # Used when the Python handler is ``(self, args)`` and has no real param names.
@@ -286,6 +368,12 @@ class BuiltinDispatchMixin:
                 self._builtin_dispatch = dispatch
             handler = dispatch.get(name)
             if handler is None:
+                # Empty name is never a real typo — it comes from dual-mode
+                # attribute chains that resolved to an empty string (e.g.
+                # ``syminfo.prefix`` property ``""`` then called as a function
+                # before dual-mode registration). Soft-fail to na.
+                if not name:
+                    return None
                 msg = (
                     f"Unknown built-in function: '{name}'. "
                     f"Available modules: math, str, array, ta, input, request, line, box, label, table, strategy. "
