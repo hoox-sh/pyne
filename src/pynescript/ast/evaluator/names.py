@@ -48,6 +48,9 @@ from pynescript.ast.evaluator.builtins.drawing import Line
 from pynescript.ast.evaluator.builtins.drawing import LineFill
 from pynescript.ast.evaluator.builtins.drawing import Polyline
 from pynescript.ast.evaluator.builtins.drawing import Table
+
+# Sentinel for context.get — distinguishes missing key from stored None (na).
+_MISSING = object()
 from pynescript.ast.evaluator.builtins.matrix import Matrix
 from pynescript.ast.evaluator.libraries import LibraryModule
 from pynescript.ast.evaluator.types import EvaluatorProtocol
@@ -71,6 +74,21 @@ _DRAWING_METHOD_NS: dict[type, str] = {
 # Bare form is handled here; call form is early-dispatched in visit_Call.
 # ``na`` is dual-use too: bare value (None) and ``na(x)`` predicate — call form
 # is early-dispatched in visit_Call so bare resolution here only covers ``= na``.
+#
+# Pine v3/v4 also exposed selected TA results as bare series variables
+# (``obv``, ``accdist``, ``vwap``, …) equivalent to zero-arg ``ta.*`` calls.
+# Only include names whose handlers accept empty args and return a bar-mode
+# scalar (or finalized last sample) — never required-arg functions like sma.
+_BARE_TA_SERIES = frozenset(
+    {
+        "obv",
+        "accdist",
+        "ad",  # official alias of accdist
+        "vwap",
+        "iii",
+    }
+)
+
 _BARE_SERIES_BUILTINS = frozenset(
     {
         "na",
@@ -89,6 +107,7 @@ _BARE_SERIES_BUILTINS = frozenset(
         "time_close",
         "time_tradingday",
         "weekofyear",
+        *_BARE_TA_SERIES,
     }
 )
 
@@ -361,14 +380,69 @@ class NameEvaluator:
             Indexed element or ``None`` (na / out of range)
 
         Raises:
-            ValueError: Bad matrix index, hard getitem failures, or unsupported pair
+            ValueError: Bad matrix index or hard getitem failures (TypeError soft-fails)
         """
-        visit = self.visit
-        # Evaluate the collection being indexed (e.g., array, series)
-        value = visit(node.value)
-        # Evaluate the index/slice expression
+        # Hot path: ``time[j]`` / ``close[i]`` — Name series + Name/int offset.
+        # Nested loops hit this millions of times; skip visitor dispatch.
+        value_node = node.value
         slice_node = node.slice
-        slice_ = visit(slice_node) if slice_node is not None else None  # type: ignore[arg-type]
+        if type(value_node) is ast.Name and slice_node is not None:
+            ctx = self.context  # type: ignore[attr-defined]
+            value = ctx.get(value_node.id, _MISSING)
+            if value is _MISSING:
+                value = self.visit(value_node)  # type: ignore[attr-defined]
+            st_node = type(slice_node)
+            if st_node is ast.Name:
+                slice_ = ctx.get(slice_node.id, _MISSING)
+                if slice_ is _MISSING:
+                    slice_ = self.visit(slice_node)  # type: ignore[attr-defined]
+            elif st_node is ast.Constant and (
+                slice_node.kind is None or slice_node.kind == "#"
+            ):
+                slice_ = slice_node.value
+            else:
+                slice_ = self.visit(slice_node)  # type: ignore[attr-defined]
+
+            st = type(slice_)
+            if st is float:
+                if slice_ != slice_:  # NaN
+                    return None
+                slice_ = int(slice_)
+                st = int
+            elif st is bool:
+                slice_ = int(slice_)
+                st = int
+            if type(value) is list and st is int:
+                if slice_ < 0:
+                    return None
+                n = len(value)
+                if slice_ >= n:
+                    return None
+                return value[-(slice_ + 1)]
+            # Fall through for matrix / scalar / non-int index
+        else:
+            visit = self.visit
+            value = visit(value_node)
+            slice_ = visit(slice_node) if slice_node is not None else None  # type: ignore[arg-type]
+            st = type(slice_)
+            if slice_ is None:
+                return None
+            if st is float:
+                if slice_ != slice_:  # NaN
+                    return None
+                slice_ = int(slice_)
+                st = int
+            elif st is bool:
+                slice_ = int(slice_)
+                st = int
+
+            if type(value) is list and st is int:
+                if slice_ < 0:
+                    return None
+                n = len(value)
+                if slice_ >= n:
+                    return None
+                return value[-(slice_ + 1)]
 
         st = type(slice_)
         # na index → na (do not crash the bar loop)
@@ -423,6 +497,10 @@ class NameEvaluator:
             except (IndexError, KeyError):
                 # str/list OOB, missing map key, etc. → na (do not abort bar)
                 return None
+            except TypeError:
+                # Unresolved-name string indices (``series[x2]`` when ``x2`` was
+                # never bound and resolves to the bare id string) → na.
+                return None
             except Exception as e:
                 msg = f"Subscript error for {type(value).__name__} with index {slice_}: {e}"
                 raise ValueError(msg) from e
@@ -433,7 +511,8 @@ class NameEvaluator:
             if slice_ < 0 or slice_ > 0:
                 return None
             return value
-        value_type = type(value)
-        slice_type = type(slice_)
-        msg = f"Subscript not supported for {value_type} with {slice_type}"
-        raise ValueError(msg)
+        # Unsupported pairs (e.g. ``na["key"]``, ``na[x2]`` with unresolved str
+        # name, float series with non-numeric index after failed coerce) soft-fail
+        # to na — set05 residual: nested-if scrape reorders assigns so history
+        # offsets can see unbound names that resolve to their id string.
+        return None

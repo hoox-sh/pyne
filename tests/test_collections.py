@@ -692,6 +692,18 @@ class TestArrayEdgeCorrectness:
         with pytest.raises(ValueError, match="expected array|got"):
             self._call("array.push", [42, 1])
 
+    def test_array_push_zero_arg_soft_noop(self) -> None:
+        assert self._call("array.push", []) is None
+
+    def test_array_push_na_id_soft_noop(self) -> None:
+        assert self._call("array.push", [None, 1]) is None
+
+    def test_array_newcolor_alias(self) -> None:
+        a = self._call("array.newcolor", [0])
+        assert a == []
+        self._call("array.push", [a, 1])
+        assert a == [1]
+
     def test_array_abs_non_numeric_message(self) -> None:
         with pytest.raises(ValueError, match="numeric|got"):
             self._call("array.abs", [["a", "b"]])

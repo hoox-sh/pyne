@@ -88,6 +88,18 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             "array.new_float": self._builtin_array_new_empty,
             "array.new_string": self._builtin_array_new_empty,
             "array.new_color": self._builtin_array_new_empty,
+            # CamelCase community aliases (no underscore) — set05 gradients etc.
+            "array.newbool": self._builtin_array_new_empty,
+            "array.newint": self._builtin_array_new_empty,
+            "array.newfloat": self._builtin_array_new_empty,
+            "array.newstring": self._builtin_array_new_empty,
+            "array.newcolor": self._builtin_array_new_empty,
+            "array.newlabel": self._builtin_array_new_empty,
+            "array.newline": self._builtin_array_new_empty,
+            "array.newbox": self._builtin_array_new_empty,
+            "array.newtable": self._builtin_array_new_empty,
+            "array.newpolyline": self._builtin_array_new_empty,
+            "array.newlinefill": self._builtin_array_new_empty,
             "array.new_label": self._builtin_array_new_empty,
             "array.new_line": self._builtin_array_new_empty,
             "array.new_box": self._builtin_array_new_empty,
@@ -263,13 +275,30 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             return None
         return sequence[index]
 
-    def _builtin_array_push(self, args: list[Any]) -> list[Any]:
-        if len(args) != BINARY:
-            self._error("array.push takes array and value")
-        sequence = self._expect_list(
-            args[0],
-            "array.push takes array and value",
-        )
+    def _builtin_array_push(self, args: list[Any]) -> list[Any] | None:
+        """``array.push(id, value)`` — append value; soft-na / incomplete call resilience.
+
+        Corpus residuals (set05):
+        - Zero-arg ``array.push()`` left by truncated TV docs demos → no-op.
+        - ``array.push(id=na, value=…)`` / na receiver → no-op (TV soft-na).
+        - Kwargs ``id=`` / ``value=`` via ``_KWARG_ORDER`` (including ``value=na``).
+        """
+        # Truncated docs / incomplete calls (arity 0 or lone value) → no-op
+        if len(args) < BINARY:
+            return None if not args else self._coerce_optional_list(args[0])
+        if len(args) > BINARY:
+            # Extra trailing args (plot-style leaks) ignored; still need id+value
+            args = args[:BINARY]
+        sequence = self._coerce_optional_list(args[0])
+        if sequence is None:
+            # na / non-array receiver — soft-na rather than hard fail (gradients,
+            # miswired security stubs). Wrong scalar types still error when the
+            # value is clearly not an array-like optional miss.
+            if args[0] is None:
+                return None
+            self._error(
+                f"array.push takes array and value (got {self._type_name(args[0])}, expected array)",
+            )
         # Pine mutates in place (void); return sequence for chaining / tests
         sequence.append(args[1])
         return sequence

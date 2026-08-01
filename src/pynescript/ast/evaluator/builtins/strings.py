@@ -296,13 +296,27 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         Placeholder defaults such as ``"YYYY-MM"`` must not raise — scripts
         like seasonality push rounded tonumber results into arrays and rely
         on na propagation.
+
+        Soft-coerces ``na`` / non-string (array.get miss, numbers) → ``na`` or
+        ``float(value)`` rather than hard-failing ``takes a string argument``.
         """
         if len(args) != UNARY:
             self._error("str.tonumber takes a string argument")
-        value = self._expect_string(
-            args[0],
-            "str.tonumber takes a string argument",
-        )
+        value = args[0]
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            # Numbers already numeric; other types → best-effort / na.
+            if isinstance(value, bool):
+                return float(int(value))
+            if isinstance(value, (int, float)):
+                if isinstance(value, float) and value != value:
+                    return None
+                return float(value)
+            try:
+                value = str(value)
+            except (TypeError, ValueError):
+                return None
         value = value.strip()
         if not value:
             return None

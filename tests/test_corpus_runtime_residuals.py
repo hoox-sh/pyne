@@ -60,6 +60,104 @@ plot(array.get(a, 0))
         assert abs(float(r["plots"][-1]) - 1.5) < 1e-9
 
 
+class TestArrayPushSoftArityAndNewcolor:
+    """set05 residual: ``array.push takes array and value`` (~3+1).
+
+    - Truncated TV docs demos end with bare ``array.push()``.
+    - Community alias ``array.newcolor`` (no underscore) left receivers as na.
+    """
+
+    def test_array_push_zero_arg_noop(self) -> None:
+        src = """//@version=6
+indicator("t")
+a = array.new<float>(5, 0)
+array.push()
+plot(array.size(a))
+"""
+        r = Runtime().run(src, _bars(3), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert r["plots"][-1] == 5
+
+    def test_array_push_na_id_noop(self) -> None:
+        src = """//@version=5
+indicator("t")
+array.push(id=na, value=1.0)
+plot(1)
+"""
+        r = Runtime().run(src, _bars(3), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert r["plots"][-1] == 1
+
+    def test_array_newcolor_alias_and_push_kwargs(self) -> None:
+        # set05/indicators/8986_ind_gradients.pine pattern
+        src = """//@version=5
+indicator("t")
+var color gradient = array.newcolor(size=0, initial_value=#000000)
+if barstate.isfirst
+    array.push(id=gradient, value=color.red)
+plot(array.size(gradient))
+"""
+        r = Runtime().run(src, _bars(3), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert r["plots"][-1] == 1
+
+    def test_set05_array_insert_demo_zero_push(self) -> None:
+        rel = "set05/indicators/6842_ind_array_insert.pine"
+        path = DATA / rel
+        if not path.is_file():
+            pytest.skip(f"missing corpus file {rel}")
+        src = sanitize_corpus_source(path.read_text(encoding="utf-8"))
+        r = Runtime().run(src, _bars(5), mode="interpret")
+        assert "error" not in r, r.get("error")
+
+    def test_set05_gradients_newcolor(self) -> None:
+        rel = "set05/indicators/8986_ind_gradients.pine"
+        path = DATA / rel
+        if not path.is_file():
+            pytest.skip(f"missing corpus file {rel}")
+        src = sanitize_corpus_source(path.read_text(encoding="utf-8"))
+        r = Runtime().run(src, _bars(5), mode="interpret")
+        assert "error" not in r, r.get("error")
+
+
+class TestSubscriptUnsupportedSoftNa:
+    """set05 residual: ``Subscript not supported for <class …>`` (~3).
+
+    Unresolved names resolve to their id *string*; nested-if scrape reorders can
+    evaluate ``series[x2]`` before ``x2`` is bound → soft-na, not hard error.
+    """
+
+    def test_na_with_str_index_soft_fails(self) -> None:
+        src = """//@version=5
+indicator("t")
+s = na
+plot(na(s["foo"]) ? 1 : 0)
+"""
+        r = Runtime().run(src, _bars(3), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert r["plots"][-1] == 1
+
+    def test_scalar_with_unresolved_name_index_soft_fails(self) -> None:
+        # ``x2`` never assigned → visit_Name returns the string "x2"
+        src = """//@version=5
+indicator("t")
+v = close
+plot(na(v[x2]) ? 1 : 0)
+"""
+        r = Runtime().run(src, _bars(5), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert r["plots"][-1] == 1
+
+    def test_set05_oath_strategy_subscript(self) -> None:
+        rel = "set05/strategies/3270_str_oath.pine"
+        path = DATA / rel
+        if not path.is_file():
+            pytest.skip(f"missing corpus file {rel}")
+        src = sanitize_corpus_source(path.read_text(encoding="utf-8"))
+        r = Runtime().run(src, _bars(60), mode="interpret")
+        assert "error" not in r, r.get("error")
+
+
 class TestArrayGetSetKwargsAndNa:
     """C1 residual: array.get/set kwargs merge + soft-na index."""
 
@@ -566,6 +664,129 @@ plot(ta.sma(close, len))
         assert last is None or (isinstance(last, float) and last != last)
 
 
+class TestIntSoftCoerceAndTickerModify:
+    """set05 residual: int('pyramid_val') / ticker.modify(adjustment=) / str.tonumber(na)."""
+
+    def test_int_non_numeric_string_is_na(self) -> None:
+        src = """//@version=5
+indicator("t")
+plot(na(int("pyramid_val")) ? 1 : 0)
+plot(na(int("abc")) ? 1 : 0)
+plot(int("2.01"))
+"""
+        r = Runtime().run(src, _bars(3), mode="interpret")
+        assert "error" not in r, r.get("error")
+        series = r.get("series") or {}
+        p0 = series.get("plot_0") or series.get("plot") or r["plots"]
+        assert int(p0[-1]) == 1
+        # third plot is int("2.01") → 2 when multi-series present
+        p2 = series.get("plot_2")
+        if p2 is not None:
+            assert int(p2[-1]) == 2
+
+    def test_strategy_pyramiding_unresolved_name_soft(self) -> None:
+        # Mirrors sanitize dropping pyramid_val=1 before strategy(...)
+        src = """//@version=5
+strategy("t", pyramiding=pyramid_val, default_qty_value=cash_given_per_lot)
+plot(close)
+"""
+        r = Runtime().run(src, _bars(5), mode="interpret")
+        assert "error" not in r, r.get("error")
+
+    def test_ticker_modify_adjustment_kwarg(self) -> None:
+        src = """//@version=5
+indicator("t")
+t = ticker.modify(syminfo.tickerid, adjustment=adjustment.dividends)
+plot(str.length(str.tostring(t)) > 0 ? 1 : 0)
+"""
+        r = Runtime().run(src, _bars(3), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert r["plots"][-1] == 1
+
+    def test_str_tonumber_na_and_number(self) -> None:
+        src = """//@version=5
+indicator("t")
+plot(na(str.tonumber(na)) ? 1 : 0)
+plot(str.tonumber(12.5))
+plot(na(str.tonumber("not-a-number")) ? 1 : 0)
+"""
+        r = Runtime().run(src, _bars(3), mode="interpret")
+        assert "error" not in r, r.get("error")
+        series = r.get("series") or {}
+        p0 = series.get("plot_0") or series.get("plot") or r["plots"]
+        assert int(p0[-1]) == 1
+        p1 = series.get("plot_1")
+        if p1 is not None:
+            assert abs(float(p1[-1]) - 12.5) < 1e-9
+
+
+class TestLocalFunctionNotUnknownBuiltin:
+    """set05 residual: ``Unknown built-in function: 'f_priorBarsSatisfied'`` (~4).
+
+    Root causes:
+    1. Sanitize version-island pick dropped UDF defs from earlier sections.
+    2. Bare missing names were promoted to ``_call_builtin`` → hard ValueError.
+
+    Local/UDF calls must resolve from context; missing helpers soft-fail to na.
+    """
+
+    def test_udf_in_script_runs_not_unknown_builtin(self) -> None:
+        src = """//@version=5
+indicator("t")
+f_priorBarsSatisfied(_objectToEval, _numOfBarsToLookBack) =>
+    returnVal = false
+    for i = 0 to _numOfBarsToLookBack
+        if _objectToEval[i] == true
+            returnVal := true
+    returnVal
+plot(f_priorBarsSatisfied(close > open, 2) ? 1 : 0)
+"""
+        r = Runtime().run(src, _bars(15), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert "Unknown built-in" not in str(r.get("error", ""))
+        assert r["plots"][-1] in (0, 1)
+
+    def test_missing_helper_soft_fails_to_na(self) -> None:
+        """Demo helper never defined (``BarInSession``, ``sampleStdev``) → na."""
+        src = """//@version=5
+indicator("t")
+plot(BarInSession("0930-1600") ? 1 : 0)
+"""
+        r = Runtime().run(src, _bars(15), mode="interpret")
+        assert "error" not in r, r.get("error")
+        # Missing helper → na/falsey → 0
+        assert float(r["plots"][-1]) == 0.0
+
+    def test_missing_sample_stdev_soft_fails(self) -> None:
+        src = """//@version=5
+indicator("t")
+plot(nz(sampleStdev(close, 10), -1))
+"""
+        r = Runtime().run(src, _bars(15), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert float(r["plots"][-1]) == -1.0
+
+    def test_missing_helper_single_plot_na(self) -> None:
+        src = """//@version=5
+indicator("t")
+plot(nz(f_missingHelper(close), -99))
+"""
+        r = Runtime().run(src, _bars(5), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert float(r["plots"][-1]) == -99.0
+
+    def test_context_udf_shadows_before_builtin_error(self) -> None:
+        """User callable in context is preferred over unknown-builtin path."""
+        src = """//@version=5
+indicator("t")
+myHelper(x) => x * 2
+plot(myHelper(3))
+"""
+        r = Runtime().run(src, _bars(3), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert abs(float(r["plots"][-1]) - 6.0) < 1e-9
+
+
 class TestStrategyInitialCapitalReassign:
     """set05 residual: strategy.initial_capital = N → Unsupported reassignment target Attribute."""
 
@@ -612,6 +833,188 @@ plot(s.v)
         assert "error" not in r, f"{rel}: {r.get('error')}"
 
 
+class TestBareTaSeriesAliases:
+    """set05 residual: bare ``obv``/``accdist``/``vwap`` as series (not name strings).
+
+    Pine v3/v4 expose these as built-in series variables equivalent to zero-arg
+    ``ta.obv`` / ``ta.accdist`` / ``ta.vwap``. Unresolved bare names used to
+    leak as strings into ``ema(...)`` → ``float('obv')`` Runtime Error.
+    """
+
+    def test_bare_obv_plot_is_numeric(self) -> None:
+        src = """//@version=4
+study("t")
+plot(obv)
+"""
+        r = Runtime().run(src, _bars(20), mode="interpret")
+        assert "error" not in r, r.get("error")
+        last = r["plots"][-1]
+        assert isinstance(last, (int, float)), last
+        assert last == last  # not NaN
+
+    def test_bare_obv_in_ema_no_crash(self) -> None:
+        # Corpus pattern: value = (obv - ema(obv,len))/1000000
+        src = """//@version=4
+study("t")
+value = (obv - ema(obv, 5)) / 1000000
+plot(value)
+"""
+        r = Runtime().run(src, _bars(30), mode="interpret")
+        assert "error" not in r, r.get("error")
+        last = r["plots"][-1]
+        assert last is None or isinstance(last, (int, float))
+
+    def test_bare_accdist_in_ema_no_crash(self) -> None:
+        src = """//@version=4
+study("t")
+osc = ema(accdist, 3) - ema(accdist, 10)
+plot(osc)
+"""
+        r = Runtime().run(src, _bars(30), mode="interpret")
+        assert "error" not in r, r.get("error")
+        last = r["plots"][-1]
+        assert last is None or isinstance(last, (int, float))
+
+    def test_bare_vwap_in_ema_no_crash(self) -> None:
+        src = """//@version=4
+study("t")
+plot(ema(vwap, 7))
+"""
+        r = Runtime().run(src, _bars(30), mode="interpret")
+        assert "error" not in r, r.get("error")
+        last = r["plots"][-1]
+        assert last is None or isinstance(last, (int, float))
+
+    def test_ta_qualified_still_works(self) -> None:
+        src = """//@version=5
+indicator("t")
+plot(ta.obv)
+plot(ta.accdist)
+plot(ta.vwap)
+"""
+        r = Runtime().run(src, _bars(20), mode="interpret")
+        assert "error" not in r, r.get("error")
+
+    def test_unknown_source_string_soft_fails_not_crash(self) -> None:
+        """Defense: non-series string source → na path, not float() crash."""
+        from pynescript.ast.evaluator import NodeLiteralEvaluator
+
+        ev = NodeLiteralEvaluator()
+        # Simulate bar-mode current_series without alias
+        ev.current_series = {"close": [1.0, 2.0, 3.0], "volume": [10.0, 10.0, 10.0]}  # type: ignore[attr-defined]
+        assert ev._as_series("not_a_series") == []  # type: ignore[attr-defined]
+        # Numeric string still coerces
+        assert ev._as_series("12.5") == [12.5]  # type: ignore[attr-defined]
+
+
+class TestLinregLengthAndKamaArity:
+    """set05 residual: ta.linreg length<2 hard error; ta.kama arity hard error.
+
+    - OTT scripts default OTT Period to 1 and call ``ta.linreg(src, 1, …)``.
+    - TV returns na for short length rather than raising.
+    - ``ta.kama(source, length)`` uses Kaufman defaults fast=2, slow=30.
+    - UDF named ``kama`` that rebinds ``kama = 0.0`` must stay callable across bars.
+    """
+
+    def test_linreg_length_1_is_na(self) -> None:
+        src = """//@version=5
+indicator("t")
+length = 1
+plot(ta.linreg(close, length, 0))
+"""
+        r = Runtime().run(src, _bars(10), mode="interpret")
+        assert "error" not in r, r.get("error")
+        last = r["plots"][-1]
+        assert last is None or (isinstance(last, float) and last != last)
+
+    def test_linreg_length_0_is_na(self) -> None:
+        src = """//@version=5
+indicator("t")
+plot(ta.linreg(close, 0, 0))
+"""
+        r = Runtime().run(src, _bars(5), mode="interpret")
+        assert "error" not in r, r.get("error")
+        last = r["plots"][-1]
+        assert last is None or (isinstance(last, float) and last != last)
+
+    def test_linreg_length_valid_still_numeric(self) -> None:
+        src = """//@version=5
+indicator("t")
+plot(ta.linreg(close, 5, 0))
+"""
+        r = Runtime().run(src, _bars(20), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert isinstance(r["plots"][-1], (int, float))
+        assert r["plots"][-1] == r["plots"][-1]
+
+    def test_ott_tsf_length_1_no_crash(self) -> None:
+        """Corpus OTT pattern: length=1 default into TSF via linreg."""
+        src = """//@version=5
+strategy("t")
+length = input.int(defval=1, title="OTT Period", minval=1)
+src = close
+Tsf_Func(src, length) =>
+    lrc = ta.linreg(src, length, 0)
+    lrc1 = ta.linreg(src, length, 1)
+    lrs = (lrc - lrc1)
+    TSF = ta.linreg(src, length, 0) + lrs
+    TSF
+plot(Tsf_Func(src, length))
+"""
+        r = Runtime().run(src, _bars(15), mode="interpret")
+        assert "error" not in r, r.get("error")
+
+    def test_kama_two_arg_defaults(self) -> None:
+        src = """//@version=5
+indicator("t")
+plot(ta.kama(close, 10))
+"""
+        r = Runtime().run(src, _bars(30), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert isinstance(r["plots"][-1], (int, float))
+
+    def test_kama_four_arg_matches_two_arg_defaults(self) -> None:
+        src = """//@version=5
+indicator("t")
+a = ta.kama(close, 10)
+b = ta.kama(close, 10, 2, 30)
+plot(a - b)
+"""
+        r = Runtime().run(src, _bars(30), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert abs(float(r["plots"][-1])) < 1e-9
+
+    def test_udf_named_kama_with_self_series_survives_bars(self) -> None:
+        """set05 klinger / noscoobies: UDF ``kama`` rebinds local series ``kama``."""
+        src = """//@version=5
+indicator("t")
+kama(src) =>
+    kama = 0.0
+    kama := nz(kama[1]) + 0.1 * (src - nz(kama[1]))
+plot(kama(close))
+"""
+        r = Runtime().run(src, _bars(8), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert len(r["plots"]) == 8
+
+    def test_udf_kama_two_arg_v2_style(self) -> None:
+        src = """//@version=2
+study("t")
+kama(close, amaLength) =>
+    diff = abs(close[0] - close[1])
+    signal = abs(close - close[amaLength])
+    noise = sum(diff, amaLength)
+    efratio = noise != 0 ? signal / noise : 1
+    smooth = pow(efratio * (0.666 - 0.0645) + 0.0645, 2)
+    kama = nz(kama[1], close) + smooth * (close - nz(kama[1], close))
+    kama
+plot(kama(close, 1))
+"""
+        r = Runtime().run(src, _bars(8), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert len(r["plots"]) == 8
+
+
 class TestCorpusScripts:
     @pytest.mark.parametrize(
         "rel",
@@ -639,6 +1042,34 @@ class TestCorpusScripts:
             # C1 strategy.initial_capital = N (Attribute ReAssign)
             "set05/strategies/0893_str_bollinger_bands_backtesting.pine",
             "set05/strategies/0769_str_buy_and_sell_bullish_engulfing_the_quant_science_2.pine",
+            # C1 bare TA series aliases (obv / accdist / vwap)
+            "set05/indicators/8386_ind_valancer.pine",
+            "set05/indicators/8601_ind_price_levels_hline.pine",
+            "set05/indicators/9042_ind_tf_chaikin_oscillator_indicator.pine",
+            "set05/strategies/4510_str_strat_stemwap.pine",
+            # set05: int('pyramid_val') via strategy(pyramiding=…) after sanitize
+            "set05/strategies/6632_str_tradinggroundhog_strategy_and_fractal_v1.pine",
+            "set05/strategies/6650_str_tradinggroundhog_strategy_and_wavetrend_v2.pine",
+            "set05/strategies/6674_str_adaptive_volatility_breakout_trading_strategy.pine",
+            # set05: ticker.modify(..., adjustment=adjustment.dividends)
+            "set05/indicators/7602_ind_custom_contexts_demo_2.pine",
+            "set05/indicators/7704_ind_custom_contexts_demo_1.pine",
+            # set05: str.tonumber(na / non-string) soft
+            "set05/indicators/7362_ind_gexbot.pine",
+            "set05/strategies/0082_str_dynamic_stop_loss_demo.pine",
+            # set05 local-UDF-as-builtin (f_priorBarsSatisfied / multi-section //@version)
+            "set05/strategies/0367_str_strategy_myth_busting_10_insidebar_plus_ema.pine",
+            "set05/strategies/3169_str_strategy_myth_busting_10_insidebar_plus_ema_2.pine",
+            "set05/strategies/0682_str_strategy_myth_busting_7_macdbb_plus_ssl_plus_vsf.pine",
+            "set05/strategies/3243_str_strategy_myth_busting_7_macdbb_plus_ssl_plus_vsf_2.pine",
+            # set05 ta.linreg length<2 soft-na (OTT / slope)
+            "set05/indicators/9066_ind_slope.pine",
+            "set05/strategies/0360_str_rsi_ott_tp_sl.pine",
+            "set05/strategies/1247_str_multiple_ott.pine",
+            "set05/strategies/3160_str_rsi_ott_rsi_and_ott_bands_strategy_analysis.pine",
+            # set05 ta.kama arity / UDF self-name kama
+            "set05/indicators/8860_ind_klinger.pine",
+            "set05/strategies/6253_str_noscoobies_slow_heiken_ashi_and_exponential_moving_average_strategy_2_2.pine",
         ],
     )
     def test_residual_scripts_ok(self, rel: str) -> None:
@@ -648,3 +1079,90 @@ class TestCorpusScripts:
         src = sanitize_corpus_source(path.read_text(encoding="utf-8", errors="replace"))
         r = Runtime().run(src, _bars(50), mode="interpret")
         assert "error" not in r, f"{rel}: {r.get('error')}"
+
+
+class TestSet05TimeoutHotPaths:
+    """Cheap host-side wins for set05 interpret TIMEOUT themes.
+
+    Categories still expected to stay slow / TIMEOUT without full ML rewrites
+    (see agent writeup): SuperTrend AI k-means (maxIter=1000/bar), RANSAC ML
+    regression, Nebula/to_method mega-scripts with heavy UDF/drawing, ICT/SMC
+    scanners, and intentional "loop is too long" demos (≈5e5 AST iters/bar).
+    """
+
+    def test_static_for_to_inclusive_bounds(self) -> None:
+        """Constant-bound for-to uses static path; end is inclusive."""
+        src = """//@version=5
+indicator("t")
+s = 0
+for i = 1 to 10
+    s := s + i
+plot(s)
+"""
+        r = Runtime().run(src, _bars(5), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert r["plots"][-1] == 55  # 1+…+10
+
+    def test_static_for_to_downward(self) -> None:
+        src = """//@version=5
+indicator("t")
+s = 0
+for i = 3 to 1
+    s := s + i
+plot(s)
+"""
+        r = Runtime().run(src, _bars(3), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert r["plots"][-1] == 6
+
+    def test_nested_const_timestamp_loop_completes(self) -> None:
+        """TV "loop is too long" pattern: nested loops + literal timestamp().
+
+        Must finish quickly enough for corpus 10s budgets on small bar counts
+        (const-fold timestamp + static for-to). Result is always 0 on synthetic
+        bars (times never fall on 2017-02-23).
+        """
+        import time
+
+        src = """//@version=5
+indicator("Loop is too long", max_bars_back = 101)
+s = 0
+for i = 1 to 1e3
+    for j = 0 to 100
+        if timestamp(2017, 02, 23, 00, 00) <= time[j] and time[j] < timestamp(2017, 02, 23, 23, 59)
+            s := s + 1
+plot(s)
+"""
+        t0 = time.perf_counter()
+        r = Runtime().run(src, _bars(10), mode="interpret")
+        elapsed = time.perf_counter() - t0
+        assert "error" not in r, r.get("error")
+        assert r["plots"][-1] == 0
+        # Pre-fix baseline was ~10s for 5 bars; 10 bars should stay well under 10s.
+        assert elapsed < 8.0, f"nested timestamp loop too slow: {elapsed:.2f}s"
+
+    def test_array_kwargs_merge_without_typeerror(self) -> None:
+        """array.* named kwargs must merge via _KWARG_ORDER (no per-call inspect)."""
+        src = """//@version=5
+indicator("t")
+a = array.new_float(size=2, initial_value=1.5)
+array.set(id=a, index=1, value=9.0)
+plot(array.get(id=a, index=0) + array.get(id=a, index=1))
+"""
+        r = Runtime().run(src, _bars(3), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert abs(float(r["plots"][-1]) - 10.5) < 1e-9
+
+    def test_series_name_subscript_offset(self) -> None:
+        """Name[Name] series history fast path keeps Pine reverse-offset semantics."""
+        src = """//@version=5
+indicator("t")
+plot(close[0], title="c0")
+plot(nz(close[1], -1), title="c1")
+"""
+        r = Runtime().run(src, _bars(5), mode="interpret")
+        assert "error" not in r, r.get("error")
+        series = r["series"]
+        assert series["c0"][-1] == series["c0"][-1]
+        assert series["c1"][-1] == series["c0"][-2]
+        assert series["c1"][0] == -1

@@ -74,12 +74,24 @@ _SERIES_TYPE_NAMES = frozenset({"PineSeries", "_SeriesResult"})
 # ``_SITE_BB``: bare Name with bound handler (user shadow still checked).
 # ``_SITE_G``: general path (methods, UDFs, UDT.new, recovered attrs).
 # ``_SITE_GN``: general path with bare Name callee (UDF / local callable).
+# ``_SITE_CONST``: pure builtin with all-literal args — memoized result.
 _SITE_Q = 0
 _SITE_QB = 3
 _SITE_B = 1
 _SITE_BB = 4
 _SITE_G = 2
 _SITE_GN = 5
+_SITE_CONST = 6
+
+# Side-effect-free builtins safe to constant-fold when every arg is a literal.
+# ``timestamp(2017, 2, 23, 0, 0)`` inside nested loops is the dominant set05
+# TIMEOUT theme ("loop is too long" samples). Do **not** include plot/strategy
+# or series-dependent helpers.
+_PURE_CONST_FOLD_BUILTINS = frozenset(
+    {
+        "timestamp",
+    }
+)
 
 # Shared empty kwargs — never mutate (hot path avoids ``{}`` alloc).
 _EMPTY_KW: dict[str, Any] = {}
@@ -102,6 +114,17 @@ _AP_VISIT = 2
 _AP_KW_NAME = 3
 _AP_KW_CONST = 4
 _AP_KW_VISIT = 5
+
+
+def _arg_plan_all_literal(plan: tuple) -> bool:
+    """True when every positional/keyword arg in *plan* is a constant literal."""
+    if not plan:
+        return True
+    for op in plan:
+        kind = op[0]
+        if kind != _AP_CONST and kind != _AP_KW_CONST:
+            return False
+    return True
 
 
 def _as_scalar_operand(value):
@@ -574,6 +597,11 @@ class ExpressionEvaluator:
 
         kind = site[0]
 
+        # Memoized pure literal call (timestamp(2017, 2, 23, …) in hot loops).
+        # site = (_SITE_CONST, value)
+        if kind == _SITE_CONST:
+            return site[1]
+
         # Bound qualified builtin (ta.sma after first bar) — no name lookup.
         # site = (_SITE_QB, tag, handler, name, arg_plan)
         # Dominant multi-TA path: check first.
@@ -609,10 +637,19 @@ class ExpressionEvaluator:
             if kwargs is not _EMPTY_KW and kwargs:
                 return self._call_builtin(name, args, kwargs=kwargs)  # type: ignore[attr-defined]
             if tag == 1:
-                return handler(args)
-            if tag == 0:
-                return handler
-            return handler(*args)
+                result = handler(args)
+            elif tag == 0:
+                result = handler
+            else:
+                result = handler(*args)
+            # Promote pure all-literal sites after first bound invoke.
+            if (
+                name in _PURE_CONST_FOLD_BUILTINS
+                and _arg_plan_all_literal(plan)
+                and (kwargs is _EMPTY_KW or not kwargs)
+            ):
+                _store_call_site(node, (_SITE_CONST, result))
+            return result
 
         # Fast path: ta.*/strategy.*/math.* — resolve name once, then bind.
         # site = (_SITE_Q, name, arg_plan)
@@ -620,6 +657,13 @@ class ExpressionEvaluator:
             name, plan = site[1], site[2]
             args, kwargs = self._eval_arg_plan(plan)
             result = self._call_builtin(name, args, kwargs=kwargs)  # type: ignore[attr-defined]
+            if (
+                name in _PURE_CONST_FOLD_BUILTINS
+                and _arg_plan_all_literal(plan)
+                and (kwargs is _EMPTY_KW or not kwargs)
+            ):
+                _store_call_site(node, (_SITE_CONST, result))
+                return result
             bound = self._lookup_bound_builtin(name)
             if bound is not None:
                 _store_call_site(node, (_SITE_QB, bound[0], bound[1], name, plan))
@@ -645,6 +689,14 @@ class ExpressionEvaluator:
                             raise
                         return None
             result = self._call_builtin(name, args, kwargs=kwargs)  # type: ignore[attr-defined]
+            # Fold pure literal builtins on first eval (same bar nested loops).
+            if (
+                name in _PURE_CONST_FOLD_BUILTINS
+                and _arg_plan_all_literal(plan)
+                and (kwargs is _EMPTY_KW or not kwargs)
+            ):
+                _store_call_site(node, (_SITE_CONST, result))
+                return result
             bound = self._lookup_bound_builtin(name)
             if bound is not None:
                 _store_call_site(node, (_SITE_BB, name, bound[0], bound[1], plan))
@@ -652,12 +704,22 @@ class ExpressionEvaluator:
 
         # Bare-name UDF / local callable — skip visit(func) Attribute machinery.
         # site = (_SITE_GN, name, arg_plan)
+        # Not a registered builtin (see _resolve_call_site). Missing locals /
+        # demo helpers soft-fail to na — never promote to Unknown built-in.
         if kind == _SITE_GN:
             name, plan = site[1], site[2]
             args, kwargs = self._eval_arg_plan(plan)
             func = self.context.get(name)  # type: ignore[attr-defined]
             if not callable(func):
-                # Name may be lazy string or missing — fall back once.
+                # Context may hold a lazy string / non-callable; Attribute / UDT
+                # recovery still goes through the general path when needed.
+                # Bare missing UDF names (``f_priorBarsSatisfied``, helpers
+                # dropped by scrapes) must not hit ``_call_builtin`` → ValueError.
+                if isinstance(func, str) or func is None:
+                    # Re-check registry once (map may have been built after site resolve).
+                    if self._is_registered_builtin(name):
+                        return self._call_builtin(name, args, kwargs=kwargs)  # type: ignore[attr-defined]
+                    return None
                 return self._visit_Call_general(node, plan)
             try:
                 return func(*args, **kwargs)
@@ -926,7 +988,12 @@ class ExpressionEvaluator:
                 recovered = self._recover_instance_attr_call(node_func, args, kwargs)
                 if recovered is not _ATTR_CALL_MISS:
                     return recovered
-            return self._call_builtin(func, args, kwargs=kwargs)  # type: ignore[attr-defined]
+            # Registered builtins only. Bare unresolved names are missing UDFs /
+            # demo helpers (``f_priorBarsSatisfied``, ``BarInSession``, …) —
+            # soft-fail to na instead of ``Unknown built-in function``.
+            if self._is_registered_builtin(func):
+                return self._call_builtin(func, args, kwargs=kwargs)  # type: ignore[attr-defined]
+            return None
 
         # Soft-fail non-callables (stubs, na) — return None
         if not callable(func):

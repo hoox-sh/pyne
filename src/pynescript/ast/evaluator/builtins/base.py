@@ -302,6 +302,10 @@ _TA_KWARG_ALIASES: dict[str, str] = {
 # Key on the underlying function object (bound methods share ``__func__``).
 _LIST_STYLE_HANDLER_CACHE: dict[object, bool] = {}
 
+# Cached positional param names for kwargs→args merge (same keying as list-style).
+# ``None`` value means "use _KWARG_ORDER / ta orders / append fallback".
+_HANDLER_PARAM_NAMES_CACHE: dict[object, list[str] | None] = {}
+
 
 def _is_list_style_handler(handler: Callable) -> bool:
     """True when the handler expects a single ``args`` list (mixin style).
@@ -340,6 +344,42 @@ def _is_list_style_handler(handler: Callable) -> bool:
     if cache_key is not None:
         _LIST_STYLE_HANDLER_CACHE[cache_key] = result
     return result
+
+
+def _handler_param_names(handler: Callable) -> list[str] | None:
+    """Return cached positional parameter names for kwargs merge, or None.
+
+    ``None`` means the callee is list-style / uninspectable and the caller
+    should use ``_KWARG_ORDER`` / ``_TA_KWARG_ORDERS`` instead of inspect.
+    """
+    cache_key: object = getattr(handler, "__func__", handler)
+    try:
+        return _HANDLER_PARAM_NAMES_CACHE[cache_key]
+    except KeyError:
+        pass
+    except TypeError:
+        cache_key = None  # type: ignore[assignment]
+
+    param_names: list[str] | None
+    try:
+        sig = inspect.signature(handler)
+        params = list(sig.parameters.values())
+        start = 1 if params and params[0].name == "self" else 0
+        names = [p.name for p in params[start:]]
+    except (ValueError, TypeError):
+        names = []
+
+    # List-style handlers ``(args)`` / ``(_args)`` are not real Pine params.
+    if len(names) == 1 and names[0] in {"args", "_args"}:
+        param_names = None
+    elif not names:
+        param_names = None
+    else:
+        param_names = names
+
+    if cache_key is not None:
+        _HANDLER_PARAM_NAMES_CACHE[cache_key] = param_names
+    return param_names
 
 
 class BuiltinDispatchMixin:
@@ -400,14 +440,23 @@ class BuiltinDispatchMixin:
             # that body error and never reach ``handler(*args, **kwargs)``.
             # Camarilla++: ``color.new(color.white, transp=75)`` hit this path.
             if tag == 1:
-                # Mixin handlers: (args, kwargs) or (args,) after merge
+                # Mixin handlers: (args, kwargs) or (args,) after merge.
+                # Prefer merge-first when the handler declares _KWARG_ORDER or a
+                # ta.* order table — avoids raising TypeError on every
+                # ``array.set(id=…, index=…, value=…)`` (DFT / UDT-heavy scripts).
+                bare = name[3:] if name.startswith("ta.") else name
+                kw_order = getattr(handler, "_KWARG_ORDER", None)
+                if kw_order is None:
+                    kw_order = getattr(getattr(handler, "__func__", None), "_KWARG_ORDER", None)
+                if kw_order is not None or (bare and bare in _TA_KWARG_ORDERS):
+                    merged = _merge_kwargs_into_args(args, kwargs, handler, ta_bare=bare)
+                    return handler(merged)
                 try:
                     return handler(args, kwargs)
                 except TypeError as e:
                     # Signature mismatch only (no callee body frame) → merge
                     if e.__traceback__ is not None and e.__traceback__.tb_next is not None:
                         raise
-                bare = name[3:] if name.startswith("ta.") else name
                 merged = _merge_kwargs_into_args(args, kwargs, handler, ta_bare=bare)
                 return handler(merged)
             # Plain functions (color.new, color.rgb, math.*, …): *args, **kwargs
@@ -437,6 +486,35 @@ class BuiltinDispatchMixin:
         return pine_expect_int(value, message, self._error)
 
 
+def _merge_via_kwarg_order(
+    args: list[Any],
+    kwargs: dict[str, Any],
+    kwarg_order: list[str],
+) -> list[Any]:
+    """Place kwargs into positions named by *kwarg_order* (list-style handlers)."""
+    merged = list(args)
+    # Indices filled by an explicit keyword (including value=None / Pine na).
+    # Trailing-None trim must not drop those — e.g. array.push(id=a, value=na)
+    # would otherwise collapse to [a] and fail arity checks.
+    explicit_idx: set[int] = set()
+    for key, val in kwargs.items():
+        canon = _TA_KWARG_ALIASES.get(key, key)
+        if canon in kwarg_order:
+            idx = kwarg_order.index(canon)
+            while len(merged) <= idx:
+                merged.append(None)
+            # Don't overwrite an already-provided positional
+            if idx < len(args) and args[idx] is not None:
+                continue
+            merged[idx] = val
+            explicit_idx.add(idx)
+        # else: drop unknown ta/plot kwargs (color=, title=, …)
+    # Trim trailing Nones introduced only as sparse padding slots
+    while merged and merged[-1] is None and (len(merged) - 1) not in explicit_idx:
+        merged.pop()
+    return merged
+
+
 def _merge_kwargs_into_args(
     args: list[Any],
     kwargs: dict[str, Any],
@@ -446,64 +524,30 @@ def _merge_kwargs_into_args(
 ) -> list[Any]:
     """Merge keyword arguments into the positional args list.
 
-    Inspects the handler's signature to map keyword names to positional
-    indices. Falls back to checking for a ``_KWARG_ORDER`` attribute on
-    the handler (used by ``input.*`` functions whose signature is just
-    ``(self, args)`` but whose first positional argument is ``defval``).
+    Order of resolution (cheap → expensive):
 
-    For ``ta.*`` list-style handlers, uses :data:`_TA_KWARG_ORDERS` so calls
-    like ``ta.ema(source=close, length=20)`` become positional ``[close, 20]``.
-    Unknown kwargs (plot-style leaks) are dropped for ta handlers.
+    1. Handler ``_KWARG_ORDER`` (array.*, input.*, timestamp, …)
+    2. ``_TA_KWARG_ORDERS`` for ``ta.*`` bare names
+    3. Cached ``inspect.signature`` param names (plain Python callables)
+    4. Append kwargs values (legacy non-ta fallback)
+
+    ``inspect.signature`` is never called more than once per handler object
+    (see :func:`_handler_param_names`). Hot corpus paths
+    (``array.set(id=…, index=…, value=…)``, complex DFT helpers) used to pay
+    full signature introspection on every call.
     """
-    try:
-        sig = inspect.signature(handler)
-        params = list(sig.parameters.values())
-        start = 1 if params and params[0].name == "self" else 0
-        param_names = [p.name for p in params[start:]]
-    except (ValueError, TypeError):
-        param_names = []
+    # Prefer explicit kwarg order on mixin handlers — no inspect needed.
+    kwarg_order: list[str] | None = getattr(handler, "_KWARG_ORDER", None)
+    if kwarg_order is None:
+        kwarg_order = getattr(getattr(handler, "__func__", None), "_KWARG_ORDER", None)
+    if kwarg_order is None and ta_bare is not None:
+        kwarg_order = _TA_KWARG_ORDERS.get(ta_bare)
+    if kwarg_order:
+        return _merge_via_kwarg_order(args, kwargs, kwarg_order)
 
-    # List-style handlers ``(args)`` / ``(_args)`` are not real parameter
-    # names for Pine kwargs — fall through to _KWARG_ORDER / ta orders.
-    if len(param_names) == 1 and param_names[0] in {"args", "_args"}:
-        param_names = []
-
+    param_names = _handler_param_names(handler)
     if not param_names:
-        # Check for a _KWARG_ORDER attribute on the handler (bound methods
-        # store it on the underlying function via __func__).
-        kwarg_order: list[str] | None = getattr(handler, "_KWARG_ORDER", None)
-        if kwarg_order is None:
-            kwarg_order = getattr(getattr(handler, "__func__", None), "_KWARG_ORDER", None)
-        # ta.* canonical orders (source=, length=, mult=, …)
-        if kwarg_order is None and ta_bare is not None:
-            kwarg_order = _TA_KWARG_ORDERS.get(ta_bare)
-        if kwarg_order:
-            merged = list(args)
-            # Indices filled by an explicit keyword (including value=None / Pine na).
-            # Trailing-None trim must not drop those — e.g. array.push(id=a, value=na)
-            # would otherwise collapse to [a] and fail arity checks.
-            explicit_idx: set[int] = set()
-            for key, val in kwargs.items():
-                canon = _TA_KWARG_ALIASES.get(key, key)
-                if canon in kwarg_order:
-                    idx = kwarg_order.index(canon)
-                    while len(merged) <= idx:
-                        merged.append(None)
-                    # Don't overwrite an already-provided positional
-                    if idx < len(args) and args[idx] is not None:
-                        continue
-                    merged[idx] = val
-                    explicit_idx.add(idx)
-                # else: drop unknown ta kwargs (color=, title=, …)
-            # Trim trailing Nones introduced only as sparse padding slots
-            while (
-                merged
-                and merged[-1] is None
-                and (len(merged) - 1) not in explicit_idx
-            ):
-                merged.pop()
-            return merged
-        # Non-ta: append unknown values (legacy behavior)
+        # Non-ta list-style without order table: append values (legacy).
         return list(args) + list(kwargs.values())
 
     merged = list(args)

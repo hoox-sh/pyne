@@ -772,13 +772,39 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
 
         Timezone-first form interprets components in that zone and returns UTC ms.
         """
+        n = len(args)
+        # Hot path: year-first form with plain int/float components (no TZ string).
+        # Nested-loop corpus demos re-evaluate ``timestamp(2017, 02, 23, 00, 00)``
+        # hundreds of thousands of times; skip coerce/timezone detection and hit
+        # the lru_cache on ``_timestamp_ms_from_components`` immediately.
+        if n >= 3:
+            a0 = args[0]
+            t0 = type(a0)
+            if t0 is int or t0 is float:
+                pure = True
+                for a in args:
+                    ta = type(a)
+                    if ta is not int and ta is not float:
+                        pure = False
+                        break
+                if pure:
+                    return _timestamp_ms_from_components(
+                        int(args[0]),
+                        int(args[1]),
+                        int(args[2]),
+                        int(args[3]) if n > 3 else 0,
+                        int(args[4]) if n > 4 else 0,
+                        int(args[5]) if n > 5 else 0,
+                        0,
+                    )
+
         # Single string form
-        if len(args) == 1 and isinstance(args[0], str):
+        if n == 1 and isinstance(args[0], str):
             parsed = self._parse_timestamp_string(args[0])
             if parsed is not None:
                 return parsed
             self._error("timestamp() could not parse date string")
-        if len(args) == 1:
+        if n == 1:
             # series/int ms pass-through
             c = self._coerce_timestamp_component(args[0], required=True)
             if c is None:

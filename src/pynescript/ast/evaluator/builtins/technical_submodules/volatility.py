@@ -310,11 +310,14 @@ class VolatilityIndicators(TechnicalHelpers):
             return math.nan
 
     def _builtin_ta_linreg(self, args: list[Any]) -> float:
-        """Linear Regression value."""
+        """Linear Regression value.
+
+        Length < 2 soft-returns na (matches TV / BasicIndicators path).
+        """
         series, length = self._expect_series(args, length=BINARY)
 
         if length < BINARY:
-            self._error("ta.linreg length must be at least 2")
+            return math.nan
         if len(series) < length:
             return math.nan
 

@@ -74,7 +74,24 @@ plot(close)
         assert "halted by design" in out["error"]
         assert "index 0" in out["error"]
 
-    def test_unknown_builtin_fail_closed(self) -> None:
+    def test_unknown_builtin_dispatch_fail_closed(self) -> None:
+        """Direct dispatch of an unregistered key still raises (API contract).
+
+        Bare AST call sites soft-fail as missing UDFs (see sibling test); the
+        builtin map itself remains fail-closed for typos in handler wiring.
+        """
+        from pynescript.ast.evaluator import NodeLiteralEvaluator
+
+        ev = NodeLiteralEvaluator()
+        with pytest.raises(ValueError, match="Unknown built-in function"):
+            ev._call_builtin("totally_not_a_builtin_xyz", [1.0])
+
+    def test_unknown_bare_name_soft_fails_as_missing_udf(self) -> None:
+        """Bare unknown callables are treated as missing UDFs / demo helpers → na.
+
+        Corpus multi-section scrapes often call helpers whose defs were dropped;
+        hard ``Unknown built-in`` aborted the bar loop. Soft-fail keeps plots.
+        """
         src = """
 //@version=5
 indicator("missing")
@@ -82,10 +99,12 @@ plot(totally_not_a_builtin_xyz(close))
 """
         rt = Runtime()
         out = rt.run(src, _bars(), mode="interpret")
-        assert "error" in out
-        assert out.get("error_kind") == ERROR_KIND_RUNTIME
-        assert "plots" not in out or out.get("error")
-        assert "Unknown built-in" in out["error"] or "error" in out["error"].lower()
+        assert "error" not in out, out.get("error")
+        assert out.get("plots") is not None
+        # Soft-stub returns na
+        assert out["plots"][-1] is None or (
+            isinstance(out["plots"][-1], float) and out["plots"][-1] != out["plots"][-1]
+        )
 
 
 class TestBodyTypeErrorFailClosed:

@@ -97,10 +97,20 @@ def ticker_modify(
     symbol: str | None = None,
     session: str | None = None,
     adjust: str | None = None,
+    *extra: object,
+    **kwargs: object,
 ) -> TickerInfo:
     """Modify an existing ticker object.
 
     Creates a copy of the ticker with modified parameters.
+
+    TradingView forms::
+
+        ticker.modify(tickerid, session, adjustment)
+        ticker.modify(syminfo.tickerid, adjustment=adjustment.dividends)
+
+    ``adjustment`` is accepted as a kw alias for ``adjust`` (corpus demos).
+    Extra positional/keyword args are ignored so arity drift does not TypeError.
 
     Args:
         ticker: The original ticker object (or raw symbol string)
@@ -111,6 +121,15 @@ def ticker_modify(
     Returns:
         New TickerInfo object with modified parameters
     """
+    if kwargs:
+        if symbol is None and kwargs.get("symbol") is not None:
+            symbol = str(kwargs["symbol"])  # type: ignore[assignment]
+        if session is None and kwargs.get("session") is not None:
+            session = str(kwargs["session"])  # type: ignore[assignment]
+        # TV docs name the parameter ``adjustment``; keep ``adjust`` as alias.
+        adj_kw = kwargs.get("adjustment", kwargs.get("adjust"))
+        if adj_kw is not None:
+            adjust = str(adj_kw)  # type: ignore[assignment]
     if isinstance(ticker, str):
         ticker = TickerInfo(ticker)
     new_symbol = symbol if symbol is not None else ticker.symbol

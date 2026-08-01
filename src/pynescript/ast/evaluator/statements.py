@@ -537,10 +537,12 @@ class StatementEvaluator:
                     self.context[target.id] = value  # type: ignore[attr-defined]
                     if getattr(node, "export", None):
                         self._register_export(target.id, value)
-                    return
+                    # Return assigned value so UDF bodies ending in ``x = expr``
+                    # yield expr (Pine: last expression is the function result).
+                    return value
                 if type(target) is ast.Tuple:
                     self._assign_tuple_unpack(target, value)
-                    return
+                    return value
                 msg = f"Unsupported assignment target: {type(target)}"
                 self._error(msg)  # type: ignore[attr-defined]
             return
@@ -689,13 +691,17 @@ class StatementEvaluator:
         Raises:
             ValueError: If reassignment target is unsupported
         """
-        value = self.visit(node.value)  # type: ignore[attr-defined]
-        if isinstance(node.target, ast.Name):
-            self.context[node.target.id] = value  # type: ignore[attr-defined]
-            return
+        target = node.target
+        # Dominant path: ``s := s + 1`` / ``x := expr`` simple name target.
+        if type(target) is ast.Name:
+            value = self.visit(node.value)  # type: ignore[attr-defined]
+            self.context[target.id] = value  # type: ignore[attr-defined]
+            # Pine ``:=`` is an expression; UDF bodies may end with reassignment.
+            return value
 
+        value = self.visit(node.value)  # type: ignore[attr-defined]
         # obj.field := value  (UDT instances and plain objects with setattr)
-        if isinstance(node.target, ast.Attribute):
+        if isinstance(target, ast.Attribute):
             # Builtin namespaces (strategy.*, etc.): base Name is often a bare
             # string, not a mutable object — handle via qualified path first
             # when the base is not a live instance.
@@ -981,6 +987,11 @@ class StatementEvaluator:
 
         When ``by``/step is omitted, Pine uses ``+1`` if ``from <= to`` and
         ``-1`` if ``from > to`` (so ``for i = size - 1 to 0`` iterates downward).
+
+        v6 re-evaluates the end bound every iteration (dynamic boundaries). When
+        the end (and optional step) AST nodes are plain constants, the bound is
+        fixed — skip the per-iteration ``visit`` (dominant cost in nested
+        ``for i = 1 to 1e3`` / ``for j = 0 to 100`` corpus demos).
         """
         target_name = node.target.id if isinstance(node.target, ast.Name) else None
         if not target_name:
@@ -997,6 +1008,7 @@ class StatementEvaluator:
             return None
 
         explicit_step = node.step is not None
+        step: float | None
         if explicit_step:
             step = self.visit(node.step)  # type: ignore[attr-defined]
             if step is None:
@@ -1009,6 +1021,30 @@ class StatementEvaluator:
                 return None
         else:
             step = None  # decide after first end eval
+
+        # Static end/step: Constant nodes cannot change mid-loop.
+        end_node = node.end
+        static_end = type(end_node) is ast.Constant and (
+            end_node.kind is None or end_node.kind == "#"
+        )
+        static_step = (not explicit_step) or (
+            type(node.step) is ast.Constant
+            and (node.step.kind is None or node.step.kind == "#")  # type: ignore[union-attr]
+        )
+
+        if static_end and static_step:
+            end_val = end_node.value  # type: ignore[attr-defined]
+            if end_val is None:
+                return None
+            try:
+                end_f = float(end_val)
+            except (TypeError, ValueError):
+                return None
+            if step is None:
+                step = 1.0 if start_f <= end_f else -1.0
+            return self._run_for_to_static(
+                target_name, start_f, end_f, step, node.body
+            )
 
         # v6: re-evaluate the end bound on every iteration (dynamic for loop boundaries)
         # Pine Script for loops are inclusive of end
@@ -1035,6 +1071,59 @@ class StatementEvaluator:
                 int(current) if current == int(current) else current
             )
             result, should_break = self._execute_loop_body(node.body)
+            if result is not None:
+                last_result = result
+            if should_break:
+                break
+            current += step
+        return last_result
+
+    def _run_for_to_static(
+        self,
+        target_name: str,
+        start_f: float,
+        end_f: float,
+        step: float,
+        body: Sequence[ast.AST],
+    ) -> Any:
+        """Inclusive for-to with fixed numeric bounds (no per-iter end visit)."""
+        last_result = None
+        max_iters = 1_000_000
+        # Integer range: use Python range (faster counter + inclusive end).
+        if (
+            start_f == int(start_f)
+            and end_f == int(end_f)
+            and step == int(step)
+            and step != 0
+        ):
+            start_i = int(start_f)
+            end_i = int(end_f)
+            step_i = int(step)
+            # range stop is exclusive; Pine end is inclusive.
+            stop = end_i + (1 if step_i > 0 else -1)
+            ctx = self.context  # type: ignore[attr-defined]
+            n = 0
+            for current_i in range(start_i, stop, step_i):
+                n += 1
+                if n > max_iters:
+                    break
+                ctx[target_name] = current_i
+                result, should_break = self._execute_loop_body(body)
+                if result is not None:
+                    last_result = result
+                if should_break:
+                    break
+            return last_result
+
+        current = start_f
+        iters = 0
+        ctx = self.context  # type: ignore[attr-defined]
+        while iters < max_iters:
+            iters += 1
+            if not (current <= end_f if step > 0 else current >= end_f):
+                break
+            ctx[target_name] = int(current) if current == int(current) else current
+            result, should_break = self._execute_loop_body(body)
             if result is not None:
                 last_result = result
             if should_break:
@@ -1156,6 +1245,7 @@ class StatementEvaluator:
             __defaults=defaults,
             __body=body_plan_t,
             __n=n_params,
+            __fname=func_name,
             **kwargs,
         ):
             """Invoke a UDF with in-place param rebind on the live context.
@@ -1165,6 +1255,11 @@ class StatementEvaluator:
             would orphan those updates (every call would see bar 0). Only
             parameter names are scoped; other keys — including ``var``
             locals — remain on the shared dict across bars.
+
+            The function name itself is always snapshotted: Pine scripts often
+            reuse the UDF name as a local series (``kama() => kama = 0.0; …``).
+            Without restoring the callable, bar 1+ falls through to the bare
+            ta.* alias and hard-fails on arity.
             """
             ctx = self.context  # type: ignore[attr-defined]
             saved: dict[str, Any] = {}
@@ -1176,6 +1271,10 @@ class StatementEvaluator:
                 ctx[name] = value
 
             try:
+                # Protect UDF binding from body series init of the same name.
+                if __fname not in saved:
+                    saved[__fname] = ctx[__fname] if __fname in ctx else missing
+
                 # Bind positional arguments
                 for i, value in enumerate(args):
                     if i < __n:
@@ -1201,7 +1300,11 @@ class StatementEvaluator:
                         else:
                             result = visit(item)  # type: ignore[attr-defined]
                     else:
-                        visit(item)  # type: ignore[attr-defined]
+                        # Assign/ReAssign are Pine expressions: last one is the
+                        # function return value when the body ends with them.
+                        val = visit(item)  # type: ignore[attr-defined]
+                        if type(item) in (ast.Assign, ast.ReAssign) and val is not None:
+                            result = val
                 return result
             finally:
                 for name, old in saved.items():
@@ -1517,12 +1620,37 @@ class StatementEvaluator:
         """
         result = None
         should_break = False
+        visit = self.visit  # type: ignore[attr-defined]
         try:
-            for stmt in stmts:
-                val = self.visit(stmt)  # type: ignore[attr-defined]
-                if isinstance(stmt, ast.Expr):
+            # Single-statement bodies dominate nested corpus loops.
+            n = len(stmts)
+            if n == 1:
+                stmt = stmts[0]
+                val = visit(stmt)
+                st = type(stmt)
+                if (
+                    st is ast.Expr
+                    or st is ast.If
+                    or st is ast.Switch
+                    or st is ast.ForTo
+                    or st is ast.ForIn
+                    or st is ast.While
+                    or st is ast.ReAssign
+                    or st is ast.Assign
+                ):
                     result = val
-                elif isinstance(stmt, (ast.If, ast.Switch, ast.ForTo, ast.ForIn, ast.While)):
+                return result, False
+            for stmt in stmts:
+                val = visit(stmt)
+                st = type(stmt)
+                if (
+                    st is ast.Expr
+                    or st is ast.If
+                    or st is ast.Switch
+                    or st is ast.ForTo
+                    or st is ast.ForIn
+                    or st is ast.While
+                ):
                     result = val
                 else:
                     result = None

@@ -189,6 +189,13 @@ class TechnicalHelpers:
             st = {"ema": None, "seeded": False}
             bucket[key] = st
         x = self._series_last(series)
+        # Soft-fail non-numeric samples (unresolved source-name strings, colors)
+        # to na rather than ``float('obv')`` Runtime Error.
+        if x is not None and type(x) is not float and type(x) is not int:
+            try:
+                x = float(x)
+            except (TypeError, ValueError):
+                x = None
         alpha = 2.0 / (period + 1)
         if not st["seeded"]:
             if x is None:
@@ -2543,12 +2550,40 @@ class TechnicalHelpers:
                 return raw
         # Named series reference — look up from the pre-loaded dict
         series_map = getattr(self, "current_series", None) or {}
-        if isinstance(value, str) and value in series_map:
-            src = series_map[value]
-            # Prefer view/cap without full copy when already a list
-            if isinstance(src, list):
-                return self._cap_series_list(src)
-            return list(src)
+        if isinstance(value, str):
+            if value in series_map:
+                src = series_map[value]
+                # Prefer view/cap without full copy when already a list
+                if isinstance(src, list):
+                    return self._cap_series_list(src)
+                return list(src)
+            # Bare TA series aliases that slipped through as name strings
+            # (``ema(obv, 14)`` when visit_Name / arg plan did not resolve).
+            try:
+                from pynescript.ast.evaluator.names import _BARE_TA_SERIES
+            except Exception:  # pragma: no cover - import always available in package
+                _BARE_TA_SERIES = frozenset()
+            if (
+                value in _BARE_TA_SERIES
+                and hasattr(self, "_is_registered_builtin")
+                and hasattr(self, "_call_builtin")
+                and self._is_registered_builtin(value)
+            ):
+                try:
+                    result = self._call_builtin(value, [])
+                except Exception:
+                    result = None
+                if isinstance(result, list):
+                    return self._cap_series_list(result)
+                if result is None:
+                    return []
+                return [result]
+            # Numeric strings → single sample; other strings soft-fail to empty
+            # (avoids ``float('obv')`` / ``float('#2962FF')`` hard crashes).
+            try:
+                return [float(value)]
+            except (TypeError, ValueError):
+                return []
         # Unknown — wrap as single-element
         return [value]
 

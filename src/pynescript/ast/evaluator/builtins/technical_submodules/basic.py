@@ -624,13 +624,15 @@ class BasicIndicators(TechnicalHelpers):
         """Linear Regression value.
 
         TV: ``ta.linreg(source, length, offset)`` — offset is optional (default 0).
+        Length < 2 is soft-na (TV returns na rather than hard-error for short length).
         """
         if self._use_incremental_ta():
             if len(args) < BINARY:
                 self._error("ta.linreg requires source and length")
             length = self._expect_int(args[1], "ta.linreg length must be int")
+            # Soft-na for length < 2 (OTT scripts use length=1 default).
             if length < 2:
-                self._error("ta.linreg length must be at least 2")
+                return math.nan
             return self._linreg_inc_update(args[0], length)
 
         if len(args) == TERNARY:
@@ -641,8 +643,9 @@ class BasicIndicators(TechnicalHelpers):
         else:
             series, length = self._expect_series(args, length=BINARY)
 
+        # Soft-na: regression needs ≥2 points; TV yields na for length 0/1.
         if length < 2:
-            self._error("ta.linreg length must be at least 2")
+            return math.nan
         if len(series) < length:
             return math.nan
 

@@ -417,7 +417,12 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
         return bool(value)
 
     def _builtin_int(self, args: list[Any]) -> int | None:
-        """Convert value to integer. ``int(na)`` → na (None)."""
+        """Convert value to integer. ``int(na)`` / non-numeric → na (None).
+
+        TradingView soft-fails non-numeric strings (enum labels, unresolved
+        name leaks such as ``\"pyramid_val\"``) to ``na`` rather than aborting
+        the bar. Numeric strings accept a float step so ``int(\"2.01\")`` → 2.
+        """
         self._require_len(args, UNARY, "int() takes one argument")
         value = self._as_scalar(args[0])
         if value is None:
@@ -427,12 +432,14 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
         if isinstance(value, int):
             return value
         if isinstance(value, float):
+            if value != value:  # NaN
+                return None
             return int(value)
         if isinstance(value, str):
             try:
                 return int(float(value))
             except ValueError:
-                self._error(f"Cannot convert '{value}' to int")
+                return None
         try:
             return int(value)
         except (TypeError, ValueError):

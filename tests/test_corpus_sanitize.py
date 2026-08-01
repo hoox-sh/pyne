@@ -595,6 +595,56 @@ timeWithinAllowedRange(
     _roundtrip(cleaned)
 
 
+def test_merges_continuous_version_islands_preserving_udfs() -> None:
+    """Multi-section paste with mid-file //@version must keep early UDF defs.
+
+    set05 myth-busting strategies glue a strategy header + helpers, then a second
+    ``//@version=5`` next to a *commented* indicator, then the body that *calls*
+    those helpers. Picking the longer island alone dropped ``f_priorBarsSatisfied``.
+    """
+    raw = """//@version=5
+strategy("myth", overlay=true)
+f_priorBarsSatisfied(_objectToEval, _numOfBarsToLookBack) =>
+    returnVal = false
+    for i = 0 to _numOfBarsToLookBack
+        if _objectToEval[i] == true
+            returnVal := true
+    returnVal
+i_numLookbackBars = input(2, title="Lookback")
+//@version=5
+//indicator('Inside Bar Ind/Alert', overlay=true)
+bullishBar = 1
+isInside() =>
+    high < high[1] and low > low[1] ? 1 : 0
+x = f_priorBarsSatisfied(isInside() == bullishBar, i_numLookbackBars)
+plot(x ? 1 : 0)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "f_priorBarsSatisfied(_objectToEval" in cleaned
+    assert cleaned.count("//@version") == 1
+    assert "strategy(" in cleaned
+    assert "isInside()" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_true_multi_copy_still_picks_best_island() -> None:
+    """Two full scripts each with a live declaration → keep the better copy."""
+    raw = """//@version=5
+indicator("preview")
+plot(close
+//@version=5
+indicator("full")
+sma = ta.sma(close, 14)
+plot(sma)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert 'indicator("full")' in cleaned
+    assert "ta.sma" in cleaned
+    # Truncated preview should not win
+    assert "plot(close" not in cleaned or "plot(sma)" in cleaned
+    _roundtrip(cleaned)
+
+
 def test_strips_expand_ui_stub_incomplete_paren() -> None:
     """Scrape cut mid-``Expand (N lines`` must not leave a bare call for the lexer."""
     raw = """//@version=6

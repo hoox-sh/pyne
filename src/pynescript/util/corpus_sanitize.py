@@ -1689,15 +1689,67 @@ def _split_version_islands(body: str) -> list[str]:
     return ["\n".join(isl) for isl in islands]
 
 
-def _pick_best_version_island(body: str) -> str:
-    """When a scrape glued a truncated preview + full copy, keep the best island.
+# Top-level script declaration on a non-comment line (not ``//indicator(...)``).
+_TOP_SCRIPT_DECL_RE = re.compile(
+    r"^\s*(strategy|indicator|library|study)\s*\(",
+    re.MULTILINE,
+)
 
-    Prefer islands that parse-score higher (complete ``input`` lines, ``plot``,
-    no trailing ``,...``). Only activates when ≥2 ``//@version`` markers exist.
+
+def _island_has_top_script_decl(island: str) -> bool:
+    """True if *island* has a live ``strategy``/``indicator``/… declaration."""
+    return _TOP_SCRIPT_DECL_RE.search(island) is not None
+
+
+def _merge_version_islands(islands: list[str]) -> str:
+    """Rejoin version islands that form one continuous multi-section script.
+
+    Mid-file ``//@version=`` often comes from pasted snippets (helpers + body).
+    Keep the first version pragma; drop subsequent ones so the parser sees one
+    script and retains UDF defs from early sections.
+    """
+    if not islands:
+        return ""
+    if len(islands) == 1:
+        return islands[0]
+    parts: list[str] = [islands[0].rstrip("\n")]
+    for isl in islands[1:]:
+        lines = isl.splitlines()
+        # Drop leading //@version= from continuation islands.
+        while lines and re.match(r"^\s*//@version\s*=", lines[0]):
+            lines.pop(0)
+        while lines and not lines[0].strip():
+            lines.pop(0)
+        if lines:
+            parts.append("\n".join(lines).rstrip("\n"))
+    return "\n".join(parts) + ("\n" if islands[0].endswith("\n") else "")
+
+
+def _pick_best_version_island(body: str) -> str:
+    """Resolve multi-``//@version`` scrapes: merge continuous sections or pick best.
+
+    Two common shapes:
+
+    1. **Continuous multi-section paste** — only one island has a live
+       ``strategy``/``indicator``/… declaration; later islands are body/helpers
+       glued with a second ``//@version`` (often next to a *commented*
+       declaration). Merging preserves UDF defs (e.g. ``f_priorBarsSatisfied``)
+       that would otherwise be dropped when the longer tail island wins.
+    2. **True multi-copy** — two or more islands each declare a script
+       (truncated preview + full copy). Prefer the higher-scoring island.
+
+    Only activates when ≥2 ``//@version`` markers exist.
     """
     islands = _split_version_islands(body)
     if len(islands) < 2:
         return body
+
+    decl_count = sum(1 for isl in islands if _island_has_top_script_decl(isl))
+    # Zero or one live declaration → continuous paste (or header-only first).
+    # Merge so early UDF/helper islands are not discarded for a longer tail.
+    if decl_count <= 1:
+        return _merge_version_islands(islands)
+
     best = islands[0]
     best_score = _score_pine_block(best)
     # Prefer longer complete copies when scores are close.
@@ -1710,6 +1762,9 @@ def _pick_best_version_island(body: str) -> str:
         dp, db = _code_paren_bracket_depth(isl)
         if dp == 0 and db == 0:
             sc += 10
+        # Prefer islands with a live script declaration when both score.
+        if _island_has_top_script_decl(isl):
+            sc += 8
         if sc > best_score or (sc == best_score and len(isl) > len(best)):
             best_score = sc
             best = isl
@@ -1789,21 +1844,31 @@ def sanitize_corpus_source(source: str) -> str:
     if _looks_like_foreign(body_text):
         return _finalize(provenance, _MINIMAL_STUB, ends_with_nl)
 
-    # Multi-copy scrapes: truncated preview + full script each with //@version.
+    # Multi-copy / multi-section scrapes with more than one //@version.
     # Split *before* line-filter so UI chrome between copies cannot drop the full one.
+    # Continuous pastes (one live declaration) are merged so early UDF defs survive.
     version_islands = _split_version_islands(body_text if body_text.strip() else source)
     if len(version_islands) >= 2:
-        best_body: str | None = None
-        best_sc = -10**9
-        for isl in version_islands:
-            cand, sc = _clean_and_score_island(isl)
-            if not _has_usable_pine(cand):
-                continue
-            if sc > best_sc or (sc == best_sc and best_body is not None and len(cand) > len(best_body)):
-                best_sc = sc
-                best_body = cand
-        if best_body is not None and best_sc >= 40:
-            return _finalize(provenance, best_body, ends_with_nl)
+        decl_count = sum(1 for isl in version_islands if _island_has_top_script_decl(isl))
+        if decl_count <= 1:
+            merged = _merge_version_islands(version_islands)
+            cand, sc = _clean_and_score_island(merged)
+            if _has_usable_pine(cand) and sc >= 40:
+                return _finalize(provenance, cand, ends_with_nl)
+        else:
+            best_body: str | None = None
+            best_sc = -10**9
+            for isl in version_islands:
+                cand, sc = _clean_and_score_island(isl)
+                if not _has_usable_pine(cand):
+                    continue
+                if _island_has_top_script_decl(cand):
+                    sc += 8
+                if sc > best_sc or (sc == best_sc and best_body is not None and len(cand) > len(best_body)):
+                    best_sc = sc
+                    best_body = cand
+            if best_body is not None and best_sc >= 40:
+                return _finalize(provenance, best_body, ends_with_nl)
 
     # No usable fence: line-filter the whole file (also cuts trailing chrome).
     filtered = _line_filter(source)

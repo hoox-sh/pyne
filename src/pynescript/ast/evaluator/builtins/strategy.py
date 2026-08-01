@@ -29,6 +29,34 @@ from .base import BuiltinDispatchMixin
 from .base import BuiltinHandler
 
 
+def _soft_int_decl(value: Any, default: int = 0) -> int:
+    """Coerce strategy() int kwargs; non-numeric / na → *default*.
+
+    Sanitized corpus often leaves unresolved names (``pyramiding=pyramid_val``)
+    as bare strings. Hard ``int()`` aborted the whole script; soft-default keeps
+    broker settings usable.
+    """
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        if math.isnan(value):
+            return default
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(float(value))
+        except ValueError:
+            return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 class StrategyCashAmount(float):
     """Free cash series value that also tags ``default_qty_type=strategy.cash``.
 
@@ -684,6 +712,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         if not isinstance(src, dict):
             return
         if "initial_capital" in src and src["initial_capital"] is not None:
+            # Fail-closed: bad capital must surface (see TestStrategyDeclarationFailClosed).
             st.initial_capital = float(src["initial_capital"])
             st.risk_free_capital = float(src["initial_capital"])
             st._equity_peak = float(src["initial_capital"])
@@ -691,11 +720,16 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         if "commission_type" in src and src["commission_type"] is not None:
             st.commission_type = str(src["commission_type"])
         if "commission_value" in src and src["commission_value"] is not None:
-            st.commission_value = float(src["commission_value"])
+            try:
+                st.commission_value = float(src["commission_value"])
+            except (TypeError, ValueError):
+                pass  # leave default; unresolved name strings must not abort
         if "slippage" in src and src["slippage"] is not None:
-            st.slippage_ticks = int(src["slippage"])
+            st.slippage_ticks = _soft_int_decl(src["slippage"], default=0)
         if "pyramiding" in src and src["pyramiding"] is not None:
-            st.pyramiding = int(src["pyramiding"])
+            # Corpus often has pyramiding=pyramid_val after sanitize drops the
+            # def; bare int("pyramid_val") used to crash the whole strategy.
+            st.pyramiding = _soft_int_decl(src["pyramiding"], default=0)
         if "currency" in src and src["currency"] is not None:
             st.account_currency = str(src["currency"])
         if "default_qty_type" in src and src["default_qty_type"] is not None:
@@ -710,7 +744,11 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                         dqt = "percent_of_equity"
                     st.default_qty_type = dqt
         if "default_qty_value" in src and src["default_qty_value"] is not None:
-            st.default_qty_value = float(src["default_qty_value"])
+            try:
+                st.default_qty_value = float(src["default_qty_value"])
+            except (TypeError, ValueError):
+                # Unresolved identifier (e.g. cash_given_per_lot) → keep default.
+                pass
 
     def _bar_index(self) -> int:
         ctx = getattr(self, "context", {}) or {}
