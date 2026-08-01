@@ -136,6 +136,13 @@ class BuiltinEvaluator(
                     _self._script_declaration = decl  # type: ignore[attr-defined]
                 except Exception:  # noqa: BLE001 — setattr on frozen/partial mocks
                     pass
+                # Wire max_lines/labels/boxes/polylines_count → DrawingRegistry GC.
+                try:
+                    from .drawing import DrawingRegistry
+
+                    DrawingRegistry.configure_from_declaration(decl)
+                except Exception:  # noqa: BLE001 — drawings optional in partial hosts
+                    pass
                 if _is_strategy and hasattr(_self, "_apply_strategy_declaration"):
                     # Fail closed on programming errors (TypeError/AttributeError/
                     # ValueError) so bad strategy() kwargs surface in the bar loop

@@ -90,9 +90,42 @@ def _export_extend(e: Any) -> str:
     return "none"
 
 
+# Pine / TradingView defaults and hard caps for drawing garbage collection.
+# indicator()/strategy() kwargs: max_lines_count, max_labels_count,
+# max_boxes_count, max_polylines_count (defaults 50; lines/labels/boxes ≤500,
+# polylines ≤100).
+_DEFAULT_DRAWING_LIMIT = 50
+_HARD_CAP_LINES_LABELS_BOXES = 500
+_HARD_CAP_POLYLINES = 100
+
+
+def _clamp_drawing_limit(
+    value: Any,
+    *,
+    default: int = _DEFAULT_DRAWING_LIMIT,
+    hard_cap: int = _HARD_CAP_LINES_LABELS_BOXES,
+) -> int:
+    """Normalize a max_*_count value to ``[1, hard_cap]``."""
+    if value is None:
+        return default
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return default
+    if n != n:  # NaN
+        return default
+    return max(1, min(hard_cap, n))
+
+
 # Drawing object registries
 class DrawingRegistry:
-    """Global registry for drawing objects."""
+    """Global registry for drawing objects.
+
+    Enforces TradingView-style **garbage collection**: when more drawings of a
+    type exist than the declaration cap (``max_lines_count``, …), the oldest
+    active objects are marked ``deleted=True`` so they leave ``*.all`` and
+    :meth:`export_for_api`.
+    """
 
     lines: ClassVar[list[Line]] = []
     boxes: ClassVar[list[Box]] = []
@@ -100,6 +133,12 @@ class DrawingRegistry:
     tables: ClassVar[list[Table]] = []
     polylines: ClassVar[list[Polyline]] = []
     linefills: ClassVar[list[LineFill]] = []
+
+    # Active caps (reset to TV defaults on each run)
+    max_lines_count: ClassVar[int] = _DEFAULT_DRAWING_LIMIT
+    max_labels_count: ClassVar[int] = _DEFAULT_DRAWING_LIMIT
+    max_boxes_count: ClassVar[int] = _DEFAULT_DRAWING_LIMIT
+    max_polylines_count: ClassVar[int] = _DEFAULT_DRAWING_LIMIT
 
     @classmethod
     def reset(cls) -> None:
@@ -110,9 +149,204 @@ class DrawingRegistry:
         cls.tables = []
         cls.polylines = []
         cls.linefills = []
+        cls.max_lines_count = _DEFAULT_DRAWING_LIMIT
+        cls.max_labels_count = _DEFAULT_DRAWING_LIMIT
+        cls.max_boxes_count = _DEFAULT_DRAWING_LIMIT
+        cls.max_polylines_count = _DEFAULT_DRAWING_LIMIT
         # Also reset plot real effects
         from .plotting import PlotRegistry
         PlotRegistry.reset()
+
+    @classmethod
+    def configure_limits(
+        cls,
+        *,
+        max_lines_count: Any = None,
+        max_labels_count: Any = None,
+        max_boxes_count: Any = None,
+        max_polylines_count: Any = None,
+    ) -> None:
+        """Set GC caps (None keeps the current value for that type)."""
+        if max_lines_count is not None:
+            cls.max_lines_count = _clamp_drawing_limit(
+                max_lines_count, hard_cap=_HARD_CAP_LINES_LABELS_BOXES
+            )
+        if max_labels_count is not None:
+            cls.max_labels_count = _clamp_drawing_limit(
+                max_labels_count, hard_cap=_HARD_CAP_LINES_LABELS_BOXES
+            )
+        if max_boxes_count is not None:
+            cls.max_boxes_count = _clamp_drawing_limit(
+                max_boxes_count, hard_cap=_HARD_CAP_LINES_LABELS_BOXES
+            )
+        if max_polylines_count is not None:
+            cls.max_polylines_count = _clamp_drawing_limit(
+                max_polylines_count, hard_cap=_HARD_CAP_POLYLINES
+            )
+        # If caps shrank, immediately collect
+        cls.gc_all()
+
+    @classmethod
+    def configure_from_declaration(cls, decl: Any) -> None:
+        """Apply ``indicator()`` / ``strategy()`` max_*_count from ScriptDeclaration."""
+        if decl is None:
+            return
+        kw = getattr(decl, "kwargs", None) or {}
+        if not isinstance(kw, dict):
+            kw = {}
+
+        def _pick(name: str) -> Any:
+            v = getattr(decl, name, None)
+            if v is not None:
+                return v
+            return kw.get(name)
+
+        # Only override when the declaration provided a value (else keep defaults
+        # from reset). ``configure_limits`` treats None as "leave current".
+        lines = _pick("max_lines_count")
+        labels = _pick("max_labels_count")
+        boxes = _pick("max_boxes_count")
+        polylines = _pick("max_polylines_count")
+        cls.configure_limits(
+            max_lines_count=lines if lines is not None else cls.max_lines_count,
+            max_labels_count=labels if labels is not None else cls.max_labels_count,
+            max_boxes_count=boxes if boxes is not None else cls.max_boxes_count,
+            max_polylines_count=polylines if polylines is not None else cls.max_polylines_count,
+        )
+
+    @classmethod
+    def limits_dict(cls) -> dict[str, int]:
+        """JSON-safe caps for API ``meta`` (AXIS client GC)."""
+        return {
+            "max_lines_count": int(cls.max_lines_count),
+            "max_labels_count": int(cls.max_labels_count),
+            "max_boxes_count": int(cls.max_boxes_count),
+            "max_polylines_count": int(cls.max_polylines_count),
+        }
+
+    @classmethod
+    def _gc_collection(cls, items: list[Any], limit: int) -> None:
+        """Mark oldest non-deleted objects as deleted when over *limit*."""
+        cap = limit if isinstance(limit, int) and limit > 0 else _DEFAULT_DRAWING_LIMIT
+        n_active = 0
+        for obj in items:
+            if not getattr(obj, "deleted", False):
+                n_active += 1
+        excess = n_active - cap
+        if excess <= 0:
+            return
+        for obj in items:
+            if excess <= 0:
+                break
+            if not getattr(obj, "deleted", False):
+                obj.deleted = True
+                excess -= 1
+
+    @classmethod
+    def gc_all(cls) -> None:
+        """Run GC on all capped collections (lines/labels/boxes/polylines)."""
+        cls._gc_collection(cls.lines, cls.max_lines_count)
+        cls._gc_collection(cls.labels, cls.max_labels_count)
+        cls._gc_collection(cls.boxes, cls.max_boxes_count)
+        cls._gc_collection(cls.polylines, cls.max_polylines_count)
+
+    @classmethod
+    def add_line(cls, line: Line) -> Line:
+        cls.lines.append(line)
+        cls._gc_collection(cls.lines, cls.max_lines_count)
+        return line
+
+    @classmethod
+    def add_box(cls, box: Box) -> Box:
+        cls.boxes.append(box)
+        cls._gc_collection(cls.boxes, cls.max_boxes_count)
+        return box
+
+    @classmethod
+    def add_label(cls, label: Label) -> Label:
+        cls.labels.append(label)
+        cls._gc_collection(cls.labels, cls.max_labels_count)
+        return label
+
+    @classmethod
+    def add_polyline(cls, polyline: Polyline) -> Polyline:
+        cls.polylines.append(polyline)
+        cls._gc_collection(cls.polylines, cls.max_polylines_count)
+        return polyline
+
+    @classmethod
+    def add_table(cls, table: Table) -> Table:
+        """Tables are not GC-capped by max_*_count (TV uses a separate limit)."""
+        cls.tables.append(table)
+        return table
+
+    @classmethod
+    def add_linefill(cls, fill: LineFill) -> LineFill:
+        cls.linefills.append(fill)
+        return fill
+
+    @classmethod
+    def gc_exported_drawings(
+        cls,
+        drawings: list[dict[str, Any]] | list[Any],
+        limits: dict[str, int] | None = None,
+    ) -> list[Any]:
+        """Post-process a compile-path ``__drawings`` list (keep last N per type).
+
+        Geometry kinds map to the same caps as the interpret registry. Non-
+        geometry events (bgcolor, plotshape, table, …) are preserved.
+        """
+        if not drawings:
+            return drawings
+        lim = limits or cls.limits_dict()
+
+        def _bucket(kind: str) -> str | None:
+            k = kind.lower().replace("drawing.", "")
+            if k in ("line", "trend", "ray", "segment", "hline", "horizontalline", "horizontal_line"):
+                return "line"
+            if k in ("box", "rect", "rectangle"):
+                return "box"
+            if k in ("label", "text"):
+                return "label"
+            if k == "polyline":
+                return "polyline"
+            return None
+
+        counts: dict[str, int] = {"line": 0, "box": 0, "label": 0, "polyline": 0}
+        kinds: list[str | None] = []
+        for item in drawings:
+            if not isinstance(item, dict):
+                kinds.append(None)
+                continue
+            raw = str(item.get("type") or item.get("kind") or "")
+            b = _bucket(raw)
+            kinds.append(b)
+            if b is not None:
+                counts[b] += 1
+
+        skip = {
+            "line": max(0, counts["line"] - int(lim.get("max_lines_count", _DEFAULT_DRAWING_LIMIT))),
+            "box": max(0, counts["box"] - int(lim.get("max_boxes_count", _DEFAULT_DRAWING_LIMIT))),
+            "label": max(0, counts["label"] - int(lim.get("max_labels_count", _DEFAULT_DRAWING_LIMIT))),
+            "polyline": max(
+                0, counts["polyline"] - int(lim.get("max_polylines_count", _DEFAULT_DRAWING_LIMIT))
+            ),
+        }
+        if not any(skip.values()):
+            return drawings
+
+        seen = {"line": 0, "box": 0, "label": 0, "polyline": 0}
+        out: list[Any] = []
+        for item, b in zip(drawings, kinds, strict=True):
+            if b is None:
+                out.append(item)
+                continue
+            n = seen[b]
+            seen[b] = n + 1
+            if n < skip[b]:
+                continue
+            out.append(item)
+        return out
 
     @classmethod
     def is_empty(cls) -> bool:
@@ -636,8 +870,7 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             xloc = "bar_index"
 
         line = Line(x1, y1, x2, y2, str(xloc), color, width, style, extend, force_overlay=bool(force_overlay))
-        DrawingRegistry.lines.append(line)
-        return line
+        return DrawingRegistry.add_line(line)
 
     def _handle_line_delete(self, args: list[Any]) -> None:
         """line.delete(line)"""
@@ -652,8 +885,7 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             new_line = Line(
                 line.x1, line.y1, line.x2, line.y2, line.xloc, line.color, line.width, line.style, line.extend
             )
-            DrawingRegistry.lines.append(new_line)
-            return new_line
+            return DrawingRegistry.add_line(new_line)
         return Line(0, 0.0, 0, 0.0)
 
     def _handle_line_set_x1(self, args: list[Any]) -> Line:
@@ -778,8 +1010,7 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             text_color=str(text_color) if text_color is not None else "#000000",
             force_overlay=bool(force_overlay),
         )
-        DrawingRegistry.boxes.append(box)
-        return box
+        return DrawingRegistry.add_box(box)
 
     def _handle_box_delete(self, args: list[Any]) -> None:
         """box.delete(box)"""
@@ -804,8 +1035,7 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
                 box.border_style,
                 box.extend,
             )
-            DrawingRegistry.boxes.append(new_box)
-            return new_box
+            return DrawingRegistry.add_box(new_box)
         return Box(0, 0.0, 0, 0.0)
 
     def _handle_box_set_left(self, args: list[Any]) -> Box:
@@ -1018,8 +1248,7 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             style,
             force_overlay=force_overlay,
         )
-        DrawingRegistry.labels.append(label)
-        return label
+        return DrawingRegistry.add_label(label)
 
     def _handle_label_delete(self, args: list[Any]) -> None:
         """label.delete(label)"""
@@ -1048,8 +1277,7 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
                 label.style,
                 force_overlay=label.force_overlay,
             )
-            DrawingRegistry.labels.append(new_label)
-            return new_label
+            return DrawingRegistry.add_label(new_label)
         return Label(0, 0.0)
 
     def _handle_label_set_xy(self, args: list[Any]) -> Label:
@@ -1227,8 +1455,7 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             border_color, border_width, bgcolor,
             force_overlay=force_overlay
         )
-        DrawingRegistry.tables.append(table)
-        return table
+        return DrawingRegistry.add_table(table)
 
     def _handle_table_delete(self, args: list[Any]) -> None:
         """table.delete(table)"""
@@ -1470,8 +1697,7 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             curved=bool(curved),
             fill_color=None if fill_color is None else str(fill_color),
         )
-        DrawingRegistry.polylines.append(polyline)
-        return polyline
+        return DrawingRegistry.add_polyline(polyline)
 
     def _handle_polyline_delete(self, args: list[Any]) -> None:
         """polyline.delete(polyline)"""
@@ -1558,8 +1784,7 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             curved=pl.curved,
             fill_color=pl.fill_color,
         )
-        DrawingRegistry.polylines.append(clone)
-        return clone
+        return DrawingRegistry.add_polyline(clone)
 
     # ========== MISSING TV SURFACE HANDLERS ==========
 
@@ -1768,8 +1993,7 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             line2=line2 if isinstance(line2, Line) else None,
             color=str(color),
         )
-        DrawingRegistry.linefills.append(fill)
-        return fill
+        return DrawingRegistry.add_linefill(fill)
 
     def _handle_linefill_delete(self, args: list[Any]) -> None:
         fill = args[0] if args else None

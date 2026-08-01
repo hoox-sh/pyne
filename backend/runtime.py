@@ -1195,6 +1195,15 @@ class Runtime:
                 else:
                     overlay = script_type == "strategy"
 
+        # Drawing GC caps for AXIS (from declaration / DrawingRegistry)
+        drawing_limits: dict[str, int] = {}
+        try:
+            from pynescript.ast.evaluator.builtins.drawing import DrawingRegistry
+
+            drawing_limits = DrawingRegistry.limits_dict()
+        except Exception:
+            drawing_limits = {}
+
         # Export input.* declarations for AXIS Script Settings (dedupe by title)
         input_defs: list[dict[str, Any]] = []
         try:
@@ -1224,6 +1233,14 @@ class Runtime:
         eval_ms = (time.perf_counter() - t_eval0) * 1000.0
         total_ms = (time.perf_counter() - t_total0) * 1000.0
         line_rows = _export_line_profile(evaluator) if profiler else []
+        meta_out: dict[str, Any] = {
+            "overlay": overlay,
+            "script_name": script_name,
+            "script_type": script_type,
+            "inputs": input_defs,
+        }
+        if drawing_limits:
+            meta_out.update(drawing_limits)
         return _attach_logs_profile(
             {
                 "plots": final_series,
@@ -1239,12 +1256,7 @@ class Runtime:
                 "overlay": overlay,
                 "script_name": script_name,
                 "script_type": script_type,
-                "meta": {
-                    "overlay": overlay,
-                    "script_name": script_name,
-                    "script_type": script_type,
-                    "inputs": input_defs,
-                },
+                "meta": meta_out,
             },
             total_ms=total_ms,
             bars=n_result_bars,
@@ -1504,6 +1516,37 @@ class Runtime:
                     continue
                 json_series[ks] = _to_json(v)
 
+        # Compile-path GC: __drawings is append-only; trim by declaration caps
+        # parsed from source (defaults 50). Interpret path GCs in DrawingRegistry.
+        drawing_limits: dict[str, int] = {
+            "max_lines_count": 50,
+            "max_labels_count": 50,
+            "max_boxes_count": 50,
+            "max_polylines_count": 50,
+        }
+        try:
+            from pynescript.ast.evaluator.builtins.drawing import DrawingRegistry
+            import re as _re
+
+            _hard = {
+                "max_lines_count": 500,
+                "max_labels_count": 500,
+                "max_boxes_count": 500,
+                "max_polylines_count": 100,
+            }
+            for _key, _cap in _hard.items():
+                _m = _re.search(rf"\b{_key}\s*=\s*(\d+)", source_code or "")
+                if _m:
+                    try:
+                        _n = int(_m.group(1))
+                        drawing_limits[_key] = max(1, min(_cap, _n))
+                    except (TypeError, ValueError):
+                        pass
+            if isinstance(drawings, list) and drawings:
+                drawings = DrawingRegistry.gc_exported_drawings(drawings, drawing_limits)
+        except Exception:
+            pass
+
         # Primary plot series (first numeric plot) as list for frontend compatibility
         final_series: list = next(iter(json_series.values()), []) if json_series else []
 
@@ -1531,6 +1574,7 @@ class Runtime:
             "compile_ms": round(compile_ms, 2),
             "run_ms": round(run_ms, 2),
             "compile_cached": was_cached,
+            "meta": dict(drawing_limits),
         }
         # Engine nopython → object recovery (still compile backend; not interpret fallback)
         nopython_reason = getattr(compiled, "nopython_fallback_reason", None)

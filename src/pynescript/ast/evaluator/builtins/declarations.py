@@ -42,6 +42,7 @@ class ScriptDeclaration:
     max_lines_count: int | None = None
     max_labels_count: int | None = None
     max_boxes_count: int | None = None
+    max_polylines_count: int | None = None
     # Full kwargs for strategy broker settings (commission, slippage, …)
     kwargs: dict[str, Any] | None = None
 
@@ -104,6 +105,7 @@ def indicator(*args: Any, **kwargs: Any) -> ScriptDeclaration:
         max_lines_count=kw.get("max_lines_count"),
         max_labels_count=kw.get("max_labels_count"),
         max_boxes_count=kw.get("max_boxes_count"),
+        max_polylines_count=kw.get("max_polylines_count"),
         kwargs=dict(kw),
     )
 
@@ -123,6 +125,7 @@ def strategy(*args: Any, **kwargs: Any) -> ScriptDeclaration:
         max_lines_count=kw.get("max_lines_count"),
         max_labels_count=kw.get("max_labels_count"),
         max_boxes_count=kw.get("max_boxes_count"),
+        max_polylines_count=kw.get("max_polylines_count"),
         kwargs=dict(kw),
     )
 
@@ -142,6 +145,7 @@ def library(*args: Any, **kwargs: Any) -> ScriptDeclaration:
         max_lines_count=kw.get("max_lines_count"),
         max_labels_count=kw.get("max_labels_count"),
         max_boxes_count=kw.get("max_boxes_count"),
+        max_polylines_count=kw.get("max_polylines_count"),
         kwargs=dict(kw),
     )
 
