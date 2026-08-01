@@ -737,11 +737,47 @@ _INCOMPLETE_ASSIGN_RE = re.compile(
 _TRUNCATED_METHOD_RE = re.compile(r"^(\s*(?:export\s+)?method\s+[A-Za-z_]\w*)\s*\(\s*$")
 
 
+def _is_type_or_enum_declaration(ns: str) -> bool:
+    """True for UDT/enum declaration lines — not soft-keyword identifier use.
+
+    Pine allows ``type`` / ``enum`` as ordinary names (``type == "SMA"``). Only
+    ``type Name`` / ``enum Name`` (optional trailing comment) are declarations.
+    """
+    return bool(re.match(r"^(type|enum)\s+[A-Za-z_]\w*\s*(//.*)?$", ns))
+
+
+def _is_method_declaration(ns: str) -> bool:
+    """True for ``method [retType] name(`` declarations, not ``method ==`` etc."""
+    return bool(
+        re.match(
+            r"^method\s+(?:(?:series|simple|const)\s+)?"
+            r"(?:[A-Za-z_]\w*(?:<[^>\n]*>)?(?:\[\])?\s+)?"
+            r"[A-Za-z_]\w*\s*\(",
+            ns,
+        )
+    )
+
+
+def _starts_structural_statement(ns: str) -> bool:
+    """True if *ns* begins a control/decl statement (not soft-keyword as identifier)."""
+    if not ns:
+        return False
+    if re.match(r"^(if|for|while|switch|else|import|export|var|varip)\b", ns):
+        return True
+    if _is_type_or_enum_declaration(ns) or re.match(r"^(type|enum)\s*$", ns):
+        return True
+    if _is_method_declaration(ns):
+        return True
+    return False
+
+
 def _looks_like_expr_continuation(ns: str) -> bool:
     """True if *ns* (lstripped) continues a binary/logical expression, not a new stmt."""
     if not ns or ns.startswith("//"):
         return False
-    if re.match(r"^(if|for|while|switch|else|type|enum|import|export|method|var|varip)\b", ns):
+    # Hard structural keywords only — soft keywords (``type``/``method``/``enum``)
+    # may head expression arms: ``type == "SMA" ? … :``.
+    if _starts_structural_statement(ns):
         return False
     # Reassignment always starts a new statement.
     if re.match(r"^[A-Za-z_]\w*\s*:=", ns):
@@ -871,12 +907,15 @@ def _next_line_is_new_statement(lines: list[str], index: int) -> bool:
     if j >= len(lines):
         return True
     ns = lines[j].lstrip()
+    # Soft keywords ``type``/``method``/``enum`` are identifiers unless declaration form.
     if re.match(
-        r"^(if|for|while|switch|else|type|enum|import|export|method|var|varip|"
+        r"^(if|for|while|switch|else|import|export|var|varip|"
         r"indicator|strategy|library|study|plot|plotshape|plotchar|plotcandle|"
         r"plotbar|fill|bgcolor|barcolor|hline|alertcondition|alert)\b",
         ns,
     ):
+        return True
+    if _starts_structural_statement(ns):
         return True
     # Assignment / reassignment statement
     if re.match(r"^[A-Za-z_]\w*(?:\.\w+|\[[^\]]*\])*\s*:=?", ns) and not re.match(
@@ -934,10 +973,12 @@ def _line_has_arg_continuation(line: str, lines: list[str], index: int) -> bool:
             return True
 
     # Same-indent ternary arm continuation: ``x = a ? b :`` / next ``c ? d : e``.
+    # Soft-keyword identifiers (esp. ``type``) commonly head MA-selector arms:
+    #   type == "SMA" ? ta.sma(...) :
+    #   type == "EMA" ? ta.ema(...) :
+    # Only structural statements break the chain (not bare ``type `` prefix).
     if nxt_indent == base_indent and prev_code.endswith(("?", ":")):
-        if not ns.startswith(
-            ("if ", "for ", "while ", "switch ", "else", "type ", "enum ", "import ", "export ")
-        ):
+        if not _starts_structural_statement(ns):
             return True
     # Same-indent arithmetic / logical / concat after a trailing binary op:
     #   ``… +`` / ``… -`` / ``… *`` / ``… /`` / ``… and`` / ``… or``

@@ -37,6 +37,37 @@ from .base import BuiltinDispatchMixin
 from .base import BuiltinHandler
 
 
+def _normalize_year_month(year: int | float, month: int | float) -> tuple[int, int]:
+    """Normalize year/month for ``datetime`` construction (shared by timestamp).
+
+    Rules (set05 residual / TV-like leniency):
+
+    - **Floats** are truncated toward zero via ``int(...)`` (``3.9`` → March).
+    - **Month 0 → January** of the same year. Corpus scripts use
+      ``timestamp(2020, 0, 0, …)`` as a backtest start; treating 0 as a
+      0-based / unset month (January) matches that intent better than rolling
+      to the previous December.
+    - **Month 13+ and negatives** roll across years (``13`` → Jan next year,
+      ``14`` → Feb next year, ``-1`` → Nov previous year). Same spirit as day
+      overflow via ``timedelta``.
+    - **Year** is clamped to Python ``datetime`` range **1..9999**. Far-future
+      backtest ends such as ``999999`` become year ``9999`` (end of range).
+    """
+    y = int(year)
+    m = int(month)
+    if m == 0:
+        m = 1
+    elif m < 1 or m > 12:
+        m0 = m - 1
+        y += m0 // 12
+        m = m0 % 12 + 1
+    if y < 1:
+        y = 1
+    elif y > 9999:
+        y = 9999
+    return y, m
+
+
 @lru_cache(maxsize=4096)
 def _timestamp_ms_from_components(  # noqa: PLR0913 — year..second + optional UTC offset
     year: int,
@@ -47,18 +78,29 @@ def _timestamp_ms_from_components(  # noqa: PLR0913 — year..second + optional 
     second: int,
     offset_seconds: int = 0,
 ) -> int:
-    """Unix ms for calendar components (day overflow rolls months, matching TV).
+    """Unix ms for calendar components with TV-like overflow normalization.
 
     Cached: scripts often call ``timestamp(y, m, d, h, mi, s)`` with the same
     literals inside hot loops (e.g. TradingView "loop is too long" samples).
 
     *offset_seconds* is the fixed UTC offset of the local timezone
     (e.g. ``UTC-5`` → ``-5 * 3600``). Components are interpreted in that zone.
+
+    Normalization is shared with hour/day overflow:
+
+    - **year/month** via :func:`_normalize_year_month` (month 0 → January;
+      13+ rolls years; year clamped to 1..9999).
+    - **day/hour/minute/second** via ``timedelta`` on a day-1 midnight anchor
+      (``hour=24`` → next day 00:00; ``day=40`` rolls months; ``minute=60`` →
+      +1 hour). Avoids ``datetime()`` constructor range errors.
     """
+    y, m = _normalize_year_month(year, month)
+
     tz = timezone.utc if offset_seconds == 0 else timezone(timedelta(seconds=int(offset_seconds)))
-    # Anchor on day 1 then add (day-1) so day overflow/underflow rolls months.
-    base = datetime(int(year), int(month), 1, int(hour), int(minute), int(second), tzinfo=tz)
-    dt = base + timedelta(days=int(day) - 1)
+    # Midnight day-1 anchor + full timedelta so day/hour/min/sec may overflow
+    # (datetime() constructor rejects hour not in 0..23, month not in 1..12).
+    base = datetime(y, m, 1, 0, 0, 0, tzinfo=tz)
+    dt = base + timedelta(days=int(day) - 1, hours=int(hour), minutes=int(minute), seconds=int(second))
     return int(dt.timestamp() * 1000)
 
 
@@ -138,11 +180,60 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
             "timestamp": self._builtin_timestamp,
             "last_bar_index": self._builtin_last_bar_index,
             "last_bar_time": self._builtin_last_bar_time,
+            "timenow": self._builtin_timenow,
             "max_bars_back": self._builtin_max_bars_back,
+            # Community / v3-style series shift (Ichimoku lead lines, etc.)
+            "offset": self._builtin_offset,
             # Dual-mode: property (0-arg) + function (tickerid) — see ticker.split_symbol
             "syminfo.prefix": self._builtin_syminfo_prefix,
             "syminfo.ticker": self._builtin_syminfo_ticker,
         }
+
+    def _builtin_offset(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
+        """``offset(source, length)`` — series lookback, equivalent to ``source[length]``.
+
+        Used by community scripts (esp. Ichimoku) as a bare helper. Pine has no
+        official global ``offset()``; plot ``offset=`` is display-only. When the
+        source is a :class:`PineSeries` (or list), return the value *length* bars
+        ago; scalars with no history return themselves for ``length==0`` and
+        ``na`` otherwise.
+        """
+        kw = kwargs or {}
+        if not args and "source" not in kw:
+            self._error("offset takes source and optional length")
+        source = args[0] if args else kw.get("source")
+        length_raw = args[1] if len(args) > 1 else kw.get("length", kw.get("offset", 0))
+        try:
+            length = int(float(length_raw)) if length_raw is not None else 0
+        except (TypeError, ValueError):
+            length = 0
+        if length < 0:
+            length = 0
+
+        # PineSeries / history wrappers (most-recent-first)
+        hist = getattr(source, "history", None)
+        if hist is not None:
+            try:
+                if length < len(hist):
+                    return hist[length]
+                return None
+            except Exception:
+                cur = getattr(source, "current", None)
+                return cur if length == 0 else None
+
+        # Chronological list series (oldest first)
+        if isinstance(source, list):
+            if not source:
+                return None
+            if length == 0:
+                return source[-1]
+            idx = len(source) - 1 - length
+            return source[idx] if idx >= 0 else None
+
+        # Scalar / na
+        if length == 0:
+            return source
+        return None
 
     def _syminfo_host(self) -> Any:
         """Return the host ``syminfo`` object from context, if any."""
@@ -258,6 +349,32 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         if "last_bar_time" in ctx:
             return int(self._coerce_ctx_number("last_bar_time", 0))
         return int(self._coerce_ctx_number("time", 0))
+
+    def _builtin_timenow(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> int:
+        """Current UNIX time in ms (TV ``timenow``).
+
+        Hosts may seed ``context['timenow']``. Otherwise prefer the dataset's
+        last bar time (deterministic backtests / corpus), then the current bar
+        ``time``, then wall-clock UTC ms.
+        """
+        ctx = getattr(self, "context", {}) or {}
+        if "timenow" in ctx:
+            raw = ctx.get("timenow")
+            # Avoid recursion if the map entry is this handler itself
+            if raw is not None and not callable(raw):
+                current = getattr(raw, "current", None)
+                if current is not None and not isinstance(raw, (int, float, str)):
+                    raw = current
+                try:
+                    return int(float(raw))  # type: ignore[arg-type]
+                except (TypeError, ValueError):
+                    pass
+        if "last_bar_time" in ctx:
+            return int(self._coerce_ctx_number("last_bar_time", 0))
+        t = int(self._coerce_ctx_number("time", 0))
+        if t:
+            return t
+        return int(datetime.now(timezone.utc).timestamp() * 1000)
 
     def _bar_time_ms(self, key: str = "time") -> int:
         """Current bar open/close time from context (ms), falling back to *time*."""
@@ -414,25 +531,37 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         return None if dt is None else dt.isocalendar()[1]
 
     def _coerce_timestamp_component(self, value: Any, *, default: int | None = 0, required: bool = False) -> int | None:
-        """Coerce a timestamp() component to int; None → default or error."""
-        if value is None:
-            if required:
-                self._error("timestamp() arguments must be numeric")
-            return default
+        """Coerce a timestamp() component to int.
+
+        Soft-coerce policy (set05 residual):
+
+        - ``na`` / ``None`` / NaN → ``None`` when *required* (caller returns na),
+          else *default* (optional hour/minute/second).
+        - Numeric strings (``\"2024\"``, ``\" 1.0 \"``) via ``int(float(...))``.
+        - Series wrappers unwrap ``.current``.
+        - Unparseable non-numeric strings still hard-error (not silently zero).
+        """
+        if value is None or type(value).__name__ == "_NaValue":
+            return None if required else default
         current = getattr(value, "current", None)
         if current is not None and not isinstance(value, (list, tuple, str, bytes, int, float)):
             value = current
-        if value is None:
-            if required:
-                self._error("timestamp() arguments must be numeric")
-            return default
+        if value is None or type(value).__name__ == "_NaValue":
+            return None if required else default
         if isinstance(value, bool):
             return int(value)
-        if isinstance(value, (int, float)):
+        if isinstance(value, float):
+            if value != value:  # NaN
+                return None if required else default
+            return int(value)
+        if isinstance(value, int):
             return int(value)
         if isinstance(value, str):
+            s = value.strip()
+            if not s:
+                return None if required else default
             try:
-                return int(float(value))
+                return int(float(s))
             except ValueError:
                 self._error("timestamp() arguments must be numeric")
         try:
@@ -620,7 +749,7 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
             return None
         return _try_formats(s, tz_offset)
 
-    def _builtin_timestamp(self, args: list[Any]) -> int:
+    def _builtin_timestamp(self, args: list[Any]) -> int | None:
         """Create Unix timestamp from date/time components or a date string.
 
         Forms:
@@ -632,9 +761,14 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
           ``timestamp(syminfo.timezone, y, m, d, 0, 0)``
         - kwargs: ``timestamp(timezone=…, year=…, month=…, day=…, …)``
 
-        Accepts overflow/underflow on day (e.g. day=40 or day=-5) via month
-        rollover, matching TradingView ``timestamp`` arithmetic used by scripts
-        such as dividend_yield.
+        Accepts overflow/underflow on month/day/hour/minute/second (e.g.
+        month=0 → January, month=13 → next Jan, day=40, hour=24, minute=60)
+        via calendar rollover, matching TradingView ``timestamp`` arithmetic
+        used by dividend_yield and backtest windows (``ToYear=9999`` /
+        ``999999`` clamped to 9999).
+
+        ``na`` year/month/day soft-returns ``na`` (None) rather than hard-failing
+        (set05 residual: ``year(timenow)`` before ``timenow`` was wired).
 
         Timezone-first form interprets components in that zone and returns UTC ms.
         """
@@ -647,30 +781,45 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         if len(args) == 1:
             # series/int ms pass-through
             c = self._coerce_timestamp_component(args[0], required=True)
-            return int(c or 0)
+            if c is None:
+                return None
+            return int(c)
 
         # Optional leading timezone (string or non-year placeholder)
         # e.g. timestamp("UTC-5", 2019, 8, 5, 12, 0) or timestamp(syminfo.timezone, y, m, d, 0, 0)
+        # Numeric first args are always the year (never a timezone). Far-future
+        # backtest ends (defval=9999 / 999999) clamp later via _normalize_year_month.
+        # Pure numeric *strings* (\"2024\") are years, not timezone names.
         comp = list(args)
         tzinfo: Any = timezone.utc
         if comp:
             first = comp[0]
             if isinstance(first, str):
-                if len(comp) >= 4:
+                stripped = first.strip()
+                is_numeric_str = bool(stripped) and re.fullmatch(r"[+-]?\d+(?:\.\d+)?", stripped)
+                if len(comp) >= 4 and not is_numeric_str:
                     tzinfo = _parse_pine_timezone(first)
                     comp = comp[1:]
-                else:
-                    parsed = self._parse_timestamp_string(str(first))
-                    if parsed is not None:
-                        return parsed
-                    self._error("timestamp() could not parse date string")
+                elif len(comp) < 4 or not is_numeric_str:
+                    # Date-string form (1–3 args) or non-numeric short form
+                    if len(comp) < 4:
+                        parsed = self._parse_timestamp_string(str(first))
+                        if parsed is not None:
+                            return parsed
+                        self._error("timestamp() could not parse date string")
+                    # else: pure numeric string year kept in comp
             elif first is None and len(comp) >= 4:
                 # kwargs merge padding for omitted timezone= slot
                 comp = comp[1:]
             elif len(comp) >= 4:
-                # Non-string timezone placeholder (None / enum) before year
+                # Non-string leading slot: only skip when it is *not* a year
+                # number. Any numeric value (including 999999 / 3333) is year;
+                # far-future years are clamped later. Non-numeric (NA / enum /
+                # timezone objects) is treated as a timezone placeholder.
                 year_guess = self._coerce_timestamp_component(first, required=False)
-                if year_guess is None or not (1900 <= year_guess <= 2200):
+                if year_guess is None:
+                    # Leading na timezone slot (kwargs) vs na year — if remaining
+                    # looks like y,m,d keep treating first as omitted timezone.
                     tzinfo = _parse_pine_timezone(first)
                     comp = comp[1:]
 
@@ -683,13 +832,21 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         hour = self._coerce_timestamp_component(comp[3] if len(comp) > 3 else 0, default=0)
         minute = self._coerce_timestamp_component(comp[4] if len(comp) > 4 else 0, default=0)
         second = self._coerce_timestamp_component(comp[5] if len(comp) > 5 else 0, default=0)
-        assert year is not None and month is not None and day is not None
-        assert hour is not None and minute is not None and second is not None
+        # Required components na → timestamp() yields na (TV-like soft fail)
+        if year is None or month is None or day is None:
+            return None
+        if hour is None:
+            hour = 0
+        if minute is None:
+            minute = 0
+        if second is None:
+            second = 0
 
         try:
+            y_ref, m_ref = _normalize_year_month(int(year), int(month))
             off = _tz_offset_seconds(
                 tzinfo,
-                datetime(int(year), max(1, min(12, int(month))), 1, tzinfo=timezone.utc),
+                datetime(y_ref, m_ref, 1, tzinfo=timezone.utc),
             )
             return _timestamp_ms_from_components(
                 int(year), int(month), int(day), int(hour), int(minute), int(second), off

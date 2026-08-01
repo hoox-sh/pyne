@@ -162,7 +162,7 @@ Call-site state (`_ta_call_i` reset each bar), one sample per site per bar (safe
 | --- | --- | --- |
 | **H1** | Dual-host: port SoT host compile/auto/`error_kind`/fail-cache/inputs→interpret to **pyne-worker** (full package unify later) | P1 — **in progress** (host surface ported Aug 2026; package-level unify still open) |
 | **H2** | Product warm-compile path (SLOs, prewarm, IR cache on in deploy) | P1 |
-| **C1** | Corpus Runtime residual: TIMEOUT / long-tail `RUN_FAIL` | P1 — **progress 2026-08-01 (8-agent pass)**: set01–04 Runtime **~94.3% OK** projected (was ~89.8% → 93.7%); PARSE stubs ~118; residual ~21 RUN_FAIL (library stubs, period edges, str ops) |
+| **C1** | Corpus Runtime residual | P1 — set01–04 ~**94.3%**; set05 full run **93.3%** → after 6-agent pass projected **~97.2%** (355/428 RUN_FAIL recovered; 27/98 PARSE now OK); TIMEOUT ~81 remain |
 | **T1** | Cap unbounded `current_series` lists to `max_bars_back` / `_SERIES_MAX` | P2 |
 | **T2** | Incremental for remaining heavy kernels (`ta.bb`, nested full-list helpers still calling `_ema`/`_sma` outside builtins) | P2 |
 | **F1** | `ta.atr` still **EMA-of-TR** (historical oracle); TV Wilder RMA-ATR only with dedicated goldens | P2 |

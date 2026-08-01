@@ -82,6 +82,8 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
             "math.todegrees": self._builtin_math_todegrees,
             "math.toradians": self._builtin_math_toradians,
             "math.random": self._builtin_math_random,
+            # v4 / community bare alias (pre-math. namespace)
+            "random": self._builtin_math_random,
             "math.isfinite": self._builtin_math_isfinite,
             "color.new": self._builtin_color_new,
             "na": self._builtin_na,
@@ -94,6 +96,8 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
             "string": self._builtin_string,
             "fixnan": self._builtin_fixnan,
             "math.round_to_mintick": self._builtin_math_round_to_mintick,
+            # v4 / community bare alias
+            "round_to_mintick": self._builtin_math_round_to_mintick,
         }
 
     def _as_scalar(self, value: Any) -> Any:

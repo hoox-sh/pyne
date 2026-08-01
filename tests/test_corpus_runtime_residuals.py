@@ -566,6 +566,52 @@ plot(ta.sma(close, len))
         assert last is None or (isinstance(last, float) and last != last)
 
 
+class TestStrategyInitialCapitalReassign:
+    """set05 residual: strategy.initial_capital = N → Unsupported reassignment target Attribute."""
+
+    def test_strategy_initial_capital_assign_reads_back(self) -> None:
+        src = """//@version=5
+strategy("t")
+strategy.initial_capital = 50000
+plot(strategy.initial_capital)
+"""
+        r = Runtime().run(src, _bars(5), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert abs(float(r["plots"][-1]) - 50000.0) < 1e-9
+
+    def test_strategy_initial_capital_updates_equity(self) -> None:
+        src = """//@version=5
+strategy("t")
+strategy.initial_capital = 25000
+plot(strategy.equity)
+"""
+        r = Runtime().run(src, _bars(5), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert abs(float(r["plots"][-1]) - 25000.0) < 1e-9
+
+    def test_udt_field_reassign_still_works(self) -> None:
+        src = """//@version=5
+indicator("t")
+type S
+    float v
+var S s = S.new(1.0)
+s.v := 3.5
+plot(s.v)
+"""
+        r = Runtime().run(src, _bars(3), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert abs(float(r["plots"][-1]) - 3.5) < 1e-9
+
+    def test_corpus_strategy_with_initial_capital_assign(self) -> None:
+        rel = "set05/strategies/0893_str_bollinger_bands_backtesting.pine"
+        path = DATA / rel
+        if not path.exists():
+            pytest.skip(f"missing {rel}")
+        src = sanitize_corpus_source(path.read_text(encoding="utf-8", errors="replace"))
+        r = Runtime().run(src, _bars(50), mode="interpret")
+        assert "error" not in r, f"{rel}: {r.get('error')}"
+
+
 class TestCorpusScripts:
     @pytest.mark.parametrize(
         "rel",
@@ -590,6 +636,9 @@ class TestCorpusScripts:
             # C1 Unknown built-in function: '' — dual-mode syminfo.prefix/ticker
             "set04/indicators/0912_ind_syminfo_prefix_fun.pine",
             "set04/indicators/0913_ind_syminfo_ticker_fun.pine",
+            # C1 strategy.initial_capital = N (Attribute ReAssign)
+            "set05/strategies/0893_str_bollinger_bands_backtesting.pine",
+            "set05/strategies/0769_str_buy_and_sell_bullish_engulfing_the_quant_science_2.pine",
         ],
     )
     def test_residual_scripts_ok(self, rel: str) -> None:

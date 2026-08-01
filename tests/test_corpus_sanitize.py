@@ -519,6 +519,53 @@ plot(ma(close, 14, "EMA"))
     _roundtrip(cleaned)
 
 
+def test_preserves_nested_ternary_with_type_soft_keyword() -> None:
+    """``type`` as MA-selector param must not be treated as ``type Name`` decl.
+
+    set05 SSL/MA helpers commonly write::
+
+        ma(source, length, type) =>
+            type == "SMA" ? ta.sma(...) :
+             type == "EMA" ? ta.ema(...) :
+             na
+
+    Naive ``startswith("type ")`` falsely ends the ternary and injects ``: na``.
+    """
+    raw = """//@version=5
+indicator("t")
+ma(source, length, type) =>
+    type == "SMA" ? ta.sma(source, length) :
+     type == "EMA" ? ta.ema(source, length) :
+     type == "SMMA (RMA)" ? ta.rma(source, length) :
+     type == "WMA" ? ta.wma(source, length) :
+     type == "VWMA" ? ta.vwma(source, length) :
+     na
+plot(ma(close, 14, "SMA"))
+"""
+    cleaned = sanitize_corpus_source(raw)
+    # Must keep the chain — no mid-arm ``: na`` before the next ``type ==``
+    assert re.search(r':\s*na\s*\n\s*type\s*==', cleaned) is None
+    assert 'type == "VWMA"' in cleaned
+    assert cleaned.count("type ==") == 5
+    _roundtrip(cleaned)
+
+
+def test_preserves_same_indent_type_soft_keyword_ternary_chain() -> None:
+    """All arms at the same indent with soft-keyword ``type`` (juicy_trend style)."""
+    raw = """//@version=5
+indicator("t")
+ma(source, length, type) =>
+     type == "SMA"  ? ta.sma(source, length) :
+     type == "EMA"  ? ta.ema(source, length) :
+     type == "WMA"  ? ta.wma(source, length) :
+     na
+plot(ma(close, 10, "EMA"))
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert re.search(r':\s*na\s*\n\s*type\s*==', cleaned) is None
+    _roundtrip(cleaned)
+
+
 def test_repairs_dangling_plus_before_closer() -> None:
     """Docs scrapes cut mid-concat: ``str.tostring(a) +)``."""
     raw = """//@version=6

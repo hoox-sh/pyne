@@ -76,6 +76,7 @@ _BARE_SERIES_BUILTINS = frozenset(
         "na",
         "last_bar_index",
         "last_bar_time",
+        "timenow",
         "bid",
         "ask",
         "year",

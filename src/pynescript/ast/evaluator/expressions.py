@@ -84,6 +84,15 @@ _SITE_GN = 5
 # Shared empty kwargs — never mutate (hot path avoids ``{}`` alloc).
 _EMPTY_KW: dict[str, Any] = {}
 
+
+def _store_call_site(node: Any, site: tuple) -> None:
+    """Attach resolved call-site tuple to *node* (safe across GC id reuse)."""
+    try:
+        object.__setattr__(node, "_pine_call_site", site)
+    except (AttributeError, TypeError):
+        pass
+
+
 # Arg-plan opcodes (precompiled per Call site; skips visit frames for Name/Const).
 # Positional: (_AP_NAME, id) | (_AP_CONST, value) | (_AP_VISIT, value_ast)
 # Keyword:    (_AP_KW_NAME, kw, id) | (_AP_KW_CONST, kw, value) | (_AP_KW_VISIT, kw, value_ast)
@@ -552,17 +561,16 @@ class ExpressionEvaluator:
         Returns:
             Call result, or ``None`` on soft-fail
         """
-        # Per-Call-node site cache (stable AST across the bar loop).
-        # Pre-allocated on BaseEvaluator; miss → resolve once.
-        site_cache = self.__dict__.get("_call_site_cache")
-        if site_cache is None:
-            site_cache = {}
-            self._call_site_cache = site_cache  # type: ignore[attr-defined]
-        site_key = id(node)
-        site = site_cache.get(site_key)
+        # Per-Call-node site cache for the bar loop. Store the resolved site
+        # **on the AST node** (not ``id(node)`` → dict): short-lived parse trees
+        # (test helpers / one-shot eval) are GC'd and CPython reuses object ids,
+        # which caused cross-expression site collisions (e.g.
+        # ``strategy.opentrades.entry_time(0)`` resolving as a prior
+        # ``strategy.long`` site after ``id()`` recycle).
+        site = getattr(node, "_pine_call_site", None)
         if site is None:
             site = self._resolve_call_site(node)
-            site_cache[site_key] = site
+            _store_call_site(node, site)
 
         kind = site[0]
 
@@ -614,7 +622,7 @@ class ExpressionEvaluator:
             result = self._call_builtin(name, args, kwargs=kwargs)  # type: ignore[attr-defined]
             bound = self._lookup_bound_builtin(name)
             if bound is not None:
-                site_cache[site_key] = (_SITE_QB, bound[0], bound[1], name, plan)
+                _store_call_site(node, (_SITE_QB, bound[0], bound[1], name, plan))
             return result
 
         # Fast path: bare Name builtins (plot, na, year, …).
@@ -639,7 +647,7 @@ class ExpressionEvaluator:
             result = self._call_builtin(name, args, kwargs=kwargs)  # type: ignore[attr-defined]
             bound = self._lookup_bound_builtin(name)
             if bound is not None:
-                site_cache[site_key] = (_SITE_BB, name, bound[0], bound[1], plan)
+                _store_call_site(node, (_SITE_BB, name, bound[0], bound[1], plan))
             return result
 
         # Bare-name UDF / local callable — skip visit(func) Attribute machinery.

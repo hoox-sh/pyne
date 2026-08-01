@@ -112,6 +112,21 @@ plot(type + method + to + by)
     )
 
 
+def test_nested_ternary_type_soft_keyword_ma_selector():
+    """set05 pattern: nested ternary arms headed by soft-keyword ``type``."""
+    _roundtrip(
+        """//@version=5
+indicator("t")
+ma(source, length, type) =>
+    type == "SMA" ? ta.sma(source, length) :
+     type == "EMA" ? ta.ema(source, length) :
+     type == "WMA" ? ta.wma(source, length) :
+     na
+plot(ma(close, 14, "SMA"))
+"""
+    )
+
+
 def test_soft_keyword_fields_on_udt():
     """UDT fields may use soft-keyword names."""
     _roundtrip(

@@ -336,9 +336,21 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         Supports ``{0}``, ``{1,number}``, ``{0,number,#.####}``. Falls back to
         a best-effort string when the placeholder is unknown (Console.show uses
         ``{0,number,#####}`` for bar indices).
+
+        Arity edges:
+        - 0 args → error
+        - 1 arg (format only, or corpus-sanitize ``str.format(na)``) → format
+          with empty placeholders / ``\"NaN\"`` when the sole arg is ``na``
+        - 2+ args → normal MessageFormat path
         """
-        if len(args) < BINARY:
+        if not args:
             self._error("str.format takes format string and args")
+        if args[0] is None:
+            # Truncated corpus often becomes ``str.format(na)`` after sanitize.
+            if len(args) == UNARY:
+                return "NaN"
+            # fmt is na but extra args present — soft empty
+            return "NaN"
         value = self._expect_string(
             args[0],
             "str.format takes format string and args",
@@ -419,7 +431,13 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         return haystack.find(needle)
 
     def _builtin_str_format_time(self, args: list[Any]) -> str:
-        if len(args) not in {BINARY, TERNARY}:
+        """``str.format_time(time[, format[, timezone]])``.
+
+        Unary form uses the ISO-8601 default format
+        ``yyyy-MM-dd'T'HH:mm:ssZ`` (TradingView default when *format* is omitted).
+        """
+        # UNARY = timestamp only; BINARY = + format; TERNARY = + timezone
+        if len(args) not in {UNARY, BINARY, TERNARY}:
             self._error(
                 "str.format_time takes timestamp, format, and optional timezone",
             )
@@ -431,18 +449,29 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
             # Unresolved bare name / na
             if timestamp is None or isinstance(timestamp, str):
                 return "NaN"
-            self._error("str.format_time expects timestamp in milliseconds")
+            # series wrapper
+            cur = getattr(timestamp, "current", None)
+            if isinstance(cur, (int, float)):
+                timestamp = int(cur)
+            else:
+                self._error("str.format_time expects timestamp in milliseconds")
         if 0 < timestamp < 10_000_000_000:
             # Likely seconds (e.g. chart bars with s-epoch) — Pine uses ms
             timestamp = timestamp * 1000
-        format_str = self._expect_string(
-            args[1],
-            "str.format_time expects format string",
-        )
+        # TV default when format omitted
+        if len(args) == UNARY or args[1] is None:
+            format_str = "yyyy-MM-dd'T'HH:mm:ssZ"
+        else:
+            format_str = self._expect_string(
+                args[1],
+                "str.format_time expects format string",
+            )
         timezone_str = args[2] if len(args) == TERNARY else None
         if timezone_str is not None and not isinstance(timezone_str, str):
             self._error("str.format_time expects timezone to be a string")
-        return self._format_time(timestamp, format_str, timezone_str)
+        formatted = self._format_time(timestamp, format_str, timezone_str)
+        # Strip TV literal-quote markers (e.g. 'T' in ISO default)
+        return formatted.replace("'", "")
 
     def _builtin_str_join(self, args: list[Any]) -> str:
         if len(args) != BINARY:

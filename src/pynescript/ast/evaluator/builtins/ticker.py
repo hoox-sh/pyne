@@ -172,24 +172,121 @@ def ticker_linebreak(ticker_str: str, reversal: int = 3) -> TickerInfo:
     return ticker
 
 
-def ticker_pointfigure(ticker_str: str, boxsize: float = 1.0, style: str = None) -> TickerInfo:
+_PNF_SOURCES = frozenset(
+    {
+        "hl",
+        "close",
+        "open",
+        "high",
+        "low",
+        "hlc3",
+        "ohlc4",
+        "hlcc4",
+        "oc2",
+        "h",
+        "l",
+        "o",
+        "c",
+    }
+)
+
+
+def _as_float_default(v: Any, default: float = 1.0) -> float:
+    try:
+        return default if v is None else float(v)
+    except (TypeError, ValueError):
+        return default
+
+
+def _as_int_or_none(v: Any) -> int | None:
+    try:
+        return None if v is None else int(float(v))
+    except (TypeError, ValueError):
+        return None
+
+
+def ticker_pointfigure(
+    ticker_str: str,
+    source_or_boxsize: Any = 1.0,
+    style: str | None = None,
+    param: float | int | None = None,
+    reversal: int | float | None = None,
+    *_extra: Any,
+    **kwargs: Any,
+) -> TickerInfo:
     """Create a Point and Figure chart ticker from a symbol.
 
-    Applies Point and Figure charting transformation. v6: style e.g. "PercentageLTP"
+    TradingView forms:
 
-    Args:
-        ticker_str: The base ticker symbol
-        boxsize: The box size for point and figure charting
-        style: optional style
+    - ``ticker.pointfigure(symbol, boxsize)`` / ``(..., boxsize, style)``
+      (legacy short form)
+    - ``ticker.pointfigure(symbol, source, style, param, reversal)``
+      e.g. ``ticker.pointfigure(syminfo.tickerid, "hl", "Traditional", 1, 3)``
+      or ``(..., "hl", "ATR", 14, 3)``
 
-    Returns:
-        TickerInfo with Point and Figure transformation applied
+    Extra positional args are ignored so corpus arity does not TypeError.
     """
-    ticker = TickerInfo(f"PF({ticker_str},{boxsize})")
+    source: str | None = None
+    boxsize = 1.0
+    style_s: str | None = str(style) if style is not None else None
+    rev = _as_int_or_none(reversal)
+
+    # Named kwargs (TV-style) override positionals when present
+    if kwargs.get("source") is not None:
+        source = str(kwargs["source"])
+    if kwargs.get("style") is not None:
+        style_s = str(kwargs["style"])
+    if kwargs.get("param") is not None:
+        boxsize = _as_float_default(kwargs["param"])
+    if kwargs.get("boxsize") is not None:
+        boxsize = _as_float_default(kwargs["boxsize"])
+    if kwargs.get("reversal") is not None:
+        rev = _as_int_or_none(kwargs["reversal"])
+
+    arg1 = source_or_boxsize
+    is_source = isinstance(arg1, str) and (
+        arg1.lower() in _PNF_SOURCES or not _looks_like_number(arg1)
+    )
+    if is_source:
+        # Full form: (symbol, source, style, param, reversal)
+        source = str(arg1)
+        if style is not None:
+            style_s = str(style)
+        if param is not None:
+            boxsize = _as_float_default(param)
+    else:
+        # Legacy: (symbol, boxsize[, style])
+        boxsize = _as_float_default(arg1, 1.0)
+        if style is not None:
+            style_s = str(style)
+        if param is not None:
+            boxsize = _as_float_default(param, boxsize)
+
+    parts = [str(ticker_str), str(boxsize)]
+    if source:
+        parts.append(source)
+    if style_s:
+        parts.append(style_s)
+    if rev is not None:
+        parts.append(str(rev))
+    ticker = TickerInfo(f"PF({','.join(parts)})")
     ticker.pointfigure_applied = True
-    if style:
-        ticker.style = style
+    if style_s:
+        ticker.style = style_s
+    if source:
+        ticker.source = source  # type: ignore[attr-defined]
+    if rev is not None:
+        ticker.reversal = rev  # type: ignore[attr-defined]
     return ticker
+
+
+def _looks_like_number(v: Any) -> bool:
+    """True when *v* can be parsed as a float (legacy boxsize string)."""
+    try:
+        float(v)
+        return True
+    except (TypeError, ValueError):
+        return False
 
 
 def ticker_renko(ticker_str: str, boxsize: float = 1.0, style: str = None) -> TickerInfo:

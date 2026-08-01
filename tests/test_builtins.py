@@ -135,6 +135,27 @@ plot(close)
         reparsed = parse(unparsed)
         assert repr(ast) == repr(reparsed)
 
+    def test_ticker_pointfigure_full_arity(self):
+        """TV 5-arg form: symbol, source, style, param, reversal."""
+        from pynescript.ast.evaluator import NodeLiteralEvaluator
+        from pynescript.ast.evaluator.builtins.ticker import TickerInfo
+
+        m = NodeLiteralEvaluator()._build_builtin_map()
+        t = m["ticker.pointfigure"](["NASDAQ:AAPL", "hl", "Traditional", 1, 3])
+        assert isinstance(t, TickerInfo)
+        assert t.pointfigure_applied is True
+        assert t.style == "Traditional"
+        assert getattr(t, "source", None) == "hl"
+        assert getattr(t, "reversal", None) == 3
+
+        t_atr = m["ticker.pointfigure"](["AAPL", "hl", "ATR", 14, 3])
+        assert t_atr.pointfigure_applied is True
+        assert t_atr.style == "ATR"
+
+        # Legacy short form still works
+        t_short = m["ticker.pointfigure"](["AAPL", 1.0])
+        assert t_short.pointfigure_applied is True
+
     def test_ticker_renko(self):
         """Parse and evaluate ticker.renko()"""
         code = """

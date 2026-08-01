@@ -579,9 +579,26 @@ def test_evaluator_str_tostring(expression, expected):
             'str.format_time(1672531200000, "yyyy-MM-dd HH:mm:ss", "GMT+3")',
             "2023-01-01 03:00:00",
         ),
+        # Unary form uses TV default ISO-8601 template
+        ("str.format_time(1672531200000)", "2023-01-01T00:00:00Z"),
     ],
 )
 def test_evaluator_str_format_time(expression, expected):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
+        ('str.format("{0}", 42)', "42"),
+        ('str.format("plain")', "plain"),  # format-only arity edge
+        ("str.format(na)", "NaN"),  # corpus-sanitize incomplete call
+    ],
+)
+def test_evaluator_str_format_arity(expression, expected):
     ast = helper.parse(expression, mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)

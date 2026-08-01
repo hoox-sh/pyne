@@ -250,6 +250,32 @@ class TestStrategyExtendedStats:
         assert val is None or (isinstance(val, float) and val != val)  # None or nan
 
 
+class TestStrategyInitialCapitalReassign:
+    """Corpus residual: ``strategy.initial_capital = N`` is Attribute ReAssign."""
+
+    def test_reassign_updates_state_and_series(self) -> None:
+        src = """//@version=5
+strategy("cap")
+strategy.initial_capital = 50000
+"""
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        ev.evaluate_script(src)
+        assert float(ev._strategy_state.initial_capital) == 50000.0
+        assert _eval_expr(ev, "strategy.initial_capital") == 50000.0
+        assert _eval_expr(ev, "strategy.equity") == 50000.0
+
+    def test_reassign_with_colon_equals(self) -> None:
+        src = """//@version=5
+strategy("cap")
+strategy.initial_capital := 12000
+"""
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        ev.evaluate_script(src)
+        assert _eval_expr(ev, "strategy.initial_capital") == 12000.0
+
+
 class TestStrategyGoldenMultiBar:
     """Simple multi-bar script: buy bar 0, sell bar 2, inspect series."""
 

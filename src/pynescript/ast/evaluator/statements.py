@@ -44,6 +44,7 @@ from pynescript.ast import node as ast
 from pynescript.ast.evaluator.builtins.declarations import ScriptDeclaration
 from pynescript.ast.evaluator.libraries import STUB_KNOWN_EXPORTS
 from pynescript.ast.evaluator.libraries import LibraryModule
+from pynescript.ast.evaluator.names import ast_qualified_name
 from pynescript.ast.helper import parse as parse_pine
 from pynescript.ast.type_system import BuiltinType
 from pynescript.ast.type_system import BuiltinTypeKind
@@ -633,13 +634,54 @@ class StatementEvaluator:
                 self._error(msg)  # type: ignore[attr-defined]
                 return
 
+    def _reassign_qualified_namespace(self, qname: str, value: Any) -> bool:
+        """Write dotted namespace targets (``strategy.initial_capital = …``).
+
+        ``visit_Name("strategy")`` returns the bare string ``"strategy"`` when
+        the name is not in ``context`` (lazy builtin path). ``setattr`` then
+        fails and the old ReAssign path raised *Unsupported reassignment
+        target: Attribute* even though the AST target is valid.
+
+        Known strategy series fields update :attr:`_strategy_state` (so later
+        ``strategy.initial_capital`` / equity math stay consistent). Any other
+        ``a.b`` path is stored under the qualified context key so subsequent
+        Attribute reads (context-first) observe the write.
+
+        Returns:
+            True if this path handled the write (caller should return).
+        """
+        if not qname or "." not in qname:
+            return False
+
+        # Mutable strategy declaration-style fields (corpus: strategy.initial_capital = N)
+        if qname == "strategy.initial_capital":
+            try:
+                cap = float(value) if value is not None else 0.0
+            except (TypeError, ValueError):
+                cap = 0.0
+            st = getattr(self, "_strategy_state", None)
+            if st is not None:
+                st.initial_capital = cap
+                st.risk_free_capital = cap
+                # Keep peak/trough aligned when capital is set before trading.
+                st._equity_peak = cap
+                st._equity_trough = cap
+            # Shadow context so Attribute fast-path sees the same value
+            self.context[qname] = cap  # type: ignore[attr-defined]
+            return True
+
+        # Generic namespace write: context key shadows builtins / unresolved paths
+        self.context[qname] = value  # type: ignore[attr-defined]
+        return True
+
     def visit_ReAssign(self, node: ast.ReAssign):
         """Handle reassignment (``x := x + 1`` / ``obj.field := value``).
 
         Evaluates the right-hand side and stores the result in the target
         variable. This is the Pine Script ``:=`` operator, distinct from
-        ``AugAssign`` (``x += 1``). Supports simple names and UDT/object
-        field mutation (``settings.devThreshold := …``).
+        ``AugAssign`` (``x += 1``). Supports simple names, UDT/object field
+        mutation (``settings.devThreshold := …``), and namespace attributes
+        (``strategy.initial_capital = 50000`` — parser emits ReAssign).
 
         Args:
             node: The ReAssign node with target and value
@@ -654,30 +696,61 @@ class StatementEvaluator:
 
         # obj.field := value  (UDT instances and plain objects with setattr)
         if isinstance(node.target, ast.Attribute):
-            obj = self.visit(node.target.value)  # type: ignore[attr-defined]
-            if obj is None:
-                return
-            if isinstance(obj, ObjectInstance):
-                obj.set_field(node.target.attr, value)
-                return
-            # Library/UDT-like objects that expose fields as attributes
-            if hasattr(obj, "set_field") and callable(obj.set_field):
-                obj.set_field(node.target.attr, value)
-                return
-            try:
-                setattr(obj, node.target.attr, value)
-                return
-            except (AttributeError, TypeError):
-                # Expected for frozen/slots objects — try dict-style next.
-                pass
-            except Exception as e:
-                # Unexpected programming errors must not soft-fail to no-op.
-                msg = f"Reassignment failed for attribute {node.target.attr!r}: {e}"
-                self._error(msg)  # type: ignore[attr-defined]
-                return
-            if isinstance(obj, dict):
-                obj[node.target.attr] = value
-                return
+            # Builtin namespaces (strategy.*, etc.): base Name is often a bare
+            # string, not a mutable object — handle via qualified path first
+            # when the base is not a live instance.
+            qname = ast_qualified_name(node.target)
+            base_node = node.target.value
+            # Prefer object mutation when base is a real binding (UDT handle).
+            obj: Any = None
+            try_object = True
+            if isinstance(base_node, ast.Name):
+                # Only skip object path when Name is unresolved string / missing
+                bound = self.context.get(base_node.id)  # type: ignore[attr-defined]
+                if bound is None and base_node.id not in self.context:  # type: ignore[attr-defined]
+                    # Unresolved namespace name → qualified write
+                    if qname and self._reassign_qualified_namespace(qname, value):
+                        return
+                    try_object = False
+                else:
+                    obj = bound
+            if try_object:
+                if obj is None and not isinstance(base_node, ast.Name):
+                    obj = self.visit(base_node)  # type: ignore[attr-defined]
+                elif obj is None and isinstance(base_node, ast.Name):
+                    # Present in context as None → soft no-op (na handle)
+                    return
+                if obj is None:
+                    return
+                if isinstance(obj, ObjectInstance):
+                    obj.set_field(node.target.attr, value)
+                    return
+                # Library/UDT-like objects that expose fields as attributes
+                if hasattr(obj, "set_field") and callable(obj.set_field):
+                    obj.set_field(node.target.attr, value)
+                    return
+                try:
+                    setattr(obj, node.target.attr, value)
+                    return
+                except (AttributeError, TypeError):
+                    # Expected for frozen/slots objects — try dict-style next.
+                    pass
+                except Exception as e:
+                    # Unexpected programming errors must not soft-fail to no-op.
+                    msg = f"Reassignment failed for attribute {node.target.attr!r}: {e}"
+                    self._error(msg)  # type: ignore[attr-defined]
+                    return
+                if isinstance(obj, dict):
+                    obj[node.target.attr] = value
+                    return
+                # Base resolved to a non-mutable value (e.g. str namespace from
+                # visit_Name fallback, int series). Fall back to qualified write.
+                if qname and self._reassign_qualified_namespace(qname, value):
+                    return
+
+            msg = f"Unsupported reassignment target: {type(node.target)}"
+            self._error(msg)  # type: ignore[attr-defined]
+            return
 
         msg = f"Unsupported reassignment target: {type(node.target)}"
         self._error(msg)  # type: ignore[attr-defined]
