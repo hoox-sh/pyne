@@ -188,6 +188,81 @@ plot(close)
         hit = next(a for a in alerts if a.get("message") == "hello-pro")
         assert hit.get("bar_index") == 1
         assert hit.get("source") == "alert"
+
+    def test_run_alert_webhook_last_bar(self, client: FlaskClient, monkeypatch):
+        """L2: webhook receives last-bar firings only by default."""
+        posted: list[dict] = []
+
+        def fake_post(url: str, body: dict, **_kw) -> int:
+            posted.append({"url": url, "body": body})
+            return 200
+
+        monkeypatch.setattr(
+            "backend.alert_forwarder.http_post_json",
+            fake_post,
+        )
+        bars = [
+            {"open": 100, "high": 105, "low": 98, "close": 102, "time": 1000, "volume": 10},
+            {"open": 102, "high": 108, "low": 101, "close": 105, "time": 2000, "volume": 12},
+            {"open": 105, "high": 110, "low": 104, "close": 108, "time": 3000, "volume": 11},
+        ]
+        script = """//@version=5
+indicator("wh")
+if bar_index == 1
+    alert("mid")
+if bar_index == 2
+    alert("last")
+plot(close)
+"""
+        resp = client.post(
+            "/run",
+            json={
+                "script": script,
+                "data": bars,
+                "mode": "interpret",
+                "webhook_url": "https://hooks.example.com/pine",
+            },
+        )
+        assert resp.status_code == 200, resp.json
+        fwd = resp.json.get("alert_forward") or {}
+        assert fwd.get("forwarded") == 1
+        assert fwd.get("filter") == "last_bar"
+        assert len(posted) == 1
+        batch = posted[0]["body"]
+        assert batch["type"] == "pine_alert_batch"
+        assert batch["count"] == 1
+        assert batch["alerts"][0]["message"] == "last"
+
+    def test_run_alert_webhook_opt_out(self, client: FlaskClient, monkeypatch):
+        called = {"n": 0}
+
+        def fake_post(url: str, body: dict, **_kw) -> int:
+            called["n"] += 1
+            return 200
+
+        monkeypatch.setattr("backend.alert_forwarder.http_post_json", fake_post)
+        bars = [
+            {"open": 100, "high": 105, "low": 98, "close": 102, "time": 1000, "volume": 10},
+            {"open": 102, "high": 108, "low": 101, "close": 105, "time": 2000, "volume": 12},
+        ]
+        script = """//@version=5
+indicator("wh")
+alert("x")
+plot(close)
+"""
+        resp = client.post(
+            "/run",
+            json={
+                "script": script,
+                "data": bars,
+                "mode": "interpret",
+                "webhook_url": "https://hooks.example.com/pine",
+                "forward_alerts": False,
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.json.get("alert_forward") is None
+        assert called["n"] == 0
         # Empty log.* scripts still export logs + profile (and under meta).
         assert resp.json.get("logs") == []
         profile = resp.json.get("profile")

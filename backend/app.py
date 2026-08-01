@@ -328,6 +328,26 @@ def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
     }
     if result.get("alert_conditions") is not None:
         resp["alert_conditions"] = result["alert_conditions"]
+
+    # L2: optional outbound webhook for alert()/alertcondition() firings
+    try:
+        from .alert_forwarder import maybe_forward_run_alerts
+
+        wh = validated.get("webhook_url") or ""
+        alert_fwd = maybe_forward_run_alerts(
+            alerts=resp.get("alerts"),
+            ohlcv=ohlcv if isinstance(ohlcv, list) else None,
+            webhook_url=wh if isinstance(wh, str) else None,
+            enable_forward=bool(validated.get("forward_alerts", True)),
+            alert_last_bar=bool(validated.get("alert_last_bar", True)),
+            alert_batch=bool(validated.get("alert_batch", True)),
+            symbol=str(symbol) if symbol else None,
+        )
+        if alert_fwd is not None:
+            resp["alert_forward"] = alert_fwd
+    except Exception as e:  # noqa: BLE001 — never fail the run on webhook errors
+        resp["alert_forward_error"] = str(e)
+
     return resp, 200
 
 
@@ -347,12 +367,19 @@ def _health_payload() -> dict[str, Any]:
     }
     if sock is not None:
         endpoints["WS /ws/run"] = "Run Pine Script over WebSocket (prefer WSS when available)"
+    from .alert_forwarder import default_webhook_url
+
     return {
         "status": "healthy",
         "service": "pynescript-pro-api",
         "version": "1.0.0",
         "timestamp": int(time.time()),
         "websocket": sock is not None,
+        "features": {
+            "alerts": True,
+            "alert_webhooks": True,
+            "alert_webhook_default": bool(default_webhook_url()),
+        },
         "endpoints": endpoints,
     }
 
@@ -623,6 +650,22 @@ def run_pine_script_batch():
         }
         if result.get("alert_conditions") is not None:
             item["alert_conditions"] = result["alert_conditions"]
+        try:
+            from .alert_forwarder import maybe_forward_run_alerts
+
+            alert_fwd = maybe_forward_run_alerts(
+                alerts=item.get("alerts"),
+                ohlcv=ohlcv if isinstance(ohlcv, list) else None,
+                webhook_url=data.get("webhook_url") or None,
+                enable_forward=bool(data.get("forward_alerts", True)),
+                alert_last_bar=bool(data.get("alert_last_bar", True)),
+                alert_batch=bool(data.get("alert_batch", True)),
+                symbol=str(symbol) if symbol else None,
+            )
+            if alert_fwd is not None:
+                item["alert_forward"] = alert_fwd
+        except Exception as e:  # noqa: BLE001
+            item["alert_forward_error"] = str(e)
         results.append(item)
 
     ok = sum(1 for r in results if r.get("status") == "success")

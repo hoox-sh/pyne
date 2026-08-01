@@ -68,6 +68,11 @@ RUN_SCHEMA: dict[str, tuple[type, bool, Any]] = {
     "inputs": (dict, False, {}),
     # When true, interpret path collects per-line ms/execs for AXIS profiler gutter
     "profiler": (bool, False, False),
+    # L2 alert webhooks (also: env ALERT_WEBHOOK_URL)
+    "webhook_url": (str, False, ""),
+    "forward_alerts": (bool, False, True),
+    "alert_last_bar": (bool, False, True),  # only POST firings on last OHLCV bar
+    "alert_batch": (bool, False, True),  # one batch POST vs per-alert
 }
 
 # Shared OHLCV + many scripts (AXIS multi-indicator). Nested script objects
@@ -80,6 +85,10 @@ RUN_BATCH_SCHEMA: dict[str, tuple[type, bool, Any]] = {
     "data_options": (dict, False, {}),
     "mode": (str, False, "auto"),
     "profiler": (bool, False, False),
+    "webhook_url": (str, False, ""),
+    "forward_alerts": (bool, False, True),
+    "alert_last_bar": (bool, False, True),
+    "alert_batch": (bool, False, True),
 }
 
 # Hard cap to keep free-tier /run/batch bounded.

@@ -381,7 +381,7 @@ PyneScript core is mature, with significant July 2026 enhancements:
 3. **Integration**
    - Jupyter notebook support
    - API server for remote execution
-   - Webhook support for alerts
+   - ✅ Webhook support for alerts (pyne-worker + Pro API L2; `ALERT_WEBHOOK_URL` / `webhook_url`)
 
 ### Low Value (Research)
 
