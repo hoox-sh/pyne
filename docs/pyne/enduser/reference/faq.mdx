@@ -139,7 +139,9 @@ Optional charting PWA that can call the evaluate contract and render series. Doc
 
 ### What is HOOX?
 
-Optional edge trading mesh (webhooks, trade-worker, etc.). Docs: [HOOX](/docs). Strategy events from PYNE can feed HOOX; not required for parsing/eval.
+Optional edge trading mesh (trade-worker, etc.). Docs: [HOOX](/docs). Strategy events from PYNE can feed HOOX; not required for parsing/eval.
+
+**Alerts:** `alert()` / `alertcondition()` firings export on Pro API and pyne-worker `/run`. Optional HTTP webhooks via `webhook_url` or `ALERT_WEBHOOK_URL` (last-bar by default). See [Alerts](/pyne/docs/runtime/alerts).
 
 ### What is pine-worker vs pyne-worker?
 

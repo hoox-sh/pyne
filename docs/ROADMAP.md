@@ -133,7 +133,7 @@ P0 docs honesty → P1 dual-host (H1) → P2 corpus (C1) + P3 warm compile (H2)
 5. **F1/F2** Optional fidelity goldens (opt-in oracle changes)
 
 ### Long-term
-6. **L1–L3** Converter, webhooks, TS pine-worker parity
+6. **L1 / L3** Converter maturity, TS pine-worker parity (**L2 webhooks ✅**)
 
 ---
 

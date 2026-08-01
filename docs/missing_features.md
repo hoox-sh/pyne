@@ -19,14 +19,14 @@
 
 # Missing Features - Pine Script v6 Implementation
 
-**Current Status (as of 2026-08-01):** Strong core support (parser + evaluator + 1100+ tests). Open-source corpus set01–04 Runtime ~90% OK; interpret bar-loop performance hardened without semantic change. Not 100% for all post-v6 launch / platform edges. Drawing `max_*_count` GC landed. Dual-host Runtime drift remains the top product residual.
+**Current Status (as of 2026-08-01):** Strong core support (parser + evaluator + 1100+ tests). Open-source corpus set01–04 Runtime ~90%+ OK; interpret bar-loop performance hardened without semantic change. Drawing `max_*_count` GC landed. **Alert engine + L2 webhooks** closed on Pro API and pyne-worker. Dual-host package-level Runtime unify remains open.
 
-**Last Updated:** 2026-08-01 (roadmap residual IDs H1–L3; drawing GC closed)
+**Last Updated:** 2026-08-01 (alerts + L2 webhooks; roadmap residual H1 package unify / C1 / H2)
 
 **Overall Support Assessment:** ~99%+ for core v6. Multiline strings + `export const` integrated. Remaining gaps are mostly by-design (mock request data, platform/editor-only) plus long-tail Runtime fails on truncated scrape sources.
 - Parser: Excellent for v5/v6 core + multiline, soft keywords, bitwise, typed UDF returns.
-- Evaluator/Builtins: Broad coverage + data context injection + **incremental hot-path TA**.
-- Recent: corpus sanitize, Runtime append-only series lists, `_pine_defs_locked`, pyne-worker bar-mode align.
+- Evaluator/Builtins: Broad coverage + data context injection + **incremental hot-path TA** + **alert freq engine**.
+- Recent: corpus sanitize, Runtime append-only series lists, `_pine_defs_locked`, pyne-worker bar-mode align, dual-host alerts + webhooks.
 - Full test runs + lint clean targeted. See details.
 
 ---

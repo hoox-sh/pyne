@@ -24,7 +24,7 @@ description: "Flask Pro API for Pine evaluation — /run, preview, backtest, API
 
 # Pro API
 
-The PYNE **Pro API** is a Flask HTTP service that runs Pine scripts over caller-supplied OHLCV, returns plots / series / strategy events / drawings, and gates thumbnail + backtest routes behind API keys. It is intentionally **not** the language server: different auth, scaling, and failure domains.
+The PYNE **Pro API** is a Flask HTTP service that runs Pine scripts over caller-supplied OHLCV, returns plots / series / strategy events / drawings / **alerts**, optional **L2 alert webhooks**, and gates thumbnail + backtest routes behind API keys. It is intentionally **not** the language server: different auth, scaling, and failure domains.
 
 ## Abstract
 
@@ -33,7 +33,7 @@ Where the LSP answers *static* editor questions, the Pro API answers *dynamic* e
 ```text
 POST JSON { script, data: OHLCV[], … }
   → backend.runtime.Runtime.run
-  → { plots, series, plot_meta, events, drawings, script_id, run_id, … }
+  → { plots, series, plot_meta, events, drawings, alerts, script_id, run_id, … }
 ```
 
 Free-tier evaluate (`POST /run`, `POST /run/batch`) validates bodies with hand-rolled schemas, enforces a 5 MB body cap, and restricts CORS. Pro routes under `/preview/*` and `/backtest/*` use `track_usage` (Bearer / ApiKey / query key). Chart PNGs are matplotlib Agg renders encoded as base64.

@@ -109,7 +109,8 @@
               "runtime/builtins/drawing-plotting",
               "runtime/builtins/request-input",
               "runtime/libraries",
-              "runtime/events"
+              "runtime/events",
+              "runtime/alerts"
             ]
           },
           {

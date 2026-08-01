@@ -59,7 +59,7 @@ flowchart LR
 | `color.*` | `register_color_functions` | (this page) |
 | `syminfo` / `ticker.*` | `register_ticker_functions` | (this page) |
 | `timeframe.*` | `register_timeframe_functions` | (this page) |
-| `alert` / logging | `AlertsMixin`, `register_logging_functions` | (this page) |
+| `alert` / logging | `AlertsMixin`, `register_logging_functions` | [Alerts](/pyne/docs/runtime/alerts) |
 | `indicator` / `strategy` / `library` | `register_script_declaration_functions` | [Libraries](/pyne/docs/runtime/libraries) |
 | Footprint / volume_row | `FootprintBuiltinsMixin` | [Request & input](/pyne/docs/runtime/builtins/request-input) |
 
@@ -76,7 +76,9 @@ flowchart LR
 
 ### Alerts
 
-`alert()` / related helpers record structured messages with optional `bar_index` / `time` from context—side channel for hosts, not strategy events.
+`alert(message, freq)` and `alertcondition(condition, title, message)` record structured firings (`message`, `freq`, `bar_index`, `time`, `source`) with TV-style frequency rules (`once_per_bar`, `once_per_bar_close`, `all`). Hosts export them on `/run` and can POST last-bar batches to webhooks (**L2**). Side channel only — **not** strategy events.
+
+Full detail: [Alerts](/pyne/docs/runtime/alerts).
 
 ## Internals
 
@@ -124,4 +126,5 @@ plot(ta.sma(close, 14))
 - [Collections](/pyne/docs/runtime/builtins/collections)
 - [Drawing & plotting](/pyne/docs/runtime/builtins/drawing-plotting)
 - [Request & input](/pyne/docs/runtime/builtins/request-input)
+- [Alerts](/pyne/docs/runtime/alerts)
 - [Builtin metadata (LSP)](/pyne/docs/lsp/builtin-metadata)

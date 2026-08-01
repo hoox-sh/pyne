@@ -26,7 +26,7 @@ description: "Call the PYNE Flask Pro API as a consumer: health, /run, /run/batc
 
 ## Abstract
 
-The Pro API is the **HTTP evaluate contract** for PYNE: POST Pine source plus OHLCV, receive plots, series, events, and drawings. Free-tier evaluate endpoints (`/run`, `/run/batch`) are usable without a key; Pro preview/backtest routes track usage via API keys. This page is for **callers** (AXIS, scripts, workers). Server lifecycle and auth design are under [API](/pyne/docs/api).
+The Pro API is the **HTTP evaluate contract** for PYNE: POST Pine source plus OHLCV, receive plots, series, events, drawings, and **alerts**. Free-tier evaluate endpoints (`/run`, `/run/batch`) are usable without a key; optional **L2 alert webhooks** POST last-bar firings to `webhook_url` or `ALERT_WEBHOOK_URL`. Pro preview/backtest routes track usage via API keys. This page is for **callers** (AXIS, scripts, workers). Server lifecycle and auth design are under [API](/pyne/docs/api).
 
 ## Conceptual model
 
@@ -83,9 +83,14 @@ curl -s http://127.0.0.1:5002/ | python -m json.tool
 | `symbol` | string | no | `"CHART"` |
 | `data_source` | string | no | `""` |
 | `data_options` | object | no | `{}` |
-| `mode` | string | no | `"interpret"` |
+| `mode` | string | no | `"auto"` |
+| `inputs` | object | no | `{}` |
+| `webhook_url` | string | no | `""` (else env `ALERT_WEBHOOK_URL`) |
+| `forward_alerts` | bool | no | `true` |
+| `alert_last_bar` | bool | no | `true` |
+| `alert_batch` | bool | no | `true` |
 
-Bar objects are expected to carry at least open/high/low/close/time (volume optional depending on script). {/* TODO: verify required bar keys in Runtime */}
+Bar objects are expected to carry at least open/high/low/close/time (volume optional depending on script).
 
 ```bash
 curl -s -X POST http://127.0.0.1:5002/run \
@@ -112,6 +117,7 @@ Success shape (conceptual):
   "plot_meta": {},
   "events": [],
   "drawings": [],
+  "alerts": [],
   "script_id": "...",
   "run_id": "...",
   "count": 3,
@@ -119,6 +125,8 @@ Success shape (conceptual):
   "data_source": "chart"
 }
 ```
+
+When a webhook URL is configured, the response may also include `alert_forward` (delivery counts). See [Alerts](/pyne/docs/runtime/alerts).
 
 Error codes include `NO_SCRIPT`, `NO_DATA`, `DATA_SOURCE_ERROR`, `EXECUTION_ERROR`, plus schema codes `INVALID_BODY`, `MISSING_FIELD`, `INVALID_FIELD`, `UNKNOWN_FIELDS`.
 

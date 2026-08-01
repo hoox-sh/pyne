@@ -26,7 +26,7 @@ description: "PYNE forward plan — residual host parity, corpus tail, warm comp
 
 ## Abstract
 
-The roadmap is a **living prioritization document**, not a contract. Source: `docs/ROADMAP.md` (updated **2026-08-01**). Historically “remaining” items — Jupyter, linter, data providers, strategy events, Pro API, LSP core, deep strategy runtime, drawing GC — are **done**. What remains: **dual-host Runtime parity**, **corpus execution tail**, **warm-compile productization**, residual **TA/series perf**, and optional **TV-oracle re-baselines**.
+The roadmap is a **living prioritization document**, not a contract. Source: `docs/ROADMAP.md` (updated **2026-08-01**). Historically “remaining” items — Jupyter, linter, data providers, strategy events, Pro API, LSP core, deep strategy runtime, drawing GC, **alert engine + L2 webhooks** — are **done**. What remains: **dual-host package-level Runtime unify**, **corpus execution tail**, **warm-compile productization**, residual **TA/series perf**, and optional **TV-oracle re-baselines**.
 
 ## Conceptual model
 
@@ -69,12 +69,14 @@ flowchart LR
 
 | ID | Item | Pri |
 | --- | --- | --- |
-| H1 | Dual-host Runtime (pyne-worker ← SoT host surface) | P1 |
+| H1 | Dual-host Runtime (host surface + alerts ✅; package-level unify open) | P1 ⚙️ |
 | H2 | Warm-compile product path (SLOs / prewarm / IR cache) | P1 |
 | C1 | Corpus TIMEOUT / RUN_FAIL residual | P1 |
 | T1 / T2 | Series caps + residual incremental TA | P2 |
 | F1 / F2 | Optional TV-oracle re-baselines (ATR, pending fills) | P2 |
-| L1–L3 | Converter maturity; **L2 webhooks** ✅ (pyne-worker + Pro API); TS pine-worker parity | P3 |
+| L1 | v5↔v6 converter maturity | P3 |
+| **L2** | **Alert webhooks** (Pro API + pyne-worker) | **P3 ✅** |
+| L3 | pine-worker (TS) full builtin parity | P3 |
 
 Longer horizon (not next): ML wrappers, automatic refactor, parallel/distributed eval experiments.
 
@@ -82,9 +84,9 @@ Longer horizon (not next): ML wrappers, automatic refactor, parallel/distributed
 
 | Horizon | Focus |
 | --- | --- |
-| Short | H1 dual-host, C1 corpus tail, H2 warm compile |
+| Short | H1 package unify residual, C1 corpus tail, H2 warm compile |
 | Medium | T1/T2 series + residual TA; optional F1/F2 goldens |
-| Long | L1–L3 converter / webhooks / TS parity |
+| Long | L1 converter maturity; L3 TS pine-worker parity |
 
 ## Internals
 

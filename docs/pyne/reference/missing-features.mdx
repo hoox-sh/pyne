@@ -76,6 +76,7 @@ Summarized — full prose in source doc:
 | Corpus sanitize + soft keywords / bitwise / typed UDF returns | set01–04 parse ~94.8% |
 | Runtime `_pine_defs_locked` + append-only `current_series` | Host hygiene (backend + pyne-worker) |
 | Incremental `ta.sma/ema/rma/rsi/macd/atr` | Bar mode; `PYNE_TA_INCREMENTAL=0` to disable |
+| Alert engine + L2 webhooks | `alert()`/`alertcondition()` freq rules, dual-host `/run` export, HTTP webhooks |
 
 ### Still incomplete / by design
 
@@ -87,11 +88,12 @@ Summarized — full prose in source doc:
 | Editor word-wrap / UI-only release notes | ⬜ N/A |
 | pine-worker full builtin port | In progress (extra tool) |
 | Bit-identical every recursive smoother vs TV | Numerical bounds, not bits |
-| Dual Runtime host copies (**H1**) | ⚙️ Host surface ported (fail-cache / `error_kind` / inputs-auto / compile cache); package-level unify still open |
+| Dual Runtime host copies (**H1**) | ⚙️ Host surface + dual-host **alerts** export; package-level Runtime unify still open |
 | Warm-compile product path (**H2**) | ⬜ SLOs / prewarm / deploy IR cache defaults |
 | Corpus Runtime tail (**C1**) | ⚙️ ~**94.3%** set01–04 OK projected (8-agent pass); PARSE stubs ~118; ~21 residual RUN_FAIL |
 | Series cap (**T1**) / residual TA inc (**T2**) | ⬜ Partial — hot path done; BB/nested full paths remain |
 | TV Wilder RMA-ATR (**F1**, if re-baselined) | ⚠️ Current oracle uses EMA-of-TR; change is correctness, not silent perf |
+| Alert webhooks (**L2**) | ✅ Pro API + pyne-worker (`ALERT_WEBHOOK_URL` / `webhook_url`); see [Alerts](/pyne/docs/runtime/alerts) |
 
 ### Post-v6 launch themes (historical gap list)
 

@@ -115,7 +115,7 @@ Tests strip `script_id` / `run_id` before compare.
 2. **Per-bar reset.** `reset_events` / drain prevents cross-bar leakage in tests that share evaluators.
 3. **OHLC list vs tuple.** `to_dict` converts to list for JSON round-trips.
 4. **Kind vocabulary is closed.** New kinds require TS + fixtures + this doc.
-5. **Not alerts.** `alert()` uses a separate alerts channel—not `StrategyEvent`.
+5. **Not alerts.** `alert()` / `alertcondition()` use a separate [alerts](/pyne/docs/runtime/alerts) channel—not `StrategyEvent`.
 
 ## Worked examples
 

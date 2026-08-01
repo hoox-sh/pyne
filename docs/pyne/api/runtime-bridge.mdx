@@ -43,7 +43,8 @@ flowchart TB
   LOOP --> VISIT[evaluator.visit tree]
   VISIT --> PLOTS[plot_outputs]
   VISIT --> EV[strategy events]
-  LOOP --> PACK[series map + plot_meta + drawings]
+  VISIT --> AL[alert firings]
+  LOOP --> PACK[series map + plot_meta + drawings + alerts]
 ```
 
 ## Interface surface
@@ -73,7 +74,7 @@ Helpers: `configure_footprint`, `update_bid_ask`.
 1. Resolve request sources (non-fatal on failure).
 2. `parse(source_code, mode="exec")` — on failure `{ "error": "Parse Error: …" }`.
 3. Init `PineSeries` for OHLC + context dict (timeframe daily defaults, barstate, chart colors).
-4. Construct `CustomEvaluator(context=…, data_feed=…, data_provider=…)`, reset var declarations + drawing registry.
+4. Construct `CustomEvaluator(context=…, data_feed=…, data_provider=…)`, reset var declarations + drawing registry + `clear_alerts()`.
 5. Per bar:
    - Update series + calendar fields from timestamp
    - Update barstate flags (`isfirst` / `islast` / history confirmed)
@@ -84,16 +85,17 @@ Helpers: `configure_footprint`, `update_bid_ask`.
    - Capture plot outputs
 6. Build `series` / `plot_meta` from all plot indices (disambiguate duplicate titles with `_2` suffixes).
 7. Export drawings via `DrawingRegistry.export_for_api(bar_times)`.
+8. Export alerts via `export_alerts_from_evaluator` (optional `alert_conditions`).
 
-Return keys: `plots`, `series`, `plot_meta`, `events`, `drawings`, `count`, `script_id`, `run_id`, `mode`.
+Return keys: `plots`, `series`, `plot_meta`, `events`, `drawings`, `alerts`, `count`, `script_id`, `run_id`, `mode` (+ optional `alert_conditions`).
 
 #### Compile path
 
 1. Import `pynescript.compiler.engine` — missing → error string.
-2. Require `has_numba()`.
+2. Require `has_numba()` (object-mode may still run without pure Numba for some scripts).
 3. `compile_script` + `compiled.run(opens, highs, lows, closes, volumes)`.
 4. Pop internal keys (`__drawings`, `__events`, position meta).
-5. Return similar envelope with `mode: "compile"`, plus `object_mode` / `generated_code` when present.
+5. Return similar envelope with `mode: "compile"`, `alerts: []`, plus `object_mode` / `generated_code` when present.
 
 ### `PineSeries` (`backend/series.py`)
 

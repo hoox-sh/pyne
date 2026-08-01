@@ -89,6 +89,9 @@ flowchart LR
 | `plot_meta` | `Record<string, PlotMeta>` | Display metadata |
 | `events` | `StrategyEvent[]` | Strategy / trade-like events |
 | `drawings` | `Drawing[]` | line/label/box export |
+| `alerts` | `AlertEvent[]` | `alert()` / true `alertcondition()` firings (interpret) |
+| `alert_conditions` | object[] | optional condition evaluations |
+| `alert_forward` | object | optional L2 webhook delivery summary |
 | `count` | number | Bars evaluated |
 | `script_id` | string | Stable hash prefix of source |
 | `run_id` | string | Per-invocation id |
@@ -115,6 +118,22 @@ Hosts should preserve:
 ```
 
 Additional fields follow evaluator `to_dict()` / TS port parity — treat unknown keys as forward-compatible.
+
+#### `AlertEvent` (minimum)
+
+```json
+{
+  "message": "string",
+  "freq": "once_per_bar",
+  "bar_index": 0,
+  "time": 0,
+  "source": "alert",
+  "script_id": "…",
+  "run_id": "…"
+}
+```
+
+See [Alerts](/pyne/docs/runtime/alerts) for frequency rules and webhooks.
 
 ### Response (failure)
 
@@ -160,12 +179,14 @@ Workers may implement batch as N single evaluates; AXIS should not assume batch 
 | `plots` / `series` / `plot_meta` | `Runtime.run` packing loop |
 | `events` | `evaluator._strategy_state.drain_events()` → `to_dict()` |
 | `drawings` | `DrawingRegistry.export_for_api` |
+| `alerts` | `export_alerts_from_evaluator` (interpret) |
+| `alert_forward` | `backend/alert_forwarder.maybe_forward_run_alerts` |
 | `script_id` | `sha256(source)[:16]` |
 | `run_id` | `Runtime._run_id` |
 
-Schema enforcement on Flask free tier: `RUN_SCHEMA` / `RUN_BATCH_SCHEMA` in `backend/middleware/schemas.py` (strict, reject extras).
+Schema enforcement on Flask free tier: `RUN_SCHEMA` / `RUN_BATCH_SCHEMA` in `backend/middleware/schemas.py` (strict, reject extras). Webhook fields: `webhook_url`, `forward_alerts`, `alert_last_bar`, `alert_batch`.
 
-Tests: `tests/test_backend.py` (`test_run_success`, batch cases).
+Tests: `tests/test_backend.py` (`test_run_success`, `test_run_exports_alerts`, webhook cases), `tests/test_alert_forwarder.py`.
 
 ## Divergences to remember
 

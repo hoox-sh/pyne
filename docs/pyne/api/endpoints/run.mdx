@@ -26,7 +26,7 @@ description: "Free evaluate endpoints: single-script /run and multi-script /run/
 
 ## Abstract
 
-`/run` is the primary free evaluate entry: accept Pine source + bar list, optionally wire `request.*` data sources, execute via `Runtime`, and return plots/series/events/drawings. `/run/batch` runs up to eight scripts on the **same** OHLCV (AXIS multi-indicator), isolating per-script errors so one failure does not discard siblings.
+`/run` is the primary free evaluate entry: accept Pine source + bar list, optionally wire `request.*` data sources, execute via `Runtime`, and return plots/series/events/drawings/**alerts**. `/run/batch` runs up to eight scripts on the **same** OHLCV (AXIS multi-indicator), isolating per-script errors so one failure does not discard siblings. Optional **L2 webhooks** POST last-bar (default) `alert()` / `alertcondition()` firings to `webhook_url` or env `ALERT_WEBHOOK_URL`.
 
 ## Conceptual model
 
@@ -58,7 +58,13 @@ sequenceDiagram
 | `symbol` | string | no | `"CHART"` | Syminfo / request wiring |
 | `data_source` | string | no | `""` | `mock` / `ccxt` / `yahoo` / … |
 | `data_options` | object | no | `{}` | Provider options |
-| `mode` | string | no | `"interpret"` | `"interpret"` \| `"compile"` |
+| `mode` | string | no | `"auto"` | `"interpret"` \| `"compile"` \| `"auto"` |
+| `inputs` | object | no | `{}` | Pine `input.*` overrides by title |
+| `profiler` | bool | no | `false` | Per-line timing on interpret |
+| `webhook_url` | string | no | `""` | L2 alert webhook (overrides `ALERT_WEBHOOK_URL`) |
+| `forward_alerts` | bool | no | `true` | When false, skip outbound webhook |
+| `alert_last_bar` | bool | no | `true` | Webhook only last OHLCV bar firings |
+| `alert_batch` | bool | no | `true` | One batch POST vs per-alert |
 
 Unknown fields → `UNKNOWN_FIELDS` 400. Empty script/data still checked after schema with `NO_SCRIPT` / `NO_DATA`.
 
@@ -80,11 +86,19 @@ Optional `bid` / `ask` per bar update runtime bid/ask state.
   "plot_meta": {},
   "events": [],
   "drawings": [],
+  "alerts": [],
   "script_id": "16hex",
   "run_id": "16hex",
   "count": 0,
   "mode": "interpret",
-  "data_source": "chart"
+  "data_source": "chart",
+  "alert_forward": {
+    "forwarded": 0,
+    "failed": 0,
+    "filter": "last_bar",
+    "url": "https://hooks.example.com/pine",
+    "batch": true
+  }
 }
 ```
 
@@ -95,6 +109,9 @@ Optional `bid` / `ask` per bar update runtime bid/ask state.
 | `plot_meta` | Per-title color, linewidth, index |
 | `events` | Strategy events with `script_id` / `run_id` stamps |
 | `drawings` | Exported line/label/box registry for AXIS |
+| `alerts` | `alert()` / true `alertcondition()` firings (interpret; empty on compile) |
+| `alert_conditions` | Optional full condition evaluations (when present) |
+| `alert_forward` | Present when a webhook URL was configured; delivery summary |
 | `script_id` | `sha256(source)[:16]` |
 | `run_id` | Per-`Runtime` instance id |
 
@@ -116,6 +133,7 @@ Optional `bid` / `ask` per bar update runtime bid/ask state.
 | `scripts` | list | yes | strings or `{id, script}` objects |
 | `data` | list | yes | Shared OHLCV |
 | `symbol` / `data_source` / `data_options` / `mode` | optional | same as `/run` |
+| `webhook_url` / `forward_alerts` / `alert_last_bar` / `alert_batch` | optional | same L2 webhook fields as `/run` (applied per script result) |
 
 Hard cap: `RUN_BATCH_MAX_SCRIPTS = 8` → `TOO_MANY_SCRIPTS`.
 
@@ -142,15 +160,16 @@ result = runtime.run(script, ohlcv, data_feed=…, data_provider=…, mode=…)
 
 See [runtime bridge](/pyne/docs/api/runtime-bridge) for bar-loop details and compile mode.
 
-Paths: `backend/app.py` (`run_pine_script`, `run_pine_script_batch`), `backend/middleware/schemas.py`.
+Paths: `backend/app.py` (`run_pine_script`, `run_pine_script_batch`), `backend/middleware/schemas.py`, `backend/alert_forwarder.py`.
 
 ## Invariants and edge cases
 
 1. **No API key** on these routes — protect at the edge if needed.
 2. **Batch isolates exceptions** per script (`try/except` around `runtime.run`).
 3. **Whitespace-only `data_source`** coerced to `None` → chart default.
-4. **Compile mode** requires numba; errors surface as `EXECUTION_ERROR` message from runtime.
+4. **Compile mode** may omit alert side effects (`alerts: []`); use interpret/`auto` for alerts.
 5. Schema rejects extras — clients must not send AXIS-only fields without updating schema.
+6. **Webhook delivery is best-effort** — evaluate still returns `status: success` if the hook fails; check `alert_forward`.
 
 ## Worked example
 
@@ -175,8 +194,30 @@ curl -s http://127.0.0.1:5002/run \
 | Parse errors in message | Invalid Pine — same engine as CLI |
 | Batch `status: partial` | At least one script failed; inspect `results[i].message` |
 
+## Alert webhooks (L2)
+
+```bash
+# Server default (optional)
+export ALERT_WEBHOOK_URL=https://hooks.example.com/pine
+
+curl -s http://127.0.0.1:5002/run \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "script": "//@version=5\nindicator(\"a\")\nif bar_index == last_bar_index\n    alert(\"fire\")\nplot(close)",
+    "mode": "interpret",
+    "webhook_url": "https://hooks.example.com/pine",
+    "data": [
+      {"time": 1, "open": 1, "high": 2, "low": 0.5, "close": 1.5, "volume": 10},
+      {"time": 2, "open": 1.5, "high": 2.5, "low": 1.0, "close": 2.0, "volume": 12}
+    ]
+  }'
+```
+
+Full engine rules and batch payload shape: [Alerts](/pyne/docs/runtime/alerts).
+
 ## See also
 
+- [Alerts](/pyne/docs/runtime/alerts)
 - [Contract](/pyne/docs/api/contract)
 - [Runtime bridge](/pyne/docs/api/runtime-bridge)
 - [App lifecycle](/pyne/docs/api/app-lifecycle)
