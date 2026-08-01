@@ -19,8 +19,10 @@
 
 # Pynescript Future Roadmap
 
-**Last Updated:** 2026-07-13 (consolidation + v6 dynamic requests + datafeed complete) 
-**Status:** Core + Strategy Events + pine-worker extra tool integrated. Many historical "remaining" items now implemented.
+**Last Updated:** 2026-08-01 (roadmap honesty pass + residual P1–P6 open list)  
+**Status:** Core v6 language/builtins essentially closed. Remaining work is **host parity**,
+**corpus execution tail**, **product compile path**, and optional **TV-oracle re-baselines** —
+not missing syntax.
 
 ---
 
@@ -28,19 +30,20 @@
 
 | Component | Status |
 |-----------|--------|
-| Parser (ANTLR4) | 100% ✅ |
-| Evaluator | 100% ✅ (incl. full var/varip, ReAssign) |
-| Built-in Functions | 224+ ✅ |
-| Technical Analysis | 178+ ✅ |
-| Collections (array/matrix/map) | 100% ✅ |
-| Strategy Events | ✅ (StrategyEvent, parity, long/short constants, full emission) |
-| pine-worker (TS port + converter) | ✅ (extra tool colocated in repo) |
-| Drawing/Strategy/Input/Request | 100% (plotting stubs intentional) |
-| Linter | ✅ |
-| Jupyter Integration | ✅ |
-| Data Providers (Yahoo, AlphaVantage, CCXT) | ✅ (mocks + providers) |
-| LSP (core) | Advanced (diagnostics, completion, hover, formatting, symbols, defs, refs) |
-| Tests | 1000+ (core 381+ in recent run; parity + strategy events green) |
+| Parser (ANTLR4) | ✅ v5/v6 + multiline / export const |
+| Evaluator | ✅ incl. full var/varip, ReAssign |
+| Built-in Functions / TA / collections | ✅ broad (0 missing vs public TV ref list) |
+| Strategy Events + broker (OCA, commission, risk) | ✅ |
+| Numba + object-mode compile | ✅ MVP+ (disk IR cache, auto mode) |
+| Pro API (Flask) + auth + Docker | ✅ (`mode` default `auto`) |
+| pine-worker (Python CF Worker) | ✅ edge host; dual-host drift open |
+| pine-worker (TS port + converter) | ✅ colocated extra tool (port ongoing) |
+| Drawing / input / request | ✅ (request data mock/feed by design) |
+| Linter / Jupyter / data providers | ✅ |
+| LSP (core) | ✅ advanced set; polish only |
+| Drawing max_*_count GC | ✅ (package + Pro API + AXIS pyodide) |
+| Dual-host Runtime parity | ⬜ open (largest P1) |
+| Tests | 1000+ green core suites |
 
 ---
 
@@ -77,77 +80,60 @@
 - `pine-worker/` — TypeScript evaluator port + `scripts/convert-python-to-ts.py` converter, treated as extra tool of the main repo.
 - See `.opencode/plans/2026-07-09-main-consolidation-remaining-work.md` for the full consolidation plan.
 
-## Roadmap: Remaining Work
+## Roadmap: Remaining Work (actionable)
 
-### Phase A: Enhancements (High Value)
+Historical Phase A–D “build API / LSP / Jupyter” items are **done**. Do not re-plan them.
 
-#### A1. Performance Optimizations
-- JIT compilation for critical paths
-- Vectorized array operations
-- Caching for repeated calculations
+### Open backlog (IDs stable for agents)
 
-#### A2. Extended Analysis
-- Machine learning indicator wrappers
-- Advanced statistical functions
-- Complex derivation functions
+| ID | Item | Pri | Owner |
+| --- | --- | --- | --- |
+| **H1** | Port R5–R6 host surface to pyne-worker (fail-cache, `error_kind`, inputs→interpret, compile cache) | P1 ✅ host surface (Aug 2026); package-level unify still open | pyne-worker |
+| **H2** | Product warm-compile path (document SLOs; optional prewarm workers; IR cache on in deploy) | P1 | pyne + ops |
+| **C1** | Corpus TIMEOUT / RUN_FAIL residual (set01–04 ~90% OK → mid-90s) | P1 | pyne + pyne-worker |
+| **T1** | Cap `current_series` to `max_bars_back` / `_SERIES_MAX` | P2 | pyne |
+| **T2** | Incremental TA for remaining heavy kernels (`ta.bb`, nested full paths) | P2 | pyne |
+| **F1** | ATR Wilder / TV supertrend re-baseline **only** with dedicated goldens | P2 | pyne |
+| **F2** | Pending-fill averaging when pyramiding ≤ 0 | P2 | pyne |
+| **L1** | v5↔v6 converter maturity (`scripts/convert_pine_version.py`) | P3 | pyne |
+| **L2** | Webhook alerts productization | P3 | backend |
+| **L3** | pine-worker (TS) full builtin parity | P3 | pine-worker tool |
+| **B1** | Real (non-mock) `request.*` market data | ⚙️ by design | adapters |
 
----
+### Phase map
 
-### Phase B: Developer Experience
+```text
+P0 docs honesty → P1 dual-host (H1) → P2 corpus (C1) + P3 warm compile (H2)
+                              ↘ P4 series caps / residual TA (T1/T2)
+                                  → P5 optional TV re-baselines (F1/F2)
+                                  → P6 long-horizon (L1–L3)
+```
 
-#### B1. IDE Integration
-- Language server protocol support
-- Autocomplete for Pine Script
-- Debugging tools and profiling
+### By design / out of scope for “missing features”
+- Editor-only TV release notes (word wrap, UI)
+- Pixel chart host (AXIS / clients)
+- Bit-identical every recursive smoother vs live TV (numerical bounds track)
 
-#### B2. Documentation
-- Video tutorials
-- Interactive examples
-- Real-world trading examples
-
----
-
-### Phase C: Integration
-
-#### C1. API Server
-- REST API for remote execution
-- Webhook support for alerts
-- Cloud deployment configs
-
----
-
-### Phase D: New Features (Long-term)
-
-#### D1. v5 ↔ v6 Converter (started per consolidation)
-- Basic script skeleton for converting between versions.
-- See scripts/ for related convert tools.
-- (Small step as one concrete roadmap item from plan §6)
-
-#### D1. Code Transformation
-- Automatic script refactoring
-- Code optimization suggestions
-- Pine v5 ↔ v6 converter
-
-#### D2. Advanced Features
-- Parallel execution support
-- Distributed computing
-- Graph-based optimization
+### Longer-horizon ideas (not next)
+- ML / advanced stats wrappers
+- Automatic refactor suggestions
+- Parallel / distributed evaluation experiments
 
 ---
 
 ## Priority Recommendation
 
 ### Short-term (Next)
-1. **API Server** - REST API for remote execution
-2. **IDE Integration** - Language server protocol
+1. **H1 Dual-host Runtime** — pyne-worker host parity with SoT `backend/runtime.py`
+2. **C1 Corpus tail** — fix high-frequency RUN_FAIL with unit goldens
+3. **H2 Warm compile product path** — SLOs + deploy defaults
 
 ### Medium-term
-3. **Performance optimizations** - JIT, caching, vectorization
-4. **ML wrappers** - Advanced statistical functions
+4. **T1/T2** Series memory caps + residual incremental TA
+5. **F1/F2** Optional fidelity goldens (opt-in oracle changes)
 
 ### Long-term
-5. **Pine v5 ↔ v6 converter** - Specific use case
-6. **Parallel execution** - Performance scaling
+6. **L1–L3** Converter, webhooks, TS pine-worker parity
 
 ---
 

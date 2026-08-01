@@ -26,9 +26,9 @@ description: "Known gaps, by-design limitations, and recently closed Pine Script
 
 ## Abstract
 
-“Missing” in PYNE is a **moving frontier**. As of **2026-07-28**, core v6 support remains very high (~99%+ for core language), with post-launch TV items closed (multiline strings, library `export const`, footprint mocks, risk enforcement, matrix LA, compile-mode strategy, …) **plus** open-source corpus parse/Runtime hardening and **incremental bar-mode TA** for hot indicators. Remaining gaps cluster into **by-design platform differences**, **editor-only features**, **fidelity edges**, and a **long-tail Runtime/corpus** bucket (truncated scrapes, timeouts, exotic arity).
+“Missing” in PYNE is a **moving frontier**. As of **2026-08-01**, core v6 support remains very high (~99%+ for core language), with post-launch TV items closed (multiline strings, library `export const`, footprint mocks, risk enforcement, matrix LA, compile-mode strategy, drawing GC, …) **plus** open-source corpus parse/Runtime hardening and **incremental bar-mode TA** for hot indicators. Remaining gaps cluster into **dual-host host parity**, **by-design platform differences**, **editor-only features**, **fidelity edges**, and a **long-tail Runtime/corpus** bucket.
 
-Authoritative narrative: `docs/missing_features.md` (last updated **2026-07-28**).
+Authoritative narrative: `docs/missing_features.md` (last updated **2026-08-01**).
 
 ## Conceptual model
 
@@ -87,10 +87,11 @@ Summarized — full prose in source doc:
 | Editor word-wrap / UI-only release notes | ⬜ N/A |
 | pine-worker full builtin port | In progress (extra tool) |
 | Bit-identical every recursive smoother vs TV | Numerical bounds, not bits |
-| Corpus Runtime tail (TIMEOUT / RUN_FAIL / stubs) | ⚙️ Execution + scrape quality, not missing grammar |
-| Incremental for remaining heavy kernels | ⬜ Partial — hot path done; BB/nested internal full paths remain |
-| Dual Runtime host copies | ⬜ Unify backend vs pyne-worker still open |
-| TV Wilder RMA-ATR (if re-baselined) | ⚠️ Current oracle uses EMA-of-TR; change is correctness, not silent perf |
+| Dual Runtime host copies (**H1**) | ⚙️ Host surface ported (fail-cache / `error_kind` / inputs-auto / compile cache); package-level unify still open |
+| Warm-compile product path (**H2**) | ⬜ SLOs / prewarm / deploy IR cache defaults |
+| Corpus Runtime tail (**C1**) | ⚙️ TIMEOUT / RUN_FAIL / stubs — execution + scrape quality |
+| Series cap (**T1**) / residual TA inc (**T2**) | ⬜ Partial — hot path done; BB/nested full paths remain |
+| TV Wilder RMA-ATR (**F1**, if re-baselined) | ⚠️ Current oracle uses EMA-of-TR; change is correctness, not silent perf |
 
 ### Post-v6 launch themes (historical gap list)
 

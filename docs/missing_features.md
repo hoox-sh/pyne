@@ -19,9 +19,9 @@
 
 # Missing Features - Pine Script v6 Implementation
 
-**Current Status (as of 2026-07-28):** Strong core support (parser + evaluator + 1100+ tests). Open-source corpus set01–04 Runtime ~90% OK; interpret bar-loop performance hardened without semantic change. Not 100% for all post-v6 launch / platform edges.
+**Current Status (as of 2026-08-01):** Strong core support (parser + evaluator + 1100+ tests). Open-source corpus set01–04 Runtime ~90% OK; interpret bar-loop performance hardened without semantic change. Not 100% for all post-v6 launch / platform edges. Drawing `max_*_count` GC landed. Dual-host Runtime drift remains the top product residual.
 
-**Last Updated:** 2026-07-28 (corpus + incremental TA + `Runtime mode=auto` compile route with interpret fallback)
+**Last Updated:** 2026-08-01 (roadmap residual IDs H1–L3; drawing GC closed)
 
 **Overall Support Assessment:** ~99%+ for core v6. Multiline strings + `export const` integrated. Remaining gaps are mostly by-design (mock request data, platform/editor-only) plus long-tail Runtime fails on truncated scrape sources.
 - Parser: Excellent for v5/v6 core + multiline, soft keywords, bitwise, typed UDF returns.
@@ -157,12 +157,18 @@ Call-site state (`_ta_call_i` reset each bar), one sample per site per bar (safe
 - Bench (≈3264 BTC daily bars, worker Runtime): **~9.5×** `ta_sma`, **~4.9×** sma+ema+rsi, **~3×** macd, **~10×** atr, **~8.5×** macd+atr+rsi+sma combo vs flag off
 
 #### Still open / residual (not “missing syntax”)
-- ⚙️ Corpus Runtime residual: TIMEOUT / long-tail `RUN_FAIL` (arity/log/str edge cases, truncated files) — not closed as grammar gaps
-- ⬜ Incremental for remaining heavy kernels (`ta.bb` full path, nested full-list helpers that still call `_ema`/`_sma` internally outside builtins)
-- ⬜ Unify Runtime host into single package module (backend vs pyne-worker copy drift)
-- ⬜ Cap unbounded `current_series` lists to `max_bars_back` / documented max
-- ⚠️ `ta.atr` still uses **EMA-of-TR** (historical pynescript oracle); true TV Wilder RMA-ATR is a **correctness** item if we re-baseline, not a silent perf tweak
-- ⚠️ Bit-identical every recursive smoother vs live TV remains a numerical-parity track (see numerical validation)
+
+| ID | Item | Pri |
+| --- | --- | --- |
+| **H1** | Dual-host: port SoT host compile/auto/`error_kind`/fail-cache/inputs→interpret to **pyne-worker** (full package unify later) | P1 — **in progress** (host surface ported Aug 2026; package-level unify still open) |
+| **H2** | Product warm-compile path (SLOs, prewarm, IR cache on in deploy) | P1 |
+| **C1** | Corpus Runtime residual: TIMEOUT / long-tail `RUN_FAIL` (arity/log/str edges, truncated files) | P1 |
+| **T1** | Cap unbounded `current_series` lists to `max_bars_back` / `_SERIES_MAX` | P2 |
+| **T2** | Incremental for remaining heavy kernels (`ta.bb`, nested full-list helpers still calling `_ema`/`_sma` outside builtins) | P2 |
+| **F1** | `ta.atr` still **EMA-of-TR** (historical oracle); TV Wilder RMA-ATR only with dedicated goldens | P2 |
+| — | Bit-identical recursive smoothers vs live TV | numerical-parity track |
+
+Canonical priority table: `docs/ROADMAP.md`. Round 6 residual notes: `docs/perf_round6/00_summary.md`.
 
 #### Corpus Runtime snapshot (set01–set04, pyne-worker, 50 bars)
 - Projected OK after re-run of prior fails: **~2224 / 2477 (89.8%)**

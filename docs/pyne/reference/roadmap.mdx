@@ -19,14 +19,14 @@
 
 ---
 title: "Roadmap"
-description: "PYNE forward plan — completed consolidation items, remaining performance, DX, and integration work."
+description: "PYNE forward plan — residual host parity, corpus tail, warm compile, and optional fidelity work."
 ---
 
 # Roadmap
 
 ## Abstract
 
-The roadmap is a **living prioritization document**, not a contract. Source: `docs/ROADMAP.md` (updated 2026-07-13 consolidation) plus subsequent surface work. Many historically “remaining” items — Jupyter, linter, data providers, strategy events, pine-worker skeleton, deep strategy runtime — are **done**. What remains clusters into performance, packaging polish, and ecosystem integration.
+The roadmap is a **living prioritization document**, not a contract. Source: `docs/ROADMAP.md` (updated **2026-08-01**). Historically “remaining” items — Jupyter, linter, data providers, strategy events, Pro API, LSP core, deep strategy runtime, drawing GC — are **done**. What remains: **dual-host Runtime parity**, **corpus execution tail**, **warm-compile productization**, residual **TA/series perf**, and optional **TV-oracle re-baselines**.
 
 ## Conceptual model
 
@@ -67,37 +67,24 @@ flowchart LR
 
 ### Remaining high-value work
 
-#### Phase A — Performance
+| ID | Item | Pri |
+| --- | --- | --- |
+| H1 | Dual-host Runtime (pyne-worker ← SoT host surface) | P1 |
+| H2 | Warm-compile product path (SLOs / prewarm / IR cache) | P1 |
+| C1 | Corpus TIMEOUT / RUN_FAIL residual | P1 |
+| T1 / T2 | Series caps + residual incremental TA | P2 |
+| F1 / F2 | Optional TV-oracle re-baselines (ATR, pending fills) | P2 |
+| L1–L3 | Converter maturity, webhooks, TS pine-worker parity | P3 |
 
-- JIT / deeper numba coverage beyond MVP paths
-- Vectorized array hot loops
-- Caching for repeated calculations
+Longer horizon (not next): ML wrappers, automatic refactor, parallel/distributed eval experiments.
 
-#### Phase B — Developer experience
-
-- Deeper debugging / profiling tools
-- Docs: tutorials, interactive examples (this Mintlify tree is part of that)
-- Editor client polish beyond VS Code
-
-#### Phase C — Integration
-
-- Hardened REST API productization (auth, SLOs)
-- Webhook alerts beyond stubs
-- Cloud deploy recipes (see [DevOps](/pyne/docs/devops))
-
-#### Phase D — Longer horizon
-
-- Pine v5 ↔ v6 converter maturity (`scripts/convert_pine_version.py` started)
-- Automatic refactor / optimization suggestions
-- Parallel / distributed evaluation experiments
-
-### Priority recommendation (from source)
+### Priority recommendation
 
 | Horizon | Focus |
 | --- | --- |
-| Short | API server productization, LSP/editor depth |
-| Medium | Performance (JIT, cache, vectorize), advanced stats/ML wrappers |
-| Long | Converters, parallel execution |
+| Short | H1 dual-host, C1 corpus tail, H2 warm compile |
+| Medium | T1/T2 series + residual TA; optional F1/F2 goldens |
+| Long | L1–L3 converter / webhooks / TS parity |
 
 ## Internals
 

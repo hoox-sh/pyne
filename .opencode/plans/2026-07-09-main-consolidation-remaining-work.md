@@ -1,6 +1,11 @@
 # Main Branch Consolidation and Remaining Work Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **HISTORICAL (2026-07-09).** Most deliverables shipped on `main` through July–Aug 2026
+> (strategy events, pine-worker tool, docs sync, plotting/strategy depth, LSP core).
+> **Do not re-execute stale `[ ]` checkboxes.** For current open work use
+> `docs/ROADMAP.md` residual IDs **H1–L3** and `docs/missing_features.md`.
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. *(Legacy plan body preserved below for archaeology.)*
 
 **Goal:** Bring the `main` branch up to date with current project reality by integrating recent strategy-events + pine-worker work, syncing all documentation, fixing lingering code stubs, completing high-priority open LSP features, and establishing a clear prioritized path for the remaining roadmap items. Produce a clean, testable, documented main that accurately reflects implemented work.
 
