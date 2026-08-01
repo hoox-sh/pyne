@@ -787,6 +787,14 @@ class Runtime:
         except Exception:
             pass
 
+        # Alert engine: clear per-run so prior jobs do not leak firings
+        clear_alerts = getattr(evaluator, "clear_alerts", None)
+        if callable(clear_alerts):
+            try:
+                clear_alerts()
+            except Exception:
+                pass
+
         all_events: list[dict] = []
         all_events_append = all_events.append
 
@@ -1192,6 +1200,35 @@ class Runtime:
         except Exception:
             drawings = []
 
+        # Alert engine export (alert() + true alertcondition firings) — dual-host H1
+        alerts: list[dict[str, Any]] = []
+        alert_conditions: list[dict[str, Any]] = []
+        try:
+            try:
+                from pynescript.ast.evaluator.builtins.alerts import (
+                    export_alerts_from_evaluator,
+                )
+
+                alerts = list(export_alerts_from_evaluator(evaluator) or [])
+            except ImportError:
+                raw = getattr(evaluator, "get_triggered_alerts", None)
+                items = raw() if callable(raw) else getattr(evaluator, "_triggered_alerts", None) or []
+                for a in items or []:
+                    if hasattr(a, "to_dict"):
+                        alerts.append(a.to_dict())
+                    elif isinstance(a, dict):
+                        alerts.append(dict(a))
+            exp_c = getattr(evaluator, "export_alert_conditions", None)
+            if callable(exp_c):
+                alert_conditions = list(exp_c() or [])
+        except Exception:
+            alerts = []
+            alert_conditions = []
+        for a in alerts:
+            if isinstance(a, dict):
+                a.setdefault("script_id", script_id)
+                a.setdefault("run_id", run_id)
+
         # Script declaration → AXIS pane routing (indicator default overlay=false)
         decl = getattr(evaluator, "_script_declaration", None)
         overlay = True
@@ -1257,23 +1294,27 @@ class Runtime:
         }
         if drawing_limits:
             meta_out.update(drawing_limits)
+        interpret_out: dict[str, Any] = {
+            "plots": final_series,
+            "series": series_map,
+            "plot_meta": plot_meta,
+            "events": all_events,
+            "drawings": drawings,
+            "alerts": alerts,
+            "inputs": input_defs,
+            "count": n_result_bars,
+            "script_id": script_id,
+            "run_id": self._run_id,
+            "mode": "interpret",
+            "overlay": overlay,
+            "script_name": script_name,
+            "script_type": script_type,
+            "meta": meta_out,
+        }
+        if alert_conditions:
+            interpret_out["alert_conditions"] = alert_conditions
         return _attach_logs_profile(
-            {
-                "plots": final_series,
-                "series": series_map,
-                "plot_meta": plot_meta,
-                "events": all_events,
-                "drawings": drawings,
-                "inputs": input_defs,
-                "count": n_result_bars,
-                "script_id": script_id,
-                "run_id": self._run_id,
-                "mode": "interpret",
-                "overlay": overlay,
-                "script_name": script_name,
-                "script_type": script_type,
-                "meta": meta_out,
-            },
+            interpret_out,
             total_ms=total_ms,
             bars=n_result_bars,
             mode="interpret",
@@ -1577,11 +1618,13 @@ class Runtime:
         # Do NOT return generated_code by default — large scripts + cold Numba make
         # JSON responses multi-MB and can trip AXIS/gunicorn timeouts. Opt-in via
         # PYNESCRIPT_RETURN_GENERATED_CODE=1 for debugging.
+        # Compile path does not execute interpret-only alert() side effects yet
         out: dict[str, Any] = {
             "plots": final_series,
             "series": json_series,
             "drawings": drawings if isinstance(drawings, list) else list(drawings or []),
             "events": events if isinstance(events, list) else list(events or []),
+            "alerts": [],
             "count": len(ohlcv_data),
             "script_id": script_id,
             "run_id": self._run_id,

@@ -161,6 +161,33 @@ class TestRun:
         assert resp.json["status"] == "success"
         assert len(resp.json["plots"]) == 2
         assert resp.json["plots"] == [102, 105]
+        # Dual-host: empty alerts list is always present (parity with pyne-worker)
+        assert resp.json.get("alerts") == []
+
+    def test_run_exports_alerts(self, client: FlaskClient):
+        """alert() firings surface on /run (interpret path)."""
+        bars = [
+            {"open": 100, "high": 105, "low": 98, "close": 102, "time": 1000, "volume": 10},
+            {"open": 102, "high": 108, "low": 101, "close": 105, "time": 2000, "volume": 12},
+            {"open": 105, "high": 110, "low": 104, "close": 108, "time": 3000, "volume": 11},
+        ]
+        script = """//@version=5
+indicator("alerts")
+if bar_index == 1
+    alert("hello-pro")
+plot(close)
+"""
+        resp = client.post(
+            "/run",
+            json={"script": script, "data": bars, "mode": "interpret"},
+        )
+        assert resp.status_code == 200, resp.json
+        assert resp.json["status"] == "success"
+        alerts = resp.json.get("alerts") or []
+        assert any(a.get("message") == "hello-pro" for a in alerts)
+        hit = next(a for a in alerts if a.get("message") == "hello-pro")
+        assert hit.get("bar_index") == 1
+        assert hit.get("source") == "alert"
         # Empty log.* scripts still export logs + profile (and under meta).
         assert resp.json.get("logs") == []
         profile = resp.json.get("profile")

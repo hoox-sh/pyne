@@ -88,7 +88,7 @@ Historical Phase A–D “build API / LSP / Jupyter” items are **done**. Do no
 
 | ID | Item | Pri | Owner |
 | --- | --- | --- | --- |
-| **H1** | Port R5–R6 host surface to pyne-worker (fail-cache, `error_kind`, inputs→interpret, compile cache) | P1 ✅ host surface (Aug 2026); package-level unify still open | pyne-worker |
+| **H1** | Port R5–R6 host surface to pyne-worker (fail-cache, `error_kind`, inputs→interpret, compile cache) | P1 ✅ host surface + **alerts export** dual-host (Aug 2026); package-level Runtime unify still open | pyne-worker + backend |
 | **H2** | Product warm-compile path (document SLOs; optional prewarm workers; IR cache on in deploy) | P1 | pyne + ops |
 | **C1** | Corpus TIMEOUT / RUN_FAIL residual (set01–04 ~90% → **~94.3%** OK projected after 8-agent pass) | P1 ⚙️ ongoing (~21 RUN_FAIL + PARSE stubs ~118) | pyne + pyne-worker |
 | **T1** | Cap `current_series` to `max_bars_back` / `_SERIES_MAX` | P2 | pyne |
@@ -96,7 +96,7 @@ Historical Phase A–D “build API / LSP / Jupyter” items are **done**. Do no
 | **F1** | ATR Wilder / TV supertrend re-baseline **only** with dedicated goldens | P2 | pyne |
 | **F2** | Pending-fill averaging when pyramiding ≤ 0 | P2 | pyne |
 | **L1** | v5↔v6 converter maturity (`scripts/convert_pine_version.py`) | P3 | pyne |
-| **L2** | Webhook alerts productization | P3 ⚙️ pyne-worker edge (ALERT_WEBHOOK_URL + job webhook_url); Pro API still open | pyne-worker + backend |
+| **L2** | Webhook alerts productization | P3 ⚙️ pyne-worker edge webhooks + Pro API `/run` **alerts** export; Pro API outbound webhook still open | pyne-worker + backend |
 | **L3** | pine-worker (TS) full builtin parity | P3 | pine-worker tool |
 | **B1** | Real (non-mock) `request.*` market data | ⚙️ by design | adapters |
 

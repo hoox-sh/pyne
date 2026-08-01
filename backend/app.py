@@ -302,13 +302,14 @@ def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
             err_body["meta"] = result["meta"]
         return err_body, 500
 
-    return {
+    resp: dict[str, Any] = {
         "status": "success",
         "plots": result.get("plots", []),
         "series": result.get("series", {}),
         "plot_meta": result.get("plot_meta", {}),
         "events": result.get("events", []),
         "drawings": result.get("drawings", []),
+        "alerts": result.get("alerts", []),
         "inputs": result.get("inputs", []),
         "script_id": result.get("script_id", ""),
         "run_id": result.get("run_id", ""),
@@ -324,7 +325,10 @@ def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
             "inputs": result.get("inputs", []),
             "plot_meta": result.get("plot_meta", {}),
         },
-    }, 200
+    }
+    if result.get("alert_conditions") is not None:
+        resp["alert_conditions"] = result["alert_conditions"]
+    return resp, 200
 
 
 def _health_payload() -> dict[str, Any]:
@@ -603,21 +607,23 @@ def run_pine_script_batch():
                 }
             )
             continue
-        results.append(
-            {
-                "id": sid,
-                "status": "success",
-                "plots": result.get("plots", []),
-                "series": result.get("series", {}),
-                "plot_meta": result.get("plot_meta", {}),
-                "events": result.get("events", []),
-                "drawings": result.get("drawings", []),
-                "script_id": result.get("script_id", ""),
-                "run_id": result.get("run_id", ""),
-                "count": result.get("count", 0),
-                "mode": result.get("mode", mode),
-            }
-        )
+        item: dict[str, Any] = {
+            "id": sid,
+            "status": "success",
+            "plots": result.get("plots", []),
+            "series": result.get("series", {}),
+            "plot_meta": result.get("plot_meta", {}),
+            "events": result.get("events", []),
+            "drawings": result.get("drawings", []),
+            "alerts": result.get("alerts", []),
+            "script_id": result.get("script_id", ""),
+            "run_id": result.get("run_id", ""),
+            "count": result.get("count", 0),
+            "mode": result.get("mode", mode),
+        }
+        if result.get("alert_conditions") is not None:
+            item["alert_conditions"] = result["alert_conditions"]
+        results.append(item)
 
     ok = sum(1 for r in results if r.get("status") == "success")
     return jsonify(
