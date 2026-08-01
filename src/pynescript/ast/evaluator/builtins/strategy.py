@@ -81,6 +81,9 @@ class OpenTrade:
     direction: str  # "long" or "short"
     size: float
     commission: float = 0.0
+    entry_comment: str = ""
+    max_drawdown: float = 0.0
+    max_runup: float = 0.0
 
 
 @dataclass
@@ -98,6 +101,11 @@ class Trade:
     profit: float
     commission: float
     entry_id: str = ""
+    exit_id: str = ""
+    entry_comment: str = ""
+    exit_comment: str = ""
+    max_drawdown: float = 0.0
+    max_runup: float = 0.0
 
 
 # Strategy state management
@@ -439,19 +447,29 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             "strategy.closedtrades.entry_bar_index": (self._handle_closedtrades_entry_bar_index),
             "strategy.closedtrades.entry_time": (self._handle_closedtrades_entry_time),
             "strategy.closedtrades.entry_price": (self._handle_closedtrades_entry_price),
+            "strategy.closedtrades.entry_id": (self._handle_closedtrades_entry_id),
+            "strategy.closedtrades.entry_comment": (self._handle_closedtrades_entry_comment),
             "strategy.closedtrades.exit_bar_index": (self._handle_closedtrades_exit_bar_index),
             "strategy.closedtrades.exit_time": (self._handle_closedtrades_exit_time),
             "strategy.closedtrades.exit_price": (self._handle_closedtrades_exit_price),
+            "strategy.closedtrades.exit_id": (self._handle_closedtrades_exit_id),
+            "strategy.closedtrades.exit_comment": (self._handle_closedtrades_exit_comment),
             "strategy.closedtrades.profit": (self._handle_closedtrades_profit),
             "strategy.closedtrades.size": self._handle_closedtrades_size,
             "strategy.closedtrades.commission": (self._handle_closedtrades_commission),
+            "strategy.closedtrades.max_drawdown": (self._handle_closedtrades_max_drawdown),
+            "strategy.closedtrades.max_runup": (self._handle_closedtrades_max_runup),
             # Open position queries
             "strategy.opentrades.entry_bar_index": (self._handle_opentrades_entry_bar_index),
             "strategy.opentrades.entry_time": (self._handle_opentrades_entry_time),
             "strategy.opentrades.entry_price": (self._handle_opentrades_entry_price),
+            "strategy.opentrades.entry_id": (self._handle_opentrades_entry_id),
+            "strategy.opentrades.entry_comment": (self._handle_opentrades_entry_comment),
             "strategy.opentrades.size": self._handle_opentrades_size,
             "strategy.opentrades.profit": self._handle_opentrades_profit,
             "strategy.opentrades.commission": (self._handle_opentrades_commission),
+            "strategy.opentrades.max_drawdown": (self._handle_opentrades_max_drawdown),
+            "strategy.opentrades.max_runup": (self._handle_opentrades_max_runup),
         }
 
     @staticmethod
@@ -911,6 +929,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 direction=direction,
                 size=qty,
                 commission=commission,
+                entry_comment=str(comment or ""),
             )
         ]
         st.note_position_size()
@@ -1553,6 +1572,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                     direction=direction,
                     size=qty,
                     commission=float(commission),
+                    entry_comment=str(comment or ""),
                 )
             )
         else:
@@ -1571,6 +1591,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                     direction=direction,
                     size=qty,
                     commission=float(commission),
+                    entry_comment=str(comment or ""),
                 )
             ]
         st.note_position_size()
@@ -1650,6 +1671,9 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                     profit=profit,
                     commission=commission,
                     entry_id=ot.entry_id,
+                    entry_comment=getattr(ot, "entry_comment", "") or "",
+                    max_drawdown=float(getattr(ot, "max_drawdown", 0.0) or 0.0),
+                    max_runup=float(getattr(ot, "max_runup", 0.0) or 0.0),
                 )
             )
             self._strategy_state.note_closed_profit(profit)
@@ -1955,6 +1979,20 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             return self._strategy_state.closed_trades[trade_index].entry_price
         return 0.0
 
+    def _handle_closedtrades_entry_id(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
+        """strategy.closedtrades.entry_id(trade_index)"""
+        trade_index = args[0] if len(args) > 0 else 0
+        if 0 <= trade_index < len(self._strategy_state.closed_trades):
+            return str(self._strategy_state.closed_trades[trade_index].entry_id or "")
+        return ""
+
+    def _handle_closedtrades_entry_comment(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
+        """strategy.closedtrades.entry_comment(trade_index)"""
+        trade_index = args[0] if len(args) > 0 else 0
+        if 0 <= trade_index < len(self._strategy_state.closed_trades):
+            return str(self._strategy_state.closed_trades[trade_index].entry_comment or "")
+        return ""
+
     def _handle_closedtrades_exit_bar_index(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> int:
         """strategy.closedtrades.exit_bar_index(trade_index)"""
         trade_index = args[0] if len(args) > 0 else 0
@@ -1974,6 +2012,34 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         trade_index = args[0] if len(args) > 0 else 0
         if 0 <= trade_index < len(self._strategy_state.closed_trades):
             return self._strategy_state.closed_trades[trade_index].exit_price
+        return 0.0
+
+    def _handle_closedtrades_exit_id(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
+        """strategy.closedtrades.exit_id(trade_index)"""
+        trade_index = args[0] if len(args) > 0 else 0
+        if 0 <= trade_index < len(self._strategy_state.closed_trades):
+            return str(self._strategy_state.closed_trades[trade_index].exit_id or "")
+        return ""
+
+    def _handle_closedtrades_exit_comment(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
+        """strategy.closedtrades.exit_comment(trade_index)"""
+        trade_index = args[0] if len(args) > 0 else 0
+        if 0 <= trade_index < len(self._strategy_state.closed_trades):
+            return str(self._strategy_state.closed_trades[trade_index].exit_comment or "")
+        return ""
+
+    def _handle_closedtrades_max_drawdown(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        """strategy.closedtrades.max_drawdown(trade_index)"""
+        trade_index = args[0] if len(args) > 0 else 0
+        if 0 <= trade_index < len(self._strategy_state.closed_trades):
+            return float(self._strategy_state.closed_trades[trade_index].max_drawdown)
+        return 0.0
+
+    def _handle_closedtrades_max_runup(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        """strategy.closedtrades.max_runup(trade_index)"""
+        trade_index = args[0] if len(args) > 0 else 0
+        if 0 <= trade_index < len(self._strategy_state.closed_trades):
+            return float(self._strategy_state.closed_trades[trade_index].max_runup)
         return 0.0
 
     def _handle_closedtrades_profit(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
@@ -2018,6 +2084,34 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         trade_index = args[0] if len(args) > 0 else 0
         if 0 <= trade_index < len(self._strategy_state.open_trades):
             return self._strategy_state.open_trades[trade_index].entry_price
+        return 0.0
+
+    def _handle_opentrades_entry_id(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
+        """strategy.opentrades.entry_id(trade_index)"""
+        trade_index = args[0] if len(args) > 0 else 0
+        if 0 <= trade_index < len(self._strategy_state.open_trades):
+            return str(self._strategy_state.open_trades[trade_index].entry_id or "")
+        return ""
+
+    def _handle_opentrades_entry_comment(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
+        """strategy.opentrades.entry_comment(trade_index)"""
+        trade_index = args[0] if len(args) > 0 else 0
+        if 0 <= trade_index < len(self._strategy_state.open_trades):
+            return str(self._strategy_state.open_trades[trade_index].entry_comment or "")
+        return ""
+
+    def _handle_opentrades_max_drawdown(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        """strategy.opentrades.max_drawdown(trade_index)"""
+        trade_index = args[0] if len(args) > 0 else 0
+        if 0 <= trade_index < len(self._strategy_state.open_trades):
+            return float(self._strategy_state.open_trades[trade_index].max_drawdown)
+        return 0.0
+
+    def _handle_opentrades_max_runup(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        """strategy.opentrades.max_runup(trade_index)"""
+        trade_index = args[0] if len(args) > 0 else 0
+        if 0 <= trade_index < len(self._strategy_state.open_trades):
+            return float(self._strategy_state.open_trades[trade_index].max_runup)
         return 0.0
 
     def _handle_opentrades_size(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> float:

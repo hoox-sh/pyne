@@ -82,6 +82,7 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
             "math.todegrees": self._builtin_math_todegrees,
             "math.toradians": self._builtin_math_toradians,
             "math.random": self._builtin_math_random,
+            "math.isfinite": self._builtin_math_isfinite,
             "color.new": self._builtin_color_new,
             "na": self._builtin_na,
             "nz": self._builtin_nz,
@@ -356,6 +357,13 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
             return random.uniform(float(lo), float(hi))
         self._error("math.random takes 0 or 2 arguments")
 
+    def _builtin_math_isfinite(self, args: list[Any]) -> bool | None:
+        """``math.isfinite(x)`` — True when *x* is finite; ``na`` → ``na``."""
+        self._require_len(args, UNARY, "math.isfinite takes exactly one argument")
+        n = self._as_num(args[0])
+        if n is None:
+            return None
+        return bool(math.isfinite(n))
 
     def _builtin_color_new(self, args: list[Any]) -> Any:
         self._require_len(args, UNARY, "color.new takes one argument")

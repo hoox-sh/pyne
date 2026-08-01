@@ -52,8 +52,9 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
             "str.trim": self._builtin_str_trim,
             "str.tonumber": self._builtin_str_tonumber,
             "str.tostring": self._builtin_str_tostring,
-            # v4 bare alias
+            # v4 bare aliases (scraped corpus still uses un-namespaced forms)
             "tostring": self._builtin_str_tostring,
+            "tonumber": self._builtin_str_tonumber,
             "str.format": self._builtin_str_format,
             "str.match": self._builtin_str_match,
             "str.pos": self._builtin_str_pos,

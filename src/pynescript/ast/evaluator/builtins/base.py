@@ -391,6 +391,10 @@ def _merge_kwargs_into_args(
             kwarg_order = _TA_KWARG_ORDERS.get(ta_bare)
         if kwarg_order:
             merged = list(args)
+            # Indices filled by an explicit keyword (including value=None / Pine na).
+            # Trailing-None trim must not drop those — e.g. array.push(id=a, value=na)
+            # would otherwise collapse to [a] and fail arity checks.
+            explicit_idx: set[int] = set()
             for key, val in kwargs.items():
                 canon = _TA_KWARG_ALIASES.get(key, key)
                 if canon in kwarg_order:
@@ -401,9 +405,14 @@ def _merge_kwargs_into_args(
                     if idx < len(args) and args[idx] is not None:
                         continue
                     merged[idx] = val
+                    explicit_idx.add(idx)
                 # else: drop unknown ta kwargs (color=, title=, …)
-            # Trim trailing Nones introduced by sparse kwargs
-            while merged and merged[-1] is None:
+            # Trim trailing Nones introduced only as sparse padding slots
+            while (
+                merged
+                and merged[-1] is None
+                and (len(merged) - 1) not in explicit_idx
+            ):
                 merged.pop()
             return merged
         # Non-ta: append unknown values (legacy behavior)
