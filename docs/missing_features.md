@@ -296,7 +296,7 @@ PyneScript core is mature, with significant July 2026 enhancements:
 - ✅ Type checking: na, nz, fixnan
 - ✅ Type conversion: int, float, bool, string
 - ✅ Color operations: color.new, color.rgb
-- ✅ Alerts: alert, alertcondition
+- ✅ Alerts: alert, alertcondition (+ freq rules, host export, pyne-worker last-bar + webhooks)
 
 ### Collections
 

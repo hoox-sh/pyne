@@ -96,7 +96,7 @@ Historical Phase A–D “build API / LSP / Jupyter” items are **done**. Do no
 | **F1** | ATR Wilder / TV supertrend re-baseline **only** with dedicated goldens | P2 | pyne |
 | **F2** | Pending-fill averaging when pyramiding ≤ 0 | P2 | pyne |
 | **L1** | v5↔v6 converter maturity (`scripts/convert_pine_version.py`) | P3 | pyne |
-| **L2** | Webhook alerts productization | P3 | backend |
+| **L2** | Webhook alerts productization | P3 ⚙️ pyne-worker edge (ALERT_WEBHOOK_URL + job webhook_url); Pro API still open | pyne-worker + backend |
 | **L3** | pine-worker (TS) full builtin parity | P3 | pine-worker tool |
 | **B1** | Real (non-mock) `request.*` market data | ⚙️ by design | adapters |
 
