@@ -216,10 +216,14 @@ class AlertsMixin(BuiltinDispatchMixin):
     def _builtin_alert(self, args: list[Any]) -> None:
         """Send an alert notification.
 
-        Signature: ``alert(message, freq)``
+        Signature: ``alert(message, freq)``.
+
+        Zero-arg ``alert()`` (linter signature demos / truncated scrapes) is a
+        soft no-op rather than a hard Runtime Error so residual corpus scripts
+        keep evaluating other statements.
         """
         if not args or len(args) < 1:
-            self._error("alert() requires at least a message argument")
+            return
 
         message = str(args[0] if args[0] is not None else "")
         freq: Any = FREQ_ONCE_PER_BAR

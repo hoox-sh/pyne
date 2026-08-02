@@ -63,6 +63,13 @@ class TestHealth:
         assert resp.status_code == 200
         assert resp.json["status"] == "healthy"
         assert "endpoints" in resp.json
+        assert resp.json.get("features", {}).get("default_run_mode") == "auto"
+        assert "compile" in resp.json
+        compile_info = resp.json["compile"]
+        assert "has_numba" in compile_info
+        assert "disk_cache_enabled" in compile_info
+        assert compile_info.get("default_mode") == "auto"
+        assert "/compile/prewarm" in str(resp.json.get("endpoints", {}))
 
 
 class TestAuth:
@@ -435,6 +442,49 @@ plot(close)
         # First bars of SMA(14) are null (warm-up), later bars are finite numbers
         assert first[0] is None
         assert any(isinstance(x, (int, float)) for x in first)
+
+    def test_compile_prewarm_endpoint(self, client: FlaskClient):
+        """POST /compile/prewarm warms builtins (and optional scripts) without OHLCV."""
+        src = "//@version=5\nindicator('pw')\nplot(close, title='c')\n"
+        resp = client.post(
+            "/compile/prewarm",
+            json={"scripts": [src], "force": False},
+        )
+        assert resp.status_code == 200, resp.json
+        body = resp.json
+        assert body["status"] == "success"
+        assert "has_numba" in body
+        assert body.get("scripts_ok", 0) >= 1
+        assert body.get("scripts_failed", 0) == 0
+        assert "prewarm_ms" in body
+        # Second call is cheap (idempotent builtins)
+        resp2 = client.post("/compile/prewarm", json={})
+        assert resp2.status_code == 200
+        assert resp2.json["status"] == "success"
+
+    def test_run_mode_auto_prefers_compile_when_safe(self, client: FlaskClient):
+        """Default mode=auto should land on compile for pure numeric scripts."""
+        bars = [
+            {"open": 100, "high": 105, "low": 98, "close": 102, "time": 1, "volume": 10},
+            {"open": 102, "high": 108, "low": 101, "close": 105, "time": 2, "volume": 12},
+        ]
+        resp = client.post(
+            "/run",
+            json={
+                "script": "//@version=5\nindicator('t')\nplot(close)",
+                "data": bars,
+                # omit mode → schema default auto
+            },
+        )
+        assert resp.status_code == 200, resp.json
+        body = resp.json
+        assert body["status"] == "success"
+        # auto prefers compile when eligible
+        assert body.get("mode") in ("compile", "interpret")
+        if body.get("mode") == "compile":
+            assert body.get("auto_backend") == "compile"
+            assert "compile_ms" in body or body.get("compile_cached") is not None
+        assert body["plots"] == [102, 105]
 
     def test_run_no_script(self, client: FlaskClient):
         resp = client.post("/run", json={"data": []})

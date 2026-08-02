@@ -1588,58 +1588,107 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         commission: float = 0.0,
         comment: str | None = "order_fill",
     ) -> None:
-        """Open or add to a position (absolute qty, same direction)."""
+        """Open or add to a position (absolute qty, same direction).
+
+        Pyramiding semantics for **pending fills** (``strategy.order`` / limit
+        ``strategy.entry``):
+
+        - ``pyramiding <= 0``: stack same-direction fills into **one** open trade
+          with VWAP average entry (F2). Market path still blocks extra ids via
+          :meth:`_handle_strategy_entry`; order fills may average size.
+        - ``pyramiding > 0``: append open-trade legs up to ``pyramiding + 1``;
+          beyond that additional fills are ignored.
+        """
         st = self._strategy_state
-        # Pyramiding: 0 = replace/add only if flat; n = max open entries
+        q = float(qty)
+        px = float(fill_price)
+        comm = float(commission)
         if st.position_direction == direction and st.position_size > 0:
-            if st.pyramiding <= 0 and len(st.open_trades) >= 1:
-                # Default: allow add for order fills (averaging) but cap by pyramiding=0 as single entry size update
-                pass
-            elif st.pyramiding > 0 and len(st.open_trades) >= st.pyramiding + 1:
+            if st.pyramiding <= 0:
+                # F2: single-leg VWAP merge (no extra open_trades legs)
+                old_size = float(st.position_size)
+                new_size = old_size + q
+                if new_size <= 0:
+                    return
+                st.entry_price = (float(st.entry_price) * old_size + px * q) / new_size
+                st.position_size = new_size
+                st.position_entry_name = entry_id
+                if st.open_trades:
+                    first = st.open_trades[0]
+                    total_comm = sum(float(t.commission) for t in st.open_trades) + comm
+                    st.open_trades = [
+                        OpenTrade(
+                            entry_id=first.entry_id,
+                            entry_bar=first.entry_bar,
+                            entry_time=first.entry_time,
+                            entry_price=float(st.entry_price),
+                            direction=direction,
+                            size=new_size,
+                            commission=total_comm,
+                            entry_comment=getattr(first, "entry_comment", "") or "",
+                        )
+                    ]
+                else:
+                    st.open_trades = [
+                        OpenTrade(
+                            entry_id=entry_id,
+                            entry_bar=bar_index,
+                            entry_time=bar_time,
+                            entry_price=float(st.entry_price),
+                            direction=direction,
+                            size=new_size,
+                            commission=comm,
+                            entry_comment=str(comment or ""),
+                        )
+                    ]
+            elif len(st.open_trades) >= int(st.pyramiding) + 1:
+                # At open-trade cap — ignore further same-direction adds
                 return
-            total = st.position_size + qty
-            st.entry_price = (st.entry_price * st.position_size + fill_price * qty) / total
-            st.position_size = total
-            st.position_entry_name = entry_id
-            st.open_trades.append(
-                OpenTrade(
-                    entry_id=entry_id,
-                    entry_bar=bar_index,
-                    entry_time=bar_time,
-                    entry_price=fill_price,
-                    direction=direction,
-                    size=qty,
-                    commission=float(commission),
-                    entry_comment=str(comment or ""),
+            else:
+                # pyramiding > 0 with room: append a new open-trade leg
+                total = float(st.position_size) + q
+                st.entry_price = (float(st.entry_price) * float(st.position_size) + px * q) / total
+                st.position_size = total
+                st.position_entry_name = entry_id
+                st.open_trades.append(
+                    OpenTrade(
+                        entry_id=entry_id,
+                        entry_bar=bar_index,
+                        entry_time=bar_time,
+                        entry_price=px,
+                        direction=direction,
+                        size=q,
+                        commission=comm,
+                        entry_comment=str(comment or ""),
+                    )
                 )
-            )
         else:
             st.position_direction = direction
-            st.entry_price = fill_price
+            st.entry_price = px
             st.entry_bar = bar_index
             st.entry_time = bar_time
-            st.position_size = qty
+            st.position_size = q
             st.position_entry_name = entry_id
             st.open_trades = [
                 OpenTrade(
                     entry_id=entry_id,
                     entry_bar=bar_index,
                     entry_time=bar_time,
-                    entry_price=fill_price,
+                    entry_price=px,
                     direction=direction,
-                    size=qty,
-                    commission=float(commission),
+                    size=q,
+                    commission=comm,
                     entry_comment=str(comment or ""),
                 )
             ]
         st.note_position_size()
-        st.equity(fill_price)
+        st.equity(px)
         self._record_strategy_event(
             StrategyEvent(
                 kind="entry",
                 id=entry_id,
                 direction=direction,
-                qty=qty,
+                qty=q,
                 order_type=None,
                 limit=None,
                 stop=None,

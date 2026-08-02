@@ -27,7 +27,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     MPLBACKEND=Agg \
     PORT=8080 \
     HOST=0.0.0.0 \
-    API_KEY_STORE=/data/api_keys.json
+    API_KEY_STORE=/data/api_keys.json \
+    PYNE_COMPILE_DISK_CACHE=1 \
+    PYNE_COMPILE_CACHE_DIR=/data/compile-cache \
+    PYNE_COMPILE_PREWARM=1
 
 WORKDIR /app
 
@@ -38,8 +41,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 1000 appuser \
     && useradd --uid 1000 --gid appuser --create-home --shell /usr/sbin/nologin appuser \
-    && mkdir -p /data \
-    && chown appuser:appuser /data
+    && mkdir -p /data /data/compile-cache \
+    && chown -R appuser:appuser /data
 
 # ---------------------------------------------------------------------------
 # Builder: install Python deps + package into /install prefix

@@ -30,6 +30,7 @@ Commands
 - ``parse-and-unparse`` / ``unparse`` — round-trip source
 - ``lint`` — linter with colored / JSON output
 - ``compile`` — transpile or compile-check via Numba pipeline
+- ``prewarm`` — warm Numba builtins / optional script IR caches (H2)
 - ``run`` — compile + execute on synthetic OHLCV
 - ``data`` — fetch market bars (mock / Yahoo / …)
 - ``info`` — version and optional extras (numba, rich, …)
@@ -696,6 +697,65 @@ def compile_cmd(
     except Exception as e:
         _echo_status("fail", f"{type(e).__name__}: {e}", err=True)
         raise SystemExit(1) from e
+
+
+@cli.command("prewarm", short_help="Warm Numba builtins and optional script IR caches.")
+@click.argument(
+    "filenames",
+    metavar="PATH...",
+    nargs=-1,
+    type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True),
+)
+@click.option("--encoding", default="utf-8", help="Text encoding of Pine files.")
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Re-run builtin warm-up even if already completed this process.",
+)
+@click.option("--json", "as_json", is_flag=True, help="Machine-readable summary.")
+def prewarm_cmd(filenames: tuple[str, ...], encoding: str, force: bool, as_json: bool) -> None:
+    """Pay cold JIT cost before the first run (H2 warm-compile product path).
+
+    Without PATH args, only shared Numba kernels are warmed (and the disk
+    compile-cache directory is ensured). With PATH args, each file is also
+    :func:`compile_script`'d into memory/disk IR caches.
+    """
+    from pynescript.compiler.engine import compile_cache_stats
+    from pynescript.compiler.engine import prewarm_scripts
+
+    sources: list[str] = []
+    for path in filenames:
+        text, _label = _read_source(path, encoding)
+        sources.append(text)
+
+    t0 = time.perf_counter()
+    result = prewarm_scripts(sources or None, force_builtins=force)
+    elapsed_ms = (time.perf_counter() - t0) * 1000.0
+    result = {**result, "prewarm_ms": round(elapsed_ms, 2)}
+
+    if as_json:
+        click.echo(json.dumps(result, indent=2, default=str))
+    else:
+        numba = "yes" if result.get("has_numba") else "no"
+        _echo_status(
+            "ok",
+            f"prewarm  numba={numba}  builtins={result.get('builtins_warmed')}  "
+            f"scripts_ok={result.get('scripts_ok', 0)}  "
+            f"scripts_failed={result.get('scripts_failed', 0)}  "
+            f"{elapsed_ms:.0f}ms",
+        )
+        disk = result.get("disk_cache_dir")
+        if disk:
+            _echo(f"  disk_cache: {disk}")
+        stats = compile_cache_stats()
+        _echo(
+            f"  cache: source={stats.get('source_entries')}/{stats.get('source_max')}  "
+            f"ir={stats.get('ir_entries')}/{stats.get('ir_max')}"
+        )
+        for err in result.get("errors") or []:
+            _echo(f"  fail: {err}", err=True)
+    if result.get("scripts_failed"):
+        raise SystemExit(1)
 
 
 @cli.command("run", short_help="Compile and run on synthetic OHLCV bars.")

@@ -1015,6 +1015,180 @@ plot(kama(close, 1))
         assert len(r["plots"]) == 8
 
 
+class TestStrContainsFamilySoftNa:
+    """C1 residual: str.contains / startswith / endswith na + coerce."""
+
+    def test_contains_na_is_na(self) -> None:
+        src = """//@version=5
+indicator("t")
+plot(na(str.contains(na, "a")) ? 1 : 0)
+plot(na(str.contains("abc", na)) ? 1 : 0)
+plot(str.contains("abc", "b") ? 1 : 0)
+"""
+        r = Runtime().run(src, _bars(3), mode="interpret")
+        assert "error" not in r, r.get("error")
+        series = r.get("series") or {}
+        p0 = series.get("plot_0") or series.get("plot") or r["plots"]
+        assert int(p0[-1]) == 1
+        p2 = series.get("plot_2")
+        if p2 is not None:
+            assert int(p2[-1]) == 1
+
+    def test_startswith_endswith_na(self) -> None:
+        src = """//@version=5
+indicator("t")
+plot(na(str.startswith(na, "x")) ? 1 : 0)
+plot(str.endswith("hello", "lo") ? 1 : 0)
+"""
+        r = Runtime().run(src, _bars(3), mode="interpret")
+        assert "error" not in r, r.get("error")
+
+    def test_contains_number_coerce(self) -> None:
+        src = """//@version=5
+indicator("t")
+plot(str.contains(str.tostring(10101), "010") ? 1 : 0)
+"""
+        r = Runtime().run(src, _bars(3), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert r["plots"][-1] == 1
+
+
+class TestPeriodUnresolvedNameSoftNa:
+    """C1 residual: ta.* length is unresolved name string → na, not hard fail."""
+
+    def test_sma_unresolved_length_is_na(self) -> None:
+        src = """//@version=5
+indicator("t")
+plot(nz(ta.sma(close, length), -1))
+"""
+        r = Runtime().run(src, _bars(20), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert float(r["plots"][-1]) == -1.0
+
+    def test_rsi_unresolved_rsiLen_is_na(self) -> None:
+        src = """//@version=5
+indicator("t")
+plot(nz(ta.rsi(close, rsiLen), -1))
+"""
+        r = Runtime().run(src, _bars(20), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert float(r["plots"][-1]) == -1.0
+
+    def test_numeric_string_period_still_works(self) -> None:
+        src = """//@version=5
+indicator("t")
+plot(ta.sma(close, "14"))
+"""
+        r = Runtime().run(src, _bars(40), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert r["plots"][-1] is not None
+
+    def test_extra_ta_args_soft_ignored(self) -> None:
+        src = """//@version=6
+indicator("t")
+extra = 1
+plot(ta.sma(close, 14, extra))
+"""
+        r = Runtime().run(src, _bars(30), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert r["plots"][-1] is not None
+
+
+class TestTickerStandardZeroArg:
+    """C1 residual: ticker.standard() uses chart ticker; string concat works."""
+
+    def test_zero_arg_stringifies(self) -> None:
+        src = """//@version=5
+indicator("t")
+s = ticker.standard() + " /"
+plot(str.length(s) > 0 ? 1 : 0)
+"""
+        r = Runtime(symbol="NASDAQ:AAPL").run(src, _bars(3), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert r["plots"][-1] == 1
+
+    def test_one_arg_still_works(self) -> None:
+        src = """//@version=5
+indicator("t")
+s = str.tostring(ticker.standard("BATS:SPY"))
+plot(str.contains(s, "SPY") ? 1 : 0)
+"""
+        r = Runtime().run(src, _bars(3), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert r["plots"][-1] == 1
+
+
+class TestArraySomeUnaryAndMatrixFillRegion:
+    """C1 residual: array.some() on bools; matrix.fill region form."""
+
+    def test_array_some_unary_bools(self) -> None:
+        src = """//@version=5
+indicator("t")
+a = array.from(false, true, false)
+plot(a.some() ? 1 : 0)
+b = array.from(false, false)
+plot(b.some() ? 1 : 0)
+"""
+        r = Runtime().run(src, _bars(3), mode="interpret")
+        assert "error" not in r, r.get("error")
+        series = r.get("series") or {}
+        p0 = series.get("plot_0") or series.get("plot") or r["plots"]
+        assert int(p0[-1]) == 1
+
+    def test_matrix_fill_region(self) -> None:
+        src = """//@version=6
+indicator("t")
+m = matrix.new<float>(4, 5, 0.0)
+matrix.fill(m, 7.0, 0, 2, 1, 3)
+plot(matrix.get(m, 0, 1))
+plot(matrix.get(m, 0, 0))
+"""
+        r = Runtime().run(src, _bars(3), mode="interpret")
+        assert "error" not in r, r.get("error")
+        series = r.get("series") or {}
+        p0 = series.get("plot_0") or series.get("plot") or r["plots"]
+        assert abs(float(p0[-1]) - 7.0) < 1e-9
+        p1 = series.get("plot_1")
+        if p1 is not None:
+            assert abs(float(p1[-1]) - 0.0) < 1e-9
+
+    def test_array_standardize_with_history_na(self) -> None:
+        src = """//@version=6
+indicator("t")
+a = array.new_float(0)
+for i = 0 to 9
+    array.push(a, close[i])
+b = array.standardize(a)
+plot(nz(array.min(b), 0))
+"""
+        r = Runtime().run(src, _bars(20), mode="interpret")
+        assert "error" not in r, r.get("error")
+
+
+class TestStrConcatAndAlertSoft:
+    """C1 residual: str+number concat; zero-arg alert no-op."""
+
+    def test_str_plus_number_concat(self) -> None:
+        src = """//@version=5
+indicator("t")
+s = "ISIN: " + 12.5
+plot(str.length(s))
+"""
+        r = Runtime().run(src, _bars(3), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert int(r["plots"][-1]) == len("ISIN: 12.5")
+
+    def test_alert_zero_arg_noop(self) -> None:
+        src = """//@version=6
+indicator("t")
+alert()
+plot(1)
+"""
+        r = Runtime().run(src, _bars(3), mode="interpret")
+        assert "error" not in r, r.get("error")
+        assert r["plots"][-1] == 1
+
+
 class TestCorpusScripts:
     @pytest.mark.parametrize(
         "rel",
@@ -1070,6 +1244,17 @@ class TestCorpusScripts:
             # set05 ta.kama arity / UDF self-name kama
             "set05/indicators/8860_ind_klinger.pine",
             "set05/strategies/6253_str_noscoobies_slow_heiken_ashi_and_exponential_moving_average_strategy_2_2.pine",
+            # Round 7 C1 residual recovery samples
+            "set02/indicators/220_ind_parameter_naming_test_cases.pine",
+            "set02/indicators/238_ind_test_script.pine",
+            "set03/indicators/0743_ind_flowbias.pine",
+            "set03/indicators/0915_ind_checking_for_substrings_demo.pine",
+            "set03/indicators/0688_ind_confluence_of_alerts_v2.pine",
+            "set03/indicators/0957_ind_isin_demo.pine",
+            "set03/indicators/0923_ind_syminfo_timezone_demo.pine",
+            "set04/indicators/0838_ind_matrix_fill_example.pine",
+            "set04/indicators/0891_ind_array_standardize_example.pine",
+            "set04/indicators/0623_ind_chart_s_visible_high_low.pine",
         ],
     )
     def test_residual_scripts_ok(self, rel: str) -> None:

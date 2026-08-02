@@ -89,9 +89,9 @@ Historical Phase A–D “build API / LSP / Jupyter” items are **done**. Do no
 | ID | Item | Pri | Owner |
 | --- | --- | --- | --- |
 | **H1** | Port R5–R6 host surface to pyne-worker (fail-cache, `error_kind`, inputs→interpret, compile cache) | P1 ✅ host surface + **alerts export** dual-host (Aug 2026); package-level Runtime unify still open | pyne-worker + backend |
-| **H2** | Product warm-compile path (document SLOs; optional prewarm workers; IR cache on in deploy) | P1 | pyne + ops |
+| **H2** | Product warm-compile path (document SLOs; optional prewarm workers; IR cache on in deploy) | P1 ✅ SLOs + prewarm API/CLI + deploy defaults (2026-08) | pyne + ops |
 | **C1** | Corpus TIMEOUT / RUN_FAIL residual (set01–04 ~90% → **~94.3%** OK projected after 8-agent pass) | P1 ⚙️ ongoing (~21 RUN_FAIL + PARSE stubs ~118) | pyne + pyne-worker |
-| **T1** | Cap `current_series` to `max_bars_back` / `_SERIES_MAX` | P2 | pyne |
+| **T1** | Cap `current_series` to `max_bars_back` / `_SERIES_MAX` | P2 ✅ `PYNE_SERIES_CAP` default ON + goldens (R7 Agent 03) | pyne |
 | **T2** | Incremental TA for remaining heavy kernels (`ta.bb`, nested full paths) | P2 | pyne |
 | **F1** | ATR Wilder / TV supertrend re-baseline **only** with dedicated goldens | P2 | pyne |
 | **F2** | Pending-fill averaging when pyramiding ≤ 0 | P2 | pyne |

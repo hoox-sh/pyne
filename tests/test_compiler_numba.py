@@ -3113,6 +3113,7 @@ class TestCompileEngineRound6:
 
     def test_prewarm_idempotent_and_stats(self) -> None:
         from pynescript.compiler.engine import compile_cache_stats
+        from pynescript.compiler.engine import compile_deploy_config
         from pynescript.compiler.engine import prewarm_numba_builtins
 
         assert prewarm_numba_builtins() is True
@@ -3122,6 +3123,38 @@ class TestCompileEngineRound6:
         assert stats["has_numba"] is True
         assert stats["source_max"] >= 32
         assert stats["ir_max"] >= 32
+        assert "prewarm_enabled" in stats
+        deploy = compile_deploy_config()
+        assert deploy["default_runtime_mode"] == "auto"
+        assert deploy["disk_cache_enabled"] in (True, False)
+        assert "env" in deploy
+
+    def test_prewarm_scripts_and_ensure_cache_dir(self, tmp_path, monkeypatch) -> None:
+        from pynescript.compiler.engine import clear_compile_cache
+        from pynescript.compiler.engine import ensure_compile_cache_dir
+        from pynescript.compiler.engine import prewarm_scripts
+
+        monkeypatch.setenv("PYNE_COMPILE_DISK_CACHE", "1")
+        monkeypatch.setenv("PYNE_COMPILE_CACHE_DIR", str(tmp_path / "cc"))
+        clear_compile_cache()
+        root = ensure_compile_cache_dir()
+        assert root is not None
+        assert root.is_dir()
+        src = """//@version=5
+indicator("pw")
+plot(ta.sma(close, 5), title="s")
+"""
+        out = prewarm_scripts([src])
+        assert out["has_numba"] is True
+        assert out["scripts_ok"] == 1
+        assert out["scripts_failed"] == 0
+        assert out["errors"] == []
+        assert out["source_entries"] >= 1
+        # empty / hard parse failures counted without raising
+        bad = '//@version=5\nindicator("x")\nif\n'
+        out2 = prewarm_scripts(["", bad])
+        assert out2["scripts_failed"] == 2
+        assert len(out2["errors"]) == 2
 
     def test_raw_source_cache_hit_skips_recompile(self) -> None:
         from pynescript.compiler.engine import clear_compile_cache
@@ -3385,4 +3418,107 @@ plot(close, title="c")
         o, h, l, c, v = _ohlcv(5)
         out = compiled.run(o, h, l, c, v)
         assert abs(out["c"][-1] - c[-1]) < 1e-9
+
+
+class TestCompileRound7ResidualKernels:
+    """Round 7 residual numeric kernels: median / wpr / cmo / bbw."""
+
+    def test_median_wpr_cmo_bbw_emit_numeric(self) -> None:
+        src = """//@version=6
+indicator("x")
+plot(ta.median(close, 5), title="med")
+plot(ta.wpr(14), title="wpr")
+plot(ta.cmo(close, 9), title="cmo")
+plot(ta.bbw(close, 20, 2.0), title="bbw")
+"""
+        code = transpile(src)
+        assert "numba_median" in code
+        assert "numba_wpr" in code
+        assert "numba_cmo" in code
+        assert "numba_bbw" in code
+        assert "safe_float(None)" not in code
+        compiled = compile_script(src, use_cache=False)
+        assert not compiled.object_mode
+        o, h, l, c, v = _ohlcv(80)
+        out = compiled.run(o, h, l, c, v)
+        assert not np.isnan(out["med"][-1])
+        assert not np.isnan(out["wpr"][-1])
+        assert not np.isnan(out["cmo"][-1])
+        assert not np.isnan(out["bbw"][-1])
+
+    def test_kernel_formulas_and_bbw_inc_parity(self) -> None:
+        from pynescript.compiler import numba_builtins as nb
+
+        rng = np.random.default_rng(21)
+        n = 120
+        c = 100.0 + np.cumsum(rng.normal(0, 1, n))
+        h = c + rng.uniform(0.2, 1.5, n)
+        l = c - rng.uniform(0.2, 1.5, n)
+
+        # median of last 5 of a synthetic ramp
+        ramp = np.arange(10, dtype=np.float64)
+        assert abs(nb.numba_median(ramp, 5, 9) - 7.0) < 1e-12  # 5..9 → 7
+        assert abs(nb.numba_median(ramp, 4, 9) - 7.5) < 1e-12  # 6..9 even
+
+        # wpr warm-up is 0.0 (interpret oracle)
+        assert nb.numba_wpr(h, l, c, 14, 0) == 0.0
+
+        # bbw_inc matches full bbw
+        st = np.full(3, np.nan)
+        max_err = 0.0
+        for i in range(n):
+            full = nb.numba_bbw(c, 20, 2.0, i)
+            inc = nb.numba_bbw_inc(c, 20, 2.0, i, st)
+            if np.isnan(full) and np.isnan(inc):
+                continue
+            max_err = max(max_err, abs(float(full) - float(inc)))
+        assert max_err <= 1e-10, max_err
+
+        # cmo zero-momentum flat series → 0 after seed
+        flat = np.full(30, 50.0)
+        assert abs(nb.numba_cmo(flat, 10, 20)) < 1e-12
+
+    def test_compiled_matches_interpret_oracle(self) -> None:
+        from backend.runtime import Runtime
+
+        src = """//@version=6
+indicator("x")
+plot(ta.median(close, 7), title="med")
+plot(ta.wpr(10), title="wpr")
+plot(ta.cmo(close, 12), title="cmo")
+plot(ta.bbw(close, 15, 2.0), title="bbw")
+"""
+        rng = np.random.default_rng(5)
+        n = 80
+        c = 100.0 + np.cumsum(rng.normal(0, 1, n))
+        h = c + rng.uniform(0.2, 1.2, n)
+        l = c - rng.uniform(0.2, 1.2, n)
+        o, v = c.copy(), np.ones(n)
+        bars = [
+            {
+                "open": float(o[i]),
+                "high": float(h[i]),
+                "low": float(l[i]),
+                "close": float(c[i]),
+                "volume": 1.0,
+                "time": i,
+            }
+            for i in range(n)
+        ]
+        interp = Runtime(symbol="T").run(src, bars, mode="interpret")
+        assert "error" not in interp, interp.get("error")
+        S = interp["series"]
+        compiled = compile_script(src, use_cache=False)
+        assert not compiled.object_mode
+        out = compiled.run(o, h, l, c, v)
+        for key in ("med", "wpr", "cmo", "bbw"):
+            max_err = 0.0
+            for i in range(n):
+                a, b = out[key][i], S[key][i]
+                if np.isnan(a) and (b is None or (isinstance(b, float) and np.isnan(b))):
+                    continue
+                if b is None and np.isnan(a):
+                    continue
+                max_err = max(max_err, abs(float(a) - float(b)))
+            assert max_err <= 1e-9, f"{key} max_err={max_err}"
 

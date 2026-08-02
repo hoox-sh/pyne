@@ -4659,6 +4659,116 @@ def numba_alma_inc(arr, length, offset, sigma, i, st):
     return total / wsum
 
 
+@numba.njit(cache=True)
+def numba_median(arr, length, i):
+    """Rolling median of last ``length`` bars ending at ``i``.
+
+    Matches interpret ``_median`` / ``statistics.median`` on non-nan window
+    samples: odd count → middle; even → mean of two middle. Warm-up /
+    empty valid set → nan.
+    """
+    length = int(length)
+    if length <= 0 or i < length - 1:
+        return np.nan
+    window = np.empty(length, dtype=np.float64)
+    count = 0
+    for j in range(length):
+        v = arr[i - j]
+        if not np.isnan(v):
+            window[count] = v
+            count += 1
+    if count == 0:
+        return np.nan
+    # insertion sort first ``count`` elements
+    for a in range(1, count):
+        key = window[a]
+        b = a - 1
+        while b >= 0 and window[b] > key:
+            window[b + 1] = window[b]
+            b -= 1
+        window[b + 1] = key
+    if count % 2 == 1:
+        return window[count // 2]
+    mid = count // 2
+    return 0.5 * (window[mid - 1] + window[mid])
+
+
+@numba.njit(cache=True)
+def numba_wpr(high, low, close, period, i):
+    """Williams %R at bar ``i`` (TV ``ta.wpr``).
+
+    Matches interpret ``_wpr``: warm-up / non-positive period → 0.0;
+    flat high/low range → 0.0; else ``-100 * (HH - close) / (HH - LL)``.
+    """
+    period = int(period)
+    if period <= 0 or i < period - 1:
+        return 0.0
+    hh = high[i]
+    ll = low[i]
+    for j in range(1, period):
+        h = high[i - j]
+        l_ = low[i - j]
+        if h > hh:
+            hh = h
+        if l_ < ll:
+            ll = l_
+    c = close[i]
+    if hh == ll:
+        return 0.0
+    return -100.0 * (hh - c) / (hh - ll)
+
+
+@numba.njit(cache=True)
+def numba_cmo(arr, length, i):
+    """Chande Momentum Oscillator over ``length`` changes ending at ``i``.
+
+    Matches interpret ``_builtin_ta_cmo``: needs ``length+1`` samples
+    (``i >= length``); sums up/down moves; zero denom → 0.0.
+    """
+    length = int(length)
+    if length <= 0 or i < length:
+        return np.nan
+    up = 0.0
+    down = 0.0
+    # length diffs over window arr[i-length] .. arr[i]
+    for j in range(i - length + 1, i + 1):
+        a = arr[j - 1]
+        b = arr[j]
+        if np.isnan(a) or np.isnan(b):
+            continue
+        diff = b - a
+        if diff > 0.0:
+            up += diff
+        else:
+            down += -diff
+    denom = up + down
+    if denom == 0.0:
+        return 0.0
+    return 100.0 * (up - down) / denom
+
+
+@numba.njit(cache=True)
+def numba_bbw(arr, period, mult, i):
+    """Bollinger Band Width: ``(upper - lower) / middle``.
+
+    Matches interpret ``_builtin_ta_bbw`` (zero / nan middle → nan).
+    ``numba_bb`` returns ``(upper, middle, lower)``.
+    """
+    upper, mid, lower = numba_bb(arr, period, mult, i)
+    if np.isnan(mid) or mid == 0.0:
+        return np.nan
+    return (upper - lower) / mid
+
+
+@numba.njit(cache=True)
+def numba_bbw_inc(arr, period, mult, i, st):
+    """Incremental BBW. ``st`` shared with ``numba_bb_inc`` (sum/sumsq/last_i)."""
+    upper, mid, lower = numba_bb_inc(arr, period, mult, i, st)
+    if np.isnan(mid) or mid == 0.0:
+        return np.nan
+    return (upper - lower) / mid
+
+
 def array_range(arr):
     """Pine ``array.range(id)`` — max − min of numeric elements; empty → na.
 

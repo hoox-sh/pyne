@@ -61,8 +61,14 @@ result = cs.run(open, high, low, close, volume)
 | `compile_script` | `exec` generated code, warm-up call, return `CompiledScript` |
 | `run_script` | One-shot compile+run (prefer cache `CompiledScript` for batches) |
 | `has_numba` | Numeric mode prerequisite |
+| `prewarm_numba_builtins` / `prewarm_scripts` | Host cold-start (H2 warm path) |
+| `compile_cache_stats` / `compile_deploy_config` | Cache + deploy diagnostics |
 
-`CompiledScript` fields: `source`, `generated_code`, `execute`, `plot_titles`, `object_mode`.
+`CompiledScript` fields: `source`, `generated_code`, `execute`, `plot_titles`, `object_mode`, optional `nopython_fallback_reason`.
+
+### Warm compile (product defaults)
+
+Pro API `/run` defaults to **`mode=auto`** (compile when safe, interpret on fallback). Disk IR cache is **on** (`PYNE_COMPILE_DISK_CACHE=1`); Docker sets `PYNE_COMPILE_CACHE_DIR=/data/compile-cache`. Operators call `POST /compile/prewarm` or `pynescript prewarm` so first interactive latency skips Numba cold JIT. See [COMPILER_PLAN.md](/docs/COMPILER_PLAN.md) for SLOs and env flags.
 
 ### Mode selection
 

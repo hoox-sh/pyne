@@ -104,9 +104,13 @@ ALLOWED_ORIGINS = _parse_allowed_origins()
 _FREE_CORS_PATH_PREFIXES = (
     "/",
     "/run",
+    "/compile",
     "/lsp/",
     "/ws/",
 )
+
+# Once-per-worker host prewarm (builtins + disk cache dir). Soft-fail without Numba.
+_HOST_COMPILE_PREWARMED = False
 
 
 def _path_is_free_cors(path: str) -> bool:
@@ -199,11 +203,49 @@ if sock is None:
     )
 
 
+def _maybe_host_compile_prewarm(*, force: bool = False) -> dict[str, Any] | None:
+    """Pay Numba builtin cold cost once per worker when deploy prewarm is on.
+
+    Controlled by ``PYNE_COMPILE_PREWARM`` (default **on**). Skipped when the
+    flag is off or when Flask ``TESTING`` is set (unit tests use explicit
+    ``POST /compile/prewarm``). Never raises — correctness of later runs is
+    independent of prewarm success. Returns prewarm result dict when work ran,
+    else ``None``.
+    """
+    global _HOST_COMPILE_PREWARMED
+    if not force and _HOST_COMPILE_PREWARMED:
+        return None
+    # Avoid multi-second Numba cold cost on every backend pytest suite.
+    if not force and app.config.get("TESTING"):
+        return None
+    try:
+        from pynescript.compiler.engine import prewarm_enabled
+        from pynescript.compiler.engine import prewarm_scripts
+
+        if not force and not prewarm_enabled():
+            _HOST_COMPILE_PREWARMED = True
+            return None
+        # Builtins only here; explicit POST /compile/prewarm may pass scripts.
+        result = prewarm_scripts(None, force_builtins=force)
+        _HOST_COMPILE_PREWARMED = True
+        return result
+    except Exception as exc:  # noqa: BLE001 — never block /run on prewarm
+        import logging as _logging
+
+        _logging.getLogger(__name__).debug("host compile prewarm failed: %s", exc, exc_info=True)
+        _HOST_COMPILE_PREWARMED = True
+        return {"error": str(exc), "has_numba": False}
+
+
 def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
     """Shared run logic for POST /run and WS /ws/run.
 
     Returns (body_dict, http_status). Body always includes ``status``.
+    Default ``mode`` is ``auto`` (prefer warm compile; interpret on fallback).
     """
+    # Prefer warm path: once-per-worker builtin JIT before first auto/compile run.
+    _maybe_host_compile_prewarm()
+
     validated, err = validate(data or {}, RUN_SCHEMA)
     if err is not None:
         # validate() returns (flask.Response, status_code) on error
@@ -329,6 +371,18 @@ def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
     if result.get("alert_conditions") is not None:
         resp["alert_conditions"] = result["alert_conditions"]
 
+    # Warm-compile / auto-route diagnostics (H2 product path)
+    for key in (
+        "auto_backend",
+        "compile_fallback_reason",
+        "compile_cached",
+        "compile_ms",
+        "nopython_fallback_reason",
+        "object_mode",
+    ):
+        if key in result and result[key] is not None:
+            resp[key] = result[key]
+
     # L2: optional outbound webhook for alert()/alertcondition() firings
     try:
         from .alert_forwarder import maybe_forward_run_alerts
@@ -351,12 +405,41 @@ def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
     return resp, 200
 
 
+def _compile_health_section() -> dict[str, Any]:
+    """Compile capability + cache/prewarm flags for readiness probes (H2)."""
+    try:
+        from pynescript.compiler.engine import compile_cache_stats
+        from pynescript.compiler.engine import compile_deploy_config
+
+        stats = compile_cache_stats()
+        deploy = compile_deploy_config()
+        return {
+            "has_numba": bool(stats.get("has_numba")),
+            "builtins_warmed": bool(stats.get("builtins_warmed")),
+            "disk_cache_enabled": bool(stats.get("disk_cache_enabled")),
+            "disk_cache_dir": stats.get("disk_cache_dir"),
+            "prewarm_enabled": bool(stats.get("prewarm_enabled")),
+            "source_entries": stats.get("source_entries"),
+            "ir_entries": stats.get("ir_entries"),
+            "default_mode": deploy.get("default_runtime_mode", "auto"),
+            "host_prewarmed": _HOST_COMPILE_PREWARMED,
+        }
+    except Exception as exc:  # noqa: BLE001 — health must stay up
+        return {
+            "has_numba": False,
+            "error": str(exc),
+            "default_mode": "auto",
+            "host_prewarmed": _HOST_COMPILE_PREWARMED,
+        }
+
+
 def _health_payload() -> dict[str, Any]:
     endpoints = {
         "GET /": "This health check",
         "GET /health": "Alias of GET /",
-        "POST /run": "Run Pine Script (free)",
+        "POST /run": "Run Pine Script (free; mode default auto = warm compile)",
         "POST /run/batch": "Run multiple Pine scripts on shared OHLCV (free)",
+        "POST /compile/prewarm": "Warm Numba builtins / optional scripts (free)",
         "POST /lsp/completion": "Pine completion (free, AXIS editor)",
         "POST /lsp/hover": "Pine hover docs (free, AXIS editor)",
         "POST /preview/chart": "Chart thumbnail (Pro)",
@@ -379,7 +462,10 @@ def _health_payload() -> dict[str, Any]:
             "alerts": True,
             "alert_webhooks": True,
             "alert_webhook_default": bool(default_webhook_url()),
+            "warm_compile": True,
+            "default_run_mode": "auto",
         },
+        "compile": _compile_health_section(),
         "endpoints": endpoints,
     }
 
@@ -394,9 +480,10 @@ def health_check():
 def run_pine_script():
     """Execute Pine Script with provided data. Free tier endpoint.
 
-    ``mode`` is read from the JSON body (preferred). Query-string
-    ``?mode=compile`` is accepted as a legacy fallback when the body omits
-    ``mode`` (older AXIS clients only put mode on the URL).
+    ``mode`` is read from the JSON body (preferred; default **``auto``** —
+    try warm compile, fall back to interpret). Query-string ``?mode=compile``
+    is accepted as a legacy fallback when the body omits ``mode`` (older AXIS
+    clients only put mode on the URL).
     """
     payload: dict[str, Any] = dict(request.get_json(silent=True) or {})
     qmode = request.args.get("mode")
@@ -404,6 +491,59 @@ def run_pine_script():
         payload["mode"] = qmode
     body, status = execute_run_payload(payload)
     return jsonify(body), status
+
+
+@app.route("/compile/prewarm", methods=["POST"])
+def compile_prewarm():
+    """Warm shared Numba kernels and optionally compile Pine sources (H2).
+
+    Free readiness hook for deploy/probes. Body (all optional)::
+
+        {
+          "scripts": ["//@version=5\\nindicator(\\"x\\")\\nplot(close)"],
+          "force": false
+        }
+
+    Without Numba, returns 200 with ``has_numba: false`` (object-mode compile
+    still works; numeric JIT skip is expected). Does not execute scripts on
+    OHLCV — only populates IR / disk caches.
+    """
+    payload: dict[str, Any] = dict(request.get_json(silent=True) or {})
+    force = bool(payload.get("force", False))
+    scripts_raw = payload.get("scripts")
+    sources: list[str] = []
+    if isinstance(scripts_raw, list):
+        for item in scripts_raw[:16]:  # hard cap: avoid abuse on free endpoint
+            if isinstance(item, str) and item.strip():
+                sources.append(item)
+            elif isinstance(item, dict) and isinstance(item.get("script"), str):
+                src = item["script"]
+                if src.strip():
+                    sources.append(src)
+
+    global _HOST_COMPILE_PREWARMED
+    t0 = time.perf_counter()
+    try:
+        from pynescript.compiler.engine import prewarm_scripts
+
+        result = prewarm_scripts(sources or None, force_builtins=force)
+        _HOST_COMPILE_PREWARMED = True
+    except Exception as exc:  # noqa: BLE001
+        return jsonify(
+            {
+                "status": "error",
+                "code": "PREWARM_ERROR",
+                "message": str(exc),
+            }
+        ), 500
+
+    elapsed_ms = (time.perf_counter() - t0) * 1000.0
+    body = {
+        "status": "success",
+        "prewarm_ms": round(elapsed_ms, 2),
+        **result,
+    }
+    return jsonify(body), 200
 
 
 if sock is not None:

@@ -4263,6 +4263,10 @@ class CompilerVisitor(NodeVisitor):
             "tsi": "ta_tsi",
             "macd": "ta_macd",
             "bb": "ta_bb",
+            "bbw": "ta_bbw",
+            "median": "ta_median",
+            "wpr": "ta_wpr",
+            "cmo": "ta_cmo",
             "dema": "ta_dema",
             "tema": "ta_tema",
             "swma": "ta_swma",
@@ -4441,6 +4445,50 @@ class CompilerVisitor(NodeVisitor):
             return (
                 f"numba_bb_inc({_arr(src)}, {self._emit_period(length)}, float({mult}), __bar_idx, {st})"
             )
+        if func_name == "ta_bbw":
+            # ta.bbw(source, length, mult) or ta.bbw(length, mult) → (upper-lower)/mid
+            if len(args) >= 3:
+                src, length, mult = args[0], args[1], args[2]
+            elif len(args) == 2:
+                src, length, mult = "close_arr[__bar_idx]", args[0], args[1]
+            else:
+                src, length, mult = "close_arr[__bar_idx]", "20", "2.0"
+            st = self._alloc_fixed_state("bbw", 3)
+            return (
+                f"numba_bbw_inc({_arr(src)}, {self._emit_period(length)}, float({mult}), "
+                f"__bar_idx, {st})"
+            )
+        if func_name == "ta_median":
+            # ta.median(source, length) or ta.median(length) on close
+            if len(args) >= 2:
+                return (
+                    f"numba_median({_arr(args[0])}, {self._emit_period(args[1])}, __bar_idx)"
+                )
+            if args and not _is_series_arr(args[0]):
+                return f"numba_median(close_arr, {self._emit_period(args[0])}, __bar_idx)"
+            if args:
+                return f"numba_median({_arr(args[0])}, 14, __bar_idx)"
+            return "np.nan"
+        if func_name == "ta_wpr":
+            # ta.wpr(length) | ta.wpr(high, low, close, length)
+            if len(args) >= 4 and _is_series_arr(args[0]):
+                return (
+                    f"numba_wpr({_arr(args[0])}, {_arr(args[1])}, {_arr(args[2])}, "
+                    f"int({args[3]}), __bar_idx)"
+                )
+            length = args[0] if args else "14"
+            return f"numba_wpr(high_arr, low_arr, close_arr, {self._emit_period(length)}, __bar_idx)"
+        if func_name == "ta_cmo":
+            # ta.cmo(source, length) or ta.cmo(length) on close
+            if len(args) >= 2:
+                return (
+                    f"numba_cmo({_arr(args[0])}, {self._emit_period(args[1])}, __bar_idx)"
+                )
+            if args and not _is_series_arr(args[0]):
+                return f"numba_cmo(close_arr, {self._emit_period(args[0])}, __bar_idx)"
+            if args:
+                return f"numba_cmo({_arr(args[0])}, 14, __bar_idx)"
+            return "np.nan"
         if func_name == "ta_macd":
             # ta.macd(source, fast, slow, signal)
             src = args[0] if args else "close_arr[__bar_idx]"

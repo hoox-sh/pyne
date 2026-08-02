@@ -439,6 +439,8 @@ class CompileStrategyBroker:
             Market ``strategy.entry`` path: different id needs room;
             ``replace_same_id`` replaces the open leg when ids match.
             Pending order fills keep averaging (``respect_pyramiding=False``).
+            When ``pyramiding <= 0``, pending averages stay a **single** entry
+            leg (``open_entry_count == 1``) with VWAP avg (F2).
         """
         d = direction if direction == "long" or direction == "short" else _norm_dir(direction)
         if d is None:
@@ -470,7 +472,9 @@ class CompileStrategyBroker:
                 self._emit("entry", id=str(entry_id), direction=d, qty=q, comment=comment)
                 return True
             elif not (respect_pyramiding and replace_same_id and same_id):
-                # Average-add (pending order fills / non-replace path)
+                # Average-add (pending order fills / non-replace path).
+                # F2: pyramiding<=0 → single leg + VWAP; pyramiding>0 leaves
+                # open_entry_count unchanged (max(1, …)) — no silent multi-leg.
                 comm = self._commission(q, px)
                 signed = q if d == "long" else -q
                 old = abs(self.position_size)
@@ -478,7 +482,10 @@ class CompileStrategyBroker:
                 self.position_size += signed
                 self.position_commission += comm
                 self.position_entry_name = str(entry_id)
-                self.open_entry_count = max(1, self.open_entry_count)
+                # Always one logical entry for pending averages when pyramiding
+                # is off; when on, still do not invent extra legs without market
+                # respect_pyramiding (compile pending has no open-trade list).
+                self.open_entry_count = 1 if self.pyramiding <= 0 else max(1, self.open_entry_count)
                 self._emit("entry", id=str(entry_id), direction=d, qty=q, comment=comment)
                 return True
         # Flat open, reverse re-entry, or same-id replace overwrite

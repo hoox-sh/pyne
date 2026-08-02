@@ -157,7 +157,13 @@ def pine_period_or_none(value: Any, message: str, error: Callable[[str], NoRetur
     """Like :func:`pine_expect_int` but ``na`` → ``None`` (TV TA length na → na).
 
     Used by TA ``_expect_series`` so ``ta.sma(close, na)`` yields na instead of
-    hard-failing. Non-na invalid types still raise via *error*.
+    hard-failing.
+
+    Non-numeric *identifier* strings (unresolved names leaked as the name
+    text — e.g. ``length``, ``rsiLen`` from incomplete module scrapes) also
+    soft-return ``None`` so TA returns na rather than aborting the bar loop.
+    Numeric strings (``\"14\"``) still coerce via :func:`pine_expect_int`.
+    Other invalid types still raise via *error*.
     """
     if type(value) is int:
         return value
@@ -166,6 +172,15 @@ def pine_period_or_none(value: Any, message: str, error: Callable[[str], NoRetur
         error(f"{message}. Got: empty series")
     if _is_na_scalar(unwrapped):
         return None
+    # Unresolved name leak: bare identifier becomes a non-numeric str in context.
+    if type(unwrapped) is str:
+        s = unwrapped.strip()
+        if not s:
+            return None
+        try:
+            float(s)
+        except ValueError:
+            return None
     return pine_expect_int(unwrapped, message, error)
 
 # TradingView keyword parameter names for list-style ``ta.*`` handlers.

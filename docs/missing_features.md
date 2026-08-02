@@ -160,10 +160,10 @@ Call-site state (`_ta_call_i` reset each bar), one sample per site per bar (safe
 
 | ID | Item | Pri |
 | --- | --- | --- |
-| **H1** | Dual-host: port SoT host compile/auto/`error_kind`/fail-cache/inputs→interpret to **pyne-worker** (full package unify later) | P1 — **in progress** (host surface ported Aug 2026; package-level unify still open) |
-| **H2** | Product warm-compile path (SLOs, prewarm, IR cache on in deploy) | P1 |
+| **H1** | Dual-host: package-level Runtime unify; pyne-worker residual host parity | P1 — **host surface advanced** (R7 A06: inputs applied, multi-run call-site clear, JSON series/alerts; package unify still open — `docs/perf_round7/H1_unify_checklist.md`) |
+| **H2** | Product warm-compile path (SLOs, prewarm, IR cache on in deploy) | P1 ✅ (2026-08) |
 | **C1** | Corpus Runtime residual | P1 — set05 full run **93.3%** → after 2×6-agent passes projected **~98.0%** (425/526 prior FAIL recovered; TIMEOUT sample 6/8 under budget); long-tail ~30 RUN + ~71 PARSE + heavy ML TIMEOUT remain |
-| **T1** | Cap unbounded `current_series` lists to `max_bars_back` / `_SERIES_MAX` | P2 |
+| **T1** | Cap unbounded `current_series` lists to `max_bars_back` / `_SERIES_MAX` | P2 ✅ R7 — `PYNE_SERIES_CAP` (default ON), `PYNE_SERIES_MAX`, goldens `tests/test_series_cap.py` |
 | **T2** | Incremental for remaining heavy kernels (`ta.bb`, nested full-list helpers still calling `_ema`/`_sma` outside builtins) | P2 |
 | **F1** | `ta.atr` still **EMA-of-TR** (historical oracle); TV Wilder RMA-ATR only with dedicated goldens | P2 |
 | — | Bit-identical recursive smoothers vs live TV | numerical-parity track |

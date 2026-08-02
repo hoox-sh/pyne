@@ -29,6 +29,7 @@ package ``__init__``):
 * :func:`walk`, :func:`iter_fields`, :func:`iter_child_nodes` — tree traversal
 * :func:`copy_location`, :func:`fix_missing_locations`, :func:`increment_lineno`
 * :func:`get_source_segment` — slice original source by node location
+* :func:`clear_parse_cache`, :func:`parse_cache_info` — process-local AST LRU
 
 Contracts
 ---------
@@ -44,13 +45,21 @@ Contracts
 * **Round-trip**: ``parse`` → ``unparse`` preserves structure and meaning;
   whitespace, comment layout (except ``//@`` annotations on supported nodes),
   and some formatting may differ from the original source.
+* **Parse cache**: by default successful :func:`parse` results are cached by
+  ``sha256(source)`` + ``mode`` (bounded LRU, thread-safe). Disable with
+  ``PYNE_PARSE_CACHE=0``. Cached trees are shared by identity — treat as
+  read-only (see module-level cache docs).
 """
 
 from __future__ import annotations
 
+import hashlib
 import itertools
+import os
 import re
+import threading
 
+from collections import OrderedDict
 from collections import deque
 from collections.abc import Iterator
 from pathlib import Path
@@ -89,6 +98,135 @@ _SHARED_BUILDER = PinescriptASTBuilder()
 
 # Cached after first annotation pass (avoids circular import at module load).
 _StatementCollector = None
+
+# ---------------------------------------------------------------------------
+# Parse / AST cache (Phase 1.6) — multi-run warm path
+# ---------------------------------------------------------------------------
+# Keyed by sha256(source) + mode. Shared AST identity is returned on hit.
+#
+# Mutability risk: the evaluator / Runtime treat trees as read-only. Callers
+# that mutate a returned node (e.g. NodeTransformer, increment_lineno) also
+# mutate the cached entry for all subsequent hits. Prefer clear_parse_cache()
+# after intentional mutation, or set PYNE_PARSE_CACHE=0 for isolation.
+#
+# Env:
+#   PYNE_PARSE_CACHE=0|false|off|no  — disable (default: ON)
+#   PYNE_PARSE_CACHE_MAX=<int>       — max entries (default: 128)
+# ---------------------------------------------------------------------------
+_PARSE_CACHE: OrderedDict[tuple[str, str], AST] = OrderedDict()
+_PARSE_CACHE_LOCK = threading.RLock()
+_PARSE_CACHE_MAX_DEFAULT = 128
+_PARSE_CACHE_HITS = 0
+_PARSE_CACHE_MISSES = 0
+
+
+def _env_flag_enabled(name: str, *, default: bool = True) -> bool:
+    """Truthiness for ``PYNE_*`` toggles (``0``/``false``/``off``/``no`` → off)."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() not in {"0", "false", "off", "no"}
+
+
+def _parse_cache_enabled() -> bool:
+    return _env_flag_enabled("PYNE_PARSE_CACHE", default=True)
+
+
+def _parse_cache_max() -> int:
+    raw = os.environ.get("PYNE_PARSE_CACHE_MAX", "").strip()
+    if raw:
+        try:
+            n = int(raw)
+            if n >= 1:
+                return n
+        except ValueError:
+            pass
+    return _PARSE_CACHE_MAX_DEFAULT
+
+
+def _parse_cache_key(source: str, mode: str) -> tuple[str, str]:
+    """Return ``(sha256_hex, mode)`` for *source* (UTF-8)."""
+    digest = hashlib.sha256(source.encode("utf-8")).hexdigest()
+    return (digest, mode)
+
+
+def clear_parse_cache() -> None:
+    """Drop all cached parse trees (tests, hot-reload, post-mutation).
+
+    Thread-safe. Does not change enable/max env settings.
+    """
+    global _PARSE_CACHE_HITS, _PARSE_CACHE_MISSES
+    with _PARSE_CACHE_LOCK:
+        _PARSE_CACHE.clear()
+        _PARSE_CACHE_HITS = 0
+        _PARSE_CACHE_MISSES = 0
+
+
+def _scrub_pine_call_sites(tree: AST) -> AST:
+    """Drop evaluator-bound ``_pine_call_site`` attrs on a shared AST.
+
+    ``visit_Call`` caches resolved handlers (including bound methods) on Call
+    nodes. Returning the same tree identity for a second evaluator would invoke
+    the *first* evaluator's handlers. Scrub on every cache hit so multi-run
+    hosts and unit tests stay correct while still skipping ANTLR re-parse.
+    """
+    try:
+        for node in walk(tree):
+            if getattr(node, "_pine_call_site", None) is not None:
+                try:
+                    delattr(node, "_pine_call_site")
+                except Exception:
+                    try:
+                        object.__setattr__(node, "_pine_call_site", None)
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+    return tree
+
+
+def parse_cache_info() -> dict[str, Any]:
+    """Return cache stats for diagnostics and tests.
+
+    Keys: ``enabled``, ``size``, ``maxsize``, ``hits``, ``misses``.
+    """
+    with _PARSE_CACHE_LOCK:
+        return {
+            "enabled": _parse_cache_enabled(),
+            "size": len(_PARSE_CACHE),
+            "maxsize": _parse_cache_max(),
+            "hits": _PARSE_CACHE_HITS,
+            "misses": _PARSE_CACHE_MISSES,
+        }
+
+
+def _parse_cache_get(key: tuple[str, str]) -> AST | None:
+    global _PARSE_CACHE_HITS, _PARSE_CACHE_MISSES
+    with _PARSE_CACHE_LOCK:
+        hit = _PARSE_CACHE.get(key)
+        if hit is not None:
+            _PARSE_CACHE.move_to_end(key)
+            _PARSE_CACHE_HITS += 1
+            return hit
+        _PARSE_CACHE_MISSES += 1
+        return None
+
+
+def _parse_cache_put(key: tuple[str, str], tree: AST) -> AST:
+    """Insert *tree*; return existing entry if another thread raced the put."""
+    with _PARSE_CACHE_LOCK:
+        existing = _PARSE_CACHE.get(key)
+        if existing is not None:
+            _PARSE_CACHE.move_to_end(key)
+            return existing
+        maxsize = _parse_cache_max()
+        while len(_PARSE_CACHE) >= maxsize:
+            try:
+                _PARSE_CACHE.popitem(last=False)
+            except KeyError:
+                break
+        _PARSE_CACHE[key] = tree
+        return tree
 
 
 def _get_statement_collector_cls():
@@ -394,9 +532,16 @@ def parse(
     (not bytes). ``filename`` is used only in error messages and is normalized
     to an absolute path when the path exists.
 
+    **Caching (default ON):** successful trees are stored in a process-local
+    LRU keyed by ``sha256(source)`` and ``mode`` (see :func:`clear_parse_cache`,
+    :func:`parse_cache_info`). Warm multi-run hosts (API batch, re-eval same
+    script) skip ANTLR re-parse. Disable with ``PYNE_PARSE_CACHE=0``. Cached
+    trees are shared by identity and must be treated as **read-only**.
+
     Args:
         source: Pine Script source (``str``, typically UTF-8-decoded).
         filename: Path or label for diagnostics (default ``"<unknown>"``).
+            Not part of the cache key (only affects error messages).
         mode: ``"exec"`` (full script) or ``"eval"`` (single expression).
 
     Returns:
@@ -411,8 +556,16 @@ def parse(
         >>> tree = parse("plot(close)")
         >>> expr = parse("close > open", mode="eval")
     """
-    # Delegate to stream-based parser
-    return _parse_inputstream(source, filename, mode)
+    if not _parse_cache_enabled():
+        return _parse_inputstream(source, filename, mode)
+
+    key = _parse_cache_key(source, mode)
+    hit = _parse_cache_get(key)
+    if hit is not None:
+        return _scrub_pine_call_sites(hit)
+
+    tree = _parse_inputstream(source, filename, mode)
+    return _parse_cache_put(key, tree)
 
 
 def literal_eval(
@@ -815,6 +968,7 @@ def unparse(node: AST) -> str:
 
 
 __all__ = [
+    "clear_parse_cache",
     "copy_location",
     "dump",
     "fix_missing_locations",
@@ -824,6 +978,7 @@ __all__ = [
     "iter_fields",
     "literal_eval",
     "parse",
+    "parse_cache_info",
     "unparse",
     "walk",
 ]

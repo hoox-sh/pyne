@@ -37,7 +37,8 @@ Entry points
 - :func:`transpile` — parse + emit source string only (no exec / JIT).
 - :func:`compile_script` — full pipeline + LRU cache (sha256 of source).
 - :func:`run_script` — one-shot compile + :meth:`CompiledScript.run`.
-- :func:`prewarm_numba_builtins` — optional host cold-start of shared kernels.
+- :func:`prewarm_numba_builtins` / :func:`prewarm_scripts` — host cold-start hooks.
+- :func:`ensure_compile_cache_dir` / :func:`compile_deploy_config` — deploy knobs.
 - :class:`CompiledScript` — holds generated code and the callable.
 
 Interpret vs compile contracts
@@ -76,6 +77,9 @@ Cache
   ``$XDG_CACHE_HOME/pynescript/compile`` so ``@numba.njit(cache=True)`` can
   reuse machine code across process restarts. :func:`clear_compile_cache`
   clears in-process maps only; :func:`clear_disk_compile_cache` removes disk.
+- Host prewarm (default on via ``PYNE_COMPILE_PREWARM=1``): call
+  :func:`prewarm_numba_builtins` / :func:`prewarm_scripts` or Pro API
+  ``POST /compile/prewarm`` so the first user request is warm.
 """
 
 from __future__ import annotations
@@ -198,28 +202,68 @@ def clear_disk_compile_cache() -> None:
             _log.debug("disk cache unlink %s failed: %s", path, exc)
 
 
+def _env_truthy(name: str, default: str = "1") -> bool:
+    """Parse common env flags; empty / 0 / false / no / off → False."""
+    v = os.environ.get(name, default)
+    if v is None:
+        v = default
+    return str(v).strip().lower() not in {"0", "false", "no", "off", ""}
+
+
 def compile_cache_stats() -> dict[str, Any]:
     """Return in-process cache sizes and prewarm / disk flags (diagnostics)."""
+    disk_on = _disk_cache_enabled()
     return {
         "source_entries": len(_COMPILE_CACHE),
         "source_max": _COMPILE_CACHE_MAX,
         "ir_entries": len(_IR_CACHE),
         "ir_max": _IR_CACHE_MAX,
         "builtins_warmed": _BUILTINS_WARMED,
-        "disk_cache_enabled": _disk_cache_enabled(),
-        "disk_cache_dir": str(_disk_cache_dir()) if _disk_cache_enabled() else None,
+        "disk_cache_enabled": disk_on,
+        "disk_cache_dir": str(_disk_cache_dir()) if disk_on else None,
+        "prewarm_enabled": prewarm_enabled(),
         "has_numba": _HAS_NUMBA,
     }
 
 
+def compile_deploy_config() -> dict[str, Any]:
+    """Stable deploy knobs for health / ops (no secrets).
+
+    Defaults favor production warm-compile: disk IR cache **on**, host prewarm
+    **on** (soft-fail without Numba). Operators opt out via env flags.
+    """
+    return {
+        "disk_cache_enabled": _disk_cache_enabled(),
+        "disk_cache_dir": str(_disk_cache_dir()) if _disk_cache_enabled() else None,
+        "prewarm_enabled": prewarm_enabled(),
+        "has_numba": _HAS_NUMBA,
+        "source_cache_max": _COMPILE_CACHE_MAX,
+        "ir_cache_max": _IR_CACHE_MAX,
+        "default_runtime_mode": "auto",
+        "env": {
+            "PYNE_COMPILE_DISK_CACHE": os.environ.get("PYNE_COMPILE_DISK_CACHE", "1"),
+            "PYNE_COMPILE_CACHE_DIR": os.environ.get("PYNE_COMPILE_CACHE_DIR", "") or None,
+            "PYNE_COMPILE_PREWARM": os.environ.get("PYNE_COMPILE_PREWARM", "1"),
+        },
+    }
+
+
+def prewarm_enabled() -> bool:
+    """Whether host/process prewarm is requested (``PYNE_COMPILE_PREWARM``, default on)."""
+    return _env_truthy("PYNE_COMPILE_PREWARM", "1")
+
+
 def _disk_cache_enabled() -> bool:
     """Opt-out disk module cache: ``PYNE_COMPILE_DISK_CACHE=0|false|no|off``."""
-    v = os.environ.get("PYNE_COMPILE_DISK_CACHE", "1").strip().lower()
-    return v not in {"0", "false", "no", "off", ""}
+    return _env_truthy("PYNE_COMPILE_DISK_CACHE", "1")
 
 
 def _disk_cache_dir() -> Path:
-    """Resolve disk cache root (env override → XDG → ~/.cache)."""
+    """Resolve disk cache root (env override → XDG → ~/.cache).
+
+    Deploy tip: set ``PYNE_COMPILE_CACHE_DIR=/data/compile-cache`` on a
+    persistent volume so IR + Numba ``.nbc`` survive worker restarts.
+    """
     env = os.environ.get("PYNE_COMPILE_CACHE_DIR", "").strip()
     if env:
         return Path(env).expanduser()
@@ -227,6 +271,23 @@ def _disk_cache_dir() -> Path:
     if xdg:
         return Path(xdg).expanduser() / "pynescript" / "compile"
     return Path.home() / ".cache" / "pynescript" / "compile"
+
+
+def ensure_compile_cache_dir() -> Path | None:
+    """Create the disk compile-cache directory when disk cache is enabled.
+
+    Returns the resolved path, or ``None`` when disk cache is disabled or
+    mkdir fails (soft — compile still works with memory-only caches).
+    """
+    if not _disk_cache_enabled():
+        return None
+    root = _disk_cache_dir()
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        return root
+    except OSError as exc:
+        _log.debug("compile cache dir create failed (%s): %s", root, exc)
+        return None
 
 
 def _sha256_text(text: str) -> str:
@@ -287,6 +348,9 @@ def _warm_common_numba_builtins() -> None:
 def prewarm_numba_builtins(*, force: bool = False) -> bool:
     """Public cold-start hook: JIT shared kernels before the first script.
 
+    Soft-fails when Numba is missing (returns ``False``). Safe to call from
+    Pro API startup, ``POST /compile/prewarm``, or ``pynescript prewarm``.
+
     Parameters
     ----------
     force:
@@ -303,8 +367,69 @@ def prewarm_numba_builtins(*, force: bool = False) -> bool:
         return False
     if force:
         _BUILTINS_WARMED = False
+    ensure_compile_cache_dir()
     _warm_common_numba_builtins()
     return True
+
+
+def prewarm_scripts(
+    sources: list[str] | tuple[str, ...] | None = None,
+    *,
+    force_builtins: bool = False,
+) -> dict[str, Any]:
+    """Warm shared Numba builtins and optionally compile a list of Pine scripts.
+
+    Used by operators and the Pro API prewarm endpoint to pay cold JIT cost
+    before the first user request. Failures on individual scripts are recorded
+    (correctness over speed — no silent empty result).
+
+    Parameters
+    ----------
+    sources:
+        Optional Pine source strings to :func:`compile_script` into the
+        in-process + disk caches. ``None`` / empty → builtins only.
+    force_builtins:
+        Forwarded to :func:`prewarm_numba_builtins`.
+
+    Returns
+    -------
+    dict
+        ``has_numba``, ``builtins_warmed``, ``disk_cache_dir``,
+        ``scripts_ok``, ``scripts_failed``, ``errors`` (list of short strings).
+    """
+    ensure_compile_cache_dir()
+    numba_ok = prewarm_numba_builtins(force=force_builtins)
+    ok = 0
+    failed = 0
+    errors: list[str] = []
+    if sources:
+        for i, src in enumerate(sources):
+            if not isinstance(src, str) or not src.strip():
+                failed += 1
+                errors.append(f"scripts[{i}]: empty source")
+                continue
+            try:
+                compile_script(src)
+                ok += 1
+            except Exception as exc:  # noqa: BLE001 — surface per-script; continue
+                failed += 1
+                msg = f"scripts[{i}]: {type(exc).__name__}: {exc}"
+                if len(msg) > 240:
+                    msg = msg[:237] + "..."
+                errors.append(msg)
+                _log.debug("prewarm_scripts failed for scripts[%s]: %s", i, exc, exc_info=True)
+    stats = compile_cache_stats()
+    return {
+        "has_numba": numba_ok,
+        "builtins_warmed": bool(stats.get("builtins_warmed")),
+        "disk_cache_enabled": bool(stats.get("disk_cache_enabled")),
+        "disk_cache_dir": stats.get("disk_cache_dir"),
+        "source_entries": stats.get("source_entries"),
+        "ir_entries": stats.get("ir_entries"),
+        "scripts_ok": ok,
+        "scripts_failed": failed,
+        "errors": errors,
+    }
 
 
 def transpile(source: str) -> str:

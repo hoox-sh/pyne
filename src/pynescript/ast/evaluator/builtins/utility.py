@@ -187,6 +187,8 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
             # Dual-mode: property (0-arg) + function (tickerid) — see ticker.split_symbol
             "syminfo.prefix": self._builtin_syminfo_prefix,
             "syminfo.ticker": self._builtin_syminfo_ticker,
+            # Dual-mode: chart standard ticker when no arg (corpus substring demos)
+            "ticker.standard": self._builtin_ticker_standard,
         }
 
     def _builtin_offset(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
@@ -253,6 +255,36 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
                 if val is not None and str(val):
                     return str(val)
         return ""
+
+    def _builtin_ticker_standard(
+        self,
+        args: list[Any],
+        kwargs: dict[str, Any] | None = None,
+    ) -> Any:
+        """``ticker.standard()`` / ``ticker.standard(tickerid)``.
+
+        Zero-arg form uses the chart ticker id (TV: standard OHLC of the chart
+        symbol). One-arg form wraps the given symbol. Result stringifies to the
+        ticker id so ``ticker.standard() + \" /\"`` works in substring demos.
+        """
+        from .ticker import TickerInfo
+        from .ticker import ticker_standard
+
+        kw = kwargs or {}
+        if args or "ticker" in kw or "symbol" in kw or "tickerid" in kw:
+            symbol = args[0] if args else kw.get("ticker", kw.get("symbol", kw.get("tickerid")))
+            return ticker_standard(symbol if symbol is not None else "")
+        # Chart symbol
+        tid = self._syminfo_tickerid_fallback()
+        if not tid:
+            host = self._syminfo_host()
+            if host is not None:
+                for attr in ("tickerid", "name", "ticker"):
+                    val = getattr(host, attr, None)
+                    if val is not None and str(val):
+                        tid = str(val)
+                        break
+        return TickerInfo(tid or "")
 
     def _builtin_syminfo_prefix(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
         """``syminfo.prefix`` / ``syminfo.prefix(tickerid)``.

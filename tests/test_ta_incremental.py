@@ -27,6 +27,38 @@ import pytest
 
 from pynescript.ast.evaluator import NodeLiteralEvaluator
 
+try:
+    from pynescript.ast.helper import clear_parse_cache as _clear_parse_cache
+except ImportError:  # pragma: no cover
+
+    def _clear_parse_cache() -> None:
+        return None
+
+
+@pytest.fixture(autouse=True)
+def _isolate_parse_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Avoid Agent 05 shared-AST mutation across Runtime dual-run goldens.
+
+    Cached parse trees are shared by identity; Runtime mutates the tree during
+    eval, so a second ``Runtime.run`` of the same source without clearing can
+    yield empty series / script_name ``plot``. Clear before each ``Runtime.run``.
+    """
+    _clear_parse_cache()
+    try:
+        from backend.runtime import Runtime
+
+        _orig_run = Runtime.run
+
+        def _run_cleared(self: object, *args: object, **kwargs: object) -> object:
+            _clear_parse_cache()
+            return _orig_run(self, *args, **kwargs)
+
+        monkeypatch.setattr(Runtime, "run", _run_cleared)
+    except Exception:  # pragma: no cover — backend optional in some envs
+        pass
+    yield
+    _clear_parse_cache()
+
 
 def _series(n: int = 120, seed: float = 100.0) -> list[float]:
     """Synthetic close path with mild trend + oscillation."""
@@ -2526,6 +2558,240 @@ plot(ta.percentile_linear_interpolation(close, 14, 50))
     r_off = Runtime(symbol="T").run(src, bars)
     assert "error" not in r_off, r_off.get("error")
     monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+
+    assert set(r_on["series"]) == set(r_off["series"])
+    for key in r_on["series"]:
+        for i, (a, b) in enumerate(zip(r_on["series"][key], r_off["series"][key], strict=True)):
+            if a is None and b is None:
+                continue
+            if a is None or b is None:
+                continue
+            if isinstance(a, float) and isinstance(b, float) and math.isnan(a) and math.isnan(b):
+                continue
+            assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"
+
+
+# ---------------------------------------------------------------------------
+# Round 7 (T2): kama, cmo, bbw, stochrsi residual full-history
+# ---------------------------------------------------------------------------
+
+
+def _bar_walk_full_kama(
+    src: list[float], length: int, fast: int = 2, slow: int = 30
+) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        full = ev._builtin_ta_kama([src[: i + 1], length, fast, slow])
+        if isinstance(full, list):
+            last = full[-1] if full else None
+        else:
+            last = full
+        out.append(None if (isinstance(last, float) and math.isnan(last)) else last)
+    return out
+
+
+def _bar_walk_inc_kama(
+    src: list[float], length: int, fast: int = 2, slow: int = 30
+) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._kama_inc_update(src[: i + 1], length, fast, slow))
+    return out
+
+
+def _bar_walk_full_cmo(src: list[float], length: int) -> list[float | None]:
+    ev = _FullTA()
+    return [ev._builtin_ta_cmo([src[: i + 1], length]) for i in range(len(src))]
+
+
+def _bar_walk_inc_cmo(src: list[float], length: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._cmo_inc_update(src[: i + 1], length))
+    return out
+
+
+def _bar_walk_full_bbw(src: list[float], period: int, mult: float) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        u, m, l = ev._bollinger_bands(src[: i + 1], period, mult)
+        if m is None or u is None or l is None or m == 0:
+            out.append(None)
+        else:
+            out.append((u - l) / m)
+    return out
+
+
+def _bar_walk_inc_bbw(src: list[float], period: int, mult: float) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        u, m, l = ev._bb_inc_update(src[: i + 1], period, mult)
+        if m is None or u is None or l is None or m == 0:
+            out.append(None)
+        else:
+            out.append((u - l) / m)
+    return out
+
+
+def _bar_walk_full_stochrsi(
+    closes: list[float], rsi_length: int, stoch_length: int
+) -> list[tuple[float | None, float | None]]:
+    ev = _FullTA()
+    out: list[tuple[float | None, float | None]] = []
+    for i in range(len(closes)):
+        ev.current_series = {"close": closes[: i + 1]}
+        d = ev._builtin_ta_stochrsi([rsi_length, stoch_length])
+        out.append((d.get("stochrsi"), d.get("signal")))
+    return out
+
+
+def _bar_walk_inc_stochrsi(
+    closes: list[float], rsi_length: int, stoch_length: int
+) -> list[tuple[float | None, float | None]]:
+    ev = _IncTA()
+    out: list[tuple[float | None, float | None]] = []
+    for i in range(len(closes)):
+        ev._ta_call_i = 0
+        d = ev._stochrsi_inc_update(closes[: i + 1], rsi_length, stoch_length)
+        out.append((d.get("stochrsi"), d.get("signal")))
+    return out
+
+
+def test_incremental_kama_matches_full() -> None:
+    src = _series(150)
+    for length in (5, 10, 20):
+        _assert_series_close(
+            _bar_walk_inc_kama(src, length),
+            _bar_walk_full_kama(src, length),
+        )
+    # non-default fast/slow
+    _assert_series_close(
+        _bar_walk_inc_kama(src, 10, 3, 20),
+        _bar_walk_full_kama(src, 10, 3, 20),
+    )
+
+
+def test_incremental_cmo_matches_full() -> None:
+    src = _series(150)
+    for length in (7, 14, 20):
+        _assert_series_close(
+            _bar_walk_inc_cmo(src, length),
+            _bar_walk_full_cmo(src, length),
+        )
+
+
+def test_incremental_bb_inc_update_matches_full() -> None:
+    """Dedicated ``_bb_inc_update`` ≡ full ``_bollinger_bands`` (non-bar)."""
+    src = _series(150)
+    for period, mult in ((20, 2.0), (10, 1.5), (5, 2.5)):
+        got = _bar_walk_inc_bb(src, period, mult)
+        # Force inc path via _bb_inc_update for the dedicated kernel
+        evi = _IncTA()
+        got2: list[tuple[float | None, float | None, float | None]] = []
+        for i in range(len(src)):
+            evi._ta_call_i = 0
+            got2.append(evi._bb_inc_update(src[: i + 1], period, mult))
+        exp = _bar_walk_full_bb(src, period, mult)
+        assert len(got) == len(exp) == len(got2)
+        for i, (g, g2, e) in enumerate(zip(got, got2, exp, strict=True)):
+            for j in range(3):
+                if e[j] is None:
+                    assert g[j] is None and g2[j] is None, f"bb bar {i} c{j}"
+                else:
+                    assert g[j] == pytest.approx(e[j], rel=1e-9, abs=1e-9)
+                    assert g2[j] == pytest.approx(e[j], rel=1e-9, abs=1e-9)
+
+
+def test_incremental_bbw_matches_full() -> None:
+    src = _series(150)
+    for period, mult in ((20, 2.0), (10, 1.5)):
+        _assert_series_close(
+            _bar_walk_inc_bbw(src, period, mult),
+            _bar_walk_full_bbw(src, period, mult),
+        )
+
+
+def test_incremental_stochrsi_matches_full() -> None:
+    closes = _series(180)
+    for rsi_l, st_l in ((14, 14), (7, 14), (14, 7)):
+        got = _bar_walk_inc_stochrsi(closes, rsi_l, st_l)
+        exp = _bar_walk_full_stochrsi(closes, rsi_l, st_l)
+        assert len(got) == len(exp)
+        for i, (g, e) in enumerate(zip(got, exp, strict=True)):
+            for j in range(2):
+                if e[j] is None:
+                    assert g[j] is None, f"stochrsi bar {i} c{j}: expected None got {g[j]}"
+                else:
+                    assert g[j] == pytest.approx(e[j], rel=1e-9, abs=1e-9), (
+                        f"stochrsi bar {i} c{j}: {g[j]} != {e[j]}"
+                    )
+
+
+def test_two_kama_call_sites_independent() -> None:
+    src = _series(80)
+    ev = _IncTA()
+    a_out: list[float | None] = []
+    b_out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        a_out.append(ev._kama_inc_update(src[: i + 1], 10, 2, 30))
+        b_out.append(ev._kama_inc_update(src[: i + 1], 20, 2, 30))
+    _assert_series_close(a_out, _bar_walk_full_kama(src, 10))
+    _assert_series_close(b_out, _bar_walk_full_kama(src, 20))
+
+
+def test_runtime_round7_t2_incremental_vs_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Runtime: kama / cmo / bb / bbw last values match PYNE_TA_INCREMENTAL=0."""
+    from backend.runtime import Runtime
+
+    try:
+        from pynescript.ast.helper import clear_parse_cache
+    except ImportError:  # pragma: no cover
+        def clear_parse_cache() -> None:
+            return None
+
+    bars = [
+        {
+            "open": 100 + i * 0.1,
+            "high": 101.5 + i * 0.1 + (i % 5) * 0.05,
+            "low": 98.5 + i * 0.1 - (i % 3) * 0.05,
+            "close": 100.5 + i * 0.1 + math.sin(i / 7.0) * 0.2,
+            "volume": 1000 + i * 3,
+            "time": 1_000_000 + i * 86_400_000,
+        }
+        for i in range(150)
+    ]
+    src = """//@version=5
+indicator("round7 t2")
+plot(ta.kama(close, 10))
+plot(ta.cmo(close, 14))
+[u, m, l] = ta.bb(close, 20, 2.0)
+plot(u)
+plot(m)
+plot(l)
+plot(ta.bbw(close, 20, 2.0))
+plot(ta.sma(close, 14))
+"""
+    # Agent 05 parse-cache may share AST identity; clear between runs so
+    # second Runtime does not see a mutated tree (empty plots / name "plot").
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    clear_parse_cache()
+    r_on = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_on, r_on.get("error")
+    monkeypatch.setenv("PYNE_TA_INCREMENTAL", "0")
+    clear_parse_cache()
+    r_off = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_off, r_off.get("error")
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    clear_parse_cache()
 
     assert set(r_on["series"]) == set(r_off["series"])
     for key in r_on["series"]:

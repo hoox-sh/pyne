@@ -51,7 +51,7 @@ class TickerInfo:
         self.style = None  # v6 e.g. "PercentageLTP"
 
     def __repr__(self) -> str:
-        """Return string representation of ticker."""
+        """Return debug representation of ticker."""
         parts = [f"'{self.symbol}'"]
         if self.session:
             parts.append(f"session='{self.session}'")
@@ -60,8 +60,16 @@ class TickerInfo:
         return f"ticker({', '.join(parts)})"
 
     def __str__(self) -> str:
-        """Return string representation of ticker."""
-        return self.__repr__()
+        """Return the ticker id string (TV stringify for concat / logs)."""
+        return self.symbol
+
+    def __add__(self, other: object) -> str:
+        """Allow ``ticker.standard() + \" /\"`` string concatenation (TV)."""
+        return self.symbol + str(other)
+
+    def __radd__(self, other: object) -> str:
+        """Allow ``\"x\" + ticker.standard()`` string concatenation (TV)."""
+        return str(other) + self.symbol
 
 
 def ticker_new(
@@ -364,17 +372,23 @@ def ticker_inherit(
     return TickerInfo(symbol=sym)
 
 
-def ticker_standard(ticker_str: str) -> TickerInfo:
+def ticker_standard(ticker_str: str | None = None, *extra: object, **kwargs: object) -> TickerInfo:
     """Create a standard OHLC ticker from a symbol.
 
-    Ensures standard candlestick format.
+    Ensures standard candlestick format. TV also allows the zero-arg form
+    ``ticker.standard()`` which means "standard OHLC of the chart symbol"
+    (host fills chart ticker via kwargs / empty → host default later).
 
     Args:
-        ticker_str: The base ticker symbol
+        ticker_str: The base ticker symbol (optional; default chart / empty)
 
     Returns:
         TickerInfo with standard OHLC format
     """
+    if kwargs:
+        ticker_str = kwargs.get("ticker", kwargs.get("symbol", ticker_str))  # type: ignore[assignment]
+    if ticker_str is None:
+        return TickerInfo("")
     return TickerInfo(str(ticker_str))
 
 

@@ -28,26 +28,118 @@ import uuid
 
 from typing import Any
 
-from pynescript.ast.helper import parse
-from pynescript.util.time_parts import apply_utc_parts_to_context
+from pynescript.ast.helper import parse, walk
+from pynescript.util.time_parts import utc_parts_from_ms
 
 from .evaluator import CustomEvaluator
-from .series import PineSeries
-
-# Crude scan: skip calendar field fill when script never names them
-_CAL_NAME_RE = re.compile(
-    r"\b(year|month|dayofmonth|hour|minute|second|dayofweek)\b",
+from .series import (
+    PineSeries,
+    make_pine_series,
+    parse_max_bars_back_from_source,
+    pineseries_history_length,
+    resolve_series_cap,
+    series_cap_enabled,
+    series_cap_limit,
+    trim_series_lists,
 )
+
+# Bare calendar series keys (Pine time components written into host context).
+_CAL_KEYS: tuple[str, ...] = (
+    "year",
+    "month",
+    "dayofmonth",
+    "hour",
+    "minute",
+    "second",
+    "dayofweek",
+)
+_CAL_KEY_SET: frozenset[str] = frozenset(_CAL_KEYS)
+
 # fill() needs plot() to return Plot handles (PlotRegistry).
 _FILL_CALL_RE = re.compile(r"\bfill\s*\(")
+
+
+def _env_truthy(name: str, default: bool = False) -> bool:
+    """Parse common truthy env strings (``1``/``true``/``yes``/``on``)."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
+class LazyCalendarContext(dict):
+    """Host context that materializes UTC calendar fields on first read.
+
+    Phase 1.4 — bar loop only records bar open time via :meth:`set_bar_time`.
+    ``year`` / ``month`` / ``dayofmonth`` / ``hour`` / ``minute`` / ``second`` /
+    ``dayofweek`` are filled with :func:`utc_parts_from_ms` the first time any
+    of those keys is accessed on the bar.
+
+    Scripts that never read calendar series (including false-positive name
+    hits such as ``dayofweek.monday`` enum constants) pay near-zero calendar
+    cost. Scripts that read them keep the integer-math path (no per-access
+    ``datetime``).
+    """
+
+    __slots__ = ("_cal_ms", "_cal_filled")
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._cal_ms: int | float | None = None
+        self._cal_filled: bool = False
+
+    def set_bar_time(self, ms: int | float) -> None:
+        """Advance bar open time; drop prior-bar calendar cache if materialised."""
+        if self._cal_filled:
+            dpop = dict.pop
+            for k in _CAL_KEYS:
+                dpop(self, k, None)
+            self._cal_filled = False
+        self._cal_ms = ms
+
+    def _materialize(self) -> None:
+        if self._cal_filled:
+            return
+        ms = self._cal_ms
+        if ms is None:
+            ms = 0
+        try:
+            parts = utc_parts_from_ms(ms)
+        except (ValueError, OverflowError, TypeError):
+            self._cal_filled = True
+            return
+        # Fill only missing keys so explicit user assignments survive.
+        dset = dict.__setitem__
+        dhas = dict.__contains__
+        for name in _CAL_KEYS:
+            if not dhas(self, name):
+                dset(self, name, getattr(parts, name))
+        self._cal_filled = True
+
+    def __getitem__(self, key: Any) -> Any:  # type: ignore[override]
+        if key in _CAL_KEY_SET and not self._cal_filled:
+            # Honour explicit user assignment without forcing civil-date math.
+            if dict.__contains__(self, key):
+                return dict.__getitem__(self, key)
+            self._materialize()
+            return dict.__getitem__(self, key)
+        return dict.__getitem__(self, key)
+
+    def get(self, key: Any, default: Any = None) -> Any:  # type: ignore[override]
+        if key in _CAL_KEY_SET:
+            try:
+                return self[key]
+            except KeyError:
+                return default
+        return dict.get(self, key, default)
 # Derived built-in series — skip update/append when script never names them.
 _HL2_RE = re.compile(r"\bhl2\b")
 _HLC3_RE = re.compile(r"\bhlc3\b")
 _OHLC4_RE = re.compile(r"\bohlc4\b")
 
-# Parse tree cache (source sha256 → AST). Bounded to avoid unbounded growth.
-_PARSE_CACHE: dict[str, Any] = {}
-_PARSE_CACHE_MAX = 64
+# Parse trees: process-level LRU lives in ``pynescript.ast.helper.parse``
+# (sha256(source)+mode, PYNE_PARSE_CACHE / PYNE_PARSE_CACHE_MAX). Host keeps
+# a thin _parse_script wrapper for call-site clarity.
 
 # Host-side compile cache (raw source sha256 → CompiledScript). Avoids re-running
 # corpus sanitize + engine cache lookup on every mode=compile warm re-eval.
@@ -392,19 +484,39 @@ def _ohlcv_dicts_to_arrays(ohlcv_data: list[dict]) -> tuple[Any, Any, Any, Any, 
     return packed
 
 
+def _clear_pine_call_sites(tree: Any) -> None:
+    """Drop evaluator-bound call-site caches from a shared AST tree.
+
+    ``visit_Call`` stores ``_pine_call_site`` on AST nodes (bound handlers from
+    the evaluator that first resolved the site). Package ``parse`` caches trees
+    by source hash; without this clear, a second ``Runtime`` reuses the *first*
+    evaluator's ``plot`` / ``ta.*`` handlers (empty plots / wrong state).
+
+    Clear once at run start; bar 0 rebinds for the current evaluator.
+    """
+    try:
+        for node in walk(tree):
+            if getattr(node, "_pine_call_site", None) is not None:
+                try:
+                    delattr(node, "_pine_call_site")
+                except Exception:
+                    try:
+                        object.__setattr__(node, "_pine_call_site", None)
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
+
 def _parse_script(source_code: str) -> Any:
-    key = hashlib.sha256(source_code.encode("utf-8")).hexdigest()
-    tree = _PARSE_CACHE.get(key)
-    if tree is not None:
-        return tree
+    """Parse Pine source for Runtime (shared package-level AST cache).
+
+    Caching and invalidation are owned by :func:`pynescript.ast.helper.parse`
+    (``clear_parse_cache``, ``PYNE_PARSE_CACHE=0``). Shared trees are scrubbed of
+    bound call-site caches so multi-run reuse stays correct.
+    """
     tree = parse(source_code, mode="exec")
-    if len(_PARSE_CACHE) >= _PARSE_CACHE_MAX:
-        # Drop oldest insertion (CPython 3.7+ dict order)
-        try:
-            _PARSE_CACHE.pop(next(iter(_PARSE_CACHE)))
-        except StopIteration:
-            pass
-    _PARSE_CACHE[key] = tree
+    _clear_pine_call_sites(tree)
     return tree
 
 
@@ -694,52 +806,62 @@ class Runtime:
         parse_ms = (time.perf_counter() - t_parse0) * 1000.0
         t_eval0 = time.perf_counter()
 
-        # Initialize Series
-        open_series = PineSeries()
-        high_series = PineSeries()
-        low_series = PineSeries()
-        close_series = PineSeries()
-        volume_series = PineSeries()
-        hl2_series = PineSeries()
-        hlc3_series = PineSeries()
-        ohlc4_series = PineSeries()
-        tr_series = PineSeries()  # true range (built-in series in Pine)
+        # Initialize Series (PYNE_SERIES_RING=1 → chronological O(1) lookback).
+        # Default off: classic PineSeries (newest-first deque). Ring flag does
+        # not alter current_series list caps (T1). History length follows
+        # max_bars_back / PYNE_SERIES_MAX when larger than the 1000 floor.
+        _cap_on = series_cap_enabled()
+        _mbb_decl = parse_max_bars_back_from_source(source_code)
+        _host_series_cap = resolve_series_cap(max_bars_back=_mbb_decl)
+        _ps_hist = pineseries_history_length(series_cap=_host_series_cap)
+        open_series = make_pine_series(history_length=_ps_hist)
+        high_series = make_pine_series(history_length=_ps_hist)
+        low_series = make_pine_series(history_length=_ps_hist)
+        close_series = make_pine_series(history_length=_ps_hist)
+        volume_series = make_pine_series(history_length=_ps_hist)
+        hl2_series = make_pine_series(history_length=_ps_hist)
+        hlc3_series = make_pine_series(history_length=_ps_hist)
+        ohlc4_series = make_pine_series(history_length=_ps_hist)
+        tr_series = make_pine_series(history_length=_ps_hist)  # true range
 
-        # Context initialization (daily chart defaults)
+        # Context initialization (daily chart defaults).
+        # LazyCalendarContext: calendar series (year/month/…) materialise on read.
         tf = Timeframe()
         barstate = Barstate()
-        context = {
-            "open": open_series,
-            "high": high_series,
-            "low": low_series,
-            "close": close_series,
-            "volume": volume_series,
-            "hl2": hl2_series,
-            "hlc3": hlc3_series,
-            "ohlc4": ohlc4_series,
-            "tr": tr_series,
-            # Symbol info namespace (November 2025: syminfo.isin, July 2025: syminfo.current_contract)
-            "syminfo": self._syminfo,
-            "timeframe": tf,
-            "barstate": barstate,
-            "chart": self._make_chart(ohlcv_data),
-            "timeframe.period": tf.period,
-            "timeframe.main_period": tf.main_period,
-            "timeframe.multiplier": tf.multiplier,
-            "timeframe.isintraday": tf.isintraday,
-            "timeframe.isdaily": tf.isdaily,
-            "timeframe.isweekly": tf.isweekly,
-            "timeframe.ismonthly": tf.ismonthly,
-            "timeframe.isseconds": tf.isseconds,
-            "timeframe.isinseconds": tf.isinseconds,
-            "timeframe.isdwm": tf.isdwm,
-            # Per-bar counters updated in the loop below
-            "bar_index": 0,
-            "time": 0,
-            "time_close": 0,
-            "last_bar_index": max(0, len(ohlcv_data) - 1),
-            "last_bar_time": ohlcv_data[-1].get("time", 0) if ohlcv_data else 0,
-        }
+        context: LazyCalendarContext = LazyCalendarContext(
+            {
+                "open": open_series,
+                "high": high_series,
+                "low": low_series,
+                "close": close_series,
+                "volume": volume_series,
+                "hl2": hl2_series,
+                "hlc3": hlc3_series,
+                "ohlc4": ohlc4_series,
+                "tr": tr_series,
+                # Symbol info namespace (November 2025: syminfo.isin, July 2025: syminfo.current_contract)
+                "syminfo": self._syminfo,
+                "timeframe": tf,
+                "barstate": barstate,
+                "chart": self._make_chart(ohlcv_data),
+                "timeframe.period": tf.period,
+                "timeframe.main_period": tf.main_period,
+                "timeframe.multiplier": tf.multiplier,
+                "timeframe.isintraday": tf.isintraday,
+                "timeframe.isdaily": tf.isdaily,
+                "timeframe.isweekly": tf.isweekly,
+                "timeframe.ismonthly": tf.ismonthly,
+                "timeframe.isseconds": tf.isseconds,
+                "timeframe.isinseconds": tf.isinseconds,
+                "timeframe.isdwm": tf.isdwm,
+                # Per-bar counters updated in the loop below
+                "bar_index": 0,
+                "time": 0,
+                "time_close": 0,
+                "last_bar_index": max(0, len(ohlcv_data) - 1),
+                "last_bar_time": ohlcv_data[-1].get("time", 0) if ohlcv_data else 0,
+            }
+        )
 
         evaluator = CustomEvaluator(context=context, data_feed=data_feed, data_provider=data_provider)
         evaluator.reset_var_declarations()
@@ -760,8 +882,15 @@ class Runtime:
             except Exception:
                 pass
 
+        # Phase 2.5: corpus / success-only — skip plot columns + input meta (default off).
+        light_plots = _env_truthy("PYNE_LIGHT_PLOTS")
+        evaluator._pine_light_plots = light_plots  # type: ignore[attr-defined]
         # fill() needs plot() → Plot handles; skip PlotRegistry otherwise (big host win).
-        evaluator._pine_need_plot_ids = bool(_FILL_CALL_RE.search(source_code))  # type: ignore[attr-defined]
+        # Light mode never needs registry (fill soft-fails; corpus only cares OK/fail).
+        if light_plots:
+            evaluator._pine_need_plot_ids = False  # type: ignore[attr-defined]
+        else:
+            evaluator._pine_need_plot_ids = bool(_FILL_CALL_RE.search(source_code))  # type: ignore[attr-defined]
 
         # Append-only chronological OHLCV lists for ta.* helpers (oldest → newest).
         # Avoid rebuilding via list(reversed(PineSeries.history)) every bar.
@@ -829,7 +958,6 @@ class Runtime:
             _at(b.get("time", 0) or 0)
             if not has_bid_ask and (("bid" in b) or ("ask" in b)):
                 has_bid_ask = True
-        need_calendar = bool(_CAL_NAME_RE.search(source_code))
         need_hl2 = bool(_HL2_RE.search(source_code))
         need_hlc3 = bool(_HLC3_RE.search(source_code))
         need_ohlc4 = bool(_OHLC4_RE.search(source_code))
@@ -854,8 +982,26 @@ class Runtime:
         if need_ohlc4:
             _series_list_refs_list.append(sl_ohlc4)
         _series_list_refs = tuple(_series_list_refs_list)
-        series_cap = int(getattr(evaluator, "_SERIES_MAX", 256) or 256)
-        series_cap_limit = series_cap + 64
+        # T1: cap append-only current_series to max_bars_back / _SERIES_MAX.
+        # Flag PYNE_SERIES_CAP (default ON). Disable with PYNE_SERIES_CAP=0.
+        _ev_series_max = int(getattr(evaluator, "_SERIES_MAX", 256) or 256)
+        series_cap = resolve_series_cap(
+            series_max=_ev_series_max,
+            max_bars_back=_mbb_decl,
+        )
+        # Prefer host resolution already computed; re-resolve if evaluator
+        # exposed a different _SERIES_MAX (keep max of both bases).
+        if series_cap < _host_series_cap:
+            # Keep the larger of pre-eval host cap and evaluator-based cap.
+            series_cap = max(series_cap, _host_series_cap)
+        _do_series_cap = _cap_on
+        _series_trim_limit = series_cap_limit(series_cap) if _do_series_cap else 0
+        # Stash for tests / hosts that inspect the last run policy.
+        try:
+            evaluator._pine_series_cap = series_cap if _do_series_cap else None  # type: ignore[attr-defined]
+            evaluator._pine_series_cap_enabled = _do_series_cap  # type: ignore[attr-defined]
+        except Exception:
+            pass
 
         open_update = open_series.update
         high_update = high_series.update
@@ -934,18 +1080,21 @@ class Runtime:
             tr_update(tr_val)
 
             # Append-only chronological lists for ta.* (shared with evaluator.current_series).
-            # Cap in-place (del prefix) so pre-bound list refs stay valid.
+            # Cap in-place (del prefix) so pre-bound list refs stay valid (T1).
             sl_open.append(o)
             sl_high.append(h)
             sl_low.append(l)
             sl_close.append(c)
             sl_vol.append(v)
             sl_tr.append(tr_val)
-            n_hist = len(sl_close)
-            if n_hist > series_cap_limit:
-                drop = n_hist - series_cap
-                for _lst in _series_list_refs:
-                    del _lst[:drop]
+            if _do_series_cap:
+                n_hist = len(sl_close)
+                if n_hist > _series_trim_limit:
+                    trim_series_lists(
+                        _series_list_refs,
+                        keep=series_cap,
+                        length_hint=n_hist,
+                    )
 
             # Per-bar counters / time
             bar_time = col_time[bar_index]
@@ -956,8 +1105,8 @@ class Runtime:
             context["bar_index"] = bar_index
             context["time"] = bar_time
             context["time_close"] = time_close
-            if need_calendar:
-                apply_utc_parts_to_context(context, bar_time)
+            # Lazy calendar: record bar time only; year/month/… fill on first read.
+            context.set_bar_time(bar_time)
 
             is_last = bar_index == last_bar_i
             barstate.isfirst = bar_index == 0
@@ -1044,14 +1193,18 @@ class Runtime:
                     ev_dict["run_id"] = run_id
                     all_events_append(ev_dict)
 
-        # Build multi-series map from columnar plot capture (value cols + once-only meta)
+        # Build multi-series map from columnar plot capture (value cols + once-only meta).
+        # Light mode: skip export packing (corpus only needs error vs OK).
         series_map: dict[str, list[Any]] = {}
         plot_meta: dict[str, dict[str, Any]] = {}
-        value_cols: list[list[Any]] = getattr(evaluator, "_plot_value_cols", None) or []
-        meta_list: list[dict[str, Any]] = getattr(evaluator, "_plot_meta_list", None) or []
+        value_cols: list[list[Any]] = []
+        meta_list: list[dict[str, Any]] = []
         n_result_bars = n_bars
-        if value_cols:
-            n_result_bars = len(value_cols[0])
+        if not light_plots:
+            value_cols = getattr(evaluator, "_plot_value_cols", None) or []
+            meta_list = getattr(evaluator, "_plot_meta_list", None) or []
+            if value_cols:
+                n_result_bars = len(value_cols[0])
 
         def _color_str(c: Any) -> str | None:
             if c is None:

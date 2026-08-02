@@ -123,6 +123,8 @@ class CustomEvaluator(NodeLiteralEvaluator):
         # When False, skip PlotRegistry super() path (fill() needs True).
         # Default True so non-Runtime CustomEvaluator users keep registry semantics.
         self._pine_need_plot_ids = True
+        # PYNE_LIGHT_PLOTS=1: skip columnar capture + registry (corpus OK/fail only).
+        self._pine_light_plots = False
         # Bar-by-bar mode: TA helpers return current scalar instead of full series
         self._pine_bar_mode = True
         # O(1)/O(period) call-site TA for sma/ema/rma/rsi (disable via PYNE_TA_INCREMENTAL=0)
@@ -142,6 +144,8 @@ class CustomEvaluator(NodeLiteralEvaluator):
         **extra: Any,
     ) -> None:
         """Append one plot cell for this bar into columnar buffers."""
+        if self._pine_light_plots:
+            return
         i = self._plot_capture_i
         self._plot_capture_i = i + 1
         cols = self._plot_value_cols
@@ -174,6 +178,8 @@ class CustomEvaluator(NodeLiteralEvaluator):
 
         Returns the call-site index used (for optional lazy meta fill).
         """
+        if self._pine_light_plots:
+            return 0
         i = self._plot_capture_i
         self._plot_capture_i = i + 1
         self._plot_value_cols[i].append(value)
@@ -181,6 +187,10 @@ class CustomEvaluator(NodeLiteralEvaluator):
 
     def finish_bar_plots(self) -> None:
         """Pad short columns for call sites not hit this bar; advance bar counter."""
+        if self._pine_light_plots:
+            self._plot_capture_i = 0
+            self._plot_bars_done += 1
+            return
         n = self._plot_capture_i
         cols = self._plot_value_cols
         # Common case: every call site hit → empty range
@@ -211,6 +221,8 @@ class CustomEvaluator(NodeLiteralEvaluator):
 
     def _builtin_plot(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
         """Capture plot value + title/color for multi-series AXIS response."""
+        if self._pine_light_plots:
+            return None
         if kwargs:
             if not args and "series" not in kwargs:
                 return None
@@ -260,6 +272,8 @@ class CustomEvaluator(NodeLiteralEvaluator):
 
     def _builtin_hline(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
         """Capture hline as a constant-price series for AXIS (kind=hline)."""
+        if self._pine_light_plots:
+            return None
         if kwargs:
             if not args and "price" not in kwargs:
                 return None
@@ -308,6 +322,8 @@ class CustomEvaluator(NodeLiteralEvaluator):
 
     def _builtin_bgcolor(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
         """Capture bgcolor per-bar color for AXIS background bands."""
+        if self._pine_light_plots:
+            return None
         if kwargs:
             color = _unwrap_scalar(kwargs.get("color", args[0] if args else None))
             color_s = _serialize_color(color)
@@ -347,6 +363,8 @@ class CustomEvaluator(NodeLiteralEvaluator):
 
     def _builtin_plotshape(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
         """Capture plotshape condition + style for AXIS bar markers."""
+        if self._pine_light_plots:
+            return None
         if kwargs:
             if not args and "series" not in kwargs:
                 return None
@@ -397,6 +415,8 @@ class CustomEvaluator(NodeLiteralEvaluator):
 
     def _builtin_plotchar(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
         """Capture plotchar condition + char for AXIS bar markers."""
+        if self._pine_light_plots:
+            return None
         if kwargs:
             if not args and "series" not in kwargs:
                 return None

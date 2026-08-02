@@ -299,11 +299,33 @@ class Matrix(Generic[T]):
 
     # ========== FILLING OPERATIONS ==========
 
-    def fill(self, value: Any) -> None:
-        """Fill entire matrix with value."""
-        for i in range(self.rows_count):
-            for j in range(self.cols_count):
-                self.data[i][j] = value
+    def fill(
+        self,
+        value: Any,
+        from_row: int | None = None,
+        to_row: int | None = None,
+        from_column: int | None = None,
+        to_column: int | None = None,
+    ) -> None:
+        """Fill matrix (or a half-open rectangular region) with *value*.
+
+        TV: ``matrix.fill(id, value)`` or
+        ``matrix.fill(id, value, from_row, to_row, from_column, to_column)``
+        with half-open ranges ``[from, to)``.
+        """
+        r0 = 0 if from_row is None else int(from_row)
+        r1 = self.rows_count if to_row is None else int(to_row)
+        c0 = 0 if from_column is None else int(from_column)
+        c1 = self.cols_count if to_column is None else int(to_column)
+        # Clamp to matrix bounds (soft; out-of-range slice is empty)
+        r0 = max(0, min(r0, self.rows_count))
+        r1 = max(0, min(r1, self.rows_count))
+        c0 = max(0, min(c0, self.cols_count))
+        c1 = max(0, min(c1, self.cols_count))
+        for i in range(r0, r1):
+            row = self.data[i]
+            for j in range(c0, c1):
+                row[j] = value
 
     def fill_diagonal(self, value: Any) -> None:
         """Fill diagonal with value."""

@@ -1,0 +1,146 @@
+# Copyright (C) 2024-2026 jango_blockchained
+#
+# This file is part of pynescript.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+"""Tests for process-local parse/AST cache (Phase 1.6 / PYNE_PARSE_CACHE)."""
+
+from __future__ import annotations
+
+import os
+import threading
+
+import pytest
+
+from pynescript.ast.helper import clear_parse_cache
+from pynescript.ast.helper import dump
+from pynescript.ast.helper import parse
+from pynescript.ast.helper import parse_cache_info
+from pynescript.ast.helper import unparse
+
+
+SRC_MIN = """//@version=5
+indicator("cache_test")
+plot(close)
+"""
+
+SRC_EXPR = "close > open"
+
+
+@pytest.fixture(autouse=True)
+def _isolate_parse_cache(monkeypatch):
+    """Enable cache with a known max; clear before/after each test."""
+    monkeypatch.setenv("PYNE_PARSE_CACHE", "1")
+    monkeypatch.setenv("PYNE_PARSE_CACHE_MAX", "8")
+    clear_parse_cache()
+    yield
+    clear_parse_cache()
+
+
+def test_warm_hit_same_identity():
+    a = parse(SRC_MIN)
+    b = parse(SRC_MIN)
+    assert a is b
+    info = parse_cache_info()
+    assert info["enabled"] is True
+    assert info["size"] >= 1
+    assert info["hits"] >= 1
+    assert info["misses"] >= 1
+
+
+def test_unparse_matches_across_hits():
+    a = parse(SRC_MIN)
+    out_a = unparse(a)
+    b = parse(SRC_MIN)
+    out_b = unparse(b)
+    assert out_a == out_b
+    assert a is b
+    # Structural dump stable
+    assert dump(a) == dump(b)
+
+
+def test_mode_is_part_of_key():
+    # Different modes must not collide even if source strings differ in role.
+    # SRC_EXPR is only valid as eval; full script is exec.
+    tree_exec = parse(SRC_MIN, mode="exec")
+    tree_eval = parse(SRC_EXPR, mode="eval")
+    again_exec = parse(SRC_MIN, mode="exec")
+    again_eval = parse(SRC_EXPR, mode="eval")
+    assert tree_exec is again_exec
+    assert tree_eval is again_eval
+    assert tree_exec is not tree_eval
+
+
+def test_clear_parse_cache_resets():
+    a = parse(SRC_MIN)
+    clear_parse_cache()
+    info = parse_cache_info()
+    assert info["size"] == 0
+    assert info["hits"] == 0
+    assert info["misses"] == 0
+    b = parse(SRC_MIN)
+    assert a is not b
+    assert dump(a) == dump(b)
+    assert unparse(a) == unparse(b)
+
+
+def test_disable_via_env(monkeypatch):
+    monkeypatch.setenv("PYNE_PARSE_CACHE", "0")
+    clear_parse_cache()
+    a = parse(SRC_MIN)
+    b = parse(SRC_MIN)
+    assert a is not b
+    assert unparse(a) == unparse(b)
+    assert parse_cache_info()["enabled"] is False
+    assert parse_cache_info()["size"] == 0
+
+
+def test_lru_eviction_bounded(monkeypatch):
+    monkeypatch.setenv("PYNE_PARSE_CACHE_MAX", "3")
+    clear_parse_cache()
+    scripts = [f"//@version=5\nindicator(\"s{i}\")\nplot(close + {i})\n" for i in range(5)]
+    trees = [parse(s) for s in scripts]
+    info = parse_cache_info()
+    assert info["size"] <= 3
+    # First two should have been evicted; re-parse rebuilds
+    early = parse(scripts[0])
+    assert early is not trees[0]
+    assert dump(early) == dump(trees[0])
+    # Most recent still warm
+    late = parse(scripts[-1])
+    assert late is trees[-1]
+
+
+def test_different_sources_different_trees():
+    a = parse(SRC_MIN)
+    b = parse(SRC_MIN + "\n// trailing comment variation\n")
+    assert a is not b
+
+
+def test_filename_not_in_key():
+    a = parse(SRC_MIN, filename="a.pine")
+    b = parse(SRC_MIN, filename="b.pine")
+    assert a is b
+
+
+def test_concurrent_parse_same_source():
+    clear_parse_cache()
+    results: list[object] = []
+    errors: list[BaseException] = []
+
+    def worker() -> None:
+        try:
+            results.append(parse(SRC_MIN))
+        except BaseException as exc:  # noqa: BLE001 — collect for assertion
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert not errors
+    assert len(results) == 8
+    # All hits share one identity after concurrent first-fill
+    assert all(r is results[0] for r in results)

@@ -660,13 +660,13 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         """``array.min/max(id)`` or ``array.min/max(id, nth)`` (0-based nth).
 
         TV: optional *nth* selects the nth smallest (min) or largest (max).
+        ``na`` id / empty / all-na → ``na`` (soft; pairs with standardize na).
         """
         if len(args) not in {UNARY, BINARY}:
             self._error(f"array.{op} takes array and optional nth")
-        sequence = self._expect_list(
-            args[0],
-            f"array.{op} takes non-empty array",
-        )
+        sequence = self._coerce_optional_list(args[0])
+        if sequence is None:
+            return None
         nums = self._numeric_values(sequence)
         if not nums:
             return None
@@ -778,7 +778,18 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         # Pine: remove and return first element
         return sequence.pop(0)
 
-    def _builtin_array_some(self, args: list[Any]) -> bool:
+    def _builtin_array_some(self, args: list[Any]) -> bool | None:
+        """``array.some(id, predicate)`` or unary ``id.some()`` on bool arrays.
+
+        Corpus residual (confluence alerts): ``array.from(cond_1, …).some()``
+        without a predicate treats the array as bool series and returns whether
+        any element is truthy. Full form still requires a callable predicate.
+        """
+        if len(args) == UNARY:
+            sequence = self._coerce_optional_list(args[0])
+            if sequence is None:
+                return None
+            return any(bool(item) for item in sequence)
         if len(args) != BINARY:
             self._error("array.some takes array and predicate")
         sequence = self._expect_list(
@@ -1132,25 +1143,52 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             return 0.0
         return ((count - 1) / (n - 1)) * 100
 
-    def _builtin_array_standardize(self, args: list[Any]) -> list[Any]:
-        """Standardize array values (z-score normalization)."""
+    def _builtin_array_standardize(self, args: list[Any]) -> list[Any] | None:
+        """Standardize array values (z-score normalization).
+
+        Drops ``na`` / non-numeric slots (``close[i]`` past history) rather than
+        hard-failing ``statistics.mean`` with ``NoneType``. Fewer than 2 finite
+        samples or zero stdev → ``na`` array (soft) instead of Runtime Error.
+        """
         if len(args) != UNARY:
             self._error("array.standardize takes an array argument")
-        sequence = self._expect_list(
-            args[0],
-            "array.standardize takes an array argument",
-        )
+        sequence = self._coerce_optional_list(args[0])
+        if sequence is None:
+            return None
 
-        if len(sequence) < MIN_ARRAY_SIZE:
-            self._error("array.standardize requires at least 2 values")
+        nums: list[float] = []
+        for x in sequence:
+            if x is None or isinstance(x, bool):
+                continue
+            if isinstance(x, (int, float)):
+                fx = float(x)
+                if fx == fx:  # not NaN
+                    nums.append(fx)
 
-        mean = statistics.mean(sequence)
-        stdev = statistics.stdev(sequence)
+        if len(nums) < MIN_ARRAY_SIZE:
+            return None
+
+        mean = statistics.mean(nums)
+        stdev = statistics.stdev(nums)
 
         if stdev == 0:
-            self._error("Cannot standardize array with zero standard deviation")
+            return None
 
-        return [(x - mean) / stdev for x in sequence]
+        # Preserve original length: non-finite slots stay na
+        out: list[Any] = []
+        for x in sequence:
+            if x is None or isinstance(x, bool):
+                out.append(None)
+                continue
+            if isinstance(x, (int, float)):
+                fx = float(x)
+                if fx != fx:
+                    out.append(None)
+                else:
+                    out.append((fx - mean) / stdev)
+            else:
+                out.append(None)
+        return out
 
     def _builtin_array_stdev(self, args: list[Any]) -> float | None:
         """array.stdev(id) | array.stdev(id, biased) → float.

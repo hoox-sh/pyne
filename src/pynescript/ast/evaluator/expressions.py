@@ -193,13 +193,27 @@ def _elementwise_binary(op, a, b):
     elif a is None and (tb is float or tb is int or b is None):
         return None
 
+    def _safe_op(x: Any, y: Any) -> Any:
+        if x is None or y is None:
+            return None
+        try:
+            return op(x, y)
+        except TypeError:
+            # Pine-ish: string concat with non-string coerces via str()
+            if op is operator.add and (type(x) is str or type(y) is str):
+                try:
+                    return str(x) + str(y)
+                except Exception:
+                    return None
+            return None
+
     if ta is list and tb is list:
         if len(a) == len(b):
-            return [None if x is None or y is None else op(x, y) for x, y in zip(a, b)]
+            return [_safe_op(x, y) for x, y in zip(a, b)]
         # Align on the trailing edge (most recent bars)
         n = min(len(a), len(b))
         a_tail, b_tail = a[-n:], b[-n:]
-        body = [None if x is None or y is None else op(x, y) for x, y in zip(a_tail, b_tail)]
+        body = [_safe_op(x, y) for x, y in zip(a_tail, b_tail)]
         if len(a) > len(b):
             return [None] * (len(a) - n) + body
         return [None] * (len(b) - n) + body
@@ -207,20 +221,17 @@ def _elementwise_binary(op, a, b):
     if ta is list:
         if b is None:
             return [None] * len(a)
-        return [None if x is None else op(x, b) for x in a]
+        return [_safe_op(x, b) for x in a]
 
     if tb is list:
         if a is None:
             return [None] * len(b)
-        return [None if y is None else op(a, y) for y in b]
+        return [_safe_op(a, y) for y in b]
 
     if a is None or b is None:
         return None
-    # Soft-fail mismatched types (str vs int, etc.) → na
-    try:
-        return op(a, b)
-    except TypeError:
-        return None
+    # Soft-fail mismatched types; string + number → coerced concat (isin demos)
+    return _safe_op(a, b)
 
 
 def _na_safe_binary(op):

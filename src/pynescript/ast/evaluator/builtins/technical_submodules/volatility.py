@@ -97,14 +97,15 @@ class VolatilityIndicators(TechnicalHelpers):
         - ``ta.bb(source, length, mult)``
         """
         msg = "ta.bb expects series, length, and multiplier"
+        use_inc = self._use_incremental_ta()
         if len(args) == BINARY and self._is_period_like(args[0]):
-            series = self._context_series("close")
             length = self._expect_int(args[0], msg)
             multiplier = args[1]
+            series = self._context_source("close") if use_inc else self._context_series("close")
         elif len(args) == TERNARY:
-            series = self._as_series(args[0]) if hasattr(self, "_as_series") else self._expect_list(args[0], msg)
             length = self._expect_int(args[1], msg)
             multiplier = args[2]
+            series = self._as_series_or_raw(args[0], last_sample_ok=True)
         else:
             self._error(msg)
             return None, None, None
@@ -113,6 +114,8 @@ class VolatilityIndicators(TechnicalHelpers):
             multiplier = multiplier.current
         if not isinstance(multiplier, int | float):
             self._error("ta.bb expects numeric multiplier")
+        if use_inc:
+            return self._bb_inc_update(series, length, float(multiplier))
         return self._bollinger_bands(series, length, multiplier)
 
     def _builtin_ta_bbw(self, args: list[Any]) -> float | None:
@@ -123,7 +126,9 @@ class VolatilityIndicators(TechnicalHelpers):
         msg = "ta.bbw expects series, length, and multiplier"
         if len(args) not in {BINARY, TERNARY}:
             self._error(msg)
-        middle, upper, lower = self._builtin_ta_bb(args)
+        # ``_builtin_ta_bb`` MRO may resolve to BasicIndicators; both paths
+        # honor PYNE_TA_INCREMENTAL. BB returns (upper, middle, lower).
+        upper, middle, lower = self._builtin_ta_bb(args)
         if middle is None or upper is None or lower is None:
             return None
         if middle == 0:
@@ -173,7 +178,9 @@ class VolatilityIndicators(TechnicalHelpers):
 
         ta.cmo(source, length)
         """
-        series, length = self._expect_series(args, length=BINARY)
+        series, length = self._expect_series(args, length=BINARY, last_sample_ok=True)
+        if self._use_incremental_ta():
+            return self._cmo_inc_update(series, length)
         if length <= 0 or len(series) < length + 1:
             return None
         window = series[-(length + 1) :]
@@ -551,6 +558,10 @@ class VolatilityIndicators(TechnicalHelpers):
         rsi_length = self._expect_int(args[0], "rsi_length must be integer")
         stoch_length = self._expect_int(args[1], "stoch_length must be integer")
 
+        if self._use_incremental_ta():
+            closes = self._context_source("close")
+            return self._stochrsi_inc_update(closes, rsi_length, stoch_length)
+
         closes = (getattr(self, "current_series", None) or {}).get("close", [])
         if not closes or len(closes) < rsi_length:
             return {"stochrsi": None, "signal": None}
@@ -665,13 +676,10 @@ class VolatilityIndicators(TechnicalHelpers):
         after warm-up) instead of full-history ``_sma`` each bar.
         """
         if self._use_incremental_ta():
-            # Two call-site slots: SMA then stdev (order fixed for parity).
-            middle = self._sma_inc_update(series, period)
-            deviation = self._stdev_inc_update(series, period)
-        else:
-            sma_values = self._sma(series, period)
-            middle = sma_values[-1] if sma_values else None
-            deviation = self._stdev(series, period)
+            return self._bb_inc_update(series, period, float(multiplier))
+        sma_values = self._sma(series, period)
+        middle = sma_values[-1] if sma_values else None
+        deviation = self._stdev(series, period)
         if middle is None or deviation is None:
             return None, None, None
         upper = middle + deviation * multiplier

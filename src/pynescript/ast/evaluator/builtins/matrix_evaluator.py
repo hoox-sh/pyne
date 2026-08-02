@@ -508,12 +508,23 @@ class MatrixBuiltinsMixin(BuiltinDispatchMixin):
     # ========== FILLING OPERATIONS ==========
 
     def _builtin_matrix_fill(self, args: list[Any]) -> None:
-        """matrix.fill(matrix, value) -> void"""
-        if len(args) != BINARY:
+        """matrix.fill(id, value[, from_row, to_row, from_column, to_column]) -> void.
+
+        TV region form uses half-open ``[from_row, to_row)`` × ``[from_col, to_col)``.
+        """
+        n = len(args)
+        if n not in {BINARY, 6}:
             self._error("matrix.fill requires matrix and value")
         matrix = self._expect_matrix(args[0], "matrix.fill: first arg must be matrix")
         value = args[UNARY]
-        matrix.fill(value)
+        if n == BINARY:
+            matrix.fill(value)
+            return
+        from_row = self._expect_int(args[2], "matrix.fill: from_row must be int")
+        to_row = self._expect_int(args[3], "matrix.fill: to_row must be int")
+        from_col = self._expect_int(args[4], "matrix.fill: from_column must be int")
+        to_col = self._expect_int(args[5], "matrix.fill: to_column must be int")
+        matrix.fill(value, from_row, to_row, from_col, to_col)
 
     def _builtin_matrix_fill_diagonal(self, args: list[Any]) -> None:
         """matrix.fill_diagonal(matrix, value) -> void"""

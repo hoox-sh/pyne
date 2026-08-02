@@ -398,6 +398,8 @@ class BasicIndicators(TechnicalHelpers):
             multiplier = multiplier.current
         if not isinstance(multiplier, int | float):
             self._error("ta.bb expects numeric multiplier")
+        if self._use_incremental_ta():
+            return self._bb_inc_update(series, length, float(multiplier))
         return self._bollinger_bands(series, length, multiplier)
 
     def _builtin_ta_atr(self, args: list[Any]) -> Any:

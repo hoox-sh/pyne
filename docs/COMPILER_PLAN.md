@@ -123,6 +123,59 @@ The compile path is motivated by three practical properties of the pynescript st
 
 **Compatibility.** The approach reuses the existing ANTLR parser and ASDL AST and depends only on optional Numba/numpy in the environment. No separate C/Rust toolchain is required for the MVP, which keeps packaging aligned with the rest of the Python codebase and with the backend’s `mode="compile"` switch.
 
+## Product warm-compile path (H2, 2026-08)
+
+Deploy and Pro API defaults prefer **warm compile** while remaining correctness-first.
+
+### Runtime modes
+
+| Mode | Behavior |
+| --- | --- |
+| `auto` (**default** on Pro API `/run`, `/run/batch`) | Prefer compile when eligible; fall back to interpret on hard failure or known gaps |
+| `compile` | Compile only (error if transpile/exec fails; nopython→object recovery still inside compile) |
+| `interpret` | AST evaluator only |
+
+**Safe auto gates (no silent wrong results):** non-empty `inputs` → interpret; top-level `import` / `request.*` → interpret; any compile error → interpret with `compile_fallback_reason`. Response fields: `auto_backend`, `compile_cached`, `compile_ms`, optional `nopython_fallback_reason`.
+
+### Cache layers
+
+| Layer | Key | Size / default | Cross-process? |
+| --- | --- | --- | --- |
+| Source LRU | sha256(raw) then sanitized | max 128 | no |
+| IR LRU | sha256(generated Python) | max 64 | no |
+| Host Runtime cache | raw source sha256 | bounded | no |
+| Disk module + src meta | under `PYNE_COMPILE_CACHE_DIR` | **on** by default | yes (+ Numba `.nbc` when file-backed) |
+
+Env (product defaults):
+
+| Env | Default | Role |
+| --- | --- | --- |
+| `PYNE_COMPILE_DISK_CACHE` | `1` | Opt-out disk IR/module cache |
+| `PYNE_COMPILE_CACHE_DIR` | XDG/`~/.cache`…; Docker `/data/compile-cache` | Persistent IR volume |
+| `PYNE_COMPILE_PREWARM` | `1` | Once-per-worker builtin prewarm on first `/run` |
+
+### Prewarm hooks
+
+- Python: `prewarm_numba_builtins()`, `prewarm_scripts([...])`, `ensure_compile_cache_dir()`, `compile_deploy_config()`
+- CLI: `pynescript prewarm [PATH…]`
+- Pro API: `POST /compile/prewarm` (optional `scripts`, `force`); `GET /health` → `compile` section
+- Lazy host prewarm on first non-test `/run` when `PYNE_COMPILE_PREWARM=1`
+
+### SLOs (indicative, workstation + Numba; see Round 6 benches)
+
+Targets for **ops / product**, not hard CI gates. Measure with `scripts/bench_pipeline.py`.
+
+| Path | SLO band | Notes |
+| --- | --- | --- |
+| Interpret `minimal` @ 2k bars | ≤ **25 ms** median | Pure AST walker |
+| Interpret `ta_combo` @ 2k bars | ≤ **200 ms** median | Residual TA still interpret-first |
+| Cold compile (empty memory + cold Numba) first SMA-class script | ≤ **2 s** | Dominated by njit first-touch |
+| Warm compile (same process, source cache hit) | ≤ **1 ms** | Typically ~0.01–0.05 ms |
+| Warm compile run `ta_combo` @ 5k bars | ≤ **5 ms** | Often ~1 ms after warm |
+| Cross-process disk IR rehydrate (same machine) | ≤ **~60–70%** of full cold | Still not free AOT |
+
+**Product rule:** first user-visible latency after deploy should use prewarm + disk cache so cold JIT is paid by readiness, not interactive `/run` when possible.
+
 ## Remaining Work
 
-Further work includes more `ta.*` / math helpers so fewer scripts fall out of numeric mode, strategy execution under compile mode (orders and `StrategyState` side effects remain interpret-first for complex paths; basic entry/close exist in object mode), richer drawing semantics (deletes, full style parity with the interpreter’s registries), nested UDTs and methods, and optional **disk** caching of generated modules. In-process `compile_script` caching is already landed (2026-07-28). Parity tests that run the same fixture under both `mode="interpret"` and `mode="compile"` should continue to grow with each new lowered construct.
+Further work includes more `ta.*` / math helpers so fewer scripts fall out of numeric mode, strategy execution under compile mode (orders and `StrategyState` side effects remain interpret-first for complex paths; basic entry/close exist in object mode), richer drawing semantics (deletes, full style parity with the interpreter’s registries), and nested UDTs/methods. In-process + **disk** `compile_script` caching and product prewarm (H2) are landed (2026-07/08). Parity tests that run the same fixture under both `mode="interpret"` and `mode="compile"` should continue to grow with each new lowered construct.

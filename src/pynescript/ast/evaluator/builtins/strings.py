@@ -102,30 +102,28 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         )
         return value.lower()
 
-    def _builtin_str_contains(self, args: list[Any]) -> bool:
+    def _builtin_str_contains(self, args: list[Any]) -> bool | None:
+        """TV: ``str.contains(source, str)`` → bool; either arg ``na`` → ``na``.
+
+        Soft-coerces non-strings (numbers / series scalars) via ``str(...)`` so
+        corpus residual paths that leak non-string types do not hard-fail.
+        """
         if len(args) != BINARY:
             self._error("str.contains takes two string arguments")
-        haystack = self._expect_string(
-            args[0],
-            "str.contains takes two string arguments",
-        )
-        needle = self._expect_string(
-            args[1],
-            "str.contains takes two string arguments",
-        )
+        if args[0] is None or args[1] is None:
+            return None
+        haystack = self._coerce_str_arg(args[0])
+        needle = self._coerce_str_arg(args[1])
         return needle in haystack
 
-    def _builtin_str_startswith(self, args: list[Any]) -> bool:
+    def _builtin_str_startswith(self, args: list[Any]) -> bool | None:
+        """TV: ``str.startswith(source, str)`` → bool; either arg ``na`` → ``na``."""
         if len(args) != BINARY:
             self._error("str.startswith takes two string arguments")
-        value = self._expect_string(
-            args[0],
-            "str.startswith takes two string arguments",
-        )
-        prefix = self._expect_string(
-            args[1],
-            "str.startswith takes two string arguments",
-        )
+        if args[0] is None or args[1] is None:
+            return None
+        value = self._coerce_str_arg(args[0])
+        prefix = self._coerce_str_arg(args[1])
         return value.startswith(prefix)
 
     def _builtin_str_substring(self, args: list[Any]) -> str | None:
@@ -152,17 +150,14 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         end_i = self._expect_int(end, "str.substring takes string and 1-2 ints")
         return value[start_i:end_i]
 
-    def _builtin_str_endswith(self, args: list[Any]) -> bool:
+    def _builtin_str_endswith(self, args: list[Any]) -> bool | None:
+        """TV: ``str.endswith(source, str)`` → bool; either arg ``na`` → ``na``."""
         if len(args) != BINARY:
             self._error("str.endswith takes two string arguments")
-        value = self._expect_string(
-            args[0],
-            "str.endswith takes two string arguments",
-        )
-        suffix = self._expect_string(
-            args[1],
-            "str.endswith takes two string arguments",
-        )
+        if args[0] is None or args[1] is None:
+            return None
+        value = self._coerce_str_arg(args[0])
+        suffix = self._coerce_str_arg(args[1])
         return value.endswith(suffix)
 
     def _builtin_str_repeat(self, args: list[Any]) -> str | None:
@@ -458,17 +453,22 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         timestamp = args[0]
         # Accept int/float; coerce seconds → ms when value looks like Unix seconds
         if isinstance(timestamp, float):
+            if timestamp != timestamp:  # NaN
+                return "NaN"
             timestamp = int(timestamp)
         if not isinstance(timestamp, int):
-            # Unresolved bare name / na
+            # Unresolved bare name / na / import-stub objects (VisibleChart.*)
             if timestamp is None or isinstance(timestamp, str):
                 return "NaN"
             # series wrapper
             cur = getattr(timestamp, "current", None)
-            if isinstance(cur, (int, float)):
+            if isinstance(cur, (int, float)) and not isinstance(cur, bool):
+                if isinstance(cur, float) and cur != cur:
+                    return "NaN"
                 timestamp = int(cur)
             else:
-                self._error("str.format_time expects timestamp in milliseconds")
+                # Soft-fail: PineImportStub / UDT / wrong type → "NaN" text
+                return "NaN"
         if 0 < timestamp < 10_000_000_000:
             # Likely seconds (e.g. chart bars with s-epoch) — Pine uses ms
             timestamp = timestamp * 1000
@@ -482,7 +482,12 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
             )
         timezone_str = args[2] if len(args) == TERNARY else None
         if timezone_str is not None and not isinstance(timezone_str, str):
-            self._error("str.format_time expects timezone to be a string")
+            # request.security(syminfo.timezone) may yield series list / float stub
+            if isinstance(timezone_str, (list, tuple)):
+                timezone_str = timezone_str[-1] if timezone_str else None
+            if timezone_str is not None and not isinstance(timezone_str, str):
+                # Soft: non-string timezone → ignore (use UTC default)
+                timezone_str = None
         formatted = self._format_time(timestamp, format_str, timezone_str)
         # Strip TV literal-quote markers (e.g. 'T' in ISO default)
         return formatted.replace("'", "")

@@ -88,8 +88,13 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
 
         After the first bar (``_pine_defs_locked``), skip re-recording so
         multi-thousand-bar runs do not grow an O(bars × inputs) list.
+
+        ``_pine_light_plots`` (``PYNE_LIGHT_PLOTS=1``) skips meta entirely —
+        corpus / success-only hosts do not need AXIS input panels.
         """
         if getattr(self, "_pine_defs_locked", False):
+            return
+        if getattr(self, "_pine_light_plots", False):
             return
         decls = getattr(self, "_input_declarations", None)
         if decls is None:
@@ -114,20 +119,22 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
         if title not in overrides:
             return defval
         raw = overrides[title]
-        # input.source intentionally passes list series — leave lists alone when
-        # the default is itself a series name / non-scalar default path.
+        # input.source: host may pass a full series list; keep it so
+        # ``_coerce_source_value`` can sample by ``bar_index``.
+        # Scalar inputs (int/float/bool/string) peel list snapshots to last bar
+        # so AXIS plot-source expansions do not crash ``int(list)``.
         if isinstance(raw, list):
-            # Nested list (e.g. accidental [[1]]) or series of scalars → last
             if not raw:
                 return defval
+            if isinstance(defval, str) and defval in _BUILTIN_SOURCE_NAMES:
+                return raw
             last = raw[-1]
-            # Full OHLC-like series of numbers for a scalar input → use last bar
             if isinstance(defval, (int, float, bool, str)) or defval is None:
                 if isinstance(last, list) and last:
                     last = last[-1]
                 if isinstance(last, (int, float, bool, str)) or last is None:
                     return last if last is not None else defval
-            # Otherwise keep the list (source series override)
+            # Complex default (series object, etc.) — keep the list
             return raw
         return raw
 

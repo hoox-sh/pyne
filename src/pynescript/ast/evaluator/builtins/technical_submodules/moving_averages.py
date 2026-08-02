@@ -107,7 +107,7 @@ class MovingAverageIndicators(TechnicalHelpers):
             return self._vwma_inc_update(series, vol, period)
         return self._finalize_series(self._vwma(series, period))
 
-    def _builtin_ta_kama(self, args: list[Any]) -> list[float | None]:
+    def _builtin_ta_kama(self, args: list[Any]) -> list[float | None] | float | None:
         """Kaufman's Adaptive Moving Average.
 
         TV / community form: ``ta.kama(source, length, fastLength=2, slowLength=30)``.
@@ -118,16 +118,22 @@ class MovingAverageIndicators(TechnicalHelpers):
             # Soft-na rather than hard arity error (corpus often hits bare kama
             # after a same-named UDF series clobber; 1-arg is series-only).
             if n == UNARY:
+                if self._use_incremental_ta():
+                    return None
                 series = self._as_series(args[0])
                 return self._finalize_series([None] * len(series) if series else [None])
             self._error("ta.kama() requires source and length")
 
-        series = self._as_series(args[0])
         length = self._expect_int(args[1], "ta.kama length must be integer")
         # Kaufman defaults: fast period 2, slow period 30.
         fast = self._expect_int(args[2], "ta.kama fast_period must be integer") if n >= TERNARY else 2
         slow = self._expect_int(args[3], "ta.kama slow_period must be integer") if n >= QUATERNARY else 30
 
+        if self._use_incremental_ta():
+            series = self._as_series_or_raw(args[0], last_sample_ok=True)
+            return self._kama_inc_update(series, length, fast, slow)
+
+        series = self._as_series(args[0])
         if length < 1:
             return self._finalize_series([None] * len(series))
 

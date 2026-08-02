@@ -2457,6 +2457,274 @@ class TechnicalHelpers:
         st["value"] = float(sorted_w[rank - 1])
         return st.get("value")
 
+    # ------------------------------------------------------------------
+    # Round 7 residual (T2): bb / kama / cmo / stochrsi nested full paths
+    # ------------------------------------------------------------------
+
+    def _bb_inc_update(
+        self,
+        series: list[Any],
+        period: int,
+        multiplier: float,
+    ) -> tuple[float | None, float | None, float | None]:
+        """Incremental Bollinger Bands (upper, middle, lower).
+
+        Nested ``_sma_inc_update`` + ``_stdev_inc_update`` (own call-site slots).
+        Matches ``_bollinger_bands`` last-value oracle.
+        """
+        middle = self._sma_inc_update(series, period)
+        deviation = self._stdev_inc_update(series, period)
+        if middle is None or deviation is None:
+            return None, None, None
+        try:
+            mid_f = float(middle)
+            dev_f = float(deviation)
+            mult = float(multiplier)
+        except (TypeError, ValueError):
+            return None, None, None
+        return mid_f + dev_f * mult, mid_f, mid_f - dev_f * mult
+
+    def _kama_inc_update(
+        self,
+        series: list[Any],
+        length: int,
+        fast: int = 2,
+        slow: int = 30,
+    ) -> float | None:
+        """Incremental Kaufman's AMA matching full ``_builtin_ta_kama`` last value.
+
+        Full path rebuilds the whole KAMA series every bar (O(bars·length)).
+        State: price ring (length+1), running sum of |Δ| over ``length`` diffs,
+        and the recursive KAMA seed at bar ``length`` (0-based index length-1).
+        First non-None output is on bar index ``length`` (need length+1 samples).
+        """
+        if length < 1:
+            return None
+        slot = self._ta_next_slot()
+        key = ("kama", slot, int(length), int(fast), int(slow))
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {
+                "prices": deque(maxlen=length + 1),
+                "diffs": deque(),
+                "vol": 0.0,
+                "kama": None,
+                "seeded": False,
+                "bars": 0,
+                "value": None,
+            }
+            bucket[key] = st
+
+        raw = self._series_last(series)
+        if raw is None:
+            st["value"] = None
+            return None
+        try:
+            x = float(raw)
+        except (TypeError, ValueError):
+            st["value"] = None
+            return None
+
+        prices: deque[float] = st["prices"]
+        diffs: deque[float] = st["diffs"]
+        prev = prices[-1] if prices else None
+        prices.append(x)
+        st["bars"] = int(st["bars"]) + 1
+
+        if prev is not None:
+            d = abs(x - float(prev))
+            if len(diffs) == length:
+                st["vol"] = float(st["vol"]) - float(diffs.popleft())
+            diffs.append(d)
+            st["vol"] = float(st["vol"]) + d
+
+        bars = int(st["bars"])
+        if not st["seeded"]:
+            if bars < length:
+                st["value"] = None
+                return None
+            # Bar index length-1: seed kama to price; series still all-None.
+            st["kama"] = x
+            st["seeded"] = True
+            st["value"] = None
+            return None
+
+        # bars > length → recursive update (matches for i in range(length, n))
+        oldest = float(prices[0])
+        change = abs(x - oldest)
+        volatility = float(st["vol"])
+        if volatility != 0.0:
+            efficiency = change / volatility
+            fastest = 2.0 / (float(fast) + 1.0)
+            slowest = 2.0 / (float(slow) + 1.0)
+            smoothing = efficiency * (fastest - slowest) + slowest
+            sc = smoothing * smoothing
+        else:
+            sc = (2.0 / (float(slow) + 1.0)) ** 2
+        kama = float(st["kama"])
+        kama = kama + sc * (x - kama)
+        st["kama"] = kama
+        st["value"] = kama
+        return kama
+
+    def _cmo_inc_update(self, series: list[Any], length: int) -> float | None:
+        """Incremental Chande Momentum Oscillator matching full ``ta.cmo``.
+
+        Window of ``length + 1`` samples; up/down sums of signed diffs over
+        the window (na pairs skipped). O(length)/bar — avoids full reverse
+        materialize via last-sample path.
+        """
+        if length <= 0:
+            return None
+        slot = self._ta_next_slot()
+        key = ("cmo", slot, int(length))
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"window": deque(maxlen=length + 1), "value": None}
+            bucket[key] = st
+
+        raw = self._series_last(series)
+        x: float | None
+        if raw is None:
+            x = None
+        else:
+            try:
+                x = float(raw)
+            except (TypeError, ValueError):
+                x = None
+
+        window: deque[float | None] = st["window"]
+        window.append(x)
+        if len(window) < length + 1:
+            st["value"] = None
+            return None
+
+        up = 0.0
+        down = 0.0
+        prev_v: float | None = None
+        for v in window:
+            if prev_v is not None and v is not None:
+                diff = float(v) - float(prev_v)
+                if diff > 0:
+                    up += diff
+                else:
+                    down += -diff
+            prev_v = v
+        denom = up + down
+        if denom == 0.0:
+            st["value"] = 0.0
+            return 0.0
+        st["value"] = 100.0 * (up - down) / denom
+        return st.get("value")
+
+    def _stochrsi_inc_update(
+        self,
+        closes: list[Any],
+        rsi_length: int,
+        stoch_length: int,
+    ) -> dict[str, float | None]:
+        """Incremental StochRSI matching AdvancedIndicators full path.
+
+        Full path rebuilds a simple (non-Wilder) RSI series every bar then
+        takes max/min over last ``stoch_length`` valid RSI values. Here:
+        price ring for one RSI sample O(rsi_length) + RSI ring for stoch.
+        Signal: ``0.33 * stochrsi + 0.67 * prev_signal`` (call-site state).
+        """
+        if rsi_length < 1 or stoch_length < 1:
+            return {"stochrsi": None, "signal": None}
+        slot = self._ta_next_slot()
+        key = ("stochrsi", slot, int(rsi_length), int(stoch_length))
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {
+                "prices": deque(maxlen=rsi_length),
+                "rsi_ring": deque(maxlen=stoch_length),
+                "valid_rsi": 0,
+                "signal": None,
+                "value": None,
+            }
+            bucket[key] = st
+
+        raw = self._series_last(closes)
+        if raw is None:
+            st["value"] = None
+            return {"stochrsi": None, "signal": st.get("signal")}
+        try:
+            x = float(raw)
+        except (TypeError, ValueError):
+            st["value"] = None
+            return {"stochrsi": None, "signal": st.get("signal")}
+
+        prices: deque[float] = st["prices"]
+        prices.append(x)
+        # Full path: first RSI when bar index >= rsi_length (needs rsi_length+1
+        # closes). Price ring of rsi_length is full after rsi_length samples;
+        # first RSI is computed on the *next* bar (bars > rsi_length) — match
+        # by counting: when len(prices) < rsi_length → still warmup Nones.
+        # Full: for i in range(len): if i < rsi_length: None else segment of
+        # closes[i-rsi_length+1:i+1] length rsi_length.
+        # After rsi_length samples (i=rsi_length-1) still None; after
+        # rsi_length+1 samples (i=rsi_length) first RSI on ring of rsi_length.
+        # With maxlen=rsi_length ring, after rsi_length appends ring is full
+        # at i=rsi_length-1. Full still returns None there. So we need a bar
+        # counter: first RSI when bars > rsi_length, using last rsi_length prices.
+        bars = int(st.get("bars", 0)) + 1
+        st["bars"] = bars
+
+        if bars <= rsi_length:
+            # Match full: i < rsi_length → None; at i == rsi_length-1 still None
+            st["value"] = None
+            return {"stochrsi": None, "signal": None}
+
+        # bars >= rsi_length+1 → prices ring holds closes[i-rsi_length+1:i+1]
+        segment = list(prices)
+        if len(segment) < rsi_length:
+            st["value"] = None
+            return {"stochrsi": None, "signal": None}
+
+        gains = 0.0
+        losses = 0.0
+        for j in range(1, len(segment)):
+            d = segment[j] - segment[j - 1]
+            if d > 0:
+                gains += d
+            else:
+                losses += -d
+        avg_gain = gains / rsi_length
+        avg_loss = losses / rsi_length
+        if avg_loss != 0:
+            rs = avg_gain / avg_loss
+        else:
+            rs = 100.0
+        rsi_val = 100.0 - (100.0 / (1.0 + rs))
+
+        rsi_ring: deque[float] = st["rsi_ring"]
+        rsi_ring.append(rsi_val)
+        valid = int(st["valid_rsi"]) + 1
+        st["valid_rsi"] = valid
+        if valid < stoch_length or len(rsi_ring) < stoch_length:
+            st["value"] = None
+            return {"stochrsi": None, "signal": None}
+
+        rsi_high = max(rsi_ring)
+        rsi_low = min(rsi_ring)
+        rsi_range = rsi_high - rsi_low
+        if rsi_range == 0.0:
+            stochrsi_val = 0.0
+        else:
+            stochrsi_val = (rsi_val - rsi_low) / rsi_range * 100.0
+
+        prev_sig = st.get("signal")
+        if prev_sig is None:
+            prev_sig = stochrsi_val
+        signal = stochrsi_val * 0.33 + float(prev_sig) * 0.67
+        st["signal"] = signal
+        st["value"] = stochrsi_val
+        return {"stochrsi": stochrsi_val, "signal": signal}
+
     def _finalize_series(self, values: list[Any]) -> Any:
         """Return full series list, or current scalar in bar mode."""
         if not self._bar_mode():
@@ -2676,6 +2944,10 @@ class TechnicalHelpers:
         Full-recompute paths must leave this False (default).
         """
         n = len(args)
+        # Soft-ignore trailing extras (linter signature demos: ta.sma(close, 14, extra))
+        if n > length >= 1:
+            args = args[:length]
+            n = length
         # Hot path: (series, period) with plain int period + last-sample inc
         if n == length and length == BINARY:
             period_raw = args[1]

@@ -561,6 +561,10 @@ class AdvancedIndicators(TechnicalHelpers):
         rsi_length = self._expect_int(args[0], "rsi_length must be integer")
         stoch_length = self._expect_int(args[1], "stoch_length must be integer")
 
+        if self._use_incremental_ta():
+            closes = self._context_source("close")
+            return self._stochrsi_inc_update(closes, rsi_length, stoch_length)
+
         closes = (getattr(self, "current_series", None) or {}).get("close", [])
         if not closes or len(closes) < rsi_length:
             return {"stochrsi": None, "signal": None}
