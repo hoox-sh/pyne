@@ -173,7 +173,7 @@ function buildClientOptions(): LanguageClientOptions {
       { language: 'pinescript', scheme: 'untitled' },
     ],
     synchronize: {
-      fileEvents: workspace.createFileSystemWatcher('**/*.{pine,pinev5,pinev6}'),
+      fileEvents: workspace.createFileSystemWatcher('**/*.{pyne,pine,pinev5,pinev6,pinescript}'),
     },
     diagnosticCollectionName: 'pynescript',
     initializationOptions: {

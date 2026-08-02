@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage-schema.json",
   "name": "Pine Script",
   "scopeName": "source.pinescript",
-  "fileTypes": ["pine", "pinev5", "pinev6"],
+  "fileTypes": ["pyne", "pine", "pinev5", "pinev6", "pinescript"],
   "patterns": [
     { "include": "#comments" },
     { "include": "#annotations" },

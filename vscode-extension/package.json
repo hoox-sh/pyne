@@ -54,6 +54,7 @@
     "onCommand:pynescript.formatDocument",
     "onCommand:pynescript.showLspOutput",
     "onCommand:pynescript.showLspCommand",
+    "workspaceContains:**/*.pyne",
     "workspaceContains:**/*.pine",
     "workspaceContains:**/*.pinev5",
     "workspaceContains:**/*.pinev6"
@@ -64,15 +65,18 @@
       {
         "id": "pinescript",
         "aliases": [
+          "PYNE",
           "Pine Script™",
           "Pine Script",
           "pinescript",
           "Pine"
         ],
         "extensions": [
+          ".pyne",
           ".pine",
           ".pinev5",
-          ".pinev6"
+          ".pinev6",
+          ".pinescript"
         ],
         "configuration": "./language-configuration.json",
         "icon": {
