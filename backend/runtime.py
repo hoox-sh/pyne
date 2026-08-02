@@ -1324,6 +1324,12 @@ class Runtime:
                 meta_entry["text"] = text
             if char is not None:
                 meta_entry["char"] = char
+            # fill(plot1, plot2, color=…) — AXIS band needs sibling series titles
+            if kind == "fill":
+                for ref_key in ("plot1", "plot2"):
+                    ref = m0.get(ref_key)
+                    if ref is not None and str(ref).strip() != "":
+                        meta_entry[ref_key] = str(ref)
             if kind == "hline":
                 price_val = next((v for v in values if v is not None), None)
                 if price_val is not None:

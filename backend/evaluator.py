@@ -361,6 +361,67 @@ class CustomEvaluator(NodeLiteralEvaluator):
         )
         return self._maybe_registry("_builtin_bgcolor", args, None) if self._pine_need_plot_ids else None
 
+    @staticmethod
+    def _plot_ref_title(ref: Any) -> str | None:
+        """Resolve a fill()/hline plot handle or string title for AXIS plot_meta."""
+        if ref is None:
+            return None
+        title = getattr(ref, "title", None)
+        if title is not None and str(title).strip() != "":
+            return str(title)
+        if type(ref) is str and ref.strip():
+            return ref.strip()
+        return None
+
+    def _builtin_fill(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
+        """Capture ``fill(plot1, plot2, color=…)`` for AXIS band overlay.
+
+        Meta stores ``plot1`` / ``plot2`` as series titles (from ``plot()`` handles).
+        Series column holds per-bar color (string) or null when inactive.
+        """
+        if self._pine_light_plots:
+            return None
+        kwargs = kwargs or {}
+        p1 = kwargs.get("plot1", args[0] if args else None)
+        p2 = kwargs.get("plot2", args[1] if len(args) > 1 else None)
+        color = kwargs.get("color", args[2] if len(args) > 2 else None)
+        title = kwargs.get("title", args[3] if len(args) > 3 else "fill")
+        # Registry first so plot() handles stay usable; soft-fail if disabled.
+        reg = (
+            self._maybe_registry("_builtin_fill", args, kwargs)
+            if self._pine_need_plot_ids
+            else None
+        )
+        t1 = self._plot_ref_title(p1) or self._plot_ref_title(getattr(reg, "plot1", None) if reg is not None else None)
+        t2 = self._plot_ref_title(p2) or self._plot_ref_title(getattr(reg, "plot2", None) if reg is not None else None)
+        # Prefer titles from registry fill object's plot refs when args were handles
+        if reg is not None:
+            t1 = t1 or self._plot_ref_title(getattr(reg, "plot1", None))
+            t2 = t2 or self._plot_ref_title(getattr(reg, "plot2", None))
+        color_s = _serialize_color(_unwrap_scalar(color)) if color is not None else None
+
+        if self._plot_capture_i < len(self._plot_value_cols):
+            i = self._append_plot_value(color_s)
+            m = self._plot_meta_list[i]
+            if t1 and not m.get("plot1"):
+                m["plot1"] = t1
+            if t2 and not m.get("plot2"):
+                m["plot2"] = t2
+            if color_s is not None and m.get("color") is None:
+                m["color"] = color_s
+            return reg
+
+        self._capture_plot(
+            "fill",
+            color_s,
+            str(title or "") or "fill",
+            color_s,
+            style="fill",
+            plot1=t1,
+            plot2=t2,
+        )
+        return reg
+
     def _builtin_plotshape(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
         """Capture plotshape condition + style for AXIS bar markers."""
         if self._pine_light_plots:
