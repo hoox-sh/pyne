@@ -1,6 +1,6 @@
 # PYNE — llms.txt
 # https://llmstxt.org/ — machine-readable project map for LLMs
-# Generated 2026-07-28
+# Generated 2026-08-03
 
 # PYNE
 > Open-source Pine Script evaluation framework
@@ -63,6 +63,7 @@ Grammar-driven parser, ASDL AST, bar-loop evaluator, LSP, Pro API, and edge work
 - [Request Input](https://hoox.sh/pyne/docs/runtime/builtins/request-input)
 - [Libraries](https://hoox.sh/pyne/docs/runtime/libraries)
 - [Events](https://hoox.sh/pyne/docs/runtime/events)
+- [Alerts](https://hoox.sh/pyne/docs/runtime/alerts)
 - [Overview](https://hoox.sh/pyne/docs/runtime/compiler/overview)
 - [Numba](https://hoox.sh/pyne/docs/runtime/compiler/numba)
 - [Strategy Broker](https://hoox.sh/pyne/docs/runtime/compiler/strategy-broker)
@@ -100,6 +101,7 @@ Grammar-driven parser, ASDL AST, bar-loop evaluator, LSP, Pro API, and edge work
 - [Local Dev](https://hoox.sh/pyne/docs/devops/local-dev)
 - [Ci](https://hoox.sh/pyne/docs/devops/ci)
 - [Release](https://hoox.sh/pyne/docs/devops/release)
+- [Pypi Publish](https://hoox.sh/pyne/docs/devops/pypi-publish)
 - [Docker](https://hoox.sh/pyne/docs/devops/docker)
 - [Nuitka Build](https://hoox.sh/pyne/docs/devops/nuitka-build)
 - [Metadata Crypto](https://hoox.sh/pyne/docs/devops/metadata-crypto)

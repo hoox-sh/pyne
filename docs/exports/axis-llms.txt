@@ -1,6 +1,6 @@
 # AXIS — llms.txt
 # https://llmstxt.org/ — machine-readable project map for LLMs
-# Generated 2026-07-28
+# Generated 2026-08-03
 
 # AXIS
 > Open charting PWA — own the axes, swap the engine
@@ -12,7 +12,7 @@ Installable AXIS for price and time. Orthogonal plugins: sources, streams, engin
 - [Marketing](https://hoox.sh/axis): Product landing
 - [Docs](https://hoox.sh/axis/docs): Full documentation hub
 - [Repository](https://github.com/jango-blockchained/pynescript): Source monorepo
-- [Docs tree](https://github.com/jango-blockchained/pynescript/tree/main/docs/axis): MDX source of truth
+- [Docs tree](https://github.com/jango-blockchained/pynescript/tree/main/../axis/docs): MDX source of truth
 - [llm.txt](https://hoox.sh/axis/docs/llm.txt): Full-corpus minified context
 - [llms.txt](https://hoox.sh/axis/docs/llms.txt): This file
 - [PYNE docs](https://hoox.sh/pyne/docs): Language runtime (separate product)
@@ -59,6 +59,7 @@ Installable AXIS for price and time. Orthogonal plugins: sources, streams, engin
 - [Overview](https://hoox.sh/axis/docs/ui)
 - [Charting](https://hoox.sh/axis/docs/ui/charting)
 - [Editor](https://hoox.sh/axis/docs/ui/editor)
+- [Debugging](https://hoox.sh/axis/docs/ui/debugging)
 - [Ui Shell](https://hoox.sh/axis/docs/ui/ui-shell)
 - [Indicators](https://hoox.sh/axis/docs/ui/indicators)
 - [Results And Strategy](https://hoox.sh/axis/docs/ui/results-and-strategy)

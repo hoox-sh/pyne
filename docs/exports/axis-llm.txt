@@ -1,12 +1,29 @@
 AXIS CONSOLIDATED DOCUMENTATION — LLM CONTEXT PACK
-Generated: 2026-07-28
-Source: docs/axis
+Generated: 2026-08-03
+Source: ../axis/docs
 Public: https://hoox.sh/axis/docs
 Repository: https://github.com/jango-blockchained/pynescript
 
-FILE: docs/axis/architecture/adrs.mdx
+FILE: ../axis/docs/architecture/adrs.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Architecture Decision Records"
+description: "ADR- through ADR- for AXIS: registry, AXIS≠engine, Solid+Vite, dual engines, configSchema, URL load, storage, CF project id, proxies, DO fan-out, migration, CORS, results export, transport preference + telemetry."
+---
 Architecture Decision Records
-Formal ADRs for AXIS (product + frontend/). Status values: Accepted unless noted. Dates are conceptual product epochs (SuperChart → AXIS), not git archaeology.
+Formal ADRs for AXIS (product + frontend/). Status values: Accepted unless noted. Dates are conceptual product epochs, not git archaeology.
 Index
 | ID | Title |
 | --- | --- |
@@ -17,7 +34,7 @@ Index
 | ADR- | Declarative configSchema |
 | ADR- | URL-loadable plugins |
 | ADR- | Storage as a plugin |
-| ADR- | Frozen CF project id pynescript-superchart |
+| ADR- | Frozen CF project id pynescript-axis |
 | ADR- | Worker proxies first |
 | ADR- | Durable Object stream fan-out |
 | ADR- | State namespace migration |
@@ -27,7 +44,7 @@ Index
 ---
 ADR-: Pluggable unified registry
 Context
-Early SuperChart registered sources/streams/engines in separate ad hoc maps. Operators and authors needed one mental model and one install path.
+Early AXIS registered sources/streams/engines in separate ad hoc maps. Operators and authors needed one mental model and one install path.
 Decision
 Adopt a unified PluginRegistry (frontend/src/plugins/registry.ts) with kinds:
 source | stream | engine | storage | component(reserved)
@@ -103,11 +120,11 @@ Manager Script Library is backend-agnostic.
 Git commits only on explicit save; drafts local.
 Cloud uses Bearer Pro keys and optional optimistic concurrency.
 ---
-ADR-: Frozen CF project id pynescript-superchart
+ADR-: Frozen CF project id pynescript-axis
 Context
 Renaming Cloudflare Pages/Worker projects severs KV/D/R bindings, custom domains, and CI secrets. Product brand evolved to AXIS.
 Decision
-Keep infrastructure name pynescript-superchart. Brand in UI/manifest/docs is AXIS. Health JSON may identify pynescript-axis-worker. Optional DNS aliases (axis.) point at the same project without rename.
+Keep infrastructure name pynescript-axis. Brand in UI/manifest/docs is AXIS. Health JSON may identify pynescript-axis-worker. Optional DNS aliases (axis.) point at the same project without rename.
 Consequences
 wrangler.toml name and Pages --project-name stay frozen.
 Docs call out the freeze explicitly (this ADR).
@@ -135,9 +152,9 @@ Not a historical source—live only.
 ---
 ADR-: State namespace migration
 Context
-Rename SuperChart → AXIS would brick user layouts and libraries if keys changed hard.
+Hard-renaming storage namespaces would brick user layouts and libraries if keys changed hard.
 Decision
-Canonical key pynescript.axis.v. On read, fall back to pynescript.superchart.v / v (and parallel library/editor keys), then write forward to AXIS keys. Do not keep dual-write forever.
+Canonical key pynescript.axis.v. On read, fall back to pynescript.axis.v (and parallel library/draft keys), then write forward. Do not keep dual-write forever.
 Consequences
 Seamless upgrade for existing browsers.
 Persistence strips bars/lastRun/logs.
@@ -147,7 +164,7 @@ ADR-: CORS as deploy concern
 Context
 Browser AXIS on origin A calling Pro API on origin B fails without CORS. Hardcoding origins in AXIS is wrong.
 Decision
-CORS is a backend/deploy configuration (ALLOWEDORIGINS on Flask; Worker headers as deployed). AXIS documents required origins; ops sets explicit lists in production (avoid perpetual ` outside demos).
+CORS is a backend/deploy configuration (ALLOWED_ORIGINS on Flask; Worker headers as deployed). AXIS documents required origins; ops sets explicit lists in production (avoid perpetual ` outside demos).
 Consequences
 Localhost regex for dev.
 Troubleshooting centers on preflight, not engine code.
@@ -193,7 +210,24 @@ Overview
 Topologies
 Plugins contracts
 ---
-FILE: docs/axis/architecture/index.mdx
+FILE: ../axis/docs/architecture/index.mdx
+Copyright (C) - jango_blockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Architecture"
+description: "AXIS system architecture: AXIS vs engine, plugin registry, topologies, ADRs, and state namespaces."
+---
 Architecture
 AXIS architecture is the discipline of separable axes—price history, live time, calculation, and library storage—coordinated by a Solid AXIS UI that never owns a closed interpreter.
 Abstract
@@ -217,8 +251,8 @@ Formal namespaces
 ``text
 Contract namespace: pynescript.axis.plugins.v
 App state key: pynescript.axis.v
-Legacy prefixes: pynescript.superchart.
-CF project id: pynescript-superchart (frozen)
+App state prefix: pynescript.axis.
+CF project id: pynescript-axis (frozen)
 Health service id: pynescript-axis-worker
 `
 Related tracks
@@ -232,7 +266,24 @@ See also
 frontend/README.md — package-level map
 frontend/LEGACY.md` — pre-Solid shell boundary
 ---
-FILE: docs/axis/architecture/overview.mdx
+FILE: ../axis/docs/architecture/overview.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Architecture overview"
+description: "End-to-end AXIS architecture: Solid AXIS UI, unified registry, dual engines, chart apply pipeline, and optional edge plane."
+---
 Architecture overview
 Abstract
 AXIS is a composition host. The product thesis: own the axes (history, live, calc, library), swap the implementations. Shipping UI is Solid + Vite + lightweight-charts + CodeMirror ; calculation is never inlined into UI components.
@@ -271,7 +322,7 @@ Dual engines
 | Engine | Transport | Fidelity host |
 | --- | --- | --- |
 | server | HTTP JSON { script, data } → /run | Flask or Worker→Flask |
-| pyodide | In-worker-thread-ish browser Python | Self-hosted wheels + pynescript_runtime.py |
+| pyodide | In-worker-thread-ish browser Python | Self-hosted wheels + pynescriptruntime.py |
 Timeout policy in runner scales with bar length (clamped). Live re-runs use shorter silent timeouts.
 Chart apply pipeline
 runAndApply:
@@ -288,7 +339,7 @@ Plugin registry
 PluginRegistry holds ordered maps per kind; events registered / unregistered. Built-ins register once (ensureBuiltins / catalog ensureRegistered). Dynamic plugins via loadPluginFromUrl. Active selection is not inside the registry—it is store state.
 Contract namespace conceptually: pynescript.axis.plugins.v (fields: id, name, kind, configSchema, capabilities, kind-specific methods).
 Edge plane (optional)
-Cloudflare project pynescript-superchart:
+Cloudflare project pynescript-axis:
 Pages: static dist/
 Worker: /api/run proxy, keys/usage KV, scripts D, stream DO fan-out
 AXIS still speaks engine/storage plugins—not raw CF APIs in UI components
@@ -296,7 +347,7 @@ Invariants
 . AXIS ≠ engine
 . Bars/logs/lastRun not fully persisted
 . Storage and engine endpoints may coincide (Worker) but remain separate plugin roles
-. Legacy SuperChart keys migrate forward, never the reverse on write
+. Older keys migrate forward, never the reverse on write
 Failure modes (architectural)
 | Mode | Manifestation | Mitigation |
 | --- | --- | --- |
@@ -310,7 +361,24 @@ Topologies
 State namespaces
 AXIS store
 ---
-FILE: docs/axis/architecture/state-namespaces.mdx
+FILE: ../axis/docs/architecture/state-namespaces.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "State namespaces"
+description: "AXIS persistence keys, key migration, pluginsConfig, editor docs, library IDB, and URL hash state."
+---
 State namespaces
 AXIS persistence is multi-homed: layout/config in localStorage, script library in IndexedDB (or remotes), ephemeral run data in memory, optional URL hash for shareable slices.
 Abstract
@@ -326,7 +394,7 @@ Abstract
 Contract / product identifiers (not storage keys):
 ``text
 pynescript.axis.plugins.v conceptual plugin contract id
-pynescript-superchart CF project id (infra)
+pynescript-axis CF project id (infra)
 `
 Conceptual model
 App state key pynescript.axis.v
@@ -348,10 +416,9 @@ Debounced write (~ms).
 Legacy migration
 Read order:
 . pynescript.axis.v
-. else pynescript.superchart.v
-. else pynescript.superchart.v
-On legacy hit: copy forward into AXIS key. Editor doc migrates similarly from pynescript.superchart.editor.doc.
-Legacy vanilla state.js uses the same STORAGE_KEY constant for the pre-Solid shell.
+. else pynescript.axis.v
+On older-key hit: copy forward into pynescript.axis.v.
+Legacy vanilla state.js uses the same STORAGEKEY constant for the pre-Solid shell.
 pluginsConfig
 Map of configuration objects. Preferred keys:
 `text
@@ -371,8 +438,8 @@ Local library IDB
 | DB name | pynescript.axis.storage |
 | Version | |
 | Stores | scripts, kv |
-Migration flags (pynescript.axis.library.migrated) prevent re-import loops from SuperChart library keys:
-pynescript.superchart.library.v
+Migration flags (pynescript.axis.library.migrated) prevent re-import loops from older library keys:
+pynescript.axis.library.v
 pynescript.axis.library.legacy
 Cloud / git (remote namespaces)
 Not browser keys—server-side partitions:
@@ -417,7 +484,24 @@ ADR-
 AXIS store
 Script library
 ---
-FILE: docs/axis/architecture/topologies.mdx
+FILE: ../axis/docs/architecture/topologies.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Topologies"
+description: "AXIS deploy and dev topologies: Vite+Flask, static PWA, Cloudflare Pages+Worker, and offline Pyodide lab."
+---
 Topologies
 Concrete process and network shapes for AXIS. Choose a topology; then compose plugins inside it (recipes).
 Abstract
@@ -446,9 +530,9 @@ Deploy sketch
 `bash
 cd frontend/worker && wrangler deploy
 cd frontend && bun run build
-wrangler pages deploy dist --project-name=pynescript-superchart
+wrangler pages deploy dist --project-name=pynescript-axis
 `
-Frozen id: never rename pynescript-superchart lightly (ADR-).
+Frozen id: never rename pynescript-axis lightly (ADR-).
 AXIS config:
 Engine server, endpoint = Worker origin
 Storage cloud, same origin + API key
@@ -488,7 +572,7 @@ Internals
 | Path | Role |
 | --- | --- |
 | frontend/vite.config.ts | Dev/build |
-| frontend/axispwaserver.py | Static host |
+| frontend/axispwa_server.py | Static host |
 | frontend/worker/wrangler.toml | CF name + bindings |
 | frontend/worker/README.md` | Edge ops |
 See also
@@ -497,7 +581,24 @@ Installation
 Worker
 DevOps
 ---
-FILE: docs/axis/devops/build-and-serve.mdx
+FILE: ../axis/docs/devops/build-and-serve.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Build and serve"
+description: "Vite production build, dist layout, axispwaserver.py SPA rules, and asset caching."
+---
 Build and serve
 Abstract
 Production AXIS assets are a static site produced by Vite (bun run build → frontend/dist). Serve them with any static host, Cloudflare Pages, or the repo’s axispwaserver.py SPA-aware server.
@@ -548,14 +649,14 @@ Makefile note
 make pages-deploy may historically deploy the wrong tree — prefer:
 `bash
 cd frontend && bun run build
-wrangler pages deploy dist --project-name=pynescript-superchart
+wrangler pages deploy dist --project-name=pynescript-axis
 `
 Worked example — static desk demo
 `bash
 cd frontend
 bun install
 bun run build
-PORT= python axispwa_server.py
+PORT= python axispwaserver.py
 another terminal
 make run Flask :
 `
@@ -575,7 +676,24 @@ Local dev
 Cloudflare
 Engines
 ---
-FILE: docs/axis/devops/ci-and-testing.mdx
+FILE: ../axis/docs/devops/ci-and-testing.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "CI and testing"
+description: "GitHub Actions for AXIS: unit coverage gate, Playwright smoke, worker typecheck, nightly full ee."
+---
 CI and testing
 Abstract
 AXIS quality gates live primarily under frontend/ (Bun tests) and frontend/worker/tests/, orchestrated by GitHub Actions (.github/workflows/ci.yml, axis-nightly.yml). Deep test conventions are documented in Testing reference and frontend/TESTING.md.
@@ -615,7 +733,7 @@ axis-nightly.yml
 | --- | --- |
 | Playwright full | all ee specs |
 | Security + coverage gate | test:coverage:gate + test:security |
-Schedule: UTC + workflow_dispatch.
+Schedule: UTC + workflowdispatch.
 Internals
 | Path | Role |
 | --- | --- |
@@ -649,7 +767,24 @@ See also
 Testing reference
 Local dev
 ---
-FILE: docs/axis/devops/cloudflare.mdx
+FILE: ../axis/docs/devops/cloudflare.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Cloudflare deployment"
+description: "Pages + Worker for AXIS: frozen project pynescript-axis, bindings, deploy order, EXTERNALBACKEND reality."
+---
 Cloudflare deployment
 Abstract
 Production AXIS on Cloudflare is a split deploy:
@@ -657,7 +792,7 @@ Production AXIS on Cloudflare is a split deploy:
 | --- | --- |
 | Pages | Static PWA (frontend/dist) |
 | Worker | JSON API + WebSocket (frontend/worker) |
-Project id: pynescript-superchart — frozen infrastructure name (dashboard, wrangler, CI). Do not rename without a full binding/domain migration.
+Project id: pynescript-axis — frozen infrastructure name (dashboard, wrangler, CI). Do not rename without a full binding/domain migration.
 Evaluation truth: Worker /api/run proxies to EXTERNALBACKEND unless the gated Pyodide path is fully implemented and enabled. You still need a Python host (VPS Flask, container, etc.) for real Pine fidelity today.
 Conceptual model
 Deploy procedure
@@ -686,11 +821,11 @@ npx wrangler deploy
 cd frontend
 bun install
 bun run build
-npx wrangler pages deploy dist --project-name=pynescript-superchart
+npx wrangler pages deploy dist --project-name=pynescript-axis
 `
 Worker package also defines:
 `json
-"deploy:pages": "wrangler pages deploy ../dist --project-name=pynescript-superchart"
+"deploy:pages": "wrangler pages deploy ../dist --project-name=pynescript-axis"
 `
 . Point the PWA
 Engine endpoint: Worker URL (if path-mapped to /run) or Flask URL directly
@@ -725,7 +860,24 @@ Worker
 CORS
 VPS demo (backend co-host)
 ---
-FILE: docs/axis/devops/cors-and-origins.mdx
+FILE: ../axis/docs/devops/cors-and-origins.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "CORS and origins"
+description: "How AXIS Worker pickOrigin works, local allowlist, ALLOWEDORIGIN, and Flask/browser constraints."
+---
 CORS and origins
 Abstract
 AXIS is a browser product that talks to cross-origin backends (Flask, Worker, venues). CORS misconfiguration is the local-deploy footgun after missing wheels.
@@ -733,12 +885,14 @@ The Worker implements an explicit origin picker; Flask and venue APIs have their
 Conceptual model
 Worker behavior
 From frontend/worker/src/index.ts:
-Always echoed (dev allowlist):
-http://localhost:
-http://...:
-http://localhost:
-http://...:
-Otherwise: env.ALLOWEDORIGIN or default https://pynescript.ai.
+Always echoed (local-dev regex):
+Any http:// or https:// origin on localhost or ..., optional port
+(e.g. Vite :, axispwaserver :, Playwright ephemeral ports)
+Not allowed (and not needed):
+http://...:… — browsers do not use ... as a page origin in normal use;
+binding the server with HOST=... only means “listen on all interfaces,” not a CORS origin.
+Otherwise: env.ALLOWEDORIGIN or default https://pynescript.ai (exact match).
+Localhost/ allowlisting is safe for CORS: only pages actually served from those hosts present that Origin. A public site cannot forge Origin: http://localhost: in a real browser.
 CORS headers applied:
 ``
 Access-Control-Allow-Origin:
@@ -750,9 +904,9 @@ Vary: Origin
 OPTIONS → preflight.
 Scripts handler duplicates allow headers for consistency.
 Production implication
-If Pages is https://pynescript-superchart.pages.dev (example), set:
+If Pages is https://pynescript-axis.pages.dev (example), set:
 `
-ALLOWEDORIGIN = "https://pynescript-superchart.pages.dev"
+ALLOWEDORIGIN = "https://pynescript-axis.pages.dev"
 `
 or your custom domain. Exact string match — no wildcard logic in code.
 Flask / server engine
@@ -785,7 +939,24 @@ Worker bindings
 Local dev
 Dynamic loader
 ---
-FILE: docs/axis/devops/index.mdx
+FILE: ../axis/docs/devops/index.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "DevOps"
+description: "Build, serve, Cloudflare, VPS demo, CORS, and CI for the AXIS PWA and Worker."
+---
 DevOps
 Abstract
 AXIS DevOps spans three runnable surfaces:
@@ -799,9 +970,9 @@ Topology cheat sheet
 | --- | --- | --- |
 | Dev AXIS | cd frontend && bun run dev | Vite (often :) |
 | Dev + Flask | + make run | : |
-| Static dist | bun run build + python axispwa_server.py | : |
+| Static dist | bun run build + python axispwaserver.py | : |
 | Worker | cd frontend/worker && npm run dev | : |
-| CF prod | Pages pynescript-superchart + Worker same name family | HTTPS |
+| CF prod | Pages pynescript-axis + Worker same name family | HTTPS |
 Page map
 | Page | Topic |
 | --- | --- |
@@ -814,14 +985,31 @@ Page map
 Frozen names
 | Surface | Value |
 | --- | --- |
-| CF project | pynescript-superchart |
+| CF project | pynescript-axis |
 | Health service | pynescript-axis-worker |
 See also
 Worker
 Testing reference
 AXIS hub
 ---
-FILE: docs/axis/devops/local-dev.mdx
+FILE: ../axis/docs/devops/local-dev.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Local development"
+description: "Day-to-day AXIS loop: Vite, Flask, Worker wrangler, endpoints, and plugin examples."
+---
 Local development
 Abstract
 Local AXIS development is a multi-process topology. AXIS is a Solid app under Vite; evaluation usually hits Flask; optional cloud/storage/stream features hit the Worker.
@@ -879,20 +1067,37 @@ Invariants & edge cases
 . CORS — Flask must allow the Vite origin; Worker pickOrigin allows : and :.
 . Pyodide local — needs vendor wheels under public/ (copied to dist on build).
 . Two endpoints — topbar endpoint for engine vs cloud storage plugin config can differ (Flask vs Worker).
-. Legacy Makefile message still mentions SuperChart Lite and : Bun server.
+. Legacy Makefile message still mentions AXIS and : Bun server.
 Failure modes
 | Issue | Fix |
 | --- | --- |
 | Engine not ready | Flask down / wrong port |
 | CORS errors | Align origins; see CORS |
 | Plugin | File only under src/plugins/ not public/plugins/ |
-| Worker scripts | Set open keys or mint pn` key |
+| Worker scripts | Set open keys or mint pn_` key |
 See also
 Build and serve
 Worker local
 Plugin examples
 ---
-FILE: docs/axis/devops/vps-demo.mdx
+FILE: ../axis/docs/devops/vps-demo.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "VPS demo topology"
+description: "Single-box demo: static AXIS dist + Flask Pro API (+ optional reverse proxy) without Cloudflare."
+---
 VPS demo topology
 Abstract
 A VPS demo is the lowest-surprise production-like setup for Pine evaluation: one machine runs Flask (PYNE) and serves the static AXIS build. Optional nginx/caddy terminates TLS and reverse-proxies /run same-origin to avoid CORS.
@@ -942,7 +1147,7 @@ Invariants & edge cases
 . CPU/RAM — Pyodide is browser-side; VPS load is Flask evaluate concurrency.
 . Do not expose open admin tokens.
 . Disk — dist + wheels are tens of MB.
-. Hybrid: VPS Flask as EXTERNALBACKEND` for a CF Worker still works if VPS has a public URL.
+. Hybrid: VPS Flask as EXTERNAL_BACKEND` for a CF Worker still works if VPS has a public URL.
 Failure modes
 | Issue | Fix |
 | --- | --- |
@@ -954,7 +1159,24 @@ Build and serve
 Cloudflare
 CORS
 ---
-FILE: docs/axis/enduser/getting-started/compose-recipes.mdx
+FILE: ../axis/docs/enduser/getting-started/compose-recipes.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Compose recipes"
+description: "Lawful source × stream × engine × storage combinations: offline, desk, multi-venue, CSV, edge, and git library."
+---
 Compose recipes
 AXIS treats composition as the product. This page lists recipes—complete four-tuples with intent, constraints, and failure modes—not marketing tiers.
 Abstract
@@ -1010,7 +1232,7 @@ make run :
 cd frontend && bun run dev
 `
 Settings → Backend URL http://localhost: → Test. Symbol like BTCUSDT, interval h / d.
-CORS: AXIS origin must be allowed by Flask ALLOWED_ORIGINS.
+CORS: AXIS origin must be allowed by Flask ALLOWEDORIGINS.
 Failure modes: rate limits; symbol not on venue; CORS; engine timeout on long history (AXIS scales timeout with bar count).
 ---
 Multi-venue / multi-source
@@ -1053,7 +1275,7 @@ Intent: browser AXIS + Cloudflare Worker data plane (keys, usage, optional D scr
 | Engine | server endpoint = Worker | Worker proxies /api/run → Flask or future in-worker runtime |
 | Storage | cloud | /api/scripts + Bearer Pro key |
 Setup
-. wrangler dev / deploy Worker project pynescript-superchart (frozen name).
+. wrangler dev / deploy Worker project pynescript-axis (frozen name).
 . Endpoint → Worker origin.
 . Storage cloud → API key from admin /api/keys.
 . Script Library uses cloud list/read/write; If-Match on concurrent writes.
@@ -1092,7 +1314,24 @@ Manager and settings
 Topologies
 ADR- pluggable registry
 ---
-FILE: docs/axis/enduser/getting-started/installation.mdx
+FILE: ../axis/docs/enduser/getting-started/installation.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Installation"
+description: "Run AXIS as Vite+Solid dev, static dist PWA, or against Flask / Cloudflare Worker backends."
+---
 Installation
 AXIS ships as the frontend/ package (axis-chart). Primary path is Vite + Solid. Legacy static shell (main.js, root style.css) is not the product UI—prefer bun run dev or built dist/.
 Abstract
@@ -1141,7 +1380,7 @@ cd frontend/worker
 npm install
 npm run dev wrangler :
 `
-In AXIS Settings, set Backend URL to http://...: (or /api path as your Worker routes). Production project id is frozen as pynescript-superchart—see topologies.
+In AXIS Settings, set Backend URL to http://...: (or /api path as your Worker routes). Production project id is frozen as pynescript-axis—see topologies.
 CORS when using server engine
 Browser origin → Pro API must allow your AXIS origin. Flask uses ALLOWEDORIGINS. Localhost regex is typically included; for a VPS demo host, set an explicit origin list. Symptom of failure: POST /run blocked in Network tab (no Access-Control-Allow-Origin).
 PWA install
@@ -1169,7 +1408,7 @@ Internals (repo paths)
 | --- | --- |
 | frontend/src/index.tsx, app.tsx | Solid entry |
 | frontend/vite.config.ts | Build |
-| frontend/axispwa_server.py | Static host |
+| frontend/axispwaserver.py | Static host |
 | frontend/manifest.webmanifest, sw.js | PWA |
 | frontend/worker/` | CF Worker data plane |
 See also
@@ -1178,7 +1417,24 @@ Compose recipes
 DevOps local dev
 Worker
 ---
-FILE: docs/axis/enduser/getting-started/quick-start.mdx
+FILE: ../axis/docs/enduser/getting-started/quick-start.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Quick start"
+description: "First historical load, first Pine Run, live stream, and reading the Results drawer in AXIS."
+---
 Quick start
 Fifteen-minute path from empty AXIS to plots, strategy stats, and optional live updates.
 Abstract
@@ -1239,7 +1495,16 @@ Export: JSON run dump; trades CSV. Click a trade to scroll the chart to entry/ex
 . Live (optional)
 Toggle Live. Stream plugin pushes bars; AXIS may re-run silently when needsRerun is set. Stream = None freezes time. Mock poll works offline after engine warm-up.
 . Save a script (optional)
-Manager → Script Library → name → Save. Backend is active storage (local default = IndexedDB). See Script library.
+Manager → Script Library → name → Save. Backend is active storage (local default = IndexedDB). See Script library. Editor Pull / Push uses the same storage when configured for git/cloud.
+. Power tools (optional)
+| Tool | Where | Purpose |
+| --- | --- | --- |
+| ⌘/Ctrl+K | Global | Command palette — panels, Run, layout, editor toggles |
+| Layouts | Topbar | Multi-chart / H / V / + recipes |
+| Replay | Topbar | Scrub history (full bars, cursor on last) |
+| Compare | Topbar | Second symbol overlay |
+| Debug / Pins | Editor header | Line chips vs chart markers — Debugging |
+| Layers / Alerts | Panel toggles | Drawings list; local price alerts |
 Worked example: offline lab
 | Setting | Value |
 | --- | --- |
@@ -1264,7 +1529,7 @@ Switching source auto-aligns default stream (e.g. mock-walk → mock-poll).
 Failure modes
 | Symptom | Action |
 | --- | --- |
-| CORS on /run | Fix ALLOWED_ORIGINS / use Pyodide |
+| CORS on /run | Fix ALLOWEDORIGINS / use Pyodide |
 | No trades in Strategy | Need entry+exit pair events; open strategy script |
 | Live no updates | Stream not none`; network; check logs drawer |
 | Pyodide first run slow | Expected warm-up; assets self-hosted under origin |
@@ -1273,7 +1538,24 @@ Compose recipes
 Strategy and results
 Troubleshooting
 ---
-FILE: docs/axis/enduser/guides/drawings.mdx
+FILE: ../axis/docs/enduser/guides/drawings.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Drawings"
+description: "Interactive chart annotations in AXIS—tools, persistence, and how they differ from Pine script drawings."
+---
 Drawings
 AXIS supports user drawings (interactive tools on the chart) and script drawings (objects returned by the engine). They share a canvas layer but different lifecycles.
 Abstract
@@ -1287,13 +1569,21 @@ Tools
 | --- | --- | --- |
 | cursor | — | Select / pan mode (not a drawable) |
 | hline | hline | Horizontal price |
+| vline | vline | Vertical time |
 | trend | trend | Two points |
 | ray | ray | Two points (extends) |
+| extend | extend | Extended line |
 | rect | rect | Two corners |
+| ellipse | ellipse | Ellipse / oval |
+| arrow | arrow | Directional segment |
 | fib | fib | Two points; levels , ., ., ., ., ., |
 | measure | measure | Two points (delta readout) |
 | text | text | Anchor + label |
 Colors: default accent fff, up/down/measure variants in DRAWINGCOLORS.
+Layers & templates
+Layers panel lists user drawings (select, hide, delete)
+Templates: save/load drawing packs (axis.drawingTemplates.v)
+Duplicate / tag symbol helpers for multi-chart workflows
 Interface surface
 Toolbar on chart host (DrawingToolbar)
 Active tool in store; layer sync via createEffect on store.drawingTool
@@ -1306,7 +1596,7 @@ Annotate a level
 Fibonacci between swing points
 . Select Fib.
 . Click swing low → swing high (or reverse).
-. Levels render from FIBLEVELS.
+. Levels render from FIB_LEVELS.
 After Run with Pine lines/labels
 . Run script that emits drawings.
 . Layer clears previous script drawings, then applies new set.
@@ -1334,7 +1624,24 @@ See also
 AXIS — charting
 Strategy and results
 ---
-FILE: docs/axis/enduser/guides/manager-and-settings.mdx
+FILE: ../axis/docs/enduser/guides/manager-and-settings.mdx
+Copyright (C) - jango_blockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Manager and settings"
+description: "Plugin Manager catalog, URL install, capability badges, and Settings dialog for engine, storage, and endpoints."
+---
 Manager and settings
 Two orthogonal surfaces configure AXIS: the Plugin Manager (what exists and is active) and Settings (endpoint, engine, storage, interval defaults). Neither embeds language semantics.
 Abstract
@@ -1368,13 +1675,21 @@ See Script library. Manager hosts the panel so library and plugins share one mod
 Settings dialog
 | Field | Behavior |
 | --- | --- |
+| Engine | Registry engine list; labels via engineOptionLabel |
+| Execution mode | When the active engine exposes configSchema.mode (server): interpret \| compile \| auto. Stored in pluginsConfig.engine:.mode and sent on each run (WS and REST). |
+| Prefer WebSocket run | Server engine: prefer /ws/run over REST when available |
 | Backend URL | Shown when engine is server or has configSchema.endpoint |
 | Test / Probe | GET health against endpoint; status message |
-| Engine | Registry engine list; labels via engineOptionLabel |
 | Storage | local \| cloud \| git |
 | Default interval | Updates store; may reload bars for current symbol |
 | Watchlist refresh | Clamp – seconds |
-Save persists via Solid store persist() into pynescript.axis.v. Escape closes; Ctrl/Cmd+Enter saves.
+Execution mode maps to PYNE Runtime.run(..., mode=…):
+| Mode | Behavior |
+| --- | --- |
+| interpret | Full AST interpreter (default) |
+| compile | Numba/numpy compiled path |
+| auto | Try compile; fall back to interpret on failure |
+The Connection HUD engine chip shows the selected mode. Save persists via Solid store persist() into pynescript.axis.v. Escape closes; Ctrl/Cmd+Enter saves.
 Pyodide engines hide endpoint—calculation is same-origin assets, not Flask.
 Interface surface (UI map)
 | Control | Store field |
@@ -1418,7 +1733,24 @@ Script library
 Compose recipes
 Plugins
 ---
-FILE: docs/axis/enduser/guides/script-library.mdx
+FILE: ../axis/docs/enduser/guides/script-library.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Script library"
+description: "Save, load, import/export Pine scripts via local IndexedDB, cloud Worker, or git (GitHub/GitLab)."
+---
 Script library
 The script library is the operator-facing surface of storage plugins. The editor holds the working document; the library is durable, named documents with metadata.
 Abstract
@@ -1447,7 +1779,7 @@ Manager → Script Library:
 Status line: backend · remote · branch · connected · count.
 Local backend
 DB name pynescript.axis.storage v stores scripts + kv
-Legacy SuperChart library keys migrate once
+Older library keys migrate once
 Drafts: optional saveDraft / loadDraft without polluting remote backends
 Works fully offline
 Invariant: browser profile wipe deletes local library—export JSON for backup.
@@ -1464,7 +1796,7 @@ Git backend
 | Drafts local | No remote commit for draft buffer |
 | basePath | Default pine-library/ |
 | Providers | github, gitlab (+ self-hosted apiBaseUrl) |
-Token scopes: GitHub contents:write; GitLab api or write_repository.
+Token scopes: GitHub contents:write; GitLab api or writerepository.
 Worked examples
 Solo offline library
 . Storage = local
@@ -1503,7 +1835,24 @@ Manager and settings
 Compose recipes — git / edge
 State namespaces
 ---
-FILE: docs/axis/enduser/guides/strategy-and-results.mdx
+FILE: ../axis/docs/enduser/guides/strategy-and-results.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Strategy and results"
+description: "How AXIS turns engine events into trades, stats, chart markers, equity, and exportable Results tabs."
+---
 Strategy and results
 After Run, the engine returns a structured payload. AXIS AXIS normalizes events, pairs trades, paints markers, and exposes a Results drawer. Strategy math here is a viewer—not a brokerage.
 Abstract
@@ -1577,7 +1926,7 @@ Failure modes
 | Symptom | Explanation |
 | --- | --- |
 | Events but trades | Only entries, or unpaired ids |
-| Empty plots | Series all null / name filtered (__` prefix hidden) |
+| Empty plots | Series all null / name filtered (_` prefix hidden) |
 | Markers missing | Manager not mounted or events lack times |
 | Huge Raw JSON | Many events—export file rather than copy |
 See also
@@ -1585,7 +1934,24 @@ Quick start
 AXIS — results and strategy
 AXIS — indicators
 ---
-FILE: docs/axis/enduser/guides/troubleshooting.mdx
+FILE: ../axis/docs/enduser/guides/troubleshooting.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Troubleshooting"
+description: "Diagnose empty charts, CORS, engine failures, Pyodide assets, streams, storage, and PWA cache issues in AXIS."
+---
 Troubleshooting
 Systematic triage for AXIS. Prefer logs drawer + Network tab + status bar before reinstalling.
 Abstract
@@ -1605,7 +1971,7 @@ Data plane
 Calc plane — server engine
 | Symptom | Checks | Fix |
 | --- | --- | --- |
-| Failed fetch /run | Endpoint, CORS preflight | ALLOWED_ORIGINS; Settings probe |
+| Failed fetch /run | Endpoint, CORS preflight | ALLOWEDORIGINS; Settings probe |
 | HTTP xx/xx | Response JSON message | Fix script; backend logs |
 | Timeout | Bar count × complexity | Shorter history; raise server resources |
 | Plots missing | status: success but empty series | Script has no plots; check Raw |
@@ -1631,6 +1997,15 @@ Storage / library
 | Cloud | Bearer key | Settings/library key field |
 | Git denied | Token scopes | PAT permissions |
 | Lost local scripts | Cleared site data | Import JSON backup |
+Chart / editor (recent surfaces)
+| Symptom | Checks | Fix |
+| --- | --- | --- |
+| Indicator blank / missing on chart | Oscillator on price scale; wrong pane id | Prefer overlay=false; re-run; see Indicators |
+| Editor no lines / zero height | Dock height chain | Detach/reattach or toggle panel; editor should fill right strip |
+| Editor covers Indicators | Side-by-side dock | Both open on right → Indicators left of Editor; resize each panel |
+| Replay shows one candle only | Session start | Replay starts at last bar with full history; Play at end restarts from bar |
+| No Debug chips / Pins | Toggles + log shape | Enable Debug / Pins; logs need line and/or bar_index — Debugging |
+| Completions thin | Builtins corpus | Re-sync pine-builtins.json from PYNE; optional remote LSP |
 Shell / PWA
 | Symptom | Checks | Fix |
 | --- | --- | --- |
@@ -1638,6 +2013,7 @@ Shell / PWA
 | State weird | localStorage['pynescript.axis.v'] | Export scripts; clear key; reload |
 | Plugin vanished | URL install list | Re-install URL |
 | Theme wrong | data-theme | Toggle theme once |
+| Lost multi-chart slots | chartLayout in store | Named layouts menu; re-apply recipe |
 Logging
 System logs drawer: boot, pyodide ready, live re-run errors (appendLog)
 Status bar: ready / loading / running / error + short message
@@ -1660,7 +2036,24 @@ FAQ
 DevOps
 Worker
 ---
-FILE: docs/axis/enduser/index.mdx
+FILE: ../axis/docs/enduser/index.mdx
+Copyright (C) - jango_blockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "End User"
+description: "Install AXIS, compose source/stream/engine/storage recipes, and run research workflows without a proprietary chart host."
+---
 End User
 AXIS is an installable charting PWA: load history, stream the present, evaluate Pine Script through a pluggable engine, and keep a script library on disk, IndexedDB, cloud, or git. This track is for operators and researchers who use the AXIS—not for plugin authors or Worker deployers.
 Language fidelity (grammar, builtins, runtime semantics) lives in PYNE. AXIS never reimplements the language; it hosts evaluation via engine plugins.
@@ -1709,7 +2102,24 @@ UI — chart, editor, store internals
 Plugins — contracts and catalogs
 PYNE runtime — evaluation semantics
 ---
-FILE: docs/axis/enduser/reference/faq.mdx
+FILE: ../axis/docs/enduser/reference/faq.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "FAQ"
+description: "Frequently asked questions about AXIS, engines, offline use, TradingView relation, and data privacy."
+---
 FAQ
 Product scope
 Is AXIS TradingView?
@@ -1743,10 +2153,26 @@ Drawings disappeared after Run
 Script drawings are cleared and re-applied each run. User toolbar drawings persist across runs.
 Popout editor out of sync?
 Editor bridge uses shared document storage + message bridge between windows. Use Reattach on the main AXIS if the popout closed uncleanly.
+What is Debug vs Pins?
+| | Debug | Pins |
+| --- | --- | --- |
+| Shows | End-of-line chips in the editor | Markers on the chart + gutter |
+| Needs | Line reference in logs/errors | barindex and/or bar time |
+| Toggle | Editor header Debug | Pins or Alt+P |
+Full workflow: Debugging.
+Multi-chart, Compare, Replay, Alerts?
+Layouts topbar menu: / H / V / + named recipes
+Compare: second symbol overlay (% or absolute)
+Replay: scrub loaded history (starts with full history at last bar)
+Alerts: local price alerts panel (webhook optional)
+⌘/Ctrl+K: command palette (panels, Run, editor toggles, git)
+UI detail: UI shell, Charting.
+Why are Indicators next to the Editor?
+Left/right docks with multiple open panels lay out side-by-side (row), so Indicators can sit left of Editor on the right strip. Bottom dock still stacks.
 Ops
-What is pynescript-superchart?
+What is pynescript-axis?
 Frozen Cloudflare project name. Renaming breaks bindings and CI. Brand is AXIS; infrastructure id stays.
-Legacy SuperChart localStorage?
+Legacy localStorage keys?
 Migrated automatically into pynescript.axis.v and library keys. See State namespaces.
 Tests for the PWA?
 ``bash
@@ -1759,13 +2185,30 @@ Troubleshooting
 Glossary
 Compose recipes
 ---
-FILE: docs/axis/enduser/reference/glossary.mdx
+FILE: ../axis/docs/enduser/reference/glossary.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Glossary"
+description: "AXIS end-user glossary: axes, AXIS, plugins, engines, storage keys, and result terms."
+---
 Glossary
 Terms as used in AXIS documentation and UI. Language runtime terms → PYNE.
 Product
 | Term | Definition |
 | --- | --- |
-| AXIS | Charting PWA product (formerly SuperChart Lite): chart, editor, panels, and store—not the language engine. |
+| AXIS | Charting PWA product : chart, editor, panels, and store—not the language engine. |
 | UI track | Docs track for presentation surfaces (chart host, editor, shell, store) under /axis/docs/ui. |
 | PYNE | Pine Script toolchain (parse/eval); engines embed or call it. |
 | Active set | Tuple { source, stream, engine, storage } currently selected. |
@@ -1795,10 +2238,27 @@ Data & chart
 | Bar | { time, open, high, low, close, volume? } |
 | Pane | Chart strip: price, volume, indicator, equity. |
 | Overlay | Plot drawn on price pane (meta.overlay !== false). |
+| Sub-pane | Non-overlay indicator strip; stable store id indicator. |
 | User drawing | Interactive annotation tool geometry. |
 | Script drawing | Engine-emitted line/label/box objects. |
 | Marker | Trade/event marker on series. |
+| Pane badge | Corner chip with script actions (settings / eye / re-run / remove). |
+| Multi-chart | Grid layouts ( / H / V / ) with per-slot symbol/interval. |
+| Bar Replay | Scrub/play over loaded OHLCV without live stream. |
+| Compare | Second-symbol series overlaid on the price pane. |
+| Volume profile | OHLCV volume-at-price histogram (Layers). |
 | Watchlist | Side panel of symbols + quote refresh. |
+| Layers | Panel listing panes, indicators, and user drawings. |
+| Alert | Local price condition (+ optional webhook); Alerts panel. |
+Editor & debug
+| Term | Definition |
+| --- | --- |
+| Debug | Inline end-of-line chips from last-run logs with line refs. |
+| Pins | Chart markers + gutter for logs with barindex/time. |
+| Problems | Clickable list of engine diagnostics for the last run. |
+| Ruler | -character column guide in the Pine editor. |
+| Command palette | ⌘/Ctrl+K jump menu for panels, Run, toggles, git. |
+| Git bar | Pull/Push via active storage plugin (local/cloud/git). |
 Results
 | Term | Definition |
 | --- | --- |
@@ -1806,17 +2266,18 @@ Results
 | Event | Strategy/order/plot-adjacent event from engine. |
 | Closed trade | Paired entry/exit with PnL in the viewer. |
 | Equity curve | Cumulative PnL series derived from trades/events. |
+| Scriptlogs | Floatable panel of Pine log. from last run (not System Logs). |
 Persistence
 | Term | Definition |
 | --- | --- |
 | pynescript.axis.v | Primary localStorage app state key. |
-| pynescript.superchart. | Legacy keys; migrated on read. |
+| pynescript.axis.v | Older app-state key; migrated on read. |
 | pluginsConfig | Per-plugin configuration map. |
 | Library export | JSON dump of storage documents. |
 Infrastructure names
 | Term | Definition |
 | --- | --- |
-| pynescript-superchart | Frozen CF Wrangler/Pages project id. |
+| pynescript-axis | Frozen CF Wrangler/Pages project id. |
 | pynescript-axis-worker | Health JSON service identity. |
 | void | Brand pack / dark chrome aesthetic for AXIS docs/UI. |
 See also
@@ -1824,9 +2285,26 @@ FAQ
 State namespaces
 Architecture overview
 ---
-FILE: docs/axis/index.mdx
+FILE: ../axis/docs/index.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "AXIS Documentation"
+description: "Open charting PWA — orthogonal sources, streams, engines, and storage. Own the axes; swap the engine."
+---
 AXIS Documentation
-AXIS (formerly SuperChart Lite) is an installable charting PWA that treats price, time, and calculation as separable axes. Sources load history. Streams advance the present. Engines evaluate Pine Script via PYNE. Storage keeps your script library. Compose any lawful combination without a proprietary charting host.
+AXIS is an installable charting PWA that treats price, time, and calculation as separable axes. Sources load history. Streams advance the present. Engines evaluate Pine Script via PYNE. Storage keeps your script library. Compose any lawful combination without a proprietary charting host.
 Pine Script and TradingView are trademarks of TradingView, Inc. This project is independent and not affiliated with or endorsed by TradingView, Inc.
 Abstract
 AXIS is a charting PWA, not a language rewrite. Language fidelity lives in PYNE. The PWA contributes:
@@ -1849,7 +2327,7 @@ Formal active set:
 ``
 Active set = { source, stream, engine, storage }
 Contract namespace: pynescript.axis.plugins.v
-App state: pynescript.axis.v (migrates from pynescript.superchart.)
+App state: pynescript.axis.v
 `
 Compose in one glance
 | Recipe | Source | Stream | Engine | Storage |
@@ -1862,12 +2340,12 @@ Full recipes: Compose recipes.
 Infrastructure names (do not rename lightly)
 | Surface | Value |
 | --- | --- |
-| CF Wrangler / Pages project | pynescript-superchart (frozen) |
+| CF Wrangler / Pages project | pynescript-axis (frozen) |
 | Health JSON service | pynescript-axis-worker |
 | Product brand | AXIS |
 Demo topologies
 Dev: Vite : + Flask :
-Static: bun run build + axispwaserver.py :
+Static: bun run build + axispwa_server.py :
 Worker: wrangler on :
 See topologies and local dev.
 Offline & agent exports
@@ -1883,7 +2361,24 @@ Plugin contracts
 ADRs
 PYNE runtime
 ---
-FILE: docs/axis/plugins/contracts.mdx
+FILE: ../axis/docs/plugins/contracts.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Plugin contracts"
+description: "Formal TypeScript interfaces for AXIS source, stream, engine, storage, and component plugins (pynescript.axis.plugins.v)."
+---
 Plugin contracts
 Abstract
 All AXIS plugins share PluginBase and a discriminant kind. Contracts live in frontend/src/plugins/types.ts. Catalogs and the dynamic loader assert these shapes before registration; the UI never calls plugins that failed assertion.
@@ -1980,7 +2475,7 @@ series?: Record;
 events: Array;
 drawings?: Array>;
 error?: string;
-meta?: { mode?; scriptid?; runid?; ms?; overlay?; script_name?; [k: string]: unknown };
+meta?: { mode?; scriptid?; runid?; ms?; overlay?; scriptname?; [k: string]: unknown };
 }
 interface EnginePlugin extends PluginBase {
 kind: 'engine';
@@ -2059,14 +2554,31 @@ Registry
 Dynamic loader
 Plugin examples
 ---
-FILE: docs/axis/plugins/dynamic-loader.mdx
+FILE: ../axis/docs/plugins/dynamic-loader.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Dynamic plugin loader"
+description: "Install ES-module plugins from URL, persist installed list, restore on boot, and URL safety rules."
+---
 Dynamic plugin loader
 Abstract
 The loader (frontend/src/plugins/loader.ts) lets users install third-party or example source/stream/engine plugins at runtime via dynamic import(). Installed URLs persist in localStorage under:
 | Key | Role |
 | --- | --- |
 | pynescript.axis.plugins.v | Current |
-| pynescript.superchart.plugins.v | Legacy read fallback |
+| pynescript.axis.plugins.v | Installed plugin list |
 On boot, restoreInstalledPlugins() re-imports every saved URL.
 Conceptual model
 Interface surface
@@ -2132,7 +2644,7 @@ Invariants & edge cases
 . No code signing — trust the URL owner.
 Worked example
 `bash
-After bun run build + axispwa_server.py
+After bun run build + axispwaserver.py
 Load:
 http://...:/plugins/example-coingecko-source.js
 `
@@ -2152,7 +2664,24 @@ Plugin examples
 Registry
 CORS and origins
 ---
-FILE: docs/axis/plugins/engines.mdx
+FILE: ../axis/docs/plugins/engines.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Engines"
+description: "Calculation engines: server (Flask/Worker) and client Pyodide — run contracts, assets, and readiness."
+---
 Engines
 Abstract
 An engine evaluates a script against bars and returns plots, series, events, and optional drawings. AXIS ships two built-ins in frontend/src/engines/catalog.ts:
@@ -2198,6 +2727,13 @@ Boot pipeline (ensure)
 . loadPyodide({ indexURL }).
 . micropip.install same-origin /vendor/pynescript-..-py-none-any.whl and antlr runtime wheel.
 . Fetch /pyodide/pynescriptruntime.py and runPythonAsync it.
+Refreshing the pyne wheel (after pyne compiler/runtime changes):
+`bash
+from axis repo — builds sibling ../pynescript (or PYNEROOT) and vendors the wheel
+./scripts/sync-pyne-wheel.sh
+bun run build
+`
+Keep the hard-coded wheel filename in src/engines/catalog.ts / index.js in sync if the package version changes. The browser bridge is interpret-first; mode=compile/auto uses the wheel’s pynescript.compiler when NumPy loads (object-mode works without Numba; pure-numeric compile still needs server/Numba).
 . run calls runscript(script, bars) in Python and JSON.parses the result.
 Guards: assertZipAsset rejects HTML SPA fallbacks (classic deploy footgun when public/vendor is missing from dist/).
 Capabilities: { offline: true, needsNetwork: false } after assets are cached same-origin.
@@ -2238,7 +2774,24 @@ Worker runtime
 Build and serve
 PYNE runtime
 ---
-FILE: docs/axis/plugins/index.mdx
+FILE: ../axis/docs/plugins/index.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Plugins"
+description: "AXIS unified plugin system: source, stream, engine, storage — contracts, registry, catalogs, and dynamic ES-module loading."
+---
 Plugins
 Abstract
 AXIS is a plugin-composed charting PWA. Historical bars, live ticks, Pine evaluation, and the script library are not hard-coded product features — they are interchangeable modules that share one contract namespace:
@@ -2282,7 +2835,7 @@ Invariants
 . Built-ins resist casual unregister — unregister(id) returns false for builtIn: true unless allowBuiltIn: true.
 . Config keys — prefer pluginKey(kind, id) → ${kind}:${id} (e.g. engine:server).
 . Storage via URL is rejected — dynamic loader refuses kind: 'storage' until a hardened path exists.
-. Legacy key migration — installed plugins may still be read from pynescript.superchart.plugins.v.
+. Install list persistence — installed plugins are stored under pynescript.axis.plugins.v.
 Compose recipes (plugin view)
 | Recipe | Source | Stream | Engine | Storage |
 | --- | --- | --- | --- | --- |
@@ -2296,7 +2849,7 @@ Failure modes
 | Empty source dropdown | ensureBuiltins() never ran at app entry |
 | Dynamic plugin vanishes after reload | URL or CORS; check System Logs (plugins channel) |
 | Engine “not ready” | Flask/Worker down (server) or missing /vendor/.whl / /pyodide/ (pyodide) |
-| Cloud library | Missing Bearer pn… key or unbound APIKEYS` KV in production |
+| Cloud library | Missing Bearer pn… key or unbound API_KEYS` KV in production |
 See also
 Contracts
 Registry
@@ -2305,7 +2858,24 @@ Dynamic loader
 Plugin examples
 Worker (cloud storage + stream relay)
 ---
-FILE: docs/axis/plugins/registry.mdx
+FILE: ../axis/docs/plugins/registry.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Plugin registry"
+description: "PluginRegistry singleton: ordered maps per kind, listeners, built-in protection, and bootstrap wiring."
+---
 Plugin registry
 Abstract
 PluginRegistry (frontend/src/plugins/registry.ts) is the single in-memory source of truth for every installed plugin of every kind. Catalogs, the dynamic loader, active resolution, and Manager UI all read/write through this class (or thin wrappers that call it).
@@ -2369,7 +2939,7 @@ getActiveEngineConfig() injects store.endpoint when the engine has an endpoint c
 Invariants & edge cases
 . Re-register same id — overwrites the plugin object; does not duplicate order entry.
 . Listener errors are swallowed — one bad subscriber cannot break registration.
-. clear() does not reset bootstrap/catalog flags — tests use resetBootstrapFlag / resetRegistrationFlag helpers.
+. clear() does not reset bootstrap/catalog flags — tests use resetBootstrapFlag / _resetRegistrationFlag helpers.
 . Components — no order array; listComponents is Map iteration order.
 Worked examples
 Register a test source
@@ -2404,7 +2974,24 @@ Contracts
 Dynamic loader
 Plugins hub
 ---
-FILE: docs/axis/plugins/sources.mdx
+FILE: ../axis/docs/plugins/sources.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Sources"
+description: "Built-in historical data sources: venue REST, mock walk, CSV upload — contracts, config, and fallbacks."
+---
 Sources
 Abstract
 A source loads a finite window of OHLCV bars for the chart and engine. Sources live in frontend/src/sources/catalog.ts and register into the unified registry via ensureSourcesRegistered().
@@ -2470,7 +3057,7 @@ kind: 'source',
 async fetchHistorical() {
 return [
 { time: , open: , high: , low: ., close: ., volume: },
-{ time: _, open: ., high: , low: , close: ., volume: },
+{ time: , open: ., high: , low: , close: ., volume: },
 ];
 },
 };
@@ -2487,7 +3074,24 @@ Streams
 Contracts
 Plugin examples (CoinGecko)
 ---
-FILE: docs/axis/plugins/storage.mdx
+FILE: ../axis/docs/plugins/storage.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Storage"
+description: "Script library backends: local (IndexedDB), cloud (Worker /api/scripts), and git (GitHub/GitLab)."
+---
 Storage
 Abstract
 Storage plugins persist the user’s Pine library and drafts. Built-ins: local, cloud, git — registered from frontend/src/storage/catalog.ts. High-level UI/editor APIs go through frontend/src/storage/service.ts, which always dual-writes drafts to local for crash recovery.
@@ -2499,7 +3103,7 @@ local (frontend/src/storage/local.ts)
 | --- | --- |
 | Primary | IndexedDB pynescript.axis.storage — stores scripts, kv |
 | Fallback | localStorage keys pynescript.axis.library.v, draft keys |
-| Migration | Legacy SuperChart keys (pynescript.superchart.library.v, editor docs) |
+| Migration | Older library keys (pynescript.axis.library.v, editor docs) |
 | Memory | In-process maps when neither IDB nor LS exist (tests/SSR) |
 | Capabilities | Offline-friendly |
 cloud (frontend/src/storage/cloud.ts)
@@ -2575,7 +3179,7 @@ Failure modes
 | Error | Cause |
 | --- | --- |
 | Cloud storage requires an API key | Empty apiKey |
-| NOKEY / INVALIDKEY | Auth path; see Worker auth |
+| NOKEY / INVALID_KEY | Auth path; see Worker auth |
 | on write | If-Match` revision conflict |
 | Git / | Token, owner/repo, or basePath wrong |
 | Quota errors on localStorage | Large libraries should prefer IDB (automatic when available) |
@@ -2584,7 +3188,24 @@ Worker data plane
 Worker auth
 Contracts
 ---
-FILE: docs/axis/plugins/streams.mdx
+FILE: ../axis/docs/plugins/streams.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Streams"
+description: "Live bar plugins: venue WebSockets, mock poll, and Cloudflare Durable Object relay example."
+---
 Streams
 Abstract
 A stream advances the chart’s present. It opens a connection (or timer), emits onBar updates, and returns a stop function. Built-ins live in frontend/src/streams/catalog.ts. An optional Cloudflare Durable Object relay lives as a loadable example (example-cf-do-stream.js) plus Worker SessionDO.
@@ -2652,14 +3273,31 @@ Failure modes
 | Symptom | Cause |
 | --- | --- |
 | Stream never opens | CORS N/A for WS; check firewall / venue geo blocks |
-| DO stream NO_DO | SESSIONS` binding missing |
+| DO stream NODO | SESSIONS` binding missing |
 | Silent no bars | Message shape mismatch (non-kline payloads) |
 See also
 Sources
 Worker durable objects
 Plugin examples
 ---
-FILE: docs/axis/reference/feature-atlas.mdx
+FILE: ../axis/docs/reference/feature-atlas.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Feature atlas"
+description: "Map of AXIS product surfaces to repository paths: plugins, AXIS, worker, storage, test, legacy."
+---
 Feature atlas
 Abstract
 This atlas is a path index for AXIS. Use it to jump from a product feature to the code that implements it. Prefer Solid product paths over legacy static shell files.
@@ -2696,13 +3334,21 @@ Storage / library
 UI (UI)
 | Feature | Primary paths |
 | --- | --- |
-| Entry | frontend/src/index.tsx, app.tsx |
-| Chart host | frontend/src/chart/ChartHost.tsx, manager-access.ts, pane-manager.ts, series-factory.ts |
-| Drawings | frontend/src/chart/drawing-layer.ts, pine-drawings.ts |
-| Editor | frontend/src/editor/ |
-| Results | frontend/src/results/, ui/ResultsPanel.tsx |
-| Store | frontend/src/store/index.ts, types.ts |
-| Topbar / settings | frontend/src/ui/Topbar.tsx, SettingsDialog.tsx |
+| Entry | src/index.tsx, src/app.tsx |
+| Chart host | src/chart/ChartHost.tsx, ChartWorkspace.tsx, pane-manager.ts, pane-badge.ts, series-factory.ts |
+| Multi-chart / recipes | src/chart/layout.ts, layout-recipes.ts, chart-registry.ts, ui/ChartLayoutMenu.tsx |
+| Bar replay | src/chart/bar-replay.ts, ui/BarReplayControls.tsx |
+| Compare / volume profile | src/chart/compare-overlay.ts, volume-profile.ts |
+| Drawings | src/chart/drawing-layer.ts, drawings/, pine-drawings.ts, DrawingToolbar.tsx |
+| Editor | src/editor/ (CM, diagnostics, ruler, git-sync, inline-debug) |
+| Editor chrome | ui/EditorGitBar.tsx, ui/EditorProblems.tsx |
+| Alerts | src/alerts/, ui/AlertsPanel.tsx |
+| Command palette | ui/CommandPalette.tsx, command-registry.ts |
+| Docks | ui/panels/ (side-by-side left/right) |
+| Results | src/results/, ui/ResultsPanel.tsx, StrategyReport.tsx |
+| Store | src/store/index.ts, types.ts |
+| Topbar / settings | ui/Topbar.tsx, TopbarField.tsx, SettingsDialog.tsx |
+| Workspace snapshot | src/storage/workspace-snapshot.ts |
 Worker
 | Feature | Primary paths |
 | --- | --- |
@@ -2716,7 +3362,7 @@ Build / ops
 | Feature | Primary paths |
 | --- | --- |
 | Package scripts | frontend/package.json (test:, build, dev) |
-| Static server | frontend/axispwa_server.py |
+| Static server | frontend/axispwaserver.py |
 | Public assets | frontend/public/plugins, public/vendor, public/pyodide |
 | Makefile | run-axis (Vite), pages-deploy → dist/, test-frontend |
 | CI | .github/workflows/ci.yml (coverage + ee smoke), axis-nightly.yml |
@@ -2736,13 +3382,13 @@ Namespaces & keys
 | pynescript.axis.plugins.v | Installed dynamic plugins |
 | pynescript.axis.library.v | Local library LS fallback |
 | pynescript.axis.storage | IDB database name |
-| pynescript.axis.v | App state (target; migrates from superchart) |
-| pynescript.superchart. | Legacy keys still read for migration |
+| pynescript.axis.v | App state |
+| pynescript.axis.v | Older app-state key (write-forward) |
 | Contract ns | pynescript.axis.plugins.v (conceptual) |
 Infrastructure constants
 | Name | Value |
 | --- | --- |
-| CF project | pynescript-superchart |
+| CF project | pynescript-axis |
 | Health service | pynescript-axis-worker |
 | Pyodide version | .. (self-hosted path) |
 See also
@@ -2750,7 +3396,24 @@ Plugins
 Worker
 Legacy shell
 ---
-FILE: docs/axis/reference/legacy-shell.mdx
+FILE: ../axis/docs/reference/legacy-shell.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Legacy shell"
+description: "Pre-Solid static shell vs current AXIS product path — what to ignore and what still runs."
+---
 Legacy shell
 Abstract
 AXIS’s shipping product path is Solid + Vite. An older static shell remains in the repo for historical scripts and some Bun tests. Do not document or extend the legacy shell as the primary UI.
@@ -2764,7 +3427,7 @@ What is legacy
 | frontend/pine-editor.js | Pre-Solid CM wiring |
 | frontend/server.ts | Bun static server for old tree |
 | Root / frontend sw.js (static shell SW) | Service worker for old shell |
-Makefile make run-frontend still prints SuperChart Lite and runs bun run frontend/server.ts on : — useful for legacy debugging, not the Solid product path.
+Makefile make run-frontend still prints AXIS and runs bun run frontend/server.ts on : — useful for legacy debugging, not the Solid product path.
 What is current
 | Path | Role |
 | --- | --- |
@@ -2772,16 +3435,16 @@ What is current
 | frontend/src/chart/ChartHost.tsx | LWC panes |
 | frontend/src/ui/ | Topbar, Settings, Results, Manager, … |
 | frontend/public/ + bun run build | Production PWA assets |
-| frontend/axispwaserver.py | Serve dist for demos |
+| frontend/axispwa_server.py | Serve dist for demos |
 Migration residue
 | Residue | Handling |
 | --- | --- |
-| pynescript.superchart.plugins.v | Loader still reads |
-| pynescript.superchart.library.v | Local storage migrates |
-| pynescript.superchart.editor.doc | Draft migration |
-| CF project pynescript-superchart | Frozen name despite product rebrand |
-| Some docs/Makefile strings | Still say SuperChart Lite |
-App state target namespace: pynescript.axis.v (migrates from pynescript.superchart.).
+| pynescript.axis.plugins.v | Plugin install list |
+| pynescript.axis.library.v | Library localStorage fallback |
+| pynescript.axis.editor.doc | Editor document backup |
+| CF project pynescript-axis | Frozen infrastructure id |
+| Some docs/Makefile strings | Current brand is AXIS |
+App state namespace: pynescript.axis.v.
 Invariants
 . Do not port new features into main.js.
 . Prefer Solid store (src/store) over state.js.
@@ -2798,7 +3461,24 @@ Feature atlas
 Build and serve
 AXIS hub
 ---
-FILE: docs/axis/reference/plugin-examples.mdx
+FILE: ../axis/docs/reference/plugin-examples.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Plugin examples"
+description: "Worked AXIS example plugins: CoinGecko source, Tiny Pine engine, Cloudflare DO stream — load paths and contracts."
+---
 Plugin examples
 Abstract
 AXIS ships three loadable example plugins as ES modules under frontend/public/plugins/ (also mirrored for reference under frontend/src/plugins/example-.js). They are not built-ins; install via Manager → Plugins → Load from URL.
@@ -2831,7 +3511,7 @@ Contract: kind: 'source', fetchHistorical.
 Config: baseUrl (default CoinGecko v), vsCurrency (default usd).
 Behavior:
 Maps common symbols (BTC → bitcoin, …).
-Requests marketchart for a day window derived from interval × bar budget.
+Requests market_chart for a day window derived from interval × bar budget.
 Synthesizes OHLC from consecutive price points (API is not full candles).
 Limits: public rate limits (~– calls/min); CORS depends on CoinGecko policy.
 Use when: demo custom source without a key.
@@ -2919,7 +3599,24 @@ Dynamic loader
 Contracts
 Worker durable objects
 ---
-FILE: docs/axis/reference/testing.mdx
+FILE: ../axis/docs/reference/testing.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Testing reference"
+description: "AXIS unit, worker, security, coverage gate, and Playwright ee conventions with paths and commands."
+---
 Testing reference
 Abstract
 AXIS tests are Bun-first under frontend/, with Playwright for browser smoke and a scoped coverage ratchet. Canonical human guide: frontend/TESTING.md. This page is the reference map for agents and contributors.
@@ -2981,7 +3678,7 @@ Config (playwright.config.ts):
 testDir: ./ee
 Chromium project
 webServer: bun run build && bun run preview -- --host ... --port
-baseURL: http://...: (override AXISEEBASE)
+baseURL: http://...: (override AXISEE_BASE)
 Timeout s; CI retries
 Smoke mocks /run and Binance. Use data-testid attributes (axis-btn-load, axis-manager, …).
 Security suite
@@ -3010,16 +3707,39 @@ CI and testing
 Plugin contracts
 Worker auth
 ---
-FILE: docs/axis/ui/charting.mdx
+FILE: ../axis/docs/ui/charting.mdx
+Copyright (C) - jango_blockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Charting"
+description: "AXIS chart: ChartHost, PaneManager, series factory, drawings, crosshair sync, and trade markers."
+---
 Charting
 Charting is the spatial surface for OHLCV, overlays, and annotations. Implementation is imperative under a Solid shell so lightweight-charts owns its DOM subtree.
 Abstract
 | Module | Role |
 | --- | --- |
-| ChartHost.tsx | Solid mount; empty-state overlay; lifecycle |
-| pane-manager.ts | Multi-pane LWC charts, time sync |
+| ChartHost.tsx / ChartWorkspace.tsx | Solid mount; multi-slot grid; empty-state |
+| pane-manager.ts | Multi-pane LWC charts, time sync, overlay apply |
+| pane-badge.ts | Corner name + script action icons |
 | series-factory.ts | Candle/volume/line series helpers + palette |
-| drawing-layer.ts | User + script drawings |
+| chart-type.ts | Price style transforms (HA, hollow, …) |
+| bar-replay.ts + BarReplayControls | History scrub / play |
+| layout.ts / layout-recipes.ts / chart-registry.ts | Multi-chart layouts + presets |
+| compare-overlay.ts | Second-symbol compare series |
+| volume-profile.ts | OHLCV volume-at-price overlay |
+| drawing-layer.ts + drawings/ | User + script drawings, templates, sync helpers |
 | crosshair-sync.ts | Cross-pane crosshair |
 | pine-drawings.ts | Engine drawing objects → layer |
 | manager-access.ts | Process-wide manager/layer getters |
@@ -3029,17 +3749,51 @@ Panes
 store.panes: { id, type, height, order, visible, label }.
 | type | Typical series |
 | --- | --- |
-| price | Candles + overlay lines + markers + drawings |
+| price | Price series (style below) + overlay lines + markers + drawings |
 | volume | Histogram |
 | indicator | Non-overlay plots |
 | equity | Strategy equity curve |
 Defaults: price + volume. Indicator/equity created on demand.
+Price chart styles (store.chartType)
+Topbar Type select (persisted). Implementation: chart/chart-type.ts + createPriceSeries.
+| chartType | Series | Notes |
+| --- | --- | --- |
+| candles | Candlestick | Japanese candles (default) |
+| hollow | Candlestick | Hollow body on up bars |
+| bars | Bar | Classic OHLC bars |
+| heikinashi | Candlestick | Heikin-Ashi transform of OHLCV |
+| line | Line | Close only |
+| area | Area | Close with fill |
+| baseline | Baseline | Close vs first-bar base |
+Series still live under pane key candle so markers, hlines, and the drawing layer keep a stable host. Changing type swaps the LWC series and rebinds data without a full history reload.
 Empty / status overlay
 When bars.length === , ChartHost shows contextual title/sub from store.status (loading, error, running, or “Load data to begin”).
+Multi-chart layouts
+Modes: / H / V / (store.chartLayout)
+Per-slot symbol/interval via registry; active slot drives topbar + Run
+Named layouts save/load (optional chrome snapshot)
+Recipes in Layouts menu: Scalp m+m, Swing HTF, Quad, BTC majors (layout-recipes.ts)
+Bar Replay
+Topbar Replay → session over loaded OHLCV (bar-replay.ts):
+Enters with full history visible (cursor on last bar)
+Scrub / step / play; Play at end restarts from bar
+Mutually exclusive with Live
+Compare & volume profile
+Compare control: second symbol as % or absolute overlay (compare-overlay.ts)
+Volume profile toggle in Layers → OHLCV approximation histogram (volume-profile.ts)
+Pane badges
+Each pane’s top-left chip (pane-badge.ts): label + script actions when scripts are applied:
+| Icon | Action |
+| --- | --- |
+| Settings | Script inputs modal |
+| Eye | Show / hide series |
+| Refresh | Re-run script |
+| Trash | Remove from chart |
+Volume/equity without scripts: name + hide.
 Drawings toolbar
-See operator guide Drawings. Tools: cursor, hline, trend, ray, rect, fib, measure, text.
+See Drawings. Tools include cursor, hline, vline, trend, ray, extend, rect, ellipse, arrow, fib, measure, text. Templates and duplicate helpers live under Layers / drawings modules.
 Crosshair & time
-syncTimeScales / syncCrosshair keep multi-pane navigation coherent. scrollToTime used from Results trade clicks.
+syncTimeScales / syncCrosshair keep multi-pane navigation coherent. scrollToTime / jumpToDebugPin used from Results and debug pins.
 Internals
 Solid vs imperative boundary
 ``text
@@ -3063,7 +3817,8 @@ Centralizes series construction options and color palette so Results plot summar
 Invariants
 . Solid reconciliation must not rewrite pane roots.
 . Script drawings ephemeral per run; user drawings store-backed.
-. Overlay default true unless meta.overlay === false.
+. Overlay routing: engine meta.overlay + script type; oscillator-scale series forced to sub-pane when they would vanish on price (see Indicators).
+. Shared non-overlay sub-pane id is stable: indicator.
 . Manager may be null before mount—runner no-ops chart apply safely.
 Failure modes
 | Symptom | Cause |
@@ -3082,84 +3837,275 @@ Indicators
 Results and strategy
 End-user drawings
 ---
-FILE: docs/axis/ui/editor.mdx
+FILE: ../axis/docs/ui/debugging.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Debugging"
+description: "Scriptlogs, Profiler, Debug chips, chart Pins, diagnostics, and System Logs."
+---
+Debugging
+AXIS separates script-authored diagnostics (Pine log., engine errors, line timing) from shell telemetry (load, stream, engine connection).
+Abstract
+| Surface | Source of truth | Open / toggle |
+| --- | --- | --- |
+| Scriptlogs | store.lastRun → normalizePineLogs | Editor header Scriptlogs |
+| Profiler | profilerEnabled + profile.lines | Editor header Profiler |
+| Debug | inlineDebugEnabled + last-run logs with line | Editor header Debug |
+| Pins | debugPinsEnabled + logs with barindex / time | Editor header Pins · Alt+P |
+| Diagnostics / Problems | Engine errors + line-mapped logs | Underlines + Problems list (always from last run) |
+| System Logs | store.logs ring buffer | Status bar / logs strip |
+| Module | Role |
+| --- | --- |
+| ui/ScriptLogsPanel.tsx | Floatable last-run log. list |
+| results/pine-logs.ts | Normalize / filter / TSV |
+| results/profiler.ts | Line % profile |
+| results/inline-debug.ts | Annotations + pinable helpers |
+| results/debug-pins.ts | Bar pins, markers, countDebugPins |
+| editor/inline-debug.ts | CM chips, pin gutter, line flash |
+| editor/diagnostics.ts | Error underlines / gutter / jump |
+| ui/EditorProblems.tsx | Problems list UI |
+| chart/manager-access.ts | applyDebugPinsToChart, jumpToDebugPin |
+Conceptual model
+Invariant: Scriptlogs / Debug / Pins never write into store.logs.
+---
+Debug vs Pins
+| | Debug | Pins |
+| --- | --- | --- |
+| Question | What happened on this source line? | Which bar was that on the chart? |
+| Requires | Line ref (line :, structured line, …) | barindex and/or time / bartime |
+| UI | End-of-line chips + optional level gutter | Chart circle markers + editor gutter |
+| Click | Pin-able chips jump if bar info present | Chip / / Scriptlogs → chart jump + line flash |
+| Store | inlineDebugEnabled | debugPinsEnabled |
+Workflow
+. Add log.info / log.warning / log.error (or rely on engine errors) with line and ideally bar_index.
+. Run.
+. Toggle Debug to see chips; Pins to mark bars (count shows on the Pins button).
+. Click a pin-able chip or → jumpToDebugPin (crosshair + scroll); source line flashes (cm-debug-pin-flash).
+Both can be on at once. Pins without Debug still show gutter and chart markers.
+---
+Scriptlogs
+Panel for script logging from the last run.
+| Pine call | Panel level |
+| --- | --- |
+| log.info | info |
+| log.warning | warning |
+| log.error | error |
+Open: Editor → Scriptlogs (axis-btn-scriptlogs). Pin-able rows jump to the chart when bar time/index is known.
+---
+Editor Profiler
+Toggle Profiler (axis-btn-profiler):
+Persists profilerEnabled
+May send profiler: true to the engine
+Header shows last-run ms
+Gutter shows line % when profile.lines is present
+---
+Diagnostics & Problems
+Independent of Debug chips: structural error reporting from the run payload.
+Parses error, meta.errors, diagnostics, error-level logs
+CodeMirror underlines + severity gutter
+Stats strip badge (axis-editor-diag-count) and Problems list (axis-editor-problems)
+Click → jump to line/range
+---
+Scriptlogs vs System Logs
+| | Scriptlogs | System Logs |
+| --- | --- | --- |
+| Source | Script log. on last run | AXIS shell events |
+| Store | lastRun | store.logs |
+| UI | Floatable Scriptlogs | Strip above status bar |
+| Control | Editor header | Status bar |
+---
+Persistence & test ids
+| Key | Role |
+| --- | --- |
+| panelChrome.scriptlogs / editor | Panel chrome |
+| profilerEnabled | Profiler |
+| inlineDebugEnabled | Debug chips |
+| debugPinsEnabled | Chart + pin gutter |
+| testid | Role |
+| --- | --- |
+| axis-btn-scriptlogs | Open Scriptlogs |
+| axis-btn-profiler | Profiler |
+| axis-btn-inline-debug | Debug |
+| axis-btn-debug-pins | Pins |
+| axis-debug-pin-count | Pin count |
+| axis-editor-diag-count | Diagnostics badge |
+| axis-editor-problems | Problems panel |
+Unit coverage: tests/pine-logs.test.ts, tests/profiler.test.ts, tests/inline-debug.test.ts, tests/debug-pins.test.ts, tests/editor-diagnostics.test.ts.
+See also
 Editor
-The editor is the source axis of intent: Pine text the operator authorizes the engine to run. It is not a language server host by default in the PWA path (LSP lives in the broader pynescript project).
+Charting — markers and jump
+UI shell
+---
+FILE: ../axis/docs/ui/editor.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Editor"
+description: "AXIS Pine editor: CodeMirror , diagnostics, -col ruler, git sync, stats, docked vs popout, editor bridge."
+---
+Editor
+The editor is the source axis of intent: Pine text the operator authorizes the engine to run. Completion and hover can use local builtins metadata and optional remote LSP; evaluation is always an engine plugin.
 Abstract
 | Module | Role |
 | --- | --- |
-| EditorPane.tsx | Docked/standalone chrome, resize, detach |
-| tabbed-editor.tsx | Multi-tab document UX |
-| PineEditor.tsx | CM mount |
+| EditorPane.tsx | Docked/standalone chrome, header tools, detach |
+| tabbed-editor.tsx | Multi-tab docs, stats strip, Problems, git bar |
+| PineEditor.tsx | CM mount (extensions + view APIs) |
 | pine-language.ts | StreamLanguage / highlighting |
+| pine-lsp.ts + data/pine-builtins.json | Offline completion/hover corpus |
+| column-ruler.ts | -character guide line |
+| diagnostics.ts | Underlines, gutter, jump-to from last run |
+| inline-debug.ts | EOL chips, pin gutter, line flash |
+| git-sync.ts + ui/EditorGitBar.tsx | Pull / push / storage status |
+| ui/EditorProblems.tsx | Collapsible problems list |
 | editor-bridge.ts | Cross-window doc + run messages |
 | cm-void.ts | Void-theme CM styling |
 Conceptual model
 Why run on main? Chart, bars, and pane manager live in the main window. Popout is a pure editing surface.
 Interface surface
 Docked mode
-Right column in app.tsx when editor.open && mode === 'docked'
-Resize via ResizeHandle → editor.width
-Hide chevron → setEditorOpen(false)
+Right dock by default (panelChrome.editor); may sit side-by-side with other right panels (e.g. Indicators left of Editor)
+FloatableShell: dock left/right/bottom, float, new window
 Detach → popup or tab (openEditorWindow)
 Popout mode
 Main shows “Editor detached” chip + Reattach
 Shared doc key + bridge messages: hello, doc, run, run-status, reattach, popout-opened, popout-closed
-Stale popout mode after reload: main waits for editor hello
 Run entry points
-Editor Run control → onRun(doc) → runAndApply
-Topbar Run uses same editorRef.getDoc()
+Editor / topbar Run → runAndApply(getDoc())
 Popout Run → bridge → main executes
+Command palette: save library, git push/pull, jump to line, toggles
+Header tools (axis-editor-tools)
+| Control | Effect |
+| --- | --- |
+| Scriptlogs | Open last-run log. panel |
+| Profiler | profilerEnabled + optional line % gutter; re-run when enabling |
+| Debug | Inline end-of-line log/error chips (inlineDebugEnabled) |
+| Pins | Chart markers + gutter (debugPinsEnabled); Alt+P |
+| Ruler | -column guide (editorRulerEnabled) |
+Details: Debugging.
+Stats strip
+Bottom of tabbed editor (data-testid="axis-editor-stats"):
+| Field | Meaning |
+| --- | --- |
+| Pos L:C | Cursor line:column (-based) |
+| Ln | Total lines in document |
+| Words / Chars | Document stats |
+| Diagnostics badge | Error/warning count from last run — click jumps to first |
+| Problems | Expand/collapse problems list |
+| wrap | Soft wrap is on |
+Diagnostics & Problems
+After a run, diagnosticsFromLastRun(lastRun, doc) builds ranges from engine error, meta.errors / diagnostics, and error logs with line refs (line :, L:, …).
+CodeMirror: wavy underlines, severity gutter, hover tooltips
+Problems panel: clickable rows → scrollToLine / jumpToDiagnostic
+Unit tests: tests/editor-diagnostics.test.ts, tests/editor-problems.test.ts
+-column ruler
+columnRulerExtension paints a dashed guide at character column (measured via CM coords). Toggle Ruler or command palette “Toggle Editor Ruler”.
+Git sync bar
+Tab toolbar Pull / Push / status (EditorGitBar):
+Uses active storage plugin (local \| cloud \| git)
+Push → writeScript (git commits when storage is git)
+Pull → optional plugin sync('pull') + list/reload bound library id
+Config stays in Settings / Script Library (no second credentials UI)
+Completion corpus
+src/editor/data/pine-builtins.json is synced from PYNE (scripts/sync-pine-builtins.sh). Offline completion/hover fall back to this catalog; optional remote LSP when the Pro API is available.
 Library load
-loadLibraryDoc(doc, name) (when provided on ref) injects storage reads without fighting CM transaction history poorly—panel calls through App wiring.
+loadLibraryDoc(doc, name) on editorRef injects storage reads into the active tab.
 Internals
 editorRef pattern
-App holds a mutable ref object { getDoc, setDoc?, loadLibraryDoc? } populated by child mount—avoids over-reactive store writes on every keystroke for the full document (doc also optionally mirrored to EDITORDOCKEY).
-Language package
-pine-language.ts supplies CM language support sufficient for editing comfort; semantic diagnostics are not a substitute for engine errors (Results / status).
+App holds { getDoc, setDoc?, loadLibraryDoc?, scrollToLine?, jumpToDiagnostic?, getCursor? } populated by CM mount—avoids full-doc store writes every keystroke (doc also mirrored to EDITORDOCKEY).
 Persistence
-Layout: store.editor in pynescript.axis.v
-Text: pynescript.axis.editor.doc (+ legacy migration)
+| Key / field | Role |
+| --- | --- |
+| store.editor + panelChrome.editor | Dock geometry, open, mode |
+| pynescript.axis.editor.doc | Draft text |
+| profilerEnabled / inlineDebugEnabled / debugPinsEnabled / editorRulerEnabled | Editor tools |
 Invariants
-. Empty doc Run is no-op at topbar/editor handlers.
+. Empty doc Run is a no-op at topbar/editor handlers.
 . Popout does not own PaneManager.
 . Reattach restores shared doc into docked CM.
 . AXIS ≠ engine: editor never evaluates Pine itself.
+. Diagnostics/Debug/Pins read last run only — re-run after edits.
 Failure modes
 | Symptom | Mitigation |
 | --- | --- |
 | Two editors diverge | Prefer bridge doc events; reattach |
 | Detached but no window | Popup blocked; allow popups; reattach |
-| Lost text on crash | editor.doc localStorage; library Save |
+| Lost text on crash | editor.doc localStorage; library Save / git push |
+| Blank CM (no lines) | Dock column height chain; editor must fill strip |
+| No chips/pins | Enable Debug/Pins; logs need line and/or barindex |
 See also
-UI shell
+Debugging — Debug vs Pins, Scriptlogs, Profiler
+UI shell — Topbar, docks, command palette
 Indicators
 Script library
 ---
-FILE: docs/axis/ui/index.mdx
+FILE: ../axis/docs/ui/index.mdx
+Copyright (C) - jango_blockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "UI"
+description: "AXIS UI subsystem: chart host, editor, UI shell, indicators, results, and Solid store—presentation without a closed engine."
+---
 UI
 UI is the AXIS browser presentation layer: everything the operator sees and clicks that is not language evaluation. Engines are plugins; AXIS applies their outputs to panes, markers, and drawers.
 Abstract
 | Subsystem | Responsibility |
 | --- | --- |
-| Charting | lightweight-charts panes, drawings, crosshair |
-| Editor | CodeMirror Pine surface, dock/popout |
-| UI shell | Topbar, watchlist, status, manager chrome |
-| Indicators | Run pipeline, overlay apply, indicator list |
-| Results & strategy | Event normalize, trades, export |
+| Charting | Panes, multi-chart, replay, compare, drawings, badges |
+| Editor | CM, diagnostics, ruler, git bar, stats, dock/popout |
+| Debugging | Scriptlogs, Profiler, Debug chips, Pins, Problems |
+| UI shell | Topbar groups, docks side-by-side, palette, alerts |
+| Indicators | Run pipeline, overlay/sub-pane routing |
+| Results & strategy | Event normalize, trades, equity, export |
 | Store | Solid store, persistence, active plugins |
 Conceptual model
 Invariant (AXIS ≠ engine): no Solid component imports PYNE directly; only engine modules talk to Python/HTTP runtimes.
 Interface surface (visual map)
 ``text
-┌─ Topbar ──────────────────────────────────────────────┐
-├─ Watchlist ─┬─ ChartHost + drawings ─┬─ Indicators ─┬─ Editor ─┤
-├─ Results drawer ──────────────────────────────────────┤
-├─ System logs ─────────────────────────────────────────┤
-└─ StatusBar ───────────────────────────────────────────┘
-Settings modal + Plugin Manager modal
+┌─ Topbar (grouped: market · data · compute · layout · panels · system) ─┐
+├─ left docks ─┬─ ChartHost (– slots) + drawings ─┬─ right docks ─────┤
+│ watchlist │ multi-pane + badges + replay │ indicators|editor │
+│ layers … │ │ (side-by-side) │
+├─ Results / scriptlogs (bottom) ───────────────────────────────────────┤
+├─ System logs ─────────────────────────────────────────────────────────┤
+└─ StatusBar (connection HUD) ──────────────────────────────────────────┘
+Settings · Plugins · Command palette (⌘K)
 `
-Implemented in frontend/src/app.tsx.
+Implemented in src/app.tsx (repo root product UI).
 Stack
 | Concern | Choice |
 | --- | --- |
@@ -3178,7 +4124,24 @@ See also
 frontend/LEGACY.md — what is not the AXIS product path
 frontend/TESTING.md` — unit/ee around UI modules
 ---
-FILE: docs/axis/ui/indicators.mdx
+FILE: ../axis/docs/ui/indicators.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Indicators"
+description: "AXIS indicator UI: runAndApply pipeline, active engine binding, overlay routing, and IndicatorPanel."
+---
 Indicators
 “Indicators” in AXIS terms means scripts applied to the chart, whether indicator() or strategy() in Pine. The module boundary is indicators/runner.ts plus list UI—not the PYNE evaluator.
 Abstract
@@ -3204,15 +4167,23 @@ runAndApply options
 | indicatorId | optional | Update existing store indicator |
 Overlay routing
 ``text
-overlay = result.meta.overlay !== false
-paneId = overlay ? 'price' : 'indicator'
+overlay = resolveOverlayFlag(meta.overlay, scripttype)
+// explicit false → sub-pane
+// explicit true → price
+// missing: indicator → sub-pane; strategy → price
+if overlay && seriesWouldHideOnPrice(plots, bars):
+overlay = false // RSI / scaled oscillators on BTC scale
+paneId = overlay ? 'price' : 'indicator' // stable id indicator
 `
-Non-overlay creates indicator pane if missing (addPane + manager createPane).
+Non-overlay ensures store + manager pane id indicator (not a random uid). Orphan empty indicator panes are cleaned up. After apply, sub-panes force autoScale / resize so lines paint on first run.
+Prefer indicator(..., overlay=false) and raw plot(rsi) for oscillators — not strategy(..., overlay=true) with rsi . on price.
 Series selection
 Prefer result.series entries whose keys do not start with / . Fallback: single plots[] array as one line named from scriptname.
 Colors: plotmeta[k].color or PLOTPALETTE[i].
-Indicator panel
-Side list of store.scripts (Indicator: id, name, code, paneId, visible, plots). Visibility toggles affect display intent; re-run still engine-driven.
+Indicator panel & pane badges
+Side list of store.scripts (Indicator: id, name, code, paneId, visible, plots)
+Visibility toggles affect display; re-run is still engine-driven
+Chart pane chips mirror settings / eye / re-run / remove (see Charting)
 Active engine binding
 `ts
 // plugins/active.ts pattern
@@ -3246,19 +4217,37 @@ Charting
 Results and strategy
 ADR- / ADR-
 ---
-FILE: docs/axis/ui/results-and-strategy.mdx
+FILE: ../axis/docs/ui/results-and-strategy.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Results and strategy"
+description: "UI-side event normalization, trade pairing, metrics, equity curve, and ResultsPanel export pipeline."
+---
 Results and strategy
 Results UI turns opaque engine payloads into operator-consumable tables, metrics, and files. It is a pure-ish viewer layer over lastRun + bars.
 Abstract
 | Module | Role |
 | --- | --- |
 | results/events.ts | Normalize heterogeneous event shapes; markers; equity series |
-| results/strategy.ts | Pair trades; stats; CSV helpers |
+| results/strategy.ts | Pair trades; stats; equity SVG helpers; CSV |
 | ui/ResultsPanel.tsx | Tabs, export, jump-to-time |
+| ui/StrategyReport.tsx | Stats cards, equity curve, trades table, CSV |
 | ui/StatusBar.tsx | Compact trade summary |
 Conceptual model
 Event normalization
-Engines may emit Pro API parity fields (kind, bar_time, direction, ohlc) or legacy UI fields (type, time, dir, price). Normalizer:
+Engines may emit Pro API parity fields (kind, bartime, direction, ohlc) or legacy UI fields (type, time, dir, price). Normalizer:
 Unifies time/price/dir/id
 Optionally fills price from bars when OHLC present/empty
 Can include order-like events for the Events tab
@@ -3278,7 +4267,7 @@ ResultsPanel tabs
 | Plots | series / plots summary |
 | Metrics | meta + context + stats subset |
 | Raw | JSON.stringify(lastRun) |
-Interactions: copy, export, scrollToTime on trade rows.
+Interactions: copy, export, scrollToTime on trade rows. Scriptlogs / Debug Pins also jump the chart (jumpToDebugPin) when bar time/index is present — see Debugging.
 Equity
 buildEquityCurve feeds chart equity pane when runner/strategy path requests it—derived series, not engine-native unless also provided.
 Export (ADR-)
@@ -3305,7 +4294,24 @@ See also
 Indicators
 Charting
 ---
-FILE: docs/axis/ui/store.mdx
+FILE: ../axis/docs/ui/store.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Store"
+description: "AXIS Solid store: AppState shape, activePlugins, persistence rules, logging, and alignment helpers."
+---
 Store
 The Solid store is the control-plane nexus of AXIS. Plugins read configuration from it; UI binds reactively; persistence snapshots a safe subset to pynescript.axis.v.
 Abstract
@@ -3335,8 +4341,16 @@ AppState map
 | status, statusMessage, lastRunMs | yes | UX; ok to restore |
 | lastRun | no | Forced null on hydrate |
 | logs | no | Forced empty |
+| profilerEnabled | yes | Editor profiler (line % when engine provides profile) |
+| inlineDebugEnabled | yes | End-of-line Debug chips from last-run logs |
+| debugPinsEnabled | yes | Chart pin markers + editor pin gutter |
+| editorRulerEnabled | yes | -col guide (default on) |
+| panelChrome / alertsPanel / layerPanel / dataViewPanel | yes | Dock chrome (side-by-side left/right) |
+| chartLayout / savedLayouts | yes | Multi-chart grid + named layouts |
+| compare | prefs yes | Second-symbol overlay (bars ephemeral) |
 | drawingTool | reset cursor | On hydrate |
-| drawings | yes | User annotations |
+| drawings / drawingPrefs / drawingUi | yes | User annotations + toolbar prefs |
+| selectedDrawingId | no | Ephemeral selection |
 \Status fields may restore but boot also appends fresh logs.
 Defaults (product)
 Representative defaults from store:
@@ -3366,7 +4380,7 @@ Logging
 `text
 appendLog(level, message, source?)
 levels: info | ok | warn | error
-MAXLOGS =
+MAX_LOGS =
 `
 setStatus maps app status to log levels for important transitions.
 Legacy dual path
@@ -3374,7 +4388,7 @@ Vanilla state.js remains for legacy shell with the same storage key family. Prod
 Invariants
 . Hydrate never restores lastRun or logs.
 . Persist strips bars.
-. Migration from SuperChart keys is read-repair (state namespaces).
+. Key migration is read-repair (state namespaces).
 . pluginsConfig keys prefer ${kind}:${id} .
 . Store is not a plugin registry—ids must exist in registry to function at runtime.
 Failure modes
@@ -3393,7 +4407,24 @@ State namespaces
 ADR-
 UI shell
 ---
-FILE: docs/axis/ui/ui-shell.mdx
+FILE: ../axis/docs/ui/ui-shell.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "UI shell"
+description: "AXIS chrome: topbar, watchlist, status bar, settings, plugin manager, logs, and layout chrome around the chart."
+---
 UI shell
 The shell is the non-canvas chrome: navigation of axes, market selection, modals, and status. It binds human gestures to store + plugins without owning calculation.
 Abstract
@@ -3410,20 +4441,44 @@ Abstract
 | ResizeHandle | ui/ResizeHandle.tsx | Panel widths/heights |
 Conceptual model
 Topbar responsibilities
+Grouped left→right (axis-tb-group, data-tb-group):
+| Group | Contents |
+| --- | --- |
+| brand | Logo + AXIS |
+| market | Symbol, Interval, Type (TopbarField), Compare |
+| data | Source (+ CSV upload), Load, Reload (icon-only) |
+| compute | Engine, Stream, Run (primary), Live, Replay |
+| layout | Multi-chart layouts + recipes |
+| panels | List, Editor, Indicators, Layers, Alerts, Data, Inputs, Results |
+| system | Plugins, Settings, Theme (margin-left: auto) |
 | Control | Effect |
 | --- | --- |
-| Symbol / interval | Store + Load |
-| Source select | setActivePlugin('source') + default stream |
-| Stream select | live.streamId / active stream |
-| Engine select | Active engine (+ pyodide preload side effects) |
-| CSV file | parseOhlcvFile → upload-store → load |
-| Load | Historical fetch |
+| Symbol / interval | Store + Load (Enter / blur reload) |
+| Source / Stream / Engine | setActivePlugin + side effects |
+| Chart type | setChartType (candles, HA, …) |
+| Compare | Second-symbol overlay |
+| Load / Reload | Historical fetch |
 | Run | Editor doc → runAndApply |
-| Live | multiplex start/stop |
-| Editor / watchlist toggles | Layout flags |
+| Live | multiplex start/stop (stops Replay) |
+| Replay | Bar replay over loaded bars |
+| Panel toggles | isPanelOpen / dual-write chrome |
 | Settings / Plugins | Modal open |
 | Detach editor | Bridge + popout |
+Integrated labels: ui/TopbarField.tsx (.axis-tb-field).
 catalogTick forces memo re-list when plugins install/remove.
+Command palette
+Ctrl/Cmd+K — CommandPalette + command-registry.ts: panels, theme, layouts, Run, symbol focus, editor toggles (ruler, debug, pins, profiler), jump to line, git push/pull, save library.
+Alerts panel
+Dockable Alerts (src/alerts/ + AlertsPanel.tsx): local-first price alerts, webhook optional, list/create/toggle. Continuous server-side arming is not required for session use.
+Workspace snapshots
+storage/workspace-snapshot.ts + optional chrome menus capture layout/plugin prefs for restore (distinct from OHLCV — bars still re-fetch on Load).
+Panel docks (side-by-side)
+Left/right docks with + open panels lay out horizontally (row), not stacked under each other:
+Example: Indicators left of Editor on the right strip
+Column width = sum of panel widths (capped)
+Each panel keeps its own width (resize handle on chart-facing edge)
+Bottom dock still stacks vertically
+See ui/panels/dock-layout.ts, FloatableShell.tsx.
 Watchlist
 Default universe includes majors (BTCUSDT, …)
 refreshSec clamped –
@@ -3446,10 +4501,13 @@ Live settings (Settings dialog)
 | Indicator re-run | every-tick | or bar-close only |
 | Compact connection HUD | off | hide plane chips |
 Logs
+System Logs strip
 appendLog(level, message, source)
-Cap MAX_LOGS ()
+Cap MAXLOGS ()
 Not persisted
 Boot messages, pyodide ready, live errors
+Scriptlogs & Profiler
+Script log. output and editor line-timing live on a separate path — see Debugging. Controls sit on the editor header (not the topbar) and do not write into store.logs.
 Theming
 store.theme → document.documentElement data-theme (dark \| light). Void dark is default product aesthetic.
 Accessibility / test hooks
@@ -3470,7 +4528,24 @@ Manager and settings
 Store
 Architecture overview
 ---
-FILE: docs/axis/worker/auth.mdx
+FILE: ../axis/docs/worker/auth.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Worker auth"
+description: "API keys (pn…), admin token, Bearer extraction, ALLOWOPENKEYS, and KV validation."
+---
 Worker auth
 Abstract
 AXIS Worker auth is API-key based, not session cookies. Keys are created by admins (X-Admin-Token), validated via KV when bound, and used as Authorization: Bearer on script library and optionally on /api/run (usage metering).
@@ -3543,11 +4618,28 @@ Data plane
 Bindings
 Security tests
 ---
-FILE: docs/axis/worker/bindings.mdx
+FILE: ../axis/docs/worker/bindings.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Worker bindings"
+description: "wrangler.toml vars, KV, D, R, Durable Objects — provision once, paste IDs, frozen project name."
+---
 Worker bindings
 Abstract
 Bindings and vars for the AXIS Worker are declared in frontend/worker/wrangler.toml. Many production bindings ship commented so clone-and-dev does not require Cloudflare resources; wrangler dev synthesizes local substitutes where possible.
-Project name is frozen: name = "pynescript-superchart".
+Project name is frozen: name = "pynescript-axis".
 Conceptual model
 Interface surface — Env
 From src/index.ts:
@@ -3610,14 +4702,14 @@ Other wrangler settings
 | compatibilitydate | -- |
 | compatibilityflags | nodejscompat |
 | [observability] | enabled = true |
-Static PWA assets are not served by this Worker in the documented split: Pages serves dist/, Worker serves API/WS. Project name for Pages deploy remains pynescript-superchart.
+Static PWA assets are not served by this Worker in the documented split: Pages serves dist/, Worker serves API/WS. Project name for Pages deploy remains pynescript-axis.
 Deploy commands
 `bash
 cd frontend/worker
 wrangler deploy
 Pages (from frontend/)
 bun run build
-wrangler pages deploy dist --project-name=pynescript-superchart
+wrangler pages deploy dist --project-name=pynescript-axis
 or npm run deploy:pages from worker package
 `
 Makefile: make worker-deploy, make pages-deploy (note: some Makefile targets still point at legacy tree — prefer dist/ from Vite build; see build and serve).
@@ -3632,13 +4724,30 @@ Failure modes
 | Deploy fails placeholder KV | Uncomment only after create, or leave commented |
 | Scripts empty | Apply SQL schema |
 | Stream | Enable DO binding + migration |
-| CORS fails prod origin | Set ALLOWED_ORIGIN` to exact Pages origin |
+| CORS fails prod origin | Set ALLOWEDORIGIN` to exact Pages origin |
 See also
 Cloudflare DevOps
 Runtime
 CORS
 ---
-FILE: docs/axis/worker/data-plane.mdx
+FILE: ../axis/docs/worker/data-plane.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Worker data plane"
+description: "Script library API: /api/scripts, D schema, drafts, revisions, and in-memory fallback."
+---
 Worker data plane
 Abstract
 The Worker data plane for user scripts is frontend/worker/src/scripts.ts — REST under /api/scripts with Bearer auth (auth). Persistence prefers D (env.DB); without D, per-isolate in-memory maps support local wrangler dev.
@@ -3693,7 +4802,7 @@ wrangler d execute pynescript --local --file=schemas/scripts.sql
 `
 Binding name in wrangler.toml must be DB (code uses env.DB). Database name can be pynescript.
 Partitioning
-userId = SHA-(apikey).hex.slice(, ) — raw keys are not stored as D partition ids.
+userId = SHA-(api_key).hex.slice(, ) — raw keys are not stored as D partition ids.
 Health feature flags
 `json
 {
@@ -3721,7 +4830,24 @@ Storage plugins
 Auth
 Bindings
 ---
-FILE: docs/axis/worker/durable-objects.mdx
+FILE: ../axis/docs/worker/durable-objects.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Durable Objects"
+description: "SessionDO WebSocket relay: one Binance upstream per session, fan-out to browser clients."
+---
 Durable Objects
 Abstract
 SessionDO (frontend/worker/src/durable-objects/session.ts) is a per-session WebSocket relay. Browsers connect to the Worker at /api/stream; the Worker pins a Durable Object by session name and the DO opens one upstream Binance kline socket, broadcasting payloads to connected clients.
@@ -3777,7 +4903,7 @@ Invariants & edge cases
 Failure modes
 | Symptom | Cause |
 | --- | --- |
-| NODO | Binding commented / not deployed |
+| NO_DO | Binding commented / not deployed |
 | expected websocket | Non-upgrade GET |
 | No bars | Upstream block or wrong interval string |
 | Stale symbol | Client did not send subscribe` after change |
@@ -3786,7 +4912,24 @@ Streams
 Bindings
 Plugin examples
 ---
-FILE: docs/axis/worker/index.mdx
+FILE: ../axis/docs/worker/index.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Worker"
+description: "Cloudflare Worker for AXIS: /api/run proxy, keys, scripts, usage, and Durable Object stream relay."
+---
 Worker
 Abstract
 The AXIS Cloudflare Worker (frontend/worker/) is the edge data plane for the PWA: JSON APIs, optional script library (D), API keys (KV), usage meters, and a WebSocket session relay (Durable Objects). It is not a full Pine interpreter in production today.
@@ -3795,8 +4938,8 @@ Conceptual model
 Infrastructure names (frozen)
 | Surface | Value |
 | --- | --- |
-| Wrangler / Pages project | pynescript-superchart — do not rename lightly |
-| npm package | pynescript-superchart-worker |
+| Wrangler / Pages project | pynescript-axis — do not rename lightly |
+| npm package | axis-worker |
 | Health JSON service | pynescript-axis-worker |
 | Product brand | AXIS |
 Custom domains / aliases may say axis.; leave the CF project id stable so KV/D IDs and CI stay valid.
@@ -3825,7 +4968,7 @@ Implementation status
 | Usage KV increment on run | Works when USAGE bound |
 | SessionDO + /api/stream | Implemented; binding often commented until provisioned |
 | /api/scripts + D schema | Implemented; memory fallback without D |
-| Pyodide scaffold | pyodide_runtime.ts + flag; wheel pipeline incomplete |
+| Pyodide scaffold | pyodideruntime.ts + flag; wheel pipeline incomplete |
 | Response cache for /api/run | Deferred |
 Page map
 | Page | Topic |
@@ -3840,7 +4983,24 @@ Cloudflare deploy
 Engines
 Worker README: frontend/worker/README.md`
 ---
-FILE: docs/axis/worker/runtime.mdx
+FILE: ../axis/docs/worker/runtime.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-only
+---
+title: "Worker runtime"
+description: "POST /api/run execution modes: EXTERNALBACKEND proxy today, feature-gated in-worker Pyodide planned."
+---
 Worker runtime
 Abstract
 frontend/worker/src/runtime.ts implements handleRun for POST /api/run. Execution preference is documented in-file:

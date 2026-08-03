@@ -81,6 +81,27 @@ function loadLogoDataUri(filename) {
 const LOGO_LIGHT = loadLogoDataUri("hoox-logo-light.svg")
 const LOGO_DARK = loadLogoDataUri("hoox-logo-dark.svg")
 
+// ── Resolve product docs roots ──────────────────────────────────────────────
+// AXIS MDX lives in the sister `axis` repo; `docs/axis` here is only a stub
+// README pointing there. Prefer AXIS_DOCS, then sibling ../axis/docs, then the
+// local stub if it ever gains a real docs.json.
+
+function resolveAxisDocsRoot() {
+  const candidates = [
+    process.env.AXIS_DOCS,
+    path.resolve(ROOT, "../axis/docs"),
+    path.resolve(ROOT, "../../axis/docs"),
+    "/home/jango/Git/axis/docs",
+    path.join(DOCS, "axis"),
+  ].filter(Boolean)
+  for (const c of candidates) {
+    if (existsSync(path.join(c, "docs.json"))) return c
+  }
+  return path.join(DOCS, "axis")
+}
+
+const AXIS_DOCS_ROOT = resolveAxisDocsRoot()
+
 // ── Product definitions ─────────────────────────────────────────────────────
 
 const PRODUCTS = {
@@ -171,10 +192,10 @@ const PRODUCTS = {
     tagline: "Open charting PWA — own the axes, swap the engine",
     blurb:
       "Installable AXIS for price and time. Orthogonal plugins: sources, streams, engines, storage. Full Pine surface via PYNE.",
-    docsRoot: path.join(DOCS, "axis"),
+    docsRoot: AXIS_DOCS_ROOT,
     publicBase: "/axis/docs",
     publicUrl: `${SITE}/axis/docs`,
-    repoPath: process.env.AXIS_DOCS || "../axis/docs",
+    repoPath: path.relative(ROOT, AXIS_DOCS_ROOT).replace(/\\/g, "/") || "docs/axis",
     accent: "#A78BFA",
     accentDark: "#7C3AED",
     brandPack: "void",
@@ -1072,6 +1093,7 @@ async function main() {
   console.log("PYNE + AXIS docs export pipeline")
   console.log(`  only=${onlyArg}  product=${productArg || "both"}  skipPdf=${SKIP_PDF}`)
   console.log(`  chrome=${findChrome() || "(none)"}`)
+  console.log(`  axis docsRoot=${AXIS_DOCS_ROOT}`)
 
   await mkdir(OUT_DIR, { recursive: true })
   await mkdir(CACHE, { recursive: true })
