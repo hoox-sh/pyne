@@ -9,7 +9,7 @@ Extension lives in [`../vscode-extension`](../vscode-extension) (**PYNE — Pine
 **Prerequisite:** language server installed:
 
 ```bash
-pip install "hoox-pyne[lsp]"
+pip install "pyne[lsp]"
 ```
 
 **Build & install VSIX:**
@@ -162,7 +162,7 @@ args = ["--stdio"]
 - `pynescript-lsp` installed and in PATH
 
 ```bash
-pip install "hoox-pyne[lsp]"
+pip install "pyne[lsp]"
 # or for development:
 pip install -e ".[lsp]"
 ```

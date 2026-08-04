@@ -1,0 +1,167 @@
+# Copyright (C) 2024-2026 jango_blockchained
+#
+# This file is part of pynescript.
+#
+# pynescript is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# pynescript is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+---
+title: "Publish checklist"
+description: "Transfer pyne to hoox-sh, wire PyPI Trusted Publishing, then cut v0.3.0."
+---
+
+# Publish checklist
+
+## Abstract
+
+First public ship of **`pyne` 0.3.0** should happen **after** the GitHub
+repo is under the **`hoox-sh`** org. Trusted Publishing binds to
+`owner/repo/workflow/environment` — register (or re-register) the publisher
+against **`hoox-sh/pyne`**, not a personal account.
+
+## 0. Identity map
+
+| Surface | Value |
+| --- | --- |
+| GitHub org | [`hoox-sh`](https://github.com/hoox-sh) (display: hoox.sh) |
+| Repo | [`hoox-sh/pyne`](https://github.com/hoox-sh/pyne) |
+| PyPI project | `pyne` |
+| Import / CLIs | `pynescript`, `pynescript-lsp` |
+| Package version | `src/pynescript/__about__.py` → `0.3.0` |
+| VS Marketplace publisher | `jango-blockchained` (unchanged; Marketplace id ≠ GitHub org) |
+
+## 1. Transfer repo to org (you do this on GitHub)
+
+1. `jango-blockchained/pyne` → **Settings → General → Danger zone → Transfer** → org **`hoox-sh`**, keep name **`pyne`**.
+2. Confirm redirects: `github.com/jango-blockchained/pyne` → `github.com/hoox-sh/pyne`.
+3. Update local remote:
+
+```bash
+git remote set-url origin https://github.com/hoox-sh/pyne.git
+git remote -v
+gh repo view --json nameWithOwner,url
+# expect: hoox-sh/pyne
+```
+
+### After transfer — re-verify automation
+
+| Item | Action |
+| --- | --- |
+| Actions enabled | Org/repo Settings → Actions allowed for this repo |
+| Environment `pypi` | Recreate if missing: `gh api -X PUT repos/hoox-sh/pyne/environments/pypi` |
+| Secrets | Re-set if missing: `METADATA_KEY`, `CRYPTO_KEY` (same Fernet material as `scripts/build/.metadata.key`) |
+| Optional | `VSCE_PAT` for Marketplace publish on tag |
+| Workflow permissions | Read/write as needed for `release.yml` (contents: write on release job) |
+
+```bash
+gh secret set METADATA_KEY -R hoox-sh/pyne < scripts/build/.metadata.key
+gh secret set CRYPTO_KEY   -R hoox-sh/pyne < scripts/build/.metadata.key
+# optional marketplace:
+# gh secret set VSCE_PAT -R hoox-sh/pyne
+```
+
+## 2. PyPI Trusted Publishing (must match org)
+
+On [pypi.org](https://pypi.org) → Account → **Publishing** → **Add a new pending publisher**:
+
+| Field | Value |
+| --- | --- |
+| PyPI project name | `pyne` |
+| Owner | **`hoox-sh`** |
+| Repository | `pyne` |
+| Workflow name | `publish.yml` |
+| Environment name | `pypi` |
+
+If you previously added a pending publisher for `jango-blockchained`, **delete it** and create one for `hoox-sh` before the first upload.
+
+Details: [PyPI publish](/pyne/docs/devops/pypi-publish).
+
+## 3. Local package smoke (no upload)
+
+```bash
+# version already 0.3.0 in src/pynescript/__about__.py
+pip install build twine
+rm -rf dist/
+python -m build
+twine check dist/*
+# expect: pyne-0.3.0-py3-none-any.whl  pyne-0.3.0.tar.gz
+
+python -m venv /tmp/pyne-smoke
+/tmp/pyne-smoke/bin/pip install dist/*.whl
+/tmp/pyne-smoke/bin/python -c "import pynescript; print(pynescript.__version__)"
+/tmp/pyne-smoke/bin/pynescript --help
+```
+
+## 4. GitHub Actions dry-run
+
+1. Push `main` with publish-ready tree to **`hoox-sh/pyne`**.
+2. Confirm **CI** green (lint, test matrix, package, docker, vscode-ext).
+3. Actions → **Publish** → Run workflow → `dry_run=true` (build + twine only, no upload).
+
+## 5. Cut `v0.3.0`
+
+1. Move `CHANGELOG.md` **Unreleased** notes into `## [0.3.0] - YYYY-MM-DD` (or keep Unreleased if you prefer a thin first tag).
+2. Align VSIX version in `vscode-extension/package.json` if shipping Marketplace/VSIX with this tag.
+3. Tag and push:
+
+```bash
+git tag -a v0.3.0 -m "v0.3.0 — first pyne release"
+git push origin v0.3.0
+```
+
+4. Watch in parallel:
+   - **Publish** → PyPI `pyne`
+   - **Build & Release LSP** → GitHub Release assets + optional Marketplace
+
+## 6. Post-publish verify
+
+```bash
+pip index versions pyne   # or: pip install pyne==0.3.0
+python -c "import pynescript; print(pynescript.__version__)"
+# GitHub Release: https://github.com/hoox-sh/pyne/releases/tag/v0.3.0
+# PyPI: https://pypi.org/project/pyne/0.3.0/
+```
+
+## Hardcoded owner map (repo automation)
+
+Workflows use relative `github.*` context (no hard-coded owner) except
+documentation/comments. Project metadata and docs must point at **`hoox-sh/pyne`**:
+
+| Location | Role |
+| --- | --- |
+| `pyproject.toml` `[project.urls]` | PyPI package links |
+| `.github/workflows/publish.yml` header | Trusted Publisher fields |
+| `Dockerfile` `org.opencontainers.image.source` | Image source label |
+| `package.json` / `vscode-extension/package.json` repository | Clone / issues URLs |
+| `docs/pyne/docs.json` navbar GitHub | Docs site link |
+| `scripts/build/README.md` `gh secret set -R` | Secret target repo |
+| `CONTRIBUTING.md` + this page | Human publish runbook |
+
+**Intentionally not changed**
+
+| Item | Why |
+| --- | --- |
+| `vscode-extension` `publisher`: `jango-blockchained` | VS Marketplace publisher id |
+| `defaultFormatter`: `jango-blockchained.pyne` | Extension identifier |
+| `.github/FUNDING.yml` | GitHub Sponsors username (personal) |
+| Sister repos `jango-blockchained/{axis,hoox}` | Separate transfers |
+| Author strings `jango_blockchained` | Copyright / author field |
+
+## See also
+
+- [PyPI publish](/pyne/docs/devops/pypi-publish)
+- [Release](/pyne/docs/devops/release) — LSP + VSIX
+- [CI](/pyne/docs/devops/ci)
+- Root `CONTRIBUTING.md`

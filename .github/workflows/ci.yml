@@ -144,7 +144,7 @@ jobs:
           load: true
           tags: pynescript-api:ci
           build-args: |
-            PYNESCRIPT_VERSION=0.2.0
+            PYNESCRIPT_VERSION=0.3.0
             GIT_SHA=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

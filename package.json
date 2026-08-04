@@ -1,6 +1,6 @@
 {
   "name": "pyne",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "license": "AGPL-3.0-or-later",
@@ -8,11 +8,11 @@
   "description": "pyne \u2014 Pine Script\u2122 Python toolchain (parser, evaluator, LSP, Pro API). Part of HOOX: hoox.sh",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jango-blockchained/pyne.git"
+    "url": "https://github.com/hoox-sh/pyne.git"
   },
   "homepage": "https://hoox.sh/pyne",
   "bugs": {
-    "url": "https://github.com/jango-blockchained/pyne/issues"
+    "url": "https://github.com/hoox-sh/pyne/issues"
   },
   "scripts": {
     "docs:exports": "node scripts/docs/generate-exports.mjs",

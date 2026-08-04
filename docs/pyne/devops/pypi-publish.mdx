@@ -19,23 +19,23 @@
 
 ---
 title: "PyPI publish"
-description: "Ship hoox-pyne to PyPI via Trusted Publishing (OIDC). Import package stays pynescript."
+description: "Ship pyne to PyPI via Trusted Publishing (OIDC). Import package stays pynescript."
 ---
 
 # PyPI publish
 
 ## Abstract
 
-The Python distribution name on PyPI is **`hoox-pyne`**. After install, the import path and CLIs stay **`pynescript`** / **`pynescript-lsp`**. Automation lives in `.github/workflows/publish.yml` and uses [Trusted Publishing](https://docs.pypi.org/trusted-publishers/) (OIDC) against the GitHub environment **`pypi`**.
+The Python distribution name on PyPI is **`pyne`**. After install, the import path and CLIs stay **`pynescript`** / **`pynescript-lsp`**. Automation lives in `.github/workflows/publish.yml` and uses [Trusted Publishing](https://docs.pypi.org/trusted-publishers/) (OIDC) against the GitHub environment **`pypi`**.
 
-> **Why not `pynescript` on PyPI?** That name is already owned by [elbakramer/pynescript](https://github.com/elbakramer/pynescript). Publishing under `hoox-pyne` avoids a name collision while keeping the code package id.
+> **Why not `pynescript` on PyPI?** That name is already owned by [elbakramer/pynescript](https://github.com/elbakramer/pynescript). We ship as **`pyne`** so the install name matches the product/repo; the import package stays `pynescript`.
 
 ## Install surface
 
 ```bash
-pip install hoox-pyne
-pip install "hoox-pyne[lsp]"
-pip install "hoox-pyne[pro]"
+pip install pyne
+pip install "pyne[lsp]"
+pip install "pyne[pro]"
 
 python -c "import pynescript; print(pynescript.__version__)"
 pynescript --help
@@ -52,23 +52,28 @@ pynescript-lsp   # stdio language server
 
 | Field | Value |
 | --- | --- |
-| PyPI project name | `hoox-pyne` |
-| Owner | `jango-blockchained` |
+| PyPI project name | `pyne` |
+| Owner | `hoox-sh` |
 | Repository | `pyne` |
 | Workflow name | `publish.yml` |
 | Environment name | `pypi` |
+
+> **Owner must be the GitHub org** (`hoox-sh`), not a personal login. If you
+> registered a pending publisher under a previous owner, delete it and re-add
+> with `hoox-sh` **before** the first tag upload.
 
 4. Save. The project is created automatically on the **first successful upload**.
 
 ### 2. GitHub environment
 
-Repo **Settings → Environments → New environment → `pypi`**.
+Repo **Settings → Environments → New environment → `pypi`** on
+[`hoox-sh/pyne`](https://github.com/hoox-sh/pyne).
 
 Optional: required reviewers, wait timer, or branch policy limited to tags / `main`.
 
 ```bash
 # CLI equivalent (no protection rules):
-gh api -X PUT repos/jango-blockchained/pyne/environments/pypi
+gh api -X PUT repos/hoox-sh/pyne/environments/pypi
 ```
 
 ### 3. Private repo note
@@ -87,7 +92,7 @@ pip install build twine
 rm -rf dist/
 python -m build
 twine check dist/*
-# expect: hoox_pyne-0.3.0-*.whl  and  hoox_pyne-0.3.0.tar.gz
+# expect: pyne-0.3.0-*.whl  and  pyne-0.3.0.tar.gz
 
 # 3. Push main, then tag
 git tag -a v0.3.0 -m "v0.3.0"
@@ -111,7 +116,7 @@ Dry-run without upload: **Actions → Publish → Run workflow → `dry_run=true
 | --- | --- | --- |
 | 403 / no trusted publisher | Pending publisher not added or wrong workflow/env name | Re-check PyPI pending publisher fields exactly |
 | Environment not found | Missing GitHub `pypi` env | Create environment |
-| Wrong wheel name `pynescript-*` | Old `pyproject.toml` name | Ensure `name = "hoox-pyne"` |
+| Wrong wheel name `pynescript-*` | Old `pyproject.toml` name | Ensure `name = "pyne"` |
 | Tag publish skipped | `dry_run` dispatch only | Use a real `v*` tag or `dry_run=false` |
 
 ## See also

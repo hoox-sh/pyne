@@ -81,6 +81,8 @@ Pine Script v6 launched December 2024, followed by monthly updates. Key sources:
 
 ### Lower Priority / Platform Features
 - Real (non-mock) data for `request.*()` (by design for this library).
+- **`request.security` foreign data on compile** — still **not filled**. Compile lowers only chart-symbol simple OHLCV; foreign tickers and complex security expressions emit `na` (no invent of chart series as foreign fundamentals / advance-decline volume). Interpret path may still serve mocks or wired feeds. Parity tests expect all-`na` foreign UDF plots on both hosts when data is absent (`tests/test_dividend_yield_parity.py`).
+- **Auto Fib Extension/Retracement (and similar pivot scripts)** — need real pivot/swing structure (or a registered `TradingView/ZigZag` library). Flat synthetic bars intentionally surface the same insufficient-pivot `runtime.error` on interpret and compile (`both_error_same` in `scripts/compare_interp_compile.py`); do not “fix” by inventing pivots.
 - ✅ Real effects for plots — Plot dataclass + PlotRegistry; plot(), plotshape, plotarrow now register instances. Other plot* lightweight. Extended ticker styles with PercentageLTP support for renko/kagi/pointfigure.
 - Some strategy backtest trimming / unlimited history behaviors (high-level support exists).
 - ✅ Strategy runtime depth (2026-07-20): open trades list, signed `strategy.position_size`, `opentrades`/`closedtrades` counts, `netprofit`/`openprofit`/`equity`/`grossprofit`/`grossloss`/`wintrades`/`losstrades`, mark-to-market vs `close`, partial closes; golden multi-bar tests in `tests/test_strategy_runtime.py`.

@@ -431,6 +431,108 @@ class StatementEvaluator:
     context: dict[str, Any]
     type_registry: TypeRegistry
 
+    def _collect_history_names(self, node: Any, out: set[str]) -> None:
+        """Collect Name bases of history Subscripts (``x[1]``, ``x[n]``)."""
+        if node is None or not hasattr(node, "__dict__"):
+            return
+        if isinstance(node, ast.Subscript) and isinstance(getattr(node, "value", None), ast.Name):
+            out.add(node.value.id)
+        for child in node.__dict__.values():
+            if isinstance(child, list):
+                for c in child:
+                    self._collect_history_names(c, out)
+            else:
+                self._collect_history_names(child, out)
+
+    def _bind_series_name(self, name: str, value: Any) -> Any:
+        """Store *value* for *name*, tracking history when ``name`` is subscripted.
+
+        Only names collected into ``_history_names`` (via ``x[1]`` uses) are
+        wrapped. Same-bar reassignment (``x = 0.0`` then ``x := expr``)
+        overwrites the current sample so ``x[1]`` is the previous bar's final
+        value (Fisher / self-ref scripts).
+        """
+        history_names: set[str] = getattr(self, "_history_names", None) or set()
+        if name not in history_names:
+            self.context[name] = value
+            return value
+
+        # Host OHLCV / any multi-bar series (``time``, ``close``, …) — never
+        # alias by reference into a *different* name.  ``last = time`` then
+        # ``last := …`` would otherwise mutate the host ``time`` buffer
+        # (dividend_yield last_div_ttm_time path) and break ``time[j]`` history.
+        # Copy the current scalar into a fresh series for *name* instead.
+        if (
+            hasattr(value, "current")
+            and hasattr(value, "history")
+            and hasattr(value, "update")
+        ):
+            value = getattr(value, "current", value)
+
+        # Only track scalar numerics / na (not maps, arrays, UDT handles, strings).
+        if value is not None and type(value) not in (int, float, bool):
+            try:
+                import numbers
+
+                if not isinstance(value, numbers.Real):
+                    self.context[name] = value
+                    return value
+                value = float(value)
+            except Exception:
+                self.context[name] = value
+                return value
+
+        bar = self.context.get("bar_index", 0)
+        try:
+            bar_i = int(bar) if bar is not None else 0
+        except (TypeError, ValueError):
+            bar_i = 0
+
+        # Note: empty dict is falsy — never use ``getattr(...) or {}`` here.
+        last_map: dict[str, int] | None = getattr(self, "_series_assign_bar", None)
+        if last_map is None:
+            last_map = {}
+            self._series_assign_bar = last_map  # type: ignore[attr-defined]
+
+        existing = self.context.get(name)
+        if (
+            hasattr(existing, "update")
+            and hasattr(existing, "current")
+            and hasattr(existing, "history")
+        ):
+            if last_map.get(name) == bar_i and hasattr(existing, "set_current"):
+                existing.set_current(value)
+            elif last_map.get(name) == bar_i:
+                existing.current = value
+                hist = getattr(existing, "history", None)
+                if hist is not None and len(hist) > 0:
+                    try:
+                        hist[0] = value
+                    except (TypeError, AttributeError):
+                        existing.update(value)
+                else:
+                    existing.update(value)
+            else:
+                existing.update(value)
+            last_map[name] = bar_i
+            self.context[name] = existing
+            return existing
+
+        try:
+            from pynescript.ast.evaluator.series_buffer import make_series
+
+            ps = make_series(history_length=512)
+            if hasattr(ps, "update"):
+                ps.update(value)
+            else:
+                ps.current = value
+        except Exception:
+            self.context[name] = value
+            return value
+        last_map[name] = bar_i
+        self.context[name] = ps
+        return ps
+
     def visit_Script(self, node: ast.Script):
         """Execute every top-level statement; return the last value.
 
@@ -445,6 +547,13 @@ class StatementEvaluator:
         Args:
             node: Root ``Script`` with ``body`` statement list
         """
+        # Once per script: collect names used with history subscript so assigns
+        # can track PineSeries across bars (``ma[barsback]``, ``x[1]``, …).
+        if not getattr(self, "_history_names_scanned", False):
+            hist: set[str] = set()
+            self._collect_history_names(node, hist)
+            self._history_names = hist  # type: ignore[attr-defined]
+            self._history_names_scanned = True  # type: ignore[attr-defined]
         # Fresh library-export buffer for this script evaluation
         self._pending_library_exports = {}  # type: ignore[attr-defined]
         self._active_library = None  # type: ignore[attr-defined]
@@ -534,12 +643,18 @@ class StatementEvaluator:
                     value = self.visit(rhs)  # type: ignore[attr-defined]
                 target = node.target
                 if type(target) is ast.Name:
-                    self.context[target.id] = value  # type: ignore[attr-defined]
+                    stored = self._bind_series_name(target.id, value)
                     if getattr(node, "export", None):
-                        self._register_export(target.id, value)
+                        self._register_export(target.id, stored)
                     # Return assigned value so UDF bodies ending in ``x = expr``
                     # yield expr (Pine: last expression is the function result).
-                    return value
+                    if (
+                        stored is not None
+                        and hasattr(stored, "current")
+                        and hasattr(stored, "history")
+                    ):
+                        return getattr(stored, "current", stored)
+                    return stored
                 if type(target) is ast.Tuple:
                     self._assign_tuple_unpack(target, value)
                     return value
@@ -558,7 +673,7 @@ class StatementEvaluator:
                 if name not in declared:
                     if node.value:
                         value = self.visit(node.value)  # type: ignore[attr-defined]
-                        self.context[name] = value  # type: ignore[attr-defined]
+                        self._bind_series_name(name, value)
                     declared.add(name)
                 return
             msg = f"Unsupported var/varip target: {type(node.target)}"
@@ -569,16 +684,16 @@ class StatementEvaluator:
             # v6: const always initializes (no re-init like var)
             if node.value and isinstance(node.target, ast.Name):
                 value = self.visit(node.value)  # type: ignore[attr-defined]
-                self.context[node.target.id] = value  # type: ignore[attr-defined]
+                self._bind_series_name(node.target.id, value)
             return
 
         # -- Regular assignment with unexpected mode object (fallback)
         if node.value:
             value = self.visit(node.value)  # type: ignore[attr-defined]
             if isinstance(node.target, ast.Name):
-                self.context[node.target.id] = value  # type: ignore[attr-defined]
+                stored = self._bind_series_name(node.target.id, value)
                 if getattr(node, "export", None):
-                    self._register_export(node.target.id, value)
+                    self._register_export(node.target.id, stored)
             elif isinstance(node.target, ast.Tuple):
                 self._assign_tuple_unpack(node.target, value)
             else:
@@ -695,9 +810,15 @@ class StatementEvaluator:
         # Dominant path: ``s := s + 1`` / ``x := expr`` simple name target.
         if type(target) is ast.Name:
             value = self.visit(node.value)  # type: ignore[attr-defined]
-            self.context[target.id] = value  # type: ignore[attr-defined]
+            stored = self._bind_series_name(target.id, value)
             # Pine ``:=`` is an expression; UDF bodies may end with reassignment.
-            return value
+            if (
+                stored is not None
+                and hasattr(stored, "current")
+                and hasattr(stored, "history")
+            ):
+                return getattr(stored, "current", stored)
+            return stored
 
         value = self.visit(node.value)  # type: ignore[attr-defined]
         # obj.field := value  (UDT instances and plain objects with setattr)
@@ -1302,8 +1423,12 @@ class StatementEvaluator:
                     else:
                         # Assign/ReAssign are Pine expressions: last one is the
                         # function return value when the body ends with them.
+                        # Important: ``None`` (Pine ``na``) is a valid assign
+                        # result — do not keep a prior statement's value (e.g.
+                        # tuple unpack ``[a,b]=…``) or ADX-like UDFs return 0
+                        # instead of ``na`` during RMA warmup.
                         val = visit(item)  # type: ignore[attr-defined]
-                        if type(item) in (ast.Assign, ast.ReAssign) and val is not None:
+                        if type(item) in (ast.Assign, ast.ReAssign):
                             result = val
                 return result
             finally:
@@ -1355,11 +1480,22 @@ class StatementEvaluator:
             multi_dispatch.__pine_overloads__ = overloads  # type: ignore[attr-defined]
             multi_dispatch.__pine_first_type__ = None  # type: ignore[attr-defined]
             multi_dispatch.__pine_param_types__ = None  # type: ignore[attr-defined]
+            # Dual namespace: keep UDF callable even if a series reuses the name.
+            ufuncs: dict[str, Any] = getattr(self, "_user_functions", None)  # type: ignore[attr-defined]
+            if ufuncs is None:
+                ufuncs = {}
+                self._user_functions = ufuncs  # type: ignore[attr-defined]
+            ufuncs[func_name] = multi_dispatch
             self.context[func_name] = multi_dispatch  # type: ignore[attr-defined]
             if getattr(node, "export", None):
                 self._register_export(func_name, multi_dispatch)
             return
 
+        ufuncs = getattr(self, "_user_functions", None)  # type: ignore[attr-defined]
+        if ufuncs is None:
+            ufuncs = {}
+            self._user_functions = ufuncs  # type: ignore[attr-defined]
+        ufuncs[func_name] = user_function
         self.context[func_name] = user_function  # type: ignore[attr-defined]
         if getattr(node, "export", None):
             self._register_export(func_name, user_function)
@@ -1488,6 +1624,13 @@ class StatementEvaluator:
                         known = STUB_KNOWN_EXPORTS.get(item)
                         if known is not None:
                             return known
+                        # Empty-collection API: ``zigZag.pivots.size()`` must be
+                        # numeric 0 so ``size() < 2`` triggers the same
+                        # runtime.error path as compile (safe_len → 0). Returning
+                        # self made ``stub < 2`` soft-fail to False and silently
+                        # skip Auto Fib Retracement's insufficient-pivot error.
+                        if item in ("size", "length", "len"):
+                            return lambda *_a, **_k: 0
                         return self
 
                     def __call__(self, *a, **k):  # noqa: ANN001

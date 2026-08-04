@@ -291,6 +291,18 @@ class PineSeries:
         self.current = new_value
         self.history.appendleft(new_value)
 
+    def set_current(self, new_value: Any) -> None:
+        """Overwrite the current-bar sample without pushing history.
+
+        Used when Pine does ``x = 0.0`` then ``x := expr`` on the same bar so
+        ``x[1]`` remains the previous bar's final value (not the intermediate).
+        """
+        self.current = new_value
+        if self.history:
+            self.history[0] = new_value
+        else:
+            self.history.appendleft(new_value)
+
     def __getitem__(self, index: int):
         """Access historical values. series[0] is current, series[1] is previous.
 

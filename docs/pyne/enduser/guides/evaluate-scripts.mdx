@@ -56,7 +56,75 @@ flowchart TB
 | `literal_eval` | no (single shot) | limited | TA on arrays, math, strings |
 | Evaluator in tests / tools | optional | yes via state | Unit tests, notebooks |
 | `Runtime.run` / `/run` | yes | yes | Charts, AXIS, backtests |
-| `mode="compile"` | yes (subset) | limited | Faster SMA/EMA/RSI-style paths |
+| `mode="compile"` | yes (numeric + object) | yes (object mode) | Faster bar loop when eligible |
+| `mode="auto"` | yes | yes | Prefer compile; fall back to interpret |
+
+## Runtime modes (`interpret` | `compile` | `auto`)
+
+`backend.runtime.Runtime.run` accepts a `mode` argument that selects how the bar loop executes:
+
+| Mode | Behavior |
+| --- | --- |
+| `interpret` | AST walker (full host semantics: `input.*` overrides, `request.*`, libraries, profiler). |
+| `compile` | Transpile to a Numba numeric kernel when possible, otherwise a pure-Python **object-mode** bar loop. Requires the compiler package. |
+| `auto` | Try compile first; on eligibility failure, compile error, or compiled runtime error, **fall back to interpret**. |
+
+**Defaults differ by surface:**
+
+- Direct `Runtime.run(..., mode=None)` → `PYNE_RUNTIME_MODE` env, else **`interpret`**.
+- Pro API `POST /run` body omit `mode` → schema default **`auto`** (warm compile + fallback).
+
+```python
+result = runtime.run(source, ohlcv_data=ohlcv, mode="auto")
+# result["mode"] / result.get("auto_backend") → "compile" | "interpret"
+# on fallback: result.get("compile_fallback_reason")
+```
+
+### When compile falls back (or is skipped)
+
+`mode="auto"` (and explicit prefilters) skip or abandon compile for stable reasons. Common `compile_fallback_reason` values:
+
+| Reason (examples) | Why |
+| --- | --- |
+| `input.* overrides require interpret path` | Non-empty `inputs=` are interpret-only; compile does not apply overrides. |
+| `import statements not supported in compile path` | Library `import` needs the interpreter registry. |
+| `request.* not supported in compile path` | Multi-symbol / external data plumbing is interpret-only. |
+| `compiler package unavailable` | `pynescript.compiler` not importable in this install. |
+| `Compile Error: …` / Numba required messages | Deterministic transpile/env failures (cached per source for auto). |
+| Compiled runtime errors | Data-dependent failures still fall back once; not permanently cached as “never compile.” |
+
+Other force-interpret paths:
+
+- **`profiler=True`** — line timings need the AST walker; compile/auto are coerced to interpret.
+- **`mode="compile"`** (strict) — does **not** fall back; you get an error payload instead of a silent interpret run.
+
+Numba is **not** required for compile eligibility: strategy / UDT / map-heavy scripts can still run in object-mode compile. Missing Numba only blocks pure-numeric emit.
+
+### Plot series parity
+
+Both backends export the same Runtime contract shape: `series` (title → per-bar values), `plots`, `plot_meta`, `events`, `drawings`, plus `mode` / diagnostics. For charting, **shared plot series keys** should agree within floating-point tolerance (`na`/None/NaN treated as NA).
+
+Known structural residuals (not value bugs):
+
+- **Constant `hline`-like keys** sometimes appear on one side only.
+- **Background / fill / bgcolor** series titles may differ in presence between interpret and object-mode compile.
+
+Use the parity harness (below) with `--ignore-hline-keys` / `--ignore-fill-keys` when you care about value parity of real plots, not decorative fill keys. Deeper compiler notes: [Compiler overview](/pyne/docs/runtime/compiler/overview).
+
+### Compare interpret vs compile (corpus harness)
+
+From the repo root (monorepo with `backend/` + editable `pynescript`):
+
+```bash
+# Smoke: first 50 corpus scripts × 1000 synthetic bars
+python scripts/compare_interp_compile.py --bars 1000 --limit 50
+
+# Full list from a file, no script limit, 4 workers, 30s per script;
+# ignore one-sided hline/fill keys when judging value parity
+python scripts/compare_interp_compile.py --file-list path.txt --limit 0 --workers 4 --timeout-sec 30 --ignore-hline-keys --ignore-fill-keys
+```
+
+The harness runs each script with `mode="interpret"` and `mode="compile"`, then nan-aware `allclose` on common `result["series"]` keys (`rtol=1e-5`, `atol=1e-6`). Report: `.cache/interp_compile_parity.json`. Exit 0 when there are no value/NaN mismatches on shared keys (`both_error_same` counts as success unless `--strict-errors`).
 
 ## Interface surface
 
@@ -130,9 +198,10 @@ ohlcv = [
 result = runtime.run(
     source_code='//@version=5\nindicator("t")\nplot(close)\n',
     ohlcv_data=ohlcv,
-    mode="interpret",  # or "compile" for supported subset
+    mode="auto",  # interpret | compile | auto (see Runtime modes)
 )
 # result: plots, series, plot_meta, events, drawings, script_id, run_id, count, ...
+# auto may set auto_backend + compile_fallback_reason
 # or {"error": "..."}
 ```
 
@@ -174,10 +243,13 @@ feed = get_datafeed("ccxtpro", exchange="binance")
 | `src/pynescript/ast/evaluator/__init__.py` | `NodeLiteralEvaluator` composition |
 | `src/pynescript/ast/evaluator/builtins/` | `ta.*`, `strategy.*`, arrays, … |
 | `src/pynescript/ast/evaluator/events.py` | Event emission hooks |
-| `backend/runtime.py` | Multi-bar `Runtime.run` |
+| `backend/runtime.py` | Multi-bar `Runtime.run` (`interpret` / `compile` / `auto`) |
 | `backend/series.py` | `PineSeries` history model |
+| `src/pynescript/compiler/` | Transpile + Numba/object bar loops |
 | `src/pynescript/util/data.py` | Providers + `resolve_request_sources` |
 | `src/pynescript/util/datafeed.py` | Realtime feeds |
+| `scripts/compare_interp_compile.py` | Interpret vs compile series parity harness |
+| `tests/test_interp_compile_parity.py` | Always-on smoke + optional full mark |
 | `examples/evaluate_expressions.py` | Expression gallery |
 | `examples/execute_script.py` | Didactic strategy loop |
 | `examples/rsi_strategy.pine` | Sample strategy source |
@@ -186,7 +258,9 @@ feed = get_datafeed("ccxtpro", exchange="binance")
 
 - **Determinism.** Same source + same OHLCV + same mode should yield reproducible series (mock providers seedable via options where supported).
 - **`na` / warmup.** TA functions need enough bars; early bars may be `na`/None-like — guard like Pine (`not na(x)`).
-- **`mode="compile"`** only supports a **subset** (docs in runtime: sma/ema/rsi, plots, math). Unsupported constructs fall back or error — {/* TODO: verify exact failure path */}.
+- **`mode="compile"`** uses numeric Numba when the script is pure-numeric; otherwise **object-mode** compile. Strict `compile` errors instead of falling back; use **`auto`** for production “prefer fast path” behavior (see [Runtime modes](#runtime-modes-interpret--compile--auto)).
+- **`mode="auto"`** may set `compile_fallback_reason` and still return a successful interpret result — check `auto_backend` if you need to know which path ran.
+- **Series parity.** Shared `series` keys should match within harness tolerances; hline/fill keys can be one-sided — not necessarily a value bug.
 - **History indexing.** Confirm `[0]`/`[1]` semantics against your evaluator version before porting TV scripts that assume closed-bar rules.
 - **Strategy events** include run/script ids when stamped by Runtime — useful for HOOX downstream.
 - **Body size / bar count.** HTTP path caps payload size (5 MiB); very long histories should be downsampled or chunked.
@@ -244,9 +318,12 @@ When calling `/run` or Runtime, pass `data_source` / providers so `request.secur
 | --- | --- |
 | `NotImplementedError` / incomplete builtin | Expression outside supported surface — check [missing features](/pyne/docs/reference/missing-features) |
 | `{"error": "Parse Error: ..."}` | Runtime caught parse failure |
+| `{"error": …}` with `mode="compile"` | Strict compile path failed — retry with `auto` or `interpret`, or fix unsupported construct |
+| `compile_fallback_reason` set under `auto` | Compile skipped/failed; result is from interpret if no top-level `error` |
 | `EXECUTION_ERROR` via HTTP | Exception during bar loop |
 | Empty plots | No `plot`/`plotshape` executed; wrong declaration type |
 | Numerical mismatch vs TV | Warmup, float path, or builtin parity gap — [numerical validation](/pyne/docs/reference/numerical-validation) |
+| Interpret vs compile series MISMATCH | Run `scripts/compare_interp_compile.py` on the script; check report buckets |
 | `DataProviderError` | Provider misconfig |
 | Async feed errors | Missing ccxt.pro / network |
 
@@ -255,6 +332,7 @@ When calling `/run` or Runtime, pass `data_source` / providers so `request.secur
 - [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage)
 - [Library API](/pyne/docs/enduser/guides/library-api)
 - [Runtime series model](/pyne/docs/runtime/series-and-history)
+- [Compiler overview](/pyne/docs/runtime/compiler/overview)
 - [Strategy builtins](/pyne/docs/runtime/builtins/strategy)
 - [Evaluate contract](/pyne/docs/api/contract)
 - [AXIS](/axis/docs) — visualizing series

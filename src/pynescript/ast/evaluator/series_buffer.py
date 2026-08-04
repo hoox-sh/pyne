@@ -305,6 +305,25 @@ class RingPineSeries:
         self.current = new_value
         self.buffer.append(new_value)
 
+    def set_current(self, new_value: Any) -> None:
+        """Overwrite the current-bar sample without pushing history.
+
+        Same-bar ``x = 0.0`` / ``x := expr`` must not create an extra history
+        slot (``x[1]`` should be the prior bar's final value).
+        """
+        self.current = new_value
+        buf = self.buffer
+        n = buf._len
+        if n <= 0:
+            buf.append(new_value)
+            return
+        maxlen = buf.maxlen
+        if maxlen is None:
+            buf._data[-1] = new_value
+        else:
+            idx = (buf._start + n - 1) % maxlen
+            buf._data[idx] = new_value
+
     def __getitem__(self, index: Any) -> Any:
         """``series[0]`` current, ``series[1]`` previous; OOB/na → ``None``."""
         return self.buffer[index]

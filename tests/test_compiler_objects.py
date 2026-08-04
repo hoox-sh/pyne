@@ -115,6 +115,11 @@ plot(close, title="c")
         o, h, l, c, v = _ohlcv(8)
         out = compiled.run(o, h, l, c, v)
         assert "c" in out
+        # hline also materializes as a constant series (interpret parity)
+        assert "mid" in out
+        mid = np.asarray(out["mid"], dtype=np.float64)
+        assert mid.shape == (8,)
+        assert np.allclose(mid, 50.0)
         drawings = out.get("__drawings", [])
         assert len(drawings) >= 8  # at least one event per bar types * bars
         kinds = {d["kind"] for d in drawings}
@@ -122,6 +127,25 @@ plot(close, title="c")
         assert "bgcolor" in kinds
         assert "label" in kinds
         assert "line" in kinds
+
+    def test_hline_default_titles_unique_series(self) -> None:
+        """Untitled hlines become hline / hline_2 / … series keys."""
+        src = """//@version=6
+indicator("hl")
+plot(close, title="c")
+hline(1)
+hline(0, color=color.gray)
+hline(-1)
+"""
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(6)
+        out = compiled.run(o, h, l, c, v)
+        assert "c" in out
+        assert "hline" in out and "hline_2" in out and "hline_3" in out
+        assert np.allclose(np.asarray(out["hline"], dtype=np.float64), 1.0)
+        assert np.allclose(np.asarray(out["hline_2"], dtype=np.float64), 0.0)
+        assert np.allclose(np.asarray(out["hline_3"], dtype=np.float64), -1.0)
+        assert any(isinstance(d, dict) and d.get("kind") == "hline" for d in out.get("__drawings", []))
 
     def test_plotshape_and_fill_recorded(self) -> None:
         src = """//@version=6
@@ -138,6 +162,36 @@ plotshape(close > open, title="up")
         kinds = {d["kind"] for d in drawings}
         assert "fill" in kinds
         assert "plotshape" in kinds
+        # Untitled fill still exports a series key (interpret default title "fill")
+        assert "fill" in out
+        fill_series = np.asarray(out["fill"], dtype=np.float64)
+        assert fill_series.shape == (12,)
+        assert np.all(np.isnan(fill_series))
+
+    def test_fill_title_series_key_and_drawings(self) -> None:
+        """Titled fill() is a null series key + fill drawing (interpret parity)."""
+        src = """//@version=6
+indicator("bb", overlay=true)
+p1 = plot(high, title="Upper")
+p2 = plot(low, title="Lower")
+fill(p1, p2, title="Background", color=color.blue)
+fill(p1, p2, color=color.red, title="Background")
+"""
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert "Upper" in out and "Lower" in out
+        assert "Background" in out
+        assert "Background_2" in out  # uniquified like Runtime packaging
+        bg = np.asarray(out["Background"], dtype=np.float64)
+        assert bg.shape == (10,)
+        assert np.all(np.isnan(bg))
+        fill_events = [
+            d for d in (out.get("__drawings") or []) if isinstance(d, dict) and d.get("kind") == "fill"
+        ]
+        assert len(fill_events) >= 10
+        titles = {d.get("title") for d in fill_events}
+        assert "Background" in titles or "Background_2" in titles
 
 
 class TestNumericStillNumba:

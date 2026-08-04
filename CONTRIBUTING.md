@@ -1,7 +1,7 @@
 # Contributing to pyne
 
 > Part of **[HOOX](https://hoox.sh)**: [pyne](https://hoox.sh/pyne) · [axis](https://hoox.sh/axis) · [hoox](https://hoox.sh)  
-> Charting UI contributions go to **[axis](https://github.com/jango-blockchained/axis)**.
+> Charting UI contributions go to **[axis](https://github.com/jango-blockchained/axis)** (sister repo; org transfer separate).
 
 Thank you for your interest in contributing to pyne!
 
@@ -33,28 +33,41 @@ If you find a bug or have a feature request, please open an issue on GitHub.
 
 | | |
 |---|---|
-| **PyPI distribution name** | [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) |
+| **PyPI distribution name** | [`pyne`](https://pypi.org/project/pyne/) |
 | **Import package** | `pynescript` (unchanged) |
 | **Console scripts** | `pynescript`, `pynescript-lsp` |
-| **Product / repo** | **pyne** · [jango-blockchained/pyne](https://github.com/jango-blockchained/pyne) |
+| **Product / repo** | **pyne** · [hoox-sh/pyne](https://github.com/hoox-sh/pyne) |
+| **GitHub org** | [`hoox-sh`](https://github.com/hoox-sh) (hoox.sh) |
 
 > The historical name `pynescript` on PyPI belongs to
 > [elbakramer/pynescript](https://github.com/elbakramer/pynescript). This project
-> publishes as **`hoox-pyne`** so installs do not collide:
-> `pip install "hoox-pyne[lsp]"` → `import pynescript`.
+> publishes as **`pyne`** so installs do not collide:
+> `pip install "pyne[lsp]"` → `import pynescript`.
 
 ### One-time PyPI setup (Trusted Publishing)
 
+Do this **after** the repo lives under the org (or re-register if you transferred):
+
 1. Create a PyPI account (or org) and enable 2FA.
 2. On PyPI → **Publishing** → **Add a new pending publisher**:
-   - **PyPI project name:** `hoox-pyne`
-   - **Owner:** `jango-blockchained`
+   - **PyPI project name:** `pyne`
+   - **Owner:** `hoox-sh`  ← GitHub **org** login (not the personal account)
    - **Repository:** `pyne`
    - **Workflow name:** `publish.yml`
    - **Environment name:** `pypi`
-3. GitHub → repo **Settings → Environments → `pypi`** (create if missing).
+3. GitHub → `hoox-sh/pyne` → **Settings → Environments → `pypi`** (create if missing after transfer).
    Optional: required reviewers for production uploads.
-4. First successful tag publish creates the project and attaches the publisher.
+4. Re-set repo secrets that do not move with transfer if needed:
+   `METADATA_KEY`, `CRYPTO_KEY` (see `scripts/build/README.md`).
+5. First successful tag publish creates the project and attaches the publisher.
+
+```bash
+# After transfer, point origin and recreate env if needed:
+git remote set-url origin https://github.com/hoox-sh/pyne.git
+gh api -X PUT repos/hoox-sh/pyne/environments/pypi
+gh secret set METADATA_KEY -R hoox-sh/pyne < scripts/build/.metadata.key
+gh secret set CRYPTO_KEY   -R hoox-sh/pyne < scripts/build/.metadata.key
+```
 
 ### Cut a release
 
@@ -75,7 +88,7 @@ pip install build twine
 rm -rf dist/
 python -m build
 twine check dist/*
-# Expected artifacts: hoox_pyne-*.whl  hoox_pyne-*.tar.gz
+# Expected artifacts: pyne-*.whl  pyne-*.tar.gz
 ```
 
 AXIS charting UI releases are handled in

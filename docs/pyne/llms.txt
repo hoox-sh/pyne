@@ -11,8 +11,8 @@ Grammar-driven parser, ASDL AST, bar-loop evaluator, LSP, Pro API, and edge work
 
 - [Marketing](https://hoox.sh/pyne): Product landing
 - [Docs](https://hoox.sh/pyne/docs): Full documentation hub
-- [Repository](https://github.com/jango-blockchained/pynescript): Source monorepo
-- [Docs tree](https://github.com/jango-blockchained/pynescript/tree/main/docs/pyne): MDX source of truth
+- [Repository](https://github.com/hoox-sh/pyne): Source monorepo
+- [Docs tree](https://github.com/hoox-sh/pyne/tree/main/docs/pyne): MDX source of truth
 - [llm.txt](https://hoox.sh/pyne/docs/llm.txt): Full-corpus minified context
 - [llms.txt](https://hoox.sh/pyne/docs/llms.txt): This file
 - [AXIS docs](https://hoox.sh/axis/docs): Charting PWA (separate product)

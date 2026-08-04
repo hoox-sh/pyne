@@ -19,14 +19,14 @@
 
 ---
 title: "Technical analysis (ta.*)"
-description: "ta.* indicators: series helpers, bar mode, numerical parity, and submodule layout."
+description: "ta.* indicators: series helpers, bar mode, interpret↔compile parity, and submodule layout."
 ---
 
 # Technical analysis (`ta.*`)
 
 ## Abstract
 
-The `ta.*` namespace is the largest pure-compute surface in PYNE: moving averages, oscillators, volatility bands, volume studies, pattern helpers, and cross/rise/fall predicates. Implementations live under `technical_submodules/` and are composed into `TechnicalAnalysisMixin`. Numerical behavior is validated against TradingView reference series (see [numerical validation](/pyne/docs/reference/numerical-validation)); the design goal is IEEE-limit parity, not “approximate TA.”
+The `ta.*` namespace is the largest pure-compute surface in PYNE: moving averages, oscillators, volatility bands, volume studies, pattern helpers, and cross/rise/fall predicates. Implementations live under `technical_submodules/` and are composed into `TechnicalAnalysisMixin`. Numerical behavior is validated against TradingView reference series (see [numerical validation](/pyne/docs/reference/numerical-validation)); the design goal is IEEE-limit parity, not “approximate TA.” Interpret and compile (Numba) hosts share the same formulas for the kernels listed under [Interpret ↔ compile parity](#interpret--compile-parity).
 
 ## Conceptual model
 
@@ -66,7 +66,7 @@ Dispatch keys (non-exhaustive; map is authoritative in `technical.py`):
 | Family | Examples |
 | --- | --- |
 | Moving averages | `ta.sma`, `ta.ema`, `ta.wma`, `ta.rma`, `ta.hma`, `ta.vwma`, `ta.swma`, `ta.alma` |
-| Oscillators | `ta.rsi`, `ta.stoch`, `ta.cci`, `ta.cmo`, `ta.mfi`, `ta.roc`, `ta.wpr`, `ta.tsi` |
+| Oscillators | `ta.rsi`, `ta.stoch`, `ta.cci`, `ta.cmo`, `ta.mfi`, `ta.roc`, `ta.wpr`, `ta.tsi`, `ta.rci` |
 | Trend / channels | `ta.macd`, `ta.adx`, `ta.dmi`, `ta.supertrend`, `ta.sar`, `ta.linreg` |
 | Volatility | `ta.atr`, `ta.tr`, `ta.bb`, `ta.bbw`, `ta.kc`, `ta.kcw`, `ta.stdev`, `ta.variance` |
 | Volume | `ta.obv`, `ta.vwap`, `ta.mfi` (shared), volume submodule helpers |
@@ -93,18 +93,59 @@ Dispatch keys (non-exhaustive; map is authoritative in `technical.py`):
 | `.../technical_submodules/core.py` | Series coerce, expect helpers, bar finalize, **incremental kernels** |
 | `.../moving_averages.py`, `oscillators.py`, `volatility.py`, `volume.py`, … | Kernels + inc wiring |
 | `.../common.py`, `basic.py`, `advanced.py`, `patterns.py`, `strategies.py`, `synthesizer.py`, `economics.py` | Additional families |
+| `src/pynescript/compiler/numba_builtins.py` | Compile-path Numba kernels (must track interpret formulas) |
 | `tests/test_ta_indicators_*.py`, `tests/test_indicators.py` | Regression |
 | `tests/test_ta_incremental.py` | Inc ≡ full recompute golden |
-| `docs/numerical_validation_report.md` | Published precision summary |
+| `tests/test_interp_compile_parity.py` | Always-on dual-host smoke + full-corpus mark |
+| `scripts/compare_interp_compile.py` | Corpus harness (report under `.cache/interp_compile_parity.json`) |
+| `tests/test_compiler_numba.py` (`TestInterpCompilePlotParityFixes`, highestbars offsets, …) | Targeted formula locks |
+| `docs/numerical_validation_report.md` | Published precision summary (TV / IEEE bounds) |
 
 History for wrapper series is reversed to chronological order and may be truncated (`_SERIES_MAX`) before full kernels run. Incremental path only needs `series[-1]` per call, so truncation does not freeze state.
 
+## Interpret ↔ compile parity
+
+Numba kernels are **separate code** from the interpreter, but the dual-host contract is **same formula, same warm-up mask, same `na` rules** for the surface below. Drift is a bug, not an allowed “approx compile.” Prove regressions with the [interp↔compile harness](#parity-harness) and the [numerical validation](/pyne/docs/reference/numerical-validation) page (TV / IEEE bounds).
+
+| Topic | Shared behavior |
+| --- | --- |
+| **`ta.rsi`** | **Wilder** on both hosts: SMA seed of the first `period` deltas, then RMA of gains/losses. First finite bar is index `period` (`period` deltas need `period+1` prices). Not a simple window average. |
+| **`ta.roc`** | Standard TV formula `100 * (src - src[length]) / src[length]`. Warm-up is **`na`**, never an early `0.0`. Zero or missing baseline → `na`. Interpret no longer used a wrong lookback denominator or early zero. |
+| **`ta.wma`** | Requires a **full non-`na` window** of length `N`. Nested forms such as `ta.wma(ta.roc(...), …)` stay `na` until the inner series has produced `N` finite samples (no partial-window reweight). |
+| **`ta.cum`** | Running sum; Pine **`na` / IEEE NaN treated as 0** (skipped contribution), matching TradingView cumulative-sum semantics. |
+| **`ta.highestbars` / `ta.lowestbars`** | Return **negative bars-back offsets**: `0` if the extreme is the current bar, `-1` one bar ago, …, `-(length-1)` at the far edge. Short history (`i + 1 < length`) returns `-1`. Matches Aroon-style scripts that index with `high[ta.highestbars(...)]` / `math.abs(ta.lowestbars(...))`. |
+| **`math.avg` (multi-arg)** | Arithmetic mean of the arguments. **Any `na` argument → `na`** (do not skip). Not a rolling `ta.sma`. |
+| **`ta.linreg`** | Least-squares fit over the window; **endpoint at `x = n−1` when `offset=0`** (TV): `mean_y + slope * ((n−1) − mean_x)` / compile `intercept + slope * (n − 1 − offset)`. Length &lt; 2 → `na`. |
+| **`ta.mfi`** | Warm-up aligned on both hosts: needs **`length + 1` typical-price samples** (direction vs previous bar). Equal typical prices contribute to neither side; only-pos / only-neg MF → 100 / 0 (or 50 when both empty). |
+| **`ta.rci`** | Rank Correlation Index (Spearman of time vs value ranks) is implemented on the **compile path** (`numba_rci`) as well as interpret; stays in numeric mode when called. |
+
+Residual dual-host gaps (seed conventions on some smoothers, Supertrend ratchet, ATR EMA-of-TR vs pure Wilder re-baseline) are tracked under [missing features](/pyne/docs/reference/missing-features)—not as silent “close enough” for the rows above.
+
+### Parity harness
+
+```bash
+# Always-on smoke (stable scripts under tests/test_interp_compile_parity.py)
+pytest tests/test_interp_compile_parity.py -q
+
+# Corpus compare (default ~50 scripts × 1000 bars; writes report JSON)
+python scripts/compare_interp_compile.py --bars 1000 --limit 50
+python scripts/compare_interp_compile.py --glob 'average_*.pine' --bars 200
+
+# Optional longer pytest path
+pytest tests/test_interp_compile_parity.py -m interp_compile_full
+
+# Formula locks (RSI/ROC/WMA/cum/math.avg/highestbars, …)
+pytest tests/test_compiler_numba.py -k 'InterpCompilePlotParity or highestbars_lowestbars_negative' -q
+```
+
+Report path: `.cache/interp_compile_parity.json`. Methodology and acceptable relative-error bands vs TradingView: [Numerical validation](/pyne/docs/reference/numerical-validation).
+
 ## Invariants & edge cases
 
-1. **Warm-up → `na`.** Insufficient bars (e.g. SMA length \(N\) needs \(N\) samples) yield `None` / leading `na` in full-series mode.
-2. **NA in window.** Many kernels propagate `na` if any window element is missing (mirrors Pine strictness for SMA-like sums).
+1. **Warm-up → `na`.** Insufficient bars (e.g. SMA length \(N\) needs \(N\) samples; RSI needs `period+1` prices) yield `None` / leading `na` in full-series mode.
+2. **NA in window.** Many kernels propagate `na` if any window element is missing (SMA-like sums, **WMA**, MFI money-flow samples). **`ta.cum` is the TV exception** (`na` → 0 contribution).
 3. **Default sources.** `ta.atr` pulls high/low/close from `current_series` / context when not passed explicitly.
-4. **Compile path kernels differ.** Numba `numba_sma` / `numba_ema` / `numba_rsi` / highest/lowest are separate implementations—parity tests should cover both modes for scripts that compile.
+4. **Compile kernels must track interpret.** Numba `numba_*` implementations are separate source; for the parity table above they are formula-locked by dual-host tests—do not “approximate” for speed.
 5. **No chart look-ahead.** Kernels only see history available at the current bar index; `request.security` lookahead is a separate concern.
 6. **Incremental ≡ full recompute (oracle).** Changing seed rules (e.g. ATR Wilder vs EMA-of-TR) is a correctness project, not a silent perf flag.
 
@@ -148,11 +189,16 @@ plot(hist)
 | Always `na` | Length longer than available history; or series not updated |
 | Wrong vs TV by large margin | Wrong source series; mock OHLCV; or non-bar-mode list composition bug |
 | Cross never fires | Call-index state not reset / shared incorrectly across bars |
-| Compile diverges | Numba RSI/EMA seed conventions—check `numba_builtins.py` |
+| Compile diverges from interpret | Kernel drift in `numba_builtins.py` (RSI must stay Wilder; ROC warm-up must stay `na`; WMA full window; highestbars sign; `math.avg` na rule)—re-run the [parity harness](#parity-harness) |
+| Early ROC / nested WMA finite too soon | Legacy quirks: ROC returned `0.0` before lookback, or WMA reweighted partial/`na` windows—fixed on both hosts |
+| `high[ta.highestbars(...)]` mostly `na` | Offsets are **negative**; only offset `0` indexes the current bar without `math.abs` |
+| `math.avg` finite when an arg is `na` | Bug: multi-arg avg must propagate `na`, not skip |
 
 ## See also
 
 - [Series & history](/pyne/docs/runtime/series-and-history)
 - [Strategy builtins](/pyne/docs/runtime/builtins/strategy)
-- [Numba builtins](/pyne/docs/runtime/compiler/numba)
+- [Numba path](/pyne/docs/runtime/compiler/numba)
 - [Numerical validation](/pyne/docs/reference/numerical-validation)
+- [Missing features](/pyne/docs/reference/missing-features) (residual dual-host gaps)
+- [Compiler overview](/pyne/docs/runtime/compiler/overview)

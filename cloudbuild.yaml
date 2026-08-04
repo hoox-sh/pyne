@@ -8,7 +8,7 @@ substitutions:
   _SERVICE_NAME: pynescript-pro-api
   _REGION: us-central1
   _REPOSITORY: pynescript
-  _PYNESCRIPT_VERSION: "0.2.0"
+  _PYNESCRIPT_VERSION: "0.3.0"
 
 steps:
   # Build the production Pro API image (Dockerfile target: api)

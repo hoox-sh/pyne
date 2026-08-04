@@ -35,6 +35,7 @@ from flask import jsonify
 from flask import request
 from flask_cors import CORS
 
+from backend.api.git_oauth import bp as git_oauth_bp
 from backend.api.lsp_http import bp as lsp_bp
 from backend.api.preview import backtest_bp
 from backend.api.preview import preview_bp
@@ -199,7 +200,7 @@ if sock is None:
 
     _logging.getLogger(__name__).warning(
         "flask-sock not installed — WS /ws/run disabled (AXIS falls back to POST /run). "
-        "Install: pip install 'hoox-pyne[pro]'  or  pip install flask-sock simple-websocket"
+        "Install: pip install 'pyne[pro]'  or  pip install flask-sock simple-websocket"
     )
 
 
@@ -914,6 +915,8 @@ def validate_api_key():
 app.register_blueprint(preview_bp)
 app.register_blueprint(backtest_bp)
 app.register_blueprint(lsp_bp)
+# AXIS Connect with GitHub/GitLab (device flow) — same paths as CF Worker
+app.register_blueprint(git_oauth_bp)
 
 
 @app.errorhandler(404)

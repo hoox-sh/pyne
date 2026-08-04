@@ -62,7 +62,9 @@ def test_resolve_request_sources_chart_default():
     feed, provider = resolve_request_sources(chart_bars=bars, symbol="BTCUSDT")
     assert feed is None
     assert isinstance(provider, ChartOHLCVProvider)
-    assert provider.fetch("X")["close"][-1] == 102.0
+    # Chart provider only serves the chart symbol (not foreign tickers).
+    assert provider.fetch("BTCUSDT")["close"][-1] == 102.0
+    assert provider.fetch("X")["close"] == []
 
 
 def test_resolve_request_sources_mock_feed():

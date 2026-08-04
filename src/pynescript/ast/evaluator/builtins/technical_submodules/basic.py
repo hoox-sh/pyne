@@ -635,13 +635,22 @@ class BasicIndicators(TechnicalHelpers):
             # Soft-na for length < 2 (OTT scripts use length=1 default).
             if length < 2:
                 return math.nan
-            return self._linreg_inc_update(args[0], length)
+            offset = 0
+            if len(args) >= TERNARY:
+                try:
+                    offset = int(args[2]) if args[2] is not None else 0
+                except (TypeError, ValueError):
+                    offset = 0
+            return self._linreg_inc_update(args[0], length, offset=offset)
 
+        offset = 0
         if len(args) == TERNARY:
             series = self._as_series(args[0])
             length = self._expect_int(args[1], "ta.linreg length must be int")
-            # offset currently ignored for scalar last-value form
-            _offset = args[2]
+            try:
+                offset = int(args[2]) if args[2] is not None else 0
+            except (TypeError, ValueError):
+                offset = 0
         else:
             series, length = self._expect_series(args, length=BINARY)
 
@@ -657,9 +666,10 @@ class BasicIndicators(TechnicalHelpers):
         if len(valid_values) < 2:
             return math.nan
 
-        x = list(range(len(valid_values)))
-        mean_x = sum(x) / len(x)
-        mean_y = sum(valid_values) / len(valid_values)
+        n = len(valid_values)
+        x = list(range(n))
+        mean_x = sum(x) / n
+        mean_y = sum(valid_values) / n
 
         numerator = sum((xi - mean_x) * (yi - mean_y) for xi, yi in zip(x, valid_values, strict=True))
         denominator = sum((xi - mean_x) ** 2 for xi in x)
@@ -668,7 +678,8 @@ class BasicIndicators(TechnicalHelpers):
             return mean_y
 
         slope = numerator / denominator
-        return slope * (len(valid_values) - 1) + mean_y
+        # TV: intercept + slope * (length - 1 - offset) with x = 0..n-1 oldest→newest
+        return mean_y + slope * ((n - 1 - offset) - mean_x)
 
     def _builtin_ta_rci(self, args: list[Any]) -> float:
         """Rank Correlation Index (Spearman's correlation)."""
@@ -814,23 +825,24 @@ class BasicIndicators(TechnicalHelpers):
         return self._lowest(series, period)
 
     def _builtin_ta_cum(self, args: list[Any]) -> float | None:
-        """Cumulative sum. TV: ``ta.cum(source)`` — accepts series-like objects."""
+        """Cumulative sum. TV: ``ta.cum(source)`` — ``na`` treated as 0."""
         msg = "ta.cum expects a series"
         if len(args) != UNARY:
             self._error(msg)
         if self._use_incremental_ta():
             return self._cum_inc_update(args[0])
         series = self._as_series(args[0])
-        if not series:
-            return None
+        # Empty or all-na still yields 0 (TV / compile parity), not na
         total = 0.0
-        for v in series:
+        for v in series or []:
             if v is None:
                 continue
             try:
-                total += float(v)
+                fv = float(v)
             except (TypeError, ValueError):
                 continue
+            if fv == fv:  # skip IEEE NaN
+                total += fv
         return total
 
     def _builtin_ta_dev(self, args: list[Any]) -> float | None:

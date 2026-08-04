@@ -88,14 +88,14 @@ ENV PYTHONPATH=/app/src:/app
 
 USER appuser
 
-ARG PYNESCRIPT_VERSION=0.2.0
+ARG PYNESCRIPT_VERSION=0.3.0
 ARG GIT_SHA=unknown
 LABEL org.opencontainers.image.title="pynescript" \
       org.opencontainers.image.description="PYNE Pro API — Pine Script parse/eval/preview" \
       org.opencontainers.image.version="${PYNESCRIPT_VERSION}" \
       org.opencontainers.image.revision="${GIT_SHA}" \
       org.opencontainers.image.licenses="AGPL-3.0-or-later" \
-      org.opencontainers.image.source="https://github.com/jango-blockchained/pyne"
+      org.opencontainers.image.source="https://github.com/hoox-sh/pyne"
 
 EXPOSE 8080
 

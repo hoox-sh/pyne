@@ -720,7 +720,12 @@ class ExpressionEvaluator:
         if kind == _SITE_GN:
             name, plan = site[1], site[2]
             args, kwargs = self._eval_arg_plan(plan)
-            func = self.context.get(name)  # type: ignore[attr-defined]
+            # Dual namespace: prefer UDF table so series locals can reuse the name
+            # (``ma = ta.sma(...); ma(src, n) => …`` — CCI smoothing pattern).
+            ufuncs = getattr(self, "_user_functions", None)
+            func = ufuncs.get(name) if ufuncs else None
+            if func is None:
+                func = self.context.get(name)  # type: ignore[attr-defined]
             if not callable(func):
                 # Context may hold a lazy string / non-callable; Attribute / UDT
                 # recovery still goes through the general path when needed.

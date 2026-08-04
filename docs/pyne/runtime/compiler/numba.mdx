@@ -26,7 +26,9 @@ description: "JIT bar loops, numba_builtins kernels, NA-as-NaN, and performance 
 
 ## Abstract
 
-Numeric compile mode emits a single `@numba.njit` function whose body is the script’s bar loop. Pine builtins that cannot cross the JIT boundary are replaced by **hand-written kernels** in `numba_builtins.py` that take full arrays plus the current index. The result is large speedups on multi-thousand-bar series after a one-time JIT warm-up—at the cost of a restricted language subset and `np.nan` as the missing-value sentinel.
+Numeric compile mode emits a single `@numba.njit` function whose body is the script’s bar loop. Pine builtins that cannot cross the JIT boundary are replaced by **hand-written kernels** in `numba_builtins.py` that take full arrays plus the current index (or a small float state vector for `*_inc` forms). The result is large speedups on multi-thousand-bar series after a one-time JIT warm-up—at the cost of a restricted language subset and `np.nan` as the missing-value sentinel.
+
+Kernel contracts below match interpret `ta.*` / calendar helpers where parity was fixed; intentional deviations should be documented on the kernel docstring and here.
 
 ## Conceptual model
 
@@ -34,29 +36,57 @@ Numeric compile mode emits a single `@numba.njit` function whose body is the scr
 flowchart TB
   CV[CompilerVisitor] --> Emit["@numba.njit execute_script_compiled"]
   Emit --> NB[numba_builtins]
-  NB --> SMA[numba_sma]
-  NB --> EMA[numba_ema]
-  NB --> RSI[numba_rsi]
-  NB --> HL[numba_highest / lowest]
+  NB --> SMA[numba_sma / sma_inc]
+  NB --> EMA[numba_ema_inc / rma_inc]
+  NB --> RSI[numba_rsi / rsi_inc]
+  NB --> HL[numba_highest / lowest / highestbars]
+  NB --> ROC[numba_roc]
+  NB --> Cal[numba_timestamp / utc_parts]
   NB --> Math[numba_nz / abs / min / max]
   Emit --> Loop["for __bar_idx in range(n)"]
   Loop --> SMA
+  Loop --> EMA
+  Loop --> RSI
+  Loop --> HL
+  Loop --> ROC
+  Loop --> Cal
+  time_arr[time_arr] --> Cal
 ```
 
 ## Interface surface
 
-Kernels (all `@numba.njit(cache=True)` at definition site; generated entry uses `cache=False`):
+Kernels are defined with `@numba.njit(cache=True)` in `numba_builtins.py`. Generated entry points use `@numba.njit(cache=False)` in the in-memory IR string; when the engine writes a **disk IR** module it rewrites that decorator to `cache=True` so Numba can store machine code next to a real file path (see [Cache](#cache)).
 
-| Kernel | Semantics sketch |
+Generated code imports `from pynescript.compiler.numba_builtins import *` so call sites are bare names. Prefer `*_inc` when the visitor allocates fixed state (`__ema0_st`, …).
+
+### Kernel table (interpret-parity highlights)
+
+| Kernel | Semantics |
 | --- | --- |
-| `numba_sma(arr, period, i)` | Mean of `arr[i-period+1 : i]`; `nan` if warm-up or any window `nan` |
-| `numba_ema(arr, period, i)` | SMA seed over first `period` bars, then EMA to `i` |
-| `numba_rsi(arr, period, i)` | Average gain/loss form; 100 if avg loss 0 |
-| `numba_highest` / `numba_lowest` | Window extrema; window clamps at 0 |
+| `numba_sma(arr, period, i)` | Mean of last `period` bars ending at `i`; `nan` if warm-up or any window `nan` |
+| `numba_ema` / `numba_ema_inc` | SMA seed, then EMA (`α = 2/(period+1)`). **Inc seed is NaN-safe**: while the accumulator is still `nan` and `j >= period-1`, try SMA over `arr[j-period+1 : j+1]` only when every sample is finite. Nested EMA / DEMA no longer stuck all-NaN after leading NaNs |
+| `numba_rma_inc(arr, period, i, st)` | Wilder RMA with the **same NaN-window-safe SMA seed** as `numba_ema_inc`. After seed, NaN inputs hold the previous RMA. Required for `rma(tr)` / expanded ADX so compile is not all-NaN or ~0 after warm-up |
+| `numba_rsi` / `numba_rsi_inc` | **Wilder RSI**, not rolling simple-window RSI. SMA of first `period` deltas (bars `1..period`), then RMA of gain/loss (`α = 1/period`). First valid bar is **`i == period`** (`period` deltas need `period+1` prices). `avg_loss == 0` → `100.0` |
+| `numba_highest` / `numba_lowest` | Window extrema; full window required (`i >= period-1`); NaN samples skipped |
+| `numba_highestbars` / `numba_lowestbars` (+ `_inc`) | TV **negative** bars-back offsets: `0` if current is extreme, `-1` one bar ago, …, `-(length-1)`. Returns **`-1.0`** when window not full, invalid length, or all-NaN. **Oldest** extreme wins ties (strict `>` / `<`) |
+| `numba_roc(arr, length, i)` | `100 * (src - src[length]) / src[length]` at bar `i`; `nan` if `i < length`, baseline 0/NaN, or src NaN |
+| `numba_timestamp(y, m, d, h=0, mi=0, s=0)` | UTC epoch **ms** from calendar components; month/day overflow normalized (e.g. `month=0` → prior Dec) for TTM-style windows |
+| `numba_utc_parts(ms)` | `(year, month, dayofmonth, hour, minute, second, dayofweek)` floats; Pine `dayofweek` is `1=Sun … 7=Sat` |
 | `numba_nz(val, replacement)` | Replace `nan` |
 | `numba_abs` / `numba_min` / `numba_max` | Scalar helpers |
 
-Generated code imports `from pynescript.compiler.numba_builtins import *` so call sites are bare names.
+Full inventory lives in `src/pynescript/compiler/numba_builtins.py` (njit batch + `*_inc` + pure-Python object-mode helpers).
+
+### Calendar / `time_arr`
+
+Bar open time is the host `time_arr` series (synthetic when the runner omits timestamps).
+
+| Pine form | Lowering |
+| --- | --- |
+| bare `year` / `month` / `dayofmonth` / `hour` / `minute` / `second` / `dayofweek` | `numba_utc_parts(time_arr[__bar_idx])[idx]` |
+| `year(t)` … (optional time arg) | `numba_utc_parts(src)[idx]` with `src` defaulting to `time_arr[__bar_idx]` |
+| `timestamp(y, m, d[, h, mi, s])` | `numba_timestamp(...)` (leading timezone string args dropped → UTC stub) |
+| `time` / `time_close` (approx) | `time_arr[__bar_idx]` / `+ 59999` ms |
 
 ### History access
 
@@ -66,24 +96,48 @@ Generated code imports `from pynescript.compiler.numba_builtins import *` so cal
 
 `if` / `for` / `while` emit Python control flow **inside** the njit function—supported Numba subset only (no heap objects, no Python lists of mixed types).
 
+## Cache
+
+Three layers interact:
+
+| Layer | Location / key | Role |
+| --- | --- | --- |
+| Source LRU | in-process, sha256 of source | `CompiledScript` reuse |
+| IR LRU | in-process, sha256 of generated Python | share warm callable across comment-only variants |
+| Disk IR | `PYNE_COMPILE_CACHE_DIR` or `$XDG_CACHE_HOME/pynescript/compile` | persist generated modules; disable with `PYNE_COMPILE_DISK_CACHE=0` |
+
+**Numba function cache (`.nbi` / `.nbc`):**
+
+- Hand-written kernels: `@njit(cache=True)` → artifacts under `…/pynescript/compiler/__pycache__/`.
+- Generated entry: IR is emitted with `cache=False` (safe for `exec` from `<string>`). Disk write rewrites `@numba.njit(cache=False)` → `cache=True` so Numba’s file locator can cache machine code under the disk IR `__pycache__/`.
+- Truncated/corrupt pickle loads raise `EOFError` / `UnpicklingError`. The engine purges known `.nbi`/`.nbc` via `clear_numba_function_caches()` and recompiles once instead of failing the script.
+
+```python
+from pynescript.compiler import clear_numba_function_caches, clear_disk_compile_cache
+clear_numba_function_caches()
+clear_disk_compile_cache()
+```
+
 ## Internals
 
 | Path | Role |
 | --- | --- |
-| `src/pynescript/compiler/numba_builtins.py` | Kernels |
-| `src/pynescript/compiler/compiler.py` | `_emit_numeric_mode`, call lowering |
-| `src/pynescript/compiler/engine.py` | Requires `_HAS_NUMBA` when not object_mode |
-| `tests/test_compiler_numba.py` | Correctness |
+| `src/pynescript/compiler/numba_builtins.py` | Kernels (`cache=True`) |
+| `src/pynescript/compiler/compiler.py` | `_emit_numeric_mode`, call lowering, `time_arr` calendar |
+| `src/pynescript/compiler/engine.py` | Disk IR rewrite, Numba cache recovery, prewarm |
+| `tests/test_compiler_numba.py` | Correctness / parity |
 
 Expanding coverage is primarily **new kernels + visitor call mapping**, not changes to the bar-loop skeleton.
 
 ## Invariants & edge cases
 
 1. **No Python objects in numeric mode.** Strings, UDTs, maps, drawings force object mode before njit is applied.
-2. **Warm-up cost.** First `compile_script` invokes a dummy run; production servers should cache `CompiledScript`.
-3. **EMA/RSI definitions** are explicit in source—document any intentional deviation when comparing to interpret `ta.*` for edge seeds.
-4. **`cache=False` on entry.** Do not expect Numba’s on-disk cache to key generated functions across processes without further work.
-5. **Anaconda static libpython.** Packaging notes in AGENTS/build docs apply when shipping JIT-heavy binaries.
+2. **Warm-up cost.** First `compile_script` invokes a dummy run; production servers should cache `CompiledScript` and optionally prewarm (`PYNE_COMPILE_PREWARM`, `POST /compile/prewarm`).
+3. **EMA/RMA seed** uses sliding all-finite SMA windows—not “seed once at bar `period-1` only if that fixed slice is clean.” Leading NaN on `tr` / nested EMA sources must eventually produce values.
+4. **RSI is Wilder**, first valid at `i == period`. Do not compare against a simple N-bar average-gain RSI.
+5. **highestbars/lowestbars** return negative offsets and `-1` on incomplete windows; ties keep the oldest bar.
+6. **Disk entry cache** requires the rewrite to a real file path; pure `exec` of `cache=False` IR does not populate Numba’s on-disk function cache for the entry function.
+7. **Anaconda static libpython.** Packaging notes in AGENTS/build docs apply when shipping JIT-heavy binaries.
 
 ## Worked examples
 
@@ -109,15 +163,19 @@ Converts bar dicts → arrays, compiles, reshapes plots into the standard envelo
 | Symptom | Cause |
 | --- | --- |
 | TypingError from Numba | Unsupported construct leaked into numeric emit |
-| All-`nan` plots | Period longer than series; or history index bugs |
+| All-`nan` plots | Period longer than series; history index bugs; or (fixed) NaN-poisoned EMA/RMA seed on nested sources |
+| Nested DEMA / `rma(tr)` all-NaN | Pre-fix seed; current kernels sliding-window all-finite SMA seed |
+| RSI diverges vs interpret | Expect Wilder seed/RMA, not rolling window RSI |
+| `highestbars` sign / magnitude off | TV negative offsets; incomplete window → `-1` |
+| `EOFError` / UnpicklingError at load | Corrupt `.nbi`/`.nbc` — engine purges and retries; manual `clear_numba_function_caches()` |
 | ImportError numba | Environment missing dependency |
-| Divergent RSI vs interpret | Seed / average method—file fixture and compare both paths |
 | Object mode unexpectedly | Visitor detected drawing/UDT/map—inspect `visitor.object_mode` |
 
 ## Performance notes
 
 - Prefer **one compile, many runs** with different OHLCV.
 - Keep scripts in the numeric subset for realtime ticks.
+- Host prewarm of `numba_builtins` + common scripts shifts cold JIT off the first user request.
 - Object mode still wins over AST walking for UDT-heavy scripts but will not match peak njit throughput.
 
 ## See also

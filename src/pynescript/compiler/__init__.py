@@ -59,6 +59,7 @@ from .engine import CompileNumbaRequiredError
 from .engine import CompiledScript
 from .engine import clear_compile_cache
 from .engine import clear_disk_compile_cache
+from .engine import clear_numba_function_caches
 from .engine import compile_cache_stats
 from .engine import compile_deploy_config
 from .engine import compile_script
@@ -79,6 +80,7 @@ __all__ = [
     "CompilerVisitor",
     "clear_compile_cache",
     "clear_disk_compile_cache",
+    "clear_numba_function_caches",
     "compile_cache_stats",
     "compile_deploy_config",
     "compile_script",

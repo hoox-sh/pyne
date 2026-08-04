@@ -83,6 +83,8 @@ Summarized — full prose in source doc:
 | Item | Status posture |
 | --- | --- |
 | Real (non-mock) `request.*` market data | ⚙️ By design for library core; feeds optional |
+| **`request.security` foreign data on compile** | ⚙️ **Not filled** — compile emits `na` for foreign tickers / complex security expressions (no invent of chart-as-foreign series). Same-symbol simple OHLCV may lower. Interpret may still use mocks/feeds. |
+| **Auto Fib / pivot-heavy scripts** | ⚙️ Need real pivot structure (or registered ZigZag lib). Flat synthetic bars → intentional `runtime.error` (insufficient pivots); both hosts should agree (`both_error_same` in parity harness). |
 | Pixel chart host | External (AXIS / clients) |
 | Some unlimited-history / trim edge cases | High-level support; exotic TV behaviors may differ |
 | Editor word-wrap / UI-only release notes | ⬜ N/A |
@@ -130,9 +132,11 @@ Plans: `.opencode/plans/2026-07-28-runtime-performance.md`. Skill: `.grok/skills
 
 1. **Closing a syntax gap requires grammar + builder + unparser + tests**, not only an evaluator stub.
 2. **Mock data can green tests while production feeds differ** — declare data source explicitly.
-3. **“0 missing vs reference list” ≠ identical semantics for every edge case.**
-4. **Perf changes must keep bar-by-bar semantics** — no whole-script vectorization; prefer golden tests vs current oracle.
-5. Update this annex when `missing_features.md` changes major status lines.
+3. **Compile does not fill foreign `request.security` data** — multi-asset plots stay `na` on compile unless same-symbol simple OHLCV; do not treat invent-as-close as a fix.
+4. **Auto Fib needs pivots** — without swing structure (or ZigZag library registration), expect structured insufficient-pivot errors, not fib lines.
+5. **“0 missing vs reference list” ≠ identical semantics for every edge case.**
+6. **Perf changes must keep bar-by-bar semantics** — no whole-script vectorization; prefer golden tests vs current oracle.
+7. Update this annex when `missing_features.md` changes major status lines.
 
 ## Worked examples
 

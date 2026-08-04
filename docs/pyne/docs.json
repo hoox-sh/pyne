@@ -29,7 +29,7 @@
     "primary": {
       "type": "button",
       "label": "GitHub",
-      "href": "https://github.com/jango-blockchained/pynescript"
+      "href": "https://github.com/hoox-sh/pyne"
     }
   },
   "navigation": {
@@ -118,7 +118,8 @@
             "pages": [
               "runtime/compiler/overview",
               "runtime/compiler/numba",
-              "runtime/compiler/strategy-broker"
+              "runtime/compiler/strategy-broker",
+              "runtime/compiler/parity"
             ]
           }
         ]
@@ -175,6 +176,7 @@
               "devops/ci",
               "devops/release",
               "devops/pypi-publish",
+              "devops/publish-checklist",
               "devops/docker",
               "devops/nuitka-build",
               "devops/metadata-crypto",

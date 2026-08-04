@@ -10,7 +10,7 @@
 #   docker buildx bake release          # multi-platform (set REGISTRY to push)
 #
 # Variables (override with --set or env via bake HCL):
-#   TAG=0.2.0 REGISTRY=gcr.io/PROJECT/pynescript docker buildx bake release
+#   TAG=0.3.0 REGISTRY=gcr.io/PROJECT/pynescript docker buildx bake release
 
 variable "TAG" {
   default = "latest"
@@ -22,7 +22,7 @@ variable "REGISTRY" {
 }
 
 variable "PYNESCRIPT_VERSION" {
-  default = "0.2.0"
+  default = "0.3.0"
 }
 
 variable "GIT_SHA" {

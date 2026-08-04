@@ -169,6 +169,9 @@ def _assert_series_close(
         if e is None:
             assert g is None, f"bar {i}: expected None, got {g}"
             continue
+        if isinstance(e, float) and math.isnan(e):
+            assert isinstance(g, float) and math.isnan(g), f"bar {i}: expected nan, got {g}"
+            continue
         assert g is not None, f"bar {i}: expected {e}, got None"
         assert g == pytest.approx(e, rel=rel, abs=abs_), f"bar {i}: {g} != {e}"
 
@@ -1404,16 +1407,18 @@ def _bar_walk_full_linreg(src: list[float], length: int) -> list[float]:
         if len(valid) < 2:
             out.append(float("nan"))
             continue
-        x = list(range(len(valid)))
-        mean_x = sum(x) / len(x)
-        mean_y = sum(valid) / len(valid)
+        n = len(valid)
+        x = list(range(n))
+        mean_x = sum(x) / n
+        mean_y = sum(valid) / n
         num = sum((xi - mean_x) * (yi - mean_y) for xi, yi in zip(x, valid, strict=True))
         den = sum((xi - mean_x) ** 2 for xi in x)
         if den == 0:
             out.append(mean_y)
         else:
             slope = num / den
-            out.append(slope * (len(valid) - 1) + mean_y)
+            # TV endpoint: mean_y + slope * ((n-1) - mean_x)
+            out.append(mean_y + slope * ((n - 1) - mean_x))
     return out
 
 

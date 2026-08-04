@@ -75,6 +75,20 @@ sequenceDiagram
 | Stats | percentrank exact; variance/stdev excellent |
 | Math | Discrete exact; transcendentals ~1e-15 class |
 
+### Dual-host formula alignment (interpret ↔ compile)
+
+Where fixed, these kernels **share one formula contract** across interpret (evaluator / incremental) and compile (`numba_builtins`) so plot series match bit-identical or maxdiff ≈ 0 on dual-run goldens:
+
+| Builtin | Shared contract (summary) |
+| --- | --- |
+| `ta.rsi` | Wilder: SMA seed of first `period` deltas, then RMA gain/loss; first valid at bar `period` |
+| `ta.roc` | Standard lookback % change; `na` until lookback (no early `0.0`) |
+| `ta.wma` | Full non-`na` window required; no partial-window reweight (nested ROC/WMA safe) |
+| `ta.cum` | Running sum; NaNs as 0; user series (`ad = ta.cum(...)`) must not alias builtin A/D |
+| `ta.highestbars` / `lowestbars` | Negative bars-back offset; short/all-NaN → `-1`; oldest extreme on ties |
+
+Goldens: `tests/test_compiler_numba.py` (`TestInterpCompilePlotParityFixes`) and `scripts/compare_interp_compile.py`. Residual dual-host drift (if any) tends to cluster in **nested EMA seed families** (DEMA/TEMA SMA-seed vs first-value) rather than these aligned kernels — see [Compatibility](/pyne/docs/reference/compatibility).
+
 ### Error distribution (report aggregate)
 
 | Error range | Share (approx.) |
@@ -92,6 +106,8 @@ sequenceDiagram
 | `docs/numerical_validation_report.md` | Full tables + bias analysis |
 | `tests/test_ta_indicators_*.py` | Executable TA tests |
 | `tests/test_indicators.py` / builtins tests | Additional numeric guards |
+| `tests/test_compiler_numba.py` | Interpret ↔ compile formula goldens (RSI/ROC/WMA/…) |
+| `scripts/compare_interp_compile.py` | Corpus plot-series parity harness |
 | Bar-mode vs list-mode (`_pine_bar_mode`) | Scalar-per-bar vs full series — compare like with like |
 
 ### Methodology (report)

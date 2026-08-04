@@ -29,13 +29,28 @@ The public surface is exposed as `pynescript.compiler.transpile`, `compile_scrip
 
 ## Implementation Status
 
-As of mid-2026, the plan is no longer purely prospective: an MVP compile path is landed and covered by automated tests (`tests/test_compiler_numba.py`, `tests/test_compiler_objects.py`).
+As of mid-2026, the plan is no longer purely prospective: an MVP compile path is landed and covered by automated tests (`tests/test_compiler_numba.py`, `tests/test_compiler_objects.py`). Follow-on sprints and residual passes (through 2026-08) expanded numeric/object coverage, host warm-compile (H2), and interpret↔compile series parity tooling.
 
-**Numeric mode** targets the common indicator subset—series assignments, arithmetic and logical operators, history access (`close[n]`), control flow (`if`, `for`, `while`), selected `ta.*` routines (`sma`, `ema`, `rma`, `rsi`, `highest`, `lowest`, `stdev`, `change`, `atr`, `bb`, `macd`), tuple unpack (`[u,m,l] = ta.bb(...)`), scalar math helpers, `plot`, `input.*` defaults, and `var`/`varip` persistence—executed under `@numba.njit` when Numba is installed. `compile_script` caches by source hash (max 32) to skip re-transpile/JIT on warm re-runs.
+**Numeric mode** targets the common indicator subset—series assignments, arithmetic and logical operators, history access (`close[n]`), control flow (`if`, `for`, `while`), selected `ta.*` routines (`sma`, `ema`, `rma`, `rsi`, `highest`/`lowest`/`highestbars`/`lowestbars`, `stdev`, `change`, `atr`, `bb`, `macd`, `rci`, …), tuple unpack (`[u,m,l] = ta.bb(...)`), scalar math helpers, `plot` / titled `fill()`, `input.*` defaults, and `var`/`varip` persistence—executed under `@numba.njit` when Numba is installed. `compile_script` uses in-process + disk IR caches (and product prewarm; see H2 below) so warm re-runs skip re-transpile/JIT.
 
 **Object mode** is selected automatically when the visitor observes UDT definitions, map operations, or drawing APIs. In that regime the generator emits a pure-Python bar loop that represents UDT instances as field dictionaries, maps as ordinary Python dictionaries, and drawing calls as structured events accumulated in a `__drawings` list, while plot series remain full-length arrays. The runtime response includes `series`, `drawings`, and an `object_mode` flag so callers can distinguish the two backends.
 
 Microbenchmarks on multi-thousand-bar series show large speedups for numeric scripts after a one-time JIT warm-up (on the order of tens to hundreds of times versus list-based interpreter evaluation of equivalent `ta.sma` work). Object mode trades some of that peak throughput for broader language coverage.
+
+### Landed correctness / host surface (2026-08 residual)
+
+These are implementation status notes for constructs that previously diverged from the interpret oracle or lacked host plumbing. They do not change the four-layer architecture below.
+
+| Area | Status |
+| --- | --- |
+| **`time_arr`** | Compiled `execute_script_compiled(..., time_arr)` always receives bar-open Unix ms. Hosts (Runtime) pass real OHLCV timestamps; engine synthesizes `bar * 60_000` when time is omitted. Bare `time` / `time_close` / calendar parts / viewport times lower against `time_arr` (not a separate synthetic calendar). |
+| **`request.security` policy** | Compile lowers same-symbol simple OHLCV expressions as chart series passthrough only. Foreign tickers and complex expressions (UDFs, `year_sum(close)`, …) emit `na` — no inventing chart close as dividends/fundamentals. Aligns with interpret foreign-na policy (`request.py` + `ChartOHLCVProvider` chart-symbol filter). |
+| **RSI Wilder** | `numba_rsi` / `numba_rsi_inc` use Wilder seed (SMA of first `period` deltas) then RMA of gain/loss (`alpha = 1/period`), matching interpret `_rsi` / `_rsi_inc_update` and TV `ta.rsi` (no longer a simple rolling window average of gains). |
+| **`highestbars` / `lowestbars`** | Negative bars-back offsets (TV / interpret contract); all-na window → `-1.0`. History indexing uses NaN-safe int coercion so `high[ta.highestbars(...)]` and `high[-highestbars(...)]` stay in-bounds. |
+| **`fill()` series** | Titled `fill(plot1, plot2, …)` exports a series key for interpret/compile plot-key parity and AXIS band wiring; compile leaves the fill series as float NaN (band color/plot refs remain in plot meta / drawings as applicable). |
+| **Numba cache recovery** | Truncated/corrupt `.nbi`/`.nbc` (EOFError / UnpicklingError) purge via `clear_numba_function_caches` and retry once on warm/prewarm/run. Disk IR clear remains separate (`clear_disk_compile_cache`). |
+| **`ta.rci`** | `numba_rci` + compiler emit for Spearman rank correlation; matches interpret window/rank contract. |
+| **Interpret oracle parity harness** | `scripts/compare_interp_compile.py` runs the same scripts under `mode=interpret` and `mode=compile`, compares `result["series"]` with nan-aware allclose, and buckets residuals (`OK`, `fill_background_only`, `both_error_same`, `MISMATCH`, …). Always-on smoke: `tests/test_interp_compile_parity.py`; focused foreign-security: `tests/test_dividend_yield_parity.py`. |
 
 ## Architecture
 
@@ -60,7 +75,7 @@ import numba
 from pynescript.compiler.numba_builtins import *
 
 @numba.njit(cache=False)
-def execute_script_compiled(open_arr, high_arr, low_arr, close_arr, vol_arr):
+def execute_script_compiled(open_arr, high_arr, low_arr, close_arr, vol_arr, time_arr):
     n_bars = len(close_arr)
     my_sma_arr = np.full(n_bars, np.nan)
     plot_0 = np.full(n_bars, np.nan)
@@ -72,7 +87,7 @@ def execute_script_compiled(open_arr, high_arr, low_arr, close_arr, vol_arr):
     return {'plot_0': plot_0}
 ```
 
-Object-mode generation follows the same structural outline but omits the Numba decorator, uses object-dtype series where UDT values must be retained, and appends drawing events to an in-function `__drawings` list returned alongside plot arrays.
+Object-mode generation follows the same structural outline but omits the Numba decorator, uses object-dtype series where UDT values must be retained, and appends drawing events to an in-function `__drawings` list returned alongside plot arrays. (Host always supplies `time_arr`; see Implementation Status.)
 
 ### 2. Numba Built-ins Module
 
@@ -95,7 +110,7 @@ def numba_sma(arr, period, i):
 
 ### 3. Data Structure Overhaul
 
-The compiled engine does not use `PineSeries` deques. Built-in price and volume series are supplied as flat `numpy` arrays (`open_arr`, `high_arr`, `low_arr`, `close_arr`, `vol_arr`). User `series` variables are allocated once as `np.full(n_bars, np.nan)` (or object arrays for UDT series) outside the bar loop, then written at `__bar_idx`. The `var` qualifier is lowered so that only the first bar evaluates the initializer and subsequent bars forward the previous value—matching Pine’s carry semantics without interpreter bookkeeping.
+The compiled engine does not use `PineSeries` deques. Built-in price, volume, and time series are supplied as flat `numpy` arrays (`open_arr`, `high_arr`, `low_arr`, `close_arr`, `vol_arr`, `time_arr`). User `series` variables are allocated once as `np.full(n_bars, np.nan)` (or object arrays for UDT series) outside the bar loop, then written at `__bar_idx`. The `var` qualifier is lowered so that only the first bar evaluates the initializer and subsequent bars forward the previous value—matching Pine’s carry semantics without interpreter bookkeeping.
 
 ### 4. Engine API and integration with `backend/runtime.py`
 
@@ -178,4 +193,6 @@ Targets for **ops / product**, not hard CI gates. Measure with `scripts/bench_pi
 
 ## Remaining Work
 
-Further work includes more `ta.*` / math helpers so fewer scripts fall out of numeric mode, strategy execution under compile mode (orders and `StrategyState` side effects remain interpret-first for complex paths; basic entry/close exist in object mode), richer drawing semantics (deletes, full style parity with the interpreter’s registries), and nested UDTs/methods. In-process + **disk** `compile_script` caching and product prewarm (H2) are landed (2026-07/08). Parity tests that run the same fixture under both `mode="interpret"` and `mode="compile"` should continue to grow with each new lowered construct.
+Further work includes more `ta.*` / math helpers so fewer scripts fall out of numeric mode, strategy execution under compile mode (orders and `StrategyState` side effects remain interpret-first for complex paths; basic entry/close exist in object mode), richer drawing semantics (deletes, full style parity with the interpreter’s registries), and nested UDTs/methods. In-process + **disk** `compile_script` caching and product prewarm (H2) are landed (2026-07/08). Numba function-cache recovery and `time_arr` host plumbing are landed (2026-08 residual).
+
+**Parity (ongoing):** the interpret oracle harness (`scripts/compare_interp_compile.py`) is the growth path for residual plot-value and structural mismatches (hline-only / fill-background key sets, true value MISMATCH, one-sided runtime errors). Prefer goldens under that harness when lowering new constructs rather than ad-hoc one-off scripts.

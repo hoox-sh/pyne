@@ -38,6 +38,10 @@ PyneScript's built-in functions have been validated for numerical accuracy again
 - ✅ **Zero systematic bias** detected
 - ✅ **100% correctness** for deterministic operations (SMA, sums, counts)
 
+### Dual-host formula alignment (post-report; 2026)
+
+Interpret and compile now **share formulas** for several hot kernels (where fixed), so dual-run plot series match rather than drift by host-specific quirks: **`ta.rsi`** (Wilder), **`ta.roc`** (no early zero), **`ta.wma`** (full non-na window), **`ta.cum`**, **`ta.highestbars` / `lowestbars`**. See `docs/pyne/reference/numerical-validation.mdx` and goldens in `tests/test_compiler_numba.py` / `scripts/compare_interp_compile.py`. Residual dual-host notes (e.g. nested EMA seed families on some kernels) live under compatibility docs, not this Nov 2025 error table.
+
 ### Confidence Level
 
 **We can state with 99.99% confidence that PyneScript produces identical results to TradingView® Pine Script within floating-point precision limits (IEEE 754).**

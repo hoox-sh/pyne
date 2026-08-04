@@ -98,6 +98,16 @@ class ChartOHLCVProvider(DataProvider):
         self._bars = list(bars or [])
         self._symbol = str(symbol).upper()
 
+    def _matches_chart(self, symbol: str) -> bool:
+        """Only serve bars for the chart symbol (not foreign fundamentals)."""
+        s = str(symbol or "").strip().upper()
+        chart = (self._symbol or "CHART").strip().upper()
+        if not s or s in {"CHART", "SYMBOL", "TICKER", "NONE", chart}:
+            return True
+        if s.split(":")[-1] == chart.split(":")[-1]:
+            return True
+        return False
+
     def fetch(
         self,
         symbol: str = "CHART",
@@ -105,9 +115,20 @@ class ChartOHLCVProvider(DataProvider):
         interval: str = "1d",
     ) -> dict[str, Any]:
         _ = period, interval
+        empty = {
+            "open": [],
+            "high": [],
+            "low": [],
+            "close": [],
+            "volume": [],
+            "time": [],
+            "symbol": self._symbol,
+        }
+        if not self._matches_chart(symbol):
+            return empty
         bars = self._bars
         if not bars:
-            return {"open": [], "high": [], "low": [], "close": [], "volume": [], "time": []}
+            return empty
         return {
             "open": [float(b.get("open", 0.0)) for b in bars],
             "high": [float(b.get("high", 0.0)) for b in bars],
@@ -119,7 +140,7 @@ class ChartOHLCVProvider(DataProvider):
         }
 
     def fetch_quote(self, symbol: str) -> dict[str, Any]:
-        if not self._bars:
+        if not self._matches_chart(symbol) or not self._bars:
             return {"last": 0.0, "close": 0.0, "symbol": self._symbol}
         last = self._bars[-1]
         c = float(last.get("close", 0.0))

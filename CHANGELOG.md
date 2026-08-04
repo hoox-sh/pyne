@@ -7,12 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- GitHub / package metadata prepared for org transfer to **`hoox-sh/pyne`** (was `jango-blockchained/pyne`): `pyproject.toml` project URLs, Docker image source label, docs, CONTRIBUTING, and PyPI Trusted Publisher owner docs. See `docs/pyne/devops/publish-checklist.mdx`.
+- PyPI distribution name is **`pyne`** (import/CLIs remain `pynescript` / `pynescript-lsp`). Install: `pip install "pyne[lsp]"`.
+- Default image version labels / bake / Cloud Build substitution aligned to **0.3.0**.
+
 ### Added
 - **Alert engine** (`AlertsMixin`): TV-style `alert.freq_*` normalization, once-per-bar dedup, once-per-bar-close gating, `alertcondition` fire-on-true, host helpers `export_alerts` / `export_alerts_from_evaluator`.
 - **Dual-host alerts export**: Pro API + pyne-worker `Runtime` clear/export `alerts` (and optional `alert_conditions`) on interpret `/run`.
 - **L2 alert webhooks**: Pro API `backend/alert_forwarder.py` (`webhook_url`, `ALERT_WEBHOOK_URL`, last-bar filter, batch JSON); pyne-worker edge webhooks + cron last-bar delivery. Docs: `docs/pyne/runtime/alerts.mdx`.
 - Roadmap residual backlog IDs **H1–L3** (dual-host, corpus tail, warm compile, series/TA, optional fidelity, long-horizon); see `docs/ROADMAP.md` (2026-08-01). **L2 closed** (Pro API + edge).
 - Corpus C1 residual goldens: bare `tonumber`, `math.isfinite`, strategy `closedtrades`/`opentrades` entry_id/comment/max_drawdown/max_runup accessors; tests in `tests/test_corpus_runtime_residuals.py`.
+- Interpret↔compile plot parity harness: `scripts/compare_interp_compile.py` (multiprocess series compare with `--file-list`, `--timeout-sec`, `--ignore-hline-keys`, `--ignore-fill-keys`, and wave workers).
+- Parity tests: `tests/test_interp_compile_parity.py` and `tests/test_dividend_yield_parity.py`.
+- Compiler: `time_arr` on the compiled execute signature; `numba_timestamp` / `numba_utc_parts`; titled `fill()` series export; `clear_numba_function_caches` with corrupt-cache recovery.
+- Compile path for `numba_rci` / `ta.rci`.
 
 ### Fixed
 - Builtin kwargs merge no longer drops explicit trailing `None` / Pine `na` (e.g. `array.push(id=a, value=na)`), unblocking many corpus library scripts.
@@ -35,11 +44,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Consolidation of main with recent plan branch work (2026-07-09).
 
 ### Changed
+- Compile `request.security` policy: same-symbol simple OHLCV only; other foreign tickers and complex expressions resolve to `na`.
+- Disk IR meta version bumped when titled fill series export landed.
 - Interpret bar-loop residual wins (visit/Call arg plans, series last-sample, residual TA): ~1.24× `ta_combo` vs Round 5 (~137 ms @ 2k bars).
 - Compiler stays numeric for more history/math/chart surface; viewport right bar time is `(n_bars-1)*60000` in compile mode.
 - Runtime `mode=auto`: non-empty `inputs` forces interpret with clear fallback reason; object-mode compile no longer requires Numba.
-- **PyPI distribution name is `hoox-pyne`** (import package and CLIs remain `pynescript` / `pynescript-lsp`). Avoids collision with upstream elbakramer `pynescript` on PyPI. Install: `pip install "hoox-pyne[lsp]"`.
-- Version **0.3.0** prepared as first `hoox-pyne` release candidate (tag when ready).
+- **PyPI distribution name is `pyne`** (import package and CLIs remain `pynescript` / `pynescript-lsp`). Avoids collision with upstream elbakramer `pynescript` on PyPI. Install: `pip install "pyne[lsp]"`.
+- Version **0.3.0** prepared as first `pyne` release candidate (tag when ready).
 - VS Code extension rebrand: **PYNE — Pine Script™ for VS Code** (`pyne` 0.2.2), HOOX logo icon, marketplace description as part of the HOOX open trading stack, TradingView® / Pine Script™ trademark disclaimer, and richer TextMate syntax highlighting (namespaces, annotations, colors, UDT/enum, multiline strings).
 - VS Code extension packaging: esbuild-bundle `vscode-languageclient` into the VSIX (fixes palette “command not found” when `node_modules` was omitted), explicit `onCommand` activation, resilient command handlers, and shared output channel.
 - CI rewritten for the post-AXIS-extract repo: Python lint/test matrix, package build, Docker smoke; removed dead `frontend/` jobs.
@@ -49,6 +60,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Backend test collection fixes post-integration.
 
 ### Fixed
+- User series no longer shadows bare builtins (`ad` / `tr` / `obv` / `pvt`): `plot(ad)` emits the user series instead of re-emitting the Chaikin A/D stub.
+- `highestbars` / `lowestbars` use negative TradingView-style offsets (Aroon parity).
+- Compile Wilder RSI matches interpret (was a rolling SMA of gains).
+- NaN-safe EMA/RMA seed for ATR custom `ma_function` and nested DEMA.
+- UDF last assign of `na` no longer retains a prior tuple unpack (ADX early zeros).
+- `math.avg` propagates `na`; `ta.roc` uses the standard formula; `wma` requires a full non-`na` window; `ta.cum` treats `na` / IEEE NaN as 0.
+- `request.security`: foreign tickers and complex expressions resolve to `na` instead of inventing chart close; `dividend_yield` / CVI interpret↔compile parity.
+- Import stub plot cells are not serialized as color strings.
+- `auto_fib` interpret and compile raise the same insufficient-pivot errors; `for`/`to` auto step; `chart.point` object dtype.
 - Interpreter: `ta.rising` / `ta.falling` / `ta.highestbars` / `ta.lowestbars` no longer raise
   `TypeError: '>=' not supported between instances of 'NoneType' and 'NoneType'` when the
   series contains Pine `na` (e.g. VIDYA warmup on MA-STER). Unsafe `CommonIndicators`

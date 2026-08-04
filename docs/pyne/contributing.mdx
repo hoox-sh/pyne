@@ -112,6 +112,27 @@ python scripts/generate_builtin_metadata.py
 
 Do not hand-maintain the catalog long-term.
 
+### Interpret / compile parity
+
+When changing `backend.runtime.Runtime`, the compiler, or plot/series export, check **series parity** between `mode="interpret"` and `mode="compile"`:
+
+```bash
+# Local corpus harness (default 50 scripts × 1000 bars)
+python scripts/compare_interp_compile.py --bars 1000 --limit 50
+
+# Broader pass from a path list; ignore one-sided hline/fill keys
+python scripts/compare_interp_compile.py --file-list path.txt --limit 0 --workers 4 --timeout-sec 30 --ignore-hline-keys --ignore-fill-keys
+```
+
+Always-on unit coverage lives in `tests/test_interp_compile_parity.py` (harness helpers + a small smoke subset). Optional longer path:
+
+```bash
+pytest tests/test_interp_compile_parity.py -m interp_compile_full
+# or: PYNE_INTERP_COMPILE_FULL=1 pytest tests/test_interp_compile_parity.py
+```
+
+Report artifact: `.cache/interp_compile_parity.json`. Value mismatches on shared `series` keys are regressions; one-sided hline/fill keys are often structural residuals, not numeric bugs. End-user mode semantics: [Evaluate scripts — Runtime modes](/pyne/docs/enduser/guides/evaluate-scripts#runtime-modes-interpret--compile--auto).
+
 ### Secrets & crypto
 
 - `scripts/build/.metadata.key` is **gitignored**
@@ -128,6 +149,8 @@ Do not hand-maintain the catalog long-term.
 | CLI subcommand | `src/pynescript/__main__.py` |
 | Grammar | `resource/*.g4` then regenerate |
 | Pro API route | `backend/api/preview.py`, `backend/app.py` |
+| Runtime modes / compile fallback | `backend/runtime.py` (`run`, `_run_auto`, `_run_compiled`) |
+| Interp/compile series parity | `scripts/compare_interp_compile.py`, `tests/test_interp_compile_parity.py` |
 | TS port | `pine-worker/` |
 
 ## Style
@@ -150,6 +173,7 @@ Do not hand-maintain the catalog long-term.
 | Editing generated ANTLR/ASDL | Overwritten / review hell |
 | Skipping corpus cost awareness | 10-minute “unit” tests |
 | Hand-editing metadata JSON | Drift from dispatch |
+| Changing compile/export without parity check | Silent chart/series drift vs interpret |
 | Committing `.metadata.key` | Secret leak; rotate immediately |
 | PR without lint | CI red on ruff/mypy |
 

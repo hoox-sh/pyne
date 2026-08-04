@@ -1093,7 +1093,10 @@ def test_evaluator_ta_cci(expression, expected):
 @pytest.mark.parametrize(
     ("expression", "expected"),
     [
-        ("ta.roc([1, 2, 3, 4, 5], 2)", 100.0),
+        # Standard TV formula: 100 * (src - src[period]) / src[period]
+        # src[-1]=5, src[-(2+1)]=src[2]=3 → 100*(5-3)/3
+        ("ta.roc([1, 2, 3, 4, 5], 2)", 100.0 * (5 - 3) / 3),
+        ("ta.roc([10, 20, 30, 40], 1)", 100.0 * (40 - 30) / 30),
     ],
 )
 def test_evaluator_ta_roc(expression, expected):

@@ -14,7 +14,7 @@ Stack siblings:
 | Product | Website | Repo |
 |---------|---------|------|
 | **HOOX** | [hoox.sh](https://hoox.sh) | [hoox](https://github.com/jango-blockchained/hoox) |
-| **PYNE** (this repo) | [hoox.sh/pyne](https://hoox.sh/pyne) | [pyne](https://github.com/jango-blockchained/pyne) |
+| **PYNE** (this repo) | [hoox.sh/pyne](https://hoox.sh/pyne) | [pyne](https://github.com/hoox-sh/pyne) |
 | **AXIS** | [hoox.sh/axis](https://hoox.sh/axis) | [axis](https://github.com/jango-blockchained/axis) |
 
 ```bash

@@ -53,7 +53,7 @@ const OUT_DIR = path.join(DOCS, "exports")
 const CACHE = path.join(ROOT, ".cache", "docs-exports")
 const BRAND = path.join(DOCS, "assets", "brand")
 const SITE = "https://hoox.sh"
-const REPO = "https://github.com/jango-blockchained/pynescript"
+const REPO = "https://github.com/hoox-sh/pyne"
 
 const args = process.argv.slice(2)
 const onlyArg = args.find((a) => a.startsWith("--only="))?.split("=")[1] ?? "all"

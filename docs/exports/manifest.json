@@ -1,7 +1,7 @@
 {
   "generatedAt": "2026-08-03T09:12:47.706Z",
   "site": "https://hoox.sh",
-  "repository": "https://github.com/jango-blockchained/pynescript",
+  "repository": "https://github.com/hoox-sh/pyne",
   "products": {
     "pyne": {
       "name": "PYNE",

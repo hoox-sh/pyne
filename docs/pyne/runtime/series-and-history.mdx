@@ -75,6 +75,17 @@ Hosts expose OHLCV as objects with:
 
 Arithmetic in `ExpressionEvaluator` coerces such wrappers via `_as_scalar_operand` so `close + 1` does not attempt object addition.
 
+### Assigning host series (copy, not alias)
+
+Binding a **host** multi-bar series into a **new** name copies the current scalar into a fresh series for that name—it does **not** alias the underlying `open` / `high` / `low` / `close` / `volume` / `time` buffers:
+
+```pine
+last = time          // copy of current time into series `last`
+last := last + 1     // mutates only `last`, never the host `time` buffer
+```
+
+Implemented in `StatementEvaluator._bind_series_name`: if the RHS has `.current` / `.history` / `.update` (a host or tracked series), the RHS is reduced to its **current scalar** before allocating or updating the LHS series. Same-bar reassignment (`x = 0` then `x := expr`) overwrites the current sample so `x[1]` remains the previous bar’s final value. This prevents scripts such as dividend TTM time tracking from corrupting `time[j]` history when they rebind through a local.
+
 ### `var` / `varip` / `const`
 
 | Qualifier | Semantics in PYNE |
@@ -99,6 +110,20 @@ Nested `var` inside `if barstate.islast` or a function therefore initializes on 
 
 List-valued series apply operators element-wise, aligning on the **trailing edge** when lengths differ (pad leading `None`).
 
+### `ta.highestbars` / `ta.lowestbars` offsets
+
+These return a **bars-back offset** (not the extreme price):
+
+| Result | Meaning |
+| --- | --- |
+| `0` | Extreme is on the current bar |
+| `-1`, `-2`, … | Extreme is 1, 2, … bars ago (down to `-(length-1)`) |
+| `-1` sentinel (warm-up / invalid / all-`na`) | Short history (`bar_index+1 < length`), bad length, or no finite samples in the window |
+
+On ties, the **oldest** extreme in the window wins (leftmost bar). Interpret and Numba kernels share this contract (`_highestbars` / `numba_highestbars`).
+
+**History subscript interaction:** Pine history indices are non-negative (`series[n]` with \(n \ge 0\)). Negative indices soft-fail to `na` on interpret series wrappers so warm-up / auto-step-`-1` / `highestbars` misuse do not abort the bar loop. On the compile path, dynamic offsets are coerced float→int (NaN→0) and the computed array index is clamped to `[0, n)` so expressions like `high[-ta.highestbars(...)]` (future-looking form) soft-fail to `nan` near series end rather than raising.
+
 ### Bar mode vs full-series mode
 
 Technical helpers (`technical_submodules/core.py`) distinguish:
@@ -119,15 +144,16 @@ History buffers for indicators are truncated to a rolling window (`_SERIES_MAX =
 | `src/pynescript/ast/evaluator/builtins/utility.py` | `max_bars_back`, `last_bar_index`, `na` helpers |
 | `backend/runtime.py` | `PineSeries.update` per bar |
 
-Compile path: series are `np.full(n_bars, np.nan)` written at `__bar_idx`; history is `arr[__bar_idx - n]` (see [Compiler overview](/pyne/docs/runtime/compiler/overview)).
+Compile path: series are `np.full(n_bars, np.nan)` written at `__bar_idx`; history is `arr[__bar_idx - n]` with OOB → `np.nan` (see [Compiler overview](/pyne/docs/runtime/compiler/overview)). Host **`time_arr`** is a chronological `float64` vector of bar-open Unix ms (same length as OHLCV); bare `time` lowers to `time_arr[__bar_idx]`, and `time[n]` uses the same history indexing rules as `close[n]`. When the host omits bar times, `Runtime` synthesizes `i * 60_000` so length always matches—calendar / `time` scripts stay defined on both modes.
 
 ## Invariants & edge cases
 
-1. **Chronology of `.history`.** Most-recent-first; reverse when converting to chronological lists for `ta.*` / `array.*`.
-2. **No negative Pine indices.** Explicit error—different from Python lists.
+1. **Chronology of `.history`.** Most-recent-first; reverse when converting to chronological lists for `ta.*` / `array.*`. Compile arrays are chronological (index 0 = first bar).
+2. **No negative Pine indices.** Soft-fail to `na` / `nan` (not Python wraparound)—different from Python lists. See highestbars note above.
 3. **`None` vs `float('nan')`.** Interpreter prefers `None`; Numba kernels use `np.nan`. Cross-mode comparisons must normalize.
 4. **`max_bars_back`.** Declares intended depth; PYNE does not hard-cap OHLCV history the way a hosted chart might, but indicator helpers still bound rolling windows for cost.
 5. **Tuple returns from multi-value `ta.*`.** Unpacking `[a, b, c] = ta.macd(...)` uses `current` when it is a sequence of matching arity; otherwise history heuristics apply.
+6. **Host series assign is by value.** New names never share the host OHLCV/`time` buffer reference.
 
 ## Worked examples
 
@@ -165,11 +191,14 @@ Given two list series of different lengths, `a + b` aligns tails and pads the lo
 | All `na` after first bar | Host not updating series / `bar_index` between visits |
 | `var` re-inits every bar | Fresh evaluator or `reset_var_declarations` each bar incorrectly |
 | TypeError on `close + 1` | Series wrapper missing `.current` / not coerced |
-| Compile vs interpret plot mismatch | `nan` vs `None`, or seed differences in EMA/RSI kernels |
+| Compile vs interpret plot mismatch | `nan` vs `None`, or seed differences in EMA/RSI kernels — see [parity](/pyne/docs/runtime/compiler/parity) |
+| `time[j]` wrong after rebinding `last = time` | Expected only if host series were aliased; verify copy-on-assign path |
+| `highestbars` always `-1` | Warm-up (`bar_index+1 < length`) or all-`na` window |
 
 ## See also
 
 - [Expressions & statements](/pyne/docs/runtime/expressions-statements)
 - [Technical builtins](/pyne/docs/runtime/builtins/technical)
 - [Numba path](/pyne/docs/runtime/compiler/numba)
+- [Interpret ↔ compile parity](/pyne/docs/runtime/compiler/parity)
 - [Runtime hub](/pyne/docs/runtime)

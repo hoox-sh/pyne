@@ -76,7 +76,21 @@ Cache
   disable): writes generated modules under ``PYNE_COMPILE_CACHE_DIR`` or
   ``$XDG_CACHE_HOME/pynescript/compile`` so ``@numba.njit(cache=True)`` can
   reuse machine code across process restarts. :func:`clear_compile_cache`
-  clears in-process maps only; :func:`clear_disk_compile_cache` removes disk.
+  clears in-process maps only; :func:`clear_disk_compile_cache` removes disk
+  IR/index files (and that tree's ``__pycache__``).
+- **Numba function cache** (``.nbi`` / ``.nbc``): written next to
+  :mod:`pynescript.compiler.numba_builtins` under
+  ``…/compiler/__pycache__/`` and under the disk IR ``__pycache__/`` when
+  generated modules use ``@numba.njit(cache=True)``. Truncated/corrupt files
+  raise ``EOFError`` / ``pickle.UnpicklingError`` on load; the engine purges
+  those artifacts and recompiles instead of failing the script. Manual clear::
+
+      from pynescript.compiler import clear_numba_function_caches, clear_disk_compile_cache
+      clear_numba_function_caches()
+      clear_disk_compile_cache()
+      # or: rm -rf ~/.cache/pynescript/compile \\
+      #        src/pynescript/compiler/__pycache__/numba_builtins*.nb*
+
 - Host prewarm (default on via ``PYNE_COMPILE_PREWARM=1``): call
   :func:`prewarm_numba_builtins` / :func:`prewarm_scripts` or Pro API
   ``POST /compile/prewarm`` so the first user request is warm.
@@ -89,6 +103,7 @@ import importlib.util
 import json
 import logging
 import os
+import pickle
 import sys
 import tempfile
 from collections import OrderedDict
@@ -150,7 +165,9 @@ _IR_CACHE_MAX = 64
 _BUILTINS_WARMED = False
 
 # Disk index schema version (bump when metadata layout changes)
-_DISK_META_VERSION = 1
+# Bump when generated IR semantics change so source→IR disk index is invalidated
+# (source hash alone is stable across compiler fixes, e.g. fill() series keys).
+_DISK_META_VERSION = 2
 _NJIT_CACHE_FALSE = "@numba.njit(cache=False)"
 _NJIT_CACHE_TRUE = "@numba.njit(cache=True)"
 
@@ -177,8 +194,10 @@ def clear_compile_cache() -> None:
 def clear_disk_compile_cache() -> None:
     """Remove generated modules / source index under the disk cache directory.
 
-    Best-effort; missing directory is a no-op. Does not clear Numba's own
-    ``__pycache__`` outside this tree (those live beside written ``.py`` files).
+    Best-effort; missing directory is a no-op. Clears ``.py`` / ``.json`` and
+    that tree's ``__pycache__`` (including Numba ``.nbi``/``.nbc`` written for
+    disk IR modules). Does **not** clear :mod:`numba_builtins` function caches
+    outside this tree — use :func:`clear_numba_function_caches` for those.
     """
     try:
         root = _disk_cache_dir()
@@ -200,6 +219,110 @@ def clear_disk_compile_cache() -> None:
                 path.rmdir()
         except OSError as exc:
             _log.debug("disk cache unlink %s failed: %s", path, exc)
+
+
+def _numba_function_cache_dirs() -> list[Path]:
+    """Directories where Numba may write ``.nbi`` / ``.nbc`` for our JIT code."""
+    dirs: list[Path] = []
+    try:
+        # InTreeCacheLocator: …/compiler/__pycache__/numba_builtins.*.nb{i,c}
+        from pynescript.compiler import numba_builtins as nb
+
+        nb_path = getattr(nb, "__file__", None)
+        if nb_path:
+            dirs.append(Path(nb_path).resolve().parent / "__pycache__")
+    except Exception as exc:  # pragma: no cover
+        _log.debug("numba_builtins cache dir resolve failed: %s", exc)
+    try:
+        # Disk IR modules with @njit(cache=True) rewrite
+        dirs.append(_disk_cache_dir() / "__pycache__")
+    except Exception as exc:  # pragma: no cover
+        _log.debug("disk IR numba cache dir resolve failed: %s", exc)
+    # De-dupe while preserving order
+    seen: set[str] = set()
+    out: list[Path] = []
+    for d in dirs:
+        key = str(d)
+        if key not in seen:
+            seen.add(key)
+            out.append(d)
+    return out
+
+
+def clear_numba_function_caches() -> int:
+    """Remove Numba ``.nbi`` / ``.nbc`` function-cache files under known dirs.
+
+    Targets:
+
+    - ``…/pynescript/compiler/__pycache__/`` (``numba_builtins`` kernels with
+      ``@numba.njit(cache=True)``)
+    - ``~/.cache/pynescript/compile/__pycache__/`` (disk IR modules rewritten
+      to ``cache=True``)
+
+    Used for ops after code changes and by the engine when pickle load fails
+    with ``EOFError`` / ``UnpicklingError`` (truncated cache). Returns the
+    number of files unlinked (best-effort).
+    """
+    removed = 0
+    for cache_dir in _numba_function_cache_dirs():
+        if not cache_dir.is_dir():
+            continue
+        try:
+            children = list(cache_dir.iterdir())
+        except OSError as exc:
+            _log.debug("numba cache list %s failed: %s", cache_dir, exc)
+            continue
+        for path in children:
+            name = path.name
+            if not (name.endswith(".nbi") or name.endswith(".nbc")):
+                continue
+            try:
+                path.unlink(missing_ok=True)
+                removed += 1
+            except OSError as exc:
+                _log.debug("numba cache unlink %s failed: %s", path, exc)
+    return removed
+
+
+def _is_numba_cache_corruption(exc: BaseException) -> bool:
+    """True when *exc* looks like a truncated / unreadable Numba disk cache.
+
+    Numba loads ``.nbi``/``.nbc`` via pickle; incomplete files raise
+    ``EOFError: Ran out of input`` or ``pickle.UnpicklingError``.
+    """
+    if isinstance(exc, EOFError):
+        return True
+    if isinstance(exc, pickle.UnpicklingError):
+        return True
+    # Some wrappers re-raise as RuntimeError with the original message.
+    name = type(exc).__name__
+    if name in ("UnpicklingError", "EOFError"):
+        return True
+    msg = str(exc)
+    if "Ran out of input" in msg:
+        return True
+    if "pickle data was truncated" in msg:
+        return True
+    if "UnpicklingError" in msg and ("pickle" in msg.lower() or "truncated" in msg):
+        return True
+    return False
+
+
+def _call_with_numba_cache_recovery(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+    """Invoke *fn*; on Numba cache pickle failure, purge ``.nb*`` and retry once."""
+    try:
+        return fn(*args, **kwargs)
+    except Exception as exc:
+        if not _is_numba_cache_corruption(exc):
+            raise
+        n = clear_numba_function_caches()
+        _log.warning(
+            "corrupt Numba function cache (%s: %s); purged %d file(s) and recompiling",
+            type(exc).__name__,
+            exc,
+            n,
+        )
+        return fn(*args, **kwargs)
 
 
 def _env_truthy(name: str, default: str = "1") -> bool:
@@ -294,50 +417,58 @@ def _sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _run_common_numba_builtin_warm() -> None:
+    """Touch hot shared kernels once (may load Numba disk cache)."""
+    from pynescript.compiler import numba_builtins as nb
+
+    a = np.arange(32, dtype=np.float64)
+    h = a + 1.0
+    l = a - 1.0
+    st2 = np.full(2, np.nan)
+    st3 = np.full(3, np.nan)
+    st4 = np.full(4, np.nan)
+    st7 = np.full(7, np.nan)
+    raw = np.full(32, np.nan)
+    raw2 = np.full(32, np.nan)
+    for i in range(32):
+        nb.numba_sma_inc(a, 5, i, st2)
+        nb.numba_ema_inc(a, 5, i, st2.copy())
+        nb.numba_rma_inc(a, 5, i, st2.copy())
+        nb.numba_rsi_inc(a, 5, i, st3.copy())
+        nb.numba_stdev_inc(a, 5, i, st3.copy())
+        nb.numba_sum_inc(a, 5, i, st2.copy())
+        nb.numba_wma_inc(a, 5, i, st3.copy())
+        nb.numba_highest_inc(a, 5, i, st2.copy())
+        nb.numba_lowest_inc(a, 5, i, st2.copy())
+        nb.numba_atr_inc(h, l, a, 5, i, st2.copy())
+        nb.numba_bb_inc(a, 5, 2.0, i, st3.copy())
+        nb.numba_macd_inc(a, 3, 5, 2, i, st4.copy())
+        nb.numba_swma(a, i)
+        nb.numba_dema_inc(a, 5, i, st3.copy(), raw)
+        nb.numba_tema_inc(a, 5, i, st4.copy(), raw, raw2)
+        nb.numba_hma_inc(a, 9, i, st7.copy(), raw)
+        nb.numba_change(a, 1, i)
+        nb.numba_nz(float(i), 0.0)
+        nb.numba_crossover(a, l, i)
+        nb.numba_crossunder(a, h, i)
+
+
 def _warm_common_numba_builtins() -> None:
     """JIT-compile the hottest shared kernels once per process.
 
     Generated ``execute_script_compiled`` still JITs per IR, but first-touch
     cost of common ``*_inc`` kernels is paid only once when many distinct
     scripts share the same builtins.
+
+    On corrupt Numba ``.nbi``/``.nbc`` (EOFError / UnpicklingError), purges
+    known cache dirs and retries once so cold starts stay resilient.
     """
     global _BUILTINS_WARMED
     if _BUILTINS_WARMED or not _HAS_NUMBA:
         return
     _BUILTINS_WARMED = True
     try:
-        from pynescript.compiler import numba_builtins as nb
-
-        a = np.arange(32, dtype=np.float64)
-        h = a + 1.0
-        l = a - 1.0
-        st2 = np.full(2, np.nan)
-        st3 = np.full(3, np.nan)
-        st4 = np.full(4, np.nan)
-        st7 = np.full(7, np.nan)
-        raw = np.full(32, np.nan)
-        raw2 = np.full(32, np.nan)
-        for i in range(32):
-            nb.numba_sma_inc(a, 5, i, st2)
-            nb.numba_ema_inc(a, 5, i, st2.copy())
-            nb.numba_rma_inc(a, 5, i, st2.copy())
-            nb.numba_rsi_inc(a, 5, i, st3.copy())
-            nb.numba_stdev_inc(a, 5, i, st3.copy())
-            nb.numba_sum_inc(a, 5, i, st2.copy())
-            nb.numba_wma_inc(a, 5, i, st3.copy())
-            nb.numba_highest_inc(a, 5, i, st2.copy())
-            nb.numba_lowest_inc(a, 5, i, st2.copy())
-            nb.numba_atr_inc(h, l, a, 5, i, st2.copy())
-            nb.numba_bb_inc(a, 5, 2.0, i, st3.copy())
-            nb.numba_macd_inc(a, 3, 5, 2, i, st4.copy())
-            nb.numba_swma(a, i)
-            nb.numba_dema_inc(a, 5, i, st3.copy(), raw)
-            nb.numba_tema_inc(a, 5, i, st4.copy(), raw, raw2)
-            nb.numba_hma_inc(a, 9, i, st7.copy(), raw)
-            nb.numba_change(a, 1, i)
-            nb.numba_nz(float(i), 0.0)
-            nb.numba_crossover(a, l, i)
-            nb.numba_crossunder(a, h, i)
+        _call_with_numba_cache_recovery(_run_common_numba_builtin_warm)
     except Exception as exc:
         # Warm-up is best-effort; real compile path surfaces real errors.
         # Do not leave _BUILTINS_WARMED False forever on transient failure —
@@ -492,11 +623,16 @@ class CompiledScript:
         low: np.ndarray | list[float],
         close: np.ndarray | list[float],
         volume: np.ndarray | list[float] | None = None,
+        time: np.ndarray | list[float] | None = None,
     ) -> dict[str, Any]:
         """Execute over full series; returns plots (+ optional ``__drawings`` / strategy).
 
         Coerces inputs to float64, defaults volume to ones, validates equal lengths,
         then :meth:`_pack_result` on the raw ``execute`` return value.
+
+        *time* is bar-open Unix ms. When omitted, synthetic ``bar_index * 60_000``
+        is used (unit-test / pure-compile default). Runtime hosts should pass
+        real OHLCV timestamps for calendar/``timestamp``/``time[n]`` parity.
         """
         o = _as_f64(open_)
         h = _as_f64(high)
@@ -510,7 +646,15 @@ class CompiledScript:
         if not (len(o) == len(h) == len(l) == n == len(v)):
             msg = "OHLCV arrays must have the same length"
             raise ValueError(msg)
-        raw = self.execute(o, h, l, c, v)
+        if time is None:
+            t = np.arange(n, dtype=np.float64) * 60000.0
+        else:
+            t = _as_f64(time)
+            if len(t) != n:
+                msg = "time array must have the same length as OHLCV"
+                raise ValueError(msg)
+        # Recover from truncated Numba .nbi/.nbc left after code edits / crashes.
+        raw = _call_with_numba_cache_recovery(self.execute, o, h, l, c, v, t)
         return self._pack_result(raw)
 
     def _pack_result(self, raw: Any) -> dict[str, Any]:
@@ -636,7 +780,7 @@ def _transpile_once(
         msg = "CompilerVisitor produced empty code"
         raise CompileEmitError(msg)
     object_mode = bool(visitor.object_mode) or force_object_mode
-    titles = [p.get("title", f"Plot {i}") for i, p in enumerate(visitor.plots)]
+    titles = [p.get("title", f"plot_{i}") for i, p in enumerate(visitor.plots)]
     return code, titles, object_mode
 
 
@@ -911,10 +1055,19 @@ def _warm_numeric_or_fallback(
         return compiled, ir_key
 
     dummy = np.arange(16, dtype=np.float64)
+    dummy_t = dummy * 60000.0
     try:
-        compiled.execute(dummy, dummy, dummy, dummy, dummy)
+        # First call may load Numba disk cache for nested numba_builtins;
+        # recover from corrupt .nbi/.nbc instead of deferring EOFError to run.
+        _call_with_numba_cache_recovery(
+            compiled.execute, dummy, dummy, dummy, dummy, dummy, dummy_t
+        )
         return compiled, ir_key
     except Exception as exc:
+        if _is_numba_cache_corruption(exc):
+            # Recovery already retried once inside _call_with_numba_cache_recovery.
+            msg = f"Numba function cache load failed after purge: {exc}"
+            raise CompileLoadError(msg) from exc
         if not _is_numba_nopython_failure(exc):
             # Defer non-typing failures to first real run (dummy OHLCV may be
             # unrepresentative). Do not invent results.

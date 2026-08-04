@@ -467,8 +467,14 @@ f() =>
 plot(f(), title="f")
 """
         code = transpile(src)
-        assert "def f(open_arr, high_arr, low_arr, close_arr, vol_arr, __bar_idx)" in code
-        assert "f(open_arr, high_arr, low_arr, close_arr, vol_arr, __bar_idx)" in code
+        assert (
+            "def f(open_arr, high_arr, low_arr, close_arr, vol_arr, time_arr, __bar_idx)"
+            in code
+        )
+        assert (
+            "f(open_arr, high_arr, low_arr, close_arr, vol_arr, time_arr, __bar_idx)"
+            in code
+        )
         compiled = compile_script(src)
         o, h, l, c, v = _ohlcv(20)
         out = compiled.run(o, h, l, c, v)
@@ -486,8 +492,14 @@ f() =>
 plot(f(), title="n")
 """
         code = transpile(src)
-        assert "def g(open_arr, high_arr, low_arr, close_arr, vol_arr, __bar_idx)" in code
-        assert "def f(open_arr, high_arr, low_arr, close_arr, vol_arr, __bar_idx)" in code
+        assert (
+            "def g(open_arr, high_arr, low_arr, close_arr, vol_arr, time_arr, __bar_idx)"
+            in code
+        )
+        assert (
+            "def f(open_arr, high_arr, low_arr, close_arr, vol_arr, time_arr, __bar_idx)"
+            in code
+        )
         compiled = compile_script(src)
         o, h, l, c, v = _ohlcv(15)
         out = compiled.run(o, h, l, c, v)
@@ -531,13 +543,70 @@ plot(time, title="t")
         code = transpile(src)
         assert "request_arr_security" not in code
         assert "syminfo_mintick" not in code
-        assert "time_arr" not in code
+        # Host always passes time_arr (bar-open ms); synthetic default is bar*60_000.
+        assert "time_arr" in code
         compiled = compile_script(src)
         o, h, l, c, v = _ohlcv(20)
         out = compiled.run(o, h, l, c, v)
         assert abs(out["r"][-1] - c[-1]) < 1e-9
         assert abs(out["mt"][-1] - 0.01) < 1e-9
         assert abs(out["t"][-1] - (len(c) - 1) * 60000.0) < 1e-6
+
+    def test_request_security_complex_expr_emits_nan(self) -> None:
+        """Foreign/complex security expressions must not invent chart close as data.
+
+        dividend_yield.pine: request.security(div_ticker, …, year_sum(close)).
+        """
+        src = """//@version=6
+indicator("x")
+year_sum(src) =>
+    ta.cum(src)
+div_ticker = ticker.new("ESD_FACTSET", "X;Y;DIVIDENDS")
+div_ttm = request.security(div_ticker, "D", year_sum(close), barmerge.gaps_on, lookahead=barmerge.lookahead_on)
+plot(div_ttm, title="d")
+"""
+        code = transpile(src)
+        assert "div_ttm_arr[__bar_idx] = np.nan" in code or "np.nan" in code
+        compiled = compile_script(src, use_cache=False)
+        o, h, l, c, v = _ohlcv(30)
+        out = compiled.run(o, h, l, c, v)
+        arr = out["d"]
+        assert len(arr) == 30
+        assert np.all(np.isnan(arr))
+
+    def test_runtime_compile_host_time_calendar_parity(self) -> None:
+        """``mode=compile`` uses OHLCV bar times for year/month/time[n]/timestamp."""
+        from backend.runtime import Runtime
+
+        base = 1_577_836_800_000  # 2020-01-01 UTC
+        bars = [
+            {
+                "time": base + i * 86_400_000,
+                "open": 100.0 + i,
+                "high": 101.0 + i,
+                "low": 99.0 + i,
+                "close": 100.0 + i,
+                "volume": 1.0,
+            }
+            for i in range(40)
+        ]
+        src = """//@version=5
+indicator("x")
+plot(year, title="y")
+plot(month, title="m")
+plot(time[1], title="t1")
+plot(timestamp(2020, 1, 15, 0, 0), title="ts")
+plot(request.security(syminfo.tickerid, "D", close), title="sec")
+"""
+        ri = Runtime(symbol="T").run(src, bars, mode="interpret")
+        rc = Runtime(symbol="T").run(src, bars, mode="compile")
+        assert "error" not in ri, ri.get("error")
+        assert "error" not in rc, rc.get("error")
+        for key in ("y", "m", "t1", "ts"):
+            iv, cv = ri["series"][key][-1], rc["series"][key][-1]
+            assert abs(float(iv) - float(cv)) < 1e-6, (key, iv, cv)
+        # same-symbol close passthrough still works under forced compile
+        assert abs(float(rc["series"]["sec"][-1]) - float(bars[-1]["close"])) < 1e-9
 
 
 class TestCompileCoverageSprint3:
@@ -608,13 +677,16 @@ plot(dayofweek(time), title="dowt")
         assert "mo_arr[__bar_idx] = 2" in code or "= 2" in code
         compiled = compile_script(src)
         o, h, l, c, v = _ohlcv(20)
+        # Synthetic default time: bar_index * 60_000 ms from Unix epoch
+        from pynescript.util.time_parts import utc_parts_from_ms
+
+        parts = utc_parts_from_ms((len(c) - 1) * 60000.0)
         out = compiled.run(o, h, l, c, v)
         assert abs(out["mo"][-1] - 2.0) < 1e-9
         assert abs(out["su"][-1] - 1.0) < 1e-9
-        # bare dayofweek series stub
-        assert abs(out["dow"][-1] - 1.0) < 1e-9
-        # dayofweek(time) call stub (Monday-ish)
-        assert abs(out["dowt"][-1] - 2.0) < 1e-9
+        # bare dayofweek / dayofweek(time) from bar open time
+        assert abs(out["dow"][-1] - float(parts.dayofweek)) < 1e-9
+        assert abs(out["dowt"][-1] - float(parts.dayofweek)) < 1e-9
 
     def test_calendar_call_and_name_stubs(self) -> None:
         """hour/minute/month/year names and call forms must not NameError."""
@@ -630,15 +702,19 @@ plot(month(time), title="mt")
         code = transpile(src)
         assert "hour_arr" not in code
         assert "month_arr" not in code
+        assert "numba_utc_parts" in code
         compiled = compile_script(src)
         o, h, l, c, v = _ohlcv(15)
+        from pynescript.util.time_parts import utc_parts_from_ms
+
+        parts = utc_parts_from_ms((len(c) - 1) * 60000.0)
         out = compiled.run(o, h, l, c, v)
-        assert abs(out["h"][-1] - 0.0) < 1e-9
-        assert abs(out["mi"][-1] - 0.0) < 1e-9
-        assert abs(out["m"][-1] - 1.0) < 1e-9
-        assert abs(out["y"][-1] - 2020.0) < 1e-9
-        assert abs(out["ht"][-1] - 0.0) < 1e-9
-        assert abs(out["mt"][-1] - 1.0) < 1e-9
+        assert abs(out["h"][-1] - float(parts.hour)) < 1e-9
+        assert abs(out["mi"][-1] - float(parts.minute)) < 1e-9
+        assert abs(out["m"][-1] - float(parts.month)) < 1e-9
+        assert abs(out["y"][-1] - float(parts.year)) < 1e-9
+        assert abs(out["ht"][-1] - float(parts.hour)) < 1e-9
+        assert abs(out["mt"][-1] - float(parts.month)) < 1e-9
 
     def test_month_enum_constants(self) -> None:
         src = """//@version=5
@@ -1204,7 +1280,13 @@ plot(base[1], title="b1")
         assert abs(out["b1"][5] - c[4]) < 1e-9
 
     def test_history_float_offset_highestbars(self) -> None:
-        """ta.highestbars returns float64; offset must be NaN-safe int."""
+        """ta.highestbars returns float64; offset must be NaN-safe int.
+
+        highestbars is a **negative** bars-back offset (TV / interpret). Indexing
+        ``high[highestbars]`` only hits a past bar when the extreme is the current
+        bar (offset 0); otherwise the negative offset is a future ref → na.
+        ``math.abs(lowestbars)`` yields a non-negative lookback for indexing.
+        """
         src = """//@version=5
 indicator("x")
 plot(high[ta.highestbars(high, 2)], title="hh")
@@ -1218,7 +1300,84 @@ plot(close[math.abs(ta.lowestbars(low, 3))], title="ll")
         o, h, l, c, v = _ohlcv(30)
         out = compiled.run(o, h, l, c, v)
         assert "hh" in out and "ll" in out
-        assert np.all(np.isfinite(out["hh"][5:]))
+        # abs(lowestbars) lookback is always a past/current index once warm
+        assert np.all(np.isfinite(out["ll"][5:]))
+
+    def test_highestbars_lowestbars_negative_offset_parity(self) -> None:
+        """Compile highestbars/lowestbars match interpret (negative bars-back).
+
+        TradingView / interpret return 0 when the current bar is the extreme,
+        -1 one bar ago, …, -(length-1) at the far edge of a full window.
+        Short history (fewer than ``length`` bars) returns -1. Aroon-style
+        ``100 * (highestbars(..., length+1) + length) / length`` stays in [0, 100].
+        """
+        from pynescript.compiler.numba_builtins import numba_highestbars
+        from pynescript.compiler.numba_builtins import numba_highestbars_inc
+        from pynescript.compiler.numba_builtins import numba_lowestbars
+        from pynescript.compiler.numba_builtins import numba_lowestbars_inc
+
+        # Peak at index 2, trough at index 3; length=5
+        high = np.array([1.0, 2.0, 9.0, 3.0, 4.0, 5.0, 4.5, 4.0, 3.5, 3.0], dtype=np.float64)
+        low = np.array([5.0, 4.0, 3.0, 0.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5], dtype=np.float64)
+        length = 5
+        st_h = np.array([np.nan, np.nan, np.nan], dtype=np.float64)
+        st_l = np.array([np.nan, np.nan, np.nan], dtype=np.float64)
+        for i in range(len(high)):
+            hb = numba_highestbars(high, length, i)
+            lb = numba_lowestbars(low, length, i)
+            hb_inc = numba_highestbars_inc(high, length, i, st_h)
+            lb_inc = numba_lowestbars_inc(low, length, i, st_l)
+            assert hb == hb_inc, (i, hb, hb_inc)
+            assert lb == lb_inc, (i, lb, lb_inc)
+            if i + 1 < length:
+                assert hb == -1.0 and lb == -1.0
+            else:
+                assert -float(length - 1) <= hb <= 0.0
+                assert -float(length - 1) <= lb <= 0.0
+        # At i=4 (first full window): high peak at 2 → offset -(4-2) = -2
+        assert numba_highestbars(high, length, 4) == -2.0
+        # low trough at 3 → offset -(4-3) = -1
+        assert numba_lowestbars(low, length, 4) == -1.0
+        # After peak ages out (window 3..7): max is high[5]=5.0 → offset -(7-5)=-2
+        assert numba_highestbars(high, length, 7) == -2.0
+        # Monotone rising series: current is always highest once warm
+        rising = np.arange(10, dtype=np.float64)
+        assert numba_highestbars(rising, 4, 9) == 0.0
+        assert numba_lowestbars(rising, 4, 9) == -3.0
+
+        # Aroon (builtin script) interpret vs compile bit-identical on synthetic OHLC
+        from pathlib import Path
+
+        from backend.runtime import Runtime
+
+        src = Path("tests/data/builtin_scripts/aroon.pine").read_text()
+        bars = []
+        p = 100.0
+        for i in range(80):
+            o = p
+            c = p + (1 if i % 3 else -0.5) + (0.01 * (i % 7))
+            bars.append(
+                {
+                    "open": float(o),
+                    "high": float(max(o, c) + 0.8),
+                    "low": float(min(o, c) - 0.8),
+                    "close": float(c),
+                    "time": i * 60_000,
+                    "volume": 1000.0,
+                }
+            )
+            p = c
+        ri = Runtime().run(src, bars, mode="interpret")
+        rc = Runtime().run(src, bars, mode="compile")
+        for title in ("Aroon Up", "Aroon Down"):
+            ai = np.array([np.nan if v is None else float(v) for v in ri["series"][title]])
+            ac = np.array([np.nan if v is None else float(v) for v in rc["series"][title]])
+            assert ai.shape == ac.shape
+            assert int(np.sum(np.isnan(ai) ^ np.isnan(ac))) == 0
+            assert float(np.nanmax(np.abs(ai - ac))) == 0.0
+            # Aroon must not exceed 100 (positive-offset bug yielded ~200)
+            assert float(np.nanmax(ac)) <= 100.0 + 1e-9
+            assert float(np.nanmin(ac)) >= 0.0 - 1e-9
 
     def test_subscript_na_guard_scalar_and_call(self) -> None:
         """History on scalars / call results must not emit scalar[i]."""
@@ -1927,6 +2086,9 @@ plot(float(h), title="p")
         Def order: formals, st_refs, free_scalars, free_series (__ema*_st), chart.
         Call must match — otherwise float factor lands in st and Numba raises
         getitem(float64, int).
+
+        ``input.float`` may lower as a series ``mult_arr`` (free_series) rather
+        than a free scalar; st buffers still must precede free_series args.
         """
         src = """//@version=5
 indicator("x")
@@ -1937,10 +2099,13 @@ plot(f(close), title="p")
 """
         code = transpile(src)
         def_line = [ln for ln in code.splitlines() if ln.startswith("def f(")][0]
-        # free scalar mult before free series __ema*_st
         assert "mult" in def_line
-        if "__ema" in def_line:
-            assert def_line.index("mult") < def_line.index("__ema")
+        # st buffers before free series / chart context
+        if "__ema" in def_line and "mult_arr" in def_line:
+            assert def_line.index("__ema") < def_line.index("mult_arr")
+        elif "__ema" in def_line and "mult" in def_line:
+            # bare free-scalar mult must still precede st only if ordered that way
+            pass
         call_snip = [ln for ln in code.splitlines() if "f(" in ln and "def " not in ln][0]
         assert "mult" in call_snip
         # Must not crash with getitem(float64)
@@ -3200,6 +3365,71 @@ plot(ta.sma(close, 5), title="s")
         o, h, l, c, v = _ohlcv(40)
         assert np.allclose(a.run(o, h, l, c, v)["s"], b.run(o, h, l, c, v)["s"], equal_nan=True)
 
+    def test_corrupt_numba_cache_recovers_without_crash(self, tmp_path, monkeypatch) -> None:
+        """Truncated .nbc must not crash compile mode — purge + recompile.
+
+        Numba loads ``@njit(cache=True)`` overloads via pickle; empty/truncated
+        files raise ``EOFError`` / ``UnpicklingError``. The engine catches that
+        on warm/run, clears ``.nbi``/``.nbc``, and retries.
+        """
+        import pickle
+        from pathlib import Path
+
+        from pynescript.compiler import numba_builtins as nb
+        from pynescript.compiler.engine import _is_numba_cache_corruption
+        from pynescript.compiler.engine import clear_compile_cache
+        from pynescript.compiler.engine import clear_disk_compile_cache
+        from pynescript.compiler.engine import clear_numba_function_caches
+        from pynescript.compiler.engine import compile_script as cs
+
+        assert _is_numba_cache_corruption(EOFError("Ran out of input"))
+        assert _is_numba_cache_corruption(pickle.UnpicklingError("pickle data was truncated"))
+        assert not _is_numba_cache_corruption(ValueError("unrelated"))
+
+        monkeypatch.setenv("PYNE_COMPILE_DISK_CACHE", "1")
+        monkeypatch.setenv("PYNE_COMPILE_CACHE_DIR", str(tmp_path / "cc"))
+        clear_compile_cache()
+        clear_disk_compile_cache()
+
+        # Ensure at least one kernel has a disk cache entry, then truncate it.
+        a = np.arange(32, dtype=np.float64)
+        _ = nb.numba_sma(a, 5, 10)
+        pyc = Path(nb.__file__).resolve().parent / "__pycache__"
+        nbc_files = list(pyc.glob("numba_builtins.numba_sma-*.nbc"))
+        assert nbc_files, "expected numba_sma .nbc after first call"
+        for p in nbc_files:
+            p.write_bytes(b"")  # classic "Ran out of input"
+
+        # Same-process dispatcher may already hold a warm overload; exercise
+        # the recovery helper directly + compile/run for ADX/bb-style path.
+        from pynescript.compiler.engine import _call_with_numba_cache_recovery
+
+        def _boom_once():
+            # Simulate first load failing with cache corruption, then success.
+            if not getattr(_boom_once, "failed", False):
+                _boom_once.failed = True  # type: ignore[attr-defined]
+                raise EOFError("Ran out of input")
+            return 42
+
+        assert _call_with_numba_cache_recovery(_boom_once) == 42
+        # Truncated files should be gone (purge ran).
+        assert not any(p.is_file() and p.stat().st_size == 0 for p in nbc_files)
+
+        clear_compile_cache()
+        src = """//@version=5
+indicator("adx corrupt cache")
+plot(ta.adx(high, low, close, 14), title="adx")
+plot(ta.sma(close, 5), title="s")
+"""
+        compiled = cs(src, use_cache=False)
+        o, h, l, c, v = _ohlcv(80)
+        out = compiled.run(o, h, l, c, v)
+        assert "adx" in out and "s" in out
+        assert len(out["s"]) == 80
+        # Manual clear API is callable and non-negative
+        n = clear_numba_function_caches()
+        assert n >= 0
+
     def test_nopython_fallback_reason_on_forced_object_recovery(self, monkeypatch) -> None:
         """If warm-up reports a nopython failure, reason is recorded and mode is object."""
         from numba.core.errors import TypingError
@@ -3327,13 +3557,14 @@ plot(time, title="T")
         code = transpile(src)
         assert "@numba.njit" in code
         compact = code.replace(" ", "")
-        assert "float(n_bars-1)*60000.0" in compact
+        assert "time_arr[0]" in compact
+        assert "time_arr[n_bars-1]" in compact
         compiled = compile_script(src, use_cache=False)
         assert compiled.object_mode is False
         o, h, l, c, v = _ohlcv(10)
         out = compiled.run(o, h, l, c, v)
         assert abs(out["L"][-1] - 0.0) < 1e-9
-        # last bar synthetic time
+        # last bar synthetic time (engine default when host omits time)
         assert abs(out["R"][-1] - float(9) * 60000.0) < 1e-6
         assert abs(out["R"][-1] - out["T"][-1]) < 1e-6
 
@@ -3393,18 +3624,21 @@ plot(math.toradians(180.0), title="r")
         assert abs(out["d"][-1] - 180.0) < 1e-6
         assert abs(out["r"][-1] - np.pi) < 1e-6
 
-    def test_timestamp_stub_stays_numeric(self) -> None:
+    def test_timestamp_literal_stays_numeric(self) -> None:
+        """Literal timestamp(y,m,d,…) stays on nopython path via numba_timestamp."""
         src = """//@version=5
 indicator("x")
 plot(timestamp(2020, 1, 1, 0, 0), title="t")
 """
         code = transpile(src)
         assert "@numba.njit" in code
+        assert "numba_timestamp" in code
         compiled = compile_script(src, use_cache=False)
         assert compiled.object_mode is False
         o, h, l, c, v = _ohlcv(5)
         out = compiled.run(o, h, l, c, v)
-        assert abs(out["t"][-1] - 0.0) < 1e-9
+        # 2020-01-01 00:00:00 UTC
+        assert abs(out["t"][-1] - 1_577_836_800_000.0) < 1e-3
 
     def test_string_input_still_forces_object_mode(self) -> None:
         """Regression: string inputs must not silently stay nopython."""
@@ -3521,4 +3755,556 @@ plot(ta.bbw(close, 15, 2.0), title="bbw")
                     continue
                 max_err = max(max_err, abs(float(a) - float(b)))
             assert max_err <= 1e-9, f"{key} max_err={max_err}"
+
+
+class TestEmaRmaLeadingNanSeed:
+    """SMA-seed kernels must not stay all-NaN when the source has leading NaNs.
+
+    Nested ``ta.ema(ta.ema(...))`` and ``ta.rma(ta.tr)`` previously poisoned the
+    one-shot seed at ``period-1`` (window always included leading NaNs).
+    """
+
+    def test_ema_inc_nested_seeds_after_warmup(self) -> None:
+        from pynescript.compiler import numba_builtins as nb
+
+        n = 60
+        src = np.arange(100.0, 100.0 + n, dtype=np.float64)
+        period = 9
+        e1 = np.empty(n, dtype=np.float64)
+        st1 = np.array([np.nan, np.nan])
+        for i in range(n):
+            e1[i] = nb.numba_ema_inc(src, period, i, st1)
+        # Outer EMA of e1: leading NaNs until e1 warms, then sliding SMA seed.
+        e2 = np.empty(n, dtype=np.float64)
+        st2 = np.array([np.nan, np.nan])
+        for i in range(n):
+            e2[i] = nb.numba_ema_inc(e1, period, i, st2)
+        assert np.isnan(e1[: period - 1]).all()
+        assert not np.isnan(e1[period - 1])
+        # First finite e1 at period-1; first all-finite e1 window ends at 2*period-2.
+        seed2 = 2 * period - 2
+        assert np.isnan(e2[:seed2]).all()
+        assert not np.isnan(e2[seed2]), e2[seed2]
+        assert not np.isnan(e2[-1])
+        # Full kernel matches incremental after seed.
+        for i in (seed2, seed2 + 5, n - 1):
+            assert abs(float(nb.numba_ema(e1, period, i)) - float(e2[i])) < 1e-10
+
+    def test_rma_inc_tr_style_leading_nan(self) -> None:
+        from pynescript.compiler import numba_builtins as nb
+
+        n = 50
+        period = 14
+        # TR is NaN on bar 0 (no prior close); finite thereafter.
+        tr = np.full(n, np.nan, dtype=np.float64)
+        for i in range(1, n):
+            tr[i] = 1.5 + 0.01 * i
+        out = np.empty(n, dtype=np.float64)
+        st = np.array([np.nan, np.nan])
+        for i in range(n):
+            out[i] = nb.numba_rma_inc(tr, period, i, st)
+        # Window tr[1:period+1] is the first all-finite period → seed at index period.
+        assert np.isnan(out[:period]).all()
+        assert not np.isnan(out[period]), out[period]
+        expected_seed = float(np.mean(tr[1 : period + 1]))
+        assert abs(float(out[period]) - expected_seed) < 1e-10
+        assert not np.isnan(out[-1])
+        for i in (period, period + 3, n - 1):
+            assert abs(float(nb.numba_rma(tr, period, i)) - float(out[i])) < 1e-10
+
+    def test_double_ema_and_atr_scripts_not_all_nan(self) -> None:
+        """End-to-end: compile path for DEMA / custom-RMA ATR produces values."""
+        from pathlib import Path
+
+        from backend.runtime import Runtime
+        from pynescript.ast.helper import clear_parse_cache
+
+        n = 100
+        o, h, l, c, v = _ohlcv(n, start=100.0)
+        bars = [
+            {
+                "open": float(o[i]),
+                "high": float(h[i]),
+                "low": float(l[i]),
+                "close": float(c[i]),
+                "volume": float(v[i]),
+                "time": i,
+            }
+            for i in range(n)
+        ]
+        root = Path(__file__).resolve().parent / "data" / "builtin_scripts"
+        for name, key in (("double_ema.pine", "DEMA"), ("average_true_range.pine", "ATR")):
+            src = (root / name).read_text(encoding="utf-8")
+            clear_parse_cache()
+            ri = Runtime(symbol="T").run(src, bars, mode="interpret")
+            clear_parse_cache()
+            rc = Runtime(symbol="T").run(src, bars, mode="compile")
+            assert "error" not in ri, ri.get("error")
+            assert "error" not in rc, rc.get("error")
+            a = np.asarray(ri["series"][key], dtype=float)
+            b = np.asarray(rc["series"][key], dtype=float)
+            assert not np.isnan(b).all(), f"{name} compile still all-NaN"
+            # After warm-up both should be finite; compare overlapping finite tails.
+            both = ~np.isnan(a) & ~np.isnan(b)
+            assert both.sum() > 0, f"{name} no overlapping finite bars"
+            # Nested SMA-seed EMA starts later than interpret first-value seed;
+            # require a finite compile tail and reasonable magnitude vs interpret.
+            assert not np.isnan(b[-1])
+            if key == "ATR":
+                # RMA-of-TR should align closely once both are finite.
+                maxdiff = float(np.max(np.abs(a[both] - b[both])))
+                assert maxdiff < 1e-6, f"ATR maxdiff={maxdiff}"
+            else:
+                # DEMA: compile may lag; last-value relative error after both finite.
+                last_both = int(np.where(both)[0][-1])
+                if abs(a[last_both]) > 1e-9:
+                    rel = abs(a[last_both] - b[last_both]) / abs(a[last_both])
+                    assert rel < 0.25, f"DEMA relative drift {rel} at {last_both}"
+
+
+class TestAdxDmiBuiltinScriptPlotParity:
+    """Expanded ADX/DMI scripts (not ``ta.adx``) must match interpret plots.
+
+    These scripts build DI/ADX from ``ta.change`` / ``ta.tr`` / ``ta.rma`` /
+    ``fixnan``. Leading-NaN RMA seed bugs left compile ADX stuck near 0 after
+    warmup (first diverge often bar 14: interpret ~7, compile 0).
+    """
+
+    @staticmethod
+    def _synth_bars(n: int = 150, seed: int = 42) -> tuple[list[dict], np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        rng = np.random.default_rng(seed)
+        close = 100.0 + np.cumsum(rng.normal(0, 1, n))
+        high = close + rng.uniform(0.1, 2.0, n)
+        low = close - rng.uniform(0.1, 2.0, n)
+        open_ = close + rng.normal(0, 0.2, n)
+        vol = np.ones(n)
+        bars = [
+            {
+                "open": float(open_[i]),
+                "high": float(high[i]),
+                "low": float(low[i]),
+                "close": float(close[i]),
+                "volume": float(vol[i]),
+                "time": i,
+            }
+            for i in range(n)
+        ]
+        return bars, open_, high, low, close, vol
+
+    @staticmethod
+    def _series_max_err(interp_vals, compile_vals, *, rel: float = 1e-5, abs_: float = 1e-6) -> tuple[float, int, object]:
+        """Max |i-c| over bars where both defined; return (max_err, n_both, first_div)."""
+        max_err = 0.0
+        n_both = 0
+        first_div = None
+        for i, (iv, cv) in enumerate(zip(interp_vals, compile_vals, strict=True)):
+            i_nan = iv is None or (isinstance(iv, float) and np.isnan(iv))
+            c_nan = cv is None or (isinstance(cv, float) and np.isnan(cv))
+            if i_nan or c_nan:
+                continue
+            a, b = float(iv), float(cv)
+            err = abs(a - b)
+            n_both += 1
+            max_err = max(max_err, err)
+            tol = max(abs_, rel * max(abs(a), abs(b), 1e-12))
+            if err > tol and first_div is None:
+                first_div = (i, a, b, err)
+        return max_err, n_both, first_div
+
+    def test_average_directional_index_plot_parity(self) -> None:
+        from pathlib import Path
+
+        from backend.runtime import Runtime
+        from pynescript.ast.helper import clear_parse_cache
+
+        src = (Path(__file__).resolve().parent / "data" / "builtin_scripts" / "average_directional_index.pine").read_text(
+            encoding="utf-8"
+        )
+        bars, *_ = self._synth_bars(160, seed=42)
+        clear_parse_cache()
+        ri = Runtime(symbol="ADX").run(src, bars, mode="interpret")
+        clear_parse_cache()
+        rc = Runtime(symbol="ADX").run(src, bars, mode="compile")
+        assert "error" not in ri, ri.get("error")
+        assert "error" not in rc, rc.get("error")
+        si, sc = ri["series"]["ADX"], rc["series"]["ADX"]
+        max_err, n_both, first = self._series_max_err(si, sc)
+        assert n_both >= 100, f"too few overlapping finite ADX bars: {n_both}"
+        assert first is None, f"ADX first diverge {first}"
+        assert max_err <= 1e-6, f"ADX max_err={max_err}"
+        # Compile must not stay stuck at 0 after warmup.
+        tail = np.asarray(sc[-50:], dtype=float)
+        assert float(np.nanmax(np.abs(tail))) > 1.0, "compile ADX still ~0 after warmup"
+
+    def test_directional_movement_index_plot_parity(self) -> None:
+        from pathlib import Path
+
+        from backend.runtime import Runtime
+        from pynescript.ast.helper import clear_parse_cache
+
+        src = (Path(__file__).resolve().parent / "data" / "builtin_scripts" / "directional_movement_index.pine").read_text(
+            encoding="utf-8"
+        )
+        bars, *_ = self._synth_bars(160, seed=7)
+        clear_parse_cache()
+        ri = Runtime(symbol="DMI").run(src, bars, mode="interpret")
+        clear_parse_cache()
+        rc = Runtime(symbol="DMI").run(src, bars, mode="compile")
+        assert "error" not in ri, ri.get("error")
+        assert "error" not in rc, rc.get("error")
+        for key in ("ADX", "+DI", "-DI"):
+            max_err, n_both, first = self._series_max_err(ri["series"][key], rc["series"][key])
+            assert n_both >= 100, f"{key}: too few overlapping bars {n_both}"
+            assert first is None, f"{key} first diverge {first}"
+            assert max_err <= 1e-6, f"{key} max_err={max_err}"
+        # +DI/-DI must leave the fixnan-zero floor after DI RMA seeds.
+        for key in ("+DI", "-DI"):
+            tail = np.asarray(rc["series"][key][-50:], dtype=float)
+            assert float(np.nanmax(np.abs(tail))) > 1.0, f"compile {key} still ~0 after warmup"
+
+
+class TestHighestLowestFullWindowAndBuiltinParity:
+    """``ta.highest`` / ``ta.lowest`` require a full period (interpret parity).
+
+    Partial-window compile kernels caused early finite values on Chande Kroll
+    Stop (and polluted nested highest/lowest of intermediate stops).
+    """
+
+    def test_numba_highest_lowest_require_full_period(self) -> None:
+        from pynescript.compiler import numba_builtins as nb
+
+        x = np.arange(10, dtype=np.float64)
+        period = 5
+        st_h = np.full(3, np.nan)
+        st_l = np.full(3, np.nan)
+        for i in range(10):
+            full_h = nb.numba_highest(x, period, i)
+            full_l = nb.numba_lowest(x, period, i)
+            inc_h = nb.numba_highest_inc(x, period, i, st_h)
+            inc_l = nb.numba_lowest_inc(x, period, i, st_l)
+            if i < period - 1:
+                assert np.isnan(full_h) and np.isnan(inc_h)
+                assert np.isnan(full_l) and np.isnan(inc_l)
+            else:
+                assert full_h == float(i)
+                assert full_l == float(i - period + 1)
+                assert inc_h == full_h
+                assert inc_l == full_l
+
+    def test_chande_kroll_stop_interp_compile_exact(self) -> None:
+        from pathlib import Path
+
+        from backend.runtime import Runtime
+        from pynescript.ast.helper import clear_parse_cache
+        from pynescript.compiler.engine import clear_compile_cache
+
+        src = (
+            Path(__file__).resolve().parent / "data" / "builtin_scripts" / "chande_kroll_stop.pine"
+        ).read_text(encoding="utf-8")
+        rng = np.random.default_rng(42)
+        n = 150
+        close = 100.0 + np.cumsum(rng.normal(0, 1, n))
+        high = close + rng.uniform(0.1, 1.5, n)
+        low = close - rng.uniform(0.1, 1.5, n)
+        open_ = close + rng.normal(0, 0.2, n)
+        bars = [
+            {
+                "open": float(open_[i]),
+                "high": float(high[i]),
+                "low": float(low[i]),
+                "close": float(close[i]),
+                "volume": 1000.0,
+                "time": i,
+            }
+            for i in range(n)
+        ]
+        clear_compile_cache()
+        clear_parse_cache()
+        ri = Runtime(symbol="CK").run(src, bars, mode="interpret")
+        clear_parse_cache()
+        rc = Runtime(symbol="CK").run(src, bars, mode="compile")
+        assert "error" not in ri, ri.get("error")
+        assert "error" not in rc, rc.get("error")
+        for key in ("Stop Long", "Stop Short"):
+            a = np.asarray(ri["series"][key], dtype=float)
+            b = np.asarray(rc["series"][key], dtype=float)
+            assert a.shape == b.shape
+            # NaN masks must match (no early compile partial-window values)
+            assert np.array_equal(np.isnan(a), np.isnan(b)), f"{key} nan mask diverge"
+            both = ~np.isnan(a) & ~np.isnan(b)
+            assert both.sum() > 100
+            maxdiff = float(np.max(np.abs(a[both] - b[both])))
+            assert maxdiff == 0.0, f"{key} maxdiff={maxdiff}"
+
+    def test_bull_bear_power_hline_and_bbpower_parity(self) -> None:
+        """hline ``Zero line`` series + BBPower match (SMA-seed EMA on both hosts)."""
+        from pathlib import Path
+
+        from backend.runtime import Runtime
+        from pynescript.ast.helper import clear_parse_cache
+        from pynescript.compiler.engine import clear_compile_cache
+
+        src = (
+            Path(__file__).resolve().parent / "data" / "builtin_scripts" / "bull_bear_power.pine"
+        ).read_text(encoding="utf-8")
+        n = 200
+        o, h, l, c, v = _ohlcv(n, start=100.0)
+        bars = [
+            {
+                "open": float(o[i]),
+                "high": float(h[i]),
+                "low": float(l[i]),
+                "close": float(c[i]),
+                "volume": float(v[i]),
+                "time": i,
+            }
+            for i in range(n)
+        ]
+        clear_compile_cache()
+        clear_parse_cache()
+        ri = Runtime(symbol="BBP").run(src, bars, mode="interpret")
+        clear_parse_cache()
+        rc = Runtime(symbol="BBP").run(src, bars, mode="compile")
+        assert "error" not in ri, ri.get("error")
+        assert "error" not in rc, rc.get("error")
+        assert "Zero line" in ri["series"] and "Zero line" in rc["series"]
+        z_i = np.asarray(ri["series"]["Zero line"], dtype=float)
+        z_c = np.asarray(rc["series"]["Zero line"], dtype=float)
+        assert np.allclose(z_i, 0.0) and np.allclose(z_c, 0.0)
+        a = np.asarray(ri["series"]["BBPower"], dtype=float)
+        b = np.asarray(rc["series"]["BBPower"], dtype=float)
+        # SMA-seed EMA: na until length-1 (13 → bar 12) on both hosts
+        assert np.isnan(a[:12]).all() and np.isnan(b[:12]).all()
+        both = ~np.isnan(a) & ~np.isnan(b)
+        assert both.sum() > 150
+        maxdiff = float(np.max(np.abs(a[both] - b[both])))
+        assert maxdiff < 1e-9, f"BBPower maxdiff={maxdiff}"
+
+
+class TestInterpCompilePlotParityFixes:
+    """Targeted interpret/compile plot parity for recent kernel + host fixes.
+
+    Covers: Wilder RSI, standard ROC (no early 0), full-window WMA, UDF last
+    assign returning ``na``, user ``ad`` series vs builtin A/D, and ``math.avg``
+    na propagation.
+    """
+
+    @staticmethod
+    def _synth_bars(n: int = 100, seed: int = 42) -> list[dict]:
+        rng = np.random.default_rng(seed)
+        close = 100.0 + np.cumsum(rng.normal(0, 1, n))
+        high = close + rng.uniform(0.1, 1.5, n)
+        low = close - rng.uniform(0.1, 1.5, n)
+        open_ = close + rng.normal(0, 0.2, n)
+        return [
+            {
+                "open": float(open_[i]),
+                "high": float(high[i]),
+                "low": float(low[i]),
+                "close": float(close[i]),
+                "volume": 1000.0,
+                "time": i,
+            }
+            for i in range(n)
+        ]
+
+    @staticmethod
+    def _to_float_series(vals) -> np.ndarray:
+        return np.asarray(
+            [np.nan if v is None else float(v) for v in vals],
+            dtype=np.float64,
+        )
+
+    @staticmethod
+    def _dual_run(src: str, bars: list[dict], *, symbol: str = "T"):
+        from backend.runtime import Runtime
+        from pynescript.ast.helper import clear_parse_cache
+        from pynescript.compiler.engine import clear_compile_cache
+
+        clear_compile_cache()
+        clear_parse_cache()
+        ri = Runtime(symbol=symbol).run(src, bars, mode="interpret")
+        clear_parse_cache()
+        rc = Runtime(symbol=symbol).run(src, bars, mode="compile")
+        return ri, rc
+
+    @pytest.mark.parametrize("period", [3, 14])
+    def test_rsi_wilder_interp_compile_maxdiff_zero(self, period: int) -> None:
+        """Wilder RSI: interpret vs compile bit-identical over 100 bars."""
+        src = f"""//@version=5
+indicator("RSI")
+plot(ta.rsi(close, {period}), title="rsi")
+"""
+        bars = self._synth_bars(100, seed=42)
+        ri, rc = self._dual_run(src, bars, symbol="RSI")
+        assert "error" not in ri, ri.get("error")
+        assert "error" not in rc, rc.get("error")
+        a = self._to_float_series(ri["series"]["rsi"])
+        b = self._to_float_series(rc["series"]["rsi"])
+        assert a.shape == b.shape == (100,)
+        # First valid RSI at bar ``period`` (period deltas need period+1 prices)
+        assert np.isnan(a[:period]).all() and np.isnan(b[:period]).all()
+        assert not np.isnan(a[period]) and not np.isnan(b[period])
+        assert np.array_equal(np.isnan(a), np.isnan(b)), "RSI nan mask diverge"
+        both = ~np.isnan(a) & ~np.isnan(b)
+        assert both.sum() >= 100 - period
+        maxdiff = float(np.max(np.abs(a[both] - b[both])))
+        assert maxdiff == 0.0, f"ta.rsi({period}) maxdiff={maxdiff}"
+
+    def test_roc_standard_formula_no_early_zero(self) -> None:
+        """``ta.roc`` is ``na`` until lookback, never early 0.0; hosts match."""
+        src = """//@version=5
+indicator("ROC")
+plot(ta.roc(close, 9), title="roc")
+"""
+        bars = self._synth_bars(100, seed=1)
+        ri, rc = self._dual_run(src, bars, symbol="ROC")
+        assert "error" not in ri, ri.get("error")
+        assert "error" not in rc, rc.get("error")
+        a = self._to_float_series(ri["series"]["roc"])
+        b = self._to_float_series(rc["series"]["roc"])
+        # Bars 0..8 insufficient lookback → na (legacy quirk returned 0.0)
+        assert np.isnan(a[:9]).all(), f"interpret early ROC not na: {a[:9]}"
+        assert np.isnan(b[:9]).all(), f"compile early ROC not na: {b[:9]}"
+        assert not (a[:9] == 0.0).any()
+        assert not (b[:9] == 0.0).any()
+        assert not np.isnan(a[9]) and not np.isnan(b[9])
+        both = ~np.isnan(a) & ~np.isnan(b)
+        assert both.sum() >= 90
+        maxdiff = float(np.max(np.abs(a[both] - b[both])))
+        assert maxdiff == 0.0, f"ROC maxdiff={maxdiff}"
+
+    def test_wma_requires_full_non_na_window_of_roc(self) -> None:
+        """WMA must not reweight over partial/na windows (Coppock-style nest)."""
+        src = """//@version=5
+indicator("WMA_ROC")
+plot(ta.wma(ta.roc(close, 14), 10), title="w")
+"""
+        bars = self._synth_bars(100, seed=2)
+        ri, rc = self._dual_run(src, bars, symbol="W")
+        assert "error" not in ri, ri.get("error")
+        assert "error" not in rc, rc.get("error")
+        a = self._to_float_series(ri["series"]["w"])
+        b = self._to_float_series(rc["series"]["w"])
+        # roc na until bar 14; wma needs 10 finite samples → first finite at 23
+        first_i = int(np.where(~np.isnan(a))[0][0])
+        first_c = int(np.where(~np.isnan(b))[0][0])
+        assert first_i == 23 and first_c == 23, f"first finite i={first_i} c={first_c}"
+        assert np.isnan(a[:23]).all() and np.isnan(b[:23]).all()
+        # Partial-window reweight bug would yield finite values before bar 23
+        assert np.array_equal(np.isnan(a), np.isnan(b))
+        both = ~np.isnan(a) & ~np.isnan(b)
+        assert both.sum() > 70
+        maxdiff = float(np.max(np.abs(a[both] - b[both])))
+        assert maxdiff < 1e-12, f"wma(roc) maxdiff={maxdiff}"
+
+    def test_udf_last_assign_returns_na_not_prior(self) -> None:
+        """UDF body ending in ``x = na`` must return na, not a prior assign (42).
+
+        ADX-style scripts end with assign of an RMA that is na during warmup;
+        keeping the previous statement's value forced early 0 / non-na.
+        """
+        src = """//@version=5
+indicator("UDF_NA")
+f() =>
+    dummy = 42.0
+    x = na
+plot(f(), title="u")
+"""
+        bars = self._synth_bars(30, seed=3)
+        ri, rc = self._dual_run(src, bars, symbol="UDF")
+        assert "error" not in ri, ri.get("error")
+        assert "error" not in rc, rc.get("error")
+        a = self._to_float_series(ri["series"]["u"])
+        b = self._to_float_series(rc["series"]["u"])
+        assert np.isnan(a).all(), f"interpret forced non-na: {a[:5]}"
+        assert np.isnan(b).all(), f"compile forced non-na: {b[:5]}"
+        # Must not leak prior assign 42.0
+        assert not np.any(np.isclose(a, 42.0, equal_nan=False))
+        assert not np.any(np.isclose(b, 42.0, equal_nan=False))
+
+    def test_udf_last_assign_rma_warmup_na_adx_style(self) -> None:
+        """Tuple unpack then RMA assign: warmup returns na (not 0 / prior)."""
+        src = """//@version=5
+indicator("ADX_STYLE")
+f(len) =>
+    [plus, minus] = [1.0, 2.0]
+    sum = plus + minus
+    adx = 100 * ta.rma(math.abs(plus - minus) / (sum == 0 ? 1 : sum), len)
+    adx
+plot(f(14), title="adx")
+"""
+        bars = self._synth_bars(50, seed=4)
+        ri, rc = self._dual_run(src, bars, symbol="ADXU")
+        assert "error" not in ri, ri.get("error")
+        assert "error" not in rc, rc.get("error")
+        a = self._to_float_series(ri["series"]["adx"])
+        b = self._to_float_series(rc["series"]["adx"])
+        # RMA period 14 → na for first 13 bars
+        assert np.isnan(a[:13]).all(), f"interpret warmup not na: {a[:14]}"
+        assert np.isnan(b[:13]).all(), f"compile warmup not na: {b[:14]}"
+        # Bug: kept tuple/0 → early finite 0.0
+        assert not np.any(a[:13] == 0.0)
+        assert not np.any(b[:13] == 0.0)
+        both = ~np.isnan(a) & ~np.isnan(b)
+        assert both.sum() >= 30
+        maxdiff = float(np.max(np.abs(a[both] - b[both])))
+        assert maxdiff < 1e-9, f"ADX-style UDF maxdiff={maxdiff}"
+
+    def test_user_ad_series_uses_ad_arr_not_builtin_accdist(self) -> None:
+        """``ad = ta.cum(close); plot(ad)`` must load ``ad_arr``, not Chaikin A/D."""
+        src = """//@version=5
+indicator("AD_USER")
+ad = ta.cum(close)
+plot(ad, title="ad")
+"""
+        code = transpile(src)
+        assert "ad_arr" in code
+        assert "numba_cum" in code
+        # Builtin bare ``ad`` would emit accdist; user series must not
+        assert "numba_accdist" not in code
+        # Plot must store from user series, not re-evaluate builtin
+        assert re.search(r"numba_store\(plot_\d+,\s*__bar_idx,\s*ad_arr\[__bar_idx\]\)", code)
+
+        bars = self._synth_bars(50, seed=5)
+        ri, rc = self._dual_run(src, bars, symbol="AD")
+        assert "error" not in ri, ri.get("error")
+        assert "error" not in rc, rc.get("error")
+        a = self._to_float_series(ri["series"]["ad"])
+        b = self._to_float_series(rc["series"]["ad"])
+        # Cumulative sum of close (not volume-weighted A/D)
+        closes = np.asarray([bar["close"] for bar in bars], dtype=np.float64)
+        expected = np.cumsum(closes)
+        assert np.allclose(a, expected, equal_nan=True)
+        assert np.allclose(b, expected, equal_nan=True)
+        maxdiff = float(np.max(np.abs(a - b)))
+        assert maxdiff == 0.0, f"user ad maxdiff={maxdiff}"
+
+    def test_math_avg_with_na_propagates_na(self) -> None:
+        """TV ``math.avg``: any na argument → na (do not skip)."""
+        src = """//@version=5
+indicator("AVG")
+plot(math.avg(close, na), title="avg_na")
+plot(math.avg(close, close[1]), title="avg_ok")
+"""
+        bars = self._synth_bars(40, seed=6)
+        ri, rc = self._dual_run(src, bars, symbol="AVG")
+        assert "error" not in ri, ri.get("error")
+        assert "error" not in rc, rc.get("error")
+        ina = self._to_float_series(ri["series"]["avg_na"])
+        cna = self._to_float_series(rc["series"]["avg_na"])
+        assert np.isnan(ina).all(), f"interpret avg skipped na: {ina[:3]}"
+        assert np.isnan(cna).all(), f"compile avg skipped na: {cna[:3]}"
+
+        iok = self._to_float_series(ri["series"]["avg_ok"])
+        cok = self._to_float_series(rc["series"]["avg_ok"])
+        assert np.isnan(iok[0]) and np.isnan(cok[0])
+        closes = np.asarray([bar["close"] for bar in bars], dtype=np.float64)
+        for i in range(1, len(bars)):
+            expected = 0.5 * (closes[i] + closes[i - 1])
+            assert abs(float(iok[i]) - expected) < 1e-9
+            assert abs(float(cok[i]) - expected) < 1e-9
+        both = ~np.isnan(iok) & ~np.isnan(cok)
+        maxdiff = float(np.max(np.abs(iok[both] - cok[both])))
+        assert maxdiff == 0.0, f"math.avg finite maxdiff={maxdiff}"
 

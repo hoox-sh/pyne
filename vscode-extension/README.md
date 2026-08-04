@@ -24,12 +24,12 @@ Part of the **[HOOX](https://hoox.sh) open trading stack** — sister products: 
 
 1. `pynescript.lsp.command` if not `auto`
 2. `pynescript-lsp` on `PATH`
-3. `python3 -m pynescript.langserver` (requires `pip install "hoox-pyne[lsp]"`)
+3. `python3 -m pynescript.langserver` (requires `pip install "pyne[lsp]"`)
 
 ## Install language server (required for LSP)
 
 ```bash
-pip install "hoox-pyne[lsp]"
+pip install "pyne[lsp]"
 # or from a clone of pyne:
 pip install -e ".[lsp]"
 ```
@@ -51,7 +51,7 @@ npm run package
 code --install-extension pyne-0.2.2.vsix
 ```
 
-> The VSIX is **self-contained** (esbuild bundles `vscode-languageclient`). You still need the **language server** on the machine (`pip install "hoox-pyne[lsp]"`).
+> The VSIX is **self-contained** (esbuild bundles `vscode-languageclient`). You still need the **language server** on the machine (`pip install "pyne[lsp]"`).
 
 ### Development
 

@@ -21,6 +21,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from .core import BINARY
@@ -126,11 +127,20 @@ class VolumeIndicators(TechnicalHelpers):
         TV: ``ta.accdist`` / ``ta.accdist()`` with no args uses H/L/C/V context.
         """
         if len(args) == 0:
+            if self._use_incremental_ta():
+                return self._accdist_inc_update(
+                    self._context_source("high"),
+                    self._context_source("low"),
+                    self._context_source("close"),
+                    self._context_source("volume"),
+                )
             high_series = self._context_series("high")
             low_series = self._context_series("low")
             close_series = self._context_series("close")
             volume_series = self._context_series("volume")
         elif len(args) >= QUATERNARY:
+            if self._use_incremental_ta():
+                return self._accdist_inc_update(args[0], args[1], args[2], args[3])
             high_series = self._as_series(args[0])
             low_series = self._as_series(args[1])
             close_series = self._as_series(args[2])
@@ -140,6 +150,50 @@ class VolumeIndicators(TechnicalHelpers):
             return None
 
         return self._finalize_series(self._accdist(high_series, low_series, close_series, volume_series))
+
+    def _accdist_inc_update(
+        self,
+        high: Any,
+        low: Any,
+        close: Any,
+        volume: Any,
+    ) -> float | None:
+        """Incremental cumulative A/D — safe under ``_SERIES_MAX`` list caps.
+
+        Full recompute from capped ``current_series`` restarts the sum each bar
+        after the cap window slides, diverging from compile ``numba_accdist_inc``.
+        """
+        slot = self._ta_next_slot()
+        key = ("accdist", slot)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"ad": 0.0}
+            bucket[key] = st
+
+        def _f(x: Any) -> float | None:
+            x = self._series_last(x)
+            if x is None:
+                return None
+            try:
+                v = float(x)
+            except (TypeError, ValueError):
+                return None
+            if v != v:
+                return None
+            return v
+
+        h, l_, c, vol = _f(high), _f(low), _f(close), _f(volume)
+        if h is None or l_ is None or c is None:
+            return st.get("ad")
+        vv = 0.0 if vol is None else vol
+        rng = h - l_
+        if rng == 0.0:
+            clv = 0.0
+        else:
+            clv = ((c - l_) - (h - c)) / rng
+        st["ad"] = float(st["ad"]) + clv * vv
+        return st["ad"]
 
     def _builtin_ta_wad(self, args: list[Any]) -> list[float | None]:
         """Williams Accumulation/Distribution - volume accumulation index.
@@ -547,67 +601,51 @@ class VolumeIndicators(TechnicalHelpers):
         volumes: list[float],
         period: int,
     ) -> float:
-        """Calculate Money Flow Index.
+        """Calculate Money Flow Index (TradingView / numba_mfi parity).
 
-        Aligns H/L/C/V to a common most-recent window (``min(len)`` from the
-        end) so mismatched truncated source vs full context volume never
-        trip ``zip(strict=True)``. None / non-numeric bars are skipped for
-        money-flow direction without raising.
+        Needs ``period + 1`` typical-price samples (direction vs previous bar).
+        Returns na until ready; 100 when only positive MF, 0 when only negative.
+        Equal typical prices contribute to neither side.
         """
         n = min(len(highs), len(lows), len(closes), len(volumes))
-        if n <= period + 2 or period < 1:
-            return 50.0
+        if period < 1 or n <= period:
+            return math.nan
         highs = highs[-n:]
         lows = lows[-n:]
         closes = closes[-n:]
         volumes = volumes[-n:]
+        i = n - 1
 
-        typical_prices: list[float | None] = []
-        money_flow: list[float | None] = []
-        for high, low, close, volume in zip(highs, lows, closes, volumes, strict=False):
-            if (
-                not isinstance(high, (int, float))
-                or not isinstance(low, (int, float))
-                or not isinstance(close, (int, float))
+        def _tp(k: int) -> float | None:
+            h, lo, c = highs[k], lows[k], closes[k]
+            if not isinstance(h, (int, float)) or not isinstance(lo, (int, float)) or not isinstance(
+                c, (int, float)
             ):
-                typical_prices.append(None)
-                money_flow.append(None)
-                continue
-            vol = float(volume) if isinstance(volume, (int, float)) else 0.0
-            tp = (float(high) + float(low) + float(close)) / 3.0
-            typical_prices.append(tp)
-            money_flow.append(tp * vol)
+                return None
+            return (float(h) + float(lo) + float(c)) / 3.0
 
-        positive_flow: list[float] = []
-        negative_flow: list[float] = []
-        for idx in range(1, len(typical_prices)):
-            tp = typical_prices[idx]
-            prev = typical_prices[idx - 1]
-            mf = money_flow[idx]
-            if tp is None or prev is None or mf is None:
-                positive_flow.append(0.0)
-                negative_flow.append(0.0)
-                continue
-            if tp > prev:
-                positive_flow.append(mf)
-                negative_flow.append(0.0)
-            else:
-                positive_flow.append(0.0)
-                negative_flow.append(mf)
-        if len(positive_flow) < period:
-            return 50.0
-        recent_positive = positive_flow[-period:]
-        recent_negative = negative_flow[-period:]
-        pos_count = sum(1 for value in recent_positive if value > 0)
-        neg_count = sum(1 for value in recent_negative if value > 0)
-        if pos_count == 0 or neg_count == 0:
-            return 50.0
-        pos_sum = sum(recent_positive)
-        neg_sum = sum(recent_negative)
-        if neg_sum == 0:
+        pos = 0.0
+        neg = 0.0
+        for j in range(period):
+            k = i - j
+            tp = _tp(k)
+            tp_prev = _tp(k - 1)
+            if tp is None or tp_prev is None:
+                return math.nan
+            vol = volumes[k]
+            if not isinstance(vol, (int, float)):
+                return math.nan
+            mf = tp * float(vol)
+            if tp > tp_prev:
+                pos += mf
+            elif tp < tp_prev:
+                neg += mf
+        if neg == 0.0:
+            if pos == 0.0:
+                return 50.0
             return 100.0
-        ratio = pos_sum / neg_sum
-        return 100 - (100 / (1 + ratio))
+        ratio = pos / neg
+        return 100.0 - (100.0 / (1.0 + ratio))
 
     def _accdist(
         self,

@@ -2,7 +2,7 @@ PYNE CONSOLIDATED DOCUMENTATION — LLM CONTEXT PACK
 Generated: 2026-08-03
 Source: docs/pyne
 Public: https://hoox.sh/pyne/docs
-Repository: https://github.com/jango-blockchained/pynescript
+Repository: https://github.com/hoox-sh/pyne
 
 FILE: docs/pyne/api/app-lifecycle.mdx
 Copyright (C) - jangoblockchained
@@ -3459,17 +3459,17 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-.-or-later
 ---
 title: "PyPI publish"
-description: "Ship hoox-pyne to PyPI via Trusted Publishing (OIDC). Import package stays pynescript."
+description: "Ship pyne to PyPI via Trusted Publishing (OIDC). Import package stays pynescript."
 ---
 PyPI publish
 Abstract
-The Python distribution name on PyPI is hoox-pyne. After install, the import path and CLIs stay pynescript / pynescript-lsp. Automation lives in .github/workflows/publish.yml and uses Trusted Publishing (OIDC) against the GitHub environment pypi.
-Why not pynescript on PyPI? That name is already owned by elbakramer/pynescript. Publishing under hoox-pyne avoids a name collision while keeping the code package id.
+The Python distribution name on PyPI is pyne. After install, the import path and CLIs stay pynescript / pynescript-lsp. Automation lives in .github/workflows/publish.yml and uses Trusted Publishing (OIDC) against the GitHub environment pypi.
+Why not pynescript on PyPI? That name is already owned by elbakramer/pynescript. Publishing under pyne avoids a name collision while keeping the code package id.
 Install surface
 ``bash
-pip install hoox-pyne
-pip install "hoox-pyne[lsp]"
-pip install "hoox-pyne[pro]"
+pip install pyne
+pip install "pyne[lsp]"
+pip install "pyne[pro]"
 python -c "import pynescript; print(pynescript.version)"
 pynescript --help
 pynescript-lsp stdio language server
@@ -3481,8 +3481,8 @@ One-time registration (do this before the first tag)
 . Fill:
 | Field | Value |
 | --- | --- |
-| PyPI project name | hoox-pyne |
-| Owner | jango-blockchained |
+| PyPI project name | pyne |
+| Owner | hoox-sh |
 | Repository | pyne |
 | Workflow name | publish.yml |
 | Environment name | pypi |
@@ -3492,7 +3492,7 @@ Repo Settings → Environments → New environment → pypi.
 Optional: required reviewers, wait timer, or branch policy limited to tags / main.
 `bash
 CLI equivalent (no protection rules):
-gh api -X PUT repos/jango-blockchained/pyne/environments/pypi
+gh api -X PUT repos/hoox-sh/pyne/environments/pypi
 `
 . Private repo note
 pyne may be private. Trusted Publishing still works; the workflow only needs id-token: write on the publish job (already set).
@@ -3523,7 +3523,7 @@ Failure modes
 | --- | --- | --- |
 | / no trusted publisher | Pending publisher not added or wrong workflow/env name | Re-check PyPI pending publisher fields exactly |
 | Environment not found | Missing GitHub pypi env | Create environment |
-| Wrong wheel name pynescript- | Old pyproject.toml name | Ensure name = "hoox-pyne" |
+| Wrong wheel name pynescript- | Old pyproject.toml name | Ensure name = "pyne" |
 | Tag publish skipped | dryrun dispatch only | Use a real v tag or dry_run=false |
 See also
 Release — LSP binaries + VSIX
@@ -3882,13 +3882,13 @@ Worked examples
 Desk-only machine
 `bash
 python -m venv .venv && source .venv/bin/activate
-pip install hoox-pyne
+pip install pyne
 no env vars required
 pynescript lint strategy.pine --fail-on errors
 `
 Editor workstation
 `bash
-pip install "hoox-pyne[lsp]"
+pip install "pyne[lsp]"
 ensure which pynescript-lsp
 paste clients/neovim.lua or clients/zed.json as documented
 `
@@ -4047,7 +4047,7 @@ python - /dev/null || true server may only speak stdio
 `
 Monorepo desk + Pro API
 `bash
-git clone https://github.com/jango-blockchained/pynescript.git
+git clone https://github.com/hoox-sh/pyne.git
 cd pynescript
 pip install -e ".[lsp]"
 pip install -r backend/requirements.txt
@@ -4103,9 +4103,9 @@ Conceptual model
 Interface surface
 Assumes:
 ``bash
-pip install hoox-pyne
+pip install pyne
 optional for data:
-pip install "hoox-pyne[data]"
+pip install "pyne[data]"
 `
 Sample script in-tree: examples/rsistrategy.pine.
 Internals (repo paths)
@@ -4208,7 +4208,7 @@ curl -s -X POST http://...:/run \
 See Pro API usage for schemas and batch mode.
 . Optional: start LSP for editors
 `bash
-pip install "hoox-pyne[lsp]"
+pip install "pyne[lsp]"
 pynescript-lsp stdio; normally launched by the editor
 `
 Wire Neovim / Zed / Emacs using Editors and clients/.
@@ -6235,7 +6235,7 @@ Abstract
 Any editor that speaks LSP over STDIO can host PYNE intelligence. First-class snippets live in clients/ (Neovim Lua, Zed JSON, Emacs Lisp) plus documented Helix/Sublime fragments. The VS Code path is a dedicated extension (vscode-extension); this page covers the rest.
 Prerequisite: pynescript-lsp on PATH (Python .+):
 ``bash
-pip install "hoox-pyne[lsp]"
+pip install "pyne[lsp]"
 development
 pip install -e ".[lsp]"
 `

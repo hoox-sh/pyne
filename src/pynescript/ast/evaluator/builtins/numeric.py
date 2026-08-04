@@ -275,19 +275,38 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
         """Sum of array, or rolling sum ``math.sum(source, length)`` (TV)."""
         if len(args) == BINARY:
             # Rolling sum over last `length` values of a series
+            length = args[1]
+            # Unwrap series-int period (input / user series may be PineSeries)
+            if hasattr(length, "current"):
+                length = getattr(length, "current", length)
+            if isinstance(length, float) and length == int(length):
+                length = int(length)
+            if not isinstance(length, int) or length <= 0:
+                self._error("math.sum length must be a positive integer")
+            # Bar-mode incremental path: O(1) per bar, works for scalar samples
+            # (user vars without PineSeries history — CMO m1/m2, CMF ad).
+            if hasattr(self, "_use_incremental_ta") and self._use_incremental_ta():  # type: ignore[attr-defined]
+                if hasattr(self, "_sum_inc_update"):
+                    return self._sum_inc_update(args[0], length)  # type: ignore[attr-defined]
             series = args[0]
             if hasattr(series, "history"):
                 series = list(reversed(series.history))
             elif not isinstance(series, list):
                 series = [series]
-            length = args[1]
-            if isinstance(length, float) and length == int(length):
-                length = int(length)
-            if not isinstance(length, int) or length <= 0:
-                self._error("math.sum length must be a positive integer")
-            window = [v for v in series[-length:] if v is not None]
+            # Full-window only (match compile / numba_sum_inc); any na → na
+            if len(series) < length:
+                return None
+            window = series[-length:]
             try:
-                return sum(float(v) for v in window)
+                total = 0.0
+                for v in window:
+                    if v is None:
+                        return None
+                    fv = float(v)
+                    if fv != fv:  # NaN
+                        return None
+                    total += fv
+                return total
             except (TypeError, ValueError):
                 return None
         self._require_len(args, UNARY, "math.sum takes an array or (series, length)")
@@ -311,23 +330,26 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
             if not series:
                 self._error("math.avg takes a non-empty array")
             return statistics.mean(float(v) for v in series)
-        # Multiple values (scalars or series current)
+        # Multiple values (scalars or series current).
+        # TV: if any argument is ``na``, the result is ``na`` (do not skip).
         values: list[float] = []
         for a in args:
-            if a is None:
-                continue
             if hasattr(a, "current"):
                 a = a.current
             if a is None:
-                continue
+                return None
             if isinstance(a, list):
-                if a and a[-1] is not None:
+                if not a or a[-1] is None:
+                    return None
+                try:
                     values.append(float(a[-1]))
+                except (TypeError, ValueError):
+                    return None
             else:
                 try:
                     values.append(float(a))
                 except (TypeError, ValueError):
-                    continue
+                    return None
         if not values:
             return None
         return statistics.mean(values)

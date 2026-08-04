@@ -72,6 +72,8 @@ flowchart TB
 | Local install & loops | `Makefile`, hatch envs | [Local development](/pyne/docs/devops/local-dev) |
 | PR / push CI | `.github/workflows/ci.yml` | [CI](/pyne/docs/devops/ci) |
 | Versioned LSP + VSIX | `.github/workflows/release.yml` | [Release](/pyne/docs/devops/release) |
+| PyPI (`pyne`) | `.github/workflows/publish.yml` | [PyPI publish](/pyne/docs/devops/pypi-publish) |
+| First ship / org transfer | GitHub org `hoox-sh` + Trusted Publishing | [Publish checklist](/pyne/docs/devops/publish-checklist) |
 | Pro API containers | `Dockerfile` (targets api/api-dev/lsp), `docker-bake.hcl`, `docker-compose.yml` | [Docker](/pyne/docs/devops/docker) |
 | Compiled LSP | `scripts/build/compile.py`, `ci_build.py` | [Nuitka build](/pyne/docs/devops/nuitka-build) |
 | Builtin metadata crypto | Fernet key + `.enc` | [Metadata crypto](/pyne/docs/devops/metadata-crypto) |
@@ -85,7 +87,7 @@ flowchart TB
 | --- | --- |
 | `Makefile` | Human-facing orthography: install, test, lint, build, docker, worker |
 | `pyproject.toml` | Hatch envs (`test`, `lint`, `docs`), optional extras (`lsp`, `data`) |
-| `.github/workflows/` | `ci.yml`, `release.yml`, `axis-nightly.yml` |
+| `.github/workflows/` | `ci.yml`, `release.yml`, `publish.yml` |
 | `scripts/build/` | Nuitka compile + CI build + Fernet metadata stage |
 | `scripts/generate_builtin_metadata.py` | Regenerates LSP `builtin_metadata.json` from live builtins |
 | `Dockerfile` / `docker-bake.hcl` | Multi-target Buildx images (api, api-dev, lsp) |

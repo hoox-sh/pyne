@@ -1,10 +1,11 @@
-# Publish hoox-pyne (import: pynescript) to PyPI on version tags (v*).
+# Publish pyne (import: pynescript) to PyPI on version tags (v*).
 #
 # Prerequisites (one-time):
-#   1. PyPI Pending Trusted Publisher for project "hoox-pyne":
-#        Owner: jango-blockchained  Repo: pyne  Workflow: publish.yml  Environment: pypi
-#   2. GitHub environment "pypi" (optional protection rules).
-#   Note: PyPI name "pynescript" is taken by elbakramer; we ship as hoox-pyne.
+#   1. PyPI Pending Trusted Publisher for project "pyne":
+#        Owner: hoox-sh  Repo: pyne  Workflow: publish.yml  Environment: pypi
+#   2. GitHub environment "pypi" on hoox-sh/pyne (optional protection rules).
+#   Note: PyPI name "pynescript" is taken by elbakramer; we ship as pyne.
+#   Note: Owner must match the GitHub org after transfer (hoox-sh), not a personal account.
 #
 # Usage:
 #   git tag v0.3.0 && git push origin v0.3.0
@@ -48,7 +49,7 @@ jobs:
       - name: Upload dist
         uses: actions/upload-artifact@v4
         with:
-          name: hoox-pyne-release-dist
+          name: pyne-release-dist
           path: dist/*
 
   publish-pypi:
@@ -61,14 +62,14 @@ jobs:
       (github.event_name == 'workflow_dispatch' && inputs.dry_run == false)
     environment:
       name: pypi
-      url: https://pypi.org/project/hoox-pyne/
+      url: https://pypi.org/project/pyne/
     permissions:
       id-token: write  # Trusted Publishing (OIDC)
     steps:
       - name: Download dist
         uses: actions/download-artifact@v4
         with:
-          name: hoox-pyne-release-dist
+          name: pyne-release-dist
           path: dist
 
       - name: Publish package

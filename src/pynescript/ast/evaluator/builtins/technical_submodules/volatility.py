@@ -334,9 +334,10 @@ class VolatilityIndicators(TechnicalHelpers):
         if len(valid_values) < BINARY:
             return math.nan
 
-        x = list(range(len(valid_values)))
-        mean_x = sum(x) / len(x)
-        mean_y = sum(valid_values) / len(valid_values)
+        n = len(valid_values)
+        x = list(range(n))
+        mean_x = sum(x) / n
+        mean_y = sum(valid_values) / n
 
         numerator = sum((xi - mean_x) * (yi - mean_y) for xi, yi in zip(x, valid_values, strict=True))
         denominator = sum((xi - mean_x) ** 2 for xi in x)
@@ -345,7 +346,8 @@ class VolatilityIndicators(TechnicalHelpers):
             return mean_y
 
         slope = numerator / denominator
-        return slope * (len(valid_values) - 1) + mean_y
+        # TV endpoint at x = n-1 (offset=0): mean_y + slope * ((n-1) - mean_x)
+        return mean_y + slope * ((n - 1) - mean_x)
 
     def _builtin_ta_rci(self, args: list[Any]) -> float:
         """Rank Correlation Index (Spearman's correlation)."""

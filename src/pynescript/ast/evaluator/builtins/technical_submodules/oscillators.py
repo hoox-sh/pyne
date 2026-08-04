@@ -715,24 +715,30 @@ class OscillatorIndicators(TechnicalHelpers):
         )
         return (last_tp - last_sma) / (0.015 * last_mean_dev)
 
-    def _roc(self, series: list[float], period: int) -> float:
-        """Rate of Change calculation."""
+    def _roc(self, series: list[float], period: int) -> float | None:
+        """Rate of Change: ``100 * (src - src[period]) / src[period]`` (TV ``ta.roc``).
+
+        Returns ``None`` (``na``) when history is shorter than ``period`` bars of
+        lookback, baseline is missing/zero, or the current value is missing —
+        matching compile ``numba_roc`` and TradingView.
+        """
         if period <= 0 or len(series) <= period:
-            return 0.0
+            return None
         previous_index = len(series) - period - 1
         if previous_index < 0:
-            return 0.0
+            return None
         baseline = series[previous_index]
-        if baseline in {None, 0}:
-            return 0.0
-        earlier_index = previous_index - 1
-        denominator = baseline
-        if earlier_index >= 0:
-            earlier = series[earlier_index]
-            if earlier not in {None, 0}:
-                denominator = earlier
-        change = series[-1] - baseline
-        return 100 * change / denominator
+        current = series[-1]
+        if baseline in {None, 0} or current is None:
+            return None
+        try:
+            b = float(baseline)
+            c = float(current)
+        except (TypeError, ValueError):
+            return None
+        if b == 0.0:
+            return None
+        return 100.0 * (c - b) / b
 
     def _wpr(
         self,

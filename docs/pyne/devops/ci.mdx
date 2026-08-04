@@ -28,7 +28,7 @@ description: "GitHub Actions matrix for lint, Python tests, backend, VSIX, AXIS 
 
 CI is the **public invariant check** for the monorepo-like layout. A single PR can touch the Python evaluator, the Flask API, the VS Code extension, the AXIS PWA, and a Cloudflare Worker typecheck — the workflow graph is deliberately fan-out with concurrency cancellation on newer pushes to the same ref.
 
-Primary definition: [`.github/workflows/ci.yml`](https://github.com/jango-blockchained/pynescript/blob/main/.github/workflows/ci.yml). Nightly AXIS expansion lives in `axis-nightly.yml`. Release builds are separate (`release.yml`).
+Primary definition: [`.github/workflows/ci.yml`](https://github.com/hoox-sh/pyne/blob/main/.github/workflows/ci.yml). AXIS CI lives in the sister [axis](https://github.com/jango-blockchained/axis) repo. Release / PyPI builds are separate (`release.yml`, `publish.yml`).
 
 ## Conceptual model
 

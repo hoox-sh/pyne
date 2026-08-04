@@ -171,14 +171,66 @@ class TechnicalHelpers:
             except (TypeError, ValueError):
                 # Treat non-numeric as na: replace with None in window
                 window[-1] = None
-        if len(window) < period or st["count"] <= 0:
+        # Strict window (match compile numba_sma / TV): any na in the length
+        # window → na. Require count == period (every slot finite).
+        if len(window) < period or st["count"] != period:
             st["value"] = None
         else:
-            st["value"] = st["sum"] / st["count"]
+            st["value"] = st["sum"] / period
+        return st.get("value")
+
+    def _sum_inc_update(self, series: Any, period: int) -> float | None:
+        """Incremental rolling sum matching ``numba_sum_inc`` / TV ``math.sum``.
+
+        Full window required; any na/NaN in the window → na (poison). Works from
+        scalar samples via call-site state (same pattern as ``_sma_inc_update``),
+        so user series that are bare floats still accumulate correctly.
+        """
+        if period <= 0:
+            return None
+        slot = self._ta_next_slot()
+        key = ("sum", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"window": deque(), "sum": 0.0, "na_count": 0, "value": None}
+            bucket[key] = st
+        x = self._series_last(series)
+        is_na = x is None
+        xf = 0.0
+        if not is_na:
+            try:
+                xf = float(x)
+                if xf != xf:  # NaN
+                    is_na = True
+                    xf = 0.0
+            except (TypeError, ValueError):
+                is_na = True
+                xf = 0.0
+        window: deque[tuple[bool, float]] = st["window"]
+        if len(window) == period:
+            old_na, old_v = window.popleft()
+            if old_na:
+                st["na_count"] -= 1
+            else:
+                st["sum"] -= old_v
+        window.append((is_na, xf))
+        if is_na:
+            st["na_count"] += 1
+        else:
+            st["sum"] += xf
+        if len(window) < period or st["na_count"] > 0:
+            st["value"] = None
+        else:
+            st["value"] = st["sum"]
         return st.get("value")
 
     def _ema_inc_update(self, series: list[Any], period: int) -> float | None:
-        """Incremental EMA matching full ``_ema`` seed/carry rules (last value)."""
+        """Incremental EMA with SMA seed (matches ``numba_ema_inc`` / TV).
+
+        Seed = mean of first ``period`` finite samples; na until the window is
+        full. Prior first-value seed diverged from compile on Chaikin Osc etc.
+        """
         if period <= 0:
             return None
         slot = self._ta_next_slot()
@@ -186,7 +238,12 @@ class TechnicalHelpers:
         bucket = self._ta_state_bucket()
         st = bucket.get(key)
         if st is None:
-            st = {"ema": None, "seeded": False}
+            st = {
+                "ema": None,
+                "seeded": False,
+                "seed_buf": [],
+                "value": None,
+            }
             bucket[key] = st
         x = self._series_last(series)
         # Soft-fail non-numeric samples (unresolved source-name strings, colors)
@@ -199,10 +256,19 @@ class TechnicalHelpers:
         alpha = 2.0 / (period + 1)
         if not st["seeded"]:
             if x is None:
+                st["value"] = None
                 return None
-            st["ema"] = float(x)
+            st["seed_buf"].append(float(x))
+            if len(st["seed_buf"]) < period:
+                st["value"] = None
+                return None
+            seed = sum(st["seed_buf"][:period]) / period
+            st["ema"] = seed
             st["seeded"] = True
-            return st["ema"]
+            st["value"] = seed
+            # free seed buffer
+            st["seed_buf"] = []
+            return seed
         if x is None:
             return st.get("ema")
         prev = st["ema"]
@@ -210,6 +276,7 @@ class TechnicalHelpers:
             st["ema"] = float(x)
         else:
             st["ema"] = alpha * float(x) + (1.0 - alpha) * float(prev)
+        st["value"] = st["ema"]
         return st.get("ema")
 
     def _rma_inc_update(self, series: list[Any], period: int) -> float | None:
@@ -570,10 +637,11 @@ class TechnicalHelpers:
         return best
 
     def _wma_inc_update(self, series: list[Any], period: int) -> float | None:
-        """Incremental WMA matching full ``_wma`` (last value).
+        """Incremental WMA matching full ``_wma`` / compile ``numba_wma``.
 
         Weights positions 1..period within the window (oldest weight 1).
-        None samples are dropped from the weighted sum (same as full path).
+        Requires a full window of non-``na`` samples (TV / compile parity);
+        any ``None`` in the window → ``na``.
         """
         if period <= 0:
             return None
@@ -592,22 +660,20 @@ class TechnicalHelpers:
         if len(window) < period:
             st["value"] = None
             return None
-        # Match full path: if any None, weight by (i+1) among full period positions
-        # for non-None only; else classic 1..period weights.
-        has_none = any(v is None for v in window)
-        if has_none:
-            valid = [(i + 1, v) for i, v in enumerate(window) if v is not None]
-            if not valid:
-                st["value"] = None
-                return None
-            total_w = sum(w for w, _ in valid)
-            st["value"] = sum(w * float(v) for w, v in valid) / total_w
-            return st.get("value")
+        # Full window required — do not drop na and reweight (that drifted
+        # Coppock / nested WMA vs compile).
+        if any(v is None for v in window):
+            st["value"] = None
+            return None
         # series[-1]*period + series[-2]*(period-1) + ... + series[-period]*1
         total_w = period * (period + 1) / 2.0
         acc = 0.0
         for i, v in enumerate(window):
-            acc += float(v) * (i + 1)
+            try:
+                acc += float(v) * (i + 1)
+            except (TypeError, ValueError):
+                st["value"] = None
+                return None
         st["value"] = acc / total_w
         return st.get("value")
 
@@ -736,23 +802,31 @@ class TechnicalHelpers:
         return st.get("value")
 
     def _cum_inc_update(self, series: list[Any]) -> float | None:
-        """Incremental cumulative sum matching bar-mode ``ta.cum`` (last value)."""
+        """Incremental cumulative sum matching bar-mode ``ta.cum`` (last value).
+
+        TradingView treats ``na`` as 0 (same as compile ``numba_cum_expr``), so a
+        pure-na source (e.g. foreign ``request.security`` without data) yields
+        0 rather than lingering ``na``.
+        """
         slot = self._ta_next_slot()
         key = ("cum", slot)
         bucket = self._ta_state_bucket()
         st = bucket.get(key)
         if st is None:
-            st = {"total": 0.0, "value": None}
+            st = {"total": 0.0, "value": 0.0}
             bucket[key] = st
         x = self._series_last(series)
-        if x is None:
-            # Skip None like full path; total unchanged
-            return st.get("value")
-        try:
-            st["total"] = float(st["total"]) + float(x)
-            st["value"] = st["total"]
-        except (TypeError, ValueError):
-            return st.get("value")
+        # TV: na / IEEE NaN → 0 contribution (compile ``numba_cum_expr`` same).
+        add = 0.0
+        if x is not None:
+            try:
+                fx = float(x)
+                if fx == fx:  # not NaN
+                    add = fx
+            except (TypeError, ValueError):
+                add = 0.0
+        st["total"] = float(st["total"]) + add
+        st["value"] = st["total"]
         return st.get("value")
 
     def _vwma_inc_update(
@@ -960,49 +1034,45 @@ class TechnicalHelpers:
         st["value"] = 100.0 * (float(e2) / float(a2))
         return st.get("value")
 
-    def _roc_inc_update(self, series: list[Any], period: int) -> float:
-        """Incremental Rate of Change matching full ``_roc`` (last value).
+    def _roc_inc_update(self, series: list[Any], period: int) -> float | None:
+        """Incremental Rate of Change matching full ``_roc`` / TV ``ta.roc``.
 
-        Full path quirks (preserved exactly):
-        - returns ``0.0`` when ``len(series) <= period`` or baseline is None/0
-        - denominator prefers ``series[-(period+2)]`` when that bar is non-None
-          and non-zero; otherwise uses baseline ``series[-(period+1)]``
+        ``100 * (src - src[period]) / src[period]``. Returns ``None`` when
+        lookback is insufficient or baseline/current is missing/zero (parity
+        with ``numba_roc``).
         """
         if period <= 0:
-            return 0.0
+            return None
         slot = self._ta_next_slot()
         key = ("roc", slot, period)
         bucket = self._ta_state_bucket()
         st = bucket.get(key)
         if st is None:
-            # Need baseline at -(period+1) and optional earlier at -(period+2)
-            st = {"window": deque(maxlen=period + 2), "value": 0.0}
+            # Need baseline at -(period+1)
+            st = {"window": deque(maxlen=period + 1), "value": None}
             bucket[key] = st
         x = self._series_last(series)
         window: deque[Any] = st["window"]
         window.append(x)
         if len(window) <= period:
-            st["value"] = 0.0
-            return 0.0
-        # baseline = series[len - period - 1] == window[-(period+1)]
-        baseline = window[-(period + 1)]
-        if baseline in {None, 0}:
-            st["value"] = 0.0
-            return 0.0
-        denominator = baseline
-        if len(window) >= period + 2:
-            earlier = window[-(period + 2)]
-            if earlier not in {None, 0}:
-                denominator = earlier
+            st["value"] = None
+            return None
+        # baseline = series[len - period - 1] == window[-(period+1)] == window[0]
+        baseline = window[0]
         current = window[-1]
-        if current is None:
-            st["value"] = 0.0
-            return 0.0
+        if baseline in {None, 0} or current is None:
+            st["value"] = None
+            return None
         try:
-            change = float(current) - float(baseline)
-            st["value"] = 100.0 * change / float(denominator)
+            b = float(baseline)
+            c = float(current)
+            if b == 0.0:
+                st["value"] = None
+                return None
+            st["value"] = 100.0 * (c - b) / b
         except (TypeError, ValueError, ZeroDivisionError):
-            st["value"] = 0.0
+            st["value"] = None
+            return None
         return float(st["value"])
 
     def _wpr_inc_update(
@@ -1496,16 +1566,17 @@ class TechnicalHelpers:
             st["value"] = int(st["bars_seen"]) - 1
         return int(st["value"])
 
-    def _linreg_inc_update(self, series: list[Any], length: int) -> float:
+    def _linreg_inc_update(self, series: list[Any], length: int, offset: int = 0) -> float:
         """Incremental linear-regression endpoint matching full ``ta.linreg``.
 
         Maintains a rolling window; recomputes slope/intercept on non-None
-        samples with x re-indexed 0..m-1 (same as full path). O(period).
+        samples with x re-indexed 0..m-1 (same as full path / TV / numba).
+        Result is the fitted value at ``x = n - 1 - offset``.
         """
         if length < 2:
             return math.nan
         slot = self._ta_next_slot()
-        key = ("linreg", slot, length)
+        key = ("linreg", slot, length, int(offset))
         bucket = self._ta_state_bucket()
         st = bucket.get(key)
         if st is None:
@@ -1538,7 +1609,8 @@ class TechnicalHelpers:
             st["value"] = mean_y
             return mean_y
         slope = numerator / denominator
-        st["value"] = slope * (n - 1) + mean_y
+        # TV: intercept + slope * (n - 1 - offset); intercept = mean_y - slope * mean_x
+        st["value"] = mean_y + slope * ((n - 1 - int(offset)) - mean_x)
         return float(st["value"])
 
     # ------------------------------------------------------------------
@@ -2066,24 +2138,22 @@ class TechnicalHelpers:
         volumes: list[Any],
         period: int,
     ) -> float:
-        """Incremental Money Flow Index matching full ``_mfi`` (last scalar).
+        """Incremental Money Flow Index matching full ``_mfi`` / ``numba_mfi``.
 
-        Full oracle returns 50.0 while ``n <= period + 2``; once ready, uses a
-        sliding window of signed money-flow samples of size ``period``.
+        Needs ``period + 1`` typical-price samples; returns na until ready.
+        Equal TP bars contribute to neither side (TV convention).
         """
         if period < 1:
-            return 50.0
+            return math.nan
         slot = self._ta_next_slot()
         key = ("mfi", slot, period)
         bucket = self._ta_state_bucket()
         st = bucket.get(key)
         if st is None:
             st = {
-                "prev_tp": None,
-                "n": 0,
-                "pos": deque(maxlen=period),
-                "neg": deque(maxlen=period),
-                "value": 50.0,
+                "tps": deque(maxlen=period + 1),
+                "mfs": deque(maxlen=period + 1),
+                "value": math.nan,
             }
             bucket[key] = st
 
@@ -2091,62 +2161,55 @@ class TechnicalHelpers:
         l = self._series_last(lows)
         c = self._series_last(closes)
         v = self._series_last(volumes)
-        st["n"] = int(st["n"]) + 1
-        n = int(st["n"])
 
-        tp: float | None
-        mf: float | None
+        tps: deque[Any] = st["tps"]
+        mfs: deque[Any] = st["mfs"]
         if (
             not isinstance(h, (int, float))
             or not isinstance(l, (int, float))
             or not isinstance(c, (int, float))
         ):
-            tp = None
-            mf = None
-        else:
-            vol = float(v) if isinstance(v, (int, float)) else 0.0
-            tp = (float(h) + float(l) + float(c)) / 3.0
-            mf = tp * vol
+            tps.append(None)
+            mfs.append(None)
+            st["value"] = math.nan
+            return math.nan
 
-        prev_tp = st["prev_tp"]
-        st["prev_tp"] = tp
+        vol = float(v) if isinstance(v, (int, float)) else 0.0
+        tp = (float(h) + float(l) + float(c)) / 3.0
+        tps.append(tp)
+        mfs.append(tp * vol)
 
-        # Full path builds flows from idx=1..n-1 (no sample on first bar).
-        if n == 1:
-            st["value"] = 50.0
-            return 50.0
+        if len(tps) <= period:
+            st["value"] = math.nan
+            return math.nan
 
-        pos_w: deque[float] = st["pos"]
-        neg_w: deque[float] = st["neg"]
-        if tp is None or prev_tp is None or mf is None:
-            pos_w.append(0.0)
-            neg_w.append(0.0)
-        elif tp > prev_tp:
-            pos_w.append(float(mf))
-            neg_w.append(0.0)
-        else:
-            pos_w.append(0.0)
-            neg_w.append(float(mf))
+        pos = 0.0
+        neg = 0.0
+        # Last ``period`` money-flow samples (each vs previous TP)
+        tp_list = list(tps)
+        mf_list = list(mfs)
+        for k in range(1, len(tp_list)):
+            # only the most recent ``period`` directed samples
+            if k < len(tp_list) - period:
+                continue
+            tp_cur = tp_list[k]
+            tp_prev = tp_list[k - 1]
+            mf = mf_list[k]
+            if tp_cur is None or tp_prev is None or mf is None:
+                st["value"] = math.nan
+                return math.nan
+            if tp_cur > tp_prev:
+                pos += float(mf)
+            elif tp_cur < tp_prev:
+                neg += float(mf)
 
-        # Full ``_mfi``: early exit when ``n <= period + 2`` → 50.0
-        if n <= period + 2:
-            st["value"] = 50.0
-            return 50.0
-        if len(pos_w) < period:
-            st["value"] = 50.0
-            return 50.0
-
-        pos_count = sum(1 for value in pos_w if value > 0)
-        neg_count = sum(1 for value in neg_w if value > 0)
-        if pos_count == 0 or neg_count == 0:
-            st["value"] = 50.0
-            return 50.0
-        pos_sum = sum(pos_w)
-        neg_sum = sum(neg_w)
-        if neg_sum == 0:
+        if neg == 0.0:
+            if pos == 0.0:
+                st["value"] = 50.0
+                return 50.0
             st["value"] = 100.0
             return 100.0
-        ratio = pos_sum / neg_sum
+        ratio = pos / neg
         st["value"] = 100.0 - (100.0 / (1.0 + ratio))
         return float(st["value"])
 
@@ -3079,7 +3142,11 @@ class TechnicalHelpers:
         return [float(value) if value is not None else math.nan for value in series]
 
     def _sma(self, series: list[Any], period: int) -> list[float | None]:
-        """Simple Moving Average."""
+        """Simple Moving Average.
+
+        Strict window (match compile ``numba_sma`` / TradingView): any ``na`` in
+        the last ``period`` samples yields ``na``; average divides by ``period``.
+        """
         result: list[float | None] = []
         if not series or period <= 0:
             return result
@@ -3087,11 +3154,14 @@ class TechnicalHelpers:
             if index < period - 1:
                 result.append(None)
                 continue
-            window = [value for value in series[index - period + 1 : index + 1] if value is not None]
-            if not window:
+            window = series[index - period + 1 : index + 1]
+            if any(value is None for value in window):
                 result.append(None)
                 continue
-            result.append(sum(window) / len(window))
+            try:
+                result.append(sum(float(v) for v in window) / period)
+            except (TypeError, ValueError):
+                result.append(None)
         return result
 
     def _ema(self, series: list[Any], period: int) -> list[float | None]:
@@ -3151,19 +3221,13 @@ class TechnicalHelpers:
         return rma_values[: len(formatted)]
 
     def _wma(self, series: list[float], period: int) -> float | None:
-        """Weighted Moving Average (na-safe)."""
+        """Weighted Moving Average — full window of non-``na`` required (TV / compile)."""
         if period <= 0 or len(series) < period:
             return None
         window = series[-period:]
         if any(v is None for v in window):
-            valid = [(i + 1, v) for i, v in enumerate(window) if v is not None]
-            if not valid:
-                return None
-            # weight by position among full period (TV drops na bars from sum only)
-            total_w = sum(w for w, _ in valid)
-            return sum(w * float(v) for w, v in valid) / total_w
-        weights = list(range(1, period + 1))
-        total = sum(weights)
+            return None
+        total = period * (period + 1) / 2.0
         return sum(float(series[-idx]) * (period - idx + 1) for idx in range(1, period + 1)) / total
 
     def _highest(self, series: list[float], period: int) -> float | None:

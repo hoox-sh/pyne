@@ -37,5 +37,5 @@ reference
 pinescript_implementation_status
 PROGRESS_REPORT
 License <license>
-Changelog <https://github.com/jango-blockchained/pynescript/releases>
+Changelog <https://github.com/hoox-sh/pyne/releases>
 ```

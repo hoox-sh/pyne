@@ -61,11 +61,28 @@ flowchart TB
 | AST round-trip | Structural match on corpus | Verified |
 | Builtins | Broad coverage (200+ / dispatch hundreds) | Good → excellent by namespace |
 | Technical indicators | Core + advanced; numerical cross-checks | Validated in tests / reports |
+| **Interpret ↔ compile plot parity** | Same OHLCV → matching plot/`series` values (nan-aware allclose) | Testing pillar — harness + goldens |
 | Strategy | entry/exit/close, events, risk, OCA, commission | Functional / improved 2026-07 |
 | Type system | int/float/bool/string/color/series/UDT/collections | Strong |
 | Real-world scripts | High parse success on corpus | Tested |
 
 Historical guarantee doc cited **1142 automated tests** at last update — re-run `make test` for live counts.
+
+### Testing pillar: interpret ↔ compile plot parity
+
+Dual-host **plot/`series` parity** is a first-class correctness pillar: the same script and bars run under `Runtime.run(..., mode="interpret")` and `mode="compile"`, then series keys are compared with nan-aware allclose (`rtol=1e-5`, `atol=1e-6`).
+
+| Artifact | Role |
+| --- | --- |
+| `scripts/compare_interp_compile.py` | Full corpus harness (default ~50 scripts × 1000 bars); report `.cache/interp_compile_parity.json` |
+| `tests/test_interp_compile_parity.py` | Always-on smoke subset + optional `-m interp_compile_full` |
+| `tests/test_compiler_numba.py` (`TestInterpCompilePlotParityFixes`) | Targeted goldens (Wilder RSI, ROC, WMA, `ta.cum`, …) |
+
+**Intentional / known dual-host differences** (not treated as silent value bugs when both sides agree on the contract):
+
+1. **Foreign `request.*` on compile** — compile does **not** invent multi-asset series. Same-symbol simple OHLCV may lower; foreign tickers and complex security expressions emit `na` (interpret may still serve mocks/feeds). See [Missing features](/pyne/docs/reference/missing-features).
+2. **EMA seed family (some kernels)** — nested DEMA/TEMA and related paths may use compile’s SMA-seed EMA family vs interpret first-value seed on older kernels; ATR’s EMA-of-TR is aligned first-TR seed. Re-check `numba_builtins.py` when investigating residual maxdiff.
+3. **Pivot-starved scripts (e.g. Auto Fib)** — synthetic harness bars lack structure; both backends should `runtime.error` with matching messages (`both_error_same`), not invent pivots.
 
 ### Language features (core)
 
@@ -95,15 +112,18 @@ Documented at 100% support posture for:
 | `tests/test_parse_and_unparse.py` | Round-trip |
 | `tests/test_real_world_compatibility.py` | Real-script posture |
 | `tests/fixtures/parity/` | Cross-impl strategy events |
+| `scripts/compare_interp_compile.py` | Interpret ↔ compile series/plot parity harness |
+| `tests/test_interp_compile_parity.py` | Parity smoke / full subset |
 | `reports/compatibility_report.json` | Machine-readable reports if generated |
 
 ## Invariants & edge cases
 
 1. **Parse success ≠ evaluate success.** A script may round-trip yet depend on mock `request.*` data.
 2. **Plot functions are not TradingView’s renderer.** They validate and record; pixels are optional.
-3. **Undocumented / beta TV syntax** may fail (guarantee doc notes a v7-beta edge).
-4. **Floating-point parity is statistical**, not bit-identical for all recursive smoothers — see [Numerical validation](/pyne/docs/reference/numerical-validation).
-5. **Library `export` / import** require in-process registration paths when not on TV’s CDN.
+3. **Interpret success ≠ compile success** for multi-asset / foreign `request.*`, imports, or object-mode fallout — prefer the parity harness over assuming `mode=auto` is silent.
+4. **Undocumented / beta TV syntax** may fail (guarantee doc notes a v7-beta edge).
+5. **Floating-point parity is statistical**, not bit-identical for all recursive smoothers — see [Numerical validation](/pyne/docs/reference/numerical-validation). Hot kernels (RSI/ROC/WMA/cum/highestbars) are aligned across hosts where fixed.
+6. **Library `export` / import** require in-process registration paths when not on TV’s CDN.
 
 ## Worked examples
 
@@ -121,12 +141,21 @@ assert unparse(parse(src))  # structural fidelity; exact whitespace may differ
 pytest tests/test_parse_and_unparse.py -q --example-scripts-dir=tests/data/builtin_scripts
 ```
 
+### Interpret ↔ compile plot parity
+
+```bash
+python scripts/compare_interp_compile.py --bars 1000 --limit 50
+python scripts/compare_interp_compile.py --ignore-hline-keys --ignore-fill-keys --strict-keys
+pytest tests/test_interp_compile_parity.py -q
+```
+
 ## Failure modes
 
 | Observation | Interpretation |
 | --- | --- |
 | Parse error on new TV release notes feature | Surface gap — see [Missing features](/pyne/docs/reference/missing-features) |
 | Numerical drift on custom indicator | Compare bar-mode vs list-mode; check `na` propagation |
+| Interpret vs compile series mismatch | Check foreign `request.*`, EMA seed family, UDF last-assign `na`; run parity harness |
 | Strategy equity mismatch vs TV | Commission/slippage/fill model differences; seed data |
 | Import resolution fails | Library not registered in runtime |
 

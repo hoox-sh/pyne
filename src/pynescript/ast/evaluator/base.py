@@ -225,6 +225,14 @@ class BaseEvaluator(NodeVisitor):
         self._call_site_cache: dict[int, tuple] = {}
         # name → (tag, handler) for _call_builtin after first resolve
         self._builtin_resolved: dict[str, tuple[int, Any]] = {}
+        # Pine dual namespace: UDFs stay callable even when a series local
+        # reuses the same name (``ma = ta.sma(...); ma(src, n) => …``).
+        self._user_functions: dict[str, Any] = {}
+        # Names used with history subscript (``x[1]``); assigned as PineSeries.
+        self._history_names: set[str] = set()
+        self._history_names_scanned: bool = False
+        # bar_index last written for each history-tracked series (same-bar replace).
+        self._series_assign_bar: dict[str, int] = {}
 
     def generic_visit(self, node: ast.AST):
         """Fail closed on AST node types with no ``visit_*`` implementation.

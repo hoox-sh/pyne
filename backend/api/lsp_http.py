@@ -83,7 +83,7 @@ def lsp_completion():
             jsonify(
                 {
                     "status": "error",
-                    "message": f"LSP deps missing (pip install \"hoox-pyne[lsp]\"): {e}",
+                    "message": f"LSP deps missing (pip install \"pyne[lsp]\"): {e}",
                 }
             ),
             503,
@@ -135,7 +135,7 @@ def lsp_hover():
             jsonify(
                 {
                     "status": "error",
-                    "message": f"LSP deps missing (pip install \"hoox-pyne[lsp]\"): {e}",
+                    "message": f"LSP deps missing (pip install \"pyne[lsp]\"): {e}",
                 }
             ),
             503,

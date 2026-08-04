@@ -15,14 +15,14 @@
     "theme": "dark"
   },
   "homepage": "https://hoox.sh/pyne",
-  "qna": "https://github.com/jango-blockchained/pyne/issues",
+  "qna": "https://github.com/hoox-sh/pyne/issues",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jango-blockchained/pyne.git",
+    "url": "https://github.com/hoox-sh/pyne.git",
     "directory": "vscode-extension"
   },
   "bugs": {
-    "url": "https://github.com/jango-blockchained/pyne/issues"
+    "url": "https://github.com/hoox-sh/pyne/issues"
   },
   "engines": {
     "vscode": "^1.85.0"
@@ -121,7 +121,7 @@
         "pynescript.lsp.python": {
           "type": "string",
           "default": "python3",
-          "description": "Python interpreter used when lsp.command is auto and pynescript-lsp is not on PATH (must have: pip install \"hoox-pyne[lsp]\")."
+          "description": "Python interpreter used when lsp.command is auto and pynescript-lsp is not on PATH (must have: pip install \"pyne[lsp]\")."
         },
         "pynescript.lsp.args": {
           "type": "array",

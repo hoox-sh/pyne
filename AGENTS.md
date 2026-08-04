@@ -110,8 +110,8 @@ python -c "from scripts.build.compile import encrypt_metadata; encrypt_metadata(
 
 ```bash
 # After local .metadata.key exists:
-gh secret set METADATA_KEY -R jango-blockchained/pyne < scripts/build/.metadata.key
-gh secret set CRYPTO_KEY   -R jango-blockchained/pyne < scripts/build/.metadata.key
+gh secret set METADATA_KEY -R hoox-sh/pyne < scripts/build/.metadata.key
+gh secret set CRYPTO_KEY   -R hoox-sh/pyne < scripts/build/.metadata.key
 ```
 
 Never commit `.metadata.key`. If lost: generate a new Fernet key, update both
@@ -159,9 +159,9 @@ Tests set `ADMIN_TOKEN` via monkeypatch; local `make run` needs
 
 ### Package
 
-- PyPI **distribution** name: **`hoox-pyne`** (import / console scripts stay
+- PyPI **distribution** name: **`pyne`** (import / console scripts stay
   **`pynescript`** / `pynescript-lsp`). Upstream PyPI `pynescript` is elbakramer.
-- Product/repo: **pyne** · install: `pip install "hoox-pyne[lsp]"`.
+- Product/repo: **pyne** · install: `pip install "pyne[lsp]"`.
 - Version: `src/pynescript/__about__.py` (exported as `pynescript.__version__`).
 - Optional extras: `[lsp]`, `[pro]`, `[compile]`, `[data]` / `[datafeed]`.
 - Publish: tag `vX.Y.Z` → `.github/workflows/publish.yml` (Trusted Publishing
@@ -301,7 +301,7 @@ only `scripts/build/.metadata.key` is ignored.
 | Product | GitHub | Local path | Website |
 |---|---|---|---|
 | **HOOX** | [jango-blockchained/hoox](https://github.com/jango-blockchained/hoox) | `/home/jango/Git/hoox` | [hoox.sh](https://hoox.sh) · [docs.hoox.sh](https://docs.hoox.sh) |
-| **PYNE** (this repo) | [jango-blockchained/pyne](https://github.com/jango-blockchained/pyne) | `/home/jango/Git/pynescript` | [hoox.sh/pyne](https://hoox.sh/pyne) · [docs](https://hoox.sh/pyne/docs) |
+| **PYNE** (this repo) | [hoox-sh/pyne](https://github.com/hoox-sh/pyne) | `/home/jango/Git/pynescript` | [hoox.sh/pyne](https://hoox.sh/pyne) · [docs](https://hoox.sh/pyne/docs) |
 | **AXIS** | [jango-blockchained/axis](https://github.com/jango-blockchained/axis) | `/home/jango/Git/axis` | [hoox.sh/axis](https://hoox.sh/axis) · [docs](https://hoox.sh/axis/docs) |
 
 Related:

@@ -320,7 +320,7 @@ PyneScript provides strong syntax compatibility (full parser coverage for v5/v6 
 
 ```bash
 # Clone repository
-git clone https://github.com/jango-blockchained/pynescript.git
+git clone https://github.com/hoox-sh/pyne.git
 cd pynescript
 
 # Install dependencies
@@ -383,7 +383,7 @@ See [../tests/data/builtin_scripts/](../tests/data/builtin_scripts/) for:
 
 Found a Pine Script that doesn't parse correctly? Please report:
 
-1. **GitHub Issues:** https://github.com/jango-blockchained/pynescript/issues
+1. **GitHub Issues:** https://github.com/hoox-sh/pyne/issues
 2. **Include:** Script source, error message, expected behavior
 3. **We commit to:** Response within 48 hours, fix within 1 week
 
@@ -410,8 +410,8 @@ This compatibility guarantee applies to PyneScript library:
 ## 📞 Contact
 
 - **Documentation:** https://pynescript.readthedocs.io/
-- **GitHub:** https://github.com/jango-blockchained/pynescript
-- **Issues:** https://github.com/jango-blockchained/pynescript/issues
+- **GitHub:** https://github.com/hoox-sh/pyne
+- **Issues:** https://github.com/hoox-sh/pyne/issues
 
 ---
 

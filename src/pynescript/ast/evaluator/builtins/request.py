@@ -274,7 +274,48 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         symbol_attr = getattr(arg, "symbol", None)
         if isinstance(symbol_attr, str) and symbol_attr:
             return symbol_attr.upper()
+        # Empty TickerInfo.symbol (ticker.new(syminfo.prefix, …)) → chart
+        if hasattr(arg, "symbol") and isinstance(symbol_attr, str):
+            return ""
         return str(arg).upper()
+
+    def _is_chart_symbol(self, symbol: str) -> bool:
+        """True when *symbol* refers to the host chart (or is empty / generic).
+
+        Foreign tickers (``ESD_FACTSET``, ``MSFT`` when chart is ``AAPL``, …)
+        must not inherit pre-evaluated chart expressions as if they were
+        multi-symbol results (dividend_yield inventing close-as-dividend).
+        """
+        s = (symbol or "").strip().upper()
+        if not s or s in {"CHART", "SYMBOL", "TICKER", "NONE", "NA"}:
+            return True
+        ctx = getattr(self, "context", {}) or {}
+        candidates: list[str] = []
+        for key in (
+            "syminfo.ticker",
+            "syminfo.tickerid",
+            "syminfo.root",
+            "symbol",
+            "_host_symbol",
+        ):
+            raw = ctx.get(key)
+            if raw is None:
+                continue
+            t = str(raw).strip().upper()
+            if t:
+                candidates.append(t)
+        _, data_provider = self._get_request_data()
+        prov_sym = getattr(data_provider, "_symbol", None)
+        if prov_sym:
+            candidates.append(str(prov_sym).strip().upper())
+        for t in candidates:
+            if s == t:
+                return True
+            if s.split(":")[-1] == t.split(":")[-1]:
+                return True
+            if s.endswith(":" + t) or t.endswith(":" + s):
+                return True
+        return False
 
     def _get_request_data(self):
         """Get (data_feed, data_provider) for live/historical fallback."""
@@ -343,18 +384,30 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         #   multi-element numeric lists to the last sample — that breaks unpack.
         # - single-element numeric list: unwrap to scalar (legacy series path)
         # - matrix/array/UDT result: return as-is
+        #
+        # Pre-evaluated non-str expressions were computed on the *chart* series.
+        # Same-symbol security may return them; foreign symbols without a real
+        # multi-symbol context must return na (not invent chart close as
+        # dividends / fundamentals — see dividend_yield.pine).
+        chart_sym = self._is_chart_symbol(str(symbol))
+
         if isinstance(expression, list):
             if len(expression) == 1 and (
                 expression[0] is None or isinstance(expression[0], (int, float, bool))
             ):
                 expression = expression[0]
-            else:
+            elif chart_sym:
                 return expression
+            else:
+                return float("nan")
         if isinstance(expression, tuple):
-            return expression
+            return expression if chart_sym else float("nan")
 
         if not isinstance(expression, str):
-            return expression
+            if chart_sym:
+                return expression
+            # Foreign + chart-evaluated UDF/expr (year_sum(close), …) → na
+            return float("nan")
 
         symbol_str = symbol
 
@@ -366,7 +419,11 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         if last is not None:
             return self._get_expression_prices(str(expression), [float(last)] * REQUEST_OHLCV_LIMIT)
 
-        # Fallback mock data (original behavior)
+        # Fallback mock data for bare string series names only (legacy demos).
+        # Skip inventing OHLCV for obvious fundamental / non-equity prefixes.
+        if any(tok in symbol_str for tok in ("DIVIDEND", "FACTSET", "EARNINGS", "ESD_")):
+            return float("nan")
+
         base_prices = {
             "AAPL": [100.0, 101.5, 102.0, 103.5, 105.0],
             "GOOGL": [1000.0, 1015.5, 1020.0, 1035.5, 1050.0],

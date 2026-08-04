@@ -484,6 +484,30 @@ def _ohlcv_dicts_to_arrays(ohlcv_data: list[dict]) -> tuple[Any, Any, Any, Any, 
     return packed
 
 
+def _ohlcv_times_to_array(ohlcv_data: list[dict]) -> Any:
+    """Bar-open Unix ms for compile path (parity with interpret ``time`` series).
+
+    Missing/invalid times fall back to synthetic ``bar_index * 60_000`` so
+    length always matches OHLCV.
+    """
+    import numpy as np  # noqa: PLC0415
+
+    n = len(ohlcv_data)
+    if n == 0:
+        return np.empty(0, dtype=np.float64)
+    t_l: list[float] = []
+    for i, b in enumerate(ohlcv_data):
+        raw = b.get("time") if isinstance(b, dict) else None
+        if raw is None:
+            t_l.append(float(i) * 60000.0)
+            continue
+        try:
+            t_l.append(float(raw))
+        except (TypeError, ValueError):
+            t_l.append(float(i) * 60000.0)
+    return np.asarray(t_l, dtype=np.float64)
+
+
 def _clear_pine_call_sites(tree: Any) -> None:
     """Drop evaluator-bound call-site caches from a shared AST tree.
 
@@ -823,6 +847,10 @@ class Runtime:
         hlc3_series = make_pine_series(history_length=_ps_hist)
         ohlc4_series = make_pine_series(history_length=_ps_hist)
         tr_series = make_pine_series(history_length=_ps_hist)  # true range
+        # time / time_close are series (time[1] = previous bar open time). Scalar
+        # overwrite broke history lookbacks used by year_sum-style TTM windows.
+        time_series = make_pine_series(history_length=_ps_hist)
+        time_close_series = make_pine_series(history_length=_ps_hist)
 
         # Context initialization (daily chart defaults).
         # LazyCalendarContext: calendar series (year/month/…) materialise on read.
@@ -856,8 +884,8 @@ class Runtime:
                 "timeframe.isdwm": tf.isdwm,
                 # Per-bar counters updated in the loop below
                 "bar_index": 0,
-                "time": 0,
-                "time_close": 0,
+                "time": time_series,
+                "time_close": time_close_series,
                 "last_bar_index": max(0, len(ohlcv_data) - 1),
                 "last_bar_time": ohlcv_data[-1].get("time", 0) if ohlcv_data else 0,
             }
@@ -1012,6 +1040,8 @@ class Runtime:
         hlc3_update = hlc3_series.update
         ohlc4_update = ohlc4_series.update
         tr_update = tr_series.update
+        time_update = time_series.update
+        time_close_update = time_close_series.update
 
         # Static barstate flags for historical bar-by-bar host (do not change mid-run)
         barstate.isnew = True
@@ -1096,15 +1126,15 @@ class Runtime:
                         length_hint=n_hist,
                     )
 
-            # Per-bar counters / time
+            # Per-bar counters / time (series update — do not replace PineSeries refs)
             bar_time = col_time[bar_index]
             if bar_index < last_bar_i:
                 time_close = col_time[bar_index + 1] or bar_time
             else:
                 time_close = int(bar_time) + 86_400_000
             context["bar_index"] = bar_index
-            context["time"] = bar_time
-            context["time_close"] = time_close
+            time_update(bar_time)
+            time_close_update(time_close)
             # Lazy calendar: record bar time only; year/month/… fill on first read.
             context.set_bar_time(bar_time)
 
@@ -1233,6 +1263,11 @@ class Runtime:
             """JSON-safe series cell for plot / bgcolor / plotshape kinds."""
             if v is None:
                 return None
+            # Unresolved library imports use a chainable stub whose ``__getattr__``
+            # returns self — so ``hasattr(stub, "to_rgba")`` is True and would
+            # otherwise serialize as ``"<PineImportStub …>"`` via ``_color_str``.
+            if getattr(v, "__pine_import_stub__", False):
+                return None
             t = type(v)
             if kind == "bgcolor":
                 # Capture already serializes colors to str | None
@@ -1251,10 +1286,32 @@ class Runtime:
                     except (TypeError, ValueError):
                         return bool(v)
                 return bool(v)
-            # line / hline numeric (or pass through strings already serialized)
-            if t is float or t is int or t is str or t is bool:
-                return v
-            return _color_str(v) if hasattr(v, "to_rgba") or hasattr(v, "to_hex") else v
+            # line / hline numeric. Non-numeric strings (library import stubs,
+            # unresolved symbols) must not appear as plot series cells — AXIS
+            # and interpret/compile parity treat them as ``na`` (null).
+            if t is float or t is int:
+                try:
+                    fv = float(v)
+                    return None if fv != fv else v
+                except (TypeError, ValueError):
+                    return None
+            if t is bool:
+                return float(v)
+            if t is str:
+                s = v.strip()
+                if not s or s.startswith("<PineImportStub") or s.startswith("<"):
+                    return None
+                try:
+                    fv = float(s)
+                    return None if fv != fv else fv
+                except (TypeError, ValueError):
+                    return None
+            # Only real color objects (callable to_rgba/to_hex), not getattr stubs
+            to_rgba = getattr(type(v), "to_rgba", None)
+            to_hex = getattr(type(v), "to_hex", None)
+            if callable(to_rgba) or callable(to_hex):
+                return _color_str(v)
+            return None
 
         max_plots = len(value_cols)
         for pi in range(max_plots):
@@ -1683,6 +1740,7 @@ class Runtime:
         # Single-pass float64 packing (avoids 5 list comps + re-asarray in engine)
         try:
             opens, highs, lows, closes, volumes = _ohlcv_dicts_to_arrays(ohlcv_data)
+            times = _ohlcv_times_to_array(ohlcv_data)
         except Exception as e:
             return _attach_logs_profile(
                 _error_payload(
@@ -1699,7 +1757,9 @@ class Runtime:
 
         t_run0 = time.perf_counter()
         try:
-            series_map = compiled.run(opens, highs, lows, closes, volumes)
+            series_map = compiled.run(
+                opens, highs, lows, closes, volumes, time=times
+            )
         except Exception as e:
             run_ms = (time.perf_counter() - t_run0) * 1000.0
             return _attach_logs_profile(

@@ -3,7 +3,7 @@
 > Parse, analyze, and regenerate TradingView® Pine Script™ with a modern Python toolchain.
 > Built-in Language Server Protocol (LSP) for VS Code, Neovim, Zed, and Emacs.
 
-**Website:** [hoox.sh/pyne](https://hoox.sh/pyne) · **Docs:** [hoox.sh/pyne/docs](https://hoox.sh/pyne/docs) · **Repo:** [jango-blockchained/pyne](https://github.com/jango-blockchained/pyne)
+**Website:** [hoox.sh/pyne](https://hoox.sh/pyne) · **Docs:** [hoox.sh/pyne/docs](https://hoox.sh/pyne/docs) · **Repo:** [hoox-sh/pyne](https://github.com/hoox-sh/pyne)
 
 _Pine Script™ and TradingView® are trademarks of TradingView, Inc. This project is an independent effort and is not affiliated with or endorsed by TradingView, Inc._
 
@@ -14,7 +14,7 @@ Part of the **[HOOX](https://hoox.sh)** open trading stack:
 | Product | Role | Repo | Website |
 |---------|------|------|---------|
 | **HOOX** | Edge trading framework (Cloudflare Workers) | [jango-blockchained/hoox](https://github.com/jango-blockchained/hoox) | [hoox.sh](https://hoox.sh) · [docs](https://docs.hoox.sh) |
-| **PYNE** | Pine Script™ toolchain + Pro API (this repo) | [jango-blockchained/pyne](https://github.com/jango-blockchained/pyne) | [hoox.sh/pyne](https://hoox.sh/pyne) · [docs](https://hoox.sh/pyne/docs) |
+| **PYNE** | Pine Script™ toolchain + Pro API (this repo) | [hoox-sh/pyne](https://github.com/hoox-sh/pyne) | [hoox.sh/pyne](https://hoox.sh/pyne) · [docs](https://hoox.sh/pyne/docs) |
 | **AXIS** | Installable charting PWA | [jango-blockchained/axis](https://github.com/jango-blockchained/axis) | [hoox.sh/axis](https://hoox.sh/axis) · [docs](https://hoox.sh/axis/docs) |
 
 Local clone layout (typical sibling checkouts):
@@ -56,7 +56,7 @@ Local clone layout (typical sibling checkouts):
 Get professional IDE features in VS Code, Neovim, Zed, Emacs, and more:
 
 ```bash
-pip install "hoox-pyne[lsp]"
+pip install "pyne[lsp]"
 pynescript-lsp
 ```
 
@@ -189,10 +189,10 @@ curl -s -X POST http://127.0.0.1:5002/auth/create_key \
 ## Installation
 
 ```bash
-# From PyPI (distribution name hoox-pyne; import remains pynescript)
-pip install hoox-pyne
-pip install "hoox-pyne[lsp]"      # language server
-pip install "hoox-pyne[pro]"      # Flask Pro API stack
+# From PyPI (distribution name pyne; import remains pynescript)
+pip install pyne
+pip install "pyne[lsp]"      # language server
+pip install "pyne[pro]"      # Flask Pro API stack
 
 # From a git clone (development)
 pip install -e ".[lsp,pro]"

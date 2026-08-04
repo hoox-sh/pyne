@@ -1649,6 +1649,10 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         ctx = getattr(self, "context", None) or {}
         bar_index = ctx.get("bar_index")
         bar_time = ctx.get("time")
+        # Host may store time as PineSeries (history-capable); unwrap current.
+        cur = getattr(bar_time, "current", None)
+        if cur is not None and not isinstance(bar_time, (int, float)):
+            bar_time = cur
         try:
             index = int(bar_index) if bar_index is not None else None
         except (TypeError, ValueError):
