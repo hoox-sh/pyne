@@ -5030,7 +5030,7 @@ class CompilerVisitor(NodeVisitor):
                 return "np.nan"
             if _is_series_arr(args[0]) or args[0].endswith("_arr") or "[" in args[0]:
                 return f"numba_swma({_arr(args[0])}, __bar_idx)"
-            return f"numba_swma(close_arr, __bar_idx)"
+            return "numba_swma(close_arr, __bar_idx)"
         if func_name == "ta_tsi":
             # ta.tsi(source, short, long) or ta.tsi(short, long) on close
             st = self._alloc_fixed_state("tsi", 6)

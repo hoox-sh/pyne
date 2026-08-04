@@ -60,7 +60,7 @@ Builtin metadata is generated (`scripts/generate_builtin_metadata.py`); encrypte
 ### Install server
 
 ```bash
-pip install "pynescript[lsp]"
+pip install "pyne[lsp]"
 # monorepo:
 pip install -e ".[lsp]"
 # or: make install
@@ -82,7 +82,7 @@ npm run compile
 # package: npx vsce package  (or make build-vscode)
 ```
 
-2. Open a `.pine` / `.pinev5` / `.pinev6` file — LSP activates when enabled.
+2. Open a **`.pyne`** (preferred for HOOX / PYNE stack sources), `.pine`, `.pinev5`, or `.pinev6` file — LSP activates when enabled. The VS Code extension also activates on `workspaceContains:**/*.{pyne,pine,…}`.
 
 Settings:
 

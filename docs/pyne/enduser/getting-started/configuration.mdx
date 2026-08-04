@@ -101,12 +101,30 @@ Consumed by `backend/app.py` and middleware:
 | `ALLOWED_ORIGINS` | `https://pynescript.ai`, `https://app.pynescript.ai`, localhost regex | CORS allowlist (comma-separated; may include regex strings) |
 | `ADMIN_TOKEN` | unset | Required for `POST /auth/create_key`; if unset, create returns 403 |
 | `API_KEY_STORE` | `/root/pynescript/data/api_keys.json` | Path for key store (override for local) |
+| `ALERT_WEBHOOK_URL` | unset | Default L2 alert webhook for `/run` when body omits `webhook_url` |
+| `ALERT_WEBHOOK_TIMEOUT` | `10` | Webhook HTTP timeout (seconds) |
 
 Also relevant:
 
 | Variable | Context |
 | --- | --- |
 | `MAX_CONTENT_LENGTH` | Hardcoded 5 MiB on Flask app config (not env) — large OHLCV POSTs fail above this |
+
+### Runtime / evaluate environment variables
+
+Used by `backend.runtime.Runtime` and the compiler host (library + Pro API):
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PYNE_RUNTIME_MODE` | `interpret` | Default when `Runtime.run(..., mode=None)` omits mode (**Pro API schema default is still `auto`**) |
+| `PYNE_SERIES_CAP` | **on** | Trim append-only host series lists; set `0` / `false` / `off` to disable (oracle / debug) |
+| `PYNE_SERIES_MAX` | unset | Absolute series history depth (overrides default 256 + `max_bars_back`) |
+| `PYNE_TA_INCREMENTAL` | **on** | Bar-mode incremental `ta.*` hot path; set `0` to force full recompute |
+| `PYNE_COMPILE_DISK_CACHE` | often `1` in deploy | Persist compiled IR across processes |
+| `PYNE_COMPILE_CACHE_DIR` | XDG cache / Docker `/data/compile-cache` | Disk IR location |
+| `PYNE_COMPILE_PREWARM` | deploy-dependent | Host cold-start prewarm of Numba builtins |
+
+See [Series & history](/pyne/docs/runtime/series-and-history), [Technical builtins](/pyne/docs/runtime/builtins/technical), and [Compiler overview](/pyne/docs/runtime/compiler/overview).
 
 Local run:
 
@@ -137,7 +155,12 @@ Pro API `/run` optional fields:
 | --- | --- | --- |
 | `data_source` | `""`, `mock`, `ccxt`, `ccxtpro`, `yahoo`, `alphavantage` | Wires `request.*` resolution |
 | `data_options` | object | exchange, api_key, seed, … |
-| `mode` | `interpret` (default), `compile` | AST walker vs compiled subset |
+| `mode` | `auto` (default), `interpret`, `compile` | Prefer warm compile + fallback; strict compile; full interpret |
+| `inputs` | object | `input.*` overrides by title (forces interpret under `auto`) |
+| `webhook_url` | string | Per-request L2 alert webhook (overrides `ALERT_WEBHOOK_URL`) |
+| `forward_alerts` / `alert_last_bar` / `alert_batch` | bool | Webhook delivery controls (see [Alerts](/pyne/docs/runtime/alerts)) |
+
+Operators can also `POST /compile/prewarm` (or `pynescript prewarm` when available) to warm Numba builtins before interactive traffic.
 
 ### Editor / LSP client settings
 

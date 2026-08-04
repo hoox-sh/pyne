@@ -80,6 +80,12 @@ result = runtime.run(source, ohlcv_data=ohlcv, mode="auto")
 # on fallback: result.get("compile_fallback_reason")
 ```
 
+### Warm compile / prewarm
+
+Product hosts cache compiled IR (in-process LRU + optional disk under `PYNE_COMPILE_CACHE_DIR`). Pro API defaults `mode=auto` and can warm Numba builtins once per worker (`PYNE_COMPILE_PREWARM`, `POST /compile/prewarm`, or `pynescript prewarm` when the CLI subcommand is present). First-hit latency still pays JIT when cold; subsequent runs of the same source reuse IR. See [Compiler overview](/pyne/docs/runtime/compiler/overview).
+
+Related host knobs (interpret path): `PYNE_SERIES_CAP` / `PYNE_SERIES_MAX` (history trim) and `PYNE_TA_INCREMENTAL` (bar-mode TA hot path)—see [Series & history](/pyne/docs/runtime/series-and-history) and [Configuration](/pyne/docs/enduser/getting-started/configuration).
+
 ### When compile falls back (or is skipped)
 
 `mode="auto"` (and explicit prefilters) skip or abandon compile for stable reasons. Common `compile_fallback_reason` values:

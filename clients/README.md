@@ -29,9 +29,11 @@ code --extensionDevelopmentPath=.
 ```
 
 **Features:**
+- File associations: **`.pyne`**, `.pine`, `.pinev5`, `.pinev6`, `.pinescript`
 - Syntax highlighting (TextMate grammar)
 - LSP diagnostics, autocomplete, hover, symbols, formatting
 - Status bar + auto-detect `pynescript-lsp` or `python -m pynescript.langserver`
+- Install language server: `pip install "pyne[lsp]"` (import package remains `pynescript`)
 
 **Configuration:**
 - `pynescript.lsp.enabled` — Toggle LSP (default: true)
@@ -133,7 +135,7 @@ Add to `~/.config/helix/languages.toml`:
 [[language]]
 name = "pinescript"
 scope = "source.pinescript"
-file-types = ["pine", "pinev5", "pinev6"]
+file-types = ["pyne", "pine", "pinev5", "pinev6"]
 roots = ["pyproject.toml"]
 command = "pynescript-lsp"
 args = ["--stdio"]

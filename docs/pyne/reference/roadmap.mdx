@@ -19,24 +19,33 @@
 
 ---
 title: "Roadmap"
-description: "PYNE forward plan — residual host parity, corpus tail, warm compile, and optional fidelity work."
+description: "PYNE forward plan — dual-host residual, corpus ~94.3%, plot parity harness; H2/T1/F2/L2 landed (2026-08)."
 ---
 
 # Roadmap
 
 ## Abstract
 
-The roadmap is a **living prioritization document**, not a contract. Source: `docs/ROADMAP.md` (updated **2026-08-01**). Historically “remaining” items — Jupyter, linter, data providers, strategy events, Pro API, LSP core, deep strategy runtime, drawing GC, **alert engine + L2 webhooks** — are **done**. What remains: **dual-host package-level Runtime unify**, **corpus execution tail**, **warm-compile productization**, residual **TA/series perf**, and optional **TV-oracle re-baselines**.
+The roadmap is a **living prioritization document**, not a contract. Source: `docs/ROADMAP.md` (updated **2026-08-03**). Core v6 language/builtins are essentially closed. Product **warm-compile (H2)**, **series caps (T1)**, **pending-fill (F2)**, and **L2 webhooks** have **landed**. What remains: **dual-host package-level Runtime unify (H1 residual)**, **corpus execution tail (C1 ~94.3%)**, **interpret↔compile plot residuals (P1p harness landed)**, residual nested TA (**T2** partial), and optional **TV-oracle re-baselines (F1)**.
 
 ## Conceptual model
 
+```text
+P0 docs honesty → P1 dual-host (H1 residual: package unify)
+                → P1 plot parity residual (P1p) + C1 corpus tail
+                → H2 warm compile ✅ · T1 series caps ✅ · F2 pending-fill ✅
+                              ↘ T2 residual nested TA · F1 ATR/supertrend goldens
+                                  → P6 long-horizon (L1 / L3; L2 ✅)
+```
+
 ```mermaid
 flowchart LR
-  DONE[Core parser + evaluator] --> A[Phase A performance]
-  DONE --> B[Phase B DX polish]
-  DONE --> C[Phase C integration depth]
-  DONE --> D[Phase D transforms / scale]
-  PW[pine-worker maturity] --> HOOX[HOOX trade mesh]
+  DONE[Core parser + evaluator] --> H1[H1 dual-host residual]
+  DONE --> P1p[P1p plot parity residual]
+  DONE --> C1[C1 corpus tail]
+  H2[H2 warm compile ✅] --> OPS[Deploy SLOs]
+  T1[T1 series caps ✅] --> PERF[Bar-loop hygiene]
+  L2[L2 webhooks ✅] --> HOST[Pro + edge export]
 ```
 
 ## Interface surface
@@ -45,15 +54,21 @@ flowchart LR
 
 | Component | Status |
 | --- | --- |
-| Parser ANTLR4 | ✅ |
-| Evaluator | ✅ incl. var/varip / reassign |
-| Builtins / TA / collections | ✅ broad |
-| Strategy events + parity | ✅ |
+| Parser ANTLR4 | ✅ v5/v6 + multiline / export const |
+| Evaluator | ✅ incl. full var/varip, ReAssign |
+| Builtins / TA / collections | ✅ broad (0 missing vs public TV ref list) |
+| Strategy events + broker (OCA, commission, risk) | ✅ |
+| Numba + object-mode compile | ✅ MVP+ (disk IR cache, `mode=auto`, `time_arr`, cache recovery) |
+| Pro API + auth + Docker | ✅ (`mode` default `auto`) |
+| Alert engine + L2 webhooks | ✅ dual-host export + outbound webhooks |
+| Drawing `max_*_count` GC | ✅ package + Pro API + AXIS Pyodide |
+| `request.security` foreign-na | ✅ same-symbol OHLCV only; foreign → `na` |
+| Series caps (`PYNE_SERIES_CAP`) | ✅ T1 |
+| Warm-compile product path | ✅ H2 (SLOs, prewarm, deploy IR cache) |
+| Pending-fill averaging (pyramiding ≤ 0) | ✅ F2 |
+| Interpret↔compile plot parity | ⚙️ harness + goldens landed; residual MISMATCH tail |
+| Dual-host package Runtime unify | ⬜ open (largest P1 residual) |
 | pine-worker (TS + converter) | ✅ colocated tool (port ongoing) |
-| Drawing/input/request | ✅ (plots registry; data mock/feed) |
-| Linter / Jupyter / data providers | ✅ |
-| LSP advanced features | ✅ core set |
-| Numba compile path | ✅ MVP |
 | Full TV platform identity | ⚙️ out of scope |
 
 ### Completed themes (do not re-plan as greenfield)
@@ -64,19 +79,25 @@ flowchart LR
 - Yahoo / AlphaVantage / CCXT + realtime datafeed wiring
 - StrategyEvent emission + parity fixtures
 - pine-worker extra tool + Python→TS converter
+- Alert engine + dual-host export + **L2 webhooks**
+- Round 7: series caps, incremental TA (bb/kama/cmo/stochrsi), parse cache, warm compile, pending-fill, drawing GC
 
-### Remaining high-value work
+### Open backlog (IDs stable)
 
-| ID | Item | Pri |
-| --- | --- | --- |
-| H1 | Dual-host Runtime (host surface + alerts ✅; package-level unify open) | P1 ⚙️ |
-| H2 | Warm-compile product path (SLOs / prewarm / IR cache) | P1 |
-| C1 | Corpus TIMEOUT / RUN_FAIL residual | P1 |
-| T1 / T2 | Series caps + residual incremental TA | P2 |
-| F1 / F2 | Optional TV-oracle re-baselines (ATR, pending fills) | P2 |
-| L1 | v5↔v6 converter maturity | P3 |
-| **L2** | **Alert webhooks** (Pro API + pyne-worker) | **P3 ✅** |
-| L3 | pine-worker (TS) full builtin parity | P3 |
+| ID | Item | Pri | Status |
+| --- | --- | --- | --- |
+| **H1** | Dual-host Runtime (host surface + alerts export dual-host ✅; package-level unify open) | P1 | ⚙️ residual |
+| **H2** | Product warm-compile (SLOs, prewarm API/CLI, IR cache on in deploy) | P1 | ✅ |
+| **C1** | Corpus TIMEOUT / RUN_FAIL residual (set01–04 **~94.3%** OK projected) | P1 | ⚙️ ongoing |
+| **P1p** | Compile/interpret **plot parity** residual | P1 | ⚙️ harness landed (`scripts/compare_interp_compile.py`, `tests/test_interp_compile_parity.py`) |
+| **T1** | Cap `current_series` to `max_bars_back` / `_SERIES_MAX` | P2 | ✅ `PYNE_SERIES_CAP` default ON |
+| **T2** | Incremental TA for remaining heavy kernels | P2 | ✅ partial (bb/kama/cmo/stochrsi; nested full paths residual) |
+| **F1** | ATR Wilder / TV supertrend re-baseline only with dedicated goldens | P2 | ⚙️ RSI Wilder aligned; ATR/supertrend goldens open |
+| **F2** | Pending-fill averaging when pyramiding ≤ 0 | P2 | ✅ |
+| **L1** | v5↔v6 converter maturity | P3 | open |
+| **L2** | Webhook alerts productization | P3 | ✅ Pro + pyne-worker |
+| **L3** | pine-worker (TS) full builtin parity | P3 | open |
+| **B1** | Real (non-mock) `request.*` market data | — | ⚙️ by design; **foreign-na policy landed** |
 
 Longer horizon (not next): ML wrappers, automatic refactor, parallel/distributed eval experiments.
 
@@ -84,9 +105,15 @@ Longer horizon (not next): ML wrappers, automatic refactor, parallel/distributed
 
 | Horizon | Focus |
 | --- | --- |
-| Short | H1 package unify residual, C1 corpus tail, H2 warm compile |
-| Medium | T1/T2 series + residual TA; optional F1/F2 goldens |
-| Long | L1 converter maturity; L3 TS pine-worker parity |
+| Short | H1 package unify residual, **P1p** plot MISMATCH goldens, **C1** corpus tail |
+| Medium | **T2** residual nested TA; optional **F1** ATR/supertrend goldens |
+| Long | **L1** converter maturity; **L3** TS pine-worker parity (**L2** ✅) |
+
+### Landed residual notes (2026-08)
+
+- **Plot parity:** Always-on smoke in `tests/test_interp_compile_parity.py`. Full corpus compare: `python scripts/compare_interp_compile.py` → `.cache/interp_compile_parity.json`. Flags `--ignore-hline-keys` / `--ignore-fill-keys` drop structural residuals.
+- **Corpus:** C1 Runtime OK ~**94.3%** projected (set01–04); residual RUN_FAIL mostly intentional `runtime.error` demos, lower-TF security guards, scrape/PARSE stubs.
+- **Foreign-na:** `request.security` on foreign/complex expressions → `na` both backends; `ChartOHLCVProvider` refuses non-chart symbols.
 
 ## Internals
 
@@ -95,6 +122,7 @@ Longer horizon (not next): ML wrappers, automatic refactor, parallel/distributed
 | `docs/ROADMAP.md` | Canonical roadmap prose |
 | `docs/PROGRESS_REPORT.md` | Historical completion narrative |
 | `docs/COMPILER_PLAN.md` | Compile/numba plan |
+| `scripts/compare_interp_compile.py` | Plot parity harness |
 | `.opencode/plans/` | Engineering plans (strategy events, consolidation) |
 | `pine-worker/` | TS port track |
 
@@ -104,6 +132,7 @@ Longer horizon (not next): ML wrappers, automatic refactor, parallel/distributed
 2. **Sister repos** (pyne-worker, hoox-setup, pine-worker packaging) may absorb “integration” items.
 3. **AXIS is a separate product tree** (`docs/axis`) — chart UX roadmap is not PYNE-core.
 4. Avoid reintroducing deleted backups (`builder.py.bak`, etc.) as “plan items.”
+5. Do **not** re-open **H2 / T1 / F2 / L2** as open work — they are marked ✅ in `docs/ROADMAP.md` (2026-08-03).
 
 ## Worked examples
 
@@ -112,6 +141,13 @@ Longer horizon (not next): ML wrappers, automatic refactor, parallel/distributed
 ```bash
 # pick a gap, write failing test first, implement, update missing_features.md
 pytest tests/test_v6_features.py -k footprint -v
+```
+
+### Plot parity smoke
+
+```bash
+pytest tests/test_interp_compile_parity.py -q
+python scripts/compare_interp_compile.py   # opt-in full compare
 ```
 
 ### pine-worker maturity gate
@@ -125,7 +161,7 @@ cd pine-worker && bun test && bun run typecheck
 
 | Anti-pattern | Why it hurts |
 | --- | --- |
-| Planning features already ✅ | Duplicated work |
+| Planning features already ✅ | Duplicated work (H2/T1/F2/L2 are done) |
 | Roadmap without tests | Unverifiable “done” |
 | Ignoring by-design limits | Infinite platform chase |
 
@@ -133,5 +169,7 @@ cd pine-worker && bun test && bun run typecheck
 
 - [Missing features](/pyne/docs/reference/missing-features)
 - [Implementation status](/pyne/docs/reference/implementation-status)
+- [Interpret ↔ compile parity](/pyne/docs/runtime/compiler/parity)
+- [Alerts](/pyne/docs/runtime/alerts)
 - [pine-worker](/pyne/docs/pine-worker)
 - [Contributing](/pyne/docs/contributing)

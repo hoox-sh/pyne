@@ -19,16 +19,16 @@
 
 ---
 title: "Runtime"
-description: "Bar-loop evaluator, series model, builtins, strategy events, and the optional Numba compile path."
+description: "Bar-loop evaluator — series caps, incremental TA, alerts, fill export, foreign request.security → na, and interpret↔compile parity."
 ---
 
 # Runtime
 
 ## Abstract
 
-PYNE’s runtime is the deterministic **bar-loop** that turns a parsed ASDL AST into series values, drawing side-effects, and strategy events. It is deliberately host-agnostic: the same visitor mixins power the library API, the Flask Pro API (`Runtime.run`), browser Pyodide, and edge workers. A second path—source-to-source compilation into a Numba or object-mode bar loop—trades interpretive flexibility for throughput on long histories.
+PYNE’s runtime is the deterministic **bar-loop** that turns a parsed ASDL AST into series values, drawing side-effects, strategy events, and **alerts**. It is deliberately host-agnostic: the same visitor mixins power the library API, the Flask Pro API (`Runtime.run`), browser Pyodide, and edge workers. A second path—source-to-source compilation into a Numba or object-mode bar loop—trades interpretive flexibility for throughput on long histories; Pro API defaults to **`mode=auto`**.
 
-This section documents **semantics**, not the chart. AXIS consumes plots; HOOX consumes strategy events; neither is required to evaluate a script.
+This section documents **semantics**, not the chart. AXIS consumes plots / `fill` / drawings; hosts export alerts (optional L2 webhooks); HOOX consumes strategy events. None of those hosts is required to evaluate a script.
 
 ## Conceptual model
 
@@ -46,9 +46,10 @@ flowchart TB
     PLOT[PlotRegistry / DrawingRegistry]
   end
   subgraph out [Outputs]
-    SERIES[Plot series]
+    SERIES[Plot / fill series]
     EVENTS[StrategyEvent list]
-    META[inputs / drawings]
+    ALERTS[alert firings]
+    META[inputs / drawings / plot_meta]
   end
   OHLCV --> CTX
   IN --> EV
@@ -58,6 +59,7 @@ flowchart TB
   BUILTIN --> PLOT
   EV --> SERIES
   STRAT --> EVENTS
+  BUILTIN --> ALERTS
   PLOT --> META
 ```
 
@@ -65,23 +67,28 @@ flowchart TB
 
 | Mode | Entry | Bar loop | Typical use |
 | --- | --- | --- | --- |
-| **Interpret** | `NodeLiteralEvaluator.visit(tree)` per bar | Host updates `PineSeries` / context, re-visits AST | Full language surface, strategy, drawings, `request.*` |
+| **Interpret** | `NodeLiteralEvaluator.visit(tree)` per bar | Host updates `PineSeries` / context, re-visits AST | Full language surface, strategy, drawings, alerts, `request.*` |
 | **Compile** | `pynescript.compiler.engine.compile_script` | Generated `for __bar_idx in range(n)` over OHLCV + **`time_arr`** | Numeric indicators (Numba) or object-mode subset |
 | **Auto** | `Runtime.run(..., mode="auto")` | Compile when safe; interpret on fallback | Pro API default — prefer throughput without hard-failing exotic scripts |
 
-Compile inputs are contiguous arrays: `open_arr` … `vol_arr` plus **`time_arr`** (bar-open Unix ms; synthetic `bar_index * 60_000` when the host omits times) so `time` / calendar builtins match the interpret `time` series. See [Compiler overview](/pyne/docs/runtime/compiler/overview) and [Interpret ↔ compile parity](/pyne/docs/runtime/compiler/parity).
+Compile inputs are contiguous arrays: `open_arr` … `vol_arr` plus **`time_arr`** (bar-open Unix ms; synthetic `bar_index * 60_000` when the host omits times) so `time` / calendar builtins match the interpret `time` series. Disk IR cache + product warm-compile (prewarm API/CLI) cut cold JIT latency. See [Compiler overview](/pyne/docs/runtime/compiler/overview) and [Interpret ↔ compile parity](/pyne/docs/runtime/compiler/parity).
 
-**`request.security` / missing data:** without a real multi-symbol feed, foreign symbols and non-equity fundamentals soft-fail to **`na`** rather than inventing chart close—do not treat mock OHLCV as TV-grade multi-asset truth.
+**`request.security` foreign-na policy (landed):** same-symbol simple OHLCV may passthrough; foreign symbols and complex security expressions resolve to **`na`** on both interpret and compile (no inventing chart close as foreign fundamentals). Real multi-symbol feeds remain adapter work (roadmap **B1**).
+
+**Series caps / incremental TA:** host list trim defaults **on** (`PYNE_SERIES_CAP`); bar-mode TA hot path defaults **on** (`PYNE_TA_INCREMENTAL`). Drawing GC honors `max_*_count` on the interpret registry; `fill` exports series keys + `plot_meta` for AXIS bands.
 
 ## Interface surface
 
 | Concern | Start here |
 | --- | --- |
-| Series history, `[]`, `var`/`varip`, `na` | [Series & history](/pyne/docs/runtime/series-and-history) |
+| Series history, `[]`, `var`/`varip`, `PYNE_SERIES_CAP`, `na` | [Series & history](/pyne/docs/runtime/series-and-history) |
 | Expressions, statements, control flow | [Expressions & statements](/pyne/docs/runtime/expressions-statements) |
 | Builtin namespaces (`ta.*`, `strategy.*`, …) | [Builtins hub](/pyne/docs/runtime/builtins) |
+| Drawing / `plot` / `fill` / `max_*_count` GC | [Drawing & plotting](/pyne/docs/runtime/builtins/drawing-plotting) |
+| `request.*` / `input.*` (foreign → `na`) | [request / input](/pyne/docs/runtime/builtins/request-input) |
 | Library `export` / `import` | [Libraries](/pyne/docs/runtime/libraries) |
 | `StrategyEvent` parity contract | [Events](/pyne/docs/runtime/events) |
+| `alert()` / webhooks | [Alerts](/pyne/docs/runtime/alerts) |
 | Numba / object-mode compiler | [Compiler overview](/pyne/docs/runtime/compiler/overview) |
 | Interpret vs compile plot parity | [Parity testing](/pyne/docs/runtime/compiler/parity) |
 
@@ -123,11 +130,14 @@ BaseEvaluator
 ## Invariants & edge cases
 
 1. **Bar re-entrancy.** The AST is visited once per bar. Function/type definitions lock after bar 0 (`_pine_defs_locked`) so multi-dispatch tables do not grow \(O(\text{bars}^2)\).
-2. **Order of broker steps.** Pending limit/stop fills run **before** script body evaluation on each bar (interpreter and compile object-mode agree).
+2. **Order of broker steps.** Pending limit/stop fills run **before** script body evaluation on each bar (interpreter and compile object-mode agree). Pending-fill averaging when pyramiding ≤ 0 matches both brokers (**F2**).
 3. **`na` is `None`.** Unresolved missing data, OOB history, and arithmetic with missing operands produce Python `None`, not IEEE NaN—except on the Numba path, which uses `np.nan` as the array sentinel. Cross-mode plot compares must normalize (`scripts/compare_interp_compile.py`).
-4. **Strategy state is per-evaluator.** `StrategyState` lives on the instance (`evaluator._strategy_state`), never as a process-global singleton—required for concurrent runs and parity tests.
-5. **Drawing/plot registries are side channels.** Visual objects do not participate in pure expression values except where `plot()` returns a plot id for `fill()`.
-6. **Host series are not aliased on assign.** `last = time` (or `open`/`high`/…) copies the current scalar into a fresh series for `last`—see [Series & history](/pyne/docs/runtime/series-and-history).
+4. **Series caps.** Unbounded `current_series` growth is capped (`PYNE_SERIES_CAP` default ON, `max_bars_back` / `_SERIES_MAX`) so long histories stay memory-bounded (**T1**).
+5. **Incremental TA.** Hot-path kernels (`sma`/`ema`/`rsi`/`macd`/`atr`/… plus R7 `bb`/`kama`/`cmo`/`stochrsi`) use call-site incremental updates in bar mode (`PYNE_TA_INCREMENTAL=0` to disable). Residual nested full-list paths may still recompute (**T2** partial).
+6. **Strategy state is per-evaluator.** `StrategyState` lives on the instance (`evaluator._strategy_state`), never as a process-global singleton—required for concurrent runs and parity tests.
+7. **Drawing/plot registries are side channels.** Visual objects do not participate in pure expression values except where `plot()` returns a plot id for `fill()`. Hosts export `fill` bands for AXIS via series + `plot_meta` (and `__drawings` on compile). Drawing objects honor `max_*_count` GC (package + Pro API + AXIS Pyodide).
+8. **Alerts are a host side-channel.** `alert()` / `alertcondition()` firings are not strategy events; dual-host export + L2 webhooks are documented under [Alerts](/pyne/docs/runtime/alerts).
+9. **Host series are not aliased on assign.** `last = time` (or `open`/`high`/…) copies the current scalar into a fresh series for `last`—see [Series & history](/pyne/docs/runtime/series-and-history).
 
 ## Worked example — minimal bar loop mental model
 
@@ -156,8 +166,10 @@ Compile mode collapses this into one generated function over full arrays (`open_
 ## See also
 
 - [Language core](/pyne/docs/core) — grammar, AST, types before evaluation
+- [Alerts](/pyne/docs/runtime/alerts) — `alert()` engine + L2 webhooks
 - [Pro API runtime bridge](/pyne/docs/api/runtime-bridge)
-- [Interpret ↔ compile parity](/pyne/docs/runtime/compiler/parity)
+- [Interpret ↔ compile parity](/pyne/docs/runtime/compiler/parity) — `scripts/compare_interp_compile.py`
 - [Numerical validation](/pyne/docs/reference/numerical-validation)
+- [Roadmap](/pyne/docs/reference/roadmap) — H2/T1/F2/L2 landed; P1p residual
 - [pine-worker parity](/pyne/docs/pine-worker)
 - [AXIS docs](/axis/docs) — optional AXIS for series/drawings

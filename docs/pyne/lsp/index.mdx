@@ -19,12 +19,12 @@
 
 ---
 title: "Language Server"
-description: "PYNE Language Server Protocol surface — diagnostics, completion, hover, navigation, formatting, and editor clients."
+description: "PYNE Language Server Protocol — diagnostics, completion, hover, formatting for .pyne / .pine and editor clients."
 ---
 
 # Language Server
 
-The PYNE **Language Server** is the editor-facing half of the evaluation stack: a pygls process that speaks LSP over STDIO (or TCP in tooling), parses Pine with the same ANTLR4 → ASDL pipeline as the runtime, and never requires a proprietary chart host.
+The PYNE **Language Server** is the editor-facing half of the evaluation stack: a pygls process that speaks LSP over STDIO (or TCP in tooling), parses Pine with the same ANTLR4 → ASDL pipeline as the runtime, and never requires a proprietary chart host. First-class file associations include **`.pyne`** (product extension) plus `.pine` / `.pinev5` / `.pinev6` / `.pinescript`.
 
 ## Abstract
 
@@ -33,10 +33,10 @@ Editors want *static* intelligence at typing cadence. Evaluation over OHLCV is *
 | Process | Cadence | Shared substrate |
 | --- | --- | --- |
 | **LSP** (`pynescript-lsp`) | keystroke / open / save | parse, lint, unparse, builtin metadata |
-| **Pro API** (`backend.app`) | request / batch | parse, evaluate, plots / events |
+| **Pro API** (`backend.app`) | request / batch | parse, evaluate, plots / events / alerts |
 | **CLI / library** | batch / embed | same AST + evaluator |
 
-The LSP publishes diagnostics from the linter and parse errors, completes and hovers from Fernet-ready builtin metadata, navigates user symbols via AST visitors, and formats by round-tripping through the unparser. Feature modules live under `src/pynescript/langserver/features/`; the VS Code extension and `clients/` configs are thin protocol hosts.
+The LSP publishes diagnostics from the linter and parse errors, completes and hovers from Fernet-ready builtin metadata, navigates user symbols via AST visitors, and formats by round-tripping through the unparser. Feature modules live under `src/pynescript/langserver/features/`; the VS Code extension (`pyne`) and `clients/` configs are thin protocol hosts — VS Code maps **`.pyne` first**, then legacy Pine suffixes, to language id `pinescript`.
 
 ## Conceptual model
 

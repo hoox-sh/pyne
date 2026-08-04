@@ -133,6 +133,25 @@ Technical helpers (`technical_submodules/core.py`) distinguish:
 
 History buffers for indicators are truncated to a rolling window (`_SERIES_MAX = 256` for wrapper histories) to avoid \(O(n^2)\) full-history recomputation every bar.
 
+### Host series caps (`PYNE_SERIES_CAP`)
+
+Pro API / `backend.runtime.Runtime` optionally **trims** chronological `current_series` lists and related host history so long charts do not grow \(O(\text{bars})\) memory per series.
+
+| Knob | Default | Meaning |
+| --- | --- | --- |
+| `PYNE_SERIES_CAP` | **on** | Enable trimming. Disable with `0` / `false` / `no` / `off` (oracle / debug only). |
+| Cap size | `256` (`DEFAULT_SERIES_MAX`) | Raised when the script declares a larger `max_bars_back=…`. |
+| `PYNE_SERIES_MAX` | unset | Absolute override of the cap (positive int). |
+| PineSeries history floor | `1000` | Separate from list caps; raised by `max_bars_back` / `PYNE_SERIES_MAX`. |
+
+**Correctness notes** (see `backend/series.py`):
+
+- Window kernels (`ta.sma`, `highest`, …) need `length ≤ cap`.
+- Recursive smoothers under **incremental** TA (default `PYNE_TA_INCREMENTAL` on) carry state and stay safe independent of list length once warm.
+- With **full recompute** (`PYNE_TA_INCREMENTAL=0`) and `bars ≫ cap`, EMA/RMA-style paths can diverge from a full-history oracle—prefer incremental (default) or raise the cap / disable series cap for goldens.
+
+Out-of-range history offsets still return `na` (`None`); never `0`.
+
 ## Internals
 
 | Path | Role |
@@ -142,7 +161,8 @@ History buffers for indicators are truncated to a rolling window (`_SERIES_MAX =
 | `src/pynescript/ast/evaluator/statements.py` | `var`/`varip`/`const` assign |
 | `src/pynescript/ast/evaluator/builtins/technical_submodules/core.py` | `_as_series`, bar mode finalize |
 | `src/pynescript/ast/evaluator/builtins/utility.py` | `max_bars_back`, `last_bar_index`, `na` helpers |
-| `backend/runtime.py` | `PineSeries.update` per bar |
+| `backend/runtime.py` | `PineSeries.update` per bar; series-cap trim |
+| `backend/series.py` | `PineSeries`, `resolve_series_cap`, `PYNE_SERIES_CAP` / `PYNE_SERIES_MAX` |
 
 Compile path: series are `np.full(n_bars, np.nan)` written at `__bar_idx`; history is `arr[__bar_idx - n]` with OOB → `np.nan` (see [Compiler overview](/pyne/docs/runtime/compiler/overview)). Host **`time_arr`** is a chronological `float64` vector of bar-open Unix ms (same length as OHLCV); bare `time` lowers to `time_arr[__bar_idx]`, and `time[n]` uses the same history indexing rules as `close[n]`. When the host omits bar times, `Runtime` synthesizes `i * 60_000` so length always matches—calendar / `time` scripts stay defined on both modes.
 
@@ -151,9 +171,10 @@ Compile path: series are `np.full(n_bars, np.nan)` written at `__bar_idx`; histo
 1. **Chronology of `.history`.** Most-recent-first; reverse when converting to chronological lists for `ta.*` / `array.*`. Compile arrays are chronological (index 0 = first bar).
 2. **No negative Pine indices.** Soft-fail to `na` / `nan` (not Python wraparound)—different from Python lists. See highestbars note above.
 3. **`None` vs `float('nan')`.** Interpreter prefers `None`; Numba kernels use `np.nan`. Cross-mode comparisons must normalize.
-4. **`max_bars_back`.** Declares intended depth; PYNE does not hard-cap OHLCV history the way a hosted chart might, but indicator helpers still bound rolling windows for cost.
-5. **Tuple returns from multi-value `ta.*`.** Unpacking `[a, b, c] = ta.macd(...)` uses `current` when it is a sequence of matching arity; otherwise history heuristics apply.
-6. **Host series assign is by value.** New names never share the host OHLCV/`time` buffer reference.
+4. **`max_bars_back`.** Raises the host series cap when larger than the default 256; still not a TV-style hard chart depth, but it affects trim policy.
+5. **`PYNE_SERIES_CAP` default on.** Disable only for debugging / full-history oracles; pair with incremental TA for production long histories.
+6. **Tuple returns from multi-value `ta.*`.** Unpacking `[a, b, c] = ta.macd(...)` uses `current` when it is a sequence of matching arity; otherwise history heuristics apply.
+7. **Host series assign is by value.** New names never share the host OHLCV/`time` buffer reference.
 
 ## Worked examples
 
@@ -194,6 +215,8 @@ Given two list series of different lengths, `a + b` aligns tails and pads the lo
 | Compile vs interpret plot mismatch | `nan` vs `None`, or seed differences in EMA/RSI kernels — see [parity](/pyne/docs/runtime/compiler/parity) |
 | `time[j]` wrong after rebinding `last = time` | Expected only if host series were aliased; verify copy-on-assign path |
 | `highestbars` always `-1` | Warm-up (`bar_index+1 < length`) or all-`na` window |
+| Long-chart OOM / growing RSS | Series cap disabled or `PYNE_SERIES_MAX` huge; leave `PYNE_SERIES_CAP` on |
+| EMA drift after many bars with cap | Full recompute + short cap — enable incremental TA or raise cap |
 
 ## See also
 

@@ -188,6 +188,18 @@ Response includes base64 PNG `chart` + `meta`. Width/height clamped (e.g. max 12
 }
 ```
 
+### `POST /compile/prewarm` (free)
+
+Warm Numba builtins / optional script list so the first interactive `/run` with `mode=auto|compile` skips cold JIT. Soft-fails without Numba (object-mode compile still works).
+
+```bash
+curl -s -X POST http://127.0.0.1:5002/compile/prewarm \
+  -H 'Content-Type: application/json' \
+  -d '{"force": true}' | python -m json.tool
+```
+
+Optional body: `scripts` (list of Pine sources to compile-warm), `force` (re-run builtins). Response includes timing / prewarm stats. Deploy hosts may also set `PYNE_COMPILE_PREWARM` for once-per-worker start. See [Compiler overview](/pyne/docs/runtime/compiler/overview).
+
 ### Auth helpers
 
 ```bash
@@ -203,7 +215,7 @@ curl -s -X POST http://127.0.0.1:5002/auth/validate \
   -d '{"api_key":"pyn_..."}'
 ```
 
-Send Pro requests with the key as required by middleware (typically `Authorization` bearer or documented header — {/* TODO: verify exact header name in auth.py */}).
+Send Pro requests with the key as required by middleware (`Authorization: Bearer …` / documented API-key header — see [Auth and keys](/pyne/docs/api/auth-and-keys)).
 
 ### Hosted SDK (if published)
 
@@ -223,11 +235,12 @@ If the client module is not present in your install, use raw HTTP as above.
 
 | Path | Role |
 | --- | --- |
-| `backend/app.py` | Routes `/`, `/run`, `/run/batch`, auth |
+| `backend/app.py` | Routes `/`, `/run`, `/run/batch`, `/compile/prewarm`, auth |
 | `backend/api/preview.py` | `/preview/*`, `/backtest/quick` |
-| `backend/middleware/schemas.py` | Strict request schemas |
+| `backend/middleware/schemas.py` | Strict request schemas (`mode` default `auto`, alert flags) |
 | `backend/middleware/auth.py` | Keys, usage, admin token |
-| `backend/runtime.py` | Evaluate bridge |
+| `backend/runtime.py` | Evaluate bridge (`interpret` / `compile` / `auto`) |
+| `backend/alert_forwarder.py` | L2 webhook POST batching |
 | `backend/services/chart_renderer.py` | PNG rendering |
 | `backend/services/backtest.py` | Quick backtest + mock OHLCV |
 
@@ -236,10 +249,11 @@ If the client module is not present in your install, use raw HTTP as above.
 - **Max body 5 MiB** — oversized JSON → Flask 413.
 - **Strict schemas** — unknown fields rejected.
 - **CORS** — browser clients need listed origins; server-to-server without `Origin` is fine.
-- **`mode=compile`** — subset only; prefer `interpret` unless you know the script is in the compiled surface.
+- **`mode` default `auto`** — prefer warm compile; fall back to interpret (`auto_backend`, optional `compile_fallback_reason`). Strict `compile` errors instead of falling back; use `interpret` for alerts, `input.*` overrides, libraries, and full `request.*`.
+- **Alerts** — `alerts[]` on success (interpret). L2 webhooks: body `webhook_url` or env `ALERT_WEBHOOK_URL`; defaults last-bar + batch POST. See [Alerts](/pyne/docs/runtime/alerts).
 - **Batch cap 8** — `TOO_MANY_SCRIPTS` if exceeded.
 - **Free `/run` is still CPU-expensive** — rate-limit at your reverse proxy in production.
-- AXIS multi-indicator UIs prefer `/run/batch` to share bar payloads.
+- AXIS multi-indicator UIs prefer `/run/batch` to share bar payloads; read `series` + `plot_meta` (including fill band refs) for charts.
 
 ## Worked examples
 
@@ -261,13 +275,14 @@ bars = [
 
 r = requests.post(
     "http://127.0.0.1:5002/run",
-    json={"script": SCRIPT, "data": bars, "symbol": "DEMO", "mode": "interpret"},
+    json={"script": SCRIPT, "data": bars, "symbol": "DEMO", "mode": "auto"},
     timeout=60,
 )
 r.raise_for_status()
 payload = r.json()
 assert payload["status"] == "success", payload
-print(payload["count"], list(payload.get("series", {})))
+print(payload["count"], payload.get("mode"), list(payload.get("series", {})))
+# optional: payload.get("alerts"), payload.get("alert_forward")
 ```
 
 ### Batch two indicators

@@ -26,7 +26,7 @@ description: "PYNE — Pine Script™ for VS Code: HOOX branding, TextMate gramm
 
 ## Abstract
 
-**PYNE — Pine Script™ for VS Code** is a **LanguageClient host** plus a rich TextMate grammar, branded as part of the **HOOX open trading stack**. It does not reimplement diagnostics or completion in TypeScript; it spawns `pynescript-lsp` (or a configured command) over STDIO via `vscode-languageclient`, maps `*.pine` / `*.pinev5` / `*.pinev6` to language id `pinescript`, and exposes a small settings surface for enablement and feature toggles.
+**PYNE — Pine Script™ for VS Code** is a **LanguageClient host** plus a rich TextMate grammar, branded as part of the **HOOX open trading stack**. It does not reimplement diagnostics or completion in TypeScript; it spawns `pynescript-lsp` (or a configured command) over STDIO via `vscode-languageclient`, maps **`.pyne` (first-class)** plus `*.pine` / `*.pinev5` / `*.pinev6` / `*.pinescript` to language id `pinescript`, and exposes a small settings surface for enablement and feature toggles.
 
 > Pine Script™ and TradingView® are trademarks of TradingView, Inc. This project is independent and is not affiliated with or endorsed by TradingView, Inc.
 
@@ -61,8 +61,8 @@ From `vscode-extension/package.json`:
 ### Language contribution
 
 - **id:** `pinescript`
-- **aliases:** `Pine Script™`, `Pine Script`, `pinescript`, `Pine`
-- **extensions:** `.pine`, `.pinev5`, `.pinev6`
+- **aliases:** `PYNE`, `Pine Script™`, `Pine Script`, `pinescript`, `Pine`
+- **extensions:** **`.pyne`** (first), `.pine`, `.pinev5`, `.pinev6`, `.pinescript`
 - **configuration:** `language-configuration.json`
 - **grammar:** `syntaxes/pinescript.tmLanguage.json` (`scopeName: source.pinescript`) — namespaces, annotations, hex colors, UDT/enum, multiline strings, plot/strategy builtins
 
@@ -70,6 +70,7 @@ From `vscode-extension/package.json`:
 
 ```text
 onLanguage:pinescript
+workspaceContains:**/*.pyne
 workspaceContains:**/*.pine
 workspaceContains:**/*.pinev5
 workspaceContains:**/*.pinev6
@@ -109,8 +110,9 @@ Initialization options object:
 ### Client options
 
 - Document selector: `pinescript` for `file` and `untitled` schemes
-- File watcher: `**/*.pine` (not automatically the v5/v6 suffixes)
+- File watcher: `**/*.pine` (and activation covers `**/*.pyne` via `workspaceContains`; open any associated suffix for language id)
 - Diagnostic collection name: `pynescript`
+- Default formatter id: `jango-blockchained.pyne`
 
 ## Internals
 
@@ -152,8 +154,9 @@ Requires Node 22 tooling as noted in project agents docs for packaging.
 
 1. **`lsp.enabled === false` short-circuits activate** — no client, no restart command registration beyond early return (commands not registered).
 2. **Binary vs module:** production users should install `pynescript[lsp]` or the Nuitka onefile and set `pynescript.lsp.command` if not on PATH.
-3. **Grammar works without LSP** — open a `.pine` file offline and still get TextMate highlighting.
-4. File watcher only lists `**/*.pine`; v5/v6 still activate via language id on open.
+3. **Grammar works without LSP** — open a `.pyne` or `.pine` file offline and still get TextMate highlighting.
+4. **`.pyne` is first-class** in `package.json` extensions + activation; legacy `.pine*` / `.pinescript` remain fully supported.
+5. File watcher primarily lists `**/*.pine`; v5/v6/`.pyne` still activate via language id on open.
 
 ## Worked example — extension development
 

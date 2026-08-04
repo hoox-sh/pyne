@@ -19,16 +19,23 @@
 
 # PyneScript Compatibility Guarantee
 
-**Version:** 1.1  
-**Last Updated:** 2026-07-12  
+**Version:** 1.2  
+**Last Updated:** 2026-08-03  
 **Pine Script Target:** v5/v6  
-**Test Coverage:** 1142 automated tests (full suite)
+**Test Coverage:** 1100+ automated tests (full suite; re-run `make test` for live counts)
+
+Product/docs mint: [docs/pyne/reference/compatibility.mdx](pyne/reference/compatibility.mdx)
+(prefer that page for current product wording).
 
 ---
 
 ## 🎯 Executive Summary
  
-PyneScript provides strong syntax compatibility (full parser coverage for v5/v6 grammar on real scripts) and good semantic compatibility with TradingView® Pine Script v5/v6. The parser, AST, and many builtins (including technical indicators and basic strategy support) are implemented and covered by tests. Some advanced platform features (e.g., full plotting, broker integration) remain out of scope or stubbed.
+**PYNE** (PyPI `pyne`, import `pynescript`) provides strong syntax compatibility (full parser coverage for v5/v6 grammar on real scripts) and good semantic compatibility with TradingView® Pine Script™ v5/v6. The parser, AST, and many builtins (including technical indicators and strategy support) are implemented and covered by tests. Compatibility is **not** full TradingView platform parity (hosted chart, proprietary multi-symbol data, editor-only features).
+
+**Interpret ↔ compile plot parity** is a first-class testing pillar: same script + OHLCV under `Runtime.run(..., mode="interpret")` vs `mode="compile"`, compared with nan-aware allclose (`scripts/compare_interp_compile.py`, `tests/test_interp_compile_parity.py`). Residual value `MISMATCH` buckets and structural hline/fill key differences are tracked deliberately.
+
+**Foreign `request.*` / NA policy:** compile does not invent multi-asset series. Same-symbol simple OHLCV may lower; foreign tickers and complex `request.security` expressions resolve to `na` on both backends when data is absent (prefer honest NA over chart-close-as-foreign).
 
 ### Compatibility Metrics
 
@@ -42,6 +49,10 @@ PyneScript provides strong syntax compatibility (full parser coverage for v5/v6 
 | **Type System** | Strong | - | ✅ |
 | **Collections** | Full | - | ✅ |
 | **Real-World Scripts** | High parse success | 138+ scripts | ✅ Tested |
+| **Interpret ↔ compile plots** | Harness + goldens; residual MISMATCH tail | `compare_interp_compile` | ⚙️ Active |
+| **Foreign `request.*`** | `na` when no host feed (no invent) | Parity tests | ✅ Policy |
+
+Open-source corpus Runtime (set01–04) ~**94.3%** OK projected — scrape/PARSE stubs and intentional `runtime.error` demos dominate residuals; not a claim of 100% TV execution identity.
 
 ---
 

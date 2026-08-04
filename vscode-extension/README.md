@@ -15,8 +15,9 @@ Part of the **[HOOX](https://hoox.sh) open trading stack** — sister products: 
 
 | Feature | Details |
 |---------|---------|
-| **Syntax highlighting** | TextMate grammar for Pine v5/v6 — namespaces (`ta.`, `strategy.`, `color.`…), annotations (`//@version=`), colors (`#RRGGBB`), history refs, UDTs, multiline strings |
-| **Language Server** | Diagnostics, autocomplete, hover docs, document symbols, formatting |
+| **File types** | **`.pyne`** (primary), `.pine`, `.pinev5`, `.pinev6`, `.pinescript` |
+| **Syntax highlighting** | TextMate grammar for Pine™ v5/v6 — namespaces (`ta.`, `strategy.`, `color.`…), annotations (`//@version=`), colors (`#RRGGBB`), history refs, UDTs, multiline strings |
+| **Language Server** | Diagnostics, autocomplete, hover docs, document symbols, formatting (`pip install "pyne[lsp]"`) |
 | **Status bar** | `PYNE LSP` indicator (click → server output) |
 | **Auto-detect LSP** | `pynescript-lsp` on `PATH`, or `python3 -m pynescript.langserver` |
 

@@ -19,24 +19,25 @@
 
 ---
 title: "Pro API"
-description: "Flask Pro API for Pine evaluation — /run, preview, backtest, API keys, and the shared evaluate contract."
+description: "Flask Pro API — /run with mode=auto, plot_meta/fill, alerts + L2 webhooks, preview, backtest, and shared evaluate contract."
 ---
 
 # Pro API
 
-The PYNE **Pro API** is a Flask HTTP service that runs Pine scripts over caller-supplied OHLCV, returns plots / series / strategy events / drawings / **alerts**, optional **L2 alert webhooks**, and gates thumbnail + backtest routes behind API keys. It is intentionally **not** the language server: different auth, scaling, and failure domains.
+The PYNE **Pro API** is a Flask HTTP service that runs Pine scripts over caller-supplied OHLCV, returns plots / series / **`plot_meta`** (incl. `fill` bands) / strategy events / drawings / **alerts**, optional **L2 alert webhooks**, and gates thumbnail + backtest routes behind API keys. Default evaluate path is **`mode=auto`** (compile when safe, interpret on fallback). It is intentionally **not** the language server: different auth, scaling, and failure domains.
 
 ## Abstract
 
 Where the LSP answers *static* editor questions, the Pro API answers *dynamic* evaluate questions:
 
 ```text
-POST JSON { script, data: OHLCV[], … }
-  → backend.runtime.Runtime.run
-  → { plots, series, plot_meta, events, drawings, alerts, script_id, run_id, … }
+POST JSON { script, data: OHLCV[], mode?, webhook_url?, … }
+  → backend.runtime.Runtime.run  (mode default: auto)
+  → { plots, series, plot_meta, events, drawings, alerts,
+      mode, script_id, run_id, alert_forward?, … }
 ```
 
-Free-tier evaluate (`POST /run`, `POST /run/batch`) validates bodies with hand-rolled schemas, enforces a 5 MB body cap, and restricts CORS. Pro routes under `/preview/*` and `/backtest/*` use `track_usage` (Bearer / ApiKey / query key). Chart PNGs are matplotlib Agg renders encoded as base64.
+Free-tier evaluate (`POST /run`, `POST /run/batch`) validates bodies with hand-rolled schemas, enforces a 5 MB body cap, and restricts CORS. Optional **L2 webhooks** POST last-bar `alert()` / `alertcondition()` firings to `webhook_url` or env `ALERT_WEBHOOK_URL` (see [Alerts](/pyne/docs/runtime/alerts)). Pro routes under `/preview/*` and `/backtest/*` use `track_usage` (Bearer / ApiKey / query key). Chart PNGs are matplotlib Agg renders encoded as base64.
 
 The same **evaluate contract** is mirrored by edge workers (pyne-worker / pine-worker) so AXIS and HOOX can swap hosts without redesigning payloads — see [contract](/pyne/docs/api/contract).
 
@@ -49,7 +50,9 @@ flowchart TB
   FLASK --> RUN["/run · /run/batch"]
   FLASK --> PREV["/preview/*"]
   FLASK --> BT["/backtest/*"]
+  FLASK --> GIT["/api/git/oauth/* optional"]
   RUN --> RT[backend.runtime.Runtime]
+  RUN --> WH[alert_forwarder L2]
   PREV --> CHART[chart_renderer]
   BT --> BACK[services.backtest]
   RT --> EVAL[CustomEvaluator + PineSeries]
@@ -61,7 +64,7 @@ flowchart TB
 | Method | Path | Auth | Role |
 | --- | --- | --- | --- |
 | `GET` | `/` | none | Health + endpoint map |
-| `POST` | `/run` | none (free) | Single-script evaluate |
+| `POST` | `/run` | none (free) | Single-script evaluate (`mode` default `auto`; alerts + optional webhooks) |
 | `POST` | `/run/batch` | none (free) | ≤8 scripts, shared OHLCV |
 | `POST` | `/preview/chart` | API key + usage | Line / OHLCV PNG |
 | `POST` | `/preview/indicator` | API key + usage | Expression series PNG |
@@ -69,6 +72,19 @@ flowchart TB
 | `POST` | `/auth/create_key` | admin decorator | Mint `pyn_…` key |
 | `GET` | `/auth/usage` | API key | Usage counters |
 | `POST` | `/auth/validate` | none (body key) | Validate without consuming quota |
+| `POST` | `/compile/prewarm` | deploy-dependent | Product warm-compile (H2) — skip cold Numba JIT |
+| `POST` | `/api/git/oauth/device/*` | none (device flow) | Optional GitHub/GitLab device OAuth for SPA git (blueprint) |
+
+### `/run` response highlights
+
+| Field | Role |
+| --- | --- |
+| `series` / `plots` / `plot_meta` | Bar values + display meta (color, linewidth, `fill` band refs) |
+| `events` | Strategy broker events |
+| `drawings` | Drawing registry / compile `__drawings` |
+| `alerts` | Structured `alert()` / `alertcondition()` firings |
+| `mode` / `auto_backend` | Which path ran (`interpret` \| `compile`) |
+| `alert_forward` | Present when a webhook URL was configured |
 
 Local runner: `make run` → `python -m backend.app` (default `127.0.0.1:5002`).
 
@@ -87,8 +103,10 @@ Local runner: `make run` → `python -m backend.app` (default `127.0.0.1:5002`).
 | --- | --- |
 | `backend/app.py` | App factory surface, `/run*`, `/auth*`, CORS |
 | `backend/api/preview.py` | Preview + backtest blueprints |
+| `backend/api/git_oauth.py` | Optional device OAuth for SPA git |
 | `backend/middleware/*` | Auth, schemas, optional Redis/SQLite stores |
-| `backend/runtime.py` | Bar-loop evaluate façade |
+| `backend/runtime.py` | Bar-loop evaluate façade (`mode=auto`, alerts pack) |
+| `backend/alert_forwarder.py` | L2 HTTP webhook delivery |
 | `backend/evaluator.py` | `CustomEvaluator` bridge |
 | `backend/series.py` | `PineSeries` history deque |
 | `backend/services/*` | Charts + backtest simulation |
@@ -97,5 +115,6 @@ Local runner: `make run` → `python -m backend.app` (default `127.0.0.1:5002`).
 
 - [Evaluate scripts (end user)](/pyne/docs/enduser/guides/evaluate-scripts)
 - [Pro API usage guide](/pyne/docs/enduser/guides/pro-api-usage)
+- [Alerts](/pyne/docs/runtime/alerts)
 - [Runtime hub](/pyne/docs/runtime)
 - [LSP hub](/pyne/docs/lsp) — editor path, not HTTP

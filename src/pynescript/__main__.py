@@ -227,7 +227,7 @@ def _print_banner() -> None:
             f"[pyne.muted]v{__version__}[/]"
         )
         con.print(
-            f"[pyne.muted]Pine Script toolchain — parse · lint · compile · run[/]"
+            "[pyne.muted]Pine Script toolchain — parse · lint · compile · run[/]"
         )
     else:
         _echo(f"PYNE pynescript v{__version__}")

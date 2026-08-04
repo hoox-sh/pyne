@@ -19,20 +19,22 @@
 
 ---
 title: "Installation"
-description: "Install pynescript from PyPI or a source checkout, select extras for LSP and market data, and verify the CLI and library imports."
+description: "Install the pyne package from PyPI or a source checkout, select extras for LSP and market data, and verify the CLI and library imports."
 ---
 
 # Installation
 
 ## Abstract
 
-PYNE ships as the Python package **`pynescript`** (src-layout under `src/pynescript/`). The default install gives you the Click CLI (`pynescript`) and the AST library (`parse`, `unparse`, `dump`, `walk`, `literal_eval`, linter). Optional extras add the Language Server (`pynescript-lsp`) and CCXT-backed market data. A Hatch-managed checkout is the supported path for contributors who need tests, grammar tooling, or the Flask Pro API in-tree.
+PYNE ships on PyPI as **`pyne`**. The **import package** and console scripts remain **`pynescript`** / **`pynescript-lsp`** (src-layout under `src/pynescript/`). Do **not** install `hoox-pyne` or the unrelated upstream `pynescript` package when you want this stack.
+
+The default install gives you the Click CLI (`pynescript`) and the AST library (`parse`, `unparse`, `dump`, `walk`, `literal_eval`, linter). Optional extras add the Language Server (`pynescript-lsp`) and CCXT-backed market data. A Hatch-managed checkout is the supported path for contributors who need tests, grammar tooling, or the Flask Pro API in-tree.
 
 ## Conceptual model
 
 ```mermaid
 flowchart LR
-  PYPI[PyPI pynescript] --> CORE[Core wheel]
+  PYPI[PyPI pyne] --> CORE[Core wheel]
   GIT[Git checkout] --> EDIT[pip install -e]
   CORE --> CLI[pynescript]
   CORE --> LIB[pynescript.ast]
@@ -46,9 +48,10 @@ flowchart LR
 
 | Install flavor | What you get | When |
 | --- | --- | --- |
-| `pip install pynescript` | CLI + library | Desk use, scripts, CI lint |
-| `pip install "pynescript[lsp]"` | + pygls LSP server | Editors |
-| `pip install "pynescript[data]"` | + ccxt | Live/historical exchange data |
+| `pip install pyne` | CLI + library | Desk use, scripts, CI lint |
+| `pip install "pyne[lsp]"` | + pygls LSP server | Editors |
+| `pip install "pyne[data]"` | + ccxt | Live/historical exchange data |
+| `pip install "pyne[pro]"` | + Flask Pro API stack (when published) | Self-hosted `/run` |
 | `pip install -e ".[dev-lsp]"` | Editable + LSP test harness | Contributing to LSP |
 | Hatch env | Matrix tests, lint, docs | Full monorepo workflow |
 
@@ -56,17 +59,17 @@ flowchart LR
 
 ### Prerequisites
 
-- **Python ≥ 3.10** (classifiers declare 3.10–3.12; 3.13 may work in CI — {/* TODO: verify */} pin to 3.10+ for production)
+- **Python ≥ 3.10** (classifiers declare 3.10–3.13; pin to 3.10+ for production)
 - `pip` or an equivalent installer; virtualenv strongly recommended
-- For Pro API locally: `flask`, `flask-cors`, `numpy`, `matplotlib` (see `backend/requirements.txt`)
+- For Pro API locally: `flask`, `flask-cors`, `numpy`, `matplotlib` (see `backend/requirements.txt`) or `pip install "pyne[pro]"` when that extra is available
 - For VS Code extension build: Node 22+ under `vscode-extension/` (optional)
 
 ### Core install (PyPI / local package)
 
-From a release or built wheel:
+From a release or built wheel (**distribution name `pyne`**):
 
 ```bash
-pip install pynescript
+pip install pyne
 ```
 
 From a cloned monorepo root (non-editable):
@@ -89,20 +92,22 @@ Defined in `pyproject.toml` under `[project.optional-dependencies]`:
 
 ```bash
 # Language Server (pygls + lsprotocol)
-pip install "pynescript[lsp]"
+pip install "pyne[lsp]"
 
 # CCXT for exchange data / datafeed
-pip install "pynescript[data]"
+pip install "pyne[data]"
 # alias:
-pip install "pynescript[datafeed]"
+pip install "pyne[datafeed]"
 
-# LSP + pytest-lsp for protocol tests
+# LSP + pytest-lsp for protocol tests (source checkout)
 pip install -e ".[dev-lsp]"
 ```
 
 Combine extras:
 
 ```bash
+pip install "pyne[lsp,data]"
+# monorepo:
 pip install -e ".[lsp,data]"
 ```
 
@@ -163,10 +168,12 @@ Base runtime dependencies (core):
 
 ## Invariants & edge cases
 
+- **PyPI name ≠ import name.** Install **`pyne`**; `import pynescript`. Upstream PyPI `pynescript` (elbakramer) is a different project.
 - **License.** Package license is **AGPL-3.0-or-later** (`pyproject.toml`). Network use triggers AGPL source-offer obligations (see GNU AGPL §13); consult your counsel for commercial embedding.
 - **Src layout.** Imports are `pynescript.*`, not a flat package. Editable install requires hatchling to map `src/`.
-- **LSP is not a CLI subcommand of `pynescript` in the current Click group.** README sometimes says `pynescript lsp`; the registered script is **`pynescript-lsp`**. {/* TODO: verify if a `lsp` subcommand was added later */}
-- **Pro API is not a pip extra.** Run from monorepo with backend deps, or call a hosted endpoint. Local: `make run` binds `HOST`/`PORT` (default `127.0.0.1:5002`).
+- **LSP is not a CLI subcommand of `pynescript`.** The registered script is **`pynescript-lsp`** (`python -m pynescript.langserver`).
+- **Pro API.** Prefer monorepo `pip install -r backend/requirements.txt` + `make run`, or the `[pro]` extra when published. Local bind: `HOST`/`PORT` (default `127.0.0.1:5002`).
+- **Source extensions.** HOOX / PYNE tooling prefers **`.pyne`** for stack sources; `.pine` / `.pinev5` / `.pinev6` still work (VS Code extension registers all).
 - **Anaconda / Nuitka.** Building the onefile LSP binary may need `libpython-static` or `--static-libpython=no` (see build docs). End users rarely need this.
 - **Generated artifacts.** Do not hand-edit `src/pynescript/ast/grammar/antlr4/generated/` or ASDL generated modules.
 
@@ -193,7 +200,7 @@ pynescript lint examples/rsi_strategy.pine
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -U pip
-pip install "pynescript[lsp,data]"
+pip install "pyne[lsp,data]"
 pynescript --version
 pynescript-lsp --help 2>/dev/null || true  # server may only speak stdio
 ```
@@ -222,8 +229,9 @@ pytest tests/test_parse_and_unparse.py -q
 | Failure | Diagnosis | Fix |
 | --- | --- | --- |
 | `ModuleNotFoundError: pynescript` | Wrong env / not installed | Activate venv; reinstall |
-| `No module named 'pygls'` | LSP import without extra | `pip install "pynescript[lsp]"` |
-| `No module named 'ccxt'` | data CLI/provider path | `pip install "pynescript[data]"` |
+| `No module named 'pygls'` | LSP import without extra | `pip install "pyne[lsp]"` |
+| `No module named 'ccxt'` | data CLI/provider path | `pip install "pyne[data]"` |
+| Wrong package / missing APIs | Installed upstream `pynescript` or `hoox-pyne` | `pip uninstall …` then `pip install pyne` |
 | `pynescript` not found | Scripts not on PATH | Use `python -m pynescript` or fix venv `bin/` |
 | Import error from editable | Incomplete install / broken path | Re-run `pip install -e .` from repo root |
 | Backend `ImportError: flask` | Pro API without backend deps | `pip install -r backend/requirements.txt` |

@@ -1139,8 +1139,10 @@ def test_evaluator_ta_obv(expression, expected):
     ("expression", "expected"),
     [
         (
+            # TV-style MFI: period money-flow windows with TP direction vs prior bar
+            # → pos=1320, neg=1620 → ~44.89796 (not a flat 50)
             "ta.mfi([10, 11, 12, 11, 10], [8, 9, 10, 9, 8], [9, 10, 11, 10, 9], [100, 110, 120, 90, 80], 3)",
-            50.0,
+            44.89795918367347,
         ),
     ],
 )

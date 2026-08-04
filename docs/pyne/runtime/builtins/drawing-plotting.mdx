@@ -128,6 +128,38 @@ DrawingRegistry.reset()  # clears drawings + PlotRegistry
 
 Hosts must reset at run start so labels from a previous evaluation do not leak.
 
+### Drawing GC (`max_*_count`)
+
+Interpret path enforces TradingView®-style **garbage collection** on drawing factories (`line.new`, `label.new`, `box.new`, `polyline.new`, …):
+
+| Declaration kwargs (`indicator` / `strategy`) | Default | Hard cap |
+| --- | --- | --- |
+| `max_lines_count` | 50 | 500 |
+| `max_labels_count` | 50 | 500 |
+| `max_boxes_count` | 50 | 500 |
+| `max_polylines_count` | 50 | 100 |
+
+When more **active** objects of a type exist than the cap, the **oldest** are marked `deleted=True` so they leave `*.all` and `DrawingRegistry.export_for_api`. Caps are applied from the script declaration at run start (`DrawingRegistry.configure_from_declaration`); shrinking a cap immediately collects.
+
+```pine
+//@version=5
+indicator("labels", overlay=true, max_labels_count=100)
+if barstate.islast
+    label.new(bar_index, high, "x")
+```
+
+Compile object-mode drawings are a simplified event list—GC caps apply on the **interpret** registry path; prefer interpret when you need full last-bar / `*.all` / cap behavior.
+
+### `fill` + `plot_meta` for AXIS
+
+For dual `plot` + `fill` bands:
+
+1. Each `plot()` contributes a **numeric series** under its title (default `plot_0`, …).
+2. `fill(p1, p2, …)` contributes a **titled series key** (often all-null cells) so key-sets stay stable, plus meta/drawings that carry band color and plot refs.
+3. Hosts such as AXIS should read **`plot_meta[title]`** for `kind`, colors, and sibling plot titles (`plot1` / `plot2`) rather than treating fill series as prices.
+
+Interpret packaging lives in `backend/runtime.py` / `backend/evaluator.py`; compile emits matching series keys + `__drawings` fill events.
+
 ## Internals
 
 | Path | Role |
@@ -157,11 +189,12 @@ Numeric mode still supports plain `plot` float64 arrays; any of the drawing/mark
 ## Invariants & edge cases
 
 1. **`plot` returns an id.** Required for `fill`; treating it as “void” breaks band fills. Hosts that skip `PlotRegistry` unless `fill(` appears in source must still soft-fail fill gracefully.
-2. **Deleted flag.** Soft-delete keeps history for debugging; `active()` filters deleted plots.
-3. **Series in drawings.** Prices may be series wrappers—export coerces `.current` and maps NaN → omit.
-4. **Compile path.** Numeric mode supports `plot` arrays; drawings force object mode with a simplified event list—not full delete/style parity with the interpreter. Prefer interpret when you need bgcolor/plotshape **series** columns, not only drawing events.
-5. **Import stubs → null.** `__pine_import_stub__` and `"<PineImportStub…>"` strings never appear as plot series cells after Runtime packaging.
-6. **No GPU/canvas in-process.** Registries are data; AXIS/HOOX render elsewhere.
+2. **Deleted flag.** Soft-delete keeps history for debugging; `active()` filters deleted plots and GC-collected drawings.
+3. **`max_*_count` GC.** Oldest active drawings are deleted when caps are exceeded (interpret registry).
+4. **Series in drawings.** Prices may be series wrappers—export coerces `.current` and maps NaN → omit.
+5. **Compile path.** Numeric mode supports `plot` arrays; drawings force object mode with a simplified event list—not full delete/style/GC parity with the interpreter. Prefer interpret when you need bgcolor/plotshape **series** columns, not only drawing events.
+6. **Import stubs → null.** `__pine_import_stub__` and `"<PineImportStub…>"` strings never appear as plot series cells after Runtime packaging.
+7. **No GPU/canvas in-process.** Registries are data; AXIS/HOOX render elsewhere.
 
 ## Worked examples
 
@@ -195,6 +228,8 @@ Hosts read `DrawingRegistry.labels` or API export after the run.
 | fill no-ops | plot ids not retained from `plot()` returns |
 | Stale labels across HTTP runs | Missing registry reset between `Runtime.run` calls (Runtime resets—custom hosts must) |
 | Object mode missing delete | Known compile limitation—use interpret mode |
+| Only 50 labels/lines visible | Default `max_*_count`; raise on `indicator`/`strategy` (≤ hard cap) |
+| fill series all null | Expected for band keys; use `plot_meta` / drawings for color + plot refs |
 
 ## See also
 

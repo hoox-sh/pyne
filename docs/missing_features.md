@@ -19,14 +19,14 @@
 
 # Missing Features - Pine Script v6 Implementation
 
-**Current Status (as of 2026-08-01):** Strong core support (parser + evaluator + 1100+ tests). Open-source corpus set01–04 Runtime ~90%+ OK; interpret bar-loop performance hardened without semantic change. Drawing `max_*_count` GC landed. **Alert engine + L2 webhooks** closed on Pro API and pyne-worker. Dual-host package-level Runtime unify remains open.
+**Current Status (as of 2026-08-03):** Strong core support (parser + evaluator + 1100+ tests). Open-source corpus set01–04 Runtime ~**94.3%** OK (honest residual, not 100% TV platform). Drawing `max_*_count` GC landed. **Alert engine + L2 webhooks** closed on Pro API and pyne-worker. **Warm-compile (H2)** + **series caps (T1)** + incremental TA (incl. bb/kama/cmo/stochrsi) landed. Dual-host package-level Runtime unify + interpret↔compile plot MISMATCH tail remain open.
 
-**Last Updated:** 2026-08-01 (alerts + L2 webhooks; roadmap residual H1 package unify / C1 / H2)
+**Last Updated:** 2026-08-03 (status align with `docs/ROADMAP.md`; alerts / L2 webhooks / drawing GC are **shipped**, not missing)
 
-**Overall Support Assessment:** ~99%+ for core v6. Multiline strings + `export const` integrated. Remaining gaps are mostly by-design (mock request data, platform/editor-only) plus long-tail Runtime fails on truncated scrape sources.
+**Overall Support Assessment:** ~99%+ for core v6. Multiline strings + `export const` integrated. Remaining gaps are mostly by-design (mock/foreign request data, platform/editor-only) plus long-tail Runtime fails on truncated scrape sources — **not** missing alert/webhook/drawing-GC product surface.
 - Parser: Excellent for v5/v6 core + multiline, soft keywords, bitwise, typed UDF returns.
 - Evaluator/Builtins: Broad coverage + data context injection + **incremental hot-path TA** + **alert freq engine**.
-- Recent: corpus sanitize, Runtime append-only series lists, `_pine_defs_locked`, pyne-worker bar-mode align, dual-host alerts + webhooks.
+- Recent: corpus sanitize, series caps, warm-compile, dual-host alerts + L2 webhooks, drawing GC, plot parity harness.
 - Full test runs + lint clean targeted. See details.
 
 ---
@@ -164,11 +164,13 @@ Call-site state (`_ta_call_i` reset each bar), one sample per site per bar (safe
 | --- | --- | --- |
 | **H1** | Dual-host: package-level Runtime unify; pyne-worker residual host parity | P1 — **host surface advanced** (R7 A06: inputs applied, multi-run call-site clear, JSON series/alerts; package unify still open — `docs/perf_round7/H1_unify_checklist.md`) |
 | **H2** | Product warm-compile path (SLOs, prewarm, IR cache on in deploy) | P1 ✅ (2026-08) |
-| **C1** | Corpus Runtime residual | P1 — set05 full run **93.3%** → after 2×6-agent passes projected **~98.0%** (425/526 prior FAIL recovered; TIMEOUT sample 6/8 under budget); long-tail ~30 RUN + ~71 PARSE + heavy ML TIMEOUT remain |
+| **C1** | Corpus Runtime residual | P1 — set01–04 ~**94.3%** OK projected (8-agent pass); residual = `runtime.error` demos, lower-TF security guards, scrape/PARSE stubs. set05 long-tail separate |
 | **T1** | Cap unbounded `current_series` lists to `max_bars_back` / `_SERIES_MAX` | P2 ✅ R7 — `PYNE_SERIES_CAP` (default ON), `PYNE_SERIES_MAX`, goldens `tests/test_series_cap.py` |
-| **T2** | Incremental for remaining heavy kernels (`ta.bb`, nested full-list helpers still calling `_ema`/`_sma` outside builtins) | P2 |
+| **T2** | Incremental for remaining heavy kernels | P2 ✅ R7: bb/kama/cmo/stochrsi inc; further nested full-list helpers residual |
+| **L2** | Webhook alerts productization | P3 ✅ pyne-worker + Pro API `/run` export + outbound `ALERT_WEBHOOK_URL` / `webhook_url` |
 | **F1** | `ta.atr` still **EMA-of-TR** (historical oracle); TV Wilder RMA-ATR only with dedicated goldens | P2 |
 | — | Bit-identical recursive smoothers vs live TV | numerical-parity track |
+| — | Drawing `max_*_count` GC / alert engine | ✅ shipped (not missing) |
 
 Canonical priority table: `docs/ROADMAP.md`. Round 6 residual notes: `docs/perf_round6/00_summary.md`.
 
@@ -335,16 +337,16 @@ PyneScript core is mature, with significant July 2026 enhancements:
 
 ### Intentional Design Decisions
 
-1. **Mock Data** - Request functions return synthetic test data, not real market data
-2. **Interpretation Only** - No JIT compilation or optimization
-3. **Deterministic Evaluation** - Evaluator covers deterministic values and built-ins
-4. **No Real-Time Data** - Not designed for live trading feeds
+1. **Mock / host data** - `request.*` uses mock or host-injected feeds; foreign symbols on compile emit `na` (no invented multi-asset series)
+2. **Not a TV chart host** - Plot/drawing/fill are registry + export for AXIS/clients; pixels are external
+3. **Deterministic bar evaluation** - Interpreter + optional Numba compile (`mode=auto` / warm-compile); not a licensed broker
+4. **Realtime optional** - CCXT Pro / composite feeds exist; live multi-symbol TV-grade data remains host responsibility
 
 ### Practical Constraints
 
-1. **Performance** - Pure Python implementation, not optimized for high-frequency operations
-2. **Numerical Precision** - IEEE 754 float-based, subject to floating-point precision limits
-3. **Memory** - Large matrices/arrays consume proportional memory (no sparse implementations)
+1. **Performance** - Interpret is Python-first; compile + incremental TA + series caps harden bar loops (not HFT microsecond infra)
+2. **Numerical Precision** - IEEE 754 float-based; interpret↔compile plot parity harness tracks residuals (not bit-identical every smoother vs live TV)
+3. **Memory** - Series capped via `PYNE_SERIES_CAP` / `max_bars_back`; large matrices/arrays still proportional
 4. **Unicode** - Limited support for non-ASCII characters in some edge cases
 
 ---

@@ -52,18 +52,20 @@ Answers cite:
 
 ## Questions
 
-### What is PYNE vs pynescript?
+### What is PYNE vs pynescript vs pyne?
 
-**pynescript** is the Python package / repo name. **PYNE** is the product documentation brand for the open evaluate stack (grammar → AST → runtime → LSP → Pro API → workers). You still `pip install pynescript`.
+- **PYNE** — product documentation brand for the open evaluate stack (grammar → AST → runtime → LSP → Pro API → workers).
+- **`pyne`** — **PyPI distribution** name. Install with `pip install pyne` (not `hoox-pyne`, not the unrelated upstream `pynescript` package).
+- **`pynescript`** — **import package** and CLI name (`import pynescript`, `pynescript` / `pynescript-lsp` scripts). Repo product name is also often called pyne.
 
 ### What Python versions are supported?
 
-`requires-python = ">=3.10"`. Classifiers list 3.10–3.12. Newer CPython may work; CI matrices evolve — {/* TODO: verify 3.13 in your branch */}.
+`requires-python = ">=3.10"`. Classifiers list **3.10–3.13**. CI exercises that matrix; pin to 3.10+ for production.
 
 ### How do I install just the parser?
 
 ```bash
-pip install pynescript
+pip install pyne
 ```
 
 No extra required for `parse` / `unparse` / `lint` / basic `literal_eval`.
@@ -71,7 +73,7 @@ No extra required for `parse` / `unparse` / `lint` / basic `literal_eval`.
 ### How do I install the LSP?
 
 ```bash
-pip install "pynescript[lsp]"
+pip install "pyne[lsp]"
 ```
 
 Run `pynescript-lsp` (not a Click subcommand of `pynescript` in current code).
@@ -120,14 +122,32 @@ Syntax (`E001`), version (`W001`–`W002`), deprecated patterns (`W101`–), sty
 
 ```bash
 pynescript data AAPL --provider yahoo
-pip install "pynescript[data]"  # for ccxt
+pip install "pyne[data]"  # for ccxt
 ```
 
 Or providers in Python via `pynescript.util.data.get_provider`.
 
 ### What is the Pro API free tier?
 
-`POST /run` and `POST /run/batch` are exposed as free evaluate endpoints (still your CPU if self-hosted). Preview/backtest routes are Pro-tier with API keys. Hosted pricing in README is product-side — {/* TODO: verify live tiers */}.
+`POST /run` and `POST /run/batch` are exposed as free evaluate endpoints (still your CPU if self-hosted). Default body `mode` is **`auto`** (prefer warm compile; fall back to interpret). Responses include `alerts[]` when scripts call `alert()` / true `alertcondition()` (interpret path). Optional L2 webhooks: body `webhook_url` or env `ALERT_WEBHOOK_URL`. Preview/backtest routes are Pro-tier with API keys.
+
+### How do interpret and compile compare?
+
+Use the dual-host harness (repo root):
+
+```bash
+python scripts/compare_interp_compile.py --bars 1000 --limit 50
+```
+
+See [Interpret ↔ compile parity](/pyne/docs/runtime/compiler/parity). Prefer `mode=auto` in production; force `interpret` when you need alerts, `input.*` overrides, or full `request.*`.
+
+### What file extension should I use?
+
+Prefer **`.pyne`** for HOOX / PYNE stack sources. `.pine` / `.pinev5` / `.pinev6` remain supported by the VS Code extension and parsers.
+
+### How complete is real-world script runtime?
+
+Honesty over marketing: on scraped set01–04 corpora, **Runtime OK is ~94.3%** (parse is higher, ~99.96% after sanitize). Residual RUN_FAIL modes include intentional `runtime.error` library demos, missing multi-symbol data, and unsupported edge constructs—not a claim of 100% TradingView® parity. See [Compatibility](/pyne/docs/reference/compatibility).
 
 ### How do I self-host the API?
 

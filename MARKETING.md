@@ -7,15 +7,19 @@
 
 ## The Pine Script monopoly
 
-TradingView owns Pine Script. 10+ years, 500+ builtins, millions of users —
-and zero open-source runtimes. The only way to execute a Pine strategy is:
+TradingView owns Pine Script™. 10+ years, 500+ builtins, millions of users —
+and almost no open-source runtimes that execute real strategies end-to-end.
+Historically the practical options were:
 
 1. Inside TradingView's browser (20k bar limit, $200/mo Premium)
 2. Via webhooks → 3commas/Cryptohopper ($30-150/mo, Pine conversion required)
 3. Rewrite everything in Python (Freqtrade, Backtrader)
 
-Nobody has cracked 100% Pine Script compatibility outside TradingView.
-Until now.
+**PYNE** ([hoox-sh/pyne](https://github.com/hoox-sh/pyne), PyPI **`pyne`**, import
+`pynescript`) is a full open toolchain: parse → evaluate/compile → strategy
+events → alerts/webhooks → Pro API / edge workers / AXIS charting. Corpus Runtime
+on open-source set01–04 is ~**94.3%** OK — strong real-world coverage, **not** a
+claim of bit-identical 100% TradingView platform parity.
 
 ---
 
@@ -49,7 +53,7 @@ Open source alternatives
 ├── Freqtrade — Python, NOT Pine Script (rewrite everything)
 ├── Backtrader — Python, NOT Pine Script
 ├── Jesse — Python, NOT Pine Script
-└── Pine Script runtimes — essentially NONE that are 100% compatible
+└── Full Pine toolchains — rare; **PYNE** is the open stack (parse/eval/compile/LSP/API)
 
 Bridge solutions
 ├── 3commas / Cryptohopper — expensive, Pine conversion required
@@ -61,57 +65,50 @@ Bridge solutions
 
 ## What we built
 
-### pynescript (Python reference)
-- Full ANTLR4 grammar for Pine v5 + v6
-- ASDL-generated AST with 25+ node types
-- Evaluator with 500+ builtins across 25+ modules
-- Strategy event system (entry/exit/close/cancel/order)
-- CLI tools (repl, lint, format)
-- LSP server (pygls)
-- Flask Pro API
-- VS Code extension
-- ~8000 lines of Python
+### PYNE — Python toolchain (this repo: [hoox-sh/pyne](https://github.com/hoox-sh/pyne))
+- **Product:** PYNE · **PyPI:** `pip install "pyne[lsp]"` · **import:** `pynescript`
+- Full ANTLR4 grammar for Pine™ v5 + v6 (multiline strings, `export const`, soft keywords)
+- ASDL-generated AST + evaluator with broad builtin surface (`ta.*`, strategy, drawing, request, …)
+- **Strategy events** (entry/exit/close/cancel/order) + broker depth (OCA, commission, risk)
+- **Alert engine** + **L2 webhooks** (`ALERT_WEBHOOK_URL` / `webhook_url` on Pro API + pyne-worker)
+- **Numba compile path**: `mode=auto` / interpret / compile, warm-compile + IR cache, disk recovery
+- **Interpret ↔ compile plot parity** harness (`scripts/compare_interp_compile.py` + goldens)
+- **Series caps** (`PYNE_SERIES_CAP`) + **incremental TA** (sma/ema/rsi/macd/atr/bb/… hot path)
+- **Drawing GC** (`max_*_count` on line/box/label/…; package + Pro API + AXIS Pyodide)
+- **`fill()` export** for AXIS charting (plot registry + host series metadata)
+- CLI (repl, lint, format), **LSP** (`pynescript-lsp`), Flask **Pro API**, Docker
+- **VS Code extension PYNE** — `.pyne` / `.pine` / `.pinev5` / `.pinev6` associations
+- Corpus Runtime set01–04 ~**94.3%** OK (honest residual: scrape stubs, `runtime.error` demos, foreign `request.*`)
 
-### pine-worker (TypeScript edge port)
-- ANTLR4 TS parser (generated from same grammar)
+### pine-worker (TypeScript edge port — extra tool in-repo)
+- ANTLR4 TS parser (same grammar lineage)
 - Zod AST schemas + visitor evaluator
-- 10 builtin modules ported (technical, numeric, strategy, strings, arrays, drawing, plotting, input, alerts, utility)
-- R2 + local data providers
-- Chart export (TradingView-style CSV)
-- 9 parity fixtures against Python reference
-- Wrangler config with service binding + observability
-- ~8000 lines of TypeScript
+- Builtin modules ported (technical, numeric, strategy, strings, arrays, drawing, plotting, input, alerts, utility)
+- R2 + local data providers; chart CSV export
+- Parity fixtures against the Python reference
+- Wrangler service binding + observability
 
 ### pyne-worker (Python CF Worker) — production-grade ✅
-- API key authentication (constant-time hmac, `X-API-Key` header)
-- Rate limiting (sliding window, 100 req/60s, `X-RateLimit-*` headers)
-- Input validation (script max 100KB, bars max 100K, payload max 5MB)
-- Structured JSON logging (per-request with request IDs, timing, bar counts)
-- Dependency health checks (R2 + trade-worker via `/health`)
-- Execution timeout (30s wall-clock deadline, returns 504)
-- R2 data ingestion endpoint (`POST /ingest` — gzipped JSONL, dedup by year)
-- Bar-loop runtime delegating to pynescript
-- R2 data provider (gzipped JSONL format, `data/{SYM}/{TF}/{Y}.jsonl.gz`)
-- Trade-worker event forwarding (StrategyEvent → WebhookPayload)
-- Parity tests against 9 fixtures + 15 smoke/production tests = **25/25 passing**
-- AGPL license headers on all source files
-- binance-CLI data fetcher (`scripts/fetch_and_ingest.py`)
-- GitHub Actions daily data ingestion workflow
-- ~1100 lines of Python
+- API key auth, rate limits, payload validation, structured logging, 30s wall timeout
+- Bar-loop runtime on **pynescript** (aligns with Pro API host surface: inputs, alerts, series export)
+- R2 data provider + ingest; trade-worker event forwarding
+- Dual-host alert export + outbound webhooks
+- Parity / smoke tests green; AGPL on sources
 
 ---
 
 ## Competitive comparison
 
-| | TradingView | Freqtrade | 3commas | **pyne-worker** |
+| | TradingView | Freqtrade | 3commas | **PYNE / pyne-worker** |
 |---|---|---|---|---|
-| Pine Script 100% | ✅ | ❌ | ❌ | **✅** |
-| Open source | ❌ | ✅ | ❌ | **✅** |
-| Free to run | ❌ ($50-200/mo) | ✅ (your VPS) | ❌ ($30-150/mo) | **✅ (CF free tier)** |
+| Run Pine outside TV | ❌ (browser) | ❌ rewrite | ❌ convert | **✅ high corpus OK** |
+| Open source | ❌ | ✅ | ❌ | **✅ AGPL** |
+| Free to self-host | ❌ ($50-200/mo) | ✅ (your VPS) | ❌ ($30-150/mo) | **✅ (CF free tier / your box)** |
 | Edge infra | ❌ | ❌ | ❌ | **✅** |
 | Backtest >20k bars | ❌ | ✅ | ❌ | **✅** |
-| Programmatic API | ❌ (limited webhooks) | ✅ | ✅ | **✅** |
-| Strategy events → trade | ❌ (manual) | ✅ (custom) | ✅ | **✅ (built-in)** |
+| Programmatic API | ❌ (limited webhooks) | ✅ | ✅ | **✅ Pro API + workers** |
+| Alerts → webhooks | ✅ TV alerts | custom | ✅ | **✅ L2 productized** |
+| Strategy events → trade | ❌ (manual) | ✅ (custom) | ✅ | **✅ built-in events** |
 | Self-hostable | ❌ | ✅ | ❌ | **✅** |
 | Multi-strategy batch | ❌ (1 per chart) | ✅ | ✅ | **✅** |
 
@@ -122,12 +119,12 @@ Bridge solutions
 ### Free (always)
 | Component | License |
 |---|---|
-| `pynescript` — full evaluator | AGPL |
+| **PYNE** (`pyne` / `pynescript`) — full toolchain | AGPL |
 | `pine-worker` — TypeScript port | AGPL |
 | `pyne-worker` — CF Worker | AGPL |
 | ANTLR grammar + ASDL definitions | AGPL |
 | All tests, fixtures, parity harness | AGPL |
-| CLI tools | AGPL |
+| CLI + LSP + VS Code extension | AGPL |
 
 ### Paid SaaS (managed hosting)
 | Tier | Price | Limits |
@@ -194,23 +191,23 @@ wrap it in a dashboard, and launch a competing SaaS in **2-4 weeks** (not a quar
 ## The dream stack (self-hosted quant)
 
 ```
-TradingView (charting + alert webhook)
+AXIS (charting PWA)  or  TradingView (chart + alert webhook)
         │
         ▼
-  pynescript / pine-worker / pyne-worker  ← CF Workers (free)
-  (evaluates Pine Script, emits events)
+  PYNE Pro API / pyne-worker / pine-worker  ← self-host or CF Workers
+  (parse · interpret/compile · events · alerts/webhooks)
         │
         ▼
-  trade-worker  ← CF Workers (free)
-  (executes on Binance/Coinbase)
+  HOOX trade path / trade-worker  ← CF Workers (free)
+  (executes on Binance/Coinbase/…)
         │
         ▼
   Portfolio dashboard  ← CF Pages (free)
 ```
 
-Every component runs on Cloudflare's free tier.
-**Zero infrastructure cost.** That's something neither TradingView Premium ($200/mo)
-nor 3commas ($30/mo) can touch.
+Self-host the stack or run edge pieces on Cloudflare free tier.
+**Infrastructure can be near-zero.** That's something neither TradingView Premium
+($200/mo) nor 3commas ($30/mo) can touch.
 
 ---
 
@@ -257,13 +254,13 @@ You're cutting it. Let people run. That's the whole point.
 │  What this fills: the #1 unfilled gap in crypto trading:            │
 │  "Run my Pine Script strategies without TradingView or 3commas"    │
 │                                                                     │
-│  Nobody else has 100% Pine compatibility + free edge infra.         │
-│  This is the only project that does both.                           │
+│  Open toolchain + edge/self-host path + strategy events + alerts. │
+│  Corpus Runtime ~94.3% set01–04 — honest, not bit-identical TV.    │
 │                                                                     │
 │  Rating: 9/10 — docking 1 point for:                               │
-│    • workers-py being experimental                                  │
-│    • No live data pipeline in pyne-worker yet                       │
-│    • Missing docs/onboarding for non-devs                           │
+│    • Dual-host package Runtime unify residual                       │
+│    • Interpret↔compile plot MISMATCH tail + foreign request data    │
+│    • Non-dev onboarding still thinner than the engine               │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -275,11 +272,11 @@ You're cutting it. Let people run. That's the whole point.
 
 ```
 ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│   HOOX.SH    │  │ PYNESCRIPT   │  │ SUPERCHART   │
+│   HOOX       │  │    PYNE      │  │    AXIS      │
 │              │  │              │  │              │
-│ Edge trading │  │ Pine runtime │  │ Charting PWA │
-│ framework    │  │ evaluator    │  │ (open source)│
-│ (TS, AGPL)   │  │ (Py/TS, AGPL)│  │ (TS, AGPL)   │
+│ Edge trading │  │ Pine™        │  │ Charting PWA │
+│ framework    │  │ toolchain    │  │ (open source)│
+│ (TS, AGPL)   │  │ (Py, AGPL)   │  │ (TS, AGPL)   │
 └──────────────┘  └──────────────┘  └──────────────┘
        │                   │                   │
        └───────────────────┼───────────────────┘
@@ -288,49 +285,41 @@ You're cutting it. Let people run. That's the whole point.
               Charge for managed hosting only.
 ```
 
-### hoox.sh (live)
+Site: [hoox.sh](https://hoox.sh) · product docs at [hoox.sh/pyne](https://hoox.sh/pyne) /
+[hoox.sh/axis](https://hoox.sh/axis).
+
+### HOOX
 - Edge-native trading framework on Cloudflare Workers
-- 13 production modules (execution, intelligence, security, data, defi, tooling)
-- $0/month infra cost (CF free tier)
-- 22ms median signal-to-ack latency
-- Published at hoox.sh, same design language
+- Execution, intelligence, security, data, DeFi, tooling modules
+- Published at [hoox.sh](https://hoox.sh)
 
-### pynescript (this repo)
-- Full ANTLR4 grammar for Pine v5 + v6
-- ASDL-generated AST, 500+ builtins
-- Evaluator, LSP server, CLI tools, VS Code extension
-- pyne-worker (Python CF Worker) + pine-worker (TS edge port)
-- Same design as hoox.sh but **petrol color** instead of terminal-green
-- Will be published under own domain (pynescript.dev or similar)
+### PYNE (this repo — [hoox-sh/pyne](https://github.com/hoox-sh/pyne))
+- Pine Script™ Python toolchain: parser, evaluator, Numba compile, LSP, Pro API
+- PyPI **`pyne`**, import **`pynescript`**, VS Code extension **PYNE** (`.pyne` files)
+- pyne-worker (Python CF Worker) + pine-worker (TS edge port, extra tool)
+- Product surface: [hoox.sh/pyne](https://hoox.sh/pyne)
 
-### superchart (PWA)
-- Open-source charting PWA
-- Change any datastream, add plugins
-- TradingView-compatible Pine Script integration via pynescript
-- Free to self-host, free basic SaaS tier
+### AXIS (sister repo — not in this tree)
+- Open-source charting PWA ([jango-blockchained/axis](https://github.com/jango-blockchained/axis))
+- Pine integration via PYNE Pro API / Pyodide; `fill()` + drawing export from runtime
+- Free to self-host; product surface: [hoox.sh/axis](https://hoox.sh/axis)
 
 ### Design consistency
-All three products share the same design DNA:
-- Same layout structure as hoox.sh
-- Same component architecture
-- Same color palette system (just different primary: petrol vs terminal-green)
-- Same typography, spacing, terminal aesthetic
-- Consistent branding across the portfolio
+HOOX / PYNE / AXIS share stack DNA and brand language on [hoox.sh](https://hoox.sh)
+(layout, components, typography; product accent colors differ).
 
 ---
 
 ## Action items
 
-- [x] Write `.private/MARKETING.md` (this file)
-- [ ] AGPL license headers on all source files
-- [ ] Public GitHub repo with clear README
+- [x] Write `MARKETING.md` (this file)
+- [x] Public GitHub repo: [hoox-sh/pyne](https://github.com/hoox-sh/pyne)
+- [x] Product docs surface: [hoox.sh/pyne](https://hoox.sh/pyne)
 - [ ] Deploy guide: "Deploy pyne-worker in 5 minutes"
-- [ ] Parity badge: "100% compatible with Pine v5/v6"
-- [ ] SaaS landing page + Stripe checkout (pyne-worker)
+- [ ] Honest parity badge (corpus % + what is *not* TV platform parity)
+- [ ] SaaS landing page + Stripe checkout (managed PYNE/workers)
 - [ ] Commercial license page (email inquiry)
 - [ ] GitHub Sponsors profile
-- [ ] Reddit/Twitter announcement post
-- [ ] Benchmark page: "pyne-worker vs TradingView: identical outputs"
-- [ ] Design pynescript.dev landing page (petrol theme, hoox.sh layout)
-- [ ] Design superchart.app landing page (petrol theme, hoox.sh layout)
-- [ ] Product portfolio page linking all three projects
+- [ ] Reddit/X announcement post
+- [ ] Benchmark page: interpret vs compile vs TV oracle (scoped scripts)
+- [ ] Portfolio page linking HOOX · PYNE · AXIS

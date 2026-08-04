@@ -185,6 +185,7 @@ curl -s -X POST http://127.0.0.1:5002/run \
   -H 'Content-Type: application/json' \
   -d '{
     "script": "//@version=5\nindicator(\"t\")\nplot(close)",
+    "mode": "auto",
     "data": [
       {"time": 1, "open": 1, "high": 2, "low": 0.5, "close": 1.5, "volume": 100},
       {"time": 2, "open": 1.5, "high": 2.5, "low": 1.0, "close": 2.0, "volume": 120}
@@ -192,7 +193,9 @@ curl -s -X POST http://127.0.0.1:5002/run \
   }' | python -m json.tool
 ```
 
-See [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage) for schemas and batch mode.
+Omit `mode` to use the schema default **`auto`** (warm compile when eligible, else interpret). Response may include `series`, `plot_meta`, `events`, `drawings`, and `alerts`. See [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage) for batch mode, webhooks, and prewarm.
+
+Prefer saving stack sources as **`.pyne`** (`.pine` still works).
 
 ### 7. Optional: start LSP for editors
 
