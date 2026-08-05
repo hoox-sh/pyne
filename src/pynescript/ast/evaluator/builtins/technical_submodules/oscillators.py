@@ -89,8 +89,17 @@ class OscillatorIndicators(TechnicalHelpers):
         lows: list[Any],
         length: int,
     ) -> float | None:
-        """Compute current Stochastic %K for the last bar."""
-        if length <= 0 or not source:
+        """Compute current Stochastic %K for the last bar.
+
+        Important: do **not** early-return on ``not source`` when *source* is a
+        scalar ``None`` / ``0.0``. Incremental TA assigns call-site slots via
+        ``_ta_next_slot``; skipping that on warm-up bars (``rsi`` still ``na``)
+        shifts later ``ema``/``sma`` slots and corrupts their seed state.
+        Empty **lists** are still a hard no-op without consuming a slot.
+        """
+        if length <= 0:
+            return None
+        if isinstance(source, (list, tuple)) and len(source) == 0:
             return None
         if self._use_incremental_ta():
             return self._stoch_k_inc_update(source, highs, lows, length)

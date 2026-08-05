@@ -776,15 +776,23 @@ class CommonIndicators(TechnicalHelpers):
         return total
 
     def _dev(self, series: list[float], period: int) -> float | None:
-        if len(series) < period:
+        """Mean absolute deviation (strict window; mirror BasicIndicators)."""
+        if period <= 0 or len(series) < period:
             return None
         window = series[-period:]
-        valid_values = [v for v in window if v is not None]
-        if not valid_values:
-            return None
-        mean = sum(valid_values) / len(valid_values)
-        dev = sum(abs(v - mean) for v in valid_values) / len(valid_values)
-        return dev
+        vals: list[float] = []
+        for v in window:
+            if v is None:
+                return None
+            try:
+                fv = float(v)
+            except (TypeError, ValueError):
+                return None
+            if fv != fv:  # NaN
+                return None
+            vals.append(fv)
+        mean = sum(vals) / period
+        return sum(abs(v - mean) for v in vals) / period
 
     def _median(self, series: list[float], period: int) -> float | None:
         if len(series) < period:
@@ -821,13 +829,22 @@ class CommonIndicators(TechnicalHelpers):
         return (count_below / len(valid_values)) * 100
 
     def _variance(self, series: list[float], period: int) -> float | None:
-        if len(series) < period:
+        """Sample variance (strict window; mirror BasicIndicators)."""
+        if period <= 1 or len(series) < period:
             return None
         window = series[-period:]
-        valid_values = [v for v in window if v is not None]
-        if len(valid_values) < 2:
-            return None
-        return statistics.variance(valid_values)
+        vals: list[float] = []
+        for v in window:
+            if v is None:
+                return None
+            try:
+                fv = float(v)
+            except (TypeError, ValueError):
+                return None
+            if fv != fv:  # NaN
+                return None
+            vals.append(fv)
+        return statistics.variance(vals)
 
     def _vwap(self, hlc3_volume: list[float]) -> float:
         if not hlc3_volume:

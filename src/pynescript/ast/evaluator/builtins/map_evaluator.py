@@ -56,7 +56,7 @@ class MapBuiltinsMixin(BuiltinDispatchMixin):
     # ========== HELPER METHODS ==========
 
     def _expect_map(self, value: Any, message: str) -> Map[Any, Any]:
-        """Validate that value is a Map instance."""
+        """Validate that value is a Map instance (hard-fail on na / wrong type)."""
         if isinstance(value, Map):
             return value
         if value is None:
@@ -68,6 +68,18 @@ class MapBuiltinsMixin(BuiltinDispatchMixin):
             return wrapped
         tname = type(value).__name__
         self._error(f"{message} (got {tname}, expected map)")
+
+    def _coerce_optional_map(self, value: Any) -> Map[Any, Any] | None:
+        """Like ``_expect_map`` but ``na`` / non-map → ``None`` (TV soft-na)."""
+        if value is None:
+            return None
+        if isinstance(value, Map):
+            return value
+        if isinstance(value, dict):
+            wrapped: Map[Any, Any] = Map()
+            wrapped.data = value
+            return wrapped
+        return None
 
     # ========== CORE OPERATIONS ==========
 
@@ -81,105 +93,121 @@ class MapBuiltinsMixin(BuiltinDispatchMixin):
     def _builtin_map_get(self, args: list[Any]) -> Any:
         """map.get(map, key) -> value
 
-        Returns value for key, or None if not found.
+        Returns value for key, or None if not found. ``na`` map → ``na``.
         """
         if len(args) < BINARY:
             self._error("map.get requires map and key")
-        map_obj = self._expect_map(args[0], "map.get: first arg must be map")
+        map_obj = self._coerce_optional_map(args[0])
+        if map_obj is None:
+            return None
         key = args[UNARY]
         return map_obj.get(key)
 
     def _builtin_map_put(self, args: list[Any]) -> None:
         """map.put(map, key, value) -> void
 
-        Inserts or updates key-value pair.
+        Inserts or updates key-value pair. ``na`` map → no-op.
         """
         if len(args) < TERNARY:
             self._error("map.put requires map, key, and value")
-        map_obj = self._expect_map(args[0], "map.put: first arg must be map")
+        map_obj = self._coerce_optional_map(args[0])
+        if map_obj is None:
+            # Soft-na only for genuine na; wrong types still hard-fail
+            if args[0] is None:
+                return None
+            self._expect_map(args[0], "map.put: first arg must be map")
+            return None
         key = args[UNARY]
         value = args[BINARY]
         map_obj.put(key, value)
+        return None
 
     def _builtin_map_put_all(self, args: list[Any]) -> None:
         """map.put_all(map, other_map) -> void
 
-        Inserts all key-value pairs from another map.
+        Inserts all key-value pairs from another map. ``na`` either → no-op.
         """
         if len(args) < BINARY:
             self._error("map.put_all requires map and other map")
-        map_obj = self._expect_map(args[0], "map.put_all: first arg must be map")
-        other_map = self._expect_map(args[UNARY], "map.put_all: second arg must be map")
+        map_obj = self._coerce_optional_map(args[0])
+        other_map = self._coerce_optional_map(args[UNARY])
+        if map_obj is None or other_map is None:
+            if args[0] is not None and map_obj is None:
+                self._expect_map(args[0], "map.put_all: first arg must be map")
+            return None
         map_obj.put_all(other_map)
+        return None
 
-    def _builtin_map_remove(self, args: list[Any]) -> None:
-        """map.remove(map, key) -> void
+    def _builtin_map_remove(self, args: list[Any]) -> Any:
+        """map.remove(map, key) -> previous value or na
 
-        Removes key from map (no error if not found).
+        Removes key and returns the prior value (TV). Missing key / na map → na.
         """
         if len(args) < BINARY:
             self._error("map.remove requires map and key")
-        map_obj = self._expect_map(args[0], "map.remove: first arg must be map")
+        map_obj = self._coerce_optional_map(args[0])
+        if map_obj is None:
+            return None
         key = args[UNARY]
+        prev = map_obj.get(key)
         map_obj.remove(key)
+        return prev
 
     def _builtin_map_clear(self, args: list[Any]) -> None:
         """map.clear(map) -> void
 
-        Removes all entries from map.
+        Removes all entries from map. ``na`` map → no-op.
         """
         if len(args) < UNARY:
             self._error("map.clear requires map")
-        map_obj = self._expect_map(args[0], "map.clear: arg must be map")
+        map_obj = self._coerce_optional_map(args[0])
+        if map_obj is None:
+            return None
         map_obj.clear()
+        return None
 
-    def _builtin_map_contains(self, args: list[Any]) -> bool:
-        """map.contains(map, key) -> bool
-
-        Returns true if key exists in map.
-        """
+    def _builtin_map_contains(self, args: list[Any]) -> bool | None:
+        """map.contains(map, key) -> bool; ``na`` map → ``na``."""
         if len(args) < BINARY:
             self._error("map.contains requires map and key")
-        map_obj = self._expect_map(args[0], "map.contains: first arg must be map")
+        map_obj = self._coerce_optional_map(args[0])
+        if map_obj is None:
+            return None
         key = args[UNARY]
         return map_obj.contains(key)
 
-    def _builtin_map_keys(self, args: list[Any]) -> list[Any]:
-        """map.keys(map) -> array
-
-        Returns array of all keys in map.
-        """
+    def _builtin_map_keys(self, args: list[Any]) -> list[Any] | None:
+        """map.keys(map) -> array; ``na`` map → ``na``."""
         if len(args) < UNARY:
             self._error("map.keys requires map")
-        map_obj = self._expect_map(args[0], "map.keys: arg must be map")
+        map_obj = self._coerce_optional_map(args[0])
+        if map_obj is None:
+            return None
         return map_obj.keys()
 
-    def _builtin_map_values(self, args: list[Any]) -> list[Any]:
-        """map.values(map) -> array
-
-        Returns array of all values in map.
-        """
+    def _builtin_map_values(self, args: list[Any]) -> list[Any] | None:
+        """map.values(map) -> array; ``na`` map → ``na``."""
         if len(args) < UNARY:
             self._error("map.values requires map")
-        map_obj = self._expect_map(args[0], "map.values: arg must be map")
+        map_obj = self._coerce_optional_map(args[0])
+        if map_obj is None:
+            return None
         return map_obj.values()
 
-    def _builtin_map_size(self, args: list[Any]) -> int:
-        """map.size(map) -> int
-
-        Returns number of key-value pairs in map.
-        """
+    def _builtin_map_size(self, args: list[Any]) -> int | None:
+        """map.size(map) -> int; ``na`` map → ``na`` (TV soft-na)."""
         if len(args) < UNARY:
             self._error("map.size requires map")
-        map_obj = self._expect_map(args[0], "map.size: arg must be map")
+        map_obj = self._coerce_optional_map(args[0])
+        if map_obj is None:
+            return None
         return map_obj.size()
 
-    def _builtin_map_copy(self, args: list[Any]) -> Map[Any, Any]:
-        """map.copy(map) -> Map
-
-        Creates shallow copy of map.
-        """
+    def _builtin_map_copy(self, args: list[Any]) -> Map[Any, Any] | None:
+        """map.copy(map) -> Map; ``na`` map → ``na``."""
         if len(args) < UNARY:
             self._error("map.copy requires map")
-        map_obj = self._expect_map(args[0], "map.copy: arg must be map")
+        map_obj = self._coerce_optional_map(args[0])
+        if map_obj is None:
+            return None
         return map_obj.copy()

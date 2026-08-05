@@ -525,10 +525,11 @@ class TechnicalHelpers:
     def _stdev_inc_update(self, series: list[Any], period: int) -> float | None:
         """Incremental sample stdev matching full ``_stdev`` (last value).
 
-        Uses running sum / sum-of-squares over the non-None samples in the
-        period window (``statistics.stdev`` sample variance, ddof=1).
+        Strict window (match compile ``numba_stdev`` / TV / ``_sma``): any ``na``
+        in the length window yields ``na``. Sample variance uses ddof=1 over the
+        full ``period`` finite samples (requires ``period >= 2``).
         """
-        if period <= 0:
+        if period <= 1:
             return None
         slot = self._ta_next_slot()
         key = ("stdev", slot, period)
@@ -544,6 +545,8 @@ class TechnicalHelpers:
         else:
             try:
                 x = float(raw)
+                if x != x:  # NaN
+                    x = None
             except (TypeError, ValueError):
                 x = None
         window: deque[float | None] = st["window"]
@@ -559,7 +562,8 @@ class TechnicalHelpers:
             st["sumsq"] += x * x
             st["count"] += 1
         n = int(st["count"])
-        if len(window) < period or n < 2:
+        # Require every slot finite (count == period), same as SMA strict window.
+        if len(window) < period or n != period:
             st["value"] = None
             return None
         # sample variance: (sumsq - sum^2/n) / (n-1)
@@ -1127,7 +1131,8 @@ class TechnicalHelpers:
     def _dev_inc_update(self, series: list[Any], period: int) -> float | None:
         """Incremental mean absolute deviation matching full ``_dev``.
 
-        Running sum for the mean; MAD recomputed over the window (O(period)).
+        Strict window (match compile ``numba_dev`` / TV): any ``na`` → ``na``.
+        Running sum for the mean; MAD over the full period window.
         """
         if period <= 0:
             return None
@@ -1145,6 +1150,8 @@ class TechnicalHelpers:
         else:
             try:
                 x = float(raw)
+                if x != x:  # NaN
+                    x = None
             except (TypeError, ValueError):
                 x = None
         window: deque[float | None] = st["window"]
@@ -1157,29 +1164,27 @@ class TechnicalHelpers:
         if x is not None:
             st["sum"] += x
             st["count"] += 1
-        if len(window) < period or st["count"] <= 0:
+        n = int(st["count"])
+        if len(window) < period or n != period:
             st["value"] = None
             return None
-        mean = float(st["sum"]) / int(st["count"])
+        mean = float(st["sum"]) / n
         acc = 0.0
-        n = 0
         for v in window:
             if v is None:
-                continue
+                # Defensive: count==period guarantees finite slots
+                st["value"] = None
+                return None
             acc += abs(float(v) - mean)
-            n += 1
-        if n <= 0:
-            st["value"] = None
-            return None
         st["value"] = acc / n
         return st.get("value")
 
     def _variance_inc_update(self, series: list[Any], period: int) -> float | None:
         """Incremental sample variance matching full ``_variance`` (ddof=1).
 
-        Same running sum/sumsq window as ``_stdev_inc_update`` without sqrt.
+        Strict window (match compile ``numba_variance`` / ``_stdev_inc_update``).
         """
-        if period <= 0:
+        if period <= 1:
             return None
         slot = self._ta_next_slot()
         key = ("variance", slot, period)
@@ -1195,6 +1200,8 @@ class TechnicalHelpers:
         else:
             try:
                 x = float(raw)
+                if x != x:  # NaN
+                    x = None
             except (TypeError, ValueError):
                 x = None
         window: deque[float | None] = st["window"]
@@ -1210,7 +1217,7 @@ class TechnicalHelpers:
             st["sumsq"] += x * x
             st["count"] += 1
         n = int(st["count"])
-        if len(window) < period or n < 2:
+        if len(window) < period or n != period:
             st["value"] = None
             return None
         s = float(st["sum"])
@@ -3245,13 +3252,26 @@ class TechnicalHelpers:
         return min(window) if window else None
 
     def _stdev(self, series: list[float], period: int) -> float | None:
-        """Standard deviation over period (na-safe)."""
-        if period <= 0 or len(series) < period:
+        """Standard deviation over period (strict window, match compile/TV).
+
+        Any ``na`` in the last ``period`` samples yields ``na``; sample stdev
+        (ddof=1) divides by ``period - 1`` over the full window.
+        """
+        if period <= 1 or len(series) < period:
             return None
-        window = [float(v) for v in series[-period:] if v is not None]
-        if len(window) < 2:
-            return None
-        return statistics.stdev(window)
+        window = series[-period:]
+        vals: list[float] = []
+        for v in window:
+            if v is None:
+                return None
+            try:
+                fv = float(v)
+            except (TypeError, ValueError):
+                return None
+            if fv != fv:  # NaN
+                return None
+            vals.append(fv)
+        return statistics.stdev(vals)
 
     def _tr(
         self,

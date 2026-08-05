@@ -25,13 +25,23 @@ backends, tests, and parity tools can inspect visual outputs without a UI.
 
 Bar-mode (Runtime) reuses Plot objects by call-site index so N bars do not
 allocate N×M Plot instances / string conversions.
+
+Also exports :func:`materialize_visual_series_from_drawings` so compile-mode
+``__drawings`` events (bgcolor / plotshape / plotchar / plotarrow) can be
+lifted into titled series keys matching interpret packaging (parity helper;
+wire from Runtime / engine when dual-mode packing is enabled).
 """
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any
 from typing import ClassVar
+from typing import Iterable
+from typing import Mapping
+from typing import MutableMapping
+from typing import Sequence
 
 from .base import BuiltinDispatchMixin
 from .base import BuiltinHandler
@@ -41,6 +51,25 @@ _LS_SOLID = "linestyle_solid"
 _EMPTY = ""
 _AUTO = "auto"
 _MISSING: Any = object()
+
+# Default series titles when the Pine call omits ``title=`` (interpret + compile).
+DEFAULT_VISUAL_TITLES: dict[str, str] = {
+    "plot": "plot",
+    "hline": "hline",
+    "bgcolor": "bgcolor",
+    "barcolor": "barcolor",
+    "fill": "fill",
+    "plotshape": "shape",
+    "plotchar": "char",
+    "plotarrow": "arrow",
+    "plotbar": "bars",
+    "plotcandle": "candles",
+}
+
+# Compile ``__drawings`` kinds that interpret exports as series + plot_meta.
+_VISUAL_SERIES_KINDS: frozenset[str] = frozenset(
+    {"bgcolor", "plotshape", "plotchar", "plotarrow"}
+)
 
 
 @dataclass(slots=True)
@@ -106,6 +135,228 @@ class PlotRegistry:
     @classmethod
     def active(cls) -> list[Plot]:
         return [p for p in cls.plots if not p.deleted]
+
+
+def uniquify_series_title(title: str, used: MutableMapping[str, Any] | set[str] | None = None) -> str:
+    """Return a series key unused in *used* (``title``, ``title_2``, …).
+
+    Matches Runtime interpret packaging and compile ``_unique_plot_title``.
+    """
+    base = (title or _EMPTY).strip() or "plot"
+    used_set: set[str]
+    if used is None:
+        used_set = set()
+    elif isinstance(used, set):
+        used_set = used
+    else:
+        used_set = set(used.keys()) if hasattr(used, "keys") else set(used)  # type: ignore[arg-type]
+    if base not in used_set:
+        return base
+    suffix = 2
+    while f"{base}_{suffix}" in used_set:
+        suffix += 1
+    return f"{base}_{suffix}"
+
+
+def _visual_default_title(kind: str) -> str:
+    return DEFAULT_VISUAL_TITLES.get(kind, kind or "plot")
+
+
+def _json_safe_visual_value(kind: str, event: Mapping[str, Any]) -> Any:
+    """Extract one series cell from a compile drawing event (interpret semantics)."""
+    if kind == "bgcolor":
+        color = event.get("color")
+        if color is None:
+            return None
+        if isinstance(color, str):
+            s = color.strip()
+            return s if s else None
+        # int 0xRRGGBB / objects → string when possible
+        if isinstance(color, int):
+            if color > 0xFFFFFF:
+                r = (color >> 16) & 0xFF
+                g = (color >> 8) & 0xFF
+                b = color & 0xFF
+                return f"#{r:02X}{g:02X}{b:02X}"
+            return f"#{color & 0xFFFFFF:06X}"
+        s = str(color).strip()
+        return s if s else None
+
+    # plotshape / plotchar / plotarrow — series condition / value.
+    # Interpret exports True when the marker shows and None (na) when not —
+    # never a hard False (avoids type/na MISMATCH vs compile materialize).
+    raw = event.get("series", event.get("value"))
+    if raw is None:
+        return None
+    if kind in ("plotshape", "plotchar"):
+        if isinstance(raw, bool):
+            return True if raw else None
+        if isinstance(raw, (int, float)):
+            try:
+                fv = float(raw)
+                if fv != fv:  # NaN
+                    return None
+                return True if fv != 0.0 else None
+            except (TypeError, ValueError):
+                return True if raw else None
+        return True if raw else None
+    # plotarrow — keep numeric delta when possible
+    if isinstance(raw, bool):
+        return float(raw)
+    if isinstance(raw, (int, float)):
+        try:
+            fv = float(raw)
+            return None if fv != fv else fv
+        except (TypeError, ValueError):
+            return None
+    try:
+        fv = float(raw)
+        return None if fv != fv else fv
+    except (TypeError, ValueError):
+        return None
+
+
+def materialize_visual_series_from_drawings(
+    drawings: Sequence[Any] | None,
+    n_bars: int,
+    *,
+    existing_keys: Iterable[str] | None = None,
+) -> tuple[dict[str, list[Any]], dict[str, dict[str, Any]]]:
+    """Lift compile ``__drawings`` bgcolor/plotshape/plotchar/plotarrow into series.
+
+    Interpret Runtime packaging already exports these as titled series keys.
+    Compile historically only appends per-bar events on ``__drawings``. This
+    helper reconstructs the missing series map so both modes share keys (and
+    bgcolor color / shape bool values) without harness ignore flags.
+
+    Call-site order is taken from the first bar that emits visual events (usually
+    bar 0). Titles use event ``title`` when present; otherwise kind defaults
+    (``bgcolor``, ``shape``, ``char``, ``arrow``) with ``_2`` uniquify against
+    *existing_keys* and earlier sites.
+
+    Notes
+    -----
+    - Compile emit currently **drops** ``title=`` on bgcolor events (only color
+      is stored). Titled bgcolors therefore uniquify as ``bgcolor`` /
+      ``bgcolor_2`` until compiler ``_emit_drawing`` includes title (Agent 03).
+    - Already-present series keys in *existing_keys* are not overwritten.
+    """
+    series_map: dict[str, list[Any]] = {}
+    plot_meta: dict[str, dict[str, Any]] = {}
+    if not drawings or n_bars <= 0:
+        return series_map, plot_meta
+
+    by_bar: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    for item in drawings:
+        if not isinstance(item, dict):
+            continue
+        kind = str(item.get("kind") or item.get("type") or "")
+        if kind not in _VISUAL_SERIES_KINDS:
+            continue
+        try:
+            bar = int(item.get("bar", 0) or 0)
+        except (TypeError, ValueError):
+            bar = 0
+        if bar < 0 or bar >= n_bars:
+            # Still record for discovery if out of range? skip fill
+            if 0 <= bar:
+                by_bar[bar].append(item)
+            continue
+        by_bar[bar].append(item)
+
+    if not by_bar:
+        return series_map, plot_meta
+
+    # Prefer bar 0 for call-site discovery; else the lowest bar index present.
+    discovery_bar = 0 if 0 in by_bar else min(by_bar.keys())
+    discovery = by_bar[discovery_bar]
+
+    used: set[str] = set(existing_keys or ())
+    sites: list[dict[str, Any]] = []
+    for ev in discovery:
+        kind = str(ev.get("kind") or "")
+        raw_title = ev.get("title")
+        if raw_title is None or (isinstance(raw_title, str) and raw_title.strip() == ""):
+            base = _visual_default_title(kind)
+        else:
+            base = str(raw_title).strip() or _visual_default_title(kind)
+        key = uniquify_series_title(base, used)
+        used.add(key)
+        meta: dict[str, Any] = {
+            "title": key,
+            "kind": kind,
+            "index": len(sites),
+            "linewidth": 1,
+            "color": None,
+        }
+        style = ev.get("style")
+        if style is not None and str(style) != "":
+            meta["style"] = str(style)
+        location = ev.get("location")
+        if location is not None and str(location) != "":
+            meta["location"] = str(location)
+        char = ev.get("char")
+        if char is not None and str(char) != "":
+            meta["char"] = str(char)
+            meta["text"] = str(char)
+        color = ev.get("color")
+        if color is not None and str(color).strip() != "":
+            meta["color"] = str(color) if not isinstance(color, str) else color
+        sites.append({"key": key, "kind": kind, "meta": meta})
+
+    if not sites:
+        return series_map, plot_meta
+
+    for site in sites:
+        series_map[site["key"]] = [None] * n_bars
+        plot_meta[site["key"]] = dict(site["meta"])
+
+    # Fill columns: zip per-bar visual events with discovered sites by position
+    # when counts match; otherwise match by running kind-order index.
+    for bar, events in by_bar.items():
+        if bar < 0 or bar >= n_bars:
+            continue
+        if len(events) == len(sites):
+            pairs = list(zip(sites, events, strict=True))
+        else:
+            # Fallback: assign in order, pad/truncate
+            pairs = list(zip(sites, events))
+        for site, ev in pairs:
+            kind = site["kind"]
+            # Prefer event kind if caller reordered (should not)
+            ek = str(ev.get("kind") or kind)
+            val = _json_safe_visual_value(ek, ev)
+            series_map[site["key"]][bar] = val
+            # Lazy first non-null color into meta
+            if plot_meta[site["key"]].get("color") is None:
+                c = ev.get("color")
+                if c is not None and str(c).strip() != "":
+                    plot_meta[site["key"]]["color"] = c if isinstance(c, str) else str(c)
+
+    return series_map, plot_meta
+
+
+def merge_visual_series_from_drawings(
+    series: MutableMapping[str, list[Any]],
+    drawings: Sequence[Any] | None,
+    n_bars: int,
+    *,
+    plot_meta: MutableMapping[str, dict[str, Any]] | None = None,
+) -> dict[str, list[Any]]:
+    """Merge materialized visual series into *series* (no overwrite of existing keys).
+
+    Returns the same *series* mapping for chaining. When *plot_meta* is provided,
+    new keys get meta entries (existing meta keys are left untouched).
+    """
+    extra, meta = materialize_visual_series_from_drawings(
+        drawings, n_bars, existing_keys=series.keys()
+    )
+    for key, col in extra.items():
+        if key not in series:
+            series[key] = col
+            if plot_meta is not None and key not in plot_meta:
+                plot_meta[key] = meta[key]
+    return series  # type: ignore[return-value]
 
 
 def _kw(

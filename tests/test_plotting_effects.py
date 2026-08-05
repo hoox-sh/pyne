@@ -104,3 +104,21 @@ fill(p1, p2, color=color.blue, title='f')
         p = _eval(ev, "plot(close, linestyle=plot.linestyle_dashed)")
         assert isinstance(p, Plot)
         assert p.linestyle in ("linestyle_dashed", "dashed") or "dash" in str(p.linestyle)
+
+    def test_default_titles_for_visual_kinds(self) -> None:
+        """Default title strings must stay stable for dual-mode series keys."""
+        from pynescript.ast.evaluator.builtins.plotting import DEFAULT_VISUAL_TITLES
+
+        ev = NodeLiteralEvaluator()
+        PlotRegistry.reset()
+        _eval(ev, "bgcolor(color.red)")
+        _eval(ev, "plotshape(true)")
+        _eval(ev, "plotchar(true)")
+        _eval(ev, "hline(1)")
+        _eval(ev, "plotarrow(1.0)")
+        by_kind = {p.kind: p.title for p in PlotRegistry.plots}
+        assert by_kind["bgcolor"] == DEFAULT_VISUAL_TITLES["bgcolor"]
+        assert by_kind["plotshape"] == DEFAULT_VISUAL_TITLES["plotshape"]
+        assert by_kind["plotchar"] == DEFAULT_VISUAL_TITLES["plotchar"]
+        assert by_kind["hline"] == DEFAULT_VISUAL_TITLES["hline"]
+        assert by_kind["plotarrow"] == DEFAULT_VISUAL_TITLES["plotarrow"]

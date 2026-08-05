@@ -18,15 +18,18 @@ Usage (from repo root)::
 
 Writes ``.cache/interp_compile_parity.json`` and prints summary buckets::
 
-    OK, fill_background_only, both_error_same, both_error,
+    OK, fill_background_only, both_error_same, expected_error, both_error,
     MISMATCH, interp_error, compile_error, structural_only
 
 Exit code 0 when there are no value/nan mismatches among common series keys.
-``both_error_same`` (matched normalized errors on both backends) is treated as
-success unless ``--strict-errors``. Structural key-only differences warn by
-default; ``--strict-keys`` fails on leftover only_interp/only_compile keys.
-``--ignore-hline-keys`` / ``--ignore-fill-keys`` drop one-sided constant hline
-and Background/fill series from structural residuals.
+``both_error_same`` / ``expected_error`` (matched normalized errors on both
+backends; latter = intentional auto-fib / pivot-depth demos) are treated as
+success unless ``--strict-errors``. MISMATCH lines print
+``interp=… compile=… n_bad=… max_abs=…`` detail. Structural key-only
+differences warn by default; ``--strict-keys`` fails on leftover
+only_interp/only_compile keys. ``--ignore-hline-keys`` / ``--ignore-fill-keys``
+drop one-sided constant hline and Background/fill series from structural
+residuals.
 
 Caches (if compile looks wrong after editing numba_builtins / IR)
 -----------------------------------------------------------------
@@ -202,10 +205,11 @@ def normalize_error(err: Any) -> str:
     if not s:
         return ""
     # Drop host prefixes repeatedly (order can vary slightly).
+    # Bar timestamps may be int ms or float (e.g. 4234600000.0).
     for _ in range(4):
         prev = s
         s = re.sub(
-            r"^Runtime Error at bar\s+\d+\s*\(index\s+\d+\):\s*",
+            r"^Runtime Error at bar\s+[0-9]+(?:\.[0-9]+)?\s*\(index\s+[0-9]+\):\s*",
             "",
             s,
             flags=re.IGNORECASE,
@@ -221,6 +225,32 @@ def normalize_error(err: Any) -> str:
     return s
 
 
+def format_mismatch_detail(
+    *,
+    index: int,
+    left: Any,
+    right: Any,
+    n_bad: int = 1,
+    max_abs_diff: float | None = None,
+    kind: str = "value",
+) -> str:
+    """Human-readable single-series mismatch line for reports / tests.
+
+    Examples::
+
+        index 2: interp=61.70 compile=na (type/na) n_bad=3
+        index 0: interp=1.0 compile=1.001 abs_diff=1e-3 n_bad=12 max_abs=0.05
+    """
+    parts = [f"index {index}: interp={left!r} compile={right!r}"]
+    if kind and kind != "value":
+        parts.append(f"({kind})")
+    if n_bad > 1:
+        parts.append(f"n_bad={n_bad}")
+    if max_abs_diff is not None and max_abs_diff == max_abs_diff:  # not NaN
+        parts.append(f"max_abs={max_abs_diff:.6g}")
+    return " ".join(parts)
+
+
 def series_allclose(
     a: list[Any],
     b: list[Any],
@@ -231,6 +261,8 @@ def series_allclose(
     """Nan-aware comparison of two plot value lists.
 
     ``None`` and NaN are treated as equal. Non-numeric pairs use equality.
+    Mismatch details use ``interp=… compile=…`` labels plus ``n_bad`` /
+    ``max_abs`` when more than one cell differs.
     """
     if len(a) != len(b):
         return False, f"length {len(a)} != {len(b)}"
@@ -243,6 +275,7 @@ def series_allclose(
     if np is not None:
         aa = np.empty(len(a), dtype=np.float64)
         bb = np.empty(len(b), dtype=np.float64)
+        type_bad: list[int] = []
         for i, (x, y) in enumerate(zip(a, b)):
             if _is_na(x) and _is_na(y):
                 aa[i] = np.nan
@@ -251,37 +284,90 @@ def series_allclose(
             fx, fy = _to_float_or_none(x), _to_float_or_none(y)
             if fx is None and fy is None:
                 if x != y:
-                    return False, f"index {i}: {x!r} != {y!r}"
+                    return False, format_mismatch_detail(
+                        index=i, left=x, right=y, kind="non-numeric"
+                    )
                 aa[i] = 0.0
                 bb[i] = 0.0
                 continue
             if fx is None or fy is None:
-                return False, f"index {i}: type/value mismatch {x!r} vs {y!r}"
+                type_bad.append(i)
+                # Placeholder so allclose path still runs if we only report type
+                aa[i] = np.nan
+                bb[i] = 0.0 if fy is not None else np.nan
+                if fx is not None:
+                    aa[i] = fx
+                    bb[i] = np.nan
+                continue
             aa[i] = fx
             bb[i] = fy
+        if type_bad:
+            i0 = type_bad[0]
+            return False, format_mismatch_detail(
+                index=i0,
+                left=a[i0],
+                right=b[i0],
+                n_bad=len(type_bad),
+                kind="type/na",
+            )
         if not np.allclose(aa, bb, rtol=rtol, atol=atol, equal_nan=True):
             close = np.isclose(aa, bb, rtol=rtol, atol=atol, equal_nan=True)
             bad = np.where(~close)[0]
             i0 = int(bad[0]) if len(bad) else 0
-            extra = max(0, len(bad) - 1)
-            return False, f"index {i0}: {a[i0]!r} vs {b[i0]!r}" + (
-                f" (and {extra} more)" if extra else ""
+            n_bad = int(len(bad))
+            # max abs among finite pairs only
+            max_abs: float | None = None
+            if n_bad:
+                diffs = np.abs(aa[bad] - bb[bad])
+                finite = diffs[np.isfinite(diffs)]
+                if len(finite):
+                    max_abs = float(np.max(finite))
+            return False, format_mismatch_detail(
+                index=i0,
+                left=a[i0],
+                right=b[i0],
+                n_bad=n_bad,
+                max_abs_diff=max_abs,
+                kind="value",
             )
         return True, ""
 
     # Pure-Python fallback
+    n_bad = 0
+    first: tuple[int, Any, Any, str] | None = None
+    max_abs = 0.0
     for i, (x, y) in enumerate(zip(a, b)):
         if _is_na(x) and _is_na(y):
             continue
         fx, fy = _to_float_or_none(x), _to_float_or_none(y)
         if fx is None and fy is None:
             if x != y:
-                return False, f"index {i}: {x!r} != {y!r}"
+                n_bad += 1
+                if first is None:
+                    first = (i, x, y, "non-numeric")
             continue
         if fx is None or fy is None:
-            return False, f"index {i}: {x!r} vs {y!r}"
-        if abs(fx - fy) > atol + rtol * abs(fy):
-            return False, f"index {i}: {fx!r} vs {fy!r}"
+            n_bad += 1
+            if first is None:
+                first = (i, x, y, "type/na")
+            continue
+        diff = abs(fx - fy)
+        if diff > atol + rtol * abs(fy):
+            n_bad += 1
+            if diff > max_abs:
+                max_abs = diff
+            if first is None:
+                first = (i, fx, fy, "value")
+    if first is not None:
+        i0, lv, rv, kind = first
+        return False, format_mismatch_detail(
+            index=i0,
+            left=lv,
+            right=rv,
+            n_bad=n_bad,
+            max_abs_diff=max_abs if kind == "value" and n_bad else None,
+            kind=kind,
+        )
     return True, ""
 
 
@@ -459,7 +545,12 @@ def run_one_script(
         ni = result["normalized_interp_error"]
         nc = result["normalized_compile_error"]
         if ni and ni == nc:
-            result["status"] = "both_error_same"
+            # Intentional runtime.error / pivot-depth demos → expected_error bucket
+            # (still non-fatal; --strict-errors fails all error statuses).
+            if is_expected_error_message(ni):
+                result["status"] = "expected_error"
+            else:
+                result["status"] = "both_error_same"
         else:
             result["status"] = "both_error"
         result["ms_total"] = int((time.perf_counter() - t0) * 1000)
@@ -599,11 +690,32 @@ def default_workers() -> int:
     return max(1, min(8, cpu))
 
 
+# Intentional both-backend runtime.error demos (matched after normalize_error).
+# Classified as ``expected_error`` so residual buckets stay honest without
+# soft-suppressing the underlying RuntimeError.
+_EXPECTED_ERROR_NEEDLES: tuple[str, ...] = (
+    "not enough data to calculate auto fib",
+    "not enough data to calculate auto fib extension",
+    "not enough data to calculate auto fib retracement",
+    "change the chart's timeframe to a lower one",
+    "select a smaller calculation depth",
+)
+
+
+def is_expected_error_message(normalized: str) -> bool:
+    """True when a normalized dual-backend error is an intentional demo/guard."""
+    s = (normalized or "").strip().lower()
+    if not s:
+        return False
+    return any(n in s for n in _EXPECTED_ERROR_NEEDLES)
+
+
 # Primary status buckets printed in summary order.
 _SUMMARY_BUCKET_ORDER = (
     "OK",
     "fill_background_only",
     "both_error_same",
+    "expected_error",
     "both_error",
     "MISMATCH",
     "interp_error",
@@ -614,9 +726,19 @@ _SUMMARY_BUCKET_ORDER = (
 )
 
 # Statuses that do not fail the process by default (unless --strict-*).
-_NON_FATAL_STATUSES = frozenset({"OK", "fill_background_only", "both_error_same"})
+_NON_FATAL_STATUSES = frozenset(
+    {"OK", "fill_background_only", "both_error_same", "expected_error"}
+)
 _ERROR_STATUSES = frozenset(
-    {"interp_error", "compile_error", "both_error", "both_error_same", "TIMEOUT", "FAIL"}
+    {
+        "interp_error",
+        "compile_error",
+        "both_error",
+        "both_error_same",
+        "expected_error",
+        "TIMEOUT",
+        "FAIL",
+    }
 )
 
 
@@ -645,6 +767,8 @@ def format_summary(counts: dict[str, int], *, total: int, elapsed_s: float) -> s
             note = "  # structural warn (Background/fill only)"
         elif key == "both_error_same":
             note = "  # matched errors (ok unless --strict-errors)"
+        elif key == "expected_error":
+            note = "  # intentional runtime.error / pivot demos (matched)"
         elif key == "both_error":
             note = "  # both backends failed, different messages"
         elif key == "structural_only":
@@ -652,7 +776,7 @@ def format_summary(counts: dict[str, int], *, total: int, elapsed_s: float) -> s
         elif key == "OK":
             note = "  # clean value parity"
         elif key == "MISMATCH":
-            note = "  # value/nan mismatch"
+            note = "  # value/nan mismatch (see detail: interp=… compile=…)"
         lines.append(f"  {key:22} {n}{note}")
     # Any unexpected statuses
     known = set(_SUMMARY_BUCKET_ORDER)
@@ -915,10 +1039,17 @@ def main(argv: list[str] | None = None) -> int:
     # Sample residuals by bucket
     mism = [r for r in results if r.get("status") == "MISMATCH"]
     if mism:
-        print("\nValue mismatches (first 10):", flush=True)
+        print("\nValue mismatches (first 10, with series detail):", flush=True)
         for r in mism[:10]:
-            keys = [m.get("key") for m in (r.get("mismatches") or [])[:5]]
-            print(f"  {r.get('file')}: {keys}", flush=True)
+            mm = r.get("mismatches") or []
+            print(f"  {r.get('file')}: {len(mm)} series", flush=True)
+            for m in mm[:4]:
+                print(
+                    f"    key={m.get('key')!r}  {m.get('detail')}",
+                    flush=True,
+                )
+            if len(mm) > 4:
+                print(f"    … +{len(mm) - 4} more series", flush=True)
 
     fill_only = [r for r in results if r.get("status") == "fill_background_only"]
     if fill_only:
@@ -948,6 +1079,15 @@ def main(argv: list[str] | None = None) -> int:
     if same_err:
         print("\nBoth-error-same (matched normalized errors, first 10):", flush=True)
         for r in same_err[:10]:
+            print(
+                f"  {r.get('file')}: {r.get('normalized_interp_error', '')[:120]}",
+                flush=True,
+            )
+
+    expected_err = [r for r in results if r.get("status") == "expected_error"]
+    if expected_err:
+        print("\nExpected-error (intentional demos, first 10):", flush=True)
+        for r in expected_err[:10]:
             print(
                 f"  {r.get('file')}: {r.get('normalized_interp_error', '')[:120]}",
                 flush=True,

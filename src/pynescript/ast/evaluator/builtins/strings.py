@@ -84,23 +84,21 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
             value = str(value)
         return len(value)
 
-    def _builtin_str_upper(self, args: list[Any]) -> str:
+    def _builtin_str_upper(self, args: list[Any]) -> str | None:
+        """``str.upper(string)`` → uppercased string; ``na`` → ``na``."""
         if len(args) != UNARY:
             self._error("str.upper takes a string argument")
-        value = self._expect_string(
-            args[0],
-            "str.upper takes a string argument",
-        )
-        return value.upper()
+        if args[0] is None:
+            return None
+        return self._coerce_str_arg(args[0]).upper()
 
-    def _builtin_str_lower(self, args: list[Any]) -> str:
+    def _builtin_str_lower(self, args: list[Any]) -> str | None:
+        """``str.lower(string)`` → lowercased string; ``na`` → ``na``."""
         if len(args) != UNARY:
             self._error("str.lower takes a string argument")
-        value = self._expect_string(
-            args[0],
-            "str.lower takes a string argument",
-        )
-        return value.lower()
+        if args[0] is None:
+            return None
+        return self._coerce_str_arg(args[0]).lower()
 
     def _builtin_str_contains(self, args: list[Any]) -> bool | None:
         """TV: ``str.contains(source, str)`` → bool; either arg ``na`` → ``na``.
@@ -276,14 +274,13 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
             return list(value)
         return value.split(sep)
 
-    def _builtin_str_trim(self, args: list[Any]) -> str:
+    def _builtin_str_trim(self, args: list[Any]) -> str | None:
+        """``str.trim(string)`` → strip whitespace; ``na`` → ``na``."""
         if len(args) != UNARY:
             self._error("str.trim takes a string argument")
-        value = self._expect_string(
-            args[0],
-            "str.trim takes a string argument",
-        )
-        return value.strip()
+        if args[0] is None:
+            return None
+        return self._coerce_str_arg(args[0]).strip()
 
     def _builtin_str_tonumber(self, args: list[Any]) -> float | None:
         """TV: ``str.tonumber(string)`` → float, or ``na`` when not parseable.
@@ -413,30 +410,38 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
             except Exception:
                 return value + "".join(str(a) for a in fmt_args)
 
-    def _builtin_str_match(self, args: list[Any]) -> bool:
-        if len(args) != BINARY:
-            self._error("str.match takes pattern and string")
-        pattern = self._expect_string(
-            args[0],
-            "str.match takes pattern and string",
-        )
-        value = self._expect_string(
-            args[1],
-            "str.match takes pattern and string",
-        )
-        return bool(re.match(pattern, value))
+    def _builtin_str_match(self, args: list[Any]) -> str | None:
+        """TV: ``str.match(source, regex)`` → first matching substring or ``na``.
 
-    def _builtin_str_pos(self, args: list[Any]) -> int:
+        Note: returns the matched *string* (not a bool). Either arg ``na`` → ``na``.
+        Invalid regex → ``na`` rather than hard-fail (corpus residual resilience).
+        """
         if len(args) != BINARY:
-            self._error("str.pos takes substring and string")
-        needle = self._expect_string(
-            args[0],
-            "str.pos takes substring and string",
-        )
-        haystack = self._expect_string(
-            args[1],
-            "str.pos takes substring and string",
-        )
+            self._error("str.match takes source string and regex")
+        if args[0] is None or args[1] is None:
+            return None
+        source = self._coerce_str_arg(args[0])
+        pattern = self._coerce_str_arg(args[1])
+        try:
+            m = re.search(pattern, source)
+        except re.error:
+            return None
+        if m is None:
+            return None
+        return m.group(0)
+
+    def _builtin_str_pos(self, args: list[Any]) -> int | None:
+        """TV: ``str.pos(source, str)`` → first index of *str* in *source*, or ``-1``.
+
+        Either arg ``na`` → ``na`` (TV soft-na). Aligns with compile emit
+        ``str(source).find(str(needle))``.
+        """
+        if len(args) != BINARY:
+            self._error("str.pos takes source string and substring")
+        if args[0] is None or args[1] is None:
+            return None
+        haystack = self._coerce_str_arg(args[0])
+        needle = self._coerce_str_arg(args[1])
         return haystack.find(needle)
 
     def _builtin_str_format_time(self, args: list[Any]) -> str:
@@ -492,17 +497,33 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         # Strip TV literal-quote markers (e.g. 'T' in ISO default)
         return formatted.replace("'", "")
 
-    def _builtin_str_join(self, args: list[Any]) -> str:
+    def _builtin_str_join(self, args: list[Any]) -> str | None:
+        """``str.join(array, separator)`` — join stringified items.
+
+        ``na`` array → ``na``; ``na`` separator → ``""``; ``na`` elements → empty.
+        """
         if len(args) != BINARY:
             self._error("str.join takes an array and a separator string")
         sequence = args[0]
+        if sequence is None:
+            return None
         if not isinstance(sequence, list):
-            self._error("str.join takes an array and a separator string")
-        separator = self._expect_string(
-            args[1],
-            "str.join takes an array and a separator string",
-        )
-        return separator.join(str(item) for item in sequence)
+            # series / history wrapper
+            hist = getattr(sequence, "history", None)
+            if isinstance(hist, list):
+                sequence = list(hist)
+            else:
+                current = getattr(sequence, "current", None)
+                if isinstance(current, list):
+                    sequence = current
+                else:
+                    self._error("str.join takes an array and a separator string")
+        separator = args[1]
+        if separator is None:
+            separator = ""
+        elif not isinstance(separator, str):
+            separator = str(separator)
+        return separator.join("" if item is None else str(item) for item in sequence)
 
     def _format_time(
         self,

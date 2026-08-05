@@ -368,11 +368,29 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         current bar so AXIS markers / equity can resolve a fill price without
         a host-side bar join.
 
+        Sanitize ``bar_time`` / ``bar_index`` when callers pass raw context
+        values (``PineSeries`` / numpy scalars) — parity fixtures require JSON
+        scalars.
+
         Avoids ``dataclasses.replace`` (field reflection) — rebuild only when
         needed with a single OHLC cache per bar.
         """
         ohlc = event.ohlc
-        if ohlc[0] == 0.0 and ohlc[1] == 0.0 and ohlc[2] == 0.0 and ohlc[3] == 0.0:
+        # Coerce bar_time / bar_index to plain ints (context["time"] may be PineSeries).
+        bar_time = event.bar_time
+        bar_index = event.bar_index
+        if type(bar_time) is not int:
+            try:
+                bar_time = int(self._coerce_number(bar_time, default=0))
+            except (TypeError, ValueError):
+                bar_time = self._bar_time()
+        if type(bar_index) is not int:
+            try:
+                bar_index = int(self._coerce_number(bar_index, default=0))
+            except (TypeError, ValueError):
+                bar_index = self._bar_index()
+        fill_ohlc = ohlc[0] == 0.0 and ohlc[1] == 0.0 and ohlc[2] == 0.0 and ohlc[3] == 0.0
+        if fill_ohlc or bar_time is not event.bar_time or bar_index is not event.bar_index:
             event = StrategyEvent(
                 kind=event.kind,
                 id=event.id,
@@ -383,9 +401,9 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 stop=event.stop,
                 oca_name=event.oca_name,
                 comment=event.comment,
-                bar_index=event.bar_index,
-                bar_time=event.bar_time,
-                ohlc=self._bar_ohlc(),
+                bar_index=bar_index,
+                bar_time=bar_time,
+                ohlc=self._bar_ohlc() if fill_ohlc else ohlc,
                 script_id=event.script_id,
                 run_id=event.run_id,
             )
@@ -1095,8 +1113,8 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 stop=stop_p,
                 oca_name=None,
                 comment=kw.get("comment", None),
-                bar_index=self.context.get("bar_index", 0),
-                bar_time=self.context.get("time", 0),
+                bar_index=self._bar_index(),
+                bar_time=self._bar_time(),
                 ohlc=(0.0, 0.0, 0.0, 0.0),
                 script_id="",
                 run_id="",
@@ -1221,8 +1239,8 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 stop=None,
                 oca_name=None,
                 comment=None,
-                bar_index=self.context.get("bar_index", 0),
-                bar_time=self.context.get("time", 0),
+                bar_index=self._bar_index(),
+                bar_time=self._bar_time(),
                 ohlc=(0.0, 0.0, 0.0, 0.0),
                 script_id="",
                 run_id="",
@@ -1253,8 +1271,8 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 stop=None,
                 oca_name=None,
                 comment=None,
-                bar_index=self.context.get("bar_index", 0),
-                bar_time=self.context.get("time", 0),
+                bar_index=self._bar_index(),
+                bar_time=self._bar_time(),
                 ohlc=(0.0, 0.0, 0.0, 0.0),
                 script_id="",
                 run_id="",

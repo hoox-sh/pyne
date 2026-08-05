@@ -17,9 +17,15 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""request.* uses injected data_feed (MockDataFeed sync helpers)."""
+"""request.* uses injected data_feed (MockDataFeed sync helpers).
+
+Also covers foreign-na policy under a host chart and same-symbol simple
+OHLCV vs complex HTF UDF (MTF structure residual).
+"""
 
 from __future__ import annotations
+
+import math
 
 from pynescript.ast.evaluator import NodeLiteralEvaluator
 from pynescript.ast.helper import parse
@@ -28,6 +34,39 @@ from pynescript.util.datafeed import MockDataFeed
 
 def _eval(ev: NodeLiteralEvaluator, src: str):
     return ev.visit(parse(src, mode="eval").body)
+
+
+def _bars(n: int = 80, start: float = 100.0) -> list[dict]:
+    bars: list[dict] = []
+    price = start
+    for i in range(n):
+        o = round(price, 2)
+        c = round(price + (1.0 if i % 3 else -0.5), 2)
+        h = round(max(o, c) + 0.8, 2)
+        lo = round(min(o, c) - 0.8, 2)
+        bars.append(
+            {
+                "open": o,
+                "high": h,
+                "low": max(lo, 0.01),
+                "close": c,
+                "time": 1_700_000_000_000 + i * 60_000,
+                "volume": 1000.0 + i,
+            }
+        )
+        price = c
+    return bars
+
+
+def _is_na(v: object) -> bool:
+    if v is None:
+        return True
+    if isinstance(v, float):
+        return math.isnan(v)
+    try:
+        return bool(math.isnan(float(v)))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return False
 
 
 class TestRequestDataFeed:
@@ -58,3 +97,113 @@ class TestRequestDataFeed:
         ev = NodeLiteralEvaluator()
         _eval(ev, "request.seed(42)")
         assert ev.context.get("request.seed") == 42
+
+
+class TestForeignSecurityNaPolicy:
+    """Under a host chart, foreign tickers without multi-symbol data → na."""
+
+    def test_foreign_string_close_is_na_with_host_chart(self) -> None:
+        from backend.runtime import Runtime
+
+        src = """//@version=6
+indicator("t")
+plot(request.security("UPVOL.NY", "D", "close"), title="up")
+plot(request.security("MSFT", "D", close), title="ms")
+plot(close, title="c")
+"""
+        out = Runtime(symbol="AAPL").run(src, _bars(40), mode="interpret")
+        assert not out.get("error"), out.get("error")
+        assert all(_is_na(x) for x in out["series"]["up"])
+        assert all(_is_na(x) for x in out["series"]["ms"])
+        assert any(not _is_na(x) for x in out["series"]["c"])
+
+    def test_standalone_eval_still_mocks_bare_equity_string(self) -> None:
+        """No host chart identity → legacy mock prices for offline demos."""
+        ev = NodeLiteralEvaluator()
+        result = _eval(ev, 'request.security("AAPL", "D", "close")')
+        assert isinstance(result, list)
+        assert all(not _is_na(x) for x in result)
+
+
+class TestSameSymbolSecurityPolicy:
+    """Same-symbol simple OHLCV may passthrough; complex HTF → na without re-eval."""
+
+    def test_same_symbol_htf_close_passthrough(self) -> None:
+        from backend.runtime import Runtime
+
+        bars = _bars(40)
+        src = """//@version=6
+indicator("t")
+plot(request.security(syminfo.tickerid, "60", close), title="sec")
+plot(close, title="c")
+"""
+        out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
+        assert not out.get("error"), out.get("error")
+        assert out["series"]["sec"][-1] == out["series"]["c"][-1] == bars[-1]["close"]
+
+    def test_same_symbol_htf_high1_passthrough(self) -> None:
+        from backend.runtime import Runtime
+
+        bars = _bars(40)
+        src = """//@version=6
+indicator("t")
+plot(request.security(syminfo.tickerid, "60", high[1]), title="h")
+"""
+        out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
+        assert not out.get("error"), out.get("error")
+        assert abs(float(out["series"]["h"][-1]) - float(bars[-2]["high"])) < 1e-9
+
+    def test_same_symbol_complex_htf_udf_is_na(self) -> None:
+        from backend.runtime import Runtime
+
+        src = """//@version=6
+indicator("t")
+f_struct(len) =>
+    hh = ta.highest(high, len)
+    ll = ta.lowest(low, len)
+    hhUp = hh > hh[len]
+    llUp = ll > ll[len]
+    hhUp and llUp ? 1 : not hhUp and not llUp ? -1 : 0
+s_htf = request.security(syminfo.tickerid, "60", f_struct(20))
+s_same = request.security(syminfo.tickerid, "D", f_struct(20))
+plot(s_htf, title="htf")
+plot(s_same, title="same")
+plot(f_struct(20), title="chart")
+"""
+        out = Runtime(symbol="AAPL").run(src, _bars(80), mode="interpret")
+        assert not out.get("error"), out.get("error")
+        # Different TF + UDF without multi-TF engine → honest na
+        assert all(_is_na(x) for x in out["series"]["htf"])
+        # Same TF as default chart period ("D") → chart eval allowed
+        assert out["series"]["same"][-1] == out["series"]["chart"][-1]
+
+    def test_mtf_structure_bias_interp_compile_score_parity(self) -> None:
+        from pathlib import Path
+
+        from backend.runtime import Runtime
+
+        pine = (
+            Path(__file__).resolve().parents[1]
+            / "tests"
+            / "data"
+            / "set02"
+            / "indicators"
+            / "156_ind_mtf_structure_bias.pine"
+        )
+        if not pine.is_file():
+            import pytest
+
+            pytest.skip("MTF corpus script missing")
+        src = pine.read_text(encoding="utf-8")
+        bars = _bars(200)
+        rt = Runtime(symbol="AAPL")
+        si = rt.run(src, bars, mode="interpret")
+        sc = rt.run(src, bars, mode="compile")
+        assert not si.get("error"), si.get("error")
+        assert not sc.get("error"), sc.get("error")
+        pi = si["series"]["Structure Score"]
+        pc = sc["series"]["Structure Score"]
+        assert len(pi) == len(pc) == 200
+        # Without multi-TF data both backends leave HTF terms na → all-na score
+        assert all(_is_na(x) for x in pi)
+        assert all(_is_na(x) for x in pc)

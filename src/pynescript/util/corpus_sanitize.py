@@ -1776,6 +1776,11 @@ def _finalize(provenance: list[str], body: str, ends_with_nl: bool) -> str:
     body = _dedent_if_leading_indent(body)
     body = _fix_truncated_syntax(_fix_missing_decl_commas(body))
     body = _fix_empty_type_body(body)
+    # Only substitute the minimal stub for *non-Pine* / empty chrome.
+    # Truncated real scripts (indicator/strategy/library + partial body) must
+    # keep their declaration + remaining statements — never overwrite with
+    # ``indicator("x"); plot(close)``. Broken bare ``library().`` tails are the
+    # sole declaration-shaped exception via ``_is_effectively_empty_script``.
     if not _has_usable_pine(body) or _is_effectively_empty_script(body):
         body = _MINIMAL_STUB
     return _compose(provenance, body, ends_with_nl)

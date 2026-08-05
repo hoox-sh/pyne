@@ -159,23 +159,38 @@ def pine_period_or_none(value: Any, message: str, error: Callable[[str], NoRetur
     Used by TA ``_expect_series`` so ``ta.sma(close, na)`` yields na instead of
     hard-failing.
 
-    Non-numeric *identifier* strings (unresolved names leaked as the name
-    text — e.g. ``length``, ``rsiLen`` from incomplete module scrapes) also
-    soft-return ``None`` so TA returns na rather than aborting the bar loop.
+    Soft-na (return ``None``) cases:
+
+    - ``None`` / NaN / ``_NaValue``
+    - empty string after strip
+    - non-numeric *identifier* strings (unresolved names leaked as the name
+      text — e.g. ``length``, ``rsiLen`` from incomplete module scrapes)
+    - empty series after unwrap is still a hard error (empty window is a bug)
+
     Numeric strings (``\"14\"``) still coerce via :func:`pine_expect_int`.
     Other invalid types still raise via *error*.
     """
     if type(value) is int:
         return value
+    # Fast na before unwrap (avoids series.current access on pure None)
+    if value is None:
+        return None
     unwrapped = _unwrap_period_value(value)
     if (type(unwrapped) is list or type(unwrapped) is tuple) and not unwrapped:
         error(f"{message}. Got: empty series")
     if _is_na_scalar(unwrapped):
         return None
     # Unresolved name leak: bare identifier becomes a non-numeric str in context.
+    # Also soft-accept bool? No — bool is a valid 0/1 length via pine_expect_int.
     if type(unwrapped) is str:
         s = unwrapped.strip()
         if not s:
+            return None
+        # Reject common non-length sentinels that float() would accept poorly
+        # (none — float("nan") is NaN handled above only after coerce; bare
+        # "nan"/"inf" strings: treat as na period for residual safety).
+        low = s.lower()
+        if low in {"nan", "inf", "+inf", "-inf", "infinity", "-infinity"}:
             return None
         try:
             float(s)

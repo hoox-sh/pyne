@@ -152,6 +152,41 @@ def _as_scalar_operand(value):
     return value
 
 
+def _pine_soft_str(value: Any) -> str:
+    """Stringify a non-str operand for soft ``+`` concat (corpus / TV demos).
+
+    Pine-like rules for the soft path (not full ``str.tostring``):
+
+    - ``bool`` → ``\"true\"`` / ``\"false\"`` (Python ``str(True)`` is wrong)
+    - ``None`` should not reach here (caller propagates ``na``)
+    - everything else → ``str(value)`` (numbers, colors, ticker wrappers)
+    """
+    if type(value) is bool:
+        return "true" if value else "false"
+    return str(value)
+
+
+def _switch_case_matches(has_subject: bool, subject_val: Any, pattern_val: Any) -> bool:
+    """True when a switch arm should run.
+
+    - **No subject** (boolean switch): pattern must be truthy.
+    - **With subject**: equality match. ``na`` subject only matches ``na``
+      pattern — never fall through to boolean-pattern mode (R8 residual:
+      ``switch na`` / ``switch float(na)`` wrongly took the first truthy arm).
+    """
+    if not has_subject:
+        return bool(pattern_val)
+    # Subject form: na only equals na; otherwise Python equality (try-soft).
+    if subject_val is None and pattern_val is None:
+        return True
+    if subject_val is None or pattern_val is None:
+        return False
+    try:
+        return subject_val == pattern_val
+    except Exception:
+        return False
+
+
 def _elementwise_binary(op, a, b):
     """Apply *op* with Pine NA (None) and series (list) semantics.
 
@@ -159,6 +194,7 @@ def _elementwise_binary(op, a, b):
     - Two lists → element-wise (zip from the end when lengths differ).
     - List + scalar → broadcast.
     - Scalars → normal op.
+    - Soft string concat: ``\"x\" + 1`` / ``1 + \"x\"`` via :func:`_pine_soft_str`.
 
     Pure numeric operands take a zero-allocation fast path (no list/series work).
     """
@@ -199,10 +235,10 @@ def _elementwise_binary(op, a, b):
         try:
             return op(x, y)
         except TypeError:
-            # Pine-ish: string concat with non-string coerces via str()
+            # Pine-ish: string concat with non-string coerces (isin / label demos)
             if op is operator.add and (type(x) is str or type(y) is str):
                 try:
-                    return str(x) + str(y)
+                    return _pine_soft_str(x) + _pine_soft_str(y)
                 except Exception:
                     return None
             return None
@@ -1359,11 +1395,30 @@ class ExpressionEvaluator:
                 return base
         return base
 
-    def visit_If(self: EvaluatorProtocol, node: ast.If) -> Any:
-        """Evaluate ``if`` / ``else``; return the last expression of the taken branch.
+    def _eval_local_block(self: EvaluatorProtocol, stmts: list | tuple | None) -> Any:
+        """Return value of a local if/switch arm (last statement result).
 
-        Body statements that are not ``Expr`` still run for side effects.
-        Uses Python truthiness (``None``/``0``/``False`` → else branch).
+        Prefers :meth:`~.statements.StatementEvaluator._execute_block` so
+        assignments / reassignments that end a block yield the assigned value
+        (Pine UDF / if-expression convention) instead of only tracking bare
+        :class:`~ast.Expr` nodes.
+        """
+        if not stmts:
+            return None
+        execute = getattr(self, "_execute_block", None)
+        if execute is not None:
+            return execute(stmts)
+        result = None
+        for stmt in stmts:
+            result = self.visit(stmt)
+        return result
+
+    def visit_If(self: EvaluatorProtocol, node: ast.If) -> Any:
+        """Evaluate ``if`` / ``else``; return the last value of the taken branch.
+
+        ``na`` / falsy tests take the else branch (Python truthiness). Body
+        execution uses :meth:`_eval_local_block` so a trailing assignment still
+        contributes a return value (matches statement-style if / UDF bodies).
 
         Args:
             node: If with test, body, orelse
@@ -1372,51 +1427,30 @@ class ExpressionEvaluator:
             Last expression value of the taken branch, or ``None``
         """
         if self.visit(node.test):
-            result = None
-            for stmt in node.body:
-                if isinstance(stmt, ast.Expr):
-                    result = self.visit(stmt.value)
-                else:
-                    self.visit(stmt)
-            return result
-        else:
-            result = None
-            for stmt in node.orelse:
-                if isinstance(stmt, ast.Expr):
-                    result = self.visit(stmt.value)
-                else:
-                    self.visit(stmt)
-            return result
+            return self._eval_local_block(node.body)
+        return self._eval_local_block(node.orelse)
 
     def visit_Switch(self: EvaluatorProtocol, node: ast.Switch) -> Any:
-        """Evaluate a switch-expression.
+        """Evaluate a switch-expression (subject equality or boolean arms).
+
+        Distinguishes **missing subject** (boolean switch) from **subject is
+        ``na``** (equality form): the latter must not treat patterns as bools.
 
         Args:
-            node: Switch node with subject and cases
+            node: Switch node with optional subject and cases
 
         Returns:
             The value of the executed case block, or None
         """
-        subject_val = self.visit(node.subject) if node.subject else None
+        has_subject = node.subject is not None
+        subject_val = self.visit(node.subject) if has_subject else None
 
         for case in node.cases:
-            match = False
-            if case.pattern:  # type: ignore[attr-defined]
-                pattern_val = self.visit(case.pattern)  # type: ignore[attr-defined]
-                if subject_val is not None:
-                    match = subject_val == pattern_val
-                else:
-                    match = bool(pattern_val)
-            else:
-                # Default case (no pattern)
-                match = True
-
-            if match:
-                result = None
-                for stmt in case.body:  # type: ignore[attr-defined]
-                    if isinstance(stmt, ast.Expr):
-                        result = self.visit(stmt.value)
-                    else:
-                        self.visit(stmt)
-                return result
+            pattern = case.pattern  # type: ignore[attr-defined]
+            if pattern is not None:
+                pattern_val = self.visit(pattern)
+                if not _switch_case_matches(has_subject, subject_val, pattern_val):
+                    continue
+            # Default case (no pattern) always matches when reached
+            return self._eval_local_block(case.body)  # type: ignore[attr-defined]
         return None

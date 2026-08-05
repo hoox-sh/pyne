@@ -135,6 +135,29 @@ def timeframe_in_seconds(timeframe_str: str | None = None) -> int:
         raise ValueError(msg) from e
 
 
+def timeframes_equivalent(a: str | None, b: str | None) -> bool:
+    """True when two timeframe strings denote the same bar duration.
+
+    Used by ``request.security`` to decide whether a chart-evaluated expression
+    is a same-TF passthrough (safe) or a higher/lower-TF request that would need
+    real multi-TF data (otherwise honest ``na`` for complex exprs).
+    """
+    sa = "" if a is None else str(a).strip()
+    sb = "" if b is None else str(b).strip()
+    if not sa and not sb:
+        return True
+    if not sa or not sb:
+        # Empty request TF → treat as chart TF (TV defaults to chart)
+        return True
+    if sa.upper() == sb.upper():
+        return True
+    # Alias families: "D"/"1D", "60"/"1H", …
+    try:
+        return timeframe_in_seconds(sa) == timeframe_in_seconds(sb)
+    except (TypeError, ValueError):
+        return sa.upper() == sb.upper()
+
+
 def _chart_period(evaluator: object | None = None) -> str:
     """Resolve chart timeframe.period from host context / Timeframe object."""
     ctx = getattr(evaluator, "context", None) or {}

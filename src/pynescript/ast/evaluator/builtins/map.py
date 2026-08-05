@@ -56,10 +56,11 @@ class Map(Generic[K, V]):
             raise TypeError(msg)
         self.data.update(other.data)
 
-    def remove(self, key: K) -> None:
-        """Remove key from map. Safe operation (no error if key not found)."""
+    def remove(self, key: K) -> V | None:
+        """Remove key from map; return prior value or None if missing."""
         if key in self.data:
-            del self.data[key]
+            return self.data.pop(key)
+        return None
 
     def clear(self) -> None:
         """Remove all entries from map."""

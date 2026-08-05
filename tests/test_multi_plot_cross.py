@@ -143,6 +143,42 @@ fill(p1, p2, title="Background", color=color.rgb(33, 150, 243, 95))
     assert "fill" in kinds
 
 
+def test_plotshape_bgcolor_keys_via_materialize_match_interpret():
+    """Dual-mode key parity for plotshape + default bgcolor after drawings lift.
+
+    Compile Runtime does not yet pack visual series natively; the plotting
+    helper (to be wired by Runtime compile packing) reconstructs them from
+    ``__drawings`` so structural_only residuals can clear without harness flags.
+    """
+    from pynescript.ast.evaluator.builtins.plotting import merge_visual_series_from_drawings
+
+    src = """
+//@version=5
+indicator("vis", overlay=true)
+bgcolor(color.red)
+plotshape(close > open, title="Buy Label")
+plotshape(close < open, title="Sell Label")
+plot(close, "c")
+"""
+    bars = _bars(30)
+    ri = Runtime().run(src, bars, mode="interpret")
+    rc = Runtime().run(src, bars, mode="compile")
+    assert "error" not in ri, ri.get("error")
+    assert "error" not in rc, rc.get("error")
+    for key in ("Buy Label", "Sell Label", "bgcolor", "c"):
+        assert key in ri["series"], list(ri["series"].keys())
+
+    series = dict(rc.get("series") or {})
+    merge_visual_series_from_drawings(series, rc.get("drawings") or [], len(bars))
+    for key in ("Buy Label", "Sell Label", "bgcolor", "c"):
+        assert key in series, list(series.keys())
+        assert len(series[key]) == len(bars)
+    # Shape bools align with interpret
+    for k in ("Buy Label", "Sell Label"):
+        for i in range(len(bars)):
+            assert bool(ri["series"][k][i]) == bool(series[k][i]), (k, i)
+
+
 def test_crossover_strategy_events():
     src = """
 //@version=5

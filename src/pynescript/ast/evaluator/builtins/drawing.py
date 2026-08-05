@@ -286,6 +286,25 @@ class DrawingRegistry:
         return fill
 
     @classmethod
+    def merge_visual_series_from_drawings(
+        cls,
+        series: dict[str, list[Any]],
+        drawings: list[dict[str, Any]] | list[Any] | None,
+        n_bars: int,
+        *,
+        plot_meta: dict[str, dict[str, Any]] | None = None,
+    ) -> dict[str, list[Any]]:
+        """Lift bgcolor/plotshape/plotchar/plotarrow events into *series* keys.
+
+        Thin wrapper around :func:`plotting.materialize_visual_series_from_drawings`
+        for Runtime compile packing (interpret already exports these via
+        columnar plot capture). Does not overwrite existing series keys.
+        """
+        from .plotting import merge_visual_series_from_drawings as _merge
+
+        return _merge(series, drawings, n_bars, plot_meta=plot_meta)
+
+    @classmethod
     def gc_exported_drawings(
         cls,
         drawings: list[dict[str, Any]] | list[Any],

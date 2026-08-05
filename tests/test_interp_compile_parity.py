@@ -33,12 +33,27 @@ _SCRIPT = _ROOT / "scripts" / "compare_interp_compile.py"
 _BUILTIN = _ROOT / "tests" / "data" / "builtin_scripts"
 
 # Stable scripts with value-parity under harness make_bars (smoke set).
+# Round 8 expanded with TA scripts re-verified OK @ 80–200 bars (no MISMATCH).
+# Keep this list lean: CI runs each @ 100 bars with both backends.
 _ALWAYS_SCRIPTS = (
     "advance_decline_line.pine",
     "arnaud_legoux_moving_average.pine",
     "aroon.pine",
     "average_true_range.pine",
     "awesome_oscillator.pine",
+    # R8 expansion (fast + green)
+    "bbtrend.pine",
+    "bollinger_bands.pine",
+    "chande_momentum_oscillator.pine",
+    "correlation_coefficient.pine",
+    "donchian_channels.pine",
+    "money_flow_index.pine",
+    "moving_average_exponential.pine",
+    "moving_average_simple.pine",
+    "on_balance_volume.pine",
+    "relative_strength_index.pine",
+    "supertrend.pine",
+    "williams_percent_range.pine",
 )
 
 # Runtime-gap statuses: skip smoke rather than red the suite.
@@ -48,6 +63,7 @@ _SKIP_STATUSES = frozenset(
         "compile_error",
         "both_error",
         "both_error_same",
+        "expected_error",
     }
 )
 
@@ -82,6 +98,34 @@ def test_harness_series_allclose_nan_none(harness) -> None:
     ok, detail = harness.series_allclose([1.0], [1.0 + 1e-3])
     assert not ok
     assert "index 0" in detail
+    assert "interp=" in detail
+    assert "compile=" in detail
+
+
+def test_harness_mismatch_detail_type_na_and_n_bad(harness) -> None:
+    """Richer MISMATCH detail: type/na label + n_bad count."""
+    ok, detail = harness.series_allclose(
+        [1.0, 2.0, 3.0],
+        [1.0, None, None],
+    )
+    assert not ok
+    assert "type/na" in detail
+    assert "n_bad=2" in detail
+    assert "interp=" in detail and "compile=" in detail
+
+    ok2, detail2 = harness.series_allclose([10.0, 20.0], [10.0, 20.5], atol=1e-9, rtol=0.0)
+    assert not ok2
+    assert "max_abs=" in detail2 or "n_bad=" in detail2
+
+
+def test_harness_expected_error_classifier(harness) -> None:
+    assert harness.is_expected_error_message(
+        "not enough data to calculate auto fib extension on the current symbol. "
+        "change the chart's timeframe to a lower one or select a smaller "
+        "calculation depth using the indicator's `depth` settings."
+    )
+    assert not harness.is_expected_error_message("unknown function foo")
+    assert not harness.is_expected_error_message("")
 
 
 def test_harness_constant_hline(harness) -> None:
@@ -120,6 +164,15 @@ def test_harness_normalize_error_auto_fib(harness) -> None:
     assert "auto fib extension" in ni
     assert "runtime error at bar" not in ni
     assert "compiled runtime error" not in ni
+    # Float bar timestamps (host packing) must still strip cleanly.
+    ie_f = (
+        "Runtime Error at bar 4234600000.0 (index 49): RuntimeError: Not enough data "
+        "to calculate Auto Fib Retracement on the current symbol."
+    )
+    ni_f = harness.normalize_error(ie_f)
+    assert "runtime error at bar" not in ni_f
+    assert "not enough data" in ni_f
+    assert harness.is_expected_error_message(ni_f)
 
 
 def test_harness_compare_ignore_fill_keys(harness) -> None:
@@ -154,6 +207,7 @@ def test_harness_summarize_buckets(harness) -> None:
         {"status": "OK", "only_interp": ["hline"], "only_compile": []},
         {"status": "fill_background_only", "only_interp": ["Background"], "only_compile": []},
         {"status": "both_error_same"},
+        {"status": "expected_error"},
         {"status": "both_error"},
         {"status": "MISMATCH"},
         {"status": "compile_error"},
@@ -163,11 +217,13 @@ def test_harness_summarize_buckets(harness) -> None:
     assert counts["structural_only"] == 1
     assert counts["fill_background_only"] == 1
     assert counts["both_error_same"] == 1
+    assert counts["expected_error"] == 1
     assert counts["both_error"] == 1
     assert counts["MISMATCH"] == 1
     assert counts["compile_error"] == 1
     text = harness.format_summary(counts, total=len(results), elapsed_s=1.5)
     assert "both_error_same" in text
+    assert "expected_error" in text
     assert "fill_background_only" in text
 
 
@@ -179,16 +235,19 @@ def test_harness_cli_flags_registered(harness) -> None:
     assert "--ignore-hline-keys" in ap_src
     assert "--strict-keys" in ap_src
     assert "both_error_same" in ap_src
+    assert "expected_error" in ap_src
     assert "fill_background_only" in ap_src
-    # Non-fatal set includes both_error_same
+    # Non-fatal set includes both_error_same + expected_error
     assert "both_error_same" in harness._NON_FATAL_STATUSES
+    assert "expected_error" in harness._NON_FATAL_STATUSES
     assert "fill_background_only" in harness._NON_FATAL_STATUSES
     assert "both_error_same" in harness._ERROR_STATUSES
+    assert "expected_error" in harness._ERROR_STATUSES
 
 
 @pytest.mark.parametrize("name", _ALWAYS_SCRIPTS)
 def test_interp_compile_parity_smoke(harness, name: str) -> None:
-    """Always-on: 5 corpus scripts x 100 bars, no value mismatches."""
+    """Always-on: expanded R8 smoke set x 100 bars, no value mismatches."""
     path = _BUILTIN / name
     if not path.is_file():
         pytest.skip(f"corpus script missing: {path}")

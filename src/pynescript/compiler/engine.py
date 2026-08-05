@@ -167,7 +167,8 @@ _BUILTINS_WARMED = False
 # Disk index schema version (bump when metadata layout changes)
 # Bump when generated IR semantics change so source→IR disk index is invalidated
 # (source hash alone is stable across compiler fixes, e.g. fill() series keys).
-_DISK_META_VERSION = 2
+# v3: bare tickerid/SYMBOL chart security passthrough + plot title uniquify pack
+_DISK_META_VERSION = 3
 _NJIT_CACHE_FALSE = "@numba.njit(cache=False)"
 _NJIT_CACHE_TRUE = "@numba.njit(cache=True)"
 
@@ -654,34 +655,178 @@ class CompiledScript:
                 msg = "time array must have the same length as OHLCV"
                 raise ValueError(msg)
         # Recover from truncated Numba .nbi/.nbc left after code edits / crashes.
-        raw = _call_with_numba_cache_recovery(self.execute, o, h, l, c, v, t)
+        raw = _call_execute_with_recovery(self.execute, o, h, l, c, v, t)
         return self._pack_result(raw)
 
     def _pack_result(self, raw: Any) -> dict[str, Any]:
         """Map execute() output to the public plot-title dict.
 
-        Numeric mode returns a tuple of plot arrays (avoids Numba typed.Dict).
-        Object mode still returns a mapping (drawings / strategy extras).
+        Numeric mode returns a tuple (or list) of plot arrays (avoids Numba
+        typed.Dict). Object mode still returns a mapping (drawings / strategy
+        extras).
+
+        Series keys are **uniquified** like interpret Runtime packaging
+        (``title``, ``title_2``, …) so duplicate ``plot(..., title=)`` strings
+        do not silently drop earlier series (structural_only / false MISMATCH).
         """
-        if isinstance(raw, tuple):
-            out: dict[str, Any] = {}
-            for i, title in enumerate(self.plot_titles):
-                if i >= len(raw):
-                    break
-                out[title] = _coerce_plot_array(raw[i])
-            return out
+        if _is_plot_sequence(raw):
+            return _pack_plot_sequence(raw, self.plot_titles)
         return _normalize_result(raw)
 
 
+def _call_execute_with_recovery(
+    execute: Callable[..., Any],
+    o: np.ndarray,
+    h: np.ndarray,
+    l: np.ndarray,
+    c: np.ndarray,
+    v: np.ndarray,
+    t: np.ndarray,
+) -> Any:
+    """Call ``execute_script_compiled`` with Numba cache + legacy arity recovery.
+
+    Current IR is ``(open, high, low, close, volume, time)``. Disk modules from
+    older engines may still be 5-arg (no ``time_arr``). On that TypeError, retry
+    without *t* so stale disk IR still runs instead of hard-failing the host.
+    """
+    try:
+        return _call_with_numba_cache_recovery(execute, o, h, l, c, v, t)
+    except TypeError as exc:
+        if not _is_legacy_execute_arity_error(exc):
+            raise
+        _log.debug(
+            "execute arity mismatch (legacy 5-arg IR?); retrying without time_arr: %s",
+            exc,
+        )
+        try:
+            return _call_with_numba_cache_recovery(execute, o, h, l, c, v)
+        except TypeError:
+            raise exc from None
+
+
+def _is_legacy_execute_arity_error(exc: BaseException) -> bool:
+    """True when *exc* looks like 5-arg vs 6-arg ``execute_script_compiled``."""
+    if not isinstance(exc, TypeError):
+        return False
+    msg = str(exc)
+    # CPython: "takes 5 positional arguments but 6 were given"
+    # Numba dispatcher wrappers may phrase differently.
+    if "positional argument" in msg and ("5" in msg or "6" in msg):
+        return True
+    if "takes 5" in msg and "6" in msg:
+        return True
+    if "expected 5" in msg and "6" in msg:
+        return True
+    return False
+
+
+def _is_plot_sequence(raw: Any) -> bool:
+    """True when *raw* is a tuple/list of per-plot series (numeric emit shape).
+
+    Distinguishes plot tuples from a bare list that is itself one series, and
+    from mappings. Empty tuple/list counts as a (no-plot) sequence.
+    """
+    if isinstance(raw, tuple):
+        return True
+    if not isinstance(raw, list):
+        return False
+    if not raw:
+        return True
+    # List of arrays / array-likes from numeric emit (never a single series of
+    # scalars — those come as ndarray or go through mapping normalize).
+    first = raw[0]
+    if isinstance(first, np.ndarray):
+        return True
+    # Nested sequence of equal-length samples is ambiguous; only treat as multi
+    # plot when elements look like full series (list/tuple), not scalars.
+    if isinstance(first, (list, tuple)):
+        return True
+    return False
+
+
+def _uniquify_series_key(base: str, used: set[str]) -> str:
+    """Return *base* or ``base_2`` / ``base_3`` … not already in *used*.
+
+    Matches interpret Runtime packaging (``backend.runtime`` series_map loop).
+    """
+    key = base
+    if key not in used:
+        used.add(key)
+        return key
+    suffix = 2
+    while True:
+        candidate = f"{base}_{suffix}"
+        if candidate not in used:
+            used.add(candidate)
+            return candidate
+        suffix += 1
+
+
+def _pack_plot_sequence(
+    raw: tuple[Any, ...] | list[Any],
+    plot_titles: list[str] | None,
+) -> dict[str, Any]:
+    """Map a numeric-mode plot tuple/list onto uniquified title keys.
+
+    Extra series beyond ``plot_titles`` get ``plot_{i}`` keys (never dropped).
+    Missing series for trailing titles are omitted (partial return).
+    """
+    titles = list(plot_titles or [])
+    out: dict[str, Any] = {}
+    used: set[str] = set()
+    n = len(raw)
+    for i in range(n):
+        if i < len(titles):
+            base = titles[i]
+            if base is None or (isinstance(base, str) and not str(base).strip()):
+                base = f"plot_{i}"
+            else:
+                base = str(base)
+        else:
+            base = f"plot_{i}"
+        key = _uniquify_series_key(base, used)
+        out[key] = _coerce_plot_array(raw[i])
+    return out
+
+
 def _coerce_plot_array(v: Any) -> Any:
-    """Ensure plot series are float64 arrays without redundant copies."""
+    """Ensure plot series are float64 arrays without redundant copies.
+
+    ``None`` cells in Python lists become ``nan`` (interpret ``None`` parity for
+    hosts that later JSON-null non-finites). Object arrays that cannot cast stay
+    as-is (color/string columns) — never silent-coerce to zeros.
+    """
+    if v is None:
+        # Single missing series → empty (caller should not pass None for a column)
+        return np.asarray([], dtype=np.float64)
     if isinstance(v, np.ndarray):
         if v.dtype == np.float64:
             return v
+        # Prefer float64 for numeric/object-with-None; keep non-castable dtypes.
+        if v.dtype.kind in "biufc" or v.dtype == object:
+            try:
+                return v.astype(np.float64, copy=False)
+            except (TypeError, ValueError):
+                return v
+        return v
+    if isinstance(v, (list, tuple)):
+        # Explicit path: None → nan without going through object→float pitfalls
+        # on heterogeneous rows.
         try:
-            return v.astype(np.float64, copy=False)
+            out = np.empty(len(v), dtype=np.float64)
+            for i, x in enumerate(v):
+                if x is None:
+                    out[i] = np.nan
+                else:
+                    try:
+                        fx = float(x)
+                        out[i] = fx
+                    except (TypeError, ValueError):
+                        # Fall back to asarray for exotic cells
+                        return np.asarray(v, dtype=np.float64)
+            return out
         except (TypeError, ValueError):
-            return v
+            pass
     try:
         return np.asarray(v, dtype=np.float64)
     except (TypeError, ValueError):
@@ -691,28 +836,41 @@ def _coerce_plot_array(v: Any) -> Any:
 def _normalize_result(raw: Any) -> dict[str, Any]:
     """Convert numba typed dict / mapping / None into plain dict.
 
-    Plot series become ``float64`` arrays. ``__drawings`` (object-mode) is
-    passed through as a Python list of event dicts.
+    Plot series become ``float64`` arrays. ``__drawings`` / ``__events``
+    (object-mode) pass through as Python lists. Strategy scalars under ``__*``
+    stay scalars; array-valued ``__*`` (e.g. equity series) are coerced.
+
+    Bare sequences without :class:`CompiledScript` titles use ``plot_0``…
+    (legacy / direct call). Does **not** invent zeros for missing plots.
     """
     if raw is None:
         return {}
-    if isinstance(raw, tuple):
-        # Bare tuple without titles context — index keys (legacy / direct call)
-        return {f"plot_{i}": _coerce_plot_array(v) for i, v in enumerate(raw)}
+    if _is_plot_sequence(raw):
+        # Bare sequence without titles context — index keys
+        return _pack_plot_sequence(raw, None)
     try:
         items = raw.items()
     except Exception:
+        # Scalar / single array return — wrap under default key
         return {"plot": _coerce_plot_array(raw)}
     out: dict[str, Any] = {}
+    used: set[str] = set()
     for k, v in items:
-        key = str(k)
+        key = str(k) if k is not None else "plot"
+        if not key:
+            key = "plot"
         if key in ("__drawings", "__events"):
             out[key] = list(v) if v is not None else []
             continue
-        if key.startswith("__") and not isinstance(v, (list, np.ndarray)):
+        if key.startswith("__") and not isinstance(v, (list, tuple, np.ndarray)):
             # strategy scalars: __equity, __netprofit, __position_size
             out[key] = v
             continue
+        # Guard against pathological duplicate keys from exotic mappings
+        if key in out and not key.startswith("__"):
+            key = _uniquify_series_key(key, used)
+        else:
+            used.add(key)
         out[key] = _coerce_plot_array(v)
     return out
 
@@ -780,8 +938,30 @@ def _transpile_once(
         msg = "CompilerVisitor produced empty code"
         raise CompileEmitError(msg)
     object_mode = bool(visitor.object_mode) or force_object_mode
-    titles = [p.get("title", f"plot_{i}") for i, p in enumerate(visitor.plots)]
+    # Collect titles then uniquify so CompiledScript.plot_titles matches run()
+    # keys (interpret-style ``title_2``). Numeric packing uses this list; object
+    # emit still embeds visitor titles in the dict literal (Agent 03 handoff
+    # if plot() does not call _unique_plot_title).
+    raw_titles: list[str] = []
+    for i, p in enumerate(visitor.plots):
+        t = p.get("title", f"plot_{i}")
+        if t is None or (isinstance(t, str) and not str(t).strip()):
+            t = f"plot_{i}"
+        else:
+            t = str(t)
+        raw_titles.append(t)
+    titles = _uniquify_title_list(raw_titles)
     return code, titles, object_mode
+
+
+def _uniquify_title_list(titles: list[str]) -> list[str]:
+    """Stable uniquify of plot title list (``a``, ``a_2``, …)."""
+    used: set[str] = set()
+    out: list[str] = []
+    for i, t in enumerate(titles):
+        base = t if t else f"plot_{i}"
+        out.append(_uniquify_series_key(str(base), used))
+    return out
 
 
 def _code_for_disk(code: str, *, object_mode: bool) -> str:

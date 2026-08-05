@@ -882,8 +882,10 @@ r = security(tickerid, "D", close)
 plot(r, title="r")
 """
         code = transpile(src)
-        assert "security(" not in code or "close_arr" in code
-        compiled = compile_script(src)
+        assert "close_arr[__bar_idx]" in code
+        assert "r_arr[__bar_idx] = np.nan" not in code
+        # use_cache=False: bare tickerid emit was fixed post-disk-cache entries
+        compiled = compile_script(src, use_cache=False)
         o, h, l, c, v = _ohlcv(20)
         out = compiled.run(o, h, l, c, v)
         assert abs(out["r"][-1] - c[-1]) < 1e-9

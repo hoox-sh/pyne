@@ -678,10 +678,16 @@ class TestArrayEdgeCorrectness:
         self._call("array.insert", [a, 10, 99])
         assert a == [1, 2, 99]
 
-    def test_array_insert_negative_errors(self) -> None:
+    def test_array_insert_negative_from_end(self) -> None:
+        """TV v6: negative insert index counts from end (``-1`` → before last)."""
+        a = [1, 2, 3]
+        self._call("array.insert", [a, -1, 9])
+        assert a == [1, 2, 9, 3]
+
+    def test_array_insert_negative_oob_errors(self) -> None:
         a = [1, 2]
         with pytest.raises(ValueError, match="out of bounds|index"):
-            self._call("array.insert", [a, -1, 0])
+            self._call("array.insert", [a, -10, 0])
 
     def test_array_insert_bad_index_type(self) -> None:
         a = [1, 2]
@@ -730,3 +736,102 @@ class TestArrayEdgeCorrectness:
     def test_matrix_type_mismatch_message(self) -> None:
         with pytest.raises(ValueError, match="expected matrix|got"):
             self._call("matrix.get", [42, 0, 0])
+
+
+class TestRound8SoftNaAndV6Indices:
+    """Round 8 C1 long-tail: soft-na collections/str + v6 negative indices + real str.match."""
+
+    def setup_method(self) -> None:
+        self.evaluator = BuiltinEvaluator()
+
+    def _call(self, name: str, args: list[Any]) -> Any:
+        return self.evaluator._call_builtin(name, args)
+
+    # --- array v6 negative indices ---
+
+    def test_array_get_negative_index(self) -> None:
+        assert self._call("array.get", [[10, 20, 30], -1]) == 30
+        assert self._call("array.get", [[10, 20, 30], -2]) == 20
+        assert self._call("array.get", [[10, 20, 30], -10]) is None
+
+    def test_array_set_negative_index(self) -> None:
+        a = [1, 2, 3]
+        self._call("array.set", [a, -1, 99])
+        assert a == [1, 2, 99]
+
+    def test_array_remove_negative_index(self) -> None:
+        a = [1, 2, 3]
+        assert self._call("array.remove", [a, -1]) == 3
+        assert a == [1, 2]
+
+    # --- array soft-na id ---
+
+    def test_array_avg_sum_join_na_id(self) -> None:
+        assert self._call("array.avg", [None]) is None
+        assert self._call("array.sum", [None]) is None
+        assert self._call("array.join", [None, ","]) is None
+        assert self._call("array.pop", [None]) is None
+        assert self._call("array.copy", [None]) is None
+        assert self._call("array.clear", [None]) is None
+
+    def test_array_first_last_na_id_soft(self) -> None:
+        assert self._call("array.first", [None]) is None
+        assert self._call("array.last", [None]) is None
+
+    def test_array_from_zero_arg(self) -> None:
+        assert self._call("array.from", []) == []
+
+    # --- string soft-na + real match/pos ---
+
+    def test_str_upper_lower_trim_na(self) -> None:
+        assert self._call("str.upper", [None]) is None
+        assert self._call("str.lower", [None]) is None
+        assert self._call("str.trim", [None]) is None
+        assert self._call("str.upper", ["ab"]) == "AB"
+        assert self._call("str.trim", ["  x  "]) == "x"
+
+    def test_str_match_returns_substring(self) -> None:
+        """TV: str.match(source, regex) → first matching substring (not bool)."""
+        src = "It's time to sell some NASDAQ:AAPL!"
+        assert self._call("str.match", [src, r"[\w]+:[\w]+"]) == "NASDAQ:AAPL"
+        assert self._call("str.match", [src, r"ZZZ"]) is None
+        assert self._call("str.match", [None, r"a"]) is None
+        assert self._call("str.match", [src, None]) is None
+
+    def test_str_pos_source_first(self) -> None:
+        """TV / compile: str.pos(source, str) — source is first arg."""
+        assert self._call("str.pos", ["abc", "b"]) == 1
+        assert self._call("str.pos", ["abc", "z"]) == -1
+        assert self._call("str.pos", [None, "a"]) is None
+        assert self._call("str.pos", ["a", None]) is None
+
+    def test_str_join_soft(self) -> None:
+        assert self._call("str.join", [["a", None, "b"], ","]) == "a,,b"
+        assert self._call("str.join", [["a", "b"], None]) == "ab"
+        assert self._call("str.join", [None, ","]) is None
+
+    # --- map soft-na ---
+
+    def test_map_na_id_soft(self) -> None:
+        assert self._call("map.size", [None]) is None
+        assert self._call("map.get", [None, "k"]) is None
+        assert self._call("map.contains", [None, "k"]) is None
+        assert self._call("map.put", [None, "k", 1]) is None
+        assert self._call("map.remove", [None, "k"]) is None
+
+    def test_map_remove_returns_prior(self) -> None:
+        m = self._call("map.new", [])
+        self._call("map.put", [m, "a", 7])
+        assert self._call("map.remove", [m, "a"]) == 7
+        assert self._call("map.remove", [m, "missing"]) is None
+        assert self._call("map.size", [m]) == 0
+
+    # --- matrix soft-na indices ---
+
+    def test_matrix_get_set_na_indices(self) -> None:
+        m = self._call("matrix.new", [2, 2, 0.0])
+        assert self._call("matrix.get", [m, None, 0]) is None
+        assert self._call("matrix.get", [None, 0, 0]) is None
+        self._call("matrix.set", [m, None, 0, 5.0])
+        assert self._call("matrix.get", [m, 0, 0]) == 0.0
+        assert self._call("matrix.rows", [None]) is None

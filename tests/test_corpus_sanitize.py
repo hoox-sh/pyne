@@ -1068,3 +1068,40 @@ plot(close)
     assert "..." not in cleaned
     assert "input.int" in cleaned
     _roundtrip(cleaned)
+
+
+def test_truncated_real_pine_not_replaced_by_minimal_stub() -> None:
+    """R8: sanitize chrome only — truncated-but-real Pine keeps its body.
+
+    Must not overwrite partial scripts with the ``indicator("x"); plot(close)``
+    stub (that path is reserved for foreign shell/python/PR scrapes).
+    """
+    raw = """//@version=5
+indicator("Partial scrape")
+length = input.int(14, "Length")
+x = ta.sma(close, length)
+plot(x
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert 'indicator("x")' not in cleaned
+    assert "Partial scrape" in cleaned
+    assert "ta.sma" in cleaned
+    assert "input.int" in cleaned
+    # Truncated call is repaired to parse; original semantics retained.
+    _roundtrip(cleaned)
+
+
+def test_truncated_strategy_with_expand_chrome_keeps_body() -> None:
+    """Expand (N lines) UI chrome is dropped; strategy body stays."""
+    raw = """//@version=6
+strategy("Keep me", overlay=true)
+rsi = ta.rsi(close, 14)
+strategy.entry("L", strategy.long, when=rsi < 30)
+Expand (12 lines)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "Expand" not in cleaned
+    assert 'strategy("Keep me"' in cleaned
+    assert "ta.rsi" in cleaned
+    assert 'indicator("x")' not in cleaned
+    _roundtrip(cleaned)

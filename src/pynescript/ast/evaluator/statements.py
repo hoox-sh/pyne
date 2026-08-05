@@ -1735,24 +1735,22 @@ class StatementEvaluator:
         """Switch/case: equality match on subject, or truthy patterns when subject is absent.
 
         Same MRO note as :meth:`visit_If` — ExpressionEvaluator's ``visit_Switch``
-        wins on the composed evaluator.
+        wins on the composed evaluator. Keep this path aligned for any host that
+        mixes StatementEvaluator alone: **subject present but ``na``** uses
+        equality (``na`` only matches ``na``), never boolean-pattern mode.
         """
-        subject_val = self.visit(node.subject) if node.subject else None  # type: ignore[attr-defined]
+        from pynescript.ast.evaluator.expressions import _switch_case_matches
+
+        has_subject = node.subject is not None
+        subject_val = self.visit(node.subject) if has_subject else None  # type: ignore[attr-defined]
 
         for case in node.cases:
-            if case.pattern:  # type: ignore[attr-defined]
-                # Pattern matching
-                pattern_val = self.visit(case.pattern)  # type: ignore[attr-defined]
-                if subject_val is not None:
-                    # Switch with subject: match equality
-                    if subject_val == pattern_val:
-                        return self._execute_block(case.body)  # type: ignore[arg-type, attr-defined]
-                # Switch without subject: pattern must be boolean true
-                elif pattern_val:
-                    return self._execute_block(case.body)  # type: ignore[arg-type, attr-defined]
-            else:
-                # Default case (no pattern)
-                return self._execute_block(case.body)  # type: ignore[arg-type, attr-defined]
+            pattern = case.pattern  # type: ignore[attr-defined]
+            if pattern is not None:
+                pattern_val = self.visit(pattern)  # type: ignore[attr-defined]
+                if not _switch_case_matches(has_subject, subject_val, pattern_val):
+                    continue
+            return self._execute_block(case.body)  # type: ignore[arg-type, attr-defined]
         return None
 
     def _execute_loop_body(self, stmts: Sequence[ast.AST]) -> tuple[Any, bool]:

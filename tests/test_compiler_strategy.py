@@ -241,3 +241,107 @@ plot(qty, title="q")
         o, h, l, c, v = _ohlcv(12)
         out = compiled.run(o, h, l, c, v)
         assert abs(out["q"][-1] - 1.0) < 1e-9
+
+
+class TestCompileExitAndSeriesParity:
+    def test_exit_stop_limit_fill_price_matches_interpret(self) -> None:
+        """strategy.exit with limit must close at limit (interpret oracle), not mark."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0)
+        b.begin_bar(0, 100.0, 101.0, 99.0, 100.0)
+        b.entry("L", "long", 1.0)
+        assert b.position_size == 1.0
+        # Compiler maps exit → close(..., limit=..., stop=...)
+        b.close(id="L", limit=110.0, stop=95.0, comment="X")
+        assert b.position_size == 0.0
+        # Interpret fills at limit=110 when mark is between stop and limit
+        assert b.netprofit == pytest.approx(10.0)
+        kinds = [e["kind"] for e in b.events]
+        assert "exit" in kinds
+        exit_ev = next(e for e in b.events if e["kind"] == "exit")
+        assert exit_ev.get("limit") == 110.0
+        assert exit_ev.get("stop") == 95.0
+
+    def test_openprofit_percent_and_cash_series(self) -> None:
+        """Missing compile attrs caused AttributeError / compile_error on plots."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=100_000.0)
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.entry("L", "long", 2.0)
+        b.begin_bar(1, 110.0, 110.0, 110.0, 110.0)
+        assert b.openprofit == pytest.approx(20.0)
+        assert b.openprofit_percent == pytest.approx(0.02)
+        assert b.netprofit_percent == pytest.approx(0.0)
+        # cash ≈ equity - capital held
+        assert b.cash == pytest.approx(b.equity - 100.0 * 2.0)
+        b.close("L")
+        assert b.netprofit == pytest.approx(20.0)
+        assert b.netprofit_percent == pytest.approx(0.02)
+
+    def test_default_qty_percent_of_equity(self) -> None:
+        """When visitor wires default_qty_*, missing qty uses percent_of_equity."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(
+            initial_capital=10_000.0,
+            default_qty_type="percent_of_equity",
+            default_qty_value=10.0,
+        )
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.entry("L", "long")  # qty omitted → 10% of equity / price = 10
+        assert b.position_size == pytest.approx(10.0)
+
+    def test_runtime_compile_openprofit_percent_plot(self) -> None:
+        src = """//@version=5
+strategy("s", initial_capital=10000)
+if bar_index == 0
+    strategy.entry("L", strategy.long, qty=2)
+plot(strategy.openprofit, "op")
+plot(strategy.openprofit_percent, "opp")
+plot(strategy.netprofit_percent, "npp")
+"""
+        ohlcv = [
+            {
+                "open": 100.0 + i * 0.1,
+                "high": 101.0 + i * 0.1,
+                "low": 99.0 + i * 0.1,
+                "close": 100.0 + i,
+                "volume": 1.0,
+                "time": i * 60_000,
+            }
+            for i in range(5)
+        ]
+        result = Runtime().run(src, ohlcv, mode="compile")
+        assert "error" not in result, result.get("error")
+        assert "opp" in result["series"]
+        # bar 0: entry at 100, openprofit 0 → percent 0
+        assert result["series"]["opp"][0] == pytest.approx(0.0)
+        # bar 1: close=101, openprofit ≈ 2 → percent 0.02
+        assert result["series"]["opp"][1] == pytest.approx(0.02)
+
+    def test_interp_exit_bar_time_is_json_int(self) -> None:
+        """exit/cancel events must not put PineSeries into bar_time (JSON parity)."""
+        src = """//@version=5
+strategy("s")
+if bar_index == 0
+    strategy.entry("L", strategy.long, qty=1)
+strategy.exit("X", "L", limit=110.0)
+"""
+        ohlcv = [
+            {
+                "open": 100.0,
+                "high": 101.0,
+                "low": 99.0,
+                "close": 100.5,
+                "volume": 1.0,
+                "time": (i + 1) * 1000,
+            }
+            for i in range(3)
+        ]
+        result = Runtime().run(src, ohlcv, mode="interpret")
+        assert "error" not in result, result.get("error")
+        for ev in result["events"]:
+            assert type(ev["bar_time"]) is int, f"bar_time={ev['bar_time']!r} kind={ev['kind']}"
+            assert type(ev["bar_index"]) is int

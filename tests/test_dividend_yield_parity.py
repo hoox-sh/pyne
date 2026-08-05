@@ -97,6 +97,26 @@ plot(close)
     assert any(not _is_na(x) for x in close)
 
 
+def test_foreign_security_string_close_is_na_both_modes() -> None:
+    """Foreign OHLCV string expr must not invent mock prices under host chart."""
+    from backend.runtime import Runtime
+
+    src = """//@version=6
+indicator("t")
+plot(request.security("UPVOL.NY", "D", "close"), title="up")
+plot(request.security("DNVOL.NY", "D", close), title="dn")
+"""
+    bars = _bars(30)
+    rt = Runtime(symbol="AAPL")
+    si = rt.run(src, bars, mode="interpret")
+    sc = rt.run(src, bars, mode="compile")
+    assert not si.get("error"), si.get("error")
+    assert not sc.get("error"), sc.get("error")
+    for key in ("up", "dn"):
+        assert all(_is_na(x) for x in si["series"][key]), key
+        assert all(_is_na(x) for x in sc["series"][key]), key
+
+
 def test_time_assign_does_not_alias_host_series() -> None:
     """``last := time`` must copy scalar; later updates must not corrupt time[1]."""
     from backend.runtime import Runtime

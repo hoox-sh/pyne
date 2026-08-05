@@ -144,7 +144,7 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
             return None
 
     def _as_num(self, value: Any) -> float | None:
-        """Coerce a Pine value to float, treating na as None."""
+        """Coerce a Pine value to float, treating na / NaN as None."""
         if value is None:
             return None
         if hasattr(value, "current") and not isinstance(value, (list, tuple, str, bytes)):
@@ -152,9 +152,14 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
         if value is None:
             return None
         try:
-            return float(value)
+            n = float(value)
         except (TypeError, ValueError):
             return None
+        # float('nan') must not reach Python round()/floor()/int() (ValueError).
+        # Pine: math.round(na) → na.
+        if n != n:  # NaN
+            return None
+        return n
 
     def _builtin_math_max(self, args: list[Any]) -> Any:
         nums = [self._as_num(a) for a in args]

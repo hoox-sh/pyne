@@ -179,6 +179,8 @@ class CompileStrategyBroker:
         slippage_ticks: int = 0,
         mintick: float = 0.01,
         pyramiding: int = 0,
+        default_qty_type: str = "fixed",
+        default_qty_value: float = 1.0,
     ) -> None:
         """Construct broker state for one compiled run.
 
@@ -188,6 +190,9 @@ class CompileStrategyBroker:
         Commission model (interpret parity, TV-closer): charge on **entry**
         (held as ``position_commission`` / openprofit drag) **and** on **exit**
         fills; both realize into netprofit on close.
+
+        ``default_qty_type`` / ``default_qty_value`` mirror interpret when the
+        visitor wires them into the ctor (percent_of_equity / cash / fixed).
         """
         self.initial_capital = float(initial_capital)
         self.commission_value = float(commission_value)
@@ -196,6 +201,11 @@ class CompileStrategyBroker:
         self.mintick = float(mintick)
         # 0 = one market entry id; n = up to n additional same-direction entries
         self.pyramiding = int(pyramiding) if pyramiding is not None else 0
+        dqt = str(default_qty_type or "fixed").replace("strategy.", "").lower()
+        if dqt in {"percent", "percentage"}:
+            dqt = "percent_of_equity"
+        self.default_qty_type: str = dqt
+        self.default_qty_value: float = float(default_qty_value) if default_qty_value is not None else 1.0
         self.position_size: float = 0.0  # signed: +long / -short
         self.position_avg_price: float = float("nan")
         self.position_entry_name: str = ""
@@ -208,6 +218,7 @@ class CompileStrategyBroker:
         self.closed_trades: int = 0
         self.wintrades: int = 0
         self.losstrades: int = 0
+        self.eventrades: int = 0
         self.grossprofit: float = 0.0
         self.grossloss: float = 0.0
         self.events: list[dict[str, Any]] = []
@@ -534,6 +545,63 @@ class CompileStrategyBroker:
             return val * q
         return 0.0
 
+    def _resolve_default_qty(self, fill_price: float) -> float:
+        """Resolve entry size from ``default_qty_type`` / ``default_qty_value``.
+
+        Mirrors interpret ``_resolve_default_entry_qty``:
+        - ``fixed``: contracts = default_qty_value (default 1)
+        - ``percent_of_equity``: equity * (pct/100) / price
+        - ``cash``: cash_amount / price
+        """
+        dqt = (self.default_qty_type or "fixed").replace("strategy.", "").lower()
+        val = float(self.default_qty_value or 0.0)
+        price = float(fill_price) if fill_price and fill_price > 0 else float(self._mark or 1.0)
+        if price <= 0 or price != price:
+            price = 1.0
+        if dqt in {"percent_of_equity", "percent", "percentage"}:
+            equity = float(self.equity)
+            return max(0.0, (equity * (val / 100.0)) / price)
+        if dqt == "cash":
+            return max(0.0, val / price)
+        return max(0.0, val if val > 0 else 1.0)
+
+    def _exit_fill_price(
+        self,
+        *,
+        limit: float | None,
+        stop: float | None,
+        is_long: bool,
+        is_short: bool,
+    ) -> float | None:
+        """Interpret-oracle exit fill when ``strategy.exit`` stop/limit present.
+
+        Matches ``StrategyBuiltinsMixin._handle_strategy_exit``: when both legs
+        are set and mark is between them, still picks a leg price (legacy
+        fixture semantics). Returns ``None`` only when flat with no usable
+        price (caller emits zero-qty exit).
+        """
+        limit_p = _opt_float(limit)
+        stop_p = _opt_float(stop)
+        if limit_p is None and stop_p is None:
+            return None
+        current_p = float(self._mark)
+        if limit_p is not None and stop_p is not None:
+            if is_long:
+                if current_p <= stop_p:
+                    return float(stop_p)
+                if current_p >= limit_p:
+                    return float(limit_p)
+                return float(min(limit_p, stop_p) if limit_p < stop_p else limit_p)
+            if is_short:
+                if current_p >= stop_p:
+                    return float(stop_p)
+                if current_p <= limit_p:
+                    return float(limit_p)
+                return float(max(limit_p, stop_p) if limit_p > stop_p else limit_p)
+            # Flat — prefer limit for event bookkeeping
+            return float(limit_p if limit_p is not None else stop_p)
+        return float(limit_p if limit_p is not None else stop_p)  # type: ignore[arg-type]
+
     def _emit(
         self,
         kind: str,
@@ -579,14 +647,18 @@ class CompileStrategyBroker:
         self,
         id: str = "entry",
         direction: str = "long",
-        qty: float = 1.0,
+        qty: float | None = None,
         limit: float | None = None,
         stop: float | None = None,
         comment: str | None = None,
         price: float | None = None,
         **_kwargs: Any,
     ) -> None:
-        """Pine ``strategy.entry`` — market fill now or pending limit/stop."""
+        """Pine ``strategy.entry`` — market fill now or pending limit/stop.
+
+        ``qty=None`` (compiler omits qty) resolves via ``default_qty_type`` /
+        ``default_qty_value`` — same as interpret missing-qty path.
+        """
         d = _norm_dir(direction)
         if d is None:
             self._emit(
@@ -609,7 +681,12 @@ class CompileStrategyBroker:
                 comment="invalid_qty",
             )
             return
-        q = 1.0 if status == "missing" else abs(parsed_q)
+        # Resolve mark early for default qty (percent_of_equity needs price).
+        if price is None or _is_na(price):
+            px_hint = self._mark
+        else:
+            px_hint = float(price)
+        q = self._resolve_default_qty(px_hint) if status == "missing" else abs(parsed_q)
         if q <= 0:
             self._emit(
                 "order",
@@ -622,10 +699,7 @@ class CompileStrategyBroker:
             return
         # Market fast path: no limit/stop → skip classify + opt_float.
         if limit is None and stop is None:
-            if price is None or _is_na(price):
-                px = self._mark
-            else:
-                px = float(price)
+            px = px_hint
             if self.slippage_ticks > 0:
                 px = self._slip(px, d)
             self._open_or_add(
@@ -658,10 +732,7 @@ class CompileStrategyBroker:
             )
             return
         # Market entry — immediate (limit/stop were NA-ish)
-        if price is None or _is_na(price):
-            px = self._mark
-        else:
-            px = float(price)
+        px = px_hint
         if self.slippage_ticks > 0:
             px = self._slip(px, d)
         else:
@@ -676,11 +747,33 @@ class CompileStrategyBroker:
         qty: float | None = None,
         comment: str | None = None,
         price: float | None = None,
+        limit: float | None = None,
+        stop: float | None = None,
+        profit: float | None = None,
+        loss: float | None = None,
         **_kwargs: Any,
     ) -> None:
-        """Close (part of) the open position at mark or *price*; update PnL."""
+        """Close (part of) the open position at mark or *price*; update PnL.
+
+        When ``stop`` / ``limit`` (or ``loss`` / ``profit``) are provided the
+        compiler has mapped ``strategy.exit`` → ``close``. Match the interpret
+        oracle: pick an exit fill price from those legs and emit ``kind=exit``.
+        """
+        # Compiler maps strategy.exit → close(..., stop=..., limit=...).
+        limit_p = _opt_float(limit if limit is not None else profit)
+        stop_p = _opt_float(stop if stop is not None else loss)
+        is_exit = limit_p is not None or stop_p is not None
+        event_kind = "exit" if is_exit else "close"
+
         if self.position_size == 0:
-            self._emit("close", id=id, qty=0.0, comment=comment)
+            self._emit(
+                event_kind,
+                id=id,
+                qty=0.0,
+                comment=comment,
+                limit=limit_p,
+                stop=stop_p,
+            )
             return
         if qty is not None and not _is_na(qty):
             status, parsed = _parse_qty(qty)
@@ -695,7 +788,17 @@ class CompileStrategyBroker:
                 )
                 return
         d = "long" if self.position_size > 0 else "short"
-        if price is None or _is_na(price):
+        if is_exit:
+            # Interpret: no extra slip on stop/limit exit prices.
+            px = self._exit_fill_price(
+                limit=limit_p,
+                stop=stop_p,
+                is_long=(d == "long"),
+                is_short=(d == "short"),
+            )
+            if px is None:
+                px = self._mark
+        elif price is None or _is_na(price):
             # Exit slip: long close sells (worse), short cover buys (worse).
             px = self._slip(self._mark, "short" if d == "long" else "long")
         else:
@@ -708,10 +811,10 @@ class CompileStrategyBroker:
         if close_qty <= 0 or not math.isfinite(close_qty):
             return
         if d == "long":
-            profit = (px - self.position_avg_price) * close_qty
+            trade_profit = (px - self.position_avg_price) * close_qty
             self.position_size -= close_qty
         else:
-            profit = (self.position_avg_price - px) * close_qty
+            trade_profit = (self.position_avg_price - px) * close_qty
             self.position_size += close_qty
         # Realize proportional *entry* commission + charge *exit* commission.
         entry_comm = 0.0
@@ -719,15 +822,17 @@ class CompileStrategyBroker:
             entry_comm = float(self.position_commission) * (close_qty / pos_before)
             self.position_commission = max(0.0, float(self.position_commission) - entry_comm)
         exit_comm = self._commission(close_qty, px)
-        profit -= entry_comm + exit_comm
-        self.netprofit += profit
+        trade_profit -= entry_comm + exit_comm
+        self.netprofit += trade_profit
         self.closed_trades += 1
-        if profit >= 0:
+        if trade_profit > 0:
             self.wintrades += 1
-            self.grossprofit += profit
-        else:
+            self.grossprofit += trade_profit
+        elif trade_profit < 0:
             self.losstrades += 1
-            self.grossloss += abs(profit)
+            self.grossloss += abs(trade_profit)
+        else:
+            self.eventrades += 1
         if abs(self.position_size) < 1e-12:
             self.position_size = 0.0
             self.position_avg_price = float("nan")
@@ -735,7 +840,16 @@ class CompileStrategyBroker:
             self.position_commission = 0.0
             self.open_entry_count = 0
         self._update_equity_extremes()
-        self._emit("close", id=id, qty=close_qty, comment=comment, direction=d)
+        # Interpret exit events leave direction=None; plain close keeps direction.
+        self._emit(
+            event_kind,
+            id=id,
+            qty=close_qty,
+            comment=comment,
+            direction=None if is_exit else d,
+            limit=limit_p,
+            stop=stop_p,
+        )
 
     def close_all(self, comment: str | None = None, price: float | None = None, **_kwargs: Any) -> None:
         """Flatten any open position then emit ``close_all``."""
@@ -747,7 +861,7 @@ class CompileStrategyBroker:
         self,
         id: str = "order",
         direction: str = "long",
-        qty: float = 1.0,
+        qty: float | None = None,
         limit: float | None = None,
         stop: float | None = None,
         oca_name: str | None = None,
@@ -780,7 +894,11 @@ class CompileStrategyBroker:
                 comment="invalid_qty",
             )
             return
-        q = 1.0 if status == "missing" else abs(parsed_q)
+        if price is None or _is_na(price):
+            px_hint = self._mark
+        else:
+            px_hint = float(price)
+        q = self._resolve_default_qty(px_hint) if status == "missing" else abs(parsed_q)
         ot = self._classify_order_type(limit, stop)
         otype = str(oca_type or "none").lower()
         if otype in {"strategy.oca.reduce", "oca.reduce"}:
@@ -831,6 +949,13 @@ class CompileStrategyBroker:
         self.pending_orders.clear()
         self._emit("cancel_all")
 
+    def _pct_of_initial(self, amount: float) -> float:
+        """Percent of initial capital (Pine ``*_percent`` series)."""
+        ic = float(self.initial_capital)
+        if ic == 0:
+            return 0.0
+        return 100.0 * float(amount) / ic
+
     @property
     def equity(self) -> float:
         """Cash + closed netprofit + open MTM at current mark."""
@@ -853,6 +978,62 @@ class CompileStrategyBroker:
         else:
             return 0.0
         return mtm - float(self.position_commission or 0.0)
+
+    @property
+    def openprofit_percent(self) -> float:
+        """Open profit as percent of initial capital."""
+        return self._pct_of_initial(self.openprofit)
+
+    @property
+    def netprofit_percent(self) -> float:
+        """Realized net profit as percent of initial capital."""
+        return self._pct_of_initial(self.netprofit)
+
+    @property
+    def grossprofit_percent(self) -> float:
+        """Gross profit as percent of initial capital."""
+        return self._pct_of_initial(self.grossprofit)
+
+    @property
+    def grossloss_percent(self) -> float:
+        """Gross loss as percent of initial capital."""
+        return self._pct_of_initial(self.grossloss)
+
+    @property
+    def cash(self) -> float:
+        """Approximate free cash: equity minus capital locked in open position."""
+        ps = self.position_size
+        if ps == 0.0 or self.position_avg_price != self.position_avg_price:
+            return float(self.equity)
+        held = abs(float(self.position_avg_price) * float(ps))
+        return float(self.equity) - held
+
+    @property
+    def avg_trade(self) -> float:
+        n = int(self.closed_trades)
+        return float(self.netprofit) / n if n else 0.0
+
+    @property
+    def avg_trade_percent(self) -> float:
+        return self._pct_of_initial(self.avg_trade)
+
+    @property
+    def avg_winning_trade(self) -> float:
+        n = int(self.wintrades)
+        return float(self.grossprofit) / n if n else 0.0
+
+    @property
+    def avg_winning_trade_percent(self) -> float:
+        return self._pct_of_initial(self.avg_winning_trade)
+
+    @property
+    def avg_losing_trade(self) -> float:
+        n = int(self.losstrades)
+        return float(self.grossloss) / n if n else 0.0
+
+    @property
+    def avg_losing_trade_percent(self) -> float:
+        return self._pct_of_initial(self.avg_losing_trade)
 
     def _update_equity_extremes(self) -> None:
         """Track peak/trough equity for max_drawdown / max_runup series."""

@@ -40,6 +40,52 @@ CACHE = _ROOT / ".cache"
 
 _BARS_CACHE: dict[int, list[dict]] = {}
 
+# Intentional RuntimeError demos / guards (R7 Agent 08 residual).
+# Classified as EXPECTED_FAIL so OK% is not inflated and soft-suppression is avoided.
+# Paths are relative to tests/data/.
+EXPECTED_FAIL_RELS: frozenset[str] = frozenset(
+    {
+        "set02/libraries/019_lib_functionnnetwork.pine",
+        "set02/libraries/021_lib_analysisinterpolationloess.pine",
+        "set02/libraries/026_lib_mathcomplexoperator.pine",
+        "set02/libraries/032_lib_colorscheme.pine",
+        "set02/libraries/036_lib_mathcomplextrigonometry.pine",
+        "set04/indicators/0703_ind_higher_timeframe_security_demo.pine",
+    }
+)
+
+def corpus_rel_path(path_str: str) -> str:
+    """Normalize a worker path to ``tests/data``-relative form (posix)."""
+    p = Path(path_str)
+    try:
+        return str(p.resolve().relative_to(DATA)).replace("\\", "/")
+    except ValueError:
+        s = str(path_str).replace("\\", "/")
+        marker = "/tests/data/"
+        if marker in s:
+            return s.split(marker, 1)[1]
+        # Already relative under set0N/…
+        for prefix in ("set01/", "set02/", "set03/", "set04/", "set05/"):
+            if prefix in s:
+                return s[s.index(prefix) :]
+        return s.lstrip("./")
+
+
+def is_expected_fail(path_str: str, err_s: str = "") -> bool:
+    """True for intentional library ``runtime.error`` / lower-TF guard demos.
+
+    Path membership is authoritative (never promotes unknown paths). Require a
+    non-empty error string so bare OK library timeouts stay OK.
+    """
+    if not (err_s or "").strip():
+        return False
+    rel = corpus_rel_path(path_str)
+    if rel in EXPECTED_FAIL_RELS:
+        return True
+    # Absolute worker paths / odd prefixes: match by unique basename under the list.
+    base = Path(rel).name
+    return any(Path(x).name == base for x in EXPECTED_FAIL_RELS)
+
 
 def _make_bars(n: int = 50) -> list[dict]:
     bars: list[dict] = []
@@ -106,11 +152,15 @@ def _run_one(args: tuple[str, str, int]) -> tuple[str, str, str, int]:
                 if "/libraries/" in path_str.replace("\\", "/"):
                     return path_str, "OK", "", ms
                 return path_str, "TIMEOUT", err_s, ms
+            # Intentional runtime.error / lower-TF guard demos (do not soft-OK).
+            if is_expected_fail(path_str, err_s):
+                return path_str, "EXPECTED_FAIL", err_s, ms
             # Library scripts need external deps + often self-check empty inputs
             # via runtime.error. Once the bar loop *compiled and started*, treat
             # residual runtime issues as OK so coverage measures codegen success
             # rather than fixture completeness (import stubs, empty samples, …).
-            # Still surface true Compile/Parse errors above.
+            # Still surface true Compile/Parse errors above. Known intentional
+            # demos are EXPECTED_FAIL above so OK% stays honest.
             if "/libraries/" in path_str.replace("\\", "/"):
                 if not err_s.startswith("Compile Error"):
                     return path_str, "OK", "", ms
@@ -119,6 +169,8 @@ def _run_one(args: tuple[str, str, int]) -> tuple[str, str, str, int]:
     except Exception as e:  # noqa: BLE001
         ms = int((time.perf_counter() - t0) * 1000)
         msg = f"{type(e).__name__}: {str(e).split(chr(10))[0][:180]}"
+        if is_expected_fail(path_str, msg):
+            return path_str, "EXPECTED_FAIL", msg, ms
         if "/libraries/" in path_str.replace("\\", "/") and "Compile Error" not in msg:
             return path_str, "OK", "", ms
         return path_str, "FAIL", msg, ms
@@ -167,20 +219,28 @@ def _write_summary(
     elapsed: float,
     skipped: int,
     mode: str,
+    expected_fail: int = 0,
 ) -> str:
-    processed = ok + fail
+    # processed excludes EXPECTED_FAIL from the fail tally used for OK rate
+    # denominator so intentional demos do not depress honest residual %.
+    residual = ok + fail  # fail already excludes expected_fail
+    scored = residual + expected_fail
+    honest_den = max(residual, 1)
     lines = [
         f"runtime=pynescript.backend.runtime mode={mode} total_corpus={total_all} "
-        f"processed={processed} skipped_resume={skipped} "
-        f"OK={ok} PARSE_FAIL={parse_fail} RUN_FAIL={run_fail} FAIL={fail} TIMEOUT={timeout_n} "
-        f"rate={100 * ok / max(processed, 1):.2f}% elapsed_s={elapsed:.1f}",
+        f"processed={scored} skipped_resume={skipped} "
+        f"OK={ok} EXPECTED_FAIL={expected_fail} PARSE_FAIL={parse_fail} "
+        f"RUN_FAIL={run_fail} FAIL={fail} TIMEOUT={timeout_n} "
+        f"rate={100 * ok / honest_den:.2f}% "
+        f"(excl. EXPECTED_FAIL) elapsed_s={elapsed:.1f}",
         "by_set:",
     ]
     for s in sets:
         c = by_set.get(s, Counter())
         n = sum(c.values())
         lines.append(
-            f"  {s}: OK={c['OK']} PARSE_FAIL={c['PARSE_FAIL']} RUN_FAIL={c['RUN_FAIL']} "
+            f"  {s}: OK={c['OK']} EXPECTED_FAIL={c['EXPECTED_FAIL']} "
+            f"PARSE_FAIL={c['PARSE_FAIL']} RUN_FAIL={c['RUN_FAIL']} "
             f"TIMEOUT={c['TIMEOUT']} FAIL={c['FAIL']} total={n}"
         )
     lines.append("top_errors:")
@@ -242,7 +302,7 @@ def main() -> None:
         return
 
     CACHE.mkdir(parents=True, exist_ok=True)
-    ok = fail = timeout_n = parse_fail = run_fail = 0
+    ok = fail = timeout_n = parse_fail = run_fail = expected_fail = 0
     by_set: dict[str, Counter] = {s: Counter() for s in sets}
     err_bucket: Counter = Counter()
 
@@ -254,6 +314,9 @@ def main() -> None:
                 by_set.setdefault(sn, Counter())[st] += 1
                 if st == "OK":
                     ok += 1
+                elif st == "EXPECTED_FAIL":
+                    expected_fail += 1
+                    err_bucket[(row.get("error") or "EXPECTED_FAIL")[:100]] += 1
                 elif st == "TIMEOUT":
                     timeout_n += 1
                     fail += 1
@@ -375,6 +438,9 @@ def main() -> None:
                 by_set.setdefault(set_name, Counter())[status] += 1
                 if status == "OK":
                     ok += 1
+                elif status == "EXPECTED_FAIL":
+                    expected_fail += 1
+                    err_bucket[error[:100]] += 1
                 elif status == "TIMEOUT":
                     timeout_n += 1
                     fail += 1
@@ -400,21 +466,22 @@ def main() -> None:
 
                 fill()
 
-                processed = ok + fail
+                residual = ok + fail
                 if (
                     done_new % args.progress_every == 0
-                    or status != "OK"
+                    or status not in ("OK", "EXPECTED_FAIL")
                     or done_new == 1
                     or done_new == total_new
                 ):
-                    rate = 100 * ok / max(processed, 1)
+                    rate = 100 * ok / max(residual, 1)
                     elapsed = time.perf_counter() - t_all
                     left = total_new - done_new
                     eta = (elapsed / max(done_new, 1)) * left
                     print(
-                        f"  [{done_new}/{total_new} new | {processed}/{total_all} all] "
-                        f"OK={ok} PARSE={parse_fail} RUN={run_fail} T/O={timeout_n} "
-                        f"{rate:.1f}% {ms}ms eta={eta / 60:.1f}m  {status:10} {rel[:50]}",
+                        f"  [{done_new}/{total_new} new | {residual + expected_fail}/{total_all} all] "
+                        f"OK={ok} EXP={expected_fail} PARSE={parse_fail} RUN={run_fail} "
+                        f"T/O={timeout_n} {rate:.1f}% {ms}ms eta={eta / 60:.1f}m  "
+                        f"{status:14} {rel[:50]}",
                         flush=True,
                     )
 
@@ -433,6 +500,7 @@ def main() -> None:
                         time.perf_counter() - t_all,
                         skipped,
                         mode_label,
+                        expected_fail=expected_fail,
                     )
     except Exception:
         print("FATAL in main loop:", flush=True)
@@ -455,6 +523,7 @@ def main() -> None:
         elapsed,
         skipped,
         mode_label,
+        expected_fail=expected_fail,
     )
     print(text, flush=True)
     print(f"Wrote {args.out}", flush=True)

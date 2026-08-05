@@ -1351,3 +1351,59 @@ plot(nz(close[1], -1), title="c1")
         assert series["c0"][-1] == series["c0"][-1]
         assert series["c1"][-1] == series["c0"][-2]
         assert series["c1"][0] == -1
+
+
+class TestIntentionalRuntimeErrorDemos:
+    """R7/R8 residual: library runtime.error + lower-TF guard must stay hard-fail.
+
+    Do **not** soft-suppress these — they match TradingView fail-closed library
+    unit tests. Corpus runner classifies them as EXPECTED_FAIL (not OK).
+    """
+
+    # Paths relative to tests/data/ (same list as scripts/corpus_run_runtime.py).
+    _EXPECTED = (
+        "set02/libraries/019_lib_functionnnetwork.pine",
+        "set02/libraries/021_lib_analysisinterpolationloess.pine",
+        "set02/libraries/026_lib_mathcomplexoperator.pine",
+        "set02/libraries/032_lib_colorscheme.pine",
+        "set02/libraries/036_lib_mathcomplextrigonometry.pine",
+        "set04/indicators/0703_ind_higher_timeframe_security_demo.pine",
+    )
+
+    def test_expected_fail_classifier_paths(self) -> None:
+        import importlib.util
+        from pathlib import Path as P
+
+        root = P(__file__).resolve().parents[1]
+        script = root / "scripts" / "corpus_run_runtime.py"
+        spec = importlib.util.spec_from_file_location("corpus_run_runtime_harness", script)
+        assert spec is not None and spec.loader is not None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        assert mod.EXPECTED_FAIL_RELS == frozenset(self._EXPECTED)
+        for rel in self._EXPECTED:
+            abs_path = str(DATA / rel)
+            assert mod.is_expected_fail(abs_path, "RuntimeError: demo guard"), rel
+            assert mod.is_expected_fail(rel, "RuntimeError: x"), rel
+            # Empty error must not classify (timeout-as-OK path for other libs).
+            assert not mod.is_expected_fail(abs_path, ""), rel
+        assert not mod.is_expected_fail(
+            "set01/indicators/001_ind_whatever.pine", "RuntimeError: boom"
+        )
+
+    @pytest.mark.parametrize(
+        "rel",
+        [
+            "set02/libraries/019_lib_functionnnetwork.pine",
+            "set04/indicators/0703_ind_higher_timeframe_security_demo.pine",
+        ],
+    )
+    def test_intentional_demos_still_surface_runtime_error(self, rel: str) -> None:
+        """Sample of the residual list: Runtime must still report error (no soft-OK)."""
+        path = DATA / rel
+        if not path.is_file():
+            pytest.skip(f"missing {rel}")
+        src = sanitize_corpus_source(path.read_text(encoding="utf-8", errors="replace"))
+        r = Runtime().run(src, _bars(30), mode="interpret")
+        assert "error" in r and r["error"], f"{rel}: expected runtime error, got clean run"

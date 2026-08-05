@@ -30,6 +30,7 @@ inside expression evaluation still propagate via the normal bar loop.
 
 from __future__ import annotations
 
+import math
 import random
 
 from dataclasses import dataclass
@@ -38,6 +39,8 @@ from typing import Any
 
 from .base import BuiltinDispatchMixin
 from .base import BuiltinHandler
+from .timeframe import _chart_period
+from .timeframe import timeframes_equivalent
 
 
 # Define constants for magic numbers
@@ -47,6 +50,20 @@ OHLCV_CLOSE_IDX = 4
 REQUEST_RECENT_LIMIT = 5
 REQUEST_MOCK_PRICE = 100.0
 LOWER_TF_SIMULATE_MULTIPLIER = 2  # for demo lower tf bar count from latest data
+# How many chart bars to scan when guessing if a pre-eval value is simple OHLCV.
+_OHLCV_MATCH_LOOKBACK = 32
+_OHLCV_SERIES_KEYS = (
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "hl2",
+    "hlc3",
+    "ohlc4",
+)
+_CHART_PLACEHOLDERS = frozenset({"", "CHART", "SYMBOL", "TICKER", "NONE", "NA", "UNKNOWN"})
+_FUNDAMENTAL_TOKENS = ("DIVIDEND", "FACTSET", "EARNINGS", "ESD_")
 
 
 @dataclass
@@ -279,16 +296,8 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
             return ""
         return str(arg).upper()
 
-    def _is_chart_symbol(self, symbol: str) -> bool:
-        """True when *symbol* refers to the host chart (or is empty / generic).
-
-        Foreign tickers (``ESD_FACTSET``, ``MSFT`` when chart is ``AAPL``, …)
-        must not inherit pre-evaluated chart expressions as if they were
-        multi-symbol results (dividend_yield inventing close-as-dividend).
-        """
-        s = (symbol or "").strip().upper()
-        if not s or s in {"CHART", "SYMBOL", "TICKER", "NONE", "NA"}:
-            return True
+    def _chart_symbol_candidates(self) -> list[str]:
+        """Host chart identity strings (ticker / tickerid / provider symbol)."""
         ctx = getattr(self, "context", {}) or {}
         candidates: list[str] = []
         for key in (
@@ -302,13 +311,40 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
             if raw is None:
                 continue
             t = str(raw).strip().upper()
-            if t:
+            if t and t not in _CHART_PLACEHOLDERS:
                 candidates.append(t)
+        si = ctx.get("syminfo")
+        if si is not None:
+            for attr in ("ticker", "tickerid", "root"):
+                raw = getattr(si, attr, None)
+                if raw is None:
+                    continue
+                t = str(raw).strip().upper()
+                if t and t not in _CHART_PLACEHOLDERS:
+                    candidates.append(t)
         _, data_provider = self._get_request_data()
         prov_sym = getattr(data_provider, "_symbol", None)
         if prov_sym:
-            candidates.append(str(prov_sym).strip().upper())
-        for t in candidates:
+            t = str(prov_sym).strip().upper()
+            if t and t not in _CHART_PLACEHOLDERS:
+                candidates.append(t)
+        return candidates
+
+    def _host_has_chart_identity(self) -> bool:
+        """True when Runtime/host wired a real chart ticker (not bare unit eval)."""
+        return bool(self._chart_symbol_candidates())
+
+    def _is_chart_symbol(self, symbol: str) -> bool:
+        """True when *symbol* refers to the host chart (or is empty / generic).
+
+        Foreign tickers (``ESD_FACTSET``, ``MSFT`` when chart is ``AAPL``, …)
+        must not inherit pre-evaluated chart expressions as if they were
+        multi-symbol results (dividend_yield inventing close-as-dividend).
+        """
+        s = (symbol or "").strip().upper()
+        if not s or s in _CHART_PLACEHOLDERS:
+            return True
+        for t in self._chart_symbol_candidates():
             if s == t:
                 return True
             if s.split(":")[-1] == t.split(":")[-1]:
@@ -321,6 +357,148 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         """Get (data_feed, data_provider) for live/historical fallback."""
         ctx = getattr(self, "context", {}) or {}
         return ctx.get("data_feed"), ctx.get("data_provider")
+
+    def _unwrap_preeval_scalar(self, expression: Any) -> Any:
+        """Reduce PineSeries / 1-element containers to a plottable scalar when needed."""
+        if expression is None or isinstance(expression, (bool, int, float, str)):
+            return expression
+        # Host OHLCV PineSeries passed as the security expression (`close`)
+        current = getattr(expression, "current", None)
+        if current is not None and not isinstance(expression, (list, tuple, dict)):
+            return current
+        return expression
+
+    def _scalar_matches_chart_ohlcv(self, value: Any) -> bool:
+        """True when *value* equals a chart OHLCV sample (current or recent history).
+
+        Used to distinguish simple same-symbol OHLCV passthrough
+        (``close``, ``high[1]``, …) from complex UDF results (``f_struct`` →
+        ±1/0, RSI, …) when the expression is already evaluated at the call site.
+
+        Supports ``PineSeries`` (offset indexing: ``s[0]`` current, ``s[1]``
+        previous) and plain list/tuple chronologies.
+        """
+        if value is None:
+            return True
+        if isinstance(value, bool):
+            return False
+
+        ctx = getattr(self, "context", {}) or {}
+
+        # Identity: expression is the host chart series object itself (`close`).
+        for key in _OHLCV_SERIES_KEYS:
+            series = ctx.get(key)
+            if series is not None and value is series:
+                return True
+
+        # PineSeries wrapper that is not identity-equal — compare .current
+        current = getattr(value, "current", None)
+        if current is not None and not isinstance(value, (list, tuple, dict, str)):
+            if isinstance(current, bool):
+                return False
+            if isinstance(current, (int, float)) or current is None:
+                value = current
+            else:
+                return False
+
+        if not isinstance(value, (int, float)):
+            return False
+        try:
+            fv = float(value)
+        except (TypeError, ValueError):
+            return False
+        if math.isnan(fv):
+            return True
+
+        def _eq(sample: Any) -> bool:
+            if sample is None:
+                return False
+            try:
+                return float(sample) == fv
+            except (TypeError, ValueError):
+                return False
+
+        for key in _OHLCV_SERIES_KEYS:
+            series = ctx.get(key)
+            if series is None:
+                continue
+            # Scalar chart bind
+            if isinstance(series, (int, float)) and not isinstance(series, bool):
+                if _eq(series):
+                    return True
+                continue
+            # PineSeries: .current + history (newest-first)
+            sc = getattr(series, "current", None)
+            if sc is not None and _eq(sc):
+                return True
+            hist = getattr(series, "history", None)
+            if hist is not None:
+                for i, sample in enumerate(hist):
+                    if i >= _OHLCV_MATCH_LOOKBACK:
+                        break
+                    if _eq(sample):
+                        return True
+                continue
+            # Plain list/tuple chronology (oldest → newest)
+            if isinstance(series, (list, tuple)):
+                if not series:
+                    continue
+                for sample in series[-_OHLCV_MATCH_LOOKBACK:]:
+                    if _eq(sample):
+                        return True
+                continue
+            try:
+                if _eq(float(series)):  # type: ignore[arg-type]
+                    return True
+            except (TypeError, ValueError):
+                pass
+            try:
+                if _eq(series[0]):  # type: ignore[index]
+                    return True
+            except (TypeError, IndexError, KeyError):
+                pass
+        return False
+
+    def _expression_is_simple_ohlcv_value(self, expression: Any) -> bool:
+        """True for pre-eval values that look like simple chart OHLCV samples."""
+        if isinstance(expression, str):
+            return expression.strip().lower() in {
+                "open",
+                "o",
+                "high",
+                "h",
+                "low",
+                "l",
+                "close",
+                "c",
+                "volume",
+                "vol",
+                "hl2",
+                "hlc3",
+                "ohlc4",
+            }
+        if isinstance(expression, (list, tuple)):
+            if not expression:
+                return False
+            return all(self._expression_is_simple_ohlcv_value(x) for x in expression)
+        return self._scalar_matches_chart_ohlcv(expression)
+
+    def _allow_same_symbol_preeval(self, expression: Any, timeframe: Any) -> bool:
+        """Whether chart-evaluated *expression* may passthrough for same-symbol.
+
+        - Same (or empty) request TF as chart → chart eval is correct; allow.
+        - Different TF + simple OHLCV sample → chart passthrough stub (no HTF
+          series, matches compile simple OHLCV policy intent).
+        - Different TF + complex UDF/arith result → ``na`` (do not invent HTF
+          structure from chart bars — MTF Structure Bias residual).
+        """
+        chart_tf = _chart_period(self)
+        req_tf = timeframe
+        if isinstance(req_tf, list):
+            req_tf = req_tf[-1] if req_tf else chart_tf
+        if timeframes_equivalent(None if req_tf is None else str(req_tf), chart_tf):
+            return True
+        return self._expression_is_simple_ohlcv_value(expression)
 
     def _ticker_last(self, symbol: str) -> float | None:
         """Best-effort last price from data_feed (if wired)."""
@@ -356,8 +534,124 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
                 pass
         return None
 
+    def _heikinashi_current_ohlc(self) -> tuple[float, float, float, float] | None:
+        """Incremental Heikin-Ashi OHLC for the host chart (one update per bar).
+
+        Standard TV formulas:
+        - ``ha_close = (o + h + l + c) / 4``
+        - ``ha_open = (prev_ha_open + prev_ha_close) / 2`` (first bar: ``(o+c)/2``)
+        - ``ha_high = max(h, ha_open, ha_close)``
+        - ``ha_low = min(l, ha_open, ha_close)``
+        """
+        ctx = getattr(self, "context", {}) or {}
+        series_map = getattr(self, "current_series", None) or ctx
+
+        def _sample(key: str) -> float | None:
+            s = series_map.get(key) if isinstance(series_map, dict) else None
+            if s is None:
+                s = ctx.get(key)
+            if s is None:
+                return None
+            cur = getattr(s, "current", None)
+            if cur is not None and not isinstance(s, (list, tuple)):
+                try:
+                    return float(cur)
+                except (TypeError, ValueError):
+                    return None
+            if isinstance(s, (list, tuple)) and s:
+                try:
+                    return float(s[-1])  # type: ignore[arg-type]
+                except (TypeError, ValueError):
+                    return None
+            try:
+                return float(s)  # type: ignore[arg-type]
+            except (TypeError, ValueError):
+                return None
+
+        o, h, l, c = _sample("open"), _sample("high"), _sample("low"), _sample("close")
+        if o is None or h is None or l is None or c is None:
+            return None
+        ha_close = (o + h + l + c) * 0.25
+        st = getattr(self, "_ha_inc_state", None)
+        if st is None:
+            st = {"prev_open": None, "prev_close": None}
+            self._ha_inc_state = st  # type: ignore[attr-defined]
+        prev_o = st.get("prev_open")
+        prev_c = st.get("prev_close")
+        if prev_o is None or prev_c is None:
+            ha_open = (o + c) * 0.5
+        else:
+            ha_open = (float(prev_o) + float(prev_c)) * 0.5
+        ha_high = max(h, ha_open, ha_close)
+        ha_low = min(l, ha_open, ha_close)
+        st["prev_open"] = ha_open
+        st["prev_close"] = ha_close
+        return ha_open, ha_high, ha_low, ha_close
+
+    def _remap_preeval_ohlcv_to_ha(
+        self,
+        expression: Any,
+        ha: tuple[float, float, float, float],
+    ) -> Any:
+        """Replace chart OHLCV samples in *expression* with Heikin-Ashi values.
+
+        Pre-eval often passes ``PineSeries`` / list wrappers for ``open``/``close``
+        etc.; unwrap to the current scalar before float matching.
+        """
+        ha_o, ha_h, ha_l, ha_c = ha
+
+        def _scalar(v: Any) -> float | None:
+            if v is None or isinstance(v, bool):
+                return None
+            cur = getattr(v, "current", None)
+            if cur is not None and not isinstance(v, (list, tuple, dict)):
+                v = cur
+            elif isinstance(v, (list, tuple)) and v:
+                v = v[-1]
+            try:
+                return float(v)
+            except (TypeError, ValueError):
+                return None
+
+        chart: dict[str, float] = {}
+        for key, dest in (
+            ("open", "o"),
+            ("high", "h"),
+            ("low", "l"),
+            ("close", "c"),
+        ):
+            series_map = getattr(self, "current_series", None) or {}
+            s = series_map.get(key) if isinstance(series_map, dict) else None
+            if s is None:
+                s = (getattr(self, "context", {}) or {}).get(key)
+            fv = _scalar(s)
+            if fv is not None:
+                chart[dest] = fv
+        ha_by_chart = {
+            chart.get("o"): ha_o,
+            chart.get("h"): ha_h,
+            chart.get("l"): ha_l,
+            chart.get("c"): ha_c,
+        }
+
+        def _map_one(v: Any) -> Any:
+            fv = _scalar(v)
+            if fv is None:
+                return v
+            for ck, hv in ha_by_chart.items():
+                if ck is None:
+                    continue
+                if fv == ck:
+                    return hv
+            return fv
+
+        if isinstance(expression, list):
+            return [_map_one(x) for x in expression]
+        if isinstance(expression, tuple):
+            return tuple(_map_one(x) for x in expression)
+        return _map_one(expression)
+
     def _handle_request_security(self, args: list[Any]) -> Any:  # noqa: C901
-        # complexity acceptable: handles multiple data source fallbacks + exprs
         # complexity acceptable: handles multiple data source fallbacks + exprs
         """
         request.security(symbol, timeframe, expression, gaps, lookahead)
@@ -367,9 +661,23 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         v6+: Supports real data via context['data_provider'] (historical)
         or context['data_feed'] (CCXTProDataFeed for live/latest data).
 
-        Falls back to mock data if no real provider/feed is configured.
+        Policy (parity with compile foreign-na / same-symbol simple OHLCV):
+
+        - **Foreign** without a multi-symbol feed hit → ``na`` (never invent chart
+          series or legacy mock OHLCV as foreign fundamentals when a host chart
+          identity is wired). Standalone unit eval without chart identity may
+          still use legacy mock prices for bare string series names.
+        - **Same-symbol + simple OHLCV** (string name or chart OHLCV sample) →
+          chart passthrough / provider series.
+        - **Same-symbol Heikin-Ashi** (``ticker.heikinashi``) → transform chart
+          OHLCV to HA (do not return raw chart candles or all-``na``).
+        - **Same-symbol + complex pre-eval** (UDF / ta) on a **different** TF →
+          ``na`` without real HTF re-eval (do not invent HTF structure).
+        - **Same-symbol + same TF** pre-eval → chart eval is correct; allow.
         """
-        symbol = self._resolve_symbol(args[0] if len(args) > 0 else "AAPL")
+        ticker_arg = args[0] if len(args) > 0 else "AAPL"
+        is_ha = bool(getattr(ticker_arg, "heikinashi_applied", False))
+        symbol = self._resolve_symbol(ticker_arg)
         timeframe = args[1] if len(args) > 1 else "D"
         expression = args[2] if len(args) > REQUEST_SECURITY_MIN_ARGS else "close"
 
@@ -386,10 +694,42 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         # - matrix/array/UDT result: return as-is
         #
         # Pre-evaluated non-str expressions were computed on the *chart* series.
-        # Same-symbol security may return them; foreign symbols without a real
-        # multi-symbol context must return na (not invent chart close as
-        # dividends / fundamentals — see dividend_yield.pine).
-        chart_sym = self._is_chart_symbol(str(symbol))
+        # Same-symbol security may return simple OHLCV / same-TF results; foreign
+        # symbols without a real multi-symbol context must return na (not invent
+        # chart close as dividends / fundamentals — see dividend_yield.pine).
+        # Heikin-Ashi of the chart is same-symbol (HA(...) ticker string).
+        chart_sym = self._is_chart_symbol(str(symbol)) or is_ha
+        na = float("nan")
+
+        # Heikin-Ashi transform for chart (same-symbol) security requests.
+        if is_ha and chart_sym:
+            ha = self._heikinashi_current_ohlc()
+            if ha is not None:
+                ha_o, ha_h, ha_l, ha_c = ha
+                if isinstance(expression, str):
+                    key = expression.strip().lower()
+                    return {
+                        "open": ha_o,
+                        "o": ha_o,
+                        "high": ha_h,
+                        "h": ha_h,
+                        "low": ha_l,
+                        "l": ha_l,
+                        "close": ha_c,
+                        "c": ha_c,
+                    }.get(key, na)
+                if isinstance(expression, list):
+                    if len(expression) == 1 and (
+                        expression[0] is None
+                        or isinstance(expression[0], (int, float, bool))
+                    ):
+                        return self._remap_preeval_ohlcv_to_ha(expression[0], ha)
+                    return self._remap_preeval_ohlcv_to_ha(expression, ha)
+                if isinstance(expression, tuple):
+                    return self._remap_preeval_ohlcv_to_ha(expression, ha)
+                return self._remap_preeval_ohlcv_to_ha(
+                    self._unwrap_preeval_scalar(expression), ha
+                )
 
         if isinstance(expression, list):
             if len(expression) == 1 and (
@@ -397,19 +737,24 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
             ):
                 expression = expression[0]
             elif chart_sym:
-                return expression
+                if self._allow_same_symbol_preeval(expression, timeframe):
+                    return expression
+                return na
             else:
-                return float("nan")
+                return na
         if isinstance(expression, tuple):
-            return expression if chart_sym else float("nan")
+            if chart_sym and self._allow_same_symbol_preeval(expression, timeframe):
+                return expression
+            return na
 
         if not isinstance(expression, str):
-            if chart_sym:
-                return expression
-            # Foreign + chart-evaluated UDF/expr (year_sum(close), …) → na
-            return float("nan")
+            if chart_sym and self._allow_same_symbol_preeval(expression, timeframe):
+                # Bare `close` / PineSeries → current scalar for plot/assign paths.
+                return self._unwrap_preeval_scalar(expression)
+            # Foreign + chart-evaluated UDF/expr, or same-symbol complex HTF → na
+            return na
 
-        symbol_str = symbol
+        symbol_str = str(symbol)
 
         # Try real data provider (historical or live) via shared helpers
         closes = self._ohlcv_closes(symbol, str(timeframe), limit=REQUEST_OHLCV_LIMIT)
@@ -419,11 +764,17 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         if last is not None:
             return self._get_expression_prices(str(expression), [float(last)] * REQUEST_OHLCV_LIMIT)
 
-        # Fallback mock data for bare string series names only (legacy demos).
-        # Skip inventing OHLCV for obvious fundamental / non-equity prefixes.
-        if any(tok in symbol_str for tok in ("DIVIDEND", "FACTSET", "EARNINGS", "ESD_")):
-            return float("nan")
+        # Fundamental / non-equity prefixes — never invent OHLCV.
+        if any(tok in symbol_str for tok in _FUNDAMENTAL_TOKENS):
+            return na
 
+        # Foreign under a host chart with no multi-symbol feed hit → na.
+        # Aligns interpret with compile foreign-na (no mock UPVOL/MSFT prices).
+        if not chart_sym and self._host_has_chart_identity():
+            return na
+
+        # Fallback mock data for bare string series names only (legacy demos /
+        # standalone evaluator without a wired chart identity).
         base_prices = {
             "AAPL": [100.0, 101.5, 102.0, 103.5, 105.0],
             "GOOGL": [1000.0, 1015.5, 1020.0, 1035.5, 1050.0],

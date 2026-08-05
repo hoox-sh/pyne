@@ -402,8 +402,19 @@ def _series_values_jsonable(values: Any) -> list[Any]:
 # Keyed by id(list); entry stores (list identity, cheap fingerprint, packed).
 # Fingerprint = (n, first.time, last.time, first.close, last.close) so in-place
 # mutation of ends invalidates; full middle edits still rare for this host path.
-_OHLCV_PACK_CACHE: dict[int, tuple[Any, tuple, tuple[Any, Any, Any, Any, Any]]] = {}
+# Packed tuple: (open, high, low, close, volume, time) as float64 arrays.
+_OHLCV_PACK_CACHE: dict[int, tuple[Any, tuple, tuple[Any, Any, Any, Any, Any, Any]]] = {}
 _OHLCV_PACK_CACHE_MAX = 8
+
+# Synthetic bar-open spacing when host omits ``time`` (matches CompiledScript.run).
+_SYNTHETIC_BAR_MS = 60_000.0
+
+# Script declaration header for compile-path envelope (AXIS pane routing).
+_SCRIPT_HEADER_RE = re.compile(
+    r"(?m)^\s*(indicator|strategy|library|study)\s*\("
+    r"\s*(?:\"([^\"]*)\"|'([^']*)')?",
+)
+_OVERLAY_KW_RE = re.compile(r"\boverlay\s*=\s*(true|false)\b", re.IGNORECASE)
 
 
 def _ohlcv_pack_fingerprint(ohlcv_data: list[dict]) -> tuple:
@@ -421,35 +432,77 @@ def _ohlcv_pack_fingerprint(ohlcv_data: list[dict]) -> tuple:
     )
 
 
-def _ohlcv_dicts_to_arrays(ohlcv_data: list[dict]) -> tuple[Any, Any, Any, Any, Any]:
-    """Pack OHLCV dict rows into float64 numpy arrays (single pass).
+def _coerce_ohlc_cell(value: Any, default: float = 0.0) -> float:
+    """Host OHLC cell → finite float (None / bad → ``default``; never silent na→0 in Pine)."""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
-    Uses list accumulation + one ``asarray`` per column (faster than pre-allocated
-    per-element store into numpy buffers). Caches by list identity + fingerprint
-    for warm re-runs (bench / re-eval same bars).
+
+def _coerce_volume_cell(value: Any) -> float:
+    """Host volume cell. Missing/None/invalid → ``1.0`` (engine + compile default)."""
+    if value is None:
+        return 1.0
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 1.0
+
+
+def _coerce_time_cell(raw: Any, bar_index: int) -> float:
+    """Bar-open Unix ms. Missing/invalid → synthetic ``bar_index * 60_000``."""
+    if raw is None:
+        return float(bar_index) * _SYNTHETIC_BAR_MS
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return float(bar_index) * _SYNTHETIC_BAR_MS
+
+
+def _pack_ohlcv_columns(
+    ohlcv_data: list[dict],
+) -> tuple[list[float], list[float], list[float], list[float], list[float], list[float]]:
+    """Pack OHLCV dict rows into parallel Python float lists (open..volume, time).
+
+    **Single host contract** for interpret bar columns and compile numpy arrays:
+
+    - OHLC missing / ``None`` / non-numeric → ``0.0``
+    - volume missing / ``None`` / non-numeric → ``1.0`` (not ``0.0``)
+    - time missing / invalid → synthetic ``bar_index * 60_000``
+
+    Do not diverge defaults between modes — packing-only drift is a host bug.
     """
-    import numpy as np  # noqa: PLC0415
-
-    oid = id(ohlcv_data)
-    fp = _ohlcv_pack_fingerprint(ohlcv_data)
-    hit = _OHLCV_PACK_CACHE.get(oid)
-    if hit is not None and hit[0] is ohlcv_data and hit[1] == fp:
-        return hit[2]
-
     n = len(ohlcv_data)
     if n == 0:
-        z = np.empty(0, dtype=np.float64)
-        return (z, z, z, z, z)
+        empty: list[float] = []
+        return empty, empty, empty, empty, empty, empty
 
-    # Single-pass Python lists, then one asarray/column (faster than empty+assign
-    # or per-cell float()). Prefer direct keys when present (API/bench contract).
-    o_l: list[Any] = []
-    h_l: list[Any] = []
-    l_l: list[Any] = []
-    c_l: list[Any] = []
-    v_l: list[Any] = []
-    oa, ha, la, ca, va = o_l.append, h_l.append, l_l.append, c_l.append, v_l.append
-    for b in ohlcv_data:
+    o_l: list[float] = []
+    h_l: list[float] = []
+    l_l: list[float] = []
+    c_l: list[float] = []
+    v_l: list[float] = []
+    t_l: list[float] = []
+    oa, ha, la, ca, va, ta = (
+        o_l.append,
+        h_l.append,
+        l_l.append,
+        c_l.append,
+        v_l.append,
+        t_l.append,
+    )
+    for i, b in enumerate(ohlcv_data):
+        if not isinstance(b, dict):
+            oa(0.0)
+            ha(0.0)
+            la(0.0)
+            ca(0.0)
+            va(1.0)
+            ta(float(i) * _SYNTHETIC_BAR_MS)
+            continue
         # Hot path: required OHLC keys (KeyError → safe defaults)
         try:
             o = b["open"]
@@ -461,20 +514,64 @@ def _ohlcv_dicts_to_arrays(ohlcv_data: list[dict]) -> tuple[Any, Any, Any, Any, 
             h = b.get("high", 0.0)
             l = b.get("low", 0.0)
             c = b.get("close", 0.0)
-        oa(0.0 if o is None else o)
-        ha(0.0 if h is None else h)
-        la(0.0 if l is None else l)
-        ca(0.0 if c is None else c)
-        vol = b.get("volume", 1.0)
-        va(1.0 if vol is None else vol)
+        oa(_coerce_ohlc_cell(o))
+        ha(_coerce_ohlc_cell(h))
+        la(_coerce_ohlc_cell(l))
+        ca(_coerce_ohlc_cell(c))
+        if "volume" in b:
+            va(_coerce_volume_cell(b.get("volume")))
+        else:
+            va(1.0)
+        ta(_coerce_time_cell(b.get("time"), i))
+    return o_l, h_l, l_l, c_l, v_l, t_l
 
-    packed = (
-        np.asarray(o_l, dtype=np.float64),
-        np.asarray(h_l, dtype=np.float64),
-        np.asarray(l_l, dtype=np.float64),
-        np.asarray(c_l, dtype=np.float64),
-        np.asarray(v_l, dtype=np.float64),
-    )
+
+def _ohlcv_dicts_to_arrays(ohlcv_data: list[dict]) -> tuple[Any, Any, Any, Any, Any]:
+    """Pack OHLCV dict rows into float64 numpy arrays (shared host contract).
+
+    Uses :func:`_pack_ohlcv_columns` then one ``asarray`` per column. Caches by
+    list identity + fingerprint for warm re-runs (bench / re-eval same bars).
+    Returns ``(open, high, low, close, volume)``; use :func:`_ohlcv_times_to_array`
+    (or the shared pack cache entry) for ``time``.
+    """
+    packed6 = _ohlcv_pack_cached(ohlcv_data)
+    return packed6[0], packed6[1], packed6[2], packed6[3], packed6[4]
+
+
+def _ohlcv_times_to_array(ohlcv_data: list[dict]) -> Any:
+    """Bar-open Unix ms for both modes (same synthetic fallback as interpret).
+
+    Missing/invalid times fall back to synthetic ``bar_index * 60_000`` so
+    length always matches OHLCV. Shares the OHLCV pack cache with volume packing.
+    """
+    return _ohlcv_pack_cached(ohlcv_data)[5]
+
+
+def _ohlcv_pack_cached(
+    ohlcv_data: list[dict],
+) -> tuple[Any, Any, Any, Any, Any, Any]:
+    """Identity-cached ``(o, h, l, c, v, t)`` float64 arrays."""
+    import numpy as np  # noqa: PLC0415
+
+    oid = id(ohlcv_data)
+    fp = _ohlcv_pack_fingerprint(ohlcv_data)
+    hit = _OHLCV_PACK_CACHE.get(oid)
+    if hit is not None and hit[0] is ohlcv_data and hit[1] == fp:
+        return hit[2]
+
+    o_l, h_l, l_l, c_l, v_l, t_l = _pack_ohlcv_columns(ohlcv_data)
+    if not o_l:
+        z = np.empty(0, dtype=np.float64)
+        packed = (z, z, z, z, z, z)
+    else:
+        packed = (
+            np.asarray(o_l, dtype=np.float64),
+            np.asarray(h_l, dtype=np.float64),
+            np.asarray(l_l, dtype=np.float64),
+            np.asarray(c_l, dtype=np.float64),
+            np.asarray(v_l, dtype=np.float64),
+            np.asarray(t_l, dtype=np.float64),
+        )
     if len(_OHLCV_PACK_CACHE) >= _OHLCV_PACK_CACHE_MAX:
         try:
             _OHLCV_PACK_CACHE.pop(next(iter(_OHLCV_PACK_CACHE)))
@@ -484,28 +581,50 @@ def _ohlcv_dicts_to_arrays(ohlcv_data: list[dict]) -> tuple[Any, Any, Any, Any, 
     return packed
 
 
-def _ohlcv_times_to_array(ohlcv_data: list[dict]) -> Any:
-    """Bar-open Unix ms for compile path (parity with interpret ``time`` series).
+def _parse_script_header_fields(source_code: str) -> dict[str, Any]:
+    """Best-effort declaration fields for compile-path series envelope.
 
-    Missing/invalid times fall back to synthetic ``bar_index * 60_000`` so
-    length always matches OHLCV.
+    Interpret reads ``evaluator._script_declaration`` after the bar loop.
+    Compile never walks the AST for AXIS meta — parse title / type / overlay
+    from the declaration line so both modes expose the same envelope keys.
     """
-    import numpy as np  # noqa: PLC0415
+    script_type = "indicator"
+    script_name = "plot"
+    # Pine defaults: indicator overlay=false; strategy overlay=true.
+    overlay = False
+    src = source_code or ""
+    m = _SCRIPT_HEADER_RE.search(src)
+    if m:
+        kind = (m.group(1) or "indicator").lower()
+        if kind == "study":
+            kind = "indicator"
+        script_type = kind
+        title = m.group(2) if m.group(2) is not None else m.group(3)
+        if title is not None and str(title).strip():
+            script_name = str(title).strip()
+        overlay = kind == "strategy"
+    om = _OVERLAY_KW_RE.search(src)
+    if om:
+        overlay = om.group(1).lower() == "true"
+    return {
+        "script_type": script_type,
+        "script_name": script_name,
+        "overlay": overlay,
+    }
 
-    n = len(ohlcv_data)
-    if n == 0:
-        return np.empty(0, dtype=np.float64)
-    t_l: list[float] = []
-    for i, b in enumerate(ohlcv_data):
-        raw = b.get("time") if isinstance(b, dict) else None
-        if raw is None:
-            t_l.append(float(i) * 60000.0)
-            continue
-        try:
-            t_l.append(float(raw))
-        except (TypeError, ValueError):
-            t_l.append(float(i) * 60000.0)
-    return np.asarray(t_l, dtype=np.float64)
+
+def _compile_plot_meta(json_series: dict[str, list[Any]]) -> dict[str, dict[str, Any]]:
+    """Minimal ``plot_meta`` for compile mode (titles + index; style unknown)."""
+    meta: dict[str, dict[str, Any]] = {}
+    for i, title in enumerate(json_series.keys()):
+        meta[title] = {
+            "title": title,
+            "color": None,
+            "linewidth": 1,
+            "index": i,
+            "kind": "plot",
+        }
+    return meta
 
 
 def _clear_pine_call_sites(tree: Any) -> None:
@@ -882,12 +1001,14 @@ class Runtime:
                 "timeframe.isseconds": tf.isseconds,
                 "timeframe.isinseconds": tf.isinseconds,
                 "timeframe.isdwm": tf.isdwm,
-                # Per-bar counters updated in the loop below
+                # Per-bar counters updated in the loop below.
+                # last_bar_time is filled after shared OHLCV packing (synthetic time
+                # when host omits bar times — same as compile time_arr).
                 "bar_index": 0,
                 "time": time_series,
                 "time_close": time_close_series,
                 "last_bar_index": max(0, len(ohlcv_data) - 1),
-                "last_bar_time": ohlcv_data[-1].get("time", 0) if ohlcv_data else 0,
+                "last_bar_time": 0,
             }
         )
 
@@ -961,31 +1082,25 @@ class Runtime:
 
         n_bars = len(ohlcv_data)
         last_bar_i = n_bars - 1
-        # Pre-extract columns once (single pass — avoid 6× bar walks)
-        col_open: list[Any] = []
-        col_high: list[Any] = []
-        col_low: list[Any] = []
-        col_close: list[Any] = []
-        col_vol: list[Any] = []
-        col_time: list[Any] = []
-        _ao, _ah, _al, _ac, _av, _at = (
-            col_open.append,
-            col_high.append,
-            col_low.append,
-            col_close.append,
-            col_vol.append,
-            col_time.append,
+        # Shared host packing (same volume/time defaults as mode=compile).
+        col_open, col_high, col_low, col_close, col_vol, col_time = _pack_ohlcv_columns(
+            ohlcv_data
         )
+        if col_time:
+            context["last_bar_time"] = col_time[-1]
+            # Chart viewport times track packed bar-open ms (incl. synthetic).
+            try:
+                chart = context.get("chart")
+                if chart is not None:
+                    chart.left_visible_bar_time = int(col_time[0])
+                    chart.right_visible_bar_time = int(col_time[-1])
+            except Exception:
+                pass
         has_bid_ask = False
         for b in ohlcv_data:
-            _ao(b.get("open"))
-            _ah(b.get("high"))
-            _al(b.get("low"))
-            _ac(b.get("close"))
-            _av(b.get("volume", 0.0))
-            _at(b.get("time", 0) or 0)
-            if not has_bid_ask and (("bid" in b) or ("ask" in b)):
+            if isinstance(b, dict) and (("bid" in b) or ("ask" in b)):
                 has_bid_ask = True
+                break
         need_hl2 = bool(_HL2_RE.search(source_code))
         need_hlc3 = bool(_HLC3_RE.search(source_code))
         need_ohlc4 = bool(_OHLC4_RE.search(source_code))
@@ -1617,6 +1732,10 @@ class Runtime:
 
         Sets ``auto_backend`` to ``compile`` or ``interpret``. On fallback, sets
         ``compile_fallback_reason`` to a stable human-readable string.
+
+        **Does not** compare plot values and switch backends on mismatch — that
+        would hide packing/kernel bugs. Value parity is measured by the harness
+        with explicit ``mode=interpret`` vs ``mode=compile``.
         """
         # Compile path does not apply input.* overrides — prefer full host semantics.
         if inputs:
@@ -1737,10 +1856,9 @@ class Runtime:
             _HOST_COMPILE_FAIL_CACHE.pop(cache_key, None)
         compile_ms = (time.perf_counter() - t_compile0) * 1000.0
 
-        # Single-pass float64 packing (avoids 5 list comps + re-asarray in engine)
+        # Single-pass float64 packing — same defaults as interpret (_pack_ohlcv_columns).
         try:
-            opens, highs, lows, closes, volumes = _ohlcv_dicts_to_arrays(ohlcv_data)
-            times = _ohlcv_times_to_array(ohlcv_data)
+            opens, highs, lows, closes, volumes, times = _ohlcv_pack_cached(ohlcv_data)
         except Exception as e:
             return _attach_logs_profile(
                 _error_payload(
@@ -1802,7 +1920,6 @@ class Runtime:
         }
         try:
             from pynescript.ast.evaluator.builtins.drawing import DrawingRegistry
-            import re as _re
 
             _hard = {
                 "max_lines_count": 500,
@@ -1811,7 +1928,7 @@ class Runtime:
                 "max_polylines_count": 100,
             }
             for _key, _cap in _hard.items():
-                _m = _re.search(rf"\b{_key}\s*=\s*(\d+)", source_code or "")
+                _m = re.search(rf"\b{_key}\s*=\s*(\d+)", source_code or "")
                 if _m:
                     try:
                         _n = int(_m.group(1))
@@ -1822,6 +1939,26 @@ class Runtime:
                 drawings = DrawingRegistry.gc_exported_drawings(drawings, drawing_limits)
         except Exception:
             pass
+
+        # Lift compile __drawings visual events (bgcolor/plotshape/plotchar/plotarrow)
+        # into titled series keys so interpret↔compile key sets align (Agent 07 helper).
+        header = _parse_script_header_fields(source_code)
+        plot_meta = _compile_plot_meta(json_series)
+        _n_visual = int(n_bars_hint or 0) or len(ohlcv_data or ())
+        if isinstance(drawings, list) and drawings and _n_visual > 0:
+            try:
+                from pynescript.ast.evaluator.builtins.plotting import (
+                    merge_visual_series_from_drawings,
+                )
+
+                merge_visual_series_from_drawings(
+                    json_series,
+                    drawings,
+                    _n_visual,
+                    plot_meta=plot_meta,
+                )
+            except Exception:
+                pass
 
         # Primary plot series (first numeric plot) as list for frontend compatibility
         final_series: list = next(iter(json_series.values()), []) if json_series else []
@@ -1834,6 +1971,17 @@ class Runtime:
                     ev.setdefault("script_id", script_id)
                     ev.setdefault("run_id", rid)
 
+        # Series envelope parity with interpret: declaration fields.
+        # Style/color for compile is best-effort (engine does not export per-plot meta).
+        input_defs: list[dict[str, Any]] = []
+        meta_out: dict[str, Any] = {
+            "overlay": header["overlay"],
+            "script_name": header["script_name"],
+            "script_type": header["script_type"],
+            "inputs": input_defs,
+        }
+        meta_out.update(drawing_limits)
+
         # Do NOT return generated_code by default — large scripts + cold Numba make
         # JSON responses multi-MB and can trip AXIS/gunicorn timeouts. Opt-in via
         # PYNESCRIPT_RETURN_GENERATED_CODE=1 for debugging.
@@ -1841,18 +1989,23 @@ class Runtime:
         out: dict[str, Any] = {
             "plots": final_series,
             "series": json_series,
+            "plot_meta": plot_meta,
             "drawings": drawings if isinstance(drawings, list) else list(drawings or []),
             "events": events if isinstance(events, list) else list(events or []),
             "alerts": [],
+            "inputs": input_defs,
             "count": len(ohlcv_data),
             "script_id": script_id,
             "run_id": self._run_id,
             "mode": "compile",
             "object_mode": compiled.object_mode,
+            "overlay": header["overlay"],
+            "script_name": header["script_name"],
+            "script_type": header["script_type"],
             "compile_ms": round(compile_ms, 2),
             "run_ms": round(run_ms, 2),
             "compile_cached": was_cached,
-            "meta": dict(drawing_limits),
+            "meta": meta_out,
         }
         # Engine nopython → object recovery (still compile backend; not interpret fallback)
         nopython_reason = getattr(compiled, "nopython_fallback_reason", None)

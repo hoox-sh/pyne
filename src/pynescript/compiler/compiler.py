@@ -467,6 +467,8 @@ class CompilerVisitor(NodeVisitor):
         self._expr_cum_i: int = 0  # synthetic state arrays for cum(expr)
         self._expr_src_i: int = 0  # synthetic series for non-array TA sources
         self._ta_state_i: int = 0  # synthetic fixed-size state for incremental TA
+        # ``ticker.heikinashi`` / ``request.security(…HA…)`` → fill ha_*_arr each bar
+        self.needs_heikinashi: bool = False
         # Fixed-size state vectors: (name, length) allocated once outside bar loop
         self.fixed_state: list[tuple[str, int]] = []
         # name → size for cloning UDF call-site state (Pine: each call is independent)
@@ -806,6 +808,9 @@ class CompilerVisitor(NodeVisitor):
         for idx in range(len(self.plots)):
             lines.append(f"    plot_{idx} = np.full(n_bars, np.nan)")
         lines.append("    for __bar_idx in range(n_bars):")
+        if self.needs_heikinashi:
+            for hl in self._heikinashi_bar_update_lines():
+                lines.append(f"        {hl}")
         if not body_lines:
             lines.append("        pass")
         for line in body_lines:
@@ -894,6 +899,9 @@ class CompilerVisitor(NodeVisitor):
             lines.append(f"    plot_{idx} = np.full(n_bars, np.nan)")
 
         lines.append("    for __bar_idx in range(n_bars):")
+        if self.needs_heikinashi:
+            for hl in self._heikinashi_bar_update_lines():
+                lines.append(f"        {hl}")
         if self.uses_strategy:
             # One-call bar setup + pending fill (same order as Runtime:
             # process pending → evaluate body). Broker uses _mark for market fills.
@@ -2281,13 +2289,21 @@ class CompilerVisitor(NodeVisitor):
                         pos.append(raw.value if hasattr(raw, "value") else raw)
                 if expr_node is None and len(pos) >= 3:
                     expr_node = pos[2]
+                # ``ticker.heikinashi(...)`` — rewrite simple OHLCV elts to HA series
+                sym_node = pos[0] if pos else None
+                use_ha = self._ast_is_heikinashi_ticker(sym_node)
+                if use_ha:
+                    self._ensure_heikinashi_arrays()
                 if isinstance(expr_node, ast.Tuple):
                     lines = []
                     for name, el in zip(names, expr_node.elts, strict=False):
                         if self._ast_expr_is_sequence(el):
                             lines.append(_store_sequence(name, self.visit(el)))
                         else:
-                            lines.append(_store_numeric(name, self.visit(el)))
+                            rhs = self.visit(el)
+                            if use_ha:
+                                rhs = self._map_ohlcv_expr_to_heikinashi(rhs)
+                            lines.append(_store_numeric(name, rhs))
                     return "\n".join(lines) if lines else ""
                 # Multi-target from call expression: ``detect_spike(...)`` multi-return
                 if expr_node is not None and len(names) > 1:
@@ -2627,6 +2643,11 @@ class CompilerVisitor(NodeVisitor):
         # User-defined series always win over built-in bare names. Pine allows
         # ``ad = ta.cum(...)`` / ``tr = …``; without this check, visit_Name would
         # re-emit the builtin formula at every load site (plot(ad) silently wrong).
+        # Exception: bare v3 ``tickerid`` / ``ticker`` are chart identity stubs
+        # (not series) — even if a prior scan allocated ``tickerid_arr``.
+        if node.id in ("tickerid", "ticker") and node.id not in self.ident_map:
+            self.object_mode = True
+            return repr("SYMBOL")
         _arr_name = f"{node.id}_arr"
         if _arr_name in self.arrays:
             return f"{_arr_name}[__bar_idx]"
@@ -3985,6 +4006,10 @@ class CompilerVisitor(NodeVisitor):
         if func_name in ("modify", "ticker_modify"):
             self.object_mode = True
             return args[0] if args else repr("SYMBOL")
+        # ticker.heikinashi — chart HA transform (not a foreign symbol)
+        if func_name in ("ticker_heikinashi", "heikinashi"):
+            self._ensure_heikinashi_arrays()
+            return repr("__HEIKINASHI__")
         # ticker.heikinashi / ticker.new / ticker.standard / …
         if func_name.startswith("ticker_"):
             self.object_mode = True
@@ -4534,6 +4559,9 @@ class CompilerVisitor(NodeVisitor):
         ):
             sym = args[0] if args else ""
             expr = args[2] if len(args) >= 3 else "close_arr[__bar_idx]"
+            if self._is_heikinashi_security_symbol(sym) and self._is_simple_security_expr(expr):
+                self._ensure_heikinashi_arrays()
+                return self._map_ohlcv_expr_to_heikinashi(expr)
             if self._is_chart_security_symbol(sym) and self._is_simple_security_expr(expr):
                 return expr
             return "np.nan"
@@ -5463,8 +5491,9 @@ class CompilerVisitor(NodeVisitor):
                 return f"({args[1]} if {args[0]} else {args[2]})"
             return "np.nan"
         if func_name == "heikinashi":
-            # ticker transform stub — pass through expression / symbol
-            return args[0] if args else "close_arr[__bar_idx]"
+            # Bare heikinashi(symbol) — same as ticker.heikinashi (chart HA)
+            self._ensure_heikinashi_arrays()
+            return repr("__HEIKINASHI__")
         if func_name == "float":
             if not args:
                 return "np.nan"
@@ -6155,6 +6184,13 @@ class CompilerVisitor(NodeVisitor):
 
         Runtime/foreign string tickers (``UPVOL.NY``, ``ESD_FACTSET``, series
         of exchange codes) must not passthrough chart OHLCV.
+
+        Compile lowers ``syminfo.ticker`` / ``tickerid`` / ``root`` / bare
+        ``tickerid`` to the string literal ``'SYMBOL'`` / ``\"SYMBOL\"`` (see
+        attr/name stubs). Treat those placeholders as chart identity so
+        same-symbol simple OHLCV ``request.security`` / ``security`` passthrough
+        matches interpret (and ``test_request_security_syminfo_time_stubs`` /
+        ``test_bare_security_passthrough``).
         """
         if not isinstance(sym, str):
             return False
@@ -6176,10 +6212,99 @@ class CompilerVisitor(NodeVisitor):
             "syminfo_tickerid",
         ):
             return True
-        # Quoted empty / chart-like only if explicitly empty
+        # Quoted empty
         if re.fullmatch(r"['\"]['\"]", s):
             return True
+        # Unquoted or quoted SYMBOL placeholder from syminfo/tickerid stubs
+        if s in ("SYMBOL", "'SYMBOL'", '"SYMBOL"'):
+            return True
+        if re.fullmatch(r"['\"]SYMBOL['\"]", s):
+            return True
+        # Heikin-Ashi of the chart is still same-symbol (transformed OHLCV)
+        if CompilerVisitor._is_heikinashi_security_symbol(s):
+            return True
         return False
+
+    @staticmethod
+    def _is_heikinashi_security_symbol(sym: str) -> bool:
+        """True when compile lowered ``ticker.heikinashi(...)`` to HA marker."""
+        if not isinstance(sym, str):
+            return False
+        s = sym.strip()
+        if s in ("__HEIKINASHI__", "'__HEIKINASHI__'", '"__HEIKINASHI__"'):
+            return True
+        if re.fullmatch(r"['\"]__HEIKINASHI__['\"]", s):
+            return True
+        # str(…) form sometimes wraps the marker
+        if "__HEIKINASHI__" in s and "HA(" not in s.upper():
+            return True
+        return False
+
+    def _ensure_heikinashi_arrays(self) -> None:
+        """Allocate ha_open/high/low/close series for Heikin-Ashi security."""
+        self.needs_heikinashi = True
+        for name in ("ha_open_arr", "ha_high_arr", "ha_low_arr", "ha_close_arr"):
+            self.arrays.add(name)
+
+    @staticmethod
+    def _map_ohlcv_expr_to_heikinashi(expr: str) -> str:
+        """Rewrite chart OHLCV sample expressions to Heikin-Ashi arrays."""
+        if not isinstance(expr, str):
+            return expr
+        e = expr.strip()
+        mapping = {
+            "open_arr[__bar_idx]": "ha_open_arr[__bar_idx]",
+            "high_arr[__bar_idx]": "ha_high_arr[__bar_idx]",
+            "low_arr[__bar_idx]": "ha_low_arr[__bar_idx]",
+            "close_arr[__bar_idx]": "ha_close_arr[__bar_idx]",
+            "Open_arr[__bar_idx]": "ha_open_arr[__bar_idx]",
+            "High_arr[__bar_idx]": "ha_high_arr[__bar_idx]",
+            "Low_arr[__bar_idx]": "ha_low_arr[__bar_idx]",
+            "Close_arr[__bar_idx]": "ha_close_arr[__bar_idx]",
+        }
+        if e in mapping:
+            return mapping[e]
+        # Bare array refs (rare)
+        for src, dst in (
+            ("open_arr", "ha_open_arr"),
+            ("high_arr", "ha_high_arr"),
+            ("low_arr", "ha_low_arr"),
+            ("close_arr", "ha_close_arr"),
+        ):
+            if e == src:
+                return dst
+        return e
+
+    @staticmethod
+    def _ast_is_heikinashi_ticker(node: Any) -> bool:
+        """True for ``ticker.heikinashi(...)`` / bare ``heikinashi(...)`` AST."""
+        if node is None:
+            return False
+        if isinstance(node, ast.Call):
+            func = node.func
+            if isinstance(func, ast.Specialize):
+                func = func.value
+            if isinstance(func, ast.Attribute) and getattr(func, "attr", None) == "heikinashi":
+                return True
+            if isinstance(func, ast.Name) and getattr(func, "id", None) == "heikinashi":
+                return True
+        return False
+
+    @staticmethod
+    def _heikinashi_bar_update_lines() -> list[str]:
+        """Python lines that write ha_*_arr[__bar_idx] from chart OHLCV."""
+        return [
+            "_ha_c = (open_arr[__bar_idx] + high_arr[__bar_idx] + "
+            "low_arr[__bar_idx] + close_arr[__bar_idx]) * 0.25",
+            "if __bar_idx == 0 or np.isnan(ha_open_arr[__bar_idx - 1]):",
+            "    _ha_o = (open_arr[__bar_idx] + close_arr[__bar_idx]) * 0.5",
+            "else:",
+            "    _ha_o = (ha_open_arr[__bar_idx - 1] + ha_close_arr[__bar_idx - 1]) * 0.5",
+            "ha_open_arr[__bar_idx] = _ha_o",
+            "ha_close_arr[__bar_idx] = _ha_c",
+            "ha_high_arr[__bar_idx] = max(high_arr[__bar_idx], _ha_o, _ha_c)",
+            "ha_low_arr[__bar_idx] = min(low_arr[__bar_idx], _ha_o, _ha_c)",
+        ]
 
     @staticmethod
     def _is_simple_security_expr(expr: str) -> bool:

@@ -142,6 +142,42 @@ class MatrixBuiltinsMixin(BuiltinDispatchMixin):
         tname = type(value).__name__
         self._error(f"{message} (got {tname}, expected matrix)")
 
+    def _coerce_optional_matrix(self, value: Any) -> Matrix[Any] | None:
+        """Like ``_expect_matrix`` but ``na`` / non-matrix → ``None`` (soft-na)."""
+        if value is None:
+            return None
+        if isinstance(value, Matrix):
+            return value
+        if isinstance(value, list) and (not value or isinstance(value[0], list)):
+            m: Matrix[Any] = Matrix(0, 0, None)
+            m.data = value
+            m.rows_count = len(value)
+            m.cols_count = len(value[0]) if value and isinstance(value[0], list) else 0
+            return m
+        return None
+
+    def _optional_int(self, value: Any) -> int | None:
+        """Coerce int or return ``None`` for na / NaN (soft index paths)."""
+        if value is None:
+            return None
+        current = getattr(value, "current", None)
+        if current is not None and not isinstance(value, (list, tuple, str, bytes, int, float, bool)):
+            value = current
+            if value is None:
+                return None
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, float):
+            if value != value:  # NaN
+                return None
+            return int(value)
+        if isinstance(value, int):
+            return value
+        try:
+            return self._expect_int(value, "matrix index must be int")
+        except Exception:
+            return None
+
     # _expect_int: inherited from BuiltinDispatchMixin (pine_expect_int).
     # Note: floors fractional floats (TV length semantics) rather than rejecting.
 
@@ -160,11 +196,14 @@ class MatrixBuiltinsMixin(BuiltinDispatchMixin):
         """matrix.new() | matrix.new(rows, cols, default_value?) -> Matrix.
 
         Zero-arg form creates an empty 0×0 matrix (TV ``matrix.new<T>()``).
+        Soft: ``na`` rows/cols → empty 0×0 (unresolved size inputs).
         """
         if not args:
             return Matrix(0, 0, None)
         if len(args) == UNARY:
             # Single arg is non-standard; treat as empty for soft recovery.
+            return Matrix(0, 0, None)
+        if args[0] is None or args[UNARY] is None:
             return Matrix(0, 0, None)
         rows = self._expect_int(args[0], "matrix.new: rows must be int")
         cols = self._expect_int(args[UNARY], "matrix.new: cols must be int")
@@ -173,50 +212,81 @@ class MatrixBuiltinsMixin(BuiltinDispatchMixin):
             self._error("matrix.new: rows and cols must be non-negative")
         return Matrix(rows, cols, default_value)
 
+    def _matrix_or_na(self, value: Any, message: str) -> Matrix[Any] | None:
+        """Return matrix, ``None`` for na, hard-error on wrong non-na type."""
+        if value is None:
+            return None
+        coerced = self._coerce_optional_matrix(value)
+        if coerced is None:
+            self._expect_matrix(value, message)
+        return coerced
+
     def _builtin_matrix_get(self, args: list[Any]) -> Any:
-        """matrix.get(matrix, row, col) -> value"""
+        """matrix.get(matrix, row, col) -> value
+
+        ``na`` matrix / row / col → ``na``. Hard OOB still errors (real bounds).
+        Wrong non-na type still hard-errors.
+        """
         if len(args) != TERNARY:
             self._error("matrix.get requires matrix, row, col")
-        matrix = self._expect_matrix(args[0], "matrix.get: first arg must be matrix")
-        row = self._expect_int(args[UNARY], "matrix.get: row must be int")
-        col = self._expect_int(args[BINARY], "matrix.get: col must be int")
+        matrix = self._matrix_or_na(args[0], "matrix.get: first arg must be matrix")
+        if matrix is None:
+            return None
+        row = self._optional_int(args[UNARY])
+        col = self._optional_int(args[BINARY])
+        if row is None or col is None:
+            return None
         try:
             return matrix.get(row, col)
         except IndexError as e:
             self._error(f"matrix.get: {e}")
 
     def _builtin_matrix_set(self, args: list[Any]) -> None:
-        """matrix.set(matrix, row, col, value) -> void"""
+        """matrix.set(matrix, row, col, value) -> void
+
+        ``na`` matrix / row / col → no-op. Hard OOB still errors.
+        """
         if len(args) != QUATERNARY:
             self._error("matrix.set requires matrix, row, col, value")
-        matrix = self._expect_matrix(args[0], "matrix.set: first arg must be matrix")
-        row = self._expect_int(args[UNARY], "matrix.set: row must be int")
-        col = self._expect_int(args[BINARY], "matrix.set: col must be int")
+        matrix = self._matrix_or_na(args[0], "matrix.set: first arg must be matrix")
+        if matrix is None:
+            return None
+        row = self._optional_int(args[UNARY])
+        col = self._optional_int(args[BINARY])
+        if row is None or col is None:
+            return None
         value = args[TERNARY]
         try:
             matrix.set(row, col, value)
         except IndexError as e:
             self._error(f"matrix.set: {e}")
+        return None
 
-    def _builtin_matrix_rows(self, args: list[Any]) -> int:
-        """matrix.rows(matrix) -> int"""
+    def _builtin_matrix_rows(self, args: list[Any]) -> int | None:
+        """matrix.rows(matrix) -> int; ``na`` → ``na``."""
         if len(args) != UNARY:
             self._error("matrix.rows requires one matrix argument")
-        matrix = self._expect_matrix(args[0], "matrix.rows: arg must be matrix")
+        matrix = self._matrix_or_na(args[0], "matrix.rows: arg must be matrix")
+        if matrix is None:
+            return None
         return matrix.rows()
 
-    def _builtin_matrix_columns(self, args: list[Any]) -> int:
-        """matrix.columns(matrix) -> int"""
+    def _builtin_matrix_columns(self, args: list[Any]) -> int | None:
+        """matrix.columns(matrix) -> int; ``na`` → ``na``."""
         if len(args) != UNARY:
             self._error("matrix.columns requires one matrix argument")
-        matrix = self._expect_matrix(args[0], "matrix.columns: arg must be matrix")
+        matrix = self._matrix_or_na(args[0], "matrix.columns: arg must be matrix")
+        if matrix is None:
+            return None
         return matrix.columns()
 
-    def _builtin_matrix_elements_count(self, args: list[Any]) -> int:
-        """matrix.elements_count(matrix) -> int"""
+    def _builtin_matrix_elements_count(self, args: list[Any]) -> int | None:
+        """matrix.elements_count(matrix) -> int; ``na`` → ``na``."""
         if len(args) != UNARY:
             self._error("matrix.elements_count requires one matrix argument")
-        matrix = self._expect_matrix(args[0], "matrix.elements_count: arg must be matrix")
+        matrix = self._matrix_or_na(args[0], "matrix.elements_count: arg must be matrix")
+        if matrix is None:
+            return None
         return matrix.elements_count()
 
     # ========== ROW OPERATIONS ==========
@@ -511,20 +581,33 @@ class MatrixBuiltinsMixin(BuiltinDispatchMixin):
         """matrix.fill(id, value[, from_row, to_row, from_column, to_column]) -> void.
 
         TV region form uses half-open ``[from_row, to_row)`` × ``[from_col, to_col)``.
+        ``na`` matrix → no-op; ``na`` region bound → full extent for that edge.
         """
         n = len(args)
         if n not in {BINARY, 6}:
             self._error("matrix.fill requires matrix and value")
-        matrix = self._expect_matrix(args[0], "matrix.fill: first arg must be matrix")
+        matrix = self._matrix_or_na(args[0], "matrix.fill: first arg must be matrix")
+        if matrix is None:
+            return None
         value = args[UNARY]
         if n == BINARY:
             matrix.fill(value)
-            return
-        from_row = self._expect_int(args[2], "matrix.fill: from_row must be int")
-        to_row = self._expect_int(args[3], "matrix.fill: to_row must be int")
-        from_col = self._expect_int(args[4], "matrix.fill: from_column must be int")
-        to_col = self._expect_int(args[5], "matrix.fill: to_column must be int")
+            return None
+        from_row = self._optional_int(args[2])
+        to_row = self._optional_int(args[3])
+        from_col = self._optional_int(args[4])
+        to_col = self._optional_int(args[5])
+        # Soft: na bounds → full matrix extent for that edge
+        if from_row is None:
+            from_row = 0
+        if to_row is None:
+            to_row = matrix.rows()
+        if from_col is None:
+            from_col = 0
+        if to_col is None:
+            to_col = matrix.columns()
         matrix.fill(value, from_row, to_row, from_col, to_col)
+        return None
 
     def _builtin_matrix_fill_diagonal(self, args: list[Any]) -> None:
         """matrix.fill_diagonal(matrix, value) -> void"""
