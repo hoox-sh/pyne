@@ -1494,11 +1494,18 @@ class TechnicalHelpers:
         st["value"] = best_i - (period - 1)
         return int(st["value"])
 
-    def _vwap_inc_update(self, source: list[Any], volume: list[Any] | None = None) -> float | None:
+    def _vwap_inc_update(
+        self,
+        source: list[Any],
+        volume: list[Any] | None = None,
+        *,
+        anchor: Any = None,
+    ) -> float | None:
         """Incremental cumulative VWAP matching bar-mode full recompute last value.
 
         Sums price*volume / sum(volume) over all bars seen at this call site.
         None prices are skipped (same as full ``_builtin_ta_vwap`` loop).
+        When *anchor* is truthy, the cumulative window restarts on this bar.
         """
         slot = self._ta_next_slot()
         key = ("vwap", slot)
@@ -1507,6 +1514,19 @@ class TechnicalHelpers:
         if st is None:
             st = {"cum_pv": 0.0, "cum_v": 0.0, "value": None, "n": 0}
             bucket[key] = st
+        # Anchor reset (ta.vwap(src, anchor)) before adding this bar
+        if anchor is not None:
+            a = self._series_last(anchor) if not isinstance(anchor, (bool, int, float)) else anchor
+            if isinstance(anchor, list):
+                a = anchor[-1] if anchor else None
+            try:
+                if a is not None and bool(a) and not (isinstance(a, float) and a != a):
+                    st["cum_pv"] = 0.0
+                    st["cum_v"] = 0.0
+                    st["n"] = 0
+                    st["value"] = None
+            except (TypeError, ValueError):
+                pass
         price_raw = self._series_last(source)
         if price_raw is None:
             return st.get("value")

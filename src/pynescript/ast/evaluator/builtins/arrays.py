@@ -795,18 +795,27 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         if idx_guess is None:
             return sequence
         n = len(sequence)
+        # Snapshot series handles (``array.set(a, i, close)``) so slots hold
+        # bar values, not live PineSeries that all track the latest sample.
+        store_val = args[2]
+        if (
+            store_val is not None
+            and hasattr(store_val, "current")
+            and hasattr(store_val, "history")
+        ):
+            store_val = getattr(store_val, "current", store_val)
         if idx_guess < 0:
             # v6: count from end; OOB negative → no-op (not grow)
             resolved = n + idx_guess
             if resolved < 0 or resolved >= n:
                 return sequence
-            sequence[resolved] = args[2]
+            sequence[resolved] = store_val
             return sequence
         if idx_guess >= n and idx_guess < 1_000_000:
             sequence.extend([None] * (idx_guess + 1 - n))
         if idx_guess >= len(sequence):
             return sequence
-        sequence[idx_guess] = args[2]
+        sequence[idx_guess] = store_val
         return sequence
 
     def _builtin_array_shift(self, args: list[Any]) -> Any:

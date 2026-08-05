@@ -2547,6 +2547,46 @@ def numba_vwap_inc(src, vol, i, st):
     if cum_v == 0.0:
         return np.nan
     return cum_pv / cum_v
+
+
+@numba.njit(cache=True)
+def numba_vwap_anchor_inc(src, vol, anchor, i, st):
+    """Incremental VWAP with anchor reset. ``st``: [cum_pv, cum_v, last_i].
+
+    When ``anchor[j]`` is non-zero / true, the cumulative window restarts at
+    bar ``j`` (includes bar ``j`` in the new window) — TV ``ta.vwap(src, anchor)``.
+    """
+    if i < 0:
+        return np.nan
+    if np.isnan(st[2]):
+        last = -1
+    else:
+        last = int(st[2])
+    if i < last:
+        last = -1
+        st[0] = 0.0
+        st[1] = 0.0
+    cum_pv = 0.0 if last < 0 or np.isnan(st[0]) else st[0]
+    cum_v = 0.0 if last < 0 or np.isnan(st[1]) else st[1]
+    for j in range(last + 1, i + 1):
+        a = anchor[j]
+        if not np.isnan(a) and a != 0.0:
+            cum_pv = 0.0
+            cum_v = 0.0
+        p = src[j]
+        v = vol[j]
+        if np.isnan(p) or np.isnan(v):
+            continue
+        cum_pv += p * v
+        cum_v += v
+    st[0] = cum_pv
+    st[1] = cum_v
+    st[2] = float(i)
+    if cum_v == 0.0:
+        return np.nan
+    return cum_pv / cum_v
+
+
 @numba.njit(cache=True)
 def numba_obv_inc(close, vol, i, st):
     """Incremental OBV. ``st``: [obv, last_i]."""

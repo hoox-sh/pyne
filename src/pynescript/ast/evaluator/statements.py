@@ -444,6 +444,48 @@ class StatementEvaluator:
             else:
                 self._collect_history_names(child, out)
 
+    def _coerce_typed_assign_value(self, type_node: Any, value: Any) -> Any:
+        """Coerce RHS of ``float x = …`` / ``int n = …`` to a snapshot scalar.
+
+        Pine series operands (``close``, UDF ``series float`` params) arrive as
+        ``PineSeries`` handles. Typed locals must hold the bar's numeric value
+        so subsequent ``array.set`` / arithmetic do not alias live series.
+        """
+        type_name: str | None = None
+        if isinstance(type_node, ast.Name):
+            type_name = getattr(type_node, "id", None)
+        elif isinstance(type_node, str):
+            type_name = type_node
+        if not type_name:
+            return value
+        # Unwrap series wrapper → current sample
+        if value is not None and hasattr(value, "current") and hasattr(value, "history"):
+            value = getattr(value, "current", value)
+        if type_name == "float":
+            if value is None:
+                return None
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return None
+        if type_name == "int":
+            if value is None:
+                return None
+            try:
+                return int(value) if not isinstance(value, float) else int(value)
+            except (TypeError, ValueError):
+                return None
+        if type_name == "bool":
+            if value is None:
+                return False
+            return bool(value)
+        if type_name in ("string", "str"):
+            if value is None:
+                return None
+            return str(value)
+        # color / other typed names — leave as-is after series unwrap
+        return value
+
     def _bind_series_name(self, name: str, value: Any) -> Any:
         """Store *value* for *name*, tracking history when ``name`` is subscripted.
 
@@ -489,10 +531,18 @@ class StatementEvaluator:
             bar_i = 0
 
         # Note: empty dict is falsy — never use ``getattr(...) or {}`` here.
-        last_map: dict[str, int] | None = getattr(self, "_series_assign_bar", None)
+        last_map: dict[Any, int] | None = getattr(self, "_series_assign_bar", None)
         if last_map is None:
             last_map = {}
             self._series_assign_bar = last_map  # type: ignore[attr-defined]
+
+        # UDF series locals share the bare name (``kf``) across call sites but
+        # hold distinct PineSeries instances. Tracking only by name makes the
+        # second ``kahlman(...)`` on the same bar see last_map[name]==bar and
+        # ``set_current`` without pushing history — filter state never advances.
+        # Key by (udf_call_site, name) when inside a UDF, else by name.
+        udf_site = getattr(self, "_pine_udf_site", None)
+        track_key: Any = (udf_site, name) if udf_site is not None else name
 
         existing = self.context.get(name)
         if (
@@ -500,9 +550,9 @@ class StatementEvaluator:
             and hasattr(existing, "current")
             and hasattr(existing, "history")
         ):
-            if last_map.get(name) == bar_i and hasattr(existing, "set_current"):
+            if last_map.get(track_key) == bar_i and hasattr(existing, "set_current"):
                 existing.set_current(value)
-            elif last_map.get(name) == bar_i:
+            elif last_map.get(track_key) == bar_i:
                 existing.current = value
                 hist = getattr(existing, "history", None)
                 if hist is not None and len(hist) > 0:
@@ -514,7 +564,7 @@ class StatementEvaluator:
                     existing.update(value)
             else:
                 existing.update(value)
-            last_map[name] = bar_i
+            last_map[track_key] = bar_i
             self.context[name] = existing
             return existing
 
@@ -529,7 +579,7 @@ class StatementEvaluator:
         except Exception:
             self.context[name] = value
             return value
-        last_map[name] = bar_i
+        last_map[track_key] = bar_i
         self.context[name] = ps
         return ps
 
@@ -641,6 +691,13 @@ class StatementEvaluator:
                     value = self.visit_Call(rhs)  # type: ignore[attr-defined]
                 else:
                     value = self.visit(rhs)  # type: ignore[attr-defined]
+                # Typed declarations: ``float x = close`` must snapshot the
+                # current scalar — storing the PineSeries handle makes
+                # ``array.set(buf, i, x)`` keep live references so every slot
+                # tracks the latest bar (breaks ring-buffer SMAs / BBI).
+                type_node = getattr(node, "type", None)
+                if type_node is not None:
+                    value = self._coerce_typed_assign_value(type_node, value)
                 target = node.target
                 if type(target) is ast.Name:
                     stored = self._bind_series_name(target.id, value)
@@ -1347,6 +1404,7 @@ class StatementEvaluator:
         # re-scanning node.args / isinstance body checks on every UDF call.
         params = tuple(arg for arg in node.args if isinstance(arg, ast.Param))
         param_names = tuple(p.name for p in params)
+        param_name_set = frozenset(param_names)
         defaults: tuple[tuple[str, Any], ...] = tuple(
             (p.name, p.default) for p in params if p.default is not None
         )
@@ -1358,6 +1416,17 @@ class StatementEvaluator:
                 body_plan.append((False, stmt))
         body_plan_t = tuple(body_plan)
         n_params = len(params)
+        # Series locals that use history (``kf[1]``) must be isolated per
+        # call site — two ``kahlman(...)`` invocations cannot share one ``kf``.
+        series_locals: set[str] = set()
+        self._collect_history_names(node, series_locals)
+        series_locals -= param_name_set
+        series_locals_t = frozenset(series_locals)
+        fsl: dict[str, frozenset[str]] = getattr(self, "_func_series_locals", None)  # type: ignore[attr-defined]
+        if fsl is None:
+            fsl = {}
+            self._func_series_locals = fsl  # type: ignore[attr-defined]
+        fsl[func_name] = series_locals_t
 
         # Create a closure
         def user_function(
@@ -1367,6 +1436,7 @@ class StatementEvaluator:
             __body=body_plan_t,
             __n=n_params,
             __fname=func_name,
+            __series_locals=series_locals_t,
             **kwargs,
         ):
             """Invoke a UDF with in-place param rebind on the live context.
@@ -1381,6 +1451,10 @@ class StatementEvaluator:
             reuse the UDF name as a local series (``kama() => kama = 0.0; …``).
             Without restoring the callable, bar 1+ falls through to the bare
             ta.* alias and hard-fails on arity.
+
+            Series locals with history (``x[1]``) are persisted **per call site**
+            (``id`` of the Call AST node, set by ``visit_Call``) so multiple
+            invocations of the same UDF do not share one ``kf``/``velo`` series.
             """
             ctx = self.context  # type: ignore[attr-defined]
             saved: dict[str, Any] = {}
@@ -1391,10 +1465,32 @@ class StatementEvaluator:
                     saved[name] = ctx[name] if name in ctx else missing
                 ctx[name] = value
 
+            # Per-call-site store for series locals (compile uses __st_*_cN).
+            site = int(getattr(self, "_pine_udf_site", 0) or 0)
+            site_store: dict[str, Any] | None = None
+            if __series_locals:
+                all_stores: dict[tuple[str, int], dict[str, Any]] = getattr(
+                    self, "_udf_call_site_state", None
+                )  # type: ignore[attr-defined]
+                if all_stores is None:
+                    all_stores = {}
+                    self._udf_call_site_state = all_stores  # type: ignore[attr-defined]
+                site_store = all_stores.setdefault((__fname, site), {})
+
             try:
                 # Protect UDF binding from body series init of the same name.
                 if __fname not in saved:
                     saved[__fname] = ctx[__fname] if __fname in ctx else missing
+
+                # Restore this call site's series locals (or clear for first run).
+                if site_store is not None:
+                    for n in __series_locals:
+                        if n not in saved:
+                            saved[n] = ctx[n] if n in ctx else missing
+                        if n in site_store:
+                            ctx[n] = site_store[n]
+                        else:
+                            ctx.pop(n, None)
 
                 # Bind positional arguments
                 for i, value in enumerate(args):
@@ -1430,6 +1526,11 @@ class StatementEvaluator:
                         val = visit(item)  # type: ignore[attr-defined]
                         if type(item) in (ast.Assign, ast.ReAssign):
                             result = val
+                # Persist series locals for this call site across bars.
+                if site_store is not None:
+                    for n in __series_locals:
+                        if n in ctx:
+                            site_store[n] = ctx[n]
                 return result
             finally:
                 for name, old in saved.items():

@@ -670,6 +670,8 @@ class ExpressionEvaluator:
             args, kwargs = self._eval_arg_plan(plan)
             user = self.context.get(name)  # type: ignore[attr-defined]
             if callable(user):
+                prev_site = getattr(self, "_pine_udf_site", None)
+                self._pine_udf_site = id(node)  # type: ignore[attr-defined]
                 try:
                     return user(*args, **kwargs)
                 except TypeError as e:
@@ -681,6 +683,8 @@ class ExpressionEvaluator:
                         if _type_error_from_callee(e2):
                             raise
                         return None
+                finally:
+                    self._pine_udf_site = prev_site  # type: ignore[attr-defined]
             if kwargs is not _EMPTY_KW and kwargs:
                 return self._call_builtin(name, args, kwargs=kwargs)  # type: ignore[attr-defined]
             if tag == 1:
@@ -773,6 +777,8 @@ class ExpressionEvaluator:
                         return self._call_builtin(name, args, kwargs=kwargs)  # type: ignore[attr-defined]
                     return None
                 return self._visit_Call_general(node, plan)
+            prev_site = getattr(self, "_pine_udf_site", None)
+            self._pine_udf_site = id(node)  # type: ignore[attr-defined]
             try:
                 return func(*args, **kwargs)
             except TypeError as e:
@@ -784,6 +790,8 @@ class ExpressionEvaluator:
                     if _type_error_from_callee(e2):
                         raise
                     return None
+            finally:
+                self._pine_udf_site = prev_site  # type: ignore[attr-defined]
 
         # General path: methods, UDT.new, recovered attrs.
         # site = (_SITE_G, arg_plan)

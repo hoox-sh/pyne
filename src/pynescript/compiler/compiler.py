@@ -5123,13 +5123,25 @@ class CompilerVisitor(NodeVisitor):
             # typical price via (h+l+c)/3 not available as array — use close MVP
             return f"numba_cci_inc(close_arr, {self._emit_period(length)}, __bar_idx, {st})"
         if func_name == "ta_vwap":
-            # ta.vwap / ta.vwap(source) — cumulative typical*vol / cum vol
+            # ta.vwap([source[, anchor]]) — cumulative source*vol / cum vol.
+            # Default source is hlc3 (not close). Optional anchor bool resets
+            # the cumulative window when true (TV ``ta.vwap(src, anchor)``).
             st = self._alloc_fixed_state("vwap", 3)
-            if args and _is_series_arr(args[0]):
-                return f"numba_vwap_inc({_arr(args[0])}, vol_arr, __bar_idx, {st})"
-            # default source = hlc3; approximate with (h+l+c)/3 via close as MVP if no src
-            # Use close for bare form; better: build from chart (still correct enough)
-            return f"numba_vwap_inc(close_arr, vol_arr, __bar_idx, {st})"
+            if args:
+                src = _arr(args[0])
+            else:
+                src = _arr(
+                    "((high_arr[__bar_idx] + low_arr[__bar_idx] + "
+                    "close_arr[__bar_idx]) / 3.0)"
+                )
+            if len(args) >= 2:
+                # Materialize anchor as 1.0/0.0 series for incremental reset.
+                anc = _arr(f"(1.0 if ({args[1]}) else 0.0)")
+                return (
+                    f"numba_vwap_anchor_inc({src}, vol_arr, {anc}, "
+                    f"__bar_idx, {st})"
+                )
+            return f"numba_vwap_inc({src}, vol_arr, __bar_idx, {st})"
         if func_name == "ta_max":
             # ta.max(source) → all-time high of series; ta.max(source, length) → highest
             if not args:

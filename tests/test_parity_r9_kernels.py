@@ -105,3 +105,130 @@ class TestStochRsiSupertrendCorpus:
         spec.loader.exec_module(h)
         r = h.run_one_script(str(path.resolve()), 200, ignore_hline_keys=True, ignore_fill_keys=True)
         assert r["status"] in ("OK", "fill_background_only"), r
+
+
+class TestTypedFloatArrayRingBuffer:
+    def test_bbi_style_ring_matches_compile(self) -> None:
+        src = """//@version=6
+indicator("t")
+f(series float source, simple int p) =>
+    var array<float> buf = array.new_float(p, na)
+    var int head = 0
+    var float sum = 0.0
+    var int cnt = 0
+    float val = nz(source)
+    float old = array.get(buf, head)
+    if not na(old)
+        sum -= old
+    else
+        cnt += 1
+    sum += val
+    array.set(buf, head, val)
+    head := (head + 1) % p
+    sum / math.max(1, cnt)
+plot(f(close, 3), "s")
+plot(ta.sma(close, 3), "sma")
+"""
+        bars = _bars(30)
+        ri = Runtime().run(src, bars, mode="interpret")
+        rc = Runtime().run(src, bars, mode="compile")
+        assert "error" not in ri and "error" not in rc
+        for i in range(2, 30):
+            assert abs(float(ri["series"]["s"][i]) - float(rc["series"]["s"][i])) < 1e-6
+            assert abs(float(ri["series"]["s"][i]) - float(ri["series"]["sma"][i])) < 1e-6
+
+
+class TestUdfCallSiteSeriesIsolation:
+    def test_multi_kahlman_sites_match_compile(self) -> None:
+        src = """//@version=4
+study("t")
+kahlman(x, g) =>
+    kf = 0.0
+    dk = x - nz(kf[1], x)
+    smooth = nz(kf[1], x) + dk * sqrt(g * 2)
+    velo = 0.0
+    velo := nz(velo[1], 0) + (g * dk)
+    kf := smooth + velo
+    kf
+plot(kahlman(close, 0.7), "kc")
+plot(kahlman(hl2, 0.7), "kh")
+"""
+        bars = _bars(40)
+        ri = Runtime().run(src, bars, mode="interpret")
+        rc = Runtime().run(src, bars, mode="compile")
+        assert "error" not in ri and "error" not in rc
+        for k in ("kc", "kh"):
+            for a, b in zip(ri["series"][k], rc["series"][k], strict=True):
+                assert a is not None and b == b
+                assert abs(float(a) - float(b)) < 1e-5
+
+
+class TestVwapHlc3AndAnchor:
+    def test_vwap_hlc3_and_anchor_parity(self) -> None:
+        src = """//@version=6
+indicator("t")
+plot(ta.vwap(hlc3), "v1")
+plot(ta.vwap(), "v0")
+newDay = bar_index % 5 == 0
+plot(ta.vwap(hlc3, newDay), "v2")
+"""
+        bars = _bars(25)
+        ri = Runtime().run(src, bars, mode="interpret")
+        rc = Runtime().run(src, bars, mode="compile")
+        assert "error" not in ri and "error" not in rc
+        for k in ("v1", "v0", "v2"):
+            for a, b in zip(ri["series"][k], rc["series"][k], strict=True):
+                assert abs(float(a) - float(b)) < 1e-6
+
+
+class TestCallExprHistorySubscript:
+    def test_time_session_prev_bar(self) -> None:
+        src = """//@version=6
+indicator("t")
+wasInSession = not na(time(timeframe.period, "0930-1600", "America/New_York")[1])
+nowInSession = not na(time(timeframe.period, "0930-1600", "America/New_York"))
+sessionStart = nowInSession and not wasInSession
+plot(wasInSession ? 1 : 0, "was")
+plot(sessionStart ? 1 : 0, "ss")
+"""
+        bars = _bars(5)
+        ri = Runtime().run(src, bars, mode="interpret")
+        rc = Runtime().run(src, bars, mode="compile")
+        assert ri["series"]["was"] == [0, 1, 1, 1, 1] or ri["series"]["was"][0] == 0
+        assert ri["series"]["was"][1] == 1
+        assert ri["series"]["ss"][0] == 1
+        assert ri["series"]["ss"][1] == 0
+        for a, b in zip(ri["series"]["was"], rc["series"]["was"], strict=True):
+            assert abs(float(a) - float(b)) < 1e-9
+
+
+class TestCorpusResidualsParity:
+    def test_hma_kahlman_245(self) -> None:
+        from pathlib import Path
+        import importlib.util
+
+        path = Path("tests/data/set01/indicators/245_ind_hma_kahlman_trend_clipping_and_trendlines.pine")
+        if not path.is_file():
+            return
+        root = Path(".").resolve()
+        spec = importlib.util.spec_from_file_location("h", root / "scripts" / "compare_interp_compile.py")
+        assert spec and spec.loader
+        h = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(h)
+        r = h.run_one_script(str(path.resolve()), 200, ignore_hline_keys=True, ignore_fill_keys=True)
+        assert r["status"] in ("OK", "fill_background_only"), r
+
+    def test_bbi_178(self) -> None:
+        from pathlib import Path
+        import importlib.util
+
+        path = Path("tests/data/set02/indicators/178_ind_bulls_bears_index_bbi_2.pine")
+        if not path.is_file():
+            return
+        root = Path(".").resolve()
+        spec = importlib.util.spec_from_file_location("h", root / "scripts" / "compare_interp_compile.py")
+        assert spec and spec.loader
+        h = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(h)
+        r = h.run_one_script(str(path.resolve()), 200, ignore_hline_keys=True, ignore_fill_keys=True)
+        assert r["status"] in ("OK", "fill_background_only"), r

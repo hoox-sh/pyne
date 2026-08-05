@@ -386,6 +386,77 @@ class NameEvaluator:
         # Nested loops hit this millions of times; skip visitor dispatch.
         value_node = node.value
         slice_node = node.slice
+        # ``time(...)[1]`` / ``ta.change(x)[1]`` — Call base needs call-site history.
+        # Without this, only ``series[0]`` works (scalar path) and offset>0 is na,
+        # breaking session-start logic (``not na(time(...)[1])`` always false).
+        if type(value_node) is ast.Call and slice_node is not None:
+            visit = self.visit
+            current = visit(value_node)  # type: ignore[attr-defined]
+            slice_ = visit(slice_node) if slice_node is not None else None  # type: ignore[arg-type]
+            st = type(slice_)
+            if slice_ is None:
+                return None
+            if st is float:
+                if slice_ != slice_:
+                    return None
+                slice_ = int(slice_)
+                st = int
+            elif st is bool:
+                slice_ = int(slice_)
+                st = int
+            if st is not int:
+                return None
+            if slice_ < 0:
+                return None
+            # Call-site series buffer (persist across bars)
+            store_map: dict[int, Any] | None = getattr(self, "_call_expr_history", None)
+            if store_map is None:
+                store_map = {}
+                self._call_expr_history = store_map  # type: ignore[attr-defined]
+            site = id(value_node)
+            bar = self.context.get("bar_index", 0)  # type: ignore[attr-defined]
+            try:
+                bar_i = int(bar) if bar is not None else 0
+            except (TypeError, ValueError):
+                bar_i = 0
+            last_map: dict[int, int] | None = getattr(self, "_call_expr_history_bar", None)
+            if last_map is None:
+                last_map = {}
+                self._call_expr_history_bar = last_map  # type: ignore[attr-defined]
+            ps = store_map.get(site)
+            if ps is None:
+                try:
+                    from pynescript.ast.evaluator.series_buffer import make_series
+
+                    ps = make_series(history_length=512)
+                except Exception:
+                    # No series support — scalar offset>0 → na
+                    return current if slice_ == 0 else None
+                store_map[site] = ps
+            if last_map.get(site) == bar_i and hasattr(ps, "set_current"):
+                ps.set_current(current)
+            elif last_map.get(site) == bar_i:
+                ps.current = current
+                hist = getattr(ps, "history", None)
+                if hist is not None and len(hist) > 0:
+                    try:
+                        hist[0] = current
+                    except (TypeError, AttributeError):
+                        if hasattr(ps, "update"):
+                            ps.update(current)
+                elif hasattr(ps, "update"):
+                    ps.update(current)
+            else:
+                if hasattr(ps, "update"):
+                    ps.update(current)
+                else:
+                    ps.current = current
+            last_map[site] = bar_i
+            try:
+                return ps[slice_]
+            except Exception:
+                return current if slice_ == 0 else None
+
         if type(value_node) is ast.Name and slice_node is not None:
             ctx = self.context  # type: ignore[attr-defined]
             value = ctx.get(value_node.id, _MISSING)

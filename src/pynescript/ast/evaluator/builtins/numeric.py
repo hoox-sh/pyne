@@ -413,11 +413,21 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
         self._error("na() takes 0 or 1 arguments")
 
     def _builtin_nz(self, args: list[Any]) -> Any:
-        """Replace None with default value (0 if not specified)."""
+        """Replace None with default value (0 if not specified).
+
+        Unwraps series wrappers so ``nz(close)`` / ``nz(series_param)`` yield the
+        current scalar (bar-mode). Returning a live ``PineSeries`` would make
+        ``float x = nz(close)`` alias the host series and break array rings.
+        """
         if not args:
             self._error("nz() takes value and default arguments")
         value = args[0]
         default = args[1] if len(args) > 1 else 0
+        # Series → current sample (including current=None → na)
+        if value is not None and hasattr(value, "current") and hasattr(value, "history"):
+            value = getattr(value, "current", value)
+        if default is not None and hasattr(default, "current") and hasattr(default, "history"):
+            default = getattr(default, "current", default)
         return default if value is None else value
 
     def _builtin_iff(self, args: list[Any]) -> Any:

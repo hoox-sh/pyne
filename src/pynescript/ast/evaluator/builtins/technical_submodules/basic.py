@@ -115,7 +115,7 @@ class BasicIndicators(TechnicalHelpers):
         """Volume Weighted Average Price.
 
         TradingView: ``ta.vwap(source)`` or ``ta.vwap`` (defaults to hlc3).
-        Extra anchor/args beyond the source are ignored for now.
+        Optional second arg is an anchor condition that resets the window.
         """
         if self._use_incremental_ta():
             # O(1) cumulative — only need last price/volume samples.
@@ -128,7 +128,10 @@ class BasicIndicators(TechnicalHelpers):
                 return None
             series_map = getattr(self, "current_series", None) or {}
             volume = series_map.get("volume")
-            return self._vwap_inc_update(source, volume if volume else None)
+            anchor = args[1] if len(args) >= 2 else None
+            return self._vwap_inc_update(
+                source, volume if volume else None, anchor=anchor
+            )
         if len(args) == 0:
             source = self._context_series("hlc3") or self._context_series("close")
         else:
