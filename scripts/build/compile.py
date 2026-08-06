@@ -179,6 +179,7 @@ def nuitka_compile(
         sys.executable,
         "-m",
         "nuitka",
+        "--assume-yes-for-downloads",  # Dependency Walker / ccache on CI (no TTY)
         f"--output-dir={output_dir}",
         f"--output-filename={BINARY_NAME}",
         "--python-flag=no_site,no_docstrings",
