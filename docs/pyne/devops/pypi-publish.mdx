@@ -26,16 +26,16 @@ description: "Ship pyne to PyPI via Trusted Publishing (OIDC). Import package st
 
 ## Abstract
 
-The Python distribution name on PyPI is **`pyne`**. After install, the import path and CLIs stay **`pynescript`** / **`pynescript-lsp`**. Automation lives in `.github/workflows/publish.yml` and uses [Trusted Publishing](https://docs.pypi.org/trusted-publishers/) (OIDC) against the GitHub environment **`pypi`**.
+The Python distribution name on PyPI is **`hoox-pyne`**. After install, the import path and CLIs stay **`pynescript`** / **`pynescript-lsp`**. Automation lives in `.github/workflows/publish.yml` and uses [Trusted Publishing](https://docs.pypi.org/trusted-publishers/) (OIDC) against the GitHub environment **`pypi`**.
 
-> **Why not `pynescript` on PyPI?** That name is already owned by [elbakramer/pynescript](https://github.com/elbakramer/pynescript). We ship as **`pyne`** so the install name matches the product/repo; the import package stays `pynescript`.
+> **Why not `pynescript` or `pyne` on PyPI?** `pynescript` is owned by [elbakramer/pynescript](https://github.com/elbakramer/pynescript); plain `pyne`/`PyNE` is an unrelated 0.1.0 process-networking library. We ship as **`hoox-pyne`**; the import package stays `pynescript`.
 
 ## Install surface
 
 ```bash
-pip install pyne
-pip install "pyne[lsp]"
-pip install "pyne[pro]"
+pip install hoox-pyne
+pip install "hoox-pyne[lsp]"
+pip install "hoox-pyne[pro]"
 
 python -c "import pynescript; print(pynescript.__version__)"
 pynescript --help
@@ -52,7 +52,7 @@ pynescript-lsp   # stdio language server
 
 | Field | Value |
 | --- | --- |
-| PyPI project name | `pyne` |
+| PyPI project name | `hoox-pyne` |
 | Owner | `hoox-sh` |
 | Repository | `pyne` |
 | Workflow name | `publish.yml` |

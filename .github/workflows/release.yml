@@ -44,27 +44,38 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          pip install nuitka==2.0.* cryptography
+          python -m pip install --upgrade pip
+          # Editable install so generate_builtin_metadata / Nuitka see `pynescript`.
+          python -m pip install -e ".[lsp,compile]"
+          python -m pip install "nuitka==2.0.*" cryptography
 
       - name: Build metadata & encrypt
         run: python scripts/build/compile.py --no-encrypt --check
         env:
           CRYPTO_KEY: ${{ secrets.METADATA_KEY }}
+          PYTHONPATH: ${{ github.workspace }}/src
 
       - name: Build onefile binary
         run: |
           python scripts/build/ci_build.py --jobs ${{ env.NUITKA_JOBS }}
         env:
           CRYPTO_KEY: ${{ secrets.METADATA_KEY }}
+          PYTHONPATH: ${{ github.workspace }}/src
 
       - name: Find binary
         id: find_binary
+        shell: bash
         run: |
-          BINARY=$(find dist -name "pynescript-lsp*" -type f -executable | head -1)
+          BINARY=$(find dist -name "pynescript-lsp*" -type f \( -perm -111 -o -name "*.exe" \) 2>/dev/null | head -1)
           if [ -z "$BINARY" ]; then
-            BINARY=$(find dist -name "pynescript-lsp*" | head -1)
+            BINARY=$(find dist -name "pynescript-lsp*" -type f | head -1)
           fi
-          echo "binary=$BINARY" >> $GITHUB_OUTPUT
+          if [ -z "$BINARY" ] || [ ! -f "$BINARY" ]; then
+            echo "No pynescript-lsp binary under dist/" >&2
+            ls -laR dist || true
+            exit 1
+          fi
+          echo "binary=$BINARY" >> "$GITHUB_OUTPUT"
           echo "Found: $BINARY"
 
       - name: Upload artifact
@@ -112,7 +123,12 @@ jobs:
     name: Create Release
     needs: [build-lsp, build-vscode]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    # Ship whatever artifacts succeeded (matrix is fail-fast: false).
+    if: >
+      always() &&
+      github.event_name == 'push' &&
+      startsWith(github.ref, 'refs/tags/v') &&
+      needs.build-vscode.result == 'success'
     permissions:
       contents: write
     outputs:
@@ -129,48 +145,49 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+          merge-multiple: false
 
       - name: Create release
         id: create_release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: "Pynescript LSP v${{ steps.version.outputs.version }}"
+          name: "pyne v${{ steps.version.outputs.version }}"
           body: |
-            ## Pynescript Language Server v${{ steps.version.outputs.version }}
+            ## PYNE v${{ steps.version.outputs.version }}
 
-            Pre-built binaries for the Pine Script LSP server.
+            First public **PYNE** release (import/CLIs: `pynescript` / `pynescript-lsp`;
+            PyPI distribution: **`hoox-pyne`**).
+
+            ### Install
+            ```bash
+            pip install "hoox-pyne[lsp]==${{ steps.version.outputs.version }}"
+            # or from this release's wheel if PyPI is not yet available
+            ```
 
             ### Downloads
-            - `pynescript-lsp-linux-x86_64` — Linux binary
-            - `pynescript-lsp-windows-x86_64.exe` — Windows binary
-            - `pynescript-lsp-macos-arm64` — macOS ARM binary
-            - `pynescript-vscode-extension.vsix` — VS Code extension
+            - `pynescript-lsp-linux-x86_64` — Linux LSP binary
+            - `pynescript-lsp-windows-x86_64.exe` — Windows LSP binary
+            - `pynescript-lsp-macos-arm64` — macOS ARM LSP binary
+            - `pyne-*.vsix` — VS Code extension
 
-            ### Installation
+            ### VS Code
+            1. Download the `.vsix`
+            2. `code --install-extension pyne-*.vsix`
+            3. Language server: `pip install "hoox-pyne[lsp]"` or the standalone binary
 
-            **VS Code / Antigravity:**
-            1. Download the `.vsix` file
-            2. Install: `code --install-extension pynescript-*.vsix`
-
-            **Standalone LSP:**
+            ### Standalone LSP
             ```bash
-            # Linux
             chmod +x pynescript-lsp-linux-x86_64
             sudo mv pynescript-lsp-linux-x86_64 /usr/local/bin/pynescript-lsp
-
-            # Verify
             pynescript-lsp --help
             ```
 
-            ### What's New
-            - Full Pine Script LSP with diagnostics, autocomplete, hover
-            - 482 builtins across 20 categories
-            - Formatting, go-to-definition, find references
-            - VS Code + Neovim + Zed + Emacs support
+            See [CHANGELOG.md](https://github.com/hoox-sh/pyne/blob/main/CHANGELOG.md) for full notes.
 
           draft: false
           prerelease: false
+          fail_on_unmatched_files: false
           files: |
             artifacts/pynescript-lsp-linux-x86_64/*
             artifacts/pynescript-lsp-windows-x86_64.exe/*
@@ -194,5 +211,11 @@ jobs:
           path: .
 
       - name: Publish to Marketplace
-        run: npx vsce publish --pat ${{ secrets.VSCE_PAT }}
-        working-directory: .
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          if [ -z "${VSCE_PAT:-}" ]; then
+            echo "VSCE_PAT not set — skipping Marketplace publish (VSIX still on GitHub Release)."
+            exit 0
+          fi
+          npx --yes @vscode/vsce publish --pat "$VSCE_PAT"

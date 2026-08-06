@@ -19,7 +19,7 @@
 
 ---
 title: "PYNE Documentation"
-description: "Open-source Pine Script™ evaluation — grammar, AST, interpret/compile runtime, alerts + webhooks, LSP, Pro API. pip install pyne · github.com/hoox-sh/pyne"
+description: "Open-source Pine Script™ evaluation — grammar, AST, interpret/compile runtime, alerts + webhooks, LSP, Pro API. pip install hoox-pyne · github.com/hoox-sh/pyne"
 ---
 
 # PYNE Documentation
@@ -44,7 +44,7 @@ Source (.pyne / .pine)
 Install from PyPI as **`pyne`** (`import pynescript`); source lives at [github.com/hoox-sh/pyne](https://github.com/hoox-sh/pyne).
 
 ```bash
-pip install "pyne[lsp]"
+pip install "hoox-pyne[lsp]"
 ```
 
 The same pipeline powers the desk CLI, the LSP binary, the Pro API, browser Pyodide (via AXIS), and Cloudflare® workers. Round-trip fidelity (`parse → unparse`), interpret↔compile [plot parity](/pyne/docs/runtime/compiler/parity), and open-source corpus Runtime **~94.3%** OK (set01–04 projected) are first-class invariants — see [compatibility](/pyne/docs/reference/compatibility) and [implementation status](/pyne/docs/reference/implementation-status).

@@ -37,7 +37,7 @@ against **`hoox-sh/pyne`**, not a personal account.
 | --- | --- |
 | GitHub org | [`hoox-sh`](https://github.com/hoox-sh) (display: hoox.sh) |
 | Repo | [`hoox-sh/pyne`](https://github.com/hoox-sh/pyne) |
-| PyPI project | `pyne` |
+| PyPI project | `hoox-pyne` |
 | Import / CLIs | `pynescript`, `pynescript-lsp` |
 | Package version | `src/pynescript/__about__.py` → `0.3.0` |
 | VS Marketplace publisher | `jango-blockchained` (unchanged; Marketplace id ≠ GitHub org) |
@@ -78,7 +78,7 @@ On [pypi.org](https://pypi.org) → Account → **Publishing** → **Add a new p
 
 | Field | Value |
 | --- | --- |
-| PyPI project name | `pyne` |
+| PyPI project name | `hoox-pyne` |
 | Owner | **`hoox-sh`** |
 | Repository | `pyne` |
 | Workflow name | `publish.yml` |
@@ -122,16 +122,16 @@ git push origin v0.3.0
 ```
 
 4. Watch in parallel:
-   - **Publish** → PyPI `pyne`
+   - **Publish** → PyPI `hoox-pyne`
    - **Build & Release LSP** → GitHub Release assets + optional Marketplace
 
 ## 6. Post-publish verify
 
 ```bash
-pip index versions pyne   # or: pip install pyne==0.3.0
+pip index versions hoox-pyne   # or: pip install hoox-pyne==0.3.0
 python -c "import pynescript; print(pynescript.__version__)"
 # GitHub Release: https://github.com/hoox-sh/pyne/releases/tag/v0.3.0
-# PyPI: https://pypi.org/project/pyne/0.3.0/
+# PyPI: https://pypi.org/project/hoox-pyne/0.3.0/
 ```
 
 ## Hardcoded owner map (repo automation)

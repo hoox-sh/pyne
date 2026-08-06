@@ -173,7 +173,7 @@ Restart Flask after changing env.
 ### 10. LSP will not start
 
 ```bash
-pip install "pyne[lsp]"
+pip install "hoox-pyne[lsp]"
 python -c "import pygls, lsprotocol"
 command -v pynescript-lsp
 # Run with editor logging enabled; check stderr for import traces
@@ -188,7 +188,7 @@ Ensure the editor’s `command` matches the venv. For Neovim, confirm `filetypes
 | `mock` | Should always work offline |
 | `yahoo` | Network; symbol format |
 | `alphavantage` | API key; demo limits |
-| `ccxt` | `pip install "pyne[data]"`; exchange id; symbol `BTC/USDT` |
+| `ccxt` | `pip install "hoox-pyne[data]"`; exchange id; symbol `BTC/USDT` |
 
 ```bash
 pynescript data AAPL --provider mock

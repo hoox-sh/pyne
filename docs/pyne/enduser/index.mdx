@@ -113,8 +113,8 @@ Daily workflows against the same pipeline:
 | Want | Command / import | Docs |
 | --- | --- | --- |
 | Install core | `pip install pyne` (import `pynescript`) | [Installation](/pyne/docs/enduser/getting-started/installation) |
-| Install LSP | `pip install "pyne[lsp]"` | [Editors](/pyne/docs/enduser/guides/editors) |
-| Install market data deps | `pip install "pyne[data]"` | [CLI data](/pyne/docs/enduser/guides/cli) |
+| Install LSP | `pip install "hoox-pyne[lsp]"` | [Editors](/pyne/docs/enduser/guides/editors) |
+| Install market data deps | `pip install "hoox-pyne[data]"` | [CLI data](/pyne/docs/enduser/guides/cli) |
 | Parse file | `pynescript parse-and-dump path.pyne` | [CLI](/pyne/docs/enduser/guides/cli) |
 | Normalize source | `pynescript parse-and-unparse path.pine` | [CLI](/pyne/docs/enduser/guides/cli) |
 | Lint | `pynescript lint path.pine` | [CLI](/pyne/docs/enduser/guides/cli) |
@@ -179,7 +179,7 @@ print(unparse(tree))
 Minimal CLI:
 
 ```bash
-pip install pyne
+pip install hoox-pyne
 pynescript parse-and-dump examples/rsi_strategy.pine
 pynescript lint examples/rsi_strategy.pine
 ```

@@ -4,8 +4,9 @@ build-backend = "hatchling.build"
 
 [project]
 # PyPI distribution name (import package remains `pynescript`).
-# Upstream `pynescript` on PyPI is elbakramer — we ship as pyne.
-name = "pyne"
+# `pynescript` is taken by elbakramer; plain `pyne`/`PyNE` is taken by an
+# unrelated 0.1.0 process-networking library — ship as hoox-pyne.
+name = "hoox-pyne"
 dynamic = ["version"]
 description = "PYNE — parse, evaluate, and LSP for TradingView® Pine Script™ (HOOX open trading stack)"
 readme = "README.md"

@@ -21,12 +21,12 @@
 
 ## Installation
 
-Install the latest release from PyPI. The **distribution name is `pyne`**; the import package and CLIs remain `pynescript` / `pynescript-lsp`:
+Install the latest release from PyPI. The **distribution name is `hoox-pyne`**; the import package and CLIs remain `pynescript` / `pynescript-lsp`:
 
 ```console
-pip install pyne
-pip install "pyne[lsp]"    # language server
-pip install "pyne[data]"   # ccxt market data
+pip install hoox-pyne
+pip install "hoox-pyne[lsp]"    # language server
+pip install "hoox-pyne[data]"   # ccxt market data
 ```
 
 Do not install `hoox-pyne` or the unrelated upstream PyPI package named `pynescript` for this stack.

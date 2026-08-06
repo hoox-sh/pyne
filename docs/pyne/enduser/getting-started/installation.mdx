@@ -49,9 +49,9 @@ flowchart LR
 | Install flavor | What you get | When |
 | --- | --- | --- |
 | `pip install pyne` | CLI + library | Desk use, scripts, CI lint |
-| `pip install "pyne[lsp]"` | + pygls LSP server | Editors |
-| `pip install "pyne[data]"` | + ccxt | Live/historical exchange data |
-| `pip install "pyne[pro]"` | + Flask Pro API stack (when published) | Self-hosted `/run` |
+| `pip install "hoox-pyne[lsp]"` | + pygls LSP server | Editors |
+| `pip install "hoox-pyne[data]"` | + ccxt | Live/historical exchange data |
+| `pip install "hoox-pyne[pro]"` | + Flask Pro API stack (when published) | Self-hosted `/run` |
 | `pip install -e ".[dev-lsp]"` | Editable + LSP test harness | Contributing to LSP |
 | Hatch env | Matrix tests, lint, docs | Full monorepo workflow |
 
@@ -61,7 +61,7 @@ flowchart LR
 
 - **Python ≥ 3.10** (classifiers declare 3.10–3.13; pin to 3.10+ for production)
 - `pip` or an equivalent installer; virtualenv strongly recommended
-- For Pro API locally: `flask`, `flask-cors`, `numpy`, `matplotlib` (see `backend/requirements.txt`) or `pip install "pyne[pro]"` when that extra is available
+- For Pro API locally: `flask`, `flask-cors`, `numpy`, `matplotlib` (see `backend/requirements.txt`) or `pip install "hoox-pyne[pro]"` when that extra is available
 - For VS Code extension build: Node 22+ under `vscode-extension/` (optional)
 
 ### Core install (PyPI / local package)
@@ -69,7 +69,7 @@ flowchart LR
 From a release or built wheel (**distribution name `pyne`**):
 
 ```bash
-pip install pyne
+pip install hoox-pyne
 ```
 
 From a cloned monorepo root (non-editable):
@@ -92,12 +92,12 @@ Defined in `pyproject.toml` under `[project.optional-dependencies]`:
 
 ```bash
 # Language Server (pygls + lsprotocol)
-pip install "pyne[lsp]"
+pip install "hoox-pyne[lsp]"
 
 # CCXT for exchange data / datafeed
-pip install "pyne[data]"
+pip install "hoox-pyne[data]"
 # alias:
-pip install "pyne[datafeed]"
+pip install "hoox-pyne[datafeed]"
 
 # LSP + pytest-lsp for protocol tests (source checkout)
 pip install -e ".[dev-lsp]"
@@ -106,7 +106,7 @@ pip install -e ".[dev-lsp]"
 Combine extras:
 
 ```bash
-pip install "pyne[lsp,data]"
+pip install "hoox-pyne[lsp,data]"
 # monorepo:
 pip install -e ".[lsp,data]"
 ```
@@ -200,7 +200,7 @@ pynescript lint examples/rsi_strategy.pine
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -U pip
-pip install "pyne[lsp,data]"
+pip install "hoox-pyne[lsp,data]"
 pynescript --version
 pynescript-lsp --help 2>/dev/null || true  # server may only speak stdio
 ```
@@ -229,8 +229,8 @@ pytest tests/test_parse_and_unparse.py -q
 | Failure | Diagnosis | Fix |
 | --- | --- | --- |
 | `ModuleNotFoundError: pynescript` | Wrong env / not installed | Activate venv; reinstall |
-| `No module named 'pygls'` | LSP import without extra | `pip install "pyne[lsp]"` |
-| `No module named 'ccxt'` | data CLI/provider path | `pip install "pyne[data]"` |
+| `No module named 'pygls'` | LSP import without extra | `pip install "hoox-pyne[lsp]"` |
+| `No module named 'ccxt'` | data CLI/provider path | `pip install "hoox-pyne[data]"` |
 | Wrong package / missing APIs | Installed upstream `pynescript` or `hoox-pyne` | `pip uninstall …` then `pip install pyne` |
 | `pynescript` not found | Scripts not on PATH | Use `python -m pynescript` or fix venv `bin/` |
 | Import error from editable | Incomplete install / broken path | Re-run `pip install -e .` from repo root |

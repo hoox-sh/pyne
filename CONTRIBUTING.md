@@ -33,16 +33,17 @@ If you find a bug or have a feature request, please open an issue on GitHub.
 
 | | |
 |---|---|
-| **PyPI distribution name** | [`pyne`](https://pypi.org/project/pyne/) |
+| **PyPI distribution name** | [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) |
 | **Import package** | `pynescript` (unchanged) |
 | **Console scripts** | `pynescript`, `pynescript-lsp` |
 | **Product / repo** | **pyne** · [hoox-sh/pyne](https://github.com/hoox-sh/pyne) |
 | **GitHub org** | [`hoox-sh`](https://github.com/hoox-sh) (hoox.sh) |
 
-> The historical name `pynescript` on PyPI belongs to
-> [elbakramer/pynescript](https://github.com/elbakramer/pynescript). This project
-> publishes as **`pyne`** so installs do not collide:
-> `pip install "pyne[lsp]"` → `import pynescript`.
+> Historical collisions on PyPI: `pynescript` is
+> [elbakramer/pynescript](https://github.com/elbakramer/pynescript); plain
+> `pyne`/`PyNE` is an unrelated 0.1.0 process-networking library. This project
+> publishes as **`hoox-pyne`**:
+> `pip install "hoox-pyne[lsp]"` → `import pynescript`.
 
 ### One-time PyPI setup (Trusted Publishing)
 
@@ -50,7 +51,7 @@ Do this **after** the repo lives under the org (or re-register if you transferre
 
 1. Create a PyPI account (or org) and enable 2FA.
 2. On PyPI → **Publishing** → **Add a new pending publisher**:
-   - **PyPI project name:** `pyne`
+   - **PyPI project name:** `hoox-pyne`
    - **Owner:** `hoox-sh`  ← GitHub **org** login (not the personal account)
    - **Repository:** `pyne`
    - **Workflow name:** `publish.yml`

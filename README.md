@@ -3,7 +3,7 @@
 > Parse, evaluate, and compile TradingView® Pine Script™ with a modern Python toolchain.
 > Bar-loop runtime (interpret + Numba/object-mode compile), alerts, Pro API, and Language Server Protocol (LSP) for VS Code, Neovim, Zed, and Emacs.
 
-**Version:** 0.3.0 (release candidate) · **PyPI:** [`pyne`](https://pypi.org/project/pyne/) · **Import / CLIs:** `pynescript` · `pynescript-lsp`
+**Version:** 0.3.0 · **PyPI:** [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) · **Import / CLIs:** `pynescript` · `pynescript-lsp`
 
 **Website:** [hoox.sh/pyne](https://hoox.sh/pyne) · **Docs:** [hoox.sh/pyne/docs](https://hoox.sh/pyne/docs) · **Repo:** [hoox-sh/pyne](https://github.com/hoox-sh/pyne)
 
@@ -46,7 +46,7 @@ Local clone layout (typical sibling checkouts):
 
 ## Overview
 
-**pyne** (Python package `pynescript`, distribution name **`pyne`**) is a toolchain for TradingView® Pine Script™ that provides:
+**pyne** (Python package `pynescript`, distribution name **`hoox-pyne`**) is a toolchain for TradingView® Pine Script™ that provides:
 
 - **Parser & AST** — Pine Script™ v5–v6 grammar (ANTLR4) into a navigable ASDL AST, with round-trip unparse
 - **Bar-loop runtime** — Deterministic evaluate path for indicators and strategies on OHLCV
@@ -63,7 +63,7 @@ Local clone layout (typical sibling checkouts):
 Get professional IDE features in VS Code, Neovim, Zed, Emacs, and more:
 
 ```bash
-pip install "pyne[lsp]"
+pip install "hoox-pyne[lsp]"
 pynescript-lsp
 ```
 
@@ -86,7 +86,7 @@ pynescript-lsp
 
 The **[PYNE — Pine Script™ for VS Code](./vscode-extension/)** extension (`pyne`) associates **`.pyne`** (first-class PYNE sources) and **`.pine`** (TradingView® exports), plus `.pinev5` / `.pinev6` / `.pinescript`.
 
-1. Install the language server: `pip install "pyne[lsp]"`
+1. Install the language server: `pip install "hoox-pyne[lsp]"`
 2. Package or install the extension from `vscode-extension/` (see that folder’s README for VSIX packaging)
 3. Open a `.pyne` or `.pine` file — the LSP activates automatically when `pynescript-lsp` is on `PATH` (or via `python3 -m pynescript.langserver`)
 
@@ -229,10 +229,10 @@ curl -s -X POST http://127.0.0.1:5002/auth/create_key \
 ## Installation
 
 ```bash
-# From PyPI (distribution name pyne; import remains pynescript)
-pip install pyne
-pip install "pyne[lsp]"      # language server
-pip install "pyne[pro]"      # Flask Pro API stack
+# From PyPI (distribution name hoox-pyne; import remains pynescript)
+pip install hoox-pyne
+pip install "hoox-pyne[lsp]"      # language server
+pip install "hoox-pyne[pro]"      # Flask Pro API stack
 
 # From a git clone (development)
 pip install -e ".[lsp,pro]"

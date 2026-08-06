@@ -65,7 +65,7 @@ Answers cite:
 ### How do I install just the parser?
 
 ```bash
-pip install pyne
+pip install hoox-pyne
 ```
 
 No extra required for `parse` / `unparse` / `lint` / basic `literal_eval`.
@@ -73,7 +73,7 @@ No extra required for `parse` / `unparse` / `lint` / basic `literal_eval`.
 ### How do I install the LSP?
 
 ```bash
-pip install "pyne[lsp]"
+pip install "hoox-pyne[lsp]"
 ```
 
 Run `pynescript-lsp` (not a Click subcommand of `pynescript` in current code).
@@ -122,7 +122,7 @@ Syntax (`E001`), version (`W001`–`W002`), deprecated patterns (`W101`–), sty
 
 ```bash
 pynescript data AAPL --provider yahoo
-pip install "pyne[data]"  # for ccxt
+pip install "hoox-pyne[data]"  # for ccxt
 ```
 
 Or providers in Python via `pynescript.util.data.get_provider`.

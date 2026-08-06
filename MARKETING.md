@@ -66,7 +66,7 @@ Bridge solutions
 ## What we built
 
 ### PYNE — Python toolchain (this repo: [hoox-sh/pyne](https://github.com/hoox-sh/pyne))
-- **Product:** PYNE · **PyPI:** `pip install "pyne[lsp]"` · **import:** `pynescript`
+- **Product:** PYNE · **PyPI:** `pip install "hoox-pyne[lsp]"` · **import:** `pynescript`
 - Full ANTLR4 grammar for Pine™ v5 + v6 (multiline strings, `export const`, soft keywords)
 - ASDL-generated AST + evaluator with broad builtin surface (`ta.*`, strategy, drawing, request, …)
 - **Strategy events** (entry/exit/close/cancel/order) + broker depth (OCA, commission, risk)

@@ -17,7 +17,7 @@ Part of the **[HOOX](https://hoox.sh) open trading stack** — sister products: 
 |---------|---------|
 | **File types** | **`.pyne`** (primary), `.pine`, `.pinev5`, `.pinev6`, `.pinescript` |
 | **Syntax highlighting** | TextMate grammar for Pine™ v5/v6 — namespaces (`ta.`, `strategy.`, `color.`…), annotations (`//@version=`), colors (`#RRGGBB`), history refs, UDTs, multiline strings |
-| **Language Server** | Diagnostics, autocomplete, hover docs, document symbols, formatting (`pip install "pyne[lsp]"`) |
+| **Language Server** | Diagnostics, autocomplete, hover docs, document symbols, formatting (`pip install "hoox-pyne[lsp]"`) |
 | **Status bar** | `PYNE LSP` indicator (click → server output) |
 | **Auto-detect LSP** | `pynescript-lsp` on `PATH`, or `python3 -m pynescript.langserver` |
 
@@ -25,12 +25,12 @@ Part of the **[HOOX](https://hoox.sh) open trading stack** — sister products: 
 
 1. `pynescript.lsp.command` if not `auto`
 2. `pynescript-lsp` on `PATH`
-3. `python3 -m pynescript.langserver` (requires `pip install "pyne[lsp]"`)
+3. `python3 -m pynescript.langserver` (requires `pip install "hoox-pyne[lsp]"`)
 
 ## Install language server (required for LSP)
 
 ```bash
-pip install "pyne[lsp]"
+pip install "hoox-pyne[lsp]"
 # or from a clone of pyne:
 pip install -e ".[lsp]"
 ```
@@ -52,7 +52,7 @@ npm run package
 code --install-extension pyne-0.2.2.vsix
 ```
 
-> The VSIX is **self-contained** (esbuild bundles `vscode-languageclient`). You still need the **language server** on the machine (`pip install "pyne[lsp]"`).
+> The VSIX is **self-contained** (esbuild bundles `vscode-languageclient`). You still need the **language server** on the machine (`pip install "hoox-pyne[lsp]"`).
 
 ### Development
 

@@ -9,8 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.0] - 2026-08-06
 
-First public **`pyne`** release (import package and CLIs remain `pynescript` /
-`pynescript-lsp`). Install: `pip install "pyne[lsp]"`.
+First public **PYNE** release. PyPI distribution name is **`hoox-pyne`**
+(plain `pyne` / `PyNE` is taken by an unrelated package; import/CLIs remain
+`pynescript` / `pynescript-lsp`). Install: `pip install "hoox-pyne[lsp]"`.
 
 ### Added
 - **Alert engine** (`AlertsMixin`): TV-style `alert.freq_*` normalization, once-per-bar dedup, once-per-bar-close gating, `alertcondition` fire-on-true, host helpers `export_alerts` / `export_alerts_from_evaluator`.
@@ -33,7 +34,7 @@ First public **`pyne`** release (import package and CLIs remain `pynescript` /
 
 ### Changed
 - GitHub / package metadata for org **`hoox-sh/pyne`**: project URLs, Docker image source label, docs, CONTRIBUTING, and PyPI Trusted Publisher owner. See `docs/pyne/devops/publish-checklist.mdx`.
-- **PyPI distribution name is `pyne`** (import/CLIs remain `pynescript` / `pynescript-lsp`). Avoids collision with upstream elbakramer `pynescript` on PyPI.
+- **PyPI distribution name is `hoox-pyne`** (import/CLIs remain `pynescript` / `pynescript-lsp`). Avoids collision with upstream elbakramer `pynescript` and the unrelated pre-existing `pyne`/`PyNE` project on PyPI.
 - Default image version labels / bake / Cloud Build substitution aligned to **0.3.0**.
 - Compile `request.security` policy: same-symbol simple OHLCV only; other foreign tickers and complex expressions resolve to `na`.
 - Disk IR meta version bumped when titled fill series export landed (and again for R8/R9 parity kernels).
