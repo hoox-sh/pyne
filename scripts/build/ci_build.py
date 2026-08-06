@@ -99,6 +99,17 @@ def stage_metadata():
     print(f"  Metadata: {len(plaintext) // 1024}KB -> encrypted")
 
 
+def _package_version() -> str:
+    """Read package version for Windows resource / product metadata."""
+    about = ROOT / "src" / "pynescript" / "__about__.py"
+    text = about.read_text(encoding="utf-8")
+    for line in text.splitlines():
+        if line.startswith("__version__"):
+            # __version__ = "0.3.0"
+            return line.split("=", 1)[1].strip().strip("\"'")
+    return "0.0.0"
+
+
 def compile_onefile(jobs: int) -> Path:
     """Build onefile LSP binary via Nuitka."""
     output_dir = DIST / "lsp"
@@ -108,6 +119,15 @@ def compile_onefile(jobs: int) -> Path:
     entry = SRC_LSP / "__main__.py"
     if not entry.is_file():
         raise FileNotFoundError(f"LSP entry not found: {entry}")
+
+    version = _package_version()
+    # Nuitka Windows version resource requires dotted numeric product/file version.
+    # Accept pep440-ish versions by taking the leading X.Y.Z.
+    version_core = version.split("+")[0].split("a")[0].split("b")[0].split("rc")[0]
+    parts = [p for p in version_core.split(".") if p.isdigit()]
+    while len(parts) < 3:
+        parts.append("0")
+    product_version = ".".join(parts[:4])  # Nuitka accepts up to 4 components
 
     # Prefer package name so Nuitka resolves imports under pynescript.*
     env = os.environ.copy()
@@ -136,6 +156,10 @@ def compile_onefile(jobs: int) -> Path:
         f"--include-data-dir={PROVIDERS_DIR}=pynescript/langserver/providers",
         "--lto=auto",
         f"--product-name={BINARY_NAME}",
+        f"--product-version={product_version}",
+        f"--file-version={product_version}",
+        f"--file-description=PYNE Pine Script Language Server",
+        f"--company-name=HOOX",
         f"--jobs={jobs}",
         "--remove-output",
         str(entry),

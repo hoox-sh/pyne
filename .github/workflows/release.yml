@@ -64,10 +64,11 @@ jobs:
           CRYPTO_KEY: ${{ secrets.METADATA_KEY }}
           PYTHONPATH: ${{ github.workspace }}/src
 
-      - name: Find binary
+      - name: Find binary and rename to platform artifact name
         id: find_binary
         shell: bash
         run: |
+          set -euo pipefail
           BINARY=$(find dist -name "pynescript-lsp*" -type f \( -perm -111 -o -name "*.exe" \) 2>/dev/null | head -1)
           if [ -z "$BINARY" ]; then
             BINARY=$(find dist -name "pynescript-lsp*" -type f | head -1)
@@ -77,14 +78,21 @@ jobs:
             ls -laR dist || true
             exit 1
           fi
-          echo "binary=$BINARY" >> "$GITHUB_OUTPUT"
-          echo "Found: $BINARY"
+          # Always ship under a unique platform name so GitHub Release assets
+          # do not collide (all platforms otherwise produce "pynescript-lsp").
+          DEST="dist/${{ matrix.artifact_name }}"
+          mkdir -p dist
+          cp -f "$BINARY" "$DEST"
+          chmod +x "$DEST" 2>/dev/null || true
+          echo "binary=$DEST" >> "$GITHUB_OUTPUT"
+          echo "Found: $BINARY -> $DEST ($(wc -c < "$DEST") bytes)"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
           path: ${{ steps.find_binary.outputs.binary }}
+          if-no-files-found: error
           retention-days: 5
 
   build-vscode:
@@ -149,6 +157,40 @@ jobs:
           path: artifacts
           merge-multiple: false
 
+      - name: Stage release files with stable names
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          # Platform binaries (already renamed at upload time).
+          for name in \
+            pynescript-lsp-linux-x86_64 \
+            pynescript-lsp-windows-x86_64.exe \
+            pynescript-lsp-macos-arm64
+          do
+            if [ -d "artifacts/$name" ]; then
+              f=$(find "artifacts/$name" -type f | head -1 || true)
+              if [ -n "${f:-}" ] && [ -f "$f" ]; then
+                cp -f "$f" "release-assets/$name"
+                chmod +x "release-assets/$name" 2>/dev/null || true
+                echo "staged $name ($(wc -c < "release-assets/$name") bytes)"
+              fi
+            fi
+          done
+          # VSIX — prefer pyne-*.vsix, skip tiny junk.
+          if [ -d artifacts/pynescript-vscode-extension ]; then
+            vsix=$(find artifacts/pynescript-vscode-extension -name 'pyne-*.vsix' -type f | head -1 || true)
+            if [ -z "${vsix:-}" ]; then
+              vsix=$(find artifacts/pynescript-vscode-extension -name '*.vsix' -type f -size +50k | head -1 || true)
+            fi
+            if [ -n "${vsix:-}" ]; then
+              base=$(basename "$vsix")
+              cp -f "$vsix" "release-assets/$base"
+              echo "staged $base"
+            fi
+          fi
+          ls -la release-assets/
+
       - name: Create release
         id: create_release
         uses: softprops/action-gh-release@v2
@@ -190,11 +232,7 @@ jobs:
           draft: false
           prerelease: false
           fail_on_unmatched_files: false
-          files: |
-            artifacts/pynescript-lsp-linux-x86_64/*
-            artifacts/pynescript-lsp-windows-x86_64.exe/*
-            artifacts/pynescript-lsp-macos-arm64/*
-            artifacts/pynescript-vscode-extension/*
+          files: release-assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

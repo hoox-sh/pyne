@@ -162,6 +162,19 @@ def nuitka_compile(
         print(f"  ERROR: Entry point not found at {entry_py}")
         return None
 
+    # Windows resource metadata (Nuitka asserts product_version is non-empty).
+    about = ROOT / "src" / "pynescript" / "__about__.py"
+    version = "0.0.0"
+    for line in about.read_text(encoding="utf-8").splitlines():
+        if line.startswith("__version__"):
+            version = line.split("=", 1)[1].strip().strip("\"'")
+            break
+    version_core = version.split("+")[0].split("a")[0].split("b")[0].split("rc")[0]
+    parts = [p for p in version_core.split(".") if p.isdigit()]
+    while len(parts) < 3:
+        parts.append("0")
+    product_version = ".".join(parts[:4])
+
     cmd = [
         sys.executable,
         "-m",
@@ -180,6 +193,10 @@ def nuitka_compile(
         f"--include-data-dir={PROVIDERS_DIR}=pynescript/langserver/providers",
         "--lto=auto",
         f"--product-name={BINARY_NAME}",
+        f"--product-version={product_version}",
+        f"--file-version={product_version}",
+        "--file-description=PYNE Pine Script Language Server",
+        "--company-name=HOOX",
         f"--jobs={jobs}",
     ]
 
