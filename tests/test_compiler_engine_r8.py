@@ -15,7 +15,6 @@ from __future__ import annotations
 import pickle
 
 import numpy as np
-import pytest
 
 from pynescript.compiler.engine import CompiledScript
 from pynescript.compiler.engine import _call_execute_with_recovery

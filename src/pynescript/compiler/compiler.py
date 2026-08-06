@@ -56,6 +56,8 @@ from __future__ import annotations
 import keyword
 import re
 
+from typing import Any
+
 from pynescript.ast import node as ast
 from pynescript.ast.visitor import NodeVisitor
 

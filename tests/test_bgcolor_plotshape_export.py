@@ -30,7 +30,6 @@ import math
 from backend.runtime import Runtime
 from pynescript.ast.evaluator.builtins.drawing import DrawingRegistry
 from pynescript.ast.evaluator.builtins.plotting import materialize_visual_series_from_drawings
-from pynescript.ast.evaluator.builtins.plotting import merge_visual_series_from_drawings
 from pynescript.ast.evaluator.builtins.plotting import uniquify_series_title
 
 
