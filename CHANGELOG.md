@@ -7,10 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-- GitHub / package metadata prepared for org transfer to **`hoox-sh/pyne`** (was `jango-blockchained/pyne`): `pyproject.toml` project URLs, Docker image source label, docs, CONTRIBUTING, and PyPI Trusted Publisher owner docs. See `docs/pyne/devops/publish-checklist.mdx`.
-- PyPI distribution name is **`pyne`** (import/CLIs remain `pynescript` / `pynescript-lsp`). Install: `pip install "pyne[lsp]"`.
-- Default image version labels / bake / Cloud Build substitution aligned to **0.3.0**.
+## [0.3.0] - 2026-08-06
+
+First public **`pyne`** release (import package and CLIs remain `pynescript` /
+`pynescript-lsp`). Install: `pip install "pyne[lsp]"`.
 
 ### Added
 - **Alert engine** (`AlertsMixin`): TV-style `alert.freq_*` normalization, once-per-bar dedup, once-per-bar-close gating, `alertcondition` fire-on-true, host helpers `export_alerts` / `export_alerts_from_evaluator`.
@@ -19,47 +19,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Roadmap residual backlog IDs **H1–L3** (dual-host, corpus tail, warm compile, series/TA, optional fidelity, long-horizon); see `docs/ROADMAP.md` (2026-08-01). **L2 closed** (Pro API + edge).
 - Corpus C1 residual goldens: bare `tonumber`, `math.isfinite`, strategy `closedtrades`/`opentrades` entry_id/comment/max_drawdown/max_runup accessors; tests in `tests/test_corpus_runtime_residuals.py`.
 - Interpret↔compile plot parity harness: `scripts/compare_interp_compile.py` (multiprocess series compare with `--file-list`, `--timeout-sec`, `--ignore-hline-keys`, `--ignore-fill-keys`, and wave workers).
-- Parity tests: `tests/test_interp_compile_parity.py` and `tests/test_dividend_yield_parity.py`.
+- Parity tests: `tests/test_interp_compile_parity.py`, `tests/test_dividend_yield_parity.py`, and R8/R9 kernel suites.
 - Compiler: `time_arr` on the compiled execute signature; `numba_timestamp` / `numba_utc_parts`; titled `fill()` series export; `clear_numba_function_caches` with corrupt-cache recovery.
 - Compile path for `numba_rci` / `ta.rci`.
-
-### Fixed
-- Builtin kwargs merge no longer drops explicit trailing `None` / Pine `na` (e.g. `array.push(id=a, value=na)`), unblocking many corpus library scripts.
-- Corpus C1 8-agent residual pass: `str.replace` 4-arg/occurrence + coerce; richer `timestamp` date strings + TZ-first; series negative/na/OOB index → `na`; TA float/series periods; color hex/string channels; `syminfo.prefix`/`ticker` dual-mode; array get/set soft index + `index_2d_to_1d` stub polyfill; `hour`/`dayofmonth`/… series+timezone arity.
-- set05 6-agent pass: `timestamp(9999,…)` year-first + calendar overflow; `strategy.initial_capital =` reassignment; `timenow`/`dayofweek.*`; sanitize keeps `type == "SMA"` ternary chains; v4 `random`/`offset`/`round_to_mintick` + `ticker.pointfigure` full arity; call-site cache stored on AST node (fixes id reuse collisions).
-- set05 residual round 2 (6 agents): bare TA series `obv`/`accdist`/`vwap`; `ta.linreg` length&lt;2→na; `ta.kama` 2-arg; UDF name clobber restore; array.push soft arity + `newcolor` aliases; multi-island sanitize merge for UDF defs; missing UDF soft-na; int()/tonumber soft coerce; ticker.modify `adjustment=`; kwargs merge + timestamp const-fold + static for-to (TIMEOUT DFT/Nebula under 10s).
-- Round 6 multi-agent pass (perf + correctness + error handling + compiler coverage); see `docs/perf_round6/`.
-- Compiler nopython kernels: `ta.dmi` / `ta.adx` / `ta.supertrend` / `ta.alma` / `ta.percentrank` (match interpret oracle).
-- Compiler disk IR/module cache (`PYNE_COMPILE_DISK_CACHE`, default on) + typed `CompileError*` hierarchy + `prewarm_numba_builtins()`.
-- Incremental interpret TA for residual full-history paths: `mfi`, `sar`, `kc`/`kcw`, `alma`, `correlation`, percentiles (behind `PYNE_TA_INCREMENTAL`).
-- Runtime structured errors: `error_kind` (`parse|compile|runtime|data|order|mode`), `error_type`, `error_bar` (API `/run` forwards).
-- Strategy exit commission and exit slippage on interpret + compile paths; bad order args emit events instead of silent fills.
-- Stable `CRYPTO_KEY` / `METADATA_KEY` resolution for Fernet metadata encryption (GitHub secrets wired).
+- Strategy events system: StrategyEvent dataclass, full emission from strategy.* builtins, parity test corpus.
+- pine-worker/ as colocated extra tool: TypeScript evaluator port + Python to TS converter script.
+- var / varip declaration modes and ReAssign support.
 - Multi-target Docker image (`api` / `api-dev` / `lsp`), `docker-bake.hcl`, prod compose overlay, Makefile docker helpers.
 - Key-store backends selectable via `STORE_BACKEND` (`json` | `sqlite` | `redis`) for multi-worker / multi-replica deploys.
 - PyPI publish workflow (Trusted Publishing on `v*` tags) and package build job in CI.
-- Strategy events system: StrategyEvent dataclass, full emission from strategy.* builtins, parity test corpus.
-- pine-worker/ as colocated extra tool: TypeScript evaluator port + Python to TS converter script (convert-python-to-ts.py).
-- var / varip declaration modes and ReAssign support.
-- Consolidation of main with recent plan branch work (2026-07-09).
+- Compiler disk IR/module cache (`PYNE_COMPILE_DISK_CACHE`, default on) + typed `CompileError*` hierarchy + `prewarm_numba_builtins()`.
+- Runtime structured errors: `error_kind` (`parse|compile|runtime|data|order|mode`), `error_type`, `error_bar` (API `/run` forwards).
 
 ### Changed
+- GitHub / package metadata for org **`hoox-sh/pyne`**: project URLs, Docker image source label, docs, CONTRIBUTING, and PyPI Trusted Publisher owner. See `docs/pyne/devops/publish-checklist.mdx`.
+- **PyPI distribution name is `pyne`** (import/CLIs remain `pynescript` / `pynescript-lsp`). Avoids collision with upstream elbakramer `pynescript` on PyPI.
+- Default image version labels / bake / Cloud Build substitution aligned to **0.3.0**.
 - Compile `request.security` policy: same-symbol simple OHLCV only; other foreign tickers and complex expressions resolve to `na`.
-- Disk IR meta version bumped when titled fill series export landed.
+- Disk IR meta version bumped when titled fill series export landed (and again for R8/R9 parity kernels).
 - Interpret bar-loop residual wins (visit/Call arg plans, series last-sample, residual TA): ~1.24× `ta_combo` vs Round 5 (~137 ms @ 2k bars).
 - Compiler stays numeric for more history/math/chart surface; viewport right bar time is `(n_bars-1)*60000` in compile mode.
 - Runtime `mode=auto`: non-empty `inputs` forces interpret with clear fallback reason; object-mode compile no longer requires Numba.
-- **PyPI distribution name is `pyne`** (import package and CLIs remain `pynescript` / `pynescript-lsp`). Avoids collision with upstream elbakramer `pynescript` on PyPI. Install: `pip install "pyne[lsp]"`.
-- Version **0.3.0** prepared as first `pyne` release candidate (tag when ready).
-- VS Code extension rebrand: **PYNE — Pine Script™ for VS Code** (`pyne` 0.2.2), HOOX logo icon, marketplace description as part of the HOOX open trading stack, TradingView® / Pine Script™ trademark disclaimer, and richer TextMate syntax highlighting (namespaces, annotations, colors, UDT/enum, multiline strings).
-- VS Code extension packaging: esbuild-bundle `vscode-languageclient` into the VSIX (fixes palette “command not found” when `node_modules` was omitted), explicit `onCommand` activation, resilient command handlers, and shared output channel.
+- VS Code extension rebrand: **PYNE — Pine Script™ for VS Code** (`pyne` 0.3.0), HOOX logo icon, marketplace description as part of the HOOX open trading stack, TradingView® / Pine Script™ trademark disclaimer, and richer TextMate syntax highlighting.
+- VS Code extension packaging: esbuild-bundle `vscode-languageclient` into the VSIX, explicit `onCommand` activation, resilient command handlers, and shared output channel.
 - CI rewritten for the post-AXIS-extract repo: Python lint/test matrix, package build, Docker smoke; removed dead `frontend/` jobs.
 - `require_admin_token` enforces `ADMIN_TOKEN` + `X-Admin-Token` (fail-closed); prod compose drops host source mounts via `volumes: !override`.
 - `pyproject.toml` project URLs, Alpha classifier, Python 3.13, `pro` extra includes `redis`.
 - Updated documentation (ROADMAP, missing_features, implementation status, LSP plan, devops Docker) to reflect current state.
-- Backend test collection fixes post-integration.
 
 ### Fixed
+- **R8/R9 interpret↔compile corpus parity**: foreign-na / MTF `request.security`, Heikin-Ashi security, TA call-site slots, UDF series locals per Call site, series assign bar key `(site, name)`, PineSeries snapshot for typed float/`nz`/`array.set` (BBI ring buffer), `ta.vwap(hlc3[, anchor])`, `time(...)[1]` call-expr history, strategy `position_size`/`avg`/`closedtrades[n]` end-of-bar history, Pine `==`/`!=` with `na` (`na==na` True; other na compares False via `numba_pine_eq`/`ne`).
+- Builtin kwargs merge no longer drops explicit trailing `None` / Pine `na` (e.g. `array.push(id=a, value=na)`), unblocking many corpus library scripts.
+- Corpus C1 8-agent residual pass: `str.replace` 4-arg/occurrence + coerce; richer `timestamp` date strings + TZ-first; series negative/na/OOB index → `na`; TA float/series periods; color hex/string channels; `syminfo.prefix`/`ticker` dual-mode; array get/set soft index + `index_2d_to_1d` stub polyfill; `hour`/`dayofmonth`/… series+timezone arity.
+- set05 6-agent pass: `timestamp(9999,…)` year-first + calendar overflow; `strategy.initial_capital =` reassignment; `timenow`/`dayofweek.*`; sanitize keeps `type == "SMA"` ternary chains; v4 `random`/`offset`/`round_to_mintick` + `ticker.pointfigure` full arity; call-site cache stored on AST node (fixes id reuse collisions).
+- set05 residual round 2 (6 agents): bare TA series `obv`/`accdist`/`vwap`; `ta.linreg` length&lt;2→na; `ta.kama` 2-arg; UDF name clobber restore; array.push soft arity + `newcolor` aliases; multi-island sanitize merge for UDF defs; missing UDF soft-na; int()/tonumber soft coerce; ticker.modify `adjustment=`; kwargs merge + timestamp const-fold + static for-to.
+- Round 6 multi-agent pass (perf + correctness + error handling + compiler coverage); see `docs/perf_round6/`.
+- Compiler nopython kernels: `ta.dmi` / `ta.adx` / `ta.supertrend` / `ta.alma` / `ta.percentrank` (match interpret oracle).
+- Incremental interpret TA for residual full-history paths: `mfi`, `sar`, `kc`/`kcw`, `alma`, `correlation`, percentiles (behind `PYNE_TA_INCREMENTAL`).
+- Strategy exit commission and exit slippage on interpret + compile paths; bad order args emit events instead of silent fills.
+- Stable `CRYPTO_KEY` / `METADATA_KEY` resolution for Fernet metadata encryption (GitHub secrets wired).
 - User series no longer shadows bare builtins (`ad` / `tr` / `obv` / `pvt`): `plot(ad)` emits the user series instead of re-emitting the Chaikin A/D stub.
 - `highestbars` / `lowestbars` use negative TradingView-style offsets (Aroon parity).
 - Compile Wilder RSI matches interpret (was a rolling SMA of gains).
@@ -69,14 +67,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `request.security`: foreign tickers and complex expressions resolve to `na` instead of inventing chart close; `dividend_yield` / CVI interpret↔compile parity.
 - Import stub plot cells are not serialized as color strings.
 - `auto_fib` interpret and compile raise the same insufficient-pivot errors; `for`/`to` auto step; `chart.point` object dtype.
-- Interpreter: `ta.rising` / `ta.falling` / `ta.highestbars` / `ta.lowestbars` no longer raise
-  `TypeError: '>=' not supported between instances of 'NoneType' and 'NoneType'` when the
-  series contains Pine `na` (e.g. VIDYA warmup on MA-STER). Unsafe `CommonIndicators`
-  overrides were removed so na-safe `TechnicalHelpers` implementations are used.
+- Interpreter: `ta.rising` / `ta.falling` / `ta.highestbars` / `ta.lowestbars` no longer raise `TypeError` on Pine `na` (e.g. VIDYA warmup on MA-STER).
 - Crossover equality aligned with TV/numba (`<=`/`>=` on previous bar); short series rising/falling in bar mode.
 - Body `TypeError` in call dispatch no longer soft-fails to `na` (signature mismatches still soft); strategy `strategy()` apply fails closed.
 - Compile object-mode: `array.sort`/`sort_indices` honor `sort_field`; `array.fill` range; `map.keys`/`values` not coerced via `safe_float`.
 - Corpus sanitize: multi-version islands, UI chrome, safer ternary/call/type-field repairs without FP on `?` in input titles.
+- CI Ruff E,F,W gate: F821/`Any` imports and F401 unused imports cleaned for green CI on main.
 
 ### Removed
 - Stale `Dockerfile.api` (folded into multi-target `Dockerfile`).

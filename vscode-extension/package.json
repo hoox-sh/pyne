@@ -2,7 +2,7 @@
   "name": "pyne",
   "displayName": "PYNE — Pine Script™ for VS Code",
   "description": "Language support for TradingView® Pine Script™ powered by PYNE (pynescript): rich syntax highlighting, LSP diagnostics, autocomplete, hover & formatting. Part of the HOOX open trading stack.",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "publisher": "jango-blockchained",
   "license": "AGPL-3.0-or-later",
   "author": {
