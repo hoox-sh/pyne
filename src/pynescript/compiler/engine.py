@@ -167,8 +167,8 @@ _BUILTINS_WARMED = False
 # Disk index schema version (bump when metadata layout changes)
 # Bump when generated IR semantics change so source→IR disk index is invalidated
 # (source hash alone is stable across compiler fixes, e.g. fill() series keys).
-# v4: ta.vwap(hlc3) materialize + anchor reset; prior v3 SYMBOL/tickerid pack
-_DISK_META_VERSION = 4
+# v5: strategy series history + Pine na-aware ==/!=
+_DISK_META_VERSION = 5
 _NJIT_CACHE_FALSE = "@numba.njit(cache=False)"
 _NJIT_CACHE_TRUE = "@numba.njit(cache=True)"
 

@@ -874,6 +874,10 @@ class CompilerVisitor(NodeVisitor):
                     ctor_args.append(f"{py_key}={sk[key]}")
             ctor = ", ".join(ctor_args)
             lines.append(f"    __strategy = CompileStrategyBroker({ctor})")
+            # End-of-bar history for strategy.position_size[n] (always when broker)
+            self.arrays.add("__strategy_position_size_arr")
+            self.arrays.add("__strategy_position_avg_price_arr")
+            self.arrays.add("__strategy_closed_trades_arr")
         for arr in sorted(self.arrays):
             # Never reallocate chart OHLCV parameters (user `vol` string series is
             # mangled to __user_vol_arr via _series_arr_name).
@@ -918,6 +922,19 @@ class CompilerVisitor(NodeVisitor):
             lines.append(f"        {line}")
         if not body_lines and self.uses_strategy:
             lines.append("        pass")
+        if self.uses_strategy:
+            lines.append(
+                "        __strategy_position_size_arr[__bar_idx] = "
+                "float(__strategy.position_size)"
+            )
+            lines.append(
+                "        __strategy_position_avg_price_arr[__bar_idx] = "
+                "float(__strategy.position_avg_price)"
+            )
+            lines.append(
+                "        __strategy_closed_trades_arr[__bar_idx] = "
+                "float(__strategy.closed_trades)"
+            )
 
         # Use repr so titles with apostrophes (Spearman's Rho) stay valid Python.
         dict_items = [f"{p['title']!r}: plot_{i}" for i, p in enumerate(self.plots)]
@@ -3653,6 +3670,10 @@ class CompilerVisitor(NodeVisitor):
         if attr in series_map:
             self.object_mode = True
             self.uses_strategy = True
+            # Always allocate end-of-bar history buffers (used by [n] subscripts).
+            self.arrays.add("__strategy_position_size_arr")
+            self.arrays.add("__strategy_position_avg_price_arr")
+            self.arrays.add("__strategy_closed_trades_arr")
             return series_map[attr]
         # Qty type / risk constants used as values (not broker properties)
         if attr in (
@@ -6112,18 +6133,29 @@ class CompilerVisitor(NodeVisitor):
                     wrap_all_numeric = False
             raw_rights.append((op_str, right_raw, right_str))
         if wrap_all_numeric and not left_str:
-            # Relational (and non-string Eq): na-safe numeric compare
+            # Relational (and non-string Eq): na-safe numeric compare.
+            # Pine: any comparison with na is False except na==na (True).
+            # IEEE ``x != nan`` is True — wrong for pyramid_entry etc.
             left = self._na_wrap_num(left_raw)
+            parts: list[str] = []
             for op_str, right_raw, right_str in raw_rights:
                 if right_str:
                     right = right_raw
+                    parts.append(f"({left} {op_str} {right})")
                 else:
                     right = self._na_wrap_num(right_raw)
-                ops.append(f" {op_str} {right}")
-        else:
-            left = left_raw
-            for op_str, right_raw, _rs in raw_rights:
-                ops.append(f" {op_str} {right_raw}")
+                    if op_str == "==":
+                        parts.append(f"numba_pine_eq({left}, {right})")
+                    elif op_str == "!=":
+                        parts.append(f"numba_pine_ne({left}, {right})")
+                    else:
+                        parts.append(f"({left} {op_str} {right})")
+            if len(parts) == 1:
+                return parts[0]
+            return "(" + " and ".join(parts) + ")"
+        left = left_raw
+        for op_str, right_raw, _rs in raw_rights:
+            ops.append(f" {op_str} {right_raw}")
         return f"({left}{''.join(ops)})"
 
     def visit_Constant(self, node: ast.Constant):
@@ -6450,6 +6482,36 @@ class CompilerVisitor(NodeVisitor):
         # None / na stubs from strategy / missing APIs
         if arr in ("None", "np.nan"):
             return "np.nan"
+
+        # strategy.position_size[n] / avg_price[n] / closedtrades[n]
+        # Live mid-bar value for offset 0; end-of-bar snapshot arrays for n≥1.
+        _strat_hist = {
+            "__strategy.position_size": (
+                "__strategy_position_size_arr",
+                "__strategy.position_size",
+            ),
+            "__strategy.position_avg_price": (
+                "__strategy_position_avg_price_arr",
+                "__strategy.position_avg_price",
+            ),
+            "__strategy.closed_trades": (
+                "__strategy_closed_trades_arr",
+                "__strategy.closed_trades",
+            ),
+        }
+        if arr in _strat_hist:
+            self.uses_strategy = True
+            self.object_mode = True
+            hist_arr, live = _strat_hist[arr]
+            self.arrays.add(hist_arr)
+            off = self._safe_history_offset(slice_val)
+            # offset 0 → live (entries this bar update size before plots)
+            return (
+                f"({live} if ({off}) == 0 else "
+                f"({hist_arr}[__bar_idx - ({off})] "
+                f"if (__bar_idx >= ({off}) and "
+                f"(__bar_idx - ({off})) < len({hist_arr})) else np.nan))"
+            )
 
         # Strategy / broker scalars, call results, arithmetic, literals, …
         return self._scalar_history_fallback(arr, slice_val)

@@ -386,6 +386,46 @@ class NameEvaluator:
         # Nested loops hit this millions of times; skip visitor dispatch.
         value_node = node.value
         slice_node = node.slice
+        # strategy.position_size[n] / position_avg_price[n] / closedtrades[n]
+        if type(value_node) is ast.Attribute and slice_node is not None:
+            # Build qualified name strategy.position_size
+            parts: list[str] = []
+            cur: Any = value_node
+            while type(cur) is ast.Attribute:
+                parts.append(str(cur.attr))
+                cur = cur.value
+            if type(cur) is ast.Name and cur.id == "strategy" and parts:
+                parts.append("strategy")
+                qname = ".".join(reversed(parts))
+                key_map = {
+                    "strategy.position_size": "position_size",
+                    "strategy.position_avg_price": "position_avg_price",
+                    "strategy.closedtrades": "closedtrades",
+                }
+                skey = key_map.get(qname)
+                if skey is not None:
+                    visit = self.visit
+                    slice_ = visit(slice_node) if slice_node is not None else None  # type: ignore[arg-type]
+                    st = type(slice_)
+                    if slice_ is None:
+                        return None
+                    if st is float:
+                        if slice_ != slice_:
+                            return None
+                        slice_ = int(slice_)
+                        st = int
+                    elif st is bool:
+                        slice_ = int(slice_)
+                        st = int
+                    if st is not int or slice_ < 0:
+                        return None
+                    strat = getattr(self, "_strategy_state", None)
+                    if strat is not None and hasattr(strat, "series_at"):
+                        val = strat.series_at(skey, int(slice_))
+                        if isinstance(val, float) and val != val:  # NaN
+                            return None
+                        return val
+                    # Fall through to normal Attribute evaluation if no state
         # ``time(...)[1]`` / ``ta.change(x)[1]`` — Call base needs call-site history.
         # Without this, only ``series[0]`` works (scalar path) and offset>0 is na,
         # breaking session-start logic (``not na(time(...)[1])`` always false).

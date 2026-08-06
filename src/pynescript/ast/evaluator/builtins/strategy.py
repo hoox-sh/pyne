@@ -204,12 +204,48 @@ class StrategyState:
         self._wintrades: int = 0
         self._losstrades: int = 0
         self._eventrades: int = 0
+        # End-of-bar snapshots for strategy.position_size[n] etc. (newest last).
+        self._size_hist: list[float] = []
+        self._avg_price_hist: list[float] = []
+        self._closed_trades_hist: list[float] = []
 
     def drain_events(self) -> list[StrategyEvent]:
         """Return all captured events and clear the internal buffer."""
         events = list(self._events)
         self._events.clear()
         return events
+
+    def snapshot_bar_series(self) -> None:
+        """Record end-of-bar strategy series for ``strategy.*(n)`` history."""
+        self._size_hist.append(self.signed_position_size())
+        if self.position_direction == "flat":
+            self._avg_price_hist.append(float("nan"))
+        else:
+            self._avg_price_hist.append(float(self.entry_price))
+        self._closed_trades_hist.append(float(len(self.closed_trades)))
+
+    def series_at(self, key: str, offset: int) -> float:
+        """Pine history offset on strategy series (0 = live, 1 = prior bar end)."""
+        if offset < 0:
+            return float("nan")
+        if offset == 0:
+            if key == "position_size":
+                return self.signed_position_size()
+            if key == "position_avg_price":
+                if self.position_direction == "flat":
+                    return float("nan")
+                return float(self.entry_price)
+            if key == "closedtrades":
+                return float(len(self.closed_trades))
+            return float("nan")
+        hist = {
+            "position_size": self._size_hist,
+            "position_avg_price": self._avg_price_hist,
+            "closedtrades": self._closed_trades_hist,
+        }.get(key)
+        if not hist or offset > len(hist):
+            return float("nan")
+        return float(hist[-offset])
 
     def note_closed_trade_day(self, exit_time: int, profit: float) -> None:
         """Track consecutive calendar-day losses for risk.max_cons_loss_days.

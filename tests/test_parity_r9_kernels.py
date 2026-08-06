@@ -202,6 +202,56 @@ plot(sessionStart ? 1 : 0, "ss")
             assert abs(float(a) - float(b)) < 1e-9
 
 
+class TestStrategyPositionHistory:
+    def test_position_size_history_and_entry_viz(self) -> None:
+        src = """//@version=6
+strategy("t")
+if bar_index == 0
+    strategy.entry("S", strategy.short)
+bool in_position = strategy.position_size != 0
+bool new_position = strategy.position_size != 0 and strategy.position_size[1] == 0
+bool pyramid_entry = in_position and not new_position and strategy.position_avg_price != strategy.position_avg_price[1]
+bool exit_hit = strategy.position_size == 0 and strategy.position_size[1] != 0
+bool show_viz = in_position and (new_position or pyramid_entry or not exit_hit[1])
+plot(nz(strategy.position_size[1], -999), "sz1")
+plot(pyramid_entry ? 1 : 0, "py")
+plot(show_viz ? 1 : 0, "sv")
+plot(show_viz ? strategy.position_avg_price : na, "pe")
+"""
+        bars = _bars(3)
+        ri = Runtime().run(src, bars, mode="interpret")
+        rc = Runtime().run(src, bars, mode="compile")
+        assert "error" not in ri and "error" not in rc, (ri.get("error"), rc.get("error"))
+        # Bar 0: no prior size → [1] is na; pyramid false; show_viz false → pe na
+        assert ri["series"]["sz1"][0] == -999
+        assert rc["series"]["sz1"][0] == -999.0
+        assert ri["series"]["py"][0] == 0
+        assert rc["series"]["py"][0] == 0.0
+        assert ri["series"]["pe"][0] is None
+        assert rc["series"]["pe"][0] is None or (
+            isinstance(rc["series"]["pe"][0], float) and rc["series"]["pe"][0] != rc["series"]["pe"][0]
+        )
+        # Bar 1+: prior size available; pe tracks entry while short
+        assert ri["series"]["sz1"][1] == -1.0
+        assert rc["series"]["sz1"][1] == -1.0
+        assert abs(float(ri["series"]["pe"][1]) - float(rc["series"]["pe"][1])) < 1e-9
+
+    def test_multi_vwap_071_parity(self) -> None:
+        from pathlib import Path
+        import importlib.util
+
+        path = Path("tests/data/set02/strategies/071_str_multi_vwap_crossover.pine")
+        if not path.is_file():
+            return
+        root = Path(".").resolve()
+        spec = importlib.util.spec_from_file_location("h", root / "scripts" / "compare_interp_compile.py")
+        assert spec and spec.loader
+        h = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(h)
+        r = h.run_one_script(str(path.resolve()), 200, ignore_hline_keys=True, ignore_fill_keys=True)
+        assert r["status"] in ("OK", "fill_background_only"), r
+
+
 class TestCorpusResidualsParity:
     def test_hma_kahlman_245(self) -> None:
         from pathlib import Path

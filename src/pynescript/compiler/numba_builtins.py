@@ -2520,6 +2520,26 @@ def numba_cum_inc(arr, i, st):
     st[1] = float(i)
     return s
 @numba.njit(cache=True)
+def numba_pine_eq(a, b):
+    """Pine ``==``: ``na==na`` is True; any other comparison with ``na`` is False."""
+    a_na = a != a  # NaN
+    b_na = b != b
+    if a_na and b_na:
+        return True
+    if a_na or b_na:
+        return False
+    return a == b
+
+
+@numba.njit(cache=True)
+def numba_pine_ne(a, b):
+    """Pine ``!=``: any comparison involving ``na`` is False (incl. ``na!=na``)."""
+    if a != a or b != b:  # either NaN
+        return False
+    return a != b
+
+
+@numba.njit(cache=True)
 def numba_vwap_inc(src, vol, i, st):
     """Incremental VWAP. ``st``: [cum_pv, cum_v, last_i]."""
     if i < 0:

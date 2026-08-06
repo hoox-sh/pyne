@@ -1300,6 +1300,10 @@ class Runtime:
 
             try:
                 visit(tree)
+                # End-of-bar snapshot for strategy.position_size[n] history
+                st = getattr(evaluator, "_strategy_state", None)
+                if st is not None and hasattr(st, "snapshot_bar_series"):
+                    st.snapshot_bar_series()
             except Exception as e:
                 # Fail closed: never return empty plots for bar-loop exceptions.
                 eval_ms = (time.perf_counter() - t_eval0) * 1000.0
