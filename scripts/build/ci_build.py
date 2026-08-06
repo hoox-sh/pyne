@@ -114,6 +114,9 @@ def compile_onefile(jobs: int) -> Path:
     src_path = str(ROOT / "src")
     env["PYTHONPATH"] = src_path + os.pathsep + env.get("PYTHONPATH", "")
 
+    # Follow imports from the LSP entry only — do NOT force-include the whole
+    # pynescript tree (compiler/numba bloat + broken cryptography rpaths on macOS).
+    # Plaintext builtin_metadata.json is shipped; Fernet decrypt is optional.
     cmd = [
         sys.executable,
         "-m",
@@ -124,7 +127,12 @@ def compile_onefile(jobs: int) -> Path:
         "--python-flag=no_site,no_docstrings",
         "--static-libpython=no",
         "--follow-imports",
-        "--include-package=pynescript",
+        "--nofollow-import-to=numba",
+        "--nofollow-import-to=llvmlite",
+        "--nofollow-import-to=numpy",
+        "--nofollow-import-to=pynescript.compiler",
+        "--nofollow-import-to=pynescript.ast.evaluator",
+        "--nofollow-import-to=cryptography",
         f"--include-data-dir={PROVIDERS_DIR}=pynescript/langserver/providers",
         "--lto=auto",
         f"--product-name={BINARY_NAME}",

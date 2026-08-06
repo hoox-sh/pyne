@@ -46,8 +46,9 @@ jobs:
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip
-          # Editable install so generate_builtin_metadata / Nuitka see `pynescript`.
-          python -m pip install -e ".[lsp,compile]"
+          # LSP-only (no numba/compiler) — smaller Nuitka graph, avoids broken macOS
+          # cryptography/llvmlite packaging for an editor binary that only needs parse+lint.
+          python -m pip install -e ".[lsp]"
           python -m pip install "nuitka==2.0.*" cryptography
 
       - name: Build metadata & encrypt
