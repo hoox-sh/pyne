@@ -16,7 +16,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PYTHON_VERSION: "3.12"
+  # Nuitka 2.0.x supports up to 3.11; 3.12 needs a newer Nuitka pin.
+  PYTHON_VERSION: "3.11"
   NUITKA_JOBS: 4
 
 jobs:

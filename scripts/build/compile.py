@@ -157,14 +157,21 @@ def nuitka_compile(
     if jobs is None:
         jobs = max(1, multiprocessing.cpu_count() - 1)
 
+    entry_py = entry / "__main__.py"
+    if not entry_py.is_file():
+        print(f"  ERROR: Entry point not found at {entry_py}")
+        return None
+
     cmd = [
         sys.executable,
         "-m",
         "nuitka",
         f"--output-dir={output_dir}",
-        f"--python-flag=no_site,no_docstrings",
+        f"--output-filename={BINARY_NAME}",
+        "--python-flag=no_site,no_docstrings",
         "--static-libpython=no",
         "--follow-imports",
+        "--include-package=pynescript",
         f"--include-data-dir={PROVIDERS_DIR}=pynescript/langserver/providers",
         "--lto=auto",
         f"--product-name={BINARY_NAME}",
@@ -172,9 +179,20 @@ def nuitka_compile(
     ]
 
     if check_only:
-        cmd += ["--unstripped"]
-    else:
-        cmd += ["--remove-output"]
+        # Fast import smoke only — do not invoke full Nuitka compile.
+        print(f"  [check] import pynescript.langserver via {sys.executable}")
+        check = subprocess.run(
+            [sys.executable, "-c", "import pynescript.langserver; print('ok', pynescript.langserver.__file__)"],
+            cwd=ROOT,
+            env={**os.environ, "PYTHONPATH": str(ROOT / "src") + os.pathsep + os.environ.get("PYTHONPATH", "")},
+        )
+        if check.returncode != 0:
+            print(f"  ERROR: Import check failed (exit {check.returncode})")
+            return None
+        print("  [check passed] All imports resolved")
+        return None
+
+    cmd += ["--remove-output"]
 
     if onefile and not standalone:
         cmd += ["--onefile"]
@@ -185,24 +203,24 @@ def nuitka_compile(
     if verbose:
         cmd += ["--verbose"]
 
+    cmd.append(str(entry_py))
+
     nuitka_version = get_nuitka_version()
     print(f"  Nuitka {nuitka_version}, jobs={jobs}, onefile={onefile and not standalone}, standalone={standalone}")
-    print(f"  Entry: {entry}")
+    print(f"  Entry: {entry_py}")
     result = run(cmd)
 
     if result.returncode != 0:
         print(f"  ERROR: Compilation failed (exit {result.returncode})")
         return None
 
-    if check_only:
-        print("  [check passed] All imports resolved")
-        return None
-
     compiled = None
     if onefile and not standalone:
         candidates = [
-            output_dir / f"{BINARY_NAME}.onefile.exe",
+            output_dir / BINARY_NAME,
             output_dir / f"{BINARY_NAME}.bin",
+            output_dir / f"{BINARY_NAME}.exe",
+            output_dir / f"{BINARY_NAME}.onefile.exe",
         ]
         compiled = next((p for p in candidates if p.exists()), None)
     if not compiled:

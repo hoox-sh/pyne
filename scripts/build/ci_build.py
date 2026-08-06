@@ -100,35 +100,57 @@ def stage_metadata():
 
 
 def compile_onefile(jobs: int) -> Path:
-    """Build onefile binary."""
+    """Build onefile LSP binary via Nuitka."""
     output_dir = DIST / "lsp"
+    output_dir.mkdir(parents=True, exist_ok=True)
     jobs = jobs or max(1, multiprocessing.cpu_count() - 1)
+
+    entry = SRC_LSP / "__main__.py"
+    if not entry.is_file():
+        raise FileNotFoundError(f"LSP entry not found: {entry}")
+
+    # Prefer package name so Nuitka resolves imports under pynescript.*
+    env = os.environ.copy()
+    src_path = str(ROOT / "src")
+    env["PYTHONPATH"] = src_path + os.pathsep + env.get("PYTHONPATH", "")
 
     cmd = [
         sys.executable,
         "-m",
         "nuitka",
-        "--module",
-        str(SRC_LSP),
+        "--onefile",
         f"--output-dir={output_dir}",
+        f"--output-filename={BINARY_NAME}",
         "--python-flag=no_site,no_docstrings",
         "--static-libpython=no",
-        "--include-data-dir=" + f"{PROVIDERS_DIR}=pynescript/langserver/providers",
+        "--follow-imports",
+        "--include-package=pynescript",
+        f"--include-data-dir={PROVIDERS_DIR}=pynescript/langserver/providers",
         "--lto=auto",
         f"--product-name={BINARY_NAME}",
         f"--jobs={jobs}",
         "--remove-output",
+        str(entry),
     ]
 
-    run(cmd)
+    run(cmd, env=env)
 
-    dist_main = output_dir / "pynescript" / "langserver"
-    binary = next(dist_main.glob(f"{BINARY_NAME}*"), None)
-    if not binary:
-        raise FileNotFoundError(f"Binary not found in {dist_main}")
+    candidates = [
+        output_dir / BINARY_NAME,
+        output_dir / f"{BINARY_NAME}.bin",
+        output_dir / f"{BINARY_NAME}.exe",
+        output_dir / f"{BINARY_NAME}.onefile.exe",
+    ]
+    binary = next((p for p in candidates if p.is_file()), None)
+    if binary is None:
+        matches = sorted(output_dir.glob(f"{BINARY_NAME}*"))
+        binary = matches[0] if matches else None
+    if binary is None or not binary.is_file():
+        raise FileNotFoundError(f"Binary not found under {output_dir} (looked for {BINARY_NAME}*)")
 
-    final_binary = DIST / BINARY_NAME
-    shutil.move(str(binary), str(final_binary))
+    final_binary = DIST / binary.name
+    if binary.resolve() != final_binary.resolve():
+        shutil.move(str(binary), str(final_binary))
     print(f"  Binary: {final_binary} ({final_binary.stat().st_size / 1024 / 1024:.1f} MB)")
     return final_binary
 
