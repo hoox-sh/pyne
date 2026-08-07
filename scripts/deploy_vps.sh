@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright (C) 2024-2026 jango_blockchained
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 # Deploy pyne (pynescript) to the namecheap VPS and keep AXIS PWA alive.
 #
 # Usage:

@@ -17,7 +17,14 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Color functions for PineScript v6 evaluator."""
+"""Pine ``color.*`` constants, constructors, and channel accessors.
+
+Implements ``color.new``, ``color.rgb``, ``color.r``/``g``/``b``/``t``,
+``color.from_gradient``, named color constants, and the :class:`Color` value
+type. Functions are registered into the builtin dispatch table via
+:func:`register_color_functions` (called from
+:class:`~pynescript.ast.evaluator.builtins.BuiltinEvaluator`), not as a mixin.
+"""
 
 from __future__ import annotations
 
@@ -60,7 +67,11 @@ _NAMED_COLORS: dict[str, str] = {
 
 
 class Color:
-    """Represents an RGBA color."""
+    """RGBA color value used by plot/drawing builtins and ``color.*`` helpers.
+
+    Components are clamped to 0–255. Stringification yields an 8-digit hex
+    form (``#RRGGBBAA``) suitable for export and comparison.
+    """
 
     def __init__(self, r: int, g: int, b: int, a: int = 255):
         """Initialize a color.

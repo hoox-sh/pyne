@@ -212,6 +212,7 @@ class ObjectInstance:
     """Runtime instance of a :class:`UserDefinedType`."""
 
     def __init__(self, udt: UserDefinedType) -> None:
+        """Create an instance of *udt*, seeding fields from their defaults."""
         self.udt = udt
         self.fields: dict[str, Any] = {}
 
@@ -256,6 +257,7 @@ class TypeRegistry:
     """Name → type map for builtins and registered UDTs in a script."""
 
     def __init__(self) -> None:
+        """Create an empty UDT map and the default builtin type table."""
         self.types: dict[str, UserDefinedType] = {}
         self._builtin_types = self._init_builtin_types()
 
@@ -298,6 +300,7 @@ class MethodResolver:
     """Resolve method names on UDT instances (including ``.new`` / ``.copy``)."""
 
     def __init__(self, type_registry: TypeRegistry) -> None:
+        """Bind this resolver to *type_registry*."""
         self.type_registry = type_registry
 
     def resolve_method(self, instance: ObjectInstance, method_name: str, args: list[Any]) -> Any:

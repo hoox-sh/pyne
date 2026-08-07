@@ -17,6 +17,12 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""NodeLiteralEvaluator expression and builtin unit tests.
+
+Parametrized coverage for math, str, enums, strategy helpers, drawing
+cells, and other literal-eval dispatch paths.
+"""
+
 from __future__ import annotations
 
 import math

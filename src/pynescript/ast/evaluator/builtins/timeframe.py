@@ -17,7 +17,18 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Timeframe functions for PineScript v6 evaluator."""
+"""Pine ``timeframe.*`` conversion and chart-period helpers.
+
+Provides ``timeframe.in_seconds``, ``timeframe.from_seconds``,
+``timeframe.change``, and period-flag resolution for the current chart.
+Hosts may inject chart period via evaluator context; defaults assume the
+loaded series period.
+
+Registration
+------------
+:func:`register_timeframe_functions` injects handlers into the evaluator
+dispatch map from :class:`~pynescript.ast.evaluator.builtins.BuiltinEvaluator`.
+"""
 
 from __future__ import annotations
 

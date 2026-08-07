@@ -17,7 +17,18 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Ticker functions for PineScript v6 evaluator."""
+"""Pine ``ticker.*`` helpers for symbol ids and synthetic chart types.
+
+Builds :class:`TickerInfo` for standard symbols and non-standard charts
+(Heikin Ashi, Renko, Kagi, line break, point & figure). Also provides
+symbol-splitting utilities used by ``syminfo``-adjacent call sites.
+
+Registration
+------------
+:func:`register_ticker_functions` injects handlers into the evaluator dispatch
+map from :class:`~pynescript.ast.evaluator.builtins.BuiltinEvaluator` (function
+registration, not a mixin).
+"""
 
 from __future__ import annotations
 
@@ -25,7 +36,10 @@ from typing import Any
 
 
 class TickerInfo:
-    """Represents a ticker symbol with optional modifications."""
+    """Symbol id with optional session/adjust and non-standard chart flags.
+
+    Stringifies to the symbol text for concat/logging parity with TradingView.
+    """
 
     def __init__(
         self,

@@ -20,6 +20,12 @@
 
 """Regenerate the Summary counts section of pine_v6_full_surface_inventory.md
 from the live evaluator dispatch map.
+
+CLI (from repo root)::
+
+    python scripts/regenerate_inventory_summary.py
+
+Updates ``docs/pine_v6_full_surface_inventory.md`` in place.
 """
 
 from __future__ import annotations

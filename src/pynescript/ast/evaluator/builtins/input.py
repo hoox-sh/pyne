@@ -63,7 +63,12 @@ _BUILTIN_SOURCE_NAMES: frozenset[str] = frozenset(
 
 
 class InputBuiltinsMixin(BuiltinDispatchMixin):
-    """Input/parameter configuration for Pine Script indicators and strategies."""
+    """``input`` / ``input.*`` parameter builtins with metadata side channel.
+
+    Each call returns the resolved default (or host override) and records
+    declaration metadata on ``_input_declarations`` for UI/LSP hosts, unless
+    ``_pine_defs_locked`` or light-plot mode suppresses recording.
+    """
 
     def _input_builtin_map(self) -> dict[str, BuiltinHandler]:
         return {

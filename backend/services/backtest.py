@@ -31,6 +31,8 @@ from pynescript.ast.helper import parse
 
 @dataclass
 class Trade:
+    """Closed trade record from the simplified backtest engine."""
+
     entry_time: int
     entry_price: float
     exit_time: int
@@ -43,6 +45,8 @@ class Trade:
 
 @dataclass
 class BacktestResult:
+    """Equity curve, trades, and summary metrics for a quick backtest."""
+
     equity_curve: list[float]
     trades: list[Trade]
     total_pnl: float
@@ -61,6 +65,7 @@ class BacktestResult:
     equity_chart_b64: str = ""
 
     def to_dict(self) -> dict[str, Any]:
+        """JSON-serializable result for the Pro API response body."""
         return {
             "equity_curve": self.equity_curve,
             "trades": [

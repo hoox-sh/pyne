@@ -17,7 +17,11 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Basic technical indicators module - MA, Crossover, Volatility, etc."""
+"""Core ``ta.*`` handlers: SMA/EMA family, crosses, ATR/BB entry points.
+
+Part of the technical submodules package; handlers are exposed through
+:class:`~pynescript.ast.evaluator.builtins.technical.TechnicalAnalysisMixin`.
+"""
 
 from __future__ import annotations
 
@@ -35,7 +39,7 @@ from .core import TechnicalHelpers
 
 
 class BasicIndicators(TechnicalHelpers):
-    """Basic technical indicators and moving averages."""
+    """Fundamental ``ta.*`` implementations (SMA, EMA, crossover, ATR, BB, …)."""
 
     # -- Public API (builtin_ta_ prefix) ------------------------------------
 

@@ -17,7 +17,11 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Oscillator indicators module - RSI, STOCH, MACD, CCI, ROC, WPR, TSI."""
+"""Oscillator ``ta.*`` family (RSI, Stoch, MACD, CCI, ROC, WPR, TSI, …).
+
+Handlers are composed into
+:class:`~pynescript.ast.evaluator.builtins.technical.TechnicalAnalysisMixin`.
+"""
 
 from __future__ import annotations
 
@@ -34,7 +38,7 @@ from .core import TechnicalHelpers
 
 
 class OscillatorIndicators(TechnicalHelpers):
-    """Momentum and oscillator indicators."""
+    """Momentum oscillators: RSI, Stochastic, MACD, CCI, ROC, Williams %R, TSI."""
 
     def _builtin_ta_rsi(self, args: list[Any]) -> float | None:
         """Relative Strength Index."""

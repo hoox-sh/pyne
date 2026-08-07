@@ -17,7 +17,11 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Advanced Technical Indicators - Tier 5-8 (Complex Analysis & Strategy Synthesis)."""
+"""Advanced ``ta.*`` extensions (regimes, structure, multi-factor synthesis).
+
+Handlers are composed into
+:class:`~pynescript.ast.evaluator.builtins.technical.TechnicalAnalysisMixin`.
+"""
 
 from __future__ import annotations
 
@@ -71,7 +75,7 @@ NEAR_ZERO_THRESHOLD = 0.0
 
 
 class AdvancedIndicators(TechnicalHelpers):
-    """Advanced Tier 5-8 indicators: Market regimes, strategy synthesis, microstructure."""
+    """Extended ``ta.*`` analytics: regimes, market structure, synthesis helpers."""
 
     # -- Tier 5: Market Structure & Advanced Patterns ----------------------
 

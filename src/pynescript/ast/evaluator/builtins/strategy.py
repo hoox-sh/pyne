@@ -17,6 +17,21 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Pine ``strategy.*`` execution builtins and per-run broker state.
+
+Models orders, open/closed trades, position size/direction, equity series, and
+fill logic used by ``strategy.entry``, ``strategy.close``, ``strategy.exit``,
+and related accessors. Constant sentinels (``strategy.long``, OCA types, …)
+live in :mod:`strategy_constants` to keep this module focused on runtime
+state.
+
+Mixin composition
+-----------------
+:class:`StrategyBuiltinsMixin` contributes ``_strategy_builtin_map`` into
+:class:`~pynescript.ast.evaluator.builtins.BuiltinEvaluator`. Each evaluator
+owns an isolated :class:`StrategyState` (not class-level shared state).
+"""
+
 from __future__ import annotations
 
 import math
@@ -395,7 +410,13 @@ class StrategyState:
 
 
 class StrategyBuiltinsMixin(BuiltinDispatchMixin):
-    """Strategy execution functions for entry, exit, and trade management."""
+    """``strategy.entry`` / ``exit`` / ``close`` and performance series accessors.
+
+    Maintains :attr:`_strategy_state` for fills, positions, and trade history.
+    Declaration kwargs from ``strategy()`` are applied via
+    ``_apply_strategy_declaration`` when :class:`BuiltinEvaluator` wraps the
+    declaration handler.
+    """
 
     def _record_strategy_event(self, event: StrategyEvent) -> None:
         """Append a captured event to the current run's event buffer.

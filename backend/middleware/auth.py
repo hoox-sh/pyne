@@ -17,7 +17,12 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""API key authentication and usage tracking middleware."""
+"""API key authentication and usage tracking middleware.
+
+Provides :class:`APIKey`, pluggable :class:`APIKeyStore` (JSON / SQLite /
+Redis), and Flask decorators :func:`require_api_key`, :func:`track_usage`,
+and :func:`require_admin_token`.
+"""
 
 from __future__ import annotations
 
@@ -41,6 +46,12 @@ from flask import request
 
 @dataclass
 class APIKey:
+    """In-memory view of a hashed API key (tier, usage, limits).
+
+    Raw secrets are never stored here after mint; only ``key_hash`` (and
+    ``key_id`` for display) persist in backends.
+    """
+
     key_id: str
     key_hash: str
     tier: str = "free"
@@ -53,19 +64,23 @@ class APIKey:
     _store: Any = field(default=None, repr=False, compare=False)
 
     def is_active(self) -> bool:
+        """Whether the key may be used (revocation hook; always true today)."""
         return True
 
     def calls_remaining(self) -> int | float:
+        """Remaining monthly quota, or ``inf`` when unlimited."""
         if self.calls_limit == 0 or self.calls_limit == float("inf"):
             return float("inf")
         return max(0, self.calls_limit - self.calls_used)
 
     def is_rate_limited(self) -> bool:
+        """True when the monthly call quota is exhausted."""
         if self.calls_limit == 0 or self.calls_limit == float("inf"):
             return False
         return self.calls_used >= self.calls_limit
 
     def get_tier_info(self) -> dict[str, Any]:
+        """Public tier/usage snapshot for API responses."""
         return {
             "tier": self.tier,
             "calls_used": self.calls_used,
@@ -82,6 +97,7 @@ class APIKey:
         return month_start
 
     def increment_calls(self, count: int = 1) -> None:
+        """Bump usage counters and persist via the owning store when set."""
         self.calls_used += count
         self.last_used = time.time()
         store = self._store
@@ -204,6 +220,7 @@ class APIKeyStore:
         self._save()
 
     def create_key(self, tier: str = "hobby") -> tuple[str, str]:
+        """Mint a new API key; returns ``(raw_key, key_id)`` (raw shown once)."""
         raw_key = f"pyn_{secrets.token_urlsafe(32)}"
         key_id = hashlib.sha256(raw_key.encode()).hexdigest()[:12]
         key_hash = self._hash_key(raw_key)
@@ -244,6 +261,7 @@ class APIKeyStore:
         )
 
     def get_key(self, raw_key: str) -> APIKey | None:
+        """Look up a key by raw secret (hash lookup on sqlite/redis backends)."""
         if self._backend is not None:
             if not raw_key:
                 return None
@@ -254,6 +272,7 @@ class APIKeyStore:
         return self._keys.get(raw_key)
 
     def get_by_id(self, key_id: str) -> APIKey | None:
+        """Look up a key by public ``key_id`` (not the raw secret)."""
         if self._backend is not None:
             record = self._backend.get_by_id(key_id)
             if record is None:
@@ -265,6 +284,7 @@ class APIKeyStore:
         return None
 
     def validate_key(self, raw_key: str) -> APIKey | None:
+        """Return the key if present and active; else ``None``."""
         if not raw_key:
             return None
         api_key = self.get_key(raw_key)
@@ -273,6 +293,7 @@ class APIKeyStore:
         return None
 
     def revoke_key(self, raw_key: str) -> bool:
+        """Delete a key by raw secret; returns whether a record was removed."""
         if self._backend is not None:
             if not raw_key:
                 return False

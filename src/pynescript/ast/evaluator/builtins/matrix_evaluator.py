@@ -17,7 +17,16 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Matrix collection evaluator for Pine Script v6."""
+"""Pine ``matrix.*`` builtins dispatching onto :class:`~.matrix.Matrix`.
+
+Covers construction, element access, row/column ops, statistics, and linear-
+algebra helpers exposed under the ``matrix`` namespace.
+
+Mixin composition
+-----------------
+:class:`MatrixBuiltinsMixin` contributes ``_matrix_builtin_map`` into
+:class:`~pynescript.ast.evaluator.builtins.BuiltinEvaluator`.
+"""
 
 from __future__ import annotations
 
@@ -35,7 +44,11 @@ QUATERNARY = 4
 
 
 class MatrixBuiltinsMixin(BuiltinDispatchMixin):
-    """Matrix collection built-in functions and methods."""
+    """``matrix.new`` / ``get`` / ``set`` / row-column and math builtin handlers.
+
+    Validates operands as :class:`~.matrix.Matrix` and forwards to instance
+    methods on the collection type.
+    """
 
     def _matrix_builtin_map(self) -> dict[str, BuiltinHandler]:
         """Build dispatch map for matrix operations."""

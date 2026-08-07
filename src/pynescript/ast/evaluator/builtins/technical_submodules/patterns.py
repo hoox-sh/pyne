@@ -17,7 +17,11 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Pattern Recognition Technical Indicators."""
+"""Pattern-recognition ``ta.*`` indicators (SAR, engulfing, pivots, …).
+
+Handlers are composed into
+:class:`~pynescript.ast.evaluator.builtins.technical.TechnicalAnalysisMixin`.
+"""
 
 from __future__ import annotations
 
@@ -27,7 +31,7 @@ from .core import TechnicalHelpers
 
 
 class PatternIndicators(TechnicalHelpers):
-    """Pattern-based technical indicators: Engulfing, Hammer, Gap, SAR, etc."""
+    """Candlestick/price-pattern ``ta.*`` (SAR, engulfing, hammer, gap, pivots)."""
 
     # -- Public API (builtin_ta_ prefix) ------------------------------------
 

@@ -17,7 +17,11 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Moving Average indicators module."""
+"""Moving-average ``ta.*`` family (SMA, EMA, WMA, RMA, HMA, VWMA, …).
+
+Handlers are composed into
+:class:`~pynescript.ast.evaluator.builtins.technical.TechnicalAnalysisMixin`.
+"""
 
 from __future__ import annotations
 
@@ -33,7 +37,7 @@ from .core import TechnicalHelpers
 
 
 class MovingAverageIndicators(TechnicalHelpers):
-    """Moving average and trend-following indicators."""
+    """``ta.sma`` / ``ema`` / ``wma`` / ``rma`` / ``hma`` / ``vwma`` and related MAs."""
 
     def _builtin_ta_sma(self, args: list[Any]) -> list[float | None]:
         """Simple Moving Average."""

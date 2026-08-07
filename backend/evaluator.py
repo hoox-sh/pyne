@@ -17,6 +17,13 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Host-side Pine evaluator with columnar plot capture for the Pro Runtime.
+
+Extends :class:`~pynescript.ast.evaluator.NodeLiteralEvaluator` so
+:class:`~backend.runtime.Runtime` can execute scripts bar-by-bar and export
+plot series, shapes, and bgcolors as JSON-safe columns for AXIS.
+"""
+
 from __future__ import annotations
 
 from typing import Any

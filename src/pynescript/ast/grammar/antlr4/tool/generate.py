@@ -17,7 +17,10 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Generate ANTLR4 Python targets from the resource ``*.g4`` grammars."""
+
 from __future__ import annotations
+
 
 import shutil
 import subprocess

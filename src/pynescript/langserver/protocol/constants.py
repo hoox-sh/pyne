@@ -17,7 +17,12 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LSP protocol constants."""
+"""LSP protocol constants (severity / kind maps).
+
+Maps project-level string keys to :mod:`lsprotocol.types` enums used when
+building diagnostics, completion items, and document symbols. Feature and
+provider modules import these tables by name.
+"""
 
 from __future__ import annotations
 

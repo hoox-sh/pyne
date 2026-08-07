@@ -21,6 +21,13 @@
 """Pine Script v5 <-> v6 converter stub (plan §6 / roadmap D1).
 
 Minimal starting point. Expand with real diff rules as needed.
+
+CLI::
+
+    python scripts/convert_pine_version.py <v5|v6> <file.pine>
+
+``v5`` rewrites toward v5 (e.g. indicator→study); any other direction
+applies the v5→v6 placeholder rules. Converted source is printed to stdout.
 """
 
 from __future__ import annotations

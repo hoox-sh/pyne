@@ -17,6 +17,8 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Pygments lexer for Pine Script (ANTLR4 token stream → Pygments tokens)."""
+
 from __future__ import annotations
 
 from typing import ClassVar
@@ -30,6 +32,11 @@ from pynescript.ast.grammar.antlr4.lexer import PinescriptLexer as PinescriptANT
 
 
 class PinescriptLexer(Lexer):
+    """Pygments :class:`~pygments.lexer.Lexer` backed by the ANTLR4 Pine lexer.
+
+    Registered aliases include ``pinescript``; filenames match ``*.pine``.
+    """
+
     name: ClassVar[str] = "Pinescript Lexer"
 
     aliases: ClassVar[list[str]] = ["pinescript"]
@@ -104,6 +111,7 @@ class PinescriptLexer(Lexer):
     }
 
     def get_tokens_unprocessed(self, text: str):
+        """Yield ``(index, tokentype, value)`` for Pygments highlighting."""
         stream = InputStream(text)
         lexer = PinescriptANTLR4Lexer(stream)
         while True:

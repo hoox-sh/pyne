@@ -246,8 +246,10 @@ class FootprintBuiltinsMixin(BuiltinDispatchMixin):
 
 
 class RequestBuiltinsMixin(BuiltinDispatchMixin):
-    """
-    Request/data fetching functions for multi-timeframe and fundamental data.
+    """``request.security``, fundamentals, and related data-fetch builtins.
+
+    Missing feeds and provider errors soft-fail to mock series so scripts
+    continue evaluating without a live data backend (see module docstring).
     """
 
     def _request_builtin_map(self) -> dict[str, BuiltinHandler]:

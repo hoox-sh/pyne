@@ -17,6 +17,11 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Parse → unparse → reparse round-trip for example ``*.pine`` scripts.
+
+Uses the ``pinescript_filepath`` fixture from conftest (optional local corpus).
+"""
+
 from __future__ import annotations
 
 from pathlib import Path

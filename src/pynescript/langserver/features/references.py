@@ -84,9 +84,14 @@ def handle_references(
 
 
 class ReferencesFinder(NodeVisitor):
-    """Finds all references to symbols in Pine Script."""
+    """AST visitor that collects all references to a single name.
+
+    Populates :attr:`locations` for loads, calls, and (optionally) declarations
+    matching *target_name*. Same-document only (uses *uri* for each location).
+    """
 
     def __init__(self, target_name: str, uri: str, include_declaration: bool = True) -> None:
+        """Search for references to *target_name* in document *uri*."""
         super().__init__()
         self.target_name = target_name
         self.uri = uri

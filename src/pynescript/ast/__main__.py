@@ -17,13 +17,21 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""CLI entry for parsing Pine Script and dumping the AST.
+
+Run as ``python -m pynescript.ast`` (or the package equivalent). Reads a file
+or stdin, parses with :func:`pynescript.ast.helper.parse`, and prints
+:func:`pynescript.ast.helper.dump` output.
+"""
+
 from __future__ import annotations
 
 from pynescript.ast.helper import dump
 from pynescript.ast.helper import parse
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments, parse the input source, and print the AST dump."""
     import argparse
 
     parser = argparse.ArgumentParser(prog="python -m pynescript.ast")

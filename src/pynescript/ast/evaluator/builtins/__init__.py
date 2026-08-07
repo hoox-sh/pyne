@@ -17,28 +17,28 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Pine Script Built-in Functions and Modules.
+"""Pine Script evaluator builtins package (dispatch aggregate).
 
-Implements all Pine Script built-in functions organized by category:
+Implements Pine built-in functions organized by category mixins and register
+functions, composed into :class:`BuiltinEvaluator`:
 
-- Numeric: math.*, min, max, round, etc.
-- String: str.*, tostring, tonumber, etc.
-- Array: array.new, array.push, array.pop, etc.
-- Matrix: matrix operations
-- Map: map (dictionary) operations
-- Technical: ta.* - Technical analysis indicators
-- Plotting: plot, plotshape, etc.
-- Drawing: line, box, table drawing primitives
-- Strategy: strategy.entry, strategy.close, etc.
-- Request: request.security for data fetching
-- Input: input, input.symbol, etc.
-- Utility: type, size, na, etc.
-- Color: color.* constants and functions
-- Ticker: syminfo, ticker functions
-- Timeframe: timeframe.* variables and functions
-- Logging: alert, runtime.error
+- **Numeric** — ``math.*``, bare abs/max/min/…
+- **String** — ``str.*``, ``tostring`` / ``tonumber``
+- **Array / Matrix / Map** — collection namespaces
+- **Technical** — ``ta.*`` (via :mod:`technical` + submodules)
+- **Plotting / Drawing** — ``plot*``, ``line``/``box``/``label``/``table``
+- **Strategy** — ``strategy.*`` execution + constants
+- **Request / Input / Utility** — data fetch, parameters, time helpers
+- **Color / Ticker / Timeframe / Logging / Declarations** — registered
+  function tables (not always mixins)
+- **Alerts** — ``alert`` / ``alertcondition``
 
-Each category is implemented as a mixin class composed into BuiltinEvaluator.
+Mixin composition
+-----------------
+Category mixins subclass :class:`~.base.BuiltinDispatchMixin` and expose
+``_*_builtin_map()``. :class:`BuiltinEvaluator._build_builtin_map` merges
+those maps and calls ``register_*_functions`` for non-mixin namespaces.
+Expression evaluation resolves names through ``_call_builtin``.
 """
 
 from __future__ import annotations
@@ -85,7 +85,12 @@ class BuiltinEvaluator(
     MatrixBuiltinsMixin,
     MapBuiltinsMixin,
 ):
-    """Aggregate the individual builtin dispatch tables."""
+    """Compose all builtin mixins and registration helpers into one dispatcher.
+
+    Inherits category mixins; :meth:`_build_builtin_map` merges each
+    ``_*_builtin_map()`` and wires script-declaration side effects (drawing
+    limits, strategy declaration application).
+    """
 
     def _build_builtin_map(self) -> dict[str, BuiltinHandler]:
         dispatch = super()._build_builtin_map()

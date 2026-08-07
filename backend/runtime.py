@@ -17,6 +17,14 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Pine Script runtime host for the Pro API and library callers.
+
+:class:`Runtime` walks OHLCV bars in interpret mode (AST evaluator) or runs
+the Numba/object compile pipeline. Host context includes ``syminfo``,
+``timeframe``, ``barstate``, ``chart``, and lazy UTC calendar fields. Used by
+``POST /run`` and CLI/showcase tools that need the same host semantics.
+"""
+
 from __future__ import annotations
 
 import hashlib
@@ -780,9 +788,15 @@ class Chart:
 
 
 class Runtime:
+    """Bar-mode host that evaluates Pine over OHLCV (interpret / compile / auto).
+
+    Builds symbol namespaces, seeds series history, captures plots via
+    :class:`~backend.evaluator.CustomEvaluator`, and returns a JSON-friendly
+    result dict for AXIS and the Pro API.
+    """
+
     def __init__(self, symbol: str = "AAPL", run_id: str | None = None):
-        """
-        Initialize the runtime with optional symbol configuration.
+        """Initialize the runtime with optional symbol configuration.
 
         Args:
             symbol: The symbol to use for the runtime (default: "AAPL")

@@ -17,7 +17,10 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Parser entry surface for the resource Pine Script ANTLR4 grammar."""
+
 from __future__ import annotations
+
 
 from .generated import PinescriptParser
 

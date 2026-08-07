@@ -17,6 +17,12 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Pytest configuration for the pynescript test suite.
+
+Provides optional ``--example-scripts-dir`` and parametrizes
+``pinescript_filepath`` for corpus-style parse/unparse tests.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path

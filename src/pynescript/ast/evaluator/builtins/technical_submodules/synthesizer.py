@@ -17,7 +17,11 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Synthesizer Module: Intelligent Strategy Synthesizer (Capstone Indicator)."""
+"""Capstone strategy-synthesis ``ta.*`` indicator(s).
+
+Handlers are composed into
+:class:`~pynescript.ast.evaluator.builtins.technical.TechnicalAnalysisMixin`.
+"""
 
 from __future__ import annotations
 
@@ -27,7 +31,7 @@ from .common import TechnicalHelpers
 
 
 class SynthesizerIndicators(TechnicalHelpers):
-    """Synthesizer indicators: Final capstone - intelligent strategy synthesizer."""
+    """Capstone multi-input strategy synthesis ``ta.*`` indicator(s)."""
 
     def _builtin_ta_intelligent_strategy_synthesizer(self, args: list[Any]) -> dict[str, Any]:
         """Intelligent Strategy Synthesizer.

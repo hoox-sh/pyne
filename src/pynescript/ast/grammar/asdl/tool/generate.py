@@ -17,7 +17,10 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Generate ASDL-backed AST node modules for pynescript."""
+
 from __future__ import annotations
+
 
 import shutil
 import subprocess

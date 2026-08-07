@@ -17,7 +17,10 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""ASDL code-generation primitives used by the AST node generator."""
+
 from __future__ import annotations
+
 
 import ast
 import functools
@@ -65,7 +68,6 @@ class PythonGenerator(pyasdl.ASDLVisitor):
 
     def _generate_internals(self) -> list[ast.ImportFrom | ast.Import]:
         """
-        from __future__ import annotations
 
         import builtins as _builtins
         import dataclasses as _dataclasses

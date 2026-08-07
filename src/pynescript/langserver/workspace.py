@@ -86,6 +86,7 @@ class Workspace:
     """
 
     def __init__(self) -> None:
+        """Create an empty document store."""
         self._documents: dict[str, TextDocumentState] = {}
         self._parse_errors: set[str] = set()
 

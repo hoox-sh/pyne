@@ -17,7 +17,12 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Map collection type and operations for Pine Script v6."""
+"""Pine ``map`` collection type (key–value store).
+
+Defines the runtime :class:`Map` value used by ``map.*`` builtins. Dispatch
+handlers live in :mod:`map_evaluator` (:class:`MapBuiltinsMixin`); this module
+is the pure data structure only.
+"""
 
 from __future__ import annotations
 
@@ -33,7 +38,12 @@ V = TypeVar("V")
 
 
 class Map(Generic[K, V]):
-    """Represents a key-value map (dictionary) in Pine Script."""
+    """Mutable ordered-preserving key–value map for Pine ``map.*`` operations.
+
+    Backed by a Python ``dict``. Methods mirror TradingView map semantics
+    (``get``/``put``/``remove``/``keys``/``values``/…). Evaluator dispatch is
+    in :class:`~pynescript.ast.evaluator.builtins.map_evaluator.MapBuiltinsMixin`.
+    """
 
     def __init__(self):
         """Initialize empty map."""

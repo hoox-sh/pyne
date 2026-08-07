@@ -19,7 +19,10 @@
 
 """Pynescript Pro API Server.
 
-Flask server for live chart previews, backtests, and API key management.
+Flask application entry for live chart previews, Pine ``/run`` execution,
+compile prewarm, free LSP-HTTP/git OAuth bridges, and API key management.
+
+Start with ``python -m backend.app`` (dev) or gunicorn in production.
 """
 
 from __future__ import annotations
@@ -476,6 +479,7 @@ def _health_payload() -> dict[str, Any]:
 @app.route("/", methods=["GET"])
 @app.route("/health", methods=["GET"])
 def health_check():
+    """Liveness/readiness JSON (version, endpoints, optional compile status)."""
     return jsonify(_health_payload())
 
 
@@ -923,6 +927,7 @@ app.register_blueprint(git_oauth_bp)
 
 @app.errorhandler(404)
 def not_found(e):
+    """JSON 404 for unknown paths."""
     return jsonify(
         {
             "status": "error",
@@ -934,6 +939,7 @@ def not_found(e):
 
 @app.errorhandler(500)
 def server_error(e):
+    """JSON 500 without leaking exception details to clients."""
     return jsonify(
         {
             "status": "error",

@@ -17,6 +17,12 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Multi-plot, hline, fill, and crossover series/meta export checks.
+
+Verifies interpret and compile agree on plot keys, colors, and strategy
+crossover events via ``backend.runtime.Runtime``.
+"""
+
 from __future__ import annotations
 
 import math

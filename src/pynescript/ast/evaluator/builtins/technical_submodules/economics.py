@@ -17,7 +17,11 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Economics Module: Market Microstructure & Advanced Economics Indicators."""
+"""Market-microstructure and economics-oriented ``ta.*`` extensions.
+
+Handlers are composed into
+:class:`~pynescript.ast.evaluator.builtins.technical.TechnicalAnalysisMixin`.
+"""
 
 from __future__ import annotations
 
@@ -27,7 +31,7 @@ from .core import TechnicalHelpers
 
 
 class EconomicsIndicators(TechnicalHelpers):
-    """Economics indicators: Market microstructure, advanced economics."""
+    """Microstructure and economics ``ta.*`` extensions (order-flow style helpers)."""
 
     # -- Group A: Market Microstructure ------------------------------------
 

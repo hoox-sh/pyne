@@ -32,7 +32,13 @@ from .base import BuiltinHandler
 
 
 class StrategyConstantsMixin(BuiltinDispatchMixin):
-    """Zero-arg ``strategy.*`` constants and OCA/commission enums."""
+    """Zero-arg ``strategy.*`` direction, OCA, commission, and qty-type sentinels.
+
+    Contributes ``_strategy_constants_builtin_map`` into
+    :class:`~pynescript.ast.evaluator.builtins.BuiltinEvaluator`. Note
+    ``strategy.cash`` is intentionally not registered here (collides with the
+    free-cash series on :class:`~.strategy.StrategyBuiltinsMixin`).
+    """
 
     def _strategy_constants_builtin_map(self) -> dict[str, BuiltinHandler]:
         return {

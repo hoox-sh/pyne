@@ -1,6 +1,6 @@
 # Copyright (C) 2024-2026 jango_blockchained
 # SPDX-License-Identifier: AGPL-3.0-or-later
-#
+
 # Local development stack for the PYNE Pro API + CLI.
 #
 #   docker compose up --build api

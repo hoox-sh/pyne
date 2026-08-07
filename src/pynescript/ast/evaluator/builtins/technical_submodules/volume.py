@@ -17,7 +17,11 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Volume-based Technical Indicators."""
+"""Volume-based ``ta.*`` indicators (OBV, MFI, CMF, WAD, WVAD, …).
+
+Handlers are composed into
+:class:`~pynescript.ast.evaluator.builtins.technical.TechnicalAnalysisMixin`.
+"""
 
 from __future__ import annotations
 
@@ -33,7 +37,7 @@ from .core import TechnicalHelpers
 
 
 class VolumeIndicators(TechnicalHelpers):
-    """Volume-based technical indicators: OBV, MFI, CMF, WAD, WVAD, EMV, Klinger, APO, VPT."""
+    """Volume ``ta.*``: OBV, MFI, CMF, WAD/WVAD, and related volume flow series."""
 
     # -- Public API (builtin_ta_ prefix) ------------------------------------
 

@@ -172,7 +172,6 @@ strategy.exit("exit", "long", profit = 10, loss = 5)
 def test_stubs_shell_script_without_extractable_pine() -> None:
     raw = """// set03 corpus entry
 // source_path: hooks/before-write.sh
-#!/bin/bash
 FILE_PATH="$1"
 if [ -f "$FILE_PATH" ]; then
     echo "ok"

@@ -17,7 +17,17 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Map collection evaluator for Pine Script v6."""
+"""Pine ``map.*`` builtins dispatching onto :class:`~.map.Map`.
+
+Creates maps, mutates entries, and exposes keys/values/size. Plain Python
+``dict`` values from compile/host bridges are wrapped in-place so mutations
+remain visible to the host.
+
+Mixin composition
+-----------------
+:class:`MapBuiltinsMixin` contributes ``_map_builtin_map`` into
+:class:`~pynescript.ast.evaluator.builtins.BuiltinEvaluator`.
+"""
 
 from __future__ import annotations
 
@@ -34,7 +44,11 @@ TERNARY = 3
 
 
 class MapBuiltinsMixin(BuiltinDispatchMixin):
-    """Map collection built-in functions and methods."""
+    """``map.new`` / ``get`` / ``put`` / ``remove`` / … builtin handlers.
+
+    Validates operands as :class:`~.map.Map` (or wraps ``dict``) and forwards
+    to instance methods on the collection type.
+    """
 
     def _map_builtin_map(self) -> dict[str, BuiltinHandler]:
         """Build dispatch map for map operations."""

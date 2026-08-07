@@ -17,6 +17,11 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Alert and alertcondition builtin behavior in the evaluator.
+
+Covers fire frequencies, once-per-bar dedup, context capture, and export.
+"""
+
 from __future__ import annotations
 
 from pynescript.ast.evaluator import NodeLiteralEvaluator

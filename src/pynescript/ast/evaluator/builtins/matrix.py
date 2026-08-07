@@ -17,7 +17,12 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Matrix collection type and operations for Pine Script v6."""
+"""Pine ``matrix`` collection type (2-D rectangular array).
+
+Defines the runtime :class:`Matrix` value used by ``matrix.*`` builtins.
+Dispatch handlers live in :mod:`matrix_evaluator`
+(:class:`MatrixBuiltinsMixin`); this module is the pure data structure only.
+"""
 
 from __future__ import annotations
 
@@ -33,7 +38,12 @@ T = TypeVar("T")
 
 
 class Matrix(Generic[T]):
-    """Represents a 2D matrix in Pine Script."""
+    """Row-major 2-D matrix for Pine ``matrix.*`` operations.
+
+    Supports ``m[row, col]`` indexing and row/column mutation. Evaluator
+    dispatch is in
+    :class:`~pynescript.ast.evaluator.builtins.matrix_evaluator.MatrixBuiltinsMixin`.
+    """
 
     def __init__(self, rows: int = 0, cols: int = 0, default_value: Any = None):
         """Initialize matrix with given dimensions and default value."""

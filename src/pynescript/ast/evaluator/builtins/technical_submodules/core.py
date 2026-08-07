@@ -17,7 +17,19 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Core technical analysis helpers and validation utilities."""
+"""Shared helpers for all ``ta.*`` indicator submodules.
+
+Provides arity constants, series/period coercion (via
+:func:`~pynescript.ast.evaluator.builtins.base.pine_expect_int` /
+:func:`~pynescript.ast.evaluator.builtins.base.pine_period_or_none`),
+incremental-TA toggles, and :class:`TechnicalHelpers` — the base class for
+every indicator mixin under this package.
+
+Composition
+-----------
+Indicator modules inherit :class:`TechnicalHelpers` and are aggregated by
+:class:`~pynescript.ast.evaluator.builtins.technical.TechnicalAnalysisMixin`.
+"""
 
 from __future__ import annotations
 
@@ -46,7 +58,12 @@ _MISSING: Any = object()
 
 
 class TechnicalHelpers:
-    """Shared technical analysis helpers and validation methods."""
+    """Base utilities for ``ta.*`` handlers (series expect, SMA helpers, state).
+
+    Subclasses implement ``_builtin_ta_*`` methods. Expects evaluator attributes
+    such as ``current_series``, ``context``, and ``_error`` when composed into
+    the full evaluator via :class:`TechnicalAnalysisMixin`.
+    """
 
     current_series: dict[str, list[Any]]
 

@@ -67,6 +67,7 @@ class RedisKeyStore:
         self._client = client
 
     def create(self, key_id: str, key_hash: str, tier: str, calls_limit: int | float) -> None:
+        """Insert a hashed key hash and secondary id→hash index."""
         record = {
             "key_id": key_id,
             "key_hash": key_hash,
@@ -84,18 +85,21 @@ class RedisKeyStore:
         pipe.execute()
 
     def get_by_hash(self, key_hash: str) -> dict[str, Any] | None:
+        """Return the key record for *key_hash*, or ``None``."""
         data = self._client.hgetall(_KEY_PREFIX + key_hash)
         if not data:
             return None
         return _decode_record(data)
 
     def get_by_id(self, key_id: str) -> dict[str, Any] | None:
+        """Return the key record for public *key_id*, or ``None``."""
         key_hash = self._client.hget("apikey:by_id", key_id)
         if not key_hash:
             return None
         return self.get_by_hash(key_hash)
 
     def delete_by_hash(self, key_hash: str) -> bool:
+        """Delete by hash (and id index); returns whether a record existed."""
         # Look up key_id first so we can clean the secondary index.
         record = self.get_by_hash(key_hash)
         if record is None:
@@ -107,6 +111,7 @@ class RedisKeyStore:
         return True
 
     def update_calls(self, key_id: str, calls_used: int, last_used: float) -> None:
+        """Persist usage counters for *key_id*."""
         # We have the key_hash already if we got here via APIKey._store, but
         # update_calls only knows key_id. Resolve it once.
         key_hash = self._client.hget("apikey:by_id", key_id)
@@ -121,6 +126,7 @@ class RedisKeyStore:
         )
 
     def close(self) -> None:
+        """No-op: process-wide Redis pool is not closed here."""
         # The shared connection pool is process-wide; do not close it.
         # Callers that need a hard close should construct their own client.
         return

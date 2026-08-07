@@ -17,6 +17,20 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Pine ``array.*`` builtins for the AST evaluator.
+
+Implements the ``array`` namespace (``array.new_*``, ``array.push``,
+``array.get``, statistical helpers, binary search, …). Handlers treat Python
+``list`` instances as Pine arrays and coerce series wrappers where needed.
+
+Mixin composition
+-----------------
+:class:`ArrayBuiltinsMixin` contributes ``_array_builtin_map`` into
+:class:`~pynescript.ast.evaluator.builtins.BuiltinEvaluator`. Dispatch keys are
+fully qualified names such as ``array.size`` and bare type casts where
+applicable.
+"""
+
 from __future__ import annotations
 
 import statistics
@@ -35,7 +49,11 @@ MAX_PERCENTILE = 100
 
 
 class ArrayBuiltinsMixin(BuiltinDispatchMixin):
-    """Array-oriented built-in functions."""
+    """``array.*`` creation, mutation, query, and statistical builtins.
+
+    Maps Pine array operations onto mutable Python lists. Validation helpers
+    (``_expect_array``, index bounds) raise via the shared mixin ``_error`` path.
+    """
 
     def _array_builtin_map(self) -> dict[str, BuiltinHandler]:
         return {

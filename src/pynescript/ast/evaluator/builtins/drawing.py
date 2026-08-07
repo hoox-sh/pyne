@@ -17,6 +17,21 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Pine drawing builtins: ``line``, ``box``, ``label``, ``table``, ``polyline``.
+
+Provides object types, a process-wide :class:`DrawingRegistry` with TradingView-
+style garbage-collection caps (``max_lines_count``, …), and
+:class:`DrawingBuiltinsMixin` handlers for ``*.new`` / ``*.set_*`` / ``*.get_*``
+and related APIs. Export helpers produce JSON-safe payloads for host UIs.
+
+Mixin composition
+-----------------
+:class:`DrawingBuiltinsMixin` contributes ``_drawing_builtin_map`` into
+:class:`~pynescript.ast.evaluator.builtins.BuiltinEvaluator`. Caps are applied
+from ``indicator()`` / ``strategy()`` declarations via
+:meth:`DrawingRegistry.configure_from_declaration`.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -546,7 +561,7 @@ class DrawingRegistry:
 
 @dataclass
 class Line:
-    """Line drawing object."""
+    """Segment between two chart points (``line.new`` / ``line.set_*``)."""
 
     x1: int | float
     y1: float
@@ -563,7 +578,7 @@ class Line:
 
 @dataclass
 class Box:
-    """Box drawing object."""
+    """Axis-aligned rectangle on the chart (``box.new`` / ``box.set_*``)."""
 
     left: int | float
     top: float
@@ -590,7 +605,7 @@ class Box:
 
 @dataclass
 class Label:
-    """Label drawing object."""
+    """Text annotation anchored to a chart point (``label.new`` / ``label.set_*``)."""
 
     x: int | float
     y: float
@@ -616,7 +631,7 @@ class Label:
 
 @dataclass
 class Table:
-    """Table drawing object."""
+    """On-chart table grid with cell map (``table.new`` / ``table.cell``)."""
 
     position: str = "top_left"  # Position on screen
     rows: int = 0
@@ -633,7 +648,7 @@ class Table:
 
 @dataclass
 class TableCell:
-    """Table cell content."""
+    """Single ``table`` cell style and text payload."""
 
     text: str = ""
     text_color: str = "#000000"
@@ -652,7 +667,7 @@ class TableCell:
 
 @dataclass
 class LineFill:
-    """Fill between two lines."""
+    """Fill region between two :class:`Line` objects (``linefill.new``)."""
 
     line1: Line | None = None
     line2: Line | None = None
@@ -662,7 +677,7 @@ class LineFill:
 
 @dataclass
 class ChartPoint:
-    """Represents a point on the chart."""
+    """Chart coordinate for polyline vertices (time/index + price)."""
 
     time: int | float | None = None
     index: int | None = None
@@ -675,7 +690,7 @@ class ChartPoint:
 
 @dataclass
 class Polyline:
-    """Polyline drawing object."""
+    """Multi-point path (``polyline.new``); subject to polyline GC caps."""
 
     points: list[ChartPoint] = field(default_factory=list)
     closed: bool = False
@@ -690,7 +705,12 @@ class Polyline:
 
 
 class DrawingBuiltinsMixin(BuiltinDispatchMixin):
-    """Drawing functions for line, box, label, and table annotations."""
+    """``line.*``, ``box.*``, ``label.*``, ``table.*``, ``polyline.*`` builtins.
+
+    Objects are stored in :class:`DrawingRegistry`. Bare type casts
+    (``line(id)``, ``box(na)``, …) are identity/na-preserving handlers used by
+    typed Pine scripts.
+    """
 
     def _drawing_builtin_map(self) -> dict[str, BuiltinHandler]:
         return {

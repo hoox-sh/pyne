@@ -17,12 +17,27 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Small iteration helpers used by CLI and internal tooling."""
+
 from __future__ import annotations
 
 from itertools import zip_longest
 
 
 def grouper(iterable, n, *, incomplete="fill", fillvalue=None):
+    """Chunk *iterable* into fixed-length tuples of size *n*.
+
+    Args:
+        iterable: Source values.
+        n: Group size.
+        incomplete: How to handle a trailing short group:
+            ``"fill"`` (pad with *fillvalue*), ``"strict"`` (raise if uneven),
+            or ``"ignore"`` (drop the remainder).
+        fillvalue: Padding value when *incomplete* is ``"fill"``.
+
+    Returns:
+        An iterator of n-tuples (or shorter when incomplete is ignored).
+    """
     args = [iter(iterable)] * n
     match incomplete:
         case "fill":

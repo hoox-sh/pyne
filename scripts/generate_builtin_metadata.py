@@ -22,7 +22,14 @@
 
 This script introspects the BuiltinEvaluator and generates a structured
 JSON file with all builtin function metadata for LSP features.
+
+CLI (from repo root, with package importable)::
+
+    python scripts/generate_builtin_metadata.py
+
+Writes ``src/pynescript/langserver/providers/builtin_metadata.json``.
 """
+
 from __future__ import annotations
 
 import json

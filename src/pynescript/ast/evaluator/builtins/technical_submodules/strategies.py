@@ -17,7 +17,13 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Strategies Module: Advanced Trading Strategies & Market Timing."""
+"""Strategy-scoring and market-timing ``ta.*`` extension indicators.
+
+Handlers are composed into
+:class:`~pynescript.ast.evaluator.builtins.technical.TechnicalAnalysisMixin`.
+Not to be confused with the broker ``strategy.*`` namespace in
+:mod:`pynescript.ast.evaluator.builtins.strategy`.
+"""
 
 from __future__ import annotations
 
@@ -27,7 +33,7 @@ from .core import TechnicalHelpers
 
 
 class StrategiesIndicators(TechnicalHelpers):
-    """Strategies indicators: Advanced trading, market timing, risk management."""
+    """Market-timing and multi-factor scoring ``ta.*`` helpers (not broker strategy)."""
 
     def _builtin_ta_trend_confirmation_score(self, args: list[Any]) -> float:
         """Trend Confirmation Score.

@@ -17,6 +17,12 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""HTTP backend (Flask) suite: auth, /run, preview, backtest, and charts.
+
+Covers admin key minting, script execution modes, alert webhooks, and
+JSON-safe compile series export.
+"""
+
 from __future__ import annotations
 
 import base64

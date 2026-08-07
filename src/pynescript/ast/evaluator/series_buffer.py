@@ -96,6 +96,11 @@ class ChronologicalSeriesBuffer:
     chrono_order: bool = True
 
     def __init__(self, maxlen: int | None = None) -> None:
+        """Create an empty buffer; *maxlen* caps ring capacity (``None`` = grow).
+
+        Raises:
+            ValueError: If *maxlen* is not positive when provided.
+        """
         if maxlen is not None and maxlen <= 0:
             msg = f"maxlen must be positive or None, got {maxlen!r}"
             raise ValueError(msg)
@@ -113,6 +118,7 @@ class ChronologicalSeriesBuffer:
         return self._len
 
     def clear(self) -> None:
+        """Drop all samples; keep ring capacity when ``maxlen`` is set."""
         if self.maxlen is None:
             self._data.clear()
         else:
@@ -267,6 +273,10 @@ class RingPineSeries:
     chrono_order: bool = True
 
     def __init__(self, initial_value: Any = None, history_length: int = 1000) -> None:
+        """Create a series; seed with *initial_value* when not ``None``.
+
+        *history_length* sets ring capacity (``<= 0`` or ``None`` → uncapped).
+        """
         # history_length mirrors PineSeries maxlen; treat <=0 as uncapped.
         maxlen: int | None
         if history_length is None or history_length <= 0:  # type: ignore[comparison-overlap]

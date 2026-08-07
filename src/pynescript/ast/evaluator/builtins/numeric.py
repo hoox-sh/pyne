@@ -17,6 +17,18 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Pine ``math.*`` and bare numeric builtins (abs, max, min, …).
+
+Exposes both the v5+ ``math.*`` namespace and v3/v4 global math names
+(``pow``, ``round``, ``sqrt``, …) so mixed-version scripts resolve. Also
+covers random helpers and aggregate functions that are not series TA.
+
+Mixin composition
+-----------------
+:class:`NumericBuiltinsMixin` contributes ``_numeric_builtin_map`` into
+:class:`~pynescript.ast.evaluator.builtins.BuiltinEvaluator`.
+"""
+
 from __future__ import annotations
 
 import math
@@ -34,7 +46,11 @@ BINARY = 2
 
 
 class NumericBuiltinsMixin(BuiltinDispatchMixin):
-    """Numeric, math, and misc built-in functions."""
+    """``math.*`` and bare global numeric / trigonometry builtins.
+
+    Bare names (``max``, ``min``, ``abs``, …) remain registered for Pine v3/v4
+    scripts; ``math.*`` is the preferred v5+ form.
+    """
 
     def _numeric_builtin_map(self) -> dict[str, BuiltinHandler]:
         # Bare names (pow, max, …) are Pine v3/v4 global math; math.* is v5+.

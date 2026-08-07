@@ -17,6 +17,18 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Pine ``str.*`` builtins (and v4 bare ``tostring`` / ``tonumber`` aliases).
+
+Covers length, case, substring, replace, split, format, format_time, match,
+and numeric conversion. ``na`` inputs soft-return ``na`` where TradingView
+does (e.g. ``str.length(na)``) rather than aborting the bar.
+
+Mixin composition
+-----------------
+:class:`StringBuiltinsMixin` contributes ``_string_builtin_map`` into
+:class:`~pynescript.ast.evaluator.builtins.BuiltinEvaluator`.
+"""
+
 from __future__ import annotations
 
 import datetime
@@ -34,7 +46,11 @@ TERNARY = 3
 
 
 class StringBuiltinsMixin(BuiltinDispatchMixin):
-    """String-related built-in functions."""
+    """``str.*`` string manipulation and conversion builtins.
+
+    Includes legacy bare names ``tostring`` / ``tonumber`` for v4-era scripts
+    still present in the scraped corpus.
+    """
 
     def _string_builtin_map(self) -> dict[str, BuiltinHandler]:
         return {

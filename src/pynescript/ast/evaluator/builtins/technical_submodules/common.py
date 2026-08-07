@@ -17,7 +17,11 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Common Technical Indicators - Trend, Statistics, and Utilities."""
+"""Common ``ta.*`` trend, statistics, pivot, and utility indicators.
+
+Handlers are composed into
+:class:`~pynescript.ast.evaluator.builtins.technical.TechnicalAnalysisMixin`.
+"""
 
 from __future__ import annotations
 
@@ -34,7 +38,7 @@ from .core import TechnicalHelpers
 
 
 class CommonIndicators(TechnicalHelpers):
-    """Common technical indicators and statistical functions."""
+    """Crosses, rising/falling, pivots, VWAP, and related statistical ``ta.*``."""
 
     # -- Cross functions ----------------------------------------------------
 

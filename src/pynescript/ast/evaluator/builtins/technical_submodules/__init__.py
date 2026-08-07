@@ -17,26 +17,22 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Technical Analysis Indicator Submodules.
+"""``ta.*`` indicator implementation submodules for the evaluator.
 
-This module was refactored from a single 5,142-line file into a modular structure:
+Split from a monolithic technical module. Each submodule defines a mixin of
+``_builtin_ta_*`` handlers that subclass
+:class:`~.core.TechnicalHelpers`. They are composed by
+:class:`~pynescript.ast.evaluator.builtins.technical.TechnicalAnalysisMixin`,
+which builds the dispatch table consumed by
+:class:`~pynescript.ast.evaluator.builtins.BuiltinEvaluator`.
 
-Modules:
-- core.py: Shared validation helpers and base utilities
-- basic.py: Basic indicators (SMA, EMA, crossover, Bollinger, ATR, etc)
-- common.py: Common indicators (statistics, trend, pivot, vwap)
-- moving_averages.py: SMA, EMA, KAMA, DEMA, TEMA, HMA, VWMA, SWMA
-- oscillators.py: RSI, STOCH, MACD, CCI, ROC, WPR, TSI, divergence detectors
-- volatility.py: ATR, BB, Keltner Channels, StochRSI, linear regression, etc
-- volume.py: OBV, MFI, CMF, WAD, WVAD indicators
-- patterns.py: Engulfing, Hammer, Gap, Zigzag, Fractals, pivots
-- economics.py: Market microstructure & advanced economics
-- strategies.py: Advanced trading strategies & market timing
-- synthesizer.py: Final capstone - intelligent strategy synthesizer
-- advanced.py: Additional advanced indicators
-
-Status: Fully modularized with 13 focused modules.
-The TechnicalAnalysisMixin composes all modules for backward compatibility.
+Modules
+-------
+- **core** — series/period validation and shared TA helpers
+- **basic** / **common** / **moving_averages** — core MAs and utilities
+- **oscillators** / **volatility** / **volume** — classic indicator families
+- **patterns** / **economics** / **strategies** / **synthesizer** / **advanced**
+  — pattern recognition and extended analytics
 """
 
 from __future__ import annotations

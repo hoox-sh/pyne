@@ -1010,29 +1010,35 @@ class CompileStrategyBroker:
 
     @property
     def avg_trade(self) -> float:
+        """Mean closed-trade PnL (netprofit / closed_trades); 0 if none closed."""
         n = int(self.closed_trades)
         return float(self.netprofit) / n if n else 0.0
 
     @property
     def avg_trade_percent(self) -> float:
+        """:attr:`avg_trade` as percent of initial capital."""
         return self._pct_of_initial(self.avg_trade)
 
     @property
     def avg_winning_trade(self) -> float:
+        """Mean winning-trade PnL (grossprofit / wintrades); 0 if none."""
         n = int(self.wintrades)
         return float(self.grossprofit) / n if n else 0.0
 
     @property
     def avg_winning_trade_percent(self) -> float:
+        """:attr:`avg_winning_trade` as percent of initial capital."""
         return self._pct_of_initial(self.avg_winning_trade)
 
     @property
     def avg_losing_trade(self) -> float:
+        """Mean losing-trade loss magnitude (grossloss / losstrades); 0 if none."""
         n = int(self.losstrades)
         return float(self.grossloss) / n if n else 0.0
 
     @property
     def avg_losing_trade_percent(self) -> float:
+        """:attr:`avg_losing_trade` as percent of initial capital."""
         return self._pct_of_initial(self.avg_losing_trade)
 
     def _update_equity_extremes(self) -> None:

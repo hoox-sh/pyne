@@ -102,6 +102,10 @@ class NodeLiteralEvaluator(
     """
 
     def __init__(self, context=None, data_feed=None, data_provider=None):
+        """Initialize mixins, strategy event buffer, and ``var`` tracking.
+
+        See the class docstring for *context*, *data_feed*, and *data_provider*.
+        """
         super().__init__(context=context, data_feed=data_feed, data_provider=data_provider)
         # Support for strategy events (from plan branch integration)
         if not hasattr(self, "_strategy_state"):

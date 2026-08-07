@@ -17,9 +17,15 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Completion items builder.
+"""Completion items — build LSP lists from builtin metadata.
 
-Builds LSP CompletionItem objects from builtin metadata.
+Public builders used by :mod:`pynescript.langserver.features.completion`:
+
+- :func:`build_completion_list` — filtered builtins (optional category headers)
+- :func:`build_completion_item` — one :class:`~lsprotocol.types.CompletionItem`
+- :func:`build_module_completion` — members of a module prefix (e.g. ``ta``)
+
+Metadata comes from :mod:`pynescript.langserver.providers.builtin_metadata`.
 """
 
 from __future__ import annotations

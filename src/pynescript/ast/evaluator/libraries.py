@@ -164,6 +164,7 @@ class LibraryRegistry:
     """
 
     def __init__(self) -> None:
+        """Create empty path, title, and source maps."""
         self._by_path: dict[tuple[str, str, int], LibraryModule] = {}
         self._by_title: dict[str, LibraryModule] = {}
         self._sources: dict[tuple[str, str, int], str] = {}

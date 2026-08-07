@@ -17,7 +17,11 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Volatility indicators module - ATR, Bollinger Bands, Keltner, StochRSI, etc."""
+"""Volatility ``ta.*`` family (ATR, BB/BBW, KC/KCW, stdev, linreg, …).
+
+Handlers are composed into
+:class:`~pynescript.ast.evaluator.builtins.technical.TechnicalAnalysisMixin`.
+"""
 
 from __future__ import annotations
 
@@ -33,7 +37,7 @@ from .core import TechnicalHelpers
 
 
 class VolatilityIndicators(TechnicalHelpers):
-    """Volatility and price action indicators."""
+    """Volatility bands and dispersion: ATR, Bollinger, Keltner, stdev, linreg."""
 
     def _builtin_ta_stdev(self, args: list[Any]) -> float | None:
         """Standard Deviation."""

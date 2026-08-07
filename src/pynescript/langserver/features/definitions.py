@@ -87,9 +87,14 @@ def handle_definition(
 
 
 class DefinitionFinder(NodeVisitor):
-    """Finds definitions of symbols in Pine Script."""
+    """AST visitor that collects declaration locations for a single name.
+
+    Populates :attr:`locations` for function/type defs and assignment targets
+    matching *target_name*. Same-document only (uses *uri* for each location).
+    """
 
     def __init__(self, target_name: str, uri: str) -> None:
+        """Search for definitions of *target_name* in document *uri*."""
         super().__init__()
         self.target_name = target_name
         self.uri = uri

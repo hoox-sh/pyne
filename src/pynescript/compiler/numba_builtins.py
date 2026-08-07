@@ -288,6 +288,7 @@ def numba_atr(high, low, close, period, i):
 
 @numba.njit(cache=True)
 def numba_change(arr, length, i):
+    """Difference ``arr[i] - arr[i - length]``; na when history is short."""
     length = int(length)
     if length <= 0 or i < length:
         return np.nan
@@ -512,6 +513,7 @@ def numba_store_src(dst, val, i):
 
 @numba.njit(cache=True)
 def numba_abs(val):
+    """Absolute value of a scalar (nopython ``math.abs``)."""
     if val < 0.0:
         return -val
     return val
@@ -519,6 +521,7 @@ def numba_abs(val):
 
 @numba.njit(cache=True)
 def numba_max(a, b):
+    """Scalar maximum of two values (nopython ``math.max``)."""
     if a > b:
         return a
     return b
@@ -526,6 +529,7 @@ def numba_max(a, b):
 
 @numba.njit(cache=True)
 def numba_min(a, b):
+    """Scalar minimum of two values (nopython ``math.min``)."""
     if a < b:
         return a
     return b
@@ -608,8 +612,8 @@ def numba_cum_expr(state_arr, val, i):
 
 @numba.njit(cache=True)
 def numba_valuewhen(cond_arr, src_arr, occ, i):
-    occ = int(occ)
     """Return source at the ``occ``-th most recent true condition (0 = latest)."""
+    occ = int(occ)
     if occ < 0:
         return np.nan
     left = occ
@@ -625,9 +629,9 @@ def numba_valuewhen(cond_arr, src_arr, occ, i):
 
 @numba.njit(cache=True)
 def numba_pivothigh(arr, left, right, i):
+    """Pivot high confirmed at bar ``i`` (center = i - right)."""
     left = int(left)
     right = int(right)
-    """Pivot high confirmed at bar ``i`` (center = i - right)."""
     if left < 0 or right < 0:
         return np.nan
     c = i - right
@@ -646,9 +650,9 @@ def numba_pivothigh(arr, left, right, i):
 
 @numba.njit(cache=True)
 def numba_pivotlow(arr, left, right, i):
+    """Pivot low confirmed at bar ``i`` (center = i - right)."""
     left = int(left)
     right = int(right)
-    """Pivot low confirmed at bar ``i`` (center = i - right)."""
     if left < 0 or right < 0:
         return np.nan
     c = i - right
@@ -667,8 +671,8 @@ def numba_pivotlow(arr, left, right, i):
 
 @numba.njit(cache=True)
 def numba_stoch(source, high, low, length, i):
-    length = int(length)
     """Stochastic %K: (src - lowest(low)) / (highest(high) - lowest(low)) * 100."""
+    length = int(length)
     if length <= 0 or i < length - 1:
         return np.nan
     hh = high[i]
@@ -689,8 +693,8 @@ def numba_stoch(source, high, low, length, i):
 
 @numba.njit(cache=True)
 def numba_cci(arr, length, i):
-    length = int(length)
     """CCI on a single source series (typical price or explicit source)."""
+    length = int(length)
     if length <= 0 or i < length - 1:
         return np.nan
     mean = 0.0
@@ -774,8 +778,8 @@ def numba_sar(high, low, start, increment, maximum, i):
 
 @numba.njit(cache=True)
 def numba_percentile_nearest_rank(arr, length, percentage, i):
-    length = int(length)
     """Nearest-rank percentile over last ``length`` bars ending at ``i``."""
+    length = int(length)
     if length <= 0 or i < length - 1:
         return np.nan
     # Copy window and insertion-sort (numba-friendly)
@@ -818,13 +822,13 @@ def numba_barssince(cond_arr, i):
 
 @numba.njit(cache=True)
 def numba_linreg(arr, length, offset, i):
-    length = int(length)
-    offset = int(offset)
     """Least-squares linear regression of ``arr`` over ``length``, value at offset.
 
     x runs 0..length-1 (oldest->newest). Result is the fitted value at
     ``x = length - 1 - offset`` (offset=0 -> current bar on the regression line).
     """
+    length = int(length)
+    offset = int(offset)
     if length < 2 or i < length - 1:
         return np.nan
     n = float(length)
@@ -851,8 +855,8 @@ def numba_linreg(arr, length, offset, i):
 
 @numba.njit(cache=True)
 def numba_vwma(src, vol, length, i):
-    length = int(length)
     """Volume-weighted MA: sum(src*vol) / sum(vol) over last ``length`` bars."""
+    length = int(length)
     if length <= 0 or i < length - 1:
         return np.nan
     sum_pv = 0.0
@@ -871,11 +875,11 @@ def numba_vwma(src, vol, length, i):
 
 @numba.njit(cache=True)
 def numba_mfi(high, low, close, vol, length, i):
-    length = int(length)
     """Money Flow Index over ``length`` money-flow samples ending at ``i``.
 
     Needs ``length + 1`` typical-price samples (direction vs previous bar).
     """
+    length = int(length)
     if length <= 0 or i < length:
         return np.nan
     pos = 0.0
@@ -936,8 +940,8 @@ def numba_rci(arr, length, i):
 
 @numba.njit(cache=True)
 def numba_rising(arr, length, i):
-    length = int(length)
     """True if ``arr`` rose strictly for ``length`` consecutive bars."""
+    length = int(length)
     if length <= 0 or i < length:
         return False
     for j in range(length):
@@ -950,8 +954,8 @@ def numba_rising(arr, length, i):
 
 @numba.njit(cache=True)
 def numba_falling(arr, length, i):
-    length = int(length)
     """True if ``arr`` fell strictly for ``length`` consecutive bars."""
+    length = int(length)
     if length <= 0 or i < length:
         return False
     for j in range(length):
@@ -1064,8 +1068,8 @@ def numba_obv(close, vol, i):
 
 @numba.njit(cache=True)
 def numba_wma(arr, length, i):
-    length = int(length)
     """Linear weighted MA: newest bar weight = length, oldest weight = 1."""
+    length = int(length)
     if length <= 0 or i < length - 1:
         return np.nan
     weighted = 0.0
@@ -1084,8 +1088,8 @@ def numba_wma(arr, length, i):
 
 @numba.njit(cache=True)
 def numba_roc(arr, length, i):
-    length = int(length)
     """Rate of Change: 100 * (arr[i] - arr[i-length]) / arr[i-length]."""
+    length = int(length)
     if length <= 0 or i < length:
         return np.nan
     baseline = arr[i - length]
@@ -1096,8 +1100,8 @@ def numba_roc(arr, length, i):
 
 @numba.njit(cache=True)
 def numba_sum(arr, period, i):
-    period = int(period)
     """Rolling sum of last ``period`` bars ending at ``i``."""
+    period = int(period)
     if period <= 0 or i < period - 1:
         return np.nan
     s = 0.0
@@ -1111,8 +1115,8 @@ def numba_sum(arr, period, i):
 
 @numba.njit(cache=True)
 def numba_variance(arr, period, i):
-    period = int(period)
     """Sample variance (n-1) over last ``period`` bars — ``stdev**2``."""
+    period = int(period)
     if period <= 1 or i < period - 1:
         return np.nan
     mean = 0.0
@@ -1131,8 +1135,8 @@ def numba_variance(arr, period, i):
 
 @numba.njit(cache=True)
 def numba_dev(arr, period, i):
-    period = int(period)
     """Mean absolute deviation from SMA over last ``period`` bars."""
+    period = int(period)
     if period <= 0 or i < period - 1:
         return np.nan
     mean = 0.0
@@ -1150,8 +1154,8 @@ def numba_dev(arr, period, i):
 
 @numba.njit(cache=True)
 def numba_correlation(a, b, period, i):
-    period = int(period)
     """Pearson correlation of series ``a`` and ``b`` over last ``period`` bars."""
+    period = int(period)
     if period < 2 or i < period - 1:
         return np.nan
     mean_a = 0.0
@@ -1181,13 +1185,13 @@ def numba_correlation(a, b, period, i):
 
 @numba.njit(cache=True)
 def numba_alma(arr, length, offset, sigma, i):
-    length = int(length)
     """Arnaud Legoux Moving Average over last ``length`` bars ending at ``i``.
 
     Weights: Gaussian centered at ``m = offset * (length - 1)`` with
     ``s = length / sigma`` (TV defaults offset=0.85, sigma=6).
     Index 0 in the weight loop is the oldest bar in the window.
     """
+    length = int(length)
     if length <= 0 or i < length - 1:
         return np.nan
     if sigma == 0.0:
@@ -1233,8 +1237,8 @@ def _numba_wma_at(arr, end_idx, period):
 
 @numba.njit(cache=True)
 def numba_hma(arr, length, i):
-    length = int(length)
     """Hull Moving Average: WMA(2*WMA(n/2) - WMA(n), sqrt(n)) at bar ``i``."""
+    length = int(length)
     if length <= 0 or i < length - 1:
         return np.nan
     half = length // 2
@@ -1398,14 +1402,14 @@ def numba_hma_inc(arr, length, i, st, raw):
 
 @numba.njit(cache=True)
 def numba_tsi(arr, short_len, long_len, i):
-    short_len = int(short_len)
-    long_len = int(long_len)
     """True Strength Index: double-smoothed momentum / double-smoothed |mom|.
 
     TV: ``ta.tsi(source, short_length, long_length)`` —
     ``100 * EMA(EMA(mom, long), short) / EMA(EMA(|mom|, long), short)``.
     EMAs use SMA seed (same as ``numba_ema``).
     """
+    short_len = int(short_len)
+    long_len = int(long_len)
     if short_len <= 0 or long_len <= 0:
         return np.nan
     need = long_len + short_len - 1

@@ -17,14 +17,21 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Real-time and Historical Data Integration for PyneScript.
+"""Historical market data providers for Pine evaluation and CLI ``data``.
 
-This module provides data connectors for fetching market data:
-- Mock provider for testing
-- Yahoo Finance (yfinance)
-- Alpha Vantage API
+Providers:
 
-Usage:
+- :class:`MockDataProvider` — deterministic synthetic OHLCV (tests / demos)
+- :class:`YahooFinanceProvider` — yfinance bars
+- :class:`AlphaVantageProvider` — Alpha Vantage REST
+- :class:`CCXTProvider` — crypto OHLCV via CCXT
+- :class:`ChartOHLCVProvider` — in-memory chart bars for ``request.security``
+
+Factory helpers: :func:`get_provider`, :func:`resolve_request_sources`
+(wires Runtime / Pro API ``data_source`` options).
+
+Usage::
+
     from pynescript.util.data import YahooFinanceProvider
 
     provider = YahooFinanceProvider()

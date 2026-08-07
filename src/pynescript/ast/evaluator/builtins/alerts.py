@@ -97,7 +97,12 @@ class AlertCondition:
 
 
 class AlertsMixin(BuiltinDispatchMixin):
-    """Alert-related built-in functions and execution engine."""
+    """``alert`` / ``alertcondition`` builtins and frequency-gated fire engine.
+
+    Records :class:`AlertEvent` / :class:`AlertCondition` on the evaluator for
+    host export after each run. Frequency constants
+    (``alert.freq_once_per_bar``, …) are registered in the dispatch map.
+    """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)

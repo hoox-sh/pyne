@@ -17,6 +17,22 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Dispatch infrastructure and period/int coercion for evaluator builtins.
+
+Defines :data:`BuiltinHandler`, period/length coercion helpers
+(:func:`pine_expect_int`, :func:`pine_period_or_none`), and
+:class:`BuiltinDispatchMixin` — the shared base for all builtin mixins.
+
+Mixin composition
+-----------------
+Each category module (``numeric``, ``arrays``, ``technical``, …) subclasses
+:class:`BuiltinDispatchMixin` and exposes a ``_*_builtin_map()`` method. Those
+maps are merged by :class:`~pynescript.ast.evaluator.builtins.BuiltinEvaluator`
+into a single name→handler table used by the expression evaluator’s
+``_call_builtin`` path. Keyword-argument merging and list-style vs plain
+``*args`` handlers are resolved here so individual mixins stay thin.
+"""
+
 from __future__ import annotations
 
 import inspect
@@ -413,7 +429,13 @@ def _handler_param_names(handler: Callable) -> list[str] | None:
 
 
 class BuiltinDispatchMixin:
-    """Shared dispatch utilities for built-in evaluators."""
+    """Shared builtin dispatch, error reporting, and kwargs→args merging.
+
+    Subclassed by every category mixin. Provides :meth:`_call_builtin` (name
+    lookup, list-style vs plain handlers, resolved-handler cache) and common
+    helpers such as ``_error`` / ``_expect_int``. Category mixins only implement
+    handlers and a ``_*_builtin_map()`` that :class:`BuiltinEvaluator` merges.
+    """
 
     _builtin_dispatch: dict[str, BuiltinHandler] | None = None
 

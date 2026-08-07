@@ -17,7 +17,19 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Script declaration functions for PineScript v6 evaluator."""
+"""Pine ``indicator()`` / ``strategy()`` / ``library()`` script declarations.
+
+Parses positional and keyword forms into :class:`ScriptDeclaration` metadata
+(title, overlay, max drawing counts, broker kwargs). The aggregate
+:class:`~pynescript.ast.evaluator.builtins.BuiltinEvaluator` wraps these
+handlers so the first evaluation stores ``_script_declaration`` and configures
+drawing GC / strategy state.
+
+Registration
+------------
+:func:`register_script_declaration_functions` injects the bare declaration
+names (and ``study`` alias) into the builtin dispatch map.
+"""
 
 from __future__ import annotations
 
@@ -27,7 +39,11 @@ from typing import Any
 
 @dataclass
 class ScriptDeclaration:
-    """Metadata for a PineScript script (indicator, strategy, or library)."""
+    """Parsed metadata from ``indicator()`` / ``strategy()`` / ``library()``.
+
+    Stored on the evaluator as ``_script_declaration`` for hosts (overlay,
+    title, drawing caps, strategy broker kwargs).
+    """
 
     script_type: str  # "indicator", "strategy", or "library"
     title: str = ""

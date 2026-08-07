@@ -17,7 +17,15 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LSP protocol utilities."""
+"""LSP protocol utilities (positions, words, completion triggers).
+
+Public helpers used by feature handlers:
+
+- :func:`position_from_offset` / :func:`offset_from_position` — coordinate conversion
+- :func:`get_word_at_position` — identifier (including ``module.member``) under cursor
+- :func:`get_trigger_char` — character immediately before the cursor
+- :func:`extract_module_prefix` / :func:`build_filter_text` — completion helpers
+"""
 
 from __future__ import annotations
 

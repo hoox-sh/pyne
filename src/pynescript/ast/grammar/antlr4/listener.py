@@ -17,7 +17,10 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""ANTLR4 listener wiring for the resource Pine Script grammar."""
+
 from __future__ import annotations
+
 
 from .generated import PinescriptParserListener
 

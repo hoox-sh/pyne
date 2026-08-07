@@ -17,10 +17,10 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Nautilus Trader Integration for Pine Script Strategies.
+"""Nautilus Trader integration for Pine Script strategies.
 
-Experimental integration layer for using Pine Script strategies
-with the Nautilus Trader algorithmic trading platform.
+Experimental layer: :class:`~pynescript.ext.nautilus_trader.strategy.PinescriptStrategy`
+and its config. Requires the optional ``nautilus_trader`` dependency.
 """
 
 from __future__ import annotations

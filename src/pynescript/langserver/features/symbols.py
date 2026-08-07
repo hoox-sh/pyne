@@ -73,9 +73,15 @@ def handle_document_symbols(
 
 
 class DocumentSymbolCollector(NodeVisitor):
-    """Collects document symbols for outline view."""
+    """AST visitor that builds a hierarchical document outline.
+
+    Collects functions, user-defined types (with fields), and assignments into
+    :attr:`symbols`. Nested assignments under a function become children of that
+    function symbol.
+    """
 
     def __init__(self, uri: str) -> None:
+        """Collect outline symbols for document *uri*."""
         super().__init__()
         self.uri = uri
         self.symbols: list[lsp.DocumentSymbol] = []

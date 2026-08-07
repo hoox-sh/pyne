@@ -17,10 +17,12 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Pygments Syntax Highlighting for Pine Script.
+"""Pygments syntax highlighting for Pine Script.
 
-Provides a Pygments lexer for Pine Script code with proper token classification
-for syntax highlighting in documentation and code viewers.
+:class:`~pynescript.ext.pygments.lexers.PinescriptLexer` maps ANTLR4 tokens
+to Pygments token types for docs, Sphinx, and code viewers. Import from
+:mod:`pynescript.ext.pygments.lexers` or register via Pygments plugin entry
+points when packaged.
 """
 
 from __future__ import annotations

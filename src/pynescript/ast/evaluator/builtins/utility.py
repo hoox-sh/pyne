@@ -17,6 +17,20 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Time, calendar, and general utility builtins for the evaluator.
+
+Implements ``timestamp``, ``time``, ``year``/``month``/… component extractors,
+timezone parsing (UTC offsets and IANA names), and related helpers used by
+scripts that are not under ``ta.*`` or ``math.*``.
+
+Mixin composition
+-----------------
+:class:`UtilityFunctionsMixin` contributes ``_utility_builtin_map`` into
+:class:`~pynescript.ast.evaluator.builtins.BuiltinEvaluator`. Hot-path
+``timestamp`` component construction is cached via
+:func:`_timestamp_ms_from_components`.
+"""
+
 from __future__ import annotations
 
 import re
@@ -162,7 +176,12 @@ def _tz_offset_seconds(tzinfo: Any, ref: datetime | None = None) -> int:
 
 
 class UtilityFunctionsMixin(BuiltinDispatchMixin):
-    """Utility and time-related built-in functions."""
+    """Calendar, wall-clock, and miscellaneous utility builtins.
+
+    Component functions (``year``, ``hour``, …) and ``timestamp`` accept
+    TradingView-style overflow (month 0, hour 24, …) via shared normalization
+    helpers at module scope.
+    """
 
     def _utility_builtin_map(self) -> dict[str, BuiltinHandler]:
         return {

@@ -119,7 +119,10 @@ class PlotStyle:
 
 
 class PlotRegistry:
-    """Registry for plot objects created during script evaluation."""
+    """Process-level list of :class:`Plot` instances for the current run.
+
+    Reset between evaluations; :meth:`active` filters deleted entries.
+    """
 
     plots: ClassVar[list[Plot]] = []
 
@@ -447,7 +450,11 @@ def _fill_plot(
 
 
 class PlottingFunctionsMixin(BuiltinDispatchMixin):
-    """Plotting functions with registry side effects for non-UI evaluation."""
+    """``plot``, ``hline``, ``bgcolor``, ``fill``, ``plotshape``/``char``/… builtins.
+
+    Each call registers a :class:`Plot` on :class:`PlotRegistry` (or reuses a
+    call-site slot in bar mode) so hosts can inspect visual series without a UI.
+    """
 
     def _plotting_builtin_map(self) -> dict[str, BuiltinHandler]:
         return {

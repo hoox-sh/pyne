@@ -90,6 +90,7 @@ class SQLiteKeyStore:
                     pass
 
     def create(self, key_id: str, key_hash: str, tier: str, calls_limit: int | float) -> None:
+        """Insert a new hashed key row."""
         with self._lock:
             self._conn.execute(
                 "INSERT INTO api_keys (key_hash, key_id, tier, calls_used, calls_limit, created_at, last_used)"
@@ -98,6 +99,7 @@ class SQLiteKeyStore:
             )
 
     def get_by_hash(self, key_hash: str) -> dict[str, Any] | None:
+        """Return the key record for *key_hash*, or ``None``."""
         with self._lock:
             row = self._conn.execute(
                 "SELECT key_id, key_hash, tier, calls_used, calls_limit, created_at, last_used"
@@ -117,6 +119,7 @@ class SQLiteKeyStore:
         }
 
     def get_by_id(self, key_id: str) -> dict[str, Any] | None:
+        """Return the key record for public *key_id*, or ``None``."""
         with self._lock:
             row = self._conn.execute(
                 "SELECT key_id, key_hash, tier, calls_used, calls_limit, created_at, last_used"
@@ -136,11 +139,13 @@ class SQLiteKeyStore:
         }
 
     def delete_by_hash(self, key_hash: str) -> bool:
+        """Delete by hash; returns whether a row was removed."""
         with self._lock:
             cur = self._conn.execute("DELETE FROM api_keys WHERE key_hash = ?", (key_hash,))
             return cur.rowcount > 0
 
     def update_calls(self, key_id: str, calls_used: int, last_used: float) -> None:
+        """Persist usage counters for *key_id*."""
         with self._lock:
             self._conn.execute(
                 "UPDATE api_keys SET calls_used = ?, last_used = ? WHERE key_id = ?",
@@ -148,5 +153,6 @@ class SQLiteKeyStore:
             )
 
     def close(self) -> None:
+        """Close the SQLite connection."""
         with self._lock:
             self._conn.close()
