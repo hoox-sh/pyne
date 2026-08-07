@@ -19,41 +19,38 @@
 
 ---
 title: "CLI Guide"
-description: "Use the pynescript Click CLI to dump ASTs, round-trip format, lint scripts, fetch market data, and download builtin corpora."
+description: "Use the pynescript Click CLI to check, format, lint, compile, run, prewarm, fetch data, and more."
 ---
 
 # CLI Guide
 
 ## Abstract
 
-The `pynescript` console script is a thin Click group over the same helpers used by the library API. It is optimized for **shell pipelines, CI gates, and one-shot inspection** — not for multi-bar evaluation (use the library `Runtime` or Pro API for that). This guide covers workflows; exhaustive flags are in [CLI commands](/pyne/docs/enduser/reference/cli-commands).
+The `pynescript` console script is a Click group over the same helpers used by the library API. Install with **`pip install hoox-pyne`** ([live on PyPI](https://pypi.org/project/hoox-pyne/)). It is optimized for **shell pipelines, CI gates, one-shot inspection, and light compile/run smokes**. Full multi-bar evaluation with real OHLCV belongs on the library `Runtime` or Pro API. Exhaustive flags: [CLI commands](/pyne/docs/enduser/reference/cli-commands).
 
 ## Conceptual model
 
 ```mermaid
 flowchart LR
-  F[.pine file / stdin] --> C[pynescript]
+  F[.pine / .pyne / stdin] --> C[pynescript]
+  C --> CH[check]
+  C --> FMT[format]
   C --> D[parse-and-dump]
-  C --> U[parse-and-unparse]
   C --> L[lint]
+  C --> CO[compile / prewarm / run]
   C --> M[data]
-  C --> B[download-builtin-scripts]
-  D --> OUT1[AST text]
-  U --> OUT2[normalized source]
-  L --> OUT3[diagnostics + exit code]
-  M --> OUT4[bar summary]
-  B --> OUT5[corpus .pine files]
+  C --> I[info]
 ```
 
-Commands mirror `pynescript.ast.helper` and friends:
-
-| CLI | Library |
+| CLI | Library / subsystem |
 | --- | --- |
-| `parse-and-dump` | `parse` + `dump` |
-| `parse-and-unparse` | `parse` + `unparse` |
+| `check` | `parse` only (exit codes) |
+| `format` / `fmt` | `parse` + `unparse` |
+| `parse-and-dump` / `dump` | `parse` + `dump` |
 | `lint` | `lint_script` |
+| `compile` / `prewarm` / `run` | `pynescript.compiler` (+ `[compile]` extra) |
 | `data` | `pynescript.util.data.get_provider` |
-| `download-builtin-scripts` | `pynescript.util.pine_facade.download_builtin_scripts` |
+| `info` | version + optional extras |
 
 ## Interface surface
 
@@ -65,13 +62,19 @@ pynescript <command> --help
 
 | Command | Input | Output |
 | --- | --- | --- |
-| `parse-and-dump PATH` | file | AST dump (stdout or `--output-file`) |
+| `check PATHS…` | files / dirs / stdin | ok/fail lines + exit code |
+| `format PATH` | file or `-` | formatted source (`-w` / `--check`) |
+| `parse-and-dump PATH` | file | AST dump |
 | `parse-and-unparse PATH` | file | Pine source |
-| `lint [PATH\|-]` | file or stdin | human diagnostics |
-| `data SYMBOL` | symbol + provider opts | summary stats |
-| `download-builtin-scripts` | `--script-dir` | downloads reference scripts |
+| `lint [PATH\|-]` | file or stdin | diagnostics (`--json`) |
+| `compile PATH` | file | emit Python or compile-check |
+| `prewarm [PATH…]` | optional files | warm Numba / IR cache |
+| `run PATH` | file | synthetic-bar execute |
+| `data SYMBOL` | symbol + provider opts | table / json / csv |
+| `info` | — | version + extras |
+| `download-builtin-scripts` | `--script-dir` | corpus downloads |
 
-**Not** part of this Click group: starting the language server — use `pynescript-lsp`.
+**Not** part of this Click group: language server — use `pynescript-lsp`.
 
 ## Install options
 
@@ -102,9 +105,11 @@ chmod +x pynescript-cli-linux-x86_64
 | `src/pynescript/__main__.py` | All command implementations |
 | `src/pynescript/ast/helper.py` | `parse`, `dump`, `unparse` |
 | `src/pynescript/ast/linter.py` | `lint_script` |
+| `src/pynescript/compiler/` | `compile` / `prewarm` / `run` |
 | `src/pynescript/util/data.py` | providers + `DataProviderError` |
 | `src/pynescript/util/pine_facade.py` | builtin script download |
 | `examples/` | sample `.pine` inputs |
+| `tests/test_cli.py` | CLI unit suite (CI) |
 
 ## Invariants & edge cases
 

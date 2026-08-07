@@ -2,31 +2,20 @@
 #
 # This file is part of pynescript.
 #
-# pynescript is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# pynescript is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Affero General Public License for more details.
-#
-# You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
-#
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
 title: "Local development"
-description: "Install, test, lint, and run PYNE surfaces on a developer machine — Make, hatch, Bun, and dual-language loops."
+description: "Install, test, lint, package, and run PYNE — Make targets after AXIS extraction."
 ---
 
 # Local development
 
 ## Abstract
 
-A PYNE checkout is a **polyglot workspace**: Python (src-layout package + Flask backend), TypeScript/Bun (AXIS frontend, Cloudflare worker, `pine-worker`), and Node (VS Code extension). Local DevOps is about choosing the right orthography for the surface you are changing without spinning up the entire mesh.
+A PYNE checkout is a **Python-first workspace**: src-layout package + Flask Pro API,
+optional VS Code extension (Node), and colocated `pine-worker` (Bun/TS). The AXIS
+charting PWA is a **sister repo** ([axis](https://github.com/jango-blockchained/axis)) — do not recreate `frontend/` here.
 
 ## Conceptual model
 
@@ -35,10 +24,10 @@ flowchart LR
   SRC[src/pynescript] --> CLI[pynescript CLI]
   SRC --> LSP[pynescript-lsp]
   SRC --> LIB[import pynescript]
-  BE[backend/] --> API[Flask :8080 / :5002]
-  FE[frontend/] --> PWA[Bun server :8081]
-  PW[pine-worker/] --> BUN[bun test]
+  BE[backend/] --> API[Flask :5002]
   VSC[vscode-extension/] --> VSIX[vsce package]
+  PW[pine-worker/] --> BUN[bun test]
+  DOCK[Dockerfile] --> IMG[api · cli · lsp]
 ```
 
 ## Interface surface
@@ -47,123 +36,104 @@ flowchart LR
 
 | Target | Effect |
 | --- | --- |
-| `make install` | `pip install -e ".[lsp]"` |
-| `make install-bun` | Root + `frontend/worker` Bun deps |
-| `make test` | Frontend Bun tests + full `pytest tests/` |
-| `make test-lsp` | `test_langserver.py` + `test_lsp_features.py` |
+| `make install` | `pip install -e ".[lsp,pro]"` |
+| `make test` | full `pytest tests/` |
+| `make test-cli` | `tests/test_cli.py` |
+| `make test-lsp` | langserver + lsp_features |
 | `make test-backend` | `tests/test_backend.py` |
-| `make lint` / `make fmt` | Ruff check / format on `src/`, `tests/`, `backend/` |
-| `make typecheck` | Root TS + frontend worker `tsc` |
-| `make build` | Nuitka LSP via `scripts/build/compile.py --jobs=4` |
-| `make build-check` | Fast import resolution only (~30s) |
-| `make build-vscode` | Compile + package VSIX |
-| `make run` | `python -m backend.app` |
+| `make lint` / `make fmt` | Ruff on `src/`, `tests/`, `backend/` |
+| `make package` | sdist + wheel (`python -m build`) |
+| `make build` | Nuitka **LSP** binary |
+| `make build-cli` | Nuitka **CLI** binary |
+| `make build-check` | import check for lsp+cli (~30s) |
+| `make build-vscode` | compile + package VSIX |
+| `make run` | Flask Pro API (`:5002` typical) |
 | `make run-lsp` | `python -m pynescript.langserver` |
-| `make run-frontend` | AXIS PWA on `:8081` (expects API on `:5002`) |
-| `make docker-build` | `docker buildx bake api` (production image) |
-| `make docker-build-all` | bake api + api-dev + lsp |
+| `make docker-build` | bake **api** |
+| `make docker-build-cli` | bake **cli** |
+| `make docker-build-all` | api + api-dev + lsp + cli |
 | `make docker-buildx` | multi-platform release bake |
-| `make docker-up` / `docker-run` | compose API on `:5002` (dev target) |
-| `make docker-up-full` | compose with redis profile (not lsp) |
-| `make docker-prod` | gunicorn overlay, no source mounts (needs `ADMIN_TOKEN`) |
-| `make docker-smoke` | curl healthcheck on `:5002` |
-| `make docker-down` / `docker-logs` | stop stack / follow API logs |
+| `make docker-cli ARGS="…"` | compose profile cli (ephemeral) |
+| `make docker-up` | compose API on `:5002` |
+| `make docker-up-full` | + redis profile |
+| `make docker-prod` | gunicorn overlay (`ADMIN_TOKEN` required) |
+| `make docker-smoke` | curl health on `:5002` |
+| `make docker-down` / `docker-logs` | stop / logs |
 
-### Hatch equivalents
+### Hatch
 
 ```bash
 hatch run test:test
 hatch run test:test-cov
 hatch run lint:style
 hatch run lint:typing
-hatch run lint:gen-parser   # ANTLR regeneration — see grammar guide
+hatch run lint:gen-parser
 ```
 
-See also `CONTRIBUTING.md` and `AGENTS.md` for hatch-first workflows.
+### Quick desk loop
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[lsp,compile,pro]"
+pynescript info
+pynescript check examples/rsi_strategy.pine
+make test-cli
+make run   # Pro API
+```
+
+### From PyPI (no checkout)
+
+```bash
+pip install "hoox-pyne[lsp,compile]"
+pynescript --version
+```
 
 ## Internals
 
-| Path | Why it matters locally |
+| Path | Why it matters |
 | --- | --- |
-| `src/pynescript/` | Editable package root (src-layout) |
-| `tests/conftest.py` | Parametrizes `pinescript_filepath` over every `tests/data/builtin_scripts/*.pine` (~hundreds of cases) |
-| `tests/data/library/` | Reference corpus only — not auto-parametrized |
-| `backend/requirements.txt` | Extra deps for Pro API (Flask, numpy, matplotlib, …) |
-| `pine-worker/` | Colocated TS port; Bun tests independent of Python wheel |
+| `src/pynescript/` | Editable package root |
+| `tests/conftest.py` | Parametrizes huge `builtin_scripts` corpus — avoid in CI-critical new tests |
+| `backend/requirements.txt` | Pro API deps (also covered by `[pro]` extra) |
+| `pine-worker/` | Colocated TS port; independent Bun tests |
+| `vscode-extension/` | PYNE VS Code extension |
+| `Dockerfile` | targets `api`, `api-dev`, `lsp`, **`cli`** |
 
-### Python requirements
+### Python
 
-- **Requires-Python:** `>=3.10` (`pyproject.toml`)
+- **Requires-Python:** `>=3.10`
 - **CI matrix:** 3.10–3.13
-- **Recommended local:** 3.12 or 3.13 with a virtualenv / hatch env
+- **Recommended:** 3.12+ with venv
 
 ### Optional extras
 
-```bash
-pip install -e ".[lsp]"       # pygls + lsprotocol
-pip install -e ".[dev-lsp]"   # + pytest-lsp for e2e LSP
-pip install -e ".[data]"      # ccxt for data providers
-pip install -r backend/requirements.txt
-```
+| Extra | Adds |
+| --- | --- |
+| `lsp` | pygls / lsprotocol → `pynescript-lsp` |
+| `compile` | numpy / numba |
+| `data` / `datafeed` | ccxt |
+| `pro` | Flask + gunicorn + matplotlib + redis + compile |
 
-## Invariants & edge cases
+## Invariants
 
-1. **`from __future__ import annotations` is mandatory** on every new Python file (ruff isort `required-imports`).
-2. **Do not edit generated grammar.** Change only `src/pynescript/ast/grammar/antlr4/resource/*.g4`, then regenerate.
-3. **No stale backups in `src/`.** Live `builder.py` and `technical.py` are sole sources of truth.
-4. **Corpus fixture cost.** Any test using `pinescript_filepath` multiplies across the builtin script corpus. Narrow with `--example-scripts-dir=...` when iterating.
-5. **Console scripts are separate.** Installing `.[lsp]` gives both `pynescript` and `pynescript-lsp`; invoking the wrong one is a common first-day footgun.
-
-## Worked examples
-
-### Library + parse round-trip
-
-```bash
-make install
-python -c "from pynescript.ast.helper import parse, unparse; print(unparse(parse('//@version=6\nindicator(\"x\")\nplot(close)')))"
-```
-
-### Pro API + AXIS
-
-```bash
-# terminal 1
-make run
-# terminal 2
-make run-frontend
-# open http://127.0.0.1:8081 — /run hits backend on :5002 per compose/docs convention
-```
-
-### LSP without Nuitka
-
-```bash
-make install
-make run-lsp
-# point editor to stdio server: python -m pynescript.langserver
-```
-
-### pine-worker only
-
-```bash
-cd pine-worker
-bun install
-bun test
-bun run typecheck
-```
+1. **No `frontend/` in this repo** — AXIS is external.
+2. **`from __future__ import annotations`** required on new Python modules.
+3. **Grammar edits** only under `resource/`; regenerate via hatch, don’t hand-edit generated parser.
+4. **Corpus fixture** runs hundreds of cases — prefer focused unit tests for CI paths.
+5. **CLI Docker** runs as uid 1000; bind-mounts must be readable by others.
 
 ## Failure modes
 
-| Symptom | Cause | Mitigation |
-| --- | --- | --- |
-| `ModuleNotFoundError: pynescript` | Not editable-installed | `make install` |
-| Hundreds of unexpected test failures | Editing shared conftest fixture | Isolate unit tests; avoid corpus fixture |
-| Frontend  fails calling API | Backend not on expected port | Start `make run`; check CORS / `ALLOWED_ORIGINS` |
-| `antlr4` not found | CLI not on PATH | Use hatch `lint:gen-parser` or full path to `antlr4` |
-| Ruff `I` import errors | Missing future annotations | Add `from __future__ import annotations` |
+| Symptom | Fix |
+| --- | --- |
+| `No module named pynescript` | activate venv; `pip install -e .` or `hoox-pyne` |
+| Pro API ImportError flask | `pip install "hoox-pyne[pro]"` or backend requirements |
+| Nuitka missing | `pip install nuitka`; `make build-check` first |
+| Docker CLI can’t read file | chmod host path; don’t use 0700-only dirs |
 
 ## See also
 
+- [Installation](/pyne/docs/enduser/getting-started/installation)
 - [CI](/pyne/docs/devops/ci)
 - [Docker](/pyne/docs/devops/docker)
 - [Nuitka build](/pyne/docs/devops/nuitka-build)
-- [Contributing](/pyne/docs/contributing)
-- [Installation (end user)](/pyne/docs/enduser/getting-started/installation)

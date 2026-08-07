@@ -2,33 +2,26 @@
 #
 # This file is part of pynescript.
 #
-# pynescript is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# pynescript is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Affero General Public License for more details.
-#
-# You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
-#
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
 title: "Continuous integration"
-description: "GitHub Actions matrix for lint, Python tests, backend, VSIX, AXIS PWA, e2e smoke, and nightly gates."
+description: "GitHub Actions for lint, Python 3.10–3.13 tests, package build, Docker api+cli smoke, and VS Code extension."
 ---
 
 # Continuous integration
 
 ## Abstract
 
-CI is the **public invariant check** for the monorepo-like layout. A single PR can touch the Python evaluator, the Flask API, the VS Code extension, the AXIS PWA, and a Cloudflare Worker typecheck — the workflow graph is deliberately fan-out with concurrency cancellation on newer pushes to the same ref.
+CI is the **public invariant check** for the **pyne** repo after AXIS extraction.
+Workflows live under [`.github/workflows/`](https://github.com/hoox-sh/pyne/tree/main/.github/workflows).
+AXIS PWA/e2e CI lives in the sister [axis](https://github.com/jango-blockchained/axis) repo — **not** here.
 
-Primary definition: [`.github/workflows/ci.yml`](https://github.com/hoox-sh/pyne/blob/main/.github/workflows/ci.yml). AXIS CI lives in the sister [axis](https://github.com/jango-blockchained/axis) repo. Release / PyPI builds are separate (`release.yml`, `publish.yml`).
+| Workflow | Role |
+| --- | --- |
+| `ci.yml` | Lint, test matrix, package, Docker, VSIX |
+| `release.yml` | Tag `v*`: wheels, CLI/LSP Nuitka binaries, CLI image, VSIX, GitHub Release |
+| `publish.yml` | PyPI upload (`hoox-pyne`) via API token or OIDC |
 
 ## Conceptual model
 
@@ -37,12 +30,11 @@ flowchart TB
   PUSH[push / PR → main] --> CONC[concurrency: ci-ref]
   CONC --> LINT[lint]
   CONC --> TEST[test matrix 3.10–3.13]
-  CONC --> BE[backend-test]
+  CONC --> PKG[package sdist+wheel]
+  CONC --> DOCK[docker api + cli]
   CONC --> VSC[vscode-ext-test]
-  CONC --> PWA[pwa Bun]
-  CONC --> E2E[axis-e2e smoke]
-  CONC --> CF[cf-worker typecheck]
-  NIGHT[schedule 04:00 UTC] --> FULL[axis-nightly full e2e + security]
+  TAG[tag v*] --> REL[release.yml]
+  TAG --> PUB[publish.yml]
 ```
 
 ## Interface surface
@@ -51,104 +43,79 @@ flowchart TB
 
 | Workflow | On | Purpose |
 | --- | --- | --- |
-| `ci.yml` | push/PR to `main` | Required-path confidence |
-| `axis-nightly.yml` | cron `0 4 * * *` + `workflow_dispatch` | Full Playwright + security + coverage gate |
-| `release.yml` | tags `v*` + dispatch | LSP binaries + VSIX + GitHub Release |
+| `ci.yml` | push/PR to `main` | Required confidence |
+| `release.yml` | tags `v*` + dispatch | Binaries + VSIX + GitHub Release |
+| `publish.yml` | tags `v*` + dispatch | PyPI `hoox-pyne` |
 
-### `ci.yml` jobs
+### `ci.yml` jobs (current)
 
 | Job | Runtime | What it asserts |
 | --- | --- | --- |
-| **lint** | Python 3.13 | `ruff check src/ tests/`; `mypy src/ --ignore-missing-imports` |
-| **test** | Matrix 3.10–3.13 | Editable `.[lsp]`; LSP unit/e2e tests; backend tests; Codecov upload on 3.13 only |
-| **backend-test** | 3.13 | Explicit Flask/numpy/matplotlib install + `test_backend.py` |
-| **vscode-ext-test** | Node 22 | `npm ci` → compile → `vsce package` → upload VSIX artifact (7-day) |
-| **pwa** | Bun 1.3 | Root + worker install, dual `tsc`, frontend coverage gate + security tests; upload lcov |
-| **axis-e2e** | Bun 1.3 | Playwright Chromium smoke (`test:e2e:smoke`) |
-| **cf-worker** | Bun 1.3 | `frontend/worker` typecheck only |
+| **lint** | Python 3.13 | Ruff E/F/W gate on `src/` `tests/` (+ auth middleware); mypy non-blocking |
+| **test** | Matrix 3.10–3.13 | `.[lsp,pro,compile]` + backend deps; `test_linter`, `test_evaluator`, **`test_cli`**, LSP, backend; Codecov on 3.13 |
+| **package** | 3.13 | `python -m build` + twine; wheel smoke (`pynescript --help`); artifact |
+| **docker** | buildx | Build **api** + **cli** targets; API health + admin fail-closed; CLI `--help` / `info` / `check` (`--network=none`) |
+| **vscode-ext-test** | Node 22 | `npm ci` → compile → `vsce package` → VSIX artifact |
 
-Concurrency:
+Concurrency: `group: ci-${{ github.ref }}`, `cancel-in-progress: true`. Default permissions: `contents: read`.
 
-```yaml
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-```
+### Not in this repo’s CI
 
-### Nightly (`axis-nightly.yml`)
-
-- Full e2e suite (`bun run test:e2e`) with report artifact on failure
-- Coverage gate + security tests (stricter than PR smoke)
+- AXIS PWA / Playwright (axis repo)
+- Cloudflare Worker deploy
+- Full `tests/` corpus parametrized suite (run locally: `make test`)
 
 ## Internals
 
 | Path | Role |
 | --- | --- |
 | `.github/workflows/ci.yml` | PR/main fan-out |
-| `.github/workflows/axis-nightly.yml` | Scheduled AXIS depth |
-| `.github/workflows/release.yml` | Tag release (see [Release](/pyne/docs/devops/release)) |
-| `frontend/scripts/check-coverage.mjs` | Coverage gate helper for AXIS |
-| `codecov` action | Optional; `fail_ci_if_error: false` |
+| `.github/workflows/release.yml` | Multi-artifact tag release |
+| `.github/workflows/publish.yml` | PyPI (token preferred) |
+| `tests/test_cli.py` | CLI unit suite (CI-critical) |
 
-### Secrets referenced in CI surface
+### Secrets
 
 | Secret | Used by | Notes |
 | --- | --- | --- |
-| `VSCE_PAT` | VSIX package / publish | Extension packaging |
-| `METADATA_KEY` | Release / Cloud Build encrypt | Stable Fernet key for metadata |
-| `GITHUB_TOKEN` | Release upload | Default Actions token |
+| `PYPI_API_TOKEN` | `publish.yml` | Personal PyPI account (`jango-blockchained`) |
+| `METADATA_KEY` / `CRYPTO_KEY` | `release.yml` LSP encrypt | Fernet metadata |
+| `VSCE_PAT` | optional Marketplace | VSIX still attaches without it |
+| `GITHUB_TOKEN` | release upload | default |
 
-`{/* TODO: verify */}` — CI `test` job currently does not run the full `tests/` corpus on every matrix cell; it prioritizes LSP + backend. Local `make test` is broader.
+## Invariants
 
-## Invariants & edge cases
-
-1. **Fail-fast is off** on the Python matrix — one version failure does not hide others.
-2. **Codecov only on 3.13** to avoid noisy multi-upload; coverage XML path depends on pytest-cov configuration in the job.
-3. **PWA install is resilient:** `bun install --frozen-lockfile || bun install` — lockfile drift should still be fixed, not papered forever.
-4. **VSIX artifacts are not the Marketplace.** Packaging on every PR proves buildability; publish is release-gated.
-5. **Worker typecheck ≠ deploy.** `cf-worker` job does not call `wrangler deploy`.
+1. **Fail-fast is off** on the Python matrix.
+2. **Codecov only on 3.13**.
+3. **CLI Docker image is non-root** — smoke mounts must be world-readable (`chmod` on mktemp).
+4. **Corpus parametrized tests are intentionally skipped** in CI for time; local `make test` is broader.
+5. **Package smoke** installs the wheel and runs `pynescript --help`.
 
 ## Worked examples
 
-### Reproduce lint locally as CI does
-
 ```bash
-pip install ruff flake8 mypy types-python-dateutil antlr4-python3-runtime
-ruff check src/ tests/ --output-format=github
-mypy src/ --ignore-missing-imports
-```
+# Lint as CI (correctness gate)
+ruff check src/ tests/ backend/middleware/auth.py --select E,F,W --ignore E501,E741,F841,W293,E402
 
-### Reproduce Python job slice
+# Core unit slice
+pip install -e ".[lsp,pro,compile]"
+python -m pytest tests/test_linter.py tests/test_evaluator.py tests/test_cli.py -q
 
-```bash
-pip install -e ".[lsp]"
-pip install pytest pytest-cov pytest-xdist pytest-asyncio
-python -m pytest tests/test_langserver.py tests/test_lsp_features.py -v --tb=short
-python -m pytest tests/test_backend.py -v --tb=short
-```
-
-### Reproduce PWA job
-
-```bash
-bun install --frozen-lockfile
-cd frontend/worker && bun install --frozen-lockfile && bunx tsc --noEmit
-cd ../.. && bunx tsc -p tsconfig.json
-cd frontend && bun install && bun run test:coverage:gate && bun run test:security
+# Docker CLI smoke
+docker buildx bake cli
+docker run --rm --network=none pynescript-cli:latest info
 ```
 
 ## Failure modes
 
-| Symptom | Likely cause | Fix |
+| Symptom | Cause | Fix |
 | --- | --- | --- |
-| Matrix red only on 3.10 | Version-specific typing / API | Guard with `sys.version_info` or drop unsupported API |
-| Playwright smoke flake | Timing / missing deps | Install chromium with deps; re-run; check nightly for full suite |
-| VSIX job fails on `vsce` | Node/engine mismatch | Pin Node 22 as workflow does |
-| Coverage gate red | New untested AXIS paths | Add unit tests or adjust gate intentionally |
-| Cancelled mid-run | Newer push to same branch | Expected concurrency behavior |
+| Docker CLI PermissionError on smoke.pine | mktemp 0700 + non-root user | CI chmods 755/644 (already fixed) |
+| Wheel missing `pynescript` | wrong package name | install `hoox-pyne` / built wheel |
+| Ruff F821 on main | incomplete imports | fix before push; gate is E,F,W |
 
 ## See also
 
 - [Release](/pyne/docs/devops/release)
-- [Local development](/pyne/docs/devops/local-dev)
-- [Observability](/pyne/docs/devops/observability)
-- [Security](/pyne/docs/devops/security)
+- [PyPI publish](/pyne/docs/devops/pypi-publish)
+- [Docker](/pyne/docs/devops/docker)

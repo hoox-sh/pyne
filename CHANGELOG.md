@@ -11,12 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **PyPI publish** targets personal account **`jango-blockchained`** (API token
   secret `PYPI_API_TOKEN`, with optional Trusted Publishing OIDC). No PyPI org
   required; GitHub Actions still run on `hoox-sh/pyne`.
-- **Docs + landing** install surface corrected to live **`hoox-pyne`** 0.3.0
-  (`pip install "hoox-pyne[…]"`), not the unrelated plain `pyne` package name.
+- **Docs + landing** aligned to current product surface: live **`hoox-pyne` 0.3.0**,
+  full CLI command set (`check`/`format`/`compile`/`run`/`prewarm`/…), post-AXIS
+  CI (no frontend jobs), Docker **cli** target, local Make package/build-cli
+  helpers, and roadmap status for packaging.
 
 ### Fixed
 - Installation docs that mixed `pyne` / `hoox-pyne` and told users not to install
   the correct distribution name.
+- CLI reference still claiming no `run` subcommand and listing only five commands.
+- DevOps CI/local-dev docs still describing AXIS-in-repo / frontend jobs.
 
 ### Added
 - **CLI packaging & release**: Nuitka onefile binaries for `pynescript` CLI

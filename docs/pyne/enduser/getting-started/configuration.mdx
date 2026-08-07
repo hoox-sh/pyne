@@ -160,7 +160,7 @@ Pro API `/run` optional fields:
 | `webhook_url` | string | Per-request L2 alert webhook (overrides `ALERT_WEBHOOK_URL`) |
 | `forward_alerts` / `alert_last_bar` / `alert_batch` | bool | Webhook delivery controls (see [Alerts](/pyne/docs/runtime/alerts)) |
 
-Operators can also `POST /compile/prewarm` (or `pynescript prewarm` when available) to warm Numba builtins before interactive traffic.
+Operators can also `POST /compile/prewarm` or run `pynescript prewarm` (and `pynescript prewarm script.pine …`) to warm Numba builtins / script IR caches before interactive traffic. Requires `pip install "hoox-pyne[compile]"` for full Numba warm-up.
 
 ### Editor / LSP client settings
 

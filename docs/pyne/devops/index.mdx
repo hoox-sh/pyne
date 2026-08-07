@@ -26,9 +26,9 @@ description: "CI matrices, containers, Nuitka LSP binaries, metadata crypto, Clo
 
 ## Abstract
 
-PYNE is not a single binary. It is a **multi-surface product**: a pure-Python library, a Click CLI, a pygls Language Server, a Flask Pro API, a VS Code extension, an AXIS PWA AXIS, and colocated edge workers. DevOps here means keeping those surfaces buildable, testable, and deployable without drifting from the same evaluate contract.
+PYNE is a **multi-surface product**: pure-Python library + Click CLI, pygls Language Server, Flask Pro API, VS Code extension, Docker targets (`api` / `cli` / `lsp`), and colocated edge workers. The AXIS charting PWA is a **sister repo** — not built in this tree.
 
-This tab documents the **operational graph**: local loops, GitHub Actions, release tags, Docker images, Nuitka compilation, Fernet-encrypted LSP metadata, GCP Cloud Build/Run, observability hooks, and security controls.
+This tab documents the **operational graph**: local loops, GitHub Actions, release tags, Docker images, Nuitka CLI/LSP binaries, Fernet-encrypted LSP metadata, GCP Cloud Build/Run, observability hooks, and security controls.
 
 ## Conceptual model
 
@@ -36,34 +36,39 @@ This tab documents the **operational graph**: local loops, GitHub Actions, relea
 flowchart TB
   subgraph Local
     DEV[make install / hatch]
-    TEST[make test lint]
-    RUN[make run / run-lsp]
+    TEST[make test lint package]
+    RUN[make run / run-lsp / docker-cli]
   end
   subgraph CI["GitHub Actions"]
-    LINT[lint + mypy]
+    LINT[lint]
     PY[test matrix 3.10–3.13]
-    PWA[Bun typecheck + coverage]
+    PKG[sdist + wheel]
+    DOCK[docker api + cli]
     VSIX[vscode-extension package]
   end
   subgraph Artifacts
-    WHEEL[pynescript wheel]
+    WHEEL[hoox-pyne wheel]
+    CLIBIN[Nuitka pynescript CLI]
     LSPBIN[Nuitka pynescript-lsp]
     VSIXART[*.vsix]
-    IMG[Docker API image]
+    IMG[Docker api + cli images]
   end
   subgraph Deploy
     CR[Cloud Run Pro API]
-    REL[GitHub Release + Marketplace]
+    PYPI[PyPI hoox-pyne]
+    REL[GitHub Release]
   end
   DEV --> TEST --> LINT
-  LINT --> PY --> PWA
-  PY --> WHEEL
+  LINT --> PY --> PKG
+  PY --> DOCK
+  PKG --> WHEEL --> PYPI
+  REL --> CLIBIN
   REL --> LSPBIN
   REL --> VSIXART
   IMG --> CR
 ```
 
-**Invariant:** CI green on `main` is necessary but not sufficient for a release. Tag-triggered release workflows build platform LSP binaries and VSIX; Cloud Build deploys the API image on its own pipeline.
+**Invariant:** CI green on `main` is necessary but not sufficient for a full release. Tag workflows build CLI/LSP binaries + VSIX; `publish.yml` uploads **`hoox-pyne`** to PyPI; Cloud Build deploys the API image separately.
 
 ## Interface surface
 
@@ -71,11 +76,11 @@ flowchart TB
 | --- | --- | --- |
 | Local install & loops | `Makefile`, hatch envs | [Local development](/pyne/docs/devops/local-dev) |
 | PR / push CI | `.github/workflows/ci.yml` | [CI](/pyne/docs/devops/ci) |
-| Versioned LSP + VSIX | `.github/workflows/release.yml` | [Release](/pyne/docs/devops/release) |
-| PyPI (`pyne`) | `.github/workflows/publish.yml` | [PyPI publish](/pyne/docs/devops/pypi-publish) |
-| First ship / org transfer | GitHub org `hoox-sh` + Trusted Publishing | [Publish checklist](/pyne/docs/devops/publish-checklist) |
-| Pro API containers | `Dockerfile` (targets api/api-dev/lsp), `docker-bake.hcl`, `docker-compose.yml` | [Docker](/pyne/docs/devops/docker) |
-| Compiled LSP | `scripts/build/compile.py`, `ci_build.py` | [Nuitka build](/pyne/docs/devops/nuitka-build) |
+| Versioned CLI + LSP + VSIX | `.github/workflows/release.yml` | [Release](/pyne/docs/devops/release) |
+| PyPI (`hoox-pyne`) | `.github/workflows/publish.yml` | [PyPI publish](/pyne/docs/devops/pypi-publish) |
+| First ship checklist | personal PyPI + API token | [Publish checklist](/pyne/docs/devops/publish-checklist) |
+| Containers | `Dockerfile` targets api/api-dev/lsp/**cli** | [Docker](/pyne/docs/devops/docker) |
+| Compiled CLI / LSP | `scripts/build/compile.py --target` | [Nuitka build](/pyne/docs/devops/nuitka-build) |
 | Builtin metadata crypto | Fernet key + `.enc` | [Metadata crypto](/pyne/docs/devops/metadata-crypto) |
 | Cloud Run | `cloudbuild.yaml` | [GCP](/pyne/docs/devops/gcp) |
 | Logs / health | Flask `/`, gunicorn, Cloud Logging | [Observability](/pyne/docs/devops/observability) |
