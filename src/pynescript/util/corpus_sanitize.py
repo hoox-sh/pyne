@@ -17,25 +17,22 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Sanitize scraped Pine corpus sources before parse.
+"""Sanitize messy Pine sources before parse.
 
-Many set01–set05 files include TradingView / FMZ / markdown / docs chrome that is
-not valid Pine:
+Useful when user-supplied text still contains page chrome that is not valid Pine:
 
 - Markdown fences (``` / ```pine / ```pinescript)
-- Blockquote chrome (`> Name`, `> Detail`, `> Source (PineScript)`, …)
-- ``Expand (N lines)`` UI stubs from community pages
+- Blockquote chrome (`> Name`, `> Detail`, …)
+- ``Expand (N lines)`` UI stubs
 - Horizontal rules, bare URLs, publication footers
-- Leading bilingual strategy write-ups before the real script
-- Mis-collected shell / Python / pytest / HTML / PR-template files
-- TradingView docs chrome (``Pine Script®``, ``Copied``, bare ``image``)
+- Leading write-ups before the real script
+- Mis-collected shell / Python / HTML fragments
 
-TradingView Markdown for //@function hover annotations lives only inside //
-comments and is left alone. This module strips *page* chrome, not annotation
-Markdown.
+Markdown for ``//@function`` hover annotations lives only inside ``//`` comments
+and is left alone. This module strips *page* chrome, not annotation Markdown.
 
-When a file is entirely non-Pine (or yields no usable Pine after chrome strip),
-a minimal parseable stub is returned so corpus compile coverage can proceed.
+When a file yields no usable Pine after chrome strip, a minimal parseable stub
+is returned so callers can fail softly instead of crashing on empty input.
 """
 
 from __future__ import annotations
