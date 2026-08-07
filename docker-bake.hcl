@@ -6,18 +6,23 @@
 # Usage:
 #   docker buildx bake                  # default group: api + api-dev (load local)
 #   docker buildx bake api              # production API only
-#   docker buildx bake api-dev lsp      # named targets
+#   docker buildx bake cli              # pynescript Click CLI
+#   docker buildx bake api-dev lsp cli  # named targets
 #   docker buildx bake release          # multi-platform (set REGISTRY to push)
 #
 # Variables (override with --set or env via bake HCL):
 #   TAG=0.3.0 REGISTRY=gcr.io/PROJECT/pynescript docker buildx bake release
+#
+# Push safety: release targets use output type=registry ONLY when REGISTRY is
+# non-empty. Empty REGISTRY keeps type=image (build cache / multi-arch manifest
+# in the builder — never pushes to docker.io by accident).
 
 variable "TAG" {
   default = "latest"
 }
 
 variable "REGISTRY" {
-  # Empty → local image names only (docker.io-less short names)
+  # Empty → local short names only (no registry host, no push)
   default = ""
 }
 
@@ -48,11 +53,11 @@ group "default" {
 }
 
 group "all" {
-  targets = ["api", "api-dev", "lsp"]
+  targets = ["api", "api-dev", "lsp", "cli"]
 }
 
 group "release" {
-  targets = ["api-release"]
+  targets = ["api-release", "cli-release"]
 }
 
 target "_common" {
@@ -95,8 +100,19 @@ target "lsp" {
   output = ["type=docker"]
 }
 
-# Multi-platform production image. When REGISTRY is set, bake pushes;
-# otherwise it builds to the local build cache (no single-arch docker load).
+target "cli" {
+  inherits = ["_common"]
+  target   = "cli"
+  tags = [
+    "${image_name("pynescript-cli")}:${TAG}",
+    "${image_name("pynescript-cli")}:latest",
+  ]
+  output = ["type=docker"]
+}
+
+# Multi-platform production images.
+# REGISTRY set  → push (type=registry)
+# REGISTRY empty → type=image only (no push; no docker load for multi-arch)
 target "api-release" {
   inherits   = ["_common"]
   target     = "api"
@@ -111,5 +127,22 @@ target "api-release" {
   ]
   cache-to = [
     "type=local,dest=/tmp/.buildx-cache-pynescript,mode=max",
+  ]
+}
+
+target "cli-release" {
+  inherits   = ["_common"]
+  target     = "cli"
+  platforms  = split(",", PLATFORMS)
+  tags = [
+    "${image_name("pynescript-cli")}:${TAG}",
+    "${image_name("pynescript-cli")}:latest",
+  ]
+  output = REGISTRY != "" ? ["type=registry"] : ["type=image"]
+  cache-from = [
+    "type=local,src=/tmp/.buildx-cache-pynescript-cli",
+  ]
+  cache-to = [
+    "type=local,dest=/tmp/.buildx-cache-pynescript-cli,mode=max",
   ]
 }

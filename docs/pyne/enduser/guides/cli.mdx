@@ -73,6 +73,28 @@ pynescript <command> --help
 
 **Not** part of this Click group: starting the language server — use `pynescript-lsp`.
 
+## Install options
+
+| Method | When |
+| --- | --- |
+| `pip install hoox-pyne` | Default desk / CI use |
+| `pip install "hoox-pyne[compile]"` | Need Numba `compile` / `run` modes |
+| GitHub Release binary `pynescript-cli-*` | No Python install |
+| Docker `pynescript-cli` | Isolated CI / one-shot checks |
+
+```bash
+# Docker
+docker buildx bake cli
+docker run --rm -v "$PWD:/work" -w /work pynescript-cli:latest check script.pine
+
+# Compose (repo root)
+make docker-cli ARGS="lint script.pine --json"
+
+# Standalone binary (from GitHub Release)
+chmod +x pynescript-cli-linux-x86_64
+./pynescript-cli-linux-x86_64 info
+```
+
 ## Internals (repo paths)
 
 | Path | Role |

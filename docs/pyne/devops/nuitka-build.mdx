@@ -18,17 +18,22 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-title: "Nuitka LSP build"
-description: "Compile pynescript-lsp with Nuitka — onefile vs standalone, CI build script, Anaconda quirks, and artifact layout."
+title: "Nuitka build (LSP + CLI)"
+description: "Compile pynescript-lsp and pynescript CLI with Nuitka — onefile vs standalone, CI build script, Anaconda quirks, and artifact layout."
 ---
 
-# Nuitka LSP build
+# Nuitka build (LSP + CLI)
 
 ## Abstract
 
-The Language Server can run as pure Python (`python -m pynescript.langserver`) or as a **Nuitka-compiled binary** for editor distribution. Compilation freezes the pygls server, providers, and (when configured) encrypted builtin metadata into a deployable artifact under `dist/`.
+Both the **Language Server** and the **Click CLI** can run as pure Python or as **Nuitka-compiled onefile binaries** for offline distribution. Compilation freezes the entry module and followed imports into artifacts under `dist/`.
 
-Primary tools: `scripts/build/compile.py` (local) and `scripts/build/ci_build.py` (CI/Cloud Build).
+| Binary | Entry | Typical use |
+| --- | --- | --- |
+| `pynescript-lsp` | `langserver/__main__.py` | Editors / VSIX |
+| `pynescript` | `pynescript/__main__.py` | Shell / CI gates |
+
+Primary tools: `scripts/build/compile.py` (local) and `scripts/build/ci_build.py` (CI/Cloud Build). Both accept `--target lsp|cli|all`.
 
 ## Conceptual model
 
@@ -51,18 +56,22 @@ flowchart TB
 # Prerequisites
 pip install nuitka cryptography
 
-# Full onefile build (default path via Make)
+# Full LSP onefile build (default path via Make)
 make build
-# ≡ python scripts/build/compile.py --jobs=4
+# ≡ python scripts/build/compile.py --target lsp --jobs=4
 
-# Fast import check only (~30s)
+# CLI onefile binary
+make build-cli
+# ≡ python scripts/build/compile.py --target cli --jobs=4
+
+# Fast import check only (~30s) — both targets
 make build-check
-# ≡ python scripts/build/compile.py --check
+# ≡ python scripts/build/compile.py --target all --check
 
 # Explicit modes
-python scripts/build/compile.py --standalone
-python scripts/build/compile.py --onefile --jobs 8
-python scripts/build/ci_build.py --jobs=4
+python scripts/build/compile.py --target cli --standalone
+python scripts/build/compile.py --target all --jobs 8
+python scripts/build/ci_build.py --target cli --jobs=4 --skip-metadata --skip-vsix
 ```
 
 ### Build modes (approx. wall time)

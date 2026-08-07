@@ -139,9 +139,10 @@ wheels/
 node_modules/
 bun.lockb
 
-# Local private notes / agent sessions
+# Local private notes / agent sessions / tooling
 .private/
-.opencode/sessions/
+.grok/
+.opencode/
 
 # Local runtime / compose data
 logs/

@@ -1,6 +1,7 @@
 # Build Scripts
 
-This directory contains scripts for compiling the Pynescript LSP binary with Nuitka.
+This directory contains scripts for compiling the Pynescript **LSP** and **CLI**
+binaries with Nuitka.
 
 ## Quick Start
 
@@ -8,19 +9,28 @@ This directory contains scripts for compiling the Pynescript LSP binary with Nui
 # Install prerequisites
 pip install nuitka cryptography
 
-# Full build (onefile binary + VSIX bundle)
+# Full LSP build (onefile binary + VSIX bundle) — default
 python scripts/build/compile.py
+# ≡ make build
+
+# CLI onefile binary (pynescript)
+python scripts/build/compile.py --target cli
+# ≡ make build-cli
+
+# Both
+python scripts/build/compile.py --target all
 
 # Check imports without compiling (fast)
-python scripts/build/compile.py --check
+python scripts/build/compile.py --target all --check
+# ≡ make build-check
 
 # Standalone build (faster, no self-extracting binary)
-python scripts/build/compile.py --standalone
+python scripts/build/compile.py --target cli --standalone
 ```
 
 ## Files
 
-- `compile.py` — Main build script with options for dev/CI use
+- `compile.py` — Main build script with options for dev/CI use (`--target lsp|cli|all`)
 - `ci_build.py` — Optimized CI build script (GitHub Actions, Cloud Build)
 
 ## What Gets Built
@@ -28,11 +38,25 @@ python scripts/build/compile.py --standalone
 ```
 dist/
 ├── lsp/
-│   └── pynescript-lsp          # Onefile binary (self-extracting)
+│   └── pynescript-lsp          # LSP onefile binary (self-extracting)
+├── cli/
+│   └── pynescript              # CLI onefile binary
 ├── vsix/
 │   └── pynescript-lsp.vsix     # VS Code extension bundle
-└── pynescript-lsp              # Standalone binary (if --standalone)
+├── pynescript-lsp              # LSP binary (CI moves to dist/)
+└── pynescript                  # CLI binary (CI moves to dist/)
 ```
+
+### Target differences
+
+| Target | Entry | Includes | Excludes |
+| --- | --- | --- | --- |
+| `lsp` | `langserver/__main__.py` | pygls + providers metadata | evaluator, compiler, numba |
+| `cli` | `pynescript/__main__.py` | Click CLI + evaluator (interpret) | langserver, flask, numba |
+
+Portable Nuitka builds intentionally **do not** embed Numba; `compile` / Numba
+paths work in the Docker CLI image (`pip install ".[compile,data]"`) and from
+the PyPI package with the `compile` extra.
 
 ## Encrypted Metadata
 
@@ -65,10 +89,10 @@ rebuilds of the same JSON.
 ```bash
 pip install cryptography
 
-# Option A — let the build create a key once
-python scripts/build/compile.py --check   # generates .metadata.key + encrypts
+# Option A — force encrypt without a full Nuitka compile (Fernet IV still changes .enc)
+python scripts/build/compile.py --check --encrypt   # generates .metadata.key + encrypts
 
-# Option B — generate explicitly
+# Option B — generate key explicitly
 python -c "from cryptography.fernet import Fernet; from pathlib import Path; \
   p=Path('scripts/build/.metadata.key'); p.write_bytes(Fernet.generate_key()); p.chmod(0o600); print(p.read_text())"
 
@@ -76,6 +100,10 @@ python -c "from cryptography.fernet import Fernet; from pathlib import Path; \
 python scripts/generate_builtin_metadata.py
 python -c "from scripts.build.compile import encrypt_metadata; encrypt_metadata()"
 ```
+
+**Note:** plain `--check` (e.g. `make build-check`) does **not** re-encrypt metadata, so Fernet
+IV churn does not dirty `builtin_metadata.json.enc` / `.sha256` in git. Use `--encrypt` or a full
+LSP build when you intentionally want a new ciphertext.
 
 ### GitHub Actions secret
 
@@ -103,9 +131,12 @@ Set substitution `_METADATA_KEY` to the same Fernet key string (see `cloudbuild.
 
 ```yaml
 - name: Build LSP binary
-  run: python scripts/build/ci_build.py
+  run: python scripts/build/ci_build.py --target lsp --jobs 4
   env:
     CRYPTO_KEY: ${{ secrets.METADATA_KEY }}
+
+- name: Build CLI binary
+  run: python scripts/build/ci_build.py --target cli --jobs 4 --skip-metadata --skip-vsix
 ```
 
 ### Google Cloud Build

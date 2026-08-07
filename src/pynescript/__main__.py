@@ -50,6 +50,9 @@ from typing import Any
 
 import click
 
+# Explicit version: PyPI dist is ``hoox-pyne``; import package is ``pynescript``.
+from pynescript.__about__ import __version__ as _CLI_VERSION
+
 
 # ---------------------------------------------------------------------------
 # Theme (PYNE volt) + optional Rich
@@ -245,11 +248,10 @@ def _print_banner() -> None:
     epilog=_EPILOG,
 )
 @click.version_option(
-    None,
+    _CLI_VERSION,
     "--version",
     "-V",
     message="%(version)s",
-    package_name="pynescript",
     prog_name="pynescript",
 )
 @click.option(

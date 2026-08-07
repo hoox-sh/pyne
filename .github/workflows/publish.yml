@@ -42,16 +42,21 @@ jobs:
           python-version: "3.13"
 
       - name: Build sdist + wheel
+        shell: bash
         run: |
+          set -euo pipefail
           pip install build twine
           python -m build
           twine check dist/*
+          test -n "$(find dist -maxdepth 1 -type f \( -name '*.whl' -o -name '*.tar.gz' \) | head -1)"
 
       - name: Upload dist
         uses: actions/upload-artifact@v4
         with:
           name: hoox-pyne-release-dist
           path: dist/*
+          if-no-files-found: error
+          retention-days: 5
 
   publish-pypi:
     name: Upload to PyPI

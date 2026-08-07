@@ -30,10 +30,17 @@ make build-check     # python scripts/build/compile.py --check   (fast, no compi
 
 # Docker (multi-target Dockerfile)
 make docker-build      # buildx bake production api image
+make docker-build-cli  # buildx bake CLI image (pynescript)
+make docker-cli ARGS="check script.pine"  # compose profile cli
 make docker-up         # compose api-dev on :5002 (source mounts)
 make docker-up-full    # api + redis profile only (not LSP)
 make docker-prod       # requires ADMIN_TOKEN; gunicorn, no source mounts
 make docker-smoke      # curl health on :5002
+
+# Packages / Nuitka
+make package           # sdist + wheel (hoox-pyne)
+make build             # Nuitka LSP binary
+make build-cli         # Nuitka CLI binary
 ```
 
 Hatch: `hatch run test:test`, `hatch run lint:style`, `hatch run lint:typing`.

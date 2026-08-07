@@ -4,9 +4,11 @@
 # Makefile for pyne (Pine Script Python toolchain) development
 
 .PHONY: help install test lint fmt build run clean \
-	docker-build docker-build-all docker-buildx docker-run docker-up docker-up-full \
-	docker-prod docker-down docker-logs docker-smoke \
-	test-lsp test-backend typecheck build-check build-vscode \
+	docker-build docker-build-cli docker-build-all docker-buildx docker-run \
+	docker-up docker-up-full docker-prod docker-down docker-logs docker-smoke \
+	docker-cli \
+	test-lsp test-backend test-cli typecheck build-check build-cli build-package \
+	build-vscode package \
 	corpus-flow corpus-flow-set05 corpus-recompile \
 	deploy-vps deploy-vps-build
 
@@ -15,18 +17,23 @@ help:
 	@echo ""
 	@echo "  install          Install Python package (editable + LSP extra)"
 	@echo "  test             Run pytest (tests/)"
+	@echo "  test-cli         CLI unit tests (tests/test_cli.py)"
 	@echo "  test-lsp         LSP unit + e2e tests"
 	@echo "  test-backend     Backend / Pro API tests"
 	@echo "  lint             ruff check"
 	@echo "  fmt              ruff format"
+	@echo "  package          Build sdist + wheel (python -m build)"
 	@echo "  build            Nuitka LSP binary"
+	@echo "  build-cli        Nuitka CLI binary (pynescript)"
 	@echo "  build-check      Fast import check (no compile)"
 	@echo "  build-vscode     Package VS Code extension"
 	@echo "  run              Flask Pro API (:5002)"
 	@echo "  run-lsp          Language server (stdio)"
 	@echo "  docker-build     buildx bake production API image (load)"
-	@echo "  docker-build-all buildx bake api + api-dev + lsp"
+	@echo "  docker-build-cli buildx bake CLI image (load)"
+	@echo "  docker-build-all buildx bake api + api-dev + lsp + cli"
 	@echo "  docker-buildx    multi-platform release bake (amd64+arm64)"
+	@echo "  docker-cli       run CLI in container (ARGS=... e.g. check x.pine)"
 	@echo "  docker-up        compose up API (dev target, port 5002)"
 	@echo "  docker-up-full   compose up with redis profile (not lsp)"
 	@echo "  docker-prod      compose prod overlay (gunicorn, no source mounts)"
@@ -59,6 +66,9 @@ install-pro:
 test:
 	python -m pytest tests/ -v --tb=short
 
+test-cli:
+	python -m pytest tests/test_cli.py -v --tb=short
+
 test-lsp:
 	python -m pytest tests/test_langserver.py tests/test_lsp_features.py -v
 
@@ -71,11 +81,25 @@ lint:
 fmt:
 	ruff format src/ tests/ backend/
 
-build:
-	python scripts/build/compile.py --jobs=4
+# sdist + wheel. Twine is optional so CI/local packaging works without it.
+package:
+	@python -c "import build" 2>/dev/null || (echo "error: need 'build' (pip install build)" >&2; exit 1)
+	python -m build
+	@if python -c "import twine" 2>/dev/null; then \
+		python -m twine check dist/*; \
+	else \
+		echo "twine not installed — skipped check (pip install twine)"; \
+	fi
 
+build:
+	python scripts/build/compile.py --target lsp --jobs=4
+
+build-cli:
+	python scripts/build/compile.py --target cli --jobs=4
+
+# Fast import-only check (no Nuitka). Targets match compile.py --target choices.
 build-check:
-	python scripts/build/compile.py --check
+	python scripts/build/compile.py --target all --check
 
 build-vscode:
 	cd vscode-extension && npm install && npm run package
@@ -127,6 +151,9 @@ BAKE_ARGS = --set "*.args.GIT_SHA=$(GIT_SHA)" --set "*.args.PYNESCRIPT_VERSION=$
 docker-build:
 	docker buildx bake api $(BAKE_ARGS)
 
+docker-build-cli:
+	docker buildx bake cli $(BAKE_ARGS)
+
 docker-build-all:
 	docker buildx bake all $(BAKE_ARGS)
 
@@ -138,7 +165,16 @@ docker-up:
 
 docker-run: docker-up
 
-# Redis only — LSP is stdio and must be started with `docker compose run --rm lsp`
+# Ephemeral CLI container.
+# Example: make docker-cli ARGS='check examples/rsi_strategy.pine'
+# $(ARGS) is intentionally unquoted after Make expansion so the shell word-splits
+# multi-arg values; nested quotes inside ARGS are still honored by the shell.
+ARGS ?= --help
+docker-cli:
+	GIT_SHA=$(GIT_SHA) PYNESCRIPT_VERSION=$(PYNESCRIPT_VERSION) \
+		docker compose --profile cli run --rm cli $(ARGS)
+
+# Redis only — LSP/CLI are ephemeral; start with `docker compose run --rm lsp|cli`
 docker-up-full:
 	GIT_SHA=$(GIT_SHA) PYNESCRIPT_VERSION=$(PYNESCRIPT_VERSION) \
 		docker compose --profile redis up --build -d
@@ -149,7 +185,7 @@ docker-prod:
 		docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d api
 
 docker-down:
-	docker compose --profile redis --profile lsp down
+	docker compose --profile redis --profile lsp --profile cli down
 
 docker-logs:
 	docker compose logs -f api

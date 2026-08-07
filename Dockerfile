@@ -8,23 +8,43 @@
 #   api      — production Pro API (gunicorn, non-root)  [default for Cloud Run]
 #   api-dev  — development Pro API (Flask, HOST=0.0.0.0)
 #   lsp      — language server (stdio; use with compose profile lsp)
+#   cli      — pynescript Click CLI (parse/lint/format/compile/run; ENTRYPOINT)
 #
 # Examples:
 #   docker buildx bake api
+#   docker buildx bake cli
 #   docker build --target api -t pynescript-api:latest .
+#   docker build --target cli -t pynescript-cli:latest .
+#   docker run --rm -v "$PWD:/work" -w /work pynescript-cli check script.pine
 #   docker compose up --build api
+#
+# Secrets: never bake CRYPTO_KEY / ADMIN_TOKEN / API keys into ENV or LABEL.
+# Build tools (build-essential) exist only in *builder stages*, not final images.
 
 ARG PYTHON_VERSION=3.12
 
 # ---------------------------------------------------------------------------
-# Base: shared OS packages
+# base-os: minimal Python + non-root user (shared foundation; no API libs)
 # ---------------------------------------------------------------------------
-FROM python:${PYTHON_VERSION}-slim AS base
+FROM python:${PYTHON_VERSION}-slim AS base-os
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    MPLBACKEND=Agg \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+
+RUN groupadd --gid 1000 appuser \
+    && useradd --uid 1000 --gid appuser --create-home --shell /usr/sbin/nologin appuser \
+    && mkdir -p /data /data/compile-cache /data/cache /work \
+    && chown -R appuser:appuser /data /work
+
+# ---------------------------------------------------------------------------
+# Base: API/LSP OS packages + long-running service env defaults
+# ---------------------------------------------------------------------------
+FROM base-os AS base
+
+ENV MPLBACKEND=Agg \
     PORT=8080 \
     HOST=0.0.0.0 \
     API_KEY_STORE=/data/api_keys.json \
@@ -32,17 +52,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYNE_COMPILE_CACHE_DIR=/data/compile-cache \
     PYNE_COMPILE_PREWARM=1
 
-WORKDIR /app
-
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         libfreetype6 \
         libpng16-16 \
-    && rm -rf /var/lib/apt/lists/* \
-    && groupadd --gid 1000 appuser \
-    && useradd --uid 1000 --gid appuser --create-home --shell /usr/sbin/nologin appuser \
-    && mkdir -p /data /data/compile-cache \
-    && chown -R appuser:appuser /data
+    && rm -rf /var/lib/apt/lists/*
 
 # ---------------------------------------------------------------------------
 # Builder: install Python deps + package into /install prefix
@@ -70,7 +84,24 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --prefix=/install ".[lsp]"
 
 # ---------------------------------------------------------------------------
-# Runtime base: copy installed prefix, drop privileges
+# CLI builder: package + compile/data extras (no Flask / matplotlib stack)
+# build-essential stays in this stage only — final `cli` image never sees it.
+# ---------------------------------------------------------------------------
+FROM base-os AS cli-builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml README.md LICENSE NOTICE ./
+COPY src ./src
+
+# Core CLI + Numba compile path + optional market data (ccxt)
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --prefix=/install ".[compile,data]"
+
+# ---------------------------------------------------------------------------
+# Runtime base: copy installed prefix, drop privileges (API / LSP)
 # ---------------------------------------------------------------------------
 FROM base AS runtime
 
@@ -136,3 +167,50 @@ ENV FLASK_ENV=production
 
 # No HTTP healthcheck — stdio LSP
 CMD ["python", "-m", "pynescript.langserver"]
+
+# ---------------------------------------------------------------------------
+# Target: cli (pynescript Click console — parse / lint / format / compile / run)
+#
+# Final stage is based on base-os (not base): no curl, freetype, png, or API
+# env defaults. build-essential is only in cli-builder. Non-root appuser.
+# No HEALTHCHECK: process is ephemeral (compose run / docker run one-shot).
+# ---------------------------------------------------------------------------
+FROM base-os AS cli
+
+# Runtime shared lib for OpenMP (numba/numpy manylinux wheels may link it)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=cli-builder /install /usr/local
+COPY --from=cli-builder /app/src /app/src
+COPY docker/entrypoint-cli.sh /usr/local/bin/entrypoint-cli.sh
+
+RUN chmod +x /usr/local/bin/entrypoint-cli.sh \
+    && chown -R appuser:appuser /app /data /work
+
+# Prefer bind-mounted sources (compose) over site-packages when present.
+# Compile cache on /data (volume). No API secrets / PORT / HOST / API_KEY_STORE.
+ENV PYTHONPATH=/app/src \
+    PYNE_COMPILE_DISK_CACHE=1 \
+    PYNE_COMPILE_CACHE_DIR=/data/compile-cache \
+    XDG_CACHE_HOME=/data/cache
+
+USER appuser
+
+ARG PYNESCRIPT_VERSION=0.3.0
+ARG GIT_SHA=unknown
+# OCI labels only — never put secrets, tokens, or build credentials here.
+LABEL org.opencontainers.image.title="pynescript-cli" \
+      org.opencontainers.image.description="PYNE CLI — parse, lint, format, compile, and run Pine Script" \
+      org.opencontainers.image.version="${PYNESCRIPT_VERSION}" \
+      org.opencontainers.image.revision="${GIT_SHA}" \
+      org.opencontainers.image.licenses="AGPL-3.0-or-later" \
+      org.opencontainers.image.source="https://github.com/hoox-sh/pyne"
+
+WORKDIR /work
+
+# Ephemeral one-shot CLI — no long-running daemon, no HTTP listener, therefore
+# no HEALTHCHECK (a probe would always be meaningless for `docker run … check`).
+ENTRYPOINT ["/usr/local/bin/entrypoint-cli.sh"]
+CMD ["--help"]

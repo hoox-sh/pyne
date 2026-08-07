@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -70,6 +73,7 @@ jobs:
           python -m pytest \
             tests/test_linter.py \
             tests/test_evaluator.py \
+            tests/test_cli.py \
             -q --tb=short
 
       - name: LSP tests
@@ -106,13 +110,17 @@ jobs:
           python-version: "3.13"
 
       - name: Build
+        shell: bash
         run: |
+          set -euo pipefail
           pip install build twine
           python -m build
           twine check dist/*
 
       - name: Smoke-import wheel
+        shell: bash
         run: |
+          set -euo pipefail
           python -m venv /tmp/pynescript-wheel
           /tmp/pynescript-wheel/bin/pip install dist/*.whl
           /tmp/pynescript-wheel/bin/python -c "import pynescript; print('version', pynescript.__version__)"
@@ -123,16 +131,27 @@ jobs:
         with:
           name: pynescript-dist
           path: dist/*
+          if-no-files-found: error
           retention-days: 14
 
   docker:
-    name: Docker (api target)
+    name: Docker (api + cli)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Read package version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VER=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/pynescript/__about__.py)
+          test -n "$VER"
+          echo "version=${VER}" >> "$GITHUB_OUTPUT"
+          echo "Building Docker images with PYNESCRIPT_VERSION=${VER}"
 
       - name: Build production API image
         uses: docker/build-push-action@v6
@@ -142,21 +161,27 @@ jobs:
           target: api
           push: false
           load: true
+          provenance: false
+          sbom: false
           tags: pynescript-api:ci
           build-args: |
-            PYNESCRIPT_VERSION=0.3.0
+            PYNESCRIPT_VERSION=${{ steps.version.outputs.version }}
             GIT_SHA=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Container smoke (health)
+      - name: Container smoke (API health)
+        shell: bash
         run: |
+          set -euo pipefail
           docker run -d --name pynescript-api-ci \
             -e ADMIN_TOKEN=ci-smoke-token \
             -e STORE_BACKEND=json \
             -e API_KEY_STORE=/tmp/api_keys.json \
             -p 18080:8080 \
             pynescript-api:ci
+          cleanup() { docker rm -f pynescript-api-ci >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
           ok=0
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:18080/ >/dev/null; then ok=1; break; fi
@@ -174,7 +199,35 @@ jobs:
             -H 'X-Admin-Token: ci-smoke-token' \
             -d '{"tier":"hobby"}' | head -c 200
           echo
-          docker rm -f pynescript-api-ci
+
+      - name: Build CLI image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          target: cli
+          push: false
+          load: true
+          provenance: false
+          sbom: false
+          tags: pynescript-cli:ci
+          build-args: |
+            PYNESCRIPT_VERSION=${{ steps.version.outputs.version }}
+            GIT_SHA=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Container smoke (CLI)
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network=none pynescript-cli:ci --help
+          docker run --rm --network=none pynescript-cli:ci info
+          TMP=$(mktemp -d)
+          printf '%s\n' '//@version=5' 'indicator("ci")' 'plot(close)' > "$TMP/smoke.pine"
+          docker run --rm --network=none \
+            -v "$TMP:/work:ro" -w /work \
+            pynescript-cli:ci check smoke.pine -q
 
   vscode-ext-test:
     name: VS Code Extension Build
@@ -201,4 +254,5 @@ jobs:
         with:
           name: pynescript-vsix
           path: vscode-extension/*.vsix
+          if-no-files-found: error
           retention-days: 7

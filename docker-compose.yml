@@ -1,11 +1,12 @@
 # Copyright (C) 2024-2026 jango_blockchained
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Local development stack for the PYNE Pro API.
+# Local development stack for the PYNE Pro API + CLI.
 #
 #   docker compose up --build api
 #   docker compose --profile redis up --build
 #   docker compose --profile lsp run --rm lsp
+#   docker compose --profile cli run --rm cli check script.pine
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
 #
 # Host port defaults to 5002 (AXIS / local docs expect the API there).
@@ -96,9 +97,50 @@ services:
     networks:
       - pynescript
 
+  # Ephemeral CLI — `docker compose --profile cli run --rm cli check script.pine`
+  # No ports, no env_file (avoids leaking host .env secrets), no privileged.
+  # No healthcheck: process is a one-shot Click command, not a daemon.
+  cli:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: cli
+      args:
+        PYNESCRIPT_VERSION: ${PYNESCRIPT_VERSION:-0.2.0}
+        GIT_SHA: ${GIT_SHA:-dev}
+    image: pynescript-cli:latest
+    profiles:
+      - cli
+    user: "1000:1000"
+    working_dir: /work
+    environment:
+      PYTHONPATH: /app/src
+      PYNE_COMPILE_DISK_CACHE: "1"
+      PYNE_COMPILE_CACHE_DIR: /data/compile-cache
+      XDG_CACHE_HOME: /data/cache
+    volumes:
+      # Package sources read-only (prefer over site-packages via PYTHONPATH)
+      - ./src:/app/src:ro
+      # Workspace for .pine inputs/outputs (host CWD). Keep rw for format/write.
+      - .:/work
+      # Persistent IR / Numba disk cache across runs
+      - cli_data:/data
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Ephemeral — do not restart; use `compose run --rm`
+    restart: "no"
+    networks:
+      - pynescript
+
 volumes:
   api_data:
   redis_data:
+  cli_data:
 
 networks:
   pynescript:

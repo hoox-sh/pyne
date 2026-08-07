@@ -26,8 +26,7 @@ description: "Buildx multi-target images, Compose profiles, and Cloud Run produc
 
 ## Abstract
 
-Containers package the **Pro API** (Flask + evaluator) for reproducible local runs and Cloud Run deploys. A single multi-stage `Dockerfile` exposes named targets; **Docker Buildx Bake** (`docker-bake.hcl`) drives local loads and multi-platform release builds. Compose wires volume mounts and optional Redis/LSP profiles for desk development, with a production overlay for gunicorn.
-
+Containers package the **Pro API** (Flask + evaluator), the **CLI** (`pynescript`), and the **LSP** for reproducible local runs and Cloud Run deploys. A single multi-stage `Dockerfile` exposes named targets; **Docker Buildx Bake** (`docker-bake.hcl`) drives local loads and multi-platform release builds. Compose wires volume mounts and optional Redis/LSP/CLI profiles for desk development, with a production overlay for gunicorn.
 ## Conceptual model
 
 ```mermaid
@@ -39,16 +38,20 @@ flowchart LR
     T1[api gunicorn]
     T2[api-dev Flask]
     T3[lsp stdio]
+    T4[cli pynescript]
   end
   subgraph Runtime
     CR[Cloud Run :8080]
     CMP[compose :5002]
+    CLIRUN[docker run cli]
   end
   B --> T1
   B --> T2
   B --> T3
+  B --> T4
   T1 --> CR
   T2 --> CMP
+  T4 --> CLIRUN
   COMPOSE[docker-compose.yml] --> T2
   PROD[docker-compose.prod.yml] --> T1
 ```
@@ -62,27 +65,31 @@ flowchart LR
 | `api` | `entrypoint-api.sh` → gunicorn (`0.0.0.0:$PORT`) | Production / Cloud Run / compose prod |
 | `api-dev` | `python -m backend.app` with `HOST=0.0.0.0` | Local compose (source mounts) |
 | `lsp` | `python -m pynescript.langserver` (stdio) | Compose profile `lsp` |
+| `cli` | `ENTRYPOINT pynescript` (ephemeral; `/work` CWD) | CI gates, one-shot parse/lint/compile/run |
 
-All targets: Python 3.12-slim, non-root `appuser` (uid 1000), `API_KEY_STORE=/data/api_keys.json`, `MPLBACKEND=Agg`, healthcheck via `curl` (HTTP targets).
-
+All targets: Python 3.12-slim, non-root `appuser` (uid 1000). API targets also set `API_KEY_STORE=/data/api_keys.json`, `MPLBACKEND=Agg`, healthcheck via `curl`. The **cli** image installs `.[compile,data]` only (no Flask/matplotlib) and is smaller/faster to build than `api`.
 ### Buildx Bake (`docker-bake.hcl`)
 
 ```bash
 # Local load (host platform)
 docker buildx bake api                 # production image → pynescript-api:latest
+docker buildx bake cli                 # CLI image → pynescript-cli:latest
 docker buildx bake                     # default group: api + api-dev
-docker buildx bake all                 # api + api-dev + lsp
+docker buildx bake all                 # api + api-dev + lsp + cli
 
 # Multi-platform (amd64 + arm64). Set REGISTRY to push:
 REGISTRY=gcr.io/$PROJECT/pynescript TAG=$COMMIT_SHA docker buildx bake release
+# release group = api-release + cli-release
 ```
 
 Make wrappers:
 
 ```bash
 make docker-build       # bake api
+make docker-build-cli   # bake cli
 make docker-build-all   # bake all targets
 make docker-buildx      # bake release (multi-platform)
+make docker-cli ARGS="check script.pine"   # compose profile cli
 ```
 
 One-time multi-platform builder (if needed):
@@ -104,6 +111,10 @@ make docker-down
 
 # stdio LSP (not a long-running compose service)
 docker compose --profile lsp run --rm lsp
+
+# CLI (ephemeral; mounts repo at /work)
+docker compose --profile cli run --rm cli check script.pine
+# ≡ make docker-cli ARGS="check script.pine"
 ```
 
 | Service | Profile | Notes |
@@ -111,6 +122,7 @@ docker compose --profile lsp run --rm lsp
 | `api` | default | Port `${API_PORT:-5002}:8080`, ro mounts of `src/` + `backend/`, volume `api_data` → `/data` |
 | `redis` | `redis` | redis:7-alpine, AOF, `${REDIS_PORT:-6379}` |
 | `lsp` | `lsp` | stdio; use `docker compose run --rm lsp` (not detached `up`) |
+| `cli` | `cli` | `ENTRYPOINT pynescript`; mounts `.:/work` + `src` + `cli_data` |
 
 Network name: `pynescript-dev`.
 
@@ -148,8 +160,9 @@ gcr.io/$PROJECT_ID/pynescript/pynescript-pro-api:latest
 
 1. **base** — slim image, `curl` + freetype/png for matplotlib Agg, `appuser`, `/data`
 2. **builder** — `build-essential`, pip cache mounts, install `backend/requirements.txt` then `pip install ".[lsp]"` into `/install` (requires `pyproject.toml`, `README.md`, `LICENSE`, `NOTICE`, `src/`, `backend/`)
-3. **runtime** — copy prefix + sources, `PYTHONPATH=/app/src:/app` so compose mounts override site-packages
-4. **api / api-dev / lsp** — final CMDs and healthchecks
+3. **cli-builder** — same base + `pip install ".[compile,data]"` only (no Flask stack)
+4. **runtime** — copy prefix + sources, `PYTHONPATH=/app/src:/app` so compose mounts override site-packages
+5. **api / api-dev / lsp / cli** — final CMDs / ENTRYPOINTs and healthchecks
 
 ### `.dockerignore`
 
@@ -167,6 +180,7 @@ API: `curl -fsS http://127.0.0.1:8080/`. Redis: `redis-cli ping`.
 4. **Non-root `appuser`** cannot write arbitrary paths; keep `API_KEY_STORE` under `/data`.
 5. **Cloud Build always builds `--target api`** (gunicorn). Do not point it at `api-dev`.
 6. **LSP is stdio** — not an HTTP service; use `docker compose run --rm lsp` rather than expecting a published port.
+7. **CLI is ephemeral** — `ENTRYPOINT pynescript`; pass subcommands after the image name. Workdir defaults to `/work` (compose mounts the repo there).
 
 ## Worked examples
 
@@ -191,6 +205,17 @@ docker compose --profile redis up --build
 
 ```bash
 docker compose --profile lsp run --rm lsp
+```
+
+### CLI image
+
+```bash
+docker buildx bake cli
+docker run --rm pynescript-cli:latest --help
+docker run --rm -v "$PWD:/work" -w /work pynescript-cli:latest check script.pine
+docker run --rm -v "$PWD:/work" -w /work pynescript-cli:latest lint script.pine --json
+# or via compose:
+make docker-cli ARGS="run script.pine --bars 50"
 ```
 
 ### Production overlay
