@@ -25,7 +25,7 @@ from pynescript.ast import unparse
 
 
 script_source = """
-//@version=5
+//@version=6
 strategy("RSI Strategy", overlay=true)
 length = input( 14 )
 overSold = input( 30 )

@@ -89,7 +89,7 @@ pip install -e ".[lsp,pro]"
 from pynescript.ast.helper import parse, unparse
 
 source = """
-//@version=5
+//@version=6
 indicator("My RSI")
 plot(ta.rsi(close, 14))
 """
@@ -149,7 +149,7 @@ make run   # :5002
 curl -s http://127.0.0.1:5002/run \
   -H 'Content-Type: application/json' \
   -d '{
-    "script": "//@version=5\nindicator(\"demo\")\nplot(close)\nalert(close > open, alert.freq_once_per_bar)",
+    "script": "//@version=6\nindicator(\"demo\")\nplot(close)\nalert(close > open, alert.freq_once_per_bar)",
     "data": [{"open":1,"high":2,"low":0.5,"close":1.5,"time":1,"volume":1}],
     "mode": "auto"
   }'

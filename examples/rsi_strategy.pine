@@ -1,4 +1,4 @@
-//@version=5
+//@version=6
 //@description "Simple RSI mean-reversion strategy"
 strategy("RSI Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
 
