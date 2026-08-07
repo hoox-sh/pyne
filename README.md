@@ -46,17 +46,34 @@ Coverage and known gaps are documented in [compatibility](https://hoox.sh/pyne/d
 
 ---
 
-## Ecosystem
+## HOOX Open Trading Stack
 
-PYNE is one component of the [HOOX](https://hoox.sh) open trading stack:
+**PYNE** is part of the **[HOOX Open Trading Stack](https://hoox.sh)** — three complementary open projects under one product site:
 
-| Component | Role | Repository |
-|-----------|------|------------|
-| **HOOX** | Edge execution mesh (Cloudflare® Workers) | [jango-blockchained/hoox](https://github.com/jango-blockchained/hoox) |
-| **PYNE** | Independent Pine Script™-oriented toolchain + Pro API (this repository) | [hoox-sh/pyne](https://github.com/hoox-sh/pyne) |
-| **AXIS** | Installable charting PWA | [jango-blockchained/axis](https://github.com/jango-blockchained/axis) |
+| Product | Role | Repository | Website |
+|---------|------|------------|---------|
+| **[HOOX](https://hoox.sh)** | Edge trading framework (Cloudflare® Workers) — signal validation and execution at the edge | [hoox-sh/hoox](https://github.com/hoox-sh/hoox) | [hoox.sh](https://hoox.sh) · [docs](https://docs.hoox.sh) |
+| **[PYNE](https://hoox.sh/pyne)** | Pine Script™-oriented toolchain, LSP, Pro API, dual-engine runtime (**this repository**) | [hoox-sh/pyne](https://github.com/hoox-sh/pyne) | [hoox.sh/pyne](https://hoox.sh/pyne) · [docs](https://hoox.sh/pyne/docs) |
+| **[AXIS](https://hoox.sh/axis)** | Installable charting PWA (Solid + Vite) — optional UI over evaluate contracts | [hoox-sh/axis](https://github.com/hoox-sh/axis) | [hoox.sh/axis](https://hoox.sh/axis) · [docs](https://hoox.sh/axis/docs) |
 
-AXIS is an optional visualization surface; HOOX is an optional execution mesh. Neither replaces the TradingView® platform.
+```
+                    https://hoox.sh
+           ┌──────────────┼──────────────┐
+           ▼              ▼              ▼
+         HOOX            PYNE           AXIS
+    (edge execution)  (Pine engine)  (charting UI)
+           │              │              │
+           └──────────────┴──────────────┘
+                    trade signals / eval API
+```
+
+**How they relate**
+
+- **PYNE** owns language semantics: parse, evaluate/compile, alerts, strategy events, and the HTTP evaluate surface (`/run`, batch, previews).
+- **[AXIS](https://github.com/hoox-sh/axis)** is an optional chart host. It can call PYNE’s Pro API (or edge workers) to plot series, fills, and drawings — evaluation does not require AXIS.
+- **[HOOX](https://github.com/hoox-sh/hoox)** is an optional execution mesh. Strategy events and alert webhooks from PYNE can feed edge trade paths; HOOX does not replace the PYNE runtime.
+
+Evaluation never depends on a proprietary chart host. AXIS and HOOX are optional clients of the same open evaluate contract. None of these projects is affiliated with or endorsed by TradingView, Inc.
 
 ---
 
