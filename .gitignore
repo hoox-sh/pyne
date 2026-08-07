@@ -143,6 +143,7 @@ bun.lockb
 .private/
 .grok/
 .opencode/
+AGENTS.md
 
 # Local runtime / compose data
 logs/
