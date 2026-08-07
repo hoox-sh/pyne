@@ -1,22 +1,22 @@
-# PYNE — Pine Script™ for VS Code
+# PYNE
 
 <p align="center">
-  <img src="media/icon-512.png" alt="HOOX / PYNE" width="128" />
+  <img src="media/icon-512.png" alt="PYNE" width="128" />
 </p>
 
-**Language support for [TradingView®](https://www.tradingview.com/) Pine Script™**, powered by the **[PYNE](https://hoox.sh/pyne)** toolchain (`pynescript`).
+**VS Code language support** for **`.pyne`** / **`.pine`** sources, powered by the **[PYNE](https://hoox.sh/pyne)** toolchain (`pynescript` / `hoox-pyne`).
 
 Part of the **[HOOX](https://hoox.sh) open trading stack** — sister products: **[AXIS](https://hoox.sh/axis)** (charting PWA) and **[HOOX](https://hoox.sh)** (edge execution).
 
-> Pine Script™ and TradingView® are trademarks of TradingView, Inc.  
-> This extension is an independent open-source project and is **not affiliated with, endorsed by, or sponsored by TradingView, Inc.**
+> Independent, unofficial extension. **Not** affiliated with, endorsed by, or sponsored by TradingView, Inc.  
+> Pine Script™ and TradingView® are trademarks of TradingView, Inc.
 
 ## Features
 
 | Feature | Details |
 |---------|---------|
 | **File types** | **`.pyne`** (primary), `.pine`, `.pinev5`, `.pinev6`, `.pinescript` |
-| **Syntax highlighting** | TextMate grammar for Pine™ v5/v6 — namespaces (`ta.`, `strategy.`, `color.`…), annotations (`//@version=`), colors (`#RRGGBB`), history refs, UDTs, multiline strings |
+| **Syntax highlighting** | TextMate grammar — namespaces (`ta.`, `strategy.`, `color.`…), annotations (`//@version=`), colors, history refs, UDTs, multiline strings |
 | **Language Server** | Diagnostics, autocomplete, hover docs, document symbols, formatting (`pip install "hoox-pyne[lsp]"`) |
 | **Status bar** | `PYNE LSP` indicator (click → server output) |
 | **Auto-detect LSP** | `pynescript-lsp` on `PATH`, or `python3 -m pynescript.langserver` |
@@ -49,7 +49,7 @@ python3 -c "import pynescript.langserver; print('ok')"
 cd vscode-extension
 npm install
 npm run package
-code --install-extension pyne-0.2.2.vsix
+code --install-extension pyne-*.vsix
 ```
 
 > The VSIX is **self-contained** (esbuild bundles `vscode-languageclient`). You still need the **language server** on the machine (`pip install "hoox-pyne[lsp]"`).
@@ -78,30 +78,21 @@ code --extensionDevelopmentPath=.
 
 ## Commands (Command Palette)
 
-| Command | ID | Notes |
-|---------|-----|--------|
-| **PYNE: Restart Language Server** | `pynescript.restartServer` | Always available after install |
-| **PYNE: Show Language Server Output** | `pynescript.showLspOutput` | Also status-bar click |
-| **PYNE: Show Resolved LSP Launch Command** | `pynescript.showLspCommand` | Copy / debug launch path |
-| **PYNE: Format Document** | `pynescript.formatDocument` | Pine files only; needs running LSP |
+Search for **PYNE**:
 
-If a command says **“not found”**, reinstall the VSIX (0.2.2+ bundles the language client). Older packages omitted `node_modules` and failed to activate.
+- Restart Language Server  
+- Format Document  
+- Show Language Server Output  
+- Show Resolved LSP Launch Command  
 
-## Ecosystem
+## Marketplace identity
 
-| Product | Role |
-|---------|------|
-| **[HOOX](https://hoox.sh)** | Edge trading framework |
-| **[PYNE](https://hoox.sh/pyne)** | Pine Script™ toolchain + Pro API + this extension |
-| **[AXIS](https://hoox.sh/axis)** | Installable charting PWA |
-
-The AXIS web editor uses the **Pro API** HTTP bridge (`POST /lsp/completion`, `/lsp/hover`) when engine=server — not this extension. VS Code uses **stdio** `pynescript-lsp`.
-
-## Trademark notice
-
-Pine Script™ and TradingView® are trademarks of TradingView, Inc.  
-PYNE / HOOX are independent open-source software and are not affiliated with, endorsed by, or sponsored by TradingView, Inc.
+| Field | Value |
+|-------|--------|
+| Extension id | `jango-blockchained.pyne` |
+| Package name | `pyne` |
+| Display name | **PYNE** |
 
 ## License
 
-AGPL-3.0-or-later · jango_blockchained · [hoox.sh](https://hoox.sh)
+AGPL-3.0-or-later — see [LICENSE](./LICENSE).

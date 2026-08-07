@@ -4,7 +4,7 @@ This directory contains LSP client configurations for popular editors.
 
 ## VS Code
 
-Extension lives in [`../vscode-extension`](../vscode-extension) (**PYNE — Pine Script™ for VS Code**, part of the HOOX open trading stack).
+Extension lives in [`../vscode-extension`](../vscode-extension) (**PYNE**, part of the HOOX open trading stack).
 
 **Prerequisite:** language server installed:
 

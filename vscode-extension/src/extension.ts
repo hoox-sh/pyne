@@ -18,7 +18,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 /**
- * PYNE — Pine Script™ for VS Code (HOOX open trading stack).
+ * PYNE — VS Code extension (HOOX open trading stack).
  * Language Client for pynescript-lsp.
  *
  * Server discovery (in order):
@@ -26,8 +26,8 @@
  *  2. pynescript-lsp on PATH
  *  3. python -m pynescript.langserver (pynescript.lsp.python)
  *
- * Trademark: Pine Script™ / TradingView® are trademarks of TradingView, Inc.
- * This project is independent and not affiliated with or endorsed by TradingView, Inc.
+ * Unofficial independent project. Not affiliated with or endorsed by TradingView, Inc.
+ * Pine Script™ and TradingView® are trademarks of TradingView, Inc.
  */
 
 import { execFileSync } from 'child_process';
