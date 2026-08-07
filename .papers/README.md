@@ -50,18 +50,28 @@ Each paper is self-contained with abstract, introduction, technical body, evalua
 
 ```bash
 # From .papers/
-make all          # pdflatex + bibtex for every paper
-make paper02-compiler   # single paper
-make clean        # aux files only
-make distclean    # aux + PDFs
-make check        # verify main.tex exists
+make all            # all individual papers + complete volume
+make series         # binder PDF with every page of every paper
+make paper02-compiler   # single paper (pdflatex path)
+make clean          # aux files only
+make distclean      # aux + PDFs
+make check          # verify main.tex exists
 ```
+
+**Complete volume** (all pages, one file):
+
+| Artifact | Description |
+|----------|-------------|
+| [`series-complete/main.tex`](series-complete/main.tex) | LaTeX binder (`pdfpages`) |
+| `series-complete/main.pdf` | Built volume (cover + TOC + papers 01–06) |
+| `PYNE-paper-series-complete.pdf` | Convenience copy at `.papers/` root |
 
 With Tectonic (recommended on minimal hosts):
 
 ```bash
 cd paper01-architecture && tectonic main.tex
-# repeat for paper02–paper06
+# repeat for paper02–paper06, then:
+cd ../series-complete && tectonic main.tex
 ```
 
 ## arXiv submission notes
