@@ -1,20 +1,21 @@
-<p align="center">
-  <img src="brand/png/github-social-1280x640-dark.png" alt="PYNE — parse the language, own the AST" width="720" />
-</p>
-
-# PYNE
+# HOOX - PYNE
 
 **Independent open toolchain for the Pine Script™ language** — formal grammar, algebraic AST, dual-engine bar-loop runtime, language server, and HTTP evaluation surface.
 
-| | |
-|---|---|
-| **Version** | 0.3.0 |
-| **PyPI** | [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) |
-| **Import / CLIs** | `pynescript` · `pynescript-lsp` |
-| **Website** | [hoox.sh/pyne](https://hoox.sh/pyne) |
-| **Docs** | [hoox.sh/pyne/docs](https://hoox.sh/pyne/docs) |
-| **Source** | [github.com/hoox-sh/pyne](https://github.com/hoox-sh/pyne) |
-| **License** | AGPL-3.0-or-later |
+Import / CLIs: `pynescript` · `pynescript-lsp`. Distribution: [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) · **0.3.0**.
+
+<div align="center">
+
+![PYNE — Grammar to semantics](brand/png/tagline-grammar-to-semantics-github-1280x640-br-split-dark.png)
+
+[![Python](https://shieldcn.dev/badge/Language-Python_3.10%2B-3776ab.png?size=sm&logo=python)](https://www.python.org/)
+[![PyPI](https://shieldcn.dev/badge/PyPI-hoox--pyne-F97316.png?size=sm&logo=pypi)](https://pypi.org/project/hoox-pyne/)
+[![License](https://shieldcn.dev/badge/License-AGPL_3.0-6b7280.png?size=sm)](LICENSE)
+[![CI](https://shieldcn.dev/github/ci/hoox-sh/pyne.png?size=sm)](https://github.com/hoox-sh/pyne/actions/workflows/ci.yml)
+
+**Website:** [hoox.sh/pyne](https://hoox.sh/pyne) · **Docs:** [hoox.sh/pyne/docs](https://hoox.sh/pyne/docs) · **Source:** [github.com/hoox-sh/pyne](https://github.com/hoox-sh/pyne)
+
+</div>
 
 ### Trademark & affiliation notice
 
