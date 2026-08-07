@@ -1,332 +1,200 @@
-# pyne
+<p align="center">
+  <img src="brand/png/github-social-1280x640-dark.png" alt="PYNE — parse the language, own the AST" width="720" />
+</p>
 
-> Parse, evaluate, and compile TradingView® Pine Script™ with a modern Python toolchain.
-> Bar-loop runtime (interpret + Numba/object-mode compile), alerts, Pro API, and Language Server Protocol (LSP) for VS Code, Neovim, Zed, and Emacs.
+# PYNE
 
-**Version:** 0.3.0 · **PyPI (live):** [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) · **Import / CLIs:** `pynescript` · `pynescript-lsp`
+**Open toolchain for TradingView® Pine Script™** — formal grammar, algebraic AST, dual-engine bar-loop runtime, language server, and HTTP evaluation surface.
 
-**Website:** [hoox.sh/pyne](https://hoox.sh/pyne) · **Docs:** [hoox.sh/pyne/docs](https://hoox.sh/pyne/docs) · **Repo:** [hoox-sh/pyne](https://github.com/hoox-sh/pyne)
+| | |
+|---|---|
+| **Version** | 0.3.0 |
+| **PyPI** | [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) |
+| **Import / CLIs** | `pynescript` · `pynescript-lsp` |
+| **Website** | [hoox.sh/pyne](https://hoox.sh/pyne) |
+| **Docs** | [hoox.sh/pyne/docs](https://hoox.sh/pyne/docs) |
+| **Source** | [github.com/hoox-sh/pyne](https://github.com/hoox-sh/pyne) |
+| **License** | AGPL-3.0-or-later |
 
-_Pine Script™ and TradingView® are trademarks of TradingView, Inc. Cloudflare® is a trademark of Cloudflare, Inc. This project is an independent effort and is not affiliated with or endorsed by TradingView, Inc. or Cloudflare, Inc._
+_Pine Script™ and TradingView® are trademarks of TradingView, Inc. Cloudflare® is a trademark of Cloudflare, Inc. This project is independent and is not affiliated with or endorsed by TradingView, Inc. or Cloudflare, Inc._
+
+---
+
+## Abstract
+
+Proprietary chart hosts couple Pine Script™ to a closed execution environment. PYNE inverts that coupling: the language is treated as an inspectable pipeline from source text through parse, AST construction, and deterministic bar-loop evaluation — independent of any particular charting UI.
+
+```
+Source (.pyne / .pine)
+  → ANTLR4 lexer / parser
+  → ASDL AST
+  → bar-loop  (interpret | compile | auto)
+  → plots · fills · drawings · strategy events · alerts
+  → optional HTTP / edge / editor clients
+```
+
+The same pipeline underlies the desk CLI, the Language Server Protocol (LSP) binary, the Pro API, browser Pyodide evaluation (via AXIS), and Cloudflare® Workers that share one evaluate contract.
+
+**Corpus note.** On the sanitized open-source library corpus (sets 01–04), projected runtime success is approximately **94.3%**. That figure measures practical coverage of real scripts; it is not a claim of bit-identical TradingView® platform parity. See [compatibility](https://hoox.sh/pyne/docs/reference/compatibility) and [implementation status](https://hoox.sh/pyne/docs/reference/implementation-status).
+
+---
 
 ## Ecosystem
 
-Part of the **[HOOX](https://hoox.sh)** open trading stack:
+PYNE is one component of the [HOOX](https://hoox.sh) open trading stack:
 
-| Product | Role | Repo | Website |
-|---------|------|------|---------|
-| **HOOX** | Edge trading framework (Cloudflare® Workers) | [jango-blockchained/hoox](https://github.com/jango-blockchained/hoox) | [hoox.sh](https://hoox.sh) · [docs](https://docs.hoox.sh) |
-| **PYNE** | Pine Script™ toolchain + Pro API (this repo) | [hoox-sh/pyne](https://github.com/hoox-sh/pyne) | [hoox.sh/pyne](https://hoox.sh/pyne) · [docs](https://hoox.sh/pyne/docs) |
-| **AXIS** | Installable charting PWA | [jango-blockchained/axis](https://github.com/jango-blockchained/axis) | [hoox.sh/axis](https://hoox.sh/axis) · [docs](https://hoox.sh/axis/docs) |
+| Component | Role | Repository |
+|-----------|------|------------|
+| **HOOX** | Edge execution mesh (Cloudflare® Workers) | [jango-blockchained/hoox](https://github.com/jango-blockchained/hoox) |
+| **PYNE** | Pine Script™ toolchain + Pro API (this repository) | [hoox-sh/pyne](https://github.com/hoox-sh/pyne) |
+| **AXIS** | Installable charting PWA | [jango-blockchained/axis](https://github.com/jango-blockchained/axis) |
 
-Local clone layout (typical sibling checkouts):
+Evaluation does not require a proprietary chart host. AXIS is an optional visualization surface; HOOX is an optional execution mesh.
 
-```text
-~/Git/hoox          # edge stack
-~/Git/pynescript    # this repo (GitHub: pyne)
-~/Git/axis          # charting PWA
+---
+
+## Capabilities
+
+### Language front-end
+
+- **Grammar** — Pine Script™ v5–v6 surface via ANTLR4 resource grammars
+- **AST** — ASDL-generated nodes with visitor and transformer patterns
+- **Round-trip** — `parse → unparse` with preservation of formatting intent
+- **Linter** — Static checks for common structural and style issues
+
+### Runtime
+
+- **Bar-loop evaluation** — Deterministic indicator and strategy execution on OHLCV
+- **Dual engine** — Interpret (AST walk) and compile (Numba nopython kernels with object-mode fallback); `mode=auto|compile|interpret`
+- **Warm compile** — Disk IR cache, process prewarm, and recovery from corrupt cache state
+- **Plot parity** — Interpret ↔ compile series alignment verified by harness and tests
+- **Alerts** — `alert()` / `alertcondition()` with TradingView-style frequency semantics; structured export on Pro `/run` and optional L2 webhooks
+- **Strategy surface** — Entries, exits, events, commission/slippage paths, pending-fill behavior under pyramiding constraints
+- **Drawing GC** — Honor of `max_lines_count`, `max_labels_count`, `max_boxes_count`, `max_polylines_count`
+- **Security policy** — Same-symbol simple OHLCV for `request.security`; foreign or complex security resolves to `na` (no invented foreign closes)
+
+### Tooling surfaces
+
+| Surface | Role |
+|---------|------|
+| **CLI** (`pynescript`) | Check, format, lint, compile, run, data fetch, prewarm |
+| **LSP** (`pynescript-lsp`) | Diagnostics, completion (~800+ builtins), hover, navigation, semantic tokens, formatting |
+| **VS Code extension** | First-class `.pyne` / `.pine` (and related) associations |
+| **Pro API** | HTTP evaluate, batch run, chart preview, quick backtest |
+| **Editors** | Configurations for Neovim, Zed, Emacs (see `clients/`) |
+
+---
+
+## Installation
+
+```bash
+pip install hoox-pyne                 # core library + CLI
+pip install "hoox-pyne[lsp]"          # language server
+pip install "hoox-pyne[compile]"      # Numba compile path
+pip install "hoox-pyne[data]"         # market data providers
+pip install "hoox-pyne[pro]"          # Flask Pro API stack
 ```
 
-## Table of Contents
+Development install from a clone:
 
-- [Ecosystem](#ecosystem)
-- [Overview](#overview)
-- [Language Server (LSP)](#language-server-lsp)
-- [Pro API](#pro-api)
-- [AXIS charting UI](#axis-charting-ui)
-- [Features](#features)
-- [Installation](#installation)
-- [Quickstart](#quickstart)
-- [Tool Examples](#tool-examples)
-- [CLI Reference](#cli-reference)
-- [Library API](#library-api)
-- [Project Structure](#project-structure)
-- [Documentation](#documentation)
-- [Compatibility note](#compatibility-note)
+```bash
+pip install -e ".[lsp,pro]"
+```
 
-## Overview
+---
 
-**pyne** (Python package `pynescript`, distribution name **`hoox-pyne`**) is a toolchain for TradingView® Pine Script™ that provides:
+## Quickstart
 
-- **Parser & AST** — Pine Script™ v5–v6 grammar (ANTLR4) into a navigable ASDL AST, with round-trip unparse
-- **Bar-loop runtime** — Deterministic evaluate path for indicators and strategies on OHLCV
-- **Compile modes** — `mode=auto|compile|interpret` with Numba nopython kernels and object-mode fallback; warm compile, disk IR cache, prewarm, corrupt-cache recovery
-- **Interpret ↔ compile plot parity** — Harness and tests so plot series stay aligned across engines
-- **Alert engine** — `alert()` / `alertcondition()` with TradingView-style frequency (`once_per_bar`, `once_per_bar_close`, `all`); exported on Pro `/run` and optional L2 webhooks
-- **LSP server** — Diagnostics, completion, hover, navigation, formatting, semantic tokens for professional editors
-- **Pro API** — HTTP evaluate (`/run`, `/run/batch`), chart previews, quick backtests, optional Git OAuth proxy for AXIS Connect
-- **Linter** — Catch common issues before upload
-- **Corpus runtime** — Large sanitized library corpus; set01–04 projects roughly **~94.3%+** runtime OK (not 100% TradingView® platform parity)
+### Parse and unparse
 
-## Language Server (LSP)
+```python
+from pynescript.ast.helper import parse, unparse
 
-Get professional IDE features in VS Code, Neovim, Zed, Emacs, and more:
+source = """
+//@version=5
+indicator("My RSI")
+plot(ta.rsi(close, 14))
+"""
+
+tree = parse(source)
+print(unparse(tree))
+```
+
+### Evaluate an expression
+
+```python
+from pynescript.ast.helper import literal_eval
+
+literal_eval("1 + 2 * 3")                    # 7
+literal_eval("ta.rsi([100, 102, 101, 103, 105], 9)")
+```
+
+### CLI
+
+```bash
+pynescript check script.pine
+pynescript format script.pine -w
+pynescript lint script.pine
+pynescript run script.pine --bars 100
+pynescript compile script.pine --emit
+pynescript data AAPL --provider yahoo --period 6mo
+pynescript info
+```
+
+### Language server
 
 ```bash
 pip install "hoox-pyne[lsp]"
 pynescript-lsp
 ```
 
-### Features
+Editor integration: VS Code via the [PYNE extension](./vscode-extension/); Neovim, Zed, and Emacs configs under [`clients/`](./clients/).
 
-| Feature | Description |
-|---------|-------------|
-| **Diagnostics** | 9 lint rules (naming, deprecated, style) |
-| **Autocomplete** | 800+ builtins across namespaces (`ta.*`, `strategy.*`, `array.*`, `matrix.*`, `math.*`, `str.*`, …) |
-| **Hover** | Signature, docs, examples, see-also links |
-| **Go-to-definition** | Jump to function/type/variable definitions |
-| **Find references** | Find all usages of a symbol |
-| **Document outline** | Hierarchical symbol tree |
-| **Formatting** | Full document + range formatting |
-| **Semantic tokens** | Rich highlighting via the language server |
-
-### Editor Setup
-
-**VS Code / compatible editors — PYNE extension:**
-
-The **[PYNE — Pine Script™ for VS Code](./vscode-extension/)** extension (`pyne`) associates **`.pyne`** (first-class PYNE sources) and **`.pine`** (TradingView® exports), plus `.pinev5` / `.pinev6` / `.pinescript`.
-
-1. Install the language server: `pip install "hoox-pyne[lsp]"`
-2. Package or install the extension from `vscode-extension/` (see that folder’s README for VSIX packaging)
-3. Open a `.pyne` or `.pine` file — the LSP activates automatically when `pynescript-lsp` is on `PATH` (or via `python3 -m pynescript.langserver`)
-
-**Neovim (with nvim-lspconfig):**
-
-```lua
-require('lspconfig').pynescript.setup({})
-```
-
-**Zed:**
-
-Add to `settings.json`:
-
-```json
-{
-  "language_servers": {
-    "pynescript": {
-      "command": "pynescript-lsp",
-      "arguments": ["--stdio"]
-    }
-  }
-}
-```
-
-**Emacs (with lsp-mode):**
-
-```elisp
-(use-package lsp-mode
-  :hook ((pinescript-mode . lsp))
-  :config
-  (lsp-register-client
-   (make-lsp-client
-    :new-connection (lsp-stdio-connection '("pynescript-lsp" "--stdio"))
-    :major-modes '(pinescript-mode)
-    :server-id 'pynescript)))
-```
-
-See `clients/` for full configuration guides.
+---
 
 ## Pro API
 
-Cloud / self-hosted API for live chart previews, strategy backtesting, and script evaluation:
+Self-hosted (or managed) HTTP surface for script evaluation and previews:
 
-| Endpoint | Description | Tier |
-|----------|-------------|------|
-| `POST /run` | Execute Pine Script (`mode` default **`auto`** = warm compile with interpret fallback); response includes **`alerts`**, plots, series, events, drawings | Free |
-| `POST /run/batch` | Run multiple scripts on shared OHLCV (AXIS multi-indicator) | Free |
-| `POST /compile/prewarm` | Warm Numba builtins / optional scripts | Free |
-| `POST /preview/chart` | Generate chart thumbnail | Pro |
-| `POST /preview/indicator` | Indicator chart (SMA, EMA, RSI, MACD) | Pro |
-| `POST /backtest/quick` | Quick backtest with equity curve | Pro |
-| Git OAuth proxy | Device-flow helpers for AXIS Connect (`/api/git/oauth/...`) | Optional |
+| Endpoint | Description |
+|----------|-------------|
+| `POST /run` | Execute script (`mode` default `auto`); returns plots, series, events, drawings, **alerts** |
+| `POST /run/batch` | Multiple scripts on shared OHLCV |
+| `POST /compile/prewarm` | Warm Numba builtins / optional scripts |
+| `POST /preview/chart` | Chart thumbnail |
+| `POST /preview/indicator` | Indicator chart (SMA, EMA, RSI, MACD, …) |
+| `POST /backtest/quick` | Quick backtest with equity curve |
 
-### `/run` highlights
-
-- **`mode`**: `"auto"` (default) \| `"compile"` \| `"interpret"`
-- **`alerts`**: structured `alert()` / `alertcondition()` firings with TV-style frequency
-- **L2 webhooks** (optional): per-request `webhook_url` or server `ALERT_WEBHOOK_URL`; last-bar batch POST of alert firings (`forward_alerts`, `alert_last_bar`, `alert_batch`)
-- Structured errors: `error_kind` (`parse` \| `compile` \| `runtime` \| `data` \| `order` \| `mode`), `error_type`, `error_bar`
-
-Product docs: [POST /run](https://hoox.sh/pyne/docs/api/endpoints/run) · [Alerts](https://hoox.sh/pyne/docs/runtime/alerts)
-
-## AXIS charting UI
-
-The installable charting PWA (**AXIS**) is a **sister repository**:
-
-- Repo: [jango-blockchained/axis](https://github.com/jango-blockchained/axis)
-- Product: [hoox.sh/axis](https://hoox.sh/axis)
-- Docs: [hoox.sh/axis/docs](https://hoox.sh/axis/docs)
-
-It talks to this repo’s Pro API in local dev:
+`/run` accepts `mode` ∈ {`auto`, `compile`, `interpret`}, returns structured errors (`error_kind`, `error_type`, `error_bar`), and can forward last-bar alert firings to an optional webhook (`webhook_url` or server `ALERT_WEBHOOK_URL`).
 
 ```bash
-# this repo (pyne)
-make run              # Flask Pro API on :5002
+# Local server
+make run   # :5002
 
-# sibling clone
-git clone https://github.com/jango-blockchained/axis.git ../axis
-cd ../axis && bun install && bun run dev   # Vite on :3000
-```
-
-### Pricing
-
-| Tier | Price | API Calls/mo | Features |
-|------|-------|-------------|---------|
-| Free | $0 | Unlimited (local) | All LSP features |
-| Hobby | $9/mo | 5,000 | Live chart previews |
-| Pro | $29/mo | 50,000 | + equity curves, backtests |
-| Team | $99/mo | 200,000 | + multi-user |
-
-Product site: [hoox.sh/pyne](https://hoox.sh/pyne).
-
-### HTTP API (curl)
-
-```bash
-# Free run (no key) — default mode=auto; alerts returned in the payload
 curl -s http://127.0.0.1:5002/run \
   -H 'Content-Type: application/json' \
   -d '{
-    "script":"//@version=5\nindicator(\"demo\")\nplot(close)\nalert(close > open, alert.freq_once_per_bar)",
-    "data":[{"open":1,"high":2,"low":0.5,"close":1.5,"time":1,"volume":1}],
-    "mode":"auto"
+    "script": "//@version=5\nindicator(\"demo\")\nplot(close)\nalert(close > open, alert.freq_once_per_bar)",
+    "data": [{"open":1,"high":2,"low":0.5,"close":1.5,"time":1,"volume":1}],
+    "mode": "auto"
   }'
-
-# Optional L2 webhook (overrides ALERT_WEBHOOK_URL when set)
-curl -s http://127.0.0.1:5002/run \
-  -H 'Content-Type: application/json' \
-  -d '{"script":"//@version=5\nindicator(\"a\")\nalert(\"ping\")","data":[{"open":1,"high":1,"low":1,"close":1,"time":1}],"webhook_url":"https://hooks.example.com/pine"}'
-
-# Mint a Pro key (requires ADMIN_TOKEN env on the server)
-curl -s -X POST http://127.0.0.1:5002/auth/create_key \
-  -H "X-Admin-Token: $ADMIN_TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"tier":"hobby"}'
 ```
 
-## Features
+Documentation: [POST /run](https://hoox.sh/pyne/docs/api/endpoints/run) · [Alerts](https://hoox.sh/pyne/docs/runtime/alerts) · [API hub](https://hoox.sh/pyne/docs/api)
 
-- **Complete parsing** — Full Pine Script™ v5–v6 grammar via ANTLR4; sanitize helpers for real-world library corpora
-- **Language Server** — Diagnostics, autocomplete (800+ builtins), hover, navigation, semantic tokens, formatting
-- **`.pyne` + `.pine`** — First-class PYNE sources and TradingView® export associations in the PYNE VS Code extension
-- **Dual-engine runtime** — Interpret AST bar-loop and Numba / object-mode compile (`mode=auto|compile|interpret`)
-- **Warm compile path** — Disk IR cache, process prewarm, corrupt Numba-cache recovery, `time_arr` host plumbing
-- **Interpret ↔ compile plot parity** — `scripts/compare_interp_compile.py`, `tests/test_interp_compile_parity.py`
-- **Alert engine** — `alert()` / `alertcondition()` with `once_per_bar`, `once_per_bar_close`, `all`; Pro `/run` export + L2 webhooks
-- **Pro API** — Live chart previews, equity curves, quick backtests, `/run` + `/run/batch`, optional Git OAuth proxy
-- **Performance (Round 7)** — Series caps (`PYNE_SERIES_CAP`), incremental TA (bb / kama / cmo / stochrsi + SMA/EMA/RSI family), parse AST LRU cache
-- **Drawing GC** — `max_lines_count` / `max_labels_count` / `max_boxes_count` / `max_polylines_count`
-- **Plot bands** — `fill(plot1, plot2)` series export for AXIS charting
-- **request.security policy** — Same-symbol simple OHLCV only; foreign / complex security → `na` (honest, no invented foreign closes)
-- **Strategy fidelity** — Pending-fill VWAP when pyramiding ≤ 0; strategy events, commission/slippage paths
-- **Corpus Runtime** — set01–04 ~**94.3%+** projected OK on sanitized library scripts (honest residual tail; not full TV platform parity)
-- **AST manipulation** — Inspect and transform scripts with Python visitor patterns
-- **Round-trip** — Parse and unparse without losing formatting intent
-- **Linter** — 9 rules for catching issues before upload
-- **Jupyter support** — Magic commands for notebook workflows
-- **Data providers** — Yahoo Finance, Alpha Vantage, CCXT (100+ exchanges)
-- **Modern tooling** — Ruff linting, pytest, Nuitka-compiled LSP binary option
+---
 
-## Installation
-
-```bash
-# From PyPI (distribution name hoox-pyne; import remains pynescript)
-pip install hoox-pyne                 # live on PyPI · https://pypi.org/project/hoox-pyne/
-pip install "hoox-pyne[lsp]"          # language server
-pip install "hoox-pyne[compile]"      # Numba compile path
-pip install "hoox-pyne[data]"         # ccxt market data
-pip install "hoox-pyne[pro]"          # Flask Pro API stack
-
-# From a git clone (development)
-pip install -e ".[lsp,pro]"
-pip install -e ".[dev-lsp]"        # + pytest-lsp
-```
-
-## Quickstart
+## Library API (sketch)
 
 ```python
-from pynescript.ast.helper import parse, unparse
-
-script = """
-//@version=5
-indicator("My RSI")
-rsi(close, 14)
-"""
-
-tree = parse(script)
-regenerated = unparse(tree)
-print(regenerated)
-```
-
-## Tool Examples
-
-### Parsing and Inspecting AST
-
-```bash
-pynescript parse-and-dump examples/rsi_strategy.pine
-```
-
-### Round-Trip Formatting
-
-```bash
-pynescript parse-and-unparse messy_script.pine > clean_script.pine
-```
-
-### Linting
-
-```bash
-pynescript lint my_script.pine
-pynescript lint --fail-on warnings my_script.pine
-```
-
-### Evaluating Expressions
-
-```python
-from pynescript.ast.helper import literal_eval
-
-result = literal_eval("1 + 2 * 3")
-print(result)  # 7
-
-prices = [100, 102, 101, 103, 105]
-rsi = literal_eval(f"ta.rsi({prices}, 9)")
-print(rsi)  # ~81.25
-```
-
-### Fetching Market Data
-
-```bash
-pynescript data AAPL --provider yahoo --period 6mo
-pynescript data BTC/USDT --provider ccxt --exchange binance
-```
-
-## CLI Reference
-
-| Command | Description |
-|---------|-------------|
-| `parse-and-dump <file>` | Parse and print AST |
-| `parse-and-unparse <file>` | Normalize formatting |
-| `lint <file>` | Check for issues |
-| `lint --fail-on warnings` | Fail on warnings |
-| `data <symbol>` | Fetch market data |
-| `lsp` | Start LSP server |
-| `prewarm [PATH…]` | Warm compile builtins / scripts (optional) |
-
-## Library API
-
-```python
-# Parse
-from pynescript.ast.helper import parse, unparse
-tree = parse(source_code)
-
-# Lint
+from pynescript.ast.helper import parse, unparse, literal_eval
 from pynescript.ast.linter import lint_script
-warnings = lint_script(source_code)
-
-# Evaluate
-from pynescript.ast.helper import literal_eval
-result = literal_eval("ta.sma([100, 102, 101], 3)")
-
-# Transform
 from pynescript.ast.transformer import NodeTransformer
+
+tree = parse(source_code)
+warnings = lint_script(source_code)
+value = literal_eval("ta.sma([100, 102, 101], 3)")
+
 class Renamer(NodeTransformer):
     def visit_Name(self, node):
         if node.id == "close":
@@ -334,46 +202,63 @@ class Renamer(NodeTransformer):
         return node
 ```
 
-## Project Structure
+---
 
-```
-src/pynescript/     # Core: parser, AST, evaluator, compiler, linter
-  ast/              # ANTLR grammar, ASDL nodes, evaluator builtins, helpers
-  compiler/         # Numba / object-mode compile path
-  langserver/       # LSP server (diagnostics, completion, hover)
-  util/             # Data providers, helpers
-backend/            # Pro API server
-  api/              # REST endpoints (preview, LSP HTTP, git OAuth)
-  services/         # Chart rendering, backtesting
-  middleware/       # Auth, key stores, schemas
-clients/            # Editor configs (Neovim, Zed, Emacs, Helix)
-scripts/            # Build, metadata, interp↔compile parity harness
-tests/              # Test suite (incl. parity, alerts, corpus residuals)
-vscode-extension/   # PYNE VS Code extension (.pyne / .pine)
-```
+## CLI reference
+
+| Command | Purpose |
+|---------|---------|
+| `check <file>` | Parse-only validation |
+| `format <file>` | Format via parse → unparse |
+| `lint <file>` | Static analysis |
+| `parse-and-dump <file>` | Print AST |
+| `parse-and-unparse <file>` | Normalize source |
+| `compile <file>` | Numba host pipeline / emit |
+| `run <file>` | Execute on synthetic (or provided) OHLCV |
+| `prewarm [PATH…]` | Warm compile caches |
+| `data <symbol>` | Fetch market data |
+| `info` | Version and optional extras |
+
+Language server entry point: **`pynescript-lsp`** (separate console script).
+
+---
 
 ## Documentation
 
-Product docs (canonical): **[hoox.sh/pyne/docs](https://hoox.sh/pyne/docs)**
+Canonical product documentation: **[hoox.sh/pyne/docs](https://hoox.sh/pyne/docs)**
 
 | Topic | Link |
 |-------|------|
-| Getting started | [Installation](https://hoox.sh/pyne/docs/enduser/getting-started/installation) · [Quick start](https://hoox.sh/pyne/docs/enduser/getting-started/quick-start) |
+| Installation · quick start | [Getting started](https://hoox.sh/pyne/docs/enduser/getting-started/installation) |
 | Evaluate scripts | [Evaluate guide](https://hoox.sh/pyne/docs/enduser/guides/evaluate-scripts) |
 | Alerts & webhooks | [Runtime alerts](https://hoox.sh/pyne/docs/runtime/alerts) |
-| Compiler & parity | [Compiler overview](https://hoox.sh/pyne/docs/runtime/compiler/overview) · [Interpret ↔ compile parity](https://hoox.sh/pyne/docs/runtime/compiler/parity) · [Numba path](https://hoox.sh/pyne/docs/runtime/compiler/numba) |
-| Pro API | [API hub](https://hoox.sh/pyne/docs/api) · [POST /run](https://hoox.sh/pyne/docs/api/endpoints/run) · [Pro API usage](https://hoox.sh/pyne/docs/enduser/guides/pro-api-usage) |
-| LSP | [LSP hub](https://hoox.sh/pyne/docs/lsp) · [VS Code extension](https://hoox.sh/pyne/docs/lsp/vscode-extension) |
-| Compatibility | [Compatibility](https://hoox.sh/pyne/docs/reference/compatibility) · [Implementation status](https://hoox.sh/pyne/docs/reference/implementation-status) |
+| Compiler & parity | [Compiler](https://hoox.sh/pyne/docs/runtime/compiler/overview) · [Parity](https://hoox.sh/pyne/docs/runtime/compiler/parity) |
+| Pro API | [API](https://hoox.sh/pyne/docs/api) · [Usage](https://hoox.sh/pyne/docs/enduser/guides/pro-api-usage) |
+| LSP | [LSP hub](https://hoox.sh/pyne/docs/lsp) · [VS Code](https://hoox.sh/pyne/docs/lsp/vscode-extension) |
+| Compatibility | [Compatibility](https://hoox.sh/pyne/docs/reference/compatibility) · [Status](https://hoox.sh/pyne/docs/reference/implementation-status) |
 
-In-repo references:
+In-repository notes: [Roadmap](./docs/ROADMAP.md) · [Missing features](./docs/missing_features.md) · [Changelog](./CHANGELOG.md)
 
-- [Roadmap](./docs/ROADMAP.md)
-- [Missing features](./docs/missing_features.md)
-- [Compiler plan](./docs/COMPILER_PLAN.md)
-- [GCP cost estimate](./docs/gcp_cost_estimate.md)
-- [LSP implementation plan](./.opencode/plans/pynescript-lsp-implementation.md)
+---
 
-## Compatibility note
+## Compatibility
 
-PYNE aims for practical runtime fidelity on a large library corpus (set01–04 ~**94.3%+** projected OK) with continuous residual fixes. It does **not** claim 100% TradingView® platform parity (chart host, data model, every edge-case builtin, or closed UI semantics). Prefer the [compatibility](https://hoox.sh/pyne/docs/reference/compatibility) and [implementation status](https://hoox.sh/pyne/docs/reference/implementation-status) pages for current surface coverage.
+PYNE targets practical runtime fidelity on a large library corpus, with continuous residual work. It does **not** claim complete TradingView® platform parity (chart host semantics, full data model, every edge-case builtin, or closed UI behavior). Prefer the published compatibility and implementation-status pages for current surface coverage.
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md). Code of conduct: [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md). Security reports: [SECURITY.md](./SECURITY.md).
+
+```bash
+make install   # editable install with LSP
+make test      # pytest
+make lint      # ruff
+```
+
+---
+
+## License
+
+GNU Affero General Public License v3.0 or later — see [LICENSE](./LICENSE).
