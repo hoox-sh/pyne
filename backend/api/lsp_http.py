@@ -176,3 +176,106 @@ def lsp_hover():
             "source": "lsp",
         }
     )
+
+
+def _line_end_col(source: str, line_1based: int, start_col: int) -> int:
+    """End column (0-based) for highlighting from *start_col* to end of line."""
+    if line_1based < 1:
+        return max(start_col + 1, 1)
+    lines = source.split("\n")
+    idx = line_1based - 1
+    if idx < 0 or idx >= len(lines):
+        return max(start_col + 1, 1)
+    return max(start_col + 1, len(lines[idx]))
+
+
+@bp.post("/lsp/diagnostics")
+@bp.post("/lsp/preevaluate")
+def lsp_diagnostics():
+    """POST { source } → parse + lint diagnostics for AXIS pre-eval.
+
+    Free endpoint (same CORS surface as completion/hover). Does **not** run the
+    script against bars — static parse + linter only. AXIS uses this to mark
+    wrong code and block Run when errors are present.
+
+    Response::
+
+        {
+          "status": "success",
+          "ok": true|false,          # false when any severity=error
+          "diagnostics": [
+            {
+              "line": 1,             # 1-based
+              "character": 0,        # 0-based start col
+              "endLine": 1,
+              "endCharacter": 12,
+              "message": "...",
+              "severity": "error"|"warning"|"info",
+              "code": "E001",
+              "source": "preeval"
+            }
+          ],
+          "source": "lsp"
+        }
+    """
+    data = request.get_json(silent=True) or {}
+    source = data.get("source") if data.get("source") is not None else data.get("text")
+    if not isinstance(source, str):
+        return jsonify({"status": "error", "message": "source string required"}), 400
+
+    try:
+        from pynescript.ast.linter import lint_script
+    except ImportError as e:
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": f"linter unavailable: {e}",
+                }
+            ),
+            503,
+        )
+
+    try:
+        warnings = lint_script(source, filename="inmemory://axis.pine")
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"status": "error", "message": f"preevaluate failed: {e}"}), 500
+
+    diagnostics: list[dict[str, Any]] = []
+    has_error = False
+    for w in warnings or []:
+        sev = str(getattr(w, "severity", None) or "warning").lower()
+        if sev not in ("error", "warning", "info", "hint", "information"):
+            sev = "warning"
+        if sev == "hint":
+            sev = "info"
+        if sev == "information":
+            sev = "info"
+        if sev == "error":
+            has_error = True
+        line = getattr(w, "line", None)
+        line_1 = int(line) if isinstance(line, int) and line > 0 else 1
+        col = getattr(w, "column", None)
+        col_0 = int(col) if isinstance(col, int) and col >= 0 else 0
+        end_col = _line_end_col(source, line_1, col_0)
+        diagnostics.append(
+            {
+                "line": line_1,
+                "character": col_0,
+                "endLine": line_1,
+                "endCharacter": end_col,
+                "message": str(getattr(w, "message", "") or ""),
+                "severity": sev,
+                "code": str(getattr(w, "code", "") or ""),
+                "source": "preeval",
+            }
+        )
+
+    return jsonify(
+        {
+            "status": "success",
+            "ok": not has_error,
+            "diagnostics": diagnostics,
+            "source": "lsp",
+        }
+    )

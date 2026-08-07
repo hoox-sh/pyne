@@ -46,3 +46,28 @@ def test_lsp_hover_plot(client):
     # may be None if metadata empty for plot in some builds
     if body.get("hover"):
         assert "plot" in body["hover"]["contents"].lower() or body["hover"]["contents"]
+
+
+def test_lsp_diagnostics_ok(client):
+    src = '//@version=5\nindicator("t")\nplot(close)\n'
+    resp = client.post("/lsp/diagnostics", json={"source": src})
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    body = resp.get_json()
+    assert body["status"] == "success"
+    assert body["ok"] is True
+    # style warnings (trailing newline etc.) may appear; no errors
+    diags = body.get("diagnostics") or []
+    assert all(d.get("severity") != "error" for d in diags)
+
+
+def test_lsp_diagnostics_syntax_error(client):
+    src = '//@version=5\nindicator("t")\nplot(close\n'
+    resp = client.post("/lsp/preevaluate", json={"source": src})
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    body = resp.get_json()
+    assert body["status"] == "success"
+    assert body["ok"] is False
+    diags = body.get("diagnostics") or []
+    errors = [d for d in diags if d.get("severity") == "error"]
+    assert errors, body
+    assert any("syntax" in str(e.get("message", "")).lower() for e in errors)

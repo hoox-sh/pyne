@@ -111,9 +111,31 @@ class PineLinter:
         try:
             parse(source, filename)
         except Exception as e:
+            line: int | None = None
+            column: int | None = None
+            # Prefer structured location from pynescript.ast.error.SyntaxError
+            details = getattr(e, "details", None)
+            if details is not None:
+                lineno = getattr(details, "lineno", None)
+                offset = getattr(details, "offset", None)
+                if isinstance(lineno, int) and lineno > 0:
+                    line = lineno
+                if isinstance(offset, int) and offset >= 0:
+                    column = offset
+            if line is None:
+                # Fallback: "line N" / "line: N" in the message
+                match = re.search(r"line[:\s]+(\d+)", str(e), re.IGNORECASE)
+                if match:
+                    line = int(match.group(1))
+            # Prefer the short .message when available (avoid caret dump in chips)
+            msg = getattr(e, "message", None)
+            if not isinstance(msg, str) or not msg.strip():
+                msg = str(e).split("\n", 1)[0].strip() or str(e)
             self._add_warning(
                 code="E001",
-                message=f"Syntax error: {e}",
+                message=f"Syntax error: {msg}",
+                line=line,
+                column=column,
                 severity="error",
             )
 

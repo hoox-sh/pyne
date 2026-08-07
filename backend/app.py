@@ -443,6 +443,8 @@ def _health_payload() -> dict[str, Any]:
         "POST /compile/prewarm": "Warm Numba builtins / optional scripts (free)",
         "POST /lsp/completion": "Pine completion (free, AXIS editor)",
         "POST /lsp/hover": "Pine hover docs (free, AXIS editor)",
+        "POST /lsp/diagnostics": "Pine parse+lint pre-eval (free, AXIS editor)",
+        "POST /lsp/preevaluate": "Alias of /lsp/diagnostics",
         "POST /preview/chart": "Chart thumbnail (Pro)",
         "POST /preview/indicator": "Indicator preview (Pro)",
         "POST /backtest/quick": "Quick backtest (Pro)",
