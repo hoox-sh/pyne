@@ -209,6 +209,12 @@
               "pine-worker/converter",
               "pine-worker/testing"
             ]
+          },
+          {
+            "group": "Agent (write)",
+            "pages": [
+              "agent/index"
+            ]
           }
         ]
       }

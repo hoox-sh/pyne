@@ -1,0 +1,68 @@
+# Copyright (C) 2024-2026 jango_blockchained
+#
+# This file is part of pynescript.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+---
+title: "pyne-agent-worker"
+description: "Natural-language PYNE Agent on Cloudflare® Workers AI™ — standalone or with optional pyne-worker validation; AXIS plugin."
+---
+
+# pyne-agent-worker
+
+## Abstract
+
+**pyne-agent-worker** is the edge **authoring** host for Pine Script™: natural language in, script source out. It is a **sister repository** to PYNE (evaluate) and AXIS (chart UI).
+
+| | |
+|--|--|
+| **Repo** | [hoox-sh/pyne-agent-worker](https://github.com/hoox-sh/pyne-agent-worker) |
+| **Role** | Write scripts via chat (PYNE Agent) + optional RAG |
+| **Runtime** | Cloudflare® Workers + Workers AI™ + optional Vectorize™ / R2 |
+| **AXIS** | Component plugin at `/plugin/axis-pine-agent.js` |
+
+_Pine Script™ and TradingView® are trademarks of TradingView, Inc. Cloudflare® is a registered trademark of Cloudflare, Inc. Not affiliated with TradingView, Inc. or Cloudflare, Inc._
+
+## Standalone by default
+
+You do **not** need pyne-worker, trade-worker, or the HOOX mesh to use the agent.
+
+| Mode | Requirement | Behavior |
+| --- | --- | --- |
+| **Standalone** | AI binding (+ optional KB) | `POST /v1/chat` → Pine; validation skipped |
+| **HOOX-enhanced** | + pyne-worker URL or service binding | generate → `POST /run` → fix retries |
+
+`GET /health` returns `"mode": "standalone" | "hoox"`.
+
+## Relationship to PYNE
+
+```text
+NL request
+   → pyne-agent-worker   (write)
+   → .pine source
+   → PYNE Pro API / pyne-worker / AXIS engine   (evaluate)
+```
+
+- **PYNE** remains the semantic oracle and evaluate contract.
+- The agent never ships TradingView® built-in sources in git.
+- Knowledge (v5/v6 docs, open corpus ≤ 1000, operator builtin refs) is operator-ingested into private R2 + Vectorize™.
+
+## AXIS install
+
+```text
+https://<pyne-agent-worker>/plugin/axis-pine-agent.js
+```
+
+AXIS docs: [PYNE Agent plugin](https://hoox.sh/axis/docs/plugins/pine-agent) · [End-user guide](https://hoox.sh/axis/docs/enduser/guides/pine-agent).
+
+## Quick links
+
+- [GitHub README](https://github.com/hoox-sh/pyne-agent-worker)
+- [pyne-worker](https://github.com/hoox-sh/pyne-worker) (optional validate host)
+- [Evaluate contract](/pyne/docs/api/contract)
+
+## See also
+
+- [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage)
+- [pine-worker (TS port in this monorepo)](/pyne/docs/pine-worker)
