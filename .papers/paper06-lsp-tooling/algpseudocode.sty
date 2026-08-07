@@ -1,0 +1,50 @@
+% Minimal local stub approximating algorithmicx's algpseudocode.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{algpseudocode}[2026/01/01 local stub]
+\RequirePackage{ifthen}
+
+\newcommand{\algorithmicrequire}{\textbf{Require:}}
+\newcommand{\algorithmicensure}{\textbf{Ensure:}}
+\newcommand{\algorithmicend}{\textbf{end}}
+\newcommand{\algorithmicif}{\textbf{if}}
+\newcommand{\algorithmicthen}{\textbf{then}}
+\newcommand{\algorithmicelse}{\textbf{else}}
+\newcommand{\algorithmicfor}{\textbf{for}}
+\newcommand{\algorithmicdo}{\textbf{do}}
+\newcommand{\algorithmicreturn}{\textbf{return}}
+
+\newcounter{ALG@line}
+
+\newenvironment{algorithmic}[1][0]{%
+  \setcounter{ALG@line}{0}%
+  \newcommand{\ALG@ind}{0}%
+  \begin{list}{}{%
+    \setlength{\leftmargin}{0.5em}%
+    \setlength{\itemsep}{1pt}%
+    \setlength{\parsep}{0pt}%
+    \setlength{\topsep}{2pt}%
+  }%
+}{%
+  \end{list}%
+}
+
+\newcommand{\State}{%
+  \item[]%
+  \refstepcounter{ALG@line}%
+  \makebox[2.2em][r]{\scriptsize\theALG@line:}\hspace{0.6em}%
+}
+\newcommand{\Statex}{\item[]}
+\newcommand{\Require}{\item[\algorithmicrequire]}
+\newcommand{\Ensure}{\item[\algorithmicensure]}
+\newcommand{\Return}{\algorithmicreturn\ }
+\providecommand{\Call}[2]{\textsc{#1}(#2)}
+
+\newcommand{\If}[1]{\State \algorithmicif\ #1\ \algorithmicthen}
+\newcommand{\Else}{\State \algorithmicelse}
+\newcommand{\EndIf}{\State \algorithmicend\ \algorithmicif}
+\newcommand{\For}[1]{\State \algorithmicfor\ #1\ \algorithmicdo}
+\newcommand{\EndFor}{\State \algorithmicend\ \algorithmicfor}
+\newcommand{\While}[1]{\State \textbf{while}\ #1\ \algorithmicdo}
+\newcommand{\EndWhile}{\State \algorithmicend\ \textbf{while}}
+
+\endinput

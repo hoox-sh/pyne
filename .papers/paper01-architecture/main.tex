@@ -1,0 +1,1012 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{times}
+\input{../common/macros.tex}
+
+\title{%
+  \textbf{PYNE: An Open Dual-Engine Toolchain\\for Offline Pine Script Evaluation}%
+}
+\author{%
+  jango\_blockchained\thanks{Correspondence: \texttt{contact@hoox.sh}}
+  \and
+  HOOX Project contributors\\
+  \small Independent Open Source Research\\
+  \small \url{https://hoox.sh}~\textperiodcentered~\url{https://github.com/hoox-sh/pyne}
+}
+\date{2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Domain-specific languages (\textsc{Dsl}s) for technical analysis are often
+tightly coupled to proprietary charting platforms, which limits reproducible
+research, continuous integration, and editor-centric development workflows.
+We present \pyne{} (PyPI package \texttt{hoox-pyne}, import name
+\texttt{pynescript}), an independent, unofficial open toolchain that models
+\pine{} (v5--v6) as an inspectable offline pipeline:
+source text is lexed and parsed with \antlr{}, lowered to an
+\asdl{} abstract syntax tree (\ast{}), and evaluated under a deterministic
+bar-loop runtime with a dual execution engine---an \ast{} interpreter and a
+\numba{}-backed compiler with nopython kernels and object-mode fallback.
+The same \ast{} underpins a desk \cli{}, a Language Server Protocol (\lsp{})
+implementation with hundreds of builtins, a Flask Pro \api{}, editor
+integrations, and edge/browser workers.
+We formalize series semantics, \na{} propagation, and strategy fill behaviour
+as implemented by the runtime; describe warm-compile caching and security
+policy for \code{request.security}; and report internal performance
+measurements (2026) showing order-of-magnitude gains for numeric scripts under
+the compile path relative to interpretation.
+\pyne{} is licensed under \textsc{Agpl}-3.0-or-later and is part of the
+\textsc{Hoox} open trading stack. It is not affiliated with TradingView.
+\footnote{\trademarknote}
+\end{abstract}
+
+\noindent\textbf{Keywords:}
+domain-specific languages, financial time series, dual-engine runtimes,
+language toolchains, Pine Script, open source compilers
+
+\tableofcontents
+\newpage
+
+%==============================================================================
+\section{Introduction}
+\label{sec:intro}
+%==============================================================================
+
+\subsection{Motivation}
+\label{sec:motivation}
+
+\pine{} is a widely used domain-specific language for indicators and trading
+strategies~\citep{tradingview-pine,murphy1999technical}.
+In common practice, scripts are authored and executed inside a browser-locked
+host environment: the editor, chart surface, historical data plane, and
+execution engine are provided as a single product surface.
+While this coupling optimizes interactive charting, it creates friction for
+several engineering activities that are standard elsewhere in software:
+
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{Reproducible offline evaluation.}
+    Batch backtests, property-based tests, and continuous integration require
+    deterministic execution without a live UI session.
+  \item \textbf{Editor-native tooling.}
+    Language servers~\citep{lsp2023,voutilainen2016lsp} expect parse trees,
+    diagnostics, and symbol tables in-process or over a local protocol, not
+    only inside a remote web IDE.
+  \item \textbf{Program analysis and transformation.}
+    Static linting, formatting-as-unparsing, and compile-time lowering benefit
+    from a first-class \ast{} rather than opaque host evaluation.
+  \item \textbf{Heterogeneous deployment.}
+    The same evaluation contract is useful at the desk (\cli{}), on a
+    server (\api{}), at the edge (workers), and in the browser
+    (\textsc{Pyodide}/\textsc{Axis}).
+\end{itemize}
+
+\pyne{} addresses these needs by treating \pine{} as a language with a
+classical compiler pipeline~\citep{aho2006dragon,cooper2011engineering,nystrom2021crafting}
+rather than solely as a feature of a charting application.
+The project is an \emph{independent, unofficial} implementation: it aims for
+interoperability with public language documentation and community scripts, not
+for binary compatibility with proprietary platform internals~\citep{pynescript2026,hoox2026}.
+
+\subsection{Contributions}
+\label{sec:contributions}
+
+This paper makes the following contributions:
+
+\begin{enumerate}[leftmargin=1.4em]
+  \item \textbf{System architecture.}
+    A layered architecture in which editors, \lsp{}, core package, dual-engine
+    runtime, Pro \api{}, and edge workers share one \ast{} and one evaluate
+    contract (Section~\ref{sec:architecture}).
+  \item \textbf{Language front-end.}
+    An \antlr{} grammar approximating \pine{} v5--v6, \asdl{}-generated nodes,
+    visitor/transformer patterns, and lossless parse$\leftrightarrow$unparse
+    round-trip (Section~\ref{sec:frontend}; grammar and series details are
+    expanded in sister papers of this series).
+  \item \textbf{Dual-engine runtime.}
+    A bar-loop host with modes
+    $\in \{\texttt{auto},\texttt{compile},\texttt{interpret}\}$, warm \ir{}
+    cache, object-mode fallback, and a uniform response envelope for plots,
+    drawings, strategy events, and alerts (Section~\ref{sec:runtime}).
+  \item \textbf{Product surfaces.}
+    \cli{}, \lsp{} ($\sim$800+ builtins), VS~Code extension, Flask Pro \api{},
+    and editor/edge clients built on the shared core (Section~\ref{sec:surfaces}).
+  \item \textbf{Evaluation experience.}
+    Internal benchmarks (2026) for parse, unparse, interpret, and compile paths;
+    compatibility posture; and deployment lessons (Section~\ref{sec:eval}).
+\end{enumerate}
+
+\subsection{Paper roadmap}
+\label{sec:roadmap}
+
+Section~\ref{sec:background} reviews the \pine{} bar model and series
+semantics.
+Section~\ref{sec:architecture} presents the end-to-end system.
+Sections~\ref{sec:frontend}--\ref{sec:surfaces} detail the front-end, runtime,
+and product surfaces.
+Section~\ref{sec:eval} reports measurements and operational experience.
+Section~\ref{sec:related} situates \pyne{} among \textsc{Dsl} toolchains and
+financial languages.
+Section~\ref{sec:discussion} discusses limitations and licensing implications.
+Section~\ref{sec:conclusion} concludes.
+
+%==============================================================================
+\section{Background}
+\label{sec:background}
+%==============================================================================
+
+\subsection{Bar model and execution cadence}
+\label{sec:bar-model}
+
+\pine{} programs are not general-purpose stream processors with arbitrary
+event loops.
+They are evaluated against a finite sequence of market bars.
+Let a bar series of length $n$ be
+\begin{equation}
+  B = \bigl(b_0, b_1, \ldots, b_{n-1}\bigr),
+  \qquad
+  b_{\baridx} = \bigl(o_{\baridx}, h_{\baridx}, l_{\baridx}, c_{\baridx}, v_{\baridx}, t_{\baridx}\bigr),
+  \label{eq:bars}
+\end{equation}
+where $o,h,l,c,v,t$ denote open, high, low, close, volume, and timestamp
+(\ohlcv{} plus time).
+The integer \emph{bar index} $\baridx \in \{0,\ldots,n-1\}$ is exposed to
+scripts as \code{bar\_index}.
+
+\begin{definition}[Bar-loop evaluation]
+\label{def:barloop}
+Given a script $P$ and bar sequence $B$, bar-loop evaluation produces a run
+trace $\mathcal{T}$ by invoking the script body once for each
+$\baridx = 0,\ldots,n-1$ in increasing order, with built-in series
+(\code{open}, \code{high}, \code{low}, \code{close}, \code{volume}, \ldots)
+bound to the corresponding columns of $B$ at the current index, and with
+mutable series storage updated after each bar.
+\end{definition}
+
+This model matches classical technical analysis practice, in which indicators
+are defined as causal functions of historical prices~\citep{wilder1978new,box1970time,tsay2010analysis}.
+
+\subsection{Series semantics}
+\label{sec:series}
+
+Many values in \pine{} are \emph{series}: sequences indexed by bar history.
+
+\begin{definition}[Series]
+\label{def:series}
+A series of type $\tau$ is a partial function
+$s: \N_0 \rightharpoonup \tau \cup \{\na\}$ where $s(k)$ denotes the value
+$k$ bars ago relative to the current bar index ($k=0$ is the current bar).
+Writing $s[k]$ in source notation denotes historical indexing.
+\end{definition}
+
+On each bar, the runtime \emph{pushes} a current value onto each live series
+and retains a finite history window.
+\pyne{} optionally caps history length (series cap) and can store history in a
+ring buffer to bound memory on long runs (Section~\ref{sec:eval}).
+
+\subsection{The $\mathsf{na}$ value and propagation}
+\label{sec:na}
+
+\pine{} uses a dedicated missingness token $\na$ (``not available''), distinct
+from IEEE floating-point NaN though related in spirit~\citep{ieee754,higham2002accuracy}.
+
+\begin{definition}[$\mathsf{na}$-propagation]
+\label{def:na}
+For arithmetic operators $\oplus \in \{+,-,\times,/\}$ and comparisons
+$\bowtie$, if either operand is $\na$ then the result is $\na$
+(with documented exceptions for short-circuit Boolean operators).
+Built-ins that require a full lookback window of valid samples typically
+return $\na$ until sufficient history exists.
+\end{definition}
+
+Short-circuit \code{and}/\code{or} evaluate only as many operands as needed;
+this interacts with side-effecting expressions and with $\na$ in Boolean
+contexts. \pyne{} implements these rules in both engines and validates them
+with a parity harness (Section~\ref{sec:runtime}).
+
+\subsection{Persistence: \texttt{var} and \texttt{varip}}
+\label{sec:var}
+
+Two declaration forms control cross-bar state:
+
+\begin{itemize}[leftmargin=1.2em]
+  \item \code{var} initializes on the first bar (conceptually when
+    $\baridx = 0$) and retains the value across subsequent bars unless
+    reassigned.
+  \item \code{varip} retains values across realtime tick updates within a
+    forming bar in host environments that distinguish tick vs.\ bar-close
+    evaluation; offline historical runs treat \code{varip} analogously to
+    retained state with host-specific tick semantics when ticks are supplied.
+\end{itemize}
+
+These constructs are essential for accumulators, state machines, and strategy
+position bookkeeping.
+
+\subsection{Indicators versus strategies}
+\label{sec:ind-vs-strat}
+
+An \emph{indicator} script primarily produces visual and analytic series:
+\code{plot}, \code{plotshape}, \code{fill}, \code{hline}, drawings, and
+alerts.
+A \emph{strategy} script additionally emits order intents
+(\code{strategy.entry}, \code{strategy.close}, \ldots) that a broker
+simulation fills subject to commission, slippage, pyramiding, and pending-fill
+rules.
+\pyne{} implements both surfaces under one runtime host, with strategy events
+exported in the response envelope (Section~\ref{sec:runtime}).
+
+\subsection{Illustrative program}
+\label{sec:example}
+
+Listing~\ref{lst:rsi} shows a minimal indicator.
+Under bar-loop evaluation, \code{ta.rsi} maintains incremental Wilder-style
+state~\citep{wilder1978new}, and \code{plot} records one output sample per bar.
+
+\begin{lstlisting}[style=pine,caption={Minimal RSI indicator (Pine).},label={lst:rsi}]
+//@version=6
+indicator("RSI Demo", overlay=false)
+len = input.int(14, "Length")
+r = ta.rsi(close, len)
+plot(r, "RSI")
+hline(70)
+hline(30)
+\end{lstlisting}
+
+%==============================================================================
+\section{System Architecture}
+\label{sec:architecture}
+%==============================================================================
+
+\subsection{Design goals}
+\label{sec:goals}
+
+The architecture is driven by four goals:
+
+\begin{enumerate}[leftmargin=1.4em]
+  \item \textbf{Single semantic core.}
+    Parsing, static checks, interpretation, and compilation share one \ast{}
+    schema so that editor diagnostics and Pro evaluation cannot diverge in
+    structure.
+  \item \textbf{Engine substitutability.}
+    Clients select \texttt{interpret}, \texttt{compile}, or \texttt{auto}
+    without changing the external response schema.
+  \item \textbf{Small hand-edited surface.}
+    Only grammar resources (\texttt{*.g4}) and the \asdl{} schema are
+    hand-maintained; lexer/parser and node classes are generated~\citep{parr2013antlr,wang1997asdl}.
+  \item \textbf{Deployability.}
+    The same package installs from PyPI, runs as \cli{}/\lsp{} binaries, and
+    powers HTTP and edge deployments~\citep{hoox2026}.
+\end{enumerate}
+
+\subsection{Layered overview}
+\label{sec:layers}
+
+Figure~\ref{fig:architecture} summarizes the system.
+Editors communicate with \texttt{pynescript-lsp} (a pygls-based
+server~\citep{murphy2020pygls,lsp2023}) over STDIO.
+The server parses source into the shared \ast{}, runs the linter, and
+services completion, hover, formatting (via unparse), definition/references,
+and document symbols.
+The core package (\texttt{pynescript}) owns the grammar, \ast{} builder,
+evaluators, and compiler.
+The dual-engine runtime executes scripts against \ohlcv{} data and emits
+plots, drawings, strategy events, and alerts.
+The Pro \api{} (Flask) exposes \texttt{POST /run}, chart preview, and quick
+backtest endpoints on the same evaluation path.
+Edge workers and browser runtimes (Pyodide/\textsc{Axis}) reuse the evaluate
+contract with thinner hosts.
+
+\begin{figure}[t]
+  \centering
+  \resizebox{\textwidth}{!}{\input{figures/architecture.tex}}
+  \caption{End-to-end \pyne{} architecture: editors and clients, \lsp{},
+  core package and dual-engine runtime, Pro \api{}, and edge/browser workers.
+  Hand-edited artifacts are the ANTLR grammars and ASDL schema; generated
+  code includes the lexer/parser and ASDL node classes.}
+  \label{fig:architecture}
+\end{figure}
+
+\subsection{Pipeline notation}
+\label{sec:pipeline}
+
+The canonical offline pipeline is
+\begin{equation}
+  \text{source}
+  \xrightarrow{\text{lex/parse}}
+  \text{parse tree}
+  \xrightarrow{\text{builder}}
+  \text{\ast{}}
+  \xrightarrow{\text{bar-loop}}
+  \text{artifacts},
+  \label{eq:pipeline}
+\end{equation}
+where \emph{artifacts} denote plots, fills, drawings, strategy events, and
+alerts.
+Source suffixes \texttt{.pine} and \texttt{.pyne} are accepted equivalently.
+Optionally, clients post-process artifacts (PNG charts, equity curves, webhook
+alerts).
+
+\subsection{Hand-edited versus generated code}
+\label{sec:hand-gen}
+
+Following classic compiler engineering practice~\citep{aho2006dragon,appeli1997modern},
+\pyne{} minimizes the trusted hand-written front-end surface:
+
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{Hand-edited:}
+    \file{antlr4/resource/*.g4},
+    \file{asdl/resource/Pinescript.asdl},
+    builder/visitor/evaluator/compiler logic.
+  \item \textbf{Generated:}
+    Python lexer and parser under \file{antlr4/generated/},
+    ASDL node classes under \file{asdl/generated/}.
+\end{itemize}
+
+Committed generated artifacts allow end users to install from PyPI without a
+Java toolchain, while maintainers regenerate from resources when the language
+surface evolves (e.g., v6 multiline strings).
+
+\subsection{Shared AST between editor and Pro API}
+\label{sec:shared-ast}
+
+A recurring failure mode in dual-product systems is semantic drift between
+``IDE parsing'' and ``server execution.''
+\pyne{} avoids this by construction: the Pro \api{} and the \lsp{} both call
+into the same \texttt{pynescript} package.
+The Pro path adds authentication, data binding, chart rendering, and
+operational controls (timeouts, prewarm), not a second language
+implementation~\citep{flask}.
+
+%==============================================================================
+\section{Language Front-End}
+\label{sec:frontend}
+%==============================================================================
+
+This section gives a high-level account of the front-end.
+Sister papers in the series expand grammar engineering, series storage, and
+parity methodology; here we emphasize interfaces required by the architecture.
+
+\subsection{Grammar}
+\label{sec:grammar}
+
+The lexer and parser are specified in \antlr{}~4~\citep{parr2013antlr,parr2011allstar,antlr4}.
+The grammar approximates the public \pine{} v5--v6 surface, including:
+
+\begin{itemize}[leftmargin=1.2em]
+  \item Script kinds: \code{indicator}, \code{strategy}, \code{library}.
+  \item Declarations: functions, \code{type} user-defined types (\udt{}),
+    \code{enum}, \code{method}, imports/exports.
+  \item Control flow: \code{if}/\code{else}, \code{for}/\code{for\ldots to},
+    \code{while}, \code{switch}, \code{break}/\code{continue}.
+  \item Literals: numbers, strings (including v6 triple-quoted multiline),
+    colours, \code{na}, booleans.
+  \item Significant indentation interactions handled via a hand-written lexer
+    base class cooperating with generated rules.
+\end{itemize}
+
+Practical grammar evolution (e.g., triple-quoted strings) requires careful
+fragment design, selective regeneration of lexer artifacts, and round-trip
+fixtures~\citep{pynescript2026}.
+
+\subsection{ASDL AST}
+\label{sec:asdl}
+
+Node types are defined in an \asdl{} schema~\citep{wang1997asdl,asdl-python}
+and generated into Python classes.
+The root \code{Script} node carries a statement list and annotation strings
+(e.g., \code{//@version=6}) promoted from comments so that parse$\to$unparse
+preserves version and description metadata.
+
+\begin{lstlisting}[style=python,caption={Parse and unparse round-trip (Python API).},label={lst:roundtrip}]
+from pynescript.ast.helper import parse, unparse
+
+src = '''//@version=6
+indicator("Demo")
+plot(close)
+'''
+tree = parse(src)
+assert "plot" in unparse(tree)
+\end{lstlisting}
+
+Visitors and transformers~\citep{gamma1994design,gamma-visitor} provide the
+extension points used by the linter, compiler emitter, and evaluators.
+
+\subsection{Round-trip fidelity}
+\label{sec:roundtrip}
+
+Lossless round-trip is a project invariant for supported syntax:
+\begin{equation}
+  \mathrm{unparse}(\mathrm{parse}(s)) \equiv_{\mathrm{syn}} s',
+  \label{eq:roundtrip}
+\end{equation}
+where $\equiv_{\mathrm{syn}}$ denotes syntactic equivalence up to documented
+normalization (whitespace policies, annotation attachment).
+Round-trip underpins formatting-as-unparsing in the \lsp{} and guards against
+silent \ast{} incompleteness when new syntax is added.
+
+\subsection{Linter and type system}
+\label{sec:linter}
+
+The linter implements a set of structural and style rules (undeclared names,
+suspicious assignments, version issues, etc.) on the \ast{}.
+A type system layer tracks primitive types, series wrappers, and \udt{} field
+shapes for completion and diagnostics~\citep{pierce2002types,cardelli1996type}.
+Full formalization of the type rules is out of scope for this architecture
+paper; the operational interface is: parse once, lint and complete from the
+same tree, evaluate from the same tree.
+
+\subsection{Builtin metadata}
+\label{sec:builtins}
+
+Builtin completion and hover draw from structured metadata covering namespaces
+such as \ta{}, \code{math}, \code{str}, \code{array}, \code{matrix},
+\code{map}, \code{strategy}, \code{request}, and drawing objects.
+The \lsp{} exposes on the order of $800+$ completion items, exceeding early
+inventory counts as v6 surface area grew~\citep{pynescript2026}.
+
+%==============================================================================
+\section{Dual-Engine Runtime}
+\label{sec:runtime}
+%==============================================================================
+
+\subsection{Execution modes}
+\label{sec:modes}
+
+The runtime accepts an explicit mode parameter
+\begin{equation}
+  \textit{mode} \in \{\texttt{auto},\, \texttt{compile},\, \texttt{interpret}\}.
+  \label{eq:modes}
+\end{equation}
+
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{Interpret.}
+    A classical \ast{} walk~\citep{nystrom2021crafting}: each bar re-enters
+    the script body; builtins dispatch through Python mixins; series are
+    updated in the host.
+  \item \textbf{Compile.}
+    A compiler visitor lowers supported numeric subgraphs to
+    \numba{}~\citep{lam2015numba,lattner2004llvm} nopython kernels (and
+    related helpers), with object-mode regions for features that are not yet
+    nopython-safe (strategy bookkeeping, some drawings, dynamic Python
+    objects).
+  \item \textbf{Auto.}
+    Prefer compile when feasible; on hard failure or unsupported lowering,
+    fall back to interpret while preserving the response envelope.
+\end{itemize}
+
+Figure~\ref{fig:dual} shows the decision flow for warm cache, nopython
+success, object-mode fallback, and interpret recovery.
+
+\begin{figure}[t]
+  \centering
+  \resizebox{0.98\textwidth}{!}{\input{figures/dual_engine.tex}}
+  \caption{Dual-engine decision flowchart.
+  Mode \texttt{auto} prefers the compile path; warm disk/process \ir{} avoids
+  repeated \jit{} cost; nopython kernels execute when available, otherwise
+  object-mode; hard failures fall back to interpretation.}
+  \label{fig:dual}
+\end{figure}
+
+\subsection{Bar-loop data flow}
+\label{sec:dataflow}
+
+Figure~\ref{fig:barloop} details data movement inside a run.
+\ohlcv{} columns are bound as builtins; the host iterates $\baridx$; script
+evaluation updates the series store, invokes incremental or full \ta{} kernels,
+and drives the strategy engine.
+Outputs are packed into plots, drawings, and events.
+
+\begin{figure}[t]
+  \centering
+  \resizebox{0.98\textwidth}{!}{\input{figures/bar_loop.tex}}
+  \caption{Bar-loop data flow from \ohlcv{} inputs through series storage and
+  \ta{}/strategy engines to plots, drawings, and events.
+  The bottom annotation summarizes $\na{}$ and \code{request.security}
+  policies.}
+  \label{fig:barloop}
+\end{figure}
+
+Algorithm~\ref{alg:barloop} captures the interpret host in pseudocode.
+The compile path replaces the body of the inner evaluation with kernel calls
+but preserves the same outer envelope construction.
+
+\begin{algorithm}[t]
+\caption{Interpret bar-loop host (simplified)}
+\label{alg:barloop}
+\begin{algorithmic}[1]
+\Require script AST $P$, bars $B[0..n-1]$, options $\Omega$
+\Ensure response envelope $\mathcal{E}$
+\State $\textit{store} \gets \mathrm{InitSeriesStore}(\Omega)$
+\State $\textit{strat} \gets \mathrm{InitStrategy}(\Omega)$
+\State $\textit{plots} \gets \emptyset$;\ \ $\textit{events} \gets \emptyset$
+\For{$\baridx \gets 0$ \textbf{to} $n-1$}
+  \State $\mathrm{BindBuiltins}(\textit{store}, B[\baridx], \baridx)$
+  \State $\mathrm{BeginBar}(\textit{strat}, B[\baridx])$
+  \State $\mathrm{EvalBody}(P, \textit{store}, \textit{strat}, \textit{plots})$
+  \State $\mathrm{ProcessPendingFills}(\textit{strat}, B[\baridx])$
+  \State $\mathrm{EndBar}(\textit{strat}, \textit{events})$
+  \State $\mathrm{CapSeries}(\textit{store})$ \Comment{optional memory bound}
+\EndFor
+\State $\mathcal{E} \gets \mathrm{PackEnvelope}(\textit{plots}, \textit{events}, \textit{meta})$
+\State \textbf{return} $\mathcal{E}$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Warm compile and IR cache}
+\label{sec:warm}
+
+Cold \numba{} compilation can dominate latency for short interactive runs.
+\pyne{} therefore implements:
+
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{Disk \ir{} cache} keyed by compilation inputs (source digest,
+    option flags, library versions as applicable).
+  \item \textbf{Process prewarm} via \cli{}/\api{} hooks that force
+    compilation of common kernels at worker start.
+  \item \textbf{Corrupt cache recovery} that discards invalid entries and
+    recomputes rather than failing the request path.
+\end{itemize}
+
+Internal Round~7 measurements report warm compile on the order of
+$\sim 0.01\,\mathrm{ms}$ for a representative \texttt{ta\_combo} artifact, with
+run latency $\sim 1.06\,\mathrm{ms}$ at $5{,}000$ bars (Section~\ref{sec:eval}).
+
+\subsection{Incremental technical analysis kernels}
+\label{sec:inc-ta}
+
+Many indicators admit $O(1)$ or amortized updates per bar given prior
+state~\citep{baker2012incremental,wilder1978new,bollinger2001,kama1998kaufman}.
+Both engines exploit incremental forms for families such as
+\code{sma}/\code{ema}/\code{rma}, \code{rsi}, \code{macd}, \code{bb},
+\code{kama}, \code{stoch}, and others.
+Kernel microbenchmarks in Round~7 show large per-kernel speedups (e.g.,
+\texttt{kama} $\sim 121\times$, \texttt{bb} $\sim 217\times$ versus naive
+recompute styles in the measured configuration).
+Numerical agreement is checked against full recompute within floating-point
+tolerance~\citep{higham2002accuracy,press2007numerical}.
+
+\subsection{Strategy engine}
+\label{sec:strategy}
+
+Strategy support includes entries and exits, commission and slippage models,
+one-cancels-other style constraints where implemented, and pending-fill
+behaviour under pyramiding limits.
+A representative semantic choice: when pyramiding is disabled or capped,
+pending fills may average according to documented VWAP-style rules rather than
+silently dropping intents.
+Risk helpers and order-fill tests form part of the regression suite.
+
+\subsection{Security policy for \texttt{request.security}}
+\label{sec:security-policy}
+
+Multi-symbol and multi-timeframe requests are a major complexity axis of the
+language~\citep{tradingview-pine}.
+\pyne{} adopts a conservative default:
+
+\begin{definition}[Security resolution policy]
+\label{def:security}
+For \code{request.security} (and related forms), \emph{same-symbol simple
+\ohlcv{}} expressions may resolve against the bound data feed.
+Foreign symbols or complex expressions that would require inventing unavailable
+market state resolve to $\na$ rather than fabricating closes.
+\end{definition}
+
+This policy prioritizes honesty for offline and CI contexts over incomplete
+emulation of a full multi-asset platform data graph.
+
+\subsection{Response envelope and parity harness}
+\label{sec:envelope}
+
+Regardless of engine, a successful run returns a structured envelope:
+
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{Plots / fills / bgcolor} series aligned to bar indices.
+  \item \textbf{Drawings} with garbage-collection limits
+    (\code{max\_lines\_count}, \code{max\_labels\_count}, \ldots).
+  \item \textbf{Strategy events} (entries, exits, equity samples).
+  \item \textbf{Alerts} from \code{alert}/\code{alertcondition} with frequency
+    semantics (\code{once\_per\_bar}, \code{once\_per\_bar\_close}, \code{all}).
+  \item \textbf{Metadata} (engine used, timings, warnings, mode fallback flags).
+\end{itemize}
+
+The \emph{parity harness} compares interpret vs.\ compile outputs on shared
+fixtures, asserting series alignment within absolute/relative tolerances
+$(\abserr, \relerr)$ and matching event shapes.
+Parity here means \emph{internal engine consistency}, not certification against
+a proprietary platform.
+
+%==============================================================================
+\section{Product Surfaces}
+\label{sec:surfaces}
+%==============================================================================
+
+\subsection{CLI}
+\label{sec:cli}
+
+The \code{pynescript} \cli{} supports check, format, lint, compile, run, data
+fetch, and prewarm subcommands.
+It is the primary interface for local scripts and automation:
+
+\begin{lstlisting}[style=python,caption={Programmatic evaluation sketch.},label={lst:eval-api}]
+# Conceptual host usage (simplified)
+# runtime.run(source, ohlcv, mode="auto") -> envelope
+\end{lstlisting}
+
+Container images publish multi-arch \cli{} builds for reproducible desks and
+CI.
+
+\subsection{Language server}
+\label{sec:lsp-surface}
+
+\texttt{pynescript-lsp} implements \lsp{}~3.x features~\citep{lsp2023}:
+diagnostics (parse + lint), completion, hover signatures, go-to-definition,
+references, document symbols, semantic tokens, and formatting via unparse.
+Distribution options include pip extras (\texttt{hoox-pyne[lsp]}) and Nuitka
+onefile binaries~\citep{nuitka} bundled by the VS~Code extension.
+
+\subsection{Pro API}
+\label{sec:pro-api}
+
+The Flask Pro backend~\citep{flask} exposes authenticated HTTP endpoints,
+notably:
+
+\begin{itemize}[leftmargin=1.2em]
+  \item \texttt{POST /run} --- evaluate script with data and options;
+  \item \texttt{POST /preview/chart} --- render chart artifacts;
+  \item \texttt{POST /backtest/quick} --- strategy summary paths.
+\end{itemize}
+
+Middleware enforces \api{} keys and tier limits.
+Workers may prewarm compile caches to meet interactive latency SLOs.
+
+\subsection{Editors and edge}
+\label{sec:edge}
+
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{VS~Code extension:} first-class \texttt{.pyne}/\texttt{.pine}
+    associations and bundled \lsp{} binary.
+  \item \textbf{Neovim / Zed / Emacs:} client configs under \file{clients/}.
+  \item \textbf{pine-worker / pyne-worker:} TypeScript and Python edge hosts
+    sharing evaluate contracts~\citep{cloudflare-workers}.
+  \item \textbf{Pyodide / AXIS:} browser-side evaluation for documentation and
+    lightweight apps~\citep{pyodide}.
+\end{itemize}
+
+\subsection{Surface comparison}
+\label{sec:surface-table}
+
+Table~\ref{tab:surfaces} compares major product surfaces along packaging,
+primary users, and evaluation capability.
+
+\begin{table}[t]
+\centering
+\caption{Product surface comparison for \pyne{} and related hosts.}
+\label{tab:surfaces}
+\begin{tabular}{@{}llp{4.6cm}@{}}
+\toprule
+\textbf{Surface} & \textbf{Package / binary} & \textbf{Role} \\
+\midrule
+Core library & \texttt{hoox-pyne} / \texttt{pynescript} & Parse, \ast{}, evaluate, compile \\
+\cli{} & \texttt{pynescript} & Desk automation, CI, prewarm \\
+\lsp{} & \texttt{pynescript-lsp} & Editor intelligence ($\sim$800+ builtins) \\
+VS~Code ext. & VSIX & Bundled \lsp{}, language config \\
+Pro \api{} & Flask / containers & HTTP run, chart, backtest \\
+pine-worker & Bun / TS & Edge evaluate (partial builtins) \\
+pyne-worker & Python worker & Thin edge host over core semantics \\
+Pyodide/AXIS & browser & In-page demos and docs \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%==============================================================================
+\section{Evaluation and Deployment Experience}
+\label{sec:eval}
+%==============================================================================
+
+Unless noted, performance figures are \emph{internal measurements} collected
+on development hardware during 2026 performance campaigns (Rounds~1--7 and
+related agent runs).
+They are representative engineering benchmarks, not standardized public
+leaderboards.
+
+\subsection{Microbenchmark methodology}
+\label{sec:method}
+
+Scripts include minimal empty indicators, single-indicator programs
+(\code{ta.sma}, \code{ta.rsi}, \code{ta.macd}), multi-indicator combinations,
+and strategy-shaped fixtures.
+Bar counts of $2{,}000$ and $5{,}000$ are common.
+We report median wall times over repeated runs after optional warm-up.
+Compile paths distinguish cold \jit{} vs.\ warm cache hits.
+
+\subsection{Front-end performance}
+\label{sec:perf-fe}
+
+Early agent campaigns measured:
+
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{Parse:} approximately $5.4\times$ improvement on a complex
+    $\sim$16\,KB script via SLL-first parsing with LL fallback, cheaper
+    annotation handling, and faster location attachment.
+  \item \textbf{Unparse:} approximately $1.95\times$ on a multi-script corpus
+    via thread-local unparser reuse and type-keyed dispatch.
+\end{itemize}
+
+An \ast{} LRU cache keyed by source digest further reduces multi-parse latency
+in \lsp{} and repeated \api{} submissions (multi-parse speedups up to three
+orders of magnitude on cache hits in Round~7 notes).
+
+\subsection{Interpret versus compile}
+\label{sec:perf-engines}
+
+For numeric \ta{} scripts, compile+execute can be
+$\sim 49$--$110\times$ faster than interpret in measured MACD/multi
+configurations after incremental kernels and plot packing improvements.
+Interpret-side incremental \ta{} yields roughly $1.9$--$6.5\times$ gains on
+relevant Runtime paths versus non-incremental baselines.
+
+Table~\ref{tab:bench} and Figure~\ref{fig:bench} summarize representative
+median latencies.
+Interpret rows reflect bar-loop host costs at a few thousand bars; compile
+rows reflect warm nopython execution style latencies (run phase).
+Exact values vary by CPU, Numba version, and plot export settings; the table
+is intended to communicate magnitude and ranking.
+
+\begin{table}[t]
+\centering
+\caption{Representative median latencies (internal measurements, 2026).
+Interpret figures are bar-loop style at $\sim$2k bars for combo; compile run
+figures are warm kernels at $\sim$5k bars where noted.}
+\label{tab:bench}
+\begin{tabular}{@{}lrrrl@{}}
+\toprule
+\textbf{Workload} & \textbf{Interpret (ms)} & \textbf{Compile run (ms)} & \textbf{Approx.\ ratio} & \textbf{Notes} \\
+\midrule
+minimal @2k & 15.2 & --- & --- & Round~7 interpret \\
+\texttt{ta\_sma} @2k & 23.6 & 0.04 & $\sim$590$\times$ & compile @5k SMA \\
+\texttt{ta\_rsi} & $\sim$22 & 0.08 & large & warm compile \\
+\texttt{ta\_macd} & $\sim$35 & 0.12 & large & warm compile \\
+MULTI & $\sim$48 & 0.21 & $\sim$230$\times$ & multi-indicator \\
+\texttt{ta\_combo} & 152.9 & 1.06 & $\sim$144$\times$ & interp@2k / comp@5k \\
+strategy\_ish @2k & 68.9 & (object mix) & --- & fills + events \\
+\midrule
+warm compile only & --- & $\sim$0.01 & --- & cache hit, combo \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  \resizebox{\textwidth}{!}{\input{figures/bench_chart.tex}}
+  \caption{Interpret vs.\ warm compile+exec median latency for representative
+  numeric workloads (internal measurements, 2026).
+  Axes are not normalized to identical bar counts across all series; the chart
+  emphasizes order-of-magnitude gaps for kernel-heavy scripts.}
+  \label{fig:bench}
+\end{figure}
+
+\subsection{Memory: series cap and ring buffer}
+\label{sec:memory}
+
+Long historical runs accumulate series history.
+Enabling a series cap (default on in recent builds) reduced long-run list
+memory by approximately $78\times$ in Round~7 experiments relative to uncapped
+growth.
+An optional chronological ring buffer further bounds residency; default rollout
+is gated on corpus greenness.
+
+\subsection{Compatibility posture}
+\label{sec:compat}
+
+Table~\ref{tab:compat} summarizes compatibility themes across the Python core
+and edge hosts.
+The core \texttt{pynescript} implementation is the reference for parity tests;
+workers may delegate or reimplement subsets.
+
+\begin{table}[t]
+\centering
+\caption{Compatibility matrix summary (qualitative).
+Full feature tables live in project documentation~\citep{pynescript2026}.}
+\label{tab:compat}
+\begin{tabular}{@{}p{3.2cm}ccc@{}}
+\toprule
+\textbf{Area} & \textbf{pynescript} & \textbf{pine-worker} & \textbf{pyne-worker} \\
+\midrule
+Parser (v5/v6) & Full (ANTLR) & Full (generated TS) & Delegated \\
+\ast{} coverage & Full ASDL & Partial (Zod) & Delegated \\
+\na{} / series & Full & Full (subset builtins) & Delegated \\
+Strategy fills & Full & Full (evolving) & Full (via core) \\
+Compile engine & Numba dual path & N/A & N/A \\
+\code{request.security} & Same-symbol simple; else $\na$ & Policy-dependent & Delegated \\
+Parity vs core & Reference & Partial fixtures & Fixture-oriented \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Corpus parse rates on sanitized public-style script sets have been measured in
+the high nineties of percent for supported syntax after lexer/sanitize
+hardening; residual failures concentrate on exotic scrapes and unsupported
+platform-only constructs.
+
+\subsection{Test suite scale}
+\label{sec:tests}
+
+The repository maintains a substantial \texttt{pytest} suite spanning parser
+round-trips, linter cases, \ta{} goldens, strategy fills, compiler kernels,
+interpret$\leftrightarrow$compile parity, \lsp{} features, and backend routes.
+Recent verification notes cite on the order of $600+$ passing core tests after
+Round~7 merges, with additional edge-worker suites elsewhere.
+Tests prefer deterministic synthetic \ohlcv{} over live network data.
+
+\subsection{Deployment lessons}
+\label{sec:deploy}
+
+Operational experience suggests:
+
+\begin{enumerate}[leftmargin=1.4em]
+  \item Prefer \textbf{warm compile workers} on the Pro path; interpret remains
+    valuable for debugging and for scripts outside the nopython surface.
+  \item Treat \textbf{plot packing} as a first-class cost center: profiles show
+    export/registry work dominating some multi-plot interpret runs even when
+    kernels are cheap.
+  \item Keep \textbf{parse caches} coherent with call-site metadata scrubbing so
+    that cache hits cannot poison empty plot registries.
+  \item Document \textbf{security $\na$ policy} prominently: users expecting
+    full multi-symbol platform behaviour must supply data explicitly.
+\end{enumerate}
+
+%==============================================================================
+\section{Related Work}
+\label{sec:related}
+%==============================================================================
+
+\subsection{DSL toolchains and compiler construction}
+\label{sec:rw-dsl}
+
+Domain-specific languages are a long-standing software engineering
+topic~\citep{hudak1996dsl,fowler2010dsl,erwig2011dsl}.
+\pyne{} follows the classical pipeline of lexing, parsing, \ast{}
+construction, and multi-backend execution~\citep{aho2006dragon,cooper2011engineering,muchnick1997advanced}.
+Using \antlr{}~\citep{parr2013antlr} and \asdl{}~\citep{wang1997asdl} mirrors
+choices in other language implementations that separate declarative syntax
+from semantic passes.
+Visitor-based lowering resembles patterns in production compilers and teaching
+interpreters~\citep{gamma1994design,nystrom2021crafting}.
+
+\subsection{Financial and statistical time-series languages}
+\label{sec:rw-fin}
+
+Technical analysis packages in general-purpose languages (e.g., NumPy-centric
+stacks~\citep{harris2020numpy,brooks2015python}) provide library APIs rather
+than a charting \textsc{Dsl}.
+\pine{}~\citep{tradingview-pine} is distinctive in coupling series indexing,
+plot effects, and strategy simulation in one language.
+\pyne{} reimplements that \emph{language-shaped} interface offline without
+claiming platform equivalence.
+Classical indicator definitions remain the numerical
+foundation~\citep{wilder1978new,bollinger2001,murphy1999technical,kama1998kaufman}.
+
+\subsection{Dual interpreter + JIT systems}
+\label{sec:rw-jit}
+
+Many production language VMs combine interpretation with selective
+compilation~\citep{chambers1991iterative,peytonjones2003ghc,lattner2004llvm}.
+\pyne{}'s dual engine is narrower: a domain bar-loop host with \numba{}
+kernels~\citep{lam2015numba} for numeric subgraphs and an \ast{} interpreter
+for full language coverage.
+The design goal is pragmatic performance for indicators, not a general tracing
+\jit{} for arbitrary Python.
+
+\subsection{Language servers and editor ecosystems}
+\label{sec:rw-lsp}
+
+The Language Server Protocol~\citep{lsp2023,voutilainen2016lsp} decouples
+editors from language implementations.
+\pyne{}'s pygls server~\citep{murphy2020pygls} follows this model, enabling
+VS~Code, Neovim, Zed, and Emacs from one codebase---an explicit alternative to
+browser-only authoring.
+
+\subsection{Edge and browser runtimes}
+\label{sec:rw-edge}
+
+Deploying evaluation to Cloudflare Workers~\citep{cloudflare-workers} and
+Pyodide~\citep{pyodide} continues a trend of moving compute closer to clients.
+\pyne{}'s contribution is a shared evaluate contract across these hosts rather
+than a single-runtime monoculture.
+
+%==============================================================================
+\section{Discussion and Limitations}
+\label{sec:discussion}
+%==============================================================================
+
+\subsection{No full platform parity}
+\label{sec:lim-parity}
+
+\pyne{} does not reproduce the entire \tv{} product: proprietary charting UI,
+closed data services, social features, and some platform-only builtins are out
+of scope.
+Numerical results on community scripts can differ when hosts implement
+different fill models, session calendars, or security resolution.
+Users should treat \pyne{} as an open evaluation and tooling substrate, not as
+a drop-in legal or functional substitute for the commercial platform.
+
+\subsection{Foreign \texttt{request.security} policy}
+\label{sec:lim-security}
+
+Resolving foreign or complex \code{request.security} calls to $\na$
+(Definition~\ref{def:security}) avoids silent wrong answers but surprises users
+who expect multi-asset charts without providing data.
+Future work includes richer multi-feed binders under explicit user control.
+
+\subsection{Compile surface incompleteness}
+\label{sec:lim-compile}
+
+Not every language feature lowers to nopython.
+Object-mode and interpret fallbacks preserve correctness at the cost of
+latency cliffs when a script leaves the fast path.
+Continuing kernel coverage and strategy lowering remains active engineering.
+
+\subsection{AGPL implications}
+\label{sec:lim-agpl}
+
+\pyne{} is licensed under \textsc{Agpl}-3.0-or-later~\citep{agpl3}.
+Network-facing services that modify and provide the software to users inherit
+corresponding source-offer obligations.
+Organizations embedding \pyne{} in SaaS should review compliance with counsel;
+the license choice intentionally favours open reciprocity for a community
+toolchain~\citep{hoox2026}.
+
+\subsection{Trademark and independence}
+\label{sec:lim-tm}
+
+\pine{} and \tv{} are trademarks of TradingView, Inc.
+\pyne{} is independent and unofficial.
+Documentation references public language materials for interoperability only
+and does not redistribute proprietary platform software.
+
+\subsection{Threats to validity for benchmarks}
+\label{sec:lim-bench}
+
+Reported speedups depend on hardware, library versions, plot export settings,
+and script mix.
+Median times from internal campaigns should be read as engineering evidence of
+relative engine behaviour, not as guaranteed SLAs.
+
+%==============================================================================
+\section{Conclusion}
+\label{sec:conclusion}
+%==============================================================================
+
+We presented \pyne{}, an open dual-engine toolchain for offline \pine{}
+evaluation.
+By structuring the system as a classical language pipeline---\antlr{} front-end,
+\asdl{} \ast{}, bar-loop host with interpret and \numba{} compile modes---and
+by sharing that core across \cli{}, \lsp{}, Pro \api{}, and edge clients, the
+project enables reproducible research and editor-native workflows outside
+browser-locked environments.
+Internal measurements show substantial gains from incremental kernels and warm
+compilation for numeric scripts, while a conservative security policy and
+parity harness emphasize honest offline semantics.
+Limitations remain around full platform parity and compile coverage; we view
+these as a roadmap rather than a claim of completion.
+\pyne{} is available as \texttt{hoox-pyne} on PyPI under
+\textsc{Agpl}-3.0-or-later as part of the \textsc{Hoox} open trading
+stack~\citep{pynescript2026,hoox2026}.
+
+%==============================================================================
+\section*{Acknowledgments}
+%==============================================================================
+
+We thank contributors to the \textsc{Hoox}/\pyne{} ecosystem and users who
+filed compatibility reports.
+Performance campaigns (Rounds~1--7) benefited from automated multi-agent
+benchmarking harnesses and regression corpora maintained in-tree.
+
+%==============================================================================
+\bibliographystyle{plainnat}
+\bibliography{../common/bibliography}
+
+\end{document}

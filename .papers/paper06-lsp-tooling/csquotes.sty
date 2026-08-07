@@ -1,0 +1,12 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{csquotes}[2026/01/01 local stub]
+\DeclareOption*{}
+\ProcessOptions\relax
+\newcommand{\enquote}[1]{``#1''}
+\newcommand{\foreignquote}[2]{``#2''}
+% microtype hooks into csquotes when present
+\newcommand{\@disablequotes}{}
+\newcommand{\@enablequotes}{}
+\newcommand{\Blockquote}[1]{``#1''}
+\newcommand{\textquote}[1]{``#1''}
+\endinput

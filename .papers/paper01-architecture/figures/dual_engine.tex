@@ -1,0 +1,42 @@
+% Dual-engine decision flowchart (auto mode + fallback)
+\begin{tikzpicture}[
+  font=\sffamily\footnotesize,
+  box/.style={draw, rounded corners=2pt, align=center, inner sep=5pt, minimum width=2.8cm},
+  dec/.style={diamond, draw, aspect=2.2, align=center, inner sep=1pt, fill=pyneorange!12, draw=pyneorange!70!black},
+  proc/.style={box, fill=pyneblue!10, draw=pyneblue!70!black},
+  ok/.style={box, fill=pynegreen!12, draw=pynegreen!70!black},
+  fail/.style={box, fill=red!8, draw=red!50!black},
+  arr/.style={-{Stealth[length=2mm]}, thick},
+  node distance=0.55cm and 0.9cm
+]
+  \node[proc] (src) {Source + options\\(\texttt{mode}, OHLCV)};
+  \node[dec, below=of src] (mode) {\texttt{mode}?};
+  \node[proc, below left=0.9cm and 1.6cm of mode] (interp) {Interpret\\AST walk};
+  \node[proc, below right=0.9cm and 1.6cm of mode] (compile) {Compile path};
+  \node[dec, below=0.7cm of compile] (warm) {Warm cache\\hit?};
+  \node[proc, right=1.1cm of warm] (jit) {Numba JIT\\nopython emit};
+  \node[proc, below=0.65cm of warm] (load) {Load disk/\allowbreak process IR};
+  \node[dec, below=0.7cm of load] (nopy) {nopython\\OK?};
+  \node[proc, right=1.1cm of nopy] (obj) {Object-mode\\fallback};
+  \node[ok, below=0.7cm of nopy] (exec) {Execute kernels\\bar-loop};
+  \node[ok, below=1.55cm of interp] (env) {Response envelope\\plots / events / meta};
+  \node[fail, below=0.55cm of obj] (fb) {On hard failure:\\fall back to interpret};
+  \node[proc, left=of mode, xshift=-0.2cm] (auto) {\texttt{auto}\\prefer compile};
+
+  \draw[arr] (src) -- (mode);
+  \draw[arr] (mode) -- node[above left, font=\tiny]{\texttt{interpret}} (interp);
+  \draw[arr] (mode) -- node[above right, font=\tiny]{\texttt{compile}} (compile);
+  \draw[arr] (mode.west) -- node[above, font=\tiny]{\texttt{auto}} (auto.east);
+  \draw[arr] (auto) |- (compile);
+  \draw[arr] (compile) -- (warm);
+  \draw[arr] (warm) -- node[above, font=\tiny]{yes} (load);
+  \draw[arr] (warm) -- node[above, font=\tiny]{no} (jit);
+  \draw[arr] (jit) |- (load);
+  \draw[arr] (load) -- (nopy);
+  \draw[arr] (nopy) -- node[left, font=\tiny]{yes} (exec);
+  \draw[arr] (nopy) -- node[above, font=\tiny]{no} (obj);
+  \draw[arr] (obj) -- (fb);
+  \draw[arr] (fb.west) -| node[near start, left, font=\tiny]{} (interp.south);
+  \draw[arr] (exec.west) -| (env.north);
+  \draw[arr] (interp) -- (env);
+\end{tikzpicture}

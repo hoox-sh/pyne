@@ -1,0 +1,153 @@
+% Shared macros for PYNE arXiv paper series
+% Include with: \input{../common/macros.tex}
+
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{amsthm}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{listings}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.17}
+\usetikzlibrary{arrows.meta,positioning,fit,calc,shapes.geometric,shapes.multipart,decorations.pathreplacing,backgrounds,chains,matrix,patterns}
+\usepackage{subcaption}
+\usepackage{multirow}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{microtype}
+\usepackage{balance}
+\usepackage{csquotes}
+\usepackage{natbib}
+
+% Colors
+\definecolor{pyneorange}{HTML}{F97316}
+\definecolor{pyneblue}{HTML}{2563EB}
+\definecolor{pynegray}{HTML}{6B7280}
+\definecolor{pynegreen}{HTML}{16A34A}
+\definecolor{codebg}{HTML}{F8FAFC}
+\definecolor{codekw}{HTML}{7C3AED}
+\definecolor{codestr}{HTML}{B45309}
+\definecolor{codecomment}{HTML}{64748B}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=pyneblue,
+  citecolor=pynegreen,
+  urlcolor=pyneorange,
+  pdftitle={},
+  pdfauthor={HOOX / PYNE Project}
+}
+
+% Code listings
+\lstdefinestyle{pine}{
+  basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{codebg},
+  keywordstyle=\color{codekw}\bfseries,
+  stringstyle=\color{codestr},
+  commentstyle=\color{codecomment}\itshape,
+  breaklines=true,
+  frame=single,
+  rulecolor=\color{black!20},
+  numbers=left,
+  numberstyle=\tiny\color{pynegray},
+  numbersep=6pt,
+  xleftmargin=1.5em,
+  framexleftmargin=1.2em,
+  showstringspaces=false,
+  tabsize=2,
+  morekeywords={indicator,strategy,library,plot,plotshape,fill,hline,var,varip,if,else,for,while,switch,true,false,na,and,or,not,import,export,type,method,enum},
+  morecomment=[l]{//},
+  morestring=[b]",
+}
+\lstdefinestyle{python}{
+  language=Python,
+  basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{codebg},
+  keywordstyle=\color{codekw}\bfseries,
+  stringstyle=\color{codestr},
+  commentstyle=\color{codecomment}\itshape,
+  breaklines=true,
+  frame=single,
+  rulecolor=\color{black!20},
+  numbers=left,
+  numberstyle=\tiny\color{pynegray},
+  numbersep=6pt,
+  xleftmargin=1.5em,
+  framexleftmargin=1.2em,
+  showstringspaces=false,
+  tabsize=4,
+}
+\lstset{style=python}
+
+% Theorem environments
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{example}[theorem]{Example}
+\newtheorem{remark}[theorem]{Remark}
+
+% Shortcuts
+\newcommand{\pyne}{\textsc{Pyne}}
+\newcommand{\pine}{Pine Script\texttrademark}
+\newcommand{\tv}{TradingView\textregistered}
+\newcommand{\asdl}{\textsc{Asdl}}
+\newcommand{\antlr}{\textsc{Antlr}4}
+\newcommand{\numba}{\textsc{Numba}}
+\newcommand{\lsp}{\textsc{Lsp}}
+\newcommand{\ohlcv}{\textsc{Ohlcv}}
+\newcommand{\udt}{\textsc{Udt}}
+\newcommand{\jit}{\textsc{Jit}}
+\newcommand{\api}{\textsc{Api}}
+\newcommand{\cli}{\textsc{Cli}}
+% AST acronym (text mode). Keep amsmath's math asterisk \ast intact.
+\DeclareRobustCommand{\Ast}{\textsc{Ast}}
+% Papers in this series write \ast{} for the AST acronym in prose.
+% Redefine robustly; use \mathast for a binary asterisk in formulas.
+\let\mathast\ast
+\DeclareRobustCommand{\ast}{\textsc{Ast}}
+\newcommand{\ir}{\textsc{Ir}}
+\newcommand{\ta}{\texttt{ta}}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\file}[1]{\texttt{#1}}
+\newcommand{\eg}{e.g.}
+\newcommand{\ie}{i.e.}
+\newcommand{\etal}{\textit{et~al.}}
+\newcommand{\resp}{respectively}
+
+% Math helpers
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Z}{\mathbb{Z}}
+% Text-mode NA token for prose; use $\namath$ inside formulas if needed.
+\DeclareRobustCommand{\na}{\textsf{na}}
+\newcommand{\namath}{\mathsf{na}}
+\newcommand{\series}[1]{\mathbf{#1}}
+\newcommand{\baridx}{i}
+\newcommand{\bars}{n}
+\newcommand{\period}{p}
+\newcommand{\abserr}{\varepsilon_{\mathrm{abs}}}
+\newcommand{\relerr}{\varepsilon_{\mathrm{rel}}}
+\newcommand{\maxerr}{\varepsilon_{\mathrm{max}}}
+\newcommand{\meanerr}{\varepsilon_{\mathrm{mean}}}
+
+% Pipeline notation — use inside math: $\pipeline$
+\newcommand{\pipeline}{\mathrm{src}\!\to\!\mathrm{lex}\!\to\!\mathrm{parse}\!\to\!\mathrm{AST}\!\to\!\mathrm{eval}}
+
+% Disclaimer footnote helper
+\newcommand{\trademarknote}{%
+  \pine{} and \tv{} are trademarks of TradingView, Inc.
+  \pyne{} is an independent, unofficial implementation and is not affiliated with,
+  authorized by, sponsored by, or endorsed by TradingView, Inc.
+}
+
+% Figure path helper (papers live one level under .papers/)
+\graphicspath{{figures/}{../common/figures/}}

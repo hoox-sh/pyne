@@ -1,0 +1,1174 @@
+% PYNE Paper 03 — Series History Management and Runtime Performance
+% arXiv target: cs.DS / cs.PF
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+
+\input{../common/macros.tex}
+
+\hypersetup{
+  pdftitle={Efficient Series History and Incremental Technical Analysis for Bar-Loop Interpreters},
+  pdfauthor={HOOX Research / PYNE Contributors},
+  pdfkeywords={incremental computation, technical analysis, series buffers, ring buffers,
+               memory-bounded interpreters, financial time series}
+}
+
+\title{%
+  Efficient Series History and Incremental Technical Analysis\\
+  for Bar-Loop Interpreters}
+\author{%
+  HOOX Research / \pyne{} Contributors\\
+  \texttt{jango\_blockchained}\\
+  Independent Open Source Research\\
+  \texttt{contact@hoox.sh}}
+\date{August 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Bar-loop interpreters for series-oriented domain-specific languages evaluate
+every statement once per time bar and materialize history via the operator
+$x[n]$ (``$n$ bars back'').  Naive implementations store unbounded per-series
+lists and recompute rolling technical-analysis (TA) windows from scratch on
+each bar, inducing $O(n\cdot s)$ memory growth and $O(n\cdot p)$ work for
+period-$p$ indicators over $n$ bars and $s$ series.
+We present the series-history and incremental-TA stack shipped in \pyne{}, an
+independent open toolchain for the \pine{} language~\citep{pynescript2026,tradingview-pine}.
+The design combines (i)~a default-on series cap that trims chronological host
+lists to $\max(\mathit{SERIES\_MAX},\mathit{max\_bars\_back})+\mathit{slack}$,
+yielding $\sim 78\times$ long-run list-memory reduction at $20\,000$ bars;
+(ii)~an opt-in chronological ring buffer (\texttt{ChronologicalSeriesBuffer})
+with true $O(1)$ lookback under modular indexing;
+(iii)~call-site incremental kernels for the hot \ta{} surface---including
+SMA/EMA/RMA, RSI, Bollinger Bands, highest/lowest, KAMA, and StochRSI---with
+kernel micro-benchmarks up to $\sim 717\times$ versus full-window rebuilds; and
+(iv)~host-side parse/AST caching, lazy calendar materialization, and light plot
+modes that cut multi-plot residual wall time.
+On the interpret path at $2\,000$ bars we report median latencies of $15.2$\,ms
+(minimal), $23.6$\,ms (\texttt{ta\_sma}), $153$\,ms (\texttt{ta\_combo}), and
+$69$\,ms (\texttt{strategy\_ish}); cProfile attributes $\sim 75\%$ of residual
+\texttt{ta\_combo} wall time to plot packing rather than TA kernels.
+We formalize correctness conditions under bounded history, give recurrences and
+stability notes for each kernel class, and situate the work in incremental
+computation and streaming algorithms.
+\end{abstract}
+
+\paragraph{Keywords.}
+incremental computation; technical analysis; series buffers; ring buffers;
+memory-bounded interpreters; financial time series.
+
+\paragraph{Disclaimer.}
+\trademarknote{}
+
+\tableofcontents
+\newpage
+
+%==============================================================================
+\section{Introduction}
+\label{sec:intro}
+%==============================================================================
+
+Financial charting languages such as \pine{}~\citep{tradingview-pine} expose a
+\emph{series} data model in which every scalar expression is implicitly a time
+series indexed by bar.  Evaluation proceeds as a \emph{bar loop}: the host
+advances an \ohlcv{} cursor and re-executes the script body for each bar $i\in
+\{0,\ldots,n-1\}$.  History access $x[n]$ denotes the value of $x$ that was
+current $n$ bars earlier; qualifiers \code{var} and \code{varip} persist state
+across bars and intra-bar ticks respectively; and the sentinel $\na$
+propagates through arithmetic~\citep{tradingview-pine,pynescript2026}.
+
+This model is attractive for domain users---indicators are written as if they
+were spreadsheet formulas---but is expensive for a naive interpreter.
+Historically, the dominant costs on \pyne{}'s interpret path were:
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Series history growth.}  Every named series and host \ohlcv{}
+        field appended one sample per bar, so memory scaled as
+        $\Theta(n\cdot s)$ for $s$ live series.
+  \item \textbf{Full-window TA recompute.}  Indicators such as
+        $\mathrm{SMA}(p)$, Bollinger Bands, and Kaufman adaptive moving
+        average~\citep{kama1998kaufman} rebuilt period-$p$ windows from the
+        entire prefix on each bar, producing $\Theta(n\cdot p)$ or even
+        $\Theta(n^2)$ work for nested rebuilds.
+  \item \textbf{Plot packing and call dispatch.}  Multi-plot scripts spent a
+        majority of residual wall time in result capture and
+        \texttt{visit\_Call} envelopes rather than pure arithmetic.
+\end{enumerate}
+
+\pyne{} addresses these costs with a layered runtime stack measured across
+performance rounds~4--7~\citep{pynescript2026}.  Contributions of this paper:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Bounded series history} via default-on \code{PYNE\_SERIES\_CAP},
+        with a correctness argument relating lookback depth, recursive
+        incremental state, and out-of-range $\na$ semantics
+        (Section~\ref{sec:cap}).
+  \item \textbf{Chronological ring buffers}
+        (\texttt{ChronologicalSeriesBuffer} /
+        \code{PYNE\_SERIES\_RING}) enabling $O(1)$ Pine-offset lookback and a
+        dual-write migration path off newest-first deques
+        (Section~\ref{sec:ring}).
+  \item \textbf{A generic incremental TA framework} of call-site state tuples
+        $\sigma$ and updates $\sigma'=\mathrm{update}(\sigma,x_i)$, covering
+        sliding sums, exponential smoothers, Wilder-class oscillators, variance
+        bands, amortized deques, and adaptive kernels
+        (Section~\ref{sec:inc}).
+  \item \textbf{Interpreter and multi-run host optimizations}: type-keyed
+        dispatch, light plots, lazy calendar, and a SHA-256 LRU \ast{} cache
+        with call-site scrubbing on hit (Sections~\ref{sec:hot}--\ref{sec:parse}).
+  \item \textbf{Empirical evaluation} of memory, kernel micros, and end-to-end
+        latency, including a residual bottleneck map that isolates plot packing
+        as $\sim 75\%$ of multi-plot interpret wall time
+        (Section~\ref{sec:eval}).
+\end{itemize}
+
+\paragraph{Scope.}
+We focus on the \emph{interpret} (AST-walking) path and on the series/TA
+subsystem shared with the Numba compile path~\citep{lam2015numba}, which always
+emits incremental kernels for hot TA.  Grammar, strategy broker semantics, and
+LSP tooling are treated elsewhere in the \pyne{} paper series.
+
+%==============================================================================
+\section{Background}
+\label{sec:bg}
+%==============================================================================
+
+\subsection{Pine series semantics}
+\label{sec:bg-series}
+
+\begin{definition}[Series and history operator]
+A series $\series{x}$ is a sequence $(x_0,x_1,\ldots,x_{i})$ of values observed
+up to the current bar index $i$.  The history operator is
+\begin{equation}
+  x[n] \;=\;
+  \begin{cases}
+    x_{i-n} & \text{if } 0\le n\le i \text{ and } x_{i-n}\ne\na,\\
+    \na     & \text{otherwise (including } n<0\text{).}
+  \end{cases}
+\end{equation}
+Pine indices are \emph{most-recent-first} in the programmer model ($x[0]$ is
+current), while host chronological lists store oldest-first so that physical
+index $-(n+1)$ realizes lookback $n$~\citep{tradingview-pine}.
+\end{definition}
+
+\begin{definition}[Persistence qualifiers]
+The qualifier \code{var} initializes a declaration site once and carries the
+value across subsequent bars.  \code{varip} additionally carries across ticks
+within an incomplete bar.  Bare assignment re-evaluates every bar.
+\end{definition}
+
+\begin{definition}[$\na$ propagation]
+Arithmetic and many builtins propagate $\na$: if any operand is $\na$, the
+result is $\na$ (with Pine-specific exceptions for functions that treat
+missing samples specially).  Out-of-range history must yield $\na$, never a
+silent zero~\citep{pynescript2026}.
+\end{definition}
+
+These rules interact with memory bounding: truncating history deeper than any
+live lookback must not invent samples, and recursive smoothers must either
+retain enough raw history \emph{or} retain closed-form incremental state
+(Section~\ref{sec:cap}).
+
+\subsection{Bar-loop evaluation model}
+\label{sec:bg-barloop}
+
+Figure~\ref{fig:architecture} sketches the interpret architecture.  For each
+bar $i$:
+\begin{enumerate}[leftmargin=*]
+  \item The host advances \ohlcv{} series (\code{open}, \code{high},
+        \code{low}, \code{close}, \code{volume}, \code{time}) and optional
+        script-local series.
+  \item The evaluator walks the script \ast{} via a visitor, resolving names
+        against a context map and call-site TA state.
+  \item Builtins (notably \ta{}) either update incremental kernels or fall
+        back to full-window helpers when \code{PYNE\_TA\_INCREMENTAL}${}=0$.
+  \item Plot/strategy side effects append into result registries for packing
+        into columnar outputs.
+\end{enumerate}
+
+The compile path lowers the same semantics to NumPy/Numba kernels that process
+entire arrays in one call~\citep{harris2020numpy,lam2015numba}; that path always
+uses incremental kernels for hot TA and is not gated by the interpret flag.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw, rounded corners=2pt, align=center, inner sep=6pt,
+              minimum height=1.1cm, minimum width=2.4cm},
+  arr/.style={-{Latex}, thick},
+  host/.style={box, fill=pyneblue!12},
+  series/.style={box, fill=pyneorange!15},
+  eval/.style={box, fill=pynegreen!12},
+  plot/.style={box, fill=pynegray!15},
+]
+  \node[host] (ohlcv) {OHLCV\\host cursor};
+  \node[series, right=1.1cm of ohlcv] (store) {Series store\\lists / ring};
+  \node[eval, right=1.1cm of store] (ast) {AST visitor\\per bar $i$};
+  \node[eval, below=1.0cm of ast] (ta) {TA kernels\\state $\sigma$};
+  \node[plot, right=1.1cm of ast] (plots) {Plot / strategy\\registries};
+  \node[plot, below=1.0cm of plots] (pack) {Columnar pack\\result dict};
+  \node[host, below=1.0cm of ohlcv] (bar) {Bar loop\\$i=0..n-1$};
+
+  \draw[arr] (bar) -- (ohlcv);
+  \draw[arr] (ohlcv) -- (store);
+  \draw[arr] (store) -- (ast);
+  \draw[arr] (ast) -- (plots);
+  \draw[arr] (ast) -- (ta);
+  \draw[arr] (ta) -- (ast);
+  \draw[arr] (plots) -- (pack);
+  \draw[arr, dashed] (store) -- (ta);
+
+  \node[draw, dashed, rounded corners=4pt, fit=(ohlcv)(store)(bar),
+        inner sep=8pt, label=above:{\footnotesize Host}] {};
+  \node[draw, dashed, rounded corners=4pt, fit=(ast)(ta),
+        inner sep=8pt, label=above:{\footnotesize Interpreter}] {};
+  \node[draw, dashed, rounded corners=4pt, fit=(plots)(pack),
+        inner sep=8pt, label=above:{\footnotesize Effects}] {};
+\end{tikzpicture}
+\caption{Bar-loop interpret architecture with series store, call-site TA
+state, and plot packing.  The host advances OHLCV once per bar; the visitor
+re-executes the script body; incremental kernels read/write state $\sigma$
+keyed by call site.}
+\label{fig:architecture}
+\end{figure}
+
+\subsection{Cost model of interpretation}
+\label{sec:bg-cost}
+
+Let $n$ be the number of bars, $s$ the number of live series (host + local),
+$c$ the number of call nodes executed per bar, $p$ a typical TA period, and
+$q$ the number of \code{plot} (or similar) emissions per bar.  A crude cost
+model for a naive interpreter is
+\begin{equation}
+\label{eq:cost-naive}
+  T_{\mathrm{naive}}(n)
+  \;=\;
+  \underbrace{O(n\cdot c\cdot d)}_{\text{AST dispatch depth }d}
+  \;+\;
+  \underbrace{O\!\big(n\cdot \textstyle\sum_k p_k\big)}_{\text{full-window TA}}
+  \;+\;
+  \underbrace{O(n\cdot q\cdot w)}_{\text{plot capture width }w}
+  \;+\;
+  \underbrace{O(n\cdot s)}_{\text{series append}}.
+\end{equation}
+Memory is $M_{\mathrm{naive}}=\Theta(n\cdot s)$ plus plot buffers
+$\Theta(n\cdot q)$.
+
+With series caps of capacity $K$, incremental TA of $O(1)$ or $O(p)$ amortized
+per call, and light plots that skip columnar capture, the improved model is
+\begin{equation}
+\label{eq:cost-opt}
+  T_{\mathrm{opt}}(n)
+  \;=\;
+  O(n\cdot c\cdot d')
+  \;+\;
+  O\!\big(n\cdot \textstyle\sum_k u_k\big)
+  \;+\;
+  O(n\cdot q\cdot w')
+  \;+\;
+  O(n\cdot s),
+\end{equation}
+where $u_k\in\{1,p_k\}$ is the per-bar update cost of kernel $k$, $d'\le d$
+after dispatch tuning, $w'\ll w$ under light plots, and
+$M_{\mathrm{opt}}=\Theta(K\cdot s)+\Theta(|\sigma|)$ with $|\sigma|$ the
+aggregate incremental state (typically $O(p)$ per call site).
+
+\paragraph{Dominant historical costs.}
+Profiling rounds identified four hotspots: series list growth, TA full
+recompute, plot packing, and the \texttt{visit\_Call} envelope.  Kernel-only
+wins therefore do not automatically dominate end-to-end multi-plot scripts
+(Section~\ref{sec:eval}).
+
+%==============================================================================
+\section{Problem Formalization}
+\label{sec:problem}
+%==============================================================================
+
+\subsection{Memory: unbounded series growth}
+
+\begin{proposition}[Linear series memory]
+\label{prop:mem-linear}
+Under uncapped chronological lists, if a script maintains $s$ series each of
+length $n$ after $n$ bars, then pointer storage alone is
+$\Theta(n\cdot s)$ words.  For $n=20\,000$, $s=6$ OHLCV-style lists, this is
+$\sim 9.6\cdot 10^5$ pointers ($\sim 7.7$\,MiB on 64-bit), exclusive of object
+payloads.
+\end{proposition}
+
+Many Pine scripts also allocate local series for intermediate expressions;
+$s$ can reach dozens to hundreds on complex strategies, so memory pressure is
+not limited to OHLCV.
+
+\subsection{Time: full-window TA recompute}
+
+\begin{definition}[Full-window recompute]
+A kernel $f_p$ is a \emph{full-window recompute} if at bar $i$ it scans
+$\{x_{i-p+1},\ldots,x_i\}$ (or the entire prefix) without reusing work from
+bar $i-1$, costing $\Omega(p)$ or $\Omega(i)$ arithmetic per bar.
+\end{definition}
+
+\begin{proposition}[Quadratic nested rebuild]
+\label{prop:quad}
+If each bar $i$ rebuilds an indicator by scanning a prefix of length $i$
+(e.g., nested KAMA or StochRSI implementations that re-seed from bar~$0$),
+total work over $n$ bars is $\Theta(n^2)$.
+\end{proposition}
+
+Even ``only'' $\Theta(n\cdot p)$ is painful for $n=5\,000$ and $p=200$ when
+dozens of indicators share a script.  Time-series textbooks emphasize
+online/streaming updates for exactly this reason~\citep{box1970time,tsay2010analysis}.
+
+\subsection{Correctness constraints}
+
+Any optimization must preserve:
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Lookback identity:} for all $n\le K$ (cap), $x[n]$ equals the
+        uncapped value when the sample exists.
+  \item \textbf{$\na$ discipline:} OOB and missing samples are $\na$, never $0$.
+  \item \textbf{TA parity:} incremental kernels match full-window oracles within
+        floating-point noise~\citep{higham2002accuracy,ieee754} under default
+        flags.
+  \item \textbf{Call-site isolation:} two syntactically distinct calls to
+        \code{ta.sma(close,14)} maintain independent state.
+\end{enumerate}
+
+%==============================================================================
+\section{Series Cap Design}
+\label{sec:cap}
+%==============================================================================
+
+\subsection{Policy}
+
+\pyne{} formalizes host list capping behind \code{PYNE\_SERIES\_CAP}
+(default \textbf{on}).  Let
+\begin{equation}
+  K \;=\; \max\!\big(K_0,\; \mathit{max\_bars\_back}(\mathrm{src})\big),
+\end{equation}
+where $K_0=\mathit{SERIES\_MAX}$ defaults to $256$ (overridable via
+\code{PYNE\_SERIES\_MAX}) and $\mathit{max\_bars\_back}$ is parsed from the
+script source when present.  Chronological lists are grown to $K+\Delta$ with
+slack $\Delta=64$, then trimmed in place with \texttt{del lst[:drop]} back to
+$K$.  Slack amortizes the $O(K)$ cost of prefix deletion so trims are not
+performed every bar.
+
+PineSeries wrappers retain a history floor of $1\,000$ samples (raised when
+$K$ is larger) so \code{close[n]} for $n\le 999$ remains available even when
+list caps are tight---matching pre-cap host defaults.
+
+\subsection{Correctness argument for bounded history}
+
+\begin{proposition}[Window kernels under cap]
+\label{prop:window-cap}
+Let $f_p$ depend only on the last $p$ finite samples of $\series{x}$.  If
+$p\le K$ and the cap retains the newest $K$ samples, then $f_p$ at every bar
+with $i\ge p-1$ equals the uncapped result.
+\end{proposition}
+
+\begin{proof}[Proof sketch]
+At bar $i$, the uncapped window is $\{x_{i-p+1},\ldots,x_i\}$.  The cap
+retains $\{x_{i-K+1},\ldots,x_i\}$ (or the full prefix if shorter).  Since
+$p\le K$, the window is a suffix of the retained segment.
+\end{proof}
+
+\begin{proposition}[Recursive kernels with incremental state]
+\label{prop:rec-cap}
+Let $y_i=g(y_{i-1},x_i)$ be a first-order recurrence (EMA, RMA, \ldots) with
+call-site state storing $y_{i-1}$.  After warm-up, $y_i$ is independent of raw
+samples older than $1$, hence independent of $K$ provided state is not reset.
+\end{proposition}
+
+\begin{remark}[Full-recompute residual]
+If \code{PYNE\_TA\_INCREMENTAL}${}=0$, recursive kernels re-seed from the
+retained list prefix.  When $n\gg K$, the re-seeded trajectory can diverge from
+an uncapped full recompute.  Default-on incremental mode closes this residual
+for production hosts; the flag remains for debugging and oracle tests.
+\end{remark}
+
+\begin{proposition}[OOB is $\na$]
+\label{prop:oob-na}
+For lookback $n\ge$ retained length, $x[n]=\na$.  Implementations must not
+coerce missing history to $0$, which would bias sums, ranges, and boolean
+guards.
+\end{proposition}
+
+\subsection{When lookback exceeds the cap}
+
+If a script requests \code{close[500]} while $K=256$, the host returns $\na$
+unless $\mathit{max\_bars\_back}$ (or \code{PYNE\_SERIES\_MAX}) raises $K$.
+This matches Pine's resource model: deep history is an explicit request, not
+an implicit infinite tape.  Scripts that need deep history should set
+\code{max\_bars\_back} accordingly; the cap then becomes a \emph{floor} rather
+than a truncation surprise.
+
+\subsection{Structural memory win}
+
+Simulating $20\,000$ bars $\times$ $6$ OHLCV-style lists with $K=256$,
+$\Delta=64$:
+
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+Mode & Final list len & $\sim$pointer bytes (6 lists) & Append wall \\
+\midrule
+Uncapped & $20\,000$ & $\sim 960\,000$ & $0.020$\,s \\
+Capped   & $305$     & $\sim 14\,640$  & $0.021$\,s \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The memory ratio is $\sim 78\times$ at $20$k bars and scales as
+$n/K$ asymptotically.  Trim CPU is negligible relative to AST and TA work.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.92\linewidth,
+  height=6.2cm,
+  xlabel={Bar count $n$},
+  ylabel={Relative series memory (a.u.)},
+  legend style={at={(0.02,0.98)}, anchor=north west, font=\small},
+  grid=major,
+  ymin=0,
+  xmax=20000,
+  cycle list name=color list,
+]
+  \addplot[thick, color=pynegray, mark=none] coordinates {
+    (0,0) (2500,2500) (5000,5000) (7500,7500) (10000,10000)
+    (12500,12500) (15000,15000) (17500,17500) (20000,20000)
+  };
+  \addlegendentry{Uncapped $\Theta(n)$}
+  \addplot[thick, color=pyneorange, mark=none] coordinates {
+    (0,0) (256,256) (320,320) (1000,320) (5000,320)
+    (10000,320) (15000,320) (20000,320)
+  };
+  \addlegendentry{Capped $K{+}{\Delta}$ ($K{=}256$)}
+  \addplot[thick, color=pyneblue, dashed, mark=none] coordinates {
+    (0,0) (256,256) (1000,256) (5000,256) (10000,256)
+    (15000,256) (20000,256)
+  };
+  \addlegendentry{Ring $\mathrm{maxlen}{=}K$}
+\end{axis}
+\end{tikzpicture}
+\caption{Series growth versus capped lists and fixed-capacity ring buffers.
+Uncapped memory grows linearly with bar count; the default series cap plateaus
+near $K+\Delta$; a modular ring plateaus exactly at $K$.}
+\label{fig:memory}
+\end{figure}
+
+%==============================================================================
+\section{Ring Buffer Series}
+\label{sec:ring}
+%==============================================================================
+
+\subsection{\texttt{ChronologicalSeriesBuffer}}
+
+The Phase~2.2 design introduces a chronological (oldest-first) buffer with
+modular ring capacity~\citep{pynescript2026}:
+
+\begin{align}
+  \mathrm{append}(v) &\quad O(1), \\
+  \mathrm{lookback}(n) &\quad O(1)\text{ via physical index }\mathit{end}-n, \\
+  \mathrm{series}[n] &\quad \na\text{ on negative / OOB / missing}.
+\end{align}
+
+When $\mathit{maxlen}=N$ is set, append overwrites the oldest slot after the
+ring fills---true $O(1)$ memory and time without prefix \texttt{del}.  When
+$\mathit{maxlen}$ is \code{None}, the buffer grows as a plain list (still $O(1)$
+end-index lookback).
+
+\paragraph{Why not \texttt{deque} alone?}
+CPython \texttt{collections.deque} offers $O(1)$ append/pop at both ends, but
+\emph{middle} indexing is $O(n)$.  Modular list indexing is $O(1)$ for
+arbitrary lookback depth within the window---important for scripts that probe
+\code{close[k]} for moderate $k$ on every bar.
+
+\subsection{Dual-write transition}
+
+Production hosts historically maintained \emph{two} series representations:
+\begin{itemize}[leftmargin=*]
+  \item \texttt{PineSeries}: newest-first deque (\texttt{appendleft}), used by
+        context OHLCV and \code{series[n]}.
+  \item \texttt{current\_series} lists: chronological, used by \ta{} via
+        \texttt{\_as\_series}.
+\end{itemize}
+Materializing a newest-first deque into chronological order required
+\texttt{list(reversed(...))}, a residual tax on full-recompute paths.
+
+The migration plan is staged:
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Phase A (shipped):} factory \texttt{make\_pine\_series()}
+        returns \texttt{RingPineSeries} when \code{PYNE\_SERIES\_RING}${}=1$,
+        else classic \texttt{PineSeries}.  Default is \textbf{off} until the
+        corpus is green under ring mode.
+  \item \textbf{Phase B:} zero-copy \texttt{\_as\_series} for objects marked
+        \code{chrono\_order=True}.
+  \item \textbf{Phase C:} single buffer shared by context and
+        \texttt{current\_series}, dropping dual update.
+\end{enumerate}
+
+\texttt{RingPineSeries} exposes a \texttt{NewestFirstHistoryView} so existing
+duck-typed code (\code{history[0]} == current) continues to work during the
+transition.  Ring \code{maxlen} tracks
+\texttt{pineseries\_history\_length(...)} so it composes with the series cap
+rather than fighting it.
+
+%==============================================================================
+\section{Incremental TA Framework}
+\label{sec:inc}
+%==============================================================================
+
+\subsection{Generic pattern}
+\label{sec:inc-pattern}
+
+\begin{definition}[Incremental kernel]
+An incremental kernel is a pair $(\sigma_0,U)$ where $\sigma_0$ is initial
+state and $U(\sigma,x_i)=(\sigma',y_i)$ produces updated state and output.
+State is stored in a call-site map keyed by (builtin name, syntactic slot,
+parameters).
+\end{definition}
+
+\begin{algorithm}[t]
+\caption{Generic bar-mode incremental update}
+\label{alg:generic}
+\begin{algorithmic}[1]
+\Require call-site map $S$, key $k$, input $x_i$, update $U$, init $\sigma_0$
+\If{$k\notin S$}
+  \State $S[k]\gets\sigma_0$
+\EndIf
+\State $(\sigma', y_i)\gets U(S[k], x_i)$
+\State $S[k]\gets\sigma'$
+\State \Return $y_i$ \Comment{may be $\na$ during warm-up}
+\end{algorithmic}
+\end{algorithm}
+
+Flag \code{PYNE\_TA\_INCREMENTAL} (default \textbf{on}) selects incremental
+updates; setting it to $0$ forces full-window oracles for differential testing.
+The compile path always emits incremental Numba kernels for hot TA regardless
+of this flag~\citep{lam2015numba,pynescript2026}.
+
+Figure~\ref{fig:inc-schematic} contrasts full-window scans with incremental
+updates.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  bar/.style={draw, minimum width=0.42cm, minimum height=0.7cm, inner sep=0},
+  arr/.style={-{Latex}, thick},
+]
+  % Full window
+  \node[anchor=west] at (0,2.4) {\textbf{Full-window recompute at bar $i$}};
+  \foreach \x in {0,...,11} {
+    \node[bar, fill=pynegray!20] (f\x) at (0.5*\x, 1.6) {};
+  }
+  \foreach \x in {7,...,11} {
+    \node[bar, fill=pyneorange!50] at (0.5*\x, 1.6) {};
+  }
+  \draw[decorate, decoration={brace, amplitude=5pt, mirror}, thick]
+    (3.35,1.15) -- (5.65,1.15)
+    node[midway, below=6pt] {scan $p$ samples, $O(p)$};
+  \node at (6.6,1.6) {$y_i$};
+
+  % Incremental
+  \node[anchor=west] at (0,0.3) {\textbf{Incremental update}};
+  \node[draw, rounded corners, fill=pyneblue!12, minimum width=2.2cm,
+        minimum height=1.0cm] (st) at (1.4,-0.6) {state $\sigma_{i-1}$};
+  \node[draw, rounded corners, fill=pynegreen!15, minimum width=1.4cm,
+        minimum height=1.0cm] (xi) at (3.8,-0.6) {$x_i$};
+  \node[draw, rounded corners, fill=pyneorange!20, minimum width=2.2cm,
+        minimum height=1.0cm] (st2) at (6.4,-0.6) {$\sigma_i,\; y_i$};
+  \draw[arr] (st) -- (st2);
+  \draw[arr] (xi) -- (st2);
+  \node[below=0.15cm of st2, font=\footnotesize] {$O(1)$ or amortized $O(1)$};
+\end{tikzpicture}
+\caption{Incremental versus full-window TA.  Full recompute re-scans the
+period window on every bar; incremental kernels carry a state tuple and apply
+a constant-time (or amortized constant-time) update.}
+\label{fig:inc-schematic}
+\end{figure}
+
+\subsection{Case study: SMA (sliding sum)}
+\label{sec:inc-sma}
+
+Let $p\ge 1$.  Maintain a deque window $W$ of the last $p$ samples and a
+running sum $\Sigma$:
+\begin{align}
+  \Sigma_i &= \Sigma_{i-1} + x_i - x_{i-p}
+    \quad\text{(when $|W|=p$)}, \\
+  y_i &= \Sigma_i / p.
+\end{align}
+Warm-up returns $\na$ until $p$ finite samples accumulate.  Samples that are
+$\na$ are typically excluded from the count or propagate $\na$ per Pine rules.
+
+\begin{algorithm}[t]
+\caption{Incremental SMA with running sum}
+\label{alg:sma}
+\begin{algorithmic}[1]
+\Require state $(\mathit{window},\Sigma,\mathit{count})$, input $x$, period $p$
+\If{$x$ is $\na$}
+  \State \Return $(\text{state}, \na)$ \Comment{policy: skip or propagate}
+\EndIf
+\State append $x$ to $\mathit{window}$; $\Sigma\gets\Sigma+x$; $\mathit{count}{+}{+}$
+\If{$\mathit{count}>p$}
+  \State $u\gets$ popleft($\mathit{window}$); $\Sigma\gets\Sigma-u$; $\mathit{count}{-}{+}$
+\EndIf
+\If{$\mathit{count}<p$}
+  \State \Return $(\text{state}, \na)$
+\EndIf
+\State \Return $(\text{state}, \Sigma/p)$
+\end{algorithmic}
+\end{algorithm}
+
+Complexity: $O(1)$ arithmetic and deque operations per bar after warm-up.
+
+\subsection{Case study: EMA and RMA (Wilder)}
+\label{sec:inc-ema}
+
+The exponential moving average with smoothing $\alpha\in(0,1]$ is
+\begin{equation}
+\label{eq:ema}
+  y_i = \alpha x_i + (1-\alpha)\, y_{i-1},
+\end{equation}
+seeded by SMA of the first $p$ samples for Pine-compatible EMA with
+$\alpha=2/(p+1)$.  Wilder's RMA~\citep{wilder1978new} uses
+$\alpha=1/p$ (equivalently $y_i = y_{i-1} + (x_i-y_{i-1})/p$).
+
+State is a single scalar $y_{i-1}$ plus a warm-up counter---$O(1)$ memory and
+time.  Numerical stability:~\eqref{eq:ema} is a contractive affine map; error
+is not amplified~\citep{higham2002accuracy}.  Catastrophic cancellation is not
+an issue for the recurrence itself, though very large $|x_i|$ can still lose
+precision in IEEE-754 binary64~\citep{ieee754}.
+
+\subsection{Case study: RSI}
+\label{sec:inc-rsi}
+
+Relative Strength Index~\citep{wilder1978new} maintains average gain $G$ and
+average loss $L$ via RMA:
+\begin{align}
+  u_i &= \max(x_i-x_{i-1}, 0), &
+  d_i &= \max(x_{i-1}-x_i, 0), \\
+  G_i &= \mathrm{RMA}_p(u)_i, &
+  L_i &= \mathrm{RMA}_p(d)_i, \\
+  \mathrm{RS}_i &= G_i/L_i, &
+  \mathrm{RSI}_i &= 100 - 100/(1+\mathrm{RS}_i).
+\end{align}
+When $L_i=0$, RSI is defined as $100$ if $G_i>0$, else typically $0$ or $\na$
+per implementation policy.  Incremental form stores
+$(G_{i-1},L_{i-1},x_{i-1})$.
+
+\subsection{Case study: Bollinger Bands (mean + variance)}
+\label{sec:inc-bb}
+
+Bollinger Bands~\citep{bollinger2001} are
+\begin{equation}
+  \mathrm{mid}_i=\mathrm{SMA}_p(x)_i,\quad
+  \sigma_i=\mathrm{stdev}_p(x)_i,\quad
+  \mathrm{upper/lower}_i=\mathrm{mid}_i \pm k\sigma_i.
+\end{equation}
+\pyne{} maintains sliding sum $\Sigma$ and sum of squares $Q$:
+\begin{align}
+  \Sigma_i &= \Sigma_{i-1}+x_i-x_{i-p}, \\
+  Q_i &= Q_{i-1}+x_i^2-x_{i-p}^2, \\
+  \sigma_i^2 &= Q_i/p - (\Sigma_i/p)^2
+  \quad\text{(population form; sample form uses $p-1$)}.
+\end{align}
+Alternatively, Welford's online algorithm updates mean and $M_2$ with better
+numerical properties for one-pass streams~\citep{higham2002accuracy,press2007numerical};
+for fixed-length sliding windows, a compensated sliding variance or periodic
+full refresh reduces cancellation when $Q$ and $(\Sigma/p)^2$ are large and
+close.
+
+Round~7 ships a dedicated \texttt{\_bb\_inc\_update} that nests SMA+stdev
+slots and last-sample hygiene so Volatility paths avoid reverse materialization.
+Kernel micro-benchmarks report $\sim 217\times$ versus naive full
+\texttt{\_sma}+\texttt{\_stdev} rebuilds at $n=2\,000$
+(Section~\ref{sec:eval}).
+
+\subsection{Case study: highest / lowest (monotonic deques)}
+\label{sec:inc-hl}
+
+Range extrema over a sliding window admit classic amortized $O(1)$ updates via
+monotonic deques~\citep{aho2006dragon}:
+
+\begin{algorithm}[t]
+\caption{Sliding window maximum (highest)}
+\label{alg:highest}
+\begin{algorithmic}[1]
+\Require deque $D$ of indices (decreasing values), input $x_i$, period $p$
+\While{$D$ nonempty and $x_{D.\mathrm{back}}\le x_i$}
+  \State pop back $D$
+\EndWhile
+\State push $i$ to back of $D$
+\While{$D.\mathrm{front}\le i-p$}
+  \State pop front $D$
+\EndWhile
+\State \Return $x_{D.\mathrm{front}}$ \Comment{$\na$ if window incomplete}
+\end{algorithmic}
+\end{algorithm}
+
+Each index is pushed and popped at most once, so amortized cost is $O(1)$ per
+bar.  Lowest is symmetric (increasing deque).
+
+\subsection{Case study: KAMA}
+\label{sec:inc-kama}
+
+Kaufman's adaptive moving average~\citep{kama1998kaufman} computes an
+efficiency ratio from change over noise:
+\begin{align}
+  \mathrm{ER}_i &= \frac{|x_i-x_{i-L}|}{\sum_{j=0}^{L-1}|x_{i-j}-x_{i-j-1}|}, \\
+  \mathrm{SC}_i &= \big(\mathrm{ER}_i\cdot(\mathrm{fast}-\mathrm{slow})+\mathrm{slow}\big)^2, \\
+  y_i &= y_{i-1} + \mathrm{SC}_i\cdot(x_i-y_{i-1}).
+\end{align}
+A naive implementation rebuilds the noise sum from scratch each bar
+($O(L)$ or worse if re-seeded from bar~$0$).  The incremental kernel keeps a
+price ring of length $L{+}1$ and a running absolute-delta sum, achieving
+$O(1)$ per bar after seeding.  Micro-benchmarks: $\sim 121\times$ at
+$n=2\,000$, length $10$.
+
+\subsection{Case study: StochRSI}
+\label{sec:inc-stochrsi}
+
+Stochastic RSI applies a stochastic oscillator to an RSI series.  Nested
+full rebuilds yield near-quadratic cost.  The incremental form maintains:
+\begin{itemize}[leftmargin=*]
+  \item an RSI window (or Wilder RSI state, depending on oracle),
+  \item a stochastic ring over the last $\mathit{stoch\_len}$ RSI values,
+  \item optional signal smoothing in call-site state
+        ($0.33\,x+0.67\,\mathrm{prev}$ in \pyne{}'s simple-path oracle).
+\end{itemize}
+Round~7 reports $\sim 717\times$ kernel speedup for
+\texttt{stochrsi(14,14)} at $n=2\,000$.  Note: the interpret oracle for this
+path uses simple average gain/loss RSI rather than Wilder \code{ta.rsi}; the
+incremental path matches that oracle bit-for-bit, not necessarily live \tv{}
+StochRSI-on-RMA~\citep{pynescript2026}.
+
+\subsection{Additional kernels}
+
+Across rounds~1--7 the incremental surface grew to include (non-exhaustively):
+WMA, VWMA, TR/ATR, change, stoch \%K, cum, VWAP, MOM, SWMA, barssince,
+highestbars/lowestbars, linreg, CCI, TSI, ROC, WPR, dev, HMA, rising/falling,
+median, percentrank, CMO, and compile-side ports of the same recurrences.
+Typical gains range from $\sim 1.2\times$ (already $O(p)$ windows with better
+hygiene) to two--three orders of magnitude for former full-prefix rebuilds.
+
+\subsection{Numerical stability notes}
+\label{sec:inc-stability}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Sliding variance:} prefer compensated updates or periodic
+        resync when $|x|$ is large~\citep{higham2002accuracy}.
+  \item \textbf{EMA/RMA:} contractive; warm-up seed choice dominates early bars.
+  \item \textbf{Ratios (RSI, ER):} guard zero denominators explicitly; do not
+        rely on IEEE infinities for Pine $\na$ semantics.
+  \item \textbf{Parity budget:} compile vs.\ interpret max abs error
+        $\sim 10^{-11}$ on standard kernels (float noise), $0$ on pure
+        integer-path RSI/TSI variants in Numba goldens.
+\end{itemize}
+
+%==============================================================================
+\section{Interpreter Hot Paths}
+\label{sec:hot}
+%==============================================================================
+
+\subsection{Dispatch}
+
+Expression evaluation is visitor-based~\citep{gamma1994design,nystrom2021crafting}.
+Hot improvements include type-keyed dispatch tables (avoiding long
+\texttt{isinstance} chains), operator maps for binary ops, and a scalar fast
+path that skips series coercion when both operands are plain floats.  Mixed
+expression micro-benchmarks improved $\sim 2$--$7\times$ across rounds.
+
+The cumulative cProfile view on multi-plot TA scripts still shows
+\texttt{visit\_Call} as a large envelope: thousands of calls per bar for
+nested builtins, each paying Python function and argument-binding overhead.
+This is structural to AST interpretation; the compile path eliminates it.
+
+\subsection{Plot packing}
+
+For \texttt{ta\_combo}-class scripts (multiple TA values, $\sim 8$ plots),
+variant isolation shows:
+\begin{center}
+\begin{tabular}{lr}
+\toprule
+Variant (interpret, $n=2\,000$) & med wall \\
+\midrule
+\texttt{ta\_combo} with $8\times$\code{plot(...)} & $\sim 480$\,ms (profile host) \\
+Same TA, \textbf{no plots} & $\sim 102$\,ms \\
+\bottomrule
+\end{tabular}
+\end{center}
+Thus plot path + host result packing account for $\sim 75$--$80\%$ of
+multi-plot wall time once TA is incremental.  cProfile ranks
+\texttt{\_builtin\_plot} / \texttt{\_capture\_plot} immediately after the
+visitor envelope.
+
+\subsection{Light plots and lazy calendar}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Lazy calendar} (always on): defer expensive calendar/timezone
+        materialization until a plot or time builtin requires it.
+  \item \textbf{\code{PYNE\_LIGHT\_PLOTS}:} skip columnar capture and registry
+        bookkeeping when the consumer only needs OK/fail (corpus runs, smoke
+        tests).  Multi-plot scripts see roughly $10$--$20\%$ wall reduction.
+\end{itemize}
+
+These are host-level levers: they do not change TA math, but they reclaim the
+dominant residual identified by profiling.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.75\linewidth,
+  height=7.0cm,
+  ybar,
+  bar width=18pt,
+  ylabel={Kernel speedup ($\times$ vs full recompute)},
+  symbolic x coords={kama, bb, stochrsi, vwap, kc, cmo},
+  xtick=data,
+  nodes near coords,
+  nodes near coords align={vertical},
+  every node near coord/.append style={font=\scriptsize},
+  ymin=0, ymax=800,
+  enlarge x limits=0.15,
+  grid=major,
+  tick label style={font=\small},
+]
+  \addplot[fill=pyneorange!70, draw=pyneorange!80!black] coordinates {
+    (kama,121) (bb,217) (stochrsi,717) (vwap,217) (kc,78) (cmo,1.2)
+  };
+\end{axis}
+\end{tikzpicture}
+\caption{Kernel micro-benchmark speedups (incremental vs.\ full-window
+rebuild) at $n\approx 2\,000$ bars.  Values from performance rounds~4--7:
+KAMA $\sim 121\times$, Bollinger $\sim 217\times$, StochRSI $\sim 717\times$,
+VWAP $\sim 217\times$, KC $\sim 78\times$, CMO $\sim 1.2\times$ (already
+near-$O(p)$).}
+\label{fig:speedups}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.72\linewidth,
+  height=7.0cm,
+  x=3.2cm,
+  y=3.2cm,
+  xmin=-1.3, xmax=1.3,
+  ymin=-1.3, ymax=1.3,
+  axis equal,
+  ticks=none,
+  axis lines=none,
+  clip=false,
+]
+  % pie slices via partial disks (approx)
+  % plot packing ~75%, TA ~15%, other ~10%
+  \fill[pyneorange!70] (0,0) -- (90:1) arc (90:-180:1) -- cycle;
+  \fill[pyneblue!60] (0,0) -- (-180:1) arc (-180:-234:1) -- cycle;
+  \fill[pynegray!50] (0,0) -- (-234:1) arc (-234:-270:1) -- cycle;
+  \draw[thick] (0,0) circle (1);
+  \node[font=\small] at (0.15,-0.35) {\textbf{Plot packing}};
+  \node[font=\small] at (0.15,-0.55) {$\sim 75\%$};
+  \node[font=\small] at (-0.55,0.55) {\textbf{TA}};
+  \node[font=\small] at (-0.55,0.35) {$\sim 15\%$};
+  \node[font=\small] at (0.55,0.75) {\textbf{Other}};
+  \node[font=\small] at (0.55,0.55) {$\sim 10\%$};
+\end{axis}
+\end{tikzpicture}
+\caption{Approximate latency breakdown for interpret \texttt{ta\_combo} after
+incremental TA: plot packing dominates residual wall time; pure TA kernels are
+a minority slice; ``Other'' covers dispatch, series updates, and host
+bookkeeping.}
+\label{fig:pie}
+\end{figure}
+
+%==============================================================================
+\section{Parse/AST Caching Interaction with Runtime Multi-Run}
+\label{sec:parse}
+%==============================================================================
+
+Product hosts often parse once and evaluate many times (parameter sweeps,
+watchlists, recharts).  \pyne{} maintains a process-level LRU cache keyed by
+SHA-256 of source text.  Multi-parse of identical source improves by
+$\sim 1000\times$ on cache hit.
+
+\paragraph{Call-site scrub on hit.}
+AST nodes may accumulate mutable annotations (resolved call sites, cached
+locations).  Returning the same \texttt{Script} object on a cache hit without
+scrubbing caused empty-plot poisoning on the second \texttt{Runtime.run} of
+identical source: call-site maps and plot registries interacted with stale
+node state.  The fix clears Pine call-site annotations on cache hit
+(\texttt{\_scrub\_pine\_call\_sites}) and pairs multi-run goldens with
+\texttt{clear\_parse\_cache()} isolation where tests construct independent
+Runtime instances~\citep{pynescript2026}.
+
+\paragraph{Interaction with series/TA state.}
+Parse caching is orthogonal to series caps and TA state: those live in the
+evaluator/runtime instance.  However, multi-run correctness requires that
+(1)~AST mutation not leak across runs, and (2)~evaluator call-site maps reset
+or key correctly when scripts are re-bound.  Warm product paths prefer the
+compile cache (near-zero warm compile, sub-millisecond runs for pure TA) when
+scripts are compilation-eligible.
+
+%==============================================================================
+\section{Evaluation}
+\label{sec:eval}
+%==============================================================================
+
+\subsection{Methodology}
+
+Unless noted, numbers are from \pyne{} performance rounds~4--7 on Linux x86\_64
+CPython, using \texttt{scripts/bench\_pipeline.py} and kernel micro-benches
+(median of small iteration counts after warmup).  Absolute milliseconds vary
+by host; we report the Round~7 synthesis table for end-to-end interpret
+latency and kernel ratios for structural wins.  Verify suite at synthesis:
+$627$ passed (series cap/ring, parse cache, lazy plots, TA incremental, order
+fills, evaluator, compiler residual kernels, corpus residuals).
+
+\subsection{Memory}
+
+Table~\ref{tab:memory} summarizes series list memory.  Figure~\ref{fig:memory}
+plots the asymptotic shape.
+
+\begin{table}[t]
+\centering
+\caption{Series list memory at $n=20\,000$ bars, $s=6$ OHLCV-style lists,
+$K=256$, slack $\Delta=64$.}
+\label{tab:memory}
+\begin{tabular}{lrrr}
+\toprule
+Configuration & Len/list & $\sim$pointers (total) & Ratio vs uncapped \\
+\midrule
+Uncapped lists & $20\,000$ & $\sim 960$k & $1\times$ \\
+\code{PYNE\_SERIES\_CAP} (default) & $\le 320$ & $\sim 14.6$k & $\mathbf{\sim 78\times}$ \\
+Ring $\mathrm{maxlen}=K$ & $256$ & $\sim 12.3$k & $\sim 78\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Kernel speedups}
+
+Table~\ref{tab:kernels} and Figure~\ref{fig:speedups} report incremental vs.\
+full-recompute micro-benchmarks.
+
+\begin{table}[t]
+\centering
+\caption{Kernel micro-benchmarks (bar-walk growing prefix, $n=2\,000$, median).}
+\label{tab:kernels}
+\begin{tabular}{lrrr}
+\toprule
+Kernel & Full recompute & Incremental & Speedup \\
+\midrule
+\code{kama(10)} & $1099$\,ms & $9.1$\,ms & $\mathbf{\sim 121\times}$ \\
+\code{bb(20)} (pure full vs inc) & $2458$\,ms & $11.3$\,ms & $\mathbf{\sim 217\times}$ \\
+\code{stochrsi(14,14)} & $10\,196$\,ms & $14.2$\,ms & $\mathbf{\sim 717\times}$ \\
+\code{cmo(14)} & $13.5$\,ms & $11.4$\,ms & $\sim 1.2\times$ \\
+\code{vwap} (earlier round) & $1669$\,ms & $7.7$\,ms & $\sim 217\times$ \\
+\code{kc(20,2)} (earlier round) & $2054$\,ms & $26$\,ms & $\sim 78\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{End-to-end interpret latency}
+
+Round~7 net benchmarks at $n=2\,000$ bars (synthesis medians):
+
+\begin{table}[t]
+\centering
+\caption{Interpret Runtime median latency @ $2\,000$ bars (Round~7 synthesis).}
+\label{tab:latency}
+\begin{tabular}{lrrr}
+\toprule
+Script & R6 med (ms) & R7 med (ms) & Notes \\
+\midrule
+minimal & $14.92$ & $\mathbf{15.21}$ & host + one plot floor \\
+\texttt{ta\_sma} & $22.53$ & $\mathbf{23.62}$ & single SMA path \\
+\texttt{ta\_combo} & $137.23$ & $\mathbf{152.85}$ & plot-dominated residual \\
+\texttt{strategy\_ish} & $63.07$ & $\mathbf{68.90}$ & broker + plots \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Kernel-level T2 wins (KAMA/BB/StochRSI) do not appear in \texttt{ta\_combo}
+because that script exercises sma/ema/rsi/atr/stdev/bb/highest/lowest---already
+incremental before Round~7.  Wall-time flatness of the synthesis suite is
+expected; structural wins show up in kernel micros and memory, while plot
+packing dominates multi-plot residual (Figure~\ref{fig:pie}).
+
+\subsection{Compile path comparison}
+
+Warm compile of \texttt{ta\_combo} is $\sim 0.01$\,ms with IR/disk cache; run
+median $\sim 1.06$\,ms at $5\,000$ bars in nopython mode---orders of magnitude
+below interpret.  Cold JIT remains highly variable (hundreds of ms to seconds)
+depending on Numba cache state~\citep{lam2015numba}.  Product guidance: prefer
+warm compile for multi-run TA; use interpret for compilation-ineligible scripts
+and fidelity debugging.
+
+\subsection{Feature flags summary}
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Flag & Default & Role \\
+\midrule
+\code{PYNE\_TA\_INCREMENTAL} & ON & interpret incremental kernels \\
+\code{PYNE\_SERIES\_CAP} & ON & trim \texttt{current\_series} lists \\
+\code{PYNE\_SERIES\_MAX} & unset ($K_0{=}256$) & absolute cap override \\
+\code{PYNE\_SERIES\_RING} & OFF & chronological ring wrappers \\
+\code{PYNE\_LIGHT\_PLOTS} & OFF & skip columnar plot capture \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+%==============================================================================
+\section{Related Work}
+\label{sec:related}
+%==============================================================================
+
+\paragraph{Incremental computation.}
+Classical incremental computation maintains derived results under input
+changes~\citep{baker2012incremental,ramalingam1993bounded,repps1983incremental}.
+Our setting is the special case of \emph{append-only time}: each bar extends
+every series by one sample, so self-adjusting computation and dynamic
+dependency graphs are unnecessary---fixed recurrences and sliding windows
+suffice.  Streaming algorithms for sliding aggregates (sums, extrema, quantiles)
+are textbook~\citep{box1970time,knuth1997taocp2}.
+
+\paragraph{Technical analysis libraries.}
+Wilder's original systems~\citep{wilder1978new}, Bollinger Bands~\citep{bollinger2001},
+and Kaufman's adaptive methods~\citep{kama1998kaufman} define the mathematical
+objects.  Vectorized libraries (pandas, TA-Lib, NumPy-first stacks) compute
+indicators over whole arrays~\citep{harris2020numpy,brooks2015python}, which
+matches \pyne{}'s compile path but not the bar-loop interpret path where
+scripts interleave TA with control flow, strategy orders, and mutable
+\code{var} state.
+
+\paragraph{Memory-bounded interpreters and ring buffers.}
+Ring buffers are standard in signal processing and market-data feeds.  Our
+contribution is integrating them with Pine's $x[n]$ lookback semantics, $\na$
+discipline, dual newest-first/chrono representations, and a flag-gated
+migration that preserves corpus goldens.
+
+\paragraph{Compiler/JIT for DSLs.}
+Numba~\citep{lam2015numba} and related JITs provide the compile backend.
+Partial evaluation and online compilation literature~\citep{jones1993partial}
+motivates caching parse/AST/IR across multi-run product workloads.
+
+\paragraph{Numerical accuracy.}
+Higham's treatment of floating-point stability~\citep{higham2002accuracy} and
+IEEE-754~\citep{ieee754} underwrite our parity budgets and sliding-variance
+cautions.
+
+%==============================================================================
+\section{Limitations}
+\label{sec:limits}
+%==============================================================================
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Ring buffer default-off.}  \code{PYNE\_SERIES\_RING} remains
+        opt-in until dual-write is removed and the full corpus is green under
+        ring mode.
+  \item \textbf{Plot-path residual.}  Incremental TA shifts the bottleneck to
+        plot packing; structural wins there are only partially landed
+        (\code{PYNE\_LIGHT\_PLOTS}, registry upsert hygiene).
+  \item \textbf{Nested full-history leftovers.}  Some builtins (e.g., certain
+        \code{obv}/\code{mode}/\code{range} paths) still recompute more than
+        necessary.
+  \item \textbf{Oracle quirks.}  StochRSI incremental matches the simple-RSI
+        full path, not necessarily Wilder-based live platform StochRSI.
+        ATR Wilder re-baseline is intentionally gated on dedicated goldens.
+  \item \textbf{Full recompute + cap.}  With incremental TA disabled, recursive
+        kernels can diverge from uncapped trajectories when $n\gg K$.
+  \item \textbf{Host absolute variance.}  End-to-end ms figures vary by machine
+        load and CPython version; treat ratios and asymptotic claims as primary.
+  \item \textbf{No whole-script auto-vectorization on interpret.}  Control flow
+        and strategy side effects keep the bar loop; users wanting array
+        throughput should use the compile path.
+\end{enumerate}
+
+%==============================================================================
+\section{Conclusion}
+\label{sec:concl}
+%==============================================================================
+
+Bar-loop series languages induce characteristic memory and compute pathologies:
+unbounded history and full-window TA rebuilds.  \pyne{} demonstrates that a
+modest set of systems techniques---bounded series caps, chronological rings,
+call-site incremental kernels, parse caching, and light plot modes---restores
+linear-time, memory-bounded evaluation for the hot surface of technical
+analysis while preserving Pine's lookback and $\na$ semantics.
+
+Empirically, series caps deliver $\sim 78\times$ long-run list-memory reduction;
+incremental kernels reach two--three orders of magnitude on former quadratic
+rebuilds (KAMA, BB, StochRSI); and residual multi-plot interpret time is
+dominated by plot packing rather than arithmetic.  The compile path, always
+incremental for hot TA, remains the throughput vehicle for multi-run product
+workloads.
+
+Future work includes default-on rings after corpus ratification, deeper plot
+pipeline restructuring, remaining nested-kernel residuals, and tighter dual-host
+parity for worker deployments.
+
+%==============================================================================
+\section*{Acknowledgments}
+%==============================================================================
+
+We thank the \pyne{} open-source contributors and performance-agent rounds for
+measurement infrastructure, goldens, and iterative kernel landings.
+
+%==============================================================================
+\appendix
+\section{Memory bound (informal)}
+\label{app:mem}
+%==============================================================================
+
+\begin{proposition}[Bounded series store]
+\label{prop:bound}
+Under \code{PYNE\_SERIES\_CAP} with capacity $K$ and slack $\Delta$, and with
+$s$ chronological lists, the number of retained samples satisfies
+\begin{equation}
+  \forall\, t,\quad
+  \sum_{j=1}^{s} |L_j(t)| \;\le\; s\,(K+\Delta).
+\end{equation}
+With a modular ring of maxlen $K$ per series, the bound tightens to $s\cdot K$
+and each lookback of depth $<K$ is $O(1)$.
+\end{proposition}
+
+\begin{proposition}[Incremental TA time]
+\label{prop:time-bound}
+If every TA call site $k$ admits an update of cost $u_k\in O(1)\cup O(p_k)$
+amortized, then total TA work over $n$ bars is
+$O\big(n\sum_k u_k\big)$, independent of full prefix length.
+\end{proposition}
+
+\section{Environment reproduction notes}
+\label{app:repro}
+
+\begin{lstlisting}[style=python,caption={Flag surface (interpret path)}]
+# Default-on incremental TA and series cap
+# PYNE_TA_INCREMENTAL=1
+# PYNE_SERIES_CAP=1
+# Optional:
+# PYNE_SERIES_MAX=512
+# PYNE_SERIES_RING=1
+# PYNE_LIGHT_PLOTS=1
+\end{lstlisting}
+
+\begin{lstlisting}[style=pine,caption={Minimal Pine series / TA example}]
+//@version=5
+indicator("Demo", overlay=true)
+len = input.int(14, "Length")
+v = ta.sma(close, len)
+plot(v)
+\end{lstlisting}
+
+%==============================================================================
+\bibliographystyle{plainnat}
+\bibliography{../common/bibliography}
+
+\end{document}

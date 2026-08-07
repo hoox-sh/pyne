@@ -1,0 +1,1182 @@
+% Compiling Bar-Oriented Trading DSLs to Numba
+% PYNE arXiv paper series — paper02-compiler
+% arXiv subject: cs.PL (Programming Languages)
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+
+\input{../common/macros.tex}
+% Paper-local macros (shared set uses math-only \na)
+\newcommand{\llvm}{\textsc{Llvm}}
+\renewcommand{\na}{\textsf{na}}
+\providecommand{\llbracket}{[\![}
+\providecommand{\rrbracket}{]\!]}
+
+\title{%
+  Compiling Bar-Oriented Trading DSLs to \numba{}:\\
+  Source-to-Source Lowering, Object-Mode Fallback,\\
+  and Warm \ir{} Caches%
+}
+
+\author{%
+  jango\_blockchained \and \pyne{} Contributors\\
+  \small HOOX Research / Independent Open Source Research\\
+  \small \texttt{contact@hoox.sh}%
+}
+
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Bar-oriented trading domain-specific languages (\textsc{Dsl}s) evaluate
+indicators and strategies by traversing a time-ordered sequence of
+candlesticks. Pure interpretive execution of such programs incurs per-node
+dispatch cost on every bar, which dominates wall-clock time for multi-thousand
+bar histories and multi-indicator scripts. We present the \pyne{} \numba{}
+compiler path: a source-to-source lowering from a Pine-compatible \ast{} into
+explicit-index Python that operates on contiguous NumPy arrays and, when the
+script is purely numeric, is \jit{}-compiled with \numba{}'s nopython mode to
+\llvm{} machine code.
+
+The architecture comprises four layers: (i)~a \code{CompilerVisitor} that
+transpiles the \ast{} into a bar loop over \code{\_\_bar\_idx};
+(ii)~a library of \code{@njit} technical-analysis kernels with incremental
+$O(1)$ or amortized state updates; (iii)~flat array storage replacing
+interpreter deques; and (iv)~an engine fa\c{c}ade integrating transpile,
+compile, run, in-process/disk \ir{} caches, and host auto-mode with interpret
+fallback. Scripts that use user-defined types, maps, or drawings are compiled
+into an object-mode pure-Python bar loop that preserves those constructs while
+still avoiding full \ast{} interpretation.
+
+Internal measurements (2026) show cold-to-warm compile transitions of
+$\sim$\,0.01\,ms on cache hits, warm execute medians of roughly
+0.04--0.21\,ms for representative indicators at 5{,}000 bars, and
+$\sim$\,49--110$\times$ end-to-end speedups versus list-based interpretation
+for multi-indicator workloads after incremental-kernel fixes. Dual-host
+nan-aware parity harnesses keep kernel error within floating-point noise
+($\maxerr \sim 10^{-11}$). We do not claim TradingView certification or
+invention of foreign multi-asset series; foreign \code{request.security} is
+intentionally lowered to \na{} under a documented policy.
+\end{abstract}
+
+\paragraph{Keywords.}
+source-to-source compilation, \numba{}, \jit{}, domain-specific languages,
+financial indicators, dual-mode compilation, warm \ir{} caches, technical
+analysis.
+
+\paragraph{Disclaimer.}
+\trademarknote{}
+
+%==============================================================================
+\section{Introduction}
+\label{sec:intro}
+%==============================================================================
+
+Technical analysis systems process market data as ordered sequences of bars
+(candlesticks) carrying open, high, low, close, volume, and time
+(\ohlcv{}+\code{time})~\citep{murphy1999technical,tsay2010analysis}. Domain
+languages in this niche---of which \pine{} is a widely used commercial
+instance~\citep{tradingview-pine}---expose a declarative programming model
+in which series expressions, history offsets, and sliding-window indicators
+are evaluated bar-by-bar. An \ast{}-walking interpreter is a natural first
+implementation: it reuses a single semantic definition for interactive
+tooling, strategy simulation, and host \api{}s. Unfortunately, visitor
+dispatch, dynamic attribute resolution, and list- or deque-backed series
+history make the constant factors of interpretation large relative to the
+arithmetic of the indicators themselves.
+
+\pyne{} is an independent open toolchain for Pine-compatible
+scripts~\citep{pynescript2026,hoox2026}. Historically it executed scripts via
+a pure-Python evaluator over an \asdl{}-\ast{} produced by an \antlr{}
+parser~\citep{parr2013antlr,wang1997asdl}. To approach realtime-stream and
+large-backtest throughput without abandoning the Python packaging surface, the
+project introduces a \emph{source-to-source} compilation path that lowers the
+same \ast{} into explicit-index NumPy code and optionally \jit{}-compiles the
+result with \numba{}~\citep{lam2015numba} on top of \llvm{}~\citep{lattner2004llvm}.
+
+\paragraph{Problem.}
+Let $\bars$ be the number of bars and $C$ the cost of one interpretive
+expression evaluation. A script with $E$ expressions per bar has rough cost
+$\Theta(\bars\cdot E\cdot C_{\mathrm{interp}})$. When $C_{\mathrm{interp}}$ is
+dominated by Python bytecode and visitor overhead rather than arithmetic,
+even $O(\bars)$ algorithmic complexity appears slow in wall time. Naive
+window recomputation of moving averages further inflates work to
+$\Theta(\bars\cdot\period)$ or worse.
+
+\paragraph{Approach.}
+We lower each script to a single closed bar loop over contiguous
+\code{float64} arrays~\citep{harris2020numpy}, call precompiled \numba{}
+kernels for \ta{} primitives, and retain inspectable generated Python as an
+intermediate representation (\ir{}). When the \ast{} contains constructs that
+cannot be represented in nopython mode (user-defined types, maps, drawings),
+the same visitor emits an object-mode bar loop---still compiled away from the
+\ast{} walker, but executed by CPython. An auto host mode tries compilation
+first and falls back to interpretation on hard failure or known gaps, so
+correctness remains primary.
+
+\paragraph{Contributions.}
+\begin{enumerate}[leftmargin=*]
+  \item A four-layer compilation architecture for bar-oriented trading
+        \textsc{Dsl}s: visitor lowering, numeric kernel library, flat array
+        storage, and engine/runtime fa\c{c}ade (Section~\ref{sec:arch}).
+  \item Detailed \ast{} lowering rules for series assignment, \code{var}/
+        \code{varip}, history access, control flow, and plot allocation
+        (Section~\ref{sec:lowering}).
+  \item An incremental numeric kernel library with formal recurrences for
+        \textsc{Sma}/\textsc{Ema}/\textsc{Rsi}/Bollinger and complexity
+        analysis $O(\bars\cdot\period)$ vs.\ $O(\bars)$
+        (Section~\ref{sec:kernels}).
+  \item Dual-mode (numeric / object) compilation with an explicit decision
+        procedure (Section~\ref{sec:object}).
+  \item Multi-tier warm \ir{} caches, process prewarm, and corrupt Numba
+        cache recovery (Section~\ref{sec:cache}).
+  \item Host integration with \code{auto}/\code{compile}/\code{interpret}
+        modes and dual-host interpret$\leftrightarrow$compile parity harnesses
+        (Sections~\ref{sec:host}--\ref{sec:parity}).
+  \item Evaluation of latency, throughput, and numerical residual error on
+        internal 2026 benchmarks (Section~\ref{sec:eval}).
+\end{enumerate}
+
+The remainder of the paper is organized as follows.
+Section~\ref{sec:bg} reviews the bar model, \numba{} modes, and \llvm{} \jit{}.
+Sections~\ref{sec:arch}--\ref{sec:host} develop the design.
+Section~\ref{sec:eval} reports measurements.
+Sections~\ref{sec:related}--\ref{sec:concl} discuss related work, limitations,
+and conclusions.
+
+%==============================================================================
+\section{Background}
+\label{sec:bg}
+%==============================================================================
+
+\subsection{Bar-oriented evaluation model}
+\label{sec:bg-bars}
+
+A chart of length $\bars$ is a tuple of aligned series
+\begin{equation}
+  \series{O},\series{H},\series{L},\series{C},\series{V},\series{T}
+  \in \R^{\bars},
+\end{equation}
+where $\series{T}$ stores bar-open timestamps as Unix milliseconds.
+Script semantics are defined relative to the current bar index
+$\baridx \in \{0,\ldots,\bars-1\}$. History access $\series{x}[k]$ denotes the
+value of series $\series{x}$ at bar $\baridx-k$ (with out-of-range or missing
+data mapped to the language \na{} sentinel, represented as IEEE-754
+NaN~\citep{ieee754} in the numeric path).
+
+Many indicators are sliding-window or recursive filters. A simple moving
+average of period $\period$ at bar $\baridx$ is
+\begin{equation}
+  \label{eq:sma}
+  \mathrm{SMA}_{\period}(\series{x})_{\baridx}
+  =
+  \begin{cases}
+    \na & \text{if }\baridx < \period-1,\\[2pt]
+    \dfrac{1}{\period}\displaystyle\sum_{k=0}^{\period-1}
+      \series{x}_{\baridx-k}
+      & \text{otherwise,}
+  \end{cases}
+\end{equation}
+provided all window samples are finite; otherwise the result is \na{}.
+
+Pine also provides persistent variables (\code{var}, \code{varip}) whose
+initializers run once and whose values carry forward, as well as drawing and
+strategy side effects that accumulate across the bar walk. These features
+interact poorly with pure array vectorization when control flow or
+object identity is required; an explicit bar loop remains the faithful
+compilation target~\citep{nystrom2021crafting,aho2006dragon}.
+
+\subsection{\numba{} nopython vs.\ object mode}
+\label{sec:bg-numba}
+
+\numba{} is an \llvm{}-based \jit{} for a restricted subset of
+Python~\citep{lam2015numba}. In \emph{nopython} mode (\code{@njit}), the
+compiler specializes functions to machine code over concrete array and scalar
+types; Python objects, dictionaries of heterogeneous values, and many standard
+library calls are rejected. In \emph{object} mode, \numba{} may still
+accelerate loops but retains the Python object model, with substantially
+weaker guarantees.
+
+\pyne{} does not rely on \numba{} object mode for complex scripts. Instead it
+implements a first-class \emph{object-mode compilation} path: pure-Python
+source with a bar loop and NumPy series storage, produced by the same
+visitor when nopython-incompatible constructs appear. This design choice
+keeps debugging transparent (readable generated source) and avoids silent
+semantic drift when \numba{} falls back internally.
+
+\subsection{\llvm{} \jit{} and warm start}
+\label{sec:bg-llvm}
+
+\numba{} lowers specialized Python to \llvm{} \ir{} and native
+code~\citep{lattner2004llvm}. First-touch compilation of a script entry
+point and of the kernel library can cost hundreds of milliseconds to seconds.
+Subsequent invocations reuse in-memory dispatchers; with
+\code{cache=True}, Numba may also persist \code{.nbi}/\code{.nbc} artifacts.
+Product systems must therefore treat cold \jit{} as a deploy-time or
+readiness cost, not as interactive latency---motivating the warm-cache design
+in Section~\ref{sec:cache}.
+
+%==============================================================================
+\section{Compilation Architecture}
+\label{sec:arch}
+%==============================================================================
+
+Compilation is organized as four cooperating layers (Figure~\ref{fig:arch}).
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw, rounded corners=2pt, align=center, inner sep=6pt,
+              minimum width=2.6cm, minimum height=1.1cm},
+  arr/.style={-{Latex}, thick},
+  layer/.style={box, fill=pyneblue!8, draw=pyneblue!60},
+  host/.style={box, fill=pyneorange!10, draw=pyneorange!70},
+  data/.style={box, fill=pynegreen!8, draw=pynegreen!60},
+]
+  \node[host] (src) {Pine source\\+\ \ohlcv{}};
+  \node[layer, right=0.55cm of src] (v) {Layer 1\\[1pt]
+    \textbf{CompilerVisitor}\\[-1pt]
+    {\footnotesize\ast{}$\to$ Python}};
+  \node[layer, right=0.55cm of v] (k) {Layer 2\\[1pt]
+    \textbf{numba\_builtins}\\[-1pt]
+    {\footnotesize\@njit kernels}};
+  \node[data, right=0.55cm of k] (a) {Layer 3\\[1pt]
+    \textbf{Flat arrays}\\[-1pt]
+    {\footnotesize no deques}};
+  \node[host, right=0.55cm of a] (e) {Layer 4\\[1pt]
+    \textbf{Engine}\\[-1pt]
+    {\footnotesize transpile / run}};
+
+  \draw[arr] (src) -- (v);
+  \draw[arr] (v) -- (k);
+  \draw[arr] (k) -- (a);
+  \draw[arr] (a) -- (e);
+
+  \node[below=0.85cm of v, text width=2.8cm, align=center, font=\footnotesize]
+    (gen) {generated\\bar loop\\\code{\_\_bar\_idx}};
+  \node[below=0.85cm of k, text width=2.8cm, align=center, font=\footnotesize]
+    (lib) {\code{numba\_sma}\\\code{numba\_rsi\_inc}\\\ldots};
+  \node[below=0.85cm of a, text width=2.8cm, align=center, font=\footnotesize]
+    (arr) {\code{close\_arr}\\\code{my\_sma\_arr}};
+  \node[below=0.85cm of e, text width=2.8cm, align=center, font=\footnotesize]
+    (api) {\code{compile\_script}\\\code{Runtime.run}};
+
+  \draw[arr, dashed, pynegray] (v) -- (gen);
+  \draw[arr, dashed, pynegray] (k) -- (lib);
+  \draw[arr, dashed, pynegray] (a) -- (arr);
+  \draw[arr, dashed, pynegray] (e) -- (api);
+
+  \node[draw, dashed, rounded corners, fit=(src)(v)(k)(a)(e)(gen)(lib)(arr)(api),
+        inner sep=8pt, label=above:{\textbf{Four-layer \pyne{} compile pipeline}}] {};
+\end{tikzpicture}
+\caption{Four-layer compilation architecture. Layer~1 emits readable Python;
+Layer~2 provides numeric \ta{} kernels; Layer~3 stores series as contiguous
+arrays; Layer~4 packages results for hosts and manages caches.}
+\label{fig:arch}
+\end{figure}
+
+\subsection{Layer 1: \code{CompilerVisitor}}
+
+\code{CompilerVisitor} (\file{compiler.py}) is a non-evaluating \ast{} walker
+in the classic visitor style~\citep{gamma1994design,aho2006dragon}. It
+transpiles statements into a Python source string that indexes \ohlcv{} and
+user series by an explicit bar index \code{\_\_bar\_idx}. The visitor tracks
+plot titles, allocates series storage, and sets \code{object\_mode} when
+non-numeric constructs appear. The generated entry point is always
+\begin{lstlisting}[style=python,numbers=none]
+def execute_script_compiled(open_arr, high_arr, low_arr,
+                            close_arr, vol_arr, time_arr):
+    ...
+\end{lstlisting}
+so the host contract is fixed regardless of backend.
+
+\subsection{Layer 2: Numba builtins library}
+
+Pine's standard library cannot be invoked from nopython code as ordinary
+Python callables. Selected \ta{} and math primitives are reimplemented in
+\file{numba\_builtins.py} as \code{@numba.njit(cache=True)} functions that
+accept full arrays plus the current bar index (and, for incremental forms,
+a small state vector \code{st}). Expanding this library is the principal path
+to broader numeric coverage without leaving the \jit{} path.
+
+\subsection{Layer 3: Flat array storage}
+
+The compiled engine does not use interpreter \code{PineSeries} deques.
+Built-in price, volume, and time series are supplied as flat NumPy arrays.
+User series variables are allocated once as
+\code{np.full(n\_bars, np.nan)} (or object arrays for \udt{} series) outside
+the bar loop, then written at \code{\_\_bar\_idx}. This layout improves
+cache locality and matches \numba{}'s preferred array
+model~\citep{harris2020numpy}.
+
+\subsection{Layer 4: Engine fa\c{c}ade}
+
+\file{engine.py} exposes \code{transpile}, \code{compile\_script}, and
+\code{run\_script}. \code{compile\_script} executes generated source in a
+private namespace and returns a \code{CompiledScript} whose \code{run} method
+accepts \ohlcv{} arrays. Backend \code{Runtime.run} accepts
+\code{mode $\in$ \{interpret, compile, auto\}} and reshapes results into the
+host response envelope (\code{plots}, \code{series}, \code{drawings},
+\code{object\_mode}, cache diagnostics).
+
+Algorithm~\ref{alg:compile} summarizes the core compile pipeline.
+
+\begin{algorithm}[t]
+\caption{\textsc{CompileScript}(source, options)}
+\label{alg:compile}
+\begin{algorithmic}[1]
+\Require Pine source string $S$; optional flags (force object mode, cache)
+\Ensure \code{CompiledScript} with \code{run} callable
+\State $k_{\mathrm{raw}} \gets \mathrm{sha256}(S)$
+\If{$k_{\mathrm{raw}}$ hits in-process source \textsc{Lru}}
+  \State \Return cached script \Comment{warm path $\sim$0.01\,ms}
+\EndIf
+\State $S' \gets \mathrm{Sanitize}(S)$; $k' \gets \mathrm{sha256}(S')$
+\If{$k'$ hits source \textsc{Lru} \textbf{or} disk meta for $k_{\mathrm{raw}}$}
+  \State rehydrate module; share \code{execute} if \ir{} key matches
+  \State \Return \code{CompiledScript}
+\EndIf
+\State $\mathit{AST} \gets \mathrm{Parse}(S')$
+\State $(\mathit{py}, \mathit{meta}) \gets \mathrm{CompilerVisitor.visit}(\mathit{AST})$
+\State $k_{\ir{}} \gets \mathrm{sha256}(\mathit{py})$
+\If{$k_{\ir{}}$ hits \ir{} \textsc{Lru}}
+  \State \Return script sharing warm \code{execute}
+\EndIf
+\State $\mathit{ns} \gets \mathrm{ExecModule}(\mathit{py})$
+  \Comment{may \jit{} under \numba{}}
+\State wrap nopython warm-up; on \code{TypingError} re-emit object mode
+\State store source/\ir{}/disk entries; \Return \code{CompiledScript}
+\end{algorithmic}
+\end{algorithm}
+
+%==============================================================================
+\section{AST Lowering}
+\label{sec:lowering}
+%==============================================================================
+
+This section details the principal emission rules of \code{CompilerVisitor}.
+Figure~\ref{fig:lower} shows a canonical numeric example side by side.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  pane/.style={draw, rounded corners=2pt, fill=codebg, inner sep=8pt,
+               text width=0.42\textwidth, align=left, font=\ttfamily\scriptsize},
+]
+  \node[pane] (pine) {%
+\textbf{\rmfamily\scriptsize Pine source}\\[4pt]
+my\_sma = ta.sma(close, 14)\\
+plot(my\_sma)\\
+};
+  \node[pane, right=0.6cm of pine] (py) {%
+\textbf{\rmfamily\scriptsize Generated Python (schematic)}\\[4pt]
+@numba.njit\\
+def execute\_script\_compiled(...):\\
+\quad n = len(close\_arr)\\
+\quad my\_sma\_arr = full(n, nan)\\
+\quad plot\_0 = full(n, nan)\\
+\quad for \_\_bar\_idx in range(n):\\
+\quad\quad my\_sma\_arr[i] = numba\_sma(...)\\
+\quad\quad plot\_0[i] = my\_sma\_arr[i]\\
+\quad return (plot\_0,)\\
+};
+  \draw[-{Latex}, very thick, pyneblue]
+    (pine.east) -- node[above, font=\scriptsize\rmfamily]{lower} (py.west);
+\end{tikzpicture}
+\caption{Numeric-mode lowering: series assignment and \code{plot} become
+full-length array writes inside an explicit bar loop. The host packs plot
+titles from visitor metadata.}
+\label{fig:lower}
+\end{figure}
+
+\subsection{Series assignment and storage}
+
+A bare assignment \code{y = e} at script scope allocates \code{y\_arr} and
+emits \code{y\_arr[\_\_bar\_idx] = $\llbracket e \rrbracket$} inside the loop,
+where $\llbracket\cdot\rrbracket$ denotes the recursive expression
+translation. Temporary expressions without names may still allocate storage
+when they feed plots or later history references.
+
+\subsection{\code{var} and \code{varip}}
+
+Pine \code{var} initializes once on the first evaluation and carries the value
+forward; \code{varip} similarly persists across realtime bar updates in the
+host model. Lowering emits a guarded initializer:
+\begin{lstlisting}[style=python,numbers=none]
+if __bar_idx == 0:
+    v_arr[__bar_idx] = <init>
+else:
+    v_arr[__bar_idx] = v_arr[__bar_idx - 1]
+# optional subsequent assignments overwrite the carried value
+\end{lstlisting}
+This matches carry semantics without interpreter bookkeeping tables.
+
+\subsection{History access}
+
+An expression \code{close[n]} lowers to a NaN-safe index computation:
+\begin{equation}
+  \llbracket \series{x}[k] \rrbracket
+  =
+  \begin{cases}
+    \series{x}_{\baridx - k} & 0 \le \baridx-k < \bars,\\
+    \na & \text{otherwise,}
+  \end{cases}
+\end{equation}
+with integer coercion that treats non-finite offsets as out-of-range.
+Combinations such as \code{high[ta.highestbars(...)]} therefore stay
+in-bounds when the window helper returns a negative bars-back offset
+(TradingView / interpret contract).
+
+\subsection{Control flow}
+
+\code{if}/\code{else}, \code{for}, \code{while}, and \code{switch} lower to
+the corresponding Python constructs inside the bar loop. Branching that
+assigns series must write the active branch's value at \code{\_\_bar\_idx};
+inactive paths leave prior NaN or carried \code{var} state depending on Pine
+rules. Loops that walk bars in user code are nested inside the outer
+\code{\_\_bar\_idx} traversal---a potential quadratic pattern that hosts
+may later warn about, but which remains semantically faithful.
+
+\subsection{Plot, fill, and output allocation}
+
+Each \code{plot(expr, title=...)} allocates a sink array and assigns
+$\llbracket\mathrm{expr}\rrbracket$ each bar. Titled \code{fill(plot1, plot2,
+\ldots)} exports a series key for interpret/compile plot-key parity and
+downstream chart band wiring; the compile path leaves the fill series as
+float NaN while retaining band color / plot references in plot metadata.
+Numeric mode returns a tuple of series arrays (host packs titles); object
+mode returns a dictionary that may also include \code{\_\_drawings}.
+
+\subsection{Time and \code{request.security}}
+
+The host always supplies \code{time\_arr} (Unix ms). When the caller omits
+time, the engine synthesizes \code{bar $\times$ 60\,000}. Bare \code{time},
+\code{time\_close}, and calendar parts lower against \code{time\_arr}.
+
+For \code{request.security}, compile lowers \emph{same-symbol simple \ohlcv{}
+expressions} as chart series passthrough only. Foreign tickers and complex
+expressions (user-defined functions, non-trivial aggregations) emit \na{}---no
+invention of chart close as dividends or fundamentals. This aligns with the
+interpret foreign-\na{} policy.
+
+\subsection{Tuple unpack and inputs}
+
+Tuple unpack such as \code{[u,m,l] = ta.bb(...)} expands to multiple array
+writes from a multi-return kernel. \code{input.*} defaults are resolved at
+compile/load time into constants or host-provided overrides; non-empty dynamic
+input maps may gate auto-mode toward interpret for safety
+(Section~\ref{sec:host}).
+
+%==============================================================================
+\section{Numeric Kernel Library}
+\label{sec:kernels}
+%==============================================================================
+
+\subsection{Design constraints}
+
+Kernels must: (i)~be nopython-legal; (ii)~accept full arrays + bar index;
+(iii)~agree with the interpret oracle within floating-point noise on shared
+goldens; (iv)~prefer incremental $O(1)$ amortized updates for sequential bar
+walks. Full-window recomputation kernels remain available as reference
+implementations and for non-sequential access.
+
+\subsection{SMA and sliding-window sum}
+
+Equation~\eqref{eq:sma} costs $O(\period)$ per bar if re-summed, hence
+$O(\bars\cdot\period)$ per script. The incremental form maintains a running
+sum $s$:
+\begin{equation}
+  \label{eq:sma-inc}
+  s_{\baridx}
+  =
+  \begin{cases}
+    \sum_{k=0}^{\period-1} \series{x}_{k}
+      & \baridx = \period-1,\\[4pt]
+    s_{\baridx-1}
+      + \series{x}_{\baridx}
+      - \series{x}_{\baridx-\period}
+      & \baridx \ge \period,
+  \end{cases}
+\end{equation}
+with NaN poisoning rules matching the full kernel (any non-finite window
+sample yields \na{} and may force reseed). Algorithm~\ref{alg:sma}
+sketches the state-vector update used by \code{numba\_sma\_inc}.
+
+\begin{algorithm}[t]
+\caption{\textsc{IncrementalSMA}($x$, $p$, $i$, $st$)}
+\label{alg:sma}
+\begin{algorithmic}[1]
+\Require array $x$, period $p$, bar $i$, state $st=[s,\mathit{last}]$
+\Ensure $\mathrm{SMA}$ at $i$; mutates $st$
+\If{$i < 0$ \textbf{or} $p \le 0$} \Return \na{}
+\EndIf
+\State $\mathit{last} \gets$ integer from $st[1]$, or $-1$ if unset
+\If{$i < \mathit{last}$} \Comment{rewind}
+  \State $st[0]\gets\na{}$; $\mathit{last}\gets -1$
+\EndIf
+\For{$j = \mathit{last}+1$ \textbf{to} $i$}
+  \If{$j < p-1$} $s \gets \na{}$
+  \ElsIf{$j = p-1$} $s \gets$ sum of $x[0..p)$ if all finite else \na{}
+  \Else{} update $s$ via~\eqref{eq:sma-inc}; reseed if $s$ was \na{}
+  \EndIf
+\EndFor
+\State $st[0]\gets s$; $st[1]\gets i$
+\State \Return $s / p$ if $s$ finite else \na{}
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{Complexity.}
+Naive full SMA over a script: $\Theta(\bars\cdot\period)$ additions.
+Incremental sequential walk: $\Theta(\bars)$ additions after $O(\period)$
+seed, \ie{} $O(\bars)$ total---independent of $\period$ in the steady state.
+
+\subsection{EMA and Wilder RMA}
+
+The exponential moving average with smoothing $\alpha = 2/(\period+1)$ is
+\begin{equation}
+  \label{eq:ema}
+  e_{\baridx}
+  =
+  \alpha\,\series{x}_{\baridx}
+  + (1-\alpha)\,e_{\baridx-1},
+\end{equation}
+after an SMA seed over the first $\period$ finite samples (compile-family
+contract). Wilder's running moving average (RMA) uses
+$\alpha = 1/\period$:
+\begin{equation}
+  \label{eq:rma}
+  r_{\baridx}
+  =
+  \frac{1}{\period}\series{x}_{\baridx}
+  + \Bigl(1-\frac{1}{\period}\Bigr) r_{\baridx-1}.
+\end{equation}
+Both admit $O(1)$ per-bar incremental updates with a length-2 state vector
+$[\mathit{value}, \mathit{last\_i}]$ and gap catch-up when bars are skipped.
+
+\subsection{RSI (Wilder)}
+
+Relative Strength Index~\citep{wilder1978new} seeds average gain/loss with
+the SMA of the first $\period$ price deltas, then applies RMA:
+\begin{align}
+  \label{eq:rsi}
+  g_{\baridx} &= \max(\Delta_{\baridx}, 0),
+  &
+  \ell_{\baridx} &= \max(-\Delta_{\baridx}, 0),
+  \\
+  \bar{g}_{\baridx}
+    &= \tfrac{1}{\period} g_{\baridx}
+      + \bigl(1-\tfrac{1}{\period}\bigr)\bar{g}_{\baridx-1},
+  \\
+  \mathrm{RSI}
+    &= 100 - \frac{100}{1 + \bar{g}/\bar{\ell}},
+\end{align}
+with the convention $\mathrm{RSI}=100$ when $\bar{\ell}=0$ after a valid
+seed. The first valid bar is $\baridx=\period$ ($\period$ deltas need
+$\period+1$ prices). This matches the interpret oracle and TradingView
+\code{ta.rsi}; earlier mistaken ``rolling mean of gains'' implementations
+were corrected in residual work (2026-08).
+
+\subsection{Bollinger bands}
+
+With middle band $m=\mathrm{SMA}_{\period}(x)$ and standard deviation
+$\sigma$ over the same window~\citep{bollinger2001},
+\begin{equation}
+  \label{eq:bb}
+  \mathrm{upper} = m + k\sigma,
+  \qquad
+  \mathrm{lower} = m - k\sigma,
+\end{equation}
+typically $k=2$. Incremental forms maintain the sliding sum and sum of
+squares (or an equivalent stable update~\citep{higham2002accuracy}) so that
+$\sigma$ is $O(1)$ amortized per bar.
+
+\subsection{Range statistics and rank}
+
+\code{highest}/\code{lowest} maintain window extrema; \code{highestbars}/
+\code{lowestbars} return \emph{negative} bars-back offsets to the extremum,
+or $-1.0$ when the window is all-\na{}. \code{ta.rci} implements Spearman
+rank correlation~\citep{spearman1904} over a fixed window, matching the
+interpret rank contract.
+
+\subsection{Kernel inventory (landed subset)}
+
+Representative nopython kernels include:
+\code{sma}, \code{ema}, \code{rma}, \code{wma}, \code{hma}, \code{rsi},
+\code{atr}, \code{bb}, \code{bbw}, \code{macd}, \code{stdev}, \code{cci},
+\code{stoch}, \code{tsi}, \code{cmo}, \code{wpr}, \code{median},
+\code{rci}, \code{vwap}, \code{linreg}, and many \code{*\_inc} variants.
+Round~7 residual work landed \code{median}, \code{wpr}, \code{cmo}, and
+\code{bbw} on the nopython path.
+
+%==============================================================================
+\section{Object-Mode Compilation}
+\label{sec:object}
+%==============================================================================
+
+\subsection{When object mode is selected}
+
+Figure~\ref{fig:decision} shows the decision tree. The visitor sets
+\code{object\_mode} when it observes:
+\begin{itemize}[leftmargin=*]
+  \item user-defined type (\udt{}) definitions or instantiations;
+  \item \code{map} operations (heterogeneous dictionaries);
+  \item drawing \api{}s (\code{line}, \code{label}, \code{box}, \code{table},
+        \ldots);
+  \item strategy side effects that require broker state beyond pure series;
+  \item string/color series that escape numeric representation;
+  \item library \code{import} surfaces that are not kernelized;
+  \item explicit \code{force\_object\_mode} after nopython warm-up
+        \code{TypingError}.
+\end{itemize}
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  dec/.style={draw, diamond, aspect=2.2, align=center, inner sep=1pt,
+              fill=pyneorange!12, draw=pyneorange!70},
+  act/.style={draw, rounded corners=2pt, align=center, inner sep=5pt,
+              minimum width=2.4cm, fill=pyneblue!8, draw=pyneblue!60},
+  term/.style={draw, rounded corners=2pt, align=center, inner sep=5pt,
+              minimum width=2.4cm, fill=pynegreen!10, draw=pynegreen!60},
+  arr/.style={-{Latex}, thick},
+]
+  \node[act] (ast) {\ast{} walk};
+  \node[dec, below=0.55cm of ast] (u) {UDT / map /\\draw / strategy?};
+  \node[term, below left=0.9cm and 0.1cm of u] (obj) {\textbf{Object mode}\\
+    pure-Python loop\\dicts + drawings};
+  \node[dec, below right=0.9cm and 0.1cm of u] (n) {Numba\\present?};
+  \node[term, below left=0.85cm and -0.3cm of n] (num) {\textbf{Numeric}\\
+    \code{@njit} loop};
+  \node[act, below right=0.85cm and -0.3cm of n] (fb) {Object emit\\(no Numba)};
+  \node[dec, below=1.5cm of num] (ty) {Warm-up\\TypingError?};
+  \node[act, below left=0.7cm and 0.2cm of ty] (rec) {Re-emit\\force object};
+  \node[term, below right=0.7cm and 0.2cm of ty] (ok) {Run numeric};
+
+  \draw[arr] (ast) -- (u);
+  \draw[arr] (u) -- node[left, font=\scriptsize]{yes} (obj);
+  \draw[arr] (u) -- node[right, font=\scriptsize]{no} (n);
+  \draw[arr] (n) -- node[left, font=\scriptsize]{yes} (num);
+  \draw[arr] (n) -- node[right, font=\scriptsize]{no} (fb);
+  \draw[arr] (num) -- (ty);
+  \draw[arr] (ty) -- node[left, font=\scriptsize]{yes} (rec);
+  \draw[arr] (ty) -- node[right, font=\scriptsize]{no} (ok);
+  \draw[arr] (rec) |- (obj);
+\end{tikzpicture}
+\caption{Numeric vs.\ object mode decision tree. Structural features force
+object emit; nopython warm-up failures recover by re-visiting with
+\code{force\_object\_mode=True}.}
+\label{fig:decision}
+\end{figure}
+
+\subsection{Representation}
+
+In object mode:
+\begin{itemize}[leftmargin=*]
+  \item \udt{} instances are field dictionaries (and nested structures as
+        nested dicts where supported);
+  \item maps are ordinary Python \code{dict}s;
+  \item drawing calls append structured events to a \code{\_\_drawings} list;
+  \item plot series remain full-length NumPy arrays for host parity.
+\end{itemize}
+Arithmetic involving Pine \na{}/\code{None} is routed through \code{na\_num}
+helpers. The response includes \code{object\_mode=True} so callers can
+distinguish backends.
+
+\subsection{Performance trade-off}
+
+Object mode forgoes peak \jit{} throughput but still avoids per-expression
+\ast{} visitation. For drawing-heavy or \udt{}-centric scripts it is the
+correctness-preserving default; numeric kernels remain available for pure
+series subexpressions when star-imported helpers are pure Python wrappers.
+
+%==============================================================================
+\section{Caching and Warm Start}
+\label{sec:cache}
+%==============================================================================
+
+\subsection{Cache layers}
+
+Product warm-compile (roadmap item H2) stacks several layers
+(Table~\ref{tab:cache}):
+
+\begin{table}[t]
+\centering
+\caption{Compile cache layers and scope.}
+\label{tab:cache}
+\begin{tabular}{@{}llll@{}}
+\toprule
+\textbf{Layer} & \textbf{Key} & \textbf{Bound} & \textbf{Cross-process} \\
+\midrule
+Source \textsc{Lru} & sha256(raw/sanitized) & 128 & no \\
+\ir{} \textsc{Lru} & sha256(generated Python) & 64 & no \\
+Host Runtime cache & raw source sha256 & bounded & no \\
+Disk module + meta & under cache dir & on by default & yes \\
+Numba \code{.nbc} & function identity & file-backed & yes \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Environment defaults favor production: \code{PYNE\_COMPILE\_DISK\_CACHE=1},
+\code{PYNE\_COMPILE\_PREWARM=1}, and a persistent directory
+(\code{PYNE\_COMPILE\_CACHE\_DIR}, Docker \code{/data/compile-cache}).
+
+\subsection{State machine}
+
+Figure~\ref{fig:warm} depicts the warm-cache state machine from process
+start through steady state.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  st/.style={draw, rounded corners=3pt, align=center, inner sep=6pt,
+             minimum width=2.3cm, minimum height=1.0cm},
+  arr/.style={-{Latex}, thick},
+]
+  \node[st, fill=pynegray!15] (cold) {Cold process\\empty \textsc{Lru}};
+  \node[st, fill=pyneorange!15, right=1.2cm of cold] (pre) {Prewarm\\builtins};
+  \node[st, fill=pyneblue!12, right=1.2cm of pre] (disk) {Disk \ir{}\\rehydrate};
+  \node[st, fill=pynegreen!12, right=1.2cm of disk] (warm) {Warm hit\\$\sim$0.01\,ms};
+  \node[st, fill=pyneorange!20, below=1.1cm of disk] (jit) {Cold \jit{}\\$\le$\,2\,s SLO};
+  \node[st, fill=red!10, below=1.1cm of pre] (corr) {Corrupt\\.\texttt{nb*} };
+
+  \draw[arr] (cold) -- (pre);
+  \draw[arr] (pre) -- (disk);
+  \draw[arr] (disk) -- (warm);
+  \draw[arr] (disk) -- node[right, font=\scriptsize]{miss} (jit);
+  \draw[arr] (jit) -- node[below, font=\scriptsize]{store} (warm);
+  \draw[arr] (corr) -- node[left, font=\scriptsize]{purge+retry} (pre);
+  \draw[arr, dashed] (warm) -- ++(0,-0.8) -| node[below, font=\scriptsize, pos=0.25]
+    {steady-state /run} (warm);
+\end{tikzpicture}
+\caption{Warm-cache state machine. Deploy readiness should pay cold \jit{} via
+prewarm; interactive paths prefer in-process and disk hits.}
+\label{fig:warm}
+\end{figure}
+
+\subsection{Prewarm hooks}
+
+\begin{itemize}[leftmargin=*]
+  \item Python: \code{prewarm\_numba\_builtins()}, \code{prewarm\_scripts([...])},
+        \code{ensure\_compile\_cache\_dir()};
+  \item \cli{}: \code{pynescript prewarm [PATH\ldots]};
+  \item Pro \api{}: \code{POST /compile/prewarm}; \code{GET /health} exposes a
+        \code{compile} section;
+  \item Lazy host prewarm on first non-test \code{/run} when enabled.
+\end{itemize}
+
+\subsection{Corrupt cache recovery}
+
+Truncated \code{.nbi}/\code{.nbc} files raise \code{EOFError} or
+\code{pickle.UnpicklingError} on load. Algorithm~\ref{alg:corrupt} matches
+the engine's once-retry recovery.
+
+\begin{algorithm}[t]
+\caption{\textsc{CorruptCacheRecovery}($f$, args)}
+\label{alg:corrupt}
+\begin{algorithmic}[1]
+\Require callable $f$ that may load Numba disk caches
+\Ensure result of $f$ or re-raised non-corruption error
+\State \textbf{try:} \Return $f(\textit{args})$
+\State \textbf{on exception} $e$:
+\If{\textbf{not} \textsc{IsNumbaCacheCorruption}($e$)}
+  \State \textbf{raise} $e$
+\EndIf
+\State $n \gets \textsc{ClearNumbaFunctionCaches}()$
+  \Comment{unlink \code{.nbi}/\code{.nbc}}
+\State \textbf{log warning} with $n$ purged files
+\State \Return $f(\textit{args})$ \Comment{single retry}
+\end{algorithmic}
+\end{algorithm}
+
+Disk \ir{} clear (\code{clear\_disk\_compile\_cache}) remains a separate
+operator action from Numba function-cache purge.
+
+\subsection{Indicative SLOs}
+
+Targets for operations (not hard CI gates), workstation + Numba:
+\begin{itemize}[leftmargin=*]
+  \item interpret \code{minimal} @ 2k bars: $\le 25$\,ms median;
+  \item interpret \code{ta\_combo} @ 2k: $\le 200$\,ms median;
+  \item cold compile first SMA-class script: $\le 2$\,s;
+  \item warm compile (source cache hit): $\le 1$\,ms (typically
+        $\sim$0.01--0.05\,ms);
+  \item warm run \code{ta\_combo} @ 5k: $\le 5$\,ms (often $\sim$1\,ms);
+  \item cross-process disk rehydrate: $\le\sim$60--70\% of full cold.
+\end{itemize}
+
+%==============================================================================
+\section{Host Integration and Auto Mode}
+\label{sec:host}
+%==============================================================================
+
+\subsection{Runtime modes}
+
+\begin{description}[leftmargin=*,style=nextline]
+  \item[\code{auto}] Default on Pro \api{} \code{/run} and \code{/run/batch}.
+        Prefer compile when eligible; fall back to interpret on hard failure
+        or known gaps.
+  \item[\code{compile}] Compile only (error if transpile/exec fails;
+        nopython$\to$object recovery still occurs inside compile).
+  \item[\code{interpret}] \ast{} evaluator only.
+\end{description}
+
+Safe auto gates (no silent wrong results) include: non-empty dynamic
+\code{inputs} $\to$ interpret; top-level \code{import} / \code{request.*}
+$\to$ interpret; any compile error $\to$ interpret with
+\code{compile\_fallback\_reason}. Response fields include
+\code{auto\_backend}, \code{compile\_cached}, \code{compile\_ms}, and
+optional \code{nopython\_fallback\_reason}.
+
+\begin{algorithm}[t]
+\caption{\textsc{AutoMode}(source, ohlcv, inputs)}
+\label{alg:auto}
+\begin{algorithmic}[1]
+\Require script $S$, market data $D$, optional inputs $I$
+\Ensure host result dict with \code{series}/\code{plots}
+\If{$I$ non-empty \textbf{or} $S$ has top-level import/request}
+  \State \Return \textsc{Interpret}($S,D,I$) with
+         \code{auto\_backend=interpret}
+\EndIf
+\If{\textbf{not} \textsc{HasNumba}() \textbf{and} numeric-only path required}
+  \State attempt object compile or fall back interpret
+\EndIf
+\State \textbf{try:} $R \gets \textsc{CompileAndRun}(S,D)$
+\State \textbf{on success:} \Return $R$ with \code{auto\_backend=compile}
+\State \textbf{on exception} $e$:
+\State \Return \textsc{Interpret}($S,D,I$) with
+       \code{compile\_fallback\_reason}=\textsc{Msg}($e$)
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Engine \api{} surface}
+
+Public entry points:
+\begin{itemize}[leftmargin=*]
+  \item \code{transpile(source) $\to$ str} --- generated Python for inspection;
+  \item \code{compile\_script(source) $\to$ CompiledScript};
+  \item \code{run\_script(source, ohlcv) $\to$ result dict};
+  \item cache helpers: \code{clear\_compile\_cache},
+        \code{clear\_disk\_compile\_cache},
+        \code{clear\_numba\_function\_caches}, \code{compile\_cache\_stats}.
+\end{itemize}
+
+\subsection{Result envelope}
+
+Both modes normalize into a host-facing structure with plot series, optional
+drawings, bar count, identifiers, and backend flags. Numeric mode avoids
+returning Numba \code{typed.Dict} across the boundary (tuple packing + host
+title map) to eliminate expensive conversion observed in early prototypes.
+
+%==============================================================================
+\section{Correctness: Dual-Host Parity}
+\label{sec:parity}
+%==============================================================================
+
+Compilation is only useful if results match the interpret oracle on the
+supported surface. \pyne{} maintains dual-host checks rather than claiming
+third-party certification.
+
+\subsection{Harness}
+
+\file{scripts/compare\_interp\_compile.py} runs the same scripts under
+\code{mode=interpret} and \code{mode=compile}, compares
+\code{result["series"]} with nan-aware \code{allclose}, and buckets residuals
+(\code{OK}, \code{fill\_background\_only}, \code{both\_error\_same},
+\code{MISMATCH}, \ldots). Always-on smoke tests live in
+\file{tests/test\_interp\_compile\_parity.py}; focused foreign-security cases
+in \file{tests/test\_dividend\_yield\_parity.py}.
+
+\subsection{Landed correctness notes (2026-08)}
+
+\begin{itemize}[leftmargin=*]
+  \item \code{time\_arr} always present (host real timestamps or synthetic ms).
+  \item \code{request.security}: same-symbol simple \ohlcv{} passthrough;
+        foreign/complex $\to$ \na{}.
+  \item \textsc{Rsi} Wilder seed then RMA (Section~\ref{sec:kernels}).
+  \item \code{highestbars}/\code{lowestbars}: negative bars-back; all-\na{}
+        $\to -1.0$.
+  \item Titled \code{fill()} series keys for plot-key parity.
+  \item Numba cache recovery from corrupt \code{.nbi}/\code{.nbc}.
+  \item \code{ta.rci} Spearman rank.
+\end{itemize}
+
+\subsection{Error metrics}
+
+For aligned series $a,b$ of length $\bars$, with mask
+$m_i = \neg(\mathrm{isnan}(a_i)\lor\mathrm{isnan}(b_i))$,
+\begin{equation}
+  \maxerr
+  =
+  \max_{i:m_i} \lvert a_i - b_i \rvert,
+  \qquad
+  \meanerr
+  =
+  \frac{1}{\lvert m\rvert}\sum_{i:m_i}\lvert a_i-b_i\rvert.
+\end{equation}
+Kernel parity studies report $\maxerr \sim 10^{-11}$ attributable to floating
+associativity, not algorithmic divergence~\citep{higham2002accuracy,ieee754}.
+NaN patterns must also match (both \na{} or both finite) for a series pair to
+be considered \code{OK}.
+
+%==============================================================================
+\section{Evaluation}
+\label{sec:eval}
+%==============================================================================
+
+\subsection{Methodology}
+
+Unless noted, measurements use workstation-class hardware, CPython with Numba
+installed, synthetic rising or random-walk \ohlcv{}, and medians over repeated
+runs after explicit cache clears or warm-ups as labeled. Numbers are
+\emph{internal 2026 engineering benchmarks}, not a multi-platform public
+reproducibility suite; they characterize order of magnitude and design
+progress across compile performance rounds.
+
+\subsection{Compile vs.\ execute latency}
+
+Table~\ref{tab:exec} reports warm compiled execute medians at
+$\bars=5000$ for representative indicators after incremental-kernel work.
+
+\begin{table}[t]
+\centering
+\caption{Warm compile execute medians at $n=5000$ bars (internal 2026).}
+\label{tab:exec}
+\begin{tabular}{@{}l r r@{}}
+\toprule
+\textbf{Script} & \textbf{Median (ms)} & \textbf{Notes} \\
+\midrule
+SMA & $\sim$0.04 & single window MA \\
+RSI & $\sim$0.08 & Wilder incremental \\
+BB  & $\sim$0.15 & bands + stdev \\
+TSI & $\sim$0.11 & double-smoothed \\
+MULTI (SMA+EMA+RSI) & $\sim$0.21 & multi-plot \\
+\code{ta\_combo} warm compile hit & $\sim$0.01 & cache only \\
+\code{ta\_combo} warm run & $\sim$1.06 & full combo @5k \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Early MACD/EMA paths re-accumulated from bar~0 on every index, producing
+near-quadratic execute times ($\sim$33\,ms at 5k bars). After incremental
+state vectors, MACD execute fell by $\sim$110$\times$ and MULTI by
+$\sim$49$\times$ relative to those broken baselines on the same machine class
+(compile+exec vs.\ list-based interpret for MACD/MULTI class workloads remains
+in the tens-to-hundreds$\times$ range depending on interpret plot packing).
+
+\subsection{Cold vs.\ warm compile}
+
+Cold compile is dominated by Numba first-touch of the generated entry and
+builtins (often $\sim$0.4--2\,s for SMA-class scripts depending on process
+cache state). Warm source-\textsc{Lru} hits are $\sim$0.01--0.05\,ms. Disk
+\ir{} rehydrate is cheaper than full cold but not free
+(Section~\ref{sec:cache} SLOs).
+
+\subsection{Throughput charts}
+
+Figure~\ref{fig:perf} visualizes schematic latency bars for interpret vs.\
+cold compile vs.\ warm compile+run on a multi-indicator workload, using the
+internal measurements above as anchors.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  ybar,
+  bar width=12pt,
+  width=0.95\textwidth,
+  height=6.2cm,
+  ylabel={Latency (ms, log scale)},
+  ymode=log,
+  log origin=infty,
+  ymin=0.005,
+  ymax=5000,
+  symbolic x coords={Interpret ta\_combo@2k,
+                     Cold compile SMA,
+                     Warm compile hit,
+                     Warm run SMA@5k,
+                     Warm run MULTI@5k,
+                     Warm run ta\_combo@5k},
+  xtick=data,
+  x tick label style={font=\scriptsize, rotate=25, anchor=east},
+  nodes near coords,
+  nodes near coords style={font=\tiny, /pgf/number format/fixed},
+  every node near coord/.append style={font=\tiny},
+  point meta=explicit symbolic,
+  enlarge x limits=0.12,
+  legend style={at={(0.5,1.02)}, anchor=south, legend columns=3, font=\scriptsize},
+  grid=major,
+  major grid style={dotted, gray!40},
+]
+\addplot[fill=pynegray!50, draw=black!60] coordinates {
+  (Interpret ta\_combo@2k, 153) [=153]
+  (Cold compile SMA, 946) [=946]
+  (Warm compile hit, 0.01) [=0.01]
+  (Warm run SMA@5k, 0.04) [=0.04]
+  (Warm run MULTI@5k, 0.21) [=0.21]
+  (Warm run ta\_combo@5k, 1.06) [=1.06]
+};
+\end{axis}
+\end{tikzpicture}
+\caption{Indicative latencies (internal 2026): interpret combo residual vs.\
+cold \jit{}, warm compile cache hits, and warm numeric executes. Log scale
+emphasizes the multi-order-of-magnitude gap between cold \jit{} and warm hits.}
+\label{fig:perf}
+\end{figure}
+
+Figure~\ref{fig:speedup} contrasts naive $O(n\cdot p)$ vs.\ incremental
+$O(n)$ kernel cost as period grows (schematic, unit work normalized).
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.85\textwidth,
+  height=5.5cm,
+  xlabel={Window period $p$},
+  ylabel={Relative work units},
+  xmin=0, xmax=220,
+  ymin=0, ymax=250,
+  grid=major,
+  major grid style={dotted, gray!40},
+  legend pos=north west,
+  legend style={font=\small},
+]
+\addplot[thick, pyneorange, domain=1:200, samples=50] {x};
+\addlegendentry{naive $O(n\cdot p)/n$ $\propto p$}
+\addplot[thick, pyneblue, domain=1:200, samples=2] {8};
+\addlegendentry{incremental $O(1)$ amortized}
+\end{axis}
+\end{tikzpicture}
+\caption{Asymptotic per-bar work for sliding SMA-style kernels: naive
+recompute grows with $p$; incremental state remains flat after seeding.}
+\label{fig:speedup}
+\end{figure}
+
+\subsection{Parity residuals}
+
+Across kernel golden suites, compiled vs.\ full-kernel or interpret oracles
+typically achieve $\maxerr \le 10^{-10}$ to $10^{-11}$ for continuous
+indicators. Structural residuals (hline-only keys, fill background series)
+are classified separately from true value mismatches by the dual-host
+harness.
+
+\subsection{Object mode}
+
+Object-mode UDT/plot scripts compile in tens of milliseconds cold (no Numba
+entry \jit{}) and run on the order of single-digit milliseconds at 5k bars
+in microbenchmarks---slower than numeric mode but faster than full \ast{}
+interpretation for comparable expression volume, with broader language
+coverage.
+
+%==============================================================================
+\section{Related Work}
+\label{sec:related}
+%==============================================================================
+
+\paragraph{\numba{} and Python \jit{}.}
+Lam \etal{} introduce \numba{} as an \llvm{}-based \jit{} for array-oriented
+Python~\citep{lam2015numba}. Our work does not extend Numba itself; it is a
+domain-specific front-end that emits Numba-legal programs and a parallel
+object-mode path when the domain language exceeds nopython. Nuitka and
+similar whole-program compilers~\citep{nuitka} pursue different packaging
+goals without bar-series semantics.
+
+\paragraph{Financial and trading \textsc{Dsl}s.}
+Commercial platforms provide proprietary compilers for bar languages; public
+literature more often discusses time-series libraries
+(\eg{} pandas~\citep{brooks2015python}) than closed-form compilation of
+Pine-like semantics. \pyne{} targets an open, inspectable intermediate Python
+\ir{} rather than an opaque native bytecode blob.
+
+\paragraph{Partial evaluation and staging.}
+Source-to-source lowering with residual bar loops resembles online partial
+evaluation~\citep{jones1993partial}: market data remains dynamic while script
+structure is specialized into straight-line array code. We do not currently
+apply binding-time analysis formally; the visitor encodes domain knowledge
+(series vs.\ scalar, plot allocation) directly.
+
+\paragraph{Dual-mode virtual machines.}
+Self-optimizing and dual-mode engines (\eg{} object vs.\ optimized paths in
+dynamic language VMs~\citep{chambers1991iterative}) inspire our
+numeric/object split. The difference is that both modes are produced by
+ahead-of-time source generation, not by runtime tracing of an interpreter
+core.
+
+\paragraph{Compiler construction.}
+Classic pipelines~\citep{aho2006dragon,cooper2011engineering} separate
+front-end, \ir{}, and back-end. We reuse ANTLR+\asdl{} as the front-end,
+generated Python as a human-readable \ir{}, and Numba/\llvm{} or CPython as
+back-ends---trading maximal optimization for packaging simplicity and
+debuggability~\citep{leroy2009formal}.
+
+%==============================================================================
+\section{Limitations and Future Work}
+\label{sec:limits}
+%==============================================================================
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{No TradingView certification.} Numerical and structural
+        parity is measured against \pyne{}'s interpret oracle and public
+        documentation, not against a licensed reference binary.
+  \item \textbf{Foreign multi-asset data.} Compile does not invent foreign
+        series; complex \code{request.security} yields \na{}. Full multi-ticker
+        hosts remain future work.
+  \item \textbf{Strategy breadth.} Complex order/\code{StrategyState} paths
+        remain interpret-first; basic entry/close exist in object mode.
+  \item \textbf{Drawing fidelity.} Deletes and full style parity with
+        interpreter registries are incomplete.
+  \item \textbf{Nested UDTs/methods.} Coverage is partial; object mode is the
+        escape hatch.
+  \item \textbf{True AOT.} Disk + Numba \code{.nbc} is not a portable
+        ahead-of-time binary; multi-worker deploys still warm per process
+        unless coordinated.
+  \item \textbf{mypyc / native kernels.} Deferred; residual interpret plot
+        packing still dominates some combo walls on the non-compile path.
+\end{itemize}
+
+Future work prioritizes expanding the nopython kernel surface so fewer
+scripts fall out of numeric mode, unifying dual-host Runtime packages, and
+growing the interpret$\leftrightarrow$compile golden corpus under the parity
+harness rather than ad-hoc scripts.
+
+%==============================================================================
+\section{Conclusion}
+\label{sec:concl}
+%==============================================================================
+
+We presented the \pyne{} \numba{} compiler path for bar-oriented trading
+\textsc{Dsl}s: a four-layer architecture that lowers a Pine-compatible \ast{}
+to explicit-index Python, executes pure numeric scripts under \numba{}
+nopython \jit{}, and falls back to an object-mode bar loop for \udt{}s, maps,
+and drawings. Incremental $O(\bars)$ kernels, multi-tier warm \ir{} caches,
+corrupt-cache recovery, and host auto-mode with interpret fallback make the
+system practical for interactive \api{}s and large histories.
+
+Internal 2026 measurements show warm compile hits near $10^{-2}$\,ms, warm
+indicator executes on the order of $10^{-1}$\,ms at 5{,}000 bars, and large
+speedups versus list-based interpretation once quadratic kernel bugs were
+eliminated. Dual-host nan-aware parity keeps residuals at floating-point
+noise for landed kernels. The design emphasizes inspectable intermediates and
+correctness-first auto fallback over unverifiable peak claims.
+
+\section*{Acknowledgments}
+
+We thank \pyne{} and HOOX contributors for performance rounds, parity
+harnesses, and production warm-compile integration. \trademarknote{}
+
+%==============================================================================
+\section*{References}
+%==============================================================================
+
+\bibliographystyle{plainnat}
+\bibliography{../common/bibliography}
+
+\end{document}

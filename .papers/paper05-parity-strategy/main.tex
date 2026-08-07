@@ -1,0 +1,985 @@
+% Numerical Parity and Strategy Semantics for Independent Pine Script Runtimes
+% arXiv cs.CE / q-fin.CP / cs.SE validation paper
+% PYNE paper series — paper05
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\input{../common/macros.tex}
+
+\title{%
+  Numerical Parity and Strategy Semantics\\
+  for Independent \pine{} Runtimes%
+}
+\author{%
+  HOOX Research / \pyne{} Contributors\\
+  \texttt{jango\_blockchained}\\
+  Independent Open Source Research\\
+  \texttt{contact@hoox.sh}%
+}
+\date{August 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Independent reimplementations of financial domain-specific languages (\textsc{Dsl}s)
+must answer a harder question than syntactic coverage: do computed series and
+backtest outcomes remain faithful under floating-point arithmetic, dual execution
+hosts, and order-fill semantics?
+We present a validation framework for \pyne{}, an independent open-source toolchain
+for the \pine{} language, covering numerical indicator accuracy, interpret$\leftrightarrow$compile
+plot parity, honest \code{request.security} / $\na$ policy, strategy broker semantics
+(entries, exits, commission, slippage, pyramiding, pending fills), alerts, and
+drawing resource limits.
+Across $85+$ technical analysis indicators and $181$ validated builtins, measured
+relative errors are on the order of $10^{-5}$ percent class claims (maximum reported
+$0.0022\%$ on ADX under extreme volatility; mean $<0.0005\%$; zero systematic bias;
+exact agreement for deterministic SMA/sum families) under IEEE~754 double
+arithmetic~\citep{ieee754,higham2002accuracy}.
+A dual-host harness compares \code{Runtime.run(..., mode="interpret")} against
+\code{mode="compile"} with nan-aware \code{allclose}, bucketizing residuals into
+\code{OK}, structural fill/hline-only differences, matched dual errors, and true
+value \code{MISMATCH}.
+Shared formula alignment for RSI (Wilder), ROC, WMA, cumulative sum, and
+highest/lowest bar indices reduces host drift to float noise
+($\sim\!10^{-11}$ absolute on aligned kernels).
+We formalize a security NA honesty policy (same-symbol simple \ohlcv{} may
+passthrough; foreign/complex requests resolve to $\na$ rather than inventing
+series), sketch the order lifecycle including F2 pending-fill VWAP under
+pyramiding~$\le 0$, and report strategy golden cases for OCA, risk enforcement,
+and closed-trade accounting.
+We do \emph{not} claim TradingView platform certification; residual mismatch
+tails and nested-EMA seed families remain compatibility work items.
+\end{abstract}
+
+\paragraph{Keywords.}
+numerical validation; floating-point parity; trading strategy backtesting;
+order fill semantics; dual-runtime consistency; technical indicators.
+
+\paragraph{Disclaimer.}
+\trademarknote{}
+
+\tableofcontents
+\newpage
+
+%==============================================================================
+\section{Introduction}
+\label{sec:intro}
+%==============================================================================
+
+Financial \textsc{Dsl}s occupy a peculiar niche in software engineering:
+they are simultaneously \emph{specification languages} for mathematical series
+and \emph{execution engines} for trading logic whose outputs move capital.
+When a community reimplements such a language outside its original host
+platform, syntactic parse success is only a weak certificate.
+Practitioners care whether $\ta{}.\code{rsi}(\code{close},14)$ on a given
+\ohlcv{} history matches reference values within floating-point tolerance,
+whether two backends of the same open-source stack agree with each other,
+and whether \code{strategy.entry}/\code{strategy.exit} fill, commission, and
+equity accounting obey documented rules under pyramiding and pending orders.
+
+\pyne{} (package \code{hoox-pyne}, import \code{pynescript}) is an independent
+open-source toolchain for \pine{} v5/v6~\citep{pynescript2026,tradingview-pine}.
+It provides a parser/AST stack, an interpreter evaluator, a Numba-backed
+compile path~\citep{lam2015numba,lattner2004llvm}, strategy broker logic,
+alerts, and drawing primitives.
+This paper focuses on \emph{validation and semantics}, not full language
+design: we treat numerical fidelity, dual-host consistency, NA/security policy,
+and strategy execution as first-class research objects.
+
+\paragraph{Why independent runtime validation matters.}
+Reimplementations of market \textsc{Dsl}s face incentives that pure compilers
+do not.
+(1)~Small formula drift---a different EMA seed, a ROCm early-zero, an off-by-one
+lookback---can change crossover timestamps and therefore trades.
+(2)~Floating-point non-associativity means mathematically equivalent reductions
+need not bit-agree~\citep{higham2002accuracy,press2007numerical,ieee754}.
+(3)~Multi-asset APIs tempt implementations to ``helpfully'' substitute chart
+closes for missing foreign series, producing silent false signals.
+(4)~Backtesters that disagree on pending-fill averaging or commission models
+report incompatible Sharpe ratios for the same script~\citep{tsay2010analysis}.
+An independent runtime that documents its reference model, measures error
+distributions, and ships dual-host parity harnesses reduces these risks for
+researchers and tool builders who cannot or will not bind exclusively to a
+proprietary chart host.
+
+\paragraph{Contributions.}
+\begin{enumerate}[leftmargin=*]
+  \item A threat model for numerical and semantic divergence in finance
+    \textsc{Dsl} reimplementations (\S\ref{sec:threat}).
+  \item An indicator reference model and Nov~2025 (+2026 dual-host) numerical
+    validation campaign covering $85+$ TA indicators and $181$ functions
+    (\S\ref{sec:indicators}--\S\ref{sec:method}).
+  \item A dual-host interpret$\leftrightarrow$compile parity framework with
+    residual taxonomy and shared-formula alignment (\S\ref{sec:dual}).
+  \item Formal rules for honest \code{request.security}/$\na$ handling
+    (\S\ref{sec:na}).
+  \item A strategy execution model: order lifecycle, commission/slippage,
+    pyramiding, pending-fill VWAP (F2), equity sketch, OCA/risk surface
+    (\S\ref{sec:strategy}).
+  \item Alert frequency and drawing GC limits as resource semantics
+    (\S\ref{sec:alerts}).
+  \item Experimental tables, error histograms, and golden-case summary
+    (\S\ref{sec:results}).
+\end{enumerate}
+
+%==============================================================================
+\section{Threat Model for Numerical Divergence}
+\label{sec:threat}
+%==============================================================================
+
+We model an adversary---or more often, an accidental process---that produces
+outputs diverging from a stated reference without crashing.
+Threats relevant to \pyne{} fall into four families.
+
+\subsection{Formula drift}
+\label{sec:threat-formula}
+Two implementations may compute ``RSI'' under different classical definitions:
+Wilder smoothing versus SMA of gains~\citep{wilder1978new,murphy1999technical},
+or different conventions for the first warm-up bar.
+Compile and interpret hosts may independently re-derive kernels and silently
+diverge even when both match a third oracle on simple scripts.
+\emph{Mitigation:} share formula implementations across hosts for hot kernels;
+encode goldens; dual-run the same script+\ohlcv{}.
+
+\subsection{Seed and warm-up differences}
+Exponential and nested-EMA families (EMA, DEMA, TEMA, MACD signal, Supertrend
+inner averages) depend on initial seed choice and the number of bars before
+non-$\na$ output.
+Residuals in nested EMA seed families remain a documented compatibility
+note even after dual-host formula alignment.
+
+\subsection{NA and multi-asset handling}
+Pine's $\na$ is both a missing-data token and a control-flow signal.
+Divergent policies---propagating $\na$, zero-filling, or substituting chart
+\code{close} for foreign \code{request.security}---change series morphology
+catastrophically while remaining type-correct.
+\emph{Mitigation:} honest NA policy (\S\ref{sec:na}): never invent foreign
+closes when no feed is available.
+
+\subsection{Floating-point non-associativity}
+IEEE~754 binary64 addition is not associative~\citep{ieee754}.
+Windowed sums, online variance, and fused multiply-add reorderings can yield
+$O(nu\varepsilon)$ relative differences~\citep{higham2002accuracy}.
+For financial series magnitudes ($10^{-4}$ to $10^{5}$), absolute errors on
+the order of $10^{-11}$--$10^{-15}$ are often pure noise; relative percent
+errors must be interpreted carefully near zeros and crossovers.
+\emph{Mitigation:} nan-aware \code{allclose} with dual absolute/relative
+tolerances; report max and mean absolute error for kernel goldens.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  box/.style={draw, rounded corners, align=center, font=\small,
+    minimum height=1.1cm, minimum width=2.6cm, thick},
+  arr/.style={-{Latex}, thick}
+]
+  \node[box, fill=pyneorange!15] (f) {Formula\\drift};
+  \node[box, fill=pyneblue!12, right=0.7cm of f] (s) {Seed /\\warm-up};
+  \node[box, fill=pynegray!20, right=0.7cm of s] (n) {NA /\\security};
+  \node[box, fill=pynegreen!12, right=0.7cm of n] (fp) {FP non-\\associativity};
+  \node[box, below=1.2cm of s, xshift=1.7cm, minimum width=6.5cm,
+    fill=white] (out) {Divergent series, false signals, incompatible PnL};
+  \draw[arr] (f) -- (out);
+  \draw[arr] (s) -- (out);
+  \draw[arr] (n) -- (out);
+  \draw[arr] (fp) -- (out);
+\end{tikzpicture}
+\caption{Threat families that produce numerical or semantic divergence without
+hard failures. Each maps to a concrete mitigation in \pyne{} (shared formulas,
+goldens, honest NA, dual tolerances).}
+\label{fig:threats}
+\end{figure}
+
+%==============================================================================
+\section{Indicator Semantics and Reference Model}
+\label{sec:indicators}
+%==============================================================================
+
+\subsection{Series model}
+A bar stream is a sequence of records
+\begin{equation}
+  B_i = (o_i,h_i,l_i,c_i,v_i,t_i),\qquad i=0,\ldots,N-1,
+\end{equation}
+with open/high/low/close/volume/time.
+Builtin indicators map series to series (or tuples of series), producing
+$\na$ during warm-up and finite floats thereafter.
+We write $x[\baridx]$ for the value of series $x$ at bar $\baridx$.
+
+\subsection{Wilder RSI}
+\label{sec:rsi}
+Relative Strength Index after Wilder~\citep{wilder1978new} with period
+$\period$ uses average gain $G$ and average loss $L$:
+\begin{align}
+  \Delta_i &= c_i - c_{i-1}, \\
+  g_i &= \max(\Delta_i,0),\qquad
+  \ell_i = \max(-\Delta_i,0), \\
+  G_i &=
+  \begin{cases}
+    \frac{1}{\period}\sum_{k=0}^{\period-1} g_{i-k} & \text{first seed},\\
+    \frac{(\period-1)G_{i-1}+g_i}{\period} & \text{thereafter},
+  \end{cases}
+  \label{eq:wilder-g}\\
+  L_i &\text{ analogous with }\ell_i, \\
+  \mathrm{RS}_i &= G_i / L_i \quad (L_i>0),\qquad
+  \mathrm{RSI}_i = 100 - \frac{100}{1+\mathrm{RS}_i}.
+  \label{eq:rsi}
+\end{align}
+\pyne{} dual-host alignment uses this Wilder recurrence on both interpret and
+compile paths (2026 shared-formula work), avoiding host-specific early SMA
+variants that previously produced plot drift.
+
+\subsection{Deterministic families}
+Simple moving averages, cumulative sums, counts, and pure ranking operations
+admit exact equality under identical input ordering when no intermediate
+rounding differs:
+\begin{equation}
+  \mathrm{SMA}_i(\period)
+  = \frac{1}{\period}\sum_{k=0}^{\period-1} x_{i-k}
+  \quad (i\ge \period-1).
+\end{equation}
+Validation reports $100\%$ exact agreement for SMA/sum/count-style
+deterministic ops~\citep{pynescript2026}.
+
+\subsection{Bollinger and envelope constructions}
+Bollinger Bands~\citep{bollinger2001} combine SMA with sample or population
+standard deviation scaled by a factor $k$; small stdev formula differences
+dominate residual error, not the band arithmetic itself.
+Trend systems (ADX, DMI, Supertrend) compose multiple smoothers and are the
+usual worst-case relative-error loci under high volatility~\citep{murphy1999technical}.
+
+%==============================================================================
+\section{Validation Methodology}
+\label{sec:method}
+%==============================================================================
+
+\subsection{Campaign scope}
+The November~2025 numerical validation campaign (with 2026 dual-host formula
+updates noted separately) covered:
+\begin{itemize}[leftmargin=*]
+  \item $85+$ technical analysis indicators;
+  \item $181$ total builtin functions (math, array, TA, utility);
+  \item synthetic and real-market \ohlcv{} regimes.
+\end{itemize}
+
+\subsection{Data regimes}
+\paragraph{Synthetic (primary).}
+$1000$-bar \ohlcv{} streams with controlled regimes: normal
+($\mu\approx 0$, $\sigma\approx 1$ mild drift), high volatility ($\sigma=5$),
+strong trend, range-bound oscillation, gap discontinuities, and extreme
+magnitudes (near-zero and very large prices; price ranges spanning roughly
+$\$10$--$\$10{,}000$ for scaling stress).
+
+\paragraph{Real markets (secondary validation).}
+\begin{itemize}[leftmargin=*]
+  \item SPX: multi-year daily;
+  \item BTC/USD: multi-year hourly;
+  \item EURUSD: multi-year $15$-minute;
+  \item AAPL: multi-year daily.
+\end{itemize}
+Financial time series structure follows standard market microstructure and
+returns analysis assumptions~\citep{tsay2010analysis,box1970time}.
+
+\subsection{Error metrics}
+For reference series $r_i$ and implementation series $y_i$ over finite,
+paired non-$\na$ indices $I$:
+\begin{align}
+  e^{\mathrm{abs}}_i &= \lvert r_i - y_i\rvert,
+  \label{eq:abs}\\
+  e^{\mathrm{rel}}_i &= \frac{\lvert r_i - y_i\rvert}{\lvert r_i\rvert}\cdot 100\%
+    \quad (r_i\neq 0),
+  \label{eq:rel}\\
+  \maxerr &= \max_{i\in I} e^{\mathrm{rel}}_i,
+  \label{eq:max}\\
+  \meanerr &= \frac{1}{\lvert I\rvert}\sum_{i\in I} e^{\mathrm{rel}}_i.
+  \label{eq:mean}
+\end{align}
+Dual-host kernel goldens additionally report maximum absolute error
+$\max_i\lvert r_i-y_i\rvert$ in float units (typically $\sim 10^{-11}$ after
+alignment).
+
+\subsection{Acceptance thresholds}
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Level & Relative error & Disposition \\
+\midrule
+Excellent & $<0.001\%$ & Pass \\
+Good & $<0.01\%$ & Pass \\
+Acceptable & $<0.1\%$ & Review \\
+Unacceptable & $\ge 0.1\%$ & Fail \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Bias tests}
+Beyond max/mean error, the campaign checks systematic bias:
+\begin{equation}
+  \bar{\delta} = \frac{1}{\lvert I\rvert}\sum_{i\in I}(y_i-r_i).
+\end{equation}
+Zero systematic bias was reported across the validated set (no consistent
+over-/under-estimation pattern after aggregation).
+
+\subsection{Algorithm: single-indicator validation}
+\begin{algorithm}[t]
+\caption{ValidateIndicator}
+\label{alg:validate}
+\begin{algorithmic}[1]
+\Require Indicator $f$, bar set $\mathcal{B}$, reference oracle $R$, thresholds
+\State $r \gets R(f,\mathcal{B})$;\; $y \gets \mathrm{Pyne}(f,\mathcal{B})$
+\State Align indices; drop paired $\na$ warm-up
+\State Compute $\abserr,\relerr,\maxerr,\meanerr,\bar{\delta}$
+\If{$\maxerr$ exceeds Acceptable}
+  \State \Return \textsc{Fail} with diagnostics
+\EndIf
+\State Record histogram bins; update category tables
+\State \Return \textsc{Pass}
+\end{algorithmic}
+\end{algorithm}
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  node distance=0.55cm and 0.45cm,
+  stage/.style={draw, rounded corners, align=center, font=\scriptsize,
+    minimum width=2.0cm, minimum height=0.85cm, thick},
+  arr/.style={-{Latex}, thick}
+]
+  \node[stage, fill=pyneblue!12] (d) {Data regimes\\synth + real};
+  \node[stage, fill=pyneorange!15, right=of d] (tv) {Reference\\export};
+  \node[stage, fill=pynegreen!12, right=of tv] (py) {\pyne{}\\execute};
+  \node[stage, fill=pynegray!18, right=of py] (cmp) {Element-wise\\errors};
+  \node[stage, fill=white, below=1.0cm of tv, xshift=1.2cm, minimum width=4.2cm]
+    (stat) {Bias tests $\cdot$ histograms $\cdot$ category tables};
+  \node[stage, fill=pyneblue!8, below=1.0cm of cmp] (dual)
+    {2026 dual-host\\shared formulas};
+  \draw[arr] (d) -- (tv);
+  \draw[arr] (tv) -- (py);
+  \draw[arr] (py) -- (cmp);
+  \draw[arr] (cmp) -- (stat);
+  \draw[arr] (cmp) -- (dual);
+\end{tikzpicture}
+\caption{Validation pipeline: multi-regime inputs feed reference and \pyne{}
+executions; errors are aggregated statistically; dual-host formula alignment
+is a post-campaign hardening layer on hot kernels.}
+\label{fig:pipeline}
+\end{figure}
+
+%==============================================================================
+\section{Dual-Host Parity Framework}
+\label{sec:dual}
+%==============================================================================
+
+\subsection{Motivation}
+Even perfect agreement with an external oracle on one host does not guarantee
+that \pyne{}'s interpreter and compiler agree with \emph{each other}.
+Users may choose \code{mode="interpret"} for debuggability and
+\code{mode="compile"} for speed; silent plot divergence is a product defect.
+We therefore treat interpret as a primary oracle for compile and run a
+first-class harness.
+
+\subsection{Harness design}
+Script \file{scripts/compare\_interp\_compile.py} selects fixtures (default
+glob under \file{tests/fixtures/parity/pine/}), builds shared synthetic bars,
+and runs:
+\begin{lstlisting}[style=python,basicstyle=\ttfamily\scriptsize]
+Runtime.run(source, bars, mode="interpret")
+Runtime.run(source, bars, mode="compile")
+\end{lstlisting}
+Plot series in \code{result["series"]} are compared with nan-aware
+\code{allclose} defaults $\mathrm{rtol}=10^{-5}$, $\mathrm{atol}=10^{-6}$.
+Reports write \file{.cache/interp\_compile\_parity.json}.
+Always-on tests live in \file{tests/test\_interp\_compile\_parity.py};
+foreign-security honesty is covered by
+\file{tests/test\_dividend\_yield\_parity.py} and request data-feed tests.
+
+\subsection{Residual taxonomy (buckets)}
+\begin{center}
+\begin{tabular}{lp{8.2cm}}
+\toprule
+Bucket & Meaning \\
+\midrule
+\code{OK} & Common series keys allclose; no fatal structural issues \\
+\code{fill\_background\_only} & Value OK after ignoring fill/background keys \\
+\code{both\_error\_same} & Both hosts raise equivalent normalized errors \\
+\code{expected\_error} & Intentional dual-backend demos (e.g.\ pivot depth) \\
+\code{both\_error} & Both fail but messages differ after normalize \\
+\code{MISMATCH} & Value or type/na disagreement on a shared key \\
+\code{interp\_error} / \code{compile\_error} & Single-host failure \\
+\code{structural\_only} & Key-set differences without value compare \\
+\bottomrule
+\end{tabular}
+\end{center}
+Structural one-sided \code{hline} / fill keys can be ignored via harness flags
+(\code{--ignore-hline-keys}, \code{--ignore-fill-keys});
+\code{--strict-keys} fails on leftover only-interpret/only-compile keys.
+
+\subsection{Shared formula alignment (2026)}
+Interpret and compile now share formulas for several hot kernels so dual-run
+plots match rather than drift by host-specific quirks:
+\code{ta.rsi} (Wilder), \code{ta.roc} (no early zero), \code{ta.wma}
+(full non-$\na$ window), \code{ta.cum}, \code{ta.highestbars}/\code{lowestbars}.
+Kernel max absolute error after alignment is typically $\sim 10^{-11}$
+(float noise). Residual notes (e.g.\ nested EMA seed families) remain under
+compatibility documentation, not the Nov~2025 external-oracle error table.
+
+\subsection{Algorithm: dual-host compare}
+\begin{algorithm}[t]
+\caption{CompareInterpCompile}
+\label{alg:compare}
+\begin{algorithmic}[1]
+\Require Script $S$, bars $\mathcal{B}$, tolerances $(\rho,\alpha)$
+\State $I \gets \mathrm{Run}(S,\mathcal{B},\textsc{Interpret})$
+\State $C \gets \mathrm{Run}(S,\mathcal{B},\textsc{Compile})$
+\If{both raised}
+  \State \Return \code{expected\_error} or \code{both\_error\_same}/\code{both\_error}
+\ElsIf{exactly one raised}
+  \State \Return \code{interp\_error} or \code{compile\_error}
+\EndIf
+\State Filter series keys (optional hline/fill ignore)
+\For{each common key $k$}
+  \If{not $\mathrm{NanAllclose}(I_k,C_k,\rho,\alpha)$}
+    \State Record $\mathrm{n\_bad}$, $\max\lvert I-C\rvert$, sample indices
+    \State \Return \code{MISMATCH}
+  \EndIf
+\EndFor
+\If{key sets differ and strict}
+  \State \Return \code{structural\_only}
+\EndIf
+\State \Return \code{OK} (or \code{fill\_background\_only})
+\end{algorithmic}
+\end{algorithm}
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  box/.style={draw, rounded corners, align=center, font=\small,
+    minimum height=1.0cm, minimum width=2.4cm, thick},
+  arr/.style={-{Latex}, thick}
+]
+  \node[box, fill=pynegray!15] (src) {Script $S$\\+ OHLCV};
+  \node[box, fill=pyneblue!12, above right=0.3cm and 1.2cm of src] (int)
+    {Interpret\\evaluator};
+  \node[box, fill=pyneorange!15, below right=0.3cm and 1.2cm of src] (cmp)
+    {Compile\\Numba host};
+  \node[box, fill=pynegreen!12, right=3.8cm of src] (all)
+    {nan-aware\\allclose};
+  \node[box, fill=white, right=1.1cm of all] (buk)
+    {Bucket\\taxonomy};
+  \draw[arr] (src) |- (int);
+  \draw[arr] (src) |- (cmp);
+  \draw[arr] (int) -| (all);
+  \draw[arr] (cmp) -| (all);
+  \draw[arr] (all) -- (buk);
+\end{tikzpicture}
+\caption{Dual-host parity architecture: identical inputs feed interpret and
+compile; series maps are compared with nan-aware tolerances; residuals land
+in a fixed bucket taxonomy for CI and research triage.}
+\label{fig:dual-arch}
+\end{figure}
+
+%==============================================================================
+\section{NA and \texttt{request.security} Honesty Policy}
+\label{sec:na}
+%==============================================================================
+
+\subsection{Design principle}
+When multi-asset or multi-timeframe data are unavailable, \pyne{} prefers
+\emph{honest} $\na$ over inventing foreign closes from the chart series.
+Silent substitution creates false multi-symbol signals that look plausible on
+charts but are scientifically invalid.
+
+\subsection{Formal rules}
+Let $\sigma_{\mathrm{chart}}$ be the chart symbol, $\sigma$ the requested
+symbol, $\tau$ the requested timeframe, and $e$ the requested expression.
+
+\begin{definition}[Same-symbol simple OHLCV]
+\label{def:same-sym}
+A request is \emph{same-symbol simple} if $\sigma=\sigma_{\mathrm{chart}}$
+(or an equivalent ticker id) and $e$ is a simple OHLCV projection
+(\code{open}/\code{high}/\code{low}/\code{close}/\code{volume} or trivial
+aliases) at a timeframe the host can satisfy from the bound bar feed.
+\end{definition}
+
+\begin{definition}[Foreign or complex request]
+\label{def:foreign}
+A request is \emph{foreign/complex} if $\sigma\neq\sigma_{\mathrm{chart}}$,
+or $e$ requires multi-symbol inputs, unavailable HTF structure without a
+feed, or other host-unavailable data.
+\end{definition}
+
+\begin{proposition}[Honesty policy]
+\label{prop:honest}
+Under the default host without an external multi-asset feed:
+\begin{enumerate}[leftmargin=*]
+  \item Same-symbol simple OHLCV may \emph{passthrough} (or lower/raise with
+    documented MTF rules) using chart bars.
+  \item Foreign tickers and complex \code{request.security} expressions resolve
+    to $\na$ (scalar or series of $\na$) on \emph{both} interpret and compile.
+  \item Implementations must not substitute $\code{close}_{\mathrm{chart}}$
+    for foreign $\code{close}_{\sigma}$.
+\end{enumerate}
+\end{proposition}
+
+Both backends implement the same policy so dual-host parity holds even when
+the economically meaningful value is ``missing.''
+Dividend-yield and foreign security parity tests encode this contract.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  dec/.style={draw, diamond, aspect=2.2, align=center, font=\scriptsize,
+    thick, inner sep=1pt},
+  box/.style={draw, rounded corners, align=center, font=\scriptsize,
+    minimum width=2.3cm, minimum height=0.75cm, thick},
+  arr/.style={-{Latex}, thick}
+]
+  \node[box, fill=pynegray!15] (in) {\code{request.security}\\$(\sigma,\tau,e)$};
+  \node[dec, below=0.7cm of in] (same) {$\sigma=\sigma_{\mathrm{chart}}$\\and simple OHLCV?};
+  \node[box, fill=pynegreen!15, below left=0.9cm and 0.1cm of same] (pass)
+    {Passthrough /\\MTF from feed};
+  \node[box, fill=pyneorange!15, below right=0.9cm and 0.1cm of same] (na)
+    {Resolve to $\na$\\(no invent)};
+  \node[box, fill=pyneblue!10, below=2.6cm of same] (align)
+    {Identical policy on interpret \& compile};
+  \draw[arr] (in) -- (same);
+  \draw[arr] (same) -- node[left,font=\scriptsize]{yes} (pass);
+  \draw[arr] (same) -- node[right,font=\scriptsize]{no} (na);
+  \draw[arr] (pass) |- (align);
+  \draw[arr] (na) |- (align);
+\end{tikzpicture}
+\caption{\code{request.security} decision flowchart: same-symbol simple OHLCV
+may use the bound feed; foreign/complex requests return $\na$ rather than
+fabricating multi-asset series.}
+\label{fig:security-flow}
+\end{figure}
+
+%==============================================================================
+\section{Strategy Execution Model}
+\label{sec:strategy}
+%==============================================================================
+
+Strategy scripts drive a broker model that maintains positions, pending
+orders, cash/equity, commissions, and trade logs
+(\code{strategy.closedtrades}, open-trade queries, event streams).
+Interpret builtins and the compile \code{strategy\_broker} are kept aligned
+through shared goldens (\file{tests/test\_order\_fills.py},
+\file{tests/test\_oca\_commission.py},
+\file{tests/test\_strategy\_risk\_enforcement.py},
+\file{tests/test\_compiler\_strategy.py},
+\file{tests/test\_strategy\_events.py}).
+
+\subsection{Order lifecycle}
+Orders progress through a finite set of states (Figure~\ref{fig:order-sm}):
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Submit:} \code{strategy.entry}, \code{strategy.order},
+    \code{strategy.exit}, \code{strategy.close}, \ldots
+  \item \textbf{Pending:} resting limit/stop or market deferred to bar
+    processing;
+  \item \textbf{Fill:} price/qty determined from bar OHLC, slippage, and
+    sizing rules;
+  \item \textbf{Position update:} open trades, VWAP, events;
+  \item \textbf{Exit/close:} realize PnL into closed trades; update equity.
+\end{enumerate}
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  st/.style={draw, rounded corners, align=center, font=\small,
+    minimum width=2.1cm, minimum height=0.9cm, thick},
+  arr/.style={-{Latex}, thick}
+]
+  \node[st, fill=pynegray!15] (sub) {Submit};
+  \node[st, fill=pyneblue!12, right=1.0cm of sub] (pen) {Pending};
+  \node[st, fill=pyneorange!15, right=1.0cm of pen] (fil) {Fill};
+  \node[st, fill=pynegreen!12, right=1.0cm of fil] (pos) {Position\\/ Events};
+  \node[st, fill=white, below=1.1cm of fil] (x) {Exit /\\Closed trade};
+  \node[st, fill=pynegray!10, below=1.1cm of pen] (cx) {Cancel /\\Reject / OCA};
+  \draw[arr] (sub) -- (pen);
+  \draw[arr] (pen) -- (fil);
+  \draw[arr] (fil) -- (pos);
+  \draw[arr] (pos) -- (x);
+  \draw[arr] (pen) -- (cx);
+  \draw[arr] (sub) |- (cx);
+  \draw[arr] (x.west) -- ++(-1.0,0) |- (pos.west);
+\end{tikzpicture}
+\caption{Strategy order state machine (simplified): submissions become pending
+or fill; OCA/risk may cancel; fills update positions and eventually closed
+trades / equity.}
+\label{fig:order-sm}
+\end{figure}
+
+\subsection{Fill price with slippage}
+Let $p^{\star}$ be the raw trigger/fill price from OHLC logic and $d\in\{+1,-1\}$
+the signed side (buy positive). With \code{slippage} in ticks and mintick
+$\mu$:
+\begin{equation}
+  p_{\mathrm{fill}} = p^{\star} + d\cdot s\cdot\mu,
+  \label{eq:slip}
+\end{equation}
+where $s$ is the integer slippage tick count (zero disables).
+Market and stop/limit paths apply \eqref{eq:slip} consistently on interpret
+and compile brokers.
+
+\subsection{Commission models}
+Supported commission kinds (string aliases include
+\code{strategy.commission.*} forms):
+\begin{align}
+  C_{\mathrm{order}} &= c,
+  \label{eq:comm-order}\\
+  C_{\mathrm{contract}} &= c\cdot q,
+  \label{eq:comm-contract}\\
+  C_{\mathrm{percent}} &= c\cdot \frac{p_{\mathrm{fill}}\cdot q}{100},
+  \label{eq:comm-pct}
+\end{align}
+with commission rate $c$, quantity $q$, and fill price $p_{\mathrm{fill}}$.
+Net trade PnL subtracts entry and exit commissions as appropriate.
+
+\subsection{Default quantity}
+Default size resolution includes:
+\begin{itemize}[leftmargin=*]
+  \item \code{fixed}: constant contracts/units;
+  \item \code{cash}: $q = Q_{\mathrm{cash}} / p_{\mathrm{fill}}$;
+  \item \code{percent\_of\_equity}:
+    $q = E\cdot (\pi/100) / p_{\mathrm{fill}}$ for equity $E$ and percent $\pi$.
+\end{itemize}
+
+\subsection{Pyramiding and pending fills (F2 Round~7)}
+\label{sec:f2}
+Pyramiding bounds how many concurrent entries may stack.
+\pyne{} models \code{pyramiding} as maximum \emph{additional} entries
+($\mathrm{max\_open}=\mathrm{pyramiding}+1$); this is a deliberate modeling
+choice relative to some host document defaults and is recorded as a known
+semantic note.
+
+\paragraph{Market entries.}
+With $\mathrm{pyramiding}\le 0$, a second distinct entry id is blocked; same-id
+replace semantics apply on the market path.
+
+\paragraph{Pending fills (F2).}
+When $\mathrm{pyramiding}\le 0$, stacked pending fills in the same direction
+\emph{merge} into a single open trade with volume-weighted average price:
+\begin{equation}
+  p_{\mathrm{avg}}'
+  = \frac{p_{\mathrm{avg}}\cdot q + p_{\mathrm{fill}}\cdot q_f}{q+q_f},
+  \label{eq:vwap}
+\end{equation}
+retaining the first leg's entry id/bar/time, summing commissions, and
+emitting one entry event per fill.
+When $\mathrm{pyramiding}>0$, legs may append up to the cap; further fills are
+ignored.
+Compile broker locks \code{open\_entry\_count}=1 under $\mathrm{pyramiding}\le 0$
+for parity with interpret's single-leg book.
+
+\begin{algorithm}[t]
+\caption{ProcessPendingFills (pyramiding $\le 0$ merge path)}
+\label{alg:pending}
+\begin{algorithmic}[1]
+\Require Pending queue $Q$, bar OHLC, position state $\Pi$, pyramiding $p$
+\For{order $o\in Q$ triggered by OHLC}
+  \State $p_f,q_f \gets$ fill price/qty with slippage \& commission
+  \If{$p\le 0$ and same-direction open exists}
+    \State Merge: $q\gets q+q_f$;\; $p_{\mathrm{avg}}\gets$ VWAP \eqref{eq:vwap}
+    \State Accumulate commission; keep first entry metadata
+  \ElsIf{$p>0$ and open legs $< p+1$}
+    \State Append new open leg
+  \Else
+    \State Ignore fill / enforce cap
+  \EndIf
+  \State Emit entry/exit events; update equity
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Equity and PnL sketch}
+Let cash $K$, position quantity $q$ (signed), average entry $p_{\mathrm{avg}}$,
+and mark price $m$. Roughly:
+\begin{align}
+  E &\approx K + q\cdot(m-p_{\mathrm{avg}}) - C_{\mathrm{open}},
+  \label{eq:equity}\\
+  \mathrm{PnL}_{\mathrm{closed}}
+  &= q_c\cdot(p_{\mathrm{exit}}-p_{\mathrm{entry}}) - C_{\mathrm{entry}}
+    - C_{\mathrm{exit}}
+  \label{eq:pnl}
+\end{align}
+(with sign conventions for shorts). Closed trades populate
+\code{strategy.closedtrades} accessors used by scripts and tests.
+Exact free-cash definitions follow broker helpers (\code{cash} as equity minus
+capital locked in open exposure).
+
+\subsection{OCA and risk (high level)}
+One-Cancels-All groups cancel sibling orders on fill.
+Risk enforcement tests cover max drawdown / position limits style guards at
+the strategy surface (see \file{tests/test\_strategy\_risk\_enforcement.py}).
+Full broker feature parity with every proprietary host flag
+(\code{process\_orders\_on\_close}, \code{calc\_on\_every\_tick}, full margin)
+is out of scope; residual gaps are listed in Round~7 F2 notes.
+
+\subsection{Events}
+Strategy event streams record entries, exits, and related notifications for
+export and debugging; event-order goldens stabilize dual-host and regression
+behavior under pyramiding merges.
+
+%==============================================================================
+\section{Alerts and Drawing Resource Limits}
+\label{sec:alerts}
+%==============================================================================
+
+\subsection{Alerts}
+\code{alert()} and \code{alertcondition()} record structured alert objects
+with message, frequency, and context (e.g.\ bar index).
+Supported frequencies include:
+\begin{itemize}[leftmargin=*]
+  \item \code{once\_per\_bar} --- de-duplicate within the bar;
+  \item \code{once\_per\_bar\_close} --- fire on confirmed close semantics;
+  \item \code{all} --- fire on every trigger evaluation.
+\end{itemize}
+Tests in \file{tests/test\_alerts.py} cover registration, fire-on-true
+conditions, frequency modes, and export helpers.
+
+\subsection{Drawing garbage collection}
+Chart drawings are resource-capped to bound memory and match Pine declaration
+arguments:
+\begin{itemize}[leftmargin=*]
+  \item \code{max\_lines\_count}
+  \item \code{max\_labels\_count}
+  \item \code{max\_boxes\_count}
+  \item \code{max\_polylines\_count}
+\end{itemize}
+When counts exceed maxima, older primitives are reclaimed (GC), as exercised by
+\file{tests/test\_drawing\_gc.py}.
+These limits are part of observable script semantics: overflowing drawings
+disappear in order, which can affect visual-only strategies but not numeric
+series.
+
+%==============================================================================
+\section{Experimental Results}
+\label{sec:results}
+%==============================================================================
+
+\subsection{External numerical accuracy (Nov~2025)}
+Headline campaign results~\citep{pynescript2026}:
+\begin{center}
+\begin{tabular}{lr}
+\toprule
+Metric & Value \\
+\midrule
+TA indicators validated & $85+$ \\
+Total functions validated & $181$ \\
+Claimed numerical precision class & $\sim 99.999\%$ \\
+Maximum relative error & $0.0022\%$ (ADX, extreme vol) \\
+Mean relative error & $<0.0005\%$ \\
+Systematic bias & none detected \\
+Deterministic SMA/sums & $100\%$ exact \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsubsection{Category excerpts}
+\begin{center}
+\small
+\begin{tabular}{lrrrr}
+\toprule
+Indicator & Max err.\ (\%) & Mean (\%) & Std & Status \\
+\midrule
+\code{ta.sma} & $0.0000$ & $0.0000$ & $0$ & Exact \\
+\code{ta.ema} & $0.00008$ & $0.00002$ & $10^{-5}$ & Excellent \\
+\code{ta.wma} & $0.00005$ & $0.00001$ & $10^{-5}$ & Excellent \\
+\code{ta.rsi} & $0.0012$ & $0.0003$ & $2\cdot10^{-4}$ & Excellent \\
+\code{ta.macd} & $0.0015$ & $0.0004$ & $3\cdot10^{-4}$ & Excellent \\
+\code{ta.bb} & $0.0009$ & $0.0002$ & $10^{-4}$ & Excellent \\
+\code{ta.adx} & $0.0022$ & $0.0007$ & $5\cdot10^{-4}$ & Excellent \\
+\code{ta.atr} & $0.0006$ & $0.0001$ & $10^{-4}$ & Excellent \\
+\code{ta.obv} & $0.0000$ & $0.0000$ & $0$ & Exact \\
+\code{ta.stdev} & $0.0004$ & $0.0001$ & $10^{-4}$ & Excellent \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsubsection{Error distribution}
+Aggregated relative-error histogram over $8495$ test points:
+\begin{center}
+\small
+\begin{tabular}{lrr}
+\toprule
+Error range & Count & Share \\
+\midrule
+Exact $0$ & $3245$ & $38.2\%$ \\
+$<0.0001\%$ & $3890$ & $45.8\%$ \\
+$0.0001$--$0.001\%$ & $1180$ & $13.9\%$ \\
+$0.001$--$0.01\%$ & $165$ & $1.9\%$ \\
+$0.01$--$0.1\%$ & $15$ & $0.2\%$ \\
+$\ge 0.1\%$ & $0$ & $0.0\%$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+Median $\approx 0.00002\%$; $99$th percentile $\approx 0.00155\%$; maximum
+$0.0022\%$.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  ybar,
+  bar width=12pt,
+  width=0.92\linewidth,
+  height=6.2cm,
+  ylabel={Count},
+  xlabel={Relative error bin},
+  symbolic x coords={Exact,$<10^{-4}\%$,$10^{-4}$--$10^{-3}$,$10^{-3}$--$10^{-2}$,$10^{-2}$--$10^{-1}$,$\ge 0.1\%$},
+  xtick=data,
+  x tick label style={font=\scriptsize, rotate=18, anchor=east},
+  ymin=0,
+  ymax=4200,
+  nodes near coords,
+  every node near coord/.append style={font=\scriptsize},
+  grid=major,
+  major grid style={dotted,gray!40},
+]
+\addplot[fill=pyneblue!60] coordinates {
+  (Exact,3245)
+  ($<10^{-4}\%$,3890)
+  ($10^{-4}$--$10^{-3}$,1180)
+  ($10^{-3}$--$10^{-2}$,165)
+  ($10^{-2}$--$10^{-1}$,15)
+  ($\ge 0.1\%$,0)
+};
+\end{axis}
+\end{tikzpicture}
+\caption{Relative error distribution across the Nov~2025 multi-indicator
+campaign ($n=8495$). Over $84\%$ of points lie at exact zero or
+$<0.0001\%$ relative error; no points exceed the $0.1\%$ fail threshold.}
+\label{fig:err-hist}
+\end{figure}
+
+\subsection{Dual-host parity}
+Always-on smoke expanded to $17$ scripts (R8 harness work) including SMA/EMA,
+RSI, ATR, Bollinger, Supertrend, OBV, MFI, Williams $\%$R, and others under
+synthetic \code{make\_bars}---no value \code{MISMATCH} on the green set.
+Aligned kernels report max absolute error $\sim 10^{-11}$.
+Structural fill/background-only residuals are classified separately from true
+numeric mismatch.
+Known residual tails (e.g.\ stochastic type/na under some synthetic bars;
+nested EMA seed families) remain tracked rather than claimed green.
+
+\subsection{Strategy goldens}
+F2 pending-fill suite asserts:
+\begin{itemize}[leftmargin=*]
+  \item partial fills under $\mathrm{pyramiding}\le 0$ $\to$ single leg VWAP;
+  \item multiple pending orders merge size and average price;
+  \item short-side averaging;
+  \item $\mathrm{pyramiding}>0$ still appends legs up to cap;
+  \item close PnL uses merged average;
+  \item compile broker open-entry count and VWAP parity.
+\end{itemize}
+OCA/commission and risk enforcement tests provide additional regression locks.
+Interpret+compile strategy plot parity is exercised through the dual-host
+harness on strategy fixtures where applicable.
+
+\subsection{Compatibility context}
+Parser success is high on $138+$ real scripts; builtins are broad; strategy
+is functional.
+This is \emph{not} full TradingView platform parity (hosted chart, proprietary
+multi-symbol data, editor-only features)~\citep{pynescript2026}.
+
+%==============================================================================
+\section{Related Work}
+\label{sec:related}
+%==============================================================================
+
+\paragraph{Numerical reproducibility.}
+Higham's treatment of accuracy and stability~\citep{higham2002accuracy} and
+Numerical Recipes~\citep{press2007numerical} frame floating-point error as
+structural rather than incidental.
+IEEE~754~\citep{ieee754} standardizes formats and rounding modes underlying
+all \pyne{} numeric paths (Python floats / NumPy / Numba LLVM)~\citep{harris2020numpy,lam2015numba}.
+Our contribution is domain-specific: applying these classical tools to a
+trading \textsc{Dsl} dual runtime with published percent-error tables.
+
+\paragraph{Technical analysis computation.}
+Wilder's systems~\citep{wilder1978new}, Murphy's practitioner synthesis~\citep{murphy1999technical},
+and Bollinger's bands~\citep{bollinger2001} define much of the indicator surface.
+\pyne{} treats these as executable specifications subject to regression, not
+as marketing labels.
+
+\paragraph{Financial time series.}
+Tsay~\citep{tsay2010analysis} and Box--Jenkins~\citep{box1970time} provide
+statistical context for multi-regime market data used in validation.
+
+\paragraph{Backtester design.}
+Production backtesters vary widely in fill assumptions, latency modeling, and
+look-ahead control.
+We do not claim a novel market-simulator microstructure; we claim
+\emph{documented, tested} order semantics (slippage ticks, commission kinds,
+pyramiding, pending VWAP) aligned across two hosts inside one open toolchain.
+
+\paragraph{Compiler correctness.}
+Classical compiler texts emphasize semantic preservation~\citep{aho2006dragon,appeli1997modern}.
+Interpret$\leftrightarrow$compile parity is a lightweight, product-oriented
+analogue of translation validation for series outputs.
+
+%==============================================================================
+\section{Limitations}
+\label{sec:limits}
+%==============================================================================
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Not TradingView certification.}
+    Results are independent research measurements and dual-host self-consistency
+    checks. They do not constitute endorsement or platform certification by
+    TradingView, Inc.
+  \item \textbf{Residual \code{MISMATCH} tail.}
+    Some scripts (e.g.\ stochastic under particular synthetic bars) and nested
+    EMA seed families remain compatibility work items.
+  \item \textbf{Security data plane.}
+    Honest $\na$ for foreign symbols is correct under no-feed hosts but is not
+    a substitute for a full multi-asset data integration.
+  \item \textbf{Strategy model gaps.}
+    Full margin, every host order-processing flag, and exact TV default
+    pyramiding naming are not claimed identical.
+  \item \textbf{Oracle methodology.}
+    Nov~2025 external comparisons depend on exported reference series and
+    finite regimes; they do not exhaust all script-authored compositions.
+  \item \textbf{Performance vs.\ correctness.}
+    This paper does not evaluate wall-clock speed; compile exists for
+    performance~\citep{lam2015numba} but correctness is the present focus.
+\end{enumerate}
+
+%==============================================================================
+\section{Conclusion}
+\label{sec:concl}
+%==============================================================================
+
+Independent finance \textsc{Dsl} runtimes must prove more than parse coverage.
+We presented \pyne{}'s validation stack for numerical indicator fidelity,
+interpret$\leftrightarrow$compile parity, honest multi-asset NA policy, and
+strategy fill semantics including F2 pending-fill VWAP under pyramiding
+constraints.
+Measured errors sit far below practical trading thresholds for validated
+indicators; dual-host alignment reduces hot-kernel drift to float noise; and
+strategy goldens lock commission, OCA, risk, and averaging behavior.
+Future work includes shrinking the residual mismatch tail, deeper nested-EMA
+seed unification, richer multi-asset feeds under the same honesty rules, and
+broader strategy flag coverage---always with dual-host tests as a release gate.
+
+\paragraph{Artifacts.}
+Harness: \file{scripts/compare\_interp\_compile.py};
+tests: \file{tests/test\_interp\_compile\_parity.py},
+\file{tests/test\_order\_fills.py},
+\file{tests/test\_drawing\_gc.py},
+\file{tests/test\_alerts.py};
+project: \citep{pynescript2026}.
+
+%==============================================================================
+\section*{Acknowledgments}
+%==============================================================================
+We thank \pyne{} contributors and users who filed parity residuals and strategy
+edge cases. Errors remain the authors' responsibility.
+
+%==============================================================================
+\bibliographystyle{plainnat}
+\bibliography{../common/bibliography}
+
+\end{document}

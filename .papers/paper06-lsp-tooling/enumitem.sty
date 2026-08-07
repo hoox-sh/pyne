@@ -1,0 +1,14 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{enumitem}[2026/01/01 local stub]
+\DeclareOption*{}
+\ProcessOptions\relax
+% Accept enumitem-like optional args by ignoring unknown keys via a simple redefine.
+% Standard enumerate/itemize already support [leftmargin=*]-like via enumitem;
+% without it, strip optional args that would error.
+\let\enit@enumerate\enumerate
+\let\enit@endenumerate\endenumerate
+\let\enit@itemize\itemize
+\let\enit@enditemize\enditemize
+\renewenvironment{enumerate}[1][]{\enit@enumerate}{\enit@endenumerate}
+\renewenvironment{itemize}[1][]{\enit@itemize}{\enit@enditemize}
+\endinput

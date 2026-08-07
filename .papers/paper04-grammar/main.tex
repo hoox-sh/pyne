@@ -1,0 +1,1039 @@
+% Formalizing a Charting DSL: ANTLR4 Grammar Engineering and ASDL Intermediate
+% Representations for Pine Script
+% arXiv cs.PL language implementation paper (PYNE series, paper04-grammar)
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+
+\input{../common/macros.tex}
+
+\hypersetup{
+  pdftitle={Formalizing a Charting DSL: ANTLR4 Grammar Engineering and ASDL Intermediate Representations for Pine Script},
+  pdfauthor={HOOX Research / PYNE Contributors},
+  pdfkeywords={grammar engineering, ANTLR, ASDL, abstract syntax trees, parse-unparse round-trip, domain-specific languages, Pine Script}
+}
+
+\title{%
+  Formalizing a Charting DSL:\\
+  \large ANTLR4 Grammar Engineering and ASDL Intermediate Representations\\
+  for \pine{}
+}
+\author{%
+  HOOX Research / \pyne{} Contributors\\
+  \texttt{jango\_blockchained}\\
+  Independent Open Source Research\\
+  \texttt{contact@hoox.sh}
+}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Domain-specific languages (DSLs) for financial charting combine expression-oriented
+semantics with significant whitespace, versioned surface syntax, and a dense
+builtin surface inventory. Building reliable tooling---parsers, formatters, linters,
+language servers, and interpreters---requires a front-end that is both faithful to
+community scripts and amenable to static analysis.
+We present the language front-end of \pyne{} (package \texttt{hoox-pyne}), an
+independent open toolchain for \pine{}: a hand-engineered \antlr{} grammar with
+Python-side indent tracking, a Zephyr-\asdl{} abstract syntax tree (AST) schema,
+a visitor-based parse-tree builder, a precedence-aware unparser, a structural
+linter, and a qualifier-aware type model.
+The pipeline is
+\[
+  \text{source}
+  \to \text{FileStream/InputStream}
+  \to \text{Lexer}
+  \to \text{CommonTokenStream}
+  \to \text{Parser}
+  \to \text{parse tree}
+  \to \text{AST builder}
+  \to \asdl{}\ \ast
+  \to \text{annotations}
+  \to \text{unparse}.
+\]
+Hand-edited artifacts are limited to \file{antlr4/resource/*.g4} and
+\file{asdl/resource/Pinescript.asdl}; generated lexer/parser and node classes are
+committed so end users need no Java toolchain.
+We detail SLL-first / LL-fallback prediction (\(\approx 5.4\times\) on complex
+scripts), annotation attachment for \code{//@version} and related markers,
+parse-cache design (SHA-256 LRU with call-site scrubbing; multi-parse
+\(\approx 1000\times\) on hits), unparser thread-local reuse
+(\(\approx 1.95\times\) on a 99-script corpus), corpus sanitization for scraped
+sources, and evaluation against \(138+\) real scripts with \(1100+\) automated
+tests in the broader project.
+The grammar is approximate and unofficial: \pyne{} is not affiliated with
+TradingView, Inc.
+\end{abstract}
+
+\paragraph{Keywords.}
+grammar engineering, ANTLR, ASDL, abstract syntax trees, parse--unparse
+round-trip, domain-specific languages, \pine{}
+
+\paragraph{Disclaimer.}
+\trademarknote{}
+
+%==============================================================================
+\section{Introduction}
+\label{sec:intro}
+%==============================================================================
+
+Charting and algorithmic trading communities rely on specialized languages that
+embed market data series, drawing primitives, and strategy execution into a
+compact surface syntax~\citep{fowler2010dsl,hudak1996dsl,tradingview-pine}.
+\pine{} is one such language: scripts are short relative to general-purpose
+codebases yet dense in temporal operators, qualifiers (\code{const},
+\code{simple}, \code{series}, \code{input}), user-defined types (UDTs), methods,
+and (from v6) enums and multiline strings.
+Tooling that merely tokenizes for editor highlighting is insufficient for
+format-on-save, structural search, type-directed completion, or faithful
+interpretation~\citep{lsp2023,nystrom2021crafting}.
+
+\pyne{}~\citep{pynescript2026} is an independent, AGPL-licensed implementation of a
+\pine{} toolchain in Python. This paper isolates the \emph{language front-end}:
+everything from source text to a stable \asdl{} tree and back, including the
+grammar engineering practices that make the rest of the stack possible.
+Companion papers in the series address overall architecture, compilation to
+\numba{}, series runtime semantics, strategy parity, and LSP integration; here
+we focus on:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Grammar design} for a whitespace-significant, expression-oriented
+    charting DSL, including indent tokens, string forms, colors, and v6 surface
+    extensions.
+  \item \textbf{\asdl{} intermediate representation} as a single source of truth
+    for node shapes, shared by the builder, unparser, linter, evaluator, and
+    compiler.
+  \item \textbf{Construction and unparsing} with annotation attachment and
+    precedence-aware pretty-printing.
+  \item \textbf{Static analysis hooks}: a rule-based linter and a type model for
+    qualifiers, collections, and UDTs.
+  \item \textbf{Corpus engineering}: sanitization of scraped community sources
+    and a regeneration workflow that keeps generated artifacts reproducible.
+  \item \textbf{Evaluation}: parse success, round-trip stability, and
+    performance tables for SLL/LL, unparse, and cache warm paths.
+\end{enumerate}
+
+\paragraph{Contributions.}
+\begin{itemize}[leftmargin=*]
+  \item A documented \antlr{} grammar and lexer base for \pine{} v5/v6 surface
+    features, with generated Python targets committed for zero-Java installs.
+  \item An \asdl{} schema and visitor infrastructure analogous to CPython's
+    \code{ast} module~\citep{asdl-python,wang1997asdl}.
+  \item A lossless-enough round-trip for structure and \code{//@}-annotations,
+    powering CLI format and LSP document formatting.
+  \item Measured front-end optimizations (SLL-first parse, annotation skip,
+    thread-local unparser, SHA-256 parse cache) with correctness checks via
+    AST dump identity and re-parse stability.
+\end{itemize}
+
+%==============================================================================
+\section{Background}
+\label{sec:background}
+%==============================================================================
+
+\subsection{Pine surface evolution (v1--v6)}
+\label{sec:pine-evolution}
+
+\pine{} evolved from a narrow indicator dialect into a multiparadigm charting
+language~\citep{tradingview-pine}. Early versions emphasized single-line
+expressions and a small set of drawing builtins. Later major versions introduced:
+
+\begin{description}[style=nextline,leftmargin=1.2em]
+  \item[v3--v4]
+    Multi-line scripts, \code{var} persistence, expanded \code{security}
+    patterns, and broader strategy APIs.
+  \item[v5]
+    Namespaced builtins (\code{ta.*}, \code{math.*}, \code{strategy.*}, \ldots),
+    libraries (\code{import} / \code{export}), methods, UDTs (\code{type}),
+    \code{switch}, and richer type annotations on parameters.
+  \item[v6]
+    \code{enum} declarations; triple-quoted multiline strings
+    (\code{"""\ldots"""} / \code{'''\ldots'''}); stricter boolean typing;
+    integer division producing floats in more contexts; collection helpers such
+    as \code{sort\_field} on \code{array}/\code{matrix} sort; and continued
+    library-surface growth.
+\end{description}
+
+Community scripts frequently mix versions, rely on soft conventions (camelCase
+identifiers, trailing commas), and embed annotation comments
+(\code{//@version=6}, \code{//@description}, \code{//@function}) that are not
+ordinary statements yet must survive tooling passes.
+
+\subsection{Challenges of a whitespace-significant, expression-oriented DSL}
+\label{sec:challenges}
+
+From a language-implementation perspective~\citep{aho2006dragon,cooper2012engineering,nystrom2021crafting},
+\pine{} combines several properties that stress classical parser generators:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Indentation as structure.}
+    Blocks after \code{if}/\code{for}/\code{while}/\code{switch}/\code{type}/
+    \code{enum}/\code{=>} use Python-like INDENT/DEDENT tokens. Indent width is
+    conventionally four spaces; line wrapping may use non-multiple-of-four
+    indents that must \emph{not} introduce structure.
+  \item \textbf{Structures as expressions.}
+    \code{if}, \code{for}, \code{switch}, and related forms appear both as
+    statements and as right-hand sides of assignments (``structure
+    expressions''), so the grammar cannot segregate expression and statement
+    nonterminals as cleanly as C or Java.
+  \item \textbf{Soft keywords and contextual tokens.}
+    Names such as type constructors interact with primary-expression suffixes
+    (attributes, calls, subscripts, template specs like \code{array.new<float>}).
+  \item \textbf{Literal diversity.}
+    Numbers (decimal/binary/octal/hex, floats, optional underscores), colors
+    (\code{\#RRGGBB}, \code{\#RRGGBBAA}), and strings (escaped single-line and
+    v6 triple-quoted multiline) coexist with comment channels and paste noise.
+  \item \textbf{Versioned semantics outside pure syntax.}
+    Boolean strictness and division typing are semantic; the front-end must
+    still accept the surface forms so later stages can apply version policy.
+  \item \textbf{Scraped corpora.}
+    Real evaluation sets often arrive wrapped in markdown fences, UI chrome
+    (``Expand (\(N\) lines)''), prose, and HTML---not clean \code{.pine} files.
+\end{enumerate}
+
+These challenges motivate a hybrid design: ANTLR for adaptive \(\mathrm{LL}(*)\)
+parsing~\citep{parr2013antlr,parr2011allstar}, a hand-written lexer base for
+indent and newline policy, and an \asdl{} IR that decouples consumers from
+parse-tree volatility~\citep{wang1997asdl,asdl-python}.
+
+%==============================================================================
+\section{Grammar Design}
+\label{sec:grammar}
+%==============================================================================
+
+\subsection{Artifact layout and generation}
+\label{sec:artifact-layout}
+
+The front-end distinguishes \emph{hand-edited resources} from
+\emph{generated, committed} products:
+
+\begin{center}
+\small
+\begin{tabular}{@{}llp{0.48\textwidth}@{}}
+\toprule
+Kind & Path (under \file{src/pynescript/ast/grammar/}) & Role \\
+\midrule
+Hand & \file{antlr4/resource/PinescriptLexer.g4} & Tokens, fragments, channels \\
+Hand & \file{antlr4/resource/PinescriptParser.g4} & Syntactic productions \\
+Hand & \file{antlr4/resource/PinescriptLexerBase.py} & Indent / newline engine \\
+Hand & \file{antlr4/resource/PinescriptParserBase.py} & Parser super-class hooks \\
+Hand & \file{asdl/resource/Pinescript.asdl} & Node schema \\
+Generated & \file{antlr4/generated/*} & Python lexer/parser/visitor \\
+Generated & \file{asdl/generated/*} & Node classes \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Regeneration uses project tooling (e.g.\ \code{hatch run lint:gen-parser});
+committing generated Python removes the Java/ANTLR runtime dependency for
+ordinary installs~\citep{parr2013antlr,antlr4}.
+
+Figure~\ref{fig:pipeline} summarizes the end-to-end front-end pipeline.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw, rounded corners=2pt, align=center, inner sep=5pt,
+    minimum height=0.85cm, fill=codebg},
+  arr/.style={-{Latex}, thick, pyneblue}
+]
+\node[box] (src) {Pine source};
+\node[box, right=0.45cm of src] (fs) {InputStream\\/FileStream};
+\node[box, right=0.45cm of fs] (lex) {PinescriptLexer\\(+ LexerBase)};
+\node[box, right=0.45cm of lex] (cts) {CommonToken\\Stream};
+\node[box, below=0.7cm of cts] (par) {PinescriptParser\\SLL \(\to\) LL};
+\node[box, left=0.45cm of par] (pt) {Parse tree};
+\node[box, left=0.45cm of pt] (bld) {ASTBuilder\\visit\_*};
+\node[box, left=0.45cm of bld] (astn) {\asdl{} AST\\+ annotations};
+\node[box, below=0.7cm of astn] (unp) {Unparser};
+\node[box, right=0.45cm of unp] (out) {Pine source};
+\draw[arr] (src) -- (fs);
+\draw[arr] (fs) -- (lex);
+\draw[arr] (lex) -- (cts);
+\draw[arr] (cts) -- (par);
+\draw[arr] (par) -- (pt);
+\draw[arr] (pt) -- (bld);
+\draw[arr] (bld) -- (astn);
+\draw[arr] (astn) -- (unp);
+\draw[arr] (unp) -- (out);
+\draw[arr, dashed, pyneorange] (out.north) to[bend left=20] node[above, font=\scriptsize, text=pynegray]{round-trip} (src.south);
+\end{tikzpicture}
+\caption{Front-end pipeline: lex \(\to\) parse \(\to\) build \(\to\) annotate
+\(\to\) unparse. Solid arrows form the primary data path; the dashed arrow
+denotes structural round-trip used by formatters and tests.}
+\label{fig:pipeline}
+\end{figure}
+
+\subsection{Lexical structure}
+\label{sec:lexical}
+
+\subsubsection{Keywords, operators, and channels}
+The lexer grammar declares keywords (\code{and}, \code{or}, \code{var},
+\code{varip}, \code{type}, \code{method}, \code{enum}, \ldots), multi-character
+operators before single-character ones (so longest-match prefers \code{<=} over
+\code{<}), bitwise operators (\code{\&}, \code{|}, \code{\^{}}, \code{<<},
+\code{>>}, \code{\~}), and assignment forms (\code{=}, \code{:=},
+\code{+=}, \ldots).
+Comments travel on \code{COMMENT\_CHANNEL}; whitespace is \code{HIDDEN}.
+Additional robustness rules accept \code{\#}-style line comments when not
+part of a color literal, markdown backticks as comment noise, and selected
+Unicode punctuation as hidden ``paste noise.''
+
+\subsubsection{Indentation tracking}
+\code{PinescriptLexerBase} (Python super-class of the generated lexer)
+implements the indent engine:
+
+\begin{itemize}[leftmargin=*]
+  \item Stack of indent lengths; emit synthetic \code{INDENT}/\code{DEDENT}
+    tokens when structure changes.
+  \item Ignore newlines inside open \code{(}/\code{[}, after operators (line
+    continuation), and for wraps whose indent is not a multiple of four.
+  \item Collapse consecutive newlines; ensure a trailing newline at EOF.
+  \item Special handling of multiline string literals so wrap indentation does
+    not become structural.
+\end{itemize}
+
+This design mirrors classical off-side-rule lexers~\citep{aho2006dragon} while
+remaining local to the ANTLR token stream.
+
+\subsubsection{Strings, colors, numbers, identifiers}
+Listing~\ref{lst:lexer-strings} excerpts the v6 triple-quote rules and color
+fragments. Numbers support base prefixes and digit separators; identifiers use
+Unicode letter classes (\code{\textbackslash p\{L\}}) so non-ASCII names in
+community scripts parse cleanly.
+
+\begin{lstlisting}[style=pine,caption={Lexer excerpts: triple-quoted strings and color literals (simplified from \texttt{PinescriptLexer.g4}).},label={lst:lexer-strings},language={}]
+// v6 multiline triple-quoted strings
+TRIPLE_DQ_STRING : '"""' ( ~'"' | '"' ~'"' | '""' ~'"' )* '"""' -> type(STRING) ;
+TRIPLE_SQ_STRING : '\'\'\'' ( ~'\'' | '\'' ~'\'' | '\'\'' ~'\'' )* '\'\'\'' -> type(STRING) ;
+
+// #RRGGBB or #RRGGBBAA (HASH_COMMENT must not steal these)
+fragment COLOR_LITERAL_RGBA : '#' HEX_DIGIT{8} ;
+fragment COLOR_LITERAL_RGB  : '#' HEX_DIGIT{6} ;
+\end{lstlisting}
+
+\subsection{Syntactic productions}
+\label{sec:syntax}
+
+\subsubsection{Scripts and statement forms}
+Start rules are \code{start\_script} (full program, mode \code{exec}) and
+\code{start\_expression} (mode \code{eval}). A script is a sequence of
+statements: compound forms (assignments with structure RHSs, type/enum/method/
+function declarations, control structures) and simple statements (assignments,
+expressions, imports, \code{break}/\code{continue}), optionally packed on one
+line with commas. A distinctive production,
+\code{trailing\_structure\_statements}, accepts real-world lines such as
+\begin{lstlisting}[style=pine,numbers=none]
+Ex = 0.0, Ey = 0.0, for i = 0 to n
+    ...
+\end{lstlisting}
+
+\subsubsection{Declarations: functions, methods, types, enums}
+Function and method declarations use \code{=>} and a local block (indented or
+inline). Optional leading type specifications encode return types
+(\code{int ilog2(int n) => \ldots}). Type declarations introduce UDT fields under
+INDENT/DEDENT; enum declarations introduce member definitions with optional
+values. \code{export} prefixes support library authors.
+
+\subsubsection{Expressions}
+Expressions are layered by precedence (Figure~\ref{fig:syntax-overview}):
+conditional (ternary), disjunction, conjunction, bitwise OR/XOR/AND, equality,
+inequality, shifts, additive, multiplicative, unary, and primary
+(attribute/call/subscript/template). Logical \code{and} binds less tightly than
+bitwise OR, matching Pine's C-like bitwise layering. Primary expressions use
+labeled alternatives for attribute, call, and subscript forms.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\scriptsize,
+  level 1/.style={sibling distance=3.6cm, level distance=1.1cm},
+  level 2/.style={sibling distance=1.7cm, level distance=1.0cm},
+  level 3/.style={sibling distance=1.1cm, level distance=0.9cm},
+  every node/.style={draw, rounded corners=1pt, align=center, fill=codebg, inner sep=2pt}
+]
+\node {script}
+  child { node {stmt}
+    child { node {compound\\decl/ctrl} }
+    child { node {simple\\assign/expr} }
+    child { node {trailing\\structure} }
+  }
+  child { node {expr}
+    child { node {ternary} }
+    child { node {bool/bitwise} }
+    child { node {arith/compare} }
+    child { node {primary\\attr/call/[]} }
+  }
+  child { node {type forms}
+    child { node {UDT} }
+    child { node {enum} }
+    child { node {method} }
+  };
+\end{tikzpicture}
+\caption{Hierarchical overview of major syntactic families in
+\file{PinescriptParser.g4}. Structures double as expressions on assignment RHSs.}
+\label{fig:syntax-overview}
+\end{figure}
+
+Listing~\ref{lst:g4-fn} shows the function and enum productions.
+
+\begin{lstlisting}[style=pine,caption={Parser productions for functions and enums (from \texttt{PinescriptParser.g4}).},label={lst:g4-fn},language={}]
+function_declaration
+  : EXPORT? type_specification? name LPAR parameter_list? RPAR RARROW local_block ;
+
+enum_declaration
+  : EXPORT? ENUM name NEWLINE INDENT enum_definitions DEDENT ;
+
+enum_definition: name_store (EQUAL expression)? NEWLINE ;
+\end{lstlisting}
+
+\subsection{SLL / LL prediction strategy}
+\label{sec:sll}
+
+ANTLR's adaptive \(\mathrm{LL}(*)\) engine can fall into expensive full-context
+prediction on ambiguous decision points~\citep{parr2011allstar,parr2013antlr}.
+\pyne{} uses the standard two-stage strategy in \file{helper.py}:
+
+\begin{enumerate}[leftmargin=*]
+  \item Parse with \code{PredictionMode.SLL} and \code{BailErrorStrategy}.
+  \item On \code{ParseCancellationException}: \code{token\_stream.seek(0)},
+    \code{parser.reset()}, switch to \code{PredictionMode.LL} with
+    \code{DefaultErrorStrategy}, and re-parse.
+\end{enumerate}
+
+On stratified mid-size scripts, SLL-first produced identical AST dumps to
+pure LL with zero fallbacks in the measured sample, while reducing wall time by
+approximately \(5.4\times\) (Section~\ref{sec:eval}). Strategy instances and a
+shared builder are reused to avoid per-parse allocation.
+
+\subsection{Error listeners}
+\label{sec:errors}
+
+\code{PinescriptErrorListener} is a singleton attached to both lexer and
+parser after default listeners are removed. Syntax failures surface as
+\code{pynescript.ast.error.SyntaxError} with optional
+\code{SyntaxErrorDetails} (filename, line, column, source excerpt). Indentation
+violations raise a dedicated \code{IndentationError}. The linter maps these
+structured locations into diagnostic chips for editors (Section~\ref{sec:static}).
+
+%==============================================================================
+\section{ASDL Intermediate Representation}
+\label{sec:asdl}
+%==============================================================================
+
+\subsection{Schema philosophy}
+\label{sec:asdl-philosophy}
+
+Zephyr ASDL~\citep{wang1997asdl} describes tree shapes as sum and product types.
+Python's compiler has long used ASDL for the \code{ast} module~\citep{asdl-python};
+\pyne{} follows the same pattern so that:
+
+\begin{itemize}[leftmargin=*]
+  \item Node classes are generated, not hand-synchronized.
+  \item Location attributes (\code{lineno}, \code{col\_offset},
+    \code{end\_lineno}, \code{end\_col\_offset}) are uniform.
+  \item Visitors and transformers can be written once against a stable API.
+\end{itemize}
+
+The module root distinguishes full scripts from expression-mode trees:
+
+\begin{lstlisting}[style=python,caption={ASDL module root and statement taxonomy (excerpt from \texttt{Pinescript.asdl}).},label={lst:asdl}]
+module Pinescript
+{
+  mod = Script(stmt* body, string* annotations)
+      | Expression(expr body)
+
+  stmt = FunctionDef(identifier name, param* args, stmt* body,
+                     int? method, int? export, string* annotations)
+       | TypeDef(identifier name, stmt* body, int? export, string* annotations)
+       | EnumDef(identifier name, stmt* body, int? export, string* annotations)
+       | Assign(expr target, expr? value, expr? type, decl_mode? mode,
+                int? export, string* annotations)
+       | ReAssign(expr target, expr value)
+       | AugAssign(expr target, operator op, expr value)
+       | Import(identifier namespace, identifier name, int version,
+                identifier? alias)
+       | Expr(expr value) | Break | Continue
+       attributes (int lineno, int col_offset,
+                   int? end_lineno, int? end_col_offset)
+  ...
+}
+\end{lstlisting}
+
+\subsection{Node taxonomy}
+\label{sec:taxonomy}
+
+Figure~\ref{fig:asdl-tree} sketches the conceptual hierarchy.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  edge from parent/.style={draw, -{Latex}, thick, pyneblue},
+  level 1/.style={sibling distance=4.2cm, level distance=1.25cm},
+  level 2/.style={sibling distance=1.55cm, level distance=1.15cm},
+  every node/.style={draw, rounded corners=2pt, align=center, fill=white,
+    inner sep=3pt, minimum height=0.55cm}
+]
+\node[fill=pyneorange!15] {AST}
+  child { node[fill=pyneblue!12] {mod}
+    child { node {Script} }
+    child { node {Expression} }
+  }
+  child { node[fill=pynegreen!12] {stmt}
+    child { node {Assign\\ReAssign} }
+    child { node {FunctionDef\\Method} }
+    child { node {TypeDef\\EnumDef} }
+    child { node {Import\\Ctrl} }
+  }
+  child { node[fill=codebg] {expr}
+    child { node {BinOp\\BoolOp} }
+    child { node {Call\\Name} }
+    child { node {If/For/\\Switch} }
+    child { node {Qualify\\Specialize} }
+  };
+\end{tikzpicture}
+\caption{\asdl{} node hierarchy (conceptual). Control structures are
+expression nodes when used as values; declarations live under \texttt{stmt}.
+Auxiliary products include \texttt{param}, \texttt{arg}, \texttt{case}, and
+\texttt{Comment}.}
+\label{fig:asdl-tree}
+\end{figure}
+
+\paragraph{Expressions.}
+Algebraic nodes (\code{BoolOp}, \code{BinOp}, \code{UnaryOp}, \code{Compare},
+\code{Conditional}) coexist with \code{Call}, \code{Attribute},
+\code{Subscript}, \code{Name}, \code{Tuple}, and \code{Constant}. Control forms
+\code{If}, \code{ForTo}, \code{ForIn}, \code{While}, and \code{Switch} are
+\emph{expressions} in the schema, reflecting Pine's expression-oriented
+structures. Type constructors use \code{Qualify} (const/input/simple/series)
+and \code{Specialize} (generic arguments).
+
+\paragraph{Enums of operators and modes.}
+\code{decl\_mode} \(\in \{\code{Var},\code{VarIp}\}\);
+\code{type\_qual} \(\in \{\code{Const},\code{Input},\code{Simple},\code{Series}\}\);
+\code{expr\_context} \(\in \{\code{Load},\code{Store}\}\); plus operator,
+boolean, unary, and comparison enumerations including bitwise forms.
+
+\subsection{Visitor and transformer patterns}
+\label{sec:visitor}
+
+\code{NodeVisitor} dispatches on concrete types with a type-object method cache
+(avoiding class-name string lookups). \code{NodeTransformer} rewrites trees
+bottom-up: returning \code{None} removes a node; returning an AST replaces it;
+returning a list splices into list fields~\citep{gamma1994design,asdl-python}.
+Helpers \code{walk}, \code{iter\_fields}, and \code{iter\_child\_nodes} support
+ad hoc analysis without subclassing. The unparser and several evaluator passes
+are visitors; desugaring and future IR lowers can be transformers.
+
+%==============================================================================
+\section{AST Construction}
+\label{sec:builder}
+%==============================================================================
+
+\subsection{Builder mapping: parse tree \(\to\) ASDL}
+\label{sec:builder-map}
+
+\code{PinescriptASTBuilder} extends the ANTLR-generated
+\code{PinescriptParserVisitor}. Each \code{visit\_*} method maps a parser
+context to one or more ASDL nodes. Design choices include:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Singleton operator/context nodes} (\code{Load}, \code{Store},
+    \code{Add}, \ldots) to reduce allocation on hot paths.
+  \item \textbf{Location attachment} from start/stop tokens, with a single-line
+    fast path when the stop token contains no newline.
+  \item \textbf{Store contexts} on assignment targets (names, attributes,
+    subscripts, tuples).
+  \item \textbf{Number and string decoding} for \code{Constant} values, including
+    multiline string normalization.
+  \item \textbf{Shared builder instance} across parses (stateless visits).
+\end{itemize}
+
+Deeply nested ternaries raise the recursion limit temporarily to 5000 during
+walk and build.
+
+\subsection{Annotation attachment}
+\label{sec:annotations}
+
+Annotation comments (\code{//@\ldots}) are not productions in the statement
+grammar. After a successful \code{exec}-mode build, the helper:
+
+\begin{enumerate}[leftmargin=*]
+  \item Skips the entire annotation pass if the source contains no \code{@}
+    (cheap filter for micro-snippets and many fixtures).
+  \item Collects statement nodes via \code{StatementCollector}.
+  \item Scans the token stream for \code{COMMENT} tokens containing \code{@},
+    classifying kind/value via \code{PinescriptCommentParser}.
+  \item Orders comments and statements by \((\mathit{lineno},\mathit{col})\),
+    groups consecutive comments, and attaches them to the following node.
+\end{enumerate}
+
+Script-level annotations (kind suffix \code{S}) populate
+\code{Script.annotations}; function (\code{F}), type (\code{T}), and variable
+(\code{V}) annotations attach to the corresponding statement nodes.
+Algorithm~\ref{alg:annot} abstracts the attachment procedure.
+
+\begin{algorithm}[t]
+\caption{AnnotationAttachment}
+\label{alg:annot}
+\begin{algorithmic}[1]
+\Require Script AST \(T\), source text \(S\), token stream \(\tau\)
+\Ensure Annotations attached on \(T\) and eligible statements
+\If{\(``@'' \notin S\)}
+  \State \Return \(T\) \Comment{no annotation comments possible}
+\EndIf
+\State \(\mathit{stmts} \gets \mathrm{StatementCollector}(T)\)
+\State \(\mathit{cmts} \gets \{\,c \in \tau \mid c.\mathrm{type}=\mathrm{COMMENT} \land ``@" \in c.\mathrm{text}\,\}\)
+\State \(\mathit{items} \gets \mathrm{sort}(\mathit{cmts} \cup \mathit{stmts}\ \mathrm{by}\ (\mathit{line},\mathit{col}))\)
+\State Group consecutive comments vs.\ statements
+\State Attach script-level \code{@*S} comments to \(T.\mathrm{annotations}\)
+\For{each (comment group \(G\), statement \(s\)) pair}
+  \State Attach \(G\) filtered by kind suffix to \(s.\mathrm{annotations}\) if applicable
+\EndFor
+\State \Return \(T\)
+\end{algorithmic}
+\end{algorithm}
+
+Round-trip emits these annotation strings as full lines before the relevant
+construct, preserving version directives and documentation markers used by the
+LSP hover surface.
+
+%==============================================================================
+\section{Unparsing and Formatting}
+\label{sec:unparse}
+%==============================================================================
+
+\subsection{Pretty-printing model}
+\code{NodeUnparser} walks the ASDL tree and appends source fragments to a list
+buffer. Operator precedence is tracked with a \code{Precedence} lattice so
+parentheses appear only when required for associativity or binding strength.
+Binary operators assign the next-lower precedence on the right-hand child to
+keep left-associative chains free of redundant parentheses.
+
+\paragraph{Normalization policy.}
+The round-trip goal is \emph{semantic and structural} fidelity, not
+byte-identical reproduction:
+
+\begin{itemize}[leftmargin=*]
+  \item Indentation is four spaces; operators are spaced consistently.
+  \item Free-floating non-annotation comments may move or drop.
+  \item Multiline string constants prefer triple-quoted forms when they contain
+    newlines.
+  \item Annotation lists on script/function/type/assign nodes are re-emitted.
+\end{itemize}
+
+Figure~\ref{fig:roundtrip} depicts the intended commutative diagram for
+formatters and tests.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw, rounded corners=2pt, align=center, inner sep=6pt,
+    minimum width=2.4cm, fill=codebg},
+  arr/.style={-{Latex}, thick}
+]
+\node[box] (s1) {Source \(s\)};
+\node[box, right=3.2cm of s1] (t1) {AST \(T\)};
+\node[box, below=1.6cm of t1] (s2) {Source \(s'\)};
+\node[box, below=1.6cm of s1] (t2) {AST \(T'\)};
+\draw[arr, pyneblue] (s1) -- node[above]{\scriptsize parse} (t1);
+\draw[arr, pynegreen] (t1) -- node[right]{\scriptsize unparse} (s2);
+\draw[arr, pyneblue] (s2) -- node[below]{\scriptsize parse} (t2);
+\draw[arr, pyneorange, dashed] (s1) -- node[left, align=center]
+  {\scriptsize structural\\[-1pt]\scriptsize equivalence} (t2);
+\draw[arr, pynegray, dashed] (t1) -- node[above, sloped]{\scriptsize \(\approx\)} (t2);
+\end{tikzpicture}
+\caption{Round-trip commutative diagram. Formatters implement
+\(s \mapsto s' = \mathrm{unparse}(\mathrm{parse}(s))\); tests require
+\(\mathrm{parse}(s')\) to match \(\mathrm{parse}(s)\) up to agreed normal forms
+(and often check re-parse stability of \(s'\)).}
+\label{fig:roundtrip}
+\end{figure}
+
+\subsection{Performance engineering}
+Unparse micro-benchmarks on a 99-script corpus showed dispatch and buffer
+construction dominating. Optimizations include:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Thread-local reuse} of a single \code{NodeUnparser} (resets
+    buffers between calls; keeps type\(\to\)method cache warm).
+  \item \textbf{Type-keyed dispatch} instead of class-name strings.
+  \item \textbf{Precomputed indent prefixes} and operator token strings.
+  \item \textbf{Lightweight context managers} for delimiters/blocks (avoiding
+    \code{contextlib} generator overhead on every parenthesized subexpression).
+\end{itemize}
+
+These changes yielded approximately \(1.95\times\) higher unparse throughput on
+the corpus loop (Section~\ref{sec:eval}) with byte-identical output relative to
+the pre-optimization unparser.
+
+\subsection{LSP formatting}
+The language server exposes document formatting as parse \(\to\) unparse,
+reusing the same path as the CLI \code{format} and \code{parse-and-unparse}
+commands~\citep{lsp2023,pynescript2026}. Because annotations survive the
+builder post-pass, version headers remain at the top of formatted buffers.
+
+%==============================================================================
+\section{Static Analysis}
+\label{sec:static}
+%==============================================================================
+
+\subsection{Linter rules}
+\label{sec:linter}
+
+\code{PineLinter} combines a full parse with lightweight regex heuristics.
+Rule codes use prefixes \(\mathrm{E}\) (errors), \(\mathrm{W}\) (warnings),
+and \(\mathrm{C}\) (style). Table~\ref{tab:lint} lists the built-in rules
+(nine-plus checks spanning syntax, version, deprecation, naming, and style).
+
+\begin{table}[t]
+\centering
+\caption{Built-in linter rules (structural and style).}
+\label{tab:lint}
+\small
+\begin{tabular}{@{}clp{0.55\textwidth}@{}}
+\toprule
+Code & Severity & Description \\
+\midrule
+E001 & error & Syntax error from \code{parse} (with line/column when known) \\
+W001 & warning & Missing \code{//@version} declaration \\
+W002 & warning & Version \(< 5\) deprecated; suggest v5/v6 \\
+W101 & warning & Legacy \code{security(} pattern; prefer \code{request.security} \\
+W102 & warning & Histogram plot style suggestion \\
+W103 & warning & \code{var int x = na} initialization style \\
+C001 & style & \code{ta.*} assignment naming heuristic (camelCase) \\
+C002 & style & Line length \(> 120\) \\
+C003 & style & Single-line indented \code{if} style caution \\
+C004 & style & File should end with newline \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The linter is intentionally not a full type checker: it provides fast editor
+feedback and CI gates, while deeper type modeling lives in
+\file{type\_system.py}.
+
+\subsection{Type system overview}
+\label{sec:types}
+
+The type model represents:
+
+\begin{description}[style=nextline,leftmargin=1.2em]
+  \item[Qualifiers]
+    \code{TypeQualifier}: \code{const}, \code{simple}, \code{series},
+    \code{input}.
+  \item[Builtin scalars]
+    \code{int}, \code{float}, \code{bool}, \code{string}, \code{color},
+    \code{na}, and v6 \code{enum}.
+  \item[Collections]
+    \code{ArrayType}, \code{MatrixType}, and map-like structures with element
+    (and key/value) parameters.
+  \item[UDTs]
+    \code{UserDefinedType} with fields and method resolution via
+    \code{MethodResolver}.
+  \item[Registry]
+    \code{TypeRegistry} for name lookup during evaluation and tooling.
+\end{description}
+
+Inference is partial and runtime-assisted: the interpreter uses the model for
+compatibility checks and UDT instantiation, while the LSP consumes related
+metadata inventories (hundreds of builtins---on the order of \(482\)--\(800+\)
+surface entries depending on inventory generation) for completion and
+signatures~\citep{pynescript2026}. Full bidirectional checking of every Pine
+qualifier lattice edge remains future work (Section~\ref{sec:limitations}).
+
+%==============================================================================
+\section{Corpus Engineering}
+\label{sec:corpus}
+%==============================================================================
+
+\subsection{Sanitization of scraped sources}
+\label{sec:sanitize}
+
+Community scripts scraped from publications, forums, or documentation pages
+rarely arrive as pure Pine. \file{corpus\_sanitize.py} implements
+\code{sanitize\_corpus\_source}, which strips page chrome while preserving
+in-comment markdown used for \code{//@function} documentation.
+
+Typical removals include: markdown fences (\code{```pine}); blockquote chrome;
+``Expand (\(N\) lines)'' UI stubs; horizontal rules; bare URLs; HTML comments;
+publication footers (author/license/tags); leading prose before the first
+script-like line; and mis-collected shell/Python/HTML fragments.
+If no usable Pine remains, a minimal parseable stub is returned so callers fail
+softly.
+
+\begin{algorithm}[t]
+\caption{SanitizeCorpus}
+\label{alg:sanitize}
+\begin{algorithmic}[1]
+\Require Raw text \(R\) (possibly mixed markdown / UI chrome)
+\Ensure Sanitized source \(S\) or minimal stub
+\State \(L \gets \mathrm{splitlines}(R)\); track open quote state across lines
+\State Drop fence lines, expand stubs, HR, URL-only, footer labels, HTML noise
+\State Drop leading prose until a Pine-like line (\code{//@version}, 
+       \code{indicator(}, \code{strategy(}, assignments, \ldots)
+\State Repair mild truncation artifacts when safe
+\If{\(L\) has no usable Pine}
+  \State \Return minimal stub \code{//@version=5 / indicator / plot}
+\EndIf
+\State \Return \(\mathrm{join}(L)\)
+\end{algorithmic}
+\end{algorithm}
+
+The compiler and multi-run hosts invoke sanitization on cache miss paths so warm
+hits skip the cost~\citep{pynescript2026}.
+
+\subsection{Parse-fail buckets and regeneration workflow}
+\label{sec:regen}
+
+Corpus tests parametrize over directories of \code{.pine} files. Failures are
+bucketed by root cause (lexer indent, missing construct, sanitize residue,
+version-specific syntax). The engineering loop is:
+
+\begin{enumerate}[leftmargin=*]
+  \item Reproduce with \code{parse}/\code{unparse} on the failing file.
+  \item Prefer grammar or lexer-base fixes in \file{resource/*.g4} /
+    \file{LexerBase.py}; never hand-edit \file{generated/}.
+  \item Regenerate parser/lexer; align builder \code{visit\_*} names with new
+    rule contexts.
+  \item Extend ASDL only when node shape must change; regenerate node classes.
+  \item Add a focused unit test, then re-run corpus and linter suites.
+\end{enumerate}
+
+This discipline keeps the approximate grammar evolving with community patterns
+without forking generated code.
+
+%==============================================================================
+\section{Evaluation}
+\label{sec:eval}
+%==============================================================================
+
+\subsection{Correctness: coverage and round-trip}
+\label{sec:eval-correct}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Parser coverage.}
+    High success rates on \(138+\) real scripts in parse-and-unparse suites
+    (e.g., \(138\) passed on a builtin-script directory configuration reported
+    in performance agents). Broader project automation exceeds \(1100\) tests
+    across front-end, runtime, and compiler concerns~\citep{pynescript2026}.
+  \item \textbf{SLL \(\equiv\) LL.}
+    On \(30\) size-stratified scripts, AST dumps with attributes matched between
+    SLL-first and forced pure-LL parses (\(0\) mismatches in that sample).
+  \item \textbf{Annotations.}
+    Scripts with \code{//@} retain \code{script.annotations} and declaration
+    annotations through parse; unparse re-emits them as lines.
+  \item \textbf{Modes.}
+    \code{mode="eval"} parses isolated expressions; \code{mode="exec"} parses
+    full scripts.
+\end{itemize}
+
+Algorithm~\ref{alg:roundtrip} states the structural check used in CI-oriented
+workflows.
+
+\begin{algorithm}[t]
+\caption{RoundTripCheck}
+\label{alg:roundtrip}
+\begin{algorithmic}[1]
+\Require Source \(s\), optional sanitize flag
+\State \(s_0 \gets \mathrm{sanitize}(s)\) if enabled else \(s\)
+\State \(T \gets \mathrm{parse}(s_0)\)
+\State \(s' \gets \mathrm{unparse}(T)\)
+\State \(T' \gets \mathrm{parse}(s')\)
+\State Assert \(\mathrm{dump}(T)\) compatible with \(\mathrm{dump}(T')\)
+        (structure; attributes per test policy)
+\State Optionally assert selected annotation strings preserved
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Parse performance}
+\label{sec:eval-parse}
+
+Profiling showed ANTLR adaptive prediction dominating wall time, with the
+builder a smaller fraction. Table~\ref{tab:parse-perf} summarizes reported
+measurements from the project's parse performance agents (Python~3.14,
+in-process microbenchmarks).
+
+\begin{table}[t]
+\centering
+\caption{Parse performance (representative agent results).}
+\label{tab:parse-perf}
+\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Workload & Before / LL-only & After / SLL-first & Speedup \\
+\midrule
+Mean per script (12-file mix) & \(\sim\)80--140\,ms & \(\sim\)14.5--15\,ms & \(\sim 5.4\times\) \\
+Ops/s (mix) & \(\sim\)7--13 & \(\sim\)69 & \(\sim 5\)--\(10\times\) \\
+Complex \(\sim\)16\,KB script & \(\sim\)1917\,ms & \(\sim\)254\,ms & \(\sim 7.5\times\) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Fair same-process A/B (12 iterations \(\times\) 12 scripts) reported approximately
+\(175.7\)\,ms vs.\ \(953.7\)\,ms per pass (\(5.43\times\), \(81.6\%\) improvement)
+for SLL-first vs.\ LL-only, with identical trees on success.
+Additional micro-optimizations (annotation skip without \code{@}, recursion-limit
+guard, location fast path, lexer deque pending tokens) further reduced constant
+factors after the SLL win.
+
+Figure~\ref{fig:sll-ll} visualizes the headline SLL vs.\ LL comparison.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  ybar,
+  bar width=18pt,
+  ylabel={ms / pass (12 scripts)},
+  symbolic x coords={LL-only,SLL-first},
+  xtick=data,
+  ymin=0, ymax=1100,
+  nodes near coords,
+  nodes near coords align={vertical},
+  width=0.72\textwidth,
+  height=6.2cm,
+  axis lines=left,
+  enlarge x limits=0.35,
+  tick label style={font=\small},
+  label style={font=\small},
+  every node near coord/.append style={font=\scriptsize},
+]
+\addplot[fill=pynegray!60] coordinates {(LL-only,953.7) (SLL-first,175.7)};
+\end{axis}
+\end{tikzpicture}
+\caption{Parse performance: pure LL vs.\ SLL-first with LL fallback on a
+12-script stratified mix (fair in-process A/B). Trees matched on the measured
+sample.}
+\label{fig:sll-ll}
+\end{figure}
+
+\subsection{Unparse performance}
+\label{sec:eval-unparse}
+
+On 99 scripts from an indicators/strategies set, thread-local unparser reuse and
+dispatch optimizations improved median throughput from \(\sim 1266\) to
+\(\sim 2469\) unparses/s (\(\approx 1.95\times\)), with large-script calls
+improving by \(\approx 2.12\times\). Outputs remained byte-identical to the
+baseline unparser across successfully parsed ASTs.
+
+\subsection{Parse cache}
+\label{sec:eval-cache}
+
+A process-local LRU keyed by \((\mathrm{SHA256}(\mathit{source}), \mathit{mode})\)
+(default max \(128\), \code{threading.RLock}, env toggles
+\code{PYNE\_PARSE\_CACHE} / \code{PYNE\_PARSE\_CACHE\_MAX}) returns shared AST
+identity on hit. On hits, evaluator-bound \code{\_pine\_call\_site} attributes
+are scrubbed so multi-run hosts do not reuse another evaluator's bound methods.
+Failed parses are not cached. Multi-parse warm paths report order-of-magnitude
+gains approaching \(1000\times\) vs.\ cold ANTLR parse when the cache hits
+repeatedly on identical sources (host benchmarks; dominated by hash + dict
+lookup).
+
+%==============================================================================
+\section{Related Work}
+\label{sec:related}
+%==============================================================================
+
+\paragraph{Parser generators and ANTLR.}
+ANTLR~4 popularized adaptive \(\mathrm{LL}(*)\) parsing with automatic
+left-recursion elimination and continuous lookahead~\citep{parr2013antlr,parr2011allstar,parr1995antlr}.
+The SLL-first/LL-fallback pattern is recommended practice for throughput without
+sacrificing generality; \pyne{} confirms large wins on a charting DSL with
+indent-sensitive lexing layered outside pure grammar rules.
+
+\paragraph{ASDL and language IRs.}
+Zephyr ASDL~\citep{wang1997asdl} and Python's \code{ast} module~\citep{asdl-python}
+demonstrate the value of declarative node schemas for compilers and tools.
+\pyne{} reuses this philosophy for a DSL, including location attributes and
+visitor/transformer APIs familiar to Python tooling authors.
+
+\paragraph{DSL engineering.}
+Fowler~\citep{fowler2010dsl} and Hudak~\citep{hudak1996dsl} survey external vs.\
+embedded DSLs. \pine{} is an external, product-hosted language; \pyne{} builds an
+external toolchain around an approximate grammar rather than embedding Pine in
+Python syntax. Classic compiler texts~\citep{aho2006dragon,cooper2012engineering}
+and Nystrom's interpreter construction~\citep{nystrom2021crafting} inform the
+pipeline staging (lex, parse, AST, analysis, unparse).
+
+\paragraph{Language servers and formatters.}
+LSP~\citep{lsp2023} standardizes editor integration; formatters based on
+parse--print pipelines (go\-fmt style) motivate lossless-enough unparsing.
+\pyne{}'s format path is intentionally the same as the test round-trip.
+
+\paragraph{Financial DSLs.}
+Vendor documentation~\citep{tradingview-pine} specifies user-facing semantics but
+does not publish an official grammar. Independent implementations must reverse-
+engineer surface syntax from documents and corpora---a central motivation for
+this paper's grammar-engineering narrative.
+
+%==============================================================================
+\section{Limitations}
+\label{sec:limitations}
+%==============================================================================
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Approximate, unofficial grammar.}
+    The \file{.g4} sources are reverse-engineered and corpus-hardened. They are
+    not an official TradingView grammar and may accept or reject edge cases
+    differently from the proprietary compiler.
+  \item \textbf{Semantic version gaps.}
+    Some v6 semantic rules (strict booleans, division typing) are enforced in
+    later stages, not fully in the parser.
+  \item \textbf{Comment fidelity.}
+    Only \code{//@}-style annotations are first-class on the AST; arbitrary
+    comments are not a full comment-preserving CST.
+  \item \textbf{Linter depth.}
+    Rules are heuristic; the type model is not a complete static type checker
+    for the Pine qualifier lattice.
+  \item \textbf{Cache mutability.}
+    Shared AST identity requires read-only treatment or explicit
+    \code{clear\_parse\_cache} after transformations.
+  \item \textbf{Corpus bias.}
+    Evaluation scripts under-represent some rare library and brokerage-specific
+    patterns; sanitize stubs can mask total scrape failure.
+\end{enumerate}
+
+%==============================================================================
+\section{Conclusion}
+\label{sec:conclusion}
+%==============================================================================
+
+We described the \pyne{} language front-end for \pine{}: an \antlr{} grammar with
+Python indent tracking, a Zephyr-\asdl{} IR, a visitor builder with annotation
+attachment, a precedence-aware unparser, a structural linter, and a qualifier-
+aware type model, complemented by corpus sanitization and regeneration
+discipline.
+The pipeline enables formatters, LSP features, interpreters, and compilers to
+share one tree shape. Measured optimizations---SLL-first parsing
+(\(\approx 5.4\times\)), unparser reuse (\(\approx 1.95\times\)), and SHA-256
+AST caching (orders of magnitude on multi-parse hits)---show that careful
+front-end engineering pays off even when ANTLR already dominates profiles.
+
+Future work includes tighter CST/comment preservation, richer static checking of
+qualifiers and UDTs, grammar differential testing against larger public corpora,
+and continued v6+ surface tracking as the language evolves.
+\pyne{} remains an independent open implementation; we hope the documented
+grammar-engineering practices help other charting-DSL and financial-DSL tooling
+efforts~\citep{pynescript2026}.
+
+\paragraph{Acknowledgments.}
+We thank contributors to the \pyne{} / HOOX open-source effort and authors of
+ANTLR, ASDL, and the Python \code{ast} ecosystem.
+
+\paragraph{Trademark notice.}
+\trademarknote{}
+
+%==============================================================================
+\bibliographystyle{plainnat}
+\bibliography{../common/bibliography}
+
+\end{document}

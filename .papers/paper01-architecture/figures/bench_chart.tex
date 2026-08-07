@@ -1,0 +1,32 @@
+% Benchmark bar chart: interpret vs compile latency (representative internal measurements, 2026)
+\begin{tikzpicture}
+\begin{axis}[
+  ybar,
+  bar width=9pt,
+  width=0.92\textwidth,
+  height=6.2cm,
+  ylabel={Median latency (ms)},
+  symbolic x coords={SMA, RSI, MACD, MULTI, ta\_combo},
+  xtick=data,
+  ymin=0,
+  ymax=180,
+  legend style={at={(0.5,1.02)}, anchor=south, legend columns=2, draw=none, font=\footnotesize},
+  nodes near coords,
+  nodes near coords align={vertical},
+  every node near coord/.append style={font=\tiny, /pgf/number format/fixed, /pgf/number format/precision=2},
+  enlarge x limits=0.18,
+  grid=major,
+  grid style={dashed, gray!30},
+  tick label style={font=\small},
+  label style={font=\small},
+  axis background/.style={fill=codebg},
+]
+\addplot[fill=pyneblue!70, draw=pyneblue!90!black] coordinates {
+  (SMA, 18.5) (RSI, 22.0) (MACD, 35.0) (MULTI, 48.0) (ta\_combo, 152.85)
+};
+\addplot[fill=pyneorange!80, draw=pyneorange!90!black] coordinates {
+  (SMA, 0.04) (RSI, 0.08) (MACD, 0.12) (MULTI, 0.21) (ta\_combo, 1.06)
+};
+\legend{Interpret (cold path style), Compile+exec (warm)}
+\end{axis}
+\end{tikzpicture}

@@ -1,0 +1,12 @@
+% Minimal local stub for systems without texlive algorithms package.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{algorithm}[2026/01/01 local stub]
+\RequirePackage{float}
+\RequirePackage{ifthen}
+\newfloat{algorithm}{tbp}{loa}
+\floatname{algorithm}{Algorithm}
+\newcommand{\listalgorithmname}{List of Algorithms}
+\newcommand{\listofalgorithms}{\listof{algorithm}{\listalgorithmname}}
+\DeclareOption*{\PassOptionsToPackage{\CurrentOption}{float}}
+\ProcessOptions\relax
+\endinput

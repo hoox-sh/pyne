@@ -1,0 +1,995 @@
+\documentclass[11pt,a4paper]{article}
+
+% -----------------------------------------------------------------------------
+% Geometry and base packages
+% -----------------------------------------------------------------------------
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+
+% Prefer scalable fonts when available (microtype expansion); fall back silently.
+\IfFileExists{lmodern.sty}{\usepackage{lmodern}}{}
+
+\input{../common/macros.tex}
+
+% If only bitmap CM fonts are installed, disable microtype expansion to avoid
+% "auto expansion is only possible with scalable fonts" fatal errors.
+\makeatletter
+\@ifpackageloaded{microtype}{%
+  \microtypesetup{expansion=false}%
+}{}
+\makeatother
+
+\hypersetup{
+  pdftitle={Language Tooling for Financial DSLs: An LSP Architecture for Pine Script with Multi-Editor Delivery},
+  pdfauthor={HOOX Research / PYNE Contributors},
+  pdfkeywords={Language Server Protocol, developer tools, code completion, diagnostics, domain-specific languages, VS Code extensions, Pine Script}
+}
+
+\title{%
+  Language Tooling for Financial DSLs:\\
+  An \lsp{} Architecture for \pine{} with Multi-Editor Delivery}
+\author{%
+  HOOX Research / \pyne{} Contributors\\
+  \texttt{jango\_blockchained}\\
+  Independent Open Source Research\\
+  \texttt{contact@hoox.sh}}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Financial domain-specific languages (\textsc{Dsl}s) used for technical analysis and
+algorithmic trading are often edited exclusively inside proprietary, browser-hosted
+environments. That coupling denies practitioners the offline diagnostics, completion,
+navigation, and multi-editor workflows that general-purpose language tooling takes for
+granted. This paper presents the design and implementation of \texttt{pynescript-lsp},
+the Language Server Protocol (\lsp{}) implementation for \pyne{}---an independent open
+toolchain for \pine{}~\citep{pynescript2026,tradingview-pine}. The server is built on
+\texttt{pygls}~\citep{murphy2020pygls}, shares a single \ast{} pipeline with the project's
+parser, linter, unparser, and evaluator, and can be shipped either as a Python module
+(\texttt{pip install hoox-pyne[lsp]}) or as a Nuitka onefile binary~\citep{nuitka}.
+
+We describe a feature surface covering push and pull diagnostics, metadata-driven
+completion over hundreds of builtins (\(\sim\)800+ catalog entries), hover documentation,
+definition/references, document and workspace symbols, semantic tokens, inlay type
+hints, and unparse-based formatting. A generation--encryption--integrity pipeline
+protects the builtin documentation corpus in compiled distributions without coupling
+editor features to network services. Thin clients for VS~Code, Neovim, Zed, and Emacs,
+together with a complementary \cli{}, demonstrate multi-surface delivery. We report
+implementation lessons for \lsp{} servers over financial \textsc{Dsl}s, discuss
+boundaries with evaluation and chart/backtest \api{} surfaces, and situate the work in
+the broader language-tooling ecosystem~\citep{lsp2023,voutilainen2016lsp,fowler2010dsl}.
+\end{abstract}
+
+\vspace{0.5em}
+\noindent\textbf{Keywords:}
+Language Server Protocol, developer tools, code completion, diagnostics,
+domain-specific languages, VS~Code extensions, Pine Script
+
+\vspace{0.75em}
+\noindent\footnotesize\textit{\trademarknote}
+\normalsize
+
+\tableofcontents
+\newpage
+
+% =============================================================================
+\section{Introduction}
+\label{sec:intro}
+% =============================================================================
+
+Domain-specific languages for quantitative trading occupy an awkward middle ground
+between spreadsheets and full programming environments. \pine{}, the scripting language
+used by millions of traders on the \tv{} platform, exemplifies this tension: it is
+expressive enough to encode multi-timeframe strategies, user-defined types (\udt{}s),
+and rich drawing objects, yet its primary authoring surface remains a browser-only
+editor tightly coupled to a hosted runtime~\citep{tradingview-pine,fowler2010dsl}.
+Practitioners who prefer local Git workflows, keyboard-driven editors, continuous
+integration, or offline research therefore lack the language services that have become
+standard elsewhere: incremental diagnostics, ranked completion, hover documentation,
+go-to-definition, and deterministic formatting~\citep{lsp2023,voutilainen2016lsp}.
+
+The Language Server Protocol (\lsp{})~\citep{lsp2023} was introduced precisely to
+decouple language intelligence from editor implementations. A single server process
+exposes a JSON-RPC surface; any compliant client---VS~Code, Neovim, Zed, Emacs, Helix,
+and others---can consume it. For general-purpose languages the ecosystem is mature
+(TypeScript, Rust Analyzer, Pyright). For financial \textsc{Dsl}s the picture is
+sparse: tooling is either proprietary and online, or limited to syntax highlighting
+without semantic analysis.
+
+\pyne{} (\texttt{hoox-pyne} on PyPI; import package \texttt{pynescript}) is an
+independent, unofficial open toolchain for \pine{}~\citep{pynescript2026,hoox2026}.
+It provides a lossless ANTLR4-based parser~\citep{parr2013antlr}, an ASDL-typed
+\ast{}~\citep{wang1997asdl}, a static linter, an unparser, an interpreter/compiler
+runtime, and---the subject of this paper---an \lsp{} server
+(\texttt{pynescript-lsp}) with multi-editor packaging. The design goal is offline IDE
+parity for a financial \textsc{Dsl}: full local language services without mandatory
+network calls, while cleanly separating optional evaluation and chart/backtest
+surfaces (Pro \api{}) that share the same \ast{} and runtime.
+
+\paragraph{Contributions.}
+This paper makes the following contributions:
+\begin{enumerate}[leftmargin=*]
+  \item A complete \lsp{} architecture for a bar-oriented financial \textsc{Dsl},
+        including workspace document state, cached parse/lint, and feature modules
+        that take pure \((params, source)\) inputs rather than holding server globals
+        (Section~\ref{sec:architecture}).
+  \item Detailed designs for diagnostics, completion over \(\sim\)800+ builtin metadata
+        items, hover, navigation, semantic tokens, inlay hints, and unparse-based
+        formatting (Section~\ref{sec:features}).
+  \item A metadata pipeline with generation, optional Fernet encryption, SHA-256
+        integrity, and dual-path runtime load for development versus Nuitka
+        distributions (Section~\ref{sec:metadata}).
+  \item Multi-editor delivery: a TypeScript VS~Code extension with TextMate grammar
+        and bundled language client, plus thin configs for Neovim, Zed, and Emacs
+        (Section~\ref{sec:editors}).
+  \item A complementary \cli{} surface and a clear boundary with evaluation / Pro
+        \api{} endpoints (Sections~\ref{sec:cli}--\ref{sec:eval}).
+  \item Implementation lessons, limitations, and related work for language tooling
+        over financial \textsc{Dsl}s (Sections~\ref{sec:lessons}--\ref{sec:conclusion}).
+\end{enumerate}
+
+% =============================================================================
+\section{Background}
+\label{sec:background}
+% =============================================================================
+
+\subsection{Language Server Protocol}
+\label{sec:bg-lsp}
+
+The \lsp{}~\citep{lsp2023} standardizes a set of methods over JSON-RPC, typically
+transported on STDIO between an editor process and a long-lived server. Core concepts
+include:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Lifecycle:} \texttt{initialize} / \texttt{initialized} / \texttt{shutdown}
+        / \texttt{exit}, with capability negotiation.
+  \item \textbf{Document synchronization:} \texttt{textDocument/didOpen},
+        \texttt{didChange} (full or incremental), \texttt{didSave}, \texttt{didClose}.
+  \item \textbf{Language features:} completion, hover, definition, references, symbols,
+        formatting, diagnostics (push via \texttt{publishDiagnostics} and pull via
+        \texttt{textDocument/diagnostic} in 3.16+), semantic tokens, and inlay hints.
+\end{itemize}
+By moving language intelligence into a server, the \(M \times N\) problem of \(M\)
+languages and \(N\) editors collapses to \(M + N\)~\citep{voutilainen2016lsp}. For
+\textsc{Dsl}s with modest user bases, this amortization is essential: one implementation
+can serve many editor communities.
+
+\subsection{pygls and the Python LSP stack}
+\label{sec:bg-pygls}
+
+\texttt{pygls} (Python Generic Language Server)~\citep{murphy2020pygls} provides a
+decorator-oriented API for registering \lsp{} method handlers on a
+\texttt{LanguageServer} subclass, with typed messages via \texttt{lsprotocol}. It is a
+natural fit for \pyne{} because the entire language pipeline (parser, \ast{}, linter,
+unparser, evaluator) is already Python. Alternatives such as writing a server in
+TypeScript or Rust would require re-implementing or FFI-bridging the grammar and
+analysis stack. Compiling the server to a Nuitka onefile binary~\citep{nuitka} further
+reduces the end-user dependency surface for editor extensions.
+
+\subsection{Pine Script editing pain points}
+\label{sec:bg-pain}
+
+Empirical pain points for offline \pine{} development include:
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{No offline diagnostics.} Syntax and many semantic mistakes surface only
+        after paste into a hosted editor or after a failed chart compile.
+  \item \textbf{Builtin discoverability.} Hundreds of functions across namespaces
+        (\texttt{ta.*}, \texttt{strategy.*}, \texttt{request.*}, drawing objects, \ldots)
+        are hard to recall without hover and completion.
+  \item \textbf{Formatting drift.} Teams without a shared pretty-printer accumulate
+        style noise in Git diffs.
+  \item \textbf{Editor lock-in.} Browser-only editing precludes Neovim/Emacs power users
+        and headless CI checks.
+  \item \textbf{Separation of editing and evaluation.} Chart preview and backtest are
+        valuable but should not be prerequisites for static language services.
+\end{enumerate}
+\pyne{} addresses (1)--(4) with \texttt{pynescript-lsp} and the \cli{}; (5) is
+intentionally a separate process boundary (Section~\ref{sec:eval}).
+
+\subsection{Language tooling for DSLs}
+\label{sec:bg-dsl}
+
+Language workbenches and embedded \textsc{Dsl}s have long argued for first-class
+tooling~\citep{fowler2010dsl,hudak1996dsl}. Interpreter textbooks emphasize the
+centrality of a well-defined \ast{} for analysis and transformation~\citep{nystrom2021crafting}.
+\pyne{} follows this orthodoxy: the \lsp{} is a consumer of the same \ast{} used by
+evaluation, not a parallel frontend.
+
+% =============================================================================
+\section{System Architecture of \texttt{pynescript-lsp}}
+\label{sec:architecture}
+% =============================================================================
+
+\subsection{High-level topology}
+\label{sec:arch-topo}
+
+Figure~\ref{fig:topology} summarizes the multi-surface deployment. Editors speak \lsp{}
+over STDIO to \texttt{pynescript-lsp}. The server owns a \texttt{Workspace} of open
+documents, re-parses and re-lints on mutation, and dispatches feature handlers. The open
+package (\texttt{src/pynescript/}) supplies parser, \ast{}, linter, and unparser. A
+Pro \api{} (Flask, optionally Cloud Run) shares the evaluator for chart preview and
+backtest but is not on the \lsp{} critical path.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw, rounded corners=2pt, align=center, inner sep=6pt, minimum height=1.1cm},
+  ed/.style={box, fill=pyneblue!12, minimum width=2.6cm},
+  srv/.style={box, fill=pyneorange!15, minimum width=3.4cm},
+  core/.style={box, fill=pynegreen!12, minimum width=2.8cm},
+  pro/.style={box, fill=pynegray!18, minimum width=2.6cm},
+  arr/.style={-{Latex}, thick}
+]
+  \node[ed] (vscode) {VS~Code\\extension};
+  \node[ed, right=0.45cm of vscode] (nvim) {Neovim};
+  \node[ed, right=0.45cm of nvim] (zed) {Zed};
+  \node[ed, right=0.45cm of zed] (emacs) {Emacs};
+  \node[srv, below=1.1cm of nvim, xshift=0.9cm] (lsp) {\texttt{pynescript-lsp}\\(pygls + Nuitka)};
+  \node[core, below left=1.2cm and 0.3cm of lsp] (ast) {Parser / AST\\Linter / Unparser};
+  \node[core, below right=1.2cm and 0.3cm of lsp] (meta) {Builtin metadata\\Completion providers};
+  \node[pro, right=1.6cm of lsp] (api) {Pro API\\(eval / chart / backtest)};
+
+  \draw[arr] (vscode) -- (lsp);
+  \draw[arr] (nvim) -- (lsp);
+  \draw[arr] (zed) -- (lsp);
+  \draw[arr] (emacs) -- (lsp);
+  \draw[arr] (lsp) -- (ast);
+  \draw[arr] (lsp) -- (meta);
+  \draw[arr, dashed] (api) -- node[above, font=\scriptsize, sloped] {shared \ast{}/runtime} (ast);
+\end{tikzpicture}
+\caption{Multi-editor deployment topology. All editors use STDIO \lsp{}; the Pro \api{}
+shares \ast{}/runtime but is a separate process and auth model.}
+\label{fig:topology}
+\end{figure}
+
+\subsection{Server process model}
+\label{sec:arch-server}
+
+\texttt{PynescriptLanguageServer} subclasses \texttt{pygls.lsp.server.LanguageServer}
+with name \texttt{"Pynescript"} and the package version. On construction it creates an
+empty \texttt{Workspace} and registers handlers in \texttt{setup\_method\_handlers()}.
+Entry points are:
+\begin{itemize}[leftmargin=*]
+  \item Console script \texttt{pynescript-lsp} \(\rightarrow\)
+        \texttt{pynescript.langserver.\_\_main\_\_:main}
+  \item Module form \texttt{python -m pynescript.langserver}
+  \item Optional Nuitka binary under \texttt{dist/lsp/pynescript-lsp}
+\end{itemize}
+Transport defaults to STDIO (\texttt{start\_io()}), matching editor integrations.
+
+\subsection{Workspace and document state}
+\label{sec:arch-workspace}
+
+Each open URI maps to a \texttt{TextDocumentState}:
+\begin{center}
+\small
+\begin{tabular}{ll}
+\toprule
+Field & Role \\
+\midrule
+\texttt{uri}, \texttt{source}, \texttt{version} & Buffer identity and content \\
+\texttt{ast} & Cached parse tree, or \texttt{None} on failure \\
+\texttt{diagnostics} & List of \texttt{LintWarning} (not yet \lsp{} types) \\
+\texttt{parse\_error}, \texttt{parse\_error\_line} & E001 synthesis inputs \\
+\bottomrule
+\end{tabular}
+\end{center}
+On \texttt{didOpen}/\texttt{didChange}, the workspace applies full-document or
+incremental edits, then runs \texttt{\_parse\_and\_lint}: successful parse feeds
+\texttt{lint\_script}; exceptions clear the \ast{} and store a human-readable error.
+Feature handlers typically read \texttt{get\_source(uri)} and optionally receive a
+pre-parsed tree to avoid redundant work. The buffer---not disk---is the source of
+truth until the client saves.
+
+\subsection{Capability declaration}
+\label{sec:arch-caps}
+
+Capabilities are declared once from \texttt{config.get\_server\_capabilities()} during
+\texttt{initialize}. Table~\ref{tab:methods} lists supported methods. Signature help and
+code actions are intentionally omitted until first-class handlers exist; advertising
+unimplemented providers would mislead clients.
+
+\begin{table}[t]
+\centering
+\caption{\lsp{} methods implemented by \texttt{pynescript-lsp}.}
+\label{tab:methods}
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Method & Capability notes & Module \\
+\midrule
+\texttt{initialize} / \texttt{initialized} / \texttt{shutdown} & Lifecycle & \texttt{server.py} \\
+\texttt{textDocument/didOpen|Change|Close|Save} & Incremental sync & \texttt{server.py} \\
+\texttt{textDocument/publishDiagnostics} & Push on open/change/save & \texttt{workspace} \\
+\texttt{textDocument/diagnostic} & Pull (full report + \texttt{result\_id}) & \texttt{server.py} \\
+\texttt{workspace/diagnostic} & Per open document & \texttt{server.py} \\
+\texttt{textDocument/completion} & Trigger \texttt{"."}; resolve provider & \texttt{completion.py} \\
+\texttt{completionItem/resolve} & Docs rehydration & \texttt{completion.py} \\
+\texttt{textDocument/hover} & Markdown signatures + docs & \texttt{hover.py} \\
+\texttt{textDocument/definition} & Same-document & \texttt{definitions.py} \\
+\texttt{textDocument/references} & Same-document & \texttt{references.py} \\
+\texttt{textDocument/documentSymbol} & Outline & \texttt{symbols.py} \\
+\texttt{workspace/symbol} & Query over open docs & \texttt{symbols.py} \\
+\texttt{textDocument/formatting} & Full document & \texttt{formatting.py} \\
+\texttt{textDocument/rangeFormatting} & Range unparse & \texttt{formatting.py} \\
+\texttt{textDocument/semanticTokens/full} & Delta-encoded legend & \texttt{semantic\_tokens.py} \\
+\texttt{textDocument/inlayHint} & Inferred declaration types & \texttt{inlay\_hints.py} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Request lifecycle}
+\label{sec:arch-lifecycle}
+
+Figure~\ref{fig:lifecycle} shows a representative completion request after document
+open. Diagnostics are published eagerly; feature methods are pull-style request/response.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\scriptsize,
+  actor/.style={font=\small\bfseries},
+  msg/.style={-{Latex}, thick},
+  rmsg/.style={-{Latex}, thick, dashed}
+]
+  \node[actor] (C) at (0,0) {Editor client};
+  \node[actor] (S) at (5.2,0) {Language server};
+  \node[actor] (W) at (10.2,0) {Workspace};
+
+  \draw[thick] (0,-0.3) -- (0,-7.6);
+  \draw[thick] (5.2,-0.3) -- (5.2,-7.6);
+  \draw[thick] (10.2,-0.3) -- (10.2,-7.6);
+
+  \draw[msg] (0,-0.8) -- node[above] {\texttt{initialize}} (5.2,-0.8);
+  \draw[rmsg] (5.2,-1.3) -- node[above] {\texttt{InitializeResult} + caps} (0,-1.3);
+  \draw[msg] (0,-1.9) -- node[above] {\texttt{initialized}} (5.2,-1.9);
+
+  \draw[msg] (0,-2.6) -- node[above] {\texttt{didOpen}(uri, text)} (5.2,-2.6);
+  \draw[msg] (5.2,-3.1) -- node[above] {\texttt{put\_document}} (10.2,-3.1);
+  \draw[rmsg] (10.2,-3.6) -- node[above] {parse + lint} (5.2,-3.6);
+  \draw[rmsg] (5.2,-4.2) -- node[above] {\texttt{publishDiagnostics}} (0,-4.2);
+
+  \draw[msg] (0,-5.0) -- node[above] {\texttt{completion}(uri, pos)} (5.2,-5.0);
+  \draw[msg] (5.2,-5.6) -- node[above] {\texttt{get\_source}} (10.2,-5.6);
+  \draw[rmsg] (10.2,-6.2) -- node[above] {source text} (5.2,-6.2);
+  \draw[rmsg] (5.2,-6.9) -- node[above] {\texttt{CompletionList}} (0,-6.9);
+\end{tikzpicture}
+\caption{\lsp{} request lifecycle: initialize, document open with push diagnostics, then
+a completion request served from workspace source and metadata providers.}
+\label{fig:lifecycle}
+\end{figure}
+
+\subsection{Feature module layout}
+\label{sec:arch-modules}
+
+Figure~\ref{fig:modules} depicts the package structure under
+\texttt{src/pynescript/langserver/}. Handlers in \texttt{features/} are pure-ish
+functions; \texttt{providers/} own metadata load and \texttt{CompletionItem} construction;
+\texttt{protocol/} holds word/trigger utilities; \texttt{config.py} is the single
+capability table.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  node distance=0.55cm and 0.7cm,
+  box/.style={draw, rounded corners=2pt, align=center, inner sep=5pt, fill=white},
+  root/.style={box, fill=pyneorange!20, font=\small\bfseries},
+  mid/.style={box, fill=pyneblue!12},
+  leaf/.style={box, fill=codebg, font=\scriptsize}
+]
+  \node[root] (root) {\texttt{langserver/}};
+  \node[mid, below left=1.0cm and 2.4cm of root] (feat) {\texttt{features/}};
+  \node[mid, below=1.0cm of root] (prov) {\texttt{providers/}};
+  \node[mid, below right=1.0cm and 2.4cm of root] (proto) {\texttt{protocol/}};
+  \node[mid, right=0.5cm of prov] (ws) {\texttt{workspace.py}};
+  \node[mid, left=0.5cm of prov] (srv) {\texttt{server.py}};
+  \node[mid, above right=0.15cm and 0.1cm of srv] (cfg) {\texttt{config.py}};
+
+  \node[leaf, below=0.45cm of feat] (f1) {completion, diagnostics, hover\\formatting, definitions, references\\semantic\_tokens, symbols, inlay\_hints};
+  \node[leaf, below=0.45cm of prov] (p1) {builtin\_metadata(.json/.enc)\\completion\_items, metadata\_decrypt};
+  \node[leaf, below=0.45cm of proto] (pr1) {utils, constants};
+
+  \draw[-{Latex}] (root) -- (feat);
+  \draw[-{Latex}] (root) -- (prov);
+  \draw[-{Latex}] (root) -- (proto);
+  \draw[-{Latex}] (root) -- (srv);
+  \draw[-{Latex}] (root) -- (ws);
+  \draw[-{Latex}] (root) -- (cfg);
+  \draw[-{Latex}] (feat) -- (f1);
+  \draw[-{Latex}] (prov) -- (p1);
+  \draw[-{Latex}] (proto) -- (pr1);
+\end{tikzpicture}
+\caption{Feature module architecture of \texttt{pynescript-lsp}.}
+\label{fig:modules}
+\end{figure}
+
+% =============================================================================
+\section{Feature Design}
+\label{sec:features}
+% =============================================================================
+
+\subsection{Diagnostics pipeline}
+\label{sec:feat-diag}
+
+Diagnostics are the primary static feedback channel. Figure~\ref{fig:diagnostics}
+shows the pipeline. On every open, change, and save the workspace re-parses. Parse
+success feeds the orthogonal static linter (\texttt{lint\_script}); parse failure
+synthesizes diagnostic code \texttt{E001} at the extracted line. Findings convert to
+\texttt{lsp.Diagnostic} with \texttt{source="PineScript"}, severity mapping
+(error/warning/info/hint), and optional tags (e.g., unnecessary/deprecated).
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  node distance=0.85cm,
+  flowstep/.style={draw, rounded corners=2pt, align=center, inner sep=6pt, minimum width=3.2cm, fill=codebg},
+  dec/.style={draw, diamond, aspect=2.2, align=center, inner sep=1pt, fill=pyneorange!12},
+  arr/.style={-{Latex}, thick}
+]
+  \node[flowstep] (src) {Buffer source};
+  \node[flowstep, below=of src] (parse) {\texttt{parse(source)}};
+  \node[dec, below=of parse] (ok) {OK?};
+  \node[flowstep, below left=1.1cm and 0.6cm of ok] (e001) {E001 parse error};
+  \node[flowstep, below right=1.1cm and 0.6cm of ok] (lint) {\texttt{lint\_script}};
+  \node[flowstep, below=2.6cm of ok] (map) {Map to \lsp{} diagnostics};
+  \node[flowstep, below=of map] (pub) {\texttt{publishDiagnostics} / pull};
+
+  \draw[arr] (src) -- (parse);
+  \draw[arr] (parse) -- (ok);
+  \draw[arr] (ok) -- node[left, font=\scriptsize] {no} (e001);
+  \draw[arr] (ok) -- node[right, font=\scriptsize] {yes} (lint);
+  \draw[arr] (e001) |- (map);
+  \draw[arr] (lint) |- (map);
+  \draw[arr] (map) -- (pub);
+\end{tikzpicture}
+\caption{Diagnostics pipeline: parse, optional lint, conversion, push/pull publish.}
+\label{fig:diagnostics}
+\end{figure}
+
+Representative lint codes include \texttt{E001} (parse), \texttt{W001}/\texttt{W002}
+(warnings), and \texttt{C001}--\texttt{C004} (style: complexity/length/if-style/newline).
+Push diagnostics use \texttt{textDocument/publishDiagnostics}; pull clients may call
+\texttt{textDocument/diagnostic}, receiving a full report with
+\texttt{result\_id=}\textit{uri}\texttt{-}\textit{version}. Algorithm~\ref{alg:publish} formalizes
+the push path.
+
+\begin{algorithm}[t]
+\caption{PublishDiagnostics on document mutation}
+\label{alg:publish}
+\begin{algorithmic}[1]
+\Require URI \(u\), source \(s\), version \(v\)
+\State \(doc \gets \Call{PutOrUpdate}{u, s, v}\)
+\State \Call{ParseAndLint}{doc}
+\State \(D \gets [\,]\)
+\If{\(doc.\mathit{parse\_error} \neq \bot\)}
+  \State append E001 diagnostic at \(doc.\mathit{parse\_error\_line}\) to \(D\)
+\EndIf
+\For{each warning \(w\) in \(doc.\mathit{diagnostics}\)}
+  \State append \Call{ToLspDiagnostic}{w, s} to \(D\)
+\EndFor
+\State \Call{PublishDiagnostics}{u, D}
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Completion from builtin metadata}
+\label{sec:feat-completion}
+
+Completion is metadata-driven, not evaluator-driven. The server loads a catalog of
+builtins (plaintext JSON in development, Fernet-encrypted in compiled binaries;
+Section~\ref{sec:metadata}), filters by prefix or module path, and returns
+\texttt{CompletionItem} rows. Current catalog size is \(\sim\)872 entries across 25
+categories (e.g., \texttt{ta.technical\_analysis}, \texttt{strategy}, \texttt{array},
+\texttt{request}, drawing objects). Historically documentation referred to
+\(\sim\)482 builtins; the completion surface is larger because module members, aliases,
+and related symbols expand the item set. We report ``hundreds of builtins, \(\sim\)800+
+completion items/metadata.''
+
+Figure~\ref{fig:completion} illustrates data flow from metadata artifacts through
+providers to the client.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  node distance=0.7cm and 0.9cm,
+  box/.style={draw, rounded corners=2pt, align=center, inner sep=5pt, fill=codebg},
+  arr/.style={-{Latex}, thick}
+]
+  \node[box, fill=pynegreen!12] (json) {\texttt{builtin\_metadata.json}\\(+ .enc / .sha256)};
+  \node[box, right=of json] (load) {\texttt{get\_metadata()}\\cache};
+  \node[box, right=of load] (ctx) {Cursor context\\prefix / trigger \texttt{.}};
+  \node[box, below=1.1cm of load] (filt) {\texttt{fuzzy\_filter} /\\module filter};
+  \node[box, below=1.1cm of ctx] (build) {\texttt{build\_completion\_*}\\snippets, sort\_text};
+  \node[box, below=1.1cm of filt, fill=pyneblue!12] (list) {\texttt{CompletionList}};
+  \node[box, right=of list, fill=pyneorange!15] (client) {Editor UI};
+
+  \draw[arr] (json) -- (load);
+  \draw[arr] (load) -- (ctx);
+  \draw[arr] (load) -- (filt);
+  \draw[arr] (ctx) -- (build);
+  \draw[arr] (filt) -- (build);
+  \draw[arr] (build) -- (list);
+  \draw[arr] (list) -- (client);
+\end{tikzpicture}
+\caption{Completion data flow: metadata \(\rightarrow\) items \(\rightarrow\) client.}
+\label{fig:completion}
+\end{figure}
+
+\paragraph{Context and ranking.}
+Algorithm~\ref{alg:completion} sketches request handling. Trigger character \texttt{.}
+and dotted prefixes (\texttt{ta.sm}) route to module completion; otherwise a fuzzy filter
+scores candidates (exact label 1000, prefix 500, substring 100, category 50, brief 25;
+default limit 50). Sort keys prefer modules (\(\texttt{\textbackslash x01}\ldots\)) over
+root symbols (\(\texttt{\textbackslash x02}\ldots\)). Category headers appear as
+folder-kind items with empty insert text. Snippets use \texttt{InsertTextFormat.Snippet}
+when metadata supplies \texttt{\$\{...\}} placeholders. Resolve rehydrates full
+documentation for a single item via \texttt{get\_builtin(label)}.
+
+\begin{algorithm}[t]
+\caption{HandleCompletion}
+\label{alg:completion}
+\begin{algorithmic}[1]
+\Require params \(P\), source \(s\)
+\State \(t \gets\) text before cursor on line of \(P.\mathit{position}\)
+\State \(prefix \gets\) last token of \(t\)
+\If{\texttt{"."} \(\in prefix\) \textbf{or} trigger char is \texttt{"."}}
+  \State \(m \gets\) module name before final \texttt{.}
+  \State \Return \Call{BuildModuleCompletion}{m}
+\Else
+  \State \Return \Call{BuildCompletionList}{prefix}
+\EndIf
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Hover and signatures}
+\label{sec:feat-hover}
+
+Hover resolves the word under the cursor---including dotted forms such as
+\texttt{ta.sma}---against \texttt{get\_builtin}. Successful hits return Markdown
+combining signature \texttt{detail}, brief, and extended documentation. The server does
+not yet advertise a dedicated \texttt{signatureHelp} provider; signature text is instead
+surfaced through hover and completion \texttt{detail} fields, which is adequate for
+most Pine call sites and avoids half-implemented capability flags.
+
+\subsection{Navigation: definitions, references, symbols}
+\label{sec:feat-nav}
+
+\textbf{Definition} walks the \ast{} with a \texttt{DefinitionFinder} visitor for the
+identifier under the cursor and returns same-document \texttt{Location}s (functions,
+types, assignments). \textbf{References} symmetrically collect name occurrences.
+\textbf{Document symbols} build an outline (functions \(\rightarrow\) Function, type
+defs \(\rightarrow\) Class, assignments \(\rightarrow\) Variable). \textbf{Workspace
+symbols} scan all open documents and filter by case-insensitive substring query.
+Cross-file project indexes and library \texttt{import} resolution are future work
+(Section~\ref{sec:limits}).
+
+\subsection{Semantic tokens and inlay hints}
+\label{sec:feat-sem}
+
+Semantic tokens extend TextMate grammars with \ast{}-backed classification. The server
+advertises a legend of thirteen types (namespace, type, class, function, method,
+variable, parameter, property, keyword, string, number, operator, comment) and four
+modifiers (declaration, definition, readonly, defaultLibrary). Tokens are delta-encoded
+for \texttt{textDocument/semanticTokens/full}; range requests are not advertised.
+Builtin namespaces (\texttt{ta}, \texttt{math}, \texttt{strategy}, \ldots) receive
+\texttt{defaultLibrary} modifiers.
+
+Inlay hints show confident, shape-based inferred types next to declarations, e.g.
+\texttt{length = 14} \(\rightarrow\) \texttt{: const int}, \texttt{rsi = ta.rsi(...)}
+\(\rightarrow\) \texttt{: series float}, drawing return types from metadata
+\texttt{detail} after \(\rightarrow\). Only high-confidence cases are emitted
+(\texttt{resolve\_provider=False}).
+
+\subsection{Formatting via unparse}
+\label{sec:feat-format}
+
+Formatting reuses the lossless unparser rather than a separate pretty-print grammar
+(Algorithm~\ref{alg:format}). Full-document and range formatting both parse, unparse,
+and emit a single replace \texttt{TextEdit} when the result differs. Parse failures
+return an empty edit list (no throw to the client), so broken mid-edit buffers never
+hard-fail format-on-save. This design keeps formatting semantics aligned with the
+canonical \ast{} round-trip used in tests and \cli{} \texttt{format}.
+
+\begin{algorithm}[t]
+\caption{FormatDocument}
+\label{alg:format}
+\begin{algorithmic}[1]
+\Require source \(s\)
+\If{\(s = \bot\) or \(s = \varepsilon\)}
+  \State \Return \([\,]\)
+\EndIf
+\State \textbf{try} \(tree \gets \Call{Parse}{s}\)
+\State \(s' \gets \Call{Unparse}{tree}\)
+\If{\(s' = s\)}
+  \State \Return \([\,]\)
+\EndIf
+\State \Return \([\Call{ReplaceEntireDocument}{s'}]\)
+\State \textbf{catch} \Return \([\,]\)
+\end{algorithmic}
+\end{algorithm}
+
+% =============================================================================
+\section{Metadata Pipeline}
+\label{sec:metadata}
+% =============================================================================
+
+\subsection{Generation}
+\label{sec:meta-gen}
+
+Builtin metadata is a map from fully qualified names (e.g., \texttt{ta.sma},
+\texttt{strategy.entry}) to records:
+\begin{lstlisting}[style=python,numbers=none,basicstyle=\ttfamily\scriptsize]
+{
+  "ta.sma": {
+    "label": "ta.sma",
+    "kind": "function",
+    "detail": "ta.sma(series, int) -> series float",
+    "brief": "...",
+    "documentation": "...",
+    "snippet": "ta.sma(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  }
+}
+\end{lstlisting}
+The generator \texttt{scripts/generate\_builtin\_metadata.py} introspects evaluator
+builtins and related surfaces; the JSON under
+\texttt{langserver/providers/} is regenerated rather than hand-edited as source of
+truth. Consumers include completion, hover, and inlay return-type extraction.
+
+\subsection{Encryption and integrity}
+\label{sec:meta-enc}
+
+For Nuitka-shipped binaries, plaintext is not ideal: casual
+\texttt{strings pynescript-lsp} would dump the documentation corpus. The build
+optionally encrypts with Fernet (AES-128-CBC + HMAC-SHA256) to
+\texttt{builtin\_metadata.json.enc}, accompanied by a 16-character SHA-256 prefix of
+the plaintext in \texttt{builtin\_metadata.json.sha256}. The key is supplied via
+\texttt{CRYPTO\_KEY} / \texttt{.metadata.key} in CI and is not committed. This is
+\emph{distribution hygiene / obscurity}, not an access-control boundary: anyone with
+the binary can eventually recover the catalog. It preserves a future knob for paid
+metadata endpoints without changing handler code.
+
+\subsection{Runtime load order}
+\label{sec:meta-load}
+
+\texttt{get\_metadata()} uses a process-local cache and the following order:
+\begin{enumerate}[leftmargin=*]
+  \item Prefer plaintext \texttt{builtin\_metadata.json} when present and valid
+        (development always wins after regen).
+  \item Else decrypt \texttt{.enc} via \texttt{metadata\_decrypt.load\_encrypted\_metadata()},
+        validating the SHA-256 prefix when present.
+  \item Else return an empty dict (logged warnings); completion degrades gracefully.
+\end{enumerate}
+Key resolution checks \texttt{.metadata.key} beside the package (or under
+\texttt{sys.\_MEIPASS} when frozen), then \texttt{PYNESCRIPT\_METADATA\_KEY}.
+
+% =============================================================================
+\section{Multi-Editor Delivery}
+\label{sec:editors}
+% =============================================================================
+
+\subsection{VS Code extension}
+\label{sec:vscode}
+
+The \texttt{vscode-extension/} package (\textbf{PYNE}, publisher
+\texttt{jango-blockchained}) is a TypeScript language client that:
+\begin{itemize}[leftmargin=*]
+  \item Registers language id \texttt{pinescript} with extensions \texttt{.pyne},
+        \texttt{.pine}, \texttt{.pinev5}, \texttt{.pinev6}, \texttt{.pinescript}.
+  \item Contributes TextMate grammar \texttt{syntaxes/pinescript.tmLanguage.json}
+        for baseline highlighting.
+  \item Auto-detects the server: \texttt{pynescript-lsp} on \texttt{PATH}, else
+        \texttt{python -m pynescript.langserver}, else a configured absolute path.
+  \item Enables semantic highlighting defaults, sets the extension as default
+        formatter, and exposes settings for diagnostics/completion/snippets.
+\end{itemize}
+Install path for users: \texttt{pip install "hoox-pyne[lsp]"} plus the VSIX, or a
+future marketplace listing. The extension does not reimplement language intelligence;
+it is a thin client over STDIO.
+
+\subsection{Thin clients: Neovim, Zed, Emacs}
+\label{sec:thin}
+
+Directory \texttt{clients/} ships ready snippets:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Neovim} (\texttt{neovim.lua}): \texttt{nvim-lspconfig} registration,
+        keymaps for definition, references, hover, format.
+  \item \textbf{Zed} (\texttt{zed.json}): language server command
+        \texttt{["pynescript-lsp"]} with STDIO.
+  \item \textbf{Emacs} (\texttt{emacs.el}): \texttt{lsp-mode} client registration for
+        \texttt{pinescript-mode}.
+\end{itemize}
+Helix and Sublime Text configurations are documented similarly. Any STDIO-capable
+client can launch \texttt{pynescript-lsp --stdio}. Table~\ref{tab:editors} summarizes
+the matrix.
+
+\begin{table}[t]
+\centering
+\caption{Editor delivery matrix for \pyne{} language services.}
+\label{tab:editors}
+\small
+\begin{tabular}{@{}llll@{}}
+\toprule
+Editor & Client form & Server discovery & Syntax \\
+\midrule
+VS~Code / Cursor & TypeScript extension (VSIX) & auto / PATH / module & TextMate + semantic \\
+Neovim & \texttt{clients/neovim.lua} & PATH binary or module & Treesitter optional \\
+Zed & \texttt{clients/zed.json} & PATH & Zed grammar optional \\
+Emacs & \texttt{clients/emacs.el} & PATH & major mode \\
+Helix / Sublime & docs snippets & PATH & client-specific \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Packaging channels}
+\label{sec:packaging}
+
+Three delivery shapes share one codebase~\citep{pynescript2026}:
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{pip:} \texttt{hoox-pyne[lsp]} for libraries, \cli{}, and module launch.
+  \item \textbf{Nuitka onefile:} self-contained \texttt{pynescript-lsp} for editors that
+        prefer a single executable~\citep{nuitka}.
+  \item \textbf{VS~Code VSIX:} Node client + server discovery; optional binary bundle.
+\end{enumerate}
+Container images on GHCR cover \cli{}/\api{} operational use cases and are orthogonal
+to interactive \lsp{} sessions.
+
+% =============================================================================
+\section{CLI as Complementary Tooling Surface}
+\label{sec:cli}
+% =============================================================================
+
+The console script \texttt{pynescript} (Click-based) is deliberately \emph{not} a
+subcommand of the language server. It targets headless and CI workflows that
+complement the editor:
+
+\begin{center}
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+Command & Role \\
+\midrule
+\texttt{check} & Parse-only validation (CI-friendly exit codes) \\
+\texttt{format} / \texttt{fmt} & Parse \(\rightarrow\) unparse; optional in-place write \\
+\texttt{lint} & Static rules; colored or JSON output \\
+\texttt{parse-and-dump} / \texttt{dump} / \texttt{ast} & AST dump \\
+\texttt{parse-and-unparse} / \texttt{unparse} & Round-trip source \\
+\texttt{compile} & Transpile / Numba compile-check \\
+\texttt{run} & Compile + execute on synthetic \ohlcv{} \\
+\texttt{data} & Fetch market bars (mock / Yahoo / \ldots) \\
+\texttt{prewarm} & Warm Numba / IR caches \\
+\texttt{info} & Version and optional extras \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Shared components ensure behavioral parity: \cli{} \texttt{format} and \lsp{} formatting
+both call the unparser; \cli{} \texttt{lint} and \lsp{} diagnostics both call
+\texttt{lint\_script}. The language server remains a separate entry point
+(\texttt{pynescript-lsp}) so editor sessions do not inherit \cli{} flag parsing or
+network data providers.
+
+% =============================================================================
+\section{Integration with Evaluation}
+\label{sec:eval}
+% =============================================================================
+
+\subsection{Shared AST, separate processes}
+\label{sec:eval-boundary}
+
+Evaluation (literal expressions, full scripts, strategy backtests) uses the same
+parse \(\rightarrow\) \ast{} path as the language server but is \emph{not} invoked on
+every keystroke. The design document~\citep{pynescript2026} makes this separation
+explicit: lint is a cheap static phase; evaluation is a different cost profile and
+failure surface.
+
+\subsection{Pro API surface}
+\label{sec:eval-pro}
+
+The Pro \api{} (\texttt{backend/}, Flask) exposes HTTP endpoints such as evaluate, chart
+preview, and quick backtest. Auth (API keys, tiers, rate limits) and scaling (gunicorn /
+Cloud Run) differ completely from single-user STDIO. Taking the \api{} down must not
+break offline editing. Optionally, an HTTP bridge reuses completion/hover handlers for
+browser-hosted tools (AXIS) that cannot spawn pygls in-tab; that bridge is a convenience
+facade, not a replacement for the full \lsp{}.
+
+\subsection{IDE-perspective run/preview}
+\label{sec:eval-ide}
+
+From an IDE user's perspective, optional ``run script'' or ``preview chart'' actions
+are natural extensions. The preferred architecture is: editor command \(\rightarrow\)
+local \cli{} or authenticated \api{} call \(\rightarrow\) render result in a webview or
+output channel---never by embedding market I/O inside diagnostic hot paths. This keeps
+the open-source editor experience fully offline while allowing premium evaluation
+tiers~\citep{hoox2026}.
+
+% =============================================================================
+\section{Implementation Experience and Design Lessons}
+\label{sec:lessons}
+% =============================================================================
+
+\paragraph{Advertise only what you implement.}
+Early drafts considered declaring signature help and code actions ``for free.'' Clients
+then surface broken UI affordances. \pyne{} now lists only wired handlers in
+\texttt{get\_server\_capabilities()}.
+
+\paragraph{Pure feature handlers beat god-objects.}
+Handlers of the form \texttt{handle\_X(params, source)} (and optional cached tree) are
+unit-testable without spinning STDIO. Server methods become thin adapters.
+
+\paragraph{Parse failure must be non-fatal.}
+Mid-edit buffers are often temporarily invalid. The server retains process health,
+returns empty navigation/completion when needed, and still publishes E001.
+
+\paragraph{Unparse is a formatter.}
+For \textsc{Dsl}s with a maintained unparser, a separate formatting grammar is
+unnecessary duplication. Round-trip tests become formatting regression tests.
+
+\paragraph{Metadata is a product artifact.}
+Treating builtin docs as generated, versioned, optionally encrypted data---not as
+hard-coded strings in handlers---keeps completion/hover in sync with the evaluator
+surface and enables binary packaging policies.
+
+\paragraph{Multi-editor thin clients scale.}
+Investing in a solid STDIO server plus a polished VS~Code client, while shipping
+minimal configs for other editors, matches real adoption curves without \(N\) full
+extensions.
+
+\paragraph{Financial DSL quirks.}
+Pine's series semantics, \texttt{var}/\texttt{varip}, and version annotations affect
+static analysis more than completion. Inlay hints remain intentionally conservative
+(shape-based) rather than claiming full type inference parity with the hosted
+compiler~\citep{nystrom2021crafting,pierce2002types}.
+
+% =============================================================================
+\section{Related Work}
+\label{sec:related}
+% =============================================================================
+
+\paragraph{LSP ecosystem.}
+The \lsp{} specification~\citep{lsp2023} and early advocacy~\citep{voutilainen2016lsp}
+established the multi-editor language service pattern. Production servers for
+TypeScript, Rust, Go, and Python demonstrate capability breadth; \texttt{pygls}
+lowers the barrier for Python-implemented servers~\citep{murphy2020pygls}.
+\texttt{pynescript-lsp} applies this stack to a financial \textsc{Dsl} rather than a
+general-purpose language.
+
+\paragraph{Language workbenches and DSLs.}
+Fowler~\citep{fowler2010dsl} and Hudak~\citep{hudak1996dsl} emphasize that
+\textsc{Dsl} value depends on tooling as much as semantics. Workbenches often generate
+editors from language definitions; \pyne{} instead reuses a hand-maintained ANTLR4
+grammar~\citep{parr2013antlr,parr2011allstar} and ASDL schema~\citep{wang1997asdl}
+shared with the runtime---closer to interpreter engineering~\citep{nystrom2021crafting}
+than to generative workbenches.
+
+\paragraph{Financial IDE tooling.}
+Hosted trading platforms provide tightly integrated script editors with chart
+feedback but limited offline/CI support. Quantitative libraries (e.g., Python
+data stacks~\citep{brooks2015python,harris2020numpy}) offer powerful analysis without
+Pine-specific language services. \pyne{} targets the gap: local language intelligence
+for \pine{} sources plus optional evaluation, without claiming affiliation with the
+platform vendor~\citep{tradingview-pine}.
+
+\paragraph{Binary distribution of Python tools.}
+Nuitka~\citep{nuitka} and similar compilers address cold-start and dependency issues
+for shipping Python language servers to users who should not manage virtualenvs. Our
+encrypted metadata path is a packaging concern orthogonal to language semantics.
+
+% =============================================================================
+\section{Limitations and Future Work}
+\label{sec:limits}
+% =============================================================================
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Same-document navigation.} Definitions/references do not yet resolve
+        cross-file \texttt{import} graphs or library version pins.
+  \item \textbf{No signature help / code actions.} Documented omissions; quick-fix
+        stubs exist in diagnostics helpers but are not first-class features.
+  \item \textbf{Incremental parse.} The workspace re-parses whole buffers; tree-sitter
+        or incremental ANTLR strategies could reduce latency on large scripts.
+  \item \textbf{Type system depth.} Inlay hints are shape-based; full series/type
+        inference and strict v6 boolean semantics in the language server remain
+        incomplete relative to the evaluator.
+  \item \textbf{Hosted editor parity.} Chart-linked debugging, visual plot previews
+        inside the editor, and bit-exact runtime parity with \tv{} are non-goals of
+        the open \lsp{} tier~\citep{pynescript2026}.
+  \item \textbf{Security of metadata encryption.} Obscurity only; a determined party
+        can extract the catalog from a binary.
+  \item \textbf{Evaluation-in-IDE.} Richer offline mock-data evaluation panels and
+        authenticated Pro preview commands are natural extensions.
+\end{itemize}
+
+% =============================================================================
+\section{Conclusion}
+\label{sec:conclusion}
+% =============================================================================
+
+Financial \textsc{Dsl}s need not remain trapped in browser-only editors. This paper
+presented \texttt{pynescript-lsp}, a \texttt{pygls}-based Language Server for \pine{}
+within the \pyne{} toolchain. By centering a shared \ast{}, caching parse/lint in a
+workspace, and layering metadata-driven completion and hover over a generated builtin
+catalog (\(\sim\)800+ items), the server delivers offline diagnostics, navigation,
+semantic highlighting, inlay hints, and unparse-based formatting to any STDIO-capable
+editor. Multi-surface delivery---VS~Code extension, thin Neovim/Zed/Emacs clients,
+\cli{}, and a clean boundary with evaluation/\api{} tiers---shows how language
+intelligence and runtime services can co-evolve without forcing online dependence for
+editing. We believe the architecture is reusable for other bar-oriented and trading
+\textsc{Dsl}s seeking IDE-grade tooling under the \lsp{} umbrella.
+
+\section*{Acknowledgments}
+We thank contributors to the HOOX / \pyne{} open-source stack and users who reported
+editor integration issues across platforms.
+
+\section*{Trademark disclaimer}
+\trademarknote{}
+
+% =============================================================================
+\section*{References}
+\bibliographystyle{plainnat}
+\bibliography{../common/bibliography}
+
+% =============================================================================
+\appendix
+\section{Capability comparison (fair matrix)}
+\label{app:matrix}
+% =============================================================================
+
+Table~\ref{tab:compare} compares capability classes without claiming bit-exact parity
+with proprietary hosted editors. Hosted environments excel at live chart coupling;
+\pyne{} excels at offline, multi-editor, and CI workflows.
+
+\begin{table}[h]
+\centering
+\caption{Capability matrix: browser-hosted \tv{} editor vs.\ \pyne{} local tooling
+(qualitative; not a product claim of equivalence).}
+\label{tab:compare}
+\small
+\begin{tabular}{@{}p{3.6cm}cc@{}}
+\toprule
+Capability & Hosted browser editor & \pyne{} \lsp{} + \cli{} \\
+\midrule
+Offline editing & Limited / none & Yes \\
+Multi-editor (Vim/Emacs/\ldots) & No & Yes (\lsp{}) \\
+Syntax highlighting & Yes & Yes (TextMate + semantic) \\
+Diagnostics on edit & Platform-specific & Parse + lint (push/pull) \\
+Builtin completion / hover & Yes (online) & Yes (local metadata) \\
+Go-to-definition / refs & Platform-specific & Same-document \\
+Deterministic format (CI) & Limited & Yes (unparse + \cli{}) \\
+Live chart / strategy UI & Strong & Via optional Pro \api{} / external \\
+Headless CI parse/lint & Weak & Strong \\
+Open toolchain / self-host & No & Yes (AGPL package) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Example configuration fragments}
+\label{app:config}
+
+\paragraph{Neovim (conceptual).}
+\begin{lstlisting}[style=python,numbers=none,basicstyle=\ttfamily\scriptsize,language={}]
+require('lspconfig').pynescript.setup({})
+-- server command: pynescript-lsp on PATH
+\end{lstlisting}
+
+\paragraph{Helix \texttt{languages.toml} (conceptual).}
+\begin{lstlisting}[style=python,numbers=none,basicstyle=\ttfamily\scriptsize,language={}]
+[[language]]
+name = "pinescript"
+file-types = ["pyne", "pine", "pinev5", "pinev6"]
+command = "pynescript-lsp"
+args = ["--stdio"]
+\end{lstlisting}
+
+\section{Software availability}
+\label{app:avail}
+
+Source: project repository associated with \pyne{} / HOOX~\citep{pynescript2026,hoox2026}.
+Install language server: \texttt{pip install "hoox-pyne[lsp]"}. Launch:
+\texttt{pynescript-lsp} or \texttt{python -m pynescript.langserver}.
+
+\end{document}
