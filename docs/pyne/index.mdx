@@ -41,10 +41,12 @@ Source (.pyne / .pine)
   → optional L2 webhooks (Pro API + edge)
 ```
 
-Install from PyPI as **`pyne`** (`import pynescript`); source lives at [github.com/hoox-sh/pyne](https://github.com/hoox-sh/pyne).
+**Live on PyPI** as **[`hoox-pyne`](https://pypi.org/project/hoox-pyne/)** (`import pynescript`). Source: [github.com/hoox-sh/pyne](https://github.com/hoox-sh/pyne).
 
 ```bash
 pip install "hoox-pyne[lsp]"
+pynescript --version
+# → 0.3.0
 ```
 
 The same pipeline powers the desk CLI, the LSP binary, the Pro API, browser Pyodide (via AXIS), and Cloudflare® workers. Round-trip fidelity (`parse → unparse`), interpret↔compile [plot parity](/pyne/docs/runtime/compiler/parity), and open-source corpus Runtime **~94.3%** OK (set01–04 projected) are first-class invariants — see [compatibility](/pyne/docs/reference/compatibility) and [implementation status](/pyne/docs/reference/implementation-status).
@@ -84,7 +86,7 @@ flowchart LR
 
 ### End User
 
-Install the package (`pip install pyne`), run the CLI, embed the library API, wire an editor (`.pyne` / `.pine`), or call the Pro API as a consumer — including alerts export and webhooks.
+Install the package (`pip install hoox-pyne`), run the CLI, embed the library API, wire an editor (`.pyne` / `.pine`), or call the Pro API as a consumer — including alerts export and webhooks.
 
 → [End User hub](/pyne/docs/enduser)
 

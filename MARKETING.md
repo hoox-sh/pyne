@@ -15,7 +15,7 @@ Historically the practical options were:
 2. Via webhooks → 3commas/Cryptohopper ($30-150/mo, Pine conversion required)
 3. Rewrite everything in Python (Freqtrade, Backtrader)
 
-**PYNE** ([hoox-sh/pyne](https://github.com/hoox-sh/pyne), PyPI **`pyne`**, import
+**PYNE** ([hoox-sh/pyne](https://github.com/hoox-sh/pyne), PyPI **[`hoox-pyne`](https://pypi.org/project/hoox-pyne/)**, import
 `pynescript`) is a full open toolchain: parse → evaluate/compile → strategy
 events → alerts/webhooks → Pro API / edge workers / AXIS charting. Corpus Runtime
 on open-source set01–04 is ~**94.3%** OK — strong real-world coverage, **not** a
@@ -295,7 +295,7 @@ Site: [hoox.sh](https://hoox.sh) · product docs at [hoox.sh/pyne](https://hoox.
 
 ### PYNE (this repo — [hoox-sh/pyne](https://github.com/hoox-sh/pyne))
 - Pine Script™ Python toolchain: parser, evaluator, Numba compile, LSP, Pro API
-- PyPI **`pyne`**, import **`pynescript`**, VS Code extension **PYNE** (`.pyne` files)
+- PyPI **[`hoox-pyne`](https://pypi.org/project/hoox-pyne/)** (live · 0.3.0), import **`pynescript`**, VS Code extension **PYNE** (`.pyne` files)
 - pyne-worker (Python CF Worker) + pine-worker (TS edge port, extra tool)
 - Product surface: [hoox.sh/pyne](https://hoox.sh/pyne)
 

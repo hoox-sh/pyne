@@ -2,7 +2,7 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
   "name": "PYNE",
-  "description": "Open-source Pine Script™ evaluation — interpret/compile runtime, alerts + webhooks, LSP (.pyne), Pro API. pip install pyne · github.com/hoox-sh/pyne",
+  "description": "Open-source Pine Script™ evaluation — interpret/compile runtime, alerts + webhooks, LSP (.pyne), Pro API. pip install hoox-pyne · github.com/hoox-sh/pyne",
   "colors": {
     "primary": "#A3E635",
     "light": "#BEF264",
@@ -16,7 +16,7 @@
     "metatags": {
       "og:site_name": "PYNE Docs",
       "og:title": "PYNE — Open Pine Script™ Evaluation",
-      "og:description": "Grammar-driven parser, interpret/compile bar-loop, alerts + L2 webhooks, LSP (.pyne), Pro API. pip install pyne. Self-host the runtime.",
+      "og:description": "Grammar-driven parser, interpret/compile bar-loop, alerts + L2 webhooks, LSP (.pyne), Pro API. pip install hoox-pyne. Self-host the runtime.",
       "og:type": "website",
       "canonical": "https://hoox.sh/pyne/docs",
       "robots": "index, follow"

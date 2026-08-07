@@ -19,163 +19,148 @@
 
 ---
 title: "Installation"
-description: "Install the pyne package from PyPI or a source checkout, select extras for LSP and market data, and verify the CLI and library imports."
+description: "Install hoox-pyne from PyPI (live) or a source checkout — CLI, LSP, compile, data, and Pro API extras."
 ---
 
 # Installation
 
 ## Abstract
 
-PYNE ships on PyPI as **`pyne`**. The **import package** and console scripts remain **`pynescript`** / **`pynescript-lsp`** (src-layout under `src/pynescript/`). Do **not** install `hoox-pyne` or the unrelated upstream `pynescript` package when you want this stack.
+**PYNE is live on PyPI** as **[`hoox-pyne`](https://pypi.org/project/hoox-pyne/)** (currently **0.3.0**). The **import package** and console scripts remain **`pynescript`** / **`pynescript-lsp`** (src-layout under `src/pynescript/`).
 
-The default install gives you the Click CLI (`pynescript`) and the AST library (`parse`, `unparse`, `dump`, `walk`, `literal_eval`, linter). Optional extras add the Language Server (`pynescript-lsp`) and CCXT-backed market data. A Hatch-managed checkout is the supported path for contributors who need tests, grammar tooling, or the Flask Pro API in-tree.
+Do **not** install:
+
+- plain **`pyne` / `PyNE`** — unrelated 0.1.0 process-networking library
+- upstream **`pynescript`** ([elbakramer](https://pypi.org/project/pynescript/)) — different project
+
+```bash
+pip install hoox-pyne
+pip install "hoox-pyne[lsp]"       # language server
+pip install "hoox-pyne[compile]"   # Numba compile path
+pip install "hoox-pyne[data]"      # ccxt market data
+pip install "hoox-pyne[pro]"       # Flask Pro API stack
+```
 
 ## Conceptual model
 
 ```mermaid
 flowchart LR
-  PYPI[PyPI pyne] --> CORE[Core wheel]
+  PYPI["PyPI hoox-pyne"] --> CORE[Core wheel]
   GIT[Git checkout] --> EDIT[pip install -e]
   CORE --> CLI[pynescript]
   CORE --> LIB[pynescript.ast]
   EDIT --> CLI
   EDIT --> LIB
   EXTRA_LSP["extra: lsp"] --> LSP[pynescript-lsp]
-  EXTRA_DATA["extra: data / datafeed"] --> CCXT[ccxt providers]
+  EXTRA_COMPILE["extra: compile"] --> NUMBA[numba path]
+  EXTRA_DATA["extra: data"] --> CCXT[ccxt providers]
+  EXTRA_PRO["extra: pro"] --> API[Flask Pro API]
   CORE --> EXTRA_LSP
+  CORE --> EXTRA_COMPILE
   CORE --> EXTRA_DATA
+  CORE --> EXTRA_PRO
 ```
 
 | Install flavor | What you get | When |
 | --- | --- | --- |
-| `pip install pyne` | CLI + library | Desk use, scripts, CI lint |
+| `pip install hoox-pyne` | CLI + library | Desk use, scripts, CI lint |
 | `pip install "hoox-pyne[lsp]"` | + pygls LSP server | Editors |
-| `pip install "hoox-pyne[data]"` | + ccxt | Live/historical exchange data |
-| `pip install "hoox-pyne[pro]"` | + Flask Pro API stack (when published) | Self-hosted `/run` |
+| `pip install "hoox-pyne[compile]"` | + numpy / numba | `compile` / `run` Numba modes |
+| `pip install "hoox-pyne[data]"` | + ccxt | Exchange data providers |
+| `pip install "hoox-pyne[pro]"` | + Flask Pro API stack | Self-hosted `/run` |
 | `pip install -e ".[dev-lsp]"` | Editable + LSP test harness | Contributing to LSP |
+| Docker `pynescript-cli` | Full CLI image | CI gates / isolated runs |
 | Hatch env | Matrix tests, lint, docs | Full monorepo workflow |
 
 ## Interface surface
 
 ### Prerequisites
 
-- **Python ≥ 3.10** (classifiers declare 3.10–3.13; pin to 3.10+ for production)
+- **Python ≥ 3.10** (classifiers declare 3.10–3.13)
 - `pip` or an equivalent installer; virtualenv strongly recommended
-- For Pro API locally: `flask`, `flask-cors`, `numpy`, `matplotlib` (see `backend/requirements.txt`) or `pip install "hoox-pyne[pro]"` when that extra is available
-- For VS Code extension build: Node 22+ under `vscode-extension/` (optional)
+- Optional: Docker for the CLI image; Node 22+ only if building the VS Code extension
 
-### Core install (PyPI / local package)
-
-From a release or built wheel (**distribution name `pyne`**):
+### Core install (PyPI)
 
 ```bash
-pip install hoox-pyne
+python3 -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -U pip
+pip install "hoox-pyne[lsp,compile]"
+pynescript --version
+pynescript info
 ```
 
-From a cloned monorepo root (non-editable):
-
-```bash
-pip install .
-```
-
-Editable (preferred for development):
-
-```bash
-pip install -e .
-# or with Make:
-make install
-```
+Project page: [pypi.org/project/hoox-pyne](https://pypi.org/project/hoox-pyne/) · owner account [jango-blockchained](https://pypi.org/user/jango-blockchained/).
 
 ### Extras
 
 Defined in `pyproject.toml` under `[project.optional-dependencies]`:
 
 ```bash
-# Language Server (pygls + lsprotocol)
 pip install "hoox-pyne[lsp]"
-
-# CCXT for exchange data / datafeed
-pip install "hoox-pyne[data]"
-# alias:
-pip install "hoox-pyne[datafeed]"
-
-# LSP + pytest-lsp for protocol tests (source checkout)
-pip install -e ".[dev-lsp]"
+pip install "hoox-pyne[compile]"
+pip install "hoox-pyne[data]"      # alias: datafeed
+pip install "hoox-pyne[pro]"
+pip install "hoox-pyne[lsp,compile,data]"
 ```
 
-Combine extras:
+### Source checkout
 
 ```bash
-pip install "hoox-pyne[lsp,data]"
-# monorepo:
-pip install -e ".[lsp,data]"
+git clone https://github.com/hoox-sh/pyne.git
+cd pyne
+pip install -e ".[lsp,pro]"
+# or:
+make install
 ```
 
-### Hatch (contributor)
+### Docker CLI
 
 ```bash
-# Install Hatch if needed, then:
-hatch shell
-hatch run test:test
-hatch run lint:style
-```
-
-Make targets used in-repo (see `AGENTS.md`):
-
-```bash
-make install         # pip install -e ".[lsp]"
-make test            # pytest tests/ -v --tb=short
-make lint            # ruff check src/ tests/ backend/
-make run             # python -m backend.app
-make run-lsp         # python -m pynescript.langserver
-make build-check     # fast import check without Nuitka
+docker pull   # when published to a registry; or build from source:
+git clone https://github.com/hoox-sh/pyne.git && cd pyne
+make docker-build-cli
+docker run --rm -v "$PWD:/work" -w /work pynescript-cli:latest check script.pine
+# ≡ make docker-cli ARGS="check script.pine"
 ```
 
 ### Console scripts
 
-After install, two entry points should resolve:
-
 | Command | Purpose |
 | --- | --- |
-| `pynescript` | Click CLI group |
+| `pynescript` | Click CLI (check, format, lint, compile, run, …) |
 | `pynescript-lsp` | Language server (requires `[lsp]`) |
 
 ```bash
 pynescript --version
 pynescript --help
+pynescript check script.pine
 which pynescript-lsp   # only after [lsp]
 ```
+
+Standalone binaries and a CLI image tarball also ship on [GitHub Releases](https://github.com/hoox-sh/pyne/releases).
 
 ## Internals (repo paths)
 
 | Path | Role |
 | --- | --- |
-| `pyproject.toml` | Package metadata, deps, optional extras, scripts |
+| `pyproject.toml` | Package metadata (`name = "hoox-pyne"`), extras, scripts |
 | `src/pynescript/` | Library + CLI + LSP package tree |
-| `src/pynescript/__about__.py` | `__version__` (e.g. `0.2.0`) |
+| `src/pynescript/__about__.py` | `__version__` |
 | `src/pynescript/__main__.py` | CLI implementation |
 | `src/pynescript/langserver/__main__.py` | `pynescript-lsp` entry |
-| `backend/requirements.txt` | Pro API server deps (not in core extras) |
-| `Makefile` | Convenience install / test / run targets |
-| `CONTRIBUTING.md` | Hatch-based contributor workflow |
-
-Base runtime dependencies (core):
-
-- `antlr4-python3-runtime>=4.13.1`
-- `click>=8.1.7`
-- `requests`
-- `tqdm`
+| `Dockerfile` target `cli` | Ephemeral CLI image |
+| `Makefile` | `package`, `docker-build-cli`, `install`, … |
+| `CONTRIBUTING.md` | Publish / Hatch workflow |
 
 ## Invariants & edge cases
 
-- **PyPI name ≠ import name.** Install **`pyne`**; `import pynescript`. Upstream PyPI `pynescript` (elbakramer) is a different project.
-- **License.** Package license is **AGPL-3.0-or-later** (`pyproject.toml`). Network use triggers AGPL source-offer obligations (see GNU AGPL §13); consult your counsel for commercial embedding.
-- **Src layout.** Imports are `pynescript.*`, not a flat package. Editable install requires hatchling to map `src/`.
-- **LSP is not a CLI subcommand of `pynescript`.** The registered script is **`pynescript-lsp`** (`python -m pynescript.langserver`).
-- **Pro API.** Prefer monorepo `pip install -r backend/requirements.txt` + `make run`, or the `[pro]` extra when published. Local bind: `HOST`/`PORT` (default `127.0.0.1:5002`).
-- **Source extensions.** HOOX / PYNE tooling prefers **`.pyne`** for stack sources; `.pine` / `.pinev5` / `.pinev6` still work (VS Code extension registers all).
-- **Anaconda / Nuitka.** Building the onefile LSP binary may need `libpython-static` or `--static-libpython=no` (see build docs). End users rarely need this.
-- **Generated artifacts.** Do not hand-edit `src/pynescript/ast/grammar/antlr4/generated/` or ASDL generated modules.
+- **PyPI name ≠ import name.** Install **`hoox-pyne`**; `import pynescript`.
+- **License.** AGPL-3.0-or-later. Network use triggers AGPL source-offer obligations (see GNU AGPL §13).
+- **LSP is not a CLI subcommand.** Use **`pynescript-lsp`** (or `python -m pynescript.langserver`).
+- **Pro API.** `pip install "hoox-pyne[pro]"` or monorepo `pip install -r backend/requirements.txt` + `make run` (default `:5002`).
+- **Source extensions.** Prefer **`.pyne`** for stack sources; `.pine` / `.pinev5` / `.pinev6` still work.
 
 ## Worked examples
 
@@ -190,58 +175,34 @@ src = '//@version=5\nindicator("t")\nplot(close)\n'
 print(unparse(parse(src)))
 PY
 
-pynescript parse-and-dump examples/rsi_strategy.pine | head
+pynescript check examples/rsi_strategy.pine
 pynescript lint examples/rsi_strategy.pine
-```
-
-### Fresh venv recipe
-
-```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
-pip install -U pip
-pip install "hoox-pyne[lsp,data]"
-pynescript --version
-pynescript-lsp --help 2>/dev/null || true  # server may only speak stdio
 ```
 
 ### Monorepo desk + Pro API
 
 ```bash
 git clone https://github.com/hoox-sh/pyne.git
-cd pynescript
-pip install -e ".[lsp]"
-pip install -r backend/requirements.txt
+cd pyne
+pip install -e ".[lsp,pro]"
 make run   # Flask on :5002
-```
-
-### CI-style install
-
-```bash
-pip install .
-# or matrix:
-# pip install -e ".[dev-lsp]"
-pytest tests/test_parse_and_unparse.py -q
 ```
 
 ## Failure modes
 
 | Failure | Diagnosis | Fix |
 | --- | --- | --- |
-| `ModuleNotFoundError: pynescript` | Wrong env / not installed | Activate venv; reinstall |
-| `No module named 'pygls'` | LSP import without extra | `pip install "hoox-pyne[lsp]"` |
-| `No module named 'ccxt'` | data CLI/provider path | `pip install "hoox-pyne[data]"` |
-| Wrong package / missing APIs | Installed upstream `pynescript` or `hoox-pyne` | `pip uninstall …` then `pip install pyne` |
-| `pynescript` not found | Scripts not on PATH | Use `python -m pynescript` or fix venv `bin/` |
-| Import error from editable | Incomplete install / broken path | Re-run `pip install -e .` from repo root |
-| Backend `ImportError: flask` | Pro API without backend deps | `pip install -r backend/requirements.txt` |
-| ANTLR / grammar mismatch on odd syntax | Older package vs newer scripts | Upgrade package; see [Troubleshooting](/pyne/docs/enduser/guides/troubleshooting) |
+| `ModuleNotFoundError: pynescript` | Wrong env / not installed | Activate venv; `pip install hoox-pyne` |
+| `No module named 'pygls'` | LSP without extra | `pip install "hoox-pyne[lsp]"` |
+| `No module named 'numba'` | compile path without extra | `pip install "hoox-pyne[compile]"` |
+| `No module named 'ccxt'` | data path without extra | `pip install "hoox-pyne[data]"` |
+| Wrong package / missing APIs | Installed upstream `pynescript` or plain `pyne` | `pip uninstall pynescript pyne` then `pip install hoox-pyne` |
+| `pynescript` not found | Scripts not on PATH | `python -m pynescript` or fix venv `bin/` |
 
 ## See also
 
 - [Quick start](/pyne/docs/enduser/getting-started/quick-start)
-- [Configuration](/pyne/docs/enduser/getting-started/configuration)
 - [CLI guide](/pyne/docs/enduser/guides/cli)
 - [Editors / LSP](/pyne/docs/enduser/guides/editors)
-- [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage)
+- [PyPI publish (maintainers)](/pyne/docs/devops/pypi-publish)
 - [End User hub](/pyne/docs/enduser)

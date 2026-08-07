@@ -19,7 +19,7 @@
 
 ---
 title: "End User Hub"
-description: "Install PYNE (pip install pyne), run CLI/library eval with mode=auto, wire editors (.pyne/.pine), and call Pro API alerts + webhooks."
+description: "Install PYNE (pip install hoox-pyne), run CLI/library eval with mode=auto, wire editors (.pyne/.pine), and call Pro API alerts + webhooks."
 ---
 
 # End User Hub
@@ -39,7 +39,7 @@ PYNE exposes one language pipeline through several thin surfaces:
   → optional L2 webhooks (Pro API / edge)
 ```
 
-The **desk path** is the `pynescript` Click CLI and `pynescript.ast` library API (PyPI distribution name **`pyne`**). The **editor path** is `pynescript-lsp` (stdio; first-class `.pyne` association). The **HTTP path** is the Flask Pro API (`POST /run` with alerts export + webhooks, preview, backtest). The optional chart is [AXIS](/axis/docs); the optional trade mesh is [HOOX](/docs). Evaluation does not require either.
+The **desk path** is the `pynescript` Click CLI and `pynescript.ast` library API (PyPI distribution name **[`hoox-pyne`](https://pypi.org/project/hoox-pyne/)**). The **editor path** is `pynescript-lsp` (stdio; first-class `.pyne` association). The **HTTP path** is the Flask Pro API (`POST /run` with alerts export + webhooks, preview, backtest). The optional chart is [AXIS](/axis/docs); the optional trade mesh is [HOOX](/docs). Evaluation does not require either.
 
 ## Conceptual model
 
@@ -87,7 +87,7 @@ flowchart TB
 
 New install, first parse, and environment knobs:
 
-- **[Installation](/pyne/docs/enduser/getting-started/installation)** — PyPI **`pip install pyne`** (import `pynescript`), extras (`lsp`, `data`), Hatch checkout, smoke checks.
+- **[Installation](/pyne/docs/enduser/getting-started/installation)** — PyPI **`pip install hoox-pyne`** (import `pynescript`), extras (`lsp`, `compile`, `data`, `pro`), Hatch checkout, smoke checks.
 - **[Quick start](/pyne/docs/enduser/getting-started/quick-start)** — Parse → dump → unparse → lint → `literal_eval` in under ten minutes.
 - **[Configuration](/pyne/docs/enduser/getting-started/configuration)** — Extras, console scripts, Pro API env vars (`ALERT_WEBHOOK_URL`, compile cache), editor settings.
 
@@ -112,7 +112,7 @@ Daily workflows against the same pipeline:
 
 | Want | Command / import | Docs |
 | --- | --- | --- |
-| Install core | `pip install pyne` (import `pynescript`) | [Installation](/pyne/docs/enduser/getting-started/installation) |
+| Install core | `pip install hoox-pyne` (import `pynescript`) | [Installation](/pyne/docs/enduser/getting-started/installation) |
 | Install LSP | `pip install "hoox-pyne[lsp]"` | [Editors](/pyne/docs/enduser/guides/editors) |
 | Install market data deps | `pip install "hoox-pyne[data]"` | [CLI data](/pyne/docs/enduser/guides/cli) |
 | Parse file | `pynescript parse-and-dump path.pyne` | [CLI](/pyne/docs/enduser/guides/cli) |

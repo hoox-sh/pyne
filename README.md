@@ -3,7 +3,7 @@
 > Parse, evaluate, and compile TradingView® Pine Script™ with a modern Python toolchain.
 > Bar-loop runtime (interpret + Numba/object-mode compile), alerts, Pro API, and Language Server Protocol (LSP) for VS Code, Neovim, Zed, and Emacs.
 
-**Version:** 0.3.0 · **PyPI:** [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) · **Import / CLIs:** `pynescript` · `pynescript-lsp`
+**Version:** 0.3.0 · **PyPI (live):** [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) · **Import / CLIs:** `pynescript` · `pynescript-lsp`
 
 **Website:** [hoox.sh/pyne](https://hoox.sh/pyne) · **Docs:** [hoox.sh/pyne/docs](https://hoox.sh/pyne/docs) · **Repo:** [hoox-sh/pyne](https://github.com/hoox-sh/pyne)
 
@@ -230,9 +230,11 @@ curl -s -X POST http://127.0.0.1:5002/auth/create_key \
 
 ```bash
 # From PyPI (distribution name hoox-pyne; import remains pynescript)
-pip install hoox-pyne
-pip install "hoox-pyne[lsp]"      # language server
-pip install "hoox-pyne[pro]"      # Flask Pro API stack
+pip install hoox-pyne                 # live on PyPI · https://pypi.org/project/hoox-pyne/
+pip install "hoox-pyne[lsp]"          # language server
+pip install "hoox-pyne[compile]"      # Numba compile path
+pip install "hoox-pyne[data]"         # ccxt market data
+pip install "hoox-pyne[pro]"          # Flask Pro API stack
 
 # From a git clone (development)
 pip install -e ".[lsp,pro]"

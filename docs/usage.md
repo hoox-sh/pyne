@@ -21,15 +21,16 @@
 
 ## Installation
 
-Install the latest release from PyPI. The **distribution name is `hoox-pyne`**; the import package and CLIs remain `pynescript` / `pynescript-lsp`:
+Install the latest release from PyPI ([`hoox-pyne`](https://pypi.org/project/hoox-pyne/)). The **distribution name is `hoox-pyne`**; the import package and CLIs remain `pynescript` / `pynescript-lsp`:
 
 ```console
 pip install hoox-pyne
-pip install "hoox-pyne[lsp]"    # language server
-pip install "hoox-pyne[data]"   # ccxt market data
+pip install "hoox-pyne[lsp]"       # language server
+pip install "hoox-pyne[compile]"   # Numba path
+pip install "hoox-pyne[data]"      # ccxt market data
 ```
 
-Do not install `hoox-pyne` or the unrelated upstream PyPI package named `pynescript` for this stack.
+Do **not** install plain `pyne`/`PyNE` (unrelated package) or the upstream PyPI project named `pynescript` (elbakramer) for this stack.
 
 To work from a local checkout, install Hatch and activate the project environment with `hatch shell`, or `pip install -e ".[lsp]"`.
 
