@@ -3821,8 +3821,6 @@ class TestEmaRmaLeadingNanSeed:
 
     def test_double_ema_and_atr_scripts_not_all_nan(self) -> None:
         """End-to-end: compile path for DEMA / custom-RMA ATR produces values."""
-        from pathlib import Path
-
         from backend.runtime import Runtime
         from pynescript.ast.helper import clear_parse_cache
 
