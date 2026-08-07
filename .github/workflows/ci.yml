@@ -223,8 +223,13 @@ jobs:
           set -euo pipefail
           docker run --rm --network=none pynescript-cli:ci --help
           docker run --rm --network=none pynescript-cli:ci info
+          # Image runs as uid 1000 (appuser). mktemp dirs are mode 0700 by default,
+          # so non-root containers get PermissionError on bind-mounted paths —
+          # open the dir and file for others (read + traverse).
           TMP=$(mktemp -d)
+          chmod 755 "$TMP"
           printf '%s\n' '//@version=5' 'indicator("ci")' 'plot(close)' > "$TMP/smoke.pine"
+          chmod 644 "$TMP/smoke.pine"
           docker run --rm --network=none \
             -v "$TMP:/work:ro" -w /work \
             pynescript-cli:ci check smoke.pine -q

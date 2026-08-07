@@ -350,8 +350,11 @@ jobs:
           # Read-only root FS where possible; no network needed for --help/info/check.
           docker run --rm --network=none pynescript-cli:latest --help
           docker run --rm --network=none pynescript-cli:latest info
+          # Image runs as uid 1000 (appuser). mktemp is 0700 — open for non-root reads.
           TMP=$(mktemp -d)
+          chmod 755 "$TMP"
           printf '%s\n' '//@version=5' 'indicator("ci")' 'plot(close)' > "$TMP/smoke.pine"
+          chmod 644 "$TMP/smoke.pine"
           docker run --rm --network=none \
             -v "$TMP:/work:ro" -w /work \
             pynescript-cli:latest check smoke.pine -q
