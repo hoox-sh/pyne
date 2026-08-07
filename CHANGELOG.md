@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **PyPI publish** targets personal account **`jango-blockchained`** (API token
+  secret `PYPI_API_TOKEN`, with optional Trusted Publishing OIDC). No PyPI org
+  required; GitHub Actions still run on `hoox-sh/pyne`.
+
 ### Added
 - **CLI packaging & release**: Nuitka onefile binaries for `pynescript` CLI
   (`pynescript-cli-linux-x86_64`, Windows, macOS ARM) on `v*` tags alongside LSP.

@@ -1,16 +1,31 @@
 # Publish hoox-pyne (import: pynescript) to PyPI on version tags (v*).
 #
-# Prerequisites (one-time):
-#   1. PyPI Pending Trusted Publisher for project "hoox-pyne":
-#        Owner: hoox-sh  Repo: pyne  Workflow: publish.yml  Environment: pypi
-#   2. GitHub environment "pypi" on hoox-sh/pyne (optional protection rules).
-#   Note: PyPI "pynescript" = elbakramer; "pyne"/"PyNE" = unrelated 0.1.0 lib.
-#         This project ships as **hoox-pyne** (import/CLIs stay pynescript).
-#   Note: Owner must match the GitHub org (hoox-sh), not a personal account.
+# PyPI ownership: personal account **jango-blockchained** (not a PyPI org).
+# GitHub Actions still run on **hoox-sh/pyne** (where the workflow lives).
+#
+# Preferred auth (personal account, no org approval needed):
+#   1. pypi.org → Account settings → API tokens → "Add API token"
+#        Scope: Entire account (first upload) or Project: hoox-pyne (after exists)
+#   2. gh secret set PYPI_API_TOKEN -R hoox-sh/pyne
+#   3. GitHub environment "pypi" on hoox-sh/pyne (optional protection rules)
+#
+# Optional Trusted Publishing (OIDC, no long-lived token):
+#   1. Log into PyPI as jango-blockchained → Publishing → Add pending publisher
+#        Project: hoox-pyne
+#        Owner: hoox-sh          ← GitHub *repo* owner (workflow host)
+#        Repository: pyne
+#        Workflow: publish.yml
+#        Environment: pypi
+#   2. Leave PYPI_API_TOKEN unset so the publish job uses OIDC
+#
+# Notes:
+#   - PyPI "pynescript" = elbakramer; "pyne"/"PyNE" = unrelated 0.1.0 lib.
+#     This project ships as **hoox-pyne** (import/CLIs stay pynescript).
+#   - GitHub Owner in the Trusted Publisher form is *not* the PyPI username.
 #
 # Usage:
 #   git tag v0.3.0 && git push origin v0.3.0
-#   # or: Actions → Publish → Run workflow
+#   # or: Actions → Publish → Run workflow (dry_run=false to upload)
 
 name: Publish
 
@@ -70,7 +85,8 @@ jobs:
       name: pypi
       url: https://pypi.org/project/hoox-pyne/
     permissions:
-      id-token: write  # Trusted Publishing (OIDC)
+      id-token: write  # Trusted Publishing (OIDC) when no API token secret
+      contents: read
     steps:
       - name: Download dist
         uses: actions/download-artifact@v4
@@ -78,7 +94,32 @@ jobs:
           name: hoox-pyne-release-dist
           path: dist
 
-      - name: Publish package
+      - name: Resolve publish auth mode
+        id: auth
+        shell: bash
+        env:
+          # Non-empty when the secret is configured (never print the value).
+          PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -n "${PYPI_API_TOKEN:-}" ]; then
+            echo "mode=token" >> "$GITHUB_OUTPUT"
+            echo "Using personal PyPI API token (jango-blockchained account scope)."
+          else
+            echo "mode=oidc" >> "$GITHUB_OUTPUT"
+            echo "No PYPI_API_TOKEN secret — using Trusted Publishing (OIDC)."
+          fi
+
+      - name: Publish package (API token)
+        if: steps.auth.outputs.mode == 'token'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
+      - name: Publish package (Trusted Publishing OIDC)
+        if: steps.auth.outputs.mode == 'oidc'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/

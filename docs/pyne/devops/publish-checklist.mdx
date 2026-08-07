@@ -19,28 +19,28 @@
 
 ---
 title: "Publish checklist"
-description: "Transfer pyne to hoox-sh, wire PyPI Trusted Publishing, then cut v0.3.0."
+description: "Publish hoox-pyne under personal PyPI account jango-blockchained from hoox-sh/pyne Actions."
 ---
 
 # Publish checklist
 
 ## Abstract
 
-First public ship of **`pyne` 0.3.0** should happen **after** the GitHub
-repo is under the **`hoox-sh`** org. Trusted Publishing binds to
-`owner/repo/workflow/environment` — register (or re-register) the publisher
-against **`hoox-sh/pyne`**, not a personal account.
+Ship **`hoox-pyne`** from GitHub **`hoox-sh/pyne`** while owning the PyPI
+project under the **personal** account
+[`jango-blockchained`](https://pypi.org/user/jango-blockchained/). A PyPI
+**organization is not required** (and is not used while org approval is pending).
 
 ## 0. Identity map
 
 | Surface | Value |
 | --- | --- |
-| GitHub org | [`hoox-sh`](https://github.com/hoox-sh) (display: hoox.sh) |
-| Repo | [`hoox-sh/pyne`](https://github.com/hoox-sh/pyne) |
+| GitHub org / repo | [`hoox-sh/pyne`](https://github.com/hoox-sh/pyne) (Actions host) |
+| PyPI account (owner) | [`jango-blockchained`](https://pypi.org/user/jango-blockchained/) (personal) |
 | PyPI project | `hoox-pyne` |
 | Import / CLIs | `pynescript`, `pynescript-lsp` |
-| Package version | `src/pynescript/__about__.py` → `0.3.0` |
-| VS Marketplace publisher | `jango-blockchained` (unchanged; Marketplace id ≠ GitHub org) |
+| Package version | `src/pynescript/__about__.py` |
+| VS Marketplace publisher | `jango-blockchained` |
 
 ## 1. Transfer repo to org (you do this on GitHub)
 
@@ -72,19 +72,28 @@ gh secret set CRYPTO_KEY   -R hoox-sh/pyne < scripts/build/.metadata.key
 # gh secret set VSCE_PAT -R hoox-sh/pyne
 ```
 
-## 2. PyPI Trusted Publishing (must match org)
+## 2. PyPI under personal account `jango-blockchained`
 
-On [pypi.org](https://pypi.org) → Account → **Publishing** → **Add a new pending publisher**:
+### Preferred — API token
+
+1. pypi.org as **`jango-blockchained`** → **API tokens** → add token.
+2. `gh secret set PYPI_API_TOKEN -R hoox-sh/pyne`
+3. First upload creates project **`hoox-pyne`** owned by your user.
+
+### Optional — Trusted Publishing
+
+Log in as **`jango-blockchained`** (personal), then pending publisher:
 
 | Field | Value |
 | --- | --- |
 | PyPI project name | `hoox-pyne` |
-| Owner | **`hoox-sh`** |
+| Owner | **`hoox-sh`** (GitHub **repo** owner — Actions host) |
 | Repository | `pyne` |
 | Workflow name | `publish.yml` |
 | Environment name | `pypi` |
 
-If you previously added a pending publisher for `jango-blockchained`, **delete it** and create one for `hoox-sh` before the first upload.
+Leave `PYPI_API_TOKEN` unset to force OIDC. Do **not** put your PyPI username
+in the GitHub Owner field.
 
 Details: [PyPI publish](/pyne/docs/devops/pypi-publish).
 

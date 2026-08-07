@@ -45,30 +45,40 @@ If you find a bug or have a feature request, please open an issue on GitHub.
 > publishes as **`hoox-pyne`**:
 > `pip install "hoox-pyne[lsp]"` → `import pynescript`.
 
-### One-time PyPI setup (Trusted Publishing)
+### One-time PyPI setup (personal account)
 
-Do this **after** the repo lives under the org (or re-register if you transferred):
+Package ownership is the **personal** PyPI user
+[`jango-blockchained`](https://pypi.org/user/jango-blockchained/) — not a PyPI
+org (no org approval required). GitHub Actions still run on **`hoox-sh/pyne`**.
 
-1. Create a PyPI account (or org) and enable 2FA.
-2. On PyPI → **Publishing** → **Add a new pending publisher**:
-   - **PyPI project name:** `hoox-pyne`
-   - **Owner:** `hoox-sh`  ← GitHub **org** login (not the personal account)
-   - **Repository:** `pyne`
-   - **Workflow name:** `publish.yml`
-   - **Environment name:** `pypi`
-3. GitHub → `hoox-sh/pyne` → **Settings → Environments → `pypi`** (create if missing after transfer).
-   Optional: required reviewers for production uploads.
-4. Re-set repo secrets that do not move with transfer if needed:
-   `METADATA_KEY`, `CRYPTO_KEY` (see `scripts/build/README.md`).
-5. First successful tag publish creates the project and attaches the publisher.
+#### Recommended: API token
+
+1. pypi.org as **`jango-blockchained`** → Account settings → **API tokens** →
+   Add token (entire account for first upload; project-scoped after
+   `hoox-pyne` exists).
+2. Store on GitHub (never commit):
 
 ```bash
-# After transfer, point origin and recreate env if needed:
-git remote set-url origin https://github.com/hoox-sh/pyne.git
 gh api -X PUT repos/hoox-sh/pyne/environments/pypi
+gh secret set PYPI_API_TOKEN -R hoox-sh/pyne   # paste pypi-… token
 gh secret set METADATA_KEY -R hoox-sh/pyne < scripts/build/.metadata.key
 gh secret set CRYPTO_KEY   -R hoox-sh/pyne < scripts/build/.metadata.key
 ```
+
+#### Optional: Trusted Publishing (OIDC)
+
+If `PYPI_API_TOKEN` is **unset**, the workflow uses OIDC. On PyPI (logged in as
+`jango-blockchained`) → **Publishing** → pending publisher:
+
+| Field | Value |
+| --- | --- |
+| PyPI project name | `hoox-pyne` |
+| Owner | **`hoox-sh`** (GitHub **repo** owner — not your PyPI username) |
+| Repository | `pyne` |
+| Workflow name | `publish.yml` |
+| Environment name | `pypi` |
+
+See `docs/pyne/devops/pypi-publish.mdx` for failure modes.
 
 ### Cut a release
 
@@ -76,8 +86,8 @@ gh secret set CRYPTO_KEY   -R hoox-sh/pyne < scripts/build/.metadata.key
 2. Align `vscode-extension/package.json` version when shipping the VSIX together.
 3. Ensure CI is green on `main`.
 4. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
-5. GitHub Actions **Publish** builds sdist/wheel and uploads via
-   [Trusted Publishing](https://docs.pypi.org/trusted-publishers/)
+5. GitHub Actions **Publish** builds sdist/wheel and uploads with
+   `PYPI_API_TOKEN` (personal account) or Trusted Publishing OIDC
    (environment `pypi`, workflow `publish.yml`).
 
 Dry-run (build only, no upload): Actions → **Publish** → Run workflow → `dry_run=true`.
@@ -89,7 +99,7 @@ pip install build twine
 rm -rf dist/
 python -m build
 twine check dist/*
-# Expected artifacts: pyne-*.whl  pyne-*.tar.gz
+# Expected artifacts: hoox_pyne-*.whl  hoox_pyne-*.tar.gz
 ```
 
 AXIS charting UI releases are handled in

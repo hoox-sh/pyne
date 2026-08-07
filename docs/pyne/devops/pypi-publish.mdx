@@ -19,14 +19,21 @@
 
 ---
 title: "PyPI publish"
-description: "Ship pyne to PyPI via Trusted Publishing (OIDC). Import package stays pynescript."
+description: "Ship hoox-pyne to PyPI under the personal jango-blockchained account (API token or Trusted Publishing). Import package stays pynescript."
 ---
 
 # PyPI publish
 
 ## Abstract
 
-The Python distribution name on PyPI is **`hoox-pyne`**. After install, the import path and CLIs stay **`pynescript`** / **`pynescript-lsp`**. Automation lives in `.github/workflows/publish.yml` and uses [Trusted Publishing](https://docs.pypi.org/trusted-publishers/) (OIDC) against the GitHub environment **`pypi`**.
+The Python distribution name on PyPI is **`hoox-pyne`**. After install, the import path and CLIs stay **`pynescript`** / **`pynescript-lsp`**.
+
+**PyPI ownership** is the personal account **[jango-blockchained](https://pypi.org/user/jango-blockchained/)** (not a PyPI organization — org approval is not required). Automation still runs on GitHub **`hoox-sh/pyne`** via `.github/workflows/publish.yml`.
+
+Auth modes (first match wins):
+
+1. **API token** — repo secret `PYPI_API_TOKEN` from the personal PyPI account (recommended while no PyPI org is needed).
+2. **Trusted Publishing (OIDC)** — pending publisher created while logged in as `jango-blockchained`, with GitHub Owner = `hoox-sh` (where Actions run).
 
 > **Why not `pynescript` or `pyne` on PyPI?** `pynescript` is owned by [elbakramer/pynescript](https://github.com/elbakramer/pynescript); plain `pyne`/`PyNE` is an unrelated 0.1.0 process-networking library. We ship as **`hoox-pyne`**; the import package stays `pynescript`.
 
@@ -42,49 +49,53 @@ pynescript --help
 pynescript-lsp   # stdio language server
 ```
 
-## One-time registration (do this before the first tag)
+## One-time setup (personal PyPI account)
 
-### 1. PyPI pending trusted publisher
+### A. Recommended — API token (no org, no OIDC)
 
-1. Sign in at [pypi.org](https://pypi.org) (2FA required).
-2. Account → **Publishing** → **Add a new pending publisher**.
-3. Fill:
+1. Sign in at [pypi.org](https://pypi.org) as **`jango-blockchained`** (2FA required).
+2. **Account settings → API tokens → Add API token**.
+   - Name: e.g. `hoox-sh-pyne-gha`
+   - Scope: **Entire account** for the first upload of `hoox-pyne`; after the project exists you can rotate to a **project-scoped** token.
+3. Copy the token (`pypi-…`) once.
+4. On GitHub:
+
+```bash
+# Environment (optional reviewers / wait timer)
+gh api -X PUT repos/hoox-sh/pyne/environments/pypi
+
+# Never commit the token — Actions secret only
+gh secret set PYPI_API_TOKEN -R hoox-sh/pyne
+# paste pypi-... token
+```
+
+5. First successful tag (or `workflow_dispatch` with `dry_run=false`) creates **`hoox-pyne`** under your personal account.
+
+### B. Optional — Trusted Publishing (OIDC)
+
+Use this when you prefer no long-lived token. Log into PyPI as **`jango-blockchained`** (personal user), then:
 
 | Field | Value |
 | --- | --- |
 | PyPI project name | `hoox-pyne` |
-| Owner | `hoox-sh` |
+| Owner | **`hoox-sh`** ← GitHub **repo** owner (workflow host), **not** your PyPI username |
 | Repository | `pyne` |
 | Workflow name | `publish.yml` |
 | Environment name | `pypi` |
 
-> **Owner must be the GitHub org** (`hoox-sh`), not a personal login. If you
-> registered a pending publisher under a previous owner, delete it and re-add
-> with `hoox-sh` **before** the first tag upload.
+Leave `PYPI_API_TOKEN` **unset** so the publish job uses OIDC.
 
-4. Save. The project is created automatically on the **first successful upload**.
+> Do **not** put `jango-blockchained` in the GitHub Owner field unless the workflow actually runs under `github.com/jango-blockchained/pyne`. OIDC is bound to the repo that executes the job (`hoox-sh/pyne`).
 
-### 2. GitHub environment
+### GitHub environment
 
-Repo **Settings → Environments → New environment → `pypi`** on
-[`hoox-sh/pyne`](https://github.com/hoox-sh/pyne).
-
-Optional: required reviewers, wait timer, or branch policy limited to tags / `main`.
-
-```bash
-# CLI equivalent (no protection rules):
-gh api -X PUT repos/hoox-sh/pyne/environments/pypi
-```
-
-### 3. Private repo note
-
-`pyne` may be private. Trusted Publishing still works; the workflow only needs `id-token: write` on the publish job (already set).
+Repo **Settings → Environments → `pypi`** on [`hoox-sh/pyne`](https://github.com/hoox-sh/pyne). Optional: required reviewers on production uploads.
 
 ## Cut a release
 
 ```bash
 # 1. Version + changelog on main
-#    src/pynescript/__about__.py  →  e.g. 0.3.0
+#    src/pynescript/__about__.py  →  e.g. 0.3.1
 #    CHANGELOG.md
 
 # 2. Local smoke (no upload)
@@ -92,14 +103,18 @@ pip install build twine
 rm -rf dist/
 python -m build
 twine check dist/*
-# expect: pyne-0.3.0-*.whl  and  pyne-0.3.0.tar.gz
+# expect: hoox_pyne-*.whl  and  hoox_pyne-*.tar.gz
 
 # 3. Push main, then tag
-git tag -a v0.3.0 -m "v0.3.0"
-git push origin v0.3.0
+git tag -a v0.3.1 -m "v0.3.1"
+git push origin v0.3.1
 
 # 4. Watch Actions → Publish
 ```
+
+If tag `v0.3.0` already exists and the wheel was never uploaded, re-run:
+
+**Actions → Publish → Run workflow → `dry_run=false`** (builds from that workflow’s default branch / checked-out tag context as configured), or retag a new patch version.
 
 Dry-run without upload: **Actions → Publish → Run workflow → `dry_run=true`**.
 
@@ -108,19 +123,22 @@ Dry-run without upload: **Actions → Publish → Run workflow → `dry_run=true
 | Job | When | What |
 | --- | --- | --- |
 | `build` | tag `v*` or dispatch | `python -m build` + `twine check` + artifact |
-| `publish-pypi` | tag `v*` **or** dispatch with `dry_run=false` | OIDC upload via `pypa/gh-action-pypi-publish` |
+| `publish-pypi` | tag `v*` **or** dispatch with `dry_run=false` | Token if `PYPI_API_TOKEN` set, else OIDC |
 
 ## Failure modes
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| 403 / no trusted publisher | Pending publisher not added or wrong workflow/env name | Re-check PyPI pending publisher fields exactly |
-| Environment not found | Missing GitHub `pypi` env | Create environment |
-| Wrong wheel name `pynescript-*` | Old `pyproject.toml` name | Ensure `name = "pyne"` |
+| 403 invalid token | Wrong/revoked `PYPI_API_TOKEN` | Create new token as `jango-blockchained`; re-`gh secret set` |
+| 403 / no trusted publisher | OIDC path without pending publisher | Add pending publisher **or** set API token |
+| Wrong GitHub Owner in pending publisher | Used PyPI username as Owner | Set Owner to `hoox-sh` (GitHub org of the repo) |
+| Environment not found | Missing GitHub `pypi` env | `gh api -X PUT repos/hoox-sh/pyne/environments/pypi` |
+| File already exists | Version already on PyPI | Bump `__about__.__version__` and tag a new version |
 | Tag publish skipped | `dry_run` dispatch only | Use a real `v*` tag or `dry_run=false` |
 
 ## See also
 
-- [Release](/pyne/docs/devops/release) — LSP binaries + VSIX
+- [Release](/pyne/docs/devops/release) — CLI/LSP binaries + VSIX
+- [Publish checklist](/pyne/docs/devops/publish-checklist)
 - [CI](/pyne/docs/devops/ci)
 - Root `CONTRIBUTING.md`
