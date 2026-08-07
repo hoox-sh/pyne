@@ -1,7 +1,0 @@
-//@version=5
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/migration-guides/to-pine-version-6.md::to-pine-version-6.md#block29
-// content_hash: 27670c83887658ff
-// collected: 2026-07-27
-indicator("Lazy evaluation error showcase")

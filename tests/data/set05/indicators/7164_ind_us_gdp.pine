@@ -1,9 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescriptv6
-// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block200
-// content_hash: d6d7ef8fea1dea26
-// collected: 2026-07-27
-indicator("US GDP")
-e = request.economic("US", "GDP")
-plot(e)

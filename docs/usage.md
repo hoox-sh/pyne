@@ -44,7 +44,7 @@ Pynescript ships a CLI that mirrors the helper functions in `pynescript.ast.help
 - `parse-and-unparse` round-trips a script to verify formatting stability.
 - `lint` runs the static linter.
 - `data` fetches sample OHLCV via providers (`mock`, `yahoo`, `ccxt`, …).
-- `download-builtin-scripts` downloads TradingView® reference scripts used in tests.
+
 
 ```console
 pynescript parse-and-dump path/to/script.pyne

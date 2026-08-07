@@ -60,10 +60,9 @@ See `.opencode/context/project-intelligence/lookup/commands.md`.
   (enforced by ruff isort `required-imports`).
 - **Console scripts are separate**: `pynescript` (Click) and `pynescript-lsp`
   (pygls). Don't conflate them.
-- **`tests/conftest.py` parametrizes `pinescript_filepath` over every `*.pine`
-  in `tests/data/builtin_scripts/`** — a new test using this fixture runs ~500
-  cases. Use `--example-scripts-dir=...` to narrow. Prefer unit tests that do
-  **not** use this fixture in CI-critical paths.
+- **`tests/conftest.py` optional `pinescript_filepath`** — only if a local
+  `--example-scripts-dir` with `*.pine` is provided. **No third-party corpus is
+  shipped.** Prefer unit tests with inline snippets / `tests/fixtures/`.
 - **Generated `builtin_metadata.json` is built from code**, not hand-edited.
   Re-run `python scripts/generate_builtin_metadata.py` after adding builtins,
   then re-encrypt (see CRYPTO_KEY below).
@@ -192,8 +191,8 @@ Tests set `ADMIN_TOKEN` via monkeypatch; local `make run` needs
 
 **No AXIS/frontend jobs in this repo.** PWA/e2e live in the `axis` repo.
 
-CI unit path intentionally skips huge corpus-parametrized tests
-(`test_parse_and_unparse`); run those locally with `make test`.
+CI unit path focuses on first-party tests; optional local
+`--example-scripts-dir` sweeps are not required for green CI.
 
 ### Cloud Build
 
@@ -267,8 +266,7 @@ See `.opencode/context/project-intelligence/guides/grammar-changes.md` and
 - **Backend**: `tests/test_backend.py` — needs
   `pip install -r backend/requirements.txt` (or `.[pro]`). Sets `ADMIN_TOKEN`
   in fixtures.
-- **Corpus**: `tests/data/builtin_scripts/*.pine`; `tests/data/library/` is
-  reference only.
+- **Fixtures**: `tests/fixtures/` (first-party). Third-party corpora are not in-tree.
 - Coverage: `hatch run test:test-cov`. CI uploads codecov only on Python 3.13.
 
 ## Style

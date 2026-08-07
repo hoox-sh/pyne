@@ -1,8 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescriptv6
-// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block193
-// content_hash: 9c0c315f55da5d39
-// collected: 2026-07-27
-indicator("plotcandle example", overlay=true)
-plotcandle(open, high, low, close, title='Title', color = open < close ? color.green : color.red, wickcolor=color.black)

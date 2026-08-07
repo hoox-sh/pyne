@@ -1,9 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/faq/times-dates-and-sessions.md::times-dates-and-sessions.md#block7
-// content_hash: 2e2c4a4ceb0d4e63
-// collected: 2026-07-27
-indicator("Day number", overlay = true)
-currTradingDay = dayofmonth(time_tradingday, "UTC")
-labelStr = "`time_tradingday`: " + str.format_time(time_tradingday, "dd MMM HH:mm 'UTC'", "UTC")

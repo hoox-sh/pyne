@@ -1,9 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescriptv6
-// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block119
-// content_hash: 37f50a218b3d2e35
-// collected: 2026-07-27
-indicator("input.text_area")
-i_text = input.text_area(defval = "Hello \nWorld!", title = "Message")
-plot(close)

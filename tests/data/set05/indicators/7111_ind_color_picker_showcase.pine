@@ -1,9 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/visuals/colors.md::colors.md#block9
-// content_hash: 77c572db31e0caf9
-// collected: 2026-07-27
-indicator("Color picker showcase")
-plotColor = close > open ? color.teal : color.red
-plot(close, color = plotColor)

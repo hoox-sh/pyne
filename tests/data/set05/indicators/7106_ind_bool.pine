@@ -1,9 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescriptv6
-// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block325
-// content_hash: a0ed608aba20aae1
-// collected: 2026-07-27
-indicator("bool")
-bool b = true    // Same as `b = true`
-plot(b ? open : close)

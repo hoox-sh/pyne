@@ -1,8 +1,0 @@
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/language/script-structure.md::script-structure.md#block2
-// content_hash: 6184cda2e188f26e
-// collected: 2026-07-27
-indicator()
-strategy()
-library()

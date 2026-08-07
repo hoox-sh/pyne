@@ -1,8 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescriptv6
-// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block192
-// content_hash: 14f8f78e9d5168be
-// collected: 2026-07-27
-indicator("plotbar example", overlay=true)
-plotbar(open, high, low, close, title='Title', color = open < close ? color.green : color.red)

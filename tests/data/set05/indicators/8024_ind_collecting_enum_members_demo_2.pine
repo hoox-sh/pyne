@@ -1,9 +1,0 @@
-//@version=5
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/v5/language/enums.md::enums.md#block13
-// content_hash: f26d4ca0310cdf66
-// collected: 2026-07-27
-indicator("Collecting enum members demo", overlay = true)
-
-//@enum An enumeration of named signal states.

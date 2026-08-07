@@ -1,9 +1,0 @@
-//@version=5
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/v5/language/matrices.md::matrices.md#block74
-// content_hash: 4c71289e93a2119f
-// collected: 2026-07-27
-indicator("Invalid sum dimensions demo") 
-
-//@variable A 2x3 matrix.

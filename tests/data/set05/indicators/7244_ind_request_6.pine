@@ -1,5 +1,0 @@
-//@version=6indicator("BTC Development Activity")[devAct, devActSMA] = request.seed("seed_crypto_santiment", "BTC_DEV_ACTIVITY", [close, ta.sma(close, 10)])plot(devAct, "BTC Development Activity")plot(devActSMA, "BTC Development Activity SMA10", color = color.yellow)// set05 corpus entry
-// source_repo: pinescriptv6
-// source_path: pinescriptv6/reference/functions/request.md::request.md#block6
-// content_hash: 0981941b22267d40
-// collected: 2026-07-27

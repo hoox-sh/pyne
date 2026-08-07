@@ -1,5 +1,0 @@
-//@version=6indicator("request.financial")f = request.financial("NASDAQ:MSFT", "ACCOUNTS_PAYABLE", "FY")plot(f)// set05 corpus entry
-// source_repo: pinescriptv6
-// source_path: pinescriptv6/reference/functions/request.md::request.md#block1
-// content_hash: 1fe0883e75b22722
-// collected: 2026-07-27

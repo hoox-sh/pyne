@@ -1,8 +1,0 @@
-//@version=5
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/v5/language/operators.md::operators.md#block2
-// content_hash: 47163b6f3b440652
-// collected: 2026-07-27
-indicator("Modulo function")
-modulo(series int a, series int b) =>

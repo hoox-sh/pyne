@@ -1,9 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/faq/visuals.md::visuals.md#block3
-// content_hash: 9ecdcf5f38a9b287
-// collected: 2026-07-27
-indicator("Diagonal lines", overlay = true, max_lines_count = 500)
-
-int lookbackInput = input.int(defval=10, title="Lookback Bars", minval=1)

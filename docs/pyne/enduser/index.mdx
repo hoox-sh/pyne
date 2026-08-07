@@ -95,7 +95,7 @@ New install, first parse, and environment knobs:
 
 Daily workflows against the same pipeline:
 
-- **[CLI](/pyne/docs/enduser/guides/cli)** — `parse-and-dump`, `parse-and-unparse`, `lint`, `data`, `download-builtin-scripts`.
+- **[CLI](/pyne/docs/enduser/guides/cli)** — `check`, `format`, `lint`, `compile`, `run`, `data`, …
 - **[Library API](/pyne/docs/enduser/guides/library-api)** — `parse`, `unparse`, `dump`, `walk`, visitors, transformers, linter.
 - **[Evaluate scripts](/pyne/docs/enduser/guides/evaluate-scripts)** — Expression eval, bar-loop Runtime (`mode=auto`), strategy events, **alerts export**, mock vs live data.
 - **[Editors](/pyne/docs/enduser/guides/editors)** — VS Code (`.pyne` first-class), Neovim, Zed, Emacs, Helix; `clients/` snippets.
@@ -140,7 +140,7 @@ Consumer-relevant code only — deeper design is linked from each guide:
 
 | Path | Role |
 | --- | --- |
-| `src/pynescript/__main__.py` | Click CLI: parse-and-dump, parse-and-unparse, lint, data, download-builtin-scripts |
+| `src/pynescript/__main__.py` | Click CLI: check, format, lint, compile, run, data, … |
 | `src/pynescript/ast/helper.py` | Public `parse`, `unparse`, `dump`, `walk`, `literal_eval` |
 | `src/pynescript/ast/linter.py` | `lint_script` / `PineLinter` |
 | `src/pynescript/ast/evaluator/` | Bar-aware and literal evaluators |
@@ -158,7 +158,7 @@ Consumer-relevant code only — deeper design is linked from each guide:
 - **Mode split.** `parse(..., mode="exec")` yields a script tree; `mode="eval"` parses a single expression (used by `literal_eval`).
 - **No proprietary host required.** Evaluation works offline with mock or supplied OHLCV; AXIS/HOOX are optional.
 - **Extras are opt-in.** Core parse/lint needs only base deps (`antlr4-python3-runtime`, `click`, …). LSP needs `[lsp]`; CCXT paths need `[data]` / `[datafeed]`.
-- **Parametrized corpus.** Tests under `tests/data/builtin_scripts/` are large; a fixture using `pinescript_filepath` can explode CI runtime if misused.
+- **Optional example dir.** `pinescript_filepath` only expands when `--example-scripts-dir` points at local `*.pine` files; no third-party corpus is shipped.
 
 ## Worked examples
 

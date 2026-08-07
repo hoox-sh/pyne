@@ -1,8 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescriptv6
-// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block101
-// content_hash: 7556d88d9f100c59
-// collected: 2026-07-27
-indicator("color.new", overlay=true)
-plot(close, color=color.new(color.red, 50))

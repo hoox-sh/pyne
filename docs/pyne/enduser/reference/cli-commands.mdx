@@ -35,7 +35,6 @@ The language server is a **separate** console script (`pynescript-lsp`).
 | `run` | | Compile + execute on synthetic OHLCV |
 | `data` | | Fetch market bars |
 | `info` | `ls` | Version + optional extras |
-| `download-builtin-scripts` | | TradingView builtin corpus helper |
 
 ```bash
 pynescript --help
@@ -226,16 +225,6 @@ CCXT needs `pip install "hoox-pyne[data]"`.
 | option | `--json` | Machine-readable payload |
 
 Prints package version, Python, platform, and whether `numba` / `rich` are available.
-
----
-
-### `pynescript download-builtin-scripts`
-
-| Kind | Name | Description |
-| --- | --- | --- |
-| option | `--script-dir` | **Required** destination directory |
-
-Network-dependent corpus helper for tests.
 
 ---
 

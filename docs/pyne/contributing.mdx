@@ -96,9 +96,9 @@ Enforced by ruff isort `required-imports`.
 
 Do not conflate entrypoints in docs, packaging, or process managers.
 
-### Test corpus fixture
+### Optional example-script fixture
 
-`tests/conftest.py` parametrizes `pinescript_filepath` over **every** `tests/data/builtin_scripts/*.pine`. A new test using that fixture may run hundreds of cases. Narrow with `--example-scripts-dir=...` when iterating.
+`tests/conftest.py` only expands `pinescript_filepath` when `--example-scripts-dir` points at a local directory of `*.pine` files. **No third-party corpus is shipped** in the repository.
 
 `tests/data/library/` is reference material, not auto-parametrized.
 

@@ -1,5 +1,0 @@
-//@version=6indicator("Price-Volume Trend")plot(ta.pvt, color=color.yellow)// the same on pinef_pvt() =>    ta.cum((ta.change(close) / close[1]) * volume)plot(f_pvt())// set05 corpus entry
-// source_repo: pinescriptv6
-// source_path: pinescriptv6/reference/variables.md::variables.md#block34
-// content_hash: f67607f98e6c9b8b
-// collected: 2026-07-27

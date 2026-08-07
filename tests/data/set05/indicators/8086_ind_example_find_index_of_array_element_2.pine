@@ -1,7 +1,0 @@
-//@version=5
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/v5/faq/data-structures.md::data-structures.md#block12
-// content_hash: 5682baafd8550c50
-// collected: 2026-07-27
-indicator("Example: Find index of array element")

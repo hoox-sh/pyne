@@ -52,7 +52,7 @@ Product/docs mint: [docs/pyne/reference/compatibility.mdx](pyne/reference/compat
 | **Interpret ↔ compile plots** | Harness + goldens; residual MISMATCH tail | `compare_interp_compile` | ⚙️ Active |
 | **Foreign `request.*`** | `na` when no host feed (no invent) | Parity tests | ✅ Policy |
 
-Open-source corpus Runtime (set01–04) ~**94.3%** OK projected — scrape/PARSE stubs and intentional `runtime.error` demos dominate residuals; not a claim of 100% TV execution identity.
+Runtime coverage is measured on first-party fixtures and unit tests; not a claim of 100% TradingView® execution identity.
 
 ---
 
@@ -346,7 +346,6 @@ pytest tests/test_evaluator.py -v
 pytest tests/test_ta_indicators_*.py -v
 
 # Download and test real-world scripts
-pynescript download-builtin-scripts --script-dir ./test_scripts
 pytest tests/ --example-scripts-dir ./test_scripts
 ```
 
@@ -360,7 +359,7 @@ See [numerical_validation_report.md](numerical_validation_report.md) for:
 
 ### Real-World Scripts
 
-See [../tests/data/builtin_scripts/](../tests/data/builtin_scripts/) for:
+See `tests/fixtures/` for first-party fixtures. Third-party corpora are not shipped.
 - 87 TradingView® built-in indicator scripts
 - Complete parse/unparse validation
 - AST structure verification

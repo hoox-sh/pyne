@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Interpret vs compile series parity harness.
 
-Select N scripts from ``tests/data/builtin_scripts/*.pine`` (or ``--glob`` /
+Select N scripts from ``tests/fixtures/parity/pine/*.pine`` (or ``--glob`` /
 ``--files``), run each with ``backend.runtime.Runtime`` in ``mode=interpret``
 and ``mode=compile``, and compare ``result["series"]`` plot values with
 nan-aware allclose (``rtol=1e-5``, ``atol=1e-6``).
@@ -13,7 +13,7 @@ Usage (from repo root)::
 
     python scripts/compare_interp_compile.py --bars 1000 --limit 50
     python scripts/compare_interp_compile.py --glob 'ta_*.pine' --bars 200
-    python scripts/compare_interp_compile.py --files tests/data/builtin_scripts/average_true_range.pine
+    python scripts/compare_interp_compile.py --files tests/fixtures/parity/pine/strategy_01_entry_long.pine
     python scripts/compare_interp_compile.py --ignore-hline-keys --ignore-fill-keys --strict-keys
 
 Writes ``.cache/interp_compile_parity.json`` and prints summary buckets::
@@ -81,7 +81,7 @@ if str(_ROOT) not in sys.path:
 if str(_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(_ROOT / "src"))
 
-DEFAULT_GLOB_DIR = _ROOT / "tests" / "data" / "builtin_scripts"
+DEFAULT_GLOB_DIR = _ROOT / "tests" / "fixtures" / "parity" / "pine"
 DEFAULT_REPORT = _ROOT / ".cache" / "interp_compile_parity.json"
 DEFAULT_RTOL = 1e-5
 DEFAULT_ATOL = 1e-6
@@ -802,7 +802,7 @@ def main(argv: list[str] | None = None) -> int:
         "--glob",
         dest="glob_pat",
         default=None,
-        help="Glob under tests/data/builtin_scripts (e.g. 'a*.pine')",
+        help="Glob under tests/fixtures/parity/pine (e.g. 'a*.pine')",
     )
     ap.add_argument(
         "--files",

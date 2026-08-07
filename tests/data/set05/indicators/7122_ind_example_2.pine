@@ -1,9 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/visuals/bar-plotting.md::bar-plotting.md#block2
-// content_hash: fd39462eab84f9f1
-// collected: 2026-07-27
-indicator("Example 2")
-paletteColor = close >= open ? color.lime : color.red
-plotbar(open, high, low, close, color = paletteColor)

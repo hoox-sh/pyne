@@ -1,6 +1,0 @@
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/v5/language/declaration-statements.md::declaration-statements.md#block1
-// content_hash: 7375e63d39b7f42b
-// collected: 2026-07-27
-indicator(title, shorttitle, overlay, format, precision, scale, max_bars_back, timeframe, timeframe_gaps, explicit_plot_zorder, max_lines_count, max_labels_count, max_boxes_count)

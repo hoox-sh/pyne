@@ -1,7 +1,0 @@
-//@version=6
-// set04 corpus entry
-// source_repo: pinescript-development-workspace
-// source_path: pinescript-development-workspace/docs/CONTRIBUTING.md::CONTRIBUTING.md#block1
-// content_hash: fd849fc30aa61fa6
-// collected: 2026-07-27
-indicator("Your Indicator Name", overlay=true)

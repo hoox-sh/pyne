@@ -1,9 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescriptv6
-// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block116
-// content_hash: fbaba480e3ff6fd3
-// collected: 2026-07-27
-indicator("input.source", overlay=true)
-i_src = input.source(close, "Source")
-plot(i_src)

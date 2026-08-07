@@ -1,9 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescriptv6
-// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block146
-// content_hash: 710bbf87b86ff473
-// collected: 2026-07-27
-indicator("math.max", overlay=true)
-plot(math.max(close, open))
-plot(math.max(close, math.max(open, 42)))

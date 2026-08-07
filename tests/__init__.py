@@ -17,21 +17,11 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""PyneScript Test Suite.
+"""PyneScript test suite.
 
-Regression tests for parse/unparse stability with actual Pine Script examples
-from TradingView, organized by feature tier:
-
-- Tier 1-2: Basic expressions and statements
-- Tier 3-4: Collections and advanced features
-- Tier 5-7: Indicators and technical analysis
-- Tier 8: Advanced constructs
-- UDT: User-defined types and methods
-- Evaluator: AST evaluation and built-in functions
-
-Key Test Data:
-- tests/data/builtin_scripts/: Actual Pine Script code downloaded from TradingView
-- Tests verify parse -> dump -> unparse round-trip consistency
+Regression tests use **first-party** inline snippets and
+``tests/fixtures/`` assets. Third-party Pine corpora and TradingView®
+builtin scrapes are intentionally not shipped.
 """
 
 from __future__ import annotations

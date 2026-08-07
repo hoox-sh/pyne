@@ -1,8 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescriptv6
-// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block107
-// content_hash: 8eb49d9166f301a9
-// collected: 2026-07-27
-indicator("My script", shorttitle="Script")
-plot(close)

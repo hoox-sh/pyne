@@ -1,9 +1,0 @@
-//@version=5
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/v5/language/enums.md::enums.md#block4
-// content_hash: 1aeab69b7b5e83b4
-// collected: 2026-07-27
-indicator("Incompatible enums demo")
-
-//@enum An enumeration of oscillator choices.

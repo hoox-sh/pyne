@@ -50,15 +50,14 @@ Both modes receive the **same** synthetic (or host) OHLCV. Compile additionally 
 ### Corpus harness
 
 ```bash
-# From repo root
+# From repo root — first-party fixtures by default
 python scripts/compare_interp_compile.py --bars 1000 --limit 50
-python scripts/compare_interp_compile.py --glob 'ta_*.pine' --bars 200
-python scripts/compare_interp_compile.py --files tests/data/builtin_scripts/average_true_range.pine
+python scripts/compare_interp_compile.py --files tests/fixtures/parity/pine/strategy_01_entry_long.pine
 ```
 
 | Flag / output | Role |
 | --- | --- |
-| Default corpus | `tests/data/builtin_scripts/*.pine` |
+| Default inputs | `tests/fixtures/parity/pine/*.pine` (first-party) |
 | Tolerances | `rtol=1e-5`, `atol=1e-6` (nan-aware) |
 | Report | `.cache/interp_compile_parity.json` |
 | Exit 0 | No value/`nan` mismatches on common series keys |
@@ -107,7 +106,7 @@ Pro API `/run` defaults to **`mode=auto`**: compile when the script lowers safel
 
 ```text
 python scripts/compare_interp_compile.py \
-  --files tests/data/builtin_scripts/average_true_range.pine \
+  --files tests/fixtures/parity/pine/strategy_01_entry_long.pine \
   --bars 500
 # → OK  (or MISMATCH with first differing bar/key in the JSON report)
 ```

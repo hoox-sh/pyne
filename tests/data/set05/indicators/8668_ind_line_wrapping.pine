@@ -1,8 +1,0 @@
-//@version=4
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/v4/language/line-wrapping.md
-// content_hash: fd37abc0f477e7f0
-// collected: 2026-07-27
-study("My Script")
-c = open > close ? color.red :

@@ -1,9 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/concepts/time.md::time.md#block41
-// content_hash: 47d4d1bedf5cacd7
-// collected: 2026-07-27
-indicator("Calculating time span demo")
-
-// Assign the number of milliseconds in weekly and smaller units to "const" variables for convenience.

@@ -1,9 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescriptv6
-// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block214
-// content_hash: f066f10a271d71c8
-// collected: 2026-07-27
-indicator("str.trim")
-trim = str.trim("    abc    ") // Returns "abc"
-label.new(bar_index,close,trim)

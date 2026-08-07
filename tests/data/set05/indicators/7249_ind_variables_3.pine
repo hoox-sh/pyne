@@ -1,5 +1,0 @@
-//@version=6indicator("line.all")//delete all linesline.new(bar_index - 10, close, bar_index, close)a_allLines = line.allif array.size(a_allLines) > 0    for i = 0 to array.size(a_allLines) - 1        line.delete(array.get(a_allLines, i))// set05 corpus entry
-// source_repo: pinescriptv6
-// source_path: pinescriptv6/reference/variables.md::variables.md#block3
-// content_hash: 470e410c07b0019d
-// collected: 2026-07-27

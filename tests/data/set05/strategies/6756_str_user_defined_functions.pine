@@ -1,6 +1,0 @@
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/v5/language/user-defined-functions.md::user-defined-functions.md#block2
-// content_hash: 3dcc5e6ab7789cc2
-// collected: 2026-07-27
-strategy().         Previous       Built-ins      Next   Objects              On this pageIntroductionSingle-line functionsMulti-line functionsScopes in the scriptFunctions that return multiple resultsLimitations

@@ -1,7 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/faq/data-structures.md::data-structures.md#block11
-// content_hash: e94b10fdd01c3f4e
-// collected: 2026-07-27
-indicator("Example: Find whether an array element is present")

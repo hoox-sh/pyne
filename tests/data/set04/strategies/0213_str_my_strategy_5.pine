@@ -1,9 +1,0 @@
-// set04 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/pine-error-log.md::pine-error-log.md#block2
-// content_hash: fe784a4f7fd2f753
-// collected: 2026-07-27
-// ✅ CORRECT
-//@version=6
-strategy("My Strategy", overlay=true)
-//@strategy_alert_message {{strategy.order.alert_message}}

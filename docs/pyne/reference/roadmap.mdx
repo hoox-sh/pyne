@@ -19,14 +19,14 @@
 
 ---
 title: "Roadmap"
-description: "PYNE forward plan — dual-host residual, corpus ~94.3%, plot parity harness; H2/T1/F2/L2 landed (2026-08)."
+description: "PYNE forward plan — dual-host residual, runtime residual, plot parity harness; H2/T1/F2/L2 landed (2026-08)."
 ---
 
 # Roadmap
 
 ## Abstract
 
-The roadmap is a **living prioritization document**, not a contract. Source: `docs/ROADMAP.md` (updated **2026-08-03**). Core v6 language/builtins are essentially closed. Product **warm-compile (H2)**, **series caps (T1)**, **pending-fill (F2)**, and **L2 webhooks** have **landed**. What remains: **dual-host package-level Runtime unify (H1 residual)**, **corpus execution tail (C1 ~94.3%)**, **interpret↔compile plot residuals (P1p harness landed)**, residual nested TA (**T2** partial), and optional **TV-oracle re-baselines (F1)**.
+The roadmap is a **living prioritization document**, not a contract. Source: `docs/ROADMAP.md` (updated **2026-08-03**). Core v6 language/builtins are essentially closed. Product **warm-compile (H2)**, **series caps (T1)**, **pending-fill (F2)**, and **L2 webhooks** have **landed**. What remains: **dual-host package-level Runtime unify (H1 residual)**, **runtime residual (C1)**, **interpret↔compile plot residuals (P1p harness landed)**, residual nested TA (**T2** partial), and optional **TV-oracle re-baselines (F1)**.
 
 ## Conceptual model
 
@@ -90,7 +90,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | **H1** | Dual-host Runtime (host surface + alerts export dual-host ✅; package-level unify open) | P1 | ⚙️ residual |
 | **H2** | Product warm-compile (SLOs, prewarm API/CLI, IR cache on in deploy) | P1 | ✅ |
-| **C1** | Corpus TIMEOUT / RUN_FAIL residual (set01–04 **~94.3%** OK projected) | P1 | ⚙️ ongoing |
+| **C1** | Runtime residual (first-party fixtures; no third-party corpus shipped) | P1 | ⚙️ ongoing |
 | **P1p** | Compile/interpret **plot parity** residual | P1 | ⚙️ harness landed (`scripts/compare_interp_compile.py`, `tests/test_interp_compile_parity.py`) |
 | **T1** | Cap `current_series` to `max_bars_back` / `_SERIES_MAX` | P2 | ✅ `PYNE_SERIES_CAP` default ON |
 | **T2** | Incremental TA for remaining heavy kernels | P2 | ✅ partial (bb/kama/cmo/stochrsi; nested full paths residual) |
@@ -114,7 +114,7 @@ Longer horizon (not next): ML wrappers, automatic refactor, parallel/distributed
 ### Landed residual notes (2026-08)
 
 - **Plot parity:** Always-on smoke in `tests/test_interp_compile_parity.py`. Full corpus compare: `python scripts/compare_interp_compile.py` → `.cache/interp_compile_parity.json`. Flags `--ignore-hline-keys` / `--ignore-fill-keys` drop structural residuals.
-- **Corpus:** C1 Runtime OK ~**94.3%** projected (set01–04); residual RUN_FAIL mostly intentional `runtime.error` demos, lower-TF security guards, scrape/PARSE stubs.
+- **Runtime residual (C1):** tracked on first-party fixtures; third-party corpora are not shipped.
 - **Foreign-na:** `request.security` on foreign/complex expressions → `na` both backends; `ChartOHLCVProvider` refuses non-chart symbols.
 
 ## Internals

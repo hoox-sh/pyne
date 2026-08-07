@@ -1,8 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/skills/create/SKILL.md::SKILL.md#block1
-// content_hash: b804357f3c41a2ca
-// collected: 2026-07-27
-indicator("Title", overlay=true)
-// Implementation

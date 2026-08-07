@@ -1,9 +1,0 @@
-//@version=5
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/v5/concepts/bar-states.md::bar-states.md#block4
-// content_hash: 5fb95980212c6da0
-// collected: 2026-07-27
-indicator("")
-myRSI = ta.rsi(close, 20)
-plot(barstate.isconfirmed ? myRSI : na)

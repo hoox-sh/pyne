@@ -1,9 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescriptv6
-// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block195
-// content_hash: f6b0edfb53aaaba5
-// collected: 2026-07-27
-indicator("plotshape example 1", overlay=true)
-data = close >= open
-plotshape(data, style=shape.xcross)

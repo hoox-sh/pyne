@@ -1,9 +1,0 @@
-//@version=4
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/v4/annotations/custom-ohlc-bars-and-candles.md::custom-ohlc-bars-and-candles.md#block2
-// content_hash: b15570f34568fd00
-// collected: 2026-07-27
-study("Example 2")
-palette = close >= open ? color.lime : color.red
-plotbar(open, high, low, close, color=palette)

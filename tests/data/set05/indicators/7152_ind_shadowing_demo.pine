@@ -1,9 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/language/enums.md::enums.md#block15
-// content_hash: 8326b9d18d2d2345
-// collected: 2026-07-27
-indicator("Shadowing demo")
-
-// Naming an enum "Syminfo" with a capital "S" works without an issue.

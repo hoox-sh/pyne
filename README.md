@@ -4,7 +4,7 @@
 
 # PYNE
 
-**Open toolchain for TradingView® Pine Script™** — formal grammar, algebraic AST, dual-engine bar-loop runtime, language server, and HTTP evaluation surface.
+**Independent open toolchain for the Pine Script™ language** — formal grammar, algebraic AST, dual-engine bar-loop runtime, language server, and HTTP evaluation surface.
 
 | | |
 |---|---|
@@ -16,13 +16,19 @@
 | **Source** | [github.com/hoox-sh/pyne](https://github.com/hoox-sh/pyne) |
 | **License** | AGPL-3.0-or-later |
 
-_Pine Script™ and TradingView® are trademarks of TradingView, Inc. Cloudflare® is a trademark of Cloudflare, Inc. This project is independent and is not affiliated with or endorsed by TradingView, Inc. or Cloudflare, Inc._
+### Trademark & affiliation notice
+
+**Pine Script™** and **TradingView®** are trademarks of [TradingView, Inc.](https://www.tradingview.com/). **Cloudflare®** is a trademark of Cloudflare, Inc. All such marks remain the property of their respective owners.
+
+PYNE (this project) is an **independent, unofficial** implementation effort. It is **not** affiliated with, associated with, authorized by, sponsored by, or endorsed by TradingView, Inc. or Cloudflare, Inc. It is **not** an official TradingView® product, service, or platform substitute.
+
+References to Pine Script™ syntax, builtins, and behaviour are for **interoperability and compatibility documentation only**. PYNE does not redistribute TradingView® proprietary platform software, charting UI, or closed data services.
 
 ---
 
 ## Abstract
 
-Proprietary chart hosts couple Pine Script™ to a closed execution environment. PYNE inverts that coupling: the language is treated as an inspectable pipeline from source text through parse, AST construction, and deterministic bar-loop evaluation — independent of any particular charting UI.
+Pine Script™ is commonly executed inside a host charting environment. PYNE models the language as an inspectable pipeline — source text through parse, AST construction, and deterministic bar-loop evaluation — so the same scripts can be analysed and run outside any particular UI.
 
 ```
 Source (.pyne / .pine)
@@ -35,7 +41,7 @@ Source (.pyne / .pine)
 
 The same pipeline underlies the desk CLI, the Language Server Protocol (LSP) binary, the Pro API, browser Pyodide evaluation (via AXIS), and Cloudflare® Workers that share one evaluate contract.
 
-**Corpus note.** On the sanitized open-source library corpus (sets 01–04), projected runtime success is approximately **94.3%**. That figure measures practical coverage of real scripts; it is not a claim of bit-identical TradingView® platform parity. See [compatibility](https://hoox.sh/pyne/docs/reference/compatibility) and [implementation status](https://hoox.sh/pyne/docs/reference/implementation-status).
+Coverage and known gaps are documented in [compatibility](https://hoox.sh/pyne/docs/reference/compatibility) and [implementation status](https://hoox.sh/pyne/docs/reference/implementation-status). The repository does **not** ship third-party script corpora or TradingView® builtin downloads.
 
 ---
 
@@ -46,10 +52,10 @@ PYNE is one component of the [HOOX](https://hoox.sh) open trading stack:
 | Component | Role | Repository |
 |-----------|------|------------|
 | **HOOX** | Edge execution mesh (Cloudflare® Workers) | [jango-blockchained/hoox](https://github.com/jango-blockchained/hoox) |
-| **PYNE** | Pine Script™ toolchain + Pro API (this repository) | [hoox-sh/pyne](https://github.com/hoox-sh/pyne) |
+| **PYNE** | Independent Pine Script™-oriented toolchain + Pro API (this repository) | [hoox-sh/pyne](https://github.com/hoox-sh/pyne) |
 | **AXIS** | Installable charting PWA | [jango-blockchained/axis](https://github.com/jango-blockchained/axis) |
 
-Evaluation does not require a proprietary chart host. AXIS is an optional visualization surface; HOOX is an optional execution mesh.
+AXIS is an optional visualization surface; HOOX is an optional execution mesh. Neither replaces the TradingView® platform.
 
 ---
 
@@ -57,7 +63,7 @@ Evaluation does not require a proprietary chart host. AXIS is an optional visual
 
 ### Language front-end
 
-- **Grammar** — Pine Script™ v5–v6 surface via ANTLR4 resource grammars
+- **Grammar** — Approximate Pine Script™ v5–v6 language surface via ANTLR4 resource grammars
 - **AST** — ASDL-generated nodes with visitor and transformer patterns
 - **Round-trip** — `parse → unparse` with preservation of formatting intent
 - **Linter** — Static checks for common structural and style issues
@@ -67,8 +73,8 @@ Evaluation does not require a proprietary chart host. AXIS is an optional visual
 - **Bar-loop evaluation** — Deterministic indicator and strategy execution on OHLCV
 - **Dual engine** — Interpret (AST walk) and compile (Numba nopython kernels with object-mode fallback); `mode=auto|compile|interpret`
 - **Warm compile** — Disk IR cache, process prewarm, and recovery from corrupt cache state
-- **Plot parity** — Interpret ↔ compile series alignment verified by harness and tests
-- **Alerts** — `alert()` / `alertcondition()` with TradingView-style frequency semantics; structured export on Pro `/run` and optional L2 webhooks
+- **Plot parity** — Interpret ↔ compile series alignment verified by harness and tests (internal engine consistency, not platform certification)
+- **Alerts** — `alert()` / `alertcondition()` with documented frequency semantics (`once_per_bar`, `once_per_bar_close`, `all`); structured export on Pro `/run` and optional L2 webhooks
 - **Strategy surface** — Entries, exits, events, commission/slippage paths, pending-fill behavior under pyramiding constraints
 - **Drawing GC** — Honor of `max_lines_count`, `max_labels_count`, `max_boxes_count`, `max_polylines_count`
 - **Security policy** — Same-symbol simple OHLCV for `request.security`; foreign or complex security resolves to `na` (no invented foreign closes)
@@ -243,7 +249,15 @@ In-repository notes: [Roadmap](./docs/ROADMAP.md) · [Missing features](./docs/m
 
 ## Compatibility
 
-PYNE targets practical runtime fidelity on a large library corpus, with continuous residual work. It does **not** claim complete TradingView® platform parity (chart host semantics, full data model, every edge-case builtin, or closed UI behavior). Prefer the published compatibility and implementation-status pages for current surface coverage.
+PYNE targets practical runtime fidelity verified with first-party fixtures and unit tests. It does **not** claim:
+
+- official TradingView® certification or endorsement  
+- complete platform parity (chart host, data model, every edge-case builtin, or closed UI behaviour)  
+- that results will match the TradingView® platform on every script or bar  
+
+Prefer the published [compatibility](https://hoox.sh/pyne/docs/reference/compatibility) and [implementation status](https://hoox.sh/pyne/docs/reference/implementation-status) pages for current surface coverage.
+
+Results obtained with PYNE are for research, development, and self-hosted evaluation. They are **not** financial advice and are **not** provided by TradingView, Inc.
 
 ---
 

@@ -1,9 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescriptv6
-// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block194
-// content_hash: 27826718379f09cc
-// collected: 2026-07-27
-indicator("plotchar example", overlay=true)
-data = close >= open
-plotchar(data, char='❄')

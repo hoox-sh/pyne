@@ -1,5 +1,0 @@
-// Parity fixture: entry short then close
-// Expected per bar: entry event, then close event
-//@version=5
-strategy.entry("S", strategy.short, qty=5)
-strategy.close("S", qty=5)

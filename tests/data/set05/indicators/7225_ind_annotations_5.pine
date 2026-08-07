@@ -1,5 +1,0 @@
-//@version=6indicator("Pine v6 Indicator")plot(close)// set05 corpus entry
-// source_repo: pinescriptv6
-// source_path: pinescriptv6/reference/annotations.md::annotations.md#block10
-// content_hash: 8d910170c04e1048
-// collected: 2026-07-27

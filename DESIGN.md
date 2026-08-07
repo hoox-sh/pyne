@@ -213,7 +213,7 @@ The `Matrix` and array UDT sort logic was added in the evaluator layer (mirrorin
 - Footprint: has mock data generator + method dispatch (already present before this round of work).
 - Many other v6 items (dynamic requests, strict bools, new builtins) were already implemented; documentation lagged the code.
 
-Future agents: when touching grammar for new literals or keywords, expect to spend time on quoting experiments + selective artifact refresh + heavy use of the `parse` helper for quick feedback. The corpus (`tests/data/builtin_scripts/`) is the ultimate regression gate.
+Future agents: when touching grammar for new literals or keywords, expect to spend time on quoting experiments + selective artifact refresh + heavy use of the `parse` helper for quick feedback. First-party fixtures under `tests/fixtures/` and unit snippets are the regression gate.
 
 See also:
 - `docs/missing_features.md`
@@ -333,9 +333,8 @@ The linter (`src/pynescript/ast/linter.py`) is a 9-rule static analyser
 
 ### 5.7 Tests parametrized over a real `.pine` corpus
 
-`tests/conftest.py` parametrizes any test using `pinescript_filepath` over
-**every** official `.pine` script in `tests/data/builtin_scripts/` (500+ files
-in v5; updated via `pynescript download-builtin-scripts`).
+`tests/conftest.py` optionally expands `pinescript_filepath` only when
+`--example-scripts-dir` points at a local directory (no third-party corpus is shipped).
 
 This is regression-by-default: any parser change is validated against the
 real TradingView corpus, not just synthetic unit tests. The cost is slow

@@ -159,7 +159,7 @@ Requires a working `antlr4` CLI (often `antlr4-cli` on `PATH`, sometimes under `
 1. Regenerate (or selectively refresh lexer — see case study).
 2. Add/adjust `visit_*` methods in `src/pynescript/ast/builder.py` for new or renamed rules.
 3. If the **shape** of the language changed (new statement/expression kind), update `Pinescript.asdl` and regenerate ASDL nodes — [ASDL schema](/pyne/docs/core/asdl-schema).
-4. Smoke-test with `parse` / `unparse` on a minimal snippet **before** the full `tests/data/builtin_scripts/` corpus.
+4. Smoke-test with `parse` / `unparse` on a minimal first-party snippet before broader regression.
 
 ## Invariants
 

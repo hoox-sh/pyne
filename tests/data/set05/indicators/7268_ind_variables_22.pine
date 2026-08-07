@@ -1,5 +1,0 @@
-//@version=6indicator("Williams Variable Accumulation/Distribution")plot(ta.wvad, color=color.yellow)// the same on pinef_wvad() =>    (close - open) / (high - low) * volumeplot(f_wvad())// set05 corpus entry
-// source_repo: pinescriptv6
-// source_path: pinescriptv6/reference/variables.md::variables.md#block36
-// content_hash: 2d2af2b4a011aef0
-// collected: 2026-07-27

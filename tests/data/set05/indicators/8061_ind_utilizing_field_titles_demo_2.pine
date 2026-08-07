@@ -1,9 +1,0 @@
-//@version=5
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/v5/language/enums.md::enums.md#block7
-// content_hash: 5996ad84e0f48214
-// collected: 2026-07-27
-indicator("Utilizing field titles demo")
-
-//@enum An enumeration of cryptocurrency exchanges. All field titles are the same as the field names.

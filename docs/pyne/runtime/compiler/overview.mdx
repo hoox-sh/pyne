@@ -248,7 +248,7 @@ Full contract (tolerances, buckets, intentional diffs): [Interpret ↔ compile p
 # From repo root — nan-aware allclose on common series keys
 python scripts/compare_interp_compile.py --bars 1000 --limit 50
 python scripts/compare_interp_compile.py --glob 'ta_*.pine' --bars 200
-python scripts/compare_interp_compile.py --files tests/data/builtin_scripts/average_true_range.pine
+python scripts/compare_interp_compile.py --files tests/fixtures/parity/pine/strategy_01_entry_long.pine
 python scripts/compare_interp_compile.py --ignore-hline-keys --ignore-fill-keys --strict-keys
 ```
 

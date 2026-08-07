@@ -28,7 +28,7 @@ description: "What PYNE promises for Pine Script™ v5/v6 syntax, semantics, bui
 
 PYNE aims for **high syntactic fidelity** and **strong semantic compatibility** with TradingView® Pine Script™ v5/v6 on the language core: parser, AST round-trip, type system, collections, technical builtins, and strategy primitives. Compatibility is **not** a claim of full platform parity (hosted chart, proprietary market data, editor-only features).
 
-Source distillations: `docs/compatibility_guarantee.md` (v1.2, 2026-08-03) and live test inventory. Metrics move as the suite grows — prefer CI and the [implementation status](/pyne/docs/reference/implementation-status) matrix for current checkmarks. Corpus Runtime set01–04 ~**94.3%** OK is an honest execution rate on open scripts, **not** bit-identical TradingView® platform parity.
+Source distillations: `docs/compatibility_guarantee.md` (v1.2, 2026-08-03) and live test inventory. Metrics move as the suite grows — prefer CI and the [implementation status](/pyne/docs/reference/implementation-status) matrix for current checkmarks. Compatibility is **not** bit-identical TradingView® platform parity.
 
 ## Conceptual model
 
@@ -57,18 +57,16 @@ flowchart TB
 
 | Category | Claim | Status posture |
 | --- | --- | --- |
-| Parser & syntax | Full grammar on real scripts (138+ builtin corpus) | Solid |
-| AST round-trip | Structural match on corpus | Verified |
+| Parser & syntax | Full grammar on first-party fixtures and unit snippets | Solid |
+| AST round-trip | Structural match on test suite | Verified |
 | Builtins | Broad coverage (200+ / dispatch hundreds) | Good → excellent by namespace |
-| Technical indicators | Core + advanced; numerical cross-checks | Validated in tests / reports |
+| Technical indicators | Core + advanced; numerical cross-checks | Validated in tests |
 | **Interpret ↔ compile plot parity** | Same OHLCV → matching plot/`series` values (nan-aware allclose) | Testing pillar — harness + goldens |
 | Strategy | entry/exit/close, events, risk, OCA, commission | Functional / improved 2026-07 |
 | Type system | int/float/bool/string/color/series/UDT/collections | Strong |
-| Real-world scripts | High parse success; Runtime OK **~94.3%** on set01–04 | Measured / residual tracked |
+| Third-party corpora | **Not shipped** in-repo (legal / ToS hygiene) | N/A |
 
-**Corpus honesty (set01–04 scraped corpus):** after sanitize, parse/unparse is ~**99.96%** OK (one intentional invalid line-wrap demo remains FAIL). **Runtime OK ~94.3%** on the same set—not 100%. Residual RUN_FAIL classes include intentional `runtime.error` library demos, foreign `request.*` without multi-symbol feeds, period edges, and still-missing surface. Prefer re-running showcase/corpus tooling for live percentages; do not market “full TV parity.”
-
-Historical guarantee doc cited **1142 automated tests** at last update — re-run `make test` for live counts.
+Do not market “full TV parity.” Re-run `make test` for live suite counts.
 
 ### Testing pillar: interpret ↔ compile plot parity
 
@@ -111,13 +109,10 @@ Documented at 100% support posture for:
 | Artifact | Role |
 | --- | --- |
 | `docs/compatibility_guarantee.md` | Long-form guarantee text |
-| `tests/data/builtin_scripts/*.pine` | Parametrized corpus |
-| `tests/test_parse_and_unparse.py` | Round-trip |
-| `tests/test_real_world_compatibility.py` | Real-script posture |
-| `tests/fixtures/parity/` | Cross-impl strategy events |
+| `tests/fixtures/parity/` | First-party strategy parity fixtures |
+| `tests/test_parse_and_unparse.py` | Round-trip (optional local `--example-scripts-dir`) |
 | `scripts/compare_interp_compile.py` | Interpret ↔ compile series/plot parity harness |
-| `tests/test_interp_compile_parity.py` | Parity smoke / full subset |
-| `reports/compatibility_report.json` | Machine-readable reports if generated |
+| `tests/test_interp_compile_parity.py` | Parity smoke |
 
 ## Invariants & edge cases
 
@@ -138,10 +133,11 @@ src = open("strategy.pine").read()
 assert unparse(parse(src))  # structural fidelity; exact whitespace may differ
 ```
 
-### Corpus pytest (narrow)
+### Optional local example-script sweep
 
 ```bash
-pytest tests/test_parse_and_unparse.py -q --example-scripts-dir=tests/data/builtin_scripts
+# Only if you provide your own *.pine directory (not shipped)
+pytest tests/test_parse_and_unparse.py -q --example-scripts-dir=/path/to/your/scripts
 ```
 
 ### Interpret ↔ compile plot parity

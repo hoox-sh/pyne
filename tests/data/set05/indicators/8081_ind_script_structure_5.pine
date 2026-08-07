@@ -1,8 +1,0 @@
-//@version=5
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/v5/language/script-structure.md::script-structure.md#block7
-// content_hash: f45f483ba60dcbd2
-// collected: 2026-07-27
-indicator("")
-c = open > close ? color.red :

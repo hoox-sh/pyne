@@ -72,7 +72,6 @@ pynescript <command> --help
 | `run PATH` | file | synthetic-bar execute |
 | `data SYMBOL` | symbol + provider opts | table / json / csv |
 | `info` | — | version + extras |
-| `download-builtin-scripts` | `--script-dir` | corpus downloads |
 
 **Not** part of this Click group: language server — use `pynescript-lsp`.
 
@@ -107,7 +106,6 @@ chmod +x pynescript-cli-linux-x86_64
 | `src/pynescript/ast/linter.py` | `lint_script` |
 | `src/pynescript/compiler/` | `compile` / `prewarm` / `run` |
 | `src/pynescript/util/data.py` | providers + `DataProviderError` |
-| `src/pynescript/util/pine_facade.py` | builtin script download |
 | `examples/` | sample `.pine` inputs |
 | `tests/test_cli.py` | CLI unit suite (CI) |
 
@@ -182,14 +180,6 @@ First close: ...
 Last close: ...
 Volume (avg): ...
 ```
-
-### Refresh builtin corpus (contributors / offline tests)
-
-```bash
-pynescript download-builtin-scripts --script-dir tests/data/builtin_scripts
-```
-
-Use sparingly: network + rate limits; CI may cache the corpus.
 
 ### Compose with library for evaluation
 

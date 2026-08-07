@@ -1,8 +1,0 @@
-//@version=4
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/v4/essential/strategies.md::strategies.md#block4
-// content_hash: 754df7212f67391d
-// collected: 2026-07-27
-strategy("History SAW demo", overlay=true, pyramiding=100, calc_on_order_fills=true)
-strategy.entry("LE", strategy.long)

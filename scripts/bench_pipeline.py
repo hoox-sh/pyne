@@ -39,9 +39,8 @@ if str(_REPO) not in sys.path:
 
 # Builtin scripts may live only on main checkout
 _BUILTIN_CANDIDATES = [
-    _REPO / "tests" / "data" / "builtin_scripts",
-    Path("/mnt/data/home/jango/Git/pynescript/tests/data/builtin_scripts"),
-    Path("/home/jango/Git/pynescript/tests/data/builtin_scripts"),
+    _REPO / "tests" / "fixtures" / "parity" / "pine",
+    _REPO / "tests" / "data" / "examples",
 ]
 
 

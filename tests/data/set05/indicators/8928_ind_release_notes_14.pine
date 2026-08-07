@@ -1,8 +1,0 @@
-//@version=3
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/v3/release-notes.md::release-notes.md#block2
-// content_hash: ee3769bc44b3c041
-// collected: 2026-07-27
-study("My Script")
-plotcandle(open, high, low, close, title='Title', color = open < close ? green : red, wickcolor=black, bordercolor=orange)

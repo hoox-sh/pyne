@@ -1,9 +1,0 @@
-//@version=5
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/v5/concepts/plots.md::plots.md#block10
-// content_hash: fbe90a5f661087e4
-// collected: 2026-07-27
-indicator("", "", true)
-plotColor = close >= open ? color.lime : color.red
-plot(close, color = plotColor)

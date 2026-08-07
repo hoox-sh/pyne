@@ -1,7 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/faq/data-structures.md::data-structures.md#block13
-// content_hash: 562656002b7f2b25
-// collected: 2026-07-27
-indicator("Example: Binary search in sorted array")

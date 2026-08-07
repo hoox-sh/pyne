@@ -1,9 +1,0 @@
-//@version=4
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/v4/language/functions-and-annotations.md::functions-and-annotations.md#block3
-// content_hash: e1894712608a72e5
-// collected: 2026-07-27
-study("Barssince",overlay=false)
-res = close>close[1] ? barssince(close<close[1]) : -1
-plot(res, style=plot.style_histogram, color=res >= 0 ? color.red : color.blue)

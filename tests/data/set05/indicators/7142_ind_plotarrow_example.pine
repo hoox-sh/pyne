@@ -1,9 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescriptv6
-// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block191
-// content_hash: 5bf40ef692563190
-// collected: 2026-07-27
-indicator("plotarrow example", overlay=true)
-codiff = close - open
-plotarrow(codiff, colorup=color.new(color.teal,40), colordown=color.new(color.orange, 40))

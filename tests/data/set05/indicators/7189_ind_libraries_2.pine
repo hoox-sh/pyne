@@ -1,8 +1,0 @@
-//@version=6  
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/concepts/libraries.md::libraries.md#block8
-// content_hash: e63a592ca80fd6e6
-// collected: 2026-07-27
-indicator("") 
-import userName/Point/1 as pt

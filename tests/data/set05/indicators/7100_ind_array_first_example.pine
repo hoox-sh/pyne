@@ -1,9 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescriptv6
-// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block54
-// content_hash: eec020e3447c75fe
-// collected: 2026-07-27
-indicator("array.first example")
-arr = array.new_int(3, 10)
-plot(array.first(arr))

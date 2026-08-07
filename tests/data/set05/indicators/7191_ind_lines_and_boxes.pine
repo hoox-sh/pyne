@@ -1,8 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/visuals/lines-and-boxes.md::lines-and-boxes.md#block13
-// content_hash: 59eff41df068034d
-// collected: 2026-07-27
-
-//@variable The maximum number of lines allowed on the chart.

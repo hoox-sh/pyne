@@ -1,9 +1,0 @@
-//@version=3
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/v3/release-notes.md::release-notes.md#block3
-// content_hash: fc24eb36ae1f1d38
-// collected: 2026-07-27
-study("Input with Options")
-s = input(title="Session", defval="24x7", options=["24x7", "0900-1300", "1300-1700", "1700-2100"])
-plot(time(period, s))

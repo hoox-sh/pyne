@@ -1,9 +1,0 @@
-//@version=4
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/v4/annotations/plotting-shapes-chars-and-arrows.md::plotting-shapes-chars-and-arrows.md#block2
-// content_hash: 55016d7adc8eb659
-// collected: 2026-07-27
-    study('plotshape example 3', overlay=true)
-    data = close >= open
-    plotshape(true, style=shape.flag, color=data ? color.green : color.red)

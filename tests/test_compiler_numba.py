@@ -1347,12 +1347,17 @@ plot(close[math.abs(ta.lowestbars(low, 3))], title="ll")
         assert numba_highestbars(rising, 4, 9) == 0.0
         assert numba_lowestbars(rising, 4, 9) == -3.0
 
-        # Aroon (builtin script) interpret vs compile bit-identical on synthetic OHLC
-        from pathlib import Path
-
+        # Aroon-style plots (first-party snippet) interpret vs compile on synthetic OHLC
         from backend.runtime import Runtime
 
-        src = Path("tests/data/builtin_scripts/aroon.pine").read_text()
+        src = """//@version=5
+indicator("Aroon")
+length = input.int(14, minval=1)
+upper = 100 * (ta.highestbars(high, length + 1) + length) / length
+lower = 100 * (ta.lowestbars(low, length + 1) + length) / length
+plot(upper, "Aroon Up")
+plot(lower, "Aroon Down")
+"""
         bars = []
         p = 100.0
         for i in range(80):
@@ -3834,9 +3839,25 @@ class TestEmaRmaLeadingNanSeed:
             }
             for i in range(n)
         ]
-        root = Path(__file__).resolve().parent / "data" / "builtin_scripts"
-        for name, key in (("double_ema.pine", "DEMA"), ("average_true_range.pine", "ATR")):
-            src = (root / name).read_text(encoding="utf-8")
+        snippets = (
+            (
+                "DEMA",
+                """//@version=5
+indicator("DEMA")
+len = input.int(9, minval=1)
+plot(ta.ema(ta.ema(close, len), len), "DEMA")
+""",
+            ),
+            (
+                "ATR",
+                """//@version=5
+indicator("ATR")
+len = input.int(14, minval=1)
+plot(ta.atr(len), "ATR")
+""",
+            ),
+        )
+        for key, src in snippets:
             clear_parse_cache()
             ri = Runtime(symbol="T").run(src, bars, mode="interpret")
             clear_parse_cache()
@@ -3845,19 +3866,14 @@ class TestEmaRmaLeadingNanSeed:
             assert "error" not in rc, rc.get("error")
             a = np.asarray(ri["series"][key], dtype=float)
             b = np.asarray(rc["series"][key], dtype=float)
-            assert not np.isnan(b).all(), f"{name} compile still all-NaN"
-            # After warm-up both should be finite; compare overlapping finite tails.
+            assert not np.isnan(b).all(), f"{key} compile still all-NaN"
             both = ~np.isnan(a) & ~np.isnan(b)
-            assert both.sum() > 0, f"{name} no overlapping finite bars"
-            # Nested SMA-seed EMA starts later than interpret first-value seed;
-            # require a finite compile tail and reasonable magnitude vs interpret.
+            assert both.sum() > 0, f"{key} no overlapping finite bars"
             assert not np.isnan(b[-1])
             if key == "ATR":
-                # RMA-of-TR should align closely once both are finite.
                 maxdiff = float(np.max(np.abs(a[both] - b[both])))
                 assert maxdiff < 1e-6, f"ATR maxdiff={maxdiff}"
             else:
-                # DEMA: compile may lag; last-value relative error after both finite.
                 last_both = int(np.where(both)[0][-1])
                 if abs(a[last_both]) > 1e-9:
                     rel = abs(a[last_both] - b[last_both]) / abs(a[last_both])
@@ -3916,12 +3932,15 @@ class TestAdxDmiBuiltinScriptPlotParity:
     def test_average_directional_index_plot_parity(self) -> None:
         from pathlib import Path
 
+        import pytest
+
         from backend.runtime import Runtime
         from pynescript.ast.helper import clear_parse_cache
 
-        src = (Path(__file__).resolve().parent / "data" / "builtin_scripts" / "average_directional_index.pine").read_text(
-            encoding="utf-8"
-        )
+        path = Path(__file__).resolve().parent / "data" / "builtin_scripts" / "average_directional_index.pine"
+        if not path.is_file():
+            pytest.skip("third-party fixture not shipped")
+        src = path.read_text(encoding="utf-8")
         bars, *_ = self._synth_bars(160, seed=42)
         clear_parse_cache()
         ri = Runtime(symbol="ADX").run(src, bars, mode="interpret")
@@ -3941,12 +3960,15 @@ class TestAdxDmiBuiltinScriptPlotParity:
     def test_directional_movement_index_plot_parity(self) -> None:
         from pathlib import Path
 
+        import pytest
+
         from backend.runtime import Runtime
         from pynescript.ast.helper import clear_parse_cache
 
-        src = (Path(__file__).resolve().parent / "data" / "builtin_scripts" / "directional_movement_index.pine").read_text(
-            encoding="utf-8"
-        )
+        path = Path(__file__).resolve().parent / "data" / "builtin_scripts" / "directional_movement_index.pine"
+        if not path.is_file():
+            pytest.skip("third-party fixture not shipped")
+        src = path.read_text(encoding="utf-8")
         bars, *_ = self._synth_bars(160, seed=7)
         clear_parse_cache()
         ri = Runtime(symbol="DMI").run(src, bars, mode="interpret")
@@ -3996,13 +4018,16 @@ class TestHighestLowestFullWindowAndBuiltinParity:
     def test_chande_kroll_stop_interp_compile_exact(self) -> None:
         from pathlib import Path
 
+        import pytest
+
         from backend.runtime import Runtime
         from pynescript.ast.helper import clear_parse_cache
         from pynescript.compiler.engine import clear_compile_cache
 
-        src = (
-            Path(__file__).resolve().parent / "data" / "builtin_scripts" / "chande_kroll_stop.pine"
-        ).read_text(encoding="utf-8")
+        path = Path(__file__).resolve().parent / "data" / "builtin_scripts" / "chande_kroll_stop.pine"
+        if not path.is_file():
+            pytest.skip("third-party fixture not shipped")
+        src = path.read_text(encoding="utf-8")
         rng = np.random.default_rng(42)
         n = 150
         close = 100.0 + np.cumsum(rng.normal(0, 1, n))
@@ -4042,13 +4067,16 @@ class TestHighestLowestFullWindowAndBuiltinParity:
         """hline ``Zero line`` series + BBPower match (SMA-seed EMA on both hosts)."""
         from pathlib import Path
 
+        import pytest
+
         from backend.runtime import Runtime
         from pynescript.ast.helper import clear_parse_cache
         from pynescript.compiler.engine import clear_compile_cache
 
-        src = (
-            Path(__file__).resolve().parent / "data" / "builtin_scripts" / "bull_bear_power.pine"
-        ).read_text(encoding="utf-8")
+        path = Path(__file__).resolve().parent / "data" / "builtin_scripts" / "bull_bear_power.pine"
+        if not path.is_file():
+            pytest.skip("third-party fixture not shipped")
+        src = path.read_text(encoding="utf-8")
         n = 200
         o, h, l, c, v = _ohlcv(n, start=100.0)
         bars = [

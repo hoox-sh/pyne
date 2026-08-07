@@ -1,8 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescriptv6
-// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block93
-// content_hash: f6665ddd42a5c9be
-// collected: 2026-07-27
-indicator("barcolor example", overlay=true)
-barcolor(close < open ? color.black : color.white)

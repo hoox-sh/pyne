@@ -1,5 +1,0 @@
-//@version=6indicator("Negative Volume Index")plot(ta.nvi, color=color.yellow)// the same on pinef_nvi() =>    float ta_nvi = 1.0    float prevNvi = (nz(ta_nvi[1], 0.0) == 0.0) ? 1.0 : ta_nvi[1]    if nz(close, 0.0) == 0.0 or nz(close[1], 0.0) == 0.0        ta_nvi := prevNvi    else        ta_nvi := (volume < nz(volume[1], 0.0)) ? prevNvi + ((close - close[1]) / close[1]) * prevNvi : prevNvi    result = ta_nviplot(f_nvi())// set05 corpus entry
-// source_repo: pinescriptv6
-// source_path: pinescriptv6/reference/variables.md::variables.md#block31
-// content_hash: b565dafc14e0a898
-// collected: 2026-07-27

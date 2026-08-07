@@ -1,1 +1,4 @@
-*.pine
+# Intentionally empty: third-party / scraped builtin scripts are not shipped.
+# Do not commit *.pine sources obtained from TradingView® or external scrapes.
+*
+!.gitignore

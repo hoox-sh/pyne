@@ -1,9 +1,0 @@
-//@version=6
-// set03 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/release-notes.md::release-notes.md#block7
-// content_hash: d24c6ba79f638e08
-// collected: 2026-07-27
-library("MyConstants")
-
-export const float SILVER_RATIO = 1.0 + math.sqrt(2)

@@ -1,8 +1,0 @@
-//@version=4
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/v4/annotations/custom-ohlc-bars-and-candles.md::custom-ohlc-bars-and-candles.md#block1
-// content_hash: f8c90d93f099a5a7
-// collected: 2026-07-27
-study("Example 1")
-plotbar(open, high, low, close)

@@ -1,9 +1,0 @@
-//@version=5
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/v5/concepts/inputs.md::inputs.md#block13
-// content_hash: 71c0e7ae36233886
-// collected: 2026-07-27
-indicator("Source input", "", true)
-srcInput = input.source(high, "Source")
-plot(srcInput, "Src", color.new(color.purple, 70), 6)

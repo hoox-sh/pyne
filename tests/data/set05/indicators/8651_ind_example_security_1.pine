@@ -1,9 +1,0 @@
-//@version=4
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/v4/essential/context-switching-the-security-function.md::context-switching-the-security-function.md#block1
-// content_hash: ec377efa661f0243
-// collected: 2026-07-27
-study("Example security 1", overlay=true)
-ibm_15 = security("NYSE:IBM", "15", close)
-plot(ibm_15)

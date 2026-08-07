@@ -19,14 +19,14 @@
 
 ---
 title: "Missing features"
-description: "Known gaps and closed Pine Script™ v6 items — H2/T1/F2/L2 shipped; corpus ~94.3%; foreign-na and plot parity harness landed."
+description: "Known gaps and closed Pine Script™ v6 items — H2/T1/F2/L2 shipped; first-party fixtures; foreign-na and plot parity harness landed."
 ---
 
 # Missing features
 
 ## Abstract
 
-“Missing” in PYNE is a **moving frontier**. As of **2026-08**, core v6 support remains very high (~99%+ for core language), with post-launch TV items closed (multiline strings, library `export const`, footprint mocks, risk enforcement, matrix LA, compile-mode strategy, drawing GC, …) **plus** open-source corpus parse/Runtime hardening, **incremental bar-mode TA**, **alert engine + L2 webhooks**, **series caps**, **warm-compile**, and **pending-fill** averaging. Remaining gaps cluster into **dual-host package Runtime unify**, **plot parity residual MISMATCH**, **by-design platform differences**, **editor-only features**, **fidelity edges**, and a **long-tail Runtime/corpus** bucket (~**94.3%** set01–04 Runtime OK projected).
+“Missing” in PYNE is a **moving frontier**. As of **2026-08**, core v6 support remains very high (~99%+ for core language), with post-launch TV items closed (multiline strings, library `export const`, footprint mocks, risk enforcement, matrix LA, compile-mode strategy, drawing GC, …) **plus** open-source corpus parse/Runtime hardening, **incremental bar-mode TA**, **alert engine + L2 webhooks**, **series caps**, **warm-compile**, and **pending-fill** averaging. Remaining gaps cluster into **dual-host package Runtime unify**, **plot parity residual MISMATCH**, **by-design platform differences**, **editor-only features**, **fidelity edges**, and residual runtime edge cases.
 
 Authoritative narrative: `docs/missing_features.md` (alerts + L2 closed; roadmap residual H1 package unify / C1 / P1p). Canonical IDs: `docs/ROADMAP.md` (**2026-08-03**).
 
@@ -76,7 +76,6 @@ Summarized — full prose in source doc:
 | Numba compile + object mode + **warm-compile (H2)** | Disk IR cache, prewarm API/CLI, deploy defaults |
 | Official matrix LA & predicates | det/inv/eigen/… |
 | **0 missing** vs public TV v6 function reference list (434 symbols, 2026-07-25) |
-| Corpus sanitize + soft keywords / bitwise / typed UDF returns | set01–04 parse ~94.8% |
 | Runtime `_pine_defs_locked` + append-only `current_series` | Host hygiene (backend + pyne-worker) |
 | Incremental `ta.sma/ema/rma/rsi/macd/atr` + R7 `bb/kama/cmo/stochrsi` | Bar mode; `PYNE_TA_INCREMENTAL=0` to disable |
 | **Series caps (T1)** | `PYNE_SERIES_CAP` default ON + goldens |
@@ -100,7 +99,7 @@ Summarized — full prose in source doc:
 | Bit-identical every recursive smoother vs TV | Numerical bounds, not bits |
 | Dual Runtime host copies (**H1**) | ⚙️ Host surface + dual-host **alerts** export; package-level Runtime unify still open |
 | Warm-compile product path (**H2**) | ✅ SLOs / prewarm / deploy IR cache defaults (2026-08) |
-| Corpus Runtime tail (**C1**) | ⚙️ ~**94.3%** set01–04 OK projected; PARSE stubs ~118; ~21 residual RUN_FAIL |
+| Runtime residual (**C1**) | ⚙️ tracked on first-party fixtures; no third-party corpus shipped |
 | Series cap (**T1**) | ✅ `PYNE_SERIES_CAP` default ON |
 | Residual TA inc (**T2**) | ⚙️ Partial — bb/kama/cmo/stochrsi done; nested full-list paths residual |
 | Pending-fill (**F2**) | ✅ R7 interpret + compile goldens |
@@ -118,9 +117,6 @@ v6 launch items (dynamic requests, strict bool, enums, polylines, `log.*`, negat
 
 | Metric | Value |
 | --- | --- |
-| set01–04 parse | ~94.8% OK |
-| set01–04 Runtime (baseline re-runs) | ~89.8% OK (≈2224/2477) |
-| set01–04 Runtime (after C1 8-agent pass, projected) | **~94.3%** OK (≈2337/2477) |
 | PARSE_FAIL residual | ~118 files — almost all truncated/non-Pine |
 | Residual RUN_FAIL | ~21 — library `runtime.error` demos, lower-TF guards, long-tail edges |
 | `ta_sma` bar loop (≈3.2k bars) | **~9.5×** vs full recompute |

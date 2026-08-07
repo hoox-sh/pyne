@@ -1,9 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescriptv6
-// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block261
-// content_hash: 69e37a8192f53c69
-// collected: 2026-07-27
-indicator("ta.barssince")
-// get number of bars since last color.green bar
-plot(ta.barssince(close >= open))

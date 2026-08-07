@@ -21,26 +21,49 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from pytest import Metafunc
 from pytest import Parser
 
 
 tests_dir = Path(__file__).parent
-builtin_scripts_dir = tests_dir / "data" / "builtin_scripts"
+# Optional local-only example dir (not shipped). Prefer tests/fixtures for CI.
+default_example_scripts_dir = tests_dir / "data" / "examples"
 
 
 def pytest_addoption(parser: Parser):
-    parser.addoption("--example-scripts-dir", default=builtin_scripts_dir, type=Path)
+    parser.addoption(
+        "--example-scripts-dir",
+        default=default_example_scripts_dir,
+        type=Path,
+        help="Optional directory of *.pine files for pinescript_filepath parametrization (not shipped).",
+    )
 
 
 def pytest_generate_tests(metafunc: Metafunc):
-    if "pinescript_filepath" in metafunc.fixturenames:
-        example_scripts_dir: Path = metafunc.config.getoption("--example-scripts-dir")
-        pinescript_filepaths_iter = example_scripts_dir.glob("*.pine")
-        pinescript_filepaths = list(pinescript_filepaths_iter)
-        pinescript_filenames = [path.name for path in pinescript_filepaths]
+    if "pinescript_filepath" not in metafunc.fixturenames:
+        return
+    example_scripts_dir: Path = metafunc.config.getoption("--example-scripts-dir")
+    pinescript_filepaths: list[Path] = []
+    if example_scripts_dir.is_dir():
+        pinescript_filepaths = sorted(example_scripts_dir.glob("*.pine"))
+    if not pinescript_filepaths:
+        # Avoid empty parametrize collection errors when no third-party corpus is present.
         metafunc.parametrize(
-            argnames="pinescript_filepath",
-            argvalues=pinescript_filepaths,
-            ids=pinescript_filenames,
+            "pinescript_filepath",
+            [
+                pytest.param(
+                    None,
+                    marks=pytest.mark.skip(
+                        reason="no example *.pine scripts shipped (use --example-scripts-dir for local suites)"
+                    ),
+                )
+            ],
+            ids=["no-example-scripts"],
         )
+        return
+    metafunc.parametrize(
+        argnames="pinescript_filepath",
+        argvalues=pinescript_filepaths,
+        ids=[path.name for path in pinescript_filepaths],
+    )

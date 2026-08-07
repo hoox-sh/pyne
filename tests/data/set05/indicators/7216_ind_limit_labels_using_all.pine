@@ -1,7 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/faq/visuals.md::visuals.md#block15
-// content_hash: 2ab55ef04b384473
-// collected: 2026-07-27
-indicator("Limit labels using *.all", overlay = true)

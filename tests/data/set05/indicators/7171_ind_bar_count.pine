@@ -1,8 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/faq/general.md::general.md#block10
-// content_hash: 156c7af0cd207728
-// collected: 2026-07-27
-indicator("Bar Count", overlay = true, scale = scale.none)
-plot(bar_index + 1, style = plot.style_histogram)

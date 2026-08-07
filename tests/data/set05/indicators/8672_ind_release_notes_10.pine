@@ -1,8 +1,0 @@
-//@version=4
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/release-notes.md::release-notes.md#block32
-// content_hash: 684adca5d7093d45
-// collected: 2026-07-27
-study("My Script")
-plot(hour(1591012800000, "GMT+1"))

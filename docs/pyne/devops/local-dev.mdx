@@ -93,7 +93,7 @@ pynescript --version
 | Path | Why it matters |
 | --- | --- |
 | `src/pynescript/` | Editable package root |
-| `tests/conftest.py` | Parametrizes huge `builtin_scripts` corpus — avoid in CI-critical new tests |
+| `tests/conftest.py` | Optional `--example-scripts-dir` only; no third-party corpus shipped |
 | `backend/requirements.txt` | Pro API deps (also covered by `[pro]` extra) |
 | `pine-worker/` | Colocated TS port; independent Bun tests |
 | `vscode-extension/` | PYNE VS Code extension |

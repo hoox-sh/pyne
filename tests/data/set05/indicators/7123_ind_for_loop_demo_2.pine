@@ -1,9 +1,0 @@
-//@version=6
-// set05 corpus entry
-// source_repo: pinescript-agents
-// source_path: pinescript-agents/docs/docs/language/loops.md::loops.md#block9
-// content_hash: 6c9ace8b799406b8
-// collected: 2026-07-27
-indicator("`for` loop demo", "VWMA differences", true, max_labels_count = 500)
-
-//@variable Display color for indicator visuals.

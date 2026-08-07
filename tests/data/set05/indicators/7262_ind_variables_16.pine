@@ -1,5 +1,0 @@
-//@version=6indicator("Intraday Intensity Index")plot(ta.iii, color=color.yellow)// the same on pinef_iii() =>    (2 * close - high - low) / ((high - low) * volume)plot(f_iii())// set05 corpus entry
-// source_repo: pinescriptv6
-// source_path: pinescriptv6/reference/variables.md::variables.md#block30
-// content_hash: c18862d73850954b
-// collected: 2026-07-27

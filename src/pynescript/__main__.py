@@ -34,7 +34,6 @@ Commands
 - ``run`` — compile + execute on synthetic OHLCV
 - ``data`` — fetch market bars (mock / Yahoo / …)
 - ``info`` — version and optional extras (numba, rich, …)
-- ``download-builtin-scripts`` — TradingView builtins for tests
 
 The Language Server is a **separate** console script (``pynescript-lsp``), not
 a subcommand of this group. See :mod:`pynescript.langserver.__main__`.
@@ -1033,27 +1032,6 @@ def data(
 
     except DataProviderError as e:
         raise click.ClickException(str(e)) from e
-
-
-# ---------------------------------------------------------------------------
-# download-builtin-scripts
-# ---------------------------------------------------------------------------
-
-
-@cli.command("download-builtin-scripts", short_help="Download TradingView builtin scripts.")
-@click.option(
-    "--script-dir",
-    type=click.Path(exists=False, file_okay=False, writable=True),
-    help="Directory where scripts are saved (e.g. tests/data/builtin_scripts).",
-    required=True,
-)
-def download_builtin_scripts(script_dir: str) -> None:
-    """Download TradingView builtin scripts into SCRIPT_DIR (test corpus helper)."""
-    from pynescript.util.pine_facade import download_builtin_scripts as download
-
-    _echo_status("info", f"downloading builtins → {script_dir}")
-    download(script_dir)
-    _echo_status("ok", "done")
 
 
 # ---------------------------------------------------------------------------
