@@ -7828,5 +7828,23 @@
     "documentation": "Zigzag pattern detector (returns high, low, direction).",
     "snippet": "zigzag(${1:arg})",
     "category": "builtin"
+  },
+  "strategy.percent_of_equity": {
+    "label": "strategy.percent_of_equity",
+    "kind": "constant",
+    "detail": "strategy.percent_of_equity",
+    "brief": "default_qty_type: size orders as % of equity",
+    "documentation": "Quantity type for strategy(..., default_qty_type=strategy.percent_of_equity).\nOrders size as a percentage of equity (default_qty_value).",
+    "snippet": "strategy.percent_of_equity",
+    "category": "strategy"
+  },
+  "strategy.fixed": {
+    "label": "strategy.fixed",
+    "kind": "constant",
+    "detail": "strategy.fixed",
+    "brief": "default_qty_type: fixed contract quantity",
+    "documentation": "Quantity type for strategy(..., default_qty_type=strategy.fixed).\nOrders use a fixed quantity (default_qty_value).",
+    "snippet": "strategy.fixed",
+    "category": "strategy"
   }
 }
