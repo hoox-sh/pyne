@@ -4,7 +4,7 @@
 # Makefile for pyne (Pine Script Python toolchain) development
 
 .PHONY: help install test lint fmt build run clean \
-	docker-build docker-build-cli docker-build-all docker-buildx docker-run \
+	docker-build docker-build-cli docker-build-all docker-buildx docker-push-ghcr docker-run \
 	docker-up docker-up-full docker-prod docker-down docker-logs docker-smoke \
 	docker-cli \
 	test-lsp test-backend test-cli typecheck build-check build-cli build-package \
@@ -33,6 +33,7 @@ help:
 	@echo "  docker-build-cli buildx bake CLI image (load)"
 	@echo "  docker-build-all buildx bake api + api-dev + lsp + cli"
 	@echo "  docker-buildx    multi-platform release bake (amd64+arm64)"
+	@echo "  docker-push-ghcr trigger GHCR workflow (api+cli multi-arch)"
 	@echo "  docker-cli       run CLI in container (ARGS=... e.g. check x.pine)"
 	@echo "  docker-up        compose up API (dev target, port 5002)"
 	@echo "  docker-up-full   compose up with redis profile (not lsp)"
@@ -159,6 +160,12 @@ docker-build-all:
 
 docker-buildx:
 	docker buildx bake release $(BAKE_ARGS)
+
+# Trigger GitHub Actions GHCR push (api + cli multi-arch). Requires gh auth.
+docker-push-ghcr:
+	gh workflow run ghcr.yml -R hoox-sh/pyne
+	@echo "Watch: gh run watch -R hoox-sh/pyne"
+	@echo "Images: ghcr.io/hoox-sh/pyne/api  ghcr.io/hoox-sh/pyne/cli"
 
 docker-up:
 	GIT_SHA=$(GIT_SHA) PYNESCRIPT_VERSION=$(PYNESCRIPT_VERSION) docker compose up --build -d api

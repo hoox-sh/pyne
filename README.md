@@ -81,6 +81,21 @@ pip install "hoox-pyne[pro]"          # Flask Pro API stack
 pip install -e ".[lsp,pro]"
 ```
 
+### Container images (GHCR)
+
+Multi-arch (`linux/amd64`, `linux/arm64`) images publish to GitHub Container Registry on `v*` tags (and via Actions → **GHCR** → Run workflow):
+
+```bash
+# CLI
+docker pull ghcr.io/hoox-sh/pyne/cli:0.3.0
+docker run --rm -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/cli:0.3.0 check script.pine
+
+# Pro API
+docker pull ghcr.io/hoox-sh/pyne/api:0.3.0
+docker run --rm -p 5002:8080 -e ADMIN_TOKEN=… ghcr.io/hoox-sh/pyne/api:0.3.0
+```
+
+Packages: [ghcr.io/hoox-sh/pyne](https://github.com/hoox-sh/pyne/pkgs/container/pyne%2Fcli).
 ## Quickstart
 
 ### Parse and unparse

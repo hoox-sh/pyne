@@ -12,6 +12,11 @@
 #
 # Variables (override with --set or env via bake HCL):
 #   TAG=0.3.0 REGISTRY=gcr.io/PROJECT/pynescript docker buildx bake release
+#   TAG=0.3.0 REGISTRY=ghcr.io/hoox-sh/pyne docker buildx bake release
+#     → ghcr.io/hoox-sh/pyne/api:0.3.0  and  …/cli:0.3.0
+#
+# CI: .github/workflows/ghcr.yml pushes api + cli multi-arch on v* tags
+# (and workflow_dispatch). Prefer that path over local bake for GHCR.
 #
 # Push safety: release targets use output type=registry ONLY when REGISTRY is
 # non-empty. Empty REGISTRY keeps type=image (build cache / multi-arch manifest
@@ -113,13 +118,18 @@ target "cli" {
 # Multi-platform production images.
 # REGISTRY set  → push (type=registry)
 # REGISTRY empty → type=image only (no push; no docker load for multi-arch)
+# When REGISTRY is set, use short GHCR-friendly names (api / cli).
+# Local short names stay pynescript-api / pynescript-cli for compose.
 target "api-release" {
   inherits   = ["_common"]
   target     = "api"
   platforms  = split(",", PLATFORMS)
-  tags = [
-    "${image_name("pynescript-api")}:${TAG}",
-    "${image_name("pynescript-api")}:latest",
+  tags = REGISTRY != "" ? [
+    "${REGISTRY}/api:${TAG}",
+    "${REGISTRY}/api:latest",
+  ] : [
+    "pynescript-api:${TAG}",
+    "pynescript-api:latest",
   ]
   output = REGISTRY != "" ? ["type=registry"] : ["type=image"]
   cache-from = [
@@ -134,9 +144,12 @@ target "cli-release" {
   inherits   = ["_common"]
   target     = "cli"
   platforms  = split(",", PLATFORMS)
-  tags = [
-    "${image_name("pynescript-cli")}:${TAG}",
-    "${image_name("pynescript-cli")}:latest",
+  tags = REGISTRY != "" ? [
+    "${REGISTRY}/cli:${TAG}",
+    "${REGISTRY}/cli:latest",
+  ] : [
+    "pynescript-cli:${TAG}",
+    "pynescript-cli:latest",
   ]
   output = REGISTRY != "" ? ["type=registry"] : ["type=image"]
   cache-from = [
