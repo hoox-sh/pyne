@@ -6,7 +6,7 @@ Import / CLIs: `pynescript` · `pynescript-lsp`. Distribution: [`hoox-pyne`](htt
 
 <div align="center">
 
-![PYNE — Grammar to semantics](brand/png/tagline-grammar-to-semantics-github-1280x640-br-split-dark.png)
+![FAILURE IS LOCAL. RESILIENCE IS GLOBAL.](brand/png/tagline-failure-is-local-github-1280x640-br-split-dark.png)
 
 [![Python](https://shieldcn.dev/badge/Language-Python_3.10%2B-3776ab.png?size=sm&logo=python)](https://www.python.org/)
 [![PyPI](https://shieldcn.dev/badge/PyPI-hoox--pyne-F97316.png?size=sm&logo=pypi)](https://pypi.org/project/hoox-pyne/)
