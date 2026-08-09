@@ -1,10 +1,10 @@
-# PYNE
+# PYNE Language Support
 
 <p align="center">
   <img src="media/icon-512.png" alt="PYNE" width="128" />
 </p>
 
-**VS Code language support** for **`.pyne`** / **`.pine`** sources, powered by the **[PYNE](https://hoox.sh/pyne)** toolchain (`pynescript` / `hoox-pyne`).
+**VS Code language support** for **`.pyne`** / **`.pine`** sources — syntax highlighting, diagnostics, autocomplete, hover, and formatting. Powered by **[PYNE](https://hoox.sh/pyne)** (`hoox-pyne`).
 
 Part of the **[HOOX](https://hoox.sh) open trading stack** — sister products: **[AXIS](https://hoox.sh/axis)** (charting PWA) and **[HOOX](https://hoox.sh)** (edge execution).
 
@@ -32,14 +32,16 @@ Part of the **[HOOX](https://hoox.sh) open trading stack** — sister products: 
 
 ```bash
 pip install "hoox-pyne[lsp]"
-# or from a clone of pyne:
+# or from a clone of this repo:
 pip install -e ".[lsp]"
 ```
 
-Confirm:
+Confirm the preferred console script:
 
 ```bash
-python3 -c "import pynescript.langserver; print('ok')"
+pyne-lsp --help
+# alias still works: pynescript-lsp --help
+# module form: python3 -m pynescript.langserver
 ```
 
 ## Install this extension
@@ -77,14 +79,44 @@ code --extensionDevelopmentPath=.
 | `pynescript.formatting.enabled` | `true` | Format document |
 | `pynescript.completion.snippets` | `true` | Snippet inserts |
 
+**Example — pin a venv binary:**
+
+```json
+{
+  "pynescript.lsp.command": "/home/you/project/.venv/bin/pyne-lsp"
+}
+```
+
+**Example — force module launch:**
+
+```json
+{
+  "pynescript.lsp.command": "auto",
+  "pynescript.lsp.python": "/home/you/project/.venv/bin/python"
+}
+```
+
 ## Commands (Command Palette)
 
 Search for **PYNE**:
 
-- Restart Language Server  
-- Format Document  
-- Show Language Server Output  
-- Show Resolved LSP Launch Command  
+| Command palette | ID | Notes |
+|-----------------|-----|--------|
+| **PYNE: Restart Language Server** | `pynescript.restartServer` | Always available after install |
+| **PYNE: Format Document** | `pynescript.formatDocument` | `.pyne` / `.pine` only; needs running LSP |
+| **PYNE: Show Language Server Output** | `pynescript.showLspOutput` | Also status-bar click |
+| **PYNE: Show Resolved LSP Launch Command** | `pynescript.showLspCommand` | Copy / debug launch path |
+
+From the CLI / developer host you can also run:
+
+```bash
+# show what the extension would launch (Command Palette)
+#   PYNE: Show Resolved LSP Launch Command
+# typical resolved values:
+pyne-lsp
+# or: pynescript-lsp
+# or: python3 -m pynescript.langserver
+```
 
 ## Marketplace identity
 
@@ -92,7 +124,7 @@ Search for **PYNE**:
 |-------|--------|
 | Extension id | `jango-blockchained.pyne` |
 | Package name | `pyne` |
-| Display name | **PYNE** |
+| Display name | **PYNE Language Support** |
 
 ## License
 

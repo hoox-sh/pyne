@@ -1,6 +1,6 @@
-# Pine Script LSP — Client Configurations
+# PYNE LSP — Client Configurations
 
-This directory contains LSP client configurations for popular editors.
+This directory contains LSP client configurations for popular editors (`pyne-lsp`).
 
 ## VS Code
 
@@ -132,7 +132,7 @@ Add to `~/.emacs.d/init.el`:
 
 ## Cursor / Other Editors
 
-Any LSP-compatible editor can use the Pine Script LSP:
+Any LSP-compatible editor can use the PYNE language server:
 
 ```
 pyne-lsp --stdio

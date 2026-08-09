@@ -51,7 +51,7 @@ From `vscode-extension/package.json`:
 | Field | Value |
 | --- | --- |
 | name | `pyne` |
-| displayName | `PYNE` |
+| displayName | `PYNE Language Support` |
 | extension id | `jango-blockchained.pyne` |
 | icon | `media/icon.png` (HOOX mark) |
 | engines.vscode | `^1.85.0` |
@@ -103,10 +103,12 @@ Initialization options object:
 
 ### Commands
 
-| Command | Action |
-| --- | --- |
-| `pynescript.restartServer` | `client.stop()` then `client.start()` |
-| `pynescript.formatDocument` | `editor.action.formatDocument` |
+| Command palette | ID | Action |
+| --- | --- | --- |
+| **PYNE: Restart Language Server** | `pynescript.restartServer` | Stop then start the language client |
+| **PYNE: Format Document** | `pynescript.formatDocument` | `editor.action.formatDocument` (`.pyne` / `.pine`) |
+| **PYNE: Show Language Server Output** | `pynescript.showLspOutput` | Open Output channel / status-bar target |
+| **PYNE: Show Resolved LSP Launch Command** | `pynescript.showLspCommand` | Show and copy resolved `pyne-lsp` launch |
 
 ### Client options
 
@@ -174,7 +176,7 @@ Open a fixture `.pine` file; confirm Problems panel shows parse/lint diagnostics
 | Symptom | Cause |
 | --- | --- |
 | “Language client failed to start” | `pyne-lsp` missing / wrong command |
-| No squiggles, highlighting OK | LSP disabled or server crash; check Output → Pine Script Language Server |
+| No squiggles, highlighting OK | LSP disabled or server crash; check Output → PYNE Language Server |
 | Restart does nothing | Client never started (`lsp.enabled` false) |
 
 ## See also

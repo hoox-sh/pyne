@@ -248,8 +248,8 @@ async function startClient(): Promise<void> {
   const clientOptions = buildClientOptions();
 
   client = new LanguageClient(
-    'pynescript-lsp',
-    'PYNE Pine Script™ Language Server',
+    'pyne-lsp',
+    'PYNE Language Server',
     serverOptions,
     clientOptions,
   );
@@ -329,7 +329,7 @@ function registerCommands(context: ExtensionContext): void {
         return;
       }
       if (editor.document.languageId !== 'pinescript') {
-        void window.showWarningMessage('Format Document is only available for Pine Script™ files.');
+        void window.showWarningMessage('Format Document is only available for .pyne / .pine files.');
         return;
       }
       if (cfg<boolean>('formatting.enabled') === false) {
