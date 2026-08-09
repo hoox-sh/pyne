@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-08-09
+
 ### Changed
 - **Console scripts**: preferred names are **`pyne`** and **`pyne-lsp`**.
   Legacy **`pynescript`** / **`pynescript-lsp`** remain installed as aliases
