@@ -181,6 +181,8 @@ class CompileStrategyBroker:
         pyramiding: int = 0,
         default_qty_type: str = "fixed",
         default_qty_value: float = 1.0,
+        avg_price_model: str = "stock",
+        leverage: float = 1.0,
     ) -> None:
         """Construct broker state for one compiled run.
 
@@ -193,6 +195,14 @@ class CompileStrategyBroker:
 
         ``default_qty_type`` / ``default_qty_value`` mirror interpret when the
         visitor wires them into the ctor (percent_of_equity / cash / fixed).
+
+        ``avg_price_model`` (pynescript extension): ``stock`` | ``futures`` |
+        ``inverse``. Compile broker is a single net lot: partial close already
+        keeps ``position_avg_price`` sticky (futures-like). The flag is stored
+        for dual-path parity and future multi-leg / inverse harmonic work.
+
+        ``leverage`` (pynescript extension): buying-power multiplier for
+        percent_of_equity / cash default qty and margin locked in ``cash``.
         """
         self.initial_capital = float(initial_capital)
         self.commission_value = float(commission_value)
@@ -206,6 +216,23 @@ class CompileStrategyBroker:
             dqt = "percent_of_equity"
         self.default_qty_type: str = dqt
         self.default_qty_value: float = float(default_qty_value) if default_qty_value is not None else 1.0
+        # Soft-normalize avg model (keep in sync with interpret _norm_avg_price_model)
+        raw_apm = str(avg_price_model or "stock").replace("strategy.", "").replace("avg_price_", "").strip().lower()
+        if raw_apm in {"stock", "pine", "average", "avg", "lot", "fifo"}:
+            self.avg_price_model: str = "stock"
+        elif raw_apm in {"futures", "future", "perp", "perpetual", "net", "linear"}:
+            self.avg_price_model = "futures"
+        elif raw_apm in {"inverse", "coin", "coin_m", "harmonic"}:
+            self.avg_price_model = "inverse"
+        else:
+            self.avg_price_model = "stock"
+        try:
+            lev = float(leverage) if leverage is not None else 1.0
+        except (TypeError, ValueError):
+            lev = 1.0
+        if lev != lev or lev <= 0:  # NaN / non-positive
+            lev = 1.0
+        self.leverage: float = 1.0 if lev < 1.0 else lev
         self.position_size: float = 0.0  # signed: +long / -short
         self.position_avg_price: float = float("nan")
         self.position_entry_name: str = ""
@@ -549,20 +576,22 @@ class CompileStrategyBroker:
         """Resolve entry size from ``default_qty_type`` / ``default_qty_value``.
 
         Mirrors interpret ``_resolve_default_entry_qty``:
-        - ``fixed``: contracts = default_qty_value (default 1)
-        - ``percent_of_equity``: equity * (pct/100) / price
-        - ``cash``: cash_amount / price
+        - ``fixed``: contracts = default_qty_value (default 1); leverage ignored
+        - ``percent_of_equity``: margin = equity * (pct/100); qty = margin * leverage / price
+        - ``cash``: margin = cash_amount; qty = margin * leverage / price
         """
         dqt = (self.default_qty_type or "fixed").replace("strategy.", "").lower()
         val = float(self.default_qty_value or 0.0)
         price = float(fill_price) if fill_price and fill_price > 0 else float(self._mark or 1.0)
         if price <= 0 or price != price:
             price = 1.0
+        lev = float(self.leverage) if self.leverage and self.leverage > 0 else 1.0
         if dqt in {"percent_of_equity", "percent", "percentage"}:
             equity = float(self.equity)
-            return max(0.0, (equity * (val / 100.0)) / price)
+            margin = equity * (val / 100.0)
+            return max(0.0, (margin * lev) / price)
         if dqt == "cash":
-            return max(0.0, val / price)
+            return max(0.0, (val * lev) / price)
         return max(0.0, val if val > 0 else 1.0)
 
     def _exit_fill_price(
@@ -1001,12 +1030,28 @@ class CompileStrategyBroker:
 
     @property
     def cash(self) -> float:
-        """Approximate free cash: equity minus capital locked in open position."""
+        """Approximate free cash: equity minus margin locked (notional / leverage)."""
         ps = self.position_size
         if ps == 0.0 or self.position_avg_price != self.position_avg_price:
             return float(self.equity)
-        held = abs(float(self.position_avg_price) * float(ps))
+        notional = abs(float(self.position_avg_price) * float(ps))
+        lev = float(self.leverage) if self.leverage and self.leverage > 0 else 1.0
+        held = notional / lev
         return float(self.equity) - held
+
+    @property
+    def margin_liquidation_price(self) -> float:
+        """Simple isolated liq estimate: entry ± entry/leverage; nan if flat or lev≤1."""
+        ps = self.position_size
+        avg = self.position_avg_price
+        if ps == 0.0 or avg != avg or avg <= 0:
+            return float("nan")
+        lev = float(self.leverage) if self.leverage and self.leverage > 0 else 1.0
+        if lev <= 1.0:
+            return float("nan")
+        if ps > 0:
+            return float(avg) * (1.0 - 1.0 / lev)
+        return float(avg) * (1.0 + 1.0 / lev)
 
     @property
     def avg_trade(self) -> float:

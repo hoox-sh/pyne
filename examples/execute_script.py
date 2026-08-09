@@ -192,6 +192,8 @@ class strategy:
     commition_value: const[int] | const[float] | None = None
     process_orders_on_close: const[bool] | None = None
     close_entries_rule: const[str] | None = None
+    avg_price_model: const[str] | None = None  # pynescript: "stock" | "futures" | "inverse"
+    leverage: const[int] | const[float] | None = None  # pynescript: e.g. 10 for 10× (futures UI)
     margin_long: const[int] | const[float] | None = None
     margin_short: const[int] | const[float] | None = None
     explicit_plot_zorder: const[bool] | None = None

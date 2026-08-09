@@ -88,7 +88,77 @@ Blocked entries still emit a diagnostic-style event with comment `risk_blocked` 
 
 ### Declaration
 
-`strategy(title, …)` applies broker settings onto `StrategyState`: `initial_capital`, commission type/value, slippage ticks, pyramiding, etc.
+`strategy(title, …)` applies broker settings onto `StrategyState`: `initial_capital`, commission type/value, slippage ticks, pyramiding, `avg_price_model`, etc.
+
+### Average price model (pynescript extension)
+
+Not part of official TradingView Pine. Controls how `strategy.position_avg_price` evolves when size changes:
+
+| `avg_price_model` | On same-direction **adds** | On **partial reduce** |
+| --- | --- | --- |
+| `"stock"` (default) | Arithmetic VWAP of fills | Re-average remaining open legs (FIFO multi-trade style) |
+| `"futures"` | Same arithmetic VWAP | **Sticky** net AEP until flat (linear USDT-M / BTCUSDT-like) |
+| `"inverse"` | Arithmetic today; harmonic add planned | Sticky until flat (same reduce rule as futures) |
+
+```pine
+strategy("Perp style", avg_price_model="futures")
+// or tokens:
+// strategy(..., avg_price_model=strategy.avg_price_futures)
+```
+
+Linear add formula (stock and futures):
+
+\[
+avg' = \frac{avg \cdot |size| + p \cdot q}{|size| + q}
+\]
+
+Under `"futures"`, partial closes realize PnL against the sticky average (not per-leg FIFO entry prices), and closed-trade `entry_price` records that same average. Commission is never folded into the average numerator.
+
+There is no `strategy.order.avg_future_price` series—use `strategy.position_avg_price` with the mode switch.
+
+### Leverage (pynescript extension — simpler futures UI)
+
+Exchanges expose **leverage** (e.g. 5× / 10× / 20×). Prefer that over TV-style `margin_long` / `margin_short` percentages:
+
+```pine
+//@version=6
+// TV-safe: strategy() kwargs need *const* (literals / const vars).
+// Host UI can still inject runtime input overrides into PYNE.
+strategy(
+     "BTCUSDT style",
+     avg_price_model="futures",
+     leverage=10,
+     default_qty_type=strategy.percent_of_equity,
+     default_qty_value=100,  // use full equity as *margin*
+     initial_capital=10_000)
+
+// Optional Inputs-tab control for *trade logic* (not TV strategy Properties):
+// lev = input.float(10, "Leverage", minval=1, maxval=125)
+```
+
+| Setting | Effect |
+| --- | --- |
+| `leverage=N` (default `1`) | Buying power multiplier |
+| `percent_of_equity` / `cash` default qty | `qty = margin × leverage / price` |
+| `fixed` default qty | Unchanged (contracts as written) |
+| `strategy.cash` / capital held | Margin locked = notional / leverage |
+| `strategy.margin_liquidation_price` | Simple isolated estimate when `leverage > 1` |
+| `strategy.leverage` | Read-back of configured multiplier |
+
+`leverage=10` also sets internal margin % to `100/10 = 10` (TV `margin_long`/`margin_short` equivalent). If only `margin_long` is set, leverage is derived as `100 / margin_long`.
+
+#### `input` before `strategy()` — TV vs PYNE
+
+| | TradingView | PYNE |
+| --- | --- | --- |
+| Statements before `strategy()` | Allowed for **const** vars (and types/enums/imports) | Allowed |
+| `input.*()` return qualifier | **`input`** (not `const`) | Plain Python value (no qualifier system) |
+| `strategy(leverage=input.float(...))` | **Compile error** — most `strategy()` params require **`const`** | **Interpret:** works. **Compile:** folds **const-like defval** into the broker ctor (`input.float(10)` → `leverage=10`) |
+| User-adjustable leverage on TV | **Settings → Properties** (“Long/Short leverage”, mapped from `margin_long`/`margin_short`) | Declaration `leverage=` or host-injected inputs |
+
+Qualifier hierarchy on TV: `const < input < simple < series`. A parameter that needs `const` **cannot** accept an `input` value. So even if `lev = input.float(10)` appears *before* `strategy()`, you still cannot pass `lev` into `strategy(...)` on TV.
+
+PYNE does **not** enforce qualifiers; for compile-path parity with TV’s const rule, non-const strategy kwargs are skipped unless their series folds to a constant defval.
 
 ## Internals
 

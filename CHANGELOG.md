@@ -7,31 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-- **PyPI publish** targets personal account **`jango-blockchained`** (API token
-  secret `PYPI_API_TOKEN`, with optional Trusted Publishing OIDC). No PyPI org
-  required; GitHub Actions still run on `hoox-sh/pyne`.
-- **Docs + landing** aligned to current product surface: live **`hoox-pyne` 0.3.0**,
-  full CLI command set (`check`/`format`/`compile`/`run`/`prewarm`/…), post-AXIS
-  CI (no frontend jobs), Docker **cli** target, local Make package/build-cli
-  helpers, and roadmap status for packaging.
-
-### Fixed
-- Installation docs that mixed `pyne` / `hoox-pyne` and told users not to install
-  the correct distribution name.
-- CLI reference still claiming no `run` subcommand and listing only five commands.
-- DevOps CI/local-dev docs still describing AXIS-in-repo / frontend jobs.
+## [0.3.1] - 2026-08-09
 
 ### Added
-- **CLI packaging & release**: Nuitka onefile binaries for `pynescript` CLI
-  (`pynescript-cli-linux-x86_64`, Windows, macOS ARM) on `v*` tags alongside LSP.
-- **CLI Docker image** (`Dockerfile` target `cli`, bake `cli` / `cli-release`,
-  compose profile `cli`): `ENTRYPOINT pynescript` with `compile` + `data` extras.
-  Usage: `make docker-build-cli`, `make docker-cli ARGS="check script.pine"`,
-  `docker run --rm -v "$PWD:/work" -w /work pynescript-cli check script.pine`.
-- Release assets also attach PyPI sdist/wheel and a gzipped CLI image tarball.
-- Make helpers: `make package`, `make build-cli`, `make test-cli`, `make docker-cli`.
-- CI: `tests/test_cli.py` in core unit job; Docker job smokes both `api` and `cli`.
+- **Strategy average-price models** (pynescript extension): `strategy(..., avg_price_model=)`
+  - `"stock"` (default) — multi-leg FIFO reweight of `position_avg_price` on partial close (TV-like)
+  - `"futures"` — sticky net AEP until flat (linear USDT-M / BTCUSDT-style)
+  - `"inverse"` — accepted; sticky reduce (harmonic add deferred)
+  - Tokens: `strategy.avg_price_stock` / `avg_price_futures` / `avg_price_inverse`
+- **Leverage for futures UI** (pynescript extension): `strategy(..., leverage=N)`
+  - Scales percent/cash default qty: `qty = margin × leverage / price`
+  - Margin held = notional / leverage; free cash adjusts accordingly
+  - Simple `strategy.margin_liquidation_price` when leverage > 1
+  - Derives TV-style `margin_long`/`margin_short` % as `100/leverage`
+  - Read-back: `strategy.leverage`
+- Dual-path wiring: interpret + compile broker + compiler emit for both options
+- Docs: stock vs futures avg semantics; TV vs PYNE notes on `input` before `strategy()`
+
+### Fixed
+- Compile broker ctor no longer emits `name_arr[__bar_idx]` for strategy kwargs
+  (undefined at ctor time). Const-like input/literal defvals fold into ctor
+  (e.g. `lev = input.float(10)` then `strategy(..., leverage=lev)` → `leverage=10`).
+
+### Changed
+- Compile emit allowlist also wires `default_qty_type` / `default_qty_value` into
+  `CompileStrategyBroker(...)`.
 
 ## [0.3.0] - 2026-08-06
 

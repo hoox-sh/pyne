@@ -52,8 +52,17 @@ CompileStrategyBroker(
     commission_type="percent",  # percent | cash_per_order | cash_per_contract
     slippage_ticks=0,
     mintick=0.01,
+    pyramiding=0,
+    default_qty_type="fixed",
+    default_qty_value=1.0,
+    avg_price_model="stock",  # stock | futures | inverse (pynescript extension)
+    leverage=1.0,             # futures UI: buying power / margin divisor
 )
 ```
+
+`avg_price_model` is lowered from `strategy(..., avg_price_model=...)`. The compile broker is a **single net lot**: partial reduce already keeps `position_avg_price` sticky (futures-like). Multi-leg stock reweight on partial close is interpret-first until the compile path grows an open-trade list.
+
+`leverage` scales percent/cash default qty (`margin × leverage / price`) and free `cash` (equity − notional/leverage).
 
 ### Bar context
 

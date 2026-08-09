@@ -72,6 +72,86 @@ def _soft_int_decl(value: Any, default: int = 0) -> int:
         return default
 
 
+def _norm_avg_price_model(value: Any, default: str = "stock") -> str:
+    """Normalize ``strategy(..., avg_price_model=...)`` to a canonical token.
+
+    pynescript extension (not official Pine):
+
+    - ``stock`` / ``pine`` / ``average`` — multi-leg reweight on partial close (TV-like)
+    - ``futures`` / ``future`` / ``perp`` / ``net`` — sticky net AEP until flat
+    - ``inverse`` / ``coin`` / ``harmonic`` — accepted; reduce sticky like futures;
+      harmonic add blend is phase-2 (add path still arithmetic until then)
+
+    Unknown / non-string values soft-fallback to *default* (never crash corpus).
+    """
+    if value is None:
+        return default
+    raw = str(value).replace("strategy.", "").replace("avg_price_", "").strip().lower()
+    if not raw or raw in {"nan", "na", "none"}:
+        return default
+    if raw in {"stock", "pine", "average", "avg", "lot", "fifo"}:
+        return "stock"
+    if raw in {"futures", "future", "perp", "perpetual", "net", "linear"}:
+        return "futures"
+    if raw in {"inverse", "coin", "coin_m", "harmonic"}:
+        return "inverse"
+    return default
+
+
+def _blend_arithmetic_avg(old_avg: float, old_qty: float, fill_px: float, add_qty: float) -> float:
+    """Quantity-weighted arithmetic mean of entry fills (stock / linear futures)."""
+    oq = abs(float(old_qty))
+    aq = abs(float(add_qty))
+    total = oq + aq
+    if total <= 0:
+        return float(fill_px)
+    return (float(old_avg) * oq + float(fill_px) * aq) / total
+
+
+def _soft_float_decl(value: Any, default: float = 0.0) -> float:
+    """Coerce strategy() float kwargs; non-numeric / na → *default*."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return float(int(value))
+    if isinstance(value, (int, float)):
+        f = float(value)
+        if math.isnan(f) or math.isinf(f):
+            return default
+        return f
+    if isinstance(value, str):
+        try:
+            f = float(value)
+            if math.isnan(f) or math.isinf(f):
+                return default
+            return f
+        except ValueError:
+            return default
+    try:
+        f = float(value)
+        if math.isnan(f) or math.isinf(f):
+            return default
+        return f
+    except (TypeError, ValueError):
+        return default
+
+
+def _norm_leverage(value: Any, default: float = 1.0) -> float:
+    """Normalize ``strategy(..., leverage=...)`` to a positive multiplier ≥ 1.
+
+    Simpler futures UI alternative to TV ``margin_long`` / ``margin_short``
+    percentages: ``leverage=10`` ≈ 10× buying power and margin = notional / 10.
+    Values in (0, 1) are treated as fractions of 1× and clamped up to 1.
+    """
+    lev = _soft_float_decl(value, default=default)
+    if lev <= 0:
+        return default
+    if lev < 1.0:
+        # Accidental "0.1 for 10%" style → treat as 1× (full margin)
+        return 1.0
+    return lev
+
+
 class StrategyCashAmount(float):
     """Free cash series value that also tags ``default_qty_type=strategy.cash``.
 
@@ -187,6 +267,16 @@ class StrategyState:
         # default_qty_type: fixed | percent_of_equity | cash (strategy() declaration)
         self.default_qty_type: str = "fixed"
         self.default_qty_value: float = 1.0
+        # avg_price_model: stock | futures | inverse (pynescript extension)
+        # stock = multi-leg reweight on partial close; futures/inverse = sticky AEP
+        self.avg_price_model: str = "stock"
+        # Leverage multiplier for futures-style margin / buying power (default 1×).
+        # Prefer this over margin_long/short percentages for simple perp UIs.
+        self.leverage: float = 1.0
+        # TV-style margin % of position (100 = no leverage). Derived from leverage
+        # when only leverage is set: margin_pct = 100 / leverage.
+        self.margin_long: float = 100.0
+        self.margin_short: float = 100.0
         self.mintick: float = 0.01
         self.closedtrades_first_index: int = 0
         self.max_contracts_held_all: float = 0.0
@@ -392,7 +482,14 @@ class StrategyState:
         return self.grossloss() / n if n else 0.0
 
     def capital_held(self) -> float:
-        return float(sum(abs(t.entry_price * t.size) for t in self.open_trades))
+        """Margin locked in open positions (notional / leverage).
+
+        At leverage=1 this equals full position notional (stock / cash account).
+        At leverage=10, only 10% of notional is held as margin.
+        """
+        notional = float(sum(abs(t.entry_price * t.size) for t in self.open_trades))
+        lev = float(self.leverage) if self.leverage and self.leverage > 0 else 1.0
+        return notional / lev
 
     def cash(self, mark_price: float) -> float:
         """Approximate free cash: equity minus capital locked in open positions."""
@@ -501,6 +598,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             "strategy.position_size": self._handle_strategy_position_size,
             "strategy.position_avg_price": self._handle_strategy_position_avg_price,
             "strategy.position_entry_name": self._handle_strategy_position_entry_name,
+            "strategy.leverage": self._handle_strategy_leverage,
             "strategy.opentrades": self._handle_strategy_opentrades_count,
             "strategy.closedtrades": self._handle_strategy_closedtrades_count,
             "strategy.closedtrades.first_index": self._handle_strategy_closedtrades_first_index,
@@ -696,9 +794,12 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
     def _resolve_default_entry_qty(self, fill_price: float) -> float:
         """Resolve entry size from strategy() ``default_qty_type`` / ``default_qty_value``.
 
-        - ``fixed``: contracts = default_qty_value (Pine default 1)
-        - ``percent_of_equity``: contracts = equity * (pct/100) / price
-        - ``cash``: contracts = cash_amount / price
+        - ``fixed``: contracts = default_qty_value (Pine default 1); leverage ignored
+        - ``percent_of_equity``: margin = equity * (pct/100); qty = margin * leverage / price
+        - ``cash``: margin = cash amount; qty = margin * leverage / price
+
+        Leverage defaults to 1× (no effect). Futures UIs set ``leverage=N`` so
+        percent/cash sizing uses buying power instead of 1:1 cash notional.
         """
         st = self._strategy_state
         dqt = (st.default_qty_type or "fixed").replace("strategy.", "").lower()
@@ -706,11 +807,13 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         price = float(fill_price) if fill_price and fill_price > 0 else self._mark_price()
         if price <= 0:
             price = 1.0
+        lev = float(st.leverage) if getattr(st, "leverage", 1.0) and st.leverage > 0 else 1.0
         if dqt in {"percent_of_equity", "percent", "percentage"}:
             equity = float(st.equity(price)) if hasattr(st, "equity") else float(st.risk_free_capital)
-            return max(0.0, (equity * (val / 100.0)) / price)
+            margin = equity * (val / 100.0)
+            return max(0.0, (margin * lev) / price)
         if dqt == "cash":
-            return max(0.0, val / price)
+            return max(0.0, (val * lev) / price)
         # fixed (default)
         return max(0.0, val if val > 0 else 1.0)
 
@@ -780,6 +883,10 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 "currency",
                 "default_qty_value",
                 "default_qty_type",
+                "avg_price_model",
+                "leverage",
+                "margin_long",
+                "margin_short",
             ):
                 if hasattr(decl, key):
                     mapping[key] = getattr(decl, key)
@@ -824,6 +931,33 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             except (TypeError, ValueError):
                 # Unresolved identifier (e.g. cash_given_per_lot) → keep default.
                 pass
+        if "avg_price_model" in src and src["avg_price_model"] is not None:
+            st.avg_price_model = _norm_avg_price_model(src["avg_price_model"], default="stock")
+        # Leverage / margin: leverage is the simple futures UI; margin_* is TV-style %.
+        # Priority: explicit leverage wins; else derive leverage from margin_long/short.
+        has_lev = "leverage" in src and src["leverage"] is not None
+        has_ml = "margin_long" in src and src["margin_long"] is not None
+        has_ms = "margin_short" in src and src["margin_short"] is not None
+        if has_lev:
+            st.leverage = _norm_leverage(src["leverage"], default=1.0)
+            # Keep margin % in sync for anything that reads TV-style fields
+            st.margin_long = 100.0 / st.leverage
+            st.margin_short = 100.0 / st.leverage
+        if has_ml:
+            ml = _soft_float_decl(src["margin_long"], default=100.0)
+            if ml > 0:
+                st.margin_long = ml
+                if not has_lev:
+                    st.leverage = max(1.0, 100.0 / ml)
+        if has_ms:
+            ms = _soft_float_decl(src["margin_short"], default=100.0)
+            if ms > 0:
+                st.margin_short = ms
+                if not has_lev and not has_ml:
+                    st.leverage = max(1.0, 100.0 / ms)
+                elif not has_lev and has_ml:
+                    # Use the more conservative (higher margin / lower leverage) side
+                    st.leverage = max(1.0, 100.0 / max(st.margin_long, st.margin_short))
 
     def _bar_index(self) -> int:
         ctx = getattr(self, "context", {}) or {}
@@ -1685,7 +1819,8 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 new_size = old_size + q
                 if new_size <= 0:
                     return
-                st.entry_price = (float(st.entry_price) * old_size + px * q) / new_size
+                # stock / futures: arithmetic VWAP; inverse harmonic is phase-2
+                st.entry_price = _blend_arithmetic_avg(float(st.entry_price), old_size, px, q)
                 st.position_size = new_size
                 st.position_entry_name = entry_id
                 if st.open_trades:
@@ -1722,7 +1857,9 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             else:
                 # pyramiding > 0 with room: append a new open-trade leg
                 total = float(st.position_size) + q
-                st.entry_price = (float(st.entry_price) * float(st.position_size) + px * q) / total
+                st.entry_price = _blend_arithmetic_avg(
+                    float(st.entry_price), float(st.position_size), px, q
+                )
                 st.position_size = total
                 st.position_entry_name = entry_id
                 st.open_trades.append(
@@ -1778,7 +1915,16 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         )
 
     def _close_position(self, exit_price: float, qty: float, exit_time: int) -> None:
-        """Helper to close (or partially close) the open position and record trades."""
+        """Helper to close (or partially close) the open position and record trades.
+
+        Average-price models (``strategy(..., avg_price_model=...)``):
+
+        - ``stock`` (default): FIFO over open legs; remaining position avg is the
+          size-weighted mean of leftover leg entry prices (TV multi-trade style).
+        - ``futures`` / ``inverse``: sticky net AEP until flat (exchange-like).
+          Realized PnL and closed-trade entry use the sticky average, not FIFO
+          leg prices. Legs still shrink FIFO so ``opentrades`` counts stay sane.
+        """
         if self._strategy_state.position_direction == "flat" or qty <= 0:
             return
 
@@ -1800,6 +1946,9 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         exit_bar = self._bar_index()
         exit_price = float(exit_price)
         exit_time = int(exit_time)
+        model = getattr(self._strategy_state, "avg_price_model", "stock") or "stock"
+        sticky_avg = float(self._strategy_state.entry_price)
+        use_sticky = model in {"futures", "inverse"}
         # TV-style: commission on entry (already on OpenTrade) **and** on exit fill.
         # Pro-rate exit commission across legs closed in this call.
         total_close = min(remaining, float(sum(t.size for t in self._strategy_state.open_trades)))
@@ -1814,17 +1963,19 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             close_qty = min(ot.size, remaining)
             entry_comm = ot.commission * (close_qty / ot.size) if ot.size else 0.0
             exit_comm = exit_comm_total * (close_qty / total_close) if total_close > 0 else 0.0
+            # Futures: realize vs sticky net AEP; stock: per-leg entry prices.
+            basis = sticky_avg if use_sticky else float(ot.entry_price)
             if ot.direction == "long":
-                profit = (exit_price - ot.entry_price) * close_qty - entry_comm - exit_comm
+                profit = (exit_price - basis) * close_qty - entry_comm - exit_comm
             else:
-                profit = (ot.entry_price - exit_price) * close_qty - entry_comm - exit_comm
+                profit = (basis - exit_price) * close_qty - entry_comm - exit_comm
 
             commission = entry_comm + exit_comm
             self._strategy_state.closed_trades.append(
                 Trade(
                     entry_bar=ot.entry_bar,
                     entry_time=ot.entry_time,
-                    entry_price=ot.entry_price,
+                    entry_price=basis,
                     exit_bar=exit_bar,
                     exit_time=exit_time,
                     exit_price=exit_price,
@@ -1863,9 +2014,15 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             self._strategy_state.entry_price = 0.0
             self._strategy_state.position_entry_name = ""
         else:
-            # Weighted average entry of remaining opens
-            total = sum(t.size for t in new_open)
-            self._strategy_state.entry_price = sum(t.entry_price * t.size for t in new_open) / total
+            if use_sticky:
+                # Exchange-like: net AEP unchanged until position is fully flat.
+                self._strategy_state.entry_price = sticky_avg
+            else:
+                # Weighted average entry of remaining opens (stock / Pine multi-leg)
+                total = sum(t.size for t in new_open)
+                self._strategy_state.entry_price = (
+                    sum(t.entry_price * t.size for t in new_open) / total
+                )
             self._strategy_state.position_direction = new_open[0].direction
             self._strategy_state.entry_bar = new_open[0].entry_bar
             self._strategy_state.entry_time = new_open[0].entry_time
@@ -1884,6 +2041,10 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
 
     def _handle_strategy_position_entry_name(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
         return str(self._strategy_state.position_entry_name or "")
+
+    def _handle_strategy_leverage(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        """Configured leverage multiplier from ``strategy(..., leverage=N)``."""
+        return float(getattr(self._strategy_state, "leverage", 1.0) or 1.0)
 
     def _handle_strategy_opentrades_count(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> int:
         return len(self._strategy_state.open_trades)
@@ -1986,9 +2147,29 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
     def _handle_strategy_opentrades_capital_held(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
         return self._strategy_state.capital_held()
 
-    def _handle_strategy_margin_liquidation_price(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
-        # Not modeled without margin sim; Pine returns na when unknown.
-        return None
+    def _handle_strategy_margin_liquidation_price(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        """Approximate isolated liquidation price from entry + leverage.
+
+        Simple linear model (no fees / maintenance margin):
+        - long:  entry * (1 - 1/leverage)
+        - short: entry * (1 + 1/leverage)
+
+        Returns ``na`` when flat or leverage ≤ 1 (full-margin cash book).
+        """
+        st = self._strategy_state
+        if st.position_direction == "flat" or st.position_size <= 0:
+            return float("nan")
+        lev = float(st.leverage) if st.leverage and st.leverage > 0 else 1.0
+        if lev <= 1.0:
+            return float("nan")
+        entry = float(st.entry_price)
+        if entry <= 0 or entry != entry:
+            return float("nan")
+        if st.position_direction == "long":
+            return entry * (1.0 - 1.0 / lev)
+        if st.position_direction == "short":
+            return entry * (1.0 + 1.0 / lev)
+        return float("nan")
 
     # RISK MANAGEMENT
 

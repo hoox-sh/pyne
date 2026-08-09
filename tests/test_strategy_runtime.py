@@ -381,3 +381,210 @@ class TestStrategyCashAndPyramiding:
         assert any(ev_.comment == "reverse" for ev_ in ev._strategy_state._events)
         assert _eval_expr(ev, "strategy.position_avg_price") == 105.0
         assert _eval_expr(ev, "strategy.opentrades") == 1
+
+
+class TestAvgPriceModel:
+    """strategy(..., avg_price_model=stock|futures) — multi-leg partial close matrix."""
+
+    def test_default_is_stock(self) -> None:
+        ev = NodeLiteralEvaluator()
+        m = ev._build_builtin_map()
+        m["strategy"](["T"], {})
+        assert ev._strategy_state.avg_price_model == "stock"
+
+    def test_declaration_wires_futures(self) -> None:
+        ev = NodeLiteralEvaluator()
+        m = ev._build_builtin_map()
+        m["strategy"](["T"], {"avg_price_model": "futures"})
+        assert ev._strategy_state.avg_price_model == "futures"
+
+    def test_declaration_accepts_constant_token(self) -> None:
+        ev = NodeLiteralEvaluator()
+        m = ev._build_builtin_map()
+        tok = m["strategy.avg_price_futures"]([])
+        m["strategy"](["T"], {"avg_price_model": tok})
+        assert ev._strategy_state.avg_price_model == "futures"
+
+    def test_unknown_model_soft_falls_back_to_stock(self) -> None:
+        ev = NodeLiteralEvaluator()
+        m = ev._build_builtin_map()
+        m["strategy"](["T"], {"avg_price_model": "not_a_real_model"})
+        assert ev._strategy_state.avg_price_model == "stock"
+
+    def test_add_vwap_same_for_stock_and_futures(self) -> None:
+        """S1: long 2@100 + 4@110 → avg 106.666… both modes."""
+        expected = (2.0 * 100.0 + 4.0 * 110.0) / 6.0
+        for model in ("stock", "futures"):
+            ev = NodeLiteralEvaluator()
+            _set_bar(ev, 0, 100.0)
+            m = ev._build_builtin_map()
+            m["strategy"](["T"], {"pyramiding": 1, "avg_price_model": model})
+            m["strategy.entry"](["A", "long", 2.0])
+            _set_bar(ev, 1, 110.0)
+            m["strategy.entry"](["B", "long", 4.0])
+            assert abs(_eval_expr(ev, "strategy.position_avg_price") - expected) < 1e-9, model
+            assert ev._strategy_state.position_size == 6.0
+
+    def test_stock_multi_leg_partial_reweights_avg(self) -> None:
+        """S2 stock: A@100 + B@120, close 1 FIFO → remaining avg = 120 (leg B)."""
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        m = ev._build_builtin_map()
+        m["strategy"](["T"], {"pyramiding": 1, "avg_price_model": "stock", "commission_value": 0.0})
+        m["strategy.entry"](["A", "long", 1.0])
+        _set_bar(ev, 1, 120.0)
+        m["strategy.entry"](["B", "long", 1.0])
+        assert abs(_eval_expr(ev, "strategy.position_avg_price") - 110.0) < 1e-9
+        _set_bar(ev, 2, 130.0)
+        m["strategy.close"](["A", 1.0])  # close qty 1 — FIFO eats leg A
+        assert ev._strategy_state.position_size == 1.0
+        assert abs(_eval_expr(ev, "strategy.position_avg_price") - 120.0) < 1e-9
+        # Realized vs leg A entry 100: (130-100)*1 = 30
+        assert abs(_eval_expr(ev, "strategy.netprofit") - 30.0) < 1e-9
+        assert abs(ev._strategy_state.closed_trades[0].entry_price - 100.0) < 1e-9
+
+    def test_futures_multi_leg_partial_keeps_sticky_avg(self) -> None:
+        """S2 futures: same sequence → avg stays 110; PnL vs sticky avg = 20."""
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        m = ev._build_builtin_map()
+        m["strategy"](["T"], {"pyramiding": 1, "avg_price_model": "futures", "commission_value": 0.0})
+        m["strategy.entry"](["A", "long", 1.0])
+        _set_bar(ev, 1, 120.0)
+        m["strategy.entry"](["B", "long", 1.0])
+        assert abs(_eval_expr(ev, "strategy.position_avg_price") - 110.0) < 1e-9
+        _set_bar(ev, 2, 130.0)
+        m["strategy.close"](["A", 1.0])
+        assert ev._strategy_state.position_size == 1.0
+        assert abs(_eval_expr(ev, "strategy.position_avg_price") - 110.0) < 1e-9
+        # Realized vs sticky 110: (130-110)*1 = 20
+        assert abs(_eval_expr(ev, "strategy.netprofit") - 20.0) < 1e-9
+        assert abs(ev._strategy_state.closed_trades[0].entry_price - 110.0) < 1e-9
+
+    def test_single_lot_partial_same_both_modes(self) -> None:
+        """S3: long 4@100, close 1@105 → avg 100, PnL 5 for stock and futures."""
+        for model in ("stock", "futures"):
+            ev = NodeLiteralEvaluator()
+            _set_bar(ev, 0, 100.0)
+            m = ev._build_builtin_map()
+            m["strategy"](["T"], {"avg_price_model": model, "commission_value": 0.0})
+            m["strategy.entry"](["L", "long", 4.0])
+            _set_bar(ev, 1, 105.0)
+            m["strategy.close"](["L", 1.0])
+            assert ev._strategy_state.position_size == 3.0, model
+            assert abs(_eval_expr(ev, "strategy.position_avg_price") - 100.0) < 1e-9, model
+            assert abs(_eval_expr(ev, "strategy.netprofit") - 5.0) < 1e-9, model
+
+    def test_futures_reverse_resets_avg_to_new_fill(self) -> None:
+        """S5: reverse under futures → avg = new fill only."""
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        m = ev._build_builtin_map()
+        m["strategy"](["T"], {"avg_price_model": "futures"})
+        m["strategy.entry"](["L", "long", 2.0])
+        _set_bar(ev, 1, 105.0)
+        m["strategy.entry"](["S", "short", 2.0])
+        assert ev._strategy_state.position_direction == "short"
+        assert abs(_eval_expr(ev, "strategy.position_avg_price") - 105.0) < 1e-9
+
+
+class TestLeverageFuturesUI:
+    """strategy(..., leverage=N) — simpler futures margin / sizing UI."""
+
+    def test_default_leverage_is_one(self) -> None:
+        ev = NodeLiteralEvaluator()
+        m = ev._build_builtin_map()
+        m["strategy"](["T"], {})
+        assert ev._strategy_state.leverage == 1.0
+        assert _eval_expr(ev, "strategy.leverage") == 1.0
+
+    def test_declaration_wires_leverage_and_margin_pct(self) -> None:
+        ev = NodeLiteralEvaluator()
+        m = ev._build_builtin_map()
+        m["strategy"](["T"], {"leverage": 10, "avg_price_model": "futures"})
+        assert ev._strategy_state.leverage == 10.0
+        assert abs(ev._strategy_state.margin_long - 10.0) < 1e-9  # 100/10
+        assert abs(ev._strategy_state.margin_short - 10.0) < 1e-9
+        assert _eval_expr(ev, "strategy.leverage") == 10.0
+
+    def test_margin_long_derives_leverage(self) -> None:
+        ev = NodeLiteralEvaluator()
+        m = ev._build_builtin_map()
+        m["strategy"](["T"], {"margin_long": 20})  # 20% margin → 5×
+        assert abs(ev._strategy_state.leverage - 5.0) < 1e-9
+
+    def test_cash_default_qty_scales_by_leverage(self) -> None:
+        """cash=1000, price=100, lev=10 → qty = 1000*10/100 = 100."""
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        m = ev._build_builtin_map()
+        m["strategy"](
+            ["T"],
+            {
+                "avg_price_model": "futures",
+                "leverage": 10,
+                "default_qty_type": "cash",
+                "default_qty_value": 1000.0,
+                "commission_value": 0.0,
+            },
+        )
+        m["strategy.entry"](["L", "long"])  # no explicit qty
+        assert abs(ev._strategy_state.position_size - 100.0) < 1e-9
+
+    def test_percent_equity_qty_scales_by_leverage(self) -> None:
+        """100% of 10k equity, lev=5, price=100 → qty = 10000*5/100 = 500."""
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        m = ev._build_builtin_map()
+        m["strategy"](
+            ["T"],
+            {
+                "initial_capital": 10_000.0,
+                "leverage": 5,
+                "default_qty_type": "percent_of_equity",
+                "default_qty_value": 100.0,
+                "commission_value": 0.0,
+            },
+        )
+        m["strategy.entry"](["L", "long"])
+        assert abs(ev._strategy_state.position_size - 500.0) < 1e-9
+
+    def test_fixed_qty_ignores_leverage(self) -> None:
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        m = ev._build_builtin_map()
+        m["strategy"](["T"], {"leverage": 20, "default_qty_type": "fixed", "default_qty_value": 3})
+        m["strategy.entry"](["L", "long"])
+        assert abs(ev._strategy_state.position_size - 3.0) < 1e-9
+
+    def test_capital_held_is_notional_over_leverage(self) -> None:
+        """Long 10 @ 100, lev=10 → notional 1000, margin held 100."""
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        m = ev._build_builtin_map()
+        m["strategy"](["T"], {"leverage": 10, "initial_capital": 10_000.0, "commission_value": 0.0})
+        m["strategy.entry"](["L", "long", 10.0])
+        held = _eval_expr(ev, "strategy.opentrades.capital_held")
+        assert abs(held - 100.0) < 1e-9
+        # cash ≈ equity - margin = 10000 - 100
+        cash = _eval_expr(ev, "strategy.cash")
+        assert abs(cash - 9900.0) < 1e-6
+
+    def test_liquidation_price_long(self) -> None:
+        """Long @ 100, lev=10 → liq ≈ 90."""
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        m = ev._build_builtin_map()
+        m["strategy"](["T"], {"leverage": 10, "avg_price_model": "futures"})
+        m["strategy.entry"](["L", "long", 1.0])
+        liq = _eval_expr(ev, "strategy.margin_liquidation_price")
+        assert abs(liq - 90.0) < 1e-9
+
+    def test_liquidation_price_na_when_leverage_one(self) -> None:
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        m = ev._build_builtin_map()
+        m["strategy"](["T"], {"leverage": 1})
+        m["strategy.entry"](["L", "long", 1.0])
+        liq = _eval_expr(ev, "strategy.margin_liquidation_price")
+        assert liq != liq  # NaN

@@ -436,6 +436,10 @@ class CompilerVisitor(NodeVisitor):
         self.object_mode = bool(force_object_mode)
         self.uses_strategy = False
         self.strategy_kwargs: dict[str, str] = {}
+        # Name → const-like Python expr for strategy() ctor kwargs (literals / input defvals).
+        # TV requires const for most strategy() params; pyne compile mirrors that by folding
+        # bar-constant series (``lev = input.float(10)`` → ``leverage=10``) into the broker ctor.
+        self.const_like_values: dict[str, str] = {}
         self.udt_types: dict[str, list[str]] = {}  # type name -> field names
         self.udt_vars: set[str] = set()  # series names holding UDT instances
         self.map_vars: set[str] = set()  # var map names (single object, not series)
@@ -860,7 +864,9 @@ class CompilerVisitor(NodeVisitor):
             ]
         )
         if self.uses_strategy:
-            # Broker ctor kwargs from strategy() declaration when present
+            # Broker ctor kwargs from strategy() declaration when present.
+            # Only const-like exprs (literals or folded input/const series) — never
+            # ``name_arr[__bar_idx]`` (undefined at ctor time; not a TV const either).
             sk = self.strategy_kwargs
             ctor_args = []
             for key in (
@@ -870,10 +876,18 @@ class CompilerVisitor(NodeVisitor):
                 "slippage",
                 "mintick",
                 "pyramiding",
+                "avg_price_model",
+                "default_qty_type",
+                "default_qty_value",
+                "leverage",
             ):
-                if key in sk:
-                    py_key = "slippage_ticks" if key == "slippage" else key
-                    ctor_args.append(f"{py_key}={sk[key]}")
+                if key not in sk:
+                    continue
+                resolved = self._resolve_strategy_ctor_kwarg(sk[key])
+                if resolved is None:
+                    continue
+                py_key = "slippage_ticks" if key == "slippage" else key
+                ctor_args.append(f"{py_key}={resolved}")
             ctor = ", ".join(ctor_args)
             lines.append(f"    __strategy = CompileStrategyBroker({ctor})")
             # End-of-bar history for strategy.position_size[n] (always when broker)
@@ -1485,12 +1499,52 @@ class CompilerVisitor(NodeVisitor):
         if not self._is_safe_numeric_expr(val) and not self.in_function:
             self.object_mode = True
             store_val = f"safe_float({val})"
+        # Track bar-constant literals / input defvals for strategy() ctor folding
+        if self._looks_like_const_expr(store_val):
+            self.const_like_values[name] = store_val
         if is_var:
             return (
                 f"{name}_arr[__bar_idx] = {store_val} if __bar_idx == 0 "
                 f"else {name}_arr[__bar_idx-1]"
             )
         return f"{name}_arr[__bar_idx] = {store_val}"
+
+    def _looks_like_const_expr(self, expr: str) -> bool:
+        """True for numeric / string / bool Python literals usable in broker ctor."""
+        s = (expr or "").strip()
+        if not s:
+            return False
+        if s in {"True", "False", "None", "true", "false"}:
+            return True
+        if (s.startswith("'") and s.endswith("'")) or (s.startswith('"') and s.endswith('"')):
+            return True
+        # bare number (int / float / scientific)
+        try:
+            float(s)
+            return True
+        except ValueError:
+            return False
+
+    def _resolve_strategy_ctor_kwarg(self, expr: str) -> str | None:
+        """Fold strategy() kwargs to const-like ctor args; drop non-const series refs.
+
+        TV ``strategy()`` declaration params require *const* (not input/simple/series).
+        PYNE still allows ``lev = input.float(10)`` then ``strategy(..., leverage=lev)``
+        by folding the input's constant defval into the compile broker ctor.
+        """
+        import re
+
+        s = (expr or "").strip()
+        if not s:
+            return None
+        if self._looks_like_const_expr(s):
+            return s
+        m = re.fullmatch(r"([A-Za-z_]\w*)_arr\[__bar_idx\]", s)
+        if m:
+            return self.const_like_values.get(m.group(1))
+        if re.fullmatch(r"[A-Za-z_]\w*", s):
+            return self.const_like_values.get(s)
+        return None
 
     _STRINGY_INPUT_ATTRS = frozenset(
         {
@@ -3659,6 +3713,7 @@ class CompilerVisitor(NodeVisitor):
             "closedtrades": "__strategy.closed_trades",
             "opentrades": "0 if __strategy.position_size == 0 else 1",
             "initial_capital": "__strategy.initial_capital",
+            "leverage": "__strategy.leverage",
             "max_drawdown": "__strategy.max_drawdown",
             "max_runup": "__strategy.max_runup",
             "max_drawdown_percent": "__strategy.max_drawdown_percent",
@@ -3668,6 +3723,7 @@ class CompilerVisitor(NodeVisitor):
             "grossloss": "__strategy.grossloss",
             "wintrades": "__strategy.wintrades",
             "losstrades": "__strategy.losstrades",
+            "margin_liquidation_price": "__strategy.margin_liquidation_price",
         }
         if attr in series_map:
             self.object_mode = True
@@ -3677,7 +3733,7 @@ class CompilerVisitor(NodeVisitor):
             self.arrays.add("__strategy_position_avg_price_arr")
             self.arrays.add("__strategy_closed_trades_arr")
             return series_map[attr]
-        # Qty type / risk constants used as values (not broker properties)
+        # Qty type / risk / avg-price constants used as values (not broker properties)
         if attr in (
             "percent_of_equity",
             "fixed",
@@ -3687,12 +3743,18 @@ class CompilerVisitor(NodeVisitor):
             "long",
             "short",
             "all",
+            "avg_price_stock",
+            "avg_price_futures",
+            "avg_price_inverse",
         ):
             self.object_mode = True
             self.uses_strategy = True
+            # Strip avg_price_ prefix so strategy.avg_price_futures → "futures"
+            if attr.startswith("avg_price_"):
+                return repr(attr[len("avg_price_") :])
             return repr(attr)
         # oca / commission nested attrs: strategy.oca → leave for outer attr
-        if attr in ("oca", "commission", "direction", "risk"):
+        if attr in ("oca", "commission", "direction", "risk", "avg_price"):
             return f"strategy_{attr}"
         self.object_mode = True
         self.uses_strategy = True

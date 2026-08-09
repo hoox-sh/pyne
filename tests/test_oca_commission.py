@@ -233,3 +233,80 @@ def test_compile_pyramiding_matches_interpret():
     b0.entry("L1", "long", 1.0)
     b0.entry("L2", "long", 5.0)
     assert b0.position_size == 1.0
+
+
+def test_futures_avg_price_model_add_and_sticky_partial_dual_path():
+    """Linear add VWAP + sticky partial reduce: interpret futures matches compile."""
+    from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+    # Interpret: futures mode multi-add then partial (compile has single lot)
+    e = NodeLiteralEvaluator()
+    e.context = {"close": 100.0, "bar_index": 0, "time": 0, "open": 100.0, "high": 100.0, "low": 100.0}
+    m = e._build_builtin_map()
+    m["strategy"](["T"], {"pyramiding": 1, "avg_price_model": "futures", "commission_value": 0.0})
+    m["strategy.entry"](["A", "long", 2.0])
+    e.context["close"] = 110.0
+    e.context["bar_index"] = 1
+    m["strategy.entry"](["B", "long", 4.0])
+    expected_avg = (2.0 * 100.0 + 4.0 * 110.0) / 6.0
+    assert abs(e._strategy_state.entry_price - expected_avg) < 1e-9
+    e.context["close"] = 120.0
+    e.context["bar_index"] = 2
+    m["strategy.close"](["X", 2.0])
+    assert abs(e._strategy_state.position_size - 4.0) < 1e-9
+    # sticky: still expected_avg
+    assert abs(e._strategy_state.entry_price - expected_avg) < 1e-9
+    # PnL: (120 - expected_avg) * 2
+    assert abs(e._strategy_state.netprofit() - (120.0 - expected_avg) * 2.0) < 1e-9
+
+    # Compile broker: same prices (single net lot always sticky)
+    b = CompileStrategyBroker(pyramiding=1, avg_price_model="futures", commission_value=0.0)
+    b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+    b.entry("A", "long", 2.0)
+    b.begin_bar(1, 110.0, 110.0, 110.0, 110.0)
+    b.entry("B", "long", 4.0)
+    assert abs(b.position_avg_price - expected_avg) < 1e-9
+    b.begin_bar(2, 120.0, 120.0, 120.0, 120.0)
+    b.close("X", qty=2.0)
+    assert abs(b.position_size - 4.0) < 1e-9
+    assert abs(b.position_avg_price - expected_avg) < 1e-9
+    assert abs(b.netprofit - (120.0 - expected_avg) * 2.0) < 1e-9
+    assert b.avg_price_model == "futures"
+
+
+def test_leverage_cash_qty_and_margin_dual_path():
+    """leverage multiplies cash default qty; margin held = notional / lev."""
+    from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+    e = NodeLiteralEvaluator()
+    e.context = {"close": 50.0, "bar_index": 0, "time": 0, "open": 50.0, "high": 50.0, "low": 50.0}
+    m = e._build_builtin_map()
+    m["strategy"](
+        ["T"],
+        {
+            "leverage": 4,
+            "default_qty_type": "cash",
+            "default_qty_value": 200.0,
+            "initial_capital": 10_000.0,
+            "commission_value": 0.0,
+        },
+    )
+    m["strategy.entry"](["L", "long"])
+    # qty = 200 * 4 / 50 = 16
+    assert abs(e._strategy_state.position_size - 16.0) < 1e-9
+    # margin = (50*16)/4 = 200
+    assert abs(e._strategy_state.capital_held() - 200.0) < 1e-9
+
+    b = CompileStrategyBroker(
+        leverage=4,
+        default_qty_type="cash",
+        default_qty_value=200.0,
+        initial_capital=10_000.0,
+        commission_value=0.0,
+    )
+    b.begin_bar(0, 50.0, 50.0, 50.0, 50.0)
+    b.entry("L", "long", None)
+    assert abs(b.position_size - 16.0) < 1e-9
+    # cash ≈ equity - notional/lev = 10000 - 800/4 = 9800
+    assert abs(b.cash - 9800.0) < 1e-6
+    assert abs(b.margin_liquidation_price - 50.0 * (1.0 - 1.0 / 4.0)) < 1e-9

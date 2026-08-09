@@ -63,6 +63,10 @@ class StrategyConstantsMixin(BuiltinDispatchMixin):
             # so ``default_qty_type=strategy.cash`` still resolves correctly.
             "strategy.fixed": self._handle_qty_fixed,
             "strategy.percent_of_equity": self._handle_qty_percent_of_equity,
+            # avg_price_model tokens (pynescript extension; strategy(..., avg_price_model=...))
+            "strategy.avg_price_stock": self._handle_avg_price_stock,
+            "strategy.avg_price_futures": self._handle_avg_price_futures,
+            "strategy.avg_price_inverse": self._handle_avg_price_inverse,
         }
 
     def _handle_strategy_long(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
@@ -100,3 +104,12 @@ class StrategyConstantsMixin(BuiltinDispatchMixin):
 
     def _handle_qty_cash(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
         return "cash"
+
+    def _handle_avg_price_stock(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
+        return "stock"
+
+    def _handle_avg_price_futures(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
+        return "futures"
+
+    def _handle_avg_price_inverse(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
+        return "inverse"

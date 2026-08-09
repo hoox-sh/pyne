@@ -211,6 +211,68 @@ plot(strategy.position_size, title="ps")
         # two entries allowed with pyramiding=1
         assert out["__position_size"] == 3.0 or out["ps"][-1] == 3.0
 
+    def test_compile_avg_price_model_wired_from_strategy_decl(self) -> None:
+        src = """//@version=6
+strategy("t", avg_price_model="futures")
+if bar_index == 0
+    strategy.entry("L", strategy.long, qty=2)
+plot(strategy.position_avg_price, title="avg")
+plot(strategy.position_size, title="ps")
+"""
+        code = transpile(src)
+        assert "avg_price_model=" in code
+        assert "futures" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(3)
+        c = [100.0, 101.0, 102.0]
+        o = list(c)
+        h = list(c)
+        l = list(c)
+        out = compiled.run(o, h, l, c, v)
+        assert out["__position_size"] == 2.0 or out["ps"][-1] == 2.0
+        # market entry fills at bar 0 close
+        assert abs(out["avg"][-1] - 100.0) < 1e-9
+
+    def test_compile_leverage_wired_from_strategy_decl(self) -> None:
+        src = """//@version=6
+strategy("t", leverage=10, default_qty_type=strategy.cash, default_qty_value=100)
+if bar_index == 0
+    strategy.entry("L", strategy.long)
+plot(strategy.position_size, title="ps")
+plot(strategy.leverage, title="lev")
+"""
+        code = transpile(src)
+        assert "leverage=10" in code or "leverage = 10" in code
+        compiled = compile_script(src)
+        c = [50.0, 50.0, 50.0]
+        o = h = l = c
+        v = [1.0, 1.0, 1.0]
+        out = compiled.run(o, h, l, c, v)
+        # qty = 100 * 10 / 50 = 20
+        assert abs(out["ps"][-1] - 20.0) < 1e-9
+        assert abs(out["lev"][-1] - 10.0) < 1e-9
+
+    def test_compile_input_before_strategy_folds_const_defval(self) -> None:
+        """input.float(10) before strategy(leverage=lev) → ctor leverage=10 (const fold)."""
+        src = """//@version=6
+lev = input.float(10, "Leverage")
+strategy("t", leverage=lev, default_qty_type=strategy.cash, default_qty_value=100)
+if bar_index == 0
+    strategy.entry("L", strategy.long)
+plot(strategy.position_size, title="ps")
+plot(strategy.leverage, title="lev")
+"""
+        code = transpile(src)
+        assert "leverage=10" in code or "leverage = 10" in code
+        assert "leverage=lev_arr" not in code
+        compiled = compile_script(src)
+        c = [50.0, 50.0, 50.0]
+        o = h = l = c
+        v = [1.0, 1.0, 1.0]
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["ps"][-1] - 20.0) < 1e-9
+        assert abs(out["lev"][-1] - 10.0) < 1e-9
+
 
 class TestStrategyRiskAndQtyNameErrors:
     def test_risk_methods_are_noop(self) -> None:
