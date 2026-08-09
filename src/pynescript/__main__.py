@@ -17,10 +17,14 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Click CLI for the ``pynescript`` console script.
+"""Click CLI for the ``pyne`` console script (alias: ``pynescript``).
 
-Installed entry point: ``pynescript = pynescript.__main__:cli``
-(also ``python -m pynescript``).
+Installed entry points::
+
+    pyne = pynescript.__main__:cli
+    pynescript = pynescript.__main__:cli   # backward-compatible alias
+
+Also ``python -m pynescript``.
 
 Commands
 --------
@@ -35,8 +39,9 @@ Commands
 - ``data`` — fetch market bars (mock / Yahoo / …)
 - ``info`` — version and optional extras (numba, rich, …)
 
-The Language Server is a **separate** console script (``pynescript-lsp``), not
-a subcommand of this group. See :mod:`pynescript.langserver.__main__`.
+The Language Server is a **separate** console script (``pyne-lsp`` /
+``pynescript-lsp``), not a subcommand of this group. See
+:mod:`pynescript.langserver.__main__`.
 """
 
 from __future__ import annotations
@@ -298,14 +303,17 @@ def info_cmd(as_json: bool) -> None:
 
     payload = {
         "name": "pynescript",
+        "distribution": "hoox-pyne",
         "version": __version__,
         "python": platform.python_version(),
         "platform": platform.platform(),
         "numba": numba,
         "rich": _has_rich(),
         "entry_points": {
-            "cli": "pynescript",
-            "lsp": "pynescript-lsp",
+            "cli": "pyne",
+            "cli_alias": "pynescript",
+            "lsp": "pyne-lsp",
+            "lsp_alias": "pynescript-lsp",
         },
         "docs": "https://hoox.sh/pyne",
     }
@@ -321,23 +329,23 @@ def info_cmd(as_json: bool) -> None:
         t = Table(show_header=False, box=None, padding=(0, 2))
         t.add_column(style="pyne.muted")
         t.add_column(style="pyne.fg")
-        t.add_row("package", f"pynescript {__version__}")
+        t.add_row("package", f"pynescript {__version__} (hoox-pyne)")
         t.add_row("python", payload["python"])
         t.add_row("platform", str(payload["platform"])[:60])
         t.add_row("numba", "yes" if numba else "no (object-mode compile only)")
         t.add_row("rich", "yes" if payload["rich"] else "no (plain output)")
-        t.add_row("cli", "pynescript")
-        t.add_row("lsp", "pynescript-lsp")
+        t.add_row("cli", "pyne (alias: pynescript)")
+        t.add_row("lsp", "pyne-lsp (alias: pynescript-lsp)")
         t.add_row("docs", payload["docs"])
         con.print(t)
     else:
-        _echo(f"package:  pynescript {__version__}")
+        _echo(f"package:  pynescript {__version__} (hoox-pyne)")
         _echo(f"python:   {payload['python']}")
         _echo(f"platform: {payload['platform']}")
         _echo(f"numba:    {'yes' if numba else 'no'}")
         _echo(f"rich:     {'yes' if payload['rich'] else 'no'}")
-        _echo("cli:      pynescript")
-        _echo("lsp:      pynescript-lsp")
+        _echo("cli:      pyne (alias: pynescript)")
+        _echo("lsp:      pyne-lsp (alias: pynescript-lsp)")
         _echo(f"docs:     {payload['docs']}")
 
 

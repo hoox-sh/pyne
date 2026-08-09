@@ -12,6 +12,15 @@ Extension lives in [`../vscode-extension`](../vscode-extension) (**PYNE**, part 
 pip install "hoox-pyne[lsp]"
 ```
 
+Console scripts after install:
+
+| Preferred | Alias (compat) |
+|-----------|----------------|
+| `pyne-lsp` | `pynescript-lsp` |
+| `pyne` | `pynescript` |
+
+Import package remains **`pynescript`** (`import pynescript`).
+
 **Build & install VSIX:**
 
 ```bash
@@ -32,8 +41,8 @@ code --extensionDevelopmentPath=.
 - File associations: **`.pyne`**, `.pine`, `.pinev5`, `.pinev6`, `.pinescript`
 - Syntax highlighting (TextMate grammar)
 - LSP diagnostics, autocomplete, hover, symbols, formatting
-- Status bar + auto-detect `pynescript-lsp` or `python -m pynescript.langserver`
-- Install language server: `pip install "hoox-pyne[lsp]"` (import package remains `pynescript`)
+- Status bar + auto-detect `pyne-lsp` → `pynescript-lsp` → `python -m pynescript.langserver`
+- Install language server: `pip install "hoox-pyne[lsp]"`
 
 **Configuration:**
 - `pynescript.lsp.enabled` — Toggle LSP (default: true)
@@ -63,6 +72,8 @@ local pynescript = require('lsp.pynescript')
 require('lspconfig').pynescript.setup(pynescript)
 ```
 
+The sample config uses `cmd = { 'pyne-lsp' }` (alias: `pynescript-lsp`).
+
 **Keybindings (when using on_attach):**
 - `gd` — Go to definition
 - `gr` — Find references
@@ -82,7 +93,7 @@ Add to your Zed settings (`~/.config/zed/settings.json`):
   },
   "language_servers": {
     "pynescript": {
-      "command": "pynescript-lsp",
+      "command": "pyne-lsp",
       "arguments": ["--stdio"]
     }
   }
@@ -106,7 +117,7 @@ Add to `~/.emacs.d/init.el`:
   :config
   (lsp-register-client
    (make-lsp-client
-    :new-connection (lsp-stdio-connection '("pynescript-lsp" "--stdio"))
+    :new-connection (lsp-stdio-connection '("pyne-lsp" "--stdio"))
     :major-modes '(pinescript-mode)
     :server-id 'pynescript)))
 
@@ -124,7 +135,8 @@ Add to `~/.emacs.d/init.el`:
 Any LSP-compatible editor can use the Pine Script LSP:
 
 ```
-pynescript-lsp --stdio
+pyne-lsp --stdio
+# alias: pynescript-lsp --stdio
 ```
 
 ### Helix
@@ -137,7 +149,7 @@ name = "pinescript"
 scope = "source.pinescript"
 file-types = ["pyne", "pine", "pinev5", "pinev6"]
 roots = ["pyproject.toml"]
-command = "pynescript-lsp"
+command = "pyne-lsp"
 args = ["--stdio"]
 ```
 
@@ -150,7 +162,7 @@ args = ["--stdio"]
 {
   "clients": {
     "pynescript": {
-      "command": ["pynescript-lsp", "--stdio"],
+      "command": ["pyne-lsp", "--stdio"],
       "selector": "source.pinescript",
       "initializationOptions": {}
     }
@@ -161,7 +173,7 @@ args = ["--stdio"]
 ## Requirements
 
 - Python 3.10+
-- `pynescript-lsp` installed and in PATH
+- `pyne-lsp` (or alias `pynescript-lsp`) installed and in PATH
 
 ```bash
 pip install "hoox-pyne[lsp]"

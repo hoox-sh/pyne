@@ -7,7 +7,7 @@
 --
 -- Manual setup (no nvim-lspconfig needed):
 --   require('lspconfig').pynescript.setup {
---     cmd = { 'pynescript-lsp' },
+--     cmd = { 'pyne-lsp' },  -- alias: pynescript-lsp
 --     filetypes = { 'pinescript' },
 --     root_dir = function(fname)
 --       return vim.fs.root(fname, { '.git', '*.pine', '*.pinev5', '*.pinev6' })
@@ -28,7 +28,7 @@
 --   }
 
 return {
-  cmd = { 'pynescript-lsp' },
+  cmd = { 'pyne-lsp' },  -- or 'pynescript-lsp'
   filetypes = { 'pinescript' },
   root_dir = function(fname)
     return vim.fs.root(fname, { '.git', '*.pine', '*.pinev5', '*.pinev6', 'pyproject.toml' })

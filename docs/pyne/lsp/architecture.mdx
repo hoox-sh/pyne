@@ -60,7 +60,7 @@ sequenceDiagram
 ```bash
 # Editable install
 pip install -e ".[lsp]"
-python -m pynescript.langserver   # same as pynescript-lsp
+python -m pynescript.langserver   # same as pyne-lsp / pynescript-lsp
 make run-lsp
 ```
 
@@ -69,7 +69,8 @@ Entry: `src/pynescript/langserver/__main__.py` constructs `PynescriptLanguageSer
 `pyproject.toml` registers:
 
 ```text
-pynescript-lsp = "pynescript.langserver.__main__:main"
+pyne-lsp = "pynescript.langserver.__main__:main"
+pynescript-lsp = "pynescript.langserver.__main__:main"   # alias
 ```
 
 ### Server class

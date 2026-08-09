@@ -2,7 +2,7 @@
 
 **Independent open toolchain for the Pine Script™ language** — formal grammar, algebraic AST, dual-engine bar-loop runtime, language server, and HTTP evaluation surface. Part of the [HOOX](https://hoox.sh) open trading stack.
 
-**0.3.0** · PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) · import `pynescript` · CLIs `pynescript` · `pynescript-lsp`
+**0.3.1** · PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) · import `pynescript` · CLIs `pyne` · `pyne-lsp` (aliases: `pynescript` · `pynescript-lsp`)
 
 <div align="center">
 
@@ -63,7 +63,7 @@ Coverage and known gaps are documented under [compatibility](https://hoox.sh/pyn
 | Surface | Role |
 |---------|------|
 | **CLI** (`pynescript`) | Check, format, lint, compile, run, data fetch, prewarm |
-| **LSP** (`pynescript-lsp`) | Diagnostics, completion (~800+ builtins), hover, navigation, semantic tokens, formatting |
+| **LSP** (`pyne-lsp`) | Diagnostics, completion (~800+ builtins), hover, navigation, semantic tokens, formatting |
 | **VS Code extension** | First-class `.pyne` / `.pine` (and related) associations |
 | **Pro API** | HTTP evaluate, batch run, chart preview, quick backtest |
 | **Editors** | Configurations for Neovim, Zed, Emacs (see `clients/`) |
@@ -125,20 +125,22 @@ literal_eval("ta.rsi([100, 102, 101, 103, 105], 9)")
 ### CLI
 
 ```bash
-pynescript check script.pine
-pynescript format script.pine -w
-pynescript lint script.pine
-pynescript run script.pine --bars 100
-pynescript compile script.pine --emit
-pynescript data AAPL --provider yahoo --period 6mo
-pynescript info
+pyne check script.pine
+pyne format script.pine -w
+pyne lint script.pine
+pyne run script.pine --bars 100
+pyne compile script.pine --emit
+pyne data AAPL --provider yahoo --period 6mo
+pyne info
+# aliases still work: pynescript check …
 ```
 
 ### Language server
 
 ```bash
 pip install "hoox-pyne[lsp]"
-pynescript-lsp
+pyne-lsp
+# alias: pynescript-lsp
 ```
 
 Editor integration: [PYNE for VS Code](./vscode-extension/); Neovim, Zed, and Emacs configs under [`clients/`](./clients/).
@@ -205,7 +207,7 @@ class Renamer(NodeTransformer):
 | `data <symbol>` | Fetch market data |
 | `info` | Version and optional extras |
 
-Language server entry point: **`pynescript-lsp`** (separate console script).
+Language server entry point: **`pyne-lsp`** (alias **`pynescript-lsp`**; separate console script).
 
 ## Documentation
 

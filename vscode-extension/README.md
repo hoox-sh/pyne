@@ -19,13 +19,14 @@ Part of the **[HOOX](https://hoox.sh) open trading stack** — sister products: 
 | **Syntax highlighting** | TextMate grammar — namespaces (`ta.`, `strategy.`, `color.`…), annotations (`//@version=`), colors, history refs, UDTs, multiline strings |
 | **Language Server** | Diagnostics, autocomplete, hover docs, document symbols, formatting (`pip install "hoox-pyne[lsp]"`) |
 | **Status bar** | `PYNE LSP` indicator (click → server output) |
-| **Auto-detect LSP** | `pynescript-lsp` on `PATH`, or `python3 -m pynescript.langserver` |
+| **Auto-detect LSP** | `pyne-lsp` (or alias `pynescript-lsp`) on `PATH`, or `python3 -m pynescript.langserver` |
 
 ### LSP discovery order
 
 1. `pynescript.lsp.command` if not `auto`
-2. `pynescript-lsp` on `PATH`
-3. `python3 -m pynescript.langserver` (requires `pip install "hoox-pyne[lsp]"`)
+2. `pyne-lsp` on `PATH`
+3. `pynescript-lsp` on `PATH` (backward-compatible alias)
+4. `python3 -m pynescript.langserver` (requires `pip install "hoox-pyne[lsp]"`)
 
 ## Install language server (required for LSP)
 

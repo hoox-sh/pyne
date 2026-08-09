@@ -21,7 +21,7 @@
 
 ## Installation
 
-Install the latest release from PyPI ([`hoox-pyne`](https://pypi.org/project/hoox-pyne/)). The **distribution name is `hoox-pyne`**; the import package and CLIs remain `pynescript` / `pynescript-lsp`:
+Install the latest release from PyPI ([`hoox-pyne`](https://pypi.org/project/hoox-pyne/)). The **distribution name is `hoox-pyne`**; the import package remains `pynescript`; preferred CLIs are **`pyne`** / **`pyne-lsp`** (aliases: `pynescript` / `pynescript-lsp`):
 
 ```console
 pip install hoox-pyne
@@ -38,7 +38,7 @@ Prefer **`.pyne`** for HOOX / PYNE stack sources (`.pine` still works).
 
 ## Command-Line Interface
 
-Pynescript ships a CLI that mirrors the helper functions in `pynescript.ast.helper`:
+PYNE ships a CLI (`pyne`, alias `pynescript`) that mirrors the helper functions in `pynescript.ast.helper`:
 
 - `parse-and-dump` prints a formatted AST for a Pine Script™ input.
 - `parse-and-unparse` round-trips a script to verify formatting stability.
@@ -47,13 +47,14 @@ Pynescript ships a CLI that mirrors the helper functions in `pynescript.ast.help
 
 
 ```console
-pynescript parse-and-dump path/to/script.pyne
-pynescript lint path/to/script.pyne
+pyne parse-and-dump path/to/script.pyne
+pyne lint path/to/script.pyne
+# aliases: pynescript parse-and-dump …
 ```
 
 ```{eval-rst}
 .. click:: pynescript.__main__:cli
-    :prog: pynescript
+    :prog: pyne
     :nested: full
 ```
 

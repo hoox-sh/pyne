@@ -24,7 +24,7 @@ help:
 	@echo "  fmt              ruff format"
 	@echo "  package          Build sdist + wheel (python -m build)"
 	@echo "  build            Nuitka LSP binary"
-	@echo "  build-cli        Nuitka CLI binary (pynescript)"
+	@echo "  build-cli        Nuitka CLI binary (pyne / pynescript)"
 	@echo "  build-check      Fast import check (no compile)"
 	@echo "  build-vscode     Package VS Code extension"
 	@echo "  run              Flask Pro API (:5002)"

@@ -26,7 +26,7 @@ description: "Ship hoox-pyne to PyPI under the personal jango-blockchained accou
 
 ## Abstract
 
-The Python distribution name on PyPI is **`hoox-pyne`**. After install, the import path and CLIs stay **`pynescript`** / **`pynescript-lsp`**.
+The Python distribution name on PyPI is **`hoox-pyne`**. After install, the import path stays **`pynescript`**; preferred CLIs are **`pyne`** / **`pyne-lsp`** (aliases: `pynescript` / `pynescript-lsp`).
 
 **PyPI ownership** is the personal account **[jango-blockchained](https://pypi.org/user/jango-blockchained/)** (not a PyPI organization — org approval is not required). Automation still runs on GitHub **`hoox-sh/pyne`** via `.github/workflows/publish.yml`.
 
@@ -45,8 +45,8 @@ pip install "hoox-pyne[lsp]"
 pip install "hoox-pyne[pro]"
 
 python -c "import pynescript; print(pynescript.__version__)"
-pynescript --help
-pynescript-lsp   # stdio language server
+pyne --help
+pyne-lsp   # stdio language server (alias: pynescript-lsp)
 ```
 
 ## One-time setup (personal PyPI account)

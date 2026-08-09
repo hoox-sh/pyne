@@ -19,7 +19,7 @@
 
 ---
 title: "Editor Clients"
-description: "Wire pynescript-lsp into Neovim, Zed, Emacs, Helix, Sublime, and generic LSP hosts."
+description: "Wire pyne-lsp into Neovim, Zed, Emacs, Helix, Sublime, and generic LSP hosts."
 ---
 
 # Editor Clients
@@ -28,7 +28,7 @@ description: "Wire pynescript-lsp into Neovim, Zed, Emacs, Helix, Sublime, and g
 
 Any editor that speaks LSP over STDIO can host PYNE intelligence. First-class snippets live in `clients/` (Neovim Lua, Zed JSON, Emacs Lisp) plus documented Helix/Sublime fragments. The VS Code path is a dedicated extension ([vscode-extension](/pyne/docs/lsp/vscode-extension)); this page covers the rest.
 
-**Prerequisite:** `pynescript-lsp` on `PATH` (Python 3.10+):
+**Prerequisite:** `pyne-lsp` (or `pynescript-lsp`) on `PATH` (Python 3.10+):
 
 ```bash
 pip install "hoox-pyne[lsp]"
@@ -52,7 +52,7 @@ flowchart LR
   EM --> STDIO
   HX --> STDIO
   SB --> STDIO
-  STDIO[pynescript-lsp stdio] --> FEAT[diagnostics completion hover …]
+  STDIO[pyne-lsp stdio] --> FEAT[diagnostics completion hover …]
 ```
 
 ## Interface surface — repo files
@@ -71,7 +71,7 @@ Return table from `clients/neovim.lua`:
 
 ```lua
 return {
-  cmd = { 'pynescript-lsp' },
+  cmd = { 'pyne-lsp' },
   filetypes = { 'pinescript' },
   root_dir = function(fname)
     return vim.fs.root(fname, { '.git', '*.pine', '*.pinev5', '*.pinev6', 'pyproject.toml' })

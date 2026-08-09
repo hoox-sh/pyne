@@ -5,8 +5,8 @@
 # Ephemeral CLI entrypoint for the `cli` image target.
 #
 # Ensures the compile-cache directory exists on /data (best-effort), then
-# exec's the pynescript Click console. No long-running process and no HTTP
-# listener — the image intentionally has no HEALTHCHECK.
+# exec's the pyne Click console (alias: pynescript). No long-running process
+# and no HTTP listener — the image intentionally has no HEALTHCHECK.
 
 set -eu
 
@@ -20,4 +20,8 @@ if [ -n "${XDG_CACHE_HOME:-}" ]; then
   mkdir -p "${XDG_CACHE_HOME}" 2>/dev/null || true
 fi
 
+# Prefer product brand; fall back to legacy console script name.
+if command -v pyne >/dev/null 2>&1; then
+  exec pyne "$@"
+fi
 exec pynescript "$@"

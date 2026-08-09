@@ -17,7 +17,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""CLI smoke tests for ``pynescript`` Click entry point.
+"""CLI smoke tests for ``pyne`` / ``pynescript`` Click entry point.
 
 CI-fast: no network, no ``pinescript_filepath`` / builtin corpus fixtures.
 Uses tiny inline Pine snippets under ``tmp_path`` only.
@@ -262,13 +262,16 @@ def test_info_json_shape(runner: CliRunner) -> None:
     assert r.exit_code == 0
     payload = json.loads(r.output)
     assert payload["name"] == "pynescript"
+    assert payload.get("distribution") == "hoox-pyne"
     assert payload["version"] == __version__
     assert isinstance(payload["python"], str) and payload["python"]
     assert isinstance(payload["platform"], str) and payload["platform"]
     assert isinstance(payload["numba"], bool)
     assert isinstance(payload["rich"], bool)
-    assert payload["entry_points"]["cli"] == "pynescript"
-    assert payload["entry_points"]["lsp"] == "pynescript-lsp"
+    assert payload["entry_points"]["cli"] == "pyne"
+    assert payload["entry_points"]["cli_alias"] == "pynescript"
+    assert payload["entry_points"]["lsp"] == "pyne-lsp"
+    assert payload["entry_points"]["lsp_alias"] == "pynescript-lsp"
     assert "hoox.sh" in payload["docs"]
 
 
@@ -276,6 +279,7 @@ def test_info_text(runner: CliRunner) -> None:
     r = runner.invoke(cli, ["info"])
     assert r.exit_code == 0
     assert "pynescript" in r.output
+    assert "pyne" in r.output
     assert __version__ in r.output or "version" in r.output.lower() or "package" in r.output.lower()
 
 

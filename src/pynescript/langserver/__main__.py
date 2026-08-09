@@ -19,9 +19,10 @@
 
 """stdio entry point for the Pine Script Language Server.
 
-Installed as console script::
+Installed as console scripts::
 
-    pynescript-lsp = pynescript.langserver.__main__:main
+    pyne-lsp = pynescript.langserver.__main__:main
+    pynescript-lsp = pynescript.langserver.__main__:main   # alias
 
 Also runnable as::
 
@@ -29,7 +30,7 @@ Also runnable as::
 
 Constructs :class:`~pynescript.langserver.server.PynescriptLanguageServer` and
 calls ``start_io()`` (JSON-RPC over stdin/stdout). This is separate from the
-``pynescript`` Click CLI (:mod:`pynescript.__main__`).
+``pyne`` / ``pynescript`` Click CLI (:mod:`pynescript.__main__`).
 """
 
 from __future__ import annotations

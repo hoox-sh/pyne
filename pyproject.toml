@@ -83,6 +83,10 @@ Issues = "https://github.com/hoox-sh/pyne/issues"
 Changelog = "https://github.com/hoox-sh/pyne/blob/main/CHANGELOG.md"
 
 [project.scripts]
+# Preferred console names (product brand). Import package remains ``pynescript``.
+pyne = "pynescript.__main__:cli"
+pyne-lsp = "pynescript.langserver.__main__:main"
+# Backward-compatible aliases (same callables).
 pynescript = "pynescript.__main__:cli"
 pynescript-lsp = "pynescript.langserver.__main__:main"
 

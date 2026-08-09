@@ -35,7 +35,7 @@ If you find a bug or have a feature request, please open an issue on GitHub.
 |---|---|
 | **PyPI distribution name** | [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) |
 | **Import package** | `pynescript` (unchanged) |
-| **Console scripts** | `pynescript`, `pynescript-lsp` |
+| **Console scripts** | **`pyne`**, **`pyne-lsp`** (aliases: `pynescript`, `pynescript-lsp`) |
 | **Product / repo** | **pyne** · [hoox-sh/pyne](https://github.com/hoox-sh/pyne) |
 | **GitHub org** | [`hoox-sh`](https://github.com/hoox-sh) (hoox.sh) |
 
@@ -43,7 +43,7 @@ If you find a bug or have a feature request, please open an issue on GitHub.
 > [elbakramer/pynescript](https://github.com/elbakramer/pynescript); plain
 > `pyne`/`PyNE` is an unrelated 0.1.0 process-networking library. This project
 > publishes as **`hoox-pyne`**:
-> `pip install "hoox-pyne[lsp]"` → `import pynescript`.
+> `pip install "hoox-pyne[lsp]"` → `import pynescript` + CLIs `pyne` / `pyne-lsp`.
 
 ### One-time PyPI setup (personal account)
 

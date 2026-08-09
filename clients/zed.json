@@ -6,7 +6,7 @@
   // {
   //   "language_servers": {
   //     "pynescript": {
-  //       "command": ["pynescript-lsp"],
+  //       "command": ["pyne-lsp"],
   //       "arguments": ["--stdio"]
   //     }
   //   }
@@ -19,7 +19,7 @@
   },
   "language_servers": {
     "pynescript": {
-      "command": "pynescript-lsp",
+      "command": "pyne-lsp",
       "arguments": ["--stdio"],
       "languages": ["Pine Script"]
     }

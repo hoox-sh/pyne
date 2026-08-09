@@ -8,7 +8,7 @@
   :config
   (lsp-register-client
    (make-lsp-client
-    :new-connection (lsp-stdio-connection '("pynescript-lsp" "--stdio"))
+    :new-connection (lsp-stdio-connection '("pyne-lsp" "--stdio"))
     :major-modes '(pinescript-mode)
     :server-id 'pynescript
     :activation-fn (lsp-activate-on "pinescript" "*.pine" "*.pinev5" "*.pinev6"))))

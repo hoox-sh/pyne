@@ -11,7 +11,7 @@
 #   api      — production Pro API (gunicorn, non-root)  [default for Cloud Run]
 #   api-dev  — development Pro API (Flask, HOST=0.0.0.0)
 #   lsp      — language server (stdio; use with compose profile lsp)
-#   cli      — pynescript Click CLI (parse/lint/format/compile/run; ENTRYPOINT)
+#   cli      — pyne Click CLI (parse/lint/format/compile/run; ENTRYPOINT)
 #
 # Examples:
 #   docker buildx bake api
@@ -172,7 +172,7 @@ ENV FLASK_ENV=production
 CMD ["python", "-m", "pynescript.langserver"]
 
 # ---------------------------------------------------------------------------
-# Target: cli (pynescript Click console — parse / lint / format / compile / run)
+# Target: cli (pyne Click console — parse / lint / format / compile / run)
 #
 # Final stage is based on base-os (not base): no curl, freetype, png, or API
 # env defaults. build-essential is only in cli-builder. Non-root appuser.

@@ -19,12 +19,13 @@
 
 /**
  * PYNE — VS Code extension (HOOX open trading stack).
- * Language Client for pynescript-lsp.
+ * Language Client for pyne-lsp (alias: pynescript-lsp).
  *
  * Server discovery (in order):
  *  1. pynescript.lsp.command if set and not "auto"
- *  2. pynescript-lsp on PATH
- *  3. python -m pynescript.langserver (pynescript.lsp.python)
+ *  2. pyne-lsp on PATH
+ *  3. pynescript-lsp on PATH (backward-compatible alias)
+ *  4. python -m pynescript.langserver (pynescript.lsp.python)
  *
  * Unofficial independent project. Not affiliated with or endorsed by TradingView, Inc.
  * Pine Script™ and TradingView® are trademarks of TradingView, Inc.
@@ -123,13 +124,16 @@ export function resolveLspLaunch(): {
     };
   }
 
-  if (commandOnPath('pynescript-lsp')) {
-    return {
-      command: 'pynescript-lsp',
-      args: [...extraArgs],
-      label: 'pynescript-lsp',
-      found: true,
-    };
+  // Prefer product brand, then legacy alias.
+  for (const bin of ['pyne-lsp', 'pynescript-lsp'] as const) {
+    if (commandOnPath(bin)) {
+      return {
+        command: bin,
+        args: [...extraArgs],
+        label: bin,
+        found: true,
+      };
+    }
   }
 
   for (const py of [python, 'python3', 'python']) {
@@ -145,9 +149,9 @@ export function resolveLspLaunch(): {
   }
 
   return {
-    command: 'pynescript-lsp',
+    command: 'pyne-lsp',
     args: [...extraArgs],
-    label: 'pynescript-lsp (not found — install: pip install "hoox-pyne[lsp]")',
+    label: 'pyne-lsp (not found — install: pip install "hoox-pyne[lsp]")',
     found: false,
   };
 }

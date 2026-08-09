@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Console scripts**: preferred names are **`pyne`** and **`pyne-lsp`**.
+  Legacy **`pynescript`** / **`pynescript-lsp`** remain installed as aliases
+  (same callables). Import package is still `pynescript`; PyPI dist is
+  `hoox-pyne`. Docs, VS Code auto-detect, and editor client configs prefer
+  `pyne*` with fallback to `pynescript*`.
+
 ## [0.3.1] - 2026-08-09
 
 ### Added

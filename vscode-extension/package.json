@@ -115,12 +115,12 @@
         "pynescript.lsp.command": {
           "type": "string",
           "default": "auto",
-          "description": "LSP launch command. Use \"auto\" to try pynescript-lsp on PATH, then python -m pynescript.langserver. Or set an absolute path to the binary."
+          "description": "LSP launch command. Use \"auto\" to try pyne-lsp (then pynescript-lsp) on PATH, then python -m pynescript.langserver. Or set an absolute path to the binary."
         },
         "pynescript.lsp.python": {
           "type": "string",
           "default": "python3",
-          "description": "Python interpreter used when lsp.command is auto and pynescript-lsp is not on PATH (must have: pip install \"pyne[lsp]\")."
+          "description": "Python interpreter used when lsp.command is auto and neither pyne-lsp nor pynescript-lsp is on PATH (must have: pip install \"hoox-pyne[lsp]\")."
         },
         "pynescript.lsp.args": {
           "type": "array",

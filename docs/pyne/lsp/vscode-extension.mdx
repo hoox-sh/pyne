@@ -26,7 +26,7 @@ description: "PYNE VS Code extension: HOOX branding, TextMate grammar, LanguageC
 
 ## Abstract
 
-**PYNE** is a **LanguageClient host** plus a rich TextMate grammar, branded as part of the **HOOX open trading stack**. It does not reimplement diagnostics or completion in TypeScript; it spawns `pynescript-lsp` (or a configured command) over STDIO via `vscode-languageclient`, maps **`.pyne` (first-class)** plus `*.pine` / `*.pinev5` / `*.pinev6` / `*.pinescript` to language id `pinescript`, and exposes a small settings surface for enablement and feature toggles.
+**PYNE** is a **LanguageClient host** plus a rich TextMate grammar, branded as part of the **HOOX open trading stack**. It does not reimplement diagnostics or completion in TypeScript; it spawns `pyne-lsp` (or alias `pynescript-lsp`) (or a configured command) over STDIO via `vscode-languageclient`, maps **`.pyne` (first-class)** plus `*.pine` / `*.pinev5` / `*.pinev6` / `*.pinescript` to language id `pinescript`, and exposes a small settings surface for enablement and feature toggles.
 
 > Pine Script™ and TradingView® are trademarks of TradingView, Inc. This project is independent and is not affiliated with or endorsed by TradingView, Inc.
 
@@ -36,7 +36,7 @@ description: "PYNE VS Code extension: HOOX branding, TextMate grammar, LanguageC
 flowchart LR
   VS[VS Code] --> EXT[extension.ts activate]
   EXT --> LC[LanguageClient]
-  LC -->|stdio| LSP[pynescript-lsp]
+  LC -->|stdio| LSP[pyne-lsp]
   EXT --> TM[TextMate grammar]
   TM --> HL[Token colors]
   LSP --> DIAG[Diagnostics / completion / …]
@@ -129,14 +129,14 @@ Server launch:
 
 ```typescript
 const serverOptions: ServerOptions = {
-  command: lspCommand,           // default pynescript-lsp
+  command: lspCommand,           // default pyne-lsp
   args: ['--parent-dir', scriptPath],
   transport: TransportKind.stdio,
   options: { env: { ...process.env, PYTHONPATH: scriptPath } },
 };
 ```
 
-`scriptPath` is resolved to `../src/pynescript/langserver` relative to the extension for monorepo development. Release packaging typically expects `pynescript-lsp` on `PATH` (pip or Nuitka binary).
+`scriptPath` is resolved to `../src/pynescript/langserver` relative to the extension for monorepo development. Release packaging typically expects `pyne-lsp` (or `pynescript-lsp`) on `PATH` (pip or Nuitka binary).
 
 ### Build
 
@@ -173,7 +173,7 @@ Open a fixture `.pine` file; confirm Problems panel shows parse/lint diagnostics
 
 | Symptom | Cause |
 | --- | --- |
-| “Language client failed to start” | `pynescript-lsp` missing / wrong command |
+| “Language client failed to start” | `pyne-lsp` missing / wrong command |
 | No squiggles, highlighting OK | LSP disabled or server crash; check Output → Pine Script Language Server |
 | Restart does nothing | Client never started (`lsp.enabled` false) |
 

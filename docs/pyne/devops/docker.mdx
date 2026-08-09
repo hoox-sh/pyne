@@ -73,7 +73,7 @@ All targets: Python 3.12-slim, non-root `appuser` (uid 1000). API targets also s
 ```bash
 # Local load (host platform)
 docker buildx bake api                 # production image → pynescript-api:latest
-docker buildx bake cli                 # CLI image → pynescript-cli:latest
+docker buildx bake cli                 # CLI image → pynescript-cli:latest (ENTRYPOINT: pyne)
 docker buildx bake                     # default group: api + api-dev
 docker buildx bake all                 # api + api-dev + lsp + cli
 

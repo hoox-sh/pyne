@@ -32,7 +32,7 @@ Editors want *static* intelligence at typing cadence. Evaluation over OHLCV is *
 
 | Process | Cadence | Shared substrate |
 | --- | --- | --- |
-| **LSP** (`pynescript-lsp`) | keystroke / open / save | parse, lint, unparse, builtin metadata |
+| **LSP** (`pyne-lsp`) | keystroke / open / save | parse, lint, unparse, builtin metadata |
 | **Pro API** (`backend.app`) | request / batch | parse, evaluate, plots / events / alerts |
 | **CLI / library** | batch / embed | same AST + evaluator |
 
@@ -46,7 +46,7 @@ flowchart TB
     VS[VS Code extension]
     NV[Neovim / Helix / Zed / Emacs]
   end
-  subgraph LSP["pynescript-lsp (pygls)"]
+  subgraph LSP["pyne-lsp (pygls)"]
     S[PynescriptLanguageServer]
     W[Workspace + TextDocumentState]
     F[Feature handlers]
@@ -93,11 +93,11 @@ Declared capabilities: `src/pynescript/langserver/config.py` (`get_server_capabi
 | `src/pynescript/langserver/config.py` | ServerCapabilities |
 | `src/pynescript/langserver/features/*` | Per-method handlers |
 | `src/pynescript/langserver/providers/*` | Metadata + completion builders |
-| `src/pynescript/langserver/__main__.py` | STDIO entry (`pynescript-lsp`) |
+| `src/pynescript/langserver/__main__.py` | STDIO entry (`pyne-lsp` / alias `pynescript-lsp`) |
 | `vscode-extension/` | Language client + TextMate grammar |
 | `clients/` | Neovim, Zed, Emacs, Helix snippets |
 
-Console scripts are separate: `pynescript` (Click CLI) vs `pynescript-lsp` (pygls). Do not conflate them — see [architecture](/pyne/docs/lsp/architecture).
+Console scripts are separate: `pyne` (Click CLI; alias `pynescript`) vs `pyne-lsp` (pygls; alias `pynescript-lsp`). Do not conflate them — see [architecture](/pyne/docs/lsp/architecture).
 
 ## Tracks in this tab
 
