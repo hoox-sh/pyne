@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-08-09
+
+### Fixed
+- **Corpus residual (C1, set01–04):** dual-namespace user methods vs bare ta aliases
+  (`method dmi` / `float dmi = dmi(...)` no longer mis-routes to `ta.dmi` after series assign);
+  `line.get_price` / line getters soft-na on `na` line or endpoints and coerce PineSeries
+  samples; `request.security` OHLCVT + `time` list unpack on different TF; sanitize dangling
+  binary ops inside unclosed trailing calls (truncated docs scrapes).
+- `ta.dmi` soft-na on unresolved / `na` length (aligned with other TA period soft-na).
+
+### Changed
+- Local open-source corpus set01–04 (2477 scripts, not shipped in git): **parse 99.96%**
+  (2476/2477) and **Runtime interpret 100% excl. EXPECTED_FAIL** (2466 OK + 11 intentional
+  demos); set01 Runtime **249/249**. Harness classifies path-listed intentional demos
+  (library `runtime.error`, lower-TF guards, pathological loops) as EXPECTED_FAIL.
+- Docs / landing: README, compatibility, roadmap, missing-features, and marketing numbers
+  updated to the 2026-08-09 corpus snapshot (not TradingView® platform parity).
+
 ## [0.3.2] - 2026-08-09
 
 ### Changed

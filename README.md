@@ -2,7 +2,7 @@
 
 **Independent open toolchain for the Pine Script™ language** — formal grammar, algebraic AST, dual-engine bar-loop runtime, language server, and HTTP evaluation surface. Part of the [HOOX](https://hoox.sh) open trading stack.
 
-**0.3.2** · PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) · import `pynescript` · CLIs `pyne` · `pyne-lsp` (aliases: `pynescript` · `pynescript-lsp`)
+**0.3.3** · PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) · import `pynescript` · CLIs `pyne` · `pyne-lsp` (aliases: `pynescript` · `pynescript-lsp`)
 
 <div align="center">
 
@@ -37,6 +37,18 @@ Source (.pyne / .pine)
 The same pipeline underlies the desk CLI, the Language Server Protocol (LSP) binary, the Pro API, browser Pyodide evaluation (via AXIS), and Cloudflare® Workers that share one evaluate contract.
 
 Coverage and known gaps are documented under [compatibility](https://hoox.sh/pyne/docs/reference/compatibility) and [implementation status](https://hoox.sh/pyne/docs/reference/implementation-status). This repository does **not** ship third-party script corpora or TradingView® builtin downloads.
+
+### Corpus snapshot (set01–04 · local measurement · 2026-08-09)
+
+Open-source Pine regression sets (**2477** scripts; not shipped in git) under parse+unparse and Runtime interpret (50 bars, 12s timeout):
+
+| Suite | Rate | Detail |
+| --- | ---: | --- |
+| **Parse + unparse** | **99.96%** | 2476 / 2477 OK — residual is one intentional invalid line-wrap docs demo |
+| **Runtime interpret** | **100%** excl. EXPECTED | 2466 OK + **11** intentional demos (`runtime.error` guards, lower-TF security, pathological loops) |
+| set01 Runtime | **100%** | **249 / 249** OK |
+
+Not a claim of TradingView® platform parity. Intentional demos are classified so OK% stays honest.
 
 ## Capabilities
 
@@ -227,7 +239,7 @@ In-repository notes: [Roadmap](./docs/ROADMAP.md) · [Missing features](./docs/m
 
 ## Compatibility
 
-PYNE targets practical runtime fidelity verified with first-party fixtures and unit tests. It does **not** claim:
+PYNE targets practical runtime fidelity verified with first-party fixtures, unit tests, and (when present locally) open-source corpus sets. Latest local corpus snapshot (set01–04, 2026-08-09): **parse 99.96%**, **Runtime interpret 100% excl. intentional demos** — see the table under Abstract. It does **not** claim:
 
 - official TradingView® certification or endorsement  
 - complete platform parity (chart host, data model, every edge-case builtin, or closed UI behaviour)  

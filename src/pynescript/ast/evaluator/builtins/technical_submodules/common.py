@@ -137,11 +137,19 @@ class CommonIndicators(TechnicalHelpers):
     # -- Statistical/Change functions ---------------------------------------
 
     def _builtin_ta_change(self, args: list[Any]) -> float | None:
-        """Difference between current value and value length bars ago."""
-        series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
+        """Difference between current value and value *length* bars ago.
+
+        TradingView: ``ta.change(source)`` or ``ta.change(source, length)``.
+        Unary form defaults ``length`` to 1 (same as BasicIndicators).
+        """
+        if len(args) < 1 or len(args) > 2:
+            self._error("ta.change() requires 1 or 2 arguments: source, (period)")
+        period = self._expect_int(args[1], "Second argument must be an integer") if len(args) > 1 else 1
+        if isinstance(period, float) and period == int(period):
+            period = int(period)
         if self._use_incremental_ta():
-            return self._change_inc_update(series, period)
-        return self._change(series, period)
+            return self._change_inc_update(args[0], period)
+        return self._change(self._as_series(args[0]), period)
 
     def _builtin_ta_mom(self, args: list[Any]) -> float | None:
         """Momentum = current value - previous value at specified length."""
@@ -555,30 +563,35 @@ class CommonIndicators(TechnicalHelpers):
     def _builtin_ta_dmi(self, args: list[Any]) -> tuple[float, float, float]:
         """Directional Movement Index — see BasicIndicators for TV 2-arg form.
 
-        Returns ``(+DI, -DI, ADX)``.
+        Returns ``(+DI, -DI, ADX)``. Period soft-na: ``na`` / unresolved names →
+        ``[na, na, na]`` (matches BasicIndicators residual policy).
         """
         import math
 
         if len(args) == BINARY:
-            di_len = self._expect_int(args[0], "ta.dmi diLength must be int")
-            adx_smooth = self._expect_int(args[1], "ta.dmi adxSmoothing must be int")
+            di_len = self._expect_period(args[0], "ta.dmi diLength must be int")
+            adx_smooth = self._expect_period(args[1], "ta.dmi adxSmoothing must be int")
+            if di_len < 1 or adx_smooth < 1:
+                return None, None, None  # type: ignore[return-value]
             highs = self._context_series("high")
             lows = self._context_series("low")
             closes = self._context_series("close")
         elif len(args) == QUATERNARY:
+            di_len = self._expect_period(args[3], "ta.dmi takes high, low, close series and length")
+            if di_len < 1:
+                return None, None, None  # type: ignore[return-value]
+            if args[0] is None or args[1] is None or args[2] is None:
+                return None, None, None  # type: ignore[return-value]
             highs = self._expect_list(args[0], "ta.dmi takes high, low, close series and length")
             lows = self._expect_list(args[1], "ta.dmi takes high, low, close series and length")
             closes = self._expect_list(args[2], "ta.dmi takes high, low, close series and length")
-            di_len = self._expect_int(args[3], "ta.dmi takes high, low, close series and length")
             adx_smooth = di_len
         else:
             self._error("ta.dmi takes (diLength, adxSmoothing) or (high, low, close, length)")
-            return math.nan, math.nan, math.nan
+            return None, None, None  # type: ignore[return-value]
 
-        if di_len < 1:
-            self._error("ta.dmi length must be positive")
         if not highs or not (len(highs) == len(lows) == len(closes)):
-            return math.nan, math.nan, math.nan
+            return None, None, None  # type: ignore[return-value]
 
         plus_dm: list[float] = []
         minus_dm: list[float] = []

@@ -52,12 +52,16 @@ REQUEST_MOCK_PRICE = 100.0
 LOWER_TF_SIMULATE_MULTIPLIER = 2  # for demo lower tf bar count from latest data
 # How many chart bars to scan when guessing if a pre-eval value is simple OHLCV.
 _OHLCV_MATCH_LOOKBACK = 32
+# Chart series safe for same-symbol security passthrough (simple OHLCV + time).
+# ``time`` is required so tuples like ``[open, high, low, close, volume, time]``
+# (Perceptron / KNN corpus) are not rejected as complex HTF when TF differs.
 _OHLCV_SERIES_KEYS = (
     "open",
     "high",
     "low",
     "close",
     "volume",
+    "time",
     "hl2",
     "hlc3",
     "ohlc4",
@@ -462,7 +466,13 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         return False
 
     def _expression_is_simple_ohlcv_value(self, expression: Any) -> bool:
-        """True for pre-eval values that look like simple chart OHLCV samples."""
+        """True for pre-eval values that look like simple chart OHLCV/time samples.
+
+        Includes ``time`` so multi-value same-symbol requests such as
+        ``[open, high, low, close, volume, time]`` remain list-shaped under a
+        different request TF (chart passthrough stub), instead of collapsing
+        to a single ``na`` that breaks destructure and poisons custom DMI.
+        """
         if isinstance(expression, str):
             return expression.strip().lower() in {
                 "open",
@@ -475,6 +485,7 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
                 "c",
                 "volume",
                 "vol",
+                "time",
                 "hl2",
                 "hlc3",
                 "ohlc4",

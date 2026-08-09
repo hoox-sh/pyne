@@ -177,6 +177,36 @@ plot(f_struct(20), title="chart")
         # Same TF as default chart period ("D") → chart eval allowed
         assert out["series"]["same"][-1] == out["series"]["chart"][-1]
 
+    def test_empty_symbol_ohlcvt_tuple_different_tf_passthrough(self) -> None:
+        """``request.security('', input.timeframe('1'), [o,h,l,c,v,time])`` keeps list shape.
+
+        Perceptron corpus: empty symbol = chart; TF may differ from chart period.
+        Including ``time`` must not mark the tuple "complex" and collapse to a
+        single ``na`` (which poisons High/Low/Close and custom dmi).
+        """
+        from backend.runtime import Runtime
+
+        bars = _bars(40)
+        src = """//@version=5
+indicator("t")
+Timeframe = input.timeframe("1", "Time Frame")
+[Open, High, Low, Close, Volume, Time] = request.security("", Timeframe, [open, high, low, close, volume, time])
+plot(High, title="High")
+plot(Low, title="Low")
+plot(Close, title="Close")
+plot(Time, title="Time")
+plot(Volume, title="Volume")
+"""
+        out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
+        assert not out.get("error"), out.get("error")
+        assert abs(float(out["series"]["High"][-1]) - float(bars[-1]["high"])) < 1e-9
+        assert abs(float(out["series"]["Low"][-1]) - float(bars[-1]["low"])) < 1e-9
+        assert abs(float(out["series"]["Close"][-1]) - float(bars[-1]["close"])) < 1e-9
+        assert abs(float(out["series"]["Volume"][-1]) - float(bars[-1]["volume"])) < 1e-9
+        assert abs(float(out["series"]["Time"][-1]) - float(bars[-1]["time"])) < 1e-9
+        # Not all-na
+        assert any(not _is_na(x) for x in out["series"]["High"])
+
     def test_mtf_structure_bias_interp_compile_score_parity(self) -> None:
         from pathlib import Path
 

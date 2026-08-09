@@ -990,25 +990,33 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             line.style = args[1] if len(args) > 1 else line.style
         return line
 
-    def _handle_line_get_x1(self, args: list[Any]) -> int | float:
-        """line.get_x1(line)"""
+    def _handle_line_get_x1(self, args: list[Any]) -> int | float | None:
+        """line.get_x1(line) — soft-na when id/endpoint is na; unwrap series."""
         line = args[0] if len(args) > 0 else None
-        return line.x1 if isinstance(line, Line) else 0
+        if not isinstance(line, Line):
+            return None
+        return _export_num(line.x1)
 
-    def _handle_line_get_y1(self, args: list[Any]) -> float:
-        """line.get_y1(line)"""
+    def _handle_line_get_y1(self, args: list[Any]) -> float | None:
+        """line.get_y1(line) — soft-na when id/endpoint is na; unwrap series."""
         line = args[0] if len(args) > 0 else None
-        return line.y1 if isinstance(line, Line) else 0.0
+        if not isinstance(line, Line):
+            return None
+        return _export_num(line.y1)
 
-    def _handle_line_get_x2(self, args: list[Any]) -> int | float:
-        """line.get_x2(line)"""
+    def _handle_line_get_x2(self, args: list[Any]) -> int | float | None:
+        """line.get_x2(line) — soft-na when id/endpoint is na; unwrap series."""
         line = args[0] if len(args) > 0 else None
-        return line.x2 if isinstance(line, Line) else 0
+        if not isinstance(line, Line):
+            return None
+        return _export_num(line.x2)
 
-    def _handle_line_get_y2(self, args: list[Any]) -> float:
-        """line.get_y2(line)"""
+    def _handle_line_get_y2(self, args: list[Any]) -> float | None:
+        """line.get_y2(line) — soft-na when id/endpoint is na; unwrap series."""
         line = args[0] if len(args) > 0 else None
-        return line.y2 if isinstance(line, Line) else 0.0
+        if not isinstance(line, Line):
+            return None
+        return _export_num(line.y2)
 
     # BOX HANDLERS
 
@@ -1832,16 +1840,32 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
     # ========== MISSING TV SURFACE HANDLERS ==========
 
     def _handle_line_get_price(self, args: list[Any]) -> float | None:
-        """line.get_price(id, x) — interpolate Y at X between endpoints."""
+        """line.get_price(id, x) — interpolate Y at X between endpoints.
+
+        TV soft-na: ``na`` line, ``na`` sample *x*, or any na endpoint → ``na``.
+        PineSeries / series-wrapper endpoints are coerced to their current
+        scalar (bar-mode ``high`` / ``hlc3`` often land unwrapped only later).
+        """
         line = args[0] if args else None
         x = args[1] if len(args) > 1 else None
-        if not isinstance(line, Line) or x is None:
+        if not isinstance(line, Line):
             return None
-        x1, x2 = float(line.x1), float(line.x2)
-        if x1 == x2:
-            return float(line.y1)
-        t = (float(x) - x1) / (x2 - x1)
-        return float(line.y1) + t * (float(line.y2) - float(line.y1))
+        xv = _export_num(x)
+        x1 = _export_num(line.x1)
+        x2 = _export_num(line.x2)
+        y1 = _export_num(line.y1)
+        y2 = _export_num(line.y2)
+        if xv is None or x1 is None or x2 is None or y1 is None or y2 is None:
+            return None
+        x1f = float(x1)
+        x2f = float(x2)
+        y1f = float(y1)
+        y2f = float(y2)
+        xvf = float(xv)
+        if x1f == x2f:
+            return y1f
+        t = (xvf - x1f) / (x2f - x1f)
+        return y1f + t * (y2f - y1f)
 
     def _handle_line_set_xy1(self, args: list[Any]) -> None:
         line = args[0] if args else None

@@ -668,7 +668,10 @@ class ExpressionEvaluator:
         if kind == _SITE_BB:
             name, tag, handler, plan = site[1], site[2], site[3], site[4]
             args, kwargs = self._eval_arg_plan(plan)
-            user = self.context.get(name)  # type: ignore[attr-defined]
+            # Dual namespace: user ``method dmi`` / UDF stays callable after a
+            # series local reuses the bare name (``float dmi = dmi(...)``).
+            # Prefer ``_user_functions`` over context and bare ta.* aliases.
+            user = self._lookup_user_callable(name)
             if callable(user):
                 prev_site = getattr(self, "_pine_udf_site", None)
                 self._pine_udf_site = id(node)  # type: ignore[attr-defined]
@@ -721,13 +724,15 @@ class ExpressionEvaluator:
             return result
 
         # Fast path: bare Name builtins (plot, na, year, …).
-        # User callables in context still shadow each bar (cheap dict.get).
+        # Dual-namespace UDF/method + context callables shadow bare ta.* aliases.
         # site = (_SITE_B, name, arg_plan)
         if kind == _SITE_B:
             name, plan = site[1], site[2]
             args, kwargs = self._eval_arg_plan(plan)
-            user = self.context.get(name)  # type: ignore[attr-defined]
+            user = self._lookup_user_callable(name)
             if callable(user):
+                prev_site = getattr(self, "_pine_udf_site", None)
+                self._pine_udf_site = id(node)  # type: ignore[attr-defined]
                 try:
                     return user(*args, **kwargs)
                 except TypeError as e:
@@ -739,6 +744,8 @@ class ExpressionEvaluator:
                         if _type_error_from_callee(e2):
                             raise
                         return None
+                finally:
+                    self._pine_udf_site = prev_site  # type: ignore[attr-defined]
             result = self._call_builtin(name, args, kwargs=kwargs)  # type: ignore[attr-defined]
             # Fold pure literal builtins on first eval (same bar nested loops).
             if (
@@ -762,16 +769,14 @@ class ExpressionEvaluator:
             args, kwargs = self._eval_arg_plan(plan)
             # Dual namespace: prefer UDF table so series locals can reuse the name
             # (``ma = ta.sma(...); ma(src, n) => …`` — CCI smoothing pattern).
-            ufuncs = getattr(self, "_user_functions", None)
-            func = ufuncs.get(name) if ufuncs else None
-            if func is None:
-                func = self.context.get(name)  # type: ignore[attr-defined]
+            func = self._lookup_user_callable(name)
             if not callable(func):
                 # Context may hold a lazy string / non-callable; Attribute / UDT
                 # recovery still goes through the general path when needed.
                 # Bare missing UDF names (``f_priorBarsSatisfied``, helpers
                 # dropped by scrapes) must not hit ``_call_builtin`` → ValueError.
-                if isinstance(func, str) or func is None:
+                ctx_val = self.context.get(name)  # type: ignore[attr-defined]
+                if isinstance(ctx_val, str) or ctx_val is None:
                     # Re-check registry once (map may have been built after site resolve).
                     if self._is_registered_builtin(name):
                         return self._call_builtin(name, args, kwargs=kwargs)  # type: ignore[attr-defined]
@@ -803,6 +808,27 @@ class ExpressionEvaluator:
         if not resolved:
             return None
         return resolved.get(name)
+
+    def _lookup_user_callable(self: EvaluatorProtocol, name: str) -> Any:
+        """Resolve a bare-name UDF / ``method`` for dual-namespace dispatch.
+
+        Pine allows a series local to reuse a function name
+        (``method dmi(...); float dmi = dmi(High, Low, Close, Period)``).
+        After the assignment, ``context[name]`` is the series (not callable)
+        while ``_user_functions[name]`` still holds the multi-dispatch
+        entry. Prefer that table, then a callable still in ``context``.
+
+        Bare ta.* aliases (``dmi`` → ``ta.dmi``) must **not** win over a
+        user method of the same name — that mis-route caused corpus RUN_FAIL
+        ``ta.dmi takes high, low, close series and length (got na)``.
+        """
+        ufuncs = self.__dict__.get("_user_functions")
+        if ufuncs is not None:
+            fn = ufuncs.get(name)
+            if callable(fn):
+                return fn
+        user = self.context.get(name)  # type: ignore[attr-defined]
+        return user if callable(user) else None
 
     def _resolve_call_site(self: EvaluatorProtocol, node: ast.Call) -> tuple:
         """Classify a Call node once for the bar-loop site cache.

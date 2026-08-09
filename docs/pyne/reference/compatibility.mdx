@@ -64,9 +64,18 @@ flowchart TB
 | **Interpret ↔ compile plot parity** | Same OHLCV → matching plot/`series` values (nan-aware allclose) | Testing pillar — harness + goldens |
 | Strategy | entry/exit/close, events, risk, OCA, commission | Functional / improved 2026-07 |
 | Type system | int/float/bool/string/color/series/UDT/collections | Strong |
+| Open corpus set01–04 (local) | Parse **99.96%**; Runtime interpret **100%** excl. intentional demos (2026-08-09) | Measured — not TV platform parity |
 | Third-party corpora | **Not shipped** in-repo (legal / ToS hygiene) | N/A |
 
-Do not market “full TV parity.” Re-run `make test` for live suite counts.
+### Corpus rates (set01–04 · 2477 scripts · 2026-08-09)
+
+| Suite | Rate | Notes |
+| --- | ---: | --- |
+| Parse + unparse | **99.96%** (2476/2477) | Residual: intentional invalid line-wrap docs demo |
+| Runtime interpret (50 bars) | **100%** excl. EXPECTED_FAIL | 2466 OK + 11 intentional demos |
+| set01 Runtime | **249/249 (100%)** | Both interpret and prior compile sweeps |
+
+**EXPECTED_FAIL** paths are path-listed intentional demos (`runtime.error` library guards, lower-TF security, pathological loops) — never unknown soft-suppression. Do not market “full TV parity.” Re-run `make test` for live suite counts.
 
 ### Testing pillar: interpret ↔ compile plot parity
 

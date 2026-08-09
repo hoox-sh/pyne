@@ -2809,3 +2809,110 @@ plot(ta.sma(close, 14))
             if isinstance(a, float) and isinstance(b, float) and math.isnan(a) and math.isnan(b):
                 continue
             assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"
+
+
+# ---------------------------------------------------------------------------
+# Runtime residual: unary ta.change + nested decomposing-expressions snippet
+# ---------------------------------------------------------------------------
+
+
+def _ohlcv_bars(n: int = 100) -> list[dict]:
+    """Synthetic OHLCV for Runtime bar-mode tests."""
+    bars: list[dict] = []
+    for i in range(n):
+        c = 100.0 + i * 0.15 + math.sin(i / 5.0) * 2.0
+        bars.append(
+            {
+                "open": c - 0.3,
+                "high": c + 0.8,
+                "low": c - 0.8,
+                "close": c,
+                "volume": 1000 + i,
+                "time": 1_700_000_000 + i * 86_400,
+            }
+        )
+    return bars
+
+
+def test_builtin_ta_change_unary_defaults_length_one() -> None:
+    """TV ``ta.change(source)`` ≡ ``ta.change(source, 1)`` on interpret path."""
+    closes = _series(40)
+    # Full-recompute path
+    full = _FullTA()
+    outs_u: list[float | None] = []
+    outs_b: list[float | None] = []
+    for i in range(len(closes)):
+        prefix = closes[: i + 1]
+        outs_u.append(full._builtin_ta_change([prefix]))
+        outs_b.append(full._builtin_ta_change([prefix, 1]))
+    _assert_series_close(outs_u, outs_b)
+
+    # Incremental bar-mode: separate evaluators so call-site state is not shared
+    inc_u = _IncTA()
+    inc_b = _IncTA()
+    outs_iu: list[float | None] = []
+    outs_ib: list[float | None] = []
+    for i in range(len(closes)):
+        prefix = closes[: i + 1]
+        inc_u._ta_call_i = 0
+        outs_iu.append(inc_u._builtin_ta_change([prefix]))
+        inc_b._ta_call_i = 0
+        outs_ib.append(inc_b._builtin_ta_change([prefix, 1]))
+    _assert_series_close(outs_iu, outs_ib)
+    _assert_series_close(outs_iu, outs_u)
+    # Sanity: after warmup, change is nonzero for this series
+    assert any(v is not None and abs(v) > 1e-9 for v in outs_iu)
+
+
+def test_runtime_unary_ta_change_and_decomposing_expressions_snippet() -> None:
+    """Unary ta.change + reconstructed nested osc (set04 block21 shape).
+
+    Corpus ``0130_str_decomposing_expressions_demo.pine`` is truncated mid-call;
+    sanitize closes parens so ``ta.ema`` gets 1 arg. Full expression needs
+    ``smoothingInput`` as the second ``ta.ema`` argument.
+    """
+    from backend.runtime import Runtime
+
+    bars = _ohlcv_bars(120)
+
+    unary_src = """//@version=6
+indicator("unary change")
+plot(ta.change(close), "ch1")
+plot(ta.change(close, 1), "ch1b")
+"""
+    r_u = Runtime(symbol="T").run(unary_src, bars, mode="interpret")
+    assert "error" not in r_u, r_u.get("error")
+    s_u = r_u["series"]["ch1"]
+    s_b = r_u["series"]["ch1b"]
+    assert len(s_u) == len(bars)
+    for i, (a, b) in enumerate(zip(s_u, s_b, strict=True)):
+        if a is None and b is None:
+            continue
+        if a is None or b is None:
+            # Both paths should warm up the same way
+            assert a is None and b is None, f"bar {i}: {a!r} vs {b!r}"
+            continue
+        assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"bar {i}: {a} != {b}"
+
+    # Reconstructed nested form from TV "decomposing expressions" demo
+    nested_src = """//@version=6
+indicator("Decomposing expressions demo")
+int length1Input = 20
+int length2Input = 40
+int smoothingInput = 10
+float osc = ta.ema(
+     math.avg(
+         ta.change(close - ta.ema(close, length1Input), length1Input),
+         ta.change(close - ta.ema(close, length2Input), length2Input)
+     ),
+     smoothingInput
+)
+plot(osc, "osc")
+"""
+    r_n = Runtime(symbol="T").run(nested_src, bars, mode="interpret")
+    assert "error" not in r_n, r_n.get("error")
+    osc = r_n["series"]["osc"]
+    assert len(osc) == len(bars)
+    # After max EMA/change windows, expect finite values
+    finite = [v for v in osc if v is not None and isinstance(v, (int, float)) and not math.isnan(v)]
+    assert len(finite) > 10, f"expected warmed osc values, got {len(finite)} finite"

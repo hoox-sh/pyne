@@ -996,13 +996,37 @@ def _line_has_arg_continuation(line: str, lines: list[str], index: int) -> bool:
     return False
 
 
+# Dangling binary/logical op immediately before a closer after scrape repair:
+# ``str.tostring(a) +)`` / ``"session " +)`` / ``cond and)``.
+# Space-bounded so identifiers like ``foo+)`` are untouched; mirrors line polish.
+_DANGLING_BINOP_BEFORE_CLOSER_RE = re.compile(
+    r"\s+(?:and|or|\+|\-|\*|/)\s*(?=[\)\]])"
+)
+
+
+def _strip_dangling_binop_before_closers(text: str) -> str:
+    """Drop incomplete trailing binops glued to ``)`` / ``]`` by closer injection."""
+    return _DANGLING_BINOP_BEFORE_CLOSER_RE.sub("", text)
+
+
 def _close_trailing_opens_on_line(core: str) -> str:
     """Close unclosed ``(`` / ``[`` on a truncated line.
 
     Empty calls (``log.info(``) / trailing commas get a ``na`` placeholder.
     Partial args that already end with a value (``input.int(1, minval=1``) only
     need the matching closers — injecting ``na`` would produce invalid syntax.
+
+    Mid-expression docs scrapes often cut after a binary/logical op inside an
+    open call (``label.new(..., str.tostring(a) +``). Drop that dangling op so
+    the last complete operand remains, then close — never emit invalid ``+)``.
     """
+    # High-confidence truncated scrape: incomplete ``… +`` / ``… and`` at EOL
+    # inside an unclosed call. Prefer stripping the op over inventing ``na`` so
+    # the left operand (already a full string/expr) stays the final arg.
+    mop = _TRAILING_BINOP_RE.match(core.rstrip())
+    if mop:
+        core = mop.group("head")
+
     depth_p = 0
     depth_b = 0
     for ch in core:
@@ -1317,6 +1341,10 @@ def _fix_truncated_syntax(text: str) -> str:
         out.append(line)
         i += 1
     repaired = _append_missing_closers("".join(out))
+    # Closer injection can recreate ``expr +)`` when a multi-line unclosed call
+    # ends on a trailing binop that only got ``na`` on a later pass, or when a
+    # residual ``+`` survived line-local close. Strip dangling ops before closers.
+    repaired = _strip_dangling_binop_before_closers(repaired)
     repaired = _collapse_na_only_control_expr_assignments(repaired)
     return _ensure_truncated_function_arrow(repaired)
 

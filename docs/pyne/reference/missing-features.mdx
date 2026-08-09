@@ -99,7 +99,7 @@ Summarized — full prose in source doc:
 | Bit-identical every recursive smoother vs TV | Numerical bounds, not bits |
 | Dual Runtime host copies (**H1**) | ⚙️ Host surface + dual-host **alerts** export; package-level Runtime unify still open |
 | Warm-compile product path (**H2**) | ✅ SLOs / prewarm / deploy IR cache defaults (2026-08) |
-| Runtime residual (**C1**) | ⚙️ tracked on first-party fixtures; no third-party corpus shipped |
+| Runtime residual (**C1**) | ✅ set01–04 Runtime interpret **100%** excl. EXPECTED_FAIL (2026-08-09); third-party corpus not shipped |
 | Series cap (**T1**) | ✅ `PYNE_SERIES_CAP` default ON |
 | Residual TA inc (**T2**) | ⚙️ Partial — bb/kama/cmo/stochrsi done; nested full-list paths residual |
 | Pending-fill (**F2**) | ✅ R7 interpret + compile goldens |
@@ -113,15 +113,21 @@ v6 launch items (dynamic requests, strict bool, enums, polylines, `log.*`, negat
 
 2025–2026 monthly TV updates introduced footprint types, `active` inputs, multiline strings, `export const`, UDT sort fields — tracked and largely closed in this repo’s July 2026 work.
 
-### Corpus + performance snapshot
+### Corpus + performance snapshot (2026-08-09)
+
+Open-source set01–04 (**2477** scripts; measured locally, **not shipped** in-repo):
 
 | Metric | Value |
 | --- | --- |
-| PARSE_FAIL residual | ~118 files — almost all truncated/non-Pine |
-| Residual RUN_FAIL | ~21 — library `runtime.error` demos, lower-TF guards, long-tail edges |
+| **Parse + unparse** | **99.96%** (2476 / 2477) — residual: 1 intentional invalid line-wrap docs demo |
+| **Runtime interpret** | **100%** excl. EXPECTED_FAIL — 2466 OK + **11** intentional demos |
+| set01 Runtime | **249 / 249 (100%)** |
+| EXPECTED_FAIL class | library `runtime.error` demos, lower-TF security guards, pathological loops, truncated mid-call scrapes |
 | `ta_sma` bar loop (≈3.2k bars) | **~9.5×** vs full recompute |
 | `ta_atr` bar loop | **~10×** |
 | macd+atr+rsi+sma combo | **~8.5×** |
+
+Not TradingView® platform parity. OK% excludes only path-listed intentional demos (never soft-suppress unknown failures).
 
 Plans: `.opencode/plans/2026-07-28-runtime-performance.md`. Skill: `.grok/skills/pynescript-perf/`. Golden: `tests/test_ta_incremental.py`, `tests/test_series_cap.py`.
 

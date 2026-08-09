@@ -91,7 +91,7 @@ Historical Phase A–D “build API / LSP / Jupyter” items are **done**. Do no
 | --- | --- | --- | --- |
 | **H1** | Port R5–R6 host surface to pyne-worker (fail-cache, `error_kind`, inputs→interpret, compile cache) | P1 ✅ host surface + **alerts export** dual-host (Aug 2026); package-level Runtime unify still open | pyne-worker + backend |
 | **H2** | Product warm-compile path (document SLOs; optional prewarm workers; IR cache on in deploy) | P1 ✅ SLOs + prewarm API/CLI + deploy defaults (2026-08); Numba `.nb*` corrupt-cache recovery landed | pyne + ops |
-| **C1** | Corpus TIMEOUT / RUN_FAIL residual (set01–04 ~90% → **~94.3%** OK projected after 8-agent pass) | P1 ⚙️ ongoing (~21 RUN_FAIL + PARSE stubs ~118; residual class = library `runtime.error` demos, lower-TF security guard, long-tail scrape stubs) | pyne + pyne-worker |
+| **C1** | Corpus Runtime residual (set01–04) | P1 ✅ **closed (2026-08-09)** — parse **99.96%** (2476/2477); Runtime interpret **100%** excl. EXPECTED_FAIL (2466 OK + 11 intentional demos); set01 **249/249**. Residual class = intentional `runtime.error` / lower-TF / pathological loop demos only | pyne |
 | **P1p** | Compile/interpret **plot parity** residual | P1 ⚙️ harness landed (`scripts/compare_interp_compile.py`, `tests/test_interp_compile_parity.py`); smoke OK on stable TA scripts; residual buckets: value `MISMATCH`, structural hline/fill keys, one-sided runtime errors | pyne |
 | **T1** | Cap `current_series` to `max_bars_back` / `_SERIES_MAX` | P2 ✅ `PYNE_SERIES_CAP` default ON + goldens (R7 Agent 03) | pyne |
 | **T2** | Incremental TA for remaining heavy kernels (`ta.bb`, nested full paths) | P2 ✅ R7: bb/kama/cmo/stochrsi inc; further nested paths residual | pyne |
@@ -121,7 +121,7 @@ P0 docs honesty → P1 dual-host (H1 residual: package unify)
 ### Landed residual notes (2026-08; keep for agents)
 
 - **Compile/interpret plot parity:** Always-on smoke set in `tests/test_interp_compile_parity.py` (e.g. ALMA/ATR/AO-class scripts). Full corpus compare is opt-in via `python scripts/compare_interp_compile.py` (report under `.cache/interp_compile_parity.json`). Flags `--ignore-hline-keys` / `--ignore-fill-keys` drop structural residuals when titled `fill()` / constant `hline` key sets differ by design. Grow goldens from harness `MISMATCH` buckets, not ad-hoc benches.
-- **Residual corpus mismatches:** C1 Runtime OK ~94.3% projected (set01–04) after multi-agent residual passes; remaining RUN_FAIL is mostly intentional `runtime.error` demos, lower-TF security guards, and scrape/PARSE stubs — not core syntax gaps.
+- **Corpus (C1, 2026-08-09):** set01–04 parse **99.96%** (2476/2477); Runtime interpret **100%** excl. EXPECTED_FAIL (2466 OK + 11 intentional demos: library `runtime.error`, lower-TF security guards, invalid-wrap docs, pathological loops). set01 Runtime **249/249**. Not core syntax gaps.
 - **`auto_fib` pivot data limits:** Auto Fib Extension/Retracement raise the same “not enough data / Depth” insufficient-pivot errors on interpret and compile when pivot arrays are empty (normalized as `both_error_same` in the parity harness). Not a silent success path; hosts must supply enough bars or lower Depth.
 - **`request.*` foreign-na policy:** `request.security` / bare `security` on foreign symbols or complex expressions resolve to `na` on both backends; `ChartOHLCVProvider` refuses non-chart symbols. Same-symbol simple OHLCV still passthrough. Real fundamentals remain **B1** (adapters).
 

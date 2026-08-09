@@ -26,14 +26,14 @@ description: "PYNE forward plan — dual-host residual, runtime residual, plot p
 
 ## Abstract
 
-The roadmap is a **living prioritization document**, not a contract. Source: `docs/ROADMAP.md` (updated **2026-08-03**). Core v6 language/builtins are essentially closed. Product **warm-compile (H2)**, **series caps (T1)**, **pending-fill (F2)**, and **L2 webhooks** have **landed**. What remains: **dual-host package-level Runtime unify (H1 residual)**, **runtime residual (C1)**, **interpret↔compile plot residuals (P1p harness landed)**, residual nested TA (**T2** partial), and optional **TV-oracle re-baselines (F1)**.
+The roadmap is a **living prioritization document**, not a contract. Source: `docs/ROADMAP.md` (updated **2026-08-09**). Core v6 language/builtins are essentially closed. Product **warm-compile (H2)**, **series caps (T1)**, **pending-fill (F2)**, **L2 webhooks**, and **corpus Runtime residual (C1)** have **landed** (set01–04 parse **99.96%**, Runtime interpret **100%** excl. intentional demos). What remains: **dual-host package-level Runtime unify (H1 residual)**, **interpret↔compile plot residuals (P1p harness landed)**, residual nested TA (**T2** partial), and optional **TV-oracle re-baselines (F1)**.
 
 ## Conceptual model
 
 ```text
 P0 docs honesty → P1 dual-host (H1 residual: package unify)
-                → P1 plot parity residual (P1p) + C1 corpus tail
-                → H2 warm compile ✅ · T1 series caps ✅ · F2 pending-fill ✅
+                → P1 plot parity residual (P1p)
+                → H2 warm compile ✅ · T1 series caps ✅ · F2 pending-fill ✅ · C1 corpus ✅
                               ↘ T2 residual nested TA · F1 ATR/supertrend goldens
                                   → P6 long-horizon (L1 / L3; L2 ✅)
 ```
@@ -42,7 +42,7 @@ P0 docs honesty → P1 dual-host (H1 residual: package unify)
 flowchart LR
   DONE[Core parser + evaluator] --> H1[H1 dual-host residual]
   DONE --> P1p[P1p plot parity residual]
-  DONE --> C1[C1 corpus tail]
+  C1[C1 corpus set01-04 ✅] --> DONE
   H2[H2 warm compile ✅] --> OPS[Deploy SLOs]
   T1[T1 series caps ✅] --> PERF[Bar-loop hygiene]
   L2[L2 webhooks ✅] --> HOST[Pro + edge export]
@@ -90,7 +90,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | **H1** | Dual-host Runtime (host surface + alerts export dual-host ✅; package-level unify open) | P1 | ⚙️ residual |
 | **H2** | Product warm-compile (SLOs, prewarm API/CLI, IR cache on in deploy) | P1 | ✅ |
-| **C1** | Runtime residual (first-party fixtures; no third-party corpus shipped) | P1 | ⚙️ ongoing |
+| **C1** | Corpus set01–04 residual (parse 99.96%; Runtime 100% excl. EXPECTED) | P1 | ✅ 2026-08-09 |
 | **P1p** | Compile/interpret **plot parity** residual | P1 | ⚙️ harness landed (`scripts/compare_interp_compile.py`, `tests/test_interp_compile_parity.py`) |
 | **T1** | Cap `current_series` to `max_bars_back` / `_SERIES_MAX` | P2 | ✅ `PYNE_SERIES_CAP` default ON |
 | **T2** | Incremental TA for remaining heavy kernels | P2 | ✅ partial (bb/kama/cmo/stochrsi; nested full paths residual) |
@@ -107,14 +107,14 @@ Longer horizon (not next): ML wrappers, automatic refactor, parallel/distributed
 
 | Horizon | Focus |
 | --- | --- |
-| Short | H1 package unify residual, **P1p** plot MISMATCH goldens, **C1** corpus tail |
+| Short | H1 package unify residual, **P1p** plot MISMATCH goldens |
 | Medium | **T2** residual nested TA; optional **F1** ATR/supertrend goldens |
 | Long | **L1** converter maturity; **L3** TS pine-worker parity (**L2** ✅) |
 
 ### Landed residual notes (2026-08)
 
 - **Plot parity:** Always-on smoke in `tests/test_interp_compile_parity.py`. Full corpus compare: `python scripts/compare_interp_compile.py` → `.cache/interp_compile_parity.json`. Flags `--ignore-hline-keys` / `--ignore-fill-keys` drop structural residuals.
-- **Runtime residual (C1):** tracked on first-party fixtures; third-party corpora are not shipped.
+- **Corpus residual (C1):** set01–04 parse **99.96%** (2476/2477); Runtime interpret **100%** excl. EXPECTED_FAIL (2466 OK + 11 intentional demos); set01 **249/249**. Third-party corpora are not shipped in git.
 - **Foreign-na:** `request.security` on foreign/complex expressions → `na` both backends; `ChartOHLCVProvider` refuses non-chart symbols.
 
 ## Internals

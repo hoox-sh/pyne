@@ -579,6 +579,68 @@ plot(1)
     _roundtrip(cleaned)
 
 
+def test_repairs_truncated_concat_call_at_eof() -> None:
+    """set04 arrays.md scrape: ``label.new(..., str.tostring(a) +`` at EOF.
+
+    Unclosed call + trailing ``+`` must not become invalid ``+)``; drop the
+    dangling op and close so the left operand remains the final string arg.
+    """
+    raw = """//@version=6
+indicator("Searching in arrays")
+valueInput = input.int(1)
+a = array.new<float>(0)
+array.push(a, 0)
+if barstate.islast
+    valueFound = array.includes(a, valueInput)
+    label.new(bar_index, 0, "a: " + str.tostring(a) +
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "+)" not in cleaned
+    assert re.search(r'str\.tostring\(a\)\s*\)', cleaned)
+    assert "valueFound" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_repairs_truncated_session_label_concat_at_eof() -> None:
+    """set04 sessions.md scrape: incomplete string concat after ``+`` at EOF."""
+    raw = """//@version=6
+indicator("Session bar checker", overlay = true)
+string sessionInput = input.session(defval = "0900-1130", title = "Session")
+bool isBarOpenInSession = not na(time("", sessionInput))
+if isBarOpenInSession
+    label.new(x = bar_index, y = high, text = "Bar open: " + str.format_time(time, "HH:mm") + "\\nis in session " +
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "+)" not in cleaned
+    assert "is in session" in cleaned
+    assert "label.new" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_does_not_fix_intentional_invalid_line_wrap_demo() -> None:
+    """0768 invalid wrap demo must stay a failed wrap (docs intentional error)."""
+    from pynescript.ast.error import SyntaxError as PineSyntaxError
+
+    raw = """//@version=6
+indicator("Invalid line wrap demo", overlay = true)
+float median = 0.5 
+    * ( 
+    ta.highest(20) + ta.lowest(20)
+)
+plot(median)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    # Must not collapse the intentional bad wrap into a single-line expression
+    # or strip the leading ``*`` continuation that documents the error.
+    assert re.search(r"0\.5\s*\n\s+\*", cleaned)
+    try:
+        parse(cleaned)
+        raised = False
+    except PineSyntaxError:
+        raised = True
+    assert raised, "intentional invalid wrap must still fail to parse"
+
+
 def test_repairs_truncated_typed_function_header() -> None:
     """Docs scrapes often cut after parameter list with no ``=>`` body."""
     raw = """//@version=6

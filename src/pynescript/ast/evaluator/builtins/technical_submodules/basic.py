@@ -512,29 +512,39 @@ class BasicIndicators(TechnicalHelpers):
         TradingView: ``ta.dmi(diLength, adxSmoothing) → [+DI, -DI, ADX]`` using
         chart high/low/close. Legacy 4-arg ``(high, low, close, length)`` still
         accepted (adxSmoothing defaults to diLength).
+
+        Period soft-na (corpus residual): ``na`` / unresolved length names →
+        ``[na, na, na]`` rather than hard-fail (matches ``ta.sma`` / ``_expect_period``).
         """
         import math
 
         if len(args) == BINARY:
-            di_len = self._expect_int(args[0], "ta.dmi diLength must be int")
-            adx_smooth = self._expect_int(args[1], "ta.dmi adxSmoothing must be int")
+            di_len = self._expect_period(args[0], "ta.dmi diLength must be int")
+            adx_smooth = self._expect_period(args[1], "ta.dmi adxSmoothing must be int")
+            # na length → soft-na before materializing chart series (None so nz/na() work)
+            if di_len < 1 or adx_smooth < 1:
+                return None, None, None  # type: ignore[return-value]
             highs = self._context_series("high")
             lows = self._context_series("low")
             closes = self._context_series("close")
         elif len(args) == QUATERNARY:
+            # Soft-na when length or any OHLC leg is pure na (TV yields na;
+            # also covers mis-dispatched bare ``dmi`` with unresolved series).
+            di_len = self._expect_period(args[3], "ta.dmi takes high, low, close series and length")
+            if di_len < 1:
+                return None, None, None  # type: ignore[return-value]
+            if args[0] is None or args[1] is None or args[2] is None:
+                return None, None, None  # type: ignore[return-value]
             highs = self._expect_list(args[0], "ta.dmi takes high, low, close series and length")
             lows = self._expect_list(args[1], "ta.dmi takes high, low, close series and length")
             closes = self._expect_list(args[2], "ta.dmi takes high, low, close series and length")
-            di_len = self._expect_int(args[3], "ta.dmi takes high, low, close series and length")
             adx_smooth = di_len
         else:
             self._error("ta.dmi takes (diLength, adxSmoothing) or (high, low, close, length)")
-            return math.nan, math.nan, math.nan
+            return None, None, None  # type: ignore[return-value]
 
-        if di_len < 1:
-            self._error("ta.dmi length must be positive")
         if not (len(highs) == len(lows) == len(closes)) or not highs:
-            return math.nan, math.nan, math.nan
+            return None, None, None  # type: ignore[return-value]
 
         if self._use_incremental_ta():
             return self._dmi_inc_update(highs, lows, closes, di_len, adx_smooth)

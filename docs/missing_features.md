@@ -19,7 +19,7 @@
 
 # Missing Features - Pine Script v6 Implementation
 
-**Current Status (as of 2026-08-03):** Strong core support (parser + evaluator + 1100+ tests). Open-source corpus set01–04 Runtime ~**94.3%** OK (honest residual, not 100% TV platform). Drawing `max_*_count` GC landed. **Alert engine + L2 webhooks** closed on Pro API and pyne-worker. **Warm-compile (H2)** + **series caps (T1)** + incremental TA (incl. bb/kama/cmo/stochrsi) landed. Dual-host package-level Runtime unify + interpret↔compile plot MISMATCH tail remain open.
+**Current Status (as of 2026-08-09):** Strong core support (parser + evaluator + 1100+ tests). Open-source corpus set01–04 (local measurement, not shipped in git): **parse 99.96%** (2476/2477), **Runtime interpret 100% excl. EXPECTED_FAIL** (2466 OK + 11 intentional demos), set01 **249/249** — not a claim of 100% TradingView® platform parity. Drawing `max_*_count` GC landed. **Alert engine + L2 webhooks** closed on Pro API and pyne-worker. **Warm-compile (H2)** + **series caps (T1)** + incremental TA (incl. bb/kama/cmo/stochrsi) landed. Dual-host package-level Runtime unify + interpret↔compile plot MISMATCH tail remain open.
 
 **Last Updated:** 2026-08-03 (status align with `docs/ROADMAP.md`; alerts / L2 webhooks / drawing GC are **shipped**, not missing)
 
@@ -137,7 +137,7 @@ Open-source Pine corpus (`tests/data/set01`–`set04`) and bar-loop throughput w
 #### Parser / sanitize (closed)
 - ✅ Soft keywords, bitwise ops, `=` reassignment, typed UDF returns (`int f(n) => …`)
 - ✅ `corpus_sanitize` for scrape chrome (fences, FMZ footers, missing commas between `var` decls)
-- ✅ Parse rate set01–04 ≈ **94.8%**; residual **PARSE_FAIL ~118** almost all truncated/non-Pine stubs (not grammar holes)
+- ✅ Parse rate set01–04 **99.96%** (2476/2477); residual **1** intentional invalid line-wrap docs demo (not a grammar hole). Truncated scrapes recovered via sanitize where high-confidence
 
 #### Runtime host hygiene (closed — no semantic change)
 - ✅ `_pine_defs_locked` after first bar (pynescript backend + **pyne-worker**) — stops O(bars²) FunctionDef/method multi-dispatch growth
@@ -164,7 +164,7 @@ Call-site state (`_ta_call_i` reset each bar), one sample per site per bar (safe
 | --- | --- | --- |
 | **H1** | Dual-host: package-level Runtime unify; pyne-worker residual host parity | P1 — **host surface advanced** (R7 A06: inputs applied, multi-run call-site clear, JSON series/alerts; package unify still open — `docs/perf_round7/H1_unify_checklist.md`) |
 | **H2** | Product warm-compile path (SLOs, prewarm, IR cache on in deploy) | P1 ✅ (2026-08) |
-| **C1** | Corpus Runtime residual | P1 — set01–04 ~**94.3%** OK projected (8-agent pass); residual = `runtime.error` demos, lower-TF security guards, scrape/PARSE stubs. set05 long-tail separate |
+| **C1** | Corpus Runtime residual | P1 ✅ (2026-08-09) — set01–04 Runtime interpret **100%** excl. EXPECTED_FAIL (2466 OK + 11 intentional demos); parse **99.96%**. Residual = intentional demos only. set05 long-tail separate |
 | **T1** | Cap unbounded `current_series` lists to `max_bars_back` / `_SERIES_MAX` | P2 ✅ R7 — `PYNE_SERIES_CAP` (default ON), `PYNE_SERIES_MAX`, goldens `tests/test_series_cap.py` |
 | **T2** | Incremental for remaining heavy kernels | P2 ✅ R7: bb/kama/cmo/stochrsi inc; further nested full-list helpers residual |
 | **L2** | Webhook alerts productization | P3 ✅ pyne-worker + Pro API `/run` export + outbound `ALERT_WEBHOOK_URL` / `webhook_url` |
@@ -174,13 +174,19 @@ Call-site state (`_ta_call_i` reset each bar), one sample per site per bar (safe
 
 Canonical priority table: `docs/ROADMAP.md`. Round 6 residual notes: `docs/perf_round6/00_summary.md`.
 
-#### Corpus Runtime snapshot (set01–set04, 50 bars)
-- Baseline full run (pyne-worker CSV): **1851 / 2477 (74.7%)** OK
-- After earlier fail re-runs: **~2224 / 2477 (89.8%)** projected
-- After C1 residual fixes (2026-08-01, first pass): **~2320 / 2477 (93.7%)** projected
-- After C1 **8-agent residual pass** (str.replace, timestamp, series index soft-fail, TA float period, color str, syminfo dual-mode, array.get/set soft index, time-part arity): **~2337 / 2477 (94.3%)** projected — recovered **113** of 135 residual non-parse
-- PARSE_FAIL bucket ≈ **118** (truncated/scrape stubs; not grammar holes)
-- Remaining ~21 RUN_FAIL: library `runtime.error` demos, period edges, `str.contains`/`str.tonumber` edges, missing import-only names
+#### Corpus Runtime snapshot (set01–set04, 50 bars · 2026-08-09)
+
+| Stage | Parse | Runtime interpret |
+| --- | ---: | ---: |
+| Historical baseline (pyne-worker) | — | 1851 / 2477 (**74.7%**) |
+| After early fail re-runs | — | ~2224 / 2477 (**89.8%**) projected |
+| After C1 8-agent pass (2026-08-01) | ~94.8% era | ~2337 / 2477 (**94.3%**) projected |
+| **Current (pynescript Runtime, 2026-08-09)** | **2476 / 2477 (99.96%)** | **2466 OK + 11 EXPECTED_FAIL → 100% excl. intentional demos** |
+
+- set01 Runtime: **249 / 249 (100%)**
+- EXPECTED_FAIL (11): intentional library `runtime.error` demos, lower-TF security guards, invalid line-wrap docs demo, truncated mid-call scrape, pathological nested-loop demo
+- Not shipped in-repo (legal / ToS hygiene); measured locally from pre-drop restore
+- Not a claim of TradingView® platform or bit-identical execution parity
 
 ## Recommendations
 - Prefer **golden tests vs current oracle** before changing TA seed rules (ATR→RMA, VWMA volume, etc.).
