@@ -11,9 +11,12 @@ H1 host unify: [`docs/perf_round7/H1_unify_checklist.md`](../perf_round7/H1_unif
 | **Runtime SoT** | `src/pynescript/runtime/` (`host.py`, `evaluator.py`, `series.py`) | Package owns the bar loop. `backend.runtime` / `backend.evaluator` / `backend.series` re-export / shim the same implementation. Smoke: `tests/test_runtime_package.py`. |
 | **EMA seed unified** | interpret full `_ema` + `_ema_inc_update` + Numba | SMA seed over first `period` finite samples (na until ready). Closes prior full-list first-value vs incremental SMA split. |
 | **`from_entry` (interpret)** | `strategy.exit` + pending fills | Filters open-trade legs; unknown id soft no-op. Covered in `tests/test_order_fills.py`. |
-| **`from_entry` (compile multi-leg)** | `CompileStrategyBroker` `open_legs` | Per-entry legs for pyramid exits; unknown soft no-op. Market exit without stop/limit still maps id only (residual). |
+| **`from_entry` (compile multi-leg)** | `CompileStrategyBroker` `open_legs` | Per-entry legs for pyramid exits; unknown soft no-op. |
+| **Compile market exit `from_entry` emit** | `compiler.py` strategy.exit | Always emits `from_entry=` (market and bracket); no longer remaps to bare `id`. |
+| **Compile risk + trade queries** | `strategy_broker.py` + `compiler.py` | `risk.allow_entry_in` / `max_position_size` wired; `opentrades`/`closedtrades` counts + common fields from `open_legs` / `closed_trade_records`. |
 | **`qty_percent` on exit** | interpret + compile `close` | Percent of target size; wins over `qty`; edge caps documented. |
-| **Trail (interpret, minimal)** | `trail_offset` / `trail_points` / optional `trail_price` | Ratcheting stop on pending fills. Compile does not trail. |
+| **Trail (interpret + compile, minimal)** | `trail_offset` / `trail_points` / optional `trail_price` | Ratcheting stop on pending fills (both paths). OHLC approx only. |
+| **`request.security` honesty** | `request.py` + Runtime `meta.request_security` | Policies recorded (complex HTF na, chart stub, gaps/lookahead unused); no fake HTF re-eval. |
 | **TA goldens / incremental in CI** | `.github/workflows/ci.yml` Core runtime | Gates: `tests/test_ta_incremental.py`, `tests/test_first_party_ta_goldens.py`, `tests/test_runtime_package.py` (plus prior parity/strategy/series set). |
 | **pine-worker series polarity** | `pine-worker/src/evaluator/series.ts` | `series[1]` = previous bar; negatives → NA. README notes Python Runtime SoT. |
 | **Wave B semantics (prior)** | strategy pending exit, `ta.atr` RMA, `varip` partial, series bind, linter C004 | See `WAVE_B_STATUS.md`. |
@@ -22,11 +25,10 @@ H1 host unify: [`docs/perf_round7/H1_unify_checklist.md`](../perf_round7/H1_unif
 
 | Item | Pri | Notes |
 |------|-----|-------|
-| **Compile trail** / tick-path trail | P2 | Interpret trail is minimal OHLC ratchet only. |
-| **Compile market exit `from_entry` emit** | P2 | Visitor should pass `from_entry=` for market exits without stop/limit. |
+| **Tick-path trail** | P2 | Minimal OHLC ratchet only (interpret + compile). |
 | **pine-worker full Runtime** | P2 | Series polarity fixed; still experimental evaluator, not package Runtime. |
-| **`request.security` HTF** | P2 | Not a full higher-timeframe re-eval engine. |
-| **`strategy.risk.*` / trade queries (compile)** | P2 | Several risk calls no-op; open/closed trade accessors incomplete on compile broker. |
+| **True HTF re-eval** | P2 | Honesty meta landed; still not a multi-timeframe engine. |
+| **Full risk halt cascade (compile)** | P2 | Partial: allow_entry_in + max_position_size. Still stub: max_drawdown risk / max_cons_loss_days / max_intraday_* / per-trade max_dd·runup·comments. |
 | **Full `varip` tick model** | P2 | Historical OK; needs live `barstate.isrealtime` host. |
 
 ## Quick smoke (local / CI-aligned)

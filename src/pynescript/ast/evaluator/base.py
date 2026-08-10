@@ -86,6 +86,12 @@ _MATH_CONSTANTS = {
     # array/matrix sort order (Reference Pine: ascending=1, descending=-1)
     "order.ascending": 1,
     "order.descending": -1,
+    # barmerge.* for request.security gaps/lookahead (compile emits True/False;
+    # interpret accepts the constants but does not implement gap-fill/lookahead).
+    "barmerge.gaps_on": True,
+    "barmerge.gaps_off": False,
+    "barmerge.lookahead_on": True,
+    "barmerge.lookahead_off": False,
     # plotshape / plotchar style & location (compiler emits attr name; interpret needs context)
     "shape.arrowup": "arrowup",
     "shape.arrowdown": "arrowdown",

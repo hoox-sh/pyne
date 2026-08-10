@@ -20,26 +20,38 @@ This page documents **semantic differences** between pynescript and **reference 
 |-------|--------|
 | Pending stop/limit brackets + OCA | **Fixed** (Wave B) — OHLC / `process_pending_orders`; market exit (no stop/limit/trail) still closes immediately |
 | `from_entry` (interpret) | **Fixed** — filters open-trade legs; unknown id is soft no-op (`tests/test_order_fills.py`) |
-| `from_entry` (compile) | **Mostly fixed** — `open_legs` multi-leg selection for stop/limit exits; market exit without levels may still map `id` only (compiler residual) |
+| `from_entry` (compile) | **Fixed** — compiler emits `from_entry=` for market and stop/limit exits; multi-leg filter on compile broker (`tests/test_compiler_strategy.py`) |
 | `qty_percent` on exit | **Fixed** (interpret + compile `close`) — `%` of target (whole pos or `from_entry`); wins over `qty`; `≤0`/na → no-op; `>100` capped at 100% |
-| Trail stops (`trail_*`) | **Minimal (interpret)** — `trail_offset` / `trail_points` (ticks × mintick) + optional `trail_price` activation; stop ratchets from bar high/low in `process_pending_orders`. Compile path does **not** trail. OHLC path approx (no tick path). |
+| Trail stops (`trail_*`) | **Minimal (interpret + compile)** — `trail_offset` / `trail_points` (ticks × mintick) + optional `trail_price` activation; stop ratchets from bar high/low in `process_pending_orders` / compile `PendingOrder`. OHLC path approx (no tick path). |
 | `profit` / `loss` | **Residual** — still coerced as prices (not tick offsets from entry avg) |
 
 **Track:** audit AGENT_03 / AGENT_04; sprint residual backlog.
 
-### `strategy.risk.*` mostly no-op on compile path
+### `strategy.risk.*` partial on compile path
 
-**pynescript compile/Numba broker:** several `strategy.risk.*` calls are silent no-ops.
+**pynescript compile broker (`CompileStrategyBroker`):**
 
-**Impact:** risk-capped strategies look unconstrained under compile mode.
+| Call | Compile status |
+|------|----------------|
+| `strategy.risk.allow_entry_in` | **Wired** — stores state; blocks opposite-direction entries (`risk_blocked`) |
+| `strategy.risk.max_position_size` | **Wired** — caps entry qty to `%` of equity at fill price |
+| `strategy.risk.max_drawdown` / `max_cons_loss_days` / `max_intraday_*` | **Still no-op** (not full TV risk engine) |
 
-**Track:** audit AGENT_04.
+**Impact:** risk-capped strategies that rely only on allow_entry_in / max_position_size can share interpret-like constraints; other risk gates remain unconstrained under compile.
 
-### Open/closed trade query surface incomplete (compile)
+**Track:** audit AGENT_04; tests in `tests/test_compiler_strategy.py`.
 
-Many `strategy.opentrades.*` / `strategy.closedtrades.*` accessors return zeros on the compile broker.
+### Open/closed trade query surface (compile) — partial honesty
 
-**Track:** audit AGENT_04.
+**Real (from `open_legs` / `closed_trade_records`):**
+
+- counts: `strategy.opentrades` → `open_entry_count`; `strategy.closedtrades` → `closed_trades`
+- open: `size`, `entry_price`, `entry_id`, `entry_bar_index`, `entry_time`, `commission`, `profit` (MTM)
+- closed: `profit`, `size`, `entry_price`, `exit_price`, `commission`, `entry_id`, `exit_id`, `entry/exit_bar_index`, `entry/exit_time`
+
+**Still stub (zeros / empty):** per-trade `max_drawdown` / `max_runup`, entry/exit comments.
+
+**Track:** audit AGENT_04; `tests/test_compiler_strategy.py` (`TestCompileTradeQueries`).
 
 ---
 
@@ -87,11 +99,33 @@ When the host omits quotes, bid/ask may default to fixed mock values (`100.01` /
 
 ### `request.security` is not a full HTF re-eval engine
 
-Gaps, lookahead flags, and true higher-timeframe series re-evaluation are incomplete or unused in places. Fundamentals/footprint paths may be mocked.
+**Reference Pine:** `request.security(symbol, timeframe, expression, gaps, lookahead)` re-evaluates *expression* on another symbol/timeframe series; `barmerge.gaps_*` controls na gaps vs fill; `barmerge.lookahead_*` controls whether the security series can peek at the forming HTF bar.
 
-**Impact:** MTF indicators and security-based strategies diverge from reference Pine multi-timeframe behavior.
+**pynescript (current — honest limited surface):**
 
-**Track:** audit AGENT_03.
+| Case | Behavior |
+|------|----------|
+| Foreign ticker + host chart wired + no multi-symbol feed hit | **`na`** (no mock invent; matches compile foreign-na) |
+| Same-symbol + **complex** pre-eval (UDF / `ta.*`) + request TF ≠ chart TF | **`na`** — no multi-TF re-eval engine (do not invent HTF structure) |
+| Same-symbol + **simple OHLCV** (or same TF as chart) | Chart series **passthrough** / provider series. Different TF is a **chart-TF stub**, not true HTF aggregation |
+| Same-symbol `ticker.heikinashi` | Chart OHLC → Heikin-Ashi transform (not raw chart candles) |
+| `barmerge.gaps_on` / `gaps_off` | **Accepted, unused** — no gap-fill / na-gap series |
+| `barmerge.lookahead_on` / `lookahead_off` | **Accepted, unused** — no lookahead offset |
+| Fundamentals / footprint / dividends / … | Mock or soft-fail (see module docstring) |
+| Standalone evaluator (no chart identity) | Legacy mock OHLCV for bare string series names (offline demos) |
+
+Runtime **interpret** results expose honesty metadata when any `request.security` ran:
+
+- `meta.request_security.htf_reeval` → always `false`
+- `meta.request_security.gaps_supported` / `lookahead_supported` → always `false`
+- `meta.request_security.policies` → tags such as `complex_htf_na`, `chart_passthrough_htf_stub`, `foreign_na`, `gaps_lookahead_unused`, `same_tf_chart_eval`, …
+- `meta.request_security.notes` → short product notes (same text as evaluator)
+
+Regression coverage: `tests/test_request_data_feed.py` (foreign-na, complex HTF na, HTF OHLCV stub, gaps/lookahead unused, Runtime meta).
+
+**Impact:** MTF indicators and security-based strategies that need true HTF re-eval, gaps, or lookahead diverge from reference Pine. Prefer `na` / chart-only stubs over silent wrong HTF structure.
+
+**Track:** audit AGENT_03; full multi-TF host engine is out of product scope until explicitly scheduled.
 
 ---
 

@@ -612,8 +612,8 @@ plot(request.security(syminfo.tickerid, "D", close), title="sec")
 class TestCompileCoverageSprint3:
     """Sprint 3 high-ROI compile surface."""
 
-    def test_strategy_exit_no_duplicate_id_kwarg(self) -> None:
-        """strategy.exit first arg is exit name; from_entry → id (no repeated id=)."""
+    def test_strategy_exit_emits_from_entry_not_id(self) -> None:
+        """strategy.exit first arg is exit name; from_entry stays from_entry=."""
         src = """//@version=5
 strategy("x")
 if bar_index == 10
@@ -623,16 +623,21 @@ if bar_index == 20
 plot(strategy.position_size, title="ps")
 """
         code = transpile(src)
-        assert "id=" in code
-        # Must not emit two id= kwargs on the same call
         close_lines = [ln for ln in code.splitlines() if "__strategy.close(" in ln]
         assert close_lines, code
         for ln in close_lines:
-            assert ln.count("id=") == 1, ln
-            assert "from_entry=" not in ln
-            assert "id='L'" in ln or 'id="L"' in ln or "id='L'" in ln.replace('"', "'")
+            # Exit order name → comment; entry filter → from_entry (not id=)
+            assert "from_entry=" in ln, ln
+            assert "id=" not in ln or "from_entry=" in ln
+            # Must not emit bare id= for the entry filter (would break market exits)
+            assert "from_entry='L'" in ln or 'from_entry="L"' in ln or "from_entry='L'" in ln.replace(
+                '"', "'"
+            ), ln
+            assert "comment=" in ln
             assert "loss=10" in ln
             assert "profit=20" in ln
+            # No duplicate from_entry=
+            assert ln.count("from_entry=") == 1, ln
         # Compiles and runs without SyntaxError
         compiled = compile_script(src)
         o, h, l, c, v = _ohlcv(30)

@@ -1647,6 +1647,38 @@ class Runtime:
         }
         if drawing_limits:
             meta_out.update(drawing_limits)
+        # request.security honesty: policies when no real HTF / multi-symbol feed
+        # (complex_htf_na, chart_passthrough_htf_stub, gaps_lookahead_unused, …).
+        try:
+            sec_pol = getattr(evaluator, "_request_security_policy", None)
+            if not isinstance(sec_pol, dict):
+                ctx_ev = getattr(evaluator, "context", None) or {}
+                sec_pol = ctx_ev.get("request.security_policy") if isinstance(ctx_ev, dict) else None
+            if isinstance(sec_pol, dict) and sec_pol.get("calls"):
+                # Shallow JSON-safe copy (counts + first-seen scalars only).
+                safe_pol: dict[str, Any] = {
+                    "htf_reeval": bool(sec_pol.get("htf_reeval")),
+                    "gaps_supported": bool(sec_pol.get("gaps_supported")),
+                    "lookahead_supported": bool(sec_pol.get("lookahead_supported")),
+                    "calls": int(sec_pol.get("calls") or 0),
+                    "notes": list(sec_pol.get("notes") or []),
+                    "policies": {},
+                }
+                raw_pols = sec_pol.get("policies") or {}
+                if isinstance(raw_pols, dict):
+                    for tag, entry in raw_pols.items():
+                        if not isinstance(entry, dict):
+                            continue
+                        safe_entry: dict[str, Any] = {}
+                        for k, v in entry.items():
+                            if isinstance(v, (str, int, float, bool)) or v is None:
+                                safe_entry[k] = v
+                            else:
+                                safe_entry[k] = str(v)
+                        safe_pol["policies"][str(tag)] = safe_entry
+                meta_out["request_security"] = safe_pol
+        except Exception:
+            pass
         interpret_out: dict[str, Any] = {
             "plots": final_series,
             "series": series_map,

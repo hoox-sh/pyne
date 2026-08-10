@@ -275,7 +275,8 @@ plot(strategy.leverage, title="lev")
 
 
 class TestStrategyRiskAndQtyNameErrors:
-    def test_risk_methods_are_noop(self) -> None:
+    def test_risk_methods_partial_noop(self) -> None:
+        """max_cons_loss_days / risk max_drawdown still no-op; series max_drawdown real."""
         src = """//@version=5
 strategy("t")
 strategy.risk.max_cons_loss_days(15)
@@ -291,6 +292,34 @@ plot(strategy.max_drawdown, title="dd")
         out = compiled.run(o, h, l, c, v)
         assert "dd" in out
 
+    def test_risk_allow_entry_in_blocks_short(self) -> None:
+        """strategy.risk.allow_entry_in(long) blocks short entries on compile path."""
+        src = """//@version=6
+strategy("t")
+strategy.risk.allow_entry_in(strategy.long)
+if bar_index == 0
+    strategy.entry("S", strategy.short, qty=2)
+plot(strategy.position_size, title="ps")
+"""
+        code = transpile(src)
+        assert "risk_allow_entry_in" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(5)
+        out = compiled.run(o, h, l, c, v)
+        assert out["ps"][-1] == 0.0 or out["__position_size"] == 0.0
+        blocked = [e for e in out["__events"] if e.get("comment") == "risk_blocked"]
+        assert blocked
+
+    def test_risk_max_position_size_caps_qty(self) -> None:
+        """max_position_size(percent) caps entry notional vs equity."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0)
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.risk_max_position_size(10.0)  # 10% of 10k = 1000 → max 10 contracts at 100
+        b.entry("L", "long", 50.0)
+        assert b.position_size == pytest.approx(10.0)
+
     def test_default_entry_qty_stub(self) -> None:
         src = """//@version=5
 strategy("t")
@@ -303,6 +332,108 @@ plot(qty, title="q")
         o, h, l, c, v = _ohlcv(12)
         out = compiled.run(o, h, l, c, v)
         assert abs(out["q"][-1] - 1.0) < 1e-9
+
+
+class TestCompileTradeQueries:
+    """Honest opentrades / closedtrades surface from open_legs / closed records."""
+
+    def test_broker_opentrades_from_open_legs(self) -> None:
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0, pyramiding=1)
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0, bar_time=1_000)
+        b.entry("A", "long", 2.0)
+        b.begin_bar(1, 110.0, 110.0, 110.0, 110.0, bar_time=2_000)
+        b.entry("B", "long", 3.0)
+        assert b.open_entry_count == 2
+        assert b.opentrades_size(0) == pytest.approx(2.0)
+        assert b.opentrades_size(1) == pytest.approx(3.0)
+        assert b.opentrades_entry_price(0) == pytest.approx(100.0)
+        assert b.opentrades_entry_price(1) == pytest.approx(110.0)
+        assert b.opentrades_entry_id(0) == "A"
+        assert b.opentrades_entry_id(1) == "B"
+        assert b.opentrades_entry_bar_index(0) == 0
+        assert b.opentrades_entry_bar_index(1) == 1
+        # MTM at bar1 close 110: leg A = (110-100)*2 = 20
+        assert b.opentrades_profit(0) == pytest.approx(20.0)
+        assert b.opentrades_profit(1) == pytest.approx(0.0)
+
+    def test_broker_closedtrades_profit_and_size(self) -> None:
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0)
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0, bar_time=500)
+        b.entry("L", "long", 4.0)
+        b.begin_bar(1, 120.0, 120.0, 120.0, 120.0, bar_time=600)
+        b.close("L")
+        assert b.closed_trades == 1
+        assert len(b.closed_trade_records) == 1
+        assert b.closedtrades_profit(0) == pytest.approx(80.0)
+        assert b.closedtrades_size(0) == pytest.approx(4.0)
+        assert b.closedtrades_entry_price(0) == pytest.approx(100.0)
+        assert b.closedtrades_exit_price(0) == pytest.approx(120.0)
+        assert b.closedtrades_entry_id(0) == "L"
+        assert b.closedtrades_entry_bar_index(0) == 0
+        assert b.closedtrades_exit_bar_index(0) == 1
+        assert b.closedtrades_profit(1) == 0.0  # OOB
+
+    def test_compile_script_trade_query_plots(self) -> None:
+        src = """//@version=6
+strategy("t", pyramiding=1)
+if bar_index == 0
+    strategy.entry("A", strategy.long, qty=2)
+if bar_index == 1
+    strategy.entry("B", strategy.long, qty=3)
+if bar_index == 2
+    strategy.close("A")
+plot(strategy.opentrades, title="ot")
+plot(strategy.closedtrades, title="ct")
+plot(strategy.opentrades.size(0), title="osz0")
+plot(strategy.opentrades.entry_price(0), title="oep0")
+plot(strategy.closedtrades.profit(0), title="ctp0")
+"""
+        code = transpile(src)
+        assert "open_entry_count" in code
+        assert "opentrades_size" in code
+        assert "closedtrades_profit" in code
+        compiled = compile_script(src)
+        # flat prices: bar0=100, bar1=101, bar2=102 (from _ohlcv start=100)
+        o, h, l, c, v = _ohlcv(5, start=100.0)
+        out = compiled.run(o, h, l, c, v)
+        # After bar2 close of first id only — with market close(id) without from_entry,
+        # close uses whole position or from_entry via id mapping.
+        # For strategy.close("A") without exit levels, from_entry is not set (not is_exit).
+        # So close("A") closes whole position by qty target = whole size.
+        # Use broker-level assertions above; here check counts and emitted accessors.
+        assert out["ot"][0] == pytest.approx(1.0)
+        assert out["ot"][1] == pytest.approx(2.0)
+        assert out["ct"][-1] >= 1.0
+        # size of first open leg after bar0 entry
+        assert out["osz0"][0] == pytest.approx(2.0)
+        assert out["oep0"][0] == pytest.approx(100.0)
+
+    def test_compile_closedtrades_profit_after_round_trip(self) -> None:
+        src = """//@version=6
+strategy("t")
+if bar_index == 0
+    strategy.entry("L", strategy.long, qty=2)
+if bar_index == 1
+    strategy.close("L")
+plot(strategy.closedtrades, title="ct")
+plot(strategy.closedtrades.profit(0), title="p0")
+plot(strategy.closedtrades.size(0), title="sz0")
+"""
+        compiled = compile_script(src)
+        # force known prices: entry 100 close, exit 110 close
+        close = np.array([100.0, 110.0, 110.0, 110.0], dtype=np.float64)
+        open_ = close.copy()
+        high = close + 1.0
+        low = close - 1.0
+        vol = np.ones(4)
+        out = compiled.run(open_, high, low, close, vol)
+        assert out["ct"][-1] == pytest.approx(1.0)
+        assert out["p0"][-1] == pytest.approx(20.0)
+        assert out["sz0"][-1] == pytest.approx(2.0)
 
 
 class TestCompileExitAndSeriesParity:
@@ -333,7 +464,7 @@ class TestCompileExitAndSeriesParity:
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
         b.entry("L", "long", 1.0)
         b.begin_bar(1, 100.0, 112.0, 99.0, 111.0)
-        # Compiler maps from_entry → id; id must match entry name (or omit id).
+        # Stop/limit exit: id= still accepted as from_entry filter when is_exit.
         b.close(id="L", limit=110.0, stop=90.0, comment="tp")
         assert b.position_size == 0.0
         assert b.netprofit == pytest.approx(10.0)
@@ -364,6 +495,52 @@ class TestCompileExitAndSeriesParity:
         # PnL on A only: (120 - 100) * 2
         assert b.netprofit == pytest.approx(40.0)
         assert b.closed_trades == 1
+
+    def test_compile_market_exit_from_entry_leaves_other_pyramid_leg(self) -> None:
+        """Transpile+run: market strategy.exit from_entry closes only that leg."""
+        src = """//@version=5
+strategy("t", pyramiding=2, commission_value=0)
+if bar_index == 0
+    strategy.entry("A", strategy.long, qty=2)
+if bar_index == 1
+    strategy.entry("B", strategy.long, qty=3)
+if bar_index == 2
+    strategy.exit("XA", from_entry="A")
+plot(strategy.position_size, title="ps")
+plot(strategy.closedtrades, title="ct")
+"""
+        code = transpile(src)
+        close_lines = [ln for ln in code.splitlines() if "__strategy.close(" in ln]
+        assert close_lines, code
+        for ln in close_lines:
+            assert "from_entry=" in ln, ln
+            # Market exit must not only pass id= (broker ignores id when not is_exit)
+            assert "from_entry='A'" in ln or 'from_entry="A"' in ln or "from_entry='A'" in ln.replace(
+                '"', "'"
+            ), ln
+
+        ohlcv = [
+            {
+                "open": px,
+                "high": px,
+                "low": px,
+                "close": px,
+                "volume": 1.0,
+                "time": i * 60_000,
+            }
+            for i, px in enumerate((100.0, 110.0, 120.0, 120.0))
+        ]
+        result = Runtime().run(src, ohlcv, mode="compile")
+        assert "error" not in result, result.get("error")
+        # After bar 2 market exit of A (qty 2), B (qty 3) remains
+        assert result["series"]["ps"][1] == pytest.approx(5.0)
+        assert result["series"]["ps"][2] == pytest.approx(3.0)
+        assert result["series"]["ct"][2] == pytest.approx(1.0)
+        # Same script under interpret for parity
+        ri = Runtime().run(src, ohlcv, mode="interpret")
+        assert "error" not in ri, ri.get("error")
+        assert ri["series"]["ps"][2] == pytest.approx(3.0)
+        assert ri["series"]["ct"][2] == pytest.approx(1.0)
 
     def test_from_entry_unknown_soft_noop(self) -> None:
         """Unknown from_entry is a soft no-op (no crash, no size change)."""
@@ -404,6 +581,100 @@ class TestCompileExitAndSeriesParity:
         assert b.closed_trades == 1
         # (120 fill limit or min - TP uses limit 120) * 2 vs entry 100
         assert b.netprofit == pytest.approx(40.0)
+
+    def test_exit_trail_offset_long_ratchets_and_fills(self) -> None:
+        """trail_offset (ticks) arms immediately; stop ratchets with high then fills."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0, mintick=0.01, commission_value=0.0)
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.entry("L", "long", 2.0)
+        # 100 ticks * 0.01 = $1 trail; no activation → active immediately
+        b.close(comment="XT", trail_offset=100.0)
+        assert "exit" in b.pending_orders or any(
+            po.is_trail for po in b.pending_orders.values()
+        )
+        trail = next(po for po in b.pending_orders.values() if po.is_trail)
+        assert trail.trail_offset == pytest.approx(1.0)
+        assert trail.trail_active is True
+        # Favorable bar: high 110 → stop 109; low stays above stop
+        b.begin_bar(1, 109.5, 110.0, 109.2, 109.8)
+        assert b.position_size == 2.0
+        trail = next(po for po in b.pending_orders.values() if po.is_trail)
+        assert trail.stop_price == pytest.approx(109.0)
+        # Mild pullback still above stop — no fill; trail does not lower
+        b.begin_bar(2, 109.5, 109.6, 109.1, 109.2)
+        assert b.position_size == 2.0
+        trail = next(po for po in b.pending_orders.values() if po.is_trail)
+        assert trail.stop_price == pytest.approx(109.0)
+        # Break stop
+        b.begin_bar(3, 109.2, 109.3, 108.0, 108.5)
+        assert b.position_size == 0.0
+        assert b.closed_trades == 1
+
+    def test_exit_trail_price_activation_long(self) -> None:
+        """trail_price delays arming until high reaches activation; then trails."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0, mintick=1.0, commission_value=0.0)
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.entry("L", "long", 1.0)
+        b.close(comment="XT", trail_price=110.0, trail_offset=2.0)
+        # Below activation — still open, trail not active
+        b.begin_bar(1, 105.0, 108.0, 104.0, 107.0)
+        assert b.position_size == 1.0
+        po = next(p for p in b.pending_orders.values() if p.is_trail)
+        assert po.trail_active is False
+        # Activate: high 112 → stop = 110; low 111 → no fill
+        b.begin_bar(2, 109.0, 112.0, 111.0, 111.5)
+        assert b.position_size == 1.0
+        po = next(p for p in b.pending_orders.values() if p.is_trail)
+        assert po.trail_active is True
+        assert po.stop_price == pytest.approx(110.0)
+        # Fill on pullback through 110
+        b.begin_bar(3, 111.0, 111.0, 109.0, 109.5)
+        assert b.position_size == 0.0
+
+    def test_exit_trail_from_entry_qty(self) -> None:
+        """Trail exit with from_entry only reduces matching pyramid leg qty."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(
+            initial_capital=10_000.0, pyramiding=1, mintick=0.01, commission_value=0.0
+        )
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.entry("A", "long", 2.0)
+        b.begin_bar(1, 105.0, 105.0, 105.0, 105.0)
+        b.entry("B", "long", 4.0)
+        # Trail only A (qty defaults to from_entry size = 2)
+        b.close(from_entry="A", trail_offset=100.0, comment="XA")
+        trail = next(po for po in b.pending_orders.values() if po.is_trail)
+        assert trail.from_entry == "A"
+        assert trail.quantity == pytest.approx(2.0)
+        assert b.position_size == 6.0
+        # Ratchet then fill A only
+        b.begin_bar(2, 109.5, 110.0, 109.2, 109.8)
+        assert b.position_size == 6.0
+        trail = next(po for po in b.pending_orders.values() if po.is_trail)
+        assert trail.stop_price == pytest.approx(109.0)
+        b.begin_bar(3, 109.2, 109.3, 108.0, 108.5)
+        assert b.position_size == 4.0
+        assert b.open_entry_count == 1
+        assert b.open_legs[0].entry_id == "B"
+        assert b.closed_trades == 1
+
+    def test_transpile_exit_emits_trail_kwargs(self) -> None:
+        """Compiler visitor passes trail_* kwargs through to broker.close."""
+        src = """//@version=5
+strategy("t")
+if bar_index == 0
+    strategy.entry("L", strategy.long, qty=1)
+strategy.exit("XT", trail_offset=100, trail_price=110)
+"""
+        code = transpile(src)
+        assert "trail_offset" in code
+        assert "trail_price" in code
+        assert "__strategy.close" in code
 
     def test_openprofit_percent_and_cash_series(self) -> None:
         """Missing compile attrs caused AttributeError / compile_error on plots."""

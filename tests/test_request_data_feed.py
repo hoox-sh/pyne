@@ -237,3 +237,104 @@ plot(Volume, title="Volume")
         # Without multi-TF data both backends leave HTF terms na → all-na score
         assert all(_is_na(x) for x in pi)
         assert all(_is_na(x) for x in pc)
+
+
+class TestRequestSecurityHonestyMeta:
+    """Runtime metadata + documented no-crash behavior for limited security surface."""
+
+    def test_gaps_lookahead_accepted_unused_and_meta(self) -> None:
+        """barmerge.gaps_* / lookahead_* must not crash; values still chart-stub."""
+        from backend.runtime import Runtime
+
+        bars = _bars(40)
+        src = """//@version=6
+indicator("t")
+v = request.security(syminfo.tickerid, "60", close, barmerge.gaps_off, barmerge.lookahead_on)
+plot(v, title="sec")
+plot(close, title="c")
+"""
+        out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
+        assert not out.get("error"), out.get("error")
+        # No crash + chart passthrough stub (not invented HTF)
+        assert out["series"]["sec"][-1] == out["series"]["c"][-1] == bars[-1]["close"]
+        pol = (out.get("meta") or {}).get("request_security") or {}
+        assert pol.get("htf_reeval") is False
+        assert pol.get("gaps_supported") is False
+        assert pol.get("lookahead_supported") is False
+        policies = pol.get("policies") or {}
+        assert "gaps_lookahead_unused" in policies
+        assert "chart_passthrough_htf_stub" in policies
+        notes = pol.get("notes") or []
+        assert any("lookahead" in str(n).lower() for n in notes)
+        assert any("gaps" in str(n).lower() for n in notes)
+
+    def test_complex_htf_na_recorded_in_meta(self) -> None:
+        from backend.runtime import Runtime
+
+        # UDF returns structure flags (-1/0/1), not OHLCV-like prices — must
+        # not be mistaken for simple chart passthrough by the OHLCV heuristic.
+        src = """//@version=6
+indicator("t")
+f_struct(len) =>
+    hh = ta.highest(high, len)
+    ll = ta.lowest(low, len)
+    hhUp = hh > hh[len]
+    llUp = ll > ll[len]
+    hhUp and llUp ? 1 : not hhUp and not llUp ? -1 : 0
+plot(request.security(syminfo.tickerid, "60", f_struct(10)), title="htf")
+"""
+        out = Runtime(symbol="AAPL").run(src, _bars(40), mode="interpret")
+        assert not out.get("error"), out.get("error")
+        assert all(_is_na(x) for x in out["series"]["htf"])
+        pol = (out.get("meta") or {}).get("request_security") or {}
+        assert pol.get("htf_reeval") is False
+        assert "complex_htf_na" in (pol.get("policies") or {})
+        assert int(pol.get("calls") or 0) >= 1
+
+    def test_foreign_na_recorded_in_meta(self) -> None:
+        from backend.runtime import Runtime
+
+        src = """//@version=6
+indicator("t")
+plot(request.security("MSFT", "D", close), title="ms")
+"""
+        out = Runtime(symbol="AAPL").run(src, _bars(20), mode="interpret")
+        assert not out.get("error"), out.get("error")
+        assert all(_is_na(x) for x in out["series"]["ms"])
+        pol = (out.get("meta") or {}).get("request_security") or {}
+        assert "foreign_na" in (pol.get("policies") or {})
+
+    def test_same_tf_security_allows_chart_eval_meta(self) -> None:
+        from backend.runtime import Runtime
+
+        bars = _bars(30)
+        src = """//@version=6
+indicator("t")
+// Default Runtime chart period is "D" — same TF as request
+plot(request.security(syminfo.tickerid, "D", close), title="sec")
+plot(close, title="c")
+"""
+        out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
+        assert not out.get("error"), out.get("error")
+        assert out["series"]["sec"][-1] == out["series"]["c"][-1]
+        pol = (out.get("meta") or {}).get("request_security") or {}
+        policies = pol.get("policies") or {}
+        assert "same_tf_chart_eval" in policies
+        assert "complex_htf_na" not in policies
+
+    def test_standalone_handler_policy_state(self) -> None:
+        """Direct handler path also records policy (unit-eval demos)."""
+        ev = NodeLiteralEvaluator()
+        result = ev._handle_request_security(["AAPL", "D", "close"])
+        assert isinstance(result, list)
+        state = getattr(ev, "_request_security_policy", None)
+        assert isinstance(state, dict)
+        assert state.get("htf_reeval") is False
+        assert "legacy_mock_ohlcv" in (state.get("policies") or {})
+
+    def test_barmerge_constants_resolve(self) -> None:
+        """barmerge.* constants are wired (True/False) even though unused by security."""
+        assert _eval(NodeLiteralEvaluator(), "barmerge.lookahead_on") is True
+        assert _eval(NodeLiteralEvaluator(), "barmerge.lookahead_off") is False
+        assert _eval(NodeLiteralEvaluator(), "barmerge.gaps_on") is True
+        assert _eval(NodeLiteralEvaluator(), "barmerge.gaps_off") is False

@@ -30,6 +30,7 @@ inside expression evaluation still propagate via the normal bar loop.
 
 from __future__ import annotations
 
+import logging
 import math
 import random
 
@@ -69,6 +70,16 @@ _OHLCV_SERIES_KEYS = (
 _CHART_PLACEHOLDERS = frozenset({"", "CHART", "SYMBOL", "TICKER", "NONE", "NA", "UNKNOWN"})
 _FUNDAMENTAL_TOKENS = ("DIVIDEND", "FACTSET", "EARNINGS", "ESD_")
 
+_LOG = logging.getLogger("pynescript.request.security")
+
+# Static product notes exposed on Runtime ``meta.request_security``.
+_SECURITY_POLICY_NOTES: tuple[str, ...] = (
+    "No multi-timeframe expression re-eval engine: HTF complex UDF/ta results are na.",
+    "barmerge.gaps_on / gaps_off are accepted but unused (no gap-fill / na-gap series).",
+    "barmerge.lookahead_on / lookahead_off are accepted but unused (no lookahead offset).",
+    "Same-symbol simple OHLCV on a different TF is chart-series passthrough (stub), not HTF aggregation.",
+    "Foreign symbols without a multi-symbol feed hit return na (no mock invent under host chart).",
+)
 
 @dataclass
 class VolumeRow:
@@ -513,6 +524,62 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
             return True
         return self._expression_is_simple_ohlcv_value(expression)
 
+    def _request_tf_matches_chart(self, timeframe: Any) -> bool:
+        """True when *timeframe* is empty or equivalent to the host chart period."""
+        chart_tf = _chart_period(self)
+        req_tf = timeframe
+        if isinstance(req_tf, list):
+            req_tf = req_tf[-1] if req_tf else chart_tf
+        return timeframes_equivalent(None if req_tf is None else str(req_tf), chart_tf)
+
+    def _security_policy_state(self) -> dict[str, Any]:
+        """Lazy-init shared request.security honesty metadata for hosts/tests."""
+        state = getattr(self, "_request_security_policy", None)
+        if isinstance(state, dict):
+            return state
+        state = {
+            "htf_reeval": False,
+            "gaps_supported": False,
+            "lookahead_supported": False,
+            "policies": {},  # tag → {count, ...}
+            "notes": list(_SECURITY_POLICY_NOTES),
+            "calls": 0,
+        }
+        self._request_security_policy = state  # type: ignore[attr-defined]
+        ctx = getattr(self, "context", None)
+        if isinstance(ctx, dict):
+            ctx["request.security_policy"] = state
+        return state
+
+    def _note_security_policy(self, tag: str, **extra: Any) -> None:
+        """Record a unique policy decision (once-log + per-run counters).
+
+        Tags are product-facing honesty markers (``complex_htf_na``,
+        ``chart_passthrough_htf_stub``, ``foreign_na``, …). Counts increment
+        every bar; ``extra`` is kept from the first observation only so meta
+        stays compact.
+        """
+        state = self._security_policy_state()
+        state["calls"] = int(state.get("calls") or 0) + 1
+        policies = state.setdefault("policies", {})
+        entry = policies.get(tag)
+        if entry is None:
+            entry = {"count": 0}
+            for k, v in extra.items():
+                if isinstance(v, (str, int, float, bool)) or v is None:
+                    entry[k] = v
+                else:
+                    entry[k] = str(v)
+            policies[tag] = entry
+            # One debug line per new tag (avoid per-bar spam on long charts).
+            _LOG.debug("request.security policy %s %s", tag, {k: v for k, v in entry.items() if k != "count"})
+        entry["count"] = int(entry.get("count") or 0) + 1
+
+    def _security_return(self, value: Any, tag: str, **extra: Any) -> Any:
+        """Record *tag* and return *value* (na / chart series / provider series)."""
+        self._note_security_policy(tag, **extra)
+        return value
+
     def _ticker_last(self, symbol: str) -> float | None:
         """Best-effort last price from data_feed (if wired)."""
         data_feed, _ = self._get_request_data()
@@ -681,21 +748,45 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
           identity is wired). Standalone unit eval without chart identity may
           still use legacy mock prices for bare string series names.
         - **Same-symbol + simple OHLCV** (string name or chart OHLCV sample) →
-          chart passthrough / provider series.
+          chart passthrough / provider series. Different TF is a **stub** (chart
+          series only), not true HTF aggregation — see runtime
+          ``meta.request_security``.
         - **Same-symbol Heikin-Ashi** (``ticker.heikinashi``) → transform chart
           OHLCV to HA (do not return raw chart candles or all-``na``).
         - **Same-symbol + complex pre-eval** (UDF / ta) on a **different** TF →
           ``na`` without real HTF re-eval (do not invent HTF structure).
         - **Same-symbol + same TF** pre-eval → chart eval is correct; allow.
+        - **gaps / lookahead** (``barmerge.*``) are accepted for API shape but
+          **unused** (no gap-fill series, no lookahead offset). Recorded in
+          policy metadata rather than silently affecting values.
         """
         ticker_arg = args[0] if len(args) > 0 else "AAPL"
         is_ha = bool(getattr(ticker_arg, "heikinashi_applied", False))
         symbol = self._resolve_symbol(ticker_arg)
         timeframe = args[1] if len(args) > 1 else "D"
         expression = args[2] if len(args) > REQUEST_SECURITY_MIN_ARGS else "close"
+        # Presence by arity (False/None still count as "provided" positions).
+        gaps_provided = len(args) > 3
+        lookahead_provided = len(args) > 4
+        gaps_arg = args[3] if gaps_provided else None
+        lookahead_arg = args[4] if lookahead_provided else None
 
         if isinstance(timeframe, list):
             timeframe = timeframe[-1] if timeframe else "D"
+
+        # Accept gaps/lookahead for signature compatibility; never apply them.
+        if gaps_provided or lookahead_provided:
+            self._note_security_policy(
+                "gaps_lookahead_unused",
+                gaps_provided=gaps_provided,
+                lookahead_provided=lookahead_provided,
+                gaps_value=gaps_arg if isinstance(gaps_arg, (bool, int, float, str)) or gaps_arg is None else str(gaps_arg),
+                lookahead_value=(
+                    lookahead_arg
+                    if isinstance(lookahead_arg, (bool, int, float, str)) or lookahead_arg is None
+                    else str(lookahead_arg)
+                ),
+            )
 
         # The expression arg is usually already evaluated by the call site.
         # - str: series name like "close" → fetch OHLCV and map
@@ -712,7 +803,9 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         # chart close as dividends / fundamentals — see dividend_yield.pine).
         # Heikin-Ashi of the chart is same-symbol (HA(...) ticker string).
         chart_sym = self._is_chart_symbol(str(symbol)) or is_ha
+        same_tf = self._request_tf_matches_chart(timeframe)
         na = float("nan")
+        tf_s = str(timeframe) if timeframe is not None else ""
 
         # Heikin-Ashi transform for chart (same-symbol) security requests.
         if is_ha and chart_sym:
@@ -721,28 +814,60 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
                 ha_o, ha_h, ha_l, ha_c = ha
                 if isinstance(expression, str):
                     key = expression.strip().lower()
-                    return {
-                        "open": ha_o,
-                        "o": ha_o,
-                        "high": ha_h,
-                        "h": ha_h,
-                        "low": ha_l,
-                        "l": ha_l,
-                        "close": ha_c,
-                        "c": ha_c,
-                    }.get(key, na)
+                    return self._security_return(
+                        {
+                            "open": ha_o,
+                            "o": ha_o,
+                            "high": ha_h,
+                            "h": ha_h,
+                            "low": ha_l,
+                            "l": ha_l,
+                            "close": ha_c,
+                            "c": ha_c,
+                        }.get(key, na),
+                        "heikinashi_chart_transform",
+                        timeframe=tf_s,
+                    )
                 if isinstance(expression, list):
                     if len(expression) == 1 and (
                         expression[0] is None
                         or isinstance(expression[0], (int, float, bool))
                     ):
-                        return self._remap_preeval_ohlcv_to_ha(expression[0], ha)
-                    return self._remap_preeval_ohlcv_to_ha(expression, ha)
+                        return self._security_return(
+                            self._remap_preeval_ohlcv_to_ha(expression[0], ha),
+                            "heikinashi_chart_transform",
+                            timeframe=tf_s,
+                        )
+                    return self._security_return(
+                        self._remap_preeval_ohlcv_to_ha(expression, ha),
+                        "heikinashi_chart_transform",
+                        timeframe=tf_s,
+                    )
                 if isinstance(expression, tuple):
-                    return self._remap_preeval_ohlcv_to_ha(expression, ha)
-                return self._remap_preeval_ohlcv_to_ha(
-                    self._unwrap_preeval_scalar(expression), ha
+                    return self._security_return(
+                        self._remap_preeval_ohlcv_to_ha(expression, ha),
+                        "heikinashi_chart_transform",
+                        timeframe=tf_s,
+                    )
+                return self._security_return(
+                    self._remap_preeval_ohlcv_to_ha(
+                        self._unwrap_preeval_scalar(expression), ha
+                    ),
+                    "heikinashi_chart_transform",
+                    timeframe=tf_s,
                 )
+
+        def _same_symbol_preeval_tag() -> str:
+            return "same_tf_chart_eval" if same_tf else "chart_passthrough_htf_stub"
+
+        def _deny_preeval() -> Any:
+            if chart_sym and not same_tf:
+                return self._security_return(
+                    na, "complex_htf_na", timeframe=tf_s, reason="no_htf_reeval"
+                )
+            return self._security_return(
+                na, "foreign_na", symbol=str(symbol), reason="foreign_or_complex"
+            )
 
         if isinstance(expression, list):
             if len(expression) == 1 and (
@@ -751,40 +876,72 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
                 expression = expression[0]
             elif chart_sym:
                 if self._allow_same_symbol_preeval(expression, timeframe):
-                    return expression
-                return na
+                    return self._security_return(
+                        expression, _same_symbol_preeval_tag(), timeframe=tf_s
+                    )
+                return _deny_preeval()
             else:
-                return na
+                return self._security_return(
+                    na, "foreign_na", symbol=str(symbol), reason="foreign_list"
+                )
         if isinstance(expression, tuple):
             if chart_sym and self._allow_same_symbol_preeval(expression, timeframe):
-                return expression
-            return na
+                return self._security_return(
+                    expression, _same_symbol_preeval_tag(), timeframe=tf_s
+                )
+            return _deny_preeval()
 
         if not isinstance(expression, str):
             if chart_sym and self._allow_same_symbol_preeval(expression, timeframe):
                 # Bare `close` / PineSeries → current scalar for plot/assign paths.
-                return self._unwrap_preeval_scalar(expression)
+                return self._security_return(
+                    self._unwrap_preeval_scalar(expression),
+                    _same_symbol_preeval_tag(),
+                    timeframe=tf_s,
+                )
             # Foreign + chart-evaluated UDF/expr, or same-symbol complex HTF → na
-            return na
+            return _deny_preeval()
 
         symbol_str = str(symbol)
 
-        # Try real data provider (historical or live) via shared helpers
+        # Try real data provider (historical or live) via shared helpers.
+        # ChartOHLCVProvider ignores interval → still chart bars (not HTF resample).
         closes = self._ohlcv_closes(symbol, str(timeframe), limit=REQUEST_OHLCV_LIMIT)
         if closes:
-            return self._get_expression_prices(str(expression), closes)
+            tag = (
+                "provider_ohlcv"
+                if same_tf or not chart_sym
+                else "provider_ohlcv_chart_stub"
+            )
+            return self._security_return(
+                self._get_expression_prices(str(expression), closes),
+                tag,
+                timeframe=tf_s,
+                symbol=symbol_str,
+            )
         last = self._ticker_last(symbol)
         if last is not None:
-            return self._get_expression_prices(str(expression), [float(last)] * REQUEST_OHLCV_LIMIT)
+            return self._security_return(
+                self._get_expression_prices(
+                    str(expression), [float(last)] * REQUEST_OHLCV_LIMIT
+                ),
+                "provider_ticker_last",
+                timeframe=tf_s,
+                symbol=symbol_str,
+            )
 
         # Fundamental / non-equity prefixes — never invent OHLCV.
         if any(tok in symbol_str for tok in _FUNDAMENTAL_TOKENS):
-            return na
+            return self._security_return(
+                na, "fundamental_na", symbol=symbol_str, reason="fundamental_token"
+            )
 
         # Foreign under a host chart with no multi-symbol feed hit → na.
         # Aligns interpret with compile foreign-na (no mock UPVOL/MSFT prices).
         if not chart_sym and self._host_has_chart_identity():
-            return na
+            return self._security_return(
+                na, "foreign_na", symbol=symbol_str, reason="no_multisymbol_feed"
+            )
 
         # Fallback mock data for bare string series names only (legacy demos /
         # standalone evaluator without a wired chart identity).
@@ -796,7 +953,12 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         }
 
         prices = base_prices.get(symbol_str, [100.0, 101.0, 102.0, 101.5, 103.0])
-        return self._get_expression_prices(expression, prices)
+        return self._security_return(
+            self._get_expression_prices(expression, prices),
+            "legacy_mock_ohlcv",
+            symbol=symbol_str,
+            timeframe=tf_s,
+        )
 
     def _handle_request_security_lower_tf(self, args: list[Any]) -> Any:
         """

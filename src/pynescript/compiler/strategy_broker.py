@@ -152,13 +152,22 @@ class PendingOrder:
     max_fill_per_bar: float = 0.0
     # entry vs reduce-only close intent
     is_entry: bool = True
-    # strategy.exit from_entry (compile maps from_entry → close id; optional)
+    # strategy.exit from_entry (compiler emits from_entry= on close; optional)
     from_entry: str | None = None
+    # Trailing stop state (strategy.exit trail_*). Distances are price units.
+    trail_offset: float | None = None
+    trail_activation: float | None = None
+    trail_active: bool = False
 
     @property
     def remaining(self) -> float:
         """Unfilled quantity (never negative)."""
         return max(0.0, float(self.quantity) - float(self.filled_qty))
+
+    @property
+    def is_trail(self) -> bool:
+        """True when a positive trail offset is configured."""
+        return self.trail_offset is not None and self.trail_offset > 0
 
 
 @dataclass
@@ -166,7 +175,7 @@ class OpenLeg:
     """One open entry leg (minimal interpret ``OpenTrade`` subset).
 
     Used for multi-leg pyramiding and ``strategy.exit(..., from_entry=...)``
-    targeting on the compile path.
+    targeting on the compile path. Also backs ``strategy.opentrades.*`` queries.
     """
 
     entry_id: str
@@ -174,6 +183,30 @@ class OpenLeg:
     entry_price: float
     direction: str  # long | short
     commission: float = 0.0
+    entry_bar: int = 0
+    entry_time: int = 0
+
+
+@dataclass
+class ClosedTradeRecord:
+    """Minimal closed-trade record for ``strategy.closedtrades.*`` queries.
+
+    One record per :meth:`CompileStrategyBroker._realize_close` call (aggregated
+    when multiple legs reduce in a single close). Not a full TV trade object.
+    """
+
+    entry_id: str
+    size: float
+    entry_price: float
+    exit_price: float
+    profit: float
+    commission: float
+    direction: str  # long | short
+    entry_bar: int = 0
+    entry_time: int = 0
+    exit_bar: int = 0
+    exit_time: int = 0
+    exit_id: str = ""
 
 
 class CompileStrategyBroker:
@@ -261,6 +294,8 @@ class CompileStrategyBroker:
         self.position_commission: float = 0.0
         self.netprofit: float = 0.0
         self.closed_trades: int = 0
+        # Per-close records for strategy.closedtrades.*(i) queries.
+        self.closed_trade_records: list[ClosedTradeRecord] = []
         self.wintrades: int = 0
         self.losstrades: int = 0
         self.eventrades: int = 0
@@ -281,6 +316,10 @@ class CompileStrategyBroker:
         self._max_runup: float = 0.0
         self._max_drawdown_percent: float = 0.0
         self._max_runup_percent: float = 0.0
+        # strategy.risk.* subset (not full TV risk engine)
+        self.allow_entry_in: str = "all"  # all | long | short
+        self.max_position_size_percent: float | None = None
+        self.entries_blocked: bool = False
 
     def begin_bar(
         self,
@@ -369,6 +408,9 @@ class CompileStrategyBroker:
                 self.pending_orders.pop(oid, None)
                 fully.append(oid)
                 continue
+            # Trail: ratchet stop from favorable extreme, then test fill
+            if order.is_trail:
+                self._update_trail_stop(order, h, l)
             fill_px = self._trigger_price(order, o, h, l, c)
             if fill_px is None:
                 continue
@@ -381,6 +423,40 @@ class CompileStrategyBroker:
             if order.remaining <= 1e-12:
                 fully.append(oid)
         return fully
+
+    def _update_trail_stop(self, order: PendingOrder, high: float, low: float) -> None:
+        """Ratchet a trailing stop from bar extremes once armed.
+
+        Long exit (sell stop, direction ``short``): after activation,
+        ``stop = high - offset``, only rising. Short exit (buy stop, direction
+        ``long``): ``stop = low + offset``, only falling. Fixed ``stop_price``
+        set at placement acts as a floor/ceiling that the trail may improve
+        but not worsen beyond on first arm.
+        """
+        if not order.is_trail:
+            return
+        offset = float(order.trail_offset or 0.0)
+        if offset <= 0:
+            return
+        action = order.direction  # short closes long; long covers short
+        act = order.trail_activation
+        if not order.trail_active:
+            if act is None:
+                order.trail_active = True
+            elif action == "short" and high >= float(act):
+                order.trail_active = True
+            elif action == "long" and low <= float(act):
+                order.trail_active = True
+            else:
+                return
+        if action == "short":
+            candidate = float(high) - offset
+            if order.stop_price is None or candidate > float(order.stop_price):
+                order.stop_price = candidate
+        elif action == "long":
+            candidate = float(low) + offset
+            if order.stop_price is None or candidate < float(order.stop_price):
+                order.stop_price = candidate
 
     def _trigger_price(
         self,
@@ -500,13 +576,35 @@ class CompileStrategyBroker:
             return 0.0
         return float(sum(leg.size for leg in self.open_legs if leg.entry_id == from_entry))
 
+    def _new_leg(
+        self,
+        entry_id: str,
+        size: float,
+        entry_price: float,
+        direction: str,
+        commission: float = 0.0,
+        *,
+        entry_bar: int | None = None,
+        entry_time: int | None = None,
+    ) -> OpenLeg:
+        """Build an :class:`OpenLeg` stamped with current bar context."""
+        return OpenLeg(
+            entry_id=str(entry_id),
+            size=float(size),
+            entry_price=float(entry_price),
+            direction=direction,
+            commission=float(commission),
+            entry_bar=int(self._bar_index if entry_bar is None else entry_bar),
+            entry_time=int(self._bar_time if entry_time is None else entry_time),
+        )
+
     def _ensure_legs(self) -> None:
         """Materialise a single synthetic leg when size is open but list empty."""
         if self.open_legs or abs(self.position_size) <= 0:
             return
         d = "long" if self.position_size > 0 else "short"
         self.open_legs = [
-            OpenLeg(
+            self._new_leg(
                 entry_id=str(self.position_entry_name or ""),
                 size=abs(float(self.position_size)),
                 entry_price=float(self.position_avg_price)
@@ -571,7 +669,7 @@ class CompileStrategyBroker:
                 self.position_commission += comm
                 self.position_entry_name = eid
                 self.open_legs.append(
-                    OpenLeg(entry_id=eid, size=q, entry_price=px, direction=d, commission=comm)
+                    self._new_leg(entry_id=eid, size=q, entry_price=px, direction=d, commission=comm)
                 )
                 self.open_entry_count = len(self.open_legs)
                 self._emit("entry", id=eid, direction=d, qty=q, comment=comment)
@@ -595,22 +693,26 @@ class CompileStrategyBroker:
                         first = self.open_legs[0]
                         total_comm = float(sum(leg.commission for leg in self.open_legs)) + comm
                         self.open_legs = [
-                            OpenLeg(
+                            self._new_leg(
                                 entry_id=first.entry_id,
                                 size=old + q,
                                 entry_price=float(self.position_avg_price),
                                 direction=d,
                                 commission=total_comm,
+                                entry_bar=first.entry_bar,
+                                entry_time=first.entry_time,
                             )
                         ]
                     else:
                         self.open_legs = [
-                            OpenLeg(entry_id=eid, size=q, entry_price=px, direction=d, commission=comm)
+                            self._new_leg(
+                                entry_id=eid, size=q, entry_price=px, direction=d, commission=comm
+                            )
                         ]
                     self.open_entry_count = 1
                 else:
                     self.open_legs.append(
-                        OpenLeg(entry_id=eid, size=q, entry_price=px, direction=d, commission=comm)
+                        self._new_leg(entry_id=eid, size=q, entry_price=px, direction=d, commission=comm)
                     )
                     self.open_entry_count = len(self.open_legs)
                 self._emit("entry", id=eid, direction=d, qty=q, comment=comment)
@@ -622,7 +724,9 @@ class CompileStrategyBroker:
         self.position_avg_price = px
         self.position_commission = comm
         self.position_entry_name = eid
-        self.open_legs = [OpenLeg(entry_id=eid, size=q, entry_price=px, direction=d, commission=comm)]
+        self.open_legs = [
+            self._new_leg(entry_id=eid, size=q, entry_price=px, direction=d, commission=comm)
+        ]
         self.open_entry_count = 1
         self._emit("entry", id=eid, direction=d, qty=q, comment=comment)
         return True
@@ -772,6 +876,50 @@ class CompileStrategyBroker:
             return "limit"
         return "market"
 
+    def risk_allow_entry_in(self, value: Any = "all", **_kwargs: Any) -> None:
+        """``strategy.risk.allow_entry_in(value)`` — ``all`` | ``long`` | ``short``."""
+        raw = value if value is not None else _kwargs.get("value", "all")
+        s = str(raw).replace("strategy.", "").strip().lower()
+        if s in {"long", "short", "all"}:
+            self.allow_entry_in = s
+        else:
+            self.allow_entry_in = "all"
+
+    def risk_max_position_size(self, percent: Any = None, **_kwargs: Any) -> None:
+        """``strategy.risk.max_position_size(percent)`` — cap entry notional vs equity."""
+        raw = percent if percent is not None else _kwargs.get("percent", _kwargs.get("value"))
+        if raw is None or _is_na(raw):
+            return
+        try:
+            p = float(raw)
+        except (TypeError, ValueError):
+            return
+        if not math.isfinite(p) or p <= 0:
+            return
+        self.max_position_size_percent = p
+
+    def _risk_allows_entry(self, direction: str) -> bool:
+        """Subset of interpret risk gates: allow_entry_in + entries_blocked flag."""
+        if self.entries_blocked:
+            return False
+        allow = (self.allow_entry_in or "all").lower().replace("strategy.", "")
+        if allow in {"long"} and direction != "long":
+            return False
+        if allow in {"short"} and direction != "short":
+            return False
+        return True
+
+    def _cap_qty_by_max_position(self, qty: float, fill_price: float) -> float:
+        """Apply ``max_position_size_percent`` of equity at *fill_price*."""
+        pct = self.max_position_size_percent
+        if pct is None or pct <= 0 or fill_price <= 0 or fill_price != fill_price:
+            return qty
+        equity = float(self.equity)
+        max_qty = (equity * (pct / 100.0)) / float(fill_price)
+        if max_qty < 0 or not math.isfinite(max_qty):
+            return 0.0
+        return min(float(qty), float(max_qty))
+
     def entry(
         self,
         id: str = "entry",
@@ -799,6 +947,16 @@ class CompileStrategyBroker:
                 comment="invalid_direction",
             )
             return
+        if not self._risk_allows_entry(d):
+            self._emit(
+                "order",
+                id=str(id),
+                direction=d,
+                qty=0.0,
+                order_type="market",
+                comment="risk_blocked",
+            )
+            return
         status, parsed_q = _parse_qty(qty)
         if status == "invalid":
             self._emit(
@@ -816,6 +974,7 @@ class CompileStrategyBroker:
         else:
             px_hint = float(price)
         q = self._resolve_default_qty(px_hint) if status == "missing" else abs(parsed_q)
+        q = self._cap_qty_by_max_position(q, px_hint if px_hint and px_hint > 0 else 1.0)
         if q <= 0:
             self._emit(
                 "order",
@@ -870,6 +1029,29 @@ class CompileStrategyBroker:
             d, q, px, str(id), comment, respect_pyramiding=True, replace_same_id=True
         )
 
+    def _resolve_trail_params(
+        self,
+        trail_price: float | None,
+        trail_points: float | None,
+        trail_offset: float | None,
+    ) -> tuple[float | None, float | None]:
+        """Parse trail_* kwargs → (activation_price, offset_price units).
+
+        Distances are in **ticks** (× :attr:`mintick`) per Pine. Prefer
+        ``trail_points`` when both offset and points are set. Returns
+        ``(None, None)`` when trail is not configured or offset is na/≤0.
+        """
+        act = _opt_float(trail_price)
+        points = _opt_float(trail_points)
+        offset = _opt_float(trail_offset)
+        ticks = points if points is not None else offset
+        if ticks is None or ticks <= 0:
+            return (None, None)
+        offset_price = float(ticks) * float(self.mintick)
+        if offset_price <= 0:
+            return (None, None)
+        return (act, offset_price)
+
     def close(
         self,
         id: str | None = None,
@@ -881,6 +1063,9 @@ class CompileStrategyBroker:
         profit: float | None = None,
         loss: float | None = None,
         qty_percent: float | None = None,
+        trail_price: float | None = None,
+        trail_points: float | None = None,
+        trail_offset: float | None = None,
         **_kwargs: Any,
     ) -> None:
         """Close (part of) the open position at mark or *price*; update PnL.
@@ -891,20 +1076,33 @@ class CompileStrategyBroker:
 
         ``qty_percent`` (when set and not na) sizes as ``target * pct/100``
         capped to the open target (whole lot or ``from_entry`` size); wins over
-        absolute ``qty``. Trail stops remain interpret-path residual.
+        absolute ``qty``.
 
-        ``from_entry`` (explicit kwarg or, for exit brackets, ``id`` mapped from
-        compiler ``from_entry``) reduces only matching open legs. Unknown
-        ``from_entry`` is a soft no-op after the placement/close event.
+        Trail (``trail_offset`` / ``trail_points`` ticks × mintick, optional
+        ``trail_price`` activation) places a pending stop that ratchets with
+        bar high/low in :meth:`process_pending_orders` (interpret-aligned
+        minimal trail).
+
+        ``from_entry`` (explicit kwarg from compiler, or for stop/limit exit
+        brackets ``id`` when used as the entry filter) reduces only matching
+        open legs. Unknown ``from_entry`` is a soft no-op after the
+        placement/close event.
         """
-        # Compiler maps strategy.exit → close(..., stop=..., limit=...).
-        # from_entry is remapped to id by the visitor; also accept explicit kwarg.
+        # Compiler maps strategy.exit → close(..., from_entry=..., stop/limit/trail).
+        # Prefer explicit from_entry; fall back to id only for exit brackets so
+        # direct broker tests that pass id= keep working.
         limit_p = _opt_float(limit if limit is not None else profit)
         stop_p = _opt_float(stop if stop is not None else loss)
-        is_exit = limit_p is not None or stop_p is not None
+        trail_activation, trail_offset_px = self._resolve_trail_params(
+            trail_price if trail_price is not None else _kwargs.get("trail_price"),
+            trail_points if trail_points is not None else _kwargs.get("trail_points"),
+            trail_offset if trail_offset is not None else _kwargs.get("trail_offset"),
+        )
+        has_trail = trail_offset_px is not None
+        is_exit = limit_p is not None or stop_p is not None or has_trail
         event_kind = "exit" if is_exit else "close"
+        event_stop = stop_p if stop_p is not None else (trail_activation if has_trail else None)
         raw_fe = _kwargs.get("from_entry")
-        # Compiler maps strategy.exit from_entry → id. Explicit from_entry wins.
         from_entry: str | None = None
         if raw_fe is not None and str(raw_fe) != "":
             from_entry = str(raw_fe)
@@ -918,7 +1116,7 @@ class CompileStrategyBroker:
                 qty=0.0,
                 comment=comment,
                 limit=limit_p,
-                stop=stop_p,
+                stop=event_stop,
             )
             return
 
@@ -931,7 +1129,7 @@ class CompileStrategyBroker:
                 qty=0.0,
                 comment=comment,
                 limit=limit_p,
-                stop=stop_p,
+                stop=event_stop,
             )
             return
 
@@ -964,13 +1162,6 @@ class CompileStrategyBroker:
             return
 
         if is_exit:
-            # Pending bracket: only fill when OHLC touches; else place pending.
-            px = self._exit_fill_price(
-                limit=limit_p,
-                stop=stop_p,
-                is_long=(d == "long"),
-                is_short=(d == "short"),
-            )
             # Always emit exit event (placement / intent) for host parity.
             self._emit(
                 "exit",
@@ -979,68 +1170,42 @@ class CompileStrategyBroker:
                 comment=comment,
                 direction=None,
                 limit=limit_p,
+                stop=event_stop,
+            )
+            # Trail always goes through pending + process (ratchet needs bar path).
+            # Fixed stop/limit: fill same-bar when OHLC already touches, else pending.
+            if has_trail:
+                self._place_exit_pending(
+                    base=str(id) if id is not None else "exit",
+                    exit_dir="short" if d == "long" else "long",
+                    close_qty=close_qty,
+                    limit_p=limit_p,
+                    stop_p=stop_p,
+                    comment=comment,
+                    from_entry=from_entry,
+                    trail_offset_px=trail_offset_px,
+                    trail_activation=trail_activation,
+                )
+                self.process_pending_orders()
+                return
+            px = self._exit_fill_price(
+                limit=limit_p,
                 stop=stop_p,
+                is_long=(d == "long"),
+                is_short=(d == "short"),
             )
             if px is None:
-                # Place pending close order(s) — filled by process_pending_orders.
-                exit_dir = "short" if d == "long" else "long"  # close direction
-                base = str(id) if id is not None else "exit"
-                # Drop prior legs with same base id
-                for oid in list(self.pending_orders.keys()):
-                    if oid == base or oid.startswith(base + ":"):
-                        del self.pending_orders[oid]
-                cmt = str(comment) if comment else ""
-                if limit_p is not None and stop_p is not None:
-                    self.pending_orders[f"{base}:limit"] = PendingOrder(
-                        order_id=f"{base}:limit",
-                        order_type="limit",
-                        direction=exit_dir,
-                        quantity=close_qty,
-                        limit_price=limit_p,
-                        stop_price=None,
-                        comment=cmt,
-                        oca_name=base,
-                        oca_type="cancel",
-                        is_entry=False,
-                        from_entry=from_entry,
-                    )
-                    self.pending_orders[f"{base}:stop"] = PendingOrder(
-                        order_id=f"{base}:stop",
-                        order_type="stop",
-                        direction=exit_dir,
-                        quantity=close_qty,
-                        limit_price=None,
-                        stop_price=stop_p,
-                        comment=cmt,
-                        oca_name=base,
-                        oca_type="cancel",
-                        is_entry=False,
-                        from_entry=from_entry,
-                    )
-                elif limit_p is not None:
-                    self.pending_orders[base] = PendingOrder(
-                        order_id=base,
-                        order_type="limit",
-                        direction=exit_dir,
-                        quantity=close_qty,
-                        limit_price=limit_p,
-                        stop_price=None,
-                        comment=cmt,
-                        is_entry=False,
-                        from_entry=from_entry,
-                    )
-                else:
-                    self.pending_orders[base] = PendingOrder(
-                        order_id=base,
-                        order_type="stop",
-                        direction=exit_dir,
-                        quantity=close_qty,
-                        limit_price=None,
-                        stop_price=stop_p,
-                        comment=cmt,
-                        is_entry=False,
-                        from_entry=from_entry,
-                    )
+                self._place_exit_pending(
+                    base=str(id) if id is not None else "exit",
+                    exit_dir="short" if d == "long" else "long",
+                    close_qty=close_qty,
+                    limit_p=limit_p,
+                    stop_p=stop_p,
+                    comment=comment,
+                    from_entry=from_entry,
+                    trail_offset_px=None,
+                    trail_activation=None,
+                )
                 return
             # Same-bar fill at touched level — fall through to realize PnL
         elif price is None or _is_na(price):
@@ -1060,6 +1225,101 @@ class CompileStrategyBroker:
                 direction=d,
                 limit=limit_p,
                 stop=stop_p,
+            )
+
+    def _place_exit_pending(
+        self,
+        *,
+        base: str,
+        exit_dir: str,
+        close_qty: float,
+        limit_p: float | None,
+        stop_p: float | None,
+        comment: str | None,
+        from_entry: str | None,
+        trail_offset_px: float | None,
+        trail_activation: float | None,
+    ) -> None:
+        """Install pending close leg(s) for strategy.exit brackets / trail."""
+        for oid in list(self.pending_orders.keys()):
+            if oid == base or oid.startswith(base + ":"):
+                del self.pending_orders[oid]
+        cmt = str(comment) if comment else ""
+        has_trail = trail_offset_px is not None and trail_offset_px > 0
+        trail_kw: dict[str, Any] = {}
+        if has_trail:
+            trail_kw = {
+                "trail_offset": float(trail_offset_px),
+                "trail_activation": trail_activation,
+                "trail_active": trail_activation is None,
+            }
+
+        if limit_p is not None and (stop_p is not None or has_trail):
+            self.pending_orders[f"{base}:limit"] = PendingOrder(
+                order_id=f"{base}:limit",
+                order_type="limit",
+                direction=exit_dir,
+                quantity=close_qty,
+                limit_price=limit_p,
+                stop_price=None,
+                comment=cmt,
+                oca_name=base,
+                oca_type="cancel",
+                is_entry=False,
+                from_entry=from_entry,
+            )
+            # limit+stop → :stop; limit+trail-only → :trail (interpret parity)
+            stop_id = f"{base}:stop" if stop_p is not None else f"{base}:trail"
+            self.pending_orders[stop_id] = PendingOrder(
+                order_id=stop_id,
+                order_type="stop",
+                direction=exit_dir,
+                quantity=close_qty,
+                limit_price=None,
+                stop_price=stop_p,
+                comment=cmt,
+                oca_name=base,
+                oca_type="cancel",
+                is_entry=False,
+                from_entry=from_entry,
+                **trail_kw,
+            )
+        elif limit_p is not None:
+            self.pending_orders[base] = PendingOrder(
+                order_id=base,
+                order_type="limit",
+                direction=exit_dir,
+                quantity=close_qty,
+                limit_price=limit_p,
+                stop_price=None,
+                comment=cmt,
+                is_entry=False,
+                from_entry=from_entry,
+            )
+        elif has_trail:
+            self.pending_orders[base] = PendingOrder(
+                order_id=base,
+                order_type="stop",
+                direction=exit_dir,
+                quantity=close_qty,
+                limit_price=None,
+                stop_price=stop_p,
+                comment=cmt,
+                is_entry=False,
+                from_entry=from_entry,
+                **trail_kw,
+            )
+        else:
+            self.pending_orders[base] = PendingOrder(
+                order_id=base,
+                order_type="stop",
+                direction=exit_dir,
+                quantity=close_qty,
+                limit_price=None,
+                stop_price=stop_p,
+                comment=cmt,
+                is_entry=False,
+                from_entry=from_entry,
             )
 
     def _realize_close(
@@ -1088,6 +1348,12 @@ class CompileStrategyBroker:
         exit_comm_total = self._commission(total_close, px)
         remaining = total_close
         trade_profit = 0.0
+        trade_comm = 0.0
+        trade_entry_notional = 0.0  # size-weighted entry for record
+        trade_entry_bar = self._bar_index
+        trade_entry_time = self._bar_time
+        trade_entry_id = ""
+        trade_dir = "long"
         new_legs: list[OpenLeg] = []
         closed_any = False
 
@@ -1107,16 +1373,25 @@ class CompileStrategyBroker:
             else:
                 profit = (basis - px) * cq - entry_comm - exit_comm
             trade_profit += profit
+            trade_comm += entry_comm + exit_comm
+            trade_entry_notional += basis * cq
+            if not closed_any:
+                trade_entry_bar = int(leg.entry_bar)
+                trade_entry_time = int(leg.entry_time)
+                trade_entry_id = str(leg.entry_id or "")
+                trade_dir = leg.direction
             closed_any = True
             leftover = float(leg.size) - cq
             if leftover > 1e-12:
                 new_legs.append(
-                    OpenLeg(
+                    self._new_leg(
                         entry_id=leg.entry_id,
                         size=leftover,
                         entry_price=leg.entry_price,
                         direction=leg.direction,
                         commission=float(leg.commission) - entry_comm,
+                        entry_bar=leg.entry_bar,
+                        entry_time=leg.entry_time,
                     )
                 )
             remaining -= cq
@@ -1127,6 +1402,22 @@ class CompileStrategyBroker:
         self.open_legs = new_legs
         self.netprofit += trade_profit
         self.closed_trades += 1
+        entry_px = (trade_entry_notional / total_close) if total_close > 0 else float(px)
+        self.closed_trade_records.append(
+            ClosedTradeRecord(
+                entry_id=trade_entry_id if fe is None else str(fe),
+                size=float(total_close),
+                entry_price=float(entry_px),
+                exit_price=float(px),
+                profit=float(trade_profit),
+                commission=float(trade_comm),
+                direction=trade_dir,
+                entry_bar=int(trade_entry_bar),
+                entry_time=int(trade_entry_time),
+                exit_bar=int(self._bar_index),
+                exit_time=int(self._bar_time),
+            )
+        )
         if trade_profit > 0:
             self.wintrades += 1
             self.grossprofit += trade_profit
@@ -1401,6 +1692,124 @@ class CompileStrategyBroker:
     def max_runup_percent(self) -> float:
         """Max run-up as percent of equity trough when recorded."""
         return float(self._max_runup_percent)
+
+    # --- strategy.opentrades.* / strategy.closedtrades.* query surface -------
+
+    def _open_leg_at(self, trade_index: Any) -> OpenLeg | None:
+        """Return open leg at *trade_index*, or synthetic single-lot leg."""
+        try:
+            i = int(trade_index) if trade_index is not None else 0
+        except (TypeError, ValueError):
+            i = 0
+        if i < 0:
+            return None
+        if self.open_legs:
+            if i < len(self.open_legs):
+                return self.open_legs[i]
+            return None
+        if abs(self.position_size) > 0 and i == 0:
+            d = "long" if self.position_size > 0 else "short"
+            return self._new_leg(
+                entry_id=str(self.position_entry_name or ""),
+                size=abs(float(self.position_size)),
+                entry_price=float(self.position_avg_price)
+                if self.position_avg_price == self.position_avg_price
+                else 0.0,
+                direction=d,
+                commission=float(self.position_commission or 0.0),
+            )
+        return None
+
+    def _closed_at(self, trade_index: Any) -> ClosedTradeRecord | None:
+        try:
+            i = int(trade_index) if trade_index is not None else 0
+        except (TypeError, ValueError):
+            i = 0
+        if i < 0 or i >= len(self.closed_trade_records):
+            return None
+        return self.closed_trade_records[i]
+
+    def opentrades_size(self, trade_index: Any = 0, **_kwargs: Any) -> float:
+        leg = self._open_leg_at(trade_index)
+        return float(leg.size) if leg is not None else 0.0
+
+    def opentrades_entry_price(self, trade_index: Any = 0, **_kwargs: Any) -> float:
+        leg = self._open_leg_at(trade_index)
+        if leg is None:
+            return float("nan")
+        return float(leg.entry_price)
+
+    def opentrades_entry_id(self, trade_index: Any = 0, **_kwargs: Any) -> str:
+        leg = self._open_leg_at(trade_index)
+        return str(leg.entry_id) if leg is not None else ""
+
+    def opentrades_entry_bar_index(self, trade_index: Any = 0, **_kwargs: Any) -> int:
+        leg = self._open_leg_at(trade_index)
+        return int(leg.entry_bar) if leg is not None else 0
+
+    def opentrades_entry_time(self, trade_index: Any = 0, **_kwargs: Any) -> int:
+        leg = self._open_leg_at(trade_index)
+        return int(leg.entry_time) if leg is not None else 0
+
+    def opentrades_commission(self, trade_index: Any = 0, **_kwargs: Any) -> float:
+        leg = self._open_leg_at(trade_index)
+        return float(leg.commission) if leg is not None else 0.0
+
+    def opentrades_profit(self, trade_index: Any = 0, **_kwargs: Any) -> float:
+        """Mark-to-market open-leg PnL at current bar close (minus entry commission)."""
+        leg = self._open_leg_at(trade_index)
+        if leg is None:
+            return 0.0
+        mark = float(self._mark)
+        if mark != mark:
+            return 0.0
+        if leg.direction == "long":
+            return (mark - float(leg.entry_price)) * float(leg.size) - float(leg.commission)
+        return (float(leg.entry_price) - mark) * float(leg.size) - float(leg.commission)
+
+    def closedtrades_profit(self, trade_index: Any = 0, **_kwargs: Any) -> float:
+        rec = self._closed_at(trade_index)
+        return float(rec.profit) if rec is not None else 0.0
+
+    def closedtrades_size(self, trade_index: Any = 0, **_kwargs: Any) -> float:
+        rec = self._closed_at(trade_index)
+        return float(rec.size) if rec is not None else 0.0
+
+    def closedtrades_entry_price(self, trade_index: Any = 0, **_kwargs: Any) -> float:
+        rec = self._closed_at(trade_index)
+        return float(rec.entry_price) if rec is not None else 0.0
+
+    def closedtrades_exit_price(self, trade_index: Any = 0, **_kwargs: Any) -> float:
+        rec = self._closed_at(trade_index)
+        return float(rec.exit_price) if rec is not None else 0.0
+
+    def closedtrades_commission(self, trade_index: Any = 0, **_kwargs: Any) -> float:
+        rec = self._closed_at(trade_index)
+        return float(rec.commission) if rec is not None else 0.0
+
+    def closedtrades_entry_id(self, trade_index: Any = 0, **_kwargs: Any) -> str:
+        rec = self._closed_at(trade_index)
+        return str(rec.entry_id) if rec is not None else ""
+
+    def closedtrades_exit_id(self, trade_index: Any = 0, **_kwargs: Any) -> str:
+        rec = self._closed_at(trade_index)
+        return str(rec.exit_id) if rec is not None else ""
+
+    def closedtrades_entry_bar_index(self, trade_index: Any = 0, **_kwargs: Any) -> int:
+        rec = self._closed_at(trade_index)
+        return int(rec.entry_bar) if rec is not None else 0
+
+    def closedtrades_exit_bar_index(self, trade_index: Any = 0, **_kwargs: Any) -> int:
+        rec = self._closed_at(trade_index)
+        return int(rec.exit_bar) if rec is not None else 0
+
+    def closedtrades_entry_time(self, trade_index: Any = 0, **_kwargs: Any) -> int:
+        rec = self._closed_at(trade_index)
+        return int(rec.entry_time) if rec is not None else 0
+
+    def closedtrades_exit_time(self, trade_index: Any = 0, **_kwargs: Any) -> int:
+        rec = self._closed_at(trade_index)
+        return int(rec.exit_time) if rec is not None else 0
 
     def to_events(self) -> list[dict[str, Any]]:
         """Return the live event list for host packing as ``__events``.

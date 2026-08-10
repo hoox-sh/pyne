@@ -3713,7 +3713,8 @@ class CompilerVisitor(NodeVisitor):
             "netprofit": "__strategy.netprofit",
             "equity": "__strategy.equity",
             "closedtrades": "__strategy.closed_trades",
-            "opentrades": "0 if __strategy.position_size == 0 else 1",
+            # open_entry_count tracks open_legs (pyramiding-aware); 0 when flat.
+            "opentrades": "__strategy.open_entry_count",
             "initial_capital": "__strategy.initial_capital",
             "leverage": "__strategy.leverage",
             "max_drawdown": "__strategy.max_drawdown",
@@ -5820,7 +5821,7 @@ class CompilerVisitor(NodeVisitor):
             const = method.split("_")[-1]
             return repr(const)
         if method.startswith("risk_"):
-            return ""  # risk.* declaration no-op in compile path for now
+            return self._emit_strategy_risk_call(method, args, kwargs)
         if method == "default_entry_qty":
             # strategy.default_entry_qty(series) → default size stub
             return "1.0"
@@ -5852,18 +5853,24 @@ class CompilerVisitor(NodeVisitor):
             "cancel": ("id",),
             "cancel_all": (),
         }
-        # Pine strategy.exit(id, from_entry, qty, qty_percent, profit, limit, loss, stop, …)
-        # First positional is the *exit order* name, not the position id. from_entry → id.
+        # Pine strategy.exit(id, from_entry, qty, qty_percent, profit, limit, loss, stop,
+        # trail_price, trail_points, trail_offset, …)
+        # First positional is the *exit order* name (→ comment), not the position id.
+        # Always emit from_entry= so market exits filter multi-leg open size too
+        # (broker only treats bare id= as from_entry when stop/limit/trail make is_exit).
         if method == "exit":
             param_names: tuple[str, ...] = (
                 "_exit_id",
-                "id",
+                "from_entry",
                 "qty",
                 "qty_percent",
                 "profit",
                 "limit",
                 "loss",
                 "stop",
+                "trail_price",
+                "trail_points",
+                "trail_offset",
             )
         else:
             param_names = names_by_method.get(broker_method, ())
@@ -5875,11 +5882,10 @@ class CompilerVisitor(NodeVisitor):
                 seen[param_names[i]] = a
         for k, v in kwargs.items():
             key = k
-            if key == "from_entry":
-                key = "id"
-            elif method == "exit" and key == "id":
+            if method == "exit" and key == "id":
                 # keyword id= is the exit order name, not the position id
                 key = "_exit_id"
+            # from_entry stays from_entry (positional + kwarg) — do not remap to id
             seen[key] = v  # later wins
 
         if method == "exit":
@@ -5892,34 +5898,74 @@ class CompilerVisitor(NodeVisitor):
         parts = [f"{k}={v}" for k, v in seen.items()]
         return f"__strategy.{broker_method}({', '.join(parts)})"
 
-    def _emit_strategy_trade_query(self, method: str, args: list[str], kwargs: dict[str, str]) -> str:
-        """Stub strategy.opentrades.* / strategy.closedtrades.* method calls."""
+    def _emit_strategy_risk_call(self, method: str, args: list[str], kwargs: dict[str, str]) -> str:
+        """Emit ``strategy.risk.*`` when broker supports it; else silent no-op.
+
+        Wired (state + enforcement on entry):
+        - ``allow_entry_in`` → ``__strategy.risk_allow_entry_in``
+        - ``max_position_size`` → ``__strategy.risk_max_position_size``
+
+        Still no-op (not full TV risk engine): max_drawdown (risk), max_cons_loss_days,
+        max_intraday_loss, max_intraday_filled_orders.
+        """
         self.object_mode = True
         self.uses_strategy = True
+        risk = method[len("risk_") :]
+        if risk == "allow_entry_in":
+            val = args[0] if args else kwargs.get("value", repr("all"))
+            return f"__strategy.risk_allow_entry_in({val})"
+        if risk == "max_position_size":
+            # positional percent or keyword percent=
+            val = args[0] if args else kwargs.get("percent", kwargs.get("value", "None"))
+            return f"__strategy.risk_max_position_size({val})"
+        return ""  # remaining risk.* still no-op on compile path
+
+    def _emit_strategy_trade_query(self, method: str, args: list[str], kwargs: dict[str, str]) -> str:
+        """Emit strategy.opentrades.* / strategy.closedtrades.* from broker records.
+
+        Real fields when data exists on ``CompileStrategyBroker`` (open_legs /
+        closed_trade_records). Still stub: max_drawdown / max_runup / comments.
+        """
+        self.object_mode = True
+        self.uses_strategy = True
+        idx = args[0] if args else kwargs.get("trade_num", kwargs.get("trade_index", "0"))
         if method.startswith("opentrades_"):
             attr = method[len("opentrades_") :]
-            if attr == "entry_price":
-                return "(__strategy.position_avg_price if __strategy.position_size != 0 else np.nan)"
-            if attr == "size":
-                return "__strategy.position_size"
-            if attr == "entry_id":
-                return "(__strategy.position_entry_name if __strategy.position_size != 0 else '')"
-            if attr in (
-                "entry_bar_index",
-                "profit",
-                "commission",
-                "max_runup",
-                "max_drawdown",
-                "comment",
-            ):
-                return "0.0"
+            real = {
+                "size": "opentrades_size",
+                "entry_price": "opentrades_entry_price",
+                "entry_id": "opentrades_entry_id",
+                "entry_bar_index": "opentrades_entry_bar_index",
+                "entry_time": "opentrades_entry_time",
+                "commission": "opentrades_commission",
+                "profit": "opentrades_profit",
+            }
+            if attr in real:
+                return f"__strategy.{real[attr]}({idx})"
+            # max_runup / max_drawdown / entry_comment — no per-leg tracking yet
+            if attr in ("entry_comment", "comment"):
+                return "''"
             return "0.0"
         if method.startswith("closedtrades_"):
             attr = method[len("closedtrades_") :]
-            if attr in ("exit_bar_index", "entry_bar_index"):
-                return "0"
-            if attr == "entry_id" or attr == "exit_id":
+            real = {
+                "profit": "closedtrades_profit",
+                "size": "closedtrades_size",
+                "entry_price": "closedtrades_entry_price",
+                "exit_price": "closedtrades_exit_price",
+                "commission": "closedtrades_commission",
+                "entry_id": "closedtrades_entry_id",
+                "exit_id": "closedtrades_exit_id",
+                "entry_bar_index": "closedtrades_entry_bar_index",
+                "exit_bar_index": "closedtrades_exit_bar_index",
+                "entry_time": "closedtrades_entry_time",
+                "exit_time": "closedtrades_exit_time",
+            }
+            if attr in real:
+                return f"__strategy.{real[attr]}({idx})"
+            if attr in ("entry_comment", "exit_comment", "comment"):
                 return "''"
+            # max_drawdown / max_runup per closed trade — still stub
             return "0.0"
         return "0.0"
     def _emit_udt_new(self, type_name: str, node: ast.Call) -> str:
