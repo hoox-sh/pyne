@@ -511,8 +511,10 @@ class StatementEvaluator:
         ):
             value = getattr(value, "current", value)
 
-        # Only track scalar numerics / na (not maps, arrays, UDT handles, strings).
-        if value is not None and type(value) not in (int, float, bool):
+        # Track scalars that need bar history: numerics, bools, na, and strings.
+        # Strings matter for user ``enum`` members (``Dir.up``) so ``d[1]`` works
+        # in plotshape / flip conditions. Skip maps, arrays, UDT handles, series.
+        if value is not None and type(value) not in (int, float, bool, str):
             try:
                 import numbers
 

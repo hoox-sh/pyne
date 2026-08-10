@@ -248,10 +248,23 @@ class CustomEvaluator(NodeLiteralEvaluator):
 
             title = kwargs.get("title", args[1] if len(args) > 1 else "")
             color = kwargs.get("color", args[2] if len(args) > 2 else None)
+            # plot(..., style=plot.style_linebr, linestyle=plot.linestyle_dashed)
+            style = kwargs.get("style", args[3] if len(args) > 3 else None)
             linewidth = kwargs.get("linewidth", args[5] if len(args) > 5 else 1)
+            linestyle = kwargs.get("linestyle", None)
             color_s = _serialize_color(color) if color is not None else None
             title_s = str(title or "") or None
-            self._capture_plot("plot", value, title_s, color_s, _as_plot_int(linewidth, 1))
+            style_s = None if style is None or style == "" else str(style)
+            linestyle_s = None if linestyle is None or linestyle == "" else str(linestyle)
+            self._capture_plot(
+                "plot",
+                value,
+                title_s,
+                color_s,
+                _as_plot_int(linewidth, 1),
+                style=style_s,
+                linestyle=linestyle_s,
+            )
             return self._maybe_registry("_builtin_plot", args, kwargs) if self._pine_need_plot_ids else None
 
         # Positional-only: plot(series) / plot(series, title, color, …)
@@ -271,10 +284,19 @@ class CustomEvaluator(NodeLiteralEvaluator):
         n = len(args)
         title = args[1] if n > 1 else ""
         color = args[2] if n > 2 else None
+        style = args[3] if n > 3 else None
         linewidth = args[5] if n > 5 else 1
         color_s = _serialize_color(color) if color is not None else None
         title_s = str(title or "") or None
-        self._capture_plot("plot", value, title_s, color_s, _as_plot_int(linewidth, 1))
+        style_s = None if style is None or style == "" else str(style)
+        self._capture_plot(
+            "plot",
+            value,
+            title_s,
+            color_s,
+            _as_plot_int(linewidth, 1),
+            style=style_s,
+        )
         return self._maybe_registry("_builtin_plot", args, None) if self._pine_need_plot_ids else None
 
     def _builtin_hline(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
@@ -445,9 +467,11 @@ class CustomEvaluator(NodeLiteralEvaluator):
             location = kwargs.get("location", args[3] if len(args) > 3 else "")
             color = _unwrap_scalar(kwargs.get("color", args[4] if len(args) > 4 else None))
             text = kwargs.get("text", None)
+            size = kwargs.get("size", None)
             # Treat missing enum constants (None) as empty, not the string "None"
             style_s = "" if style is None else str(style)
             location_s = "" if location is None else str(location)
+            size_s = None if size is None or size == "" else size
             self._capture_plot(
                 "plotshape",
                 value,
@@ -456,6 +480,8 @@ class CustomEvaluator(NodeLiteralEvaluator):
                 style=style_s,
                 location=location_s,
                 text=str(text) if text is not None else "",
+                size=size_s,
+                text_size=size_s,
             )
             return self._maybe_registry("_builtin_plotshape", args, kwargs) if self._pine_need_plot_ids else None
 

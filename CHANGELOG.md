@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-08-10
+
+### Added
+- **Package Runtime SoT** (`pynescript.runtime`): bar-loop host, series, CustomEvaluator live in the installable package; `backend.*` re-exports for Pro API.
+- **First-party dual-host TA goldens** (ATR / Supertrend / Keltner) and full `test_ta_incremental` CI gate.
+- **Strategy exit surface**: pending stop/limit + OCA; `from_entry` multi-leg (interpret + compile); `qty_percent`; minimal trail (interpret + compile); compile risk halt cascade (`allow_entry_in`, `max_position_size`, `max_drawdown`, `max_cons_loss_days`, `max_intraday_loss`, `max_intraday_filled_orders`); open/closed trade fields + MAE/MFE.
+- **`request.security` honesty + HTF resample**: policy meta on Runtime; same-symbol coarser TF OHLCV bucketing; allowlisted simple `ta.sma`/`ema`/`rsi`/`atr` on HTF.
+- **Realtime host simulation**: `realtime_last_bar` / `realtime_ticks` / `realtime_bars` / `realtime_from_bar` for `varip` multi-tick tests.
+- Free-tier Pro API guards (bar/script caps, rate, concurrency, SSRF-safe webhooks, chart/mock-only free data).
+- Hash-only JSON API key store; first-party fixtures under `tests/fixtures/first_party/`.
+- pine-worker series lookback polarity + parity smoke (`series[1]` previous bar).
+- Plot host: `plot.style_*` constants, style/linestyle capture, plotshape size export.
+
+### Fixed
+- EMA dual-host seed (full-list SMA seed matches incremental/Numba).
+- `ta.atr` Wilder RMA on interpret + Numba.
+- AugAssign / tuple unpack series binding; unparser `visit_Simple`; linter C004/W002.
+- Enum/string series history so `d[1]` works for plotshape flips.
+- vscode-extension transitive `brace-expansion` Dependabot high (2.1.4).
+
+### Changed
+- CI Core runtime gates parity, strategy, series, TA incremental, first-party goldens, runtime package, free-limits.
+- Docs: `docs/known_divergences.md`, audit sprint status notes.
+
 ## [0.3.3] - 2026-08-09
 
 ### Fixed

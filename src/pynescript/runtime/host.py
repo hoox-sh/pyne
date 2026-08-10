@@ -1624,6 +1624,11 @@ class Runtime:
                 meta_entry["text"] = text
             if char is not None:
                 meta_entry["char"] = char
+            # plotshape size=size.tiny / text_size (AXIS maps to LWC marker size)
+            size = m0.get("size", m0.get("text_size"))
+            if size is not None and size != "":
+                meta_entry["size"] = size
+                meta_entry["text_size"] = size
             # fill(plot1, plot2, color=…) — AXIS band needs sibling series titles
             if kind == "fill":
                 for ref_key in ("plot1", "plot2"):
