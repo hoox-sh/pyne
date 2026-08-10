@@ -161,6 +161,21 @@ class PendingOrder:
         return max(0.0, float(self.quantity) - float(self.filled_qty))
 
 
+@dataclass
+class OpenLeg:
+    """One open entry leg (minimal interpret ``OpenTrade`` subset).
+
+    Used for multi-leg pyramiding and ``strategy.exit(..., from_entry=...)``
+    targeting on the compile path.
+    """
+
+    entry_id: str
+    size: float
+    entry_price: float
+    direction: str  # long | short
+    commission: float = 0.0
+
+
 class CompileStrategyBroker:
     """Per-run strategy state for compiled object-mode scripts.
 
@@ -199,9 +214,9 @@ class CompileStrategyBroker:
         visitor wires them into the ctor (percent_of_equity / cash / fixed).
 
         ``avg_price_model`` (pynescript extension): ``stock`` | ``futures`` |
-        ``inverse``. Compile broker is a single net lot: partial close already
-        keeps ``position_avg_price`` sticky (futures-like). The flag is stored
-        for dual-path parity and future multi-leg / inverse harmonic work.
+        ``inverse``. Multi-leg open list supports ``from_entry`` exits.
+        ``stock`` reweights remaining-leg VWAP on partial close; ``futures`` /
+        ``inverse`` keep sticky net AEP until flat.
 
         ``leverage`` (pynescript extension): buying-power multiplier for
         percent_of_equity / cash default qty and margin locked in ``cash``.
@@ -238,7 +253,8 @@ class CompileStrategyBroker:
         self.position_size: float = 0.0  # signed: +long / -short
         self.position_avg_price: float = float("nan")
         self.position_entry_name: str = ""
-        # Count of open entry legs (market path pyramiding / replace parity).
+        # Open entry legs (pyramiding / from_entry). open_entry_count mirrors len.
+        self.open_legs: list[OpenLeg] = []
         self.open_entry_count: int = 0
         # Remaining entry commission on the open position (openprofit drag).
         # Exit commission is charged at close time and never sits on the open.
@@ -414,13 +430,26 @@ class CompileStrategyBroker:
         order.filled_qty += fill_qty
         d = order.direction
         px = self._slip(float(fill_price), d)
-        # Closing opposite / reducing
+        fe = order.from_entry
+        # Closing opposite / reducing — honor from_entry when set (exit brackets)
         if not order.is_entry:
             # Force close in this direction (sell covers long, buy covers short)
             if d == "short" and self.position_size > 0:
-                self.close(id=order.order_id, qty=fill_qty, price=px, comment=order.comment)
+                self.close(
+                    id=order.order_id,
+                    qty=fill_qty,
+                    price=px,
+                    comment=order.comment,
+                    from_entry=fe,
+                )
             elif d == "long" and self.position_size < 0:
-                self.close(id=order.order_id, qty=fill_qty, price=px, comment=order.comment)
+                self.close(
+                    id=order.order_id,
+                    qty=fill_qty,
+                    price=px,
+                    comment=order.comment,
+                    from_entry=fe,
+                )
             else:
                 self._open_or_add(d, fill_qty, px, order.order_id, order.comment)
         else:
@@ -458,6 +487,37 @@ class CompileStrategyBroker:
                     self.pending_orders.pop(oid, None)
                     self._emit("cancel", id=oid, oca_name=name, comment="oca_reduce")
 
+    def _entry_open_size(self, from_entry: str | None) -> float:
+        """Open size for ``from_entry`` legs, or whole position when unset."""
+        if not from_entry:
+            return abs(float(self.position_size))
+        if not self.open_legs:
+            # Single-lot fallback: match last entry name or accept when unnamed.
+            if abs(self.position_size) <= 0:
+                return 0.0
+            if not self.position_entry_name or self.position_entry_name == from_entry:
+                return abs(float(self.position_size))
+            return 0.0
+        return float(sum(leg.size for leg in self.open_legs if leg.entry_id == from_entry))
+
+    def _ensure_legs(self) -> None:
+        """Materialise a single synthetic leg when size is open but list empty."""
+        if self.open_legs or abs(self.position_size) <= 0:
+            return
+        d = "long" if self.position_size > 0 else "short"
+        self.open_legs = [
+            OpenLeg(
+                entry_id=str(self.position_entry_name or ""),
+                size=abs(float(self.position_size)),
+                entry_price=float(self.position_avg_price)
+                if self.position_avg_price == self.position_avg_price
+                else 0.0,
+                direction=d,
+                commission=float(self.position_commission or 0.0),
+            )
+        ]
+        self.open_entry_count = 1
+
     def _open_or_add(
         self,
         direction: str,
@@ -488,12 +548,14 @@ class CompileStrategyBroker:
         q = abs(float(qty))
         if q <= 0 or not math.isfinite(q):
             return False
+        eid = str(entry_id)
         # Reverse if opposite — emit close only (interpret parity; no close_all).
         if (d == "long" and self.position_size < 0) or (d == "short" and self.position_size > 0):
-            self.close(id=str(entry_id), qty=abs(self.position_size), comment="reverse", price=px)
+            self.close(id=eid, qty=abs(self.position_size), comment="reverse", price=px)
         same_dir = (self.position_size > 0 and d == "long") or (self.position_size < 0 and d == "short")
         if same_dir and abs(self.position_size) > 0:
-            same_id = self.position_entry_name == str(entry_id)
+            self._ensure_legs()
+            same_id = self.position_entry_name == eid or any(leg.entry_id == eid for leg in self.open_legs)
             if respect_pyramiding and replace_same_id and same_id:
                 # Interpret oracle: same-id re-entry overwrites without realizing PnL.
                 pass  # fall through to flat open below
@@ -507,26 +569,51 @@ class CompileStrategyBroker:
                 self.position_avg_price = (self.position_avg_price * old + px * q) / (old + q)
                 self.position_size += signed
                 self.position_commission += comm
-                self.position_entry_name = str(entry_id)
-                self.open_entry_count += 1
-                self._emit("entry", id=str(entry_id), direction=d, qty=q, comment=comment)
+                self.position_entry_name = eid
+                self.open_legs.append(
+                    OpenLeg(entry_id=eid, size=q, entry_price=px, direction=d, commission=comm)
+                )
+                self.open_entry_count = len(self.open_legs)
+                self._emit("entry", id=eid, direction=d, qty=q, comment=comment)
                 return True
             elif not (respect_pyramiding and replace_same_id and same_id):
                 # Average-add (pending order fills / non-replace path).
-                # F2: pyramiding<=0 → single leg + VWAP; pyramiding>0 leaves
-                # open_entry_count unchanged (max(1, …)) — no silent multi-leg.
+                # F2: pyramiding<=0 → single leg + VWAP; pyramiding>0 appends a
+                # leg when under cap (interpret open_trades parity).
+                if self.pyramiding > 0 and len(self.open_legs) >= int(self.pyramiding) + 1:
+                    return False  # at open-leg cap
                 comm = self._commission(q, px)
                 signed = q if d == "long" else -q
                 old = abs(self.position_size)
                 self.position_avg_price = (self.position_avg_price * old + px * q) / (old + q)
                 self.position_size += signed
                 self.position_commission += comm
-                self.position_entry_name = str(entry_id)
-                # Always one logical entry for pending averages when pyramiding
-                # is off; when on, still do not invent extra legs without market
-                # respect_pyramiding (compile pending has no open-trade list).
-                self.open_entry_count = 1 if self.pyramiding <= 0 else max(1, self.open_entry_count)
-                self._emit("entry", id=str(entry_id), direction=d, qty=q, comment=comment)
+                self.position_entry_name = eid
+                if self.pyramiding <= 0:
+                    # Merge into one leg (VWAP), keep first entry_id when present
+                    if self.open_legs:
+                        first = self.open_legs[0]
+                        total_comm = float(sum(leg.commission for leg in self.open_legs)) + comm
+                        self.open_legs = [
+                            OpenLeg(
+                                entry_id=first.entry_id,
+                                size=old + q,
+                                entry_price=float(self.position_avg_price),
+                                direction=d,
+                                commission=total_comm,
+                            )
+                        ]
+                    else:
+                        self.open_legs = [
+                            OpenLeg(entry_id=eid, size=q, entry_price=px, direction=d, commission=comm)
+                        ]
+                    self.open_entry_count = 1
+                else:
+                    self.open_legs.append(
+                        OpenLeg(entry_id=eid, size=q, entry_price=px, direction=d, commission=comm)
+                    )
+                    self.open_entry_count = len(self.open_legs)
+                self._emit("entry", id=eid, direction=d, qty=q, comment=comment)
                 return True
         # Flat open, reverse re-entry, or same-id replace overwrite
         comm = self._commission(q, px)
@@ -534,9 +621,10 @@ class CompileStrategyBroker:
         self.position_size = signed
         self.position_avg_price = px
         self.position_commission = comm
-        self.position_entry_name = str(entry_id)
+        self.position_entry_name = eid
+        self.open_legs = [OpenLeg(entry_id=eid, size=q, entry_price=px, direction=d, commission=comm)]
         self.open_entry_count = 1
-        self._emit("entry", id=str(entry_id), direction=d, qty=q, comment=comment)
+        self._emit("entry", id=eid, direction=d, qty=q, comment=comment)
         return True
 
     def _slip(self, price: float, direction: str) -> float:
@@ -792,6 +880,7 @@ class CompileStrategyBroker:
         stop: float | None = None,
         profit: float | None = None,
         loss: float | None = None,
+        qty_percent: float | None = None,
         **_kwargs: Any,
     ) -> None:
         """Close (part of) the open position at mark or *price*; update PnL.
@@ -800,10 +889,13 @@ class CompileStrategyBroker:
         compiler has mapped ``strategy.exit`` → ``close``. Match the interpret
         oracle: pick an exit fill price from those legs and emit ``kind=exit``.
 
-        ``from_entry`` (explicit kwarg or, for exit brackets, ``id`` when it
-        matches ``position_entry_name``) soft-no-ops when the open entry name
-        does not match. Compile broker is a single net lot — multi-leg
-        from_entry filtering is interpret-only.
+        ``qty_percent`` (when set and not na) sizes as ``target * pct/100``
+        capped to the open target (whole lot or ``from_entry`` size); wins over
+        absolute ``qty``. Trail stops remain interpret-path residual.
+
+        ``from_entry`` (explicit kwarg or, for exit brackets, ``id`` mapped from
+        compiler ``from_entry``) reduces only matching open legs. Unknown
+        ``from_entry`` is a soft no-op after the placement/close event.
         """
         # Compiler maps strategy.exit → close(..., stop=..., limit=...).
         # from_entry is remapped to id by the visitor; also accept explicit kwarg.
@@ -830,9 +922,9 @@ class CompileStrategyBroker:
             )
             return
 
-        # Soft no-op when from_entry does not match the open entry name.
-        # (Compile broker is a single net lot; multi-leg selection is interpret-only.)
-        if from_entry is not None and self.position_entry_name and self.position_entry_name != from_entry:
+        target_size = self._entry_open_size(from_entry)
+        # Soft no-op when from_entry matches no open leg.
+        if from_entry is not None and target_size <= 0:
             self._emit(
                 event_kind,
                 id=id,
@@ -843,7 +935,17 @@ class CompileStrategyBroker:
             )
             return
 
-        if qty is not None and not _is_na(qty):
+        d = "long" if self.position_size > 0 else "short"
+        # qty_percent wins over qty when both provided (interpret parity).
+        pct = _opt_float(qty_percent if qty_percent is not None else _kwargs.get("qty_percent"))
+        if pct is not None:
+            if pct <= 0:
+                close_qty = 0.0
+            else:
+                close_qty = float(target_size) * (min(float(pct), 100.0) / 100.0)
+        elif qty is None or _is_na(qty):
+            close_qty = float(target_size)
+        else:
             status, parsed = _parse_qty(qty)
             if status == "invalid":
                 self._emit(
@@ -855,12 +957,9 @@ class CompileStrategyBroker:
                     comment="invalid_qty",
                 )
                 return
-        d = "long" if self.position_size > 0 else "short"
-        pos_before = abs(self.position_size)
-        if qty is None or _is_na(qty):
-            close_qty = pos_before
-        else:
-            close_qty = min(abs(float(qty)), pos_before)
+            close_qty = (
+                float(target_size) if status == "missing" else min(abs(float(parsed)), float(target_size))
+            )
         if close_qty <= 0 or not math.isfinite(close_qty):
             return
 
@@ -949,36 +1048,8 @@ class CompileStrategyBroker:
             px = self._slip(self._mark, "short" if d == "long" else "long")
         else:
             px = float(price)
-        if d == "long":
-            trade_profit = (px - self.position_avg_price) * close_qty
-            self.position_size -= close_qty
-        else:
-            trade_profit = (self.position_avg_price - px) * close_qty
-            self.position_size += close_qty
-        # Realize proportional *entry* commission + charge *exit* commission.
-        entry_comm = 0.0
-        if pos_before > 0 and self.position_commission:
-            entry_comm = float(self.position_commission) * (close_qty / pos_before)
-            self.position_commission = max(0.0, float(self.position_commission) - entry_comm)
-        exit_comm = self._commission(close_qty, px)
-        trade_profit -= entry_comm + exit_comm
-        self.netprofit += trade_profit
-        self.closed_trades += 1
-        if trade_profit > 0:
-            self.wintrades += 1
-            self.grossprofit += trade_profit
-        elif trade_profit < 0:
-            self.losstrades += 1
-            self.grossloss += abs(trade_profit)
-        else:
-            self.eventrades += 1
-        if abs(self.position_size) < 1e-12:
-            self.position_size = 0.0
-            self.position_avg_price = float("nan")
-            self.position_entry_name = ""
-            self.position_commission = 0.0
-            self.open_entry_count = 0
-        self._update_equity_extremes()
+
+        self._realize_close(close_qty, float(px), from_entry=from_entry)
         # Market close keeps direction; stop/limit exit already emitted above.
         if not is_exit:
             self._emit(
@@ -990,6 +1061,100 @@ class CompileStrategyBroker:
                 limit=limit_p,
                 stop=stop_p,
             )
+
+    def _realize_close(
+        self,
+        close_qty: float,
+        px: float,
+        *,
+        from_entry: str | None = None,
+    ) -> None:
+        """Reduce open legs (optional ``from_entry`` filter) and realize PnL."""
+        self._ensure_legs()
+        fe = str(from_entry) if from_entry else None
+        if fe is not None and not any(leg.entry_id == fe for leg in self.open_legs):
+            return
+
+        model = self.avg_price_model or "stock"
+        use_sticky = model in {"futures", "inverse"}
+        sticky_avg = float(self.position_avg_price) if self.position_avg_price == self.position_avg_price else 0.0
+
+        eligible = (
+            [leg for leg in self.open_legs if leg.entry_id == fe] if fe is not None else list(self.open_legs)
+        )
+        total_close = min(float(close_qty), float(sum(leg.size for leg in eligible)))
+        if total_close <= 0:
+            return
+        exit_comm_total = self._commission(total_close, px)
+        remaining = total_close
+        trade_profit = 0.0
+        new_legs: list[OpenLeg] = []
+        closed_any = False
+
+        for leg in self.open_legs:
+            if fe is not None and leg.entry_id != fe:
+                new_legs.append(leg)
+                continue
+            if remaining <= 1e-12:
+                new_legs.append(leg)
+                continue
+            cq = min(float(leg.size), remaining)
+            entry_comm = float(leg.commission) * (cq / leg.size) if leg.size else 0.0
+            exit_comm = exit_comm_total * (cq / total_close) if total_close > 0 else 0.0
+            basis = sticky_avg if use_sticky else float(leg.entry_price)
+            if leg.direction == "long":
+                profit = (px - basis) * cq - entry_comm - exit_comm
+            else:
+                profit = (basis - px) * cq - entry_comm - exit_comm
+            trade_profit += profit
+            closed_any = True
+            leftover = float(leg.size) - cq
+            if leftover > 1e-12:
+                new_legs.append(
+                    OpenLeg(
+                        entry_id=leg.entry_id,
+                        size=leftover,
+                        entry_price=leg.entry_price,
+                        direction=leg.direction,
+                        commission=float(leg.commission) - entry_comm,
+                    )
+                )
+            remaining -= cq
+
+        if not closed_any:
+            return
+
+        self.open_legs = new_legs
+        self.netprofit += trade_profit
+        self.closed_trades += 1
+        if trade_profit > 0:
+            self.wintrades += 1
+            self.grossprofit += trade_profit
+        elif trade_profit < 0:
+            self.losstrades += 1
+            self.grossloss += abs(trade_profit)
+        else:
+            self.eventrades += 1
+
+        if not self.open_legs or sum(leg.size for leg in self.open_legs) <= 1e-12:
+            self.open_legs = []
+            self.position_size = 0.0
+            self.position_avg_price = float("nan")
+            self.position_entry_name = ""
+            self.position_commission = 0.0
+            self.open_entry_count = 0
+        else:
+            total = float(sum(leg.size for leg in self.open_legs))
+            d0 = self.open_legs[0].direction
+            self.position_size = total if d0 == "long" else -total
+            if use_sticky:
+                self.position_avg_price = sticky_avg
+            else:
+                self.position_avg_price = sum(leg.entry_price * leg.size for leg in self.open_legs) / total
+            self.position_entry_name = str(self.open_legs[0].entry_id)
+            self.position_commission = float(sum(leg.commission for leg in self.open_legs))
+            self.open_entry_count = len(self.open_legs)
+        self._update_equity_extremes()
 
     def close_all(self, comment: str | None = None, price: float | None = None, **_kwargs: Any) -> None:
         """Flatten any open position then emit ``close_all``."""

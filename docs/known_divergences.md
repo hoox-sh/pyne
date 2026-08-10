@@ -1,7 +1,8 @@
 # Known divergences from reference Pine semantics
 
-**Date:** 2026-08-10 (audit Wave A documentation) 
-**Status:** intentional or residual gaps; track until closed or product-scoped
+**Date:** 2026-08-10 (sprint residual refresh)  
+**Status:** intentional or residual gaps; track until closed or product-scoped  
+**Sprint status:** `docs/code_audit_2026-08-10/SPRINT_STATUS.md`
 
 This page documents **semantic differences** between pynescript and **reference Pine Script** language behavior (as described in the public Pine language docs) that affect numerical or strategy results. It is not a full feature matrix (see `docs/missing_features.md` and `COMPATIBILITY.md`).
 
@@ -13,9 +14,18 @@ This page documents **semantic differences** between pynescript and **reference 
 
 **Reference Pine:** `strategy.exit` places a pending stop/limit (bracket) that fills when price path touches the level.
 
-**pynescript (after Wave B):** stop/limit legs are pending orders (OCA cancel when both set), filled via OHLC / `process_pending_orders`. Market exit (no stop/limit) still closes immediately. **`from_entry` filtering is implemented on the interpret path** (and soft-matched on compile when the open entry name is known). Residual: trail stops, `qty_percent` edge cases; compile broker remains a single net lot (no multi-leg from_entry selection).
+**pynescript (current):**
 
-**Track:** audit AGENT_03.
+| Piece | Status |
+|-------|--------|
+| Pending stop/limit brackets + OCA | **Fixed** (Wave B) — OHLC / `process_pending_orders`; market exit (no stop/limit/trail) still closes immediately |
+| `from_entry` (interpret) | **Fixed** — filters open-trade legs; unknown id is soft no-op (`tests/test_order_fills.py`) |
+| `from_entry` (compile) | **Mostly fixed** — `open_legs` multi-leg selection for stop/limit exits; market exit without levels may still map `id` only (compiler residual) |
+| `qty_percent` on exit | **Fixed** (interpret + compile `close`) — `%` of target (whole pos or `from_entry`); wins over `qty`; `≤0`/na → no-op; `>100` capped at 100% |
+| Trail stops (`trail_*`) | **Minimal (interpret)** — `trail_offset` / `trail_points` (ticks × mintick) + optional `trail_price` activation; stop ratchets from bar high/low in `process_pending_orders`. Compile path does **not** trail. OHLC path approx (no tick path). |
+| `profit` / `loss` | **Residual** — still coerced as prices (not tick offsets from entry avg) |
+
+**Track:** audit AGENT_03 / AGENT_04; sprint residual backlog.
 
 ### `strategy.risk.*` mostly no-op on compile path
 
@@ -45,7 +55,7 @@ Many `strategy.opentrades.*` / `strategy.closedtrades.*` accessors return zeros 
 
 ### EMA seed (fixed — dual-host SMA seed)
 
-Full-list `_ema` / `_ema_state_step` and incremental / Numba paths all use **SMA seed** over the first `period` finite samples (na until ready). Nested EMA and KC middle band inherit this contract.
+Full-list `_ema` / `_ema_state_step` and incremental / Numba paths all use **SMA seed** over the first `period` finite samples (na until ready). Nested EMA and KC middle band inherit this contract. First-party bar-mode goldens gate residual dual-host drift (`tests/test_first_party_ta_goldens.py`, `tests/test_ta_incremental.py`).
 
 ---
 
@@ -87,9 +97,9 @@ Gaps, lookahead flags, and true higher-timeframe series re-evaluation are incomp
 
 ## Linter (tooling, not runtime)
 
-Several style rules are broken or inverted (e.g. always-on trailing newline `C004`). Lint noise is not a Pine semantic divergence but affects editor trust.
+**Fixed (Wave B):** `C004` trailing-newline check no longer `strip()`s before `endswith("\n")`. Residual inverted/legacy style rules may still produce noise; that is tooling debt, not a Pine semantic divergence.
 
-**Track:** audit AGENT_01; Wave C.
+**Track:** audit AGENT_01.
 
 ---
 
@@ -98,9 +108,12 @@ Several style rules are broken or inverted (e.g. always-on trailing newline `C00
 | Area | Policy |
 |------|--------|
 | Dual-host parity (interpret ↔ compile) | Primary correctness contract for supported surface |
-| Runtime host SoT | `pynescript.runtime` (package); `backend.runtime` is a compat shim |
+| Runtime host SoT | **`pynescript.runtime`** (package owns bar loop); `backend.runtime` / `backend.evaluator` / `backend.series` are compat shims |
+| Package façade tests | `tests/test_runtime_package.py` (import + interpret smoke + shim identity) |
+| TA incremental / goldens | CI Core runtime: `test_ta_incremental`, `test_first_party_ta_goldens` |
 | Reference Pine numerical fidelity | Best-effort; known gaps listed above |
 | Free Pro API tier | Chart/mock data only; bar/script/rate/concurrency caps; SSRF-safe webhooks |
-| Third-party corpora | Not required for CI; first-party fixtures under `tests/fixtures/first_party/` |
+| Third-party corpora | Not required for CI; first-party fixtures under `tests/fixtures/first_party/` / `tests/data/first_party/` |
+| pine-worker | **Experimental** residual host; thin-wrap over package Runtime still open (H1) |
 
 When closing a gap, remove or update the corresponding section here and add a regression test under `tests/`.

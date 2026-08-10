@@ -23,11 +23,13 @@ import { PineSeries } from "../src/evaluator/series";
 import { NA } from "../src/evaluator/types";
 
 function setup() {
+  // Chronological bar data: index 0 = oldest, index 9 = newest sample in array.
+  // At currentBar=5, Pine series[0] → 6, series[1] → 5 (previous bar).
   return new PineSeries("close", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 }
 
 describe("PineSeries", () => {
-  test("get(0, N) returns data[N] (current bar)", () => {
+  test("get(0, N) returns data[N] (current bar) — Pine series[0]", () => {
     const series = setup();
     // currentBar=5 → 6th element (0-indexed)
     expect(series.get(0, 5)).toBe(6);
@@ -37,36 +39,41 @@ describe("PineSeries", () => {
     expect(series.get(0, 9)).toBe(10);
   });
 
-  test("get(-N, currentBar) returns historical values", () => {
+  test("get(+N, currentBar) returns historical values — Pine series[N] = N bars ago", () => {
     const series = setup();
-    expect(series.get(-1, 5)).toBe(5); // bar 4
-    expect(series.get(-2, 5)).toBe(4); // bar 3
-    expect(series.get(-4, 5)).toBe(2); // bar 1
-    expect(series.get(-5, 5)).toBe(1); // bar 0 (first)
+    // Matches pynescript.runtime.series / TV: positive offset = lookback
+    expect(series.get(1, 5)).toBe(5); // bar 4 — previous bar
+    expect(series.get(2, 5)).toBe(4); // bar 3
+    expect(series.get(4, 5)).toBe(2); // bar 1
+    expect(series.get(5, 5)).toBe(1); // bar 0 (first)
   });
 
-  test("get(+N, currentBar) returns future values", () => {
-    const series = setup();
-    expect(series.get(1, 5)).toBe(7);  // bar 6
-    expect(series.get(3, 5)).toBe(9);  // bar 8
-    expect(series.get(4, 5)).toBe(10); // bar 9 (last)
+  test("Pine series[1] is previous bar (SoT polarity)", () => {
+    // Explicit parity with Python Runtime: series[0] current, series[1] previous.
+    const series = new PineSeries("close", [10, 20, 30, 40]);
+    const bar = 2; // value 30 is current
+    expect(series.get(0, bar)).toBe(30);
+    expect(series.get(1, bar)).toBe(20);
+    expect(series.get(2, bar)).toBe(10);
+    expect(series.get(3, bar)).toBe(NA); // beyond available history
   });
 
-  test("out-of-bounds historical access returns NA", () => {
+  test("negative offsets return NA (invalid Pine history refs)", () => {
     const series = setup();
-    // Trying to go before bar 0
-    expect(series.get(-6, 5)).toBe(NA);  // would be index -1
-    expect(series.get(-10, 0)).toBe(NA); // would be index -10
-    // currentBar=0, offset=-1 → index -1
+    // Python Runtime soft-fails negative offsets to na
+    expect(series.get(-1, 5)).toBe(NA);
+    expect(series.get(-2, 5)).toBe(NA);
     expect(series.get(-1, 0)).toBe(NA);
+    expect(series.get(-10, 0)).toBe(NA);
   });
 
-  test("out-of-bounds future access returns NA", () => {
+  test("out-of-bounds lookback returns NA", () => {
     const series = setup();
-    // Trying to go past the last bar
-    expect(series.get(5, 5)).toBe(NA);  // would be index 10 (past end)
-    expect(series.get(1, 9)).toBe(NA);  // would be index 10 (past end)
-    expect(series.get(10, 0)).toBe(NA); // would be index 10
+    // currentBar=5, offset=6 → absolute index -1
+    expect(series.get(6, 5)).toBe(NA);
+    // currentBar=0, offset=1 → before first bar
+    expect(series.get(1, 0)).toBe(NA);
+    expect(series.get(10, 0)).toBe(NA);
   });
 
   test("set() writes value at currentBar position", () => {
@@ -77,6 +84,8 @@ describe("PineSeries", () => {
     // other bars are unchanged
     expect(series.get(0, 4)).toBe(5);
     expect(series.get(0, 6)).toBe(7);
+    // previous-bar lookback from bar 6 sees the set value
+    expect(series.get(1, 6)).toBe(42);
   });
 
   test("length property returns number of bars", () => {
@@ -93,6 +102,8 @@ describe("PineSeries", () => {
 
     expect(close.get(0, 1)).toBe(20);
     expect(high.get(0, 1)).toBe(25);
+    expect(close.get(1, 1)).toBe(10); // previous close
+    expect(high.get(1, 1)).toBe(15); // previous high
 
     // Mutating one does not affect the other
     close.set(99, 1);

@@ -21,6 +21,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from pynescript.ast.evaluator import NodeLiteralEvaluator
 
 
@@ -197,6 +199,186 @@ def test_stop_sell_closes_long():
     e.process_pending_orders(open_=100.0, high=100.0, low=90.0, close=92.0)
     assert e._strategy_state.position_direction == "flat"
     assert len(e._strategy_state.closed_trades) >= 1
+
+
+def test_strategy_exit_qty_percent_partial_market():
+    """qty_percent=50 closes half the open size (market exit)."""
+    e = NodeLiteralEvaluator()
+    e.context = {
+        "open": 100.0,
+        "high": 100.0,
+        "low": 100.0,
+        "close": 100.0,
+        "bar_index": 0,
+        "time": 0,
+    }
+    m = e._build_builtin_map()
+    m["strategy.entry"](["L", "long", 10.0])
+    m["strategy.exit"]([], {"id": "X", "from_entry": "L", "qty_percent": 50.0})
+    st = e._strategy_state
+    assert st.position_size == 5.0
+    assert st.position_direction == "long"
+    assert len(st.closed_trades) == 1
+    assert st.closed_trades[0].size == 5.0
+    exit_evs = [ev for ev in st._events if ev.kind == "exit"]
+    assert exit_evs and exit_evs[-1].qty == 5.0
+
+
+def test_strategy_exit_qty_percent_caps_over_100():
+    """qty_percent > 100 is capped to full target size."""
+    e = NodeLiteralEvaluator()
+    e.context = {
+        "open": 100.0,
+        "high": 100.0,
+        "low": 100.0,
+        "close": 100.0,
+        "bar_index": 0,
+        "time": 0,
+    }
+    m = e._build_builtin_map()
+    m["strategy.entry"](["L", "long", 4.0])
+    m["strategy.exit"]([], {"id": "X", "qty_percent": 250.0})
+    assert e._strategy_state.position_size == 0.0
+    assert e._strategy_state.position_direction == "flat"
+
+
+def test_strategy_exit_qty_percent_zero_noop_na_falls_back():
+    """qty_percent 0 → soft no-op; na ignores percent (falls back to qty or full)."""
+    e = NodeLiteralEvaluator()
+    e.context = {
+        "open": 100.0,
+        "high": 100.0,
+        "low": 100.0,
+        "close": 100.0,
+        "bar_index": 0,
+        "time": 0,
+    }
+    m = e._build_builtin_map()
+    m["strategy.entry"](["L", "long", 6.0])
+    m["strategy.exit"]([], {"id": "X0", "qty_percent": 0.0})
+    assert e._strategy_state.position_size == 6.0
+    # na percent + explicit qty → use qty
+    m["strategy.exit"]([], {"id": "Xna", "qty": 2.0, "qty_percent": float("nan")})
+    assert e._strategy_state.position_size == 4.0
+
+
+def test_strategy_exit_qty_percent_wins_over_qty():
+    """When both qty and qty_percent set, percent wins (Pine-like)."""
+    e = NodeLiteralEvaluator()
+    e.context = {
+        "open": 100.0,
+        "high": 100.0,
+        "low": 100.0,
+        "close": 100.0,
+        "bar_index": 0,
+        "time": 0,
+    }
+    m = e._build_builtin_map()
+    m["strategy.entry"](["L", "long", 10.0])
+    # qty alone would close 1; percent 40 closes 4
+    m["strategy.exit"]([], {"id": "X", "qty": 1.0, "qty_percent": 40.0})
+    assert e._strategy_state.position_size == 6.0
+
+
+def test_strategy_exit_qty_percent_respects_from_entry():
+    """qty_percent is relative to from_entry open size, not whole position."""
+    e = NodeLiteralEvaluator()
+    e.context = {
+        "open": 100.0,
+        "high": 100.0,
+        "low": 100.0,
+        "close": 100.0,
+        "bar_index": 0,
+        "time": 0,
+    }
+    m = e._build_builtin_map()
+    m["strategy"](["T"], {"pyramiding": 1})
+    m["strategy.entry"](["A", "long", 4.0])
+    e.context.update({"close": 110.0, "open": 110.0, "high": 110.0, "low": 110.0, "bar_index": 1})
+    m["strategy.entry"](["B", "long", 6.0])
+    assert e._strategy_state.position_size == 10.0
+    # 50% of A (4) → close 2; B untouched
+    m["strategy.exit"]([], {"id": "XA", "from_entry": "A", "qty_percent": 50.0})
+    st = e._strategy_state
+    assert st.position_size == 8.0
+    a_legs = [t for t in st.open_trades if t.entry_id == "A"]
+    assert len(a_legs) == 1 and a_legs[0].size == 2.0
+    b_legs = [t for t in st.open_trades if t.entry_id == "B"]
+    assert len(b_legs) == 1 and b_legs[0].size == 6.0
+
+
+def test_strategy_exit_trail_offset_long_ratchets_and_fills():
+    """trail_offset (ticks) arms immediately; stop ratchets with high then fills on pullback."""
+    e = NodeLiteralEvaluator()
+    e._strategy_state.mintick = 0.01
+    e.context = {
+        "open": 100.0,
+        "high": 100.0,
+        "low": 100.0,
+        "close": 100.0,
+        "bar_index": 0,
+        "time": 0,
+    }
+    m = e._build_builtin_map()
+    m["strategy.entry"](["L", "long", 2.0])
+    # 100 ticks * 0.01 = $1 trail distance; no activation → active immediately
+    m["strategy.exit"]([], {"id": "XT", "trail_offset": 100.0})
+    pending = e._strategy_state.pending_orders
+    assert "XT" in pending
+    trail = pending["XT"]
+    assert trail.is_trail
+    assert trail.trail_offset == pytest.approx(1.0)
+    # Favorable bar: high 110 → stop 109; low must stay above stop or OHLC fills same bar
+    e.context.update({"open": 109.5, "high": 110.0, "low": 109.2, "close": 109.8, "bar_index": 1})
+    e.process_pending_orders(open_=109.5, high=110.0, low=109.2, close=109.8)
+    assert e._strategy_state.position_direction == "long"
+    assert "XT" in e._strategy_state.pending_orders
+    assert e._strategy_state.pending_orders["XT"].stop_price == pytest.approx(109.0)
+    # Mild pullback still above stop — no fill; trail does not lower
+    e.context.update({"open": 109.5, "high": 109.6, "low": 109.1, "close": 109.2, "bar_index": 2})
+    e.process_pending_orders(open_=109.5, high=109.6, low=109.1, close=109.2)
+    assert e._strategy_state.position_direction == "long"
+    assert e._strategy_state.pending_orders["XT"].stop_price == pytest.approx(109.0)
+    # Break stop
+    e.context.update({"open": 109.2, "high": 109.3, "low": 108.0, "close": 108.5, "bar_index": 3})
+    e.process_pending_orders(open_=109.2, high=109.3, low=108.0, close=108.5)
+    assert e._strategy_state.position_direction == "flat"
+    assert e._strategy_state.position_size == 0.0
+
+
+def test_strategy_exit_trail_price_activation_long():
+    """trail_price delays arming until high reaches activation; then trails."""
+    e = NodeLiteralEvaluator()
+    e._strategy_state.mintick = 1.0
+    e.context = {
+        "open": 100.0,
+        "high": 100.0,
+        "low": 100.0,
+        "close": 100.0,
+        "bar_index": 0,
+        "time": 0,
+    }
+    m = e._build_builtin_map()
+    m["strategy.entry"](["L", "long", 1.0])
+    # Activate at 110; trail 2 ticks (= $2 with mintick 1)
+    m["strategy.exit"]([], {"id": "XT", "trail_price": 110.0, "trail_offset": 2.0})
+    # Below activation — still open, stop not set (or not fillable)
+    e.context.update({"open": 105.0, "high": 108.0, "low": 104.0, "close": 107.0, "bar_index": 1})
+    e.process_pending_orders(open_=105.0, high=108.0, low=104.0, close=107.0)
+    assert e._strategy_state.position_direction == "long"
+    po = e._strategy_state.pending_orders["XT"]
+    assert po.trail_active is False
+    # Activate: high 112 → stop = 110; low 111 → no fill
+    e.context.update({"open": 109.0, "high": 112.0, "low": 111.0, "close": 111.5, "bar_index": 2})
+    e.process_pending_orders(open_=109.0, high=112.0, low=111.0, close=111.5)
+    assert e._strategy_state.position_direction == "long"
+    po = e._strategy_state.pending_orders["XT"]
+    assert po.trail_active is True
+    assert po.stop_price == pytest.approx(110.0)
+    # Fill on pullback through 110
+    e.context.update({"open": 111.0, "high": 111.0, "low": 109.0, "close": 109.5, "bar_index": 3})
+    e.process_pending_orders(open_=111.0, high=111.0, low=109.0, close=109.5)
+    assert e._strategy_state.position_direction == "flat"
 
 
 def test_request_seed_reproducible_footprint():

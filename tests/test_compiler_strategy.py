@@ -338,6 +338,73 @@ class TestCompileExitAndSeriesParity:
         assert b.position_size == 0.0
         assert b.netprofit == pytest.approx(10.0)
 
+    def test_from_entry_closes_only_matching_pyramid_leg(self) -> None:
+        """Two pyramid legs; exit from_entry first id leaves the second open."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0, pyramiding=1, commission_value=0.0)
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.entry("A", "long", 2.0)
+        b.begin_bar(1, 110.0, 110.0, 110.0, 110.0)
+        b.entry("B", "long", 3.0)
+        assert b.position_size == 5.0
+        assert b.open_entry_count == 2
+        assert len(b.open_legs) == 2
+        assert [leg.entry_id for leg in b.open_legs] == ["A", "B"]
+
+        b.begin_bar(2, 120.0, 120.0, 120.0, 120.0)
+        # Market exit targeting A only (explicit from_entry)
+        b.close(from_entry="A")
+        assert b.position_size == 3.0
+        assert b.open_entry_count == 1
+        assert len(b.open_legs) == 1
+        assert b.open_legs[0].entry_id == "B"
+        assert b.open_legs[0].size == 3.0
+        assert b.position_entry_name == "B"
+        # PnL on A only: (120 - 100) * 2
+        assert b.netprofit == pytest.approx(40.0)
+        assert b.closed_trades == 1
+
+    def test_from_entry_unknown_soft_noop(self) -> None:
+        """Unknown from_entry is a soft no-op (no crash, no size change)."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0)
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.entry("L", "long", 4.0)
+        b.close(from_entry="NOPE")
+        assert b.position_size == 4.0
+        assert b.closed_trades == 0
+        assert b.open_entry_count == 1
+        assert not b.pending_orders
+        # Placement-style event still recorded with qty=0
+        assert any(e.get("kind") in {"close", "exit"} and e.get("qty") == 0.0 for e in b.events)
+
+    def test_from_entry_exit_bracket_pending_then_fill(self) -> None:
+        """Pending stop/limit exit with from_entry only reduces that leg."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0, pyramiding=1, commission_value=0.0)
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.entry("A", "long", 2.0)
+        b.begin_bar(1, 105.0, 105.0, 105.0, 105.0)
+        b.entry("B", "long", 4.0)
+        # Bracket only against A; mark between levels → pending
+        b.close(id="A", qty=2.0, limit=120.0, stop=90.0, comment="XA")
+        assert b.position_size == 6.0
+        assert any(k.startswith("A") for k in b.pending_orders)
+        for po in b.pending_orders.values():
+            assert po.from_entry == "A"
+            assert po.quantity == 2.0
+        # TP fills A only
+        b.begin_bar(2, 100.0, 125.0, 99.0, 122.0)
+        assert b.position_size == 4.0
+        assert b.open_entry_count == 1
+        assert b.open_legs[0].entry_id == "B"
+        assert b.closed_trades == 1
+        # (120 fill limit or min - TP uses limit 120) * 2 vs entry 100
+        assert b.netprofit == pytest.approx(40.0)
+
     def test_openprofit_percent_and_cash_series(self) -> None:
         """Missing compile attrs caused AttributeError / compile_error on plots."""
         from pynescript.compiler.strategy_broker import CompileStrategyBroker

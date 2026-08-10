@@ -22,17 +22,19 @@ import { NA } from "./types";
 /**
  * PineSeries — Pine Script's historical bar access pattern.
  *
- * In Pine Script every built-in variable (close, high, volume, …) is a "series"
- * holding one value per bar.  Values are accessed with a relative offset from
- * the current bar:
+ * Matches Python SoT (`pynescript.runtime.series.PineSeries`) and TradingView:
+ * offsets are **bars ago**, not signed array deltas.
  *
- *   series.get(0, currentBar)  → data[currentBar]           (current bar)
- *   series.get(-1, currentBar) → data[currentBar - 1]       (previous bar)
- *   series.get(N, currentBar)  → data[currentBar + N]       (positive = future)
+ *   series.get(0, currentBar)  → data[currentBar]           (current bar)  // series[0]
+ *   series.get(1, currentBar)  → data[currentBar - 1]       (previous bar) // series[1]
+ *   series.get(N, currentBar)  → data[currentBar - N]       (N bars ago)   // series[N]
+ *
+ * Negative offsets are invalid Pine history refs and return {@link NA}
+ * (same soft-fail as Python Runtime). Out-of-range lookbacks also return NA.
  *
  * Since we run in simulation mode, all bar data is available upfront.  The
- * series wraps an array and translates Pine Script's negative-index convention
- * (0 = most recent) into absolute array lookups.
+ * series wraps an array and translates Pine Script offsets into absolute
+ * array lookups.
  */
 export class PineSeries<T = any> {
   readonly name: string;
@@ -44,16 +46,20 @@ export class PineSeries<T = any> {
   }
 
   /**
-   * Get the value at a relative offset from the current bar.
+   * Get the value at a Pine history offset from the current bar.
    *
-   * @param offset     Relative offset: 0 = current bar, negative = past,
-   *                   positive = future.
+   * @param offset     Bars ago: 0 = current bar, 1 = previous bar, N = N bars ago.
+   *                   Negative offsets are invalid and return NA.
    * @param currentBar Absolute index of the current bar being processed.
    * @returns The value at that position, or {@link NA} when the index is
-   *          out of bounds (before the first bar or past available data).
+   *          out of bounds or the offset is negative.
    */
   get(offset: number, currentBar: number): T | typeof NA {
-    const absoluteIndex = currentBar + offset;
+    // Pine: series[n] is n bars back. Negative history refs → na (Python parity).
+    if (offset < 0) {
+      return NA;
+    }
+    const absoluteIndex = currentBar - offset;
     if (absoluteIndex < 0 || absoluteIndex >= this.data.length) {
       return NA;
     }

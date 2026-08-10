@@ -189,10 +189,18 @@ class Order:
     oca_type: str = "none"  # none | cancel | reduce
     # When set (strategy.exit from_entry), reduce only matching open-trade legs
     from_entry: str | None = None
+    # Trailing stop state (strategy.exit trail_*). Distances are price units.
+    trail_offset: float | None = None
+    trail_activation: float | None = None
+    trail_active: bool = False
 
     @property
     def remaining_qty(self) -> float:
         return max(0.0, float(self.quantity) - float(self.filled_qty))
+
+    @property
+    def is_trail(self) -> bool:
+        return self.trail_offset is not None and self.trail_offset > 0
 
 
 @dataclass
@@ -1244,16 +1252,91 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             return float(st.position_size)
         return float(sum(t.size for t in st.open_trades if t.entry_id == from_entry))
 
+    def _resolve_exit_qty(
+        self,
+        *,
+        target_size: float,
+        raw_qty: Any,
+        raw_qty_percent: Any,
+    ) -> tuple[str, float]:
+        """Resolve strategy.exit size from ``qty`` / ``qty_percent``.
+
+        Returns ``(status, qty)`` where *status* is ``ok`` | ``invalid``.
+
+        Edge cases (aligned with common Pine usage):
+
+        - ``qty_percent`` wins when both ``qty`` and ``qty_percent`` are set
+          (and percent is not na).
+        - ``qty_percent`` is a percent of *target_size* (whole position, or
+          ``from_entry`` open size when set): ``qty = target * pct / 100``.
+        - ``pct <= 0`` → qty 0 (soft no-op after placement event).
+        - ``pct`` na / missing → ignore percent; use ``qty`` or full target.
+        - ``pct > 100`` → capped at 100% of target.
+        - Absolute ``qty`` is capped to target_size.
+        """
+        target = max(0.0, float(target_size))
+        pct = self._coerce_optional_price(raw_qty_percent)
+        if pct is not None:
+            if pct <= 0:
+                return ("ok", 0.0)
+            pct = min(float(pct), 100.0)
+            return ("ok", target * (pct / 100.0))
+
+        if raw_qty is None:
+            return ("ok", target)
+        status, parsed = self._parse_order_qty(raw_qty)
+        if status == "invalid":
+            return ("invalid", 0.0)
+        if status == "missing":
+            return ("ok", target)
+        return ("ok", min(float(parsed), target))
+
+    def _resolve_trail_params(
+        self,
+        kw: dict[str, Any],
+        args: list[Any],
+    ) -> tuple[float | None, float | None]:
+        """Parse trail_price / trail_offset / trail_points → (activation, offset_price).
+
+        Distances are in **ticks** (× :meth:`_mintick`) per Pine. Prefer
+        ``trail_points`` when both offset and points are set (TV reference).
+        Returns ``(None, None)`` when trail is not configured or offset is na/≤0.
+        """
+        # Pine: … stop, trail_price, trail_points, trail_offset (indices 8–10 full form)
+        trail_price = self._coerce_optional_price(
+            kw.get("trail_price", args[8] if len(args) > 8 else None)
+        )
+        trail_points = self._coerce_optional_price(
+            kw.get("trail_points", args[9] if len(args) > 9 else None)
+        )
+        trail_offset = self._coerce_optional_price(
+            kw.get("trail_offset", args[10] if len(args) > 10 else None)
+        )
+        ticks = trail_points if trail_points is not None else trail_offset
+        if ticks is None or ticks <= 0:
+            return (None, None)
+        offset_price = float(ticks) * self._mintick()
+        if offset_price <= 0:
+            return (None, None)
+        return (trail_price, offset_price)
+
     def _handle_strategy_exit(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
         """
-        strategy.exit(id, from_entry, qty, limit, stop, comment, alert, ...)
+        strategy.exit(id, from_entry, qty, qty_percent, profit, limit, loss, stop,
+        trail_price, trail_points, trail_offset, ...)
 
         Place a bracket exit against the open position.
 
-        * No ``limit``/``stop`` → market close now (with slippage).
+        * No ``limit``/``stop``/trail → market close now (with slippage).
         * With ``limit`` and/or ``stop`` → pending order(s) filled by
           :meth:`process_pending_orders` when bar OHLC touches the level.
           Both legs share an OCA cancel group so one fill cancels the other.
+        * ``qty_percent`` (kwargs or Pine positional) sizes the exit as a
+          percent of the open target (whole position or ``from_entry`` size);
+          wins over absolute ``qty`` when both are set.
+        * Trail: ``trail_points`` / ``trail_offset`` (ticks × mintick) with
+          optional ``trail_price`` activation. Pending stop ratchets with
+          favorable extremes after arming.
         * When ``from_entry`` is set, only that entry id's open qty is reduced;
           other open trades (pyramiding) are left intact. Unknown from_entry is
           a soft no-op after the placement event (no crash).
@@ -1262,7 +1345,8 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         """
         kw = kwargs or {}
         exit_id = str(kw.get("id", args[0] if args else "exit"))
-        # Positional: id, from_entry, qty, limit, stop, …
+        # Positional Pine: id, from_entry, qty, qty_percent, profit, limit, loss, stop, …
+        # Simplified legacy (still supported for limit/stop): id, from_entry, qty, limit, stop
         raw_from = kw.get("from_entry", args[1] if len(args) > 1 else None)
         from_entry: str | None
         if raw_from is None or raw_from == "":
@@ -1272,28 +1356,69 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
 
         target_size = self._entry_open_size(from_entry)
         raw_qty = kw.get("qty", args[2] if len(args) > 2 else None)
-        if raw_qty is None:
-            qty = float(target_size)
-        else:
-            status, parsed = self._parse_order_qty(raw_qty)
-            if status == "invalid":
-                self._emit_rejected_order(
-                    order_id=exit_id,
-                    direction=None,
-                    reason="invalid_qty",
+        # qty_percent: kwargs first; positional args[3] when not using simplified limit form
+        raw_qty_percent = kw.get("qty_percent")
+        if raw_qty_percent is None and len(args) > 3:
+            if "qty_percent" in kw:
+                pass
+            elif any(
+                k in kw
+                for k in (
+                    "limit",
+                    "stop",
+                    "profit",
+                    "loss",
+                    "trail_price",
+                    "trail_points",
+                    "trail_offset",
                 )
-                return
-            qty = float(target_size) if status == "missing" else min(float(parsed), float(target_size))
+            ):
+                # Named levels → args[3] is free for Pine qty_percent
+                raw_qty_percent = args[3]
+            elif len(args) == 4:
+                # exit(id, from_entry, qty, pct) market partial
+                raw_qty_percent = args[3]
+            elif len(args) > 5:
+                # Full Pine positional list
+                raw_qty_percent = args[3]
 
-        # Prefer kwargs; fall back to args[3]/args[4] when present.
+        qty_status, qty = self._resolve_exit_qty(
+            target_size=target_size,
+            raw_qty=raw_qty,
+            raw_qty_percent=raw_qty_percent,
+        )
+        if qty_status == "invalid":
+            self._emit_rejected_order(
+                order_id=exit_id,
+                direction=None,
+                reason="invalid_qty",
+            )
+            return
+
+        # Prefer kwargs; simplified positional limit/stop at args[3]/[4];
+        # full Pine uses profit/limit/loss/stop at 4–7.
         limit_raw = kw.get("limit", kw.get("profit"))
-        if limit_raw is None and len(args) > 3:
-            limit_raw = args[3]
         stop_raw = kw.get("stop", kw.get("loss"))
-        if stop_raw is None and len(args) > 4:
-            stop_raw = args[4]
+        if limit_raw is None:
+            if len(args) > 5:
+                limit_raw = args[5] if args[5] is not None else args[4]
+            elif len(args) > 3 and raw_qty_percent is None:
+                # Simplified: args[3] = limit (only when not consumed as percent)
+                limit_raw = args[3]
+            elif len(args) > 4 and raw_qty_percent is not None:
+                # Pine profit (ticks-as-price residual) when percent took args[3]
+                limit_raw = args[4]
+        if stop_raw is None:
+            if len(args) > 7:
+                stop_raw = args[7] if args[7] is not None else args[6]
+            elif len(args) > 4 and raw_qty_percent is None:
+                stop_raw = args[4]
+            elif len(args) > 6 and raw_qty_percent is not None:
+                stop_raw = args[6]
         limit_p = self._coerce_optional_price(limit_raw)
         stop_p = self._coerce_optional_price(stop_raw)
+        trail_activation, trail_offset_px = self._resolve_trail_params(kw, args)
+        has_trail = trail_offset_px is not None
         comment = kw.get("comment", None)
         is_long = self._strategy_state.position_direction == "long"
         is_flat = self._strategy_state.position_direction == "flat"
@@ -1310,7 +1435,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 qty=qty,
                 order_type=None,
                 limit=limit_p,
-                stop=stop_p,
+                stop=stop_p if stop_p is not None else (trail_activation if has_trail else None),
                 oca_name=None,
                 comment=comment,
                 bar_index=self._bar_index(),
@@ -1328,7 +1453,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             return
 
         # Market exit — fill immediately (only matching from_entry legs)
-        if limit_p is None and stop_p is None:
+        if limit_p is None and stop_p is None and not has_trail:
             exit_price = self._apply_slippage(self._mark_price(), action)
             self._close_position(exit_price, qty, self._bar_time(), from_entry=from_entry)
             return
@@ -1340,8 +1465,9 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
 
         oca_name = exit_id
         cmt = str(comment) if comment is not None else ""
+
         if limit_p is not None and stop_p is not None:
-            # Two OCA-cancel legs (TP + SL)
+            # Two OCA-cancel legs (TP + SL); trail replaces fixed stop when set
             lim_id = f"{exit_id}:limit"
             stop_id = f"{exit_id}:stop"
             self._strategy_state.pending_orders[lim_id] = Order(
@@ -1356,17 +1482,63 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 oca_type="cancel",
                 from_entry=from_entry,
             )
-            self._strategy_state.pending_orders[stop_id] = Order(
-                stop_id,
-                "stop",
+            if has_trail:
+                self._strategy_state.pending_orders[stop_id] = Order(
+                    stop_id,
+                    "stop",
+                    action,
+                    qty,
+                    None,
+                    stop_p,
+                    cmt,
+                    oca_name=oca_name,
+                    oca_type="cancel",
+                    from_entry=from_entry,
+                    trail_offset=trail_offset_px,
+                    trail_activation=trail_activation,
+                    trail_active=trail_activation is None,
+                )
+            else:
+                self._strategy_state.pending_orders[stop_id] = Order(
+                    stop_id,
+                    "stop",
+                    action,
+                    qty,
+                    None,
+                    stop_p,
+                    cmt,
+                    oca_name=oca_name,
+                    oca_type="cancel",
+                    from_entry=from_entry,
+                )
+        elif limit_p is not None and has_trail:
+            lim_id = f"{exit_id}:limit"
+            self._strategy_state.pending_orders[lim_id] = Order(
+                lim_id,
+                "limit",
                 action,
                 qty,
+                limit_p,
                 None,
-                stop_p,
                 cmt,
                 oca_name=oca_name,
                 oca_type="cancel",
                 from_entry=from_entry,
+            )
+            self._strategy_state.pending_orders[f"{exit_id}:trail"] = Order(
+                f"{exit_id}:trail",
+                "stop",
+                action,
+                qty,
+                None,
+                stop_p,  # optional floor; may be None until trail arms
+                cmt,
+                oca_name=oca_name,
+                oca_type="cancel",
+                from_entry=from_entry,
+                trail_offset=trail_offset_px,
+                trail_activation=trail_activation,
+                trail_active=trail_activation is None,
             )
         elif limit_p is not None:
             self._strategy_state.pending_orders[exit_id] = Order(
@@ -1378,6 +1550,21 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 None,
                 cmt,
                 from_entry=from_entry,
+            )
+        elif has_trail:
+            # Trail-only (optionally with fixed stop as initial floor)
+            self._strategy_state.pending_orders[exit_id] = Order(
+                exit_id,
+                "stop",
+                action,
+                qty,
+                None,
+                stop_p,
+                cmt,
+                from_entry=from_entry,
+                trail_offset=trail_offset_px,
+                trail_activation=trail_activation,
+                trail_active=trail_activation is None,
             )
         else:
             self._strategy_state.pending_orders[exit_id] = Order(
@@ -1391,7 +1578,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 from_entry=from_entry,
             )
 
-        # Same-bar fill when OHLC already touches the level
+        # Same-bar fill when OHLC already touches the level (also arms trails)
         self.process_pending_orders()
 
     def _handle_strategy_close(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
@@ -1659,6 +1846,39 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             )
         )
 
+    def _update_trail_stop(self, order: Order, high: float, low: float) -> None:
+        """Ratchet a trailing stop from bar extremes once armed.
+
+        Long exit (sell stop): after activation, ``stop = high - offset``, only
+        rising. Short exit (buy stop): ``stop = low + offset``, only falling.
+        Fixed ``stop_price`` set at placement acts as a floor/ceiling that the
+        trail may improve but not worsen beyond on first arm.
+        """
+        if not order.is_trail:
+            return
+        offset = float(order.trail_offset or 0.0)
+        if offset <= 0:
+            return
+        action = order.direction  # buy covers short; sell closes long
+        act = order.trail_activation
+        if not order.trail_active:
+            if act is None:
+                order.trail_active = True
+            elif action in {"sell", "short"} and high >= float(act):
+                order.trail_active = True
+            elif action in {"buy", "long"} and low <= float(act):
+                order.trail_active = True
+            else:
+                return
+        if action in {"sell", "short"}:
+            candidate = float(high) - offset
+            if order.stop_price is None or candidate > float(order.stop_price):
+                order.stop_price = candidate
+        elif action in {"buy", "long"}:
+            candidate = float(low) + offset
+            if order.stop_price is None or candidate < float(order.stop_price):
+                order.stop_price = candidate
+
     def process_pending_orders(
         self,
         *,
@@ -1671,6 +1891,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
 
         Returns list of order ids that fully filled this call.
         Called by Runtime each bar (before script visit) when bar mode.
+        Trail stops are ratcheted from bar extremes before the fill check.
         """
         if not hasattr(self, "_strategy_state"):
             return []
@@ -1693,6 +1914,9 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 self._strategy_state.pending_orders.pop(order_id, None)
                 fully_filled.append(order_id)
                 continue
+            # Trail: update stop from favorable extreme, then test fill
+            if order.is_trail:
+                self._update_trail_stop(order, h, l)
             fill_price = self._order_fill_price(order, o, h, l, c)
             if fill_price is None:
                 continue

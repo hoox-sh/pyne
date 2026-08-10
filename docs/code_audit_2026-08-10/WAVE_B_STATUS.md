@@ -19,12 +19,13 @@ Semantic correctness fixes after Wave A (security/CI).
 
 ## Tests
 
-Core CI gate + strategy suites green (170+ passed). 
-`test_ta_incremental` still has **7 pre-existing EMA/KC residual failures** (not newly introduced by ATR RMA alone; still out of CI gate).
+Core CI gate + strategy suites green (170+ passed).  
+Post–Wave B sprint: EMA seed unified; `test_ta_incremental` / `test_first_party_ta_goldens` / `test_runtime_package` are on the Core runtime CI gate (see `SPRINT_STATUS.md`).
 
-## Residual
+## Residual (refresh — see SPRINT_STATUS.md)
 
-- `from_entry` / trail / `qty_percent` on exit
-- Supertrend/KC golden re-verify vs reference Pine
-- EMA seed split (incremental vs full)
+- Trail stops / `qty_percent` exit edge cases (other agent may land)
+- Compile multi-leg / pyramiding `from_entry` (interpret path fixed)
+- Supertrend/KC golden re-verify vs reference Pine (ATR RMA consumers)
 - Full `varip` tick model under a live host
+- pine-worker thin-wrap over package Runtime (H1 residual)

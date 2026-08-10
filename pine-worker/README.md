@@ -8,6 +8,26 @@ This is an **extra tool** of the main `pynescript` Python repository. It lives i
 - The ANTLR grammar remains the single source of truth (regenerate TS parser target from `../src/pynescript/ast/grammar/antlr4/resource/*.g4`).
 - Development, testing, and porting can cross language boundaries in one checkout.
 
+## Source of truth (SoT) boundary
+
+**Python Runtime is SoT** (`pynescript.runtime` under `../src/pynescript/runtime/`).
+
+| Layer | Role |
+| --- | --- |
+| `pynescript.runtime` (Python) | Public runtime SoT — series, host, evaluator semantics |
+| `pine-worker` (this package) | **Experimental** TS worker / partial port — not a second SoT |
+
+When semantics disagree, Python wins. This package should thin-wrap or align toward the Python contract rather than reimplement a full parallel Runtime.
+
+**Series indexing matches Pine offsets** (same as Python `PineSeries` / TradingView):
+
+- `series[0]` / `get(0, bar)` — current bar
+- `series[1]` / `get(1, bar)` — previous bar (one bar ago)
+- `series[n]` / `get(n, bar)` — `n` bars ago
+- Negative history offsets → `na` (soft-fail, Python parity)
+
+Do not invert polarity (positive is lookback into the past, not “future”).
+
 ## Status
 
 This is the home of **Plan 2** of the strategy-events effort (see `../.opencode/plans/2026-07-05-pine-worker-strategy-events.md`).
@@ -16,10 +36,10 @@ Currently a skeleton + partial port of:
 
 - AST Zod schemas + types (mirrors Python ASDL)
 - Base evaluator + visitor dispatch
-- PineSeries (historical bar access)
+- PineSeries (historical bar access; Pine offset polarity)
 - Core NA/loop signal semantics
 
-Full builtins port, parser (ANTLR TS target), runtime loop, and strategy event emission are in progress.
+Full builtins port, parser (ANTLR TS target), runtime loop, and strategy event emission are in progress. This is **not** a full Runtime reimplementation in TypeScript.
 
 ## Quick start (requires Bun)
 
@@ -32,7 +52,7 @@ bun run typecheck
 
 ## Parity with Python reference
 
-The Python side (in `pynescript` + `backend/`) is the source of truth.
+The Python Runtime (`pynescript.runtime`) is the source of truth; see **Source of truth (SoT) boundary** above. Legacy `backend/` re-exports still exist for compatibility but public SoT lives under `src/pynescript/runtime/`.
 
 Fixtures:
 

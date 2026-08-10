@@ -19,9 +19,9 @@
 
 # H1 — Dual-host Runtime unify checklist
 
-**Status:** host surface largely aligned (Aug 2026 + R7 Agent 06); **package SoT path landed** (`pynescript.runtime`, 2026-08-10); worker thin-wrap still open  
+**Status:** host surface largely aligned (Aug 2026 + R7 Agent 06); **package SoT path landed** (`pynescript.runtime`, 2026-08-10) — Pro API uses package bar loop via backend shims; **worker thin-wrap still open**  
 **SoT:** `src/pynescript/runtime/` (`host.py`, `evaluator.py`, `series.py`) — `backend.runtime` / `backend.evaluator` / `backend.series` are compat shims  
-**Worker:** `/home/jango/Git/pyne-worker/src/pynescript_backend/`
+**Worker:** `/home/jango/Git/pyne-worker/src/pynescript_backend/` (experimental residual host)
 
 ## Closed on worker (do not re-discover)
 
@@ -57,22 +57,23 @@
 | Item | Pri | Notes |
 | --- | --- | --- |
 | **Bound call-site on shared AST** | P0 | Fix in `expressions.py`: don’t pin instance methods on cached trees; or site key includes evaluator generation |
-| Extract shared host helpers module | P1 | jsonable series, OHLCV pack, error_payload, compile caches (now under `pynescript.runtime.host`) |
-| Single Runtime implementation | P1 | **Package owns bar loop** (`pynescript.runtime`); residual = thin worker wrap (timeout/R2/HTTP) |
+| Extract shared host helpers module | P1 | **Done on package** — jsonable series, OHLCV pack, error_payload, compile caches live under `pynescript.runtime.host`; worker still duplicates some surface |
+| Single Runtime implementation (package bar loop) | P1 | **Done for Pro API** — package owns bar loop (`pynescript.runtime`); backend shims. Residual = **thin worker wrap** only (timeout/R2/HTTP) |
 | Align `time` host model | P2 | SoT scalar vs worker series — pick one + goldens |
 | Vendor sync policy | P2 | `scripts/sync_vendor.sh` after worker points at package Runtime |
-| Goldens: multi-run + inputs on both hosts | P1 | already on worker; mirror SoT tests |
+| Goldens: multi-run + inputs on both hosts | P1 | package façade smoke in CI (`test_runtime_package`); multi-run + inputs still stronger on worker |
 
 ## Suggested unify PR sequence
 
 1. **Package:** call-site cache not evaluator-bound (or invalidate on new evaluator) + multi-run golden.  
-2. **Extract** pure helpers (no Flask/CF) → importable from SoT backend and worker.  
+2. **Extract** pure helpers (no Flask/CF) → importable from SoT backend and worker. *(package side largely done)*  
 3. **Thin worker:** delete duplicated bar loop; wrap package Runtime with `timeout_seconds` + response shaping.  
 4. **CF smoke:** deploy path still uses `python_modules/` via `sync_vendor.sh`.
 
 ## DoD for “H1 closed”
 
-- [ ] One bar-loop implementation for interpret used by Pro API and pyne-worker  
+- [x] Package bar-loop SoT for interpret used by Pro API (`pynescript.runtime` + backend shims; `tests/test_runtime_package.py`)  
+- [ ] Same SoT bar-loop used by pyne-worker (thin wrap; no duplicated loop)  
 - [ ] Multi-run + inputs + auto/compile caches identical semantics  
 - [ ] Worker pytest + SoT `TestRuntimeAutoMode` green  
 - [ ] No CF regression (timeouts, R2, no new hard native deps)
