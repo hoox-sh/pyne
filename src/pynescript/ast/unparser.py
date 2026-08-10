@@ -1003,7 +1003,7 @@ class NodeUnparser(NodeVisitor):
     def visit_Input(self, node: ast.Input):
         self._source.append("input")
 
-    def visit_Sipmle(self, node: ast.Simple):
+    def visit_Simple(self, node: ast.Simple):
         self._source.append("simple")
 
     def visit_Series(self, node: ast.Series):

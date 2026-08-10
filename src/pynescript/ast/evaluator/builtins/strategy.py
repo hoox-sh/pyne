@@ -1232,19 +1232,17 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         """
         strategy.exit(id, from_entry, qty, limit, stop, comment, alert, ...)
 
-        Create exit order closing a specific entry.
+        Place a bracket exit against the open position.
 
-        Parameters:
-            id: Order identifier (str)
-            from_entry: Entry order to close (str)
-            qty: Quantity to close (float or None for all)
-            limit: Limit price (float or None)
-            stop: Stop price (float or None)
-            comment: Order comment (str)
+        * No ``limit``/``stop`` → market close now (with slippage).
+        * With ``limit`` and/or ``stop`` → pending order(s) filled by
+          :meth:`process_pending_orders` when bar OHLC touches the level.
+          Both legs share an OCA cancel group so one fill cancels the other.
 
-        Returns None. Closes position or partial position.
+        Always records a ``kind=exit`` event for host bookkeeping (placement).
         """
         kw = kwargs or {}
+        exit_id = str(kw.get("id", args[0] if args else "exit"))
         raw_qty = kw.get("qty", args[2] if len(args) > 2 else None)
         if raw_qty is None:
             qty = float(self._strategy_state.position_size)
@@ -1252,58 +1250,40 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             status, parsed = self._parse_order_qty(raw_qty)
             if status == "invalid":
                 self._emit_rejected_order(
-                    order_id=str(kw.get("id", args[0] if args else "exit")),
+                    order_id=exit_id,
                     direction=None,
                     reason="invalid_qty",
                 )
                 return
             qty = float(self._strategy_state.position_size) if status == "missing" else parsed
 
-        # v6: evaluate both (limit/profit) and (stop/loss) pairs; choose the one market price would activate first
-        limit_p = self._coerce_optional_price(kw.get("limit") or kw.get("profit"))
-        stop_p = self._coerce_optional_price(kw.get("stop") or kw.get("loss"))
-        current_p = self._mark_price()
+        # Positional limit/stop (TV order: id, from_entry, qty, limit, stop, …)
+        # Prefer kwargs; fall back to args[3]/args[4] when present.
+        limit_raw = kw.get("limit", kw.get("profit"))
+        if limit_raw is None and len(args) > 3:
+            limit_raw = args[3]
+        stop_raw = kw.get("stop", kw.get("loss"))
+        if stop_raw is None and len(args) > 4:
+            stop_raw = args[4]
+        limit_p = self._coerce_optional_price(limit_raw)
+        stop_p = self._coerce_optional_price(stop_raw)
+        comment = kw.get("comment", None)
         is_long = self._strategy_state.position_direction == "long"
+        is_flat = self._strategy_state.position_direction == "flat"
+        action = "sell" if is_long else "buy"  # close direction
 
-        if limit_p is not None and stop_p is not None:
-            # Choose the trigger that would hit first based on current price direction
-            if is_long:
-                # Closing long: stop (lower) or limit (higher)
-                if current_p <= stop_p:
-                    exit_price = stop_p
-                elif current_p >= limit_p:
-                    exit_price = limit_p
-                else:
-                    exit_price = min(limit_p, stop_p) if limit_p < stop_p else limit_p
-            else:
-                # Closing short: stop (higher) or limit (lower)
-                if current_p >= stop_p:
-                    exit_price = stop_p
-                elif current_p <= limit_p:
-                    exit_price = limit_p
-                else:
-                    exit_price = max(limit_p, stop_p) if limit_p > stop_p else limit_p
-        else:
-            exit_price = float(limit_p if limit_p is not None else stop_p if stop_p is not None else current_p)
-
-        if self._strategy_state.position_direction != "flat":
-            # Market exit (no limit/stop) gets slippage; triggered prices already fixed.
-            if limit_p is None and stop_p is None:
-                exit_action = "sell" if is_long else "buy"
-                exit_price = self._apply_slippage(exit_price, exit_action)
-            self._close_position(exit_price, qty, self._bar_time())
-
+        # Always emit placement/intent event (fixture + host contract).
         self._record_strategy_event(
             StrategyEvent(
                 kind="exit",
-                id=kw.get("id", args[0] if args else None),
+                id=exit_id,
                 direction=None,
                 qty=qty,
                 order_type=None,
                 limit=limit_p,
                 stop=stop_p,
                 oca_name=None,
-                comment=kw.get("comment", None),
+                comment=comment,
                 bar_index=self._bar_index(),
                 bar_time=self._bar_time(),
                 ohlc=(0.0, 0.0, 0.0, 0.0),
@@ -1311,6 +1291,71 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 run_id="",
             )
         )
+
+        if is_flat or qty <= 0:
+            return
+
+        # Market exit — fill immediately
+        if limit_p is None and stop_p is None:
+            exit_price = self._apply_slippage(self._mark_price(), action)
+            self._close_position(exit_price, qty, self._bar_time())
+            return
+
+        # Pending bracket: replace any prior exit legs with the same base id
+        for oid in list(self._strategy_state.pending_orders.keys()):
+            if oid == exit_id or oid.startswith(exit_id + ":"):
+                del self._strategy_state.pending_orders[oid]
+
+        oca_name = exit_id
+        if limit_p is not None and stop_p is not None:
+            # Two OCA-cancel legs (TP + SL)
+            lim_id = f"{exit_id}:limit"
+            stop_id = f"{exit_id}:stop"
+            self._strategy_state.pending_orders[lim_id] = Order(
+                lim_id,
+                "limit",
+                action,
+                qty,
+                limit_p,
+                None,
+                str(comment) if comment is not None else "",
+                oca_name=oca_name,
+                oca_type="cancel",
+            )
+            self._strategy_state.pending_orders[stop_id] = Order(
+                stop_id,
+                "stop",
+                action,
+                qty,
+                None,
+                stop_p,
+                str(comment) if comment is not None else "",
+                oca_name=oca_name,
+                oca_type="cancel",
+            )
+        elif limit_p is not None:
+            self._strategy_state.pending_orders[exit_id] = Order(
+                exit_id,
+                "limit",
+                action,
+                qty,
+                limit_p,
+                None,
+                str(comment) if comment is not None else "",
+            )
+        else:
+            self._strategy_state.pending_orders[exit_id] = Order(
+                exit_id,
+                "stop",
+                action,
+                qty,
+                None,
+                stop_p,
+                str(comment) if comment is not None else "",
+            )
+
+        # Same-bar fill when OHLC already touches the level
+        self.process_pending_orders()
 
     def _handle_strategy_close(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
         """

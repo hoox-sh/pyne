@@ -9,15 +9,13 @@ This page documents **semantic differences** between pynescript and TradingView 
 
 ## Strategy
 
-### `strategy.exit` is an immediate-close path (high)
+### `strategy.exit` pending brackets (fixed Wave B — residual gaps)
 
-**TradingView:** `strategy.exit` places a pending stop/limit (bracket) that fills when price path touches the level on a later bar (or same bar, depending on `process_orders_on_close` / fill model).
+**TradingView:** `strategy.exit` places a pending stop/limit (bracket) that fills when price path touches the level.
 
-**pynescript:** The interpret path often treats exit as an **immediate close oracle** when stop/limit are not pending-processable the same way — fills can occur even when the mark sits between stop and limit.
+**pynescript (after Wave B):** stop/limit legs are pending orders (OCA cancel when both set), filled via OHLC / `process_pending_orders`. Market exit (no stop/limit) still closes immediately. Residual: `from_entry` filtering, trail stops, `qty_percent` edge cases.
 
-**Impact:** Backtest PnL and trade counts diverge on stop/limit exits.
-
-**Track:** audit AGENT_03; Wave B fix target (pending exit via OHLC / `process_pending_orders`).
+**Track:** audit AGENT_03.
 
 ### `strategy.risk.*` mostly no-op on compile path
 
@@ -37,15 +35,13 @@ Many `strategy.opentrades.*` / `strategy.closedtrades.*` accessors return zeros 
 
 ## Technical analysis
 
-### `ta.atr` uses EMA-of-TR, not Wilder RMA (high)
+### `ta.atr` Wilder RMA (fixed Wave B — re-golden dependents)
 
-**TradingView:** ATR is typically `ta.rma(ta.tr, length)` (Wilder smoothing).
+**TradingView:** ATR is `ta.rma(ta.tr, length)` (Wilder smoothing).
 
-**pynescript:** Both interpret and Numba paths use an **EMA-of-true-range** formulation (dual-host aligned).
+**pynescript (after Wave B):** interpret (`_atr` / `_atr_inc_update`) and Numba (`numba_atr` / `numba_atr_inc`) use **RMA of TR**. Supertrend/KC/other ATR consumers inherit the change; golden vectors may need refresh if any hard-code EMA-era values.
 
-**Impact:** ATR, Supertrend, Keltner, and any ATR-scaled logic diverge from TV charts.
-
-**Track:** audit AGENT_03; Wave B — switch to RMA in both hosts and re-golden dependents.
+**Track:** audit AGENT_03.
 
 ### EMA seed differences (medium)
 
@@ -59,23 +55,17 @@ Incremental EMA may SMA-seed while some full/MACD paths use first-value seed.
 
 ## Evaluator / series
 
-### `var` and `varip` are currently the same (critical for realtime)
+### `var` / `varip` realtime (partial Wave B)
 
-**TradingView:** `varip` re-initializes / updates on **intrabar** realtime ticks for the same `bar_index`; `var` does not.
+**TradingView:** `varip` keeps values across realtime ticks differently than series; host-dependent.
 
-**pynescript:** Both modes use **init-once** on first execution of the declaration.
+**pynescript:** Historical bars: both init-once (same as before). When `barstate.isrealtime` is true, `varip` re-evaluates its RHS each update. Default Runtime host keeps `isrealtime=False`.
 
-**Impact:** Live/realtime hosts that set `barstate.isrealtime` will not match TV for `varip` scripts. Historical bar-by-bar Runtime often hides this.
+**Track:** audit AGENT_02.
 
-**Track:** audit AGENT_02; Wave B.
+### `AugAssign` / tuple unpack series bind (fixed Wave B)
 
-### `AugAssign` / tuple unpack can drop series history (high)
-
-Some assignment paths store a scalar via elementwise ops instead of rebinding through `_bind_series_name`.
-
-**Impact:** `x += 1` style updates on history-tracked series may lose lookback identity mid-script.
-
-**Track:** audit AGENT_02; Wave B.
+Both paths now call `_bind_series_name` so history-tracked names keep series wrappers.
 
 ### Default mock bid/ask
 

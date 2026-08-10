@@ -719,14 +719,30 @@ class StatementEvaluator:
                 self._error(msg)  # type: ignore[attr-defined]
             return
 
-        # -- Handle var / varip: initialize once (first time declaration runs) --
+        # -- Handle var / varip ------------------------------------------------
         # Pine ``var`` is not strictly bar_index==0: a ``var`` inside
         # ``if barstate.islast`` or a function body must init on first
         # *execution* of that declaration, which may be a later bar.
+        #
+        # ``varip`` matches ``var`` on historical bars. On realtime ticks
+        # (``barstate.isrealtime``), TV re-runs the initializer each update so
+        # the value can track intrabar state; we mirror that when the host sets
+        # the flag. Historical Runtime hosts keep ``isrealtime=False``.
         if isinstance(mode, (ast.Var, ast.VarIp)):
             if isinstance(node.target, ast.Name):
                 name: str = node.target.id  # type: ignore[attr-defined]
                 declared: set[str] = self._var_declarations  # type: ignore[attr-defined]
+                is_varip = isinstance(mode, ast.VarIp)
+                ctx = getattr(self, "context", {}) or {}
+                barstate = ctx.get("barstate")
+                is_rt = bool(getattr(barstate, "isrealtime", False)) if barstate is not None else False
+                if is_varip and is_rt:
+                    # Realtime tick: re-evaluate RHS every update (TV varip).
+                    if node.value:
+                        value = self.visit(node.value)  # type: ignore[attr-defined]
+                        self._bind_series_name(name, value)
+                    declared.add(name)
+                    return
                 if name not in declared:
                     if node.value:
                         value = self.visit(node.value)  # type: ignore[attr-defined]
@@ -802,7 +818,8 @@ class StatementEvaluator:
             values = values + [None] * (len(elts) - len(values))
         for target_node, val in zip(elts, values, strict=False):
             if isinstance(target_node, ast.Name):
-                self.context[target_node.id] = val
+                # Bind through series funnel so history names keep wrappers.
+                self._bind_series_name(target_node.id, val)  # type: ignore[attr-defined]
             else:
                 msg = f"Unsupported unpack target: {type(target_node)}"
                 self._error(msg)  # type: ignore[attr-defined]
@@ -976,7 +993,10 @@ class StatementEvaluator:
 
                 raw = _BINOP_RAW.get(type(node.op))
                 if raw is not None:
-                    ctx[var_name] = _elementwise_binary(raw, current, rhs)
+                    # Route through series bind so history-tracked names keep
+                    # PineSeries identity (audit Wave B / AGENT_02 C2).
+                    result = _elementwise_binary(raw, current, rhs)
+                    self._bind_series_name(var_name, result)  # type: ignore[attr-defined]
                     return
 
         msg = f"Unsupported augmented assignment: {type(node.target)}"

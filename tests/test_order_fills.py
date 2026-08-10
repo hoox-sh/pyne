@@ -64,6 +64,30 @@ def test_partial_fill_across_bars():
     assert "L" not in e._strategy_state.pending_orders
 
 
+def test_strategy_exit_pending_between_stop_limit():
+    """strategy.exit with stop+limit stays pending while OHLC is between levels."""
+    e = NodeLiteralEvaluator()
+    e.context = {
+        "open": 100.0,
+        "high": 101.0,
+        "low": 99.0,
+        "close": 100.0,
+        "bar_index": 0,
+        "time": 0,
+    }
+    m = e._build_builtin_map()
+    m["strategy.entry"](["L", "long", 5.0])
+    assert e._strategy_state.position_size == 5.0
+    m["strategy.exit"]([], {"id": "X", "from_entry": "L", "qty": 5.0, "limit": 110.0, "stop": 90.0})
+    assert e._strategy_state.position_size == 5.0
+    assert any(k.startswith("X") for k in e._strategy_state.pending_orders)
+    # TP touch
+    e.context.update({"open": 100.0, "high": 112.0, "low": 99.0, "close": 111.0, "bar_index": 1})
+    e.process_pending_orders(open_=100.0, high=112.0, low=99.0, close=111.0)
+    assert e._strategy_state.position_direction == "flat"
+    assert e._strategy_state.position_size == 0.0
+
+
 def test_stop_sell_closes_long():
     e = NodeLiteralEvaluator()
     e.context = {"open": 100.0, "high": 110.0, "low": 100.0, "close": 105.0, "bar_index": 0, "time": 0}

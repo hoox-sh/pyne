@@ -484,10 +484,10 @@ class TechnicalHelpers:
         closes: list[Any],
         period: int,
     ) -> float | None:
-        """Incremental ATR matching full ``_atr`` (EMA of TR after warm-up).
+        """Incremental ATR matching full ``_atr`` (Wilder RMA of TR).
 
-        Full path: while ``len(tr) < period`` return mean(tr); once
-        ``len(tr) >= period`` return ``_ema(tr, period)[-1]``.
+        TV: ``ta.atr(length)`` ≡ ``ta.rma(ta.tr, length)``. Dual-host aligned
+        with ``numba_atr`` / ``numba_atr_inc`` (audit Wave B).
         """
         if period <= 0:
             return None
@@ -498,9 +498,7 @@ class TechnicalHelpers:
         if st is None:
             st = {
                 "prev_close": None,
-                "trs": [],
-                "ema": self._ema_state_new(),
-                "ema_mode": False,
+                "rma": self._rma_state_new(),
                 "value": None,
             }
             bucket[key] = st
@@ -524,19 +522,7 @@ class TechnicalHelpers:
         except (TypeError, ValueError):
             st["value"] = None
             return None
-        if not st["ema_mode"]:
-            st["trs"].append(tr)
-            if len(st["trs"]) < period:
-                st["value"] = statistics.mean(st["trs"])
-                return st["value"]
-            # Bootstrap EMA over all TR samples so far (matches full _ema(tr, period))
-            for t in st["trs"]:
-                self._ema_state_step(st["ema"], t, period)
-            st["ema_mode"] = True
-            st["trs"] = []
-            st["value"] = st["ema"].get("ema")
-            return st.get("value")
-        st["value"] = self._ema_state_step(st["ema"], tr, period)
+        st["value"] = self._rma_state_step(st["rma"], tr, period)
         return st.get("value")
 
     def _stdev_inc_update(self, series: list[Any], period: int) -> float | None:

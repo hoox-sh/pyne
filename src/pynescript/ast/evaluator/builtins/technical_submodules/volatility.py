@@ -648,7 +648,12 @@ class VolatilityIndicators(TechnicalHelpers):
         closes: list[float],
         period: int,
     ) -> list[float | None]:
-        """ATR calculation."""
+        """ATR = Wilder RMA of true range (TradingView ``ta.rma(ta.tr, length)``).
+
+        Dual-host aligned with ``numba_atr`` (audit Wave B). Returns a series
+        aligned to the TR samples (length ``len(closes)-1``); leading values
+        before the RMA seed are ``None``.
+        """
         if period <= 0:
             return []
         tr_values: list[float] = []
@@ -656,19 +661,32 @@ class VolatilityIndicators(TechnicalHelpers):
             high = highs[idx]
             low = lows[idx]
             prev_close = closes[idx - 1]
-            tr_values.append(
-                max(
-                    high - low,
-                    abs(high - prev_close),
-                    abs(low - prev_close),
+            try:
+                tr_values.append(
+                    max(
+                        float(high) - float(low),
+                        abs(float(high) - float(prev_close)),
+                        abs(float(low) - float(prev_close)),
+                    )
                 )
-            )
+            except (TypeError, ValueError):
+                # Soft-fail individual bars: skip non-numeric OHLC
+                continue
         if not tr_values:
             return []
-        if len(tr_values) < period:
-            average = statistics.mean(tr_values)
-            return [average]
-        return self._ema(tr_values, period)
+        # Wilder RMA of TR — same formula as ``_rma`` / ``numba_rma``
+        rma_series = self._rma(tr_values, period)
+        out: list[float | None] = []
+        for v in rma_series:
+            if v is None:
+                out.append(None)
+            else:
+                try:
+                    fv = float(v)
+                    out.append(None if fv != fv else fv)  # nan → None
+                except (TypeError, ValueError):
+                    out.append(None)
+        return out
 
     def _bollinger_bands(
         self,

@@ -306,24 +306,36 @@ plot(qty, title="q")
 
 
 class TestCompileExitAndSeriesParity:
-    def test_exit_stop_limit_fill_price_matches_interpret(self) -> None:
-        """strategy.exit with limit must close at limit (interpret oracle), not mark."""
+    def test_exit_stop_limit_pending_when_between(self) -> None:
+        """strategy.exit with stop+limit does not fill while mark is between levels."""
         from pynescript.compiler.strategy_broker import CompileStrategyBroker
 
         b = CompileStrategyBroker(initial_capital=10_000.0)
+        # high=101, low=99 — neither 110 TP nor 95 SL touched
         b.begin_bar(0, 100.0, 101.0, 99.0, 100.0)
         b.entry("L", "long", 1.0)
         assert b.position_size == 1.0
-        # Compiler maps exit → close(..., limit=..., stop=...)
         b.close(id="L", limit=110.0, stop=95.0, comment="X")
-        assert b.position_size == 0.0
-        # Interpret fills at limit=110 when mark is between stop and limit
-        assert b.netprofit == pytest.approx(10.0)
+        # Pending bracket — position still open (Wave B TV semantics)
+        assert b.position_size == 1.0
+        assert any(k.startswith("L") for k in b.pending_orders)
         kinds = [e["kind"] for e in b.events]
         assert "exit" in kinds
         exit_ev = next(e for e in b.events if e["kind"] == "exit")
         assert exit_ev.get("limit") == 110.0
         assert exit_ev.get("stop") == 95.0
+
+    def test_exit_limit_fills_when_high_touches(self) -> None:
+        """Take-profit limit exit fills when bar high reaches limit."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0)
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.entry("L", "long", 1.0)
+        b.begin_bar(1, 100.0, 112.0, 99.0, 111.0)
+        b.close(id="X", limit=110.0, stop=90.0, comment="tp")
+        assert b.position_size == 0.0
+        assert b.netprofit == pytest.approx(10.0)
 
     def test_openprofit_percent_and_cash_series(self) -> None:
         """Missing compile attrs caused AttributeError / compile_error on plots."""

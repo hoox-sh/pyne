@@ -602,34 +602,44 @@ class CompileStrategyBroker:
         is_long: bool,
         is_short: bool,
     ) -> float | None:
-        """Interpret-oracle exit fill when ``strategy.exit`` stop/limit present.
+        """Exit fill price when bar OHLC touches stop/limit (TV pending semantics).
 
-        Matches ``StrategyBuiltinsMixin._handle_strategy_exit``: when both legs
-        are set and mark is between them, still picks a leg price (legacy
-        fixture semantics). Returns ``None`` only when flat with no usable
-        price (caller emits zero-qty exit).
+        Matches interpret ``_handle_strategy_exit`` + ``process_pending_orders``:
+        returns a fill price only when high/low of the current bar reaches the
+        level. When mark sits *between* stop and limit, returns ``None`` so the
+        caller can place a pending order instead of filling immediately.
         """
         limit_p = _opt_float(limit)
         stop_p = _opt_float(stop)
         if limit_p is None and stop_p is None:
             return None
-        current_p = float(self._mark)
-        if limit_p is not None and stop_p is not None:
-            if is_long:
-                if current_p <= stop_p:
-                    return float(stop_p)
-                if current_p >= limit_p:
-                    return float(limit_p)
-                return float(min(limit_p, stop_p) if limit_p < stop_p else limit_p)
-            if is_short:
-                if current_p >= stop_p:
-                    return float(stop_p)
-                if current_p <= limit_p:
-                    return float(limit_p)
-                return float(max(limit_p, stop_p) if limit_p > stop_p else limit_p)
-            # Flat — prefer limit for event bookkeeping
-            return float(limit_p if limit_p is not None else stop_p)
-        return float(limit_p if limit_p is not None else stop_p)  # type: ignore[arg-type]
+        hi = float(self._high)
+        lo = float(self._low)
+        op = float(self._open)
+        # Prefer OHLC path (same as interpret pending fills)
+        if is_long:
+            # Close long: sell limit (TP) when high >= lim; sell stop when low <= stop
+            hit_lim = limit_p is not None and hi >= limit_p
+            hit_stop = stop_p is not None and lo <= stop_p
+            if hit_lim and hit_stop:
+                # Both touched: prefer stop (worse for long) — conservative
+                return float(stop_p)  # type: ignore[arg-type]
+            if hit_lim:
+                return float(limit_p) if op > limit_p else float(limit_p)  # type: ignore[arg-type]
+            if hit_stop:
+                return float(stop_p) if op < stop_p else float(stop_p)  # type: ignore[arg-type]
+            return None
+        if is_short:
+            hit_lim = limit_p is not None and lo <= limit_p
+            hit_stop = stop_p is not None and hi >= stop_p
+            if hit_lim and hit_stop:
+                return float(stop_p)  # type: ignore[arg-type]
+            if hit_lim:
+                return float(limit_p)  # type: ignore[arg-type]
+            if hit_stop:
+                return float(stop_p)  # type: ignore[arg-type]
+            return None
+        return None
 
     def _emit(
         self,
@@ -817,21 +827,6 @@ class CompileStrategyBroker:
                 )
                 return
         d = "long" if self.position_size > 0 else "short"
-        if is_exit:
-            # Interpret: no extra slip on stop/limit exit prices.
-            px = self._exit_fill_price(
-                limit=limit_p,
-                stop=stop_p,
-                is_long=(d == "long"),
-                is_short=(d == "short"),
-            )
-            if px is None:
-                px = self._mark
-        elif price is None or _is_na(price):
-            # Exit slip: long close sells (worse), short cover buys (worse).
-            px = self._slip(self._mark, "short" if d == "long" else "long")
-        else:
-            px = float(price)
         pos_before = abs(self.position_size)
         if qty is None or _is_na(qty):
             close_qty = pos_before
@@ -839,6 +834,87 @@ class CompileStrategyBroker:
             close_qty = min(abs(float(qty)), pos_before)
         if close_qty <= 0 or not math.isfinite(close_qty):
             return
+
+        if is_exit:
+            # Pending bracket: only fill when OHLC touches; else place pending.
+            px = self._exit_fill_price(
+                limit=limit_p,
+                stop=stop_p,
+                is_long=(d == "long"),
+                is_short=(d == "short"),
+            )
+            # Always emit exit event (placement / intent) for host parity.
+            self._emit(
+                "exit",
+                id=id,
+                qty=close_qty,
+                comment=comment,
+                direction=None,
+                limit=limit_p,
+                stop=stop_p,
+            )
+            if px is None:
+                # Place pending close order(s) — filled by process_pending_orders.
+                exit_dir = "short" if d == "long" else "long"  # close direction
+                base = str(id) if id is not None else "exit"
+                # Drop prior legs with same base id
+                for oid in list(self.pending_orders.keys()):
+                    if oid == base or oid.startswith(base + ":"):
+                        del self.pending_orders[oid]
+                if limit_p is not None and stop_p is not None:
+                    self.pending_orders[f"{base}:limit"] = PendingOrder(
+                        order_id=f"{base}:limit",
+                        order_type="limit",
+                        direction=exit_dir,
+                        quantity=close_qty,
+                        limit_price=limit_p,
+                        stop_price=None,
+                        comment=str(comment) if comment else "",
+                        oca_name=base,
+                        oca_type="cancel",
+                        is_entry=False,
+                    )
+                    self.pending_orders[f"{base}:stop"] = PendingOrder(
+                        order_id=f"{base}:stop",
+                        order_type="stop",
+                        direction=exit_dir,
+                        quantity=close_qty,
+                        limit_price=None,
+                        stop_price=stop_p,
+                        comment=str(comment) if comment else "",
+                        oca_name=base,
+                        oca_type="cancel",
+                        is_entry=False,
+                    )
+                elif limit_p is not None:
+                    self.pending_orders[base] = PendingOrder(
+                        order_id=base,
+                        order_type="limit",
+                        direction=exit_dir,
+                        quantity=close_qty,
+                        limit_price=limit_p,
+                        stop_price=None,
+                        comment=str(comment) if comment else "",
+                        is_entry=False,
+                    )
+                else:
+                    self.pending_orders[base] = PendingOrder(
+                        order_id=base,
+                        order_type="stop",
+                        direction=exit_dir,
+                        quantity=close_qty,
+                        limit_price=None,
+                        stop_price=stop_p,
+                        comment=str(comment) if comment else "",
+                        is_entry=False,
+                    )
+                return
+            # Same-bar fill at touched level — fall through to realize PnL
+        elif price is None or _is_na(price):
+            # Exit slip: long close sells (worse), short cover buys (worse).
+            px = self._slip(self._mark, "short" if d == "long" else "long")
+        else:
+            px = float(price)
         if d == "long":
             trade_profit = (px - self.position_avg_price) * close_qty
             self.position_size -= close_qty
@@ -869,16 +945,17 @@ class CompileStrategyBroker:
             self.position_commission = 0.0
             self.open_entry_count = 0
         self._update_equity_extremes()
-        # Interpret exit events leave direction=None; plain close keeps direction.
-        self._emit(
-            event_kind,
-            id=id,
-            qty=close_qty,
-            comment=comment,
-            direction=None if is_exit else d,
-            limit=limit_p,
-            stop=stop_p,
-        )
+        # Market close keeps direction; stop/limit exit already emitted above.
+        if not is_exit:
+            self._emit(
+                event_kind,
+                id=id,
+                qty=close_qty,
+                comment=comment,
+                direction=d,
+                limit=limit_p,
+                stop=stop_p,
+            )
 
     def close_all(self, comment: str | None = None, price: float | None = None, **_kwargs: Any) -> None:
         """Flatten any open position then emit ``close_all``."""

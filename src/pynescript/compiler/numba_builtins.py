@@ -254,36 +254,35 @@ def numba_stdev(arr, period, i):
 
 @numba.njit(cache=True)
 def numba_atr(high, low, close, period, i):
-    """ATR matching interpret path: mean(TR) while warming; else EMA-of-TR.
+    """ATR = Wilder RMA of true range (TV ``ta.rma(ta.tr, length)``).
 
-    EMA seeds with the first TR value (same as interpret ``_ema``), not SMA.
+    Dual-host aligned with interpret ``_atr`` / ``_atr_inc_update`` (Wave B).
+    First valid bar requires ``period`` TR samples → ``i >= period``.
     """
     period = int(period)
     if period <= 0 or i < 1:
         return np.nan
-    n_tr = i  # TR samples for bars 1..i
-    if n_tr < period:
-        s = 0.0
-        for j in range(1, i + 1):
-            tr = max(
-                high[j] - low[j],
-                abs(high[j] - close[j - 1]),
-                abs(low[j] - close[j - 1]),
-            )
-            s += tr
-        return s / n_tr
-    # EMA of TR from bar 1..i, seed = first TR
-    tr0 = max(high[1] - low[1], abs(high[1] - close[0]), abs(low[1] - close[0]))
-    ema = tr0
-    alpha = 2.0 / (period + 1.0)
-    for j in range(2, i + 1):
+    # Need period TR samples from bars 1..i → i >= period
+    if i < period:
+        return np.nan
+    # SMA seed of first ``period`` TRs (bars 1..period)
+    ssum = 0.0
+    for j in range(1, period + 1):
+        ssum += max(
+            high[j] - low[j],
+            abs(high[j] - close[j - 1]),
+            abs(low[j] - close[j - 1]),
+        )
+    rma = ssum / period
+    alpha = 1.0 / period
+    for j in range(period + 1, i + 1):
         tr = max(
             high[j] - low[j],
             abs(high[j] - close[j - 1]),
             abs(low[j] - close[j - 1]),
         )
-        ema = alpha * tr + (1.0 - alpha) * ema
-    return ema
+        rma = alpha * tr + (1.0 - alpha) * rma
+    return rma
 
 
 @numba.njit(cache=True)
@@ -2374,10 +2373,9 @@ def numba_rma_inc(arr, period, i, st):
 
 @numba.njit(cache=True)
 def numba_atr_inc(high, low, close, period, i, st):
-    """Incremental ATR. ``st``: [acc, last_i] (warm sum or EMA).
+    """Incremental ATR (Wilder RMA of TR). ``st``: [rma_acc, last_i].
 
-    Matches ``numba_atr``: mean(TR) while ``i < period``, else EMA-of-TR
-    seeded with the first TR value.
+    Matches ``numba_atr``: na until ``i >= period``, then RMA with SMA seed.
     """
     period = int(period)
     if period <= 0 or i < 1:
@@ -2390,7 +2388,7 @@ def numba_atr_inc(high, low, close, period, i, st):
         last = 0
         st[0] = np.nan
 
-    alpha = 2.0 / (period + 1.0)
+    alpha = 1.0 / period
     acc = st[0]
     start = 1 if last < 1 else last + 1
 
@@ -2401,6 +2399,7 @@ def numba_atr_inc(high, low, close, period, i, st):
             abs(low[j] - close[j - 1]),
         )
         if j < period:
+            # Accumulate TR sum until seed window is full
             if j == 1 or np.isnan(acc) or last < 1:
                 s = 0.0
                 for k in range(1, j + 1):
@@ -2413,19 +2412,26 @@ def numba_atr_inc(high, low, close, period, i, st):
             else:
                 acc = acc + tr
         elif j == period:
-            # Switch to EMA seeded with first TR (not the warm mean).
-            acc = max(high[1] - low[1], abs(high[1] - close[0]), abs(low[1] - close[0]))
-            for k in range(2, j + 1):
-                trk = max(
+            # Seed = SMA of first ``period`` TRs
+            s = 0.0
+            for k in range(1, period + 1):
+                s += max(
                     high[k] - low[k],
                     abs(high[k] - close[k - 1]),
                     abs(low[k] - close[k - 1]),
                 )
-                acc = alpha * trk + (1.0 - alpha) * acc
+            acc = s / period
         else:
             if np.isnan(acc) or last < period:
-                acc = max(high[1] - low[1], abs(high[1] - close[0]), abs(low[1] - close[0]))
-                for k in range(2, j + 1):
+                s = 0.0
+                for k in range(1, period + 1):
+                    s += max(
+                        high[k] - low[k],
+                        abs(high[k] - close[k - 1]),
+                        abs(low[k] - close[k - 1]),
+                    )
+                acc = s / period
+                for k in range(period + 1, j + 1):
                     trk = max(
                         high[k] - low[k],
                         abs(high[k] - close[k - 1]),
@@ -2438,8 +2444,10 @@ def numba_atr_inc(high, low, close, period, i, st):
     st[0] = acc
     st[1] = float(i)
     if i < period:
-        return acc / i
+        return np.nan
     return acc
+
+
 @numba.njit(cache=True)
 def numba_macd_inc(arr, fast, slow, signal, i, st):
     """Incremental MACD. ``st``: [ema_f, ema_s, sig, last_i].

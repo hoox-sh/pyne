@@ -154,7 +154,7 @@ class PineLinter:
                 self._add_warning(
                     code="W002",
                     message=f"Pine Script v{version} is deprecated. Consider upgrading to v5 or v6.",
-                    line=version_match.start(),
+                    line=source[: version_match.start()].count("\n") + 1,
                 )
 
     def _check_deprecated(self, source: str) -> None:
@@ -201,7 +201,8 @@ class PineLinter:
                     line=i,
                 )
 
-        if not source.strip().endswith("\n"):
+        # Do not strip() before the check — strip removes the trailing newline.
+        if source and not source.endswith("\n"):
             self._add_warning(
                 code="C004",
                 message="File should end with a newline",

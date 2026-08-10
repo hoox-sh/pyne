@@ -207,16 +207,22 @@ if bar_index == 2
     assert "error" not in result, f"Unexpected error: {result['error']}"
 
     # -- Events are present and well-typed --------------------------------
+    # Wave B: exit with stop/limit may emit placement + pending fills/OCA
+    # in addition to the close event; assert kinds are a superset of the
+    # core pipeline rather than a fixed 3-event list.
     events: list[dict] = result["events"]  # type: ignore[assignment]
-    assert len(events) == 3, f"Expected 3 events, got {len(events)}"
-
     kinds = [e["kind"] for e in events]
-    assert kinds == ["entry", "exit", "close"], f"Unexpected kinds: {kinds}"
+    assert "entry" in kinds, f"missing entry: {kinds}"
+    assert "exit" in kinds, f"missing exit: {kinds}"
+    assert "close" in kinds, f"missing close: {kinds}"
 
     # -- bar_index and bar_time are threaded from context -----------------
-    assert events[0]["bar_index"] == 0
-    assert events[1]["bar_index"] == 1
-    assert events[2]["bar_index"] == 2
+    entry_ev = next(e for e in events if e["kind"] == "entry")
+    exit_ev = next(e for e in events if e["kind"] == "exit")
+    close_ev = next(e for e in events if e["kind"] == "close")
+    assert entry_ev["bar_index"] == 0
+    assert exit_ev["bar_index"] == 1
+    assert close_ev["bar_index"] == 2
 
     # -- script_id and run_id are present ---------------------------------
     for ev in events:
