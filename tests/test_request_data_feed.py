@@ -36,7 +36,8 @@ def _eval(ev: NodeLiteralEvaluator, src: str):
     return ev.visit(parse(src, mode="eval").body)
 
 
-def _bars(n: int = 80, start: float = 100.0) -> list[dict]:
+def _bars(n: int = 80, start: float = 100.0, step_ms: int = 60_000) -> list[dict]:
+    """Synthetic OHLCV. Default *step_ms* is 1 minute (Runtime bar times)."""
     bars: list[dict] = []
     price = start
     for i in range(n):
@@ -50,12 +51,22 @@ def _bars(n: int = 80, start: float = 100.0) -> list[dict]:
                 "high": h,
                 "low": max(lo, 0.01),
                 "close": c,
-                "time": 1_700_000_000_000 + i * 60_000,
+                "time": 1_700_000_000_000 + i * int(step_ms),
                 "volume": 1000.0 + i,
             }
         )
         price = c
     return bars
+
+
+def _hourly_bars(n: int = 72, start: float = 100.0) -> list[dict]:
+    """Hourly synthetic bars (for daily HTF resample tests)."""
+    return _bars(n, start=start, step_ms=3_600_000)
+
+
+def _daily_bars(n: int = 40, start: float = 100.0) -> list[dict]:
+    """Daily synthetic bars (matches Runtime default timeframe.period ``D``)."""
+    return _bars(n, start=start, step_ms=86_400_000)
 
 
 def _is_na(v: object) -> bool:
@@ -126,12 +137,34 @@ plot(close, title="c")
 
 
 class TestSameSymbolSecurityPolicy:
-    """Same-symbol simple OHLCV may passthrough; complex HTF → na without re-eval."""
+    """Same-symbol simple OHLCV may passthrough/resample; complex HTF → na."""
 
-    def test_same_symbol_htf_close_passthrough(self) -> None:
+    def test_same_symbol_htf_close_resamples_60m_on_1m_bars(self) -> None:
+        """1m chart bars + request ``\"60\"`` → last completed 60m close (not chart close)."""
         from backend.runtime import Runtime
 
-        bars = _bars(40)
+        # Align open times to 60m buckets so each hour is exactly 60 bars.
+        hour0 = 1_700_000_000_000
+        hour0 -= hour0 % 3_600_000
+        bars: list[dict] = []
+        price = 100.0
+        for i in range(180):  # 3 full hours
+            o = round(price, 2)
+            c = round(price + (1.0 if i % 3 else -0.5), 2)
+            h = round(max(o, c) + 0.8, 2)
+            lo = round(min(o, c) - 0.8, 2)
+            bars.append(
+                {
+                    "open": o,
+                    "high": h,
+                    "low": max(lo, 0.01),
+                    "close": c,
+                    "time": hour0 + i * 60_000,
+                    "volume": 1000.0 + i,
+                }
+            )
+            price = c
+
         src = """//@version=6
 indicator("t")
 plot(request.security(syminfo.tickerid, "60", close), title="sec")
@@ -139,9 +172,77 @@ plot(close, title="c")
 """
         out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
         assert not out.get("error"), out.get("error")
-        assert out["series"]["sec"][-1] == out["series"]["c"][-1] == bars[-1]["close"]
+        sec = out["series"]["sec"]
+        # First hour has no completed HTF bar → na (bar 0 may still be stub
+        # before bar spacing is inferable; allow either na or chart on bar 0).
+        assert all(_is_na(x) for x in sec[1:60])
+        # After first hour completes, security is constant within the next hour
+        # (lookahead_off / last completed only).
+        hour0_close = float(bars[59]["close"])
+        for v in sec[60:120]:
+            assert not _is_na(v)
+            assert abs(float(v) - hour0_close) < 1e-9
+        hour1_close = float(bars[119]["close"])
+        for v in sec[120:180]:
+            assert not _is_na(v)
+            assert abs(float(v) - hour1_close) < 1e-9
+        # Not chart passthrough on the last bar (inside forming hour 3)
+        assert abs(float(sec[-1]) - float(bars[-1]["close"])) > 1e-6
+        pol = (out.get("meta") or {}).get("request_security") or {}
+        assert "htf_ohlcv_resample" in (pol.get("policies") or {})
+
+    def test_same_symbol_hourly_to_daily_close_steps(self) -> None:
+        """Hourly bars → daily close is constant within each day (last completed day)."""
+        from backend.runtime import Runtime
+
+        # Align to UTC day boundary so bucket math is stable.
+        day0 = 1_700_000_000_000
+        day0 -= day0 % 86_400_000
+        bars: list[dict] = []
+        price = 100.0
+        # 3 full days * 24 hours + 6 hours into day 4
+        for i in range(24 * 3 + 6):
+            o = round(price, 2)
+            c = round(price + (1.0 if i % 3 else -0.5), 2)
+            h = round(max(o, c) + 0.8, 2)
+            lo = round(min(o, c) - 0.8, 2)
+            bars.append(
+                {
+                    "open": o,
+                    "high": h,
+                    "low": max(lo, 0.01),
+                    "close": c,
+                    "time": day0 + i * 3_600_000,
+                    "volume": 1000.0 + i,
+                }
+            )
+            price = c
+
+        src = """//@version=6
+indicator("t")
+plot(request.security(syminfo.tickerid, "D", close), title="dclose")
+plot(close, title="c")
+"""
+        out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
+        assert not out.get("error"), out.get("error")
+        dclose = out["series"]["dclose"]
+        # Day 0 incomplete for security → na on first 24 hours (bar 0 may stub).
+        assert all(_is_na(x) for x in dclose[1:24])
+        day0_close = float(bars[23]["close"])
+        for v in dclose[24:48]:
+            assert abs(float(v) - day0_close) < 1e-9
+        day1_close = float(bars[47]["close"])
+        for v in dclose[48:72]:
+            assert abs(float(v) - day1_close) < 1e-9
+        day2_close = float(bars[71]["close"])
+        for v in dclose[72:]:
+            assert abs(float(v) - day2_close) < 1e-9
+        pol = (out.get("meta") or {}).get("request_security") or {}
+        assert "htf_ohlcv_resample" in (pol.get("policies") or {})
+        assert pol.get("htf_reeval") is False
 
     def test_same_symbol_htf_high1_passthrough(self) -> None:
+        """History offsets are not HTF-field identity → chart passthrough stub."""
         from backend.runtime import Runtime
 
         bars = _bars(40)
@@ -170,7 +271,8 @@ plot(s_htf, title="htf")
 plot(s_same, title="same")
 plot(f_struct(20), title="chart")
 """
-        out = Runtime(symbol="AAPL").run(src, _bars(80), mode="interpret")
+        # Daily-spaced bars so request "D" is same-TF for the UDF allow path.
+        out = Runtime(symbol="AAPL").run(src, _daily_bars(80), mode="interpret")
         assert not out.get("error"), out.get("error")
         # Different TF + UDF without multi-TF engine → honest na
         assert all(_is_na(x) for x in out["series"]["htf"])
@@ -186,6 +288,7 @@ plot(f_struct(20), title="chart")
         """
         from backend.runtime import Runtime
 
+        # 1m request on 1m bars → not coarser HTF; chart field passthrough.
         bars = _bars(40)
         src = """//@version=5
 indicator("t")
@@ -243,10 +346,30 @@ class TestRequestSecurityHonestyMeta:
     """Runtime metadata + documented no-crash behavior for limited security surface."""
 
     def test_gaps_lookahead_accepted_unused_and_meta(self) -> None:
-        """barmerge.gaps_* / lookahead_* must not crash; values still chart-stub."""
+        """barmerge.gaps_* / lookahead_* must not crash; still unused for merge."""
         from backend.runtime import Runtime
 
-        bars = _bars(40)
+        # Aligned 1m bars for 60m HTF resample (gaps/lookahead still unused).
+        hour0 = 1_700_000_000_000
+        hour0 -= hour0 % 3_600_000
+        bars: list[dict] = []
+        price = 100.0
+        for i in range(120):
+            o = round(price, 2)
+            c = round(price + (1.0 if i % 3 else -0.5), 2)
+            h = round(max(o, c) + 0.8, 2)
+            lo = round(min(o, c) - 0.8, 2)
+            bars.append(
+                {
+                    "open": o,
+                    "high": h,
+                    "low": max(lo, 0.01),
+                    "close": c,
+                    "time": hour0 + i * 60_000,
+                    "volume": 1000.0 + i,
+                }
+            )
+            price = c
         src = """//@version=6
 indicator("t")
 v = request.security(syminfo.tickerid, "60", close, barmerge.gaps_off, barmerge.lookahead_on)
@@ -255,15 +378,16 @@ plot(close, title="c")
 """
         out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
         assert not out.get("error"), out.get("error")
-        # No crash + chart passthrough stub (not invented HTF)
-        assert out["series"]["sec"][-1] == out["series"]["c"][-1] == bars[-1]["close"]
+        # No crash; simple OHLCV uses HTF resample (not lookahead_on forming bar)
+        hour0_close = float(bars[59]["close"])
+        assert abs(float(out["series"]["sec"][-1]) - hour0_close) < 1e-9
         pol = (out.get("meta") or {}).get("request_security") or {}
         assert pol.get("htf_reeval") is False
         assert pol.get("gaps_supported") is False
         assert pol.get("lookahead_supported") is False
         policies = pol.get("policies") or {}
         assert "gaps_lookahead_unused" in policies
-        assert "chart_passthrough_htf_stub" in policies
+        assert "htf_ohlcv_resample" in policies
         notes = pol.get("notes") or []
         assert any("lookahead" in str(n).lower() for n in notes)
         assert any("gaps" in str(n).lower() for n in notes)
@@ -307,7 +431,8 @@ plot(request.security("MSFT", "D", close), title="ms")
     def test_same_tf_security_allows_chart_eval_meta(self) -> None:
         from backend.runtime import Runtime
 
-        bars = _bars(30)
+        # Daily-spaced bars match default Runtime timeframe.period "D".
+        bars = _daily_bars(30)
         src = """//@version=6
 indicator("t")
 // Default Runtime chart period is "D" — same TF as request
@@ -321,6 +446,7 @@ plot(close, title="c")
         policies = pol.get("policies") or {}
         assert "same_tf_chart_eval" in policies
         assert "complex_htf_na" not in policies
+        assert "htf_ohlcv_resample" not in policies
 
     def test_standalone_handler_policy_state(self) -> None:
         """Direct handler path also records policy (unit-eval demos)."""

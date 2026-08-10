@@ -663,6 +663,26 @@ def _clear_pine_call_sites(tree: Any) -> None:
         pass
 
 
+def _discard_realtime_plot_tick(evaluator: Any) -> None:
+    """Drop plot cells appended for an intermediate realtime tick on the same bar.
+
+    Multi-tick last-bar simulation re-visits the script without advancing
+    ``_plot_bars_done``; intermediate ticks must not leave extra series cells.
+    """
+    n = int(getattr(evaluator, "_plot_capture_i", 0) or 0)
+    cols = getattr(evaluator, "_plot_value_cols", None)
+    if cols and n > 0:
+        limit = n if n < len(cols) else len(cols)
+        for j in range(limit):
+            col = cols[j]
+            if col:
+                col.pop()
+    try:
+        evaluator._plot_capture_i = 0
+    except Exception:
+        pass
+
+
 def _parse_script(source_code: str) -> Any:
     """Parse Pine source for Runtime (shared package-level AST cache).
 
@@ -876,6 +896,9 @@ class Runtime:
         mode: str | None = None,
         inputs: dict | None = None,
         profiler: bool = False,
+        *,
+        realtime_last_bar: bool = False,
+        realtime_ticks: int = 1,
     ):
         """
         Execute the script over the provided OHLCV data.
@@ -899,6 +922,17 @@ class Runtime:
                 Applied on interpret only; auto with overrides uses interpret.
             profiler: When true, collect per-line timings for AXIS gutter.
                 Forces interpret (compile has no statement walk).
+            realtime_last_bar: Interpret only. When true, the last bar is
+                visited with ``barstate.isrealtime=True`` (forming bar:
+                ``ishistory=False``). Default false keeps historical hosts
+                unchanged (``isrealtime`` always false).
+            realtime_ticks: Interpret only. How many times to re-visit the
+                last bar when realtime simulation is active. Values ``>1``
+                also enable last-bar realtime (same as
+                ``realtime_last_bar=True``). Intermediate ticks discard plot
+                cells so series length stays one sample per bar; final tick
+                keeps ``varip`` re-init semantics from the evaluator.
+                Default ``1``.
 
         Returns:
             dict with 'series': list of plotted values for each bar.
@@ -1176,11 +1210,20 @@ class Runtime:
         time_update = time_series.update
         time_close_update = time_close_series.update
 
-        # Static barstate flags for historical bar-by-bar host (do not change mid-run)
+        # Historical defaults. Last-bar realtime simulation (opt-in) overrides
+        # isrealtime / ishistory / isconfirmed / isnew per tick below.
         barstate.isnew = True
         barstate.ishistory = True
         barstate.isconfirmed = True
         barstate.isrealtime = False
+        try:
+            _rt_ticks = int(realtime_ticks)
+        except (TypeError, ValueError):
+            _rt_ticks = 1
+        if _rt_ticks < 1:
+            _rt_ticks = 1
+        # realtime_ticks>1 implies last-bar realtime multi-pass.
+        _rt_last = bool(realtime_last_bar) or _rt_ticks > 1
 
         visit = evaluator.visit
         reset_plots = evaluator.reset_plots
@@ -1274,7 +1317,16 @@ class Runtime:
             is_last = bar_index == last_bar_i
             barstate.isfirst = bar_index == 0
             barstate.islast = is_last
-            barstate.islastconfirmedhistory = is_last
+            # Realtime multi-tick only on last bar (opt-in). Historical bars
+            # always run once with isrealtime=False.
+            bar_rt = bool(_rt_last and is_last)
+            n_ticks = _rt_ticks if bar_rt else 1
+            if not bar_rt:
+                barstate.isnew = True
+                barstate.ishistory = True
+                barstate.isconfirmed = True
+                barstate.isrealtime = False
+                barstate.islastconfirmedhistory = is_last
 
             if has_bid_ask:
                 bar = ohlcv_data[bar_index]
@@ -1283,16 +1335,7 @@ class Runtime:
                 if "ask" in bar:
                     self._ask = bar["ask"]
 
-            # Reset per-bar plot index; clear strategy event buffer without extra list alloc
-            reset_plots()
-            if strategy_events:
-                strategy_events.clear()
-            # Bar-mode call-site indices (crossover + incremental ta.* + plot reuse)
-            evaluator._cross_call_i = 0  # type: ignore[attr-defined]
-            evaluator._ta_call_i = 0  # type: ignore[attr-defined]
-            evaluator._plot_call_i = 0  # type: ignore[attr-defined]
-
-            # Broker sim: only when there are pending limit/stop orders
+            # Broker sim once per bar (before realtime tick re-visits)
             if process_pending is not None and pending_orders:
                 try:
                     process_pending(open_=o, high=h, low=l, close=c)
@@ -1316,49 +1359,75 @@ class Runtime:
                         eval_ms=eval_ms,
                     )
 
-            try:
-                visit(tree)
-                # End-of-bar snapshot for strategy.position_size[n] history
+            for tick_i in range(n_ticks):
+                if bar_rt:
+                    # Forming last bar: isrealtime drives varip RHS re-eval.
+                    barstate.isrealtime = True
+                    barstate.ishistory = False
+                    barstate.isnew = tick_i == 0
+                    # Final tick models bar confirmation; earlier ticks unconfirmed.
+                    barstate.isconfirmed = tick_i == n_ticks - 1
+                    barstate.islastconfirmedhistory = False
+
+                # Reset per-bar/tick plot index; clear strategy event buffer
+                reset_plots()
+                if strategy_events:
+                    strategy_events.clear()
+                # Bar-mode call-site indices (crossover + incremental ta.* + plot reuse)
+                evaluator._cross_call_i = 0  # type: ignore[attr-defined]
+                evaluator._ta_call_i = 0  # type: ignore[attr-defined]
+                evaluator._plot_call_i = 0  # type: ignore[attr-defined]
+
+                try:
+                    visit(tree)
+                except Exception as e:
+                    # Fail closed: never return empty plots for bar-loop exceptions.
+                    eval_ms = (time.perf_counter() - t_eval0) * 1000.0
+                    return _attach_logs_profile(
+                        _error_payload(
+                            _format_exc_message(
+                                f"Runtime Error at bar {bar_time} (index {bar_index})",
+                                e,
+                            ),
+                            kind=ERROR_KIND_RUNTIME,
+                            exc=e,
+                            bar_index=bar_index,
+                            bar_time=bar_time,
+                        ),
+                        total_ms=(time.perf_counter() - t_total0) * 1000.0,
+                        bars=n_bars,
+                        mode="interpret",
+                        parse_ms=parse_ms,
+                        eval_ms=eval_ms,
+                    )
+
+                if tick_i < n_ticks - 1:
+                    # Intermediate realtime tick: keep state (var/varip) but
+                    # discard plot cells so series length stays 1 per bar.
+                    _discard_realtime_plot_tick(evaluator)
+                    continue
+
+                # Final tick (or sole historical visit): commit bar outputs.
                 st = getattr(evaluator, "_strategy_state", None)
                 if st is not None and hasattr(st, "snapshot_bar_series"):
                     st.snapshot_bar_series()
-            except Exception as e:
-                # Fail closed: never return empty plots for bar-loop exceptions.
-                eval_ms = (time.perf_counter() - t_eval0) * 1000.0
-                return _attach_logs_profile(
-                    _error_payload(
-                        _format_exc_message(
-                            f"Runtime Error at bar {bar_time} (index {bar_index})",
-                            e,
-                        ),
-                        kind=ERROR_KIND_RUNTIME,
-                        exc=e,
-                        bar_index=bar_index,
-                        bar_time=bar_time,
-                    ),
-                    total_ms=(time.perf_counter() - t_total0) * 1000.0,
-                    bars=n_bars,
-                    mode="interpret",
-                    parse_ms=parse_ms,
-                    eval_ms=eval_ms,
-                )
 
-            # Pad short plot columns for call sites not hit this bar
-            finish_bar_plots()
+                # Pad short plot columns for call sites not hit this bar
+                finish_bar_plots()
 
-            # Lock function/type/import registration after first bar (O(bars²) guard)
-            if set_defs_locked:
-                evaluator._pine_defs_locked = True  # type: ignore[attr-defined]
-                # Keep assigning True is cheap; skip after first for micro-gain
-                set_defs_locked = False
+                # Lock function/type/import registration after first bar (O(bars²) guard)
+                if set_defs_locked:
+                    evaluator._pine_defs_locked = True  # type: ignore[attr-defined]
+                    # Keep assigning True is cheap; skip after first for micro-gain
+                    set_defs_locked = False
 
-            # Strategy events (empty for pure indicators — skip drain alloc)
-            if strategy_events:
-                for ev in strategy_state.drain_events():
-                    ev_dict = ev.to_dict()
-                    ev_dict["script_id"] = script_id
-                    ev_dict["run_id"] = run_id
-                    all_events_append(ev_dict)
+                # Strategy events (empty for pure indicators — skip drain alloc)
+                if strategy_events:
+                    for ev in strategy_state.drain_events():
+                        ev_dict = ev.to_dict()
+                        ev_dict["script_id"] = script_id
+                        ev_dict["run_id"] = run_id
+                        all_events_append(ev_dict)
 
         # Build multi-series map from columnar plot capture (value cols + once-only meta).
         # Light mode: skip export packing (corpus only needs error vs OK).

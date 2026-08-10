@@ -725,9 +725,11 @@ class StatementEvaluator:
         # *execution* of that declaration, which may be a later bar.
         #
         # ``varip`` matches ``var`` on historical bars. On realtime ticks
-        # (``barstate.isrealtime``), reference re-runs the initializer each update so
-        # the value can track intrabar state; we mirror that when the host sets
-        # the flag. Historical Runtime hosts keep ``isrealtime=False``.
+        # (``barstate.isrealtime``), we re-run the initializer each update so
+        # the value can track intrabar state when the host sets the flag.
+        # Default Runtime historical loop keeps ``isrealtime=False``; opt-in
+        # ``Runtime.run(realtime_last_bar=True)`` / ``realtime_ticks=N`` sets
+        # the flag on the last bar (multi-tick re-visits when N>1).
         if isinstance(mode, (ast.Var, ast.VarIp)):
             if isinstance(node.target, ast.Name):
                 name: str = node.target.id  # type: ignore[attr-defined]

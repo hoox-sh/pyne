@@ -275,17 +275,19 @@ plot(strategy.leverage, title="lev")
 
 
 class TestStrategyRiskAndQtyNameErrors:
-    def test_risk_methods_partial_noop(self) -> None:
-        """max_cons_loss_days / risk max_drawdown still no-op; series max_drawdown real."""
+    def test_risk_methods_emit_halt_cascade(self) -> None:
+        """risk max_drawdown / max_cons_loss_days emit broker calls; series max_drawdown real."""
         src = """//@version=5
 strategy("t")
 strategy.risk.max_cons_loss_days(15)
 strategy.risk.max_drawdown(10, strategy.percent_of_equity)
+strategy.risk.max_intraday_loss(5.0)
 plot(strategy.max_drawdown, title="dd")
 """
         code = transpile(src)
-        assert "max_cons_loss_days(" not in code
-        assert "max_drawdown(strategy_risk" not in code
+        assert "risk_max_cons_loss_days" in code
+        assert "risk_max_drawdown" in code
+        assert "risk_max_intraday_loss" in code
         assert "__strategy.max_drawdown" in code
         compiled = compile_script(src)
         o, h, l, c, v = _ohlcv(15)
@@ -309,6 +311,72 @@ plot(strategy.position_size, title="ps")
         assert out["ps"][-1] == 0.0 or out["__position_size"] == 0.0
         blocked = [e for e in out["__events"] if e.get("comment") == "risk_blocked"]
         assert blocked
+
+    def test_risk_max_drawdown_blocks_entries(self) -> None:
+        """max_drawdown (absolute) blocks new entries after equity drop; risk_blocked."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0)
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.risk_max_drawdown(50.0)  # absolute
+        # Force drawdown state past limit (interpret-aligned)
+        b._equity_peak = 10_000.0
+        b._max_drawdown = 100.0
+        b.entry("L", "long", 1.0)
+        assert b.position_size == 0.0
+        assert b.entries_blocked is True
+        blocked = [e for e in b.events if e.get("comment") == "risk_blocked"]
+        assert blocked
+
+    def test_risk_max_drawdown_percent_blocks_entries(self) -> None:
+        """max_drawdown(percent_of_equity) blocks when peak drawdown % exceeded."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0)
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.risk_max_drawdown(5.0, "percent_of_equity")
+        b._equity_peak = 10_000.0
+        b._max_drawdown = 600.0
+        b._max_drawdown_percent = 6.0  # already > 5%
+        b.entry("L", "long", 1.0)
+        assert b.position_size == 0.0
+        assert b.entries_blocked is True
+
+    def test_risk_allow_entry_in_with_max_drawdown_fields(self) -> None:
+        """allow_entry_in still works when other risk halt fields are configured."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0)
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.risk_max_drawdown(50_000.0)  # high limit — not hit
+        b.risk_max_cons_loss_days(99)
+        b.risk_max_intraday_loss(99.0)
+        b.risk_allow_entry_in("long")
+        b.entry("S", "short", 2.0)
+        assert b.position_size == 0.0
+        blocked = [e for e in b.events if e.get("comment") == "risk_blocked"]
+        assert blocked
+        # long still allowed
+        b.entry("L", "long", 1.0)
+        assert b.position_size == pytest.approx(1.0)
+        assert b.entries_blocked is False
+
+    def test_risk_max_cons_loss_days_blocks_after_loss_days(self) -> None:
+        """max_cons_loss_days finalizes loss days and blocks further entries."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0)
+        b.risk_max_cons_loss_days(2)
+        # Two consecutive loss days via day-bucket finalization
+        b.note_closed_trade_day(1, -10.0)
+        b.note_closed_trade_day(2, -5.0)  # day1 loss finalized → cons=1
+        b.note_closed_trade_day(3, -1.0)  # day2 loss finalized → cons=2 → block
+        assert b.consecutive_loss_days >= 2
+        assert b.entries_blocked is True
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.entry("L", "long", 1.0)
+        assert b.position_size == 0.0
+        assert any(e.get("comment") == "risk_blocked" for e in b.events)
 
     def test_risk_max_position_size_caps_qty(self) -> None:
         """max_position_size(percent) caps entry notional vs equity."""

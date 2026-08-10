@@ -316,10 +316,18 @@ class CompileStrategyBroker:
         self._max_runup: float = 0.0
         self._max_drawdown_percent: float = 0.0
         self._max_runup_percent: float = 0.0
-        # strategy.risk.* subset (not full TV risk engine)
+        # strategy.risk.* subset (not full TV risk engine; interpret-aligned halt cascade)
         self.allow_entry_in: str = "all"  # all | long | short
         self.max_position_size_percent: float | None = None
-        self.entries_blocked: bool = False
+        self.max_drawdown_risk: float | None = None  # absolute equity drawdown cap
+        self.max_drawdown_risk_percent: float | None = None  # % of peak equity
+        self.max_cons_loss_days: int | None = None
+        # Intraday loss halt as % of initial capital (interpret stores; we enforce)
+        self.max_intraday_loss: float = float("inf")
+        self.entries_blocked: bool = False  # risk halt (drawdown / cons loss / intraday)
+        self.consecutive_loss_days: int = 0
+        self._last_trade_day: int | None = None  # exit_time day bucket
+        self._day_pnl: float = 0.0
 
     def begin_bar(
         self,
@@ -898,15 +906,130 @@ class CompileStrategyBroker:
             return
         self.max_position_size_percent = p
 
+    def risk_max_drawdown(self, value: Any = None, type: Any = "absolute", **_kwargs: Any) -> None:
+        """``strategy.risk.max_drawdown(value, type)`` — absolute or % of peak.
+
+        When *type* is percent (``percent`` / ``percent_of_equity`` / ``%``),
+        store as percent-of-peak; otherwise absolute currency units.
+        """
+        raw = value if value is not None else _kwargs.get("value")
+        if raw is None or _is_na(raw):
+            return
+        try:
+            v = float(raw)
+        except (TypeError, ValueError):
+            return
+        if not math.isfinite(v) or v < 0:
+            return
+        risk_type = type if type is not None else _kwargs.get("type", "absolute")
+        rt = str(risk_type).replace("strategy.", "").strip().lower()
+        if rt in {"percent", "percentage", "percent_of_equity", "%"}:
+            self.max_drawdown_risk_percent = v
+        else:
+            self.max_drawdown_risk = v
+
+    def risk_max_cons_loss_days(self, days: Any = None, **_kwargs: Any) -> None:
+        """``strategy.risk.max_cons_loss_days(days)`` — halt after N loss days."""
+        raw = days if days is not None else _kwargs.get("days", _kwargs.get("value"))
+        if raw is None or _is_na(raw):
+            return
+        try:
+            d = int(raw)
+        except (TypeError, ValueError):
+            return
+        if d < 0:
+            return
+        self.max_cons_loss_days = d
+
+    def risk_max_intraday_loss(self, percent: Any = None, **_kwargs: Any) -> None:
+        """``strategy.risk.max_intraday_loss(percent)`` — halt on day loss % of capital.
+
+        Interpret stores the limit; compile also enforces via day PnL tracking
+        shared with :meth:`note_closed_trade_day`.
+        """
+        raw = percent if percent is not None else _kwargs.get("percent", _kwargs.get("value"))
+        if raw is None or _is_na(raw):
+            return
+        try:
+            p = float(raw)
+        except (TypeError, ValueError):
+            return
+        if not math.isfinite(p) or p < 0:
+            return
+        self.max_intraday_loss = p
+
+    def note_closed_trade_day(self, exit_time: int, profit: float) -> None:
+        """Track consecutive calendar-day losses for risk.max_cons_loss_days.
+
+        Day bucket = floor(exit_time / 86_400_000) when time looks like ms,
+        else floor(exit_time / 86_400) for seconds, else bar-time as-is.
+        Mirrors interpret ``StrategyState.note_closed_trade_day``.
+        """
+        t = int(exit_time)
+        if t > 10_000_000_000:  # ms epoch
+            day = t // 86_400_000
+        elif t > 10_000_000:  # seconds epoch
+            day = t // 86_400
+        else:
+            day = t
+        if self._last_trade_day is None or day != self._last_trade_day:
+            if self._last_trade_day is not None:
+                if self._day_pnl < 0:
+                    self.consecutive_loss_days += 1
+                elif self._day_pnl > 0:
+                    self.consecutive_loss_days = 0
+            self._last_trade_day = day
+            self._day_pnl = 0.0
+        self._day_pnl += float(profit)
+        if self.max_cons_loss_days is not None and self.consecutive_loss_days >= int(self.max_cons_loss_days):
+            self.entries_blocked = True
+        # Intraday loss: day's realized loss as % of initial capital
+        if (
+            math.isfinite(self.max_intraday_loss)
+            and self.max_intraday_loss < float("inf")
+            and self.initial_capital > 0
+            and self._day_pnl < 0
+        ):
+            loss_pct = 100.0 * (-self._day_pnl) / float(self.initial_capital)
+            if loss_pct >= float(self.max_intraday_loss):
+                self.entries_blocked = True
+
     def _risk_allows_entry(self, direction: str) -> bool:
-        """Subset of interpret risk gates: allow_entry_in + entries_blocked flag."""
-        if self.entries_blocked:
-            return False
+        """Interpret-aligned risk gates before opening an entry.
+
+        Checks: allow_entry_in, entries_blocked, max_drawdown (abs/%),
+        max_cons_loss_days, max_intraday_loss. Sets ``entries_blocked`` when a
+        halt limit is hit (further entries comment ``risk_blocked``).
+        """
         allow = (self.allow_entry_in or "all").lower().replace("strategy.", "")
         if allow in {"long"} and direction != "long":
             return False
         if allow in {"short"} and direction != "short":
             return False
+        if self.entries_blocked:
+            return False
+        # Drawdown caps (series extremes already updated on bars / closes)
+        if self.max_drawdown_risk is not None and self._max_drawdown >= float(self.max_drawdown_risk):
+            self.entries_blocked = True
+            return False
+        if self.max_drawdown_risk_percent is not None and self._max_drawdown_percent >= float(
+            self.max_drawdown_risk_percent
+        ):
+            self.entries_blocked = True
+            return False
+        if self.max_cons_loss_days is not None and self.consecutive_loss_days >= int(self.max_cons_loss_days):
+            self.entries_blocked = True
+            return False
+        if (
+            math.isfinite(self.max_intraday_loss)
+            and self.max_intraday_loss < float("inf")
+            and self.initial_capital > 0
+            and self._day_pnl < 0
+        ):
+            loss_pct = 100.0 * (-self._day_pnl) / float(self.initial_capital)
+            if loss_pct >= float(self.max_intraday_loss):
+                self.entries_blocked = True
+                return False
         return True
 
     def _cap_qty_by_max_position(self, qty: float, fill_price: float) -> float:
@@ -1403,6 +1526,7 @@ class CompileStrategyBroker:
         self.netprofit += trade_profit
         self.closed_trades += 1
         entry_px = (trade_entry_notional / total_close) if total_close > 0 else float(px)
+        exit_time = int(self._bar_time)
         self.closed_trade_records.append(
             ClosedTradeRecord(
                 entry_id=trade_entry_id if fe is None else str(fe),
@@ -1415,7 +1539,7 @@ class CompileStrategyBroker:
                 entry_bar=int(trade_entry_bar),
                 entry_time=int(trade_entry_time),
                 exit_bar=int(self._bar_index),
-                exit_time=int(self._bar_time),
+                exit_time=exit_time,
             )
         )
         if trade_profit > 0:
@@ -1426,6 +1550,8 @@ class CompileStrategyBroker:
             self.grossloss += abs(trade_profit)
         else:
             self.eventrades += 1
+        # Risk day cascade (cons loss days / max_intraday_loss)
+        self.note_closed_trade_day(exit_time, float(trade_profit))
 
         if not self.open_legs or sum(leg.size for leg in self.open_legs) <= 1e-12:
             self.open_legs = []

@@ -3820,7 +3820,7 @@ class CompilerVisitor(NodeVisitor):
                 and func.value.value.id == "strategy"
                 and func.value.attr == "risk"
             ):
-                # strategy.risk.max_drawdown(...) / max_cons_loss_days(...) — no-op
+                # strategy.risk.* → strategy_risk_* (emit subset on CompileStrategyBroker)
                 func_name = f"strategy_risk_{func.attr}"
             elif isinstance(func.value, ast.Name) and func.value.id == "log":
                 func_name = f"log_{func.attr}"
@@ -5901,12 +5901,14 @@ class CompilerVisitor(NodeVisitor):
     def _emit_strategy_risk_call(self, method: str, args: list[str], kwargs: dict[str, str]) -> str:
         """Emit ``strategy.risk.*`` when broker supports it; else silent no-op.
 
-        Wired (state + enforcement on entry):
+        Wired (state + enforcement on entry; interpret-aligned halt cascade):
         - ``allow_entry_in`` → ``__strategy.risk_allow_entry_in``
         - ``max_position_size`` → ``__strategy.risk_max_position_size``
+        - ``max_drawdown`` → ``__strategy.risk_max_drawdown`` (abs or % of peak)
+        - ``max_cons_loss_days`` → ``__strategy.risk_max_cons_loss_days``
+        - ``max_intraday_loss`` → ``__strategy.risk_max_intraday_loss``
 
-        Still no-op (not full TV risk engine): max_drawdown (risk), max_cons_loss_days,
-        max_intraday_loss, max_intraday_filled_orders.
+        Still no-op (not full TV risk engine): max_intraday_filled_orders.
         """
         self.object_mode = True
         self.uses_strategy = True
@@ -5918,6 +5920,16 @@ class CompilerVisitor(NodeVisitor):
             # positional percent or keyword percent=
             val = args[0] if args else kwargs.get("percent", kwargs.get("value", "None"))
             return f"__strategy.risk_max_position_size({val})"
+        if risk == "max_drawdown":
+            val = args[0] if args else kwargs.get("value", "None")
+            rtype = args[1] if len(args) > 1 else kwargs.get("type", repr("absolute"))
+            return f"__strategy.risk_max_drawdown({val}, {rtype})"
+        if risk == "max_cons_loss_days":
+            days = args[0] if args else kwargs.get("days", kwargs.get("value", "None"))
+            return f"__strategy.risk_max_cons_loss_days({days})"
+        if risk == "max_intraday_loss":
+            val = args[0] if args else kwargs.get("percent", kwargs.get("value", "None"))
+            return f"__strategy.risk_max_intraday_loss({val})"
         return ""  # remaining risk.* still no-op on compile path
 
     def _emit_strategy_trade_query(self, method: str, args: list[str], kwargs: dict[str, str]) -> str:

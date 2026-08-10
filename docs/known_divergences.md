@@ -29,15 +29,18 @@ This page documents **semantic differences** between pynescript and **reference 
 
 ### `strategy.risk.*` partial on compile path
 
-**pynescript compile broker (`CompileStrategyBroker`):**
+**pynescript compile broker (`CompileStrategyBroker`)** — minimal halt cascade (not full TV risk engine):
 
 | Call | Compile status |
 |------|----------------|
 | `strategy.risk.allow_entry_in` | **Wired** — stores state; blocks opposite-direction entries (`risk_blocked`) |
 | `strategy.risk.max_position_size` | **Wired** — caps entry qty to `%` of equity at fill price |
-| `strategy.risk.max_drawdown` / `max_cons_loss_days` / `max_intraday_*` | **Still no-op** (not full TV risk engine) |
+| `strategy.risk.max_drawdown` | **Wired** — absolute and/or `%` of peak; sets `entries_blocked` when exceeded |
+| `strategy.risk.max_cons_loss_days` | **Wired** — consecutive calendar-day loss tracking on closes; halt when N hit |
+| `strategy.risk.max_intraday_loss` | **Wired** — day PnL as `%` of initial capital; halt when exceeded (stricter than interpret store-only) |
+| `strategy.risk.max_intraday_filled_orders` | **Still no-op** |
 
-**Impact:** risk-capped strategies that rely only on allow_entry_in / max_position_size can share interpret-like constraints; other risk gates remain unconstrained under compile.
+**Impact:** common risk halt gates now share interpret-like `entries_blocked` + `risk_blocked` comments on compile. Remaining gaps: filled-order caps, full TV risk types/currency units, per-trade max_dd/runup.
 
 **Track:** audit AGENT_04; tests in `tests/test_compiler_strategy.py`.
 
@@ -75,11 +78,20 @@ Full-list `_ema` / `_ema_state_step` and incremental / Numba paths all use **SMA
 
 ### `var` / `varip` realtime (partial Wave B)
 
-**Reference Pine:** `varip` keeps values across realtime ticks differently than series; host-dependent.
+**Reference Pine:** On a forming bar the host re-executes the script on each tick. Non-`varip` state is rolled back to the last confirmed bar; `varip` persists across ticks. Full rollback + committed-state snapshot is host-dependent.
 
-**pynescript:** Historical bars: both init-once (same as before). When `barstate.isrealtime` is true, `varip` re-evaluates its RHS each update. Default Runtime host keeps `isrealtime=False`.
+**pynescript (current contract):**
 
-**Track:** audit AGENT_02.
+| Mode | Behavior |
+|------|----------|
+| Historical default (`Runtime.run` without realtime kwargs) | `barstate.isrealtime=False` always. `var` and `varip` both **init-once** (first execution of the declaration). |
+| `Runtime.run(..., realtime_last_bar=True)` | Last bar only: `isrealtime=True`, `ishistory=False`. Final tick sets `isconfirmed=True`; earlier multi-ticks unconfirmed. |
+| `Runtime.run(..., realtime_ticks=N)` (`N>1`) | Re-visits the **last bar** `N` times with `isrealtime=True` (implies last-bar realtime). Intermediate ticks discard plot cells so series length stays one sample per bar. |
+| When `isrealtime` | Evaluator **re-evaluates `varip` RHS** each visit; `var` does **not** re-init (keeps prior binding). This is a simplified stand-in for reference tick persistence — not a full rollback of non-`varip` series/strategy state between ticks. |
+
+**Not yet:** true intrabar rollback of non-`varip` state, live datafeed-driven ticks, or compile-mode realtime multi-pass.
+
+**Track:** audit AGENT_02; host kwargs in `pynescript.runtime.host.Runtime.run`.
 
 ### `AugAssign` / tuple unpack series bind (fixed Wave B)
 
@@ -107,23 +119,26 @@ When the host omits quotes, bid/ask may default to fixed mock values (`100.01` /
 |------|----------|
 | Foreign ticker + host chart wired + no multi-symbol feed hit | **`na`** (no mock invent; matches compile foreign-na) |
 | Same-symbol + **complex** pre-eval (UDF / `ta.*`) + request TF ≠ chart TF | **`na`** — no multi-TF re-eval engine (do not invent HTF structure) |
-| Same-symbol + **simple OHLCV** (or same TF as chart) | Chart series **passthrough** / provider series. Different TF is a **chart-TF stub**, not true HTF aggregation |
+| Same-symbol + **simple OHLCV** + request TF **coarser** than chart bar spacing (parseable fixed TF, bar times present) | **Timestamp resample** of chart OHLCV (`htf_ohlcv_resample`): open/high/low/close/volume/time/hl2/hlc3/ohlc4 on **last completed** HTF bucket only (lookahead_off-style). No expression re-eval on HTF bars. |
+| Same-symbol + **simple OHLCV** otherwise (same TF, LTF, history offsets like `high[1]`, unparseable TF, …) | Chart series **passthrough** / provider series (`same_tf_chart_eval` / `chart_passthrough_htf_stub`) |
 | Same-symbol `ticker.heikinashi` | Chart OHLC → Heikin-Ashi transform (not raw chart candles) |
 | `barmerge.gaps_on` / `gaps_off` | **Accepted, unused** — no gap-fill / na-gap series |
-| `barmerge.lookahead_on` / `lookahead_off` | **Accepted, unused** — no lookahead offset |
+| `barmerge.lookahead_on` / `lookahead_off` | **Accepted, unused** — no lookahead offset (HTF resample always last completed bar) |
 | Fundamentals / footprint / dividends / … | Mock or soft-fail (see module docstring) |
 | Standalone evaluator (no chart identity) | Legacy mock OHLCV for bare string series names (offline demos) |
 
+**HTF resample limits (intentional):** only bare series field identity (`close`, `open`, …) or string names — not `high[1]` / UDF / `ta.*`. Monthly calendar TFs are not fixed-ms buckets and stay on the stub path. Gaps never insert `na` holes between HTF bars.
+
 Runtime **interpret** results expose honesty metadata when any `request.security` ran:
 
-- `meta.request_security.htf_reeval` → always `false`
+- `meta.request_security.htf_reeval` → always `false` (resample is OHLCV aggregation, not expression re-eval)
 - `meta.request_security.gaps_supported` / `lookahead_supported` → always `false`
-- `meta.request_security.policies` → tags such as `complex_htf_na`, `chart_passthrough_htf_stub`, `foreign_na`, `gaps_lookahead_unused`, `same_tf_chart_eval`, …
+- `meta.request_security.policies` → tags such as `htf_ohlcv_resample`, `complex_htf_na`, `chart_passthrough_htf_stub`, `foreign_na`, `gaps_lookahead_unused`, `same_tf_chart_eval`, …
 - `meta.request_security.notes` → short product notes (same text as evaluator)
 
-Regression coverage: `tests/test_request_data_feed.py` (foreign-na, complex HTF na, HTF OHLCV stub, gaps/lookahead unused, Runtime meta).
+Regression coverage: `tests/test_request_data_feed.py` (foreign-na, complex HTF na, HTF OHLCV resample hourly→daily / 1m→60m, gaps/lookahead unused, Runtime meta).
 
-**Impact:** MTF indicators and security-based strategies that need true HTF re-eval, gaps, or lookahead diverge from reference Pine. Prefer `na` / chart-only stubs over silent wrong HTF structure.
+**Impact:** MTF indicators that need full expression re-eval on HTF, gaps, or lookahead still diverge from reference Pine. Simple HTF OHLC security is closer than chart passthrough but not a full multi-TF engine.
 
 **Track:** audit AGENT_03; full multi-TF host engine is out of product scope until explicitly scheduled.
 
