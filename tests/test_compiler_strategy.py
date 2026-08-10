@@ -333,7 +333,8 @@ class TestCompileExitAndSeriesParity:
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
         b.entry("L", "long", 1.0)
         b.begin_bar(1, 100.0, 112.0, 99.0, 111.0)
-        b.close(id="X", limit=110.0, stop=90.0, comment="tp")
+        # Compiler maps from_entry → id; id must match entry name (or omit id).
+        b.close(id="L", limit=110.0, stop=90.0, comment="tp")
         assert b.position_size == 0.0
         assert b.netprofit == pytest.approx(10.0)
 

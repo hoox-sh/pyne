@@ -79,8 +79,8 @@ jobs:
       - name: Core runtime (parity / strategy / series)
         # Audit 2026-08-10 Wave A: PR-gate first-party correctness without
         # third-party corpora. Skips optional corpus cases when files absent.
-        # Note: test_ta_incremental.py still has residual failures (EMA seed /
-        # ATR-related); keep out of the gate until Wave B closes them.
+        # Wave B+: full ``_ema`` SMA-seed aligned with incremental/numba; TA
+        # bar-mode goldens (EMA/ATR/KC/…) gate dual-host residual.
         run: |
           python -m pytest \
             tests/test_interp_compile_parity.py \
@@ -92,6 +92,9 @@ jobs:
             tests/test_series_ring_buffer.py \
             tests/test_alert_forwarder.py \
             tests/test_free_limits.py \
+            tests/test_ta_incremental.py \
+            tests/test_first_party_ta_goldens.py \
+            tests/test_runtime_package.py \
             -q --tb=short \
             -k "not optional_corpus"
         env:

@@ -1,0 +1,6 @@
+//@version=5
+indicator("fp_supertrend", overlay=true)
+// Supertrend uses ATR internally (factor, atrPeriod)
+[st, dir] = ta.supertrend(3.0, 10)
+plot(st, title="st")
+plot(dir, title="dir")

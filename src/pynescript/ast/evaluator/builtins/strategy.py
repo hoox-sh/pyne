@@ -187,6 +187,8 @@ class Order:
     max_fill_per_bar: float = 0.0
     oca_name: str | None = None
     oca_type: str = "none"  # none | cancel | reduce
+    # When set (strategy.exit from_entry), reduce only matching open-trade legs
+    from_entry: str | None = None
 
     @property
     def remaining_qty(self) -> float:
@@ -1228,6 +1230,20 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         _ = equity
         return True
 
+    def _entry_open_size(self, from_entry: str | None) -> float:
+        """Open size for ``from_entry`` legs, or whole position when unset.
+
+        When the position is open but ``open_trades`` was never materialised
+        (tests / thin hosts), treat the whole ``position_size`` as eligible so
+        ``from_entry`` still reduces the net lot.
+        """
+        st = self._strategy_state
+        if not from_entry:
+            return float(st.position_size)
+        if not st.open_trades and st.position_size > 0:
+            return float(st.position_size)
+        return float(sum(t.size for t in st.open_trades if t.entry_id == from_entry))
+
     def _handle_strategy_exit(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
         """
         strategy.exit(id, from_entry, qty, limit, stop, comment, alert, ...)
@@ -1238,14 +1254,26 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         * With ``limit`` and/or ``stop`` → pending order(s) filled by
           :meth:`process_pending_orders` when bar OHLC touches the level.
           Both legs share an OCA cancel group so one fill cancels the other.
+        * When ``from_entry`` is set, only that entry id's open qty is reduced;
+          other open trades (pyramiding) are left intact. Unknown from_entry is
+          a soft no-op after the placement event (no crash).
 
         Always records a ``kind=exit`` event for host bookkeeping (placement).
         """
         kw = kwargs or {}
         exit_id = str(kw.get("id", args[0] if args else "exit"))
+        # Positional: id, from_entry, qty, limit, stop, …
+        raw_from = kw.get("from_entry", args[1] if len(args) > 1 else None)
+        from_entry: str | None
+        if raw_from is None or raw_from == "":
+            from_entry = None
+        else:
+            from_entry = str(raw_from)
+
+        target_size = self._entry_open_size(from_entry)
         raw_qty = kw.get("qty", args[2] if len(args) > 2 else None)
         if raw_qty is None:
-            qty = float(self._strategy_state.position_size)
+            qty = float(target_size)
         else:
             status, parsed = self._parse_order_qty(raw_qty)
             if status == "invalid":
@@ -1255,9 +1283,8 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                     reason="invalid_qty",
                 )
                 return
-            qty = float(self._strategy_state.position_size) if status == "missing" else parsed
+            qty = float(target_size) if status == "missing" else min(float(parsed), float(target_size))
 
-        # Positional limit/stop (positional order: id, from_entry, qty, limit, stop, …)
         # Prefer kwargs; fall back to args[3]/args[4] when present.
         limit_raw = kw.get("limit", kw.get("profit"))
         if limit_raw is None and len(args) > 3:
@@ -1272,7 +1299,9 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         is_flat = self._strategy_state.position_direction == "flat"
         action = "sell" if is_long else "buy"  # close direction
 
-        # Always emit placement/intent event (fixture + host contract).
+        # Placement/intent event. from_entry is applied to fill targeting;
+        # closed trades retain entry_id for host verification (event schema
+        # has no dedicated from_entry field — keep comment unchanged for parity).
         self._record_strategy_event(
             StrategyEvent(
                 kind="exit",
@@ -1292,13 +1321,16 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             )
         )
 
+        # Soft no-op: flat, zero qty, or from_entry with no matching open leg
         if is_flat or qty <= 0:
             return
+        if from_entry is not None and target_size <= 0:
+            return
 
-        # Market exit — fill immediately
+        # Market exit — fill immediately (only matching from_entry legs)
         if limit_p is None and stop_p is None:
             exit_price = self._apply_slippage(self._mark_price(), action)
-            self._close_position(exit_price, qty, self._bar_time())
+            self._close_position(exit_price, qty, self._bar_time(), from_entry=from_entry)
             return
 
         # Pending bracket: replace any prior exit legs with the same base id
@@ -1307,6 +1339,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 del self._strategy_state.pending_orders[oid]
 
         oca_name = exit_id
+        cmt = str(comment) if comment is not None else ""
         if limit_p is not None and stop_p is not None:
             # Two OCA-cancel legs (TP + SL)
             lim_id = f"{exit_id}:limit"
@@ -1318,9 +1351,10 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 qty,
                 limit_p,
                 None,
-                str(comment) if comment is not None else "",
+                cmt,
                 oca_name=oca_name,
                 oca_type="cancel",
+                from_entry=from_entry,
             )
             self._strategy_state.pending_orders[stop_id] = Order(
                 stop_id,
@@ -1329,9 +1363,10 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 qty,
                 None,
                 stop_p,
-                str(comment) if comment is not None else "",
+                cmt,
                 oca_name=oca_name,
                 oca_type="cancel",
+                from_entry=from_entry,
             )
         elif limit_p is not None:
             self._strategy_state.pending_orders[exit_id] = Order(
@@ -1341,7 +1376,8 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 qty,
                 limit_p,
                 None,
-                str(comment) if comment is not None else "",
+                cmt,
+                from_entry=from_entry,
             )
         else:
             self._strategy_state.pending_orders[exit_id] = Order(
@@ -1351,7 +1387,8 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 qty,
                 None,
                 stop_p,
-                str(comment) if comment is not None else "",
+                cmt,
+                from_entry=from_entry,
             )
 
         # Same-bar fill when OHLC already touches the level
@@ -1727,10 +1764,16 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         commission = self._calc_commission(fill_qty, fill_price)
         self._strategy_state.commission = commission
 
+        order_from_entry = getattr(order, "from_entry", None) or None
         if action in {"buy", "long"}:
             if self._strategy_state.position_direction == "short":
-                cover = min(fill_qty, self._strategy_state.position_size)
-                self._close_position(fill_price, cover, bar_time)
+                max_cover = (
+                    self._entry_open_size(order_from_entry)
+                    if order_from_entry
+                    else self._strategy_state.position_size
+                )
+                cover = min(fill_qty, max_cover)
+                self._close_position(fill_price, cover, bar_time, from_entry=order_from_entry)
                 leftover = fill_qty - cover
                 if leftover > 1e-12 and self._risk_allows_entry("long", fill_price):
                     self._open_position_qty(
@@ -1743,8 +1786,13 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                     )
         else:  # sell / short
             if self._strategy_state.position_direction == "long":
-                cover = min(fill_qty, self._strategy_state.position_size)
-                self._close_position(fill_price, cover, bar_time)
+                max_cover = (
+                    self._entry_open_size(order_from_entry)
+                    if order_from_entry
+                    else self._strategy_state.position_size
+                )
+                cover = min(fill_qty, max_cover)
+                self._close_position(fill_price, cover, bar_time, from_entry=order_from_entry)
                 leftover = fill_qty - cover
                 if leftover > 1e-12 and self._risk_allows_entry("short", fill_price):
                     self._open_position_qty(
@@ -1959,7 +2007,14 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             )
         )
 
-    def _close_position(self, exit_price: float, qty: float, exit_time: int) -> None:
+    def _close_position(
+        self,
+        exit_price: float,
+        qty: float,
+        exit_time: int,
+        *,
+        from_entry: str | None = None,
+    ) -> None:
         """Helper to close (or partially close) the open position and record trades.
 
         Average-price models (``strategy(..., avg_price_model=...)``):
@@ -1969,15 +2024,21 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         - ``futures`` / ``inverse``: sticky net AEP until flat (exchange-like).
           Realized PnL and closed-trade entry use the sticky average, not FIFO
           leg prices. Legs still shrink FIFO so ``opentrades`` counts stay sane.
+
+        When ``from_entry`` is set, only open trades with that ``entry_id`` are
+        reduced (FIFO within that subset). Unknown ids soft-no-op.
         """
         if self._strategy_state.position_direction == "flat" or qty <= 0:
             return
 
+        fe = str(from_entry) if from_entry else None
+
         # Tests / callers may seed position_* without open_trades; synthesize one.
+        # Prefer from_entry as the synthetic leg id so filtered exits still apply.
         if not self._strategy_state.open_trades and self._strategy_state.position_size > 0:
             self._strategy_state.open_trades = [
                 OpenTrade(
-                    entry_id="",
+                    entry_id=fe or self._strategy_state.position_entry_name or "",
                     entry_bar=self._strategy_state.entry_bar,
                     entry_time=self._strategy_state.entry_time,
                     entry_price=self._strategy_state.entry_price,
@@ -1986,6 +2047,10 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                     commission=float(self._strategy_state.commission),
                 )
             ]
+
+        if fe is not None:
+            if not any(t.entry_id == fe for t in self._strategy_state.open_trades):
+                return  # soft no-op: no matching open entry
 
         remaining = float(qty)
         exit_bar = self._bar_index()
@@ -1996,12 +2061,22 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         use_sticky = model in {"futures", "inverse"}
         # reference-style: commission on entry (already on OpenTrade) **and** on exit fill.
         # Pro-rate exit commission across legs closed in this call.
-        total_close = min(remaining, float(sum(t.size for t in self._strategy_state.open_trades)))
+        eligible = (
+            [t for t in self._strategy_state.open_trades if t.entry_id == fe]
+            if fe is not None
+            else list(self._strategy_state.open_trades)
+        )
+        total_close = min(remaining, float(sum(t.size for t in eligible)))
+        if total_close <= 0:
+            return
         exit_comm_total = self._calc_commission(total_close, exit_price) if total_close > 0 else 0.0
         self._strategy_state.commission = exit_comm_total
 
         new_open: list[OpenTrade] = []
         for ot in self._strategy_state.open_trades:
+            if fe is not None and ot.entry_id != fe:
+                new_open.append(ot)
+                continue
             if remaining <= 0:
                 new_open.append(ot)
                 continue

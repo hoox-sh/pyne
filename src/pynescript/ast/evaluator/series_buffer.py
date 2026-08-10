@@ -32,11 +32,12 @@ Lookback maps offset ``n`` → physical index ``-(n + 1)`` in O(1).
 Legacy ``PineSeries`` stores a newest-first ``deque`` via ``appendleft``. That
 makes lookback ``hist[n]`` O(1) at the ends but forces TA helpers to
 ``list(reversed(history))`` for chronological materialization. Dual storage
-(wrapper + ``current_series`` lists) is the status quo in ``backend/runtime.py``.
+(wrapper + ``current_series`` lists) is the status quo in
+``pynescript.runtime.host``.
 
 This module is the single-buffer alternative, gated by env ``PYNE_SERIES_RING``
 (default **off** — ``0`` / unset / empty). When off, hosts keep using
-``backend.series.PineSeries`` unchanged.
+``pynescript.runtime.series.PineSeries`` unchanged.
 
 Optional ``maxlen`` composes with T1 (``_SERIES_MAX`` / ``max_bars_back``): the
 ring drops oldest samples so memory stays bounded without fighting Agent 03's
@@ -419,11 +420,12 @@ def make_series(
 ) -> Any:
     """Construct a series wrapper honouring ``PYNE_SERIES_RING``.
 
-    When the flag is off (default), returns legacy ``backend.series.PineSeries``
-    so behaviour is bit-identical to the pre-Phase-2.2 path.
+    When the flag is off (default), returns legacy
+    ``pynescript.runtime.series.PineSeries`` so behaviour is bit-identical to
+    the pre-Phase-2.2 path.
 
-    Prefer ``backend.series.make_pine_series`` from Runtime hosts; this helper
-    is for evaluator-side / unit tests that already import this module.
+    Prefer ``pynescript.runtime.make_pine_series`` from Runtime hosts; this
+    helper is for evaluator-side / unit tests that already import this module.
 
     Parameters
     ----------
@@ -435,6 +437,6 @@ def make_series(
     if use_ring:
         return RingPineSeries(initial_value, history_length=history_length)
     # Lazy import avoids circular load when only the buffer type is needed.
-    from backend.series import PineSeries
+    from pynescript.runtime.series import PineSeries
 
     return PineSeries(initial_value, history_length=history_length)

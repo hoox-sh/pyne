@@ -88,6 +88,99 @@ def test_strategy_exit_pending_between_stop_limit():
     assert e._strategy_state.position_size == 0.0
 
 
+def test_strategy_exit_from_entry_market_leaves_other_leg():
+    """Market exit from_entry=A closes only A; pyramided B remains open."""
+    e = NodeLiteralEvaluator()
+    e.context = {
+        "open": 100.0,
+        "high": 100.0,
+        "low": 100.0,
+        "close": 100.0,
+        "bar_index": 0,
+        "time": 0,
+    }
+    m = e._build_builtin_map()
+    m["strategy"](["T"], {"pyramiding": 1})
+    m["strategy.entry"](["A", "long", 2.0])
+    e.context.update({"close": 110.0, "open": 110.0, "high": 110.0, "low": 110.0, "bar_index": 1})
+    m["strategy.entry"](["B", "long", 3.0])
+    assert e._strategy_state.position_size == 5.0
+    assert len(e._strategy_state.open_trades) == 2
+    e.context.update({"close": 120.0, "open": 120.0, "high": 120.0, "low": 120.0, "bar_index": 2})
+    m["strategy.exit"]([], {"id": "XA", "from_entry": "A"})
+    st = e._strategy_state
+    assert st.position_size == 3.0
+    assert len(st.open_trades) == 1
+    assert st.open_trades[0].entry_id == "B"
+    assert st.open_trades[0].size == 3.0
+    assert len(st.closed_trades) == 1
+    assert st.closed_trades[0].entry_id == "A"
+    # Exit placement event recorded (from_entry applied to fill, not event schema)
+    exit_evs = [ev for ev in st._events if ev.kind == "exit"]
+    assert exit_evs
+    assert exit_evs[-1].id == "XA"
+    assert exit_evs[-1].qty == 2.0
+
+
+def test_strategy_exit_from_entry_unknown_soft_noop():
+    """from_entry that matches no open leg is a soft no-op (no crash, no close)."""
+    e = NodeLiteralEvaluator()
+    e.context = {
+        "open": 100.0,
+        "high": 100.0,
+        "low": 100.0,
+        "close": 100.0,
+        "bar_index": 0,
+        "time": 0,
+    }
+    m = e._build_builtin_map()
+    m["strategy.entry"](["L", "long", 4.0])
+    m["strategy.exit"]([], {"id": "X", "from_entry": "NOPE"})
+    st = e._strategy_state
+    assert st.position_size == 4.0
+    assert st.position_direction == "long"
+    assert len(st.closed_trades) == 0
+    assert not st.pending_orders
+    assert any(ev.kind == "exit" for ev in st._events)
+
+
+def test_strategy_exit_from_entry_pending_stop_limit():
+    """Pending stop/limit exit with from_entry only reduces that entry's qty."""
+    e = NodeLiteralEvaluator()
+    e.context = {
+        "open": 100.0,
+        "high": 100.0,
+        "low": 100.0,
+        "close": 100.0,
+        "bar_index": 0,
+        "time": 0,
+    }
+    m = e._build_builtin_map()
+    m["strategy"](["T"], {"pyramiding": 1})
+    m["strategy.entry"](["A", "long", 2.0])
+    e.context.update({"close": 105.0, "open": 105.0, "high": 105.0, "low": 105.0, "bar_index": 1})
+    m["strategy.entry"](["B", "long", 4.0])
+    # Bracket only against A
+    m["strategy.exit"](
+        [],
+        {"id": "XA", "from_entry": "A", "qty": 2.0, "limit": 120.0, "stop": 90.0},
+    )
+    assert e._strategy_state.position_size == 6.0
+    pending = e._strategy_state.pending_orders
+    assert any(k.startswith("XA") for k in pending)
+    for po in pending.values():
+        assert po.from_entry == "A"
+        assert po.quantity == 2.0
+    # TP fills A only
+    e.context.update({"open": 100.0, "high": 125.0, "low": 99.0, "close": 122.0, "bar_index": 2})
+    e.process_pending_orders(open_=100.0, high=125.0, low=99.0, close=122.0)
+    st = e._strategy_state
+    assert st.position_size == 4.0
+    assert len(st.open_trades) == 1
+    assert st.open_trades[0].entry_id == "B"
+    assert st.closed_trades[-1].entry_id == "A"
+
+
 def test_stop_sell_closes_long():
     e = NodeLiteralEvaluator()
     e.context = {"open": 100.0, "high": 110.0, "low": 100.0, "close": 105.0, "bar_index": 0, "time": 0}

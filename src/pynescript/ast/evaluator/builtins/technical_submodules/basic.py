@@ -485,13 +485,16 @@ class BasicIndicators(TechnicalHelpers):
 
         ema_vals = self._ema(closes, length)
         middle = ema_vals[-1] if ema_vals else math.nan
+        # Align with ``_kc_inc_update`` / Pine na: missing middle → all-nan tuple
+        if middle is None or (isinstance(middle, float) and math.isnan(middle)):
+            return math.nan, math.nan, math.nan
         atr_series = self._builtin_ta_atr([highs, lows, closes, length])
         atr_val = atr_series[-1] if isinstance(atr_series, list) and atr_series else (atr_series or 0)
         if isinstance(atr_val, list):
             atr_val = atr_val[-1] if atr_val else 0
         channel_width = (atr_val or 0) * mult
-        upper = middle + channel_width if middle is not None and middle == middle else math.nan
-        lower = middle - channel_width if middle is not None and middle == middle else math.nan
+        upper = middle + channel_width if middle == middle else math.nan
+        lower = middle - channel_width if middle == middle else math.nan
         return middle, upper, lower
 
     def _builtin_ta_kcw(self, args: list[Any]) -> float:

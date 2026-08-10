@@ -152,6 +152,8 @@ class PendingOrder:
     max_fill_per_bar: float = 0.0
     # entry vs reduce-only close intent
     is_entry: bool = True
+    # strategy.exit from_entry (compile maps from_entry → close id; optional)
+    from_entry: str | None = None
 
     @property
     def remaining(self) -> float:
@@ -797,12 +799,25 @@ class CompileStrategyBroker:
         When ``stop`` / ``limit`` (or ``loss`` / ``profit``) are provided the
         compiler has mapped ``strategy.exit`` → ``close``. Match the interpret
         oracle: pick an exit fill price from those legs and emit ``kind=exit``.
+
+        ``from_entry`` (explicit kwarg or, for exit brackets, ``id`` when it
+        matches ``position_entry_name``) soft-no-ops when the open entry name
+        does not match. Compile broker is a single net lot — multi-leg
+        from_entry filtering is interpret-only.
         """
         # Compiler maps strategy.exit → close(..., stop=..., limit=...).
+        # from_entry is remapped to id by the visitor; also accept explicit kwarg.
         limit_p = _opt_float(limit if limit is not None else profit)
         stop_p = _opt_float(stop if stop is not None else loss)
         is_exit = limit_p is not None or stop_p is not None
         event_kind = "exit" if is_exit else "close"
+        raw_fe = _kwargs.get("from_entry")
+        # Compiler maps strategy.exit from_entry → id. Explicit from_entry wins.
+        from_entry: str | None = None
+        if raw_fe is not None and str(raw_fe) != "":
+            from_entry = str(raw_fe)
+        elif is_exit and id is not None and str(id) != "":
+            from_entry = str(id)
 
         if self.position_size == 0:
             self._emit(
@@ -814,6 +829,20 @@ class CompileStrategyBroker:
                 stop=stop_p,
             )
             return
+
+        # Soft no-op when from_entry does not match the open entry name.
+        # (Compile broker is a single net lot; multi-leg selection is interpret-only.)
+        if from_entry is not None and self.position_entry_name and self.position_entry_name != from_entry:
+            self._emit(
+                event_kind,
+                id=id,
+                qty=0.0,
+                comment=comment,
+                limit=limit_p,
+                stop=stop_p,
+            )
+            return
+
         if qty is not None and not _is_na(qty):
             status, parsed = _parse_qty(qty)
             if status == "invalid":
@@ -861,6 +890,7 @@ class CompileStrategyBroker:
                 for oid in list(self.pending_orders.keys()):
                     if oid == base or oid.startswith(base + ":"):
                         del self.pending_orders[oid]
+                cmt = str(comment) if comment else ""
                 if limit_p is not None and stop_p is not None:
                     self.pending_orders[f"{base}:limit"] = PendingOrder(
                         order_id=f"{base}:limit",
@@ -869,10 +899,11 @@ class CompileStrategyBroker:
                         quantity=close_qty,
                         limit_price=limit_p,
                         stop_price=None,
-                        comment=str(comment) if comment else "",
+                        comment=cmt,
                         oca_name=base,
                         oca_type="cancel",
                         is_entry=False,
+                        from_entry=from_entry,
                     )
                     self.pending_orders[f"{base}:stop"] = PendingOrder(
                         order_id=f"{base}:stop",
@@ -881,10 +912,11 @@ class CompileStrategyBroker:
                         quantity=close_qty,
                         limit_price=None,
                         stop_price=stop_p,
-                        comment=str(comment) if comment else "",
+                        comment=cmt,
                         oca_name=base,
                         oca_type="cancel",
                         is_entry=False,
+                        from_entry=from_entry,
                     )
                 elif limit_p is not None:
                     self.pending_orders[base] = PendingOrder(
@@ -894,8 +926,9 @@ class CompileStrategyBroker:
                         quantity=close_qty,
                         limit_price=limit_p,
                         stop_price=None,
-                        comment=str(comment) if comment else "",
+                        comment=cmt,
                         is_entry=False,
+                        from_entry=from_entry,
                     )
                 else:
                     self.pending_orders[base] = PendingOrder(
@@ -905,8 +938,9 @@ class CompileStrategyBroker:
                         quantity=close_qty,
                         limit_price=None,
                         stop_price=stop_p,
-                        comment=str(comment) if comment else "",
+                        comment=cmt,
                         is_entry=False,
+                        from_entry=from_entry,
                     )
                 return
             # Same-bar fill at touched level — fall through to realize PnL

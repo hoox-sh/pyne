@@ -19,16 +19,18 @@
 
 """Pynescript Pro API backend package.
 
-Flask application, Pine runtime host, API blueprints, auth middleware, and
-preview/backtest services. Run with ``python -m backend.app`` (default
-``:5002``) or via gunicorn in production.
+Flask application, API blueprints, auth middleware, and preview/backtest
+services. The bar-loop Runtime host lives in :mod:`pynescript.runtime`;
+``backend.runtime`` / ``backend.evaluator`` / ``backend.series`` are
+compat re-exports. Run with ``python -m backend.app`` (default ``:5002``)
+or via gunicorn in production.
 
 Layout:
 
 - :mod:`backend.app` — Flask app factory surface and free/auth HTTP routes
-- :mod:`backend.runtime` — bar-mode Runtime host (interpret / compile / auto)
-- :mod:`backend.evaluator` — plot-capturing :class:`CustomEvaluator`
-- :mod:`backend.series` — ``PineSeries`` and host list-cap policy
+- :mod:`backend.runtime` — shim → :mod:`pynescript.runtime` (bar-mode host)
+- :mod:`backend.evaluator` — shim → :mod:`pynescript.runtime.evaluator`
+- :mod:`backend.series` — shim → :mod:`pynescript.runtime.series`
 - :mod:`backend.api` — preview, LSP-HTTP, git OAuth blueprints
 - :mod:`backend.middleware` — API keys, schemas, store backends
 - :mod:`backend.services` — chart PNG rendering and quick backtests

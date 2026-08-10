@@ -38,9 +38,14 @@ live under :mod:`pynescript.ast` (helpers often imported as
 
 - :mod:`pynescript.ast` — parse, unparse, evaluate, lint
 - :mod:`pynescript.compiler` — Numba / object-mode compile pipeline
+- :mod:`pynescript.runtime` — bar-loop Runtime host (interpret / compile / auto)
 - :mod:`pynescript.langserver` — pygls LSP (optional ``[lsp]`` extra)
 - :mod:`pynescript.ext` — Pygments lexer and integrations
 - :mod:`pynescript.util` — data providers, Pine facade helpers
+
+Runtime is imported from :mod:`pynescript.runtime` (not re-exported here) so
+the top-level package stays version-only. ``backend.runtime`` remains a
+compat shim for the Pro API.
 
 Version is defined in :mod:`pynescript.__about__` and exported as
 :data:`__version__` (also used by the LSP server identity).

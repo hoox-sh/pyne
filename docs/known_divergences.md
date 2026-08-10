@@ -13,7 +13,7 @@ This page documents **semantic differences** between pynescript and **reference 
 
 **Reference Pine:** `strategy.exit` places a pending stop/limit (bracket) that fills when price path touches the level.
 
-**pynescript (after Wave B):** stop/limit legs are pending orders (OCA cancel when both set), filled via OHLC / `process_pending_orders`. Market exit (no stop/limit) still closes immediately. Residual: `from_entry` filtering, trail stops, `qty_percent` edge cases.
+**pynescript (after Wave B):** stop/limit legs are pending orders (OCA cancel when both set), filled via OHLC / `process_pending_orders`. Market exit (no stop/limit) still closes immediately. **`from_entry` filtering is implemented on the interpret path** (and soft-matched on compile when the open entry name is known). Residual: trail stops, `qty_percent` edge cases; compile broker remains a single net lot (no multi-leg from_entry selection).
 
 **Track:** audit AGENT_03.
 
@@ -43,13 +43,9 @@ Many `strategy.opentrades.*` / `strategy.closedtrades.*` accessors return zeros 
 
 **Track:** audit AGENT_03.
 
-### EMA seed differences (medium)
+### EMA seed (fixed — dual-host SMA seed)
 
-Incremental EMA may SMA-seed while some full/MACD paths use first-value seed.
-
-**Impact:** Early bars differ; steady-state usually converges.
-
-**Track:** audit AGENT_03.
+Full-list `_ema` / `_ema_state_step` and incremental / Numba paths all use **SMA seed** over the first `period` finite samples (na until ready). Nested EMA and KC middle band inherit this contract.
 
 ---
 
@@ -102,6 +98,7 @@ Several style rules are broken or inverted (e.g. always-on trailing newline `C00
 | Area | Policy |
 |------|--------|
 | Dual-host parity (interpret ↔ compile) | Primary correctness contract for supported surface |
+| Runtime host SoT | `pynescript.runtime` (package); `backend.runtime` is a compat shim |
 | Reference Pine numerical fidelity | Best-effort; known gaps listed above |
 | Free Pro API tier | Chart/mock data only; bar/script/rate/concurrency caps; SSRF-safe webhooks |
 | Third-party corpora | Not required for CI; first-party fixtures under `tests/fixtures/first_party/` |

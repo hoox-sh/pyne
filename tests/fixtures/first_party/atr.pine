@@ -1,0 +1,4 @@
+//@version=5
+indicator("fp_atr")
+// Wilder RMA of true range (reference ta.atr = ta.rma(ta.tr, length))
+plot(ta.atr(14), title="atr")

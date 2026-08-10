@@ -1002,8 +1002,9 @@ def test_evaluator_ta_sma(expression, expected):
     ("expression", "expected"),
     [
         (
+            # SMA seed (period=3): na, na, mean(1,2,3)=2, then α=0.5 recursion
             "ta.ema([1, 2, 3, 4, 5], 3)",
-            [1, 1.5, 2.25, 3.125, 4.0625],
+            [None, None, 2.0, 3.0, 4.0],
         ),
     ],
 )
@@ -1018,8 +1019,9 @@ def test_evaluator_ta_ema(expression, expected):
     ("expression", "expected"),
     [
         (
+            # Wilder RMA of TR (Wave B): first TR alone cannot seed period=2
             "ta.atr([10, 11, 12], [8, 9, 10], [9, 10, 11], 2)",
-            [2, 2.0],
+            [None, 2.0],
         ),
     ],
 )

@@ -411,20 +411,26 @@ class TechnicalHelpers:
 
     @staticmethod
     def _ema_state_new() -> dict[str, Any]:
-        return {"ema": None, "seeded": False}
+        return {"ema": None, "seeded": False, "seed_buf": []}
 
     @staticmethod
     def _ema_state_step(st: dict[str, Any], x: Any, period: int) -> float | None:
-        """One EMA sample step matching full ``_ema`` (no call-site slot)."""
+        """One EMA sample step matching full ``_ema`` / ``_ema_inc_update`` (SMA seed)."""
         if period <= 0:
             return None
         alpha = 2.0 / (period + 1)
         if not st["seeded"]:
             if x is None:
                 return None
-            st["ema"] = float(x)
+            buf = st.setdefault("seed_buf", [])
+            buf.append(float(x))
+            if len(buf) < period:
+                return None
+            seed = sum(buf[:period]) / period
+            st["ema"] = seed
             st["seeded"] = True
-            return st["ema"]
+            st["seed_buf"] = []
+            return seed
         if x is None:
             return st.get("ema")
         prev = st["ema"]
@@ -3195,28 +3201,46 @@ class TechnicalHelpers:
         return result
 
     def _ema(self, series: list[Any], period: int) -> list[float | None]:
-        """Exponential Moving Average."""
+        """Exponential Moving Average (SMA seed).
+
+        Dual-host aligned with ``_ema_inc_update`` / ``numba_ema`` / reference Pine:
+        seed = mean of the first ``period`` finite samples (``na`` until the
+        window is full), then ``alpha * x + (1-alpha) * ema`` with
+        ``alpha = 2/(period+1)``. Missing samples after seed hold the previous
+        EMA (interpret convention).
+        """
         if not series or period <= 0:
             return [None] * len(series)
-        alpha = 2 / (period + 1)
+        alpha = 2.0 / (period + 1)
         ema_values: list[float | None] = []
-        first_valid = next(
-            (i for i, value in enumerate(series) if value is not None),
-            -1,
-        )
-        if first_valid == -1:
-            return [None] * len(series)
-        ema_values.extend([None] * first_valid)
-        ema_values.append(series[first_valid])
-        for idx in range(first_valid + 1, len(series)):
-            value = series[idx]
-            if value is None:
-                ema_values.append(ema_values[-1])
+        seed_buf: list[float] = []
+        seeded = False
+        ema: float | None = None
+        for raw in series:
+            x: Any = raw
+            if x is not None and type(x) is not float and type(x) is not int:
+                try:
+                    x = float(x)
+                except (TypeError, ValueError):
+                    x = None
+            if not seeded:
+                if x is None:
+                    ema_values.append(None)
+                    continue
+                seed_buf.append(float(x))
+                if len(seed_buf) < period:
+                    ema_values.append(None)
+                    continue
+                ema = sum(seed_buf[:period]) / period
+                seeded = True
+                seed_buf = []
+                ema_values.append(ema)
                 continue
-            previous = ema_values[-1]
-            if previous is None:
-                self._error("EMA requires a previous value")
-            ema_values.append(alpha * value + (1 - alpha) * previous)
+            if x is None:
+                ema_values.append(ema)
+                continue
+            ema = alpha * float(x) + (1.0 - alpha) * float(ema)
+            ema_values.append(ema)
         return ema_values
 
     def _rma(self, series: list[Any], period: int) -> list[float]:

@@ -86,9 +86,8 @@ def numba_ema(arr, period, i):
     nested EMA of a warm-up series, TR with bar-0 na) no longer poison the
     seed forever. Once seeded, NaN inputs propagate NaN through the recursion.
 
-    Dual-host note: Runtime bar-mode interpret uses ``_ema_inc_update`` with the
-    same SMA seed (na until ``period`` samples). Full-list ``_ema`` still seeds
-    with the first valid sample for non-incremental callers; prefer the SMA-seed
+    Dual-host note: Runtime interpret (full ``_ema`` and ``_ema_inc_update``)
+    use the same SMA seed (na until ``period`` finite samples). Prefer this
     path when comparing interpret vs compile plots.
     """
     period = int(period)
@@ -349,6 +348,25 @@ def numba_bb(arr, period, mult, i):
     if np.isnan(mid) or np.isnan(sd):
         return np.nan, np.nan, np.nan
     return mid + mult * sd, mid, mid - mult * sd
+
+
+@numba.njit(cache=True)
+def numba_kc(src, high, low, close, period, mult, i):
+    """Keltner Channels: ``(middle, upper, lower)`` at bar ``i``.
+
+    Reference / interpret: middle = EMA(src, period), bands = mid ± mult * ATR.
+    ATR is Wilder RMA of TR (Wave B). Dual-host with ``_kc_inc_update``:
+    while ATR is still warming (``na``/None), band width is 0 so upper=lower=mid.
+    """
+    period = int(period)
+    mid = numba_ema(src, period, i)
+    atr = numba_atr(high, low, close, period, i)
+    if np.isnan(mid):
+        return np.nan, np.nan, np.nan
+    # Interpret inc: atr None → width 0 (bands collapse to mid until ATR seeds)
+    atr_f = 0.0 if np.isnan(atr) else atr
+    width = float(mult) * atr_f
+    return mid, mid + width, mid - width
 
 
 @numba.njit(cache=True)
@@ -2903,6 +2921,35 @@ def numba_bb_inc(arr, period, mult, i, st):
     # st[0] is sum after stdev_inc
     mid = st[0] / period
     return mid + mult * sd, mid, mid - mult * sd
+
+
+@numba.njit(cache=True)
+def numba_kc_inc(src, high, low, close, period, mult, i, st):
+    """Incremental Keltner. ``st``: [ema, ema_last_i, atr_rma, atr_last_i].
+
+    Matches ``numba_kc`` / interpret ``_kc_inc_update`` (EMA mid ± mult * ATR).
+    """
+    period = int(period)
+    # Local EMA state slice
+    ema_st = np.empty(2, dtype=np.float64)
+    ema_st[0] = st[0]
+    ema_st[1] = st[1]
+    mid = numba_ema_inc(src, period, i, ema_st)
+    st[0] = ema_st[0]
+    st[1] = ema_st[1]
+    # Local ATR state slice
+    atr_st = np.empty(2, dtype=np.float64)
+    atr_st[0] = st[2]
+    atr_st[1] = st[3]
+    atr = numba_atr_inc(high, low, close, period, i, atr_st)
+    st[2] = atr_st[0]
+    st[3] = atr_st[1]
+    if np.isnan(mid):
+        return np.nan, np.nan, np.nan
+    # atr na during warmup → width 0 (same as interpret atr_val is None)
+    atr_f = 0.0 if np.isnan(atr) else atr
+    width = float(mult) * atr_f
+    return mid, mid + width, mid - width
 
 
 @numba.njit(cache=True)

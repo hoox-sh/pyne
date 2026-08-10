@@ -382,6 +382,34 @@ class TestStrategyCashAndPyramiding:
         assert _eval_expr(ev, "strategy.position_avg_price") == 105.0
         assert _eval_expr(ev, "strategy.opentrades") == 1
 
+    def test_exit_from_entry_targets_one_pyramid_leg(self) -> None:
+        """strategy.exit(..., from_entry=A) leaves other open entries open."""
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        m = ev._build_builtin_map()
+        m["strategy"](["T"], {"pyramiding": 1})
+        m["strategy.entry"](["A", "long", 1.0])
+        _set_bar(ev, 1, 110.0)
+        m["strategy.entry"](["B", "long", 2.0])
+        assert ev._strategy_state.position_size == 3.0
+        _set_bar(ev, 2, 115.0)
+        m["strategy.exit"](["XA", "A"])  # positional id, from_entry
+        assert ev._strategy_state.position_size == 2.0
+        assert len(ev._strategy_state.open_trades) == 1
+        assert ev._strategy_state.open_trades[0].entry_id == "B"
+        assert _eval_expr(ev, "strategy.opentrades") == 1
+        assert _eval_expr(ev, "strategy.closedtrades") == 1
+        assert _eval_expr(ev, "strategy.closedtrades.entry_id(0)") == "A"
+
+    def test_exit_from_entry_unknown_soft_noop(self) -> None:
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        m = ev._build_builtin_map()
+        m["strategy.entry"](["L", "long", 2.0])
+        m["strategy.exit"](["X", "missing"])
+        assert ev._strategy_state.position_size == 2.0
+        assert len(ev._strategy_state.closed_trades) == 0
+
 
 class TestAvgPriceModel:
     """strategy(..., avg_price_model=stock|futures) — multi-leg partial close matrix."""

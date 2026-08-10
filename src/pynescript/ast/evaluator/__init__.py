@@ -29,8 +29,9 @@ pyne-worker, tests) typically:
 
 There is **no** separate ``NodeEvaluator`` class. The public composed type is
 :class:`NodeLiteralEvaluator` (also used by :func:`pynescript.ast.helper.literal_eval`
-and full-script execution). Hosts may subclass it (e.g. backend
-``CustomEvaluator``) for plot capture or series injection.
+and full-script execution). Hosts may subclass it (e.g.
+:class:`~pynescript.runtime.evaluator.CustomEvaluator`) for plot capture or
+series injection.
 
 Mixin composition (MRO left-to-right; first matching ``visit_*`` wins)::
 

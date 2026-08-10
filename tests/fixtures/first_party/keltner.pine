@@ -1,0 +1,7 @@
+//@version=5
+indicator("fp_keltner", overlay=true)
+// Keltner: EMA middle ± mult * ATR (Wilder RMA of TR)
+[mid, up, lo] = ta.kc(close, 20, 2.0)
+plot(mid, title="mid")
+plot(up, title="up")
+plot(lo, title="lo")

@@ -2432,6 +2432,8 @@ class CompilerVisitor(NodeVisitor):
                 (
                     "numba_bb(",
                     "numba_bb_inc(",
+                    "numba_kc(",
+                    "numba_kc_inc(",
                     "numba_macd(",
                     "numba_macd_inc(",
                     "numba_dmi(",
@@ -4726,6 +4728,7 @@ class CompilerVisitor(NodeVisitor):
             "macd": "ta_macd",
             "bb": "ta_bb",
             "bbw": "ta_bbw",
+            "kc": "ta_kc",
             "median": "ta_median",
             "wpr": "ta_wpr",
             "cmo": "ta_cmo",
@@ -4894,6 +4897,27 @@ class CompilerVisitor(NodeVisitor):
                 )
             return (
                 f"numba_atr_inc(high_arr, low_arr, close_arr, {self._emit_period(length)}, __bar_idx, {st})"
+            )
+        if func_name == "ta_kc":
+            # ta.kc(source, length, mult) → (middle, upper, lower); ATR from chart H/L/C
+            # Legacy: ta.kc(high, low, close, length) mult defaults to 1
+            st = self._alloc_fixed_state("kc", 4)
+            if len(args) >= 4 and _is_series_arr(args[0]) and _is_series_arr(args[1]):
+                length = kwargs.get("length", args[3] if len(args) > 3 else "20")
+                mult = kwargs.get("mult", args[4] if len(args) > 4 else "1.0")
+                return (
+                    f"numba_kc_inc({_arr(args[2])}, {_arr(args[0])}, {_arr(args[1])}, "
+                    f"{_arr(args[2])}, {self._emit_period(length)}, float({mult}), __bar_idx, {st})"
+                )
+            if len(args) >= 3:
+                src, length, mult = args[0], args[1], args[2]
+            elif len(args) == 2:
+                src, length, mult = "close_arr[__bar_idx]", args[0], args[1]
+            else:
+                src, length, mult = "close_arr[__bar_idx]", "20", "1.0"
+            return (
+                f"numba_kc_inc({_arr(src)}, high_arr, low_arr, close_arr, "
+                f"{self._emit_period(length)}, float({mult}), __bar_idx, {st})"
             )
         if func_name == "ta_bb":
             # ta.bb(source, length, mult) or ta.bb(length, mult)

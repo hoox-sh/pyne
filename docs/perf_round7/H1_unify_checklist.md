@@ -19,8 +19,8 @@
 
 # H1 — Dual-host Runtime unify checklist
 
-**Status:** host surface largely aligned (Aug 2026 + R7 Agent 06); package-level unify open  
-**SoT:** `backend/runtime.py` (+ `backend/evaluator.py`, `backend/series.py`)  
+**Status:** host surface largely aligned (Aug 2026 + R7 Agent 06); **package SoT path landed** (`pynescript.runtime`, 2026-08-10); worker thin-wrap still open  
+**SoT:** `src/pynescript/runtime/` (`host.py`, `evaluator.py`, `series.py`) — `backend.runtime` / `backend.evaluator` / `backend.series` are compat shims  
 **Worker:** `/home/jango/Git/pyne-worker/src/pynescript_backend/`
 
 ## Closed on worker (do not re-discover)
@@ -57,10 +57,10 @@
 | Item | Pri | Notes |
 | --- | --- | --- |
 | **Bound call-site on shared AST** | P0 | Fix in `expressions.py`: don’t pin instance methods on cached trees; or site key includes evaluator generation |
-| Extract shared host helpers module | P1 | jsonable series, OHLCV pack, error_payload, compile caches |
-| Single Runtime implementation | P1 | `pynescript` package owns bar loop; worker = timeout/R2/HTTP |
+| Extract shared host helpers module | P1 | jsonable series, OHLCV pack, error_payload, compile caches (now under `pynescript.runtime.host`) |
+| Single Runtime implementation | P1 | **Package owns bar loop** (`pynescript.runtime`); residual = thin worker wrap (timeout/R2/HTTP) |
 | Align `time` host model | P2 | SoT scalar vs worker series — pick one + goldens |
-| Vendor sync policy | P2 | `scripts/sync_vendor.sh` after package Runtime move |
+| Vendor sync policy | P2 | `scripts/sync_vendor.sh` after worker points at package Runtime |
 | Goldens: multi-run + inputs on both hosts | P1 | already on worker; mirror SoT tests |
 
 ## Suggested unify PR sequence
