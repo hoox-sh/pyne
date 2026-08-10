@@ -1,8 +1,8 @@
 # AGENT 04 — Compiler & Numba Path Audit
 
-**Date:** 2026-08-10  
-**Scope:** `src/pynescript/compiler/{engine,compiler,numba_builtins,strategy_broker,__init__}.py`  
-**Related tests (read-only):** `tests/test_compiler_*.py`, `tests/test_interp_compile_parity.py`  
+**Date:** 2026-08-10 
+**Scope:** `src/pynescript/compiler/{engine,compiler,numba_builtins,strategy_broker,__init__}.py` 
+**Related tests (read-only):** `tests/test_compiler_*.py`, `tests/test_interp_compile_parity.py` 
 **Mode:** Read-only audit (no code changes)
 
 ---
@@ -15,7 +15,7 @@ The emitter (`compiler.py`, ~7.8k LOC) is a single `CompilerVisitor` that both *
 
 `numba_builtins.py` (~5.2k LOC) is a large, well-commented kernel library: full-window + incremental `*_inc` TA, Pine-aware `numba_pine_eq`/`ne`, and object-mode `safe_*`/`na_num`. Constraints for nopython are documented at module top and on hot kernels.
 
-`strategy_broker.py` (~1.1k LOC) is a deliberate **lightweight** compile-path broker aligned with the **interpret oracle**, not full TradingView (immediate `strategy.exit` fill, simplified supertrend-style dual-host choices elsewhere). Commission, pyramiding, OCA, default qty, and pending OHLC fills are real; **risk.*** is a no-op; trade-query APIs are mostly stubs; **event `bar_time` is never wired** from `time_arr`.
+`strategy_broker.py` (~1.1k LOC) is a deliberate **lightweight** compile-path broker aligned with the **interpret oracle**, not full reference-platform (immediate `strategy.exit` fill, simplified supertrend-style dual-host choices elsewhere). Commission, pyramiding, OCA, default qty, and pending OHLC fills are real; **risk.*** is a no-op; trade-query APIs are mostly stubs; **event `bar_time` is never wired** from `time_arr`.
 
 **Bottom line:** Numeric indicators on the nopython path are in good shape for the always-on parity smoke set. Residual risk concentrates on (1) object-mode result packaging edge cases, (2) strategy surface incompleteness vs production expectations, (3) disk-cache invalidation discipline, and (4) long-term maintainability of the monomorphic visitor.
 
@@ -55,7 +55,7 @@ None that reliably produce silent wrong numeric plots on pure-nopython scripts c
 |-------|--------|
 | **Where** | `compiler.py:5799` — `if method.startswith("risk_"): return ""` |
 | **What** | Risk declarations emit nothing; broker has no max drawdown / max position / allow_entry enforcement. |
-| **Impact** | Scripts that rely on risk caps appear to “work” in compile mode with **unconstrained** fills vs interpret (if interpret enforces) or vs TV. Backtest equity can be wildly optimistic. |
+| **Impact** | Scripts that rely on risk caps appear to “work” in compile mode with **unconstrained** fills vs interpret (if interpret enforces) or vs reference Pine. Backtest equity can be wildly optimistic. |
 | **Fix** | Either fail closed (surface `nopython_fallback_reason`-style host warning / refuse compile for risk scripts) or implement risk state on `CompileStrategyBroker` shared with interpret. |
 
 ### H4 — Disk IR cache invalidation is manual-only (`_DISK_META_VERSION`)
@@ -113,7 +113,7 @@ None that reliably produce silent wrong numeric plots on pure-nopython scripts c
 |-------|--------|
 | **Where** | `strategy_broker.py:397–405` (`_trigger_price` stop-limit returns bare `lim`) |
 | **What** | Limit/stop marketable paths use open-aware prices; stop-limit always fills at limit without open gap adjustment. |
-| **Impact** | Small PnL divergence vs interpret/TV on gapped bars. |
+| **Impact** | Small PnL divergence vs interpret/reference on gapped bars. |
 | **Fix** | Align with interpret `process_pending_orders` fill price helpers. |
 
 ### M5 — `qty_percent` / trailing exits not fully applied
@@ -133,14 +133,14 @@ None that reliably produce silent wrong numeric plots on pure-nopython scripts c
 | **Impact** | Corpus green + wrong zeros/nans vs interpret TypeError or different branch. Tradeoff for resilience; still a correctness risk for UDT mis-stores. |
 | **Fix** | Debug flag `PYNE_STRICT_COERCE=1` to raise; or count coerce-to-nan hits in host diagnostics. |
 
-### M7 — Supertrend is dual-host simplified (not TV ratchet)
+### M7 — Supertrend is dual-host simplified (not reference Pine ratchet)
 
 | Field | Detail |
 |-------|--------|
 | **Where** | `numba_builtins.py:4880–4912` |
-| **What** | Documented: mid ± factor×ATR, direction from close vs mid; no band ratchet. Matches interpret BasicIndicators; not TradingView. |
-| **Impact** | External users comparing to TV charts will mis-trust “parity.” Internal interp↔compile OK (`supertrend.pine` in always-on smoke). |
-| **Fix** | Keep dual-host; document in public COMPATIBILITY; optional TV mode later. |
+| **What** | Documented: mid ± factor×ATR, direction from close vs mid; no band ratchet. Matches interpret BasicIndicators; not reference Pine. |
+| **Impact** | External users comparing to reference charts will mis-trust “parity.” Internal interp↔compile OK (`supertrend.pine` in always-on smoke). |
+| **Fix** | Keep dual-host; document in public COMPATIBILITY; optional reference-parity mode later. |
 
 ### M8 — Same-id market re-entry overwrites without realizing PnL
 
@@ -148,7 +148,7 @@ None that reliably produce silent wrong numeric plots on pure-nopython scripts c
 |-------|--------|
 | **Where** | `strategy_broker.py:495–498`, `529–537` |
 | **What** | Intentional interpret oracle: replace open leg without close event / PnL. |
-| **Impact** | Equity and trade stats diverge from TV; OK for dual-host if interpret matches. |
+| **Impact** | Equity and trade stats diverge from reference; OK for dual-host if interpret matches. |
 | **Fix** | Keep + document; add explicit comment in public strategy broker docs. |
 
 ---
@@ -198,31 +198,31 @@ Pollutes generated namespace; name collisions with user series are mitigated by 
 
 ## Modernization opportunities
 
-1. **Phased compilation**  
-   - Phase A: typed feature analysis (object required? strategy? security?) without emit.  
-   - Phase B: lower to a small IR (series load/store, call, branch).  
-   - Phase C: backend emit (numeric njit / object / future).  
-   Enables cheaper nopython fallback (re-emit without full re-parse) and testable analysis.
+1. **Phased compilation** 
+ - Phase A: typed feature analysis (object required? strategy? security?) without emit. 
+ - Phase B: lower to a small IR (series load/store, call, branch). 
+ - Phase C: backend emit (numeric njit / object / future). 
+ Enables cheaper nopython fallback (re-emit without full re-parse) and testable analysis.
 
-2. **Structured codegen**  
-   Replace string glue with `ast` builders or a tiny SSA of Python statements; validate syntax before `exec`.
+2. **Structured codegen** 
+ Replace string glue with `ast` builders or a tiny SSA of Python statements; validate syntax before `exec`.
 
-3. **Shared strategy core**  
-   Factor fill/PnL into one module used by interpret and compile to prevent dual-path drift (risk, exits, trade lists).
+3. **Shared strategy core** 
+ Factor fill/PnL into one module used by interpret and compile to prevent dual-path drift (risk, exits, trade lists).
 
-4. **Caching**  
-   - Emit fingerprint in disk meta (H4).  
-   - Consider content-addressed IR only (already partly via `ir_key`) and drop source meta when fingerprint mismatches.  
-   - Optional: `numba.core.caching` location under deploy volume only (already env-driven).
+4. **Caching** 
+ - Emit fingerprint in disk meta (H4). 
+ - Consider content-addressed IR only (already partly via `ir_key`) and drop source meta when fingerprint mismatches. 
+ - Optional: `numba.core.caching` location under deploy volume only (already env-driven).
 
-5. **Object-mode speed**  
-   For hot numeric islands inside object scripts, emit nested `@njit` helper functions for pure float loops (hybrid), or vectorize TA outside bar loop when dependency DAG allows.
+5. **Object-mode speed** 
+ For hot numeric islands inside object scripts, emit nested `@njit` helper functions for pure float loops (hybrid), or vectorize TA outside bar loop when dependency DAG allows.
 
-6. **Parallel bars**  
-   Generally unsafe (series state); only for independent pure functions / multi-symbol batch — low priority.
+6. **Parallel bars** 
+ Generally unsafe (series state); only for independent pure functions / multi-symbol batch — low priority.
 
-7. **mypyc / Cython**  
-   Better spent on **interpret** `PineSeries` / dispatch (see prior R7 phase-3 notes) than on already-Numba’d kernels.
+7. **mypyc / Cython** 
+ Better spent on **interpret** `PineSeries` / dispatch (see prior R7 phase-3 notes) than on already-Numba’d kernels.
 
 ---
 
@@ -264,13 +264,13 @@ Pollutes generated namespace; name collisions with user series are mitigated by 
 
 ```
 source
-  → sanitize (cache miss)
-  → parse + CompilerVisitor
-       ├─ numeric: @njit execute_script_compiled → plot tuple
-       └─ object:  Python loop + optional CompileStrategyBroker → dict
-  → exec / disk import
-  → warm njit; TypingError → force_object_mode re-emit
-  → CompiledScript.run → _pack_result / _normalize_result
+ → sanitize (cache miss)
+ → parse + CompilerVisitor
+ ├─ numeric: @njit execute_script_compiled → plot tuple
+ └─ object: Python loop + optional CompileStrategyBroker → dict
+ → exec / disk import
+ → warm njit; TypingError → force_object_mode re-emit
+ → CompiledScript.run → _pack_result / _normalize_result
 ```
 
 **Key files (absolute paths):**
@@ -284,38 +284,38 @@ source
 **Evidence anchors (selected):**
 
 ```4233:4279:src/pynescript/compiler/compiler.py
-        if func_name == "plot":
-            # Match Runtime interpret packaging: untitled plots use plot_0, plot_1, …
-            title = f"plot_{len(self.plots)}"
-            ...
-            self.plots.append({"expr": series_expr, "title": title})
+ if func_name == "plot":
+ # Match Runtime interpret packaging: untitled plots use plot_0, plot_1, …
+ title = f"plot_{len(self.plots)}"
+ ...
+ self.plots.append({"expr": series_expr, "title": title})
 ```
 
 ```929:932:src/pynescript/compiler/compiler.py
-            lines.append(
-                "        __strategy.begin_bar("
-                "__bar_idx, "
-                "open_arr[__bar_idx], high_arr[__bar_idx], "
-                "low_arr[__bar_idx], close_arr[__bar_idx])"
-            )
+ lines.append(
+ " __strategy.begin_bar("
+ "__bar_idx, "
+ "open_arr[__bar_idx], high_arr[__bar_idx], "
+ "low_arr[__bar_idx], close_arr[__bar_idx])"
+ )
 ```
 
 ```1222:1282:src/pynescript/compiler/engine.py
 def _warm_numeric_or_fallback(...):
-    ...
-    # nopython → object re-emit; non-nopython errors deferred
+ ...
+ # nopython → object re-emit; non-nopython errors deferred
 ```
 
 ```2527:2543:src/pynescript/compiler/numba_builtins.py
 def numba_pine_eq(a, b):
-    """Pine ``==``: ``na==na`` is True; any other comparison with ``na`` is False."""
+ """Pine ``==``: ``na==na`` is True; any other comparison with ``na`` is False."""
 ```
 
 ```5799:5818:src/pynescript/compiler/compiler.py
-        if method.startswith("risk_"):
-            return ""  # risk.* declaration no-op in compile path for now
-        ...
-            "exit": "close",  # simplify exit → close
+ if method.startswith("risk_"):
+ return "" # risk.* declaration no-op in compile path for now
+ ...
+ "exit": "close", # simplify exit → close
 ```
 
 ---

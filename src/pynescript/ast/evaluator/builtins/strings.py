@@ -20,7 +20,7 @@
 """Pine ``str.*`` builtins (and v4 bare ``tostring`` / ``tonumber`` aliases).
 
 Covers length, case, substring, replace, split, format, format_time, match,
-and numeric conversion. ``na`` inputs soft-return ``na`` where TradingView
+and numeric conversion. ``na`` inputs soft-return ``na`` where reference Pine
 does (e.g. ``str.length(na)``) rather than aborting the bar.
 
 Mixin composition
@@ -117,7 +117,7 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         return self._coerce_str_arg(args[0]).lower()
 
     def _builtin_str_contains(self, args: list[Any]) -> bool | None:
-        """TV: ``str.contains(source, str)`` → bool; either arg ``na`` → ``na``.
+        """Reference Pine: ``str.contains(source, str)`` → bool; either arg ``na`` → ``na``.
 
         Soft-coerces non-strings (numbers / series scalars) via ``str(...)`` so
         corpus residual paths that leak non-string types do not hard-fail.
@@ -131,7 +131,7 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         return needle in haystack
 
     def _builtin_str_startswith(self, args: list[Any]) -> bool | None:
-        """TV: ``str.startswith(source, str)`` → bool; either arg ``na`` → ``na``."""
+        """Reference Pine: ``str.startswith(source, str)`` → bool; either arg ``na`` → ``na``."""
         if len(args) != BINARY:
             self._error("str.startswith takes two string arguments")
         if args[0] is None or args[1] is None:
@@ -165,7 +165,7 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         return value[start_i:end_i]
 
     def _builtin_str_endswith(self, args: list[Any]) -> bool | None:
-        """TV: ``str.endswith(source, str)`` → bool; either arg ``na`` → ``na``."""
+        """Reference Pine: ``str.endswith(source, str)`` → bool; either arg ``na`` → ``na``."""
         if len(args) != BINARY:
             self._error("str.endswith takes two string arguments")
         if args[0] is None or args[1] is None:
@@ -203,7 +203,7 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
 
     @staticmethod
     def _replace_nth(source: str, target: str, replacement: str, occurrence: int) -> str:
-        """Replace the *occurrence*-th match of *target* (0-based), TV semantics.
+        """Replace the *occurrence*-th match of *target* (0-based), reference semantics.
 
         If that occurrence does not exist, return *source* unchanged.
         Empty *target* replaces the zero-width boundary at index *occurrence*
@@ -226,7 +226,7 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         return source
 
     def _builtin_str_replace(self, args: list[Any]) -> str | None:
-        """TV: ``str.replace(source, target, replacement, occurrence=0)``.
+        """Reference Pine: ``str.replace(source, target, replacement, occurrence=0)``.
 
         Accepts 3 or 4 arguments. Optional *occurrence* (int, 0-based) selects
         which match to replace; default ``0`` replaces the first match only.
@@ -250,7 +250,7 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         return self._replace_nth(value, old, new, occurrence)
 
     def _builtin_str_replace_all(self, args: list[Any]) -> str | None:
-        """TV: ``str.replace_all(source, target, replacement)``."""
+        """Reference Pine: ``str.replace_all(source, target, replacement)``."""
         if len(args) != TERNARY:
             self._error("str.replace_all takes three strings")
         if args[0] is None and args[1] is None and args[2] is None:
@@ -278,7 +278,7 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         elif isinstance(raw, str):
             value = raw
         else:
-            # Coerce numbers / series scalars rather than hard-fail (TV tostring-ish)
+            # Coerce numbers / series scalars rather than hard-fail (reference tostring-ish)
             value = str(raw)
         if len(args) == UNARY:
             return value.split()
@@ -299,7 +299,7 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         return self._coerce_str_arg(args[0]).strip()
 
     def _builtin_str_tonumber(self, args: list[Any]) -> float | None:
-        """TV: ``str.tonumber(string)`` → float, or ``na`` when not parseable.
+        """Reference Pine: ``str.tonumber(string)`` → float, or ``na`` when not parseable.
 
         Placeholder defaults such as ``"YYYY-MM"`` must not raise — scripts
         like seasonality push rounded tonumber results into arrays and rely
@@ -334,7 +334,7 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
             return None
 
     def _builtin_str_tostring(self, args: list[Any]) -> str:
-        """TV: ``str.tostring(value)`` or ``str.tostring(value, format)``."""
+        """Reference Pine: ``str.tostring(value)`` or ``str.tostring(value, format)``."""
         if not args:
             self._error("str.tostring takes one or two arguments")
         value = args[0]
@@ -427,7 +427,7 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
                 return value + "".join(str(a) for a in fmt_args)
 
     def _builtin_str_match(self, args: list[Any]) -> str | None:
-        """TV: ``str.match(source, regex)`` → first matching substring or ``na``.
+        """Reference Pine: ``str.match(source, regex)`` → first matching substring or ``na``.
 
         Note: returns the matched *string* (not a bool). Either arg ``na`` → ``na``.
         Invalid regex → ``na`` rather than hard-fail (corpus residual resilience).
@@ -447,9 +447,9 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         return m.group(0)
 
     def _builtin_str_pos(self, args: list[Any]) -> int | None:
-        """TV: ``str.pos(source, str)`` → first index of *str* in *source*, or ``-1``.
+        """Reference Pine: ``str.pos(source, str)`` → first index of *str* in *source*, or ``-1``.
 
-        Either arg ``na`` → ``na`` (TV soft-na). Aligns with compile emit
+        Either arg ``na`` → ``na`` (reference soft-na). Aligns with compile emit
         ``str(source).find(str(needle))``.
         """
         if len(args) != BINARY:
@@ -464,7 +464,7 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         """``str.format_time(time[, format[, timezone]])``.
 
         Unary form uses the ISO-8601 default format
-        ``yyyy-MM-dd'T'HH:mm:ssZ`` (TradingView default when *format* is omitted).
+        ``yyyy-MM-dd'T'HH:mm:ssZ`` (reference Pine default when *format* is omitted).
         """
         # UNARY = timestamp only; BINARY = + format; TERNARY = + timezone
         if len(args) not in {UNARY, BINARY, TERNARY}:
@@ -493,7 +493,7 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         if 0 < timestamp < 10_000_000_000:
             # Likely seconds (e.g. chart bars with s-epoch) — Pine uses ms
             timestamp = timestamp * 1000
-        # TV default when format omitted
+        # reference default when format omitted
         if len(args) == UNARY or args[1] is None:
             format_str = "yyyy-MM-dd'T'HH:mm:ssZ"
         else:
@@ -510,7 +510,7 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
                 # Soft: non-string timezone → ignore (use UTC default)
                 timezone_str = None
         formatted = self._format_time(timestamp, format_str, timezone_str)
-        # Strip TV literal-quote markers (e.g. 'T' in ISO default)
+        # Strip reference literal-quote markers (e.g. 'T' in ISO default)
         return formatted.replace("'", "")
 
     def _builtin_str_join(self, args: list[Any]) -> str | None:
@@ -606,7 +606,7 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         return formatted
 
 
-# TV parameter names for kwargs → positional merge (BuiltinDispatchMixin).
+# reference parameter names for kwargs → positional merge (BuiltinDispatchMixin).
 StringBuiltinsMixin._builtin_str_replace._KWARG_ORDER = [  # type: ignore[attr-defined]
     "source",
     "target",

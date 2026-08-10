@@ -725,7 +725,7 @@ class StatementEvaluator:
         # *execution* of that declaration, which may be a later bar.
         #
         # ``varip`` matches ``var`` on historical bars. On realtime ticks
-        # (``barstate.isrealtime``), TV re-runs the initializer each update so
+        # (``barstate.isrealtime``), reference re-runs the initializer each update so
         # the value can track intrabar state; we mirror that when the host sets
         # the flag. Historical Runtime hosts keep ``isrealtime=False``.
         if isinstance(mode, (ast.Var, ast.VarIp)):
@@ -737,7 +737,7 @@ class StatementEvaluator:
                 barstate = ctx.get("barstate")
                 is_rt = bool(getattr(barstate, "isrealtime", False)) if barstate is not None else False
                 if is_varip and is_rt:
-                    # Realtime tick: re-evaluate RHS every update (TV varip).
+                    # Realtime tick: re-evaluate RHS every update (reference varip).
                     if node.value:
                         value = self.visit(node.value)  # type: ignore[attr-defined]
                         self._bind_series_name(name, value)
@@ -1717,7 +1717,7 @@ class StatementEvaluator:
             source = registry.get_source(namespace, name, version)
             if source is not None:
                 # Load library definitions only (skip chart demo / example bodies).
-                # TradingView does not re-run library showcase scripts on import.
+                # Reference Pine does not re-run library showcase scripts on import.
                 self._load_library_source(source)  # type: ignore[attr-defined]
                 mod = registry.lookup(namespace=namespace, name=name, version=version)
                 if mod is None:
@@ -1729,7 +1729,7 @@ class StatementEvaluator:
                         registry.register(mod)
 
         if mod is None:
-            # Soft-stub unknown remote libraries (TradingView/*) so the rest of
+            # Soft-stub unknown remote libraries (remote library paths) so the rest of
             # the script can still evaluate. Missing members return None.
             path = f"{namespace}/{name}/{version}"
             try:

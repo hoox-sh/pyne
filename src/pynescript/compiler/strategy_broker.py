@@ -189,7 +189,7 @@ class CompileStrategyBroker:
         Parameters mirror Pine ``strategy()`` declaration kwargs when the
         visitor captures them into the generated ctor call.
 
-        Commission model (interpret parity, TV-closer): charge on **entry**
+        Commission model (interpret parity, closer to reference semantics): charge on **entry**
         (held as ``position_commission`` / openprofit drag) **and** on **exit**
         fills; both realize into netprofit on close.
 
@@ -602,7 +602,7 @@ class CompileStrategyBroker:
         is_long: bool,
         is_short: bool,
     ) -> float | None:
-        """Exit fill price when bar OHLC touches stop/limit (TV pending semantics).
+        """Exit fill price when bar OHLC touches stop/limit (pending OHLC semantics).
 
         Matches interpret ``_handle_strategy_exit`` + ``process_pending_orders``:
         returns a fill price only when high/low of the current bar reaches the

@@ -17,7 +17,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Pyne — TradingView Pine Script toolchain (PyPI package ``pynescript``).
+"""Pyne — Pine Script toolchain (PyPI package ``pynescript``).
 
 Library surface re-exports only the package version. Parse / dump / unparse
 live under :mod:`pynescript.ast` (helpers often imported as

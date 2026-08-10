@@ -128,7 +128,7 @@ class VolumeIndicators(TechnicalHelpers):
     def _builtin_ta_accdist(self, args: list[Any]) -> Any:
         """Accumulation/Distribution Index.
 
-        TV: ``ta.accdist`` / ``ta.accdist()`` with no args uses H/L/C/V context.
+        Reference Pine: ``ta.accdist`` / ``ta.accdist()`` with no args uses H/L/C/V context.
         """
         if len(args) == 0:
             if self._use_incremental_ta():
@@ -605,7 +605,7 @@ class VolumeIndicators(TechnicalHelpers):
         volumes: list[float],
         period: int,
     ) -> float:
-        """Calculate Money Flow Index (TradingView / numba_mfi parity).
+        """Calculate Money Flow Index (reference Pine / numba_mfi parity).
 
         Needs ``period + 1`` typical-price samples (direction vs previous bar).
         Returns na until ready; 100 when only positive MF, 0 when only negative.

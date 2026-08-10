@@ -46,7 +46,7 @@ from typing import NoReturn
 
 BuiltinHandler = Callable[[list[Any]], Any]
 
-# Floats within this of an integer coerce via int(round(...)) (TV length floats
+# Floats within this of an integer coerce via int(round(...)) (reference length floats
 # like ``14.0`` / ``14.0000000001``). Larger fractions floor (``14.9`` → ``14``).
 _PERIOD_INT_EPS = 1e-9
 
@@ -135,12 +135,12 @@ def pine_expect_int(value: Any, message: str, error: Callable[[str], NoReturn]) 
     Hot path: plain ``int`` (not ``bool``) returns immediately — TA periods and
     plot offsets hit this every bar. Unwraps series wrappers, input dicts, and
     list/tuple last-samples; finite floats near an integer use ``int(round)``,
-    other finite floats floor (TV length semantics). Accepts ``numbers.Integral``
+    other finite floats floor (reference length semantics). Accepts ``numbers.Integral``
     / ``numbers.Real`` (e.g. numpy scalars).
 
     Raises via *error* with ``Got: <type|na|…>`` so type bugs surface clearly
     instead of a bare message (or silent wrong path). ``na`` raises; TA call
-    sites that want TV ``na``→``na`` use :func:`pine_period_or_none` /
+    sites that want reference ``na``→``na`` use :func:`pine_period_or_none` /
     ``_expect_series`` instead.
     """
     # Fast path: true int (bool is an int subclass — reject here)
@@ -170,7 +170,7 @@ def pine_expect_int(value: Any, message: str, error: Callable[[str], NoReturn]) 
 
 
 def pine_period_or_none(value: Any, message: str, error: Callable[[str], NoReturn]) -> int | None:
-    """Like :func:`pine_expect_int` but ``na`` → ``None`` (TV TA length na → na).
+    """Like :func:`pine_expect_int` but ``na`` → ``None`` (reference TA length na → na).
 
     Used by TA ``_expect_series`` so ``ta.sma(close, na)`` yields na instead of
     hard-failing.
@@ -214,7 +214,7 @@ def pine_period_or_none(value: Any, message: str, error: Callable[[str], NoRetur
             return None
     return pine_expect_int(unwrapped, message, error)
 
-# TradingView keyword parameter names for list-style ``ta.*`` handlers.
+# reference Pine keyword parameter names for list-style ``ta.*`` handlers.
 # Used when the Python handler is ``(self, args)`` and has no real param names.
 # Keys are bare names (``ema``) — strip a leading ``ta.`` before lookup.
 _TA_KWARG_ORDERS: dict[str, list[str]] = {

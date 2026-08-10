@@ -19,7 +19,7 @@
 
 """In-process Pine Script library registry for export/import resolution.
 
-TradingView libraries are published as ``username/LibraryName/version``.
+reference Pine libraries are published as ``username/LibraryName/version``.
 pynescript resolves them from an in-process registry populated by:
 
 1. Evaluating a ``library("Title")`` script (auto-registers by title via

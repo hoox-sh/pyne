@@ -1,9 +1,9 @@
 # AGENT 02 — AST Evaluator Core Audit
 
-**Date:** 2026-08-10  
-**Scope:** Execution engine without full builtins deep-dive  
-**Mode:** Read-only  
-**Auditor role:** Senior code audit of interpreter core  
+**Date:** 2026-08-10 
+**Scope:** Execution engine without full builtins deep-dive 
+**Mode:** Read-only 
+**Auditor role:** Senior code audit of interpreter core 
 
 **Focus paths:**
 
@@ -45,29 +45,29 @@ Overall engineering quality is **high for an interpreter this large**; correctne
 
 ### C1 — `var` / `varip` collapsed to the same init-once path
 
-**Severity:** Critical (realtime / intrabar parity)  
+**Severity:** Critical (realtime / intrabar parity) 
 **Where:** `statements.py:722–735`
 
 ```722:735:src/pynescript/ast/evaluator/statements.py
-        # -- Handle var / varip: initialize once (first time declaration runs) --
-        # Pine ``var`` is not strictly bar_index==0: a ``var`` inside
-        # ``if barstate.islast`` or a function body must init on first
-        # *execution* of that declaration, which may be a later bar.
-        if isinstance(mode, (ast.Var, ast.VarIp)):
-            if isinstance(node.target, ast.Name):
-                name: str = node.target.id  # type: ignore[attr-defined]
-                declared: set[str] = self._var_declarations  # type: ignore[attr-defined]
-                if name not in declared:
-                    if node.value:
-                        value = self.visit(node.value)  # type: ignore[attr-defined]
-                        self._bind_series_name(name, value)
-                    declared.add(name)
-                return
+ # -- Handle var / varip: initialize once (first time declaration runs) --
+ # Pine ``var`` is not strictly bar_index==0: a ``var`` inside
+ # ``if barstate.islast`` or a function body must init on first
+ # *execution* of that declaration, which may be a later bar.
+ if isinstance(mode, (ast.Var, ast.VarIp)):
+ if isinstance(node.target, ast.Name):
+ name: str = node.target.id # type: ignore[attr-defined]
+ declared: set[str] = self._var_declarations # type: ignore[attr-defined]
+ if name not in declared:
+ if node.value:
+ value = self.visit(node.value) # type: ignore[attr-defined]
+ self._bind_series_name(name, value)
+ declared.add(name)
+ return
 ```
 
-**Issue:** TradingView `varip` re-initializes / updates on **intrabar** realtime ticks for the *same* `bar_index`, while `var` does not. Here both modes only run the RHS the first time the declaration is executed, then permanently skip. UDT fields record a `varip` flag (`statements.py:1016–1026`) but assignment does not consult it.
+**Issue:** the reference platform `varip` re-initializes / updates on **intrabar** realtime ticks for the *same* `bar_index`, while `var` does not. Here both modes only run the RHS the first time the declaration is executed, then permanently skip. UDT fields record a `varip` flag (`statements.py:1016–1026`) but assignment does not consult it.
 
-**Impact:** Strategies / indicators that rely on `varip` under `barstate.isrealtime` will diverge from TV; historical bar-by-bar Runtime (`barstate.isrealtime = False` in `backend/runtime.py:1179`) may hide this until live hosts exist.
+**Impact:** Strategies / indicators that rely on `varip` under `barstate.isrealtime` will diverge from reference; historical bar-by-bar Runtime (`barstate.isrealtime = False` in `backend/runtime.py:1179`) may hide this until live hosts exist.
 
 **Recommendation:** Track init by `(name, bar_index)` vs permanent set; on realtime tick for `varip`, re-run initializer or mark dirty per host contract. Document intentional gap if only historical mode is supported.
 
@@ -75,25 +75,25 @@ Overall engineering quality is **high for an interpreter this large**; correctne
 
 ### C2 — `AugAssign` overwrites series wrappers with scalars (history lost)
 
-**Severity:** Critical when `name ∈ _history_names` or value is already `PineSeries`  
+**Severity:** Critical when `name ∈ _history_names` or value is already `PineSeries` 
 **Where:** `statements.py:965–980`
 
 ```965:980:src/pynescript/ast/evaluator/statements.py
-        if isinstance(node.target, ast.Name):
-            var_name = node.target.id
-            ctx = self.context  # type: ignore[attr-defined]
-            if var_name in ctx:
-                current = ctx[var_name]
-                rhs = self.visit(node.value)  # type: ignore[attr-defined]
-                from pynescript.ast.evaluator.expressions import (
-                    _BINOP_RAW,
-                    _elementwise_binary,
-                )
+ if isinstance(node.target, ast.Name):
+ var_name = node.target.id
+ ctx = self.context # type: ignore[attr-defined]
+ if var_name in ctx:
+ current = ctx[var_name]
+ rhs = self.visit(node.value) # type: ignore[attr-defined]
+ from pynescript.ast.evaluator.expressions import (
+ _BINOP_RAW,
+ _elementwise_binary,
+ )
 
-                raw = _BINOP_RAW.get(type(node.op))
-                if raw is not None:
-                    ctx[var_name] = _elementwise_binary(raw, current, rhs)
-                    return
+ raw = _BINOP_RAW.get(type(node.op))
+ if raw is not None:
+ ctx[var_name] = _elementwise_binary(raw, current, rhs)
+ return
 ```
 
 **Issue:** `_elementwise_binary` / `_as_scalar_operand` unwrap `PineSeries` / ring wrappers to `.current` and return a bare `float`/`int`. That result is stored **directly** into `context`, bypassing `_bind_series_name` / `set_current`. After `x += 1`, `x[1]` no longer has a history buffer (scalar subscript path → offset>0 → `na`).
@@ -108,12 +108,12 @@ Overall engineering quality is **high for an interpreter this large**; correctne
 
 ### H1 — Tuple unpack skips series history binding
 
-**Severity:** High  
+**Severity:** High 
 **Where:** `statements.py:760–809`, especially `804–805`
 
 ```804:805:src/pynescript/ast/evaluator/statements.py
-            if isinstance(target_node, ast.Name):
-                self.context[target_node.id] = val
+ if isinstance(target_node, ast.Name):
+ self.context[target_node.id] = val
 ```
 
 **Issue:** Multi-assign (`[a, b] = …`) writes raw values into `context`. If a name is later / also used as `a[1]`, history was collected in `_history_names`, but this path never creates/updates a series. `ReAssign`/`Assign` of the same name would track; unpack will not.
@@ -124,18 +124,18 @@ Overall engineering quality is **high for an interpreter this large**; correctne
 
 ### H2 — Unresolved identifiers become bare strings, not `na`
 
-**Severity:** High (silent type pollution)  
+**Severity:** High (silent type pollution) 
 **Where:** `names.py:191–199`; arg plans mirror this (`expressions.py:910–917`, `963–971`)
 
 ```191:199:src/pynescript/ast/evaluator/names.py
-        try:
-            return self.context[name]
-        except KeyError:
-            pass
-        if name in _BARE_SERIES_BUILTINS and self._is_registered_builtin(name):
-            return self._call_builtin(name, [])
-        # Return the name as a string if not in context - allows for lazy evaluation
-        return name
+ try:
+ return self.context[name]
+ except KeyError:
+ pass
+ if name in _BARE_SERIES_BUILTINS and self._is_registered_builtin(name):
+ return self._call_builtin(name, [])
+ # Return the name as a string if not in context - allows for lazy evaluation
+ return name
 ```
 
 **Issue:** Missing locals resolve to the **identifier string**. Soft `+` concat then produces strings (`"x" + 1`-style), comparisons / truthiness behave non-`na`, and overload receivers can mis-tag as `string`. `_normalize_na` only special-cases the strings `"na"` / `"nan"` / `"none"` (`statements.py:137–149`), not arbitrary ids.
@@ -148,7 +148,7 @@ Overall engineering quality is **high for an interpreter this large**; correctne
 
 ### H3 — Dual series layouts + array recovery reverse-copy thrash
 
-**Severity:** High (correctness + perf)  
+**Severity:** High (correctness + perf) 
 **Where:**
 
 - `names.py:292–302` (array method recovery reverses `history`)
@@ -156,14 +156,14 @@ Overall engineering quality is **high for an interpreter this large**; correctne
 - Runtime dual storage: `PineSeries` + chronological `current_series` lists (`backend/runtime.py:1058–1071`, `1241–1248`)
 
 ```292:302:src/pynescript/ast/evaluator/names.py
-        if not isinstance(receiver, list) and hasattr(value, "history"):
-            hist = getattr(value, "history", None)
-            if isinstance(hist, list):
-                # history is most-recent-first; reverse for chronological array
-                try:
-                    receiver = list(reversed(hist))
-                except Exception:
-                    receiver = value
+ if not isinstance(receiver, list) and hasattr(value, "history"):
+ hist = getattr(value, "history", None)
+ if isinstance(hist, list):
+ # history is most-recent-first; reverse for chronological array
+ try:
+ receiver = list(reversed(hist))
+ except Exception:
+ receiver = value
 ```
 
 **Issues:**
@@ -178,13 +178,13 @@ Overall engineering quality is **high for an interpreter this large**; correctne
 
 ### H4 — Mock default `bid` / `ask` in global constants
 
-**Severity:** High for tick / 1T scripts without host quotes  
+**Severity:** High for tick / 1T scripts without host quotes 
 **Where:** `base.py:48–50`, injected via `setdefault` at `base.py:210–211`
 
 ```48:50:src/pynescript/ast/evaluator/base.py
-    # v6 feature (February 2025): bid and ask variables on 1T timeframe
-    "bid": 100.01,  # Mock bid price for 1T timeframe
-    "ask": 100.02,  # Mock ask price for 1T timeframe
+ # v6 feature (February 2025): bid and ask variables on 1T timeframe
+ "bid": 100.01, # Mock bid price for 1T timeframe
+ "ask": 100.02, # Mock ask price for 1T timeframe
 ```
 
 **Issue:** Hosts that never set `bid`/`ask` still expose **realistic-looking** prices. Runtime only patches bid/ask when OHLCV bars contain those keys (`backend/runtime.py:1275–1280`). Scripts computing spreads / ticks get a constant 0.01 spread forever.
@@ -195,7 +195,7 @@ Overall engineering quality is **high for an interpreter this large**; correctne
 
 ### H5 — Silent loop cap at 1_000_000 iterations
 
-**Severity:** High (silent wrong results)  
+**Severity:** High (silent wrong results) 
 **Where:** `statements.py:1147–1148`, `1232–1233`, `1269–1287`
 
 **Issue:** `while` / `for` stop after 1e6 iters **without** raising. Pine-like runtime errors (`"loop is too long"`) are not surfaced. Nested corpus demos may “finish” with partial work.
@@ -206,7 +206,7 @@ Overall engineering quality is **high for an interpreter this large**; correctne
 
 ### H6 — Import soft-stubs swallow missing libraries
 
-**Severity:** High (correctness opacity)  
+**Severity:** High (correctness opacity) 
 **Where:** `statements.py:1711–1787`
 
 **Issue:** Unknown `import namespace/name/version` installs a chainable stub that returns self / 0 / None. Scripts continue with empty pivots, zero sizes, no-op methods. A warning is best-effort (`log_warning` in try/except). `_import_stubs` list is good host telemetry **if** the host checks it.
@@ -219,13 +219,13 @@ Overall engineering quality is **high for an interpreter this large**; correctne
 
 ### M1 — `_call_site_cache` allocated but unused
 
-**Severity:** Medium (dead / confusing state)  
+**Severity:** Medium (dead / confusing state) 
 **Where:** `base.py:223–225`
 
 ```223:225:src/pynescript/ast/evaluator/base.py
-        # Bar-loop call-site caches (pre-allocated so visit_Call avoids None checks).
-        # Keyed by id(Call AST node); AST is stable for the script lifetime.
-        self._call_site_cache: dict[int, tuple] = {}
+ # Bar-loop call-site caches (pre-allocated so visit_Call avoids None checks).
+ # Keyed by id(Call AST node); AST is stable for the script lifetime.
+ self._call_site_cache: dict[int, tuple] = {}
 ```
 
 **Actual mechanism:** Sites attach to the AST via `_pine_call_site` (`expressions.py:100–106`, `640–643`) — correctly avoiding `id()` reuse bugs (commented at `635–639`). The dict on `BaseEvaluator` is leftover noise.
@@ -236,7 +236,7 @@ Overall engineering quality is **high for an interpreter this large**; correctne
 
 ### M2 — Call-expression history keyed by `id(Call)` still used for history buffer
 
-**Severity:** Medium  
+**Severity:** Medium 
 **Where:** `names.py:451–498`
 
 **Issue:** Site cache for *dispatch* moved off `id()`; **call-expression history** (`time(...)[1]`, `ta.change(x)[1]`) still uses `id(value_node)` as dict key. Safe while AST is long-lived (Runtime parses once). Unit tests that re-parse every bar or reconstruct Call nodes will scramble history. Same class of bug the call-site cache fixed.
@@ -247,7 +247,7 @@ Overall engineering quality is **high for an interpreter this large**; correctne
 
 ### M3 — UDT method invoke path weaker than free UDF path
 
-**Severity:** Medium  
+**Severity:** Medium 
 **Where:** `expressions.py:_invoke_method` (`1323–1400`) vs `statements.py` `user_function` (`1432–1540`)
 
 **Gaps vs free UDFs:**
@@ -262,7 +262,7 @@ Overall engineering quality is **high for an interpreter this large**; correctne
 
 ### M4 — History-name collection only sees `Name` subscript bases
 
-**Severity:** Medium  
+**Severity:** Medium 
 **Where:** `statements.py:434–445`
 
 Only `Subscript` whose `value` is `ast.Name` is collected. Patterns like `(expr)[1]` or only attribute paths do not mark assign targets. Acceptable for classic Pine locals, incomplete for fancy forms.
@@ -273,7 +273,7 @@ Also: scan runs once per script (`_history_names_scanned`); dynamic codegen is N
 
 ### M5 — Broad `except Exception` soft-fails in hot paths
 
-**Severity:** Medium  
+**Severity:** Medium 
 **Where (core only):**
 
 | File | Lines (approx) |
@@ -290,7 +290,7 @@ Also: scan runs once per script (`_history_names_scanned`); dynamic codegen is N
 
 ### M6 — `BoolOp` / `if` use Python truthiness, not Pine three-valued logic
 
-**Severity:** Medium (known / partially intentional)  
+**Severity:** Medium (known / partially intentional) 
 **Where:** `expressions.py:404–413`, `451–465`, `1450–1465`
 
 - `and`/`or` return Python `bool`, short-circuiting with `not visit(value)`.
@@ -303,7 +303,7 @@ Also: scan runs once per script (`_history_names_scanned`); dynamic codegen is N
 
 ### M7 — Soft string concat and list element-wise ops are easy to over-apply
 
-**Severity:** Medium  
+**Severity:** Medium 
 **Where:** `expressions.py:232–270`
 
 `"x" + 1` and list/series broadcast are corpus-friendly. Risk: accidental string pollution from H2 turns numeric expressions into concat without error.
@@ -312,7 +312,7 @@ Also: scan runs once per script (`_history_names_scanned`); dynamic codegen is N
 
 ### M8 — `_PURE_CONST_FOLD_BUILTINS` only folds `timestamp`
 
-**Severity:** Medium / Low (missed perf, not wrong)  
+**Severity:** Medium / Low (missed perf, not wrong) 
 **Where:** `expressions.py:90–94`
 
 Only `timestamp` is folded when all args are literals. Other pure helpers (`math.*` constants, static color math) still re-run every nested-loop iteration. Intentional narrowness is fine; room to expand carefully.
@@ -321,7 +321,7 @@ Only `timestamp` is folded when all args are literals. Other pure helpers (`math
 
 ### M9 — `RingPineSeries` not in `_SERIES_TYPE_NAMES` frozensets
 
-**Severity:** Medium-Low  
+**Severity:** Medium-Low 
 **Where:** `expressions.py:68`, `statements.py:118`
 
 ```68:68:src/pynescript/ast/evaluator/expressions.py
@@ -334,7 +334,7 @@ Duck-type path (`current` + `history`) still unwraps ring series. Fine today; fr
 
 ### M10 — `var` inside locked defs / first-bar lock interaction
 
-**Severity:** Medium  
+**Severity:** Medium 
 **Where:** Host locks after first bar (`backend/runtime.py:1345–1349`); `visit_FunctionDef` no-ops when locked.
 
 **Issue:** Functions defined only after bar 0 (unusual) would never register. Normal scripts define at top level on bar 0 — OK. Conditional `import` after bar 0 also skipped (`visit_Import` respects lock). Document host contract: all defs must execute on first `visit(Script)`.
@@ -386,7 +386,7 @@ Documented Pine dynamic sequences (`literals.py:59–70`). Callers must not assu
 | Hot-path comments | **Very good** — explain *why* (id reuse, dual namespace, set_current same-bar, O(bars²) lock) |
 | Method docstrings | **Generally present** on public `visit_*`; helpers often documented |
 | Protocol (`types.py`) | Thin but intentional |
-| Gaps | `varip` documented as init-once **without** TV realtime distinction; dual buffer complexity needs a single architecture doc (partially in `series_buffer` + `backend/series.py`); soft-fail policy not centralized |
+| Gaps | `varip` documented as init-once **without** reference realtime distinction; dual buffer complexity needs a single architecture doc (partially in `series_buffer` + `backend/series.py`); soft-fail policy not centralized |
 
 **Doc quality score: 8.5 / 10** for core modules — better than average OSS interpreters.
 

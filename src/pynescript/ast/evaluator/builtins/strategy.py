@@ -77,7 +77,7 @@ def _norm_avg_price_model(value: Any, default: str = "stock") -> str:
 
     pynescript extension (not official Pine):
 
-    - ``stock`` / ``pine`` / ``average`` — multi-leg reweight on partial close (TV-like)
+    - ``stock`` / ``pine`` / ``average`` — multi-leg reweight on partial close (reference-like)
     - ``futures`` / ``future`` / ``perp`` / ``net`` — sticky net AEP until flat
     - ``inverse`` / ``coin`` / ``harmonic`` — accepted; reduce sticky like futures;
       harmonic add blend is phase-2 (add path still arithmetic until then)
@@ -139,7 +139,7 @@ def _soft_float_decl(value: Any, default: float = 0.0) -> float:
 def _norm_leverage(value: Any, default: float = 1.0) -> float:
     """Normalize ``strategy(..., leverage=...)`` to a positive multiplier ≥ 1.
 
-    Simpler futures UI alternative to TV ``margin_long`` / ``margin_short``
+    Simpler futures UI alternative to reference Pine ``margin_long`` / ``margin_short``
     percentages: ``leverage=10`` ≈ 10× buying power and margin = notional / 10.
     Values in (0, 1) are treated as fractions of 1× and clamped up to 1.
     """
@@ -155,7 +155,7 @@ def _norm_leverage(value: Any, default: float = 1.0) -> float:
 class StrategyCashAmount(float):
     """Free cash series value that also tags ``default_qty_type=strategy.cash``.
 
-    TradingView uses one name for both the free-capital series and the
+    Reference Pine uses one name for both the free-capital series and the
     ``default_qty_type`` sentinel. At runtime the series is a float; the
     strategy() declaration inspects ``_pine_qty_type`` (or the string
     ``\"cash\"``) so both call sites work.
@@ -273,7 +273,7 @@ class StrategyState:
         # Leverage multiplier for futures-style margin / buying power (default 1×).
         # Prefer this over margin_long/short percentages for simple perp UIs.
         self.leverage: float = 1.0
-        # TV-style margin % of position (100 = no leverage). Derived from leverage
+        # reference-style margin % of position (100 = no leverage). Derived from leverage
         # when only leverage is set: margin_pct = 100 / leverage.
         self.margin_long: float = 100.0
         self.margin_short: float = 100.0
@@ -933,14 +933,14 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 pass
         if "avg_price_model" in src and src["avg_price_model"] is not None:
             st.avg_price_model = _norm_avg_price_model(src["avg_price_model"], default="stock")
-        # Leverage / margin: leverage is the simple futures UI; margin_* is TV-style %.
+        # Leverage / margin: leverage is the simple futures UI; margin_* is reference-style %.
         # Priority: explicit leverage wins; else derive leverage from margin_long/short.
         has_lev = "leverage" in src and src["leverage"] is not None
         has_ml = "margin_long" in src and src["margin_long"] is not None
         has_ms = "margin_short" in src and src["margin_short"] is not None
         if has_lev:
             st.leverage = _norm_leverage(src["leverage"], default=1.0)
-            # Keep margin % in sync for anything that reads TV-style fields
+            # Keep margin % in sync for anything that reads reference-style fields
             st.margin_long = 100.0 / st.leverage
             st.margin_short = 100.0 / st.leverage
         if has_ml:
@@ -1138,7 +1138,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             )
 
         # Same-direction market entry while already in a position:
-        # - same entry id → replace (TV cancels+re-places that id)
+        # - same entry id → replace (reference Pine cancels+re-places that id)
         # - different id + pyramiding room → add
         # - different id + no pyramiding room → ignore
         if st.position_direction == direction and st.position_size > 0:
@@ -1257,7 +1257,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 return
             qty = float(self._strategy_state.position_size) if status == "missing" else parsed
 
-        # Positional limit/stop (TV order: id, from_entry, qty, limit, stop, …)
+        # Positional limit/stop (positional order: id, from_entry, qty, limit, stop, …)
         # Prefer kwargs; fall back to args[3]/args[4] when present.
         limit_raw = kw.get("limit", kw.get("profit"))
         if limit_raw is None and len(args) > 3:
@@ -1519,7 +1519,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         """
         strategy.order(id, direction, qty, limit, stop, oca_name, oca_type, comment, ...)
 
-        Official positional order (TV reference). Pending orders fill via
+        Official positional order (reference Pine). Pending orders fill via
         :meth:`process_pending_orders`. Supports OCA groups and partial fills
         (``max_fill_per_bar`` kwarg).
         """
@@ -1553,7 +1553,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             qty = 1.0
         limit_price = self._coerce_optional_price(kw.get("limit", args[3] if len(args) > 3 else None))
         stop_price = self._coerce_optional_price(kw.get("stop", args[4] if len(args) > 4 else None))
-        # TV: oca_name, oca_type, comment — also tolerate comment before oca
+        # reference Pine: oca_name, oca_type, comment — also tolerate comment before oca
         oca_name = kw.get("oca_name", args[5] if len(args) > 5 else None)
         oca_type_raw = kw.get("oca_type", args[6] if len(args) > 6 else "none")
         comment = kw.get("comment", args[7] if len(args) > 7 else "")
@@ -1965,7 +1965,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         Average-price models (``strategy(..., avg_price_model=...)``):
 
         - ``stock`` (default): FIFO over open legs; remaining position avg is the
-          size-weighted mean of leftover leg entry prices (TV multi-trade style).
+          size-weighted mean of leftover leg entry prices (multi-trade style).
         - ``futures`` / ``inverse``: sticky net AEP until flat (exchange-like).
           Realized PnL and closed-trade entry use the sticky average, not FIFO
           leg prices. Legs still shrink FIFO so ``opentrades`` counts stay sane.
@@ -1994,7 +1994,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         model = getattr(self._strategy_state, "avg_price_model", "stock") or "stock"
         sticky_avg = float(self._strategy_state.entry_price)
         use_sticky = model in {"futures", "inverse"}
-        # TV-style: commission on entry (already on OpenTrade) **and** on exit fill.
+        # reference-style: commission on entry (already on OpenTrade) **and** on exit fill.
         # Pro-rate exit commission across legs closed in this call.
         total_close = min(remaining, float(sum(t.size for t in self._strategy_state.open_trades)))
         exit_comm_total = self._calc_commission(total_close, exit_price) if total_close > 0 else 0.0

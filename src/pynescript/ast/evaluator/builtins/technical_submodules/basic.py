@@ -118,7 +118,7 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_vwap(self, args: list[Any]) -> float | None:
         """Volume Weighted Average Price.
 
-        TradingView: ``ta.vwap(source)`` or ``ta.vwap`` (defaults to hlc3).
+        Reference Pine: ``ta.vwap(source)`` or ``ta.vwap`` (defaults to hlc3).
         Optional second arg is an anchor condition that resets the window.
         """
         if self._use_incremental_ta():
@@ -314,7 +314,7 @@ class BasicIndicators(TechnicalHelpers):
         return self._stdev(series, period)
 
     def _builtin_ta_swma(self, args: list[Any]) -> float | None:
-        """Symmetrically Weighted Moving Average. TV: ``ta.swma(source)``."""
+        """Symmetrically Weighted Moving Average. reference Pine: ``ta.swma(source)``."""
         if len(args) != UNARY:
             self._error("ta.swma expects one source argument")
         if self._use_incremental_ta():
@@ -324,7 +324,7 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_tr(self, args: list[Any]) -> Any:
         """True Range.
 
-        TradingView: ``ta.tr(handle_na)`` with 0–1 args (uses high/low/close
+        Reference Pine: ``ta.tr(handle_na)`` with 0–1 args (uses high/low/close
         from context). Also accepts the legacy 3-arg form for unit tests.
         """
         if len(args) <= UNARY:
@@ -351,7 +351,7 @@ class BasicIndicators(TechnicalHelpers):
         return self._finalize_series(self._tr(highs, lows, closes))
 
     def _builtin_ta_sar(self, args: list[Any]) -> Any:
-        """Parabolic SAR. TV: ``ta.sar(start, inc, max)`` using high/low context."""
+        """Parabolic SAR. reference Pine: ``ta.sar(start, inc, max)`` using high/low context."""
         if len(args) == TERNARY and all(isinstance(a, (int, float)) and not isinstance(a, bool) for a in args):
             start = float(args[0])
             increment = float(args[1])
@@ -410,7 +410,7 @@ class BasicIndicators(TechnicalHelpers):
         return self._bollinger_bands(series, length, multiplier)
 
     def _builtin_ta_atr(self, args: list[Any]) -> Any:
-        """Average True Range. TV: ``ta.atr(length)``; also legacy 4-arg form."""
+        """Average True Range. reference Pine: ``ta.atr(length)``; also legacy 4-arg form."""
         if len(args) == 1 and self._is_period_like(args[0]):
             length = self._expect_int(args[0], "ta.atr length must be an integer")
             if self._use_incremental_ta():
@@ -438,7 +438,7 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_kc(self, args: list[Any]) -> tuple[float, float, float]:
         """Keltner Channels (returns middle, upper, lower).
 
-        TV: ``ta.kc(series, length, mult)``; legacy ``(high, low, close, length)``.
+        Reference Pine: ``ta.kc(series, length, mult)``; legacy ``(high, low, close, length)``.
         """
         mult = 1.0
         use_inc = self._use_incremental_ta()
@@ -509,7 +509,7 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_dmi(self, args: list[Any]) -> tuple[float, float, float]:
         """Directional Movement Index.
 
-        TradingView: ``ta.dmi(diLength, adxSmoothing) → [+DI, -DI, ADX]`` using
+        Reference Pine: ``ta.dmi(diLength, adxSmoothing) → [+DI, -DI, ADX]`` using
         chart high/low/close. Legacy 4-arg ``(high, low, close, length)`` still
         accepted (adxSmoothing defaults to diLength).
 
@@ -528,7 +528,7 @@ class BasicIndicators(TechnicalHelpers):
             lows = self._context_series("low")
             closes = self._context_series("close")
         elif len(args) == QUATERNARY:
-            # Soft-na when length or any OHLC leg is pure na (TV yields na;
+            # Soft-na when length or any OHLC leg is pure na (reference Pine yields na;
             # also covers mis-dispatched bare ``dmi`` with unresolved series).
             di_len = self._expect_period(args[3], "ta.dmi takes high, low, close series and length")
             if di_len < 1:
@@ -595,7 +595,7 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_supertrend(self, args: list[Any]) -> tuple[float, int]:
         """Supertrend indicator.
 
-        TradingView: ``ta.supertrend(factor, atrPeriod)`` → ``[supertrend, direction]``.
+        Reference Pine: ``ta.supertrend(factor, atrPeriod)`` → ``[supertrend, direction]``.
         Also accepts legacy ``(high, low, length, multiplier)``.
         """
         if len(args) == BINARY and all(isinstance(a, (int, float)) and not isinstance(a, bool) for a in args):
@@ -634,7 +634,7 @@ class BasicIndicators(TechnicalHelpers):
 
         upper = mid + factor * float(atr_val)
         lower = mid - factor * float(atr_val)
-        # Simplified direction: price above mid → uptrend (-1 in TV convention for up fill)
+        # Simplified direction: price above mid → uptrend (-1 in reference Pine convention for up fill)
         direction = -1 if current_close >= mid else 1
         supertrend = lower if direction < 0 else upper
         return float(supertrend), direction
@@ -642,8 +642,8 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_linreg(self, args: list[Any]) -> float:
         """Linear Regression value.
 
-        TV: ``ta.linreg(source, length, offset)`` — offset is optional (default 0).
-        Length < 2 is soft-na (TV returns na rather than hard-error for short length).
+        Reference Pine: ``ta.linreg(source, length, offset)`` — offset is optional (default 0).
+        Length < 2 is soft-na (reference returns na rather than hard-error for short length).
         """
         if self._use_incremental_ta():
             if len(args) < BINARY:
@@ -671,7 +671,7 @@ class BasicIndicators(TechnicalHelpers):
         else:
             series, length = self._expect_series(args, length=BINARY)
 
-        # Soft-na: regression needs ≥2 points; TV yields na for length 0/1.
+        # Soft-na: regression needs ≥2 points; reference Pine yields na for length 0/1.
         if length < 2:
             return math.nan
         if len(series) < length:
@@ -695,7 +695,7 @@ class BasicIndicators(TechnicalHelpers):
             return mean_y
 
         slope = numerator / denominator
-        # TV: intercept + slope * (length - 1 - offset) with x = 0..n-1 oldest→newest
+        # reference Pine: intercept + slope * (length - 1 - offset) with x = 0..n-1 oldest→newest
         return mean_y + slope * ((n - 1 - offset) - mean_x)
 
     def _builtin_ta_rci(self, args: list[Any]) -> float:
@@ -745,7 +745,7 @@ class BasicIndicators(TechnicalHelpers):
         return -num_sum / den_sum
 
     def _builtin_ta_swma(self, args: list[Any]) -> float | None:
-        """Symmetric Weighted Moving Average (TV: one-arg source)."""
+        """Symmetric Weighted Moving Average (reference Pine: one-arg source)."""
         if len(args) >= 1:
             if self._use_incremental_ta():
                 return self._swma_inc_update(args[0])
@@ -842,14 +842,14 @@ class BasicIndicators(TechnicalHelpers):
         return self._lowest(series, period)
 
     def _builtin_ta_cum(self, args: list[Any]) -> float | None:
-        """Cumulative sum. TV: ``ta.cum(source)`` — ``na`` treated as 0."""
+        """Cumulative sum. reference Pine: ``ta.cum(source)`` — ``na`` treated as 0."""
         msg = "ta.cum expects a series"
         if len(args) != UNARY:
             self._error(msg)
         if self._use_incremental_ta():
             return self._cum_inc_update(args[0])
         series = self._as_series(args[0])
-        # Empty or all-na still yields 0 (TV / compile parity), not na
+        # Empty or all-na still yields 0 (reference Pine / compile parity), not na
         total = 0.0
         for v in series or []:
             if v is None:
@@ -1004,7 +1004,7 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_pivothigh(self, args: list[Any]) -> float | None:
         """Find the highest point (pivot high) in a window.
 
-        TV: ``ta.pivothigh(leftbars, rightbars)`` (source=high) or
+        Reference Pine: ``ta.pivothigh(leftbars, rightbars)`` (source=high) or
         ``ta.pivothigh(source, leftbars, rightbars)``.
 
         Source may be a list (``current_series``), a ``PineSeries`` from the
@@ -1053,7 +1053,7 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_pivotlow(self, args: list[Any]) -> float | None:
         """Find the lowest point (pivot low) in a window.
 
-        TV: ``ta.pivotlow(leftbars, rightbars)`` (source=low) or
+        Reference Pine: ``ta.pivotlow(leftbars, rightbars)`` (source=low) or
         ``ta.pivotlow(source, leftbars, rightbars)``.
 
         Source may be a list, ``PineSeries``, or scalar — see pivothigh.
@@ -1099,10 +1099,10 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_pivot_point_levels(self, args: list[Any]) -> Any:
         """Calculate pivot point levels.
 
-        TV: ``ta.pivot_point_levels(type, anchor, developing?)`` → array of floats
+        Reference Pine: ``ta.pivot_point_levels(type, anchor, developing?)`` → array of floats
         using chart high/low/close. Legacy: ``(high, low, close, is_traditional)``.
         """
-        # TV form: type is a string ("Traditional", "Fibonacci", …)
+        # reference Pine form: type is a string ("Traditional", "Fibonacci", …)
         if args and isinstance(args[0], str):
             ptype = args[0]
             highs = self._context_series("high")
@@ -1168,7 +1168,7 @@ class BasicIndicators(TechnicalHelpers):
         low: float,
         close: float,
     ) -> list[float]:
-        """Return pivot levels as a flat list (TV array order: P, R1, S1, R2, S2, R3, S3)."""
+        """Return pivot levels as a flat list (reference Pine array order: P, R1, S1, R2, S2, R3, S3)."""
         pivot = (high + low + close) / 3.0
         diff = high - low
         kind = (ptype or "Traditional").strip().lower()
@@ -1242,7 +1242,7 @@ class BasicIndicators(TechnicalHelpers):
     def _dev(self, series: list[float], period: int) -> float | None:
         """Deviation = average absolute deviation from mean.
 
-        Strict window (match compile ``numba_dev`` / TV): any ``na`` → ``na``.
+        Strict window (match compile ``numba_dev`` / reference): any ``na`` → ``na``.
         """
         if period <= 0 or len(series) < period:
             return None
@@ -1300,7 +1300,7 @@ class BasicIndicators(TechnicalHelpers):
         return (count_below / len(valid_values)) * 100
 
     def _variance(self, series: list[float], period: int) -> float | None:
-        """Sample variance over a period (strict window, match compile/TV)."""
+        """Sample variance over a period (strict window, match compile/reference Pine)."""
         if period <= 1 or len(series) < period:
             return None
         window = series[-period:]

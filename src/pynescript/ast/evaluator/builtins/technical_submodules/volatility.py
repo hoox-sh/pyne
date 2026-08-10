@@ -49,7 +49,7 @@ class VolatilityIndicators(TechnicalHelpers):
     def _builtin_ta_atr(self, args: list[Any]) -> Any:
         """Average True Range.
 
-        TradingView: ``ta.atr(length)``. Also accepts legacy
+        Reference Pine: ``ta.atr(length)``. Also accepts legacy
         ``ta.atr(high, low, close, length)`` for unit tests.
         """
         if len(args) == 1 and self._is_period_like(args[0]):
@@ -72,7 +72,7 @@ class VolatilityIndicators(TechnicalHelpers):
         return self._finalize_series(self._atr(highs, lows, closes, length))
 
     def _builtin_ta_tr(self, args: list[Any]) -> Any:
-        """True Range — TV form ``ta.tr(handle_na?)`` or legacy 3-arg."""
+        """True Range — reference Pine form ``ta.tr(handle_na?)`` or legacy 3-arg."""
         if len(args) <= 1:
             highs = self._context_series("high")
             lows = self._context_series("low")
@@ -242,14 +242,14 @@ class VolatilityIndicators(TechnicalHelpers):
     def _builtin_ta_kc(self, args: list[Any]) -> tuple[float, float, float]:
         """Keltner Channels.
 
-        TradingView: ``ta.kc(series, length, mult) → [middle, upper, lower]``
+        Reference Pine: ``ta.kc(series, length, mult) → [middle, upper, lower]``
         using ATR of chart H/L/C. Legacy 4-arg ``(high, low, close, length)``
         still accepted (mult defaults to 1).
         """
         mult = 1.0
         use_inc = self._use_incremental_ta()
         if len(args) == TERNARY and self._is_period_like(args[1]):
-            # TV form: source, length, mult
+            # reference Pine form: source, length, mult
             length = self._expect_int(args[1], "ta.kc length must be integer")
             m = args[2]
             current = getattr(m, "current", None)
@@ -323,7 +323,7 @@ class VolatilityIndicators(TechnicalHelpers):
     def _builtin_ta_linreg(self, args: list[Any]) -> float:
         """Linear Regression value.
 
-        Length < 2 soft-returns na (matches TV / BasicIndicators path).
+        Length < 2 soft-returns na (matches reference / BasicIndicators path).
         """
         series, length = self._expect_series(args, length=BINARY)
 
@@ -350,7 +350,7 @@ class VolatilityIndicators(TechnicalHelpers):
             return mean_y
 
         slope = numerator / denominator
-        # TV endpoint at x = n-1 (offset=0): mean_y + slope * ((n-1) - mean_x)
+        # reference Pine endpoint at x = n-1 (offset=0): mean_y + slope * ((n-1) - mean_x)
         return mean_y + slope * ((n - 1) - mean_x)
 
     def _builtin_ta_rci(self, args: list[Any]) -> float:
@@ -648,7 +648,7 @@ class VolatilityIndicators(TechnicalHelpers):
         closes: list[float],
         period: int,
     ) -> list[float | None]:
-        """ATR = Wilder RMA of true range (TradingView ``ta.rma(ta.tr, length)``).
+        """ATR = Wilder RMA of true range (reference Pine ``ta.rma(ta.tr, length)``).
 
         Dual-host aligned with ``numba_atr`` (audit Wave B). Returns a series
         aligned to the TR samples (length ``len(closes)-1``); leading values

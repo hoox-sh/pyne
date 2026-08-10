@@ -42,7 +42,7 @@ import re
 # Minimal script used when scrape content is foreign / empty of real Pine.
 _MINIMAL_STUB = '//@version=5\nindicator("x")\nplot(close)\n'
 
-# TV community "Expand (N lines)" UI stub — often at EOF; closing ``)`` may be cut.
+# reference community "Expand (N lines)" UI stub — often at EOF; closing ``)`` may be cut.
 _EXPAND_RE = re.compile(r"^\s*Expand\s*\(\s*\d+\s*lines?\s*\)?\s*$", re.I)
 _HR_RE = re.compile(r"^\s*([-*_])\1{2,}\s*$")  # --- *** ___
 _URL_ONLY_RE = re.compile(r"^\s*https?://\S+\s*$", re.I)
@@ -52,7 +52,7 @@ _IMG_MD_RE = re.compile(r"^\s*!\[.*?\]\(.*?\)\s*$")
 _MD_LINK_LINE_RE = re.compile(r"^\s*\[.*?\]\(https?://.*?\)\s*$")
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 _HTML_COMMENT_OPEN_RE = re.compile(r"^\s*<!--")
-# TradingView docs UI chrome
+# reference Pine docs UI chrome
 _TV_PINE_LABEL_RE = re.compile(r"^\s*Pine\s+Script\s*®?\s*$", re.I)
 _COPIED_RE = re.compile(r"^\s*Copied\s*$", re.I)
 _IMAGE_ONLY_RE = re.compile(r"^\s*image\s*$", re.I)
@@ -80,10 +80,10 @@ _PROSE_LABEL_RE = re.compile(
     re.I,
 )
 
-# Apostrophe class: ASCII + curly quotes common in TV docs scrapes (U+2019 / U+2018).
+# Apostrophe class: ASCII + curly quotes common in reference docs scrapes (U+2019 / U+2018).
 _APOS = r"['\u2019\u2018]"
 
-# English / docs prose that appears after a real script on scraped TV pages.
+# English / docs prose that appears after a real script on scraped reference pages.
 _PROSE_CONTINUE_RE = re.compile(
     r"^\s*("
     r"Note that:?|"
@@ -113,7 +113,7 @@ _PROSE_CONTINUE_RE = re.compile(
     re.I,
 )
 
-# TV / GitHub UI chrome lines that often appear between a truncated preview and
+# reference / GitHub UI chrome lines that often appear between a truncated preview and
 # the full script copy (set05 hasnocool scrapes).
 _UI_CHROME_LINE_RE = re.compile(
     r"^\s*("
@@ -264,7 +264,7 @@ def _extract_fenced_blocks(lines: list[str]) -> list[str]:
 
 
 def _extract_tv_copied_blocks(lines: list[str]) -> list[str]:
-    """TradingView docs: code after a ``Pine Script`` / ``Copied`` label."""
+    """reference Pine docs: code after a ``Pine Script`` / ``Copied`` label."""
     blocks: list[str] = []
     i = 0
     n = len(lines)
@@ -396,7 +396,7 @@ def _has_usable_pine(text: str) -> bool:
     return bool(_SCRIPT_DECL_RE.search(text))
 
 
-# Docs chrome glued onto code lines (Mintlify / TV pages).
+# Docs chrome glued onto code lines (Mintlify / reference pages).
 # Case-sensitive Capitalized nav words after ≥2 spaces; may be followed by more
 # title-case sidebar junk (``Previous Strategies Next Techniques …``).
 # Do NOT use IGNORECASE — English ``next to`` must not match.
@@ -491,7 +491,7 @@ def _polish_code_line(line: str) -> str:
     if not line.lstrip().startswith("//"):
         line = re.sub(r",\s*\.\.\.\s*$", "", line)
         line = re.sub(r"\(\s*\.\.\.\s*$", "(", line)
-    # TV library import UI residual: ``import x/y/1 as eta loading...``
+    # reference library import UI residual: ``import x/y/1 as eta loading...``
     if not line.lstrip().startswith("//"):
         line = re.sub(r"\s+loading\.\.\.\s*$", "", line, flags=re.I)
     # Dangling ``+`` / ``,`` immediately before a closer (cut mid-concat / mid-args).
@@ -1235,7 +1235,7 @@ def _fix_truncated_syntax(text: str) -> str:
                 continue
 
         # Assignment to empty structure: ``x = switch`` / ``x = if c`` / ``x = for …`` /
-        # ``x = while …`` with no body (truncated TV docs demos).
+        # ``x = while …`` with no body (truncated reference docs demos).
         m_as = re.match(
             r"^(\s*.*?\S)\s*=\s*(switch|if|for|while)\b(.*)$",
             stripped_nl,
@@ -1357,7 +1357,7 @@ _CTRL_HEAD_RE = re.compile(r"^(if|else if|else|for|while|switch)\b")
 def _collapse_na_only_control_expr_assignments(text: str) -> str:
     """Collapse ``lhs = for|while|if|switch …`` bodies that are only ``na`` / empty ctrls.
 
-    Truncated TV docs leave expression-for loops such as::
+    Truncated reference docs leave expression-for loops such as::
 
         string finalLabelText = for number in randomArray
             if number == 8
@@ -1857,7 +1857,7 @@ def sanitize_corpus_source(source: str) -> str:
     provenance, body_lines = _split_provenance(lines)
     body_text = "\n".join(body_lines)
 
-    # Candidate extractable Pine islands (fences, TV "Copied", shell heredocs).
+    # Candidate extractable Pine islands (fences, reference "Copied", shell heredocs).
     blocks: list[str] = []
     blocks.extend(_extract_fenced_blocks(lines))
     blocks.extend(_extract_tv_copied_blocks(lines))

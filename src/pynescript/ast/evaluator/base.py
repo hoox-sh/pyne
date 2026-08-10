@@ -83,7 +83,7 @@ _MATH_CONSTANTS = {
     "size.normal": 12,
     "size.large": 16,
     "size.huge": 20,
-    # array/matrix sort order (TV: ascending=1, descending=-1)
+    # array/matrix sort order (Reference Pine: ascending=1, descending=-1)
     "order.ascending": 1,
     "order.descending": -1,
     # plotshape / plotchar style & location (compiler emits attr name; interpret needs context)
@@ -131,7 +131,7 @@ _MATH_CONSTANTS = {
     "hline.style_solid": "solid",
     "hline.style_dashed": "dashed",
     "hline.style_dotted": "dotted",
-    # dayofweek.* — TV: Sunday=1 … Saturday=7 (set05 timestamp residual)
+    # dayofweek.* — Reference Pine: Sunday=1 … Saturday=7 (set05 timestamp residual)
     "dayofweek.sunday": 1,
     "dayofweek.monday": 2,
     "dayofweek.tuesday": 3,
@@ -139,7 +139,7 @@ _MATH_CONSTANTS = {
     "dayofweek.thursday": 5,
     "dayofweek.friday": 6,
     "dayofweek.saturday": 7,
-    # month.* — TV calendar month constants 1..12
+    # month.* — reference calendar month constants 1..12
     "month.january": 1,
     "month.february": 2,
     "month.march": 3,

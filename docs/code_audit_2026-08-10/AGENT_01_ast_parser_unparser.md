@@ -1,8 +1,8 @@
 # Agent 01 — AST / Parser / Unparser Audit
 
-**Scope:** `src/pynescript/ast/` (core: builder, helper, unparser, visitor, transformer, collector, linter, type_system, error; grammar wrappers/tools; not evaluator internals)  
-**Date:** 2026-08-10  
-**Mode:** Read-only audit  
+**Scope:** `src/pynescript/ast/` (core: builder, helper, unparser, visitor, transformer, collector, linter, type_system, error; grammar wrappers/tools; not evaluator internals) 
+**Date:** 2026-08-10 
+**Mode:** Read-only audit 
 
 ---
 
@@ -24,11 +24,11 @@
 ### C1 — Critical: linter `C004` always reports missing trailing newline
 
 ```204:208:src/pynescript/ast/linter.py
-        if not source.strip().endswith("\n"):
-            self._add_warning(
-                code="C004",
-                message="File should end with a newline",
-            )
+ if not source.strip().endswith("\n"):
+ self._add_warning(
+ code="C004",
+ message="File should end with a newline",
+ )
 ```
 
 `str.strip()` strips **all** trailing whitespace including `\n`, so `endswith("\n")` is **never** true for any non-empty script body. Every linted file gets `C004`.
@@ -40,8 +40,8 @@
 ### H1 — High: unparser typo `visit_Sipmle` drops `simple` type qualifier
 
 ```1006:1007:src/pynescript/ast/unparser.py
-    def visit_Sipmle(self, node: ast.Simple):
-        self._source.append("simple")
+ def visit_Sipmle(self, node: ast.Simple):
+ self._source.append("simple")
 ```
 
 Dispatch is by class name (`visit_` + `type(node).__name__` → `visit_Simple`). The misspelled method is **never called**. Unparsing `simple int x = 1` falls through to `generic_visit` (empty op node → emits nothing) → **semantic round-trip loss** of the `simple` qualifier.
@@ -55,14 +55,14 @@ Dispatch is by class name (`visit_` + `type(node).__name__` → `visit_Simple`).
 ### H2 — High: linter `W002` line number is a character offset
 
 ```151:158:src/pynescript/ast/linter.py
-        else:
-            version = int(version_match.group(1))
-            if version < 5:
-                self._add_warning(
-                    code="W002",
-                    message=f"Pine Script v{version} is deprecated. Consider upgrading to v5 or v6.",
-                    line=version_match.start(),
-                )
+ else:
+ version = int(version_match.group(1))
+ if version < 5:
+ self._add_warning(
+ code="W002",
+ message=f"Pine Script v{version} is deprecated. Consider upgrading to v5 or v6.",
+ line=version_match.start(),
+ )
 ```
 
 `Match.start()` is a **byte/character index**, not a 1-based line. IDEs/LSP will jump to the wrong line.
@@ -74,14 +74,14 @@ Dispatch is by class name (`visit_` + `type(node).__name__` → `visit_Simple`).
 ### H3 — High: linter `C001` naming rule is inverted / noise
 
 ```177:184:src/pynescript/ast/linter.py
-            if match := re.search(r"(\w+)\s*=\s*ta\.", line):
-                var_name = match.group(1)
-                if re.match(r"^[a-z]", var_name):
-                    self._add_warning(
-                        code="C001",
-                        message=f"Variable '{var_name}' should use camelCase (e.g., '{_to_camel(var_name)}')",
-                        line=i,
-                    )
+ if match := re.search(r"(\w+)\s*=\s*ta\.", line):
+ var_name = match.group(1)
+ if re.match(r"^[a-z]", var_name):
+ self._add_warning(
+ code="C001",
+ message=f"Variable '{var_name}' should use camelCase (e.g., '{_to_camel(var_name)}')",
+ line=i,
+ )
 ```
 
 Pine idiomatic style is **lowerCamelCase**. This flags **every** lowercase-starting name (including `rsi`, `fastMa`, `myLength`). Only PascalCase escapes. `_to_camel` only helps snake_case.
@@ -93,12 +93,12 @@ Pine idiomatic style is **lowerCamelCase**. This flags **every** lowercase-start
 ### H4 — High: linter `C003` is wrong for Pine (no braces)
 
 ```197:202:src/pynescript/ast/linter.py
-            if re.match(r"^\s+if\s+", line):
-                self._add_warning(
-                    code="C003",
-                    message="Avoid single-line if statements without braces",
-                    line=i,
-                )
+ if re.match(r"^\s+if\s+", line):
+ self._add_warning(
+ code="C003",
+ message="Avoid single-line if statements without braces",
+ line=i,
+ )
 ```
 
 Any indented `if` (normal Pine control flow) is warned. Pine uses indentation, not braces. Rule is a Python-style false positive generator.
@@ -110,19 +110,19 @@ Any indented `if` (normal Pine control flow) is warned. Pine uses indentation, n
 ### H5 — High: function/method return types parsed by grammar, dropped by builder
 
 ```569:575:src/pynescript/ast/builder.py
-    def visitFunction_declaration(self, ctx: PinescriptParser.Function_declarationContext):
-        """UDF: ``export? [return_type] name(params) => body``.
+ def visitFunction_declaration(self, ctx: PinescriptParser.Function_declarationContext):
+ """UDF: ``export? [return_type] name(params) => body``.
 
-        Grammar allows a leading ``type_specification`` as the return type
-        (Pine v5+/v6). ASDL ``FunctionDef`` has no returns field yet, so that
-        context is intentionally not mapped — parse succeeds; type is dropped.
-        """
+ Grammar allows a leading ``type_specification`` as the return type
+ (Pine v5+/v6). ASDL ``FunctionDef`` has no returns field yet, so that
+ context is intentionally not mapped — parse succeeds; type is dropped.
+ """
 ```
 
 Same for `visitMethod_declaration` (lines 594–598). ASDL:
 
 ```5:5:src/pynescript/ast/grammar/asdl/resource/Pinescript.asdl
-     stmt = FunctionDef(identifier name, param* args, stmt* body, int? method, int? export, string* annotations)
+ stmt = FunctionDef(identifier name, param* args, stmt* body, int? method, int? export, string* annotations)
 ```
 
 **Impact:** parse succeeds; round-trip and any type-aware tooling lose return annotations. Documented intentional gap, but still a **correctness / Pine-parity** hole at the AST boundary.
@@ -135,20 +135,20 @@ Same for `visitMethod_declaration` (lines 594–598). ASDL:
 
 ```165:185:src/pynescript/ast/helper.py
 def _scrub_pine_call_sites(tree: AST) -> AST:
-    ...
-    try:
-        for node in walk(tree):
-            if getattr(node, "_pine_call_site", None) is not None:
-                try:
-                    delattr(node, "_pine_call_site")
-                except Exception:
-                    try:
-                        object.__setattr__(node, "_pine_call_site", None)
-                    except Exception:
-                        pass
-    except Exception:
-        pass
-    return tree
+ ...
+ try:
+ for node in walk(tree):
+ if getattr(node, "_pine_call_site", None) is not None:
+ try:
+ delattr(node, "_pine_call_site")
+ except Exception:
+ try:
+ object.__setattr__(node, "_pine_call_site", None)
+ except Exception:
+ pass
+ except Exception:
+ pass
+ return tree
 ```
 
 Triple-nested bare `except Exception` means failed scrub still returns a tree that may retain **evaluator-bound call sites** → wrong handlers on multi-run hosts (the exact bug this scrub was meant to prevent). Failures become silent.
@@ -160,18 +160,18 @@ Triple-nested bare `except Exception` means failed scrub still returns a tree th
 ### H7 — High: `SyntaxError.__str__` assumes `details` always present
 
 ```65:90:src/pynescript/ast/error.py
-    def __init__(self, message: str, *details: SyntaxErrorDetails | object) -> None:
-        self.message = message
-        if details:
-            if len(details) == 1 and isinstance(details[0], SyntaxErrorDetails):
-                self.details = details[0]
-            else:
-                self.details = SyntaxErrorDetails(*details)
+ def __init__(self, message: str, *details: SyntaxErrorDetails | object) -> None:
+ self.message = message
+ if details:
+ if len(details) == 1 and isinstance(details[0], SyntaxErrorDetails):
+ self.details = details[0]
+ else:
+ self.details = SyntaxErrorDetails(*details)
 
-    def __str__(self) -> str:
-        f = StringIO()
-        code = self.details.text.lstrip()
-        ...
+ def __str__(self) -> str:
+ f = StringIO()
+ code = self.details.text.lstrip()
+ ...
 ```
 
 `PinescriptLexerBase._reportLexerError` constructs `errcls(message)` **without** details first, then relies on the error listener to fill them in. Any code path that raises `SyntaxError("msg")` alone (or fails before details attach) will **crash in `__str__`** with `AttributeError: details`.
@@ -187,11 +187,11 @@ Also: no `self.details = None` default; subclass `IndentationError` inherits the
 ### M1 — Multi-line `end_col_offset` formula looks off-by-two
 
 ```193:201:src/pynescript/ast/builder.py
-        if stop_text is not None and "\n" in stop_text:
-            stop_nls = stop_text.count("\n")
-            stop_nlpos = stop_text.rfind("\n")
-            node.end_lineno = stop.line + stop_nls  # type: ignore[attr-defined]
-            node.end_col_offset = stop_len - stop_nlpos + 1  # type: ignore[attr-defined]
+ if stop_text is not None and "\n" in stop_text:
+ stop_nls = stop_text.count("\n")
+ stop_nlpos = stop_text.rfind("\n")
+ node.end_lineno = stop.line + stop_nls # type: ignore[attr-defined]
+ node.end_col_offset = stop_len - stop_nlpos + 1 # type: ignore[attr-defined]
 ```
 
 For token text `"a\nb"`: `stop_len=3`, `stop_nlpos=1` → `end_col_offset=3`. Last line content is `"b"` (length 1). Python-style exclusive end column on the last line should be **1**, i.e. roughly `stop_len - stop_nlpos - 1`. Same formula in `error_listener.py` lines 121–125. Breaks `get_source_segment` for multi-line tokens (strings, etc.).
@@ -209,10 +209,10 @@ Documented in `helper.py` (lines 105–110, 535–539), but still a design hazar
 ### M3 — Type system compatibility is identity-based / incomplete
 
 ```72:79:src/pynescript/ast/type_system.py
-    def is_compatible_with(self, other: Type) -> bool:
-        if isinstance(other, BuiltinType):
-            return self == other
-        return False
+ def is_compatible_with(self, other: Type) -> bool:
+ if isinstance(other, BuiltinType):
+ return self == other
+ return False
 ```
 
 No `__eq__`/`__hash__` on `Type`/`BuiltinType` → object identity. Two `BuiltinType(BuiltinTypeKind.INT)` instances are incompatible. No int→float promotion, no series/simple lattice, no collection element checks. Qualifiers ignored. Fine as a sketch; **not** a type system for Pine parity.
@@ -252,9 +252,9 @@ Also: generated classes are mutable dataclasses **without** `slots=True` → hig
 ### M8 — Linter syntax check uses bare `except Exception`
 
 ```111:113:src/pynescript/ast/linter.py
-        try:
-            parse(source, filename)
-        except Exception as e:
+ try:
+ parse(source, filename)
+ except Exception as e:
 ```
 
 Catches programming errors (e.g. recursion, ImportError if graph broken) as `E001` “Syntax error”. Should catch `pynescript.ast.error.SyntaxError` (and maybe `ValueError` for mode).
@@ -266,7 +266,7 @@ Catches programming errors (e.g. recursion, ImportError if graph broken) as `E00
 ASDL: `Import(..., int version, ...)`. Builder:
 
 ```1259:1259:src/pynescript/ast/builder.py
-        version = self.visit(version)
+ version = self.visit(version)
 ```
 
 `visitLiteral_number` can return `float` (e.g. `1.0`). Unparser does `str(node.version)` so round-trip might emit `1.0` instead of `1`.
@@ -276,10 +276,10 @@ ASDL: `Import(..., int version, ...)`. Builder:
 ### M10 — Typed `for` iterators / other intentional drops
 
 ```910:916:src/pynescript/ast/builder.py
-    def visitFor_iterator(...):
-        """Loop variable; optional type annotation is accepted but not stored on ForTo/ForIn."""
-        ...
-        return self.visit(ctx.name_store())
+ def visitFor_iterator(...):
+ """Loop variable; optional type annotation is accepted but not stored on ForTo/ForIn."""
+ ...
+ return self.visit(ctx.name_store())
 ```
 
 Same class of info-loss as return types. Grammar accepts more than ASDL stores.
@@ -289,9 +289,9 @@ Same class of info-loss as return types. Grammar accepts more than ASDL stores.
 ### M11 — Error listener assumes non-null `offendingSymbol`
 
 ```121:125:src/pynescript/ast/grammar/antlr4/error_listener.py
-        symbol_len = offendingSymbol.stop - offendingSymbol.start + 1
-        symbol_nls = offendingSymbol.text.count("\n")
-        ...
+ symbol_len = offendingSymbol.stop - offendingSymbol.start + 1
+ symbol_nls = offendingSymbol.text.count("\n")
+ ...
 ```
 
 ANTLR can pass `None` for some recognition errors. Would raise `AttributeError` instead of a clean `SyntaxError`.
@@ -384,21 +384,21 @@ Without breaking Pine parity:
 
 ### P0 — Fix now (bugs users hit)
 
-1. **Rename** `visit_Sipmle` → `visit_Simple`; add tests for `const`/`input`/`simple`/`series` round-trip.  
-   File: `src/pynescript/ast/unparser.py:1006`
-2. **Fix C004** trailing-newline check (`endswith` on raw `source`).  
-   File: `src/pynescript/ast/linter.py:204`
-3. **Fix W002** line number; **disable or rewrite C001/C003**.  
-   File: `src/pynescript/ast/linter.py`
-4. **Harden** `SyntaxError.__str__` when `details` is missing.  
-   File: `src/pynescript/ast/error.py`
-5. **Narrow** `_scrub_pine_call_sites` exception handling; fail visible if scrub fails.  
-   File: `src/pynescript/ast/helper.py:165-185`
+1. **Rename** `visit_Sipmle` → `visit_Simple`; add tests for `const`/`input`/`simple`/`series` round-trip. 
+ File: `src/pynescript/ast/unparser.py:1006`
+2. **Fix C004** trailing-newline check (`endswith` on raw `source`). 
+ File: `src/pynescript/ast/linter.py:204`
+3. **Fix W002** line number; **disable or rewrite C001/C003**. 
+ File: `src/pynescript/ast/linter.py`
+4. **Harden** `SyntaxError.__str__` when `details` is missing. 
+ File: `src/pynescript/ast/error.py`
+5. **Narrow** `_scrub_pine_call_sites` exception handling; fail visible if scrub fails. 
+ File: `src/pynescript/ast/helper.py:165-185`
 
 ### P1 — Semantic / tooling parity
 
-6. Add `returns` (or `type`) field to ASDL `FunctionDef`; map in builder; unparse.  
-   Files: `Pinescript.asdl`, `builder.py`, `unparser.py`
+6. Add `returns` (or `type`) field to ASDL `FunctionDef`; map in builder; unparse. 
+ Files: `Pinescript.asdl`, `builder.py`, `unparser.py`
 7. Store typed `for` targets if grammar allows (ASDL + builder).
 8. Guard `offendingSymbol is None` in error listener; fix multi-line `end_col_offset` and share one helper with builder.
 9. Linter: catch only `pynescript.ast.error.SyntaxError`; prefer AST-based rules.
@@ -413,9 +413,9 @@ Without breaking Pine parity:
 
 ### P3 — Polish
 
-15. Annotate builder entry points and public unparser methods with return types.  
-16. Add “DO NOT EDIT” banner to generated AST module via `asdlgen`.  
-17. EnumDef annotation attachment in `_add_annotations`.  
+15. Annotate builder entry points and public unparser methods with return types. 
+16. Add “DO NOT EDIT” banner to generated AST module via `asdlgen`. 
+17. EnumDef annotation attachment in `_add_annotations`. 
 18. Coerce import version with `int(...)` when literal is integral float.
 
 ---

@@ -102,7 +102,7 @@ class Matrix(Generic[T]):
     def add_row(self, row_data: list[Any], index: int | None = None) -> None:
         """Add row at *index* (or append when *index* is None / past end).
 
-        Empty (0×0) matrices adopt column count from *row_data* so TV form
+        Empty (0×0) matrices adopt column count from *row_data* so reference form
         ``matrix.add_row(m, 0, array.from(...))`` works on ``matrix.new<T>()``.
         """
         row = list(row_data)
@@ -319,7 +319,7 @@ class Matrix(Generic[T]):
     ) -> None:
         """Fill matrix (or a half-open rectangular region) with *value*.
 
-        TV: ``matrix.fill(id, value)`` or
+        Reference Pine: ``matrix.fill(id, value)`` or
         ``matrix.fill(id, value, from_row, to_row, from_column, to_column)``
         with half-open ranges ``[from, to)``.
         """
@@ -421,7 +421,7 @@ class Matrix(Generic[T]):
         return f"matrix({self.rows_count}x{self.cols_count})"
 
 
-    # ========== OFFICIAL TV v6 SURFACE ==========
+    # ========== OFFICIAL reference v6 SURFACE ==========
 
     def row(self, index: int) -> list[Any]:
         """Return a copy of the row (alias of copy_row)."""
@@ -469,7 +469,7 @@ class Matrix(Generic[T]):
             row[col1], row[col2] = row[col2], row[col1]
 
     def reverse(self) -> None:
-        """Reverse element order (TV matrix.reverse): reverse rows then each row."""
+        """Reverse element order (reference matrix.reverse): reverse rows then each row."""
         self.reverse_rows()
         self.reverse_cols()
 
@@ -508,13 +508,13 @@ class Matrix(Generic[T]):
 
     @staticmethod
     def _is_descending(order: Any) -> bool:
-        """True for TV ``order.descending`` (-1), ``\"descending\"``, etc."""
+        """True for reference ``order.descending`` (-1), ``\"descending\"``, etc."""
         if order is None:
             return False
         if isinstance(order, bool):
             return order
         if isinstance(order, (int, float)) and not isinstance(order, bool):
-            # TV: order.ascending = 1, order.descending = -1
+            # Reference Pine: order.ascending = 1, order.descending = -1
             return float(order) < 0
         name = getattr(order, "name", None) or getattr(order, "id", None)
         text = str(name if name is not None else order).lower()
@@ -566,10 +566,10 @@ class Matrix(Generic[T]):
         order: Any = "ascending",
         sort_field: Any = None,
     ) -> None:
-        """Sort rows by values in ``column`` (TV matrix.sort).
+        """Sort rows by values in ``column`` (reference matrix.sort).
 
         Optional *sort_field* (field name or field index) keys UDT cells.
-        ``na`` cells always sort last (TV semantics).
+        ``na`` cells always sort last (reference semantics).
         """
         if self.rows_count == 0:
             return

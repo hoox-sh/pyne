@@ -160,7 +160,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         self._error(f"{message} (got {self._type_name(value)}, expected array)")
 
     def _coerce_optional_list(self, value: Any) -> list[Any] | None:
-        """Like ``_expect_list`` but returns ``None`` for na / non-array (TV soft-na)."""
+        """Like ``_expect_list`` but returns ``None`` for na / non-array (reference soft-na)."""
         if value is None:
             return None
         if isinstance(value, list):
@@ -181,7 +181,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         return None
 
     def _numeric_values(self, sequence: list[Any]) -> list[float]:
-        """Filter out na/None and non-numeric entries (TV skips na in avg/stdev)."""
+        """Filter out na/None and non-numeric entries (reference skips na in avg/stdev)."""
         out: list[float] = []
         for item in sequence:
             if item is None:
@@ -197,7 +197,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         """Coerce an index to int, or ``None`` for na.
 
         When *soft* is False, non-numeric garbage raises via the caller.
-        Returns ``None`` only for genuine na/NaN (TV soft-na paths).
+        Returns ``None`` only for genuine na/NaN (reference soft-na paths).
         """
         if index is None:
             return None
@@ -234,7 +234,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
     def _expect_index(self, index: Any, length: int, message: str) -> int:
         """Coerce float indices (common after ``%`` / division) to int.
 
-        TV v6: negative indices count from the end (``-1`` = last element).
+        reference v6: negative indices count from the end (``-1`` = last element).
         """
         try:
             coerced = self._coerce_index(index, soft=False)
@@ -251,7 +251,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         return coerced
 
     def _array_index_soft(self, raw_index: Any, message: str) -> int | None:
-        """Coerce array index for get/set with TV-like soft-na.
+        """Coerce array index for get/set with reference-like soft-na.
 
         * ``na`` / NaN / unresolved import stubs → ``None`` (get returns na,
           set no-ops) — corpus residual resilience when library index helpers
@@ -280,7 +280,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         length: int,
         message: str,
     ) -> int | None:
-        """Soft-coerce index with TV v6 negative-from-end; OOB → ``None``.
+        """Soft-coerce index with reference v6 negative-from-end; OOB → ``None``.
 
         Used by ``array.get`` / soft paths. Hard-fail ops use ``_expect_index``.
         """
@@ -294,11 +294,11 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         return idx
 
     def _builtin_array_size(self, args: list[Any]) -> int | None:
-        """``array.size(id)`` — size of array; ``na`` id → ``na`` (TV)."""
+        """``array.size(id)`` — size of array; ``na`` id → ``na`` (reference)."""
         if len(args) != UNARY:
             self._error("array.size takes an array argument")
         value = args[0]
-        # TV: array.size(na) → na
+        # Reference Pine: array.size(na) → na
         if value is None:
             return None
         sequence = self._coerce_optional_list(value)
@@ -308,7 +308,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         return len(sequence)
 
     def _builtin_array_get(self, args: list[Any]) -> Any:
-        """``array.get(id, index)`` — TV v6 negative index from end; OOB/na → na."""
+        """``array.get(id, index)`` — reference v6 negative index from end; OOB/na → na."""
         if len(args) != BINARY:
             self._error("array.get takes array and index")
         sequence = self._coerce_optional_list(args[0])
@@ -328,8 +328,8 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         """``array.push(id, value)`` — append value; soft-na / incomplete call resilience.
 
         Corpus residuals (set05):
-        - Zero-arg ``array.push()`` left by truncated TV docs demos → no-op.
-        - ``array.push(id=na, value=…)`` / na receiver → no-op (TV soft-na).
+        - Zero-arg ``array.push()`` left by truncated reference docs demos → no-op.
+        - ``array.push(id=na, value=…)`` / na receiver → no-op (reference soft-na).
         - Kwargs ``id=`` / ``value=`` via ``_KWARG_ORDER`` (including ``value=na``).
         """
         # Truncated docs / incomplete calls (arity 0 or lone value) → no-op
@@ -367,7 +367,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
     def _builtin_array_slice(self, args: list[Any]) -> list[Any]:
         """``array.slice(id, index_from, index_to)`` — half-open ``[from, to)``.
 
-        TV: na bounds → empty result rather than a hard runtime error when
+        Reference Pine: na bounds → empty result rather than a hard runtime error when
         intermediate length math produces na (common in NN weight slicing).
         """
         if len(args) != TERNARY:
@@ -385,7 +385,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             self._error("array.slice takes array, start, end")
         if start is None or end is None:
             return []
-        # Clamp like Python slice semantics (TV returns empty if out of range)
+        # Clamp like Python slice semantics (reference returns empty if out of range)
         if start < 0:
             start = 0
         if end < start:
@@ -432,7 +432,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         sequence = self._coerce_optional_list(args[0])
         if sequence is None:
             return None
-        # Empty / all-na → na (TradingView skips na values)
+        # Empty / all-na → na (reference Pine skips na values)
         nums = self._numeric_values(sequence)
         if not nums:
             return None
@@ -468,7 +468,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
     def _builtin_array_covariance(self, args: list[Any]) -> float | None:
         """``array.covariance(id1, id2, biased=true)`` — covariance of two arrays.
 
-        TradingView signature is two equal-length arrays plus optional ``biased``
+        reference Pine signature is two equal-length arrays plus optional ``biased``
         (default true = population / n; false = sample / n-1). Older internal
         ternary form ``(series1, series2, length)`` is still accepted when the
         third argument is an int length (not a bool).
@@ -480,7 +480,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         if series1 is None or series2 is None:
             return None
 
-        # Detect legacy (s1, s2, length) vs TV (id1, id2, biased)
+        # Detect legacy (s1, s2, length) vs reference (id1, id2, biased)
         biased = True
         length: int | None = None
         if len(args) == TERNARY:
@@ -532,7 +532,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
     def _builtin_array_fill(self, args: list[Any]) -> list[Any]:
         """``array.fill(id, value)`` or ``array.fill(id, value, index_from, index_to)``.
 
-        Range form fills half-open ``[index_from, index_to)`` (TradingView).
+        Range form fills half-open ``[index_from, index_to)`` (reference Pine).
         Missing / na bounds fill the whole array; OOB bounds are clamped.
         """
         if len(args) not in {BINARY, TERNARY + 1}:
@@ -623,7 +623,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
     def _builtin_array_insert(self, args: list[Any]) -> list[Any] | None:
         """``array.insert(id, index, value)`` — insert at index (append if index ≥ size).
 
-        TV v6: negative *index* counts from the end. ``na`` id → no-op.
+        reference v6: negative *index* counts from the end. ``na`` id → no-op.
         """
         if len(args) != TERNARY:
             self._error("array.insert takes array, index, and value")
@@ -703,7 +703,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
     def _array_nth_extreme(self, args: list[Any], *, op: str) -> Any:
         """``array.min/max(id)`` or ``array.min/max(id, nth)`` (0-based nth).
 
-        TV: optional *nth* selects the nth smallest (min) or largest (max).
+        Reference Pine: optional *nth* selects the nth smallest (min) or largest (max).
         ``na`` id / empty / all-na → ``na`` (soft; pairs with standardize na).
         """
         if len(args) not in {UNARY, BINARY}:
@@ -751,7 +751,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
     def _builtin_array_range(self, args: list[Any]) -> float | None:
         """``array.range(id)`` — difference between max and min of array values.
 
-        TradingView statistical helper (not Python ``range``). Empty / all-na → na.
+        reference Pine statistical helper (not Python ``range``). Empty / all-na → na.
         """
         if len(args) != UNARY:
             self._error("array.range takes an array argument")
@@ -764,7 +764,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         return max(nums) - min(nums)
 
     def _builtin_array_remove(self, args: list[Any]) -> Any:
-        """``array.remove(id, index)`` — TV v6 negative index from end.
+        """``array.remove(id, index)`` — reference v6 negative index from end.
 
         ``na`` id → ``na``; invalid index still hard-errors (library guards).
         """
@@ -791,7 +791,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         return sequence
 
     def _builtin_array_set(self, args: list[Any]) -> list[Any] | None:
-        """``array.set(id, index, value)`` — TV v6 negative index from end.
+        """``array.set(id, index, value)`` — reference v6 negative index from end.
 
         * ``na`` id / index → no-op
         * Negative in-range → set from end (``-1`` = last)
@@ -805,7 +805,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         # Grow empty / undersized arrays when size was lost (e.g. non-int size
         # to array.new_*). Pine arrays are fixed-size; expanding to index is a
         # pragmatic recovery used by ring-buffer UDFs.
-        # na / NaN / stub index → no-op (TV soft-na + corpus residual resilience)
+        # na / NaN / stub index → no-op (reference soft-na + corpus residual resilience)
         idx_guess = self._array_index_soft(
             args[1],
             "array.set takes array, index, and value",
@@ -878,7 +878,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         if isinstance(order_arg, bool):
             return order_arg
         if isinstance(order_arg, (int, float)) and not isinstance(order_arg, bool):
-            # TV: order.ascending = 1, order.descending = -1 (historically)
+            # Reference Pine: order.ascending = 1, order.descending = -1 (historically)
             return float(order_arg) < 0
         name = getattr(order_arg, "name", None) or getattr(order_arg, "id", None)
         text = str(name if name is not None else order_arg).lower()
@@ -887,7 +887,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
     def _parse_sort_args(self, args: list[Any]) -> tuple[bool, Any]:
         """Return ``(reverse, sort_field)`` from array.sort / sort_indices args.
 
-        TV forms:
+        reference forms:
         - ``array.sort(id)``
         - ``array.sort(id, order)``
         - ``array.sort(id, order, sort_field)``
@@ -955,7 +955,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         reverse: bool = False,
         sort_field: Any = None,
     ) -> list[Any]:
-        """Sort like TradingView: comparable values first, ``na`` always at the end.
+        """Sort like reference Pine: comparable values first, ``na`` always at the end.
 
         Avoids ``TypeError: '<' not supported between instances of 'NoneType' and ...``.
         When *sort_field* is set, keys UDT elements by that field name/index.
@@ -994,7 +994,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         if sequence is None:
             return None
         reverse, sort_field = self._parse_sort_args(args)
-        # In-place, TV semantics: na always last; optional UDT sort_field
+        # In-place, reference semantics: na always last; optional UDT sort_field
         sequence[:] = self._sort_with_na_last(sequence, reverse=reverse, sort_field=sort_field)
         return sequence
 
@@ -1076,7 +1076,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         )
         value = args[1]
 
-        # Binary search assumes a sorted array without na (TV). Soft-fail na.
+        # Binary search assumes a sorted array without na (reference). Soft-fail na.
         if value is None or any(x is None for x in sequence):
             try:
                 return sequence.index(value)
@@ -1263,7 +1263,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
     def _builtin_array_stdev(self, args: list[Any]) -> float | None:
         """array.stdev(id) | array.stdev(id, biased) → float.
 
-        TV ``biased``: true → population (n); false → sample (n-1). Default true.
+        reference ``biased``: true → population (n); false → sample (n-1). Default true.
         ``na`` id → ``na``.
         """
         if len(args) not in {UNARY, BINARY}:

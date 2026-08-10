@@ -1,8 +1,8 @@
 # AGENT 05 — Backend API, Runtime Host, Auth & Services
 
-**Date:** 2026-08-10  
-**Scope:** `backend/app.py`, `runtime.py`, `evaluator.py`, `series.py`, `alert_forwarder.py`, `backend/api/*`, `backend/middleware/*`, `backend/services/*`, `backend/requirements.txt`  
-**Method:** Security-first deep read + targeted greps (`eval`/`exec`/`shell`/`pickle`/CORS/secrets/TODO). Read-only; no code changes.  
+**Date:** 2026-08-10 
+**Scope:** `backend/app.py`, `runtime.py`, `evaluator.py`, `series.py`, `alert_forwarder.py`, `backend/api/*`, `backend/middleware/*`, `backend/services/*`, `backend/requirements.txt` 
+**Method:** Security-first deep read + targeted greps (`eval`/`exec`/`shell`/`pickle`/CORS/secrets/TODO). Read-only; no code changes. 
 **Stack note:** Pro API is **Flask** (sync), not FastAPI — modernization notes reflect that reality.
 
 ---
@@ -21,39 +21,39 @@ Overall backend quality is good for a product demo/API host, but **production ex
 
 ### C1 — Unauthenticated compute DoS (free `/run`, batch, prewarm, WebSocket)
 
-**Severity:** Critical (availability)  
+**Severity:** Critical (availability) 
 **Evidence:**
 
 ```486:500:backend/app.py
 @app.route("/run", methods=["POST"])
 def run_pine_script():
-    """Execute Pine Script with provided data. Free tier endpoint.
-    ...
-    """
-    payload: dict[str, Any] = dict(request.get_json(silent=True) or {})
-    ...
-    body, status = execute_run_payload(payload)
+ """Execute Pine Script with provided data. Free tier endpoint.
+ ...
+ """
+ payload: dict[str, Any] = dict(request.get_json(silent=True) or {})
+ ...
+ body, status = execute_run_payload(payload)
 ```
 
 ```651:695:backend/app.py
 @app.route("/run/batch", methods=["POST"])
 def run_pine_script_batch():
-    ...
-    # max 8 scripts — no bar-count or script-size limits beyond MAX_CONTENT_LENGTH
+ ...
+ # max 8 scripts — no bar-count or script-size limits beyond MAX_CONTENT_LENGTH
 ```
 
 ```503:553:backend/app.py
 @app.route("/compile/prewarm", methods=["POST"])
 def compile_prewarm():
-    ...
-    for item in scripts_raw[:16]:  # hard cap on script count only
+ ...
+ for item in scripts_raw[:16]: # hard cap on script count only
 ```
 
 ```556:648:backend/app.py
 @sock.route("/ws/run")
 def ws_run(ws):
-    ...
-    body, _status = execute_run_payload(payload)
+ ...
+ body, _status = execute_run_payload(payload)
 ```
 
 **Why:** `MAX_CONTENT_LENGTH = 5 * 1024 * 1024` (`app.py:64–67`) stops multi-GB bodies but **not** pathological work: dense OHLCV near 5 MB, `mode=compile` Numba cold start, multi-script batch (×8), concurrent WebSocket runs, or prewarm with 16 sources. Sync Flask workers block end-to-end; one client can pin all gunicorn workers. No request timeout, no max bars, no queue, no IP throttle.
@@ -71,30 +71,30 @@ def ws_run(ws):
 
 ### C2 — SSRF via client-controlled `webhook_url` on free `/run`
 
-**Severity:** Critical (SSRF / internal network pivot)  
+**Severity:** Critical (SSRF / internal network pivot) 
 **Evidence:**
 
 ```390:401:backend/app.py
-        wh = validated.get("webhook_url") or ""
-        alert_fwd = maybe_forward_run_alerts(
-            alerts=resp.get("alerts"),
-            ohlcv=ohlcv if isinstance(ohlcv, list) else None,
-            webhook_url=wh if isinstance(wh, str) else None,
-            enable_forward=bool(validated.get("forward_alerts", True)),
+ wh = validated.get("webhook_url") or ""
+ alert_fwd = maybe_forward_run_alerts(
+ alerts=resp.get("alerts"),
+ ohlcv=ohlcv if isinstance(ohlcv, list) else None,
+ webhook_url=wh if isinstance(wh, str) else None,
+ enable_forward=bool(validated.get("forward_alerts", True)),
 ```
 
 ```58:68:backend/alert_forwarder.py
 def normalize_webhook_url(url: Any) -> str | None:
-    ...
-    if parsed.scheme not in ("http", "https") or not parsed.netloc:
-        return None
-    return s
+ ...
+ if parsed.scheme not in ("http", "https") or not parsed.netloc:
+ return None
+ return s
 ```
 
 ```134:149:backend/alert_forwarder.py
 def http_post_json(url: str, body: dict[str, Any], *, timeout: float = 10.0) -> int:
-    ...
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+ ...
+ with urllib.request.urlopen(req, timeout=timeout) as resp:
 ```
 
 **Why:** Any unauthenticated caller can force the API process to HTTP(S) POST to **arbitrary** hosts, including:
@@ -133,23 +133,23 @@ Scheme check only; **no blocklist, no DNS rebinding guard, no allowlist**. Respo
 
 ```108:114:backend/middleware/auth.py
 _TIER_LIMITS = {
-    "free": 0,
-    "hobby": 5_000,
-    ...
+ "free": 0,
+ "hobby": 5_000,
+ ...
 }
 ```
 
 ```72:80:backend/middleware/auth.py
-    def calls_remaining(self) -> int | float:
-        if self.calls_limit == 0 or self.calls_limit == float("inf"):
-            return float("inf")
+ def calls_remaining(self) -> int | float:
+ if self.calls_limit == 0 or self.calls_limit == float("inf"):
+ return float("inf")
 ```
 
 ```99:105:backend/middleware/auth.py
-    def increment_calls(self, count: int = 1) -> None:
-        self.calls_used += count
-        ...
-        store.persist_usage(self)
+ def increment_calls(self, count: int = 1) -> None:
+ self.calls_used += count
+ ...
+ store.persist_usage(self)
 ```
 
 SQLite/Redis `update_calls` is absolute SET of `calls_used`, not `HINCRBY` / atomic increment (`key_store_sqlite.py:147–153`, `key_store_redis.py:113–126`). Multi-worker race undercounts usage → **quota bypass**.
@@ -204,17 +204,17 @@ SQLite/Redis `update_calls` is absolute SET of `calls_used`, not `HINCRBY` / ato
 
 ```108:114:backend/app.py
 _FREE_CORS_PATH_PREFIXES = (
-    "/",
-    "/run",
-    "/compile",
-    "/lsp/",
-    "/ws/",
+ "/",
+ "/run",
+ "/compile",
+ "/lsp/",
+ "/ws/",
 )
 ```
 
 ```160:168:backend/app.py
-    if _path_is_free_cors(path) or _origin_allowed(origin):
-        resp.headers["Access-Control-Allow-Origin"] = origin
+ if _path_is_free_cors(path) or _origin_allowed(origin):
+ resp.headers["Access-Control-Allow-Origin"] = origin
 ```
 
 **Impact:** Any website can call free endpoints from a victim’s browser (CSRF-style resource burn / webhook SSRF via browser). Intentional for AXIS VPS UX, dangerous if public internet-facing.
@@ -240,13 +240,13 @@ _FREE_CORS_PATH_PREFIXES = (
 **Evidence:**
 
 ```134:165:backend/services/backtest.py
-    try:
-        tree = parse(script, mode="exec")
-        _ = tree
-    except Exception:
-        pass
-    ...
-    # Hardcoded MA cross + pseudo-RSI signals — not evaluator/strategy engine
+ try:
+ tree = parse(script, mode="exec")
+ _ = tree
+ except Exception:
+ pass
+ ...
+ # Hardcoded MA cross + pseudo-RSI signals — not evaluator/strategy engine
 ```
 
 Docstring claims “full Pine Script evaluator would be used” in production (`backtest.py:112–113`) but API still sells “quick backtest” (`preview.py:277–307`).

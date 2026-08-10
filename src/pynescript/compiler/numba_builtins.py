@@ -161,7 +161,7 @@ def numba_rma(arr, period, i):
 def numba_rsi(arr, period, i):
     """Wilder RSI: SMA seed of first ``period`` deltas, then RMA of gain/loss.
 
-    Matches interpret ``_rsi`` / ``_rsi_inc_update`` and TradingView ``ta.rsi``.
+    Matches interpret ``_rsi`` / ``_rsi_inc_update`` and reference Pine ``ta.rsi``.
     First valid bar is ``i == period`` (``period`` deltas need ``period+1`` prices).
     """
     period = int(period)
@@ -254,7 +254,7 @@ def numba_stdev(arr, period, i):
 
 @numba.njit(cache=True)
 def numba_atr(high, low, close, period, i):
-    """ATR = Wilder RMA of true range (TV ``ta.rma(ta.tr, length)``).
+    """ATR = Wilder RMA of true range (reference ``ta.rma(ta.tr, length)``).
 
     Dual-host aligned with interpret ``_atr`` / ``_atr_inc_update`` (Wave B).
     First valid bar requires ``period`` TR samples → ``i >= period``.
@@ -423,7 +423,7 @@ def numba_safe_mod(a, b):
 def numba_accdist_inc(high, low, close, vol, i, st):
     """Cumulative Chaikin Accumulation/Distribution. ``st``: [sum, last_i].
 
-    Matches interpret ``_accdist`` / TV ``ta.accdist``: CLV * volume accumulated.
+    Matches interpret ``_accdist`` / reference ``ta.accdist``: CLV * volume accumulated.
     """
     if i < 0:
         return np.nan
@@ -894,7 +894,7 @@ def numba_mfi(high, low, close, vol, length, i):
             pos += mf
         elif tp < tp_prev:
             neg += mf
-        # tp == tp_prev -> neither (TV convention)
+        # tp == tp_prev -> neither (reference convention)
     if neg == 0.0:
         if pos == 0.0:
             return 50.0
@@ -967,7 +967,7 @@ def numba_falling(arr, length, i):
 
 @numba.njit(cache=True)
 def numba_highestbars(arr, length, i):
-    """Offset to highest value in window (TradingView / interpret parity).
+    """Offset to highest value in window (reference Pine / interpret parity).
 
     Returns ``0`` if the current bar is highest, ``-1`` if one bar ago, …,
     down to ``-(length-1)``.  Short history (``i+1 < length``), invalid
@@ -999,7 +999,7 @@ def numba_highestbars(arr, length, i):
 
 @numba.njit(cache=True)
 def numba_lowestbars(arr, length, i):
-    """Offset to lowest value in window (TradingView / interpret parity).
+    """Offset to lowest value in window (reference Pine / interpret parity).
 
     Same contract as :func:`numba_highestbars`: negative bars-back offset,
     ``-1.0`` when short / invalid / all-NaN; oldest extreme on ties.
@@ -1187,7 +1187,7 @@ def numba_alma(arr, length, offset, sigma, i):
     """Arnaud Legoux Moving Average over last ``length`` bars ending at ``i``.
 
     Weights: Gaussian centered at ``m = offset * (length - 1)`` with
-    ``s = length / sigma`` (TV defaults offset=0.85, sigma=6).
+    ``s = length / sigma`` (reference defaults offset=0.85, sigma=6).
     Index 0 in the weight loop is the oldest bar in the window.
     """
     length = int(length)
@@ -1403,7 +1403,7 @@ def numba_hma_inc(arr, length, i, st, raw):
 def numba_tsi(arr, short_len, long_len, i):
     """True Strength Index: double-smoothed momentum / double-smoothed |mom|.
 
-    TV: ``ta.tsi(source, short_length, long_length)`` —
+    Reference Pine: ``ta.tsi(source, short_length, long_length)`` —
     ``100 * EMA(EMA(mom, long), short) / EMA(EMA(|mom|, long), short)``.
     EMAs use SMA seed (same as ``numba_ema``).
     """
@@ -1933,7 +1933,7 @@ def array_fill(arr, value, index_from=None, index_to=None):
 def array_mode(arr):
     """Pine ``array.mode(id)`` — most frequent value; na if empty or all unique.
 
-    Matches TV-ish behaviour used by corpus tests (mode of multimodal → first
+    Matches reference-ish behaviour used by corpus tests (mode of multimodal → first
     max-frequency element; all-distinct → na).
     """
     if arr is None:
@@ -1949,7 +1949,7 @@ def array_mode(arr):
     counts = Counter(seq)
     best_n = max(counts.values())
     if best_n <= 1 and len(counts) == len(seq):
-        # All values unique → na (TV returns na when no mode)
+        # All values unique → na (reference returns na when no mode)
         return np.nan
     # First element among those with max frequency (stable)
     for v in seq:
@@ -2586,7 +2586,7 @@ def numba_vwap_anchor_inc(src, vol, anchor, i, st):
     """Incremental VWAP with anchor reset. ``st``: [cum_pv, cum_v, last_i].
 
     When ``anchor[j]`` is non-zero / true, the cumulative window restarts at
-    bar ``j`` (includes bar ``j`` in the new window) — TV ``ta.vwap(src, anchor)``.
+    bar ``j`` (includes bar ``j`` in the new window) — reference ``ta.vwap(src, anchor)``.
     """
     if i < 0:
         return np.nan
@@ -4164,7 +4164,7 @@ def numba_running_min_inc(arr, i, st):
 
 @numba.njit(cache=True)
 def numba_swma(arr, i):
-    """Symmetric 4-period WMA: weights 1, 2, 2, 1 over 6 (TV ``ta.swma``).
+    """Symmetric 4-period WMA: weights 1, 2, 2, 1 over 6 (reference ``ta.swma``).
 
     O(1) per bar — no sliding state required. Needs ``i >= 3``.
     """
@@ -4886,7 +4886,7 @@ def numba_dmi_inc(high, low, close, di_len, adx_smooth, i, st):
 
 @numba.njit(cache=True)
 def numba_supertrend(high, low, close, factor, atr_period, i):
-    """Simplified Supertrend matching interpret BasicIndicators (not TV ratchet).
+    """Simplified Supertrend matching interpret BasicIndicators (not reference ratchet).
 
     Returns ``(supertrend, direction)`` with direction -1 (up) / +1 (down).
     ATR via ``numba_atr``; nan ATR treated as 0.0.
@@ -5011,7 +5011,7 @@ def numba_median(arr, length, i):
 
 @numba.njit(cache=True)
 def numba_wpr(high, low, close, period, i):
-    """Williams %R at bar ``i`` (TV ``ta.wpr``).
+    """Williams %R at bar ``i`` (reference ``ta.wpr``).
 
     Matches interpret ``_wpr``: warm-up / non-positive period → 0.0;
     flat high/low range → 0.0; else ``-100 * (HH - close) / (HH - LL)``.
@@ -5106,7 +5106,7 @@ def array_range(arr):
 
 
 # ---------------------------------------------------------------------------
-# Calendar / timestamp (njit-safe; matches util.time_parts + TV overflow style)
+# Calendar / timestamp (njit-safe; matches util.time_parts + reference overflow style)
 # ---------------------------------------------------------------------------
 
 
@@ -5126,7 +5126,7 @@ def numba_days_from_civil(y, m, d):
 def numba_timestamp(y, m, d, h=0.0, mi=0.0, s=0.0):
     """Unix epoch ms from calendar components with month/day overflow.
 
-    Matches TradingView ``timestamp(year, month, day, hour, minute, second)``
+    Matches reference Pine ``timestamp(year, month, day, hour, minute, second)``
     enough for TTM windows (``dayofmonth + 27``, ``month=0``, …). Timezone is UTC.
     """
     yi = int(y) if y == y else 1970  # NaN → epoch

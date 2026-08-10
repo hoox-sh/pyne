@@ -119,7 +119,7 @@ _HOST_ATTR_ALIASES: dict[str, str] = {
     "is_line_break": "is_linebreak",
     "is_pointfigure": "is_point_figure",
     "is_point_figure": "is_pointfigure",
-    # TV ``chart.is_pnf`` (point-and-figure) → host ``is_point_figure``
+    # reference ``chart.is_pnf`` (point-and-figure) → host ``is_point_figure``
     "is_pnf": "is_point_figure",
 }
 

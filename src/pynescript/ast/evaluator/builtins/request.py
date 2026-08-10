@@ -550,7 +550,7 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
     def _heikinashi_current_ohlc(self) -> tuple[float, float, float, float] | None:
         """Incremental Heikin-Ashi OHLC for the host chart (one update per bar).
 
-        Standard TV formulas:
+        Standard reference formulas:
         - ``ha_close = (o + h + l + c) / 4``
         - ``ha_open = (prev_ha_open + prev_ha_close) / 2`` (first bar: ``(o+c)/2``)
         - ``ha_high = max(h, ha_open, ha_close)``
@@ -835,7 +835,7 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         intrabar_prices = [100.0 + i * 0.25 for i in range(10)]
         if isinstance(expression, str):
             return self._get_expression_prices(str(expression), intrabar_prices)
-        # TV: expression may be a tuple/list of series → return a tuple of arrays
+        # Reference Pine: expression may be a tuple/list of series → return a tuple of arrays
         # so destructure like ``[o,h,l,c] = request.security_lower_tf(..., [open,high,low,close])`` works.
         if isinstance(expression, (list, tuple)) and expression:
             n = len(expression)

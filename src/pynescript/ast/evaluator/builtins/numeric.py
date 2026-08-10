@@ -293,7 +293,7 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
         return 0
 
     def _builtin_math_sum(self, args: list[Any]) -> Any:
-        """Sum of array, or rolling sum ``math.sum(source, length)`` (TV)."""
+        """Sum of array, or rolling sum ``math.sum(source, length)`` (reference)."""
         if len(args) == BINARY:
             # Rolling sum over last `length` values of a series
             length = args[1]
@@ -342,7 +342,7 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
             return None
 
     def _builtin_math_avg(self, args: list[Any]) -> Any:
-        """Average of array, or of multiple scalar/series args (TV ``math.avg(a,b,...)``)."""
+        """Average of array, or of multiple scalar/series args (reference ``math.avg(a,b,...)``)."""
         if not args:
             self._error("math.avg takes a non-empty array or multiple values")
         # Single list argument
@@ -352,7 +352,7 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
                 self._error("math.avg takes a non-empty array")
             return statistics.mean(float(v) for v in series)
         # Multiple values (scalars or series current).
-        # TV: if any argument is ``na``, the result is ``na`` (do not skip).
+        # Reference Pine: if any argument is ``na``, the result is ``na`` (do not skip).
         values: list[float] = []
         for a in args:
             if hasattr(a, "current"):
@@ -386,7 +386,7 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
 
         Forms:
         - ``math.random()`` → [0, 1)
-        - ``math.random(min, max)`` → [min, max] (TV docs; both inclusive floats)
+        - ``math.random(min, max)`` → [min, max] (reference docs; both inclusive floats)
         """
         if not args:
             return random.random()
@@ -472,7 +472,7 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
     def _builtin_int(self, args: list[Any]) -> int | None:
         """Convert value to integer. ``int(na)`` / non-numeric → na (None).
 
-        TradingView soft-fails non-numeric strings (enum labels, unresolved
+        reference Pine soft-fails non-numeric strings (enum labels, unresolved
         name leaks such as ``\"pyramid_val\"``) to ``na`` rather than aborting
         the bar. Numeric strings accept a float step so ``int(\"2.01\")`` → 2.
         """

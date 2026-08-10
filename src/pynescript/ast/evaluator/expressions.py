@@ -153,7 +153,7 @@ def _as_scalar_operand(value):
 
 
 def _pine_soft_str(value: Any) -> str:
-    """Stringify a non-str operand for soft ``+`` concat (corpus / TV demos).
+    """Stringify a non-str operand for soft ``+`` concat (corpus / reference demos).
 
     Pine-like rules for the soft path (not full ``str.tostring``):
 

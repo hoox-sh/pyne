@@ -19,7 +19,7 @@
 
 """Pine drawing builtins: ``line``, ``box``, ``label``, ``table``, ``polyline``.
 
-Provides object types, a process-wide :class:`DrawingRegistry` with TradingView-
+Provides object types, a process-wide :class:`DrawingRegistry` with reference Pine-
 style garbage-collection caps (``max_lines_count``, …), and
 :class:`DrawingBuiltinsMixin` handlers for ``*.new`` / ``*.set_*`` / ``*.get_*``
 and related APIs. Export helpers produce JSON-safe payloads for host UIs.
@@ -105,7 +105,7 @@ def _export_extend(e: Any) -> str:
     return "none"
 
 
-# Pine / TradingView defaults and hard caps for drawing garbage collection.
+# Pine / reference Pine defaults and hard caps for drawing garbage collection.
 # indicator()/strategy() kwargs: max_lines_count, max_labels_count,
 # max_boxes_count, max_polylines_count (defaults 50; lines/labels/boxes ≤500,
 # polylines ≤100).
@@ -136,7 +136,7 @@ def _clamp_drawing_limit(
 class DrawingRegistry:
     """Global registry for drawing objects.
 
-    Enforces TradingView-style **garbage collection**: when more drawings of a
+    Enforces reference Pine-style **garbage collection**: when more drawings of a
     type exist than the declaration cap (``max_lines_count``, …), the oldest
     active objects are marked ``deleted=True`` so they leave ``*.all`` and
     :meth:`export_for_api`.
@@ -149,7 +149,7 @@ class DrawingRegistry:
     polylines: ClassVar[list[Polyline]] = []
     linefills: ClassVar[list[LineFill]] = []
 
-    # Active caps (reset to TV defaults on each run)
+    # Active caps (reset to reference defaults on each run)
     max_lines_count: ClassVar[int] = _DEFAULT_DRAWING_LIMIT
     max_labels_count: ClassVar[int] = _DEFAULT_DRAWING_LIMIT
     max_boxes_count: ClassVar[int] = _DEFAULT_DRAWING_LIMIT
@@ -291,7 +291,7 @@ class DrawingRegistry:
 
     @classmethod
     def add_table(cls, table: Table) -> Table:
-        """Tables are not GC-capped by max_*_count (TV uses a separate limit)."""
+        """Tables are not GC-capped by max_*_count (reference uses a separate limit)."""
         cls.tables.append(table)
         return table
 
@@ -715,7 +715,7 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
     def _drawing_builtin_map(self) -> dict[str, BuiltinHandler]:
         return {
             # Line functions
-            # Bare type cast: line(na) / line(id) — identity cast used in TV scripts
+            # Bare type cast: line(na) / line(id) — identity cast used in reference scripts
             "line": self._handle_type_cast,
             "box": self._handle_type_cast,
             "label": self._handle_type_cast,
@@ -1513,12 +1513,12 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
     def _handle_table_cell(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> TableCell:
         """table.cell(table_id, column, row, text, ...).
 
-        TradingView order is **column then row** (not row, column).
+        reference Pine order is **column then row** (not row, column).
         Optional text and style kwargs update the cell in place.
         """
         kw = kwargs or {}
         table = kw.get("table_id", kw.get("table", args[0] if len(args) > 0 else None))
-        # TV: column, row — also accept swapped if named
+        # Reference Pine: column, row — also accept swapped if named
         column = kw.get("column", args[1] if len(args) > 1 else 0)
         row = kw.get("row", args[2] if len(args) > 2 else 0)
         text = kw.get("text", args[3] if len(args) > 3 else None)
@@ -1837,12 +1837,12 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         )
         return DrawingRegistry.add_polyline(clone)
 
-    # ========== MISSING TV SURFACE HANDLERS ==========
+    # ========== MISSING reference SURFACE HANDLERS ==========
 
     def _handle_line_get_price(self, args: list[Any]) -> float | None:
         """line.get_price(id, x) — interpolate Y at X between endpoints.
 
-        TV soft-na: ``na`` line, ``na`` sample *x*, or any na endpoint → ``na``.
+        reference soft-na: ``na`` line, ``na`` sample *x*, or any na endpoint → ``na``.
         PineSeries / series-wrapper endpoints are coerced to their current
         scalar (bar-mode ``high`` / ``hlc3`` often land unwrapped only later).
         """

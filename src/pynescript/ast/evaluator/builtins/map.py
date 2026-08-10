@@ -40,7 +40,7 @@ V = TypeVar("V")
 class Map(Generic[K, V]):
     """Mutable ordered-preserving key–value map for Pine ``map.*`` operations.
 
-    Backed by a Python ``dict``. Methods mirror TradingView map semantics
+    Backed by a Python ``dict``. Methods mirror reference Pine map semantics
     (``get``/``put``/``remove``/``keys``/``values``/…). Evaluator dispatch is
     in :class:`~pynescript.ast.evaluator.builtins.map_evaluator.MapBuiltinsMixin`.
     """

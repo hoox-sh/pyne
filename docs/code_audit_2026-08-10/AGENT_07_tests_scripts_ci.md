@@ -1,8 +1,8 @@
 # AGENT 07 — Tests, Scripts, CI/CD, Packaging, pine-worker
 
-**Date:** 2026-08-10  
-**Scope:** `tests/`, `scripts/`, packaging/CI configs, `pine-worker/`, `examples/`  
-**Mode:** Read-only audit (no product code changes)  
+**Date:** 2026-08-10 
+**Scope:** `tests/`, `scripts/`, packaging/CI configs, `pine-worker/`, `examples/` 
+**Mode:** Read-only audit (no product code changes) 
 **Auditor role:** Senior code audit of confidence gates (do tests prove correctness or only smoke?)
 
 ---
@@ -93,7 +93,7 @@ Fail hard if a listed always-on asset is missing (`pytest.fail`), do not skip.
 
 ```python
 if not path.is_file():
-    return
+ return
 ```
 
 Contrast with proper skips in [`tests/test_corpus_runtime_residuals.py:232-233`](tests/test_corpus_runtime_residuals.py) and [`tests/test_corpus_collections_r8.py:176-177`](tests/test_corpus_collections_r8.py).
@@ -161,11 +161,11 @@ README claims co-located parity with Python oracle ([`pine-worker/README.md:33-4
 
 ```python
 if "error" in result:
-    print(f"SKIP: {sname} ({result['error'][:80]})")
-    continue
+ print(f"SKIP: {sname} ({result['error'][:80]})")
+ continue
 ```
 
-**Impact:** Regenerating after a regression leaves old JSON in place while printing SKIP; reviewers may assume fixtures refreshed. Oracle is **current Python Runtime**, not TradingView — correct for Python↔TS parity, but regenerating after a bug **encodes the bug**.
+**Impact:** Regenerating after a regression leaves old JSON in place while printing SKIP; reviewers may assume fixtures refreshed. Oracle is **current Python Runtime**, not reference Pine — correct for Python↔TS parity, but regenerating after a bug **encodes the bug**.
 
 **Recommendation:** Exit non-zero if any script errors; require explicit `--force` to overwrite; optionally hash bar input into JSON metadata.
 

@@ -80,7 +80,7 @@ def _split_declaration_args(
 ) -> tuple[str, str, dict[str, Any]]:
     """Normalize Pine positional forms.
 
-    Supported shapes (TV-compatible)::
+    Supported shapes (reference-compatible)::
 
         indicator("Title")
         indicator("Title", "Short")
@@ -107,7 +107,7 @@ def _split_declaration_args(
 
 
 def indicator(*args: Any, **kwargs: Any) -> ScriptDeclaration:
-    """Declare an indicator script (accepts multi-positional TV form)."""
+    """Declare an indicator script (accepts multi-positional reference form)."""
     title, description, kw = _split_declaration_args(args, kwargs, "indicator")
     return ScriptDeclaration(
         script_type="indicator",
@@ -127,7 +127,7 @@ def indicator(*args: Any, **kwargs: Any) -> ScriptDeclaration:
 
 
 def strategy(*args: Any, **kwargs: Any) -> ScriptDeclaration:
-    """Declare a strategy script (accepts multi-positional TV form)."""
+    """Declare a strategy script (accepts multi-positional reference form)."""
     title, description, kw = _split_declaration_args(args, kwargs, "strategy")
     return ScriptDeclaration(
         script_type="strategy",

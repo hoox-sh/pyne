@@ -114,7 +114,7 @@ class MovingAverageIndicators(TechnicalHelpers):
     def _builtin_ta_kama(self, args: list[Any]) -> list[float | None] | float | None:
         """Kaufman's Adaptive Moving Average.
 
-        TV / community form: ``ta.kama(source, length, fastLength=2, slowLength=30)``.
+        reference / community form: ``ta.kama(source, length, fastLength=2, slowLength=30)``.
         Accepts 2–4 positional args (fast/slow default to Kaufman's 2/30).
         """
         n = len(args)
@@ -210,7 +210,7 @@ class MovingAverageIndicators(TechnicalHelpers):
     def _builtin_ta_swma(self, args: list[Any]) -> float | None:
         """Symmetric Weighted Moving Average.
 
-        TV: ``ta.swma(source)`` — fixed 4-period symmetric weights.
+        Reference Pine: ``ta.swma(source)`` — fixed 4-period symmetric weights.
         Also accepts optional length for compatibility.
         """
         if len(args) == 1:
@@ -346,7 +346,7 @@ class MovingAverageIndicators(TechnicalHelpers):
         if len(series) < need:
             return None
         # Last ``sqrt_n`` raw-diff samples (oldest → newest), each ending at
-        # successive bars so the outer WMA matches TV/numba readiness.
+        # successive bars so the outer WMA matches reference Pine/numba readiness.
         diffs: list[float] = []
         n = len(series)
         for t in range(sqrt_n - 1, -1, -1):

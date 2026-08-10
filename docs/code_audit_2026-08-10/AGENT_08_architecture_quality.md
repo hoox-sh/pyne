@@ -1,7 +1,7 @@
 # Agent 08 — Cross-cutting Architecture & Quality Bar
 
-**Date:** 2026-08-10  
-**Scope:** Public API, dual host (interpret vs compile), docs honesty, typing, packaging, duplication, corpus/privacy, craftsmanship bar  
+**Date:** 2026-08-10 
+**Scope:** Public API, dual host (interpret vs compile), docs honesty, typing, packaging, duplication, corpus/privacy, craftsmanship bar 
 **Method:** Read-only sampling of entry points, greps for anti-patterns, docs-vs-code comparison. No source changes.
 
 ---
@@ -39,20 +39,20 @@ It does **not** currently clear a “highest professional open-source language-r
 ### Dual-engine (interpret vs compile)
 
 ```
-                    ┌─────────────────────────────┐
-  Pine source  ──►  │  parse (helper, cached AST) │
-                    └─────────────┬───────────────┘
-                                  │
-              ┌───────────────────┴───────────────────┐
-              ▼                                       ▼
-   backend.Runtime (host)                  pynescript.compiler
-   interpret: bar loop +                   transpile → exec(module)
-   NodeLiteralEvaluator /                  Numba nopython OR object mode
-   CustomEvaluator plot capture            strategy_broker / numba_builtins
-              │                                       │
-              └───────────────────┬───────────────────┘
-                                  ▼
-                     JSON-ish result dict (plots, events, errors)
+ ┌─────────────────────────────┐
+ Pine source ──► │ parse (helper, cached AST) │
+ └─────────────┬───────────────┘
+ │
+ ┌───────────────────┴───────────────────┐
+ ▼ ▼
+ backend.Runtime (host) pynescript.compiler
+ interpret: bar loop + transpile → exec(module)
+ NodeLiteralEvaluator / Numba nopython OR object mode
+ CustomEvaluator plot capture strategy_broker / numba_builtins
+ │ │
+ └───────────────────┬───────────────────┘
+ ▼
+ JSON-ish result dict (plots, events, errors)
 ```
 
 **Factoring quality:**
@@ -73,7 +73,7 @@ It does **not** currently clear a “highest professional open-source language-r
 | `vscode-extension/` | Separate | Bundles LSP |
 | `tests/data/set*` | Not package | Local/third-party corpus (~12k scripts) |
 
-This monorepo layout is fine for a product stack; the **problem** is that the semantic “language runtime” (bar loop + series host) is not in the library, so “install hoox-pyne and run Pine like TV” is architecturally incomplete without vendoring `backend` or reimplementing the host.
+This monorepo layout is fine for a product stack; the **problem** is that the semantic “language runtime” (bar loop + series host) is not in the library, so “install hoox-pyne and run Pine like reference” is architecturally incomplete without vendoring `backend` or reimplementing the host.
 
 ### pine-worker / backend / package triangle
 
@@ -170,12 +170,12 @@ Duplication cost: NA/series semantics must stay aligned across **three** impleme
 
 ```
 pynescript
-├── __version__                    # only root export
-├── ast.                           # de-facto stable: parse, unparse, dump, walk, SyntaxError, nodes
-├── compiler.                      # explicit __all__: compile_script, run_script, CompiledScript, errors
-├── langserver.                    # LSP types; requires [lsp]
-├── ext.                           # pygments, jupyter, nautilus
-└── util.                          # data providers, sanitize, time_parts
+├── __version__ # only root export
+├── ast. # de-facto stable: parse, unparse, dump, walk, SyntaxError, nodes
+├── compiler. # explicit __all__: compile_script, run_script, CompiledScript, errors
+├── langserver. # LSP types; requires [lsp]
+├── ext. # pygments, jupyter, nautilus
+└── util. # data providers, sanitize, time_parts
 ```
 
 **Strengths:**
@@ -270,18 +270,18 @@ A highest-professional open-source language runtime typically exhibits:
 
 ### P0 — Correctness & honesty (do first)
 
-1. **Move or re-export a single package-level Runtime**  
-   - Target: `pynescript.runtime` (or `pynescript.host`) owns bar loop + series + error_payload.  
-   - `backend` becomes Flask adapters only; worker vendors package Runtime.  
-   - Close H1 checklist DoD items with goldens (multi-run, inputs, auto caches).
+1. **Move or re-export a single package-level Runtime** 
+ - Target: `pynescript.runtime` (or `pynescript.host`) owns bar loop + series + error_payload. 
+ - `backend` becomes Flask adapters only; worker vendors package Runtime. 
+ - Close H1 checklist DoD items with goldens (multi-run, inputs, auto caches).
 
-2. **Reconcile corpus policy with the tree**  
-   - Either: gitignore + document local-only collection (and ensure not in sdist), **or** ship a **small** first-party fixture set with clear licenses and provenance.  
-   - Align README, AGENTS.md, `tests/data/README.md`.  
-   - Scan set* for license headers / non-OSS; do not redistribute ambiguous TV community scrapes.
+2. **Reconcile corpus policy with the tree** 
+ - Either: gitignore + document local-only collection (and ensure not in sdist), **or** ship a **small** first-party fixture set with clear licenses and provenance. 
+ - Align README, AGENTS.md, `tests/data/README.md`. 
+ - Scan set* for license headers / non-OSS; do not redistribute ambiguous community scrapes.
 
-3. **Fix stale architecture statements**  
-   - DESIGN.md evaluator section; rating.md plotting claims; dual-version langserver constant; any “100% compatibility” superlatives in COMPATIBILITY.md intro.
+3. **Fix stale architecture statements** 
+ - DESIGN.md evaluator section; rating.md plotting claims; dual-version langserver constant; any “100% compatibility” superlatives in COMPATIBILITY.md intro.
 
 ### P1 — Architecture & fail-closed
 
@@ -289,9 +289,9 @@ A highest-professional open-source language runtime typically exhibits:
 
 5. **Enumerate soft-fail sites** in one `docs/pyne/runtime/soft-fail-policy.mdx` (request mocks, color serialize, drawing GC, resolve_request_sources) and ban new bare `except Exception` without kind + comment in review.
 
-6. **Sandbox / trust document for Pro API**  
-   - State clearly: interpret is Python-side AST walk (still not TV sandbox); compile is `exec` of generated code — only trusted tenants / resource limits / no filesystem builtins.  
-   - Consider object-mode-only for multi-tenant until resource limits exist.
+6. **Sandbox / trust document for Pro API** 
+ - State clearly: interpret is Python-side AST walk (still not reference Pine sandbox); compile is `exec` of generated code — only trusted tenants / resource limits / no filesystem builtins. 
+ - Consider object-mode-only for multi-tenant until resource limits exist.
 
 7. **AST call-site cache hygiene** (H1 P0) — never bind evaluator instance methods onto shared parse-cache trees without generation keys.
 

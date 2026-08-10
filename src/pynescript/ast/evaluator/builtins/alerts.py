@@ -20,8 +20,7 @@
 """Pine ``alert()`` / ``alertcondition()`` builtins + host alert engine helpers.
 
 Hosts (Pro API, pyne-worker) collect :class:`AlertEvent` records after each run
-and forward them to webhooks / cron consumers. Frequency constants match TV:
-
+and forward them to webhooks / cron consumers. Frequency constants match Reference Pine: 
 - ``alert.freq_once_per_bar`` — first fire per bar only
 - ``alert.freq_once_per_bar_close`` — fire only when ``barstate.isconfirmed``
 - ``alert.freq_all`` — every call
@@ -55,7 +54,7 @@ _FREQ_ALIASES: dict[str, str] = {
 
 
 def normalize_alert_freq(freq: Any) -> str:
-    """Map TV / string freq tokens to a short canonical form."""
+    """Map reference / string freq tokens to a short canonical form."""
     if freq is None:
         return FREQ_ONCE_PER_BAR
     s = str(freq).strip().lower().replace(" ", "_")
@@ -115,7 +114,7 @@ class AlertsMixin(BuiltinDispatchMixin):
         return {
             "alert": self._builtin_alert,
             "alertcondition": self._builtin_alertcondition,
-            # TV frequency constants (also used as bare strings)
+            # reference frequency constants (also used as bare strings)
             "alert.freq_once_per_bar": FREQ_ONCE_PER_BAR,
             "alert.freq_once_per_bar_close": FREQ_ONCE_PER_BAR_CLOSE,
             "alert.freq_all": FREQ_ALL,
@@ -174,7 +173,7 @@ class AlertsMixin(BuiltinDispatchMixin):
         freq: str,
         bar_index: int | None,
     ) -> bool:
-        """Apply TV frequency rules before recording an alert."""
+        """Apply reference frequency rules before recording an alert."""
         freq_n = normalize_alert_freq(freq)
         if freq_n == FREQ_ALL:
             return True

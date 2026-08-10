@@ -7,4 +7,4 @@ interpret↔compile parity smoke. These replace reliance on third-party
 Lives under `tests/fixtures/` (not `tests/data/`) so the root gitignore
 `data/` rule does not exclude them.
 
-Do not put scraped TradingView community scripts here.
+Do not put scraped third-party community scripts here.

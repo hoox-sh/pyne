@@ -92,7 +92,7 @@ def format_log_message(*parts: Any) -> str:
         return str(parts[0] if parts[0] is not None else "na")
     fmt = str(parts[0] if parts[0] is not None else "")
     args = [_pine_log_arg(p) for p in parts[1:]]
-    # TV primary path: str.format placeholders
+    # reference primary path: str.format placeholders
     if "{" in fmt:
         try:
             return fmt.format(*args)

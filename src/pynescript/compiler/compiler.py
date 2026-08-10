@@ -437,7 +437,7 @@ class CompilerVisitor(NodeVisitor):
         self.uses_strategy = False
         self.strategy_kwargs: dict[str, str] = {}
         # Name → const-like Python expr for strategy() ctor kwargs (literals / input defvals).
-        # TV requires const for most strategy() params; pyne compile mirrors that by folding
+        # reference requires const for most strategy() params; pyne compile mirrors that by folding
         # bar-constant series (``lev = input.float(10)`` → ``leverage=10``) into the broker ctor.
         self.const_like_values: dict[str, str] = {}
         self.udt_types: dict[str, list[str]] = {}  # type name -> field names
@@ -866,7 +866,7 @@ class CompilerVisitor(NodeVisitor):
         if self.uses_strategy:
             # Broker ctor kwargs from strategy() declaration when present.
             # Only const-like exprs (literals or folded input/const series) — never
-            # ``name_arr[__bar_idx]`` (undefined at ctor time; not a TV const either).
+            # ``name_arr[__bar_idx]`` (undefined at ctor time; not a reference const either).
             sk = self.strategy_kwargs
             ctor_args = []
             for key in (
@@ -1528,7 +1528,7 @@ class CompilerVisitor(NodeVisitor):
     def _resolve_strategy_ctor_kwarg(self, expr: str) -> str | None:
         """Fold strategy() kwargs to const-like ctor args; drop non-const series refs.
 
-        TV ``strategy()`` declaration params require *const* (not input/simple/series).
+        reference ``strategy()`` declaration params require *const* (not input/simple/series).
         PYNE still allows ``lev = input.float(10)`` then ``strategy(..., leverage=lev)``
         by folding the input's constant defval into the compile broker ctor.
         """
@@ -2735,7 +2735,7 @@ class CompilerVisitor(NodeVisitor):
             st = self._alloc_fixed_state("pvt", 2)
             return f"numba_pvt_inc(close_arr, vol_arr, __bar_idx, {st})"
         if node.id in ("accdist", "ad", "accumulation_distribution"):
-            # Cumulative Chaikin A/D (matches interpret ``_accdist`` / TV ta.accdist).
+            # Cumulative Chaikin A/D (matches interpret ``_accdist`` / reference ta.accdist).
             st = self._alloc_fixed_state("ad", 2)
             return (
                 f"numba_accdist_inc(high_arr, low_arr, close_arr, vol_arr, "
@@ -2978,7 +2978,7 @@ class CompilerVisitor(NodeVisitor):
                     f"and __d.get('kind') == {kind!r}]"
                 )
             # bare style-ish attrs already handled via _STYLE_NS; leave rest
-        # dayofweek.monday … dayofweek.sunday — integer constants (TV: Sunday=1 … Saturday=7)
+        # dayofweek.monday … dayofweek.sunday — integer constants (Reference Pine: Sunday=1 … Saturday=7)
         # Must run before fallthrough (visit Name dayofweek → "1" then "1_monday").
         if isinstance(node.value, ast.Name) and node.value.id == "dayofweek":
             m = {
@@ -3830,7 +3830,7 @@ class CompilerVisitor(NodeVisitor):
             ):
                 # Library methods: ae.index_2d_to_1d / agen.sequence_float / …
                 # Do not pass the alias as method_src (undefined free var).
-                # BUT: ``import TradingView/ta/7`` (alias ``ta``) / math / str / …
+                # BUT: ``import reference Pine/ta/7`` (alias ``ta``) / math / str / …
                 # must keep namespace prefix so ``ta.rma`` → ``ta_rma``, not bare
                 # ``rma`` (which collides with user ``method rma`` → recursion).
                 alias = func.value.id
@@ -5210,7 +5210,7 @@ class CompilerVisitor(NodeVisitor):
         if func_name == "ta_vwap":
             # ta.vwap([source[, anchor]]) — cumulative source*vol / cum vol.
             # Default source is hlc3 (not close). Optional anchor bool resets
-            # the cumulative window when true (TV ``ta.vwap(src, anchor)``).
+            # the cumulative window when true (reference ``ta.vwap(src, anchor)``).
             st = self._alloc_fixed_state("vwap", 3)
             if args:
                 src = _arr(args[0])
@@ -5516,7 +5516,7 @@ class CompilerVisitor(NodeVisitor):
                 f"numba_sum_inc({_arr(src_e)}, {self._emit_period(period)}, __bar_idx, {st})"
             )
         if func_name == "math_avg":
-            # TV ``math.avg(number0, number1, ...)`` — arithmetic mean of the
+            # reference ``math.avg(number0, number1, ...)`` — arithmetic mean of the
             # arguments (not a rolling window; use ta.sma / math.sum for that).
             # Prior emit treated the 2-arg form as SMA(source, length), which
             # crashed on ``math.avg(get, array.get(levels, j+1))`` by feeding

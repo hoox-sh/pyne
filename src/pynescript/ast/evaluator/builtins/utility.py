@@ -54,7 +54,7 @@ from .base import BuiltinHandler
 def _normalize_year_month(year: int | float, month: int | float) -> tuple[int, int]:
     """Normalize year/month for ``datetime`` construction (shared by timestamp).
 
-    Rules (set05 residual / TV-like leniency):
+    Rules (set05 residual / reference-like leniency):
 
     - **Floats** are truncated toward zero via ``int(...)`` (``3.9`` → March).
     - **Month 0 → January** of the same year. Corpus scripts use
@@ -92,10 +92,10 @@ def _timestamp_ms_from_components(  # noqa: PLR0913 — year..second + optional 
     second: int,
     offset_seconds: int = 0,
 ) -> int:
-    """Unix ms for calendar components with TV-like overflow normalization.
+    """Unix ms for calendar components with reference-like overflow normalization.
 
     Cached: scripts often call ``timestamp(y, m, d, h, mi, s)`` with the same
-    literals inside hot loops (e.g. TradingView "loop is too long" samples).
+    literals inside hot loops (e.g. reference Pine "loop is too long" samples).
 
     *offset_seconds* is the fixed UTC offset of the local timezone
     (e.g. ``UTC-5`` → ``-5 * 3600``). Components are interpreted in that zone.
@@ -179,7 +179,7 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
     """Calendar, wall-clock, and miscellaneous utility builtins.
 
     Component functions (``year``, ``hour``, …) and ``timestamp`` accept
-    TradingView-style overflow (month 0, hour 24, …) via shared normalization
+    reference Pine-style overflow (month 0, hour 24, …) via shared normalization
     helpers at module scope.
     """
 
@@ -282,7 +282,7 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
     ) -> Any:
         """``ticker.standard()`` / ``ticker.standard(tickerid)``.
 
-        Zero-arg form uses the chart ticker id (TV: standard OHLC of the chart
+        Zero-arg form uses the chart ticker id (Reference Pine: standard OHLC of the chart
         symbol). One-arg form wraps the given symbol. Result stringifies to the
         ticker id so ``ticker.standard() + \" /\"`` works in substring demos.
         """
@@ -402,7 +402,7 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         return int(self._coerce_ctx_number("time", 0))
 
     def _builtin_timenow(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> int:
-        """Current UNIX time in ms (TV ``timenow``).
+        """Current UNIX time in ms (reference ``timenow``).
 
         Hosts may seed ``context['timenow']``. Otherwise prefer the dataset's
         last bar time (deterministic backtests / corpus), then the current bar
@@ -439,14 +439,14 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
     ) -> tuple[float | None, Any]:
         """Resolve optional timestamp + timezone; bare form uses chart ``time``.
 
-        Forms (TV):
+        Forms (reference):
         - ``hour()`` / bare series
         - ``hour(time)``
         - ``hour(time, timezone)`` e.g. ``hour(timenow, \"UTC-5\")``
 
         *time* may be a scalar ms, series wrapper (``.current``), or a list
         series sample (last element). Returns ``(None, tz)`` (Pine ``na``) when
-        the timestamp is missing — TV's ``year(na)`` yields ``na``.
+        the timestamp is missing — reference's ``year(na)`` yields ``na``.
         """
         tzinfo: Any = timezone.utc
         if len(args) == 0:
@@ -622,7 +622,7 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
             return None
 
     def _parse_timestamp_string(self, text: str) -> int | None:
-        """Parse TV-style date strings including optional timezone suffixes.
+        """Parse reference-style date strings including optional timezone suffixes.
 
         Supported examples:
         - ``Dec 01 2021 23:59:59``
@@ -685,7 +685,7 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         def _normalize(s: str) -> str:
             """Light, loss-safe normalizations before strptime."""
             s = re.sub(r"\s+", " ", s.strip())
-            # Python datetime year range is 1..9999; TV session templates use 0000.
+            # Python datetime year range is 1..9999; reference session templates use 0000.
             s = re.sub(r"\b0000-", "0001-", s)
             # Odd colon between date and time: "2021-01-13:05:00" → space.
             s = re.sub(r"(\d{4}-\d{2}-\d{2}):(\d{1,2}:\d{2})", r"\1 \2", s)
@@ -814,7 +814,7 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
 
         Accepts overflow/underflow on month/day/hour/minute/second (e.g.
         month=0 → January, month=13 → next Jan, day=40, hour=24, minute=60)
-        via calendar rollover, matching TradingView ``timestamp`` arithmetic
+        via calendar rollover, matching reference Pine ``timestamp`` arithmetic
         used by dividend_yield and backtest windows (``ToYear=9999`` /
         ``999999`` clamped to 9999).
 
@@ -909,7 +909,7 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         hour = self._coerce_timestamp_component(comp[3] if len(comp) > 3 else 0, default=0)
         minute = self._coerce_timestamp_component(comp[4] if len(comp) > 4 else 0, default=0)
         second = self._coerce_timestamp_component(comp[5] if len(comp) > 5 else 0, default=0)
-        # Required components na → timestamp() yields na (TV-like soft fail)
+        # Required components na → timestamp() yields na (reference-like soft fail)
         if year is None or month is None or day is None:
             return None
         if hour is None:

@@ -385,7 +385,7 @@ def color_from_gradient(
     color1 = _as_color(color1)
     color2 = _as_color(color2)
 
-    # TV: na value → na color (soft-fail to transparent / color1)
+    # Reference Pine: na value → na color (soft-fail to transparent / color1)
     if value is None or min_val is None or max_val is None:
         return color1
 

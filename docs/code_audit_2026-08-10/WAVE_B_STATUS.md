@@ -19,12 +19,12 @@ Semantic correctness fixes after Wave A (security/CI).
 
 ## Tests
 
-Core CI gate + strategy suites green (170+ passed).  
+Core CI gate + strategy suites green (170+ passed). 
 `test_ta_incremental` still has **7 pre-existing EMA/KC residual failures** (not newly introduced by ATR RMA alone; still out of CI gate).
 
 ## Residual
 
 - `from_entry` / trail / `qty_percent` on exit
-- Supertrend/KC golden re-verify vs TV
+- Supertrend/KC golden re-verify vs reference Pine
 - EMA seed split (incremental vs full)
 - Full `varip` tick model under a live host

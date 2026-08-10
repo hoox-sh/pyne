@@ -1,7 +1,7 @@
 # AGENT 06 — Langserver, Util, Extensions, CLI Entrypoints
 
-**Date:** 2026-08-10  
-**Scope:** `src/pynescript/langserver/`, `src/pynescript/util/`, `src/pynescript/ext/`, package entrypoints (`__init__.py`, `__main__.py`, `__about__.py`), `clients/`, `vscode-extension/src/extension.ts` (brief)  
+**Date:** 2026-08-10 
+**Scope:** `src/pynescript/langserver/`, `src/pynescript/util/`, `src/pynescript/ext/`, package entrypoints (`__init__.py`, `__main__.py`, `__about__.py`), `clients/`, `vscode-extension/src/extension.ts` (brief) 
 **Mode:** Read-only audit (no code changes)
 
 ---
@@ -30,12 +30,12 @@ CLI (`__main__.py`) is mature for a toolchain (check/format/lint/compile/run/dat
 
 ```python
 self._client = {
-    "fx": ForeignExchange(key=self._api_key),
-    "ti": TechIndicators(key=self._api_key),
+ "fx": ForeignExchange(key=self._api_key),
+ "ti": TechIndicators(key=self._api_key),
 }
 # ...
-data, meta = client["ti"].get_daily(...)          # TechIndicators has no get_daily
-data, _ = client["ti"].get_quote_endpoint(...)   # quote lives on TimeSeries
+data, meta = client["ti"].get_daily(...) # TechIndicators has no get_daily
+data, _ = client["ti"].get_quote_endpoint(...) # quote lives on TimeSeries
 ```
 
 `get_daily` / `get_quote_endpoint` belong to `alpha_vantage.timeseries.TimeSeries`, not `TechIndicators`. Any `pynescript data … --provider alphavantage` or `get_provider("alphavantage")` path will fail at runtime (or succeed only if the library coincidentally exposes aliases — it does not in the standard package).
@@ -52,10 +52,10 @@ data, _ = client["ti"].get_quote_endpoint(...)   # quote lives on TimeSeries
 
 ```python
 def fetch_latest_ohlcv(...):
-    return asyncio.run(self._fetch_latest_ohlcv_async(...))
+ return asyncio.run(self._fetch_latest_ohlcv_async(...))
 
 def fetch_latest_ticker(...):
-    return asyncio.run(self._fetch_latest_ticker_async(...))
+ return asyncio.run(self._fetch_latest_ticker_async(...))
 ```
 
 These helpers are documented for use from “mostly-sync” evaluator / `request.*` paths. Calling `asyncio.run` from an already-running event loop (async runtime, Jupyter, Nautilus, FastAPI worker) raises `RuntimeError: asyncio.run() cannot be called from a running event loop`.
@@ -126,10 +126,10 @@ Every incremental change re-parses and re-lints on the LSP request thread, then 
 
 ```python
 if src in {"mock", "ccxtpro", "ccxt", "pro"} and feed is None:
-    ...
-    feed = get_datafeed("ccxtpro", ...)   # "ccxt" always here
+ ...
+ feed = get_datafeed("ccxtpro", ...) # "ccxt" always here
 elif src in {"yahoo", "alphavantage", "ccxt"} and provider is None:
-    # "ccxt" branch is unreachable when feed path matched
+ # "ccxt" branch is unreachable when feed path matched
 ```
 
 `"ccxt"` is in the first branch and always constructs a **Pro** feed. The historical `CCXTProvider` path for the same name is dead.
@@ -178,7 +178,7 @@ Server always uses workspace conversion (`server.py:105–106`, `119–120`, `18
 
 ```python
 if self.uri.startswith("file://"):
-    return Path(self.uri[7:])
+ return Path(self.uri[7:])
 ```
 
 Does not use `urllib.parse.urlparse` / `unquote`; fails for `file:///c%3A/...`, spaces, and non-ASCII paths. Currently mostly unused for parse (filename is the URI string), but any future disk I/O via `.path` is wrong on Windows and encoded URIs.
@@ -215,7 +215,7 @@ No hover for user variables, function signatures from AST, or UDT fields. Hard-c
 
 ### M5. Diagnostics docs URLs look placeholder / wrong domain
 
-**Evidence:** `features/diagnostics.py:125–128` → `https://docs.pynescript.ai/errors`  
+**Evidence:** `features/diagnostics.py:125–128` → `https://docs.pynescript.ai/errors` 
 Package docs elsewhere point at `https://hoox.sh/pyne`. Dead links confuse users if tags/codeDescription ever wire up.
 
 ---
@@ -290,7 +290,7 @@ Attribute column for `_emit_attr` is approximate (`end_col_offset` heuristic) �
 
 `create_quick_fix` / `create_diagnostic_related_info` in `features/diagnostics.py` are never registered; `codeAction` correctly not advertised (good), but dead code accumulates.
 
-### L5. `pine_facade.py` downloads TradingView builtins
+### L5. `pine_facade.py` downloads remote Pine builtin sources
 
 Network scraping utility; thread-local sessions OK. No rate limiting beyond ThreadPoolExecutor; depends on public facade stability. Not on hot LSP path.
 
@@ -336,39 +336,39 @@ Grep found none — good hygiene; issues live as silent fallbacks instead.
 ## Modernization opportunities
 
 1. **LSP 3.17+ polish**
-   - Pull diagnostics as primary with `result_id` / unchanged reports (partially present for document diagnostic)
-   - `textDocument/semanticTokens/range` optional
-   - `textDocument/prepareCallHierarchy`, signature help, rename, code actions (when ready)
-   - Position encoding negotiation (`utf-16` default awareness for multi-byte identifiers)
+ - Pull diagnostics as primary with `result_id` / unchanged reports (partially present for document diagnostic)
+ - `textDocument/semanticTokens/range` optional
+ - `textDocument/prepareCallHierarchy`, signature help, rename, code actions (when ready)
+ - Position encoding negotiation (`utf-16` default awareness for multi-byte identifiers)
 
 2. **Async / worker architecture**
-   - Off-thread parse+lint with version tokens
-   - Debounced `publishDiagnostics`
-   - Optional incremental parsing if ANTLR pipeline allows
+ - Off-thread parse+lint with version tokens
+ - Debounced `publishDiagnostics`
+ - Optional incremental parsing if ANTLR pipeline allows
 
 3. **Semantic model**
-   - Shared symbol index (defs/refs/hover/completion of locals)
-   - Scope-aware resolution (params, nested functions, imports)
-   - Type inference beyond inlay’s RHS shapes
+ - Shared symbol index (defs/refs/hover/completion of locals)
+ - Scope-aware resolution (params, nested functions, imports)
+ - Type inference beyond inlay’s RHS shapes
 
 4. **Completion**
-   - `textEdit` + `insertTextFormat`
-   - Item defaults / `completionList.itemDefaults` (LSP 3.17)
-   - Snippet toggle honored from init options
+ - `textEdit` + `insertTextFormat`
+ - Item defaults / `completionList.itemDefaults` (LSP 3.17)
+ - Snippet toggle honored from init options
 
 5. **Data layer**
-   - Async-native providers; deprecate `asyncio.run` bridges
-   - Typed OHLCV dataclass / Protocol instead of bare dicts
-   - Circuit breakers, metrics, structured logging on feeds
+ - Async-native providers; deprecate `asyncio.run` bridges
+ - Typed OHLCV dataclass / Protocol instead of bare dicts
+ - Circuit breakers, metrics, structured logging on feeds
 
 6. **VS Code**
-   - Honor server-side init options for diagnostics/snippets
-   - Language status item API instead of only status bar
-   - Telemetry-free crash reporting channel already present — keep
+ - Honor server-side init options for diagnostics/snippets
+ - Language status item API instead of only status bar
+ - Telemetry-free crash reporting channel already present — keep
 
 7. **Extensions**
-   - Jupyter: bar-loop evaluate via Runtime/compile pipeline
-   - Nautilus: map `Bar` → OHLCV push into Pine runtime + order events
+ - Jupyter: bar-loop evaluate via Runtime/compile pipeline
+ - Nautilus: map `Bar` → OHLCV push into Pine runtime + order events
 
 ---
 
@@ -394,31 +394,31 @@ Grep found none — good hygiene; issues live as silent fallbacks instead.
 
 ### P0 (fix correctness)
 
-1. **Rewrite Alpha Vantage provider** on `TimeSeries` (+ tests with mocks).  
-2. **Remove or guard `asyncio.run`** in `CCXTProDataFeed.fetch_latest_*`; document async-only contract if needed.  
+1. **Rewrite Alpha Vantage provider** on `TimeSeries` (+ tests with mocks). 
+2. **Remove or guard `asyncio.run`** in `CCXTProDataFeed.fetch_latest_*`; document async-only contract if needed. 
 3. **Disable or rewrite range formatting** until line-aligned unparse is proven safe.
 
 ### P1 (LSP UX)
 
-4. **Identifier-accurate ranges** for definition, references, workspace symbols (reuse `_name_to_range` pattern).  
-5. **Completion `textEdit`** + leaf insert for module members; drop selectable category headers.  
-6. **Unify diagnostic conversion** on the richer `features/diagnostics` path (tags + single implementation).  
-7. **Align capabilities** with handlers (workspace diagnostics flag, executeCommand, workDoneProgress).  
+4. **Identifier-accurate ranges** for definition, references, workspace symbols (reuse `_name_to_range` pattern). 
+5. **Completion `textEdit`** + leaf insert for module members; drop selectable category headers. 
+6. **Unify diagnostic conversion** on the richer `features/diagnostics` path (tags + single implementation). 
+7. **Align capabilities** with handlers (workspace diagnostics flag, executeCommand, workDoneProgress). 
 8. **Debounce + versioned diagnostics** after `didChange`.
 
 ### P2 (data + wiring)
 
-9. **Fix `resolve_request_sources` name matrix** (`ccxt` vs `ccxtpro`).  
-10. **Backoff / max-retry** on feed reconnect; structured logging instead of silent continue.  
-11. **Honor init options** from VS Code (or stop sending unused flags).  
+9. **Fix `resolve_request_sources` name matrix** (`ccxt` vs `ccxtpro`). 
+10. **Backoff / max-retry** on feed reconnect; structured logging instead of silent continue. 
+11. **Honor init options** from VS Code (or stop sending unused flags). 
 12. **URI path helper** for `file://` (urlparse + unquote).
 
 ### P3 (product depth)
 
-13. User-symbol hover + signature help from AST.  
-14. Wire code actions (W001 version pragma) and advertise `codeActionProvider`.  
-15. Jupyter magic → Runtime evaluate; Nautilus `on_bar` → real Pine host.  
-16. Drop or alias langserver `__version__` to package version.  
+13. User-symbol hover + signature help from AST. 
+14. Wire code actions (W001 version pragma) and advertise `codeActionProvider`. 
+15. Jupyter magic → Runtime evaluate; Nautilus `on_bar` → real Pine host. 
+16. Drop or alias langserver `__version__` to package version. 
 17. Fix docs links (`hoox.sh/pyne` or real error catalog).
 
 ---
@@ -458,10 +458,10 @@ Grep found none — good hygiene; issues live as silent fallbacks instead.
 
 ## Test coverage notes (existing)
 
-- `tests/test_langserver.py` — workspace, incremental edit EOF, stale parse diagnostics  
-- `tests/test_lsp_features.py` — metadata, completion, handlers  
-- `tests/test_datafeed.py` / `test_datafeed_wiring.py` — feed wiring  
-- `tests/test_corpus_sanitize.py`, `tests/test_time_parts.py`  
+- `tests/test_langserver.py` — workspace, incremental edit EOF, stale parse diagnostics 
+- `tests/test_lsp_features.py` — metadata, completion, handlers 
+- `tests/test_datafeed.py` / `test_datafeed_wiring.py` — feed wiring 
+- `tests/test_corpus_sanitize.py`, `tests/test_time_parts.py` 
 - Gaps: Alpha Vantage, range formatting correctness, completion insert prefix, nested asyncio, capability advertisement snapshot, init options
 
 ---

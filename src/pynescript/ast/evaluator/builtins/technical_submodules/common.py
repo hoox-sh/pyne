@@ -139,7 +139,7 @@ class CommonIndicators(TechnicalHelpers):
     def _builtin_ta_change(self, args: list[Any]) -> float | None:
         """Difference between current value and value *length* bars ago.
 
-        TradingView: ``ta.change(source)`` or ``ta.change(source, length)``.
+        Reference Pine: ``ta.change(source)`` or ``ta.change(source, length)``.
         Unary form defaults ``length`` to 1 (same as BasicIndicators).
         """
         if len(args) < 1 or len(args) > 2:
@@ -479,7 +479,7 @@ class CommonIndicators(TechnicalHelpers):
             return None
 
     def _builtin_ta_pivot_point_levels(self, args: list[Any]) -> Any:
-        """Calculate pivot point levels — delegates to BasicIndicators TV form."""
+        """Calculate pivot point levels — delegates to BasicIndicators reference Pine form."""
         # Prefer BasicIndicators implementation via MRO when available.
         # Keep a minimal local fallback for composition without BasicIndicators.
         if args and isinstance(args[0], str):
@@ -561,7 +561,7 @@ class CommonIndicators(TechnicalHelpers):
         return -num_sum / den_sum
 
     def _builtin_ta_dmi(self, args: list[Any]) -> tuple[float, float, float]:
-        """Directional Movement Index — see BasicIndicators for TV 2-arg form.
+        """Directional Movement Index — see BasicIndicators for reference Pine 2-arg form.
 
         Returns ``(+DI, -DI, ADX)``. Period soft-na: ``na`` / unresolved names →
         ``[na, na, na]`` (matches BasicIndicators residual policy).

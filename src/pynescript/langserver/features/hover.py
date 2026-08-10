@@ -122,7 +122,7 @@ def _build_builtin_hover(info: dict, line: int, start: int, end: int) -> lsp.Hov
     content += _build_examples(info)
     content += _build_see_also(info)
 
-    # Add TradingView docs link
+    # Add reference Pine docs link
     content += _build_docs_link(label)
 
     return lsp.Hover(
@@ -192,9 +192,9 @@ def _build_see_also(info: dict) -> str:
 
 
 def _build_docs_link(name: str) -> str:
-    """Build a link to TradingView documentation.
+    """Build a link to reference Pine documentation.
 
-    Note: TradingView docs links require the full function reference.
+    Note: reference Pine docs links require the full function reference.
     This is a placeholder that shows how to structure the link.
     """
     # Don't include external links in basic hover

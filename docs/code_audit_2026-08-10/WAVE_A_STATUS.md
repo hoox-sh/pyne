@@ -13,7 +13,7 @@ Implemented after the full-repo audit. Scope: **security + CI honesty + docs**.
 | CI core-runtime job | **Done** | First-party parity, strategy, series, expr, free-limits |
 | First-party always-on fixtures | **Done** | `tests/data/first_party/*.pine` |
 | Silent-pass → skip | **Done** | `test_parity_r9_kernels`, optional corpus in `test_parity` / interp_compile |
-| Known TV divergences doc | **Done** | `docs/known_divergences.md` |
+| Known divergences doc | **Done** | `docs/known_divergences.md` |
 
 ## Env knobs (ops)
 
@@ -30,13 +30,13 @@ Implemented after the full-repo audit. Scope: **security + CI honesty + docs**.
 
 ```bash
 FREE_RATE_LIMIT=0 FREE_MAX_CONCURRENT=0 ADMIN_TOKEN=ci-test-admin-token \
-  python -m pytest \
-    tests/test_interp_compile_parity.py tests/test_parity.py \
-    tests/test_expr_parity_r8.py tests/test_strategy_runtime.py \
-    tests/test_order_fills.py tests/test_series_cap.py \
-    tests/test_series_ring_buffer.py tests/test_alert_forwarder.py \
-    tests/test_free_limits.py tests/test_backend.py \
-    -q -k "not optional_corpus"
+ python -m pytest \
+ tests/test_interp_compile_parity.py tests/test_parity.py \
+ tests/test_expr_parity_r8.py tests/test_strategy_runtime.py \
+ tests/test_order_fills.py tests/test_series_cap.py \
+ tests/test_series_ring_buffer.py tests/test_alert_forwarder.py \
+ tests/test_free_limits.py tests/test_backend.py \
+ -q -k "not optional_corpus"
 ```
 
 Local result (2026-08-10): **core-runtime gate 162 passed / 7 skipped**; backend suite **57 passed**.
