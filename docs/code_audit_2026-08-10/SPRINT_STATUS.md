@@ -16,8 +16,10 @@ H1 host unify: [`docs/perf_round7/H1_unify_checklist.md`](../perf_round7/H1_unif
 | **Compile risk + trade queries** | `strategy_broker.py` + `compiler.py` | Risk halt cascade: `allow_entry_in` / `max_position_size` / `max_drawdown` / `max_cons_loss_days` / `max_intraday_loss` + `entries_blocked`; trade queries from `open_legs` / `closed_trade_records`. |
 | **`qty_percent` on exit** | interpret + compile `close` | Percent of target size; wins over `qty`; edge caps documented. |
 | **Trail (interpret + compile, minimal)** | `trail_offset` / `trail_points` / optional `trail_price` | Ratcheting stop on pending fills (both paths). OHLC approx only. |
-| **`request.security` honesty + OHLCV HTF resample** | `request.py` + Runtime meta | Policy tags; same-symbol simple OHLCV coarser TF → bucket aggregate (`htf_ohlcv_resample`); complex still na; no full expression HTF re-eval. |
-| **`varip` realtime host** | `Runtime.run(realtime_last_bar=, realtime_ticks=)` | Last-bar multi-tick interpret simulation; historical default unchanged. |
+| **`request.security` honesty + HTF resample** | `request.py` + Runtime meta | OHLCV bucket aggregate + allowlisted simple `ta.*` on HTF (`htf_simple_ta_resample`); complex still na. |
+| **`varip` realtime host** | `Runtime.run(realtime_last_bar=, realtime_ticks=, realtime_bars=, realtime_from_bar=)` | Multi-tick window on last K bars or from bar index; historical default unchanged. |
+| **Compile risk filled-orders + trade MAE/MFE** | `strategy_broker.py` | `max_intraday_filled_orders`; open/closed comments + OHLC-approx max_drawdown/max_runup. |
+| **pine-worker series smoke** | `series_parity_smoke.test.ts` + subscript on PineSeries | Offset contract + trivial `close[1]`/SMA-like expressions. |
 | **TA goldens / incremental in CI** | `.github/workflows/ci.yml` Core runtime | Gates: `tests/test_ta_incremental.py`, `tests/test_first_party_ta_goldens.py`, `tests/test_runtime_package.py` (plus prior parity/strategy/series set). |
 | **pine-worker series polarity** | `pine-worker/src/evaluator/series.ts` | `series[1]` = previous bar; negatives → NA. README notes Python Runtime SoT. |
 | **Dependabot high (vscode-extension)** | `brace-expansion` → 2.1.4 | Transitive patch; `npm audit` clean. |
@@ -28,10 +30,9 @@ H1 host unify: [`docs/perf_round7/H1_unify_checklist.md`](../perf_round7/H1_unif
 | Item | Pri | Notes |
 |------|-----|-------|
 | **Tick-path trail** | P2 | Minimal OHLC ratchet only (interpret + compile). |
-| **pine-worker full Runtime** | P2 | Series polarity fixed; still experimental evaluator, not package Runtime. |
-| **Full HTF expression re-eval** | P2 | Simple OHLCV resample only; complex UDF/ta on HTF still na. |
-| **Risk residual (compile)** | P2 | Cascade has drawdown / cons loss days / intraday loss. Still stub: max_intraday_filled_orders; per-trade max_dd·runup·comments. |
-| **Live tick host** | P2 | `realtime_ticks` simulates last bar only; no streaming feed. |
+| **pine-worker full Runtime** | P2 | Series + trivial expr smoke only; not package Runtime. |
+| **Full HTF expression re-eval** | P2 | OHLCV + allowlisted ta.sma/ema/rsi/atr only; nested/UDF still na. |
+| **Streaming tick feed** | P2 | Simulated multi-bar multi-tick only; no live data socket. |
 
 ## Quick smoke (local / CI-aligned)
 

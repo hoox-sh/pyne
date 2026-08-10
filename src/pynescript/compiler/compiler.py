@@ -5907,8 +5907,7 @@ class CompilerVisitor(NodeVisitor):
         - ``max_drawdown`` → ``__strategy.risk_max_drawdown`` (abs or % of peak)
         - ``max_cons_loss_days`` → ``__strategy.risk_max_cons_loss_days``
         - ``max_intraday_loss`` → ``__strategy.risk_max_intraday_loss``
-
-        Still no-op (not full TV risk engine): max_intraday_filled_orders.
+        - ``max_intraday_filled_orders`` → ``__strategy.risk_max_intraday_filled_orders``
         """
         self.object_mode = True
         self.uses_strategy = True
@@ -5930,13 +5929,19 @@ class CompilerVisitor(NodeVisitor):
         if risk == "max_intraday_loss":
             val = args[0] if args else kwargs.get("percent", kwargs.get("value", "None"))
             return f"__strategy.risk_max_intraday_loss({val})"
+        if risk == "max_intraday_filled_orders":
+            val = args[0] if args else kwargs.get(
+                "max_orders", kwargs.get("value", kwargs.get("max", "None"))
+            )
+            return f"__strategy.risk_max_intraday_filled_orders({val})"
         return ""  # remaining risk.* still no-op on compile path
 
     def _emit_strategy_trade_query(self, method: str, args: list[str], kwargs: dict[str, str]) -> str:
         """Emit strategy.opentrades.* / strategy.closedtrades.* from broker records.
 
         Real fields when data exists on ``CompileStrategyBroker`` (open_legs /
-        closed_trade_records). Still stub: max_drawdown / max_runup / comments.
+        closed_trade_records), including per-trade comments and approximate
+        max_drawdown / max_runup (OHLC MTM extremes).
         """
         self.object_mode = True
         self.uses_strategy = True
@@ -5951,12 +5956,14 @@ class CompilerVisitor(NodeVisitor):
                 "entry_time": "opentrades_entry_time",
                 "commission": "opentrades_commission",
                 "profit": "opentrades_profit",
+                "entry_comment": "opentrades_entry_comment",
+                "max_drawdown": "opentrades_max_drawdown",
+                "max_runup": "opentrades_max_runup",
             }
             if attr in real:
                 return f"__strategy.{real[attr]}({idx})"
-            # max_runup / max_drawdown / entry_comment — no per-leg tracking yet
-            if attr in ("entry_comment", "comment"):
-                return "''"
+            if attr in ("comment",):
+                return f"__strategy.opentrades_entry_comment({idx})"
             return "0.0"
         if method.startswith("closedtrades_"):
             attr = method[len("closedtrades_") :]
@@ -5972,12 +5979,15 @@ class CompilerVisitor(NodeVisitor):
                 "exit_bar_index": "closedtrades_exit_bar_index",
                 "entry_time": "closedtrades_entry_time",
                 "exit_time": "closedtrades_exit_time",
+                "entry_comment": "closedtrades_entry_comment",
+                "exit_comment": "closedtrades_exit_comment",
+                "max_drawdown": "closedtrades_max_drawdown",
+                "max_runup": "closedtrades_max_runup",
             }
             if attr in real:
                 return f"__strategy.{real[attr]}({idx})"
-            if attr in ("entry_comment", "exit_comment", "comment"):
-                return "''"
-            # max_drawdown / max_runup per closed trade — still stub
+            if attr in ("comment",):
+                return f"__strategy.closedtrades_entry_comment({idx})"
             return "0.0"
         return "0.0"
     def _emit_udt_new(self, type_name: str, node: ast.Call) -> str:

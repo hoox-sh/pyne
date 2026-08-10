@@ -38,6 +38,9 @@ from dataclasses import dataclass
 from dataclasses import field
 from typing import Any
 
+from pynescript.ast import node as ast_mod
+from pynescript.ast.evaluator.names import ast_qualified_name
+
 from .base import BuiltinDispatchMixin
 from .base import BuiltinHandler
 from .timeframe import SECONDS_PER_MONTH
@@ -90,18 +93,98 @@ _OHLCV_FIELD_ALIASES: dict[str, str] = {
 _CHART_PLACEHOLDERS = frozenset({"", "CHART", "SYMBOL", "TICKER", "NONE", "NA", "UNKNOWN"})
 _FUNDAMENTAL_TOKENS = ("DIVIDEND", "FACTSET", "EARNINGS", "ESD_")
 
+# Allowlisted simple ta.* forms for HTF resample (no arbitrary AST re-eval).
+# Matched only when the security expression *AST* is exactly one of these shapes
+# (visit_Call attaches :class:`HtfSimpleTaExpr` before chart pre-eval wins).
+_HTF_SIMPLE_TA_FUNCS = frozenset({"sma", "ema", "rsi", "atr"})
+
 _LOG = logging.getLogger("pynescript.request.security")
 
 # Static product notes exposed on Runtime ``meta.request_security``.
 _SECURITY_POLICY_NOTES: tuple[str, ...] = (
-    "No multi-timeframe expression re-eval engine: HTF complex UDF/ta results are na.",
+    "No multi-timeframe expression re-eval engine: HTF complex UDF/nested ta results are na.",
     "barmerge.gaps_on / gaps_off are accepted but unused (no gap-fill / na-gap series).",
     "barmerge.lookahead_on / lookahead_off are accepted but unused (no lookahead offset).",
     "Same-symbol simple OHLCV on a coarser TF resamples chart bars by timestamp "
     "(htf_ohlcv_resample, last completed HTF bar only — not full expression re-eval).",
+    "Same-symbol allowlisted ta.sma/ema/rsi/atr on coarser TF runs the TA helper on "
+    "resampled HTF bars (htf_simple_ta_resample) — still not a full multi-TF engine.",
     "LTF / unparseable TF / history offsets still use chart passthrough stub when simple.",
     "Foreign symbols without a multi-symbol feed hit return na (no mock invent under host chart).",
 )
+
+
+@dataclass(frozen=True)
+class HtfSimpleTaExpr:
+    """Allowlisted simple ``ta.*`` form for HTF series resample (not chart pre-eval).
+
+    Produced by :func:`match_htf_simple_ta_ast` when ``request.security``'s
+    expression argument is a bare allowlisted call such as ``ta.sma(close, 14)``.
+    Nested sources, UDFs, and non-constant lengths are rejected.
+    """
+
+    name: str  # sma | ema | rsi | atr
+    source: str | None  # normalized OHLCV field; None for atr (uses h/l/c)
+    length: int
+
+
+def _const_positive_int(node: Any) -> int | None:
+    """Literal positive int from a Constant AST node, or None."""
+    if type(node) is not ast_mod.Constant:
+        return None
+    kind = node.kind
+    if kind is not None and kind != "#":
+        return None
+    raw = node.value
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+        return None
+    try:
+        iv = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return iv if iv == raw and iv > 0 else None
+
+
+def match_htf_simple_ta_ast(expr_ast: Any) -> HtfSimpleTaExpr | None:  # noqa: PLR0911
+    """Match allowlisted simple ``ta.*`` AST for HTF resample, else None.
+
+    Allowed shapes (positional args only, no kwargs):
+
+    - ``ta.sma(close, 14)`` / ``ta.ema`` / ``ta.rsi`` — source is a bare OHLCV
+      name (``close``, ``open``, ``high``, ``low``, ``volume``, ``hl2``, …);
+      length is a positive integer literal.
+    - ``ta.atr(14)`` — length-only form (uses HTF high/low/close).
+
+    Nested calls (``ta.sma(ta.ema(...), n)``), multi-arg atr, variables as
+    length, and non-ta callees return ``None`` (existing complex-na path).
+    """
+    if type(expr_ast) is not ast_mod.Call:
+        return None
+    qual = ast_qualified_name(expr_ast.func)
+    if not qual or not qual.startswith("ta."):
+        return None
+    fname = qual[3:]
+    if fname not in _HTF_SIMPLE_TA_FUNCS:
+        return None
+    arg_nodes = list(getattr(expr_ast, "args", None) or ())
+    if any(getattr(a, "name", None) for a in arg_nodes):
+        return None
+
+    if fname == "atr":
+        length = _const_positive_int(arg_nodes[0].value) if len(arg_nodes) == 1 else None
+        return HtfSimpleTaExpr("atr", None, length) if length else None
+
+    # sma / ema / rsi: (source_name, length)
+    if len(arg_nodes) != 2:  # noqa: PLR2004 - fixed allowlist arity
+        return None
+    src_node = arg_nodes[0].value
+    if type(src_node) is not ast_mod.Name:
+        return None
+    src = _OHLCV_FIELD_ALIASES.get(str(src_node.id).strip().lower())
+    length = _const_positive_int(arg_nodes[1].value)
+    if src is None or length is None:
+        return None
+    return HtfSimpleTaExpr(name=fname, source=src, length=length)
 
 @dataclass
 class VolumeRow:
@@ -863,6 +946,298 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         vals = [self._htf_agg_field(agg, f) for f in fields]
         return vals if isinstance(expression, list) else tuple(vals)
 
+    def _htf_unique_and_map(
+        self, bucket_ms: int
+    ) -> tuple[list[dict[str, float]], list[int | None]] | None:
+        """Unique completed HTF bars + per-chart-bar index into that list.
+
+        Index ``None`` means no completed HTF bar yet at that chart bar
+        (lookahead_off forming bucket).
+        """
+        series = self._htf_ohlcv_series_for_tf(bucket_ms)
+        if not series:
+            return None
+        unique: list[dict[str, float]] = []
+        by_time: dict[float, int] = {}
+        chart_to_htf: list[int | None] = []
+        for agg in series:
+            if agg is None:
+                chart_to_htf.append(None)
+                continue
+            try:
+                t_key = float(agg["time"])
+            except (TypeError, ValueError, KeyError):
+                chart_to_htf.append(None)
+                continue
+            idx = by_time.get(t_key)
+            if idx is None:
+                idx = len(unique)
+                by_time[t_key] = idx
+                unique.append(agg)
+            chart_to_htf.append(idx)
+        return unique, chart_to_htf
+
+    def _htf_source_series(
+        self, unique: list[dict[str, float]], field: str
+    ) -> list[float | None]:
+        """Extract one OHLCV/derived field from unique HTF aggs (chronological)."""
+        out: list[float | None] = []
+        for agg in unique:
+            v = self._htf_agg_field(agg, field)
+            if v != v:  # nan
+                out.append(None)
+            else:
+                out.append(v)
+        return out
+
+    def _htf_rsi_full_series(
+        self, closes: list[float | None], period: int
+    ) -> list[float | None]:
+        """Full-list RSI on *closes* (Wilder RMA of gains/losses), bar-aligned."""
+        n = len(closes)
+        out: list[float | None] = [None] * n
+        if n < 2 or period <= 0:
+            return out
+        gains: list[float] = []
+        losses: list[float] = []
+        for i in range(1, n):
+            a, b = closes[i - 1], closes[i]
+            if a is None or b is None:
+                gains.append(0.0)
+                losses.append(0.0)
+                continue
+            try:
+                change = float(b) - float(a)
+            except (TypeError, ValueError):
+                gains.append(0.0)
+                losses.append(0.0)
+                continue
+            gains.append(change if change > 0 else 0.0)
+            losses.append(-change if change < 0 else 0.0)
+        rma_fn = getattr(self, "_rma", None)
+        if not callable(rma_fn):
+            # Soft fallback: last-only helper on prefixes (small HTF n only).
+            rsi_fn = getattr(self, "_rsi", None)
+            if not callable(rsi_fn):
+                return out
+            for i in range(1, n):
+                window = [float(c) for c in closes[: i + 1] if c is not None]
+                out[i] = rsi_fn(window, period)
+            return out
+        avg_g = rma_fn(gains, period)
+        avg_l = rma_fn(losses, period)
+        for i in range(1, n):
+            g = avg_g[i - 1] if i - 1 < len(avg_g) else None
+            lo = avg_l[i - 1] if i - 1 < len(avg_l) else None
+            try:
+                gf = float(g) if g is not None else float("nan")
+                lf = float(lo) if lo is not None else float("nan")
+            except (TypeError, ValueError):
+                out[i] = None
+                continue
+            if gf != gf or lf != lf:
+                out[i] = None
+                continue
+            if lf == 0.0:
+                out[i] = 100.0
+            else:
+                rs = gf / lf
+                out[i] = 100.0 - (100.0 / (1.0 + rs))
+        return out
+
+    def _htf_ta_values_on_unique(
+        self, expr: HtfSimpleTaExpr, unique: list[dict[str, float]]
+    ) -> list[float | None]:
+        """Run allowlisted TA full-list helpers on unique HTF bars."""
+        n = len(unique)
+        if n == 0 or expr.length <= 0:
+            return []
+        name = expr.name
+        period = int(expr.length)
+        if name in ("sma", "ema", "rsi"):
+            field = expr.source or "close"
+            src = self._htf_source_series(unique, field)
+            if name == "sma":
+                sma_fn = getattr(self, "_sma", None)
+                if not callable(sma_fn):
+                    return [None] * n
+                raw = sma_fn(src, period)
+                # Align length (helpers return list of same len).
+                return list(raw) if raw is not None else [None] * n
+            if name == "ema":
+                ema_fn = getattr(self, "_ema", None)
+                if not callable(ema_fn):
+                    return [None] * n
+                raw = ema_fn(src, period)
+                return list(raw) if raw is not None else [None] * n
+            return self._htf_rsi_full_series(src, period)
+
+        # atr: length-only; uses HTF high/low/close.
+        highs = self._htf_source_series(unique, "high")
+        lows = self._htf_source_series(unique, "low")
+        closes = self._htf_source_series(unique, "close")
+        atr_fn = getattr(self, "_atr", None)
+        out: list[float | None] = [None] * n
+        if not callable(atr_fn):
+            return out
+        # _atr returns series aligned to TR samples (len ≈ n-1).
+        atr_raw = atr_fn(highs, lows, closes, period)
+        if not atr_raw:
+            return out
+        # Map ATR[j] → HTF bar j+1 (TR needs a previous close).
+        for j, v in enumerate(atr_raw):
+            dest = j + 1
+            if dest >= n:
+                break
+            if v is None:
+                out[dest] = None
+                continue
+            try:
+                fv = float(v)
+                out[dest] = None if fv != fv else fv
+            except (TypeError, ValueError):
+                out[dest] = None
+        return out
+
+    def _try_htf_simple_ta_resample(
+        self, expression: HtfSimpleTaExpr, timeframe: Any
+    ) -> Any | None:
+        """Run allowlisted ta.* on resampled HTF bars; map last completed to chart.
+
+        Semantics match OHLCV HTF resample: **last completed** HTF bar only
+        (lookahead_off-style). Full-list TA on the unique HTF series is cached
+        per (bucket, ta name, source, length, chart n).
+        """
+        if not isinstance(expression, HtfSimpleTaExpr):
+            return None
+        if not self._request_is_higher_tf(timeframe):
+            return None
+        bucket_ms = self._request_tf_bucket_ms(timeframe)
+        if bucket_ms is None:
+            return None
+        built = self._htf_unique_and_map(bucket_ms)
+        if built is None:
+            return None
+        unique, chart_to_htf = built
+        n_chart = len(chart_to_htf)
+        if n_chart == 0:
+            return None
+
+        cache = getattr(self, "_htf_simple_ta_cache", None)
+        if not isinstance(cache, dict):
+            cache = {}
+            self._htf_simple_ta_cache = cache  # type: ignore[attr-defined]
+        ckey = (
+            int(bucket_ms),
+            expression.name,
+            expression.source or "",
+            int(expression.length),
+            n_chart,
+            len(unique),
+        )
+        entry = cache.get(ckey)
+        if isinstance(entry, dict) and entry.get("chart_vals") is not None:
+            chart_vals = entry["chart_vals"]
+        else:
+            ta_on_htf = self._htf_ta_values_on_unique(expression, unique)
+            chart_vals = [None] * n_chart
+            for i, hidx in enumerate(chart_to_htf):
+                if hidx is None or hidx < 0 or hidx >= len(ta_on_htf):
+                    chart_vals[i] = None
+                else:
+                    chart_vals[i] = ta_on_htf[hidx]
+            cache[ckey] = {"chart_vals": chart_vals}
+
+        # Current chart bar → last sample (Runtime advances series in lockstep).
+        last = chart_vals[-1] if chart_vals else None
+        if last is None:
+            return float("nan")
+        try:
+            fv = float(last)
+        except (TypeError, ValueError):
+            return float("nan")
+        return fv if fv == fv else float("nan")
+
+    def _chart_simple_ta_last(self, expression: HtfSimpleTaExpr) -> Any:
+        """Same-TF allowlisted ta.* on chart series (last sample)."""
+        na = float("nan")
+        period = int(expression.length)
+        if period <= 0:
+            return na
+        name = expression.name
+        if name == "atr":
+            highs = self._series_chrono_values("high")
+            lows = self._series_chrono_values("low")
+            closes = self._series_chrono_values("close")
+            atr_fn = getattr(self, "_atr", None)
+            if not callable(atr_fn) or not closes:
+                return na
+            raw = atr_fn(highs, lows, closes, period)
+            if not raw:
+                return na
+            last = raw[-1]
+            if last is None:
+                return na
+            try:
+                fv = float(last)
+                return fv if fv == fv else na
+            except (TypeError, ValueError):
+                return na
+        field = expression.source or "close"
+        src = self._series_chrono_values(field)
+        if not src and field in ("hl2", "hlc3", "ohlc4"):
+            opens = self._series_chrono_values("open")
+            highs = self._series_chrono_values("high")
+            lows = self._series_chrono_values("low")
+            closes = self._series_chrono_values("close")
+            n = len(closes)
+            src = []
+            for i in range(n):
+                try:
+                    o = float(opens[i]) if i < len(opens) else float("nan")
+                    h = float(highs[i]) if i < len(highs) else float("nan")
+                    l = float(lows[i]) if i < len(lows) else float("nan")
+                    c = float(closes[i])
+                except (TypeError, ValueError):
+                    src.append(None)
+                    continue
+                v = self._htf_agg_field(
+                    {"open": o, "high": h, "low": l, "close": c, "volume": 0.0, "time": 0.0},
+                    field,
+                )
+                src.append(None if v != v else v)
+        if not src:
+            return na
+        if name == "sma":
+            fn = getattr(self, "_sma", None)
+            raw = fn(src, period) if callable(fn) else None
+        elif name == "ema":
+            fn = getattr(self, "_ema", None)
+            raw = fn(src, period) if callable(fn) else None
+        elif name == "rsi":
+            cleaned: list[float | None] = []
+            for v in src:
+                if v is None:
+                    cleaned.append(None)
+                    continue
+                try:
+                    cleaned.append(float(v))
+                except (TypeError, ValueError):
+                    cleaned.append(None)
+            raw = self._htf_rsi_full_series(cleaned, period)
+        else:
+            return na
+        if not raw:
+            return na
+        last = raw[-1]
+        if last is None:
+            return na
+        try:
+            fv = float(last)
+            return fv if fv == fv else na
+        except (TypeError, ValueError):
+            return na
+
     def _security_policy_state(self) -> dict[str, Any]:
         """Lazy-init shared request.security honesty metadata for hosts/tests."""
         state = getattr(self, "_request_security_policy", None)
@@ -1081,12 +1456,15 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         - **Same-symbol + simple OHLCV** on a **coarser** TF with bar times →
           timestamp resample of chart OHLCV (``htf_ohlcv_resample``): last
           completed HTF bar only (lookahead_off-style; gaps/lookahead unused).
+        - **Same-symbol + allowlisted simple ta.*** (``ta.sma/ema/rsi/atr`` with
+          bare OHLCV source + const length) on a **coarser** TF → run the
+          interpret TA helper on resampled HTF bars (``htf_simple_ta_resample``).
         - **Same-symbol + simple OHLCV** otherwise → chart passthrough /
           provider series (``chart_passthrough_htf_stub`` / same-TF eval).
         - **Same-symbol Heikin-Ashi** (``ticker.heikinashi``) → transform chart
           OHLCV to HA (do not return raw chart candles or all-``na``).
-        - **Same-symbol + complex pre-eval** (UDF / ta) on a **different** TF →
-          ``na`` without real HTF re-eval (do not invent HTF structure).
+        - **Same-symbol + complex pre-eval** (UDF / nested / multi-arg ta) on a
+          **different** TF → ``na`` without full multi-TF re-eval.
         - **Same-symbol + same TF** pre-eval → chart eval is correct; allow.
         - **gaps / lookahead** (``barmerge.*``) are accepted for API shape but
           **unused** (no gap-fill series, no lookahead offset). Recorded in
@@ -1140,12 +1518,47 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         tf_s = str(timeframe) if timeframe is not None else ""
 
         def _maybe_htf_resample(expr: Any) -> Any | None:
-            """Same-symbol simple OHLCV HTF path; None → fall through."""
+            """Same-symbol simple OHLCV or allowlisted ta.* HTF path; None → fall through."""
             if not chart_sym or is_ha:
                 return None
+            if isinstance(expr, HtfSimpleTaExpr):
+                return self._try_htf_simple_ta_resample(expr, timeframe)
             if not self._expression_is_simple_ohlcv_value(expr):
                 return None
             return self._try_htf_ohlcv_resample(expr, timeframe)
+
+        def _handle_simple_ta_expr(expr: HtfSimpleTaExpr) -> Any:
+            """Same-symbol allowlisted ta.* — HTF resample, same-TF chart, else na."""
+            if not chart_sym:
+                return self._security_return(
+                    na, "foreign_na", symbol=str(symbol), reason="foreign_simple_ta"
+                )
+            htf_val = self._try_htf_simple_ta_resample(expr, timeframe)
+            if htf_val is not None:
+                return self._security_return(
+                    htf_val,
+                    "htf_simple_ta_resample",
+                    timeframe=tf_s,
+                    ta=expr.name,
+                    length=expr.length,
+                    source=expr.source or "ohlc",
+                )
+            if same_tf:
+                return self._security_return(
+                    self._chart_simple_ta_last(expr),
+                    "same_tf_chart_eval",
+                    timeframe=tf_s,
+                    ta=expr.name,
+                )
+            # LTF / unparseable coarser TF without fixed buckets — honest na
+            # (not chart TA inventing HTF/LTF structure).
+            return self._security_return(
+                na,
+                "complex_htf_na",
+                timeframe=tf_s,
+                reason="simple_ta_not_htf_or_same_tf",
+                ta=expr.name,
+            )
 
         # Heikin-Ashi transform for chart (same-symbol) security requests.
         if is_ha and chart_sym:
@@ -1209,6 +1622,10 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
                 na, "foreign_na", symbol=str(symbol), reason="foreign_or_complex"
             )
 
+        # Allowlisted simple ta.* marker (attached at visit_Call before chart pre-eval).
+        if isinstance(expression, HtfSimpleTaExpr):
+            return _handle_simple_ta_expr(expression)
+
         if isinstance(expression, list):
             if len(expression) == 1 and (
                 expression[0] is None or isinstance(expression[0], (int, float, bool))
@@ -1217,9 +1634,12 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
             elif chart_sym:
                 htf_val = _maybe_htf_resample(expression)
                 if htf_val is not None:
-                    return self._security_return(
-                        htf_val, "htf_ohlcv_resample", timeframe=tf_s
+                    tag = (
+                        "htf_simple_ta_resample"
+                        if isinstance(expression, HtfSimpleTaExpr)
+                        else "htf_ohlcv_resample"
                     )
+                    return self._security_return(htf_val, tag, timeframe=tf_s)
                 if self._allow_same_symbol_preeval(expression, timeframe):
                     return self._security_return(
                         expression, _same_symbol_preeval_tag(), timeframe=tf_s
@@ -1246,6 +1666,19 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
             if chart_sym:
                 htf_val = _maybe_htf_resample(expression)
                 if htf_val is not None:
+                    tag = (
+                        "htf_simple_ta_resample"
+                        if isinstance(expression, HtfSimpleTaExpr)
+                        else "htf_ohlcv_resample"
+                    )
+                    # `_try_htf_simple_ta_resample` already returns only for higher TF;
+                    # tag OHLCV vs simple-ta explicitly for meta honesty.
+                    if tag == "htf_simple_ta_resample":
+                        return self._security_return(
+                            htf_val,
+                            tag,
+                            timeframe=tf_s,
+                        )
                     return self._security_return(
                         htf_val, "htf_ohlcv_resample", timeframe=tf_s
                     )

@@ -728,8 +728,9 @@ class StatementEvaluator:
         # (``barstate.isrealtime``), we re-run the initializer each update so
         # the value can track intrabar state when the host sets the flag.
         # Default Runtime historical loop keeps ``isrealtime=False``; opt-in
-        # ``Runtime.run(realtime_last_bar=True)`` / ``realtime_ticks=N`` sets
-        # the flag on the last bar (multi-tick re-visits when N>1).
+        # ``Runtime.run(realtime_last_bar=True)`` / ``realtime_ticks=N`` /
+        # ``realtime_bars=K`` / ``realtime_from_bar=I`` sets the flag on the
+        # configured realtime window (multi-tick re-visits when N>1).
         if isinstance(mode, (ast.Var, ast.VarIp)):
             if isinstance(node.target, ast.Name):
                 name: str = node.target.id  # type: ignore[attr-defined]

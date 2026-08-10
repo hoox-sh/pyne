@@ -52,8 +52,9 @@ Cross-cutting semantics:
 - **``var`` / ``varip``** initialize on first *execution* of the declaration
   (tracked in ``_var_declarations``), not strictly on ``bar_index == 0``.
   When the host sets ``barstate.isrealtime`` (e.g. ``Runtime.run`` with
-  ``realtime_last_bar`` / ``realtime_ticks``), ``varip`` re-evaluates its RHS
-  each visit; ``var`` stays init-once.
+  ``realtime_last_bar`` / ``realtime_ticks`` / ``realtime_bars`` /
+  ``realtime_from_bar``), ``varip`` re-evaluates its RHS each visit;
+  ``var`` stays init-once.
 - **UDF / method params** rebind keys on the live ``context`` dict and restore
   on return so hosts can keep mutating ``bar_index`` / OHLCV in place.
 - **Strategy events** are captured on ``_strategy_state`` (:class:`~.events.StrategyEvent`).

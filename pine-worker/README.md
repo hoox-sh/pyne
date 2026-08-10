@@ -28,6 +28,21 @@ When semantics disagree, Python wins. This package should thin-wrap or align tow
 
 Do not invert polarity (positive is lookback into the past, not “future”).
 
+### Supported surface vs Python Runtime
+
+Small alignment surface only — **not** a full Runtime rewrite in TypeScript.
+
+| Surface | Python Runtime (SoT) | pine-worker (TS) |
+| --- | --- | --- |
+| Series history offsets (`[0]` current, `[1]` prev, OOB/neg → `na`) | Full (`runtime.series`, `series_buffer`) | Yes — `PineSeries.get` + evaluator `Subscript` |
+| Chronological OHLCV host / bar loop | Full host + feed | Synthetic-bar smoke only |
+| TA builtins (`ta.sma`, …) | Full / incremental | Registry mock only |
+| Strategy orders / events | Full | Not ported |
+| Parser / full AST from source | ANTLR + ASDL | Zod AST schemas; no parser yet |
+| Strategy / plot / request.* surface | Broad v6 coverage | Out of scope for now |
+
+Parity smoke: `test/series_parity_smoke.test.ts` (offset contract + `close[1]` / sma-like loop over synthetic bars).
+
 ## Status
 
 This is the home of **Plan 2** of the strategy-events effort (see `../.opencode/plans/2026-07-05-pine-worker-strategy-events.md`).

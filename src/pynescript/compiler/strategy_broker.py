@@ -176,6 +176,9 @@ class OpenLeg:
 
     Used for multi-leg pyramiding and ``strategy.exit(..., from_entry=...)``
     targeting on the compile path. Also backs ``strategy.opentrades.*`` queries.
+
+    ``max_drawdown`` / ``max_runup`` are approximate max adverse / favorable
+    excursion (currency) while open, updated from bar high/low MTM.
     """
 
     entry_id: str
@@ -185,6 +188,9 @@ class OpenLeg:
     commission: float = 0.0
     entry_bar: int = 0
     entry_time: int = 0
+    entry_comment: str = ""
+    max_drawdown: float = 0.0
+    max_runup: float = 0.0
 
 
 @dataclass
@@ -193,6 +199,9 @@ class ClosedTradeRecord:
 
     One record per :meth:`CompileStrategyBroker._realize_close` call (aggregated
     when multiple legs reduce in a single close). Not a full TV trade object.
+
+    Per-trade ``max_drawdown`` / ``max_runup`` are copied from the open leg's
+    MTM extremes (approximate OHLC path; not tick-accurate).
     """
 
     entry_id: str
@@ -207,6 +216,10 @@ class ClosedTradeRecord:
     exit_bar: int = 0
     exit_time: int = 0
     exit_id: str = ""
+    entry_comment: str = ""
+    exit_comment: str = ""
+    max_drawdown: float = 0.0
+    max_runup: float = 0.0
 
 
 class CompileStrategyBroker:
@@ -324,10 +337,14 @@ class CompileStrategyBroker:
         self.max_cons_loss_days: int | None = None
         # Intraday loss halt as % of initial capital (interpret stores; we enforce)
         self.max_intraday_loss: float = float("inf")
+        # Cap filled orders per calendar-day bucket (entries + exits)
+        self.max_intraday_filled_orders: int | None = None
         self.entries_blocked: bool = False  # risk halt (drawdown / cons loss / intraday)
         self.consecutive_loss_days: int = 0
         self._last_trade_day: int | None = None  # exit_time day bucket
         self._day_pnl: float = 0.0
+        self._fills_day: int | None = None  # day bucket for fill counting
+        self._day_filled_orders: int = 0
 
     def begin_bar(
         self,
@@ -358,6 +375,7 @@ class CompileStrategyBroker:
         # after closes (netprofit). Flat → constant; skip peak/trough work.
         if self.position_size != 0.0:
             self._update_equity_extremes()
+            self._update_leg_extremes()
         if self.pending_orders:
             self._process_pending_ohlc(o, h, l, c)
 
@@ -382,6 +400,7 @@ class CompileStrategyBroker:
         self._mark = c
         if self.position_size != 0.0:
             self._update_equity_extremes()
+            self._update_leg_extremes()
 
     def process_pending_orders(
         self,
@@ -594,6 +613,9 @@ class CompileStrategyBroker:
         *,
         entry_bar: int | None = None,
         entry_time: int | None = None,
+        entry_comment: str = "",
+        max_drawdown: float = 0.0,
+        max_runup: float = 0.0,
     ) -> OpenLeg:
         """Build an :class:`OpenLeg` stamped with current bar context."""
         return OpenLeg(
@@ -604,7 +626,32 @@ class CompileStrategyBroker:
             commission=float(commission),
             entry_bar=int(self._bar_index if entry_bar is None else entry_bar),
             entry_time=int(self._bar_time if entry_time is None else entry_time),
+            entry_comment=str(entry_comment or ""),
+            max_drawdown=float(max_drawdown),
+            max_runup=float(max_runup),
         )
+
+    @staticmethod
+    def _day_bucket(ts: int) -> int:
+        """Calendar-day bucket from bar/exit time (ms, s, or raw)."""
+        t = int(ts)
+        if t > 10_000_000_000:  # ms epoch
+            return t // 86_400_000
+        if t > 10_000_000:  # seconds epoch
+            return t // 86_400
+        return t
+
+    def _roll_fill_day(self) -> None:
+        """Reset intraday fill counter when the bar-time day bucket changes."""
+        day = self._day_bucket(self._bar_time)
+        if self._fills_day is None or day != self._fills_day:
+            self._fills_day = day
+            self._day_filled_orders = 0
+
+    def _note_filled_order(self) -> None:
+        """Count one filled order toward max_intraday_filled_orders."""
+        self._roll_fill_day()
+        self._day_filled_orders += 1
 
     def _ensure_legs(self) -> None:
         """Materialise a single synthetic leg when size is open but list empty."""
@@ -676,10 +723,20 @@ class CompileStrategyBroker:
                 self.position_size += signed
                 self.position_commission += comm
                 self.position_entry_name = eid
+                cmt = str(comment) if comment else ""
                 self.open_legs.append(
-                    self._new_leg(entry_id=eid, size=q, entry_price=px, direction=d, commission=comm)
+                    self._new_leg(
+                        entry_id=eid,
+                        size=q,
+                        entry_price=px,
+                        direction=d,
+                        commission=comm,
+                        entry_comment=cmt,
+                    )
                 )
                 self.open_entry_count = len(self.open_legs)
+                self._note_filled_order()
+                self._update_leg_extremes()
                 self._emit("entry", id=eid, direction=d, qty=q, comment=comment)
                 return True
             elif not (respect_pyramiding and replace_same_id and same_id):
@@ -695,6 +752,7 @@ class CompileStrategyBroker:
                 self.position_size += signed
                 self.position_commission += comm
                 self.position_entry_name = eid
+                cmt = str(comment) if comment else ""
                 if self.pyramiding <= 0:
                     # Merge into one leg (VWAP), keep first entry_id when present
                     if self.open_legs:
@@ -709,20 +767,37 @@ class CompileStrategyBroker:
                                 commission=total_comm,
                                 entry_bar=first.entry_bar,
                                 entry_time=first.entry_time,
+                                entry_comment=first.entry_comment or cmt,
+                                max_drawdown=float(first.max_drawdown),
+                                max_runup=float(first.max_runup),
                             )
                         ]
                     else:
                         self.open_legs = [
                             self._new_leg(
-                                entry_id=eid, size=q, entry_price=px, direction=d, commission=comm
+                                entry_id=eid,
+                                size=q,
+                                entry_price=px,
+                                direction=d,
+                                commission=comm,
+                                entry_comment=cmt,
                             )
                         ]
                     self.open_entry_count = 1
                 else:
                     self.open_legs.append(
-                        self._new_leg(entry_id=eid, size=q, entry_price=px, direction=d, commission=comm)
+                        self._new_leg(
+                            entry_id=eid,
+                            size=q,
+                            entry_price=px,
+                            direction=d,
+                            commission=comm,
+                            entry_comment=cmt,
+                        )
                     )
                     self.open_entry_count = len(self.open_legs)
+                self._note_filled_order()
+                self._update_leg_extremes()
                 self._emit("entry", id=eid, direction=d, qty=q, comment=comment)
                 return True
         # Flat open, reverse re-entry, or same-id replace overwrite
@@ -732,10 +807,20 @@ class CompileStrategyBroker:
         self.position_avg_price = px
         self.position_commission = comm
         self.position_entry_name = eid
+        cmt = str(comment) if comment else ""
         self.open_legs = [
-            self._new_leg(entry_id=eid, size=q, entry_price=px, direction=d, commission=comm)
+            self._new_leg(
+                entry_id=eid,
+                size=q,
+                entry_price=px,
+                direction=d,
+                commission=comm,
+                entry_comment=cmt,
+            )
         ]
         self.open_entry_count = 1
+        self._note_filled_order()
+        self._update_leg_extremes()
         self._emit("entry", id=eid, direction=d, qty=q, comment=comment)
         return True
 
@@ -958,6 +1043,26 @@ class CompileStrategyBroker:
             return
         self.max_intraday_loss = p
 
+    def risk_max_intraday_filled_orders(self, max_orders: Any = None, **_kwargs: Any) -> None:
+        """``strategy.risk.max_intraday_filled_orders(max)`` — cap fills per day.
+
+        Counts successful entry and exit fills in the current bar-time day
+        bucket. Further entries are blocked (``risk_blocked``) once the cap is
+        hit; the counter resets when the day bucket rolls.
+        """
+        raw = max_orders if max_orders is not None else _kwargs.get(
+            "max_orders", _kwargs.get("value", _kwargs.get("max"))
+        )
+        if raw is None or _is_na(raw):
+            return
+        try:
+            n = int(raw)
+        except (TypeError, ValueError):
+            return
+        if n < 0:
+            return
+        self.max_intraday_filled_orders = n
+
     def note_closed_trade_day(self, exit_time: int, profit: float) -> None:
         """Track consecutive calendar-day losses for risk.max_cons_loss_days.
 
@@ -965,13 +1070,7 @@ class CompileStrategyBroker:
         else floor(exit_time / 86_400) for seconds, else bar-time as-is.
         Mirrors interpret ``StrategyState.note_closed_trade_day``.
         """
-        t = int(exit_time)
-        if t > 10_000_000_000:  # ms epoch
-            day = t // 86_400_000
-        elif t > 10_000_000:  # seconds epoch
-            day = t // 86_400
-        else:
-            day = t
+        day = self._day_bucket(int(exit_time))
         if self._last_trade_day is None or day != self._last_trade_day:
             if self._last_trade_day is not None:
                 if self._day_pnl < 0:
@@ -998,8 +1097,9 @@ class CompileStrategyBroker:
         """Interpret-aligned risk gates before opening an entry.
 
         Checks: allow_entry_in, entries_blocked, max_drawdown (abs/%),
-        max_cons_loss_days, max_intraday_loss. Sets ``entries_blocked`` when a
-        halt limit is hit (further entries comment ``risk_blocked``).
+        max_cons_loss_days, max_intraday_loss, max_intraday_filled_orders.
+        Sets ``entries_blocked`` when a permanent halt limit is hit (further
+        entries comment ``risk_blocked``). Filled-order cap is day-scoped.
         """
         allow = (self.allow_entry_in or "all").lower().replace("strategy.", "")
         if allow in {"long"} and direction != "long":
@@ -1029,6 +1129,11 @@ class CompileStrategyBroker:
             loss_pct = 100.0 * (-self._day_pnl) / float(self.initial_capital)
             if loss_pct >= float(self.max_intraday_loss):
                 self.entries_blocked = True
+                return False
+        # Day-scoped fill cap (resets when bar-time day bucket rolls)
+        if self.max_intraday_filled_orders is not None:
+            self._roll_fill_day()
+            if self._day_filled_orders >= int(self.max_intraday_filled_orders):
                 return False
         return True
 
@@ -1337,7 +1442,13 @@ class CompileStrategyBroker:
         else:
             px = float(price)
 
-        self._realize_close(close_qty, float(px), from_entry=from_entry)
+        self._realize_close(
+            close_qty,
+            float(px),
+            from_entry=from_entry,
+            exit_id=str(id) if id is not None else "",
+            exit_comment=str(comment) if comment else "",
+        )
         # Market close keeps direction; stop/limit exit already emitted above.
         if not is_exit:
             self._emit(
@@ -1451,6 +1562,8 @@ class CompileStrategyBroker:
         px: float,
         *,
         from_entry: str | None = None,
+        exit_id: str = "",
+        exit_comment: str = "",
     ) -> None:
         """Reduce open legs (optional ``from_entry`` filter) and realize PnL."""
         self._ensure_legs()
@@ -1476,6 +1589,9 @@ class CompileStrategyBroker:
         trade_entry_bar = self._bar_index
         trade_entry_time = self._bar_time
         trade_entry_id = ""
+        trade_entry_comment = ""
+        trade_max_dd = 0.0
+        trade_max_ru = 0.0
         trade_dir = "long"
         new_legs: list[OpenLeg] = []
         closed_any = False
@@ -1498,10 +1614,14 @@ class CompileStrategyBroker:
             trade_profit += profit
             trade_comm += entry_comm + exit_comm
             trade_entry_notional += basis * cq
+            # Aggregate open-leg extremes (MAE/MFE) across reduced legs
+            trade_max_dd = max(trade_max_dd, float(leg.max_drawdown))
+            trade_max_ru = max(trade_max_ru, float(leg.max_runup))
             if not closed_any:
                 trade_entry_bar = int(leg.entry_bar)
                 trade_entry_time = int(leg.entry_time)
                 trade_entry_id = str(leg.entry_id or "")
+                trade_entry_comment = str(leg.entry_comment or "")
                 trade_dir = leg.direction
             closed_any = True
             leftover = float(leg.size) - cq
@@ -1515,6 +1635,9 @@ class CompileStrategyBroker:
                         commission=float(leg.commission) - entry_comm,
                         entry_bar=leg.entry_bar,
                         entry_time=leg.entry_time,
+                        entry_comment=leg.entry_comment,
+                        max_drawdown=float(leg.max_drawdown),
+                        max_runup=float(leg.max_runup),
                     )
                 )
             remaining -= cq
@@ -1540,8 +1663,14 @@ class CompileStrategyBroker:
                 entry_time=int(trade_entry_time),
                 exit_bar=int(self._bar_index),
                 exit_time=exit_time,
+                exit_id=str(exit_id or ""),
+                entry_comment=trade_entry_comment,
+                exit_comment=str(exit_comment or ""),
+                max_drawdown=float(trade_max_dd),
+                max_runup=float(trade_max_ru),
             )
         )
+        self._note_filled_order()
         if trade_profit > 0:
             self.wintrades += 1
             self.grossprofit += trade_profit
@@ -1799,6 +1928,36 @@ class CompileStrategyBroker:
             if self._equity_trough != 0:
                 self._max_runup_percent = 100.0 * ru / abs(self._equity_trough)
 
+    def _update_leg_extremes(self) -> None:
+        """Approximate per-open-leg MAE/MFE from bar high/low (currency units).
+
+        Long: favorable at high, adverse at low; short: inverted. Values are
+        max adverse excursion (``max_drawdown``) and max favorable
+        (``max_runup``) observed while the leg is open. Commission is ignored
+        for extremes (cheap OHLC path; not tick-accurate).
+        """
+        if not self.open_legs:
+            return
+        hi = float(self._high)
+        lo = float(self._low)
+        if hi != hi or lo != lo:
+            return
+        for leg in self.open_legs:
+            ep = float(leg.entry_price)
+            sz = float(leg.size)
+            if sz <= 0 or ep != ep:
+                continue
+            if leg.direction == "long":
+                fav = (hi - ep) * sz
+                adv = (ep - lo) * sz
+            else:
+                fav = (ep - lo) * sz
+                adv = (hi - ep) * sz
+            if fav > leg.max_runup:
+                leg.max_runup = float(fav)
+            if adv > leg.max_drawdown:
+                leg.max_drawdown = float(adv)
+
     @property
     def max_drawdown(self) -> float:
         """Peak-to-trough equity drawdown (absolute currency units)."""
@@ -1893,6 +2052,18 @@ class CompileStrategyBroker:
             return (mark - float(leg.entry_price)) * float(leg.size) - float(leg.commission)
         return (float(leg.entry_price) - mark) * float(leg.size) - float(leg.commission)
 
+    def opentrades_entry_comment(self, trade_index: Any = 0, **_kwargs: Any) -> str:
+        leg = self._open_leg_at(trade_index)
+        return str(leg.entry_comment) if leg is not None else ""
+
+    def opentrades_max_drawdown(self, trade_index: Any = 0, **_kwargs: Any) -> float:
+        leg = self._open_leg_at(trade_index)
+        return float(leg.max_drawdown) if leg is not None else 0.0
+
+    def opentrades_max_runup(self, trade_index: Any = 0, **_kwargs: Any) -> float:
+        leg = self._open_leg_at(trade_index)
+        return float(leg.max_runup) if leg is not None else 0.0
+
     def closedtrades_profit(self, trade_index: Any = 0, **_kwargs: Any) -> float:
         rec = self._closed_at(trade_index)
         return float(rec.profit) if rec is not None else 0.0
@@ -1936,6 +2107,22 @@ class CompileStrategyBroker:
     def closedtrades_exit_time(self, trade_index: Any = 0, **_kwargs: Any) -> int:
         rec = self._closed_at(trade_index)
         return int(rec.exit_time) if rec is not None else 0
+
+    def closedtrades_entry_comment(self, trade_index: Any = 0, **_kwargs: Any) -> str:
+        rec = self._closed_at(trade_index)
+        return str(rec.entry_comment) if rec is not None else ""
+
+    def closedtrades_exit_comment(self, trade_index: Any = 0, **_kwargs: Any) -> str:
+        rec = self._closed_at(trade_index)
+        return str(rec.exit_comment) if rec is not None else ""
+
+    def closedtrades_max_drawdown(self, trade_index: Any = 0, **_kwargs: Any) -> float:
+        rec = self._closed_at(trade_index)
+        return float(rec.max_drawdown) if rec is not None else 0.0
+
+    def closedtrades_max_runup(self, trade_index: Any = 0, **_kwargs: Any) -> float:
+        rec = self._closed_at(trade_index)
+        return float(rec.max_runup) if rec is not None else 0.0
 
     def to_events(self) -> list[dict[str, Any]]:
         """Return the live event list for host packing as ``__events``.

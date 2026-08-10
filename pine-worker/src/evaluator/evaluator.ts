@@ -24,6 +24,7 @@ import {
   ReturnSignal,
 } from "./types";
 import type { VisitorFn, BuiltinRegistry } from "./types";
+import { PineSeries } from "./series";
 
 // ---------------------------------------------------------------------------
 // NA helpers
@@ -372,11 +373,22 @@ export class Evaluator {
     return value[node.attr] !== undefined ? value[node.attr] : NA;
   }
 
-  /** Subscript → index access (e.g. array[0]). */
+  /**
+   * Subscript → index access.
+   *
+   * - Plain arrays/objects: JS index (`arr[i]`).
+   * - {@link PineSeries}: Pine history offset (Python SoT / TV). Uses
+   *   `context.bar_index` as the current bar so `close[1]` is previous bar.
+   */
   private _visitSubscript(node: any): any {
     const value = this.visit(node.value);
     if (isNA(value) || value == null) return NA;
     const index = this.visit(node.index);
+    if (value instanceof PineSeries) {
+      if (isNA(index) || index == null) return NA;
+      const bar = Number(this.context["bar_index"] ?? 0);
+      return value.get(Number(index), bar);
+    }
     return value[index];
   }
 

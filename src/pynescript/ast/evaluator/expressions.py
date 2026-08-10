@@ -41,6 +41,7 @@ from collections.abc import Callable
 from typing import Any
 
 from pynescript.ast import node as ast
+from pynescript.ast.evaluator.builtins.request import match_htf_simple_ta_ast
 from pynescript.ast.evaluator.names import _BARE_SERIES_BUILTINS
 from pynescript.ast.evaluator.names import ast_qualified_name
 from pynescript.ast.evaluator.types import EvaluatorProtocol
@@ -654,6 +655,7 @@ class ExpressionEvaluator:
         # Dominant multi-TA path: check first.
         if kind == _SITE_QB:
             args, kwargs = self._eval_arg_plan(site[4])
+            args = self._maybe_attach_security_simple_ta(site[3], node, args)
             if kwargs is not _EMPTY_KW and kwargs:
                 return self._call_builtin(site[3], args, kwargs=kwargs)  # type: ignore[attr-defined]
             tag, handler = site[1], site[2]
@@ -668,6 +670,7 @@ class ExpressionEvaluator:
         if kind == _SITE_BB:
             name, tag, handler, plan = site[1], site[2], site[3], site[4]
             args, kwargs = self._eval_arg_plan(plan)
+            args = self._maybe_attach_security_simple_ta(name, node, args)
             # Dual namespace: user ``method dmi`` / UDF stays callable after a
             # series local reuses the bare name (``float dmi = dmi(...)``).
             # Prefer ``_user_functions`` over context and bare ta.* aliases.
@@ -710,6 +713,7 @@ class ExpressionEvaluator:
         if kind == _SITE_Q:
             name, plan = site[1], site[2]
             args, kwargs = self._eval_arg_plan(plan)
+            args = self._maybe_attach_security_simple_ta(name, node, args)
             result = self._call_builtin(name, args, kwargs=kwargs)  # type: ignore[attr-defined]
             if (
                 name in _PURE_CONST_FOLD_BUILTINS
@@ -729,6 +733,7 @@ class ExpressionEvaluator:
         if kind == _SITE_B:
             name, plan = site[1], site[2]
             args, kwargs = self._eval_arg_plan(plan)
+            args = self._maybe_attach_security_simple_ta(name, node, args)
             user = self._lookup_user_callable(name)
             if callable(user):
                 prev_site = getattr(self, "_pine_udf_site", None)
@@ -801,6 +806,34 @@ class ExpressionEvaluator:
         # General path: methods, UDT.new, recovered attrs.
         # site = (_SITE_G, arg_plan)
         return self._visit_Call_general(node, site[1] if len(site) > 1 else None)
+
+    def _maybe_attach_security_simple_ta(
+        self: EvaluatorProtocol,
+        name: str,
+        node: ast.Call,
+        args: list[Any],
+    ) -> list[Any]:
+        """Replace security expression with allowlisted ``HtfSimpleTaExpr`` when AST matches.
+
+        ``request.security`` / bare ``security`` normally receive a *chart*
+        pre-evaluated third arg. For allowlisted simple ``ta.sma/ema/rsi/atr``
+        calls we preserve the form so the HTF path can run TA on resampled
+        bars instead of inventing structure from chart-TF results.
+        """
+        if name not in ("request.security", "security"):
+            return args
+        arg_nodes = getattr(node, "args", None) or ()
+        if len(arg_nodes) < 3 or len(args) < 3:
+            return args
+        expr_ast = getattr(arg_nodes[2], "value", None)
+        if expr_ast is None:
+            return args
+        matched = match_htf_simple_ta_ast(expr_ast)
+        if matched is None:
+            return args
+        out = list(args)
+        out[2] = matched
+        return out
 
     def _lookup_bound_builtin(self: EvaluatorProtocol, name: str) -> tuple[int, Any] | None:
         """Return ``(tag, handler)`` from the resolved-builtin cache, if present."""

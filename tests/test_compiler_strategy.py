@@ -282,12 +282,14 @@ strategy("t")
 strategy.risk.max_cons_loss_days(15)
 strategy.risk.max_drawdown(10, strategy.percent_of_equity)
 strategy.risk.max_intraday_loss(5.0)
+strategy.risk.max_intraday_filled_orders(3)
 plot(strategy.max_drawdown, title="dd")
 """
         code = transpile(src)
         assert "risk_max_cons_loss_days" in code
         assert "risk_max_drawdown" in code
         assert "risk_max_intraday_loss" in code
+        assert "risk_max_intraday_filled_orders" in code
         assert "__strategy.max_drawdown" in code
         compiled = compile_script(src)
         o, h, l, c, v = _ohlcv(15)
@@ -388,6 +390,32 @@ plot(strategy.position_size, title="ps")
         b.entry("L", "long", 50.0)
         assert b.position_size == pytest.approx(10.0)
 
+    def test_risk_max_intraday_filled_orders_blocks_entries(self) -> None:
+        """max_intraday_filled_orders counts fills per day and blocks further entries."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0)
+        # Same calendar day (seconds epoch): day = t // 86400
+        day0 = 1_700_000_000  # fixed day bucket
+        b.risk_max_intraday_filled_orders(2)
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0, bar_time=day0)
+        b.entry("L1", "long", 1.0, comment="e1")
+        assert b.position_size == pytest.approx(1.0)
+        assert b._day_filled_orders == 1
+        b.begin_bar(1, 110.0, 110.0, 110.0, 110.0, bar_time=day0 + 60)
+        b.close("L1", comment="x1")
+        assert b.position_size == 0.0
+        assert b._day_filled_orders == 2  # entry + exit
+        # Third fill attempt (new entry) blocked same day
+        b.entry("L2", "long", 1.0)
+        assert b.position_size == 0.0
+        assert any(e.get("comment") == "risk_blocked" for e in b.events)
+        # Next day bucket resets fill counter
+        b.begin_bar(2, 100.0, 100.0, 100.0, 100.0, bar_time=day0 + 86_400)
+        b.entry("L3", "long", 1.0)
+        assert b.position_size == pytest.approx(1.0)
+        assert b._day_filled_orders == 1
+
     def test_default_entry_qty_stub(self) -> None:
         src = """//@version=5
 strategy("t")
@@ -410,9 +438,9 @@ class TestCompileTradeQueries:
 
         b = CompileStrategyBroker(initial_capital=10_000.0, pyramiding=1)
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0, bar_time=1_000)
-        b.entry("A", "long", 2.0)
+        b.entry("A", "long", 2.0, comment="buyA")
         b.begin_bar(1, 110.0, 110.0, 110.0, 110.0, bar_time=2_000)
-        b.entry("B", "long", 3.0)
+        b.entry("B", "long", 3.0, comment="buyB")
         assert b.open_entry_count == 2
         assert b.opentrades_size(0) == pytest.approx(2.0)
         assert b.opentrades_size(1) == pytest.approx(3.0)
@@ -425,15 +453,30 @@ class TestCompileTradeQueries:
         # MTM at bar1 close 110: leg A = (110-100)*2 = 20
         assert b.opentrades_profit(0) == pytest.approx(20.0)
         assert b.opentrades_profit(1) == pytest.approx(0.0)
+        assert b.opentrades_entry_comment(0) == "buyA"
+        assert b.opentrades_entry_comment(1) == "buyB"
+
+    def test_broker_opentrades_max_dd_runup_from_ohlc(self) -> None:
+        """Per-open-leg max_drawdown / max_runup from bar high/low MTM."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0)
+        # Entry at 100; next bar high 115 low 90 → runup 15, drawdown 10 per unit
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0, bar_time=1_000)
+        b.entry("L", "long", 2.0, comment="in")
+        b.begin_bar(1, 100.0, 115.0, 90.0, 105.0, bar_time=2_000)
+        assert b.opentrades_max_runup(0) == pytest.approx(30.0)  # (115-100)*2
+        assert b.opentrades_max_drawdown(0) == pytest.approx(20.0)  # (100-90)*2
+        assert b.opentrades_entry_comment(0) == "in"
 
     def test_broker_closedtrades_profit_and_size(self) -> None:
         from pynescript.compiler.strategy_broker import CompileStrategyBroker
 
         b = CompileStrategyBroker(initial_capital=10_000.0)
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0, bar_time=500)
-        b.entry("L", "long", 4.0)
-        b.begin_bar(1, 120.0, 120.0, 120.0, 120.0, bar_time=600)
-        b.close("L")
+        b.entry("L", "long", 4.0, comment="entryCmt")
+        b.begin_bar(1, 120.0, 130.0, 110.0, 120.0, bar_time=600)
+        b.close("L", comment="exitCmt")
         assert b.closed_trades == 1
         assert len(b.closed_trade_records) == 1
         assert b.closedtrades_profit(0) == pytest.approx(80.0)
@@ -444,6 +487,41 @@ class TestCompileTradeQueries:
         assert b.closedtrades_entry_bar_index(0) == 0
         assert b.closedtrades_exit_bar_index(0) == 1
         assert b.closedtrades_profit(1) == 0.0  # OOB
+        assert b.closedtrades_entry_comment(0) == "entryCmt"
+        assert b.closedtrades_exit_comment(0) == "exitCmt"
+        assert b.closedtrades_exit_id(0) == "L"
+        # Extremes from bar1 high/low before close: (130-100)*4 runup, (100-110)*4 no adverse
+        assert b.closedtrades_max_runup(0) == pytest.approx(120.0)  # (130-100)*4
+        assert b.closedtrades_max_drawdown(0) == pytest.approx(0.0)  # low 110 still above entry
+
+    def test_compile_trade_query_comments_and_extremes_emit(self) -> None:
+        """Compiler wires comment/extremes accessors; numeric extremes plot after RT."""
+        src = """//@version=6
+strategy("t")
+if bar_index == 0
+    strategy.entry("L", strategy.long, qty=2, comment="buy")
+if bar_index == 1
+    strategy.close("L", comment="sell")
+// string plots are coerced; exercise emit + numeric extremes
+_ec = strategy.closedtrades.entry_comment(0)
+_xc = strategy.closedtrades.exit_comment(0)
+plot(strategy.closedtrades.max_runup(0), title="cru")
+plot(strategy.closedtrades.max_drawdown(0), title="cdd")
+plot(strategy.opentrades.max_runup(0), title="oru")
+"""
+        code = transpile(src)
+        assert "closedtrades_entry_comment" in code
+        assert "closedtrades_exit_comment" in code
+        assert "closedtrades_max_runup" in code
+        assert "closedtrades_max_drawdown" in code
+        assert "opentrades_max_runup" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(4, start=100.0)
+        out = compiled.run(o, h, l, c, v)
+        # After close on bar1: closed trade has runup from bar high path (close+1)
+        # entry at 100 qty 2, bar0 high=101 → runup at least (101-100)*2=2
+        assert out["cru"][-1] >= 2.0
+        assert out["cdd"][-1] >= 0.0
 
     def test_compile_script_trade_query_plots(self) -> None:
         src = """//@version=6

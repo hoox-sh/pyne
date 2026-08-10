@@ -189,3 +189,104 @@ plot(vip, "vip")
     # Realtime last bar (1 tick): var still accumulates; varip re-inits then +1
     assert rt["series"]["v"][-1] == n
     assert rt["series"]["vip"][-1] == 1
+
+
+def test_varip_vs_var_across_last_two_realtime_bars() -> None:
+    """realtime_bars=2: multi-tick on last two bars; history before window.
+
+    Bars ``[0, n-2)`` stay historical (one visit, isrealtime=False).
+    Bars ``n-2`` and ``n-1`` each re-visit ``ticks`` times with isrealtime.
+    - ``var`` accumulates across every visit
+    - ``varip`` re-inits on each realtime tick → final cell per RT bar is 1
+    Series length remains one sample per OHLCV bar.
+    """
+    src = """
+//@version=5
+indicator("varip two rt bars")
+var int v = 0
+varip int vip = 0
+v := v + 1
+vip := vip + 1
+plot(v, "v")
+plot(vip, "vip")
+"""
+    n = 8
+    ticks = 3
+    k = 2
+    out = Runtime(symbol="TEST").run(
+        src,
+        _bars(n),
+        mode="interpret",
+        realtime_bars=k,
+        realtime_ticks=ticks,
+    )
+    assert "error" not in out, out.get("error")
+    series = out["series"]
+    assert len(series["v"]) == n
+    assert len(series["vip"]) == n
+
+    # Historical bars 0..n-3: one visit each → n-k increments for both
+    hist_visits = n - k
+    assert series["v"][hist_visits - 1] == hist_visits
+    assert series["vip"][hist_visits - 1] == hist_visits
+
+    # First realtime bar (index n-2): var += ticks; varip final = 1
+    assert series["v"][-2] == hist_visits + ticks
+    assert series["vip"][-2] == 1
+
+    # Last realtime bar: var += another ticks; varip final = 1
+    assert series["v"][-1] == hist_visits + k * ticks
+    assert series["vip"][-1] == 1
+
+
+def test_realtime_from_bar_window() -> None:
+    """realtime_from_bar sets absolute window start (same as last-2 when I=n-2)."""
+    src = """
+//@version=5
+indicator("from bar")
+var int v = 0
+varip int vip = 0
+v := v + 1
+vip := vip + 1
+plot(v, "v")
+plot(vip, "vip")
+"""
+    n = 6
+    ticks = 2
+    from_bar = n - 2
+    out = Runtime(symbol="TEST").run(
+        src,
+        _bars(n),
+        mode="interpret",
+        realtime_from_bar=from_bar,
+        realtime_ticks=ticks,
+    )
+    assert "error" not in out, out.get("error")
+    series = out["series"]
+    hist_visits = from_bar
+    assert series["v"][-1] == hist_visits + 2 * ticks
+    assert series["vip"][-1] == 1
+    assert series["vip"][-2] == 1
+    # Bar before window is still historical accumulation for varip
+    assert series["vip"][from_bar - 1] == hist_visits
+
+
+def test_realtime_bars_default_zero_keeps_historical() -> None:
+    """realtime_bars=0 (default) without other flags: pure historical path."""
+    src = """
+//@version=5
+indicator("rt bars zero")
+var int v = 0
+varip int vip = 0
+v := v + 1
+vip := vip + 1
+plot(v, "v")
+plot(vip, "vip")
+"""
+    n = 5
+    out = Runtime(symbol="TEST").run(
+        src, _bars(n), mode="interpret", realtime_bars=0, realtime_ticks=1
+    )
+    assert "error" not in out, out.get("error")
+    assert out["series"]["v"][-1] == n
+    assert out["series"]["vip"][-1] == n

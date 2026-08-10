@@ -666,7 +666,7 @@ def _clear_pine_call_sites(tree: Any) -> None:
 def _discard_realtime_plot_tick(evaluator: Any) -> None:
     """Drop plot cells appended for an intermediate realtime tick on the same bar.
 
-    Multi-tick last-bar simulation re-visits the script without advancing
+    Multi-tick realtime simulation re-visits the script without advancing
     ``_plot_bars_done``; intermediate ticks must not leave extra series cells.
     """
     n = int(getattr(evaluator, "_plot_capture_i", 0) or 0)
@@ -899,6 +899,8 @@ class Runtime:
         *,
         realtime_last_bar: bool = False,
         realtime_ticks: int = 1,
+        realtime_bars: int = 0,
+        realtime_from_bar: int | None = None,
     ):
         """
         Execute the script over the provided OHLCV data.
@@ -925,14 +927,27 @@ class Runtime:
             realtime_last_bar: Interpret only. When true, the last bar is
                 visited with ``barstate.isrealtime=True`` (forming bar:
                 ``ishistory=False``). Default false keeps historical hosts
-                unchanged (``isrealtime`` always false).
-            realtime_ticks: Interpret only. How many times to re-visit the
-                last bar when realtime simulation is active. Values ``>1``
-                also enable last-bar realtime (same as
-                ``realtime_last_bar=True``). Intermediate ticks discard plot
-                cells so series length stays one sample per bar; final tick
-                keeps ``varip`` re-init semantics from the evaluator.
-                Default ``1``.
+                unchanged (``isrealtime`` always false). Ignored when
+                ``realtime_bars > 0`` or ``realtime_from_bar`` is set (those
+                define a multi-bar realtime window instead).
+            realtime_ticks: Interpret only. How many times to re-visit each
+                bar in the realtime window. Values ``>1`` also enable last-bar
+                realtime when no window is set via ``realtime_bars`` /
+                ``realtime_from_bar`` (same as ``realtime_last_bar=True``).
+                Intermediate ticks discard plot cells so series length stays
+                one sample per bar; final tick keeps ``varip`` re-init
+                semantics from the evaluator. Default ``1``.
+            realtime_bars: Interpret only. When ``>0``, the last *K* bars
+                (``[n_bars - K, n_bars)``) are treated as realtime-forming
+                with multi-tick re-eval. Historical bars before that window
+                stay ``ishistory=True`` / ``isrealtime=False``. Default ``0``
+                keeps legacy last-bar-only behavior when
+                ``realtime_last_bar`` / ``realtime_ticks`` are used.
+            realtime_from_bar: Interpret only. Absolute start index of the
+                realtime window ``[realtime_from_bar, n_bars)``. When set,
+                overrides ``realtime_bars`` and last-bar-only flags for
+                window extent. Clamped to ``[0, n_bars)``. ``None`` (default)
+                does not open a window by itself.
 
         Returns:
             dict with 'series': list of plotted values for each bar.
@@ -1210,7 +1225,7 @@ class Runtime:
         time_update = time_series.update
         time_close_update = time_close_series.update
 
-        # Historical defaults. Last-bar realtime simulation (opt-in) overrides
+        # Historical defaults. Opt-in realtime window overrides
         # isrealtime / ishistory / isconfirmed / isnew per tick below.
         barstate.isnew = True
         barstate.ishistory = True
@@ -1222,8 +1237,30 @@ class Runtime:
             _rt_ticks = 1
         if _rt_ticks < 1:
             _rt_ticks = 1
-        # realtime_ticks>1 implies last-bar realtime multi-pass.
-        _rt_last = bool(realtime_last_bar) or _rt_ticks > 1
+        try:
+            _rt_bars = int(realtime_bars)
+        except (TypeError, ValueError):
+            _rt_bars = 0
+        if _rt_bars < 0:
+            _rt_bars = 0
+        # Resolve realtime window start index (inclusive), or None = historical only.
+        # Precedence: realtime_from_bar > realtime_bars > last-bar-only flags.
+        _rt_first: int | None = None
+        if realtime_from_bar is not None:
+            try:
+                _rt_first = int(realtime_from_bar)
+            except (TypeError, ValueError):
+                _rt_first = 0
+            if _rt_first < 0:
+                _rt_first = 0
+            if _rt_first >= n_bars:
+                # Window empty → no realtime bars (historical path).
+                _rt_first = None
+        elif _rt_bars > 0:
+            _rt_first = n_bars - _rt_bars if n_bars > _rt_bars else 0
+        elif bool(realtime_last_bar) or _rt_ticks > 1:
+            # Legacy: last bar only (realtime_ticks>1 implies last-bar multi-pass).
+            _rt_first = last_bar_i if n_bars > 0 else None
 
         visit = evaluator.visit
         reset_plots = evaluator.reset_plots
@@ -1317,9 +1354,9 @@ class Runtime:
             is_last = bar_index == last_bar_i
             barstate.isfirst = bar_index == 0
             barstate.islast = is_last
-            # Realtime multi-tick only on last bar (opt-in). Historical bars
-            # always run once with isrealtime=False.
-            bar_rt = bool(_rt_last and is_last)
+            # Realtime multi-tick on bars in the opt-in window. Historical bars
+            # before the window always run once with isrealtime=False.
+            bar_rt = _rt_first is not None and bar_index >= _rt_first
             n_ticks = _rt_ticks if bar_rt else 1
             if not bar_rt:
                 barstate.isnew = True
@@ -1361,7 +1398,7 @@ class Runtime:
 
             for tick_i in range(n_ticks):
                 if bar_rt:
-                    # Forming last bar: isrealtime drives varip RHS re-eval.
+                    # Forming bar in realtime window: isrealtime drives varip RHS re-eval.
                     barstate.isrealtime = True
                     barstate.ishistory = False
                     barstate.isnew = tick_i == 0

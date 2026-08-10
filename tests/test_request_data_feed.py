@@ -342,6 +342,160 @@ plot(Volume, title="Volume")
         assert all(_is_na(x) for x in pc)
 
 
+def _aligned_1m_bars(n: int = 600, start: float = 100.0) -> list[dict]:
+    """1m bars aligned to 60m buckets (for HTF simple-ta tests)."""
+    hour0 = 1_700_000_000_000
+    hour0 -= hour0 % 3_600_000
+    bars: list[dict] = []
+    price = start
+    for i in range(n):
+        o = round(price, 2)
+        c = round(price + (1.0 if i % 3 else -0.5), 2)
+        h = round(max(o, c) + 0.8, 2)
+        lo = round(min(o, c) - 0.8, 2)
+        bars.append(
+            {
+                "open": o,
+                "high": h,
+                "low": max(lo, 0.01),
+                "close": c,
+                "time": hour0 + i * 60_000,
+                "volume": 1000.0 + i,
+            }
+        )
+        price = c
+    return bars
+
+
+class TestHtfSimpleTaResample:
+    """Allowlisted ta.sma/ema/rsi/atr on resampled HTF bars (not full multi-TF)."""
+
+    def test_htf_sma_finite_after_warmup_and_stepwise_constant(self) -> None:
+        """1m chart + request 60m sma(close, 3) → finite after 3 HTF bars; flat in bucket."""
+        from backend.runtime import Runtime
+
+        # 10 hours of 1m bars → 9 completed hours available late in the series.
+        bars = _aligned_1m_bars(10 * 60)
+        src = """//@version=6
+indicator("t")
+plot(request.security(syminfo.tickerid, "60", ta.sma(close, 3)), title="hsma")
+plot(ta.sma(close, 3), title="csma")
+plot(close, title="c")
+"""
+        out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
+        assert not out.get("error"), out.get("error")
+        hsma = out["series"]["hsma"]
+        csma = out["series"]["csma"]
+        # First hour incomplete → na (bar 0 may stub); need 3 completed HTF bars
+        # for SMA(3) → finite from the start of the 4th hour (bar index 180).
+        assert all(_is_na(x) for x in hsma[1:60])
+        # After warmup: finite and constant within each hour bucket.
+        warm = 3 * 60  # 3 completed HTF bars available from chart bar 180
+        assert warm < len(hsma)
+        finite_tail = [x for x in hsma[warm:] if not _is_na(x)]
+        assert len(finite_tail) > 60
+        for v in finite_tail:
+            assert math.isfinite(float(v))
+        # Stepwise constancy: within hour 5 (bars 300–359) last completed is hour 4;
+        # value should not change mid-hour.
+        hour5 = hsma[5 * 60 : 6 * 60]
+        assert all(not _is_na(x) for x in hour5)
+        ref = float(hour5[0])
+        for v in hour5:
+            assert abs(float(v) - ref) < 1e-9
+        # Not chart-TF SMA passthrough (different series after HTF aggregation).
+        assert abs(float(hsma[-1]) - float(csma[-1])) > 1e-6
+        pol = (out.get("meta") or {}).get("request_security") or {}
+        assert "htf_simple_ta_resample" in (pol.get("policies") or {})
+        assert pol.get("htf_reeval") is False
+
+    def test_htf_ema_and_rsi_finite_policy(self) -> None:
+        from backend.runtime import Runtime
+
+        bars = _aligned_1m_bars(12 * 60)
+        src = """//@version=6
+indicator("t")
+plot(request.security(syminfo.tickerid, "60", ta.ema(close, 5)), title="hema")
+plot(request.security(syminfo.tickerid, "60", ta.rsi(close, 5)), title="hrsi")
+"""
+        out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
+        assert not out.get("error"), out.get("error")
+        hema = out["series"]["hema"]
+        hrsi = out["series"]["hrsi"]
+        # Warmup: 5 HTF bars for EMA seed → finite later in series.
+        assert any(not _is_na(x) for x in hema[5 * 60 :])
+        assert any(not _is_na(x) for x in hrsi[6 * 60 :])
+        assert math.isfinite(float([x for x in hema if not _is_na(x)][-1]))
+        rsi_last = float([x for x in hrsi if not _is_na(x)][-1])
+        assert math.isfinite(rsi_last)
+        assert 0.0 <= rsi_last <= 100.0
+        pol = (out.get("meta") or {}).get("request_security") or {}
+        assert "htf_simple_ta_resample" in (pol.get("policies") or {})
+
+    def test_htf_atr_finite_after_warmup(self) -> None:
+        from backend.runtime import Runtime
+
+        bars = _aligned_1m_bars(12 * 60)
+        src = """//@version=6
+indicator("t")
+plot(request.security(syminfo.tickerid, "60", ta.atr(3)), title="hatr")
+plot(ta.atr(3), title="catr")
+"""
+        out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
+        assert not out.get("error"), out.get("error")
+        hatr = out["series"]["hatr"]
+        catr = out["series"]["catr"]
+        finite = [x for x in hatr[4 * 60 :] if not _is_na(x)]
+        assert len(finite) > 0
+        assert math.isfinite(float(finite[-1]))
+        assert float(finite[-1]) > 0.0
+        # Differ from chart ATR once HTF bars exist.
+        if not _is_na(hatr[-1]) and not _is_na(catr[-1]):
+            assert abs(float(hatr[-1]) - float(catr[-1])) > 1e-9
+        pol = (out.get("meta") or {}).get("request_security") or {}
+        assert "htf_simple_ta_resample" in (pol.get("policies") or {})
+
+    def test_nested_ta_still_complex_htf_na(self) -> None:
+        """Nested / non-allowlist ta never use htf_simple_ta_resample.
+
+        Chart pre-eval of nested SMA can occasionally equal an OHLCV sample and
+        hit the pre-existing passthrough heuristic — that is not the simple-ta
+        HTF path. Non-allowlist ``ta.wma`` and clearly non-OHLCV results stay na.
+        """
+        from backend.runtime import Runtime
+
+        bars = _aligned_1m_bars(3 * 60)
+        src = """//@version=6
+indicator("t")
+plot(request.security(syminfo.tickerid, "60", ta.sma(ta.ema(close, 3), 3)), title="nested")
+plot(request.security(syminfo.tickerid, "60", ta.wma(close, 3)), title="wma")
+plot(request.security(syminfo.tickerid, "60", ta.stdev(close, 5)), title="stdev")
+"""
+        out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
+        assert not out.get("error"), out.get("error")
+        assert all(_is_na(x) for x in out["series"]["wma"])
+        assert all(_is_na(x) for x in out["series"]["stdev"])
+        pol = (out.get("meta") or {}).get("request_security") or {}
+        policies = pol.get("policies") or {}
+        assert "complex_htf_na" in policies
+        assert "htf_simple_ta_resample" not in policies
+
+    def test_match_htf_simple_ta_ast_allowlist(self) -> None:
+        from pynescript.ast.evaluator.builtins.request import match_htf_simple_ta_ast
+        from pynescript.ast.helper import parse
+
+        def _expr(src: str):
+            return parse(src, mode="eval").body
+
+        m = match_htf_simple_ta_ast(_expr("ta.sma(close, 14)"))
+        assert m is not None and m.name == "sma" and m.source == "close" and m.length == 14
+        m = match_htf_simple_ta_ast(_expr("ta.atr(14)"))
+        assert m is not None and m.name == "atr" and m.source is None and m.length == 14
+        assert match_htf_simple_ta_ast(_expr("ta.sma(ta.ema(close, 5), 14)")) is None
+        assert match_htf_simple_ta_ast(_expr("ta.wma(close, 14)")) is None
+        assert match_htf_simple_ta_ast(_expr("close")) is None
+
+
 class TestRequestSecurityHonestyMeta:
     """Runtime metadata + documented no-crash behavior for limited security surface."""
 
