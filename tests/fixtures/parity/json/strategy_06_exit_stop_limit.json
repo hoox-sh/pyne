@@ -190,25 +190,6 @@
     ]
   },
   {
-    "kind": "order",
-    "id": "X",
-    "direction": "short",
-    "qty": 10.0,
-    "order_type": "market",
-    "limit": 110.0,
-    "stop": null,
-    "oca_name": null,
-    "comment": "fill",
-    "bar_index": 5,
-    "bar_time": 433000000,
-    "ohlc": [
-      109.41,
-      111.78,
-      108.92,
-      111.47
-    ]
-  },
-  {
     "kind": "entry",
     "id": "L",
     "direction": "long",
