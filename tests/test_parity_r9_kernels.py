@@ -21,6 +21,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from backend.runtime import Runtime
 
 
@@ -92,7 +94,7 @@ plot(halow, "l")
 
         path = Path("tests/data/set01/strategies/045_str_ha_univlong_and_short_futures.pine")
         if not path.is_file():
-            return
+            pytest.skip(f"optional corpus missing: {path}")
         import importlib.util
         from pathlib import Path as P
 
@@ -112,7 +114,7 @@ class TestStochRsiSupertrendCorpus:
 
         path = Path("tests/data/set01/strategies/073_str_stochrsi_plus_supertrend_strategy.pine")
         if not path.is_file():
-            return
+            pytest.skip(f"optional corpus missing: {path}")
         root = Path(".").resolve()
         spec = importlib.util.spec_from_file_location("h", root / "scripts" / "compare_interp_compile.py")
         assert spec and spec.loader
@@ -257,7 +259,7 @@ plot(show_viz ? strategy.position_avg_price : na, "pe")
 
         path = Path("tests/data/set02/strategies/071_str_multi_vwap_crossover.pine")
         if not path.is_file():
-            return
+            pytest.skip(f"optional corpus missing: {path}")
         root = Path(".").resolve()
         spec = importlib.util.spec_from_file_location("h", root / "scripts" / "compare_interp_compile.py")
         assert spec and spec.loader
@@ -274,7 +276,7 @@ class TestCorpusResidualsParity:
 
         path = Path("tests/data/set01/indicators/245_ind_hma_kahlman_trend_clipping_and_trendlines.pine")
         if not path.is_file():
-            return
+            pytest.skip(f"optional corpus missing: {path}")
         root = Path(".").resolve()
         spec = importlib.util.spec_from_file_location("h", root / "scripts" / "compare_interp_compile.py")
         assert spec and spec.loader
@@ -289,7 +291,7 @@ class TestCorpusResidualsParity:
 
         path = Path("tests/data/set02/indicators/178_ind_bulls_bears_index_bbi_2.pine")
         if not path.is_file():
-            return
+            pytest.skip(f"optional corpus missing: {path}")
         root = Path(".").resolve()
         spec = importlib.util.spec_from_file_location("h", root / "scripts" / "compare_interp_compile.py")
         assert spec and spec.loader

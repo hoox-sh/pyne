@@ -35,6 +35,25 @@ def test_normalize_webhook_url() -> None:
     assert normalize_webhook_url("  ") is None
 
 
+def test_normalize_webhook_url_blocks_ssrf_targets() -> None:
+    """Audit 2026-08-10: private/loopback/metadata hosts are rejected by default."""
+    from backend.alert_forwarder import is_webhook_url_safe
+
+    assert normalize_webhook_url("http://127.0.0.1/hook") is None
+    assert normalize_webhook_url("http://localhost/hook") is None
+    assert normalize_webhook_url("http://10.0.0.5/hook") is None
+    assert normalize_webhook_url("http://192.168.1.1/hook") is None
+    assert normalize_webhook_url("http://169.254.169.254/latest/meta-data/") is None
+    assert normalize_webhook_url("http://metadata.google.internal/") is None
+    assert is_webhook_url_safe("https://hooks.example.com/x") is True
+
+
+def test_normalize_webhook_url_allow_private_env(monkeypatch) -> None:
+    monkeypatch.setenv("ALERT_WEBHOOK_ALLOW_PRIVATE", "1")
+    assert normalize_webhook_url("http://10.0.0.5/hook") == "http://10.0.0.5/hook"
+    assert normalize_webhook_url("http://127.0.0.1/hook") == "http://127.0.0.1/hook"
+
+
 def test_filter_last_bar() -> None:
     alerts = [
         {"message": "a", "time": 100, "bar_index": 0},

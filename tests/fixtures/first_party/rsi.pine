@@ -1,0 +1,3 @@
+//@version=5
+indicator("fp_rsi")
+plot(ta.rsi(close, 14), title="rsi")

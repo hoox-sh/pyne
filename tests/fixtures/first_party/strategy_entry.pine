@@ -1,0 +1,5 @@
+//@version=5
+strategy("fp_entry", overlay=true)
+if bar_index == 1
+    strategy.entry("L", strategy.long, qty=1)
+plot(close, title="close")

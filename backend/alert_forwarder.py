@@ -31,12 +31,20 @@ Request flags:
 - ``forward_alerts`` (default true) — skip delivery when false
 - ``alert_last_bar`` (default true) — only POST firings on the last OHLCV bar
 - ``alert_batch`` (default true) — one batch POST vs one POST per alert
+
+SSRF policy (audit 2026-08-10 Wave A):
+
+* Only ``http`` / ``https`` schemes
+* Block loopback, link-local, private RFC1918, and cloud metadata hosts by default
+* Set ``ALERT_WEBHOOK_ALLOW_PRIVATE=1`` only for trusted private-network demos
 """
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
+import socket
 import urllib.error
 import urllib.request
 from typing import Any
@@ -48,15 +56,105 @@ HttpPostJson = Callable[[str, dict[str, Any]], int]
 _SOURCE = "pyne-pro-api"
 _USER_AGENT = "pynescript-pro-api-alerts/1.0"
 
+# Hostnames blocked even when they resolve to public IPs (defense in depth).
+_BLOCKED_WEBHOOK_HOSTS = frozenset(
+    {
+        "localhost",
+        "localhost.localdomain",
+        "metadata",
+        "metadata.google.internal",
+        "metadata.gce.internal",
+    }
+)
+
 
 def default_webhook_url() -> str | None:
-    """Server default from ``ALERT_WEBHOOK_URL`` env."""
+    """Server default from ``ALERT_WEBHOOK_URL`` env (SSRF-checked)."""
     raw = (os.environ.get("ALERT_WEBHOOK_URL") or "").strip()
-    return raw or None
+    if not raw:
+        return None
+    return normalize_webhook_url(raw)
+
+
+def _allow_private_webhooks() -> bool:
+    return (os.environ.get("ALERT_WEBHOOK_ALLOW_PRIVATE") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _host_is_blocked(hostname: str) -> bool:
+    """True when *hostname* is loopback/private/metadata and private URLs are disallowed."""
+    host = (hostname or "").strip().lower().rstrip(".")
+    if not host:
+        return True
+    if host in _BLOCKED_WEBHOOK_HOSTS:
+        return not _allow_private_webhooks()
+    # Strip brackets from IPv6 literals
+    if host.startswith("[") and host.endswith("]"):
+        host = host[1:-1]
+    # Literal IP?
+    try:
+        ip = ipaddress.ip_address(host)
+        if _allow_private_webhooks():
+            return False
+        return bool(
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_reserved
+            or ip.is_multicast
+            or ip.is_unspecified
+        )
+    except ValueError:
+        pass
+    if _allow_private_webhooks():
+        return False
+    # Resolve DNS and reject if any address is non-public.
+    # Unresolvable hostnames are allowed here — delivery will fail at POST time.
+    # (Failing closed on DNS would break tests and legitimate not-yet-published hosts.)
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except OSError:
+        return False
+    for info in infos:
+        addr = info[4][0]
+        try:
+            ip = ipaddress.ip_address(addr)
+        except ValueError:
+            continue
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_reserved
+            or ip.is_multicast
+            or ip.is_unspecified
+        ):
+            return True
+    return False
+
+
+def is_webhook_url_safe(url: str) -> bool:
+    """Return True when *url* is an allowed outbound webhook destination."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return False
+    # Reject userinfo (user:pass@host) — rarely needed and aids smuggling
+    if parsed.username is not None or parsed.password is not None:
+        return False
+    hostname = parsed.hostname or ""
+    return not _host_is_blocked(hostname)
 
 
 def normalize_webhook_url(url: Any) -> str | None:
-    """Return a stripped http(s) URL or ``None`` if invalid/empty."""
+    """Return a stripped safe http(s) URL or ``None`` if invalid/empty/blocked.
+
+    Blocks private/loopback/metadata targets unless
+    ``ALERT_WEBHOOK_ALLOW_PRIVATE=1`` is set (audit 2026-08-10 SSRF fix).
+    """
     if url is None:
         return None
     s = str(url).strip()
@@ -64,6 +162,8 @@ def normalize_webhook_url(url: Any) -> str | None:
         return None
     parsed = urlparse(s)
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return None
+    if not is_webhook_url_safe(s):
         return None
     return s
 

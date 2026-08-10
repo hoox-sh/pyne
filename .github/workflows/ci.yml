@@ -76,6 +76,30 @@ jobs:
             tests/test_cli.py \
             -q --tb=short
 
+      - name: Core runtime (parity / strategy / series)
+        # Audit 2026-08-10 Wave A: PR-gate first-party correctness without
+        # third-party corpora. Skips optional corpus cases when files absent.
+        # Note: test_ta_incremental.py still has residual failures (EMA seed /
+        # ATR-related); keep out of the gate until Wave B closes them.
+        run: |
+          python -m pytest \
+            tests/test_interp_compile_parity.py \
+            tests/test_parity.py \
+            tests/test_expr_parity_r8.py \
+            tests/test_strategy_runtime.py \
+            tests/test_order_fills.py \
+            tests/test_series_cap.py \
+            tests/test_series_ring_buffer.py \
+            tests/test_alert_forwarder.py \
+            tests/test_free_limits.py \
+            -q --tb=short \
+            -k "not optional_corpus"
+        env:
+          # Keep free-tier rate limits out of the way for unit tests.
+          FREE_RATE_LIMIT: "0"
+          FREE_MAX_CONCURRENT: "0"
+          ADMIN_TOKEN: ci-test-admin-token
+
       - name: LSP tests
         run: |
           python -m pytest \
@@ -85,11 +109,13 @@ jobs:
 
       - name: Backend / Pro API tests
         run: |
-          python -m pytest tests/test_backend.py -v --tb=short \
+          python -m pytest tests/test_backend.py tests/test_alert_forwarder.py tests/test_free_limits.py -v --tb=short \
             --cov=backend --cov=src/pynescript \
             --cov-report=xml --cov-report=term-missing:skip-covered
         env:
           ADMIN_TOKEN: ci-test-admin-token
+          FREE_RATE_LIMIT: "0"
+          FREE_MAX_CONCURRENT: "0"
 
       - name: Upload coverage
         if: matrix.python-version == '3.13'

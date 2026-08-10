@@ -147,13 +147,17 @@ class APIKeyStore:
 
     Backends:
 
-    * ``json`` (default) — single-process JSON file. Stores raw keys as object
-      keys (dev convenience only; not multi-worker safe).
+    * ``json`` (default) — single-process JSON file. **Hash-only** (raw secret
+      is never written to disk; keyed by SHA-256 of the secret). Not multi-worker
+      safe for concurrent writes.
     * ``sqlite`` — hash-only SQLite (WAL). Safe for multi-worker single host
       when the DB path is on a shared volume (e.g. ``/data/api_keys.db``).
     * ``redis`` — hash-only Redis. Safe for multi-replica (Cloud Run + Memorystore).
 
     Select via ``STORE_BACKEND`` (see :func:`get_key_store`).
+
+    Legacy JSON files that used the raw secret as the object key are migrated
+    on load: entries are re-keyed by ``key_hash`` and the raw secret is dropped.
     """
 
     _DEFAULT_JSON_PATH = "/data/api_keys.json"
@@ -162,9 +166,9 @@ class APIKeyStore:
         self._backend = backend
         # Read env at init time so tests can monkeypatch API_KEY_STORE.
         self._store_path = store_path or os.environ.get("API_KEY_STORE", self._DEFAULT_JSON_PATH)
-        # JSON mode only:
+        # JSON mode only — maps key_hash → APIKey (never raw secret).
         self._keys: dict[str, APIKey] = {}
-        self._key_by_id: dict[str, str] = {}
+        self._key_by_id: dict[str, str] = {}  # key_id → key_hash
         if self._backend is None:
             self._load()
 
@@ -172,13 +176,23 @@ class APIKeyStore:
         path = self._store_path
         if not os.path.exists(path):
             return
+        migrated = False
         try:
             with open(path) as f:
                 data = json.load(f)
-            for raw_key, info in data.items():
+            for store_key, info in data.items():
+                if not isinstance(info, dict):
+                    continue
+                key_hash = str(info.get("key_hash") or "")
+                key_id = str(info.get("key_id") or "")
+                if not key_hash or not key_id:
+                    continue
+                # Legacy format: object key was the raw secret (pyn_…). Drop it.
+                if store_key != key_hash:
+                    migrated = True
                 api_key = APIKey(
-                    key_id=info["key_id"],
-                    key_hash=info["key_hash"],
+                    key_id=key_id,
+                    key_hash=key_hash,
                     tier=info.get("tier", "free"),
                     calls_used=info.get("calls_used", 0),
                     calls_limit=info.get("calls_limit", 0),
@@ -186,12 +200,16 @@ class APIKeyStore:
                     last_used=info.get("last_used", 0.0),
                     _store=self,
                 )
-                self._keys[raw_key] = api_key
-                self._key_by_id[api_key.key_id] = raw_key
+                self._keys[key_hash] = api_key
+                self._key_by_id[key_id] = key_hash
         except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
             # Corrupt or partial store — start empty rather than crash the API.
             self._keys.clear()
             self._key_by_id.clear()
+            return
+        if migrated:
+            # Persist hash-only layout so raw secrets never remain on disk.
+            self._save()
 
     def _save(self) -> None:
         path = self._store_path
@@ -199,8 +217,9 @@ class APIKeyStore:
         if parent:
             os.makedirs(parent, exist_ok=True)
         data = {}
-        for raw_key, api_key in self._keys.items():
-            data[raw_key] = {
+        for key_hash, api_key in self._keys.items():
+            # Hash-only: object key is the SHA-256, never the raw secret.
+            data[key_hash] = {
                 "key_id": api_key.key_id,
                 "key_hash": api_key.key_hash,
                 "tier": api_key.tier,
@@ -242,8 +261,8 @@ class APIKeyStore:
             calls_limit=calls_limit,
             _store=self,
         )
-        self._keys[raw_key] = api_key
-        self._key_by_id[key_id] = raw_key
+        self._keys[key_hash] = api_key
+        self._key_by_id[key_id] = key_hash
         self._save()
         return raw_key, key_id
 
@@ -261,15 +280,16 @@ class APIKeyStore:
         )
 
     def get_key(self, raw_key: str) -> APIKey | None:
-        """Look up a key by raw secret (hash lookup on sqlite/redis backends)."""
+        """Look up a key by raw secret (always via SHA-256 hash)."""
+        if not raw_key:
+            return None
+        key_hash = self._hash_key(raw_key)
         if self._backend is not None:
-            if not raw_key:
-                return None
-            record = self._backend.get_by_hash(self._hash_key(raw_key))
+            record = self._backend.get_by_hash(key_hash)
             if record is None:
                 return None
             return self._api_key_from_record(record)
-        return self._keys.get(raw_key)
+        return self._keys.get(key_hash)
 
     def get_by_id(self, key_id: str) -> APIKey | None:
         """Look up a key by public ``key_id`` (not the raw secret)."""
@@ -278,9 +298,9 @@ class APIKeyStore:
             if record is None:
                 return None
             return self._api_key_from_record(record)
-        raw_key = self._key_by_id.get(key_id)
-        if raw_key:
-            return self._keys.get(raw_key)
+        key_hash = self._key_by_id.get(key_id)
+        if key_hash:
+            return self._keys.get(key_hash)
         return None
 
     def validate_key(self, raw_key: str) -> APIKey | None:
@@ -294,17 +314,18 @@ class APIKeyStore:
 
     def revoke_key(self, raw_key: str) -> bool:
         """Delete a key by raw secret; returns whether a record was removed."""
+        if not raw_key:
+            return False
+        key_hash = self._hash_key(raw_key)
         if self._backend is not None:
-            if not raw_key:
-                return False
-            return self._backend.delete_by_hash(self._hash_key(raw_key))
-        if raw_key in self._keys:
-            key_id = self._keys[raw_key].key_id
-            del self._keys[raw_key]
-            del self._key_by_id[key_id]
-            self._save()
-            return True
-        return False
+            return self._backend.delete_by_hash(key_hash)
+        api_key = self._keys.get(key_hash)
+        if api_key is None:
+            return False
+        del self._keys[key_hash]
+        self._key_by_id.pop(api_key.key_id, None)
+        self._save()
+        return True
 
     @staticmethod
     def _hash_key(raw_key: str) -> str:
@@ -359,7 +380,7 @@ def get_key_store() -> APIKeyStore:
 
     Backend selection (``STORE_BACKEND``, case-insensitive):
 
-    * ``json`` (default) — file at ``API_KEY_STORE``
+    * ``json`` (default) — hash-only file at ``API_KEY_STORE``
     * ``sqlite`` — ``API_KEY_STORE_SQLITE`` or ``API_KEY_STORE`` with ``.db``
     * ``redis`` — ``REDIS_URL`` (required)
 

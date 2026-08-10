@@ -46,17 +46,28 @@ import pytest
 _ROOT = Path(__file__).resolve().parents[1]
 _SCRIPT = _ROOT / "scripts" / "compare_interp_compile.py"
 _BUILTIN = _ROOT / "tests" / "data" / "builtin_scripts"
+# Shipped first-party fixtures (always present in clean clones / CI).
+# Lives under tests/fixtures/ (not tests/data/) so root gitignore `data/` does not drop them.
+_FIRST_PARTY = _ROOT / "tests" / "fixtures" / "first_party"
 
-# Stable scripts with value-parity under harness make_bars (smoke set).
-# Round 8 expanded with TA scripts re-verified OK @ 80–200 bars (no MISMATCH).
-# Keep this list lean: CI runs each @ 100 bars with both backends.
+# Always-on smoke: first-party scripts only (audit 2026-08-10 Wave A).
+# Third-party builtin_scripts/ corpora are optional local-only and skipped
+# when missing — never silent-pass.
 _ALWAYS_SCRIPTS = (
+    "plot_close.pine",
+    "sma.pine",
+    "ema.pine",
+    "rsi.pine",
+    "strategy_entry.pine",
+)
+
+# Optional expanded corpus list (local only; skipped if files missing).
+_OPTIONAL_CORPUS_SCRIPTS = (
     "advance_decline_line.pine",
     "arnaud_legoux_moving_average.pine",
     "aroon.pine",
     "average_true_range.pine",
     "awesome_oscillator.pine",
-    # R8 expansion (fast + green)
     "bbtrend.pine",
     "bollinger_bands.pine",
     "chande_momentum_oscillator.pine",
@@ -262,10 +273,41 @@ def test_harness_cli_flags_registered(harness) -> None:
 
 @pytest.mark.parametrize("name", _ALWAYS_SCRIPTS)
 def test_interp_compile_parity_smoke(harness, name: str) -> None:
-    """Always-on: expanded R8 smoke set x 100 bars, no value mismatches."""
+    """Always-on: first-party fixtures x 100 bars, no value mismatches.
+
+    These files are shipped under ``tests/data/first_party/`` so CI and clean
+    clones actually exercise interpret↔compile value parity (audit 2026-08-10).
+    """
+    path = _FIRST_PARTY / name
+    assert path.is_file(), f"first-party fixture missing (must ship): {path}"
+
+    result = harness.run_one_script(
+        str(path),
+        100,
+        ignore_hline_keys=False,
+        ignore_fill_keys=False,
+        sanitize=False,
+    )
+    # Runtime gaps on either backend are environment issues — skip rather
+    # than red the whole suite (value parity is the contract we enforce).
+    if result["status"] in _SKIP_STATUSES:
+        pytest.skip(
+            f"{name}: {result['status']} interp={result.get('interp_error')!r} "
+            f"compile={result.get('compile_error')!r}"
+        )
+    # fill_background_only is structural warn, not a value failure
+    assert result["status"] in ("OK", "fill_background_only"), (
+        f"{name}: status={result['status']} mismatches={result.get('mismatches')}"
+    )
+    assert not result.get("mismatches"), result.get("mismatches")
+
+
+@pytest.mark.parametrize("name", _OPTIONAL_CORPUS_SCRIPTS)
+def test_interp_compile_parity_optional_corpus(harness, name: str) -> None:
+    """Optional local corpus smoke; skipped when third-party files are absent."""
     path = _BUILTIN / name
     if not path.is_file():
-        pytest.skip(f"corpus script missing: {path}")
+        pytest.skip(f"optional corpus script missing: {path}")
 
     result = harness.run_one_script(
         str(path),
@@ -274,14 +316,11 @@ def test_interp_compile_parity_smoke(harness, name: str) -> None:
         ignore_fill_keys=False,
         sanitize=True,
     )
-    # Runtime gaps on either backend are environment/corpus issues — skip rather
-    # than red the whole suite (value parity is the contract we enforce).
     if result["status"] in _SKIP_STATUSES:
         pytest.skip(
             f"{name}: {result['status']} interp={result.get('interp_error')!r} "
             f"compile={result.get('compile_error')!r}"
         )
-    # fill_background_only is structural warn, not a value failure
     assert result["status"] in ("OK", "fill_background_only"), (
         f"{name}: status={result['status']} mismatches={result.get('mismatches')}"
     )
@@ -307,7 +346,10 @@ def test_interp_compile_parity_full_subset(harness, request: pytest.FixtureReque
         )
     paths = sorted(_BUILTIN.glob("*.pine"))[:20]
     if len(paths) < 5:
-        pytest.skip("builtin_scripts corpus too small")
+        # Fall back to shipped first-party fixtures so opt-in path still runs.
+        paths = sorted(_FIRST_PARTY.glob("*.pine"))
+    if len(paths) < 1:
+        pytest.skip("no first-party or builtin_scripts corpus available")
     code = harness.main(
         [
             "--bars",

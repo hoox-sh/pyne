@@ -241,32 +241,70 @@ def _maybe_host_compile_prewarm(*, force: bool = False) -> dict[str, Any] | None
         return {"error": str(exc), "has_numba": False}
 
 
+def _err_to_dict(err: tuple) -> tuple[dict[str, Any], int]:
+    """Normalize validate/free_limits errors to ``(body_dict, status)``.
+
+    Accepts either a plain ``(dict, status)`` (free_limits) or a Flask
+    ``(Response, status)`` pair from :func:`validate`.
+    """
+    resp, code = err
+    if isinstance(resp, dict):
+        return resp, int(code or 400)
+    try:
+        payload = resp.get_json(silent=True) or {
+            "status": "error",
+            "code": "VALIDATION_ERROR",
+            "message": "Invalid request body",
+        }
+    except Exception:  # noqa: BLE001
+        payload = {
+            "status": "error",
+            "code": "VALIDATION_ERROR",
+            "message": "Invalid request body",
+        }
+    return payload, int(code or 400)
+
+
 def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
     """Shared run logic for POST /run and WS /ws/run.
 
     Returns (body_dict, http_status). Body always includes ``status``.
     Default ``mode`` is ``auto`` (prefer warm compile; interpret on fallback).
+
+    Free-tier abuse guards (audit 2026-08-10): bar/script caps, IP rate limit,
+    concurrency gate, chart/mock-only data sources. See
+    :mod:`backend.middleware.free_limits`.
     """
+    from backend.middleware.free_limits import acquire_free_slot
+    from backend.middleware.free_limits import check_free_rate_limit
+    from backend.middleware.free_limits import release_free_slot
+    from backend.middleware.free_limits import validate_free_run_bounds
+
+    rate_err = check_free_rate_limit()
+    if rate_err is not None:
+        return _err_to_dict(rate_err)
+
+    slot_err = acquire_free_slot()
+    if slot_err is not None:
+        return _err_to_dict(slot_err)
+
+    try:
+        return _execute_run_payload_inner(data, validate_free_run_bounds)
+    finally:
+        release_free_slot()
+
+
+def _execute_run_payload_inner(
+    data: dict[str, Any],
+    validate_free_run_bounds: Any,
+) -> tuple[dict[str, Any], int]:
+    """Inner run body after free-tier rate/concurrency gates are held."""
     # Prefer warm path: once-per-worker builtin JIT before first auto/compile run.
     _maybe_host_compile_prewarm()
 
     validated, err = validate(data or {}, RUN_SCHEMA)
     if err is not None:
-        # validate() returns (flask.Response, status_code) on error
-        resp, code = err
-        try:
-            payload = resp.get_json(silent=True) or {
-                "status": "error",
-                "code": "VALIDATION_ERROR",
-                "message": "Invalid request body",
-            }
-        except Exception:  # noqa: BLE001
-            payload = {
-                "status": "error",
-                "code": "VALIDATION_ERROR",
-                "message": "Invalid request body",
-            }
-        return payload, int(code or 400)
+        return _err_to_dict(err)
 
     assert validated is not None
     script = validated["script"]
@@ -292,6 +330,30 @@ def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
             "code": "NO_DATA",
             "message": "No 'data' provided.",
         }, 400
+
+    bounds_err = validate_free_run_bounds(
+        script=script if isinstance(script, str) else None,
+        ohlcv=ohlcv if isinstance(ohlcv, list) else None,
+        data_source=data_source if isinstance(data_source, str) else None,
+    )
+    if bounds_err is not None:
+        return _err_to_dict(bounds_err)
+
+    # Reject blocked webhook URLs early (SSRF) so clients get a clear 400.
+    wh_raw = validated.get("webhook_url") or ""
+    if isinstance(wh_raw, str) and wh_raw.strip():
+        from .alert_forwarder import normalize_webhook_url
+
+        if normalize_webhook_url(wh_raw) is None:
+            return {
+                "status": "error",
+                "code": "WEBHOOK_URL_BLOCKED",
+                "message": (
+                    "webhook_url is invalid or blocked (private/loopback/"
+                    "metadata hosts are not allowed). Use a public https URL "
+                    "or set ALERT_WEBHOOK_ALLOW_PRIVATE=1 for private demos."
+                ),
+            }, 400
 
     data_feed = None
     data_provider = None
@@ -514,43 +576,66 @@ def compile_prewarm():
     Without Numba, returns 200 with ``has_numba: false`` (object-mode compile
     still works; numeric JIT skip is expected). Does not execute scripts on
     OHLCV — only populates IR / disk caches.
+
+    Rate-limited and concurrency-gated (audit 2026-08-10 free-tier guards).
     """
-    payload: dict[str, Any] = dict(request.get_json(silent=True) or {})
-    force = bool(payload.get("force", False))
-    scripts_raw = payload.get("scripts")
-    sources: list[str] = []
-    if isinstance(scripts_raw, list):
-        for item in scripts_raw[:16]:  # hard cap: avoid abuse on free endpoint
-            if isinstance(item, str) and item.strip():
-                sources.append(item)
-            elif isinstance(item, dict) and isinstance(item.get("script"), str):
-                src = item["script"]
-                if src.strip():
-                    sources.append(src)
+    from backend.middleware.free_limits import acquire_free_slot
+    from backend.middleware.free_limits import check_free_rate_limit
+    from backend.middleware.free_limits import release_free_slot
+    from backend.middleware.free_limits import validate_free_run_bounds
 
-    global _HOST_COMPILE_PREWARMED
-    t0 = time.perf_counter()
+    rate_err = check_free_rate_limit()
+    if rate_err is not None:
+        body, code = rate_err
+        return jsonify(body), code
+    slot_err = acquire_free_slot()
+    if slot_err is not None:
+        body, code = slot_err
+        return jsonify(body), code
     try:
-        from pynescript.compiler.engine import prewarm_scripts
+        payload: dict[str, Any] = dict(request.get_json(silent=True) or {})
+        force = bool(payload.get("force", False))
+        scripts_raw = payload.get("scripts")
+        sources: list[str] = []
+        if isinstance(scripts_raw, list):
+            for item in scripts_raw[:16]:  # hard cap: avoid abuse on free endpoint
+                if isinstance(item, str) and item.strip():
+                    sources.append(item)
+                elif isinstance(item, dict) and isinstance(item.get("script"), str):
+                    src = item["script"]
+                    if src.strip():
+                        sources.append(src)
 
-        result = prewarm_scripts(sources or None, force_builtins=force)
-        _HOST_COMPILE_PREWARMED = True
-    except Exception as exc:  # noqa: BLE001
-        return jsonify(
-            {
-                "status": "error",
-                "code": "PREWARM_ERROR",
-                "message": str(exc),
-            }
-        ), 500
+        bounds_err = validate_free_run_bounds(scripts=sources)
+        if bounds_err is not None:
+            body, code = bounds_err
+            return jsonify(body), code
 
-    elapsed_ms = (time.perf_counter() - t0) * 1000.0
-    body = {
-        "status": "success",
-        "prewarm_ms": round(elapsed_ms, 2),
-        **result,
-    }
-    return jsonify(body), 200
+        global _HOST_COMPILE_PREWARMED
+        t0 = time.perf_counter()
+        try:
+            from pynescript.compiler.engine import prewarm_scripts
+
+            result = prewarm_scripts(sources or None, force_builtins=force)
+            _HOST_COMPILE_PREWARMED = True
+        except Exception as exc:  # noqa: BLE001
+            return jsonify(
+                {
+                    "status": "error",
+                    "code": "PREWARM_ERROR",
+                    "message": str(exc),
+                }
+            ), 500
+
+        elapsed_ms = (time.perf_counter() - t0) * 1000.0
+        body = {
+            "status": "success",
+            "prewarm_ms": round(elapsed_ms, 2),
+            **result,
+        }
+        return jsonify(body), 200
+    finally:
+        release_free_slot()
 
 
 if sock is not None:
@@ -662,6 +747,27 @@ def run_pine_script_batch():
     Returns one result object per script (success or per-script error); HTTP 200
     unless the request envelope is invalid.
     """
+    from backend.middleware.free_limits import acquire_free_slot
+    from backend.middleware.free_limits import check_free_rate_limit
+    from backend.middleware.free_limits import release_free_slot
+
+    rate_err = check_free_rate_limit()
+    if rate_err is not None:
+        body, code = rate_err
+        return jsonify(body), code
+    slot_err = acquire_free_slot()
+    if slot_err is not None:
+        body, code = slot_err
+        return jsonify(body), code
+    try:
+        return _run_pine_script_batch_inner()
+    finally:
+        release_free_slot()
+
+
+def _run_pine_script_batch_inner():
+    """Batch run body after free-tier gates (see :func:`run_pine_script_batch`)."""
+    from backend.middleware.free_limits import validate_free_run_bounds
     from backend.middleware.schemas import RUN_BATCH_MAX_SCRIPTS, RUN_BATCH_SCHEMA
 
     data, err = validate(request.get_json(silent=True) or {}, RUN_BATCH_SCHEMA)
@@ -729,6 +835,15 @@ def run_pine_script_batch():
         if not isinstance(sid, str) or not sid.strip():
             sid = f"script_{i}"
         jobs.append((sid, src))
+
+    bounds_err = validate_free_run_bounds(
+        scripts=[src for _, src in jobs],
+        ohlcv=ohlcv if isinstance(ohlcv, list) else None,
+        data_source=data_source if isinstance(data_source, str) else None,
+    )
+    if bounds_err is not None:
+        body, code = bounds_err
+        return jsonify(body), code
 
     data_feed = None
     data_provider = None
