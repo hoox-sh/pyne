@@ -179,7 +179,7 @@ ASDL places `If`, `ForTo`, `ForIn`, `While`, `Switch` under `expr`, while the bu
 ### Map ASDL to a short script
 
 ```pine
-//@version=5
+//@version=6
 f(x) => x + 1
 a = f(close)
 ```
@@ -188,7 +188,7 @@ Approximate tree:
 
 ```text
 Script(
-  annotations=["//@version=5", ...],
+  annotations=["//@version=6", ...],
   body=[
     FunctionDef(name="f", args=[Param(name="x")], body=[Expr(BinOp(...))]),
     Assign(target=Name("a", Store), value=Call(...)),

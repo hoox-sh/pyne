@@ -26,7 +26,7 @@ description: "Free evaluate endpoints: single-script /run and multi-script /run/
 
 ## Abstract
 
-`/run` is the primary free evaluate entry: accept Pine source + bar list, optionally wire `request.*` data sources, execute via `Runtime`, and return plots/series/events/drawings/**alerts**. `/run/batch` runs up to eight scripts on the **same** OHLCV (AXIS multi-indicator), isolating per-script errors so one failure does not discard siblings. Optional **L2 webhooks** POST last-bar (default) `alert()` / `alertcondition()` firings to `webhook_url` or env `ALERT_WEBHOOK_URL`.
+`/run` is the primary free evaluate entry: accept Pine source + bar list, optionally wire `request.*` data sources, execute via package **`pynescript.runtime.Runtime`** (Pro API uses `backend.runtime` re-export), and return plots/series/events/drawings/**alerts**. `/run/batch` runs up to eight scripts on the **same** OHLCV (AXIS multi-indicator), isolating per-script errors so one failure does not discard siblings. Free paths enforce **bar/script caps, rate limit, concurrency, and chart/mock-only data** (`backend/middleware/free_limits.py`). Optional **L2 webhooks** POST last-bar (default) `alert()` / `alertcondition()` firings to `webhook_url` or env `ALERT_WEBHOOK_URL` (SSRF-safe).
 
 ## Conceptual model
 
@@ -164,12 +164,13 @@ Paths: `backend/app.py` (`run_pine_script`, `run_pine_script_batch`), `backend/m
 
 ## Invariants and edge cases
 
-1. **No API key** on these routes — protect at the edge if needed.
+1. **No API key** on these routes — free-tier guards still apply (see [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage)); protect further at the edge if needed.
 2. **Batch isolates exceptions** per script (`try/except` around `runtime.run`).
-3. **Whitespace-only `data_source`** coerced to `None` → chart default.
+3. **Whitespace-only `data_source`** coerced to `None` → chart default; free paths reject live providers (ccxt/yahoo/…).
 4. **Compile mode** may omit alert side effects (`alerts: []`); use interpret/`auto` for alerts.
 5. Schema rejects extras — clients must not send AXIS-only fields without updating schema.
 6. **Webhook delivery is best-effort** — evaluate still returns `status: success` if the hook fails; check `alert_forward`.
+7. Structured errors may include `error_kind` (`parse|compile|runtime|data|order|mode`), `error_type`, `error_bar`; timeout runs may set `timed_out` when the host passes `timeout_seconds`.
 
 ## Worked example
 
@@ -177,7 +178,7 @@ Paths: `backend/app.py` (`run_pine_script`, `run_pine_script_batch`), `backend/m
 curl -s http://127.0.0.1:5002/run \
   -H 'Content-Type: application/json' \
   -d '{
-    "script": "//@version=5\nindicator(\"t\")\nplot(close)",
+    "script": "//@version=6\nindicator(\"t\")\nplot(close)",
     "data": [
       {"time": 1, "open": 1, "high": 2, "low": 0.5, "close": 1.5, "volume": 10},
       {"time": 2, "open": 1.5, "high": 2.5, "low": 1.0, "close": 2.0, "volume": 12}
@@ -203,7 +204,7 @@ export ALERT_WEBHOOK_URL=https://hooks.example.com/pine
 curl -s http://127.0.0.1:5002/run \
   -H 'Content-Type: application/json' \
   -d '{
-    "script": "//@version=5\nindicator(\"a\")\nif bar_index == last_bar_index\n    alert(\"fire\")\nplot(close)",
+    "script": "//@version=6\nindicator(\"a\")\nif bar_index == last_bar_index\n    alert(\"fire\")\nplot(close)",
     "mode": "interpret",
     "webhook_url": "https://hooks.example.com/pine",
     "data": [

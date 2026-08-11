@@ -28,7 +28,7 @@ description: "Plot-series parity between Runtime interpret and compile modes: ha
 
 PYNE ships two bar engines that should agree on **numeric plot series** for scripts in the compile surface: the AST interpreter and the generated Numba/object-mode loop. This page is the short contract for that agreement—how to measure it, what “equal” means, and where intentional differences live (`None` vs `nan`, host `time_arr`, structural keys).
 
-Strategy **event** parity (Python vs TypeScript worker) is a separate oracle (`tests/test_parity.py` + fixtures). Here the focus is **plot values** on one host: `backend.runtime.Runtime`.
+Strategy **event** parity (Python vs TypeScript worker) is a separate oracle (`tests/test_parity.py` + fixtures). Here the focus is **plot values** on one host: `pynescript.runtime.Runtime`.
 
 ## Conceptual model
 

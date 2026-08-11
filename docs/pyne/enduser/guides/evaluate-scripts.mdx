@@ -30,7 +30,7 @@ Evaluation is the second half of the PYNE pipeline: given an AST (or source) and
 
 1. **`literal_eval`** — pure/builtin expressions, optional series context  
 2. **AST evaluator** (`NodeLiteralEvaluator` / full evaluator mixins) — script-shaped evaluation in-process  
-3. **`backend.runtime.Runtime`** or **Pro API `POST /run`** — bar-loop over OHLCV with shared evaluate contract  
+3. **`pynescript.runtime.Runtime`** (package SoT; `backend.runtime` re-exports) or **Pro API `POST /run`** — bar-loop over OHLCV with shared evaluate contract  
 
 This guide stays at the consumer level; series semantics and builtin inventories are under [Runtime](/pyne/docs/runtime).
 
@@ -61,7 +61,7 @@ flowchart TB
 
 ## Runtime modes (`interpret` | `compile` | `auto`)
 
-`backend.runtime.Runtime.run` accepts a `mode` argument that selects how the bar loop executes:
+`pynescript.runtime.Runtime.run` accepts a `mode` argument that selects how the bar loop executes:
 
 | Mode | Behavior |
 | --- | --- |
@@ -75,14 +75,20 @@ flowchart TB
 - Pro API `POST /run` body omit `mode` → schema default **`auto`** (warm compile + fallback).
 
 ```python
+from pynescript.runtime import Runtime
+
+runtime = Runtime(symbol="AAPL")
 result = runtime.run(source, ohlcv_data=ohlcv, mode="auto")
 # result["mode"] / result.get("auto_backend") → "compile" | "interpret"
 # on fallback: result.get("compile_fallback_reason")
+# optional wall-clock budget (0.3.4+ / unreleased hosts):
+# result = runtime.run(..., timeout_seconds=12.0)
+# → may set timed_out + error_kind="runtime" with partial plots
 ```
 
 ### Warm compile / prewarm
 
-Product hosts cache compiled IR (in-process LRU + optional disk under `PYNE_COMPILE_CACHE_DIR`). Pro API defaults `mode=auto` and can warm Numba builtins once per worker (`PYNE_COMPILE_PREWARM`, `POST /compile/prewarm`, or `pynescript prewarm` when the CLI subcommand is present). First-hit latency still pays JIT when cold; subsequent runs of the same source reuse IR. See [Compiler overview](/pyne/docs/runtime/compiler/overview).
+Product hosts cache compiled IR (in-process LRU + optional disk under `PYNE_COMPILE_CACHE_DIR`). Pro API defaults `mode=auto` and can warm Numba builtins once per worker (`PYNE_COMPILE_PREWARM`, `POST /compile/prewarm`, or `pyne prewarm` when the CLI subcommand is present). First-hit latency still pays JIT when cold; subsequent runs of the same source reuse IR. See [Compiler overview](/pyne/docs/runtime/compiler/overview).
 
 Related host knobs (interpret path): `PYNE_SERIES_CAP` / `PYNE_SERIES_MAX` (history trim) and `PYNE_TA_INCREMENTAL` (bar-mode TA hot path)—see [Series & history](/pyne/docs/runtime/series-and-history) and [Configuration](/pyne/docs/enduser/getting-started/configuration).
 
@@ -177,7 +183,7 @@ from pynescript.ast.evaluator import NodeLiteralEvaluator
 ev = NodeLiteralEvaluator()
 result = ev.evaluate_script(
     """
-//@version=5
+//@version=6
 indicator("demo")
 // body depends on what the evaluator implements for statements
 """
@@ -191,10 +197,12 @@ ev.register_library_source(namespace="MyNs", name="Lib", version=1, source=lib_s
 mod = ev.lookup_library(namespace="MyNs", name="Lib", version=1)
 ```
 
-### Bar-loop Runtime (HTTP contract shape)
+### Bar-loop Runtime (package SoT · HTTP contract shape)
+
+From **0.3.4** the bar-loop host lives in the installable package:
 
 ```python
-from backend.runtime import Runtime  # monorepo; not always installed as package path
+from pynescript.runtime import Runtime  # SoT (backend.runtime re-exports for Pro API)
 
 runtime = Runtime(symbol="AAPL")
 ohlcv = [
@@ -202,16 +210,17 @@ ohlcv = [
     {"time": 1_700_086_400, "open": 100.5, "high": 102, "low": 100, "close": 101.5, "volume": 1_200},
 ]
 result = runtime.run(
-    source_code='//@version=5\nindicator("t")\nplot(close)\n',
+    source_code='//@version=6\nindicator("t")\nplot(close)\n',
     ohlcv_data=ohlcv,
     mode="auto",  # interpret | compile | auto (see Runtime modes)
+    # timeout_seconds=12.0,  # optional wall-clock circuit breaker (interpret path)
 )
 # result: plots, series, plot_meta, events, drawings, script_id, run_id, count, ...
 # auto may set auto_backend + compile_fallback_reason
-# or {"error": "..."}
+# or {"error": "...", "error_kind": "parse|compile|runtime|data|order|mode", ...}
 ```
 
-Pro API wraps the same runtime — see [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage).
+`backend.runtime.Runtime` remains a thin compat import for monorepo Pro API code. Dual-host TA goldens (ATR / Supertrend / Keltner) and `tests/test_ta_incremental` gate interpret↔compile numerical parity. Pro API wraps the same runtime — see [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage).
 
 ### Data providers and feeds
 
@@ -249,8 +258,9 @@ feed = get_datafeed("ccxtpro", exchange="binance")
 | `src/pynescript/ast/evaluator/__init__.py` | `NodeLiteralEvaluator` composition |
 | `src/pynescript/ast/evaluator/builtins/` | `ta.*`, `strategy.*`, arrays, … |
 | `src/pynescript/ast/evaluator/events.py` | Event emission hooks |
-| `backend/runtime.py` | Multi-bar `Runtime.run` (`interpret` / `compile` / `auto`) |
-| `backend/series.py` | `PineSeries` history model |
+| `src/pynescript/runtime/host.py` | Multi-bar `Runtime.run` SoT (`interpret` / `compile` / `auto`, `timeout_seconds`) |
+| `src/pynescript/runtime/series.py` | `PineSeries` history model |
+| `backend/runtime.py` / `backend/series.py` | Compat re-exports of package Runtime |
 | `src/pynescript/compiler/` | Transpile + Numba/object bar loops |
 | `src/pynescript/util/data.py` | Providers + `resolve_request_sources` |
 | `src/pynescript/util/datafeed.py` | Realtime feeds |

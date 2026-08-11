@@ -106,7 +106,7 @@ Does not attempt recovery; one syntax error check per run.
 | Code | Condition |
 | --- | --- |
 | `W001` | No `//@version = N` (flexible whitespace) match |
-| `W002` | Version integer `< 5` (deprecated; suggest v5/v6) |
+| `W002` | Version integer `< 5` (deprecated; suggest v6) |
 
 Pattern: `//\s*@version\s*=\s*(\d+)`.
 
@@ -172,7 +172,7 @@ CLI, editor save hooks, and CI can call `lint_script` without spinning up the fu
 ```python
 from pynescript.ast.linter import lint_script
 
-src = """//@version=5
+src = """//@version=6
 indicator("ok")
 length = 14
 basis = ta.sma(close, length)

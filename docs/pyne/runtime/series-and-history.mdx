@@ -135,7 +135,7 @@ History buffers for indicators are truncated to a rolling window (`_SERIES_MAX =
 
 ### Host series caps (`PYNE_SERIES_CAP`)
 
-Pro API / `backend.runtime.Runtime` optionally **trims** chronological `current_series` lists and related host history so long charts do not grow \(O(\text{bars})\) memory per series.
+Pro API / `pynescript.runtime.Runtime` optionally **trims** chronological `current_series` lists and related host history so long charts do not grow \(O(\text{bars})\) memory per series.
 
 | Knob | Default | Meaning |
 | --- | --- | --- |
@@ -181,7 +181,7 @@ Compile path: series are `np.full(n_bars, np.nan)` written at `__bar_idx`; histo
 ### History lag
 
 ```pine
-//@version=5
+//@version=6
 indicator("lag")
 delta = close - close[1]
 plot(delta)
@@ -192,7 +192,7 @@ On bar 0, `close[1]` is `na` → `delta` is `na`. On bar 1+, arithmetic is ordin
 ### `var` counter
 
 ```pine
-//@version=5
+//@version=6
 indicator("count")
 var int n = 0
 n := n + 1

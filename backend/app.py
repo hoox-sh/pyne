@@ -569,7 +569,7 @@ def compile_prewarm():
     Free readiness hook for deploy/probes. Body (all optional)::
 
         {
-          "scripts": ["//@version=5\\nindicator(\\"x\\")\\nplot(close)"],
+          "scripts": ["//@version=6\\nindicator(\\"x\\")\\nplot(close)"],
           "force": false
         }
 

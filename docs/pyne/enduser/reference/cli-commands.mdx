@@ -19,20 +19,20 @@
 
 ---
 title: "CLI Commands Reference"
-description: "Complete option reference for the pynescript Click CLI: check, format, lint, compile, run, prewarm, data, info, and more."
+description: "Complete option reference for the pyne Click CLI: check, format, lint, compile, run, prewarm, data, info, and more."
 ---
 
 # CLI Commands Reference
 
 ## Abstract
 
-Machine-oriented reference for every command on the `pynescript` Click group
-(`src/pynescript/__main__.py`). Install via **[`hoox-pyne`](https://pypi.org/project/hoox-pyne/)**
+Machine-oriented reference for every command on the preferred **`pyne`** Click group
+(alias **`pynescript`**; `src/pynescript/__main__.py`). Install via **[`hoox-pyne`](https://pypi.org/project/hoox-pyne/)**
 (`pip install hoox-pyne`). For workflows see the [CLI guide](/pyne/docs/enduser/guides/cli).
-The language server is a **separate** console script (`pynescript-lsp`).
+The language server is a **separate** console script (`pyne-lsp`; alias `pynescript-lsp`).
 
-**Version option:** `pynescript --version` / `-V` reports `pynescript.__about__.__version__`
-(e.g. `0.3.0`). Global `--no-color` honors `NO_COLOR`.
+**Version option:** `pyne --version` / `-V` reports `pynescript.__about__.__version__`
+(e.g. `0.3.4`). Global `--no-color` honors `NO_COLOR`.
 
 ## Command index
 
@@ -50,14 +50,15 @@ The language server is a **separate** console script (`pynescript-lsp`).
 | `info` | `ls` | Version + optional extras |
 
 ```bash
-pynescript --help
-pynescript --version
-pynescript <command> -h
+pyne --help
+pyne --version
+pyne <command> -h
+# alias: pynescript …
 ```
 
 ---
 
-### `pynescript check`
+### `pyne check`
 
 Validate that path(s) parse as Pine Script.
 
@@ -69,17 +70,17 @@ Validate that path(s) parse as Pine Script.
 | option | `--ext` | `.pine` | When PATH is a directory, only this suffix |
 
 ```bash
-pynescript check script.pine
-pynescript check scripts/ --ext .pyne
-pynescript check -q strategy.pine   # exit 0/1 only
-cat x.pine | pynescript check -
+pyne check script.pine
+pyne check scripts/ --ext .pyne
+pyne check -q strategy.pine   # exit 0/1 only
+cat x.pine | pyne check -
 ```
 
 **Exit:** `0` all ok; `1` any parse failure.
 
 ---
 
-### `pynescript format` (`fmt`)
+### `pyne format` (`fmt`)
 
 Canonicalize Pine by parse → unparse (structural, not a full style formatter).
 
@@ -92,14 +93,14 @@ Canonicalize Pine by parse → unparse (structural, not a full style formatter).
 | option | `-o, --output-file` | `-` | Output when not using `--write` |
 
 ```bash
-pynescript format script.pine            # stdout
-pynescript fmt script.pine -w
-pynescript format script.pine --check    # CI drift gate
+pyne format script.pine            # stdout
+pyne fmt script.pine -w
+pyne format script.pine --check    # CI drift gate
 ```
 
 ---
 
-### `pynescript parse-and-dump` (`dump` / `ast`)
+### `pyne parse-and-dump` (`dump` / `ast`)
 
 | Kind | Name | Default | Description |
 | --- | --- | --- | --- |
@@ -109,13 +110,13 @@ pynescript format script.pine --check    # CI drift gate
 | option | `-o, --output-file` | `-` | Output path |
 
 ```bash
-pynescript dump strategy.pine
-pynescript parse-and-dump strategy.pine --indent 4 -o tree.txt
+pyne dump strategy.pine
+pyne parse-and-dump strategy.pine --indent 4 -o tree.txt
 ```
 
 ---
 
-### `pynescript parse-and-unparse` (`unparse`)
+### `pyne parse-and-unparse` (`unparse`)
 
 | Kind | Name | Default | Description |
 | --- | --- | --- | --- |
@@ -124,12 +125,12 @@ pynescript parse-and-dump strategy.pine --indent 4 -o tree.txt
 | option | `-o, --output-file` | `-` | Output path |
 
 ```bash
-pynescript unparse messy.pine -o clean.pine
+pyne unparse messy.pine -o clean.pine
 ```
 
 ---
 
-### `pynescript lint`
+### `pyne lint`
 
 | Kind | Name | Default | Description |
 | --- | --- | --- | --- |
@@ -140,15 +141,15 @@ pynescript unparse messy.pine -o clean.pine
 | option | `-q, --quiet` | off | Summary only |
 
 ```bash
-pynescript lint strategy.pine
-pynescript lint --json --fail-on never strategy.pine
-pynescript lint --fail-on warnings strategy.pine
-cat strategy.pine | pynescript lint -
+pyne lint strategy.pine
+pyne lint --json --fail-on never strategy.pine
+pyne lint --fail-on warnings strategy.pine
+cat strategy.pine | pyne lint -
 ```
 
 ---
 
-### `pynescript compile`
+### `pyne compile`
 
 Compile via `pynescript.compiler.compile_script`. Requires
 `pip install "hoox-pyne[compile]"` for full Numba path; `--emit` works without JIT.
@@ -162,14 +163,14 @@ Compile via `pynescript.compiler.compile_script`. Requires
 | option | `--time / --no-time` | time on | Print compile timing |
 
 ```bash
-pynescript compile script.pine --emit
-pynescript compile script.pine --emit -o out.py
-pynescript compile script.pine            # warm load / compile-check
+pyne compile script.pine --emit
+pyne compile script.pine --emit -o out.py
+pyne compile script.pine            # warm load / compile-check
 ```
 
 ---
 
-### `pynescript prewarm`
+### `pyne prewarm`
 
 H2 warm-compile product path: pay cold JIT before first interactive run.
 
@@ -181,17 +182,17 @@ H2 warm-compile product path: pay cold JIT before first interactive run.
 | option | `--json` | off | Machine-readable summary |
 
 ```bash
-pynescript prewarm                    # shared Numba kernels only
-pynescript prewarm strategy.pine lib/*.pine
-pynescript prewarm --json
+pyne prewarm                    # shared Numba kernels only
+pyne prewarm strategy.pine lib/*.pine
+pyne prewarm --json
 ```
 
 ---
 
-### `pynescript run`
+### `pyne run`
 
 Compile and execute on deterministic synthetic OHLCV (same compile pipeline as
-Pro API `mode=compile`). Prefer library `Runtime` / Pro API for real bars.
+Pro API `mode=compile`). Prefer package `pynescript.runtime.Runtime` / Pro API for real bars.
 
 | Kind | Name | Default | Description |
 | --- | --- | --- | --- |
@@ -202,13 +203,13 @@ Pro API `mode=compile`). Prefer library `Runtime` / Pro API for real bars.
 | option | `-q, --quiet` | off | Errors / exit only |
 
 ```bash
-pynescript run strategy.pine --bars 100
-pynescript run strategy.pine --json
+pyne run strategy.pine --bars 100
+pyne run strategy.pine --json
 ```
 
 ---
 
-### `pynescript data`
+### `pyne data`
 
 | Kind | Name | Default | Description |
 | --- | --- | --- | --- |
@@ -222,16 +223,16 @@ pynescript run strategy.pine --json
 | option | `-o, --output-file` | `-` | Output path |
 
 ```bash
-pynescript data AAPL
-pynescript data AAPL --provider yahoo --period 6mo
-pynescript data BTC/USDT --provider ccxt --exchange binance --format csv
+pyne data AAPL
+pyne data AAPL --provider yahoo --period 6mo
+pyne data BTC/USDT --provider ccxt --exchange binance --format csv
 ```
 
 CCXT needs `pip install "hoox-pyne[data]"`.
 
 ---
 
-### `pynescript info` (`ls`)
+### `pyne info` (`ls`)
 
 | Kind | Name | Description |
 | --- | --- | --- |
@@ -241,11 +242,12 @@ Prints package version, Python, platform, and whether `numba` / `rich` are avail
 
 ---
 
-### Related: `pynescript-lsp` (not a subcommand)
+### Related: `pyne-lsp` (not a subcommand)
 
 ```bash
 pip install "hoox-pyne[lsp]"
-pynescript-lsp
+pyne-lsp
+# alias: pynescript-lsp
 python -m pynescript.langserver
 ```
 
@@ -254,7 +256,7 @@ python -m pynescript.langserver
 | Item | Path |
 | --- | --- |
 | CLI group | `src/pynescript/__main__.py` |
-| Entry | `pyproject.toml` → `pynescript = pynescript.__main__:cli` |
+| Entry | `pyproject.toml` → `pyne` / `pynescript` = `pynescript.__main__:cli` |
 | parse/dump/unparse | `src/pynescript/ast/helper.py` |
 | lint | `src/pynescript/ast/linter.py` |
 | compile / prewarm | `src/pynescript/compiler/` |

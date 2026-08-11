@@ -52,7 +52,7 @@ Generated entry point is always:
 execute_script_compiled(open_arr, high_arr, low_arr, close_arr, vol_arr, time_arr)
 ```
 
-Host packing lives in `engine.CompiledScript.run` (and `backend.runtime.Runtime._run_compiled`).
+Host packing lives in `engine.CompiledScript.run` (and `pynescript.runtime.Runtime._run_compiled`).
 
 ## Interface surface
 
@@ -219,7 +219,7 @@ Clear disk + Numba caches after compiler emitter or kernel edits if results look
 Pine:
 
 ```pine
-//@version=5
+//@version=6
 indicator("c")
 s = ta.sma(close, 14)
 plot(s, "sma")

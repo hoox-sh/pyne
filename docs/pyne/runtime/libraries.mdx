@@ -45,7 +45,7 @@ flowchart LR
 ### Library script
 
 ```pine
-//@version=5
+//@version=6
 library("MyMath")
 
 export add(float a, float b) =>
@@ -59,7 +59,7 @@ On script completion, `StatementEvaluator` finalizes `_pending_library_exports` 
 ### Consumer import
 
 ```pine
-//@version=5
+//@version=6
 indicator("use")
 import user/MyMath/1 as M
 plot(M.add(close, M.PHI))

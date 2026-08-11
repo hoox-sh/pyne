@@ -19,20 +19,20 @@
 
 ---
 title: "CLI Guide"
-description: "Use the pynescript Click CLI to check, format, lint, compile, run, prewarm, fetch data, and more."
+description: "Use the pyne Click CLI to check, format, lint, compile, run, prewarm, fetch data, and more."
 ---
 
 # CLI Guide
 
 ## Abstract
 
-The `pynescript` console script is a Click group over the same helpers used by the library API. Install with **`pip install hoox-pyne`** ([live on PyPI](https://pypi.org/project/hoox-pyne/)). It is optimized for **shell pipelines, CI gates, one-shot inspection, and light compile/run smokes**. Full multi-bar evaluation with real OHLCV belongs on the library `Runtime` or Pro API. Exhaustive flags: [CLI commands](/pyne/docs/enduser/reference/cli-commands).
+The preferred **`pyne`** console script (alias **`pynescript`**) is a Click group over the same helpers used by the library API. Install with **`pip install hoox-pyne`** ([live on PyPI](https://pypi.org/project/hoox-pyne/)). It is optimized for **shell pipelines, CI gates, one-shot inspection, and light compile/run smokes**. Full multi-bar evaluation with real OHLCV belongs on the package `pynescript.runtime.Runtime` or Pro API. Exhaustive flags: [CLI commands](/pyne/docs/enduser/reference/cli-commands).
 
 ## Conceptual model
 
 ```mermaid
 flowchart LR
-  F[.pine / .pyne / stdin] --> C[pynescript]
+  F[.pine / .pyne / stdin] --> C[pyne]
   C --> CH[check]
   C --> FMT[format]
   C --> D[parse-and-dump]
@@ -55,9 +55,10 @@ flowchart LR
 ## Interface surface
 
 ```bash
-pynescript --help
-pynescript --version
-pynescript <command> --help
+pyne --help
+pyne --version
+pyne <command> --help
+# alias: pynescript …
 ```
 
 | Command | Input | Output |
@@ -73,7 +74,7 @@ pynescript <command> --help
 | `data SYMBOL` | symbol + provider opts | table / json / csv |
 | `info` | — | version + extras |
 
-**Not** part of this Click group: language server — use `pynescript-lsp`.
+**Not** part of this Click group: language server — use **`pyne-lsp`** (alias `pynescript-lsp`).
 
 ## Install options
 
@@ -113,7 +114,7 @@ chmod +x pynescript-cli-linux-x86_64
 
 - **Encoding default is UTF-8** for file reads/writes.
 - **`--output-file -`** means stdout (Click `allow_dash=True`).
-- **Lint without a path** reads stdin — useful in git hooks and `cat script.pine | pynescript lint`.
+- **Lint without a path** reads stdin — useful in git hooks and `cat script.pine | pyne lint`.
 - **`--fail-on`** defaults to `errors` (syntax/`E001`); `warnings` fails on any warning severity too; `all` fails if any issue exists.
 - **`data` default provider is `mock`** — offline-safe.
 - **Alpha Vantage without key** prints a warning and uses `demo`.
@@ -124,23 +125,23 @@ chmod +x pynescript-cli-linux-x86_64
 ### Inspect structure of a strategy
 
 ```bash
-pynescript parse-and-dump examples/rsi_strategy.pine --indent 2 | less
+pyne parse-and-dump examples/rsi_strategy.pine --indent 2 | less
 ```
 
 Compare two scripts’ shapes in CI:
 
 ```bash
-pynescript parse-and-dump a.pine --output-file /tmp/a.ast
-pynescript parse-and-dump b.pine --output-file /tmp/b.ast
+pyne parse-and-dump a.pine --output-file /tmp/a.ast
+pyne parse-and-dump b.pine --output-file /tmp/b.ast
 diff -u /tmp/a.ast /tmp/b.ast
 ```
 
 ### Format / normalize
 
 ```bash
-pynescript parse-and-unparse messy.pine --output-file clean.pine
+pyne parse-and-unparse messy.pine --output-file clean.pine
 # in-place-ish via shell:
-pynescript parse-and-unparse strategy.pine --output-file strategy.pine.tmp \
+pyne parse-and-unparse strategy.pine --output-file strategy.pine.tmp \
   && mv strategy.pine.tmp strategy.pine
 ```
 
@@ -148,26 +149,26 @@ pynescript parse-and-unparse strategy.pine --output-file strategy.pine.tmp \
 
 ```bash
 set -e
-pynescript lint strategies/ --help  # note: single file PATH, not directory recursion
+pyne lint strategies/ --help  # note: single file PATH, not directory recursion
 # {/* TODO: verify multi-file; current CLI is one file or stdin */}
 for f in strategies/*.pine; do
-  pynescript lint --fail-on warnings "$f"
+  pyne lint --fail-on warnings "$f"
 done
 ```
 
 Stdin pipeline:
 
 ```bash
-git show HEAD:strategies/rsi.pine | pynescript lint --fail-on errors -
+git show HEAD:strategies/rsi.pine | pyne lint --fail-on errors -
 ```
 
 ### Market data smoke checks
 
 ```bash
-pynescript data AAPL
-pynescript data AAPL --provider yahoo --period 1y --interval 1d
-pynescript data BTC/USDT --provider ccxt --exchange binance
-pynescript data EUR/USD --provider alphavantage --api-key "$AV_KEY"
+pyne data AAPL
+pyne data AAPL --provider yahoo --period 1y --interval 1d
+pyne data BTC/USDT --provider ccxt --exchange binance
+pyne data EUR/USD --provider alphavantage --api-key "$AV_KEY"
 ```
 
 Typical stdout shape (fields from `__main__.py`):
@@ -187,7 +188,7 @@ CLI stops at parse/lint/data. Chain:
 
 ```bash
 # normalize then evaluate in Python
-pynescript parse-and-unparse strat.pine --output-file /tmp/s.pine
+pyne parse-and-unparse strat.pine --output-file /tmp/s.pine
 python - <<'PY'
 from pathlib import Path
 from pynescript.ast.helper import parse

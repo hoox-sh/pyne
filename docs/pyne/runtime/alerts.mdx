@@ -156,7 +156,7 @@ Webhook failures never fail the evaluate status; inspect `alert_forward` / `aler
 curl -sS -X POST http://127.0.0.1:5002/run \
   -H 'Content-Type: application/json' \
   -d '{
-    "script": "//@version=5\nindicator(\"a\")\nif bar_index == last_bar_index\n    alert(\"fire\")\nplot(close)",
+    "script": "//@version=6\nindicator(\"a\")\nif bar_index == last_bar_index\n    alert(\"fire\")\nplot(close)",
     "mode": "interpret",
     "webhook_url": "https://hooks.example.com/pine",
     "data": [

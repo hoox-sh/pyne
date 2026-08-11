@@ -19,7 +19,7 @@
 
 ---
 title: "Quick Start"
-description: "Parse, dump, unparse, lint, and evaluate Pine Script™ with the pynescript CLI and library in under ten minutes."
+description: "Parse, dump, unparse, lint, and evaluate Pine Script™ with the pyne CLI and library in under ten minutes."
 ---
 
 # Quick Start
@@ -33,7 +33,7 @@ This page is a linear path from a working install to the five desk operations mo
 ```mermaid
 sequenceDiagram
   participant U as User
-  participant CLI as pynescript CLI
+  participant CLI as pyne CLI
   participant AST as ASDL AST
   participant EV as literal_eval / Runtime
   U->>CLI: parse-and-dump script.pine
@@ -54,7 +54,7 @@ sequenceDiagram
 Assumes:
 
 ```bash
-pip install hoox-pyne                 # https://pypi.org/project/hoox-pyne/ · 0.3.0+
+pip install hoox-pyne                 # https://pypi.org/project/hoox-pyne/ · 0.3.4+
 # optional:
 # pip install "hoox-pyne[lsp]"        # editors
 # pip install "hoox-pyne[compile]"    # compile / run / prewarm
@@ -62,12 +62,13 @@ pip install hoox-pyne                 # https://pypi.org/project/hoox-pyne/ · 0
 ```
 
 ```bash
-pynescript info
-pynescript check script.pine
-pynescript lint script.pine
+pyne info
+pyne check script.pine
+pyne lint script.pine
+# aliases still work: pynescript info …
 ```
 
-Sample script in-tree: `examples/rsi_strategy.pine`.
+Sample script in-tree: `examples/rsi_strategy.pine`. Prefer **`//@version=6`** and **`.pyne`** / **`.pine`** for new work (`.pinev5` remains a supported legacy association).
 
 ## Internals (repo paths)
 
@@ -77,13 +78,14 @@ Sample script in-tree: `examples/rsi_strategy.pine`.
 | CLI unparse | `parse_and_unparse` |
 | CLI lint | `lint` → `pynescript.ast.linter.lint_script` |
 | Library helpers | `src/pynescript/ast/helper.py` |
+| Bar-loop Runtime SoT | `src/pynescript/runtime/` (`from pynescript.runtime import Runtime`) |
 | Example scripts | `examples/parse_dump_unparse.py`, `examples/evaluate_expressions.py` |
 
 ## Invariants & edge cases
 
-- Always declare `//@version=5` or `//@version=6` at the top; the linter warns (`W001`) if missing.
+- Always declare **`//@version=6`** at the top (v5 still parses); the linter warns (`W001`) if the pragma is missing.
 - `parse-and-unparse` is a **formatter via AST**, not a semantic optimizer.
-- `literal_eval` is for expressions / built-in calls with optional series context — not a full multi-bar strategy backtester. For bar loops, use `backend.runtime.Runtime` or the Pro API `/run`.
+- `literal_eval` is for expressions / built-in calls with optional series context — not a full multi-bar strategy backtester. For bar loops, use `pynescript.runtime.Runtime` (or the Pro API `/run`).
 - Filename arguments to the CLI must exist and be readable; lint may also read stdin (`-` or no file).
 
 ## Worked examples
@@ -91,13 +93,13 @@ Sample script in-tree: `examples/rsi_strategy.pine`.
 ### 1. Parse and dump the AST
 
 ```bash
-pynescript parse-and-dump examples/rsi_strategy.pine
+pyne parse-and-dump examples/rsi_strategy.pine
 ```
 
 Pretty-print with indent and optional file output:
 
 ```bash
-pynescript parse-and-dump examples/rsi_strategy.pine --indent 2 --output-file /tmp/rsi.ast.txt
+pyne parse-and-dump examples/rsi_strategy.pine --indent 2 --output-file /tmp/rsi.ast.txt
 ```
 
 Library equivalent:
@@ -113,15 +115,15 @@ print(dump(tree, indent=2))
 ### 2. Round-trip unparse (normalize)
 
 ```bash
-pynescript parse-and-unparse examples/rsi_strategy.pine
-pynescript parse-and-unparse messy.pine --output-file clean.pine
+pyne parse-and-unparse examples/rsi_strategy.pine
+pyne parse-and-unparse messy.pine --output-file clean.pine
 ```
 
 ```python
 from pynescript.ast import parse, unparse
 
 source = """
-//@version=5
+//@version=6
 indicator("My RSI")
 rsi(close, 14)
 """
@@ -133,9 +135,9 @@ Canonical demo: `examples/parse_dump_unparse.py`.
 ### 3. Lint before upload
 
 ```bash
-pynescript lint examples/rsi_strategy.pine
-pynescript lint --fail-on warnings examples/rsi_strategy.pine
-echo '//@version=5\nindicator("x")\nplot(close)' | pynescript lint -
+pyne lint examples/rsi_strategy.pine
+pyne lint --fail-on warnings examples/rsi_strategy.pine
+echo '//@version=6\nindicator("x")\nplot(close)' | pyne lint -
 ```
 
 Library:
@@ -172,13 +174,13 @@ Broader demo: `examples/evaluate_expressions.py`.
 
 ```bash
 # mock provider (no network)
-pynescript data AAPL --provider mock
+pyne data AAPL --provider mock
 
 # Yahoo (network)
-pynescript data AAPL --provider yahoo --period 6mo --interval 1d
+pyne data AAPL --provider yahoo --period 6mo --interval 1d
 
-# CCXT (needs pynescript[data])
-pynescript data BTC/USDT --provider ccxt --exchange binance
+# CCXT (needs hoox-pyne[data])
+pyne data BTC/USDT --provider ccxt --exchange binance
 ```
 
 ### 6. Optional: local Pro API `/run`
@@ -192,7 +194,7 @@ make run
 curl -s -X POST http://127.0.0.1:5002/run \
   -H 'Content-Type: application/json' \
   -d '{
-    "script": "//@version=5\nindicator(\"t\")\nplot(close)",
+    "script": "//@version=6\nindicator(\"t\")\nplot(close)",
     "mode": "auto",
     "data": [
       {"time": 1, "open": 1, "high": 2, "low": 0.5, "close": 1.5, "volume": 100},
@@ -201,7 +203,7 @@ curl -s -X POST http://127.0.0.1:5002/run \
   }' | python -m json.tool
 ```
 
-Omit `mode` to use the schema default **`auto`** (warm compile when eligible, else interpret). Response may include `series`, `plot_meta`, `events`, `drawings`, and `alerts`. See [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage) for batch mode, webhooks, and prewarm.
+Omit `mode` to use the schema default **`auto`** (warm compile when eligible, else interpret). Response may include `series`, `plot_meta`, `events`, `drawings`, and `alerts`. See [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage) for batch mode, webhooks, free-tier guards, and prewarm.
 
 Prefer saving stack sources as **`.pyne`** (`.pine` still works).
 
@@ -209,7 +211,8 @@ Prefer saving stack sources as **`.pyne`** (`.pine` still works).
 
 ```bash
 pip install "hoox-pyne[lsp]"
-pynescript-lsp   # stdio; normally launched by the editor
+pyne-lsp   # stdio; normally launched by the editor
+# alias: pynescript-lsp
 ```
 
 Wire Neovim / Zed / Emacs using [Editors](/pyne/docs/enduser/guides/editors) and `clients/`.

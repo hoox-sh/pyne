@@ -160,7 +160,7 @@ def create_quick_fix(warning: LintWarning, uri: str, source: str) -> lsp.CodeAct
     """
     if warning.code == "W001":
         return lsp.CodeAction(
-            title="Add @version=5 declaration",
+            title="Add @version=6 declaration",
             kind=lsp.CodeActionKind.QuickFix,
             edit=lsp.WorkspaceEdit(
                 document_changes=[
@@ -172,7 +172,7 @@ def create_quick_fix(warning: LintWarning, uri: str, source: str) -> lsp.CodeAct
                                     start=lsp.Position(line=0, character=0),
                                     end=lsp.Position(line=0, character=0),
                                 ),
-                                new_text="//@version=5\n",
+                                new_text="//@version=6\n",
                             )
                         ],
                     )

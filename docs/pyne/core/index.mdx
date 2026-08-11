@@ -76,7 +76,7 @@ Consumers almost always enter through `pynescript.ast.helper`:
 ```python
 from pynescript.ast.helper import parse, unparse, dump, walk, literal_eval
 
-tree = parse('//@version=5\nindicator("x")\nplot(close)')
+tree = parse('//@version=6\nindicator("x")\nplot(close)')
 print(dump(tree, indent=2))
 print(unparse(tree))
 ```
@@ -146,7 +146,7 @@ Minimal script:
 from pynescript.ast.helper import parse, dump
 
 src = """
-//@version=5
+//@version=6
 indicator("demo")
 x = ta.sma(close, 14)
 plot(x)

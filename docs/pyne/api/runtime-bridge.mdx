@@ -19,14 +19,16 @@
 
 ---
 title: "Runtime Bridge"
-description: "backend.runtime.Runtime — bar-loop evaluate façade, PineSeries context, compile mode, and result packaging."
+description: "pynescript.runtime.Runtime — package SoT bar-loop evaluate façade, PineSeries context, compile mode, and result packaging."
 ---
 
 # Runtime Bridge
 
 ## Abstract
 
-`backend.runtime.Runtime` is the HTTP stack’s **evaluate façade**. It owns symbol metadata namespaces (`syminfo`, `timeframe`, `barstate`, …), walks OHLCV bars, updates `PineSeries` for OHLC, visits a shared `CustomEvaluator` on the parsed AST each bar, drains strategy events, and packages multi-plot series for AXIS. Compile mode optionally swaps the AST walker for a Numba-backed subset engine.
+**Package Runtime SoT (0.3.4+):** the bar-loop host, series, and `CustomEvaluator` live under **`pynescript.runtime`** (`src/pynescript/runtime/`). The Pro API still imports `backend.runtime.Runtime`, which **re-exports** the package implementation so monorepo and wheel installs share one host.
+
+`Runtime` owns symbol metadata namespaces (`syminfo`, `timeframe`, `barstate`, …), walks OHLCV bars, updates `PineSeries` for OHLC, visits a shared `CustomEvaluator` on the parsed AST each bar, drains strategy events, and packages multi-plot series for AXIS. Compile mode optionally swaps the AST walker for a Numba-backed subset engine. Optional **`timeout_seconds`** provides a wall-clock circuit breaker on the interpret path (checked every 32 bars) for edge/cron budgets.
 
 This is the bridge between Flask handlers and the language core — not a second semantics.
 
@@ -60,14 +62,16 @@ Runtime(symbol: str = "AAPL", run_id: str | None = None)
 
 Helpers: `configure_footprint`, `update_bid_ask`.
 
-### `run(source_code, ohlcv_data, data_feed=None, data_provider=None, mode="interpret")`
+### `run(source_code, ohlcv_data, data_feed=None, data_provider=None, mode="interpret", …)`
 
 | Arg | Role |
 | --- | --- |
 | `source_code` | Pine text |
 | `ohlcv_data` | `list[dict]` with open/high/low/close/time[/volume/bid/ask] |
 | `data_feed` / `data_provider` | `request.*` wiring; auto-resolved from chart bars when unset |
-| `mode` | `"interpret"` (default) or `"compile"` |
+| `mode` | `"interpret"` (default for direct calls) · `"compile"` · `"auto"` (Pro API schema default) |
+| `timeout_seconds` | Optional wall-clock budget (seconds); interpret path only — partial results + `timed_out` when exceeded |
+| `realtime_*` | Optional host simulation for `varip` multi-tick tests (`realtime_last_bar`, `realtime_ticks`, `realtime_bars`, `realtime_from_bar`) |
 
 #### Interpret path (default)
 
@@ -97,21 +101,23 @@ Return keys: `plots`, `series`, `plot_meta`, `events`, `drawings`, `alerts`, `co
 4. Pop internal keys (`__drawings`, `__events`, position meta).
 5. Return similar envelope with `mode: "compile"`, `alerts: []`, plus `object_mode` / `generated_code` when present.
 
-### `PineSeries` (`backend/series.py`)
+### `PineSeries` (`pynescript.runtime.series`)
 
-History deque (default maxlen 1000), `series[0]` current / `series[n]` lookback, arithmetic on **current** values, `None` propagates as na-like absence. Negative indices raise — Pine does not allow them.
+History deque (default maxlen 1000), `series[0]` current / `series[n]` lookback, arithmetic on **current** values, `None` propagates as na-like absence. Negative indices raise — Pine Script™ does not allow them. `backend.series` re-exports the package type.
 
 ### Context namespaces
 
-Defined in `runtime.py`: `Syminfo`, `Chartinfo`, `Timeframe`, `Barstate`, `Chart` — attribute names aim at Pine v5/v6 surface (`timeframe.isdaily`, `syminfo.isin`, …).
+Defined on the host: `Syminfo`, `Chartinfo`, `Timeframe`, `Barstate`, `Chart` — attribute names aim at Pine Script™ v5–v6 surface (`timeframe.isdaily`, `syminfo.isin`, …).
 
 ## Internals
 
 | Path | Role |
 | --- | --- |
-| `backend/runtime.py` | `Runtime` |
-| `backend/evaluator.py` | `CustomEvaluator` specialization |
-| `backend/series.py` | `PineSeries` |
+| `src/pynescript/runtime/host.py` | Package SoT `Runtime` bar loop |
+| `src/pynescript/runtime/evaluator.py` | `CustomEvaluator` specialization |
+| `src/pynescript/runtime/series.py` | `PineSeries` |
+| `backend/runtime.py` | Compat shim → `pynescript.runtime` |
+| `backend/evaluator.py` / `backend/series.py` | Compat shims |
 | `src/pynescript/ast/helper.py` | `parse` |
 | `src/pynescript/ast/evaluator/**` | Builtin + strategy semantics |
 | `src/pynescript/compiler/engine.py` | Compile mode |
@@ -130,11 +136,12 @@ Flask wiring: `backend/app.py` constructs a **fresh** `Runtime` per request (and
 ## Worked example
 
 ```python
-from backend.runtime import Runtime
+from pynescript.runtime import Runtime
+# or: from backend.runtime import Runtime  # Pro API monorepo path
 
 rt = Runtime(symbol="NASDAQ:AAPL")
 out = rt.run(
-    '//@version=5\nindicator("x")\nplot(close, "C")',
+    '//@version=6\nindicator("x")\nplot(close, "C")',
     [{"time": i, "open": 1, "high": 2, "low": 0.5, "close": 1.0 + i * 0.01, "volume": 1} for i in range(50)],
 )
 assert "error" not in out

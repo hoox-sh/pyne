@@ -60,17 +60,21 @@ flowchart LR
 | Strategy events + broker (OCA, commission, risk) | ✅ |
 | Numba + object-mode compile | ✅ MVP+ (disk IR cache, `mode=auto`, `time_arr`, cache recovery) |
 | Pro API + auth + Docker | ✅ (`mode` default `auto`; targets api / api-dev / lsp / **cli**) |
-| PyPI **`hoox-pyne`** | ✅ live 0.3.0 ([pypi.org/project/hoox-pyne](https://pypi.org/project/hoox-pyne/)) |
+| PyPI **`hoox-pyne`** | ✅ live **0.3.4+** ([pypi.org/project/hoox-pyne](https://pypi.org/project/hoox-pyne/)); CLIs `pyne` / `pyne-lsp` |
 | CLI surface (`check`/`format`/`compile`/`run`/`prewarm`/…) | ✅ + Nuitka binaries + CLI Docker image |
 | Alert engine + L2 webhooks | ✅ dual-host export + outbound webhooks |
 | Drawing `max_*_count` GC | ✅ package + Pro API + AXIS Pyodide |
-| `request.security` foreign-na | ✅ same-symbol OHLCV only; foreign → `na` |
+| Package Runtime SoT (`pynescript.runtime`) | ✅ 0.3.4 — Pro API + worker thin wrap |
+| Strategy exits (`from_entry`, `qty_percent`, trail, risk cascade) | ✅ 0.3.4 |
+| `request.security` HTF simple TA + foreign-na | ✅ same-symbol OHLCV/HTF allowlist; foreign → `na` |
+| Free-tier Pro API guards | ✅ bar/script caps, rate, concurrency, mock-only free data |
+| Dual-host TA goldens (ATR / Supertrend / Keltner) | ✅ first-party + `test_ta_incremental` CI |
 | Series caps (`PYNE_SERIES_CAP`) | ✅ T1 |
 | Warm-compile product path | ✅ H2 (SLOs, prewarm, deploy IR cache) |
 | Pending-fill averaging (pyramiding ≤ 0) | ✅ F2 |
 | Interpret↔compile plot parity | ⚙️ harness + goldens landed; residual MISMATCH tail |
-| Dual-host package Runtime unify | ⬜ open (largest P1 residual) |
-| pine-worker (TS + converter) | ✅ colocated tool (port ongoing) |
+| Runtime `timeout_seconds` | ✅ unreleased/edge (wall-clock circuit breaker) |
+| pine-worker (TS + converter) | ✅ colocated tool (thin wrap over package Runtime) |
 | Full TV platform identity | ⚙️ out of scope |
 
 ### Completed themes (do not re-plan as greenfield)

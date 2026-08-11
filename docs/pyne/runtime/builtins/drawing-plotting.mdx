@@ -142,7 +142,7 @@ Interpret path enforces TradingView®-style **garbage collection** on drawing fa
 When more **active** objects of a type exist than the cap, the **oldest** are marked `deleted=True` so they leave `*.all` and `DrawingRegistry.export_for_api`. Caps are applied from the script declaration at run start (`DrawingRegistry.configure_from_declaration`); shrinking a cap immediately collects.
 
 ```pine
-//@version=5
+//@version=6
 indicator("labels", overlay=true, max_labels_count=100)
 if barstate.islast
     label.new(bar_index, high, "x")
@@ -201,7 +201,7 @@ Numeric mode still supports plain `plot` float64 arrays; any of the drawing/mark
 ### Dual plot + fill
 
 ```pine
-//@version=5
+//@version=6
 indicator("BB mid")
 basis = ta.sma(close, 20)
 p1 = plot(basis)
@@ -212,7 +212,7 @@ fill(p1, p2, color=color.new(color.blue, 80))
 ### Label on last bar
 
 ```pine
-//@version=5
+//@version=6
 indicator("lbl", overlay=true)
 if barstate.islast
     label.new(bar_index, high, str.tostring(close))

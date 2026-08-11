@@ -86,9 +86,10 @@ Resolution order (simplified):
 1. Normalize symbol (series → last element; `ticker.*` → symbol string) and timeframe.
 2. Classify **chart vs foreign** (`_is_chart_symbol` vs host `syminfo` / provider symbol).
 3. Try `data_feed.fetch_latest_ohlcv` / ticker, then `data_provider.fetch`.
-4. **Foreign + pre-evaluated expression** (UDF result, list/tuple of chart values, non-string expr) without multi-symbol data → **`na`** (not chart close as “dividends”).
-5. Fundamental / non-equity prefixes (`DIVIDEND`, `FACTSET`, `EARNINGS`, `ESD_`) with no feed hit → **`na`** (no mock OHLCV).
-6. Bare equity-style string names may still use **legacy mock** prices for offline demos when no feed is wired.
+4. **Same-symbol coarser timeframe (HTF resample, 0.3.4+):** bucket chart OHLCV to the requested TF; allowlisted simple TA on HTF series — `ta.sma` / `ta.ema` / `ta.rsi` / `ta.atr` — evaluates on the resampled series. Policy meta is exposed on the Runtime for host honesty.
+5. **Foreign + pre-evaluated expression** (UDF result, list/tuple of chart values, non-string expr) without multi-symbol data → **`na`** (not chart close as “dividends”).
+6. Fundamental / non-equity prefixes (`DIVIDEND`, `FACTSET`, `EARNINGS`, `ESD_`) with no feed hit → **`na`** (no mock OHLCV).
+7. Bare equity-style string names may still use **legacy mock** prices for offline demos when no feed is wired.
 
 `ChartOHLCVProvider` (wired by `Runtime` via `resolve_request_sources` when unset) **only serves the chart ticker**. Foreign tickers get empty series, so interpret returns `na` unless a real multi-symbol feed is configured.
 
@@ -100,7 +101,7 @@ Compile lowering is intentionally narrow ([compiler overview](/pyne/docs/runtime
 | --- | --- |
 | Same-symbol (`syminfo.ticker` / empty chart id) **and** simple OHLCV expr (`close`, `high[1]`, …) | Passthrough chart array sample |
 | Foreign tickers (`UPVOL.NY`, `ESD_FACTSET`, …) | `np.nan` |
-| Complex third arg (UDFs, `year_sum(close)`, `ta.*`, arithmetic) | `np.nan` |
+| Complex third arg (UDFs, `year_sum(close)`, non-allowlisted `ta.*`, arithmetic) | `np.nan` |
 | Other `request.*` APIs | `np.nan` (object mode) |
 
 No inventing chart-close-as-dividends or chart-volume-as-advance/decline series.
@@ -141,7 +142,8 @@ cannot corrupt `time[j]` history. That bug previously broke TTM / `year_sum`-sty
 | `src/pynescript/ast/evaluator/statements.py` | `_bind_series_name` (no OHLCV alias) |
 | `src/pynescript/util/data.py` | `ChartOHLCVProvider`, `resolve_request_sources` |
 | `src/pynescript/compiler/compiler.py` | Same-symbol OHLCV-only `security` lower |
-| `backend/runtime.py` | Feed wiring; `_compile_eligible` / `_run_auto` |
+| `src/pynescript/runtime/host.py` | Package Runtime SoT; feed wiring; `_compile_eligible` / `_run_auto` |
+| `backend/runtime.py` | Compat re-export of package Runtime |
 | `tests/test_dividend_yield_parity.py`, `test_datafeed_wiring.py` | na parity + chart provider |
 
 ## Invariants & edge cases
@@ -159,7 +161,7 @@ cannot corrupt `time[j]` history. That bug previously broke TTM / `year_sum`-sty
 ### Parameterized length
 
 ```pine
-//@version=5
+//@version=6
 indicator("len")
 len = input.int(14, "Length", minval=1)
 plot(ta.sma(close, len))
@@ -171,14 +173,18 @@ Host:
 ev._input_overrides = {"Length": 21}
 ```
 
-### Multi-timeframe close (chart symbol)
+### Multi-timeframe close / simple HTF TA (chart symbol)
 
 ```pine
+//@version=6
+indicator("HTF")
 htf = request.security(syminfo.tickerid, "D", close)
+htf_sma = request.security(syminfo.tickerid, "D", ta.sma(close, 20))
 plot(htf)
+plot(htf_sma)
 ```
 
-Same-symbol: interpret uses chart provider / series; compile may passthrough `close`. With a multi-TF provider, daily closes come from the feed.
+Same-symbol coarser TF: interpret buckets chart OHLCV and evaluates allowlisted simple `ta.*` (`sma` / `ema` / `rsi` / `atr`) on the HTF series. Compile may passthrough simple same-symbol OHLCV; complex foreign/security still → `na`.
 
 ### Intentional `na` — dividend yield (fundamentals missing)
 

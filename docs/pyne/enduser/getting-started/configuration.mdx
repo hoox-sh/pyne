@@ -39,13 +39,13 @@ flowchart TB
     ENV[HOST PORT ALLOWED_ORIGINS ADMIN_TOKEN API_KEY_STORE]
   end
   subgraph editor [Editor client]
-    LS[pynescript-lsp settings]
+    LS[pyne-lsp settings]
   end
   EX --> BIN[console scripts + imports]
   ENV --> API[backend.app Flask]
   LS --> FEAT[diagnostics / format / completion]
-  BIN --> CLI[pynescript]
-  BIN --> LSPBIN[pynescript-lsp]
+  BIN --> CLI[pyne]
+  BIN --> LSPBIN[pyne-lsp]
 ```
 
 There is no required `pynescript.toml` for core use. {/* TODO: verify if a user config file was added */}
@@ -56,18 +56,22 @@ There is no required `pynescript.toml` for core use. {/* TODO: verify if a user 
 
 | Extra | Dependencies | Enables |
 | --- | --- | --- |
-| *(none)* | antlr4-runtime, click, requests, tqdm | CLI + AST + linter + literal_eval |
-| `lsp` | pygls, lsprotocol | `pynescript-lsp` |
+| *(none)* | antlr4-runtime, click, requests, tqdm | CLI + AST + linter + literal_eval + `pynescript.runtime` |
+| `lsp` | pygls, lsprotocol | `pyne-lsp` (alias `pynescript-lsp`) |
 | `dev-lsp` | pygls, lsprotocol, pytest-lsp | LSP + protocol tests |
 | `data` | ccxt | Exchange historical data |
 | `datafeed` | ccxt | Same as `data` (alias for realtime feed paths) |
+| `compile` | numpy, numba | Compile / run / prewarm Numba path |
+| `pro` | Flask stack (+ redis optional) | Self-hosted Pro API |
 
 ### Console scripts
 
 | Name | Entry point | Notes |
 | --- | --- | --- |
-| `pynescript` | `pynescript.__main__:cli` | Always with core install |
-| `pynescript-lsp` | `pynescript.langserver.__main__:main` | Needs importable pygls |
+| `pyne` | `pynescript.__main__:cli` | Preferred desk CLI |
+| `pyne-lsp` | `pynescript.langserver.__main__:main` | Preferred language server |
+| `pynescript` | same as `pyne` | Legacy alias |
+| `pynescript-lsp` | same as `pyne-lsp` | Legacy alias |
 
 Invoke without scripts on PATH:
 
@@ -159,7 +163,9 @@ Pro API `/run` optional fields:
 | `webhook_url` | string | Per-request L2 alert webhook (overrides `ALERT_WEBHOOK_URL`) |
 | `forward_alerts` / `alert_last_bar` / `alert_batch` | bool | Webhook delivery controls (see [Alerts](/pyne/docs/runtime/alerts)) |
 
-Operators can also `POST /compile/prewarm` or run `pynescript prewarm` (and `pynescript prewarm script.pine …`) to warm Numba builtins / script IR caches before interactive traffic. Requires `pip install "hoox-pyne[compile]"` for full Numba warm-up.
+Operators can also `POST /compile/prewarm` or run `pyne prewarm` (and `pyne prewarm script.pine …`) to warm Numba builtins / script IR caches before interactive traffic. Requires `pip install "hoox-pyne[compile]"` for full Numba warm-up.
+
+Free-tier Pro API guards (unauthenticated `/run`): `FREE_MAX_BARS`, `FREE_MAX_SCRIPT_CHARS`, `FREE_MAX_CONCURRENT`, `FREE_RATE_LIMIT` / `FREE_RATE_WINDOW_SEC` — see [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage).
 
 ### Editor / LSP client settings
 
@@ -168,7 +174,7 @@ VS Code extension keys (from `clients/README.md`):
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `pynescript.lsp.enabled` | true | Toggle server |
-| `pynescript.lsp.command` | `pynescript-lsp` | Binary path |
+| `pynescript.lsp.command` | `pyne-lsp` | Binary path (alias `pynescript-lsp` also works) |
 | `pynescript.formatting.enabled` | true | Format document |
 | `pynescript.diagnostics.enabled` | true | Lint squiggles |
 | `pynescript.completion.snippets` | true | Snippet completions |
@@ -227,14 +233,14 @@ CORS must allow the PWA origin via `ALLOWED_ORIGINS`.
 python -m venv .venv && source .venv/bin/activate
 pip install hoox-pyne
 # no env vars required
-pynescript lint strategy.pine --fail-on errors
+pyne lint strategy.pine --fail-on errors
 ```
 
 ### Editor workstation
 
 ```bash
 pip install "hoox-pyne[lsp]"
-# ensure which pynescript-lsp
+# ensure which pyne-lsp  (alias: pynescript-lsp)
 # paste clients/neovim.lua or clients/zed.json as documented
 ```
 

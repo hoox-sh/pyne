@@ -55,12 +55,31 @@ sequenceDiagram
 | Builtin | Role |
 | --- | --- |
 | `strategy.entry` | Open/add (or reverse) by direction; market or pending limit/stop |
-| `strategy.exit` | Bracket-style exit (limit/stop) against position |
-| `strategy.close` / `strategy.close_all` | Flatten by id or all |
+| `strategy.exit` | Bracket-style exit (pending limit/stop + OCA); market exit when no levels |
+| `strategy.close` / `strategy.close_all` | Flatten by id or all (`qty_percent` supported) |
 | `strategy.order` | Lower-level order with OCA name/type, partial fill cap |
 | `strategy.cancel` / `strategy.cancel_all` | Remove pending orders |
 
 Directions accept Pine constants (`strategy.long` / `strategy.short`) and common string aliases.
+
+### `strategy.exit` surface (0.3.4+)
+
+| Feature | Status |
+| --- | --- |
+| Pending stop/limit brackets + OCA | Interpret + compile — fills via `process_pending_orders` OHLC path |
+| `from_entry` multi-leg filter | Interpret + compile — unknown id is soft no-op |
+| `qty_percent` | Interpret + compile `close` — `%` of target (whole pos or `from_entry`); wins over `qty`; `≤0`/na → no-op; `>100` capped |
+| Trail (`trail_offset` / `trail_points` / optional `trail_price`) | **Minimal** interpret + compile — ratchets from bar high/low (OHLC approx; no tick path) |
+| `profit` / `loss` | Residual — still coerced as prices (not tick offsets from entry avg) |
+
+```pine
+//@version=6
+strategy("Exit demo", overlay=true, initial_capital=100000)
+if bar_index == 5
+    strategy.entry("L", strategy.long, qty=10)
+if bar_index == 6
+    strategy.exit("X", from_entry="L", stop=low * 0.98, limit=high * 1.02, qty_percent=50)
+```
 
 ### Position and performance series
 
@@ -72,19 +91,20 @@ Indexed accessors:
 
 - `strategy.closedtrades.entry_*` / `exit_*` / `profit` / `size` / `commission`
 - `strategy.opentrades.entry_*` / `size` / `profit` / `commission`
+- Open/closed trade fields include bar/time/id/comment plus approximate MAE/MFE (`max_drawdown` / `max_runup` from bar high/low)
 
-### Risk
+### Risk (interpret + compile halt cascade)
 
 | Builtin | Effect |
 | --- | --- |
 | `strategy.risk.max_position_size` | Cap size as % of equity |
 | `strategy.risk.max_intraday_loss` | Intraday loss gate |
-| `strategy.risk.max_intraday_filled_orders` | Order count cap |
+| `strategy.risk.max_intraday_filled_orders` | Order count cap (day-scoped on compile) |
 | `strategy.risk.max_drawdown` | Absolute / percent drawdown halt |
 | `strategy.risk.max_cons_loss_days` | Consecutive losing calendar days → `entries_blocked` |
 | `strategy.risk.allow_entry_in` | `"all"` \| `"long"` \| `"short"` |
 
-Blocked entries still emit a diagnostic-style event with comment `risk_blocked` where implemented.
+Blocked entries still emit a diagnostic-style event with comment `risk_blocked` where implemented. Compile broker shares the common halt cascade above (not a full TradingView® risk engine).
 
 ### Declaration
 
@@ -208,12 +228,12 @@ Covered by `tests/test_oca_commission.py` and order-fill suites.
 ### Market long / close
 
 ```pine
-//@version=5
+//@version=6
 strategy("Demo", overlay=true, initial_capital=100000)
 if bar_index == 5
     strategy.entry("L", strategy.long, qty=10)
 if bar_index == 10
-    strategy.close("L")
+    strategy.close("L", qty_percent=100)
 ```
 
 Parity fixtures under `tests/fixtures/parity/pine/` encode expected event sequences for such scripts.
@@ -221,6 +241,8 @@ Parity fixtures under `tests/fixtures/parity/pine/` encode expected event sequen
 ### Pending stop entry
 
 ```pine
+//@version=6
+strategy("Breakout", overlay=true)
 strategy.entry("Break", strategy.long, stop=high[1])
 ```
 
@@ -229,6 +251,9 @@ Creates a pending stop; subsequent bars’ `process_pending_orders` fill when `h
 ### OCA bracket sketch
 
 ```pine
+//@version=6
+strategy("Bracket", overlay=true)
+// after entry "L" is open:
 strategy.order("TP", strategy.short, qty=1, limit=tp, oca_name="br", oca_type=strategy.oca.cancel)
 strategy.order("SL", strategy.short, qty=1, stop=sl, oca_name="br", oca_type=strategy.oca.cancel)
 ```

@@ -50,7 +50,7 @@ Blueprint: `backtest_bp`, prefix `/backtest`.
 
 ```json
 {
-  "script": "//@version=5\nstrategy(\"s\")…",
+  "script": "//@version=6\nstrategy(\"s\")…",
   "data": {
     "open": [], "high": [], "low": [], "close": [], "volume": []
   },
@@ -158,7 +158,7 @@ curl -s http://127.0.0.1:5002/backtest/quick \
   -H "Authorization: Bearer $API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{
-    "script": "//@version=5\nstrategy(\"demo\")\n// body optional for MVP",
+    "script": "//@version=6\nstrategy(\"demo\")\n// body optional for MVP",
     "mock_data": true,
     "mock_bars": 120,
     "initial_capital": 25000

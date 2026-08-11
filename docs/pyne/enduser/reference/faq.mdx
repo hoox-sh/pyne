@@ -55,8 +55,9 @@ Answers cite:
 ### What is PYNE vs pynescript vs pyne?
 
 - **PYNE** — product documentation brand for the open evaluate stack (grammar → AST → runtime → LSP → Pro API → workers).
-- **`hoox-pyne`** — **PyPI distribution** name ([live](https://pypi.org/project/hoox-pyne/)). Install with `pip install hoox-pyne`. Do **not** install plain `pyne`/`PyNE` (unrelated) or the upstream `pynescript` package (elbakramer).
-- **`pynescript`** — **import package** and CLI name (`import pynescript`, `pynescript` / `pynescript-lsp` scripts). Repo product name is also often called pyne.
+- **`hoox-pyne`** — **PyPI distribution** name ([live](https://pypi.org/project/hoox-pyne/), **0.3.4+**). Install with `pip install hoox-pyne`. Do **not** install plain `pyne`/`PyNE` from PyPI without the `hoox-` prefix (unrelated) or the upstream `pynescript` package (elbakramer).
+- **`pynescript`** — **import package** (`import pynescript`, including `pynescript.runtime`).
+- **`pyne` / `pyne-lsp`** — preferred console scripts; **`pynescript` / `pynescript-lsp`** remain aliases.
 
 ### What Python versions are supported?
 
@@ -76,7 +77,7 @@ No extra required for `parse` / `unparse` / `lint` / basic `literal_eval`.
 pip install "hoox-pyne[lsp]"
 ```
 
-Run `pynescript-lsp` (not a Click subcommand of `pynescript` in current code).
+Run **`pyne-lsp`** (alias `pynescript-lsp`) — not a Click subcommand of `pyne`.
 
 ### Why is `pynescript lsp` missing?
 
@@ -84,7 +85,7 @@ The registered entry point is the separate script **`pynescript-lsp`**. Some doc
 
 ### Which Pine versions are supported?
 
-v5 is the primary surface; v6 features land incrementally (e.g. multiline strings). See [implementation status](/pyne/docs/reference/implementation-status), [missing features](/pyne/docs/reference/missing-features), and [pine v6 surface](/pyne/docs/reference/pine-v6-surface).
+v6 is the recommended surface (declare `//@version=6`); v5 remains fully supported. See [implementation status](/pyne/docs/reference/implementation-status), [missing features](/pyne/docs/reference/missing-features), and [pine v6 surface](/pyne/docs/reference/pine-v6-surface).
 
 ### Is this affiliated with TradingView?
 
@@ -207,8 +208,8 @@ Yes — `NodeVisitor` / `NodeTransformer` on the AST, then `unparse`. See [libra
 ### “Is my install healthy?”
 
 ```bash
-python -c "from pynescript.ast import parse, unparse; print(unparse(parse('//@version=5\nindicator(\"t\")\nplot(close)\n')))"
-pynescript lint - <<< $'//@version=5\nindicator("t")\nplot(close)\n'
+python -c "from pynescript.ast import parse, unparse; print(unparse(parse('//@version=6\nindicator(\"t\")\nplot(close)\n')))"
+pynescript lint - <<< $'//@version=6\nindicator("t")\nplot(close)\n'
 ```
 
 ### “Does HTTP evaluate work?”

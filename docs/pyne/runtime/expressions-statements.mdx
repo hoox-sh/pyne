@@ -124,7 +124,7 @@ Overloads with typed first parameters (e.g. `matrix.float` vs `array.label`) sel
 ### Ternary and comparison chain
 
 ```pine
-//@version=5
+//@version=6
 indicator("cmp")
 v = close > open ? close - open : open - close
 plot(v)
@@ -135,7 +135,7 @@ Each operator path is NA-safe: if `close` or `open` were missing, comparisons an
 ### User function with series
 
 ```pine
-//@version=5
+//@version=6
 indicator("fn")
 f(x, n) =>
     ta.sma(x, n)

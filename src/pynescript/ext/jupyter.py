@@ -59,7 +59,7 @@ def load_ipython_extension(ipython: Any) -> None:
 
         Usage:
             %%pinescript
-            //@version=5
+            //@version=6
             indicator("My Indicator")
             plot(ta.sma(close, 14))
         """
@@ -151,7 +151,7 @@ def evaluate_indicator(
 
     Example:
         >>> data = create_sample_data(100)
-        >>> code = '''//@version=5
+        >>> code = '''//@version=6
         ... indicator("SMA")
         ... plot(ta.sma(close, 14))
         ... '''

@@ -92,26 +92,31 @@ Compile inputs are contiguous arrays: `open_arr` … `vol_arr` plus **`time_arr`
 | Numba / object-mode compiler | [Compiler overview](/pyne/docs/runtime/compiler/overview) |
 | Interpret vs compile plot parity | [Parity testing](/pyne/docs/runtime/compiler/parity) |
 
-Library callers typically use `NodeLiteralEvaluator` (or the Pro API `Runtime`) rather than wiring the bar loop by hand:
+Library callers typically use `NodeLiteralEvaluator` or the package **`pynescript.runtime.Runtime`** (Pro API re-export) rather than wiring the bar loop by hand:
 
 ```python
 from pynescript.ast.evaluator import NodeLiteralEvaluator
+from pynescript.runtime import Runtime  # package SoT (0.3.4+)
 
 ev = NodeLiteralEvaluator(context={"close": [1.0, 2.0, 3.0], "bar_index": 2})
-result = ev.evaluate_script('//@version=5\nindicator("x")\nplot(close)')
+result = ev.evaluate_script('//@version=6\nindicator("x")\nplot(close)')
+
+# Full bar loop (preferred host API):
+# Runtime(symbol="CHART").run(source, ohlcv_data=bars, mode="auto", timeout_seconds=None)
 ```
 
-Hosts that own OHLCV (Pro API, workers) implement the loop: push bar → fill pending orders → `visit(tree)` → drain events → collect plots. See `backend/runtime.py` for the reference implementation.
+Hosts that own OHLCV (Pro API, workers) use the package host: push bar → fill pending orders → `visit(tree)` → drain events → collect plots. SoT: `src/pynescript/runtime/`; `backend.runtime` is a compat shim.
 
 ## Internals
 
 | Path | Role |
 | --- | --- |
+| `src/pynescript/runtime/` | Package Runtime SoT — host, series, CustomEvaluator |
 | `src/pynescript/ast/evaluator/` | Mixin evaluators (base, names, expressions, statements, libraries, events) |
 | `src/pynescript/ast/evaluator/builtins/` | Builtin dispatch tables |
 | `src/pynescript/compiler/` | `CompilerVisitor`, Numba builtins, strategy broker, engine façade |
-| `backend/runtime.py` | Production bar loop + `mode="compile"` bridge |
-| `tests/test_evaluator.py`, `tests/test_parity.py`, `tests/test_strategy_*.py` | Semantic oracles |
+| `backend/runtime.py` | Compat re-export of package Runtime for Pro API |
+| `tests/test_evaluator.py`, `tests/test_parity.py`, `tests/test_strategy_*.py`, `tests/test_first_party_ta_goldens.py` | Semantic oracles + dual-host TA goldens |
 
 Composition of the full interpreter:
 

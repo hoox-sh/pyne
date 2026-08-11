@@ -26,11 +26,11 @@ description: "Install hoox-pyne from PyPI (live) or a source checkout — CLI, L
 
 ## Abstract
 
-**PYNE is live on PyPI** as **[`hoox-pyne`](https://pypi.org/project/hoox-pyne/)** (currently **0.3.0**). The **import package** and console scripts remain **`pynescript`** / **`pynescript-lsp`** (src-layout under `src/pynescript/`).
+**PYNE is live on PyPI** as **[`hoox-pyne`](https://pypi.org/project/hoox-pyne/)** (currently **0.3.4+**). The **import package** remains **`pynescript`** (src-layout under `src/pynescript/`). Preferred console scripts are **`pyne`** / **`pyne-lsp`**; legacy **`pynescript`** / **`pynescript-lsp`** remain installed as aliases.
 
 Do **not** install:
 
-- plain **`pyne` / `PyNE`** — unrelated 0.1.0 process-networking library
+- plain **`pyne` / `PyNE`** from PyPI without the `hoox-` prefix — unrelated 0.1.0 process-networking library (our wheel is **`hoox-pyne`**)
 - upstream **`pynescript`** ([elbakramer](https://pypi.org/project/pynescript/)) — different project
 
 ```bash
@@ -47,11 +47,11 @@ pip install "hoox-pyne[pro]"       # Flask Pro API stack
 flowchart LR
   PYPI["PyPI hoox-pyne"] --> CORE[Core wheel]
   GIT[Git checkout] --> EDIT[pip install -e]
-  CORE --> CLI[pynescript]
-  CORE --> LIB[pynescript.ast]
+  CORE --> CLI[pyne]
+  CORE --> LIB[pynescript.ast / pynescript.runtime]
   EDIT --> CLI
   EDIT --> LIB
-  EXTRA_LSP["extra: lsp"] --> LSP[pynescript-lsp]
+  EXTRA_LSP["extra: lsp"] --> LSP[pyne-lsp]
   EXTRA_COMPILE["extra: compile"] --> NUMBA[numba path]
   EXTRA_DATA["extra: data"] --> CCXT[ccxt providers]
   EXTRA_PRO["extra: pro"] --> API[Flask Pro API]
@@ -63,13 +63,13 @@ flowchart LR
 
 | Install flavor | What you get | When |
 | --- | --- | --- |
-| `pip install hoox-pyne` | CLI + library | Desk use, scripts, CI lint |
+| `pip install hoox-pyne` | CLI + library (`pynescript.runtime` SoT) | Desk use, scripts, CI lint |
 | `pip install "hoox-pyne[lsp]"` | + pygls LSP server | Editors |
 | `pip install "hoox-pyne[compile]"` | + numpy / numba | `compile` / `run` Numba modes |
 | `pip install "hoox-pyne[data]"` | + ccxt | Exchange data providers |
 | `pip install "hoox-pyne[pro]"` | + Flask Pro API stack | Self-hosted `/run` |
 | `pip install -e ".[dev-lsp]"` | Editable + LSP test harness | Contributing to LSP |
-| Docker `pynescript-cli` | Full CLI image | CI gates / isolated runs |
+| Docker CLI image | Full CLI image | CI gates / isolated runs |
 | Hatch env | Matrix tests, lint, docs | Full monorepo workflow |
 
 ## Interface surface
@@ -87,8 +87,8 @@ python3 -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -U pip
 pip install "hoox-pyne[lsp,compile]"
-pynescript --version
-pynescript info
+pyne --version
+pyne info
 ```
 
 Project page: [pypi.org/project/hoox-pyne](https://pypi.org/project/hoox-pyne/) · owner account [jango-blockchained](https://pypi.org/user/jango-blockchained/).
@@ -129,14 +129,16 @@ docker run --rm -v "$PWD:/work" -w /work pynescript-cli:latest check script.pine
 
 | Command | Purpose |
 | --- | --- |
-| `pynescript` | Click CLI (check, format, lint, compile, run, …) |
-| `pynescript-lsp` | Language server (requires `[lsp]`) |
+| `pyne` | Preferred Click CLI (check, format, lint, compile, run, …) |
+| `pyne-lsp` | Preferred language server (requires `[lsp]`) |
+| `pynescript` | Alias of `pyne` (same callable) |
+| `pynescript-lsp` | Alias of `pyne-lsp` (same callable) |
 
 ```bash
-pynescript --version
-pynescript --help
-pynescript check script.pine
-which pynescript-lsp   # only after [lsp]
+pyne --version
+pyne --help
+pyne check script.pine
+which pyne-lsp   # only after [lsp]
 ```
 
 Standalone binaries and a CLI image tarball also ship on [GitHub Releases](https://github.com/hoox-sh/pyne/releases).
@@ -149,16 +151,17 @@ Standalone binaries and a CLI image tarball also ship on [GitHub Releases](https
 | `src/pynescript/` | Library + CLI + LSP package tree |
 | `src/pynescript/__about__.py` | `__version__` |
 | `src/pynescript/__main__.py` | CLI implementation |
-| `src/pynescript/langserver/__main__.py` | `pynescript-lsp` entry |
+| `src/pynescript/runtime/` | Package Runtime SoT (bar-loop host, series, evaluator) |
+| `src/pynescript/langserver/__main__.py` | `pyne-lsp` entry |
 | `Dockerfile` target `cli` | Ephemeral CLI image |
 | `Makefile` | `package`, `docker-build-cli`, `install`, … |
 | `CONTRIBUTING.md` | Publish / Hatch workflow |
 
 ## Invariants & edge cases
 
-- **PyPI name ≠ import name.** Install **`hoox-pyne`**; `import pynescript`.
+- **PyPI name ≠ import name.** Install **`hoox-pyne`**; `import pynescript`. CLIs: **`pyne`** / **`pyne-lsp`**.
 - **License.** AGPL-3.0-or-later. Network use triggers AGPL source-offer obligations (see GNU AGPL §13).
-- **LSP is not a CLI subcommand.** Use **`pynescript-lsp`** (or `python -m pynescript.langserver`).
+- **LSP is not a CLI subcommand.** Use **`pyne-lsp`** (or `python -m pynescript.langserver`).
 - **Pro API.** `pip install "hoox-pyne[pro]"` or monorepo `pip install -r backend/requirements.txt` + `make run` (default `:5002`).
 - **Source extensions.** Prefer **`.pyne`** for stack sources; `.pine` / `.pinev5` / `.pinev6` still work.
 
@@ -171,12 +174,12 @@ python - <<'PY'
 from pynescript.ast import parse, unparse
 from pynescript import __about__
 print("version", __about__.__version__)
-src = '//@version=5\nindicator("t")\nplot(close)\n'
+src = '//@version=6\nindicator("t")\nplot(close)\n'
 print(unparse(parse(src)))
 PY
 
-pynescript check examples/rsi_strategy.pine
-pynescript lint examples/rsi_strategy.pine
+pyne check examples/rsi_strategy.pine
+pyne lint examples/rsi_strategy.pine
 ```
 
 ### Monorepo desk + Pro API
@@ -197,7 +200,7 @@ make run   # Flask on :5002
 | `No module named 'numba'` | compile path without extra | `pip install "hoox-pyne[compile]"` |
 | `No module named 'ccxt'` | data path without extra | `pip install "hoox-pyne[data]"` |
 | Wrong package / missing APIs | Installed upstream `pynescript` or plain `pyne` | `pip uninstall pynescript pyne` then `pip install hoox-pyne` |
-| `pynescript` not found | Scripts not on PATH | `python -m pynescript` or fix venv `bin/` |
+| `pyne` / `pynescript` not found | Scripts not on PATH | `python -m pynescript` or fix venv `bin/` |
 
 ## See also
 

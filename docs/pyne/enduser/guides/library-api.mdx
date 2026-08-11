@@ -26,7 +26,7 @@ description: "Embed pynescript: parse, dump, unparse, walk, transform, and lint 
 
 ## Abstract
 
-The public Python surface for language work lives primarily under **`pynescript.ast`**: parse source into an ASDL-backed tree, serialize it (`dump`), regenerate source (`unparse`), traverse (`walk`, visitors), rewrite (`NodeTransformer`), and lint (`lint_script`). Expression evaluation (`literal_eval`) and full script execution (evaluator / `Runtime`) sit adjacent; this page focuses on **structural** APIs. Evaluation workflows are covered in [Evaluate scripts](/pyne/docs/enduser/guides/evaluate-scripts).
+The public Python surface for language work lives primarily under **`pynescript.ast`**: parse source into an ASDL-backed tree, serialize it (`dump`), regenerate source (`unparse`), traverse (`walk`, visitors), rewrite (`NodeTransformer`), and lint (`lint_script`). Expression evaluation (`literal_eval`) and full script execution (`pynescript.runtime.Runtime`) sit adjacent; this page focuses on **structural** APIs. Evaluation workflows are covered in [Evaluate scripts](/pyne/docs/enduser/guides/evaluate-scripts). Install via **`pip install hoox-pyne`** (`import pynescript`).
 
 ## Conceptual model
 
@@ -69,7 +69,7 @@ from pynescript.ast.linter import lint_script, lint_file, PineLinter, LintWarnin
 Raises `ValueError` on bad mode; `SyntaxError` (via error listener) on grammar failure.
 
 ```python
-tree = parse('//@version=5\nindicator("x")\nplot(close)\n')
+tree = parse('//@version=6\nindicator("x")\nplot(close)\n')
 expr = parse("close > open", mode="eval")
 ```
 

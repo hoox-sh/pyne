@@ -47,9 +47,9 @@ flowchart TD
 
 ```bash
 python -c "import pynescript; from pynescript import __about__; print(__about__.__version__)"
-python -c "from pynescript.ast import parse, unparse; print(unparse(parse('//@version=5\nindicator(\"t\")\nplot(close)\n')))"
-pynescript --version
-pynescript lint - <<< $'//@version=5\nindicator("t")\nplot(close)\n'
+python -c "from pynescript.ast import parse, unparse; print(unparse(parse('//@version=6\nindicator(\"t\")\nplot(close)\n')))"
+pyne --version
+pyne lint - <<< $'//@version=6\nindicator("t")\nplot(close)\n'
 python -c "import pygls"  # LSP extra
 python -c "import ccxt"   # data extra
 curl -s http://127.0.0.1:5002/ | head
@@ -62,7 +62,7 @@ curl -s http://127.0.0.1:5002/ | head
 | CLI | `src/pynescript/__main__.py` |
 | Parse | `src/pynescript/ast/helper.py`, ANTLR error listener |
 | Lint | `src/pynescript/ast/linter.py` |
-| Eval | `src/pynescript/ast/evaluator/`, `backend/runtime.py` |
+| Eval | `src/pynescript/ast/evaluator/`, `src/pynescript/runtime/` |
 | Data | `src/pynescript/util/data.py` |
 | LSP | `src/pynescript/langserver/` |
 | HTTP | `backend/app.py`, `backend/middleware/schemas.py` |
@@ -72,7 +72,7 @@ curl -s http://127.0.0.1:5002/ | head
 - Minimal green script for isolation:
 
 ```pine
-//@version=5
+//@version=6
 indicator("t")
 plot(close)
 ```
@@ -83,7 +83,7 @@ plot(close)
 
 ## Worked examples (by symptom)
 
-### 1. `pynescript: command not found`
+### 1. `pyne` / `pynescript: command not found`
 
 ```bash
 which python
@@ -102,12 +102,12 @@ Wrong interpreter (IDE using system Python). Point the IDE at the venv; reinstal
 ### 3. Parse / SyntaxError
 
 ```bash
-pynescript parse-and-dump broken.pine
+pyne parse-and-dump broken.pine
 ```
 
 Checks:
 
-- `//@version=5` or `6` present  
+- `//@version=6` present (v5 still accepted)
 - Balanced parentheses / indentation (Pine uses line structure)  
 - Multiline strings / v6 features need a package version that includes them  
 - Binary/null bytes in file  
@@ -119,11 +119,11 @@ Reduce to a minimal repro; if TV accepts it and PYNE does not, consult [missing 
 `unparse` normalizes formatting. Compare dumps:
 
 ```bash
-pynescript parse-and-dump a.pine > /tmp/a.ast
-pynescript parse-and-unparse a.pine | pynescript parse-and-dump /dev/stdin
+pyne parse-and-dump a.pine > /tmp/a.ast
+pyne parse-and-unparse a.pine | pyne parse-and-dump /dev/stdin
 # stdin may not work for parse-and-dump (file path required) — use a temp file:
-pynescript parse-and-unparse a.pine --output-file /tmp/a2.pine
-pynescript parse-and-dump /tmp/a2.pine > /tmp/a2.ast
+pyne parse-and-unparse a.pine --output-file /tmp/a2.pine
+pyne parse-and-dump /tmp/a2.pine > /tmp/a2.ast
 diff -u /tmp/a.ast /tmp/a2.ast
 ```
 
@@ -134,12 +134,12 @@ Structural diff empty ⇒ cosmetic only.
 | Code | Action |
 | --- | --- |
 | `E001` | Fix syntax first |
-| `W001` | Add `//@version=5` |
+| `W001` | Add `//@version=6` |
 | `W002` | Upgrade version pragma |
 | `C001`–`C004` | Style; use `--fail-on errors` if style should not gate CI |
 
 ```bash
-pynescript lint script.pine --fail-on errors
+pyne lint script.pine --fail-on errors
 ```
 
 ### 6. `literal_eval` fails
@@ -153,7 +153,7 @@ Escalate to `Runtime.run` for multi-bar scripts.
 ### 7. Runtime / `/run` execution error
 
 ```bash
-curl -s -X POST http://127.0.0.1:5002/run -H 'Content-Type: application/json' -d '{"script":"//@version=5\nindicator(\"t\")\nplot(close)","data":[{"time":1,"open":1,"high":1,"low":1,"close":1,"volume":1}]}'
+curl -s -X POST http://127.0.0.1:5002/run -H 'Content-Type: application/json' -d '{"script":"//@version=6\nindicator(\"t\")\nplot(close)","data":[{"time":1,"open":1,"high":1,"low":1,"close":1,"volume":1}]}'
 ```
 
 If minimal works but strategy fails: remove `request.*`, drawings, then strategy entries until isolated. Check `mode`; try `"interpret"`.
@@ -175,7 +175,7 @@ Restart Flask after changing env.
 ```bash
 pip install "hoox-pyne[lsp]"
 python -c "import pygls, lsprotocol"
-command -v pynescript-lsp
+command -v pyne-lsp   # alias: pynescript-lsp
 # Run with editor logging enabled; check stderr for import traces
 ```
 
@@ -191,7 +191,7 @@ Ensure the editor’s `command` matches the venv. For Neovim, confirm `filetypes
 | `ccxt` | `pip install "hoox-pyne[data]"`; exchange id; symbol `BTC/USDT` |
 
 ```bash
-pynescript data AAPL --provider mock
+pyne data AAPL --provider mock
 ```
 
 ### 12. Version / parity confusion

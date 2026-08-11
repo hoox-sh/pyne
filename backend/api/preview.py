@@ -46,7 +46,7 @@ def chart_preview():
 
     Request body:
     {
-        "script": "//@version=5\nstrategy('My Strategy')...",
+        "script": "//@version=6\nstrategy('My Strategy')...",
         "data": {"close": [100, 101, 102, ...], ...},
         "options": {
             "type": "line" | "ohlcv",
@@ -281,7 +281,7 @@ def quick_backtest():
 
     Request body:
     {
-        "script": "//@version=5\nstrategy('My Strategy', overlay=true)...",
+        "script": "//@version=6\nstrategy('My Strategy', overlay=true)...",
         "data": {"open": [...], "high": [...], "low": [...], "close": [...], "volume": [...]},
         "initial_capital": 10000.0,
         "mock_data": true,

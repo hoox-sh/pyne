@@ -145,7 +145,7 @@ class PineLinter:
         if not version_match:
             self._add_warning(
                 code="W001",
-                message="Missing @version declaration. Add '//@version=5' at the top.",
+                message="Missing @version declaration. Add '//@version=6' at the top.",
                 line=1,
             )
         else:
@@ -153,7 +153,7 @@ class PineLinter:
             if version < 5:
                 self._add_warning(
                     code="W002",
-                    message=f"Pine Script v{version} is deprecated. Consider upgrading to v5 or v6.",
+                    message=f"Pine Script v{version} is deprecated. Consider upgrading to v6.",
                     line=source[: version_match.start()].count("\n") + 1,
                 )
 

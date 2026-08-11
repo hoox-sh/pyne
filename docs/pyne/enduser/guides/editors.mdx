@@ -26,14 +26,14 @@ description: "Wire pyne-lsp into VS Code, Neovim, Zed, Emacs, Helix, and other L
 
 ## Abstract
 
-`pynescript-lsp` is a **stdio Language Server** (pygls) over the same parse/lint/metadata stack as the desk tools. Editors do not reimplement Pine intelligence; they speak LSP. This guide covers install, client configs in `clients/`, and feature expectations. Server architecture is documented under [LSP](/pyne/docs/lsp).
+**`pyne-lsp`** (alias **`pynescript-lsp`**) is a **stdio Language Server** (pygls) over the same parse/lint/metadata stack as the desk tools. Editors do not reimplement Pine Script™ intelligence; they speak LSP. This guide covers install, client configs in `clients/`, and feature expectations. Server architecture is documented under [LSP](/pyne/docs/lsp).
 
 ## Conceptual model
 
 ```mermaid
 sequenceDiagram
   participant Ed as Editor
-  participant LSP as pynescript-lsp
+  participant LSP as pyne-lsp
   participant AST as parse / linter / metadata
   Ed->>LSP: initialize (stdio)
   Ed->>LSP: textDocument/didOpen
@@ -65,7 +65,8 @@ pip install "hoox-pyne[lsp]"
 pip install -e ".[lsp]"
 # or: make install
 
-command -v pynescript-lsp
+command -v pyne-lsp          # preferred
+command -v pynescript-lsp    # alias
 python -m pynescript.langserver  # equivalent entry
 ```
 

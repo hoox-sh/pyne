@@ -86,7 +86,7 @@ This page is pure reference — no commands required.
 
 ### Annotation
 
-Special comments such as `//@version=5` attached to script or declaration nodes during parse (`_add_annotations` in `helper.py`).
+Special comments such as `//@version=6` (preferred) attached to script or declaration nodes during parse (`_add_annotations` in `helper.py`).
 
 ### AST
 
@@ -98,7 +98,7 @@ Optional **charting PWA “AXIS”** product (`frontend/`, docs at `/axis/docs`)
 
 ### Bar / bar-loop
 
-A discrete OHLCV time step. A **bar-loop** evaluator re-executes script logic once per bar with updated series history (`Runtime.run`).
+A discrete OHLCV time step. A **bar-loop** evaluator re-executes script logic once per bar with updated series history (`pynescript.runtime.Runtime.run`).
 
 ### Builtin
 
@@ -106,7 +106,7 @@ Host-provided namespace function or value (`ta.rsi`, `strategy.entry`, `math.sqr
 
 ### CLI
 
-The `pynescript` Click command group (`check`, `format`, `lint`, `compile`, `run`, `data`, …).
+The preferred **`pyne`** Click command group (alias `pynescript`: `check`, `format`, `lint`, `compile`, `run`, `data`, …).
 
 ### Compile mode
 
@@ -126,11 +126,11 @@ Realtime stream abstraction (`datafeed`, e.g. CCXT Pro) for live candles/trades.
 
 ### Evaluate / evaluator
 
-Execution of AST nodes to values. Ranges from `literal_eval` (expression-safe) to full statement/builtin evaluators and HTTP `Runtime`.
+Execution of AST nodes to values. Ranges from `literal_eval` (expression-safe) to full statement/builtin evaluators and package **`pynescript.runtime.Runtime`** (Pro API / workers share the same host).
 
 ### Extra (package extra)
 
-Optional dependency set in `pyproject.toml`: `lsp`, `dev-lsp`, `data`, `datafeed`.
+Optional dependency set in `pyproject.toml`: `lsp`, `dev-lsp`, `compile`, `data`, `datafeed`, `pro`.
 
 ### HOOX
 
@@ -150,7 +150,7 @@ Static diagnostics with `code`, `message`, `line`, `severity` (`error`|`warning`
 
 ### LSP
 
-**Language Server Protocol.** `pynescript-lsp` process implementing diagnostics, completion, hover, navigation, formatting.
+**Language Server Protocol.** `pyne-lsp` process (alias `pynescript-lsp`) implementing diagnostics, completion, hover, navigation, formatting.
 
 ### NodeVisitor / NodeTransformer
 
@@ -229,7 +229,7 @@ Misusing terms often causes support confusion:
 | --- | --- |
 | dump vs unparse | dump is debug AST text; unparse is Pine source |
 | literal_eval vs Runtime | single-shot expressions vs multi-bar scripts |
-| pynescript vs pynescript-lsp | desk CLI vs language server |
+| pyne vs pyne-lsp | desk CLI vs language server (aliases: pynescript*) |
 | AXIS vs PYNE | AXIS vs evaluate engine |
 | data provider vs data feed | historical fetch vs realtime stream |
 

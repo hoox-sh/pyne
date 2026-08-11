@@ -26,7 +26,7 @@ description: "Call the PYNE Flask Pro API as a consumer: health, /run, /run/batc
 
 ## Abstract
 
-The Pro API is the **HTTP evaluate contract** for PYNE: POST Pine source plus OHLCV, receive plots, series, events, drawings, and **alerts**. Free-tier evaluate endpoints (`/run`, `/run/batch`) are usable without a key; optional **L2 alert webhooks** POST last-bar firings to `webhook_url` or `ALERT_WEBHOOK_URL`. Pro preview/backtest routes track usage via API keys. This page is for **callers** (AXIS, scripts, workers). Server lifecycle and auth design are under [API](/pyne/docs/api).
+The Pro API is the **HTTP evaluate contract** for PYNE: POST Pine source plus OHLCV, receive plots, series, events, drawings, and **alerts**. Free-tier evaluate endpoints (`/run`, `/run/batch`) are usable without a key but are **guarded** (bar/script caps, IP rate limit, concurrency, chart/mock-only free data, SSRF-safe webhooks). Optional **L2 alert webhooks** POST last-bar firings to `webhook_url` or `ALERT_WEBHOOK_URL`. Pro preview/backtest routes track usage via API keys. This page is for **callers** (AXIS, scripts, workers). Server lifecycle and auth design are under [API](/pyne/docs/api).
 
 ## Conceptual model
 
@@ -96,7 +96,7 @@ Bar objects are expected to carry at least open/high/low/close/time (volume opti
 curl -s -X POST http://127.0.0.1:5002/run \
   -H 'Content-Type: application/json' \
   -d '{
-    "script": "//@version=5\nindicator(\"Demo\")\nplot(ta.sma(close, 3))",
+    "script": "//@version=6\nindicator(\"Demo\")\nplot(ta.sma(close, 3))",
     "symbol": "AAPL",
     "mode": "interpret",
     "data": [
@@ -137,8 +137,8 @@ Shared OHLCV, multiple scripts (max **8**). Envelope:
 ```json
 {
   "scripts": [
-    {"id": "sma", "script": "//@version=5\nindicator(\"s\")\nplot(ta.sma(close, 5))"},
-    {"id": "rsi", "script": "//@version=5\nindicator(\"r\")\nplot(ta.rsi(close, 14))"}
+    {"id": "sma", "script": "//@version=6\nindicator(\"s\")\nplot(ta.sma(close, 5))"},
+    {"id": "rsi", "script": "//@version=6\nindicator(\"r\")\nplot(ta.rsi(close, 14))"}
   ],
   "data": [/* bars */],
   "symbol": "AAPL",
@@ -180,7 +180,7 @@ Response includes base64 PNG `chart` + `meta`. Width/height clamped (e.g. max 12
 
 ```json
 {
-  "script": "//@version=5\nstrategy(\"x\")\n...",
+  "script": "//@version=6\nstrategy(\"x\")\n...",
   "data": {},
   "initial_capital": 10000.0,
   "mock_data": true,
@@ -252,7 +252,15 @@ If the client module is not present in your install, use raw HTTP as above.
 - **`mode` default `auto`** — prefer warm compile; fall back to interpret (`auto_backend`, optional `compile_fallback_reason`). Strict `compile` errors instead of falling back; use `interpret` for alerts, `input.*` overrides, libraries, and full `request.*`.
 - **Alerts** — `alerts[]` on success (interpret). L2 webhooks: body `webhook_url` or env `ALERT_WEBHOOK_URL`; defaults last-bar + batch POST. See [Alerts](/pyne/docs/runtime/alerts).
 - **Batch cap 8** — `TOO_MANY_SCRIPTS` if exceeded.
-- **Free `/run` is still CPU-expensive** — rate-limit at your reverse proxy in production.
+- **Free-tier guards (0.3.4+)** — process-local limits on unauthenticated `/run`, `/run/batch`, `/compile/prewarm` (and WS run):
+  | Env | Default | Role |
+  | --- | ---: | --- |
+  | `FREE_MAX_BARS` | 5000 | Max OHLCV bars |
+  | `FREE_MAX_SCRIPT_CHARS` | 256 KiB | Max Pine source length |
+  | `FREE_MAX_CONCURRENT` | 4 | Simultaneous free runs per worker |
+  | `FREE_RATE_LIMIT` / `FREE_RATE_WINDOW_SEC` | 60 / 60s | Sliding-window IP rate limit |
+  | Free `data_source` | `chart` / `mock` / `none` only | No outbound ccxt/yahoo on free paths |
+  Webhook URLs are SSRF-filtered. Raise limits via env for local demos; put a reverse proxy in front for multi-worker production.
 - AXIS multi-indicator UIs prefer `/run/batch` to share bar payloads; read `series` + `plot_meta` (including fill band refs) for charts.
 
 ## Worked examples
@@ -263,7 +271,7 @@ If the client module is not present in your install, use raw HTTP as above.
 import requests
 
 SCRIPT = """
-//@version=5
+//@version=6
 indicator("SMA", overlay=true)
 plot(ta.sma(close, 5))
 """
@@ -292,8 +300,8 @@ r = requests.post(
     "http://127.0.0.1:5002/run/batch",
     json={
         "scripts": [
-            {"id": "sma", "script": "//@version=5\nindicator(\"s\")\nplot(ta.sma(close, 5))"},
-            {"id": "ema", "script": "//@version=5\nindicator(\"e\")\nplot(ta.ema(close, 5))"},
+            {"id": "sma", "script": "//@version=6\nindicator(\"s\")\nplot(ta.sma(close, 5))"},
+            {"id": "ema", "script": "//@version=6\nindicator(\"e\")\nplot(ta.ema(close, 5))"},
         ],
         "data": bars,
     },

@@ -95,7 +95,8 @@ Dispatch keys (non-exhaustive; map is authoritative in `technical.py`):
 | `.../common.py`, `basic.py`, `advanced.py`, `patterns.py`, `strategies.py`, `synthesizer.py`, `economics.py` | Additional families |
 | `src/pynescript/compiler/numba_builtins.py` | Compile-path Numba kernels (must track interpret formulas) |
 | `tests/test_ta_indicators_*.py`, `tests/test_indicators.py` | Regression |
-| `tests/test_ta_incremental.py` | Inc ≡ full recompute golden |
+| `tests/test_ta_incremental.py` | Inc ≡ full recompute golden (full CI gate) |
+| `tests/test_first_party_ta_goldens.py` | Dual-host first-party goldens (ATR / Supertrend / Keltner) |
 | `tests/test_interp_compile_parity.py` | Always-on dual-host smoke + full-corpus mark |
 | `scripts/compare_interp_compile.py` | Corpus harness (report under `.cache/interp_compile_parity.json`) |
 | `tests/test_compiler_numba.py` (`TestInterpCompilePlotParityFixes`, highestbars offsets, …) | Targeted formula locks |
@@ -119,7 +120,7 @@ Numba kernels are **separate code** from the interpreter, but the dual-host cont
 | **`ta.mfi`** | Warm-up aligned on both hosts: needs **`length + 1` typical-price samples** (direction vs previous bar). Equal typical prices contribute to neither side; only-pos / only-neg MF → 100 / 0 (or 50 when both empty). |
 | **`ta.rci`** | Rank Correlation Index (Spearman of time vs value ranks) is implemented on the **compile path** (`numba_rci`) as well as interpret; stays in numeric mode when called. |
 
-Residual dual-host gaps (seed conventions on some smoothers, Supertrend ratchet, ATR EMA-of-TR vs pure Wilder re-baseline) are tracked under [missing features](/pyne/docs/reference/missing-features)—not as silent “close enough” for the rows above.
+**0.3.4+:** `ta.atr` uses Wilder RMA of TR on interpret + Numba; EMA dual-host seed is full-list SMA seed matching incremental/Numba. First-party dual-host goldens (ATR / Supertrend / Keltner) and `test_ta_incremental` gate residual drift. Any remaining gaps are tracked under [missing features](/pyne/docs/reference/missing-features)—not as silent “close enough” for the rows above.
 
 ### Parity harness
 
@@ -154,7 +155,7 @@ Report path: `.cache/interp_compile_parity.json`. Methodology and acceptable rel
 ### Classic overlay
 
 ```pine
-//@version=5
+//@version=6
 indicator("SMA 14")
 v = ta.sma(close, 14)
 plot(v)
@@ -165,7 +166,7 @@ In bar mode each visit returns one float (or `na`); the host stacks them into a 
 ### Cross entry signal
 
 ```pine
-//@version=5
+//@version=6
 strategy("X")
 fast = ta.ema(close, 12)
 slow = ta.ema(close, 26)
