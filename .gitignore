@@ -156,3 +156,8 @@ data/
 
 # VS Code extension packages (build artifacts)
 *.vsix
+
+# Multi-agent coordination notes (local only — do not commit)
+.agent-sync-notice.md
+.agent_sync*.md
+.agent-sync/
