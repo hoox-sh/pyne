@@ -566,8 +566,6 @@ class CommonIndicators(TechnicalHelpers):
         Returns ``(+DI, -DI, ADX)``. Period soft-na: ``na`` / unresolved names →
         ``[na, na, na]`` (matches BasicIndicators residual policy).
         """
-        import math
-
         if len(args) == BINARY:
             di_len = self._expect_period(args[0], "ta.dmi diLength must be int")
             adx_smooth = self._expect_period(args[1], "ta.dmi adxSmoothing must be int")

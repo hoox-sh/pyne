@@ -623,8 +623,8 @@ def test_does_not_fix_intentional_invalid_line_wrap_demo() -> None:
 
     raw = """//@version=6
 indicator("Invalid line wrap demo", overlay = true)
-float median = 0.5 
-    * ( 
+float median = 0.5
+    * (
     ta.highest(20) + ta.lowest(20)
 )
 plot(median)

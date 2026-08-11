@@ -45,7 +45,6 @@ from pynescript.util.time_parts import utc_parts_from_ms
 
 from .evaluator import CustomEvaluator
 from .series import (
-    PineSeries,
     make_pine_series,
     parse_max_bars_back_from_source,
     pineseries_history_length,

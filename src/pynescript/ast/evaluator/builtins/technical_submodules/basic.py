@@ -519,8 +519,6 @@ class BasicIndicators(TechnicalHelpers):
         Period soft-na (corpus residual): ``na`` / unresolved length names →
         ``[na, na, na]`` rather than hard-fail (matches ``ta.sma`` / ``_expect_period``).
         """
-        import math
-
         if len(args) == BINARY:
             di_len = self._expect_period(args[0], "ta.dmi diLength must be int")
             adx_smooth = self._expect_period(args[1], "ta.dmi adxSmoothing must be int")

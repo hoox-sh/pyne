@@ -26,7 +26,6 @@ Handlers are composed into
 from __future__ import annotations
 
 import math
-import statistics
 
 from typing import Any
 

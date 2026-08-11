@@ -20,7 +20,7 @@
 """Pine ``alert()`` / ``alertcondition()`` builtins + host alert engine helpers.
 
 Hosts (Pro API, pyne-worker) collect :class:`AlertEvent` records after each run
-and forward them to webhooks / cron consumers. Frequency constants match Reference Pine: 
+and forward them to webhooks / cron consumers. Frequency constants match Reference Pine:
 - ``alert.freq_once_per_bar`` — first fire per bar only
 - ``alert.freq_once_per_bar_close`` — fire only when ``barstate.isconfirmed``
 - ``alert.freq_all`` — every call
