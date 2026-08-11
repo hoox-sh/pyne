@@ -896,6 +896,7 @@ class Runtime:
         mode: str | None = None,
         inputs: dict | None = None,
         profiler: bool = False,
+        timeout_seconds: float | None = None,
         *,
         realtime_last_bar: bool = False,
         realtime_ticks: int = 1,
@@ -924,6 +925,10 @@ class Runtime:
                 Applied on interpret only; auto with overrides uses interpret.
             profiler: When true, collect per-line timings for AXIS gutter.
                 Forces interpret (compile has no statement walk).
+            timeout_seconds: Optional wall-clock budget (edge workers / cron).
+                When exceeded, interpret stops early and returns partial
+                results with ``timed_out=True`` and ``error`` set.
+                ``None`` = no limit. Checked every 32 bars on the hot path.
             realtime_last_bar: Interpret only. When true, the last bar is
                 visited with ``barstate.isrealtime=True`` (forming bar:
                 ``ishistory=False``). Default false keeps historical hosts
@@ -969,12 +974,15 @@ class Runtime:
                 data_feed=data_feed,
                 data_provider=data_provider,
                 inputs=inputs,
+                timeout_seconds=timeout_seconds,
             )
         if mode_norm not in ("interpret",):
             return _error_payload(
                 f"Unknown mode: {mode!r} (use interpret|compile|auto)",
                 kind=ERROR_KIND_MODE,
             )
+        # Stash for interpret bar loop (avoids threading through every helper).
+        self._timeout_seconds = timeout_seconds
 
         t_total0 = time.perf_counter()
         # Fresh log buffer per run so messages never leak across /run calls.
@@ -1273,7 +1281,19 @@ class Runtime:
 
         prev_close_f: float | None = None
 
+        # Wall-clock circuit breaker for Cloudflare / cron / Pro budgets.
+        timed_out = False
+        timeout_seconds = getattr(self, "_timeout_seconds", None)
+        if timeout_seconds is not None:
+            deadline = time.monotonic() + float(timeout_seconds)
+        else:
+            deadline = None
+
         for bar_index in range(n_bars):
+            # Check every 32 bars to keep the hot path cheap.
+            if deadline is not None and (bar_index & 31) == 0 and time.monotonic() > deadline:
+                timed_out = True
+                break
             o = col_open[bar_index]
             h = col_high[bar_index]
             l = col_low[bar_index]
@@ -1809,6 +1829,10 @@ class Runtime:
         }
         if alert_conditions:
             interpret_out["alert_conditions"] = alert_conditions
+        if timed_out:
+            interpret_out["timed_out"] = True
+            interpret_out["error"] = "Script execution timed out"
+            interpret_out["error_kind"] = ERROR_KIND_RUNTIME
         return _attach_logs_profile(
             interpret_out,
             total_ms=total_ms,
@@ -1892,6 +1916,7 @@ class Runtime:
         data_feed=None,
         data_provider=None,
         inputs: dict | None = None,
+        timeout_seconds: float | None = None,
     ) -> dict:
         """Try compile; fall back to interpret on eligibility fail or any error.
 
@@ -1911,6 +1936,7 @@ class Runtime:
                 data_provider=data_provider,
                 mode="interpret",
                 inputs=inputs,
+                timeout_seconds=timeout_seconds,
             )
             if isinstance(result, dict):
                 result["mode"] = result.get("mode") or "interpret"
@@ -1947,6 +1973,7 @@ class Runtime:
             data_provider=data_provider,
             mode="interpret",
             inputs=inputs,
+            timeout_seconds=timeout_seconds,
         )
         if isinstance(result, dict):
             result["mode"] = result.get("mode") or "interpret"
