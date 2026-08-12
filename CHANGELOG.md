@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Runtime `timeout_seconds`**: optional wall-clock circuit breaker on interpret (every 32 bars); partial results with `timed_out` + `error_kind=runtime` for edge/cron budgets (shared by Pro API and pyne-worker).
 - **`linefill.new` export** — `DrawingRegistry.export_for_api` serializes line fills as `type: "linefill"` quads (line1 + line2 endpoints) so AXIS can paint the band.
 - **Compile drawing set_* fold** — `fold_compile_drawing_mutations` applies `line.set_*` / `label.set_*` / … onto live handles and drops set events so compile `/run` drawings match interpret final state.
+- **Compile drawing `*.delete`** — `line.delete` / `label.delete` / `box.delete` / `polyline.delete` / `table.delete` emit `kind: 'delete'` events on `__drawings` (target = `*.new` handle); `fold_compile_drawing_mutations` drops deleted objects (was MVP no-op).
 - **`force_overlay` on export** — line/box/label payloads include `force_overlay` for AXIS pane routing.
 
 ### Changed

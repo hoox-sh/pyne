@@ -6106,7 +6106,16 @@ class CompilerVisitor(NodeVisitor):
         """
         kind = func_name.replace("_new", "").replace("_delete", "")
         if func_name.endswith("_delete"):
-            return ""  # MVP: no-op deletes in compile path
+            # Record delete on __drawings so fold_compile_drawing_mutations can
+            # drop the target handle (shared identity from *.new).
+            target = args[0] if args else "None"
+            parts = [
+                "'kind': 'delete'",
+                f"'method': {func_name!r}",
+                f"'target': {target}",
+                "'bar': __bar_idx",
+            ]
+            return f"__drawings.append({{{', '.join(parts)}}})"
         # Build event dict
         parts = [f"'kind': {kind!r}", "'bar': __bar_idx"]
         # positional common patterns

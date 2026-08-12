@@ -341,16 +341,15 @@ class DrawingRegistry:
         cls,
         drawings: list[dict[str, Any]] | list[Any] | None,
     ) -> list[Any]:
-        """Apply compile-path ``kind: set`` events onto their ``target`` handles.
+        """Apply compile-path ``kind: set`` / ``kind: delete`` onto ``target`` handles.
 
-        Object-mode compile appends ``line.set_*`` / ``label.set_*`` / … as separate
-        events; the original ``line``/``label``/… dict is still the live handle.
-        Fold mutations in-process (shared identity) then drop the set events so
-        AXIS receives final geometry only.
+        Object-mode compile appends ``line.set_*`` / ``label.set_*`` / … and
+        ``line.delete`` / … as separate events; the original ``line``/``label``/…
+        dict is still the live handle. Fold mutations in-process (shared identity)
+        then drop set/delete events so AXIS receives final geometry only.
 
-        Deletes remain best-effort (``*_delete`` is still a no-op in the
-        compiler emitter); when a set method name ends with ``.delete`` or
-        ``_delete`` we mark the target deleted and omit it from the output.
+        Deletes: dedicated ``kind: 'delete'`` (compiler ``*_delete`` emitters) or
+        a set event whose method ends with ``.delete`` / ``_delete``.
         """
         if not drawings:
             return []
@@ -359,6 +358,12 @@ class DrawingRegistry:
             if not isinstance(item, dict):
                 continue
             kind = str(item.get("kind") or item.get("type") or "").lower()
+            if kind == "delete":
+                target = item.get("target")
+                if isinstance(target, dict):
+                    deleted_ids.add(id(target))
+                    target["deleted"] = True
+                continue
             if kind != "set":
                 continue
             target = item.get("target")
@@ -371,7 +376,7 @@ class DrawingRegistry:
             bare = bare.replace("box_set_", "box.set_").replace("polyline_set_", "polyline.set_")
             bare = bare.replace("table_set_", "table.set_")
             mlow = bare.lower()
-            if mlow.endswith(".delete") or mlow.endswith("_delete") or mlow.endswith(".delete"):
+            if mlow.endswith(".delete") or mlow.endswith("_delete"):
                 deleted_ids.add(id(target))
                 target["deleted"] = True
                 continue
@@ -411,7 +416,7 @@ class DrawingRegistry:
             if not isinstance(item, dict):
                 continue
             kind = str(item.get("kind") or item.get("type") or "").lower()
-            if kind == "set":
+            if kind in ("set", "delete"):
                 continue
             if item.get("deleted") or id(item) in deleted_ids:
                 continue
@@ -588,6 +593,12 @@ class DrawingRegistry:
             y = _num(lb.y)
             if t is None or y is None:
                 continue
+            size_raw = getattr(lb, "size", None)
+            if size_raw is None or size_raw == "" or size_raw == "auto":
+                size_raw = getattr(lb, "text_size", None) or "auto"
+            yloc_raw = str(getattr(lb, "yloc", None) or "price")
+            if yloc_raw.startswith("#") or yloc_raw.startswith("rgb"):
+                yloc_raw = "price"
             out.append(
                 {
                     "type": "label",
@@ -598,6 +609,8 @@ class DrawingRegistry:
                     "color": _color(lb.color),
                     "textcolor": _color(lb.textcolor),
                     "style": str(lb.style or "label_center"),
+                    "yloc": yloc_raw,
+                    "size": size_raw if isinstance(size_raw, (int, float)) else str(size_raw),
                 }
             )
 
@@ -1434,22 +1447,24 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             if isinstance(x, ChartPoint):
                 x, y = _coord_from_point(x)
 
+        # Keyword ctor — `size` sits before `tooltip`/`style` in the dataclass.
         label = Label(
-            x,
-            y,
-            text,
-            xloc,
-            yloc,
-            color,
-            textcolor,
-            text_font_family,
-            text_halign,
-            text_valign,
-            text_size,
-            text_formatting,
-            tooltip,
-            style,
-            force_overlay=force_overlay,
+            x=x,
+            y=y,
+            text=str(text or ""),
+            xloc=str(xloc or "bar_index"),
+            yloc=str(yloc or "price"),
+            color=color,
+            textcolor=textcolor,
+            text_font_family=text_font_family,
+            text_halign=text_halign,
+            text_valign=text_valign,
+            text_size=text_size,
+            text_formatting=text_formatting,
+            size=text_size,
+            tooltip=str(tooltip or ""),
+            style=str(style or "label_center"),
+            force_overlay=bool(force_overlay),
         )
         return DrawingRegistry.add_label(label)
 
@@ -1464,20 +1479,24 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         label = args[0] if len(args) > 0 else None
         if isinstance(label, Label):
             new_label = Label(
-                label.x,
-                label.y,
-                label.text,
-                label.xloc,
-                label.yloc,
-                label.color,
-                label.textcolor,
-                label.text_font_family,
-                label.text_halign,
-                label.text_valign,
-                label.text_size,
-                label.text_formatting,
-                label.tooltip,
-                label.style,
+                x=label.x,
+                y=label.y,
+                text=label.text,
+                xloc=label.xloc,
+                yloc=label.yloc,
+                color=label.color,
+                textcolor=label.textcolor,
+                text_font_family=label.text_font_family,
+                text_halign=label.text_halign,
+                text_valign=label.text_valign,
+                text_size=label.text_size,
+                text_formatting=label.text_formatting,
+                size=label.size,
+                tooltip=label.tooltip,
+                style=label.style,
+                border_color=label.border_color,
+                border_width=label.border_width,
+                border_style=label.border_style,
                 force_overlay=label.force_overlay,
             )
             return DrawingRegistry.add_label(new_label)
