@@ -404,11 +404,16 @@ class DrawingRegistry:
         """True when no *exportable* drawing objects exist (O(1) length checks).
 
         Used by Runtime to skip ``export_for_api`` and bar_times materialization.
-        Linefills are not serialized by :meth:`export_for_api`, so they do not
-        count (avoids allocating bar_times when only linefills exist).
         """
         # truthiness of a list is len != 0 — no iteration
-        return not (cls.lines or cls.boxes or cls.labels or cls.tables or cls.polylines)
+        return not (
+            cls.lines
+            or cls.boxes
+            or cls.labels
+            or cls.tables
+            or cls.polylines
+            or cls.linefills
+        )
 
     @classmethod
     def export_for_api(cls, bar_times: list[int] | None = None) -> list[dict[str, Any]]:
@@ -419,8 +424,14 @@ class DrawingRegistry:
         Fast path: empty registry returns ``[]`` without allocating helpers or
         walking collections (most indicator scripts never draw).
         """
-        # Exportable collections only (linefills are not serialized today)
-        if not (cls.lines or cls.boxes or cls.labels or cls.tables or cls.polylines):
+        if not (
+            cls.lines
+            or cls.boxes
+            or cls.labels
+            or cls.tables
+            or cls.polylines
+            or cls.linefills
+        ):
             return []
 
         out: list[dict[str, Any]] = []
@@ -538,6 +549,49 @@ class DrawingRegistry:
                     "p1": pts_out[0]["price"],
                     "t2": pts_out[-1]["time"],
                     "p2": pts_out[-1]["price"],
+                }
+            )
+
+        # linefill.new — fill between two Line objects (quad for AXIS SVG)
+        for fill in cls.linefills:
+            if getattr(fill, "deleted", False):
+                continue
+            l1 = getattr(fill, "line1", None)
+            l2 = getattr(fill, "line2", None)
+            if l1 is None or l2 is None:
+                continue
+            if getattr(l1, "deleted", False) or getattr(l2, "deleted", False):
+                continue
+            xloc1 = str(getattr(l1, "xloc", "bar_index") or "bar_index")
+            xloc2 = str(getattr(l2, "xloc", "bar_index") or "bar_index")
+            if xloc1.startswith("#") or xloc1.startswith("rgb"):
+                xloc1 = "bar_index"
+            if xloc2.startswith("#") or xloc2.startswith("rgb"):
+                xloc2 = "bar_index"
+            t1 = _x_to_time(l1.x1, xloc1, times)
+            t2 = _x_to_time(l1.x2, xloc1, times)
+            p1 = _num(l1.y1)
+            p2 = _num(l1.y2)
+            t3 = _x_to_time(l2.x1, xloc2, times)
+            t4 = _x_to_time(l2.x2, xloc2, times)
+            p3 = _num(l2.y1)
+            p4 = _num(l2.y2)
+            if None in (t1, t2, p1, p2, t3, t4, p3, p4):
+                continue
+            out.append(
+                {
+                    "type": "linefill",
+                    "t1": t1,
+                    "p1": p1,
+                    "t2": t2,
+                    "p2": p2,
+                    "t3": t3,
+                    "p3": p3,
+                    "t4": t4,
+                    "p4": p4,
+                    "color": _color(getattr(fill, "color", None)),
+                    # AXIS / SVG fill; stroke unused
+                    "bgcolor": _color(getattr(fill, "color", None)),
                 }
             )
 

@@ -17,6 +17,7 @@ from __future__ import annotations
 from pynescript.ast.evaluator.builtins.drawing import (
     DrawingRegistry,
     Line,
+    LineFill,
     _export_x_to_time,
 )
 
@@ -69,3 +70,30 @@ class TestExportForApiLastBarLine:
         assert d["t2"] == times[last] + 86_400
         assert d["p1"] == 100.0
         assert d["p2"] == 110.0
+
+
+class TestExportLineFill:
+    def setup_method(self) -> None:
+        DrawingRegistry.reset()
+
+    def test_linefill_exports_quad_between_two_lines(self) -> None:
+        times = [1_700_000_000 + i * 86_400 for i in range(4)]
+        l1 = Line(x1=0, y1=10.0, x2=3, y2=12.0, xloc="bar_index", color="#f00")
+        l2 = Line(x1=0, y1=5.0, x2=3, y2=7.0, xloc="bar_index", color="#0f0")
+        DrawingRegistry.lines.extend([l1, l2])
+        DrawingRegistry.linefills.append(
+            LineFill(line1=l1, line2=l2, color="rgba(41,98,255,0.2)")
+        )
+        out = DrawingRegistry.export_for_api(times)
+        fills = [d for d in out if d.get("type") == "linefill"]
+        assert len(fills) == 1
+        f = fills[0]
+        assert f["t1"] == times[0]
+        assert f["t2"] == times[3]
+        assert f["p1"] == 10.0
+        assert f["p2"] == 12.0
+        assert f["t3"] == times[0]
+        assert f["t4"] == times[3]
+        assert f["p3"] == 5.0
+        assert f["p4"] == 7.0
+        assert "rgba" in str(f["color"]) or str(f["color"]).startswith("#")
