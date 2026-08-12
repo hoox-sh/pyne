@@ -337,6 +337,88 @@ class DrawingRegistry:
         return _merge(series, drawings, n_bars, plot_meta=plot_meta)
 
     @classmethod
+    def fold_compile_drawing_mutations(
+        cls,
+        drawings: list[dict[str, Any]] | list[Any] | None,
+    ) -> list[Any]:
+        """Apply compile-path ``kind: set`` events onto their ``target`` handles.
+
+        Object-mode compile appends ``line.set_*`` / ``label.set_*`` / … as separate
+        events; the original ``line``/``label``/… dict is still the live handle.
+        Fold mutations in-process (shared identity) then drop the set events so
+        AXIS receives final geometry only.
+
+        Deletes remain best-effort (``*_delete`` is still a no-op in the
+        compiler emitter); when a set method name ends with ``.delete`` or
+        ``_delete`` we mark the target deleted and omit it from the output.
+        """
+        if not drawings:
+            return []
+        deleted_ids: set[int] = set()
+        for item in drawings:
+            if not isinstance(item, dict):
+                continue
+            kind = str(item.get("kind") or item.get("type") or "").lower()
+            if kind != "set":
+                continue
+            target = item.get("target")
+            if not isinstance(target, dict):
+                continue
+            method = str(item.get("method") or "")
+            args = item.get("args") if isinstance(item.get("args"), list) else []
+            # method is e.g. "line.set_xy2" or "line_set_xy2"
+            bare = method.replace("line_set_", "line.set_").replace("label_set_", "label.set_")
+            bare = bare.replace("box_set_", "box.set_").replace("polyline_set_", "polyline.set_")
+            bare = bare.replace("table_set_", "table.set_")
+            mlow = bare.lower()
+            if mlow.endswith(".delete") or mlow.endswith("_delete") or mlow.endswith(".delete"):
+                deleted_ids.add(id(target))
+                target["deleted"] = True
+                continue
+            field = bare.split(".")[-1] if "." in bare else bare
+            field = field.replace("set_", "")
+            # Common mutators
+            if field == "xy1" and len(args) >= 2:
+                target["x1"] = args[0]
+                target["y1"] = args[1]
+                target["x"] = args[0]
+                target["y"] = args[1]
+            elif field == "xy2" and len(args) >= 2:
+                target["x2"] = args[0]
+                target["y2"] = args[1]
+            elif field in {"x1", "y1", "x2", "y2", "left", "right", "top", "bottom", "x", "y"}:
+                if args:
+                    target[field] = args[0]
+            elif field == "color" and args:
+                target["color"] = args[0]
+            elif field in {"width", "linewidth"} and args:
+                target["width"] = args[0]
+            elif field == "extend" and args:
+                target["extend"] = args[0]
+            elif field in {"style", "text", "textcolor", "text_color", "bgcolor"} and args:
+                key = "textcolor" if field == "text_color" else field
+                target[key] = args[0]
+            elif field == "xy" and len(args) >= 2:
+                # label.set_xy
+                target["x"] = args[0]
+                target["y"] = args[1]
+            elif args:
+                # Generic: first arg is the new value for set_<field>
+                target[field] = args[0]
+
+        out: list[Any] = []
+        for item in drawings:
+            if not isinstance(item, dict):
+                continue
+            kind = str(item.get("kind") or item.get("type") or "").lower()
+            if kind == "set":
+                continue
+            if item.get("deleted") or id(item) in deleted_ids:
+                continue
+            out.append(item)
+        return out
+
+    @classmethod
     def gc_exported_drawings(
         cls,
         drawings: list[dict[str, Any]] | list[Any],
@@ -465,6 +547,7 @@ class DrawingRegistry:
                     "width": int(_num(ln.width) or 1),
                     "style": str(ln.style or "solid"),
                     "extend": _extend(ln.extend),
+                    "force_overlay": bool(getattr(ln, "force_overlay", False)),
                 }
             )
 
@@ -491,6 +574,7 @@ class DrawingRegistry:
                     "bgcolor": _color(bx.bgcolor) if bx.bgcolor else "rgba(0,0,0,0)",
                     "width": int(_num(bx.border_width) or 1),
                     "text": str(bx.text or ""),
+                    "force_overlay": bool(getattr(bx, "force_overlay", False)),
                 }
             )
 
@@ -507,6 +591,7 @@ class DrawingRegistry:
             out.append(
                 {
                     "type": "label",
+                    "force_overlay": bool(getattr(lb, "force_overlay", False)),
                     "t1": t,
                     "p1": y,
                     "text": str(lb.text or ""),

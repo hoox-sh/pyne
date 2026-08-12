@@ -2127,6 +2127,8 @@ class Runtime:
                     except (TypeError, ValueError):
                         pass
             if isinstance(drawings, list) and drawings:
+                # Fold line.set_* / label.set_* onto handles before GC + JSON
+                drawings = DrawingRegistry.fold_compile_drawing_mutations(drawings)
                 drawings = DrawingRegistry.gc_exported_drawings(drawings, drawing_limits)
         except Exception:
             pass

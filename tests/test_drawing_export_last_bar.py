@@ -72,6 +72,41 @@ class TestExportForApiLastBarLine:
         assert d["p2"] == 110.0
 
 
+class TestFoldCompileDrawingMutations:
+    def test_set_xy2_updates_line_handle(self) -> None:
+        from pynescript.ast.evaluator.builtins.drawing import DrawingRegistry
+
+        line = {"kind": "line", "x1": 0, "y1": 10.0, "x2": 1, "y2": 11.0}
+        events = [
+            line,
+            {
+                "kind": "set",
+                "method": "line.set_xy2",
+                "target": line,
+                "args": [5, 20.0],
+            },
+            {"kind": "bgcolor", "color": "red"},
+        ]
+        out = DrawingRegistry.fold_compile_drawing_mutations(events)
+        assert len(out) == 2
+        geom = [d for d in out if d.get("kind") == "line"][0]
+        assert geom["x2"] == 5
+        assert geom["y2"] == 20.0
+        assert any(d.get("kind") == "bgcolor" for d in out)
+        assert not any(d.get("kind") == "set" for d in out)
+
+    def test_delete_marks_target_omitted(self) -> None:
+        from pynescript.ast.evaluator.builtins.drawing import DrawingRegistry
+
+        line = {"kind": "line", "x1": 0, "y1": 1.0, "x2": 2, "y2": 3.0}
+        events = [
+            line,
+            {"kind": "set", "method": "line.delete", "target": line, "args": []},
+        ]
+        out = DrawingRegistry.fold_compile_drawing_mutations(events)
+        assert out == []
+
+
 class TestExportLineFill:
     def setup_method(self) -> None:
         DrawingRegistry.reset()
