@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **H1 dual-host:** pyne-worker `pynescript_backend` is a thin wrap over package `pynescript.runtime` (strict OHLCV validation only); vendor via `./scripts/sync_vendor.sh`.
 
+## [0.3.5] - 2026-08-12
+
+### Fixed
+- **Drawing export (`line.new`)** — `export_for_api` no longer drops lines whose `xloc.bar_index` is past the last bar (classic `bar_index + 1` on `barstate.islast`). Extrapolates from series period; empty `bar_times` passes bare bar index for AXIS logical mapping.
+
 ## [0.3.4] - 2026-08-10
 
 ### Added
