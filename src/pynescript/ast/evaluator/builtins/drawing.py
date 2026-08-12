@@ -66,20 +66,37 @@ def _export_num(v: Any) -> float | int | None:
 
 
 def _export_x_to_time(x: Any, xloc: str, times: list[int]) -> int | float | None:
+    """Map drawing X to unix seconds (or bare bar_index when times unavailable).
+
+    ``xloc.bar_index`` past the last bar (classic ``bar_index + 1`` on
+    ``barstate.islast``) is extrapolated from the series period so AXIS still
+    receives a finite ``t1``/``t2`` instead of dropping the whole object.
+    """
     xv = _export_num(x)
     if xv is None:
         return None
     loc = (xloc or "bar_index").lower()
     if "time" in loc:
         return xv
-    # bar_index → wall time
-    idx = int(xv)
-    if 0 <= idx < len(times):
-        return times[idx]
-    # already looks like unix seconds / ms
+    # already looks like unix seconds / ms (even with bar_index xloc mis-set)
     if xv > 1_000_000_000:
         return xv
-    return None
+    idx = int(xv)
+    n = len(times) if times is not None else 0
+    if n == 0:
+        # No bar clock — pass bar_index through; AXIS paints via logical index
+        return idx
+    if 0 <= idx < n:
+        return times[idx]
+    # Extrapolate past ends (bar_index+1 on last bar is the common TV pattern)
+    if n == 1:
+        period = 60
+    else:
+        period = max(1, int(times[-1]) - int(times[-2]))
+    if idx >= n:
+        return int(times[-1]) + (idx - (n - 1)) * period
+    # idx < 0 → before first bar
+    return int(times[0]) + idx * period
 
 
 def _export_color(c: Any) -> str:
