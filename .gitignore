@@ -74,12 +74,8 @@ nosetests.xml
 # Others
 parts/
 # PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
-pine-worker/bun.lockb
-pine-worker/dist/
-# pine-worker (extra tool)
-pine-worker/*.log
-pine-worker/node_modules/
-pine-worker/.wrangler/
+# Local host / deploy notes (not shipped)
+.host/*
 # AXIS charting UI was extracted to https://github.com/jango-blockchained/axis
 # (do not re-add a local frontend/ tree here)
 pip-delete-this-directory.txt

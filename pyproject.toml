@@ -107,7 +107,7 @@ exclude = [
   "/logs",
   "/reports",
   "/vscode-extension/node_modules",
-  "/pine-worker/node_modules",
+  "/.host",
 ]
 
 [tool.hatch.build.targets.wheel]
