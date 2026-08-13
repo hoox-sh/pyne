@@ -52,10 +52,12 @@ Represented as Python lists. Highlights from the dispatch map:
 | Mutate | `push`, `pop`, `shift`, `unshift` (if present), `insert`, `remove`, `set`, `fill`, `clear`, `reverse`, `sort` |
 | Access | `get`, `first`, `last`, `size`, `includes`, `indexof`, `lastindexof`, `slice` |
 | Aggregate | `sum`, `avg`, `min`, `max`, `median`, `mode`, `range`, `stdev`, `variance`, covariance, percentiles, percentrank |
-| Search | `binary_search`, `binary_search_leftmost`, `binary_search_rightmost` |
+| Search | `binary_search`, `binary_search_leftmost`, `binary_search_rightmost` — UDT arrays take `sort_field` (const int index, default 0, or const string name; array must be sorted by that field ascending) |
 | Higher-order | `every`, `some`, `copy`, `concat`, `join`, `abs` |
 
 **Indexing:** Pine array indices are **0-based from the start of the list** (unlike series history). Negative indices are rejected for series; array paths use list semantics consistent with the builtin handlers.
+
+**UDT `sort_field` (0.3.6 / Pine August 2026):** `array.sort`, `array.sort_indices`, and `array.binary_search*` compare one field of user-defined type elements. Pass a const int field index (`0` is the first declared field, and the default for search) or a const string field name. Binary search requires the array to already be sorted by that field in ascending order. Method form (`a.binary_search(value, "id")`) and `sort_field=` kwargs work on interpret and compile.
 
 Series-like values passed into array ops unwrap via `.history` (reversed to chronological) when duck-typed.
 
@@ -131,6 +133,24 @@ plot(matrix.get(m, 0, 1))
 ```pine
 var counts = map.new<string, int>()
 map.put(counts, "n", nz(map.get(counts, "n")) + 1)
+```
+
+### Binary search on a UDT array
+
+```pine
+//@version=6
+indicator("udt search")
+type Item
+    int id
+    float v
+var a = array.new<Item>()
+if bar_index == 0
+    array.push(a, Item.new(2, 20.0))
+    array.push(a, Item.new(1, 10.0))
+    array.push(a, Item.new(3, 30.0))
+    array.sort(a, order.ascending, "id")
+plot(array.binary_search(a, 2, "id"))
+plot(a.binary_search_leftmost(2, sort_field="id"))
 ```
 
 ## Failure modes

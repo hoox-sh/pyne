@@ -7,7 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-08-13
+
 ### Added
+- **Binary search in UDT arrays** (Pine August 2026): `array.binary_search()`, `array.binary_search_leftmost()`, and `array.binary_search_rightmost()` accept `sort_field` (const int field index, default 0, or const string field name) so they can search arrays of user-defined types. The array must be sorted by the same field in ascending order. Interpret + compile object-mode, with dual-host parity tests.
 - **Runtime `timeout_seconds`**: optional wall-clock circuit breaker on interpret (every 32 bars); partial results with `timed_out` + `error_kind=runtime` for edge/cron budgets (shared by Pro API and pyne-worker).
 - **`linefill.new` export** — `DrawingRegistry.export_for_api` serializes line fills as `type: "linefill"` quads (line1 + line2 endpoints) so AXIS can paint the band.
 - **Compile drawing set_* fold** — `fold_compile_drawing_mutations` applies `line.set_*` / `label.set_*` / … onto live handles and drops set events so compile `/run` drawings match interpret final state.

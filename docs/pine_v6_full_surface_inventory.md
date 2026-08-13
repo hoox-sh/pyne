@@ -198,6 +198,7 @@ Beyond named builtins, Pine v6 compatibility depends on grammar and semantic rul
 | `int/int division float` | semantics | ✅ implemented | truediv 5/2=2.5 |
 | `negative array index` | semantics | ✅ implemented |  |
 | `matrix/array sort_field UDT` | semantics | ✅ implemented | April 2026 |
+| `array.binary_search* UDT sort_field` | semantics | ✅ implemented | August 2026 |
 | `when= on strategy.*` | semantics | 🔄 partial | v6 removed; may still accept kwargs silently |
 | `transp= on drawings` | semantics | 🔄 partial | v6 removed; prefer color.new |
 
@@ -455,15 +456,15 @@ Strategy order handlers, risk helpers, and performance series (position, equity,
 
 ### `array` (56)
 
-Array construction, mutation, search, and statistics. Python lists are the runtime representation; negative indices and UDT `sort_field` follow Pine v6 rules where implemented. Statistical helpers (`avg`, `stdev`, covariance, and related functions) operate element-wise over the collection without requiring a separate series type.
+Array construction, mutation, search, and statistics. Python lists are the runtime representation; negative indices and UDT `sort_field` follow Pine v6 rules where implemented (including August 2026 `array.binary_search*` on UDT arrays). Statistical helpers (`avg`, `stdev`, covariance, and related functions) operate element-wise over the collection without requiring a separate series type.
 
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
 | `array.abs` | function | ✅ implemented | yes | dispatch |  |
 | `array.avg` | function | ✅ implemented | yes | dispatch |  |
-| `array.binary_search` | function | ✅ implemented | yes | dispatch |  |
-| `array.binary_search_leftmost` | function | ✅ implemented | yes | dispatch |  |
-| `array.binary_search_rightmost` | function | ✅ implemented | yes | dispatch |  |
+| `array.binary_search` | function | ✅ implemented | yes | dispatch | UDT `sort_field` (Aug 2026) |
+| `array.binary_search_leftmost` | function | ✅ implemented | yes | dispatch | UDT `sort_field` (Aug 2026) |
+| `array.binary_search_rightmost` | function | ✅ implemented | yes | dispatch | UDT `sort_field` (Aug 2026) |
 | `array.clear` | function | ✅ implemented | yes | dispatch |  |
 | `array.concat` | function | ✅ implemented | yes | dispatch |  |
 | `array.copy` | function | ✅ implemented | yes | dispatch |  |

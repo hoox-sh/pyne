@@ -110,28 +110,28 @@
   "array.binary_search": {
     "label": "array.binary_search",
     "kind": "function",
-    "detail": "array.binary_search(...)",
-    "brief": "",
-    "documentation": "",
-    "snippet": "array.binary_search(${1:param1})",
+    "detail": "array.binary_search(id, value, sort_field)",
+    "brief": "Binary search a sorted array; UDT arrays compare sort_field",
+    "documentation": "Searches a sorted array and returns the matching index, or -1 if not found. For arrays of user-defined types, sort_field is a const int field index (0 by default, the first declared field) or a const string field name. The array must be sorted by that field in ascending order.",
+    "snippet": "array.binary_search(${1:id}, ${2:value}, ${3:sort_field})",
     "category": "array"
   },
   "array.binary_search_leftmost": {
     "label": "array.binary_search_leftmost",
     "kind": "function",
-    "detail": "array.binary_search_leftmost(...)",
+    "detail": "array.binary_search_leftmost(id, value, sort_field)",
     "brief": "Binary search for the leftmost (first) occurrence of a value",
-    "documentation": "Binary search for the leftmost (first) occurrence of a value.",
-    "snippet": "array.binary_search_leftmost(${1:param1})",
+    "documentation": "Binary search for the leftmost (first) occurrence of a value. For UDT arrays, sort_field selects the compared object field (const int index, default 0, or const string name).",
+    "snippet": "array.binary_search_leftmost(${1:id}, ${2:value}, ${3:sort_field})",
     "category": "array"
   },
   "array.binary_search_rightmost": {
     "label": "array.binary_search_rightmost",
     "kind": "function",
-    "detail": "array.binary_search_rightmost(...)",
+    "detail": "array.binary_search_rightmost(id, value, sort_field)",
     "brief": "Binary search for the rightmost (last) occurrence of a value",
-    "documentation": "Binary search for the rightmost (last) occurrence of a value.",
-    "snippet": "array.binary_search_rightmost(${1:param1})",
+    "documentation": "Binary search for the rightmost (last) occurrence of a value. For UDT arrays, sort_field selects the compared object field (const int index, default 0, or const string name).",
+    "snippet": "array.binary_search_rightmost(${1:id}, ${2:value}, ${3:sort_field})",
     "category": "array"
   },
   "array.clear": {

@@ -1258,6 +1258,21 @@ def test_evaluator_array_sort_indices(expression, expected):
 @pytest.mark.parametrize(
     ("expression", "expected"),
     [
+        ("array.binary_search([1, 2, 3, 4, 5], 3)", 2),
+        ("array.binary_search([1, 2, 3, 4, 5], 1)", 0),
+        ("array.binary_search([1, 2, 3, 4, 5], 9)", -1),
+    ],
+)
+def test_evaluator_array_binary_search(expression, expected):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
         ("array.binary_search_leftmost([1, 2, 2, 2, 3], 2)", 1),
         ("array.binary_search_leftmost([1, 2, 2, 2, 3], 1)", 0),
         ("array.binary_search_leftmost([1, 2, 2, 2, 3], 5)", -1),

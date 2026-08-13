@@ -550,9 +550,9 @@ This document tracks the implementation status of PineScript v6 features in pyne
 ### Array Functions
 - ✅ array.abs
 - ✅ array.avg
-- ✅ array.binary_search
-- ✅ array.binary_search_leftmost
-- ✅ array.binary_search_rightmost
+- ✅ array.binary_search (UDT `sort_field`, August 2026)
+- ✅ array.binary_search_leftmost (UDT `sort_field`, August 2026)
+- ✅ array.binary_search_rightmost (UDT `sort_field`, August 2026)
 - ✅ array.clear
 - ✅ array.concat
 - ✅ array.copy

@@ -923,9 +923,27 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         return reverse, sort_field
 
     @staticmethod
+    def _looks_like_udt(item: Any) -> bool:
+        """True for ObjectInstance-like values or compile-path UDT dicts."""
+        if item is None:
+            return False
+        if getattr(item, "get_field", None) is not None and getattr(item, "udt", None) is not None:
+            return True
+        return isinstance(item, dict) and "__type__" in item
+
+    @staticmethod
     def _udt_field_key(item: Any, sort_field: Any) -> Any:
-        """Extract UDT field by name or int index for sorting."""
+        """Extract UDT field by name or int index for sorting / binary search."""
         if item is None or sort_field is None:
+            return item
+        if isinstance(item, dict):
+            if isinstance(sort_field, str):
+                return item.get(sort_field)
+            if isinstance(sort_field, (int, float)) and not isinstance(sort_field, bool):
+                keys = [k for k in item.keys() if k != "__type__"]
+                idx = int(sort_field)
+                if 0 <= idx < len(keys):
+                    return item[keys[idx]]
             return item
         get_field = getattr(item, "get_field", None)
         if get_field is None:
@@ -1009,14 +1027,137 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             return None
         return sum(nums)
 
+    def _parse_binary_search_args(
+        self, args: list[Any], name: str
+    ) -> tuple[list[Any], Any, Any]:
+        """Return ``(sequence, value, sort_field)`` for ``array.binary_search*``.
+
+        Forms: ``(id, value)``, ``(id, value, sort_field)``, kwargs via
+        ``_KWARG_ORDER = ["id", "value", "sort_field"]``. *sort_field* is a
+        const int field index (0 = first declared field) or const string name.
+        """
+        if len(args) < BINARY:
+            self._error(f"{name} takes array and value")
+        sequence = self._expect_list(args[0], f"{name} takes array and value")
+        value = args[1]
+        sort_field = args[2] if len(args) > BINARY else None
+        return sequence, value, sort_field
+
+    def _resolve_search_field(self, sequence: list[Any], sort_field: Any) -> Any:
+        """Default *sort_field* to ``0`` (first field) on UDT arrays."""
+        if sort_field is not None:
+            return sort_field
+        for item in sequence:
+            if item is None:
+                continue
+            if self._looks_like_udt(item):
+                return 0
+            break
+        return None
+
+    def _search_elem_key(self, item: Any, sort_field: Any) -> Any:
+        if sort_field is None:
+            return item
+        return self._udt_field_key(item, sort_field)
+
+    def _search_target_key(self, value: Any, sort_field: Any) -> Any:
+        if sort_field is None:
+            return value
+        if self._looks_like_udt(value):
+            return self._udt_field_key(value, sort_field)
+        return value
+
+    @staticmethod
+    def _key_lt(left: Any, right: Any) -> bool:
+        """``left < right`` for search keys; ``na`` sorts last (never less)."""
+        if left is None:
+            return False
+        if right is None:
+            return True
+        try:
+            return left < right
+        except TypeError:
+            return (str(type(left)), str(left)) < (str(type(right)), str(right))
+
+    @staticmethod
+    def _key_eq(left: Any, right: Any) -> bool:
+        if left is None and right is None:
+            return True
+        if left is None or right is None:
+            return False
+        try:
+            return left == right
+        except Exception:
+            return False
+
+    def _binary_search_by_field(
+        self,
+        sequence: list[Any],
+        value: Any,
+        sort_field: Any,
+        *,
+        side: str,
+    ) -> int:
+        """Binary search *sequence* (ascending) for *value*.
+
+        *side* is ``"any"`` (exact), ``"left"`` (first match), or ``"right"``
+        (last match). Missing value → ``-1``. Optional *sort_field* keys UDT
+        elements the same way ``array.sort`` does.
+        """
+        sort_field = self._resolve_search_field(sequence, sort_field)
+        target = self._search_target_key(value, sort_field)
+        n = len(sequence)
+
+        if side == "left":
+            left, right = 0, n
+            while left < right:
+                mid = (left + right) // 2
+                if self._key_lt(self._search_elem_key(sequence[mid], sort_field), target):
+                    left = mid + 1
+                else:
+                    right = mid
+            if left < n and self._key_eq(
+                self._search_elem_key(sequence[left], sort_field), target
+            ):
+                return left
+            return -1
+
+        if side == "right":
+            left, right = 0, n
+            while left < right:
+                mid = (left + right) // 2
+                if self._key_lt(target, self._search_elem_key(sequence[mid], sort_field)):
+                    right = mid
+                else:
+                    left = mid + 1
+            if left > 0 and self._key_eq(
+                self._search_elem_key(sequence[left - 1], sort_field), target
+            ):
+                return left - 1
+            return -1
+
+        lo, hi = 0, n - 1
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            mid_k = self._search_elem_key(sequence[mid], sort_field)
+            if self._key_eq(mid_k, target):
+                return mid
+            if self._key_lt(mid_k, target):
+                lo = mid + 1
+            else:
+                hi = mid - 1
+        return -1
+
     def _builtin_array_binary_search(self, args: list[Any]) -> int:
-        if len(args) != BINARY:
-            self._error("array.binary_search takes array and value")
-        sequence = self._expect_list(
-            args[0],
-            "array.binary_search takes array and value",
+        """``array.binary_search(id, value, sort_field?)`` — index or ``-1``.
+
+        August 2026: UDT arrays compare ``sort_field`` (const int index, default
+        0, or const string name). Array must be sorted by that field ascending.
+        """
+        sequence, value, sort_field = self._parse_binary_search_args(
+            args, "array.binary_search"
         )
-        return self._binary_search(sequence, args[1])
+        return self._binary_search_by_field(sequence, value, sort_field, side="any")
 
     def _builtin_array_mode(self, args: list[Any]) -> Any:
         if len(args) != UNARY:
@@ -1060,75 +1201,39 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         sequence.insert(0, args[1])
         return sequence
 
-    def _binary_search(self, sequence: list[Any], value: Any) -> int:
-        try:
-            return sequence.index(value)
-        except ValueError:
-            return -1
+    def _binary_search(self, sequence: list[Any], value: Any, sort_field: Any = None) -> int:
+        return self._binary_search_by_field(sequence, value, sort_field, side="any")
 
     def _builtin_array_binary_search_leftmost(self, args: list[Any]) -> int:
-        """Binary search for the leftmost (first) occurrence of a value."""
-        if len(args) != BINARY:
-            self._error("array.binary_search_leftmost takes array and value")
-        sequence = self._expect_list(
-            args[0],
-            "array.binary_search_leftmost takes array and value",
+        """``array.binary_search_leftmost(id, value, sort_field?)`` — first match or ``-1``."""
+        sequence, value, sort_field = self._parse_binary_search_args(
+            args, "array.binary_search_leftmost"
         )
-        value = args[1]
-
-        # Binary search assumes a sorted array without na (reference). Soft-fail na.
-        if value is None or any(x is None for x in sequence):
-            try:
-                return sequence.index(value)
-            except ValueError:
-                return -1
-
-        # Find leftmost position where value could be inserted
-        left, right = 0, len(sequence)
-        while left < right:
-            mid = (left + right) // 2
-            mid_v = sequence[mid]
-            if mid_v is not None and mid_v < value:
-                left = mid + 1
-            else:
-                right = mid
-
-        # Check if value exists at this position
-        if left < len(sequence) and sequence[left] == value:
-            return left
-        return -1
+        # Primitive + na: linear first index (reference soft-fail).
+        if sort_field is None and not any(
+            self._looks_like_udt(x) for x in sequence if x is not None
+        ):
+            if value is None or any(x is None for x in sequence):
+                try:
+                    return sequence.index(value)
+                except ValueError:
+                    return -1
+        return self._binary_search_by_field(sequence, value, sort_field, side="left")
 
     def _builtin_array_binary_search_rightmost(self, args: list[Any]) -> int:
-        """Binary search for the rightmost (last) occurrence of a value."""
-        if len(args) != BINARY:
-            self._error("array.binary_search_rightmost takes array and value")
-        sequence = self._expect_list(
-            args[0],
-            "array.binary_search_rightmost takes array and value",
+        """``array.binary_search_rightmost(id, value, sort_field?)`` — last match or ``-1``."""
+        sequence, value, sort_field = self._parse_binary_search_args(
+            args, "array.binary_search_rightmost"
         )
-        value = args[1]
-
-        if value is None or any(x is None for x in sequence):
-            try:
-                # last occurrence
-                return len(sequence) - 1 - sequence[::-1].index(value)
-            except ValueError:
-                return -1
-
-        # Find rightmost position where value could be inserted
-        left, right = 0, len(sequence)
-        while left < right:
-            mid = (left + right) // 2
-            mid_v = sequence[mid]
-            if mid_v is None or value < mid_v:
-                right = mid
-            else:
-                left = mid + 1
-
-        # Check if value exists at position left-1
-        if left > 0 and sequence[left - 1] == value:
-            return left - 1
-        return -1
+        if sort_field is None and not any(
+            self._looks_like_udt(x) for x in sequence if x is not None
+        ):
+            if value is None or any(x is None for x in sequence):
+                try:
+                    return len(sequence) - 1 - sequence[::-1].index(value)
+                except ValueError:
+                    return -1
+        return self._binary_search_by_field(sequence, value, sort_field, side="right")
 
     def _builtin_array_percentile_linear_interpolation(self, args: list[Any]) -> float:
         """Calculate percentile using linear interpolation method."""
@@ -1359,3 +1464,14 @@ ArrayBuiltinsMixin._builtin_array_fill._KWARG_ORDER = ["id", "value", "index_fro
 ArrayBuiltinsMixin._builtin_array_new_empty._KWARG_ORDER = ["size", "initial_value"]
 ArrayBuiltinsMixin._builtin_array_sort._KWARG_ORDER = ["id", "order", "sort_field"]
 ArrayBuiltinsMixin._builtin_array_sort_indices._KWARG_ORDER = ["id", "order", "sort_field"]
+ArrayBuiltinsMixin._builtin_array_binary_search._KWARG_ORDER = ["id", "value", "sort_field"]
+ArrayBuiltinsMixin._builtin_array_binary_search_leftmost._KWARG_ORDER = [
+    "id",
+    "value",
+    "sort_field",
+]
+ArrayBuiltinsMixin._builtin_array_binary_search_rightmost._KWARG_ORDER = [
+    "id",
+    "value",
+    "sort_field",
+]

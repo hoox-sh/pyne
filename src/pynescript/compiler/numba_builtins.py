@@ -1860,11 +1860,23 @@ def _udt_sort_key(elem, sort_field):
             return vals[idx]
         return np.nan
     get_field = getattr(elem, "get_field", None)
-    if callable(get_field) and isinstance(sort_field, str):
-        try:
-            return get_field(sort_field)
-        except Exception:
-            return np.nan
+    if callable(get_field):
+        if isinstance(sort_field, str):
+            try:
+                return get_field(sort_field)
+            except Exception:
+                return np.nan
+        if isinstance(sort_field, (int, float)) and not isinstance(sort_field, bool):
+            udt = getattr(elem, "udt", None)
+            fields = getattr(udt, "fields", None)
+            if fields:
+                names = list(fields.keys())
+                idx = int(sort_field)
+                if 0 <= idx < len(names):
+                    try:
+                        return get_field(names[idx])
+                    except Exception:
+                        return np.nan
     return elem
 
 
@@ -2041,6 +2053,138 @@ def array_sort_indices(arr, order="ascending", sort_field=None):
             reverse=reverse,
         )
     return [idx for _, idx in non_na] + na_idx
+
+
+def _looks_like_udt(elem) -> bool:
+    if elem is None:
+        return False
+    if isinstance(elem, dict) and "__type__" in elem:
+        return True
+    return getattr(elem, "get_field", None) is not None and getattr(elem, "udt", None) is not None
+
+
+def _resolve_search_field(arr, sort_field):
+    """Default *sort_field* to ``0`` (first field) on UDT arrays."""
+    if sort_field is not None:
+        return sort_field
+    if not isinstance(arr, list):
+        return None
+    for x in arr:
+        if x is None:
+            continue
+        if _looks_like_udt(x):
+            return 0
+        break
+    return None
+
+
+def _search_elem_key(elem, sort_field):
+    if sort_field is None:
+        return elem
+    return _udt_sort_key(elem, sort_field)
+
+
+def _search_target_key(value, sort_field):
+    if sort_field is None:
+        return value
+    if _looks_like_udt(value):
+        return _udt_sort_key(value, sort_field)
+    return value
+
+
+def _key_lt(left, right) -> bool:
+    if left is None:
+        return False
+    if right is None:
+        return True
+    try:
+        if left != left:  # NaN
+            return False
+        if right != right:
+            return True
+    except Exception:
+        pass
+    try:
+        return left < right
+    except TypeError:
+        return (str(type(left)), str(left)) < (str(type(right)), str(right))
+
+
+def _key_eq(left, right) -> bool:
+    if left is None and right is None:
+        return True
+    if left is None or right is None:
+        return False
+    try:
+        if left != left or right != right:  # NaN ≠ NaN for search
+            return False
+    except Exception:
+        pass
+    try:
+        return left == right
+    except Exception:
+        return False
+
+
+def _binary_search_by_field(arr, value, sort_field=None, side="any"):
+    """Shared object-mode binary search; *side* is ``any`` / ``left`` / ``right``."""
+    if not isinstance(arr, list):
+        return -1
+    sort_field = _resolve_search_field(arr, sort_field)
+    target = _search_target_key(value, sort_field)
+    n = len(arr)
+    if side == "left":
+        left, right = 0, n
+        while left < right:
+            mid = (left + right) // 2
+            if _key_lt(_search_elem_key(arr[mid], sort_field), target):
+                left = mid + 1
+            else:
+                right = mid
+        if left < n and _key_eq(_search_elem_key(arr[left], sort_field), target):
+            return left
+        return -1
+    if side == "right":
+        left, right = 0, n
+        while left < right:
+            mid = (left + right) // 2
+            if _key_lt(target, _search_elem_key(arr[mid], sort_field)):
+                right = mid
+            else:
+                left = mid + 1
+        if left > 0 and _key_eq(_search_elem_key(arr[left - 1], sort_field), target):
+            return left - 1
+        return -1
+    lo, hi = 0, n - 1
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        mid_k = _search_elem_key(arr[mid], sort_field)
+        if _key_eq(mid_k, target):
+            return mid
+        if _key_lt(mid_k, target):
+            lo = mid + 1
+        else:
+            hi = mid - 1
+    return -1
+
+
+def array_binary_search(arr, value, sort_field=None):
+    """Pine ``array.binary_search(id, value, sort_field?)`` → index or -1.
+
+    UDT arrays compare *sort_field* (const int index, default 0, or const
+    string name). The array must be sorted by that field in ascending order.
+    """
+    return _binary_search_by_field(arr, value, sort_field, side="any")
+
+
+def array_binary_search_leftmost(arr, value, sort_field=None):
+    """Pine ``array.binary_search_leftmost(id, value, sort_field?)`` → first index or -1."""
+    return _binary_search_by_field(arr, value, sort_field, side="left")
+
+
+def array_binary_search_rightmost(arr, value, sort_field=None):
+    """Pine ``array.binary_search_rightmost(id, value, sort_field?)`` → last index or -1."""
+    return _binary_search_by_field(arr, value, sort_field, side="right")
 
 
 def _matrix_ncols(m) -> int:

@@ -225,7 +225,7 @@ values) on every implementation.
 | `array.min` / `array.max` / `array.avg` / `array.median` / `array.mode` / `array.sum` / `array.stdev` / `array.variance` | ✅ | ✅ | ✅ |
 | `array.range` | ✅ | ✅ | ✅ |
 | `array.standardize` | ✅ | ✅ | ✅ |
-| `array.binary_search` / `array.binary_search_leftmost` / `array.binary_search_rightmost` | ✅ | ✅ | ✅ |
+| `array.binary_search` / `array.binary_search_leftmost` / `array.binary_search_rightmost` (incl. UDT `sort_field`) | ✅ | ✅ | ✅ |
 | `array.covariance` / `array.percentile_*` / `array.percentrank` | ✅ | ✅ | ✅ |
 | `array.every` / `array.some` | ✅ | ✅ | ✅ |
 

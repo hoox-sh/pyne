@@ -19,7 +19,7 @@
 
 # Pynescript Future Roadmap
 
-**Last Updated:** 2026-08-03 (compile/interpret plot parity + request foreign-na residual notes)  
+**Last Updated:** 2026-08-13 (0.3.6: UDT `array.binary_search*` `sort_field`)  
 **Status:** Core v6 language/builtins essentially closed. Remaining work is **host parity**,
 **corpus execution tail**, **interpret↔compile plot residuals**, and optional **TV-oracle
 re-baselines** — not missing syntax. Product warm-compile (H2) and series caps (T1) landed.

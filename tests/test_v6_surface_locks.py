@@ -56,6 +56,30 @@ def _run(src: str) -> NodeLiteralEvaluator:
     return ev
 
 
+def test_array_binary_search_udt_sort_field_lock() -> None:
+    """August 2026: binary_search on UDT arrays via sort_field (name + default 0)."""
+    ev = _run(
+        """//@version=6
+indicator("bsearch lock")
+type Data
+    float price
+    int timestamp
+a = array.new<Data>(0)
+array.push(a, Data.new(3.0, 30))
+array.push(a, Data.new(1.0, 10))
+array.push(a, Data.new(2.0, 20))
+array.sort(a, sort_field="timestamp")
+found = array.binary_search(a, 20, "timestamp")
+deflt = array.binary_search(a, 1.0)
+plot(found)
+plot(deflt)
+"""
+    )
+    assert ev.context["found"] == 1
+    # default sort_field=0 is `price`; after sort by timestamp order is 1,2,3
+    assert ev.context["deflt"] == 0
+
+
 def test_enum_member_compare_runtime() -> None:
     """EnumDef + member equality (v6) evaluates without error."""
     _run(

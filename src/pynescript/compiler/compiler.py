@@ -296,6 +296,9 @@ _ARRAY_METHODS: dict[str, str] = {
     "concat": "array_concat",
     "indexof": "array_indexof",
     "lastindexof": "array_lastindexof",
+    "binary_search": "array_binary_search",
+    "binary_search_leftmost": "array_binary_search_leftmost",
+    "binary_search_rightmost": "array_binary_search_rightmost",
     "insert": "array_insert",
     "first": "array_first",
     "last": "array_last",
@@ -3665,6 +3668,18 @@ class CompilerVisitor(NodeVisitor):
         if func_name == "array_last":
             a = ra(args, kwargs, ("id",))
             return f"({a[0]}[-1] if {a[0]} else np.nan)" if a else "np.nan"
+        if func_name in (
+            "array_binary_search",
+            "array_binary_search_leftmost",
+            "array_binary_search_rightmost",
+        ):
+            # Forms: (id, value), (id, value, sort_field), sort_field= kw.
+            a = ra(args, kwargs, ("id", "value", "sort_field"))
+            if len(a) >= 3:
+                return f"{func_name}({a[0]}, {a[1]}, {a[2]})"
+            if len(a) >= 2:
+                return f"{func_name}({a[0]}, {a[1]})"
+            return "-1"
         if func_name == "array_indexof":
             a = ra(args, kwargs, ("id", "value"))
             if len(a) >= 2:

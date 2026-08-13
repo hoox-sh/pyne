@@ -98,8 +98,7 @@ This project provides a capable Pine Script v5/v6 toolchain: parser, AST, evalua
 - `array.stdev()` - Standard deviation
 - `array.variance()` - Variance calculation
 - `array.sort_indices()` - Returns indices that would sort array
-- `array.binary_search_leftmost()` - Find leftmost occurrence in sorted array
-- `array.binary_search_rightmost()` - Find rightmost occurrence in sorted array
+- `array.binary_search()` / `array.binary_search_leftmost()` / `array.binary_search_rightmost()` — sorted search; UDT arrays honor `sort_field` (0.3.6)
 
 **New Technical Analysis Indicators (9) ✅:**
 

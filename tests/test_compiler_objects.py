@@ -27,6 +27,7 @@ import pytest
 from pynescript.compiler.engine import compile_script
 from pynescript.compiler.engine import has_numba
 from pynescript.compiler.engine import transpile
+from pynescript.runtime import Runtime
 
 
 def _ohlcv(n: int = 30, start: float = 100.0):
@@ -469,6 +470,117 @@ plot(array.get(si, 2), title="i2")
         assert np.allclose(out["i0"], 1.0)
         assert np.allclose(out["i1"], 0.0)
         assert np.allclose(out["i2"], 2.0)
+
+    def test_array_binary_search_udt_sort_field(self) -> None:
+        src = """//@version=6
+indicator("bs")
+type Item
+    int id
+    float v
+var a = array.new<Item>()
+if bar_index == 0
+    array.push(a, Item.new(2, 20.0))
+    array.push(a, Item.new(1, 10.0))
+    array.push(a, Item.new(2, 25.0))
+    array.push(a, Item.new(3, 30.0))
+    array.sort(a, order.ascending, "id")
+plot(array.binary_search(a, 1, "id"), title="hit")
+plot(array.binary_search(a, 9, "id"), title="miss")
+plot(array.binary_search_leftmost(a, 2, "id"), title="left")
+plot(array.binary_search_rightmost(a, 2, "id"), title="right")
+plot(array.binary_search(a, 3, 0), title="idx0")
+plot(array.binary_search(a, 1, sort_field="id"), title="kw")
+plot(a.binary_search(3, "id"), title="method")
+plot(array.binary_search(a, 3), title="deflt")
+p = array.from(1, 2, 2, 3)
+plot(array.binary_search(p, 3), title="prim")
+plot(array.binary_search_leftmost(p, 2), title="pleft")
+plot(array.binary_search_rightmost(p, 2), title="pright")
+"""
+        code = transpile(src)
+        assert "array_binary_search" in code
+        assert "array_binary_search_leftmost" in code
+        assert "array_binary_search_rightmost" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(5)
+        out = compiled.run(o, h, l, c, v)
+        # after sort by id: [1, 2, 2, 3]
+        assert np.allclose(out["hit"], 0.0)
+        assert np.allclose(out["miss"], -1.0)
+        assert np.allclose(out["left"], 1.0)
+        assert np.allclose(out["right"], 2.0)
+        assert np.allclose(out["idx0"], 3.0)
+        assert np.allclose(out["kw"], 0.0)
+        assert np.allclose(out["method"], 3.0)
+        assert np.allclose(out["deflt"], 3.0)
+        assert np.allclose(out["prim"], 3.0)
+        assert np.allclose(out["pleft"], 1.0)
+        assert np.allclose(out["pright"], 2.0)
+
+    def test_array_binary_search_udt_interp_compile_parity(self) -> None:
+        """Same UDT + primitive search script: interpret and compile agree."""
+        src = """//@version=6
+indicator("bs-parity")
+type Item
+    int id
+    float v
+var a = array.new<Item>()
+if bar_index == 0
+    array.push(a, Item.new(2, 20.0))
+    array.push(a, Item.new(1, 10.0))
+    array.push(a, Item.new(2, 25.0))
+    array.push(a, Item.new(3, 30.0))
+    array.sort(a, order.ascending, "id")
+plot(array.binary_search(a, 1, "id"), title="hit")
+plot(array.binary_search(a, 9, "id"), title="miss")
+plot(array.binary_search_leftmost(a, 2, "id"), title="left")
+plot(array.binary_search_rightmost(a, 2, "id"), title="right")
+plot(array.binary_search(a, 3, 0), title="idx0")
+plot(array.binary_search(a, 1, sort_field="id"), title="kw")
+plot(a.binary_search(3, "id"), title="method")
+plot(array.binary_search(a, 3), title="deflt")
+p = array.from(1, 2, 2, 3)
+plot(array.binary_search(p, 3), title="prim")
+plot(array.binary_search_leftmost(p, 2), title="pleft")
+plot(array.binary_search_rightmost(p, 2), title="pright")
+"""
+        bars = [
+            {
+                "open": 100.0 + i,
+                "high": 101.0 + i,
+                "low": 99.0 + i,
+                "close": 100.5 + i,
+                "volume": 1000.0,
+                "time": 1_700_000_000_000 + i * 60_000,
+            }
+            for i in range(6)
+        ]
+        expected = {
+            "hit": 0.0,
+            "miss": -1.0,
+            "left": 1.0,
+            "right": 2.0,
+            "idx0": 3.0,
+            "kw": 0.0,
+            "method": 3.0,
+            "deflt": 3.0,
+            "prim": 3.0,
+            "pleft": 1.0,
+            "pright": 2.0,
+        }
+        rt = Runtime(symbol="TEST")
+        ri = rt.run(src, bars, mode="interpret")
+        rc = rt.run(src, bars, mode="compile")
+        assert "error" not in ri, ri.get("error")
+        assert "error" not in rc, rc.get("error")
+        si = ri.get("series") or {}
+        sc = rc.get("series") or {}
+        for key, want in expected.items():
+            assert key in si, (key, sorted(si))
+            assert key in sc, (key, sorted(sc))
+            assert si[key][-1] == pytest.approx(want), (key, "interpret", si[key][-1])
+            assert sc[key][-1] == pytest.approx(want), (key, "compile", sc[key][-1])
+            assert si[key][-1] == pytest.approx(sc[key][-1]), (key, si[key][-1], sc[key][-1])
 
     def test_map_new_is_scalar_not_series(self) -> None:
         src = """//@version=6

@@ -81,7 +81,7 @@ runtime = Runtime(symbol="AAPL")
 result = runtime.run(source, ohlcv_data=ohlcv, mode="auto")
 # result["mode"] / result.get("auto_backend") → "compile" | "interpret"
 # on fallback: result.get("compile_fallback_reason")
-# optional wall-clock budget (0.3.4+ / unreleased hosts):
+# optional wall-clock budget (0.3.6+):
 # result = runtime.run(..., timeout_seconds=12.0)
 # → may set timed_out + error_kind="runtime" with partial plots
 ```

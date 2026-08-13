@@ -2,7 +2,7 @@
 
 **Independent open toolchain for the Pine Script™ language** — formal grammar, algebraic AST, dual-engine bar-loop runtime, language server, and HTTP evaluation surface. Part of the [HOOX](https://hoox.sh) open trading stack.
 
-**0.3.4** · PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) · import `pynescript` · CLIs `pyne` · `pyne-lsp` (aliases: `pynescript` · `pynescript-lsp`)
+**0.3.6** · PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) · import `pynescript` · CLIs `pyne` · `pyne-lsp` (aliases: `pynescript` · `pynescript-lsp`)
 
 <div align="center">
 
@@ -68,6 +68,7 @@ Not a claim of TradingView® platform parity. Intentional demos are classified s
 - **Alerts.** `alert()` / `alertcondition()` with documented frequency semantics (`once_per_bar`, `once_per_bar_close`, `all`); structured export on Pro `/run` and optional L2 webhooks.
 - **Strategy surface.** Entries, exits, events, commission/slippage paths, pending-fill behaviour under pyramiding constraints.
 - **Drawing GC.** Honour of `max_lines_count`, `max_labels_count`, `max_boxes_count`, `max_polylines_count`.
+- **UDT collections.** `array.sort` / `array.sort_indices` / `matrix.sort` and `array.binary_search*` take `sort_field` (const int index, default 0, or const string name) on arrays of user-defined types.
 - **Security policy.** Same-symbol simple OHLCV for `request.security`; foreign or complex security resolves to `na` (no invented foreign closes).
 
 ### Surfaces
@@ -99,12 +100,12 @@ Multi-arch (`linux/amd64`, `linux/arm64`) images publish to GitHub Container Reg
 
 ```bash
 # CLI
-docker pull ghcr.io/hoox-sh/pyne/cli:0.3.0
-docker run --rm -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/cli:0.3.0 check script.pine
+docker pull ghcr.io/hoox-sh/pyne/cli:0.3.6
+docker run --rm -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/cli:0.3.6 check script.pine
 
 # Pro API
-docker pull ghcr.io/hoox-sh/pyne/api:0.3.0
-docker run --rm -p 5002:8080 -e ADMIN_TOKEN=… ghcr.io/hoox-sh/pyne/api:0.3.0
+docker pull ghcr.io/hoox-sh/pyne/api:0.3.6
+docker run --rm -p 5002:8080 -e ADMIN_TOKEN=… ghcr.io/hoox-sh/pyne/api:0.3.6
 ```
 
 Packages: [ghcr.io/hoox-sh/pyne](https://github.com/hoox-sh/pyne/pkgs/container/pyne%2Fcli).

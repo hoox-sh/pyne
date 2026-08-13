@@ -186,6 +186,7 @@ Pine Script v6 (launched late 2024, with monthly updates through 2026) introduce
 - Dynamic `request.*()` (series strings in any scope) — core support landed earlier.
 - Strict boolean semantics, integer division → float, removal of `when`/`transp`.
 - **April 2026**: Multiline strings (`"""..."""`, `'''...'''` — literal newlines + indentation) and `sort_field` (int index or string name) on `array.sort` / `matrix.sort` for UDT collections.
+- **August 2026**: `array.binary_search*` `sort_field` for UDT arrays (same field index / name rules as sort).
 - Footprint data (`request.footprint`, `footprint.*`, `volume_row.*`).
 
 ### Grammar Challenges Encountered
@@ -210,6 +211,7 @@ The `Matrix` and array UDT sort logic was added in the evaluator layer (mirrorin
 
 - Multiline strings: fully working (parse, unparse preserves content + indentation, round-trips).
 - UDT `sort_field` on matrices: implemented (basic + UDT key extraction).
+- UDT `sort_field` on `array.binary_search` / `_leftmost` / `_rightmost`: implemented (interpret + compile).
 - Footprint: has mock data generator + method dispatch (already present before this round of work).
 - Many other v6 items (dynamic requests, strict bools, new builtins) were already implemented; documentation lagged the code.
 

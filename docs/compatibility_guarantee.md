@@ -135,7 +135,7 @@ Runtime coverage is measured on first-party fixtures and unit tests; not a claim
 | Function Category | Functions | Compatibility | Tests |
 |-------------------|-----------|--------------|-------|
 | Basic operations | `size()`, `get()`, `set()`, `push()`, `pop()` | ✅ 100% | 25 |
-| Searching | `includes()`, `indexof()`, `binary_search_*()` | ✅ 100% | 15 |
+| Searching | `includes()`, `indexof()`, `binary_search_*()` (UDT `sort_field`) | ✅ 100% | 15 |
 | Statistics | `sum()`, `avg()`, `min()`, `max()`, `stdev()`, `variance()` | ✅ 100% | 20 |
 | Transformation | `sort()`, `reverse()`, `slice()`, `concat()` | ✅ 100% | 18 |
 | Advanced | `percentile_*()`, `percentrank()`, `standardize()` | ✅ 100% | 12 |

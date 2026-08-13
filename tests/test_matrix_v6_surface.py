@@ -255,3 +255,70 @@ bv0 = array.get(b, 0)
     assert e.context["i2"].get_field("id") == 30
     assert e.context["idx"] == [1, 2, 0]
     assert e.context["bv0"].get_field("v") == 1.0
+
+
+def test_array_binary_search_udt_sort_field():
+    """August 2026: binary_search* on UDT arrays honor sort_field (name / index)."""
+    e = NodeLiteralEvaluator()
+    e.evaluate_script(
+        """
+//@version=6
+indicator("a-udt-bsearch")
+type Item
+    float v = 0.0
+    int id = 0
+a = array.new<Item>(0)
+array.push(a, Item.new(1.0, 10))
+array.push(a, Item.new(2.0, 20))
+array.push(a, Item.new(2.0, 30))
+array.push(a, Item.new(3.0, 40))
+array.sort(a, order.ascending, "id")
+by_name = array.binary_search(a, 20, "id")
+by_idx = array.binary_search(a, 40, 1)
+by_kw = array.binary_search(a, 10, sort_field="id")
+missing = array.binary_search(a, 99, "id")
+// default sort_field is 0 (first field, `v`) — array is sorted by id, so
+// search `v` only after re-sorting by that field.
+array.sort(a, order.ascending, "v")
+by_default = array.binary_search(a, 3.0)
+left = array.binary_search_leftmost(a, 2.0, "v")
+right = array.binary_search_rightmost(a, 2.0, "v")
+left_miss = array.binary_search_leftmost(a, 9.0, "v")
+right_miss = array.binary_search_rightmost(a, 9.0, "v")
+// search by passing a UDT whose compared field is the key
+needle = Item.new(1.0, 99)
+by_obj = array.binary_search(a, needle, "v")
+"""
+    )
+    assert e.context["by_name"] == 1
+    assert e.context["by_idx"] == 3
+    assert e.context["by_kw"] == 0
+    assert e.context["missing"] == -1
+    assert e.context["by_default"] == 3
+    assert e.context["left"] == 1
+    assert e.context["right"] == 2
+    assert e.context["left_miss"] == -1
+    assert e.context["right_miss"] == -1
+    assert e.context["by_obj"] == 0
+
+
+def test_array_binary_search_udt_method_form():
+    """Method form ``id.binary_search(value, sort_field)`` on a UDT array."""
+    e = NodeLiteralEvaluator()
+    e.evaluate_script(
+        """
+//@version=6
+indicator("a-udt-bsearch-method")
+type Item
+    int id = 0
+    float v = 0.0
+a = array.from(Item.new(10, 1.0), Item.new(20, 2.0), Item.new(30, 3.0))
+array.sort(a, sort_field="id")
+hit = a.binary_search(20, "id")
+miss = a.binary_search(99, "id")
+left = a.binary_search_leftmost(20, sort_field="id")
+"""
+    )
+    assert e.context["hit"] == 1
+    assert e.context["miss"] == -1
+    assert e.context["left"] == 1
