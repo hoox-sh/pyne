@@ -115,7 +115,7 @@
         "pynescript.lsp.command": {
           "type": "string",
           "default": "auto",
-          "description": "LSP launch command. Use \"auto\" to try pyne-lsp (then pynescript-lsp) on PATH, then python -m pynescript.langserver. Or set an absolute path to the binary."
+          "description": "LSP launch command. Use \"auto\" to try pyne-lsp (then pynescript-lsp) on PATH, then python -m pynescript.langserver. Or set an absolute path, or \"docker\" with lsp.args for ghcr.io/hoox-sh/pyne/lsp. ${workspaceFolder} is expanded."
         },
         "pynescript.lsp.python": {
           "type": "string",

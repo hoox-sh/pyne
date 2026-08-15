@@ -96,6 +96,37 @@ code --extensionDevelopmentPath=.
 }
 ```
 
+## Docker (optional)
+
+You do **not** need a local Python install if you run the language server from the **LSP image**. The VSIX is still installed in the editor; only the server process is containerized.
+
+```bash
+docker pull ghcr.io/hoox-sh/pyne/lsp:0.3.8
+# local bake:  make docker-build-lsp
+```
+
+Pin the extension to Docker (`-i` keeps stdio open). `${workspaceFolder}` is expanded by the extension:
+
+```json
+{
+  "pynescript.lsp.command": "docker",
+  "pynescript.lsp.args": [
+    "run", "-i", "--rm",
+    "-v", "${workspaceFolder}:/work",
+    "-w", "/work",
+    "ghcr.io/hoox-sh/pyne/lsp:0.3.8"
+  ]
+}
+```
+
+Compose (from a PYNE clone):
+
+```bash
+docker compose --profile lsp run --rm -i lsp
+```
+
+The image `ENTRYPOINT` is `pyne-lsp`. Extra `pynescript.lsp.args` after the image name are passed through to the server.
+
 ## Commands (Command Palette)
 
 Search for **PYNE**:

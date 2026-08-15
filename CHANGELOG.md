@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **LSP Docker image** `ghcr.io/hoox-sh/pyne/lsp` (stdio `pyne-lsp`, slim `[lsp]` only). Published on `v*` tags with api/cli. VS Code: pin `pynescript.lsp.command` to `docker` (see `vscode-extension/README.md`).
+
 ### Fixed
 - **Build & Release:** Create Release no longer downloads Docker Buildx cache artifacts (v0.3.7 abort). CLI Nuitka compiles via `-m pynescript` so `pynescript.ast` does not shadow stdlib `ast`.
 

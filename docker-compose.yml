@@ -88,10 +88,10 @@ services:
     profiles:
       - lsp
     environment:
-      PYTHONPATH: /app/src:/app
+      PYTHONPATH: /app/src
     volumes:
       - ./src:/app/src:ro
-    # stdio language server — use `docker compose run --rm lsp` for interactive
+    # stdio language server — use `docker compose run --rm -i lsp` for interactive
     stdin_open: true
     tty: false
     networks:

@@ -74,6 +74,16 @@ function cfg<T>(key: string): T | undefined {
   return workspace.getConfiguration('pynescript').get<T>(key);
 }
 
+/** Expand ${workspaceFolder} (and friends) in lsp.command / lsp.args for Docker. */
+function expandWorkspaceVars(value: string): string {
+  const folder = workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+  const base = folder.split(/[/\\]/).pop() ?? '';
+  return value
+    .split('${workspaceFolder}').join(folder)
+    .split('${workspaceRoot}').join(folder)
+    .split('${workspaceFolderBasename}').join(base);
+}
+
 function commandOnPath(cmd: string): boolean {
   try {
     if (process.platform === 'win32') {
@@ -110,16 +120,16 @@ export function resolveLspLaunch(): {
   label: string;
   found: boolean;
 } {
-  const configured = (cfg<string>('lsp.command') || 'auto').trim();
+  const configured = expandWorkspaceVars((cfg<string>('lsp.command') || 'auto').trim());
   const python = (cfg<string>('lsp.python') || 'python3').trim() || 'python3';
-  const extraArgs = cfg<string[]>('lsp.args') || [];
+  const extraArgs = (cfg<string[]>('lsp.args') || []).map(expandWorkspaceVars);
 
   if (configured && configured !== 'auto') {
     const found = fs.existsSync(configured) || commandOnPath(configured);
     return {
       command: configured,
       args: [...extraArgs],
-      label: configured,
+      label: extraArgs.length ? `${configured} ${extraArgs.join(' ')}` : configured,
       found,
     };
   }

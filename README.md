@@ -106,12 +106,16 @@ Multi-arch (`linux/amd64`, `linux/arm64`) images publish to GitHub Container Reg
 docker pull ghcr.io/hoox-sh/pyne/cli:0.3.8
 docker run --rm -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/cli:0.3.8 check script.pine
 
+# Language server (stdio; -i required)
+docker pull ghcr.io/hoox-sh/pyne/lsp:0.3.8
+docker run --rm -i -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/lsp:0.3.8
+
 # Pro API
 docker pull ghcr.io/hoox-sh/pyne/api:0.3.8
 docker run --rm -p 5002:8080 -e ADMIN_TOKEN=… ghcr.io/hoox-sh/pyne/api:0.3.8
 ```
 
-Packages: [ghcr.io/hoox-sh/pyne](https://github.com/hoox-sh/pyne/pkgs/container/pyne%2Fcli).
+Packages: [ghcr.io/hoox-sh/pyne](https://github.com/hoox-sh/pyne/pkgs/container/pyne%2Fcli). Local: `make docker-build-lsp`.
 ## Quickstart
 
 ### Parse and unparse
@@ -299,7 +303,7 @@ This repository plus satellites that share the evaluate contract. Python `pynesc
 | Project | Role | Repository |
 |---------|------|------------|
 | **[PYNE](https://github.com/hoox-sh/pyne)** | This repository — grammar, AST, dual-engine Runtime, Pro API, CLI (`pyne` / `pynescript`). PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/). | [hoox-sh/pyne](https://github.com/hoox-sh/pyne) |
-| **[pyne-lsp](https://hoox.sh/pyne/docs/lsp)** | Language server (`pyne-lsp` / `pynescript-lsp`) — diagnostics, completion, hover, navigation, semantic tokens, format. Extra `[lsp]`; Nuitka binaries on GitHub Releases. | [hoox-sh/pyne](https://github.com/hoox-sh/pyne) · [docs](https://hoox.sh/pyne/docs/lsp) |
+| **[pyne-lsp](https://hoox.sh/pyne/docs/lsp)** | Language server (`pyne-lsp` / `pynescript-lsp`) — extras `[lsp]`, Nuitka binaries, Docker `ghcr.io/hoox-sh/pyne/lsp`. | [hoox-sh/pyne](https://github.com/hoox-sh/pyne) · [docs](https://hoox.sh/pyne/docs/lsp) · [GHCR](https://github.com/hoox-sh/pyne/pkgs/container/pyne%2Flsp) |
 | **[pyne-vscode](./vscode-extension/)** | VS Code / Open VSX extension (`jango-blockchained.pyne`). Package `pyne-vscode-*.vsix` on Releases. Needs `hoox-pyne[lsp]` or a `pyne-lsp` binary. | [vscode-extension/](./vscode-extension/) · [Marketplace](https://marketplace.visualstudio.com/items?itemName=jango-blockchained.pyne) |
 | **[PyneTS](https://github.com/hoox-sh/pynets)** | TypeScript / Bun library (`@hoox/pynets`) — parse, unparse, interpret. Same public names as Python. Submodule `pynets/`. | [hoox-sh/pynets](https://github.com/hoox-sh/pynets) |
 | **[pyne-worker](https://github.com/hoox-sh/pyne-worker)** | Python Cloudflare® Worker — edge `POST /run`, cron, R2, alerts. Thin host over package Runtime. | [hoox-sh/pyne-worker](https://github.com/hoox-sh/pyne-worker) |

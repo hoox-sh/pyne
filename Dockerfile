@@ -10,15 +10,18 @@
 # Targets (buildx / compose):
 #   api      — production Pro API (gunicorn, non-root)  [default for Cloud Run]
 #   api-dev  — development Pro API (Flask, HOST=0.0.0.0)
-#   lsp      — language server (stdio; use with compose profile lsp)
+#   lsp      — language server (stdio; ENTRYPOINT pyne-lsp)
 #   cli      — pyne Click CLI (parse/lint/format/compile/run; ENTRYPOINT)
 #
 # Examples:
 #   docker buildx bake api
 #   docker buildx bake cli
+#   docker buildx bake lsp
 #   docker build --target api -t pynescript-api:latest .
 #   docker build --target cli -t pynescript-cli:latest .
+#   docker build --target lsp -t pynescript-lsp:latest .
 #   docker run --rm -v "$PWD:/work" -w /work pynescript-cli check script.pine
+#   docker run --rm -i pynescript-lsp
 #   docker compose up --build api
 #
 # Secrets: never bake CRYPTO_KEY / ADMIN_TOKEN / API keys into ENV or LABEL.
@@ -162,14 +165,47 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
 CMD ["python", "-m", "backend.app"]
 
 # ---------------------------------------------------------------------------
-# Target: lsp (language server over stdio)
+# LSP builder: package + [lsp] only (no Flask / matplotlib / API deps)
 # ---------------------------------------------------------------------------
-FROM runtime AS lsp
+FROM base-os AS lsp-builder
 
-ENV FLASK_ENV=production
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# No HTTP healthcheck — stdio LSP
-CMD ["python", "-m", "pynescript.langserver"]
+COPY pyproject.toml README.md LICENSE NOTICE ./
+COPY src ./src
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --prefix=/install ".[lsp]"
+
+# ---------------------------------------------------------------------------
+# Target: lsp (language server over stdio — GHCR ghcr.io/hoox-sh/pyne/lsp)
+# ---------------------------------------------------------------------------
+FROM base-os AS lsp
+
+COPY --from=lsp-builder /install /usr/local
+COPY --from=lsp-builder /app/src /app/src
+
+RUN mkdir -p /work \
+    && chown -R appuser:appuser /app /work
+
+ENV PYTHONPATH=/app/src
+
+USER appuser
+WORKDIR /work
+
+ARG PYNESCRIPT_VERSION=0.3.0
+ARG GIT_SHA=unknown
+LABEL org.opencontainers.image.title="pynescript-lsp" \
+      org.opencontainers.image.description="PYNE language server (stdio) — pyne-lsp" \
+      org.opencontainers.image.version="${PYNESCRIPT_VERSION}" \
+      org.opencontainers.image.revision="${GIT_SHA}" \
+      org.opencontainers.image.licenses="AGPL-3.0-or-later" \
+      org.opencontainers.image.source="https://github.com/hoox-sh/pyne"
+
+# No HTTP healthcheck — stdio LSP. -i required for docker run / VS Code.
+ENTRYPOINT ["pyne-lsp"]
 
 # ---------------------------------------------------------------------------
 # Target: cli (pyne Click console — parse / lint / format / compile / run)

@@ -13,9 +13,9 @@
 # Variables (override with --set or env via bake HCL):
 #   TAG=0.3.0 REGISTRY=gcr.io/PROJECT/pynescript docker buildx bake release
 #   TAG=0.3.0 REGISTRY=ghcr.io/hoox-sh/pyne docker buildx bake release
-#     → ghcr.io/hoox-sh/pyne/api:0.3.0  and  …/cli:0.3.0
+#     → ghcr.io/hoox-sh/pyne/api:0.3.0, …/cli:0.3.0, …/lsp:0.3.0
 #
-# CI: .github/workflows/ghcr.yml pushes api + cli multi-arch on v* tags
+# CI: .github/workflows/ghcr.yml pushes api + cli + lsp multi-arch on v* tags
 # (and workflow_dispatch). Prefer that path over local bake for GHCR.
 #
 # Push safety: release targets use output type=registry ONLY when REGISTRY is
@@ -62,7 +62,7 @@ group "all" {
 }
 
 group "release" {
-  targets = ["api-release", "cli-release"]
+  targets = ["api-release", "cli-release", "lsp-release"]
 }
 
 target "_common" {
@@ -118,8 +118,8 @@ target "cli" {
 # Multi-platform production images.
 # REGISTRY set  → push (type=registry)
 # REGISTRY empty → type=image only (no push; no docker load for multi-arch)
-# When REGISTRY is set, use short GHCR-friendly names (api / cli).
-# Local short names stay pynescript-api / pynescript-cli for compose.
+# When REGISTRY is set, use short GHCR-friendly names (api / cli / lsp).
+# Local short names stay pynescript-api / pynescript-cli / pynescript-lsp.
 target "api-release" {
   inherits   = ["_common"]
   target     = "api"
@@ -137,6 +137,26 @@ target "api-release" {
   ]
   cache-to = [
     "type=local,dest=/tmp/.buildx-cache-pynescript,mode=max",
+  ]
+}
+
+target "lsp-release" {
+  inherits   = ["_common"]
+  target     = "lsp"
+  platforms  = split(",", PLATFORMS)
+  tags = REGISTRY != "" ? [
+    "${REGISTRY}/lsp:${TAG}",
+    "${REGISTRY}/lsp:latest",
+  ] : [
+    "pynescript-lsp:${TAG}",
+    "pynescript-lsp:latest",
+  ]
+  output = REGISTRY != "" ? ["type=registry"] : ["type=image"]
+  cache-from = [
+    "type=local,src=/tmp/.buildx-cache-pynescript-lsp",
+  ]
+  cache-to = [
+    "type=local,dest=/tmp/.buildx-cache-pynescript-lsp,mode=max",
   ]
 }
 

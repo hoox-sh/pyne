@@ -6,6 +6,7 @@
 # Images:
 #   ghcr.io/hoox-sh/pyne/api:<version>  (and :latest on tags / default dispatch)
 #   ghcr.io/hoox-sh/pyne/cli:<version>
+#   ghcr.io/hoox-sh/pyne/lsp:<version>
 #
 # Triggers:
 #   - push of v* tags
@@ -52,6 +53,8 @@ jobs:
             image: api
           - target: cli
             image: cli
+          - target: lsp
+            image: lsp
     steps:
       - uses: actions/checkout@v4
 
@@ -131,3 +134,12 @@ jobs:
           IMG="${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}"
           docker run --rm --platform linux/amd64 --network=none "$IMG" --help
           docker run --rm --platform linux/amd64 --network=none "$IMG" info
+
+      - name: Smoke LSP (amd64, version tag)
+        if: matrix.image == 'lsp'
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMG="${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}"
+          docker run --rm --platform linux/amd64 --network=none --entrypoint python "$IMG" \
+            -c "import pynescript.langserver; print('lsp-ok')"
