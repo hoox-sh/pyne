@@ -1193,6 +1193,7 @@ class Runtime:
                 data_provider=data_provider,
                 inputs=inputs,
                 timeout_seconds=timeout_seconds,
+                libraries=libraries,
             )
         if mode_norm not in ("interpret",):
             return _error_payload(
@@ -2017,6 +2018,7 @@ class Runtime:
         data_provider=None,
         inputs: dict | None = None,
         timeout_seconds: float | None = None,
+        libraries: list[dict[str, Any]] | None = None,
     ) -> dict:
         """Try compile; fall back to interpret on eligibility fail or any error.
 
@@ -2037,6 +2039,7 @@ class Runtime:
                 mode="interpret",
                 inputs=inputs,
                 timeout_seconds=timeout_seconds,
+                libraries=libraries,
             )
             if isinstance(result, dict):
                 result["mode"] = result.get("mode") or "interpret"
@@ -2074,6 +2077,7 @@ class Runtime:
             mode="interpret",
             inputs=inputs,
             timeout_seconds=timeout_seconds,
+            libraries=libraries,
         )
         if isinstance(result, dict):
             result["mode"] = result.get("mode") or "interpret"

@@ -262,6 +262,30 @@ class TestRuntimeGitPublishLibraries:
         vals = series.get("plot_0") or out.get("plots") or []
         assert vals == [1.5] * n
 
+    def test_runtime_run_libraries_auto_falls_back_interpret(self) -> None:
+        """``import`` is compile-ineligible; auto must still bind ``libraries``."""
+        from pynescript.runtime import Runtime
+
+        n = 5
+        out = Runtime(symbol="TEST").run(
+            _AXIS_CONSUMER_FOO,
+            _ohlcv(n),
+            mode="auto",
+            libraries=[
+                {
+                    "namespace": "ns",
+                    "name": "Lib",
+                    "version": 1,
+                    "source": _AXIS_LIB_FOO,
+                }
+            ],
+        )
+        assert "error" not in out, out.get("error")
+        assert out.get("auto_backend") == "interpret"
+        series = out.get("series") or {}
+        vals = series.get("plot_0") or out.get("plots") or []
+        assert vals == [1.5] * n
+
     def test_runtime_run_missing_library_fails_closed(self) -> None:
         """Unpublished ``import ns/Lib/1`` must not invent ``FOO``."""
         from pynescript.runtime import Runtime
