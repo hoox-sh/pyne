@@ -2,7 +2,7 @@
 
 **Independent open toolchain for the Pine Script™ language** — formal grammar, algebraic AST, dual-engine bar-loop runtime, language server, and HTTP evaluation surface. Part of the [HOOX](https://hoox.sh) open trading stack.
 
-**0.3.6** · PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) · import `pynescript` · CLIs `pyne` · `pyne-lsp` (aliases: `pynescript` · `pynescript-lsp`)
+**0.3.7** · PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) · import `pynescript` · CLIs `pyne` · `pyne-lsp` (aliases: `pynescript` · `pynescript-lsp`)
 
 <div align="center">
 
@@ -103,12 +103,12 @@ Multi-arch (`linux/amd64`, `linux/arm64`) images publish to GitHub Container Reg
 
 ```bash
 # CLI
-docker pull ghcr.io/hoox-sh/pyne/cli:0.3.6
-docker run --rm -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/cli:0.3.6 check script.pine
+docker pull ghcr.io/hoox-sh/pyne/cli:0.3.7
+docker run --rm -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/cli:0.3.7 check script.pine
 
 # Pro API
-docker pull ghcr.io/hoox-sh/pyne/api:0.3.6
-docker run --rm -p 5002:8080 -e ADMIN_TOKEN=… ghcr.io/hoox-sh/pyne/api:0.3.6
+docker pull ghcr.io/hoox-sh/pyne/api:0.3.7
+docker run --rm -p 5002:8080 -e ADMIN_TOKEN=… ghcr.io/hoox-sh/pyne/api:0.3.7
 ```
 
 Packages: [ghcr.io/hoox-sh/pyne](https://github.com/hoox-sh/pyne/pkgs/container/pyne%2Fcli).
@@ -291,6 +291,31 @@ make lint      # ruff
 - **[HOOX](https://github.com/hoox-sh/hoox)** is an optional execution mesh. Strategy events and alert webhooks from PYNE can feed edge trade paths; HOOX does not replace the PYNE runtime.
 
 Evaluation never depends on a proprietary chart host. AXIS and HOOX are optional clients of the same open evaluate contract. None of these projects is affiliated with or endorsed by TradingView, Inc.
+
+## Side projects
+
+This repository plus satellites that share the evaluate contract. Python `pynescript.runtime` remains the language SoT.
+
+| Project | Role | Repository |
+|---------|------|------------|
+| **[PYNE](https://github.com/hoox-sh/pyne)** | This repository — grammar, AST, dual-engine Runtime, Pro API, CLI (`pyne` / `pynescript`). PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/). | [hoox-sh/pyne](https://github.com/hoox-sh/pyne) |
+| **[pyne-lsp](./vscode-extension/)** | Language server (`pyne-lsp` / `pynescript-lsp`) — diagnostics, completion, hover, navigation, semantic tokens, format. Ships in this repo; extra `[lsp]`. VS Code extension under [`vscode-extension/`](./vscode-extension/). | [hoox-sh/pyne](https://github.com/hoox-sh/pyne) · [docs](https://hoox.sh/pyne/docs/lsp) |
+| **[PyneTS](https://github.com/hoox-sh/pynets)** | TypeScript / Bun library (`@hoox/pynets`) — parse, unparse, interpret. Same public names as Python. Submodule `pynets/`. | [hoox-sh/pynets](https://github.com/hoox-sh/pynets) |
+| **[pyne-worker](https://github.com/hoox-sh/pyne-worker)** | Python Cloudflare® Worker — edge `POST /run`, cron, R2, alerts. Thin host over package Runtime. | [hoox-sh/pyne-worker](https://github.com/hoox-sh/pyne-worker) |
+| **[pine-worker](https://github.com/hoox-sh/pine-worker)** | TypeScript Cloudflare® Worker — earlier edge evaluator; emits trade events toward HOOX. | [hoox-sh/pine-worker](https://github.com/hoox-sh/pine-worker) |
+| **[pyne-agent-worker](https://github.com/hoox-sh/pyne-agent-worker)** | Workers AI Pine Script agent (RAG + pyne-worker validate loop). AXIS sister plugin. | [hoox-sh/pyne-agent-worker](https://github.com/hoox-sh/pyne-agent-worker) |
+| **[AXIS](https://github.com/hoox-sh/axis)** | Charting PWA (Solid + Vite). Calls Pro API or edge `/run`; ships the VPS static `frontend/dist`. | [hoox-sh/axis](https://github.com/hoox-sh/axis) |
+| **[HOOX](https://github.com/hoox-sh/hoox)** | Edge trading mesh. Optional sink for strategy events and alert webhooks. | [hoox-sh/hoox](https://github.com/hoox-sh/hoox) |
+
+HOOX also publishes execution-plane workers (`hoox-worker`, `trade-worker`, `telegram-worker`, `d1-worker`, …) under [github.com/hoox-sh](https://github.com/hoox-sh). Those are execution and ops, not the Pine language toolchain.
+
+```bash
+git clone --recurse-submodules https://github.com/hoox-sh/pyne.git   # PYNE + pynets/ + pyne-lsp
+pip install -e ".[lsp,pro]"                                          # CLI + LSP + Pro API
+git clone https://github.com/hoox-sh/pynets.git
+git clone https://github.com/hoox-sh/pyne-worker.git
+git clone https://github.com/hoox-sh/axis.git
+```
 
 ## License
 

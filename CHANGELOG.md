@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-08-15
+
+### Added
+- **`Runtime.run(..., libraries=)`** — optional `[{namespace, name, version, source}]` registered via `register_library_source` before interpret so AXIS `import ns/Name/ver` resolves published git folders. Pro API `POST /run` accepts the same `libraries` field.
+
+### Changed
+- Runtime hot path: skip series dual-write when `PYNE_SERIES_RING=1`; tick-offset exits, incremental MA, plot pack, kernels.
+
 ### Removed
 - Colocated **`pine-worker/`** TypeScript extra tool (parser/evaluator port). Lives in the sibling `pine-worker` checkout, not this repo.
 
