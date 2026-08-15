@@ -71,6 +71,33 @@ plot(b.v, title="v")
         # var keeps first-bar value
         assert np.allclose(out["v"], 1.0)
 
+    def test_udt_bool_default_false_not_nan_truthy(self) -> None:
+        """Omitted ``bool x = false`` must stay False (``bool(np.nan)`` is True)."""
+        src = """//@version=5
+indicator("udt-bool")
+type State
+    bool be_active = false
+    float sl_value = 500.0
+var s = State.new()
+plot(s.be_active ? 1 : 0, title="be")
+plot(s.sl_value, title="sl")
+"""
+        code = transpile(src)
+        assert "be_active" in code
+        assert "False" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(8)
+        out = compiled.run(o, h, l, c, v)
+        assert np.allclose(out["be"], 0.0)
+        assert np.allclose(out["sl"], 500.0)
+        ri = Runtime().run(src, [
+            {"open": float(o[i]), "high": float(h[i]), "low": float(l[i]),
+             "close": float(c[i]), "volume": 1.0, "time": i * 60_000}
+            for i in range(8)
+        ], mode="interpret")
+        assert "error" not in ri, ri.get("error")
+        assert ri["series"]["be"] == [0] * 8 or all(float(x) == 0.0 for x in ri["series"]["be"])
+
 
 class TestMapCompile:
     def test_map_put_get(self) -> None:

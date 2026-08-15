@@ -23,7 +23,7 @@ pygls-based server for editors (VS Code extension, Neovim, Zed, etc.).
 
 **How to start**
 
-- Console script: ``pynescript-lsp`` → :func:`pynescript.langserver.__main__.main`
+- Console script: ``pyne-lsp`` (alias ``pynescript-lsp``) → :func:`pynescript.langserver.__main__.main`
 - Module: ``python -m pynescript.langserver`` (stdio by default)
 
 **Public re-exports**

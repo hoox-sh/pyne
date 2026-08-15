@@ -75,7 +75,7 @@ def handle_document_symbols(
 class DocumentSymbolCollector(NodeVisitor):
     """AST visitor that builds a hierarchical document outline.
 
-    Collects functions, user-defined types (with fields), and assignments into
+    Collects functions, user-defined types (with fields), enums, and assignments into
     :attr:`symbols`. Nested assignments under a function become children of that
     function symbol.
     """
@@ -135,6 +135,32 @@ class DocumentSymbolCollector(NodeVisitor):
             self.visit_type_member(stmt, type_symbol)
 
         self.symbols.append(type_symbol)
+
+    def visit_EnumDef(self, node: ast.EnumDef) -> Any:
+        """Handle enum definitions (members must not appear as top-level vars)."""
+        enum_symbol = lsp.DocumentSymbol(
+            name=node.name or "<anonymous>",
+            kind=lsp.SymbolKind.Enum,
+            range=self._node_to_range(node),
+            selection_range=self._name_to_range(node),
+            children=[],
+            detail="User-defined enum",
+        )
+        children: list[lsp.DocumentSymbol] = []
+        for stmt in node.body:
+            if isinstance(stmt, ast.Assign) and isinstance(stmt.target, ast.Name):
+                children.append(
+                    lsp.DocumentSymbol(
+                        name=stmt.target.id,
+                        kind=lsp.SymbolKind.EnumMember,
+                        range=self._node_to_range(stmt),
+                        selection_range=self._name_to_range(stmt.target),
+                        children=[],
+                        detail="Enum member",
+                    )
+                )
+        enum_symbol.children = children
+        self.symbols.append(enum_symbol)
 
     def visit_type_member(self, node: Any, parent: lsp.DocumentSymbol) -> None:
         """Visit type members."""

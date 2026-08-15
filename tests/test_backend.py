@@ -177,6 +177,41 @@ class TestRun:
         # Dual-host: empty alerts list is always present (parity with pyne-worker)
         assert resp.json.get("alerts") == []
 
+    def test_run_libraries_git_publish(self, client: FlaskClient):
+        """Pro ``/run`` schema ``libraries`` resolves ``import ns/Lib/1``."""
+        bars = [
+            {"open": 100, "high": 105, "low": 98, "close": 102, "time": 1},
+            {"open": 102, "high": 108, "low": 101, "close": 105, "time": 2},
+        ]
+        lib_src = """//@version=6
+library("Lib")
+export const float FOO = 1.5
+"""
+        script = """//@version=6
+indicator("axis lib")
+import ns/Lib/1 as x
+plot(x.FOO)
+"""
+        resp = client.post(
+            "/run",
+            json={
+                "script": script,
+                "data": bars,
+                "mode": "interpret",
+                "libraries": [
+                    {
+                        "namespace": "ns",
+                        "name": "Lib",
+                        "version": 1,
+                        "source": lib_src,
+                    }
+                ],
+            },
+        )
+        assert resp.status_code == 200, resp.json
+        assert resp.json["status"] == "success"
+        assert resp.json["plots"] == [1.5, 1.5]
+
     def test_run_exports_alerts(self, client: FlaskClient):
         """alert() firings surface on /run (interpret path)."""
         bars = [

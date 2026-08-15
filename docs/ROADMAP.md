@@ -19,10 +19,11 @@
 
 # Pynescript Future Roadmap
 
-**Last Updated:** 2026-08-13 (0.3.6: UDT `array.binary_search*` `sort_field`)  
-**Status:** Core v6 language/builtins essentially closed. Remaining work is **host parity**,
-**corpus execution tail**, **interpret↔compile plot residuals**, and optional **TV-oracle
-re-baselines** — not missing syntax. Product warm-compile (H2) and series caps (T1) landed.
+**Last Updated:** 2026-08-15 (H1 Runtime unify largely done; tick-offset exits)
+**Status:** Core v6 language/builtins essentially closed. Remaining work is
+**interpret↔compile plot residuals**, **corpus execution tail**, and optional **TV-oracle
+re-baselines** — not missing syntax. Product warm-compile (H2), series caps (T1), and
+package Runtime SoT (H1) landed.
 
 ---
 
@@ -36,14 +37,14 @@ re-baselines** — not missing syntax. Product warm-compile (H2) and series caps
 | Strategy Events + broker (OCA, commission, risk) | ✅ |
 | Numba + object-mode compile | ✅ MVP+ (disk IR cache, auto mode, `time_arr`, cache recovery) |
 | Pro API (Flask) + auth + Docker | ✅ (`mode` default `auto`) |
-| pine-worker (Python CF Worker) | ✅ edge host; dual-host drift open |
-| pine-worker (TS port + converter) | ✅ colocated extra tool (port ongoing) |
+| pyne-worker (Python CF Worker) | ✅ sibling `hoox-sh/pyne-worker`; thin wrap over package Runtime |
+| pine-worker (TS port) | not colocated — sibling `hoox-sh/pine-worker` |
 | Drawing / input / request | ✅ (request data mock/feed by design; foreign-na policy landed) |
 | Linter / Jupyter / data providers | ✅ |
 | LSP (core) | ✅ advanced set; polish only |
 | Drawing max_*_count GC | ✅ (package + Pro API + AXIS pyodide) |
 | Interpret↔compile plot parity | ⚙️ harness + goldens landed; residual MISMATCH tail open |
-| Dual-host Runtime parity | ⬜ open (largest P1) |
+| Dual-host Runtime parity | ✅ largely done (package SoT + backend shims + pyne-worker thin wrap) |
 | Tests | 1000+ green core suites |
 
 ---
@@ -78,7 +79,7 @@ re-baselines** — not missing syntax. Product warm-compile (H2) and series caps
 
 ## Recent Additions (July 2026 consolidation)
 - Full `strategy.*` event capture with `StrategyEvent` dataclass, parity test corpus, `var`/`varip` support.
-- `pine-worker/` — TypeScript evaluator port + `scripts/convert-python-to-ts.py` converter, treated as extra tool of the main repo.
+- pine-worker is **not colocated** in this repo (sibling [`hoox-sh/pyne-worker`](https://github.com/hoox-sh/pyne-worker) Python CF host; TS port lives in [`hoox-sh/pine-worker`](https://github.com/hoox-sh/pine-worker)).
 - See `.opencode/plans/2026-07-09-main-consolidation-remaining-work.md` for the full consolidation plan.
 
 ## Roadmap: Remaining Work (actionable)
@@ -89,23 +90,23 @@ Historical Phase A–D “build API / LSP / Jupyter” items are **done**. Do no
 
 | ID | Item | Pri | Owner |
 | --- | --- | --- | --- |
-| **H1** | Port R5–R6 host surface to pyne-worker (fail-cache, `error_kind`, inputs→interpret, compile cache) | P1 ✅ host surface + **alerts export** dual-host (Aug 2026); package-level Runtime unify still open | pyne-worker + backend |
+| **H1** | Port R5–R6 host surface to pyne-worker (fail-cache, `error_kind`, inputs→interpret, compile cache) | P1 ✅ **largely done** — package Runtime SoT + backend shims + pyne-worker thin wrap; residual = worker-only extras (logs/profile, CF first-plot), not a forked bar loop | sibling `hoox-sh/pyne-worker` |
 | **H2** | Product warm-compile path (document SLOs; optional prewarm workers; IR cache on in deploy) | P1 ✅ SLOs + prewarm API/CLI + deploy defaults (2026-08); Numba `.nb*` corrupt-cache recovery landed | pyne + ops |
 | **C1** | Corpus Runtime residual (set01–04) | P1 ✅ **closed (2026-08-09)** — parse **99.96%** (2476/2477); Runtime interpret **100%** excl. EXPECTED_FAIL (2466 OK + 11 intentional demos); set01 **249/249**. Residual class = intentional `runtime.error` / lower-TF / pathological loop demos only | pyne |
 | **P1p** | Compile/interpret **plot parity** residual | P1 ⚙️ harness landed (`scripts/compare_interp_compile.py`, `tests/test_interp_compile_parity.py`); smoke OK on stable TA scripts; residual buckets: value `MISMATCH`, structural hline/fill keys, one-sided runtime errors | pyne |
 | **T1** | Cap `current_series` to `max_bars_back` / `_SERIES_MAX` | P2 ✅ `PYNE_SERIES_CAP` default ON + goldens (R7 Agent 03) | pyne |
-| **T2** | Incremental TA for remaining heavy kernels (`ta.bb`, nested full paths) | P2 ✅ R7: bb/kama/cmo/stochrsi inc; further nested paths residual | pyne |
+| **T2** | Incremental TA for remaining heavy kernels (`ta.bb`, nested full paths) | P2 ✅ R7: bb/kama/cmo/stochrsi inc; **wma/hma/linreg inc landed**; further nested full-list helpers residual | pyne |
 | **F1** | ATR Wilder / TV supertrend re-baseline **only** with dedicated goldens | P2 ⚙️ **RSI Wilder** compile↔interpret aligned (2026-08 residual); ATR EMA→Wilder and TV supertrend ratchet still require explicit goldens | pyne |
 | **F2** | Pending-fill averaging when pyramiding ≤ 0 | P2 ✅ R7 Agent 10 (interpret + compile broker goldens) | pyne |
 | **L1** | v5↔v6 converter maturity (`scripts/convert_pine_version.py`) | P3 | pyne |
 | **L2** | Webhook alerts productization | P3 ✅ pyne-worker edge + Pro API `/run` export **and** outbound `ALERT_WEBHOOK_URL` / `webhook_url` | pyne-worker + backend |
-| **L3** | pine-worker (TS) full builtin parity | P3 | pine-worker tool |
+| **L3** | pine-worker (TS) full builtin parity | P3 | sibling `hoox-sh/pine-worker` |
 | **B1** | Real (non-mock) `request.*` market data | ⚙️ by design; **foreign-na policy** landed (same-symbol OHLCV only; foreign/complex `request.security` → `na`, no chart-close-as-dividend) | adapters |
 
 ### Phase map
 
 ```text
-P0 docs honesty → P1 dual-host (H1 residual: package unify)
+P0 docs honesty → P1 dual-host H1 ✅ (package SoT + shims + worker thin wrap)
                 → P1 plot parity residual (P1p) + C1 corpus tail
                 → H2 warm compile ✅ · T1 series caps ✅ · F2 pending-fill ✅
                               ↘ T2 residual nested TA · F1 ATR/supertrend goldens
@@ -124,6 +125,10 @@ P0 docs honesty → P1 dual-host (H1 residual: package unify)
 - **Corpus (C1, 2026-08-09):** set01–04 parse **99.96%** (2476/2477); Runtime interpret **100%** excl. EXPECTED_FAIL (2466 OK + 11 intentional demos: library `runtime.error`, lower-TF security guards, invalid-wrap docs, pathological loops). set01 Runtime **249/249**. Not core syntax gaps.
 - **`auto_fib` pivot data limits:** Auto Fib Extension/Retracement raise the same “not enough data / Depth” insufficient-pivot errors on interpret and compile when pivot arrays are empty (normalized as `both_error_same` in the parity harness). Not a silent success path; hosts must supply enough bars or lower Depth.
 - **`request.*` foreign-na policy:** `request.security` / bare `security` on foreign symbols or complex expressions resolve to `na` on both backends; `ChartOHLCVProvider` refuses non-chart symbols. Same-symbol simple OHLCV still passthrough. Real fundamentals remain **B1** (adapters).
+- **Tick-offset exits (2026-08-15):** `strategy.exit` `profit`/`loss` are ticks × mintick from entry avg (interpret + compile). `limit`/`stop` stay absolute; absolute wins if both set.
+- **Incremental WMA / HMA / linreg:** interpret inc kernels landed (`_wma_inc_update` / `_hma_inc_update` / `_linreg_inc_update`); further nested full-list helpers still residual (T2).
+- **Plot pack:** interpret host packs dirty plot columns (`_plot_pack_dirty`); compile `_pack_plot_sequence` uniquifies titles.
+- **Ring tail-view:** `PYNE_SERIES_RING` chronological tail (default **off**).
 
 ### Longer-horizon ideas (not next)
 - ML / advanced stats wrappers
@@ -135,9 +140,9 @@ P0 docs honesty → P1 dual-host (H1 residual: package unify)
 ## Priority Recommendation
 
 ### Short-term (Next)
-1. **H1 Dual-host Runtime** — package-level Runtime unify with SoT `backend/runtime.py`
-2. **P1p Plot parity residual** — drive down harness `MISMATCH` / one-sided errors with unit goldens
-3. **C1 Corpus tail** — residual RUN_FAIL with unit goldens (not one-off scrapes)
+1. **P1p Plot parity residual** — drive down harness `MISMATCH` / one-sided errors with unit goldens
+2. **C1 Corpus tail** — residual RUN_FAIL with unit goldens (not one-off scrapes)
+3. **H1 residual polish** — worker-only extras (logs/profile, CF first-plot); bar loop is already package SoT
 
 ### Medium-term
 4. **T2 residual** further nested incremental TA where profiled

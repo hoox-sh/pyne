@@ -17,30 +17,45 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Hover — ``textDocument/hover`` for builtin documentation.
+"""Hover — ``textDocument/hover`` for builtin, keyword, and user-enum docs.
 
 Public handler: :func:`handle_hover`. Resolves the word under the cursor (and
 optional ``module.member`` form) against
-:func:`~pynescript.langserver.providers.builtin_metadata.get_builtin`.
+:func:`~pynescript.langserver.providers.builtin_metadata.get_builtin`, then
+user enums and :data:`~pynescript.langserver.providers.completion_items.PINE_KEYWORDS`.
 """
 
 from __future__ import annotations
+
+from typing import Any
 
 from lsprotocol import types as lsp
 
 from pynescript.langserver.protocol.utils import get_word_at_position
 from pynescript.langserver.providers.builtin_metadata import get_builtin
+from pynescript.langserver.providers.completion_items import PINE_KEYWORDS
+from pynescript.langserver.providers.completion_items import collect_user_enums
 
 
-def handle_hover(params: lsp.HoverParams, source: str | None) -> lsp.Hover | None:
-    """Return markdown hover for a builtin at the cursor, or ``None``.
+_KEYWORD_DOCS = dict(PINE_KEYWORDS)
+
+
+def handle_hover(
+    params: lsp.HoverParams,
+    source: str | None,
+    tree: Any | None = ...,
+) -> lsp.Hover | None:
+    """Return markdown hover for a symbol at the cursor, or ``None``.
 
     Args:
         params: Client hover params (document URI + position).
         source: Document text, or ``None``.
+        tree: Pre-parsed AST from the workspace cache. Pass ``None`` when the
+            workspace already failed to parse. Omit (default ``...``) to parse
+            from *source*.
 
     Returns:
-        :class:`~lsprotocol.types.Hover` with builtin docs, or ``None`` if the
+        :class:`~lsprotocol.types.Hover` with docs, or ``None`` if the
         symbol is unknown / out of range.
     """
     position = params.position
@@ -59,35 +74,127 @@ def handle_hover(params: lsp.HoverParams, source: str | None) -> lsp.Hover | Non
     if not word:
         return None
 
-    # Try full word first (get_word_at_position includes dots: "ta.sma").
+    builtin_hover = _hover_builtin(word, line_text, start, position.line, end)
+    if builtin_hover is not None:
+        return builtin_hover
+
+    enums = collect_user_enums(_resolve_tree(source, tree), source)
+    enum_hover = _hover_user_enum(word, enums, position.line, start, end)
+    if enum_hover is not None:
+        return enum_hover
+
+    return _hover_keyword(word, position.line, start, end)
+
+
+def _hover_builtin(word: str, line_text: str, start: int, line: int, end: int) -> lsp.Hover | None:
+    """Resolve a builtin from the full word, leaf, or preceding ``module.``."""
     builtin_info = get_builtin(word)
     if builtin_info:
-        return _build_builtin_hover(builtin_info, position.line, start, end)
+        return _build_builtin_hover(builtin_info, line, start, end)
 
-    # If the word itself is dotted but only the last segment was typed without
-    # a full metadata hit, try the trailing identifier alone (rare).
     if "." in word:
         leaf = word.rsplit(".", 1)[-1]
-        # Prefer module.leaf form which is the metadata key.
         for candidate in (word, leaf):
             builtin_info = get_builtin(candidate)
             if builtin_info:
-                return _build_builtin_hover(builtin_info, position.line, start, end)
+                return _build_builtin_hover(builtin_info, line, start, end)
 
-    # Fallback: bare leaf preceded by "module." (when word pattern missed the
-    # module, e.g. incomplete / mid-edit buffers).
     text_before = line_text[:start]
     words_before = text_before.rstrip().split()
     if words_before:
         last_word = words_before[-1]
         if last_word.endswith("."):
             module = last_word.rstrip(".")
-            full_name = f"{module}.{word}"
-            builtin_info = get_builtin(full_name)
+            builtin_info = get_builtin(f"{module}.{word}")
             if builtin_info:
-                return _build_builtin_hover(builtin_info, position.line, start, end)
-
+                return _build_builtin_hover(builtin_info, line, start, end)
     return None
+
+
+def _resolve_tree(source: str | None, tree: Any | None) -> Any | None:
+    if tree is not ...:
+        return tree
+    if not source:
+        return None
+    try:
+        from pynescript.ast.helper import parse
+
+        return parse(source)
+    except Exception:
+        return None
+
+
+def _hover_user_enum(
+    word: str,
+    enums: dict[str, dict[str, Any]],
+    line: int,
+    start: int,
+    end: int,
+) -> lsp.Hover | None:
+    """Hover for a user enum type or ``Enum.member`` path."""
+    if word in enums:
+        return _build_enum_hover(enums[word], member=None, line=line, start=start, end=end)
+    if "." in word:
+        enum_name, _, member = word.partition(".")
+        info = enums.get(enum_name)
+        if info is not None:
+            return _build_enum_hover(info, member=member, line=line, start=start, end=end)
+    return None
+
+
+def _hover_keyword(word: str, line: int, start: int, end: int) -> lsp.Hover | None:
+    brief = _KEYWORD_DOCS.get(word)
+    if brief is None:
+        return None
+    return lsp.Hover(
+        contents=lsp.MarkupContent(
+            kind=lsp.MarkupKind.Markdown,
+            value=f"```pinescript\n{word}\n```\n\n{brief}\n",
+        ),
+        range=lsp.Range(
+            start=lsp.Position(line=line, character=start),
+            end=lsp.Position(line=line, character=end),
+        ),
+    )
+
+
+def _build_enum_hover(
+    info: dict[str, Any],
+    member: str | None,
+    line: int,
+    start: int,
+    end: int,
+) -> lsp.Hover:
+    name = info.get("name", "")
+    export = "export " if info.get("export") else ""
+    lines = [f"{export}enum {name}"]
+    matched = None
+    for item in info.get("members", []):
+        mname = item.get("name", "")
+        value = item.get("value")
+        decl = f"    {mname}" if value is None else f"    {mname} = {value!r}"
+        lines.append(decl)
+        if member and mname == member:
+            matched = item
+    if member and matched is None:
+        # Unknown member still shows the enum type.
+        pass
+    detail = "\n".join(lines)
+    if member and matched is not None:
+        value = matched.get("value")
+        brief = f"Member of user enum `{name}`."
+        if value is not None:
+            brief += f" Value: `{value!r}`."
+    else:
+        brief = "User-defined enum."
+    content = f"```pinescript\n{detail}\n```\n\n{brief}\n"
+    return lsp.Hover(
+        contents=lsp.MarkupContent(kind=lsp.MarkupKind.Markdown, value=content),
+        range=lsp.Range(
+            start=lsp.Position(line=line, character=start),
+            end=lsp.Position(line=line, character=end),
+        ),
+    )
 
 
 def _build_builtin_hover(info: dict, line: int, start: int, end: int) -> lsp.Hover:

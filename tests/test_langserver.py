@@ -223,3 +223,32 @@ class TestDiagnostics:
         )
         assert _lint_warning_to_diagnostic(warning, "x\n") is None
         assert lint_warnings_to_diagnostics([warning], "x\n") == []
+
+    def test_c001_skipped_when_already_camel_case(self) -> None:
+        """C001 is a false positive for names that are already camelCase."""
+        ws = Workspace()
+        source = "//@version=6\nindicator('T')\nfastMA = ta.sma(close, 14)\n"
+        doc = ws.put_document("test://c001.pine", source)
+        diags = ws._lint_warnings_to_diagnostics(doc)
+        assert not any(d.code == "C001" for d in diags)
+
+    def test_c001_kept_for_snake_case(self) -> None:
+        """C001 still publishes for snake_case ``ta.*`` assignments."""
+        ws = Workspace()
+        source = "//@version=6\nindicator('T')\nfast_ma = ta.sma(close, 14)\n"
+        doc = ws.put_document("test://c001s.pine", source)
+        diags = ws._lint_warnings_to_diagnostics(doc)
+        assert any(d.code == "C001" for d in diags)
+
+    def test_c003_skipped_for_block_if(self) -> None:
+        """Indented multi-line ``if`` is not a single-line-if warning."""
+        ws = Workspace()
+        source = """//@version=6
+indicator('T')
+if barstate.isfirst
+    if close > open
+        x = 1
+"""
+        doc = ws.put_document("test://c003.pine", source)
+        diags = ws._lint_warnings_to_diagnostics(doc)
+        assert not any(d.code == "C003" for d in diags)

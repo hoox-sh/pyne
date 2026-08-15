@@ -301,6 +301,144 @@ class TestCorpusResidualsParity:
         assert r["status"] in ("OK", "fill_background_only"), r
 
 
+class TestSupertrendSimplifiedContract:
+    """F1: interpret ``_supertrend`` / ``_inc`` and Numba share mid±factor·ATR."""
+
+    def test_interpret_and_numba_kernels_match(self) -> None:
+        import numpy as np
+        from pynescript.ast.evaluator import NodeLiteralEvaluator
+        from pynescript.compiler import numba_builtins as nb
+
+        class _Full(NodeLiteralEvaluator):
+            pass
+
+        class _Inc(NodeLiteralEvaluator):
+            def __init__(self) -> None:
+                super().__init__()
+                self._pine_bar_mode = True
+                self._pine_ta_incremental = True
+                self._ta_inc_state: dict = {}
+                self._ta_call_i = 0
+
+        n = 80
+        closes = [100.0 + i * 0.15 + (1.0 if i % 4 else -0.8) for i in range(n)]
+        highs = [c + (0.3 if i % 5 < 2 else 1.8) for i, c in enumerate(closes)]
+        lows = [c - (1.8 if i % 5 < 2 else 0.3) for i, c in enumerate(closes)]
+        factor, period = 3.0, 10
+        h = np.asarray(highs, dtype=np.float64)
+        l = np.asarray(lows, dtype=np.float64)
+        c = np.asarray(closes, dtype=np.float64)
+
+        full = _Full()
+        inc = _Inc()
+        st_nb = np.full(2, np.nan)
+        n_up = n_down = 0
+        for i in range(n):
+            full.current_series = {
+                "high": highs[: i + 1],
+                "low": lows[: i + 1],
+                "close": closes[: i + 1],
+            }
+            fv, fd = full._builtin_ta_supertrend([factor, period])
+            inc._ta_call_i = 0
+            iv, id_ = inc._supertrend_inc_update(
+                highs[: i + 1], lows[: i + 1], closes[: i + 1], factor, period
+            )
+            nv, nd = nb.numba_supertrend(h, l, c, factor, period, i)
+            niv, nid = nb.numba_supertrend_inc(h, l, c, factor, period, i, st_nb)
+            assert fd == id_ == int(nd) == int(nid), f"bar {i}: dirs {fd}/{id_}/{nd}/{nid}"
+            assert abs(fv - iv) <= 1e-10
+            assert abs(fv - float(nv)) <= 1e-10
+            assert abs(fv - float(niv)) <= 1e-10
+            atr = full._builtin_ta_atr([highs[: i + 1], lows[: i + 1], closes[: i + 1], period])
+            if isinstance(atr, list):
+                atr = atr[-1] if atr else 0.0
+            hv, hd = full._supertrend(highs[i], lows[i], closes[i], factor, atr)
+            assert hd == fd
+            assert abs(hv - fv) <= 1e-10
+            if fd < 0:
+                n_up += 1
+            else:
+                n_down += 1
+        assert n_up >= 1 and n_down >= 1
+
+    def test_mid_cross_flips_direction_not_tv_ratchet(self) -> None:
+        """Close crossing mid flips dir immediately (TV ratchet would wait for the band)."""
+        src = """//@version=5
+indicator("st_mid_flip")
+[st, dir] = ta.supertrend(3.0, 5)
+plot(st, title="st")
+plot(dir, title="dir")
+plot(ta.atr(5), title="atr")
+plot(hl2, title="mid")
+plot(close, title="c")
+"""
+        bars: list[dict] = []
+        # Warm ATR with a tight range around 100, close below mid (down).
+        for i in range(8):
+            bars.append(
+                {
+                    "open": 100.0,
+                    "high": 101.0,
+                    "low": 98.0,
+                    "close": 98.5,  # < mid 99.5
+                    "volume": 1000.0,
+                    "time": 1_000_000 + i * 86_400_000,
+                }
+            )
+        # Cross mid but stay inside factor·ATR of the upper band.
+        bars.append(
+            {
+                "open": 100.0,
+                "high": 101.0,
+                "low": 98.0,
+                "close": 100.2,  # > mid 99.5; TV ratchet would still be down if upper ≫ 100.2
+                "volume": 1000.0,
+                "time": 1_000_000 + 8 * 86_400_000,
+            }
+        )
+        ri = Runtime().run(src, bars, mode="interpret")
+        rc = Runtime().run(src, bars, mode="compile")
+        assert "error" not in ri and "error" not in rc, (ri.get("error"), rc.get("error"))
+        for host, r in (("interpret", ri), ("compile", rc)):
+            d = r["series"]["dir"]
+            st = r["series"]["st"]
+            mid = r["series"]["mid"]
+            atr = r["series"]["atr"]
+            assert float(d[7]) == 1.0, f"{host}: pre-cross should be down"
+            assert float(d[8]) == -1.0, f"{host}: mid-cross must flip (not TV ratchet)"
+            atr_f = 0.0 if atr[8] is None else float(atr[8])
+            exp = float(mid[8]) - 3.0 * atr_f
+            assert abs(float(st[8]) - exp) < 1e-9, f"{host}: st {st[8]} != {exp}"
+            # Band width after warmup is factor·ATR; mid-cross is inside that band.
+            if atr_f > 0:
+                assert 3.0 * atr_f > abs(100.2 - float(mid[8]))
+
+    def test_runtime_dual_host_fixture_contract(self) -> None:
+        src = """//@version=5
+indicator("st")
+[st, dir] = ta.supertrend(3.0, 10)
+plot(st, title="st")
+plot(dir, title="dir")
+plot(ta.atr(10), title="atr")
+plot(hl2, title="mid")
+plot(close, title="c")
+"""
+        bars = _bars(60)
+        ri = Runtime().run(src, bars, mode="interpret")
+        rc = Runtime().run(src, bars, mode="compile")
+        assert "error" not in ri and "error" not in rc, (ri.get("error"), rc.get("error"))
+        assert rc.get("object_mode") is False
+        for key in ("st", "dir", "atr", "mid", "c"):
+            for a, b in zip(ri["series"][key], rc["series"][key], strict=True):
+                an = a is None or (isinstance(a, float) and a != a)
+                bn = b is None or (isinstance(b, float) and b != b)
+                if an and bn:
+                    continue
+                assert not an and not bn, f"{key}: na mismatch {a!r} {b!r}"
+                assert abs(float(a) - float(b)) < 1e-9
+
+
 class TestResidualNopythonTaKernels:
     """Always-on dual-host goldens for residual compile TA (kama/cmf/hma)."""
 

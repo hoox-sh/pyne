@@ -1685,21 +1685,45 @@ class StatementEvaluator:
         statements like Console's interactive demo (``testLabel.delete()`` …).
         """
         tree = parse_pine(source, mode="exec")
-        for stmt in getattr(tree, "body", []) or []:
-            kind = type(stmt).__name__
-            if kind in {"FunctionDef", "TypeDef", "EnumDef", "Import"}:
-                self.visit(stmt)  # type: ignore[attr-defined]
-                continue
-            if kind == "Assign":
-                # const / exported vars used by methods
-                self.visit(stmt)  # type: ignore[attr-defined]
-                continue
-            if kind == "Expr":
-                val = getattr(stmt, "value", None)
-                if isinstance(val, ast.Call):
-                    func = val.func
-                    if isinstance(func, ast.Name) and func.id in {"library", "indicator", "strategy"}:
-                        self.visit(stmt)  # type: ignore[attr-defined]
+        # Isolate pending exports so the consumer Script walk does not steal
+        # them, and finalize before visit_Import falls through to a stub.
+        saved_active = getattr(self, "_active_library", None)
+        saved_pending = getattr(self, "_pending_library_exports", None)
+        self._active_library = None  # type: ignore[attr-defined]
+        self._pending_library_exports = {}  # type: ignore[attr-defined]
+        try:
+            for stmt in getattr(tree, "body", []) or []:
+                kind = type(stmt).__name__
+                if kind in {"FunctionDef", "TypeDef", "EnumDef", "Import"}:
+                    self.visit(stmt)  # type: ignore[attr-defined]
+                    continue
+                if kind == "Assign":
+                    # const / exported vars used by methods
+                    self.visit(stmt)  # type: ignore[attr-defined]
+                    continue
+                if kind == "Expr":
+                    val = getattr(stmt, "value", None)
+                    if isinstance(val, ast.Call):
+                        func = val.func
+                        if isinstance(func, ast.Name) and func.id in {
+                            "library",
+                            "indicator",
+                            "strategy",
+                        }:
+                            last = self.visit(stmt)  # type: ignore[attr-defined]
+                            if (
+                                isinstance(last, ScriptDeclaration)
+                                and last.script_type == "library"
+                            ):
+                                self._active_library = LibraryModule(  # type: ignore[attr-defined]
+                                    title=str(last.title)
+                                )
+            self._finalize_library_registration()
+        finally:
+            self._active_library = saved_active  # type: ignore[attr-defined]
+            self._pending_library_exports = (  # type: ignore[attr-defined]
+                saved_pending if saved_pending is not None else {}
+            )
 
     def visit_Import(self, node: ast.Import):
         """Resolve ``import namespace/name/version [as alias]`` against the library registry.

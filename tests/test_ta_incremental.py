@@ -2097,11 +2097,12 @@ def _bar_walk_full_supertrend(
     ev = _FullTA()
     out: list[tuple[float, int]] = []
     for i in range(len(closes)):
-        out.append(
-            ev._builtin_ta_supertrend(
-                [highs[: i + 1], lows[: i + 1], atr_period, factor]
-            )
-        )
+        ev.current_series = {
+            "high": highs[: i + 1],
+            "low": lows[: i + 1],
+            "close": closes[: i + 1],
+        }
+        out.append(ev._builtin_ta_supertrend([factor, atr_period]))
     return out
 
 
@@ -2116,12 +2117,36 @@ def _bar_walk_inc_supertrend(
     out: list[tuple[float, int]] = []
     for i in range(len(closes)):
         ev._ta_call_i = 0
-        # Full path uses context close when only high/low given; feed closes explicitly
+        ev.current_series = {
+            "high": highs[: i + 1],
+            "low": lows[: i + 1],
+            "close": closes[: i + 1],
+        }
         out.append(
             ev._supertrend_inc_update(
                 highs[: i + 1], lows[: i + 1], closes[: i + 1], factor, atr_period
             )
         )
+    return out
+
+
+def _simplified_supertrend_expected(
+    highs: list[float],
+    lows: list[float],
+    closes: list[float],
+    factor: float,
+    atr_period: int,
+) -> list[tuple[float, int]]:
+    """Oracle: mid ± factor·ATR via full ``ta.atr`` (na ATR → 0)."""
+    ev = _FullTA()
+    out: list[tuple[float, int]] = []
+    for i in range(len(closes)):
+        atr_val = ev._builtin_ta_atr(
+            [highs[: i + 1], lows[: i + 1], closes[: i + 1], atr_period]
+        )
+        if isinstance(atr_val, list):
+            atr_val = atr_val[-1] if atr_val else 0.0
+        out.append(ev._supertrend(highs[i], lows[i], closes[i], factor, atr_val))
     return out
 
 
@@ -2182,36 +2207,41 @@ def test_incremental_dmi_matches_full() -> None:
                 _assert_num_close(g[j], e[j], i=i)
 
 
+def _ohlc_supertrend_both_dirs(
+    n: int = 120,
+) -> tuple[list[float], list[float], list[float]]:
+    """OHLC where close sits above mid on some bars and below on others."""
+    closes = _series(n)
+    highs: list[float] = []
+    lows: list[float] = []
+    for i, c in enumerate(closes):
+        if i % 5 < 2:
+            highs.append(c + 0.2)
+            lows.append(c - 1.6)
+        else:
+            highs.append(c + 1.6)
+            lows.append(c - 0.2)
+    return highs, lows, closes
+
+
 def test_incremental_supertrend_matches_full() -> None:
-    highs, lows, closes = _ohlc(120)
-    # Full supertrend 3-arg form: high, low, length, multiplier — uses context close
-    # Compare via shared ATR path: full builtin vs inc kernel with same closes.
-    for factor, period in ((3.0, 10), (2.0, 14)):
+    """Interpret inc, interpret full, and ``_supertrend`` helper share mid±factor·ATR."""
+    highs, lows, closes = _ohlc_supertrend_both_dirs(120)
+    for factor, period in ((3.0, 10), (2.0, 14), (1.5, 7)):
         got = _bar_walk_inc_supertrend(highs, lows, closes, factor, period)
-        # Full path without context close falls back to highs as close
-        exp_full = _FullTA()
-        exp: list[tuple[float, int]] = []
-        for i in range(len(closes)):
-            # Match inc by computing simplified formula with full ATR last value
-            h, l, c = highs[: i + 1], lows[: i + 1], closes[: i + 1]
-            atr_val = exp_full._builtin_ta_atr([h, l, c, period])
-            if isinstance(atr_val, list):
-                atr_val = atr_val[-1] if atr_val else 0.0
-            if atr_val is None or not isinstance(atr_val, (int, float)):
-                atr_val = 0.0
-            ch = h[-1] if isinstance(h[-1], (int, float)) else 0.0
-            cl = l[-1] if isinstance(l[-1], (int, float)) else 0.0
-            cc = c[-1] if isinstance(c[-1], (int, float)) else ch
-            mid = (ch + cl) / 2.0
-            upper = mid + factor * float(atr_val)
-            lower = mid - factor * float(atr_val)
-            direction = -1 if cc >= mid else 1
-            st = lower if direction < 0 else upper
-            exp.append((float(st), direction))
-        assert len(got) == len(exp)
-        for i, (g, e) in enumerate(zip(got, exp, strict=True)):
-            assert g[1] == e[1], f"bar {i}: direction {g[1]} != {e[1]}"
+        full = _bar_walk_full_supertrend(highs, lows, closes, factor, period)
+        exp = _simplified_supertrend_expected(highs, lows, closes, factor, period)
+        assert len(got) == len(full) == len(exp)
+        n_up = n_down = 0
+        for i, (g, f, e) in enumerate(zip(got, full, exp, strict=True)):
+            assert g[1] == f[1] == e[1], f"bar {i}: dir inc={g[1]} full={f[1]} exp={e[1]}"
             _assert_num_close(g[0], e[0], i=i)
+            _assert_num_close(f[0], e[0], i=i)
+            if e[1] < 0:
+                n_up += 1
+            else:
+                n_down += 1
+        assert n_up >= 1 and n_down >= 1, f"factor={factor}: up={n_up} down={n_down}"
 
 
 def test_runtime_round5_incremental_vs_disabled(monkeypatch: pytest.MonkeyPatch) -> None:

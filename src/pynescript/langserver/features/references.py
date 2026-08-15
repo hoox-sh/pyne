@@ -136,6 +136,37 @@ class ReferencesFinder(NodeVisitor):
         for stmt in node.body:
             self.visit(stmt)
 
+    def visit_EnumDef(self, node: ast.EnumDef) -> Any:
+        """Handle enum type / member declarations and walk members."""
+        if node.name == self.target_name and self.include_declaration:
+            self._add_location(node.name, node.lineno)
+            self.declaration_found = True
+        member = None
+        if node.name and self.target_name.startswith(f"{node.name}."):
+            member = self.target_name[len(node.name) + 1 :]
+        for stmt in node.body:
+            if isinstance(stmt, ast.Assign) and isinstance(stmt.target, ast.Name):
+                if stmt.target.id == self.target_name or (member and stmt.target.id == member):
+                    if self.include_declaration:
+                        self._add_location(stmt.target.id, stmt.target.lineno)
+                        self.declaration_found = True
+            self.visit(stmt)
+
+    def visit_Attribute(self, node: ast.Attribute) -> Any:
+        """Handle ``Enum.member`` / ``module.member`` attribute uses."""
+        value = getattr(node, "value", None)
+        attr = getattr(node, "attr", None)
+        if isinstance(value, ast.Name) and isinstance(attr, str):
+            dotted = f"{value.id}.{attr}"
+            if (
+                dotted == self.target_name
+                or attr == self.target_name
+                or value.id == self.target_name
+            ):
+                self._add_location(dotted, getattr(node, "lineno", None) or 1)
+        if value is not None:
+            self.visit(value)
+
     def visit_Call(self, node: ast.Call) -> Any:
         """Handle function calls."""
         if isinstance(node.func, ast.Name):

@@ -381,6 +381,98 @@ def test_strategy_exit_trail_price_activation_long():
     assert e._strategy_state.position_direction == "flat"
 
 
+def test_strategy_exit_trail_points_wins_over_offset():
+    """When both set, trail_points is the tick distance (TV); wider offset is ignored."""
+    e = NodeLiteralEvaluator()
+    e._strategy_state.mintick = 0.01
+    e.context = {
+        "open": 100.0,
+        "high": 100.0,
+        "low": 100.0,
+        "close": 100.0,
+        "bar_index": 0,
+        "time": 0,
+    }
+    m = e._build_builtin_map()
+    m["strategy.entry"](["L", "long", 2.0])
+    # points=100 → $1; offset=500 would be $5 if it won
+    m["strategy.exit"]([], {"id": "XT", "trail_points": 100.0, "trail_offset": 500.0})
+    trail = e._strategy_state.pending_orders["XT"]
+    assert trail.is_trail
+    assert trail.trail_offset == pytest.approx(1.0)
+    e.context.update({"open": 109.5, "high": 110.0, "low": 109.2, "close": 109.8, "bar_index": 1})
+    e.process_pending_orders(open_=109.5, high=110.0, low=109.2, close=109.8)
+    assert e._strategy_state.position_direction == "long"
+    assert e._strategy_state.pending_orders["XT"].stop_price == pytest.approx(109.0)
+
+
+def test_strategy_exit_trail_nonpositive_points_falls_back_to_offset():
+    """na / ≤0 trail_points is ignored (not na→0) so a valid trail_offset still trails."""
+    e = NodeLiteralEvaluator()
+    e._strategy_state.mintick = 0.01
+    e.context = {
+        "open": 100.0,
+        "high": 100.0,
+        "low": 100.0,
+        "close": 100.0,
+        "bar_index": 0,
+        "time": 0,
+    }
+    m = e._build_builtin_map()
+    m["strategy.entry"](["L", "long", 1.0])
+    # 0 "wins" would disable trail and market-close; must fall back to offset=100
+    m["strategy.exit"]([], {"id": "XT", "trail_points": 0.0, "trail_offset": 100.0})
+    assert e._strategy_state.position_direction == "long"
+    trail = e._strategy_state.pending_orders["XT"]
+    assert trail.is_trail
+    assert trail.trail_offset == pytest.approx(1.0)
+    e2 = NodeLiteralEvaluator()
+    e2._strategy_state.mintick = 0.01
+    e2.context = dict(e.context)
+    m2 = e2._build_builtin_map()
+    m2["strategy.entry"](["L", "long", 1.0])
+    m2["strategy.exit"]([], {"id": "XT", "trail_points": float("nan"), "trail_offset": 100.0})
+    assert e2._strategy_state.pending_orders["XT"].trail_offset == pytest.approx(1.0)
+    assert e2._strategy_state.position_direction == "long"
+
+
+def test_strategy_exit_trail_offset_short_ratchets_and_fills():
+    """Short trail: buy-stop ratchets down with low, then fills on a bounce."""
+    e = NodeLiteralEvaluator()
+    e._strategy_state.mintick = 0.01
+    e.context = {
+        "open": 100.0,
+        "high": 100.0,
+        "low": 100.0,
+        "close": 100.0,
+        "bar_index": 0,
+        "time": 0,
+    }
+    m = e._build_builtin_map()
+    m["strategy.entry"](["S", "short", 2.0])
+    m["strategy.exit"]([], {"id": "XT", "trail_offset": 100.0})
+    trail = e._strategy_state.pending_orders["XT"]
+    assert trail.is_trail
+    assert trail.direction == "buy"
+    assert trail.trail_offset == pytest.approx(1.0)
+    # Favorable drop: low 90 → stop 91; high stays below stop
+    e.context.update({"open": 90.5, "high": 90.8, "low": 90.0, "close": 90.2, "bar_index": 1})
+    e.process_pending_orders(open_=90.5, high=90.8, low=90.0, close=90.2)
+    assert e._strategy_state.position_direction == "short"
+    assert e._strategy_state.pending_orders["XT"].stop_price == pytest.approx(91.0)
+    # Mild bounce still below stop — no fill; trail does not raise
+    e.context.update({"open": 90.5, "high": 90.9, "low": 90.4, "close": 90.8, "bar_index": 2})
+    e.process_pending_orders(open_=90.5, high=90.9, low=90.4, close=90.8)
+    assert e._strategy_state.position_direction == "short"
+    assert e._strategy_state.pending_orders["XT"].stop_price == pytest.approx(91.0)
+    # Break stop
+    e.context.update({"open": 90.8, "high": 92.0, "low": 90.7, "close": 91.5, "bar_index": 3})
+    e.process_pending_orders(open_=90.8, high=92.0, low=90.7, close=91.5)
+    assert e._strategy_state.position_direction == "flat"
+    assert e._strategy_state.position_size == 0.0
+    assert e._strategy_state.closed_trades[0].exit_price == pytest.approx(91.0)
+
+
 def _exit_eval(*, px: float = 100.0, mintick: float = 0.01):
     e = NodeLiteralEvaluator()
     e._strategy_state.mintick = mintick

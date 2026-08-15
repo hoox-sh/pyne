@@ -158,7 +158,8 @@ systemctl restart axis-pwa.service
 sleep 1
 systemctl is-active pynescript-api.service axis-pwa.service
 curl -s -o /dev/null -w "api=%{http_code}\n" --max-time 5 http://127.0.0.1:5002/ || true
-curl -s -o /dev/null -w "axis=%{http_code}\n" --max-time 5 http://127.0.0.1:8081/ || true
+# VPS axis-pwa binds 127.0.0.1:80 (local PWA is :8081)
+curl -s -o /dev/null -w "axis=%{http_code}\n" --max-time 5 http://127.0.0.1:80/ || true
 EOF
 
 echo "==> done"

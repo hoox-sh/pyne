@@ -21,7 +21,7 @@
 
 Public handlers:
 
-- :func:`handle_completion` — prefix / ``.``-triggered builtins and modules
+- :func:`handle_completion` — prefix / ``.``-triggered builtins, keywords, user enums
 - :func:`handle_completion_resolve` — fill documentation for a completion item
 
 Uses :mod:`pynescript.langserver.providers.builtin_metadata` and
@@ -32,35 +32,46 @@ Uses :mod:`pynescript.langserver.providers.builtin_metadata` and
 
 from __future__ import annotations
 
+from typing import Any
+
 from lsprotocol import types as lsp
 
 from pynescript.langserver.protocol.utils import get_trigger_char
-from pynescript.langserver.protocol.utils import get_word_at_position
+from pynescript.langserver.protocol.utils import trailing_ident
 from pynescript.langserver.providers.builtin_metadata import get_builtin
 from pynescript.langserver.providers.completion_items import build_completion_item
 from pynescript.langserver.providers.completion_items import build_completion_list
+from pynescript.langserver.providers.completion_items import build_enum_member_completion
+from pynescript.langserver.providers.completion_items import build_enum_name_items
+from pynescript.langserver.providers.completion_items import build_keyword_items
 from pynescript.langserver.providers.completion_items import build_module_completion
+from pynescript.langserver.providers.completion_items import collect_user_enums
 
 
-def handle_completion(params: lsp.CompletionParams, source: str | None) -> lsp.CompletionList:
+def handle_completion(
+    params: lsp.CompletionParams,
+    source: str | None,
+    tree: Any | None = ...,
+) -> lsp.CompletionList:
     """Return a completion list for the cursor position in *source*.
 
-    Dot-prefix paths (e.g. ``ta.``) complete module members; otherwise returns
-    filtered builtins for the typed prefix.
+    Dot-prefix paths (e.g. ``ta.`` / ``Side.``) complete module or user-enum
+    members; otherwise returns keywords, user enums, and filtered builtins.
 
     Args:
         params: Client ``CompletionParams`` (position / context).
         source: Document text, or ``None`` if unknown.
+        tree: Pre-parsed AST from the workspace cache. Pass ``None`` when the
+            workspace already failed to parse. Omit (default ``...``) to parse
+            from *source*.
 
     Returns:
         Always a :class:`~lsprotocol.types.CompletionList` (may be empty).
     """
-    # Get context
     position = params.position
     line = position.line
     character = position.character
 
-    # Get the text before cursor
     if source:
         lines = source.split("\n")
         if line < len(lines):
@@ -70,32 +81,39 @@ def handle_completion(params: lsp.CompletionParams, source: str | None) -> lsp.C
     else:
         text_before_cursor = ""
 
-    # Check for trigger character
     trigger_char = get_trigger_char(source or "", line, character)
+    prefix = trailing_ident(text_before_cursor)
 
-    # Get the current word being typed
-    word, word_start, word_end = get_word_at_position(source or "", line, character)
+    enums = collect_user_enums(_resolve_tree(source, tree), source)
 
-    # Determine what to complete
-    prefix = text_before_cursor.split()[-1] if text_before_cursor else ""
+    if "." in prefix or trigger_char == ".":
+        module, sep, rest = prefix.rpartition(".")
+        if not sep and trigger_char == ".":
+            module = prefix
+            rest = ""
+        if module:
+            enum_info = enums.get(module)
+            if enum_info is not None:
+                return build_enum_member_completion(enum_info, member_prefix=rest)
+            return build_module_completion(module, member_prefix=rest)
 
-    # If we have a dot, check for module completion
-    if "." in prefix:
-        module = prefix.rsplit(".", 1)[0]
-        return build_module_completion(module)
+    extras = build_keyword_items(prefix) + build_enum_name_items(enums, prefix)
+    builtin = build_completion_list(prefix=prefix)
+    return lsp.CompletionList(is_incomplete=False, items=extras + builtin.items)
 
-    # If triggered by dot, complete module members
-    if trigger_char == ".":
-        # Find the module name before the dot
-        words = text_before_cursor.rstrip().split()
-        if words:
-            last_word = words[-1]
-            if last_word.endswith("."):
-                module = last_word.rstrip(".")
-                return build_module_completion(module)
 
-    # Otherwise, complete all builtins
-    return build_completion_list(prefix=prefix)
+def _resolve_tree(source: str | None, tree: Any | None) -> Any | None:
+    """Use *tree* when provided; otherwise parse *source* (best-effort)."""
+    if tree is not ...:
+        return tree
+    if not source:
+        return None
+    try:
+        from pynescript.ast.helper import parse
+
+        return parse(source)
+    except Exception:
+        return None
 
 
 def handle_completion_resolve(

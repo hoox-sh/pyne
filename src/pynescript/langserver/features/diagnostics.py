@@ -30,6 +30,8 @@ module provides shared helpers and optional quick-fix construction:
 
 from __future__ import annotations
 
+import re
+
 from lsprotocol import types as lsp
 
 from pynescript.ast.linter import LintWarning
@@ -49,11 +51,43 @@ def lint_warnings_to_diagnostics(warnings: list[LintWarning], source: str) -> li
     diagnostics = []
 
     for warning in warnings:
+        if _is_noisy_lint_warning(warning, source):
+            continue
         diag = _lint_warning_to_diagnostic(warning, source)
         if diag:
             diagnostics.append(diag)
 
     return diagnostics
+
+
+def _is_noisy_lint_warning(warning: LintWarning, source: str) -> bool:
+    """True when a linter hit is a known false positive for the editor.
+
+    C001 fires on any ``ta.*`` assignment whose name starts with a lowercase
+    letter — including already-camelCase names (``fastMA``, ``length``).
+    C003 flags every indented ``if``, including multi-line block forms.
+    """
+    if warning.code == "C001":
+        match = re.search(r"Variable '(\w+)'", warning.message or "")
+        return bool(match and "_" not in match.group(1))
+    if warning.code == "C003" and warning.line:
+        return _c003_is_block_if(source, warning.line)
+    return False
+
+
+def _c003_is_block_if(source: str, line: int) -> bool:
+    """True when the next non-empty line is more indented than *line*."""
+    lines = source.split("\n")
+    idx = line - 1
+    if idx < 0 or idx >= len(lines):
+        return False
+    current = lines[idx]
+    cur_indent = len(current) - len(current.lstrip())
+    for nxt in lines[idx + 1 :]:
+        if not nxt.strip():
+            continue
+        return (len(nxt) - len(nxt.lstrip())) > cur_indent
+    return False
 
 
 def _lint_warning_to_diagnostic(warning: LintWarning, source: str) -> lsp.Diagnostic | None:

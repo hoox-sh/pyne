@@ -77,6 +77,107 @@ NEAR_ZERO_THRESHOLD = 0.0
 class AdvancedIndicators(TechnicalHelpers):
     """Extended ``ta.*`` analytics: regimes, market structure, synthesis helpers."""
 
+    # -- Supertrend (simplified mid ± factor·ATR; not TV ratchet) ----------
+
+    def _supertrend_atr_or_zero(self, atr_val: Any) -> float:
+        """Coerce ATR for Supertrend: ``None`` / non-numeric / NaN → 0.0."""
+        if atr_val is None or not isinstance(atr_val, (int, float)):
+            return 0.0
+        try:
+            atr_f = float(atr_val)
+        except (TypeError, ValueError):
+            return 0.0
+        if math.isnan(atr_f):
+            return 0.0
+        return atr_f
+
+    def _supertrend(
+        self,
+        high: Any,
+        low: Any,
+        close: Any,
+        factor: float,
+        atr: Any,
+    ) -> tuple[float, int]:
+        """Simplified Supertrend band + direction (dual-host contract).
+
+        ``mid = (high+low)/2``, ``band = mid ± factor·ATR``,
+        ``direction = -1`` if ``close >= mid`` else ``+1``,
+        ``supertrend = lower`` on up / ``upper`` on down.
+        NaN/None ATR is 0.0 (warmup band collapses to mid).
+
+        Shared with ``_supertrend_inc_update`` and Numba
+        ``numba_supertrend`` / ``numba_supertrend_inc``. **Not** the
+        reference Pine final-band ratchet.
+        """
+        atr_f = self._supertrend_atr_or_zero(atr)
+        try:
+            current_high = float(high) if high is not None else 0.0
+            current_low = float(low) if low is not None else 0.0
+            current_close = float(close) if close is not None else current_high
+        except (TypeError, ValueError):
+            current_high = current_low = current_close = 0.0
+        mid = (current_high + current_low) / 2.0
+        factor_f = float(factor)
+        direction = -1 if current_close >= mid else 1
+        supertrend = mid - factor_f * atr_f if direction < 0 else mid + factor_f * atr_f
+        return float(supertrend), direction
+
+    def _supertrend_inc_update(
+        self,
+        highs: list[Any],
+        lows: list[Any],
+        closes: list[Any],
+        factor: float,
+        atr_period: int,
+    ) -> tuple[float, int]:
+        """Incremental Supertrend: ATR slot then :meth:`_supertrend`."""
+        atr_val = self._atr_inc_update(highs, lows, closes, atr_period)
+        h = self._series_last(highs)
+        l = self._series_last(lows)
+        c = self._series_last(closes)
+        return self._supertrend(h, l, c, factor, atr_val)
+
+    def _builtin_ta_supertrend(self, args: list[Any]) -> tuple[float, int]:
+        """``ta.supertrend(factor, atrPeriod)`` → ``[supertrend, direction]``.
+
+        Also accepts legacy ``(high, low, length, multiplier)``.
+        Full path uses :meth:`_supertrend`; incremental uses
+        :meth:`_supertrend_inc_update`. Same simplified contract as Numba.
+        """
+        if len(args) == BINARY and all(
+            isinstance(a, (int, float)) and not isinstance(a, bool) for a in args
+        ):
+            factor = float(args[0])
+            atr_period = self._expect_int(args[1], "ta.supertrend atrPeriod must be int")
+            highs = self._context_series("high")
+            lows = self._context_series("low")
+            closes = self._context_series("close")
+        elif len(args) >= TERNARY:
+            highs = self._as_series(args[0])
+            lows = self._as_series(args[1])
+            atr_period = self._expect_int(args[2], "ta.supertrend length must be int")
+            factor = float(args[3]) if len(args) > 3 and isinstance(args[3], (int, float)) else 3.0
+            closes = self._context_series("close") or highs
+        else:
+            self._error("ta.supertrend takes factor, atrPeriod (or high, low, length, multiplier)")
+            return 0.0, 1
+
+        if atr_period < 1:
+            self._error("ta.supertrend length must be positive")
+
+        close_s = closes if closes else highs
+        if self._use_incremental_ta():
+            return self._supertrend_inc_update(highs, lows, close_s, factor, atr_period)
+
+        atr_val = self._builtin_ta_atr([highs, lows, close_s, atr_period])
+        if isinstance(atr_val, list):
+            atr_val = atr_val[-1] if atr_val else 0.0
+        current_high = highs[-1] if highs and isinstance(highs[-1], (int, float)) else 0.0
+        current_low = lows[-1] if lows and isinstance(lows[-1], (int, float)) else 0.0
+        current_close = close_s[-1] if close_s and isinstance(close_s[-1], (int, float)) else current_high
+        return self._supertrend(current_high, current_low, current_close, factor, atr_val)
+
     # -- Tier 5: Market Structure & Advanced Patterns ----------------------
 
     def _builtin_ta_ichimoku(self, args: list[Any]) -> dict[str, float | None]:

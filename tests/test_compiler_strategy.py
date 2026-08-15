@@ -781,6 +781,71 @@ plot(strategy.closedtrades, title="ct")
         b.begin_bar(3, 111.0, 111.0, 109.0, 109.5)
         assert b.position_size == 0.0
 
+    def test_exit_trail_points_wins_over_offset(self) -> None:
+        """When both set, trail_points is the tick distance (TV); wider offset is ignored."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0, mintick=0.01, commission_value=0.0)
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.entry("L", "long", 2.0)
+        # points=100 → $1; offset=500 would be $5 if it won
+        b.close(comment="XT", trail_points=100.0, trail_offset=500.0)
+        trail = next(po for po in b.pending_orders.values() if po.is_trail)
+        assert trail.trail_offset == pytest.approx(1.0)
+        assert trail.trail_active is True
+        b.begin_bar(1, 109.5, 110.0, 109.2, 109.8)
+        assert b.position_size == 2.0
+        trail = next(po for po in b.pending_orders.values() if po.is_trail)
+        assert trail.stop_price == pytest.approx(109.0)
+
+    def test_exit_trail_nonpositive_points_falls_back_to_offset(self) -> None:
+        """na / ≤0 trail_points is ignored so a valid trail_offset still trails."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0, mintick=0.01, commission_value=0.0)
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.entry("L", "long", 1.0)
+        # 0 "wins" would disable trail and market-close; must fall back to offset
+        b.close(comment="XT", trail_points=0.0, trail_offset=100.0)
+        assert b.position_size == 1.0
+        trail = next(po for po in b.pending_orders.values() if po.is_trail)
+        assert trail.trail_offset == pytest.approx(1.0)
+        b2 = CompileStrategyBroker(initial_capital=10_000.0, mintick=0.01, commission_value=0.0)
+        b2.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b2.entry("L", "long", 1.0)
+        b2.close(comment="XT", trail_points=float("nan"), trail_offset=100.0)
+        assert b2.position_size == 1.0
+        trail2 = next(po for po in b2.pending_orders.values() if po.is_trail)
+        assert trail2.trail_offset == pytest.approx(1.0)
+
+    def test_exit_trail_offset_short_ratchets_and_fills(self) -> None:
+        """Short trail: buy-stop ratchets down with low, then fills on a bounce."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0, mintick=0.01, commission_value=0.0)
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.entry("S", "short", 2.0)
+        b.close(comment="XT", trail_offset=100.0)
+        trail = next(po for po in b.pending_orders.values() if po.is_trail)
+        assert trail.direction == "long"
+        assert trail.trail_offset == pytest.approx(1.0)
+        assert trail.trail_active is True
+        # Favorable drop: low 90 → stop 91; high stays below stop
+        b.begin_bar(1, 90.5, 90.8, 90.0, 90.2)
+        assert b.position_size == -2.0
+        trail = next(po for po in b.pending_orders.values() if po.is_trail)
+        assert trail.stop_price == pytest.approx(91.0)
+        # Mild bounce still below stop — no fill; trail does not raise
+        b.begin_bar(2, 90.5, 90.9, 90.4, 90.8)
+        assert b.position_size == -2.0
+        trail = next(po for po in b.pending_orders.values() if po.is_trail)
+        assert trail.stop_price == pytest.approx(91.0)
+        # Break stop
+        b.begin_bar(3, 90.8, 92.0, 90.7, 91.5)
+        assert b.position_size == 0.0
+        assert b.closed_trades == 1
+        assert b.netprofit == pytest.approx((100.0 - 91.0) * 2.0)
+
     def test_exit_trail_from_entry_qty(self) -> None:
         """Trail exit with from_entry only reduces matching pyramid leg qty."""
         from pynescript.compiler.strategy_broker import CompileStrategyBroker

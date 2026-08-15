@@ -5077,10 +5077,11 @@ def numba_dmi_inc(high, low, close, di_len, adx_smooth, i, st):
 
 @numba.njit(cache=True)
 def numba_supertrend(high, low, close, factor, atr_period, i):
-    """Simplified Supertrend matching interpret BasicIndicators (not reference ratchet).
+    """Simplified Supertrend matching interpret ``_supertrend`` (not TV ratchet).
 
-    Returns ``(supertrend, direction)`` with direction -1 (up) / +1 (down).
-    ATR via ``numba_atr``; nan ATR treated as 0.0.
+    ``mid=(H+L)/2``; ``dir=-1`` if ``close>=mid`` else ``+1``;
+    band = lower (up) / upper (down) = ``mid ± factor·ATR``.
+    ATR via ``numba_atr``; nan ATR → 0.0 (warmup ``st == mid``).
     """
     atr_period = int(atr_period)
     atr_v = numba_atr(high, low, close, atr_period, i)
@@ -5098,7 +5099,10 @@ def numba_supertrend(high, low, close, factor, atr_period, i):
 
 @numba.njit(cache=True)
 def numba_supertrend_inc(high, low, close, factor, atr_period, i, st):
-    """Incremental Supertrend. ``st`` length 2 — shared with ``numba_atr_inc``."""
+    """Incremental Supertrend. Same simplified mid±factor·ATR as ``numba_supertrend``.
+
+    ``st`` length 2 — shared with ``numba_atr_inc``. Nan ATR → 0.0.
+    """
     atr_period = int(atr_period)
     atr_v = numba_atr_inc(high, low, close, atr_period, i, st)
     if np.isnan(atr_v):

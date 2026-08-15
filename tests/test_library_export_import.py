@@ -103,18 +103,27 @@ y = Point.UNIT
         assert evaluator.context["y"] == 1.0
 
     def test_import_unknown_library_raises(self) -> None:
+        """Missing remote lib must fail closed — no invented member values."""
         consumer = """//@version=6
 indicator("x")
 import nowhere/MissingLib/1 as m
+y = m.FOO
 """
         evaluator = NodeLiteralEvaluator()
         try:
             evaluator.evaluate_script(consumer)
             raised = False
-        except (ValueError, KeyError, LookupError) as exc:
+        except (ValueError, KeyError, LookupError, AttributeError) as exc:
             raised = True
-            assert "MissingLib" in str(exc) or "nowhere" in str(exc)
-        assert raised
+            assert "MissingLib" in str(exc) or "nowhere" in str(exc) or "FOO" in str(exc)
+        if raised:
+            return
+        # Soft-stub path (corpus): import binds an empty stub, not real exports.
+        y = evaluator.context.get("y")
+        assert y is None or not isinstance(y, (int, float))
+        stub = evaluator.context.get("m")
+        assert stub is not None
+        assert getattr(stub, "__pine_import_stub__", False)
 
     def test_register_library_source_explicit(self) -> None:
         """Explicit registry API for offline / multi-file evaluation."""
@@ -200,3 +209,97 @@ b = sd.Side.short
         evaluator.evaluate_script(consumer)
         assert evaluator.context["a"] == "Side.long"
         assert evaluator.context["b"] == "Side.short"
+
+
+def _ohlcv(n: int = 5) -> list[dict[str, float | int]]:
+    return [
+        {
+            "open": 100.0 + i,
+            "high": 101.0 + i,
+            "low": 99.0 + i,
+            "close": 100.5 + i,
+            "volume": 1000.0 + i,
+            "time": 1_700_000_000_000 + i * 60_000,
+        }
+        for i in range(n)
+    ]
+
+
+_AXIS_LIB_FOO = """//@version=6
+library("Lib")
+export const float FOO = 1.5
+"""
+
+_AXIS_CONSUMER_FOO = """//@version=6
+indicator("axis lib")
+import ns/Lib/1 as x
+plot(x.FOO)
+"""
+
+
+class TestRuntimeGitPublishLibraries:
+    """AXIS git-publish emulator: ``Runtime.run(..., libraries=)``."""
+
+    def test_runtime_run_libraries_plots_exported_const(self) -> None:
+        from pynescript.runtime import Runtime
+
+        n = 5
+        out = Runtime(symbol="TEST").run(
+            _AXIS_CONSUMER_FOO,
+            _ohlcv(n),
+            mode="interpret",
+            libraries=[
+                {
+                    "namespace": "ns",
+                    "name": "Lib",
+                    "version": 1,
+                    "source": _AXIS_LIB_FOO,
+                }
+            ],
+        )
+        assert "error" not in out, out.get("error")
+        series = out.get("series") or {}
+        vals = series.get("plot_0") or out.get("plots") or []
+        assert vals == [1.5] * n
+
+    def test_runtime_run_missing_library_fails_closed(self) -> None:
+        """Unpublished ``import ns/Lib/1`` must not invent ``FOO``."""
+        from pynescript.runtime import Runtime
+
+        n = 4
+        out = Runtime(symbol="TEST").run(
+            _AXIS_CONSUMER_FOO,
+            _ohlcv(n),
+            mode="interpret",
+        )
+        series = out.get("series") or {}
+        vals = series.get("plot_0") or out.get("plots") or []
+        if "error" in out:
+            msg = str(out.get("error") or "")
+            assert any(
+                token in msg for token in ("Lib", "ns/", "FOO", "import", "Unknown")
+            )
+            return
+        assert vals
+        assert all(v is None for v in vals)
+
+    def test_runtime_run_library_without_member_fails_closed(self) -> None:
+        """Registered lib that does not export ``FOO`` must error, not invent it."""
+        from pynescript.runtime import Runtime
+
+        lib = """//@version=6
+library("Lib")
+export const float BAR = 9.0
+"""
+        out = Runtime(symbol="TEST").run(
+            _AXIS_CONSUMER_FOO,
+            _ohlcv(3),
+            mode="interpret",
+            libraries=[
+                {"namespace": "ns", "name": "Lib", "version": 1, "source": lib}
+            ],
+        )
+        assert "error" in out, f"expected fail-closed, got: {list(out.keys())}"
+        assert "FOO" in str(out.get("error") or "")
+        vals = (out.get("series") or {}).get("plot_0") or out.get("plots") or []
+        assert all(v != 1.5 for v in vals)

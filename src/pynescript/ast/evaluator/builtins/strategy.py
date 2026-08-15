@@ -1299,8 +1299,10 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         """Parse trail_price / trail_offset / trail_points → (activation, offset_price).
 
         Distances are in **ticks** (× :meth:`_mintick`) per Pine. Prefer
-        ``trail_points`` when both offset and points are set (TV reference).
-        Returns ``(None, None)`` when trail is not configured or offset is na/≤0.
+        ``trail_points`` when it is a positive tick distance (TV: points wins
+        over offset when both are set). ``na`` / ``≤0`` is ignored — not
+        coerced to 0 — so a valid ``trail_offset`` can still apply.
+        Returns ``(None, None)`` when no positive trail distance is configured.
         """
         # Pine: … stop, trail_price, trail_points, trail_offset (indices 8–10 full form)
         trail_price = self._coerce_optional_price(
@@ -1312,8 +1314,11 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         trail_offset = self._coerce_optional_price(
             kw.get("trail_offset", args[10] if len(args) > 10 else None)
         )
-        ticks = trail_points if trail_points is not None else trail_offset
-        if ticks is None or ticks <= 0:
+        if trail_points is not None and trail_points > 0:
+            ticks = trail_points
+        elif trail_offset is not None and trail_offset > 0:
+            ticks = trail_offset
+        else:
             return (None, None)
         offset_price = float(ticks) * self._mintick()
         if offset_price <= 0:

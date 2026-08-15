@@ -131,6 +131,9 @@ def _emit_for_node(node: Any, out: list[tuple[int, int, int, int, int]]) -> None
     if isinstance(node, ast.TypeDef):
         _emit_name(node, getattr(node, "name", None), _TT["class"], _MOD_DEFINITION | _MOD_DECLARATION, out)
         return
+    if isinstance(node, ast.EnumDef):
+        _emit_name(node, getattr(node, "name", None), _TT["type"], _MOD_DEFINITION | _MOD_DECLARATION, out)
+        return
     if isinstance(node, ast.Assign):
         target = getattr(node, "target", None)
         if isinstance(target, ast.Name):

@@ -11,7 +11,7 @@ Lives under `tests/fixtures/` (not `tests/data/`) so the root gitignore
 |--------|--------|
 | `plot_close.pine`, `sma.pine`, `ema.pine`, `rsi.pine`, `strategy_entry.pine` | Always-on smoke in `test_interp_compile_parity.py` |
 | `atr.pine` | Wave B Wilder RMA ATR; dual-host goldens in `test_first_party_ta_goldens.py` |
-| `supertrend.pine` | ATR consumer; dual-host goldens |
+| `supertrend.pine` | ATR consumer; simplified mid±factor·ATR (not TV ratchet); dual-host goldens |
 | `keltner.pine` | `ta.kc` (EMA ± mult×ATR); dual-host goldens |
 
 Do not put scraped third-party community scripts here.

@@ -127,6 +127,19 @@ class DefinitionFinder(NodeVisitor):
             self.visit(stmt)
         self.in_user_type = old_in_type
 
+    def visit_EnumDef(self, node: ast.EnumDef) -> Any:
+        """Handle enum type and member definitions."""
+        if node.name == self.target_name:
+            self._add_location(node.name, node.lineno)
+        member = None
+        if node.name and self.target_name.startswith(f"{node.name}."):
+            member = self.target_name[len(node.name) + 1 :]
+        for stmt in node.body:
+            if isinstance(stmt, ast.Assign) and isinstance(stmt.target, ast.Name):
+                if stmt.target.id == self.target_name or (member and stmt.target.id == member):
+                    self._add_location(stmt.target.id, stmt.target.lineno)
+            self.visit(stmt)
+
     def visit_Name(self, node: ast.Name) -> Any:
         """Handle variable references."""
         if node.id == self.target_name and node.ctx.__class__.__name__ == "Load":

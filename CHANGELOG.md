@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.8] - 2026-08-15
+
+### Added
+- Compile UDT field defaults on `Type.new()` (omitted `bool x = false` stays `False`; `bool(np.nan)` no longer trips flags). Fixes interpret↔compile `071` Entry plot.
+- `register_library_source` finalizes library exports so `Runtime.run(..., libraries=)` / `POST /run` `import ns/Lib/1` actually binds members.
+- Supertrend first-party goldens lock the simplified mid±factor·ATR contract (interpret full/inc + Numba).
+- LSP: user-enum completion/hover/outline; soft-keyword hover; `plot(ta.` leaf insert; drop C001/C003 false positives.
+
+### Fixed
+- `trail_points=0` / `na` no longer disables a valid `trail_offset` (interpret + compile).
+- VPS deploy AXIS health probe uses `:80` (not stale `:8081`).
+
+### Changed
+- Compile disk IR cache meta version **7 → 8** (UDT defaults).
+- Docs honesty: tick-offset `profit`/`loss`, omitted bid/ask `na`, H1 Runtime unify done.
+
 ## [0.3.7] - 2026-08-15
 
 ### Added

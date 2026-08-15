@@ -1,6 +1,10 @@
 //@version=5
 indicator("fp_supertrend", overlay=true)
-// Supertrend uses ATR internally (factor, atrPeriod)
+// Simplified mid±factor·ATR Supertrend (not TV band ratchet).
+// factor=3, atrPeriod=10 — ATR consumer of ta.atr(10).
 [st, dir] = ta.supertrend(3.0, 10)
 plot(st, title="st")
 plot(dir, title="dir")
+plot(ta.atr(10), title="atr")
+plot(hl2, title="mid")
+plot(close, title="c")

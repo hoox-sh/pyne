@@ -1,7 +1,7 @@
 # Known divergences from reference Pine semantics
 
-**Date:** 2026-08-10 (sprint residual refresh)  
-**Status:** intentional or residual gaps; track until closed or product-scoped  
+**Date:** 2026-08-15 (refresh)
+**Status:** intentional or residual gaps; track until closed or product-scoped
 **Sprint status:** `docs/code_audit_2026-08-10/SPRINT_STATUS.md`
 
 This page documents **semantic differences** between pynescript and **reference Pine Script** language behavior (as described in the public Pine language docs) that affect numerical or strategy results. It is not a full feature matrix (see `docs/missing_features.md` and `COMPATIBILITY.md`).
@@ -10,7 +10,7 @@ This page documents **semantic differences** between pynescript and **reference 
 
 ## Strategy
 
-### `strategy.exit` pending brackets (fixed Wave B — residual gaps)
+### `strategy.exit` pending brackets (fixed Wave B — trail still OHLC-approx)
 
 **Reference Pine:** `strategy.exit` places a pending stop/limit (bracket) that fills when price path touches the level.
 
@@ -23,9 +23,9 @@ This page documents **semantic differences** between pynescript and **reference 
 | `from_entry` (compile) | **Fixed** — compiler emits `from_entry=` for market and stop/limit exits; multi-leg filter on compile broker (`tests/test_compiler_strategy.py`) |
 | `qty_percent` on exit | **Fixed** (interpret + compile `close`) — `%` of target (whole pos or `from_entry`); wins over `qty`; `≤0`/na → no-op; `>100` capped at 100% |
 | Trail stops (`trail_*`) | **Minimal (interpret + compile)** — `trail_offset` / `trail_points` (ticks × mintick) + optional `trail_price` activation; stop ratchets from bar high/low in `process_pending_orders` / compile `PendingOrder`. OHLC path approx (no tick path). |
-| `profit` / `loss` | **Residual** — still coerced as prices (not tick offsets from entry avg) |
+| `profit` / `loss` | **Fixed** (interpret + compile) — ticks × mintick from entry avg (`_tick_offset_price`). `limit`/`stop` stay absolute prices. Absolute wins if both set. `na` / None / `≤0` ignore that leg. |
 
-**Track:** audit AGENT_03 / AGENT_04; sprint residual backlog.
+**Track:** audit AGENT_03 / AGENT_04; trail remains OHLC-approx (no tick path).
 
 ### `strategy.risk.*` partial on compile path
 
@@ -99,13 +99,13 @@ Full-list `_ema` / `_ema_state_step` and incremental / Numba paths all use **SMA
 
 Both paths now call `_bind_series_name` so history-tracked names keep series wrappers.
 
-### Default mock bid/ask
+### Omitted bid/ask
 
-When the host omits quotes, bid/ask may default to fixed mock values (`100.01` / `100.02`) rather than `na`.
+When the host omits quotes, `bid`/`ask` are **na (`None`)**, not mock prices (`100.01` / `100.02`). Defaults are filled with `setdefault` so a host or `data_feed` still wins when it sets quotes.
 
-**Impact:** Tick/spread scripts can run “successfully” with meaningless quotes.
+**Impact:** Tick/spread scripts see `na` until the host injects real quotes.
 
-**Track:** audit AGENT_02.
+**Track:** audit AGENT_02 (closed residual).
 
 ---
 
@@ -166,6 +166,6 @@ Regression coverage: `tests/test_request_data_feed.py` (foreign-na, complex HTF 
 | Reference Pine numerical fidelity | Best-effort; known gaps listed above |
 | Free Pro API tier | Chart/mock data only; bar/script/rate/concurrency caps; SSRF-safe webhooks |
 | Third-party corpora | Not required for CI; first-party fixtures under `tests/fixtures/first_party/` / `tests/data/first_party/` |
-| pine-worker | **Experimental** residual host; thin-wrap over package Runtime still open (H1) |
+| pyne-worker / pine-worker | **Not colocated** — sibling `hoox-sh/pyne-worker` is a thin wrap over package Runtime; TS `hoox-sh/pine-worker` is a separate checkout |
 
 When closing a gap, remove or update the corresponding section here and add a regression test under `tests/`.

@@ -24,17 +24,53 @@ Public builders used by :mod:`pynescript.langserver.features.completion`:
 - :func:`build_completion_list` — filtered builtins (optional category headers)
 - :func:`build_completion_item` — one :class:`~lsprotocol.types.CompletionItem`
 - :func:`build_module_completion` — members of a module prefix (e.g. ``ta``)
+- :func:`build_keyword_items` / :func:`collect_user_enums` — keywords and user enums
 
 Metadata comes from :mod:`pynescript.langserver.providers.builtin_metadata`.
 """
 
 from __future__ import annotations
 
+import re
+
+from typing import Any
+
 from lsprotocol import types as lsp
 
+from pynescript.ast import node as ast
 from pynescript.langserver.providers.builtin_metadata import fuzzy_filter
 from pynescript.langserver.providers.builtin_metadata import get_all_categories
 from pynescript.langserver.providers.builtin_metadata import get_metadata
+
+
+# Soft keywords and structural keywords not present in builtin metadata.
+# Lexer treats type/method/enum/as/by/to/const as identifiers outside keyword position.
+PINE_KEYWORDS: tuple[tuple[str, str], ...] = (
+    ("and", "Logical and"),
+    ("as", "Import alias / type cast"),
+    ("break", "Exit the innermost loop"),
+    ("by", "for-loop step"),
+    ("const", "Qualify a declaration as const"),
+    ("continue", "Skip to the next loop iteration"),
+    ("else", "Else branch"),
+    ("enum", "Declare a user-defined enum"),
+    ("export", "Export a library member"),
+    ("false", "Boolean false"),
+    ("for", "for / for...in loop"),
+    ("if", "Conditional"),
+    ("import", "Import a library"),
+    ("in", "for...in membership"),
+    ("method", "Declare a method"),
+    ("not", "Logical not"),
+    ("or", "Logical or"),
+    ("switch", "Switch expression"),
+    ("to", "for-loop end bound"),
+    ("true", "Boolean true"),
+    ("type", "Declare a user-defined type"),
+    ("var", "Persistent variable"),
+    ("varip", "Intrabar-persistent variable"),
+    ("while", "while loop"),
+)
 
 
 def build_completion_list(prefix: str = "", include_categories: bool = True) -> lsp.CompletionList:
@@ -94,11 +130,14 @@ def build_completion_list(prefix: str = "", include_categories: bool = True) -> 
     )
 
 
-def build_completion_item(info: dict) -> lsp.CompletionItem:
+def build_completion_item(info: dict, *, insert_leaf: bool = False) -> lsp.CompletionItem:
     """Build a single CompletionItem from metadata.
 
     Args:
         info: Metadata dict from builtin_metadata.
+        insert_leaf: When True, insert only the name after the last ``.``
+            (used after a module trigger so ``ta.`` + ``sma`` does not become
+            ``ta.ta.sma``).
 
     Returns:
         LSP CompletionItem.
@@ -117,6 +156,13 @@ def build_completion_item(info: dict) -> lsp.CompletionItem:
         insert_text_format = lsp.InsertTextFormat.PlainText
         insert_text = label
 
+    if insert_leaf and "." in label:
+        leaf = label.rsplit(".", 1)[-1]
+        if insert_text.startswith(label):
+            insert_text = leaf + insert_text[len(label) :]
+        elif "." in insert_text:
+            insert_text = insert_text.rsplit(".", 1)[-1]
+
     return lsp.CompletionItem(
         label=label,
         kind=lsp.CompletionItemKind.Function,
@@ -129,33 +175,220 @@ def build_completion_item(info: dict) -> lsp.CompletionItem:
     )
 
 
-def build_module_completion(module: str) -> lsp.CompletionList:
+def build_module_completion(module: str, member_prefix: str = "") -> lsp.CompletionList:
     """Build completions for a specific module.
 
     Args:
         module: The module name (e.g., "ta", "strategy").
+        member_prefix: Optional filter on the member name after the last ``.``.
 
     Returns:
         CompletionList with completions for that module.
     """
     all_metadata = get_metadata()
     prefix = module + "."
+    needle = member_prefix.lower()
 
     items = []
     for name, info in all_metadata.items():
-        if name.startswith(prefix):
-            items.append(info)
+        if not name.startswith(prefix):
+            continue
+        leaf = name[len(prefix) :]
+        if needle and not leaf.lower().startswith(needle):
+            continue
+        items.append(info)
 
-    items.sort(key=lambda x: x.get("label", ""))
+    items.sort(key=lambda x: (_module_item_rank(x.get("label", "")), x.get("label", "")))
 
     completion_items = []
     for info in items:
-        completion_items.append(build_completion_item(info))
+        completion_items.append(build_completion_item(info, insert_leaf=True))
 
     return lsp.CompletionList(
         is_incomplete=False,
         items=completion_items,
     )
+
+
+def build_keyword_items(prefix: str = "") -> list[lsp.CompletionItem]:
+    """Completion items for Pine keywords missing from builtin metadata."""
+    needle = prefix.lower()
+    items: list[lsp.CompletionItem] = []
+    for name, brief in PINE_KEYWORDS:
+        if needle and not name.startswith(needle):
+            continue
+        items.append(
+            lsp.CompletionItem(
+                label=name,
+                kind=lsp.CompletionItemKind.Keyword,
+                detail=name,
+                documentation=lsp.MarkupContent(kind=lsp.MarkupKind.Markdown, value=brief),
+                insert_text=name,
+                insert_text_format=lsp.InsertTextFormat.PlainText,
+                filter_text=name,
+                sort_text="\x00" + name,
+            )
+        )
+    return items
+
+
+_ENUM_HEADER = re.compile(r"^[ \t]*(?:export[ \t]+)?enum[ \t]+([A-Za-z_][A-Za-z0-9_]*)")
+_ENUM_MEMBER = re.compile(r"^[ \t]+([A-Za-z_][A-Za-z0-9_]*)(?:[ \t]*=[ \t]*(.+?))?[ \t]*$")
+
+
+def collect_user_enums(tree: Any, source: str | None = None) -> dict[str, dict[str, Any]]:
+    """Map user enum name → ``{name, members, lineno, col_offset, export}``.
+
+    Prefers the AST when available. Falls back to a line scan of *source* so
+    mid-edit buffers (``s = Side.``) still complete members.
+    """
+    result = _collect_user_enums_from_tree(tree)
+    if result or not source:
+        return result
+    return _collect_user_enums_from_source(source)
+
+
+def _collect_user_enums_from_tree(tree: Any) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    if tree is None:
+        return result
+
+    for stmt in getattr(tree, "body", None) or []:
+        if not isinstance(stmt, ast.EnumDef):
+            continue
+        name = getattr(stmt, "name", None)
+        if not name:
+            continue
+        members: list[dict[str, Any]] = []
+        for item in getattr(stmt, "body", None) or []:
+            target = getattr(item, "target", None)
+            mid = getattr(target, "id", None) if target is not None else None
+            if not mid:
+                continue
+            value = getattr(item, "value", None)
+            lit = getattr(value, "value", None) if value is not None else None
+            members.append(
+                {
+                    "name": mid,
+                    "value": lit,
+                    "lineno": getattr(target, "lineno", None) or getattr(item, "lineno", 1) or 1,
+                    "col_offset": getattr(target, "col_offset", 0) or 0,
+                }
+            )
+        result[name] = {
+            "name": name,
+            "members": members,
+            "lineno": getattr(stmt, "lineno", 1) or 1,
+            "col_offset": getattr(stmt, "col_offset", 0) or 0,
+            "export": bool(getattr(stmt, "export", 0)),
+        }
+    return result
+
+
+def _collect_user_enums_from_source(source: str) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    lines = source.split("\n")
+    i = 0
+    while i < len(lines):
+        header = _ENUM_HEADER.match(lines[i])
+        if not header:
+            i += 1
+            continue
+        name = header.group(1)
+        header_line = i + 1
+        export = lines[i].lstrip().startswith("export")
+        members: list[dict[str, Any]] = []
+        i += 1
+        while i < len(lines):
+            raw = lines[i]
+            if not raw.strip():
+                i += 1
+                continue
+            mem = _ENUM_MEMBER.match(raw)
+            if not mem:
+                break
+            lit = mem.group(2)
+            if lit is not None:
+                lit = lit.strip().strip("'\"")
+            members.append(
+                {
+                    "name": mem.group(1),
+                    "value": lit,
+                    "lineno": i + 1,
+                    "col_offset": len(raw) - len(raw.lstrip()),
+                }
+            )
+            i += 1
+        result[name] = {
+            "name": name,
+            "members": members,
+            "lineno": header_line,
+            "col_offset": 0,
+            "export": export,
+        }
+    return result
+
+
+def build_enum_name_items(enums: dict[str, dict[str, Any]], prefix: str = "") -> list[lsp.CompletionItem]:
+    """Completion items for user-defined enum type names."""
+    needle = prefix.lower()
+    items: list[lsp.CompletionItem] = []
+    for name, info in sorted(enums.items()):
+        if needle and not name.lower().startswith(needle):
+            continue
+        member_names = ", ".join(m["name"] for m in info.get("members", []))
+        items.append(
+            lsp.CompletionItem(
+                label=name,
+                kind=lsp.CompletionItemKind.Enum,
+                detail=f"enum {name}",
+                documentation=lsp.MarkupContent(
+                    kind=lsp.MarkupKind.Markdown,
+                    value=f"User-defined enum.{f' Members: {member_names}' if member_names else ''}",
+                ),
+                insert_text=name,
+                insert_text_format=lsp.InsertTextFormat.PlainText,
+                filter_text=name,
+                sort_text="\x00" + name,
+            )
+        )
+    return items
+
+
+def build_enum_member_completion(
+    enum_info: dict[str, Any],
+    member_prefix: str = "",
+) -> lsp.CompletionList:
+    """Member completions for a user enum (insert leaf name only)."""
+    needle = member_prefix.lower()
+    enum_name = enum_info.get("name", "")
+    items: list[lsp.CompletionItem] = []
+    for member in enum_info.get("members", []):
+        name = member.get("name", "")
+        if not name:
+            continue
+        if needle and not name.lower().startswith(needle):
+            continue
+        value = member.get("value")
+        detail = f"{enum_name}.{name}"
+        if value is not None:
+            detail = f"{detail} = {value!r}"
+        items.append(
+            lsp.CompletionItem(
+                label=f"{enum_name}.{name}",
+                kind=lsp.CompletionItemKind.EnumMember,
+                detail=detail,
+                documentation=lsp.MarkupContent(
+                    kind=lsp.MarkupKind.Markdown,
+                    value=f"Member of user enum `{enum_name}`.",
+                ),
+                insert_text=name,
+                insert_text_format=lsp.InsertTextFormat.PlainText,
+                filter_text=name,
+                sort_text=name,
+            )
+        )
+    return lsp.CompletionList(is_incomplete=False, items=items)
 
 
 def _build_category_header(category: str, count: int) -> lsp.CompletionItem:
@@ -209,6 +442,34 @@ def _get_related_functions(name: str) -> list[str]:
         "strategy.long": ["strategy.short", "strategy.close"],
     }
     return related_map.get(name, [])
+
+
+# Frequent module members — keep these near the top of `ta.` / `strategy.` lists
+# so HTTP/editor caps (e.g. 120 items) still include them.
+_PINNED_LEAVES = frozenset(
+    {
+        "sma",
+        "ema",
+        "rsi",
+        "macd",
+        "atr",
+        "bb",
+        "stoch",
+        "vwap",
+        "wma",
+        "rma",
+        "entry",
+        "exit",
+        "close",
+        "long",
+        "short",
+    }
+)
+
+
+def _module_item_rank(label: str) -> int:
+    leaf = label.rsplit(".", 1)[-1]
+    return 0 if leaf in _PINNED_LEAVES else 1
 
 
 def _sort_text(label: str) -> str:

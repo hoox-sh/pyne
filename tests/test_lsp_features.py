@@ -119,6 +119,80 @@ class TestCompletionHandler:
         result = handle_completion(params, "//@version=5\nta.")
         assert isinstance(result, lsp.CompletionList)
 
+    def test_handle_completion_after_call_open_paren(self) -> None:
+        """``plot(ta.`` must complete ``ta`` members, not an empty list."""
+        source = "//@version=6\nindicator('T')\nplot(ta."
+        params = lsp.CompletionParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=2, character=8),
+            context=lsp.CompletionContext(
+                trigger_kind=lsp.CompletionTriggerKind.TriggerCharacter,
+                trigger_character=".",
+            ),
+        )
+        result = handle_completion(params, source)
+        labels = [i.label for i in result.items]
+        assert "ta.sma" in labels
+        sma = next(i for i in result.items if i.label == "ta.sma")
+        assert sma.insert_text is not None
+        assert not str(sma.insert_text).startswith("ta.")
+
+    def test_handle_completion_keywords(self) -> None:
+        """Soft keywords missing from builtin metadata still complete."""
+        source = "//@version=6\nindicator('T')\nenu"
+        params = lsp.CompletionParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=2, character=3),
+            context=lsp.CompletionContext(trigger_kind=lsp.CompletionTriggerKind.Invoked),
+        )
+        result = handle_completion(params, source)
+        keywords = [i for i in result.items if i.kind == lsp.CompletionItemKind.Keyword]
+        labels = [i.label for i in keywords]
+        assert "enum" in labels
+
+    def test_handle_completion_user_enum_members(self) -> None:
+        """``Side.`` completes user-enum members with leaf insert text."""
+        source = """//@version=6
+indicator("T")
+enum Side
+    buy = "B"
+    sell = "S"
+s = Side.
+"""
+        params = lsp.CompletionParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=5, character=9),
+            context=lsp.CompletionContext(
+                trigger_kind=lsp.CompletionTriggerKind.TriggerCharacter,
+                trigger_character=".",
+            ),
+        )
+        result = handle_completion(params, source)
+        labels = [i.label for i in result.items]
+        assert "Side.buy" in labels
+        assert "Side.sell" in labels
+        buy = next(i for i in result.items if i.label == "Side.buy")
+        assert buy.kind == lsp.CompletionItemKind.EnumMember
+        assert buy.insert_text == "buy"
+
+    def test_handle_completion_user_enum_name(self) -> None:
+        """Bare prefix offers the user enum type name."""
+        source = """//@version=6
+indicator("T")
+enum Side
+    buy
+    sell
+x = Si
+"""
+        params = lsp.CompletionParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=5, character=6),
+            context=lsp.CompletionContext(trigger_kind=lsp.CompletionTriggerKind.Invoked),
+        )
+        result = handle_completion(params, source)
+        enums = [i for i in result.items if i.kind == lsp.CompletionItemKind.Enum]
+        assert any(i.label == "Side" for i in enums)
+
 
 class TestHoverHandler:
     """Test hover request handling."""
@@ -158,6 +232,47 @@ class TestHoverHandler:
 
         result = handle_hover(params, "//@version=5\n")
         assert result is None
+
+    def test_handle_hover_user_enum(self) -> None:
+        """Hover on a user enum type and ``Enum.member`` path."""
+        source = """//@version=6
+indicator("T")
+enum Side
+    buy = "B"
+    sell = "S"
+s = Side.buy
+"""
+        type_params = lsp.HoverParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=2, character=6),  # on "Side" in decl
+        )
+        type_hover = handle_hover(type_params, source)
+        assert type_hover is not None
+        assert isinstance(type_hover.contents, lsp.MarkupContent)
+        assert "enum Side" in type_hover.contents.value
+        assert "buy" in type_hover.contents.value
+
+        member_params = lsp.HoverParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=5, character=10),  # on "buy" in Side.buy
+        )
+        member_hover = handle_hover(member_params, source)
+        assert member_hover is not None
+        assert isinstance(member_hover.contents, lsp.MarkupContent)
+        assert "Side.buy" in member_hover.contents.value or "Member of user enum" in member_hover.contents.value
+
+    def test_handle_hover_keyword(self) -> None:
+        """Hover on a soft keyword shows a short description."""
+        source = "//@version=6\nenum Side\n    buy\n"
+        params = lsp.HoverParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=1, character=1),  # on "enum"
+        )
+        result = handle_hover(params, source)
+        assert result is not None
+        assert isinstance(result.contents, lsp.MarkupContent)
+        assert "enum" in result.contents.value
+        assert "user-defined enum" in result.contents.value.lower()
 
 
 class TestDefinitionHandler:
@@ -213,6 +328,23 @@ plot(ta.sma(close, length))
 
         result = handle_definition(params, source, "file:///test.pine")
         assert result is None or len(result) == 0
+
+    def test_handle_definition_user_enum_member(self) -> None:
+        """Go-to-definition on ``Side.buy`` lands on the member declaration."""
+        source = """//@version=6
+indicator("T")
+enum Side
+    buy = "B"
+    sell = "S"
+s = Side.buy
+"""
+        params = lsp.DefinitionParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=5, character=10),  # on "buy"
+        )
+        result = handle_definition(params, source, "file:///test.pine")
+        assert result is not None
+        assert any(loc.range.start.line == 3 for loc in result)
 
 
 class TestReferencesHandler:
@@ -384,6 +516,30 @@ length = 14
         result = handle_document_symbols(params, source=None, uri="file:///test.pine", tree=tree)
         var_names = [s.name for s in result if s.kind == lsp.SymbolKind.Variable]
         assert "length" in var_names
+
+    def test_handle_document_symbols_enum(self) -> None:
+        """EnumDef is an outline enum; members are not top-level variables."""
+        source = """//@version=6
+indicator("T")
+enum Side
+    buy = "B"
+    sell = "S"
+s = Side.buy
+"""
+        params = lsp.DocumentSymbolParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+        )
+        result = handle_document_symbols(params, source, "file:///test.pine")
+        enums = [s for s in result if s.kind == lsp.SymbolKind.Enum]
+        assert len(enums) == 1
+        assert enums[0].name == "Side"
+        members = list(enums[0].children or [])
+        assert [m.name for m in members] == ["buy", "sell"]
+        assert all(m.kind == lsp.SymbolKind.EnumMember for m in members)
+        var_names = [s.name for s in result if s.kind == lsp.SymbolKind.Variable]
+        assert "buy" not in var_names
+        assert "sell" not in var_names
+        assert "s" in var_names
 
 
 class TestFormattingHandler:

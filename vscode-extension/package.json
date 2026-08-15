@@ -2,7 +2,7 @@
   "name": "pyne",
   "displayName": "PYNE Language Support",
   "description": "Syntax highlighting, diagnostics, autocomplete, hover, and formatting for .pyne / .pine sources. Powered by hoox-pyne. Part of the HOOX open trading stack. Unofficial — not affiliated with TradingView, Inc.",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "publisher": "jango-blockchained",
   "license": "AGPL-3.0-or-later",
   "author": {

@@ -242,8 +242,10 @@ class PynescriptLanguageServer(LanguageServer):
         ) -> lsp.CompletionList:
             """Handle textDocument/completion request."""
             uri = params.text_document.uri
-            source = self.pine_workspace.get_source(uri)
-            return completion_feature.handle_completion(params, source)
+            doc = self.pine_workspace.get_document(uri)
+            if not doc:
+                return completion_feature.handle_completion(params, None)
+            return completion_feature.handle_completion(params, doc.source, tree=doc.ast)
 
         @self.feature(lsp.COMPLETION_ITEM_RESOLVE)
         def completion_resolve(
@@ -258,8 +260,10 @@ class PynescriptLanguageServer(LanguageServer):
         ) -> lsp.Hover | None:
             """Handle textDocument/hover request."""
             uri = params.text_document.uri
-            source = self.pine_workspace.get_source(uri)
-            return hover_feature.handle_hover(params, source)
+            doc = self.pine_workspace.get_document(uri)
+            if not doc:
+                return hover_feature.handle_hover(params, None)
+            return hover_feature.handle_hover(params, doc.source, tree=doc.ast)
 
         @self.feature(lsp.TEXT_DOCUMENT_DEFINITION)
         def text_definition(
@@ -371,6 +375,21 @@ def _collect_workspace_symbols(doc: Any, uri: str) -> list[lsp.SymbolInformation
                     ),
                 )
             )
+        elif isinstance(node, ast.EnumDef):
+            results.append(
+                lsp.SymbolInformation(
+                    name=node.name or "<anonymous>",
+                    kind=lsp.SymbolKind.Enum,
+                    location=lsp.Location(
+                        uri=uri,
+                        range=lsp.Range(
+                            start=lsp.Position(line=max(0, node.lineno - 1), character=0),
+                            end=lsp.Position(line=max(0, node.lineno - 1), character=0),
+                        ),
+                    ),
+                )
+            )
+            return
         elif isinstance(node, ast.Assign):
             if isinstance(node.target, ast.Name):
                 results.append(

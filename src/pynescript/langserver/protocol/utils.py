@@ -24,6 +24,7 @@ Public helpers used by feature handlers:
 - :func:`position_from_offset` / :func:`offset_from_position` — coordinate conversion
 - :func:`get_word_at_position` — identifier (including ``module.member``) under cursor
 - :func:`get_trigger_char` — character immediately before the cursor
+- :func:`trailing_ident` — identifier / dotted path at the end of a line prefix
 - :func:`extract_module_prefix` / :func:`build_filter_text` — completion helpers
 """
 
@@ -141,6 +142,21 @@ def get_trigger_char(text: str, line: int, column: int) -> str | None:
         return char
 
     return None
+
+
+def trailing_ident(text_before_cursor: str) -> str:
+    """Return the trailing identifier or dotted path (optional trailing ``.``).
+
+    Ignores surrounding punctuation so ``plot(ta.`` yields ``ta.`` and
+    ``s = Side.b`` yields ``Side.b``.
+    """
+    if not text_before_cursor:
+        return ""
+    match = re.search(
+        r"([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*\.?)$",
+        text_before_cursor,
+    )
+    return match.group(1) if match else ""
 
 
 def extract_module_prefix(word: str) -> str | None:

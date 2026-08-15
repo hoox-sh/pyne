@@ -43,6 +43,7 @@ from lsprotocol import types as lsp
 from pynescript.ast import parse
 from pynescript.ast.linter import LintWarning
 from pynescript.ast.linter import lint_script
+from pynescript.langserver.features.diagnostics import lint_warnings_to_diagnostics
 
 
 @dataclass
@@ -183,12 +184,7 @@ class Workspace:
 
     def _lint_warnings_to_diagnostics(self, doc: TextDocumentState) -> list[lsp.Diagnostic]:
         """Convert LintWarning objects to LSP Diagnostic objects."""
-        diagnostics = []
-
-        for warning in doc.diagnostics:
-            diag = _lint_warning_to_diagnostic(warning, doc.source)
-            if diag:
-                diagnostics.append(diag)
+        diagnostics = lint_warnings_to_diagnostics(doc.diagnostics, doc.source)
 
         if doc.parse_error:
             diag = lsp.Diagnostic(

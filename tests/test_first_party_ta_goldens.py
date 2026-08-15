@@ -22,7 +22,9 @@
 Shipped fixtures under ``tests/fixtures/first_party/`` plus deterministic
 synthetic OHLCV. Both ``mode=interpret`` and ``mode=compile`` must agree
 (nan/None-aware allclose). ATR asserts Wilder RMA warmup (first finite
-value after ``period`` TR samples → bar index ``>= period``).
+value after ``period`` TR samples → bar index ``>= period``). Supertrend
+locks the simplified ``mid ± factor·ATR`` contract (na ATR → 0; direction
+from close vs mid) — not the reference Pine band ratchet.
 """
 
 from __future__ import annotations
@@ -234,23 +236,72 @@ def test_atr_wilder_dual_host(bars: list[dict[str, Any]]) -> None:
     assert c_first == first
 
 
+_ST_FACTOR = 3.0
+_ST_ATR_PERIOD = 10
+
+
+def _assert_simplified_supertrend_contract(
+    st: list[Any],
+    direction: list[Any],
+    atr: list[Any],
+    mid: list[Any],
+    close: list[Any],
+    *,
+    factor: float = _ST_FACTOR,
+    atr_period: int = _ST_ATR_PERIOD,
+    host: str = "interpret",
+) -> None:
+    """Lock mid ± factor·ATR (na ATR → 0); dir from close vs mid. Not TV ratchet."""
+    n = len(st)
+    assert n == len(direction) == len(atr) == len(mid) == len(close)
+    first = _first_finite_index(st)
+    assert first == 0, f"{host}: warmup st should be finite (na ATR→0 → st==mid), first={first}"
+    assert _all_finite_after(st, 0), f"{host}: st non-finite after bar 0"
+    assert _all_finite_after(direction, 0), f"{host}: dir non-finite after bar 0"
+    n_up = n_down = 0
+    for i in range(n):
+        mid_f = float(mid[i])
+        close_f = float(close[i])
+        st_f = float(st[i])
+        dir_f = float(direction[i])
+        atr_raw = atr[i]
+        atr_f = 0.0 if _is_na(atr_raw) else float(atr_raw)
+        exp_dir = -1.0 if close_f >= mid_f else 1.0
+        exp_st = mid_f - factor * atr_f if exp_dir < 0 else mid_f + factor * atr_f
+        assert dir_f == exp_dir, f"{host} bar {i}: dir {dir_f} != {exp_dir} (close={close_f} mid={mid_f})"
+        assert abs(st_f - exp_st) <= _ATOL + _RTOL * abs(exp_st), (
+            f"{host} bar {i}: st {st_f} != mid±factor·ATR {exp_st} (atr={atr_f})"
+        )
+        if dir_f < 0:
+            n_up += 1
+        else:
+            n_down += 1
+        if i < atr_period:
+            assert _is_na(atr_raw), f"{host} bar {i}: ATR should still be na"
+            assert abs(st_f - mid_f) <= _ATOL + _RTOL * abs(mid_f), (
+                f"{host} bar {i}: warmup st {st_f} != mid {mid_f}"
+            )
+        elif not _is_na(atr_raw) and atr_f > 0:
+            assert abs(abs(st_f - mid_f) - factor * atr_f) <= _ATOL + _RTOL * factor * atr_f
+    assert n_up >= 1 and n_down >= 1, f"{host}: expected both directions, up={n_up} down={n_down}"
+
+
 def test_supertrend_dual_host(bars: list[dict[str, Any]]) -> None:
-    """Supertrend (ATR consumer): dual-host series present and equal."""
+    """Supertrend ATR consumer: simplified mid±factor·ATR, interpret≈compile."""
     path = _FIRST_PARTY / "supertrend.pine"
     src = path.read_text(encoding="utf-8")
     interp, compiled = _run_dual(src, bars)
     _assert_no_error(interp, "interpret")
     _assert_no_error(compiled, "compile")
-    keys = ("st", "dir")
+    keys = ("st", "dir", "atr", "mid", "c")
     _assert_series_present(interp, keys, len(bars))
     _assert_series_present(compiled, keys, len(bars))
     _assert_dual_parity(interp, compiled, keys)
-    # After ATR period (10), supertrend value should be finite for most bars
-    st = interp["series"]["st"]
-    first = _first_finite_index(st)
-    assert first is not None
-    assert first <= 20, f"supertrend late warmup at {first}"
-    assert any(not _is_na(v) for v in st[first:]), "supertrend all-na after first"
+
+    si = interp["series"]
+    sc = compiled["series"]
+    _assert_simplified_supertrend_contract(si["st"], si["dir"], si["atr"], si["mid"], si["c"], host="interpret")
+    _assert_simplified_supertrend_contract(sc["st"], sc["dir"], sc["atr"], sc["mid"], sc["c"], host="compile")
 
 
 def test_keltner_dual_host(bars: list[dict[str, Any]]) -> None:

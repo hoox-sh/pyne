@@ -448,6 +448,8 @@ class CompilerVisitor(NodeVisitor):
         # bar-constant series (``lev = input.float(10)`` → ``leverage=10``) into the broker ctor.
         self.const_like_values: dict[str, str] = {}
         self.udt_types: dict[str, list[str]] = {}  # type name -> field names
+        # type name -> field name -> emitted default expr (``false`` → ``False``)
+        self.udt_field_defaults: dict[str, dict[str, str]] = {}
         self.udt_vars: set[str] = set()  # series names holding UDT instances
         self.map_vars: set[str] = set()  # var map names (single object, not series)
         self.scalar_vars: set[str] = set()  # non-series locals (map handles, etc.)
@@ -991,13 +993,18 @@ class CompilerVisitor(NodeVisitor):
 
     # ---------------------------------------------------------------- statements
     def visit_TypeDef(self, node: ast.TypeDef):
-        """Register UDT field names; forces object mode. No runtime emit."""
+        """Register UDT field names and defaults; forces object mode. No runtime emit."""
         self.object_mode = True
         fields: list[str] = []
+        defaults: dict[str, str] = {}
         for stmt in node.body:
             if isinstance(stmt, ast.Assign) and isinstance(stmt.target, ast.Name):
                 fields.append(stmt.target.id)
+                val = getattr(stmt, "value", None)
+                if val is not None:
+                    defaults[stmt.target.id] = self.visit(val)
         self.udt_types[node.name] = fields
+        self.udt_field_defaults[node.name] = defaults
         return ""  # type definitions are compile-time only
 
     def visit_EnumDef(self, node: ast.EnumDef):
@@ -6101,6 +6108,7 @@ class CompilerVisitor(NodeVisitor):
         """Construct a UDT as an ordered-field dict (object mode only)."""
         self.object_mode = True
         fields = self.udt_types.get(type_name, [])
+        defaults = self.udt_field_defaults.get(type_name, {})
         args: list[str] = []
         for arg in node.args:
             if hasattr(arg, "value"):
@@ -6109,7 +6117,12 @@ class CompilerVisitor(NodeVisitor):
                 args.append(self.visit(arg))
         items = [f"'__type__': {type_name!r}"]
         for i, f in enumerate(fields):
-            v = args[i] if i < len(args) else "np.nan"
+            # Omitted ctor args use the type-body default. ``np.nan`` for
+            # missing bools is ``True`` under ``bool()`` and flips BE/flags.
+            if i < len(args):
+                v = args[i]
+            else:
+                v = defaults.get(f, "np.nan")
             items.append(f"{f!r}: {v}")
         return "{" + ", ".join(items) + "}"
 

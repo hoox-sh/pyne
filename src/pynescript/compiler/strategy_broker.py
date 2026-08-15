@@ -1266,14 +1266,19 @@ class CompileStrategyBroker:
         """Parse trail_* kwargs → (activation_price, offset_price units).
 
         Distances are in **ticks** (× :attr:`mintick`) per Pine. Prefer
-        ``trail_points`` when both offset and points are set. Returns
-        ``(None, None)`` when trail is not configured or offset is na/≤0.
+        ``trail_points`` when it is a positive tick distance (TV: points wins
+        over offset when both are set). ``na`` / ``≤0`` is ignored — not
+        coerced to 0 — so a valid ``trail_offset`` can still apply.
+        Returns ``(None, None)`` when no positive trail distance is configured.
         """
         act = _opt_float(trail_price)
         points = _opt_float(trail_points)
         offset = _opt_float(trail_offset)
-        ticks = points if points is not None else offset
-        if ticks is None or ticks <= 0:
+        if points is not None and points > 0:
+            ticks = points
+        elif offset is not None and offset > 0:
+            ticks = offset
+        else:
             return (None, None)
         offset_price = float(ticks) * float(self.mintick)
         if offset_price <= 0:

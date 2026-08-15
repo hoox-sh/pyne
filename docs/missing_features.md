@@ -19,7 +19,7 @@
 
 # Missing Features - Pine Script v6 Implementation
 
-**Current Status (as of 2026-08-09):** Strong core support (parser + evaluator + 1100+ tests). Open-source corpus set01–04 (local measurement, not shipped in git): **parse 99.96%** (2476/2477), **Runtime interpret 100% excl. EXPECTED_FAIL** (2466 OK + 11 intentional demos), set01 **249/249** — not a claim of 100% TradingView® platform parity. Drawing `max_*_count` GC landed. **Alert engine + L2 webhooks** closed on Pro API and pyne-worker. **Warm-compile (H2)** + **series caps (T1)** + incremental TA (incl. bb/kama/cmo/stochrsi) landed. Dual-host package-level Runtime unify + interpret↔compile plot MISMATCH tail remain open.
+**Current Status (as of 2026-08-15):** Strong core support (parser + evaluator + 1100+ tests). Open-source corpus set01–04 (local measurement, not shipped in git): **parse 99.96%** (2476/2477), **Runtime interpret 100% excl. EXPECTED_FAIL** (2466 OK + 11 intentional demos), set01 **249/249** — not a claim of 100% TradingView® platform parity. Drawing `max_*_count` GC landed. **Alert engine + L2 webhooks** closed on Pro API and pyne-worker. **Warm-compile (H2)** + **series caps (T1)** + incremental TA (incl. bb/kama/cmo/stochrsi/wma/hma/linreg) landed. Package Runtime SoT + pyne-worker thin wrap landed; interpret↔compile plot MISMATCH tail remains open.
 
 **Last Updated:** 2026-08-03 (status align with `docs/ROADMAP.md`; alerts / L2 webhooks / drawing GC are **shipped**, not missing)
 
@@ -165,13 +165,13 @@ Call-site state (`_ta_call_i` reset each bar), one sample per site per bar (safe
 
 | ID | Item | Pri |
 | --- | --- | --- |
-| **H1** | Dual-host: package-level Runtime unify; pyne-worker residual host parity | P1 — **package SoT** `pynescript.runtime` landed (backend shims remain); worker thin-wrap + residual host parity still open — `docs/perf_round7/H1_unify_checklist.md` |
+| **H1** | Dual-host Runtime unify | P1 ✅ package SoT `pynescript.runtime` + backend shims + **pyne-worker thin wrap** (sibling repo, not colocated) — residual CF deploy smoke only — `docs/perf_round7/H1_unify_checklist.md` |
 | **H2** | Product warm-compile path (SLOs, prewarm, IR cache on in deploy) | P1 ✅ (2026-08) |
 | **C1** | Corpus Runtime residual | P1 ✅ (2026-08-09) — set01–04 Runtime interpret **100%** excl. EXPECTED_FAIL (2466 OK + 11 intentional demos); parse **99.96%**. Residual = intentional demos only. set05 long-tail separate |
 | **T1** | Cap unbounded `current_series` lists to `max_bars_back` / `_SERIES_MAX` | P2 ✅ R7 — `PYNE_SERIES_CAP` (default ON), `PYNE_SERIES_MAX`, goldens `tests/test_series_cap.py` |
 | **T2** | Incremental for remaining heavy kernels | P2 ✅ R7: bb/kama/cmo/stochrsi inc; further nested full-list helpers residual |
 | **L2** | Webhook alerts productization | P3 ✅ pyne-worker + Pro API `/run` export + outbound `ALERT_WEBHOOK_URL` / `webhook_url` |
-| **F1** | `ta.atr` still **EMA-of-TR** (historical oracle); TV Wilder RMA-ATR only with dedicated goldens | P2 |
+| **F1** | `ta.atr` is **Wilder RMA of TR** (interpret + Numba). Supertrend is simplified mid±factor·ATR (not TV ratchet); goldens lock that contract | P2 ⚙️ |
 | — | Bit-identical recursive smoothers vs live TV | numerical-parity track |
 | — | Drawing `max_*_count` GC / alert engine | ✅ shipped (not missing) |
 
