@@ -349,7 +349,10 @@ def nuitka_compile(
     if verbose:
         cmd += ["--verbose"]
 
-    cmd += ["-m", "pynescript.langserver" if target == "lsp" else "pynescript"]
+    cmd += [
+        "--include-package=pynescript",
+        str(entry_py),
+    ]
 
     nuitka_version = get_nuitka_version()
     print(

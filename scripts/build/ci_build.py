@@ -253,8 +253,11 @@ def compile_onefile(jobs: int, *, target: str = "lsp") -> Path:
             "--nofollow-import-to=backend",
         ]
 
-    # Module entry keeps the pynescript.* package prefix (not a loose script).
-    cmd += ["-m", "pynescript.langserver" if target == "lsp" else "pynescript"]
+    # Keep pynescript.ast under the package prefix (stdlib ast must stay stdlib).
+    cmd += [
+        "--include-package=pynescript",
+        str(entry),
+    ]
     run(cmd, env=env)
 
     binary = _find_binary(output_dir, binary_name)
