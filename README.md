@@ -2,7 +2,7 @@
 
 **Independent open toolchain for the Pine Script™ language** — formal grammar, algebraic AST, dual-engine bar-loop runtime, language server, and HTTP evaluation surface. Part of the [HOOX](https://hoox.sh) open trading stack.
 
-**0.3.8** · PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) · import `pynescript` · CLIs `pyne` · `pyne-lsp` (aliases: `pynescript` · `pynescript-lsp`)
+**0.3.9** · PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) · import `pynescript` · CLIs `pyne` · `pyne-lsp` (aliases: `pynescript` · `pynescript-lsp`)
 
 <div align="center">
 
@@ -20,6 +20,24 @@
 > **Pine Script™** and **TradingView®** are trademarks of [TradingView, Inc.](https://www.tradingview.com/). **Cloudflare®** is a trademark of Cloudflare, Inc.  
 > PYNE is an **independent, unofficial** implementation. It is not affiliated with, authorized by, sponsored by, or endorsed by TradingView, Inc. or Cloudflare, Inc., and is not an official TradingView® product, service, or platform substitute.  
 > Language references are for interoperability and compatibility documentation only. PYNE does not redistribute proprietary TradingView® platform software, charting UI, or closed data services.
+
+## Ecosystem
+
+Part of the **[HOOX](https://hoox.sh)** open trading stack:
+
+| Product | Role | Repo | Website |
+|---------|------|------|---------|
+| **HOOX** | Edge trading framework (Cloudflare® Workers) | [hoox-sh/hoox](https://github.com/hoox-sh/hoox) | [hoox.sh](https://hoox.sh) · [docs](https://docs.hoox.sh) |
+| **PYNE** | Pine Script™ toolchain + Pro API (**this repo**) | [hoox-sh/pyne](https://github.com/hoox-sh/pyne) | [hoox.sh/pyne](https://hoox.sh/pyne) · [docs](https://hoox.sh/pyne/docs) |
+| **pyne-worker** | Python Cloudflare® Worker — edge evaluate | [hoox-sh/pyne-worker](https://github.com/hoox-sh/pyne-worker) | [hoox.sh/pyne](https://hoox.sh/pyne) |
+| **pyne-agent-worker** | NL → PYNE scripts (Workers AI™) | [hoox-sh/pyne-agent-worker](https://github.com/hoox-sh/pyne-agent-worker) | [PYNE agent](https://hoox.sh/pyne/docs/agent) |
+| **AXIS** | Charting PWA | [hoox-sh/axis](https://github.com/hoox-sh/axis) | [hoox.sh/axis](https://hoox.sh/axis) · [docs](https://hoox.sh/axis/docs) |
+
+**Edge evaluate** (one-click, not this repo):
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/hoox-sh/pyne-worker)
+
+That button deploys **[pyne-worker](https://github.com/hoox-sh/pyne-worker)** — a thin Workers host for `POST /run`. CLI, LSP, compile, Flask Pro API, and the language source of truth stay **here**. See [pyne-worker limitations](https://github.com/hoox-sh/pyne-worker#limitations-read-before-you-click-deploy).
 
 ## Abstract
 
@@ -103,16 +121,16 @@ Multi-arch (`linux/amd64`, `linux/arm64`) images publish to GitHub Container Reg
 
 ```bash
 # CLI
-docker pull ghcr.io/hoox-sh/pyne/cli:0.3.8
-docker run --rm -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/cli:0.3.8 check script.pine
+docker pull ghcr.io/hoox-sh/pyne/cli:0.3.9
+docker run --rm -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/cli:0.3.9 check script.pine
 
 # Language server (stdio; -i required)
-docker pull ghcr.io/hoox-sh/pyne/lsp:0.3.8
-docker run --rm -i -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/lsp:0.3.8
+docker pull ghcr.io/hoox-sh/pyne/lsp:0.3.9
+docker run --rm -i -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/lsp:0.3.9
 
 # Pro API
-docker pull ghcr.io/hoox-sh/pyne/api:0.3.8
-docker run --rm -p 5002:8080 -e ADMIN_TOKEN=… ghcr.io/hoox-sh/pyne/api:0.3.8
+docker pull ghcr.io/hoox-sh/pyne/api:0.3.9
+docker run --rm -p 5002:8080 -e ADMIN_TOKEN=… ghcr.io/hoox-sh/pyne/api:0.3.9
 ```
 
 Packages: [ghcr.io/hoox-sh/pyne](https://github.com/hoox-sh/pyne/pkgs/container/pyne%2Fcli). Local: `make docker-build-lsp`.
@@ -304,7 +322,7 @@ This repository plus satellites that share the evaluate contract. Python `pynesc
 |---------|------|------------|
 | **[PYNE](https://github.com/hoox-sh/pyne)** | This repository — grammar, AST, dual-engine Runtime, Pro API, CLI (`pyne` / `pynescript`). PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/). | [hoox-sh/pyne](https://github.com/hoox-sh/pyne) |
 | **[pyne-lsp](https://hoox.sh/pyne/docs/lsp)** | Language server (`pyne-lsp` / `pynescript-lsp`) — extras `[lsp]`, Nuitka binaries, Docker `ghcr.io/hoox-sh/pyne/lsp`. | [hoox-sh/pyne](https://github.com/hoox-sh/pyne) · [docs](https://hoox.sh/pyne/docs/lsp) · [GHCR](https://github.com/hoox-sh/pyne/pkgs/container/pyne%2Flsp) |
-| **[pyne-vscode](./vscode-extension/)** | VS Code / Open VSX extension (`jango-blockchained.pyne`). Package `pyne-vscode-*.vsix` on Releases. Needs `hoox-pyne[lsp]` or a `pyne-lsp` binary. | [vscode-extension/](./vscode-extension/) · [Marketplace](https://marketplace.visualstudio.com/items?itemName=jango-blockchained.pyne) |
+| **[pyne-vscode](./vscode-extension/)** | VS Code / Open VSX extension (`hoox-sh.pyne`). Package `pyne-vscode-*.vsix` on Releases. Needs `hoox-pyne[lsp]` or a `pyne-lsp` binary. | [vscode-extension/](./vscode-extension/) · [Marketplace](https://marketplace.visualstudio.com/items?itemName=hoox-sh.pyne) |
 | **[PyneTS](https://github.com/hoox-sh/pynets)** | TypeScript / Bun library (`@hoox/pynets`) — parse, unparse, interpret. Same public names as Python. Submodule `pynets/`. | [hoox-sh/pynets](https://github.com/hoox-sh/pynets) |
 | **[pyne-worker](https://github.com/hoox-sh/pyne-worker)** | Python Cloudflare® Worker — edge `POST /run`, cron, R2, alerts. Thin host over package Runtime. | [hoox-sh/pyne-worker](https://github.com/hoox-sh/pyne-worker) |
 | **[pine-worker](https://github.com/hoox-sh/pine-worker)** | TypeScript Cloudflare® Worker — earlier edge evaluator; emits trade events toward HOOX. | [hoox-sh/pine-worker](https://github.com/hoox-sh/pine-worker) |

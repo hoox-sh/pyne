@@ -279,12 +279,17 @@ def nuitka_compile(
             return None
         # CLI entry point smoke
         if target == "cli":
+            help_env = env.copy()
+            help_env["PYTHONIOENCODING"] = "utf-8"
+            help_env["PYTHONUTF8"] = "1"
             help_check = subprocess.run(
                 [sys.executable, "-m", "pynescript", "--help"],
                 cwd=ROOT,
-                env=env,
+                env=help_env,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
             )
             if help_check.returncode != 0:
                 print(f"  ERROR: CLI --help failed (exit {help_check.returncode})")

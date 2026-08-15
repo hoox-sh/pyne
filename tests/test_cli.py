@@ -84,6 +84,8 @@ def test_root_help(runner: CliRunner) -> None:
     assert "run" in out
     assert "format" in out
     assert "info" in out
+    # Windows GH runners default to cp1252; Click --help must not use → / —.
+    out.encode("cp1252")
 
 
 def test_version_option(runner: CliRunner) -> None:

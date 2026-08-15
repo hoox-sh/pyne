@@ -178,6 +178,9 @@ jobs:
 
       - name: Import check
         shell: bash
+        env:
+          PYTHONIOENCODING: utf-8
+          PYTHONUTF8: "1"
         run: |
           set -euo pipefail
           python scripts/build/compile.py --target cli --check
@@ -572,7 +575,7 @@ jobs:
             - `pynescript-lsp-linux-x86_64` — Linux LSP
             - `pynescript-lsp-windows-x86_64.exe` — Windows LSP
             - `pynescript-lsp-macos-arm64` — macOS ARM LSP
-            - `pyne-vscode-*.vsix` — VS Code / Open VSX extension (`jango-blockchained.pyne`)
+            - `pyne-vscode-*.vsix` — VS Code / Open VSX extension (`hoox-sh.pyne`)
 
             ### VS Code
             1. Download `pyne-vscode-*.vsix` (or install from the Marketplace)
@@ -632,8 +635,10 @@ jobs:
           else
             npx --yes @vscode/vsce publish --pat "$VSCE_PAT" --packagePath "$VSIX"
           fi
-          if [ -n "${OVSX_PAT:-}" ]; then
-            npx --yes ovsx publish "$VSIX" -p "$OVSX_PAT"
-          else
+          if [ -z "${OVSX_PAT:-}" ]; then
             echo "OVSX_PAT not set — skipping Open VSX (optional extra package)."
+          elif ! npx --yes ovsx publish "$VSIX" -p "$OVSX_PAT"; then
+            # Namespace must exist on Open VSX (publisher in package.json).
+            # Do not fail the release: VSIX is already on the GitHub Release.
+            echo "Open VSX publish failed (unknown publisher or other). VSIX remains on GitHub Release."
           fi

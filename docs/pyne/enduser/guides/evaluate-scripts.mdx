@@ -84,6 +84,8 @@ result = runtime.run(source, ohlcv_data=ohlcv, mode="auto")
 # optional wall-clock budget (0.3.6+):
 # result = runtime.run(..., timeout_seconds=12.0)
 # → may set timed_out + error_kind="runtime" with partial plots
+# optional published libs (0.3.7+; export finalize 0.3.8):
+# result = runtime.run(..., libraries=[{"namespace":"ns","name":"Lib","version":1,"source": lib_src}])
 ```
 
 ### Warm compile / prewarm

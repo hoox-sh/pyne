@@ -101,7 +101,7 @@ code --extensionDevelopmentPath=.
 You do **not** need a local Python install if you run the language server from the **LSP image**. The VSIX is still installed in the editor; only the server process is containerized.
 
 ```bash
-docker pull ghcr.io/hoox-sh/pyne/lsp:0.3.8
+docker pull ghcr.io/hoox-sh/pyne/lsp:0.3.9
 # local bake:  make docker-build-lsp
 ```
 
@@ -114,7 +114,7 @@ Pin the extension to Docker (`-i` keeps stdio open). `${workspaceFolder}` is exp
     "run", "-i", "--rm",
     "-v", "${workspaceFolder}:/work",
     "-w", "/work",
-    "ghcr.io/hoox-sh/pyne/lsp:0.3.8"
+    "ghcr.io/hoox-sh/pyne/lsp:0.3.9"
   ]
 }
 ```
@@ -153,7 +153,7 @@ pyne-lsp
 
 | Field | Value |
 |-------|--------|
-| Extension id | `jango-blockchained.pyne` |
+| Extension id | `hoox-sh.pyne` |
 | Package name | `pyne` |
 | Display name | **PYNE Language Support** |
 

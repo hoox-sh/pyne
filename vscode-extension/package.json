@@ -2,8 +2,8 @@
   "name": "pyne",
   "displayName": "PYNE Language Support",
   "description": "Syntax highlighting, diagnostics, autocomplete, hover, and formatting for .pyne / .pine sources. Powered by hoox-pyne. Part of the HOOX open trading stack. Unofficial — not affiliated with TradingView, Inc.",
-  "version": "0.3.8",
-  "publisher": "jango-blockchained",
+  "version": "0.3.9",
+  "publisher": "hoox-sh",
   "license": "AGPL-3.0-or-later",
   "author": {
     "name": "jango_blockchained",
@@ -99,7 +99,7 @@
         "editor.tabSize": 4,
         "editor.insertSpaces": true,
         "editor.wordBasedSuggestions": "off",
-        "editor.defaultFormatter": "jango-blockchained.pyne",
+        "editor.defaultFormatter": "hoox-sh.pyne",
         "files.insertFinalNewline": true
       }
     },

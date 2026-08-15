@@ -58,6 +58,25 @@ import click
 from pynescript.__about__ import __version__ as _CLI_VERSION
 
 
+def _configure_stdio() -> None:
+    """Prefer UTF-8 on stdout/stderr so Windows cp1252 does not crash ``--help``.
+
+    Click prints help before the ``cli()`` body runs, so this must run at
+    import time (console-script entry is ``pynescript.__main__:cli``).
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconf = getattr(stream, "reconfigure", None)
+        if reconf is None:
+            continue
+        try:
+            reconf(encoding="utf-8", errors="replace")
+        except (OSError, ValueError, AttributeError):
+            pass
+
+
+_configure_stdio()
+
+
 # ---------------------------------------------------------------------------
 # Theme (PYNE volt) + optional Rich
 # ---------------------------------------------------------------------------
@@ -82,8 +101,8 @@ Examples:
   pynescript info
 
 \b
-Aliases:  dump→parse-and-dump  ast→parse-and-dump  unparse→parse-and-unparse
-          fmt→format  ls→info
+Aliases:  dump -> parse-and-dump  ast -> parse-and-dump  unparse -> parse-and-unparse
+          fmt -> format  ls -> info
 
 Language server:  pynescript-lsp  (separate entry point, not a subcommand)
 Docs:             https://hoox.sh/pyne
@@ -265,7 +284,7 @@ def _print_banner() -> None:
 )
 @click.pass_context
 def cli(ctx: click.Context, no_color: bool) -> None:
-    """Pyne / pynescript — Pine Script parse, lint, compile, and run.
+    """Pyne / pynescript -- Pine Script parse, lint, compile, and run.
 
     Use ``pynescript COMMAND -h`` for per-command help.
     """
@@ -480,7 +499,7 @@ def parse_and_unparse(filename: str, encoding: str, output_file: str) -> None:
     _write_out(unparse(parse(source, label)), output_file, encoding)
 
 
-@cli.command("format", short_help="Format Pine via parse → unparse.")
+@cli.command("format", short_help="Format Pine via parse -> unparse.")
 @click.argument(
     "filename",
     metavar="PATH",

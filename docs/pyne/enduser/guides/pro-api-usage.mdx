@@ -250,6 +250,7 @@ If the client module is not present in your install, use raw HTTP as above.
 - **Strict schemas** — unknown fields rejected.
 - **CORS** — browser clients need listed origins; server-to-server without `Origin` is fine.
 - **`mode` default `auto`** — prefer warm compile; fall back to interpret (`auto_backend`, optional `compile_fallback_reason`). Strict `compile` errors instead of falling back; use `interpret` for alerts, `input.*` overrides, libraries, and full `request.*`.
+- **`libraries` (0.3.7+)** — `[{namespace, name, version, source}]` binds `import ns/Name/ver` (max 32). `register_library_source` finalizes exports in 0.3.8; auto-mode keeps the list on interpret fallback. Same field on pyne-worker `/run` and deployed scripts.
 - **Alerts** — `alerts[]` on success (interpret). L2 webhooks: body `webhook_url` or env `ALERT_WEBHOOK_URL`; defaults last-bar + batch POST. See [Alerts](/pyne/docs/runtime/alerts).
 - **Batch cap 8** — `TOO_MANY_SCRIPTS` if exceeded.
 - **Free-tier guards (0.3.4+)** — process-local limits on unauthenticated `/run`, `/run/batch`, `/compile/prewarm` (and WS run):

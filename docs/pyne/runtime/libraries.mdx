@@ -77,7 +77,24 @@ ev.register_library_source(namespace, name, version, source_str)
 mod = ev.lookup_library(namespace=..., name=..., version=...)
 ```
 
-`register_library_source` stores Pine text for **lazy** load on import; evaluating a library script eagerly populates exports.
+`register_library_source` stores Pine text for **lazy** load on import; evaluating a library script eagerly populates exports. From **0.3.8**, registration also **finalizes** library exports so `export const` / exported functions bind on `import`.
+
+### Host evaluate (`0.3.7+`)
+
+Hosts pass published sources without a pre-eval step:
+
+```python
+Runtime(symbol="TEST").run(
+    consumer_source,
+    ohlcv,
+    mode="interpret",  # or "auto" — import is compile-ineligible
+    libraries=[
+        {"namespace": "ns", "name": "Lib", "version": 1, "source": library_source},
+    ],
+)
+```
+
+The same list is accepted on Pro API and **pyne-worker** `POST /run` as `libraries`. pyne-worker also stores the array on deployed scripts so cron / `script_id` reuse it. Max 32 entries; `mode=compile` rejects libraries (no import path).
 
 ### `LibraryModule`
 

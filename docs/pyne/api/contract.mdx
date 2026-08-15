@@ -61,9 +61,13 @@ flowchart LR
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `script` | string | yes | Full Pine source |
-| `data` | `Bar[]` | yes | Chronological OHLCV |
+| `data` | `Bar[]` | yes | Chronological OHLCV (`ohlcv` alias on pyne-worker) |
 | `symbol` | string | no | Default `CHART` / host-specific |
-| `mode` | `"interpret"` \| `"compile"` | no | Default interpret |
+| `mode` | `"interpret"` \| `"compile"` \| `"auto"` | no | Desk default interpret; Pro API schema default `auto` |
+| `inputs` | object | no | `input.*` overrides keyed by title (forces interpret under `auto`) |
+| `libraries` | `{namespace, name, version, source}[]` | no | In-process `import ns/Name/ver` (0.3.7+; max 32; interpret/`auto`) |
+| `profiler` | bool | no | Per-line interpret timings |
+| `timeout_seconds` | number | no | Wall-clock interpret budget (edge hosts cap, e.g. 30s) |
 | `data_source` | string | no | Optional external history provider id |
 | `data_options` | object | no | Provider configuration |
 

@@ -7,15 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.9] - 2026-08-16
+
 ### Added
-- **LSP Docker image** `ghcr.io/hoox-sh/pyne/lsp` (stdio `pyne-lsp`, slim `[lsp]` only). Published on `v*` tags with api/cli. VS Code: pin `pynescript.lsp.command` to `docker` (see `vscode-extension/README.md`).
+- **`FunctionDef.returns`** — UDF/method return types survive parse → unparse (`int ilog2(...)`).
+- Incremental **`ta.median`** / **`ta.cmo`** Numba kernels; statement **`hline`/`fill`** stay nopython with synthesized drawings.
+- Thread-local ANTLR lexer/parser reuse (warm SLL DFA across distinct sources).
+- **LSP Docker image** `ghcr.io/hoox-sh/pyne/lsp` (stdio `pyne-lsp`, slim `[lsp]` only). Published on `v*` tags with api/cli.
+
+### Changed
+- Grammar left-factors typed names; bare `x =` is `Assign`, `=` reassignment only on attribute/subscript.
+- Evaluator: `var` history carry at bar start; series maxlen matches host ≥1000; `_pine_site_id` for UDF/call-expr history.
+- **pyne-vscode** publisher namespace is **`hoox-sh`** (extension id `hoox-sh.pyne`).
 
 ### Fixed
-- **CORS** — always allow AXIS product Origins (`*.hoox.sh`, `*.pynescript.ai`, `*.pynescript.online`, `*.pynescript-axis.pages.dev`) even when systemd `ALLOWED_ORIGINS` is a short list. `/health` is a free CORS path so Cloudflare Pages previews can probe `https://axis.hoox.sh`.
-- **Build & Release:** Create Release no longer downloads Docker Buildx cache artifacts (v0.3.7 abort). CLI Nuitka compiles via `-m pynescript` so `pynescript.ast` does not shadow stdlib `ast`.
-
-### Added
-- **pyne-vscode** package: VSIX ships as `pyne-vscode-<version>.vsix` (Marketplace `jango-blockchained.pyne`, optional Open VSX). Listed under README side projects.
+- **`Runtime.run(mode="auto", libraries=)`** forwards `libraries` into interpret fallback.
+- Windows CLI `--help` no longer crashes on cp1252. Open VSX unknown-publisher no longer fails Build & Release.
+- **CORS** — AXIS product Origins + `/health` free CORS path (also in 0.3.8 notes).
+- **Build & Release:** Create Release no longer downloads Docker Buildx cache artifacts.
 
 ## [0.3.8] - 2026-08-15
 

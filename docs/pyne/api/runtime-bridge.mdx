@@ -71,6 +71,8 @@ Helpers: `configure_footprint`, `update_bid_ask`.
 | `data_feed` / `data_provider` | `request.*` wiring; auto-resolved from chart bars when unset |
 | `mode` | `"interpret"` (default for direct calls) · `"compile"` · `"auto"` (Pro API schema default) |
 | `timeout_seconds` | Optional wall-clock budget (seconds); interpret path only — partial results + `timed_out` when exceeded |
+| `libraries` | Optional `[{namespace, name, version, source}]` registered via `register_library_source` before `import ns/Name/ver` (0.3.7+; finalize in 0.3.8). `mode=auto` forwards libs into interpret fallback. |
+| `inputs` / `profiler` | `input.*` overrides (interpret); per-line timings force interpret |
 | `realtime_*` | Optional host simulation for `varip` multi-tick tests (`realtime_last_bar`, `realtime_ticks`, `realtime_bars`, `realtime_from_bar`) |
 
 #### Interpret path (default)

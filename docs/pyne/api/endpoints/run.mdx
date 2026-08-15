@@ -65,8 +65,9 @@ sequenceDiagram
 | `forward_alerts` | bool | no | `true` | When false, skip outbound webhook |
 | `alert_last_bar` | bool | no | `true` | Webhook only last OHLCV bar firings |
 | `alert_batch` | bool | no | `true` | One batch POST vs per-alert |
+| `libraries` | list | no | `[]` | `[{namespace, name, version, source}]` — AXIS git-publish emulator (0.3.7+; max 32) |
 
-Unknown fields → `UNKNOWN_FIELDS` 400. Empty script/data still checked after schema with `NO_SCRIPT` / `NO_DATA`.
+Unknown fields → `UNKNOWN_FIELDS` 400. Empty script/data still checked after schema with `NO_SCRIPT` / `NO_DATA`. `import` scripts are compile-ineligible; `mode=auto` falls back to interpret and **must** keep `libraries` (0.3.8+).
 
 Bar shape (runtime expectation):
 
