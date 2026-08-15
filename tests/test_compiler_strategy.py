@@ -822,6 +822,130 @@ strategy.exit("XT", trail_offset=100, trail_price=110)
         assert "trail_price" in code
         assert "__strategy.close" in code
 
+    def test_exit_profit_ticks_long_target(self) -> None:
+        """profit=100 ticks from long entry 100 @ mintick 0.01 → limit 101.00."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0, mintick=0.01, commission_value=0.0)
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.entry("L", "long", 1.0)
+        b.close(comment="X", profit=100.0)
+        assert b.position_size == 1.0
+        po = next(iter(b.pending_orders.values()))
+        assert po.order_type == "limit"
+        assert po.limit_price == pytest.approx(101.00)
+        b.begin_bar(1, 100.2, 100.5, 100.0, 100.4)
+        assert b.position_size == 1.0
+        b.begin_bar(2, 100.4, 101.5, 100.2, 101.2)
+        assert b.position_size == 0.0
+        assert b.closed_trades == 1
+        assert b.netprofit == pytest.approx(1.00)
+
+    def test_exit_loss_ticks_long_stop(self) -> None:
+        """loss=50 ticks from long entry 100 @ mintick 0.01 → stop 99.50."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0, mintick=0.01, commission_value=0.0)
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.entry("L", "long", 1.0)
+        b.close(comment="X", loss=50.0)
+        po = next(iter(b.pending_orders.values()))
+        assert po.order_type == "stop"
+        assert po.stop_price == pytest.approx(99.50)
+        b.begin_bar(1, 100.0, 100.2, 99.6, 99.8)
+        assert b.position_size == 1.0
+        b.begin_bar(2, 99.8, 99.9, 99.0, 99.2)
+        assert b.position_size == 0.0
+        assert b.netprofit == pytest.approx(-0.50)
+
+    def test_exit_profit_ticks_short_target(self) -> None:
+        """profit=100 ticks from short entry 100 @ mintick 0.01 → limit 99.00."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0, mintick=0.01, commission_value=0.0)
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.entry("S", "short", 1.0)
+        b.close(comment="X", profit=100.0)
+        po = next(iter(b.pending_orders.values()))
+        assert po.order_type == "limit"
+        assert po.limit_price == pytest.approx(99.00)
+        b.begin_bar(1, 100.0, 100.2, 99.4, 99.6)
+        assert b.position_size == -1.0
+        b.begin_bar(2, 99.6, 99.7, 98.5, 98.8)
+        assert b.position_size == 0.0
+        assert b.netprofit == pytest.approx(1.00)
+
+    def test_exit_limit_stop_remain_absolute_when_profit_loss_set(self) -> None:
+        """limit/stop stay prices when profit/loss are also passed."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0, mintick=0.01, commission_value=0.0)
+        b.begin_bar(0, 100.0, 101.0, 99.0, 100.0)
+        b.entry("L", "long", 1.0)
+        b.close(id="L", limit=110.0, stop=90.0, profit=100.0, loss=50.0, comment="X")
+        assert b.position_size == 1.0
+        prices = {(po.limit_price, po.stop_price) for po in b.pending_orders.values()}
+        assert (110.0, None) in prices
+        assert (None, 90.0) in prices
+
+    def test_runtime_profit_ticks_interp_compile_parity(self) -> None:
+        """Transpile+run: profit=100 from long 100 fills at 101 on both hosts."""
+        src = """//@version=5
+strategy("t", commission_value=0)
+if bar_index == 0
+    strategy.entry("L", strategy.long, qty=1)
+if bar_index == 1
+    strategy.exit("X", profit=100)
+plot(strategy.position_size, title="ps")
+plot(strategy.closedtrades, title="ct")
+"""
+        ohlcv = [
+            {
+                "open": 100.0,
+                "high": 100.0,
+                "low": 100.0,
+                "close": 100.0,
+                "volume": 1.0,
+                "time": 0,
+            },
+            {
+                "open": 100.2,
+                "high": 100.5,
+                "low": 100.0,
+                "close": 100.4,
+                "volume": 1.0,
+                "time": 60_000,
+            },
+            {
+                "open": 100.4,
+                "high": 101.5,
+                "low": 100.2,
+                "close": 101.2,
+                "volume": 1.0,
+                "time": 120_000,
+            },
+        ]
+        for mode in ("interpret", "compile"):
+            result = Runtime().run(src, ohlcv, mode=mode)
+            assert "error" not in result, (mode, result.get("error"))
+            assert result["series"]["ps"][0] == pytest.approx(1.0)
+            assert result["series"]["ps"][1] == pytest.approx(1.0)
+            assert result["series"]["ps"][2] == pytest.approx(0.0)
+            assert result["series"]["ct"][2] == pytest.approx(1.0)
+
+    def test_transpile_exit_emits_profit_loss_kwargs(self) -> None:
+        """Compiler visitor passes profit=/loss= ticks through to broker.close."""
+        src = """//@version=5
+strategy("t")
+if bar_index == 0
+    strategy.entry("L", strategy.long, qty=1)
+strategy.exit("X", from_entry="L", profit=100, loss=50)
+"""
+        code = transpile(src)
+        assert "profit=100" in code
+        assert "loss=50" in code
+        assert "__strategy.close" in code
+
     def test_openprofit_percent_and_cash_series(self) -> None:
         """Missing compile attrs caused AttributeError / compile_error on plots."""
         from pynescript.compiler.strategy_broker import CompileStrategyBroker

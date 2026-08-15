@@ -455,6 +455,17 @@ plot(bid_value)
         reparsed = parse(unparsed)
         assert repr(ast) == repr(reparsed)
 
+    def test_omitted_bid_ask_evaluate_as_na(self):
+        """Evaluator defaults omitted quotes to na (not mock 100.01/100.02)."""
+        from pynescript.ast.evaluator import NodeLiteralEvaluator
+
+        ev = NodeLiteralEvaluator()
+        assert ev.visit(parse("bid", mode="eval").body) is None
+        assert ev.visit(parse("ask", mode="eval").body) is None
+        assert ev.visit(parse("ask - bid", mode="eval").body) is None
+        ev_host = NodeLiteralEvaluator({"bid": 1.0, "ask": 1.25})
+        assert ev_host.visit(parse("ask - bid", mode="eval").body) == 0.25
+
 
 class TestFootprintRequests:
     """Test footprint data access (January 2026)"""

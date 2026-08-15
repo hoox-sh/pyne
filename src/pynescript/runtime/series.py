@@ -47,6 +47,8 @@ defaults to :data:`DEFAULT_SERIES_MAX` (256), raised by script
   full-history oracle when ``bars ≫ cap``. Prefer incremental TA (default).
 
 Out-of-range history offsets always return ``None`` (``na``); never ``0``.
+``inf`` / ``-inf`` offsets are na (do not raise). Ring ``history_length``
+matches :class:`PineSeries` (falsy → 1000, negative → 1).
 """
 
 from __future__ import annotations
@@ -224,9 +226,52 @@ def series_ring_enabled() -> bool:
     When on, :func:`make_pine_series` returns a chronological ring buffer
     (``RingPineSeries``) with O(1) lookback. Orthogonal to T1
     ``PYNE_SERIES_CAP`` / ``current_series`` list trimming.
+
+    Default stays **off**: host still dual-writes OHLCV wrappers *and*
+    ``current_series`` lists (different depths: lookback floor 1000 vs TA
+    cap 256). Enabling by default would add ring cost without dropping
+    the list path (Agent 03 owns host packing).
     """
     v = os.environ.get("PYNE_SERIES_RING", "0").strip().lower()
     return v in {"1", "true", "yes", "on"}
+
+
+def _normalize_history_length(history_length: Any) -> int:
+    """Constructor maxlen shared by :class:`PineSeries` and the ring wrapper.
+
+    ``None`` / ``0`` / other falsy → :data:`DEFAULT_PINESERIES_HISTORY`.
+    Negative (or ``int(x) < 1``) → ``1``. Matches historic deque policy;
+    the ring must not treat ``<= 0`` as uncapped.
+    """
+    if not history_length:
+        return DEFAULT_PINESERIES_HISTORY
+    return max(1, int(history_length))
+
+
+def _coerce_pine_offset(index: Any) -> int | None:
+    """Normalize a Pine history offset; ``None`` for na / invalid / overflow.
+
+    Floats truncate toward zero. ``bool`` is 0/1. ``inf`` / ``-inf`` →
+    ``None`` (never raise, never invent ``0``).
+    """
+    t = type(index)
+    if t is int:
+        return index
+    if t is bool:
+        return int(index)
+    if t is float:
+        if index != index:  # NaN
+            return None
+        try:
+            return int(index)
+        except OverflowError:
+            return None
+    if index is None:
+        return None
+    try:
+        return int(index)
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 
 def make_pine_series(
@@ -265,7 +310,7 @@ class PineSeries:
 
     def __init__(self, initial_value: Any = None, history_length: int = DEFAULT_PINESERIES_HISTORY):
         # Start empty so TA history is not polluted by a leading None placeholder
-        hl = max(1, int(history_length)) if history_length else DEFAULT_PINESERIES_HISTORY
+        hl = _normalize_history_length(history_length)
         self.history: deque = deque(maxlen=hl)
         self.current = initial_value
         if initial_value is not None:
@@ -304,37 +349,32 @@ class PineSeries:
         else:
             self.history.appendleft(new_value)
 
-    def __getitem__(self, index: int):
+    def __getitem__(self, index: Any) -> Any:
         """Access historical values. series[0] is current, series[1] is previous.
 
         Float offsets are truncated toward zero (TV coerces length-like floats).
-        ``na`` / non-numeric / negative / OOB index → ``None`` (na), not a crash.
+        ``na`` / non-numeric / negative / OOB / ``inf`` → ``None`` (na), never ``0``.
         """
-        t = type(index)
-        if t is not int:
-            if t is float:
-                if index != index:  # NaN
-                    return None
-                index = int(index)
-            elif index is None:
-                return None
-            else:
-                try:
-                    index = int(index)  # type: ignore[arg-type]
-                except (TypeError, ValueError):
-                    return None
+        off = _coerce_pine_offset(index)
         # Negative offsets are invalid Pine history refs. Soft-fail to na so
         # warm-up / for-to with auto step -1 / highestbars(-n) misuse do not
         # abort the bar loop (TV-like indicator residual behaviour).
-        if index < 0:
+        if off is None or off < 0:
             return None
         hist = self.history
-        if index >= len(hist):
+        if off >= len(hist):
             return None  # na — past available history (warmup / lookback)
-        return hist[index]
+        return hist[off]
 
     def _binary_op(self, other: Any, op: Callable) -> Any:
-        other_val = other.current if isinstance(other, PineSeries) else other
+        # Duck-type RingPineSeries / other wrappers (flag-on host mix).
+        if isinstance(other, PineSeries) or (
+            hasattr(other, "current")
+            and type(other).__name__ in {"PineSeries", "RingPineSeries"}
+        ):
+            other_val = other.current
+        else:
+            other_val = other
 
         if self.current is None or other_val is None:
             return None

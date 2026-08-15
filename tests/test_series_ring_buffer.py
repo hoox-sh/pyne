@@ -345,3 +345,202 @@ def test_as_series_accepts_ring_pineseries() -> None:
     assert mat[-1] == 19.0
     assert mat[0] == 0.0
     assert len(mat) == 20
+
+
+# ---------------------------------------------------------------------------
+# Correctness harden goldens (parity with list PineSeries)
+# ---------------------------------------------------------------------------
+
+
+def test_history_length_matches_legacy_pineseries() -> None:
+    """0 / None / negative must not leave the ring uncapped (legacy: 1000 / 1)."""
+    from backend.series import DEFAULT_PINESERIES_HISTORY
+    from backend.series import PineSeries
+
+    cases = (0, None, False, -1, -5, 1, 5, 1000)
+    for hl in cases:
+        pine = PineSeries(history_length=hl)  # type: ignore[arg-type]
+        ring = RingPineSeries(history_length=hl)  # type: ignore[arg-type]
+        assert ring.history_length == pine.history.maxlen, hl
+    # Falsy → default floor; negative → 1
+    assert RingPineSeries(history_length=0).history_length == DEFAULT_PINESERIES_HISTORY
+    assert RingPineSeries(history_length=None).history_length == DEFAULT_PINESERIES_HISTORY
+    assert RingPineSeries(history_length=-3).history_length == 1
+
+
+def test_ring_is_pineseries_subclass() -> None:
+    from backend.series import PineSeries
+
+    ring = RingPineSeries(1.0)
+    assert isinstance(ring, PineSeries)
+    assert type(ring) is RingPineSeries
+
+
+def test_oob_negative_inf_nan_never_zero() -> None:
+    from math import inf
+    from math import nan
+
+    from backend.series import PineSeries
+
+    pine = PineSeries()
+    ring = RingPineSeries()
+    pine.update(7.0)
+    ring.update(7.0)
+    for idx in (-1, -99, 1, 100, None, nan, inf, -inf, object(), "x", 1 + 0j):
+        pv, rv = pine[idx], ring[idx]
+        assert pv is None, idx
+        assert rv is None, idx
+        assert pv != 0 and rv != 0
+
+
+def test_zero_value_is_not_na() -> None:
+    """Stored 0.0 must survive lookback; na is None, never coerced to 0."""
+    ring = RingPineSeries()
+    ring.update(0.0)
+    ring.update(None)
+    ring.update(0.0)
+    assert ring[0] == 0.0
+    assert ring[1] is None
+    assert ring[2] == 0.0
+    assert ring[3] is None
+
+
+def test_set_current_same_bar_does_not_push() -> None:
+    from backend.series import PineSeries
+
+    pine = PineSeries()
+    ring = RingPineSeries()
+    pine.update(1.0)
+    ring.update(1.0)
+    pine.update(2.0)
+    ring.update(2.0)
+    pine.set_current(9.0)
+    ring.set_current(9.0)
+    assert len(ring.history) == len(pine.history) == 2
+    assert ring[0] == pine[0] == 9.0
+    assert ring[1] == pine[1] == 1.0
+    assert ring[2] is None
+    # empty → first sample
+    empty = RingPineSeries()
+    empty.set_current(3.0)
+    assert empty[0] == 3.0
+    assert empty[1] is None
+    assert len(empty.history) == 1
+
+
+def test_history_setitem_and_appendleft_deque_parity() -> None:
+    ring = RingPineSeries()
+    for v in (10.0, 20.0, 30.0):
+        ring.update(v)
+    ring.history[0] = 99.0
+    assert ring[0] == 99.0
+    assert ring.buffer.lookback(0) == 99.0
+    ring.history.appendleft(100.0)
+    assert ring[0] == 100.0
+    assert ring[1] == 99.0
+    # bool index (deque accepts True/False via operator.index)
+    assert ring.history[False] == 100.0
+    assert ring.history[True] == 99.0
+
+
+def test_ring_wrap_many_cycles_matches_legacy() -> None:
+    from backend.series import PineSeries
+
+    pine = PineSeries(history_length=4)
+    ring = RingPineSeries(history_length=4)
+    for i in range(25):
+        pine.update(float(i))
+        ring.update(float(i))
+        assert list(ring.history) == list(pine.history), i
+        for off in range(-1, 8):
+            assert ring[off] == pine[off], (i, off)
+            # OOB / negative never invent 0
+            if off < 0 or off >= 4:
+                assert ring[off] is None
+    assert ring.buffer.chronological() == [21.0, 22.0, 23.0, 24.0]
+    assert ring[0] == 24.0
+    assert ring[3] == 21.0
+    assert ring[4] is None
+
+
+def test_set_current_after_wrap() -> None:
+    ring = RingPineSeries(history_length=3)
+    for v in (1.0, 2.0, 3.0, 4.0, 5.0):
+        ring.update(v)
+    ring.set_current(50.0)
+    assert ring[0] == 50.0
+    assert ring[1] == 4.0
+    assert ring[2] == 3.0
+    assert ring[3] is None
+    assert ring.buffer.chronological() == [3.0, 4.0, 50.0]
+
+
+def test_as_series_after_ring_wrap_keeps_newest_window() -> None:
+    from pynescript.ast.evaluator.builtins.technical_submodules.core import TechnicalHelpers
+
+    class _H(TechnicalHelpers):
+        def _error(self, message: str) -> None:
+            raise RuntimeError(message)
+
+    ev = _H()
+    ev._SERIES_MAX = 4  # type: ignore[attr-defined]
+    ring = RingPineSeries(history_length=4)
+    for i in range(10):
+        ring.update(float(i))
+    mat = ev._as_series(ring)
+    assert mat == [6.0, 7.0, 8.0, 9.0]
+
+
+def test_runtime_ring_and_cap_sma_matches_legacy(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ring + list cap: SMA(20) last-N matches flag-off; close[n] OOB is na."""
+    from backend.runtime import Runtime
+
+    try:
+        from pynescript.ast.helper import clear_parse_cache
+
+        clear_parse_cache()
+    except Exception:  # noqa: BLE001
+        pass
+
+    bars = [
+        {
+            "open": 100.0 + i * 0.1,
+            "high": 101.0 + i * 0.1,
+            "low": 99.0 + i * 0.1,
+            "close": 100.0 + i,
+            "volume": 1.0,
+            "time": 1_700_000_000_000 + i * 86_400_000,
+        }
+        for i in range(80)
+    ]
+    src_off = """//@version=5
+indicator("ring_cap_off")
+plot(ta.sma(close, 20), "s")
+plot(close[1], "c1")
+plot(close[200], "c200")
+"""
+    src_on = """//@version=5
+indicator("ring_cap_on")
+plot(ta.sma(close, 20), "s")
+plot(close[1], "c1")
+plot(close[200], "c200")
+"""
+    monkeypatch.setenv("PYNE_SERIES_CAP", "1")
+    monkeypatch.setenv("PYNE_SERIES_RING", "0")
+    off = Runtime(symbol="T").run(src_off, bars)
+    monkeypatch.setenv("PYNE_SERIES_RING", "1")
+    on = Runtime(symbol="T").run(src_on, bars)
+    assert "error" not in off, off.get("error")
+    assert "error" not in on, on.get("error")
+    for key in ("s", "c1", "c200"):
+        a, b = off["series"][key], on["series"][key]
+        assert len(a) == len(b) == 80
+        # last 40 SMA / close[1] cells; c200 is na on every bar
+        if key == "c200":
+            assert all(v is None for v in a) and all(v is None for v in b)
+        else:
+            for x, y in zip(a[-40:], b[-40:], strict=True):
+                if x is None and y is None:
+                    continue
+                assert x is not None and y is not None
+                assert abs(float(x) - float(y)) <= 1e-9

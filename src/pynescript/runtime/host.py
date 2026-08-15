@@ -37,7 +37,7 @@ import os
 import re
 import time
 import uuid
-
+from sys import intern
 from typing import Any
 
 from pynescript.ast.helper import parse, walk
@@ -340,6 +340,213 @@ def _json_safe_number(x: Any) -> float | None:
             return None
         return fx
     return None
+
+
+def _color_str(c: Any) -> str | None:
+    """JSON-safe color for plot_meta / bgcolor cells."""
+    if c is None:
+        return None
+    t = type(c)
+    if t is str:
+        return c if c else None
+    if t is int:
+        return f"#{c & 0xFFFFFF:06X}"
+    to_rgba = getattr(c, "to_rgba", None)
+    if callable(to_rgba):
+        try:
+            return str(to_rgba())
+        except Exception:
+            pass
+    to_hex = getattr(c, "to_hex", None)
+    if callable(to_hex):
+        try:
+            return str(to_hex())
+        except Exception:
+            pass
+    s = str(c)
+    return s if s else None
+
+
+def _json_plot_value(v: Any, kind: str) -> Any:
+    """JSON-safe series cell for plot / bgcolor / plotshape kinds."""
+    if v is None:
+        return None
+    # Unresolved library imports use a chainable stub whose ``__getattr__``
+    # returns self — so ``hasattr(stub, "to_rgba")`` is True and would
+    # otherwise serialize as ``"<PineImportStub …>"`` via ``_color_str``.
+    if getattr(v, "__pine_import_stub__", False):
+        return None
+    t = type(v)
+    if kind == "bgcolor":
+        if t is str:
+            return v if v else None
+        return _color_str(v)
+    if kind in ("plotshape", "plotchar", "plotarrow"):
+        if t is bool:
+            return v
+        if t is int or t is float:
+            try:
+                fv = float(v)
+                if fv != fv:  # NaN
+                    return False
+                return fv != 0.0
+            except (TypeError, ValueError):
+                return bool(v)
+        return bool(v)
+    # line / hline numeric. Non-numeric strings (library import stubs,
+    # unresolved symbols) must not appear as plot series cells — AXIS
+    # and interpret/compile parity treat them as ``na`` (null).
+    if t is float or t is int:
+        try:
+            fv = float(v)
+            return None if fv != fv else v
+        except (TypeError, ValueError):
+            return None
+    if t is bool:
+        return float(v)
+    if t is str:
+        s = v.strip()
+        if not s or s.startswith("<PineImportStub") or s.startswith("<"):
+            return None
+        try:
+            fv = float(s)
+            return None if fv != fv else fv
+        except (TypeError, ValueError):
+            return None
+    to_rgba = getattr(type(v), "to_rgba", None)
+    to_hex = getattr(type(v), "to_hex", None)
+    if callable(to_rgba) or callable(to_hex):
+        return _color_str(v)
+    return None
+
+
+# Capture already stores JSON-safe cells for these kinds (fill series is all-null).
+_PACK_READY_KINDS: frozenset[str] = frozenset(
+    {"plot", "hline", "bgcolor", "fill", "plotshape", "plotchar", "plotarrow"}
+)
+
+
+def _hline_fill_constant(values: list[Any]) -> list[Any]:
+    """Fill hline None gaps with the first known price (in-place when possible)."""
+    fill = None
+    has_none = False
+    for v in values:
+        if v is None:
+            has_none = True
+        elif fill is None:
+            fill = v
+        if fill is not None and has_none:
+            break
+    if fill is None or not has_none:
+        return values
+    for i, v in enumerate(values):
+        if v is None:
+            values[i] = fill
+    return values
+
+
+def _pack_interpret_plot_columns(
+    value_cols: list[list[Any]],
+    meta_list: list[dict[str, Any]],
+    *,
+    bars_done: int = 0,
+    pack_dirty: bool = False,
+) -> tuple[dict[str, list[Any]], dict[str, dict[str, Any]], list[Any]]:
+    """Build ``series`` / ``plot_meta`` / primary ``plots`` from columnar capture.
+
+    Capture already stores JSON-safe cells for common kinds; reuse those lists
+    (no per-cell scan / ``list()`` copy) unless ``pack_dirty`` or the kind is
+    unknown. Incomplete runs (timeout) slice pre-sized columns to *bars_done*.
+    """
+    series_map: dict[str, list[Any]] = {}
+    plot_meta: dict[str, dict[str, Any]] = {}
+    max_plots = len(value_cols)
+    if max_plots == 0:
+        return series_map, plot_meta, []
+
+    for pi in range(max_plots):
+        m0 = meta_list[pi] if pi < len(meta_list) else {}
+        title = str(m0.get("title") or "") or f"plot_{pi}"
+        color = m0.get("color")
+        if color is not None and type(color) is not str:
+            color = _color_str(color)
+        elif color == "":
+            color = None
+        linewidth = int(m0.get("linewidth") or 1)
+        kind = str(m0.get("kind") or m0.get("type") or "plot")
+        style = m0.get("style")
+        if style is not None:
+            style = str(style) if style != "" else None
+        linestyle = m0.get("linestyle")
+        if linestyle is not None:
+            linestyle = str(linestyle)
+        location = m0.get("location")
+        if location is not None:
+            location = str(location) if location != "" else None
+        text = m0.get("text")
+        if text is not None:
+            text = str(text) if text != "" else None
+        char = m0.get("char")
+        if char is not None:
+            char = str(char) if char != "" else None
+
+        base = title
+        suffix = 2
+        while title in series_map:
+            title = f"{base}_{suffix}"
+            suffix += 1
+        if type(title) is str:
+            title = intern(title)
+
+        raw_col = value_cols[pi]
+        n = bars_done if bars_done > 0 else len(raw_col)
+        if n < len(raw_col):
+            raw_col = raw_col[:n]
+        # Reuse capture lists when cells are already JSON-safe.
+        if kind in _PACK_READY_KINDS and not (pack_dirty and kind in ("plot", "hline")):
+            values = raw_col
+        else:
+            values = [_json_plot_value(v, kind) for v in raw_col]
+        if kind == "hline":
+            values = _hline_fill_constant(values)
+        series_map[title] = values
+        meta_entry: dict[str, Any] = {
+            "title": title,
+            "color": color,
+            "linewidth": linewidth,
+            "index": pi,
+            "kind": kind,
+        }
+        if style is not None:
+            meta_entry["style"] = style
+        if linestyle is not None:
+            meta_entry["linestyle"] = linestyle
+        if location is not None:
+            meta_entry["location"] = location
+        if text is not None:
+            meta_entry["text"] = text
+        if char is not None:
+            meta_entry["char"] = char
+        size = m0.get("size", m0.get("text_size"))
+        if size is not None and size != "":
+            meta_entry["size"] = size
+            meta_entry["text_size"] = size
+        if kind == "fill":
+            for ref_key in ("plot1", "plot2"):
+                ref = m0.get(ref_key)
+                if ref is not None and str(ref).strip() != "":
+                    meta_entry[ref_key] = str(ref)
+        if kind == "hline":
+            price_val = next((v for v in values if v is not None), None)
+            if price_val is not None:
+                try:
+                    meta_entry["price"] = float(price_val)
+                except (TypeError, ValueError):
+                    meta_entry["price"] = price_val
+        plot_meta[title] = meta_entry
+
+    final_series = next(iter(series_map.values()), [])
+    return series_map, plot_meta, final_series
 
 
 def _series_values_jsonable(values: Any) -> list[Any]:
@@ -667,7 +874,14 @@ def _discard_realtime_plot_tick(evaluator: Any) -> None:
 
     Multi-tick realtime simulation re-visits the script without advancing
     ``_plot_bars_done``; intermediate ticks must not leave extra series cells.
+    Pre-sized columns overwrite the same bar slot — only reset the capture index.
     """
+    if int(getattr(evaluator, "_plot_n_bars", 0) or 0) > 0:
+        try:
+            evaluator._plot_capture_i = 0
+        except Exception:
+            pass
+        return
     n = int(getattr(evaluator, "_plot_capture_i", 0) or 0)
     cols = getattr(evaluator, "_plot_value_cols", None)
     if cols and n > 0:
@@ -896,6 +1110,7 @@ class Runtime:
         inputs: dict | None = None,
         profiler: bool = False,
         timeout_seconds: float | None = None,
+        libraries: list[dict[str, Any]] | None = None,
         *,
         realtime_last_bar: bool = False,
         realtime_ticks: int = 1,
@@ -924,6 +1139,9 @@ class Runtime:
                 Applied on interpret only; auto with overrides uses interpret.
             profiler: When true, collect per-line timings for AXIS gutter.
                 Forces interpret (compile has no statement walk).
+            libraries: Optional list of ``{namespace, name, version, source}``
+                dicts registered via ``register_library_source`` before
+                ``import ns/Name/ver`` resolves (AXIS git publish emulator).
             timeout_seconds: Optional wall-clock budget (edge workers / cron).
                 When exceeded, interpret stops early and returns partial
                 results with ``timed_out=True`` and ``error`` set.
@@ -1088,6 +1306,21 @@ class Runtime:
 
         evaluator = CustomEvaluator(context=context, data_feed=data_feed, data_provider=data_provider)
         evaluator.reset_var_declarations()
+        for lib in libraries or []:
+            if not isinstance(lib, dict):
+                continue
+            ns = str(lib.get("namespace") or "")
+            name = str(lib.get("name") or "")
+            src = str(lib.get("source") or "")
+            try:
+                ver = int(lib.get("version") or 1)
+            except (TypeError, ValueError):
+                ver = 1
+            if ns and name and src:
+                try:
+                    evaluator.register_library_source(ns, name, ver, src)
+                except Exception:
+                    pass
         # Host UI overrides for input.* (keyed by title)
         if inputs and isinstance(inputs, dict):
             try:
@@ -1156,6 +1389,8 @@ class Runtime:
 
         n_bars = len(ohlcv_data)
         last_bar_i = n_bars - 1
+        # Pre-size plot columns so capture writes by bar index (no append/resize).
+        evaluator._plot_n_bars = n_bars  # type: ignore[attr-defined]
         # Shared host packing (same volume/time defaults as mode=compile).
         col_open, col_high, col_low, col_close, col_vol, col_time = _pack_ohlcv_columns(
             ohlcv_data
@@ -1489,186 +1724,21 @@ class Runtime:
         # Light mode: skip export packing (corpus only needs error vs OK).
         series_map: dict[str, list[Any]] = {}
         plot_meta: dict[str, dict[str, Any]] = {}
-        value_cols: list[list[Any]] = []
-        meta_list: list[dict[str, Any]] = []
+        final_series: list[Any] = []
         n_result_bars = n_bars
         if not light_plots:
             value_cols = getattr(evaluator, "_plot_value_cols", None) or []
             meta_list = getattr(evaluator, "_plot_meta_list", None) or []
+            bars_done = int(getattr(evaluator, "_plot_bars_done", 0) or 0)
+            pack_dirty = bool(getattr(evaluator, "_plot_pack_dirty", False))
             if value_cols:
-                n_result_bars = len(value_cols[0])
-
-        def _color_str(c: Any) -> str | None:
-            if c is None:
-                return None
-            t = type(c)
-            if t is str:
-                return c if c else None
-            if t is int:
-                return f"#{c & 0xFFFFFF:06X}"
-            to_rgba = getattr(c, "to_rgba", None)
-            if callable(to_rgba):
-                try:
-                    return str(to_rgba())
-                except Exception:
-                    pass
-            to_hex = getattr(c, "to_hex", None)
-            if callable(to_hex):
-                try:
-                    return str(to_hex())
-                except Exception:
-                    pass
-            s = str(c)
-            return s if s else None
-
-        def _json_plot_value(v: Any, kind: str) -> Any:
-            """JSON-safe series cell for plot / bgcolor / plotshape kinds."""
-            if v is None:
-                return None
-            # Unresolved library imports use a chainable stub whose ``__getattr__``
-            # returns self — so ``hasattr(stub, "to_rgba")`` is True and would
-            # otherwise serialize as ``"<PineImportStub …>"`` via ``_color_str``.
-            if getattr(v, "__pine_import_stub__", False):
-                return None
-            t = type(v)
-            if kind == "bgcolor":
-                # Capture already serializes colors to str | None
-                if t is str:
-                    return v if v else None
-                return _color_str(v)
-            if kind in ("plotshape", "plotchar", "plotarrow"):
-                if t is bool:
-                    return v
-                if t is int or t is float:
-                    try:
-                        fv = float(v)
-                        if fv != fv:  # NaN
-                            return False
-                        return fv != 0.0
-                    except (TypeError, ValueError):
-                        return bool(v)
-                return bool(v)
-            # line / hline numeric. Non-numeric strings (library import stubs,
-            # unresolved symbols) must not appear as plot series cells — AXIS
-            # and interpret/compile parity treat them as ``na`` (null).
-            if t is float or t is int:
-                try:
-                    fv = float(v)
-                    return None if fv != fv else v
-                except (TypeError, ValueError):
-                    return None
-            if t is bool:
-                return float(v)
-            if t is str:
-                s = v.strip()
-                if not s or s.startswith("<PineImportStub") or s.startswith("<"):
-                    return None
-                try:
-                    fv = float(s)
-                    return None if fv != fv else fv
-                except (TypeError, ValueError):
-                    return None
-            # Only real color objects (callable to_rgba/to_hex), not getattr stubs
-            to_rgba = getattr(type(v), "to_rgba", None)
-            to_hex = getattr(type(v), "to_hex", None)
-            if callable(to_rgba) or callable(to_hex):
-                return _color_str(v)
-            return None
-
-        max_plots = len(value_cols)
-        for pi in range(max_plots):
-            m0 = meta_list[pi] if pi < len(meta_list) else {}
-            title = str(m0.get("title") or "") or f"plot_{pi}"
-            color = m0.get("color")
-            if color is not None and type(color) is not str:
-                color = _color_str(color)
-            elif color == "":
-                color = None
-            linewidth = int(m0.get("linewidth") or 1)
-            kind = str(m0.get("kind") or m0.get("type") or "plot")
-            style = m0.get("style")
-            if style is not None:
-                style = str(style) if style != "" else None
-            linestyle = m0.get("linestyle")
-            if linestyle is not None:
-                linestyle = str(linestyle)
-            location = m0.get("location")
-            if location is not None:
-                location = str(location) if location != "" else None
-            text = m0.get("text")
-            if text is not None:
-                text = str(text) if text != "" else None
-            char = m0.get("char")
-            if char is not None:
-                char = str(char) if char != "" else None
-
-            base = title
-            suffix = 2
-            while title in series_map:
-                title = f"{base}_{suffix}"
-                suffix += 1
-            raw_col = value_cols[pi]
-            # Fast path: pure numeric plot columns need no per-cell work
-            if kind in ("plot", "hline") and raw_col and all(
-                type(v) is float or type(v) is int or v is None for v in raw_col
-            ):
-                values = list(raw_col)
-            else:
-                values = [_json_plot_value(v, kind) for v in raw_col]
-            # hline: constant price — fill gaps with last known price so AXIS
-            # can render a full-width level (or read price from meta).
-            if kind == "hline":
-                fill = None
-                for v in values:
-                    if v is not None:
-                        fill = v
-                        break
-                if fill is not None:
-                    values = [fill if v is None else v for v in values]
-            series_map[title] = values
-            meta_entry: dict[str, Any] = {
-                "title": title,
-                "color": color,
-                "linewidth": linewidth,
-                "index": pi,
-                "kind": kind,
-            }
-            if style is not None:
-                meta_entry["style"] = style
-            if linestyle is not None:
-                meta_entry["linestyle"] = linestyle
-            if location is not None:
-                meta_entry["location"] = location
-            if text is not None:
-                meta_entry["text"] = text
-            if char is not None:
-                meta_entry["char"] = char
-            # plotshape size=size.tiny / text_size (AXIS maps to LWC marker size)
-            size = m0.get("size", m0.get("text_size"))
-            if size is not None and size != "":
-                meta_entry["size"] = size
-                meta_entry["text_size"] = size
-            # fill(plot1, plot2, color=…) — AXIS band needs sibling series titles
-            if kind == "fill":
-                for ref_key in ("plot1", "plot2"):
-                    ref = m0.get(ref_key)
-                    if ref is not None and str(ref).strip() != "":
-                        meta_entry[ref_key] = str(ref)
-            if kind == "hline":
-                price_val = next((v for v in values if v is not None), None)
-                if price_val is not None:
-                    try:
-                        meta_entry["price"] = float(price_val)
-                    except (TypeError, ValueError):
-                        meta_entry["price"] = price_val
-            plot_meta[title] = meta_entry
-
-        # Primary plots list = first plot series (backward compatible)
-        final_series: list[Any] = []
-        if max_plots > 0:
-            final_series = list(value_cols[0])
-        elif series_map:
-            final_series = next(iter(series_map.values()))
+                n_result_bars = bars_done if bars_done > 0 else len(value_cols[0])
+            series_map, plot_meta, final_series = _pack_interpret_plot_columns(
+                value_cols,
+                meta_list,
+                bars_done=bars_done,
+                pack_dirty=pack_dirty,
+            )
 
         # Serialize Pine drawing objects (line/label/box) for AXIS overlay.
         # Fast path: skip bar_times materialization + export when registry empty
@@ -2099,6 +2169,8 @@ class Runtime:
                 ks = k if isinstance(k, str) else str(k)
                 if ks.startswith("__"):
                     continue
+                if type(ks) is str:
+                    ks = intern(ks)
                 json_series[ks] = _to_json(v)
 
         # Compile-path GC: __drawings is append-only; trim by declaration caps

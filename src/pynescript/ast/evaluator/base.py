@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import math
 
+from itertools import count
 from typing import Any
 
 from pynescript.ast import node as ast
@@ -45,9 +46,9 @@ _MATH_CONSTANTS = {
     "math.e": math.e,
     "math.phi": (1 + math.sqrt(5)) / 2,
     "math.rphi": 2 / (1 + math.sqrt(5)),
-    # v6 feature (February 2025): bid and ask variables on 1T timeframe
-    "bid": 100.01,  # Mock bid price for 1T timeframe
-    "ask": 100.02,  # Mock ask price for 1T timeframe
+    # v6 (Feb 2025): bid/ask on 1T. Omitted quotes are na — never invent mocks.
+    "bid": None,
+    "ask": None,
     # Additional v6 syminfo / timeframe constants (simple defaults)
     "syminfo.isin": "",
     "syminfo.current_contract": None,
@@ -171,6 +172,11 @@ _MATH_CONSTANTS = {
     "color.gray": "#787B86",
 }
 
+# Unique per evaluator instance (never recycled). Bound call-site tuples that
+# still carry instance methods must stamp this so a shared/cached AST cannot
+# invoke another evaluator's plot / incremental TA handlers.
+_EVAL_GENERATION = count(1)
+
 
 class BaseEvaluator(NodeVisitor):
     """Visitor base: execution context, math defaults, UDT and library registries.
@@ -183,6 +189,7 @@ class BaseEvaluator(NodeVisitor):
       rebind parameters on the same object so bar series stay visible.
     - **Math / chart defaults** — ``_MATH_CONSTANTS`` filled via ``setdefault``
       so host values (real ``bid``/``ask``, inferred timeframe flags) win.
+      Omitted bid/ask stay ``None`` (na); hosts/data_feeds must set quotes.
     - **``type_registry``** — user-defined types (``type X``).
     - **``_library_registry``** — ``library(...)`` / ``import`` resolution.
     - **``_active_library`` / ``_pending_library_exports``** — buffer while
@@ -229,6 +236,8 @@ class BaseEvaluator(NodeVisitor):
         # Bar-loop call-site caches (pre-allocated so visit_Call avoids None checks).
         # Keyed by id(Call AST node); AST is stable for the script lifetime.
         self._call_site_cache: dict[int, tuple] = {}
+        # Stamped on bound ``_pine_call_site`` tuples (see expressions.visit_Call).
+        self._eval_generation: int = next(_EVAL_GENERATION)
         # name → (tag, handler) for _call_builtin after first resolve
         self._builtin_resolved: dict[str, tuple[int, Any]] = {}
         # Pine dual namespace: UDFs stay callable even when a series local

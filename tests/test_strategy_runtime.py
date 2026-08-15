@@ -410,6 +410,19 @@ class TestStrategyCashAndPyramiding:
         assert ev._strategy_state.position_size == 2.0
         assert len(ev._strategy_state.closed_trades) == 0
 
+    def test_exit_profit_ticks_from_entry_avg(self) -> None:
+        """profit ticks are an offset from entry avg, not an absolute price."""
+        ev = NodeLiteralEvaluator()
+        ev._strategy_state.mintick = 0.01
+        _set_bar(ev, 0, 100.0)
+        ev.context["syminfo"] = {"mintick": 0.01}
+        m = ev._build_builtin_map()
+        m["strategy.entry"](["L", "long", 1.0])
+        m["strategy.exit"]([], {"id": "X", "profit": 100.0})
+        po = ev._strategy_state.pending_orders["X"]
+        assert po.limit_price == 101.0
+        assert ev._strategy_state.position_size == 1.0
+
 
 class TestAvgPriceModel:
     """strategy(..., avg_price_model=stock|futures) — multi-leg partial close matrix."""

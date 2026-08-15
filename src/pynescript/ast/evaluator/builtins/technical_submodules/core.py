@@ -649,12 +649,106 @@ class TechnicalHelpers:
         st["value"] = best
         return best
 
+    @staticmethod
+    def _wma_state_new() -> dict[str, Any]:
+        return {
+            "window": deque(),
+            "sum": 0.0,
+            "wsum": 0.0,
+            "na_count": 0,
+            "steps": 0,
+            "dirty": True,
+            "value": None,
+        }
+
+    @staticmethod
+    def _wma_parse_sample(raw: Any) -> float | None:
+        """None / non-numeric / NaN → None (Pine na)."""
+        if raw is None:
+            return None
+        try:
+            x = float(raw)
+        except (TypeError, ValueError):
+            return None
+        if x != x:
+            return None
+        return x
+
+    @staticmethod
+    def _wma_recompute_window(
+        window: deque[Any] | list[Any], period: int
+    ) -> tuple[float, float] | None:
+        """``(sum, weighted_sum)`` for a full finite window; None if any na."""
+        if period <= 0 or len(window) < period:
+            return None
+        s = 0.0
+        ws = 0.0
+        for i, v in enumerate(window):
+            if v is None:
+                return None
+            try:
+                fv = float(v)
+            except (TypeError, ValueError):
+                return None
+            if fv != fv:
+                return None
+            s += fv
+            ws += fv * (i + 1)
+        return s, ws
+
+    @staticmethod
+    def _wma_state_step(st: dict[str, Any], raw: Any, period: int) -> float | None:
+        """One WMA sample. O(1) when the window is all-finite.
+
+        Oldest weight 1 … newest weight ``period``. Strict window: any na → na.
+        Reseeds from the ring every ``period`` steps to bound float drift.
+        """
+        if period <= 0:
+            st["value"] = None
+            return None
+        x = TechnicalHelpers._wma_parse_sample(raw)
+        window: deque[Any] = st["window"]
+        old: Any = None
+        popped = False
+        if len(window) == period:
+            old = window.popleft()
+            popped = True
+            if old is None:
+                st["na_count"] = int(st["na_count"]) - 1
+        window.append(x)
+        if x is None:
+            st["na_count"] = int(st["na_count"]) + 1
+        st["steps"] = int(st["steps"]) + 1
+        if len(window) < period or int(st["na_count"]) > 0:
+            st["dirty"] = True
+            st["value"] = None
+            return None
+        reseed = (
+            bool(st["dirty"])
+            or not popped
+            or old is None
+            or (int(st["steps"]) % period == 0)
+        )
+        if reseed:
+            recomputed = TechnicalHelpers._wma_recompute_window(window, period)
+            if recomputed is None:
+                st["dirty"] = True
+                st["value"] = None
+                return None
+            st["sum"], st["wsum"] = recomputed
+            st["dirty"] = False
+        else:
+            new = float(x)
+            st["wsum"] = float(st["wsum"]) - float(st["sum"]) + new * period
+            st["sum"] = float(st["sum"]) - float(old) + new
+        st["value"] = float(st["wsum"]) / (period * (period + 1) / 2.0)
+        return st.get("value")
+
     def _wma_inc_update(self, series: list[Any], period: int) -> float | None:
         """Incremental WMA matching full ``_wma`` / compile ``numba_wma``.
 
-        Weights positions 1..period within the window (oldest weight 1).
-        Requires a full window of non-``na`` samples (reference / compile parity);
-        any ``None`` in the window → ``na``.
+        O(1) running sum + weighted sum (oldest weight 1). Strict window:
+        any na in the period → na (do not drop-na and reweight).
         """
         if period <= 0:
             return None
@@ -663,32 +757,9 @@ class TechnicalHelpers:
         bucket = self._ta_state_bucket()
         st = bucket.get(key)
         if st is None:
-            st = {"window": deque(), "value": None}
+            st = self._wma_state_new()
             bucket[key] = st
-        x = self._series_last(series)
-        window: deque[Any] = st["window"]
-        if len(window) == period:
-            window.popleft()
-        window.append(x)
-        if len(window) < period:
-            st["value"] = None
-            return None
-        # Full window required — do not drop na and reweight (that drifted
-        # Coppock / nested WMA vs compile).
-        if any(v is None for v in window):
-            st["value"] = None
-            return None
-        # series[-1]*period + series[-2]*(period-1) + ... + series[-period]*1
-        total_w = period * (period + 1) / 2.0
-        acc = 0.0
-        for i, v in enumerate(window):
-            try:
-                acc += float(v) * (i + 1)
-            except (TypeError, ValueError):
-                st["value"] = None
-                return None
-        st["value"] = acc / total_w
-        return st.get("value")
+        return self._wma_state_step(st, self._series_last(series), period)
 
     def _tr_inc_update(
         self,
@@ -1239,28 +1310,19 @@ class TechnicalHelpers:
 
     @staticmethod
     def _wma_from_window(window: deque[Any] | list[Any], period: int) -> float | None:
-        """WMA over a fixed-length window matching full ``_wma`` last-value rules."""
-        if period <= 0 or len(window) < period:
+        """WMA over a fixed-length window matching full ``_wma`` (strict na)."""
+        recomputed = TechnicalHelpers._wma_recompute_window(window, period)
+        if recomputed is None:
             return None
-        has_none = any(v is None for v in window)
-        if has_none:
-            valid = [(i + 1, v) for i, v in enumerate(window) if v is not None]
-            if not valid:
-                return None
-            total_w = sum(w for w, _ in valid)
-            return sum(w * float(v) for w, v in valid) / total_w
-        total_w = period * (period + 1) / 2.0
-        acc = 0.0
-        for i, v in enumerate(window):
-            acc += float(v) * (i + 1)
-        return acc / total_w
+        _s, ws = recomputed
+        return ws / (period * (period + 1) / 2.0)
 
     def _hma_inc_update(self, series: list[Any], period: int) -> float | None:
         """Incremental Hull MA: WMA(2*WMA(n/2)-WMA(n), sqrt(n)) last value.
 
-        One call-site slot owns three windows (half / full / outer). Matches
-        full ``_hma`` readiness: first non-None when ``period + sqrt_n - 1``
-        samples have been seen.
+        Three nested O(1) WMA states. Matches full ``_hma`` readiness: first
+        non-None after ``period + sqrt(n) - 1`` samples. Strict window
+        (inner na poisons the outer WMA for ``sqrt(n)`` bars).
         """
         if period <= 0:
             return None
@@ -1272,26 +1334,22 @@ class TechnicalHelpers:
         st = bucket.get(key)
         if st is None:
             st = {
-                "half_win": deque(maxlen=half),
-                "full_win": deque(maxlen=period),
-                "diff_win": deque(maxlen=sqrt_n),
-                "bars": 0,
+                "half": self._wma_state_new(),
+                "full": self._wma_state_new(),
+                "outer": self._wma_state_new(),
                 "value": None,
             }
             bucket[key] = st
         x = self._series_last(series)
-        st["half_win"].append(x)
-        st["full_win"].append(x)
-        st["bars"] = int(st["bars"]) + 1
-        wh = self._wma_from_window(st["half_win"], half)
-        wf = self._wma_from_window(st["full_win"], period)
+        wh = self._wma_state_step(st["half"], x, half)
+        wf = self._wma_state_step(st["full"], x, period)
         if wh is None or wf is None:
+            self._wma_state_step(st["outer"], None, sqrt_n)
             st["value"] = None
             return None
-        diff = 2.0 * float(wh) - float(wf)
-        st["diff_win"].append(diff)
-        # Outer WMA needs sqrt_n consecutive valid diffs (full path readiness).
-        st["value"] = self._wma_from_window(st["diff_win"], sqrt_n)
+        st["value"] = self._wma_state_step(
+            st["outer"], 2.0 * float(wh) - float(wf), sqrt_n
+        )
         return st.get("value")
 
     def _rising_inc_update(self, series: list[Any], period: int) -> bool:
@@ -1602,51 +1660,120 @@ class TechnicalHelpers:
             st["value"] = int(st["bars_seen"]) - 1
         return int(st["value"])
 
-    def _linreg_inc_update(self, series: list[Any], length: int, offset: int = 0) -> float:
-        """Incremental linear-regression endpoint matching full ``ta.linreg``.
-
-        Maintains a rolling window; recomputes slope/intercept on non-None
-        samples with x re-indexed 0..m-1 (same as full path / reference / numba).
-        Result is the fitted value at ``x = n - 1 - offset``.
-        """
-        if length < 2:
-            return math.nan
-        slot = self._ta_next_slot()
-        key = ("linreg", slot, length, int(offset))
-        bucket = self._ta_state_bucket()
-        st = bucket.get(key)
-        if st is None:
-            st = {"window": deque(maxlen=length), "value": math.nan}
-            bucket[key] = st
-        x = self._series_last(series)
-        window: deque[Any] = st["window"]
-        window.append(x)
-        if len(window) < length:
-            st["value"] = math.nan
-            return math.nan
+    @staticmethod
+    def _linreg_from_valid(window: deque[Any] | list[Any], offset: int) -> float:
+        """Skip-na OLS endpoint matching full interpret ``ta.linreg``."""
         valid_values: list[float] = []
         for v in window:
             if v is None:
                 continue
             try:
-                valid_values.append(float(v))
+                fv = float(v)
             except (TypeError, ValueError):
                 continue
+            if fv != fv:
+                continue
+            valid_values.append(fv)
         if len(valid_values) < 2:
-            st["value"] = math.nan
             return math.nan
         n = len(valid_values)
         xs = list(range(n))
         mean_x = sum(xs) / n
         mean_y = sum(valid_values) / n
-        numerator = sum((xi - mean_x) * (yi - mean_y) for xi, yi in zip(xs, valid_values, strict=True))
+        numerator = sum(
+            (xi - mean_x) * (yi - mean_y) for xi, yi in zip(xs, valid_values, strict=True)
+        )
         denominator = sum((xi - mean_x) ** 2 for xi in xs)
         if denominator == 0:
-            st["value"] = mean_y
             return mean_y
         slope = numerator / denominator
-        # reference Pine: intercept + slope * (n - 1 - offset); intercept = mean_y - slope * mean_x
-        st["value"] = mean_y + slope * ((n - 1 - int(offset)) - mean_x)
+        return mean_y + slope * ((n - 1 - int(offset)) - mean_x)
+
+    @staticmethod
+    def _linreg_endpoint(sum_y: float, sum_xy: float, length: int, offset: int) -> float:
+        """Fitted value at ``x = length - 1 - offset`` from running sums."""
+        n = float(length)
+        mean_x = (n - 1.0) / 2.0
+        mean_y = sum_y / n
+        # sum((x - mean_x)^2) for x=0..n-1 = n(n²-1)/12
+        denom = n * (n * n - 1.0) / 12.0
+        if denom == 0.0:
+            return mean_y
+        slope = (sum_xy - mean_x * sum_y) / denom
+        return mean_y + slope * ((n - 1.0 - float(offset)) - mean_x)
+
+    def _linreg_inc_update(self, series: list[Any], length: int, offset: int = 0) -> float:
+        """Incremental linear-regression endpoint matching full ``ta.linreg``.
+
+        All-finite window: O(1) ``sum_y`` / ``sum_xy`` (x = 0..n-1 oldest→newest).
+        na in window: skip-na OLS (existing interpret oracle). Result is the
+        fitted value at ``x = n - 1 - offset``.
+        """
+        if length < 2:
+            return math.nan
+        slot = self._ta_next_slot()
+        off = int(offset)
+        key = ("linreg", slot, length, off)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {
+                "window": deque(),
+                "sum_y": 0.0,
+                "sum_xy": 0.0,
+                "na_count": 0,
+                "steps": 0,
+                "dirty": True,
+                "value": math.nan,
+            }
+            bucket[key] = st
+        y = self._wma_parse_sample(self._series_last(series))
+        window: deque[Any] = st["window"]
+        old: Any = None
+        popped = False
+        if len(window) == length:
+            old = window.popleft()
+            popped = True
+            if old is None:
+                st["na_count"] = int(st["na_count"]) - 1
+        window.append(y)
+        if y is None:
+            st["na_count"] = int(st["na_count"]) + 1
+        st["steps"] = int(st["steps"]) + 1
+        if len(window) < length:
+            st["dirty"] = True
+            st["value"] = math.nan
+            return math.nan
+        if int(st["na_count"]) > 0:
+            # Keep skip-na (full interpret ``_builtin_ta_linreg``).
+            st["dirty"] = True
+            st["value"] = self._linreg_from_valid(window, off)
+            return float(st["value"])
+        n = float(length)
+        reseed = (
+            bool(st["dirty"])
+            or not popped
+            or old is None
+            or (int(st["steps"]) % length == 0)
+        )
+        if reseed:
+            sy = 0.0
+            sxy = 0.0
+            for k, v in enumerate(window):
+                fv = float(v)
+                sy += fv
+                sxy += float(k) * fv
+            st["sum_y"] = sy
+            st["sum_xy"] = sxy
+            st["dirty"] = False
+        else:
+            y0 = float(old)
+            yn = float(y)
+            st["sum_xy"] = float(st["sum_xy"]) - float(st["sum_y"]) + y0 + yn * (n - 1.0)
+            st["sum_y"] = float(st["sum_y"]) - y0 + yn
+        st["value"] = self._linreg_endpoint(
+            float(st["sum_y"]), float(st["sum_xy"]), length, off
+        )
         return float(st["value"])
 
     # ------------------------------------------------------------------
@@ -3279,10 +3406,18 @@ class TechnicalHelpers:
         if period <= 0 or len(series) < period:
             return None
         window = series[-period:]
-        if any(v is None for v in window):
-            return None
-        total = period * (period + 1) / 2.0
-        return sum(float(series[-idx]) * (period - idx + 1) for idx in range(1, period + 1)) / total
+        acc = 0.0
+        for i, v in enumerate(window):
+            if v is None:
+                return None
+            try:
+                fv = float(v)
+            except (TypeError, ValueError):
+                return None
+            if fv != fv:  # NaN
+                return None
+            acc += fv * (i + 1)
+        return acc / (period * (period + 1) / 2.0)
 
     def _highest(self, series: list[float], period: int) -> float | None:
         """Get highest value in period (na-safe)."""

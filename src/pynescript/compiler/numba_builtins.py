@@ -5276,6 +5276,338 @@ def numba_bbw_inc(arr, period, mult, i, st):
     return (upper - lower) / mid
 
 
+@numba.njit(cache=True)
+def _kama_sc(arr, j, length, fast, slow):
+    """Kaufman smoothing constant at bar ``j``; NaN window → nan."""
+    oldest = arr[j - length]
+    newest = arr[j]
+    if np.isnan(oldest) or np.isnan(newest):
+        return np.nan
+    change = abs(newest - oldest)
+    vol = 0.0
+    for k in range(length):
+        a = arr[j - k - 1]
+        b = arr[j - k]
+        if np.isnan(a) or np.isnan(b):
+            return np.nan
+        vol += abs(b - a)
+    if vol != 0.0:
+        efficiency = change / vol
+        fastest = 2.0 / (fast + 1.0)
+        slowest = 2.0 / (slow + 1.0)
+        smoothing = efficiency * (fastest - slowest) + slowest
+        return smoothing * smoothing
+    return (2.0 / (slow + 1.0)) ** 2
+
+
+@numba.njit(cache=True)
+def numba_kama(arr, length, fast, slow, i):
+    """Kaufman's AMA at bar ``i``.
+
+    Matches interpret ``_builtin_ta_kama`` / ``_kama_inc_update``: seed at
+    index ``length-1`` (output still na); first value at ``i == length``.
+    """
+    length = int(length)
+    fast = int(fast)
+    slow = int(slow)
+    if length < 1 or i < length:
+        return np.nan
+    seed = arr[length - 1]
+    if np.isnan(seed):
+        return np.nan
+    kama = seed
+    out = np.nan
+    for j in range(length, i + 1):
+        sc = _kama_sc(arr, j, length, float(fast), float(slow))
+        x = arr[j]
+        if np.isnan(sc) or np.isnan(x):
+            out = np.nan
+            continue
+        kama = kama + sc * (x - kama)
+        out = kama
+    return out
+
+
+@numba.njit(cache=True)
+def numba_kama_inc(arr, length, fast, slow, i, st):
+    """Incremental KAMA. ``st``: [kama, last_i, seeded].
+
+    Catch-up / rewind safe. NaN current or window holds prior kama and
+    returns nan (no na→0). Matches ``numba_kama`` on all-finite series.
+    """
+    length = int(length)
+    fast = int(fast)
+    slow = int(slow)
+    if length < 1 or i < 0:
+        return np.nan
+    if np.isnan(st[1]):
+        last = -1
+    else:
+        last = int(st[1])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+        st[2] = 0.0
+    kama = st[0]
+    seeded = st[2] >= 0.5
+    out = np.nan
+    for j in range(last + 1, i + 1):
+        if j < length - 1:
+            out = np.nan
+            continue
+        x = arr[j]
+        if j == length - 1:
+            if np.isnan(x):
+                seeded = False
+                out = np.nan
+            else:
+                kama = x
+                seeded = True
+                out = np.nan
+            continue
+        if not seeded:
+            if not np.isnan(x):
+                kama = x
+                seeded = True
+            out = np.nan
+            continue
+        sc = _kama_sc(arr, j, length, float(fast), float(slow))
+        if np.isnan(sc) or np.isnan(x) or np.isnan(kama):
+            out = np.nan
+            continue
+        kama = kama + sc * (x - kama)
+        out = kama
+    st[0] = kama
+    st[1] = float(i)
+    st[2] = 1.0 if seeded else 0.0
+    return out
+
+
+@numba.njit(cache=True)
+def _simple_rsi_at(arr, t, rsi_len):
+    """Non-Wilder RSI over ``arr[t-rsi_len+1 : t+1]`` (interpret StochRSI)."""
+    start = t - rsi_len + 1
+    if start < 0:
+        return np.nan
+    gains = 0.0
+    losses = 0.0
+    prev = arr[start]
+    if np.isnan(prev):
+        return np.nan
+    for j in range(start + 1, t + 1):
+        cur = arr[j]
+        if np.isnan(cur):
+            return np.nan
+        d = cur - prev
+        if d > 0.0:
+            gains += d
+        else:
+            losses += -d
+        prev = cur
+    avg_gain = gains / rsi_len
+    avg_loss = losses / rsi_len
+    if avg_loss != 0.0:
+        rs = avg_gain / avg_loss
+    else:
+        rs = 100.0
+    return 100.0 - (100.0 / (1.0 + rs))
+
+
+@numba.njit(cache=True)
+def numba_stochrsi(arr, rsi_len, stoch_len, i):
+    """StochRSI + 0.33/0.67 signal at bar ``i``.
+
+    Matches interpret ``_stochrsi_inc_update`` (simple RSI, not Wilder).
+    First output at ``i == rsi_len + stoch_len - 1``.
+    """
+    rsi_len = int(rsi_len)
+    stoch_len = int(stoch_len)
+    if rsi_len < 1 or stoch_len < 1 or i < rsi_len + stoch_len - 1:
+        return np.nan, np.nan
+    rsi_buf = np.empty(stoch_len, dtype=np.float64)
+    n_rsi = 0
+    signal = np.nan
+    sr = np.nan
+    have_sig = False
+    for t in range(rsi_len, i + 1):
+        rsi_val = _simple_rsi_at(arr, t, rsi_len)
+        if np.isnan(rsi_val):
+            return np.nan, np.nan
+        if n_rsi < stoch_len:
+            rsi_buf[n_rsi] = rsi_val
+            n_rsi += 1
+        else:
+            for k in range(stoch_len - 1):
+                rsi_buf[k] = rsi_buf[k + 1]
+            rsi_buf[stoch_len - 1] = rsi_val
+        if n_rsi < stoch_len:
+            continue
+        rsi_high = rsi_buf[0]
+        rsi_low = rsi_buf[0]
+        for k in range(1, stoch_len):
+            v = rsi_buf[k]
+            if v > rsi_high:
+                rsi_high = v
+            if v < rsi_low:
+                rsi_low = v
+        span = rsi_high - rsi_low
+        if span == 0.0:
+            sr = 0.0
+        else:
+            sr = (rsi_val - rsi_low) / span * 100.0
+        if not have_sig:
+            signal = sr
+            have_sig = True
+        else:
+            signal = 0.33 * sr + 0.67 * signal
+    return sr, signal
+
+
+@numba.njit(cache=True)
+def numba_stochrsi_inc(arr, rsi_len, stoch_len, i, st):
+    """Incremental StochRSI.
+
+    ``st`` layout (need ``3 + stoch_len``):
+    [0] signal, [1] last_i, [2] n_rsi, [3 .. 2+stoch_len] RSI ring (oldest first).
+    """
+    rsi_len = int(rsi_len)
+    stoch_len = int(stoch_len)
+    if rsi_len < 1 or stoch_len < 1 or i < 0:
+        return np.nan, np.nan
+    if np.isnan(st[1]):
+        last = -1
+    else:
+        last = int(st[1])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+        st[2] = 0.0
+    signal = st[0]
+    n_rsi = 0 if np.isnan(st[2]) else int(st[2])
+    have_sig = not np.isnan(signal)
+    sr = np.nan
+    for t in range(last + 1, i + 1):
+        if t < rsi_len:
+            sr = np.nan
+            continue
+        rsi_val = _simple_rsi_at(arr, t, rsi_len)
+        if np.isnan(rsi_val):
+            sr = np.nan
+            continue
+        if n_rsi < stoch_len:
+            st[3 + n_rsi] = rsi_val
+            n_rsi += 1
+        else:
+            for k in range(stoch_len - 1):
+                st[3 + k] = st[4 + k]
+            st[2 + stoch_len] = rsi_val
+        if n_rsi < stoch_len:
+            sr = np.nan
+            continue
+        rsi_high = st[3]
+        rsi_low = st[3]
+        for k in range(1, stoch_len):
+            v = st[3 + k]
+            if v > rsi_high:
+                rsi_high = v
+            if v < rsi_low:
+                rsi_low = v
+        span = rsi_high - rsi_low
+        if span == 0.0:
+            sr = 0.0
+        else:
+            sr = (rsi_val - rsi_low) / span * 100.0
+        if not have_sig:
+            signal = sr
+            have_sig = True
+        else:
+            signal = 0.33 * sr + 0.67 * signal
+    st[0] = signal
+    st[1] = float(i)
+    st[2] = float(n_rsi)
+    if not have_sig:
+        return np.nan, np.nan
+    return sr, signal
+
+
+@numba.njit(cache=True)
+def _cmf_mf(high, low, close, vol, j):
+    """One-bar CMF money-flow contribution ``(clv * volume, volume)``."""
+    h = high[j]
+    l_ = low[j]
+    c = close[j]
+    v = vol[j]
+    if np.isnan(h) or np.isnan(l_) or np.isnan(c):
+        return np.nan, np.nan
+    vv = 0.0 if np.isnan(v) else v
+    rng = h - l_
+    if rng == 0.0:
+        clv = 0.0
+    else:
+        clv = ((c - l_) - (h - c)) / rng
+    return clv * vv, vv
+
+
+@numba.njit(cache=True)
+def numba_cmf(high, low, close, vol, period, i):
+    """Chaikin Money Flow at bar ``i``.
+
+    Matches interpret ``_cmf``: partial windows from bar 0; zero volume → 0.0.
+    """
+    period = int(period)
+    if period <= 0 or i < 0:
+        return np.nan
+    start = i - period + 1
+    if start < 0:
+        start = 0
+    clv_sum = 0.0
+    vol_sum = 0.0
+    for j in range(start, i + 1):
+        mf, vv = _cmf_mf(high, low, close, vol, j)
+        if np.isnan(mf):
+            continue
+        clv_sum += mf
+        vol_sum += vv
+    if vol_sum > 0.0:
+        return clv_sum / vol_sum
+    return 0.0
+
+
+@numba.njit(cache=True)
+def numba_cmf_inc(high, low, close, vol, period, i, st):
+    """Incremental CMF. ``st``: [clv_vol_sum, vol_sum, last_i]."""
+    period = int(period)
+    if period <= 0 or i < 0:
+        return np.nan
+    if np.isnan(st[2]):
+        last = -1
+    else:
+        last = int(st[2])
+    if i < last:
+        last = -1
+        st[0] = 0.0
+        st[1] = 0.0
+    s = 0.0 if np.isnan(st[0]) or last < 0 else st[0]
+    vs = 0.0 if np.isnan(st[1]) or last < 0 else st[1]
+    for j in range(last + 1, i + 1):
+        drop = j - period
+        if drop >= 0:
+            mf, vv = _cmf_mf(high, low, close, vol, drop)
+            if not np.isnan(mf):
+                s -= mf
+                vs -= vv
+        mf, vv = _cmf_mf(high, low, close, vol, j)
+        if not np.isnan(mf):
+            s += mf
+            vs += vv
+    st[0] = s
+    st[1] = vs
+    st[2] = float(i)
+    if vs > 0.0:
+        return s / vs
+    return 0.0
+
+
 def array_range(arr):
     """Pine ``array.range(id)`` — max − min of numeric elements; empty → na.
 

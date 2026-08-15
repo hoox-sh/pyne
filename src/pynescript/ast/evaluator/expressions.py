@@ -70,9 +70,9 @@ _SERIES_TYPE_NAMES = frozenset({"PineSeries", "_SeriesResult"})
 
 # Call-site kind tags (stable AST nodes across bars — resolve once per site).
 # ``_SITE_Q``: Attribute whose qualified name is a registered builtin (ta.sma).
-# ``_SITE_QB``: same, with bound (tag, handler) after first invoke.
+# ``_SITE_QB``: same, with bound (tag, handler, gen) after first invoke.
 # ``_SITE_B``: bare Name that is a registered builtin (plot, na, year).
-# ``_SITE_BB``: bare Name with bound handler (user shadow still checked).
+# ``_SITE_BB``: bare Name with bound handler + gen (user shadow still checked).
 # ``_SITE_G``: general path (methods, UDFs, UDT.new, recovered attrs).
 # ``_SITE_GN``: general path with bare Name callee (UDF / local callable).
 # ``_SITE_CONST``: pure builtin with all-literal args — memoized result.
@@ -99,11 +99,41 @@ _EMPTY_KW: dict[str, Any] = {}
 
 
 def _store_call_site(node: Any, site: tuple) -> None:
-    """Attach resolved call-site tuple to *node* (safe across GC id reuse)."""
+    """Attach resolved call-site tuple to *node* (safe across GC id reuse).
+
+    Bound sites (``_SITE_QB`` / ``_SITE_BB``) must include the evaluator
+    generation as the last element so a cached/shared AST cannot invoke
+    another instance's handlers (plot / incremental TA).
+    """
     try:
         object.__setattr__(node, "_pine_call_site", site)
     except (AttributeError, TypeError):
         pass
+
+
+def _evaluator_generation(ev: Any) -> int:
+    """Stable per-instance id stamped on bound call sites."""
+    gen = ev.__dict__.get("_eval_generation")
+    if gen is None:
+        gen = id(ev)
+        ev._eval_generation = gen
+    return gen
+
+
+def _call_site_for_evaluator(node: Any, ev: Any) -> tuple | None:
+    """Return the node's site if it is safe for *ev*; else ``None``.
+
+    Unbound kinds (name + arg plan, const-fold) are evaluator-independent.
+    Bound kinds are valid only when the stamped generation matches *ev*.
+    """
+    site = getattr(node, "_pine_call_site", None)
+    if site is None:
+        return None
+    kind = site[0]
+    if kind == _SITE_QB or kind == _SITE_BB:
+        if len(site) < 6 or site[-1] != _evaluator_generation(ev):
+            return None
+    return site
 
 
 # Arg-plan opcodes (precompiled per Call site; skips visit frames for Name/Const).
@@ -621,10 +651,12 @@ class ExpressionEvaluator:
         5. **Callable** in context / recovered instance attr; non-callables
            soft-fail to ``None`` (na).
 
-        Call-site resolution is cached by ``id(node)`` across bars: AST nodes
-        are stable for the script lifetime, so qualified-name + registry
-        lookups run once per site (not once per bar). Bound sites also store a
+        Call-site resolution is cached on the AST node across bars: nodes are
+        stable for the script lifetime, so qualified-name + registry lookups
+        run once per site (not once per bar). Bound sites also store a
         precompiled **arg plan** so Name/Constant args skip ``visit`` frames.
+        Bound handlers are stamped with ``_eval_generation`` so a shared parse
+        tree cannot invoke another evaluator's instance methods.
 
         Args:
             node: Call with func and argument list (positional + named)
@@ -638,7 +670,10 @@ class ExpressionEvaluator:
         # which caused cross-expression site collisions (e.g.
         # ``strategy.opentrades.entry_time(0)`` resolving as a prior
         # ``strategy.long`` site after ``id()`` recycle).
-        site = getattr(node, "_pine_call_site", None)
+        # Bound (QB/BB) sites are evaluator-specific — generation mismatch
+        # (shared parse cache / multi-run) drops the site so this instance
+        # re-resolves instead of calling another evaluator's handlers.
+        site = _call_site_for_evaluator(node, self)
         if site is None:
             site = self._resolve_call_site(node)
             _store_call_site(node, site)
@@ -651,7 +686,7 @@ class ExpressionEvaluator:
             return site[1]
 
         # Bound qualified builtin (ta.sma after first bar) — no name lookup.
-        # site = (_SITE_QB, tag, handler, name, arg_plan)
+        # site = (_SITE_QB, tag, handler, name, arg_plan, eval_generation)
         # Dominant multi-TA path: check first.
         if kind == _SITE_QB:
             args, kwargs = self._eval_arg_plan(site[4])
@@ -666,7 +701,7 @@ class ExpressionEvaluator:
             return handler(*args)
 
         # Bound bare Name builtin (plot after first bar).
-        # site = (_SITE_BB, name, tag, handler, arg_plan)
+        # site = (_SITE_BB, name, tag, handler, arg_plan, eval_generation)
         if kind == _SITE_BB:
             name, tag, handler, plan = site[1], site[2], site[3], site[4]
             args, kwargs = self._eval_arg_plan(plan)
@@ -724,7 +759,17 @@ class ExpressionEvaluator:
                 return result
             bound = self._lookup_bound_builtin(name)
             if bound is not None:
-                _store_call_site(node, (_SITE_QB, bound[0], bound[1], name, plan))
+                _store_call_site(
+                    node,
+                    (
+                        _SITE_QB,
+                        bound[0],
+                        bound[1],
+                        name,
+                        plan,
+                        _evaluator_generation(self),
+                    ),
+                )
             return result
 
         # Fast path: bare Name builtins (plot, na, year, …).
@@ -762,7 +807,17 @@ class ExpressionEvaluator:
                 return result
             bound = self._lookup_bound_builtin(name)
             if bound is not None:
-                _store_call_site(node, (_SITE_BB, name, bound[0], bound[1], plan))
+                _store_call_site(
+                    node,
+                    (
+                        _SITE_BB,
+                        name,
+                        bound[0],
+                        bound[1],
+                        plan,
+                        _evaluator_generation(self),
+                    ),
+                )
             return result
 
         # Bare-name UDF / local callable — skip visit(func) Attribute machinery.

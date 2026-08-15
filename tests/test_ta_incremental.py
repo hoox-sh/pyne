@@ -2916,3 +2916,172 @@ plot(osc, "osc")
     # After max EMA/change windows, expect finite values
     finite = [v for v in osc if v is not None and isinstance(v, (int, float)) and not math.isnan(v)]
     assert len(finite) > 10, f"expected warmed osc values, got {len(finite)} finite"
+
+
+# ---------------------------------------------------------------------------
+# Round 8: O(1) WMA/HMA/linreg + strict na-window goldens
+# ---------------------------------------------------------------------------
+
+
+def _with_na(src: list[float], holes: set[int]) -> list[float | None]:
+    return [None if i in holes else v for i, v in enumerate(src)]
+
+
+def test_incremental_wma_strict_na_window() -> None:
+    """na-in-window → na (never skip-na / reweight). Recovers after hole slides out."""
+    src = _with_na(_series(80), {12, 13, 40})
+    for period in (5, 14):
+        _assert_series_close(
+            _bar_walk_inc_wma(src, period),
+            _bar_walk_full_wma(src, period),
+        )
+        # Explicit: bar with na still inside the window is None
+        inc = _bar_walk_inc_wma(src, period)
+        for i, v in enumerate(src):
+            if i + 1 < period:
+                continue
+            window = src[i + 1 - period : i + 1]
+            if any(x is None for x in window):
+                assert inc[i] is None, f"period={period} bar {i}: expected None, got {inc[i]}"
+
+
+def test_incremental_hma_strict_na_window() -> None:
+    src = _with_na(_series(120), {25, 60})
+    for period in (9, 14, 20):
+        _assert_series_close(
+            _bar_walk_inc_hma(src, period),
+            _bar_walk_full_hma(src, period),
+        )
+
+
+def test_incremental_vwma_strict_na_window() -> None:
+    src = _with_na(_series(80), {8, 30})
+    vol = [1000.0 + (i % 7) * 10 for i in range(len(src))]
+    vol_na = list(vol)
+    vol_na[15] = None  # type: ignore[call-overload]
+    for period in (5, 14):
+        _assert_series_close(
+            _bar_walk_inc_vwma(src, vol, period),
+            _bar_walk_full_vwma(src, vol, period),
+        )
+        _assert_series_close(
+            _bar_walk_inc_vwma(src, vol_na, period),
+            _bar_walk_full_vwma(src, vol_na, period),
+        )
+
+
+def test_incremental_swma_strict_na_window() -> None:
+    src = _with_na(_series(40), {6, 7, 20})
+    _assert_series_close(_bar_walk_inc_swma(src), _bar_walk_full_swma(src))
+    inc = _bar_walk_inc_swma(src)
+    for i in range(3, len(src)):
+        if any(v is None for v in src[i - 3 : i + 1]):
+            assert inc[i] is None, f"bar {i}: expected None, got {inc[i]}"
+
+
+def test_incremental_linreg_offset_matches_full() -> None:
+    src = _series(120)
+    evf = _FullTA()
+    for length, offset in ((5, 0), (14, 0), (14, 2), (20, 1)):
+        got = []
+        evi = _IncTA()
+        exp = []
+        for i in range(len(src)):
+            evi._ta_call_i = 0
+            got.append(evi._linreg_inc_update(src[: i + 1], length, offset=offset))
+            exp.append(evf._builtin_ta_linreg([src[: i + 1], length, offset]))
+        assert len(got) == len(exp)
+        for i, (g, e) in enumerate(zip(got, exp, strict=True)):
+            if isinstance(e, float) and math.isnan(e):
+                assert isinstance(g, float) and math.isnan(g), f"bar {i}: expected nan, got {g}"
+            else:
+                assert g == pytest.approx(e, rel=1e-9, abs=1e-9), f"bar {i}: {g} != {e}"
+
+
+def test_incremental_linreg_skip_na_matches_full() -> None:
+    """Interpret linreg oracle is skip-na; incremental must keep that."""
+    src = _with_na(_series(80), {10, 11, 35})
+    got = _bar_walk_inc_linreg(src, 10)
+    exp = _bar_walk_full_linreg(src, 10)
+    assert len(got) == len(exp)
+    for i, (g, e) in enumerate(zip(got, exp, strict=True)):
+        if isinstance(e, float) and math.isnan(e):
+            assert isinstance(g, float) and math.isnan(g), f"bar {i}: expected nan, got {g}"
+        else:
+            assert g == pytest.approx(e, rel=1e-9, abs=1e-9), f"bar {i}: {g} != {e}"
+
+
+def test_two_wma_hma_call_sites_independent() -> None:
+    src = _series(80)
+    ev = _IncTA()
+    wma_a: list[float | None] = []
+    wma_b: list[float | None] = []
+    hma_a: list[float | None] = []
+    hma_b: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        wma_a.append(ev._wma_inc_update(src[: i + 1], 10))
+        wma_b.append(ev._wma_inc_update(src[: i + 1], 20))
+        hma_a.append(ev._hma_inc_update(src[: i + 1], 9))
+        hma_b.append(ev._hma_inc_update(src[: i + 1], 16))
+    _assert_series_close(wma_a, _bar_walk_full_wma(src, 10))
+    _assert_series_close(wma_b, _bar_walk_full_wma(src, 20))
+    _assert_series_close(hma_a, _bar_walk_full_hma(src, 9))
+    _assert_series_close(hma_b, _bar_walk_full_hma(src, 16))
+
+
+def test_runtime_wma_hma_linreg_incremental_vs_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend.runtime import Runtime
+
+    try:
+        from pynescript.ast.helper import clear_parse_cache
+    except ImportError:  # pragma: no cover
+
+        def clear_parse_cache() -> None:
+            return None
+
+    bars = [
+        {
+            "open": 100 + i * 0.1,
+            "high": 101.5 + i * 0.1 + (i % 5) * 0.05,
+            "low": 98.5 + i * 0.1 - (i % 3) * 0.05,
+            "close": 100.5 + i * 0.1 + math.sin(i / 7.0) * 0.2,
+            "volume": 1000 + i * 3,
+            "time": 1_000_000 + i * 86_400_000,
+        }
+        for i in range(160)
+    ]
+    src = """//@version=5
+indicator("round8 wma hma linreg")
+plot(ta.wma(close, 14))
+plot(ta.hma(close, 9))
+plot(ta.hma(close, 16))
+plot(ta.vwma(close, 14))
+plot(ta.swma(close))
+plot(ta.linreg(close, 14, 0))
+plot(ta.linreg(close, 20, 2))
+plot(ta.vwap(close))
+"""
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    clear_parse_cache()
+    r_on = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_on, r_on.get("error")
+    monkeypatch.setenv("PYNE_TA_INCREMENTAL", "0")
+    clear_parse_cache()
+    r_off = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_off, r_off.get("error")
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    clear_parse_cache()
+
+    assert set(r_on["series"]) == set(r_off["series"])
+    for key in r_on["series"]:
+        for i, (a, b) in enumerate(zip(r_on["series"][key], r_off["series"][key], strict=True)):
+            if a is None and b is None:
+                continue
+            if a is None or b is None:
+                continue
+            if isinstance(a, float) and isinstance(b, float) and math.isnan(a) and math.isnan(b):
+                continue
+            assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"

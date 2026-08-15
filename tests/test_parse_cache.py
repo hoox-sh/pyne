@@ -156,3 +156,33 @@ def test_concurrent_parse_same_source():
     assert len(results) == 8
     # All hits share one identity after concurrent first-fill
     assert all(r is results[0] for r in results)
+
+
+def test_cached_tree_two_evaluators_independent_call_sites():
+    """Same parse identity, two evaluators: no bound-handler leak.
+
+    ``parse()`` scrubs on cache hit; this holds the tree and visits it with
+    two evaluators *without* a second parse, which is the residual H1 path.
+    """
+    from pynescript.ast.evaluator import NodeLiteralEvaluator
+    from pynescript.ast.helper import walk
+
+    src = "ta.sma(close, 3)"
+    tree = parse(src, mode="eval")
+    ev1 = NodeLiteralEvaluator({"close": [1, 2, 3, 4, 5]})
+    r1 = ev1.visit(tree.body)
+    ev2 = NodeLiteralEvaluator({"close": [10, 20, 30]})
+    r2 = ev2.visit(tree.body)
+    assert r1 == [None, None, 2, 3, 4]
+    assert r2 == [None, None, 20]
+
+    calls = [n for n in walk(tree) if type(n).__name__ == "Call"]
+    assert calls
+    site = getattr(calls[0], "_pine_call_site", None)
+    assert site is not None
+    assert site[-1] == ev2._eval_generation
+    assert getattr(site[2], "__self__", None) is ev2
+
+    # First evaluator still computes from its own state after rebind.
+    assert ev1.visit(tree.body) == r1
+    assert getattr(calls[0], "_pine_call_site")[-1] == ev1._eval_generation

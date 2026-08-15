@@ -73,6 +73,8 @@ RUN_SCHEMA: dict[str, tuple[type, bool, Any]] = {
     "forward_alerts": (bool, False, True),
     "alert_last_bar": (bool, False, True),  # only POST firings on last OHLCV bar
     "alert_batch": (bool, False, True),  # one batch POST vs per-alert
+    # AXIS git publish emulator: [{namespace, name, version, source}, …]
+    "libraries": (list, False, []),
 }
 
 # Shared OHLCV + many scripts (AXIS multi-indicator). Nested script objects

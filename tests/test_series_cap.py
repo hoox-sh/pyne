@@ -175,6 +175,16 @@ def test_pineseries_oob_is_na_not_zero() -> None:
     assert s[3] is None  # na — never 0
     assert s[100] is None
     assert s[-1] is None
+    # inf / NaN offsets are na (do not raise, do not invent 0)
+    assert s[float("inf")] is None
+    assert s[float("-inf")] is None
+    assert s[float("nan")] is None
+    assert s[None] is None
+    # stored 0.0 is a real sample
+    z = PineSeries()
+    z.update(0.0)
+    assert z[0] == 0.0
+    assert z[1] is None
 
 
 def test_pineseries_set_history_length_keeps_newest() -> None:

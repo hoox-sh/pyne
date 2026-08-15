@@ -1320,6 +1320,75 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             return (None, None)
         return (trail_price, offset_price)
 
+    def _exit_entry_avg(self, from_entry: str | None) -> float | None:
+        """Average entry price for the exit target (``from_entry`` legs or whole lot)."""
+        st = self._strategy_state
+        if from_entry:
+            legs = [t for t in st.open_trades if t.entry_id == from_entry]
+            total = sum(float(t.size) for t in legs)
+            if total > 0:
+                return sum(float(t.entry_price) * float(t.size) for t in legs) / total
+            if not st.open_trades and st.position_size > 0:
+                px = float(st.entry_price)
+                return px if math.isfinite(px) else None
+            return None
+        if st.position_direction == "flat":
+            return None
+        px = float(st.entry_price)
+        return px if math.isfinite(px) else None
+
+    def _tick_offset_price(
+        self,
+        ticks: float | None,
+        entry_avg: float | None,
+        *,
+        is_long: bool,
+        is_profit: bool,
+    ) -> float | None:
+        """Map ``profit``/``loss`` ticks to an absolute price from *entry_avg*.
+
+        ``na`` / None / ``<= 0`` ticks are ignored (no-op for that leg).
+        """
+        if ticks is None or entry_avg is None:
+            return None
+        t = float(ticks)
+        avg = float(entry_avg)
+        if t <= 0 or not math.isfinite(t) or not math.isfinite(avg):
+            return None
+        offset = t * self._mintick()
+        if offset <= 0 or not math.isfinite(offset):
+            return None
+        if is_long:
+            return avg + offset if is_profit else avg - offset
+        return avg - offset if is_profit else avg + offset
+
+    def _merge_exit_bracket_prices(
+        self,
+        *,
+        limit_p: float | None,
+        stop_p: float | None,
+        profit_ticks: float | None,
+        loss_ticks: float | None,
+        is_long: bool,
+        from_entry: str | None,
+    ) -> tuple[float | None, float | None]:
+        """``limit``/``stop`` stay absolute; ``profit``/``loss`` fill missing legs.
+
+        Tick offsets are ``ticks * mintick`` from the exit's entry average.
+        When both a tick param and its absolute twin are set, the absolute
+        price wins. First-touch of the resulting limit+stop pair is unchanged.
+        """
+        entry_avg = self._exit_entry_avg(from_entry)
+        if limit_p is None:
+            limit_p = self._tick_offset_price(
+                profit_ticks, entry_avg, is_long=is_long, is_profit=True
+            )
+        if stop_p is None:
+            stop_p = self._tick_offset_price(
+                loss_ticks, entry_avg, is_long=is_long, is_profit=False
+            )
+        return limit_p, stop_p
+
     def _handle_strategy_exit(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
         """
         strategy.exit(id, from_entry, qty, qty_percent, profit, limit, loss, stop,
@@ -1327,10 +1396,15 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
 
         Place a bracket exit against the open position.
 
-        * No ``limit``/``stop``/trail → market close now (with slippage).
-        * With ``limit`` and/or ``stop`` → pending order(s) filled by
-          :meth:`process_pending_orders` when bar OHLC touches the level.
-          Both legs share an OCA cancel group so one fill cancels the other.
+        * ``profit`` / ``loss`` are **ticks** from entry average
+          (``ticks * syminfo.mintick``). Long: ``entry ± ticks*mintick``;
+          short flips the sign. ``na`` / None / ``<= 0`` ignore that leg.
+        * ``limit`` / ``stop`` are absolute prices (unchanged).
+        * No ``limit``/``stop``/profit/loss/trail → market close now (with slippage).
+        * With ``limit`` and/or ``stop`` (after tick conversion) → pending
+          order(s) filled by :meth:`process_pending_orders` when bar OHLC
+          touches the level. Both legs share an OCA cancel group so one fill
+          cancels the other (first-touch pair-eval unchanged).
         * ``qty_percent`` (kwargs or Pine positional) sizes the exit as a
           percent of the open target (whole position or ``from_entry`` size);
           wins over absolute ``qty`` when both are set.
@@ -1395,33 +1469,46 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             )
             return
 
-        # Prefer kwargs; simplified positional limit/stop at args[3]/[4];
-        # full Pine uses profit/limit/loss/stop at 4–7.
-        limit_raw = kw.get("limit", kw.get("profit"))
-        stop_raw = kw.get("stop", kw.get("loss"))
+        # Prefer kwargs. Full Pine positional: profit/limit/loss/stop at 4–7.
+        # Simplified legacy (still supported): id, from_entry, qty, limit, stop.
+        limit_raw = kw.get("limit")
+        stop_raw = kw.get("stop")
+        profit_raw = kw.get("profit")
+        loss_raw = kw.get("loss")
+        full_positional = len(args) > 5 or (raw_qty_percent is not None and len(args) > 4)
         if limit_raw is None:
             if len(args) > 5:
-                limit_raw = args[5] if args[5] is not None else args[4]
+                limit_raw = args[5]
             elif len(args) > 3 and raw_qty_percent is None:
                 # Simplified: args[3] = limit (only when not consumed as percent)
                 limit_raw = args[3]
-            elif len(args) > 4 and raw_qty_percent is not None:
-                # Pine profit (ticks-as-price residual) when percent took args[3]
-                limit_raw = args[4]
         if stop_raw is None:
             if len(args) > 7:
-                stop_raw = args[7] if args[7] is not None else args[6]
-            elif len(args) > 4 and raw_qty_percent is None:
+                stop_raw = args[7]
+            elif len(args) > 4 and raw_qty_percent is None and not full_positional:
                 stop_raw = args[4]
-            elif len(args) > 6 and raw_qty_percent is not None:
-                stop_raw = args[6]
+        if profit_raw is None and full_positional and len(args) > 4:
+            profit_raw = args[4]
+        if loss_raw is None and len(args) > 6:
+            loss_raw = args[6]
         limit_p = self._coerce_optional_price(limit_raw)
         stop_p = self._coerce_optional_price(stop_raw)
+        profit_ticks = self._coerce_optional_price(profit_raw)
+        loss_ticks = self._coerce_optional_price(loss_raw)
         trail_activation, trail_offset_px = self._resolve_trail_params(kw, args)
         has_trail = trail_offset_px is not None
         comment = kw.get("comment", None)
         is_long = self._strategy_state.position_direction == "long"
         is_flat = self._strategy_state.position_direction == "flat"
+        if not is_flat:
+            limit_p, stop_p = self._merge_exit_bracket_prices(
+                limit_p=limit_p,
+                stop_p=stop_p,
+                profit_ticks=profit_ticks,
+                loss_ticks=loss_ticks,
+                is_long=is_long,
+                from_entry=from_entry,
+            )
         action = "sell" if is_long else "buy"  # close direction
 
         # Placement/intent event. from_entry is applied to fill targeting;

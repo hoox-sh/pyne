@@ -37,48 +37,41 @@ makes lookback ``hist[n]`` O(1) at the ends but forces TA helpers to
 
 This module is the single-buffer alternative, gated by env ``PYNE_SERIES_RING``
 (default **off** — ``0`` / unset / empty). When off, hosts keep using
-``pynescript.runtime.series.PineSeries`` unchanged.
+``pynescript.runtime.series.PineSeries`` unchanged. Default stays off because
+the Runtime bar loop still dual-writes wrappers + ``current_series`` lists
+(lookback floor 1000 vs TA cap); see :func:`pynescript.runtime.series.series_ring_enabled`.
 
 Optional ``maxlen`` composes with T1 (``_SERIES_MAX`` / ``max_bars_back``): the
 ring drops oldest samples so memory stays bounded without fighting Agent 03's
 ``current_series`` cap (which still owns the host lists path).
+
+``RingPineSeries`` constructor *history_length* matches ``PineSeries``
+(``0`` / ``None`` → 1000, negative → 1) — never uncapped-on-zero.
+``series[n]`` OOB / negative / ``na`` / ``inf`` → ``None`` (never ``0``).
 """
 
 from __future__ import annotations
 
 import operator
-import os
 
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Iterator, Sequence
 from typing import Any
 
+from pynescript.runtime.series import (
+    DEFAULT_PINESERIES_HISTORY,
+    PineSeries,
+    _coerce_pine_offset,
+    _normalize_history_length,
+    series_ring_enabled,
+)
 
-def series_ring_enabled() -> bool:
-    """True when ``PYNE_SERIES_RING`` is an explicit truthy flag.
-
-    Default **off**. Accepted on values: ``1``, ``true``, ``yes``, ``on``
-    (case-insensitive). Anything else (including unset) → False.
-    """
-    v = os.environ.get("PYNE_SERIES_RING", "0").strip().lower()
-    return v in {"1", "true", "yes", "on"}
-
-
-def _coerce_pine_offset(index: Any) -> int | None:
-    """Normalize a Pine history offset; return ``None`` for na / invalid."""
-    t = type(index)
-    if t is int:
-        # bool is int subclass — treat as 0/1 offset
-        return int(index)
-    if t is float:
-        if index != index:  # NaN
-            return None
-        return int(index)
-    if index is None:
-        return None
-    try:
-        return int(index)
-    except (TypeError, ValueError):
-        return None
+__all__ = [
+    "ChronologicalSeriesBuffer",
+    "NewestFirstHistoryView",
+    "RingPineSeries",
+    "make_series",
+    "series_ring_enabled",
+]
 
 
 class ChronologicalSeriesBuffer:
@@ -230,13 +223,39 @@ class NewestFirstHistoryView(Sequence[Any]):
             # Materialize slice in newest-first order.
             return [self._buf.lookback(i) for i in range(*index.indices(n))]
         if type(index) is not int:
-            raise TypeError("history indices must be integers")
+            try:
+                index = operator.index(index)
+            except (TypeError, ValueError):
+                raise TypeError("history indices must be integers") from None
         if index < 0:
             index += len(self._buf)
         if index < 0 or index >= len(self._buf):
             raise IndexError("history index out of range")
         # newest-first: view[0] == current == lookback(0)
         return self._buf.lookback(index)
+
+    def __setitem__(self, index: int, value: Any) -> None:
+        """Overwrite a newest-first slot (deque ``history[0] = v`` parity)."""
+        if type(index) is not int:
+            try:
+                index = operator.index(index)
+            except (TypeError, ValueError):
+                raise TypeError("history indices must be integers") from None
+        n = len(self._buf)
+        if index < 0:
+            index += n
+        if index < 0 or index >= n:
+            raise IndexError("history index out of range")
+        buf = self._buf
+        maxlen = buf.maxlen
+        if maxlen is None:
+            buf._data[-(index + 1)] = value
+        else:
+            buf._data[(buf._start + buf._len - 1 - index) % maxlen] = value
+
+    def appendleft(self, value: Any) -> None:
+        """Push a new newest sample (``deque.appendleft`` parity)."""
+        self._buf.append(value)
 
     def __iter__(self) -> Iterator[Any]:
         n = len(self._buf)
@@ -251,11 +270,11 @@ class NewestFirstHistoryView(Sequence[Any]):
         return f"NewestFirstHistoryView(len={len(self._buf)})"
 
 
-class RingPineSeries:
+class RingPineSeries(PineSeries):
     """PineSeries-compatible wrapper over :class:`ChronologicalSeriesBuffer`.
 
     Public surface matches ``backend.series.PineSeries`` for Runtime / TA duck
-    typing:
+    typing (subclass so ``isinstance(..., PineSeries)`` stays true):
 
     - ``.current`` — scalar current bar
     - ``.history`` — newest-first view (legacy reverse paths keep working)
@@ -267,23 +286,23 @@ class RingPineSeries:
 
     - ``.buffer`` — underlying chronological ring
     - ``chrono_order = True`` — migration marker for ``_as_series`` zero-copy
+
+    *history_length* uses the same policy as :class:`PineSeries`
+    (falsy → 1000, negative → 1). Does **not** call ``PineSeries.__init__``
+    (that would allocate a newest-first deque).
     """
 
-    __slots__ = ("buffer", "history", "current")
-    __hash__ = None  # type: ignore[assignment]
+    __slots__ = ("buffer",)
     chrono_order: bool = True
 
-    def __init__(self, initial_value: Any = None, history_length: int = 1000) -> None:
-        """Create a series; seed with *initial_value* when not ``None``.
-
-        *history_length* sets ring capacity (``<= 0`` or ``None`` → uncapped).
-        """
-        # history_length mirrors PineSeries maxlen; treat <=0 as uncapped.
-        maxlen: int | None
-        if history_length is None or history_length <= 0:  # type: ignore[comparison-overlap]
-            maxlen = None
-        else:
-            maxlen = max(1, int(history_length))
+    def __init__(
+        self,
+        initial_value: Any = None,
+        history_length: int = DEFAULT_PINESERIES_HISTORY,
+    ) -> None:
+        """Create a series; seed with *initial_value* when not ``None``."""
+        # Do not call PineSeries.__init__ — no newest-first deque.
+        maxlen = _normalize_history_length(history_length)
         self.buffer = ChronologicalSeriesBuffer(maxlen=maxlen)
         self.history = NewestFirstHistoryView(self.buffer)
         self.current = initial_value
@@ -336,77 +355,8 @@ class RingPineSeries:
             buf._data[idx] = new_value
 
     def __getitem__(self, index: Any) -> Any:
-        """``series[0]`` current, ``series[1]`` previous; OOB/na → ``None``."""
+        """``series[0]`` current, ``series[1]`` previous; OOB/na/inf → ``None``."""
         return self.buffer[index]
-
-    def _binary_op(self, other: Any, op: Callable[..., Any]) -> Any:
-        other_val = other.current if isinstance(other, (RingPineSeries,)) else other
-        # Also accept legacy PineSeries without importing backend (duck-type).
-        if other_val is other and hasattr(other, "current") and type(other).__name__ in {
-            "PineSeries",
-            "RingPineSeries",
-        }:
-            other_val = other.current
-        if self.current is None or other_val is None:
-            return None
-        return op(self.current, other_val)
-
-    def __add__(self, other: Any) -> Any:
-        return self._binary_op(other, operator.add)
-
-    def __sub__(self, other: Any) -> Any:
-        return self._binary_op(other, operator.sub)
-
-    def __mul__(self, other: Any) -> Any:
-        return self._binary_op(other, operator.mul)
-
-    def __truediv__(self, other: Any) -> Any:
-        return self._binary_op(other, operator.truediv)
-
-    def __floordiv__(self, other: Any) -> Any:
-        return self._binary_op(other, operator.floordiv)
-
-    def __mod__(self, other: Any) -> Any:
-        return self._binary_op(other, operator.mod)
-
-    def __pow__(self, other: Any) -> Any:
-        return self._binary_op(other, operator.pow)
-
-    def __radd__(self, other: Any) -> Any:
-        return self._binary_op(other, lambda a, b: operator.add(b, a))
-
-    def __rsub__(self, other: Any) -> Any:
-        return self._binary_op(other, lambda a, b: operator.sub(b, a))
-
-    def __rmul__(self, other: Any) -> Any:
-        return self._binary_op(other, lambda a, b: operator.mul(b, a))
-
-    def __rtruediv__(self, other: Any) -> Any:
-        return self._binary_op(other, lambda a, b: operator.truediv(b, a))
-
-    def __eq__(self, other: Any) -> Any:
-        return self._binary_op(other, operator.eq)
-
-    def __ne__(self, other: Any) -> Any:
-        return self._binary_op(other, operator.ne)
-
-    def __lt__(self, other: Any) -> Any:
-        return self._binary_op(other, operator.lt)
-
-    def __le__(self, other: Any) -> Any:
-        return self._binary_op(other, operator.le)
-
-    def __gt__(self, other: Any) -> Any:
-        return self._binary_op(other, operator.gt)
-
-    def __ge__(self, other: Any) -> Any:
-        return self._binary_op(other, operator.ge)
-
-    def __bool__(self) -> bool:
-        return bool(self.current)
-
-    def __str__(self) -> str:
-        return str(self.current)
 
     def __repr__(self) -> str:
         return f"RingPineSeries({self.current})"
@@ -414,7 +364,7 @@ class RingPineSeries:
 
 def make_series(
     initial_value: Any = None,
-    history_length: int = 1000,
+    history_length: int = DEFAULT_PINESERIES_HISTORY,
     *,
     force_ring: bool | None = None,
 ) -> Any:
@@ -436,7 +386,4 @@ def make_series(
     use_ring = series_ring_enabled() if force_ring is None else force_ring
     if use_ring:
         return RingPineSeries(initial_value, history_length=history_length)
-    # Lazy import avoids circular load when only the buffer type is needed.
-    from pynescript.runtime.series import PineSeries
-
     return PineSeries(initial_value, history_length=history_length)

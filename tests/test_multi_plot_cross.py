@@ -47,6 +47,22 @@ def _bars(n: int = 60, amp: float = 10.0, period: float = 4.0) -> list[dict]:
     return out
 
 
+def test_plot_na_exports_none_not_zero():
+    """``plot(na)`` must stay JSON null — never silent-coerce to 0."""
+    src = """
+//@version=5
+indicator("n")
+plot(na, title="n")
+plot(close, title="c")
+"""
+    r = Runtime().run(src, _bars(8), mode="interpret")
+    assert "error" not in r, r.get("error")
+    col = r["series"]["n"]
+    assert len(col) == 8
+    assert all(v is None for v in col)
+    assert r["series"]["c"][-1] == _bars(8)[-1]["close"]
+
+
 def test_multi_plot_series_and_colors():
     src = """
 //@version=5

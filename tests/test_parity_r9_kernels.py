@@ -299,3 +299,30 @@ class TestCorpusResidualsParity:
         spec.loader.exec_module(h)
         r = h.run_one_script(str(path.resolve()), 200, ignore_hline_keys=True, ignore_fill_keys=True)
         assert r["status"] in ("OK", "fill_background_only"), r
+
+
+class TestResidualNopythonTaKernels:
+    """Always-on dual-host goldens for residual compile TA (kama/cmf/hma)."""
+
+    def test_kama_cmf_hma_interp_compile(self) -> None:
+        src = """//@version=6
+indicator("t")
+plot(ta.kama(close, 10), "kama")
+plot(ta.cmf(14), "cmf")
+plot(ta.hma(close, 9), "hma")
+plot(ta.wma(close, 8), "wma")
+"""
+        bars = _bars(80)
+        from pynescript.compiler.engine import clear_compile_cache
+
+        clear_compile_cache()
+        ri = Runtime().run(src, bars, mode="interpret")
+        rc = Runtime().run(src, bars, mode="compile")
+        assert "error" not in ri and "error" not in rc, (ri.get("error"), rc.get("error"))
+        assert rc.get("object_mode") is False
+        for key in ("kama", "cmf", "hma", "wma"):
+            for a, b in zip(ri["series"][key], rc["series"][key], strict=True):
+                if a is None:
+                    assert b is None or (isinstance(b, float) and b != b)
+                    continue
+                assert abs(float(a) - float(b)) < 1e-9

@@ -288,6 +288,14 @@ plot(nz(a, 0) + nz(b, 0) + nz(c, 0))
 """
         assert _last_plot(_run(src)) == 0
 
+    def test_omitted_bid_ask_spread_is_na(self) -> None:
+        """Host/OHLCV without quotes → bid/ask are na, not mock 100.01/100.02."""
+        src = """//@version=5
+indicator("t")
+plot(nz(ask - bid, -1))
+"""
+        assert _last_plot(_run(src)) == -1
+
     def test_warmup_na_plus_scalar(self) -> None:
         src = """//@version=5
 indicator("t")

@@ -4341,3 +4341,190 @@ plot(math.avg(close, close[1]), title="avg_ok")
         maxdiff = float(np.max(np.abs(iok[both] - cok[both])))
         assert maxdiff == 0.0, f"math.avg finite maxdiff={maxdiff}"
 
+
+class TestCompileRound8ResidualKernels:
+    """HMA/supertrend goldens + residual nopython KAMA / StochRSI / CMF."""
+
+    @staticmethod
+    def _synth(n: int = 120, seed: int = 8):
+        rng = np.random.default_rng(seed)
+        c = 100.0 + np.cumsum(rng.normal(0, 0.8, n))
+        h = c + rng.uniform(0.2, 1.2, n)
+        l = c - rng.uniform(0.2, 1.2, n)
+        o = c + rng.normal(0, 0.15, n)
+        v = 800.0 + rng.uniform(0, 400, n)
+        bars = [
+            {
+                "open": float(o[i]),
+                "high": float(h[i]),
+                "low": float(l[i]),
+                "close": float(c[i]),
+                "volume": float(v[i]),
+                "time": i,
+            }
+            for i in range(n)
+        ]
+        return o, h, l, c, v, bars
+
+    def test_hma_wma_supertrend_stay_nopython_match_interpret(self) -> None:
+        src = """//@version=6
+indicator("x")
+plot(ta.wma(close, 10), title="wma")
+plot(ta.hma(close, 9), title="hma")
+[st, dir] = ta.supertrend(3.0, 10)
+plot(st, title="st")
+plot(dir, title="dir")
+"""
+        code = transpile(src)
+        assert "numba_wma_inc" in code
+        assert "numba_hma_inc" in code
+        assert "numba_supertrend_inc" in code
+        compiled = compile_script(src)
+        assert not compiled.object_mode
+        o, h, l, c, v, bars = self._synth(80, seed=1)
+        from backend.runtime import Runtime
+
+        ri = Runtime(symbol="T").run(src, bars, mode="interpret")
+        assert "error" not in ri, ri.get("error")
+        out = compiled.run(o, h, l, c, v)
+        for key in ("wma", "hma", "st", "dir"):
+            max_err = 0.0
+            for i in range(len(c)):
+                a, b = out[key][i], ri["series"][key][i]
+                if np.isnan(a) and (b is None or (isinstance(b, float) and np.isnan(b))):
+                    continue
+                max_err = max(max_err, abs(float(a) - float(b)))
+            assert max_err <= 1e-9, f"{key} max_err={max_err}"
+
+    def test_kama_cmf_willr_accdist_pvt_emit_numeric(self) -> None:
+        src = """//@version=6
+indicator("x")
+plot(ta.kama(close, 10), title="kama")
+plot(ta.cmf(20), title="cmf")
+plot(ta.willr(14), title="willr")
+plot(ta.accdist(), title="ad")
+plot(ta.pvt(), title="pvt")
+"""
+        code = transpile(src)
+        assert "numba_kama_inc" in code
+        assert "numba_cmf_inc" in code
+        assert "numba_wpr" in code
+        assert "numba_accdist_inc" in code
+        assert "numba_pvt_inc" in code
+        compiled = compile_script(src)
+        assert not compiled.object_mode
+        o, h, l, c, v, _ = self._synth(60, seed=2)
+        out = compiled.run(o, h, l, c, v)
+        assert not np.isnan(out["kama"][-1])
+        assert not np.isnan(out["cmf"][-1])
+        assert not np.isnan(out["willr"][-1])
+        assert not np.isnan(out["ad"][-1])
+        assert not np.isnan(out["pvt"][-1])
+
+    def test_kama_cmf_kernel_inc_and_interpret(self) -> None:
+        from pynescript.compiler import numba_builtins as nb
+        from backend.runtime import Runtime
+
+        src = """//@version=6
+indicator("x")
+plot(ta.kama(close, 10, 2, 30), title="kama")
+plot(ta.cmf(20), title="cmf")
+"""
+        o, h, l, c, v, bars = self._synth(150, seed=3)
+        from pynescript.compiler.engine import clear_compile_cache
+
+        clear_compile_cache()
+        compiled = compile_script(src)
+        assert not compiled.object_mode
+        out = compiled.run(o, h, l, c, v)
+        ri = Runtime(symbol="T").run(src, bars, mode="interpret")
+        assert "error" not in ri, ri.get("error")
+
+        st_k = np.full(3, np.nan)
+        st_c = np.full(3, np.nan)
+        max_k = 0.0
+        max_c = 0.0
+        for i in range(len(c)):
+            fk = nb.numba_kama(c, 10, 2, 30, i)
+            ik = nb.numba_kama_inc(c, 10, 2, 30, i, st_k)
+            fc = nb.numba_cmf(h, l, c, v, 20, i)
+            ic = nb.numba_cmf_inc(h, l, c, v, 20, i, st_c)
+            if not (np.isnan(fk) and np.isnan(ik)):
+                max_k = max(max_k, abs(float(fk) - float(ik)))
+            if not (np.isnan(fc) and np.isnan(ic)):
+                max_c = max(max_c, abs(float(fc) - float(ic)))
+            for key, full in (("kama", fk), ("cmf", fc)):
+                interp = ri["series"][key][i]
+                comp = out[key][i]
+                if np.isnan(full) and (
+                    interp is None or (isinstance(interp, float) and np.isnan(interp))
+                ):
+                    assert np.isnan(comp)
+                    continue
+                assert abs(float(full) - float(interp)) <= 1e-9, f"{key}[{i}] interp"
+                assert abs(float(full) - float(comp)) <= 1e-9, f"{key}[{i}] compile"
+        assert max_k <= 1e-10, max_k
+        assert max_c <= 1e-10, max_c
+
+        # rewind catch-up
+        st = np.full(3, np.nan)
+        end = nb.numba_kama_inc(c, 10, 2, 30, len(c) - 1, st)
+        assert abs(float(end) - float(nb.numba_kama(c, 10, 2, 30, len(c) - 1))) <= 1e-10
+        mid = len(c) // 2
+        b = nb.numba_kama_inc(c, 10, 2, 30, mid, st)
+        a = nb.numba_kama(c, 10, 2, 30, mid)
+        if not (np.isnan(a) and np.isnan(b)):
+            assert abs(float(a) - float(b)) <= 1e-10
+
+    def test_stochrsi_emit_inc_kernel_and_interpret(self) -> None:
+        from pynescript.compiler import numba_builtins as nb
+        from backend.runtime import Runtime
+
+        src_c = """//@version=6
+indicator("x")
+[k, d] = ta.stochrsi(14, 14)
+plot(k, title="k")
+plot(d, title="d")
+"""
+        src_i = """//@version=6
+indicator("x")
+sr = ta.stochrsi(14, 14)
+plot(sr.stochrsi, title="k")
+plot(sr.signal, title="d")
+"""
+        code = transpile(src_c)
+        assert "numba_stochrsi_inc" in code
+        compiled = compile_script(src_c)
+        assert not compiled.object_mode
+        o, h, l, c, v, bars = self._synth(80, seed=4)
+        out = compiled.run(o, h, l, c, v)
+        ri = Runtime(symbol="T").run(src_i, bars, mode="interpret")
+        assert "error" not in ri, ri.get("error")
+
+        st = np.full(3 + 14, np.nan)
+        max_err = 0.0
+        for i in range(len(c)):
+            fk, fd = nb.numba_stochrsi(c, 14, 14, i)
+            ik, id_ = nb.numba_stochrsi_inc(c, 14, 14, i, st)
+            if np.isnan(fk) and np.isnan(ik):
+                assert np.isnan(fd) and np.isnan(id_)
+            else:
+                max_err = max(
+                    max_err,
+                    abs(float(fk) - float(ik)),
+                    abs(float(fd) - float(id_)),
+                )
+            for key, full in (("k", fk), ("d", fd)):
+                interp = ri["series"][key][i]
+                comp = out[key][i]
+                if np.isnan(full) and (
+                    interp is None or (isinstance(interp, float) and np.isnan(interp))
+                ):
+                    assert np.isnan(comp)
+                    continue
+                assert abs(float(full) - float(interp)) <= 1e-9, f"{key}[{i}] interp"
+                assert abs(float(full) - float(comp)) <= 1e-9, f"{key}[{i}] compile"
+        assert max_err <= 1e-10, max_err
+        assert not np.isnan(out["k"][-1])
+        assert not np.isnan(out["d"][-1])
+

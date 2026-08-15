@@ -2478,3 +2478,83 @@ def test_pivot_scalar_unwraps_nested_series():
     empty = PineSeries()  # current is None
     assert BasicIndicators._pivot_scalar(empty) is None
 
+
+def test_bid_ask_default_na_when_host_omits_quotes():
+    """Omitted quotes are na (None), not the old 100.01 / 100.02 mocks."""
+    evaluator = NodeLiteralEvaluator()
+    assert evaluator.context["bid"] is None
+    assert evaluator.context["ask"] is None
+    assert evaluator.visit(helper.parse("bid", mode="eval").body) is None
+    assert evaluator.visit(helper.parse("ask", mode="eval").body) is None
+    # Arithmetic with omitted quotes stays na (no TypeError, no 0.01 spread).
+    assert evaluator.visit(helper.parse("ask - bid", mode="eval").body) is None
+    assert evaluator.visit(helper.parse("bid + 1", mode="eval").body) is None
+    assert evaluator.visit(helper.parse("na(bid)", mode="eval").body) is True
+
+
+def test_bid_ask_host_supplied_quotes_win():
+    evaluator = NodeLiteralEvaluator({"bid": 99.5, "ask": 99.7})
+    assert evaluator.visit(helper.parse("bid", mode="eval").body) == 99.5
+    assert evaluator.visit(helper.parse("ask", mode="eval").body) == 99.7
+    assert evaluator.visit(helper.parse("ask - bid", mode="eval").body) == pytest.approx(0.2)
+
+
+def _first_call_node(tree):
+    for node in helper.walk(tree):
+        if type(node).__name__ == "Call":
+            return node
+    raise AssertionError("no Call node")
+
+
+def test_shared_ast_bound_call_site_does_not_leak_across_evaluators():
+    """H1: bound ``_pine_call_site`` handlers must not pin the first evaluator.
+
+    Cached/shared trees used to store ``self._sma`` / ``self._plot`` from the
+    first visitor. A second evaluator then mutated the first instance's TA /
+    plot state. Generation-stamped sites rebind on mismatch.
+    """
+    tree = helper.parse("ta.sma(close, 3)", mode="eval")
+    ev1 = NodeLiteralEvaluator({"close": [1, 2, 3, 4, 5]})
+    r1 = ev1.visit(tree.body)
+    assert r1 == [None, None, 2, 3, 4]
+
+    call = _first_call_node(tree)
+    site1 = getattr(call, "_pine_call_site", None)
+    assert site1 is not None
+    # After first invoke the site is bound (QB) and stamped with ev1's gen.
+    assert site1[0] == 3  # _SITE_QB
+    assert site1[-1] == ev1._eval_generation
+    handler1 = site1[2]
+    assert getattr(handler1, "__self__", None) is ev1
+
+    ev2 = NodeLiteralEvaluator({"close": [10, 20, 30]})
+    r2 = ev2.visit(tree.body)
+    assert r2 == [None, None, 20]
+
+    site2 = getattr(call, "_pine_call_site", None)
+    assert site2 is not None
+    assert site2[-1] == ev2._eval_generation
+    handler2 = site2[2]
+    assert getattr(handler2, "__self__", None) is ev2
+    assert ev1._eval_generation != ev2._eval_generation
+
+    # ev1 must still compute from its own context / incremental state.
+    assert ev1.visit(tree.body) == r1
+
+
+def test_stale_unversioned_bound_call_site_is_ignored():
+    """Legacy 5-tuples without generation must not invoke a planted handler."""
+    tree = helper.parse("math.abs(-3)", mode="eval")
+    ev1 = NodeLiteralEvaluator()
+    assert ev1.visit(tree.body) == 3
+
+    call = _first_call_node(tree)
+
+    def boom(_args):
+        raise AssertionError("stale bound handler invoked")
+
+    # Pre-generation _SITE_QB layout: (kind, tag, handler, name, plan)
+    object.__setattr__(call, "_pine_call_site", (3, 1, boom, "math.abs", ()))
+    ev2 = NodeLiteralEvaluator()
+    assert ev2.visit(tree.body) == 3
+

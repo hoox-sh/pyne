@@ -75,6 +75,38 @@ def _unwrap_scalar(value: Any) -> Any:
     return value
 
 
+def _coerce_plot_numeric(value: Any) -> Any:
+    """JSON-safe plot/hline cell. NaN → None; bool → 0.0/1.0; never na→0."""
+    t = type(value)
+    if t is float:
+        return None if value != value else value
+    if t is int or value is None:
+        return value
+    if t is bool:
+        return 1.0 if value else 0.0
+    if getattr(value, "__pine_import_stub__", False):
+        return None
+    return value
+
+
+def _coerce_plot_shape(value: Any) -> Any:
+    """JSON-safe plotshape/plotchar/plotarrow cell (matches host packing)."""
+    if value is None:
+        return None
+    t = type(value)
+    if t is bool:
+        return value
+    if t is int or t is float:
+        try:
+            fv = float(value)
+            if fv != fv:  # NaN
+                return False
+            return fv != 0.0
+        except (TypeError, ValueError):
+            return bool(value)
+    return bool(value)
+
+
 def _as_plot_int(value: Any, default: int = 1) -> int:
     """Coerce plot linewidth / similar to int without crashing on list/series.
 
@@ -112,7 +144,9 @@ class CustomEvaluator(NodeLiteralEvaluator):
     Plot capture (bar mode / Runtime host):
       - Values go into columnar ``_plot_value_cols`` (one list per call-site order).
       - Meta (title/color/kind/…) is recorded once in ``_plot_meta_list``.
-      - Steady-state bars append value only (skip color/title coercions).
+      - Host sets ``_plot_n_bars`` so columns are pre-sized; steady-state writes
+        the current bar index (no append/resize). JSON-safe cells are stored
+        at capture so packing can reuse the lists.
       - ``plot_outputs`` stays as a per-bar legacy buffer (cleared each bar) for
         any mid-bar readers; Runtime prefers columns when present.
       - ``PlotRegistry`` (super()) is optional: Runtime disables it when the
@@ -127,6 +161,10 @@ class CustomEvaluator(NodeLiteralEvaluator):
         self._plot_meta_list: list[dict[str, Any]] = []
         self._plot_capture_i = 0
         self._plot_bars_done = 0
+        # Host sets this to OHLCV length so columns are pre-sized (index write).
+        self._plot_n_bars = 0
+        # True if a stored cell still needs host ``_json_plot_value``.
+        self._plot_pack_dirty = False
         # When False, skip PlotRegistry super() path (fill() needs True).
         # Default True so non-Runtime CustomEvaluator users keep registry semantics.
         self._pine_need_plot_ids = True
@@ -141,6 +179,39 @@ class CustomEvaluator(NodeLiteralEvaluator):
         if not hasattr(self, "_var_declarations"):
             self._var_declarations = set()
 
+    def _write_plot_cell(self, i: int, value: Any) -> None:
+        """Write one cell at the current bar (pre-sized index, else append)."""
+        t = type(value)
+        if t is not float and t is not int and value is not None and t is not bool and t is not str:
+            self._plot_pack_dirty = True
+        n = self._plot_n_bars
+        col = self._plot_value_cols[i]
+        if n > 0:
+            bar = self._plot_bars_done
+            if bar < n:
+                col[bar] = value
+            elif bar < len(col):
+                col[bar] = value
+            else:
+                col.append(value)
+        else:
+            col.append(value)
+
+    def _new_plot_column(self, value: Any) -> list[Any]:
+        """Allocate a column; pre-size to ``_plot_n_bars`` when the host set it."""
+        n = self._plot_n_bars
+        bar = self._plot_bars_done
+        if n > 0:
+            col: list[Any] = [None] * n
+            if 0 <= bar < n:
+                col[bar] = value
+            elif bar >= n:
+                col.append(value)
+            return col
+        col = [None] * bar
+        col.append(value)
+        return col
+
     def _capture_plot(
         self,
         kind: str,
@@ -150,7 +221,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
         linewidth: int = 1,
         **extra: Any,
     ) -> None:
-        """Append one plot cell for this bar into columnar buffers."""
+        """Write one plot cell for this bar into columnar buffers."""
         if self._pine_light_plots:
             return
         i = self._plot_capture_i
@@ -158,8 +229,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
         cols = self._plot_value_cols
         meta = self._plot_meta_list
         if i >= len(cols):
-            # New call-site order index: pad prior bars with None
-            cols.append([None] * self._plot_bars_done)
+            cols.append(self._new_plot_column(value))
             entry: dict[str, Any] = {
                 "type": kind,
                 "kind": kind,
@@ -171,17 +241,17 @@ class CustomEvaluator(NodeLiteralEvaluator):
                 if v is not None and v != "":
                     entry[k] = v
             meta.append(entry)
-        else:
-            m = meta[i]
-            if m.get("color") is None and color_s is not None:
-                m["color"] = color_s
-            for k, v in extra.items():
-                if v is not None and v != "" and m.get(k) is None:
-                    m[k] = v
-        cols[i].append(value)
+            return
+        m = meta[i]
+        if m.get("color") is None and color_s is not None:
+            m["color"] = color_s
+        for k, v in extra.items():
+            if v is not None and v != "" and m.get(k) is None:
+                m[k] = v
+        self._write_plot_cell(i, value)
 
     def _append_plot_value(self, value: Any) -> int:
-        """Steady-state: known call-site → append value only (no meta work).
+        """Steady-state: known call-site → write value only (no meta work).
 
         Returns the call-site index used (for optional lazy meta fill).
         """
@@ -189,7 +259,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
             return 0
         i = self._plot_capture_i
         self._plot_capture_i = i + 1
-        self._plot_value_cols[i].append(value)
+        self._write_plot_cell(i, value)
         return i
 
     def finish_bar_plots(self) -> None:
@@ -198,13 +268,13 @@ class CustomEvaluator(NodeLiteralEvaluator):
             self._plot_capture_i = 0
             self._plot_bars_done += 1
             return
-        n = self._plot_capture_i
-        cols = self._plot_value_cols
-        # Common case: every call site hit → empty range
-        n_cols = len(cols)
-        if n < n_cols:
-            for j in range(n, n_cols):
-                cols[j].append(None)
+        if self._plot_n_bars <= 0:
+            n = self._plot_capture_i
+            cols = self._plot_value_cols
+            n_cols = len(cols)
+            if n < n_cols:
+                for j in range(n, n_cols):
+                    cols[j].append(None)
         self._plot_bars_done += 1
         self._plot_capture_i = 0
 
@@ -233,8 +303,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
         if kwargs:
             if not args and "series" not in kwargs:
                 return None
-            raw = kwargs.get("series", args[0] if args else None)
-            value = _unwrap_scalar(raw)
+            value = _coerce_plot_numeric(_unwrap_scalar(kwargs.get("series", args[0] if args else None)))
             # Steady-state: call site already registered → value only
             if self._plot_capture_i < len(self._plot_value_cols):
                 i = self._append_plot_value(value)
@@ -270,9 +339,21 @@ class CustomEvaluator(NodeLiteralEvaluator):
         # Positional-only: plot(series) / plot(series, title, color, …)
         if not args:
             return None
-        value = _unwrap_scalar(args[0])
-        if self._plot_capture_i < len(self._plot_value_cols):
-            i = self._append_plot_value(value)
+        raw = args[0]
+        t = type(raw)
+        if t is float or t is int or raw is None:
+            value = None if t is float and raw != raw else raw
+        else:
+            value = _coerce_plot_numeric(_unwrap_scalar(raw))
+        i = self._plot_capture_i
+        cols = self._plot_value_cols
+        if i < len(cols):
+            self._plot_capture_i = i + 1
+            n = self._plot_n_bars
+            if n > 0:
+                cols[i][self._plot_bars_done] = value
+            else:
+                cols[i].append(value)
             if len(args) > 2:
                 color = args[2]
                 if color is not None:
@@ -306,7 +387,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
         if kwargs:
             if not args and "price" not in kwargs:
                 return None
-            price = _unwrap_scalar(kwargs.get("price", args[0] if args else None))
+            price = _coerce_plot_numeric(_unwrap_scalar(kwargs.get("price", args[0] if args else None)))
             if self._plot_capture_i < len(self._plot_value_cols):
                 self._append_plot_value(price)
                 return self._maybe_registry("_builtin_hline", args, kwargs) if self._pine_need_plot_ids else None
@@ -328,7 +409,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
 
         if not args:
             return None
-        price = _unwrap_scalar(args[0])
+        price = _coerce_plot_numeric(_unwrap_scalar(args[0]))
         if self._plot_capture_i < len(self._plot_value_cols):
             self._append_plot_value(price)
             return self._maybe_registry("_builtin_hline", args, None) if self._pine_need_plot_ids else None
@@ -428,9 +509,11 @@ class CustomEvaluator(NodeLiteralEvaluator):
             t1 = t1 or self._plot_ref_title(getattr(reg, "plot1", None))
             t2 = t2 or self._plot_ref_title(getattr(reg, "plot2", None))
         color_s = _serialize_color(_unwrap_scalar(color)) if color is not None else None
+        # Exported fill series is all-null (color lives on plot_meta).
+        fill_cell = None
 
         if self._plot_capture_i < len(self._plot_value_cols):
-            i = self._append_plot_value(color_s)
+            i = self._append_plot_value(fill_cell)
             m = self._plot_meta_list[i]
             if t1 and not m.get("plot1"):
                 m["plot1"] = t1
@@ -442,7 +525,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
 
         self._capture_plot(
             "fill",
-            color_s,
+            fill_cell,
             str(title or "") or "fill",
             color_s,
             style="fill",
@@ -458,7 +541,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
         if kwargs:
             if not args and "series" not in kwargs:
                 return None
-            value = _unwrap_scalar(kwargs.get("series", args[0] if args else None))
+            value = _coerce_plot_shape(_unwrap_scalar(kwargs.get("series", args[0] if args else None)))
             if self._plot_capture_i < len(self._plot_value_cols):
                 self._append_plot_value(value)
                 return self._maybe_registry("_builtin_plotshape", args, kwargs) if self._pine_need_plot_ids else None
@@ -487,7 +570,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
 
         if not args:
             return None
-        value = _unwrap_scalar(args[0])
+        value = _coerce_plot_shape(_unwrap_scalar(args[0]))
         if self._plot_capture_i < len(self._plot_value_cols):
             self._append_plot_value(value)
             return self._maybe_registry("_builtin_plotshape", args, None) if self._pine_need_plot_ids else None
@@ -514,7 +597,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
         if kwargs:
             if not args and "series" not in kwargs:
                 return None
-            value = _unwrap_scalar(kwargs.get("series", args[0] if args else None))
+            value = _coerce_plot_shape(_unwrap_scalar(kwargs.get("series", args[0] if args else None)))
             if self._plot_capture_i < len(self._plot_value_cols):
                 self._append_plot_value(value)
                 return self._maybe_registry("_builtin_plotchar", args, kwargs) if self._pine_need_plot_ids else None
@@ -538,7 +621,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
 
         if not args:
             return None
-        value = _unwrap_scalar(args[0])
+        value = _coerce_plot_shape(_unwrap_scalar(args[0]))
         if self._plot_capture_i < len(self._plot_value_cols):
             self._append_plot_value(value)
             return self._maybe_registry("_builtin_plotchar", args, None) if self._pine_need_plot_ids else None

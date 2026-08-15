@@ -381,6 +381,120 @@ def test_strategy_exit_trail_price_activation_long():
     assert e._strategy_state.position_direction == "flat"
 
 
+def _exit_eval(*, px: float = 100.0, mintick: float = 0.01):
+    e = NodeLiteralEvaluator()
+    e._strategy_state.mintick = mintick
+    e.context = {
+        "open": px,
+        "high": px,
+        "low": px,
+        "close": px,
+        "bar_index": 0,
+        "time": 0,
+        "syminfo": {"mintick": mintick},
+    }
+    return e, e._build_builtin_map()
+
+
+def test_strategy_exit_profit_ticks_long_target():
+    """profit=100 ticks from long entry 100 @ mintick 0.01 → limit 101.00."""
+    e, m = _exit_eval()
+    m["strategy.entry"](["L", "long", 1.0])
+    m["strategy.exit"]([], {"id": "X", "profit": 100.0})
+    assert e._strategy_state.position_size == 1.0
+    pending = e._strategy_state.pending_orders
+    assert "X" in pending
+    assert pending["X"].order_type == "limit"
+    assert pending["X"].limit_price == pytest.approx(101.00)
+    # high 100.5 does not touch 101
+    e.context.update({"open": 100.2, "high": 100.5, "low": 100.0, "close": 100.4, "bar_index": 1})
+    e.process_pending_orders(open_=100.2, high=100.5, low=100.0, close=100.4)
+    assert e._strategy_state.position_size == 1.0
+    # high 101.5 fills at 101
+    e.context.update({"open": 100.4, "high": 101.5, "low": 100.2, "close": 101.2, "bar_index": 2})
+    e.process_pending_orders(open_=100.4, high=101.5, low=100.2, close=101.2)
+    assert e._strategy_state.position_size == 0.0
+    assert e._strategy_state.closed_trades[0].exit_price == pytest.approx(101.00)
+
+
+def test_strategy_exit_loss_ticks_long_stop():
+    """loss=50 ticks from long entry 100 @ mintick 0.01 → stop 99.50."""
+    e, m = _exit_eval()
+    m["strategy.entry"](["L", "long", 1.0])
+    m["strategy.exit"]([], {"id": "X", "loss": 50.0})
+    po = e._strategy_state.pending_orders["X"]
+    assert po.order_type == "stop"
+    assert po.stop_price == pytest.approx(99.50)
+    e.context.update({"open": 100.0, "high": 100.2, "low": 99.6, "close": 99.8, "bar_index": 1})
+    e.process_pending_orders(open_=100.0, high=100.2, low=99.6, close=99.8)
+    assert e._strategy_state.position_size == 1.0
+    e.context.update({"open": 99.8, "high": 99.9, "low": 99.0, "close": 99.2, "bar_index": 2})
+    e.process_pending_orders(open_=99.8, high=99.9, low=99.0, close=99.2)
+    assert e._strategy_state.position_size == 0.0
+    assert e._strategy_state.closed_trades[0].exit_price == pytest.approx(99.50)
+
+
+def test_strategy_exit_profit_ticks_short_target():
+    """profit=100 ticks from short entry 100 @ mintick 0.01 → limit 99.00."""
+    e, m = _exit_eval()
+    m["strategy.entry"](["S", "short", 1.0])
+    m["strategy.exit"]([], {"id": "X", "profit": 100.0})
+    po = e._strategy_state.pending_orders["X"]
+    assert po.order_type == "limit"
+    assert po.limit_price == pytest.approx(99.00)
+    e.context.update({"open": 100.0, "high": 100.2, "low": 99.4, "close": 99.6, "bar_index": 1})
+    e.process_pending_orders(open_=100.0, high=100.2, low=99.4, close=99.6)
+    assert e._strategy_state.position_size == 1.0
+    e.context.update({"open": 99.6, "high": 99.7, "low": 98.5, "close": 98.8, "bar_index": 2})
+    e.process_pending_orders(open_=99.6, high=99.7, low=98.5, close=98.8)
+    assert e._strategy_state.position_size == 0.0
+    assert e._strategy_state.closed_trades[0].exit_price == pytest.approx(99.00)
+
+
+def test_strategy_exit_limit_stop_remain_absolute_prices():
+    """Named limit/stop stay prices; profit/loss do not rewrite them."""
+    e, m = _exit_eval()
+    m["strategy.entry"](["L", "long", 1.0])
+    m["strategy.exit"]([], {"id": "X", "limit": 110.0, "stop": 90.0, "profit": 100.0, "loss": 50.0})
+    pending = e._strategy_state.pending_orders
+    lim = pending["X:limit"]
+    stp = pending["X:stop"]
+    assert lim.limit_price == pytest.approx(110.0)
+    assert stp.stop_price == pytest.approx(90.0)
+
+
+def test_strategy_exit_profit_loss_na_and_nonpositive_ignored():
+    """na / None / <=0 profit or loss do not place that bracket (no na→0)."""
+    e, m = _exit_eval()
+    m["strategy.entry"](["L", "long", 2.0])
+    m["strategy.exit"]([], {"id": "X0", "profit": 0.0, "loss": -10.0})
+    # No levels → market close
+    assert e._strategy_state.position_size == 0.0
+    e, m = _exit_eval()
+    m["strategy.entry"](["L", "long", 2.0])
+    m["strategy.exit"]([], {"id": "Xna", "profit": float("nan"), "loss": None, "limit": 110.0})
+    assert e._strategy_state.position_size == 2.0
+    po = e._strategy_state.pending_orders["Xna"]
+    assert po.order_type == "limit"
+    assert po.limit_price == pytest.approx(110.0)
+    assert po.stop_price is None
+
+
+def test_strategy_exit_profit_from_entry_uses_that_leg_avg():
+    """from_entry profit ticks are measured from that leg's entry, not the VWAP."""
+    e, m = _exit_eval()
+    m["strategy"](["T"], {"pyramiding": 1})
+    m["strategy.entry"](["A", "long", 1.0])
+    e.context.update({"open": 110.0, "high": 110.0, "low": 110.0, "close": 110.0, "bar_index": 1})
+    m["strategy.entry"](["B", "long", 1.0])
+    # Drop back below A's 101 target so the bracket stays pending
+    e.context.update({"open": 100.5, "high": 100.8, "low": 100.2, "close": 100.4, "bar_index": 2})
+    m["strategy.exit"]([], {"id": "XA", "from_entry": "A", "profit": 100.0})
+    po = next(p for p in e._strategy_state.pending_orders.values() if p.from_entry == "A")
+    assert po.limit_price == pytest.approx(101.00)
+    assert e._strategy_state.position_size == 2.0
+
+
 def test_request_seed_reproducible_footprint():
     e = NodeLiteralEvaluator()
     m = e._build_builtin_map()

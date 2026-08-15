@@ -163,12 +163,11 @@ def clear_parse_cache() -> None:
 
 
 def _scrub_pine_call_sites(tree: AST) -> AST:
-    """Drop evaluator-bound ``_pine_call_site`` attrs on a shared AST.
+    """Drop ``_pine_call_site`` attrs on a shared AST (parse-cache hit).
 
-    ``visit_Call`` caches resolved handlers (including bound methods) on Call
-    nodes. Returning the same tree identity for a second evaluator would invoke
-    the *first* evaluator's handlers. Scrub on every cache hit so multi-run
-    hosts and unit tests stay correct while still skipping ANTLR re-parse.
+    ``visit_Call`` may cache bound handlers stamped with evaluator generation.
+    A later evaluator ignores a mismatched generation, but scrubbing still
+    drops dead instance-method refs so cached trees do not pin evaluators.
     """
     try:
         for node in walk(tree):

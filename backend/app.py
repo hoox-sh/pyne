@@ -377,6 +377,23 @@ def _execute_run_payload_inner(
     if not isinstance(inputs, dict):
         inputs = {}
     profiler = bool(validated.get("profiler"))
+    raw_libs = validated.get("libraries") or []
+    libraries: list[dict[str, Any]] = []
+    if isinstance(raw_libs, list):
+        for item in raw_libs[:32]:
+            if not isinstance(item, dict):
+                continue
+            ns = str(item.get("namespace") or "").strip()
+            name = str(item.get("name") or "").strip()
+            src = str(item.get("source") or "")
+            try:
+                ver = int(item.get("version") or 1)
+            except (TypeError, ValueError):
+                ver = 1
+            if ns and name and src:
+                libraries.append(
+                    {"namespace": ns, "name": name, "version": ver, "source": src}
+                )
 
     runtime = Runtime(symbol=str(symbol))
     result = runtime.run(
@@ -387,6 +404,7 @@ def _execute_run_payload_inner(
         mode=str(mode),
         inputs=inputs if inputs else None,
         profiler=profiler,
+        libraries=libraries or None,
     )
 
     if "error" in result:

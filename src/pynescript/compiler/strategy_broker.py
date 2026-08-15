@@ -1280,6 +1280,71 @@ class CompileStrategyBroker:
             return (None, None)
         return (act, offset_price)
 
+    def _exit_entry_avg(self, from_entry: str | None) -> float | None:
+        """Average entry price for the exit target (``from_entry`` legs or whole lot)."""
+        if from_entry:
+            legs = [leg for leg in self.open_legs if leg.entry_id == from_entry]
+            total = sum(float(leg.size) for leg in legs)
+            if total > 0:
+                return sum(float(leg.entry_price) * float(leg.size) for leg in legs) / total
+            if not self.open_legs and self.position_size != 0.0:
+                avg = float(self.position_avg_price)
+                return avg if avg == avg and math.isfinite(avg) else None
+            return None
+        if self.position_size == 0.0:
+            return None
+        avg = float(self.position_avg_price)
+        return avg if avg == avg and math.isfinite(avg) else None
+
+    def _tick_offset_price(
+        self,
+        ticks: float | None,
+        entry_avg: float | None,
+        *,
+        is_long: bool,
+        is_profit: bool,
+    ) -> float | None:
+        """Map ``profit``/``loss`` ticks to an absolute price from *entry_avg*."""
+        if ticks is None or entry_avg is None:
+            return None
+        t = float(ticks)
+        avg = float(entry_avg)
+        if t <= 0 or not math.isfinite(t) or not math.isfinite(avg):
+            return None
+        offset = t * float(self.mintick)
+        if offset <= 0 or not math.isfinite(offset):
+            return None
+        if is_long:
+            return avg + offset if is_profit else avg - offset
+        return avg - offset if is_profit else avg + offset
+
+    def _merge_exit_bracket_prices(
+        self,
+        *,
+        limit_p: float | None,
+        stop_p: float | None,
+        profit_ticks: float | None,
+        loss_ticks: float | None,
+        is_long: bool,
+        from_entry: str | None,
+    ) -> tuple[float | None, float | None]:
+        """``limit``/``stop`` stay absolute; ``profit``/``loss`` fill missing legs.
+
+        Tick offsets are ``ticks * mintick`` from the exit's entry average.
+        When both a tick param and its absolute twin are set, the absolute
+        price wins. First-touch of the resulting limit+stop pair is unchanged.
+        """
+        entry_avg = self._exit_entry_avg(from_entry)
+        if limit_p is None:
+            limit_p = self._tick_offset_price(
+                profit_ticks, entry_avg, is_long=is_long, is_profit=True
+            )
+        if stop_p is None:
+            stop_p = self._tick_offset_price(
+                loss_ticks, entry_avg, is_long=is_long, is_profit=False
+            )
+        return limit_p, stop_p
+
     def close(
         self,
         id: str | None = None,
@@ -1302,6 +1367,10 @@ class CompileStrategyBroker:
         compiler has mapped ``strategy.exit`` → ``close``. Match the interpret
         oracle: pick an exit fill price from those legs and emit ``kind=exit``.
 
+        ``profit`` / ``loss`` are ticks from entry average
+        (``ticks * mintick``); ``limit`` / ``stop`` stay absolute prices.
+        ``na`` / None / ``<= 0`` profit or loss ignore that bracket leg.
+
         ``qty_percent`` (when set and not na) sizes as ``target * pct/100``
         capped to the open target (whole lot or ``from_entry`` size); wins over
         absolute ``qty``.
@@ -1319,15 +1388,20 @@ class CompileStrategyBroker:
         # Compiler maps strategy.exit → close(..., from_entry=..., stop/limit/trail).
         # Prefer explicit from_entry; fall back to id only for exit brackets so
         # direct broker tests that pass id= keep working.
-        limit_p = _opt_float(limit if limit is not None else profit)
-        stop_p = _opt_float(stop if stop is not None else loss)
+        limit_p = _opt_float(limit)
+        stop_p = _opt_float(stop)
+        profit_ticks = _opt_float(profit)
+        loss_ticks = _opt_float(loss)
         trail_activation, trail_offset_px = self._resolve_trail_params(
             trail_price if trail_price is not None else _kwargs.get("trail_price"),
             trail_points if trail_points is not None else _kwargs.get("trail_points"),
             trail_offset if trail_offset is not None else _kwargs.get("trail_offset"),
         )
         has_trail = trail_offset_px is not None
-        is_exit = limit_p is not None or stop_p is not None or has_trail
+        has_tick_bracket = (profit_ticks is not None and profit_ticks > 0) or (
+            loss_ticks is not None and loss_ticks > 0
+        )
+        is_exit = limit_p is not None or stop_p is not None or has_trail or has_tick_bracket
         event_kind = "exit" if is_exit else "close"
         event_stop = stop_p if stop_p is not None else (trail_activation if has_trail else None)
         raw_fe = _kwargs.get("from_entry")
@@ -1362,6 +1436,18 @@ class CompileStrategyBroker:
             return
 
         d = "long" if self.position_size > 0 else "short"
+        if has_tick_bracket:
+            limit_p, stop_p = self._merge_exit_bracket_prices(
+                limit_p=limit_p,
+                stop_p=stop_p,
+                profit_ticks=profit_ticks,
+                loss_ticks=loss_ticks,
+                is_long=(d == "long"),
+                from_entry=from_entry,
+            )
+            event_stop = stop_p if stop_p is not None else (trail_activation if has_trail else None)
+            is_exit = limit_p is not None or stop_p is not None or has_trail
+            event_kind = "exit" if is_exit else "close"
         # qty_percent wins over qty when both provided (interpret parity).
         pct = _opt_float(qty_percent if qty_percent is not None else _kwargs.get("qty_percent"))
         if pct is not None:

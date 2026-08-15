@@ -36,6 +36,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
+from sys import intern
 from typing import Any
 from typing import ClassVar
 from typing import Iterable
@@ -154,11 +155,11 @@ def uniquify_series_title(title: str, used: MutableMapping[str, Any] | set[str] 
     else:
         used_set = set(used.keys()) if hasattr(used, "keys") else set(used)  # type: ignore[arg-type]
     if base not in used_set:
-        return base
+        return intern(base) if type(base) is str else base
     suffix = 2
     while f"{base}_{suffix}" in used_set:
         suffix += 1
-    return f"{base}_{suffix}"
+    return intern(f"{base}_{suffix}")
 
 
 def _visual_default_title(kind: str) -> str:
@@ -320,10 +321,10 @@ def materialize_visual_series_from_drawings(
         if bar < 0 or bar >= n_bars:
             continue
         if len(events) == len(sites):
-            pairs = list(zip(sites, events, strict=True))
+            pairs = zip(sites, events, strict=True)
         else:
             # Fallback: assign in order, pad/truncate
-            pairs = list(zip(sites, events))
+            pairs = zip(sites, events)
         for site, ev in pairs:
             kind = site["kind"]
             # Prefer event kind if caller reordered (should not)
@@ -485,6 +486,50 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
             "plot.style_circles": "style_circles",
         }
 
+    def _upsert_simple_plot(
+        self,
+        series: Any,
+        title: str,
+        color: Any,
+        style: str,
+        linewidth: int,
+    ) -> Plot:
+        """Positional ``plot()`` upsert — no per-bar kwargs dict."""
+        if getattr(self, "_pine_bar_mode", False):
+            i = getattr(self, "_plot_call_i", 0)
+            if i is None:
+                i = 0
+            self._plot_call_i = i + 1  # type: ignore[attr-defined]
+            plots = PlotRegistry.plots
+            if i < len(plots):
+                p = plots[i]
+                p.series = series
+                p.color = color
+                p.deleted = False
+                return p
+            p = _fill_plot(
+                Plot(),
+                kind="plot",
+                series=series,
+                title=title,
+                color=color,
+                style=style,
+                linewidth=linewidth,
+            )
+            plots.append(p)
+            return p
+        return PlotRegistry.add(
+            _fill_plot(
+                Plot(),
+                kind="plot",
+                series=series,
+                title=title,
+                color=color,
+                style=style,
+                linewidth=linewidth,
+            )
+        )
+
     def _plot_upsert(self, **fields: Any) -> Plot:
         """Create or reuse a Plot for this call site.
 
@@ -504,8 +549,29 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
             plots = PlotRegistry.plots
             if i < len(plots):
                 p = plots[i]
-                for k, v in fields.items():
-                    setattr(p, k, v)
+                # Call-site kind/title/style are fixed after bar 0; only values change.
+                if "series" in fields:
+                    p.series = fields["series"]
+                if "color" in fields:
+                    p.color = fields["color"]
+                if "price" in fields:
+                    p.price = fields["price"]
+                    if "series" not in fields:
+                        p.series = fields["price"]
+                if "open" in fields:
+                    p.open = fields["open"]
+                    p.high = fields.get("high")
+                    p.low = fields.get("low")
+                    p.close = fields.get("close")
+                if "plot1" in fields:
+                    p.plot1 = fields["plot1"]
+                    p.plot2 = fields.get("plot2")
+                if "text" in fields:
+                    p.text = fields["text"]
+                if "char" in fields:
+                    p.char = fields["char"]
+                if "meta" in fields:
+                    p.meta = fields["meta"]
                 p.deleted = False
                 return p
             p = _fill_plot(Plot(), **fields)
@@ -523,14 +589,7 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
             color = args[2] if n > 2 else None
             style = _as_str(args[4], _EMPTY) if n > 4 else _EMPTY
             linewidth = _as_int(args[5], 1) if n > 5 else 1
-            return self._plot_upsert(
-                kind="plot",
-                series=series,
-                title=title,
-                color=color,
-                style=style,
-                linewidth=linewidth,
-            )
+            return self._upsert_simple_plot(series, title, color, style, linewidth)
 
         return self._plot_upsert(
             kind="plot",
