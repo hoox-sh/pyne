@@ -227,10 +227,9 @@ def series_ring_enabled() -> bool:
     (``RingPineSeries``) with O(1) lookback. Orthogonal to T1
     ``PYNE_SERIES_CAP`` / ``current_series`` list trimming.
 
-    Default stays **off**: host still dual-writes OHLCV wrappers *and*
-    ``current_series`` lists (different depths: lookback floor 1000 vs TA
-    cap 256). Enabling by default would add ring cost without dropping
-    the list path (Agent 03 owns host packing).
+    When on, Runtime binds ``current_series`` to a chronological tail view
+    of the ring (no second append-only list). Default stays **off** until
+    ring+view is the measured default path.
     """
     v = os.environ.get("PYNE_SERIES_RING", "0").strip().lower()
     return v in {"1", "true", "yes", "on"}
@@ -285,8 +284,8 @@ def make_pine_series(
 
     Flag on: chronological ring (``RingPineSeries``) — same public
     ``.current`` / ``.history`` / ``.update`` / ``[n]`` surface; lookback
-    is O(1) via reverse-index into oldest-first storage. Does **not**
-    replace ``current_series`` list caps (Agent 03 / T1).
+    is O(1) via reverse-index into oldest-first storage. Host then binds
+    ``current_series`` to a tail view of that ring (T1 *keep* window).
     """
     if series_ring_enabled():
         from pynescript.ast.evaluator.series_buffer import RingPineSeries

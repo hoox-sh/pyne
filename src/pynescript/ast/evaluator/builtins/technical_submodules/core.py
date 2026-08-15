@@ -38,6 +38,7 @@ import os
 import statistics
 
 from collections import deque
+from collections.abc import Sequence
 from typing import Any
 
 from pynescript.ast.evaluator.builtins.base import pine_expect_int
@@ -152,6 +153,12 @@ class TechnicalHelpers:
                     return None
                 # Newest-first (PineSeries deque) → index 0 is current bar
                 return hist[0]
+            except TypeError:
+                pass
+        # ChronoTailView / other oldest-first sequences (no .current)
+        if isinstance(series, Sequence) and not isinstance(series, (str, bytes)):
+            try:
+                return series[-1] if len(series) else None
             except TypeError:
                 pass
         return series
@@ -3010,6 +3017,14 @@ class TechnicalHelpers:
         """
         if isinstance(value, list):
             return self._cap_series_list(value)
+        # ChronoTailView (oldest-first Sequence, no .history)
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes)) and getattr(
+            value, "history", None
+        ) is None:
+            try:
+                return self._cap_series_list(list(value))
+            except TypeError:
+                pass
         # Duck-type PineSeries: newest-first history (deque or list)
         hist = getattr(value, "history", None)
         if hist is not None:

@@ -32,6 +32,7 @@ from collections import deque
 
 import pytest
 
+from pynescript.ast.evaluator.series_buffer import ChronoTailView
 from pynescript.ast.evaluator.series_buffer import ChronologicalSeriesBuffer
 from pynescript.ast.evaluator.series_buffer import NewestFirstHistoryView
 from pynescript.ast.evaluator.series_buffer import RingPineSeries
@@ -544,3 +545,30 @@ plot(close[200], "c200")
                     continue
                 assert x is not None and y is not None
                 assert abs(float(x) - float(y)) <= 1e-9
+
+
+def test_chrono_tail_view_keep_window_and_slice() -> None:
+    buf = ChronologicalSeriesBuffer(maxlen=8)
+    for i in range(10):
+        buf.append(float(i))
+    # buffer newest 8: 2..9; tail keep=4 → 6,7,8,9
+    view = ChronoTailView(buf, keep=4)
+    assert len(view) == 4
+    assert list(view) == [6.0, 7.0, 8.0, 9.0]
+    assert view[0] == 6.0
+    assert view[-1] == 9.0
+    assert view[1:3] == [7.0, 8.0]
+    with pytest.raises(IndexError):
+        _ = view[4]
+
+
+def test_chrono_tail_view_grows_until_keep() -> None:
+    buf = ChronologicalSeriesBuffer(maxlen=16)
+    view = ChronoTailView(buf, keep=5)
+    assert len(view) == 0
+    buf.append(1.0)
+    buf.append(2.0)
+    assert list(view) == [1.0, 2.0]
+    for i in range(3, 10):
+        buf.append(float(i))
+    assert list(view) == [5.0, 6.0, 7.0, 8.0, 9.0]

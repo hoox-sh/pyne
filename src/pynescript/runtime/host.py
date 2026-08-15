@@ -51,6 +51,7 @@ from .series import (
     resolve_series_cap,
     series_cap_enabled,
     series_cap_limit,
+    series_ring_enabled,
     trim_series_lists,
 )
 
@@ -1242,9 +1243,9 @@ class Runtime:
         t_eval0 = time.perf_counter()
 
         # Initialize Series (PYNE_SERIES_RING=1 → chronological O(1) lookback).
-        # Default off: classic PineSeries (newest-first deque). Ring flag does
-        # not alter current_series list caps (T1). History length follows
-        # max_bars_back / PYNE_SERIES_MAX when larger than the 1000 floor.
+        # Default off: classic PineSeries (newest-first deque). When the ring
+        # is on, current_series is a tail view (no dual list write). History
+        # length follows max_bars_back / PYNE_SERIES_MAX when larger than 1000.
         _cap_on = series_cap_enabled()
         _mbb_decl = parse_max_bars_back_from_source(source_code)
         _host_series_cap = resolve_series_cap(max_bars_back=_mbb_decl)
@@ -1350,6 +1351,8 @@ class Runtime:
 
         # Append-only chronological OHLCV lists for ta.* helpers (oldest → newest).
         # Avoid rebuilding via list(reversed(PineSeries.history)) every bar.
+        # Ring path replaces these with ChronoTailView after series_cap is known.
+        _use_ring = series_ring_enabled()
         _series_lists: dict[str, list] = {
             "open": [],
             "high": [],
@@ -1454,6 +1457,31 @@ class Runtime:
             evaluator._pine_series_cap_enabled = _do_series_cap  # type: ignore[attr-defined]
         except Exception:
             pass
+
+        if _use_ring:
+            from pynescript.ast.evaluator.series_buffer import ChronoTailView
+
+            # Cap-off: expose the full ring window (history floor / max_bars_back).
+            _tail_keep = series_cap if _do_series_cap else _ps_hist
+
+            def _tail(series: Any) -> ChronoTailView:
+                return ChronoTailView(series.buffer, keep=_tail_keep)
+
+            evaluator.current_series = {
+                "open": _tail(open_series),
+                "high": _tail(high_series),
+                "low": _tail(low_series),
+                "close": _tail(close_series),
+                "volume": _tail(volume_series),
+                "hl2": _tail(hl2_series),
+                "hlc3": _tail(hlc3_series),
+                "ohlc4": _tail(ohlc4_series),
+                "tr": _tail(tr_series),
+            }
+            _do_series_cap = False  # no list prefix trim; view already windows
+            sl_open = sl_high = sl_low = sl_close = sl_vol = sl_tr = None
+            sl_hl2 = sl_hlc3 = sl_ohlc4 = None
+            _series_list_refs = ()
 
         open_update = open_series.update
         high_update = high_series.update
@@ -1568,30 +1596,33 @@ class Runtime:
             hl2_update(hl2_val)
             hlc3_update(hlc3_val)
             ohlc4_update(ohlc4_val)
-            if need_hl2:
-                sl_hl2.append(hl2_val)
-            if need_hlc3:
-                sl_hlc3.append(hlc3_val)
-            if need_ohlc4:
-                sl_ohlc4.append(ohlc4_val)
+            if not _use_ring:
+                if need_hl2:
+                    sl_hl2.append(hl2_val)
+                if need_hlc3:
+                    sl_hlc3.append(hlc3_val)
+                if need_ohlc4:
+                    sl_ohlc4.append(ohlc4_val)
             tr_update(tr_val)
 
             # Append-only chronological lists for ta.* (shared with evaluator.current_series).
             # Cap in-place (del prefix) so pre-bound list refs stay valid (T1).
-            sl_open.append(o)
-            sl_high.append(h)
-            sl_low.append(l)
-            sl_close.append(c)
-            sl_vol.append(v)
-            sl_tr.append(tr_val)
-            if _do_series_cap:
-                n_hist = len(sl_close)
-                if n_hist > _series_trim_limit:
-                    trim_series_lists(
-                        _series_list_refs,
-                        keep=series_cap,
-                        length_hint=n_hist,
-                    )
+            # Ring path: current_series is a ChronoTailView — no second write.
+            if not _use_ring:
+                sl_open.append(o)
+                sl_high.append(h)
+                sl_low.append(l)
+                sl_close.append(c)
+                sl_vol.append(v)
+                sl_tr.append(tr_val)
+                if _do_series_cap:
+                    n_hist = len(sl_close)
+                    if n_hist > _series_trim_limit:
+                        trim_series_lists(
+                            _series_list_refs,
+                            keep=series_cap,
+                            length_hint=n_hist,
+                        )
 
             # Per-bar counters / time (series update — do not replace PineSeries refs)
             bar_time = col_time[bar_index]

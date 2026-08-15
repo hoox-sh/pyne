@@ -36,10 +36,9 @@ makes lookback ``hist[n]`` O(1) at the ends but forces TA helpers to
 ``pynescript.runtime.host``.
 
 This module is the single-buffer alternative, gated by env ``PYNE_SERIES_RING``
-(default **off** — ``0`` / unset / empty). When off, hosts keep using
-``pynescript.runtime.series.PineSeries`` unchanged. Default stays off because
-the Runtime bar loop still dual-writes wrappers + ``current_series`` lists
-(lookback floor 1000 vs TA cap); see :func:`pynescript.runtime.series.series_ring_enabled`.
+(default **off** — ``0`` / unset / empty). When on, Runtime binds
+``current_series`` to :class:`ChronoTailView` over the ring (last ``keep``
+samples) and does **not** dual-write append-only lists.
 
 Optional ``maxlen`` composes with T1 (``_SERIES_MAX`` / ``max_bars_back``): the
 ring drops oldest samples so memory stays bounded without fighting Agent 03's
@@ -66,6 +65,7 @@ from pynescript.runtime.series import (
 )
 
 __all__ = [
+    "ChronoTailView",
     "ChronologicalSeriesBuffer",
     "NewestFirstHistoryView",
     "RingPineSeries",
@@ -198,6 +198,56 @@ class ChronologicalSeriesBuffer:
 
     def __repr__(self) -> str:
         return f"ChronologicalSeriesBuffer(len={self._len}, maxlen={self.maxlen})"
+
+
+class ChronoTailView(Sequence[Any]):
+    """Oldest-first view of the last *keep* samples in a chronological buffer.
+
+    Used as ``evaluator.current_series`` when ``PYNE_SERIES_RING`` is on so
+    ``ta.*`` named lookups see the same cap window as T1 list trim without
+    a second append-only list. ``[0]`` is the oldest sample still in the
+    window; ``[-1]`` is the current bar.
+    """
+
+    __slots__ = ("_buf", "_keep")
+
+    def __init__(self, buf: ChronologicalSeriesBuffer, keep: int) -> None:
+        if keep < 1:
+            msg = f"keep must be >= 1, got {keep!r}"
+            raise ValueError(msg)
+        self._buf = buf
+        self._keep = int(keep)
+
+    def __len__(self) -> int:
+        n = len(self._buf)
+        k = self._keep
+        return n if n <= k else k
+
+    def __getitem__(self, index: int | slice) -> Any:
+        n = len(self)
+        if isinstance(index, slice):
+            start, stop, step = index.indices(n)
+            return [self[i] for i in range(start, stop, step)]
+        if type(index) is not int:
+            try:
+                index = operator.index(index)
+            except (TypeError, ValueError):
+                raise TypeError("tail indices must be integers") from None
+        if index < 0:
+            index += n
+        if index < 0 or index >= n:
+            raise IndexError("tail index out of range")
+        # chronological window: index 0 = oldest kept, n-1 = current
+        return self._buf.lookback(n - 1 - index)
+
+    def __iter__(self) -> Iterator[Any]:
+        n = len(self)
+        buf = self._buf
+        for i in range(n):
+            yield buf.lookback(n - 1 - i)
+
+    def __repr__(self) -> str:
+        return f"ChronoTailView(len={len(self)}, keep={self._keep})"
 
 
 class NewestFirstHistoryView(Sequence[Any]):
