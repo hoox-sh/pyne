@@ -84,6 +84,14 @@ PRIVATE_HTTP_RE = (
     r"162\.254\.38\.194"  # AXIS/pyne public demo host
     r")(?::\d+)?$"
 )
+# Same product set as AXIS Worker pickOrigin — not open `*.pages.dev`.
+# Apex + preview hosts under the pynescript-axis Pages project, plus hoox/pyne.
+PRODUCT_ORIGIN_RE = (
+    r"^https://(?:"
+    r"(?:[\w-]+\.)*(?:hoox\.sh|pynescript\.ai|pynescript\.online)|"
+    r"(?:[\w-]+\.)*pynescript-axis\.pages\.dev"
+    r")$"
+)
 
 
 def _parse_allowed_origins() -> list[str] | str:
@@ -99,14 +107,18 @@ def _parse_allowed_origins() -> list[str] | str:
         parts.append(LOCALHOST_RE)
     if PRIVATE_HTTP_RE not in parts and raw != "*":
         parts.append(PRIVATE_HTTP_RE)
+    if PRODUCT_ORIGIN_RE not in parts and raw != "*":
+        parts.append(PRODUCT_ORIGIN_RE)
     return parts
 
 
 ALLOWED_ORIGINS = _parse_allowed_origins()
 # Free browser surface used by AXIS (VPS UI → local pyne is a first-class setup).
 # Always reflect Origin on these paths so OPTIONS preflight never fails CORS.
+# /health is the AXIS Settings probe (Pages preview → axis.hoox.sh).
 _FREE_CORS_PATH_PREFIXES = (
     "/",
+    "/health",
     "/run",
     "/compile",
     "/lsp/",

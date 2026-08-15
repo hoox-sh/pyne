@@ -77,6 +77,37 @@ class TestHealth:
         assert compile_info.get("default_mode") == "auto"
         assert "/compile/prewarm" in str(resp.json.get("endpoints", {}))
 
+    def test_health_cors_pages_preview(self, client: FlaskClient):
+        origin = "https://e2fceb51.pynescript-axis.pages.dev"
+        resp = client.get("/health", headers={"Origin": origin})
+        assert resp.status_code == 200
+        assert resp.json["status"] == "healthy"
+        assert resp.headers.get("Access-Control-Allow-Origin") == origin
+
+    def test_health_options_pages_preview(self, client: FlaskClient):
+        origin = "https://e2fceb51.pynescript-axis.pages.dev"
+        resp = client.options(
+            "/health",
+            headers={
+                "Origin": origin,
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        assert resp.status_code == 204
+        assert resp.headers.get("Access-Control-Allow-Origin") == origin
+
+    def test_product_origin_re_rejects_foreign_pages(self):
+        from backend.app import PRODUCT_ORIGIN_RE
+        from backend.app import _origin_allowed
+
+        assert _origin_allowed("https://e2fceb51.pynescript-axis.pages.dev")
+        assert _origin_allowed("https://pynescript-axis.pages.dev")
+        assert _origin_allowed("https://axis.hoox.sh")
+        assert not _origin_allowed("https://evil.pages.dev")
+        import re
+
+        assert re.match(PRODUCT_ORIGIN_RE, "https://evil.pages.dev") is None
+
 
 class TestAuth:
     def test_create_key(self, client: FlaskClient):
