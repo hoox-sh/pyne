@@ -462,10 +462,15 @@ class PinescriptASTBuilder(
         return assign
 
     def visitSimple_reassignment(self, ctx: PinescriptParser.Simple_reassignmentContext):
-        target = ctx.primary_expression()
+        """``obj.f =`` / ``a[i] =`` / ``name :=`` — store-ctx on the LHS."""
+        if ctx.assignment_target_attribute():
+            target = self.visit(ctx.assignment_target_attribute())
+        elif ctx.assignment_target_subscript():
+            target = self.visit(ctx.assignment_target_subscript())
+        else:
+            target = self.visit(ctx.primary_expression())
+            self._set_store_ctx(target)
         value = ctx.expression()
-        target = self.visit(target)
-        self._set_store_ctx(target)
         value = self.visit(value)
         re_assign = ast.ReAssign(
             target=target,

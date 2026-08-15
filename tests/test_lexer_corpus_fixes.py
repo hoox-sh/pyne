@@ -206,3 +206,27 @@ plot(ilog2(8))
     again = parse(out)
     again_fn = {f.name: f for f in again.body if type(f).__name__ == "FunctionDef"}
     assert again_fn["ilog2"].returns.id == "int"
+
+
+def test_bare_name_equal_is_assign_not_reassign():
+    """``x = 1`` is initialization; ``x := 1`` / ``obj.f = 1`` are reassignment."""
+    from pynescript.ast import node as ast
+
+    tree = parse(
+        """//@version=5
+indicator("eq")
+x = 1
+x := 2
+strategy.initial_capital = 50000
+plot(x)
+"""
+    )
+    stmts = [s for s in tree.body if type(s).__name__ in {"Assign", "ReAssign"}]
+    assert any(isinstance(s, ast.Assign) and isinstance(s.target, ast.Name) and s.target.id == "x" for s in stmts)
+    assert any(isinstance(s, ast.ReAssign) and isinstance(s.target, ast.Name) and s.target.id == "x" for s in stmts)
+    assert any(
+        isinstance(s, ast.ReAssign)
+        and isinstance(s.target, ast.Attribute)
+        and s.target.attr == "initial_capital"
+        for s in stmts
+    )

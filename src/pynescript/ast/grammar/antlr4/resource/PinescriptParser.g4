@@ -89,15 +89,22 @@ compound_augassignment: primary_expression augassign_op structure_expression;
 //   void fft_inplace(float[] re, float[] im, int N) => ...
 
 function_declaration
-    : EXPORT? type_specification? name LPAR parameter_list? RPAR RARROW local_block;
+    : EXPORT? type_specification name LPAR parameter_list? RPAR RARROW local_block
+    | EXPORT? name LPAR parameter_list? RPAR RARROW local_block
+    ;
 
 parameter_list:       parameter_definition (COMMA parameter_definition)* COMMA?;
-parameter_definition: type_specification? name_store (EQUAL expression)?;
+parameter_definition
+    : type_specification name_store (EQUAL expression)?
+    | name_store (EQUAL expression)?
+    ;
 
 // METHOD DECLARATION
 
 method_declaration
-    : EXPORT? METHOD type_specification? name LPAR method_parameter_list? RPAR RARROW local_block;
+    : EXPORT? METHOD type_specification name LPAR method_parameter_list? RPAR RARROW local_block
+    | EXPORT? METHOD name LPAR method_parameter_list? RPAR RARROW local_block
+    ;
 
 method_parameter_list: method_parameter_definition (COMMA method_parameter_definition)* COMMA?;
 method_parameter_definition: type_specification name_store | parameter_definition;
@@ -182,9 +189,14 @@ simple_variable_initialization
 simple_name_initialization:  EXPORT? variable_declaration EQUAL expression;
 simple_tuple_initialization: tuple_declaration EQUAL expression;
 
-// Pine uses := for reassignment; many real-world scripts also use = for
-// attribute / subscript targets (e.g. strategy.initial_capital = 50000).
-simple_reassignment:  primary_expression (COLONEQUAL | EQUAL) expression;
+// Pine uses := for reassignment. ``=`` on a bare name is initialization
+// (simple_name_initialization). ``=`` is only reassignment for attribute /
+// subscript targets (e.g. strategy.initial_capital = 50000).
+simple_reassignment
+    : assignment_target_attribute EQUAL expression
+    | assignment_target_subscript EQUAL expression
+    | primary_expression COLONEQUAL expression
+    ;
 simple_augassignment: primary_expression augassign_op expression;
 
 // EXPRESSIONS
@@ -313,7 +325,10 @@ continue_statement: CONTINUE;
 
 // VARIABLE DECLARATION AND ASSIGNMENT RELATED SEGMENTS
 
-variable_declaration: declaration_mode? type_specification? name_store;
+variable_declaration
+    : declaration_mode? type_specification name_store
+    | declaration_mode? name_store
+    ;
 tuple_declaration:    LSQB name_store (COMMA name_store)* COMMA? RSQB;
 
 declaration_mode: VARIP | VAR;
