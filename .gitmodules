@@ -1,0 +1,3 @@
+[submodule "pynets"]
+	path = pynets
+	url = https://github.com/hoox-sh/pynets.git

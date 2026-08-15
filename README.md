@@ -80,6 +80,7 @@ Not a claim of TradingView® platform parity. Intentional demos are classified s
 | **VS Code extension** | First-class `.pyne` / `.pine` (and related) associations |
 | **Pro API** | HTTP evaluate, batch run, chart preview, quick backtest |
 | **Editors** | Configurations for Neovim, Zed, Emacs (see `clients/`) |
+| **PyneTS** | TypeScript / Bun library (`@hoox/pynets`) — [standalone repo](https://github.com/hoox-sh/pynets), consumed here only as the `pynets/` git submodule |
 
 ## Installation
 
@@ -91,6 +92,8 @@ pip install "hoox-pyne[data]"         # market data providers
 pip install "hoox-pyne[pro]"          # Flask Pro API stack
 
 # Development install from a clone
+git clone --recurse-submodules https://github.com/hoox-sh/pyne.git
+cd pyne
 pip install -e ".[lsp,pro]"
 ```
 

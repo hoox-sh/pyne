@@ -7,6 +7,14 @@ Thank you for your interest in contributing to pyne!
 
 ## Getting Started
 
+```bash
+git clone --recurse-submodules https://github.com/hoox-sh/pyne.git
+# or after a plain clone:
+git submodule update --init --recursive
+```
+
+`pynets/` is a [git submodule](https://github.com/hoox-sh/pynets) (TypeScript / Bun port). Do not add in-tree copies of that tree. Work on PyneTS in the standalone repo and bump the submodule pointer here.
+
 Please refer to the documentation in the `docs/` directory for detailed instructions on setting up your development environment and understanding the project structure.
 
 - [Developer Guide](docs/index.md)
