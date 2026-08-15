@@ -153,6 +153,9 @@ data/
 # VS Code extension packages (build artifacts)
 *.vsix
 
+# Accidental ANTLR output when cwd is the repo root (mirrors src/ into generated/)
+src/pynescript/ast/grammar/antlr4/generated/src/
+
 # Multi-agent coordination notes (local only — do not commit)
 .agent-sync-notice.md
 .agent_sync*.md
