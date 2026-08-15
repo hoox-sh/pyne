@@ -3675,9 +3675,9 @@ plot(ta.cmo(close, 9), title="cmo")
 plot(ta.bbw(close, 20, 2.0), title="bbw")
 """
         code = transpile(src)
-        assert "numba_median" in code
+        assert "numba_median_inc" in code
         assert "numba_wpr" in code
-        assert "numba_cmo" in code
+        assert "numba_cmo_inc" in code
         assert "numba_bbw" in code
         assert "safe_float(None)" not in code
         compiled = compile_script(src, use_cache=False)

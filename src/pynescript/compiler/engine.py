@@ -168,7 +168,7 @@ _BUILTINS_WARMED = False
 # Bump when generated IR semantics change so source→IR disk index is invalidated
 # (source hash alone is stable across compiler fixes, e.g. fill() series keys).
 # v5: strategy series history + Pine na-aware ==/!=
-_DISK_META_VERSION = 8  # UDT field defaults (bool false not np.nan)
+_DISK_META_VERSION = 9  # plot_kinds for nopython hline/fill drawings
 _NJIT_CACHE_FALSE = "@numba.njit(cache=False)"
 _NJIT_CACHE_TRUE = "@numba.njit(cache=True)"
 
@@ -617,6 +617,7 @@ class CompiledScript:
     generated_code: str
     execute: Callable[..., Any]
     plot_titles: list[str] = field(default_factory=list)
+    plot_kinds: list[str] = field(default_factory=list)
     object_mode: bool = False
     nopython_fallback_reason: str | None = None
 
@@ -673,8 +674,18 @@ class CompiledScript:
         do not silently drop earlier series (structural_only / false MISMATCH).
         """
         if _is_plot_sequence(raw):
-            return _pack_plot_sequence(raw, self.plot_titles)
-        return _normalize_result(raw)
+            packed = _pack_plot_sequence(raw, self.plot_titles)
+            if not self.object_mode:
+                packed["__drawings"] = _synthesize_hline_fill_drawings(
+                    packed, self.plot_titles, self.plot_kinds
+                )
+            return packed
+        packed = _normalize_result(raw)
+        if not self.object_mode and "__drawings" not in packed:
+            packed["__drawings"] = _synthesize_hline_fill_drawings(
+                packed, self.plot_titles, self.plot_kinds
+            )
+        return packed
 
 
 def _call_execute_with_recovery(
@@ -763,6 +774,34 @@ def _uniquify_series_key(base: str, used: set[str]) -> str:
             used.add(candidate)
             return candidate
         suffix += 1
+
+
+def _synthesize_hline_fill_drawings(
+    packed: dict[str, Any],
+    titles: list[str],
+    kinds: list[str],
+) -> list[dict[str, Any]]:
+    """Per-bar hline/fill events for nopython scripts (no in-loop ``__drawings``)."""
+    n = 0
+    for v in packed.values():
+        if isinstance(v, np.ndarray) and v.ndim == 1:
+            n = int(v.shape[0])
+            break
+    if n <= 0 or not kinds:
+        return []
+    drawings: list[dict[str, Any]] = []
+    for i, kind in enumerate(kinds):
+        if kind not in ("hline", "fill"):
+            continue
+        title = titles[i] if i < len(titles) else f"plot_{i}"
+        series = packed.get(title)
+        for bar in range(n):
+            ev: dict[str, Any] = {"kind": kind, "bar": bar, "title": title}
+            if kind == "hline" and isinstance(series, np.ndarray) and bar < len(series):
+                val = series[bar]
+                ev["price"] = float(val) if val == val else None
+            drawings.append(ev)
+    return drawings
 
 
 def _pack_plot_sequence(
@@ -928,8 +967,8 @@ def _transpile_once(
     source: str,
     *,
     force_object_mode: bool = False,
-) -> tuple[str, list[str], bool]:
-    """Parse + emit. Returns ``(generated_code, plot_titles, object_mode)``."""
+) -> tuple[str, list[str], list[str], bool]:
+    """Parse + emit. Returns ``(generated_code, plot_titles, plot_kinds, object_mode)``."""
     try:
         tree = parse(source, mode="exec")
     except Exception as exc:
@@ -954,7 +993,10 @@ def _transpile_once(
             t = str(t)
         raw_titles.append(t)
     titles = _uniquify_title_list(raw_titles)
-    return code, titles, object_mode
+    kinds = [str(p.get("kind") or "plot") for p in visitor.plots]
+    if len(kinds) < len(titles):
+        kinds.extend("plot" for _ in range(len(titles) - len(kinds)))
+    return code, titles, kinds, object_mode
 
 
 def _uniquify_title_list(titles: list[str]) -> list[str]:
@@ -1005,6 +1047,7 @@ def _disk_write_artifacts(
     titles: list[str],
     object_mode: bool,
     nopython_fallback_reason: str | None,
+    kinds: list[str] | None = None,
 ) -> None:
     if not _disk_cache_enabled():
         return
@@ -1015,6 +1058,7 @@ def _disk_write_artifacts(
             "v": _DISK_META_VERSION,
             "ir_key": ir_key,
             "titles": list(titles),
+            "kinds": list(kinds or []),
             "object_mode": bool(object_mode),
             "nopython_fallback_reason": nopython_fallback_reason,
         }
@@ -1108,6 +1152,7 @@ def _try_load_disk_compiled(source: str, source_key: str) -> CompiledScript | No
             generated_code=gen,
             execute=fn,
             plot_titles=titles,
+            plot_kinds=list(meta.get("kinds") or []),
             object_mode=object_mode,
             nopython_fallback_reason=reason,
         )
@@ -1126,6 +1171,7 @@ def _exec_generated(
     *,
     ir_key: str | None = None,
     nopython_fallback_reason: str | None = None,
+    plot_kinds: list[str] | None = None,
 ) -> CompiledScript:
     """Exec generated module text and bind ``execute_script_compiled``."""
     if not object_mode and not _HAS_NUMBA:
@@ -1155,6 +1201,7 @@ def _exec_generated(
         generated_code=code,
         execute=fn,
         plot_titles=titles,
+        plot_kinds=list(plot_kinds or []),
         object_mode=object_mode,
         nopython_fallback_reason=nopython_fallback_reason,
     )
@@ -1170,11 +1217,13 @@ def _compile_once(
     When *force_object_mode* is true, :class:`CompilerVisitor` pins object emit
     (nopython recovery path). Requires Numba only if the result stays numeric.
     """
-    code, titles, object_mode = _transpile_once(
+    code, titles, kinds, object_mode = _transpile_once(
         source, force_object_mode=force_object_mode
     )
     ir_key = _sha256_text(code)
-    return _exec_generated(source, code, titles, object_mode, ir_key=ir_key)
+    return _exec_generated(
+        source, code, titles, object_mode, ir_key=ir_key, plot_kinds=kinds
+    )
 
 
 def _cache_put(cache: OrderedDict[str, Any], key: str, value: Any, maxsize: int) -> None:
@@ -1194,6 +1243,7 @@ def _share_compiled(source: str, base: CompiledScript) -> CompiledScript:
         generated_code=base.generated_code,
         execute=base.execute,
         plot_titles=list(base.plot_titles),
+        plot_kinds=list(base.plot_kinds),
         object_mode=base.object_mode,
         nopython_fallback_reason=base.nopython_fallback_reason,
     )
@@ -1265,7 +1315,7 @@ def _warm_numeric_or_fallback(
         _log.info("compile nopython → object mode: %s", reason)
         # Structural recovery: re-emit pure-Python object bar loop.
         try:
-            code_o, titles_o, _ = _transpile_once(source, force_object_mode=True)
+            code_o, titles_o, kinds_o, _ = _transpile_once(source, force_object_mode=True)
             ir_key_o = _sha256_text(code_o)
             recovered = _exec_generated(
                 source,
@@ -1274,6 +1324,7 @@ def _warm_numeric_or_fallback(
                 True,
                 ir_key=ir_key_o,
                 nopython_fallback_reason=reason,
+                plot_kinds=kinds_o,
             )
         except CompileError:
             raise
@@ -1344,6 +1395,7 @@ def compile_script(source: str, *, use_cache: bool = True) -> CompiledScript:
                     titles=compiled.plot_titles,
                     object_mode=compiled.object_mode,
                     nopython_fallback_reason=compiled.nopython_fallback_reason,
+                    kinds=compiled.plot_kinds,
                 )
                 return compiled
 
@@ -1367,10 +1419,11 @@ def compile_script(source: str, *, use_cache: bool = True) -> CompiledScript:
                 titles=disk_hit.plot_titles,
                 object_mode=disk_hit.object_mode,
                 nopython_fallback_reason=disk_hit.nopython_fallback_reason,
+                kinds=disk_hit.plot_kinds,
             )
             return disk_hit
 
-    code, titles, object_mode = _transpile_once(source, force_object_mode=False)
+    code, titles, kinds, object_mode = _transpile_once(source, force_object_mode=False)
     ir_key = _sha256_text(code)
 
     # Same generated IR as a prior script → reuse warm njit callable.
@@ -1385,10 +1438,13 @@ def compile_script(source: str, *, use_cache: bool = True) -> CompiledScript:
             titles=compiled.plot_titles,
             object_mode=compiled.object_mode,
             nopython_fallback_reason=compiled.nopython_fallback_reason,
+            kinds=compiled.plot_kinds,
         )
         return compiled
 
-    compiled = _exec_generated(source, code, titles, object_mode, ir_key=ir_key)
+    compiled = _exec_generated(
+        source, code, titles, object_mode, ir_key=ir_key, plot_kinds=kinds
+    )
     compiled, ir_key = _warm_numeric_or_fallback(source, compiled, ir_key=ir_key)
 
     if use_cache:
@@ -1401,6 +1457,7 @@ def compile_script(source: str, *, use_cache: bool = True) -> CompiledScript:
             titles=compiled.plot_titles,
             object_mode=compiled.object_mode,
             nopython_fallback_reason=compiled.nopython_fallback_reason,
+            kinds=compiled.plot_kinds,
         )
     return compiled
 

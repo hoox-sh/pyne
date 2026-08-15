@@ -460,6 +460,9 @@ class NodeUnparser(NodeVisitor):
             src.append("export ")
         if node.method:
             src.append("method ")
+        if getattr(node, "returns", None) is not None:
+            self.traverse(node.returns)
+            src.append(" ")
         src.append(node.name)
         src.append("(")
         if node.args:

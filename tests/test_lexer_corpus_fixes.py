@@ -185,8 +185,7 @@ plot(r)
 
 def test_typed_function_return_and_params():
     """Pine v5+ UDFs may declare return and parameter types."""
-    tree = parse(
-        """//@version=5
+    src = """//@version=5
 indicator("t")
 int ilog2(int n) =>
     int p = 0
@@ -195,5 +194,15 @@ void noop(float[] re, int N) =>
     0
 plot(ilog2(8))
 """
-    )
-    unparse(tree)
+    tree = parse(src)
+    funcs = [s for s in tree.body if type(s).__name__ == "FunctionDef"]
+    by_name = {f.name: f for f in funcs}
+    assert by_name["ilog2"].returns is not None
+    assert by_name["ilog2"].returns.id == "int"
+    assert by_name["noop"].returns is not None
+    out = unparse(tree)
+    assert "int ilog2(" in out
+    assert "void noop(" in out
+    again = parse(out)
+    again_fn = {f.name: f for f in again.body if type(f).__name__ == "FunctionDef"}
+    assert again_fn["ilog2"].returns.id == "int"

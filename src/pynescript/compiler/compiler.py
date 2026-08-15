@@ -498,6 +498,8 @@ class CompilerVisitor(NodeVisitor):
         # True while lowering a statement-form ``Expr`` (not an assigned Call).
         # Statement ``hline`` / ``fill`` can stay nopython (series + meta only).
         self._stmt_expr: bool = False
+        # Statement-form hline/fill to inject into object-mode body (mixed scripts).
+        self._hline_fill_events: list[tuple[str, list[str], dict[str, str]]] = []
 
 
     @staticmethod
@@ -790,6 +792,14 @@ class CompilerVisitor(NodeVisitor):
             self.object_mode = True
         if self.force_object_mode:
             self.object_mode = True
+
+        # Statement hline/fill skipped in-loop drawings to stay nopython.
+        # Mixed scripts that later flip object_mode still need those events.
+        if self.object_mode and self._hline_fill_events:
+            for func_name, args, kwargs in self._hline_fill_events:
+                ev = self._emit_drawing(func_name, args, kwargs)
+                if ev:
+                    body_lines.append(ev)
 
         if self.object_mode:
             return self._emit_object_mode(body_lines)
@@ -4265,6 +4275,9 @@ class CompilerVisitor(NodeVisitor):
                 price_expr
             )
             if stmt and price_ok and not self.object_mode:
+                draw_kwargs = dict(kwargs)
+                draw_kwargs["title"] = repr(title)
+                self._hline_fill_events.append(("hline", list(args), draw_kwargs))
                 return f"plot_{idx}[__bar_idx] = {price_expr}"
             self.object_mode = True
             store_expr = (
@@ -4293,6 +4306,9 @@ class CompilerVisitor(NodeVisitor):
             # Statement-form titled fill is a NaN series key only (band color
             # lives in plot meta). No in-loop ``__drawings`` → stay nopython.
             if getattr(self, "_stmt_expr", False) and not self.object_mode:
+                draw_kwargs = dict(kwargs)
+                draw_kwargs["title"] = repr(title)
+                self._hline_fill_events.append(("fill", list(args), draw_kwargs))
                 return ""
             self.object_mode = True
             draw_kwargs = dict(kwargs)
@@ -5049,14 +5065,18 @@ class CompilerVisitor(NodeVisitor):
         if func_name == "ta_cmo":
             # ta.cmo(source, length) or ta.cmo(length) on close
             if len(args) >= 2:
-                return (
-                    f"numba_cmo({_arr(args[0])}, {self._emit_period(args[1])}, __bar_idx)"
-                )
-            if args and not _is_series_arr(args[0]):
-                return f"numba_cmo(close_arr, {self._emit_period(args[0])}, __bar_idx)"
-            if args:
-                return f"numba_cmo({_arr(args[0])}, 14, __bar_idx)"
-            return "np.nan"
+                src, period_e = _arr(args[0]), self._emit_period(args[1])
+            elif args and not _is_series_arr(args[0]):
+                src, period_e = "close_arr", self._emit_period(args[0])
+            elif args:
+                src, period_e = _arr(args[0]), "14"
+            else:
+                return "np.nan"
+            n = self._const_positive_int(period_e)
+            if n is not None:
+                st = self._alloc_fixed_state("cmo", 3)
+                return f"numba_cmo_inc({src}, {n}, __bar_idx, {st})"
+            return f"numba_cmo({src}, {period_e}, __bar_idx)"
         if func_name == "ta_macd":
             # ta.macd(source, fast, slow, signal)
             src = args[0] if args else "close_arr[__bar_idx]"

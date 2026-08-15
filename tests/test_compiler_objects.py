@@ -404,7 +404,6 @@ hline(0)
         # float x = na → np.nan series; -x is safe without na_num when RHS is float64
         assert "x_arr" in code or "na_num" in code or "safe_float" in code
         compiled = compile_script(src)
-        assert compiled.object_mode
         o, h, l, c, v = _ohlcv(5)
         out = compiled.run(o, h, l, c, v)
         assert np.all(np.isnan(out["n"]))

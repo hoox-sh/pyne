@@ -3,7 +3,7 @@ module Pinescript
      mod = Script(stmt* body, string* annotations)
          | Expression(expr body)
 
-     stmt = FunctionDef(identifier name, param* args, stmt* body, int? method, int? export, string* annotations)
+     stmt = FunctionDef(identifier name, param* args, stmt* body, expr? returns, int? method, int? export, string* annotations)
           | TypeDef(identifier name, stmt* body, int? export, string* annotations)
           | EnumDef(identifier name, stmt* body, int? export, string* annotations)
           | Assign(expr target, expr? value, expr? type, decl_mode? mode, int? export, string* annotations)

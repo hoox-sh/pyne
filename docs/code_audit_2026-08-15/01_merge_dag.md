@@ -48,5 +48,6 @@ Wave 4  Frontend (optional)
 Wave 0 Q1 + Q3 and Wave 1 I1 + I2.
 
 Wave 1 I3 (AST `_pine_site_id`), Wave 2 J1/J2 (hline/fill + numeric UDFs stay nopython),
-J3 (`numba_median_inc` no per-bar heap; CMO stays `numba_cmo` — ring inc did not
-survive nopython inlining), Wave 3 P1 (visit_Call arg scratch), Wave 0 Q2 (state-vector bounds).
+J3 (`numba_median_inc`; `numba_cmo_inc` seeds on gap then incremental), Wave 3 P1
+(visit_Call arg scratch), Wave 0 Q2 (state-vector bounds), Wave 4 F2 (TLS parse),
+Frontend P3 (`FunctionDef.returns` on ASDL + builder/unparser).

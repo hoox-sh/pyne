@@ -569,9 +569,9 @@ class PinescriptASTBuilder(
     def visitFunction_declaration(self, ctx: PinescriptParser.Function_declarationContext):
         """UDF: ``export? [return_type] name(params) => body``.
 
-        Grammar allows a leading ``type_specification`` as the return type
-        (Pine v5+/v6). ASDL ``FunctionDef`` has no returns field yet, so that
-        context is intentionally not mapped — parse succeeds; type is dropped.
+        Optional leading ``type_specification`` is stored on
+        :attr:`~pynescript.ast.node.FunctionDef.returns` (type spec, not a
+        value). Engines must not ``visit()`` it as an executable expression.
         """
         name = ctx.name()
         args = ctx.parameter_list()
@@ -581,10 +581,13 @@ class PinescriptASTBuilder(
         body = self.visit(body)
         export = ctx.EXPORT()
         export = 1 if export else 0
+        ret_ctx = ctx.type_specification()
+        returns = self.visit(ret_ctx) if ret_ctx else None
         func_def = ast.FunctionDef(
             name=name,
             args=args,
             body=body,
+            returns=returns,
             method=0,  # Regular functions have method=0
             export=export,
         )
@@ -592,10 +595,7 @@ class PinescriptASTBuilder(
         return func_def
 
     def visitMethod_declaration(self, ctx: PinescriptParser.Method_declarationContext):
-        """Same shape as ``visitFunction_declaration`` with ``method=1``.
-
-        Optional return ``type_specification`` is also ignored (no ASDL field).
-        """
+        """Same shape as ``visitFunction_declaration`` with ``method=1``."""
         name = ctx.name()
         args = ctx.method_parameter_list()
         body = ctx.local_block()
@@ -604,10 +604,13 @@ class PinescriptASTBuilder(
         body = self.visit(body)
         export = ctx.EXPORT()
         export = 1 if export else 0
+        ret_ctx = ctx.type_specification()
+        returns = self.visit(ret_ctx) if ret_ctx else None
         func_def = ast.FunctionDef(
             name=name,
             args=args,
             body=body,
+            returns=returns,
             method=1,  # Methods have method=1
             export=export,
         )

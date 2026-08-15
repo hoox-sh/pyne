@@ -5293,13 +5293,66 @@ def numba_cmo(arr, length, i):
 
 @numba.njit(cache=False)
 def numba_cmo_inc(arr, length, i, st):
-    """CMO last-value; *st* reserved for a future ring (read-only here).
+    """Incremental CMO; *st* is ``[up, down, last_i]``.
 
-    Reads ``arr[i-length:i]`` like :func:`numba_cmo` so nopython inlining
-    cannot depend on mutating a shared state vector. Matches interpret
-    ``_cmo_inc_update`` last value.
+    If *st* did not come from bar ``i-1`` (first call, gap, or nopython
+    state not persisting), seed from a full-window scan so last-value stays
+    correct. Matches :func:`numba_cmo` / interpret ``_cmo_inc_update``.
     """
-    return numba_cmo(arr, length, i)
+    length = int(length)
+    if length <= 0 or i < length:
+        return np.nan
+    if len(st) < 3:
+        return numba_cmo(arr, length, i)
+
+    last_i = st[2]
+    need_seed = last_i != last_i or int(last_i) != i - 1
+    if need_seed:
+        up = 0.0
+        down = 0.0
+        for j in range(i - length + 1, i + 1):
+            a = arr[j - 1]
+            b = arr[j]
+            if np.isnan(a) or np.isnan(b):
+                continue
+            diff = b - a
+            if diff > 0.0:
+                up += diff
+            else:
+                down += -diff
+        st[0] = up
+        st[1] = down
+        st[2] = float(i)
+        denom = up + down
+        if denom == 0.0:
+            return 0.0
+        return 100.0 * (up - down) / denom
+
+    up = st[0]
+    down = st[1]
+    a0 = arr[i - length - 1]
+    b0 = arr[i - length]
+    if not (np.isnan(a0) or np.isnan(b0)):
+        old = b0 - a0
+        if old > 0.0:
+            up -= old
+        else:
+            down -= -old
+    a1 = arr[i - 1]
+    b1 = arr[i]
+    if not (np.isnan(a1) or np.isnan(b1)):
+        new = b1 - a1
+        if new > 0.0:
+            up += new
+        else:
+            down += -new
+    st[0] = up
+    st[1] = down
+    st[2] = float(i)
+    denom = up + down
+    if denom == 0.0:
+        return 0.0
+    return 100.0 * (up - down) / denom
 
 
 @numba.njit(cache=True)
