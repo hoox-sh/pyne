@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Build & Release:** Create Release no longer downloads Docker Buildx cache artifacts (v0.3.7 abort). CLI Nuitka compiles via `-m pynescript` so `pynescript.ast` does not shadow stdlib `ast`.
+
+### Added
+- **pyne-vscode** package: VSIX ships as `pyne-vscode-<version>.vsix` (Marketplace `jango-blockchained.pyne`, optional Open VSX). Listed under README side projects.
+
 ## [0.3.8] - 2026-08-15
 
 ### Added

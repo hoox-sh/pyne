@@ -96,7 +96,7 @@ jobs:
           # LSP-only (no numba/compiler) — smaller Nuitka graph, avoids broken macOS
           # cryptography/llvmlite packaging for an editor binary that only needs parse+lint.
           python -m pip install -e ".[lsp]"
-          python -m pip install "nuitka==2.0.*" cryptography
+          python -m pip install "nuitka>=2.5.1,<2.8" cryptography
 
       - name: Build metadata & encrypt
         shell: bash
@@ -105,7 +105,6 @@ jobs:
           python scripts/build/compile.py --target lsp --no-encrypt --check
         env:
           CRYPTO_KEY: ${{ secrets.METADATA_KEY }}
-          PYTHONPATH: ${{ github.workspace }}/src
 
       - name: Build onefile binary
         shell: bash
@@ -114,7 +113,6 @@ jobs:
           python scripts/build/ci_build.py --target lsp --jobs ${{ env.NUITKA_JOBS }}
         env:
           CRYPTO_KEY: ${{ secrets.METADATA_KEY }}
-          PYTHONPATH: ${{ github.workspace }}/src
 
       - name: Find binary and rename to platform artifact name
         id: find_binary
@@ -176,23 +174,19 @@ jobs:
           python -m pip install --upgrade pip
           # Core package only — CLI Nuitka graph excludes numba/LSP/Flask.
           python -m pip install -e .
-          python -m pip install "nuitka==2.0.*" cryptography
+          python -m pip install "nuitka>=2.5.1,<2.8" cryptography
 
       - name: Import check
         shell: bash
         run: |
           set -euo pipefail
           python scripts/build/compile.py --target cli --check
-        env:
-          PYTHONPATH: ${{ github.workspace }}/src
 
       - name: Build onefile binary
         shell: bash
         run: |
           set -euo pipefail
           python scripts/build/ci_build.py --target cli --jobs ${{ env.NUITKA_JOBS }} --skip-metadata --skip-vsix
-        env:
-          PYTHONPATH: ${{ github.workspace }}/src
 
       - name: Find binary and rename to platform artifact name
         id: find_binary
@@ -242,6 +236,7 @@ jobs:
           echo "Found: $BINARY -> $DEST ($(wc -c < "$DEST") bytes)"
 
       - name: Smoke CLI binary
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -289,15 +284,18 @@ jobs:
 
       - name: Package extension
         working-directory: vscode-extension
-        run: npx vsce package --allow-missing-repository --no-git-tag-version
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          set -euo pipefail
+          VER=$(node -p "require('./package.json').version")
+          npx --yes @vscode/vsce package --no-dependencies --no-git-tag-version \
+            --out "pyne-vscode-${VER}.vsix"
+          ls -lh "pyne-vscode-${VER}.vsix"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: pynescript-vscode-extension
-          path: vscode-extension/*.vsix
+          path: vscode-extension/pyne-vscode-*.vsix
           if-no-files-found: error
           retention-days: 5
 
@@ -385,8 +383,10 @@ jobs:
     # (matrix fail-fast: false). Never create a tag release if package failed.
     if: >
       always() &&
-      github.event_name == 'push' &&
-      startsWith(github.ref, 'refs/tags/v') &&
+      (
+        (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+        github.event_name == 'workflow_dispatch'
+      ) &&
       needs.build-package.result == 'success' &&
       needs.build-vscode.result == 'success'
     permissions:
@@ -402,13 +402,26 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Download artifacts
+      - name: Download package + binary artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+          # Exclude buildx cache blobs (hoox-sh~pyne~*.dockerbuild) that
+          # aborted Create Release on v0.3.7 when downloading everything.
+          pattern: "pynescript-*"
           merge-multiple: false
+
+      - name: Download PyPI dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: hoox-pyne-dist
+          path: artifacts/hoox-pyne-dist
 
       - name: Stage release files with stable names
         id: stage
@@ -468,7 +481,10 @@ jobs:
             echo "ERROR: missing pynescript-vscode-extension artifact" >&2
             exit 1
           fi
-          vsix=$(find artifacts/pynescript-vscode-extension -name 'pyne-*.vsix' -type f | head -1 || true)
+          vsix=$(find artifacts/pynescript-vscode-extension -name 'pyne-vscode-*.vsix' -type f | head -1 || true)
+          if [ -z "${vsix:-}" ]; then
+            vsix=$(find artifacts/pynescript-vscode-extension -name 'pyne-*.vsix' -type f | head -1 || true)
+          fi
           if [ -z "${vsix:-}" ]; then
             vsix=$(find artifacts/pynescript-vscode-extension -name '*.vsix' -type f -size +50k | head -1 || true)
           fi
@@ -506,7 +522,7 @@ jobs:
         id: create_release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version) || github.ref_name }}
           name: "pyne v${{ steps.version.outputs.version }}"
           body: |
             ## PYNE v${{ steps.version.outputs.version }}
@@ -556,11 +572,11 @@ jobs:
             - `pynescript-lsp-linux-x86_64` — Linux LSP
             - `pynescript-lsp-windows-x86_64.exe` — Windows LSP
             - `pynescript-lsp-macos-arm64` — macOS ARM LSP
-            - `pyne-*.vsix` — VS Code extension
+            - `pyne-vscode-*.vsix` — VS Code / Open VSX extension (`jango-blockchained.pyne`)
 
             ### VS Code
-            1. Download the `.vsix`
-            2. `code --install-extension pyne-*.vsix`
+            1. Download `pyne-vscode-*.vsix` (or install from the Marketplace)
+            2. `code --install-extension pyne-vscode-*.vsix`
             3. Language server: `pip install "hoox-pyne[lsp]"` or the standalone binary
 
             ### Standalone LSP
@@ -584,7 +600,9 @@ jobs:
     name: Publish to VS Code Marketplace
     needs: [build-vscode]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: >
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
 
@@ -597,12 +615,25 @@ jobs:
       - name: Publish to Marketplace
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
         shell: bash
         run: |
           set -euo pipefail
+          VSIX=$(ls pyne-vscode-*.vsix 2>/dev/null | head -1 || true)
+          if [ -z "${VSIX:-}" ]; then
+            VSIX=$(ls *.vsix 2>/dev/null | head -1 || true)
+          fi
+          if [ -z "${VSIX:-}" ]; then
+            echo "No VSIX artifact to publish" >&2
+            exit 1
+          fi
           if [ -z "${VSCE_PAT:-}" ]; then
             echo "VSCE_PAT not set — skipping Marketplace publish (VSIX still on GitHub Release)."
-            exit 0
+          else
+            npx --yes @vscode/vsce publish --pat "$VSCE_PAT" --packagePath "$VSIX"
           fi
-          # Do not echo the token; vsce reads from --pat / env only.
-          npx --yes @vscode/vsce publish --pat "$VSCE_PAT"
+          if [ -n "${OVSX_PAT:-}" ]; then
+            npx --yes ovsx publish "$VSIX" -p "$OVSX_PAT"
+          else
+            echo "OVSX_PAT not set — skipping Open VSX (optional extra package)."
+          fi

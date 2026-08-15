@@ -258,8 +258,9 @@ def nuitka_compile(
     )
 
     env = os.environ.copy()
-    src_path = str(ROOT / "src")
-    env["PYTHONPATH"] = src_path + os.pathsep + env.get("PYTHONPATH", "")
+    # Do not prepend src/ — that makes Nuitka onefile extract pynescript.ast
+    # as top-level ast and crash stdlib inspect (circular import).
+    env.pop("PYTHONPATH", None)
 
     if check_only:
         mod = "pynescript.langserver" if target == "lsp" else "pynescript"
@@ -348,7 +349,7 @@ def nuitka_compile(
     if verbose:
         cmd += ["--verbose"]
 
-    cmd.append(str(entry_py))
+    cmd += ["-m", "pynescript.langserver" if target == "lsp" else "pynescript"]
 
     nuitka_version = get_nuitka_version()
     print(

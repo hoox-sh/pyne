@@ -202,10 +202,11 @@ def compile_onefile(jobs: int, *, target: str = "lsp") -> Path:
         else "PYNE Pine Script CLI"
     )
 
-    # Prefer package name so Nuitka resolves imports under pynescript.*
+    # Use the *installed* package (pip -e .) so Nuitka keeps pynescript.ast
+    # distinct from stdlib ast. Prepending src/ on PYTHONPATH made onefile
+    # extract ast/helper.py as top-level ast and crash inspect (circular).
     env = os.environ.copy()
-    src_path = str(ROOT / "src")
-    env["PYTHONPATH"] = src_path + os.pathsep + env.get("PYTHONPATH", "")
+    env.pop("PYTHONPATH", None)
 
     cmd: list[str] = [
         sys.executable,
@@ -252,7 +253,8 @@ def compile_onefile(jobs: int, *, target: str = "lsp") -> Path:
             "--nofollow-import-to=backend",
         ]
 
-    cmd.append(str(entry))
+    # Module entry keeps the pynescript.* package prefix (not a loose script).
+    cmd += ["-m", "pynescript.langserver" if target == "lsp" else "pynescript"]
     run(cmd, env=env)
 
     binary = _find_binary(output_dir, binary_name)
