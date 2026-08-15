@@ -186,3 +186,44 @@ def test_cached_tree_two_evaluators_independent_call_sites():
     # First evaluator still computes from its own state after rebind.
     assert ev1.visit(tree.body) == r1
     assert getattr(calls[0], "_pine_call_site")[-1] == ev1._eval_generation
+
+
+def test_parse_cache_two_runtimes_call_expr_history_independent() -> None:
+    """Call-expr ``ta.sma(...)[1]`` must not leak across Runtime parse-cache hits."""
+    from pynescript.ast.evaluator.expressions import pine_call_site_id
+    from pynescript.ast.helper import walk
+    from pynescript.runtime import Runtime
+
+    src = """
+//@version=5
+indicator("hist")
+plot(ta.sma(close, 3)[1], "s1")
+"""
+    clear_parse_cache()
+    tree = parse(src)
+    calls = [n for n in walk(tree) if type(n).__name__ == "Call"]
+    assert calls
+    sid = pine_call_site_id(calls[0])
+    assert sid > 0
+    assert getattr(calls[0], "_pine_site_id") == sid
+
+    def _bars(n: int, start: float) -> list[dict[str, float | int]]:
+        return [
+            {
+                "open": start + i,
+                "high": start + i + 1,
+                "low": start + i - 1,
+                "close": start + i,
+                "volume": 1.0,
+                "time": 1_700_000_000_000 + i * 60_000,
+            }
+            for i in range(n)
+        ]
+
+    a = Runtime(symbol="A").run(src, _bars(8, 10.0), mode="interpret")
+    b = Runtime(symbol="B").run(src, _bars(8, 100.0), mode="interpret")
+    assert "error" not in a, a.get("error")
+    assert "error" not in b, b.get("error")
+    # Second run must not inherit first run's sma history.
+    assert a["series"]["s1"][-1] != b["series"]["s1"][-1]
+    assert getattr(calls[0], "_pine_site_id") == sid

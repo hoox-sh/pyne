@@ -61,6 +61,7 @@ from pynescript.runtime.series import (
     PineSeries,
     _coerce_pine_offset,
     _normalize_history_length,
+    pineseries_history_length,
     series_ring_enabled,
 )
 
@@ -69,6 +70,7 @@ __all__ = [
     "ChronologicalSeriesBuffer",
     "NewestFirstHistoryView",
     "RingPineSeries",
+    "evaluator_history_length",
     "make_series",
     "series_ring_enabled",
 ]
@@ -410,6 +412,17 @@ class RingPineSeries(PineSeries):
 
     def __repr__(self) -> str:
         return f"RingPineSeries({self.current})"
+
+
+def evaluator_history_length(evaluator: Any = None) -> int:
+    """Maxlen for evaluator-created series (user vars, call-expr buffers).
+
+    Matches host OHLCV :func:`~pynescript.runtime.series.pineseries_history_length`
+    so ``x[600]`` and ``close[600]`` share the same floor (1000) and the same
+    raised cap when ``max_bars_back`` / ``PYNE_SERIES_MAX`` is larger.
+    """
+    cap = getattr(evaluator, "_pine_series_cap", None) if evaluator is not None else None
+    return pineseries_history_length(series_cap=cap)
 
 
 def make_series(

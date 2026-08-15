@@ -453,7 +453,9 @@ class NameEvaluator:
             if store_map is None:
                 store_map = {}
                 self._call_expr_history = store_map  # type: ignore[attr-defined]
-            site = id(value_node)
+            from pynescript.ast.evaluator.expressions import pine_call_site_id
+
+            site = pine_call_site_id(value_node)
             bar = self.context.get("bar_index", 0)  # type: ignore[attr-defined]
             try:
                 bar_i = int(bar) if bar is not None else 0
@@ -466,9 +468,10 @@ class NameEvaluator:
             ps = store_map.get(site)
             if ps is None:
                 try:
+                    from pynescript.ast.evaluator.series_buffer import evaluator_history_length
                     from pynescript.ast.evaluator.series_buffer import make_series
 
-                    ps = make_series(history_length=512)
+                    ps = make_series(history_length=evaluator_history_length(self))
                 except Exception:
                     # No series support — scalar offset>0 → na
                     return current if slice_ == 0 else None

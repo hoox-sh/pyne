@@ -5204,6 +5204,39 @@ def numba_median(arr, length, i):
     return 0.5 * (window[mid - 1] + window[mid])
 
 
+@numba.njit(cache=False)
+def numba_median_inc(arr, length, i, st):
+    """Rolling median using preallocated *st* (no per-bar ``np.empty``).
+
+    *st* must have length ``>= length``. Same last-value contract as
+    :func:`numba_median` / interpret ``_median_inc_update``.
+    """
+    length = int(length)
+    if length <= 0 or i < length - 1:
+        return np.nan
+    if len(st) < length:
+        return numba_median(arr, length, i)
+    count = 0
+    for j in range(length):
+        v = arr[i - j]
+        if not np.isnan(v):
+            st[count] = v
+            count += 1
+    if count == 0:
+        return np.nan
+    for a in range(1, count):
+        key = st[a]
+        b = a - 1
+        while b >= 0 and st[b] > key:
+            st[b + 1] = st[b]
+            b -= 1
+        st[b + 1] = key
+    if count % 2 == 1:
+        return st[count // 2]
+    mid = count // 2
+    return 0.5 * (st[mid - 1] + st[mid])
+
+
 @numba.njit(cache=True)
 def numba_wpr(high, low, close, period, i):
     """Williams %R at bar ``i`` (reference ``ta.wpr``).
@@ -5256,6 +5289,17 @@ def numba_cmo(arr, length, i):
     if denom == 0.0:
         return 0.0
     return 100.0 * (up - down) / denom
+
+
+@numba.njit(cache=False)
+def numba_cmo_inc(arr, length, i, st):
+    """CMO last-value; *st* reserved for a future ring (read-only here).
+
+    Reads ``arr[i-length:i]`` like :func:`numba_cmo` so nopython inlining
+    cannot depend on mutating a shared state vector. Matches interpret
+    ``_cmo_inc_update`` last value.
+    """
+    return numba_cmo(arr, length, i)
 
 
 @numba.njit(cache=True)

@@ -44,6 +44,15 @@ def _bars(n: int = 20) -> list[dict[str, float | int]]:
     ]
 
 
+def _is_na(value: object) -> bool:
+    if value is None:
+        return True
+    try:
+        return value != value
+    except Exception:
+        return False
+
+
 def test_import_runtime_from_package() -> None:
     assert Runtime is runtime_host.Runtime
 
@@ -290,3 +299,32 @@ plot(vip, "vip")
     assert "error" not in out, out.get("error")
     assert out["series"]["v"][-1] == n
     assert out["series"]["vip"][-1] == n
+
+
+def test_user_var_lookback_matches_host_close_cap() -> None:
+    """Evaluator-created var series must honour the host 1000-sample floor.
+
+    ``x[600]`` used to go na at 512 while ``close[600]`` stayed valid.
+    """
+    src = """
+//@version=5
+indicator("cap600")
+var float x = close
+plot(close[600], "c600")
+plot(x[600], "x600")
+"""
+    n = 650
+    out = Runtime(symbol="TEST").run(src, _bars(n), mode="interpret")
+    assert "error" not in out, out.get("error")
+    c600 = out["series"]["c600"]
+    x600 = out["series"]["x600"]
+    assert len(c600) == n
+    for i in range(600):
+        assert _is_na(c600[i]), f"close[600] warmup bar {i}"
+        assert _is_na(x600[i]), f"x[600] warmup bar {i}"
+    # var x = close persists bar-0 close; x[600] after 600 bars is that seed.
+    seed = 100.5
+    assert x600[600] == seed
+    assert x600[-1] == seed
+    assert c600[600] == seed
+    assert c600[-1] == 100.5 + (n - 1 - 600)

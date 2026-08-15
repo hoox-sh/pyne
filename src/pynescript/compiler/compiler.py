@@ -468,6 +468,7 @@ class CompilerVisitor(NodeVisitor):
         self.func_free_series: dict[str, list[str]] = {}
         self.func_free_scalars: dict[str, list[str]] = {}
         self.func_returns_sequence: set[str] = set()
+        self.func_returns_numeric: set[str] = set()
         self.local_sequence_vars: set[str] = set()
         self._free_scalars_current: set[str] = set()
         self.func_needs_bar: dict[str, bool] = {}
@@ -494,6 +495,9 @@ class CompilerVisitor(NodeVisitor):
         self.ident_map: dict[str, str] = {}
         # When True, visit_If emits `return` on tail expressions (UDF result if-expr)
         self.if_return_mode: bool = False
+        # True while lowering a statement-form ``Expr`` (not an assigned Call).
+        # Statement ``hline`` / ``fill`` can stay nopython (series + meta only).
+        self._stmt_expr: bool = False
 
 
     @staticmethod
@@ -1169,6 +1173,10 @@ class CompilerVisitor(NodeVisitor):
             ret_expr = last_ast.value
         if self._ast_expr_is_sequence(ret_expr):
             return True
+        # Numeric multi-return ``[a + 1, b + 2]`` must not be classified as an
+        # array handle just because the generated tuple text has commas / parens.
+        if isinstance(ret_expr, ast.Tuple):
+            return False
         # Walk *all* return lines (if/else branches), not only the last statement
         for line in body_lines:
             for raw in str(line).split("\n"):
@@ -2076,11 +2084,16 @@ class CompilerVisitor(NodeVisitor):
             if re.search(rf"\b{re.escape(name)}_arr\b", s):
                 return False
 
-        # UDF names (call or bare) are not known-numeric.
+        # UDF names (call or bare) are not known-numeric unless classified.
+        numeric_udfs = getattr(self, "func_returns_numeric", set())
         for uf in self.user_funcs:
+            if uf in numeric_udfs:
+                continue
             if re.search(rf"\b{re.escape(uf)}\b", s):
                 return False
         for py_name in getattr(self, "func_name_map", {}).values():
+            if py_name and py_name in numeric_udfs:
+                continue
             if py_name and re.search(rf"\b{re.escape(py_name)}\s*\(", s):
                 return False
 
@@ -2110,6 +2123,8 @@ class CompilerVisitor(NodeVisitor):
             if callee in _KW_NOT_CALLS or callee in _ALLOWED_CALLEES:
                 continue
             if callee.startswith("numba_") or callee.startswith("np."):
+                continue
+            if callee in getattr(self, "func_returns_numeric", set()):
                 continue
             return False
 
@@ -2155,11 +2170,15 @@ class CompilerVisitor(NodeVisitor):
                 continue
             if bare.startswith("numba_"):
                 continue
-            if bare.endswith("_arr") or bare.endswith("_st"):
+            if bare.endswith("_arr") or bare.endswith("_st") or self._is_ta_state_buf(bare):
                 continue
             if bare in self.loop_counters:
                 continue
-            if bare in self.user_funcs or bare in self.scalar_vars or bare in self.map_vars:
+            if bare in getattr(self, "func_returns_numeric", set()):
+                continue
+            if bare in self.user_funcs:
+                return False
+            if bare in self.scalar_vars or bare in self.map_vars:
                 return False
             if bare in self.string_series or bare in self.udt_vars or bare in self.string_scalars:
                 return False
@@ -2481,7 +2500,6 @@ class CompilerVisitor(NodeVisitor):
             # Sequence-returning UDFs (arrays) → scalar handles; numeric multi-return
             # → float series. Imported lib multi-return (console.init) → scalars.
             if len(names) > 1:
-                self.object_mode = True
                 uf_name = None
                 is_import_method = False
                 if isinstance(node.value, ast.Call):
@@ -2497,6 +2515,11 @@ class CompilerVisitor(NodeVisitor):
                             or f.value.id in _NS
                         ):
                             is_import_method = True
+                numeric_udf = bool(
+                    uf_name and uf_name in getattr(self, "func_returns_numeric", set())
+                )
+                if not numeric_udf:
+                    self.object_mode = True
                 seq_udf = bool(uf_name and uf_name in self.func_returns_sequence) or (
                     self._call_returns_sequence(node.value)
                 )
@@ -4226,7 +4249,6 @@ class CompilerVisitor(NodeVisitor):
         # hline → constant numeric series (interpret parity) + __drawings event.
         # Titles uniquified like Runtime interpret packaging (hline, hline_2, …).
         if func_name == "hline":
-            self.object_mode = True
             price_expr = args[0] if args else "np.nan"
             title = "hline"
             if "title" in kwargs:
@@ -4234,13 +4256,22 @@ class CompilerVisitor(NodeVisitor):
             elif len(args) > 1 and args[1]:
                 title = self._literal_str(args[1], default="hline") or "hline"
             title = self._unique_plot_title(title)
+            self.plots.append({"expr": price_expr, "title": title, "kind": "hline"})
+            idx = len(self.plots) - 1
+            # Statement-form ``hline(price)`` is metadata + a float series.
+            # Stay nopython when the price is proven numeric (no handle use).
+            stmt = getattr(self, "_stmt_expr", False)
+            price_ok = self._is_safe_numeric_expr(price_expr) or self._is_numeric_or_bool_literal(
+                price_expr
+            )
+            if stmt and price_ok and not self.object_mode:
+                return f"plot_{idx}[__bar_idx] = {price_expr}"
+            self.object_mode = True
             store_expr = (
                 price_expr
                 if price_expr.startswith("safe_float(")
                 else f"safe_float({price_expr})"
             )
-            self.plots.append({"expr": price_expr, "title": title, "kind": "hline"})
-            idx = len(self.plots) - 1
             # Stamp uniquified title onto the drawing event for consistent keys.
             draw_kwargs = dict(kwargs)
             draw_kwargs["title"] = repr(title)
@@ -4252,7 +4283,6 @@ class CompilerVisitor(NodeVisitor):
         # puts band color/plot refs in plot_meta; compile leaves the series as na
         # (float64 nan → null) so AXIS / compare_interp_compile key sets match.
         if func_name == "fill":
-            self.object_mode = True
             title = "fill"
             if "title" in kwargs:
                 title = self._literal_str(kwargs["title"], default="fill") or "fill"
@@ -4260,6 +4290,11 @@ class CompilerVisitor(NodeVisitor):
                 title = self._literal_str(args[3], default="fill") or "fill"
             title = self._unique_plot_title(title)
             self.plots.append({"expr": "None", "title": title, "kind": "fill"})
+            # Statement-form titled fill is a NaN series key only (band color
+            # lives in plot meta). No in-loop ``__drawings`` → stay nopython.
+            if getattr(self, "_stmt_expr", False) and not self.object_mode:
+                return ""
+            self.object_mode = True
             draw_kwargs = dict(kwargs)
             draw_kwargs["title"] = repr(title)
             return self._emit_drawing(func_name, args, draw_kwargs)
@@ -4280,7 +4315,11 @@ class CompilerVisitor(NodeVisitor):
             # UDF call results may be None (missing return) — always coerce
             if re.search(r"\b[A-Za-z_][A-Za-z0-9_]*\s*\(", series_expr):
                 bare = series_expr.split("(", 1)[0].strip()
-                if bare in self.user_funcs or bare in getattr(self, "func_name_map", {}):
+                numeric_udfs = getattr(self, "func_returns_numeric", set())
+                if (
+                    (bare in self.user_funcs or bare in getattr(self, "func_name_map", {}))
+                    and bare not in numeric_udfs
+                ):
                     needs_safe = True
                 # Also any non-numba call in object mode
                 if self.object_mode and not bare.startswith("numba_") and bare not in (
@@ -4986,14 +5025,18 @@ class CompilerVisitor(NodeVisitor):
         if func_name == "ta_median":
             # ta.median(source, length) or ta.median(length) on close
             if len(args) >= 2:
-                return (
-                    f"numba_median({_arr(args[0])}, {self._emit_period(args[1])}, __bar_idx)"
-                )
-            if args and not _is_series_arr(args[0]):
-                return f"numba_median(close_arr, {self._emit_period(args[0])}, __bar_idx)"
-            if args:
-                return f"numba_median({_arr(args[0])}, 14, __bar_idx)"
-            return "np.nan"
+                src, period_e = _arr(args[0]), self._emit_period(args[1])
+            elif args and not _is_series_arr(args[0]):
+                src, period_e = "close_arr", self._emit_period(args[0])
+            elif args:
+                src, period_e = _arr(args[0]), "14"
+            else:
+                return "np.nan"
+            n = self._const_positive_int(period_e)
+            if n is not None:
+                st = self._alloc_fixed_state("median", n)
+                return f"numba_median_inc({src}, {n}, __bar_idx, {st})"
+            return f"numba_median({src}, {period_e}, __bar_idx)"
         if func_name in ("ta_wpr", "ta_willr"):
             # ta.wpr / ta.willr(length) | ta.wpr(high, low, close, length)
             if len(args) >= 4 and _is_series_arr(args[0]):
@@ -6453,7 +6496,12 @@ class CompilerVisitor(NodeVisitor):
         return str(node.value)
 
     def visit_Expr(self, node: ast.Expr):
-        return self.visit(node.value)
+        prev = getattr(self, "_stmt_expr", False)
+        self._stmt_expr = True
+        try:
+            return self.visit(node.value)
+        finally:
+            self._stmt_expr = prev
 
     @staticmethod
     def _safe_history_offset(offset_expr: str) -> str:
@@ -7331,6 +7379,7 @@ class CompilerVisitor(NodeVisitor):
 
         body_lines = []
         last_ast = node.body[-1] if node.body else None
+        obj_before_body = self.object_mode
         # Pine if-expression as function result: emit returns on branches
         last_is_if_expr = isinstance(last_ast, ast.Expr) and isinstance(
             getattr(last_ast, "value", None), ast.If
@@ -7404,6 +7453,16 @@ class CompilerVisitor(NodeVisitor):
         if self._func_body_returns_string(body_lines):
             self.func_returns_string.add(pine_name)
             self.func_returns_string.add(func_name)
+        # Proven-numeric UDFs (arith / numba_* / np.*) may stay in nopython
+        # at assign/plot call sites. Fail closed if the body forced object mode.
+        body_forced_object = self.object_mode and not obj_before_body
+        if (
+            not body_forced_object
+            and pine_name not in self.func_returns_sequence
+            and pine_name not in self.func_returns_string
+        ):
+            self.func_returns_numeric.add(pine_name)
+            self.func_returns_numeric.add(func_name)
         # Record series metadata for call-site lowering (keep parent scope intact
         # until the end of this method — nested defs must not leave in_function=False).
         self.func_series_params[pine_name] = series_for_func
@@ -7891,6 +7950,15 @@ class CompilerVisitor(NodeVisitor):
         if self.object_mode:
             return f"safe_period({e}, {default})"
         return f"(0 if ({e}) != ({e}) else int({e}))"
+
+    @staticmethod
+    def _const_positive_int(expr: str) -> int | None:
+        """Compile-time positive int, or None when the period is dynamic."""
+        e = (expr or "").strip()
+        if not re.fullmatch(r"-?\d+", e):
+            return None
+        n = int(e)
+        return n if n > 0 else None
 
     def visit_ForTo(self, node: ast.ForTo):
         target = node.target.id if isinstance(node.target, ast.Name) else self.visit(node.target)

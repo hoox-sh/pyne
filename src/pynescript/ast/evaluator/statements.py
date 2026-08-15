@@ -571,9 +571,10 @@ class StatementEvaluator:
             return existing
 
         try:
+            from pynescript.ast.evaluator.series_buffer import evaluator_history_length
             from pynescript.ast.evaluator.series_buffer import make_series
 
-            ps = make_series(history_length=512)
+            ps = make_series(history_length=evaluator_history_length(self))
             if hasattr(ps, "update"):
                 ps.update(value)
             else:
@@ -606,6 +607,9 @@ class StatementEvaluator:
             self._collect_history_names(node, hist)
             self._history_names = hist  # type: ignore[attr-defined]
             self._history_names_scanned = True  # type: ignore[attr-defined]
+        # Persist unwritten ``var`` series *before* the body so ``x[1]`` on
+        # this bar sees the prior-bar value (end-of-previous-bar carry).
+        self._commit_unwritten_history()
         # Fresh library-export buffer for this script evaluation
         self._pending_library_exports = {}  # type: ignore[attr-defined]
         self._active_library = None  # type: ignore[attr-defined]
@@ -643,6 +647,48 @@ class StatementEvaluator:
         self._finalize_library_registration()
         return last
 
+    def _commit_unwritten_history(self) -> None:
+        """Push one sample for ``var`` / ``varip`` series not yet written this bar.
+
+        Called at the start of ``visit_Script`` so ``x[1]`` in the body sees
+        the prior-bar persist. Pine keeps ``var`` even when the declaration is
+        skipped and no ``:=`` ran; without this, history stays length 1 and
+        ``x[1]`` is ``na`` forever.
+
+        Only names in both ``_history_names`` and ``_var_declarations`` are
+        touched — host OHLCV (``close[n]``) is collected as a history name but
+        must not be overwritten. Same-bar ``=`` / ``:=`` after this stamp
+        ``set_current`` via ``_series_assign_bar`` (including realtime ticks).
+        """
+        history_names: set[str] | None = getattr(self, "_history_names", None)
+        declared: set[str] | None = getattr(self, "_var_declarations", None)
+        if not history_names or not declared:
+            return
+        last_map: dict[Any, int] | None = getattr(self, "_series_assign_bar", None)
+        if last_map is None:
+            last_map = {}
+            self._series_assign_bar = last_map  # type: ignore[attr-defined]
+        bar = self.context.get("bar_index", 0)
+        try:
+            bar_i = int(bar) if bar is not None else 0
+        except (TypeError, ValueError):
+            bar_i = 0
+        ctx = self.context
+        for name in history_names:
+            if name not in declared:
+                continue
+            if last_map.get(name) == bar_i:
+                continue
+            existing = ctx.get(name)
+            if not (
+                hasattr(existing, "update")
+                and hasattr(existing, "current")
+                and hasattr(existing, "history")
+            ):
+                continue
+            existing.update(getattr(existing, "current", None))
+            last_map[name] = bar_i
+
     def _finalize_library_registration(self) -> None:
         """If this script was a library, register collected exports."""
         active: LibraryModule | None = getattr(self, "_active_library", None)
@@ -669,9 +715,11 @@ class StatementEvaluator:
 
         - **``var`` / ``varip``** — initializer runs only the first time this
           declaration executes (name recorded in ``_var_declarations``). Later
-          visits skip so the value persists across bars. Not limited to
-          ``bar_index == 0``: a ``var`` inside a conditional or function inits
-          on first *execution*, which may be a later bar.
+          visits skip so the value persists across bars. History-tracked
+          ``var`` series get a start-of-bar carry in ``visit_Script`` so
+          ``x[1]`` is the prior-bar persist when no ``:=`` ran. Not limited
+          to ``bar_index == 0``: a ``var`` inside a conditional or function
+          inits on first *execution*, which may be a later bar.
         - **``const``** — always initializes (no cross-bar skip like ``var``).
         - **plain** — evaluate RHS and store; supports ``export`` for libraries
           and ``[a, b] = …`` unpack (lists, multi-value series wrappers).

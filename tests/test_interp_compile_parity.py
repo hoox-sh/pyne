@@ -367,3 +367,143 @@ def test_interp_compile_parity_full_subset(harness, request: pytest.FixtureReque
     )
     # main returns 1 only on value (or --strict-keys / --strict-errors) failures
     assert code == 0, "see .cache/interp_compile_parity_pytest.json"
+
+
+def _is_na(value: object) -> bool:
+    """True for Pine na (None or NaN). Never treats 0.0 as na."""
+    if value is None:
+        return True
+    try:
+        return value != value
+    except Exception:
+        return False
+
+
+def _ohlcv_close_index(n: int, start: float = 100.0) -> list[dict[str, float | int]]:
+    return [
+        {
+            "open": start + i,
+            "high": start + i + 1.0,
+            "low": start + i - 1.0,
+            "close": start + i,
+            "volume": 1000.0,
+            "time": 1_700_000_000_000 + i * 60_000,
+        }
+        for i in range(n)
+    ]
+
+
+def _run_interp_and_optional_compile(src: str, bars: list[dict[str, float | int]]):
+    from pynescript.ast.helper import clear_parse_cache
+    from pynescript.compiler.engine import has_numba
+    from pynescript.runtime import Runtime
+
+    clear_parse_cache()
+    interp = Runtime(symbol="TEST").run(src, bars, mode="interpret")
+    assert "error" not in interp, interp.get("error")
+    compiled = None
+    if has_numba():
+        clear_parse_cache()
+        compiled = Runtime(symbol="TEST").run(src, bars, mode="compile")
+        assert "error" not in compiled, compiled.get("error")
+    return interp, compiled
+
+
+def test_close5_lookback_interp_compile_na_and_values() -> None:
+    """Dual-host close[5] warmup is na (never 0); finite cells match exactly."""
+    src = """
+//@version=5
+indicator("lb5")
+plot(close[5], "c5")
+plot(close[-1], "neg")
+plot(close[na], "cna")
+"""
+    n = 12
+    start = 100.0
+    interp, compiled = _run_interp_and_optional_compile(src, _ohlcv_close_index(n, start))
+    c5 = interp["series"]["c5"]
+    neg = interp["series"]["neg"]
+    cna = interp["series"]["cna"]
+    assert len(c5) == n
+    for k in range(5):
+        assert _is_na(c5[k]), f"warmup bar {k} must be na, got {c5[k]!r}"
+        assert c5[k] != 0.0
+    for k in range(5, n):
+        assert c5[k] == start + (k - 5)
+    assert all(_is_na(v) for v in neg)
+    assert all(_is_na(v) for v in cna)
+    if compiled is None:
+        return
+    cc5 = compiled["series"]["c5"]
+    assert len(cc5) == n
+    for k in range(n):
+        if _is_na(c5[k]):
+            assert _is_na(cc5[k]), f"compile bar {k} should be na, got {cc5[k]!r}"
+        else:
+            assert cc5[k] == c5[k]
+
+
+def test_var_reassign_and_history_interp_compile() -> None:
+    """var persists; := mutates; acc[1] is previous bar; interpret ≡ compile."""
+    src = """
+//@version=5
+indicator("var_mut")
+var float acc = 0.0
+var float cond = 0.0
+acc := acc + 1.0
+if close > close[1]
+    cond := cond + 1.0
+plot(acc, "acc")
+plot(acc[1], "acc1")
+plot(cond, "cond")
+"""
+    n = 10
+    interp, compiled = _run_interp_and_optional_compile(src, _ohlcv_close_index(n))
+    acc = interp["series"]["acc"]
+    acc1 = interp["series"]["acc1"]
+    cond = interp["series"]["cond"]
+    assert acc == [float(i + 1) for i in range(n)]
+    assert _is_na(acc1[0]) and acc1[0] != 0.0
+    for i in range(1, n):
+        assert acc1[i] == float(i)
+    assert cond[0] == 0.0
+    assert cond[-1] == 9.0
+    if compiled is None:
+        return
+    for key in ("acc", "acc1", "cond"):
+        left = interp["series"][key]
+        right = compiled["series"][key]
+        assert len(left) == len(right) == n
+        for i, (a, b) in enumerate(zip(left, right, strict=True)):
+            if _is_na(a):
+                assert _is_na(b), f"{key}[{i}] compile={b!r} expected na"
+            else:
+                assert a == b, f"{key}[{i}] interp={a!r} compile={b!r}"
+
+
+def test_var_unwritten_history_carry_interp_compile() -> None:
+    """var x = close without := must persist; x[1] is prior-bar persist, not na."""
+    src = """
+//@version=5
+indicator("var_carry")
+var float x = close
+plot(x, "x")
+plot(x[1], "x1")
+"""
+    n = 8
+    start = 100.0
+    interp, compiled = _run_interp_and_optional_compile(src, _ohlcv_close_index(n, start))
+    x = interp["series"]["x"]
+    x1 = interp["series"]["x1"]
+    assert x == [start] * n
+    assert _is_na(x1[0])
+    for i in range(1, n):
+        assert x1[i] == start, f"x[1] bar {i} should carry {start}, got {x1[i]!r}"
+    if compiled is None:
+        return
+    assert compiled["series"]["x"] == x
+    for i in range(n):
+        if _is_na(x1[i]):
+            assert _is_na(compiled["series"]["x1"][i])
+        else:
+            assert compiled["series"]["x1"][i] == x1[i]

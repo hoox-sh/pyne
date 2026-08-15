@@ -38,6 +38,7 @@ from __future__ import annotations
 import operator
 
 from collections.abc import Callable
+from itertools import count
 from typing import Any
 
 from pynescript.ast import node as ast
@@ -96,6 +97,28 @@ _PURE_CONST_FOLD_BUILTINS = frozenset(
 
 # Shared empty kwargs — never mutate (hot path avoids ``{}`` alloc).
 _EMPTY_KW: dict[str, Any] = {}
+
+# Process-wide Call identity. Stamped on the AST as ``_pine_site_id`` so
+# UDF / call-expr history keys survive CPython ``id()`` reuse after GC.
+# Do **not** scrub this on parse-cache hits — it names the node in the tree.
+_PINE_SITE_IDS = count(1)
+
+
+def pine_call_site_id(node: Any) -> int:
+    """Stable per-Call identity for history / UDF series isolation.
+
+    Unlike ``id(node)``, the stamped int stays on the tree for its lifetime
+    and is never recycled onto a different Call after the first tree is GC'd.
+    """
+    sid = getattr(node, "_pine_site_id", None)
+    if type(sid) is int and sid > 0:
+        return sid
+    sid = next(_PINE_SITE_IDS)
+    try:
+        object.__setattr__(node, "_pine_site_id", sid)
+    except (AttributeError, TypeError):
+        return id(node)
+    return sid
 
 
 def _store_call_site(node: Any, site: tuple) -> None:
@@ -712,7 +735,7 @@ class ExpressionEvaluator:
             user = self._lookup_user_callable(name)
             if callable(user):
                 prev_site = getattr(self, "_pine_udf_site", None)
-                self._pine_udf_site = id(node)  # type: ignore[attr-defined]
+                self._pine_udf_site = pine_call_site_id(node)  # type: ignore[attr-defined]
                 try:
                     return user(*args, **kwargs)
                 except TypeError as e:
@@ -782,7 +805,7 @@ class ExpressionEvaluator:
             user = self._lookup_user_callable(name)
             if callable(user):
                 prev_site = getattr(self, "_pine_udf_site", None)
-                self._pine_udf_site = id(node)  # type: ignore[attr-defined]
+                self._pine_udf_site = pine_call_site_id(node)  # type: ignore[attr-defined]
                 try:
                     return user(*args, **kwargs)
                 except TypeError as e:
@@ -843,7 +866,7 @@ class ExpressionEvaluator:
                     return None
                 return self._visit_Call_general(node, plan)
             prev_site = getattr(self, "_pine_udf_site", None)
-            self._pine_udf_site = id(node)  # type: ignore[attr-defined]
+            self._pine_udf_site = pine_call_site_id(node)  # type: ignore[attr-defined]
             try:
                 return func(*args, **kwargs)
             except TypeError as e:
@@ -997,14 +1020,20 @@ class ExpressionEvaluator:
             code = op[0]
             if code == _AP_NAME:
                 name = op[1]
+                buf = self._arg1  # type: ignore[attr-defined]
                 try:
-                    return [ctx[name]], _EMPTY_KW
+                    buf[0] = ctx[name]
+                    return buf, _EMPTY_KW
                 except KeyError:
                     if name in bare and self._is_registered_builtin(name):
-                        return [self._call_builtin(name, [])], _EMPTY_KW  # type: ignore[attr-defined]
-                    return [name], _EMPTY_KW
+                        buf[0] = self._call_builtin(name, [])  # type: ignore[attr-defined]
+                        return buf, _EMPTY_KW
+                    buf[0] = name
+                    return buf, _EMPTY_KW
             if code == _AP_CONST:
-                return [op[1]], _EMPTY_KW
+                buf = self._arg1  # type: ignore[attr-defined]
+                buf[0] = op[1]
+                return buf, _EMPTY_KW
             if code == _AP_VISIT:
                 return [self.visit(op[1])], _EMPTY_KW
             # single kwarg — fall through
@@ -1015,32 +1044,55 @@ class ExpressionEvaluator:
             # ta.sma(close, 14) / ta.highest(high, 20)
             if c0 == _AP_NAME and c1 == _AP_CONST:
                 name = a0[1]
+                buf = self._arg2  # type: ignore[attr-defined]
                 try:
-                    return [ctx[name], a1[1]], _EMPTY_KW
+                    buf[0] = ctx[name]
+                    buf[1] = a1[1]
+                    return buf, _EMPTY_KW
                 except KeyError:
                     if name in bare and self._is_registered_builtin(name):
-                        return [self._call_builtin(name, []), a1[1]], _EMPTY_KW  # type: ignore[attr-defined]
-                    return [name, a1[1]], _EMPTY_KW
+                        buf[0] = self._call_builtin(name, [])  # type: ignore[attr-defined]
+                        buf[1] = a1[1]
+                        return buf, _EMPTY_KW
+                    buf[0] = name
+                    buf[1] = a1[1]
+                    return buf, _EMPTY_KW
             if c0 == _AP_NAME and c1 == _AP_NAME:
                 n0, n1 = a0[1], a1[1]
+                buf = self._arg2  # type: ignore[attr-defined]
                 try:
-                    return [ctx[n0], ctx[n1]], _EMPTY_KW
+                    buf[0] = ctx[n0]
+                    buf[1] = ctx[n1]
+                    return buf, _EMPTY_KW
                 except KeyError:
                     pass  # fall through to general
             if c0 == _AP_CONST and c1 == _AP_CONST:
-                return [a0[1], a1[1]], _EMPTY_KW
+                buf = self._arg2  # type: ignore[attr-defined]
+                buf[0] = a0[1]
+                buf[1] = a1[1]
+                return buf, _EMPTY_KW
 
         elif n == 3:
             a0, a1, a2 = plan[0], plan[1], plan[2]
             # ta.bb(close, 20, 2.0)
             if a0[0] == _AP_NAME and a1[0] == _AP_CONST and a2[0] == _AP_CONST:
                 name = a0[1]
+                buf = self._arg3  # type: ignore[attr-defined]
                 try:
-                    return [ctx[name], a1[1], a2[1]], _EMPTY_KW
+                    buf[0] = ctx[name]
+                    buf[1] = a1[1]
+                    buf[2] = a2[1]
+                    return buf, _EMPTY_KW
                 except KeyError:
                     if name in bare and self._is_registered_builtin(name):
-                        return [self._call_builtin(name, []), a1[1], a2[1]], _EMPTY_KW  # type: ignore[attr-defined]
-                    return [name, a1[1], a2[1]], _EMPTY_KW
+                        buf[0] = self._call_builtin(name, [])  # type: ignore[attr-defined]
+                        buf[1] = a1[1]
+                        buf[2] = a2[1]
+                        return buf, _EMPTY_KW
+                    buf[0] = name
+                    buf[1] = a1[1]
+                    buf[2] = a2[1]
+                    return buf, _EMPTY_KW
 
         # --- General opcode interpreter ---
         visit = self.visit

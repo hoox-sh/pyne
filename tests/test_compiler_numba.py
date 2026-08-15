@@ -2758,10 +2758,10 @@ class TestNaSafeArithmetic:
         assert na_num(1.0) == safe_float(1.0)
 
     def test_compare_none_scalar_no_typeerror(self) -> None:
-        """``src > ma`` when ma is a scalar still None (tuple unpack) → no crash.
+        """``src > ma`` when ma is na from multi-return → 0, no crash.
 
         Mirrors set05 ColorRVI: ``rvi > rviMA`` with rviMA from multi-return
-        before enough bars — scalar local is ``None``, not float nan.
+        before enough bars. Statement ``hline`` no longer forces object mode.
         """
         src = """//@version=5
 indicator("cmp")
@@ -2773,10 +2773,7 @@ hline(50)
 col = close > ma ? 1.0 : 0.0
 plot(col, title="c")
 """
-        code = transpile(src)
-        assert "na_num(" in code
         compiled = compile_script(src)
-        assert compiled.object_mode
         o, h, l, c, v = _ohlcv(12)
         out = compiled.run(o, h, l, c, v)
         # ma is always na/None → comparison false → 0.0
@@ -4527,4 +4524,95 @@ plot(sr.signal, title="d")
         assert max_err <= 1e-10, max_err
         assert not np.isnan(out["k"][-1])
         assert not np.isnan(out["d"][-1])
+
+
+class TestWave2NopythonStayRate:
+    """2026-08-15: statement hline/fill + proven-numeric UDFs stay nopython."""
+
+    def test_sma_hline_fill_stays_nopython(self) -> None:
+        src = """//@version=5
+indicator("x")
+s = ta.sma(close, 14)
+plot(s, "sma")
+hline(0)
+fill(plot(s), plot(close), title="band")
+"""
+        code = transpile(src)
+        assert "@numba.njit" in code
+        assert "__drawings" not in code
+        compiled = compile_script(src, use_cache=False)
+        assert compiled.object_mode is False
+        o, h, l, c, v = _ohlcv(40)
+        out = compiled.run(o, h, l, c, v)
+        assert "sma" in out
+        assert "hline" in out
+        assert np.isfinite(out["sma"][-1])
+        assert abs(out["hline"][-1] - 0.0) < 1e-12
+
+    def test_hline_handle_still_object_mode(self) -> None:
+        src = """//@version=5
+indicator("x")
+h = hline(50)
+plot(close, "c")
+"""
+        compiled = compile_script(src, use_cache=False)
+        assert compiled.object_mode is True
+
+    def test_numeric_udf_plot_stays_nopython(self) -> None:
+        src = """//@version=5
+indicator("x")
+scale(x, p) =>
+    lo = ta.lowest(x, p)
+    hi = ta.highest(x, p)
+    (x - lo) / (hi - lo)
+plot(scale(close, 14), title="s")
+"""
+        code = transpile(src)
+        assert "@numba.njit" in code
+        assert "safe_float(scale" not in code
+        compiled = compile_script(src, use_cache=False)
+        assert compiled.object_mode is False
+        o, h, l, c, v = _ohlcv(40)
+        out = compiled.run(o, h, l, c, v)
+        assert "s" in out
+        assert np.isfinite(out["s"][-1])
+
+    def test_udf_numeric_multi_return_stays_nopython(self) -> None:
+        src = """//@version=5
+indicator("x")
+f(float a, float b) =>
+    [a + 1.0, b + 2.0]
+[u, w] = f(close, close)
+plot(u, title="u")
+plot(w, title="w")
+"""
+        compiled = compile_script(src, use_cache=False)
+        assert compiled.object_mode is False
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["u"][-1] - (c[-1] + 1.0)) < 1e-9
+        assert abs(out["w"][-1] - (c[-1] + 2.0)) < 1e-9
+
+    def test_median_cmo_inc_matches_full_kernels(self) -> None:
+        from pynescript.compiler import numba_builtins as nb
+
+        ramp = np.arange(20, dtype=np.float64)
+        st_m = np.full(5, np.nan)
+        for i in range(20):
+            full = nb.numba_median(ramp, 5, i)
+            inc = nb.numba_median_inc(ramp, 5, i, st_m)
+            if np.isnan(full):
+                assert np.isnan(inc)
+            else:
+                assert abs(float(full) - float(inc)) < 1e-12
+        rng = np.random.default_rng(3)
+        c = 100.0 + np.cumsum(rng.normal(0, 1, 80))
+        st_c = np.full(9 + 3, np.nan)
+        for i in range(80):
+            full = nb.numba_cmo(c, 9, i)
+            inc = nb.numba_cmo_inc(c, 9, i, st_c)
+            if np.isnan(full):
+                assert np.isnan(inc), i
+            else:
+                assert abs(float(full) - float(inc)) < 1e-10, i
 
