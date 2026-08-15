@@ -96,6 +96,46 @@ _DEFAULT_ERROR_STRATEGY = DefaultErrorStrategy()
 # Builder is stateless across visits — reuse one instance to skip alloc.
 _SHARED_BUILDER = PinescriptASTBuilder()
 
+# Per-thread ANTLR engine: keeps SLL DFA warm across *distinct* sources.
+# Shared process-wide lexer/parser is unsafe (indent / token-stream bleed).
+_PARSE_TLS = threading.local()
+
+
+class _ThreadParseEngine:
+    """Reuse Lexer + CommonTokenStream + Parser on one thread.
+
+    ``bind`` retargets the input and clears indent/token/parser state via
+    ANTLR ``reset`` / ``setTokenSource`` so consecutive scripts cannot leak
+    ``_numOpens`` or leftover tokens.
+    """
+
+    __slots__ = ("lexer", "tokens", "parser")
+
+    def __init__(self) -> None:
+        self.lexer = PinescriptLexer(InputStream(""))
+        self.tokens = CommonTokenStream(self.lexer)
+        self.parser = PinescriptParser(self.tokens)
+        listener = PinescriptErrorListener.INSTANCE
+        self.lexer.removeErrorListeners()
+        self.parser.removeErrorListeners()
+        self.lexer.addErrorListener(listener)
+        self.parser.addErrorListener(listener)
+
+    def bind(self, stream: InputStream) -> tuple[PinescriptLexer, CommonTokenStream, PinescriptParser]:
+        """Point the reused engine at *stream* and return (lexer, tokens, parser)."""
+        self.lexer.inputStream = stream
+        self.tokens.setTokenSource(self.lexer)
+        self.parser.setTokenStream(self.tokens)
+        return self.lexer, self.tokens, self.parser
+
+
+def _thread_parse_engine() -> _ThreadParseEngine:
+    eng = getattr(_PARSE_TLS, "engine", None)
+    if eng is None:
+        eng = _ThreadParseEngine()
+        _PARSE_TLS.engine = eng
+    return eng
+
 # Cached after first annotation pass (avoids circular import at module load).
 _StatementCollector = None
 
@@ -392,15 +432,7 @@ def _parse(
         restore_recursion = False
 
     try:
-        lexer = PinescriptLexer(stream)
-        token_stream = CommonTokenStream(lexer)
-        parser = PinescriptParser(token_stream)
-        error_listener = PinescriptErrorListener.INSTANCE
-
-        lexer.removeErrorListeners()
-        parser.removeErrorListeners()
-        lexer.addErrorListener(error_listener)
-        parser.addErrorListener(error_listener)
+        _lexer, token_stream, parser = _thread_parse_engine().bind(stream)
 
         # Two-stage parse: SLL is much faster on unambiguous input; on SLL
         # failure (BailErrorStrategy → ParseCancellationException) reset and

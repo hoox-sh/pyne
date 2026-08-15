@@ -136,6 +136,64 @@ def test_filename_not_in_key():
     assert a is b
 
 
+def test_tls_parse_indent_then_simple_no_bleed(monkeypatch):
+    """Reused lexer must drop indent stack between distinct sources."""
+    monkeypatch.setenv("PYNE_PARSE_CACHE", "0")
+    indented = """
+//@version=5
+indicator("indented")
+f() =>
+    x = 1
+    if x > 0
+        x + 1
+    else
+        x
+plot(f())
+"""
+    simple = """
+//@version=5
+indicator("simple")
+plot(close)
+"""
+    a = parse(indented)
+    b = parse(simple)
+    assert unparse(parse(unparse(a)))  # round-trip still parses
+    assert "indicator" in unparse(b)
+    # Second parse must not inherit INDENT/DEDENT from f()'s block.
+    again = parse(simple)
+    assert dump(b) == dump(again)
+
+
+def test_tls_parse_concurrent_distinct_sources(monkeypatch):
+    """Each thread has its own ANTLR engine; distinct sources must not collide."""
+    monkeypatch.setenv("PYNE_PARSE_CACHE", "0")
+    sources = [
+        f"//@version=5\nindicator(\"t{i}\")\nplot(close + {i})\n" for i in range(12)
+    ]
+    errors: list[BaseException] = []
+    dumps: dict[int, str] = {}
+    lock = threading.Lock()
+
+    def worker(i: int, src: str) -> None:
+        try:
+            tree = parse(src)
+            text = dump(tree)
+            with lock:
+                dumps[i] = text
+        except BaseException as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker, args=(i, s)) for i, s in enumerate(sources)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert not errors
+    assert len(dumps) == len(sources)
+    serial = {i: dump(parse(s)) for i, s in enumerate(sources)}
+    assert dumps == serial
+
+
 def test_concurrent_parse_same_source():
     clear_parse_cache()
     results: list[object] = []
