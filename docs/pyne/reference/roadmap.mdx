@@ -79,7 +79,7 @@ flowchart LR
 | `Runtime.run(..., libraries=)` / `POST /run` `libraries` | ✅ 0.3.7+ — AXIS `import ns/Name/ver`; export finalize in 0.3.8; auto fallback keeps libs |
 | pyne-worker 0.6.0 | ✅ edge `/run` libraries + plot_meta/logs; engine vendor 0.3.8 |
 | PyneTS (`@hoox-sh/pynets`) | ✅ standalone TS library 0.2.0 — interpret + JS compile; Python remains oracle |
-| pine-worker | ⚙️ legacy TS Cloudflare Worker (sister repo; **not** in this checkout) |
+| pyne-agent-worker | ✅ sister NL authoring host (`POST /v1/chat`) |
 | Full TV platform identity | ⚙️ out of scope |
 
 ### Completed themes (do not re-plan as greenfield)
@@ -89,7 +89,7 @@ flowchart LR
 - `pynescript lint`
 - Yahoo / AlphaVantage / CCXT + realtime datafeed wiring
 - StrategyEvent emission + parity fixtures
-- pine-worker extra tool extracted to sister `hoox-sh/pine-worker` (not colocated; 0.3.7)
+- Colocated TS extra tool extracted (0.3.7). Product TypeScript library is [PyneTS](/pyne/docs/pynets).
 - Alert engine + dual-host export + **L2 webhooks**
 - Round 7: series caps, incremental TA (bb/kama/cmo/stochrsi), parse cache, warm compile, pending-fill, drawing GC
 - Round 9 / **0.3.10**: interpret dispatch inlining, unused derived OHLCV skip, incremental `obv`/`wad`/`cmf`/`klinger`
@@ -108,7 +108,7 @@ flowchart LR
 | **F2** | Pending-fill averaging when pyramiding ≤ 0 | P2 | ✅ |
 | **L1** | v5↔v6 converter maturity | P3 | open |
 | **L2** | Webhook alerts productization | P3 | ✅ Pro + pyne-worker |
-| **L3** | pine-worker (TS) full builtin parity | P3 | open |
+| **L3** | Legacy TS Worker builtin parity | P3 | sister `hoox-sh/pine-worker` only — not a product-docs target; new TS work is [PyneTS](/pyne/docs/pynets) |
 | **B1** | Real (non-mock) `request.*` market data | — | ⚙️ by design; **foreign-na policy landed** |
 
 Longer horizon (not next): ML wrappers, automatic refactor, parallel/distributed eval experiments.
@@ -119,7 +119,7 @@ Longer horizon (not next): ML wrappers, automatic refactor, parallel/distributed
 | --- | --- |
 | Short | **P1p** corpus MISMATCH tail; H1 worker extras (logs/profile) |
 | Medium | Further nested incremental TA where profiled |
-| Long | **L1** converter maturity; **L3** TS pine-worker parity (**L2** ✅) |
+| Long | **L1** converter maturity; TypeScript library work is PyneTS (**L2** ✅) |
 
 ### Landed residual notes (2026-08)
 
@@ -136,13 +136,14 @@ Longer horizon (not next): ML wrappers, automatic refactor, parallel/distributed
 | `docs/COMPILER_PLAN.md` | Compile/numba plan |
 | `scripts/compare_interp_compile.py` | Plot parity harness |
 | `.opencode/plans/` | Engineering plans (strategy events, consolidation) |
-| sister `hoox-sh/pine-worker` | Legacy TS Cloudflare Worker (not in this checkout) |
+| sister `hoox-sh/pyne-worker` | Python edge evaluate host — [docs](/pyne/docs/pyne-worker) |
+| sister `hoox-sh/pyne-agent-worker` | NL authoring host — [docs](/pyne/docs/agent) |
 | `pynets/` submodule | TS library pin **v0.2.0** (interpret + JS compile); Python remains oracle |
 
 ## Invariants & edge cases
 
 1. **Roadmap dates lag code** — always diff against `missing_features.md` and tests.
-2. **Sister repos** (pyne-worker, hoox-setup, pine-worker packaging) may absorb “integration” items.
+2. **Sister repos** (pyne-worker, pyne-agent-worker) may absorb “integration” items.
 3. **AXIS is a separate product tree** (`docs/axis`) — chart UX roadmap is not PYNE-core.
 4. Avoid reintroducing deleted backups (`builder.py.bak`, etc.) as “plan items.”
 5. Do **not** re-open **H1 / H2 / T1 / T2 / F1 / F2 / L2 / C1** as greenfield — they are marked ✅ (H1 residual = worker extras only; P1p is corpus tail) in `docs/ROADMAP.md` (2026-08-16).
@@ -163,14 +164,14 @@ pytest tests/test_interp_compile_parity.py -q
 python scripts/compare_interp_compile.py   # opt-in full compare
 ```
 
-### pine-worker maturity gate (sister checkout)
+### TypeScript library gate (PyneTS)
 
 ```bash
-# not present in this repo — clone hoox-sh/pine-worker
-cd ../pine-worker && bun test && bun run typecheck
+# standalone checkout — not present as pine-worker/ in this repo
+cd ../pynets && bun test && bun run typecheck
 ```
 
-Prefer [PyneTS](/pyne/docs/pynets) (`bun test` in `hoox-sh/pynets`) for new TypeScript library work.
+See [PyneTS](/pyne/docs/pynets).
 
 ## Failure modes
 
@@ -186,5 +187,6 @@ Prefer [PyneTS](/pyne/docs/pynets) (`bun test` in `hoox-sh/pynets`) for new Type
 - [Implementation status](/pyne/docs/reference/implementation-status)
 - [Interpret ↔ compile parity](/pyne/docs/runtime/compiler/parity)
 - [Alerts](/pyne/docs/runtime/alerts)
-- [pine-worker](/pyne/docs/pine-worker)
+- [pyne-worker](/pyne/docs/pyne-worker)
+- [pyne-agent-worker](/pyne/docs/agent)
 - [Contributing](/pyne/docs/contributing)

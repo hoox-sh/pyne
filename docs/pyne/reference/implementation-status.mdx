@@ -70,7 +70,8 @@ flowchart LR
 | Data providers | Mock, Yahoo, AlphaVantage, CCXT + datafeed wiring |
 | LSP | Diagnostics, completion, hover, format, symbols, defs/refs, … |
 | PyneTS | `@hoox-sh/pynets` **0.2.0** (npm + this repo’s `pynets/` pin **v0.2.0**) — interpret + JS compile. Python Runtime remains the oracle — see [PyneTS](/pyne/docs/pynets) |
-| pine-worker | Legacy TS Cloudflare Worker (sister repo; not in this checkout) |
+| pyne-worker | Python Cloudflare evaluate host (sister repo) — [docs](/pyne/docs/pyne-worker) |
+| pyne-agent-worker | NL authoring host (sister repo) — [docs](/pyne/docs/agent) |
 | Numba compile path | MVP + object-mode fallback |
 | Incremental `ta.*` | Default on (`PYNE_TA_INCREMENTAL`); **0.3.10** volume `obv`/`wad`/`cmf`/`klinger`; **0.3.11** `nvi`/`pvi` |
 | Interpret bar-loop | **0.3.10** dispatch inlining + unused derived-series skip |

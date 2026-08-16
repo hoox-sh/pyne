@@ -40,7 +40,7 @@ POST JSON { script, data: OHLCV[], mode?, libraries?, webhook_url?, … }
 
 Free-tier evaluate (`POST /run`, `POST /run/batch`) validates bodies with hand-rolled schemas, enforces a 5 MB body cap, **bar/script/rate/concurrency** guards (`backend/middleware/free_limits.py`), and restricts CORS. `GET /` and `GET /health` are the same unauthenticated readiness payload. Optional **L2 webhooks** POST last-bar `alert()` / `alertcondition()` firings to `webhook_url` or env `ALERT_WEBHOOK_URL` (see [Alerts](/pyne/docs/runtime/alerts)). Pro routes under `/preview/*` and `/backtest/*` use `track_usage` (Bearer / ApiKey / query key). Chart PNGs are matplotlib Agg renders encoded as base64.
 
-The same **evaluate contract** is mirrored by edge workers (pyne-worker / pine-worker) so AXIS and HOOX can swap hosts without redesigning payloads — see [contract](/pyne/docs/api/contract).
+The same **evaluate contract** is mirrored by **[pyne-worker](/pyne/docs/pyne-worker)** so AXIS and HOOX can swap hosts without redesigning payloads — see [contract](/pyne/docs/api/contract).
 
 ## Conceptual model
 

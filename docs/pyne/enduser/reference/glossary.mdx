@@ -35,7 +35,7 @@ Terms fall into four buckets:
 1. **Language representation** — grammar, AST, unparser  
 2. **Execution** — series, bar-loop, builtins, strategy events  
 3. **Surfaces** — CLI, library, LSP, Pro API  
-4. **Ecosystem** — AXIS, HOOX, PyneTS, pyne-worker, pine-worker  
+4. **Ecosystem** — AXIS, HOOX, PyneTS, pyne-worker, pyne-agent-worker
 
 ```mermaid
 mindmap
@@ -166,15 +166,15 @@ Open, high, low, close, volume — bar fields passed to Runtime / `/run` (plus `
 
 ### PyneTS
 
-TypeScript / Bun library (`@hoox-sh/pynets`). Public names match Python: `parse`, `unparse`, `Runtime.run`. Not a Worker. See [PyneTS](/pyne/docs/pynets).
+TypeScript / Bun library (`@hoox-sh/pynets`). Public names match Python: `parse`, `unparse`, `Runtime.run`. **Not** a Worker and **not** [pyne-worker](/pyne/docs/pyne-worker). See [PyneTS](/pyne/docs/pynets).
 
-### pine-worker
+### pyne-agent-worker
 
-Legacy TypeScript Cloudflare Worker in a sister repository. **Not** colocated under `pynescript/pine-worker/`. See [pine-worker](/pyne/docs/pine-worker).
+Sister Cloudflare Worker that turns natural language into Pine source (`POST /v1/chat`). Standalone by default; optional validate via pyne-worker. See [pyne-agent-worker](/pyne/docs/agent).
 
 ### pyne-worker
 
-Python Cloudflare Worker (sister repo) embedding pynescript for edge `/run`. See [HOOX isolate](/docs/devops/workers/pyne-worker).
+Python Cloudflare Worker (sister repo) embedding pynescript for edge `POST /run`. See [pyne-worker](/pyne/docs/pyne-worker). HOOX mesh notes: [isolate profile](/docs/devops/workers/pyne-worker).
 
 ### Plot / series / plot_meta
 

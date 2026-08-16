@@ -128,10 +128,12 @@ Grammar-driven parser, ASDL AST, bar-loop evaluator, LSP, Pro API, and edge work
 - [Runtime](https://hoox.sh/pyne/docs/pynets/runtime)
 - [Compile](https://hoox.sh/pyne/docs/pynets/compile)
 - [Parity](https://hoox.sh/pyne/docs/pynets/parity)
-- [Overview](https://hoox.sh/pyne/docs/pine-worker)
-- [Converter](https://hoox.sh/pyne/docs/pine-worker/converter)
-- [Testing](https://hoox.sh/pyne/docs/pine-worker/testing)
+- [Overview](https://hoox.sh/pyne/docs/pyne-worker)
+- [Run](https://hoox.sh/pyne/docs/pyne-worker/run)
+- [Deploy](https://hoox.sh/pyne/docs/pyne-worker/deploy)
 - [Overview](https://hoox.sh/pyne/docs/agent)
+- [Chat](https://hoox.sh/pyne/docs/agent/chat)
+- [Deploy](https://hoox.sh/pyne/docs/agent/deploy)
 
 ## PDF manuals
 

@@ -38,7 +38,7 @@ incremental volume TA including nvi/pvi (T2), and Supertrend goldens (F1) landed
 | Numba + object-mode compile | ✅ MVP+ (disk IR cache, auto mode, `time_arr`, cache recovery) |
 | Pro API (Flask) + auth + Docker | ✅ (`mode` default `auto`) |
 | pyne-worker (Python CF Worker) | ✅ sibling `hoox-sh/pyne-worker`; thin wrap over package Runtime |
-| pine-worker (TS port) | not colocated — sibling `hoox-sh/pine-worker` |
+| pine-worker (legacy TS) | not colocated — leftover sibling `hoox-sh/pine-worker`; new TS work is PyneTS |
 | Drawing / input / request | ✅ (request data mock/feed by design; foreign-na policy landed) |
 | Linter / Jupyter / data providers | ✅ |
 | LSP (core) | ✅ advanced set; polish only |
@@ -79,7 +79,7 @@ incremental volume TA including nvi/pvi (T2), and Supertrend goldens (F1) landed
 
 ## Recent Additions (July 2026 consolidation)
 - Full `strategy.*` event capture with `StrategyEvent` dataclass, parity test corpus, `var`/`varip` support.
-- pine-worker is **not colocated** in this repo (sibling [`hoox-sh/pyne-worker`](https://github.com/hoox-sh/pyne-worker) Python CF host; TS port lives in [`hoox-sh/pine-worker`](https://github.com/hoox-sh/pine-worker)).
+- pine-worker is **not colocated** in this repo. Product edge evaluate host is [`hoox-sh/pyne-worker`](https://github.com/hoox-sh/pyne-worker); TypeScript library work is [`hoox-sh/pynets`](https://github.com/hoox-sh/pynets).
 - See `.opencode/plans/2026-07-09-main-consolidation-remaining-work.md` for the full consolidation plan.
 
 ## Roadmap: Remaining Work (actionable)
@@ -100,7 +100,7 @@ Historical Phase A–D “build API / LSP / Jupyter” items are **done**. Do no
 | **F2** | Pending-fill averaging when pyramiding ≤ 0 | P2 ✅ R7 Agent 10 (interpret + compile broker goldens) | pyne |
 | **L1** | v5↔v6 converter maturity (`scripts/convert_pine_version.py`) | P3 | pyne |
 | **L2** | Webhook alerts productization | P3 ✅ pyne-worker edge + Pro API `/run` export **and** outbound `ALERT_WEBHOOK_URL` / `webhook_url` | pyne-worker + backend |
-| **L3** | pine-worker (TS) full builtin parity | P3 | sibling `hoox-sh/pine-worker` |
+| **L3** | Legacy TS Worker builtin parity | P3 | leftover sibling `hoox-sh/pine-worker` — not a product-docs target; new TS work is `hoox-sh/pynets` |
 | **B1** | Real (non-mock) `request.*` market data | ⚙️ by design; **foreign-na policy** landed (same-symbol OHLCV only; foreign/complex `request.security` → `na`, no chart-close-as-dividend) | adapters |
 
 ### Phase map
@@ -147,7 +147,7 @@ P0 docs honesty → P1 dual-host H1 ✅ (package SoT + shims + worker thin wrap)
 3. Further nested incremental TA where profiled
 
 ### Long-term
-6. **L1 / L3** Converter maturity, TS pine-worker parity (**L2 webhooks ✅**)
+6. **L1** Converter maturity. TypeScript library work is PyneTS (**L2 webhooks ✅**).
 
 ---
 

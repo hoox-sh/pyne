@@ -4,56 +4,162 @@ Source: docs/pyne
 Public: https://hoox.sh/pyne/docs
 Repository: https://github.com/hoox-sh/pyne
 
+FILE: docs/pyne/agent/chat.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+SPDX-License-Identifier: AGPL-.-or-later
+---
+title: "pyne-agent-worker chat"
+description: "POST /v/chat, search, sessions, and the optional pyne-worker validate loop."
+---
+pyne-agent-worker chat
+Abstract
+Chat is POST /v/chat. When APIKEY is unset, open mode is allowed for local dev only. Admin embed/index always require APIKEY.
+Sister repo: hoox-sh/pyne-agent-worker.
+Endpoints
+| Method | Path | Auth | Role |
+| --- | --- | --- | --- |
+| GET | /health | no | Liveness + mode |
+| GET | / | no | Demo chat UI |
+| POST | /v/chat | yes | NL → Pine |
+| GET/POST | /v/search | yes | Vectorize search |
+| POST | /v/sessions | yes | Create session |
+| GET | /v/sessions/:id | yes | Session + messages |
+| POST | /v/admin/embed | yes | Batch embeddings |
+| POST | /v/admin/index | yes | Embed + R + Vectorize |
+| GET | /plugin/axis-pine-agent.js | no | AXIS plugin module |
+\ Required when APIKEY is set.
+POST /v/chat
+``json
+{
+"message": "v RSI strategy with ATR trailing stop",
+"pineversion": "v",
+"style": "strategy",
+"sessionid": null,
+"validate": true,
+"maxretries":
+}
+`
+Response includes reply, extracted pine, validation (attempts / pyne-worker errors), rag hits, and a trademark disclaimer.
+Validate loop (optional)
+Only when PYNESERVICE or PYNEWORKERURL is set:
+`text
+generate (Workers AI)
+→ extract `pine
+→ POST pyne-worker /run (synthetic OHLCV)
+→ ok? return
+→ else fix prompt + retry (max_retries)
+`
+Without a binding, validation.available is false and the Worker returns the first draft.
+See also
+pyne-agent-worker
+Deploy
+pyne-worker /run`
+PyneTS — in-process TS evaluate, not this chat API
+---
+FILE: docs/pyne/agent/deploy.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+SPDX-License-Identifier: AGPL-.-or-later
+---
+title: "pyne-agent-worker deploy"
+description: "Standalone Workers AI deploy, optional RAG, and optional pyne-worker validate binding."
+---
+pyne-agent-worker deploy
+Abstract
+Deploy from hoox-sh/pyne-agent-worker. Minimum is Workers AI. Vectorize / R / D improve quality; they are not required to chat.
+Standalone
+``bash
+cd ~/Git/pyne-agent-worker
+bun install
+Optional RAG / sessions
+npx wrangler vectorize create pyne-agent-kb --dimensions= --metric=cosine
+npx wrangler r bucket create pyne-agent-kb
+npx wrangler d create pyne-agent-sessions
+npx wrangler d execute pyne-agent-sessions --remote --file=schemas/sessions.sql
+cp .env.example .dev.vars
+bun run dev
+echo "your-secret" | npx wrangler secret put APIKEY
+bun run deploy
+`
+No HOOX mesh and no pyne-worker binding.
+Optional validate loop
+If you already run pyne-worker:
+`jsonc
+// wrangler.jsonc — uncomment services, OR:
+// "vars": { "PYNEWORKERURL": "https://pyne-worker..workers.dev" }
+`
+`bash
+echo "pyne-api-key" | npx wrangler secret put PYNEWORKERAPIKEY
+`
+Knowledge (private)
+`bash
+bun run ingest:docs -- --dir /secure/pine-docs-v --version v
+bun run ingest:docs -- --pyne-docs ../pynescript/docs/pyne
+bun run ingest:corpus -- --dir /secure/open-pine-corpus --max
+bun run ingest:builtins -- --metadata ../pynescript/src/pynescript/langserver/providers/builtinmetadata.json
+bun run scripts/build-index.ts \
+--embed-endpoint https://pyne-agent-worker..workers.dev/v/admin/embed
+`
+Never commit TradingView built-in sources. scripts/legal-check.sh runs on predeploy.
+AXIS
+`text
+https://pyne-agent-worker..workers.dev/plugin/axis-pine-agent.js
+``
+Set endpoint + API key in the plugin config.
+See also
+pyne-agent-worker
+Chat API
+pyne-worker — optional validate host
+PyneTS
+AXIS plugin
+---
 FILE: docs/pyne/agent/index.mdx
 Copyright (C) - jango_blockchained
 This file is part of pynescript.
 SPDX-License-Identifier: AGPL-.-or-later
 ---
 title: "pyne-agent-worker"
-description: "Natural-language PYNE Agent on Cloudflare Workers AI — standalone or with optional pyne-worker validation; AXIS plugin."
+description: "Natural-language PYNE Agent on Cloudflare Workers AI. Standalone chat, optional pyne-worker validate loop, AXIS plugin. Sister repo."
 ---
 pyne-agent-worker
 Abstract
-pyne-agent-worker is the edge authoring host: natural language in, script source out. It is a sister repository — it does not live in this PYNE checkout. Do not look for pyne-agent-worker/ here.
+pyne-agent-worker is the edge authoring host: natural language in, Pine source out. It is a sister repository — it does not live in this PYNE checkout.
 | | |
-|--|--|
+| --- | --- |
 | Repo | hoox-sh/pyne-agent-worker |
 | Role | Write scripts via chat (PYNE Agent) + optional RAG |
-| Runtime | Cloudflare Workers + Workers AI + optional Vectorize / R |
-| AXIS | Component plugin at /plugin/axis-pine-agent.js |
+| Runtime | Cloudflare Workers (TypeScript) + Workers AI |
+| AXIS | GET /plugin/axis-pine-agent.js |
 | In this repo? | No |
-Standalone by default
-You do not need pyne-worker, trade-worker, or the HOOX mesh to use the agent.
+You do not need pyne-worker, trade-worker, or the HOOX mesh to chat. The agent writes source. It does not import PyneTS and it does not run the bar-loop.
+Conceptual model
 | Mode | Requirement | Behavior |
 | --- | --- | --- |
 | Standalone | AI binding (+ optional KB) | POST /v/chat → Pine; validation skipped |
 | HOOX-enhanced | + pyne-worker URL or service binding | generate → POST /run → fix retries |
-GET /health returns "mode": "standalone" | "hoox".
-Conceptual model
-``text
-NL request
-→ pyne-agent-worker (write — sister repo)
-→ .pine source
-→ PYNE Pro API / pyne-worker / AXIS engine (evaluate)
-`
-Standalone mode needs only the Workers AI binding. HOOX / pyne-worker is an optional validate loop (POST /run then fix retries). GET /health reports "mode": "standalone" | "hoox".
+GET /health reports "mode": "standalone" | "hoox".
+Taxonomy
+| Name | What it is |
+| --- | --- |
+| PYNE | Language SoT (this repo) |
+| PyneTS | TypeScript library (@hoox-sh/pynets) — parse / Runtime.run |
+| pyne-worker | Python Cloudflare evaluate host |
+| pyne-agent-worker | NL authoring host (this Worker) |
+Hard rule
+This git tree never contains TradingView built-in Pine sources. Knowledge is operator-ingested into private R + Vectorize (ingest:docs / ingest:corpus / ingest:builtins). scripts/legal-check.sh refuses tracked .pine on deploy.
 Relationship to PYNE
-PYNE remains the semantic oracle and evaluate contract.
-The agent never ships TradingView built-in sources in git.
-Knowledge (v/v docs, open corpus ≤ , operator builtin refs) is operator-ingested into private R + Vectorize.
-AXIS install
-`text
-https:///plugin/axis-pine-agent.js
-``
-AXIS docs: PYNE Agent plugin · End-user guide.
-Quick links
-GitHub README
-pyne-worker (optional validate host)
-Evaluate contract
+PYNE remains the evaluate oracle. The agent writes.
+Optional validate uses the evaluate contract against pyne-worker or the Pro API.
+AXIS install URL: https:///plugin/axis-pine-agent.js
+Pages
+Chat API
+Deploy
 See also
-Pro API usage
-PyneTS (TS library)
-pine-worker (legacy TS Worker)
+pyne-worker
+PyneTS
+Evaluate contract
+AXIS plugin
 Ecosystem
 ---
 FILE: docs/pyne/api/app-lifecycle.mdx
@@ -320,7 +426,7 @@ description: "Shared request/response evaluate contract across Flask Pro API, py
 ---
 Evaluate Contract
 Abstract
-The evaluate contract is the JSON dialect that lets AXIS, HOOX, CLI tools, and edge workers call any PYNE-compatible host interchangeably. Flask POST /run is the reference implementation; Python pyne-worker aims for the same HTTP fields. PyneTS speaks the in-process form (RuntimeResult). The legacy TypeScript Worker is documented under pine-worker.
+The evaluate contract is the JSON dialect that lets AXIS, HOOX, CLI tools, and edge workers call any PYNE-compatible host interchangeably. Flask POST /run is the reference implementation; Python pyne-worker aims for the same HTTP fields. PyneTS speaks the in-process form (RuntimeResult).
 This page freezes the semantic envelope — not transport auth headers.
 Conceptual model
 Invariant: given the same script + OHLCV + mode, hosts should agree on plot series and strategy events within known parity limits (see numerical validation and PyneTS parity). AXIS engines call Python hosts today, not PyneTS.
@@ -497,7 +603,8 @@ Failure modes
 See also
 Run endpoint
 Runtime bridge
-pine-worker
+pyne-worker
+pyne-agent-worker
 Pro API usage (end user)
 Events
 ---
@@ -979,7 +1086,7 @@ mode, autobackend?, compilefallbackreason?,
 scriptid, runid, alertforward?, … }
 `
 Free-tier evaluate (POST /run, POST /run/batch) validates bodies with hand-rolled schemas, enforces a MB body cap, bar/script/rate/concurrency guards (backend/middleware/freelimits.py), and restricts CORS. GET / and GET /health are the same unauthenticated readiness payload. Optional L webhooks POST last-bar alert() / alertcondition() firings to webhookurl or env ALERTWEBHOOKURL (see Alerts). Pro routes under /preview/ and /backtest/ use trackusage (Bearer / ApiKey / query key). Chart PNGs are matplotlib Agg renders encoded as base.
-The same evaluate contract is mirrored by edge workers (pyne-worker / pine-worker) so AXIS and HOOX can swap hosts without redesigning payloads — see contract.
+The same evaluate contract is mirrored by pyne-worker so AXIS and HOOX can swap hosts without redesigning payloads — see contract.
 Conceptual model
 Interface surface
 | Method | Path | Auth | Role |
@@ -1373,7 +1480,8 @@ See also
 Local development
 CI
 PyneTS
-pine-worker (legacy)
+pyne-worker
+pyne-agent-worker
 Roadmap
 Root AGENTS.md, CONTRIBUTING.md, CODEOF_CONDUCT.md`
 ---
@@ -2886,6 +2994,7 @@ AXIS PWA/ee CI lives in the sister axis repo — not here.
 | release.yml | Build & Release | Tag v + dispatch: wheels, CLI/LSP Nuitka binaries, CLI image tarball, VSIX, GitHub Release |
 | publish.yml | Publish | Tag v + dispatch: PyPI hoox-pyne (token or OIDC) |
 | ghcr.yml | GHCR | Tag v + dispatch: ghcr.io/hoox-sh/pyne/{api,cli,lsp} multi-arch |
+| docs-versions.yml | Docs versions | Every minutes: refresh PyPI / npm / Open VSX / GitHub release stamps. Commits only on change. No docs pageload. |
 Conceptual model
 Interface surface
 Triggers
@@ -3318,7 +3427,8 @@ See also
 Contributing
 LSP architecture
 Pro API contract
-pine-worker
+pyne-worker
+pyne-agent-worker
 ---
 FILE: docs/pyne/devops/local-dev.mdx
 Copyright (C) - jangoblockchained
@@ -6481,10 +6591,11 @@ Optional charting PWA that can call the evaluate contract and render series. Doc
 What is HOOX?
 Optional edge trading mesh (trade-worker, etc.). Docs: HOOX. Strategy events from PYNE can feed HOOX; not required for parsing/eval.
 Alerts: alert() / alertcondition() firings export on Pro API and pyne-worker /run. Optional HTTP webhooks via webhookurl or ALERTWEBHOOKURL (last-bar by default). See Alerts.
-What is PyneTS vs pine-worker vs pyne-worker?
+What is PyneTS vs pyne-worker vs pyne-agent-worker?
 PyneTS (@hoox-sh/pynets) — TypeScript / Bun library + CLI. parse / unparse / Runtime.run. Not a Worker. Python is the oracle.
 pyne-worker — Python Cloudflare Worker. Production POST /run. Vendors pynescript.runtime.
-pine-worker — legacy TypeScript Cloudflare Worker in a sister repo. It is not colocated under pynescript/pine-worker/.
+pyne-agent-worker — NL authoring (POST /v/chat). Standalone chat; optional generate → /run validate.
+The name pine-worker is a leftover TypeScript experiment (hoox-sh/pine-worker). It is not colocated here and is not a product docs target.
 See the ecosystem map and modes.
 What is the default mode?
 It depends on the surface — this is the usual footgun:
@@ -6566,7 +6677,7 @@ Terms fall into four buckets:
 . Language representation — grammar, AST, unparser
 . Execution — series, bar-loop, builtins, strategy events
 . Surfaces — CLI, library, LSP, Pro API
-. Ecosystem — AXIS, HOOX, PyneTS, pyne-worker, pine-worker
+. Ecosystem — AXIS, HOOX, PyneTS, pyne-worker, pyne-agent-worker
 Interface surface
 This page is pure reference — no commands required.
 Internals (repo paths)
@@ -6624,11 +6735,11 @@ Patterns for traversing or rewriting ASTs (visitor.py, transformer.py).
 OHLCV
 Open, high, low, close, volume — bar fields passed to Runtime / /run (plus time).
 PyneTS
-TypeScript / Bun library (@hoox-sh/pynets). Public names match Python: parse, unparse, Runtime.run. Not a Worker. See PyneTS.
-pine-worker
-Legacy TypeScript Cloudflare Worker in a sister repository. Not colocated under pynescript/pine-worker/. See pine-worker.
+TypeScript / Bun library (@hoox-sh/pynets). Public names match Python: parse, unparse, Runtime.run. Not a Worker and not pyne-worker. See PyneTS.
+pyne-agent-worker
+Sister Cloudflare Worker that turns natural language into Pine source (POST /v/chat). Standalone by default; optional validate via pyne-worker. See pyne-agent-worker.
 pyne-worker
-Python Cloudflare Worker (sister repo) embedding pynescript for edge /run. See HOOX isolate.
+Python Cloudflare Worker (sister repo) embedding pynescript for edge POST /run. See pyne-worker. HOOX mesh notes: isolate profile.
 Plot / series / plotmeta
 Evaluate outputs: plotted values, named multi-series maps, and metadata for AXIS UIs (AXIS).
 Pro API
@@ -6810,6 +6921,7 @@ SPDX-License-Identifier: AGPL-.-or-later
 title: "PYNE Documentation"
 description: "Open-source Pine Script evaluation — grammar, AST, interpret/compile runtime, alerts + webhooks, LSP, Pro API. pip install hoox-pyne · github.com/hoox-sh/pyne"
 ---
+import { PackageVersions } from "/snippets/package-versions.jsx"
 PYNE Documentation
 PYNE is the open evaluation stack for TradingView Pine Script: a formal ANTLR grammar, an ASDL algebraic AST, a deterministic bar-loop evaluator (interpret / compile / mode=auto), a Language Server Protocol surface, a Flask Pro API, and edge workers that share one evaluate contract — including alerts and optional L webhooks.
 For natural-language authoring (PYNE Agent), see the sister project pyne-agent-worker — standalone Cloudflare Workers AI agent with optional AXIS plugin; does not require pyne-worker.
@@ -6828,7 +6940,6 @@ Live on PyPI as hoox-pyne (import pynescript). Source: github.com/hoox-sh/pyne.
 `bash
 pip install "hoox-pyne[lsp]"
 pyne --version
-→ ..
 aliases: pynescript / pynescript-lsp
 `
 The same pipeline powers the desk CLI, the LSP binary, the Pro API, browser Pyodide (via AXIS), and Cloudflare workers. Round-trip fidelity (parse → unparse) and interpretcompile plot parity are first-class invariants — see compatibility and implementation status. Local open-corpus set– (--): parse .%, Runtime interpret % excl. intentional demos (set /). The repository does not ship third-party script corpora.
@@ -6860,8 +6971,8 @@ Reference
 Compatibility guarantees, missing surface, numerical validation, PyneTS, ecosystem map, roadmap.
 Sister surfaces
 PyneTS — TypeScript / Bun library. Standalone hoox-sh/pynets; PYNE consumes it only as the pynets/ submodule. See PyneTS.
-pyne-worker (separate repo) — Python Cloudflare Worker for production /run (alerts + webhooks dual-host).
-pine-worker (sister repo, not in this checkout) — legacy TypeScript Worker; see pine-worker.
+pyne-worker (sister repo) — Python Cloudflare Worker for production POST /run (alerts + cron + R).
+pyne-agent-worker (sister repo) — NL authoring host (POST /v/chat); optional validate via pyne-worker.
 AXIS — installable PWA; documented at hoox.sh/axis/docs.
 Family map — Ecosystem · modes.
 Offline & agent exports
@@ -6878,6 +6989,8 @@ Runtime modes
 Alerts & webhooks
 Grammar pipeline
 Evaluate contract
+pyne-worker
+pyne-agent-worker
 Roadmap
 ---
 FILE: docs/pyne/lsp/architecture.mdx
@@ -8065,210 +8178,179 @@ Architecture
 Nuitka build
 Editors guide
 ---
-FILE: docs/pyne/pine-worker/converter.mdx
+FILE: docs/pyne/pyne-worker/deploy.mdx
 Copyright (C) - jangoblockchained
 This file is part of pynescript.
-pynescript is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as published by
-the Free Software Foundation, either version of the License, or
-(at your option) any later version.
-pynescript is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-You should have received a copy of the GNU Affero General Public License
-along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-.-or-later
 ---
-title: "Python → TypeScript converter"
-description: "Historical stub generator in the pine-worker sister repo. PyneTS does not use it — port builtins by hand against Python."
+title: "pyne-worker deploy"
+description: "Vendor the PYNE engine, wrangler secrets, R bars, and m cron. Sister checkout only."
 ---
-Python → TypeScript converter
+pyne-worker deploy
 Abstract
-pine-worker/scripts/convert-python-to-ts.py (sister repo, not in pynescript) is a porting accelerator. It reads Python builtin modules and emits TypeScript scaffolding with TODO bodies. It is not a verified transpiler.
-PyneTS does not use this converter. New builtins are ported by reading src/pynescript/ast/evaluator/builtins/ and writing TypeScript by hand, then locking with bun test. See parity.
-Conceptual model
-Interface surface
-From the pine-worker checkout:
+Deploy from the hoox-sh/pyne-worker checkout. Wrangler packages pythonmodules/pynescript, not an editable PYNE install. After every engine bump, run ./scripts/syncvendor.sh.
+Quick start
 ``bash
-python scripts/convert-python-to-ts.py \
-path/to/pynescript/src/pynescript/ast/evaluator/builtins/numeric.py
+cd ~/Git/pyne-worker
+pip install -e ".[dev]"
+pytest -v
+./scripts/syncvendor.sh
+npx wrangler deploy
+echo "my-secret-key" | npx wrangler secret put APIKEY
 `
-The script walks the Python AST and prints a TypeScript module. Redirect to a file only if you intend to finish the bodies.
-Internals
-| Path | Role |
-| --- | --- |
-| pine-worker/scripts/convert-python-to-ts.py | Converter (sister repo) |
-| pynets/src/runtime/.ts | Current TS library handlers |
-| pynescript/.../evaluator/builtins/ | Oracle |
-Invariants & edge cases
-. Converter output is not proof of correctness.
-. Do not commit stubs that silently return / na without a test.
-. Grammar stays in PYNE .g; do not let the converter invent parser types.
-Worked examples
-PyneTS porting path (preferred):
+Deploy to Cloudflare deploys this host only.
+Dashboard prompts: APIKEY (required), optional ALERTWEBHOOKURL, INTERNALKEYBINDING. R bucket OHLCVDATA comes from wrangler.jsonc.
+If TRADESERVICE points at a missing trade-worker, delete the services block and retry.
+Vendor sync
 `bash
-. Read Python handler
-. Edit pynets/src/runtime/ta.ts (or math / request / …)
-. Wire evalCall in src/runtime/interpret.ts
-. bun test test/interpretta.test.ts
+./scripts/syncvendor.sh
+npx wrangler deploy
 `
-Failure modes
-| Symptom | Cause | Fix |
-| --- | --- | --- |
-| python pine-worker/scripts/...` in PYNE clone | Script is not here | Clone pine-worker or ignore; use PyneTS hand-port |
-| Stub compiles, plots wrong | TODO body | Implement against Python |
-See also
-pine-worker
-PyneTS parity
-Testing
----
-FILE: docs/pyne/pine-worker/index.mdx
-Copyright (C) - jango_blockchained
-This file is part of pynescript.
-pynescript is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as published by
-the Free Software Foundation, either version of the License, or
-(at your option) any later version.
-pynescript is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-You should have received a copy of the GNU Affero General Public License
-along with pynescript. If not, see .
-SPDX-License-Identifier: AGPL-.-or-later
----
-title: "pine-worker"
-description: "Legacy TypeScript Cloudflare Worker. Not PyneTS, not pyne-worker, and not colocated inside pynescript."
----
-pine-worker
-Abstract
-pine-worker is an earlier TypeScript Cloudflare Worker: its own parser/evaluator, POST /run-shaped handler, and optional trade-forward path. It lives in a sister repository (hoox-sh/pine-worker), not under pynescript/pine-worker/.
-That in-tree path does not exist. New TypeScript library work belongs in PyneTS (@hoox-sh/pynets). Production edge evaluate is pyne-worker (Python, vendors pynescript.runtime).
-Older pages on this site described pine-worker as a colocated Zod/AST skeleton. Treat those sentences as historical. The names below are the current taxonomy.
-Conceptual model
-| Name | Runtime | Role | In pynescript checkout? |
-| --- | --- | --- | --- |
-| PyneTS | Bun / Node library | parse / unparse / Runtime.run | submodule pynets/ only |
-| pyne-worker | Python Worker | Production POST /run | no (HOOX submodule / sister) |
-| pine-worker | TypeScript Worker | Legacy evaluate + events | no |
-Interface surface
-Sister repo layout (when you have /home/jango/Git/pine-worker):
-| Path | Role |
-| --- | --- |
-| src/run-handler.ts | Worker /run |
-| src/evaluator/ | Independent TS evaluator |
-| src/parser/ | Own ANTLR TS (can drift from PYNE .g) |
-| src/trade-forwarder.ts | Strategy events → HOOX |
-| scripts/convert-python-to-ts.py | Historical stub generator |
-| test/parity/ | Event fixtures vs Python |
-``bash
-cd pine-worker
-bun install
-bun test
-`
-This Worker is not published as @hoox-sh/pynets. Installing PyneTS does not deploy pine-worker.
-Internals
-Python remains the semantic oracle for PyneTS. pine-worker's evaluator is a parallel port with its own grammar copy under src/parser/grammar/. Do not treat it as the TS SoT.
-HOOX mesh submodules include pyne-worker, not pine-worker.
-Invariants & edge cases
-. Do not create pynescript/pine-worker/. Library code goes to hoox-sh/pynets.
-. Do not fork .g in pine-worker for language work; edit grammar in PYNE and regen PyneTS.
-. Python wins if you still compare pine-worker plots to PYNE.
-. Production alerts + L webhooks + libraries on /run are documented for pyne-worker / Pro API, not this Worker.
-Worked examples
-You wanted the TS library
+Skip sync and the edge still runs the last snapshot (may lag hoox-pyne ..+).
+Script + m cron
 `bash
-bun add @hoox-sh/pynets
+export WORKER=https://pyne-worker..workers.dev
+python scripts/fetchandingest.py \
+--symbol BTCUSDT --timeframe m \
+--ingest-url "$WORKER/ingest" --api-key "$APIKEY"
+curl -sS -X POST "$WORKER/scripts" \
+-H "Content-Type: application/json" -H "X-API-Key: $APIKEY" \
+-d '{"id":"btc-sma","script":"//@version=\nindicator(\"s\")\nplot(close)","symbol":"BTCUSDT","timeframe":"m","mode":"auto","enabled":true}'
+curl -sS -X POST "$WORKER/cron/run" \
+-H "Content-Type: application/json" -H "X-API-Key: $APIKEY" \
+-d '{"force":true}'
 `
-See Install PyneTS.
-You wanted edge /run
-Deploy pyne-worker and read HOOX isolate profile.
-Failure modes
-| Symptom | Cause | Fix |
-| --- | --- | --- |
-| cd pine-worker in a PYNE clone | Docs were stale | Use pynets/ or the sister repo |
-| Zod AST / Evaluator types not in PyneTS | Different codebase | ASDL names in src/ast/nodes.ts` |
-| Two TS runtimes disagree | Parallel ports | Prefer PyneTS; Python is oracle |
+Cron in wrangler.jsonc is . Each tick pulls closed klines (Bybit, Binance fallback) and evaluates only when the last closed bar advanced.
 See also
-PyneTS
-Converter (legacy)
-Testing (legacy)
-Ecosystem
 pyne-worker
-Evaluate contract
+Evaluate
+pyne-agent-worker — optional generate → /run` loop
+PyneTS
 ---
-FILE: docs/pyne/pine-worker/testing.mdx
+FILE: docs/pyne/pyne-worker/index.mdx
 Copyright (C) - jangoblockchained
 This file is part of pynescript.
 pynescript is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
 the Free Software Foundation, either version of the License, or
 (at your option) any later version.
-pynescript is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-You should have received a copy of the GNU Affero General Public License
-along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-.-or-later
 ---
-title: "pine-worker testing"
-description: "Legacy Worker bun tests and strategy event fixtures. New library tests live in @hoox-sh/pynets."
+title: "pyne-worker"
+description: "Production Python Cloudflare Worker for POST /run. Thin wrap over pynescript.runtime. Sister repo — not in this checkout."
 ---
-pine-worker testing
+pyne-worker
 Abstract
-The pine-worker sister repo has its own bun test tree (test/evaluator.test.ts, test/parity/, builtin folders). That harness is not the PyneTS test suite.
-For the TypeScript library, run tests in hoox-sh/pynets:
-``bash
-cd pynets
-bun test
-bun run typecheck
-`
-Python remains the oracle. See PyneTS parity.
+pyne-worker is the production edge evaluate host: a Python Cloudflare Worker that vendors pynescript.runtime and speaks the same evaluate contract as Flask POST /run. It is a sister repository — it does not live in this PYNE checkout.
+| | |
+| --- | --- |
+| Repo | hoox-sh/pyne-worker |
+| Role | Edge POST /run + alerts + libraries + cron |
+| Runtime | Cloudflare Workers (Python) |
+| Engine | Vendored hoox-pyne (pynescript.runtime) |
+| In this repo? | No |
+This Worker is a thin wrap. CLI, LSP, Flask Pro API, Numba desk compile, and the language SoT stay in hoox-sh/pyne.
 Conceptual model
 Interface surface
-PyneTS (use this)
-| Command | Role |
+| This Worker | Use PYNE (hoox-pyne) instead |
 | --- | --- |
-| bun test | Unit + interpret + compile |
-| bun test test/interpretta.test.ts | One file |
-| bun run typecheck | tsc --noEmit (excludes generated noise per tsconfig) |
-pine-worker (legacy checkout)
-`bash
-cd pine-worker
-bun test
-bun test test/parity.test.ts
-`
-Fixtures under test/fixtures/parity/ lock strategy event lists against Python-generated JSON. They do not replace plot-level PyneTS parity.
-Internals
-| Tree | Tests |
+| POST /run + alerts + libraries | pyne CLI, pyne-lsp, VS Code |
+| R bars, m cron, L webhooks | Flask Pro API, Docker, /run/batch |
+| Vendored engine (./scripts/syncvendor.sh) | Live package, Numba, corpus harness |
+| s / KB / K bars / MB envelope | Uncapped research on your machine |
+Taxonomy
+| Name | What it is |
 | --- | --- |
-| pynets/test/ | Library |
-| pine-worker/test/ | Worker + old evaluator |
-| pynescript/tests/ | Python SoT |
-Invariants & edge cases
-. A green pine-worker suite does not mean PyneTS matches Python.
-. na in JS is null. Truthiness bugs show up as failed lookback tests.
-. Do not add third-party Pine corpora to either TS repo.
-Worked examples
-`bash
-library
-bun test test/interpretlookback.test.ts
-bun test test/compile.test.ts
-python goldens (oracle)
-cd ../pynescript
-pytest tests/testfirstpartyta_goldens.py -q
-`
-Failure modes
-| Symptom | Cause | Fix |
-| --- | --- | --- |
-| cd pine-worker missing in PYNE | Never colocated now | Test pynets/ |
-| Parity JSON no-ops | Wrong repo / stale harness | Use PyneTS + Python Runtime.run` |
+| PYNE | Language SoT (this repo) |
+| PyneTS | TypeScript library (@hoox-sh/pynets) |
+| pyne-worker | Python Cloudflare evaluate host |
+| pyne-agent-worker | NL authoring host (optional validate via this Worker) |
+Do not create pynescript/pyne-worker/ or pynescript/pine-worker/.
+The leftover name pine-worker is a TypeScript Cloudflare experiment (hoox-sh/pine-worker). It is not this host and is not documented on this site. TypeScript library work is PyneTS.
+Relationship to PYNE
+Python Runtime remains the oracle. The Worker vendors a snapshot; it can lag about.py.
+After a PYNE release, operators re-run ./scripts/sync_vendor.sh in the Worker checkout before wrangler deploy.
+Shared JSON: evaluate contract. Alerts: Alerts.
+Quick links
+Evaluate (POST /run)
+Deploy
+GitHub README
 See also
-pine-worker
-PyneTS parity
-Python numerical validation
+pyne-agent-worker
+PyneTS
+Pro API usage
+Ecosystem
+---
+FILE: docs/pyne/pyne-worker/run.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+SPDX-License-Identifier: AGPL-.-or-later
+---
+title: "pyne-worker evaluate"
+description: "POST /run, libraries, alerts, scripts, ingest, and m cron on the Python edge host."
+---
+pyne-worker evaluate
+Abstract
+The Worker’s evaluate path is POST /run with the same envelope as Flask: script + OHLCV + mode → plots / series / events / alerts. Auth is X-API-Key (APIKEY secret). Wall timeout defaults to s.
+Sister repo: hoox-sh/pyne-worker. Contract: evaluate contract.
+Endpoints
+| Method | Path | Auth | Role |
+| --- | --- | --- | --- |
+| GET | /health | no | Liveness + binding flags |
+| POST | /run | yes | Evaluate (script or scriptid) |
+| POST | /ingest | yes | Upload OHLCV to R |
+| POST | /scripts | yes | Deploy a script |
+| GET | /scripts | yes | List deployed scripts |
+| GET | /scripts/:id | yes | Get deployed script |
+| DELETE | /scripts/:id | yes | Delete deployed script |
+| GET | /cron/jobs | yes | List bar-close jobs |
+| PUT | /cron/jobs | yes | Replace job list |
+| POST | /cron/run | yes | Trigger scheduler |
+| POST | /feed/refresh | yes | Pull klines into R |
+POST /run
+Accepts data (Pro API name) or ohlcv. Omit bars and pass symbol + timeframe to load R history.
+``json
+{
+"script": "//@version=\nindicator(\"t\")\nplot(close)",
+"ohlcv": [
+{"open": , "high": , "low": , "close": , "time": , "volume": }
+],
+"symbol": "BTCUSDT",
+"mode": "auto"
+}
+`
+| Field | Notes |
+| --- | --- |
+| script | Inline Pine |
+| scriptid | Load a deployed script instead of script |
+| ohlcv / data | Bars; or omit and use R |
+| mode | interpret (default) · compile · auto |
+| inputs | input. overrides (forces interpret under auto) |
+| libraries | [{namespace, name, version, source}] — max |
+| profiler | Per-line interpret timings |
+| timeoutseconds | Wall budget (default , cap ) |
+| webhookurl | Per-job L alert URL (else ALERTWEBHOOKURL) |
+Success includes status, plots, series, plotmeta, alerts, events, drawings, inputs, logs, meta. Failures use error / errorkind.
+Deployed scripts can store libraries and inputs. scriptid and cron reuse them.
+Alerts and trades
+alert() / alertcondition() export on /run (same engine as Pro API).
+L HTTP POST: secret ALERTWEBHOOKURL or per-job webhookurl.
+Optional TRADE_SERVICE binding forwards strategy events to trade-worker. Remove the services block if that Worker is not in the account (fails closed).
+Limits
+| Cap | Value |
+| --- | --- |
+| Script | KB |
+| Bars | K |
+| Envelope | MB |
+| /run wall | s |
+| Rate | req / s |
+See also
+pyne-worker
+Deploy
+Alerts
+Flask /run
+PyneTS — in-process RuntimeResult, not HTTP
+pyne-agent-worker — optional generate → /run` loop
 ---
 FILE: docs/pyne/pynets/cli.mdx
 Copyright (C) - jangoblockchained
@@ -8492,7 +8574,7 @@ na is null. Lookback, TA call-sites, foreign security → na.
 check / format / run / dump / info. Pipes stay JSON.
 JS bar-loop emit. mode interpret | compile | auto.
 Compare plots against Python Runtime.run on the same bars.
-PYNE · PyneTS · pyne-worker · pine-worker · AXIS · HOOX.
+PYNE · PyneTS · pyne-worker · pyne-agent-worker · AXIS · HOOX.
 Abstract
 Most TypeScript Pine ports rewrite the language. PyneTS does not. It is the library-shaped port of PYNE: the same ANTLR grammar, the same ASDL field names (kind, lineno, coloffset, …), the same interpret contract.
 ``
@@ -8536,8 +8618,8 @@ Default mode is interpret. Constructor and per-call extra accept mode: "interpre
 What this is not
 | Confused with | Reality |
 | --- | --- |
-| pyne-worker | Python Cloudflare Worker. Vendors pynescript.runtime. POST /run. |
-| pine-worker | Earlier TypeScript Cloudflare Worker (sister repo). Historical evaluate + trade-forward experiment. See pine-worker. |
+| pyne-worker | Python Cloudflare Worker. Vendors pynescript.runtime. POST /run. See pyne-worker. |
+| pyne-agent-worker | NL authoring host. Not an evaluate library. See agent. |
 | Python pyne run | Compile-only smoke on synthetic bars. PyneTS pynets run calls Runtime.run. |
 | Numba | Python compile backend. PyneTS compile is JS emit (object-mode analog). |
 | AXIS engine | AXIS does not load this package. |
@@ -8604,7 +8686,8 @@ Parity
 Evaluate scripts (Python)
 Modes matrix
 Ecosystem
-pine-worker (legacy TS Worker)
+pyne-worker
+pyne-agent-worker
 ---
 FILE: docs/pyne/pynets/install.mdx
 Copyright (C) - jangoblockchained
@@ -8781,7 +8864,7 @@ Internals
 | test/helpers/firstparty.ts | First-party fixtures (live in PYNE) |
 | PYNE src/pynescript/ast/evaluator/builtins/ | Handler SoT |
 | PYNE tests/testfirstpartytagoldens.py | Python goldens |
-Do not treat historical pine-worker/test/parity/ JSON as the PyneTS harness. That tree belongs to the legacy TS Worker sister repo.
+Do not treat historical pine-worker/test/parity/ JSON as the PyneTS harness. That tree lives in the leftover TypeScript Worker sister (hoox-sh/pine-worker), not here.
 This PYNE pynets/ pin (v..) includes interpret tests and compile-vs-interpret cases (test/compile.test.ts). Python Runtime remains the oracle.
 Invariants & edge cases
 . Python wins ties. If TS and Python disagree, fix TS (unless Python is proven wrong — then fix both + tests).
@@ -9080,8 +9163,8 @@ Grouped map
 | Python Runtime | Working | Language oracle |
 | PyneTS @hoox-sh/pynets .. | Partial | Interpret + JS compile on npm; Python Runtime is the oracle |
 | pynets/ submodule in this repo | Partial | Pin v.. — same surface as npm (interpret + JS compile) |
-| pyne-worker | Working | Thin Python CF host; vendors engine (may lag ..) |
-| pine-worker | Partial | Legacy TS Worker; not in this checkout |
+| pyne-worker | Working | Thin Python CF host; vendors engine (may lag ..). Docs: pyne-worker |
+| pyne-agent-worker | Working | NL authoring; optional /run validate. Docs: agent |
 Residual and out of scope (compact)
 | Item | Class |
 | --- | --- |
@@ -9165,23 +9248,24 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-.-or-later
 ---
 title: "Ecosystem"
-description: "PYNE, PyneTS, pyne-worker, pine-worker, pyne-agent-worker, AXIS, and HOOX — what each one is and is not."
+description: "PYNE, PyneTS, pyne-worker, pyne-agent-worker, AXIS, and HOOX — what each one is and is not."
 ---
+import { PackageVersions } from "/snippets/package-versions.jsx"
 Ecosystem
 Abstract
-The HOOX family splits language, chart, and execution. Mixing the names is the most common docs failure: pine-worker is not pynets, and AXIS does not place HOOX orders.
+The HOOX family splits language, chart, and execution. Mixing the names is the most common docs failure: pyne-worker is not pynets, and AXIS does not place HOOX orders.
 | Product | Role | Docs |
 | --- | --- | --- |
 | PYNE (hoox-pyne, import pynescript) | Python language SoT: parse, LSP, Pro API, Runtime.run | this site |
 | PyneTS (@hoox-sh/pynets) | TypeScript / Bun library + CLI | PyneTS |
-| pyne-worker | Python Cloudflare isolate — POST /run | HOOX pyne-worker |
-| pine-worker | Legacy TypeScript Cloudflare Worker | pine-worker |
-| pyne-agent-worker | NL → Pine (Workers AI) | agent |
+| pyne-worker | Python Cloudflare isolate — POST /run | pyne-worker · HOOX isolate |
+| pyne-agent-worker | NL → Pine (Workers AI) | agent · AXIS plugin |
 | AXIS | Charting PWA (engines call Python) | AXIS |
 | HOOX | Edge trade mesh | HOOX |
 Conceptual model
 Invariant: evaluation never requires a proprietary chart host. AXIS is an optional chart. HOOX is an optional execution mesh. PyneTS is an optional TypeScript import.
 Interface surface
+Published versions (static; a -minute cron rewrites the table when a registry moves):
 Checkouts (this repo vs sisters)
 | Checkout | What you open |
 | --- | --- |
@@ -9189,7 +9273,6 @@ Checkouts (this repo vs sisters)
 | hoox-sh/pynets | Standalone @hoox-sh/pynets .. (JS compile + stream) |
 | pynets/ submodule in this repo | Pin v.. — interpret + JS compile (same surface as npm) |
 | hoox-sh/pyne-worker | Python edge /run |
-| hoox-sh/pine-worker | Legacy TS Worker (not in this tree) |
 | hoox-sh/pyne-agent-worker | NL authoring (not in this tree) |
 | hoox-sh/axis | AXIS PWA |
 | hoox-sh/hoox | Mesh monorepo |
@@ -9210,6 +9293,7 @@ Invariants & edge cases
 . Alerts ≠ orders. alert() webhooks are not StrategyEvent forwards unless you point them at the HOOX gateway yourself.
 . Do not pip install pyne or pip install pynescript for this project. Dist name is hoox-pyne.
 . Do not treat the submodule package name as the published npm name. This checkout pins v..; npm is @hoox-sh/pynets ... Python Runtime remains the oracle.
+. pine-worker is a leftover TypeScript Cloudflare experiment (hoox-sh/pine-worker). It is not a product evaluate host and has no pages on this site.
 Worked examples
 Pick a surface
 | You want | Use |
@@ -9223,13 +9307,15 @@ Pick a surface
 Failure modes
 | Mix-up | What goes wrong |
 | --- | --- |
-| Opening pine-worker/ inside PYNE | Directory does not exist — use @hoox-sh/pynets or the sister repo |
+| Opening pyne-worker/ or pine-worker/ inside PYNE | Directories do not exist — clone the sister repos; TS library work is @hoox-sh/pynets |
 | Expecting AXIS to flatten a position | No trade-worker hop |
 | Pointing AXIS at pynets as an engine | No such engine. Use Flask / Pyodide / Worker proxy |
 | pyne run vs Runtime.run vs pynets run | Different defaults — see modes |
 See also
 PYNE index
 PyneTS
+pyne-worker
+pyne-agent-worker
 Modes
 Evaluate contract
 AXIS
@@ -9283,7 +9369,8 @@ Component rollup
 | Data providers | Mock, Yahoo, AlphaVantage, CCXT + datafeed wiring |
 | LSP | Diagnostics, completion, hover, format, symbols, defs/refs, … |
 | PyneTS | @hoox-sh/pynets .. (npm + this repo’s pynets/ pin v..) — interpret + JS compile. Python Runtime remains the oracle — see PyneTS |
-| pine-worker | Legacy TS Cloudflare Worker (sister repo; not in this checkout) |
+| pyne-worker | Python Cloudflare evaluate host (sister repo) — docs |
+| pyne-agent-worker | NL authoring host (sister repo) — docs |
 | Numba compile path | MVP + object-mode fallback |
 | Incremental ta. | Default on (PYNETAINCREMENTAL); .. volume obv/wad/cmf/klinger; .. nvi/pvi |
 | Interpret bar-loop | .. dispatch inlining + unused derived-series skip |
@@ -9744,7 +9831,7 @@ Status snapshot
 | Runtime.run(..., libraries=) / POST /run libraries | ..+ — AXIS import ns/Name/ver; export finalize in ..; auto fallback keeps libs |
 | pyne-worker .. | edge /run libraries + plotmeta/logs; engine vendor .. |
 | PyneTS (@hoox-sh/pynets) | standalone TS library .. — interpret + JS compile; Python remains oracle |
-| pine-worker | ️ legacy TS Cloudflare Worker (sister repo; not in this checkout) |
+| pyne-agent-worker | sister NL authoring host (POST /v/chat) |
 | Full TV platform identity | ️ out of scope |
 Completed themes (do not re-plan as greenfield)
 Error message / typing hygiene
@@ -9752,7 +9839,7 @@ Error message / typing hygiene
 pynescript lint
 Yahoo / AlphaVantage / CCXT + realtime datafeed wiring
 StrategyEvent emission + parity fixtures
-pine-worker extra tool extracted to sister hoox-sh/pine-worker (not colocated; ..)
+Colocated TS extra tool extracted (..). Product TypeScript library is PyneTS.
 Alert engine + dual-host export + L webhooks
 Round : series caps, incremental TA (bb/kama/cmo/stochrsi), parse cache, warm compile, pending-fill, drawing GC
 Round / ..: interpret dispatch inlining, unused derived OHLCV skip, incremental obv/wad/cmf/klinger
@@ -9769,7 +9856,7 @@ Open backlog (IDs stable)
 | F | Pending-fill averaging when pyramiding ≤ | P | |
 | L | vv converter maturity | P | open |
 | L | Webhook alerts productization | P | Pro + pyne-worker |
-| L | pine-worker (TS) full builtin parity | P | open |
+| L | Legacy TS Worker builtin parity | P | sister hoox-sh/pine-worker only — not a product-docs target; new TS work is PyneTS |
 | B | Real (non-mock) request. market data | — | ️ by design; foreign-na policy landed |
 Longer horizon (not next): ML wrappers, automatic refactor, parallel/distributed eval experiments.
 Priority recommendation
@@ -9777,7 +9864,7 @@ Priority recommendation
 | --- | --- |
 | Short | Pp corpus MISMATCH tail; H worker extras (logs/profile) |
 | Medium | Further nested incremental TA where profiled |
-| Long | L converter maturity; L TS pine-worker parity (L ) |
+| Long | L converter maturity; TypeScript library work is PyneTS (L ) |
 Landed residual notes (-)
 Plot parity: Always-on smoke in tests/testinterpcompileparity.py. Full corpus compare: python scripts/compareinterpcompile.py → .cache/interpcompileparity.json. Flags --ignore-hline-keys / --ignore-fill-keys drop structural residuals.
 Corpus residual (C): set– parse .% (/); Runtime interpret % excl. EXPECTEDFAIL ( OK + intentional demos); set /. Third-party corpora are not shipped in git.
@@ -9790,11 +9877,12 @@ Internals
 | docs/COMPILERPLAN.md | Compile/numba plan |
 | scripts/compareinterpcompile.py | Plot parity harness |
 | .opencode/plans/ | Engineering plans (strategy events, consolidation) |
-| sister hoox-sh/pine-worker | Legacy TS Cloudflare Worker (not in this checkout) |
+| sister hoox-sh/pyne-worker | Python edge evaluate host — docs |
+| sister hoox-sh/pyne-agent-worker | NL authoring host — docs |
 | pynets/ submodule | TS library pin v.. (interpret + JS compile); Python remains oracle |
 Invariants & edge cases
 . Roadmap dates lag code — always diff against missingfeatures.md and tests.
-. Sister repos (pyne-worker, hoox-setup, pine-worker packaging) may absorb “integration” items.
+. Sister repos (pyne-worker, pyne-agent-worker) may absorb “integration” items.
 . AXIS is a separate product tree (docs/axis) — chart UX roadmap is not PYNE-core.
 . Avoid reintroducing deleted backups (builder.py.bak, etc.) as “plan items.”
 . Do not re-open H / H / T / T / F / F / L / C as greenfield — they are marked (H residual = worker extras only; Pp is corpus tail) in docs/ROADMAP.md (--).
@@ -9809,12 +9897,12 @@ Plot parity smoke
 pytest tests/testinterpcompileparity.py -q
 python scripts/compareinterp_compile.py opt-in full compare
 `
-pine-worker maturity gate (sister checkout)
+TypeScript library gate (PyneTS)
 `bash
-not present in this repo — clone hoox-sh/pine-worker
-cd ../pine-worker && bun test && bun run typecheck
-`
-Prefer PyneTS (bun test in hoox-sh/pynets`) for new TypeScript library work.
+standalone checkout — not present as pine-worker/ in this repo
+cd ../pynets && bun test && bun run typecheck
+``
+See PyneTS.
 Failure modes
 | Anti-pattern | Why it hurts |
 | --- | --- |
@@ -9826,7 +9914,8 @@ Missing features
 Implementation status
 Interpret compile parity
 Alerts
-pine-worker
+pyne-worker
+pyne-agent-worker
 Contributing
 ---
 FILE: docs/pyne/runtime/alerts.mdx
@@ -10506,7 +10595,7 @@ description: "Orders, fills, OCA, commission, risk gates, position metrics, and 
 ---
 Strategy builtins
 Abstract
-PYNE’s strategy layer is a per-run broker simulation driven by strategy. calls during the bar loop. It is not a live exchange adapter: orders become fills against bar OHLC (market immediately; limit/stop via pending book), commissions and slippage adjust PnL, and risk helpers can block entries. Structured StrategyEvent records form the parity contract with pine-worker and the HOOX trade mesh.
+PYNE’s strategy layer is a per-run broker simulation driven by strategy. calls during the bar loop. It is not a live exchange adapter: orders become fills against bar OHLC (market immediately; limit/stop via pending book), commissions and slippage adjust PnL, and risk helpers can block entries. Structured StrategyEvent records form the parity contract with pyne-worker and the HOOX trade mesh.
 Conceptual model
 Fill-before-script matches the interpreter Runtime and the compile-path strategy broker.
 Interface surface
@@ -10613,7 +10702,7 @@ Qualifier hierarchy on TV: const or missing close |
 See also
 Events
 Strategy broker (compile)
-Parity / pine-worker
+pyne-worker
 Pro API backtest
 ---
 FILE: docs/pyne/runtime/builtins/technical.mdx
@@ -11138,7 +11227,7 @@ Numba path
 Series & history
 Runtime hub
 Numerical validation
-pine-worker — cross-language event fixtures
+PyneTS parity — TypeScript vs Python plots
 ---
 FILE: docs/pyne/runtime/compiler/strategy-broker.mdx
 Copyright (C) - jangoblockchained
@@ -11365,7 +11454,7 @@ See also
 Strategy builtins
 Strategy broker
 PyneTS
-pine-worker (legacy)
+pyne-worker
 HOOX live trading
 HOOX docs
 ---
@@ -11612,7 +11701,7 @@ Pro API runtime bridge
 Interpret compile parity — scripts/compareinterp_compile.py`
 Numerical validation
 Roadmap — H/H/T/T/F/F/L landed; Pp corpus tail remains
-pine-worker parity
+pyne-worker
 AXIS docs — optional AXIS for series/drawings
 ---
 FILE: docs/pyne/runtime/libraries.mdx

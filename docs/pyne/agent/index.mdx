@@ -6,68 +6,71 @@
 
 ---
 title: "pyne-agent-worker"
-description: "Natural-language PYNE Agent on Cloudflare® Workers AI™ — standalone or with optional pyne-worker validation; AXIS plugin."
+description: "Natural-language PYNE Agent on Cloudflare Workers AI. Standalone chat, optional pyne-worker validate loop, AXIS plugin. Sister repo."
 ---
 
 # pyne-agent-worker
 
 ## Abstract
 
-**pyne-agent-worker** is the edge **authoring** host: natural language in, script source out. It is a **sister repository** — it does **not** live in this PYNE checkout. Do not look for `pyne-agent-worker/` here.
+**pyne-agent-worker** is the edge **authoring** host: natural language in, Pine source out. It is a **sister repository** — it does **not** live in this PYNE checkout.
 
 | | |
-|--|--|
+| --- | --- |
 | **Repo** | [hoox-sh/pyne-agent-worker](https://github.com/hoox-sh/pyne-agent-worker) |
 | **Role** | Write scripts via chat (PYNE Agent) + optional RAG |
-| **Runtime** | Cloudflare Workers + Workers AI + optional Vectorize / R2 |
-| **AXIS** | Component plugin at `/plugin/axis-pine-agent.js` |
+| **Runtime** | Cloudflare Workers (TypeScript) + Workers AI |
+| **AXIS** | `GET /plugin/axis-pine-agent.js` |
 | **In this repo?** | **No** |
 
-## Standalone by default
+You do **not** need [pyne-worker](/pyne/docs/pyne-worker), trade-worker, or the HOOX mesh to chat. The agent **writes** source. It does not import [PyneTS](/pyne/docs/pynets) and it does not run the bar-loop.
 
-You do **not** need pyne-worker, trade-worker, or the HOOX mesh to use the agent.
+## Conceptual model
+
+```mermaid
+flowchart TB
+  USER[AXIS / HTTP / chat UI] -->|NL| AG[pyne-agent-worker]
+  AG -->|Workers AI| SRC[".pine source"]
+  AG -.->|optional RAG| KB[Vectorize + R2]
+  SRC -.->|optional POST /run| PYW[pyne-worker]
+  PYW -->|errors| AG
+```
 
 | Mode | Requirement | Behavior |
 | --- | --- | --- |
 | **Standalone** | AI binding (+ optional KB) | `POST /v1/chat` → Pine; validation skipped |
 | **HOOX-enhanced** | + pyne-worker URL or service binding | generate → `POST /run` → fix retries |
 
-`GET /health` returns `"mode": "standalone" | "hoox"`.
+`GET /health` reports `"mode": "standalone" | "hoox"`.
 
-## Conceptual model
+### Taxonomy
 
-```text
-NL request
-   → pyne-agent-worker   (write — sister repo)
-   → .pine source
-   → PYNE Pro API / pyne-worker / AXIS engine   (evaluate)
-```
+| Name | What it is |
+| --- | --- |
+| **PYNE** | Language SoT (this repo) |
+| **[PyneTS](/pyne/docs/pynets)** | TypeScript **library** (`@hoox-sh/pynets`) — `parse` / `Runtime.run` |
+| **[pyne-worker](/pyne/docs/pyne-worker)** | Python Cloudflare **evaluate** host |
+| **pyne-agent-worker** | NL **authoring** host (this Worker) |
 
-Standalone mode needs only the Workers AI binding. HOOX / pyne-worker is an optional validate loop (`POST /run` then fix retries). `GET /health` reports `"mode": "standalone" | "hoox"`.
+## Hard rule
+
+This git tree **never** contains TradingView built-in Pine sources. Knowledge is operator-ingested into private R2 + Vectorize (`ingest:docs` / `ingest:corpus` / `ingest:builtins`). `scripts/legal-check.sh` refuses tracked `*.pine` on deploy.
 
 ## Relationship to PYNE
 
-- **PYNE** remains the semantic oracle and evaluate contract.
-- The agent never ships TradingView® built-in sources in git.
-- Knowledge (v5/v6 docs, open corpus ≤ 1000, operator builtin refs) is operator-ingested into private R2 + Vectorize™.
+- PYNE remains the **evaluate** oracle. The agent **writes**.
+- Optional validate uses the [evaluate contract](/pyne/docs/api/contract) against pyne-worker or the Pro API.
+- AXIS install URL: `https://<pyne-agent-worker>/plugin/axis-pine-agent.js`
 
-## AXIS install
+## Pages
 
-```text
-https://<pyne-agent-worker>/plugin/axis-pine-agent.js
-```
-
-AXIS docs: [PYNE Agent plugin](https://hoox.sh/axis/docs/plugins/pyne-agent) · [End-user guide](https://hoox.sh/axis/docs/enduser/guides/pyne-agent).
-
-## Quick links
-
-- [GitHub README](https://github.com/hoox-sh/pyne-agent-worker)
-- [pyne-worker](https://github.com/hoox-sh/pyne-worker) (optional validate host)
-- [Evaluate contract](/pyne/docs/api/contract)
+- [Chat API](/pyne/docs/agent/chat)
+- [Deploy](/pyne/docs/agent/deploy)
 
 ## See also
 
-- [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage)
-- [PyneTS (TS library)](/pyne/docs/pynets)
-- [pine-worker (legacy TS Worker)](/pyne/docs/pine-worker)
+- [pyne-worker](/pyne/docs/pyne-worker)
+- [PyneTS](/pyne/docs/pynets)
+- [Evaluate contract](/pyne/docs/api/contract)
+- [AXIS plugin](https://hoox.sh/axis/docs/plugins/pyne-agent)
 - [Ecosystem](/pyne/docs/reference/ecosystem)

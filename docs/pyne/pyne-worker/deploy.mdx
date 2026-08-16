@@ -1,0 +1,69 @@
+# Copyright (C) 2024-2026 jango_blockchained
+#
+# This file is part of pynescript.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+---
+title: "pyne-worker deploy"
+description: "Vendor the PYNE engine, wrangler secrets, R2 bars, and 1m cron. Sister checkout only."
+---
+
+# pyne-worker deploy
+
+## Abstract
+
+Deploy from the **[hoox-sh/pyne-worker](https://github.com/hoox-sh/pyne-worker)** checkout. Wrangler packages `python_modules/pynescript`, **not** an editable PYNE install. After every engine bump, run `./scripts/sync_vendor.sh`.
+
+## Quick start
+
+```bash
+cd ~/Git/pyne-worker
+pip install -e ".[dev]"
+pytest -v
+./scripts/sync_vendor.sh
+npx wrangler deploy
+echo "my-secret-key" | npx wrangler secret put API_KEY
+```
+
+[Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/hoox-sh/pyne-worker) deploys **this host only**.
+
+Dashboard prompts: `API_KEY` (required), optional `ALERT_WEBHOOK_URL`, `INTERNAL_KEY_BINDING`. R2 bucket `OHLCV_DATA` comes from `wrangler.jsonc`.
+
+If `TRADE_SERVICE` points at a missing `trade-worker`, **delete the `services` block** and retry.
+
+## Vendor sync
+
+```bash
+./scripts/sync_vendor.sh
+npx wrangler deploy
+```
+
+Skip sync and the edge still runs the last snapshot (may lag `hoox-pyne` 0.3.11+).
+
+## Script + 1m cron
+
+```bash
+export WORKER=https://pyne-worker.<you>.workers.dev
+
+python scripts/fetch_and_ingest.py \
+  --symbol BTCUSDT --timeframe 1m \
+  --ingest-url "$WORKER/ingest" --api-key "$API_KEY"
+
+curl -sS -X POST "$WORKER/scripts" \
+  -H "Content-Type: application/json" -H "X-API-Key: $API_KEY" \
+  -d '{"id":"btc-sma","script":"//@version=5\nindicator(\"s\")\nplot(close)","symbol":"BTCUSDT","timeframe":"1m","mode":"auto","enabled":true}'
+
+curl -sS -X POST "$WORKER/cron/run" \
+  -H "Content-Type: application/json" -H "X-API-Key: $API_KEY" \
+  -d '{"force":true}'
+```
+
+Cron in `wrangler.jsonc` is `* * * * *`. Each tick pulls **closed** klines (Bybit, Binance fallback) and evaluates only when the last closed bar advanced.
+
+## See also
+
+- [pyne-worker](/pyne/docs/pyne-worker)
+- [Evaluate](/pyne/docs/pyne-worker/run)
+- [pyne-agent-worker](/pyne/docs/agent) — optional generate → `/run` loop
+- [PyneTS](/pyne/docs/pynets)

@@ -26,7 +26,7 @@ description: "Orders, fills, OCA, commission, risk gates, position metrics, and 
 
 ## Abstract
 
-PYNE’s strategy layer is a **per-run broker simulation** driven by `strategy.*` calls during the bar loop. It is not a live exchange adapter: orders become fills against bar OHLC (market immediately; limit/stop via pending book), commissions and slippage adjust PnL, and risk helpers can block entries. Structured [StrategyEvent](/pyne/docs/runtime/events) records form the parity contract with `pine-worker` and the HOOX trade mesh.
+PYNE’s strategy layer is a **per-run broker simulation** driven by `strategy.*` calls during the bar loop. It is not a live exchange adapter: orders become fills against bar OHLC (market immediately; limit/stop via pending book), commissions and slippage adjust PnL, and risk helpers can block entries. Structured [StrategyEvent](/pyne/docs/runtime/events) records form the parity contract with [pyne-worker](/pyne/docs/pyne-worker) and the HOOX trade mesh.
 
 ## Conceptual model
 
@@ -276,5 +276,5 @@ First fill cancels the sibling.
 
 - [Events](/pyne/docs/runtime/events)
 - [Strategy broker (compile)](/pyne/docs/runtime/compiler/strategy-broker)
-- [Parity / pine-worker](/pyne/docs/pine-worker)
+- [pyne-worker](/pyne/docs/pyne-worker)
 - [Pro API backtest](/pyne/docs/api/endpoints/backtest)

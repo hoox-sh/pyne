@@ -49,7 +49,7 @@ This PYNE checkout pins the `pynets/` submodule at annotated **v0.2.0** (`@hoox-
     Compare plots against Python Runtime.run on the same bars.
   </Card>
   <Card title="Ecosystem" icon="mesh" href="/pyne/docs/reference/ecosystem">
-    PYNE · PyneTS · pyne-worker · pine-worker · AXIS · HOOX.
+    PYNE · PyneTS · pyne-worker · pyne-agent-worker · AXIS · HOOX.
   </Card>
 </CardGroup>
 
@@ -125,8 +125,8 @@ Default `mode` is **`interpret`**. Constructor and per-call `extra` accept `mode
 
 | Confused with | Reality |
 | --- | --- |
-| **pyne-worker** | Python Cloudflare Worker. Vendors `pynescript.runtime`. `POST /run`. |
-| **pine-worker** | Earlier TypeScript Cloudflare Worker (sister repo). Historical evaluate + trade-forward experiment. See [pine-worker](/pyne/docs/pine-worker). |
+| **pyne-worker** | Python Cloudflare Worker. Vendors `pynescript.runtime`. `POST /run`. See [pyne-worker](/pyne/docs/pyne-worker). |
+| **pyne-agent-worker** | NL authoring host. Not an evaluate library. See [agent](/pyne/docs/agent). |
 | **Python `pyne run`** | Compile-only smoke on synthetic bars. PyneTS `pynets run` calls `Runtime.run`. |
 | **Numba** | Python compile backend. PyneTS compile is **JS emit** (object-mode analog). |
 | **AXIS engine** | AXIS does not load this package. |
@@ -215,4 +215,5 @@ Bun imports TypeScript source (`package.json` `"bun": "./src/index.ts"`). Node a
 - [Evaluate scripts (Python)](/pyne/docs/enduser/guides/evaluate-scripts)
 - [Modes matrix](/pyne/docs/enduser/reference/modes)
 - [Ecosystem](/pyne/docs/reference/ecosystem)
-- [pine-worker (legacy TS Worker)](/pyne/docs/pine-worker)
+- [pyne-worker](/pyne/docs/pyne-worker)
+- [pyne-agent-worker](/pyne/docs/agent)

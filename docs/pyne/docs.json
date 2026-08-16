@@ -216,21 +216,28 @@
             ]
           },
           {
-            "group": "pine-worker (legacy)",
+            "group": "pyne-worker",
             "pages": [
-              "pine-worker/index",
-              "pine-worker/converter",
-              "pine-worker/testing"
+              "pyne-worker/index",
+              "pyne-worker/run",
+              "pyne-worker/deploy"
             ]
           },
           {
-            "group": "Agent (write)",
+            "group": "pyne-agent-worker",
             "pages": [
-              "agent/index"
+              "agent/index",
+              "agent/chat",
+              "agent/deploy"
             ]
           }
         ]
       }
     ]
-  }
+  },
+  "redirects": [
+    { "source": "/pine-worker", "destination": "/pyne-worker" },
+    { "source": "/pine-worker/converter", "destination": "/pyne-worker" },
+    { "source": "/pine-worker/testing", "destination": "/pyne-worker" }
+  ]
 }

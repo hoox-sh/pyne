@@ -167,11 +167,13 @@ Optional edge trading mesh (trade-worker, etc.). Docs: [HOOX](/docs). Strategy e
 
 **Alerts:** `alert()` / `alertcondition()` firings export on Pro API and pyne-worker `/run`. Optional HTTP webhooks via `webhook_url` or `ALERT_WEBHOOK_URL` (last-bar by default). See [Alerts](/pyne/docs/runtime/alerts).
 
-### What is PyneTS vs pine-worker vs pyne-worker?
+### What is PyneTS vs pyne-worker vs pyne-agent-worker?
 
 - **[PyneTS](/pyne/docs/pynets)** (`@hoox-sh/pynets`) — TypeScript / Bun **library + CLI**. `parse` / `unparse` / `Runtime.run`. Not a Worker. Python is the oracle.
-- **[pyne-worker](/docs/devops/workers/pyne-worker)** — Python Cloudflare Worker. Production `POST /run`. Vendors `pynescript.runtime`.
-- **[pine-worker](/pyne/docs/pine-worker)** — legacy TypeScript Cloudflare Worker in a **sister repo**. It is **not** colocated under `pynescript/pine-worker/`.
+- **[pyne-worker](/pyne/docs/pyne-worker)** — Python Cloudflare Worker. Production `POST /run`. Vendors `pynescript.runtime`.
+- **[pyne-agent-worker](/pyne/docs/agent)** — NL authoring (`POST /v1/chat`). Standalone chat; optional generate → `/run` validate.
+
+The name **pine-worker** is a leftover TypeScript experiment ([hoox-sh/pine-worker](https://github.com/hoox-sh/pine-worker)). It is not colocated here and is not a product docs target.
 
 See the [ecosystem map](/pyne/docs/reference/ecosystem) and [modes](/pyne/docs/enduser/reference/modes).
 

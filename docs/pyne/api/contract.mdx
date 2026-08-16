@@ -26,7 +26,7 @@ description: "Shared request/response evaluate contract across Flask Pro API, py
 
 ## Abstract
 
-The **evaluate contract** is the JSON dialect that lets AXIS, HOOX, CLI tools, and edge workers call *any* PYNE-compatible host interchangeably. Flask `POST /run` is the reference implementation; Python **pyne-worker** aims for the same HTTP fields. **[PyneTS](/pyne/docs/pynets)** speaks the in-process form (`RuntimeResult`). The legacy TypeScript Worker is documented under [pine-worker](/pyne/docs/pine-worker).
+The **evaluate contract** is the JSON dialect that lets AXIS, HOOX, CLI tools, and edge workers call *any* PYNE-compatible host interchangeably. Flask `POST /run` is the reference implementation; Python **[pyne-worker](/pyne/docs/pyne-worker)** aims for the same HTTP fields. **[PyneTS](/pyne/docs/pynets)** speaks the in-process form (`RuntimeResult`).
 
 This page freezes the semantic envelope — not transport auth headers.
 
@@ -282,6 +282,7 @@ POST that body to Flask `/run` or the worker’s evaluate route; branch on `stat
 
 - [Run endpoint](/pyne/docs/api/endpoints/run)
 - [Runtime bridge](/pyne/docs/api/runtime-bridge)
-- [pine-worker](/pyne/docs/pine-worker)
+- [pyne-worker](/pyne/docs/pyne-worker)
+- [pyne-agent-worker](/pyne/docs/agent)
 - [Pro API usage (end user)](/pyne/docs/enduser/guides/pro-api-usage)
 - [Events](/pyne/docs/runtime/events)

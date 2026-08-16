@@ -324,9 +324,8 @@ This repository plus satellites that share the evaluate contract. Python `pynesc
 | **[pyne-lsp](https://hoox.sh/pyne/docs/lsp)** | Language server (`pyne-lsp` / `pynescript-lsp`) — extras `[lsp]`, Nuitka binaries, Docker `ghcr.io/hoox-sh/pyne/lsp`. | [hoox-sh/pyne](https://github.com/hoox-sh/pyne) · [docs](https://hoox.sh/pyne/docs/lsp) · [GHCR](https://github.com/hoox-sh/pyne/pkgs/container/pyne%2Flsp) |
 | **[pyne-vscode](./vscode-extension/)** | VS Code / Open VSX extension (`hoox-sh.pyne`). Package `pyne-vscode-*.vsix` on Releases. Needs `hoox-pyne[lsp]` or a `pyne-lsp` binary. | [vscode-extension/](./vscode-extension/) · [Marketplace](https://marketplace.visualstudio.com/items?itemName=hoox-sh.pyne) |
 | **[PyneTS](https://github.com/hoox-sh/pynets)** | TypeScript / Bun library (`@hoox/pynets`) — parse, unparse, interpret. Same public names as Python. Submodule `pynets/`. | [hoox-sh/pynets](https://github.com/hoox-sh/pynets) |
-| **[pyne-worker](https://github.com/hoox-sh/pyne-worker)** | Python Cloudflare® Worker — edge `POST /run`, cron, R2, alerts. Thin host over package Runtime. | [hoox-sh/pyne-worker](https://github.com/hoox-sh/pyne-worker) |
-| **[pine-worker](https://github.com/hoox-sh/pine-worker)** | TypeScript Cloudflare® Worker — earlier edge evaluator; emits trade events toward HOOX. | [hoox-sh/pine-worker](https://github.com/hoox-sh/pine-worker) |
-| **[pyne-agent-worker](https://github.com/hoox-sh/pyne-agent-worker)** | Workers AI Pine Script agent (RAG + pyne-worker validate loop). AXIS sister plugin. | [hoox-sh/pyne-agent-worker](https://github.com/hoox-sh/pyne-agent-worker) |
+| **[pyne-worker](https://github.com/hoox-sh/pyne-worker)** | Python Cloudflare® Worker — edge `POST /run`, cron, R2, alerts. Thin host over package Runtime. | [hoox-sh/pyne-worker](https://github.com/hoox-sh/pyne-worker) · [docs](https://hoox.sh/pyne/docs/pyne-worker) |
+| **[pyne-agent-worker](https://github.com/hoox-sh/pyne-agent-worker)** | Workers AI PYNE Agent (RAG + optional pyne-worker validate). AXIS plugin. | [hoox-sh/pyne-agent-worker](https://github.com/hoox-sh/pyne-agent-worker) · [docs](https://hoox.sh/pyne/docs/agent) |
 | **[AXIS](https://github.com/hoox-sh/axis)** | Charting PWA (Solid + Vite). Calls Pro API or edge `/run`; ships the VPS static `frontend/dist`. | [hoox-sh/axis](https://github.com/hoox-sh/axis) |
 | **[HOOX](https://github.com/hoox-sh/hoox)** | Edge trading mesh. Optional sink for strategy events and alert webhooks. | [hoox-sh/hoox](https://github.com/hoox-sh/hoox) |
 
@@ -335,8 +334,9 @@ HOOX also publishes execution-plane workers (`hoox-worker`, `trade-worker`, `tel
 ```bash
 git clone --recurse-submodules https://github.com/hoox-sh/pyne.git   # PYNE + pynets/ submodule (pyne-lsp is in-tree)
 pip install -e ".[lsp,pro]"                                          # CLI + LSP + Pro API
-git clone https://github.com/hoox-sh/pynets.git
-git clone https://github.com/hoox-sh/pyne-worker.git
+git clone https://github.com/hoox-sh/pynets.git                      # TypeScript library
+git clone https://github.com/hoox-sh/pyne-worker.git                 # edge POST /run
+git clone https://github.com/hoox-sh/pyne-agent-worker.git           # NL authoring
 git clone https://github.com/hoox-sh/axis.git
 ```
 

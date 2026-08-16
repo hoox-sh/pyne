@@ -36,7 +36,7 @@ docs/
   pyne/
     docs.json         # navigation + SEO metadata
     index.mdx         # product hub
-    enduser/ core/ runtime/ lsp/ api/ devops/ reference/ pine-worker/
+    enduser/ core/ runtime/ lsp/ api/ devops/ reference/ pynets/ pyne-worker/ agent/
   axis/
     docs.json
     index.mdx

@@ -1,0 +1,90 @@
+# Copyright (C) 2024-2026 jango_blockchained
+#
+# This file is part of pynescript.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+---
+title: "pyne-worker evaluate"
+description: "POST /run, libraries, alerts, scripts, ingest, and 1m cron on the Python edge host."
+---
+
+# pyne-worker evaluate
+
+## Abstract
+
+The Worker’s evaluate path is `POST /run` with the same envelope as Flask: `script` + OHLCV + `mode` → `plots` / `series` / `events` / `alerts`. Auth is `X-API-Key` (`API_KEY` secret). Wall timeout defaults to **30s**.
+
+Sister repo: [hoox-sh/pyne-worker](https://github.com/hoox-sh/pyne-worker). Contract: [evaluate contract](/pyne/docs/api/contract).
+
+## Endpoints
+
+| Method | Path | Auth | Role |
+| --- | --- | --- | --- |
+| `GET` | `/health` | no | Liveness + binding flags |
+| `POST` | `/run` | yes | Evaluate (`script` or `script_id`) |
+| `POST` | `/ingest` | yes | Upload OHLCV to R2 |
+| `POST` | `/scripts` | yes | Deploy a script |
+| `GET` | `/scripts` | yes | List deployed scripts |
+| `GET` | `/scripts/:id` | yes | Get deployed script |
+| `DELETE` | `/scripts/:id` | yes | Delete deployed script |
+| `GET` | `/cron/jobs` | yes | List bar-close jobs |
+| `PUT` | `/cron/jobs` | yes | Replace job list |
+| `POST` | `/cron/run` | yes | Trigger scheduler |
+| `POST` | `/feed/refresh` | yes | Pull klines into R2 |
+
+## `POST /run`
+
+Accepts `data` (Pro API name) or `ohlcv`. Omit bars and pass `symbol` + `timeframe` to load R2 history.
+
+```json
+{
+  "script": "//@version=5\nindicator(\"t\")\nplot(close)",
+  "ohlcv": [
+    {"open": 100, "high": 105, "low": 95, "close": 102, "time": 1000, "volume": 1000}
+  ],
+  "symbol": "BTCUSDT",
+  "mode": "auto"
+}
+```
+
+| Field | Notes |
+| --- | --- |
+| `script` | Inline Pine |
+| `script_id` | Load a deployed script instead of `script` |
+| `ohlcv` / `data` | Bars; or omit and use R2 |
+| `mode` | `interpret` (default) · `compile` · `auto` |
+| `inputs` | `input.*` overrides (forces interpret under `auto`) |
+| `libraries` | `[{namespace, name, version, source}]` — max 32 |
+| `profiler` | Per-line interpret timings |
+| `timeout_seconds` | Wall budget (default 30, cap 30) |
+| `webhook_url` | Per-job L2 alert URL (else `ALERT_WEBHOOK_URL`) |
+
+Success includes `status`, `plots`, `series`, `plot_meta`, `alerts`, `events`, `drawings`, `inputs`, `logs`, `meta`. Failures use `error` / `error_kind`.
+
+Deployed scripts can store `libraries` and `inputs`. `script_id` and cron reuse them.
+
+## Alerts and trades
+
+- `alert()` / `alertcondition()` export on `/run` (same engine as Pro API).
+- L2 HTTP POST: secret `ALERT_WEBHOOK_URL` or per-job `webhook_url`.
+- Optional `TRADE_SERVICE` binding forwards strategy events to **trade-worker**. Remove the `services` block if that Worker is not in the account (fails closed).
+
+## Limits
+
+| Cap | Value |
+| --- | --- |
+| Script | 100 KB |
+| Bars | 100K |
+| Envelope | 5 MB |
+| `/run` wall | 30 s |
+| Rate | 100 req / 60 s |
+
+## See also
+
+- [pyne-worker](/pyne/docs/pyne-worker)
+- [Deploy](/pyne/docs/pyne-worker/deploy)
+- [Alerts](/pyne/docs/runtime/alerts)
+- [Flask `/run`](/pyne/docs/api/endpoints/run)
+- [PyneTS](/pyne/docs/pynets) — in-process `RuntimeResult`, not HTTP
+- [pyne-agent-worker](/pyne/docs/agent) — optional generate → `/run` loop

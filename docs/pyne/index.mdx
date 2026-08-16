@@ -116,8 +116,8 @@ Compatibility guarantees, missing surface, numerical validation, [PyneTS](/pyne/
 ## Sister surfaces
 
 - **PyneTS** — TypeScript / Bun library. Standalone [hoox-sh/pynets](https://github.com/hoox-sh/pynets); PYNE consumes it only as the `pynets/` submodule. See [PyneTS](/pyne/docs/pynets).
-- **pyne-worker** (separate repo) — Python Cloudflare® Worker for production `/run` (alerts + webhooks dual-host).
-- **pine-worker** (sister repo, **not** in this checkout) — legacy TypeScript Worker; see [pine-worker](/pyne/docs/pine-worker).
+- **[pyne-worker](/pyne/docs/pyne-worker)** (sister repo) — Python Cloudflare® Worker for production `POST /run` (alerts + cron + R2).
+- **[pyne-agent-worker](/pyne/docs/agent)** (sister repo) — NL authoring host (`POST /v1/chat`); optional validate via pyne-worker.
 - **AXIS** — installable PWA; documented at [hoox.sh/axis/docs](/axis/docs).
 - **Family map** — [Ecosystem](/pyne/docs/reference/ecosystem) · [modes](/pyne/docs/enduser/reference/modes).
 
@@ -139,4 +139,6 @@ Auto-generated like HOOX manuals (`bun run docs:exports`):
 - [Alerts & webhooks](/pyne/docs/runtime/alerts)
 - [Grammar pipeline](/pyne/docs/core/grammar-antlr4)
 - [Evaluate contract](/pyne/docs/api/contract)
+- [pyne-worker](/pyne/docs/pyne-worker)
+- [pyne-agent-worker](/pyne/docs/agent)
 - [Roadmap](/pyne/docs/reference/roadmap)

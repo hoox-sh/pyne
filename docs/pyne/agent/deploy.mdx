@@ -1,0 +1,78 @@
+# Copyright (C) 2024-2026 jango_blockchained
+#
+# This file is part of pynescript.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+---
+title: "pyne-agent-worker deploy"
+description: "Standalone Workers AI deploy, optional RAG, and optional pyne-worker validate binding."
+---
+
+# pyne-agent-worker deploy
+
+## Abstract
+
+Deploy from **[hoox-sh/pyne-agent-worker](https://github.com/hoox-sh/pyne-agent-worker)**. Minimum is Workers AI. Vectorize / R2 / D1 improve quality; they are not required to chat.
+
+## Standalone
+
+```bash
+cd ~/Git/pyne-agent-worker
+bun install
+
+# Optional RAG / sessions
+npx wrangler vectorize create pyne-agent-kb --dimensions=768 --metric=cosine
+npx wrangler r2 bucket create pyne-agent-kb
+npx wrangler d1 create pyne-agent-sessions
+npx wrangler d1 execute pyne-agent-sessions --remote --file=schemas/sessions.sql
+
+cp .env.example .dev.vars
+bun run dev
+echo "your-secret" | npx wrangler secret put API_KEY
+bun run deploy
+```
+
+No HOOX mesh and no pyne-worker binding.
+
+## Optional validate loop
+
+If you already run [pyne-worker](/pyne/docs/pyne-worker):
+
+```jsonc
+// wrangler.jsonc — uncomment services, OR:
+// "vars": { "PYNE_WORKER_URL": "https://pyne-worker.<you>.workers.dev" }
+```
+
+```bash
+echo "pyne-api-key" | npx wrangler secret put PYNE_WORKER_API_KEY
+```
+
+## Knowledge (private)
+
+```bash
+bun run ingest:docs -- --dir /secure/pine-docs-v6 --version v6
+bun run ingest:docs -- --pyne-docs ../pynescript/docs/pyne
+bun run ingest:corpus -- --dir /secure/open-pine-corpus --max 1000
+bun run ingest:builtins -- --metadata ../pynescript/src/pynescript/langserver/providers/builtin_metadata.json
+bun run scripts/build-index.ts \
+  --embed-endpoint https://pyne-agent-worker.<you>.workers.dev/v1/admin/embed
+```
+
+Never commit TradingView built-in sources. `scripts/legal-check.sh` runs on predeploy.
+
+## AXIS
+
+```text
+https://pyne-agent-worker.<you>.workers.dev/plugin/axis-pine-agent.js
+```
+
+Set **endpoint** + **API key** in the plugin config.
+
+## See also
+
+- [pyne-agent-worker](/pyne/docs/agent)
+- [Chat API](/pyne/docs/agent/chat)
+- [pyne-worker](/pyne/docs/pyne-worker) — optional validate host
+- [PyneTS](/pyne/docs/pynets)
+- [AXIS plugin](https://hoox.sh/axis/docs/plugins/pyne-agent)
