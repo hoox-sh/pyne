@@ -24,8 +24,9 @@
 **Pine Script Target:** v5/v6  
 **Test Coverage:** 1100+ automated tests (full suite; re-run `make test` for live counts)
 
-Product/docs mint: [docs/pyne/reference/compatibility.mdx](pyne/reference/compatibility.mdx)
-(prefer that page for current product wording).
+Product map (working / partial / residual / out of scope):
+[docs/pyne/reference/compatibility.mdx](pyne/reference/compatibility.mdx).
+Repo-root distillation: [COMPATIBILITY.md](../COMPATIBILITY.md).
 
 ---
 

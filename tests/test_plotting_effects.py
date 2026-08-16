@@ -123,6 +123,14 @@ fill(p1, p2, color=color.blue, title='f')
         assert by_kind["hline"] == DEFAULT_VISUAL_TITLES["hline"]
         assert by_kind["plotarrow"] == DEFAULT_VISUAL_TITLES["plotarrow"]
 
+    def test_empty_plot_title_registers_blank_then_host_renames(self) -> None:
+        """Evaluator keeps title=''; Runtime / compile pack as plot_N."""
+        ev = NodeLiteralEvaluator()
+        PlotRegistry.reset()
+        p = _eval(ev, 'plot(close, title="")')
+        assert isinstance(p, Plot)
+        assert p.title == ""
+
     def test_as_plot_int_type_identity(self) -> None:
         """linewidth coerce: int/float/None identity; never na→0; lists unwrap."""
         from pynescript.runtime.evaluator import _as_plot_int

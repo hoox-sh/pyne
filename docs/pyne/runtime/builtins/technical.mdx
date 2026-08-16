@@ -57,7 +57,7 @@ When `_pine_bar_mode` and `_pine_ta_incremental` are enabled (Runtime default; d
 | Volume (**0.3.10**) | `obv`, `wad`/`wvad`, `cmf`, `klinger`, `mfi`, `vwap`, `accdist` |
 | Other | `change`/`mom`/`cum`, `median`, `percentrank`, `rising`/`falling`, `barssince`, pivots |
 
-Residual full-list helpers include `ta.nvi` / `ta.pvi`. **`ta.atr` is Wilder RMA of true range** on interpret (full + incremental) and Numba (`ta.rma(ta.tr, length)` — 0.3.4+).
+`ta.nvi` / `ta.pvi` are incremental (O(1)/bar; `PYNE_TA_INCREMENTAL=0` full-list). **`ta.atr` is Wilder RMA of true range** on interpret (full + incremental) and Numba (`ta.rma(ta.tr, length)` — 0.3.4+). Supertrend is locked mid±factor·ATR (not the TV band ratchet).
 
 ## Interface surface
 

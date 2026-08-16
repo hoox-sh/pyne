@@ -80,7 +80,7 @@ flowchart TB
 | --- | --- |
 | [hoox-sh/pyne](https://github.com/hoox-sh/pyne) | PYNE SoT (`hoox-pyne` **0.3.10**) |
 | [hoox-sh/pynets](https://github.com/hoox-sh/pynets) | Standalone `@hoox-sh/pynets` **0.2.0** (JS compile + stream) |
-| `pynets/` **submodule** in this repo | Snapshot may lag — currently `@hoox/pynets` **0.1.0**, interpret-only |
+| `pynets/` **submodule** in this repo | Pin **v0.2.0** — interpret + JS compile (same surface as npm) |
 | [hoox-sh/pyne-worker](https://github.com/hoox-sh/pyne-worker) | Python edge `/run` |
 | [hoox-sh/pine-worker](https://github.com/hoox-sh/pine-worker) | Legacy TS Worker (**not** in this tree) |
 | [hoox-sh/pyne-agent-worker](https://github.com/hoox-sh/pyne-agent-worker) | NL authoring (**not** in this tree) |
@@ -110,7 +110,7 @@ Do not author in `hoox-landing-page/content/*` — that is a sync artifact.
 3. **AXIS ≠ execution.** Drawing a strategy on AXIS does not call `trade-worker`.
 4. **Alerts ≠ orders.** `alert()` webhooks are not `StrategyEvent` forwards unless you point them at the HOOX gateway yourself.
 5. **Do not** `pip install pyne` or `pip install pynescript` for this project. Dist name is **`hoox-pyne`**.
-6. **Do not** treat this repo’s `pynets/package.json` (`@hoox/pynets` **0.1.0** on the current submodule pin) as the published name. npm is **`@hoox-sh/pynets` 0.2.0**.
+6. **Do not** treat the submodule package name as the published npm name. This checkout pins **v0.2.0**; npm is **`@hoox-sh/pynets` 0.2.0**. Python Runtime remains the oracle.
 
 ## Worked examples
 

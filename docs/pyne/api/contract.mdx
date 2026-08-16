@@ -64,9 +64,9 @@ flowchart LR
 | `symbol` | string | no | Default `CHART` / host-specific |
 | `mode` | `"interpret"` \| `"compile"` \| `"auto"` | no | `Runtime.run` default when omitted: `PYNE_RUNTIME_MODE` or `interpret`. Flask `RUN_SCHEMA` default **`auto`** |
 | `inputs` | object | no | `input.*` overrides keyed by title (forces interpret under `auto`) |
-| `libraries` | `{namespace, name, version, source}[]` | no | In-process `import ns/Name/ver`. Flask `/run` accepts this (max 32). **Not** on `/run/batch` schema |
+| `libraries` | `{namespace, name, version, source}[]` | no | In-process `import ns/Name/ver`. Flask `/run` and `/run/batch` accept this (max 32). |
 | `profiler` | bool | no | Per-line interpret timings (forces interpret) |
-| `timeout_seconds` | number | no | Wall-clock interpret budget on **`Runtime.run`** / edge workers (checked every 32 bars; sets `timed_out`). **Flask `RUN_SCHEMA` does not accept this field** — sending it to `/run` is `UNKNOWN_FIELDS` 400 |
+| `timeout_seconds` | number | no | Optional wall-clock interpret budget (checked every 32 bars; sets `timed_out`). Flask `/run` and `/run/batch` accept it; omit / `null` / `≤ 0` → no timeout. |
 | `webhook_url` | string | no | Flask L2 alert webhook (overrides `ALERT_WEBHOOK_URL`) |
 | `data_source` | string | no | Optional external history provider id (free paths: chart / mock only) |
 | `data_options` | object | no | Provider configuration |
@@ -175,7 +175,7 @@ Workers may use equivalent `{ error: string }` or HTTP 4xx/5xx with message body
 
 `POST /run/batch`:
 
-**Request:** `scripts: (string | {id, script})[]` (max 8) + shared `data` + optional `symbol` / `data_source` / `data_options` / `mode` / `profiler` / webhook fields. **Not** on the batch schema: `libraries`, `inputs`, `timeout_seconds`.
+**Request:** `scripts: (string | {id, script})[]` (max 8) + shared `data` + optional `symbol` / `data_source` / `data_options` / `mode` / `profiler` / `libraries` / `timeout_seconds` / webhook fields. **Not** on the batch schema: `inputs`.
 
 **Response:**
 
@@ -203,9 +203,9 @@ Workers may implement batch as N single evaluates; AXIS should not assume batch 
 | `script_id` | `sha256(source)[:16]` |
 | `run_id` | `Runtime._run_id` |
 | `compile_fallback_reason` | `Runtime._run_auto` |
-| `timed_out` | Interpret bar loop vs `timeout_seconds` (not Flask `/run`) |
+| `timed_out` | Interpret bar loop vs `timeout_seconds` (Flask `/run` and `/run/batch` when the field is set and `> 0`) |
 
-Schema enforcement on Flask free tier: `RUN_SCHEMA` / `RUN_BATCH_SCHEMA` in `backend/middleware/schemas.py` (strict, reject extras). Webhook fields: `webhook_url`, `forward_alerts`, `alert_last_bar`, `alert_batch`. `libraries` is on `/run` only.
+Schema enforcement on Flask free tier: `RUN_SCHEMA` / `RUN_BATCH_SCHEMA` in `backend/middleware/schemas.py` (strict, reject extras). Webhook fields: `webhook_url`, `forward_alerts`, `alert_last_bar`, `alert_batch`. `libraries` and `timeout_seconds` are on both `/run` and `/run/batch`.
 
 Tests: `tests/test_backend.py` (`test_run_success`, `test_run_exports_alerts`, webhook cases), `tests/test_alert_forwarder.py`.
 
@@ -215,7 +215,7 @@ Tests: `tests/test_backend.py` (`test_run_success`, `test_run_exports_alerts`, w
 | --- | --- |
 | Preview / backtest | Columnar `data` dict, not `Bar[]`; not the evaluate contract |
 | Compile mode | Extra keys `object_mode`, `compile_cached`, `compile_ms`, `nopython_fallback_reason`. `generated_code` only if `PYNESCRIPT_RETURN_GENERATED_CODE=1` |
-| `timeout_seconds` | In-process `Runtime.run` + edge workers. Flask `/run` rejects the field |
+| `timeout_seconds` | In-process `Runtime.run`, edge workers, and Flask `/run` / `/run/batch` (optional; omit = no budget) |
 | Health | Flask `GET /` and `GET /health` (CORS-free); not part of evaluate |
 | Auth | Flask free `/run` open (bar/rate/concurrency caps); workers may require HOOX mTLS / API gateways |
 | Error codes | Flask uses `code` enums; workers should map to stable strings when possible |

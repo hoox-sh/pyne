@@ -277,6 +277,37 @@ def _err_to_dict(err: tuple) -> tuple[dict[str, Any], int]:
     return payload, int(code or 400)
 
 
+def _parse_run_libraries(raw_libs: Any) -> list[dict[str, Any]]:
+    """Normalize AXIS git-publish library objects (max 32)."""
+    libraries: list[dict[str, Any]] = []
+    if not isinstance(raw_libs, list):
+        return libraries
+    for item in raw_libs[:32]:
+        if not isinstance(item, dict):
+            continue
+        ns = str(item.get("namespace") or "").strip()
+        name = str(item.get("name") or "").strip()
+        src = str(item.get("source") or "")
+        try:
+            ver = int(item.get("version") or 1)
+        except (TypeError, ValueError):
+            ver = 1
+        if ns and name and src:
+            libraries.append(
+                {"namespace": ns, "name": name, "version": ver, "source": src}
+            )
+    return libraries
+
+
+def _timeout_seconds_kwarg(raw: Any) -> dict[str, float]:
+    """Return ``timeout_seconds=`` only when set and > 0."""
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+        return {}
+    if raw <= 0:
+        return {}
+    return {"timeout_seconds": float(raw)}
+
+
 def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
     """Shared run logic for POST /run and WS /ws/run.
 
@@ -389,23 +420,8 @@ def _execute_run_payload_inner(
     if not isinstance(inputs, dict):
         inputs = {}
     profiler = bool(validated.get("profiler"))
-    raw_libs = validated.get("libraries") or []
-    libraries: list[dict[str, Any]] = []
-    if isinstance(raw_libs, list):
-        for item in raw_libs[:32]:
-            if not isinstance(item, dict):
-                continue
-            ns = str(item.get("namespace") or "").strip()
-            name = str(item.get("name") or "").strip()
-            src = str(item.get("source") or "")
-            try:
-                ver = int(item.get("version") or 1)
-            except (TypeError, ValueError):
-                ver = 1
-            if ns and name and src:
-                libraries.append(
-                    {"namespace": ns, "name": name, "version": ver, "source": src}
-                )
+    libraries = _parse_run_libraries(validated.get("libraries"))
+    timeout_kw = _timeout_seconds_kwarg(validated.get("timeout_seconds"))
 
     runtime = Runtime(symbol=str(symbol))
     result = runtime.run(
@@ -417,6 +433,7 @@ def _execute_run_payload_inner(
         inputs=inputs if inputs else None,
         profiler=profiler,
         libraries=libraries or None,
+        **timeout_kw,
     )
 
     if "error" in result:
@@ -432,6 +449,8 @@ def _execute_run_payload_inner(
             err_body["error_type"] = result["error_type"]
         if result.get("error_bar") is not None:
             err_body["error_bar"] = result["error_bar"]
+        if result.get("timed_out"):
+            err_body["timed_out"] = True
         if "logs" in result:
             err_body["logs"] = result["logs"]
         if "profile" in result:
@@ -466,6 +485,8 @@ def _execute_run_payload_inner(
     }
     if result.get("alert_conditions") is not None:
         resp["alert_conditions"] = result["alert_conditions"]
+    if result.get("timed_out"):
+        resp["timed_out"] = True
 
     # Warm-compile / auto-route diagnostics (H2 product path)
     for key in (
@@ -895,6 +916,9 @@ def _run_pine_script_batch_inner():
             }
         ), 400
 
+    libraries = _parse_run_libraries(data.get("libraries"))
+    timeout_kw = _timeout_seconds_kwarg(data.get("timeout_seconds"))
+
     results = []
     for sid, script in jobs:
         runtime = Runtime(symbol=str(symbol))
@@ -905,6 +929,8 @@ def _run_pine_script_batch_inner():
                 data_feed=data_feed,
                 data_provider=data_provider,
                 mode=str(mode),
+                libraries=libraries or None,
+                **timeout_kw,
             )
         except Exception as e:  # noqa: BLE001 — per-script isolation
             results.append(
@@ -917,14 +943,15 @@ def _run_pine_script_batch_inner():
             )
             continue
         if "error" in result:
-            results.append(
-                {
-                    "id": sid,
-                    "status": "error",
-                    "code": "EXECUTION_ERROR",
-                    "message": result["error"],
-                }
-            )
+            err_item: dict[str, Any] = {
+                "id": sid,
+                "status": "error",
+                "code": "EXECUTION_ERROR",
+                "message": result["error"],
+            }
+            if result.get("timed_out"):
+                err_item["timed_out"] = True
+            results.append(err_item)
             continue
         item: dict[str, Any] = {
             "id": sid,
@@ -942,6 +969,8 @@ def _run_pine_script_batch_inner():
         }
         if result.get("alert_conditions") is not None:
             item["alert_conditions"] = result["alert_conditions"]
+        if result.get("timed_out"):
+            item["timed_out"] = True
         try:
             from .alert_forwarder import maybe_forward_run_alerts
 

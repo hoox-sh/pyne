@@ -91,7 +91,7 @@ def test_dividend_yield_interp_compile_all_na() -> None:
 
 
 def test_foreign_security_udf_expression_is_na() -> None:
-    """request.security on ESD_FACTSET with UDF expr → na on interpret."""
+    """request.security on ESD_FACTSET with UDF expr → na on both hosts."""
     from backend.runtime import Runtime
 
     src = """//@version=6
@@ -104,13 +104,16 @@ plot(div_ttm)
 plot(close)
 """
     bars = _bars(20)
-    si = Runtime().run(src, bars, mode="interpret")
+    rt = Runtime()
+    si = rt.run(src, bars, mode="interpret")
+    sc = rt.run(src, bars, mode="compile")
     assert not si.get("error"), si.get("error")
-    div = si["series"]["plot_0"]
-    close = si["series"]["plot_1"]
-    assert all(_is_na(x) for x in div)
-    # close still real (not all na)
-    assert any(not _is_na(x) for x in close)
+    assert not sc.get("error"), sc.get("error")
+    for out in (si, sc):
+        div = out["series"]["plot_0"]
+        close = out["series"]["plot_1"]
+        assert all(_is_na(x) for x in div)
+        assert any(not _is_na(x) for x in close)
 
 
 def test_foreign_security_string_close_is_na_both_modes() -> None:

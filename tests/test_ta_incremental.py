@@ -3356,3 +3356,129 @@ plot(ta.klinger(high, low, close, volume, 8, 21), "ko")
             if isinstance(a, float) and isinstance(b, float) and math.isnan(a) and math.isnan(b):
                 continue
             assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"
+
+
+# ---------------------------------------------------------------------------
+# Residual T2 leftover: nvi / pvi incremental (full-list recompute → O(1))
+# ---------------------------------------------------------------------------
+
+
+def _bar_walk_full_nvi(closes: list[float], vols: list[float]) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(closes)):
+        full = ev._builtin_ta_nvi([closes[: i + 1], vols[: i + 1]])
+        out.append(_last_of(full))
+    return out
+
+
+def _bar_walk_inc_nvi(closes: list[float], vols: list[float]) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(closes)):
+        ev._ta_call_i = 0
+        out.append(ev._nvi_inc_update(closes[: i + 1], vols[: i + 1]))
+    return out
+
+
+def _bar_walk_full_pvi(closes: list[float], vols: list[float]) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(closes)):
+        full = ev._builtin_ta_pvi([closes[: i + 1], vols[: i + 1]])
+        out.append(_last_of(full))
+    return out
+
+
+def _bar_walk_inc_pvi(closes: list[float], vols: list[float]) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(closes)):
+        ev._ta_call_i = 0
+        out.append(ev._pvi_inc_update(closes[: i + 1], vols[: i + 1]))
+    return out
+
+
+def test_incremental_nvi_matches_full() -> None:
+    _highs, _lows, closes = _ohlc(150)
+    vols = _volumes(len(closes))
+    _assert_series_close(_bar_walk_inc_nvi(closes, vols), _bar_walk_full_nvi(closes, vols))
+    ev = _IncTA()
+    ev._ta_call_i = 0
+    got = ev._builtin_ta_nvi([closes[:1], vols[:1]])
+    assert isinstance(got, float)
+    assert got == pytest.approx(1000.0)
+
+
+def test_incremental_pvi_matches_full() -> None:
+    _highs, _lows, closes = _ohlc(150)
+    vols = _volumes(len(closes))
+    _assert_series_close(_bar_walk_inc_pvi(closes, vols), _bar_walk_full_pvi(closes, vols))
+    ev = _IncTA()
+    ev._ta_call_i = 0
+    got = ev._builtin_ta_pvi([closes[:1], vols[:1]])
+    assert isinstance(got, float)
+    assert got == pytest.approx(1000.0)
+
+
+def test_incremental_nvi_pvi_dual_call_sites() -> None:
+    """Two nvi/pvi call sites must not share incremental state."""
+    closes = _series(80)
+    vols_a = _volumes(len(closes))
+    vols_b = [v * 1.5 + 3.0 for v in vols_a]
+    ev = _IncTA()
+    nvi_a: list[float | None] = []
+    nvi_b: list[float | None] = []
+    pvi_a: list[float | None] = []
+    pvi_b: list[float | None] = []
+    for i in range(len(closes)):
+        ev._ta_call_i = 0
+        nvi_a.append(ev._nvi_inc_update(closes[: i + 1], vols_a[: i + 1]))
+        nvi_b.append(ev._nvi_inc_update(closes[: i + 1], vols_b[: i + 1]))
+        pvi_a.append(ev._pvi_inc_update(closes[: i + 1], vols_a[: i + 1]))
+        pvi_b.append(ev._pvi_inc_update(closes[: i + 1], vols_b[: i + 1]))
+    _assert_series_close(nvi_a, _bar_walk_full_nvi(closes, vols_a))
+    _assert_series_close(nvi_b, _bar_walk_full_nvi(closes, vols_b))
+    _assert_series_close(pvi_a, _bar_walk_full_pvi(closes, vols_a))
+    _assert_series_close(pvi_b, _bar_walk_full_pvi(closes, vols_b))
+
+
+def test_runtime_nvi_pvi_incremental_vs_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend.runtime import Runtime
+
+    try:
+        from pynescript.ast.helper import clear_parse_cache
+    except ImportError:  # pragma: no cover
+
+        def clear_parse_cache() -> None:
+            return None
+
+    bars = _ohlcv_bars(160)
+    src = """//@version=5
+indicator("nvi pvi inc")
+plot(ta.nvi, "nvi")
+plot(ta.pvi, "pvi")
+"""
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    clear_parse_cache()
+    r_on = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_on, r_on.get("error")
+    monkeypatch.setenv("PYNE_TA_INCREMENTAL", "0")
+    clear_parse_cache()
+    r_off = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_off, r_off.get("error")
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    clear_parse_cache()
+
+    assert set(r_on["series"]) == set(r_off["series"])
+    for key in r_on["series"]:
+        for i, (a, b) in enumerate(zip(r_on["series"][key], r_off["series"][key], strict=True)):
+            if a is None and b is None:
+                continue
+            if a is None or b is None:
+                continue
+            if isinstance(a, float) and isinstance(b, float) and math.isnan(a) and math.isnan(b):
+                continue
+            assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"

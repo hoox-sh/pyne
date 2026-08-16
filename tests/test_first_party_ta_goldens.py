@@ -24,7 +24,10 @@ synthetic OHLCV. Both ``mode=interpret`` and ``mode=compile`` must agree
 (nan/None-aware allclose). ATR asserts Wilder RMA warmup (first finite
 value after ``period`` TR samples → bar index ``>= period``). Supertrend
 locks the simplified ``mid ± factor·ATR`` contract (na ATR → 0; direction
-from close vs mid) — not the reference Pine band ratchet.
+from close vs mid) — not the reference Pine band ratchet. Factor/period
+pairs ``3.0/5`` and ``3.0/10`` assert interpret ≡ compile ≡ incremental ≡
+numba; after ATR warmup ``st == mid ± factor * atr``. TV ratchet is out
+of scope (not a residual hole).
 """
 
 from __future__ import annotations
@@ -238,6 +241,29 @@ def test_atr_wilder_dual_host(bars: list[dict[str, Any]]) -> None:
 
 _ST_FACTOR = 3.0
 _ST_ATR_PERIOD = 10
+_ST_PAIRS = ((3.0, 5), (3.0, 10))
+
+
+def _supertrend_inline_src(factor: float, period: int, tag: str = "") -> str:
+    name = f"fp_st_{factor}_{period}{tag}"
+    return f"""//@version=5
+indicator("{name}")
+// Simplified mid±factor·ATR Supertrend (not TV band ratchet).
+[st, dir] = ta.supertrend({factor}, {period})
+plot(st, title="st")
+plot(dir, title="dir")
+plot(ta.atr({period}), title="atr")
+plot(hl2, title="mid")
+plot(close, title="c")
+"""
+
+
+def _ohlc_from_bars(bars: list[dict[str, Any]]) -> tuple[list[float], list[float], list[float]]:
+    return (
+        [float(b["high"]) for b in bars],
+        [float(b["low"]) for b in bars],
+        [float(b["close"]) for b in bars],
+    )
 
 
 def _assert_simplified_supertrend_contract(
@@ -278,12 +304,128 @@ def _assert_simplified_supertrend_contract(
             n_down += 1
         if i < atr_period:
             assert _is_na(atr_raw), f"{host} bar {i}: ATR should still be na"
-            assert abs(st_f - mid_f) <= _ATOL + _RTOL * abs(mid_f), (
-                f"{host} bar {i}: warmup st {st_f} != mid {mid_f}"
-            )
+            assert abs(st_f - mid_f) <= _ATOL + _RTOL * abs(mid_f), f"{host} bar {i}: warmup st {st_f} != mid {mid_f}"
         elif not _is_na(atr_raw) and atr_f > 0:
             assert abs(abs(st_f - mid_f) - factor * atr_f) <= _ATOL + _RTOL * factor * atr_f
     assert n_up >= 1 and n_down >= 1, f"{host}: expected both directions, up={n_up} down={n_down}"
+
+
+def _assert_formula_after_atr_warmup(  # noqa: PLR0913
+    st: list[Any],
+    direction: list[Any],
+    atr: list[Any],
+    mid: list[Any],
+    close: list[Any],
+    *,
+    factor: float,
+    atr_period: int,
+    host: str,
+) -> None:
+    """Explicit golden: after ATR warmup, ``st == mid ± factor * atr``."""
+    first_atr = _first_finite_index(atr)
+    assert first_atr is not None, f"{host}: ATR never becomes valid"
+    assert first_atr >= atr_period, f"{host}: ATR first valid at {first_atr}, expected >= {atr_period}"
+    n_checked = 0
+    for i in range(first_atr, len(st)):
+        assert not _is_na(atr[i]), f"{host} bar {i}: ATR na after warmup"
+        mid_f = float(mid[i])
+        close_f = float(close[i])
+        atr_f = float(atr[i])
+        st_f = float(st[i])
+        dir_f = float(direction[i])
+        exp_dir = -1.0 if close_f >= mid_f else 1.0
+        exp_st = mid_f - factor * atr_f if exp_dir < 0 else mid_f + factor * atr_f
+        assert dir_f == exp_dir, f"{host} bar {i}: dir {dir_f} != {exp_dir} (close={close_f} mid={mid_f})"
+        assert abs(st_f - exp_st) <= _ATOL + _RTOL * abs(exp_st), (
+            f"{host} bar {i}: st {st_f} != mid±factor·ATR {exp_st} (mid={mid_f} factor={factor} atr={atr_f})"
+        )
+        n_checked += 1
+    assert n_checked >= 10, f"{host}: too few post-warmup bars ({n_checked})"
+
+
+def _walk_eval_supertrend(
+    bars: list[dict[str, Any]],
+    factor: float,
+    period: int,
+    *,
+    incremental: bool,
+) -> tuple[list[float], list[int]]:
+    from pynescript.ast.evaluator import NodeLiteralEvaluator
+
+    class _Ev(NodeLiteralEvaluator):
+        def __init__(self) -> None:
+            super().__init__()
+            if incremental:
+                self._pine_bar_mode = True
+                self._pine_ta_incremental = True
+                self._ta_inc_state: dict = {}
+                self._ta_call_i = 0
+
+    ev = _Ev()
+    highs, lows, closes = _ohlc_from_bars(bars)
+    st: list[float] = []
+    direction: list[int] = []
+    for i in range(len(closes)):
+        ev.current_series = {
+            "high": highs[: i + 1],
+            "low": lows[: i + 1],
+            "close": closes[: i + 1],
+        }
+        if incremental:
+            ev._ta_call_i = 0
+            val, dir_ = ev._supertrend_inc_update(highs[: i + 1], lows[: i + 1], closes[: i + 1], factor, period)
+        else:
+            val, dir_ = ev._builtin_ta_supertrend([factor, period])
+        st.append(float(val))
+        direction.append(int(dir_))
+    return st, direction
+
+
+def _walk_numba_supertrend(
+    bars: list[dict[str, Any]],
+    factor: float,
+    period: int,
+    *,
+    incremental: bool,
+) -> tuple[list[float], list[int]]:
+    import numpy as np
+
+    from pynescript.compiler import numba_builtins as nb
+
+    highs, lows, closes = _ohlc_from_bars(bars)
+    high_a = np.asarray(highs, dtype=np.float64)
+    low_a = np.asarray(lows, dtype=np.float64)
+    close_a = np.asarray(closes, dtype=np.float64)
+    st_state = np.full(2, np.nan)
+    st: list[float] = []
+    direction: list[int] = []
+    for i in range(len(closes)):
+        if incremental:
+            val, dir_ = nb.numba_supertrend_inc(high_a, low_a, close_a, factor, period, i, st_state)
+        else:
+            val, dir_ = nb.numba_supertrend(high_a, low_a, close_a, factor, period, i)
+        st.append(float(val))
+        direction.append(int(dir_))
+    return st, direction
+
+
+def _maybe_clear_parse_cache() -> None:
+    try:
+        from pynescript.ast.helper import clear_parse_cache
+    except ImportError:  # pragma: no cover
+        return
+    clear_parse_cache()
+
+
+def _assert_hosts_match(
+    hosts: list[tuple[str, list[Any], list[Any]]],
+) -> None:
+    ref_name, ref_st, ref_dir = hosts[0]
+    for name, st, direction in hosts[1:]:
+        ok, detail = series_allclose(ref_st, st)
+        assert ok, f"{ref_name} vs {name} st: {detail}"
+        ok, detail = series_allclose(ref_dir, direction)
+        assert ok, f"{ref_name} vs {name} dir: {detail}"
 
 
 def test_supertrend_dual_host(bars: list[dict[str, Any]]) -> None:
@@ -302,6 +444,175 @@ def test_supertrend_dual_host(bars: list[dict[str, Any]]) -> None:
     sc = compiled["series"]
     _assert_simplified_supertrend_contract(si["st"], si["dir"], si["atr"], si["mid"], si["c"], host="interpret")
     _assert_simplified_supertrend_contract(sc["st"], sc["dir"], sc["atr"], sc["mid"], sc["c"], host="compile")
+    _assert_formula_after_atr_warmup(
+        si["st"],
+        si["dir"],
+        si["atr"],
+        si["mid"],
+        si["c"],
+        factor=_ST_FACTOR,
+        atr_period=_ST_ATR_PERIOD,
+        host="interpret",
+    )
+    _assert_formula_after_atr_warmup(
+        sc["st"],
+        sc["dir"],
+        sc["atr"],
+        sc["mid"],
+        sc["c"],
+        factor=_ST_FACTOR,
+        atr_period=_ST_ATR_PERIOD,
+        host="compile",
+    )
+
+
+@pytest.mark.parametrize("factor,period", _ST_PAIRS)
+def test_supertrend_dual_host_factor_period(
+    bars: list[dict[str, Any]],
+    factor: float,
+    period: int,
+) -> None:
+    """Dual-host goldens for factor/period 3.0/5 and 3.0/10."""
+    src = _supertrend_inline_src(factor, period)
+    interp, compiled = _run_dual(src, bars)
+    _assert_no_error(interp, "interpret")
+    _assert_no_error(compiled, "compile")
+    keys = ("st", "dir", "atr", "mid", "c")
+    _assert_series_present(interp, keys, len(bars))
+    _assert_series_present(compiled, keys, len(bars))
+    _assert_dual_parity(interp, compiled, keys)
+    si = interp["series"]
+    sc = compiled["series"]
+    _assert_simplified_supertrend_contract(
+        si["st"],
+        si["dir"],
+        si["atr"],
+        si["mid"],
+        si["c"],
+        factor=factor,
+        atr_period=period,
+        host="interpret",
+    )
+    _assert_simplified_supertrend_contract(
+        sc["st"],
+        sc["dir"],
+        sc["atr"],
+        sc["mid"],
+        sc["c"],
+        factor=factor,
+        atr_period=period,
+        host="compile",
+    )
+
+
+@pytest.mark.parametrize("factor,period", _ST_PAIRS)
+def test_supertrend_formula_after_atr_warmup(
+    bars: list[dict[str, Any]],
+    factor: float,
+    period: int,
+) -> None:
+    """After ATR warmup, ``st == mid ± factor * atr`` on interpret and compile."""
+    src = _supertrend_inline_src(factor, period, tag="_formula")
+    interp, compiled = _run_dual(src, bars)
+    _assert_no_error(interp, "interpret")
+    _assert_no_error(compiled, "compile")
+    keys = ("st", "dir", "atr", "mid", "c")
+    _assert_series_present(interp, keys, len(bars))
+    _assert_series_present(compiled, keys, len(bars))
+    si = interp["series"]
+    sc = compiled["series"]
+    _assert_formula_after_atr_warmup(
+        si["st"],
+        si["dir"],
+        si["atr"],
+        si["mid"],
+        si["c"],
+        factor=factor,
+        atr_period=period,
+        host="interpret",
+    )
+    _assert_formula_after_atr_warmup(
+        sc["st"],
+        sc["dir"],
+        sc["atr"],
+        sc["mid"],
+        sc["c"],
+        factor=factor,
+        atr_period=period,
+        host="compile",
+    )
+
+
+@pytest.mark.parametrize("factor,period", _ST_PAIRS)
+def test_supertrend_interpret_compile_inc_numba(
+    bars: list[dict[str, Any]],
+    factor: float,
+    period: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """interpret-full ≡ interpret-inc ≡ compile ≡ numba (full + inc)."""
+    src = _supertrend_inline_src(factor, period, tag="_4host")
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    _maybe_clear_parse_cache()
+    interp_inc = Runtime(symbol="GOLDEN").run(src, bars, mode="interpret")
+    _assert_no_error(interp_inc, "interpret-inc")
+
+    monkeypatch.setenv("PYNE_TA_INCREMENTAL", "0")
+    _maybe_clear_parse_cache()
+    interp_full = Runtime(symbol="GOLDEN").run(src, bars, mode="interpret")
+    _assert_no_error(interp_full, "interpret-full")
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+
+    _maybe_clear_parse_cache()
+    try:
+        compiled = Runtime(symbol="GOLDEN").run(src, bars, mode="compile")
+    except Exception as exc:  # pragma: no cover - optional dep
+        msg = str(exc).lower()
+        if "numba" in msg or "no module named" in msg:
+            pytest.skip(f"compile path unavailable: {exc}")
+        raise
+    _assert_no_error(compiled, "compile")
+    assert compiled.get("object_mode") is False, "compile Supertrend must stay nopython"
+
+    try:
+        nb_full_st, nb_full_dir = _walk_numba_supertrend(bars, factor, period, incremental=False)
+        nb_inc_st, nb_inc_dir = _walk_numba_supertrend(bars, factor, period, incremental=True)
+    except Exception as exc:  # pragma: no cover
+        msg = str(exc).lower()
+        if "numba" in msg or "no module named" in msg:
+            pytest.skip(f"numba kernels unavailable: {exc}")
+        raise
+
+    ev_full_st, ev_full_dir = _walk_eval_supertrend(bars, factor, period, incremental=False)
+    ev_inc_st, ev_inc_dir = _walk_eval_supertrend(bars, factor, period, incremental=True)
+    keys = ("st", "dir")
+    _assert_series_present(interp_inc, keys, len(bars))
+    _assert_series_present(interp_full, keys, len(bars))
+    _assert_series_present(compiled, keys, len(bars))
+    hosts: list[tuple[str, list[Any], list[Any]]] = [
+        ("interpret-inc", interp_inc["series"]["st"], interp_inc["series"]["dir"]),
+        ("interpret-full", interp_full["series"]["st"], interp_full["series"]["dir"]),
+        ("compile", compiled["series"]["st"], compiled["series"]["dir"]),
+        ("numba", nb_full_st, nb_full_dir),
+        ("numba-inc", nb_inc_st, nb_inc_dir),
+        ("eval-full", ev_full_st, ev_full_dir),
+        ("eval-inc", ev_inc_st, ev_inc_dir),
+    ]
+    _assert_hosts_match(hosts)
+    mid = interp_inc["series"]["mid"]
+    close = interp_inc["series"]["c"]
+    atr = interp_inc["series"]["atr"]
+    for name, st, direction in hosts:
+        _assert_formula_after_atr_warmup(
+            st,
+            direction,
+            atr,
+            mid,
+            close,
+            factor=factor,
+            atr_period=period,
+            host=name,
+        )
 
 
 def test_keltner_dual_host(bars: list[dict[str, Any]]) -> None:

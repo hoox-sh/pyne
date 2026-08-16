@@ -243,6 +243,40 @@ plot(x.FOO)
         assert resp.json["status"] == "success"
         assert resp.json["plots"] == [1.5, 1.5]
 
+    def test_run_timeout_seconds_accepted(self, client: FlaskClient):
+        """Optional ``timeout_seconds`` is in ``RUN_SCHEMA`` (omit still works)."""
+        resp = client.post(
+            "/run",
+            json={
+                "script": "//@version=5\nplot(close)",
+                "data": [
+                    {"open": 100, "high": 105, "low": 98, "close": 102, "time": 1},
+                    {"open": 102, "high": 108, "low": 101, "close": 105, "time": 2},
+                ],
+                "timeout_seconds": 30.0,
+            },
+        )
+        assert resp.status_code == 200, resp.json
+        assert resp.json["status"] == "success"
+        assert resp.json.get("timed_out") is not True
+        assert resp.json["plots"] == [102, 105]
+
+    def test_run_unknown_field_rejected(self, client: FlaskClient):
+        """Unknown keys stay ``UNKNOWN_FIELDS`` after adding ``timeout_seconds``."""
+        resp = client.post(
+            "/run",
+            json={
+                "script": "//@version=5\nplot(close)",
+                "data": [
+                    {"open": 100, "high": 105, "low": 98, "close": 102, "time": 1},
+                ],
+                "timeout_seconds": 5,
+                "not_a_real_field": 1,
+            },
+        )
+        assert resp.status_code == 400
+        assert resp.json["code"] == "UNKNOWN_FIELDS"
+
     def test_run_exports_alerts(self, client: FlaskClient):
         """alert() firings surface on /run (interpret path)."""
         bars = [
@@ -605,6 +639,44 @@ plot(close)
         )
         assert resp.status_code == 400
         assert resp.json["code"] == "TOO_MANY_SCRIPTS"
+
+    def test_run_batch_libraries_git_publish(self, client: FlaskClient):
+        """Pro ``/run/batch`` schema ``libraries`` resolves ``import ns/Lib/1``."""
+        bars = [
+            {"open": 100, "high": 105, "low": 98, "close": 102, "time": 1},
+            {"open": 102, "high": 108, "low": 101, "close": 105, "time": 2},
+        ]
+        lib_src = """//@version=6
+library("Lib")
+export const float FOO = 1.5
+"""
+        script = """//@version=6
+indicator("axis lib")
+import ns/Lib/1 as x
+plot(x.FOO)
+"""
+        resp = client.post(
+            "/run/batch",
+            json={
+                "data": bars,
+                "mode": "interpret",
+                "scripts": [{"id": "lib", "script": script}],
+                "libraries": [
+                    {
+                        "namespace": "ns",
+                        "name": "Lib",
+                        "version": 1,
+                        "source": lib_src,
+                    }
+                ],
+            },
+        )
+        assert resp.status_code == 200, resp.json
+        assert resp.json["status"] == "success"
+        assert resp.json["count"] == 1
+        hit = resp.json["results"][0]
+        assert hit["status"] == "success", hit
+        assert hit["plots"] == [1.5, 1.5]
 
 
 class TestPreview:

@@ -95,7 +95,7 @@ bun install
 bun test
 ```
 
-The submodule snapshot can lag the standalone repo. This PYNE pin is `@hoox/pynets` **0.1.0** (private, interpret-only, no `dist/`). Prefer **`@hoox-sh/pynets` 0.2.0** from npm, or the standalone checkout, for published names, JS compile, and Node/browser bundles.
+This PYNE pin is annotated **v0.2.0** (`@hoox-sh/pynets` **0.2.0**, interpret + JS compile). That matches npm. `dist/` is gitignored — run `bun run build` in `pynets/` if you need the Node/browser ESM bundle from the submodule. Python Runtime remains the oracle.
 
 ### Develop the library
 

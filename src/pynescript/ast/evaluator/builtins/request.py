@@ -1766,9 +1766,19 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         Request lower timeframe data within the current timeframe.
         Now supports data_feed / data_provider when wired (reuses latest for demo).
         """
-        symbol = args[0] if len(args) > 0 else "AAPL"
+        ticker_arg = args[0] if len(args) > 0 else "AAPL"
+        symbol = self._resolve_symbol(ticker_arg)
         timeframe = args[1] if len(args) > 1 else "5m"
         expression = args[2] if len(args) > 2 else "close"  # noqa: PLR2004 - arg count check
+
+        # Foreign under a host chart: honest na (no mock intrabar invent).
+        if not self._is_chart_symbol(str(symbol)) and self._host_has_chart_identity():
+            return self._security_return(
+                float("nan"),
+                "foreign_na",
+                symbol=str(symbol),
+                reason="lower_tf_no_multisymbol_feed",
+            )
 
         # Try data feed/provider for consistency with request.security
         data_feed, data_provider = self._get_request_data()

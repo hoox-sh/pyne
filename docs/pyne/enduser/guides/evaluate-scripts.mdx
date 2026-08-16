@@ -93,7 +93,7 @@ result = runtime.run(
 # on timeout: timed_out + error_kind="runtime" with partial plots
 ```
 
-`timeout_seconds` is a **library** argument only. `POST /run` accepts `libraries` / `inputs` / `mode` but **rejects** `timeout_seconds` (`UNKNOWN_FIELDS`). `pyne run` does not call `Runtime.run` at all.
+`timeout_seconds` is accepted on the library host and on `POST /run` / `POST /run/batch` (omit / `null` / `≤ 0` → no budget). `pyne run` does not call `Runtime.run` at all.
 
 ### Warm compile / prewarm
 
@@ -353,7 +353,7 @@ When calling `/run` or Runtime, pass `data_source` / providers so `request.secur
 | Numerical mismatch vs TV | Warmup, float path, or builtin parity gap — [numerical validation](/pyne/docs/reference/numerical-validation) |
 | Interpret vs compile series MISMATCH | Run `scripts/compare_interp_compile.py` on the script; check report buckets |
 | `timed_out` + partial plots | `timeout_seconds` budget exceeded on interpret |
-| `UNKNOWN_FIELDS` if you POST `timeout_seconds` | Library-only kwarg — not in `RUN_SCHEMA` |
+| `UNKNOWN_FIELDS` | Extra key not in `RUN_SCHEMA` / `RUN_BATCH_SCHEMA` |
 | `DataProviderError` | Provider misconfig |
 | Async feed errors | Missing ccxt.pro / network |
 

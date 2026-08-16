@@ -1480,22 +1480,32 @@ class CompileStrategyBroker:
         if close_qty <= 0 or not math.isfinite(close_qty):
             return
 
+        # Visitor maps strategy.exit id → comment=; use that as the order name
+        # when id is omitted so pending keys / placement events match interpret.
+        exit_oid: str | None = None
+        if is_exit:
+            if id is not None and str(id) != "":
+                exit_oid = str(id)
+            elif comment is not None and str(comment) != "":
+                exit_oid = str(comment)
+
         if is_exit:
             # Always emit exit event (placement / intent) for host parity.
             self._emit(
                 "exit",
-                id=id,
+                id=exit_oid if exit_oid is not None else id,
                 qty=close_qty,
                 comment=comment,
                 direction=None,
                 limit=limit_p,
                 stop=event_stop,
             )
+            pending_base = exit_oid if exit_oid is not None else "exit"
             # Trail always goes through pending + process (ratchet needs bar path).
             # Fixed stop/limit: fill same-bar when OHLC already touches, else pending.
             if has_trail:
                 self._place_exit_pending(
-                    base=str(id) if id is not None else "exit",
+                    base=pending_base,
                     exit_dir="short" if d == "long" else "long",
                     close_qty=close_qty,
                     limit_p=limit_p,
@@ -1515,7 +1525,7 @@ class CompileStrategyBroker:
             )
             if px is None:
                 self._place_exit_pending(
-                    base=str(id) if id is not None else "exit",
+                    base=pending_base,
                     exit_dir="short" if d == "long" else "long",
                     close_qty=close_qty,
                     limit_p=limit_p,

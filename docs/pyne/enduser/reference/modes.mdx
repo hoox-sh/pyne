@@ -91,8 +91,8 @@ Runtime(symbol="AAPL").run(
 | --- | --- | --- |
 | `mode` | library / `POST /run` | See defaults table. `pyne run` has no `--mode`. |
 | `inputs` | library / `POST /run` | Non-empty overrides **force interpret** (compile does not apply them). |
-| `libraries` | library / `POST /run` (max 32) | `[{namespace, name, version, source}]` for `import ns/Name/ver`. Compile-ineligible; `auto` keeps the list on interpret fallback. **Not** on `pyne run`. |
-| `timeout_seconds` | **library only** | Interpret wall-clock budget. Exceeded → partial plots + `timed_out`. **Not** a `POST /run` field (`UNKNOWN_FIELDS`). **Not** on `pyne run`. |
+| `libraries` | library / `POST /run` / `POST /run/batch` (max 32) | `[{namespace, name, version, source}]` for `import ns/Name/ver`. Compile-ineligible; `auto` keeps the list on interpret fallback. **Not** on `pyne run`. |
+| `timeout_seconds` | library / `POST /run` / `POST /run/batch` | Interpret wall-clock budget. Exceeded → partial plots + `timed_out`. Omit / `null` / `≤ 0` → no timeout. **Not** on `pyne run`. |
 | `profiler` | library / `POST /run` | Forces interpret (line timings). |
 | `realtime_*` | library only | Interpret forming-bar window (`realtime_last_bar`, `realtime_ticks`, `realtime_bars`, `realtime_from_bar`). |
 

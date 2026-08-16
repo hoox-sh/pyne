@@ -19,7 +19,7 @@
 
 # Missing Features - Pine Script v6 Implementation
 
-**Current Status (as of 2026-08-16, hoox-pyne 0.3.10):** Strong core support (parser + evaluator + 1100+ tests). Open-source corpus set01–04 (local measurement, not shipped in git): **parse 99.96%** (2476/2477), **Runtime interpret 100% excl. EXPECTED_FAIL** (2466 OK + 11 intentional demos), set01 **249/249** — not a claim of 100% TradingView® platform parity. Drawing `max_*_count` GC landed. **Alert engine + L2 webhooks** closed on Pro API and pyne-worker. **Warm-compile (H2)** + **series caps (T1)** + incremental TA (bb/kama/cmo/stochrsi/wma/hma/linreg + **0.3.10 volume `obv`/`wad`/`wvad`/`cmf`/`klinger`**) landed. Package Runtime SoT + pyne-worker thin wrap landed (**H1** largely done). Residual: interpret↔compile plot MISMATCH tail (**P1p**), leftover full-list TA (`ta.nvi` / `ta.pvi`), optional **F1** goldens.
+**Current Status (as of 2026-08-16, hoox-pyne 0.3.11):** Strong core support (parser + evaluator + 1100+ tests). Open-source corpus set01–04 (local measurement, not shipped in git): **parse 99.96%** (2476/2477), **Runtime interpret 100% excl. EXPECTED_FAIL** (2466 OK + 11 intentional demos), set01 **249/249** — not a claim of 100% TradingView® platform parity. Drawing `max_*_count` GC landed. **Alert engine + L2 webhooks** closed on Pro API and pyne-worker. **Warm-compile (H2)** + **series caps (T1)** + incremental TA (bb/kama/cmo/stochrsi/wma/hma/linreg + **0.3.10 volume `obv`/`wad`/`wvad`/`cmf`/`klinger`**) landed. Package Runtime SoT + pyne-worker thin wrap landed (**H1** largely done). Residual: interpret↔compile plot MISMATCH corpus tail (**P1p**). Incremental `ta.nvi`/`ta.pvi` and Supertrend mid±factor·ATR goldens landed.
 
 **Last Updated:** 2026-08-16 (align with `docs/ROADMAP.md` + 0.3.10; pine-worker is **not** colocated)
 
@@ -169,7 +169,7 @@ Call-site state (`_ta_call_i` reset each bar), one sample per site per bar (safe
 | **H2** | Product warm-compile path (SLOs, prewarm, IR cache on in deploy) | P1 ✅ (2026-08) |
 | **C1** | Corpus Runtime residual | P1 ✅ (2026-08-09) — set01–04 Runtime interpret **100%** excl. EXPECTED_FAIL (2466 OK + 11 intentional demos); parse **99.96%**. Residual = intentional demos only. set05 long-tail separate |
 | **T1** | Cap unbounded `current_series` lists to `max_bars_back` / `_SERIES_MAX` | P2 ✅ R7 — `PYNE_SERIES_CAP` (default ON), `PYNE_SERIES_MAX`, goldens `tests/test_series_cap.py` |
-| **T2** | Incremental for remaining heavy kernels | P2 ✅ R7: bb/kama/cmo/stochrsi + wma/hma/linreg; **0.3.10** `obv`/`wad`/`wvad`/`cmf`/`klinger`. Residual full-list: `ta.nvi` / `ta.pvi` |
+| **T2** | Incremental for remaining heavy kernels | P2 ✅ R7: bb/kama/cmo/stochrsi + wma/hma/linreg; **0.3.10** `obv`/`wad`/`wvad`/`cmf`/`klinger` + `nvi`/`pvi` |
 | **L2** | Webhook alerts productization | P3 ✅ pyne-worker + Pro API `/run` export + outbound `ALERT_WEBHOOK_URL` / `webhook_url` |
 | **F1** | `ta.atr` is **Wilder RMA of TR** (interpret + Numba). Supertrend is simplified mid±factor·ATR (not TV ratchet); goldens lock that contract | P2 ⚙️ |
 | — | Bit-identical recursive smoothers vs live TV | numerical-parity track |

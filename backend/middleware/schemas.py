@@ -75,6 +75,8 @@ RUN_SCHEMA: dict[str, tuple[type, bool, Any]] = {
     "alert_batch": (bool, False, True),  # one batch POST vs per-alert
     # AXIS git publish emulator: [{namespace, name, version, source}, …]
     "libraries": (list, False, []),
+    # Optional interpret wall-clock budget; omit / null → None (no timeout).
+    "timeout_seconds": (float, False, None),
 }
 
 # Shared OHLCV + many scripts (AXIS multi-indicator). Nested script objects
@@ -91,6 +93,9 @@ RUN_BATCH_SCHEMA: dict[str, tuple[type, bool, Any]] = {
     "forward_alerts": (bool, False, True),
     "alert_last_bar": (bool, False, True),
     "alert_batch": (bool, False, True),
+    # Same AXIS git-publish list as /run (max 32, parsed in the route).
+    "libraries": (list, False, []),
+    "timeout_seconds": (float, False, None),
 }
 
 # Hard cap to keep free-tier /run/batch bounded.

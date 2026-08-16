@@ -89,13 +89,14 @@ curl -s http://127.0.0.1:5002/ | python -m json.tool
 | `mode` | string | no | `"auto"` |
 | `inputs` | object | no | `{}` — `input.*` by title (forces interpret under `auto`) |
 | `libraries` | list | no | `[]` — `[{namespace, name, version, source}]`, max 32 |
+| `timeout_seconds` | number | no | omit — interpret wall-clock budget; passed only when set and `> 0` |
 | `profiler` | bool | no | `false` — forces interpret |
 | `webhook_url` | string | no | `""` (else env `ALERT_WEBHOOK_URL`) |
 | `forward_alerts` | bool | no | `true` |
 | `alert_last_bar` | bool | no | `true` |
 | `alert_batch` | bool | no | `true` |
 
-Not in the schema (sending them → `UNKNOWN_FIELDS`): `timeout_seconds` (library `Runtime.run` only), extra undocumented keys. Query `?mode=` overrides only when the body omits `mode`.
+Unknown extra keys → `UNKNOWN_FIELDS`. Query `?mode=` overrides only when the body omits `mode`.
 
 Bar objects are expected to carry at least open/high/low/close/time (volume optional depending on script).
 
@@ -149,7 +150,8 @@ Shared OHLCV, multiple scripts (max **8**). Envelope:
   ],
   "data": [/* bars */],
   "symbol": "AAPL",
-  "mode": "interpret"
+  "mode": "interpret",
+  "libraries": []
 }
 ```
 
@@ -246,7 +248,8 @@ There is **no** `pynescript.api.PynescriptAPI` client in this package. Call the 
 - **Strict schemas** — unknown fields rejected.
 - **CORS** — browser clients need listed origins; server-to-server without `Origin` is fine.
 - **`mode` default `auto`** — prefer warm compile; fall back to interpret (`auto_backend`, optional `compile_fallback_reason`). Strict `compile` errors instead of falling back; use `interpret` for alerts, `input.*` overrides, libraries, and full `request.*`.
-- **`libraries` (0.3.7+)** — `[{namespace, name, version, source}]` binds `import ns/Name/ver` (max 32). `register_library_source` finalizes exports in 0.3.8; auto-mode keeps the list on interpret fallback. Same field on pyne-worker `/run` and deployed scripts.
+- **`libraries` (0.3.7+)** — `[{namespace, name, version, source}]` binds `import ns/Name/ver` (max 32). `register_library_source` finalizes exports in 0.3.8; auto-mode keeps the list on interpret fallback. Same field on Flask `/run`, `/run/batch`, pyne-worker `/run`, and deployed scripts.
+- **`timeout_seconds`** — optional interpret wall-clock budget on `/run` and `/run/batch`. Omit / `null` / `≤ 0` → no timeout. Exceeded runs surface `timed_out` on the HTTP body.
 - **Alerts** — `alerts[]` on success (interpret). L2 webhooks: body `webhook_url` or env `ALERT_WEBHOOK_URL`; defaults last-bar + batch POST. See [Alerts](/pyne/docs/runtime/alerts).
 - **Batch cap 8** — `TOO_MANY_SCRIPTS` if exceeded.
 - **Free-tier guards (0.3.4+)** — process-local limits on unauthenticated `/run`, `/run/batch`, `/compile/prewarm` (and WS run):

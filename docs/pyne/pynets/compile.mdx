@@ -28,7 +28,7 @@ description: "JS bar-loop emit for mode compile | auto. Python object-mode analo
 
 PyneTS compile (`mode: "compile"` / `"auto"`) **emits a JavaScript bar-loop function**. It is the analog of Python **object-mode** compile, **not** Numba nopython. There is no LLVM, no `numba`, no disk IR cache like `PYNE_COMPILE_CACHE_DIR`.
 
-Landed in standalone **`@hoox-sh/pynets` 0.2.0**. Interpret is unchanged. The PYNE `pynets/` submodule pin (**0.1.0**) has **no** `src/runtime/compile/` — `mode` is interpret-only there.
+Landed in **`@hoox-sh/pynets` 0.2.0**. Interpret is unchanged. This PYNE checkout’s `pynets/` pin is **v0.2.0** and includes `src/runtime/compile/`. Python Runtime remains the oracle.
 
 ## Conceptual model
 

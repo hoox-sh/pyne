@@ -69,10 +69,10 @@ flowchart LR
 | Linter | Present (`pynescript lint`) |
 | Data providers | Mock, Yahoo, AlphaVantage, CCXT + datafeed wiring |
 | LSP | Diagnostics, completion, hover, format, symbols, defs/refs, … |
-| PyneTS | Standalone `@hoox-sh/pynets` **0.2.0** — interpret + JS compile. This repo’s `pynets/` submodule pin is **0.1.0** interpret-only — see [PyneTS](/pyne/docs/pynets) |
+| PyneTS | `@hoox-sh/pynets` **0.2.0** (npm + this repo’s `pynets/` pin **v0.2.0**) — interpret + JS compile. Python Runtime remains the oracle — see [PyneTS](/pyne/docs/pynets) |
 | pine-worker | Legacy TS Cloudflare Worker (sister repo; not in this checkout) |
 | Numba compile path | MVP + object-mode fallback |
-| Incremental `ta.*` | Default on (`PYNE_TA_INCREMENTAL`); **0.3.10** adds `obv`/`wad`/`cmf`/`klinger`. Residual: `nvi`/`pvi` |
+| Incremental `ta.*` | Default on (`PYNE_TA_INCREMENTAL`); **0.3.10** volume `obv`/`wad`/`cmf`/`klinger`; **0.3.11** `nvi`/`pvi` |
 | Interpret bar-loop | **0.3.10** dispatch inlining + unused derived-series skip |
 
 ### Series & context (illustrative ✅ families)
@@ -135,7 +135,7 @@ python scripts/regenerate_inventory_summary.py
 
 ## See also
 
-- [Compatibility](/pyne/docs/reference/compatibility)
+- [Compatibility map](/pyne/docs/reference/compatibility) — grouped working / partial / residual / out of scope
 - [Missing features](/pyne/docs/reference/missing-features)
 - [Pine v6 surface](/pyne/docs/reference/pine-v6-surface)
 - [Roadmap](/pyne/docs/reference/roadmap)

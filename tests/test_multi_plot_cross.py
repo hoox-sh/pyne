@@ -165,13 +165,45 @@ fill(p1, p2, title="Background", color=color.rgb(33, 150, 243, 95))
     assert "fill" in kinds
 
 
-def test_plotshape_bgcolor_keys_via_materialize_match_interpret():
-    """Dual-mode key parity for plotshape + default bgcolor after drawings lift.
+def test_dual_host_visual_series_keys():
+    """Same series keys: two hlines, titled fill, titled bgcolor, empty plot, plot(open), plotshape.
 
-    Compile Runtime does not yet pack visual series natively; the plotting
-    helper (to be wired by Runtime compile packing) reconstructs them from
-    ``__drawings`` so structural_only residuals can clear without harness flags.
+    First-party scripts must not need ``--ignore-hline-keys`` / ``--ignore-fill-keys``.
     """
+    src = """
+//@version=5
+indicator("keys", overlay=true)
+hline(30)
+hline(70)
+p_empty = plot(close, title="")
+p_open = plot(open)
+fill(p_empty, p_open, title="Background", color=color.blue)
+bgcolor(close > open ? color.green : na, title="up_bg")
+plotshape(close > open, title="Buy Label")
+"""
+    bars = _bars(24)
+    ri = Runtime().run(src, bars, mode="interpret")
+    rc = Runtime().run(src, bars, mode="compile")
+    assert "error" not in ri, ri.get("error")
+    assert "error" not in rc, rc.get("error")
+    expected = {"hline", "hline_2", "Background", "up_bg", "Buy Label"}
+    # empty title="" and untitled plot(open) share interpret plot_N policy
+    ikeys = set(ri["series"])
+    ckeys = set(rc["series"])
+    assert expected <= ikeys, sorted(ikeys)
+    assert expected <= ckeys, sorted(ckeys)
+    assert ikeys == ckeys, (sorted(ikeys - ckeys), sorted(ckeys - ikeys))
+    # empty + untitled plots are plot_N, never "" or bare "plot"
+    assert "" not in ckeys
+    extra = ikeys - expected
+    assert extra, "expected plot_N keys for empty/untitled plots"
+    assert all(k.startswith("plot_") for k in extra), extra
+    assert "plot" not in ikeys
+    assert "plot" not in ckeys
+
+
+def test_plotshape_bgcolor_keys_via_materialize_match_interpret():
+    """Dual-mode key parity for plotshape + default bgcolor after drawings lift."""
     from pynescript.ast.evaluator.builtins.plotting import merge_visual_series_from_drawings
 
     src = """

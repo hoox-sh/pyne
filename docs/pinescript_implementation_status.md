@@ -19,7 +19,7 @@
 
 # PineScript v6 Implementation Index
 
-This document is the **checklist SoT** summarized by `docs/pyne/reference/implementation-status.mdx`. Status is implementation judgment for `hoox-pyne` **0.3.10**, **not** TradingView® platform parity.
+This document is the **checklist SoT** summarized by `docs/pyne/reference/implementation-status.mdx`. Status is implementation judgment for `hoox-pyne` **0.3.11**, **not** TradingView® platform parity.
 
 Historical “Phase 8 / 100% complete / 997 tests” notes at the end of this file are **dispatch-era rollups**. Prefer live inventory (`docs/pine_v6_full_surface_inventory.md`, 640 callables as of 2026-07-25), corpus snapshot (set01–04, 2026-08-09), and `docs/ROADMAP.md` residual IDs.
 

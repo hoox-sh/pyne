@@ -304,8 +304,12 @@ class TestCorpusResidualsParity:
 class TestSupertrendSimplifiedContract:
     """F1: interpret ``_supertrend`` / ``_inc`` and Numba share mid±factor·ATR."""
 
-    def test_interpret_and_numba_kernels_match(self) -> None:
+    @pytest.mark.parametrize("factor,period", [(3.0, 5), (3.0, 10)])
+    def test_interpret_and_numba_kernels_match(self, factor: float, period: int) -> None:
+        import math
+
         import numpy as np
+
         from pynescript.ast.evaluator import NodeLiteralEvaluator
         from pynescript.compiler import numba_builtins as nb
 
@@ -324,15 +328,15 @@ class TestSupertrendSimplifiedContract:
         closes = [100.0 + i * 0.15 + (1.0 if i % 4 else -0.8) for i in range(n)]
         highs = [c + (0.3 if i % 5 < 2 else 1.8) for i, c in enumerate(closes)]
         lows = [c - (1.8 if i % 5 < 2 else 0.3) for i, c in enumerate(closes)]
-        factor, period = 3.0, 10
-        h = np.asarray(highs, dtype=np.float64)
-        l = np.asarray(lows, dtype=np.float64)
-        c = np.asarray(closes, dtype=np.float64)
+        high_a = np.asarray(highs, dtype=np.float64)
+        low_a = np.asarray(lows, dtype=np.float64)
+        close_a = np.asarray(closes, dtype=np.float64)
 
         full = _Full()
         inc = _Inc()
         st_nb = np.full(2, np.nan)
         n_up = n_down = 0
+        n_formula = 0
         for i in range(n):
             full.current_series = {
                 "high": highs[: i + 1],
@@ -341,11 +345,9 @@ class TestSupertrendSimplifiedContract:
             }
             fv, fd = full._builtin_ta_supertrend([factor, period])
             inc._ta_call_i = 0
-            iv, id_ = inc._supertrend_inc_update(
-                highs[: i + 1], lows[: i + 1], closes[: i + 1], factor, period
-            )
-            nv, nd = nb.numba_supertrend(h, l, c, factor, period, i)
-            niv, nid = nb.numba_supertrend_inc(h, l, c, factor, period, i, st_nb)
+            iv, id_ = inc._supertrend_inc_update(highs[: i + 1], lows[: i + 1], closes[: i + 1], factor, period)
+            nv, nd = nb.numba_supertrend(high_a, low_a, close_a, factor, period, i)
+            niv, nid = nb.numba_supertrend_inc(high_a, low_a, close_a, factor, period, i, st_nb)
             assert fd == id_ == int(nd) == int(nid), f"bar {i}: dirs {fd}/{id_}/{nd}/{nid}"
             assert abs(fv - iv) <= 1e-10
             assert abs(fv - float(nv)) <= 1e-10
@@ -356,11 +358,21 @@ class TestSupertrendSimplifiedContract:
             hv, hd = full._supertrend(highs[i], lows[i], closes[i], factor, atr)
             assert hd == fd
             assert abs(hv - fv) <= 1e-10
+            mid = (highs[i] + lows[i]) / 2.0
+            atr_f = 0.0 if atr is None or (isinstance(atr, float) and math.isnan(atr)) else float(atr)
+            exp_dir = -1 if closes[i] >= mid else 1
+            exp_st = mid - factor * atr_f if exp_dir < 0 else mid + factor * atr_f
+            assert fd == exp_dir
+            assert abs(fv - exp_st) <= 1e-10
+            if i >= period and atr_f > 0.0:
+                assert abs(abs(fv - mid) - factor * atr_f) <= 1e-10
+                n_formula += 1
             if fd < 0:
                 n_up += 1
             else:
                 n_down += 1
         assert n_up >= 1 and n_down >= 1
+        assert n_formula >= 10
 
     def test_mid_cross_flips_direction_not_tv_ratchet(self) -> None:
         """Close crossing mid flips dir immediately (TV ratchet would wait for the band)."""
@@ -414,13 +426,14 @@ plot(close, title="c")
             if atr_f > 0:
                 assert 3.0 * atr_f > abs(100.2 - float(mid[8]))
 
-    def test_runtime_dual_host_fixture_contract(self) -> None:
-        src = """//@version=5
-indicator("st")
-[st, dir] = ta.supertrend(3.0, 10)
+    @pytest.mark.parametrize("factor,period", [(3.0, 5), (3.0, 10)])
+    def test_runtime_dual_host_fixture_contract(self, factor: float, period: int) -> None:
+        src = f"""//@version=5
+indicator("st_{factor}_{period}")
+[st, dir] = ta.supertrend({factor}, {period})
 plot(st, title="st")
 plot(dir, title="dir")
-plot(ta.atr(10), title="atr")
+plot(ta.atr({period}), title="atr")
 plot(hl2, title="mid")
 plot(close, title="c")
 """
@@ -437,6 +450,89 @@ plot(close, title="c")
                     continue
                 assert not an and not bn, f"{key}: na mismatch {a!r} {b!r}"
                 assert abs(float(a) - float(b)) < 1e-9
+
+    @pytest.mark.parametrize("factor,period", [(3.0, 5), (3.0, 10)])
+    def test_formula_after_atr_warmup_four_host(self, factor: float, period: int) -> None:
+        """After ATR warmup, ``st == mid ± factor * atr`` on interpret/compile/inc/numba."""
+        import math
+
+        import numpy as np
+
+        from pynescript.ast.evaluator import NodeLiteralEvaluator
+        from pynescript.compiler import numba_builtins as nb
+
+        class _Full(NodeLiteralEvaluator):
+            pass
+
+        class _Inc(NodeLiteralEvaluator):
+            def __init__(self) -> None:
+                super().__init__()
+                self._pine_bar_mode = True
+                self._pine_ta_incremental = True
+                self._ta_inc_state: dict = {}
+                self._ta_call_i = 0
+
+        src = f"""//@version=5
+indicator("st_formula_{factor}_{period}")
+[st, dir] = ta.supertrend({factor}, {period})
+plot(st, title="st")
+plot(dir, title="dir")
+plot(ta.atr({period}), title="atr")
+plot(hl2, title="mid")
+plot(close, title="c")
+"""
+        bars = _bars(80)
+        ri = Runtime().run(src, bars, mode="interpret")
+        rc = Runtime().run(src, bars, mode="compile")
+        assert "error" not in ri and "error" not in rc, (ri.get("error"), rc.get("error"))
+        assert rc.get("object_mode") is False
+
+        highs = [float(b["high"]) for b in bars]
+        lows = [float(b["low"]) for b in bars]
+        closes = [float(b["close"]) for b in bars]
+        high_a = np.asarray(highs, dtype=np.float64)
+        low_a = np.asarray(lows, dtype=np.float64)
+        close_a = np.asarray(closes, dtype=np.float64)
+        full = _Full()
+        inc = _Inc()
+        st_nb = np.full(2, np.nan)
+        n_formula = 0
+        first_atr = None
+        for i in range(len(bars)):
+            full.current_series = {
+                "high": highs[: i + 1],
+                "low": lows[: i + 1],
+                "close": closes[: i + 1],
+            }
+            fv, fd = full._builtin_ta_supertrend([factor, period])
+            inc._ta_call_i = 0
+            iv, id_ = inc._supertrend_inc_update(highs[: i + 1], lows[: i + 1], closes[: i + 1], factor, period)
+            nv, nd = nb.numba_supertrend(high_a, low_a, close_a, factor, period, i)
+            niv, nid = nb.numba_supertrend_inc(high_a, low_a, close_a, factor, period, i, st_nb)
+            atr = ri["series"]["atr"][i]
+            atr_na = atr is None or (isinstance(atr, float) and math.isnan(atr))
+            if first_atr is None and not atr_na:
+                first_atr = i
+            if first_atr is None:
+                continue
+            assert i >= period
+            mid = float(ri["series"]["mid"][i])
+            close = float(ri["series"]["c"][i])
+            atr_f = float(atr)
+            exp_dir = -1.0 if close >= mid else 1.0
+            exp_st = mid - factor * atr_f if exp_dir < 0 else mid + factor * atr_f
+            for host, st_v, dir_v in (
+                ("interpret", ri["series"]["st"][i], ri["series"]["dir"][i]),
+                ("compile", rc["series"]["st"][i], rc["series"]["dir"][i]),
+            ):
+                assert abs(float(dir_v) - exp_dir) < 1e-12, f"{host} bar {i}: dir"
+                assert abs(float(st_v) - exp_st) < 1e-9, f"{host} bar {i}: st {st_v} != {exp_st}"
+            assert fd == id_ == int(nd) == int(nid) == int(exp_dir)
+            for host, val in (("eval-full", fv), ("eval-inc", iv), ("numba", nv), ("numba-inc", niv)):
+                assert abs(float(val) - exp_st) <= 1e-10, f"{host} bar {i}: {val} != {exp_st}"
+            n_formula += 1
+        assert first_atr is not None and first_atr >= period
+        assert n_formula >= 10
 
 
 class TestResidualNopythonTaKernels:

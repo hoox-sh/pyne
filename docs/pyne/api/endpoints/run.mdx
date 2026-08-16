@@ -66,8 +66,9 @@ sequenceDiagram
 | `alert_last_bar` | bool | no | `true` | Webhook only last OHLCV bar firings |
 | `alert_batch` | bool | no | `true` | One batch POST vs per-alert |
 | `libraries` | list | no | `[]` | `[{namespace, name, version, source}]` — AXIS git-publish emulator (max 32) |
+| `timeout_seconds` | number | no | omit / `null` | Optional interpret wall-clock budget. Passed to `Runtime.run` only when set and `> 0`. Omit = no timeout. |
 
-**Not in `RUN_SCHEMA`:** `timeout_seconds` (in-process `Runtime.run` only — sending it here is `UNKNOWN_FIELDS`). Query `?mode=` is accepted when the body omits `mode`.
+Query `?mode=` is accepted when the body omits `mode`.
 
 Unknown fields → `UNKNOWN_FIELDS` 400. Empty script/data still checked after schema with `NO_SCRIPT` / `NO_DATA`. `import` and any `request.` token are compile-ineligible; `mode=auto` falls back to interpret and **keeps** `libraries` on that path.
 
@@ -144,7 +145,9 @@ Optional `bid` / `ask` per bar update runtime bid/ask state.
 | --- | --- | --- | --- |
 | `scripts` | list | yes | strings or `{id, script}` objects |
 | `data` | list | yes | Shared OHLCV |
-| `symbol` / `data_source` / `data_options` / `mode` / `profiler` | optional | same as `/run` (no `libraries` / `inputs` / `timeout_seconds`) |
+| `symbol` / `data_source` / `data_options` / `mode` / `profiler` | optional | same as `/run` (no `inputs`) |
+| `libraries` | list | no | same AXIS git-publish list as `/run` (max 32; applied to every script) |
+| `timeout_seconds` | number | no | same optional interpret budget as `/run` (applied to every script) |
 | `webhook_url` / `forward_alerts` / `alert_last_bar` / `alert_batch` | optional | same L2 webhook fields as `/run` (applied per script result) |
 
 Hard cap: `RUN_BATCH_MAX_SCRIPTS = 8` → `TOO_MANY_SCRIPTS`.
@@ -182,7 +185,7 @@ Paths: `backend/app.py` (`run_pine_script`, `run_pine_script_batch`, `compile_pr
 4. **Compile mode** may omit alert side effects (`alerts: []`); use interpret/`auto` for alerts.
 5. Schema rejects extras — clients must not send AXIS-only fields without updating schema.
 6. **Webhook delivery is best-effort** — evaluate still returns `status: success` if the hook fails; check `alert_forward`.
-7. Structured errors may include `error_kind` (`parse|compile|runtime|data|order|mode`), `error_type`, `error_bar`. `timed_out` is set only when the **in-process** host passed `timeout_seconds` — Flask `/run` never does.
+7. Structured errors may include `error_kind` (`parse|compile|runtime|data|order|mode`), `error_type`, `error_bar`. `timed_out` is set on the HTTP body when Runtime exceeds `timeout_seconds`.
 
 ## Worked example
 

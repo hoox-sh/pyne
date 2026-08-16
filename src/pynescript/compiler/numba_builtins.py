@@ -373,9 +373,9 @@ def numba_kc(src, high, low, close, period, mult, i):
 def numba_macd(arr, fast, slow, signal, i):
     """Return (macd, signal, hist) at bar ``i`` in a single O(i) pass.
 
-    Fast/slow EMAs use SMA seed (same as ``numba_ema``). Signal uses
-    first-value seed on the MACD line. Must not nest per-bar EMA rebuilds
-    (that was O(n³) and hung multi-thousand-bar compiles).
+    Fast/slow/signal EMAs all use SMA seed (interpret ``_ema`` / ``_macd_inc``).
+    Signal seeds on the first ``signal`` finite MACD samples (from ``slow-1``).
+    Warm-up returns nan (never 0). Must not nest per-bar EMA rebuilds.
     """
     fast = int(fast)
     slow = int(slow)
@@ -401,15 +401,25 @@ def numba_macd(arr, fast, slow, signal, i):
     for j in range(fast, slow):
         ema_f = alpha_f * arr[j] + (1.0 - alpha_f) * ema_f
 
+    seed_sum = 0.0
+    seed_n = 0
+    sig = np.nan
     macd_val = ema_f - ema_s
-    sig = macd_val  # first-value seed at first valid MACD bar
-
-    for j in range(slow, i + 1):
-        ema_f = alpha_f * arr[j] + (1.0 - alpha_f) * ema_f
-        ema_s = alpha_s * arr[j] + (1.0 - alpha_s) * ema_s
+    for j in range(slow - 1, i + 1):
+        if j >= slow:
+            ema_f = alpha_f * arr[j] + (1.0 - alpha_f) * ema_f
+            ema_s = alpha_s * arr[j] + (1.0 - alpha_s) * ema_s
         macd_val = ema_f - ema_s
-        sig = alpha_sig * macd_val + (1.0 - alpha_sig) * sig
+        if seed_n < signal:
+            seed_sum += macd_val
+            seed_n += 1
+            if seed_n == signal:
+                sig = seed_sum / signal
+        else:
+            sig = alpha_sig * macd_val + (1.0 - alpha_sig) * sig
 
+    if seed_n < signal:
+        return macd_val, np.nan, np.nan
     return macd_val, sig, macd_val - sig
 
 
@@ -1071,16 +1081,76 @@ def numba_percentrank(arr, length, i):
 
 @numba.njit(cache=True)
 def numba_obv(close, vol, i):
-    """On-Balance Volume rebuilt as a running sum from bar 0..i."""
-    if i < 0:
-        return np.nan
+    """On-Balance Volume matching interpret ``_obv``.
+
+    Returns 0 until 3 samples; accumulates from index 2 (skips
+    ``close[0]`` vs ``close[1]``).
+    """
+    if i < 2:
+        return 0.0
     obv = 0.0
-    for j in range(1, i + 1):
+    for j in range(2, i + 1):
         if close[j] > close[j - 1]:
             obv += vol[j]
         elif close[j] < close[j - 1]:
             obv -= vol[j]
     return obv
+
+
+@numba.njit(cache=True)
+def numba_ao(high, low, fast, slow, i):
+    """Awesome Oscillator: SMA(hl2, fast) - SMA(hl2, slow). Default 5 / 34.
+
+    Warm-up (``i < slow - 1``) is nan. Matches interpret ``_builtin_ta_ao``.
+    """
+    fast = int(fast)
+    slow = int(slow)
+    if fast <= 0 or slow <= 0 or i < slow - 1:
+        return np.nan
+    sf = 0.0
+    ss = 0.0
+    for j in range(slow):
+        hl2 = 0.5 * (high[i - j] + low[i - j])
+        if np.isnan(hl2):
+            return np.nan
+        if j < fast:
+            sf += hl2
+        ss += hl2
+    return sf / fast - ss / slow
+
+
+@numba.njit(cache=True)
+def numba_aroon(high, low, length, i):
+    """Aroon pair ``(down, up)`` matching interpret ``_builtin_ta_aroon``.
+
+    Window is ``length + 1`` bars ending at ``i``. Ties keep the oldest
+    extreme (Python ``max``/``min`` on range). Warm-up → (nan, nan).
+    """
+    length = int(length)
+    window = length + 1
+    if length <= 0 or i < length:
+        return np.nan, np.nan
+    hh = high[i - length]
+    ll = low[i - length]
+    hh_k = 0
+    ll_k = 0
+    for k in range(window):
+        idx = i - length + k
+        h = high[idx]
+        lo = low[idx]
+        if np.isnan(h) or np.isnan(lo):
+            return np.nan, np.nan
+        if h > hh:
+            hh = h
+            hh_k = k
+        if lo < ll:
+            ll = lo
+            ll_k = k
+    bars_since_hh = (window - 1) - hh_k
+    bars_since_ll = (window - 1) - ll_k
+    up = 100.0 * (length - bars_since_hh) / length
+    down = 100.0 * (length - bars_since_ll) / length
+    return down, up
 
 
 @numba.njit(cache=True)
@@ -2612,9 +2682,10 @@ def numba_atr_inc(high, low, close, period, i, st):
 
 @numba.njit(cache=True)
 def numba_macd_inc(arr, fast, slow, signal, i, st):
-    """Incremental MACD. ``st``: [ema_f, ema_s, sig, last_i].
+    """Incremental MACD. ``st``: [ema_f, ema_s, sig, last_i, seed_n, seed_sum].
 
-    Amortized O(1) per sequential bar; matches ``numba_macd`` values.
+    SMA seed on fast/slow/signal (matches ``numba_macd`` / interpret).
+    ``st`` must have length >= 6.
     """
     fast = int(fast)
     slow = int(slow)
@@ -2631,6 +2702,8 @@ def numba_macd_inc(arr, fast, slow, signal, i, st):
         st[0] = np.nan
         st[1] = np.nan
         st[2] = np.nan
+        st[4] = np.nan
+        st[5] = np.nan
 
     alpha_f = 2.0 / (fast + 1.0)
     alpha_s = 2.0 / (slow + 1.0)
@@ -2639,6 +2712,8 @@ def numba_macd_inc(arr, fast, slow, signal, i, st):
     ema_f = st[0]
     ema_s = st[1]
     sig = st[2]
+    seed_n = 0 if np.isnan(st[4]) else int(st[4])
+    seed_sum = 0.0 if np.isnan(st[5]) else st[5]
 
     for j in range(last + 1, i + 1):
         # Fast EMA: seed at fast-1, advance on later bars (including through slow-1)
@@ -2650,28 +2725,36 @@ def numba_macd_inc(arr, fast, slow, signal, i, st):
         elif j >= fast:
             ema_f = alpha_f * arr[j] + (1.0 - alpha_f) * ema_f
 
-        # Slow EMA + signal: seed at slow-1, then joint advance
         if j == slow - 1:
             sum_s = 0.0
             for k in range(slow):
                 sum_s += arr[k]
             ema_s = sum_s / slow
-            macd_val = ema_f - ema_s
-            sig = macd_val
         elif j >= slow:
-            # ema_f already advanced above for this j
             ema_s = alpha_s * arr[j] + (1.0 - alpha_s) * ema_s
-            macd_val = ema_f - ema_s
-            sig = alpha_sig * macd_val + (1.0 - alpha_sig) * sig
+
+        if j >= slow - 1 and not np.isnan(ema_f) and not np.isnan(ema_s):
+            macd_j = ema_f - ema_s
+            if seed_n < signal:
+                seed_sum += macd_j
+                seed_n += 1
+                if seed_n == signal:
+                    sig = seed_sum / signal
+            else:
+                sig = alpha_sig * macd_j + (1.0 - alpha_sig) * sig
 
     st[0] = ema_f
     st[1] = ema_s
     st[2] = sig
     st[3] = float(i)
+    st[4] = float(seed_n)
+    st[5] = seed_sum
 
     if i < slow - 1:
         return np.nan, np.nan, np.nan
     macd_val = ema_f - ema_s
+    if seed_n < signal:
+        return macd_val, np.nan, np.nan
     return macd_val, sig, macd_val - sig
 @numba.njit(cache=True)
 def numba_cum_inc(arr, i, st):
@@ -2783,18 +2866,22 @@ def numba_vwap_anchor_inc(src, vol, anchor, i, st):
 
 @numba.njit(cache=True)
 def numba_obv_inc(close, vol, i, st):
-    """Incremental OBV. ``st``: [obv, last_i]."""
+    """Incremental OBV. ``st``: [obv, last_i]. Matches ``numba_obv``."""
     if i < 0:
         return np.nan
+    if i < 2:
+        st[0] = 0.0
+        st[1] = float(i)
+        return 0.0
     if np.isnan(st[1]):
-        last = 0
+        last = 1
     else:
         last = int(st[1])
     if i < last:
-        last = 0
+        last = 1
         st[0] = 0.0
-    obv = 0.0 if last <= 0 or np.isnan(st[0]) else st[0]
-    start = 1 if last < 1 else last + 1
+    obv = 0.0 if last < 2 or np.isnan(st[0]) else st[0]
+    start = 2 if last < 2 else last + 1
     for j in range(start, i + 1):
         if close[j] > close[j - 1]:
             obv += vol[j]
@@ -2803,6 +2890,110 @@ def numba_obv_inc(close, vol, i, st):
     st[0] = obv
     st[1] = float(i)
     return obv
+
+
+@numba.njit(cache=True)
+def numba_nvi_inc(close, vol, i, st):
+    """Incremental NVI. ``st``: [nvi, prev_c, prev_v, last_i].
+
+    Seed 1000 on bar 0. Later bars multiply by ``(1 + close_change)`` when
+    volume decreases. Matches interpret ``_nvi_inc_update``.
+    """
+    if i < 0:
+        return np.nan
+    if i == 0:
+        st[0] = 1000.0
+        st[1] = close[0]
+        st[2] = vol[0] if not np.isnan(vol[0]) else 0.0
+        st[3] = 0.0
+        return 1000.0
+    prev_i = int(st[3]) if not np.isnan(st[3]) else -1
+    if prev_i == i:
+        return st[0]
+    if prev_i != i - 1:
+        nvi = 1000.0
+        for j in range(1, i + 1):
+            c0 = close[j - 1]
+            c1 = close[j]
+            v0 = vol[j - 1]
+            v1 = vol[j]
+            vv0 = 0.0 if np.isnan(v0) else v0
+            vv1 = 0.0 if np.isnan(v1) else v1
+            if not (np.isnan(c0) or np.isnan(c1)):
+                ch = 0.0 if c0 == 0.0 else (c1 - c0) / c0
+                if vv1 < vv0:
+                    nvi = nvi * (1.0 + ch)
+        st[0] = nvi
+        st[1] = close[i]
+        st[2] = vol[i] if not np.isnan(vol[i]) else 0.0
+        st[3] = float(i)
+        return nvi
+    nvi = st[0] if not np.isnan(st[0]) else 1000.0
+    c0 = st[1]
+    c1 = close[i]
+    vv0 = 0.0 if np.isnan(st[2]) else st[2]
+    vv1 = 0.0 if np.isnan(vol[i]) else vol[i]
+    if not (np.isnan(c0) or np.isnan(c1)):
+        ch = 0.0 if c0 == 0.0 else (c1 - c0) / c0
+        if vv1 < vv0:
+            nvi = nvi * (1.0 + ch)
+        st[1] = c1
+    st[0] = nvi
+    st[2] = vv1
+    st[3] = float(i)
+    return nvi
+
+
+@numba.njit(cache=True)
+def numba_pvi_inc(close, vol, i, st):
+    """Incremental PVI. ``st``: [pvi, prev_c, prev_v, last_i].
+
+    Seed 1000 on bar 0. Later bars multiply by ``(1 + close_change)`` when
+    volume increases. Matches interpret ``_pvi_inc_update``.
+    """
+    if i < 0:
+        return np.nan
+    if i == 0:
+        st[0] = 1000.0
+        st[1] = close[0]
+        st[2] = vol[0] if not np.isnan(vol[0]) else 0.0
+        st[3] = 0.0
+        return 1000.0
+    prev_i = int(st[3]) if not np.isnan(st[3]) else -1
+    if prev_i == i:
+        return st[0]
+    if prev_i != i - 1:
+        pvi = 1000.0
+        for j in range(1, i + 1):
+            c0 = close[j - 1]
+            c1 = close[j]
+            v0 = vol[j - 1]
+            v1 = vol[j]
+            vv0 = 0.0 if np.isnan(v0) else v0
+            vv1 = 0.0 if np.isnan(v1) else v1
+            if not (np.isnan(c0) or np.isnan(c1)):
+                ch = 0.0 if c0 == 0.0 else (c1 - c0) / c0
+                if vv1 > vv0:
+                    pvi = pvi * (1.0 + ch)
+        st[0] = pvi
+        st[1] = close[i]
+        st[2] = vol[i] if not np.isnan(vol[i]) else 0.0
+        st[3] = float(i)
+        return pvi
+    pvi = st[0] if not np.isnan(st[0]) else 1000.0
+    c0 = st[1]
+    c1 = close[i]
+    vv0 = 0.0 if np.isnan(st[2]) else st[2]
+    vv1 = 0.0 if np.isnan(vol[i]) else vol[i]
+    if not (np.isnan(c0) or np.isnan(c1)):
+        ch = 0.0 if c0 == 0.0 else (c1 - c0) / c0
+        if vv1 > vv0:
+            pvi = pvi * (1.0 + ch)
+        st[1] = c1
+    st[0] = pvi
+    st[2] = vv1
+    st[3] = float(i)
+    return pvi
 
 
 @numba.njit(cache=True)

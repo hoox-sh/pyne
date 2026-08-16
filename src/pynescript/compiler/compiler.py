@@ -38,7 +38,8 @@ Host packing / contracts
   is :mod:`pynescript.compiler.engine` (synthetic ``bar*60_000`` ms when time
   omitted; Runtime passes real OHLCV bar-open ms).
 - ``request.security`` / ``security``: same-symbol OHLCV passthrough only;
-  complex expressions emit ``na`` (no close-as-dividend invention).
+  foreign tickers and complex expressions emit ``na`` (no close-as-dividend
+  / unpack-as-chart invention).
 - nopython fallback: engine re-visits with ``force_object_mode=True`` after a
   TypingError warm-up; this module only implements the emit switch.
 - UDF series state lives in ``__st_{func}_{local}`` arrays; free chart series
@@ -500,6 +501,10 @@ class CompilerVisitor(NodeVisitor):
         self._stmt_expr: bool = False
         # Statement-form hline/fill to inject into object-mode body (mixed scripts).
         self._hline_fill_events: list[tuple[str, list[str], dict[str, str]]] = []
+        # Interpret capture index (plot/hline/fill/bgcolor/plotshape/plotchar).
+        # Empty ``plot(..., title="")`` keys use ``plot_{index}`` so they match
+        # Runtime packaging even when drawings are not in ``self.plots``.
+        self._visual_plot_i: int = 0
 
 
     @staticmethod
@@ -2408,6 +2413,12 @@ class CompilerVisitor(NodeVisitor):
                 # ``ticker.heikinashi(...)`` — rewrite simple OHLCV elts to HA series
                 sym_node = pos[0] if pos else None
                 use_ha = self._ast_is_heikinashi_ticker(sym_node)
+                # Foreign ticker unpack must not invent chart OHLCV (UPVOL / NOT_THE_CHART).
+                if not use_ha and self._security_unpack_symbol_is_foreign(sym_node):
+                    lines = []
+                    for name in names:
+                        lines.append(_store_numeric(name, "np.nan"))
+                    return "\n".join(lines) if lines else ""
                 if use_ha:
                     self._ensure_heikinashi_arrays()
                 if isinstance(expr_node, ast.Tuple):
@@ -2485,6 +2496,7 @@ class CompilerVisitor(NodeVisitor):
                     "numba_supertrend_inc(",
                     "numba_stochrsi(",
                     "numba_stochrsi_inc(",
+                    "numba_aroon(",
                 )
             )
             # Explicit multi-value stubs like "(0.0, 0.0, 25.0)" only
@@ -2968,6 +2980,8 @@ class CompilerVisitor(NodeVisitor):
             if node.attr == "obv":
                 st = self._alloc_fixed_state("obv", 2)
                 return f"numba_obv_inc(close_arr, vol_arr, __bar_idx, {st})"
+            if node.attr == "ao":
+                return "numba_ao(high_arr, low_arr, 5, 34, __bar_idx)"
             if node.attr == "vwap":
                 st = self._alloc_fixed_state("vwap", 3)
                 return f"numba_vwap_inc(close_arr, vol_arr, __bar_idx, {st})"
@@ -2981,6 +2995,12 @@ class CompilerVisitor(NodeVisitor):
             if node.attr in ("pvt", "vpt"):
                 st = self._alloc_fixed_state("pvt", 2)
                 return f"numba_pvt_inc(close_arr, vol_arr, __bar_idx, {st})"
+            if node.attr == "nvi":
+                st = self._alloc_fixed_state("nvi", 4)
+                return f"numba_nvi_inc(close_arr, vol_arr, __bar_idx, {st})"
+            if node.attr == "pvi":
+                st = self._alloc_fixed_state("pvi", 4)
+                return f"numba_pvi_inc(close_arr, vol_arr, __bar_idx, {st})"
             # Method attrs used as Call targets (ta.sma → ta_sma) stay as identifiers.
             return f"ta_{node.attr}"
         if isinstance(node.value, ast.Name) and node.value.id == "color":
@@ -4267,6 +4287,7 @@ class CompilerVisitor(NodeVisitor):
                 title = self._literal_str(args[1], default="hline") or "hline"
             title = self._unique_plot_title(title)
             self.plots.append({"expr": price_expr, "title": title, "kind": "hline"})
+            self._note_visual_series()
             idx = len(self.plots) - 1
             # Statement-form ``hline(price)`` is metadata + a float series.
             # Stay nopython when the price is proven numeric (no handle use).
@@ -4303,6 +4324,7 @@ class CompilerVisitor(NodeVisitor):
                 title = self._literal_str(args[3], default="fill") or "fill"
             title = self._unique_plot_title(title)
             self.plots.append({"expr": "None", "title": title, "kind": "fill"})
+            self._note_visual_series()
             # Statement-form titled fill is a NaN series key only (band color
             # lives in plot meta). No in-loop ``__drawings`` → stay nopython.
             if getattr(self, "_stmt_expr", False) and not self.object_mode:
@@ -4316,12 +4338,19 @@ class CompilerVisitor(NodeVisitor):
             return self._emit_drawing(func_name, args, draw_kwargs)
 
         if func_name == "plot":
-            # Match Runtime interpret packaging: untitled plots use plot_0, plot_1, …
-            title = f"plot_{len(self.plots)}"
+            # Match Runtime interpret packaging: empty / missing title → plot_N
+            # where N is the interpret capture index (includes prior visuals).
+            fallback = f"plot_{self._visual_plot_i}"
+            title = fallback
             if "title" in kwargs:
-                title = kwargs["title"].strip("\"'")
-            elif len(args) > 1 and args[1]:
-                title = args[1].strip("\"'")
+                extracted = self._literal_str(kwargs["title"], default="")
+                if extracted:
+                    title = extracted
+            elif len(args) > 1:
+                extracted = self._literal_str(args[1], default="")
+                if extracted:
+                    title = extracted
+            title = self._unique_plot_title(title)
             series_expr = args[0] if args else "np.nan"
             # Non-numeric plot sources (UDT, hline handle, string, sequence, color)
             # must use safe cast and object mode so float64 stores never raise.
@@ -4366,6 +4395,7 @@ class CompilerVisitor(NodeVisitor):
                 series_expr = f"safe_float({series_expr})"
             # UDT field already expanded
             self.plots.append({"expr": series_expr, "title": title})
+            self._note_visual_series()
             idx = len(self.plots) - 1
             # Always return an *expression* (plot() may be assigned:
             # ``p = plot(x)``). Bare ``plot_i[i] = …`` is a statement and
@@ -4805,6 +4835,8 @@ class CompilerVisitor(NodeVisitor):
             "lowestbars": "ta_lowestbars",
             "percentrank": "ta_percentrank",
             "obv": "ta_obv",
+            "nvi": "ta_nvi",
+            "pvi": "ta_pvi",
             "wma": "ta_wma",
             "roc": "ta_roc",
             "mom": "ta_mom",
@@ -4829,6 +4861,8 @@ class CompilerVisitor(NodeVisitor):
             "accdist": "ta_accdist",
             "pvt": "ta_pvt",
             "vpt": "ta_pvt",
+            "ao": "ta_ao",
+            "aroon": "ta_aroon",
         }
         if func_name in _BARE_TA and func_name not in self.user_funcs:
             func_name = _BARE_TA[func_name]
@@ -5083,7 +5117,7 @@ class CompilerVisitor(NodeVisitor):
             fast = args[1] if len(args) > 1 else "12"
             slow = args[2] if len(args) > 2 else "26"
             signal = args[3] if len(args) > 3 else "9"
-            st = self._alloc_fixed_state("macd", 4)
+            st = self._alloc_fixed_state("macd", 6)
             return (
                 f"numba_macd_inc({_arr(src)}, int({fast}), int({slow}), int({signal}), "
                 f"__bar_idx, {st})"
@@ -5518,6 +5552,16 @@ class CompilerVisitor(NodeVisitor):
             if len(args) >= 2 and _is_series_arr(args[0]):
                 return f"numba_obv_inc({_arr(args[0])}, {_arr(args[1])}, __bar_idx, {st})"
             return f"numba_obv_inc(close_arr, vol_arr, __bar_idx, {st})"
+        if func_name == "ta_nvi":
+            st = self._alloc_fixed_state("nvi", 4)
+            if len(args) >= 2 and _is_series_arr(args[0]):
+                return f"numba_nvi_inc({_arr(args[0])}, {_arr(args[1])}, __bar_idx, {st})"
+            return f"numba_nvi_inc(close_arr, vol_arr, __bar_idx, {st})"
+        if func_name == "ta_pvi":
+            st = self._alloc_fixed_state("pvi", 4)
+            if len(args) >= 2 and _is_series_arr(args[0]):
+                return f"numba_pvi_inc({_arr(args[0])}, {_arr(args[1])}, __bar_idx, {st})"
+            return f"numba_pvi_inc(close_arr, vol_arr, __bar_idx, {st})"
         if func_name == "ta_roc":
             # ta.roc(source, length)
             if len(args) >= 2:
@@ -5603,6 +5647,18 @@ class CompilerVisitor(NodeVisitor):
             if len(args) >= 2 and _is_series_arr(args[0]):
                 return f"numba_pvt_inc({_arr(args[0])}, {_arr(args[1])}, __bar_idx, {st})"
             return f"numba_pvt_inc(close_arr, vol_arr, __bar_idx, {st})"
+        if func_name == "ta_ao":
+            # ta.ao / ta.ao() / ta.ao(fast, slow) — SMA(hl2,fast) - SMA(hl2,slow)
+            fast = args[0] if args else "5"
+            slow = args[1] if len(args) > 1 else "34"
+            return (
+                f"numba_ao(high_arr, low_arr, {self._emit_period(fast)}, "
+                f"{self._emit_period(slow)}, __bar_idx)"
+            )
+        if func_name == "ta_aroon":
+            # ta.aroon(length) → (aroonDown, aroonUp)
+            length = kwargs.get("length", args[0] if args else "14")
+            return f"numba_aroon(high_arr, low_arr, {self._emit_period(length)}, __bar_idx)"
         if func_name in ("nz",):
             if not args:
                 return "0.0"
@@ -6259,6 +6315,12 @@ class CompilerVisitor(NodeVisitor):
             suffix += 1
         return f"{base}_{suffix}"
 
+    def _note_visual_series(self) -> int:
+        """Advance interpret-style visual capture index; return the prior slot."""
+        i = self._visual_plot_i
+        self._visual_plot_i = i + 1
+        return i
+
     def _emit_drawing_set(self, func_name: str, args: list[str], kwargs: dict[str, str]) -> str:
         """Emit a drawing update event for label/line/box/table/polyline set_*.
 
@@ -6314,6 +6376,13 @@ class CompilerVisitor(NodeVisitor):
                 parts.append(f"'color': {args[2]}")
         elif kind == "bgcolor":
             parts.append(f"'color': {args[0] if args else 'None'}")
+            if "title" in kwargs:
+                parts.append(f"'title': {kwargs['title']}")
+            elif len(args) > 1:
+                # Prefer a string positional (title=); skip numeric offset.
+                if self._literal_str(args[1], default=""):
+                    parts.append(f"'title': {args[1]}")
+            self._note_visual_series()
         elif kind == "barcolor":
             parts.append(f"'color': {args[0] if args else 'None'}")
         elif kind == "label":
@@ -6334,6 +6403,8 @@ class CompilerVisitor(NodeVisitor):
                 parts.append(f"'title': {kwargs['title']}")
             elif len(args) > 1:
                 parts.append(f"'title': {args[1]}")
+            if kind in ("plotshape", "plotchar"):
+                self._note_visual_series()
         elif kind == "fill":
             parts.append(f"'plot1': {args[0] if args else 'None'}")
             parts.append(f"'plot2': {args[1] if len(args) > 1 else 'None'}")
@@ -6621,6 +6692,25 @@ class CompilerVisitor(NodeVisitor):
         if CompilerVisitor._is_heikinashi_security_symbol(s):
             return True
         return False
+
+    def _security_unpack_symbol_is_foreign(self, sym_node: Any) -> bool:
+        """True when a security unpack symbol is not host chart / HA.
+
+        Destructure ``[o,h,l,c] = request.security("UPVOL.NY", …, [open,…])``
+        used to visit the expression tuple and store chart OHLCV. Foreign
+        tickers must emit ``na`` (same policy as ``visit_Call``).
+        """
+        if sym_node is None:
+            return False
+        if self._ast_is_heikinashi_ticker(sym_node):
+            return False
+        try:
+            sym_code = str(self.visit(sym_node) or "")
+        except Exception:
+            return True
+        if self._is_heikinashi_security_symbol(sym_code):
+            return False
+        return not self._is_chart_security_symbol(sym_code)
 
     @staticmethod
     def _is_heikinashi_security_symbol(sym: str) -> bool:

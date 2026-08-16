@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.11] - 2026-08-16
+
+### Added
+- Incremental interpret **`ta.nvi` / `ta.pvi`** plus matching compile `numba_nvi_inc` / `numba_pvi_inc`.
+- Flask `POST /run` `timeout_seconds` and `POST /run/batch` `libraries`.
+- Dual-host goldens: Supertrend mid±factor·ATR, trail OHLC, foreign `request.*` → `na`, compile plot keys.
+
+### Changed
+- Interpret **`ta.pvt` / `ta.vpt`** is cumulative (matches compile / TV). Bar 0 is `0.0`.
+- `pynets/` submodule pin **v0.2.0** (interpret + JS compile). Python Runtime remains the oracle.
+
+### Fixed
+- Compile MACD signal SMA-seeds the MACD line; OBV skips the first close change.
+- Compile `ta.ao` / `ta.aroon` kernels (were all-`na`).
+- Compile foreign `request.security` tuple unpack no longer invents chart close.
+- Compile titled `bgcolor` / empty `plot(..., title="")` keys match interpret (disk IR v10).
+- Compile `strategy.exit` keeps the Pine exit id for trail events.
+
 ## [0.3.10] - 2026-08-16
 
 ### Added

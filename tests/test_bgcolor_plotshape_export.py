@@ -160,8 +160,32 @@ plot(close, "c")
         assert bool(bi) == bool(bc), (i, bi, bc)
 
 
+def test_titled_bgcolor_compile_matches_interpret():
+    """Titled bgcolor must materialize as the title key, not default ``bgcolor``."""
+    src = """
+//@version=5
+indicator("bg", overlay=true)
+bgcolor(close > open ? color.green : na, title="up_bg")
+plot(close, "c")
+"""
+    bars = _bars(20)
+    ri = Runtime().run(src, bars, mode="interpret")
+    rc = Runtime().run(src, bars, mode="compile")
+    assert "error" not in ri, ri.get("error")
+    assert "error" not in rc, rc.get("error")
+    assert "up_bg" in ri["series"], sorted(ri["series"])
+    assert "up_bg" in rc["series"], sorted(rc["series"])
+    assert "bgcolor" not in rc["series"]
+    drawings = rc.get("drawings") or []
+    titled = [
+        d for d in drawings if isinstance(d, dict) and d.get("kind") == "bgcolor" and d.get("title")
+    ]
+    assert titled, "compile bgcolor drawings must stamp title="
+    assert any(str(d.get("title")) == "up_bg" for d in titled)
+
+
 def test_materialize_bgcolor_default_titles_from_drawings():
-    """Untitled bgcolors → bgcolor / bgcolor_2 series (title emit still missing on compile)."""
+    """Untitled bgcolors → bgcolor / bgcolor_2 series on both hosts."""
     src = """
 //@version=5
 indicator("bg")

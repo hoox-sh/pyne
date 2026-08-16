@@ -168,7 +168,7 @@ _BUILTINS_WARMED = False
 # Bump when generated IR semantics change so source→IR disk index is invalidated
 # (source hash alone is stable across compiler fixes, e.g. fill() series keys).
 # v5: strategy series history + Pine na-aware ==/!=
-_DISK_META_VERSION = 9  # plot_kinds for nopython hline/fill drawings
+_DISK_META_VERSION = 10  # empty plot titles → plot_N; bgcolor drawing title
 _NJIT_CACHE_FALSE = "@numba.njit(cache=False)"
 _NJIT_CACHE_TRUE = "@numba.njit(cache=True)"
 
@@ -428,6 +428,7 @@ def _run_common_numba_builtin_warm() -> None:
     st2 = np.full(2, np.nan)
     st3 = np.full(3, np.nan)
     st4 = np.full(4, np.nan)
+    st6 = np.full(6, np.nan)
     st7 = np.full(7, np.nan)
     raw = np.full(32, np.nan)
     raw2 = np.full(32, np.nan)
@@ -443,7 +444,7 @@ def _run_common_numba_builtin_warm() -> None:
         nb.numba_lowest_inc(a, 5, i, st2.copy())
         nb.numba_atr_inc(h, l, a, 5, i, st2.copy())
         nb.numba_bb_inc(a, 5, 2.0, i, st3.copy())
-        nb.numba_macd_inc(a, 3, 5, 2, i, st4.copy())
+        nb.numba_macd_inc(a, 3, 5, 2, i, st6.copy())
         nb.numba_swma(a, i)
         nb.numba_dema_inc(a, 5, i, st3.copy(), raw)
         nb.numba_tema_inc(a, 5, i, st4.copy(), raw, raw2)
@@ -898,9 +899,11 @@ def _normalize_result(raw: Any) -> dict[str, Any]:
     out: dict[str, Any] = {}
     used: set[str] = set()
     for k, v in items:
-        key = str(k) if k is not None else "plot"
-        if not key:
-            key = "plot"
+        key = str(k) if k is not None else ""
+        if not str(key).strip():
+            # Match interpret empty-title packaging: plot_N, not "plot".
+            n = sum(1 for existing in out if not str(existing).startswith("__"))
+            key = f"plot_{n}"
         if key in ("__drawings", "__events"):
             out[key] = list(v) if v is not None else []
             continue
