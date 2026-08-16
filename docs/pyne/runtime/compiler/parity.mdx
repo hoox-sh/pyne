@@ -62,7 +62,7 @@ python scripts/compare_interp_compile.py --files tests/fixtures/parity/pine/stra
 | Report | `.cache/interp_compile_parity.json` |
 | Exit 0 | No value/`nan` mismatches on common series keys |
 
-**Buckets:** `OK`, `fill_background_only`, `both_error_same`, `expected_error`, `both_error`, `MISMATCH`, `interp_error`, `compile_error`, `structural_only`. Matched errors on both backends (`both_error_same`) and intentional demo failures (`expected_error`, e.g. auto-fib / pivot-depth) count as success unless `--strict-errors`. Structural key-only differences warn by default; `--strict-keys` fails. `--ignore-hline-keys` / `--ignore-fill-keys` drop one-sided constant hline and fill/background series from residuals.
+**Buckets:** `OK`, `fill_background_only`, `both_error_same`, `expected_error`, `both_error`, `MISMATCH`, `interp_error`, `compile_error`, `structural_only`. Matched errors on both backends (`both_error_same`) and intentional demo failures (`expected_error`, e.g. auto-fib / pivot-depth) count as success unless `--strict-errors`. First-party hline/fill/bgcolor/plotshape keys match interpret (0.3.11). `--ignore-hline-keys` / `--ignore-fill-keys` remain optional for leftover **corpus** key noise; `--strict-keys` fails on any one-sided key.
 
 ### Focused unit tests
 

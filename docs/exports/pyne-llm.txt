@@ -1057,7 +1057,7 @@ description: "pynescript.runtime.Runtime — package SoT bar-loop evaluate faça
 Runtime Bridge
 Abstract
 Package Runtime SoT: the bar-loop host, series, and CustomEvaluator live under pynescript.runtime (src/pynescript/runtime/host.py). The Pro API still imports backend.runtime.Runtime, which re-exports the package implementation (sys.modules alias) so monorepo and wheel installs share one host.
-Runtime owns symbol metadata namespaces (syminfo, timeframe, barstate, …), walks OHLCV bars, updates PineSeries for OHLC, visits a shared CustomEvaluator on the parsed AST each bar, drains strategy events, and packages multi-plot series for AXIS. Compile mode optionally swaps the AST walker for a Numba-backed subset engine. Optional timeoutseconds provides a wall-clock circuit breaker on the interpret path (checked every bars) for edge/cron budgets — Flask /run does not expose this field.
+Runtime owns symbol metadata namespaces (syminfo, timeframe, barstate, …), walks OHLCV bars, updates PineSeries for OHLC, visits a shared CustomEvaluator on the parsed AST each bar, drains strategy events, and packages multi-plot series for AXIS. Compile mode optionally swaps the AST walker for a Numba-backed subset engine. Optional timeoutseconds provides a wall-clock circuit breaker on the interpret path (checked every bars) for edge/cron budgets. Flask /run and /run/batch accept the same field (omit / null / ≤ → no timeout).
 This is the bridge between Flask handlers and the language core — not a second semantics.
 Conceptual model
 Interface surface
@@ -1075,7 +1075,7 @@ run(sourcecode, ohlcvdata, datafeed=None, dataprovider=None, mode="interpret", �
 | ohlcvdata | list[dict] with open/high/low/close/time[/volume/bid/ask] |
 | datafeed / dataprovider | request. wiring; auto-resolved from chart bars when unset |
 | mode | "interpret" (default for direct calls) · "compile" · "auto" (Pro API schema default) |
-| timeoutseconds | Optional wall-clock budget (seconds); interpret path only — partial results + timedout + errorkind=runtime when exceeded. Not accepted by Flask RUNSCHEMA |
+| timeoutseconds | Optional wall-clock budget (seconds); interpret path only — partial results + timedout + errorkind=runtime when exceeded. Flask /run and /run/batch accept it (omit / ≤ = no budget) |
 | libraries | Optional [{namespace, name, version, source}] registered via registerlibrarysource before import ns/Name/ver. mode=auto forwards libs into interpret fallback. Flask /run caps at |
 | inputs / profiler | input. overrides (interpret); non-empty inputs or profiler force interpret under auto (compilefallbackreason) |
 | realtime | Optional host simulation for varip multi-tick tests (realtimelastbar, realtimeticks, realtimebars, realtimefrombar) |
@@ -1154,7 +1154,7 @@ Failure modes
 | Order fill error at bar | Broker sim pending orders |
 | Compile mode requires numba / CompileNumbaRequiredError | Numeric emit without Numba (object-mode scripts still run) |
 | Compile Error: / Compiled Runtime Error: | Engine path (errorkind=compile / runtime) |
-| Script execution timed out | timeoutseconds exceeded (timedout, error_kind=runtime`) |
+| Script execution timed out | timeoutseconds exceeded (timedout, errorkind=runtime`) |
 See also
 Contract
 Run endpoint
@@ -1321,7 +1321,7 @@ Always-on unit coverage lives in tests/testinterpcompileparity.py (harness helpe
 pytest tests/testinterpcompileparity.py -m interpcompilefull
 or: PYNEINTERPCOMPILEFULL= pytest tests/testinterpcompileparity.py
 `
-Report artifact: .cache/interpcompileparity.json. Value mismatches on shared series keys are regressions; one-sided hline/fill keys are often structural residuals, not numeric bugs. End-user mode semantics: Evaluate scripts — Runtime modes.
+Report artifact: .cache/interpcompileparity.json. Value mismatches on shared series keys are regressions. First-party hline/fill/bgcolor/plotshape keys match (..); --ignore-hline-keys / --ignore-fill-keys are optional for leftover corpus noise. End-user mode semantics: Evaluate scripts — Runtime modes.
 Secrets & crypto
 scripts/build/.metadata.key is gitignored
 CI must supply stable CRYPTOKEY from METADATAKEY / METADATAKEY for reproducible .enc blobs
@@ -4352,11 +4352,12 @@ Pro API /run optional fields:
 | dataoptions | object | exchange, apikey, seed, … |
 | mode | auto (default), interpret, compile | Prefer warm compile + fallback; strict compile; full interpret |
 | inputs | object | input. overrides by title (forces interpret under auto) |
-| libraries | list | [{namespace, name, version, source}] — max ; interpret / auto fallback |
+| libraries | list | [{namespace, name, version, source}] — max ; also on /run/batch; interpret / auto fallback |
+| timeoutseconds | number | Optional interpret wall-clock budget; omit / null / ≤ → no timeout |
 | profiler | bool | Per-line timings; forces interpret |
 | webhookurl | string | Per-request L alert webhook (overrides ALERTWEBHOOKURL) |
 | forwardalerts / alertlastbar / alertbatch | bool | Webhook delivery controls (see Alerts) |
-timeoutseconds is a library Runtime.run(...) argument, not a POST /run body field (unknown keys → UNKNOWNFIELDS).
+timeoutseconds is accepted on Runtime.run, POST /run, and POST /run/batch. Extra keys that are not in the schema still → UNKNOWNFIELDS.
 Operators can also POST /compile/prewarm or run pyne prewarm (and pyne prewarm script.pine …) to warm Numba builtins / script IR caches before interactive traffic. Requires pip install "hoox-pyne[compile]" for full Numba warm-up.
 Free-tier Pro API guards (unauthenticated /run): FREEMAXBARS, FREEMAXSCRIPTCHARS, FREEMAXCONCURRENT, FREERATELIMIT / FREERATEWINDOWSEC — see Pro API usage.
 Editor / LSP client settings
@@ -4441,7 +4442,7 @@ Failure modes
 | --- | --- |
 | Browser CORS error on /run | Add origin to ALLOWEDORIGINS |
 | createkey always | Set ADMINTOKEN and send X-Admin-Token |
-| API keys vanish / permission error | Point APIKEY_STORE to writable path |
+| API keys vanish / permission error | Point APIKEYSTORE to writable path |
 | Payload too large | Split bars or stay under MiB body limit |
 | Editor “server failed to start” | Fix pynescript.lsp.command PATH; install [lsp] |
 | ccxt import errors | Install [data]` extra |
@@ -5238,10 +5239,7 @@ mode="compile" (strict) — does not fall back; you get an error payload instead
 Numba is not required for compile eligibility: strategy / UDT / map-heavy scripts can still run in object-mode compile. Missing Numba only blocks pure-numeric emit.
 Plot series parity
 Both backends export the same Runtime contract shape: series (title → per-bar values), plots, plotmeta, events, drawings, plus mode / diagnostics. For charting, shared plot series keys should agree within floating-point tolerance (na/None/NaN treated as NA).
-Known structural residuals (not value bugs):
-Constant hline-like keys sometimes appear on one side only.
-Background / fill / bgcolor series titles may differ in presence between interpret and object-mode compile.
-Use the parity harness (below) with --ignore-hline-keys / --ignore-fill-keys when you care about value parity of real plots, not decorative fill keys. Deeper compiler notes: Compiler overview.
+First-party hline / fill / bgcolor / plotshape keys match interpret compile (..). Harness --ignore-hline-keys / --ignore-fill-keys stay optional for leftover corpus noise, not first-party fixtures. Deeper compiler notes: Compiler overview.
 Compare interpret vs compile (corpus harness)
 From the repo root (monorepo with backend/ + editable pynescript):
 `bash
@@ -5360,7 +5358,7 @@ Determinism. Same source + same OHLCV + same mode should yield reproducible seri
 na / warmup. TA functions need enough bars; early bars may be na/None-like — guard like Pine (not na(x)).
 mode="compile" uses numeric Numba when the script is pure-numeric; otherwise object-mode compile. Strict compile errors instead of falling back; use auto for production “prefer fast path” behavior (see Runtime modes).
 mode="auto" may set compilefallbackreason and still return a successful interpret result — check autobackend if you need to know which path ran.
-Series parity. Shared series keys should match within harness tolerances; hline/fill keys can be one-sided — not necessarily a value bug.
+Series parity. Shared series keys should match within harness tolerances. First-party hline/fill/bgcolor/plotshape keys match; ignore flags are for leftover corpus noise.
 History indexing. Confirm []/[] semantics against your evaluator version before porting TV scripts that assume closed-bar rules.
 Strategy events include run/script ids when stamped by Runtime — useful for HOOX downstream.
 Body size / bar count. HTTP path caps payload size ( MiB); very long histories should be downsampled or chunked.
@@ -5999,9 +5997,9 @@ Failure modes (quick matrix)
 | Lint CI fail | lint | --fail-on level |
 | Empty plots | eval | plot() present; enough bars |
 | pyne run ≠ Runtime.run | modes | CLI is compile-only synthetic; library default is interpret |
-| UNKNOWNFIELDS + timeoutseconds | HTTP | timeoutseconds is library-only; drop it from /run |
+| UNKNOWNFIELDS + timeoutseconds | HTTP | field is valid on /run and /run/batch (..+); other extra keys still |
 | UNKNOWNFIELDS | HTTP | schema |
-| createkey | HTTP | ADMINTOKEN` |
+| createkey | HTTP | ADMIN_TOKEN` |
 | | HTTP | body size |
 | Squiggles missing | LSP | diagnostics enabled + filetype |
 | Numerical drift | eval | warmup / parity docs |
@@ -6646,7 +6644,7 @@ Time-indexed value stream with history access (close[]). Implementation includes
 Strategy event
 Structured record of entries/exits/orders emitted during strategy evaluation for downstream systems (HOOX, analytics).
 timeoutseconds
-Optional Runtime.run wall-clock budget (interpret path). Exceeded runs return partial plots with timedout. Not a POST /run body field.
+Optional Runtime.run wall-clock budget (interpret path). Also a POST /run / /run/batch body field (..+). Exceeded runs return partial plots with timedout. Omit / null / ≤ → no timeout.
 Unparse
 unparse(node) — regenerate Pine source text from an AST.
 //@version
@@ -6695,7 +6693,7 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-.-or-later
 ---
 title: "Runtime modes"
-description: "interpret / compile / auto defaults differ by surface. Library interpret, POST /run auto, pyne run compile-only. PyneTS is interpret-only."
+description: "interpret / compile / auto defaults differ by surface. Library interpret, POST /run auto, pyne run compile-only. PyneTS .. has interpret + JS compile."
 ---
 Runtime modes
 Abstract
@@ -6758,11 +6756,11 @@ Internals
 | Python library | src/pynescript/runtime/host.py |
 | Python CLI run | src/pynescript/main.py → compilescript + synthetic bars |
 | Pro API | backend/app.py RUNSCHEMA default auto |
-| PyneTS | pynets/src/runtime/interpret.ts (interpret only) |
+| PyneTS | pynets/ v.. — interpret + JS compile (mode interpret / compile / auto). Python remains the oracle |
 | PyneTS CLI | pynets/src/cli.ts → new Runtime("AAPL", { broker }).run |
 Invariants & edge cases
 . Do not document pyne run as mode=auto. It is compile-only smoke (--bars default ).
-. Do not document pynets run as compile-only or as --mode interpret. It is Runtime.run and is interpret-only. Default --bars is (Python pyne run defaults to ).
+. Do not document pynets run as Python pyne run. PyneTS Runtime.run defaults to interpret; .. also has JS compile / auto. Default --bars is (Python pyne run defaults to ).
 . result.mode is what executed. After auto, also read autobackend and compilefallbackreason.
 . Foreign request.security is na on every host. Compile does not invent bars to become "more complete".
 . AXIS Pyodide compile / auto cannot be Numba (Wasm).
@@ -6777,7 +6775,7 @@ new Runtime("AAPL", { inputs: { len: } }).run(src, bars);
 `bash
 Python desk smoke (compile only)
 pyne run script.pine --bars
-PyneTS desk smoke (interpret Runtime.run; default --bars )
+PyneTS desk smoke (Runtime.run; default interpret, --bars )
 pynets run script.pine --bars
 `
 Failure modes
@@ -6785,7 +6783,7 @@ Failure modes
 | --- | --- | --- |
 | Pro API "misses" an input | auto compiled a path that drops overrides | Pass mode: "interpret" |
 | pyne run ≠ notebook Runtime.run | Different host | Use the library or Pro API |
-| Expect PyneTS compile / --mode | Host is interpret-only | Use Python Runtime.run / Pro API for compile/auto |
+| Expect PyneTS ≡ Python compile | JS emit is object-mode analog, not Numba | Treat Python Runtime as the oracle |
 | mode omitted, two hosts disagree | Different defaults | Set mode` explicitly |
 See also
 Evaluate scripts
@@ -9139,7 +9137,7 @@ Failure modes
 | --- | --- |
 | Parse error on a new TV release-notes feature | Surface gap — Missing features |
 | Numerical drift on a custom smoother | Bar-mode vs list-mode; na; known divergences |
-| Interpret vs compile series mismatch | Foreign request., UDF last-assign na, hline/fill keys |
+| Interpret vs compile series mismatch | Foreign request., UDF last-assign na, leftover corpus keys |
 | Strategy equity ≠ TV | Commission / slippage / OHLC vs tick path |
 | import unresolved | Library not in libraries= / registry |
 | /run UNKNOWNFIELDS | Extra key not in RUNSCHEMA` |
@@ -9400,7 +9398,7 @@ Still incomplete / by design
 | Warm-compile product path (H) | SLOs / prewarm / deploy IR cache defaults (-) |
 | Runtime residual (C) | set– Runtime interpret % excl. EXPECTEDFAIL (--); third-party corpus not shipped |
 | Series cap (T) | PYNESERIESCAP default ON |
-| Residual TA inc (T) | R bb/kama/cmo/stochrsi + wma/hma/linreg; .. obv/wad/wvad/cmf/klinger + nvi/pvi |
+| Residual TA inc (T) | R bb/kama/cmo/stochrsi + wma/hma/linreg; .. obv/wad/cmf/klinger; .. nvi/pvi |
 | Pending-fill (F) | R interpret + compile goldens |
 | Plot parity residual (Pp) | ️ Harness + first-party goldens (MACD/OBV/ao/aroon + plot keys); corpus value MISMATCH tail remains |
 | TV Wilder RMA-ATR / supertrend (F) | interpret ATR is ta.rma(ta.tr); Supertrend mid±factor·ATR locked. TV ratchet is out of scope |
@@ -9766,7 +9764,7 @@ Open backlog (IDs stable)
 | C | Corpus set– residual (parse .%; Runtime % excl. EXPECTED) | P | -- |
 | Pp | Compile/interpret plot parity residual | P | ️ first-party goldens landed; residual corpus MISMATCH tail |
 | T | Cap currentseries to maxbarsback / SERIESMAX | P | PYNESERIESCAP default ON |
-| T | Incremental TA for remaining heavy kernels | P | R + .. volume inc including nvi/pvi |
+| T | Incremental TA for remaining heavy kernels | P | R + .. volume inc + .. nvi/pvi |
 | F | ATR Wilder / TV supertrend re-baseline only with dedicated goldens | P | mid±factor·ATR locked; TV ratchet out of scope |
 | F | Pending-fill averaging when pyramiding ≤ | P | |
 | L | vv converter maturity | P | open |
@@ -10648,7 +10646,7 @@ When pinebarmode and pinetaincremental are enabled (Runtime default; disable wit
 | Moving averages | sma, ema, rma, wma, hma, vwma, swma, kama, dema, tema, alma |
 | Oscillators | rsi, macd, stoch/stochrsi, cci, cmo, tsi, roc, wpr |
 | Volatility / structure | atr, tr, stdev, bb, highest/lowest, linreg, adx/dmi, supertrend, kc, sar |
-| Volume (..) | obv, wad/wvad, cmf, klinger, mfi, vwap, accdist |
+| Volume (..–..) | obv, wad/wvad, cmf, klinger, mfi, vwap, accdist, nvi, pvi |
 | Other | change/mom/cum, median, percentrank, rising/falling, barssince, pivots |
 ta.nvi / ta.pvi are incremental (O()/bar; PYNETAINCREMENTAL= full-list). ta.atr is Wilder RMA of true range on interpret (full + incremental) and Numba (ta.rma(ta.tr, length) — ..+). Supertrend is locked mid±factor·ATR (not the TV band ratchet).
 Interface surface
@@ -11029,7 +11027,7 @@ python scripts/compareinterpcompile.py --glob 'ta.pine' --bars
 python scripts/compareinterpcompile.py --files tests/fixtures/parity/pine/strategyentrylong.pine
 python scripts/compareinterpcompile.py --ignore-hline-keys --ignore-fill-keys --strict-keys
 `
-Writes .cache/interpcompileparity.json. Use this harness when changing emitters or kernels; prefer it over ad-hoc one-offs for structural key drift (hline / fill series).
+Writes .cache/interpcompileparity.json. First-party hline/fill keys match (..); ignore flags are for leftover corpus noise.
 Failure modes
 | Symptom | Cause |
 | --- | --- |
@@ -11089,7 +11087,7 @@ python scripts/compareinterpcompile.py --files tests/fixtures/parity/pine/strate
 | Tolerances | rtol=e-, atol=e- (nan-aware) |
 | Report | .cache/interpcompileparity.json |
 | Exit | No value/nan mismatches on common series keys |
-Buckets: OK, fillbackgroundonly, botherrorsame, expectederror, botherror, MISMATCH, interperror, compileerror, structuralonly. Matched errors on both backends (botherrorsame) and intentional demo failures (expectederror, e.g. auto-fib / pivot-depth) count as success unless --strict-errors. Structural key-only differences warn by default; --strict-keys fails. --ignore-hline-keys / --ignore-fill-keys drop one-sided constant hline and fill/background series from residuals.
+Buckets: OK, fillbackgroundonly, botherrorsame, expectederror, botherror, MISMATCH, interperror, compileerror, structuralonly. Matched errors on both backends (botherrorsame) and intentional demo failures (expectederror, e.g. auto-fib / pivot-depth) count as success unless --strict-errors. First-party hline/fill/bgcolor/plotshape keys match interpret (..). --ignore-hline-keys / --ignore-fill-keys remain optional for leftover corpus key noise; --strict-keys fails on any one-sided key.
 Focused unit tests
 | Test | Scope |
 | --- | --- |
@@ -11613,7 +11611,7 @@ Alerts — alert() engine + L webhooks
 Pro API runtime bridge
 Interpret compile parity — scripts/compareinterp_compile.py`
 Numerical validation
-Roadmap — H/T/F/L landed; Pp residual
+Roadmap — H/H/T/T/F/F/L landed; Pp corpus tail remains
 pine-worker parity
 AXIS docs — optional AXIS for series/drawings
 ---

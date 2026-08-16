@@ -168,12 +168,13 @@ Pro API `/run` optional fields:
 | `data_options` | object | exchange, api_key, seed, … |
 | `mode` | `auto` (default), `interpret`, `compile` | Prefer warm compile + fallback; strict compile; full interpret |
 | `inputs` | object | `input.*` overrides by title (forces interpret under `auto`) |
-| `libraries` | list | `[{namespace, name, version, source}]` — max 32; interpret / `auto` fallback |
+| `libraries` | list | `[{namespace, name, version, source}]` — max 32; also on `/run/batch`; interpret / `auto` fallback |
+| `timeout_seconds` | number | Optional interpret wall-clock budget; omit / `null` / `≤ 0` → no timeout |
 | `profiler` | bool | Per-line timings; forces interpret |
 | `webhook_url` | string | Per-request L2 alert webhook (overrides `ALERT_WEBHOOK_URL`) |
 | `forward_alerts` / `alert_last_bar` / `alert_batch` | bool | Webhook delivery controls (see [Alerts](/pyne/docs/runtime/alerts)) |
 
-`timeout_seconds` is a **library** `Runtime.run(...)` argument, not a `POST /run` body field (unknown keys → `UNKNOWN_FIELDS`).
+`timeout_seconds` is accepted on `Runtime.run`, `POST /run`, and `POST /run/batch`. Extra keys that are not in the schema still → `UNKNOWN_FIELDS`.
 
 Operators can also `POST /compile/prewarm` or run `pyne prewarm` (and `pyne prewarm script.pine …`) to warm Numba builtins / script IR caches before interactive traffic. Requires `pip install "hoox-pyne[compile]"` for full Numba warm-up.
 

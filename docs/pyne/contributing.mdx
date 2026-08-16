@@ -131,7 +131,7 @@ pytest tests/test_interp_compile_parity.py -m interp_compile_full
 # or: PYNE_INTERP_COMPILE_FULL=1 pytest tests/test_interp_compile_parity.py
 ```
 
-Report artifact: `.cache/interp_compile_parity.json`. Value mismatches on shared `series` keys are regressions; one-sided hline/fill keys are often structural residuals, not numeric bugs. End-user mode semantics: [Evaluate scripts — Runtime modes](/pyne/docs/enduser/guides/evaluate-scripts#runtime-modes-interpret--compile--auto).
+Report artifact: `.cache/interp_compile_parity.json`. Value mismatches on shared `series` keys are regressions. First-party hline/fill/bgcolor/plotshape keys match (0.3.11); `--ignore-hline-keys` / `--ignore-fill-keys` are optional for leftover corpus noise. End-user mode semantics: [Evaluate scripts — Runtime modes](/pyne/docs/enduser/guides/evaluate-scripts#runtime-modes-interpret--compile--auto).
 
 ### Secrets & crypto
 

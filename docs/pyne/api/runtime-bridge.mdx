@@ -28,7 +28,7 @@ description: "pynescript.runtime.Runtime — package SoT bar-loop evaluate faça
 
 **Package Runtime SoT:** the bar-loop host, series, and `CustomEvaluator` live under **`pynescript.runtime`** (`src/pynescript/runtime/host.py`). The Pro API still imports `backend.runtime.Runtime`, which **re-exports** the package implementation (`sys.modules` alias) so monorepo and wheel installs share one host.
 
-`Runtime` owns symbol metadata namespaces (`syminfo`, `timeframe`, `barstate`, …), walks OHLCV bars, updates `PineSeries` for OHLC, visits a shared `CustomEvaluator` on the parsed AST each bar, drains strategy events, and packages multi-plot series for AXIS. Compile mode optionally swaps the AST walker for a Numba-backed subset engine. Optional **`timeout_seconds`** provides a wall-clock circuit breaker on the interpret path (checked every 32 bars) for edge/cron budgets — Flask `/run` does **not** expose this field.
+`Runtime` owns symbol metadata namespaces (`syminfo`, `timeframe`, `barstate`, …), walks OHLCV bars, updates `PineSeries` for OHLC, visits a shared `CustomEvaluator` on the parsed AST each bar, drains strategy events, and packages multi-plot series for AXIS. Compile mode optionally swaps the AST walker for a Numba-backed subset engine. Optional **`timeout_seconds`** provides a wall-clock circuit breaker on the interpret path (checked every 32 bars) for edge/cron budgets. Flask `/run` and `/run/batch` accept the same field (omit / `null` / `≤ 0` → no timeout).
 
 This is the bridge between Flask handlers and the language core — not a second semantics.
 
@@ -70,7 +70,7 @@ Helpers: `configure_footprint`, `update_bid_ask`.
 | `ohlcv_data` | `list[dict]` with open/high/low/close/time[/volume/bid/ask] |
 | `data_feed` / `data_provider` | `request.*` wiring; auto-resolved from chart bars when unset |
 | `mode` | `"interpret"` (default for direct calls) · `"compile"` · `"auto"` (Pro API schema default) |
-| `timeout_seconds` | Optional wall-clock budget (seconds); interpret path only — partial results + `timed_out` + `error_kind=runtime` when exceeded. Not accepted by Flask `RUN_SCHEMA` |
+| `timeout_seconds` | Optional wall-clock budget (seconds); interpret path only — partial results + `timed_out` + `error_kind=runtime` when exceeded. Flask `/run` and `/run/batch` accept it (omit / `≤ 0` = no budget) |
 | `libraries` | Optional `[{namespace, name, version, source}]` registered via `register_library_source` before `import ns/Name/ver`. `mode=auto` forwards libs into interpret fallback. Flask `/run` caps at 32 |
 | `inputs` / `profiler` | `input.*` overrides (interpret); non-empty `inputs` or `profiler` force interpret under `auto` (`compile_fallback_reason`) |
 | `realtime_*` | Optional host simulation for `varip` multi-tick tests (`realtime_last_bar`, `realtime_ticks`, `realtime_bars`, `realtime_from_bar`) |

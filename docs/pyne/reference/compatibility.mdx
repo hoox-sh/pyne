@@ -213,7 +213,7 @@ EXPECTED_FAIL are path-listed demos (`runtime.error` library guards, lower-TF se
     | Python Runtime | Working | Language oracle |
     | PyneTS `@hoox-sh/pynets` 0.2.0 | Partial | Interpret + JS compile on npm; Python Runtime is the oracle |
     | `pynets/` submodule in this repo | Partial | Pin **v0.2.0** — same surface as npm (interpret + JS compile) |
-    | pyne-worker | Working | Thin Python CF host; vendors engine (may lag 0.3.10) |
+    | pyne-worker | Working | Thin Python CF host; vendors engine (may lag 0.3.11) |
     | pine-worker | Partial | Legacy TS Worker; **not** in this checkout |
   </Accordion>
 </AccordionGroup>
@@ -316,7 +316,7 @@ pytest tests/test_interp_compile_parity.py -q
 | --- | --- |
 | Parse error on a new TV release-notes feature | Surface gap — [Missing features](/pyne/docs/reference/missing-features) |
 | Numerical drift on a custom smoother | Bar-mode vs list-mode; `na`; [known divergences](https://github.com/hoox-sh/pyne/blob/main/docs/known_divergences.md) |
-| Interpret vs compile series mismatch | Foreign `request.*`, UDF last-assign `na`, hline/fill keys |
+| Interpret vs compile series mismatch | Foreign `request.*`, UDF last-assign `na`, leftover corpus keys |
 | Strategy equity ≠ TV | Commission / slippage / OHLC vs tick path |
 | `import` unresolved | Library not in `libraries=` / registry |
 | `/run` 400 `UNKNOWN_FIELDS` | Extra key not in `RUN_SCHEMA` |

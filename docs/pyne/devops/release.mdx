@@ -141,7 +141,7 @@ Artifacts land under `dist/`, `dist/lsp/`, `dist/cli/`, `dist/vsix/`, and `vscod
 | `pynescript-lsp-linux-x86_64` | `chmod +x` → `/usr/local/bin/pynescript-lsp` |
 | `pynescript-lsp-windows-x86_64.exe` | Place on PATH |
 | `pynescript-lsp-macos-arm64` | Place on PATH (Apple Silicon runners) |
-| `pyne-vscode-*.vsix` (`hoox-sh.pyne` 0.3.10) | `code --install-extension pyne-vscode-*.vsix` |
+| `pyne-vscode-*.vsix` (`hoox-sh.pyne` 0.3.11) | `code --install-extension pyne-vscode-*.vsix` |
 
 ## Invariants & edge cases
 
@@ -160,8 +160,8 @@ Artifacts land under `dist/`, `dist/lsp/`, `dist/cli/`, `dist/vsix/`, and `vscod
 # ensure main is green
 git checkout main && git pull
 # bump versions in extension / __about__ as needed
-git tag -a v0.3.10 -m "v0.3.10"
-git push origin v0.3.10
+git tag -a v0.3.11 -m "v0.3.11"
+git push origin v0.3.11
 # watch Actions → Build & Release, Publish, GHCR
 ```
 

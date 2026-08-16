@@ -60,7 +60,7 @@ flowchart LR
 | Strategy events + broker (OCA, commission, risk) | ✅ |
 | Numba + object-mode compile | ✅ MVP+ (disk IR cache, `mode=auto`, `time_arr`, cache recovery) |
 | Pro API + auth + Docker | ✅ (`mode` default `auto`; targets api / api-dev / lsp / **cli**) |
-| PyPI **`hoox-pyne`** | ✅ live **0.3.10+** ([pypi.org/project/hoox-pyne](https://pypi.org/project/hoox-pyne/)); CLIs `pyne` / `pyne-lsp` |
+| PyPI **`hoox-pyne`** | ✅ live **0.3.11+** ([pypi.org/project/hoox-pyne](https://pypi.org/project/hoox-pyne/)); CLIs `pyne` / `pyne-lsp` |
 | CLI surface (`check`/`format`/`compile`/`run`/`prewarm`/…) | ✅ + Nuitka binaries + CLI Docker image |
 | Alert engine + L2 webhooks | ✅ dual-host export + outbound webhooks |
 | Drawing `max_*_count` GC | ✅ package + Pro API + AXIS Pyodide |
@@ -103,7 +103,7 @@ flowchart LR
 | **C1** | Corpus set01–04 residual (parse 99.96%; Runtime 100% excl. EXPECTED) | P1 | ✅ 2026-08-09 |
 | **P1p** | Compile/interpret **plot parity** residual | P1 | ⚙️ first-party goldens landed; residual corpus MISMATCH tail |
 | **T1** | Cap `current_series` to `max_bars_back` / `_SERIES_MAX` | P2 | ✅ `PYNE_SERIES_CAP` default ON |
-| **T2** | Incremental TA for remaining heavy kernels | P2 | ✅ R7 + 0.3.10 volume inc including **nvi/pvi** |
+| **T2** | Incremental TA for remaining heavy kernels | P2 | ✅ R7 + 0.3.10 volume inc + **0.3.11 nvi/pvi** |
 | **F1** | ATR Wilder / TV supertrend re-baseline only with dedicated goldens | P2 | ✅ mid±factor·ATR locked; TV ratchet out of scope |
 | **F2** | Pending-fill averaging when pyramiding ≤ 0 | P2 | ✅ |
 | **L1** | v5↔v6 converter maturity | P3 | open |

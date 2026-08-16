@@ -36,7 +36,7 @@ Editors want *static* intelligence at typing cadence. Evaluation over OHLCV is *
 | **Pro API** (`backend.app`) | request / batch | parse, evaluate, plots / events / alerts |
 | **CLI / library** | batch / embed | same AST + evaluator |
 
-The LSP publishes diagnostics from the linter and parse errors, completes and hovers from Fernet-ready builtin metadata (plus keywords and user enums), navigates user symbols via AST visitors, emits semantic tokens from the cached tree, and formats by round-tripping through the unparser. Feature modules live under `src/pynescript/langserver/features/`; the VS Code extension (`hoox-sh.pyne` **0.3.10**) and `clients/` configs are thin protocol hosts — VS Code maps **`.pyne` first**, then legacy Pine suffixes, to language id `pinescript`. The stdio image is **`ghcr.io/hoox-sh/pyne/lsp`**.
+The LSP publishes diagnostics from the linter and parse errors, completes and hovers from Fernet-ready builtin metadata (plus keywords and user enums), navigates user symbols via AST visitors, emits semantic tokens from the cached tree, and formats by round-tripping through the unparser. Feature modules live under `src/pynescript/langserver/features/`; the VS Code extension (`hoox-sh.pyne` **0.3.11**) and `clients/` configs are thin protocol hosts — VS Code maps **`.pyne` first**, then legacy Pine suffixes, to language id `pinescript`. The stdio image is **`ghcr.io/hoox-sh/pyne/lsp`**.
 
 ## Conceptual model
 
@@ -94,7 +94,7 @@ Declared capabilities: `src/pynescript/langserver/config.py` (`get_server_capabi
 | `src/pynescript/langserver/features/*` | Per-method handlers |
 | `src/pynescript/langserver/providers/*` | Metadata + completion builders |
 | `src/pynescript/langserver/__main__.py` | STDIO entry (`pyne-lsp` / alias `pynescript-lsp`) |
-| `vscode-extension/` | Language client + TextMate grammar (`hoox-sh.pyne` 0.3.10) |
+| `vscode-extension/` | Language client + TextMate grammar (`hoox-sh.pyne` 0.3.11) |
 | `clients/` | Neovim, Zed, Emacs snippets (Helix / Sublime are documented, not files) |
 
 Console scripts are separate: `pyne` (Click CLI; alias `pynescript`) vs `pyne-lsp` (pygls; alias `pynescript-lsp`). Do not conflate them — see [architecture](/pyne/docs/lsp/architecture).

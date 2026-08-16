@@ -127,12 +127,7 @@ Numba is **not** required for compile eligibility: strategy / UDT / map-heavy sc
 
 Both backends export the same Runtime contract shape: `series` (title → per-bar values), `plots`, `plot_meta`, `events`, `drawings`, plus `mode` / diagnostics. For charting, **shared plot series keys** should agree within floating-point tolerance (`na`/None/NaN treated as NA).
 
-Known structural residuals (not value bugs):
-
-- **Constant `hline`-like keys** sometimes appear on one side only.
-- **Background / fill / bgcolor** series titles may differ in presence between interpret and object-mode compile.
-
-Use the parity harness (below) with `--ignore-hline-keys` / `--ignore-fill-keys` when you care about value parity of real plots, not decorative fill keys. Deeper compiler notes: [Compiler overview](/pyne/docs/runtime/compiler/overview).
+First-party `hline` / `fill` / `bgcolor` / `plotshape` **keys match** interpret ↔ compile (0.3.11). Harness `--ignore-hline-keys` / `--ignore-fill-keys` stay optional for leftover **corpus** noise, not first-party fixtures. Deeper compiler notes: [Compiler overview](/pyne/docs/runtime/compiler/overview).
 
 ### Compare interpret vs compile (corpus harness)
 
@@ -288,7 +283,7 @@ feed = get_datafeed("ccxtpro", exchange="binance")
 - **`na` / warmup.** TA functions need enough bars; early bars may be `na`/None-like — guard like Pine (`not na(x)`).
 - **`mode="compile"`** uses numeric Numba when the script is pure-numeric; otherwise **object-mode** compile. Strict `compile` errors instead of falling back; use **`auto`** for production “prefer fast path” behavior (see [Runtime modes](#runtime-modes-interpret--compile--auto)).
 - **`mode="auto"`** may set `compile_fallback_reason` and still return a successful interpret result — check `auto_backend` if you need to know which path ran.
-- **Series parity.** Shared `series` keys should match within harness tolerances; hline/fill keys can be one-sided — not necessarily a value bug.
+- **Series parity.** Shared `series` keys should match within harness tolerances. First-party hline/fill/bgcolor/plotshape keys match; ignore flags are for leftover corpus noise.
 - **History indexing.** Confirm `[0]`/`[1]` semantics against your evaluator version before porting TV scripts that assume closed-bar rules.
 - **Strategy events** include run/script ids when stamped by Runtime — useful for HOOX downstream.
 - **Body size / bar count.** HTTP path caps payload size (5 MiB); very long histories should be downsampled or chunked.

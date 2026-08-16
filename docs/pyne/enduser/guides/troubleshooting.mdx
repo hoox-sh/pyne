@@ -209,7 +209,7 @@ PYNE is independent of TradingView®. Behavioral gaps are expected for edge buil
 | Lint CI fail | lint | `--fail-on` level |
 | Empty plots | eval | `plot()` present; enough bars |
 | `pyne run` ≠ `Runtime.run` | modes | CLI is compile-only synthetic; library default is interpret |
-| `UNKNOWN_FIELDS` + `timeout_seconds` | HTTP | `timeout_seconds` is library-only; drop it from `/run` |
+| `UNKNOWN_FIELDS` + `timeout_seconds` | HTTP | field is valid on `/run` and `/run/batch` (0.3.11+); other extra keys still 400 |
 | 400 UNKNOWN_FIELDS | HTTP | schema |
 | 403 create_key | HTTP | `ADMIN_TOKEN` |
 | 413 | HTTP | body size |

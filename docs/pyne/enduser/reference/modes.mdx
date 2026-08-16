@@ -19,7 +19,7 @@
 
 ---
 title: "Runtime modes"
-description: "interpret / compile / auto defaults differ by surface. Library interpret, POST /run auto, pyne run compile-only. PyneTS is interpret-only."
+description: "interpret / compile / auto defaults differ by surface. Library interpret, POST /run auto, pyne run compile-only. PyneTS 0.2.0 has interpret + JS compile."
 ---
 
 # Runtime modes
@@ -114,13 +114,13 @@ There is **no** constructor/`extra.mode` and **no** `libraries` option on this h
 | Python library | `src/pynescript/runtime/host.py` |
 | Python CLI `run` | `src/pynescript/__main__.py` → `compile_script` + synthetic bars |
 | Pro API | `backend/app.py` `RUN_SCHEMA` default `auto` |
-| PyneTS | `pynets/src/runtime/interpret.ts` (interpret only) |
+| PyneTS | `pynets/` **v0.2.0** — interpret + JS compile (`mode` `interpret` / `compile` / `auto`). Python remains the oracle |
 | PyneTS CLI | `pynets/src/cli.ts` → `new Runtime("AAPL", { broker }).run` |
 
 ## Invariants & edge cases
 
 1. **Do not document `pyne run` as `mode=auto`.** It is compile-only smoke (`--bars` default 50).
-2. **Do not document `pynets run` as compile-only or as `--mode interpret`.** It is `Runtime.run` and is interpret-only. Default `--bars` is **20** (Python `pyne run` defaults to **50**).
+2. **Do not document `pynets run` as Python `pyne run`.** PyneTS `Runtime.run` defaults to interpret; **0.2.0** also has JS `compile` / `auto`. Default `--bars` is **20** (Python `pyne run` defaults to **50**).
 3. `result.mode` is what **executed**. After `auto`, also read `auto_backend` and `compile_fallback_reason`.
 4. Foreign `request.security` is `na` on every host. Compile does not invent bars to become "more complete".
 5. AXIS Pyodide `compile` / `auto` cannot be Numba (Wasm).
@@ -141,7 +141,7 @@ new Runtime("AAPL", { inputs: { len: 14 } }).run(src, bars);
 # Python desk smoke (compile only)
 pyne run script.pine --bars 50
 
-# PyneTS desk smoke (interpret Runtime.run; default --bars 20)
+# PyneTS desk smoke (Runtime.run; default interpret, --bars 20)
 pynets run script.pine --bars 50
 ```
 
@@ -151,7 +151,7 @@ pynets run script.pine --bars 50
 | --- | --- | --- |
 | Pro API "misses" an input | `auto` compiled a path that drops overrides | Pass `mode: "interpret"` |
 | `pyne run` ≠ notebook `Runtime.run` | Different host | Use the library or Pro API |
-| Expect PyneTS `compile` / `--mode` | Host is interpret-only | Use Python `Runtime.run` / Pro API for compile/`auto` |
+| Expect PyneTS ≡ Python compile | JS emit is object-mode analog, not Numba | Treat Python Runtime as the oracle |
 | `mode` omitted, two hosts disagree | Different defaults | Set `mode` explicitly |
 
 ## See also

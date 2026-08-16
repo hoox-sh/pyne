@@ -257,7 +257,7 @@ python scripts/compare_interp_compile.py --files tests/fixtures/parity/pine/stra
 python scripts/compare_interp_compile.py --ignore-hline-keys --ignore-fill-keys --strict-keys
 ```
 
-Writes `.cache/interp_compile_parity.json`. Use this harness when changing emitters or kernels; prefer it over ad-hoc one-offs for structural key drift (`hline` / `fill` series).
+Writes `.cache/interp_compile_parity.json`. First-party hline/fill keys match (0.3.11); ignore flags are for leftover corpus noise.
 
 ## Failure modes
 

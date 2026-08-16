@@ -206,7 +206,7 @@ Structured record of entries/exits/orders emitted during strategy evaluation for
 
 ### `timeout_seconds`
 
-Optional `Runtime.run` wall-clock budget (interpret path). Exceeded runs return partial plots with `timed_out`. **Not** a `POST /run` body field.
+Optional `Runtime.run` wall-clock budget (interpret path). Also a `POST /run` / `/run/batch` body field (0.3.11+). Exceeded runs return partial plots with `timed_out`. Omit / `null` / `≤ 0` → no timeout.
 
 ### Unparse
 
