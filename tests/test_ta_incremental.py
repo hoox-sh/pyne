@@ -3115,3 +3115,244 @@ plot(ta.vwap(close))
             if isinstance(a, float) and isinstance(b, float) and math.isnan(a) and math.isnan(b):
                 continue
             assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"
+
+
+# ---------------------------------------------------------------------------
+# Round 9: residual volume full-recompute (obv / wad / wvad / cmf / klinger)
+# ---------------------------------------------------------------------------
+
+
+def _last_of(value: Any) -> Any:
+    if isinstance(value, list):
+        return value[-1] if value else None
+    return value
+
+
+def _bar_walk_full_obv(closes: list[float], vols: list[float]) -> list[float]:
+    ev = _FullTA()
+    return [float(ev._obv(closes[: i + 1], vols[: i + 1])) for i in range(len(closes))]
+
+
+def _bar_walk_inc_obv(closes: list[float], vols: list[float]) -> list[float]:
+    ev = _IncTA()
+    out: list[float] = []
+    for i in range(len(closes)):
+        ev._ta_call_i = 0
+        out.append(float(ev._obv_inc_update(closes[: i + 1], vols[: i + 1])))
+    return out
+
+
+def _bar_walk_full_wad(
+    highs: list[float], lows: list[float], closes: list[float], vols: list[float]
+) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(closes)):
+        full = ev._wad(highs[: i + 1], lows[: i + 1], closes[: i + 1], vols[: i + 1])
+        out.append(_last_of(full))
+    return out
+
+
+def _bar_walk_inc_wad(
+    highs: list[float], lows: list[float], closes: list[float], vols: list[float]
+) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(closes)):
+        ev._ta_call_i = 0
+        out.append(ev._wad_inc_update(highs[: i + 1], lows[: i + 1], closes[: i + 1], vols[: i + 1]))
+    return out
+
+
+def _bar_walk_full_wvad(
+    highs: list[float],
+    lows: list[float],
+    closes: list[float],
+    vols: list[float],
+    period: int,
+) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(closes)):
+        full = ev._wvad(highs[: i + 1], lows[: i + 1], closes[: i + 1], vols[: i + 1], period)
+        out.append(_last_of(full))
+    return out
+
+
+def _bar_walk_inc_wvad(
+    highs: list[float],
+    lows: list[float],
+    closes: list[float],
+    vols: list[float],
+    period: int,
+) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(closes)):
+        ev._ta_call_i = 0
+        out.append(
+            ev._wvad_inc_update(
+                highs[: i + 1], lows[: i + 1], closes[: i + 1], vols[: i + 1], period
+            )
+        )
+    return out
+
+
+def _bar_walk_full_cmf(
+    highs: list[float],
+    lows: list[float],
+    closes: list[float],
+    vols: list[float],
+    period: int,
+) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(closes)):
+        full = ev._cmf(closes[: i + 1], highs[: i + 1], lows[: i + 1], vols[: i + 1], period)
+        out.append(_last_of(full))
+    return out
+
+
+def _bar_walk_inc_cmf(
+    highs: list[float],
+    lows: list[float],
+    closes: list[float],
+    vols: list[float],
+    period: int,
+) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(closes)):
+        ev._ta_call_i = 0
+        out.append(
+            ev._cmf_inc_update(
+                closes[: i + 1], highs[: i + 1], lows[: i + 1], vols[: i + 1], period
+            )
+        )
+    return out
+
+
+def _bar_walk_full_klinger(
+    closes: list[float], vols: list[float], fast: int, slow: int
+) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(closes)):
+        full = ev._klinger(closes[: i + 1], vols[: i + 1], fast, slow)
+        out.append(_last_of(full))
+    return out
+
+
+def _bar_walk_inc_klinger(
+    closes: list[float], vols: list[float], fast: int, slow: int
+) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(closes)):
+        ev._ta_call_i = 0
+        out.append(ev._klinger_inc_update(closes[: i + 1], vols[: i + 1], fast, slow))
+    return out
+
+
+def test_incremental_obv_matches_full() -> None:
+    _highs, _lows, closes = _ohlc(150)
+    vols = _volumes(len(closes))
+    _assert_series_close(_bar_walk_inc_obv(closes, vols), _bar_walk_full_obv(closes, vols))
+
+
+def test_incremental_obv_dual_call_sites() -> None:
+    closes = _series(80)
+    vols_a = _volumes(len(closes))
+    vols_b = [v * 1.5 + 3.0 for v in vols_a]
+    ev = _IncTA()
+    got_a: list[float] = []
+    got_b: list[float] = []
+    for i in range(len(closes)):
+        ev._ta_call_i = 0
+        got_a.append(float(ev._obv_inc_update(closes[: i + 1], vols_a[: i + 1])))
+        got_b.append(float(ev._obv_inc_update(closes[: i + 1], vols_b[: i + 1])))
+    _assert_series_close(got_a, _bar_walk_full_obv(closes, vols_a))
+    _assert_series_close(got_b, _bar_walk_full_obv(closes, vols_b))
+
+
+def test_incremental_wad_matches_full() -> None:
+    highs, lows, closes = _ohlc(150)
+    vols = _volumes(len(closes))
+    _assert_series_close(
+        _bar_walk_inc_wad(highs, lows, closes, vols),
+        _bar_walk_full_wad(highs, lows, closes, vols),
+    )
+
+
+def test_incremental_wvad_matches_full() -> None:
+    highs, lows, closes = _ohlc(150)
+    vols = _volumes(len(closes))
+    for period in (10, 20):
+        _assert_series_close(
+            _bar_walk_inc_wvad(highs, lows, closes, vols, period),
+            _bar_walk_full_wvad(highs, lows, closes, vols, period),
+        )
+
+
+def test_incremental_cmf_matches_full() -> None:
+    highs, lows, closes = _ohlc(150)
+    vols = _volumes(len(closes))
+    for period in (10, 20):
+        _assert_series_close(
+            _bar_walk_inc_cmf(highs, lows, closes, vols, period),
+            _bar_walk_full_cmf(highs, lows, closes, vols, period),
+        )
+
+
+def test_incremental_klinger_matches_full() -> None:
+    _h, _l, closes = _ohlc(160)
+    vols = _volumes(len(closes))
+    for fast, slow in ((5, 13), (8, 21)):
+        _assert_series_close(
+            _bar_walk_inc_klinger(closes, vols, fast, slow),
+            _bar_walk_full_klinger(closes, vols, fast, slow),
+        )
+
+
+def test_runtime_round9_volume_incremental_vs_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend.runtime import Runtime
+
+    try:
+        from pynescript.ast.helper import clear_parse_cache
+    except ImportError:  # pragma: no cover
+
+        def clear_parse_cache() -> None:
+            return None
+
+    bars = _ohlcv_bars(160)
+    src = """//@version=5
+indicator("round9 volume inc")
+plot(ta.obv, "obv")
+plot(ta.wad, "wad")
+plot(ta.wvad(14), "wvad")
+plot(ta.cmf(20), "cmf")
+plot(ta.klinger(high, low, close, volume, 8, 21), "ko")
+"""
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    clear_parse_cache()
+    r_on = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_on, r_on.get("error")
+    monkeypatch.setenv("PYNE_TA_INCREMENTAL", "0")
+    clear_parse_cache()
+    r_off = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_off, r_off.get("error")
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    clear_parse_cache()
+
+    assert set(r_on["series"]) == set(r_off["series"])
+    for key in r_on["series"]:
+        for i, (a, b) in enumerate(zip(r_on["series"][key], r_off["series"][key], strict=True)):
+            if a is None and b is None:
+                continue
+            if a is None or b is None:
+                continue
+            if isinstance(a, float) and isinstance(b, float) and math.isnan(a) and math.isnan(b):
+                continue
+            assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"

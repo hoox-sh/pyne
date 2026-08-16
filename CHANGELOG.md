@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.10] - 2026-08-16
+
+### Added
+- Incremental interpret kernels for **`ta.obv`**, **`ta.wad`/`wvad`**, **`ta.cmf`**, and **`ta.klinger`** (`PYNE_TA_INCREMENTAL`).
+
+### Changed
+- Runtime interpret hot path (Round 9): direct Assign/`plot`/Call dispatch, skip unused derived OHLCV series, plot bar-reuse. Same-machine bench @ 2000 bars: minimal **2.7×**, `ta_sma` **2.0×**, `ta_combo` **1.45×**. `PYNE_SERIES_RING` still default off.
+- `ta.vwap()` with no source still updates `hlc3` when that identifier is absent from the script.
+
 ## [0.3.9] - 2026-08-16
 
 ### Added

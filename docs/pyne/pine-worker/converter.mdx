@@ -19,115 +19,72 @@
 
 ---
 title: "Python → TypeScript converter"
-description: "Skeleton generator that turns pynescript builtin modules into TS stubs for manual semantic porting."
+description: "Historical stub generator in the pine-worker sister repo. PyneTS does not use it — port builtins by hand against Python."
 ---
 
 # Python → TypeScript converter
 
 ## Abstract
 
-`pine-worker/scripts/convert-python-to-ts.py` is a **porting accelerator**, not a verified transpiler. It reads Python builtin modules (AST of the Python source), emits TypeScript scaffolding with imports, function signatures, best-effort JSDoc from docstrings, and `TODO` bodies.
+`pine-worker/scripts/convert-python-to-ts.py` (sister repo, **not** in pynescript) is a **porting accelerator**. It reads Python builtin modules and emits TypeScript scaffolding with `TODO` bodies. It is **not** a verified transpiler.
 
-The human (or follow-on agent) still implements semantics to match the Python oracle and locks them with [parity tests](/pyne/docs/pine-worker/testing).
+**[PyneTS](/pyne/docs/pynets) does not use this converter.** New builtins are ported by reading `src/pynescript/ast/evaluator/builtins/` and writing TypeScript by hand, then locking with `bun test`. See [parity](/pyne/docs/pynets/parity).
 
 ## Conceptual model
 
 ```mermaid
 flowchart LR
-  PY[builtins/numeric.py] --> AST[ast.parse]
-  AST --> MAP[type annotation map]
-  AST --> DOC[docstring extract]
-  MAP --> TS[numeric.ts skeleton]
-  DOC --> TS
-  TS --> HUMAN[manual body port]
-  HUMAN --> PARITY[parity fixtures]
+  PY[Python builtin .py] --> CONV[convert-python-to-ts.py]
+  CONV --> STUB[TS stub TODO body]
+  STUB --> HUMAN[manual semantics]
+  HUMAN --> TEST[parity / bun test]
 ```
 
 ## Interface surface
 
-### CLI
+From the **pine-worker** checkout:
 
 ```bash
-python pine-worker/scripts/convert-python-to-ts.py \
-  src/pynescript/ast/evaluator/builtins/numeric.py
-
-# redirect
-python pine-worker/scripts/convert-python-to-ts.py \
-  src/pynescript/ast/evaluator/builtins/numeric.py \
-  > pine-worker/src/evaluator/builtins/numeric.ts
-
-# namespace hint
-python pine-worker/scripts/convert-python-to-ts.py \
-  --namespace technical \
-  --module src/pynescript/ast/evaluator/builtins/technical.py
+python scripts/convert-python-to-ts.py \
+  path/to/pynescript/src/pynescript/ast/evaluator/builtins/numeric.py
 ```
 
-### Emitted properties
-
-| Feature | Behavior |
-| --- | --- |
-| Function signatures | Args + crude TS types from annotations |
-| Docstrings | JSDoc blocks when present |
-| Bodies | TODO / stubs — **not** executable ports |
-| Types mapping | `int`/`float`→`number`, `str`→`string`, containers→broad `any[]` / `Record` |
-
-### Explicit non-goals
-
-- Full semantic translation of Python control flow
-- NumPy / Pine series awareness
-- Automatic parity proof
-- Keeping output green without edits
+The script walks the Python AST and prints a TypeScript module. Redirect to a file only if you intend to finish the bodies.
 
 ## Internals
 
 | Path | Role |
 | --- | --- |
-| `pine-worker/scripts/convert-python-to-ts.py` | Converter implementation |
-| `src/pynescript/ast/evaluator/builtins/*.py` | Preferred inputs |
-| `pine-worker/src/evaluator/` | Destination tree for ports |
-
-### Type mapping (simplified)
-
-The script applies regex-ish substitutions for common typing names (`Optional`, `List`, `Dict`, …) and strips generics crudely. Expect to **hand-fix** types toward Zod-validated AST nodes and `PineSeries`.
+| `pine-worker/scripts/convert-python-to-ts.py` | Converter (sister repo) |
+| `pynets/src/runtime/*.ts` | Current TS library handlers |
+| `pynescript/.../evaluator/builtins/` | Oracle |
 
 ## Invariants & edge cases
 
-1. **Re-running clobbers manual bodies** if you redirect over a finished file — convert to a new path or diff carefully.
-2. **Mixin methods / dynamic dispatch** in Python may not map 1:1 to TS functions.
-3. **Default args and `*args`** need manual TS redesign.
-4. Prefer converting **one namespace at a time** to keep reviewable diffs.
+1. Converter output is **not** proof of correctness.
+2. Do not commit stubs that silently return `0` / `na` without a test.
+3. Grammar stays in PYNE `.g4`; do not let the converter invent parser types.
 
 ## Worked examples
 
-### Port math helpers workflow
+PyneTS porting path (preferred):
 
 ```bash
-mkdir -p pine-worker/src/evaluator/builtins
-python pine-worker/scripts/convert-python-to-ts.py \
-  src/pynescript/ast/evaluator/builtins/numeric.py \
-  > pine-worker/src/evaluator/builtins/numeric.ts
-# implement TODOs
-cd pine-worker && bun test
-```
-
-### Compare against oracle
-
-```bash
-python tests/fixtures/parity/generate_fixtures.py
-# add TS assertions consuming tests/fixtures/parity/json/*.json
+# 1. Read Python handler
+# 2. Edit pynets/src/runtime/ta.ts (or math / request / …)
+# 3. Wire evalCall in src/runtime/interpret.ts
+# 4. bun test test/interpret_ta.test.ts
 ```
 
 ## Failure modes
 
-| Symptom | Fix |
-| --- | --- |
-| Empty output | Path wrong / no functions found |
-| `any` everywhere | Annotations missing in Python source |
-| Runtime divergence | Implement NA rules; don’t trust stubs |
-| Import cycles in TS | Align module graph with evaluator design |
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| `python pine-worker/scripts/...` in PYNE clone | Script is not here | Clone pine-worker or ignore; use PyneTS hand-port |
+| Stub compiles, plots wrong | TODO body | Implement against Python |
 
 ## See also
 
-- [pine-worker overview](/pyne/docs/pine-worker)
-- [Testing & parity](/pyne/docs/pine-worker/testing)
-- [Runtime builtins](/pyne/docs/runtime/builtins)
+- [pine-worker](/pyne/docs/pine-worker)
+- [PyneTS parity](/pyne/docs/pynets/parity)
+- [Testing](/pyne/docs/pine-worker/testing)

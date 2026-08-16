@@ -148,6 +148,16 @@ class LazyCalendarContext(dict):
 _HL2_RE = re.compile(r"\bhl2\b")
 _HLC3_RE = re.compile(r"\bhlc3\b")
 _OHLC4_RE = re.compile(r"\bohlc4\b")
+_TR_RE = re.compile(r"\btr\b")
+_TIME_CLOSE_RE = re.compile(r"\btime_close\b")
+# ta.vwap() / vwap with no source defaults to hlc3 (name may be absent).
+_VWAP_RE = re.compile(r"\b(?:ta\.)?vwap\b")
+# input.source dropdown can pick hl2/hlc3/ohlc4/tr even when those ids are absent.
+_INPUT_SOURCE_RE = re.compile(r"\binput\.source\b")
+# Strategy snapshot / drain only when the script actually uses the broker.
+_STRATEGY_NAME_RE = re.compile(r"\bstrategy\b")
+# Post-loop alert export — skip import when source has no alert() / alertcondition().
+_ALERT_CALL_RE = re.compile(r"\balert(?:condition)?\s*\(")
 
 # Parse trees: process-level LRU lives in ``pynescript.ast.helper.parse``
 # (sha256(source)+mode, PYNE_PARSE_CACHE / PYNE_PARSE_CACHE_MAX). Host keeps
@@ -467,35 +477,54 @@ def _pack_interpret_plot_columns(
 
     for pi in range(max_plots):
         m0 = meta_list[pi] if pi < len(meta_list) else {}
-        title = str(m0.get("title") or "") or f"plot_{pi}"
+        # Capture meta titles are already str (or missing). Avoid str() + intern
+        # churn when the same interned title is reused across warm re-runs.
+        raw_title = m0.get("title")
+        if raw_title is None or raw_title == "":
+            title = f"plot_{pi}"
+        elif type(raw_title) is str:
+            title = raw_title
+        else:
+            title = str(raw_title)
         color = m0.get("color")
         if color is not None and type(color) is not str:
             color = _color_str(color)
         elif color == "":
             color = None
         linewidth = int(m0.get("linewidth") or 1)
-        kind = str(m0.get("kind") or m0.get("type") or "plot")
+        kind_raw = m0.get("kind") or m0.get("type") or "plot"
+        kind = kind_raw if type(kind_raw) is str else str(kind_raw)
         style = m0.get("style")
         if style is not None:
-            style = str(style) if style != "" else None
+            style = style if type(style) is str else str(style)
+            if style == "":
+                style = None
         linestyle = m0.get("linestyle")
-        if linestyle is not None:
+        if linestyle is not None and type(linestyle) is not str:
             linestyle = str(linestyle)
         location = m0.get("location")
         if location is not None:
-            location = str(location) if location != "" else None
+            location = location if type(location) is str else str(location)
+            if location == "":
+                location = None
         text = m0.get("text")
         if text is not None:
-            text = str(text) if text != "" else None
+            text = text if type(text) is str else str(text)
+            if text == "":
+                text = None
         char = m0.get("char")
         if char is not None:
-            char = str(char) if char != "" else None
+            char = char if type(char) is str else str(char)
+            if char == "":
+                char = None
 
-        base = title
-        suffix = 2
-        while title in series_map:
+        if title in series_map:
+            base = title
+            suffix = 2
             title = f"{base}_{suffix}"
-            suffix += 1
+            while title in series_map:
+                suffix += 1
+                title = f"{base}_{suffix}"
         if type(title) is str:
             title = intern(title)
 
@@ -624,6 +653,12 @@ def _series_values_jsonable(values: Any) -> list[Any]:
 # Packed tuple: (open, high, low, close, volume, time) as float64 arrays.
 _OHLCV_PACK_CACHE: dict[int, tuple[Any, tuple, tuple[Any, Any, Any, Any, Any, Any]]] = {}
 _OHLCV_PACK_CACHE_MAX = 8
+# Parallel cache of Python float lists for interpret (same identity + fingerprint).
+# Compile path asarrays from this so a warm interpret+compile pair packs once.
+_OHLCV_LIST_CACHE: dict[
+    int, tuple[Any, tuple, tuple[list[float], list[float], list[float], list[float], list[float], list[float]]]
+] = {}
+_OHLCV_LIST_CACHE_MAX = 8
 
 # Synthetic bar-open spacing when host omits ``time`` (matches CompiledScript.run).
 _SYNTHETIC_BAR_MS = 60_000.0
@@ -745,6 +780,29 @@ def _pack_ohlcv_columns(
     return o_l, h_l, l_l, c_l, v_l, t_l
 
 
+def _pack_ohlcv_columns_cached(
+    ohlcv_data: list[dict],
+) -> tuple[list[float], list[float], list[float], list[float], list[float], list[float]]:
+    """Identity-cached Python columns from :func:`_pack_ohlcv_columns`.
+
+    Interpret bar loop indexes these lists every bar. Warm re-eval of the
+    same ``ohlcv_data`` object (bench / Pro re-run) skips the dict walk.
+    """
+    oid = id(ohlcv_data)
+    fp = _ohlcv_pack_fingerprint(ohlcv_data)
+    hit = _OHLCV_LIST_CACHE.get(oid)
+    if hit is not None and hit[0] is ohlcv_data and hit[1] == fp:
+        return hit[2]
+    packed = _pack_ohlcv_columns(ohlcv_data)
+    if len(_OHLCV_LIST_CACHE) >= _OHLCV_LIST_CACHE_MAX:
+        try:
+            _OHLCV_LIST_CACHE.pop(next(iter(_OHLCV_LIST_CACHE)))
+        except StopIteration:
+            pass
+    _OHLCV_LIST_CACHE[oid] = (ohlcv_data, fp, packed)
+    return packed
+
+
 def _ohlcv_dicts_to_arrays(ohlcv_data: list[dict]) -> tuple[Any, Any, Any, Any, Any]:
     """Pack OHLCV dict rows into float64 numpy arrays (shared host contract).
 
@@ -778,7 +836,7 @@ def _ohlcv_pack_cached(
     if hit is not None and hit[0] is ohlcv_data and hit[1] == fp:
         return hit[2]
 
-    o_l, h_l, l_l, c_l, v_l, t_l = _pack_ohlcv_columns(ohlcv_data)
+    o_l, h_l, l_l, c_l, v_l, t_l = _pack_ohlcv_columns_cached(ohlcv_data)
     if not o_l:
         z = np.empty(0, dtype=np.float64)
         packed = (z, z, z, z, z, z)
@@ -1396,7 +1454,8 @@ class Runtime:
         # Pre-size plot columns so capture writes by bar index (no append/resize).
         evaluator._plot_n_bars = n_bars  # type: ignore[attr-defined]
         # Shared host packing (same volume/time defaults as mode=compile).
-        col_open, col_high, col_low, col_close, col_vol, col_time = _pack_ohlcv_columns(
+        # Cached by list identity so warm interpret re-runs skip the dict walk.
+        col_open, col_high, col_low, col_close, col_vol, col_time = _pack_ohlcv_columns_cached(
             ohlcv_data
         )
         if col_time:
@@ -1414,9 +1473,25 @@ class Runtime:
             if isinstance(b, dict) and (("bid" in b) or ("ask" in b)):
                 has_bid_ask = True
                 break
-        need_hl2 = bool(_HL2_RE.search(source_code))
-        need_hlc3 = bool(_HLC3_RE.search(source_code))
-        need_ohlc4 = bool(_OHLC4_RE.search(source_code))
+        # input.source can pick derived names that never appear as identifiers.
+        need_src_input = bool(_INPUT_SOURCE_RE.search(source_code))
+        need_hl2 = need_src_input or bool(_HL2_RE.search(source_code))
+        need_hlc3 = (
+            need_src_input
+            or bool(_HLC3_RE.search(source_code))
+            or bool(_VWAP_RE.search(source_code))
+        )
+        need_ohlc4 = need_src_input or bool(_OHLC4_RE.search(source_code))
+        need_tr = need_src_input or bool(_TR_RE.search(source_code))
+        need_time_close = bool(_TIME_CLOSE_RE.search(source_code))
+        need_strategy = bool(_STRATEGY_NAME_RE.search(source_code))
+        need_alerts = bool(_ALERT_CALL_RE.search(source_code))
+        need_ta = "ta." in source_code
+        need_cross = (
+            "crossover" in source_code
+            or "crossunder" in source_code
+            or "ta.cross(" in source_code
+        )
 
         # Pre-bind hot locals (series lists, methods, strategy buffers)
         sl_open = _series_lists["open"]
@@ -1430,7 +1505,9 @@ class Runtime:
         sl_tr = _series_lists["tr"]
         # Keep a tuple of list refs for in-place series-cap trim (no rebind).
         # Only include lists that are actually appended each bar.
-        _series_list_refs_list = [sl_open, sl_high, sl_low, sl_close, sl_vol, sl_tr]
+        _series_list_refs_list = [sl_open, sl_high, sl_low, sl_close, sl_vol]
+        if need_tr:
+            _series_list_refs_list.append(sl_tr)
         if need_hl2:
             _series_list_refs_list.append(sl_hl2)
         if need_hlc3:
@@ -1452,6 +1529,9 @@ class Runtime:
             series_cap = max(series_cap, _host_series_cap)
         _do_series_cap = _cap_on
         _series_trim_limit = series_cap_limit(series_cap) if _do_series_cap else 0
+        # Short charts never hit the slack limit — skip the per-bar length check.
+        if _do_series_cap and n_bars <= _series_trim_limit:
+            _do_series_cap = False
         # Stash for tests / hosts that inspect the last run policy.
         try:
             evaluator._pine_series_cap = series_cap if _do_series_cap else None  # type: ignore[attr-defined]
@@ -1484,17 +1564,19 @@ class Runtime:
             sl_hl2 = sl_hlc3 = sl_ohlc4 = None
             _series_list_refs = ()
 
-        open_update = open_series.update
-        high_update = high_series.update
-        low_update = low_series.update
-        close_update = close_series.update
-        volume_update = volume_series.update
-        hl2_update = hl2_series.update
-        hlc3_update = hlc3_series.update
-        ohlc4_update = ohlc4_series.update
-        tr_update = tr_series.update
-        time_update = time_series.update
-        time_close_update = time_close_series.update
+        # Inline .current + history.appendleft (works for deque and ring view).
+        # Avoids a Python PineSeries.update call per series per bar.
+        open_al = open_series.history.appendleft
+        high_al = high_series.history.appendleft
+        low_al = low_series.history.appendleft
+        close_al = close_series.history.appendleft
+        volume_al = volume_series.history.appendleft
+        time_al = time_series.history.appendleft
+        hl2_al = hl2_series.history.appendleft if need_hl2 else None
+        hlc3_al = hlc3_series.history.appendleft if need_hlc3 else None
+        ohlc4_al = ohlc4_series.history.appendleft if need_ohlc4 else None
+        tr_al = tr_series.history.appendleft if need_tr else None
+        time_close_al = time_close_series.history.appendleft if need_time_close else None
 
         # Historical defaults. Opt-in realtime window overrides
         # isrealtime / ishistory / isconfirmed / isnew per tick below.
@@ -1541,7 +1623,12 @@ class Runtime:
         strategy_events = strategy_state._events
         process_pending = getattr(evaluator, "process_pending_orders", None)
         set_defs_locked = True  # first bar unlocks defs; then permanently locked
-
+        # Indicators never read strategy.*[n] — skip 3 list appends per bar.
+        snapshot_bar = (
+            getattr(strategy_state, "snapshot_bar_series", None) if need_strategy else None
+        )
+        _rt_enabled = _rt_first is not None
+        _hist_n = 0
         prev_close_f: float | None = None
 
         # Wall-clock circuit breaker for Cloudflare / cron / Pro budgets.
@@ -1563,93 +1650,100 @@ class Runtime:
             c = col_close[bar_index]
             v = col_vol[bar_index]
 
-            # One float cast path for derived series + true range.
-            # Always compute hl2/hlc3/ohlc4 so input.source overrides can pick them
-            # even when the script body never mentions those identifiers.
-            try:
-                of = float(o)
-                hf = float(h)
-                lf = float(l)
-                cf = float(c)
-                hl2_val: float | None = (hf + lf) * 0.5
-                hlc3_val = (hf + lf + cf) / 3.0
-                ohlc4_val = (of + hf + lf + cf) * 0.25
-                if prev_close_f is None:
-                    tr_val: float | None = hf - lf
-                else:
-                    tr_val = max(hf - lf, abs(hf - prev_close_f), abs(lf - prev_close_f))
-                prev_close_f = cf
-            except (TypeError, ValueError):
-                hl2_val = None
-                hlc3_val = None
-                ohlc4_val = None
-                tr_val = None
-                try:
-                    prev_close_f = float(c)
-                except (TypeError, ValueError):
-                    prev_close_f = None
-
-            open_update(o)
-            high_update(h)
-            low_update(l)
-            close_update(c)
-            volume_update(v)
-            hl2_update(hl2_val)
-            hlc3_update(hlc3_val)
-            ohlc4_update(ohlc4_val)
-            if not _use_ring:
-                if need_hl2:
+            # Packed columns are already host-contract floats — no per-bar float().
+            # Inline current + appendleft (deque / ring view). Skip unused derived.
+            open_series.current = o
+            open_al(o)
+            high_series.current = h
+            high_al(h)
+            low_series.current = l
+            low_al(l)
+            close_series.current = c
+            close_al(c)
+            volume_series.current = v
+            volume_al(v)
+            if need_hl2:
+                hl2_val = (h + l) * 0.5
+                hl2_series.current = hl2_val
+                hl2_al(hl2_val)
+                if sl_hl2 is not None:
                     sl_hl2.append(hl2_val)
-                if need_hlc3:
+            if need_hlc3:
+                hlc3_val = (h + l + c) / 3.0
+                hlc3_series.current = hlc3_val
+                hlc3_al(hlc3_val)
+                if sl_hlc3 is not None:
                     sl_hlc3.append(hlc3_val)
-                if need_ohlc4:
+            if need_ohlc4:
+                ohlc4_val = (o + h + l + c) * 0.25
+                ohlc4_series.current = ohlc4_val
+                ohlc4_al(ohlc4_val)
+                if sl_ohlc4 is not None:
                     sl_ohlc4.append(ohlc4_val)
-            tr_update(tr_val)
+            if need_tr:
+                if prev_close_f is None:
+                    tr_val = h - l
+                else:
+                    tr_val = max(h - l, abs(h - prev_close_f), abs(l - prev_close_f))
+                prev_close_f = c
+                tr_series.current = tr_val
+                tr_al(tr_val)
+                if sl_tr is not None:
+                    sl_tr.append(tr_val)
 
             # Append-only chronological lists for ta.* (shared with evaluator.current_series).
             # Cap in-place (del prefix) so pre-bound list refs stay valid (T1).
             # Ring path: current_series is a ChronoTailView — no second write.
-            if not _use_ring:
+            if sl_open is not None:
                 sl_open.append(o)
                 sl_high.append(h)
                 sl_low.append(l)
                 sl_close.append(c)
                 sl_vol.append(v)
-                sl_tr.append(tr_val)
                 if _do_series_cap:
-                    n_hist = len(sl_close)
-                    if n_hist > _series_trim_limit:
-                        trim_series_lists(
+                    _hist_n += 1
+                    if _hist_n > _series_trim_limit:
+                        _hist_n = trim_series_lists(
                             _series_list_refs,
                             keep=series_cap,
-                            length_hint=n_hist,
+                            length_hint=_hist_n,
                         )
 
             # Per-bar counters / time (series update — do not replace PineSeries refs)
             bar_time = col_time[bar_index]
-            if bar_index < last_bar_i:
-                time_close = col_time[bar_index + 1] or bar_time
-            else:
-                time_close = int(bar_time) + 86_400_000
             context["bar_index"] = bar_index
-            time_update(bar_time)
-            time_close_update(time_close)
+            time_series.current = bar_time
+            time_al(bar_time)
+            if need_time_close:
+                if bar_index < last_bar_i:
+                    time_close = col_time[bar_index + 1] or bar_time
+                else:
+                    time_close = int(bar_time) + 86_400_000
+                time_close_series.current = time_close
+                time_close_al(time_close)
             # Lazy calendar: record bar time only; year/month/… fill on first read.
             context.set_bar_time(bar_time)
 
             is_last = bar_index == last_bar_i
             barstate.isfirst = bar_index == 0
             barstate.islast = is_last
-            # Realtime multi-tick on bars in the opt-in window. Historical bars
-            # before the window always run once with isrealtime=False.
-            bar_rt = _rt_first is not None and bar_index >= _rt_first
-            n_ticks = _rt_ticks if bar_rt else 1
-            if not bar_rt:
-                barstate.isnew = True
-                barstate.ishistory = True
-                barstate.isconfirmed = True
-                barstate.isrealtime = False
-                barstate.islastconfirmedhistory = is_last
+            # Realtime multi-tick on bars in the opt-in window. Historical-only
+            # hosts keep the pre-loop isnew/ishistory/isconfirmed/isrealtime
+            # defaults and only flip islastconfirmedhistory on the last bar.
+            if _rt_enabled:
+                bar_rt = bar_index >= _rt_first  # type: ignore[operator]
+                n_ticks = _rt_ticks if bar_rt else 1
+                if not bar_rt:
+                    barstate.isnew = True
+                    barstate.ishistory = True
+                    barstate.isconfirmed = True
+                    barstate.isrealtime = False
+                    barstate.islastconfirmedhistory = is_last
+            else:
+                bar_rt = False
+                n_ticks = 1
+                if is_last:
+                    barstate.islastconfirmedhistory = True
 
             if has_bid_ask:
                 bar = ohlcv_data[bar_index]
@@ -1694,11 +1788,13 @@ class Runtime:
 
                 # Reset per-bar/tick plot index; clear strategy event buffer
                 reset_plots()
-                if strategy_events:
+                if need_strategy and strategy_events:
                     strategy_events.clear()
-                # Bar-mode call-site indices (crossover + incremental ta.* + plot reuse)
-                evaluator._cross_call_i = 0  # type: ignore[attr-defined]
-                evaluator._ta_call_i = 0  # type: ignore[attr-defined]
+                # Bar-mode call-site indices (skip unused families)
+                if need_cross:
+                    evaluator._cross_call_i = 0  # type: ignore[attr-defined]
+                if need_ta:
+                    evaluator._ta_call_i = 0  # type: ignore[attr-defined]
                 evaluator._plot_call_i = 0  # type: ignore[attr-defined]
 
                 try:
@@ -1731,9 +1827,8 @@ class Runtime:
                     continue
 
                 # Final tick (or sole historical visit): commit bar outputs.
-                st = getattr(evaluator, "_strategy_state", None)
-                if st is not None and hasattr(st, "snapshot_bar_series"):
-                    st.snapshot_bar_series()
+                if snapshot_bar is not None:
+                    snapshot_bar()
 
                 # Pad short plot columns for call sites not hit this bar
                 finish_bar_plots()
@@ -1745,7 +1840,7 @@ class Runtime:
                     set_defs_locked = False
 
                 # Strategy events (empty for pure indicators — skip drain alloc)
-                if strategy_events:
+                if need_strategy and strategy_events:
                     for ev in strategy_state.drain_events():
                         ev_dict = ev.to_dict()
                         ev_dict["script_id"] = script_id
@@ -1786,33 +1881,35 @@ class Runtime:
             drawings = []
 
         # Alert engine export (alert() + true alertcondition firings) — dual-host H1
+        # Skip import + walk when the source never calls alert / alertcondition.
         alerts: list[dict[str, Any]] = []
         alert_conditions: list[dict[str, Any]] = []
-        try:
+        if need_alerts:
             try:
-                from pynescript.ast.evaluator.builtins.alerts import (
-                    export_alerts_from_evaluator,
-                )
+                try:
+                    from pynescript.ast.evaluator.builtins.alerts import (
+                        export_alerts_from_evaluator,
+                    )
 
-                alerts = list(export_alerts_from_evaluator(evaluator) or [])
-            except ImportError:
-                raw = getattr(evaluator, "get_triggered_alerts", None)
-                items = raw() if callable(raw) else getattr(evaluator, "_triggered_alerts", None) or []
-                for a in items or []:
-                    if hasattr(a, "to_dict"):
-                        alerts.append(a.to_dict())
-                    elif isinstance(a, dict):
-                        alerts.append(dict(a))
-            exp_c = getattr(evaluator, "export_alert_conditions", None)
-            if callable(exp_c):
-                alert_conditions = list(exp_c() or [])
-        except Exception:
-            alerts = []
-            alert_conditions = []
-        for a in alerts:
-            if isinstance(a, dict):
-                a.setdefault("script_id", script_id)
-                a.setdefault("run_id", run_id)
+                    alerts = list(export_alerts_from_evaluator(evaluator) or [])
+                except ImportError:
+                    raw = getattr(evaluator, "get_triggered_alerts", None)
+                    items = raw() if callable(raw) else getattr(evaluator, "_triggered_alerts", None) or []
+                    for a in items or []:
+                        if hasattr(a, "to_dict"):
+                            alerts.append(a.to_dict())
+                        elif isinstance(a, dict):
+                            alerts.append(dict(a))
+                exp_c = getattr(evaluator, "export_alert_conditions", None)
+                if callable(exp_c):
+                    alert_conditions = list(exp_c() or [])
+            except Exception:
+                alerts = []
+                alert_conditions = []
+            for a in alerts:
+                if isinstance(a, dict):
+                    a.setdefault("script_id", script_id)
+                    a.setdefault("run_id", run_id)
 
         # Script declaration → AXIS pane routing (indicator default overlay=false)
         decl = getattr(evaluator, "_script_declaration", None)

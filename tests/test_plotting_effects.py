@@ -122,3 +122,30 @@ fill(p1, p2, color=color.blue, title='f')
         assert by_kind["plotchar"] == DEFAULT_VISUAL_TITLES["plotchar"]
         assert by_kind["hline"] == DEFAULT_VISUAL_TITLES["hline"]
         assert by_kind["plotarrow"] == DEFAULT_VISUAL_TITLES["plotarrow"]
+
+    def test_as_plot_int_type_identity(self) -> None:
+        """linewidth coerce: int/float/None identity; never na→0; lists unwrap."""
+        from pynescript.runtime.evaluator import _as_plot_int
+
+        assert _as_plot_int(2) == 2
+        assert _as_plot_int(3.0) == 3
+        assert _as_plot_int(None, 1) == 1
+        assert _as_plot_int(float("nan"), 1) == 1
+        assert _as_plot_int([4, 5]) == 5
+        assert _as_plot_int([[7]]) == 7
+        assert _as_plot_int("nope", 1) == 1
+
+    def test_bar_mode_reuse_skips_title_rebind(self) -> None:
+        """After first bar, plot() reuse must keep title/kind and only update series."""
+        ev = NodeLiteralEvaluator()
+        ev._pine_bar_mode = True  # type: ignore[attr-defined]
+        ev._plot_call_i = 0  # type: ignore[attr-defined]
+        PlotRegistry.reset()
+        p0 = ev._builtin_plot([1.0, "keep", None], None)
+        assert p0.title == "keep"
+        ev._plot_call_i = 0  # type: ignore[attr-defined]
+        p1 = ev._builtin_plot([2.5, "ignored"], None)
+        assert p1 is p0
+        assert p1.title == "keep"
+        assert p1.series == 2.5
+        assert p1.kind == "plot"

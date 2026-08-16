@@ -273,6 +273,21 @@ def _coerce_pine_offset(index: Any) -> int | None:
         return None
 
 
+def apply_bar_sample(series: Any, value: Any, dest: list[Any] | None = None) -> None:
+    """Write one bar sample to a wrapper and optional chronological list.
+
+    Sets ``series.current`` and ``history.appendleft`` so both
+    :class:`PineSeries` (deque) and ``RingPineSeries`` (newest-first view
+    over a chronological ring) stay consistent. *dest* is the host
+    ``current_series`` list; omit it on the ring path (the tail view already
+    tracks the buffer — no dual write).
+    """
+    series.current = value
+    series.history.appendleft(value)
+    if dest is not None:
+        dest.append(value)
+
+
 def make_pine_series(
     initial_value: Any = None,
     history_length: int = DEFAULT_PINESERIES_HISTORY,
@@ -333,6 +348,7 @@ class PineSeries:
 
     def update(self, new_value: Any) -> None:
         """Push a new value for the current bar."""
+        # Hot path: slot store + C-level deque appendleft (no extra locals).
         self.current = new_value
         self.history.appendleft(new_value)
 

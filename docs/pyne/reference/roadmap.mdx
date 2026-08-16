@@ -60,7 +60,7 @@ flowchart LR
 | Strategy events + broker (OCA, commission, risk) | ✅ |
 | Numba + object-mode compile | ✅ MVP+ (disk IR cache, `mode=auto`, `time_arr`, cache recovery) |
 | Pro API + auth + Docker | ✅ (`mode` default `auto`; targets api / api-dev / lsp / **cli**) |
-| PyPI **`hoox-pyne`** | ✅ live **0.3.9+** ([pypi.org/project/hoox-pyne](https://pypi.org/project/hoox-pyne/)); CLIs `pyne` / `pyne-lsp` |
+| PyPI **`hoox-pyne`** | ✅ live **0.3.10+** ([pypi.org/project/hoox-pyne](https://pypi.org/project/hoox-pyne/)); CLIs `pyne` / `pyne-lsp` |
 | CLI surface (`check`/`format`/`compile`/`run`/`prewarm`/…) | ✅ + Nuitka binaries + CLI Docker image |
 | Alert engine + L2 webhooks | ✅ dual-host export + outbound webhooks |
 | Drawing `max_*_count` GC | ✅ package + Pro API + AXIS Pyodide |
@@ -77,7 +77,8 @@ flowchart LR
 | UDT `array.binary_search*` `sort_field` | ✅ 0.3.6 — interpret + compile (Pine August 2026) |
 | `Runtime.run(..., libraries=)` / `POST /run` `libraries` | ✅ 0.3.7+ — AXIS `import ns/Name/ver`; export finalize in 0.3.8; auto fallback keeps libs |
 | pyne-worker 0.6.0 | ✅ edge `/run` libraries + plot_meta/logs; engine vendor 0.3.8 |
-| pine-worker (TS + converter) | ✅ colocated tool (thin wrap over package Runtime) |
+| PyneTS (`@hoox-sh/pynets`) | ✅ standalone TS library 0.2.0 — interpret + JS compile; Python remains oracle |
+| pine-worker | ⚙️ legacy TS Cloudflare Worker (sister repo; **not** in this checkout) |
 | Full TV platform identity | ⚙️ out of scope |
 
 ### Completed themes (do not re-plan as greenfield)

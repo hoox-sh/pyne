@@ -19,14 +19,14 @@
 
 ---
 title: "Evaluate Contract"
-description: "Shared request/response evaluate contract across Flask Pro API, pyne-worker, and pine-worker."
+description: "Shared request/response evaluate contract across Flask Pro API, pyne-worker, and in-process Runtime.run (Python + PyneTS)."
 ---
 
 # Evaluate Contract
 
 ## Abstract
 
-The **evaluate contract** is the JSON dialect that lets AXIS, HOOX, CLI tools, and edge workers call *any* PYNE-compatible host interchangeably. Flask `POST /run` is the reference implementation; Python **pyne-worker** and TypeScript **pine-worker** aim for the same fields even when transport (Worker `fetch`, queue, etc.) differs.
+The **evaluate contract** is the JSON dialect that lets AXIS, HOOX, CLI tools, and edge workers call *any* PYNE-compatible host interchangeably. Flask `POST /run` is the reference implementation; Python **pyne-worker** aims for the same HTTP fields. **[PyneTS](/pyne/docs/pynets)** speaks the in-process form (`RuntimeResult`). The legacy TypeScript Worker is documented under [pine-worker](/pyne/docs/pine-worker).
 
 This page freezes the semantic envelope — not transport auth headers.
 
@@ -42,17 +42,16 @@ flowchart LR
   subgraph Hosts
     FLASK[Flask /run]
     PYW[pyne-worker]
-    TSW[pine-worker]
+    TS[PyneTS Runtime.run]
   end
   AXIS --> FLASK
   AXIS --> PYW
-  AXIS --> TSW
   CLI --> FLASK
+  CLI --> TS
   HOOX --> PYW
-  HOOX --> TSW
 ```
 
-**Invariant:** given the same script + OHLCV + mode, hosts should agree on plot series and strategy events within known parity limits (see [numerical validation](/pyne/docs/reference/numerical-validation) and pine-worker testing).
+**Invariant:** given the same script + OHLCV + mode, hosts should agree on plot series and strategy events within known parity limits (see [numerical validation](/pyne/docs/reference/numerical-validation) and [PyneTS parity](/pyne/docs/pynets/parity)). AXIS engines call Python hosts today, not PyneTS.
 
 ## Interface surface
 

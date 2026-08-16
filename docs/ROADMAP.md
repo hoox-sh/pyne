@@ -95,7 +95,7 @@ Historical Phase A–D “build API / LSP / Jupyter” items are **done**. Do no
 | **C1** | Corpus Runtime residual (set01–04) | P1 ✅ **closed (2026-08-09)** — parse **99.96%** (2476/2477); Runtime interpret **100%** excl. EXPECTED_FAIL (2466 OK + 11 intentional demos); set01 **249/249**. Residual class = intentional `runtime.error` / lower-TF / pathological loop demos only | pyne |
 | **P1p** | Compile/interpret **plot parity** residual | P1 ⚙️ harness landed (`scripts/compare_interp_compile.py`, `tests/test_interp_compile_parity.py`); smoke OK on stable TA scripts; residual buckets: value `MISMATCH`, structural hline/fill keys, one-sided runtime errors | pyne |
 | **T1** | Cap `current_series` to `max_bars_back` / `_SERIES_MAX` | P2 ✅ `PYNE_SERIES_CAP` default ON + goldens (R7 Agent 03) | pyne |
-| **T2** | Incremental TA for remaining heavy kernels (`ta.bb`, nested full paths) | P2 ✅ R7: bb/kama/cmo/stochrsi inc; **wma/hma/linreg inc landed**; further nested full-list helpers residual | pyne |
+| **T2** | Incremental TA for remaining heavy kernels (`ta.bb`, nested full paths) | P2 ✅ R7: bb/kama/cmo/stochrsi; wma/hma/linreg; **R9: obv/wad/wvad/cmf/klinger**. Residual: nvi/pvi | pyne |
 | **F1** | ATR Wilder / TV supertrend re-baseline **only** with dedicated goldens | P2 ⚙️ **RSI Wilder** compile↔interpret aligned (2026-08 residual); ATR EMA→Wilder and TV supertrend ratchet still require explicit goldens | pyne |
 | **F2** | Pending-fill averaging when pyramiding ≤ 0 | P2 ✅ R7 Agent 10 (interpret + compile broker goldens) | pyne |
 | **L1** | v5↔v6 converter maturity (`scripts/convert_pine_version.py`) | P3 | pyne |
@@ -126,7 +126,7 @@ P0 docs honesty → P1 dual-host H1 ✅ (package SoT + shims + worker thin wrap)
 - **`auto_fib` pivot data limits:** Auto Fib Extension/Retracement raise the same “not enough data / Depth” insufficient-pivot errors on interpret and compile when pivot arrays are empty (normalized as `both_error_same` in the parity harness). Not a silent success path; hosts must supply enough bars or lower Depth.
 - **`request.*` foreign-na policy:** `request.security` / bare `security` on foreign symbols or complex expressions resolve to `na` on both backends; `ChartOHLCVProvider` refuses non-chart symbols. Same-symbol simple OHLCV still passthrough. Real fundamentals remain **B1** (adapters).
 - **Tick-offset exits (2026-08-15):** `strategy.exit` `profit`/`loss` are ticks × mintick from entry avg (interpret + compile). `limit`/`stop` stay absolute; absolute wins if both set.
-- **Incremental WMA / HMA / linreg:** interpret inc kernels landed (`_wma_inc_update` / `_hma_inc_update` / `_linreg_inc_update`); further nested full-list helpers still residual (T2).
+- **Incremental WMA / HMA / linreg / volume:** interpret inc kernels landed (`_wma_inc_update` / `_hma_inc_update` / `_linreg_inc_update`; R9 `_obv`/`_wad`/`_wvad`/`_cmf`/`_klinger_inc_update`). Residual full-list: `ta.nvi` / `ta.pvi`.
 - **Plot pack:** interpret host packs dirty plot columns (`_plot_pack_dirty`); compile `_pack_plot_sequence` uniquifies titles.
 - **Ring tail-view:** `PYNE_SERIES_RING` chronological tail (default **off**).
 

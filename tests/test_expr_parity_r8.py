@@ -97,6 +97,22 @@ class TestElementwiseSoftConcat:
         assert _elementwise_binary(operator.truediv, 1, None) is None
         assert _elementwise_binary(operator.sub, None, None) is None
 
+    def test_pineseries_unwrap_numeric(self) -> None:
+        """Type-identity unwrap: PineSeries.current participates in scalar ops."""
+        from pynescript.ast.evaluator.expressions import _as_scalar_operand
+        from pynescript.runtime.series import PineSeries
+
+        ps = PineSeries()
+        ps.update(4.0)
+        assert _as_scalar_operand(ps) == 4.0
+        assert _elementwise_binary(operator.add, ps, 1.0) == 5.0
+        assert _elementwise_binary(operator.mul, 2.0, ps) == 8.0
+        # na current must stay na (never coerced to 0)
+        ps_na = PineSeries()
+        ps_na.update(None)
+        assert _as_scalar_operand(ps_na) is None
+        assert _elementwise_binary(operator.add, ps_na, 1.0) is None
+
 
 class TestSwitchCaseMatchHelper:
     def test_boolean_switch(self) -> None:

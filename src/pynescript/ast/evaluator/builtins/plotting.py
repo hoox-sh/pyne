@@ -383,14 +383,21 @@ def _kw(
 def _as_str(v: Any, default: str = _EMPTY) -> str:
     if v is None:
         return default
-    if isinstance(v, str):
+    if type(v) is str:
         return v
     return str(v)
 
 
 def _as_int(v: Any, default: int = 0) -> int:
+    t = type(v)
+    if t is int:
+        return v
     if v is None:
         return default
+    if t is float:
+        if v != v:
+            return default
+        return int(v)
     try:
         return int(v)
     except (TypeError, ValueError):
@@ -486,6 +493,22 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
             "plot.style_circles": "style_circles",
         }
 
+    def _bar_reuse_plot(self) -> Plot | None:
+        """Return the call-site Plot on later bars, or None on first sighting.
+
+        Skips title/style/int coercions when the registry slot already exists.
+        """
+        if not getattr(self, "_pine_bar_mode", False):
+            return None
+        i = getattr(self, "_plot_call_i", 0) or 0
+        plots = PlotRegistry.plots
+        if i >= len(plots):
+            return None
+        self._plot_call_i = i + 1  # type: ignore[attr-defined]
+        p = plots[i]
+        p.deleted = False
+        return p
+
     def _upsert_simple_plot(
         self,
         series: Any,
@@ -496,9 +519,7 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
     ) -> Plot:
         """Positional ``plot()`` upsert — no per-bar kwargs dict."""
         if getattr(self, "_pine_bar_mode", False):
-            i = getattr(self, "_plot_call_i", 0)
-            if i is None:
-                i = 0
+            i = getattr(self, "_plot_call_i", 0) or 0
             self._plot_call_i = i + 1  # type: ignore[attr-defined]
             plots = PlotRegistry.plots
             if i < len(plots):
@@ -541,23 +562,24 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
         so kind/title/style defaults do not need a full ``_fill_plot`` rewrite).
         """
         if getattr(self, "_pine_bar_mode", False):
-            # _plot_call_i is always an int in Runtime; avoid int() / or 0 each plot
-            i = getattr(self, "_plot_call_i", 0)
-            if i is None:
-                i = 0
+            # _plot_call_i is always an int in Runtime; avoid int() each plot
+            i = getattr(self, "_plot_call_i", 0) or 0
             self._plot_call_i = i + 1  # type: ignore[attr-defined]
             plots = PlotRegistry.plots
             if i < len(plots):
                 p = plots[i]
                 # Call-site kind/title/style are fixed after bar 0; only values change.
-                if "series" in fields:
-                    p.series = fields["series"]
-                if "color" in fields:
-                    p.color = fields["color"]
-                if "price" in fields:
-                    p.price = fields["price"]
-                    if "series" not in fields:
-                        p.series = fields["price"]
+                series = fields.get("series", _MISSING)
+                if series is not _MISSING:
+                    p.series = series
+                color = fields.get("color", _MISSING)
+                if color is not _MISSING:
+                    p.color = color
+                price = fields.get("price", _MISSING)
+                if price is not _MISSING:
+                    p.price = price
+                    if series is _MISSING:
+                        p.series = price
                 if "open" in fields:
                     p.open = fields["open"]
                     p.high = fields.get("high")
@@ -581,6 +603,22 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
 
     def _builtin_plot(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Plot:
         """plot(series, title, color, …) → plot id (Plot object)."""
+        # Bar-mode reuse: series/color only — skip title/style/int coercions.
+        if getattr(self, "_pine_bar_mode", False):
+            i = getattr(self, "_plot_call_i", 0) or 0
+            plots = PlotRegistry.plots
+            if i < len(plots):
+                self._plot_call_i = i + 1  # type: ignore[attr-defined]
+                p = plots[i]
+                if kwargs:
+                    p.series = _kw(args, kwargs, "series", 0)
+                    p.color = _kw(args, kwargs, "color", 2)
+                else:
+                    p.series = args[0] if args else None
+                    p.color = args[2] if len(args) > 2 else None
+                p.deleted = False
+                return p
+
         # Fast path: plot(series) / plot(series, title, color, …) with no kwargs
         if not kwargs:
             series = args[0] if args else None
@@ -606,6 +644,11 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
         )
 
     def _builtin_plotarrow(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Plot:
+        reused = self._bar_reuse_plot()
+        if reused is not None:
+            reused.series = _kw(args, kwargs, "series", 0)
+            reused.color = _kw(args, kwargs, "color", 2)
+            return reused
         return self._plot_upsert(
             kind="plotarrow",
             series=_kw(args, kwargs, "series", 0),
@@ -616,6 +659,14 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
         )
 
     def _builtin_plotbar(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Plot:
+        reused = self._bar_reuse_plot()
+        if reused is not None:
+            reused.open = _kw(args, kwargs, "open", 0)
+            reused.high = _kw(args, kwargs, "high", 1)
+            reused.low = _kw(args, kwargs, "low", 2)
+            reused.close = _kw(args, kwargs, "close", 3)
+            reused.color = _kw(args, kwargs, "color", 5)
+            return reused
         return self._plot_upsert(
             kind="plotbar",
             open=_kw(args, kwargs, "open", 0),
@@ -633,6 +684,15 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
         meta = None
         if wick is not None or border is not None:
             meta = {"wickcolor": wick, "bordercolor": border}
+        reused = self._bar_reuse_plot()
+        if reused is not None:
+            reused.open = _kw(args, kwargs, "open", 0)
+            reused.high = _kw(args, kwargs, "high", 1)
+            reused.low = _kw(args, kwargs, "low", 2)
+            reused.close = _kw(args, kwargs, "close", 3)
+            reused.color = _kw(args, kwargs, "color", 5)
+            reused.meta = meta
+            return reused
         return self._plot_upsert(
             kind="plotcandle",
             open=_kw(args, kwargs, "open", 0),
@@ -646,6 +706,12 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
         )
 
     def _builtin_plotchar(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Plot:
+        reused = self._bar_reuse_plot()
+        if reused is not None:
+            reused.series = _kw(args, kwargs, "series", 0)
+            reused.char = _as_str(_kw(args, kwargs, "char", 2, _EMPTY), _EMPTY)
+            reused.color = _kw(args, kwargs, "color", 4)
+            return reused
         return self._plot_upsert(
             kind="plotchar",
             series=_kw(args, kwargs, "series", 0),
@@ -659,6 +725,12 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
         )
 
     def _builtin_plotshape(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Plot:
+        reused = self._bar_reuse_plot()
+        if reused is not None:
+            reused.series = _kw(args, kwargs, "series", 0)
+            reused.color = _kw(args, kwargs, "color", 4)
+            reused.text = _as_str(_kw(args, kwargs, "text", None, _EMPTY), _EMPTY)
+            return reused
         return self._plot_upsert(
             kind="plotshape",
             series=_kw(args, kwargs, "series", 0),
@@ -673,6 +745,12 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
         )
 
     def _builtin_fill(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Plot:
+        reused = self._bar_reuse_plot()
+        if reused is not None:
+            reused.plot1 = _kw(args, kwargs, "plot1", 0)
+            reused.plot2 = _kw(args, kwargs, "plot2", 1)
+            reused.color = _kw(args, kwargs, "color", 2)
+            return reused
         return self._plot_upsert(
             kind="fill",
             plot1=_kw(args, kwargs, "plot1", 0),
@@ -683,6 +761,10 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
         )
 
     def _builtin_bgcolor(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Plot:
+        reused = self._bar_reuse_plot()
+        if reused is not None:
+            reused.color = _kw(args, kwargs, "color", 0)
+            return reused
         return self._plot_upsert(
             kind="bgcolor",
             color=_kw(args, kwargs, "color", 0),
@@ -693,6 +775,10 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
         )
 
     def _builtin_barcolor(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Plot:
+        reused = self._bar_reuse_plot()
+        if reused is not None:
+            reused.color = _kw(args, kwargs, "color", 0)
+            return reused
         return self._plot_upsert(
             kind="barcolor",
             color=_kw(args, kwargs, "color", 0),
@@ -703,6 +789,12 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
 
     def _builtin_hline(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Plot:
         price = _kw(args, kwargs, "price", 0, 0.0)
+        reused = self._bar_reuse_plot()
+        if reused is not None:
+            reused.price = price
+            reused.series = price
+            reused.color = _kw(args, kwargs, "color", 2)
+            return reused
         return self._plot_upsert(
             kind="hline",
             price=price,

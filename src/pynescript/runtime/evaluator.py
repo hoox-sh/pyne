@@ -27,10 +27,14 @@ plot series, shapes, and bgcolors as JSON-safe columns for AXIS.
 from __future__ import annotations
 
 from typing import Any
+from typing import Callable
 
 from pynescript.ast.evaluator import NodeLiteralEvaluator
+from pynescript.runtime.series import PineSeries
 
 _MISSING: Any = object()
+# Type-identity for plot(close) / host OHLCV series (no getattr).
+_PINE_SERIES_T = PineSeries
 
 
 def _serialize_color(c: Any) -> str | None:
@@ -65,6 +69,8 @@ def _unwrap_scalar(value: Any) -> Any:
     # Dominant after incremental TA: already a scalar
     if t is float or t is int or value is None or t is bool or t is str:
         return value
+    if t is _PINE_SERIES_T:
+        return value.current
     if t is list:
         return value[-1] if value else None
     current = getattr(value, "current", _MISSING)
@@ -73,6 +79,16 @@ def _unwrap_scalar(value: Any) -> Any:
         if current is not None or getattr(value, "history", _MISSING) is not _MISSING:
             return current
     return value
+
+
+def _plot_numeric_cell(raw: Any) -> Any:
+    """JSON-safe numeric plot/hline cell (float/int/None identity; never na→0)."""
+    t = type(raw)
+    if t is float:
+        return None if raw != raw else raw
+    if t is int or raw is None:
+        return raw
+    return _coerce_plot_numeric(_unwrap_scalar(raw))
 
 
 def _coerce_plot_numeric(value: Any) -> Any:
@@ -114,20 +130,33 @@ def _as_plot_int(value: Any, default: int = 1) -> int:
     as lists). ``int([1, 2, 3])`` raises TypeError and aborts the bar loop —
     unwrap to the current sample first (same as ``_unwrap_scalar``).
     """
+    t = type(value)
+    if t is int:
+        return value
+    if value is None:
+        return default
+    if t is float:
+        if value != value:  # NaN
+            return default
+        return int(value)
+    if t is bool:
+        return int(value)
     v = _unwrap_scalar(value)
     if v is None:
         return default
     # Nested list (e.g. override was [[1]]) — peel once more
-    if type(v) is list:
+    vt = type(v)
+    if vt is list:
         v = v[-1] if v else None
         if v is None:
             return default
+        vt = type(v)
     try:
-        if type(v) is bool:
+        if vt is bool:
             return int(v)
-        if type(v) is int:
+        if vt is int:
             return v
-        if type(v) is float:
+        if vt is float:
             if v != v:  # NaN
                 return default
             return int(v)
@@ -168,6 +197,12 @@ class CustomEvaluator(NodeLiteralEvaluator):
         # When False, skip PlotRegistry super() path (fill() needs True).
         # Default True so non-Runtime CustomEvaluator users keep registry semantics.
         self._pine_need_plot_ids = True
+        # Bound super()._builtin_plot* after first fill-script registry hit.
+        self._registry_handlers: dict[str, Callable[..., Any]] = {}
+        # Call-site index for PlotRegistry reuse (plotting.py); host resets per bar.
+        self._plot_call_i = 0
+        # Sites whose meta.color is still None (dynamic first-non-null). 0 → skip.
+        self._plot_color_pending = 0
         # PYNE_LIGHT_PLOTS=1: skip columnar capture + registry (corpus OK/fail only).
         self._pine_light_plots = False
         # Bar-by-bar mode: TA helpers return current scalar instead of full series
@@ -184,16 +219,10 @@ class CustomEvaluator(NodeLiteralEvaluator):
         t = type(value)
         if t is not float and t is not int and value is not None and t is not bool and t is not str:
             self._plot_pack_dirty = True
-        n = self._plot_n_bars
         col = self._plot_value_cols[i]
-        if n > 0:
-            bar = self._plot_bars_done
-            if bar < n:
-                col[bar] = value
-            elif bar < len(col):
-                col[bar] = value
-            else:
-                col.append(value)
+        bar = self._plot_bars_done
+        if bar < len(col):
+            col[bar] = value
         else:
             col.append(value)
 
@@ -257,9 +286,17 @@ class CustomEvaluator(NodeLiteralEvaluator):
         """
         if self._pine_light_plots:
             return 0
+        t = type(value)
+        if t is not float and t is not int and value is not None and t is not bool and t is not str:
+            self._plot_pack_dirty = True
         i = self._plot_capture_i
         self._plot_capture_i = i + 1
-        self._write_plot_cell(i, value)
+        col = self._plot_value_cols[i]
+        bar = self._plot_bars_done
+        if bar < len(col):
+            col[bar] = value
+        else:
+            col.append(value)
         return i
 
     def finish_bar_plots(self) -> None:
@@ -288,36 +325,76 @@ class CustomEvaluator(NodeLiteralEvaluator):
         """
         if not self._pine_need_plot_ids:
             return None
+        fn = self._registry_handlers.get(method_name)
+        if fn is None:
+            fn = getattr(super(), method_name)
+            self._registry_handlers[method_name] = fn
         try:
-            return getattr(super(), method_name)(args, kwargs)
+            return fn(args, kwargs)
         except (TypeError, AttributeError, ValueError, KeyError, IndexError):
             # Optional plot-id plumbing — soft-fail (fill still works without ids).
             return None
         except Exception:  # noqa: BLE001 — never kill plot capture for registry
             return None
 
+    def _lazy_plot_color(self, i: int, args: list[Any], kwargs: dict[str, Any] | None) -> None:
+        """Fill meta.color on the first non-null sighting (pending sites only)."""
+        color = None
+        if kwargs:
+            color = kwargs.get("color")
+            if color is None and len(args) > 2:
+                color = args[2]
+        elif len(args) > 2:
+            color = args[2]
+        if color is None:
+            return
+        m = self._plot_meta_list[i]
+        if m.get("color") is None:
+            m["color"] = _serialize_color(color)
+            pending = self._plot_color_pending - 1
+            self._plot_color_pending = pending if pending > 0 else 0
+
     def _builtin_plot(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
         """Capture plot value + title/color for multi-series AXIS response."""
         if self._pine_light_plots:
             return None
+        i = self._plot_capture_i
+        cols = self._plot_value_cols
+        # Steady-state (positional or kwargs): value write only after first register.
+        if i < len(cols):
+            if kwargs:
+                raw = kwargs.get("series", args[0] if args else None)
+            elif args:
+                raw = args[0]
+            else:
+                return None
+            t = type(raw)
+            if t is float:
+                value = None if raw != raw else raw
+            elif t is int or raw is None:
+                value = raw
+            else:
+                value = _coerce_plot_numeric(_unwrap_scalar(raw))
+            self._plot_capture_i = i + 1
+            col = cols[i]
+            bar = self._plot_bars_done
+            if bar < len(col):
+                col[bar] = value
+            else:
+                col.append(value)
+            if self._plot_color_pending:
+                self._lazy_plot_color(i, args, kwargs)
+            if self._pine_need_plot_ids:
+                return self._maybe_registry("_builtin_plot", args, kwargs)
+            return None
+
+        # First sighting: record meta + allocate / fill pre-sized column.
         if kwargs:
             if not args and "series" not in kwargs:
                 return None
-            value = _coerce_plot_numeric(_unwrap_scalar(kwargs.get("series", args[0] if args else None)))
-            # Steady-state: call site already registered → value only
-            if self._plot_capture_i < len(self._plot_value_cols):
-                i = self._append_plot_value(value)
-                # Lazy first non-null color (matches prior post-process)
-                color = kwargs.get("color", args[2] if len(args) > 2 else None)
-                if color is not None:
-                    m = self._plot_meta_list[i]
-                    if m.get("color") is None:
-                        m["color"] = _serialize_color(color)
-                return self._maybe_registry("_builtin_plot", args, kwargs) if self._pine_need_plot_ids else None
-
+            raw = kwargs.get("series", args[0] if args else None)
             title = kwargs.get("title", args[1] if len(args) > 1 else "")
             color = kwargs.get("color", args[2] if len(args) > 2 else None)
-            # plot(..., style=plot.style_linebr, linestyle=plot.linestyle_dashed)
             style = kwargs.get("style", args[3] if len(args) > 3 else None)
             linewidth = kwargs.get("linewidth", args[5] if len(args) > 5 else 1)
             linestyle = kwargs.get("linestyle", None)
@@ -325,9 +402,11 @@ class CustomEvaluator(NodeLiteralEvaluator):
             title_s = str(title or "") or None
             style_s = None if style is None or style == "" else str(style)
             linestyle_s = None if linestyle is None or linestyle == "" else str(linestyle)
+            if color_s is None and ("color" in kwargs or len(args) > 2):
+                self._plot_color_pending += 1
             self._capture_plot(
                 "plot",
-                value,
+                _plot_numeric_cell(raw),
                 title_s,
                 color_s,
                 _as_plot_int(linewidth, 1),
@@ -336,32 +415,8 @@ class CustomEvaluator(NodeLiteralEvaluator):
             )
             return self._maybe_registry("_builtin_plot", args, kwargs) if self._pine_need_plot_ids else None
 
-        # Positional-only: plot(series) / plot(series, title, color, …)
         if not args:
             return None
-        raw = args[0]
-        t = type(raw)
-        if t is float or t is int or raw is None:
-            value = None if t is float and raw != raw else raw
-        else:
-            value = _coerce_plot_numeric(_unwrap_scalar(raw))
-        i = self._plot_capture_i
-        cols = self._plot_value_cols
-        if i < len(cols):
-            self._plot_capture_i = i + 1
-            n = self._plot_n_bars
-            if n > 0:
-                cols[i][self._plot_bars_done] = value
-            else:
-                cols[i].append(value)
-            if len(args) > 2:
-                color = args[2]
-                if color is not None:
-                    m = self._plot_meta_list[i]
-                    if m.get("color") is None:
-                        m["color"] = _serialize_color(color)
-            return self._maybe_registry("_builtin_plot", args, None) if self._pine_need_plot_ids else None
-
         n = len(args)
         title = args[1] if n > 1 else ""
         color = args[2] if n > 2 else None
@@ -370,9 +425,11 @@ class CustomEvaluator(NodeLiteralEvaluator):
         color_s = _serialize_color(color) if color is not None else None
         title_s = str(title or "") or None
         style_s = None if style is None or style == "" else str(style)
+        if color_s is None and n > 2:
+            self._plot_color_pending += 1
         self._capture_plot(
             "plot",
-            value,
+            _plot_numeric_cell(args[0]),
             title_s,
             color_s,
             _as_plot_int(linewidth, 1),
@@ -384,13 +441,21 @@ class CustomEvaluator(NodeLiteralEvaluator):
         """Capture hline as a constant-price series for AXIS (kind=hline)."""
         if self._pine_light_plots:
             return None
+        if self._plot_capture_i < len(self._plot_value_cols):
+            if kwargs:
+                raw = kwargs.get("price", args[0] if args else None)
+            elif args:
+                raw = args[0]
+            else:
+                return None
+            self._append_plot_value(_plot_numeric_cell(raw))
+            if self._pine_need_plot_ids:
+                return self._maybe_registry("_builtin_hline", args, kwargs)
+            return None
         if kwargs:
             if not args and "price" not in kwargs:
                 return None
-            price = _coerce_plot_numeric(_unwrap_scalar(kwargs.get("price", args[0] if args else None)))
-            if self._plot_capture_i < len(self._plot_value_cols):
-                self._append_plot_value(price)
-                return self._maybe_registry("_builtin_hline", args, kwargs) if self._pine_need_plot_ids else None
+            price = _plot_numeric_cell(kwargs.get("price", args[0] if args else None))
             title = kwargs.get("title", args[1] if len(args) > 1 else "hline")
             color = kwargs.get("color", args[2] if len(args) > 2 else None)
             linestyle = kwargs.get("linestyle", args[3] if len(args) > 3 else "linestyle_solid")
@@ -409,10 +474,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
 
         if not args:
             return None
-        price = _coerce_plot_numeric(_unwrap_scalar(args[0]))
-        if self._plot_capture_i < len(self._plot_value_cols):
-            self._append_plot_value(price)
-            return self._maybe_registry("_builtin_hline", args, None) if self._pine_need_plot_ids else None
+        price = _plot_numeric_cell(args[0])
         n = len(args)
         title = args[1] if n > 1 else "hline"
         color = args[2] if n > 2 else None
@@ -435,41 +497,31 @@ class CustomEvaluator(NodeLiteralEvaluator):
         if self._pine_light_plots:
             return None
         if kwargs:
-            color = _unwrap_scalar(kwargs.get("color", args[0] if args else None))
-            color_s = _serialize_color(color)
-            if self._plot_capture_i < len(self._plot_value_cols):
-                i = self._append_plot_value(color_s)
-                if color_s is not None:
-                    m = self._plot_meta_list[i]
-                    if m.get("color") is None:
-                        m["color"] = color_s
-                return self._maybe_registry("_builtin_bgcolor", args, kwargs) if self._pine_need_plot_ids else None
-            title = kwargs.get("title", args[1] if len(args) > 1 else "bgcolor")
-            self._capture_plot(
-                "bgcolor",
-                color_s,
-                str(title or "") or "bgcolor",
-                color_s,
-            )
-            return self._maybe_registry("_builtin_bgcolor", args, kwargs) if self._pine_need_plot_ids else None
-
-        color = _unwrap_scalar(args[0] if args else None)
-        color_s = _serialize_color(color)
+            raw = kwargs.get("color", args[0] if args else None)
+        else:
+            raw = args[0] if args else None
+        color_s = _serialize_color(_unwrap_scalar(raw))
         if self._plot_capture_i < len(self._plot_value_cols):
             i = self._append_plot_value(color_s)
-            if color_s is not None:
+            if self._plot_color_pending and color_s is not None:
                 m = self._plot_meta_list[i]
                 if m.get("color") is None:
                     m["color"] = color_s
-            return self._maybe_registry("_builtin_bgcolor", args, None) if self._pine_need_plot_ids else None
-        title = args[1] if len(args) > 1 else "bgcolor"
+                    pending = self._plot_color_pending - 1
+                    self._plot_color_pending = pending if pending > 0 else 0
+            if self._pine_need_plot_ids:
+                return self._maybe_registry("_builtin_bgcolor", args, kwargs)
+            return None
+        title = (kwargs.get("title", args[1] if len(args) > 1 else "bgcolor") if kwargs else (args[1] if len(args) > 1 else "bgcolor"))
+        if color_s is None:
+            self._plot_color_pending += 1
         self._capture_plot(
             "bgcolor",
             color_s,
             str(title or "") or "bgcolor",
             color_s,
         )
-        return self._maybe_registry("_builtin_bgcolor", args, None) if self._pine_need_plot_ids else None
+        return self._maybe_registry("_builtin_bgcolor", args, kwargs) if self._pine_need_plot_ids else None
 
     @staticmethod
     def _plot_ref_title(ref: Any) -> str | None:
@@ -544,7 +596,9 @@ class CustomEvaluator(NodeLiteralEvaluator):
             value = _coerce_plot_shape(_unwrap_scalar(kwargs.get("series", args[0] if args else None)))
             if self._plot_capture_i < len(self._plot_value_cols):
                 self._append_plot_value(value)
-                return self._maybe_registry("_builtin_plotshape", args, kwargs) if self._pine_need_plot_ids else None
+                if self._pine_need_plot_ids:
+                    return self._maybe_registry("_builtin_plotshape", args, kwargs)
+                return None
             title = kwargs.get("title", args[1] if len(args) > 1 else "shape")
             style = kwargs.get("style", args[2] if len(args) > 2 else "shape")
             location = kwargs.get("location", args[3] if len(args) > 3 else "")
@@ -573,7 +627,9 @@ class CustomEvaluator(NodeLiteralEvaluator):
         value = _coerce_plot_shape(_unwrap_scalar(args[0]))
         if self._plot_capture_i < len(self._plot_value_cols):
             self._append_plot_value(value)
-            return self._maybe_registry("_builtin_plotshape", args, None) if self._pine_need_plot_ids else None
+            if self._pine_need_plot_ids:
+                return self._maybe_registry("_builtin_plotshape", args, None)
+            return None
         n = len(args)
         title = args[1] if n > 1 else "shape"
         style = args[2] if n > 2 else "shape"
@@ -600,7 +656,9 @@ class CustomEvaluator(NodeLiteralEvaluator):
             value = _coerce_plot_shape(_unwrap_scalar(kwargs.get("series", args[0] if args else None)))
             if self._plot_capture_i < len(self._plot_value_cols):
                 self._append_plot_value(value)
-                return self._maybe_registry("_builtin_plotchar", args, kwargs) if self._pine_need_plot_ids else None
+                if self._pine_need_plot_ids:
+                    return self._maybe_registry("_builtin_plotchar", args, kwargs)
+                return None
             title = kwargs.get("title", args[1] if len(args) > 1 else "char")
             char = kwargs.get("char", args[2] if len(args) > 2 else "")
             location = kwargs.get("location", args[3] if len(args) > 3 else "")
@@ -624,7 +682,9 @@ class CustomEvaluator(NodeLiteralEvaluator):
         value = _coerce_plot_shape(_unwrap_scalar(args[0]))
         if self._plot_capture_i < len(self._plot_value_cols):
             self._append_plot_value(value)
-            return self._maybe_registry("_builtin_plotchar", args, None) if self._pine_need_plot_ids else None
+            if self._pine_need_plot_ids:
+                return self._maybe_registry("_builtin_plotchar", args, None)
+            return None
         n = len(args)
         title = args[1] if n > 1 else "char"
         char = args[2] if n > 2 else ""

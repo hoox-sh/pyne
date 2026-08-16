@@ -55,7 +55,7 @@ Answers cite:
 ### What is PYNE vs pynescript vs pyne?
 
 - **PYNE** — product documentation brand for the open evaluate stack (grammar → AST → runtime → LSP → Pro API → workers).
-- **`hoox-pyne`** — **PyPI distribution** name ([live](https://pypi.org/project/hoox-pyne/), **0.3.9+**). Install with `pip install hoox-pyne`. Do **not** install plain `pyne`/`PyNE` from PyPI without the `hoox-` prefix (unrelated) or the upstream `pynescript` package (elbakramer).
+- **`hoox-pyne`** — **PyPI distribution** name ([live](https://pypi.org/project/hoox-pyne/), **0.3.10+**). Install with `pip install hoox-pyne`. Do **not** install plain `pyne`/`PyNE` from PyPI without the `hoox-` prefix (unrelated) or the upstream `pynescript` package (elbakramer).
 - **`pynescript`** — **import package** (`import pynescript`, including `pynescript.runtime`).
 - **`pyne` / `pyne-lsp`** — preferred console scripts; **`pynescript` / `pynescript-lsp`** remain aliases.
 
@@ -164,12 +164,17 @@ Optional edge trading mesh (trade-worker, etc.). Docs: [HOOX](/docs). Strategy e
 
 **Alerts:** `alert()` / `alertcondition()` firings export on Pro API and pyne-worker `/run`. Optional HTTP webhooks via `webhook_url` or `ALERT_WEBHOOK_URL` (last-bar by default). See [Alerts](/pyne/docs/runtime/alerts).
 
-### What is pine-worker vs pyne-worker?
+### What is PyneTS vs pine-worker vs pyne-worker?
 
-- **pine-worker** — TypeScript port / tool in this monorepo (`pine-worker/`)  
-- **pyne-worker** — Python Cloudflare Worker sister repo depending on pynescript  
+- **[PyneTS](/pyne/docs/pynets)** (`@hoox-sh/pynets`) — TypeScript / Bun **library + CLI**. `parse` / `unparse` / `Runtime.run`. Not a Worker. Python is the oracle.
+- **[pyne-worker](/docs/devops/workers/pyne-worker)** — Python Cloudflare Worker. Production `POST /run`. Vendors `pynescript.runtime`.
+- **[pine-worker](/pyne/docs/pine-worker)** — legacy TypeScript Cloudflare Worker in a **sister repo**. It is **not** colocated under `pynescript/pine-worker/`.
 
-Both aim at edge evaluate; different runtimes.
+See the [ecosystem map](/pyne/docs/reference/ecosystem) and [modes](/pyne/docs/enduser/reference/modes).
+
+### Is there `Runtime.evaluate`?
+
+No. The host API is **`Runtime.run`**. Python CLI `pyne run` is compile-only smoke and is not `Runtime.run`. PyneTS `pynets run` **does** call `Runtime.run`.
 
 ### What license is pynescript?
 

@@ -1,6 +1,6 @@
 {
   "name": "pyne",
-  "version": "0.3.9",
+  "version": "0.3.10",
   "private": true,
   "type": "module",
   "license": "AGPL-3.0-or-later",

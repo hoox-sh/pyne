@@ -186,10 +186,12 @@ class NameEvaluator:
         """
         # Hot path: single dict lookup for bar-mode series (close/open/…) and locals.
         # ``try/except KeyError`` is faster than ``in`` + ``[]`` when the key hits
-        # (dominant case after hosts inject OHLCV every bar).
+        # (dominant case after hosts inject OHLCV every bar). Local ``ctx`` bind
+        # avoids a second attribute lookup on the miss path.
+        ctx = self.context  # type: ignore[attr-defined]
         name = node.id
         try:
-            return self.context[name]
+            return ctx[name]
         except KeyError:
             pass
         # Bare-name series builtins only (not functions like strategy/indicator that take args)

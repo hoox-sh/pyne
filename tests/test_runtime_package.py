@@ -26,6 +26,8 @@ working against the same implementation.
 
 from __future__ import annotations
 
+import pytest
+
 from pynescript.runtime import Runtime
 from pynescript.runtime import host as runtime_host
 
@@ -328,3 +330,121 @@ plot(x[600], "x600")
     assert x600[-1] == seed
     assert c600[600] == seed
     assert c600[-1] == 100.5 + (n - 1 - 600)
+
+
+def test_derived_hl2_hlc3_ohlc4_time_close_still_correct() -> None:
+    """Skipping unused derived updates must not break named identifiers."""
+    src = """
+//@version=5
+indicator("derived")
+plot(hl2, "hl2")
+plot(hlc3, "hlc3")
+plot(ohlc4, "ohlc4")
+plot(tr, "tr")
+plot(time_close, "tc")
+"""
+    n = 8
+    bars = _bars(n)
+    out = Runtime(symbol="TEST").run(src, bars, mode="interpret")
+    assert "error" not in out, out.get("error")
+    series = out["series"]
+    last = bars[-1]
+    assert series["hl2"][-1] == pytest.approx((last["high"] + last["low"]) * 0.5)
+    assert series["hlc3"][-1] == pytest.approx(
+        (last["high"] + last["low"] + last["close"]) / 3.0
+    )
+    assert series["ohlc4"][-1] == pytest.approx(
+        (last["open"] + last["high"] + last["low"] + last["close"]) * 0.25
+    )
+    prev = bars[-2]
+    expect_tr = max(
+        last["high"] - last["low"],
+        abs(last["high"] - prev["close"]),
+        abs(last["low"] - prev["close"]),
+    )
+    assert series["tr"][-1] == pytest.approx(expect_tr)
+    assert series["tc"][-1] is not None
+
+
+def test_ta_vwap_default_source_uses_live_hlc3() -> None:
+    """``ta.vwap()`` defaults to hlc3 even when that identifier is absent."""
+    src = """
+//@version=5
+indicator("vwap default")
+plot(ta.vwap, "v")
+"""
+    bars = _bars(8)
+    out = Runtime(symbol="TEST").run(src, bars, mode="interpret")
+    assert "error" not in out, out.get("error")
+    values = [x for x in out["series"]["v"] if x is not None]
+    assert values
+    # Session VWAP of typical price (hlc3), not close-only.
+    cum_pv = 0.0
+    cum_v = 0.0
+    expect = None
+    for b in bars:
+        px = (b["high"] + b["low"] + b["close"]) / 3.0
+        vol = float(b["volume"])
+        cum_pv += px * vol
+        cum_v += vol
+        expect = cum_pv / cum_v if cum_v else px
+    assert values[-1] == pytest.approx(expect)
+
+
+def test_input_source_hl2_override_updates_derived() -> None:
+    """input.source override to hl2 must see a live derived series."""
+    src = """
+//@version=5
+indicator("src in")
+src = input.source(close, "Source")
+plot(src, "s")
+"""
+    n = 6
+    bars = _bars(n)
+    out = Runtime(symbol="TEST").run(
+        src, bars, mode="interpret", inputs={"Source": "hl2"}
+    )
+    assert "error" not in out, out.get("error")
+    last = bars[-1]
+    expect = (last["high"] + last["low"]) * 0.5
+    assert out["series"]["s"][-1] == pytest.approx(expect)
+
+
+def test_indicator_skips_strategy_snapshot_but_strategy_still_events() -> None:
+    """Indicators must not grow strategy series; strategies still emit events."""
+    from pynescript.runtime.evaluator import CustomEvaluator
+
+    captured: dict = {}
+    real_init = CustomEvaluator.__init__
+
+    def spy_init(self, *a, **k):  # type: ignore[no-untyped-def]
+        real_init(self, *a, **k)
+        captured["ev"] = self
+
+    CustomEvaluator.__init__ = spy_init  # type: ignore[method-assign]
+    try:
+        ind = Runtime(symbol="TEST").run(
+            '//@version=5\nindicator("i")\nplot(close, "c")\n',
+            _bars(10),
+            mode="interpret",
+        )
+        assert "error" not in ind, ind.get("error")
+        st = getattr(captured["ev"], "_strategy_state", None)
+        assert st is not None
+        assert len(getattr(st, "_size_hist", [])) == 0
+        captured.clear()
+        strat_src = """
+//@version=5
+strategy("s")
+if bar_index == 2
+    strategy.entry("L", strategy.long)
+plot(close, "c")
+"""
+        st_out = Runtime(symbol="TEST").run(strat_src, _bars(8), mode="interpret")
+        assert "error" not in st_out, st_out.get("error")
+        assert len(st_out.get("events") or []) >= 1
+        st2 = getattr(captured["ev"], "_strategy_state", None)
+        assert st2 is not None
+        assert len(getattr(st2, "_size_hist", [])) == 8
+    finally:
+        CustomEvaluator.__init__ = real_init  # type: ignore[method-assign]

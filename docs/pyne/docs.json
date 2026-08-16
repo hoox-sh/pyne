@@ -65,6 +65,7 @@
                 "group": "Reference",
                 "pages": [
                   "enduser/reference/cli-commands",
+                  "enduser/reference/modes",
                   "enduser/reference/glossary",
                   "enduser/reference/faq"
                 ]
@@ -193,6 +194,7 @@
           {
             "group": "Status & Parity",
             "pages": [
+              "reference/ecosystem",
               "reference/compatibility",
               "reference/implementation-status",
               "reference/missing-features",
@@ -203,7 +205,18 @@
             ]
           },
           {
-            "group": "pine-worker",
+            "group": "PyneTS",
+            "pages": [
+              "pynets/index",
+              "pynets/install",
+              "pynets/cli",
+              "pynets/runtime",
+              "pynets/compile",
+              "pynets/parity"
+            ]
+          },
+          {
+            "group": "pine-worker (legacy)",
             "pages": [
               "pine-worker/index",
               "pine-worker/converter",

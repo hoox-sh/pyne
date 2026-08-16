@@ -19,122 +19,106 @@
 
 ---
 title: "pine-worker"
-description: "TypeScript Pine evaluator port colocated in pynescript — architecture, status, and relationship to the Python oracle."
+description: "Legacy TypeScript Cloudflare Worker. Not PyneTS, not pyne-worker, and not colocated inside pynescript."
 ---
 
 # pine-worker
 
 ## Abstract
 
-**pine-worker** is a TypeScript implementation track for the Pine Script™ evaluator (AST types, visitor dispatch, series history, and eventually builtins + strategy events). It lives at `pine-worker/` inside the **pynescript** repository as an **extra tool**, not a replacement for the Python package.
+**pine-worker** is an earlier **TypeScript Cloudflare Worker**: its own parser/evaluator, `POST /run`-shaped handler, and optional trade-forward path. It lives in a **sister repository** ([hoox-sh/pine-worker](https://github.com/hoox-sh/pine-worker)), **not** under `pynescript/pine-worker/`.
 
-Colocation goals:
+That in-tree path **does not exist**. New TypeScript library work belongs in **[PyneTS](/pyne/docs/pynets)** (`@hoox-sh/pynets`). Production edge evaluate is **[pyne-worker](https://github.com/hoox-sh/pyne-worker)** (Python, vendors `pynescript.runtime`).
 
-- Share **parity fixtures** under `tests/fixtures/parity/`
-- Keep the ANTLR **resource grammar** as single syntactic truth (TS parser target can be generated later)
-- Allow cross-language porting in one checkout
-
-Python (`pynescript` + `backend/`) remains the **semantic oracle**.
+<Note>
+Older pages on this site described pine-worker as a colocated Zod/AST skeleton. Treat those sentences as historical. The names below are the current taxonomy.
+</Note>
 
 ## Conceptual model
 
 ```mermaid
 flowchart TB
-  G4[resource/*.g4 grammar] --> PY[Python ANTLR parser]
-  G4 -.-> TS[Future ANTLR TS target]
-  PY --> ASTPY[ASDL AST]
-  ASTPY --> EVALPY[Python evaluator]
-  EVALPY --> FIX[parity JSON fixtures]
-  ZOD[Zod AST schemas] --> EVALTS[TS Evaluator]
-  EVALTS --> FIX
-  CONV[convert-python-to-ts.py] --> STUBS[TS builtin stubs]
-  EVALPY --> CONV
+  subgraph Use these
+    PYNE[PYNE Python SoT]
+    PYNETS["PyneTS @hoox-sh/pynets"]
+    PYW[pyne-worker Python CF]
+    PYNE -->|oracle| PYNETS
+    PYNE -->|vendor| PYW
+  end
+  subgraph Legacy
+    PW[pine-worker TS CF Worker]
+  end
+  PYW -->|TRADE_SERVICE| HOOX[HOOX trade-worker]
+  PW -.->|optional forwarder| HOOX
 ```
+
+| Name | Runtime | Role | In pynescript checkout? |
+| --- | --- | --- | --- |
+| **PyneTS** | Bun / Node library | `parse` / `unparse` / `Runtime.run` | submodule `pynets/` only |
+| **pyne-worker** | Python Worker | Production `POST /run` | no (HOOX submodule / sister) |
+| **pine-worker** | TypeScript Worker | Legacy evaluate + events | **no** |
 
 ## Interface surface
 
-### Quick start (Bun)
+Sister repo layout (when you have `/home/jango/Git/pine-worker`):
+
+| Path | Role |
+| --- | --- |
+| `src/run-handler.ts` | Worker `/run` |
+| `src/evaluator/` | Independent TS evaluator |
+| `src/parser/` | Own ANTLR TS (can drift from PYNE `.g4`) |
+| `src/trade-forwarder.ts` | Strategy events → HOOX |
+| `scripts/convert-python-to-ts.py` | Historical stub generator |
+| `test/parity/` | Event fixtures vs Python |
 
 ```bash
 cd pine-worker
 bun install
 bun test
-bun run typecheck
 ```
 
-`package.json` scripts:
-
-| Script | Action |
-| --- | --- |
-| `test` | `bun test` |
-| `test:watch` | watch mode |
-| `typecheck` | `tsc --noEmit` |
-| `parity` | reserved — harness not fully wired |
-
-Dependencies: **Zod** (AST schemas), **TypeScript**; runtime assumes **Bun** for tests.
-
-### Current skeleton
-
-| Area | State |
-| --- | --- |
-| AST Zod schemas + types | Partial (mirrors Python ASDL intent) |
-| Base evaluator + visitor dispatch | Partial |
-| `PineSeries` historical access | Partial |
-| Core NA / loop signal semantics | Partial |
-| Full builtins | In progress |
-| ANTLR TS parser | Not complete |
-| Strategy event emission | Plan-driven (see opencode plans) |
-| Parity harness `test/parity/` | Planned |
-
-### Relationship to HOOX
-
-When mature, pine-worker may be vendored/submoduled into **hoox-setup** as a Cloudflare Worker bound to trade-worker. Until then it develops here. Sister: **pyne-worker** (Python edge) is a different repo.
+This Worker is **not** published as `@hoox-sh/pynets`. Installing PyneTS does not deploy pine-worker.
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `pine-worker/src/ast/types.ts` | AST typing / Zod |
-| `pine-worker/src/evaluator/evaluator.ts` | Visitor evaluator |
-| `pine-worker/src/evaluator/series.ts` | Series model |
-| `pine-worker/src/evaluator/types.ts` | NA, signals, registries |
-| `pine-worker/test/*.test.ts` | Unit tests |
-| `pine-worker/scripts/convert-python-to-ts.py` | Porting aid |
-| `tests/fixtures/parity/` | Shared oracle fixtures |
-| `.opencode/plans/*pine-worker*` | Strategy-events plans |
+Python remains the semantic oracle for **PyneTS**. pine-worker's evaluator is a **parallel** port with its own grammar copy under `src/parser/grammar/`. Do not treat it as the TS SoT.
+
+HOOX mesh submodules include **pyne-worker**, not pine-worker.
 
 ## Invariants & edge cases
 
-1. **Python wins ties.** If TS and Python disagree, fix TS (unless Python is proven wrong — then fix both + fixtures).
-2. **NA is a sentinel**, not JS `null` alone — truthiness differs from ordinary JS symbols.
-3. **Do not fork grammar** ad hoc in TS; prefer shared resource `.g4`.
-4. **Converter emits stubs, not proofs** — manual port + parity required.
-5. License follows parent pynescript project.
+1. **Do not create `pynescript/pine-worker/`.** Library code goes to [hoox-sh/pynets](https://github.com/hoox-sh/pynets).
+2. **Do not fork `.g4` in pine-worker** for language work; edit grammar in PYNE and regen PyneTS.
+3. **Python wins** if you still compare pine-worker plots to PYNE.
+4. Production alerts + L2 webhooks + libraries on `/run` are documented for **pyne-worker** / Pro API, not this Worker.
 
 ## Worked examples
 
-### Minimal evaluator unit (conceptual)
-
-TS tests construct literal AST nodes (`Literal`, `Assign`, `Script`) and assert visitor results — see `pine-worker/test/evaluator.test.ts`.
-
-### Regenerate Python fixtures
+### You wanted the TS library
 
 ```bash
-python tests/fixtures/parity/generate_fixtures.py
+bun add @hoox-sh/pynets
 ```
+
+See [Install PyneTS](/pyne/docs/pynets/install).
+
+### You wanted edge `/run`
+
+Deploy [pyne-worker](https://github.com/hoox-sh/pyne-worker) and read [HOOX isolate profile](/docs/devops/workers/pyne-worker).
 
 ## Failure modes
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| `bun test` fails on NA | JS truthiness | Use Pine truth helpers |
-| Parity script no-ops | Harness not wired | Implement `test/parity` per plan |
-| Drift from Python builtins | Manual port error | Re-run converter diff + fixtures |
+| `cd pine-worker` in a PYNE clone | Docs were stale | Use `pynets/` or the sister repo |
+| Zod AST / `Evaluator` types not in PyneTS | Different codebase | ASDL names in `src/ast/nodes.ts` |
+| Two TS runtimes disagree | Parallel ports | Prefer PyneTS; Python is oracle |
 
 ## See also
 
-- [Converter](/pyne/docs/pine-worker/converter)
-- [Testing](/pyne/docs/pine-worker/testing)
-- [Runtime events](/pyne/docs/runtime/events)
-- [Alerts](/pyne/docs/runtime/alerts) (edge capture + L2 webhooks; see also **pyne-worker** Python edge host)
-- [Roadmap](/pyne/docs/reference/roadmap)
+- [PyneTS](/pyne/docs/pynets)
+- [Converter (legacy)](/pyne/docs/pine-worker/converter)
+- [Testing (legacy)](/pyne/docs/pine-worker/testing)
+- [Ecosystem](/pyne/docs/reference/ecosystem)
+- [pyne-worker](/docs/devops/workers/pyne-worker)
+- [Evaluate contract](/pyne/docs/api/contract)

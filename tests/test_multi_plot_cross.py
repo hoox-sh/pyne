@@ -219,3 +219,39 @@ plot(slow, "slow")
     kinds = [e["kind"] for e in r.get("events") or []]
     assert "entry" in kinds, kinds
     assert "close" in kinds or kinds.count("entry") >= 1, kinds
+
+
+def test_kwargs_titled_plots_column_length_no_append_growth():
+    """Pre-sized columns stay bar-length; titled kwargs path matches positional."""
+    src = """
+//@version=5
+indicator("k")
+plot(close, title="c")
+plot(open, title="o", color=color.red)
+plot(na, title="n")
+"""
+    bars = _bars(40)
+    r = Runtime().run(src, bars, mode="interpret")
+    assert "error" not in r, r.get("error")
+    assert len(r["series"]["c"]) == 40
+    assert len(r["series"]["o"]) == 40
+    assert len(r["series"]["n"]) == 40
+    assert all(v is None for v in r["series"]["n"])
+    assert r["plot_meta"]["c"]["kind"] == "plot"
+    assert r["plot_meta"]["o"]["kind"] == "plot"
+    assert r["plot_meta"]["o"]["color"]
+    assert r["series"]["c"][-1] == bars[-1]["close"]
+
+
+def test_lazy_first_non_null_plot_color():
+    """color=na on bar 0 then a real color later still lands in plot_meta."""
+    src = """
+//@version=5
+indicator("lz")
+plot(close, "c", color=bar_index == 0 ? na : color.blue)
+"""
+    r = Runtime().run(src, _bars(12), mode="interpret")
+    assert "error" not in r, r.get("error")
+    color = r["plot_meta"]["c"].get("color")
+    assert color
+    assert "blue" in str(color).lower() or str(color).startswith("#")

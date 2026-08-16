@@ -58,6 +58,10 @@ from pynescript.ast.type_system import UserDefinedType
 # Sentinel: param was not present in context before binding (pop on unbind).
 _CONTEXT_MISSING: Any = object()
 
+# Top-level declarations that are no-ops after the host locks defs (bar 1+).
+_DECL_CALL_NAMES = frozenset({"indicator", "strategy", "library", "study"})
+_SKIP_AFTER_LOCK = (ast.FunctionDef, ast.TypeDef, ast.EnumDef, ast.Import)
+
 
 def _type_spec_tag(spec: Any) -> str | None:
     """Coarse type tag from a type AST node (Name / Qualify / Specialize / Attribute)."""
@@ -494,8 +498,10 @@ class StatementEvaluator:
         overwrites the current sample so ``x[1]`` is the previous bar's final
         value (Fisher / self-ref scripts).
         """
-        history_names: set[str] = getattr(self, "_history_names", None) or set()
-        if name not in history_names:
+        # Empty set is falsy — never ``getattr(...) or set()`` (that allocated
+        # a fresh set on every plain assign when no history names exist).
+        history_names: set[str] | None = getattr(self, "_history_names", None)
+        if not history_names or name not in history_names:
             self.context[name] = value
             return value
 
@@ -610,19 +616,20 @@ class StatementEvaluator:
         # Persist unwritten ``var`` series *before* the body so ``x[1]`` on
         # this bar sees the prior-bar value (end-of-previous-bar carry).
         self._commit_unwritten_history()
-        # Fresh library-export buffer for this script evaluation
-        self._pending_library_exports = {}  # type: ignore[attr-defined]
+        # Reuse the export buffer — do not allocate ``{}`` every bar.
+        pending = getattr(self, "_pending_library_exports", None)
+        if pending:
+            pending.clear()
+        elif pending is None:
+            self._pending_library_exports = {}  # type: ignore[attr-defined]
         self._active_library = None  # type: ignore[attr-defined]
         last: Any = None
-        visit = self.visit
         line_prof: dict[int, list[float]] | None = getattr(self, "_pine_line_profile", None)
-        # Hot path: walk body via visitor cache (Assign/Expr/Call already have
-        # lean handlers). Avoid extra per-stmt Python dispatch layers that
-        # regress tiny scripts (minimal = 2 stmts).
         if line_prof is not None:
             # Lazy import keeps hot path free of time when profiler is off
             from time import perf_counter
 
+            visit = self.visit
             for stmt in node.body:
                 ln = int(getattr(stmt, "lineno", 0) or 0)
                 t0 = perf_counter()
@@ -635,16 +642,76 @@ class StatementEvaluator:
                     else:
                         bucket[0] += dt_ms
                         bucket[1] += 1.0
-                # Detect library("Title") declaration from Expr(Call(...))
                 if isinstance(last, ScriptDeclaration) and last.script_type == "library":
                     self._active_library = LibraryModule(title=str(last.title))  # type: ignore[attr-defined]
-        else:
-            for stmt in node.body:
-                last = visit(stmt)  # type: ignore[attr-defined]
-                # Detect library("Title") declaration from Expr(Call(...))
-                if isinstance(last, ScriptDeclaration) and last.script_type == "library":
-                    self._active_library = LibraryModule(title=str(last.title))  # type: ignore[attr-defined]
+            self._finalize_library_registration()
+            return last
+
+        locked = bool(getattr(self, "_pine_defs_locked", False))
+        body: Sequence[ast.AST] = node.body
+        if locked:
+            hot = getattr(self, "_hot_body", None)
+            if hot is None:
+                hot = self._build_hot_body(body)
+                self._hot_body = hot  # type: ignore[attr-defined]
+            body = hot
+            return self._run_body_hot(body, detect_library=False)
+
+        last = self._run_body_hot(body, detect_library=True)
         self._finalize_library_registration()
+        return last
+
+    def _build_hot_body(self, body: Sequence[ast.AST]) -> tuple[ast.AST, ...]:
+        """Drop no-op statement kinds after ``_pine_defs_locked`` (bar 1+).
+
+        Skips ``FunctionDef`` / ``TypeDef`` / ``EnumDef`` / ``Import`` (already
+        bound) and top-level ``indicator`` / ``strategy`` / ``library`` /
+        ``study`` declarations (constant after first visit).
+        """
+        out: list[ast.AST] = []
+        skip_types = _SKIP_AFTER_LOCK
+        decl_names = _DECL_CALL_NAMES
+        have_decl = getattr(self, "_script_declaration", None) is not None
+        for stmt in body:
+            st = type(stmt)
+            if st in skip_types:
+                continue
+            if have_decl and st is ast.Expr:
+                val = stmt.value
+                if type(val) is ast.Call:
+                    func = val.func
+                    if type(func) is ast.Name and func.id in decl_names:
+                        continue
+            out.append(stmt)
+        return tuple(out)
+
+    def _run_body_hot(self, body: Sequence[ast.AST], *, detect_library: bool) -> Any:
+        """Walk *body* with direct Assign / Expr(Call) dispatch (no visit frame)."""
+        last: Any = None
+        Assign = ast.Assign
+        Expr = ast.Expr
+        Call = ast.Call
+        visit_Assign = self.visit_Assign
+        visit_Call = self.visit_Call  # type: ignore[attr-defined]
+        visit = self.visit
+        for stmt in body:
+            st = type(stmt)
+            if st is Assign:
+                last = visit_Assign(stmt)
+            elif st is Expr:
+                val = stmt.value
+                if type(val) is Call:
+                    last = visit_Call(val)
+                else:
+                    last = visit(val)  # type: ignore[attr-defined]
+            else:
+                last = visit(stmt)  # type: ignore[attr-defined]
+            if (
+                detect_library
+                and isinstance(last, ScriptDeclaration)
+                and last.script_type == "library"
+            ):
+                self._active_library = LibraryModule(title=str(last.title))  # type: ignore[attr-defined]
         return last
 
     def _commit_unwritten_history(self) -> None:
@@ -734,8 +801,8 @@ class StatementEvaluator:
         # Dominant bar-loop path: plain ``name = expr`` (no var/const mode).
         # Avoids isinstance on Var/VarIp/Const for every assign every bar.
         if mode is None:
-            if node.value:
-                rhs = node.value
+            rhs = node.value
+            if rhs is not None:
                 # Call RHS is the common case (s = ta.sma(...)); skip visit frame.
                 if type(rhs) is ast.Call:
                     value = self.visit_Call(rhs)  # type: ignore[attr-defined]
@@ -745,21 +812,29 @@ class StatementEvaluator:
                 # current scalar — storing the PineSeries handle makes
                 # ``array.set(buf, i, x)`` keep live references so every slot
                 # tracks the latest bar (breaks ring-buffer SMAs / BBI).
-                type_node = getattr(node, "type", None)
+                type_node = node.type
                 if type_node is not None:
                     value = self._coerce_typed_assign_value(type_node, value)
                 target = node.target
                 if type(target) is ast.Name:
                     stored = self._bind_series_name(target.id, value)
-                    if getattr(node, "export", None):
+                    if node.export:
                         self._register_export(target.id, stored)
                     # Return assigned value so UDF bodies ending in ``x = expr``
                     # yield expr (Pine: last expression is the function result).
+                    # Bare numerics / lists skip hasattr (ta_combo assigns).
+                    st = type(stored)
                     if (
-                        stored is not None
-                        and hasattr(stored, "current")
-                        and hasattr(stored, "history")
+                        st is float
+                        or st is int
+                        or stored is None
+                        or st is bool
+                        or st is list
+                        or st is tuple
+                        or st is str
                     ):
+                        return stored
+                    if hasattr(stored, "current") and hasattr(stored, "history"):
                         return getattr(stored, "current", stored)
                     return stored
                 if type(target) is ast.Tuple:
@@ -1899,16 +1974,7 @@ class StatementEvaluator:
 
     def _execute_block(self, stmts: Sequence[ast.AST]):
         """Execute a block of statements and return the value of the last expression."""
-        result = None
-        for stmt in stmts:
-            val = self.visit(stmt)  # type: ignore[attr-defined]
-            # In Pine Script, the return value of a block is the value of the last expression.
-            # If the last statement is not an expression (e.g. assignment), it returns na (None).
-            # We update result for every statement.
-            # If visit(stmt) returns None (e.g. Assign), result becomes None.
-            # If visit(stmt) returns value (e.g. Expr, If, Switch), result becomes value.
-            result = val
-        return result
+        return self._run_body_hot(stmts, detect_library=False)
 
     def visit_If(self, node: ast.If):
         """Statement-style if/else via :meth:`_execute_block` (``na`` test → false).

@@ -27,8 +27,8 @@ description: "Install, test, lint, package, and run PYNE — Make targets after 
 ## Abstract
 
 A PYNE checkout is a **Python-first workspace**: src-layout package + Flask Pro API,
-optional VS Code extension (Node), and colocated `pine-worker` (Bun/TS). The AXIS
-charting PWA is a **sister repo** ([axis](https://github.com/hoox-sh/axis)) — do not recreate `frontend/` here.
+optional VS Code extension (Node), and the **`pynets/` submodule** (Bun/TS library). The AXIS
+charting PWA is a **sister repo** ([axis](https://github.com/hoox-sh/axis)) — do not recreate `frontend/` here. Prefer the standalone [hoox-sh/pynets](https://github.com/hoox-sh/pynets) checkout for TS work.
 
 ## Conceptual model
 
@@ -39,7 +39,7 @@ flowchart LR
   SRC --> LIB[import pynescript]
   BE[backend/] --> API[Flask :5002]
   VSC[vscode-extension/] --> VSIX[vsce package]
-  PW[pine-worker/] --> BUN[bun test]
+  TS[pynets/ submodule] --> BUN[bun test]
   DOCK[Dockerfile] --> IMG[api · cli · lsp]
 ```
 
@@ -108,7 +108,7 @@ pynescript --version
 | `src/pynescript/` | Editable package root |
 | `tests/conftest.py` | Optional `--example-scripts-dir` only; no third-party corpus shipped |
 | `backend/requirements.txt` | Pro API deps (also covered by `[pro]` extra) |
-| `pine-worker/` | Colocated TS port; independent Bun tests |
+| `pynets/` | TS library submodule; prefer standalone hoox-sh/pynets |
 | `vscode-extension/` | PYNE VS Code extension |
 | `Dockerfile` | targets `api`, `api-dev`, `lsp`, **`cli`** |
 

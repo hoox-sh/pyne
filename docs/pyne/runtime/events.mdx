@@ -26,7 +26,7 @@ description: "StrategyEvent shape, emission points, parity corpus, and host seri
 
 ## Abstract
 
-A **strategy event** is the immutable, structured record of one `strategy.*` action (or fill side-effect) at a specific bar. Events are the wire format between PYNE’s Python evaluator, the TypeScript `pine-worker` port, and downstream HOOX trade workers. Changing the dataclass without updating the TS mirror and parity fixtures is a contract break.
+A **strategy event** is the immutable, structured record of one `strategy.*` action (or fill side-effect) at a specific bar. Events are the wire format between PYNE’s Python evaluator, **[PyneTS](/pyne/docs/pynets)** (`StrategyEvent` on `RuntimeResult`), and downstream HOOX trade workers (via **pyne-worker**). Changing the dataclass without updating the TS library and tests is a contract break.
 
 ## Conceptual model
 
@@ -38,8 +38,8 @@ flowchart LR
   Host[Bar loop] --> Drain[drain_events]
   Buf --> Drain
   Drain --> Dict[to_dict + script_id/run_id]
-  Dict --> PW[pine-worker parity]
-  Dict --> HOOX[trade-worker]
+  Dict --> TS[PyneTS RuntimeResult.events]
+  Dict --> HOOX[pyne-worker → trade-worker]
 ```
 
 ## Interface surface
@@ -99,7 +99,7 @@ for ev in evaluator._strategy_state.drain_events():
 | `src/pynescript/compiler/strategy_broker.py` | Compile-mode `_emit` |
 | `tests/test_strategy_events.py` | Unit behavior |
 | `tests/test_parity.py` + `tests/fixtures/parity/` | Cross-port oracle |
-| `pine-worker/src/evaluator/events.ts` | TS twin |
+| `pynets/src/runtime/interpret.ts` `StrategyEvent` | TS library twin |
 
 Parity corpus scripts (`strategy_01_entry_long.pine`, …) regenerate expected JSON via:
 
@@ -153,5 +153,7 @@ Fill of one OCA sibling yields `cancel` events for others with `comment` reflect
 
 - [Strategy builtins](/pyne/docs/runtime/builtins/strategy)
 - [Strategy broker](/pyne/docs/runtime/compiler/strategy-broker)
-- [pine-worker](/pyne/docs/pine-worker)
+- [PyneTS](/pyne/docs/pynets)
+- [pine-worker (legacy)](/pyne/docs/pine-worker)
+- [HOOX live trading](/docs/enduser/guides/pyne-live-trading)
 - [HOOX docs](/docs)

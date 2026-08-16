@@ -151,7 +151,7 @@ Report artifact: `.cache/interp_compile_parity.json`. Value mismatches on shared
 | Pro API route | `backend/api/preview.py`, `backend/app.py` |
 | Runtime modes / compile fallback | `backend/runtime.py` (`run`, `_run_auto`, `_run_compiled`) |
 | Interp/compile series parity | `scripts/compare_interp_compile.py`, `tests/test_interp_compile_parity.py` |
-| TS port | `pine-worker/` |
+| TS library | sister repo [hoox-sh/pynets](https://github.com/hoox-sh/pynets) (`pynets/` submodule here) |
 
 ## Style
 
@@ -160,11 +160,12 @@ Report artifact: `.cache/interp_compile_parity.json`. Value mismatches on shared
 - **Mypy** strict-ish; exemptions for generated grammar, `evaluator.builtins.*`, tests
 - Voice for docs: academic nerdy-cool per `docs/WRITING.md` — no empty marketing adjectives
 
-## pine-worker contributions
+## PyneTS contributions
 
-- Bun for install/test/typecheck
-- Python remains oracle; update parity fixtures via generator
-- Converter stubs are starting points only
+- Work in [hoox-sh/pynets](https://github.com/hoox-sh/pynets), not a `pine-worker/` directory in this repo
+- Bun for install / test / typecheck; `bun run generate` after PYNE `.g4` changes
+- Python remains the oracle — see [PyneTS parity](/pyne/docs/pynets/parity)
+- Do not copy PyneTS sources into this tree; PYNE consumes the `pynets/` submodule only
 
 ## Failure modes for contributors
 
@@ -181,6 +182,7 @@ Report artifact: `.cache/interp_compile_parity.json`. Value mismatches on shared
 
 - [Local development](/pyne/docs/devops/local-dev)
 - [CI](/pyne/docs/devops/ci)
-- [pine-worker](/pyne/docs/pine-worker)
+- [PyneTS](/pyne/docs/pynets)
+- [pine-worker (legacy)](/pyne/docs/pine-worker)
 - [Roadmap](/pyne/docs/reference/roadmap)
 - Root `AGENTS.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`

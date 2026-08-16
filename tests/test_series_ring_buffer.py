@@ -464,6 +464,20 @@ def test_ring_wrap_many_cycles_matches_legacy() -> None:
     assert ring[4] is None
 
 
+def test_apply_bar_sample_ring_no_dual_list() -> None:
+    """Ring wrapper + dest=None is the host dual-write skip."""
+    from backend.series import apply_bar_sample
+
+    ring = RingPineSeries(history_length=8)
+    apply_bar_sample(ring, 1.0)
+    apply_bar_sample(ring, 2.0)
+    apply_bar_sample(ring, 3.0)
+    assert ring.current == 3.0
+    assert ring[0] == 3.0
+    assert ring[1] == 2.0
+    assert ring.buffer.chronological() == [1.0, 2.0, 3.0]
+
+
 def test_set_current_after_wrap() -> None:
     ring = RingPineSeries(history_length=3)
     for v in (1.0, 2.0, 3.0, 4.0, 5.0):

@@ -404,3 +404,43 @@ def test_runtime_pyne_series_max_override(
     assert captured["ev"]._pine_series_cap == 64
     close_list = captured["ev"].current_series["close"]
     assert len(close_list) <= 64 + SERIES_CAP_SLACK
+
+
+def test_apply_bar_sample_writes_wrapper_and_optional_list() -> None:
+    from backend.series import apply_bar_sample
+
+    s = PineSeries(history_length=8)
+    dest: list[float] = []
+    apply_bar_sample(s, 1.0, dest)
+    apply_bar_sample(s, 2.0, dest)
+    apply_bar_sample(s, 3.0, dest)
+    assert s.current == 3.0
+    assert s[0] == 3.0
+    assert s[1] == 2.0
+    assert dest == [1.0, 2.0, 3.0]
+    apply_bar_sample(s, 4.0, dest=None)
+    assert s[0] == 4.0
+    assert dest == [1.0, 2.0, 3.0]
+
+
+def test_unused_derived_lists_stay_empty_when_not_named(
+    restore_series_env: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend import runtime as runtime_mod
+
+    captured: dict = {}
+    Real = runtime_mod.CustomEvaluator
+
+    class Spy(Real):  # type: ignore[misc, valid-type]
+        def __init__(self, *a, **k):
+            super().__init__(*a, **k)
+            captured["ev"] = self
+
+    monkeypatch.setattr(runtime_mod, "CustomEvaluator", Spy)
+    r = _run('//@version=5\nindicator("x")\nplot(close, "c")\n', _bars(20))
+    assert "error" not in r
+    cs = captured["ev"].current_series
+    assert len(cs["close"]) == 20
+    assert len(cs.get("hl2") or []) == 0
+    assert len(cs.get("tr") or []) == 0

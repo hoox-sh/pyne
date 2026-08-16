@@ -39,6 +39,7 @@ from backend.runtime import (
     _ohlcv_pack_cached,
     _ohlcv_times_to_array,
     _pack_ohlcv_columns,
+    _pack_ohlcv_columns_cached,
     _parse_script_header_fields,
 )
 
@@ -122,6 +123,15 @@ class TestSharedOhlcvPacking:
         a = _ohlcv_pack_cached(rows)
         b = _ohlcv_pack_cached(rows)
         assert a is b or all(x is y for x, y in zip(a, b, strict=True))
+
+    def test_list_pack_cache_hit_same_list(self) -> None:
+        rows = _bars_full(7)
+        a = _pack_ohlcv_columns_cached(rows)
+        b = _pack_ohlcv_columns_cached(rows)
+        assert a is b
+        raw = _pack_ohlcv_columns(rows)
+        for cached, expected in zip(a, raw, strict=True):
+            assert cached == expected
 
 
 class TestInterpretCompileHostPackingParity:

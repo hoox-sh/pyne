@@ -30,7 +30,7 @@ Evaluation is the second half of the PYNE pipeline: given an AST (or source) and
 
 1. **`literal_eval`** — pure/builtin expressions, optional series context  
 2. **AST evaluator** (`NodeLiteralEvaluator` / full evaluator mixins) — script-shaped evaluation in-process  
-3. **`pynescript.runtime.Runtime`** (package SoT; `backend.runtime` re-exports) or **Pro API `POST /run`** — bar-loop over OHLCV with shared evaluate contract  
+3. **`pynescript.runtime.Runtime`** (package SoT; `backend.runtime` re-exports) or **Pro API `POST /run`** — bar-loop over OHLCV with shared evaluate contract. TypeScript: **`@hoox-sh/pynets` `Runtime.run`** — [PyneTS](/pyne/docs/pynets). Defaults differ by surface — [modes](/pyne/docs/enduser/reference/modes).  
 
 This guide stays at the consumer level; series semantics and builtin inventories are under [Runtime](/pyne/docs/runtime).
 

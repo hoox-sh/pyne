@@ -39,7 +39,7 @@ PYNE exposes one language pipeline through several thin surfaces:
   → optional L2 webhooks (Pro API / edge)
 ```
 
-The **desk path** is the **`pyne`** Click CLI (alias `pynescript`) and `pynescript.ast` / `pynescript.runtime` library API (PyPI distribution name **[`hoox-pyne`](https://pypi.org/project/hoox-pyne/)**). The **editor path** is **`pyne-lsp`** (alias `pynescript-lsp`; stdio; first-class `.pyne` association). The **HTTP path** is the Flask Pro API (`POST /run` with alerts export + webhooks, preview, backtest). The optional chart is [AXIS](/axis/docs); the optional trade mesh is [HOOX](/docs). Evaluation does not require either.
+The **desk path** is the **`pyne`** Click CLI (alias `pynescript`) and `pynescript.ast` / `pynescript.runtime` library API (PyPI distribution name **[`hoox-pyne`](https://pypi.org/project/hoox-pyne/)**). The **TypeScript desk path** is **[PyneTS](/pyne/docs/pynets)** (`bun add @hoox-sh/pynets`). The **editor path** is **`pyne-lsp`** (alias `pynescript-lsp`; stdio; first-class `.pyne` association). The **HTTP path** is the Flask Pro API (`POST /run` with alerts export + webhooks, preview, backtest). The optional chart is [AXIS](/axis/docs); the optional trade mesh is [HOOX](/docs). Evaluation does not require either. Defaults for `mode` differ by surface — [modes](/pyne/docs/enduser/reference/modes).
 
 ## Conceptual model
 
@@ -48,6 +48,7 @@ flowchart TB
   subgraph consumers [Consumer surfaces]
     CLI[pyne CLI]
     LIB[Python library]
+    TS[PyneTS]
     LSP[pyne-lsp]
     HTTP[Pro API /run]
   end
@@ -60,6 +61,7 @@ flowchart TB
   end
   CLI --> P
   LIB --> P
+  TS --> P
   LSP --> P
   HTTP --> E
   P --> A
@@ -76,6 +78,7 @@ flowchart TB
 | --- | --- | --- |
 | CLI | `pyne …` (alias `pynescript`) | One-shot parse, format, lint, market data, prewarm |
 | Library | `from pynescript.ast import parse, unparse` | Embed parse/transform/eval in tools |
+| PyneTS | `import { parse, Runtime } from "@hoox-sh/pynets"` | Same names in TypeScript / Bun |
 | LSP | `pyne-lsp` (alias `pynescript-lsp`) | Diagnostics, completion, hover (`.pyne` / `.pine`) |
 | Pro API | `POST /run` | Evaluate contract: plots, alerts, optional webhooks |
 | AXIS | separate product | Chart PWA AXIS over evaluate results |

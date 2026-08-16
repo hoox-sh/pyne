@@ -2558,3 +2558,131 @@ def test_stale_unversioned_bound_call_site_is_ignored():
     ev2 = NodeLiteralEvaluator()
     assert ev2.visit(tree.body) == 3
 
+
+def test_eval_arg_plan_reuses_empty_kwargs_and_scratch():
+    """Positional TA / plot sites must not allocate a kwargs dict per bar."""
+    from pynescript.ast.evaluator.expressions import _EMPTY_KW
+    from pynescript.ast.evaluator.expressions import _classify_arg_plan
+    from pynescript.ast.evaluator.expressions import _PS_NC
+
+    ev = NodeLiteralEvaluator({"close": 1.0})
+    tree = helper.parse("ta.sma(close, 14)", mode="eval")
+    ev.visit(tree.body)
+    call = _first_call_node(tree)
+    site = getattr(call, "_pine_call_site", None)
+    assert site is not None
+    plan = site[4]
+    assert _classify_arg_plan(plan) == _PS_NC
+    args, kwargs = ev._eval_arg_plan(plan)
+    assert kwargs is _EMPTY_KW
+    assert args is ev._arg2
+    assert args[0] == 1.0
+    assert args[1] == 14
+    shaped = ev._eval_shaped_args(plan, _PS_NC)
+    assert shaped is ev._arg2
+    assert shaped[0] == 1.0
+    assert shaped[1] == 14
+
+
+def test_plain_assign_does_not_wrap_when_history_names_empty():
+    """``or set()`` used to allocate a fresh set on every assign (ta_combo)."""
+    ev = NodeLiteralEvaluator()
+    ev._history_names = set()
+    ev._history_names_scanned = True
+    stored = ev._bind_series_name("s", 3.5)
+    assert stored == 3.5
+    assert ev.context["s"] == 3.5
+    assert type(ev.context["s"]) is float
+
+
+def test_callee_body_typeerror_fail_closed():
+    """TypeError raised *inside* a UDF body must propagate (not soft-na)."""
+    ev = NodeLiteralEvaluator()
+
+    def boom(x):
+        return x + "nope"
+
+    ev.context["boom"] = boom
+    ev._user_functions["boom"] = boom
+    tree = helper.parse("boom(1)", mode="eval")
+    with pytest.raises(TypeError):
+        ev.visit(tree.body)
+
+
+def test_udf_signature_mismatch_soft_fails_to_na():
+    """Wrong arity at the call site is a signature miss → na, not fail-closed."""
+    ev = NodeLiteralEvaluator()
+
+    def add2(a, b):
+        return a + b
+
+    ev.context["add2"] = add2
+    ev._user_functions["add2"] = add2
+    tree = helper.parse("add2(1)", mode="eval")
+    assert ev.visit(tree.body) is None
+
+
+def test_user_function_shadows_bare_plot():
+    """Dual-namespace: ``_user_functions['plot']`` wins over the builtin."""
+    ev = NodeLiteralEvaluator({"close": 2.5})
+    seen: list[object] = []
+
+    def user_plot(x):
+        seen.append(x)
+        return x
+
+    ev._user_functions["plot"] = user_plot
+    tree = helper.parse("plot(close)", mode="eval")
+    assert ev.visit(tree.body) == 2.5
+    assert seen == [2.5]
+
+
+def test_defs_locked_skips_top_level_indicator_after_first_visit():
+    """After lock + declaration, the hot body drops ``indicator()`` / ``FunctionDef``."""
+    src = """
+//@version=5
+indicator("lock skip")
+f() => 1
+plot(close)
+"""
+    ev = NodeLiteralEvaluator({"close": 10.0})
+    tree = helper.parse(src)
+    ev.visit(tree)
+    assert ev.context.get("f") is not None
+    ev._pine_defs_locked = True
+    ev._script_declaration = object()
+    hot = ev._build_hot_body(tree.body)
+    kinds = [type(s).__name__ for s in hot]
+    assert "FunctionDef" not in kinds
+    # indicator() Expr dropped; plot remains
+    assert any(type(s).__name__ == "Expr" for s in hot)
+    ev.visit(tree)
+    assert callable(ev.context.get("f"))
+
+
+def test_na_binop_and_compare_not_coerced_to_zero():
+    ev = NodeLiteralEvaluator({"close": 1.0})
+    assert ev.visit(helper.parse("na + 1", mode="eval").body) is None
+    assert ev.visit(helper.parse("1 * na", mode="eval").body) is None
+    # Compare treats na as a failed link (None → False), never 0.
+    assert ev.visit(helper.parse("close < na", mode="eval").body) is False
+    assert ev.visit(helper.parse("na == 1", mode="eval").body) is False
+
+
+def test_strategy_entry_qualified_path_still_dispatches():
+    """``strategy.entry`` must resolve via the AST qualified path, not ``strategy.long``."""
+    ev = NodeLiteralEvaluator()
+    tree = helper.parse("strategy.entry('L', strategy.long)", mode="eval")
+    ev.visit(tree.body)
+    call = _first_call_node(tree)
+    site = getattr(call, "_pine_call_site", None)
+    assert site is not None
+    # Qualified builtin: name is stored on Q / QB sites.
+    kind = site[0]
+    if kind == 3:  # _SITE_QB
+        assert site[3] == "strategy.entry"
+    elif kind == 0:  # _SITE_Q
+        assert site[1] == "strategy.entry"
+    else:
+        raise AssertionError(f"unexpected site kind {kind}: {site!r}")
+
