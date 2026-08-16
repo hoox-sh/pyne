@@ -26,7 +26,7 @@ description: "PYNE forward plan — dual-host residual, runtime residual, plot p
 
 ## Abstract
 
-The roadmap is a **living prioritization document**, not a contract. Source: `docs/ROADMAP.md` (updated **2026-08-09**). Core v6 language/builtins are essentially closed. Product **warm-compile (H2)**, **series caps (T1)**, **pending-fill (F2)**, **L2 webhooks**, and **corpus Runtime residual (C1)** have **landed** (set01–04 parse **99.96%**, Runtime interpret **100%** excl. intentional demos). What remains: **dual-host package-level Runtime unify (H1 residual)**, **interpret↔compile plot residuals (P1p harness landed)**, residual nested TA (**T2** partial), and optional **TV-oracle re-baselines (F1)**.
+The roadmap is a **living prioritization document**, not a contract. Source: `docs/ROADMAP.md` (updated **2026-08-16**). Core v6 language/builtins are essentially closed. Product **warm-compile (H2)**, **series caps (T1)**, **pending-fill (F2)**, **L2 webhooks**, **corpus Runtime residual (C1)**, and **interpret Round 9 (0.3.10)** have **landed** (set01–04 parse **99.96%**, Runtime interpret **100%** excl. intentional demos). What remains: **dual-host package-level Runtime unify (H1 residual)**, **interpret↔compile plot residuals (P1p harness landed)**, leftover full-list TA (**T2**: `nvi`/`pvi`), and optional **TV-oracle re-baselines (F1)**.
 
 ## Conceptual model
 
@@ -69,6 +69,7 @@ flowchart LR
 | `request.security` HTF simple TA + foreign-na | ✅ same-symbol OHLCV/HTF allowlist; foreign → `na` |
 | Free-tier Pro API guards | ✅ bar/script caps, rate, concurrency, mock-only free data |
 | Dual-host TA goldens (ATR / Supertrend / Keltner) | ✅ first-party + `test_ta_incremental` CI |
+| Interpret dispatch + unused derived skip + volume inc (Round 9) | ✅ **0.3.10** — bench @ 2000 bars: minimal 2.7×, `ta_sma` 2.0×, `ta_combo` 1.45× |
 | Series caps (`PYNE_SERIES_CAP`) | ✅ T1 |
 | Warm-compile product path | ✅ H2 (SLOs, prewarm, deploy IR cache) |
 | Pending-fill averaging (pyramiding ≤ 0) | ✅ F2 |
@@ -91,6 +92,7 @@ flowchart LR
 - pine-worker extra tool + Python→TS converter
 - Alert engine + dual-host export + **L2 webhooks**
 - Round 7: series caps, incremental TA (bb/kama/cmo/stochrsi), parse cache, warm compile, pending-fill, drawing GC
+- Round 9 / **0.3.10**: interpret dispatch inlining, unused derived OHLCV skip, incremental `obv`/`wad`/`cmf`/`klinger`
 
 ### Open backlog (IDs stable)
 
@@ -101,7 +103,7 @@ flowchart LR
 | **C1** | Corpus set01–04 residual (parse 99.96%; Runtime 100% excl. EXPECTED) | P1 | ✅ 2026-08-09 |
 | **P1p** | Compile/interpret **plot parity** residual | P1 | ⚙️ harness landed (`scripts/compare_interp_compile.py`, `tests/test_interp_compile_parity.py`) |
 | **T1** | Cap `current_series` to `max_bars_back` / `_SERIES_MAX` | P2 | ✅ `PYNE_SERIES_CAP` default ON |
-| **T2** | Incremental TA for remaining heavy kernels | P2 | ✅ partial (bb/kama/cmo/stochrsi; nested full paths residual) |
+| **T2** | Incremental TA for remaining heavy kernels | P2 | ✅ R7 bb/kama/cmo/stochrsi + wma/hma/linreg; **0.3.10** obv/wad/wvad/cmf/klinger. Residual: nvi/pvi |
 | **F1** | ATR Wilder / TV supertrend re-baseline only with dedicated goldens | P2 | ⚙️ RSI Wilder aligned; ATR/supertrend goldens open |
 | **F2** | Pending-fill averaging when pyramiding ≤ 0 | P2 | ✅ |
 | **L1** | v5↔v6 converter maturity | P3 | open |

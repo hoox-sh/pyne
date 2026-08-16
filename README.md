@@ -79,7 +79,7 @@ Not a claim of TradingView® platform parity. Intentional demos are classified s
 
 ### Runtime
 
-- **Bar-loop evaluation.** Deterministic indicator and strategy execution on OHLCV.
+- **Bar-loop evaluation.** Deterministic indicator and strategy execution on OHLCV. Interpret (0.3.10) inlines Assign/Call after bar 0 and skips unused derived series.
 - **Dual engine.** Interpret (AST walk) and compile (Numba nopython kernels with object-mode fallback); `mode` ∈ {`auto`, `compile`, `interpret`}.
 - **Warm compile.** Disk IR cache, process prewarm, and recovery from corrupt cache state.
 - **Plot parity.** Interpret ↔ compile series alignment verified by harness and tests (internal engine consistency, not platform certification).

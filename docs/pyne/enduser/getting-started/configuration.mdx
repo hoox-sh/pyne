@@ -123,6 +123,7 @@ Used by `backend.runtime.Runtime` and the compiler host (library + Pro API):
 | `PYNE_SERIES_CAP` | **on** | Trim append-only host series lists; set `0` / `false` / `off` to disable (oracle / debug) |
 | `PYNE_SERIES_MAX` | unset | Absolute series history depth (overrides default 256 + `max_bars_back`) |
 | `PYNE_TA_INCREMENTAL` | **on** | Bar-mode incremental `ta.*` hot path; set `0` to force full recompute |
+| `PYNE_SERIES_RING` | **off** | Chronological tail view; skip dual list write. Keep off unless you need the ring path |
 | `PYNE_COMPILE_DISK_CACHE` | often `1` in deploy | Persist compiled IR across processes |
 | `PYNE_COMPILE_CACHE_DIR` | XDG cache / Docker `/data/compile-cache` | Disk IR location |
 | `PYNE_COMPILE_PREWARM` | deploy-dependent | Host cold-start prewarm of Numba builtins |

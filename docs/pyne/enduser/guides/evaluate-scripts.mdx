@@ -94,6 +94,8 @@ Product hosts cache compiled IR (in-process LRU + optional disk under `PYNE_COMP
 
 Related host knobs (interpret path): `PYNE_SERIES_CAP` / `PYNE_SERIES_MAX` (history trim) and `PYNE_TA_INCREMENTAL` (bar-mode TA hot path)—see [Series & history](/pyne/docs/runtime/series-and-history) and [Configuration](/pyne/docs/enduser/getting-started/configuration).
 
+From **0.3.10**, interpret also skips unused derived OHLCV (`hl2` / `hlc3` / `ohlc4` / `tr`) and inlines Assign / plot / Call after bar 0. Same-machine bench @ 2000 bars vs 0.3.9: minimal **2.7×**, `ta.sma` **2.0×**, multi-plot TA combo **1.45×**. Prefer `mode="auto"` on Pro `/run` when the script is compile-eligible; interpret remains the full-surface oracle.
+
 ### When compile falls back (or is skipped)
 
 `mode="auto"` (and explicit prefilters) skip or abandon compile for stable reasons. Common `compile_fallback_reason` values:

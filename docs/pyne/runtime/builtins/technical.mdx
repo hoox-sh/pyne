@@ -45,19 +45,19 @@ flowchart TB
 
 Hosts in production set bar mode so indicator calls return **scalars for the active bar**, matching how Pine expressions compose (`ta.ema(a) - ta.ema(b)`).
 
-### Incremental hot path (2026-07-28)
+### Incremental hot path
 
-When `_pine_bar_mode` and `_pine_ta_incremental` are enabled (Runtime default; disable with **`PYNE_TA_INCREMENTAL=0`**), these builtins update **call-site state** once per bar instead of recomputing full history:
+When `_pine_bar_mode` and `_pine_ta_incremental` are enabled (Runtime default; disable with **`PYNE_TA_INCREMENTAL=0`**), hot `ta.*` builtins update **call-site state** once per bar instead of recomputing full history. Call sites are indexed like crossovers (`_ta_call_i` reset each bar). Nested forms such as `ta.ema(ta.sma(close, 14), 10)` stay correct because each call keeps its own slot. Golden suite: `tests/test_ta_incremental.py` (incremental last values ≡ full recompute).
 
-| Builtin | State model |
+| Family | Incremental builtins (non-exhaustive) |
 | --- | --- |
-| `ta.sma` | Rolling window (deque) |
-| `ta.ema` / `ta.rma` | Recursive seed + step |
-| `ta.rsi` | Dual RMA of gains/losses |
-| `ta.macd` | Fast/slow/signal EMAs in one slot |
-| `ta.atr` | TR stream; mean warm-up then EMA-of-TR (matches current full oracle) |
+| Moving averages | `sma`, `ema`, `rma`, `wma`, `hma`, `vwma`, `swma`, `kama`, `dema`, `tema`, `alma` |
+| Oscillators | `rsi`, `macd`, `stoch`/`stochrsi`, `cci`, `cmo`, `tsi`, `roc`, `wpr` |
+| Volatility / structure | `atr`, `tr`, `stdev`, `bb`, `highest`/`lowest`, `linreg`, `adx`/`dmi`, `supertrend`, `kc`, `sar` |
+| Volume (**0.3.10**) | `obv`, `wad`/`wvad`, `cmf`, `klinger`, `mfi`, `vwap` |
+| Other | `change`/`mom`/`cum`, `median`, `percentrank`, `rising`/`falling`, `barssince`, pivots |
 
-Call sites are indexed like crossovers (`_ta_call_i` reset each bar). Nested forms such as `ta.ema(ta.sma(close, 14), 10)` stay correct because each call keeps its own slot. Golden suite: `tests/test_ta_incremental.py` (incremental last values ≡ full recompute).
+Residual full-list helpers include `ta.nvi` / `ta.pvi`. ATR remains the current EMA-of-TR oracle (not a Wilder re-baseline — roadmap **F1**).
 
 ## Interface surface
 
