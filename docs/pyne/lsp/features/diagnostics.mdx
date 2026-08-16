@@ -72,14 +72,14 @@ The richer conversion in `features/diagnostics.py` also supports:
 - `code_description` hrefs for codes starting with `E` / `W` (docs URLs)
 - `tags`: `W001` → Unnecessary, `W002` → Deprecated
 
-Workspace conversion in `workspace.py` is the path used on push; the feature module API is available for shared logic and quick-fix helpers.
+Push and pull both call `Workspace._lint_warnings_to_diagnostics`, which delegates lint rows to `features/diagnostics.lint_warnings_to_diagnostics` (noise filters + tags) and then appends synthetic **E001** for parse failures.
 
 ## Internals
 
 | Path | Role |
 | --- | --- |
-| `src/pynescript/langserver/workspace.py` | `_parse_and_lint`, `_lint_warnings_to_diagnostics` |
-| `src/pynescript/langserver/features/diagnostics.py` | Conversion helpers, tags, `create_quick_fix` |
+| `src/pynescript/langserver/workspace.py` | `_parse_and_lint`, E001 append, incremental edits |
+| `src/pynescript/langserver/features/diagnostics.py` | Lint conversion, C001/C003 noise filters, tags, `create_quick_fix` |
 | `src/pynescript/ast/linter.py` | Rule engine producing `LintWarning` |
 
 ### Severity map
@@ -113,9 +113,10 @@ Capability advertises QuickFix / Refactor / SourceOrganizeImports kinds for futu
 
 1. **Lint does not run when parse fails** — only E001 is shown.
 2. Warnings without a line number are dropped (`None` conversion).
-3. End column heuristic uses full line length (or +10) and clamps to 2000 characters — not a precise token span.
+3. End column heuristic uses the remainder of the line and clamps to 2000 characters — not a precise token span.
 4. `inter_file_dependencies=False`: no cross-file analysis; each URI is independent.
 5. Push and pull should agree for a given buffer version; both read the same `TextDocumentState`.
+6. **Noise filters:** `C001` on names that already lack `_` (camelCase `fastMA`) is dropped; `C003` on block `if` (next non-empty line more indented) is dropped.
 
 ## Worked example
 

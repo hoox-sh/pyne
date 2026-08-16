@@ -33,8 +33,8 @@ description: "Flask application setup: MAX_CONTENT_LENGTH, CORS policy, blueprin
 ```mermaid
 flowchart TB
   BOOT[import backend.app] --> CFG[MAX_CONTENT_LENGTH + CORS]
-  CFG --> ROUTES[register / · /run · /auth]
-  ROUTES --> BP[register preview_bp + backtest_bp]
+  CFG --> ROUTES[register / · /health · /run · /auth · /compile]
+  ROUTES --> BP[preview + backtest + lsp + git_oauth]
   BP --> ERR[404 / 500 JSON handlers]
   ERR --> SERVE{entry}
   SERVE -->|gunicorn| WSGI[app:app]
@@ -57,15 +57,15 @@ Environment:
 | --- | --- | --- |
 | `HOST` | `127.0.0.1` | Bind address (localhost-first for dev) |
 | `PORT` | `5002` | Listen port |
-| `ALLOWED_ORIGINS` | `https://pynescript.ai`, `https://app.pynescript.ai`, localhost regex | CORS origins (comma-separated; regex allowed) |
-| `API_KEY_STORE` | `/root/pynescript/data/api_keys.json` | JSON key store path (file-backed default) |
-| `ADMIN_TOKEN` | unset | Documented for admin create_key (see auth) |
+| `ALLOWED_ORIGINS` | `https://pynescript.ai`, `https://app.pynescript.ai`, localhost regex | CORS origins (comma-separated; regex allowed). `*` / `any` opens all. Code **always appends** localhost, private-LAN, and product (`hoox.sh` / `pynescript.ai` / `pynescript-axis.pages.dev`) regexes unless the value is `*` |
+| `API_KEY_STORE` | `/data/api_keys.json` | JSON key-store path (`auth.APIKeyStore` default) |
+| `ADMIN_TOKEN` | unset | Fail-closed admin minting (see [auth](/pyne/docs/api/auth-and-keys)) |
 
 `debug=False` always on the dev runner.
 
 ### Health
 
-`GET /` → JSON:
+`GET /` and **`GET /health`** are the same handler. AXIS Settings probes `/health`. Payload includes compile-cache diagnostics:
 
 ```json
 {
@@ -73,15 +73,31 @@ Environment:
   "service": "pynescript-pro-api",
   "version": "1.0.0",
   "timestamp": 0,
+  "websocket": true,
+  "features": {
+    "alerts": true,
+    "alert_webhooks": true,
+    "warm_compile": true,
+    "default_run_mode": "auto"
+  },
+  "compile": {
+    "has_numba": true,
+    "disk_cache_enabled": true,
+    "prewarm_enabled": true,
+    "default_mode": "auto"
+  },
   "endpoints": { "…": "…" }
 }
 ```
 
+`version` here is the **API service** label (`1.0.0`), not the `hoox-pyne` package version.
+
 ### Hard limits
 
 - **`MAX_CONTENT_LENGTH = 5 * 1024 * 1024`** — reject oversized bodies before JSON parse fills memory (audit 2026-07-05 / S1).
-- CORS methods: `GET`, `POST` only.
-- Allow headers: `Content-Type`, `Authorization`, `X-Admin-Token`.
+- Free compute also gated by `backend/middleware/free_limits.py`: max bars (`FREE_MAX_BARS`, default 5000), script chars (`FREE_MAX_SCRIPT_CHARS`, 256 KiB), per-IP rate (`FREE_RATE_LIMIT` / `FREE_RATE_WINDOW_SEC`, 60 / 60s), concurrency (`FREE_MAX_CONCURRENT`, 4). Chart/`mock` data sources only.
+- CORS methods: `GET`, `POST`, `OPTIONS`, `HEAD`.
+- Allow headers: `Content-Type`, `Authorization`, `X-Admin-Token`, `Accept`.
 - `supports_credentials=False`.
 
 Localhost regex used in the default origin list:
@@ -90,6 +106,8 @@ Localhost regex used in the default origin list:
 ^https?://(?:localhost|127\.0\.0\.1)(?::\d+)?$
 ```
 
+**Free CORS prefixes** (`/`, `/health`, `/run`, `/compile`, `/lsp/`, `/ws/`) reflect the request `Origin` even when it is not in `ALLOWED_ORIGINS` so AXIS VPS UI → local pyne preflight succeeds.
+
 Same-origin / no `Origin` header (curl, server-to-server) remains usable under flask-cors behavior.
 
 ### Blueprints
@@ -97,9 +115,11 @@ Same-origin / no `Origin` header (curl, server-to-server) remains usable under f
 ```python
 app.register_blueprint(preview_bp)   # url_prefix=/preview
 app.register_blueprint(backtest_bp)  # url_prefix=/backtest
+app.register_blueprint(lsp_bp)       # url_prefix=/lsp
+app.register_blueprint(git_oauth_bp) # /api/git/oauth/*
 ```
 
-Defined in `backend/api/preview.py`.
+Preview + backtest live in `backend/api/preview.py`. Optional `flask-sock` registers `WS /ws/run` when installed.
 
 ### Error handlers
 
@@ -114,9 +134,11 @@ Both return JSON with `status: "error"`.
 
 | Path | Role |
 | --- | --- |
-| `backend/app.py` | App object, free routes, auth routes |
-| `backend/api/preview.py` | Pro blueprints |
+| `backend/app.py` | App object, free routes, auth routes, CORS, health |
+| `backend/api/preview.py` | Pro preview + backtest blueprints |
+| `backend/api/lsp_http.py` | Free AXIS LSP-HTTP |
 | `backend/middleware/schemas.py` | Request validation for `/run*` and auth |
+| `backend/middleware/free_limits.py` | Bar / script / rate / concurrency caps |
 | `backend/requirements.txt` | Flask, flask-cors, numpy, matplotlib, … |
 
 Recommended production: gunicorn/uvicorn-class WSGI with multiple workers; for multi-worker key consistency prefer SQLite/Redis stores over the default in-memory/file singleton assumptions — see [auth](/pyne/docs/api/auth-and-keys).
@@ -131,8 +153,9 @@ Recommended production: gunicorn/uvicorn-class WSGI with multiple workers; for m
 ## Worked example — smoke test
 
 ```bash
-curl -s http://127.0.0.1:5002/ | jq .status
+curl -s http://127.0.0.1:5002/health | jq '.status, .features.default_run_mode'
 # "healthy"
+# "auto"
 ```
 
 ## Failure modes

@@ -28,7 +28,7 @@ description: "pynets check / format / run / dump / info — Rich TTY, JSON on pi
 
 `pynets` is a Bun CLI for parse, format, AST dump, and evaluate. TTY output is a Rich-inspired panel (PYNE volt). **Pipes and `--json` stay machine-readable.** Exit codes: `0` ok, `1` syntax/runtime, `2` usage.
 
-Unlike Python `pyne run` (compile-only smoke), **`pynets run` calls `Runtime.run`**. Default `--mode interpret`. `--mode compile` / `auto` select JS emit.
+Unlike Python `pyne run` (compile-only smoke), **`pynets run` calls `Runtime.run`**. Default `--mode interpret`. `--mode compile` / `auto` select JS emit on **`@hoox-sh/pynets` 0.2.0**. The PYNE submodule CLI (0.1.0) has no `--mode` flag.
 
 ## Conceptual model
 

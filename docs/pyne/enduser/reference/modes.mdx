@@ -19,7 +19,7 @@
 
 ---
 title: "Runtime modes"
-description: "interpret / compile / auto defaults differ by surface. Python CLI run is compile-only. PyneTS run calls Runtime.run."
+description: "interpret / compile / auto defaults differ by surface. Library interpret, POST /run auto, pyne run compile-only. PyneTS is interpret-only."
 ---
 
 # Runtime modes
@@ -40,8 +40,8 @@ flowchart TB
     API["POST /run omit mode → auto"]
   end
   subgraph PyneTS
-    TSLIB["new Runtime() → interpret"]
-    TSCLI["pynets run → Runtime.run default interpret"]
+    TSLIB["new Runtime() → interpret only"]
+    TSCLI["pynets run → Runtime.run interpret only"]
   end
 ```
 
@@ -49,11 +49,11 @@ flowchart TB
 
 ### What each mode means
 
-| Mode | Python | PyneTS |
+| Mode | Python | PyneTS (this checkout) |
 | --- | --- | --- |
-| `interpret` | AST walker. Full host: `input.*`, `request.*`, libraries, profiler, alerts | AST walker. Same public envelope |
-| `compile` | Numba nopython **or** object-mode Python loop | **JS emit** (object-mode analog). Not Numba |
-| `auto` | Try compile; on ineligibility / compile error / compiled runtime error → interpret | Same control flow |
+| `interpret` | AST walker. Full host: `input.*`, `request.*`, libraries, profiler, alerts | AST walker only (`pynets/src/runtime/interpret.ts`). Result `mode` is always `"interpret"` |
+| `compile` | Numba nopython **or** object-mode Python loop | **Not implemented** — no `src/runtime/compile/` in this tree |
+| `auto` | Try compile; on ineligibility / compile error / compiled runtime error → interpret | **Not implemented** |
 
 ### Defaults by surface
 
@@ -63,7 +63,7 @@ flowchart TB
 | Pro API `POST /run` body omits `mode` | schema **`auto`** | yes (host wrap) |
 | `?mode=` query (legacy) | overrides body | yes |
 | CLI `pyne run` | **compile only** — not `Runtime.run` | **no** |
-| `new Runtime()` / `pynets run` | **`interpret`** | yes |
+| `new Runtime()` / `pynets run` | **interpret only** (no `--mode`; `--bars` default **20**) | yes |
 | AXIS engine `server` | whatever you pass; UI default often `auto` | HTTP `/run` |
 | AXIS engine `pyodide` | object-mode in Wasm (no Numba) | in-browser Python |
 
@@ -87,16 +87,25 @@ Runtime(symbol="AAPL").run(
 )
 ```
 
+| Argument | Surfaces | Effect on `mode` |
+| --- | --- | --- |
+| `mode` | library / `POST /run` | See defaults table. `pyne run` has no `--mode`. |
+| `inputs` | library / `POST /run` | Non-empty overrides **force interpret** (compile does not apply them). |
+| `libraries` | library / `POST /run` (max 32) | `[{namespace, name, version, source}]` for `import ns/Name/ver`. Compile-ineligible; `auto` keeps the list on interpret fallback. **Not** on `pyne run`. |
+| `timeout_seconds` | **library only** | Interpret wall-clock budget. Exceeded → partial plots + `timed_out`. **Not** a `POST /run` field (`UNKNOWN_FIELDS`). **Not** on `pyne run`. |
+| `profiler` | library / `POST /run` | Forces interpret (line timings). |
+| `realtime_*` | library only | Interpret forming-bar window (`realtime_last_bar`, `realtime_ticks`, `realtime_bars`, `realtime_from_bar`). |
+
 `inputs` / `profiler` / `libraries` / `timeout_seconds` / `realtime_*` force or keep the **interpret** host (or force interpret after compile miss).
 
 ### `Runtime.run` (PyneTS)
 
 ```ts
-new Runtime(symbol, { inputs, broker, timeframe, libraries, mode })
+new Runtime(symbol, { inputs, broker, timeframe })
   .run(source, ohlcv, extra?)
 ```
 
-Default constructor `mode` is `"interpret"`. Per-call `extra.mode` overrides.
+There is **no** constructor/`extra.mode` and **no** `libraries` option on this host. `RuntimeResult.mode` is always `"interpret"`.
 
 ## Internals
 
@@ -105,13 +114,13 @@ Default constructor `mode` is `"interpret"`. Per-call `extra.mode` overrides.
 | Python library | `src/pynescript/runtime/host.py` |
 | Python CLI `run` | `src/pynescript/__main__.py` → `compile_script` + synthetic bars |
 | Pro API | `backend/app.py` `RUN_SCHEMA` default `auto` |
-| PyneTS | `src/runtime/interpret.ts` + `src/runtime/compile/` |
-| PyneTS CLI | `src/cli.ts` → `new Runtime("AAPL", { broker, mode }).run` |
+| PyneTS | `pynets/src/runtime/interpret.ts` (interpret only) |
+| PyneTS CLI | `pynets/src/cli.ts` → `new Runtime("AAPL", { broker }).run` |
 
 ## Invariants & edge cases
 
 1. **Do not document `pyne run` as `mode=auto`.** It is compile-only smoke (`--bars` default 50).
-2. **Do not document `pynets run` as compile-only.** It is `Runtime.run` (default interpret).
+2. **Do not document `pynets run` as compile-only or as `--mode interpret`.** It is `Runtime.run` and is interpret-only. Default `--bars` is **20** (Python `pyne run` defaults to **50**).
 3. `result.mode` is what **executed**. After `auto`, also read `auto_backend` and `compile_fallback_reason`.
 4. Foreign `request.security` is `na` on every host. Compile does not invent bars to become "more complete".
 5. AXIS Pyodide `compile` / `auto` cannot be Numba (Wasm).
@@ -125,15 +134,15 @@ Runtime(symbol="AAPL").run(src, bars, mode="interpret", inputs={"len": 14})
 ```
 
 ```ts
-new Runtime("AAPL", { mode: "interpret", inputs: { len: 14 } }).run(src, bars);
+new Runtime("AAPL", { inputs: { len: 14 } }).run(src, bars);
 ```
 
 ```bash
 # Python desk smoke (compile only)
 pyne run script.pine --bars 50
 
-# PyneTS desk smoke (Runtime.run)
-pynets run script.pine --bars 50 --mode interpret
+# PyneTS desk smoke (interpret Runtime.run; default --bars 20)
+pynets run script.pine --bars 50
 ```
 
 ## Failure modes
@@ -142,7 +151,7 @@ pynets run script.pine --bars 50 --mode interpret
 | --- | --- | --- |
 | Pro API "misses" an input | `auto` compiled a path that drops overrides | Pass `mode: "interpret"` |
 | `pyne run` ≠ notebook `Runtime.run` | Different host | Use the library or Pro API |
-| PyneTS compile ≠ Python compile | JS emit vs Numba | Compare interpret to interpret first |
+| Expect PyneTS `compile` / `--mode` | Host is interpret-only | Use Python `Runtime.run` / Pro API for compile/`auto` |
 | `mode` omitted, two hosts disagree | Different defaults | Set `mode` explicitly |
 
 ## See also

@@ -38,15 +38,13 @@ project under the **personal** account
 | GitHub org / repo | [`hoox-sh/pyne`](https://github.com/hoox-sh/pyne) (Actions host) |
 | PyPI account (owner) | [`jango-blockchained`](https://pypi.org/user/jango-blockchained/) (personal) |
 | PyPI project | `hoox-pyne` |
-| Import / CLIs | `pynescript`, `pynescript-lsp` |
-| Package version | `src/pynescript/__about__.py` |
-| VS Marketplace / Open VSX publisher | `hoox-sh` |
+| Import / CLIs | import `pynescript`; CLIs `pyne` / `pyne-lsp` (aliases `pynescript` / `pynescript-lsp`) |
+| Package version | `src/pynescript/__about__.py` → **0.3.10** |
+| VS Marketplace / Open VSX publisher | `hoox-sh` (`hoox-sh.pyne` 0.3.10) |
 
-## 1. Transfer repo to org (you do this on GitHub)
+## 1. Confirm repo host (`hoox-sh/pyne`)
 
-1. `jango-blockchained/pyne` → **Settings → General → Danger zone → Transfer** → org **`hoox-sh`**, keep name **`pyne`**.
-2. Confirm redirects: `github.com/jango-blockchained/pyne` → `github.com/hoox-sh/pyne`.
-3. Update local remote:
+The GitHub repo **already lives** at [`hoox-sh/pyne`](https://github.com/hoox-sh/pyne). If a checkout still points at the old personal remote, retarget it:
 
 ```bash
 git remote set-url origin https://github.com/hoox-sh/pyne.git
@@ -55,7 +53,7 @@ gh repo view --json nameWithOwner,url
 # expect: hoox-sh/pyne
 ```
 
-### After transfer — re-verify automation
+### Automation secrets
 
 | Item | Action |
 | --- | --- |
@@ -100,17 +98,17 @@ Details: [PyPI publish](/pyne/docs/devops/pypi-publish).
 ## 3. Local package smoke (no upload)
 
 ```bash
-# version already 0.3.0 in src/pynescript/__about__.py
+# version already 0.3.10 in src/pynescript/__about__.py
 pip install build twine
 rm -rf dist/
 python -m build
 twine check dist/*
-# expect: pyne-0.3.0-py3-none-any.whl  pyne-0.3.0.tar.gz
+# expect: hoox_pyne-0.3.10-py3-none-any.whl  hoox_pyne-0.3.10.tar.gz
 
 python -m venv /tmp/pyne-smoke
 /tmp/pyne-smoke/bin/pip install dist/*.whl
 /tmp/pyne-smoke/bin/python -c "import pynescript; print(pynescript.__version__)"
-/tmp/pyne-smoke/bin/pynescript --help
+/tmp/pyne-smoke/bin/pyne --help
 ```
 
 ## 4. GitHub Actions dry-run
@@ -119,28 +117,29 @@ python -m venv /tmp/pyne-smoke
 2. Confirm **CI** green (lint, test matrix, package, docker, vscode-ext).
 3. Actions → **Publish** → Run workflow → `dry_run=true` (build + twine only, no upload).
 
-## 5. Cut `v0.3.0`
+## 5. Cut `v0.3.10`
 
-1. Move `CHANGELOG.md` **Unreleased** notes into `## [0.3.0] - YYYY-MM-DD` (or keep Unreleased if you prefer a thin first tag).
-2. Align VSIX version in `vscode-extension/package.json` if shipping Marketplace/VSIX with this tag.
+1. Move `CHANGELOG.md` **Unreleased** notes into `## [0.3.10] - YYYY-MM-DD`.
+2. Align VSIX version in `vscode-extension/package.json` (already **0.3.10**) if shipping Marketplace/VSIX with this tag.
 3. Tag and push:
 
 ```bash
-git tag -a v0.3.0 -m "v0.3.0 — first pyne release"
-git push origin v0.3.0
+git tag -a v0.3.10 -m "v0.3.10"
+git push origin v0.3.10
 ```
 
 4. Watch in parallel:
    - **Publish** → PyPI `hoox-pyne`
-   - **Build & Release LSP** → GitHub Release assets + optional Marketplace
+   - **Build & Release** → GitHub Release assets + optional Marketplace
+   - **GHCR** → `ghcr.io/hoox-sh/pyne/{api,cli,lsp}:0.3.10`
 
 ## 6. Post-publish verify
 
 ```bash
-pip index versions hoox-pyne   # or: pip install hoox-pyne==0.3.0
+pip index versions hoox-pyne   # or: pip install hoox-pyne==0.3.10
 python -c "import pynescript; print(pynescript.__version__)"
-# GitHub Release: https://github.com/hoox-sh/pyne/releases/tag/v0.3.0
-# PyPI: https://pypi.org/project/hoox-pyne/0.3.0/
+# GitHub Release: https://github.com/hoox-sh/pyne/releases/tag/v0.3.10
+# PyPI: https://pypi.org/project/hoox-pyne/0.3.10/
 ```
 
 ## Hardcoded owner map (repo automation)

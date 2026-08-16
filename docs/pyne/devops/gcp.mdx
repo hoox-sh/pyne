@@ -54,6 +54,7 @@ flowchart LR
 | `_REGION` | `us-central1` | Deploy region |
 | `_REPOSITORY` | `pynescript` | Image path segment |
 | `_METADATA_KEY` | (secret/subst) | Fernet key → `CRYPTO_KEY` for LSP stage |
+| `_PYNESCRIPT_VERSION` | `"0.3.0"` (stale default in YAML) | OCI label; override to **0.3.10** at submit |
 
 ### Build steps
 
@@ -72,7 +73,7 @@ flowchart LR
 | `--memory` | 512Mi | Evaluator headroom |
 | `--cpu` | 1 | Single vCPU per instance |
 | `--concurrency` | 10 | Parallel requests per instance |
-| `--timeout` | 60s | Aligns with gunicorn timeout |
+| `--timeout` | 60s | Platform kill. Entrypoint gunicorn default is **120s** (`GUNICORN_TIMEOUT`); set the env to **60** on Cloud Run or long evals die at the platform first. |
 | `--set-env-vars` | `FLASK_ENV=production` | App mode |
 
 ### Machine / budget knobs

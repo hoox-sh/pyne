@@ -54,10 +54,10 @@ When `_pine_bar_mode` and `_pine_ta_incremental` are enabled (Runtime default; d
 | Moving averages | `sma`, `ema`, `rma`, `wma`, `hma`, `vwma`, `swma`, `kama`, `dema`, `tema`, `alma` |
 | Oscillators | `rsi`, `macd`, `stoch`/`stochrsi`, `cci`, `cmo`, `tsi`, `roc`, `wpr` |
 | Volatility / structure | `atr`, `tr`, `stdev`, `bb`, `highest`/`lowest`, `linreg`, `adx`/`dmi`, `supertrend`, `kc`, `sar` |
-| Volume (**0.3.10**) | `obv`, `wad`/`wvad`, `cmf`, `klinger`, `mfi`, `vwap` |
+| Volume (**0.3.10**) | `obv`, `wad`/`wvad`, `cmf`, `klinger`, `mfi`, `vwap`, `accdist` |
 | Other | `change`/`mom`/`cum`, `median`, `percentrank`, `rising`/`falling`, `barssince`, pivots |
 
-Residual full-list helpers include `ta.nvi` / `ta.pvi`. ATR remains the current EMA-of-TR oracle (not a Wilder re-baseline — roadmap **F1**).
+Residual full-list helpers include `ta.nvi` / `ta.pvi`. **`ta.atr` is Wilder RMA of true range** on interpret (full + incremental) and Numba (`ta.rma(ta.tr, length)` — 0.3.4+).
 
 ## Interface surface
 
@@ -120,7 +120,7 @@ Numba kernels are **separate code** from the interpreter, but the dual-host cont
 | **`ta.mfi`** | Warm-up aligned on both hosts: needs **`length + 1` typical-price samples** (direction vs previous bar). Equal typical prices contribute to neither side; only-pos / only-neg MF → 100 / 0 (or 50 when both empty). |
 | **`ta.rci`** | Rank Correlation Index (Spearman of time vs value ranks) is implemented on the **compile path** (`numba_rci`) as well as interpret; stays in numeric mode when called. |
 
-**0.3.4+:** `ta.atr` uses Wilder RMA of TR on interpret + Numba; EMA dual-host seed is full-list SMA seed matching incremental/Numba. First-party dual-host goldens (ATR / Supertrend / Keltner) and `test_ta_incremental` gate residual drift. Any remaining gaps are tracked under [missing features](/pyne/docs/reference/missing-features)—not as silent “close enough” for the rows above.
+**0.3.4+:** `ta.atr` is Wilder RMA of TR on interpret + Numba (not EMA-of-TR). EMA dual-host seed is full-list SMA seed matching incremental/Numba. First-party dual-host goldens (ATR / Supertrend / Keltner) and `test_ta_incremental` gate residual drift. Any remaining gaps are tracked under [missing features](/pyne/docs/reference/missing-features)—not as silent “close enough” for the rows above.
 
 ### Parity harness
 
@@ -148,7 +148,7 @@ Report path: `.cache/interp_compile_parity.json`. Methodology and acceptable rel
 3. **Default sources.** `ta.atr` pulls high/low/close from `current_series` / context when not passed explicitly.
 4. **Compile kernels must track interpret.** Numba `numba_*` implementations are separate source; for the parity table above they are formula-locked by dual-host tests—do not “approximate” for speed.
 5. **No chart look-ahead.** Kernels only see history available at the current bar index; `request.security` lookahead is a separate concern.
-6. **Incremental ≡ full recompute (oracle).** Changing seed rules (e.g. ATR Wilder vs EMA-of-TR) is a correctness project, not a silent perf flag.
+6. **Incremental ≡ full recompute (oracle).** ATR seed is already Wilder RMA on both hosts; changing seed rules is a correctness project, not a silent perf flag.
 
 ## Worked examples
 

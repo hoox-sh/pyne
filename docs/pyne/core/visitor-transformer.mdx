@@ -28,7 +28,7 @@ Tree walks in PYNE follow the same dual pattern as CPython’s `ast` module: a v
 
 ## Abstract
 
-- **`NodeVisitor`** (`src/pynescript/ast/visitor.py`) — dispatch `visit_<ClassName>`, default `generic_visit` walks children via `iter_fields`. Method lookups are cached per visitor instance.
+- **`NodeVisitor`** (`src/pynescript/ast/visitor.py`) — dispatch `visit_<ClassName>`, default `generic_visit` walks children via `iter_fields`. Method lookups are cached **per visitor instance, keyed by `type(node)`** (the type object, not the class-name string).
 - **`NodeTransformer`** (`src/pynescript/ast/transformer.py`) — same dispatch, but `generic_visit` **replaces** list items and fields according to return values (`None` removes, list splices, AST replaces).
 
 Specialized visitors elsewhere:
@@ -158,9 +158,12 @@ stmts = list(StatementCollector().visit(parse("f() => 1\nx = 2")))
 ### Dispatch cache
 
 ```text
-node_class = type(node).__name__
-visitor = cache.get(node_class) or getattr(self, "visit_" + node_class, generic_visit)
+cls = type(node)
+visitor = cache.get(cls) or getattr(self, "visit_" + cls.__name__, generic_visit)
+cache[cls] = visitor
 ```
+
+`NodeUnparser` keeps a **second** type-keyed cache (`_type_visitor_cache`) used by `traverse`, bypassing `NodeVisitor.visit` so it does not reset the source buffer mid-render.
 
 Subclass instances that dynamically add methods after first visit of a type will not see them unless the cache is cleared — prefer defining methods on the class body.
 

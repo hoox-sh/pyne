@@ -68,7 +68,7 @@ This page is pure reference — no commands required.
 | Term cluster | Primary paths |
 | --- | --- |
 | Parse / AST | `src/pynescript/ast/helper.py`, `builder.py`, `grammar/` |
-| Evaluate | `src/pynescript/ast/evaluator/`, `backend/runtime.py` |
+| Evaluate | `src/pynescript/ast/evaluator/`, `src/pynescript/runtime/` (`backend/runtime.py` is a compat shim) |
 | Lint | `src/pynescript/ast/linter.py` |
 | LSP | `src/pynescript/langserver/` |
 | HTTP | `backend/app.py` |
@@ -106,7 +106,7 @@ Host-provided namespace function or value (`ta.rsi`, `strategy.entry`, `math.sqr
 
 ### CLI
 
-The preferred **`pyne`** Click command group (alias `pynescript`: `check`, `format`, `lint`, `compile`, `run`, `data`, …).
+The preferred **`pyne`** Click command group (alias `pynescript`: `check`, `format`, `lint`, `compile`, `prewarm`, `run`, `data`, `info`). `pyne run` is compile-only synthetic smoke — not `Runtime.run`.
 
 ### Compile mode
 
@@ -139,6 +139,10 @@ Edge **trade execution mesh** (separate monorepo / docs under `/docs`). Can cons
 ### Interpret mode
 
 Default Runtime mode: AST walking per bar without the compiled subset path.
+
+### `libraries=`
+
+Optional `Runtime.run` / `POST /run` list of `{namespace, name, version, source}` dicts registered before `import ns/Name/ver` resolves. Compile-ineligible. HTTP cap is 32. Not available on `pyne run`.
 
 ### `literal_eval`
 
@@ -182,7 +186,7 @@ Flask application in `backend/` exposing `/run`, preview, backtest, and auth end
 
 ### PYNE
 
-Product name for this evaluation stack (docs under `/pyne/docs`); package name on PyPI remains **`pynescript`**.
+Product name for this evaluation stack (docs under `/pyne/docs`). PyPI distribution is **`hoox-pyne`**; the import package is **`pynescript`**.
 
 ### Round-trip
 
@@ -190,7 +194,7 @@ Product name for this evaluation stack (docs under `/pyne/docs`); package name o
 
 ### Runtime
 
-`backend.runtime.Runtime` — multi-bar execution engine used by Pro API.
+`pynescript.runtime.Runtime` — multi-bar execution engine (`src/pynescript/runtime/host.py`). `backend.runtime` re-exports the same class for the Pro API. Library default `mode` is **interpret**; `POST /run` defaults to **auto**. See [modes](/pyne/docs/enduser/reference/modes).
 
 ### Series
 
@@ -199,6 +203,10 @@ Time-indexed value stream with history access (`close[1]`). Implementation inclu
 ### Strategy event
 
 Structured record of entries/exits/orders emitted during strategy evaluation for downstream systems (HOOX, analytics).
+
+### `timeout_seconds`
+
+Optional `Runtime.run` wall-clock budget (interpret path). Exceeded runs return partial plots with `timed_out`. **Not** a `POST /run` body field.
 
 ### Unparse
 

@@ -34,8 +34,8 @@ When `CompilerVisitor` detects strategy usage, object-mode emission instantiates
 sequenceDiagram
   participant Loop as Generated for __bar_idx
   participant B as CompileStrategyBroker
-  Loop->>B: set_bar(idx, OHLC)
-  Loop->>B: process_pending_orders(OHLC)
+  Loop->>B: begin_bar(idx, OHLC, time)
+  Note over B: set_bar + process_pending when book nonempty
   Loop->>B: entry/close/order… (script body)
   Note over B: events[], pending_orders, position_*
   Loop->>B: to_events() at return
@@ -67,6 +67,9 @@ CompileStrategyBroker(
 ### Bar context
 
 ```python
+# Preferred generated hot path (one call; skips pending walk when empty)
+broker.begin_bar(bar_index, open_, high, low, close, bar_time=…)
+# Equivalent two-step still exists:
 broker.set_bar(bar_index, bar_time, mark, open_=…, high=…, low=…, close=…)
 broker.process_pending_orders(open_=…, high=…, low=…, close=…)
 ```
@@ -121,8 +124,8 @@ NA helpers treat `None`, blank/`na` strings, and float NaN as missing prices whe
 
 ## Invariants & edge cases
 
-1. **Same order as interpreter:** `set_bar` → `process_pending_orders` → script body.
-2. **Not a full metric engine.** Prefer interpret mode for `strategy.closedtrades.profit(i)` style analytics until parity is complete.
+1. **Same order as interpreter:** `begin_bar` (or `set_bar` → `process_pending_orders`) → script body.
+2. **Closed-trade list is partial.** The compile broker now keeps `closed_trade_records` and some `closedtrades_*` accessors (profit, comments, max drawdown/runup). Prefer interpret for the full `strategy.closedtrades.*` / `opentrades.*` metric surface.
 3. **Direction normalization** accepts `strategy.long`, `long`, `1`, `buy`, etc.
 4. **Reverse on opposite entry** via `close_all(comment="reverse")` then open.
 5. **Event dicts are mutable lists**—fine for run output; not frozen dataclasses.
@@ -134,10 +137,10 @@ NA helpers treat `None`, blank/`na` strings, and float NaN as missing prices whe
 ```python
 __strategy = CompileStrategyBroker(initial_capital=100000.0)
 for __bar_idx in range(n_bars):
-    __strategy.set_bar(__bar_idx, 0, float(close_arr[__bar_idx]),
-        open_=float(open_arr[__bar_idx]), high=float(high_arr[__bar_idx]),
-        low=float(low_arr[__bar_idx]), close=float(close_arr[__bar_idx]))
-    __strategy.process_pending_orders(...)
+    __strategy.begin_bar(__bar_idx,
+        float(open_arr[__bar_idx]), float(high_arr[__bar_idx]),
+        float(low_arr[__bar_idx]), float(close_arr[__bar_idx]),
+        bar_time=int(time_arr[__bar_idx]))
     # lowered strategy.entry / close calls
 return {..., '__events': __strategy.to_events(),
         '__position_size': __strategy.position_size,

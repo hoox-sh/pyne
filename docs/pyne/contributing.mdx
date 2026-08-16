@@ -50,7 +50,7 @@ flowchart LR
 5. Lint/format: `make lint` / `make fmt` or `hatch run lint:style` + `lint:typing`
 6. Open a PR with rationale + test evidence
 
-Official short form also lives in root `CONTRIBUTING.md` (points at Sphinx docs historically).
+Official short form also lives in root `CONTRIBUTING.md`.
 
 ### Everyday commands
 
@@ -114,7 +114,7 @@ Do not hand-maintain the catalog long-term.
 
 ### Interpret / compile parity
 
-When changing `backend.runtime.Runtime`, the compiler, or plot/series export, check **series parity** between `mode="interpret"` and `mode="compile"`:
+When changing `pynescript.runtime.Runtime`, the compiler, or plot/series export, check **series parity** between `mode="interpret"` and `mode="compile"`:
 
 ```bash
 # Local corpus harness (default 50 scripts × 1000 bars)
@@ -149,7 +149,7 @@ Report artifact: `.cache/interp_compile_parity.json`. Value mismatches on shared
 | CLI subcommand | `src/pynescript/__main__.py` |
 | Grammar | `resource/*.g4` then regenerate |
 | Pro API route | `backend/api/preview.py`, `backend/app.py` |
-| Runtime modes / compile fallback | `backend/runtime.py` (`run`, `_run_auto`, `_run_compiled`) |
+| Runtime modes / compile fallback | `src/pynescript/runtime/host.py` (`Runtime.run`); `backend/runtime.py` is a shim |
 | Interp/compile series parity | `scripts/compare_interp_compile.py`, `tests/test_interp_compile_parity.py` |
 | TS library | sister repo [hoox-sh/pynets](https://github.com/hoox-sh/pynets) (`pynets/` submodule here) |
 
@@ -160,12 +160,29 @@ Report artifact: `.cache/interp_compile_parity.json`. Value mismatches on shared
 - **Mypy** strict-ish; exemptions for generated grammar, `evaluator.builtins.*`, tests
 - Voice for docs: academic nerdy-cool per `docs/WRITING.md` — no empty marketing adjectives
 
+## Release (this repo)
+
+Match root `CONTRIBUTING.md` and `.github/workflows/publish.yml` / `release.yml` / `ghcr.yml`:
+
+1. Bump `__version__` in `src/pynescript/__about__.py` and update `CHANGELOG.md`.
+2. Align `vscode-extension/package.json` when shipping the VSIX together.
+3. Ensure CI is green on `main`.
+4. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+5. **Publish** (`publish.yml`) builds sdist/wheel (`hoox_pyne-*.whl`) and uploads to PyPI (`PYPI_API_TOKEN` or Trusted Publishing OIDC, environment `pypi`).
+6. **Build & Release** (`release.yml`) attaches Nuitka CLI/LSP binaries + VSIX to the GitHub Release.
+7. **GHCR** (`ghcr.yml`) publishes `ghcr.io/hoox-sh/pyne/{cli,lsp,api}:X.Y.Z` on `v*` tags.
+
+Dry-run PyPI: Actions → **Publish** → Run workflow → `dry_run=true`. Local: `python -m build && twine check dist/*`.
+
+AXIS charting releases live in [hoox-sh/axis](https://github.com/hoox-sh/axis) (historical fork: `jango-blockchained/axis`).
+
 ## PyneTS contributions
 
 - Work in [hoox-sh/pynets](https://github.com/hoox-sh/pynets), not a `pine-worker/` directory in this repo
 - Bun for install / test / typecheck; `bun run generate` after PYNE `.g4` changes
 - Python remains the oracle — see [PyneTS parity](/pyne/docs/pynets/parity)
 - Do not copy PyneTS sources into this tree; PYNE consumes the `pynets/` submodule only
+- The submodule snapshot can lag standalone **`@hoox-sh/pynets` 0.2.0** (this checkout pins `@hoox/pynets` 0.1.0 interpret-only)
 
 ## Failure modes for contributors
 

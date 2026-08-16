@@ -125,7 +125,7 @@ If neither usable `close` nor `mock_data` → `NO_DATA`.
 
 ## Internals
 
-`run_quick_backtest` → `run_backtest` in `backend/services/backtest.py`.
+`run_quick_backtest` wraps `run_backtest(..., plot_chart=True)` and returns `BacktestResult.to_dict()` (`backend/services/backtest.py`). `avg_bars_in_trade` exists on the dataclass but is **not** exported in `summary`.
 
 MVP simulation characteristics:
 

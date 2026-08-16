@@ -34,8 +34,8 @@ charting PWA is a **sister repo** ([axis](https://github.com/hoox-sh/axis)) — 
 
 ```mermaid
 flowchart LR
-  SRC[src/pynescript] --> CLI[pynescript CLI]
-  SRC --> LSP[pynescript-lsp]
+  SRC[src/pynescript] --> CLI[pyne CLI]
+  SRC --> LSP[pyne-lsp]
   SRC --> LIB[import pynescript]
   BE[backend/] --> API[Flask :5002]
   VSC[vscode-extension/] --> VSIX[vsce package]
@@ -64,9 +64,12 @@ flowchart LR
 | `make run-lsp` | `python -m pynescript.langserver` |
 | `make docker-build` | bake **api** |
 | `make docker-build-cli` | bake **cli** |
+| `make docker-build-lsp` | bake **lsp** (`pynescript-lsp:latest`; GHCR name `ghcr.io/hoox-sh/pyne/lsp`) |
 | `make docker-build-all` | api + api-dev + lsp + cli |
-| `make docker-buildx` | multi-platform release bake |
+| `make docker-buildx` | multi-platform release bake (`api` + `cli` + `lsp`) |
+| `make docker-push-ghcr` | `gh workflow run ghcr.yml` |
 | `make docker-cli ARGS="…"` | compose profile cli (ephemeral) |
+| `make deploy-vps` | rsync + restart API; health **API :5002**, **AXIS :80** (VPS; local AXIS is :8081) |
 | `make docker-up` | compose API on `:5002` |
 | `make docker-up-full` | + redis profile |
 | `make docker-prod` | gunicorn overlay (`ADMIN_TOKEN` required) |
@@ -88,8 +91,8 @@ hatch run lint:gen-parser
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[lsp,compile,pro]"
-pynescript info
-pynescript check examples/rsi_strategy.pine
+pyne info
+pyne check examples/rsi_strategy.pine
 make test-cli
 make run   # Pro API
 ```
@@ -98,7 +101,7 @@ make run   # Pro API
 
 ```bash
 pip install "hoox-pyne[lsp,compile]"
-pynescript --version
+pyne --version   # 0.3.10
 ```
 
 ## Internals
@@ -116,13 +119,14 @@ pynescript --version
 
 - **Requires-Python:** `>=3.10`
 - **CI matrix:** 3.10–3.13
+- **Hatch test matrix:** 3.10–3.12 (no 3.13 cell)
 - **Recommended:** 3.12+ with venv
 
 ### Optional extras
 
 | Extra | Adds |
 | --- | --- |
-| `lsp` | pygls / lsprotocol → `pynescript-lsp` |
+| `lsp` | pygls / lsprotocol → `pyne-lsp` (alias `pynescript-lsp`) |
 | `compile` | numpy / numba |
 | `data` / `datafeed` | ccxt |
 | `pro` | Flask + gunicorn + matplotlib + redis + compile |

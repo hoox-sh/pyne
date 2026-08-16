@@ -101,9 +101,9 @@ Both routes: `@track_usage` → must pass `require_api_key` and consume one call
 
 | code | When |
 | --- | --- |
-| `NO_DATA` | Missing `data` |
-| `NO_CLOSE_DATA` | Empty `close` array |
-| `RENDER_ERROR` | matplotlib / renderer exception |
+| `NO_DATA` | Missing `data` (both preview routes) |
+| `NO_CLOSE_DATA` | Empty `close` array (chart **and** indicator) |
+| `RENDER_ERROR` | matplotlib / renderer exception (`/preview/chart` only; indicator parse/render exceptions fall back to plotting `close`) |
 
 Note: `script` is accepted for API symmetry but **not executed** on this path today — the chart is pure data visualization.
 

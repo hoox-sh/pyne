@@ -92,7 +92,7 @@ Suggested maps when attaching: `gd` definition, `gr` references, `K` hover, form
 Register filetype if needed:
 
 ```vim
-au BufRead,BufNewFile *.pine,*.pinev5,*.pinev6 setfiletype pinescript
+au BufRead,BufNewFile *.pyne,*.pine,*.pinev5,*.pinev6,*.pinescript setfiletype pinescript
 ```
 
 ## Zed
@@ -108,7 +108,7 @@ Merge `clients/zed.json` into `~/.config/zed/settings.json`:
   },
   "language_servers": {
     "pynescript": {
-      "command": "pynescript-lsp",
+      "command": "pyne-lsp",
       "arguments": ["--stdio"],
       "languages": ["Pine Script"]
     }
@@ -116,7 +116,7 @@ Merge `clients/zed.json` into `~/.config/zed/settings.json`:
 }
 ```
 
-{/* TODO: verify Zed language name registration for Pine Script files */}
+Zed does not ship a first-party Pine grammar in this repo. Map `*.pyne` / `*.pine` to the `"Pine Script"` language name (or whatever your grammar extension registers) so the `language_servers` key attaches.
 
 ## Emacs
 
@@ -125,12 +125,12 @@ Merge `clients/zed.json` into `~/.config/zed/settings.json`:
 ```elisp
 (lsp-register-client
  (make-lsp-client
-  :new-connection (lsp-stdio-connection '("pynescript-lsp" "--stdio"))
+  :new-connection (lsp-stdio-connection '("pyne-lsp" "--stdio"))
   :major-modes '(pinescript-mode)
   :server-id 'pynescript))
 ```
 
-Defines a minimal `pinescript-mode` with font-lock keywords and `auto-mode-alist` for `\\.pine\\'` / `\\.pinev[0-9]+\\'`. Optional keys: `C-c C-c` format, `M-.` definition, `M-?` references.
+Defines a minimal `pinescript-mode` with font-lock keywords and `auto-mode-alist` for `\\.pine\\'` / `\\.pinev[0-9]+\\'` (add `\\.pyne\\'` locally if you use the product suffix). Optional keys: `C-c C-c` format, `M-.` definition, `M-?` references.
 
 ## Helix
 
@@ -140,9 +140,9 @@ Defines a minimal `pinescript-mode` with font-lock keywords and `auto-mode-alist
 [[language]]
 name = "pinescript"
 scope = "source.pinescript"
-file-types = ["pine", "pinev5", "pinev6"]
+file-types = ["pyne", "pine", "pinev5", "pinev6"]
 roots = ["pyproject.toml"]
-command = "pynescript-lsp"
+command = "pyne-lsp"
 args = ["--stdio"]
 ```
 
@@ -154,7 +154,7 @@ With Package Control **LSP**:
 {
   "clients": {
     "pynescript": {
-      "command": ["pynescript-lsp", "--stdio"],
+      "command": ["pyne-lsp", "--stdio"],
       "selector": "source.pinescript",
       "initializationOptions": {}
     }
@@ -165,12 +165,14 @@ With Package Control **LSP**:
 ## Generic / Cursor
 
 ```bash
-pynescript-lsp
-# or explicitly:
+pyne-lsp
+# aliases:
 pynescript-lsp --stdio
+# container (stdio):
+docker run --rm -i -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/lsp:0.3.10
 ```
 
-Point the host’s “external language server” command at that binary. Cursor users can also load the VS Code extension in compatible mode when packaged as VSIX.
+Point the host’s “external language server” command at that binary. Cursor users can also load the VS Code extension (`hoox-sh.pyne`) in compatible mode when packaged as VSIX.
 
 ## Internals
 

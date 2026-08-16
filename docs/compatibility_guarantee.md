@@ -31,7 +31,7 @@ Product/docs mint: [docs/pyne/reference/compatibility.mdx](pyne/reference/compat
 
 ## 🎯 Executive Summary
  
-**PYNE** (PyPI `pyne`, import `pynescript`) provides strong syntax compatibility (full parser coverage for v5/v6 grammar on real scripts) and good semantic compatibility with TradingView® Pine Script™ v5/v6. The parser, AST, and many builtins (including technical indicators and strategy support) are implemented and covered by tests. Compatibility is **not** full TradingView platform parity (hosted chart, proprietary multi-symbol data, editor-only features).
+**PYNE** (PyPI **`hoox-pyne`**, import `pynescript`) provides strong syntax compatibility (full parser coverage for v5/v6 grammar on real scripts) and good semantic compatibility with TradingView® Pine Script™ v5/v6. The parser, AST, and many builtins (including technical indicators and strategy support) are implemented and covered by tests. Compatibility is **not** full TradingView platform parity (hosted chart, proprietary multi-symbol data, editor-only features).
 
 **Interpret ↔ compile plot parity** is a first-class testing pillar: same script + OHLCV under `Runtime.run(..., mode="interpret")` vs `mode="compile"`, compared with nan-aware allclose (`scripts/compare_interp_compile.py`, `tests/test_interp_compile_parity.py`). Residual value `MISMATCH` buckets and structural hline/fill key differences are tracked deliberately.
 

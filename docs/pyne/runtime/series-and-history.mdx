@@ -53,7 +53,7 @@ Pine indices are **most-recent-first**:
 | `close[1]` | Previous bar | `list[-2]` |
 | `close[n]` with \(n \ge \text{len}\) | Out of range | `na` (`None`) |
 
-Negative offsets are **not** supported; they raise rather than wrap.
+Negative offsets are **not** Python wraparound; they **soft-fail** to `na` (`None`).
 
 ## Interface surface
 
@@ -90,7 +90,7 @@ Implemented in `StatementEvaluator._bind_series_name`: if the RHS has `.current`
 
 | Qualifier | Semantics in PYNE |
 | --- | --- |
-| `var` / `varip` | Initializer runs on first **execution** of that declaration site (tracked in `_var_declarations`), not only `bar_index == 0`. Later bars skip re-init so the value carries. |
+| `var` / `varip` | Initializer runs on first **execution** of that declaration site (tracked in `_var_declarations`), not only `bar_index == 0`. Later bars skip re-init so the value carries. History-tracked `var` series get a **start-of-bar carry** (`_commit_unwritten_history`) so `x[1]` is last bar’s persist even when no `:=` ran this bar. On realtime ticks, `varip` re-evaluates the RHS. |
 | `const` (v6) | Always initializes when the statement runs; not a cross-bar carry lock like `var`. |
 | bare assign | Re-evaluates every bar; series “history” is the host series or prior list values. |
 
@@ -144,7 +144,7 @@ Pro API / `pynescript.runtime.Runtime` optionally **trims** chronological `curre
 | `PYNE_SERIES_MAX` | unset | Absolute override of the cap (positive int). |
 | PineSeries history floor | `1000` | Separate from list caps; raised by `max_bars_back` / `PYNE_SERIES_MAX`. |
 
-**Correctness notes** (see `backend/series.py`):
+**Correctness notes** (see `src/pynescript/runtime/series.py`; `backend/series.py` is a re-export shim):
 
 - Window kernels (`ta.sma`, `highest`, …) need `length ≤ cap`.
 - Recursive smoothers under **incremental** TA (default `PYNE_TA_INCREMENTAL` on) carry state and stay safe independent of list length once warm.
@@ -168,14 +168,14 @@ The interpret host updates `open` / `high` / `low` / `close` / `volume` / `time`
 | `src/pynescript/ast/evaluator/builtins/technical_submodules/core.py` | `_as_series`, bar mode finalize |
 | `src/pynescript/ast/evaluator/builtins/utility.py` | `max_bars_back`, `last_bar_index`, `na` helpers |
 | `src/pynescript/runtime/host.py` | Bar loop; derived-series skip; series-cap trim (`backend.runtime` re-exports) |
-| `src/pynescript/runtime/series.py` | `PineSeries`, `resolve_series_cap`, `PYNE_SERIES_CAP` / `PYNE_SERIES_MAX` |
+| `src/pynescript/runtime/series.py` | `PineSeries`, `resolve_series_cap`, `PYNE_SERIES_CAP` / `PYNE_SERIES_MAX` / `PYNE_SERIES_RING` |
 
 Compile path: series are `np.full(n_bars, np.nan)` written at `__bar_idx`; history is `arr[__bar_idx - n]` with OOB → `np.nan` (see [Compiler overview](/pyne/docs/runtime/compiler/overview)). Host **`time_arr`** is a chronological `float64` vector of bar-open Unix ms (same length as OHLCV); bare `time` lowers to `time_arr[__bar_idx]`, and `time[n]` uses the same history indexing rules as `close[n]`. When the host omits bar times, `Runtime` synthesizes `i * 60_000` so length always matches—calendar / `time` scripts stay defined on both modes.
 
 ## Invariants & edge cases
 
 1. **Chronology of `.history`.** Most-recent-first; reverse when converting to chronological lists for `ta.*` / `array.*`. Compile arrays are chronological (index 0 = first bar).
-2. **No negative Pine indices.** Soft-fail to `na` / `nan` (not Python wraparound)—different from Python lists. See highestbars note above.
+2. **No negative Pine indices.** Soft-fail to `na` / `nan` (not Python wraparound, and **not** a raise)—different from Python lists. See highestbars note above.
 3. **`None` vs `float('nan')`.** Interpreter prefers `None`; Numba kernels use `np.nan`. Cross-mode comparisons must normalize.
 4. **`max_bars_back`.** Raises the host series cap when larger than the default 256; still not a TV-style hard chart depth, but it affects trim policy.
 5. **`PYNE_SERIES_CAP` default on.** Disable only for debugging / full-history oracles; pair with incremental TA for production long histories.

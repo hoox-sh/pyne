@@ -19,7 +19,7 @@
 
 # Pynescript Future Roadmap
 
-**Last Updated:** 2026-08-15 (H1 Runtime unify largely done; tick-offset exits)
+**Last Updated:** 2026-08-16 (H1 Runtime unify largely done; 0.3.10 T2 volume inc landed)
 **Status:** Core v6 language/builtins essentially closed. Remaining work is
 **interpret↔compile plot residuals**, **corpus execution tail**, and optional **TV-oracle
 re-baselines** — not missing syntax. Product warm-compile (H2), series caps (T1), and
@@ -96,7 +96,7 @@ Historical Phase A–D “build API / LSP / Jupyter” items are **done**. Do no
 | **P1p** | Compile/interpret **plot parity** residual | P1 ⚙️ harness landed (`scripts/compare_interp_compile.py`, `tests/test_interp_compile_parity.py`); smoke OK on stable TA scripts; residual buckets: value `MISMATCH`, structural hline/fill keys, one-sided runtime errors | pyne |
 | **T1** | Cap `current_series` to `max_bars_back` / `_SERIES_MAX` | P2 ✅ `PYNE_SERIES_CAP` default ON + goldens (R7 Agent 03) | pyne |
 | **T2** | Incremental TA for remaining heavy kernels (`ta.bb`, nested full paths) | P2 ✅ R7: bb/kama/cmo/stochrsi; wma/hma/linreg; **R9: obv/wad/wvad/cmf/klinger**. Residual: nvi/pvi | pyne |
-| **F1** | ATR Wilder / TV supertrend re-baseline **only** with dedicated goldens | P2 ⚙️ **RSI Wilder** compile↔interpret aligned (2026-08 residual); ATR EMA→Wilder and TV supertrend ratchet still require explicit goldens | pyne |
+| **F1** | ATR Wilder / TV supertrend re-baseline **only** with dedicated goldens | P2 ⚙️ interpret ATR is already Wilder RMA of TR (`ta.rma(ta.tr)`); optional TV supertrend ratchet still needs explicit goldens | pyne |
 | **F2** | Pending-fill averaging when pyramiding ≤ 0 | P2 ✅ R7 Agent 10 (interpret + compile broker goldens) | pyne |
 | **L1** | v5↔v6 converter maturity (`scripts/convert_pine_version.py`) | P3 | pyne |
 | **L2** | Webhook alerts productization | P3 ✅ pyne-worker edge + Pro API `/run` export **and** outbound `ALERT_WEBHOOK_URL` / `webhook_url` | pyne-worker + backend |

@@ -86,7 +86,7 @@ Resolution order (simplified):
 1. Normalize symbol (series → last element; `ticker.*` → symbol string) and timeframe.
 2. Classify **chart vs foreign** (`_is_chart_symbol` vs host `syminfo` / provider symbol).
 3. Try `data_feed.fetch_latest_ohlcv` / ticker, then `data_provider.fetch`.
-4. **Same-symbol coarser timeframe (HTF resample, 0.3.4+):** bucket chart OHLCV to the requested TF; allowlisted simple TA on HTF series — `ta.sma` / `ta.ema` / `ta.rsi` / `ta.atr` — evaluates on the resampled series. Policy meta is exposed on the Runtime for host honesty.
+4. **Same-symbol coarser timeframe (HTF resample, 0.3.4+):** bucket chart OHLCV to the requested TF; **last completed** HTF bar only (lookahead_off-style — the forming bucket is never returned). Allowlisted simple TA on HTF series — `ta.sma` / `ta.ema` / `ta.rsi` / `ta.atr` (bare `close`/`high`/… source + const length; `ta.atr(n)` length-only) — evaluates on the unique completed HTF series. Nested `ta.*`, UDFs, and non-const lengths stay `na`. `barmerge.gaps_*` / `lookahead_*` are accepted but unused. Policy meta is exposed on `result["meta"]["request_security"]`.
 5. **Foreign + pre-evaluated expression** (UDF result, list/tuple of chart values, non-string expr) without multi-symbol data → **`na`** (not chart close as “dividends”).
 6. Fundamental / non-equity prefixes (`DIVIDEND`, `FACTSET`, `EARNINGS`, `ESD_`) with no feed hit → **`na`** (no mock OHLCV).
 7. Bare equity-style string names may still use **legacy mock** prices for offline demos when no feed is wired.
@@ -142,8 +142,8 @@ cannot corrupt `time[j]` history. That bug previously broke TTM / `year_sum`-sty
 | `src/pynescript/ast/evaluator/statements.py` | `_bind_series_name` (no OHLCV alias) |
 | `src/pynescript/util/data.py` | `ChartOHLCVProvider`, `resolve_request_sources` |
 | `src/pynescript/compiler/compiler.py` | Same-symbol OHLCV-only `security` lower |
-| `src/pynescript/runtime/host.py` | Package Runtime SoT; feed wiring; `_compile_eligible` / `_run_auto` |
-| `backend/runtime.py` | Compat re-export of package Runtime |
+| `src/pynescript/runtime/host.py` | Package Runtime SoT; feed wiring; `_compile_eligible` / `_run_auto`; copies policy onto `meta.request_security` |
+| `backend/runtime.py` | Compat re-export of package Runtime (not the implementation) |
 | `tests/test_dividend_yield_parity.py`, `test_datafeed_wiring.py` | na parity + chart provider |
 
 ## Invariants & edge cases
@@ -154,7 +154,8 @@ cannot corrupt `time[j]` history. That bug previously broke TTM / `year_sum`-sty
 4. **Mocks are limited.** Equity-style bare symbols may still mock offline; fundamental prefixes and foreign pre-evaluated exprs do not.
 5. **Dynamic symbols.** List/series symbols resolve to the latest element—supports loops constructing ticker ids.
 6. **Lower TF.** `request.security_lower_tf` returns array-like structures; length scales with simulated lower-TF density when mocking.
-7. **`mode=auto` + `request.*` → interpret.** Compile path is not a full multi-asset substitute.
+7. **`mode=auto` + `request.*` → interpret.** Compile path is not a full multi-asset substitute (`_compile_eligible` rejects `request.`).
+8. **HTF is last-completed only.** Forming HTF buckets are never returned; `gaps` / `lookahead` kwargs do not change that.
 
 ## Worked examples
 
@@ -184,7 +185,7 @@ plot(htf)
 plot(htf_sma)
 ```
 
-Same-symbol coarser TF: interpret buckets chart OHLCV and evaluates allowlisted simple `ta.*` (`sma` / `ema` / `rsi` / `atr`) on the HTF series. Compile may passthrough simple same-symbol OHLCV; complex foreign/security still → `na`.
+Same-symbol coarser TF: interpret buckets chart OHLCV (last **completed** HTF bar) and evaluates allowlisted simple `ta.*` (`sma` / `ema` / `rsi` / `atr`) on that series. Compile may passthrough simple same-symbol OHLCV; complex foreign/security still → `na`. Inspect `meta.request_security.policies` (`htf_ohlcv_resample`, `htf_simple_ta_resample`, `foreign_na`, `complex_htf_na`, …).
 
 ### Intentional `na` — dividend yield (fundamentals missing)
 

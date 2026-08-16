@@ -48,7 +48,7 @@ flowchart LR
 | `dates` | `None` | Optional x tick labels (≤ ~6 ticks) |
 | `title` | `"Chart"` | Title string |
 | `color` | `#2196F3` | Line + fill |
-| `height` / `width` | 300 / 600 | Pixel intent → figsize `/100`, dpi 100 |
+| `height` / `width` | 300 / 600 | `width` → figsize inches (`width/100`); **`height` is unused** for figsize — line charts use 3.0″ (3.5″ with volume), OHLCV 3.5″, empty 2.5″. dpi 100 |
 | `show_volume` | false | Twin axis bars from `ohlcv["volume"]` |
 | `ohlcv` | `None` | Volume source when enabled |
 
@@ -56,7 +56,7 @@ Empty / all-null values → `_render_empty_chart` placeholder.
 
 ### `render_ohlcv_chart`
 
-Candlestick + volume subplot pair from dict keys `open`, `high`, `low`, `close`, `volume`. Green/red body colors (`#4CAF50` / `#F44336`). Shared x-axis.
+Candlestick + volume subplot pair from dict keys `open`, `high`, `low`, `close`, `volume`. Green/red body colors (`#4CAF50` / `#F44336`). Shared x-axis. Figsize `(width/100, 3.5)` — the `height` argument is ignored.
 
 ### `render_equity_curve`
 

@@ -19,25 +19,24 @@
 
 ---
 title: "Semantic Tokens"
-description: "textDocument/semanticTokens/full — capability, legend, and current stub implementation."
+description: "textDocument/semanticTokens/full — AST visitor, custom legend, and LSP delta encoding."
 ---
 
 # Semantic Tokens
 
 ## Abstract
 
-Semantic tokens let the server paint identifiers with roles richer than TextMate scopes (e.g. distinguish library functions from user variables). PYNE **advertises** a full semantic-tokens provider with a standard legend, and implements `textDocument/semanticTokens/full` as a **safe stub**: parse succeeds, `data` is an empty integer array. Editors that require tokens degrade to grammar-only highlighting without protocol errors.
+Semantic tokens let the server paint identifiers with roles richer than TextMate scopes (library namespaces vs user variables, function defs vs properties). PYNE advertises a **full** semantic-tokens provider with a **short custom legend** (not the full LSP standard set) and implements `textDocument/semanticTokens/full` by walking the workspace AST.
 
 ## Conceptual model
 
 ```mermaid
 flowchart LR
-  REQ[semanticTokens/full] --> SRC{source?}
-  SRC -->|empty| EMPTY[SemanticTokens data=[]]
-  SRC -->|present| PARSE[parse]
-  PARSE -->|fail| EMPTY
-  PARSE -->|ok| STUB[SemanticTokens data=[]  // future visitor]
-  STUB -.->|planned| ENC["delta encoding: line, col, len, type, mods"]
+  REQ[semanticTokens/full] --> AST{cached tree?}
+  AST -->|missing source / parse fail| EMPTY[SemanticTokens data=[]]
+  AST -->|ok| WALK[_collect FunctionDef TypeDef EnumDef Assign Attribute]
+  WALK --> SORT[sort by line, col]
+  SORT --> ENC["delta encode: dLine, dCol, len, type, mods"]
 ```
 
 ## Interface surface
@@ -45,59 +44,73 @@ flowchart LR
 Capability (`config.py` → `semantic_tokens_provider`):
 
 ```text
-legend.token_types:
-  namespace, type, class, enum, interface, struct, typeParameter,
-  parameter, variable, property, enumMember, event, function,
-  method, macro, keyword, modifier, comment, string, number,
-  regexp, operator
+legend.token_types (index order is contract):
+  namespace, type, class, function, method, variable,
+  parameter, property, keyword, string, number, operator, comment
 
-legend.token_modifiers:
-  declaration, definition, readonly, static, deprecated,
-  abstract, async, modification, documentation, defaultLibrary
+legend.token_modifiers (bit 0 = declaration):
+  declaration, definition, readonly, defaultLibrary
 
 range: false
 full: true
 ```
 
-Handler: `features/semantic_tokens.py` → `handle_semantic_tokens`.
+Handler: `features/semantic_tokens.py` → `handle_semantic_tokens(params, source, tree=…)`.
 
-Response type: `lsp.SemanticTokens(data=[...])` — LSP-encoded five-tuples as a flat `int` array.
+Response type: `lsp.SemanticTokens(data=[...])` — LSP-encoded five-tuples as a flat `int` array (relative line/character deltas).
+
+### What is emitted
+
+| AST | Token type | Modifiers |
+| --- | --- | --- |
+| `FunctionDef.name` | function | definition \| declaration |
+| `TypeDef.name` | class | definition \| declaration |
+| `EnumDef.name` | type | definition \| declaration |
+| `Assign` to `Name` | variable | declaration |
+| `Attribute` whose value is a builtin namespace (`ta`, `math`, `strategy`, …) | namespace + method | defaultLibrary (+ readonly on ns) |
+| Other `Attribute.attr` | property | — |
+
+Builtin namespace set (`_BUILTIN_NS`): `ta`, `math`, `str`, `array`, `matrix`, `map`, `strategy`, `request`, `input`, `color`, `line`, `label`, `box`, `table`, `polyline`, `log`, `ticker`, `timeframe`, `chart`, `runtime`, `syminfo`, `barstate`, `session`, `time`.
 
 ## Internals
 
 | Path | Role |
 | --- | --- |
-| `features/semantic_tokens.py` | Stub handler |
-| `config.py` | Legend + capability |
-| `server.py` | `TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL` registration |
+| `features/semantic_tokens.py` | Collector + `_encode` |
+| `config.py` | Legend + capability — **indices must match** `_TT` |
+| `server.py` | `TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL`; passes cached `doc.ast` |
 
-The module docstring states intent: a visitor would emit `(line, col, len, token_type_index, modifiers_bitfield)` with relative line/character deltas per the LSP spec.
+Attribute columns prefer `end_col_offset - len(attr)` when present; otherwise parent `col_offset` (approximate).
 
-Until that lands, **TextMate** highlighting from `vscode-extension/syntaxes/pinescript.tmLanguage.json` remains the primary colorization path for VS Code.
+TextMate from `vscode-extension/syntaxes/pinescript.tmLanguage.json` still colors keywords, strings, and comments — the visitor does not emit those yet even though the legend reserves the slots.
 
 ## Invariants and edge cases
 
-1. **Never throws** — exceptions from parse yield empty data.
+1. **Never throws** — missing source, `tree=None`, or parse exception yields empty `data`.
 2. **No range provider** — clients must not request `semanticTokens/range`.
 3. **Legend is fixed** at initialize; changing indices later would break cached clients.
-4. Empty `data` is valid protocol, not an error.
+4. Empty `data` is valid protocol (empty file or parse failure), not an error.
+5. Tokens are sorted by `(line, col)` before delta encoding.
 
 ## Worked example
 
-Request `textDocument/semanticTokens/full` for any open buffer:
-
-```json
-{ "data": [] }
+```pinescript
+//@version=6
+indicator("tok")
+length = 14
+plot(ta.sma(close, length))
 ```
 
-Client falls back to TextMate / tree-sitter grammar scopes.
+Expect tokens for `length` (variable/declaration), `ta` (namespace/defaultLibrary), `sma` (method/defaultLibrary). Keywords such as `indicator` remain TextMate-only.
 
 ## Failure modes
 
 | Symptom | Cause |
 | --- | --- |
-| “Semantic highlighting” setting appears on but changes nothing | Stub returns empty data — expected |
+| Semantic highlighting off despite tokens | Client `editor.semanticHighlighting.enabled` false |
+| Colors look “shifted” after a legend edit | Client cached old type indices — restart the language client |
 | Client errors on range request | `range=False` in capabilities; client should not call it |
+| Attribute token sits on the wrong column | Missing `end_col_offset` on the AST node — approximate path |
 
 ## See also
 

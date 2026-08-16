@@ -68,6 +68,8 @@ from pynescript.ast.linter import lint_script, lint_file, PineLinter, LintWarnin
 
 Raises `ValueError` on bad mode; `SyntaxError` (via error listener) on grammar failure.
 
+Successful trees are cached in a process-local LRU (`sha256(source)` + `mode`). Disable with `PYNE_PARSE_CACHE=0`. Cached trees are **read-only** (shared by identity).
+
 ```python
 tree = parse('//@version=6\nindicator("x")\nplot(close)\n')
 expr = parse("close > open", mode="eval")
@@ -82,6 +84,8 @@ normalized = unparse(parse(messy_source))
 ```
 
 ### `dump(node, *, annotate_fields=True, include_attributes=False, indent=None) -> str`
+
+`indent` may be an `int` (spaces per level) or a string. `None` is a single line.
 
 Human-readable tree serialization (debug, tests, CLI).
 
@@ -122,8 +126,8 @@ class CallCounter(NodeVisitor):
 
 class RenameClose(NodeTransformer):
     def visit_Name(self, node):
-        # {/* TODO: verify exact Name field names on your generated nodes */}
-        if getattr(node, "id", None) == "close":
+        # Name fields: id (identifier), ctx (Load | Store | …)
+        if node.id == "close":
             node.id = "price"
         return node
 

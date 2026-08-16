@@ -77,7 +77,7 @@ pynescript-lsp = "pynescript.langserver.__main__:main"   # alias
 
 `PynescriptLanguageServer` (`server.py`):
 
-- Subclasses `pygls.lsp.server.LanguageServer` with `name="Pynescript"`, `version="0.1.0"`.
+- Subclasses `pygls.lsp.server.LanguageServer` with `name="Pynescript"` and `version=__version__` from `src/pynescript/__about__.py` (**0.3.10**).
 - Instantiates `self.pine_workspace = Workspace()`.
 - Registers handlers in `setup_method_handlers()` via `@self.feature(...)`.
 
@@ -108,9 +108,9 @@ From `config.py`:
 - Full + range formatting
 - Inlay hints (`resolve_provider=False`)
 - Semantic tokens full (legend of standard token types/modifiers; range=false)
-- Signature help and code action *options are advertised*; dedicated handlers are not fully wired as first-class feature modules yet — treat as capability stubs for clients that probe the table
+- Signature help and code action are **not** advertised (`config.py` omits them until handlers exist). `workspace/executeCommand` is registered but returns `None`.
 
-File filters (`get_filter_options`): `*.pine`, `*.pinev5`, `*.pinev6` under language id `pinescript`.
+File filters (`get_filter_options`): `*.pine`, `*.pinev5`, `*.pinev6` under language id `pinescript`. **`.pyne` is not in this helper** — VS Code still maps it via the extension contribution (`extensions: .pyne` first).
 
 ## Internals
 
@@ -131,7 +131,7 @@ TextDocumentState
 1. `parse(source, filename=uri)` — on success, `lint_script(source, filename=uri)`.
 2. On exception: clear AST, store `parse_error` string, extract line via regex `line[:\s]+(\d+)`.
 
-Incremental edits: `_apply_text_edit` splits on `\n`, replaces the LSP range, rejoins. Whole-document change events replace `source` wholesale.
+Incremental edits: `_apply_text_edit` splits on `\n`, pads the line list when the range sits at/past EOF (append without a trailing newline), clamps columns, then replaces the range. Out-of-range positions no longer leave a stale buffer. Whole-document change events replace `source` wholesale. Identical text after apply skips re-parse/lint (version still updates).
 
 Diagnostics conversion (`_lint_warnings_to_diagnostics`):
 
@@ -150,7 +150,7 @@ def text_completion(params):
     return completion_feature.handle_completion(params, source)
 ```
 
-Definition / references / symbols also pass `uri` for `Location` construction. Inlay hints and semantic tokens re-parse from `source` inside the feature module.
+Definition / references / symbols / hover / completion / inlay / semantic tokens receive the **workspace-cached AST** (`tree=doc.ast`) so they skip a redundant parse. Pass `tree=None` when the last parse failed. Omit `tree` only in isolated tests (handler then parses from `source`).
 
 ### Pull diagnostics
 
@@ -159,13 +159,13 @@ Definition / references / symbols also pass `uri` for `Location` construction. I
 
 ### Workspace symbols
 
-`workspace/symbol` walks each open document’s AST via `_collect_workspace_symbols`: `FunctionDef` → Function, `TypeDef` → Class, `Assign` to `Name` → Variable. Filter is case-insensitive substring on `params.query`.
+`workspace/symbol` walks each open document’s AST via `_collect_workspace_symbols`: `FunctionDef` → Function, `TypeDef` → Class, `EnumDef` → Enum, `Assign` to `Name` → Variable. Filter is case-insensitive substring on `params.query`.
 
 ## Invariants and edge cases
 
 1. **Parse failure is non-fatal for the process.** AST-dependent features return `None` or `[]`; diagnostics still surface E001.
 2. **Source of truth is the open buffer**, not disk. Save only re-publishes; it does not re-read files.
-3. **Incremental sync assumes the client sends coherent ranges.** Out-of-bounds ranges leave source unchanged (`_apply_text_edit` early-return).
+3. **Incremental sync pads/clamps rather than dropping the edit.** Ranges at EOF grow the line list; columns are clamped to the current line length.
 4. **Version** is stored and used in pull-diagnostic `result_id`; the server does not reject out-of-order versions itself.
 5. **Nuitka onefile** embeds providers data and may rely on encrypted metadata — see [builtin metadata](/pyne/docs/lsp/builtin-metadata). Architecture of handlers is identical to the pure-Python path.
 

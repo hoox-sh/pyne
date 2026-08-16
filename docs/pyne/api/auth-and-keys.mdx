@@ -124,7 +124,7 @@ Helpers: `is_active()` (always True today), `is_rate_limited()`, `get_tier_info(
 
 | Value | Persistence |
 | --- | --- |
-| `json` (default) | File at `API_KEY_STORE`; raw keys as object keys (dev only) |
+| `json` (default) | File at `API_KEY_STORE` (default `/data/api_keys.json`); **hash-only** object keys. Legacy files keyed by the raw `pyn_…` secret are migrated on load and the raw secret is dropped |
 | `sqlite` | `API_KEY_STORE_SQLITE` (or `.db` beside JSON path); hash-only |
 | `redis` | `REDIS_URL` required; hash-only |
 
@@ -172,6 +172,7 @@ curl -s -X POST http://127.0.0.1:5002/auth/validate \
 | --- | --- |
 | `UNAUTHORIZED` | Missing/invalid key |
 | `RATE_LIMITED` | `calls_used >= calls_limit` (finite limits) |
+| `FORBIDDEN` | `ADMIN_TOKEN` unset or `X-Admin-Token` mismatch (fail-closed) |
 | `INVALID_TIER` | create_key with unknown tier string |
 | `INVALID_KEY` | validate endpoint miss |
 

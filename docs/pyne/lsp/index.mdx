@@ -36,7 +36,7 @@ Editors want *static* intelligence at typing cadence. Evaluation over OHLCV is *
 | **Pro API** (`backend.app`) | request / batch | parse, evaluate, plots / events / alerts |
 | **CLI / library** | batch / embed | same AST + evaluator |
 
-The LSP publishes diagnostics from the linter and parse errors, completes and hovers from Fernet-ready builtin metadata, navigates user symbols via AST visitors, and formats by round-tripping through the unparser. Feature modules live under `src/pynescript/langserver/features/`; the VS Code extension (`pyne`) and `clients/` configs are thin protocol hosts — VS Code maps **`.pyne` first**, then legacy Pine suffixes, to language id `pinescript`.
+The LSP publishes diagnostics from the linter and parse errors, completes and hovers from Fernet-ready builtin metadata (plus keywords and user enums), navigates user symbols via AST visitors, emits semantic tokens from the cached tree, and formats by round-tripping through the unparser. Feature modules live under `src/pynescript/langserver/features/`; the VS Code extension (`hoox-sh.pyne` **0.3.10**) and `clients/` configs are thin protocol hosts — VS Code maps **`.pyne` first**, then legacy Pine suffixes, to language id `pinescript`. The stdio image is **`ghcr.io/hoox-sh/pyne/lsp`**.
 
 ## Conceptual model
 
@@ -80,7 +80,7 @@ flowchart TB
 | Symbols | `textDocument/documentSymbol`, `workspace/symbol` | `symbols.py`, `server.py` |
 | Formatting | `textDocument/formatting`, `rangeFormatting` | `features/formatting.py` |
 | Inlay hints | `textDocument/inlayHint` | `features/inlay_hints.py` |
-| Semantic tokens | `textDocument/semanticTokens/full` | `features/semantic_tokens.py` (stub data) |
+| Semantic tokens | `textDocument/semanticTokens/full` | `features/semantic_tokens.py` |
 
 Declared capabilities: `src/pynescript/langserver/config.py` (`get_server_capabilities`).
 
@@ -94,8 +94,8 @@ Declared capabilities: `src/pynescript/langserver/config.py` (`get_server_capabi
 | `src/pynescript/langserver/features/*` | Per-method handlers |
 | `src/pynescript/langserver/providers/*` | Metadata + completion builders |
 | `src/pynescript/langserver/__main__.py` | STDIO entry (`pyne-lsp` / alias `pynescript-lsp`) |
-| `vscode-extension/` | Language client + TextMate grammar |
-| `clients/` | Neovim, Zed, Emacs, Helix snippets |
+| `vscode-extension/` | Language client + TextMate grammar (`hoox-sh.pyne` 0.3.10) |
+| `clients/` | Neovim, Zed, Emacs snippets (Helix / Sublime are documented, not files) |
 
 Console scripts are separate: `pyne` (Click CLI; alias `pynescript`) vs `pyne-lsp` (pygls; alias `pynescript-lsp`). Do not conflate them — see [architecture](/pyne/docs/lsp/architecture).
 

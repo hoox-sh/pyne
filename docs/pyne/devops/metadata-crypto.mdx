@@ -68,9 +68,9 @@ flowchart LR
 
 ### Code entrypoints
 
-- Encrypt stage: `scripts/build/compile.py` (`encrypt_metadata`), `scripts/build/ci_build.py` (`stage_metadata`)
+- Encrypt stage: `scripts/build/compile.py` (`encrypt_metadata` / `_resolve_fernet_key`), `scripts/build/ci_build.py` (`stage_metadata`)
 - Decrypt: `src/pynescript/langserver/providers/metadata_decrypt.py`
-- Loader preference: plaintext if present, else encrypted (`get_metadata_cached`)
+- Loader preference: plaintext if present, else encrypted (`get_metadata` returns `{}` on miss; `get_metadata_cached` raises)
 
 ## Internals
 

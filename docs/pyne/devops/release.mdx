@@ -34,7 +34,7 @@ A PYNE release is a **multi-artifact event**, not a single wheel upload. The pri
 - **CLI Docker image** tarball (`pynescript-cli-image.tar.gz`)
 - **VS Code** VSIX
 
-Assets attach to a GitHub Release; PyPI upload is handled by `publish.yml` (Trusted Publishing). Marketplace publish is optional via `VSCE_PAT`.
+Assets attach to a GitHub Release; PyPI upload is handled by **Publish** (`publish.yml`). Multi-arch container images are a **separate** workflow (**GHCR** / `ghcr.yml`) — not attached as tarballs except the CLI image save in this workflow. Marketplace / Open VSX publish is optional via `VSCE_PAT` / `OVSX_PAT`.
 ## Conceptual model
 
 ```mermaid
@@ -69,8 +69,8 @@ sequenceDiagram
 
 | Event | Behavior |
 | --- | --- |
-| Push tag matching `v*` | Full build + create release + marketplace publish |
-| `workflow_dispatch` with `version` input | Manual build path (release job still gated on tag push condition) |
+| Push tag matching `v*` | Full build + create release + marketplace/Open VSX publish |
+| `workflow_dispatch` with `version` input | Same jobs; **Create Release** also runs on dispatch (not tag-only) |
 
 ### Jobs
 
@@ -81,14 +81,14 @@ sequenceDiagram
 | `build-lsp` | ubuntu-latest, windows-latest, macos-latest | `pynescript-lsp-linux-x86_64`, `…-windows-x86_64.exe`, `…-macos-arm64` |
 | `build-docker-cli` | ubuntu-latest | `pynescript-cli-docker` (gzipped `docker save`) |
 | `build-vscode` | ubuntu-latest | `pynescript-vscode-extension` VSIX |
-| `release` | needs package + vscode success; tag push only | GitHub Release body + all staged assets |
-| `publish-vscode` | needs VSIX; only if tag push | `vsce publish --pat` |
+| `release` | needs package + vscode success; tag **or** dispatch | GitHub Release body + staged assets (`name: pyne vX.Y.Z`) |
+| `publish-vscode` | needs VSIX; tag **or** dispatch | `vsce publish` if `VSCE_PAT`; `ovsx publish` if `OVSX_PAT` |
 
 ### Environment
 
 ```yaml
 env:
-  PYTHON_VERSION: "3.12"
+  PYTHON_VERSION: "3.11"   # Nuitka 2.5–2.7 graph; comment in workflow
   NUITKA_JOBS: 4
 ```
 
@@ -96,13 +96,13 @@ Build steps rely on:
 
 ```bash
 # LSP
-pip install -e ".[lsp]" "nuitka==2.0.*" cryptography
+pip install -e ".[lsp]" "nuitka>=2.5.1,<2.8" cryptography
 python scripts/build/compile.py --target lsp --no-encrypt --check
 python scripts/build/ci_build.py --target lsp --jobs 4
 # CRYPTO_KEY from secrets.METADATA_KEY
 
 # CLI
-pip install -e . "nuitka==2.0.*"
+pip install -e . "nuitka>=2.5.1,<2.8"
 python scripts/build/compile.py --target cli --check
 python scripts/build/ci_build.py --target cli --jobs 4 --skip-metadata --skip-vsix
 ```
@@ -141,7 +141,7 @@ Artifacts land under `dist/`, `dist/lsp/`, `dist/cli/`, `dist/vsix/`, and `vscod
 | `pynescript-lsp-linux-x86_64` | `chmod +x` → `/usr/local/bin/pynescript-lsp` |
 | `pynescript-lsp-windows-x86_64.exe` | Place on PATH |
 | `pynescript-lsp-macos-arm64` | Place on PATH (Apple Silicon runners) |
-| `pyne-*.vsix` | `code --install-extension pyne-*.vsix` |
+| `pyne-vscode-*.vsix` (`hoox-sh.pyne` 0.3.10) | `code --install-extension pyne-vscode-*.vsix` |
 
 ## Invariants & edge cases
 
@@ -160,9 +160,9 @@ Artifacts land under `dist/`, `dist/lsp/`, `dist/cli/`, `dist/vsix/`, and `vscod
 # ensure main is green
 git checkout main && git pull
 # bump versions in extension / __about__ as needed
-git tag -a v0.3.0 -m "v0.3.0"
-git push origin v0.3.0
-# watch Actions → Build & Release
+git tag -a v0.3.10 -m "v0.3.10"
+git push origin v0.3.10
+# watch Actions → Build & Release, Publish, GHCR
 ```
 
 ### Smoke-test a downloaded binary

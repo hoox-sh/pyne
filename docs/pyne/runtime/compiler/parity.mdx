@@ -62,7 +62,7 @@ python scripts/compare_interp_compile.py --files tests/fixtures/parity/pine/stra
 | Report | `.cache/interp_compile_parity.json` |
 | Exit 0 | No value/`nan` mismatches on common series keys |
 
-**Buckets:** `OK`, `fill_background_only`, `both_error_same`, `both_error`, `MISMATCH`, `interp_error`, `compile_error`, `structural_only`. Matched errors on both backends count as success unless `--strict-errors`. Structural key-only differences warn by default; `--strict-keys` fails. `--ignore-hline-keys` / `--ignore-fill-keys` drop one-sided constant hline and fill/background series from residuals.
+**Buckets:** `OK`, `fill_background_only`, `both_error_same`, `expected_error`, `both_error`, `MISMATCH`, `interp_error`, `compile_error`, `structural_only`. Matched errors on both backends (`both_error_same`) and intentional demo failures (`expected_error`, e.g. auto-fib / pivot-depth) count as success unless `--strict-errors`. Structural key-only differences warn by default; `--strict-keys` fails. `--ignore-hline-keys` / `--ignore-fill-keys` drop one-sided constant hline and fill/background series from residuals.
 
 ### Focused unit tests
 
@@ -74,7 +74,7 @@ python scripts/compare_interp_compile.py --files tests/fixtures/parity/pine/stra
 
 ### Product path
 
-Pro API `/run` defaults to **`mode=auto`**: compile when the script lowers safely, otherwise interpret. Parity harness always forces explicit `interpret` vs `compile` so fallbacks do not hide drift.
+Pro API `/run` defaults to **`mode=auto`**: compile when `_compile_eligible` passes (no top-level `import`, no `request.` token), otherwise interpret with `compile_fallback_reason`. Parity harness always forces explicit `interpret` vs `compile` so fallbacks do not hide drift.
 
 ## What must match
 
@@ -98,7 +98,9 @@ Pro API `/run` defaults to **`mode=auto`**: compile when the script lowers safel
 | Path | Role |
 | --- | --- |
 | `scripts/compare_interp_compile.py` | End-to-end series compare |
-| `backend/runtime.py` | `_run_compiled`, `_ohlcv_times_to_array` (`time_arr`) |
+| `tests/test_interp_compile_parity.py` | Always-on smoke + harness flag tests |
+| `src/pynescript/runtime/host.py` | `_run_compiled`, OHLCV + `time_arr` packing |
+| `backend/runtime.py` | Compat re-export of the package host |
 | `src/pynescript/compiler/engine.py` | Compile façade + result normalize |
 | `src/pynescript/compiler/numba_builtins.py` | JIT kernels under test |
 

@@ -26,15 +26,15 @@ description: "textDocument/completion and completionItem/resolve from builtin me
 
 ## Abstract
 
-Completion is metadata-driven, not evaluator-driven. The server loads a catalog of builtins (plaintext JSON in development, Fernet-encrypted in compiled binaries), filters by prefix or module, and returns `CompletionItem` rows with optional snippet `insertText`. Resolve re-hydrates documentation for a single item.
+Completion is catalog-driven, not evaluator-driven. The server loads builtin metadata (plaintext JSON in development, Fernet-encrypted in compiled binaries), then also offers **Pine keywords** (`PINE_KEYWORDS`) and **user `enum` types / members** collected from the workspace AST. Resolve re-hydrates documentation for a single item.
 
 ## Conceptual model
 
 ```mermaid
 flowchart TD
   CUR[Cursor context] --> TR{trigger / prefix}
-  TR -->|module.| MOD[build_module_completion]
-  TR -->|prefix text| ALL[build_completion_list + fuzzy_filter]
+  TR -->|module.| MOD[build_module_completion or enum members]
+  TR -->|prefix text| ALL[keywords + user enums + fuzzy_filter]
   MOD --> META[get_metadata]
   ALL --> META
   META --> ITEMS[CompletionList]
@@ -55,8 +55,11 @@ Handler: `features/completion.py` → `handle_completion` / `handle_completion_r
 
 1. Compute `text_before_cursor` on the current line.
 2. `get_trigger_char` — if the previous character is `.` (or `(`, `,`, space), treat as trigger.
-3. If the last token contains `.` (e.g. `ta.` or `ta.sm`), call `build_module_completion(module)`.
-4. Else `build_completion_list(prefix=prefix)` over the full catalog.
+3. Collect user enums from the cached AST (`collect_user_enums`).
+4. If the last token contains `.` (e.g. `ta.` or `Side.`):
+   - user-enum prefix → `build_enum_member_completion`
+   - else `build_module_completion(module)` for catalog namespaces
+5. Else merge `build_keyword_items`, `build_enum_name_items`, and `build_completion_list(prefix=prefix)`.
 
 Word boundaries for Pine identifiers: `[a-zA-Z_][a-zA-Z0-9_.]*` (`protocol/utils.py`).
 
@@ -106,7 +109,7 @@ Results sorted by score descending, capped at `limit`.
 
 ## Invariants and edge cases
 
-1. **No user-symbol completion yet** — only catalog builtins (not local `myFunc` unless it appears in metadata).
+1. **No local function / variable completion yet** — user **enums** and **keywords** are included; local `myFunc` is not, unless it appears in metadata.
 2. Empty metadata dict yields an empty list (failed decrypt / missing files).
 3. Module completion uses `startswith(module + ".")` — nested namespaces beyond one dot still work if labels are fully qualified.
 4. Snippets are generated at metadata build time (`scripts/generate_builtin_metadata.py`); incompleteness of placeholders is a generator concern, not the LSP handler.

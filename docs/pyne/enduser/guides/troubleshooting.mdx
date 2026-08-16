@@ -89,11 +89,11 @@ plot(close)
 which python
 python -m pynescript --help
 # If module works but script does not:
-python -m pip show pynescript
+python -m pip show hoox-pyne
 ls "$(python -c 'import sysconfig; print(sysconfig.get_path("scripts"))')"
 ```
 
-Fix: activate the venv used for install; reinstall `pip install hoox-pyne` (import package is still `pynescript`).
+Fix: activate the venv used for install; reinstall `pip install hoox-pyne` (import package is still `pynescript`). Do **not** `pip show pynescript` — that is a different PyPI project.
 
 ### 2. `ModuleNotFoundError: pynescript`
 
@@ -156,7 +156,7 @@ Escalate to `Runtime.run` for multi-bar scripts.
 curl -s -X POST http://127.0.0.1:5002/run -H 'Content-Type: application/json' -d '{"script":"//@version=6\nindicator(\"t\")\nplot(close)","data":[{"time":1,"open":1,"high":1,"low":1,"close":1,"volume":1}]}'
 ```
 
-If minimal works but strategy fails: remove `request.*`, drawings, then strategy entries until isolated. Check `mode`; try `"interpret"`.
+If minimal works but strategy fails: remove `request.*`, drawings, then strategy entries until isolated. Check `mode`; try `"interpret"`. Library `Runtime.run` defaults to **interpret**; `POST /run` defaults to **auto**; `pyne run` is compile-only synthetic smoke — they will not match each other unless you set `mode` explicitly. See [modes](/pyne/docs/enduser/reference/modes).
 
 ### 8. Schema validation errors
 
@@ -208,6 +208,8 @@ PYNE is independent of TradingView®. Behavioral gaps are expected for edge buil
 | SyntaxError | parse | minimal script + version |
 | Lint CI fail | lint | `--fail-on` level |
 | Empty plots | eval | `plot()` present; enough bars |
+| `pyne run` ≠ `Runtime.run` | modes | CLI is compile-only synthetic; library default is interpret |
+| `UNKNOWN_FIELDS` + `timeout_seconds` | HTTP | `timeout_seconds` is library-only; drop it from `/run` |
 | 400 UNKNOWN_FIELDS | HTTP | schema |
 | 403 create_key | HTTP | `ADMIN_TOKEN` |
 | 413 | HTTP | body size |

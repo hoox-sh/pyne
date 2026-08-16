@@ -28,7 +28,7 @@ The unparser is the inverse of the builder: ASDL nodes become source text with c
 
 ## Abstract
 
-`src/pynescript/ast/unparser.py` implements `NodeUnparser(NodeVisitor)` and a `Precedence` enum. `helper.unparse(node)` constructs a fresh unparser and returns `"".join` of the internal buffer. Output is **semantically faithful**, not a pretty-printer of original trivia: whitespace is normalized; comments that never became annotations are not reconstructed; annotation strings that *were* attached are re-emitted.
+`src/pynescript/ast/unparser.py` implements `NodeUnparser(NodeVisitor)` and a `Precedence` enum. `helper.unparse(node)` calls `unparse_node`, which reuses a **thread-local** `NodeUnparser` (warm type-visitor cache; `visit` still resets the buffer each call). Output is **semantically faithful**, not a pretty-printer of original trivia: whitespace is normalized; comments that never became annotations are not reconstructed; annotation strings that *were* attached are re-emitted.
 
 Round-trip tests (`parse → unparse → parse`) are the primary oracle for grammar/builder/unparser coherence.
 
@@ -47,7 +47,7 @@ flowchart LR
   V --> BUF --> OUT
 ```
 
-Parenthesization rule of thumb: if a child expression’s stored precedence is **weaker** (higher binding needed) than the parent operator, wrap the child in `()`.
+Parenthesization: higher `Precedence` values bind **tighter** (`TEST` loosest, `ATOM` tightest). A node is wrapped in `()` when the precedence **stored on it** (the parent context) is **strictly greater** than the node’s own operator level. Equal levels do not wrap (left-associative chains).
 
 ## Interface surface
 
@@ -64,19 +64,26 @@ print(unparse(parse(src)))
 
 ### `Precedence` (low → high binding)
 
+Matches `IntEnum` order in `unparser.py`:
+
 | Level | Operators / forms |
 | --- | --- |
 | `TEST` | ternary `? :` (weakest) |
 | `OR` | `or` |
 | `AND` | `and` |
+| `BITOR` | `\|` |
+| `BITXOR` | `^` |
+| `BITAND` | `&` |
 | `EQ` | `==` `!=` |
 | `INEQ` / `CMP` | `<` `>` `<=` `>=` |
+| `SHIFT` | `<<` `>>` |
+| `EXPR` | reserved slot (unused by current op tables) |
 | `ARITH` | `+` `-` |
 | `TERM` | `*` `/` `%` |
-| `FACTOR` / `NOT` | unary `+` `-` `not` |
+| `FACTOR` / `NOT` | unary `+` `-` `not` `~` |
 | `ATOM` | names, literals, calls, subscripts |
 
-`Precedence.next()` steps one level tighter for right-hand associativity control.
+`Precedence.next()` steps one level tighter for right-hand associativity control. Bitwise tokens are emitted from `visit_BinOp` / `visit_UnaryOp` maps (`BitAnd`/`BitOr`/`BitXor`/`LShift`/`RShift`/`Invert`), not standalone `visit_BitAnd` methods.
 
 ### Buffer helpers (internal but useful when subclassing)
 
@@ -95,7 +102,7 @@ print(unparse(parse(src)))
 | Node | Emission sketch |
 | --- | --- |
 | `Script` | annotations then body |
-| `FunctionDef` | optional `export`/`method`, `name(args) => body` (inline single `Expr` or indented block) |
+| `FunctionDef` | optional `export`/`method`, optional `returns` type spec, `name(args) => body` (inline single `Expr` or indented block) |
 | `TypeDef` | `type Name` with fields then methods |
 | `EnumDef` | `enum Name` body |
 | `Assign` | annotations, `export?`, `var`/`varip?`, type?, target `= value` |
@@ -103,19 +110,21 @@ print(unparse(parse(src)))
 | `AugAssign` | `target op= value` |
 | `ForTo` / `ForIn` / `While` / `If` / `Switch` | Pine control syntax; `else if` chain collapse |
 | `Import` | `import ns/name/version as alias?` |
-| `BinOp` / `BoolOp` / `UnaryOp` / `Compare` / `Conditional` | precedence-aware |
+| `BinOp` / `BoolOp` / `UnaryOp` / `Compare` / `Conditional` | precedence-aware, including bitwise `|` `^` `&` `<<` `>>` `~` |
 | `Call` / `Attribute` / `Subscript` / `Name` / `Constant` / `Tuple` | primaries |
 
 ## Internals
 
 ### Path
 
-- `src/pynescript/ast/unparser.py` — `Precedence`, `NodeUnparser`
-- Entry: `helper.unparse` → `NodeUnparser().visit(node)`
+- `src/pynescript/ast/unparser.py` — `Precedence`, `NodeUnparser`, `unparse_node`
+- Entry: `helper.unparse` → `unparse_node` → thread-local `NodeUnparser.visit`
 
 ### Visit vs traverse
 
-`visit` resets `_source` and calls `traverse`. `traverse` accepts lists (statement bodies) or single nodes, then dispatches via the visitor cache. This split lets statement lists and expression trees share code without double-buffering.
+`visit` resets `_source`, `_precedences`, and `_indent`, then calls `traverse`. `traverse` accepts lists (statement bodies) or single nodes, then dispatches via `_type_visitor_cache` (type-object keys, not class-name strings). This split lets statement lists and expression trees share code without double-buffering.
+
+`visit_FunctionDef` emits `returns` (when set) as a leading type spec: `export method int name(args) => …`.
 
 ### If / else if chains
 
@@ -131,7 +140,7 @@ String constants use JSON-style quoting helpers where needed; colors and numbers
 
 ## Invariants
 
-1. **Precedence tables must stay aligned with the parser’s expression layers.** A mismatch causes either redundant parens (benign) or wrong binding after re-parse (severe).
+1. **Precedence tables must stay aligned with the parser’s expression layers** (including bitwise `|` `^` `&` `<<` `>>` between `and` and comparisons). A mismatch causes either redundant parens (benign) or wrong binding after re-parse (severe).
 2. **Annotations are part of the round-trip surface** when attached to Script/FunctionDef/TypeDef/Assign.
 3. **Unparser does not type-check.** Ill-typed but well-shaped trees still print.
 4. **Indent unit is four spaces** (`"    " * self._indent`).
@@ -153,6 +162,8 @@ print(unparse(parse("1 + 2 * 3", mode="eval")))
 ```python
 # Single-expression body → f(x) => expr
 # Multi-statement body → f(x) =>\n    stmt\n    stmt
+# With return type → int f(x) => expr
+# Method → method int f(self) => expr
 ```
 
 ### Reassignment vs declaration

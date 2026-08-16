@@ -76,7 +76,7 @@ Categories drive completion headers (`ta.technical_analysis` → “Technical An
 
 | Function | Behavior |
 | --- | --- |
-| `get_metadata()` | Singleton cache; prefer `.enc` decrypt, else plaintext JSON, else `{}` |
+| `get_metadata()` | Singleton cache; **plaintext JSON first**, else `.enc` decrypt, else `{}` |
 | `get_builtin(name)` | Single entry or `None` |
 | `get_builtins_by_category` / `get_all_categories` | Category queries |
 | `fuzzy_filter` | Scored substring match for completion |
@@ -112,14 +112,14 @@ Do not hand-edit the JSON as the long-term source of truth; regenerate from code
 
 ### Encryption (build)
 
-`scripts/build/compile.py` → `encrypt_metadata()`:
+`scripts/build/compile.py` → `encrypt_metadata()` / `_resolve_fernet_key()`:
 
 1. Require `cryptography` and plaintext JSON.
-2. Generate Fernet key → write `scripts/build/.metadata.key` (mode `0o600`).
+2. Resolve key (first hit wins): env `CRYPTO_KEY` → `PYNESCRIPT_METADATA_KEY` → `METADATA_KEY` → existing `scripts/build/.metadata.key` → generate a new Fernet key and write that file (mode `0o600`).
 3. Encrypt → `builtin_metadata.json.enc`.
 4. Write truncated SHA-256 of plaintext to `.sha256`.
 
-Local `encrypt_metadata` currently **always generates a new key** when invoked. For **byte-stable** encrypted artifacts across CI runs, supply a stable secret:
+A random key is generated **only on first local encrypt** when no env/file key exists. For **byte-stable** encrypted artifacts across CI runs, supply a stable secret:
 
 | Context | Mechanism |
 | --- | --- |
@@ -138,9 +138,7 @@ Without a stable key, each CI encrypt produces a different `.enc` blob — not a
 3. If `.sha256` present, compare `sha256(plaintext).hexdigest()[:16]`.
 4. `json.loads` → dict.
 
-`get_metadata_cached()` prefers **plaintext** when both exist (developer-friendly).
-
-`get_metadata()` in `builtin_metadata.py`: if `.enc` exists, try decrypt cache; on failure empty dict; elif plaintext, load it.
+Both `get_metadata()` and `get_metadata_cached()` prefer **plaintext** when both artifacts exist (developer-friendly). Difference: `get_metadata()` returns `{}` on total failure; `get_metadata_cached()` raises `FileNotFoundError` if neither file is present.
 
 ## Invariants and edge cases
 

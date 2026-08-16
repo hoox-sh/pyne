@@ -84,7 +84,9 @@ Use `/pynets-parity` when adding or fixing builtins. Use `/pynets-generate` when
 | PYNE `src/pynescript/ast/evaluator/builtins/` | Handler SoT |
 | PYNE `tests/test_first_party_ta_goldens.py` | Python goldens |
 
-Do **not** treat historical `pine-worker/test/parity/` JSON as the PyneTS harness. That tree belongs to the [legacy TS Worker](/pyne/docs/pine-worker).
+Do **not** treat historical `pine-worker/test/parity/` JSON as the PyneTS harness. That tree belongs to the [legacy TS Worker](/pyne/docs/pine-worker) sister repo.
+
+The PYNE `pynets/` submodule (0.1.0) has interpret tests only. Compile-vs-interpret cases (`test/compile_*.test.ts`) live on standalone **0.2.0**.
 
 ## Invariants & edge cases
 

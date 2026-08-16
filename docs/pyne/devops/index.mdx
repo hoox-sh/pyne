@@ -26,7 +26,7 @@ description: "CI matrices, containers, Nuitka LSP binaries, metadata crypto, Clo
 
 ## Abstract
 
-PYNE is a **multi-surface product**: pure-Python library + Click CLI, pygls Language Server, Flask Pro API, VS Code extension, Docker targets (`api` / `cli` / `lsp`), and colocated edge workers. The AXIS charting PWA is a **sister repo** — not built in this tree.
+PYNE is a **multi-surface product**: pure-Python library + Click CLI (`pyne` / alias `pynescript`), pygls Language Server (`pyne-lsp`), Flask Pro API, VS Code extension (`hoox-sh.pyne` 0.3.10), and Docker targets (`api` / `cli` / `lsp`). Edge workers and the AXIS charting PWA are **sister repos** — not built in this tree.
 
 This tab documents the **operational graph**: local loops, GitHub Actions, release tags, Docker images, Nuitka CLI/LSP binaries, Fernet-encrypted LSP metadata, GCP Cloud Build/Run, observability hooks, and security controls.
 
@@ -51,7 +51,7 @@ flowchart TB
     CLIBIN[Nuitka pynescript CLI]
     LSPBIN[Nuitka pynescript-lsp]
     VSIXART[*.vsix]
-    IMG[Docker api + cli images]
+    IMG[GHCR api + cli + lsp]
   end
   subgraph Deploy
     CR[Cloud Run Pro API]
@@ -68,16 +68,17 @@ flowchart TB
   IMG --> CR
 ```
 
-**Invariant:** CI green on `main` is necessary but not sufficient for a full release. Tag workflows build CLI/LSP binaries + VSIX; `publish.yml` uploads **`hoox-pyne`** to PyPI; Cloud Build deploys the API image separately.
+**Invariant:** CI green on `main` is necessary but not sufficient for a full release. Tag `v*` fires **Build & Release** (binaries + VSIX + GitHub Release), **Publish** (`hoox-pyne` 0.3.10 to PyPI), and **GHCR** (`ghcr.io/hoox-sh/pyne/{api,cli,lsp}`). Cloud Build deploys the API image separately.
 
 ## Interface surface
 
 | Concern | Entry | Doc |
 | --- | --- | --- |
 | Local install & loops | `Makefile`, hatch envs | [Local development](/pyne/docs/devops/local-dev) |
-| PR / push CI | `.github/workflows/ci.yml` | [CI](/pyne/docs/devops/ci) |
-| Versioned CLI + LSP + VSIX | `.github/workflows/release.yml` | [Release](/pyne/docs/devops/release) |
-| PyPI (`hoox-pyne`) | `.github/workflows/publish.yml` | [PyPI publish](/pyne/docs/devops/pypi-publish) |
+| PR / push CI | `.github/workflows/ci.yml` (`name: CI`) | [CI](/pyne/docs/devops/ci) |
+| Versioned CLI + LSP + VSIX | `.github/workflows/release.yml` (`name: Build & Release`) | [Release](/pyne/docs/devops/release) |
+| PyPI (`hoox-pyne`) | `.github/workflows/publish.yml` (`name: Publish`) | [PyPI publish](/pyne/docs/devops/pypi-publish) |
+| GHCR images | `.github/workflows/ghcr.yml` (`name: GHCR`) | [Docker](/pyne/docs/devops/docker) |
 | First ship checklist | personal PyPI + API token | [Publish checklist](/pyne/docs/devops/publish-checklist) |
 | Containers | `Dockerfile` targets api/api-dev/lsp/**cli** | [Docker](/pyne/docs/devops/docker) |
 | Compiled CLI / LSP | `scripts/build/compile.py --target` | [Nuitka build](/pyne/docs/devops/nuitka-build) |
@@ -92,7 +93,7 @@ flowchart TB
 | --- | --- |
 | `Makefile` | Human-facing orthography: install, test, lint, build, docker, worker |
 | `pyproject.toml` | Hatch envs (`test`, `lint`, `docs`), optional extras (`lsp`, `data`) |
-| `.github/workflows/` | `ci.yml`, `release.yml`, `publish.yml` |
+| `.github/workflows/` | `ci.yml`, `release.yml`, `publish.yml`, `ghcr.yml` |
 | `scripts/build/` | Nuitka compile + CI build + Fernet metadata stage |
 | `scripts/generate_builtin_metadata.py` | Regenerates LSP `builtin_metadata.json` from live builtins |
 | `Dockerfile` / `docker-bake.hcl` | Multi-target Buildx images (api, api-dev, lsp) |
@@ -102,11 +103,11 @@ flowchart TB
 
 ## Invariants & edge cases
 
-1. **Two console scripts, two entrypoints.** `pynescript` (Click) ≠ `pynescript-lsp` (pygls). Ops scripts must not conflate them.
+1. **Two console scripts, two entrypoints.** Preferred: `pyne` (Click) ≠ `pyne-lsp` (pygls). Aliases: `pynescript` / `pynescript-lsp`. Ops scripts must not conflate them.
 2. **Generated artifacts are not hand-edited.** ANTLR/ASDL under `generated/` and `builtin_metadata.json` are code-derived.
 3. **Fernet key is gitignored.** Without a stable `CRYPTO_KEY` / `METADATA_KEY` secret, every CI encrypt produces a different `.enc` blob (harmless functionally, bad for reproducibility).
-4. **Python matrix vs local default.** CI tests 3.10–3.13; Nuitka release currently pins 3.12.
-5. **AXIS nightly is not PR-blocking.** Full Playwright + security gates run on schedule (`axis-nightly.yml`).
+4. **Python matrix vs Nuitka pin.** CI tests 3.10–3.13; Nuitka release currently pins **3.11** (`release.yml` `PYTHON_VERSION`, `nuitka>=2.5.1,<2.8`).
+5. **AXIS CI is not in this repo.** Playwright / PWA security gates live in [hoox-sh/axis](https://github.com/hoox-sh/axis). There is no `axis-nightly.yml` here.
 
 ## Worked examples
 

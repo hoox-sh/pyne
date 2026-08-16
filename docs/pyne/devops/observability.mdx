@@ -39,7 +39,7 @@ flowchart TB
   APP --> RUN["POST /run …"]
   APP --> KEYS[APIKeyStore counters]
   GUNI --> LOGS[stdout / Cloud Logging]
-  CI[GitHub Actions] --> ART[coverage lcov / playwright report]
+  CI[GitHub Actions] --> ART[coverage xml / VSIX / docker smoke]
 ```
 
 ## Interface surface
@@ -62,14 +62,16 @@ Used by:
 ### Process model (production)
 
 ```text
-gunicorn --bind :8080 --workers 2 --threads 4 --timeout 60 backend.app:app
+gunicorn --bind :8080 --workers 2 --threads 4 --timeout 120 backend.app:app
+# docker/entrypoint-api.sh: GUNICORN_TIMEOUT default 120
+# docker-compose.prod.yml: GUNICORN_TIMEOUT default 60
 ```
 
 | Knob | Effect on signals |
 | --- | --- |
 | workers | Process isolation; multiplies memory |
 | threads | Concurrent requests within worker |
-| timeout 60s | Aligns with Cloud Run `--timeout=60s` — long evals die predictably |
+| timeout | Entrypoint default **120s**. Cloud Run `--timeout=60s` is tighter unless you raise the platform flag or lower `GUNICORN_TIMEOUT`. |
 
 ### Logs
 
@@ -86,12 +88,11 @@ Application modules use standard library / Flask logging patterns; there is no m
 
 | Signal | Source |
 | --- | --- |
-| Ruff / mypy | `ci.yml` lint job |
-| Pytest results | LSP + backend jobs |
+| Ruff / mypy | `CI` lint job |
+| Pytest results | runtime + LSP + backend steps in `CI` |
 | Codecov (optional) | Python 3.13 matrix cell |
-| AXIS coverage lcov | `axis-coverage-lcov` artifact |
-| Playwright report | Uploaded on nightly/e2e failure |
-| Security tests | `bun run test:security` (PWA job + nightly) |
+| VSIX | `CI` `vscode-ext-test` artifact |
+| Docker smoke | `CI` api health + admin 403; CLI `--help` / `info` / `check` |
 
 ### Usage metering (app-layer)
 
@@ -116,7 +117,7 @@ These are **business metrics** for rate limits, not Prometheus time series — e
 ## Invariants & edge cases
 
 1. **Health ≠ readiness of evaluator warm caches.** A 200 on `/` does not mean the first `/run` will be fast (cold import / JIT / numba).
-2. **Timeouts double-bind.** Gunicorn 60s and Cloud Run 60s — the tighter effective limit is still 60s.
+2. **Timeouts double-bind.** Cloud Run 60s vs gunicorn default 120s — the **platform** limit wins on Cloud Run unless you set `GUNICORN_TIMEOUT=60`.
 3. **Scale-to-zero hides idle metrics.** No traffic ⇒ no samples; use synthetic uptime checks if SLOs matter.
 4. **Coverage artifacts expire** (7–14 days retention on Actions uploads).
 5. **Do not scrape secrets from logs.** API keys and admin tokens must never be logged at info level.

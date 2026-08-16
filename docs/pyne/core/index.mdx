@@ -28,7 +28,7 @@ The language core is the front half of the evaluate contract: source text become
 
 ## Abstract
 
-PYNE treats Pine Script as a **formal pipeline**, not a host plugin. Lexing and parsing are ANTLR4-driven. The concrete syntax tree is lowered by a hand-written visitor (`PinescriptASTBuilder`) into ASDL-generated dataclasses. Public helpers in `helper.py` mirror Python’s `ast` module: `parse`, `unparse`, `dump`, `walk`, `literal_eval`. Static tools (linter, type registry, LSP) consume the same tree. Evaluation is out of scope here — see [Runtime](/pyne/docs/runtime).
+PYNE treats Pine Script as a **formal pipeline**, not a host plugin. Lexing and parsing are ANTLR4-driven. The concrete syntax tree is lowered by a hand-written visitor (`PinescriptASTBuilder`) into ASDL-generated dataclasses. Public helpers in `helper.py` mirror Python’s `ast` module: `parse`, `unparse`, `dump`, `walk`, `literal_eval`, plus a process-local sha256 LRU parse cache (`clear_parse_cache`, `parse_cache_info`). Static tools (linter, type registry, LSP) consume the same tree. Evaluation is out of scope here — see [Runtime](/pyne/docs/runtime).
 
 **Hard rule:** edit grammar only under `resource/`. Paths under `generated/` are regenerated artifacts and must not be hand-edited.
 
@@ -81,6 +81,8 @@ print(dump(tree, indent=2))
 print(unparse(tree))
 ```
 
+Successful `parse` results are cached by `sha256(source)` + `mode` (default ON; `PYNE_PARSE_CACHE=0` disables). Treat returned trees as **read-only**.
+
 Modes:
 
 | `mode` | Entry rule | Root node |
@@ -92,10 +94,10 @@ Full page inventory:
 
 | Page | Topic |
 | --- | --- |
-| [Grammar (ANTLR4)](/pyne/docs/core/grammar-antlr4) | Resource vs generated; regen; v6 triple strings |
+| [Grammar (ANTLR4)](/pyne/docs/core/grammar-antlr4) | Resource vs generated; typed names; `=` vs `:=` |
 | [ASDL schema](/pyne/docs/core/asdl-schema) | Algebraic AST; codegen |
 | [Builder](/pyne/docs/core/builder) | CST visitor → ASDL nodes |
-| [Helper API](/pyne/docs/core/helper-api) | `parse`, `dump`, `walk`, locations |
+| [Helper API](/pyne/docs/core/helper-api) | `parse`, cache, `dump`, `walk`, locations |
 | [Unparser](/pyne/docs/core/unparser) | Precedence-aware source regen |
 | [Visitor / transformer](/pyne/docs/core/visitor-transformer) | Read vs rewrite |
 | [Type system](/pyne/docs/core/type-system) | Qualifiers, UDT registry |
@@ -106,8 +108,8 @@ Full page inventory:
 
 ```
 src/pynescript/ast/
-  helper.py              # public pipeline orchestration
-  builder.py             # PinescriptASTBuilder
+  helper.py              # public pipeline + sha256 LRU parse cache
+  builder.py             # PinescriptASTBuilder (_setLocations = direct attrs)
   unparser.py            # NodeUnparser + Precedence
   visitor.py             # NodeVisitor
   transformer.py         # NodeTransformer
@@ -130,6 +132,8 @@ src/pynescript/ast/
 
 Thin wrappers `grammar/antlr4/lexer.py`, `parser.py`, `visitor.py` re-export generated classes so application code imports stable paths.
 
+`parse` uses a thread-local ANTLR engine and a two-stage **SLL then LL** strategy; successful trees go into a sha256 LRU (`PYNE_PARSE_CACHE`, default 128).
+
 ## Invariants
 
 1. **Resource is source of truth.** Lexer/parser `.g4` and `Pinescript.asdl` define syntax and node shape; generated Python is a build product (committed so install does not require Java).
@@ -137,6 +141,8 @@ Thin wrappers `grammar/antlr4/lexer.py`, `parser.py`, `visitor.py` re-export gen
 3. **Locations are first-class.** Statements and expressions carry `lineno`, `col_offset`, optional `end_*` for diagnostics and LSP.
 4. **Annotations are not free-floating.** Comment tokens on `COMMENT_CHANNEL` are reified as `Comment` nodes and attached to `Script` / `FunctionDef` / `TypeDef` / `Assign` via kind suffixes (`S`, `F`, `T`, `V`).
 5. **Recursion budget.** Deep ternary chains raise the Python recursion limit temporarily during parse (cap ≥ 5000).
+6. **Cached trees are shared by identity.** Mutating a `parse()` result (transformer, `increment_lineno`) mutates the LRU entry. Call `clear_parse_cache()` after intentional mutation, or disable the cache.
+7. **`FunctionDef.returns` is a type spec**, not an executable expression. Optional leading `type_specification` on UDFs/methods is stored there (0.3.9+).
 
 ## Worked examples
 

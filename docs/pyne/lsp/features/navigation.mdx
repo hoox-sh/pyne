@@ -80,6 +80,7 @@ Hierarchical:
 | --- | --- | --- |
 | `FunctionDef` | Function | Variables assigned inside body |
 | `TypeDef` | Class | Fields (`Assign` targets) |
+| `EnumDef` | Enum | Members |
 | Top-level `Assign` | Variable | — |
 
 Function `detail` is a coarse `function name()` string; assignments may show callee module attribute as detail when RHS is a call.
@@ -97,7 +98,7 @@ Flat `SymbolInformation` for functions, types, and assigned names across open bu
 | `features/symbols.py` | Document outline |
 | `server.py` | Workspace symbol aggregation |
 
-Parse is **per request** inside definition/references/symbols (not the workspace cached AST). That trades a little CPU for isolation if cache and buffer ever diverge.
+Handlers accept the **workspace-cached AST** (`tree=doc.ast` from `server.py`). They re-parse from `source` only when `tree` is omitted (tests / isolated calls). Pass `tree=None` after a failed parse so the handler does not retry.
 
 ## Invariants and edge cases
 

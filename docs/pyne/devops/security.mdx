@@ -101,8 +101,8 @@ flowchart TB
 | `backend/middleware/key_store_redis.py` / `key_store_sqlite.py` | Hash-only shared stores |
 | `backend/middleware/schemas.py` | Request validation schemas |
 | `src/pynescript/langserver/providers/metadata_decrypt.py` | Encrypted metadata load |
-| `.github/workflows/*.yml` | Secret consumption |
-| `frontend` security tests | `bun run test:security` in CI |
+| `.github/workflows/*.yml` | Secret consumption (`METADATA_KEY`, `PYPI_API_TOKEN`, `VSCE_PAT`, `OVSX_PAT`) |
+| AXIS PWA security tests | Sister repo [hoox-sh/axis](https://github.com/hoox-sh/axis) — not in this tree |
 
 ### Audit notes encoded in source
 

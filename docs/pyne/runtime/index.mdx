@@ -73,11 +73,24 @@ flowchart TB
 
 Compile inputs are contiguous arrays: `open_arr` … `vol_arr` plus **`time_arr`** (bar-open Unix ms; synthetic `bar_index * 60_000` when the host omits times) so `time` / calendar builtins match the interpret `time` series. Disk IR cache + product warm-compile (prewarm API/CLI) cut cold JIT latency. See [Compiler overview](/pyne/docs/runtime/compiler/overview) and [Interpret ↔ compile parity](/pyne/docs/runtime/compiler/parity).
 
-**`request.security` foreign-na policy (landed):** same-symbol simple OHLCV may passthrough; foreign symbols and complex security expressions resolve to **`na`** on both interpret and compile (no inventing chart close as foreign fundamentals). Real multi-symbol feeds remain adapter work (roadmap **B1**).
+**`request.security` (landed):** interpret resamples same-symbol simple OHLCV and allowlisted `ta.sma` / `ema` / `rsi` / `atr` on a **coarser** TF (last **completed** HTF bucket only). Compile passthrough is same-symbol simple OHLCV only. Foreign symbols and complex / nested expressions resolve to **`na`** on both hosts (no inventing chart close as foreign fundamentals). Policy tags land on `result["meta"]["request_security"]`. Real multi-symbol feeds remain adapter work (roadmap **B1**).
 
 **Series caps / incremental TA:** host list trim defaults **on** (`PYNE_SERIES_CAP`); bar-mode TA hot path defaults **on** (`PYNE_TA_INCREMENTAL`). Drawing GC honors `max_*_count` on the interpret registry; `fill` exports series keys + `plot_meta` for AXIS bands.
 
 **Interpret hot path (0.3.10 / Round 9):** the AST walker inlines Assign / `Expr(Call)` after the first bar (function/type/import decls stay locked), skips unused derived OHLCV series (`hl2` / `hlc3` / `ohlc4` / `tr` unless named, `input.source`, or `ta.vwap`), and reuses plot cells by call-site. Same-machine bench @ 2000 bars vs 0.3.9: minimal **2.7×**, `ta.sma` **2.0×**, `ta_combo` **1.45×**. `PYNE_SERIES_RING` stays **off**.
+
+### Host flags and knobs
+
+| Knob | Default | Effect |
+| --- | --- | --- |
+| `PYNE_SERIES_CAP` | **on** | Trim chronological `current_series` lists (`max_bars_back` / 256) |
+| `PYNE_TA_INCREMENTAL` | **on** | Call-site incremental `ta.*` in bar mode |
+| `PYNE_SERIES_RING` | **off** | Chronological ring lookback; skip dual list write when on |
+| `PYNE_LIGHT_PLOTS` | **off** | Skip plot columns + input meta (corpus OK/fail only) |
+| `PYNE_RUNTIME_MODE` | `interpret` | Default when `Runtime.run(mode=)` is omitted (`auto` is the Pro API body default) |
+| `timeout_seconds=` | `None` | Interpret wall-clock budget; checked every 32 bars → `timed_out` + `error_kind=runtime` |
+| `libraries=` | `[]` | `{namespace, name, version, source}` registered before `import` (auto forwards into interpret fallback) |
+| `realtime_*` | historical | Interpret-only `varip` / forming-bar simulation (`realtime_last_bar` / `ticks` / `bars` / `from_bar`) |
 
 ## Interface surface
 
@@ -104,10 +117,13 @@ ev = NodeLiteralEvaluator(context={"close": [1.0, 2.0, 3.0], "bar_index": 2})
 result = ev.evaluate_script('//@version=6\nindicator("x")\nplot(close)')
 
 # Full bar loop (preferred host API):
-# Runtime(symbol="CHART").run(source, ohlcv_data=bars, mode="auto", timeout_seconds=None)
+# Runtime(symbol="CHART").run(
+#     source, ohlcv_data=bars, mode="auto",
+#     timeout_seconds=None, libraries=None,
+# )
 ```
 
-Hosts that own OHLCV (Pro API, workers) use the package host: push bar → fill pending orders → `visit(tree)` → drain events → collect plots. SoT: `src/pynescript/runtime/`; `backend.runtime` is a compat shim.
+Hosts that own OHLCV (Pro API, workers) use the package host: push bar → fill pending orders → `visit(tree)` → drain events → collect plots. **SoT:** `src/pynescript/runtime/` (`host.py`, `series.py`, `evaluator.py`). `backend.runtime` / `backend.series` / `backend.evaluator` are identity re-export shims for the Pro API.
 
 ## Internals
 
@@ -117,7 +133,7 @@ Hosts that own OHLCV (Pro API, workers) use the package host: push bar → fill 
 | `src/pynescript/ast/evaluator/` | Mixin evaluators (base, names, expressions, statements, libraries, events) |
 | `src/pynescript/ast/evaluator/builtins/` | Builtin dispatch tables |
 | `src/pynescript/compiler/` | `CompilerVisitor`, Numba builtins, strategy broker, engine façade |
-| `backend/runtime.py` | Compat re-export of package Runtime for Pro API |
+| `backend/runtime.py` | Compat re-export (`sys.modules` alias) of `pynescript.runtime.host` |
 | `tests/test_evaluator.py`, `tests/test_parity.py`, `tests/test_strategy_*.py`, `tests/test_first_party_ta_goldens.py` | Semantic oracles + dual-host TA goldens |
 
 Composition of the full interpreter:
@@ -145,6 +161,7 @@ BaseEvaluator
 7. **Drawing/plot registries are side channels.** Visual objects do not participate in pure expression values except where `plot()` returns a plot id for `fill()`. Hosts export `fill` bands for AXIS via series + `plot_meta` (and `__drawings` on compile). Drawing objects honor `max_*_count` GC (package + Pro API + AXIS Pyodide).
 8. **Alerts are a host side-channel.** `alert()` / `alertcondition()` firings are not strategy events; dual-host export + L2 webhooks are documented under [Alerts](/pyne/docs/runtime/alerts).
 9. **Host series are not aliased on assign.** `last = time` (or `open`/`high`/…) copies the current scalar into a fresh series for `last`—see [Series & history](/pyne/docs/runtime/series-and-history).
+10. **Omitted bid/ask stay `na`.** Host `bid` / `ask` update only when those keys appear on a bar dict; they are not synthesized from close.
 
 ## Worked example — minimal bar loop mental model
 
@@ -168,7 +185,8 @@ Compile mode collapses this into one generated function over full arrays (`open_
 | `Unknown built-in function: …` | Missing dispatch key or wrong qualified-name resolution |
 | Divergent strategy events vs TV | Partial-fill / OCA / risk settings, or fill timing vs bar |
 | Numba path raises / falls back | Script uses UDT/map/drawing → object mode; or Numba not installed |
-| Plots empty but no error | Host forgot to collect `plot_outputs` / `PlotRegistry` after visit |
+| Plots empty but no error | Host forgot to collect `plot_outputs` / `PlotRegistry` after visit; or `PYNE_LIGHT_PLOTS=1` |
+| `timed_out` + partial series | `timeout_seconds` elapsed (checked every 32 interpret bars) |
 
 ## See also
 

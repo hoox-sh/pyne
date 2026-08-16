@@ -152,7 +152,7 @@ Mirrors the builder’s location math so diagnostics and AST spans speak the sam
 
 ### Relationship to linter `E001`
 
-`PineLinter._check_syntax` catches **any** `Exception` from `parse` and wraps it as `LintWarning(code="E001", severity="error")`, losing structured details. For rich carets, catch `pynescript.ast.error.SyntaxError` at the call site instead of only reading linter output.
+`PineLinter._check_syntax` catches **any** `Exception` from `parse` and wraps it as `LintWarning(code="E001", severity="error")`. It **does** copy `details.lineno` / `details.offset` onto the warning when present, and prefers the short `.message` over the caret `__str__`. For the full caret rendering, catch `pynescript.ast.error.SyntaxError` at the call site instead of only reading linter output.
 
 ### LSP / tooling
 
@@ -220,7 +220,7 @@ assert "^" in str(err)
 | `TypeError: unexpected type of input` | Listener received a recognizer/stream combo it does not support |
 | Caret misaligned | Tabs vs spaces; display strips leading WS while offset counts raw |
 | Filename always `<unknown>` | Stream name not set (bypassed helper) |
-| Exception swallowed as generic `E001` | Only used linter path |
+| Exception swallowed as generic `E001` | Only used linter path (line/column may still be filled from `details`) |
 | `except SyntaxError` misses Pine errors | Caught builtin only |
 | Partial trees | Not available via `parse()` after error — redesign would need recovery listeners |
 

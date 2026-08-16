@@ -62,12 +62,13 @@ flowchart LR
 | `script` | string | yes | Full Pine source |
 | `data` | `Bar[]` | yes | Chronological OHLCV (`ohlcv` alias on pyne-worker) |
 | `symbol` | string | no | Default `CHART` / host-specific |
-| `mode` | `"interpret"` \| `"compile"` \| `"auto"` | no | Desk default interpret; Pro API schema default `auto` |
+| `mode` | `"interpret"` \| `"compile"` \| `"auto"` | no | `Runtime.run` default when omitted: `PYNE_RUNTIME_MODE` or `interpret`. Flask `RUN_SCHEMA` default **`auto`** |
 | `inputs` | object | no | `input.*` overrides keyed by title (forces interpret under `auto`) |
-| `libraries` | `{namespace, name, version, source}[]` | no | In-process `import ns/Name/ver` (0.3.7+; max 32; interpret/`auto`) |
-| `profiler` | bool | no | Per-line interpret timings |
-| `timeout_seconds` | number | no | Wall-clock interpret budget (edge hosts cap, e.g. 30s) |
-| `data_source` | string | no | Optional external history provider id |
+| `libraries` | `{namespace, name, version, source}[]` | no | In-process `import ns/Name/ver`. Flask `/run` accepts this (max 32). **Not** on `/run/batch` schema |
+| `profiler` | bool | no | Per-line interpret timings (forces interpret) |
+| `timeout_seconds` | number | no | Wall-clock interpret budget on **`Runtime.run`** / edge workers (checked every 32 bars; sets `timed_out`). **Flask `RUN_SCHEMA` does not accept this field** — sending it to `/run` is `UNKNOWN_FIELDS` 400 |
+| `webhook_url` | string | no | Flask L2 alert webhook (overrides `ALERT_WEBHOOK_URL`) |
+| `data_source` | string | no | Optional external history provider id (free paths: chart / mock only) |
 | `data_options` | object | no | Provider configuration |
 
 #### `Bar`
@@ -92,20 +93,32 @@ flowchart LR
 | `plot_meta` | `Record<string, PlotMeta>` | Display metadata |
 | `events` | `StrategyEvent[]` | Strategy / trade-like events |
 | `drawings` | `Drawing[]` | line/label/box export |
-| `alerts` | `AlertEvent[]` | `alert()` / true `alertcondition()` firings (interpret) |
+| `alerts` | `AlertEvent[]` | `alert()` / true `alertcondition()` firings (interpret; `[]` on compile) |
 | `alert_conditions` | object[] | optional condition evaluations |
 | `alert_forward` | object | optional L2 webhook delivery summary |
 | `count` | number | Bars evaluated |
 | `script_id` | string | Stable hash prefix of source |
 | `run_id` | string | Per-invocation id |
-| `mode` | string | Echo effective mode |
+| `mode` | string | Effective mode (`interpret` \| `compile`) |
+| `auto_backend` | string | `auto` only: which path ran |
+| `compile_fallback_reason` | string | `auto` only: why compile was skipped or failed |
+| `object_mode` | bool | Compile path: pure-Python bar loop (no njit) |
+| `timed_out` | bool | Interpret budget exceeded (`Runtime.run(timeout_seconds=…)`) |
 | `data_source` | string | Flask echo of resolved source label |
 
 #### `PlotMeta` (Flask)
 
 ```json
-{ "title": "C", "color": "#2196F3", "linewidth": 1, "index": 0 }
+{
+  "title": "C",
+  "color": "#2196F3",
+  "linewidth": 1,
+  "index": 0,
+  "kind": "plot"
+}
 ```
+
+`kind` is `plot` \| `hline` \| `fill` \| `bgcolor` \| `plotshape` \| `plotchar` \| `plotarrow`. Fill bands add `plot1` / `plot2` title refs; hline may add `price`. Extra style keys (`style`, `linestyle`, `location`, `text`, `char`, `size`) appear when the interpret collector has them.
 
 #### `StrategyEvent` (minimum)
 
@@ -146,9 +159,12 @@ Flask `/run`:
 {
   "status": "error",
   "code": "EXECUTION_ERROR",
-  "message": "Runtime Error at bar …"
+  "message": "Runtime Error at bar …",
+  "error_kind": "runtime"
 }
 ```
+
+Optional `error_type`, `error_bar`, `logs`, `profile`, `meta` pass through when `Runtime` set them. `error_kind` is `parse` \| `compile` \| `runtime` \| `data` \| `order` \| `mode`.
 
 Workers may use equivalent `{ error: string }` or HTTP 4xx/5xx with message body. Clients should accept:
 
@@ -159,7 +175,7 @@ Workers may use equivalent `{ error: string }` or HTTP 4xx/5xx with message body
 
 `POST /run/batch`:
 
-**Request:** `scripts: (string | {id, script})[]` (max 8) + shared `data` + same optional fields as single run.
+**Request:** `scripts: (string | {id, script})[]` (max 8) + shared `data` + optional `symbol` / `data_source` / `data_options` / `mode` / `profiler` / webhook fields. **Not** on the batch schema: `libraries`, `inputs`, `timeout_seconds`.
 
 **Response:**
 
@@ -179,15 +195,17 @@ Workers may implement batch as N single evaluates; AXIS should not assume batch 
 
 | Contract field | Flask source |
 | --- | --- |
-| `plots` / `series` / `plot_meta` | `Runtime.run` packing loop |
-| `events` | `evaluator._strategy_state.drain_events()` → `to_dict()` |
-| `drawings` | `DrawingRegistry.export_for_api` |
-| `alerts` | `export_alerts_from_evaluator` (interpret) |
+| `plots` / `series` / `plot_meta` | `pynescript.runtime.host.Runtime.run` packing loop |
+| `events` | `evaluator._strategy_state.drain_events()` → `to_dict()` (compile: `__events`) |
+| `drawings` | `DrawingRegistry.export_for_api` (compile: `__drawings`) |
+| `alerts` | `export_alerts_from_evaluator` (interpret; compile returns `[]`) |
 | `alert_forward` | `backend/alert_forwarder.maybe_forward_run_alerts` |
 | `script_id` | `sha256(source)[:16]` |
 | `run_id` | `Runtime._run_id` |
+| `compile_fallback_reason` | `Runtime._run_auto` |
+| `timed_out` | Interpret bar loop vs `timeout_seconds` (not Flask `/run`) |
 
-Schema enforcement on Flask free tier: `RUN_SCHEMA` / `RUN_BATCH_SCHEMA` in `backend/middleware/schemas.py` (strict, reject extras). Webhook fields: `webhook_url`, `forward_alerts`, `alert_last_bar`, `alert_batch`.
+Schema enforcement on Flask free tier: `RUN_SCHEMA` / `RUN_BATCH_SCHEMA` in `backend/middleware/schemas.py` (strict, reject extras). Webhook fields: `webhook_url`, `forward_alerts`, `alert_last_bar`, `alert_batch`. `libraries` is on `/run` only.
 
 Tests: `tests/test_backend.py` (`test_run_success`, `test_run_exports_alerts`, webhook cases), `tests/test_alert_forwarder.py`.
 
@@ -196,8 +214,10 @@ Tests: `tests/test_backend.py` (`test_run_success`, `test_run_exports_alerts`, w
 | Surface | Divergence |
 | --- | --- |
 | Preview / backtest | Columnar `data` dict, not `Bar[]`; not the evaluate contract |
-| Compile mode | Extra keys `object_mode`, `generated_code` may appear |
-| Auth | Flask free `/run` open; workers may require HOOX mTLS / API gateways |
+| Compile mode | Extra keys `object_mode`, `compile_cached`, `compile_ms`, `nopython_fallback_reason`. `generated_code` only if `PYNESCRIPT_RETURN_GENERATED_CODE=1` |
+| `timeout_seconds` | In-process `Runtime.run` + edge workers. Flask `/run` rejects the field |
+| Health | Flask `GET /` and `GET /health` (CORS-free); not part of evaluate |
+| Auth | Flask free `/run` open (bar/rate/concurrency caps); workers may require HOOX mTLS / API gateways |
 | Error codes | Flask uses `code` enums; workers should map to stable strings when possible |
 
 ## Invariants and edge cases
@@ -223,18 +243,28 @@ type EvaluateRequest = {
     volume?: number;
   }>;
   symbol?: string;
-  mode?: "interpret" | "compile";
+  mode?: "interpret" | "compile" | "auto";
+  libraries?: Array<{
+    namespace: string;
+    name: string;
+    version: number;
+    source: string;
+  }>;
 };
 
 type EvaluateSuccess = {
   plots: Array<number | null>;
   series: Record<string, Array<number | null>>;
+  plot_meta: Record<string, Record<string, unknown>>;
   events: Array<Record<string, unknown>>;
   drawings: Array<Record<string, unknown>>;
+  alerts: Array<Record<string, unknown>>;
   count: number;
   script_id: string;
   run_id: string;
   mode: string;
+  auto_backend?: "compile" | "interpret";
+  compile_fallback_reason?: string;
 };
 ```
 

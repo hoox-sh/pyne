@@ -19,7 +19,7 @@
 
 ---
 title: "Helper API"
-description: "parse, unparse, dump, walk, literal_eval, and location utilities — the public AST surface."
+description: "parse, sha256 LRU cache, unparse, dump, walk, literal_eval, and location utilities — the public AST surface."
 ---
 
 # Helper API
@@ -28,7 +28,7 @@ description: "parse, unparse, dump, walk, literal_eval, and location utilities �
 
 ## Abstract
 
-Call `parse` to obtain an ASDL tree; `dump` / `walk` / `iter_*` to inspect it; `unparse` to regenerate source; `literal_eval` for constant-folding-safe evaluation of literal expressions. Location helpers (`copy_location`, `fix_missing_locations`, `get_source_segment`, `increment_lineno`) support tooling that rewrites or reports on trees.
+Call `parse` to obtain an ASDL tree; `dump` / `walk` / `iter_*` to inspect it; `unparse` to regenerate source; `literal_eval` for constant-folding-safe evaluation of literal expressions. Location helpers (`copy_location`, `fix_missing_locations`, `get_source_segment`, `increment_lineno`) support tooling that rewrites or reports on trees. `clear_parse_cache` / `parse_cache_info` control the process-local sha256 LRU.
 
 Everything higher in the stack (CLI, LSP, Pro API, workers) ultimately routes through this module for front-end work.
 
@@ -38,6 +38,7 @@ Everything higher in the stack (CLI, LSP, Pro API, workers) ultimately routes th
 flowchart TB
   subgraph public ["Public API"]
     parse
+    cache["clear_parse_cache / parse_cache_info"]
     unparse
     dump
     walk
@@ -46,19 +47,21 @@ flowchart TB
   end
 
   subgraph private ["Private pipeline"]
-    _pis["_parse_inputstream / _parse_filestream"]
+    LRU["sha256 LRU (default ON)"]
+    ENG["_ThreadParseEngine (TLS)"]
     _parse
-    LEX["Lexer + TokenStream"]
-    PAR["Parser + ErrorListener"]
-    BLD["ASTBuilder.visit"]
+    SLL["SLL then LL fallback"]
+    BLD["_SHARED_BUILDER.visit"]
     COL["StatementCollector"]
     ANN["_add_annotations"]
   end
 
-  parse --> _pis --> _parse
-  _parse --> LEX --> PAR --> BLD
+  parse --> LRU
+  LRU --> ENG --> _parse
+  _parse --> SLL --> BLD
   BLD --> COL --> ANN
-  unparse --> UP["NodeUnparser"]
+  cache --> LRU
+  unparse --> UP["unparse_node (TLS NodeUnparser)"]
   literal_eval --> NLE["NodeLiteralEvaluator"]
 ```
 
@@ -80,11 +83,26 @@ Raises:
 Side effects during exec mode:
 
 1. Temporarily raises `sys.getrecursionlimit` to at least 5000.
-2. Collects COMMENT tokens and attaches annotations to eligible statements.
+2. Collects COMMENT tokens containing `@` and attaches annotations to eligible statements. If the source has no `@`, the annotation pass is skipped.
+
+`filename` is **not** part of the cache key (only diagnostics).
+
+### Parse cache
+
+Successful trees are stored in a process-local, thread-safe `OrderedDict` LRU keyed by `(sha256(source.encode("utf-8")), mode)`.
+
+| Control | Default | Meaning |
+| --- | --- | --- |
+| `PYNE_PARSE_CACHE` | **on** | `0` / `false` / `off` / `no` disables |
+| `PYNE_PARSE_CACHE_MAX` | `128` | Max entries (must be ≥ 1) |
+| `clear_parse_cache()` | — | Drop all entries and reset hit/miss counters |
+| `parse_cache_info()` | — | `{enabled, size, maxsize, hits, misses}` |
+
+On a cache **hit**, the same AST object is returned (after scrubbing stale `_pine_call_site` attrs). Treat it as read-only: a `NodeTransformer` or `increment_lineno` mutates the cached entry for every later caller. After intentional mutation, call `clear_parse_cache()` or parse with the cache disabled.
 
 ### `unparse(node) -> str`
 
-Delegates to `NodeUnparser().visit(node)`. See [Unparser](/pyne/docs/core/unparser).
+Delegates to `unparse_node` — a **per-thread** reused `NodeUnparser` (warm visitor cache). Public return value is still a new `str`. See [Unparser](/pyne/docs/core/unparser).
 
 ### `dump(node, *, annotate_fields=True, include_attributes=False, indent=None) -> str`
 
@@ -115,7 +133,7 @@ Recursive pretty-print of node trees. With `indent` (int spaces or string), mult
 
 ### `__all__` export list
 
-`copy_location`, `dump`, `fix_missing_locations`, `get_source_segment`, `increment_lineno`, `iter_child_nodes`, `iter_fields`, `literal_eval`, `parse`, `unparse`, `walk`.
+`clear_parse_cache`, `copy_location`, `dump`, `fix_missing_locations`, `get_source_segment`, `increment_lineno`, `iter_child_nodes`, `iter_fields`, `literal_eval`, `parse`, `parse_cache_info`, `unparse`, `walk`.
 
 ## Internals
 
@@ -126,8 +144,19 @@ Recursive pretty-print of node trees. With `indent` (int spaces or string), mult
 Related:
 
 - `src/pynescript/ast/collector.py` — `StatementCollector` for annotation pairing
-- `src/pynescript/ast/unparser.py` — unparse backend
+- `src/pynescript/ast/unparser.py` — `unparse_node` (thread-local `NodeUnparser`)
 - `src/pynescript/ast/evaluator` — `NodeLiteralEvaluator` (literal_eval only)
+
+### Parse pipeline (`_parse`)
+
+1. Validate `mode` ∈ `{exec, eval}`.
+2. Raise recursion limit to ≥ 5000 if needed.
+3. Bind a **thread-local** lexer + token stream + parser (`_ThreadParseEngine`). Process-wide reuse is unsafe (indent / token-stream bleed).
+4. **SLL first** (`BailErrorStrategy`). On `ParseCancellationException`, reset and re-parse **LL** (`DefaultErrorStrategy`). Trees match pure-LL on success.
+5. `PinescriptASTBuilder.visit` via the shared stateless builder.
+6. Exec mode: if source contains `@`, collect statements + `@` comments and `_add_annotations`.
+
+Default ANTLR console listeners are removed; only `PinescriptErrorListener.INSTANCE` is installed.
 
 ### Annotation algorithm (`_add_annotations`)
 
@@ -137,7 +166,7 @@ Related:
 4. Script-level: first group members with kind ending in `S` → `script.annotations`.
 5. Pair remaining comment groups with following statements; attach `F`/`T`/`V` filters to `FunctionDef` / `TypeDef` / `Assign`.
 
-Comment **nodes** are not left in `Script.body`; only string annotation lists are stored on targets.
+Comment **nodes** are not left in `Script.body`; only string annotation lists are stored on targets. Collection itself skips tokens whose text has no `@` (plain `//` and `//# region` never become `Comment` nodes).
 
 ### Stream helpers
 
@@ -153,6 +182,8 @@ Comment **nodes** are not left in `Script.body`; only string annotation lists ar
 2. **Default listeners are removed.** Console ANTLR spam is replaced by raising project `SyntaxError`.
 3. **`dump` requires an `AST` instance.** Non-nodes raise `TypeError`.
 4. **Round-trip tests should use `parse` + `unparse`**, not raw builder access, so annotation behavior matches production.
+5. **Cache identity is shared.** Do not mutate a cached tree unless you also `clear_parse_cache()`.
+6. **`filename` is diagnostic-only** and is not part of the sha256 key.
 
 ## Worked examples
 
@@ -190,6 +221,19 @@ assert literal_eval("2 * 3 + 4") == 10
 assert literal_eval("'hi'") == "hi"
 ```
 
+### Parse cache
+
+```python
+from pynescript.ast.helper import parse, parse_cache_info, clear_parse_cache
+
+src = 'indicator("x")\nplot(close)\n'
+a = parse(src)
+b = parse(src)
+assert a is b  # same object on hit
+print(parse_cache_info())  # enabled, size, maxsize, hits, misses
+clear_parse_cache()
+```
+
 ## Failure modes
 
 | Failure | Notes |
@@ -199,6 +243,8 @@ assert literal_eval("'hi'") == "hi"
 | `literal_eval` raises | Non-literal AST (names, calls beyond allowed set) |
 | Filename `<unknown>` in errors | Expected when parsing pure strings without a path |
 | Annotations missing | Comment not `@…` form, or not immediately preceding eligible stmt |
+| Transformer “leaks” across `parse()` calls | Cache hit returned the same object you mutated — clear or disable cache |
+| `PYNE_PARSE_CACHE_MAX` ignored | Non-integer or `< 1` falls back to 128 |
 
 ## See also
 

@@ -38,8 +38,8 @@ This is an MVP with growing surface—not a full substitute for the interpreter 
 flowchart LR
   Pine[Pine source] --> Parse[parse AST]
   Parse --> CV[CompilerVisitor]
-  CV -->|no UDT/map/draw/strategy| Num["@numba.njit loop"]
-  CV -->|UDT/map/draw/strategy| Obj[Object-mode loop]
+  CV -->|numeric subset| Num["@numba.njit loop"]
+  CV -->|UDT/map/label/strategy| Obj[Object-mode loop]
   Num --> Exec[execute_script_compiled]
   Obj --> Exec
   OHLCV[OHLCV + time arrays] --> Exec
@@ -77,7 +77,7 @@ result = cs.run(open, high, low, close, volume, time=None)
 | `clear_disk_compile_cache` | Disk IR / index under cache dir |
 | `clear_numba_function_caches` | Purge Numba `.nbi`/`.nbc` under known dirs |
 
-`CompiledScript` fields: `source`, `generated_code`, `execute`, `plot_titles`, `object_mode`, optional `nopython_fallback_reason`.
+`CompiledScript` fields: `source`, `generated_code`, `execute`, `plot_titles`, `plot_kinds` (per-plot `plot` / `hline` / `fill` tags used to synthesize numeric-mode `__drawings`), `object_mode`, optional `nopython_fallback_reason`.
 
 ### `CompiledScript.run` signature
 
@@ -105,17 +105,21 @@ When `time` is omitted, the engine synthesizes `np.arange(n) * 60000.0` (1-minut
 
 ### Warm compile (product defaults)
 
-Pro API `/run` defaults to **`mode=auto`** (compile when safe, interpret on fallback). Disk IR cache is **on** (`PYNE_COMPILE_DISK_CACHE=1`); Docker sets `PYNE_COMPILE_CACHE_DIR=/data/compile-cache`. Operators call `POST /compile/prewarm` or `pynescript prewarm` so first interactive latency skips Numba cold JIT. See [COMPILER_PLAN.md](/docs/COMPILER_PLAN.md) for SLOs and env flags.
+Pro API `/run` defaults to **`mode=auto`** (compile when eligible, interpret on fallback with `compile_fallback_reason`). Disk IR cache is **on** (`PYNE_COMPILE_DISK_CACHE=1`); Docker sets `PYNE_COMPILE_CACHE_DIR=/data/compile-cache`. Operators call `POST /compile/prewarm` or `pynescript prewarm` so first interactive latency skips Numba cold JIT. Design notes live in repo `docs/COMPILER_PLAN.md` (not a product page).
+
+`Runtime._compile_eligible` (used by `mode=auto`) **skips compile** when the source contains a top-level `import` or any `request.` token — those stay interpret even though the emitter can lower same-symbol `request.security`. Explicit `mode=compile` still attempts the visitor.
 
 ### Mode selection
 
 `CompilerVisitor` sets `object_mode = True` when it sees:
 
 - User-defined types / enums
-- Map operations
-- Drawing APIs / certain plot variants (`hline`, `fill`, …)
+- Map / array / matrix handles that cannot stay float64
+- Drawing constructors (`label.new`, `line.new`, …) and assigned `hline` handles
 - Strategy usage (object mode + `CompileStrategyBroker`)
 - String/color series, library imports, or other non-numeric constructs
+
+**Statement-form** `hline(price)` / `fill(...)` with a proven-numeric price **stay nopython**: they emit a constant (or all-`nan`) series plus `plot_kinds` metadata; the engine synthesizes `__drawings` after the JIT loop. Mixed scripts that later flip object mode replay those events into the body.
 
 Otherwise **numeric mode** is preferred. Numeric mode **requires Numba** at load/warm-up; missing Numba raises `CompileNumbaRequiredError`. Object mode does **not** need Numba (still star-imports `numba_builtins` for `safe_*` / non-jitted helpers).
 
@@ -142,8 +146,8 @@ Series assigns, arithmetic/logic, history (`close[n]`), `if`/`for`/`while`, sele
 | --- | --- |
 | `request.security` / bare `security` / `request.security_lower_tf` / `request.seed` | **Same-symbol, simple OHLCV expression only** (chart identity + bare `close`/`high`/… style). Foreign symbol or complex expression → `np.nan` (no inventing chart close as foreign data). Other `request.*` → object-mode `np.nan` stub |
 | Bare builtins vs user series | User-defined series arrays win in `visit_Name`: `ad = ta.cum(...)` / `tr = …` shadow bare `ad`/`tr` formulas so `plot(ad)` is not silently re-bound to the builtin |
-| `hline(...)` | Object mode. Exports a **constant numeric series** under a uniquified title (`hline`, `hline_2`, …) **and** a `__drawings` event (interpret packaging parity) |
-| `fill(..., title=…)` | Object mode. Exports a series key (often **all-null** / float64 `nan`) **plus** `__drawings` so AXIS / key-set parity with interpret holds; band color lives on the drawing/meta side |
+| `hline(...)` | Statement-form + numeric price → **nopython** constant series (`hline`, `hline_2`, …) + synthesized `__drawings`. Assigned / non-numeric handles → object mode |
+| `fill(..., title=…)` | Statement-form → **nopython** all-`nan` series key (band color in `plot_meta` / drawings). Expression-form / mixed object scripts emit `__drawings` in-loop |
 
 <Warning>
 Compile-path `request.security` never invents foreign OHLCV from chart close. Foreign tickers and complex expressions (UDFs, `ta.*` inside the third arg, multi-value constructs beyond simple chart series) lower to `np.nan`. Use interpret + a real `data_feed` / `data_provider` for multi-asset work.
@@ -157,10 +161,11 @@ Compile-path `request.security` never invents foreign OHLCV from chart close. Fo
 | `src/pynescript/compiler/numba_builtins.py` | JIT kernels + object-mode `safe_*` |
 | `src/pynescript/compiler/strategy_broker.py` | Compile broker |
 | `src/pynescript/compiler/engine.py` | Façade, caches, `CompiledScript.run`, Numba cache recovery |
-| `backend/runtime.py` | `_run_compiled` envelope → plots/series; passes `time=` |
+| `src/pynescript/runtime/host.py` | Package SoT `Runtime._run_compiled` envelope; packs OHLCV + `time=` |
+| `backend/runtime.py` | Compat re-export of `pynescript.runtime.host` |
 | `scripts/compare_interp_compile.py` | Interpret↔compile series parity harness |
 | `tests/test_compiler_numba.py`, `test_compiler_objects.py`, `test_compiler_strategy.py` | Coverage |
-| `docs/COMPILER_PLAN.md` | Design history and remaining work |
+| `docs/COMPILER_PLAN.md` | Design history and remaining work (repo, not hosted) |
 
 ### Data layout
 
@@ -184,7 +189,7 @@ for __bar_idx in range(n_bars):
 Three layers:
 
 1. **In-process source LRU** (sha256 of raw and/or sanitized source) + secondary IR cache keyed by generated-code hash.
-2. **Disk IR** (default on): modules under `PYNE_COMPILE_CACHE_DIR` or `$XDG_CACHE_HOME/pynescript/compile`.
+2. **Disk IR** (default on): modules under `PYNE_COMPILE_CACHE_DIR` or `$XDG_CACHE_HOME/pynescript/compile`. The source→IR index JSON carries `"v": 9` (`engine._DISK_META_VERSION`). Bump that integer when generated IR semantics change so stale modules are ignored (source hash alone is stable across emitter fixes).
 3. **Numba function cache** (`.nbi` / `.nbc`) next to `numba_builtins` and under disk-IR `__pycache__/`.
 
 Truncated/corrupt Numba pickle files raise `EOFError` / `pickle.UnpicklingError` on load. The engine wraps execute/warm paths with **purge + single retry** via `clear_numba_function_caches` (does not fail the script for a bad cache alone). Manual clean slate:
@@ -270,7 +275,7 @@ Writes `.cache/interp_compile_parity.json`. Use this harness when changing emitt
 
 ## Remaining work (summary)
 
-Expand Numba `ta.*` surface, richer drawings, nested UDT methods, broader `request.*` (still interpret-first for multi-asset), and grow systematic interpret↔compile parity coverage per lowered construct. In-process + disk IR cache and product prewarm are landed. See `docs/COMPILER_PLAN.md` for the living checklist.
+Expand Numba `ta.*` surface, richer drawings, nested UDT methods, broader `request.*` (still interpret-first for multi-asset; `mode=auto` already skips any `request.` source), and grow systematic interpret↔compile parity coverage per lowered construct. In-process + disk IR cache (`_DISK_META_VERSION = 9`) and product prewarm are landed. See repo `docs/COMPILER_PLAN.md` for the living checklist.
 
 ## See also
 

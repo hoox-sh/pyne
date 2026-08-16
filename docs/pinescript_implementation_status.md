@@ -19,7 +19,11 @@
 
 # PineScript v6 Implementation Index
 
-This document tracks the implementation status of PineScript v6 features in pynescript.
+This document is the **checklist SoT** summarized by `docs/pyne/reference/implementation-status.mdx`. Status is implementation judgment for `hoox-pyne` **0.3.10**, **not** TradingView® platform parity.
+
+Historical “Phase 8 / 100% complete / 997 tests” notes at the end of this file are **dispatch-era rollups**. Prefer live inventory (`docs/pine_v6_full_surface_inventory.md`, 640 callables as of 2026-07-25), corpus snapshot (set01–04, 2026-08-09), and `docs/ROADMAP.md` residual IDs.
+
+This document tracks the implementation status of Pine Script™ v6 features in pynescript.
 
 ## Legend
 - ✅ Implemented
@@ -165,7 +169,7 @@ This document tracks the implementation status of PineScript v6 features in pyne
 - ✅ Full event emission: strategy.entry/exit/close/cancel etc now produce StrategyEvent with id, direction, qty, limit/stop, bar context.
 - ✅ strategy.long / strategy.short as proper builtin constants (resolve to "long"/"short").
 - ✅ var / varip modes and := ReAssign support.
-- ✅ Parity test corpus for cross-impl validation (with pine-worker TS).
+- ✅ Parity test corpus for cross-impl validation (Python first-party fixtures; historical pine-worker TS lives in sister `hoox-sh/pine-worker`, not this tree).
 - ✅ strategy.convert_to_account
 - ✅ strategy.convert_to_symbol
 - ✅ strategy.max_contracts_held_all

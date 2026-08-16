@@ -104,7 +104,7 @@ Three layers interact:
 | --- | --- | --- |
 | Source LRU | in-process, sha256 of source | `CompiledScript` reuse |
 | IR LRU | in-process, sha256 of generated Python | share warm callable across comment-only variants |
-| Disk IR | `PYNE_COMPILE_CACHE_DIR` or `$XDG_CACHE_HOME/pynescript/compile` | persist generated modules; disable with `PYNE_COMPILE_DISK_CACHE=0` |
+| Disk IR | `PYNE_COMPILE_CACHE_DIR` or `$XDG_CACHE_HOME/pynescript/compile` | persist generated modules; disable with `PYNE_COMPILE_DISK_CACHE=0`. Index JSON `"v"` must equal `engine._DISK_META_VERSION` (**9**) |
 
 **Numba function cache (`.nbi` / `.nbc`):**
 
@@ -132,7 +132,7 @@ Expanding coverage is primarily **new kernels + visitor call mapping**, not chan
 ## Invariants & edge cases
 
 1. **No Python objects in numeric mode.** Strings, UDTs, maps, drawings force object mode before njit is applied.
-2. **Warm-up cost.** First `compile_script` invokes a dummy run; production servers should cache `CompiledScript` and optionally prewarm (`PYNE_COMPILE_PREWARM`, `POST /compile/prewarm`).
+2. **Warm-up cost.** First `compile_script` invokes a dummy run; production servers should cache `CompiledScript` and prewarm (`PYNE_COMPILE_PREWARM` default **on**, `POST /compile/prewarm`).
 3. **EMA/RMA seed** uses sliding all-finite SMA windows—not “seed once at bar `period-1` only if that fixed slice is clean.” Leading NaN on `tr` / nested EMA sources must eventually produce values.
 4. **RSI is Wilder**, first valid at `i == period`. Do not compare against a simple N-bar average-gain RSI.
 5. **highestbars/lowestbars** return negative offsets and `-1` on incomplete windows; ties keep the oldest bar.
@@ -148,7 +148,7 @@ interpret:  O(bars × ast_nodes × python_dispatch)
 numeric:    O(bars × lowered_ops) in machine code after JIT
 ```
 
-For simple SMA scripts, internal notes cite order-of-magnitude speedups versus list-based interpretation on long series (see `docs/COMPILER_PLAN.md` qualitative claims).
+For simple SMA scripts, internal notes cite order-of-magnitude speedups versus list-based interpretation on long series (see repo `docs/COMPILER_PLAN.md` qualitative claims).
 
 ### Using from Pro API
 
@@ -156,7 +156,7 @@ For simple SMA scripts, internal notes cite order-of-magnitude speedups versus l
 Runtime(...).run(source, ohlcv, mode="compile")
 ```
 
-Converts bar dicts → arrays, compiles, reshapes plots into the standard envelope, flags `object_mode` when applicable.
+Converts bar dicts → arrays (including `time=` bar-open ms), compiles, reshapes plots into the standard envelope, flags `object_mode` when applicable. `generated_code` is omitted unless `PYNESCRIPT_RETURN_GENERATED_CODE=1`.
 
 ## Failure modes
 

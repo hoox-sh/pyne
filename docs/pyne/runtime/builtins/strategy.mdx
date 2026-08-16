@@ -69,8 +69,8 @@ Directions accept Pine constants (`strategy.long` / `strategy.short`) and common
 | Pending stop/limit brackets + OCA | Interpret + compile — fills via `process_pending_orders` OHLC path |
 | `from_entry` multi-leg filter | Interpret + compile — unknown id is soft no-op |
 | `qty_percent` | Interpret + compile `close` — `%` of target (whole pos or `from_entry`); wins over `qty`; `≤0`/na → no-op; `>100` capped |
-| Trail (`trail_offset` / `trail_points` / optional `trail_price`) | **Minimal** interpret + compile — ratchets from bar high/low (OHLC approx; no tick path) |
-| `profit` / `loss` | Residual — still coerced as prices (not tick offsets from entry avg) |
+| Trail (`trail_offset` / `trail_points` / optional `trail_price`) | Interpret + compile — distances are **ticks** (`× mintick`). Pending stop ratchets from bar high/low (OHLC approx). `trail_points=0` / `na` is ignored so a valid `trail_offset` still applies (0.3.8). |
+| `profit` / `loss` | **Ticks** from the exit’s entry average (`ticks * mintick`). Long: `entry ± offset`; short flips the sign. `na` / `≤0` ignore that leg. Absolute `limit` / `stop` win when both are set. |
 
 ```pine
 //@version=6
@@ -79,6 +79,8 @@ if bar_index == 5
     strategy.entry("L", strategy.long, qty=10)
 if bar_index == 6
     strategy.exit("X", from_entry="L", stop=low * 0.98, limit=high * 1.02, qty_percent=50)
+// Tick form (same surface): profit/loss are offsets from entry avg, not prices.
+// strategy.exit("X", from_entry="L", profit=200, loss=100)
 ```
 
 ### Position and performance series

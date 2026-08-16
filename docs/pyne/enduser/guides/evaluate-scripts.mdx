@@ -19,7 +19,7 @@
 
 ---
 title: "Evaluate Scripts"
-description: "Run Pine expressions and multi-bar scripts with literal_eval, the AST evaluator, backend Runtime, data providers, and strategy events."
+description: "Run Pine expressions and multi-bar scripts with literal_eval, pynescript.runtime.Runtime (libraries=, timeout_seconds, mode), data providers, and strategy events."
 ---
 
 # Evaluate Scripts
@@ -78,19 +78,26 @@ flowchart TB
 from pynescript.runtime import Runtime
 
 runtime = Runtime(symbol="AAPL")
-result = runtime.run(source, ohlcv_data=ohlcv, mode="auto")
+result = runtime.run(
+    source,
+    ohlcv_data=ohlcv,
+    mode="auto",                 # omit → PYNE_RUNTIME_MODE else "interpret"
+    timeout_seconds=12.0,        # interpret wall-clock budget; None = no limit
+    libraries=[                  # import ns/Name/ver (max 32 on POST /run)
+        {"namespace": "ns", "name": "Lib", "version": 1, "source": '//@version=6\nlibrary("Lib")\nexport x = 1.0\n'},
+    ],
+    inputs={"len": 14},          # input.* by title — forces interpret under auto
+)
 # result["mode"] / result.get("auto_backend") → "compile" | "interpret"
 # on fallback: result.get("compile_fallback_reason")
-# optional wall-clock budget (0.3.6+):
-# result = runtime.run(..., timeout_seconds=12.0)
-# → may set timed_out + error_kind="runtime" with partial plots
-# optional published libs (0.3.7+; export finalize 0.3.8):
-# result = runtime.run(..., libraries=[{"namespace":"ns","name":"Lib","version":1,"source": lib_src}])
+# on timeout: timed_out + error_kind="runtime" with partial plots
 ```
+
+`timeout_seconds` is a **library** argument only. `POST /run` accepts `libraries` / `inputs` / `mode` but **rejects** `timeout_seconds` (`UNKNOWN_FIELDS`). `pyne run` does not call `Runtime.run` at all.
 
 ### Warm compile / prewarm
 
-Product hosts cache compiled IR (in-process LRU + optional disk under `PYNE_COMPILE_CACHE_DIR`). Pro API defaults `mode=auto` and can warm Numba builtins once per worker (`PYNE_COMPILE_PREWARM`, `POST /compile/prewarm`, or `pyne prewarm` when the CLI subcommand is present). First-hit latency still pays JIT when cold; subsequent runs of the same source reuse IR. See [Compiler overview](/pyne/docs/runtime/compiler/overview).
+Product hosts cache compiled IR (in-process LRU + optional disk under `PYNE_COMPILE_CACHE_DIR`). Pro API defaults `mode=auto` and can warm Numba builtins once per worker (`PYNE_COMPILE_PREWARM`, `POST /compile/prewarm`, or `pyne prewarm [PATH…]`). First-hit latency still pays JIT when cold; subsequent runs of the same source reuse IR. See [Compiler overview](/pyne/docs/runtime/compiler/overview).
 
 Related host knobs (interpret path): `PYNE_SERIES_CAP` / `PYNE_SERIES_MAX` (history trim) and `PYNE_TA_INCREMENTAL` (bar-mode TA hot path)—see [Series & history](/pyne/docs/runtime/series-and-history) and [Configuration](/pyne/docs/enduser/getting-started/configuration).
 
@@ -217,7 +224,8 @@ result = runtime.run(
     source_code='//@version=6\nindicator("t")\nplot(close)\n',
     ohlcv_data=ohlcv,
     mode="auto",  # interpret | compile | auto (see Runtime modes)
-    # timeout_seconds=12.0,  # optional wall-clock circuit breaker (interpret path)
+    timeout_seconds=12.0,
+    # libraries=[{"namespace": "ns", "name": "Lib", "version": 1, "source": lib_src}],
 )
 # result: plots, series, plot_meta, events, drawings, script_id, run_id, count, ...
 # auto may set auto_backend + compile_fallback_reason
@@ -305,11 +313,11 @@ macd, signal, hist = literal_eval(f"ta.macd({closes}, 12, 26, 9)")
 atr = literal_eval(f"ta.atr({highs}, {lows}, {closes}, 14)")
 ```
 
-### Full script via Runtime (monorepo)
+### Full script via Runtime
 
 ```python
 from pathlib import Path
-from backend.runtime import Runtime
+from pynescript.runtime import Runtime
 
 script = Path("examples/rsi_strategy.pine").read_text(encoding="utf-8")
 # Build ohlcv list from your provider...
@@ -344,12 +352,15 @@ When calling `/run` or Runtime, pass `data_source` / providers so `request.secur
 | Empty plots | No `plot`/`plotshape` executed; wrong declaration type |
 | Numerical mismatch vs TV | Warmup, float path, or builtin parity gap — [numerical validation](/pyne/docs/reference/numerical-validation) |
 | Interpret vs compile series MISMATCH | Run `scripts/compare_interp_compile.py` on the script; check report buckets |
+| `timed_out` + partial plots | `timeout_seconds` budget exceeded on interpret |
+| `UNKNOWN_FIELDS` if you POST `timeout_seconds` | Library-only kwarg — not in `RUN_SCHEMA` |
 | `DataProviderError` | Provider misconfig |
 | Async feed errors | Missing ccxt.pro / network |
 
 ## See also
 
 - [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage)
+- [Runtime modes](/pyne/docs/enduser/reference/modes)
 - [Library API](/pyne/docs/enduser/guides/library-api)
 - [Runtime series model](/pyne/docs/runtime/series-and-history)
 - [Compiler overview](/pyne/docs/runtime/compiler/overview)

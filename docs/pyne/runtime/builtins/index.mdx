@@ -95,8 +95,8 @@ Handlers are looked up by the fully qualified string built during name/attribute
 
 1. **One map, many mixins.** New builtins require a map entry *and* (usually) metadata regeneration for LSP.
 2. **Kwargs and positionals.** Handlers accept both; Pine named arguments arrive as kwargs when the call AST carries them.
-3. **Bar mode.** Stateful `ta.crossover` / similar use per-bar call indices reset by the host (`_cross_call_i`).
-4. **Mock fallbacks.** `request.*` without a feed still returns synthetic data so offline evaluation does not hard-fail—hosts must wire real providers for production accuracy.
+3. **Bar mode.** Stateful `ta.crossover` / similar use per-bar call indices reset by the host (`_cross_call_i`). Incremental `ta.*` (`PYNE_TA_INCREMENTAL`, default on) uses a sibling `_ta_call_i` slot.
+4. **Mock fallbacks.** Bare equity-style `request.security` strings may still mock offline; foreign / fundamental prefixes and complex expressions return **`na`** (see [request / input](/pyne/docs/runtime/builtins/request-input)).
 5. **Compile path subset.** Numba builtins reimplement only a fraction of this table; object mode covers more via Python helpers—see [Compiler](/pyne/docs/runtime/compiler/overview).
 
 ## Worked example — resolution path

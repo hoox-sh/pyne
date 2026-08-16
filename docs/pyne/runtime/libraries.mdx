@@ -77,7 +77,7 @@ ev.register_library_source(namespace, name, version, source_str)
 mod = ev.lookup_library(namespace=..., name=..., version=...)
 ```
 
-`register_library_source` stores Pine text for **lazy** load on import; evaluating a library script eagerly populates exports. From **0.3.8**, registration also **finalizes** library exports so `export const` / exported functions bind on `import`.
+`register_library_source` stores Pine text for **lazy** load on the first matching `import`. `_load_library_source` evaluates definitions only (skips showcase body) and **finalizes** `_pending_library_exports` onto the `LibraryModule` so `export const` / exported functions bind (0.3.8). Evaluating a library script on the same evaluator still populates exports eagerly.
 
 ### Host evaluate (`0.3.7+`)
 
@@ -94,7 +94,7 @@ Runtime(symbol="TEST").run(
 )
 ```
 
-The same list is accepted on Pro API and **pyne-worker** `POST /run` as `libraries`. pyne-worker also stores the array on deployed scripts so cron / `script_id` reuse it. Max 32 entries; `mode=compile` rejects libraries (no import path).
+The same list is accepted on Pro API and **pyne-worker** `POST /run` as `libraries`. pyne-worker also stores the array on deployed scripts so cron / `script_id` reuse it. Pro API slices to **32** entries (`backend/app.py`); `Runtime.run` itself does not cap. `mode=compile` has no import path — `mode=auto` treats `import` as compile-ineligible and **forwards `libraries=` into interpret fallback** (0.3.9).
 
 ### `LibraryModule`
 
@@ -108,6 +108,7 @@ Dataclass with `title`, optional `namespace`/`version`, and `exports: dict[str, 
 | `src/pynescript/ast/evaluator/statements.py` | export registration, import visit, library finalize |
 | `src/pynescript/ast/evaluator/base.py` | registry fields on `BaseEvaluator` |
 | `src/pynescript/ast/evaluator/__init__.py` | `register_library_source`, `lookup_library` |
+| `src/pynescript/runtime/host.py` | `Runtime.run(..., libraries=)` + auto-mode forward |
 | `tests/test_library_export_import.py` | Round-trip coverage |
 
 Exportable values include callables (user functions), constants, and type-related bindings depending on declaration paths. Exported methods participate in the same call machinery as local functions once retrieved from the module.
@@ -136,10 +137,8 @@ ev.evaluate_script(consumer_source)  # import by title or path
 
 ```python
 ev.register_library_source("user", "MyMath", 1, library_source)
-# import user/MyMath/1 loads and evaluates source on demand
+# import user/MyMath/1 loads definitions and finalizes exports on first visit
 ```
-
-{/* TODO: verify lazy-load path always evaluates into exports on first import in all hosts */}
 
 ## Failure modes
 

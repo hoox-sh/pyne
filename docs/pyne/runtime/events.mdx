@@ -88,7 +88,7 @@ for ev in evaluator._strategy_state.drain_events():
 
 ### Compile path
 
-`CompileStrategyBroker` accumulates plain dict events (`__events` in the return mapping) with the same field names for kinds it supports—use for throughput; full kind coverage trails the interpreter.
+`CompileStrategyBroker` accumulates plain dict events (`__events` in the return mapping) with the same field names for kinds it supports. Exit/trail/OCA/risk halt comments (`risk_blocked`) are on both hosts for the 0.3.4+ surface; remaining metric accessors still trail the interpreter.
 
 ## Internals
 

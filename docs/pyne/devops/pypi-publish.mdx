@@ -95,7 +95,8 @@ Repo **Settings → Environments → `pypi`** on [`hoox-sh/pyne`](https://github
 
 ```bash
 # 1. Version + changelog on main
-#    src/pynescript/__about__.py  →  e.g. 0.3.1
+#    src/pynescript/__about__.py  →  0.3.10
+#    vscode-extension/package.json version (same pin when shipping VSIX)
 #    CHANGELOG.md
 
 # 2. Local smoke (no upload)
@@ -103,16 +104,16 @@ pip install build twine
 rm -rf dist/
 python -m build
 twine check dist/*
-# expect: hoox_pyne-*.whl  and  hoox_pyne-*.tar.gz
+# expect: hoox_pyne-0.3.10-*.whl  and  hoox_pyne-0.3.10.tar.gz
 
 # 3. Push main, then tag
-git tag -a v0.3.1 -m "v0.3.1"
-git push origin v0.3.1
+git tag -a v0.3.10 -m "v0.3.10"
+git push origin v0.3.10
 
 # 4. Watch Actions → Publish
 ```
 
-If tag `v0.3.0` already exists and the wheel was never uploaded, re-run:
+If a tag already exists and the wheel was never uploaded, re-run:
 
 **Actions → Publish → Run workflow → `dry_run=false`** (builds from that workflow’s default branch / checked-out tag context as configured), or retag a new patch version.
 

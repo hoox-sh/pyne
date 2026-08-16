@@ -207,7 +207,34 @@ Omit `mode` to use the schema default **`auto`** (warm compile when eligible, el
 
 Prefer saving stack sources as **`.pyne`** (`.pine` still works).
 
-### 7. Optional: start LSP for editors
+### 7. Library bar-loop vs CLI smoke
+
+Library `Runtime.run` defaults to **interpret**. `pyne run` is **compile-only** on synthetic bars and does not accept `--mode`.
+
+```python
+from pynescript.runtime import Runtime
+
+ohlcv = [
+    {"time": 1, "open": 1, "high": 2, "low": 0.5, "close": 1.5, "volume": 100},
+    {"time": 2, "open": 1.5, "high": 2.5, "low": 1.0, "close": 2.0, "volume": 120},
+]
+out = Runtime(symbol="DEMO").run(
+    '//@version=6\nindicator("t")\nplot(close)\n',
+    ohlcv,
+    mode="interpret",
+    timeout_seconds=5.0,
+)
+print(out.get("mode"), list(out.get("series", {})))
+```
+
+```bash
+pip install "hoox-pyne[compile]"
+pyne run examples/rsi_strategy.pine --bars 50
+```
+
+See [modes](/pyne/docs/enduser/reference/modes).
+
+### 8. Optional: start LSP for editors
 
 ```bash
 pip install "hoox-pyne[lsp]"
@@ -234,4 +261,5 @@ Wire Neovim / Zed / Emacs using [Editors](/pyne/docs/enduser/guides/editors) and
 - [CLI guide](/pyne/docs/enduser/guides/cli)
 - [Library API](/pyne/docs/enduser/guides/library-api)
 - [Evaluate scripts](/pyne/docs/enduser/guides/evaluate-scripts)
+- [Runtime modes](/pyne/docs/enduser/reference/modes)
 - [CLI command reference](/pyne/docs/enduser/reference/cli-commands)

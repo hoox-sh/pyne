@@ -42,6 +42,7 @@ Answers cite:
 
 - `pyproject.toml` — version, extras, license  
 - `src/pynescript/__main__.py` — CLI reality  
+- `src/pynescript/runtime/host.py` — `Runtime.run`  
 - `docs/missing_features.md` / reference status pages — coverage  
 - `backend/app.py` — HTTP contract  
 
@@ -101,11 +102,13 @@ Not guaranteed. Broker emulator rules, fill models, request.* data, and some bui
 
 ### Does the CLI evaluate strategies?
 
-No evaluate subcommand today. Use:
+`pyne run script.pine --bars 50` compiles and executes on **synthetic** OHLCV. It is **not** `Runtime.run` (no real bars, no `mode`/`libraries`/`timeout_seconds`/`inputs`). For real OHLCV use:
 
-- `literal_eval` for expressions  
-- `backend.runtime.Runtime` or `POST /run` for bar-loops  
-- `examples/execute_script.py` as a didactic sample  
+- `from pynescript.runtime import Runtime` — library default `mode` is **interpret**
+- `POST /run` — schema default `mode` is **auto**
+- `examples/execute_script.py` as a didactic sample (not the production host)
+
+See [modes](/pyne/docs/enduser/reference/modes).
 
 ### How do I lint in CI?
 
@@ -172,6 +175,18 @@ Optional edge trading mesh (trade-worker, etc.). Docs: [HOOX](/docs). Strategy e
 
 See the [ecosystem map](/pyne/docs/reference/ecosystem) and [modes](/pyne/docs/enduser/reference/modes).
 
+### What is the default `mode`?
+
+It depends on the surface — this is the usual footgun:
+
+| Surface | Default |
+| --- | --- |
+| `pynescript.runtime.Runtime.run(..., mode=None)` | `PYNE_RUNTIME_MODE` else **interpret** |
+| `POST /run` (body omits `mode`) | **auto** |
+| `pyne run` | **compile-only** (not `Runtime.run`, no `--mode`) |
+
+See [modes](/pyne/docs/enduser/reference/modes).
+
 ### Is there `Runtime.evaluate`?
 
 No. The host API is **`Runtime.run`**. Python CLI `pyne run` is compile-only smoke and is not `Runtime.run`. PyneTS `pynets run` **does** call `Runtime.run`.
@@ -202,7 +217,7 @@ Minimal `.pine` repro + expected TV behavior + PYNE version. Prefer failing pyte
 
 ### Is Jupyter supported?
 
-README mentions magic commands — {/* TODO: verify current jupyter extension path */}. You can always `parse` / `literal_eval` in notebooks with the library.
+Yes — `from pynescript.ext.jupyter import load_ipython_extension`. The `%%pinescript` cell magic lints, parses, and unparses; it is **not** a bar-loop Runtime. You can also call `parse` / `literal_eval` / `Runtime.run` directly in notebooks.
 
 ### Can I transform scripts programmatically?
 

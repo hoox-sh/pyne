@@ -64,8 +64,8 @@ flowchart LR
 | --- | --- | --- |
 | `api` | `entrypoint-api.sh` → gunicorn (`0.0.0.0:$PORT`) | Production / Cloud Run / compose prod |
 | `api-dev` | `python -m backend.app` with `HOST=0.0.0.0` | Local compose (source mounts) |
-| `lsp` | `python -m pynescript.langserver` (stdio) | Compose profile `lsp` |
-| `cli` | `ENTRYPOINT pynescript` (ephemeral; `/work` CWD) | CI gates, one-shot parse/lint/compile/run |
+| `lsp` | `ENTRYPOINT pyne-lsp` (stdio) | Compose profile `lsp`; GHCR `ghcr.io/hoox-sh/pyne/lsp` |
+| `cli` | `entrypoint-cli.sh` → `pyne` (fallback `pynescript`; ephemeral; `/work` CWD) | CI gates, one-shot parse/lint/compile/run |
 
 All targets: Python 3.12-slim, non-root `appuser` (uid 1000). API targets also set `API_KEY_STORE=/data/api_keys.json`, `MPLBACKEND=Agg`, healthcheck via `curl`. The **cli** image installs `.[compile,data]` only (no Flask/matplotlib) and is smaller/faster to build than `api`.
 ### Buildx Bake (`docker-bake.hcl`)
@@ -74,12 +74,15 @@ All targets: Python 3.12-slim, non-root `appuser` (uid 1000). API targets also s
 # Local load (host platform)
 docker buildx bake api                 # production image → pynescript-api:latest
 docker buildx bake cli                 # CLI image → pynescript-cli:latest (ENTRYPOINT: pyne)
+docker buildx bake lsp                 # LSP image → pynescript-lsp:latest (ENTRYPOINT: pyne-lsp)
 docker buildx bake                     # default group: api + api-dev
 docker buildx bake all                 # api + api-dev + lsp + cli
 
 # Multi-platform (amd64 + arm64). Set REGISTRY to push:
-REGISTRY=gcr.io/$PROJECT/pynescript TAG=$COMMIT_SHA docker buildx bake release
-# release group = api-release + cli-release
+REGISTRY=ghcr.io/hoox-sh/pyne TAG=0.3.10 docker buildx bake release
+# release group = api-release + cli-release + lsp-release
+# → ghcr.io/hoox-sh/pyne/{api,cli,lsp}:0.3.10
+# Prefer: make docker-push-ghcr  (workflow GHCR on v* tags)
 ```
 
 Make wrappers:
@@ -87,8 +90,10 @@ Make wrappers:
 ```bash
 make docker-build       # bake api
 make docker-build-cli   # bake cli
+make docker-build-lsp   # bake lsp
 make docker-build-all   # bake all targets
 make docker-buildx      # bake release (multi-platform)
+make docker-push-ghcr   # gh workflow run ghcr.yml
 make docker-cli ARGS="check script.pine"   # compose profile cli
 ```
 
@@ -122,7 +127,7 @@ docker compose --profile cli run --rm cli check script.pine
 | `api` | default | Port `${API_PORT:-5002}:8080`, ro mounts of `src/` + `backend/`, volume `api_data` → `/data` |
 | `redis` | `redis` | redis:7-alpine, AOF, `${REDIS_PORT:-6379}` |
 | `lsp` | `lsp` | stdio; use `docker compose run --rm lsp` (not detached `up`) |
-| `cli` | `cli` | `ENTRYPOINT pynescript`; mounts `.:/work` + `src` + `cli_data` |
+| `cli` | `cli` | `entrypoint-cli.sh` → `pyne`; mounts `.:/work` + `src` + `cli_data` |
 
 Network name: `pynescript-dev`.
 
@@ -139,30 +144,40 @@ Production overlay (`docker-compose.prod.yml`): target `api`, **`volumes: !overr
 | `STORE_BACKEND` | `json` (prod overlay: `sqlite`) | `json` \| `sqlite` \| `redis` |
 | `API_KEY_STORE` | `/data/api_keys.json` | JSON key store path (`STORE_BACKEND=json`) |
 | `API_KEY_STORE_SQLITE` | `/data/api_keys.db` | SQLite path (`STORE_BACKEND=sqlite`) |
-| `ALLOWED_ORIGINS` | see `.env.example` | CORS allow-list |
+| `ALLOWED_ORIGINS` | compose default includes `https://hoox.sh`, `https://hoox.sh/axis`, and **local AXIS `:8081`** | CORS allow-list. VPS AXIS is **:80** — do not copy 8081 into VPS env |
 | `ADMIN_TOKEN` | unset | Required for `POST /auth/create_key` (`X-Admin-Token`) and prod compose |
 | `REDIS_URL` | empty in prod; compose dev default `redis://redis:6379/0` | Required when `STORE_BACKEND=redis` |
-| `GUNICORN_WORKERS` / `GUNICORN_THREADS` / `GUNICORN_TIMEOUT` | `2` / `4` / `60` | Prod entrypoint knobs |
+| `GUNICORN_WORKERS` / `GUNICORN_THREADS` / `GUNICORN_TIMEOUT` | `2` / `4` / **`120`** (entrypoint default; prod compose overlay defaults to `60`) | Prod entrypoint knobs |
 | `GUNICORN_BIND` | `0.0.0.0:${PORT}` | Optional gunicorn bind override |
 
-### Cloud Build image tags
+### Published image names
 
-From `cloudbuild.yaml` (builds **`--target api`**):
+GitHub Container Registry (workflow **GHCR**, tags `v*`):
+
+```
+ghcr.io/hoox-sh/pyne/api:0.3.10
+ghcr.io/hoox-sh/pyne/cli:0.3.10
+ghcr.io/hoox-sh/pyne/lsp:0.3.10
+```
+
+Cloud Build (`cloudbuild.yaml`, **`--target api`** only):
 
 ```
 gcr.io/$PROJECT_ID/pynescript/pynescript-pro-api:$COMMIT_SHA
 gcr.io/$PROJECT_ID/pynescript/pynescript-pro-api:latest
 ```
 
+Substitution `_PYNESCRIPT_VERSION` in that YAML currently defaults to `"0.3.0"` — override at submit time to match `__about__.py` (**0.3.10**).
+
 ## Internals
 
 ### Build stages
 
-1. **base** — slim image, `curl` + freetype/png for matplotlib Agg, `appuser`, `/data`
-2. **builder** — `build-essential`, pip cache mounts, install `backend/requirements.txt` then `pip install ".[lsp]"` into `/install` (requires `pyproject.toml`, `README.md`, `LICENSE`, `NOTICE`, `src/`, `backend/`)
-3. **cli-builder** — same base + `pip install ".[compile,data]"` only (no Flask stack)
-4. **runtime** — copy prefix + sources, `PYTHONPATH=/app/src:/app` so compose mounts override site-packages
-5. **api / api-dev / lsp / cli** — final CMDs / ENTRYPOINTs and healthchecks
+1. **base-os / base** — slim image, non-root `appuser`; API/LSP `base` also installs `curl` + freetype/png
+2. **builder** — `build-essential`, pip cache mounts, install `backend/requirements.txt` then `pip install ".[lsp]"` into `/install`
+3. **lsp-builder** — `pip install ".[lsp]"` only (no Flask / matplotlib)
+4. **cli-builder** — `pip install ".[compile,data]"` only (no Flask stack)
+5. **runtime / api / api-dev / lsp / cli** — final CMDs / ENTRYPOINTs and healthchecks (`lsp` has none — stdio)
 
 ### `.dockerignore`
 
@@ -174,13 +189,14 @@ API: `curl -fsS http://127.0.0.1:8080/`. Redis: `redis-cli ping`.
 
 ## Invariants & edge cases
 
-1. **Host port 5002 vs container 8080.** AXIS local docs assume API on 5002 via compose; Cloud Run uses 8080.
+1. **Host port 5002 vs container 8080.** Local compose publishes API on **:5002**. Cloud Run uses **:8080**. VPS deploy (`scripts/deploy_vps.sh`) health-checks **API :5002** and **AXIS :80**. Local AXIS PWA is **:8081** — do not treat 8081 as the VPS PWA port.
 2. **Read-only mounts in compose** mean dependency changes need image rebuild; source edits are visible via `PYTHONPATH` precedence.
 3. **Production target is immutable** — no live mounts; use the prod overlay or Cloud Run.
 4. **Non-root `appuser`** cannot write arbitrary paths; keep `API_KEY_STORE` under `/data`.
 5. **Cloud Build always builds `--target api`** (gunicorn). Do not point it at `api-dev`.
 6. **LSP is stdio** — not an HTTP service; use `docker compose run --rm lsp` rather than expecting a published port.
-7. **CLI is ephemeral** — `ENTRYPOINT pynescript`; pass subcommands after the image name. Workdir defaults to `/work` (compose mounts the repo there).
+7. **CLI is ephemeral** — `entrypoint-cli.sh` execs `pyne` (fallback `pynescript`); pass subcommands after the image name. Workdir defaults to `/work` (compose mounts the repo there).
+8. **Prod overlay is fail-closed** — `ADMIN_TOKEN` is required (`:?` interpolation); `volumes: !override` drops the dev source binds so only `api_data:/data` remains.
 
 ## Worked examples
 
@@ -190,7 +206,8 @@ API: `curl -fsS http://127.0.0.1:8080/`. Redis: `redis-cli ping`.
 docker buildx bake api
 docker run --rm -p 8080:8080 \
   -e FLASK_ENV=production \
-  -e ALLOWED_ORIGINS=http://localhost:8081 \
+  -e ADMIN_TOKEN=change-me \
+  -e ALLOWED_ORIGINS=https://hoox.sh,https://hoox.sh/axis \
   pynescript-api:latest
 curl -s http://127.0.0.1:8080/ | jq .
 ```

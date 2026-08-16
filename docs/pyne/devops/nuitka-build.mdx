@@ -30,8 +30,8 @@ Both the **Language Server** and the **Click CLI** can run as pure Python or as 
 
 | Binary | Entry | Typical use |
 | --- | --- | --- |
-| `pynescript-lsp` | `langserver/__main__.py` | Editors / VSIX |
-| `pynescript` | `pynescript/__main__.py` | Shell / CI gates |
+| `pynescript-lsp` (PATH name; product CLI is `pyne-lsp`) | `langserver/__main__.py` | Editors / VSIX |
+| `pynescript` (PATH name; product CLI is `pyne`) | `pynescript/__main__.py` | Shell / CI gates |
 
 Primary tools: `scripts/build/compile.py` (local) and `scripts/build/ci_build.py` (CI/Cloud Build). Both accept `--target lsp|cli|all`.
 
@@ -132,7 +132,7 @@ conda install libpython-static
 ## Invariants & edge cases
 
 1. **C compiler required** (gcc/clang/MSVC). Containers need `build-essential` or equivalent if compiling inside Docker.
-2. **Python 3.10+**; release workflow pins **3.12**.
+2. **Python 3.10+**; release workflow pins **3.11** with `nuitka>=2.5.1,<2.8`. Local/Cloud Build sketches often use 3.12.
 3. **Providers data dir must ship** — completion/hover collapse without metadata.
 4. **Onefile startup cost** includes extract-to-temp; standalone is snappier for local soak tests.
 5. **Do not commit** `scripts/build/.metadata.key`.

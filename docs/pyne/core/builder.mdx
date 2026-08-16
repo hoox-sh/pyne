@@ -69,12 +69,14 @@ node = PinescriptASTBuilder().visit(ctx)
 
 ### Locator API
 
+The live path writes attributes **directly**. Do not describe `_setLocations` as a dict apply — that was an older micro-opt leftover.
+
 | Method | Role |
 | --- | --- |
-| `_getLocations(ctx)` | Dict of four location keys |
-| `_setLocations(node, ctx)` | Mutates node attributes from `ctx.start` / `ctx.stop` |
+| `_setLocations(node, ctx)` | **Hot path.** Sets `node.lineno` / `col_offset` / `end_*` from `ctx.start` / `ctx.stop` (no intermediate dict). |
+| `_getLocations(ctx)` | Unused helper that still **returns** a four-key dict. Not called by visit methods. |
 
-End column calculation accounts for embedded newlines in the stop token text.
+End column calculation accounts for embedded newlines in the stop token text. The builder instance is **stateless**; `helper._SHARED_BUILDER` reuses one object for every parse.
 
 ### Comment kinds
 
@@ -83,8 +85,8 @@ End column calculation accounts for embedded newlines in the stop token text.
 | Pattern | Kind prefix | Suffix | Example |
 | --- | --- | --- | --- |
 | `//@version = 5` | `@=` | `S` (script) | version assignment |
-| `//@description …` | `@0` | `S` | script description |
-| `//@function` / `@returns` | `@0` | `F` | function docs |
+| `//@description …` / `//@strategy_alert_message …` | `@0` | `S` | script description / alert |
+| `//@function` / `//@returns` | `@0` | `F` | function docs |
 | `//@type` | `@0` | `T` | type docs |
 | `//@variable` | `@0` | `V` | variable docs |
 | `//@param name …` | `@1` | `F` | param docs |
@@ -104,16 +106,21 @@ End column calculation accounts for embedded newlines in the stop token text.
 | --- | --- |
 | `visitStart_script` | `Script(body)` |
 | `visitStart_expression` | `Expression(body)` |
-| `visitFunction_declaration` / `visitMethod_declaration` | `FunctionDef` (`method=1` for methods) |
+| `visitFunction_declaration` / `visitMethod_declaration` | `FunctionDef` (`method=1` for methods; optional `returns=` type spec) |
 | `visitType_declaration` | `TypeDef` |
 | `visitEnum_declaration` | `EnumDef` |
-| `visitCompound_*` / `visitSimple_*` assignment family | `Assign` / `ReAssign` / `AugAssign` |
+| `visitVariable_declaration` | `Assign` shell (`target`/`type`/`mode`); parent fills `value` |
+| `visitSimple_name_initialization` / `visitCompound_name_initialization` | `Assign` (`export=1` if `EXPORT`) |
+| `visitSimple_reassignment` / `visitCompound_reassignment` | `ReAssign` (`:=`, or `=` on attr/subscript) |
+| `visit*_*_augassignment` | `AugAssign` |
 | `visitIf_structure` / `visitFor_*` / `visitWhile_*` / `visitSwitch_*` | Structure expressions |
 | `visit*_*_expression` (disjunction → … → primary) | Operator trees with correct associativity |
 | `visitLiteral_*` | `Constant` (numbers via `ast.literal_eval`, strings, bools, colors) |
 | `visitPrimary_expression_call` | `Call` + `Arg` list (positional/keyword) |
 
-Expression climbing follows the grammar’s layered rules (`conditional` → `disjunction` → `conjunction` → equality → inequality → additive → multiplicative → unary → primary).
+Expression climbing follows the grammar’s layered rules (`conditional` → `disjunction` → `conjunction` → **bitwise or/xor/and** → equality → inequality → **shift** → additive → multiplicative → unary (`~`/`not`/`+/-`) → primary).
+
+`returns` is visited from `ctx.type_specification()` and must not be evaluated as a value by later engines.
 
 ## Internals
 
@@ -130,7 +137,11 @@ Expression climbing follows the grammar’s layered rules (`conditional` → `di
 
 ### Export flag
 
-When `EXPORT` is present on library declarations or compound name initialization, the builder sets `export = 1` on the corresponding node (integer flag per ASDL `int?`).
+When `EXPORT` is present on library declarations or name initialization, the builder sets `export = 1` on the corresponding node (integer flag per ASDL `int?`).
+
+### Assign vs `ReAssign`
+
+`visitVariable_declaration` always builds `Assign` (optional `type` / `var`/`varip` mode). `=` after a bare or typed name is initialization. `visitSimple_reassignment` emits `ReAssign` for `obj.f =` / `a[i] =` / `name :=` — never for `name =`. See [Grammar](/pyne/docs/core/grammar-antlr4).
 
 ### Field / enum members
 
@@ -138,7 +149,7 @@ Field definitions become `Assign`-like statements inside `TypeDef.body` (with op
 
 ## Invariants
 
-1. **Every constructed stmt/expr that has a source span should receive `_setLocations`** so LSP diagnostics and `get_source_segment` work.
+1. **Every constructed stmt/expr that has a source span should receive `_setLocations`** (direct attribute writes) so LSP diagnostics and `get_source_segment` work.
 2. **Visitor method names must track generated rule names.** Renaming a parser rule without updating the builder is a silent `generic_visit` fallback (wrong or empty trees).
 3. **Do not edit `builder.py.bak`.** Live builder is `builder.py` only (stale backups are forbidden under project policy).
 4. **Grammar and builder co-evolve.** A resource-only grammar change that adds rules is incomplete until `visit_*` exists.
@@ -165,6 +176,15 @@ Assign(
 Grammar: `EXPORT? variable_declaration EQUAL structure_expression`
 
 Builder sets `assign.export = 1` when `ctx.EXPORT()` is present — required for library export of typed constants.
+
+### Typed UDF (`FunctionDef.returns`)
+
+```pine
+int ilog2(int n) =>
+    // ...
+```
+
+`visitFunction_declaration` stores the leading `type_specification` on `FunctionDef.returns` (here a `Name(id="int")`). Methods do the same with `method=1`. The unparser prints it back as a leading type.
 
 ### Debugging a missing visitor
 

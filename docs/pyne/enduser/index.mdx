@@ -76,7 +76,7 @@ flowchart TB
 
 | Surface | Entry | Typical job |
 | --- | --- | --- |
-| CLI | `pyne …` (alias `pynescript`) | One-shot parse, format, lint, market data, prewarm |
+| CLI | `pyne …` (alias `pynescript`) | One-shot parse, format, lint, compile, `run` (synthetic bars), prewarm, data |
 | Library | `from pynescript.ast import parse, unparse` | Embed parse/transform/eval in tools |
 | PyneTS | `import { parse, Runtime } from "@hoox-sh/pynets"` | Same names in TypeScript / Bun |
 | LSP | `pyne-lsp` (alias `pynescript-lsp`) | Diagnostics, completion, hover (`.pyne` / `.pine`) |
@@ -98,7 +98,7 @@ New install, first parse, and environment knobs:
 
 Daily workflows against the same pipeline:
 
-- **[CLI](/pyne/docs/enduser/guides/cli)** — `check`, `format`, `lint`, `compile`, `run`, `data`, …
+- **[CLI](/pyne/docs/enduser/guides/cli)** — `check`, `format`, `lint`, `compile`, `prewarm`, `run`, `data`, …
 - **[Library API](/pyne/docs/enduser/guides/library-api)** — `parse`, `unparse`, `dump`, `walk`, visitors, transformers, linter.
 - **[Evaluate scripts](/pyne/docs/enduser/guides/evaluate-scripts)** — Expression eval, bar-loop Runtime (`mode=auto`), strategy events, **alerts export**, mock vs live data.
 - **[Editors](/pyne/docs/enduser/guides/editors)** — VS Code (`.pyne` first-class), Neovim, Zed, Emacs, Helix; `clients/` snippets.
@@ -108,6 +108,7 @@ Daily workflows against the same pipeline:
 ### 3. Reference
 
 - **[CLI commands](/pyne/docs/enduser/reference/cli-commands)** — Full option trees for every Click command.
+- **[Modes](/pyne/docs/enduser/reference/modes)** — `interpret` / `compile` / `auto` defaults: library **interpret**, `POST /run` **auto**, `pyne run` **compile-only**.
 - **[Glossary](/pyne/docs/enduser/reference/glossary)** — AST, series, bar-loop, Runtime, ASDL, and related terms.
 - **[FAQ](/pyne/docs/enduser/reference/faq)** — Version support, TradingView parity, licensing, AXIS/HOOX boundaries.
 
@@ -123,7 +124,9 @@ Daily workflows against the same pipeline:
 | Lint | `pyne lint path.pine` | [CLI](/pyne/docs/enduser/guides/cli) |
 | Library parse | `from pynescript.ast import parse, unparse` | [Library API](/pyne/docs/enduser/guides/library-api) |
 | Expression eval | `from pynescript.ast.helper import literal_eval` | [Evaluate](/pyne/docs/enduser/guides/evaluate-scripts) |
-| Bar-loop eval | `from pynescript.runtime import Runtime` | [Evaluate](/pyne/docs/enduser/guides/evaluate-scripts) |
+| Bar-loop eval | `from pynescript.runtime import Runtime` (`mode` default **interpret**) | [Evaluate](/pyne/docs/enduser/guides/evaluate-scripts) · [modes](/pyne/docs/enduser/reference/modes) |
+| Compile-only smoke | `pyne run script.pine --bars 50` | [CLI](/pyne/docs/enduser/guides/cli) |
+| Warm Numba / IR | `pyne prewarm` / `POST /compile/prewarm` | [CLI](/pyne/docs/enduser/guides/cli) |
 | Alerts + webhooks | `/run` → `alerts[]` / `webhook_url` | [Alerts](/pyne/docs/runtime/alerts) |
 | Start LSP | `pyne-lsp` (stdio) | [Editors](/pyne/docs/enduser/guides/editors) |
 | Local Pro API | `make run` / `python -m backend.app` | [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage) |
@@ -143,7 +146,7 @@ Consumer-relevant code only — deeper design is linked from each guide:
 
 | Path | Role |
 | --- | --- |
-| `src/pynescript/__main__.py` | Click CLI: check, format, lint, compile, run, data, … |
+| `src/pynescript/__main__.py` | Click CLI: check, format, lint, compile, prewarm, run, data, info |
 | `src/pynescript/ast/helper.py` | Public `parse`, `unparse`, `dump`, `walk`, `literal_eval` |
 | `src/pynescript/ast/linter.py` | `lint_script` / `PineLinter` |
 | `src/pynescript/ast/evaluator/` | Bar-aware and literal evaluators |
@@ -210,6 +213,7 @@ curl -s http://127.0.0.1:5002/ \
 - [PYNE product map](/pyne/docs) — full stack overview
 - [Installation](/pyne/docs/enduser/getting-started/installation)
 - [Quick start](/pyne/docs/enduser/getting-started/quick-start)
+- [Runtime modes](/pyne/docs/enduser/reference/modes)
 - [Evaluate contract (API)](/pyne/docs/api/contract)
 - [AXIS docs](/axis/docs) — optional chart
 - [HOOX docs](/docs) — optional edge trade mesh

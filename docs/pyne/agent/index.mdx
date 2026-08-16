@@ -13,16 +13,15 @@ description: "Natural-language PYNE Agent on Cloudflare® Workers AI™ — stan
 
 ## Abstract
 
-**pyne-agent-worker** is the edge **authoring** host for Pine Script™: natural language in, script source out. It is a **sister repository** to PYNE (evaluate) and AXIS (chart UI).
+**pyne-agent-worker** is the edge **authoring** host: natural language in, script source out. It is a **sister repository** — it does **not** live in this PYNE checkout. Do not look for `pyne-agent-worker/` here.
 
 | | |
 |--|--|
 | **Repo** | [hoox-sh/pyne-agent-worker](https://github.com/hoox-sh/pyne-agent-worker) |
 | **Role** | Write scripts via chat (PYNE Agent) + optional RAG |
-| **Runtime** | Cloudflare® Workers + Workers AI™ + optional Vectorize™ / R2 |
+| **Runtime** | Cloudflare Workers + Workers AI + optional Vectorize / R2 |
 | **AXIS** | Component plugin at `/plugin/axis-pine-agent.js` |
-
-_Pine Script™ and TradingView® are trademarks of TradingView, Inc. Cloudflare® is a registered trademark of Cloudflare, Inc. Not affiliated with TradingView, Inc. or Cloudflare, Inc._
+| **In this repo?** | **No** |
 
 ## Standalone by default
 
@@ -35,14 +34,18 @@ You do **not** need pyne-worker, trade-worker, or the HOOX mesh to use the agent
 
 `GET /health` returns `"mode": "standalone" | "hoox"`.
 
-## Relationship to PYNE
+## Conceptual model
 
 ```text
 NL request
-   → pyne-agent-worker   (write)
+   → pyne-agent-worker   (write — sister repo)
    → .pine source
    → PYNE Pro API / pyne-worker / AXIS engine   (evaluate)
 ```
+
+Standalone mode needs only the Workers AI binding. HOOX / pyne-worker is an optional validate loop (`POST /run` then fix retries). `GET /health` reports `"mode": "standalone" | "hoox"`.
+
+## Relationship to PYNE
 
 - **PYNE** remains the semantic oracle and evaluate contract.
 - The agent never ships TradingView® built-in sources in git.

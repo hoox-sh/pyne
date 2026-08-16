@@ -190,7 +190,7 @@ Builder produces `Qualify(qualifier=…, value=…)` for annotated types in the 
 
 ### Path
 
-`src/pynescript/ast/type_system.py` — sole definition site for the classes above.
+`src/pynescript/ast/type_system.py` — sole definition site for the classes above. **Not** star-exported from `pynescript.ast`; import the module directly.
 
 Consumers (outside this doc’s page set, for orientation):
 

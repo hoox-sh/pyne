@@ -1,7 +1,7 @@
 # Contributing to pyne
 
 > Part of **[HOOX](https://hoox.sh)**: [pyne](https://hoox.sh/pyne) · [axis](https://hoox.sh/axis) · [hoox](https://hoox.sh)  
-> Charting UI contributions go to **[axis](https://github.com/jango-blockchained/axis)** (sister repo; org transfer separate).
+> Charting UI contributions go to **[hoox-sh/axis](https://github.com/hoox-sh/axis)** (sister repo; historical `jango-blockchained/axis`).
 
 Thank you for your interest in contributing to pyne!
 
@@ -13,20 +13,20 @@ git clone --recurse-submodules https://github.com/hoox-sh/pyne.git
 git submodule update --init --recursive
 ```
 
-`pynets/` is a [git submodule](https://github.com/hoox-sh/pynets) (TypeScript / Bun port). Do not add in-tree copies of that tree. Work on PyneTS in the standalone repo and bump the submodule pointer here.
+`pynets/` is the only git submodule ([hoox-sh/pynets](https://github.com/hoox-sh/pynets)). Do not add in-tree copies. Work on PyneTS in the standalone repo and bump the submodule pointer here. **`pyne-lsp` is in-tree** (`src/pynescript/langserver/`), not a submodule.
 
 Please refer to the documentation in the `docs/` directory for detailed instructions on setting up your development environment and understanding the project structure.
 
-- [Developer Guide](docs/index.md)
-- [Project Structure](docs/reference.md)
+- Product docs: [hoox.sh/pyne/docs](https://hoox.sh/pyne/docs) · [Contributing (Mintlify)](docs/pyne/contributing.mdx)
+- Everyday commands: `make install` / `make test` / `make lint` (Hatch envs still work: `hatch run test:test`)
 
 ## Development Workflow
 
 1.  **Fork the repository** and create your branch from `main`.
-2.  **Install dependencies** using `hatch`.
-3.  **Run tests** to ensure everything is working: `hatch run test:test`.
+2.  **Install**: `make install` (editable + LSP) or `pip install -e ".[lsp,pro]"`. Hatch envs are optional.
+3.  **Run tests**: `make test` / `hatch run test:test`.
 4.  **Make your changes**.
-5.  **Run linting and formatting**: `hatch run lint:style` and `hatch run lint:typing`.
+5.  **Lint / format**: `make lint` / `make fmt`, or `hatch run lint:style` and `hatch run lint:typing`.
 6.  **Submit a Pull Request**.
 
 ## Code Style
@@ -94,9 +94,10 @@ See `docs/pyne/devops/pypi-publish.mdx` for failure modes.
 2. Align `vscode-extension/package.json` version when shipping the VSIX together.
 3. Ensure CI is green on `main`.
 4. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
-5. GitHub Actions **Publish** builds sdist/wheel and uploads with
-   `PYPI_API_TOKEN` (personal account) or Trusted Publishing OIDC
-   (environment `pypi`, workflow `publish.yml`).
+5. GitHub Actions on `v*` tags:
+   - **Publish** (`publish.yml`) — sdist/wheel → PyPI (`hoox_pyne-*.whl` / `hoox_pyne-*.tar.gz`) via `PYPI_API_TOKEN` or Trusted Publishing OIDC (environment `pypi`).
+   - **Build & Release** (`release.yml`) — Nuitka CLI/LSP binaries + VSIX on the GitHub Release.
+   - **GHCR** (`ghcr.yml`) — `ghcr.io/hoox-sh/pyne/{cli,lsp,api}:X.Y.Z`.
 
 Dry-run (build only, no upload): Actions → **Publish** → Run workflow → `dry_run=true`.
 
@@ -111,4 +112,4 @@ twine check dist/*
 ```
 
 AXIS charting UI releases are handled in
-[jango-blockchained/axis](https://github.com/jango-blockchained/axis), not here.
+[hoox-sh/axis](https://github.com/hoox-sh/axis), not here.

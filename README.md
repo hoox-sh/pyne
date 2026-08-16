@@ -79,7 +79,7 @@ Not a claim of TradingView® platform parity. Intentional demos are classified s
 
 ### Runtime
 
-- **Bar-loop evaluation.** Deterministic indicator and strategy execution on OHLCV. Interpret (0.3.10) inlines Assign/Call after bar 0 and skips unused derived series.
+- **Bar-loop evaluation.** Deterministic indicator and strategy execution on OHLCV. Interpret (0.3.10) inlines Assign/Call after bar 0, skips unused derived series, and incrementally updates volume TA (`obv` / `wad` / `cmf` / `klinger`). `PYNE_SERIES_RING` default **off**.
 - **Dual engine.** Interpret (AST walk) and compile (Numba nopython kernels with object-mode fallback); `mode` ∈ {`auto`, `compile`, `interpret`}.
 - **Warm compile.** Disk IR cache, process prewarm, and recovery from corrupt cache state.
 - **Plot parity.** Interpret ↔ compile series alignment verified by harness and tests (internal engine consistency, not platform certification).
@@ -93,7 +93,7 @@ Not a claim of TradingView® platform parity. Intentional demos are classified s
 
 | Surface | Role |
 |---------|------|
-| **CLI** (`pynescript`) | Check, format, lint, compile, run, data fetch, prewarm |
+| **CLI** (`pyne`, alias `pynescript`) | Check, format, lint, compile, run, data fetch, prewarm |
 | **LSP** (`pyne-lsp`) | Diagnostics, completion (~800+ builtins), hover, navigation, semantic tokens, formatting |
 | **VS Code extension** | First-class `.pyne` / `.pine` (and related) associations |
 | **Pro API** | HTTP evaluate, batch run, chart preview, quick backtest |
@@ -333,7 +333,7 @@ This repository plus satellites that share the evaluate contract. Python `pynesc
 HOOX also publishes execution-plane workers (`hoox-worker`, `trade-worker`, `telegram-worker`, `d1-worker`, …) under [github.com/hoox-sh](https://github.com/hoox-sh). Those are execution and ops, not the Pine language toolchain.
 
 ```bash
-git clone --recurse-submodules https://github.com/hoox-sh/pyne.git   # PYNE + pynets/ + pyne-lsp
+git clone --recurse-submodules https://github.com/hoox-sh/pyne.git   # PYNE + pynets/ submodule (pyne-lsp is in-tree)
 pip install -e ".[lsp,pro]"                                          # CLI + LSP + Pro API
 git clone https://github.com/hoox-sh/pynets.git
 git clone https://github.com/hoox-sh/pyne-worker.git

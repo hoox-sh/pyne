@@ -19,9 +19,9 @@
 
 # Missing Features - Pine Script v6 Implementation
 
-**Current Status (as of 2026-08-15):** Strong core support (parser + evaluator + 1100+ tests). Open-source corpus set01–04 (local measurement, not shipped in git): **parse 99.96%** (2476/2477), **Runtime interpret 100% excl. EXPECTED_FAIL** (2466 OK + 11 intentional demos), set01 **249/249** — not a claim of 100% TradingView® platform parity. Drawing `max_*_count` GC landed. **Alert engine + L2 webhooks** closed on Pro API and pyne-worker. **Warm-compile (H2)** + **series caps (T1)** + incremental TA (incl. bb/kama/cmo/stochrsi/wma/hma/linreg) landed. Package Runtime SoT + pyne-worker thin wrap landed; interpret↔compile plot MISMATCH tail remains open.
+**Current Status (as of 2026-08-16, hoox-pyne 0.3.10):** Strong core support (parser + evaluator + 1100+ tests). Open-source corpus set01–04 (local measurement, not shipped in git): **parse 99.96%** (2476/2477), **Runtime interpret 100% excl. EXPECTED_FAIL** (2466 OK + 11 intentional demos), set01 **249/249** — not a claim of 100% TradingView® platform parity. Drawing `max_*_count` GC landed. **Alert engine + L2 webhooks** closed on Pro API and pyne-worker. **Warm-compile (H2)** + **series caps (T1)** + incremental TA (bb/kama/cmo/stochrsi/wma/hma/linreg + **0.3.10 volume `obv`/`wad`/`wvad`/`cmf`/`klinger`**) landed. Package Runtime SoT + pyne-worker thin wrap landed (**H1** largely done). Residual: interpret↔compile plot MISMATCH tail (**P1p**), leftover full-list TA (`ta.nvi` / `ta.pvi`), optional **F1** goldens.
 
-**Last Updated:** 2026-08-03 (status align with `docs/ROADMAP.md`; alerts / L2 webhooks / drawing GC are **shipped**, not missing)
+**Last Updated:** 2026-08-16 (align with `docs/ROADMAP.md` + 0.3.10; pine-worker is **not** colocated)
 
 **Overall Support Assessment:** ~99%+ for core v6. Multiline strings + `export const` integrated. Remaining gaps are mostly by-design (mock/foreign request data, platform/editor-only) plus long-tail Runtime fails on truncated scrape sources — **not** missing alert/webhook/drawing-GC product surface.
 - Parser: Excellent for v5/v6 core + multiline, soft keywords, bitwise, typed UDF returns.
@@ -169,7 +169,7 @@ Call-site state (`_ta_call_i` reset each bar), one sample per site per bar (safe
 | **H2** | Product warm-compile path (SLOs, prewarm, IR cache on in deploy) | P1 ✅ (2026-08) |
 | **C1** | Corpus Runtime residual | P1 ✅ (2026-08-09) — set01–04 Runtime interpret **100%** excl. EXPECTED_FAIL (2466 OK + 11 intentional demos); parse **99.96%**. Residual = intentional demos only. set05 long-tail separate |
 | **T1** | Cap unbounded `current_series` lists to `max_bars_back` / `_SERIES_MAX` | P2 ✅ R7 — `PYNE_SERIES_CAP` (default ON), `PYNE_SERIES_MAX`, goldens `tests/test_series_cap.py` |
-| **T2** | Incremental for remaining heavy kernels | P2 ✅ R7: bb/kama/cmo/stochrsi inc; further nested full-list helpers residual |
+| **T2** | Incremental for remaining heavy kernels | P2 ✅ R7: bb/kama/cmo/stochrsi + wma/hma/linreg; **0.3.10** `obv`/`wad`/`wvad`/`cmf`/`klinger`. Residual full-list: `ta.nvi` / `ta.pvi` |
 | **L2** | Webhook alerts productization | P3 ✅ pyne-worker + Pro API `/run` export + outbound `ALERT_WEBHOOK_URL` / `webhook_url` |
 | **F1** | `ta.atr` is **Wilder RMA of TR** (interpret + Numba). Supertrend is simplified mid±factor·ATR (not TV ratchet); goldens lock that contract | P2 ⚙️ |
 | — | Bit-identical recursive smoothers vs live TV | numerical-parity track |
@@ -211,7 +211,7 @@ See also:
 PyneScript core is mature, with significant July 2026 enhancements:
 
 - ✅ **Strategy Events** - Full StrategyEvent capture, parity corpus (13+ tests), strategy.long/short constants, var/varip + ReAssign support.
-- ✅ **pine-worker** - TypeScript port of evaluator + Python→TS converter script as extra tool (colocated in repo).
+- ✅ **pine-worker** — legacy TypeScript Cloudflare Worker in sibling [`hoox-sh/pine-worker`](https://github.com/hoox-sh/pine-worker) (**not** colocated). New TS library work is [`@hoox-sh/pynets`](https://github.com/hoox-sh/pynets) (`pynets/` submodule here).
 - ✅ **200+ Built-in Functions** (including advanced strategy)
 - ✅ **1000+ Tests** (core + parity + strategy events green)
 - ✅ **Complete Parser** - Full support for Pine Script v5-v6 grammar
@@ -450,13 +450,13 @@ PyneScript core is mature, with significant July 2026 enhancements:
 ## July 2026 Additions (Main Consolidation)
 
 - Full strategy event system: `StrategyEvent` dataclass, event emission from all strategy.* calls, bar_index/time threading, parity fixtures for testing against TS port.
-- `pine-worker/` directory: TypeScript re-implementation of key evaluator parts + `scripts/convert-python-to-ts.py` for porting aid. Treated as extra tool of the main repo.
+- pine-worker is **not** in this tree (removed 0.3.7). Sister [`hoox-sh/pine-worker`](https://github.com/hoox-sh/pine-worker) holds the legacy TS Worker + historical `scripts/convert-python-to-ts.py`. PyneTS (`pynets/` submodule / standalone `hoox-sh/pynets`) is the TS library.
 - var / varip declaration modes and ReAssign handling.
 - Updated test coverage with dedicated `test_strategy_events.py` and `test_parity.py`.
 
-**Conclusion:** PyneScript has successfully implemented all core Pine Script features. The project provides a robust, well-tested foundation. July 2026 work added first-class strategy events, a colocated TS port, open-source corpus hardening, and interpret-mode TA performance (incremental hot path). Future work focuses on residual Runtime tail, Runtime host unify, optional TV-oracle re-baselines, LSP polish, converters, and real data adapters.
+**Conclusion:** Core Pine Script language/builtins are mature. July–August 2026 work added strategy events, package Runtime SoT, corpus hardening, incremental TA (through 0.3.10 volume kernels), and dual-host hosts. The TypeScript Worker is a **sister** repo, not an in-tree extra. Remaining work is plot-parity residual, leftover full-list TA (`nvi`/`pvi`), optional fidelity goldens, and real data adapters — not missing syntax.
 
 ---
 
-_Last updated: 2026-07-28_  
-_Version: 1.2_
+_Last updated: 2026-08-16_  
+_Version: 1.3 (0.3.10)_

@@ -103,18 +103,27 @@ The public parse path is higher level — [Helper API](/pyne/docs/core/helper-ap
 | --- | --- |
 | `INDENT` / `DEDENT` | Imaginary tokens emitted by `PinescriptLexerBase` (declared in `tokens { }`) |
 | `COMMENT` | `//` line comments → `COMMENT_CHANNEL` (not the default channel) |
+| `HASH_COMMENT` | `# …` line comments remapped `-> type(COMMENT)` (must not swallow `#RRGGBB`) |
+| `BACKTICKS` | Markdown fence `` ` `` remapped to `COMMENT` (paste noise) |
 | `WS` | Spaces/tabs/form-feed → `HIDDEN` |
+| `UNICODE_NOISE` | Curly quotes, bullets, arrows → `HIDDEN` |
 | `ERROR_TOKEN` | Catch-all `.` for recovery/reporting |
 | `TRIPLE_DQ_STRING` / `TRIPLE_SQ_STRING` | v6 multiline strings, typed as `STRING` |
+| `LSHIFT` / `RSHIFT` / `TILDE` / `AMP` / `PIPE` / `CARET` | Bitwise `<<` `>>` `~` `&` `|` `^` (multi-char ops declared before `<`/`>`) |
 
-Keywords include `var`, `varip`, `method`, `export`, `enum`, `type`, qualifiers `const`/`input`/`simple`/`series`, and control forms `if`/`for`/`while`/`switch`.
+Keywords include `var`, `varip`, `method`, `export`, `enum`, `type`, qualifiers `const`/`input`/`simple`/`series`, and control forms `if`/`for`/`while`/`switch`. Many of those words are **soft** in identifier position (`name` alternatives) so `as = input(...)` parses.
 
 ### Parser structural facts
 
 - **Compound vs simple statements.** Functions, methods, types, enums, and structure-valued assignments are compound; imports, break/continue, expression statements, and simple assignments terminate with `NEWLINE`.
+- **Trailing structures.** `a = 0, for i = 0 to n` is `trailing_structure_statements` (comma-separated simples ending in a structure).
 - **Structures are dual-use.** `if`/`for`/`while`/`switch` appear both as statements and as **expressions** (`structure_expression`) — the classic Pine “if returns a value” form.
 - **Local blocks.** Either indented (`NEWLINE INDENT statements DEDENT`) or inline single statement.
 - **Library export.** `EXPORT?` prefixes function/method/type/enum and June-2025 `export const T name = …` compound initializers.
+- **UDF return types.** `function_declaration` / `method_declaration` accept an optional leading `type_specification` (`int ilog2(int n) => …`). Builder stores it on `FunctionDef.returns`.
+- **Bitwise layer.** Between `and` and comparisons: `|` `^` `&` then `<<`/`>>`, then additive. Unary `~` is `Invert`.
+- **Assign vs reassignment (0.3.9).** `=` on a bare name is **initialization** (`Assign` via `variable_declaration`). Reassignment of a name is `:=` (`ReAssign`). `=` is reassignment only for attribute / subscript targets (`obj.f =`, `a[i] =`).
+- **Left-factored typed names.** `variable_declaration` is `declaration_mode? type_specification? name_store` with the typed alternative first so `int x = 1` does not consume `int` as the identifier. Same left-factor on `for_iterator` and parameter lists.
 
 ## Internals
 
@@ -144,15 +153,14 @@ Indent mistakes surface as `pynescript.ast.error.IndentationError` (subclass of 
 ### Regeneration
 
 ```bash
-# Preferred hatch env (pulls antlr4-cli)
-hatch run lint:gen-parser
+# Project-aware entry (sets -o generated, -lib resource, copies *Base.py)
+python -m pynescript.ast.grammar.antlr4.tool.generate
 
-# Or: python -m pynescript.ast.grammar.antlr4.tool.generate
-# which invokes: $(python)/antlr4 -o generated -lib resource -listener -visitor -Dlanguage=Python3 resource/*.g4
-# then copies resource/*.py into generated/
+# hatch lint:gen-parser is only the antlr4 CLI (`antlr4 {args}`) — pass flags yourself.
+# hatch run lint:gen-parser -- -o …/generated -lib …/resource -listener -visitor -Dlanguage=Python3 …/resource/*.g4
 ```
 
-Requires a working `antlr4` CLI (often `antlr4-cli` on `PATH`, sometimes under `~/.local/bin` or next to `sys.executable`). Generated modules are excluded from mypy/ruff strictness in `pyproject.toml` — do not “lint-fix” them by hand.
+`tool/generate.py` invokes `$(sys.executable)/../antlr4` with `-o generated -lib resource -listener -visitor -Dlanguage=Python3` on `resource/*.g4`, then copies `resource/*.py` into `generated/`. Requires a working `antlr4` CLI (hatch lint env pulls `antlr4-cli`). Generated modules are excluded from mypy/ruff strictness in `pyproject.toml` — do not “lint-fix” them by hand.
 
 ### Downstream after grammar change
 
@@ -165,7 +173,7 @@ Requires a working `antlr4` CLI (often `antlr4-cli` on `PATH`, sometimes under `
 
 1. **Never hand-edit `generated/`.** Patches belong in `resource/*.g4` or `resource/*Base.py`.
 2. **Visitor contract.** Generated `PinescriptParserVisitor` method names follow ANTLR rule names; the builder subclass must track renames.
-3. **Comments are off the default channel.** Annotation logic in `helper._collect_comment_nodes` iterates `token_stream.tokens` for `COMMENT` type after `fill()`.
+3. **Comments are off the default channel.** Annotation logic in `helper._collect_comment_nodes` iterates `token_stream.tokens` for `COMMENT` type after `fill()`, and keeps only texts containing `@`. `HASH_COMMENT` / `BACKTICKS` are remapped to that same token type.
 4. **Indent unit is four spaces.** Soft-wrap lines that are not multiples of four are newline-elided, not nested blocks.
 
 ## Worked examples
@@ -199,6 +207,34 @@ fragment TRIPLE_SQ_START: '\'' '\'' '\'';
 ```
 
 Content and source indentation inside the triple quotes are preserved literally (no automatic dedent).
+
+### Typed names and `=` vs `:=` (0.3.9)
+
+Pine lets type names occupy identifier positions (`int` is both a type and a legal `NAME` alternative via soft keywords). Alternatives must try the **typed** form first:
+
+```g4
+variable_declaration
+    : declaration_mode? type_specification name_store
+    | declaration_mode? name_store
+    ;
+
+simple_name_initialization: EXPORT? variable_declaration EQUAL expression;
+
+simple_reassignment
+    : assignment_target_attribute EQUAL expression
+    | assignment_target_subscript EQUAL expression
+    | primary_expression COLONEQUAL expression
+    ;
+```
+
+| Source | Node |
+| --- | --- |
+| `x = 1` / `var float x = 1.0` / `export const int N = 3` | `Assign` (`mode`/`type`/`export` as present) |
+| `x := 2` | `ReAssign` |
+| `obj.field = 3` / `arr[i] = 4` | `ReAssign` (attribute/subscript `=`) |
+| `x += 1` | `AugAssign` |
+
+Putting `name_store` before `type_specification name_store` made `int x = 1` parse `int` as the variable and then fail on `x`. Do not invert those alternatives.
 
 ### Case study: targeted lexer refresh (2026-07)
 

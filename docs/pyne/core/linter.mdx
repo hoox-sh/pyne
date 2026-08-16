@@ -97,9 +97,9 @@ Reads UTF-8 text then delegates to `lint_script`.
 
 | Code | Severity | Condition |
 | --- | --- | --- |
-| `E001` | error | `parse(source, filename)` raises any exception; message includes exception text |
+| `E001` | error | `parse(source, filename)` raises any exception |
 
-Does not attempt recovery; one syntax error check per run.
+Does not attempt recovery; one syntax error check per run. Location is taken from `pynescript.ast.error.SyntaxError.details` (`lineno`, `offset`) when present; otherwise a `line N` regex on the exception text. The warning message prefers the short `.message` attribute so caret dumps do not land in chips.
 
 ### Version
 
@@ -144,7 +144,7 @@ Heuristic only: line-local regex `(\w+)\s*=\s*ta\.`.
 
 Dependencies:
 
-- `pynescript.ast.parse` (re-exported path via `from pynescript.ast import parse`)
+- `pynescript.ast.parse` (re-exported path via `from pynescript.ast import parse` — subject to the helper sha256 LRU)
 - Standard library `re`, `dataclasses`
 
 ### Design stance
@@ -204,7 +204,7 @@ if errors:
 | --- | --- |
 | `C003` on legitimate indented `if` blocks | Regex is coarse; multi-line `if` with body still matches `^\s+if\s+` |
 | `C001` noise | Many valid snake_case or lower identifiers |
-| `E001` opaque message | Exception string from parse; see [Error model](/pyne/docs/core/error-model) for caret formatting when catching `SyntaxError` directly |
+| `E001` still not a caret dump | Linter stores the short `.message` plus line/column; catch `pynescript.ast.error.SyntaxError` for the full caret `__str__` |
 | Encoding errors in `lint_file` | Non-UTF-8 files raise at read time |
 | False security deprecation | Pattern looks for quoted `EXCHANGE:SYM` form only |
 

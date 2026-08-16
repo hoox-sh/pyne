@@ -192,7 +192,9 @@ pyne prewarm --json
 ### `pyne run`
 
 Compile and execute on deterministic synthetic OHLCV (same compile pipeline as
-Pro API `mode=compile`). Prefer package `pynescript.runtime.Runtime` / Pro API for real bars.
+Pro API `mode=compile`). **No `--mode`.** Does **not** call `Runtime.run`. Prefer
+package `pynescript.runtime.Runtime` / Pro API for real bars, `libraries=`, and
+`timeout_seconds`.
 
 | Kind | Name | Default | Description |
 | --- | --- | --- | --- |
@@ -284,6 +286,7 @@ python -m pynescript.langserver
 ## See also
 
 - [CLI guide](/pyne/docs/enduser/guides/cli)
+- [Runtime modes](/pyne/docs/enduser/reference/modes)
 - [Installation](/pyne/docs/enduser/getting-started/installation)
 - [Compiler overview](/pyne/docs/runtime/compiler/overview)
 - [Docker](/pyne/docs/devops/docker)

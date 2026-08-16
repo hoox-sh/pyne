@@ -83,19 +83,23 @@ npm run compile
 # package: npx vsce package  (or make build-vscode)
 ```
 
-2. Open a **`.pyne`** (preferred for HOOX / PYNE stack sources), `.pine`, `.pinev5`, or `.pinev6` file — LSP activates when enabled. The VS Code extension also activates on `workspaceContains:**/*.{pyne,pine,…}`.
+2. Open a **`.pyne`** (preferred for HOOX / PYNE stack sources), `.pine`, `.pinev5`, `.pinev6`, or `.pinescript` file — LSP activates when enabled. The VS Code extension also activates on `workspaceContains:**/*.{pyne,pine,…}`.
 
-Settings:
+**Marketplace / VSIX:** extension id **`hoox-sh.pyne`** (publisher `hoox-sh`, package name `pyne`). [VS Marketplace](https://marketplace.visualstudio.com/items?itemName=hoox-sh.pyne). Local package: `cd vscode-extension && npm ci && npm run package` then `code --install-extension pyne-vscode-0.3.10.vsix`. The VSIX is self-contained; you still need `pip install "hoox-pyne[lsp]"` (or a `pyne-lsp` binary) on the machine.
+
+Settings (from `vscode-extension/package.json`):
 
 | Key | Default | Notes |
 | --- | --- | --- |
 | `pynescript.lsp.enabled` | `true` | Master switch |
-| `pynescript.lsp.command` | `pynescript-lsp` | Absolute path if not on PATH |
+| `pynescript.lsp.command` | `auto` | `auto` → `pyne-lsp` → `pynescript-lsp` → `python3 -m pynescript.langserver`; or an absolute path / `docker` |
+| `pynescript.lsp.python` | `python3` | Interpreter when command is `auto` and no binary is on PATH |
+| `pynescript.lsp.args` | `[]` | Extra server args |
 | `pynescript.formatting.enabled` | `true` | |
 | `pynescript.diagnostics.enabled` | `true` | |
 | `pynescript.completion.snippets` | `true` | |
 
-Marketplace availability may lag git — {/* TODO: verify marketplace ID */}.
+Default formatter id: `hoox-sh.pyne`.
 
 ### Neovim (nvim-lspconfig)
 
@@ -107,10 +111,10 @@ Manual config from `clients/neovim.lua`:
 
 ```lua
 return {
-  cmd = { "pynescript-lsp" },
+  cmd = { "pyne-lsp" },  -- alias: pynescript-lsp
   filetypes = { "pinescript" },
   root_dir = function(fname)
-    return vim.fs.root(fname, { ".git", "*.pine", "*.pinev5", "*.pinev6", "pyproject.toml" })
+    return vim.fs.root(fname, { ".git", "*.pyne", "*.pine", "*.pinev5", "*.pinev6", "pyproject.toml" })
       or vim.fn.getcwd()
   end,
   settings = {
@@ -125,7 +129,7 @@ return {
 
 Suggested maps: `gd` definition, `gr` references, `K` hover, format via `vim.lsp.buf.format`.
 
-Ensure filetype detection maps `*.pine` → `pinescript` if your distro does not ship it.
+Ensure filetype detection maps `*.pyne` / `*.pine` → `pinescript` if your distro does not ship it.
 
 ### Zed
 
@@ -140,7 +144,7 @@ Merge `clients/zed.json` or:
   },
   "language_servers": {
     "pynescript": {
-      "command": "pynescript-lsp",
+      "command": "pyne-lsp",
       "arguments": ["--stdio"]
     }
   }
@@ -155,7 +159,7 @@ Merge `clients/zed.json` or:
   :config
   (lsp-register-client
    (make-lsp-client
-    :new-connection (lsp-stdio-connection '("pynescript-lsp" "--stdio"))
+    :new-connection (lsp-stdio-connection '("pyne-lsp" "--stdio"))
     :major-modes '(pinescript-mode)
     :server-id 'pynescript)))
 ```
@@ -170,9 +174,9 @@ Or `(load-file "clients/emacs.el")` from a checkout.
 [[language]]
 name = "pinescript"
 scope = "source.pinescript"
-file-types = ["pine", "pinev5", "pinev6"]
+file-types = ["pyne", "pine", "pinev5", "pinev6"]
 roots = ["pyproject.toml"]
-command = "pynescript-lsp"
+command = "pyne-lsp"
 args = ["--stdio"]
 ```
 
@@ -182,7 +186,7 @@ args = ["--stdio"]
 {
   "clients": {
     "pynescript": {
-      "command": ["pynescript-lsp", "--stdio"],
+      "command": ["pyne-lsp", "--stdio"],
       "selector": "source.pinescript",
       "initializationOptions": {}
     }
@@ -195,7 +199,7 @@ args = ["--stdio"]
 Any LSP client:
 
 ```text
-Command: pynescript-lsp
+Command: pyne-lsp          # alias: pynescript-lsp
 Args:    (none or --stdio depending on client)
 Transport: stdio
 ```
@@ -238,7 +242,7 @@ vim.api.nvim_create_autocmd("FileType", {
   callback = function()
     vim.lsp.start({
       name = "pynescript",
-      cmd = { "pynescript-lsp" },
+      cmd = { "pyne-lsp" },
       root_dir = vim.fn.getcwd(),
     })
   end,
@@ -249,7 +253,7 @@ vim.api.nvim_create_autocmd("FileType", {
 
 ```json
 {
-  "pynescript.lsp.command": "/home/you/project/.venv/bin/pynescript-lsp"
+  "pynescript.lsp.command": "/home/you/project/.venv/bin/pyne-lsp"
 }
 ```
 

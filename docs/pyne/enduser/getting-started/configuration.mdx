@@ -48,7 +48,7 @@ flowchart TB
   BIN --> LSPBIN[pyne-lsp]
 ```
 
-There is no required `pynescript.toml` for core use. {/* TODO: verify if a user config file was added */}
+There is no `pynescript.toml` (or similar) for core use. Parse, evaluate, and CLI flags are per-invocation.
 
 ## Interface surface
 
@@ -86,12 +86,17 @@ Per-invocation only (no persistence):
 
 | Command | Notable options |
 | --- | --- |
+| `check` | `--encoding`, `-q/--quiet`, `--ext` (directory walk) |
+| `format` / `fmt` | `-w/--write`, `--check`, `-o/--output-file` |
 | `parse-and-dump` | `--encoding`, `--indent`, `--output-file` |
 | `parse-and-unparse` | `--encoding`, `--output-file` |
-| `lint` | `--encoding`, `--fix`, `--fail-on {errors,warnings,all}` |
-| `data` | `--provider`, `--period`, `--interval`, `--api-key`, `--secret`, `--exchange` |
+| `lint` | `--encoding`, `--fail-on {errors,warnings,all,never}`, `--json`, `-q` |
+| `compile` | `--emit`, `-o`, `--time/--no-time` |
+| `prewarm` | `--force`, `--json` |
+| `run` | `--bars` (default 50), `--json`, `-q` — **compile-only** synthetic OHLCV |
+| `data` | `--provider`, `--period`, `--interval`, `--api-key`, `--secret`, `--exchange`, `--format` |
 
-`--fix` on `lint` is accepted by Click; auto-fix behavior may be incomplete — {/* TODO: verify fix implementation */}.
+`lint` has **no** `--fix`. Structural rewrite is `pyne format -w` (parse → unparse).
 
 ### Pro API environment variables
 
@@ -101,7 +106,7 @@ Consumed by `backend/app.py` and middleware:
 | --- | --- | --- |
 | `HOST` | `127.0.0.1` | Bind address when running `__main__` |
 | `PORT` | `5002` | Bind port |
-| `ALLOWED_ORIGINS` | `https://pynescript.ai`, `https://app.pynescript.ai`, localhost regex | CORS allowlist (comma-separated; may include regex strings) |
+| `ALLOWED_ORIGINS` | `https://pynescript.ai`, `https://app.pynescript.ai`, plus localhost regex | CORS allowlist (comma-separated; regex allowed). Code also appends localhost, private-LAN, and product-origin (`hoox.sh` / `pynescript.ai` / `pynescript.online`) regexes unless `*` |
 | `ADMIN_TOKEN` | unset | Required for `POST /auth/create_key`; if unset, create returns 403 |
 | `API_KEY_STORE` | `/root/pynescript/data/api_keys.json` | Path for key store (override for local) |
 | `ALERT_WEBHOOK_URL` | unset | Default L2 alert webhook for `/run` when body omits `webhook_url` |
@@ -115,15 +120,17 @@ Also relevant:
 
 ### Runtime / evaluate environment variables
 
-Used by `backend.runtime.Runtime` and the compiler host (library + Pro API):
+Used by `pynescript.runtime.Runtime` (`src/pynescript/runtime/host.py`) and the compiler host. `backend.runtime` is a compat re-export only.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `PYNE_RUNTIME_MODE` | `interpret` | Default when `Runtime.run(..., mode=None)` omits mode (**Pro API schema default is still `auto`**) |
+| `PYNE_RUNTIME_MODE` | `interpret` | Default when `Runtime.run(..., mode=None)` omits mode (**Pro API schema default is still `auto`**; `pyne run` ignores this — compile-only) |
 | `PYNE_SERIES_CAP` | **on** | Trim append-only host series lists; set `0` / `false` / `off` to disable (oracle / debug) |
 | `PYNE_SERIES_MAX` | unset | Absolute series history depth (overrides default 256 + `max_bars_back`) |
 | `PYNE_TA_INCREMENTAL` | **on** | Bar-mode incremental `ta.*` hot path; set `0` to force full recompute |
 | `PYNE_SERIES_RING` | **off** | Chronological tail view; skip dual list write. Keep off unless you need the ring path |
+| `PYNE_PARSE_CACHE` | **on** | Process-local LRU of successful `parse()` trees; set `0` to disable |
+| `PYNE_PARSE_CACHE_MAX` | `128` | Max parse-cache entries |
 | `PYNE_COMPILE_DISK_CACHE` | often `1` in deploy | Persist compiled IR across processes |
 | `PYNE_COMPILE_CACHE_DIR` | XDG cache / Docker `/data/compile-cache` | Disk IR location |
 | `PYNE_COMPILE_PREWARM` | deploy-dependent | Host cold-start prewarm of Numba builtins |
@@ -161,8 +168,12 @@ Pro API `/run` optional fields:
 | `data_options` | object | exchange, api_key, seed, … |
 | `mode` | `auto` (default), `interpret`, `compile` | Prefer warm compile + fallback; strict compile; full interpret |
 | `inputs` | object | `input.*` overrides by title (forces interpret under `auto`) |
+| `libraries` | list | `[{namespace, name, version, source}]` — max 32; interpret / `auto` fallback |
+| `profiler` | bool | Per-line timings; forces interpret |
 | `webhook_url` | string | Per-request L2 alert webhook (overrides `ALERT_WEBHOOK_URL`) |
 | `forward_alerts` / `alert_last_bar` / `alert_batch` | bool | Webhook delivery controls (see [Alerts](/pyne/docs/runtime/alerts)) |
+
+`timeout_seconds` is a **library** `Runtime.run(...)` argument, not a `POST /run` body field (unknown keys → `UNKNOWN_FIELDS`).
 
 Operators can also `POST /compile/prewarm` or run `pyne prewarm` (and `pyne prewarm script.pine …`) to warm Numba builtins / script IR caches before interactive traffic. Requires `pip install "hoox-pyne[compile]"` for full Numba warm-up.
 
@@ -174,11 +185,15 @@ VS Code extension keys (from `clients/README.md`):
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `pynescript.lsp.enabled` | true | Toggle server |
-| `pynescript.lsp.command` | `pyne-lsp` | Binary path (alias `pynescript-lsp` also works) |
-| `pynescript.formatting.enabled` | true | Format document |
-| `pynescript.diagnostics.enabled` | true | Lint squiggles |
-| `pynescript.completion.snippets` | true | Snippet completions |
+| `pynescript.lsp.enabled` | `true` | Toggle server |
+| `pynescript.lsp.command` | `auto` | `auto` tries `pyne-lsp` → `pynescript-lsp` → `python3 -m pynescript.langserver`; or an absolute path |
+| `pynescript.lsp.python` | `python3` | Interpreter when command is `auto` and no binary is on PATH |
+| `pynescript.lsp.args` | `[]` | Extra args to the language server |
+| `pynescript.formatting.enabled` | `true` | Format document |
+| `pynescript.diagnostics.enabled` | `true` | Lint squiggles |
+| `pynescript.completion.snippets` | `true` | Snippet completions |
+
+Extension id: **`hoox-sh.pyne`**.
 
 Neovim (`clients/neovim.lua`):
 
@@ -212,6 +227,7 @@ CORS must allow the PWA origin via `ALLOWED_ORIGINS`.
 | --- | --- |
 | `pyproject.toml` | extras, scripts, Python requires |
 | `src/pynescript/__main__.py` | CLI options |
+| `src/pynescript/runtime/host.py` | `Runtime.run` (`mode`, `libraries`, `timeout_seconds`, `inputs`) |
 | `backend/app.py` | Flask, CORS, HOST/PORT, body size |
 | `backend/middleware/auth.py` | `API_KEY_STORE`, key tiers |
 | `backend/middleware/schemas.py` | Request field defaults (`mode`, `symbol`, …) |
@@ -281,5 +297,6 @@ pynescript data EUR/USD --provider alphavantage --api-key "$AV_KEY" --period 3mo
 - [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage)
 - [Editors](/pyne/docs/enduser/guides/editors)
 - [CLI commands](/pyne/docs/enduser/reference/cli-commands)
+- [Runtime modes](/pyne/docs/enduser/reference/modes)
 - [API auth (systems)](/pyne/docs/api/auth-and-keys)
 - [AXIS docs](/axis/docs)

@@ -26,9 +26,7 @@ description: "PYNE VS Code extension: HOOX branding, TextMate grammar, LanguageC
 
 ## Abstract
 
-**PYNE** is a **LanguageClient host** plus a rich TextMate grammar, branded as part of the **HOOX open trading stack**. It does not reimplement diagnostics or completion in TypeScript; it spawns `pyne-lsp` (or alias `pynescript-lsp`) (or a configured command) over STDIO via `vscode-languageclient`, maps **`.pyne` (first-class)** plus `*.pine` / `*.pinev5` / `*.pinev6` / `*.pinescript` to language id `pinescript`, and exposes a small settings surface for enablement and feature toggles.
-
-> Pine Script™ and TradingView® are trademarks of TradingView, Inc. This project is independent and is not affiliated with or endorsed by TradingView, Inc.
+**PYNE** (`hoox-sh.pyne` **0.3.10**) is a **LanguageClient host** plus a rich TextMate grammar, branded as part of the **HOOX open trading stack**. It does not reimplement diagnostics or completion in TypeScript; it resolves `pyne-lsp` (then alias `pynescript-lsp`, then `python -m pynescript.langserver`) or a configured command over STDIO via `vscode-languageclient`, maps **`.pyne` (first-class)** plus `*.pine` / `*.pinev5` / `*.pinev6` / `*.pinescript` to language id `pinescript`, and exposes a small settings surface for enablement and feature toggles.
 
 ## Conceptual model
 
@@ -52,10 +50,12 @@ From `vscode-extension/package.json`:
 | --- | --- |
 | name | `pyne` |
 | displayName | `PYNE Language Support` |
+| version | `0.3.10` |
+| publisher | `hoox-sh` |
 | extension id | `hoox-sh.pyne` |
 | icon | `media/icon.png` (HOOX mark) |
 | engines.vscode | `^1.85.0` |
-| main | `./out/extension.js` |
+| main | `./out/extension.js` (esbuild bundle) |
 | dependency | `vscode-languageclient` ^9 |
 | galleryBanner | `#050505` dark |
 
@@ -82,8 +82,8 @@ workspaceContains:**/*.pinev6
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `lsp.enabled` | `true` | Skip activation when false |
-| `lsp.command` | `auto` | Server executable / auto-detect |
-| `lsp.python` | `python3` | Interpreter for module launch |
+| `lsp.command` | `auto` | `auto` = PATH `pyne-lsp` → `pynescript-lsp` → `python -m pynescript.langserver`. Or an absolute path. `"docker"` plus `lsp.args` can launch `ghcr.io/hoox-sh/pyne/lsp` (`${workspaceFolder}` is expanded). |
+| `lsp.python` | `python3` | Interpreter for module launch when neither binary is on PATH (`pip install "hoox-pyne[lsp]"`) |
 | `lsp.args` | `[]` | Extra server args |
 | `formatting.enabled` | `true` | Passed as init option |
 | `diagnostics.enabled` | `true` | Passed as init option |
@@ -99,7 +99,7 @@ Initialization options object:
 }
 ```
 
-{/* TODO: verify server-side consumption of initializationOptions flags */}
+The Python server does **not** read these flags today. They are client-side documentation for hosts; capability advertisement is unconditional in `config.py`.
 
 ### Commands
 
@@ -113,7 +113,7 @@ Initialization options object:
 ### Client options
 
 - Document selector: `pinescript` for `file` and `untitled` schemes
-- File watcher: `**/*.pine` (and activation covers `**/*.pyne` via `workspaceContains`; open any associated suffix for language id)
+- File watcher: `**/*.{pyne,pine,pinev5,pinev6,pinescript}`
 - Diagnostic collection name: `pynescript`
 - Default formatter id: `hoox-sh.pyne`
 
@@ -127,39 +127,35 @@ Initialization options object:
 | `vscode-extension/language-configuration.json` | Brackets / comments |
 | `out/extension.js` | Compiled JS |
 
-Server launch:
+Server launch (`resolveLspLaunch` in `extension.ts`):
 
-```typescript
-const serverOptions: ServerOptions = {
-  command: lspCommand,           // default pyne-lsp
-  args: ['--parent-dir', scriptPath],
-  transport: TransportKind.stdio,
-  options: { env: { ...process.env, PYTHONPATH: scriptPath } },
-};
-```
+1. If `pynescript.lsp.command` is not `auto`, spawn that command with `lsp.args`.
+2. Else try `pyne-lsp`, then `pynescript-lsp`, on `PATH`.
+3. Else try `pynescript.lsp.python` (then `python3` / `python`) with `-m pynescript.langserver`.
+4. Else status-bar error: install `hoox-pyne[lsp]`.
 
-`scriptPath` is resolved to `../src/pynescript/langserver` relative to the extension for monorepo development. Release packaging typically expects `pyne-lsp` (or `pynescript-lsp`) on `PATH` (pip or Nuitka binary).
+No `--parent-dir` / `PYTHONPATH` rewrite. Transport is STDIO. Release packaging expects `pyne-lsp` on `PATH` (pip, Nuitka onefile, or `docker run -i ghcr.io/hoox-sh/pyne/lsp:0.3.10`).
 
 ### Build
 
 ```bash
 cd vscode-extension
 npm ci
-npm run compile          # tsc → out/
-npx vsce package         # VSIX
+npm run compile          # esbuild.mjs → out/extension.js
+npm run package          # pyne-vscode-0.3.10.vsix
 # or monorepo:
 make build-vscode
 ```
 
-Requires Node 22 tooling as noted in project agents docs for packaging.
+Requires Node 22. `compile:tsc` is typecheck-only (`tsc --noEmit`).
 
 ## Invariants and edge cases
 
 1. **`lsp.enabled === false` short-circuits activate** — no client, no restart command registration beyond early return (commands not registered).
-2. **Binary vs module:** production users should install `pynescript[lsp]` or the Nuitka onefile and set `pynescript.lsp.command` if not on PATH.
+2. **Binary vs module:** production users should install `hoox-pyne[lsp]` or the Nuitka onefile (`pynescript-lsp-*` on GitHub Releases) and set `pynescript.lsp.command` if not on PATH.
 3. **Grammar works without LSP** — open a `.pyne` or `.pine` file offline and still get TextMate highlighting.
 4. **`.pyne` is first-class** in `package.json` extensions + activation; legacy `.pine*` / `.pinescript` remain fully supported.
-5. File watcher primarily lists `**/*.pine`; v5/v6/`.pyne` still activate via language id on open.
+5. File watcher covers every associated suffix (`pyne`, `pine`, `pinev5`, `pinev6`, `pinescript`).
 
 ## Worked example — extension development
 

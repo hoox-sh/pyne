@@ -118,7 +118,8 @@ chmod +x pynescript-cli-linux-x86_64
 - **`--fail-on`** defaults to `errors` (syntax/`E001`); `warnings` fails on any warning severity too; `all` fails if any issue exists.
 - **`data` default provider is `mock`** — offline-safe.
 - **Alpha Vantage without key** prints a warning and uses `demo`.
-- Download command requires an explicit directory; create parents as needed (implementation writes into the given path).
+- **`lint` is one file or stdin** — no directory walk. Use `check` for recursive parse-only (`--ext`).
+- **`run` is compile-only** on synthetic bars (`--bars` default 50). It does not call `Runtime.run` and has no `--mode`.
 
 ## Worked examples
 
@@ -139,21 +140,21 @@ diff -u /tmp/a.ast /tmp/b.ast
 ### Format / normalize
 
 ```bash
+pyne format messy.pine -w
+pyne format strategy.pine --check    # CI drift gate (exit 1 if would change)
 pyne parse-and-unparse messy.pine --output-file clean.pine
-# in-place-ish via shell:
-pyne parse-and-unparse strategy.pine --output-file strategy.pine.tmp \
-  && mv strategy.pine.tmp strategy.pine
 ```
 
 ### Lint gate in CI
 
 ```bash
 set -e
-pyne lint strategies/ --help  # note: single file PATH, not directory recursion
-# {/* TODO: verify multi-file; current CLI is one file or stdin */}
-for f in strategies/*.pine; do
+# lint is one file or stdin — not a directory walk
+for f in strategies/*.pine strategies/*.pyne; do
   pyne lint --fail-on warnings "$f"
 done
+# parse-only gate over a tree:
+pyne check strategies/ --ext .pine
 ```
 
 Stdin pipeline:
@@ -171,29 +172,30 @@ pyne data BTC/USDT --provider ccxt --exchange binance
 pyne data EUR/USD --provider alphavantage --api-key "$AV_KEY"
 ```
 
-Typical stdout shape (fields from `__main__.py`):
+Typical table keys (from `__main__.py`): `symbol`, `provider`, `bars`, `period / interval`, `first close`, `last close`, `change`, `high / low`, `avg volume`. `--format json` emits full OHLCV lists.
 
-```text
-Symbol: AAPL
-Bars: N
-Date range: N bars
-First close: ...
-Last close: ...
-Volume (avg): ...
+### Compile, prewarm, synthetic run
+
+```bash
+pip install "hoox-pyne[compile]"
+pyne compile script.pine              # compile-check (Numba or object-mode)
+pyne compile script.pine --emit       # print generated Python
+pyne prewarm                          # warm shared Numba kernels
+pyne prewarm script.pine              # also compile that source into IR caches
+pyne run script.pine --bars 100       # compile-only execute on synthetic OHLCV
 ```
 
 ### Compose with library for evaluation
 
-CLI stops at parse/lint/data. Chain:
+`pyne run` is compile-only smoke. Real bars + `mode` / `libraries` / `timeout_seconds` belong on the package Runtime:
 
 ```bash
-# normalize then evaluate in Python
-pyne parse-and-unparse strat.pine --output-file /tmp/s.pine
+pyne format strat.pine -o /tmp/s.pine
 python - <<'PY'
 from pathlib import Path
-from pynescript.ast.helper import parse
+from pynescript.runtime import Runtime
 # hand off to Runtime or your own visitor
-print(parse(Path("/tmp/s.pine").read_text()).__class__.__name__)
+print(Path("/tmp/s.pine").read_text()[:40])
 PY
 ```
 
@@ -210,6 +212,7 @@ PY
 ## See also
 
 - [CLI commands reference](/pyne/docs/enduser/reference/cli-commands)
+- [Runtime modes](/pyne/docs/enduser/reference/modes)
 - [Library API](/pyne/docs/enduser/guides/library-api)
 - [Quick start](/pyne/docs/enduser/getting-started/quick-start)
 - [Troubleshooting](/pyne/docs/enduser/guides/troubleshooting)

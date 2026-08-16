@@ -43,15 +43,18 @@ flowchart LR
 
 | Endpoint | Auth | Purpose |
 | --- | --- | --- |
-| `GET /` | none | Health + endpoint map |
+| `GET /` / `GET /health` | none | Health + endpoint map (`default_run_mode`: `auto`) |
 | `POST /run` | none (free) | Single script evaluate |
 | `POST /run/batch` | none (free) | ≤8 scripts, shared OHLCV |
+| `POST /compile/prewarm` | none (free) | Warm Numba builtins / script IR |
+| `WS /ws/run` | none (free) | AXIS WebSocket evaluate channel |
 | `POST /preview/chart` | Pro usage | Chart thumbnail |
 | `POST /preview/indicator` | Pro usage | Indicator-style preview |
 | `POST /backtest/quick` | Pro usage | Equity / summary |
 | `POST /auth/create_key` | admin token | Mint key |
 | `GET /auth/usage` | Pro | Usage stats |
 | `POST /auth/validate` | body key | Validate key |
+| `POST /lsp/{completion,hover,diagnostics}` | none (free) | AXIS HTTP LSP bridge — see [LSP](/pyne/docs/lsp) |
 
 Default local bind: `127.0.0.1:5002`.
 
@@ -84,11 +87,15 @@ curl -s http://127.0.0.1:5002/ | python -m json.tool
 | `data_source` | string | no | `""` |
 | `data_options` | object | no | `{}` |
 | `mode` | string | no | `"auto"` |
-| `inputs` | object | no | `{}` |
+| `inputs` | object | no | `{}` — `input.*` by title (forces interpret under `auto`) |
+| `libraries` | list | no | `[]` — `[{namespace, name, version, source}]`, max 32 |
+| `profiler` | bool | no | `false` — forces interpret |
 | `webhook_url` | string | no | `""` (else env `ALERT_WEBHOOK_URL`) |
 | `forward_alerts` | bool | no | `true` |
 | `alert_last_bar` | bool | no | `true` |
 | `alert_batch` | bool | no | `true` |
+
+Not in the schema (sending them → `UNKNOWN_FIELDS`): `timeout_seconds` (library `Runtime.run` only), extra undocumented keys. Query `?mode=` overrides only when the body omits `mode`.
 
 Bar objects are expected to carry at least open/high/low/close/time (volume optional depending on script).
 
@@ -217,19 +224,7 @@ curl -s -X POST http://127.0.0.1:5002/auth/validate \
 
 Send Pro requests with the key as required by middleware (`Authorization: Bearer …` / documented API-key header — see [Auth and keys](/pyne/docs/api/auth-and-keys)).
 
-### Hosted SDK (if published)
-
-README sketches:
-
-```python
-from pynescript.api import PynescriptAPI  # {/* TODO: verify package path exists in your version */}
-
-api = PynescriptAPI(api_key="pyn_...")
-chart = api.preview.chart(data={"close": [...]}, options={"type": "line"})
-result = api.backtest.quick(script="...", mock_data=True, mock_bars=252)
-```
-
-If the client module is not present in your install, use raw HTTP as above.
+There is **no** `pynescript.api.PynescriptAPI` client in this package. Call the HTTP contract with `requests` / `curl` as above.
 
 ## Internals (repo paths)
 
@@ -239,7 +234,8 @@ If the client module is not present in your install, use raw HTTP as above.
 | `backend/api/preview.py` | `/preview/*`, `/backtest/quick` |
 | `backend/middleware/schemas.py` | Strict request schemas (`mode` default `auto`, alert flags) |
 | `backend/middleware/auth.py` | Keys, usage, admin token |
-| `backend/runtime.py` | Evaluate bridge (`interpret` / `compile` / `auto`) |
+| `src/pynescript/runtime/host.py` | Package Runtime SoT (`interpret` / `compile` / `auto`) |
+| `backend/runtime.py` | Compat shim → `pynescript.runtime` |
 | `backend/alert_forwarder.py` | L2 webhook POST batching |
 | `backend/services/chart_renderer.py` | PNG rendering |
 | `backend/services/backtest.py` | Quick backtest + mock OHLCV |
@@ -311,6 +307,28 @@ r = requests.post(
 print(r.json())
 ```
 
+### Bind published libraries
+
+```python
+r = requests.post(
+    "http://127.0.0.1:5002/run",
+    json={
+        "script": '//@version=6\nimport Demo/Lib/1 as L\nindicator("t")\nplot(L.x)\n',
+        "data": bars,
+        "mode": "interpret",
+        "libraries": [
+            {
+                "namespace": "Demo",
+                "name": "Lib",
+                "version": 1,
+                "source": '//@version=6\nlibrary("Lib")\nexport x = 1.0\n',
+            }
+        ],
+    },
+    timeout=60,
+)
+```
+
 ### Wire optional CCXT data source
 
 ```json
@@ -341,6 +359,7 @@ Requires server environment with `ccxt` installed.
 ## See also
 
 - [Evaluate scripts](/pyne/docs/enduser/guides/evaluate-scripts)
+- [Runtime modes](/pyne/docs/enduser/reference/modes)
 - [Configuration](/pyne/docs/enduser/getting-started/configuration)
 - [API contract](/pyne/docs/api/contract)
 - [Auth and keys](/pyne/docs/api/auth-and-keys)

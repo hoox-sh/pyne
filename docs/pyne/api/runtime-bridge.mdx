@@ -26,9 +26,9 @@ description: "pynescript.runtime.Runtime — package SoT bar-loop evaluate faça
 
 ## Abstract
 
-**Package Runtime SoT (0.3.4+):** the bar-loop host, series, and `CustomEvaluator` live under **`pynescript.runtime`** (`src/pynescript/runtime/`). The Pro API still imports `backend.runtime.Runtime`, which **re-exports** the package implementation so monorepo and wheel installs share one host.
+**Package Runtime SoT:** the bar-loop host, series, and `CustomEvaluator` live under **`pynescript.runtime`** (`src/pynescript/runtime/host.py`). The Pro API still imports `backend.runtime.Runtime`, which **re-exports** the package implementation (`sys.modules` alias) so monorepo and wheel installs share one host.
 
-`Runtime` owns symbol metadata namespaces (`syminfo`, `timeframe`, `barstate`, …), walks OHLCV bars, updates `PineSeries` for OHLC, visits a shared `CustomEvaluator` on the parsed AST each bar, drains strategy events, and packages multi-plot series for AXIS. Compile mode optionally swaps the AST walker for a Numba-backed subset engine. Optional **`timeout_seconds`** provides a wall-clock circuit breaker on the interpret path (checked every 32 bars) for edge/cron budgets.
+`Runtime` owns symbol metadata namespaces (`syminfo`, `timeframe`, `barstate`, …), walks OHLCV bars, updates `PineSeries` for OHLC, visits a shared `CustomEvaluator` on the parsed AST each bar, drains strategy events, and packages multi-plot series for AXIS. Compile mode optionally swaps the AST walker for a Numba-backed subset engine. Optional **`timeout_seconds`** provides a wall-clock circuit breaker on the interpret path (checked every 32 bars) for edge/cron budgets — Flask `/run` does **not** expose this field.
 
 This is the bridge between Flask handlers and the language core — not a second semantics.
 
@@ -70,9 +70,9 @@ Helpers: `configure_footprint`, `update_bid_ask`.
 | `ohlcv_data` | `list[dict]` with open/high/low/close/time[/volume/bid/ask] |
 | `data_feed` / `data_provider` | `request.*` wiring; auto-resolved from chart bars when unset |
 | `mode` | `"interpret"` (default for direct calls) · `"compile"` · `"auto"` (Pro API schema default) |
-| `timeout_seconds` | Optional wall-clock budget (seconds); interpret path only — partial results + `timed_out` when exceeded |
-| `libraries` | Optional `[{namespace, name, version, source}]` registered via `register_library_source` before `import ns/Name/ver` (0.3.7+; finalize in 0.3.8). `mode=auto` forwards libs into interpret fallback. |
-| `inputs` / `profiler` | `input.*` overrides (interpret); per-line timings force interpret |
+| `timeout_seconds` | Optional wall-clock budget (seconds); interpret path only — partial results + `timed_out` + `error_kind=runtime` when exceeded. Not accepted by Flask `RUN_SCHEMA` |
+| `libraries` | Optional `[{namespace, name, version, source}]` registered via `register_library_source` before `import ns/Name/ver`. `mode=auto` forwards libs into interpret fallback. Flask `/run` caps at 32 |
+| `inputs` / `profiler` | `input.*` overrides (interpret); non-empty `inputs` or `profiler` force interpret under `auto` (`compile_fallback_reason`) |
 | `realtime_*` | Optional host simulation for `varip` multi-tick tests (`realtime_last_bar`, `realtime_ticks`, `realtime_bars`, `realtime_from_bar`) |
 
 #### Interpret path (default)
@@ -93,19 +93,30 @@ Helpers: `configure_footprint`, `update_bid_ask`.
 7. Export drawings via `DrawingRegistry.export_for_api(bar_times)`.
 8. Export alerts via `export_alerts_from_evaluator` (optional `alert_conditions`).
 
-Return keys: `plots`, `series`, `plot_meta`, `events`, `drawings`, `alerts`, `count`, `script_id`, `run_id`, `mode` (+ optional `alert_conditions`).
+Return keys: `plots`, `series`, `plot_meta`, `events`, `drawings`, `alerts`, `count`, `script_id`, `run_id`, `mode` (+ optional `alert_conditions`, `timed_out`, `error_kind`).
+
+#### `mode=auto`
+
+1. Non-empty `inputs` → interpret immediately (`compile_fallback_reason = "input.* overrides require interpret path"`).
+2. `_compile_eligible`: reject top-level `import` and any `request.` token (cached per source hash).
+3. Eligible → `_run_compiled`. On success set `auto_backend=compile`. On compile/runtime error, fall back to interpret and set `compile_fallback_reason`.
+4. Ineligible → interpret + `compile_fallback_reason` (e.g. `"import statements not supported in compile path"`).
+
+Value mismatch never triggers a backend switch — that is the parity harness’s job.
 
 #### Compile path
 
-1. Import `pynescript.compiler.engine` — missing → error string.
-2. Require `has_numba()` (object-mode may still run without pure Numba for some scripts).
-3. `compile_script` + `compiled.run(opens, highs, lows, closes, volumes)`.
-4. Pop internal keys (`__drawings`, `__events`, position meta).
-5. Return similar envelope with `mode: "compile"`, `alerts: []`, plus `object_mode` / `generated_code` when present.
+1. Import `pynescript.compiler.engine` — missing → `error_kind=compile`.
+2. **Do not** require `has_numba()`. Object-mode scripts (strategy, UDT, drawings) compile to a Python/numpy loop. Missing Numba only fails pure-numeric emit (`CompileNumbaRequiredError`); `auto` caches that failure.
+3. Host LRU by raw-source sha256 → `compile_script` on miss.
+4. Pack OHLCV to float64 columns **including `time=`** bar-open ms (`_ohlcv_pack_cached`).
+5. `compiled.run(opens, highs, lows, closes, volumes, time=times)`.
+6. Lift `__drawings` / `__events`; GC compile drawings by declaration caps; merge visual series (bgcolor / plotshape / …) into titled keys.
+7. Envelope: `mode: "compile"`, `alerts: []`, `object_mode`, `compile_cached`, `compile_ms`. `generated_code` only when `PYNESCRIPT_RETURN_GENERATED_CODE=1`.
 
 ### `PineSeries` (`pynescript.runtime.series`)
 
-History deque (default maxlen 1000), `series[0]` current / `series[n]` lookback, arithmetic on **current** values, `None` propagates as na-like absence. Negative indices raise — Pine Script™ does not allow them. `backend.series` re-exports the package type.
+History deque (default maxlen **1000**, raised by `max_bars_back` / `PYNE_SERIES_MAX`). `PYNE_SERIES_CAP` default **on** (list-length trim). `PYNE_SERIES_RING` default **off** (chronological O(1) lookback when `1`). `series[0]` current / `series[n]` lookback, arithmetic on **current** values, `None` propagates as na-like absence. Negative indices raise — Pine Script™ does not allow them. `backend.series` re-exports the package type.
 
 ### Context namespaces
 
@@ -133,7 +144,7 @@ Flask wiring: `backend/app.py` constructs a **fresh** `Runtime` per request (and
 3. **Drawing registry reset** at run start — isolation between requests.
 4. **Primary `plots` list** is plot index 0 for backward compatibility; AXIS should prefer `series` + `plot_meta`.
 5. **Errors are dicts**, not exceptions, for control-flow at the HTTP boundary (`"error" in result`).
-6. Compile mode supports a **subset** (documented in engine — ta/math/plots family); unsupported scripts should use interpret.
+6. Compile mode supports a **subset**; `mode=auto` falls back to interpret with `compile_fallback_reason` rather than failing the request.
 
 ## Worked example
 
@@ -158,8 +169,9 @@ assert "C" in out["series"] or "plot_0" in out["series"]
 | `Parse Error:` | Grammar / syntax |
 | `Runtime Error at bar` | Evaluator exception |
 | `Order fill error at bar` | Broker sim pending orders |
-| `Compile mode requires numba` | Missing dependency |
-| `Compile Error:` / `Compiled Runtime Error:` | Engine path |
+| `Compile mode requires numba` / `CompileNumbaRequiredError` | Numeric emit without Numba (object-mode scripts still run) |
+| `Compile Error:` / `Compiled Runtime Error:` | Engine path (`error_kind=compile` / `runtime`) |
+| `Script execution timed out` | `timeout_seconds` exceeded (`timed_out`, `error_kind=runtime`) |
 
 ## See also
 

@@ -41,9 +41,10 @@ flowchart LR
 
 | Layer | Module |
 | --- | --- |
-| Engine | `src/pynescript/ast/evaluator/builtins/alerts.py` |
-| Pro API host | `backend/runtime.py` + `backend/alert_forwarder.py` |
-| Edge host | pyne-worker `runtime.py` + `alert_engine.py` + `alert_forwarder.py` |
+| Engine | `src/pynescript/ast/evaluator/builtins/alerts.py` (`export_alerts` / `export_alerts_from_evaluator`) |
+| Package host | `src/pynescript/runtime/host.py` (`clear_alerts` per run, `alerts` on the envelope) |
+| Pro API webhook | `backend/alert_forwarder.py` (`backend/runtime.py` is only a Runtime re-export) |
+| Edge host | sibling pyne-worker `alert_engine.py` + `alert_forwarder.py` |
 
 ## Pine surface
 

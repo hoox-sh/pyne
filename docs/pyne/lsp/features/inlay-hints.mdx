@@ -52,7 +52,7 @@ n = input.int(5, "n")       →  n: input int
 
 - Method: `textDocument/inlayHint`
 - Capability: `InlayHintOptions(resolve_provider=False)`
-- Handler: `features/inlay_hints.py` → `handle_inlay_hints`
+- Handler: `features/inlay_hints.py` → `handle_inlay_hints` (receives cached `tree=doc.ast`)
 
 Each hint:
 

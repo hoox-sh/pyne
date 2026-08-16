@@ -65,7 +65,7 @@ flowchart LR
 | --- | --- | --- |
 | `pip install hoox-pyne` | CLI + library (`pynescript.runtime` SoT) | Desk use, scripts, CI lint |
 | `pip install "hoox-pyne[lsp]"` | + pygls LSP server | Editors |
-| `pip install "hoox-pyne[compile]"` | + numpy / numba | `compile` / `run` Numba modes |
+| `pip install "hoox-pyne[compile]"` | + numpy / numba | `compile` / `prewarm` / `run` Numba modes |
 | `pip install "hoox-pyne[data]"` | + ccxt | Exchange data providers |
 | `pip install "hoox-pyne[pro]"` | + Flask Pro API stack | Self-hosted `/run` |
 | `pip install -e ".[dev-lsp]"` | Editable + LSP test harness | Contributing to LSP |
@@ -129,7 +129,7 @@ docker run --rm -v "$PWD:/work" -w /work pynescript-cli:latest check script.pine
 
 | Command | Purpose |
 | --- | --- |
-| `pyne` | Preferred Click CLI (check, format, lint, compile, run, …) |
+| `pyne` | Preferred Click CLI (check, format, lint, compile, prewarm, run, data, info) |
 | `pyne-lsp` | Preferred language server (requires `[lsp]`) |
 | `pynescript` | Alias of `pyne` (same callable) |
 | `pynescript-lsp` | Alias of `pyne-lsp` (same callable) |
@@ -180,6 +180,9 @@ PY
 
 pyne check examples/rsi_strategy.pine
 pyne lint examples/rsi_strategy.pine
+# optional (needs [compile] for Numba):
+# pyne prewarm
+# pyne run examples/rsi_strategy.pine --bars 50
 ```
 
 ### Monorepo desk + Pro API

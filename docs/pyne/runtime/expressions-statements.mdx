@@ -52,7 +52,7 @@ flowchart TB
 
 | Node | Behavior |
 | --- | --- |
-| `BoolOp` (`and` / `or`) | Short-circuit via Python `all` / `any` on visited values |
+| `BoolOp` (`and` / `or`) | Manual short-circuit: `and` stops at first falsy (`na` / `0` / `False`); `or` stops at first truthy. Returns a Python `bool`. |
 | `BinOp` | NA-safe `+ - * / %`; division by zero → `na` |
 | `UnaryOp` | `not`, unary `+`/`-` with NA and list map |
 | `Compare` | Chained comparisons with NA-safe operators |
@@ -77,15 +77,15 @@ Binary ops coerce `PineSeries`-like objects to `.current` before operating. List
 | Construct | Behavior |
 | --- | --- |
 | `Script` | Walk body; finalize library exports if `library(...)` active |
-| `Assign` | `var`/`varip` once-per-declaration; `const`; ordinary assign; tuple unpack; `export` registration |
+| `Assign` | `var`/`varip` once-per-declaration; `const`; ordinary assign; tuple unpack; `export` registration. History-tracked `var` series get a start-of-bar carry so `x[1]` is the prior persist. |
 | `ReAssign` (`:=`) | Update existing binding (and UDT fields) |
 | `If` / `For` / `While` | Standard control flow; loop variables in context |
-| `FunctionDef` | Store callable in context; multi-dispatch overload lists; `export`; methods tagged `__pine_method__` |
+| `FunctionDef` | Store callable in context; multi-dispatch overload lists; `export`; methods tagged `__pine_method__`. After bar 0 the host walks a **hot body** that skips Function/Type/Enum/Import (already bound). |
 | `TypeDef` / `EnumDef` | Type registry / enum member dicts |
 | `Import` | Resolve `LibraryRegistry` → bind alias to `LibraryModule` |
 | Declarations | `indicator` / `strategy` / `library` via declaration builtins |
 
-Function invocation binds parameters into context (with restore of prior bindings on exit) so nested calls and bar-local state interact cleanly. After bar 0, hosts set `_pine_defs_locked` so re-visiting the script does not re-register overload tables.
+Function invocation binds parameters into context (with restore of prior bindings on exit) so nested calls and bar-local state interact cleanly. After bar 0, hosts set `_pine_defs_locked` so re-visiting the script does not re-register overload tables. The locked walk inlines `Assign` and `Expr(Call)` (no generic `visit` frame) and UDF/call-expression history keys use `_pine_site_id` stamped on the AST.
 
 ### Calls and multi-dispatch
 
@@ -159,7 +159,7 @@ Both register under the same name with `__pine_overloads__`; call sites pick by 
 | --- | --- |
 | `unexpected type of node` | Missing `visit_*` for an AST construct |
 | `Unsupported binary operator` | Op class not in the dispatch table |
-| `Negative indices not supported` | Pine forbids `series[-1]` Python style |
+| History `series[-1]` is `na` | Negative Pine offsets **soft-fail** to `None` (not Python wraparound, not a raise) |
 | Wrong overload / destroyed receiver | Historical `na` string path; now normalized—report residual mismatches as bugs |
 | Stack overflow | Deep recursion in user functions |
 

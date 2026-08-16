@@ -65,9 +65,11 @@ sequenceDiagram
 | `forward_alerts` | bool | no | `true` | When false, skip outbound webhook |
 | `alert_last_bar` | bool | no | `true` | Webhook only last OHLCV bar firings |
 | `alert_batch` | bool | no | `true` | One batch POST vs per-alert |
-| `libraries` | list | no | `[]` | `[{namespace, name, version, source}]` — AXIS git-publish emulator (0.3.7+; max 32) |
+| `libraries` | list | no | `[]` | `[{namespace, name, version, source}]` — AXIS git-publish emulator (max 32) |
 
-Unknown fields → `UNKNOWN_FIELDS` 400. Empty script/data still checked after schema with `NO_SCRIPT` / `NO_DATA`. `import` scripts are compile-ineligible; `mode=auto` falls back to interpret and **must** keep `libraries` (0.3.8+).
+**Not in `RUN_SCHEMA`:** `timeout_seconds` (in-process `Runtime.run` only — sending it here is `UNKNOWN_FIELDS`). Query `?mode=` is accepted when the body omits `mode`.
+
+Unknown fields → `UNKNOWN_FIELDS` 400. Empty script/data still checked after schema with `NO_SCRIPT` / `NO_DATA`. `import` and any `request.` token are compile-ineligible; `mode=auto` falls back to interpret and **keeps** `libraries` on that path.
 
 Bar shape (runtime expectation):
 
@@ -91,7 +93,8 @@ Optional `bid` / `ask` per bar update runtime bid/ask state.
   "script_id": "16hex",
   "run_id": "16hex",
   "count": 0,
-  "mode": "interpret",
+  "mode": "compile",
+  "auto_backend": "compile",
   "data_source": "chart",
   "alert_forward": {
     "forwarded": 0,
@@ -115,6 +118,10 @@ Optional `bid` / `ask` per bar update runtime bid/ask state.
 | `alert_forward` | Present when a webhook URL was configured; delivery summary |
 | `script_id` | `sha256(source)[:16]` |
 | `run_id` | Per-`Runtime` instance id |
+| `auto_backend` | `compile` \| `interpret` when requested `mode` was `auto` |
+| `compile_fallback_reason` | Why `auto` used interpret (eligibility or compile error) |
+| `object_mode` / `compile_cached` / `compile_ms` | Compile diagnostics when that path ran |
+| `nopython_fallback_reason` | Numeric JIT failed; engine re-emitted object mode (still compile) |
 
 #### Errors
 
@@ -123,7 +130,11 @@ Optional `bid` / `ask` per bar update runtime bid/ask state.
 | 400 | `MISSING_FIELD` / `INVALID_FIELD` / `UNKNOWN_FIELDS` / `INVALID_BODY` | Schema |
 | 400 | `NO_SCRIPT` / `NO_DATA` | Empty after defaults |
 | 400 | `DATA_SOURCE_ERROR` | `resolve_request_sources` failed |
-| 500 | `EXECUTION_ERROR` | Runtime returned `error` key |
+| 400 | `WEBHOOK_URL_BLOCKED` | `webhook_url` is private/loopback/metadata (SSRF denylist) |
+| 403 | `DATA_SOURCE_FORBIDDEN` | Free path rejected live provider (`ccxt` / `yahoo` / …) |
+| 413 | `TOO_MANY_BARS` / `SCRIPT_TOO_LARGE` | Exceeded `FREE_MAX_BARS` (5000) or `FREE_MAX_SCRIPT_CHARS` (256 KiB) |
+| 429 | `RATE_LIMITED` / `TOO_MANY_REQUESTS` | Free IP rate (60 / 60s) or concurrency (4) |
+| 500 | `EXECUTION_ERROR` | Runtime returned `error` key; body may include `error_kind` / `error_type` / `error_bar` |
 
 ### `POST /run/batch`
 
@@ -133,7 +144,7 @@ Optional `bid` / `ask` per bar update runtime bid/ask state.
 | --- | --- | --- | --- |
 | `scripts` | list | yes | strings or `{id, script}` objects |
 | `data` | list | yes | Shared OHLCV |
-| `symbol` / `data_source` / `data_options` / `mode` | optional | same as `/run` |
+| `symbol` / `data_source` / `data_options` / `mode` / `profiler` | optional | same as `/run` (no `libraries` / `inputs` / `timeout_seconds`) |
 | `webhook_url` / `forward_alerts` / `alert_last_bar` / `alert_batch` | optional | same L2 webhook fields as `/run` (applied per script result) |
 
 Hard cap: `RUN_BATCH_MAX_SCRIPTS = 8` → `TOO_MANY_SCRIPTS`.
@@ -161,7 +172,7 @@ result = runtime.run(script, ohlcv, data_feed=…, data_provider=…, mode=…)
 
 See [runtime bridge](/pyne/docs/api/runtime-bridge) for bar-loop details and compile mode.
 
-Paths: `backend/app.py` (`run_pine_script`, `run_pine_script_batch`), `backend/middleware/schemas.py`, `backend/alert_forwarder.py`.
+Paths: `backend/app.py` (`run_pine_script`, `run_pine_script_batch`, `compile_prewarm`, `WS /ws/run`), `backend/middleware/schemas.py`, `backend/middleware/free_limits.py`, `backend/alert_forwarder.py`.
 
 ## Invariants and edge cases
 
@@ -171,7 +182,7 @@ Paths: `backend/app.py` (`run_pine_script`, `run_pine_script_batch`), `backend/m
 4. **Compile mode** may omit alert side effects (`alerts: []`); use interpret/`auto` for alerts.
 5. Schema rejects extras — clients must not send AXIS-only fields without updating schema.
 6. **Webhook delivery is best-effort** — evaluate still returns `status: success` if the hook fails; check `alert_forward`.
-7. Structured errors may include `error_kind` (`parse|compile|runtime|data|order|mode`), `error_type`, `error_bar`; timeout runs may set `timed_out` when the host passes `timeout_seconds`.
+7. Structured errors may include `error_kind` (`parse|compile|runtime|data|order|mode`), `error_type`, `error_bar`. `timed_out` is set only when the **in-process** host passed `timeout_seconds` — Flask `/run` never does.
 
 ## Worked example
 
@@ -195,6 +206,20 @@ curl -s http://127.0.0.1:5002/run \
 | `UNKNOWN_FIELDS` | Typo’d property (e.g. `ohlcv` instead of `data`) |
 | Parse errors in message | Invalid Pine — same engine as CLI |
 | Batch `status: partial` | At least one script failed; inspect `results[i].message` |
+
+## `POST /compile/prewarm`
+
+Free readiness hook (same rate/concurrency gates). Body optional:
+
+```json
+{ "scripts": ["//@version=6\nindicator(\"x\")\nplot(close)"], "force": false }
+```
+
+Caps at 16 sources. Returns `has_numba`, `builtins_warmed`, `scripts_ok` / `scripts_failed`, `prewarm_ms`. Does **not** execute on OHLCV.
+
+## `WS /ws/run`
+
+When `flask-sock` is installed: JSON text frames `{type: "run", id, script, data, mode?}`. Reply `{type: "result", …}` or `{type: "error"}`. Ping/pong supported. Same `execute_run_payload` as HTTP `/run`.
 
 ## Alert webhooks (L2)
 

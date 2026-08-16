@@ -26,7 +26,7 @@ description: "Runtime.run envelope: na is null, series lookback, call-site TA, r
 
 ## Abstract
 
-`Runtime` is the TypeScript counterpart of `pynescript.runtime.Runtime`. It is **not** a port of `runtime/host.py` line-by-line; it matches the **public envelope**: `run(source, ohlcv) → plots / series / events / drawings`. Default `mode` is `interpret` (AST walk). `compile` / `auto` select [JS emit](/pyne/docs/pynets/compile).
+`Runtime` is the TypeScript counterpart of `pynescript.runtime.Runtime`. It is **not** a port of `runtime/host.py` line-by-line; it matches the **public envelope**: `run(source, ohlcv) → plots / series / events / drawings`. Default `mode` is `interpret` (AST walk). `compile` / `auto`, `stream`, `runProvider`, and `registerLibrarySource` are **0.2.0** (standalone / npm). The PYNE submodule pin exposes interpret `run` only.
 
 There is **no** `Runtime.evaluate`.
 
