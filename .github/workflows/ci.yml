@@ -3,6 +3,9 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "docs/pyne/versions.json"
+      - "docs/pyne/snippets/package-versions.jsx"
   pull_request:
     branches: [main]
 

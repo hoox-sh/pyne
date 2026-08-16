@@ -36,6 +36,7 @@ AXIS PWA/e2e CI lives in the sister [axis](https://github.com/hoox-sh/axis) repo
 | `release.yml` | **Build & Release** | Tag `v*` + dispatch: wheels, CLI/LSP Nuitka binaries, CLI image tarball, VSIX, GitHub Release |
 | `publish.yml` | **Publish** | Tag `v*` + dispatch: PyPI `hoox-pyne` (token or OIDC) |
 | `ghcr.yml` | **GHCR** | Tag `v*` + dispatch: `ghcr.io/hoox-sh/pyne/{api,cli,lsp}` multi-arch |
+| `docs-versions.yml` | **Docs versions** | Every 5 minutes: refresh PyPI / npm / Open VSX / GitHub release stamps. Commits only on change. No docs pageload. |
 
 ## Conceptual model
 

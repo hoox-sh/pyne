@@ -1,0 +1,44 @@
+# Copyright (C) 2024-2026 jango_blockchained
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Refresh published package versions for Mintlify overview pages.
+# Commits only when a registry version changes — no extra docs pageload.
+
+name: Docs versions
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: docs-versions
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    name: Fetch published versions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch versions
+        run: node scripts/docs/fetch_versions.mjs
+
+      - name: Commit if changed
+        run: |
+          set -euo pipefail
+          git add docs/pyne/versions.json docs/pyne/snippets/package-versions.jsx
+          if git diff --cached --quiet; then
+            echo "unchanged"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(docs): refresh published package versions"
+          git push

@@ -74,6 +74,7 @@ bun run docs:exports:agents   # llm.txt / llms.txt only
 bun run docs:exports:pdfs     # PDFs only
 bun run docs:exports:pyne     # one product
 bun run docs:exports:axis
+bun run docs:versions           # PyPI / npm / Open VSX / GitHub release → versions.json
 ```
 
 | Artifact | Location |

@@ -19,7 +19,8 @@
     "docs:exports:all": "node scripts/docs/generate-exports.mjs --only=all",
     "docs:exports:pdfs": "node scripts/docs/generate-exports.mjs --only=pdfs",
     "docs:exports:agents": "node scripts/docs/generate-exports.mjs --only=agents",
-    "docs:exports:pyne": "node scripts/docs/generate-exports.mjs --only=pyne"
+    "docs:exports:pyne": "node scripts/docs/generate-exports.mjs --only=pyne",
+    "docs:versions": "node scripts/docs/fetch_versions.mjs"
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",

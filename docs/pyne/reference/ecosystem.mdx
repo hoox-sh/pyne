@@ -22,6 +22,8 @@ title: "Ecosystem"
 description: "PYNE, PyneTS, pyne-worker, pine-worker, pyne-agent-worker, AXIS, and HOOX — what each one is and is not."
 ---
 
+import { PackageVersions } from "/snippets/package-versions.jsx"
+
 # Ecosystem
 
 ## Abstract
@@ -73,6 +75,10 @@ flowchart TB
 **Invariant:** evaluation never requires a proprietary chart host. AXIS is an optional chart. HOOX is an optional execution mesh. PyneTS is an optional TypeScript import.
 
 ## Interface surface
+
+Published versions (static; a 5-minute cron rewrites the table when a registry moves):
+
+<PackageVersions />
 
 ### Checkouts (this repo vs sisters)
 
