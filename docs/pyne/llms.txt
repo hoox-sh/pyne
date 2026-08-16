@@ -1,6 +1,6 @@
 # PYNE — llms.txt
 # https://llmstxt.org/ — machine-readable project map for LLMs
-# Generated 2026-08-03
+# Generated 2026-08-16
 
 # PYNE
 > Open-source Pine Script evaluation framework
@@ -34,6 +34,7 @@ Grammar-driven parser, ASDL AST, bar-loop evaluator, LSP, Pro API, and edge work
 - [Pro Api Usage](https://hoox.sh/pyne/docs/enduser/guides/pro-api-usage)
 - [Troubleshooting](https://hoox.sh/pyne/docs/enduser/guides/troubleshooting)
 - [Cli Commands](https://hoox.sh/pyne/docs/enduser/reference/cli-commands)
+- [Modes](https://hoox.sh/pyne/docs/enduser/reference/modes)
 - [Glossary](https://hoox.sh/pyne/docs/enduser/reference/glossary)
 - [Faq](https://hoox.sh/pyne/docs/enduser/reference/faq)
 
@@ -67,6 +68,7 @@ Grammar-driven parser, ASDL AST, bar-loop evaluator, LSP, Pro API, and edge work
 - [Overview](https://hoox.sh/pyne/docs/runtime/compiler/overview)
 - [Numba](https://hoox.sh/pyne/docs/runtime/compiler/numba)
 - [Strategy Broker](https://hoox.sh/pyne/docs/runtime/compiler/strategy-broker)
+- [Parity](https://hoox.sh/pyne/docs/runtime/compiler/parity)
 
 ### LSP
 
@@ -102,6 +104,7 @@ Grammar-driven parser, ASDL AST, bar-loop evaluator, LSP, Pro API, and edge work
 - [Ci](https://hoox.sh/pyne/docs/devops/ci)
 - [Release](https://hoox.sh/pyne/docs/devops/release)
 - [Pypi Publish](https://hoox.sh/pyne/docs/devops/pypi-publish)
+- [Publish Checklist](https://hoox.sh/pyne/docs/devops/publish-checklist)
 - [Docker](https://hoox.sh/pyne/docs/devops/docker)
 - [Nuitka Build](https://hoox.sh/pyne/docs/devops/nuitka-build)
 - [Metadata Crypto](https://hoox.sh/pyne/docs/devops/metadata-crypto)
@@ -111,6 +114,7 @@ Grammar-driven parser, ASDL AST, bar-loop evaluator, LSP, Pro API, and edge work
 
 ### Reference
 
+- [Ecosystem](https://hoox.sh/pyne/docs/reference/ecosystem)
 - [Compatibility](https://hoox.sh/pyne/docs/reference/compatibility)
 - [Implementation Status](https://hoox.sh/pyne/docs/reference/implementation-status)
 - [Missing Features](https://hoox.sh/pyne/docs/reference/missing-features)
@@ -118,9 +122,16 @@ Grammar-driven parser, ASDL AST, bar-loop evaluator, LSP, Pro API, and edge work
 - [Numerical Validation](https://hoox.sh/pyne/docs/reference/numerical-validation)
 - [Roadmap](https://hoox.sh/pyne/docs/reference/roadmap)
 - [Contributing](https://hoox.sh/pyne/docs/contributing)
+- [Overview](https://hoox.sh/pyne/docs/pynets)
+- [Install](https://hoox.sh/pyne/docs/pynets/install)
+- [Cli](https://hoox.sh/pyne/docs/pynets/cli)
+- [Runtime](https://hoox.sh/pyne/docs/pynets/runtime)
+- [Compile](https://hoox.sh/pyne/docs/pynets/compile)
+- [Parity](https://hoox.sh/pyne/docs/pynets/parity)
 - [Overview](https://hoox.sh/pyne/docs/pine-worker)
 - [Converter](https://hoox.sh/pyne/docs/pine-worker/converter)
 - [Testing](https://hoox.sh/pyne/docs/pine-worker/testing)
+- [Overview](https://hoox.sh/pyne/docs/agent)
 
 ## PDF manuals
 
