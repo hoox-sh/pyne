@@ -19,7 +19,7 @@
 
 """Locks for Pine v6 surfaces (including Round-5 P0 gap fills).
 
-See docs/perf_round4/08_v6_coverage_matrix.md.
+See ``docs/pine_v6_full_surface_inventory.md``.
 """
 
 from __future__ import annotations

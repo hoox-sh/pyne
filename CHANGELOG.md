@@ -222,7 +222,7 @@ First public **PYNE** release. PyPI distribution name is **`hoox-pyne`**
 - Corpus C1 8-agent residual pass: `str.replace` 4-arg/occurrence + coerce; richer `timestamp` date strings + TZ-first; series negative/na/OOB index → `na`; TA float/series periods; color hex/string channels; `syminfo.prefix`/`ticker` dual-mode; array get/set soft index + `index_2d_to_1d` stub polyfill; `hour`/`dayofmonth`/… series+timezone arity.
 - set05 6-agent pass: `timestamp(9999,…)` year-first + calendar overflow; `strategy.initial_capital =` reassignment; `timenow`/`dayofweek.*`; sanitize keeps `type == "SMA"` ternary chains; v4 `random`/`offset`/`round_to_mintick` + `ticker.pointfigure` full arity; call-site cache stored on AST node (fixes id reuse collisions).
 - set05 residual round 2 (6 agents): bare TA series `obv`/`accdist`/`vwap`; `ta.linreg` length&lt;2→na; `ta.kama` 2-arg; UDF name clobber restore; array.push soft arity + `newcolor` aliases; multi-island sanitize merge for UDF defs; missing UDF soft-na; int()/tonumber soft coerce; ticker.modify `adjustment=`; kwargs merge + timestamp const-fold + static for-to.
-- Round 6 multi-agent pass (perf + correctness + error handling + compiler coverage); see `docs/perf_round6/`.
+- Round 6 multi-agent pass (perf + correctness + error handling + compiler coverage).
 - Compiler nopython kernels: `ta.dmi` / `ta.adx` / `ta.supertrend` / `ta.alma` / `ta.percentrank` (match interpret oracle).
 - Incremental interpret TA for residual full-history paths: `mfi`, `sar`, `kc`/`kcw`, `alma`, `correlation`, percentiles (behind `PYNE_TA_INCREMENTAL`).
 - Strategy exit commission and exit slippage on interpret + compile paths; bad order args emit events instead of silent fills.

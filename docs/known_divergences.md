@@ -2,7 +2,6 @@
 
 **Date:** 2026-08-15 (refresh)
 **Status:** intentional or residual gaps; track until closed or product-scoped
-**Sprint status:** `docs/code_audit_2026-08-10/SPRINT_STATUS.md`
 
 This page documents **semantic differences** between pynescript and **reference Pine Script** language behavior (as described in the public Pine language docs) that affect numerical or strategy results. It is not a full feature matrix (see `docs/missing_features.md` and `COMPATIBILITY.md`).
 

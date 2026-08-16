@@ -165,7 +165,7 @@ Call-site state (`_ta_call_i` reset each bar), one sample per site per bar (safe
 
 | ID | Item | Pri |
 | --- | --- | --- |
-| **H1** | Dual-host Runtime unify | P1 ✅ package SoT `pynescript.runtime` + backend shims + **pyne-worker thin wrap** (sibling repo, not colocated) — residual CF deploy smoke only — `docs/perf_round7/H1_unify_checklist.md` |
+| **H1** | Dual-host Runtime unify | P1 ✅ package SoT `pynescript.runtime` + backend shims + **pyne-worker thin wrap** (sibling repo, not colocated) — residual CF deploy smoke only |
 | **H2** | Product warm-compile path (SLOs, prewarm, IR cache on in deploy) | P1 ✅ (2026-08) |
 | **C1** | Corpus Runtime residual | P1 ✅ (2026-08-09) — set01–04 Runtime interpret **100%** excl. EXPECTED_FAIL (2466 OK + 11 intentional demos); parse **99.96%**. Residual = intentional demos only. set05 long-tail separate |
 | **T1** | Cap unbounded `current_series` lists to `max_bars_back` / `_SERIES_MAX` | P2 ✅ R7 — `PYNE_SERIES_CAP` (default ON), `PYNE_SERIES_MAX`, goldens `tests/test_series_cap.py` |
@@ -175,7 +175,7 @@ Call-site state (`_ta_call_i` reset each bar), one sample per site per bar (safe
 | — | Bit-identical recursive smoothers vs live TV | numerical-parity track |
 | — | Drawing `max_*_count` GC / alert engine | ✅ shipped (not missing) |
 
-Canonical priority table: `docs/ROADMAP.md`. Round 6 residual notes: `docs/perf_round6/00_summary.md`.
+Canonical priority table: `docs/ROADMAP.md`.
 
 #### Corpus Runtime snapshot (set01–set04, 50 bars · 2026-08-09)
 
