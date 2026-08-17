@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.13] - 2026-08-17
+
+### Fixed
+- Optimize scores broker fills (not `strategy.exit` placements); trail-only exits; warmup pairing; JSON-safe study scores.
+- Walk-forward train+test run cap; HTTP `min_trades=0` / 400 mapping; CLI walk-forward windows; continuous Random/TPE sampling; grid product cap.
+- Incremental `ta.dpo` / `ta.kst` dispatch; `timeframe.change("1M")` is monthly; compile table cells/colors and deleted linefills.
+
 ## [0.3.12] - 2026-08-17
 
 ### Added

@@ -95,7 +95,7 @@ Repo **Settings → Environments → `pypi`** on [`hoox-sh/pyne`](https://github
 
 ```bash
 # 1. Version + changelog on main
-#    src/pynescript/__about__.py  →  0.3.12
+#    src/pynescript/__about__.py  →  0.3.13
 #    vscode-extension/package.json version (same pin when shipping VSIX)
 #    CHANGELOG.md
 
@@ -104,11 +104,11 @@ pip install build twine
 rm -rf dist/
 python -m build
 twine check dist/*
-# expect: hoox_pyne-0.3.12-*.whl  and  hoox_pyne-0.3.12.tar.gz
+# expect: hoox_pyne-0.3.13-*.whl  and  hoox_pyne-0.3.13.tar.gz
 
 # 3. Push main, then tag
-git tag -a v0.3.12 -m "v0.3.12"
-git push origin v0.3.12
+git tag -a v0.3.13 -m "v0.3.13"
+git push origin v0.3.13
 
 # 4. Watch Actions → Publish
 ```

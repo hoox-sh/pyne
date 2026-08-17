@@ -1,6 +1,6 @@
 # Compatibility — PYNE grouped map
 
-**hoox-pyne 0.3.12** · import `pynescript` · CLIs `pyne` / `pyne-lsp`
+**hoox-pyne 0.3.13** · import `pynescript` · CLIs `pyne` / `pyne-lsp`
 
 Product page (visual map): [compatibility](https://hoox.sh/pyne/docs/reference/compatibility).
 
