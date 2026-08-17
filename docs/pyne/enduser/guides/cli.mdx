@@ -19,7 +19,7 @@
 
 ---
 title: "CLI Guide"
-description: "Use the pyne Click CLI to check, format, lint, compile, run, prewarm, fetch data, and more."
+description: "Use the pyne Click CLI to check, format, lint, compile, run, optimize, prewarm, fetch data, and more."
 ---
 
 # CLI Guide
@@ -38,6 +38,7 @@ flowchart LR
   C --> D[parse-and-dump]
   C --> L[lint]
   C --> CO[compile / prewarm / run]
+  C --> OPT[optimize]
   C --> M[data]
   C --> I[info]
 ```
@@ -49,6 +50,7 @@ flowchart LR
 | `parse-and-dump` / `dump` | `parse` + `dump` |
 | `lint` | `lint_script` |
 | `compile` / `prewarm` / `run` | `pynescript.compiler` (+ `[compile]` extra) |
+| `optimize` | `pynescript.optimize.run_study` |
 | `data` | `pynescript.util.data.get_provider` |
 | `info` | version + optional extras |
 
@@ -71,6 +73,7 @@ pyne <command> --help
 | `compile PATH` | file | emit Python or compile-check |
 | `prewarm [PATH…]` | optional files | warm Numba / IR cache |
 | `run PATH` | file | synthetic-bar execute |
+| `optimize PATH` | file + `--space` JSON | strategy hyperparameter search |
 | `data SYMBOL` | symbol + provider opts | table / json / csv |
 | `info` | — | version + extras |
 

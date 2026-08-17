@@ -125,6 +125,7 @@ EXPECTED_FAIL are path-listed demos (`runtime.error` library guards, lower-TF se
     | Libraries `export` / `import ns/Name/ver` | Working | In-process `register_library_source`; `Runtime.run(..., libraries=)` |
     | String interpolation, tuple unpack, method chaining | Working | |
     | Series `[]` history | Working | OOB / negative → `na` (not wrap) |
+    | `timeframe.change` | Working | UTC fixed-width buckets (0.3.12). Not exchange calendar |
   </Accordion>
 
   <Accordion title="Bar-loop host — working">
@@ -133,7 +134,7 @@ EXPECTED_FAIL are path-listed demos (`runtime.error` library guards, lower-TF se
     | `pynescript.runtime.Runtime` | Working | Package SoT; `backend.runtime` re-exports |
     | Modes `interpret` / `compile` / `auto` | Working | Defaults differ by surface — [modes](/pyne/docs/enduser/reference/modes) |
     | Series caps | Working | `PYNE_SERIES_CAP` default **on** |
-    | Incremental `ta.*` | Working | Default **on**; `PYNE_TA_INCREMENTAL=0` full recompute |
+    | Incremental `ta.*` | Working | Default **on**; `PYNE_TA_INCREMENTAL=0` full recompute. **0.3.12** `aroon`/`dpo`/`donchian`/`kst` |
     | Derived OHLCV skip | Working | Unused `hl2`/`hlc3`/`ohlc4`/`tr` not written; `ta.vwap` still updates `hlc3` |
     | `timeout_seconds` | Working | Library / edge / Flask `/run` + `/run/batch` (omit = no budget) |
     | Ring buffer | Residual | `PYNE_SERIES_RING` default **off** |
@@ -143,8 +144,8 @@ EXPECTED_FAIL are path-listed demos (`runtime.error` library guards, lower-TF se
     | Area | Status | Notes |
     | --- | --- | --- |
     | MAs | Working | `sma`/`ema`/`rma`/`wma`/`hma`/`vwma`/`kama`/`dema`/`tema`/`alma` incremental |
-    | Oscillators | Working | `rsi`/`macd`/`stoch`/`cci`/`cmo`/`tsi`/`roc`/`wpr` |
-    | Volatility / structure | Working | `atr` (Wilder `rma(tr)`), `bb`, `kc`, `stdev`, `highest`/`lowest`, `linreg`, `adx`/`dmi`, `supertrend`, `sar` |
+    | Oscillators | Working | `rsi`/`macd`/`stoch`/`cci`/`cmo`/`tsi`/`roc`/`wpr`; **0.3.12** incremental `aroon`/`dpo`/`kst` |
+    | Volatility / structure | Working | `atr` (Wilder `rma(tr)`), `bb`, `kc`, `stdev`, `highest`/`lowest`, `linreg`, `adx`/`dmi`, `supertrend`, `sar`; **0.3.12** incremental `donchian` |
     | Volume | Working | Incremental `obv`/`wad`/`wvad`/`cmf`/`klinger`/`mfi`/`vwap`/`nvi`/`pvi` |
     | Supertrend | Working | Locked mid±factor·ATR (inc ≡ compile ≡ Numba). TV band ratchet is out of scope |
   </Accordion>
@@ -174,8 +175,8 @@ EXPECTED_FAIL are path-listed demos (`runtime.error` library guards, lower-TF se
   <Accordion title="Drawing and plots — working; renderer external">
     | Area | Status | Notes |
     | --- | --- | --- |
-    | `plot` / `plotshape` / `plotchar` / `plotarrow` / `hline` / `bgcolor` / `fill` | Working | Registry + columnar capture |
-    | `line` / `box` / `label` / `table` / `polyline` / `linefill` | Working | `*.all`, `set_*` / `delete` fold on compile |
+    | `plot` / `plotshape` / `plotchar` / `plotarrow` / `hline` / `bgcolor` / `barcolor` / `fill` / `plotbar` / `plotcandle` | Working | Registry + columnar capture; plotshape off = `None` (dual-host) |
+    | `line` / `box` / `label` / `table` / `polyline` / `linefill` | Working | Coordinates snapshotted at create/set; compile `__drawings` normalized to geometry-only AXIS export |
     | `max_*_count` GC | Working | Interpret registry |
     | `force_overlay` | Working | Export payload |
     | Pixel paint | Out of scope | AXIS / clients consume series + drawings |
@@ -205,6 +206,8 @@ EXPECTED_FAIL are path-listed demos (`runtime.error` library guards, lower-TF se
     | CLI / LSP / Pro API / Docker | Working | `pyne` / `pyne-lsp`; Flask `/run` |
     | Flask `/run` `libraries` | Working | Max 32; also `/run/batch` |
     | Flask `timeout_seconds` | Working | Optional on `/run` and `/run/batch`; omit / `≤ 0` = no timeout |
+    | `timeframe.change` | Working | UTC fixed-width buckets (not exchange calendar). Interpret + compile |
+    | `POST /optimize` / `pyne optimize` | Working | Strategy `input.*` search — not a Pine builtin |
   </Accordion>
 
   <Accordion title="Sister implementations">

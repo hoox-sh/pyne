@@ -19,7 +19,7 @@
 
 ---
 title: "Pro API"
-description: "Flask Pro API — /run with mode=auto, plot_meta/fill, alerts + L2 webhooks, preview, backtest, and shared evaluate contract."
+description: "Flask Pro API — /run with mode=auto, /optimize strategy search, plot_meta/fill, alerts + L2 webhooks, preview, backtest, and shared evaluate contract."
 ---
 
 # Pro API
@@ -49,6 +49,7 @@ flowchart TB
   CLIENT[AXIS / CLI / curl] --> FLASK[backend.app Flask]
   FLASK --> AUTH[middleware auth + schemas + free_limits]
   FLASK --> RUN["/run · /run/batch · /ws/run"]
+  FLASK --> OPT["/optimize"]
   FLASK --> PREV["/preview/*"]
   FLASK --> BT["/backtest/*"]
   FLASK --> GIT["/api/git/oauth/* optional"]
@@ -68,6 +69,7 @@ flowchart TB
 | `GET` | `/` · `/health` | none | Health + endpoint map + compile cache section |
 | `POST` | `/run` | none (free) | Single-script evaluate (`mode` default `auto`; `libraries[]`; alerts + optional webhooks) |
 | `POST` | `/run/batch` | none (free) | ≤8 scripts, shared OHLCV |
+| `POST` | `/optimize` | none (free) | Strategy `input.*` search — N interpret Runtime runs ([docs](/pyne/docs/api/endpoints/optimize)) |
 | `WS` | `/ws/run` | none (free) | Same evaluate contract over JSON frames (`flask-sock` optional) |
 | `POST` | `/preview/chart` | API key + usage | Line / OHLCV PNG |
 | `POST` | `/preview/indicator` | API key + usage | Expression series PNG |

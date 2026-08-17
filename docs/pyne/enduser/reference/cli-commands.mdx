@@ -19,7 +19,7 @@
 
 ---
 title: "CLI Commands Reference"
-description: "Complete option reference for the pyne Click CLI: check, format, lint, compile, run, prewarm, data, info, and more."
+description: "Complete option reference for the pyne Click CLI: check, format, lint, compile, run, optimize, prewarm, data, info, and more."
 ---
 
 # CLI Commands Reference
@@ -32,7 +32,7 @@ Machine-oriented reference for every command on the preferred **`pyne`** Click g
 The language server is a **separate** console script (`pyne-lsp`; alias `pynescript-lsp`).
 
 **Version option:** `pyne --version` / `-V` reports `pynescript.__about__.__version__`
-(e.g. `0.3.11`). Global `--no-color` honors `NO_COLOR`.
+(e.g. `0.3.12`). Global `--no-color` honors `NO_COLOR`.
 
 ## Command index
 
@@ -46,6 +46,7 @@ The language server is a **separate** console script (`pyne-lsp`; alias `pynescr
 | `compile` | | Transpile or compile-check (Numba path) |
 | `prewarm` | | Warm Numba builtins / script IR caches (H2) |
 | `run` | | Compile + execute on synthetic OHLCV |
+| `optimize` | | Search `input.*` values over N interpret Runtime runs |
 | `data` | | Fetch market bars |
 | `info` | `ls` | Version + optional extras |
 
@@ -211,6 +212,32 @@ pyne run strategy.pine --json
 
 ---
 
+### `pyne optimize`
+
+Search `input.*` values for a **`strategy()`** script. Loops interpret `Runtime` (not `/backtest/quick`). Requires `--space` JSON.
+
+| Kind | Name | Default | Description |
+| --- | --- | --- | --- |
+| argument | `PATH` | required | Pine file (`-` = stdin) |
+| option | `--encoding` | `utf-8` | |
+| option | `--bars` | `120` | Synthetic bar count (min 8) |
+| option | `--trials` | `20` | Trial budget (max 200) |
+| option | `--space` | required | JSON `{"params":[{"name","kind","min","max"}]}` |
+| option | `--sampler` | `auto` | `auto` \| `random` \| `tpe` \| `grid` |
+| option | `--objective` | `composite` | `composite` \| `net_pnl` \| `profit_factor` \| `calmar` |
+| option | `--validation` | `holdout` | `holdout` \| `walk-forward` \| `in-sample` |
+| option | `--seed` | unset | RNG seed |
+| option | `--json` | off | Full study JSON |
+
+```bash
+pyne optimize strat.pine --trials 20 --sampler tpe \
+  --space '{"params":[{"name":"Fast","kind":"int","min":3,"max":12}]}'
+```
+
+Library: `pynescript.optimize.run_study`. HTTP: [POST /optimize](/pyne/docs/api/endpoints/optimize).
+
+---
+
 ### `pyne data`
 
 | Kind | Name | Default | Description |
@@ -262,6 +289,7 @@ python -m pynescript.langserver
 | parse/dump/unparse | `src/pynescript/ast/helper.py` |
 | lint | `src/pynescript/ast/linter.py` |
 | compile / prewarm | `src/pynescript/compiler/` |
+| optimize | `src/pynescript/optimize/` |
 | data | `src/pynescript/util/data.py` |
 
 ## Invariants

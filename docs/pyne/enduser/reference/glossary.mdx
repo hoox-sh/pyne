@@ -208,6 +208,14 @@ Structured record of entries/exits/orders emitted during strategy evaluation for
 
 Optional `Runtime.run` wall-clock budget (interpret path). Also a `POST /run` / `/run/batch` body field (0.3.11+). Exceeded runs return partial plots with `timed_out`. Omit / `null` / `≤ 0` → no timeout.
 
+### Optimize (hyperparameter search)
+
+`pynescript.optimize.run_study` / `pyne optimize` / `POST /optimize` (0.3.12+). Loops interpret `Runtime` with `input.*` overrides for a `strategy()` script. Not a Pine builtin and not `/backtest/quick`.
+
+### `timeframe.change`
+
+`timeframe.change(tf)` is true on the first bar of a new UTC fixed-width period (0.3.12+). Not exchange-calendar / DST aware. See [known divergences](https://github.com/hoox-sh/pyne/blob/main/docs/known_divergences.md).
+
 ### Unparse
 
 `unparse(node)` — regenerate Pine source text from an AST.

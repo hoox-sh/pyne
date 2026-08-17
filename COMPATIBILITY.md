@@ -79,21 +79,21 @@ Not shipped in git. Not a TV platform score.
 
 | Group | What |
 | --- | --- |
-| **Language** | v5/v6 grammar, round-trip, `var`/`varip`/`:=`, UDTs, enums, libraries, history `[]` → `na` OOB |
+| **Language** | v5/v6 grammar, round-trip, `var`/`varip`/`:=`, UDTs, enums, libraries, history `[]` → `na` OOB; `timeframe.change` (UTC buckets) |
 | **Host** | `pynescript.runtime.Runtime`; series caps on; incremental TA on; derived OHLCV skip; `timeout_seconds` on library/edge/Flask `/run` + `/run/batch` |
-| **ta.*** | Incremental MAs, oscillators, ATR (Wilder `rma(tr)`), BB, volume `obv`/`wad`/`cmf`/`klinger`/`mfi`/`vwap`/`nvi`/`pvi`; Supertrend mid±factor·ATR locked |
+| **ta.*** | Incremental MAs, oscillators (incl. `aroon`/`dpo`/`kst`), ATR (Wilder `rma(tr)`), BB, `donchian`, volume `obv`/`wad`/`cmf`/`klinger`/`mfi`/`vwap`/`nvi`/`pvi`; Supertrend mid±factor·ATR locked |
 | **Collections** | `array` / `matrix` / `map`; UDT `sort_field` + `binary_search*` |
 | **Strategy** | entry/exit/close, OCA, tick `profit`/`loss`, `from_entry`, `qty_percent`, risk cascade, F2 pending-fill, OHLC trail |
-| **Draw / plot** | plot*/hline/fill/bgcolor; line/box/label/table/polyline/linefill; GC; `force_overlay`; compile key sets match interpret |
+| **Draw / plot** | plot*/hline/fill/bgcolor/barcolor; line/box/label/table/polyline/linefill; GC; `force_overlay`; compile drawings geometry-only; key sets match interpret |
 | **Alerts** | `alert` / `alertcondition` + L2 webhooks |
 | **Compile** | Numba + object mode; warm IR cache; `auto` fallback |
-| **Surfaces** | CLI `pyne` / `pyne-lsp`; Pro `POST /run` + `/run/batch` `libraries` |
+| **Surfaces** | CLI `pyne` / `pyne-lsp` / `pyne optimize`; Pro `POST /run` + `/run/batch` + `POST /optimize` |
 
 ### Partial
 
 | Group | What |
 | --- | --- |
-| **request.*** | Same-symbol OHLCV/HTF works; foreign/complex → **`na`** (locked both hosts); footprint/financial mocks |
+| **request.*** | Same-symbol OHLCV/HTF works (`ta.sma`/`ema`/`rsi`/`atr`/`wma`/`rma`); foreign/complex → **`na`** (locked both hosts); footprint/financial mocks |
 | **Compile alerts** | Interpret is the alert oracle |
 | **Bid/ask** | `na` unless the host supplies them |
 | **PyneTS** | Sister TS library; pin **v0.2.0** matches npm. Python Runtime remains the oracle |

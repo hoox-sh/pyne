@@ -47,7 +47,8 @@ flowchart TB
 | Function | Kind | Notes |
 | --- | --- | --- |
 | `plot` | `plot` | Returns `Plot` id for `fill(plot1, plot2)`; series values in host export |
-| `plotshape` / `plotchar` / `plotarrow` | markers | Interpret: bool/condition series + style/location/char meta. Compile: `__drawings` events (object mode) |
+| `plotshape` / `plotchar` / `plotarrow` | markers | Interpret: condition series (`True` / `None`) + style meta. Compile: series + `plot_meta.kind`. Visuals are **not** in `drawings` |
+| `barcolor` / `plotbar` / `plotcandle` | overlays | Per-bar color / close series + kind stamp (0.3.12 dual-host) |
 | `plotbar` / `plotcandle` | OHLC visuals | open/high/low/close fields |
 | `hline` | horizontal | **Both** interpret and compile export a **constant price series** keyed by title, **and** a drawing/`__drawings` event |
 | `bgcolor` / `barcolor` | coloring | Interpret: color string series. Compile: `__drawings` only (object mode) |

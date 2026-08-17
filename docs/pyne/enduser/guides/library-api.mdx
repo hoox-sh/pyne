@@ -26,7 +26,7 @@ description: "Embed pynescript: parse, dump, unparse, walk, transform, and lint 
 
 ## Abstract
 
-The public Python surface for language work lives primarily under **`pynescript.ast`**: parse source into an ASDL-backed tree, serialize it (`dump`), regenerate source (`unparse`), traverse (`walk`, visitors), rewrite (`NodeTransformer`), and lint (`lint_script`). Expression evaluation (`literal_eval`) and full script execution (`pynescript.runtime.Runtime`) sit adjacent; this page focuses on **structural** APIs. Evaluation workflows are covered in [Evaluate scripts](/pyne/docs/enduser/guides/evaluate-scripts). Install via **`pip install hoox-pyne`** (`import pynescript`).
+The public Python surface for language work lives primarily under **`pynescript.ast`**: parse source into an ASDL-backed tree, serialize it (`dump`), regenerate source (`unparse`), traverse (`walk`, visitors), rewrite (`NodeTransformer`), and lint (`lint_script`). Expression evaluation (`literal_eval`) and full script execution (`pynescript.runtime.Runtime`) sit adjacent; this page focuses on **structural** APIs. Evaluation workflows are covered in [Evaluate scripts](/pyne/docs/enduser/guides/evaluate-scripts). Strategy hyperparameter search is **`pynescript.optimize.run_study`** (not a Pine builtin) — [POST /optimize](/pyne/docs/api/endpoints/optimize). Install via **`pip install hoox-pyne`** (`import pynescript`).
 
 ## Conceptual model
 
@@ -198,6 +198,28 @@ Pipeline inside `parse`:
 - **Do not edit generated grammar modules**; extend via resource grammars if contributing.
 
 ## Worked examples
+
+### Strategy hyperparameter search (0.3.12)
+
+```python
+from pynescript.optimize import run_study, space_from_payload
+from pynescript.optimize.types import ValidationSpec
+
+space = space_from_payload({
+    "params": [{"name": "Fast", "kind": "int", "min": 3, "max": 12}],
+})
+study = run_study(
+    open("strategy.pine").read(),
+    ohlcv_bars,
+    space,
+    n_trials=20,
+    sampler="tpe",
+    validation=ValidationSpec(mode="holdout"),
+)
+print(study.best_params, study.best_oos_score)
+```
+
+HTTP: [POST /optimize](/pyne/docs/api/endpoints/optimize). CLI: `pyne optimize`.
 
 ### End-to-end inspect
 

@@ -127,7 +127,7 @@ Numba is **not** required for compile eligibility: strategy / UDT / map-heavy sc
 
 Both backends export the same Runtime contract shape: `series` (title → per-bar values), `plots`, `plot_meta`, `events`, `drawings`, plus `mode` / diagnostics. For charting, **shared plot series keys** should agree within floating-point tolerance (`na`/None/NaN treated as NA).
 
-First-party `hline` / `fill` / `bgcolor` / `plotshape` **keys match** interpret ↔ compile (0.3.11). Harness `--ignore-hline-keys` / `--ignore-fill-keys` stay optional for leftover **corpus** noise, not first-party fixtures. Deeper compiler notes: [Compiler overview](/pyne/docs/runtime/compiler/overview).
+First-party `hline` / `fill` / `bgcolor` / `plotshape` **keys match** interpret ↔ compile (0.3.11). **0.3.12** also matches `barcolor` / `plotarrow` / `plotbar` / `plotcandle` kinds and geometry-only `drawings` (line/box/label/polyline/table/linefill) — coordinates are snapshotted at create/set. Harness `--ignore-hline-keys` / `--ignore-fill-keys` stay optional for leftover **corpus** noise, not first-party fixtures. Deeper compiler notes: [Compiler overview](/pyne/docs/runtime/compiler/overview).
 
 ### Compare interpret vs compile (corpus harness)
 

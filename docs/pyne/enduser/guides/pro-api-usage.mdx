@@ -19,7 +19,7 @@
 
 ---
 title: "Pro API Usage"
-description: "Call the PYNE Flask Pro API as a consumer: health, /run, /run/batch, chart preview, indicator preview, quick backtest, and auth."
+description: "Call the PYNE Flask Pro API as a consumer: health, /run, /run/batch, /optimize, chart preview, indicator preview, quick backtest, and auth."
 ---
 
 # Pro API Usage
@@ -46,6 +46,7 @@ flowchart LR
 | `GET /` / `GET /health` | none | Health + endpoint map (`default_run_mode`: `auto`) |
 | `POST /run` | none (free) | Single script evaluate |
 | `POST /run/batch` | none (free) | ≤8 scripts, shared OHLCV |
+| `POST /optimize` | none (free) | Strategy hyperparameter search ([docs](/pyne/docs/api/endpoints/optimize)) |
 | `POST /compile/prewarm` | none (free) | Warm Numba builtins / script IR |
 | `WS /ws/run` | none (free) | AXIS WebSocket evaluate channel |
 | `POST /preview/chart` | Pro usage | Chart thumbnail |
