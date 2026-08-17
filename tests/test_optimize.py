@@ -42,6 +42,7 @@ from pynescript.optimize.study import is_strategy_script
 from pynescript.optimize.study import run_study
 from pynescript.optimize.types import SearchSpace
 from pynescript.optimize.types import StrategyStats
+from pynescript.optimize.types import StudyResult
 from pynescript.optimize.types import TrialResult
 from pynescript.optimize.types import ValidationSpec
 from pynescript.optimize.walk_forward import estimated_runs
@@ -161,6 +162,7 @@ class TestEventsScore:
         assert build_strategy_stats(None).trades == 0  # type: ignore[arg-type]
 
     def test_exit_placement_then_fill_uses_fill_price(self) -> None:
+        # Broker schema: no ``price`` / ``from_entry``; fill carries limit/stop.
         events = [
             {
                 "kind": "entry",
@@ -173,21 +175,19 @@ class TestEventsScore:
             {
                 "kind": "exit",
                 "id": "XL",
-                "from_entry": "L",
                 "qty": 1,
                 "bar_time": 1,
-                "limit": 12.0,
+                "limit": 12.5,
                 "stop": 8.0,
                 "ohlc": [10, 11, 9, 10],
             },
             {
                 "kind": "order",
                 "id": "XL",
-                "from_entry": "L",
                 "comment": "fill",
                 "qty": 1,
                 "bar_time": 3,
-                "price": 12.5,
+                "limit": 12.5,
                 "ohlc": [12, 13, 11, 12],
             },
         ]
@@ -195,6 +195,62 @@ class TestEventsScore:
         assert stats.trades == 1
         assert stats.total_pnl == pytest.approx(2.5)
         assert stats.wins == 1
+
+    def test_trail_only_exit_is_placement(self) -> None:
+        events = [
+            {
+                "kind": "entry",
+                "id": "L",
+                "direction": "long",
+                "qty": 1,
+                "bar_time": 1,
+                "ohlc": [10, 11, 9, 10],
+            },
+            {
+                "kind": "exit",
+                "id": "XT",
+                "qty": 1,
+                "bar_time": 1,
+                "ohlc": [10, 11, 9, 10],
+            },
+            {
+                "kind": "order",
+                "id": "XT",
+                "comment": "fill",
+                "qty": 1,
+                "bar_time": 4,
+                "stop": 9.0,
+                "ohlc": [9, 10, 8, 9],
+            },
+        ]
+        stats = build_strategy_stats(events)
+        assert stats.trades == 1
+        assert stats.total_pnl == pytest.approx(-1.0)
+        assert stats.losses == 1
+
+    def test_score_window_pairs_warmup_entry(self) -> None:
+        events = [
+            {
+                "kind": "entry",
+                "id": "L",
+                "direction": "long",
+                "qty": 1,
+                "bar_time": 1,
+                "ohlc": [10, 11, 9, 10],
+            },
+            {
+                "kind": "close",
+                "id": "L",
+                "qty": 1,
+                "bar_time": 10,
+                "ohlc": [15, 16, 14, 15],
+            },
+        ]
+        dropped = build_strategy_stats(events, score_window=(5.0, 20.0))
+        assert dropped.trades == 1
+        assert dropped.total_pnl == pytest.approx(5.0)
+        warmup_close = build_strategy_stats(events, score_window=(5.0, 8.0))
+        assert warmup_close.trades == 0
 
     def test_partial_close_then_remainder(self) -> None:
         events = [
@@ -264,6 +320,17 @@ class TestEventsScore:
         assert tr["is_score"] is None
         assert tr["oos_score"] is None
         json.dumps(tr, allow_nan=False)
+        study = StudyResult(
+            status="success",
+            sampler="random",
+            objective="composite",
+            validation=ValidationSpec(),
+            n_trials=1,
+            best_is_score=1.0,
+            best_oos_score=float("-inf"),
+        ).to_dict()
+        assert study["best_oos_score"] is None
+        json.dumps(study, allow_nan=False)
 
 
 class TestObjective:
@@ -350,6 +417,29 @@ class TestSamplers:
         assert 1 <= len(pts) <= 16
         assert pts[0]["X"] == 0
         assert pts[-1]["X"] == 1
+
+    def test_grid_refuses_multi_float_product(self) -> None:
+        space = space_from_payload(
+            {
+                "params": [
+                    {"name": f"X{i}", "kind": "float", "min": 0, "max": 1}
+                    for i in range(3)
+                ]
+            }
+        )
+        with pytest.raises(ValueError, match="grid has"):
+            GridSampler(max_cells=10).build(space)
+
+    def test_random_unstepped_float_is_continuous(self) -> None:
+        space = space_from_payload(
+            {"params": [{"name": "X", "kind": "float", "min": 0, "max": 1}]}
+        )
+        rng = random.Random(0)
+        smp = RandomSampler()
+        vals = [float(smp.suggest(space, [], rng)["X"]) for _ in range(40)]
+        assert min(vals) >= 0.0
+        assert max(vals) <= 1.0
+        assert len({round(v, 6) for v in vals}) > 8
 
     def test_tpe_suggests_after_seeds(self) -> None:
         space = _space()

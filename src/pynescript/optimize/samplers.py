@@ -59,9 +59,10 @@ def _sample_axis(spec: ParamSpec, rng: random.Random) -> ParamValue:
     hi = spec.max if spec.max is not None else lo + 1.0
     if spec.kind == "int" and (not spec.step or spec.step == 1):
         return int(rng.randint(int(round(lo)), int(round(hi))))
-    grid = _axis_grid(spec)
-    if grid:
-        return grid[rng.randrange(len(grid))]
+    if spec.step and spec.step > 0:
+        n = max(1, int(round((float(hi) - float(lo)) / float(spec.step))) + 1)
+        raw = float(lo) + rng.randrange(n) * float(spec.step)
+        return clamp_value(spec, raw)
     return rng.uniform(float(lo), float(hi))
 
 
@@ -105,19 +106,6 @@ def _axis_grid(spec: ParamSpec, max_points: int = 16) -> list[ParamValue]:
     return out or [clamp_value(spec, lo)]
 
 
-def _uncapped_discrete_len(spec: ParamSpec) -> int | None:
-    """Uncapped size of a discrete axis, or None if interpolated/capped."""
-    if spec.kind == "bool":
-        return 2
-    if spec.kind == "categorical":
-        return max(1, len(spec.choices or ()))
-    if spec.kind == "int" and (not spec.step or spec.step == 1):
-        lo = spec.min if spec.min is not None else 0.0
-        hi = spec.max if spec.max is not None else lo
-        return max(1, int(round(hi)) - int(round(lo)) + 1)
-    return None
-
-
 def _emitted_grid_size(axes: list[list[ParamValue]]) -> int:
     size = 1
     for vals in axes:
@@ -125,15 +113,6 @@ def _emitted_grid_size(axes: list[list[ParamValue]]) -> int:
             return 0
         size *= len(vals)
     return size
-
-
-def _has_wide_discrete(space: SearchSpace) -> bool:
-    """True when an int/categorical axis is wider than the 16-pt grid cap."""
-    for spec in space.params:
-        n = _uncapped_discrete_len(spec)
-        if n is not None and n > 16:
-            return True
-    return False
 
 
 class GridSampler(BaseSampler):
@@ -151,7 +130,9 @@ class GridSampler(BaseSampler):
             return self._points
         axes = [_axis_grid(spec) for spec in space.params]
         size = _emitted_grid_size(axes)
-        if size < 1 or (size > self.max_cells and _has_wide_discrete(space)):
+        # A single interpolated axis is at most 16 pts; allow that even when
+        # it exceeds max_cells. Multi-axis products stay capped.
+        if size < 1 or (size > self.max_cells and len(space.params) > 1):
             raise ValueError(
                 f"grid has {size} cells (cap {self.max_cells}); use random or TPE"
             )

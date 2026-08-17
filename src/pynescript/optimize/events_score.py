@@ -46,15 +46,27 @@ def _event_time(ev: dict[str, Any]) -> float | None:
     return n if n == n else None
 
 
-def _event_price(ev: dict[str, Any]) -> float | None:
-    raw = ev.get("price")
+def _finite_num(raw: Any) -> float | None:
     if isinstance(raw, (int, float)) and raw == raw:
         return float(raw)
+    return None
+
+
+def _event_price(ev: dict[str, Any]) -> float | None:
+    # Broker fills carry limit/stop (order price) and bar OHLC; they do not
+    # serialize a ``price`` field. Prefer the order level over bar close.
+    comment = str(ev.get("comment") or "")
+    if comment.startswith("fill"):
+        for key in ("limit", "stop"):
+            n = _finite_num(ev.get(key))
+            if n is not None:
+                return n
+    n = _finite_num(ev.get("price"))
+    if n is not None:
+        return n
     ohlc = ev.get("ohlc")
     if isinstance(ohlc, (list, tuple)) and len(ohlc) >= 4:
-        close = ohlc[3]
-        if isinstance(close, (int, float)) and close == close:
-            return float(close)
+        return _finite_num(ohlc[3])
     return None
 
 
@@ -93,34 +105,51 @@ def _is_fill_order(kind: str, ev: dict[str, Any]) -> bool:
     return str(ev.get("comment") or "").startswith("fill")
 
 
-def _is_exit_placement(kind: str, ev: dict[str, Any]) -> bool:
-    """``strategy.exit`` with limit/stop is an intent, not a closed trade."""
-    if "exit" not in kind:
-        return False
-    return ev.get("limit") is not None or ev.get("stop") is not None
+def _is_exit_placement(kind: str) -> bool:
+    """Every ``strategy.exit`` emit is an intent; closes come from fill/close."""
+    return "exit" in kind
 
 
-def build_strategy_stats(events: list[dict[str, Any]] | None) -> StrategyStats:
-    """Pair fills into closed trades and aggregate tester stats."""
+def build_strategy_stats(
+    events: list[dict[str, Any]] | None,
+    *,
+    score_window: tuple[float, float] | None = None,
+) -> StrategyStats:
+    """Pair fills into closed trades and aggregate tester stats.
+
+    When ``score_window`` is ``(t0, t1)``, the open book still sees every
+    event (warmup entries stay paired) but only closes inside the window
+    count toward PnL.
+    """
     if not events:
         return StrategyStats()
     open_pos: dict[str, dict[str, Any]] = {}
     pnls: list[float] = []
 
-    def close_one(oid: str, o: dict[str, Any], exit_price: float, close_qty: float) -> None:
+    def close_one(
+        oid: str,
+        o: dict[str, Any],
+        exit_price: float,
+        close_qty: float,
+        close_time: float | None,
+    ) -> None:
         open_qty = float(o["qty"])
         qty = close_qty if close_qty > 0 else open_qty
         if qty > open_qty:
             qty = open_qty
         if qty <= 0:
             return
-        sign = -1.0 if o["dir"] == "short" else 1.0
-        pnls.append((exit_price - float(o["entry"])) * sign * qty)
         leftover = open_qty - qty
         if abs(leftover) < 1e-12:
             open_pos.pop(oid, None)
         else:
             o["qty"] = leftover
+        if score_window is not None:
+            t0, t1 = score_window
+            if close_time is None or close_time < t0 or close_time > t1:
+                return
+        sign = -1.0 if o["dir"] == "short" else 1.0
+        pnls.append((exit_price - float(o["entry"])) * sign * qty)
 
     def resolve_open(ev: dict[str, Any], eid: str) -> str | None:
         match = _match_id(ev)
@@ -153,7 +182,7 @@ def build_strategy_stats(events: list[dict[str, Any]] | None) -> StrategyStats:
         is_fill = _is_fill_order(kind, ev)
         if kind == "order" and not is_fill:
             continue
-        if _is_exit_placement(kind, ev):
+        if _is_exit_placement(kind):
             continue
         eid = str(ev.get("id") or "_default")
         if is_fill:
@@ -165,7 +194,13 @@ def build_strategy_stats(events: list[dict[str, Any]] | None) -> StrategyStats:
                     continue
                 if ev.get("qty") == 0:
                     continue
-                close_one(target, open_pos[target], p, _event_qty(ev, float(open_pos[target]["qty"])))
+                close_one(
+                    target,
+                    open_pos[target],
+                    p,
+                    _event_qty(ev, float(open_pos[target]["qty"])),
+                    t,
+                )
             else:
                 open_one(eid, ev, p, t, kind)
             continue
@@ -183,13 +218,19 @@ def build_strategy_stats(events: list[dict[str, Any]] | None) -> StrategyStats:
         is_all = kind in {"close_all", "closeall"} or "close_all" in kind
         if is_all:
             for oid, o in list(open_pos.items()):
-                close_one(oid, o, p, float(o["qty"]))
+                close_one(oid, o, p, float(o["qty"]), t)
             open_pos.clear()
             continue
         closed_id = resolve_open(ev, eid)
         if closed_id is None:
             continue
-        close_one(closed_id, open_pos[closed_id], p, _event_qty(ev, float(open_pos[closed_id]["qty"])))
+        close_one(
+            closed_id,
+            open_pos[closed_id],
+            p,
+            _event_qty(ev, float(open_pos[closed_id]["qty"])),
+            t,
+        )
 
     if not pnls:
         return StrategyStats()

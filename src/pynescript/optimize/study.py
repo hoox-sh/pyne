@@ -114,35 +114,14 @@ def _bar_open_time(bar: dict[str, Any]) -> float | None:
     return t if t == t else None
 
 
-def _event_bar_time(ev: dict[str, Any]) -> float | None:
-    raw = ev.get("bar_time", ev.get("time"))
-    if raw is None:
+def _score_window(bars: list[dict[str, Any]] | None) -> tuple[float, float] | None:
+    """``(t0, t1)`` of bar open times, or ``None`` when the slice has no times."""
+    if not bars:
         return None
-    try:
-        t = float(raw)
-    except (TypeError, ValueError):
-        return None
-    return t if t == t else None
-
-
-def _events_in_window(
-    events: list[Any],
-    bars: list[dict[str, Any]],
-) -> list[Any]:
-    """Keep events whose ``bar_time`` falls in ``bars`` (original test slice)."""
     times = [t for t in (_bar_open_time(b) for b in bars if isinstance(b, dict)) if t is not None]
     if not times:
-        return events
-    t0 = min(times)
-    t1 = max(times)
-    kept: list[Any] = []
-    for ev in events:
-        if not isinstance(ev, dict):
-            continue
-        t = _event_bar_time(ev)
-        if t is not None and t0 <= t <= t1:
-            kept.append(ev)
-    return kept
+        return None
+    return min(times), max(times)
 
 
 def _test_run_bars(
@@ -187,9 +166,7 @@ def run_once(
     events = result.get("events")
     if not isinstance(events, list):
         events = []
-    if score_bars:
-        events = _events_in_window(events, score_bars)
-    return build_strategy_stats(events), None
+    return build_strategy_stats(events, score_window=_score_window(score_bars)), None
 
 
 def run_study(
@@ -429,9 +406,9 @@ def run_study(
             return (oos if val.mode != "in-sample" else inn, inn)
 
         winner = max(rankable, key=key)
-        # Reject if both IS and OOS are -inf (min-trades / empty).
         top = key(winner)
-        if top[0] > REJECT or top[1] > REJECT:
+        # Holdout/WF require a finite OOS (primary) score; in-sample uses IS.
+        if top[0] > REJECT:
             best_index = winner.index
             best_params = dict(winner.params)
             best_is = winner.is_score

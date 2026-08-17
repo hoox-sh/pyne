@@ -362,8 +362,8 @@ if bar_index == 0
     linefill.new(l1, l2, color=color.new(color.blue, 80))
 if barstate.islast
     polyline.new(array.from(chart.point.from_index(bar_index - 2, low), chart.point.from_index(bar_index, high)), false)
-    t = table.new(position.top_right, 3, 2)
-    table.cell(t, 0, 0, "A")
+    t = table.new(position.top_right, 3, 2, color.red)
+    table.cell(t, 0, 0, "A", 0, 0, color.blue)
     table.cell(t, 1, 1, "B")
 plot(close, "c")
 """
@@ -378,6 +378,15 @@ plot(close, "c")
     assert tables[0]["columns"] == 2
     texts = sorted(str(c.get("text") or "") for c in (tables[0].get("cells") or []) if isinstance(c, dict))
     assert texts == ["A", "B"]
+    frame = str(tables[0].get("frame_color") or tables[0].get("color") or "").lower()
+    assert frame and frame not in {"#000000", "000000", "black"}
+    cell_a = next(
+        c
+        for c in (tables[0].get("cells") or [])
+        if isinstance(c, dict) and c.get("text") == "A"
+    )
+    text_color = str(cell_a.get("text_color") or "").lower()
+    assert text_color and text_color not in {"#eceef4", "eceef4", ""}
     fills = [d for d in ri["drawings"] if _geom_kind(d) == "linefill"]
     assert len(fills) == 1
     assert fills[0].get("t4") is not None

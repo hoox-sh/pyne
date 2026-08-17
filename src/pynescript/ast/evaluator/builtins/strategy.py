@@ -1548,6 +1548,25 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         if limit_p is None and stop_p is None and not has_trail:
             exit_price = self._apply_slippage(self._mark_price(), action)
             self._close_position(exit_price, qty, self._bar_time(), from_entry=from_entry)
+            # Placement ``exit`` is not a closed trade; emit the market fill.
+            self._record_strategy_event(
+                StrategyEvent(
+                    kind="close",
+                    id=from_entry or exit_id,
+                    direction=None,
+                    qty=qty,
+                    order_type="market",
+                    limit=None,
+                    stop=None,
+                    oca_name=None,
+                    comment=comment,
+                    bar_index=self._bar_index(),
+                    bar_time=self._bar_time(),
+                    ohlc=(exit_price, exit_price, exit_price, exit_price),
+                    script_id="",
+                    run_id="",
+                )
+            )
             return
 
         # Pending bracket: replace any prior exit legs with the same base id

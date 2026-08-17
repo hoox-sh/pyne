@@ -6455,6 +6455,16 @@ class CompilerVisitor(NodeVisitor):
             parts.append(f"'position': {args[0] if args else repr('top_right')}")
             parts.append(f"'rows': {args[1] if len(args) > 1 else 0}")
             parts.append(f"'columns': {args[2] if len(args) > 2 else 0}")
+            if len(args) > 3:
+                parts.append(f"'frame_color': {args[3]}")
+            if len(args) > 4:
+                parts.append(f"'frame_width': {args[4]}")
+            if len(args) > 5:
+                parts.append(f"'border_color': {args[5]}")
+            if len(args) > 6:
+                parts.append(f"'border_width': {args[6]}")
+            if len(args) > 7:
+                parts.append(f"'bgcolor': {args[7]}")
         elif kind in ("plotbar", "plotcandle"):
             for i, key in enumerate(("open", "high", "low", "close")):
                 parts.append(f"'{key}': {args[i] if i < len(args) else 'np.nan'}")

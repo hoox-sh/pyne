@@ -24,6 +24,7 @@ from __future__ import annotations
 from pynescript.ast.evaluator.builtins.timeframe import SECONDS_PER_MONTH
 from pynescript.ast.evaluator.builtins.timeframe import timeframe_bucket_id
 from pynescript.ast.evaluator.builtins.timeframe import timeframe_change
+from pynescript.ast.evaluator.builtins.timeframe import _period_flags
 from pynescript.ast.evaluator.builtins.timeframe import timeframe_in_seconds
 from pynescript.ast.evaluator.builtins.timeframe import timeframe_period_changed
 from pynescript.ast.evaluator.builtins.utility import UtilityFunctionsMixin
@@ -131,6 +132,12 @@ def test_timeframe_in_seconds_monthly_not_minutes() -> None:
     assert timeframe_in_seconds("5") == 300
     assert timeframe_in_seconds("15") == 900
     assert timeframe_in_seconds("60") == 3600
+    flags_3m = _period_flags("3M")
+    assert flags_3m["ismonthly"] is True
+    assert flags_3m["isminutes"] is False
+    flags_15 = _period_flags("15")
+    assert flags_15["isminutes"] is True
+    assert flags_15["ismonthly"] is False
 
 
 def _monthly_change_indexes(n: int) -> set[int]:

@@ -274,12 +274,16 @@ def _period_flags(period: str) -> dict[str, bool | int | str]:
         p_norm = p
 
     is_seconds = p_norm.endswith("S") and p_norm[:-1].isdigit()
-    is_minutes = p_norm.isdigit() or (p_norm.endswith("M") and p_norm[:-1].isdigit() and p_norm not in {"M", "1M"})
+    is_nm_month = p_norm.endswith("M") and p_norm[:-1].isdigit()
+    # Minutes are numeric-only ("1", "5", "15"); NM is N months.
+    is_minutes = p_norm.isdigit()
     # reference period for minutes is "1","5","15","60"; hours "120","240" or "1H","4H"
     is_hours = p_norm.endswith("H") or (p_norm.isdigit() and int(p_norm) >= 60 and int(p_norm) % 60 == 0 and int(p_norm) < 1440)
     is_daily = p_norm in {"D", "1D"} or (p_norm.endswith("D") and p_norm[:-1].isdigit())
     is_weekly = p_norm in {"W", "1W"} or (p_norm.endswith("W") and p_norm[:-1].isdigit())
-    is_monthly = p_norm in {"M", "1M", "MO"} or (p_norm.endswith("MO"))
+    is_monthly = (
+        p_norm in {"M", "1M", "MO"} or p_norm.endswith("MO") or is_nm_month
+    )
     # Numeric-only periods are minutes (intraday)
     if p_norm.isdigit():
         is_minutes = True

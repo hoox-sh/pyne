@@ -428,13 +428,14 @@ class DrawingRegistry:
                     if text is not None:
                         cell["text"] = str(text)
                     text_color = item.get("text_color")
-                    if text_color is None and len(args) > 6:
-                        text_color = args[6]
+                    # Compile rest args omit table_id: text=2, text_color=5, bgcolor=9.
+                    if text_color is None and len(args) > 5:
+                        text_color = args[5]
                     if text_color is not None:
                         cell["text_color"] = text_color
                     bgcolor = item.get("bgcolor")
-                    if bgcolor is None and len(args) > 10:
-                        bgcolor = args[10]
+                    if bgcolor is None and len(args) > 9:
+                        bgcolor = args[9]
                     if bgcolor is not None:
                         cell["bgcolor"] = bgcolor
                 else:
