@@ -1773,7 +1773,7 @@ A denormalized listing of every inventory row, suitable for sorting and diffing 
 | `timestamp` | `time` | function | ✅ implemented | yes | dispatch |
 | `weekofyear` | `time` | function | ✅ implemented | yes | dispatch |
 | `year` | `time` | function | ✅ implemented | yes | dispatch |
-| `timeframe.change` | `timeframe` | function | 🔄 partial | yes | dispatch |
+| `timeframe.change` | `timeframe` | function | ✅ implemented | yes | dispatch |
 | `timeframe.from_seconds` | `timeframe` | function | ✅ implemented | yes | dispatch |
 | `timeframe.in_seconds` | `timeframe` | function | ✅ implemented | yes | dispatch |
 | `timeframe.isdaily` | `timeframe` | series/var | ✅ implemented | no | series_catalog |

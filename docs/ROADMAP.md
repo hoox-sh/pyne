@@ -19,7 +19,7 @@
 
 # Pynescript Future Roadmap
 
-**Last Updated:** 2026-08-16 (T2 nvi/pvi + F1 Supertrend goldens + Flask schema + PyneTS v0.2.0 pin)
+**Last Updated:** 2026-08-17 (0.3.12: optimize + timeframe.change + HTF wma/rma + inc aroon/dpo/donchian/kst)
 **Status:** Core v6 language/builtins essentially closed. Remaining work is
 **interpret↔compile plot residuals (P1p corpus tail)** — not missing syntax.
 Product warm-compile (H2), series caps (T1), package Runtime SoT (H1),
