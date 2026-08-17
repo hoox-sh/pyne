@@ -46,6 +46,7 @@ from backend.middleware.auth import get_key_store
 from backend.middleware.auth import require_admin_token
 from backend.middleware.auth import require_api_key
 from backend.middleware.schemas import CREATE_KEY_SCHEMA
+from backend.middleware.schemas import OPTIMIZE_SCHEMA
 from backend.middleware.schemas import RUN_SCHEMA
 from backend.middleware.schemas import VALIDATE_KEY_SCHEMA
 from backend.middleware.schemas import validate
@@ -120,6 +121,7 @@ _FREE_CORS_PATH_PREFIXES = (
     "/",
     "/health",
     "/run",
+    "/optimize",
     "/compile",
     "/lsp/",
     "/ws/",
@@ -556,6 +558,7 @@ def _health_payload() -> dict[str, Any]:
         "GET /health": "Alias of GET /",
         "POST /run": "Run Pine Script (free; mode default auto = warm compile)",
         "POST /run/batch": "Run multiple Pine scripts on shared OHLCV (free)",
+        "POST /optimize": "Strategy hyperparameter search (free; interpret + inputs)",
         "POST /compile/prewarm": "Warm Numba builtins / optional scripts (free)",
         "POST /lsp/completion": "Pine completion (free, AXIS editor)",
         "POST /lsp/hover": "Pine hover docs (free, AXIS editor)",
@@ -583,6 +586,7 @@ def _health_payload() -> dict[str, Any]:
             "alert_webhook_default": bool(default_webhook_url()),
             "warm_compile": True,
             "default_run_mode": "auto",
+            "optimize": True,
         },
         "compile": _compile_health_section(),
         "endpoints": endpoints,
@@ -610,6 +614,115 @@ def run_pine_script():
     if qmode and not payload.get("mode"):
         payload["mode"] = qmode
     body, status = execute_run_payload(payload)
+    return jsonify(body), status
+
+
+def execute_optimize_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
+    """Shared body for ``POST /optimize`` (same free-tier gates as ``/run``)."""
+    from backend.middleware.free_limits import acquire_free_slot
+    from backend.middleware.free_limits import check_free_rate_limit
+    from backend.middleware.free_limits import release_free_slot
+    from backend.middleware.free_limits import validate_free_run_bounds
+    from pynescript.optimize import run_study
+    from pynescript.optimize import space_from_payload
+    from pynescript.optimize.types import ValidationSpec
+
+    rate_err = check_free_rate_limit()
+    if rate_err is not None:
+        return _err_to_dict(rate_err)
+
+    slot_err = acquire_free_slot()
+    if slot_err is not None:
+        return _err_to_dict(slot_err)
+
+    try:
+        validated, err = validate(data or {}, OPTIMIZE_SCHEMA)
+        if err is not None:
+            return _err_to_dict(err)
+        assert validated is not None
+        script = validated["script"]
+        ohlcv = validated["data"]
+        if not script:
+            return {"status": "error", "code": "NO_SCRIPT", "message": "No 'script' provided."}, 400
+        if not ohlcv:
+            return {"status": "error", "code": "NO_DATA", "message": "No 'data' provided."}, 400
+        bounds_err = validate_free_run_bounds(
+            script=script if isinstance(script, str) else None,
+            ohlcv=ohlcv if isinstance(ohlcv, list) else None,
+        )
+        if bounds_err is not None:
+            return _err_to_dict(bounds_err)
+
+        try:
+            space = space_from_payload(validated.get("space"))
+        except ValueError as exc:
+            return {"status": "error", "code": "INVALID_SPACE", "message": str(exc)}, 400
+
+        raw_val = validated.get("validation") or {}
+        if not isinstance(raw_val, dict):
+            raw_val = {}
+        mode = str(raw_val.get("mode") or "holdout").strip().lower()
+        if mode not in {"holdout", "walk-forward", "in-sample"}:
+            return {
+                "status": "error",
+                "code": "INVALID_VALIDATION",
+                "message": f"validation.mode must be holdout|walk-forward|in-sample, got {mode!r}",
+            }, 400
+        spec = ValidationSpec(
+            mode=mode,  # type: ignore[arg-type]
+            holdout_frac=float(raw_val.get("holdout_frac") or 0.3),
+            train_bars=int(raw_val.get("train_bars") or 200),
+            test_bars=int(raw_val.get("test_bars") or 50),
+            step_bars=int(raw_val.get("step_bars") or 50),
+            warmup_bars=int(raw_val.get("warmup_bars") or 0),
+        )
+        seed = validated.get("seed")
+        libs = _parse_run_libraries(validated.get("libraries"))
+        raw_fixed = validated.get("fixed_inputs")
+        fixed_inputs = raw_fixed if isinstance(raw_fixed, dict) else None
+        study = run_study(
+            script,
+            ohlcv if isinstance(ohlcv, list) else [],
+            space,
+            n_trials=int(validated.get("n_trials") or 30),
+            sampler=str(validated.get("sampler") or "auto"),
+            objective=str(validated.get("objective") or "composite"),
+            validation=spec,
+            min_trades=int(validated.get("min_trades") or 5),
+            seed=int(seed) if isinstance(seed, int) else None,
+            symbol=str(validated.get("symbol") or "CHART"),
+            oos_every_trial=bool(validated.get("oos_every_trial", True)),
+            libraries=libs or None,
+            fixed_inputs=fixed_inputs,
+        )
+        body = study.to_dict()
+        if study.status == "error" and study.error:
+            code = "OPTIMIZE_ERROR"
+            err = study.error
+            if err.startswith("NOT_A_STRATEGY"):
+                code = "NOT_A_STRATEGY"
+            elif err.startswith("TOO_MANY_RUNS"):
+                code = "TOO_MANY_RUNS"
+            elif err.startswith("grid has"):
+                code = "GRID_TOO_LARGE"
+            body["code"] = code
+            body["message"] = study.error
+            http = 400 if code != "OPTIMIZE_ERROR" else 500
+            return body, http
+        return body, 200
+    finally:
+        release_free_slot()
+
+
+@app.route("/optimize", methods=["POST"])
+def optimize_strategy():
+    """Search strategy ``input.*`` values over N interpret runs.
+
+    Uses :func:`pynescript.optimize.run_study` (real Runtime, not
+    ``/backtest/quick``). Free-tier bar/rate/concurrency gates apply.
+    """
+    payload: dict[str, Any] = dict(request.get_json(silent=True) or {})
+    body, status = execute_optimize_payload(payload)
     return jsonify(body), status
 
 

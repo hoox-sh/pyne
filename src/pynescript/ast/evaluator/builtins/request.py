@@ -96,7 +96,7 @@ _FUNDAMENTAL_TOKENS = ("DIVIDEND", "FACTSET", "EARNINGS", "ESD_")
 # Allowlisted simple ta.* forms for HTF resample (no arbitrary AST re-eval).
 # Matched only when the security expression *AST* is exactly one of these shapes
 # (visit_Call attaches :class:`HtfSimpleTaExpr` before chart pre-eval wins).
-_HTF_SIMPLE_TA_FUNCS = frozenset({"sma", "ema", "rsi", "atr"})
+_HTF_SIMPLE_TA_FUNCS = frozenset({"sma", "ema", "rsi", "atr", "wma", "rma"})
 
 _LOG = logging.getLogger("pynescript.request.security")
 
@@ -107,7 +107,7 @@ _SECURITY_POLICY_NOTES: tuple[str, ...] = (
     "barmerge.lookahead_on / lookahead_off are accepted but unused (no lookahead offset).",
     "Same-symbol simple OHLCV on a coarser TF resamples chart bars by timestamp "
     "(htf_ohlcv_resample, last completed HTF bar only — not full expression re-eval).",
-    "Same-symbol allowlisted ta.sma/ema/rsi/atr on coarser TF runs the TA helper on "
+    "Same-symbol allowlisted ta.sma/ema/rsi/atr/wma/rma on coarser TF runs the TA helper on "
     "resampled HTF bars (htf_simple_ta_resample) — still not a full multi-TF engine.",
     "LTF / unparseable TF / history offsets still use chart passthrough stub when simple.",
     "Foreign symbols without a multi-symbol feed hit return na (no mock invent under host chart).",
@@ -123,7 +123,7 @@ class HtfSimpleTaExpr:
     Nested sources, UDFs, and non-constant lengths are rejected.
     """
 
-    name: str  # sma | ema | rsi | atr
+    name: str  # sma | ema | rsi | atr | wma | rma
     source: str | None  # normalized OHLCV field; None for atr (uses h/l/c)
     length: int
 
@@ -150,9 +150,9 @@ def match_htf_simple_ta_ast(expr_ast: Any) -> HtfSimpleTaExpr | None:  # noqa: P
 
     Allowed shapes (positional args only, no kwargs):
 
-    - ``ta.sma(close, 14)`` / ``ta.ema`` / ``ta.rsi`` — source is a bare OHLCV
-      name (``close``, ``open``, ``high``, ``low``, ``volume``, ``hl2``, …);
-      length is a positive integer literal.
+    - ``ta.sma(close, 14)`` / ``ta.ema`` / ``ta.rsi`` / ``ta.wma`` / ``ta.rma``
+      — source is a bare OHLCV name (``close``, ``open``, ``high``, ``low``,
+      ``volume``, ``hl2``, …); length is a positive integer literal.
     - ``ta.atr(14)`` — length-only form (uses HTF high/low/close).
 
     Nested calls (``ta.sma(ta.ema(...), n)``), multi-arg atr, variables as
@@ -174,7 +174,7 @@ def match_htf_simple_ta_ast(expr_ast: Any) -> HtfSimpleTaExpr | None:  # noqa: P
         length = _const_positive_int(arg_nodes[0].value) if len(arg_nodes) == 1 else None
         return HtfSimpleTaExpr("atr", None, length) if length else None
 
-    # sma / ema / rsi: (source_name, length)
+    # sma / ema / rsi / wma / rma: (source_name, length)
     if len(arg_nodes) != 2:  # noqa: PLR2004 - fixed allowlist arity
         return None
     src_node = arg_nodes[0].value
@@ -990,6 +990,34 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
                 out.append(v)
         return out
 
+    @staticmethod
+    def _htf_wma_full_series(src: list[float | None], period: int) -> list[float | None]:
+        """Full-list WMA matching interpret ``_wma`` (strict window, last-value formula)."""
+        n = len(src)
+        out: list[float | None] = [None] * n
+        if n == 0 or period <= 0:
+            return out
+        denom = period * (period + 1) / 2.0
+        for i in range(period - 1, n):
+            window = src[i - period + 1 : i + 1]
+            acc = 0.0
+            ok = True
+            for j, v in enumerate(window):
+                if v is None:
+                    ok = False
+                    break
+                try:
+                    fv = float(v)
+                except (TypeError, ValueError):
+                    ok = False
+                    break
+                if fv != fv:
+                    ok = False
+                    break
+                acc += fv * (j + 1)
+            out[i] = acc / denom if ok else None
+        return out
+
     def _htf_rsi_full_series(
         self, closes: list[float | None], period: int
     ) -> list[float | None]:
@@ -1054,7 +1082,7 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
             return []
         name = expr.name
         period = int(expr.length)
-        if name in ("sma", "ema", "rsi"):
+        if name in ("sma", "ema", "rsi", "wma", "rma"):
             field = expr.source or "close"
             src = self._htf_source_series(unique, field)
             if name == "sma":
@@ -1070,6 +1098,14 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
                     return [None] * n
                 raw = ema_fn(src, period)
                 return list(raw) if raw is not None else [None] * n
+            if name == "rma":
+                rma_fn = getattr(self, "_rma", None)
+                if not callable(rma_fn):
+                    return [None] * n
+                raw = rma_fn(src, period)
+                return list(raw) if raw is not None else [None] * n
+            if name == "wma":
+                return self._htf_wma_full_series(src, period)
             return self._htf_rsi_full_series(src, period)
 
         # atr: length-only; uses HTF high/low/close.
@@ -1214,6 +1250,12 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         elif name == "ema":
             fn = getattr(self, "_ema", None)
             raw = fn(src, period) if callable(fn) else None
+        elif name == "rma":
+            fn = getattr(self, "_rma", None)
+            raw = fn(src, period) if callable(fn) else None
+        elif name == "wma":
+            last = self._htf_wma_full_series(src, period)
+            raw = last
         elif name == "rsi":
             cleaned: list[float | None] = []
             for v in src:
@@ -1456,7 +1498,7 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         - **Same-symbol + simple OHLCV** on a **coarser** TF with bar times →
           timestamp resample of chart OHLCV (``htf_ohlcv_resample``): last
           completed HTF bar only (lookahead_off-style; gaps/lookahead unused).
-        - **Same-symbol + allowlisted simple ta.*** (``ta.sma/ema/rsi/atr`` with
+        - **Same-symbol + allowlisted simple ta.*** (``ta.sma/ema/rsi/atr/wma/rma`` with
           bare OHLCV source + const length) on a **coarser** TF → run the
           interpret TA helper on resampled HTF bars (``htf_simple_ta_resample``).
         - **Same-symbol + simple OHLCV** otherwise → chart passthrough /

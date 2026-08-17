@@ -157,6 +157,7 @@
               "api/app-lifecycle",
               "api/auth-and-keys",
               "api/endpoints/run",
+              "api/endpoints/optimize",
               "api/endpoints/preview",
               "api/endpoints/backtest",
               "api/services/chart-renderer",

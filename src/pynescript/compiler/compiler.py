@@ -1584,6 +1584,24 @@ class CompilerVisitor(NodeVisitor):
             return self.const_like_values.get(s)
         return None
 
+    @staticmethod
+    def _compile_tf_bucket_ms(expr: str) -> float | None:
+        """Parse a compile-time timeframe string literal into bucket milliseconds."""
+        s = (expr or "").strip()
+        if len(s) >= 2 and s[0] == s[-1] and s[0] in {"'", '"'}:
+            inner = s[1:-1]
+        else:
+            return None
+        if not inner:
+            return None
+        try:
+            from pynescript.ast.evaluator.builtins.timeframe import timeframe_bucket_ms
+
+            bucket = timeframe_bucket_ms(inner)
+        except Exception:
+            return None
+        return float(bucket) if bucket is not None else None
+
     _STRINGY_INPUT_ATTRS = frozenset(
         {
             "string",
@@ -4524,7 +4542,12 @@ class CompilerVisitor(NodeVisitor):
         if func_name == "timeframe_from_seconds":
             return repr("1D")
         if func_name == "timeframe_change":
-            return "False"
+            tf_expr = args[0] if args else repr("D")
+            bucket = self._compile_tf_bucket_ms(tf_expr)
+            if bucket is not None:
+                return f"numba_timeframe_change(time_arr, __bar_idx, {bucket})"
+            self.object_mode = True
+            return f"timeframe_change_at(time_arr, __bar_idx, {tf_expr})"
         if func_name == "timestamp":
             # Real UTC ms from components (or string → na on compile path).
             # Year-first: timestamp(y, m, d[, h, mi, s]); timezone-first skipped.

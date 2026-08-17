@@ -76,6 +76,8 @@ class TestHealth:
         assert "disk_cache_enabled" in compile_info
         assert compile_info.get("default_mode") == "auto"
         assert "/compile/prewarm" in str(resp.json.get("endpoints", {}))
+        assert "/optimize" in str(resp.json.get("endpoints", {}))
+        assert resp.json.get("features", {}).get("optimize") is True
 
     def test_health_cors_pages_preview(self, client: FlaskClient):
         origin = "https://e2fceb51.pynescript-axis.pages.dev"
@@ -842,3 +844,69 @@ class TestBacktestService:
         assert "max_drawdown" in summary
         assert "win_rate" in summary
         assert "profit_factor" in summary
+
+
+class TestOptimizeEndpoint:
+    def test_rejects_indicator(self, client: FlaskClient):
+        bars = [
+            {
+                "time": i,
+                "open": 100 + i,
+                "high": 101 + i,
+                "low": 99 + i,
+                "close": 100 + i,
+                "volume": 1,
+            }
+            for i in range(40)
+        ]
+        resp = client.post(
+            "/optimize",
+            json={
+                "script": '//@version=6\nindicator("x")\nlen = input.int(10, "Len")\nplot(close)',
+                "data": bars,
+                "space": {"params": [{"name": "Len", "kind": "int", "min": 2, "max": 8}]},
+                "n_trials": 2,
+                "validation": {"mode": "in-sample"},
+            },
+        )
+        assert resp.status_code == 400
+        assert resp.json["code"] == "NOT_A_STRATEGY"
+
+    def test_runs_strategy(self, client: FlaskClient):
+        bars = [
+            {
+                "time": 1_700_000_000 + i * 60,
+                "open": 100 + (i % 10),
+                "high": 101 + (i % 10),
+                "low": 99 + (i % 10),
+                "close": 100 + (i % 10),
+                "volume": 1,
+            }
+            for i in range(50)
+        ]
+        script = (
+            '//@version=6\nstrategy("s")\n'
+            'n = input.int(5, "N", minval=2, maxval=10)\n'
+            "if close > close[1]\n"
+            '    strategy.entry("L", strategy.long)\n'
+            "if close < close[1]\n"
+            '    strategy.close("L")\n'
+        )
+        resp = client.post(
+            "/optimize",
+            json={
+                "script": script,
+                "data": bars,
+                "space": {"params": [{"name": "N", "kind": "int", "min": 2, "max": 6}]},
+                "n_trials": 2,
+                "sampler": "random",
+                "objective": "net_pnl",
+                "min_trades": 0,
+                "validation": {"mode": "in-sample"},
+                "seed": 1,
+            },
+        )
+        assert resp.status_code == 200, resp.json
+        assert resp.json["status"] == "success"
+        assert len(resp.json["trials"]) == 2
+        assert resp.json["engine_runs"] == 2

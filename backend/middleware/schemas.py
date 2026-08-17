@@ -102,6 +102,26 @@ RUN_BATCH_SCHEMA: dict[str, tuple[type, bool, Any]] = {
 RUN_BATCH_MAX_SCRIPTS = 8
 
 
+# Schema for POST /optimize (strategy HPO). Nested ``space`` / ``validation``
+# objects are checked in the route (schema helper is flat only).
+OPTIMIZE_SCHEMA: dict[str, tuple[type, bool, Any]] = {
+    "script": (str, True, ""),
+    "data": (list, True, []),
+    "space": (dict, True, {}),
+    "n_trials": (int, False, 30),
+    "sampler": (str, False, "auto"),
+    "objective": (str, False, "composite"),
+    "validation": (dict, False, {}),
+    "min_trades": (int, False, 5),
+    "seed": (int, False, None),
+    "symbol": (str, False, "CHART"),
+    "oos_every_trial": (bool, False, True),
+    "libraries": (list, False, []),
+    # Current Script Settings values for inputs not in the search space.
+    "fixed_inputs": (dict, False, {}),
+}
+
+
 # Schema for /preview/chart.
 PREVIEW_CHART_SCHEMA: dict[str, tuple[type, bool, Any]] = {
     "script": (str, False, ""),

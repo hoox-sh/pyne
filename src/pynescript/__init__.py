@@ -39,6 +39,7 @@ live under :mod:`pynescript.ast` (helpers often imported as
 - :mod:`pynescript.ast` — parse, unparse, evaluate, lint
 - :mod:`pynescript.compiler` — Numba / object-mode compile pipeline
 - :mod:`pynescript.runtime` — bar-loop Runtime host (interpret / compile / auto)
+- :mod:`pynescript.optimize` — strategy hyperparameter search (TPE / walk-forward)
 - :mod:`pynescript.langserver` — pygls LSP (optional ``[lsp]`` extra)
 - :mod:`pynescript.ext` — Pygments lexer and integrations
 - :mod:`pynescript.util` — data providers, Pine facade helpers

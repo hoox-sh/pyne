@@ -229,12 +229,14 @@ class OscillatorIndicators(TechnicalHelpers):
             lows = self._context_series("low")
             n = min(len(highs), len(lows)) if highs and lows else 0
             hl2 = [(float(highs[i]) + float(lows[i])) / 2.0 for i in range(n)] if n else []
-        if len(hl2) < slow or slow <= 0 or fast <= 0:
+        if slow <= 0 or fast <= 0:
             return None
         if self._use_incremental_ta():
             # Two independent SMA call sites (separate slots)
             fast_v = self._sma_inc_update(hl2, fast)
             slow_v = self._sma_inc_update(hl2, slow)
+        elif len(hl2) < slow:
+            return None
         else:
             fast_v = self._sma(hl2, fast)
             slow_v = self._sma(hl2, slow)
@@ -256,6 +258,12 @@ class OscillatorIndicators(TechnicalHelpers):
             length = self._expect_int(args[0], "ta.aroon length must be int")
         if length <= 0:
             return None
+        if self._use_incremental_ta():
+            return self._aroon_inc_update(
+                self._context_source("high"),
+                self._context_source("low"),
+                length,
+            )
         highs = self._context_series("high")
         lows = self._context_series("low")
         # Need length+1 bars of history for classic Aroon (window of length)
@@ -502,6 +510,9 @@ class OscillatorIndicators(TechnicalHelpers):
             msg = "DPO length must be >= 1"
             self._error(msg)
 
+        if self._use_incremental_ta():
+            return self._dpo_inc_update(self._context_source("close"), length)
+
         closes = (getattr(self, "current_series", None) or {}).get("close", [])
         if not closes or len(closes) < length:
             return None
@@ -529,6 +540,11 @@ class OscillatorIndicators(TechnicalHelpers):
         length2 = self._expect_int(args[1], "length2 must be integer")
         length3 = self._expect_int(args[2], "length3 must be integer")
         length4 = self._expect_int(args[3], "length4 must be integer")
+
+        if self._use_incremental_ta():
+            return self._kst_inc_update(
+                self._context_source("close"), length1, length2, length3, length4
+            )
 
         closes = (getattr(self, "current_series", None) or {}).get("close", [])
         if not closes:

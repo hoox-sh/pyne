@@ -2958,6 +2958,176 @@ class TechnicalHelpers:
         st["value"] = stochrsi_val
         return {"stochrsi": stochrsi_val, "signal": signal}
 
+    def _aroon_inc_update(
+        self,
+        highs: list[Any],
+        lows: list[Any],
+        length: int,
+    ) -> tuple[float, float] | None:
+        """Incremental Aroon matching full ``_builtin_ta_aroon`` (down, up).
+
+        Window is ``length + 1`` samples. ``bars_since`` is distance from the
+        end of the window; output is ``100 * (length - bars_since) / length``.
+        """
+        if length <= 0:
+            return None
+        window_n = length + 1
+        slot = self._ta_next_slot()
+        key = ("aroon", slot, int(length))
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {
+                "highs": deque(maxlen=window_n),
+                "lows": deque(maxlen=window_n),
+                "value": None,
+            }
+            bucket[key] = st
+        h = self._series_last(highs)
+        l = self._series_last(lows)
+        st["highs"].append(h)
+        st["lows"].append(l)
+        if len(st["highs"]) < window_n or len(st["lows"]) < window_n:
+            st["value"] = None
+            return None
+        h_win = list(st["highs"])
+        l_win = list(st["lows"])
+        try:
+            hh_i = max(range(window_n), key=lambda i: float(h_win[i]))
+            ll_i = min(range(window_n), key=lambda i: float(l_win[i]))
+        except (TypeError, ValueError):
+            st["value"] = None
+            return None
+        bars_since_hh = (window_n - 1) - hh_i
+        bars_since_ll = (window_n - 1) - ll_i
+        aroon_up = 100.0 * (length - bars_since_hh) / length
+        aroon_down = 100.0 * (length - bars_since_ll) / length
+        pair = (float(aroon_down), float(aroon_up))
+        st["value"] = pair
+        return pair
+
+    def _dpo_inc_update(self, closes: list[Any], length: int) -> float | None:
+        """Incremental DPO matching full ``ta.dpo`` last value.
+
+        ``close[length//2 + 1] - sma(close, length)``. SMA uses the same
+        last-N mean as the full path (no na-skip).
+        """
+        if length < 1:
+            return None
+        slot = self._ta_next_slot()
+        key = ("dpo", slot, int(length))
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        disp = length // 2 + 1
+        keep = max(length, disp)
+        if st is None:
+            st = {"window": deque(maxlen=keep), "value": None}
+            bucket[key] = st
+        raw = self._series_last(closes)
+        try:
+            x = float(raw) if raw is not None else None
+        except (TypeError, ValueError):
+            x = None
+        window: deque[float | None] = st["window"]
+        if x is None:
+            st["value"] = None
+            return None
+        window.append(x)
+        if len(window) < length:
+            st["value"] = None
+            return None
+        sma_win = list(window)[-length:]
+        try:
+            sma_val = sum(float(v) for v in sma_win) / length
+        except (TypeError, ValueError):
+            st["value"] = None
+            return None
+        if len(window) < disp:
+            st["value"] = None
+            return None
+        displaced = list(window)[-disp]
+        try:
+            dpo_val = float(displaced) - sma_val
+        except (TypeError, ValueError):
+            st["value"] = None
+            return None
+        st["value"] = dpo_val
+        return dpo_val
+
+    def _donchian_inc_update(
+        self,
+        highs: list[Any],
+        lows: list[Any],
+        length: int,
+    ) -> dict[str, float | None]:
+        """Incremental Donchian matching full ``ta.donchian`` last window."""
+        empty = {"high": None, "low": None, "mid": None}
+        if length < 1:
+            return empty
+        hi = self._highest_inc_update(highs, length)
+        lo = self._lowest_inc_update(lows, length)
+        if hi is None or lo is None:
+            return empty
+        try:
+            hf = float(hi)
+            lf = float(lo)
+        except (TypeError, ValueError):
+            return empty
+        return {"high": hf, "low": lf, "mid": (hf + lf) / 2.0}
+
+    def _kst_inc_update(
+        self,
+        closes: list[Any],
+        length1: int,
+        length2: int,
+        length3: int,
+        length4: int,
+    ) -> float | None:
+        """Incremental KST matching full ``ta.kst`` last value.
+
+        Full path uses ``(close - close[-length]) / close[-length] * 100``
+        (not ``ta.roc``'s ``src[period]`` lookback). Weighted 1/2/3/4, /10.
+        """
+        lengths = (int(length1), int(length2), int(length3), int(length4))
+        if min(lengths) < 1:
+            return None
+        keep = max(lengths)
+        slot = self._ta_next_slot()
+        key = ("kst", slot, lengths)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"window": deque(maxlen=keep), "value": None}
+            bucket[key] = st
+        raw = self._series_last(closes)
+        try:
+            x = float(raw) if raw is not None else None
+        except (TypeError, ValueError):
+            x = None
+        window: deque[float | None] = st["window"]
+        window.append(x)
+        if len(window) < keep or x is None:
+            st["value"] = None
+            return None
+        rocs: list[float] = []
+        for length in lengths:
+            base = window[-length]
+            if base is None or x is None:
+                st["value"] = None
+                return None
+            try:
+                b = float(base)
+                if b == 0.0:
+                    rocs.append(0.0)
+                else:
+                    rocs.append((x - b) / b * 100.0)
+            except (TypeError, ValueError):
+                st["value"] = None
+                return None
+        kst_val = (rocs[0] * 1.0 + rocs[1] * 2.0 + rocs[2] * 3.0 + rocs[3] * 4.0) / 10.0
+        st["value"] = kst_val
+        return kst_val
+
     def _finalize_series(self, values: list[Any]) -> Any:
         """Return full series list, or current scalar in bar mode."""
         if not self._bar_mode():

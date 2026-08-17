@@ -59,20 +59,81 @@ TIMEFRAME_SHORTCUTS = {
 }
 
 
-def timeframe_change(_timeframe_str: str) -> bool:
-    """Check if the timeframe has changed on the current bar.
+def _normalize_time_ms(ts: object) -> float | None:
+    """Coerce a bar timestamp to milliseconds. Seconds (< 1e11) are scaled."""
+    if ts is None:
+        return None
+    current = getattr(ts, "current", None)
+    if current is not None and not isinstance(ts, (int, float, bool, str)):
+        ts = current
+    try:
+        t = float(ts)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    if t != t:  # NaN
+        return None
+    if t < 1.0e11:
+        t *= 1000.0
+    return t
 
-    Returns true if the timeframe specified in the argument has changed
-    on the current bar.
 
-    Args:
-        _timeframe_str: Timeframe specification (e.g., "5", "15", "D", "W", "M")
+def timeframe_bucket_ms(timeframe_str: str | None) -> float | None:
+    """Fixed-width HTF bucket in milliseconds, or None if *timeframe_str* is unusable."""
+    if timeframe_str is None:
+        return None
+    raw = str(timeframe_str).strip()
+    if not raw:
+        return None
+    try:
+        sec = int(timeframe_in_seconds(raw))
+    except (TypeError, ValueError):
+        return None
+    if sec <= 0:
+        return None
+    return float(sec) * 1000.0
 
-    Returns:
-        Boolean indicating if timeframe has changed
+
+def timeframe_bucket_id(ts: object, timeframe_str: str | None) -> int | None:
+    """UTC fixed-width bucket id for *ts* under *timeframe_str*.
+
+    Detects seconds vs milliseconds. Daily/weekly/monthly use the same
+    fixed-ms widths as :func:`timeframe_in_seconds` (UTC epoch alignment,
+    not exchange calendar).
     """
-    # Stub: in a real implementation this would compare current bar's timeframe state.
-    # For now returns False (no change detected) to avoid breaking scripts.
+    t = _normalize_time_ms(ts)
+    bucket = timeframe_bucket_ms(timeframe_str)
+    if t is None or bucket is None:
+        return None
+    return int(t // bucket)
+
+
+def timeframe_period_changed(
+    curr_ts: object,
+    prev_ts: object,
+    timeframe_str: str | None,
+) -> bool:
+    """True on the first bar of a new *timeframe_str* period.
+
+    Missing previous timestamp (bar 0) is a new period. Unusable times or
+    timeframe strings return False (cannot detect a change).
+    """
+    curr_id = timeframe_bucket_id(curr_ts, timeframe_str)
+    if curr_id is None:
+        return False
+    if prev_ts is None:
+        return True
+    prev_id = timeframe_bucket_id(prev_ts, timeframe_str)
+    if prev_id is None:
+        return True
+    return curr_id != prev_id
+
+
+def timeframe_change(_timeframe_str: str) -> bool:
+    """No-context fallback for ``timeframe.change``.
+
+    The evaluator mixin uses :func:`timeframe_period_changed` with bar times.
+    Standalone calls (no host series) cannot detect a change.
+    """
     return False
 
 
@@ -248,7 +309,8 @@ def register_timeframe_functions(namespace: dict) -> None:
     Args:
         namespace: Dictionary to register functions in (typically evaluator's builtins)
     """
-    namespace["timeframe.change"] = timeframe_change
+    # Prefer a bound mixin handler when the dispatcher already registered one.
+    namespace.setdefault("timeframe.change", timeframe_change)
     namespace["timeframe.from_seconds"] = timeframe_from_seconds
     namespace["timeframe.in_seconds"] = timeframe_in_seconds
 

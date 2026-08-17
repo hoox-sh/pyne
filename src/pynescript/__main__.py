@@ -885,6 +885,117 @@ def run_cmd(filename: str, encoding: str, bars: int, as_json: bool, quiet: bool)
         _echo(f"  extras: {keys}")
 
 
+@cli.command("optimize", short_help="Search strategy input.* values over N interpret runs.")
+@click.argument(
+    "filename",
+    metavar="PATH",
+    type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, allow_dash=True),
+)
+@click.option("--encoding", default="utf-8", help="Text encoding of the file.")
+@click.option("--bars", type=int, default=120, show_default=True, help="Synthetic bar count.")
+@click.option("--trials", type=int, default=20, show_default=True, help="Trial budget (max 200).")
+@click.option(
+    "--space",
+    "space_json",
+    type=str,
+    default="",
+    help='JSON SearchSpace: {"params":[{"name":"Len","kind":"int","min":2,"max":20}]}',
+)
+@click.option(
+    "--sampler",
+    type=click.Choice(["auto", "random", "tpe", "grid"]),
+    default="auto",
+    show_default=True,
+)
+@click.option(
+    "--objective",
+    type=click.Choice(["composite", "net_pnl", "profit_factor", "calmar"]),
+    default="composite",
+    show_default=True,
+)
+@click.option(
+    "--validation",
+    "validation_mode",
+    type=click.Choice(["holdout", "walk-forward", "in-sample"]),
+    default="holdout",
+    show_default=True,
+)
+@click.option("--seed", type=int, default=None, help="RNG seed.")
+@click.option("--json", "as_json", is_flag=True, help="Print the full study JSON.")
+def optimize_cmd(
+    filename: str,
+    encoding: str,
+    bars: int,
+    trials: int,
+    space_json: str,
+    sampler: str,
+    objective: str,
+    validation_mode: str,
+    seed: int | None,
+    as_json: bool,
+) -> None:
+    """Optimise a ``strategy()`` script (interpret Runtime, not /backtest/quick)."""
+    from pynescript.optimize import run_study
+    from pynescript.optimize import space_from_payload
+    from pynescript.optimize.types import ValidationSpec
+
+    if bars < 8:
+        raise click.ClickException("--bars must be >= 8")
+    source, label = _read_source(filename if filename != "-" else "-", encoding)
+    raw_space = space_json.strip()
+    if not raw_space:
+        raise click.ClickException("--space JSON is required")
+    try:
+        payload = json.loads(raw_space)
+        space = space_from_payload(payload)
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise click.ClickException(f"invalid --space: {exc}") from exc
+    cols = _synthetic_ohlcv(bars)
+    ohlcv = [
+        {
+            "time": 1_700_000_000 + i * 60,
+            "open": cols["open"][i],
+            "high": cols["high"][i],
+            "low": cols["low"][i],
+            "close": cols["close"][i],
+            "volume": cols["volume"][i],
+        }
+        for i in range(bars)
+    ]
+    study = run_study(
+        source,
+        ohlcv,
+        space,
+        n_trials=trials,
+        sampler=sampler,
+        objective=objective,
+        validation=ValidationSpec(mode=validation_mode),  # type: ignore[arg-type]
+        seed=seed,
+        min_trades=0 if validation_mode == "in-sample" else 5,
+    )
+    if as_json:
+        _echo(json.dumps(study.to_dict(), indent=2, default=str))
+        if study.status == "error":
+            raise SystemExit(1)
+        return
+    if study.status == "error":
+        _echo_status("fail", study.error or "optimize failed", err=True)
+        raise SystemExit(1)
+    _echo_status(
+        "ok",
+        f"optimized {label}  trials={len(study.trials)}  "
+        f"runs={study.engine_runs}  {study.ms:.0f}ms  sampler={study.sampler}",
+    )
+    if study.warning:
+        _echo(f"  warn: {study.warning}")
+    if study.best_params:
+        bits = ", ".join(f"{k}={v}" for k, v in study.best_params.items())
+        _echo(f"  best: {bits}")
+        _echo(f"  is_score={study.best_is_score}  oos_score={study.best_oos_score}")
+    else:
+        _echo("  (no valid winner)")
+
+
 def _jsonable_last(series: Any) -> Any:
     if series is None:
         return None

@@ -92,6 +92,14 @@ Full-list `_ema` / `_ema_state_step` and incremental / Numba paths all use **SMA
 
 **Not yet:** true intrabar rollback of non-`varip` state, live datafeed-driven ticks, or compile-mode realtime multi-pass.
 
+### `timeframe.change` (UTC fixed-width buckets)
+
+**Reference Pine:** First bar of a new *higher* period on the **exchange calendar** (session-aware daily/weekly/monthly).
+
+**pynescript:** Interpret and compile compare UTC epoch buckets using the same widths as `timeframe.in_seconds` (`D` = 86400s, `W` = 7d, `M` ≈ 30d). Bar 0 is a new period. No-host / missing times → `False`. Not session- or DST-aware.
+
+**Track:** `tests/test_timeframe_change.py`.
+
 **Track:** audit AGENT_02; host kwargs in `pynescript.runtime.host.Runtime.run`.
 
 ### `AugAssign` / tuple unpack series bind (fixed Wave B)
@@ -121,7 +129,7 @@ When the host omits quotes, `bid`/`ask` are **na (`None`)**, not mock prices (`1
 | Foreign ticker + host chart wired + no multi-symbol feed hit | **`na`** (no mock invent; matches compile foreign-na) |
 | Same-symbol + **complex** pre-eval (UDF / nested / non-allowlist `ta.*`) + request TF ≠ chart TF | **`na`** — no full multi-TF re-eval engine (do not invent HTF structure) |
 | Same-symbol + **simple OHLCV** + request TF **coarser** than chart bar spacing (parseable fixed TF, bar times present) | **Timestamp resample** of chart OHLCV (`htf_ohlcv_resample`): open/high/low/close/volume/time/hl2/hlc3/ohlc4 on **last completed** HTF bucket only (lookahead_off-style). |
-| Same-symbol + **allowlisted simple ta.*** (`ta.sma` / `ta.ema` / `ta.rsi` with bare OHLCV source + const length; `ta.atr(length)`) + request TF **coarser** | **HTF series TA** (`htf_simple_ta_resample`): bucket chart bars → run interpret TA helper on unique completed HTF OHLCV → map last completed value to chart bars. Not arbitrary AST re-eval. |
+| Same-symbol + **allowlisted simple ta.*** (`ta.sma` / `ta.ema` / `ta.rsi` / `ta.wma` / `ta.rma` with bare OHLCV source + const length; `ta.atr(length)`) + request TF **coarser** | **HTF series TA** (`htf_simple_ta_resample`): bucket chart bars → run interpret TA helper on unique completed HTF OHLCV → map last completed value to chart bars. Not arbitrary AST re-eval. |
 | Same-symbol + **simple OHLCV** otherwise (same TF, LTF, history offsets like `high[1]`, unparseable TF, …) | Chart series **passthrough** / provider series (`same_tf_chart_eval` / `chart_passthrough_htf_stub`) |
 | Same-symbol `ticker.heikinashi` | Chart OHLC → Heikin-Ashi transform (not raw chart candles) |
 | `barmerge.gaps_on` / `gaps_off` | **Accepted, unused** — no gap-fill / na-gap series |
@@ -129,7 +137,7 @@ When the host omits quotes, `bid`/`ask` are **na (`None`)**, not mock prices (`1
 | Fundamentals / footprint / dividends / … | Mock or soft-fail (see module docstring) |
 | Standalone evaluator (no chart identity) | Legacy mock OHLCV for bare string series names (offline demos) |
 
-**HTF resample limits (intentional):** bare series fields (`close`, `open`, …) / string names, plus the allowlisted simple `ta.*` shapes above. Not `high[1]`, nested `ta.sma(ta.ema(...))`, `ta.wma`, multi-arg ATR, or UDF bodies. Monthly calendar TFs are not fixed-ms buckets and stay on the stub path. Gaps never insert `na` holes between HTF bars. Expression must appear **inline** as the security third arg AST (pre-bound variables stay on the complex/na path).
+**HTF resample limits (intentional):** bare series fields (`close`, `open`, …) / string names, plus the allowlisted simple `ta.*` shapes above. Not `high[1]`, nested `ta.sma(ta.ema(...))`, multi-arg ATR, or UDF bodies. Monthly calendar TFs are not fixed-ms buckets and stay on the stub path. Gaps never insert `na` holes between HTF bars. Expression must appear **inline** as the security third arg AST (pre-bound variables stay on the complex/na path).
 
 Runtime **interpret** results expose honesty metadata when any `request.security` ran:
 
@@ -138,7 +146,7 @@ Runtime **interpret** results expose honesty metadata when any `request.security
 - `meta.request_security.policies` → tags such as `htf_ohlcv_resample`, `htf_simple_ta_resample`, `complex_htf_na`, `chart_passthrough_htf_stub`, `foreign_na`, `gaps_lookahead_unused`, `same_tf_chart_eval`, …
 - `meta.request_security.notes` → short product notes (same text as evaluator)
 
-Regression coverage: `tests/test_request_data_feed.py` (foreign-na, complex HTF na, HTF OHLCV resample hourly→daily / 1m→60m, HTF simple ta.sma/ema/rsi/atr, nested ta still na, gaps/lookahead unused, Runtime meta).
+Regression coverage: `tests/test_request_data_feed.py` (foreign-na, complex HTF na, HTF OHLCV resample hourly→daily / 1m→60m, HTF simple ta.sma/ema/rsi/atr/wma/rma, nested ta still na, gaps/lookahead unused, Runtime meta).
 
 **Impact:** MTF indicators that need full expression re-eval on HTF, gaps, or lookahead still diverge from reference Pine. Simple HTF OHLC and allowlisted simple `ta.*` on HTF are closer than chart passthrough but still not a full multi-TF engine.
 

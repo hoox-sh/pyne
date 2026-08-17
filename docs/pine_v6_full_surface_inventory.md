@@ -834,7 +834,7 @@ Timeframe inspection and conversion (`timeframe.period`, multipliers, and relate
 
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
-| `timeframe.change` | function | 🔄 partial | yes | dispatch | stub/mock/limited semantics |
+| `timeframe.change` | function | ✅ implemented | yes | dispatch | UTC fixed-width buckets (not exchange calendar) |
 | `timeframe.from_seconds` | function | ✅ implemented | yes | dispatch |  |
 | `timeframe.in_seconds` | function | ✅ implemented | yes | dispatch |  |
 | `timeframe.isdaily` | series/var | ✅ implemented | no | series_catalog |  |

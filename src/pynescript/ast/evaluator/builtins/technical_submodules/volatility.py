@@ -396,6 +396,9 @@ class VolatilityIndicators(TechnicalHelpers):
             msg = "DPO length must be >= 1"
             self._error(msg)
 
+        if self._use_incremental_ta():
+            return self._dpo_inc_update(self._context_source("close"), length)
+
         closes = (getattr(self, "current_series", None) or {}).get("close", [])
         if not closes or len(closes) < length:
             return None

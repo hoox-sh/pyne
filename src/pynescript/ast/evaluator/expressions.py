@@ -1023,7 +1023,7 @@ class ExpressionEvaluator:
         """Replace security expression with allowlisted ``HtfSimpleTaExpr`` when AST matches.
 
         ``request.security`` / bare ``security`` normally receive a *chart*
-        pre-evaluated third arg. For allowlisted simple ``ta.sma/ema/rsi/atr``
+        pre-evaluated third arg. For allowlisted simple ``ta.sma/ema/rsi/atr/wma/rma``
         calls we preserve the form so the HTF path can run TA on resampled
         bars instead of inventing structure from chart-TF results.
         """

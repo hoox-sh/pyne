@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.12] - 2026-08-17
+
+### Added
+- **Strategy hyperparameter search** — `pynescript.optimize` (TPE / random / grid, holdout + walk-forward) scores real `Runtime` strategy events. `POST /optimize` (same free-tier gates as `/run`) and `pyne optimize`. Not `/backtest/quick`; not a Pine builtin.
+- Real **`timeframe.change`** on interpret and compile (UTC fixed-width buckets; bar 0 is a new period).
+- HTF `request.security` allowlist includes **`ta.wma`** and **`ta.rma`**.
+- Incremental interpret kernels for **`ta.aroon`**, **`ta.dpo`**, **`ta.donchian`**, and **`ta.kst`**.
+- Dual-host plot/drawing identity: compile geometry-only AXIS export, plot_meta kinds, coordinate snapshot at create/set.
+
 ## [0.3.11] - 2026-08-16
 
 ### Added

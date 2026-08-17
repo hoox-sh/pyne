@@ -3482,3 +3482,167 @@ plot(ta.pvi, "pvi")
             if isinstance(a, float) and isinstance(b, float) and math.isnan(a) and math.isnan(b):
                 continue
             assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"
+
+
+def _bar_walk_full_aroon(
+    highs: list[float], lows: list[float], length: int
+) -> list[tuple[float, float] | None]:
+    ev = _FullTA()
+    out: list[tuple[float, float] | None] = []
+    for i in range(len(highs)):
+        ev.current_series = {"high": highs[: i + 1], "low": lows[: i + 1]}
+        out.append(ev._builtin_ta_aroon([length]))
+    return out
+
+
+def _bar_walk_inc_aroon(
+    highs: list[float], lows: list[float], length: int
+) -> list[tuple[float, float] | None]:
+    ev = _IncTA()
+    out: list[tuple[float, float] | None] = []
+    for i in range(len(highs)):
+        ev._ta_call_i = 0
+        ev.current_series = {"high": highs[: i + 1], "low": lows[: i + 1]}
+        out.append(ev._aroon_inc_update(highs[: i + 1], lows[: i + 1], length))
+    return out
+
+
+def test_incremental_aroon_matches_full() -> None:
+    highs, lows, _closes = _ohlc(80)
+    for length in (7, 14):
+        got = _bar_walk_inc_aroon(highs, lows, length)
+        exp = _bar_walk_full_aroon(highs, lows, length)
+        assert len(got) == len(exp)
+        for i, (g, e) in enumerate(zip(got, exp, strict=True)):
+            if e is None:
+                assert g is None, f"bar {i}: expected None, got {g}"
+                continue
+            assert g is not None, f"bar {i}: expected {e}, got None"
+            assert g[0] == pytest.approx(e[0], rel=1e-9, abs=1e-9)
+            assert g[1] == pytest.approx(e[1], rel=1e-9, abs=1e-9)
+
+
+def _bar_walk_full_dpo(closes: list[float], length: int) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(closes)):
+        ev.current_series = {"close": closes[: i + 1]}
+        out.append(ev._builtin_ta_dpo([length]))
+    return out
+
+
+def _bar_walk_inc_dpo(closes: list[float], length: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(closes)):
+        ev._ta_call_i = 0
+        out.append(ev._dpo_inc_update(closes[: i + 1], length))
+    return out
+
+
+def test_incremental_dpo_matches_full() -> None:
+    closes = _series(90)
+    for length in (10, 21):
+        _assert_series_close(_bar_walk_inc_dpo(closes, length), _bar_walk_full_dpo(closes, length))
+
+
+def _bar_walk_full_donchian(
+    highs: list[float], lows: list[float], length: int
+) -> list[dict[str, float | None]]:
+    ev = _FullTA()
+    out: list[dict[str, float | None]] = []
+    for i in range(len(highs)):
+        ev.current_series = {"high": highs[: i + 1], "low": lows[: i + 1]}
+        out.append(ev._builtin_ta_donchian([length]))
+    return out
+
+
+def _bar_walk_inc_donchian(
+    highs: list[float], lows: list[float], length: int
+) -> list[dict[str, float | None]]:
+    ev = _IncTA()
+    out: list[dict[str, float | None]] = []
+    for i in range(len(highs)):
+        ev._ta_call_i = 0
+        ev.current_series = {"high": highs[: i + 1], "low": lows[: i + 1]}
+        out.append(ev._donchian_inc_update(highs[: i + 1], lows[: i + 1], length))
+    return out
+
+
+def test_incremental_donchian_matches_full() -> None:
+    highs, lows, _closes = _ohlc(80)
+    for length in (10, 20):
+        got = _bar_walk_inc_donchian(highs, lows, length)
+        exp = _bar_walk_full_donchian(highs, lows, length)
+        assert len(got) == len(exp)
+        for i, (g, e) in enumerate(zip(got, exp, strict=True)):
+            for key in ("high", "low", "mid"):
+                _assert_num_close(g.get(key), e.get(key), i=i)
+
+
+def _bar_walk_full_kst(closes: list[float], lengths: tuple[int, int, int, int]) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(closes)):
+        ev.current_series = {"close": closes[: i + 1]}
+        out.append(ev._builtin_ta_kst(list(lengths)))
+    return out
+
+
+def _bar_walk_inc_kst(closes: list[float], lengths: tuple[int, int, int, int]) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(closes)):
+        ev._ta_call_i = 0
+        out.append(ev._kst_inc_update(closes[: i + 1], *lengths))
+    return out
+
+
+def test_incremental_kst_matches_full() -> None:
+    closes = _series(80)
+    lengths = (10, 15, 20, 30)
+    _assert_series_close(_bar_walk_inc_kst(closes, lengths), _bar_walk_full_kst(closes, lengths))
+
+
+def test_runtime_aroon_dpo_donchian_kst_incremental_vs_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend.runtime import Runtime
+
+    try:
+        from pynescript.ast.helper import clear_parse_cache
+    except ImportError:  # pragma: no cover
+
+        def clear_parse_cache() -> None:
+            return None
+
+    bars = _ohlcv_bars(80)
+    src = """//@version=5
+indicator("aroon dpo donchian kst")
+a = ta.aroon(14)
+plot(a[0], "ad")
+plot(a[1], "au")
+plot(ta.dpo(21), "dpo")
+plot(ta.kst(10, 15, 20, 30), "kst")
+"""
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    clear_parse_cache()
+    r_on = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_on, r_on.get("error")
+    monkeypatch.setenv("PYNE_TA_INCREMENTAL", "0")
+    clear_parse_cache()
+    r_off = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_off, r_off.get("error")
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    clear_parse_cache()
+
+    assert set(r_on["series"]) == set(r_off["series"])
+    for key in r_on["series"]:
+        for i, (a, b) in enumerate(zip(r_on["series"][key], r_off["series"][key], strict=True)):
+            if a is None and b is None:
+                continue
+            if a is None or b is None:
+                continue
+            if isinstance(a, float) and isinstance(b, float) and math.isnan(a) and math.isnan(b):
+                continue
+            assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"

@@ -1781,6 +1781,49 @@ def udt_set_field(obj, key, val):
     return val
 
 
+@numba.njit(cache=True)
+def numba_timeframe_change(time_arr, i, bucket_ms):
+    """True when bar ``i`` opens a new fixed-width UTC bucket.
+
+    ``bucket_ms`` is the timeframe width in milliseconds. Seconds-scale
+    timestamps (< 1e11) are scaled to ms. Bar 0 is a new period.
+    """
+    if bucket_ms <= 0.0:
+        return False
+    if i <= 0:
+        return True
+    t0 = time_arr[i]
+    t1 = time_arr[i - 1]
+    if t0 != t0 or t1 != t1:
+        return False
+    if t0 < 1.0e11:
+        t0 = t0 * 1000.0
+    if t1 < 1.0e11:
+        t1 = t1 * 1000.0
+    return (t0 // bucket_ms) != (t1 // bucket_ms)
+
+
+def timeframe_change_at(time_arr, i, timeframe_str):
+    """Object-mode ``timeframe.change`` for a (possibly dynamic) TF string."""
+    from pynescript.ast.evaluator.builtins.timeframe import timeframe_period_changed
+
+    try:
+        idx = int(i)
+    except (TypeError, ValueError):
+        return False
+    if idx < 0:
+        return False
+    try:
+        n = len(time_arr)
+    except TypeError:
+        return False
+    if idx >= n:
+        return False
+    curr = time_arr[idx]
+    prev = time_arr[idx - 1] if idx > 0 else None
+    return timeframe_period_changed(curr, prev, timeframe_str)
+
+
 def pine_raise(msg) -> None:
     """Expression-safe ``runtime.error`` for generated code.
 

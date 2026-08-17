@@ -368,7 +368,7 @@ def _aligned_1m_bars(n: int = 600, start: float = 100.0) -> list[dict]:
 
 
 class TestHtfSimpleTaResample:
-    """Allowlisted ta.sma/ema/rsi/atr on resampled HTF bars (not full multi-TF)."""
+    """Allowlisted ta.sma/ema/rsi/atr/wma/rma on resampled HTF bars (not full multi-TF)."""
 
     def test_htf_sma_finite_after_warmup_and_stepwise_constant(self) -> None:
         """1m chart + request 60m sma(close, 3) → finite after 3 HTF bars; flat in bucket."""
@@ -460,7 +460,8 @@ plot(ta.atr(3), title="catr")
 
         Chart pre-eval of nested SMA can occasionally equal an OHLCV sample and
         hit the pre-existing passthrough heuristic — that is not the simple-ta
-        HTF path. Non-allowlist ``ta.wma`` and clearly non-OHLCV results stay na.
+        HTF path. Nested ``ta.sma(ta.ema(...))`` and non-allowlist ``ta.stdev``
+        stay na; ``ta.wma`` / ``ta.rma`` are now allowlisted.
         """
         from backend.runtime import Runtime
 
@@ -468,17 +469,39 @@ plot(ta.atr(3), title="catr")
         src = """//@version=6
 indicator("t")
 plot(request.security(syminfo.tickerid, "60", ta.sma(ta.ema(close, 3), 3)), title="nested")
-plot(request.security(syminfo.tickerid, "60", ta.wma(close, 3)), title="wma")
 plot(request.security(syminfo.tickerid, "60", ta.stdev(close, 5)), title="stdev")
 """
         out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
         assert not out.get("error"), out.get("error")
-        assert all(_is_na(x) for x in out["series"]["wma"])
         assert all(_is_na(x) for x in out["series"]["stdev"])
         pol = (out.get("meta") or {}).get("request_security") or {}
         policies = pol.get("policies") or {}
         assert "complex_htf_na" in policies
         assert "htf_simple_ta_resample" not in policies
+
+    def test_htf_wma_and_rma_finite_after_warmup(self) -> None:
+        from backend.runtime import Runtime
+
+        bars = _aligned_1m_bars(12 * 60)
+        src = """//@version=6
+indicator("t")
+plot(request.security(syminfo.tickerid, "60", ta.wma(close, 3)), title="hwma")
+plot(request.security(syminfo.tickerid, "60", ta.rma(close, 3)), title="hrma")
+plot(ta.wma(close, 3), title="cwma")
+"""
+        out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
+        assert not out.get("error"), out.get("error")
+        hwma = out["series"]["hwma"]
+        hrma = out["series"]["hrma"]
+        cwma = out["series"]["cwma"]
+        finite_w = [x for x in hwma[4 * 60 :] if not _is_na(x)]
+        finite_r = [x for x in hrma[4 * 60 :] if not _is_na(x)]
+        assert len(finite_w) > 0 and math.isfinite(float(finite_w[-1]))
+        assert len(finite_r) > 0 and math.isfinite(float(finite_r[-1]))
+        if not _is_na(hwma[-1]) and not _is_na(cwma[-1]):
+            assert abs(float(hwma[-1]) - float(cwma[-1])) > 1e-9
+        pol = (out.get("meta") or {}).get("request_security") or {}
+        assert "htf_simple_ta_resample" in (pol.get("policies") or {})
 
     def test_match_htf_simple_ta_ast_allowlist(self) -> None:
         from pynescript.ast.evaluator.builtins.request import match_htf_simple_ta_ast
@@ -491,8 +514,12 @@ plot(request.security(syminfo.tickerid, "60", ta.stdev(close, 5)), title="stdev"
         assert m is not None and m.name == "sma" and m.source == "close" and m.length == 14
         m = match_htf_simple_ta_ast(_expr("ta.atr(14)"))
         assert m is not None and m.name == "atr" and m.source is None and m.length == 14
+        m = match_htf_simple_ta_ast(_expr("ta.wma(close, 14)"))
+        assert m is not None and m.name == "wma" and m.source == "close" and m.length == 14
+        m = match_htf_simple_ta_ast(_expr("ta.rma(hlc3, 10)"))
+        assert m is not None and m.name == "rma" and m.source == "hlc3" and m.length == 10
         assert match_htf_simple_ta_ast(_expr("ta.sma(ta.ema(close, 5), 14)")) is None
-        assert match_htf_simple_ta_ast(_expr("ta.wma(close, 14)")) is None
+        assert match_htf_simple_ta_ast(_expr("ta.stdev(close, 14)")) is None
         assert match_htf_simple_ta_ast(_expr("close")) is None
 
 

@@ -200,6 +200,7 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
             "last_bar_index": self._builtin_last_bar_index,
             "last_bar_time": self._builtin_last_bar_time,
             "timenow": self._builtin_timenow,
+            "timeframe.change": self._builtin_timeframe_change,
             "max_bars_back": self._builtin_max_bars_back,
             # Community / v3-style series shift (Ichimoku lead lines, etc.)
             "offset": self._builtin_offset,
@@ -433,6 +434,55 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         if key in ctx:
             return int(self._coerce_ctx_number(key, 0))
         return int(self._coerce_ctx_number("time", 0))
+
+    def _prev_bar_time_ms(self) -> int | None:
+        """Previous bar open time from ``time`` series history, or None on bar 0."""
+        ctx = getattr(self, "context", None) or {}
+        ts = ctx.get("time")
+        hist = getattr(ts, "history", None)
+        if hist is None:
+            return None
+        try:
+            if len(hist) < 2:
+                return None
+            prev = hist[1]
+        except TypeError:
+            return None
+        if prev is None:
+            return None
+        try:
+            return int(float(prev))
+        except (TypeError, ValueError):
+            return None
+
+    def _builtin_timeframe_change(
+        self, args: list[Any], kwargs: dict[str, Any] | None = None
+    ) -> bool:
+        """``timeframe.change(tf)`` — true on the first bar of a new *tf* period.
+
+        UTC fixed-width buckets (same widths as ``timeframe.in_seconds``).
+        Bar 0 is a new period. Missing times / unusable tf → False.
+        """
+        kw = kwargs or {}
+        raw = args[0] if args else kw.get("timeframe", kw.get("tf"))
+        if raw is None:
+            return False
+        current = getattr(raw, "current", None)
+        if current is not None and not isinstance(raw, (int, float, bool, str)):
+            raw = current
+        tf = str(raw).strip()
+        if not tf:
+            return False
+        from .timeframe import timeframe_period_changed
+
+        ctx = getattr(self, "context", None) or {}
+        ts = ctx.get("time")
+        if ts is None:
+            return False
+        curr = getattr(ts, "current", ts)
+        if curr is None:
+            return False
+        return timeframe_period_changed(curr, self._prev_bar_time_ms(), tf)
 
     def _resolve_timestamp_arg(
         self, args: list[Any], *, name: str

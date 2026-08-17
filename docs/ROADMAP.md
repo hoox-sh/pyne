@@ -95,7 +95,7 @@ Historical Phase A–D “build API / LSP / Jupyter” items are **done**. Do no
 | **C1** | Corpus Runtime residual (set01–04) | P1 ✅ **closed (2026-08-09)** — parse **99.96%** (2476/2477); Runtime interpret **100%** excl. EXPECTED_FAIL (2466 OK + 11 intentional demos); set01 **249/249**. Residual class = intentional `runtime.error` / lower-TF / pathological loop demos only | pyne |
 | **P1p** | Compile/interpret **plot parity** residual | P1 ⚙️ first-party smoke + goldens (MACD/OBV/ao/aroon + plot keys); residual = corpus value `MISMATCH` tail / interpret-side leftovers | pyne |
 | **T1** | Cap `current_series` to `max_bars_back` / `_SERIES_MAX` | P2 ✅ `PYNE_SERIES_CAP` default ON + goldens (R7 Agent 03) | pyne |
-| **T2** | Incremental TA for remaining heavy kernels (`ta.bb`, nested full paths) | P2 ✅ R7: bb/kama/cmo/stochrsi; wma/hma/linreg; **R9: obv/wad/wvad/cmf/klinger**; **nvi/pvi incremental landed** | pyne |
+| **T2** | Incremental TA for remaining heavy kernels (`ta.bb`, nested full paths) | P2 ✅ R7: bb/kama/cmo/stochrsi; wma/hma/linreg; **R9: obv/wad/wvad/cmf/klinger**; **nvi/pvi**; **aroon/dpo/donchian/kst** | pyne |
 | **F1** | ATR Wilder / TV supertrend re-baseline **only** with dedicated goldens | P2 ✅ interpret ATR is Wilder RMA of TR; Supertrend mid±factor·ATR locked (inc ≡ compile ≡ Numba). TV ratchet is out of scope | pyne |
 | **F2** | Pending-fill averaging when pyramiding ≤ 0 | P2 ✅ R7 Agent 10 (interpret + compile broker goldens) | pyne |
 | **L1** | v5↔v6 converter maturity (`scripts/convert_pine_version.py`) | P3 | pyne |

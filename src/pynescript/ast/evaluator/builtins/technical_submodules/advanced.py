@@ -241,6 +241,13 @@ class AdvancedIndicators(TechnicalHelpers):
             msg = "Donchian length must be >= 1"
             self._error(msg)
 
+        if self._use_incremental_ta():
+            return self._donchian_inc_update(
+                self._context_source("high"),
+                self._context_source("low"),
+                length,
+            )
+
         highs = (getattr(self, "current_series", None) or {}).get("high", [])
         lows = (getattr(self, "current_series", None) or {}).get("low", [])
 
