@@ -3029,19 +3029,15 @@ class TechnicalHelpers:
         except (TypeError, ValueError):
             x = None
         window: deque[float | None] = st["window"]
-        if x is None:
-            st["value"] = None
-            return None
         window.append(x)
         if len(window) < length:
             st["value"] = None
             return None
         sma_win = list(window)[-length:]
-        try:
-            sma_val = sum(float(v) for v in sma_win) / length
-        except (TypeError, ValueError):
+        if x is None or any(v is None for v in sma_win):
             st["value"] = None
             return None
+        sma_val = sum(float(v) for v in sma_win) / length
         if len(window) < disp:
             st["value"] = None
             return None

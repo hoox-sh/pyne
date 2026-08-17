@@ -4437,10 +4437,16 @@ class CompilerVisitor(NodeVisitor):
             or func_name.startswith("polyline_set_")
             or func_name.startswith("table_set_")
             or func_name.startswith("table_cell_set")
+            or func_name == "table_cell"
             or func_name.startswith("linefill_set_")
         ):
             self.object_mode = True
-            return self._emit_drawing_set(func_name, args, kwargs)
+            emitted = self._emit_drawing_set(func_name, args, kwargs)
+            # table.cell result is unused in most scripts; keep a truthy
+            # expression so ``table.cell(...) and plot(...)`` stays valid.
+            if func_name == "table_cell":
+                return f"({emitted} or True)"
+            return emitted
         # Drawing getters: line.get_price(id, x) / id.get_y1() / id.get_x2()
         _DRAW_GET_KEYS = {
             "get_x1": "x1",
@@ -4590,12 +4596,8 @@ class CompilerVisitor(NodeVisitor):
                 return "None"
             return self._emit_user_func_call(func_name, args, kwargs)
 
-        # table.cell / table.cell_set / … (table_new already in drawing path)
-        if func_name == "table_cell":
-            # Return True so ``table.cell(...) and plot(...)`` is valid Python
-            # (empty string would produce ``( and plot(...))`` SyntaxError).
-            self.object_mode = True
-            return "True"
+        # table.cell is emitted as a set mutation above; leftover table.*
+        # mutators stay expression-safe no-ops (table_new already in drawing path).
         if func_name in (
             "table_cell_set",
             "table_merge_cells",
@@ -6449,9 +6451,10 @@ class CompilerVisitor(NodeVisitor):
             elif len(args) > 2:
                 parts.append(f"'color': {args[2]}")
         elif kind == "table":
+            # Match interpret ``table.new(position, rows, columns, …)``.
             parts.append(f"'position': {args[0] if args else repr('top_right')}")
-            parts.append(f"'columns': {args[1] if len(args) > 1 else 0}")
-            parts.append(f"'rows': {args[2] if len(args) > 2 else 0}")
+            parts.append(f"'rows': {args[1] if len(args) > 1 else 0}")
+            parts.append(f"'columns': {args[2] if len(args) > 2 else 0}")
         elif kind in ("plotbar", "plotcandle"):
             for i, key in enumerate(("open", "high", "low", "close")):
                 parts.append(f"'{key}': {args[i] if i < len(args) else 'np.nan'}")
@@ -6461,6 +6464,8 @@ class CompilerVisitor(NodeVisitor):
                 parts.append(f"'title': {args[4]}")
             if "color" in kwargs:
                 parts.append(f"'color': {kwargs['color']}")
+            elif len(args) > 5:
+                parts.append(f"'color': {args[5]}")
             self._note_visual_series()
         elif kind in ("plotshape", "plotchar", "plotarrow"):
             parts.append(f"'series': {args[0] if args else 'np.nan'}")

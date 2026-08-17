@@ -1787,14 +1787,19 @@ def numba_timeframe_change(time_arr, i, bucket_ms):
 
     ``bucket_ms`` is the timeframe width in milliseconds. Seconds-scale
     timestamps (< 1e11) are scaled to ms. Bar 0 is a new period.
+    NaN current is False; NaN prev after bar 0 is False.
     """
     if bucket_ms <= 0.0:
         return False
+    if i < 0:
+        return False
+    t0 = time_arr[i]
+    if t0 != t0:
+        return False
     if i <= 0:
         return True
-    t0 = time_arr[i]
     t1 = time_arr[i - 1]
-    if t0 != t0 or t1 != t1:
+    if t1 != t1:
         return False
     if t0 < 1.0e11:
         t0 = t0 * 1000.0
@@ -1821,7 +1826,7 @@ def timeframe_change_at(time_arr, i, timeframe_str):
         return False
     curr = time_arr[idx]
     prev = time_arr[idx - 1] if idx > 0 else None
-    return timeframe_period_changed(curr, prev, timeframe_str)
+    return timeframe_period_changed(curr, prev, timeframe_str, bar_index=idx)
 
 
 def pine_raise(msg) -> None:

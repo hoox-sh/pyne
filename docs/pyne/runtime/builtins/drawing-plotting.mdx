@@ -47,12 +47,11 @@ flowchart TB
 | Function | Kind | Notes |
 | --- | --- | --- |
 | `plot` | `plot` | Returns `Plot` id for `fill(plot1, plot2)`; series values in host export |
-| `plotshape` / `plotchar` / `plotarrow` | markers | Interpret: condition series (`True` / `None`) + style meta. Compile: series + `plot_meta.kind`. Visuals are **not** in `drawings` |
-| `barcolor` / `plotbar` / `plotcandle` | overlays | Per-bar color / close series + kind stamp (0.3.12 dual-host) |
-| `plotbar` / `plotcandle` | OHLC visuals | open/high/low/close fields |
-| `hline` | horizontal | **Both** interpret and compile export a **constant price series** keyed by title, **and** a drawing/`__drawings` event |
-| `bgcolor` / `barcolor` | coloring | Interpret: color string series. Compile: `__drawings` only (object mode) |
-| `fill` | fill | **Both** export a **titled series key** (values often all-null); band color + plot refs live in meta/drawings |
+| `plotshape` / `plotchar` / `plotarrow` | markers | Condition series + `plot_meta.kind` (style/location/char). Visuals are **not** in `drawings` |
+| `barcolor` / `plotbar` / `plotcandle` | overlays | Per-bar color / OHLC series + kind stamp (0.3.12 dual-host) |
+| `hline` | horizontal | **Both** hosts export a **constant price series** keyed by title + `plot_meta.kind: "hline"`. Not in `drawings` |
+| `bgcolor` / `barcolor` | coloring | Color-string series + `plot_meta.kind`. Not in `drawings` |
+| `fill` | fill | **Both** export a **titled series key** (values often all-null); band color + plot refs live in `plot_meta` |
 
 Style constants: `plot.linestyle_solid` / `dashed` / `dotted`. Plot style tokens: `plot.style_line`, `linebr`, `stepline`, `steplinebr`, `stepline_diamond`, `histogram`, `columns`, `cross`, `area`, `areabr`, `circles`.
 
@@ -64,19 +63,19 @@ Hosts often **also** capture per-bar plot values on the evaluator (`plot_outputs
 
 ### Title defaults and series keys
 
-Runtime packages plots into `result["series"]` / `result["plot_meta"]` (interpret) or `result["series"]` + `result["drawings"]` (compile). Empty or missing titles get defaults; collisions get `_2`, `_3`, … suffixes so map keys stay unique.
+Runtime packages plots into `result["series"]` / `result["plot_meta"]` on **both** hosts. `result["drawings"]` is **geometry-only** (line / box / label / polyline / table / linefill). Compile `__drawings` is an internal event list that Runtime **folds and strips** before JSON — hosts never need it. Empty or missing titles get defaults; collisions get `_2`, `_3`, … suffixes so map keys stay unique.
 
 | Call | Default title | Notes |
 | --- | --- | --- |
 | `plot` | `plot_0`, `plot_1`, … | Compile emits `plot_{n}` at emit time; interpret empty title → `plot_{index}` at JSON packaging |
 | `hline` | `hline` | Uniquified `hline`, `hline_2`, … when untitled levels repeat |
 | `fill` | `fill` | Same uniquify rule (`Background` / `Background_2`, …) |
-| `bgcolor` | `bgcolor` | Interpret series + meta |
-| `plotshape` | `shape` | Interpret series + meta |
+| `bgcolor` | `bgcolor` | Series + `plot_meta` (both hosts) |
+| `plotshape` | `shape` | Series + `plot_meta` (both hosts) |
 
 Explicit `title=` (or positional title) wins when present.
 
-### `hline` — constant series + drawings (both modes)
+### `hline` — constant series (both modes)
 
 Interpret (`src/pynescript/runtime/evaluator.py` + Runtime packaging):
 
@@ -84,12 +83,13 @@ Interpret (`src/pynescript/runtime/evaluator.py` + Runtime packaging):
 - JSON export **forward-fills** nulls with the known constant so AXIS can draw a full-width level.
 - `plot_meta[title]` includes `kind: "hline"`, `price`, `color`, `linewidth`, …
 
-Compile (object mode):
+Compile:
 
-- Forces object mode; appends a **plot array** (`safe_float(price)` every bar) under the uniquified title **and** a `__drawings` event (`kind: "hline"`, price, title, color).
+- Emits a **plot array** (`safe_float(price)` every bar) under the uniquified title and stamps `plot_meta.kind: "hline"`.
+- May also append an internal `__drawings` event; Runtime packaging **strips** visual kinds so host `drawings` stays geometry-only.
 - Host wraps NaN → null; constant levels remain numeric across the bar range.
 
-Parity tests: `tests/test_multi_plot_cross.py` (`test_hline_series_keys_compile_matches_interpret`), `tests/test_compiler_objects.py`.
+Parity tests: `tests/test_multi_plot_cross.py` (`test_hline_series_keys_compile_matches_interpret`), `tests/test_plot_drawing_dual_host.py`, `tests/test_compiler_objects.py`.
 
 ### `fill` — titled series key for key-set parity (both modes)
 
@@ -100,10 +100,10 @@ Interpret:
 
 Compile:
 
-- Forces object mode; registers a series key with expression `None` (float64 NaN → JSON `null`) under the uniquified title so **series key sets match interpret**.
-- Band details (plot refs, color) go on the `__drawings` `fill` event—not a numeric column.
+- Registers a series key with expression `None` (float64 NaN → JSON `null`) under the uniquified title so **series key sets match interpret**.
+- Band details (plot refs, color) land in `plot_meta`. An internal `__drawings` `fill` event, if emitted, is **stripped** before Runtime JSON.
 
-Parity tests: `test_fill_background_series_keys_compile_matches_interpret`, `test_fill_title_series_key_and_drawings`.
+Parity tests: `test_fill_background_series_keys_compile_matches_interpret`, `test_fill_title_series_key_and_drawings`, `tests/test_plot_drawing_dual_host.py`.
 
 ### Import stubs must not leak as series strings
 
@@ -160,10 +160,10 @@ Compile object-mode drawings are a simplified event list—GC caps apply on the 
 For dual `plot` + `fill` bands:
 
 1. Each `plot()` contributes a **numeric series** under its title (default `plot_0`, …).
-2. `fill(p1, p2, …)` contributes a **titled series key** (often all-null cells) so key-sets stay stable, plus meta/drawings that carry band color and plot refs.
+2. `fill(p1, p2, …)` contributes a **titled series key** (often all-null cells) so key-sets stay stable, plus `plot_meta` that carries band color and plot refs.
 3. Hosts such as AXIS should read **`plot_meta[title]`** for `kind`, colors, and sibling plot titles (`plot1` / `plot2`) rather than treating fill series as prices.
 
-Interpret packaging lives in `src/pynescript/runtime/host.py` / `evaluator.py`; compile emits matching series keys + `__drawings` fill events.
+Interpret packaging lives in `src/pynescript/runtime/host.py` / `evaluator.py`; compile emits matching series keys. Internal `__drawings` fill events are folded/stripped before Runtime JSON.
 
 ## Internals
 
@@ -173,23 +173,24 @@ Interpret packaging lives in `src/pynescript/runtime/host.py` / `evaluator.py`; 
 | `src/pynescript/ast/evaluator/builtins/drawing.py` | Drawing types, registry, builtins, `export_for_api`, `fold_compile_drawing_mutations` |
 | `src/pynescript/runtime/evaluator.py` | Host plot capture: hline / fill / bgcolor / plotshape series + meta |
 | `src/pynescript/runtime/host.py` | JSON packaging: series keys, stub nulling, hline fill-forward, fill plot refs |
-| `src/pynescript/compiler/compiler.py` | `hline`/`fill` series + `__drawings`; plotshape/bgcolor events |
+| `src/pynescript/compiler/compiler.py` | `hline`/`fill` series + internal `__drawings`; visual events lifted then stripped |
 | `src/pynescript/ast/evaluator/names.py` | `_DRAWING_METHOD_NS` |
-| `tests/test_plotting_effects.py`, `test_drawing_all_and_last_bar.py`, `test_multi_plot_cross.py`, `test_bgcolor_plotshape_export.py`, `test_compiler_objects.py` | Behavior / parity |
+| `tests/test_plotting_effects.py`, `test_drawing_all_and_last_bar.py`, `test_multi_plot_cross.py`, `test_bgcolor_plotshape_export.py`, `test_plot_drawing_dual_host.py`, `test_compiler_objects.py` | Behavior / parity |
 
-### Compile object-mode notes (`plotshape` / `bgcolor`)
+### Compile object-mode notes
 
-Drawings and marker-style plot calls force **object mode** (pure-Python bar loop; `__drawings` append-only event list)—not full `DrawingRegistry` / interpret series parity.
+Geometry factories and some marker-style calls force **object mode** (pure-Python bar loop with an append-only `__drawings` event list). Runtime packaging **lifts** visual events into `series` + `plot_meta.kind`, then **strips** them so host `drawings` is geometry-only — the same AXIS shape as interpret `export_for_api`.
 
-| Call | Compile behavior | Interpret parity gap |
+| Call | Host export (both modes) | Compile internals |
 | --- | --- | --- |
-| `hline` | Series key (constant) **+** `__drawings` | Aligned on series keys + drawings export |
-| `fill` | Series key (all-null) **+** `__drawings` | Aligned on series key sets; color/refs differ (meta vs event) |
-| `plotshape` / `plotchar` / `plotarrow` | `__drawings` event only (`series`, optional `title`, …) | Interpret also builds bool/condition **series** + `plot_meta` style/location/char |
-| `bgcolor` / `barcolor` | `__drawings` event only (`color`, bar index) | Interpret builds **color-string series** + `plot_meta.kind` |
-| `label` / `line` / `box` / `polyline` / `table` | Handle dict + `__drawings`; `set_*` and `*.delete` (`kind: "delete"`) fold via `DrawingRegistry.fold_compile_drawing_mutations` (0.3.6) | Interpret still has full registry, GC caps, last-bar helpers |
+| `hline` | Constant series + `plot_meta.kind` | Series array; optional `__drawings` event stripped |
+| `fill` | All-null series key + `plot_meta` color/refs | Series key; optional `__drawings` event stripped |
+| `plotshape` / `plotchar` / `plotarrow` | Condition/signed series + `plot_meta.kind` | Visual events lifted into series, then stripped |
+| `bgcolor` / `barcolor` | Color-string series + `plot_meta.kind` | Same lift/strip as other visuals |
+| `plotbar` / `plotcandle` | OHLC series + kind stamp | Same lift/strip |
+| `label` / `line` / `box` / `polyline` / `table` / `linefill` | Geometry objects in `drawings` | Handle dict + `__drawings`; `set_*` / `*.delete` fold via `DrawingRegistry.fold_compile_drawing_mutations` |
 
-Numeric mode still supports plain `plot` float64 arrays; any of the drawing/marker calls above flips object mode for that script.
+Numeric mode still supports plain `plot` float64 arrays; geometry or marker calls can flip object mode for that script.
 
 ## Invariants & edge cases
 
@@ -197,7 +198,7 @@ Numeric mode still supports plain `plot` float64 arrays; any of the drawing/mark
 2. **Deleted flag.** Soft-delete keeps history for debugging; `active()` filters deleted plots and GC-collected drawings.
 3. **`max_*_count` GC.** Oldest active drawings are deleted when caps are exceeded (interpret registry).
 4. **Series in drawings.** Prices may be series wrappers—export coerces `.current` and maps NaN → omit.
-5. **Compile path.** Numeric mode supports `plot` arrays; drawings force object mode with a simplified event list. `set_*` / `*.delete` fold onto live handles before export (not interpret GC / `*.all`). Prefer interpret when you need bgcolor/plotshape **series** columns, not only drawing events.
+5. **Compile path.** Numeric mode supports `plot` arrays; geometry/markers force object mode with an internal `__drawings` event list. Runtime **folds** `set_*` / `*.delete`, **lifts** visual events into `series` + `plot_meta.kind`, then **strips** them so `drawings` is geometry-only. Prefer interpret when you need full last-bar / `*.all` / registry GC — not because visuals lack series.
 6. **Import stubs → null.** `__pine_import_stub__` and `"<PineImportStub…>"` strings never appear as plot series cells after Runtime packaging.
 7. **No GPU/canvas in-process.** Registries are data; AXIS/HOOX render elsewhere.
 
@@ -234,7 +235,7 @@ Hosts read `DrawingRegistry.labels` or API export after the run.
 | Stale labels across HTTP runs | Missing registry reset between `Runtime.run` calls (Runtime resets—custom hosts must) |
 | Object mode missing drawing | Compile still folds `set_*` / `delete`; leftover events usually mean fold did not run |
 | Only 50 labels/lines visible | Default `max_*_count`; raise on `indicator`/`strategy` (≤ hard cap) |
-| fill series all null | Expected for band keys; use `plot_meta` / drawings for color + plot refs |
+| fill series all null | Expected for band keys; use `plot_meta` for color + plot refs |
 
 ## See also
 

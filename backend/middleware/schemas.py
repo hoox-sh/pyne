@@ -104,6 +104,11 @@ RUN_BATCH_MAX_SCRIPTS = 8
 
 # Schema for POST /optimize (strategy HPO). Nested ``space`` / ``validation``
 # objects are checked in the route (schema helper is flat only).
+# ``min_trades`` default is 5; send 0 to disable the closed-trade floor.
+# User-input study failures are HTTP 400 with one of:
+#   NOT_A_STRATEGY, TOO_MANY_RUNS, GRID_TOO_LARGE, EMPTY_SPACE, NO_DATA,
+#   INVALID_OBJECTIVE, INVALID_SAMPLER, INVALID_VALIDATION, INVALID_SPACE
+# Unexpected engine crashes remain HTTP 500 OPTIMIZE_ERROR.
 OPTIMIZE_SCHEMA: dict[str, tuple[type, bool, Any]] = {
     "script": (str, True, ""),
     "data": (list, True, []),
@@ -112,7 +117,7 @@ OPTIMIZE_SCHEMA: dict[str, tuple[type, bool, Any]] = {
     "sampler": (str, False, "auto"),
     "objective": (str, False, "composite"),
     "validation": (dict, False, {}),
-    "min_trades": (int, False, 5),
+    "min_trades": (int, False, 5),  # 0 disables the trade-count floor
     "seed": (int, False, None),
     "symbol": (str, False, "CHART"),
     "oos_every_trial": (bool, False, True),

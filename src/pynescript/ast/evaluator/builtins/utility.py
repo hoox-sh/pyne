@@ -482,7 +482,12 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         curr = getattr(ts, "current", ts)
         if curr is None:
             return False
-        return timeframe_period_changed(curr, self._prev_bar_time_ms(), tf)
+        bar_index = None
+        if "bar_index" in ctx:
+            bar_index = int(self._coerce_ctx_number("bar_index", 0))
+        return timeframe_period_changed(
+            curr, self._prev_bar_time_ms(), tf, bar_index=bar_index
+        )
 
     def _resolve_timestamp_arg(
         self, args: list[Any], *, name: str

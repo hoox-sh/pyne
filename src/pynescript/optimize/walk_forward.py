@@ -56,18 +56,7 @@ def rolling_windows(n_bars: int, spec: ValidationSpec) -> list[tuple[slice, slic
 
 
 def apply_warmup(train: slice, test: slice, warmup: int) -> slice:
-    """Widen the test slice backward by ``warmup`` bars for lookback fill.
-
-    Scoring still uses only the original test window; the extra prefix is
-    so ``ta.*`` has history. The study loop slices bars with this window
-    and the caller must still score only test-period trades when using
-    warmup — v1 scores the full test-slice run (warmup is applied by
-    starting test earlier, which *does* leak a few lookback bars into
-    the test *input*. We instead prepend warmup from *train* onto the
-    test *run bars* and accept that the first ``warmup`` bars of the
-    test eval exist only for state. Trades during the warmup prefix
-    should be ignored by the caller. For v1 we keep warmup default 0.
-    """
+    """Warmup prepends train bars onto the test run; caller should score only the original test window."""
     if warmup <= 0:
         return test
     start = max(train.start or 0, (test.start or 0) - warmup)
@@ -88,5 +77,6 @@ def estimated_runs(
         return n_trials * (2 if oos_every_trial else 1)
     folds = len(rolling_windows(n_bars, spec))
     if folds < 1:
-        return n_trials
-    return n_trials * folds
+        return 0
+    # Study loop always evaluates train + test per fold (ignores oos_every_trial).
+    return n_trials * folds * 2

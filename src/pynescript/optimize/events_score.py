@@ -86,6 +86,20 @@ def _match_id(ev: dict[str, Any]) -> str:
     return "_default"
 
 
+def _is_fill_order(kind: str, ev: dict[str, Any]) -> bool:
+    """True for broker fills (``comment`` ``fill`` / ``fill:…``), not placements."""
+    if kind != "order":
+        return False
+    return str(ev.get("comment") or "").startswith("fill")
+
+
+def _is_exit_placement(kind: str, ev: dict[str, Any]) -> bool:
+    """``strategy.exit`` with limit/stop is an intent, not a closed trade."""
+    if "exit" not in kind:
+        return False
+    return ev.get("limit") is not None or ev.get("stop") is not None
+
+
 def build_strategy_stats(events: list[dict[str, Any]] | None) -> StrategyStats:
     """Pair fills into closed trades and aggregate tester stats."""
     if not events:
@@ -94,9 +108,37 @@ def build_strategy_stats(events: list[dict[str, Any]] | None) -> StrategyStats:
     pnls: list[float] = []
 
     def close_one(oid: str, o: dict[str, Any], exit_price: float, close_qty: float) -> None:
-        qty = close_qty if close_qty > 0 else float(o["qty"])
+        open_qty = float(o["qty"])
+        qty = close_qty if close_qty > 0 else open_qty
+        if qty > open_qty:
+            qty = open_qty
+        if qty <= 0:
+            return
         sign = -1.0 if o["dir"] == "short" else 1.0
         pnls.append((exit_price - float(o["entry"])) * sign * qty)
+        leftover = open_qty - qty
+        if abs(leftover) < 1e-12:
+            open_pos.pop(oid, None)
+        else:
+            o["qty"] = leftover
+
+    def resolve_open(ev: dict[str, Any], eid: str) -> str | None:
+        match = _match_id(ev)
+        if match in open_pos:
+            return match
+        if eid in open_pos:
+            return eid
+        if len(open_pos) == 1:
+            return next(iter(open_pos))
+        return None
+
+    def open_one(oid: str, ev: dict[str, Any], price: float, time: float, kind: str) -> None:
+        open_pos[oid] = {
+            "entry": price,
+            "time": time,
+            "dir": _event_dir(ev, kind),
+            "qty": _event_qty(ev, 1.0),
+        }
 
     for ev in events:
         if not isinstance(ev, dict):
@@ -106,16 +148,29 @@ def build_strategy_stats(events: list[dict[str, Any]] | None) -> StrategyStats:
         if t is None or p is None:
             continue
         kind = _event_kind(ev)
-        if not kind or kind in {"cancel", "cancel_all", "order"}:
+        if not kind or kind in {"cancel", "cancel_all"}:
+            continue
+        is_fill = _is_fill_order(kind, ev)
+        if kind == "order" and not is_fill:
+            continue
+        if _is_exit_placement(kind, ev):
             continue
         eid = str(ev.get("id") or "_default")
+        if is_fill:
+            target = resolve_open(ev, eid)
+            if target is not None:
+                # Own-id fill of the lot we just opened (entry fill), not a close.
+                from_entry = ev.get("from_entry") or ev.get("entry_id")
+                if not from_entry and str(ev.get("id") or "") == target:
+                    continue
+                if ev.get("qty") == 0:
+                    continue
+                close_one(target, open_pos[target], p, _event_qty(ev, float(open_pos[target]["qty"])))
+            else:
+                open_one(eid, ev, p, t, kind)
+            continue
         if "entry" in kind or kind in {"long", "short"}:
-            open_pos[eid] = {
-                "entry": p,
-                "time": t,
-                "dir": _event_dir(ev, kind),
-                "qty": _event_qty(ev, 1.0),
-            }
+            open_one(eid, ev, p, t, kind)
             continue
         if not (
             "close" in kind
@@ -131,24 +186,15 @@ def build_strategy_stats(events: list[dict[str, Any]] | None) -> StrategyStats:
                 close_one(oid, o, p, float(o["qty"]))
             open_pos.clear()
             continue
-        match = _match_id(ev)
-        o = open_pos.get(match)
-        closed_id = match
-        if o is None and match != eid:
-            o = open_pos.get(eid)
-            closed_id = eid
-        if o is None and len(open_pos) == 1:
-            closed_id = next(iter(open_pos))
-            o = open_pos[closed_id]
-        if o is None:
+        closed_id = resolve_open(ev, eid)
+        if closed_id is None:
             continue
-        del open_pos[closed_id]
-        close_one(closed_id, o, p, _event_qty(ev, float(o["qty"])))
+        close_one(closed_id, open_pos[closed_id], p, _event_qty(ev, float(open_pos[closed_id]["qty"])))
 
     if not pnls:
         return StrategyStats()
     wins = [x for x in pnls if x > 0]
-    losses = [x for x in pnls if x <= 0]
+    losses = [x for x in pnls if x < 0]
     total = sum(pnls)
     gp = sum(wins)
     gl = abs(sum(losses))

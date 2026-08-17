@@ -108,8 +108,8 @@ def _assert_series_equal(
         for i, (x, y) in enumerate(zip(a, b, strict=True)):
             if _is_na(x) and _is_na(y):
                 continue
-            if isinstance(x, bool) or isinstance(y, bool):
-                assert bool(x) == bool(y), (key, i, x, y)
+            if type(x) is bool or type(y) is bool:
+                assert type(x) is type(y) and x == y, (key, i, x, y)
                 continue
             if isinstance(x, str) or isinstance(y, str):
                 assert (None if _is_na(x) else x) == (None if _is_na(y) else y), (key, i, x, y)
@@ -152,7 +152,19 @@ def _canon_geom(d: dict[str, Any]) -> tuple[Any, ...]:
     text = str(d.get("text") or "")
     color = str(d.get("color") or "").strip().lower()
     if kind == "line":
-        return ("line", _num(d.get("t1")), _num(d.get("p1")), _num(d.get("t2")), _num(d.get("p2")), text, color)
+        width = _num(d.get("width"))
+        style = str(d.get("style") or "solid").replace("line.style_", "")
+        return (
+            "line",
+            _num(d.get("t1")),
+            _num(d.get("p1")),
+            _num(d.get("t2")),
+            _num(d.get("p2")),
+            text,
+            color,
+            style,
+            int(width) if isinstance(width, (int, float)) else 1,
+        )
     if kind == "label":
         return ("label", _num(d.get("t1")), _num(d.get("p1")), text, color)
     if kind == "box":
@@ -163,9 +175,40 @@ def _canon_geom(d: dict[str, Any]) -> tuple[Any, ...]:
         )
         return ("polyline", pts)
     if kind == "linefill":
-        return ("linefill", d.get("t1"), d.get("p1"), d.get("t2"), d.get("p2"), d.get("t3"), d.get("p3"))
+        return (
+            "linefill",
+            d.get("t1"),
+            d.get("p1"),
+            d.get("t2"),
+            d.get("p2"),
+            d.get("t3"),
+            d.get("p3"),
+            d.get("t4"),
+            d.get("p4"),
+        )
     if kind == "table":
-        return ("table", str(d.get("position") or ""), int(d.get("rows") or 0), int(d.get("columns") or 0))
+        cells = tuple(
+            sorted(
+                (
+                    int(c.get("row") or 0),
+                    int(c.get("col", c.get("column")) or 0),
+                    str(c.get("text") or ""),
+                    str(c.get("text_color") or "").strip().lower(),
+                    str(c.get("bgcolor") or "").strip().lower(),
+                )
+                for c in (d.get("cells") or [])
+                if isinstance(c, dict)
+            )
+        )
+        return (
+            "table",
+            str(d.get("position") or ""),
+            int(d.get("rows") or 0),
+            int(d.get("columns") or 0),
+            str(d.get("frame_color") or d.get("color") or "").strip().lower(),
+            str(d.get("bgcolor") or "").strip().lower(),
+            cells,
+        )
     return (kind,)
 
 
@@ -254,8 +297,8 @@ def test_plotbar_plotcandle_identity() -> None:
     src = """
 //@version=6
 indicator("ohlc")
-plotbar(open, high, low, close, title="bars")
-plotcandle(open, high, low, close, title="candles")
+plotbar(open, high, low, close, "bars", color.olive)
+plotcandle(open, high, low, close, "candles", color.teal)
 plot(close, "c")
 """
     ri, rc = _run_dual(src, _bars(8))
@@ -319,7 +362,7 @@ if bar_index == 0
     linefill.new(l1, l2, color=color.new(color.blue, 80))
 if barstate.islast
     polyline.new(array.from(chart.point.from_index(bar_index - 2, low), chart.point.from_index(bar_index, high)), false)
-    t = table.new(position.top_right, 2, 2)
+    t = table.new(position.top_right, 3, 2)
     table.cell(t, 0, 0, "A")
     table.cell(t, 1, 1, "B")
 plot(close, "c")
@@ -329,6 +372,16 @@ plot(close, "c")
     _assert_drawings_equal(ri, rc)
     kinds = {_geom_kind(d) for d in ri["drawings"]}
     assert {"line", "linefill", "polyline", "table"} <= kinds
+    tables = [d for d in ri["drawings"] if _geom_kind(d) == "table"]
+    assert len(tables) == 1
+    assert tables[0]["rows"] == 3
+    assert tables[0]["columns"] == 2
+    texts = sorted(str(c.get("text") or "") for c in (tables[0].get("cells") or []) if isinstance(c, dict))
+    assert texts == ["A", "B"]
+    fills = [d for d in ri["drawings"] if _geom_kind(d) == "linefill"]
+    assert len(fills) == 1
+    assert fills[0].get("t4") is not None
+    assert fills[0].get("p4") is not None
 
 
 def test_mutate_and_delete_identity() -> None:
@@ -354,6 +407,32 @@ plot(close, "c")
     assert kinds == {"label"}
     assert ri["drawings"][0]["text"] == "new"
     assert rc["drawings"][0]["text"] == "new"
+
+
+def test_linefill_dropped_when_line_deleted() -> None:
+    """Both hosts drop linefill when either endpoint Line is deleted."""
+    src = """
+//@version=6
+indicator("lfdel", overlay=true)
+var line l1 = na
+var line l2 = na
+if bar_index == 0
+    l1 := line.new(bar_index, high, bar_index + 5, high)
+    l2 := line.new(bar_index, low, bar_index + 5, low)
+    linefill.new(l1, l2, color=color.new(color.blue, 80))
+if barstate.islast
+    line.delete(l1)
+plot(close, "c")
+"""
+    ri, rc = _run_dual(src, _bars(10))
+    _assert_series_equal(ri, rc)
+    _assert_drawings_equal(ri, rc)
+    kinds_i = {_geom_kind(d) for d in ri["drawings"]}
+    kinds_c = {_geom_kind(d) for d in rc["drawings"]}
+    assert "linefill" not in kinds_i
+    assert "linefill" not in kinds_c
+    assert kinds_i == {"line"}
+    assert kinds_c == {"line"}
 
 
 def test_combined_plots_and_drawings_identity() -> None:

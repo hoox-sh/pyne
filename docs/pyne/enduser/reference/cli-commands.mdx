@@ -226,11 +226,21 @@ Search `input.*` values for a **`strategy()`** script. Loops interpret `Runtime`
 | option | `--sampler` | `auto` | `auto` \| `random` \| `tpe` \| `grid` |
 | option | `--objective` | `composite` | `composite` \| `net_pnl` \| `profit_factor` \| `calmar` |
 | option | `--validation` | `holdout` | `holdout` \| `walk-forward` \| `in-sample` |
+| option | `--train-bars` | derive | Walk-forward train window |
+| option | `--test-bars` | derive | Walk-forward test window |
+| option | `--step-bars` | derive | Walk-forward step (default: the test window) |
+| option | `--holdout-frac` | `0.3` | Holdout test fraction |
 | option | `--seed` | unset | RNG seed |
 | option | `--json` | off | Full study JSON |
 
+`--validation walk-forward` derives windows from `--bars` when the bar flags are omitted: `train=max(8, bars*2//3)`, `test=max(4, bars//6)`, `step=max(1, test)` (so default `--bars 120` → 80/20/20). Explicit `--train-bars` / `--test-bars` / `--step-bars` override that. The CLI refuses walk-forward when `--bars < train+test`. All-errored studies exit 1 even if the study status is `success`.
+
 ```bash
 pyne optimize strat.pine --trials 20 --sampler tpe \
+  --space '{"params":[{"name":"Fast","kind":"int","min":3,"max":12}]}'
+pyne optimize strat.pine --validation walk-forward --bars 120 --trials 20 \
+  --space '{"params":[{"name":"Fast","kind":"int","min":3,"max":12}]}'
+pyne optimize strat.pine --validation walk-forward --train-bars 80 --test-bars 20 \
   --space '{"params":[{"name":"Fast","kind":"int","min":3,"max":12}]}'
 ```
 

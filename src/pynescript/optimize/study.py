@@ -21,6 +21,7 @@
 
 from __future__ import annotations
 
+import math
 import random
 import re
 import time
@@ -43,41 +44,119 @@ from pynescript.optimize.types import StrategyStats
 from pynescript.optimize.types import StudyResult
 from pynescript.optimize.types import TrialResult
 from pynescript.optimize.types import ValidationSpec
+from pynescript.optimize.walk_forward import apply_warmup
 from pynescript.optimize.walk_forward import estimated_runs
 from pynescript.optimize.walk_forward import holdout_split
 from pynescript.optimize.walk_forward import rolling_windows
 
-_STRATEGY_DECL = re.compile(r"\bstrategy\s*\(")
+# Same declaration header as ``runtime.host._SCRIPT_HEADER_RE``.
+_SCRIPT_DECL = re.compile(r"(?m)^\s*(indicator|strategy|library|study)\s*\(")
 
 
 def is_strategy_script(source: str) -> bool:
-    """True when source declares ``strategy(`` (not ``strategy.entry``)."""
-    return bool(_STRATEGY_DECL.search(source or ""))
+    """True when the first script declaration is ``strategy(``."""
+    m = _SCRIPT_DECL.search(source or "")
+    return bool(m and m.group(1) == "strategy")
 
 
 class StudyCancelled(Exception):
     """Raised when ``should_stop`` returns true mid-study."""
 
 
+class TooManyRuns(Exception):
+    """Raised when another engine run would exceed ``MAX_ENGINE_RUNS``."""
+
+
 def _mean_stats(rows: list[StrategyStats]) -> StrategyStats | None:
     if not rows:
         return None
-    n = len(rows)
-    inf_pf = any(s.profit_factor == float("inf") for s in rows)
+    trades = sum(s.trades for s in rows)
+    wins = sum(s.wins for s in rows)
+    losses = sum(s.losses for s in rows)
+    total_pnl = sum(s.total_pnl for s in rows)
+    traded = [s for s in rows if s.trades > 0]
+    if traded:
+        win_rate = sum(s.win_rate for s in traded) / len(traded)
+        finite_pf = [s.profit_factor for s in traded if math.isfinite(s.profit_factor)]
+        if finite_pf:
+            profit_factor = sum(finite_pf) / len(finite_pf)
+        elif any(s.profit_factor > 0 and not math.isfinite(s.profit_factor) for s in traded):
+            profit_factor = 1.0e6
+        else:
+            profit_factor = 0.0
+    else:
+        win_rate = 0.0
+        profit_factor = 0.0
     return StrategyStats(
-        total_pnl=sum(s.total_pnl for s in rows) / n,
-        win_rate=sum(s.win_rate for s in rows) / n,
-        profit_factor=float("inf") if inf_pf else sum(s.profit_factor for s in rows) / n,
-        avg_trade=sum(s.avg_trade for s in rows) / n,
-        max_dd=sum(s.max_dd for s in rows) / n,
-        wins=int(round(sum(s.wins for s in rows) / n)),
-        losses=int(round(sum(s.losses for s in rows) / n)),
-        trades=int(round(sum(s.trades for s in rows) / n)),
+        total_pnl=total_pnl,
+        win_rate=win_rate,
+        profit_factor=profit_factor,
+        avg_trade=(total_pnl / trades) if trades else 0.0,
+        max_dd=max(s.max_dd for s in rows),
+        wins=wins,
+        losses=losses,
+        trades=trades,
     )
 
 
 def _slice_bars(ohlcv: list[dict[str, Any]], sl: slice) -> list[dict[str, Any]]:
     return ohlcv[sl]
+
+
+def _bar_open_time(bar: dict[str, Any]) -> float | None:
+    raw = bar.get("time", bar.get("bar_time"))
+    if raw is None:
+        return None
+    try:
+        t = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return t if t == t else None
+
+
+def _event_bar_time(ev: dict[str, Any]) -> float | None:
+    raw = ev.get("bar_time", ev.get("time"))
+    if raw is None:
+        return None
+    try:
+        t = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return t if t == t else None
+
+
+def _events_in_window(
+    events: list[Any],
+    bars: list[dict[str, Any]],
+) -> list[Any]:
+    """Keep events whose ``bar_time`` falls in ``bars`` (original test slice)."""
+    times = [t for t in (_bar_open_time(b) for b in bars if isinstance(b, dict)) if t is not None]
+    if not times:
+        return events
+    t0 = min(times)
+    t1 = max(times)
+    kept: list[Any] = []
+    for ev in events:
+        if not isinstance(ev, dict):
+            continue
+        t = _event_bar_time(ev)
+        if t is not None and t0 <= t <= t1:
+            kept.append(ev)
+    return kept
+
+
+def _test_run_bars(
+    ohlcv: list[dict[str, Any]],
+    train_sl: slice,
+    test_sl: slice,
+    warmup_bars: int,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]] | None]:
+    """Test-window run bars plus original test slice when warmup prepends history."""
+    test_bars = _slice_bars(ohlcv, test_sl)
+    if warmup_bars > 0:
+        run_sl = apply_warmup(train_sl, test_sl, warmup_bars)
+        return _slice_bars(ohlcv, run_sl), test_bars
+    return test_bars, None
 
 
 def run_once(
@@ -88,6 +167,7 @@ def run_once(
     *,
     symbol: str = "CHART",
     libraries: list[dict[str, Any]] | None = None,
+    score_bars: list[dict[str, Any]] | None = None,
 ) -> tuple[StrategyStats | None, str | None]:
     """One interpret ``Runtime.run``; returns (stats, error)."""
     try:
@@ -107,6 +187,8 @@ def run_once(
     events = result.get("events")
     if not isinstance(events, list):
         events = []
+    if score_bars:
+        events = _events_in_window(events, score_bars)
     return build_strategy_stats(events), None
 
 
@@ -223,11 +305,19 @@ def run_study(
     history: list[TrialResult] = []
     engine_runs = 0
     status = "success"
+    study_error: str | None = None
+    runs_per_trial = estimated_runs(1, val, n_bars, oos_every_trial=oos_every_trial)
 
     base_inputs: dict[str, Any] = dict(fixed_inputs or {})
 
-    def eval_window(bars: list[dict[str, Any]], params: dict[str, ParamValue]) -> tuple[StrategyStats | None, str | None]:
+    def eval_window(
+        bars: list[dict[str, Any]],
+        params: dict[str, ParamValue],
+        score_bars: list[dict[str, Any]] | None = None,
+    ) -> tuple[StrategyStats | None, str | None]:
         nonlocal engine_runs
+        if engine_runs >= MAX_ENGINE_RUNS:
+            raise TooManyRuns
         engine_runs += 1
         merged: dict[str, ParamValue] = {**base_inputs, **params}
         return run_once(
@@ -237,12 +327,15 @@ def run_study(
             merged,
             symbol=symbol,
             libraries=libraries,
+            score_bars=score_bars,
         )
 
     try:
         for i in range(n):
             if should_stop and should_stop():
                 raise StudyCancelled
+            if runs_per_trial > 0 and engine_runs + runs_per_trial > MAX_ENGINE_RUNS:
+                raise TooManyRuns
             t_trial = time.perf_counter()
             params = clamp_params(space, smp.suggest(space, history, rng))
             is_stats: StrategyStats | None = None
@@ -260,7 +353,10 @@ def run_study(
                     train_sl, test_sl = split
                     is_stats, err = eval_window(_slice_bars(ohlcv, train_sl), params)
                     if err is None and oos_every_trial:
-                        oos_stats, oos_err = eval_window(_slice_bars(ohlcv, test_sl), params)
+                        run_bars, score_bars = _test_run_bars(
+                            ohlcv, train_sl, test_sl, val.warmup_bars
+                        )
+                        oos_stats, oos_err = eval_window(run_bars, params, score_bars)
                         if oos_err:
                             err = oos_err
             else:
@@ -273,17 +369,22 @@ def run_study(
                     for train_sl, test_sl in folds:
                         if should_stop and should_stop():
                             raise StudyCancelled
+                        if engine_runs >= MAX_ENGINE_RUNS:
+                            raise TooManyRuns
                         st, e1 = eval_window(_slice_bars(ohlcv, train_sl), params)
                         if e1:
                             err = e1
                             break
-                        if st:
+                        if st is not None:
                             is_rows.append(st)
-                        ot, e2 = eval_window(_slice_bars(ohlcv, test_sl), params)
+                        run_bars, score_bars = _test_run_bars(
+                            ohlcv, train_sl, test_sl, val.warmup_bars
+                        )
+                        ot, e2 = eval_window(run_bars, params, score_bars)
                         if e2:
                             err = e2
                             break
-                        if ot:
+                        if ot is not None:
                             oos_rows.append(ot)
                     if err is None:
                         is_stats = _mean_stats(is_rows)
@@ -311,6 +412,9 @@ def run_study(
                 on_trial(trial)
     except StudyCancelled:
         status = "cancelled"
+    except TooManyRuns:
+        status = "error"
+        study_error = f"TOO_MANY_RUNS: {engine_runs} engine runs (cap {MAX_ENGINE_RUNS})"
 
     best_index: int | None = None
     best_params: dict[str, ParamValue] | None = None
@@ -347,4 +451,5 @@ def run_study(
         engine_runs=engine_runs,
         ms=(time.perf_counter() - t0) * 1000.0,
         warning=warning,
+        error=study_error,
     )

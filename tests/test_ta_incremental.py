@@ -3546,6 +3546,22 @@ def test_incremental_dpo_matches_full() -> None:
         _assert_series_close(_bar_walk_inc_dpo(closes, length), _bar_walk_full_dpo(closes, length))
 
 
+def test_incremental_dpo_keeps_na_bar_alignment() -> None:
+    """NA bars must occupy a window slot so SMA stay bar-aligned."""
+    closes: list[float | None] = list(_series(30))
+    na_i = 12
+    length = 10
+    closes[na_i] = None
+    ev = _IncTA()
+    values: list[float | None] = []
+    for i in range(len(closes)):
+        ev._ta_call_i = 0
+        values.append(ev._dpo_inc_update(closes[: i + 1], length))
+    for i in range(na_i, na_i + length):
+        assert values[i] is None, f"bar {i}: expected None while NA is still in SMA window"
+    assert values[na_i + length] is not None
+
+
 def _bar_walk_full_donchian(
     highs: list[float], lows: list[float], length: int
 ) -> list[dict[str, float | None]]:
@@ -3624,6 +3640,10 @@ plot(a[0], "ad")
 plot(a[1], "au")
 plot(ta.dpo(21), "dpo")
 plot(ta.kst(10, 15, 20, 30), "kst")
+dc = ta.donchian(20)
+plot(dc.high, "dc_h")
+plot(dc.low, "dc_l")
+plot(dc.mid, "dc_m")
 """
     monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
     clear_parse_cache()
@@ -3636,13 +3656,33 @@ plot(ta.kst(10, 15, 20, 30), "kst")
     monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
     clear_parse_cache()
 
+    expected_plots = {"ad", "au", "dpo", "kst", "dc_h", "dc_l", "dc_m"}
+    assert expected_plots <= set(r_on["series"])
     assert set(r_on["series"]) == set(r_off["series"])
     for key in r_on["series"]:
         for i, (a, b) in enumerate(zip(r_on["series"][key], r_off["series"][key], strict=True)):
-            if a is None and b is None:
+            a_na = a is None or (isinstance(a, float) and math.isnan(a))
+            b_na = b is None or (isinstance(b, float) and math.isnan(b))
+            if a_na and b_na:
                 continue
-            if a is None or b is None:
-                continue
-            if isinstance(a, float) and isinstance(b, float) and math.isnan(a) and math.isnan(b):
-                continue
+            assert not a_na, f"{key} bar {i}: incremental na, disabled={b}"
+            assert not b_na, f"{key} bar {i}: disabled na, incremental={a}"
             assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"
+
+    ev = _IncTA()
+    highs, lows, closes = _ohlc(40)
+    for i in range(len(closes)):
+        ev._ta_call_i = 0
+        ev.current_series = {
+            "high": highs[: i + 1],
+            "low": lows[: i + 1],
+            "close": closes[: i + 1],
+        }
+        ev._builtin_ta_dpo([21])
+        ev._builtin_ta_kst([10, 15, 20, 30])
+    bucket = ev._ta_state_bucket()
+    kinds = {key[0] for key in bucket}
+    assert "dpo" in kinds, bucket.keys()
+    assert "kst" in kinds, bucket.keys()
+    assert any(key[0] == "dpo" and key[2] == 21 for key in bucket)
+    assert any(key[0] == "kst" and key[2] == (10, 15, 20, 30) for key in bucket)

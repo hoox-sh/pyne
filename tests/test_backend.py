@@ -910,3 +910,100 @@ class TestOptimizeEndpoint:
         assert resp.json["status"] == "success"
         assert len(resp.json["trials"]) == 2
         assert resp.json["engine_runs"] == 2
+        assert resp.json["best_params"] is not None
+
+    def test_min_trades_zero_disables_floor(self, client: FlaskClient):
+        """``min_trades: 0`` must not be treated as missing (``or 5``)."""
+        bars = [
+            {
+                "time": 1_700_000_000 + i * 60,
+                "open": 100 + i,
+                "high": 101 + i,
+                "low": 99 + i,
+                "close": 100 + i,
+                "volume": 1,
+            }
+            for i in range(20)
+        ]
+        script = (
+            '//@version=6\nstrategy("s")\n'
+            'n = input.int(5, "N", minval=2, maxval=10)\n'
+            "if bar_index == 1\n"
+            '    strategy.entry("L", strategy.long)\n'
+            "if bar_index == 3\n"
+            '    strategy.close("L")\n'
+        )
+        payload = {
+            "script": script,
+            "data": bars,
+            "space": {"params": [{"name": "N", "kind": "int", "min": 2, "max": 4}]},
+            "n_trials": 1,
+            "sampler": "random",
+            "objective": "net_pnl",
+            "validation": {"mode": "in-sample"},
+            "seed": 1,
+        }
+        ok = client.post("/optimize", json={**payload, "min_trades": 0})
+        assert ok.status_code == 200, ok.json
+        assert ok.json["status"] == "success"
+        assert ok.json["best_params"] is not None
+        trades = (ok.json["trials"][0].get("is_stats") or {}).get("trades", 0)
+        assert 0 < trades < 5
+        blocked = client.post("/optimize", json={**payload, "min_trades": 5})
+        assert blocked.status_code == 200, blocked.json
+        assert blocked.json["best_params"] is None
+
+    def test_unknown_objective_is_400(self, client: FlaskClient):
+        bars = [
+            {
+                "time": 1_700_000_000 + i * 60,
+                "open": 100 + i,
+                "high": 101 + i,
+                "low": 99 + i,
+                "close": 100 + i,
+                "volume": 1,
+            }
+            for i in range(20)
+        ]
+        resp = client.post(
+            "/optimize",
+            json={
+                "script": (
+                    '//@version=6\nstrategy("s")\n'
+                    'n = input.int(5, "N", minval=2, maxval=10)\n'
+                ),
+                "data": bars,
+                "space": {"params": [{"name": "N", "kind": "int", "min": 2, "max": 6}]},
+                "n_trials": 1,
+                "objective": "sharpe",
+                "validation": {"mode": "in-sample"},
+            },
+        )
+        assert resp.status_code == 400, resp.json
+        assert resp.json["code"] == "INVALID_OBJECTIVE"
+
+    def test_non_numeric_train_bars_is_400(self, client: FlaskClient):
+        resp = client.post(
+            "/optimize",
+            json={
+                "script": (
+                    '//@version=6\nstrategy("s")\n'
+                    'n = input.int(5, "N", minval=2, maxval=10)\n'
+                ),
+                "data": [
+                    {
+                        "time": 1,
+                        "open": 1,
+                        "high": 1,
+                        "low": 1,
+                        "close": 1,
+                        "volume": 1,
+                    }
+                ],
+                "space": {"params": [{"name": "N", "kind": "int", "min": 2, "max": 6}]},
+                "n_trials": 1,
+                "validation": {"mode": "walk-forward", "train_bars": "abc"},
+            },
+        )
+        assert resp.status_code == 400, resp.json
+        assert resp.json["code"] == "INVALID_VALIDATION"

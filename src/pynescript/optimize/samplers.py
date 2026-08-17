@@ -28,7 +28,6 @@ from typing import Any
 
 from pynescript.optimize.space import _axis_cardinality
 from pynescript.optimize.space import clamp_value
-from pynescript.optimize.space import grid_size
 from pynescript.optimize.types import ParamSpec
 from pynescript.optimize.types import ParamValue
 from pynescript.optimize.types import SearchSpace
@@ -60,9 +59,10 @@ def _sample_axis(spec: ParamSpec, rng: random.Random) -> ParamValue:
     hi = spec.max if spec.max is not None else lo + 1.0
     if spec.kind == "int" and (not spec.step or spec.step == 1):
         return int(rng.randint(int(round(lo)), int(round(hi))))
-    u = rng.random()
-    raw = lo + u * (hi - lo)
-    return clamp_value(spec, raw)
+    grid = _axis_grid(spec)
+    if grid:
+        return grid[rng.randrange(len(grid))]
+    return rng.uniform(float(lo), float(hi))
 
 
 class RandomSampler(BaseSampler):
@@ -105,8 +105,39 @@ def _axis_grid(spec: ParamSpec, max_points: int = 16) -> list[ParamValue]:
     return out or [clamp_value(spec, lo)]
 
 
+def _uncapped_discrete_len(spec: ParamSpec) -> int | None:
+    """Uncapped size of a discrete axis, or None if interpolated/capped."""
+    if spec.kind == "bool":
+        return 2
+    if spec.kind == "categorical":
+        return max(1, len(spec.choices or ()))
+    if spec.kind == "int" and (not spec.step or spec.step == 1):
+        lo = spec.min if spec.min is not None else 0.0
+        hi = spec.max if spec.max is not None else lo
+        return max(1, int(round(hi)) - int(round(lo)) + 1)
+    return None
+
+
+def _emitted_grid_size(axes: list[list[ParamValue]]) -> int:
+    size = 1
+    for vals in axes:
+        if not vals:
+            return 0
+        size *= len(vals)
+    return size
+
+
+def _has_wide_discrete(space: SearchSpace) -> bool:
+    """True when an int/categorical axis is wider than the 16-pt grid cap."""
+    for spec in space.params:
+        n = _uncapped_discrete_len(spec)
+        if n is not None and n > 16:
+            return True
+    return False
+
+
 class GridSampler(BaseSampler):
-    """Cartesian product, refused when larger than ``max_cells``."""
+    """Cartesian product of ``_axis_grid`` axes (at most 16 pts per numeric axis)."""
 
     name = "grid"
 
@@ -118,12 +149,12 @@ class GridSampler(BaseSampler):
         """Materialize the grid (cached)."""
         if self._points is not None:
             return self._points
-        size = grid_size(space)
-        if size > self.max_cells:
+        axes = [_axis_grid(spec) for spec in space.params]
+        size = _emitted_grid_size(axes)
+        if size < 1 or (size > self.max_cells and _has_wide_discrete(space)):
             raise ValueError(
                 f"grid has {size} cells (cap {self.max_cells}); use random or TPE"
             )
-        axes = [_axis_grid(spec) for spec in space.params]
         points: list[dict[str, ParamValue]] = [{}]
         for spec, vals in zip(space.params, axes, strict=True):
             nxt: list[dict[str, ParamValue]] = []

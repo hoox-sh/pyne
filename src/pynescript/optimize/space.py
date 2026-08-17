@@ -210,7 +210,9 @@ def _axis_cardinality(spec: ParamSpec, *, max_points: int) -> int:
     lo = spec.min if spec.min is not None else 0.0
     hi = spec.max if spec.max is not None else lo
     if spec.step and spec.step > 0:
-        return max(1, int(round((hi - lo) / spec.step)) + 1)
+        n = max(1, int(round((hi - lo) / spec.step)) + 1)
+        return max(1, min(n, max_points))
     if spec.kind == "int":
-        return max(1, int(round(hi)) - int(round(lo)) + 1)
+        n = max(1, int(round(hi)) - int(round(lo)) + 1)
+        return max(1, min(n, max_points))
     return max(2, min(max_points, 8))

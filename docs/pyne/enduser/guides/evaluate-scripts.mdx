@@ -283,7 +283,7 @@ feed = get_datafeed("ccxtpro", exchange="binance")
 - **`na` / warmup.** TA functions need enough bars; early bars may be `na`/None-like — guard like Pine (`not na(x)`).
 - **`mode="compile"`** uses numeric Numba when the script is pure-numeric; otherwise **object-mode** compile. Strict `compile` errors instead of falling back; use **`auto`** for production “prefer fast path” behavior (see [Runtime modes](#runtime-modes-interpret--compile--auto)).
 - **`mode="auto"`** may set `compile_fallback_reason` and still return a successful interpret result — check `auto_backend` if you need to know which path ran.
-- **Series parity.** Shared `series` keys should match within harness tolerances. First-party hline/fill/bgcolor/plotshape keys match; ignore flags are for leftover corpus noise.
+- **Series parity.** Shared `series` keys should match within harness tolerances. First-party `hline` / `fill` / `bgcolor` / `plotshape` / `barcolor` / `plotarrow` / `plotbar` / `plotcandle` keys match; `drawings` is geometry-only. Ignore flags are for leftover corpus noise.
 - **History indexing.** Confirm `[0]`/`[1]` semantics against your evaluator version before porting TV scripts that assume closed-bar rules.
 - **Strategy events** include run/script ids when stamped by Runtime — useful for HOOX downstream.
 - **Body size / bar count.** HTTP path caps payload size (5 MiB); very long histories should be downsampled or chunked.

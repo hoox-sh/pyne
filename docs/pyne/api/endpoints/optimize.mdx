@@ -64,6 +64,7 @@ Estimated engine runs are capped at 400 (`n_trials * folds`).
   "status": "success",
   "sampler": "tpe",
   "objective": "composite",
+  "validation": { "mode": "holdout", "holdout_frac": 0.3, "train_bars": 200, "test_bars": 50, "step_bars": 50, "warmup_bars": 0 },
   "n_trials": 30,
   "trials": [
     {
@@ -72,7 +73,10 @@ Estimated engine runs are capped at 400 (`n_trials * folds`).
       "is_score": 12.4,
       "oos_score": 3.1,
       "is_stats": { "total_pnl": 10, "trades": 8, "max_dd": 0.1 },
-      "error": null
+      "oos_stats": { "total_pnl": 3, "trades": 6, "max_dd": 0.08 },
+      "error": null,
+      "engine_runs": 2,
+      "ms": 210.4
     }
   ],
   "best_index": 4,
@@ -85,16 +89,19 @@ Estimated engine runs are capped at 400 (`n_trials * folds`).
 }
 ```
 
-Full event arrays are **not** returned (memory). Re-run the winner via `/run` + `inputs`.
+Full event arrays are **not** returned (memory). Re-run the winner via `/run` + `inputs`. Success includes `validation` and per-trial `oos_stats` / `engine_runs` / `ms`.
 
 ## Errors
 
 | HTTP | code | When |
 | --- | --- | --- |
+| 400 | `MISSING_FIELD` / `INVALID_FIELD` / `UNKNOWN_FIELDS` / `INVALID_BODY` | Schema — empty/`{}` body, missing required fields, wrong types, extras |
+| 400 | `NO_SCRIPT` / `NO_DATA` | `script` / `data` present but empty after schema |
 | 400 | `NOT_A_STRATEGY` | Script is not `strategy()` |
 | 400 | `INVALID_SPACE` | Missing bounds / empty params |
+| 400 | `INVALID_VALIDATION` | `validation.mode` not `holdout` \| `walk-forward` \| `in-sample` |
 | 400 | `TOO_MANY_RUNS` | Estimated runs exceed 400 |
-| 400 | `NO_SCRIPT` / `NO_DATA` | Empty body |
+| 400 | `GRID_TOO_LARGE` | Grid sampler product exceeds 200 cells |
 | 413 / 429 | same as `/run` | Free-tier caps |
 
 ## Invariants
@@ -109,6 +116,8 @@ Full event arrays are **not** returned (memory). Re-run the winner via `/run` + 
 ```bash
 pyne optimize strat.pine --trials 20 --sampler tpe \
   --space '{"params":[{"name":"Fast","kind":"int","min":3,"max":12}]}'
+# walk-forward: --validation walk-forward  (derives train/test from --bars)
+# override: --train-bars 80 --test-bars 20 --step-bars 20
 ```
 
 ## See also

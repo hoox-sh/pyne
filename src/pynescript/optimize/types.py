@@ -21,11 +21,19 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Any
 from typing import Literal
+
+
+def _finite_or_none(value: Any) -> Any:
+    """Replace non-finite floats so Flask/json can emit strict JSON."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    return value
 
 
 ParamValue = int | float | bool | str
@@ -93,8 +101,8 @@ class StrategyStats:
     trades: int = 0
 
     def to_dict(self) -> dict[str, Any]:
-        """JSON-safe copy."""
-        return asdict(self)
+        """JSON-safe copy (non-finite floats → ``None``)."""
+        return {k: _finite_or_none(v) for k, v in asdict(self).items()}
 
 
 @dataclass
@@ -118,8 +126,8 @@ class TrialResult:
             "params": dict(self.params),
             "is_stats": self.is_stats.to_dict() if self.is_stats else None,
             "oos_stats": self.oos_stats.to_dict() if self.oos_stats else None,
-            "is_score": self.is_score,
-            "oos_score": self.oos_score,
+            "is_score": _finite_or_none(self.is_score),
+            "oos_score": _finite_or_none(self.oos_score),
             "error": self.error,
             "engine_runs": self.engine_runs,
             "ms": self.ms,

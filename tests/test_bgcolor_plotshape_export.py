@@ -226,9 +226,13 @@ plotshape(true, title="mark")
 plot(close, "c")
 """
     bars = _bars(8)
-    rc = Runtime().run(src, bars, mode="compile")
-    series = dict(rc.get("series") or {})
-    DrawingRegistry.merge_visual_series_from_drawings(series, rc.get("drawings") or [], len(bars))
+    compiled = compile_script(src, use_cache=False)
+    close = np.array([b["close"] for b in bars], dtype=np.float64)
+    raw = compiled.run(close, close + 1, close - 1, close, np.ones(len(bars)))
+    series: dict = {}
+    DrawingRegistry.merge_visual_series_from_drawings(
+        series, raw.get("__drawings") or [], len(bars)
+    )
     assert "mark" in series
     assert len(series["mark"]) == len(bars)
     assert all(v is True or v == 1 for v in series["mark"])

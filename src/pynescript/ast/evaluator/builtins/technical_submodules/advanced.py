@@ -731,6 +731,9 @@ class AdvancedIndicators(TechnicalHelpers):
             msg = "DPO length must be >= 1"
             self._error(msg)
 
+        if self._use_incremental_ta():
+            return self._dpo_inc_update(self._context_source("close"), length)
+
         closes = (getattr(self, "current_series", None) or {}).get("close", [])
         if not closes or len(closes) < length:
             return None
@@ -754,6 +757,11 @@ class AdvancedIndicators(TechnicalHelpers):
         length2 = self._expect_int(args[1], "length2 must be integer")
         length3 = self._expect_int(args[2], "length3 must be integer")
         length4 = self._expect_int(args[3], "length4 must be integer")
+
+        if self._use_incremental_ta():
+            return self._kst_inc_update(
+                self._context_source("close"), length1, length2, length3, length4
+            )
 
         closes = (getattr(self, "current_series", None) or {}).get("close", [])
         if not closes:

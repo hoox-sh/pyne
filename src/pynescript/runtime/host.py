@@ -937,8 +937,6 @@ def _stamp_compile_plot_kinds(
     used: set[str] = set()
     for i, raw in enumerate(titles):
         kind = kind_list[i] if i < len(kind_list) else "plot"
-        if not kind or kind == "plot":
-            continue
         base = raw if isinstance(raw, str) and raw.strip() else f"plot_{i}"
         key = base
         suffix = 2
@@ -946,6 +944,8 @@ def _stamp_compile_plot_kinds(
             key = f"{base}_{suffix}"
             suffix += 1
         used.add(key)
+        if not kind:
+            continue
         entry = plot_meta.get(key)
         if entry is not None and entry.get("kind") in (None, "plot"):
             entry["kind"] = kind
@@ -2409,7 +2409,7 @@ class Runtime:
                 bar_times = [int(t or 0) for t in (times if times is not None else [])]
                 drawings = DrawingRegistry.export_compile_events_for_api(drawings, bar_times)
             except Exception:
-                pass
+                drawings = []
 
         # Primary plot series (first numeric plot) as list for frontend compatibility
         final_series: list = next(iter(json_series.values()), []) if json_series else []

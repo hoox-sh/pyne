@@ -394,6 +394,55 @@ class DrawingRegistry:
                 deleted_ids.add(id(target))
                 target["deleted"] = True
                 continue
+            # table.cell(table_id, column, row, text, …) / table.cell_set_*
+            cell_method = method.lower().replace("table_cell_set_", "table.cell_set_")
+            cell_method = cell_method.replace("table_cell", "table.cell")
+            if cell_method == "table.cell" or "cell_set_" in cell_method:
+                cells = target.get("cells")
+                if not isinstance(cells, list):
+                    cells = []
+                    target["cells"] = cells
+
+                def _cell_int(v: Any, default: int = 0) -> int:
+                    try:
+                        return int(v)
+                    except (TypeError, ValueError):
+                        return default
+
+                col = _cell_int(args[0] if len(args) > 0 else item.get("column", item.get("col", 0)))
+                row = _cell_int(args[1] if len(args) > 1 else item.get("row", 0))
+                cell: dict[str, Any] | None = None
+                for existing in cells:
+                    if not isinstance(existing, dict):
+                        continue
+                    if _cell_int(existing.get("row", 0)) == row and _cell_int(
+                        existing.get("col", existing.get("column", 0))
+                    ) == col:
+                        cell = existing
+                        break
+                if cell is None:
+                    cell = {"row": row, "col": col, "text": ""}
+                    cells.append(cell)
+                if cell_method == "table.cell":
+                    text = args[2] if len(args) > 2 else item.get("text")
+                    if text is not None:
+                        cell["text"] = str(text)
+                    text_color = item.get("text_color")
+                    if text_color is None and len(args) > 6:
+                        text_color = args[6]
+                    if text_color is not None:
+                        cell["text_color"] = text_color
+                    bgcolor = item.get("bgcolor")
+                    if bgcolor is None and len(args) > 10:
+                        bgcolor = args[10]
+                    if bgcolor is not None:
+                        cell["bgcolor"] = bgcolor
+                else:
+                    field = cell_method.split("cell_set_", 1)[-1]
+                    val = args[2] if len(args) > 2 else item.get(field)
+                    if val is not None:
+                        cell["text" if field == "text" else field] = str(val) if field == "text" else val
+                continue
             field = bare.split(".")[-1] if "." in bare else bare
             field = field.replace("set_", "")
             # Common mutators
@@ -718,8 +767,8 @@ class DrawingRegistry:
                         "row": row,
                         "col": col,
                         "text": str(getattr(cell, "text", "") or ""),
-                        "text_color": _color(getattr(cell, "text_color", "#eceef4")),
-                        "bgcolor": _color(getattr(cell, "bgcolor", "transparent")),
+                        "text_color": _color(getattr(cell, "text_color", "#000000")),
+                        "bgcolor": _color(getattr(cell, "bgcolor", "rgba(255,255,255,255)")),
                     }
                 )
             pos = str(getattr(tb, "position", "top_right") or "top_right")
@@ -731,11 +780,11 @@ class DrawingRegistry:
                     "rows": int(getattr(tb, "rows", 0) or 0),
                     "columns": int(getattr(tb, "columns", 0) or 0),
                     "cells": cells,
-                    "frame_color": _color(getattr(tb, "frame_color", "#3a3d4a")),
-                    "bgcolor": _color(getattr(tb, "bgcolor", "rgba(17,18,24,0.92)")),
+                    "frame_color": _color(getattr(tb, "frame_color", "#000000")),
+                    "bgcolor": _color(getattr(tb, "bgcolor", "rgba(255,255,255,255)")),
                     "t1": 0,
                     "p1": 0,
-                    "color": _color(getattr(tb, "frame_color", "#939fff")),
+                    "color": _color(getattr(tb, "frame_color", "#000000")),
                 }
             )
 
@@ -935,6 +984,8 @@ class DrawingRegistry:
                 l2 = item.get("line2", item.get("arg1"))
                 if not isinstance(l1, dict) or not isinstance(l2, dict):
                     continue
+                if l1.get("deleted") or l2.get("deleted"):
+                    continue
                 xloc1 = _xloc_of(l1)
                 xloc2 = _xloc_of(l2)
                 t1 = _x_to_time(l1.get("x1"), xloc1, times)
@@ -968,8 +1019,8 @@ class DrawingRegistry:
             if kind == "table":
                 pos = str(item.get("position", item.get("arg0", "top_right")) or "top_right")
                 pos = pos.replace("position.", "")
-                rows = item.get("rows", item.get("arg2", 0))
-                cols = item.get("columns", item.get("arg1", 0))
+                rows = item.get("rows", item.get("arg1", 0))
+                cols = item.get("columns", item.get("arg2", 0))
                 try:
                     rows_i = int(rows or 0)
                 except (TypeError, ValueError):
@@ -988,11 +1039,11 @@ class DrawingRegistry:
                                     "row": cell.get("row", 0),
                                     "col": cell.get("col", cell.get("column", 0)),
                                     "text": str(cell.get("text") or ""),
-                                    "text_color": _color(cell.get("text_color", "#eceef4")),
-                                    "bgcolor": _color(cell.get("bgcolor", "transparent")),
+                                    "text_color": _color(cell.get("text_color", "#000000")),
+                                    "bgcolor": _color(cell.get("bgcolor", "rgba(255,255,255,255)")),
                                 }
                             )
-                frame = item.get("frame_color", item.get("color", "#3a3d4a"))
+                frame = item.get("frame_color", item.get("color", "#000000"))
                 out.append(
                     {
                         "type": "table",
@@ -1001,7 +1052,7 @@ class DrawingRegistry:
                         "columns": cols_i,
                         "cells": cells,
                         "frame_color": _color(frame),
-                        "bgcolor": _color(item.get("bgcolor", "rgba(17,18,24,0.92)")),
+                        "bgcolor": _color(item.get("bgcolor", "rgba(255,255,255,255)")),
                         "t1": 0,
                         "p1": 0,
                         "color": _color(frame),

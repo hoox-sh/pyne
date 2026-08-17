@@ -42,7 +42,7 @@ SECONDS_PER_MONTH = 2592000  # Approximate 30 days
 
 # Timeframe format mappings
 TIMEFRAME_SUFFIXES = {
-    "M": SECONDS_PER_MINUTE,
+    "M": SECONDS_PER_MONTH,
     "H": SECONDS_PER_HOUR,
     "D": SECONDS_PER_DAY,
     "W": SECONDS_PER_WEEK,
@@ -56,6 +56,9 @@ TIMEFRAME_SHORTCUTS = {
     "W": SECONDS_PER_WEEK,
     "MO": SECONDS_PER_MONTH,
     "M": SECONDS_PER_MONTH,
+    "1M": SECONDS_PER_MONTH,
+    "MONTH": SECONDS_PER_MONTH,
+    "MONTHS": SECONDS_PER_MONTH,
 }
 
 
@@ -111,20 +114,28 @@ def timeframe_period_changed(
     curr_ts: object,
     prev_ts: object,
     timeframe_str: str | None,
+    bar_index: int | None = None,
 ) -> bool:
     """True on the first bar of a new *timeframe_str* period.
 
-    Missing previous timestamp (bar 0) is a new period. Unusable times or
-    timeframe strings return False (cannot detect a change).
+    Bar 0 (``bar_index <= 0``) is a new period. Missing previous timestamp
+    on later bars is not a change. Unusable times or timeframe strings
+    return False (cannot detect a change). When *bar_index* is omitted,
+    ``prev_ts is None`` is treated as bar 0 for the standalone helper.
     """
     curr_id = timeframe_bucket_id(curr_ts, timeframe_str)
     if curr_id is None:
         return False
-    if prev_ts is None:
+    if bar_index is not None:
+        if bar_index <= 0:
+            return True
+        if prev_ts is None:
+            return False
+    elif prev_ts is None:
         return True
     prev_id = timeframe_bucket_id(prev_ts, timeframe_str)
     if prev_id is None:
-        return True
+        return False
     return curr_id != prev_id
 
 
@@ -179,13 +190,13 @@ def timeframe_in_seconds(timeframe_str: str | None = None) -> int:
         timeframe_str = "D"
     timeframe_str = str(timeframe_str).strip().upper()
 
-    # Check shortcuts first
+    # Check shortcuts first (M / 1M / MO / MONTH / MONTHS are monthly)
     if timeframe_str in TIMEFRAME_SHORTCUTS:
         return TIMEFRAME_SHORTCUTS[timeframe_str]
 
-    # Handle minute timeframes (just numbers or numbers with "m" suffix)
-    if timeframe_str.endswith("M"):
-        timeframe_str = timeframe_str[:-1]
+    # NM (3M, 6M, 12M) is N months. Minutes are numeric-only ("1", "5", "15").
+    if timeframe_str.endswith("M") and timeframe_str[:-1].isdigit():
+        return int(timeframe_str[:-1]) * SECONDS_PER_MONTH
 
     if timeframe_str.isdigit():
         return int(timeframe_str) * SECONDS_PER_MINUTE

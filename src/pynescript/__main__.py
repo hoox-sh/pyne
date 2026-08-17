@@ -885,6 +885,70 @@ def run_cmd(filename: str, encoding: str, bars: int, as_json: bool, quiet: bool)
         _echo(f"  extras: {keys}")
 
 
+def _validation_from_cli(
+    *,
+    mode: str,
+    bars: int,
+    train_bars: int | None,
+    test_bars: int | None,
+    step_bars: int | None,
+    holdout_frac: float | None,
+) -> Any:
+    from pynescript.optimize.types import ValidationSpec
+    from pynescript.optimize.walk_forward import rolling_windows
+
+    frac = 0.3 if holdout_frac is None else holdout_frac
+    if mode == "walk-forward":
+        train = train_bars if train_bars is not None else max(8, bars * 2 // 3)
+        test = test_bars if test_bars is not None else max(4, bars // 6)
+        step = step_bars if step_bars is not None else max(1, test)
+    else:
+        train = train_bars if train_bars is not None else 200
+        test = test_bars if test_bars is not None else 50
+        step = step_bars if step_bars is not None else 50
+    spec = ValidationSpec(
+        mode=mode,  # type: ignore[arg-type]
+        holdout_frac=frac,
+        train_bars=train,
+        test_bars=test,
+        step_bars=step,
+    )
+    if mode == "walk-forward" and not rolling_windows(bars, spec):
+        raise click.ClickException(
+            f"walk-forward needs --bars >= train+test ({train}+{test}); got {bars}"
+        )
+    return spec
+
+
+def _emit_optimize_study(study: Any, label: str, *, as_json: bool) -> None:
+    all_errored = bool(study.trials) and all(t.error for t in study.trials)
+    failed = study.status == "error" or all_errored or (
+        study.best_params is None and all_errored
+    )
+    if as_json:
+        _echo(json.dumps(study.to_dict(), indent=2, default=str))
+        if failed:
+            raise SystemExit(1)
+        return
+    if failed:
+        err = study.error or next((t.error for t in study.trials if t.error), None)
+        _echo_status("fail", err or "optimize failed", err=True)
+        raise SystemExit(1)
+    _echo_status(
+        "ok",
+        f"optimized {label}  trials={len(study.trials)}  "
+        f"runs={study.engine_runs}  {study.ms:.0f}ms  sampler={study.sampler}",
+    )
+    if study.warning:
+        _echo(f"  warn: {study.warning}")
+    if study.best_params:
+        bits = ", ".join(f"{k}={v}" for k, v in study.best_params.items())
+        _echo(f"  best: {bits}")
+        _echo(f"  is_score={study.best_is_score}  oos_score={study.best_oos_score}")
+    else:
+        _echo("  (no valid winner)")
+
+
 @cli.command("optimize", short_help="Search strategy input.* values over N interpret runs.")
 @click.argument(
     "filename",
@@ -920,6 +984,30 @@ def run_cmd(filename: str, encoding: str, bars: int, as_json: bool, quiet: bool)
     default="holdout",
     show_default=True,
 )
+@click.option(
+    "--train-bars",
+    type=int,
+    default=None,
+    help="Walk-forward train bars (default: derive from --bars).",
+)
+@click.option(
+    "--test-bars",
+    type=int,
+    default=None,
+    help="Walk-forward test bars (default: derive from --bars).",
+)
+@click.option(
+    "--step-bars",
+    type=int,
+    default=None,
+    help="Walk-forward step bars (default: the test window).",
+)
+@click.option(
+    "--holdout-frac",
+    type=float,
+    default=None,
+    help="Holdout test fraction (default: 0.3).",
+)
 @click.option("--seed", type=int, default=None, help="RNG seed.")
 @click.option("--json", "as_json", is_flag=True, help="Print the full study JSON.")
 def optimize_cmd(
@@ -931,13 +1019,16 @@ def optimize_cmd(
     sampler: str,
     objective: str,
     validation_mode: str,
+    train_bars: int | None,
+    test_bars: int | None,
+    step_bars: int | None,
+    holdout_frac: float | None,
     seed: int | None,
     as_json: bool,
 ) -> None:
     """Optimise a ``strategy()`` script (interpret Runtime, not /backtest/quick)."""
     from pynescript.optimize import run_study
     from pynescript.optimize import space_from_payload
-    from pynescript.optimize.types import ValidationSpec
 
     if bars < 8:
         raise click.ClickException("--bars must be >= 8")
@@ -950,6 +1041,14 @@ def optimize_cmd(
         space = space_from_payload(payload)
     except (json.JSONDecodeError, ValueError) as exc:
         raise click.ClickException(f"invalid --space: {exc}") from exc
+    spec = _validation_from_cli(
+        mode=validation_mode,
+        bars=bars,
+        train_bars=train_bars,
+        test_bars=test_bars,
+        step_bars=step_bars,
+        holdout_frac=holdout_frac,
+    )
     cols = _synthetic_ohlcv(bars)
     ohlcv = [
         {
@@ -969,31 +1068,11 @@ def optimize_cmd(
         n_trials=trials,
         sampler=sampler,
         objective=objective,
-        validation=ValidationSpec(mode=validation_mode),  # type: ignore[arg-type]
+        validation=spec,
         seed=seed,
         min_trades=0 if validation_mode == "in-sample" else 5,
     )
-    if as_json:
-        _echo(json.dumps(study.to_dict(), indent=2, default=str))
-        if study.status == "error":
-            raise SystemExit(1)
-        return
-    if study.status == "error":
-        _echo_status("fail", study.error or "optimize failed", err=True)
-        raise SystemExit(1)
-    _echo_status(
-        "ok",
-        f"optimized {label}  trials={len(study.trials)}  "
-        f"runs={study.engine_runs}  {study.ms:.0f}ms  sampler={study.sampler}",
-    )
-    if study.warning:
-        _echo(f"  warn: {study.warning}")
-    if study.best_params:
-        bits = ", ".join(f"{k}={v}" for k, v in study.best_params.items())
-        _echo(f"  best: {bits}")
-        _echo(f"  is_score={study.best_is_score}  oos_score={study.best_oos_score}")
-    else:
-        _echo("  (no valid winner)")
+    _emit_optimize_study(study, label, as_json=as_json)
 
 
 def _jsonable_last(series: Any) -> Any:

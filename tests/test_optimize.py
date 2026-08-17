@@ -21,6 +21,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 import random
 
@@ -159,6 +160,111 @@ class TestEventsScore:
         assert build_strategy_stats([]).trades == 0
         assert build_strategy_stats(None).trades == 0  # type: ignore[arg-type]
 
+    def test_exit_placement_then_fill_uses_fill_price(self) -> None:
+        events = [
+            {
+                "kind": "entry",
+                "id": "L",
+                "direction": "long",
+                "qty": 1,
+                "bar_time": 1,
+                "ohlc": [10, 11, 9, 10],
+            },
+            {
+                "kind": "exit",
+                "id": "XL",
+                "from_entry": "L",
+                "qty": 1,
+                "bar_time": 1,
+                "limit": 12.0,
+                "stop": 8.0,
+                "ohlc": [10, 11, 9, 10],
+            },
+            {
+                "kind": "order",
+                "id": "XL",
+                "from_entry": "L",
+                "comment": "fill",
+                "qty": 1,
+                "bar_time": 3,
+                "price": 12.5,
+                "ohlc": [12, 13, 11, 12],
+            },
+        ]
+        stats = build_strategy_stats(events)
+        assert stats.trades == 1
+        assert stats.total_pnl == pytest.approx(2.5)
+        assert stats.wins == 1
+
+    def test_partial_close_then_remainder(self) -> None:
+        events = [
+            {
+                "kind": "entry",
+                "id": "L",
+                "direction": "long",
+                "qty": 2,
+                "bar_time": 1,
+                "ohlc": [10, 11, 9, 10],
+            },
+            {
+                "kind": "close",
+                "id": "L",
+                "qty": 1,
+                "bar_time": 2,
+                "ohlc": [12, 13, 11, 12],
+            },
+            {
+                "kind": "close",
+                "id": "L",
+                "qty": 1,
+                "bar_time": 3,
+                "ohlc": [15, 16, 14, 15],
+            },
+        ]
+        stats = build_strategy_stats(events)
+        assert stats.trades == 2
+        assert stats.total_pnl == pytest.approx(7.0)
+        assert stats.wins == 2
+
+    def test_breakeven_not_a_loss(self) -> None:
+        events = [
+            {
+                "kind": "entry",
+                "id": "L",
+                "direction": "long",
+                "qty": 1,
+                "bar_time": 1,
+                "ohlc": [10, 11, 9, 10],
+            },
+            {
+                "kind": "close",
+                "id": "L",
+                "qty": 1,
+                "bar_time": 2,
+                "ohlc": [10, 11, 9, 10],
+            },
+        ]
+        stats = build_strategy_stats(events)
+        assert stats.trades == 1
+        assert stats.total_pnl == pytest.approx(0.0)
+        assert stats.wins == 0
+        assert stats.losses == 0
+
+    def test_profit_factor_inf_is_json_safe(self) -> None:
+        d = StrategyStats(profit_factor=float("inf")).to_dict()
+        assert d["profit_factor"] is None
+        assert "inf" not in json.dumps(d).lower()
+        json.dumps(d, allow_nan=False)
+        tr = TrialResult(
+            index=0,
+            params={},
+            is_score=float("inf"),
+            oos_score=float("-inf"),
+        ).to_dict()
+        assert tr["is_score"] is None
+        assert tr["oos_score"] is None
+        json.dumps(tr, allow_nan=False)
+
 
 class TestObjective:
     def test_min_trades_rejects(self) -> None:
@@ -197,6 +303,14 @@ class TestWalkForward:
         spec = ValidationSpec(mode="holdout")
         assert estimated_runs(10, spec, 100, oos_every_trial=True) == 20
 
+    def test_estimated_walk_forward_counts_train_and_test(self) -> None:
+        spec = ValidationSpec(mode="walk-forward", train_bars=80, test_bars=20, step_bars=20)
+        folds = len(rolling_windows(200, spec))
+        assert folds >= 1
+        assert estimated_runs(5, spec, 200) == 5 * folds * 2
+        empty = ValidationSpec(mode="walk-forward", train_bars=200, test_bars=50)
+        assert estimated_runs(10, empty, 120) == 0
+
 
 class TestSamplers:
     def test_random_in_bounds(self) -> None:
@@ -228,6 +342,15 @@ class TestSamplers:
         with pytest.raises(ValueError, match="grid has"):
             GridSampler(max_cells=10).build(space)
 
+    def test_grid_stepped_float_is_capped_not_refused(self) -> None:
+        space = space_from_payload(
+            {"params": [{"name": "X", "kind": "float", "min": 0, "max": 1, "step": 0.01}]}
+        )
+        pts = GridSampler(max_cells=5).build(space)
+        assert 1 <= len(pts) <= 16
+        assert pts[0]["X"] == 0
+        assert pts[-1]["X"] == 1
+
     def test_tpe_suggests_after_seeds(self) -> None:
         space = _space()
         rng = random.Random(1)
@@ -257,6 +380,12 @@ class TestStudy:
         out = run_study(INDICATOR, _bars(40), _space(), n_trials=3)
         assert out.status == "error"
         assert out.error and "NOT_A_STRATEGY" in out.error
+
+    def test_strategy_decl_ignores_comment_and_string(self) -> None:
+        src = '//@version=6\nindicator("x")\n// strategy("nope")\nplot(close, title="strategy()")\n'
+        assert not is_strategy_script(src)
+        mixed = '//@version=6\nstrategy("s")\n// leftover\n'
+        assert is_strategy_script(mixed)
 
     def test_in_sample_random_runs(self) -> None:
         out = run_study(

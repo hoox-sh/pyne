@@ -617,6 +617,51 @@ def run_pine_script():
     return jsonify(body), status
 
 
+def _opt_int(d: dict[str, Any], key: str, default: int) -> int:
+    """Coerce ``d[key]`` to int; missing/None keep ``default`` (0 is valid)."""
+    if key not in d or d[key] is None:
+        return default
+    return int(d[key])
+
+
+def _opt_float(d: dict[str, Any], key: str, default: float) -> float:
+    """Coerce ``d[key]`` to float; missing/None keep ``default`` (0.0 is valid)."""
+    if key not in d or d[key] is None:
+        return default
+    return float(d[key])
+
+
+def _optimize_error_http(err: str) -> tuple[str, int]:
+    """Map ``StudyResult.error`` to a stable API code and HTTP status.
+
+    Recognized user-input failures are 400. Unexpected engine crashes stay
+    500 ``OPTIMIZE_ERROR``.
+    """
+    s = (err or "").strip()
+    lower = s.lower()
+    if s.startswith("NOT_A_STRATEGY"):
+        return "NOT_A_STRATEGY", 400
+    if s.startswith("TOO_MANY_RUNS"):
+        return "TOO_MANY_RUNS", 400
+    if s.startswith("GRID_TOO_LARGE") or lower.startswith("grid has"):
+        return "GRID_TOO_LARGE", 400
+    if s.startswith("EMPTY_SPACE"):
+        return "EMPTY_SPACE", 400
+    if s.startswith("NO_DATA"):
+        return "NO_DATA", 400
+    if s.startswith("INVALID_VALIDATION"):
+        return "INVALID_VALIDATION", 400
+    if s.startswith("INVALID_OBJECTIVE") or "unknown objective" in lower:
+        return "INVALID_OBJECTIVE", 400
+    if s.startswith("INVALID_SAMPLER") or "unknown sampler" in lower:
+        return "INVALID_SAMPLER", 400
+    if s.startswith("INVALID_SPACE"):
+        return "INVALID_SPACE", 400
+    if s.startswith("INVALID_"):
+        return s.split(":", 1)[0].split()[0], 400
+    return "OPTIMIZE_ERROR", 500
+
+
 def execute_optimize_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
     """Shared body for ``POST /optimize`` (same free-tier gates as ``/run``)."""
     from backend.middleware.free_limits import acquire_free_slot
@@ -668,15 +713,25 @@ def execute_optimize_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]
                 "code": "INVALID_VALIDATION",
                 "message": f"validation.mode must be holdout|walk-forward|in-sample, got {mode!r}",
             }, 400
-        spec = ValidationSpec(
-            mode=mode,  # type: ignore[arg-type]
-            holdout_frac=float(raw_val.get("holdout_frac") or 0.3),
-            train_bars=int(raw_val.get("train_bars") or 200),
-            test_bars=int(raw_val.get("test_bars") or 50),
-            step_bars=int(raw_val.get("step_bars") or 50),
-            warmup_bars=int(raw_val.get("warmup_bars") or 0),
-        )
-        seed = validated.get("seed")
+        try:
+            spec = ValidationSpec(
+                mode=mode,  # type: ignore[arg-type]
+                holdout_frac=_opt_float(raw_val, "holdout_frac", 0.3),
+                train_bars=_opt_int(raw_val, "train_bars", 200),
+                test_bars=_opt_int(raw_val, "test_bars", 50),
+                step_bars=_opt_int(raw_val, "step_bars", 50),
+                warmup_bars=_opt_int(raw_val, "warmup_bars", 0),
+            )
+            n_trials = _opt_int(validated, "n_trials", 30)
+            min_trades = _opt_int(validated, "min_trades", 5)
+            seed_raw = validated.get("seed")
+            seed = int(seed_raw) if seed_raw is not None else None
+        except (TypeError, ValueError) as exc:
+            return {
+                "status": "error",
+                "code": "INVALID_VALIDATION",
+                "message": str(exc),
+            }, 400
         libs = _parse_run_libraries(validated.get("libraries"))
         raw_fixed = validated.get("fixed_inputs")
         fixed_inputs = raw_fixed if isinstance(raw_fixed, dict) else None
@@ -684,12 +739,12 @@ def execute_optimize_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]
             script,
             ohlcv if isinstance(ohlcv, list) else [],
             space,
-            n_trials=int(validated.get("n_trials") or 30),
+            n_trials=n_trials,
             sampler=str(validated.get("sampler") or "auto"),
             objective=str(validated.get("objective") or "composite"),
             validation=spec,
-            min_trades=int(validated.get("min_trades") or 5),
-            seed=int(seed) if isinstance(seed, int) else None,
+            min_trades=min_trades,
+            seed=seed,
             symbol=str(validated.get("symbol") or "CHART"),
             oos_every_trial=bool(validated.get("oos_every_trial", True)),
             libraries=libs or None,
@@ -697,17 +752,9 @@ def execute_optimize_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]
         )
         body = study.to_dict()
         if study.status == "error" and study.error:
-            code = "OPTIMIZE_ERROR"
-            err = study.error
-            if err.startswith("NOT_A_STRATEGY"):
-                code = "NOT_A_STRATEGY"
-            elif err.startswith("TOO_MANY_RUNS"):
-                code = "TOO_MANY_RUNS"
-            elif err.startswith("grid has"):
-                code = "GRID_TOO_LARGE"
+            code, http = _optimize_error_http(study.error)
             body["code"] = code
             body["message"] = study.error
-            http = 400 if code != "OPTIMIZE_ERROR" else 500
             return body, http
         return body, 200
     finally:

@@ -92,6 +92,8 @@ Full-list `_ema` / `_ema_state_step` and incremental / Numba paths all use **SMA
 
 **Not yet:** true intrabar rollback of non-`varip` state, live datafeed-driven ticks, or compile-mode realtime multi-pass.
 
+**Track:** audit AGENT_02; host kwargs in `pynescript.runtime.host.Runtime.run`.
+
 ### `timeframe.change` (UTC fixed-width buckets)
 
 **Reference Pine:** First bar of a new *higher* period on the **exchange calendar** (session-aware daily/weekly/monthly).
@@ -99,8 +101,6 @@ Full-list `_ema` / `_ema_state_step` and incremental / Numba paths all use **SMA
 **pynescript:** Interpret and compile compare UTC epoch buckets using the same widths as `timeframe.in_seconds` (`D` = 86400s, `W` = 7d, `M` ≈ 30d). Bar 0 is a new period. No-host / missing times → `False`. Not session- or DST-aware.
 
 **Track:** `tests/test_timeframe_change.py`.
-
-**Track:** audit AGENT_02; host kwargs in `pynescript.runtime.host.Runtime.run`.
 
 ### `AugAssign` / tuple unpack series bind (fixed Wave B)
 
