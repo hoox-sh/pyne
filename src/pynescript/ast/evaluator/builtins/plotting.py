@@ -69,7 +69,7 @@ DEFAULT_VISUAL_TITLES: dict[str, str] = {
 
 # Compile ``__drawings`` kinds that interpret exports as series + plot_meta.
 _VISUAL_SERIES_KINDS: frozenset[str] = frozenset(
-    {"bgcolor", "plotshape", "plotchar", "plotarrow"}
+    {"bgcolor", "barcolor", "plotshape", "plotchar", "plotarrow", "plotbar", "plotcandle"}
 )
 
 
@@ -168,13 +168,15 @@ def _visual_default_title(kind: str) -> str:
 
 def _json_safe_visual_value(kind: str, event: Mapping[str, Any]) -> Any:
     """Extract one series cell from a compile drawing event (interpret semantics)."""
-    if kind == "bgcolor":
+    if kind in ("bgcolor", "barcolor"):
         color = event.get("color")
         if color is None:
             return None
         if isinstance(color, str):
             s = color.strip()
-            return s if s else None
+            if not s or s.lower() == "nan":
+                return None
+            return s
         # int 0xRRGGBB / objects → string when possible
         if isinstance(color, int):
             if color > 0xFFFFFF:
@@ -184,7 +186,27 @@ def _json_safe_visual_value(kind: str, event: Mapping[str, Any]) -> Any:
                 return f"#{r:02X}{g:02X}{b:02X}"
             return f"#{color & 0xFFFFFF:06X}"
         s = str(color).strip()
-        return s if s else None
+        if not s or s.lower() == "nan":
+            return None
+        return s
+
+    if kind in ("plotbar", "plotcandle"):
+        raw = event.get("close", event.get("arg3", event.get("series", event.get("value"))))
+        if raw is None:
+            return None
+        if isinstance(raw, bool):
+            return float(raw)
+        if isinstance(raw, (int, float)):
+            try:
+                fv = float(raw)
+                return None if fv != fv else fv
+            except (TypeError, ValueError):
+                return None
+        try:
+            fv = float(raw)
+            return None if fv != fv else fv
+        except (TypeError, ValueError):
+            return None
 
     # plotshape / plotchar / plotarrow — series condition / value.
     # Interpret exports True when the marker shows and None (na) when not —
@@ -360,6 +382,11 @@ def merge_visual_series_from_drawings(
             series[key] = col
             if plot_meta is not None and key not in plot_meta:
                 plot_meta[key] = meta[key]
+        elif plot_meta is not None:
+            mk = (meta.get(key) or {}).get("kind")
+            entry = plot_meta.get(key)
+            if mk and entry is not None and entry.get("kind") in (None, "plot"):
+                entry["kind"] = mk
     return series  # type: ignore[return-value]
 
 

@@ -392,18 +392,28 @@ def _json_plot_value(v: Any, kind: str) -> Any:
         if t is str:
             return v if v else None
         return _color_str(v)
-    if kind in ("plotshape", "plotchar", "plotarrow"):
+    if kind in ("plotshape", "plotchar"):
         if t is bool:
-            return v
+            return True if v else None
         if t is int or t is float:
             try:
                 fv = float(v)
                 if fv != fv:  # NaN
-                    return False
-                return fv != 0.0
+                    return None
+                return True if fv != 0.0 else None
             except (TypeError, ValueError):
-                return bool(v)
-        return bool(v)
+                return True if v else None
+        return True if v else None
+    if kind == "plotarrow":
+        if t is bool:
+            return float(v)
+        if t is int or t is float:
+            try:
+                fv = float(v)
+                return None if fv != fv else v
+            except (TypeError, ValueError):
+                return None
+        return None
     # line / hline numeric. Non-numeric strings (library import stubs,
     # unresolved symbols) must not appear as plot series cells — AXIS
     # and interpret/compile parity treat them as ``na`` (null).
@@ -433,7 +443,18 @@ def _json_plot_value(v: Any, kind: str) -> Any:
 
 # Capture already stores JSON-safe cells for these kinds (fill series is all-null).
 _PACK_READY_KINDS: frozenset[str] = frozenset(
-    {"plot", "hline", "bgcolor", "fill", "plotshape", "plotchar", "plotarrow"}
+    {
+        "plot",
+        "hline",
+        "bgcolor",
+        "barcolor",
+        "fill",
+        "plotshape",
+        "plotchar",
+        "plotarrow",
+        "plotbar",
+        "plotcandle",
+    }
 )
 
 
@@ -902,6 +923,32 @@ def _compile_plot_meta(json_series: dict[str, list[Any]]) -> dict[str, dict[str,
             "kind": "plot",
         }
     return meta
+
+
+def _stamp_compile_plot_kinds(
+    plot_meta: dict[str, dict[str, Any]],
+    titles: list[str] | None,
+    kinds: list[str] | None,
+) -> None:
+    """Overlay compiler plot kinds (hline/fill/…) onto compile plot_meta."""
+    if not plot_meta or not titles:
+        return
+    kind_list = list(kinds or [])
+    used: set[str] = set()
+    for i, raw in enumerate(titles):
+        kind = kind_list[i] if i < len(kind_list) else "plot"
+        if not kind or kind == "plot":
+            continue
+        base = raw if isinstance(raw, str) and raw.strip() else f"plot_{i}"
+        key = base
+        suffix = 2
+        while key in used:
+            key = f"{base}_{suffix}"
+            suffix += 1
+        used.add(key)
+        entry = plot_meta.get(key)
+        if entry is not None and entry.get("kind") in (None, "plot"):
+            entry["kind"] = kind
 
 
 def _clear_pine_call_sites(tree: Any) -> None:
@@ -2341,6 +2388,7 @@ class Runtime:
         # into titled series keys so interpret↔compile key sets align (Agent 07 helper).
         header = _parse_script_header_fields(source_code)
         plot_meta = _compile_plot_meta(json_series)
+        _stamp_compile_plot_kinds(plot_meta, compiled.plot_titles, compiled.plot_kinds)
         _n_visual = int(n_bars_hint or 0) or len(ohlcv_data or ())
         if isinstance(drawings, list) and drawings and _n_visual > 0:
             try:
@@ -2354,6 +2402,12 @@ class Runtime:
                     _n_visual,
                     plot_meta=plot_meta,
                 )
+            except Exception:
+                pass
+            # Geometry-only AXIS payload — same shape as interpret export_for_api.
+            try:
+                bar_times = [int(t or 0) for t in (times if times is not None else [])]
+                drawings = DrawingRegistry.export_compile_events_for_api(drawings, bar_times)
             except Exception:
                 pass
 

@@ -65,6 +65,20 @@ def _export_num(v: Any) -> float | int | None:
         return None
 
 
+def _snapshot_scalar(v: Any) -> Any:
+    """Freeze a drawing coordinate so it does not track later-bar series.current.
+
+    ``line.new(bar_index, high, …)`` must store *this* bar's high. Leaving a
+    PineSeries / wrapper on the object makes ``export_for_api`` re-read
+    ``.current`` (last bar) and diverge from compile, which snapshots floats.
+    """
+    t = type(v)
+    if v is None or t is int or t is float or t is bool or t is str:
+        return v
+    snapped = _export_num(v)
+    return snapped if snapped is not None else v
+
+
 def _export_x_to_time(x: Any, xloc: str, times: list[int]) -> int | float | None:
     """Map drawing X to unix seconds (or bare bar_index when times unavailable).
 
@@ -727,6 +741,275 @@ class DrawingRegistry:
 
         return out
 
+    # Compile ``__drawings`` kinds that are plot/visual events, not geometry.
+    # Interpret ``export_for_api`` never emits these (they live in series).
+    _COMPILE_VISUAL_KINDS: ClassVar[frozenset[str]] = frozenset(
+        {
+            "hline",
+            "fill",
+            "bgcolor",
+            "barcolor",
+            "plotshape",
+            "plotchar",
+            "plotarrow",
+            "plotbar",
+            "plotcandle",
+            "plot",
+        }
+    )
+
+    @classmethod
+    def export_compile_events_for_api(
+        cls,
+        events: list[dict[str, Any]] | list[Any] | None,
+        bar_times: list[int] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Normalize folded compile drawing events to interpret ``export_for_api`` shape.
+
+        Drops visual/plot events (hline / fill / bgcolor / plotshape / …) so
+        Runtime ``drawings`` is geometry-only on both hosts. AXIS fields
+        (``type``, ``t1``, ``p1``, …) use the same bar-index → time mapping.
+        """
+        if not events:
+            return []
+        times = bar_times if bar_times is not None else []
+        _num = _export_num
+        _x_to_time = _export_x_to_time
+        _color = _export_color
+        _extend = _export_extend
+        out: list[dict[str, Any]] = []
+
+        def _xloc_of(item: dict[str, Any]) -> str:
+            xloc = str(item.get("xloc") or "bar_index")
+            if xloc.startswith("#") or xloc.startswith("rgb"):
+                return "bar_index"
+            return xloc.replace("xloc.", "") or "bar_index"
+
+        def _point_pair(pt: Any) -> tuple[Any, Any] | None:
+            if pt is None:
+                return None
+            if isinstance(pt, dict):
+                price = _num(pt.get("price", pt.get("y")))
+                if price is None:
+                    return None
+                if pt.get("time") is not None and _num(pt.get("time")) is not None:
+                    t = _num(pt.get("time"))
+                elif pt.get("index") is not None:
+                    t = _x_to_time(pt.get("index"), "bar_index", times)
+                elif pt.get("x") is not None:
+                    t = _x_to_time(pt.get("x"), "bar_index", times)
+                else:
+                    t = None
+                if t is None:
+                    return None
+                return t, price
+            price = _num(getattr(pt, "price", None))
+            if price is None:
+                return None
+            if getattr(pt, "time", None) is not None:
+                t = _num(pt.time)
+            elif getattr(pt, "index", None) is not None:
+                t = _x_to_time(pt.index, "bar_index", times)
+            else:
+                t = None
+            if t is None:
+                return None
+            return t, price
+
+        for item in events:
+            if not isinstance(item, dict):
+                continue
+            kind = str(item.get("type") or item.get("kind") or "").lower()
+            if kind in cls._COMPILE_VISUAL_KINDS or kind in ("set", "delete"):
+                continue
+            if item.get("deleted"):
+                continue
+
+            if kind == "line":
+                xloc = _xloc_of(item)
+                t1 = _x_to_time(item.get("x1"), xloc, times)
+                t2 = _x_to_time(item.get("x2"), xloc, times)
+                y1 = _num(item.get("y1"))
+                y2 = _num(item.get("y2"))
+                if t1 is None or t2 is None or y1 is None or y2 is None:
+                    continue
+                out.append(
+                    {
+                        "type": "line",
+                        "t1": t1,
+                        "p1": y1,
+                        "t2": t2,
+                        "p2": y2,
+                        "color": _color(item.get("color") or "#000000"),
+                        "width": int(_num(item.get("width")) or 1),
+                        "style": str(item.get("style") or "solid").replace("line.style_", ""),
+                        "extend": _extend(item.get("extend")),
+                        "force_overlay": bool(item.get("force_overlay", False)),
+                    }
+                )
+                continue
+
+            if kind == "box":
+                xloc = _xloc_of(item)
+                t1 = _x_to_time(item.get("left"), xloc, times)
+                t2 = _x_to_time(item.get("right"), xloc, times)
+                top = _num(item.get("top"))
+                bottom = _num(item.get("bottom"))
+                if t1 is None or t2 is None or top is None or bottom is None:
+                    continue
+                border = item.get("border_color", item.get("color"))
+                out.append(
+                    {
+                        "type": "box",
+                        "t1": t1,
+                        "p1": top,
+                        "t2": t2,
+                        "p2": bottom,
+                        "color": _color(border),
+                        "bgcolor": _color(item.get("bgcolor")) if item.get("bgcolor") else "rgba(0,0,0,0)",
+                        "width": int(_num(item.get("border_width", item.get("width"))) or 1),
+                        "text": str(item.get("text") or ""),
+                        "force_overlay": bool(item.get("force_overlay", False)),
+                    }
+                )
+                continue
+
+            if kind == "label":
+                xloc = _xloc_of(item)
+                t = _x_to_time(item.get("x"), xloc, times)
+                y = _num(item.get("y"))
+                if t is None or y is None:
+                    continue
+                size_raw = item.get("size", item.get("text_size"))
+                if size_raw is None or size_raw == "" or size_raw == "auto":
+                    size_raw = "auto"
+                yloc_raw = str(item.get("yloc") or "price")
+                if yloc_raw.startswith("#") or yloc_raw.startswith("rgb"):
+                    yloc_raw = "price"
+                out.append(
+                    {
+                        "type": "label",
+                        "force_overlay": bool(item.get("force_overlay", False)),
+                        "t1": t,
+                        "p1": y,
+                        "text": str(item.get("text") or ""),
+                        "color": _color(item.get("color") or "#000000"),
+                        "textcolor": _color(item.get("textcolor", item.get("text_color")) or "#000000"),
+                        "style": str(item.get("style") or "label_center"),
+                        "yloc": yloc_raw,
+                        "size": size_raw if isinstance(size_raw, (int, float)) else str(size_raw),
+                    }
+                )
+                continue
+
+            if kind == "polyline":
+                xloc = _xloc_of(item)
+                raw_pts = item.get("points", item.get("arg0"))
+                pts_out: list[dict[str, float | int]] = []
+                if isinstance(raw_pts, list):
+                    for pt in raw_pts:
+                        pair = _point_pair(pt)
+                        if pair is not None:
+                            pts_out.append({"time": pair[0], "price": pair[1]})
+                if len(pts_out) < 2:
+                    continue
+                closed = item.get("closed", item.get("arg1", False))
+                out.append(
+                    {
+                        "type": "polyline",
+                        "points": pts_out,
+                        "closed": bool(closed),
+                        "color": _color(item.get("color") or "#000000"),
+                        "width": int(_num(item.get("width")) or 1),
+                        "style": str(item.get("style") or "solid"),
+                        "t1": pts_out[0]["time"],
+                        "p1": pts_out[0]["price"],
+                        "t2": pts_out[-1]["time"],
+                        "p2": pts_out[-1]["price"],
+                    }
+                )
+                continue
+
+            if kind == "linefill":
+                l1 = item.get("line1", item.get("arg0"))
+                l2 = item.get("line2", item.get("arg1"))
+                if not isinstance(l1, dict) or not isinstance(l2, dict):
+                    continue
+                xloc1 = _xloc_of(l1)
+                xloc2 = _xloc_of(l2)
+                t1 = _x_to_time(l1.get("x1"), xloc1, times)
+                t2 = _x_to_time(l1.get("x2"), xloc1, times)
+                p1 = _num(l1.get("y1"))
+                p2 = _num(l1.get("y2"))
+                t3 = _x_to_time(l2.get("x1"), xloc2, times)
+                t4 = _x_to_time(l2.get("x2"), xloc2, times)
+                p3 = _num(l2.get("y1"))
+                p4 = _num(l2.get("y2"))
+                if None in (t1, t2, p1, p2, t3, t4, p3, p4):
+                    continue
+                fill_color = item.get("color")
+                out.append(
+                    {
+                        "type": "linefill",
+                        "t1": t1,
+                        "p1": p1,
+                        "t2": t2,
+                        "p2": p2,
+                        "t3": t3,
+                        "p3": p3,
+                        "t4": t4,
+                        "p4": p4,
+                        "color": _color(fill_color),
+                        "bgcolor": _color(fill_color),
+                    }
+                )
+                continue
+
+            if kind == "table":
+                pos = str(item.get("position", item.get("arg0", "top_right")) or "top_right")
+                pos = pos.replace("position.", "")
+                rows = item.get("rows", item.get("arg2", 0))
+                cols = item.get("columns", item.get("arg1", 0))
+                try:
+                    rows_i = int(rows or 0)
+                except (TypeError, ValueError):
+                    rows_i = 0
+                try:
+                    cols_i = int(cols or 0)
+                except (TypeError, ValueError):
+                    cols_i = 0
+                cells_raw = item.get("cells") or []
+                cells: list[dict[str, Any]] = []
+                if isinstance(cells_raw, list):
+                    for cell in cells_raw:
+                        if isinstance(cell, dict):
+                            cells.append(
+                                {
+                                    "row": cell.get("row", 0),
+                                    "col": cell.get("col", cell.get("column", 0)),
+                                    "text": str(cell.get("text") or ""),
+                                    "text_color": _color(cell.get("text_color", "#eceef4")),
+                                    "bgcolor": _color(cell.get("bgcolor", "transparent")),
+                                }
+                            )
+                frame = item.get("frame_color", item.get("color", "#3a3d4a"))
+                out.append(
+                    {
+                        "type": "table",
+                        "position": pos,
+                        "rows": rows_i,
+                        "columns": cols_i,
+                        "cells": cells,
+                        "frame_color": _color(frame),
+                        "bgcolor": _color(item.get("bgcolor", "rgba(17,18,24,0.92)")),
+                        "t1": 0,
+                        "p1": 0,
+                        "color": _color(frame),
+                    }
+                )
+
+        return out
+
 
 @dataclass
 class Line:
@@ -1077,7 +1360,18 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             color = xloc
             xloc = "bar_index"
 
-        line = Line(x1, y1, x2, y2, str(xloc), color, width, style, extend, force_overlay=bool(force_overlay))
+        line = Line(
+            _snapshot_scalar(x1),
+            _snapshot_scalar(y1),
+            _snapshot_scalar(x2),
+            _snapshot_scalar(y2),
+            str(xloc),
+            color,
+            width,
+            style,
+            extend,
+            force_overlay=bool(force_overlay),
+        )
         return DrawingRegistry.add_line(line)
 
     def _handle_line_delete(self, args: list[Any]) -> None:
@@ -1100,28 +1394,28 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         """line.set_x1(line, x1)"""
         line = args[0] if len(args) > 0 else None
         if isinstance(line, Line):
-            line.x1 = args[1] if len(args) > 1 else line.x1
+            line.x1 = _snapshot_scalar(args[1]) if len(args) > 1 else line.x1
         return line
 
     def _handle_line_set_y1(self, args: list[Any]) -> Line:
         """line.set_y1(line, y1)"""
         line = args[0] if len(args) > 0 else None
         if isinstance(line, Line):
-            line.y1 = args[1] if len(args) > 1 else line.y1
+            line.y1 = _snapshot_scalar(args[1]) if len(args) > 1 else line.y1
         return line
 
     def _handle_line_set_x2(self, args: list[Any]) -> Line:
         """line.set_x2(line, x2)"""
         line = args[0] if len(args) > 0 else None
         if isinstance(line, Line):
-            line.x2 = args[1] if len(args) > 1 else line.x2
+            line.x2 = _snapshot_scalar(args[1]) if len(args) > 1 else line.x2
         return line
 
     def _handle_line_set_y2(self, args: list[Any]) -> Line:
         """line.set_y2(line, y2)"""
         line = args[0] if len(args) > 0 else None
         if isinstance(line, Line):
-            line.y2 = args[1] if len(args) > 1 else line.y2
+            line.y2 = _snapshot_scalar(args[1]) if len(args) > 1 else line.y2
         return line
 
     def _handle_line_set_extend(self, args: list[Any]) -> Line:
@@ -1211,10 +1505,10 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         text_color = kw.get("text_color", "#000000")
 
         box = Box(
-            left,
-            top,
-            right,
-            bottom,
+            _snapshot_scalar(left),
+            _snapshot_scalar(top),
+            _snapshot_scalar(right),
+            _snapshot_scalar(bottom),
             str(xloc),
             bool(closed),
             bgcolor,
@@ -1258,28 +1552,28 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         """box.set_left(box, left)"""
         box = args[0] if len(args) > 0 else None
         if isinstance(box, Box):
-            box.left = args[1] if len(args) > 1 else box.left
+            box.left = _snapshot_scalar(args[1]) if len(args) > 1 else box.left
         return box
 
     def _handle_box_set_right(self, args: list[Any]) -> Box:
         """box.set_right(box, right)"""
         box = args[0] if len(args) > 0 else None
         if isinstance(box, Box):
-            box.right = args[1] if len(args) > 1 else box.right
+            box.right = _snapshot_scalar(args[1]) if len(args) > 1 else box.right
         return box
 
     def _handle_box_set_top(self, args: list[Any]) -> Box:
         """box.set_top(box, top)"""
         box = args[0] if len(args) > 0 else None
         if isinstance(box, Box):
-            box.top = args[1] if len(args) > 1 else box.top
+            box.top = _snapshot_scalar(args[1]) if len(args) > 1 else box.top
         return box
 
     def _handle_box_set_bottom(self, args: list[Any]) -> Box:
         """box.set_bottom(box, bottom)"""
         box = args[0] if len(args) > 0 else None
         if isinstance(box, Box):
-            box.bottom = args[1] if len(args) > 1 else box.bottom
+            box.bottom = _snapshot_scalar(args[1]) if len(args) > 1 else box.bottom
         return box
 
     def _handle_box_set_bgcolor(self, args: list[Any]) -> Box:
@@ -1449,8 +1743,8 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
 
         # Keyword ctor — `size` sits before `tooltip`/`style` in the dataclass.
         label = Label(
-            x=x,
-            y=y,
+            x=_snapshot_scalar(x),
+            y=_snapshot_scalar(y),
             text=str(text or ""),
             xloc=str(xloc or "bar_index"),
             yloc=str(yloc or "price"),
@@ -1506,22 +1800,22 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         """label.set_xy(label, x, y)"""
         label = args[0] if len(args) > 0 else None
         if isinstance(label, Label):
-            label.x = args[1] if len(args) > 1 else label.x
-            label.y = args[2] if len(args) > 2 else label.y
+            label.x = _snapshot_scalar(args[1]) if len(args) > 1 else label.x
+            label.y = _snapshot_scalar(args[2]) if len(args) > 2 else label.y
         return label
 
     def _handle_label_set_x(self, args: list[Any]) -> Label:
         """label.set_x(label, x)"""
         label = args[0] if len(args) > 0 else None
         if isinstance(label, Label):
-            label.x = args[1] if len(args) > 1 else label.x
+            label.x = _snapshot_scalar(args[1]) if len(args) > 1 else label.x
         return label
 
     def _handle_label_set_y(self, args: list[Any]) -> Label:
         """label.set_y(label, y)"""
         label = args[0] if len(args) > 0 else None
         if isinstance(label, Label):
-            label.y = args[1] if len(args) > 1 else label.y
+            label.y = _snapshot_scalar(args[1]) if len(args) > 1 else label.y
         return label
 
     def _handle_label_set_text(self, args: list[Any]) -> Label:
@@ -2045,12 +2339,12 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
     def _handle_line_set_xy1(self, args: list[Any]) -> None:
         line = args[0] if args else None
         if isinstance(line, Line) and len(args) >= 3:
-            line.x1, line.y1 = args[1], args[2]
+            line.x1, line.y1 = _snapshot_scalar(args[1]), _snapshot_scalar(args[2])
 
     def _handle_line_set_xy2(self, args: list[Any]) -> None:
         line = args[0] if args else None
         if isinstance(line, Line) and len(args) >= 3:
-            line.x2, line.y2 = args[1], args[2]
+            line.x2, line.y2 = _snapshot_scalar(args[1]), _snapshot_scalar(args[2])
 
     def _handle_line_set_first_point(self, args: list[Any]) -> None:
         """line.set_first_point(id, point) where point is ChartPoint."""
@@ -2070,12 +2364,12 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
     def _handle_box_set_lefttop(self, args: list[Any]) -> None:
         box = args[0] if args else None
         if isinstance(box, Box) and len(args) >= 3:
-            box.left, box.top = args[1], args[2]
+            box.left, box.top = _snapshot_scalar(args[1]), _snapshot_scalar(args[2])
 
     def _handle_box_set_rightbottom(self, args: list[Any]) -> None:
         box = args[0] if args else None
         if isinstance(box, Box) and len(args) >= 3:
-            box.right, box.bottom = args[1], args[2]
+            box.right, box.bottom = _snapshot_scalar(args[1]), _snapshot_scalar(args[2])
 
     def _handle_box_set_top_left_point(self, args: list[Any]) -> None:
         box = args[0] if args else None

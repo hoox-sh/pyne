@@ -27,10 +27,13 @@ from __future__ import annotations
 
 import math
 
+import numpy as np
+
 from backend.runtime import Runtime
 from pynescript.ast.evaluator.builtins.drawing import DrawingRegistry
 from pynescript.ast.evaluator.builtins.plotting import materialize_visual_series_from_drawings
 from pynescript.ast.evaluator.builtins.plotting import uniquify_series_title
+from pynescript.compiler.engine import compile_script
 
 
 def _bars(n: int = 40) -> list[dict]:
@@ -176,12 +179,13 @@ plot(close, "c")
     assert "up_bg" in ri["series"], sorted(ri["series"])
     assert "up_bg" in rc["series"], sorted(rc["series"])
     assert "bgcolor" not in rc["series"]
-    drawings = rc.get("drawings") or []
-    titled = [
-        d for d in drawings if isinstance(d, dict) and d.get("kind") == "bgcolor" and d.get("title")
-    ]
-    assert titled, "compile bgcolor drawings must stamp title="
-    assert any(str(d.get("title")) == "up_bg" for d in titled)
+    # Visuals live in series; Runtime compile drawings are geometry-only (interpret parity)
+    kinds = {
+        str(d.get("type") or d.get("kind") or "")
+        for d in (rc.get("drawings") or [])
+        if isinstance(d, dict)
+    }
+    assert "bgcolor" not in kinds
 
 
 def test_materialize_bgcolor_default_titles_from_drawings():
@@ -200,8 +204,11 @@ plot(close, "c")
     # Host already materializes; helper is still correct when keys not yet present.
     host = rc.get("series") or {}
     assert "bgcolor" in host and "bgcolor_2" in host, sorted(host.keys())
+    compiled = compile_script(src, use_cache=False)
+    close = np.array([b["close"] for b in bars], dtype=np.float64)
+    raw = compiled.run(close, close + 1, close - 1, close, np.ones(len(bars)))
     series, meta = materialize_visual_series_from_drawings(
-        rc.get("drawings") or [], len(bars), existing_keys=()
+        raw.get("__drawings") or [], len(bars), existing_keys=()
     )
     assert "bgcolor" in series and "bgcolor_2" in series
     assert meta["bgcolor"].get("kind") == "bgcolor"

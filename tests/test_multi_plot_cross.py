@@ -132,9 +132,13 @@ hline(50)
     assert all(v == 70.0 or v == 70 for v in rc["series"]["Overbought"] if v is not None)
     assert all(v == 0.0 or v == 0 for v in rc["series"]["hline"] if v is not None)
     assert all(v == 50.0 or v == 50 for v in rc["series"]["hline_2"] if v is not None)
-    # Drawings export retained
-    kinds = {d.get("kind") for d in (rc.get("drawings") or []) if isinstance(d, dict)}
-    assert "hline" in kinds
+    # hline lives in series on both hosts; Runtime compile drawings are geometry-only
+    kinds = {
+        str(d.get("type") or d.get("kind") or "")
+        for d in (rc.get("drawings") or [])
+        if isinstance(d, dict)
+    }
+    assert "hline" not in kinds
 
 
 def test_fill_background_series_keys_compile_matches_interpret():
@@ -161,8 +165,12 @@ fill(p1, p2, title="Background", color=color.rgb(33, 150, 243, 95))
     # Interpret fill column is all-null after JSON packaging; compile uses nan→null
     assert all(v is None for v in ri["series"]["Background"])
     assert all(v is None for v in rc["series"]["Background"])
-    kinds = {d.get("kind") for d in (rc.get("drawings") or []) if isinstance(d, dict)}
-    assert "fill" in kinds
+    kinds = {
+        str(d.get("type") or d.get("kind") or "")
+        for d in (rc.get("drawings") or [])
+        if isinstance(d, dict)
+    }
+    assert "fill" not in kinds
 
 
 def test_dual_host_visual_series_keys():

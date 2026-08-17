@@ -106,21 +106,25 @@ def _coerce_plot_numeric(value: Any) -> Any:
 
 
 def _coerce_plot_shape(value: Any) -> Any:
-    """JSON-safe plotshape/plotchar/plotarrow cell (matches host packing)."""
+    """JSON-safe plotshape/plotchar cell (True when shown, None when not).
+
+    Compile materialize uses None for the off state — never a hard False —
+    so dual-host series compare equal.
+    """
     if value is None:
         return None
     t = type(value)
     if t is bool:
-        return value
+        return True if value else None
     if t is int or t is float:
         try:
             fv = float(value)
             if fv != fv:  # NaN
-                return False
-            return fv != 0.0
+                return None
+            return True if fv != 0.0 else None
         except (TypeError, ValueError):
-            return bool(value)
-    return bool(value)
+            return True if value else None
+    return True if value else None
 
 
 def _as_plot_int(value: Any, default: int = 1) -> int:
@@ -702,6 +706,97 @@ class CustomEvaluator(NodeLiteralEvaluator):
             char=char_s,
         )
         return self._maybe_registry("_builtin_plotchar", args, None) if self._pine_need_plot_ids else None
+
+    def _builtin_plotarrow(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
+        """Capture plotarrow series (numeric up/down, None when na)."""
+        if self._pine_light_plots:
+            return None
+        kwargs = kwargs or {}
+        raw = kwargs.get("series", args[0] if args else None)
+        value = _plot_numeric_cell(_unwrap_scalar(raw))
+        if self._plot_capture_i < len(self._plot_value_cols):
+            self._append_plot_value(value)
+            if self._pine_need_plot_ids:
+                return self._maybe_registry("_builtin_plotarrow", args, kwargs)
+            return None
+        title = kwargs.get("title", args[1] if len(args) > 1 else "arrow")
+        color = _unwrap_scalar(kwargs.get("color", args[2] if len(args) > 2 else None))
+        self._capture_plot(
+            "plotarrow",
+            value,
+            str(title or "") or "arrow",
+            _serialize_color(color) if color is not None else None,
+            style="arrow",
+        )
+        return self._maybe_registry("_builtin_plotarrow", args, kwargs) if self._pine_need_plot_ids else None
+
+    def _builtin_barcolor(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
+        """Capture barcolor per-bar color series."""
+        if self._pine_light_plots:
+            return None
+        kwargs = kwargs or {}
+        raw = kwargs.get("color", args[0] if args else None)
+        color_s = _serialize_color(_unwrap_scalar(raw))
+        if self._plot_capture_i < len(self._plot_value_cols):
+            self._append_plot_value(color_s)
+            if self._pine_need_plot_ids:
+                return self._maybe_registry("_builtin_barcolor", args, kwargs)
+            return None
+        title = kwargs.get("title", "barcolor")
+        self._capture_plot(
+            "barcolor",
+            color_s,
+            str(title or "") or "barcolor",
+            color_s,
+            style="barcolor",
+        )
+        return self._maybe_registry("_builtin_barcolor", args, kwargs) if self._pine_need_plot_ids else None
+
+    def _builtin_plotbar(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
+        """Capture plotbar as a close series + plotbar kind (AXIS overlay)."""
+        if self._pine_light_plots:
+            return None
+        kwargs = kwargs or {}
+        close = kwargs.get("close", args[3] if len(args) > 3 else (args[0] if args else None))
+        value = _plot_numeric_cell(_unwrap_scalar(close))
+        if self._plot_capture_i < len(self._plot_value_cols):
+            self._append_plot_value(value)
+            if self._pine_need_plot_ids:
+                return self._maybe_registry("_builtin_plotbar", args, kwargs)
+            return None
+        title = kwargs.get("title", args[4] if len(args) > 4 else "bars")
+        color = _unwrap_scalar(kwargs.get("color", args[5] if len(args) > 5 else None))
+        self._capture_plot(
+            "plotbar",
+            value,
+            str(title or "") or "bars",
+            _serialize_color(color) if color is not None else None,
+            style="bars",
+        )
+        return self._maybe_registry("_builtin_plotbar", args, kwargs) if self._pine_need_plot_ids else None
+
+    def _builtin_plotcandle(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
+        """Capture plotcandle as a close series + plotcandle kind."""
+        if self._pine_light_plots:
+            return None
+        kwargs = kwargs or {}
+        close = kwargs.get("close", args[3] if len(args) > 3 else (args[0] if args else None))
+        value = _plot_numeric_cell(_unwrap_scalar(close))
+        if self._plot_capture_i < len(self._plot_value_cols):
+            self._append_plot_value(value)
+            if self._pine_need_plot_ids:
+                return self._maybe_registry("_builtin_plotcandle", args, kwargs)
+            return None
+        title = kwargs.get("title", args[4] if len(args) > 4 else "candles")
+        color = _unwrap_scalar(kwargs.get("color", args[5] if len(args) > 5 else None))
+        self._capture_plot(
+            "plotcandle",
+            value,
+            str(title or "") or "candles",
+            _serialize_color(color) if color is not None else None,
+            style="candles",
+        )
+        return self._maybe_registry("_builtin_plotcandle", args, kwargs) if self._pine_need_plot_ids else None
 
     def reset_plots(self):
         # Per-bar index reset; columns accumulate across the run.

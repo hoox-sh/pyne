@@ -388,6 +388,7 @@ _DRAWING_FUNCS = frozenset(
         "box_new",
         "table_new",
         "polyline_new",
+        "linefill_new",
         "label_delete",
         "line_delete",
         "box_delete",
@@ -6385,6 +6386,9 @@ class CompilerVisitor(NodeVisitor):
             self._note_visual_series()
         elif kind == "barcolor":
             parts.append(f"'color': {args[0] if args else 'None'}")
+            if "title" in kwargs:
+                parts.append(f"'title': {kwargs['title']}")
+            self._note_visual_series()
         elif kind == "label":
             parts.append(f"'x': {args[0] if args else '__bar_idx'}")
             parts.append(f"'y': {args[1] if len(args) > 1 else 'np.nan'}")
@@ -6394,9 +6398,47 @@ class CompilerVisitor(NodeVisitor):
         elif kind == "line":
             for i, key in enumerate(("x1", "y1", "x2", "y2")):
                 parts.append(f"'{key}': {args[i] if i < len(args) else 'np.nan'}")
+            if "color" in kwargs:
+                parts.append(f"'color': {kwargs['color']}")
+            elif len(args) > 5:
+                parts.append(f"'color': {args[5]}")
         elif kind == "box":
             for i, key in enumerate(("left", "top", "right", "bottom")):
                 parts.append(f"'{key}': {args[i] if i < len(args) else 'np.nan'}")
+            if "bgcolor" in kwargs:
+                parts.append(f"'bgcolor': {kwargs['bgcolor']}")
+            if "border_color" in kwargs:
+                parts.append(f"'border_color': {kwargs['border_color']}")
+            if "color" in kwargs:
+                parts.append(f"'color': {kwargs['color']}")
+        elif kind == "polyline":
+            parts.append(f"'points': {args[0] if args else '[]'}")
+            parts.append(f"'closed': {args[1] if len(args) > 1 else 'False'}")
+            if "color" in kwargs:
+                parts.append(f"'color': {kwargs['color']}")
+            elif len(args) > 3:
+                parts.append(f"'color': {args[3]}")
+        elif kind == "linefill":
+            parts.append(f"'line1': {args[0] if args else 'None'}")
+            parts.append(f"'line2': {args[1] if len(args) > 1 else 'None'}")
+            if "color" in kwargs:
+                parts.append(f"'color': {kwargs['color']}")
+            elif len(args) > 2:
+                parts.append(f"'color': {args[2]}")
+        elif kind == "table":
+            parts.append(f"'position': {args[0] if args else repr('top_right')}")
+            parts.append(f"'columns': {args[1] if len(args) > 1 else 0}")
+            parts.append(f"'rows': {args[2] if len(args) > 2 else 0}")
+        elif kind in ("plotbar", "plotcandle"):
+            for i, key in enumerate(("open", "high", "low", "close")):
+                parts.append(f"'{key}': {args[i] if i < len(args) else 'np.nan'}")
+            if "title" in kwargs:
+                parts.append(f"'title': {kwargs['title']}")
+            elif len(args) > 4:
+                parts.append(f"'title': {args[4]}")
+            if "color" in kwargs:
+                parts.append(f"'color': {kwargs['color']}")
+            self._note_visual_series()
         elif kind in ("plotshape", "plotchar", "plotarrow"):
             parts.append(f"'series': {args[0] if args else 'np.nan'}")
             if "title" in kwargs:
