@@ -17,18 +17,22 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Free-tier abuse guards for unauthenticated ``/run`` paths.
+"""Optional free-tier abuse guards for unauthenticated ``/run`` paths.
 
 Audit 2026-08-10 Wave A: free compute (``POST /run``, ``/run/batch``,
 ``/compile/prewarm``, ``WS /ws/run``) had no bar caps, IP rate limits, or
-concurrency gates beyond the 5 MB body limit. This module enforces:
+concurrency gates beyond the 5 MB body limit. When enabled, this module
+enforces:
 
 * max OHLCV bar count
 * max Pine script character length
 * per-process concurrency semaphore
 * sliding-window IP rate limit (best-effort; multi-worker needs redis later)
+* chart / mock / none data sources only
 
-All limits are overridable via env for local demos and load tests.
+**Off by default.** Set ``FREE_TIER_LIMITS=1`` (or ``true`` / ``yes`` / ``on``)
+to turn the suite on. Individual knobs still apply only while the master
+switch is enabled; ``0`` on a numeric knob disables that knob.
 """
 
 from __future__ import annotations
@@ -53,8 +57,25 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+def _env_truthy(name: str, *, default: bool = False) -> bool:
+    """Parse common truthy env strings (``1``/``true``/``yes``/``on``)."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def free_tier_limits_enabled() -> bool:
+    """True when the free-tier guard suite is opted in.
+
+    Default **off** (self-hosted / AXIS local). Public hosts should set
+    ``FREE_TIER_LIMITS=1``.
+    """
+    return _env_truthy("FREE_TIER_LIMITS")
+
+
 def max_free_bars() -> int:
-    """Max OHLCV bars on free run paths (default 5000)."""
+    """Max OHLCV bars on free run paths (default 5000 when the suite is on)."""
     return _env_int("FREE_MAX_BARS", 5000)
 
 
@@ -156,7 +177,10 @@ def check_free_rate_limit() -> tuple[dict[str, Any], int] | None:
     """Return ``(error_body, status)`` if rate-limited, else ``None``.
 
     Callers wrap the body with ``flask.jsonify`` as needed.
+    No-op when :func:`free_tier_limits_enabled` is false.
     """
+    if not free_tier_limits_enabled():
+        return None
     ip = client_ip()
     if _RATE.allow(ip):
         return None
@@ -175,7 +199,13 @@ def check_free_rate_limit() -> tuple[dict[str, Any], int] | None:
 
 
 def acquire_free_slot() -> tuple[dict[str, Any], int] | None:
-    """Try to take a concurrency slot; return error body or None on success."""
+    """Try to take a concurrency slot; return error body or None on success.
+
+    No-op when :func:`free_tier_limits_enabled` is false (and :func:`release_free_slot`
+    remains safe to call).
+    """
+    if not free_tier_limits_enabled():
+        return None
     if _GATE.try_acquire():
         return None
     return (
@@ -207,7 +237,10 @@ def validate_free_run_bounds(
 
     Returns ``(error_body, status)`` on violation, else ``None``.
     Bodies are plain dicts (no Flask request context required).
+    No-op when :func:`free_tier_limits_enabled` is false.
     """
+    if not free_tier_limits_enabled():
+        return None
     max_chars = max_free_script_chars()
     if max_chars > 0:
         sources: list[str] = []

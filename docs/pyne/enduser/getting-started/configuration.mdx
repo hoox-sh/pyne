@@ -178,7 +178,7 @@ Pro API `/run` optional fields:
 
 Operators can also `POST /compile/prewarm` or run `pyne prewarm` (and `pyne prewarm script.pine …`) to warm Numba builtins / script IR caches before interactive traffic. Requires `pip install "hoox-pyne[compile]"` for full Numba warm-up.
 
-Free-tier Pro API guards (unauthenticated `/run`): `FREE_MAX_BARS`, `FREE_MAX_SCRIPT_CHARS`, `FREE_MAX_CONCURRENT`, `FREE_RATE_LIMIT` / `FREE_RATE_WINDOW_SEC` — see [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage).
+Free-tier Pro API guards (unauthenticated `/run`) are **off by default**. Set `FREE_TIER_LIMITS=1` to enable `FREE_MAX_BARS`, `FREE_MAX_SCRIPT_CHARS`, `FREE_MAX_CONCURRENT`, `FREE_RATE_LIMIT` / `FREE_RATE_WINDOW_SEC` — see [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage).
 
 ### Editor / LSP client settings
 

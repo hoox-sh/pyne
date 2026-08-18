@@ -34,6 +34,8 @@ services:
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
       GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
       GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-60}
+      # Public hosts: opt in to unauthenticated /run caps. Override with 0 to disable.
+      FREE_TIER_LIMITS: ${FREE_TIER_LIMITS:-1}
       PYTHONPATH: /app/src:/app
     # Compose merges volumes by mount *target*; !override replaces the base
     # list so ./src and ./backend binds from docker-compose.yml are dropped.

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`strategy.position_avg_price`** — repeating `strategy.entry("L")` no longer overwrites a filled position (avg was tracking last close). Extra same-direction entries only when `pyramiding` allows; interpret and compile.
+- **`strategy()` leverage vs margin** — when `leverage=` is set it wins (margins derived from it). `margin_long` / `margin_short` only apply when leverage is omitted. Compile broker accepts those kwargs the same way.
+
+### Changed
+- **Free-tier `/run` guards are opt-in** — `FREE_TIER_LIMITS` (default off). Bar/script/rate/concurrency and chart/mock-only `data_source` apply only when set to `1`/`true`/`yes`/`on`. Production compose still enables them (`FREE_TIER_LIMITS=1`). Health `features.free_tier_limits` reports the flag.
+
 ## [0.3.13] - 2026-08-17
 
 ### Fixed

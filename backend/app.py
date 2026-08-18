@@ -316,7 +316,8 @@ def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
     Returns (body_dict, http_status). Body always includes ``status``.
     Default ``mode`` is ``auto`` (prefer warm compile; interpret on fallback).
 
-    Free-tier abuse guards (audit 2026-08-10): bar/script caps, IP rate limit,
+    Optional free-tier abuse guards (audit 2026-08-10; off unless
+    ``FREE_TIER_LIMITS`` is truthy): bar/script caps, IP rate limit,
     concurrency gate, chart/mock-only data sources. See
     :mod:`backend.middleware.free_limits`.
     """
@@ -524,6 +525,13 @@ def _execute_run_payload_inner(
     return resp, 200
 
 
+def _free_tier_limits_flag() -> bool:
+    """Whether unauthenticated /run guards are opted in (off by default)."""
+    from backend.middleware.free_limits import free_tier_limits_enabled
+
+    return free_tier_limits_enabled()
+
+
 def _compile_health_section() -> dict[str, Any]:
     """Compile capability + cache/prewarm flags for readiness probes (H2)."""
     try:
@@ -587,6 +595,7 @@ def _health_payload() -> dict[str, Any]:
             "warm_compile": True,
             "default_run_mode": "auto",
             "optimize": True,
+            "free_tier_limits": _free_tier_limits_flag(),
         },
         "compile": _compile_health_section(),
         "endpoints": endpoints,

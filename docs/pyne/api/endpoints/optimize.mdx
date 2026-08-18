@@ -23,7 +23,7 @@ AXIS Hyperparameter Optimisation calls this when the active engine is the Pro AP
 
 ```mermaid
 flowchart TD
-  REQ[POST /optimize] --> GATE[free-tier bars / rate / slot]
+  REQ[POST /optimize] --> GATE[optional FREE_TIER_LIMITS bars / rate / slot]
   GATE --> KIND{strategy?}
   KIND -->|no| ERR[NOT_A_STRATEGY]
   KIND -->|yes| PARSE[parse once — host cache]

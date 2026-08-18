@@ -26,7 +26,7 @@ description: "Free evaluate endpoints: single-script /run and multi-script /run/
 
 ## Abstract
 
-`/run` is the primary free evaluate entry: accept Pine source + bar list, optionally wire `request.*` data sources, execute via package **`pynescript.runtime.Runtime`** (Pro API uses `backend.runtime` re-export), and return plots/series/events/drawings/**alerts**. `/run/batch` runs up to eight scripts on the **same** OHLCV (AXIS multi-indicator), isolating per-script errors so one failure does not discard siblings. Free paths enforce **bar/script caps, rate limit, concurrency, and chart/mock-only data** (`backend/middleware/free_limits.py`). Optional **L2 webhooks** POST last-bar (default) `alert()` / `alertcondition()` firings to `webhook_url` or env `ALERT_WEBHOOK_URL` (SSRF-safe).
+`/run` is the primary free evaluate entry: accept Pine source + bar list, optionally wire `request.*` data sources, execute via package **`pynescript.runtime.Runtime`** (Pro API uses `backend.runtime` re-export), and return plots/series/events/drawings/**alerts**. `/run/batch` runs up to eight scripts on the **same** OHLCV (AXIS multi-indicator), isolating per-script errors so one failure does not discard siblings. Optional **free-tier guards** (`FREE_TIER_LIMITS`, default off) enforce bar/script caps, rate limit, concurrency, and chart/mock-only data (`backend/middleware/free_limits.py`). Optional **L2 webhooks** POST last-bar (default) `alert()` / `alertcondition()` firings to `webhook_url` or env `ALERT_WEBHOOK_URL` (SSRF-safe).
 
 ## Conceptual model
 
@@ -132,9 +132,9 @@ Optional `bid` / `ask` per bar update runtime bid/ask state.
 | 400 | `NO_SCRIPT` / `NO_DATA` | Empty after defaults |
 | 400 | `DATA_SOURCE_ERROR` | `resolve_request_sources` failed |
 | 400 | `WEBHOOK_URL_BLOCKED` | `webhook_url` is private/loopback/metadata (SSRF denylist) |
-| 403 | `DATA_SOURCE_FORBIDDEN` | Free path rejected live provider (`ccxt` / `yahoo` / …) |
-| 413 | `TOO_MANY_BARS` / `SCRIPT_TOO_LARGE` | Exceeded `FREE_MAX_BARS` (5000) or `FREE_MAX_SCRIPT_CHARS` (256 KiB) |
-| 429 | `RATE_LIMITED` / `TOO_MANY_REQUESTS` | Free IP rate (60 / 60s) or concurrency (4) |
+| 403 | `DATA_SOURCE_FORBIDDEN` | Free path rejected live provider (`ccxt` / `yahoo` / …) — only when `FREE_TIER_LIMITS` is on |
+| 413 | `TOO_MANY_BARS` / `SCRIPT_TOO_LARGE` | Exceeded `FREE_MAX_BARS` (5000) or `FREE_MAX_SCRIPT_CHARS` (256 KiB) — only when `FREE_TIER_LIMITS` is on |
+| 429 | `RATE_LIMITED` / `TOO_MANY_REQUESTS` | Free IP rate (60 / 60s) or concurrency (4) — only when `FREE_TIER_LIMITS` is on |
 | 500 | `EXECUTION_ERROR` | Runtime returned `error` key; body may include `error_kind` / `error_type` / `error_bar` |
 
 ### `POST /run/batch`
@@ -179,7 +179,7 @@ Paths: `backend/app.py` (`run_pine_script`, `run_pine_script_batch`, `compile_pr
 
 ## Invariants and edge cases
 
-1. **No API key** on these routes — free-tier guards still apply (see [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage)); protect further at the edge if needed.
+1. **No API key** on these routes — free-tier guards apply only when `FREE_TIER_LIMITS` is on (see [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage)); protect further at the edge if needed.
 2. **Batch isolates exceptions** per script (`try/except` around `runtime.run`).
 3. **Whitespace-only `data_source`** coerced to `None` → chart default; free paths reject live providers (ccxt/yahoo/…).
 4. **Compile mode** may omit alert side effects (`alerts: []`); use interpret/`auto` for alerts.

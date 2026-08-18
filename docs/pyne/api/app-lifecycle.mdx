@@ -95,7 +95,7 @@ Environment:
 ### Hard limits
 
 - **`MAX_CONTENT_LENGTH = 5 * 1024 * 1024`** — reject oversized bodies before JSON parse fills memory (audit 2026-07-05 / S1).
-- Free compute also gated by `backend/middleware/free_limits.py`: max bars (`FREE_MAX_BARS`, default 5000), script chars (`FREE_MAX_SCRIPT_CHARS`, 256 KiB), per-IP rate (`FREE_RATE_LIMIT` / `FREE_RATE_WINDOW_SEC`, 60 / 60s), concurrency (`FREE_MAX_CONCURRENT`, 4). Chart/`mock` data sources only.
+- Free compute is optionally gated by `backend/middleware/free_limits.py` when `FREE_TIER_LIMITS` is truthy (default **off**): max bars (`FREE_MAX_BARS`, 5000), script chars (`FREE_MAX_SCRIPT_CHARS`, 256 KiB), per-IP rate (`FREE_RATE_LIMIT` / `FREE_RATE_WINDOW_SEC`, 60 / 60s), concurrency (`FREE_MAX_CONCURRENT`, 4). Chart/`mock` data sources only. Production compose sets `FREE_TIER_LIMITS=1`.
 - CORS methods: `GET`, `POST`, `OPTIONS`, `HEAD`.
 - Allow headers: `Content-Type`, `Authorization`, `X-Admin-Token`, `Accept`.
 - `supports_credentials=False`.

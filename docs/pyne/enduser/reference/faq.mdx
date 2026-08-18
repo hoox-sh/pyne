@@ -133,7 +133,7 @@ Or providers in Python via `pynescript.util.data.get_provider`.
 
 ### What is the Pro API free tier?
 
-`POST /run` and `POST /run/batch` are exposed as free evaluate endpoints (still your CPU if self-hosted). Default body `mode` is **`auto`** (prefer warm compile; fall back to interpret). Responses include `alerts[]` when scripts call `alert()` / true `alertcondition()` (interpret path). Optional L2 webhooks: body `webhook_url` or env `ALERT_WEBHOOK_URL`. Preview/backtest routes are Pro-tier with API keys.
+`POST /run` and `POST /run/batch` are exposed as free evaluate endpoints (still your CPU if self-hosted). Default body `mode` is **`auto`** (prefer warm compile; fall back to interpret). Bar/script/rate/concurrency caps are **off unless** you set `FREE_TIER_LIMITS=1`. Responses include `alerts[]` when scripts call `alert()` / true `alertcondition()` (interpret path). Optional L2 webhooks: body `webhook_url` or env `ALERT_WEBHOOK_URL`. Preview/backtest routes are Pro-tier with API keys.
 
 ### How do interpret and compile compare?
 

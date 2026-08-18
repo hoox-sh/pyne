@@ -29,8 +29,26 @@ import pytest
 from backend.middleware.auth import APIKeyStore
 from backend.middleware.auth import reset_key_store
 from backend.middleware.free_limits import free_data_source_allowed
+from backend.middleware.free_limits import free_tier_limits_enabled
 from backend.middleware.free_limits import max_free_bars
 from backend.middleware.free_limits import validate_free_run_bounds
+
+
+def test_free_tier_limits_disabled_by_default(monkeypatch) -> None:
+    monkeypatch.delenv("FREE_TIER_LIMITS", raising=False)
+    assert free_tier_limits_enabled() is False
+    assert validate_free_run_bounds(ohlcv=[{"close": 1}] * 10_001) is None
+    assert validate_free_run_bounds(script="x" * (256 * 1024 + 1)) is None
+    assert validate_free_run_bounds(data_source="ccxt") is None
+
+
+def test_free_tier_limits_opt_in_truthy(monkeypatch) -> None:
+    for raw in ("1", "true", "YES", "On"):
+        monkeypatch.setenv("FREE_TIER_LIMITS", raw)
+        assert free_tier_limits_enabled() is True
+    for raw in ("0", "false", "no", "off", ""):
+        monkeypatch.setenv("FREE_TIER_LIMITS", raw)
+        assert free_tier_limits_enabled() is False
 
 
 def test_free_data_source_allowlist() -> None:
@@ -44,6 +62,7 @@ def test_free_data_source_allowlist() -> None:
 
 
 def test_validate_free_run_bounds_bars(monkeypatch) -> None:
+    monkeypatch.setenv("FREE_TIER_LIMITS", "1")
     monkeypatch.setenv("FREE_MAX_BARS", "10")
     # Re-read via function (reads env each call)
     assert max_free_bars() == 10
@@ -55,6 +74,7 @@ def test_validate_free_run_bounds_bars(monkeypatch) -> None:
 
 
 def test_validate_free_run_bounds_script(monkeypatch) -> None:
+    monkeypatch.setenv("FREE_TIER_LIMITS", "1")
     monkeypatch.setenv("FREE_MAX_SCRIPT_CHARS", "20")
     err = validate_free_run_bounds(script="x" * 21)
     assert err is not None
@@ -63,7 +83,8 @@ def test_validate_free_run_bounds_script(monkeypatch) -> None:
     assert body["code"] == "SCRIPT_TOO_LARGE"
 
 
-def test_validate_free_run_bounds_data_source() -> None:
+def test_validate_free_run_bounds_data_source(monkeypatch) -> None:
+    monkeypatch.setenv("FREE_TIER_LIMITS", "1")
     err = validate_free_run_bounds(data_source="ccxt")
     assert err is not None
     body, code = err
@@ -152,6 +173,7 @@ def test_run_rejects_ssrf_webhook(client, monkeypatch) -> None:
 
 
 def test_run_rejects_too_many_bars(client, monkeypatch) -> None:
+    monkeypatch.setenv("FREE_TIER_LIMITS", "1")
     monkeypatch.setenv("FREE_MAX_BARS", "3")
     bars = [
         {"open": 1, "high": 1, "low": 1, "close": 1, "time": i, "volume": 1}
@@ -166,7 +188,34 @@ def test_run_rejects_too_many_bars(client, monkeypatch) -> None:
     assert resp.json["code"] == "TOO_MANY_BARS"
 
 
-def test_run_rejects_external_data_source(client) -> None:
+def test_health_reports_free_tier_limits_flag(client, monkeypatch) -> None:
+    monkeypatch.delenv("FREE_TIER_LIMITS", raising=False)
+    off = client.get("/health")
+    assert off.status_code == 200
+    assert off.json["features"]["free_tier_limits"] is False
+    monkeypatch.setenv("FREE_TIER_LIMITS", "1")
+    on = client.get("/health")
+    assert on.json["features"]["free_tier_limits"] is True
+
+
+def test_run_skips_bar_cap_when_limits_off(client, monkeypatch) -> None:
+    monkeypatch.delenv("FREE_TIER_LIMITS", raising=False)
+    monkeypatch.setenv("FREE_MAX_BARS", "3")
+    bars = [
+        {"open": 1, "high": 1, "low": 1, "close": 1, "time": i, "volume": 1}
+        for i in range(5)
+    ]
+    script = '//@version=5\nindicator("t")\nplot(close)\n'
+    resp = client.post(
+        "/run",
+        json={"script": script, "data": bars, "mode": "interpret"},
+    )
+    assert resp.status_code != 413
+    assert resp.json.get("code") != "TOO_MANY_BARS"
+
+
+def test_run_rejects_external_data_source(client, monkeypatch) -> None:
+    monkeypatch.setenv("FREE_TIER_LIMITS", "1")
     bars = [
         {"open": 1, "high": 1, "low": 1, "close": 1, "time": 1, "volume": 1},
         {"open": 1, "high": 1, "low": 1, "close": 1, "time": 2, "volume": 1},
@@ -187,7 +236,11 @@ def test_run_rejects_external_data_source(client) -> None:
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    """Minimal Flask test client with isolated key store + free limits disabled for setup."""
+    """Minimal Flask test client with isolated key store.
+
+    Rate/concurrency knobs are zeroed so tests that opt into
+    ``FREE_TIER_LIMITS`` still do not trip IP/slot gates.
+    """
     monkeypatch.setenv("ADMIN_TOKEN", "ci-test-admin-token")
     monkeypatch.setenv("STORE_BACKEND", "json")
     monkeypatch.setenv("API_KEY_STORE", str(tmp_path / "api_keys.json"))
