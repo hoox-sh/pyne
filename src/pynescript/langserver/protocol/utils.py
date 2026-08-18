@@ -23,6 +23,7 @@ Public helpers used by feature handlers:
 
 - :func:`position_from_offset` / :func:`offset_from_position` — coordinate conversion
 - :func:`get_word_at_position` — identifier (including ``module.member``) under cursor
+- :func:`get_identifier_segment_at_position` — dotted-path segment under cursor
 - :func:`get_trigger_char` — character immediately before the cursor
 - :func:`trailing_ident` — identifier / dotted path at the end of a line prefix
 - :func:`extract_module_prefix` / :func:`build_filter_text` — completion helpers
@@ -114,6 +115,39 @@ def get_word_at_position(text: str, line: int, column: int) -> tuple[str, int, i
             return (match.group(), start, end)
 
     return ("", column, column)
+
+
+def get_identifier_segment_at_position(text: str, line: int, column: int) -> tuple[str, int, int, str]:
+    """Split a dotted word so the segment under the cursor is distinct.
+
+    ``ta.sma`` with the cursor on ``ta`` yields ``("ta", start, start+2, "ta.sma")``.
+    A non-dotted identifier returns the same string for segment and full word.
+
+    Returns:
+        ``(segment, seg_start, seg_end, full_word)``. Empty segment when there
+        is no identifier at *column*.
+    """
+    word, start, end = get_word_at_position(text, line, column)
+    if not word:
+        return ("", start, end, "")
+    if "." not in word:
+        return (word, start, end, word)
+
+    rel = max(0, min(column - start, len(word)))
+    offset = 0
+    last = word
+    last_start = start
+    last_end = end
+    for part in word.split("."):
+        part_start = offset
+        part_end = offset + len(part)
+        last = part
+        last_start = start + part_start
+        last_end = start + part_end
+        if part_start <= rel <= part_end:
+            return (part, last_start, last_end, word)
+        offset = part_end + 1
+    return (last, last_start, last_end, word)
 
 
 def get_trigger_char(text: str, line: int, column: int) -> str | None:

@@ -274,6 +274,101 @@ s = Side.buy
         assert "enum" in result.contents.value
         assert "user-defined enum" in result.contents.value.lower()
 
+    def test_handle_hover_if_keyword(self) -> None:
+        """Hover on ``if`` shows a sentence, not a one-word stub."""
+        source = "//@version=6\nindicator('T')\nif close > open\n    x = 1\n"
+        params = lsp.HoverParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=2, character=1),  # on "if"
+        )
+        result = handle_hover(params, source)
+        assert result is not None
+        assert isinstance(result.contents, lsp.MarkupContent)
+        text = result.contents.value.lower()
+        assert "if" in text
+        assert "condition" in text or "branch" in text
+
+    def test_handle_hover_var_keyword(self) -> None:
+        """Hover on ``var`` documents the persistent declaration mode."""
+        source = "//@version=6\nindicator('T')\nvar float x = close\n"
+        params = lsp.HoverParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=2, character=1),  # on "var"
+        )
+        result = handle_hover(params, source)
+        assert result is not None
+        assert isinstance(result.contents, lsp.MarkupContent)
+        text = result.contents.value.lower()
+        assert "var" in text
+        assert "persist" in text or "across bars" in text
+
+    def test_handle_hover_series_qualifier(self) -> None:
+        """Hover on ``series`` documents the type qualifier."""
+        source = "//@version=6\nindicator('T')\nseries float x = close\n"
+        params = lsp.HoverParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=2, character=2),  # on "series"
+        )
+        result = handle_hover(params, source)
+        assert result is not None
+        assert isinstance(result.contents, lsp.MarkupContent)
+        text = result.contents.value.lower()
+        assert "series" in text
+        assert "qualifier" in text or "bar" in text
+
+    def test_handle_hover_float_type(self) -> None:
+        """Hover on ``float`` in a typed decl is the type, not ``float(...)``."""
+        source = "//@version=6\nindicator('T')\nfloat len = close\n"
+        params = lsp.HoverParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=2, character=2),  # on "float"
+        )
+        result = handle_hover(params, source)
+        assert result is not None
+        assert isinstance(result.contents, lsp.MarkupContent)
+        text = result.contents.value.lower()
+        assert "float" in text
+        assert "type" in text
+        assert "float(...)" not in result.contents.value
+
+    def test_handle_hover_ta_module(self) -> None:
+        """Hover on ``ta`` in ``ta.sma`` documents the namespace."""
+        source = "//@version=6\nindicator('T')\nplot(ta.sma(close, 14))\n"
+        params = lsp.HoverParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=2, character=5),  # on "ta"
+        )
+        result = handle_hover(params, source)
+        assert result is not None
+        assert isinstance(result.contents, lsp.MarkupContent)
+        text = result.contents.value.lower()
+        assert "ta" in text
+        assert "namespace" in text or "technical" in text
+
+    def test_handle_hover_user_function(self) -> None:
+        """Hover on a user function shows kind plus the source signature."""
+        source = "//@version=6\nindicator('T')\nfoo(a) => a\nplot(foo(1))\n"
+        decl_params = lsp.HoverParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=2, character=1),  # on "foo" in decl
+        )
+        result = handle_hover(decl_params, source)
+        assert result is not None
+        assert isinstance(result.contents, lsp.MarkupContent)
+        text = result.contents.value
+        assert "foo" in text
+        assert "function" in text.lower()
+        assert "foo(a)" in text
+
+        use_params = lsp.HoverParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=3, character=6),  # on "foo" in plot(foo(1))
+        )
+        use_hover = handle_hover(use_params, source)
+        assert use_hover is not None
+        assert isinstance(use_hover.contents, lsp.MarkupContent)
+        assert "foo(a)" in use_hover.contents.value
+
 
 class TestDefinitionHandler:
     """Test go-to-definition request handling."""

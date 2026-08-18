@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Improved
+- **LSP hover** — types/qualifiers (`series` / `float`), namespaces (`ta` in `ta.sma`), user functions/assignments/`type`/`enum`, and longer keyword briefs. Builtin cards keep signature fence + params when metadata has them.
+
 ## [0.3.14] - 2026-08-18
 
 ### Fixed
