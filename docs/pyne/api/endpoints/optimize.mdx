@@ -102,7 +102,7 @@ Full event arrays are **not** returned (memory). Re-run the winner via `/run` + 
 | 400 | `INVALID_VALIDATION` | `validation.mode` not `holdout` \| `walk-forward` \| `in-sample` |
 | 400 | `TOO_MANY_RUNS` | Estimated runs exceed 400 |
 | 400 | `GRID_TOO_LARGE` | Grid sampler product exceeds 200 cells |
-| 413 / 429 | same as `/run` | Free-tier caps |
+| 413 / 429 | same as `/run` | Free-tier caps — only when `FREE_TIER_LIMITS` is on |
 
 ## Invariants
 

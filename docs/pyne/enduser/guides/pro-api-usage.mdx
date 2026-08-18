@@ -26,7 +26,7 @@ description: "Call the PYNE Flask Pro API as a consumer: health, /run, /run/batc
 
 ## Abstract
 
-The Pro API is the **HTTP evaluate contract** for PYNE: POST Pine source plus OHLCV, receive plots, series, events, drawings, and **alerts**. Free-tier evaluate endpoints (`/run`, `/run/batch`) are usable without a key but are **guarded** (bar/script caps, IP rate limit, concurrency, chart/mock-only free data, SSRF-safe webhooks). Optional **L2 alert webhooks** POST last-bar firings to `webhook_url` or `ALERT_WEBHOOK_URL`. Pro preview/backtest routes track usage via API keys. This page is for **callers** (AXIS, scripts, workers). Server lifecycle and auth design are under [API](/pyne/docs/api).
+The Pro API is the **HTTP evaluate contract** for PYNE: POST Pine source plus OHLCV, receive plots, series, events, drawings, and **alerts**. Free-tier evaluate endpoints (`/run`, `/run/batch`) are usable without a key. Bar/script/rate/concurrency and chart/mock-only data guards apply **only when** `FREE_TIER_LIMITS` is truthy (`1` / `true` / `yes` / `on`); default **off**. Production compose sets `${FREE_TIER_LIMITS:-1}`. Webhook URLs stay SSRF-safe regardless. Optional **L2 alert webhooks** POST last-bar firings to `webhook_url` or `ALERT_WEBHOOK_URL`. Pro preview/backtest routes track usage via API keys. This page is for **callers** (AXIS, scripts, workers). Server lifecycle and auth design are under [API](/pyne/docs/api).
 
 ## Conceptual model
 

@@ -181,7 +181,7 @@ Paths: `backend/app.py` (`run_pine_script`, `run_pine_script_batch`, `compile_pr
 
 1. **No API key** on these routes — free-tier guards apply only when `FREE_TIER_LIMITS` is on (see [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage)); protect further at the edge if needed.
 2. **Batch isolates exceptions** per script (`try/except` around `runtime.run`).
-3. **Whitespace-only `data_source`** coerced to `None` → chart default; free paths reject live providers (ccxt/yahoo/…).
+3. **Whitespace-only `data_source`** coerced to `None` → chart default; free paths reject live providers (ccxt/yahoo/…) when `FREE_TIER_LIMITS` is on.
 4. **Compile mode** may omit alert side effects (`alerts: []`); use interpret/`auto` for alerts.
 5. Schema rejects extras — clients must not send AXIS-only fields without updating schema.
 6. **Webhook delivery is best-effort** — evaluate still returns `status: success` if the hook fails; check `alert_forward`.

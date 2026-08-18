@@ -28,9 +28,13 @@ import pytest
 
 from backend.middleware.auth import APIKeyStore
 from backend.middleware.auth import reset_key_store
+from backend.middleware.free_limits import _GATE
+from backend.middleware.free_limits import acquire_free_slot
+from backend.middleware.free_limits import check_free_rate_limit
 from backend.middleware.free_limits import free_data_source_allowed
 from backend.middleware.free_limits import free_tier_limits_enabled
 from backend.middleware.free_limits import max_free_bars
+from backend.middleware.free_limits import release_free_slot
 from backend.middleware.free_limits import validate_free_run_bounds
 
 
@@ -40,6 +44,25 @@ def test_free_tier_limits_disabled_by_default(monkeypatch) -> None:
     assert validate_free_run_bounds(ohlcv=[{"close": 1}] * 10_001) is None
     assert validate_free_run_bounds(script="x" * (256 * 1024 + 1)) is None
     assert validate_free_run_bounds(data_source="ccxt") is None
+
+
+def test_free_slot_and_rate_noop_when_limits_off(monkeypatch) -> None:
+    """Slot/rate helpers must no-op when the master switch is unset or off."""
+    monkeypatch.setenv("FREE_RATE_LIMIT", "1")
+    monkeypatch.setenv("FREE_MAX_CONCURRENT", "1")
+
+    def _assert_noop() -> None:
+        assert acquire_free_slot() is None
+        assert _GATE._active == 0
+        release_free_slot()
+        assert _GATE._active == 0
+        assert check_free_rate_limit() is None
+
+    monkeypatch.delenv("FREE_TIER_LIMITS", raising=False)
+    _assert_noop()
+    for raw in ("0", "false", "no", "off", ""):
+        monkeypatch.setenv("FREE_TIER_LIMITS", raw)
+        _assert_noop()
 
 
 def test_free_tier_limits_opt_in_truthy(monkeypatch) -> None:

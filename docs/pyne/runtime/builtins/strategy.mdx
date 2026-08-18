@@ -87,7 +87,7 @@ if bar_index == 6
 
 Zero-arg builtins include `strategy.position_size` (signed: +long / −short), `position_avg_price`, `position_entry_name`, `opentrades` / `closedtrades` counts, `netprofit`, `openprofit`, `equity`, `cash`, gross win/loss stats, averages, max drawdown/runup, and max contracts held.
 
-`strategy.position_avg_price` is the VWAP of **open** entry fills. A filled position is **not** overwritten when `strategy.entry` is called again with the same id (`if cond: strategy.entry("L", strategy.long)` stays at the first fill when `pyramiding=0`). Extra same-direction fills only occur when `opentrades < pyramiding + 1`. Pending limit/stop orders with that id are still replaced. When flat the series is `na`.
+`strategy.position_avg_price` is the VWAP of **open** entry fills. A filled position is **not** overwritten when `strategy.entry` is called again with the same id (`if cond: strategy.entry("L", strategy.long)` stays at the first fill when `pyramiding=0`). Extra same-direction fills only occur when `opentrades < pyramiding + 1` (PYNE cap = `pyramiding + 1`; TV `pyramiding` default 1 ≡ PYNE 0). Pending limit/stop orders with that id are still replaced. When flat the series is `na`.
 
 ### Trade queries
 

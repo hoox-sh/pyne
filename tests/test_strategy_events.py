@@ -657,8 +657,11 @@ class TestPerBarEventReset:
     """Subtask 1.6: reset_events() clears the buffer per bar."""
 
     def test_per_bar_event_count(self) -> None:
-        """A script calling strategy.entry on every bar should produce
-        exactly one event per bar when reset_events() is called between bars."""
+        """Same-id ``strategy.entry`` every bar: one fill on bar 0, then no-ops.
+
+        Default pyramiding is 0, so later same-id market entries do not rewrite
+        the filled position. ``reset_events()`` still clears the buffer each bar.
+        """
         evaluator = NodeLiteralEvaluator()
         ast = helper.parse(
             'strategy.entry(id="L", direction="long", qty=1)',
@@ -669,6 +672,11 @@ class TestPerBarEventReset:
             evaluator.context["bar_index"] = i
             evaluator.context["time"] = i * 1000
             evaluator.visit(ast.body)
+            entries = [e for e in evaluator._strategy_state._events if e.kind == "entry"]
+            if i == 0:
+                assert len(entries) == 1
+            else:
+                assert len(entries) == 0
             # Simulate per-bar reset (as runtime.py does)
             evaluator.reset_events()
 

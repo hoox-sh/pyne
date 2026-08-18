@@ -697,7 +697,6 @@ class CompileStrategyBroker:
         comment: str | None,
         *,
         respect_pyramiding: bool = False,
-        replace_same_id: bool = False,
     ) -> bool:
         """Open / add / reverse a position.
 
@@ -713,11 +712,8 @@ class CompileStrategyBroker:
             Pending order fills keep averaging (``respect_pyramiding=False``).
             When ``pyramiding <= 0``, pending averages stay a **single** entry
             leg (``open_entry_count == 1``) with VWAP avg (F2).
-        replace_same_id:
-            Unused for filled positions (kept for caller compatibility).
             Pending same-id replacement is the ``pending_orders[id]`` upsert.
         """
-        del replace_same_id  # filled positions are not overwritten
         d = direction if direction == "long" or direction == "short" else _norm_dir(direction)
         if d is None:
             return False
@@ -1238,7 +1234,7 @@ class CompileStrategyBroker:
             if self.slippage_ticks > 0:
                 px = self._slip(px, d)
             self._open_or_add(
-                d, q, px, str(id), comment, respect_pyramiding=True, replace_same_id=True
+                d, q, px, str(id), comment, respect_pyramiding=True
             )
             return
 
@@ -1273,7 +1269,7 @@ class CompileStrategyBroker:
         else:
             px = float(px)
         self._open_or_add(
-            d, q, px, str(id), comment, respect_pyramiding=True, replace_same_id=True
+            d, q, px, str(id), comment, respect_pyramiding=True
         )
 
     def _resolve_trail_params(

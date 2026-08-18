@@ -1150,9 +1150,10 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         # Same-direction market entry while already in a position:
         # Pending same-id replacement is handled above (limit/stop overwrite).
         # A *filled* position is never overwritten — extra entries only when
-        # pyramiding allows (TV: max open entries = pyramiding + 1). Same-id
-        # re-entry with pyramiding=0 is a no-op so position_avg_price stays
-        # at the original fill (``if cond: strategy.entry("L", …)``).
+        # pyramiding allows (PYNE cap = pyramiding + 1; TV ``pyramiding``
+        # default 1 ≡ PYNE 0). Same-id re-entry with pyramiding=0 is a no-op
+        # so position_avg_price stays at the original fill
+        # (``if cond: strategy.entry("L", …)``).
         if st.position_direction == direction and st.position_size > 0:
             max_entries = int(st.pyramiding) + 1 if st.pyramiding is not None else 1
             if st.pyramiding > 0 and len(st.open_trades) < max_entries:

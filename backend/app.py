@@ -775,7 +775,8 @@ def optimize_strategy():
     """Search strategy ``input.*`` values over N interpret runs.
 
     Uses :func:`pynescript.optimize.run_study` (real Runtime, not
-    ``/backtest/quick``). Free-tier bar/rate/concurrency gates apply.
+    ``/backtest/quick``). Free-tier bar/rate/concurrency helpers no-op
+    unless ``FREE_TIER_LIMITS`` is truthy.
     """
     payload: dict[str, Any] = dict(request.get_json(silent=True) or {})
     body, status = execute_optimize_payload(payload)
@@ -797,7 +798,8 @@ def compile_prewarm():
     still works; numeric JIT skip is expected). Does not execute scripts on
     OHLCV — only populates IR / disk caches.
 
-    Rate-limited and concurrency-gated (audit 2026-08-10 free-tier guards).
+    Rate/concurrency helpers no-op unless ``FREE_TIER_LIMITS`` is truthy
+    (audit 2026-08-10 free-tier guards).
     """
     from backend.middleware.free_limits import acquire_free_slot
     from backend.middleware.free_limits import check_free_rate_limit

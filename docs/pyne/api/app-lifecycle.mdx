@@ -138,7 +138,7 @@ Both return JSON with `status: "error"`.
 | `backend/api/preview.py` | Pro preview + backtest blueprints |
 | `backend/api/lsp_http.py` | Free AXIS LSP-HTTP |
 | `backend/middleware/schemas.py` | Request validation for `/run*` and auth |
-| `backend/middleware/free_limits.py` | Bar / script / rate / concurrency caps |
+| `backend/middleware/free_limits.py` | Optional bar / script / rate / concurrency caps (`FREE_TIER_LIMITS`) |
 | `backend/requirements.txt` | Flask, flask-cors, numpy, matplotlib, … |
 
 Recommended production: gunicorn/uvicorn-class WSGI with multiple workers; for multi-worker key consistency prefer SQLite/Redis stores over the default in-memory/file singleton assumptions — see [auth](/pyne/docs/api/auth-and-keys).

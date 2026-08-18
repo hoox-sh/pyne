@@ -382,6 +382,37 @@ class TestStrategyCashAndPyramiding:
         assert ev._strategy_state.position_size == 2.0
         assert abs(_eval_expr(ev, "strategy.position_avg_price") - 110.0) < 1e-9
         assert _eval_expr(ev, "strategy.opentrades") == 2
+        assert sum(1 for e in ev._strategy_state._events if e.kind == "entry") == 2
+        _set_bar(ev, 2, 140.0)
+        m["strategy.entry"](["L", "long", 1.0])
+        assert ev._strategy_state.position_size == 2.0
+        assert abs(_eval_expr(ev, "strategy.position_avg_price") - 110.0) < 1e-9
+        assert _eval_expr(ev, "strategy.opentrades") == 2
+        assert sum(1 for e in ev._strategy_state._events if e.kind == "entry") == 2
+
+    def test_pending_same_id_limit_replaces_price(self) -> None:
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        m = ev._build_builtin_map()
+        m["strategy.entry"](["L", "long", 1.0], {"limit": 90.0})
+        assert list(ev._strategy_state.pending_orders) == ["L"]
+        assert ev._strategy_state.pending_orders["L"].limit_price == 90.0
+        m["strategy.entry"](["L", "long", 1.0], {"limit": 80.0})
+        assert list(ev._strategy_state.pending_orders) == ["L"]
+        assert ev._strategy_state.pending_orders["L"].limit_price == 80.0
+        assert ev._strategy_state.position_size == 0.0
+
+    def test_pending_same_id_stop_replaces_price(self) -> None:
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        m = ev._build_builtin_map()
+        m["strategy.entry"](["L", "long", 1.0], {"stop": 110.0})
+        assert list(ev._strategy_state.pending_orders) == ["L"]
+        assert ev._strategy_state.pending_orders["L"].stop_price == 110.0
+        m["strategy.entry"](["L", "long", 1.0], {"stop": 105.0})
+        assert list(ev._strategy_state.pending_orders) == ["L"]
+        assert ev._strategy_state.pending_orders["L"].stop_price == 105.0
+        assert ev._strategy_state.position_size == 0.0
 
     def test_pyramiding_zero_blocks_second_id(self) -> None:
         ev = NodeLiteralEvaluator()
@@ -572,6 +603,16 @@ class TestLeverageFuturesUI:
         m["strategy"](["T"], {"leverage": 10, "avg_price_model": "futures"})
         assert ev._strategy_state.leverage == 10.0
         assert abs(ev._strategy_state.margin_long - 10.0) < 1e-9  # 100/10
+        assert abs(ev._strategy_state.margin_short - 10.0) < 1e-9
+        assert _eval_expr(ev, "strategy.leverage") == 10.0
+
+    def test_leverage_wins_over_margin_when_both_set(self) -> None:
+        """Explicit leverage is the source of truth; margin_* are derived."""
+        ev = NodeLiteralEvaluator()
+        m = ev._build_builtin_map()
+        m["strategy"](["T"], {"leverage": 10, "margin_long": 50})
+        assert ev._strategy_state.leverage == 10.0
+        assert abs(ev._strategy_state.margin_long - 10.0) < 1e-9
         assert abs(ev._strategy_state.margin_short - 10.0) < 1e-9
         assert _eval_expr(ev, "strategy.leverage") == 10.0
 

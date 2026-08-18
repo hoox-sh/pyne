@@ -247,6 +247,48 @@ plot(strategy.position_size, title="ps")
         assert b.position_avg_price == 100.0
         assert sum(1 for e in b.events if e.get("kind") == "entry") == 1
 
+    def test_compile_same_id_reentry_pyramids_and_vwap(self) -> None:
+        """Same-id entries with pyramiding=1 VWAP-add; a third fill is blocked."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(pyramiding=1)
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.entry("L", "long", 1.0)
+        b.begin_bar(1, 120.0, 120.0, 120.0, 120.0)
+        b.entry("L", "long", 1.0)
+        assert b.position_size == 2.0
+        assert abs(b.position_avg_price - 110.0) < 1e-9
+        assert sum(1 for e in b.events if e.get("kind") == "entry") == 2
+        b.begin_bar(2, 140.0, 140.0, 140.0, 140.0)
+        b.entry("L", "long", 1.0)
+        assert b.position_size == 2.0
+        assert abs(b.position_avg_price - 110.0) < 1e-9
+        assert sum(1 for e in b.events if e.get("kind") == "entry") == 2
+
+    def test_compile_pending_same_id_replaces_price(self) -> None:
+        """Pending same-id limit/stop entries upsert to one working order."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker()
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.entry("L", "long", 1.0, limit=90.0)
+        assert list(b.pending_orders) == ["L"]
+        assert b.pending_orders["L"].limit_price == 90.0
+        b.entry("L", "long", 1.0, limit=80.0)
+        assert list(b.pending_orders) == ["L"]
+        assert b.pending_orders["L"].limit_price == 80.0
+        assert b.position_size == 0.0
+
+        s = CompileStrategyBroker()
+        s.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        s.entry("L", "long", 1.0, stop=110.0)
+        assert list(s.pending_orders) == ["L"]
+        assert s.pending_orders["L"].stop_price == 110.0
+        s.entry("L", "long", 1.0, stop=105.0)
+        assert list(s.pending_orders) == ["L"]
+        assert s.pending_orders["L"].stop_price == 105.0
+        assert s.position_size == 0.0
+
     def test_runtime_repeating_entry_avg_price_dual_host(self) -> None:
         src = """//@version=6
 strategy("avg")
@@ -293,6 +335,39 @@ plot(strategy.leverage, title="lev")
         # qty = 100 * 10 / 50 = 20
         assert abs(out["ps"][-1] - 20.0) < 1e-9
         assert abs(out["lev"][-1] - 10.0) < 1e-9
+
+    def test_compile_ctor_leverage_wins_over_margin(self) -> None:
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(leverage=10, margin_long=50)
+        assert b.leverage == 10.0
+
+    def test_compile_broker_default_leverage_is_one(self) -> None:
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        assert CompileStrategyBroker().leverage == 1.0
+        assert CompileStrategyBroker(leverage=None).leverage == 1.0
+        assert CompileStrategyBroker(leverage=1).leverage == 1.0
+
+    def test_compile_margin_long_wired_from_strategy_decl(self) -> None:
+        src = """//@version=6
+strategy("t", margin_long=20, default_qty_type=strategy.cash, default_qty_value=100)
+if bar_index == 0
+    strategy.entry("L", strategy.long)
+plot(strategy.position_size, title="ps")
+plot(strategy.leverage, title="lev")
+"""
+        code = transpile(src)
+        assert "margin_long=20" in code or "margin_long = 20" in code
+        assert "leverage=" not in code and "leverage =" not in code
+        compiled = compile_script(src)
+        c = [50.0, 50.0, 50.0]
+        o = h = l = c
+        v = [1.0, 1.0, 1.0]
+        out = compiled.run(o, h, l, c, v)
+        # qty = 100 * 5 / 50 = 10
+        assert abs(out["ps"][-1] - 10.0) < 1e-9
+        assert abs(out["lev"][-1] - 5.0) < 1e-9
 
     def test_compile_input_before_strategy_folds_const_defval(self) -> None:
         """input.float(10) before strategy(leverage=lev) → ctor leverage=10 (const fold)."""
