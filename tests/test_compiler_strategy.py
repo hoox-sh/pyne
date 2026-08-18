@@ -233,6 +233,48 @@ plot(strategy.position_size, title="ps")
         # market entry fills at bar 0 close
         assert abs(out["avg"][-1] - 100.0) < 1e-9
 
+    def test_compile_same_id_reentry_keeps_avg_price(self) -> None:
+        """Repeating ``strategy.entry("L")`` must not reset avg to last close."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(pyramiding=0)
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.entry("L", "long", 1.0)
+        assert b.position_avg_price == 100.0
+        b.begin_bar(1, 110.0, 110.0, 110.0, 110.0)
+        b.entry("L", "long", 1.0)
+        assert b.position_size == 1.0
+        assert b.position_avg_price == 100.0
+        assert sum(1 for e in b.events if e.get("kind") == "entry") == 1
+
+    def test_runtime_repeating_entry_avg_price_dual_host(self) -> None:
+        src = """//@version=6
+strategy("avg")
+if close > 0
+    strategy.entry("L", strategy.long)
+plot(strategy.position_avg_price, title="avg")
+plot(strategy.position_size, title="sz")
+"""
+        bars = [
+            {
+                "time": 1_700_000_000_000 + i * 60_000,
+                "open": 100.0 + i,
+                "high": 101.0 + i,
+                "low": 99.0 + i,
+                "close": 100.0 + i,
+                "volume": 1,
+            }
+            for i in range(6)
+        ]
+        rt = Runtime(symbol="T")
+        for mode in ("interpret", "compile"):
+            out = rt.run(src, bars, mode=mode)
+            series = out["series"]
+            assert series["sz"] == [1.0] * 6, mode
+            assert series["avg"] == [100.0] * 6, mode
+            entries = [e for e in (out.get("events") or []) if e.get("kind") == "entry"]
+            assert len(entries) == 1, (mode, entries)
+
     def test_compile_leverage_wired_from_strategy_decl(self) -> None:
         src = """//@version=6
 strategy("t", leverage=10, default_qty_type=strategy.cash, default_qty_value=100)

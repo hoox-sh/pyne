@@ -678,13 +678,15 @@ class TestPerBarEventReset:
     def test_events_between_resets(self) -> None:
         """Without reset_events, events accumulate across bars."""
         evaluator = NodeLiteralEvaluator()
-        ast = helper.parse(
-            'strategy.entry(id="L", direction="long", qty=1)',
-            mode="eval",
-        )
-        for i in range(3):
+        evaluator._build_builtin_map()["strategy"](["T"], {"pyramiding": 2})
+        for i, eid in enumerate(("L1", "L2", "L3")):
             evaluator.context["bar_index"] = i
-            evaluator.visit(ast.body)
+            evaluator.visit(
+                helper.parse(
+                    f'strategy.entry(id="{eid}", direction="long", qty=1)',
+                    mode="eval",
+                ).body
+            )
 
         # Without reset, all 3 events should be in the buffer
         events = evaluator._strategy_state.drain_events()

@@ -909,6 +909,8 @@ class CompilerVisitor(NodeVisitor):
                 "default_qty_type",
                 "default_qty_value",
                 "leverage",
+                "margin_long",
+                "margin_short",
             ):
                 if key not in sk:
                     continue

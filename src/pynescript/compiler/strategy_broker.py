@@ -245,7 +245,9 @@ class CompileStrategyBroker:
         default_qty_type: str = "fixed",
         default_qty_value: float = 1.0,
         avg_price_model: str = "stock",
-        leverage: float = 1.0,
+        leverage: float | None = None,
+        margin_long: float | None = None,
+        margin_short: float | None = None,
     ) -> None:
         """Construct broker state for one compiled run.
 
@@ -289,13 +291,28 @@ class CompileStrategyBroker:
             self.avg_price_model = "inverse"
         else:
             self.avg_price_model = "stock"
-        try:
-            lev = float(leverage) if leverage is not None else 1.0
-        except (TypeError, ValueError):
-            lev = 1.0
-        if lev != lev or lev <= 0:  # NaN / non-positive
-            lev = 1.0
-        self.leverage: float = 1.0 if lev < 1.0 else lev
+        self.leverage = 1.0
+        if leverage is not None:
+            try:
+                lev = float(leverage)
+            except (TypeError, ValueError):
+                lev = 1.0
+            if lev != lev or lev <= 0:
+                lev = 1.0
+            self.leverage = 1.0 if lev < 1.0 else lev
+        else:
+            sides: list[float] = []
+            for raw in (margin_long, margin_short):
+                if raw is None:
+                    continue
+                try:
+                    m = float(raw)
+                except (TypeError, ValueError):
+                    continue
+                if m > 0:
+                    sides.append(m)
+            if sides:
+                self.leverage = max(1.0, 100.0 / max(sides))
         self.position_size: float = 0.0  # signed: +long / -short
         self.position_avg_price: float = float("nan")
         self.position_entry_name: str = ""
@@ -689,12 +706,18 @@ class CompileStrategyBroker:
         Parameters
         ----------
         respect_pyramiding:
-            Market ``strategy.entry`` path: different id needs room;
-            ``replace_same_id`` replaces the open leg when ids match.
+            Market ``strategy.entry`` path: extra same-direction fills only
+            when ``open_entry_count < pyramiding + 1`` (same id or not).
+            A filled position is never overwritten — that used to reset
+            ``position_avg_price`` every bar the entry condition stayed true.
             Pending order fills keep averaging (``respect_pyramiding=False``).
             When ``pyramiding <= 0``, pending averages stay a **single** entry
             leg (``open_entry_count == 1``) with VWAP avg (F2).
+        replace_same_id:
+            Unused for filled positions (kept for caller compatibility).
+            Pending same-id replacement is the ``pending_orders[id]`` upsert.
         """
+        del replace_same_id  # filled positions are not overwritten
         d = direction if direction == "long" or direction == "short" else _norm_dir(direction)
         if d is None:
             return False
@@ -708,11 +731,7 @@ class CompileStrategyBroker:
         same_dir = (self.position_size > 0 and d == "long") or (self.position_size < 0 and d == "short")
         if same_dir and abs(self.position_size) > 0:
             self._ensure_legs()
-            same_id = self.position_entry_name == eid or any(leg.entry_id == eid for leg in self.open_legs)
-            if respect_pyramiding and replace_same_id and same_id:
-                # Interpret oracle: same-id re-entry overwrites without realizing PnL.
-                pass  # fall through to flat open below
-            elif respect_pyramiding and not same_id:
+            if respect_pyramiding:
                 max_entries = int(self.pyramiding) + 1 if self.pyramiding is not None else 1
                 if not (self.pyramiding > 0 and self.open_entry_count < max_entries):
                     return False  # pyramiding blocked
@@ -739,8 +758,8 @@ class CompileStrategyBroker:
                 self._update_leg_extremes()
                 self._emit("entry", id=eid, direction=d, qty=q, comment=comment)
                 return True
-            elif not (respect_pyramiding and replace_same_id and same_id):
-                # Average-add (pending order fills / non-replace path).
+            else:
+                # Average-add (pending order fills).
                 # F2: pyramiding<=0 → single leg + VWAP; pyramiding>0 appends a
                 # leg when under cap (interpret open_trades parity).
                 if self.pyramiding > 0 and len(self.open_legs) >= int(self.pyramiding) + 1:
@@ -800,7 +819,7 @@ class CompileStrategyBroker:
                 self._update_leg_extremes()
                 self._emit("entry", id=eid, direction=d, qty=q, comment=comment)
                 return True
-        # Flat open, reverse re-entry, or same-id replace overwrite
+        # Flat open or reverse re-entry (filled same-dir is handled above)
         comm = self._commission(q, px)
         signed = q if d == "long" else -q
         self.position_size = signed

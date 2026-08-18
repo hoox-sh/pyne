@@ -950,24 +950,24 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         has_ms = "margin_short" in src and src["margin_short"] is not None
         if has_lev:
             st.leverage = _norm_leverage(src["leverage"], default=1.0)
-            # Keep margin % in sync for anything that reads reference-style fields
+            # Leverage is the source of truth when both are present (AXIS Properties
+            # writes them together). Do not let stale margin_* overwrite it.
             st.margin_long = 100.0 / st.leverage
             st.margin_short = 100.0 / st.leverage
-        if has_ml:
-            ml = _soft_float_decl(src["margin_long"], default=100.0)
-            if ml > 0:
-                st.margin_long = ml
-                if not has_lev:
+        else:
+            if has_ml:
+                ml = _soft_float_decl(src["margin_long"], default=100.0)
+                if ml > 0:
+                    st.margin_long = ml
                     st.leverage = max(1.0, 100.0 / ml)
-        if has_ms:
-            ms = _soft_float_decl(src["margin_short"], default=100.0)
-            if ms > 0:
-                st.margin_short = ms
-                if not has_lev and not has_ml:
-                    st.leverage = max(1.0, 100.0 / ms)
-                elif not has_lev and has_ml:
-                    # Use the more conservative (higher margin / lower leverage) side
-                    st.leverage = max(1.0, 100.0 / max(st.margin_long, st.margin_short))
+            if has_ms:
+                ms = _soft_float_decl(src["margin_short"], default=100.0)
+                if ms > 0:
+                    st.margin_short = ms
+                    if has_ml:
+                        st.leverage = max(1.0, 100.0 / max(st.margin_long, st.margin_short))
+                    else:
+                        st.leverage = max(1.0, 100.0 / ms)
 
     def _bar_index(self) -> int:
         ctx = getattr(self, "context", {}) or {}
@@ -1148,29 +1148,28 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             )
 
         # Same-direction market entry while already in a position:
-        # - same entry id → replace (reference Pine cancels+re-places that id)
-        # - different id + pyramiding room → add
-        # - different id + no pyramiding room → ignore
+        # Pending same-id replacement is handled above (limit/stop overwrite).
+        # A *filled* position is never overwritten — extra entries only when
+        # pyramiding allows (TV: max open entries = pyramiding + 1). Same-id
+        # re-entry with pyramiding=0 is a no-op so position_avg_price stays
+        # at the original fill (``if cond: strategy.entry("L", …)``).
         if st.position_direction == direction and st.position_size > 0:
-            same_id = st.position_entry_name == entry_id or any(t.entry_id == entry_id for t in st.open_trades)
-            if not same_id:
-                max_entries = int(st.pyramiding) + 1 if st.pyramiding is not None else 1
-                if st.pyramiding > 0 and len(st.open_trades) < max_entries:
-                    self._open_position_qty(
-                        direction,
-                        qty,
-                        fill_price,
-                        entry_id,
-                        bar_index,
-                        bar_time,
-                        commission,
-                        comment=comment,
-                    )
-                    return
-                # Pyramiding blocked — no new entry
+            max_entries = int(st.pyramiding) + 1 if st.pyramiding is not None else 1
+            if st.pyramiding > 0 and len(st.open_trades) < max_entries:
+                self._open_position_qty(
+                    direction,
+                    qty,
+                    fill_price,
+                    entry_id,
+                    bar_index,
+                    bar_time,
+                    commission,
+                    comment=comment,
+                )
                 return
+            return
 
-        # Open / replace position (flat, or same-id re-entry)
+        # Open position from flat (or after a reverse flatten above)
         st.position_direction = direction
         st.entry_price = fill_price
         st.entry_bar = bar_index

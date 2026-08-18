@@ -356,6 +356,33 @@ class TestStrategyCashAndPyramiding:
         assert ev._strategy_state.position_size == 3.0
         assert len(ev._strategy_state.open_trades) == 2
 
+    def test_same_id_reentry_does_not_reset_avg_price(self) -> None:
+        """``if cond: strategy.entry("L")`` must not rewrite a filled position."""
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        m = ev._build_builtin_map()
+        m["strategy"](["T"], {"pyramiding": 0})
+        m["strategy.entry"](["L", "long", 1.0])
+        assert _eval_expr(ev, "strategy.position_avg_price") == 100.0
+        _set_bar(ev, 1, 110.0)
+        m["strategy.entry"](["L", "long", 1.0])
+        assert ev._strategy_state.position_size == 1.0
+        assert _eval_expr(ev, "strategy.position_avg_price") == 100.0
+        assert _eval_expr(ev, "strategy.opentrades") == 1
+        assert sum(1 for e in ev._strategy_state._events if e.kind == "entry") == 1
+
+    def test_same_id_reentry_pyramids_and_vwap(self) -> None:
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        m = ev._build_builtin_map()
+        m["strategy"](["T"], {"pyramiding": 1})
+        m["strategy.entry"](["L", "long", 1.0])
+        _set_bar(ev, 1, 120.0)
+        m["strategy.entry"](["L", "long", 1.0])
+        assert ev._strategy_state.position_size == 2.0
+        assert abs(_eval_expr(ev, "strategy.position_avg_price") - 110.0) < 1e-9
+        assert _eval_expr(ev, "strategy.opentrades") == 2
+
     def test_pyramiding_zero_blocks_second_id(self) -> None:
         ev = NodeLiteralEvaluator()
         _set_bar(ev, 0, 100.0)

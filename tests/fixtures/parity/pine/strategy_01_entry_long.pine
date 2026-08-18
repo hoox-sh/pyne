@@ -1,4 +1,4 @@
 // Parity fixture: strategy.entry with strategy.long
-// Expected: 1 event per bar, kind=entry, direction=long, qty=10
+// Expected: one entry (same-id re-entry does not rewrite a filled position)
 //@version=5
 strategy.entry("L", strategy.long, qty=10)

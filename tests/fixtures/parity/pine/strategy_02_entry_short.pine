@@ -1,4 +1,4 @@
 // Parity fixture: strategy.entry with strategy.short
-// Expected: 1 event per bar, kind=entry, direction=short, qty=5
+// Expected: one entry (same-id re-entry does not rewrite a filled position)
 //@version=5
 strategy.entry("S", strategy.short, qty=5)

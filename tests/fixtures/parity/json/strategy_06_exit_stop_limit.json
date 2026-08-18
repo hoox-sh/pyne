@@ -38,25 +38,6 @@
     ]
   },
   {
-    "kind": "entry",
-    "id": "L",
-    "direction": "long",
-    "qty": 10.0,
-    "order_type": null,
-    "limit": null,
-    "stop": null,
-    "oca_name": null,
-    "comment": null,
-    "bar_index": 1,
-    "bar_time": 87400000,
-    "ohlc": [
-      99.28,
-      99.61,
-      98.32,
-      98.59
-    ]
-  },
-  {
     "kind": "exit",
     "id": "X",
     "direction": null,
@@ -76,12 +57,12 @@
     ]
   },
   {
-    "kind": "entry",
-    "id": "L",
-    "direction": "long",
+    "kind": "exit",
+    "id": "X",
+    "direction": null,
     "qty": 10.0,
     "order_type": null,
-    "limit": null,
+    "limit": 110.0,
     "stop": null,
     "oca_name": null,
     "comment": null,
@@ -104,25 +85,6 @@
     "stop": null,
     "oca_name": null,
     "comment": null,
-    "bar_index": 2,
-    "bar_time": 173800000,
-    "ohlc": [
-      98.16,
-      100.09,
-      97.0,
-      99.86
-    ]
-  },
-  {
-    "kind": "entry",
-    "id": "L",
-    "direction": "long",
-    "qty": 10.0,
-    "order_type": null,
-    "limit": null,
-    "stop": null,
-    "oca_name": null,
-    "comment": null,
     "bar_index": 3,
     "bar_time": 260200000,
     "ohlc": [
@@ -130,44 +92,6 @@
       104.33,
       100.16,
       103.59
-    ]
-  },
-  {
-    "kind": "exit",
-    "id": "X",
-    "direction": null,
-    "qty": 10.0,
-    "order_type": null,
-    "limit": 110.0,
-    "stop": null,
-    "oca_name": null,
-    "comment": null,
-    "bar_index": 3,
-    "bar_time": 260200000,
-    "ohlc": [
-      101.17,
-      104.33,
-      100.16,
-      103.59
-    ]
-  },
-  {
-    "kind": "entry",
-    "id": "L",
-    "direction": "long",
-    "qty": 10.0,
-    "order_type": null,
-    "limit": null,
-    "stop": null,
-    "oca_name": null,
-    "comment": null,
-    "bar_index": 4,
-    "bar_time": 346600000,
-    "ohlc": [
-      104.08,
-      108.39,
-      103.97,
-      108.35
     ]
   },
   {
