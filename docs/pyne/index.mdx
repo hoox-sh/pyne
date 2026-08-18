@@ -67,7 +67,7 @@ TypeScript consumers import **[PyneTS](/pyne/docs/pynets)** (`@hoox-sh/pynets`) 
 | **Language core** | Grammar, AST, visitors, type system | [Core](/pyne/docs/core) |
 | **Runtime** | Series caps, builtins, strategy, alerts, compiler parity | [Runtime](/pyne/docs/runtime) |
 | **LSP** | Diagnostics, completion, hover, format (`.pyne` / `.pine`) | [LSP](/pyne/docs/lsp) |
-| **Pro API** | HTTP `/run` (alerts + L2 webhooks), preview, backtest | [API](/pyne/docs/api) |
+| **Pro API** | HTTP `/run` (alerts + L2 webhooks), `/optimize`, preview, backtest | [API](/pyne/docs/api) |
 | **Ops** | CI, Docker, Nuitka, secrets, GCP | [DevOps](/pyne/docs/devops) |
 | **PyneTS** | TypeScript / Bun library (`parse` / `unparse` / `Runtime.run`) | [PyneTS](/pyne/docs/pynets) |
 | **AXIS** (separate product) | Charting PWA AXIS | [AXIS docs](/axis/docs) |
@@ -101,7 +101,7 @@ Install the package (`pip install hoox-pyne`), run the CLI, embed the library AP
 
 ### Core / Runtime / LSP / API
 
-Contributor and systems manuals: how the front-end, semantics, editor protocol, and HTTP bridge are built. Runtime covers series caps, incremental TA, drawing GC, `fill()` export, foreign `request.security` → `na`, and [parity](/pyne/docs/runtime/compiler/parity).
+Contributor and systems manuals: how the front-end, semantics, editor protocol, and HTTP bridge are built. Runtime covers series caps, incremental TA, drawing GC, `fill()` export, foreign `request.security` → `na`, strategy [optimize](/pyne/docs/api/endpoints/optimize), and [parity](/pyne/docs/runtime/compiler/parity).
 
 ### DevOps
 
@@ -139,6 +139,7 @@ Auto-generated like HOOX manuals (`bun run docs:exports`):
 - [Alerts & webhooks](/pyne/docs/runtime/alerts)
 - [Grammar pipeline](/pyne/docs/core/grammar-antlr4)
 - [Evaluate contract](/pyne/docs/api/contract)
+- [POST /optimize](/pyne/docs/api/endpoints/optimize)
 - [pyne-worker](/pyne/docs/pyne-worker)
 - [pyne-agent-worker](/pyne/docs/agent)
 - [Roadmap](/pyne/docs/reference/roadmap)

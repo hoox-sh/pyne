@@ -19,9 +19,9 @@
 
 # Missing Features - Pine Script v6 Implementation
 
-**Current Status (as of 2026-08-17, hoox-pyne 0.3.13):** Strong core support (parser + evaluator + 1100+ tests). Open-source corpus set01–04 (local measurement, not shipped in git): **parse 99.96%** (2476/2477), **Runtime interpret 100% excl. EXPECTED_FAIL** (2466 OK + 11 intentional demos), set01 **249/249** — not a claim of 100% TradingView® platform parity. Drawing `max_*_count` GC landed. **Alert engine + L2 webhooks** closed on Pro API and pyne-worker. **Warm-compile (H2)** + **series caps (T1)** + incremental TA (bb/kama/cmo/stochrsi/wma/hma/linreg + **0.3.10 volume `obv`/`wad`/`wvad`/`cmf`/`klinger`**) landed. Package Runtime SoT + pyne-worker thin wrap landed (**H1** largely done). Residual: interpret↔compile plot MISMATCH corpus tail (**P1p**). Incremental `ta.nvi`/`ta.pvi` and Supertrend mid±factor·ATR goldens landed.
+**Current Status (as of 2026-08-18, hoox-pyne 0.3.14):** Strong core support (parser + evaluator + 1100+ tests). Open-source corpus set01–04 (local measurement, not shipped in git): **parse 99.96%** (2476/2477), **Runtime interpret 100% excl. EXPECTED_FAIL** (2466 OK + 11 intentional demos), set01 **249/249** — not a claim of 100% TradingView® platform parity. Drawing `max_*_count` GC landed. **Alert engine + L2 webhooks** closed on Pro API and pyne-worker. **Warm-compile (H2)** + **series caps (T1)** + incremental TA (bb/kama/cmo/stochrsi/wma/hma/linreg + **0.3.10 volume `obv`/`wad`/`wvad`/`cmf`/`klinger`**) landed. Package Runtime SoT + pyne-worker thin wrap landed (**H1** largely done). Residual: interpret↔compile plot MISMATCH corpus tail (**P1p**). Incremental `ta.nvi`/`ta.pvi` and Supertrend mid±factor·ATR goldens landed.
 
-**Last Updated:** 2026-08-17 (align with `docs/ROADMAP.md` + 0.3.12; pine-worker is **not** colocated)
+**Last Updated:** 2026-08-18 (align with `docs/ROADMAP.md` + 0.3.14; pine-worker is **not** colocated)
 
 **Overall Support Assessment:** ~99%+ for core v6. Multiline strings + `export const` integrated. Remaining gaps are mostly by-design (mock/foreign request data, platform/editor-only) plus long-tail Runtime fails on truncated scrape sources — **not** missing alert/webhook/drawing-GC product surface.
 - Parser: Excellent for v5/v6 core + multiline, soft keywords, bitwise, typed UDF returns.

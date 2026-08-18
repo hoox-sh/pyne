@@ -19,7 +19,7 @@
 
 # Pynescript Future Roadmap
 
-**Last Updated:** 2026-08-17 (0.3.12: optimize + timeframe.change + HTF wma/rma + inc aroon/dpo/donchian/kst)
+**Last Updated:** 2026-08-18 (0.3.14: free-tier opt-in + position_avg_price/leverage; 0.3.13 optimize scoring; 0.3.12 optimize + timeframe.change + HTF wma/rma + inc aroon/dpo/donchian/kst)
 **Status:** Core v6 language/builtins essentially closed. Remaining work is
 **interpret↔compile plot residuals (P1p corpus tail)** — not missing syntax.
 Product warm-compile (H2), series caps (T1), package Runtime SoT (H1),

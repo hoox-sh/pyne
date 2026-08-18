@@ -19,14 +19,14 @@
 
 ---
 title: "Compatibility guarantee"
-description: "Grouped map of what PYNE implements for Pine Script™ v5/v6 — working, partial, residual, and by-design out of scope. hoox-pyne 0.3.13."
+description: "Grouped map of what PYNE implements for Pine Script™ v5/v6 — working, partial, residual, and by-design out of scope. hoox-pyne 0.3.14."
 ---
 
 # Compatibility guarantee
 
 ## Abstract
 
-PYNE implements Pine Script™ **v5/v6 language core** as an inspectable pipeline: parse → AST → bar-loop evaluate. The map below is the product-facing compatibility surface for **`hoox-pyne` 0.3.13**. It is **not** TradingView® platform identity (chart host, proprietary data, editor-only UI) and **not** bit-identical results vs the hosted platform on every script or bar.
+PYNE implements Pine Script™ **v5/v6 language core** as an inspectable pipeline: parse → AST → bar-loop evaluate. The map below is the product-facing compatibility surface for **`hoox-pyne` 0.3.14**. It is **not** TradingView® platform identity (chart host, proprietary data, editor-only UI) and **not** bit-identical results vs the hosted platform on every script or bar.
 
 Name-level dispatch lives in [Pine v6 surface](/pyne/docs/reference/pine-v6-surface) (`docs/pine_v6_full_surface_inventory.md`). Gaps: [Missing features](/pyne/docs/reference/missing-features). Checkmarks: [Implementation status](/pyne/docs/reference/implementation-status).
 
@@ -216,7 +216,7 @@ EXPECTED_FAIL are path-listed demos (`runtime.error` library guards, lower-TF se
     | Python Runtime | Working | Language oracle |
     | PyneTS `@hoox-sh/pynets` 0.2.0 | Partial | Interpret + JS compile on npm; Python Runtime is the oracle |
     | `pynets/` submodule in this repo | Partial | Pin **v0.2.0** — same surface as npm (interpret + JS compile) |
-    | pyne-worker | Working | Thin Python CF host; vendors engine (may lag 0.3.12). Docs: [pyne-worker](/pyne/docs/pyne-worker) |
+    | pyne-worker | Working | Thin Python CF host; vendors engine (may lag 0.3.14). Docs: [pyne-worker](/pyne/docs/pyne-worker) |
     | pyne-agent-worker | Working | NL authoring; optional `/run` validate. Docs: [agent](/pyne/docs/agent) |
   </Accordion>
 </AccordionGroup>

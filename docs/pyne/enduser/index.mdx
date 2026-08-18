@@ -39,7 +39,7 @@ PYNE exposes one language pipeline through several thin surfaces:
   → optional L2 webhooks (Pro API / edge)
 ```
 
-The **desk path** is the **`pyne`** Click CLI (alias `pynescript`) and `pynescript.ast` / `pynescript.runtime` library API (PyPI distribution name **[`hoox-pyne`](https://pypi.org/project/hoox-pyne/)**). The **TypeScript desk path** is **[PyneTS](/pyne/docs/pynets)** (`bun add @hoox-sh/pynets`). The **editor path** is **`pyne-lsp`** (alias `pynescript-lsp`; stdio; first-class `.pyne` association). The **HTTP path** is the Flask Pro API (`POST /run` with alerts export + webhooks, preview, backtest). The optional chart is [AXIS](/axis/docs); the optional trade mesh is [HOOX](/docs). Evaluation does not require either. Defaults for `mode` differ by surface — [modes](/pyne/docs/enduser/reference/modes).
+The **desk path** is the **`pyne`** Click CLI (alias `pynescript`) and `pynescript.ast` / `pynescript.runtime` library API (PyPI distribution name **[`hoox-pyne`](https://pypi.org/project/hoox-pyne/)**). The **TypeScript desk path** is **[PyneTS](/pyne/docs/pynets)** (`bun add @hoox-sh/pynets`). The **editor path** is **`pyne-lsp`** (alias `pynescript-lsp`; stdio; first-class `.pyne` association). The **HTTP path** is the Flask Pro API (`POST /run` with alerts export + webhooks, `POST /optimize`, preview, backtest). The optional chart is [AXIS](/axis/docs); the optional trade mesh is [HOOX](/docs). Evaluation does not require either. Defaults for `mode` differ by surface — [modes](/pyne/docs/enduser/reference/modes).
 
 ## Conceptual model
 
@@ -50,7 +50,7 @@ flowchart TB
     LIB[Python library]
     TS[PyneTS]
     LSP[pyne-lsp]
-    HTTP[Pro API /run]
+    HTTP[Pro API /run /optimize]
   end
   subgraph pipeline [Shared pipeline]
     P[parse]
@@ -76,11 +76,11 @@ flowchart TB
 
 | Surface | Entry | Typical job |
 | --- | --- | --- |
-| CLI | `pyne …` (alias `pynescript`) | One-shot parse, format, lint, compile, `run` (synthetic bars), prewarm, data |
+| CLI | `pyne …` (alias `pynescript`) | One-shot parse, format, lint, compile, `run`, `optimize`, prewarm, data |
 | Library | `from pynescript.ast import parse, unparse` | Embed parse/transform/eval in tools |
 | PyneTS | `import { parse, Runtime } from "@hoox-sh/pynets"` | Same names in TypeScript / Bun |
 | LSP | `pyne-lsp` (alias `pynescript-lsp`) | Diagnostics, completion, hover (`.pyne` / `.pine`) |
-| Pro API | `POST /run` | Evaluate contract: plots, alerts, optional webhooks |
+| Pro API | `POST /run` · `POST /optimize` | Evaluate contract + strategy `input.*` search |
 | AXIS | separate product | Chart PWA AXIS over evaluate results |
 | HOOX | separate product | Edge execution mesh after strategy events |
 
@@ -98,11 +98,11 @@ New install, first parse, and environment knobs:
 
 Daily workflows against the same pipeline:
 
-- **[CLI](/pyne/docs/enduser/guides/cli)** — `check`, `format`, `lint`, `compile`, `prewarm`, `run`, `data`, …
-- **[Library API](/pyne/docs/enduser/guides/library-api)** — `parse`, `unparse`, `dump`, `walk`, visitors, transformers, linter.
+- **[CLI](/pyne/docs/enduser/guides/cli)** — `check`, `format`, `lint`, `compile`, `prewarm`, `run`, `optimize`, `data`, …
+- **[Library API](/pyne/docs/enduser/guides/library-api)** — `parse`, `unparse`, `dump`, `walk`, visitors, transformers, linter, `optimize.run_study`.
 - **[Evaluate scripts](/pyne/docs/enduser/guides/evaluate-scripts)** — Expression eval, bar-loop Runtime (`mode=auto`), strategy events, **alerts export**, mock vs live data.
 - **[Editors](/pyne/docs/enduser/guides/editors)** — VS Code (`.pyne` first-class), Neovim, Zed, Emacs, Helix; `clients/` snippets.
-- **[Pro API usage](/pyne/docs/enduser/guides/pro-api-usage)** — `/run` (+ `webhook_url` / L2 webhooks), `/run/batch`, preview, backtest as a **consumer**.
+- **[Pro API usage](/pyne/docs/enduser/guides/pro-api-usage)** — `/run` (+ `webhook_url` / L2 webhooks), `/run/batch`, `/optimize`, preview, backtest as a **consumer**.
 - **[Troubleshooting](/pyne/docs/enduser/guides/troubleshooting)** — Parse failures, recursion limits, missing extras, CORS, auth.
 
 ### 3. Reference
@@ -127,6 +127,7 @@ Daily workflows against the same pipeline:
 | Bar-loop eval | `from pynescript.runtime import Runtime` (`mode` default **interpret**) | [Evaluate](/pyne/docs/enduser/guides/evaluate-scripts) · [modes](/pyne/docs/enduser/reference/modes) |
 | Compile-only smoke | `pyne run script.pine --bars 50` | [CLI](/pyne/docs/enduser/guides/cli) |
 | Warm Numba / IR | `pyne prewarm` / `POST /compile/prewarm` | [CLI](/pyne/docs/enduser/guides/cli) |
+| Strategy HPO | `pyne optimize` / `POST /optimize` / `pynescript.optimize.run_study` | [Optimize](/pyne/docs/api/endpoints/optimize) |
 | Alerts + webhooks | `/run` → `alerts[]` / `webhook_url` | [Alerts](/pyne/docs/runtime/alerts) |
 | Start LSP | `pyne-lsp` (stdio) | [Editors](/pyne/docs/enduser/guides/editors) |
 | Local Pro API | `make run` / `python -m backend.app` | [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage) |
@@ -146,7 +147,7 @@ Consumer-relevant code only — deeper design is linked from each guide:
 
 | Path | Role |
 | --- | --- |
-| `src/pynescript/__main__.py` | Click CLI: check, format, lint, compile, prewarm, run, data, info |
+| `src/pynescript/__main__.py` | Click CLI: check, format, lint, compile, prewarm, run, optimize, data, info |
 | `src/pynescript/ast/helper.py` | Public `parse`, `unparse`, `dump`, `walk`, `literal_eval` |
 | `src/pynescript/ast/linter.py` | `lint_script` / `PineLinter` |
 | `src/pynescript/ast/evaluator/` | Bar-aware and literal evaluators |
