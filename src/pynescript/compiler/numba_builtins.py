@@ -1549,6 +1549,16 @@ def numba_tsi(arr, short_len, long_len, i):
 # Object-mode coercion helpers (pure Python; never called under njit)
 # ---------------------------------------------------------------------------
 
+def pine_add(a, b):
+    """Pine ``+``: numeric add, or string concat when either side is text."""
+    if isinstance(a, str) or isinstance(b, str):
+        return str(a) + str(b)
+    try:
+        return a + b
+    except TypeError:
+        return str(a) + str(b)
+
+
 def safe_float(x):
     """Best-effort float cast for plot/series stores in object mode.
 

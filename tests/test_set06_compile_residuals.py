@@ -618,3 +618,65 @@ plot(result)
     out = _compile_run(src, n=20)
     # last close of arange 100..119 is 119
     assert abs(_last(out) - 119.0) < 1e-6
+
+
+def test_udt_udf_if_else_return_field_access() -> None:
+    src = """//@version=5
+indicator("udt_udf_if_else_return")
+type Signal
+    float value = 0.0
+    int direction = 0
+getSignal(src, len) =>
+    sma = ta.sma(src, len)
+    if src > sma
+        Signal.new(src - sma, 1)
+    else
+        Signal.new(sma - src, -1)
+sig = getSignal(close, 5)
+plot(sig.value)
+"""
+    out = _compile_run(src, n=20)
+    arr = np.asarray(out["plot_0"], dtype=np.float64)
+    assert arr.size == 20
+    assert np.isfinite(arr[-1])
+
+
+def test_switch_tuple_unpack_does_not_unbound() -> None:
+    src = """//@version=5
+indicator("sw")
+sweep(bool swHL) =>
+    [swHLbarid, swprc, swHL_txt] = switch
+        swHL => [1, 2.0, "HH"]
+        => [3, 4.0, "LL"]
+    swHLbarid := swHLbarid < 0 ? 0 : swHLbarid
+    swHLbarid
+plot(sweep(true))
+"""
+    out = _compile_run(src, n=20)
+    assert _last(out) == 1.0
+
+
+def test_string_plus_int_udf_param_concat() -> None:
+    src = """//@version=6
+indicator("Function Tests")
+greet(name, greeting = 0) =>
+    name + greeting
+plot(str.length(greet("hi")))
+"""
+    out = _compile_run(src, n=20)
+    assert _last(out) == 3.0
+
+
+def test_format_udf_return_not_float_coerced() -> None:
+    src = """//@version=5
+indicator("fmt")
+min_tick_format() =>
+    format = "#.#"
+    format := format + "#"
+    format
+s = min_tick_format()
+plot(str.length(s))
+"""
+    out = _compile_run(src, n=20)
+    # mintick may not append extra '#'; the crash was float("#.#")
+    assert _last(out) >= 3.0

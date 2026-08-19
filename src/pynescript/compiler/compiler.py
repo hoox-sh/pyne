@@ -1261,7 +1261,24 @@ class CompilerVisitor(NodeVisitor):
             candidates.append(last_chunk[len("return ") :].strip())
         else:
             candidates.append(last_chunk)
-        return any(self._looks_like_string_expr(c) for c in candidates if c)
+        if any(self._looks_like_string_expr(c) for c in candidates if c):
+            return True
+        # ``min_tick_format() => format`` after ``format = "#.#"``
+        str_ids = set(self.string_scalars) | set(self.string_series)
+        str_ids |= {self.ident_map.get(s, s) for s in str_ids}
+        for cand in candidates:
+            ident = cand
+            if ident.startswith("return "):
+                ident = ident[len("return ") :].strip()
+            if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", ident):
+                pine = ident
+                for k, v in self.ident_map.items():
+                    if v == ident:
+                        pine = k
+                        break
+                if pine in str_ids or ident in str_ids:
+                    return True
+        return False
 
     def _call_returns_string(self, node) -> bool:
         """True when Call targets a known string-returning UDF."""
@@ -1298,7 +1315,30 @@ class CompilerVisitor(NodeVisitor):
             t = last_ast.target
             if isinstance(t, ast.Name) and t.id in self.udt_vars:
                 return True
+        # Last statement is if/else whose branches return Type.new(...)
+        if_node = last_ast
+        if isinstance(last_ast, ast.Expr) and isinstance(last_ast.value, ast.If):
+            if_node = last_ast.value
+        if isinstance(if_node, ast.If):
+            return self._if_branches_return_udt(if_node)
         return False
+
+    def _if_branches_return_udt(self, node) -> bool:
+        """True when every nonempty if/elif/else tail looks like a UDT ctor."""
+        cur = node
+        saw = False
+        while isinstance(cur, ast.If):
+            body = list(cur.body or [])
+            if body and self._func_body_returns_udt(body[-1]):
+                saw = True
+            nxt = cur.orelse
+            if len(nxt) == 1 and isinstance(nxt[0], ast.If):
+                cur = nxt[0]
+                continue
+            if nxt and self._func_body_returns_udt(nxt[-1]):
+                saw = True
+            break
+        return saw
 
     def _call_returns_udt(self, node) -> bool:
         """True when Call targets a UDF known to return a UDT / object handle."""
@@ -2832,7 +2872,26 @@ class CompilerVisitor(NodeVisitor):
                     lines.append(_store_numeric(name, self.visit(el)))
             return "\n".join(lines)
 
-        # Unknown multi-assign — leave empty (numeric path may break; prefer object later)
+        # Switch / if / other expression RHS: unpack the visited value.
+        # Returning "" dropped ``[a, b, c] = switch …`` and left names unbound.
+        # Statement-form if/switch cannot be ``__tup = if …`` — assign __tup
+        # inside each branch, then unpack.
+        if isinstance(node.value, ast.If):
+            self.object_mode = True
+            block = self._emit_if_assign("__tup", node.value)
+            return "\n".join([block] + [_store_numeric(n, _elem_expr(i)) for i, n in enumerate(names)])
+        rhs = (self.visit(node.value) or "").strip()
+        if rhs and (rhs.lstrip().startswith("if ") or "\n" in rhs):
+            self.object_mode = True
+            return "\n".join(
+                [rhs, "__tup = locals().get('__tup', np.nan)"]
+                + [_store_numeric(n, _elem_expr(i)) for i, n in enumerate(names)]
+            )
+        if rhs and len(names) > 1:
+            self.object_mode = True
+            return _unpack_call(rhs, as_sequence=False)
+        if rhs and names:
+            return _store_numeric(names[0], rhs)
         return ""
 
     def _looks_like_udt_ctor(self, node) -> bool:
@@ -7017,6 +7076,17 @@ class CompilerVisitor(NodeVisitor):
             # Pine string + anything → string concat (never float + str TypeError)
             if isinstance(node.op, ast.Add) and (left_str or right_str):
                 return f"(str({left}) + str({right}))"
+        # UDF params without a string annotation (``greet(name, greeting=0)``).
+        # Bare identifiers are classified numeric (``dev + basis``), so always
+        # use pine_add for Name+Name inside a function.
+        if (
+            isinstance(node.op, ast.Add)
+            and self.in_function
+            and isinstance(node.left, ast.Name)
+            and isinstance(node.right, ast.Name)
+        ):
+            self.object_mode = True
+            return f"pine_add({left}, {right})"
             # Prefer numeric if only one side is stringy and op is not Add
             if (left_num or right_num) and not (left_str and right_str):
                 pass  # fall through to numeric for non-Add
