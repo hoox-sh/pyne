@@ -527,6 +527,8 @@ class CompilerVisitor(NodeVisitor):
         self.udt_vars: set[str] = set()  # series names holding UDT instances
         # var / param name → UDT type id (method overload dispatch by receiver)
         self.udt_var_types: dict[str, str] = {}
+        # type name → field name → field type id (``StatsData.wins`` → ``SideStats``)
+        self.udt_field_types: dict[str, dict[str, str]] = {}
         self.map_vars: set[str] = set()  # var map names (single object, not series)
         self.scalar_vars: set[str] = set()  # non-series locals (map handles, etc.)
         self.user_funcs: set[str] = set()  # user-defined function names (Pine ids)
@@ -1144,14 +1146,20 @@ class CompilerVisitor(NodeVisitor):
         self.object_mode = True
         fields: list[str] = []
         defaults: dict[str, str] = {}
+        field_types: dict[str, str] = {}
         for stmt in node.body:
             if isinstance(stmt, ast.Assign) and isinstance(stmt.target, ast.Name):
                 fields.append(stmt.target.id)
                 val = getattr(stmt, "value", None)
                 if val is not None:
                     defaults[stmt.target.id] = self.visit(val)
+                tn = self._type_spec_name(getattr(stmt, "type", None))
+                if tn:
+                    field_types[stmt.target.id] = tn
         self.udt_types[node.name] = fields
         self.udt_field_defaults[node.name] = defaults
+        if field_types:
+            self.udt_field_types[node.name] = field_types
         return ""  # type definitions are compile-time only
 
     def visit_EnumDef(self, node: ast.EnumDef):
@@ -6424,6 +6432,12 @@ class CompilerVisitor(NodeVisitor):
                     return "color"
                 if isinstance(node.value, ast.Name) and node.value.id == "chart" and "color" in node.attr:
                     return "color"
+                # ``this.wins.getAvgProfit()`` — field type of the receiver UDT.
+                obj_t = self._infer_udf_arg_type(node.value)
+                if obj_t:
+                    ft = (self.udt_field_types.get(obj_t) or {}).get(node.attr)
+                    if ft:
+                        return ft
             if isinstance(node, ast.Call):
                 f = node.func
                 if isinstance(f, ast.Specialize):
@@ -6477,6 +6491,17 @@ class CompilerVisitor(NodeVisitor):
                 return self.udt_var_types.get(s)
             if s in self.string_scalars or s in self.string_series:
                 return "string"
+        ug = re.fullmatch(
+            r"udt_get_field\((.+),\s*['\"]([A-Za-z_][A-Za-z0-9_]*)['\"]\)", s
+        )
+        if ug:
+            base_t = self._receiver_type_from_expr(ug.group(1).strip())
+            if not base_t:
+                base_t = self.udt_var_types.get(ug.group(1).strip())
+            if base_t:
+                ft = (self.udt_field_types.get(base_t) or {}).get(ug.group(2))
+                if ft:
+                    return ft
         m = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_]*)_arr\[__bar_idx\]", s)
         if m:
             base = m.group(1)

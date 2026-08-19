@@ -159,6 +159,29 @@ plot(seasonalTable.update(5.0))
     assert abs(_last(out) - 105.0) < 1e-9
 
 
+def test_method_field_receiver_dispatches_nested_udt() -> None:
+    """``this.wins.getAvgProfit()`` must call SideStats, not recurse into StatsData."""
+    src = """//@version=5
+indicator("gp")
+type SideStats
+    float sumProfit = 0.0
+    int numOf = 1
+method getAvgProfit(SideStats this) =>
+    this.sumProfit / this.numOf
+type StatsData
+    SideStats wins
+method getAvgProfit(StatsData this) =>
+    this.wins.getAvgProfit()
+s = StatsData.new(SideStats.new(10.0, 2))
+plot(s.getAvgProfit())
+"""
+    code = transpile(src)
+    assert "getAvgProfit__" in code
+    compiled = compile_script(src, use_cache=False)
+    out = compiled.run(*_ohlcv(8))
+    assert abs(_last(out) - 5.0) < 1e-9
+
+
 def test_corpus_0030_update_arity_typeerror_gone() -> None:
     """0030 ``seasonalTable.update(seasonalData)`` must not hit StatsData.update."""
     pine = _SET06_LIB / "0030_lib_3.pine"
@@ -192,6 +215,8 @@ def test_corpus_0030_update_arity_typeerror_gone() -> None:
         pytest.skip(f"0030 later TypeError after update arity fixed: {exc}")
     except _TimeoutError:
         pytest.skip("0030 compile/run hung; reduced snippet is the lock")
+    except RecursionError:
+        raise
     except Exception as exc:
         msg = str(exc)
         if "INV" in msg:
