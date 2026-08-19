@@ -37,6 +37,7 @@ Commands
 - ``prewarm`` — warm Numba builtins / optional script IR caches (H2)
 - ``run`` — compile + execute on synthetic OHLCV
 - ``data`` — fetch market bars (mock / Yahoo / …)
+- ``download-builtins`` — fetch TradingView builtin Pine templates
 - ``info`` — version and optional extras (numba, rich, …)
 
 The Language Server is a **separate** console script (``pyne-lsp`` /
@@ -98,6 +99,8 @@ Examples:
   pynescript compile script.pine --emit
   pynescript run script.pine --bars 100
   pynescript data AAPL --provider yahoo --period 6mo
+  pynescript download-builtins --list
+  pynescript download-builtins --yes
   pynescript info
 
 \b
@@ -1249,6 +1252,70 @@ def data(
 
     except DataProviderError as e:
         raise click.ClickException(str(e)) from e
+
+
+# ---------------------------------------------------------------------------
+# download-builtins
+# ---------------------------------------------------------------------------
+
+
+@cli.command("download-builtins", short_help="Download TradingView builtin Pine templates.")
+@click.argument(
+    "dest",
+    required=False,
+    type=click.Path(file_okay=False, writable=True, path_type=Path),
+)
+@click.option("--workers", type=int, default=None, help="Parallel GET workers (default: 8).")
+@click.option("--encoding", default="utf-8", help="Text encoding for written .pine files.")
+@click.option(
+    "--list",
+    "dry_run",
+    is_flag=True,
+    help="Print the Rich catalog only — do not download.",
+)
+@click.option("--yes", "assume_yes", is_flag=True, help="Skip the confirm prompt.")
+@click.option("--skip-existing", is_flag=True, help="Do not overwrite files already on disk.")
+@click.option("--limit", type=int, default=None, help="Download only the first N templates.")
+@click.option("--plain", is_flag=True, help="Disable Rich (tqdm / ASCII).")
+@click.option("--rich", "force_rich", is_flag=True, help="Force Rich even when stdout is not a TTY.")
+def download_builtins_cmd(
+    dest: Path | None,
+    workers: int | None,
+    encoding: str,
+    dry_run: bool,
+    assume_yes: bool,
+    skip_existing: bool,
+    limit: int | None,
+    plain: bool,
+    force_rich: bool,
+) -> None:
+    """Fetch official builtin Pine templates from pine-facade.
+
+    Prints a Rich catalog *before* any per-script download starts.
+
+    \b
+    Examples:
+      pynescript download-builtins --list
+      pynescript download-builtins --yes
+      pynescript download-builtins /tmp/pine-builtins --limit 5 --yes
+      python -m pynescript.util.pine_facade --list
+    """
+    from pynescript.util.pine_facade import DEFAULT_DEST
+    from pynescript.util.pine_facade import download_builtin_scripts
+
+    summary = download_builtin_scripts(
+        dest or DEFAULT_DEST,
+        encoding=encoding,
+        max_workers=workers,
+        dry_run=dry_run,
+        confirm=not assume_yes,
+        skip_existing=skip_existing,
+        limit=limit,
+        plain=plain,
+        force_rich=force_rich,
+    )
+    if summary.get("failed"):
+        raise SystemExit(1)
 
 
 # ---------------------------------------------------------------------------

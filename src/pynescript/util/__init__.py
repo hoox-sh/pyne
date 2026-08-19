@@ -24,6 +24,7 @@ Submodules:
 - :mod:`pynescript.util.data` — historical OHLCV providers (mock, Yahoo, CCXT, …)
 - :mod:`pynescript.util.datafeed` — async realtime feeds (CCXT Pro / mock)
 - :mod:`pynescript.util.corpus_sanitize` — strip page chrome from scraped Pine
+- :mod:`pynescript.util.pine_facade` — download TradingView builtin templates
 - :mod:`pynescript.util.time_parts` — fast UTC calendar parts from bar ms
 - :mod:`pynescript.util.itertools` — small iteration helpers (e.g. ``grouper``)
 """
