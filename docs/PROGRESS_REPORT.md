@@ -25,7 +25,7 @@ This project provides a capable Pine Script v5/v6 toolchain: parser, AST, evalua
 
 ## Key Achievements
 
-### 🎯 Overall Progress: Strong parser + solid evaluator coverage (tests: 1142 passed)
+### 🎯 Overall Progress: Strong parser + solid evaluator coverage (tests: **2474** collected, 0.3.16)
 
 ### Components Status
 
@@ -36,7 +36,8 @@ This project provides a capable Pine Script v5/v6 toolchain: parser, AST, evalua
 | **Built-in Functions** | Broad | Math, strings, arrays, TA, strategy, drawing (stubs for plots) |
 | **Collections** | Full | Arrays, Matrices, Maps |
 | **Types** | Good | Including UDTs, series semantics |
-| **Code Quality** | Good | Modular, 1142 tests passing |
+| **Compile** | Good | Numba + object-mode; **0.3.16** UDT/switch/matrix/drawing residuals |
+| **Code Quality** | Good | Modular, **2474** tests collected |
 | **Strategy** | Functional | Entry/exit, trades, risk, events support |
 | **Technical Analysis** | Broad | Many indicators implemented and tested |
 

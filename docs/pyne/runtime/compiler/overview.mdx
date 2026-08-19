@@ -30,7 +30,7 @@ The compile path lowers Pine’s ASDL AST to **executable Python** that walks ba
 
 The public façade is `pynescript.compiler.engine` (`transpile`, `compile_script`, `run_script`), also reachable as `Runtime.run(..., mode="compile")` or `mode="auto"`.
 
-This is an MVP with growing surface—not a full substitute for the interpreter on every script (notably multi-asset `request.*` and full strategy analytics).
+This is an MVP with growing surface—not a full substitute for the interpreter on every script (notably multi-asset `request.*` and full strategy analytics). **0.3.16** recovered a large object-mode residual class: UDF locals, nopython `None`/unicode helpers, matrix handles, UDT returns, statement `switch` assign, and drawing/`chart.point` copy. Plot-value MISMATCH vs interpret (**P1p**) remains a residual, not a missing language surface.
 
 ## Conceptual model
 

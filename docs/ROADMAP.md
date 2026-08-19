@@ -19,11 +19,12 @@
 
 # Pynescript Future Roadmap
 
-**Last Updated:** 2026-08-18 (0.3.14: free-tier opt-in + position_avg_price/leverage; 0.3.13 optimize scoring; 0.3.12 optimize + timeframe.change + HTF wma/rma + inc aroon/dpo/donchian/kst)
+**Last Updated:** 2026-08-19 (0.3.16: compile object-mode corpus residuals; 0.3.15 download-builtins + compile set06; 0.3.14 free-tier opt-in + position_avg_price/leverage)
 **Status:** Core v6 language/builtins essentially closed. Remaining work is
 **interpret↔compile plot residuals (P1p corpus tail)** — not missing syntax.
 Product warm-compile (H2), series caps (T1), package Runtime SoT (H1),
-incremental volume TA including nvi/pvi (T2), and Supertrend goldens (F1) landed.
+incremental volume TA including nvi/pvi (T2), Supertrend goldens (F1), and
+compile object-mode UDT/switch/matrix/drawing residuals (0.3.16) landed.
 
 ---
 
@@ -35,7 +36,7 @@ incremental volume TA including nvi/pvi (T2), and Supertrend goldens (F1) landed
 | Evaluator | ✅ incl. full var/varip, ReAssign |
 | Built-in Functions / TA / collections | ✅ broad (0 missing vs public TV ref list) |
 | Strategy Events + broker (OCA, commission, risk) | ✅ |
-| Numba + object-mode compile | ✅ MVP+ (disk IR cache, auto mode, `time_arr`, cache recovery) |
+| Numba + object-mode compile | ✅ MVP+ (disk IR cache, auto mode, `time_arr`, cache recovery; **0.3.16** UDT/switch/matrix/drawing residuals) |
 | Pro API (Flask) + auth + Docker | ✅ (`mode` default `auto`) |
 | pyne-worker (Python CF Worker) | ✅ sibling `hoox-sh/pyne-worker`; thin wrap over package Runtime |
 | pine-worker (legacy TS) | not colocated — leftover sibling `hoox-sh/pine-worker`; new TS work is PyneTS |
@@ -45,7 +46,7 @@ incremental volume TA including nvi/pvi (T2), and Supertrend goldens (F1) landed
 | Drawing max_*_count GC | ✅ (package + Pro API + AXIS pyodide) |
 | Interpret↔compile plot parity | ⚙️ harness + goldens landed; residual MISMATCH tail open |
 | Dual-host Runtime parity | ✅ largely done (package SoT + backend shims + pyne-worker thin wrap) |
-| Tests | 1000+ green core suites |
+| Tests | **2474** collected (0.3.16) |
 
 ---
 

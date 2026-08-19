@@ -51,6 +51,7 @@ These are implementation status notes for constructs that previously diverged fr
 | **Numba cache recovery** | Truncated/corrupt `.nbi`/`.nbc` (EOFError / UnpicklingError) purge via `clear_numba_function_caches` and retry once on warm/prewarm/run. Disk IR clear remains separate (`clear_disk_compile_cache`). |
 | **`ta.rci`** | `numba_rci` + compiler emit for Spearman rank correlation; matches interpret window/rank contract. |
 | **Interpret oracle parity harness** | `scripts/compare_interp_compile.py` runs the same scripts under `mode=interpret` and `mode=compile`, compares `result["series"]` with nan-aware allclose, and buckets residuals (`OK`, `fill_background_only`, `both_error_same`, `MISMATCH`, …). Always-on smoke: `tests/test_interp_compile_parity.py`; focused foreign-security: `tests/test_dividend_yield_parity.py`. |
+| **Object-mode corpus residuals (0.3.16)** | UDF `if`/for-in locals and free-series capture; nopython `None`/`timestamp` timezone/object `valuewhen`; matrix UDF/`kron` handles; statement `x = switch`; UDT `Type.new()` returns; `chart.point.copy`/`box.copy`; `pine_int(na)`; sanitize Hugo/`/* */`/jinja. Tests under `tests/test_set06_*.py`. |
 
 ## Architecture
 

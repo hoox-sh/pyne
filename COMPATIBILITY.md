@@ -1,6 +1,6 @@
 # Compatibility — PYNE grouped map
 
-**hoox-pyne 0.3.15** · import `pynescript` · CLIs `pyne` / `pyne-lsp`
+**hoox-pyne 0.3.16** · import `pynescript` · CLIs `pyne` / `pyne-lsp`
 
 Product page (visual map): [compatibility](https://hoox.sh/pyne/docs/reference/compatibility).
 
@@ -86,7 +86,7 @@ Not shipped in git. Not a TV platform score.
 | **Strategy** | entry/exit/close, OCA, tick `profit`/`loss`, `from_entry`, `qty_percent`, risk cascade, F2 pending-fill, OHLC trail |
 | **Draw / plot** | plot*/hline/fill/bgcolor/barcolor; line/box/label/table/polyline/linefill; GC; `force_overlay`; compile drawings geometry-only; key sets match interpret |
 | **Alerts** | `alert` / `alertcondition` + L2 webhooks |
-| **Compile** | Numba + object mode; warm IR cache; `auto` fallback |
+| **Compile** | Numba + object mode; warm IR cache; `auto` fallback; **0.3.16** UDT/switch/matrix/drawing residuals |
 | **Surfaces** | CLI `pyne` / `pyne-lsp` / `pyne optimize`; Pro `POST /run` + `/run/batch` + `POST /optimize` |
 
 ### Partial

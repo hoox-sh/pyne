@@ -2,7 +2,7 @@
 
 **Independent open toolchain for the Pine Script™ language** — formal grammar, algebraic AST, dual-engine bar-loop runtime, language server, and HTTP evaluation surface. Part of the [HOOX](https://hoox.sh) open trading stack.
 
-**0.3.15** · PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) · import `pynescript` · CLIs `pyne` · `pyne-lsp` (aliases: `pynescript` · `pynescript-lsp`)
+**0.3.16** · PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) · import `pynescript` · CLIs `pyne` · `pyne-lsp` (aliases: `pynescript` · `pynescript-lsp`)
 
 <div align="center">
 
@@ -80,7 +80,7 @@ Not a claim of TradingView® platform parity. Intentional demos are classified s
 ### Runtime
 
 - **Bar-loop evaluation.** Deterministic indicator and strategy execution on OHLCV. Interpret (0.3.10) inlines Assign/Call after bar 0, skips unused derived series, and incrementally updates volume TA (`obv` / `wad` / `cmf` / `klinger`). `PYNE_SERIES_RING` default **off**.
-- **Dual engine.** Interpret (AST walk) and compile (Numba nopython kernels with object-mode fallback); `mode` ∈ {`auto`, `compile`, `interpret`}.
+- **Dual engine.** Interpret (AST walk) and compile (Numba nopython kernels with object-mode fallback); `mode` ∈ {`auto`, `compile`, `interpret`}. Object-mode recovers UDT/switch/map/matrix/drawing scripts that previously leaked `TypingError` or stored objects into float64 series.
 - **Warm compile.** Disk IR cache, process prewarm, and recovery from corrupt cache state.
 - **Plot parity.** Interpret ↔ compile series alignment verified by harness and tests (internal engine consistency, not platform certification).
 - **Alerts.** `alert()` / `alertcondition()` with documented frequency semantics (`once_per_bar`, `once_per_bar_close`, `all`); structured export on Pro `/run` and optional L2 webhooks.
@@ -121,16 +121,16 @@ Multi-arch (`linux/amd64`, `linux/arm64`) images publish to GitHub Container Reg
 
 ```bash
 # CLI
-docker pull ghcr.io/hoox-sh/pyne/cli:0.3.15
-docker run --rm -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/cli:0.3.15 check script.pine
+docker pull ghcr.io/hoox-sh/pyne/cli:0.3.16
+docker run --rm -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/cli:0.3.16 check script.pine
 
 # Language server (stdio; -i required)
-docker pull ghcr.io/hoox-sh/pyne/lsp:0.3.15
-docker run --rm -i -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/lsp:0.3.15
+docker pull ghcr.io/hoox-sh/pyne/lsp:0.3.16
+docker run --rm -i -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/lsp:0.3.16
 
 # Pro API
-docker pull ghcr.io/hoox-sh/pyne/api:0.3.15
-docker run --rm -p 5002:8080 -e ADMIN_TOKEN=… ghcr.io/hoox-sh/pyne/api:0.3.15
+docker pull ghcr.io/hoox-sh/pyne/api:0.3.16
+docker run --rm -p 5002:8080 -e ADMIN_TOKEN=… ghcr.io/hoox-sh/pyne/api:0.3.16
 ```
 
 Packages: [ghcr.io/hoox-sh/pyne](https://github.com/hoox-sh/pyne/pkgs/container/pyne%2Fcli). Local: `make docker-build-lsp`.
