@@ -38,10 +38,10 @@ Layers (what this module “registers” for the compile path)
 
 3. **Object-mode coercion / safety** (pure Python, never under njit):
    ``safe_float``, ``safe_int``, ``safe_period``, ``safe_len``, ``safe_iter``,
-   ``safe_sum`` / ``safe_max`` / ``safe_min``, ``na_num`` (None→nan for
-   arithmetic), ``nz_py`` (unicode-safe nz), ``store_src_py``, ``udt_index``,
-   ``pine_raise``, list/matrix mutators (``safe_list_*``, ``matrix_*``),
-   array stats (``array_mode``, ``array_range``, …).
+   ``safe_iter_pairs``, ``safe_sum`` / ``safe_max`` / ``safe_min``, ``na_num``
+   (None→nan for arithmetic), ``nz_py`` (unicode-safe nz), ``store_src_py``,
+   ``udt_index``, ``pine_raise``, list/matrix mutators (``safe_list_*``,
+   ``matrix_set``, ``matrix_*``), array stats (``array_mode``, ``array_range``, …).
 
 Numba constraints
 -----------------
@@ -1682,6 +1682,41 @@ def safe_iter(x):
     except TypeError:
         return ()
 
+
+def safe_iter_pairs(x):
+    """Iterate ``(key, value)`` / ``(index, value)`` pairs; non-iterable → empty.
+
+    dict → ``.items()``; list/tuple of 2-seqs as-is; other sequences →
+    ``enumerate``; scalars / str / None → empty. Does not change ``safe_iter``.
+    """
+    if x is None:
+        return ()
+    if isinstance(x, dict):
+        return x.items()
+    if isinstance(x, (list, tuple)):
+        if x and all(isinstance(e, (list, tuple)) and len(e) == 2 for e in x):
+            return x
+        return enumerate(x)
+    if isinstance(x, np.ndarray):
+        if x.ndim == 0:
+            return ()
+        if x.ndim == 2 and x.shape[1] == 2:
+            return x
+        return enumerate(x)
+    if isinstance(x, (str, bytes, float, int, bool, complex, np.floating, np.integer, np.bool_)):
+        return ()
+    items = getattr(x, "items", None)
+    if callable(items):
+        try:
+            return items()
+        except Exception:
+            return ()
+    try:
+        iter(x)
+        return enumerate(x)
+    except TypeError:
+        return ()
+
 def safe_sum(x):
     """Sum numeric elements of a collection; skip str/dict/None (no TypeError)."""
     if x is None:
@@ -2324,6 +2359,24 @@ def _matrix_ensure(m):
         return [list(row) for row in m]
     except TypeError:
         return []
+
+
+def matrix_set(m, row, col, value):
+    """Set ``m[row][col] = value``; return *m*. Soft no-op on bad index/handle."""
+    if not isinstance(m, list):
+        return m
+    try:
+        r = int(row)
+        c = int(col)
+    except (TypeError, ValueError):
+        return m
+    if r < 0 or c < 0 or r >= len(m):
+        return m
+    row_data = m[r]
+    if not isinstance(row_data, list) or c >= len(row_data):
+        return m
+    row_data[c] = value
+    return m
 
 
 def matrix_add_row(m, *rest):
@@ -6374,6 +6427,59 @@ def matrix_is_square(m):
     if not isinstance(m, list):
         return False
     return len(m) == _matrix_ncols(m)
+
+
+def _matrix_is_handle(m) -> bool:
+    """True when *m* looks like a list-of-lists / ndarray matrix handle."""
+    if m is None or isinstance(m, (str, bytes, dict, set, bool, np.bool_)):
+        return False
+    if isinstance(m, (float, int, complex, np.floating, np.integer)):
+        return False
+    return isinstance(m, (list, tuple, np.ndarray))
+
+
+def matrix_is_zero(m):
+    """True when every cell is 0. Bad input → False."""
+    if not _matrix_is_handle(m):
+        return False
+    arr = _matrix_float_array(m)
+    if arr is None:
+        return False
+    try:
+        return bool(np.all(arr == 0))
+    except Exception:
+        return False
+
+
+def matrix_is_identity(m):
+    """True when *m* is square identity. Bad / non-square input → False."""
+    if not _matrix_is_handle(m):
+        return False
+    arr = _matrix_float_array(m)
+    if arr is None or arr.ndim != 2 or arr.shape[0] != arr.shape[1]:
+        return False
+    try:
+        return bool(np.array_equal(arr, np.eye(arr.shape[0])))
+    except Exception:
+        return False
+
+
+def matrix_is_antidiagonal(m):
+    """True when off-antidiagonal cells are 0. Bad / non-square → False."""
+    if not _matrix_is_handle(m):
+        return False
+    arr = _matrix_float_array(m)
+    if arr is None or arr.ndim != 2 or arr.shape[0] != arr.shape[1]:
+        return False
+    n = arr.shape[0]
+    try:
+        off = arr.copy()
+        if n:
+            idx = np.arange(n)
+            off[idx, n - 1 - idx] = 0.0
+        return bool(np.all(off == 0))
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------------------

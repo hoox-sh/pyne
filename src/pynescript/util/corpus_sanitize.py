@@ -27,6 +27,8 @@ Useful when user-supplied text still contains page chrome that is not valid Pine
 - Horizontal rules, bare URLs, publication footers
 - Leading write-ups before the real script
 - Mis-collected shell / Python / HTML fragments
+- Mustache ``{{IDENT}}`` placeholders, MDX/JSX wrappers, RST literal-block indent
+- Trailing statement ``;`` and leftover ``at https:`` docs prose
 
 Markdown for ``//@function`` hover annotations lives only inside ``//`` comments
 and is left alone. This module strips *page* chrome, not annotation Markdown.
@@ -133,9 +135,31 @@ _UI_CHROME_LINE_RE = re.compile(
 _LINE_NUMBER_ONLY_RE = re.compile(r"^\s*\d{1,4}\s*$")
 # Hugo / Goldmark shortcodes left in scraped markdown (``{{< / highlight >}}``).
 _HUGO_SHORTCODE_RE = re.compile(r"^\s*\{\{[<%].*?[%>]\}\}\s*$")
+# Mustache / MCP template placeholders: ``{{AS_OF_DATE}}`` (not Hugo ``{{<``).
+_MUSTACHE_RE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}")
 # RST leftovers after a docs example (``.. _label:``, heading underline).
 _RST_DIRECTIVE_RE = re.compile(r"^\s*\.\.\s+\S")
 _RST_HEADING_ULINE_RE = re.compile(r"^\s*[-=~^\"'`#*+]{3,}\s*$")
+# Docs leftover from broken RST/HTML ``<https://…>`` (``at https:…``).
+_AT_HTTPS_ONLY_RE = re.compile(r"^\s*at\s+https(:\S*)?\s*$", re.I)
+_AT_HTTPS_PROSE_RE = re.compile(r"\bat\s+https:", re.I)
+# MDX / JSX docs wrappers (fumadocs, Mintlify, skill frontmatter).
+_MDX_IMPORT_RE = re.compile(r"^\s*import\s*\{", re.M)
+_JSX_TAG_RE = re.compile(r"<(Steps|Step|Callout|Tabs|Tab|Cards|Card)\b")
+_JSX_COMMENT_RE = re.compile(r"^\s*\{\/\*", re.M)
+_JSX_LINE_RE = re.compile(
+    r"^\s*</?(Steps|Step|Callout|Tabs|Tab|Cards|Card)\b[^>]*>\s*$"
+)
+# Fence opener with optional language tag.
+_FENCE_OPEN_RE = re.compile(r"^\s*```\s*([\w+-]*)")
+_PINE_FENCE_LANGS = frozenset(
+    {"pine", "pinescript", "pinescriptv5", "pinescriptv6", "pine-script", "tradingview"}
+)
+# RST literal-block body after a col-0 ``study``/``indicator``/``strategy``.
+_RST_SCRIPT_DECL_LINE_RE = re.compile(r"^(\s*)(study|indicator|strategy)\s*\(")
+_RST_LITERAL_BODY_RE = re.compile(
+    r"^(?:plot(?:shape|char|candle|bar)?|hline|bgcolor|barcolor|fill|t\s*=)\b"
+)
 
 # Lines that look like executable Pine (or annotations / version).
 _PINE_START_RE = re.compile(
@@ -199,7 +223,8 @@ _FOREIGN_LINE_RE = re.compile(
     r"PROJECT_ROOT=|"
     r"LOCK_STATE=|"
     r"FILE_PATH=\"\$|"
-    r"#!/bin"
+    r"#!/bin|"
+    r"import\s*\{"
     r")"
 )
 
@@ -251,13 +276,15 @@ def _normalize_chrome(text: str) -> str:
     return text
 
 
-def _extract_fenced_blocks(lines: list[str]) -> list[str]:
-    """Return bodies of markdown fenced blocks (without fence lines)."""
-    blocks: list[str] = []
+def _extract_fenced_blocks_tagged(lines: list[str]) -> list[tuple[str, str]]:
+    """Return ``(language, body)`` for markdown fenced blocks (no fence lines)."""
+    blocks: list[tuple[str, str]] = []
     i = 0
     n = len(lines)
     while i < n:
-        if _FENCE_RE.match(lines[i]):
+        m = _FENCE_OPEN_RE.match(lines[i]) if _FENCE_RE.match(lines[i]) else None
+        if m:
+            lang = (m.group(1) or "").lower()
             i += 1
             body: list[str] = []
             while i < n and not _FENCE_RE.match(lines[i]):
@@ -265,10 +292,15 @@ def _extract_fenced_blocks(lines: list[str]) -> list[str]:
                 i += 1
             if i < n:  # consumed closing fence
                 i += 1
-            blocks.append("\n".join(body))
+            blocks.append((lang, "\n".join(body)))
             continue
         i += 1
     return blocks
+
+
+def _extract_fenced_blocks(lines: list[str]) -> list[str]:
+    """Return bodies of markdown fenced blocks (without fence lines)."""
+    return [body for _, body in _extract_fenced_blocks_tagged(lines)]
 
 
 def _extract_tv_copied_blocks(lines: list[str]) -> list[str]:
@@ -359,6 +391,9 @@ def _score_pine_block(text: str) -> int:
     # Penalize foreign languages
     if _looks_like_foreign(text):
         score -= 40
+    # JS/TS/PineTS fences score like pine (``indicator(`` + ``plot``) but must not win.
+    if _looks_like_js_block(text):
+        score -= 80
     return score
 
 
@@ -388,6 +423,41 @@ def _looks_like_foreign(text: str) -> bool:
     shell_if = sum(1 for ln in lines if _SHELL_IF_RE.match(ln) or re.match(r"^\s*echo\s", ln))
     if shell_if >= 3 and not re.search(r"//@version\s*=", text):
         return True
+    if _looks_like_mdx(text):
+        return True
+    return False
+
+
+def _looks_like_js_block(text: str) -> bool:
+    """True for JS/TS/PineTS fences (``const x =``, ``{ overlay: }``, ``if (…) {``)."""
+    if re.search(r"\{\s*overlay\s*:", text) or re.search(r"\{\s*color\s*:", text):
+        return True
+    if re.search(r"\{\s*style\s*:", text):
+        return True
+    if re.search(r"\b(const|let)\s+[A-Za-z_]\w*\s*=", text):
+        return True
+    if re.search(r"\bif\s*\([^)]*\)\s*\{", text):
+        return True
+    return False
+
+
+def _looks_like_mdx(text: str) -> bool:
+    """True for MDX/JSX docs wrappers (frontmatter + ``import {`` / ``<Steps>``)."""
+    lines = [ln for ln in text.splitlines() if not _is_provenance(ln)]
+    if not lines:
+        return False
+    head = "\n".join(lines[:80])
+    if _MDX_IMPORT_RE.search(head) and re.search(r"from\s+['\"]", head):
+        return True
+    if _JSX_TAG_RE.search(head) or _JSX_COMMENT_RE.search(head):
+        return True
+    nonempty = [ln for ln in lines if ln.strip()]
+    if nonempty and nonempty[0].strip() == "---":
+        rest = nonempty[1:30]
+        if any(ln.strip() == "---" for ln in rest) and any(
+            re.match(r"^[A-Za-z_][\w-]*\s*:", ln) for ln in rest
+        ):
+            return True
     return False
 
 
@@ -484,6 +554,213 @@ def _normalize_unicode_ops(line: str) -> str:
     return "".join(out)
 
 
+def _code_ends_with_semicolon(code: str) -> bool:
+    """True when *code* ends with a ``;`` that is outside strings/comments."""
+    in_str: str | None = None
+    esc = False
+    last_semi = -1
+    i = 0
+    n = len(code)
+    while i < n:
+        ch = code[i]
+        if esc:
+            esc = False
+            i += 1
+            continue
+        if in_str:
+            if ch == "\\":
+                esc = True
+            elif ch == in_str:
+                in_str = None
+            i += 1
+            continue
+        if ch in "\"'":
+            in_str = ch
+            i += 1
+            continue
+        if ch == "/" and i + 1 < n and code[i + 1] == "/":
+            break
+        if ch == ";":
+            last_semi = i
+        i += 1
+    return last_semi == n - 1
+
+
+def _strip_trailing_semicolon(line: str) -> str:
+    """Drop a statement-terminator ``;`` at EOL (JS leftover). Quote-aware."""
+    if line.lstrip().startswith("//"):
+        return line
+    ended_nl = line.endswith("\n")
+    core = line[:-1] if ended_nl else line
+    rstripped = core.rstrip()
+    if not rstripped.endswith(";") or not _code_ends_with_semicolon(rstripped):
+        return line
+    return rstripped[:-1].rstrip() + ("\n" if ended_nl else "")
+
+
+_NUMERIC_PLACEHOLDER_RE = re.compile(
+    r"(?i)(PCT|DAYS|LOOKBACK|THRESHOLD|SPOT|COUNT|SIZE|RATE|YIELD|"
+    r"INT|FLOAT|SLOPE|PTS|DTE|LEN(?:GTH)?|MULT|PRICE|NUM|BARS)\b"
+)
+
+
+def _mustache_sub_for_span(ident: str, before: str, *, in_string: bool) -> str:
+    """``na`` in strings / generic code; ``0`` for assignment or arithmetic RHS."""
+    if in_string:
+        return "na"
+    prev = before.rstrip()
+    if prev.endswith(("=", "+", "-", "*", "/")) or _NUMERIC_PLACEHOLDER_RE.search(ident):
+        return "0"
+    return "na"
+
+
+def _replace_mustache_in_line(line: str) -> str:
+    """Replace ``{{IDENT}}`` outside comments (and inside strings)."""
+    if not _MUSTACHE_RE.search(line):
+        return line
+    if line.lstrip().startswith("//"):
+        return line
+    out: list[str] = []
+    in_str: str | None = None
+    esc = False
+    i = 0
+    n = len(line)
+    while i < n:
+        ch = line[i]
+        if esc:
+            out.append(ch)
+            esc = False
+            i += 1
+            continue
+        if in_str:
+            if ch == "\\":
+                out.append(ch)
+                esc = True
+                i += 1
+                continue
+            if ch == in_str:
+                out.append(ch)
+                in_str = None
+                i += 1
+                continue
+            m = _MUSTACHE_RE.match(line, i)
+            if m:
+                out.append(_mustache_sub_for_span(m.group(1), "".join(out), in_string=True))
+                i = m.end()
+                continue
+            out.append(ch)
+            i += 1
+            continue
+        if ch == "/" and i + 1 < n and line[i + 1] == "/":
+            out.append(line[i:])
+            break
+        if ch in "\"'":
+            in_str = ch
+            out.append(ch)
+            i += 1
+            continue
+        m = _MUSTACHE_RE.match(line, i)
+        if m:
+            out.append(_mustache_sub_for_span(m.group(1), "".join(out), in_string=False))
+            i = m.end()
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _replace_mustache_placeholders(text: str) -> str:
+    """Replace ``{{AS_OF_DATE}}``-style templates so the lexer never sees ``{``."""
+    if "{{" not in text:
+        return text
+    ended_nl = text.endswith("\n")
+    lines = text.splitlines()
+    out = [_replace_mustache_in_line(ln) for ln in lines]
+    body = "\n".join(out)
+    if ended_nl and body and not body.endswith("\n"):
+        body += "\n"
+    return body
+
+
+def _dedent_rst_literal_body(text: str) -> str:
+    """Dedent RST literal-block indent under a col-0 script declaration.
+
+    Docs often paste::
+
+        study("Bar date/time")
+            plot(time)
+
+        This illustrates the meaning of the variable ``time``.
+
+    ``study`` at column 0 blocks common-indent dedent; if the following
+    more-indented ``plot`` / ``t =`` body is then English prose, strip that
+    extra indent (keep the intentional-error demo that has no trailing prose).
+    """
+    lines = text.splitlines(keepends=True)
+    if not lines:
+        return text
+    n = len(lines)
+    out = list(lines)
+    i = 0
+    while i < n:
+        raw = lines[i]
+        if raw.lstrip().startswith("//"):
+            i += 1
+            continue
+        m = _RST_SCRIPT_DECL_LINE_RE.match(raw.rstrip("\n"))
+        if not m:
+            i += 1
+            continue
+        decl_indent = m.group(1)
+        j = i + 1
+        while j < n and not lines[j].strip():
+            j += 1
+        body_idxs: list[int] = []
+        k = j
+        while k < n:
+            nxt = lines[k]
+            if not nxt.strip():
+                k += 1
+                continue
+            if nxt.lstrip().startswith("//"):
+                k += 1
+                continue
+            indent_len = len(nxt) - len(nxt.lstrip(" \t"))
+            if indent_len > len(decl_indent) and _RST_LITERAL_BODY_RE.match(nxt.lstrip()):
+                body_idxs.append(k)
+                k += 1
+                continue
+            break
+        p = k
+        while p < n and not lines[p].strip():
+            p += 1
+        if (
+            body_idxs
+            and p < n
+            and (
+                _PROSE_CONTINUE_RE.match(lines[p])
+                or _looks_like_prose_line(lines[p])
+            )
+        ):
+            extras: list[str] = []
+            for bi in body_idxs:
+                ln = lines[bi]
+                ws = ln[: len(ln) - len(ln.lstrip(" \t"))]
+                extras.append(ws[len(decl_indent) :])
+            prefix = extras[0]
+            for extra in extras[1:]:
+                while prefix and not extra.startswith(prefix):
+                    prefix = prefix[:-1]
+            if prefix:
+                drop = len(decl_indent) + len(prefix)
+                for bi in body_idxs:
+                    ln = lines[bi]
+                    if ln.startswith(decl_indent + prefix):
+                        out[bi] = decl_indent + ln[drop:]
+        i = k if body_idxs else i + 1
+    return "".join(out)
+
+
 def _polish_code_line(line: str) -> str:
     """Fix common scrape typos on an otherwise kept code line."""
     # Drop docs nav glued after real code: ``label.new(...)          Next``
@@ -510,6 +787,7 @@ def _polish_code_line(line: str) -> str:
     if "=>" in line and not line.lstrip().startswith("//"):
         line = re.sub(r",\s*$", "", line)
     line = _normalize_unicode_ops(line)
+    line = _strip_trailing_semicolon(line)
     return line
 
 
@@ -553,6 +831,12 @@ def _strip_line_chrome(line: str) -> str | None:
     if _RST_DIRECTIVE_RE.match(line):
         return None
     if _RST_HEADING_ULINE_RE.match(line):
+        return None
+    if not stripped.startswith("//") and (
+        _AT_HTTPS_ONLY_RE.match(line) or _AT_HTTPS_PROSE_RE.search(line)
+    ):
+        return None
+    if _JSX_LINE_RE.match(line):
         return None
 
     if stripped.startswith(">"):
@@ -1841,6 +2125,7 @@ def _pick_best_version_island(body: str) -> str:
 
 def _finalize(provenance: list[str], body: str, ends_with_nl: bool) -> str:
     body = _pick_best_version_island(body)
+    body = _replace_mustache_placeholders(body)
     body = _dedent_if_leading_indent(body)
     body = _fix_truncated_syntax(_fix_missing_decl_commas(body))
     body = _fix_empty_type_body(body)
@@ -1895,16 +2180,31 @@ def sanitize_corpus_source(source: str) -> str:
     """Drop or unwrap non-Pine chrome common in scraped corpus scripts."""
     ends_with_nl = source.endswith("\n")
     source = _normalize_chrome(source)
+    source = _dedent_rst_literal_body(source)
     lines = source.splitlines()
 
     provenance, body_lines = _split_provenance(lines)
     body_text = "\n".join(body_lines)
 
     # Candidate extractable Pine islands (fences, reference "Copied", shell heredocs).
-    blocks: list[str] = []
-    blocks.extend(_extract_fenced_blocks(lines))
+    tagged_fences = _extract_fenced_blocks_tagged(lines)
+    blocks: list[str] = [body for _, body in tagged_fences]
     blocks.extend(_extract_tv_copied_blocks(lines))
     blocks.extend(_extract_heredoc_blocks(lines))
+
+    # MDX / JSX docs: never feed ``import {`` / ``<Steps>`` to the lexer.
+    # Use the first real pine fence if any; otherwise the minimal stub.
+    if _looks_like_mdx(body_text):
+        pine_only = [
+            body
+            for lang, body in tagged_fences
+            if (lang in _PINE_FENCE_LANGS or not lang)
+            and not _looks_like_js_block(body)
+        ]
+        best_mdx, score_mdx = _pick_best_block(pine_only)
+        if best_mdx is not None and score_mdx >= 40 and _has_usable_pine(best_mdx):
+            return _finalize(provenance, _clean_block_body(best_mdx), ends_with_nl)
+        return _finalize(provenance, _MINIMAL_STUB, ends_with_nl)
 
     best, best_score = _pick_best_block(blocks)
 

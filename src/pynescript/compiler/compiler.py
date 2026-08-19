@@ -642,6 +642,10 @@ class CompilerVisitor(NodeVisitor):
     # clobber ``vol_arr`` / ``close_arr`` / … (e.g. ``string vol = "|HiVol"``).
     _CHART_ARR_BASES = frozenset({"open", "high", "low", "close", "vol"})
 
+    # Pine names that would rebind generated-module imports (``import numpy as np``)
+    # or collide with the ``na`` → ``np.nan`` builtin if assigned as locals.
+    _MODULE_SHADOW_IDENTS = frozenset({"np", "na"})
+
     def _series_arr_name(self, name: str) -> str:
         """Python array identifier for a user series (mangles chart collisions)."""
         if name in self._CHART_ARR_BASES:
@@ -662,14 +666,38 @@ class CompilerVisitor(NodeVisitor):
             base = base[len("__user_") :]
         return base in self.udt_vars or base in self.string_series
 
+    def _protect_module_shadow(self, name: str) -> str:
+        """Rename Pine names that would rebind generated ``np`` (numpy) or ``na``.
+
+        Tuple unpack / assign of ``np`` (e.g. ``[…, np, dp] = zg.czigzag(...)``)
+        must not emit ``np = …`` inside the bar loop — that makes every later
+        ``np.nan`` / ``np.full`` an UnboundLocalError.
+        """
+        if name in self._MODULE_SHADOW_IDENTS:
+            mapped = f"{name}__loc"
+            self.ident_map[name] = mapped
+            return mapped
+        return name
+
     def _py_ident(self, name: str) -> str:
         """Resolve a Pine local/param name to the emitted Python identifier."""
+        if name in self._MODULE_SHADOW_IDENTS:
+            return self._protect_module_shadow(name)
         if name in self.ident_map:
             return self.ident_map[name]
         safe = self._safe_ident(name)
         if safe != name:
             self.ident_map[name] = safe
         return safe
+
+    def _dmi_as_scalar(self, val: str) -> str:
+        """``ta.dmi`` returns ``(+DI, -DI, ADX)``; a scalar store keeps ADX."""
+        if not val:
+            return val
+        s = val.strip()
+        if re.search(r"\bnumba_dmi(?:_inc)?\s*\(", s) and not s.endswith("]"):
+            return f"({s})[2]"
+        return val
 
     @staticmethod
     def _resolve_args(
@@ -1315,6 +1343,8 @@ class CompilerVisitor(NodeVisitor):
             val = tern
         else:
             val = self.visit(node.value)
+        # ta.dmi → 3-tuple; single-target series store must keep a float (ADX).
+        val = self._dmi_as_scalar(val)
 
         # Explicit type annotation: `color x = …` / `string s = …`
         type_node = getattr(node, "type", None)
@@ -1407,6 +1437,10 @@ class CompilerVisitor(NodeVisitor):
                 self.local_sequence_vars.add(name)
                 return f"{py} = {val}"
             return f"{py} = {val}"
+
+        # Script-level: never rebind numpy ``np`` / Pine ``na`` in the bar loop.
+        if name in self._MODULE_SHADOW_IDENTS:
+            name = self._protect_module_shadow(name)
 
         # Script-level shadow of a UDF (``dmx = dmx(period)``) → rename store target
         # so the call stays bound to the function while the result is a local.
@@ -2154,7 +2188,15 @@ class CompilerVisitor(NodeVisitor):
         if s.startswith("float(__bar_idx") or s.startswith("float(n_bars"):
             return True
         # Pure numba_/np.* calls (and compounds that only wrap them) are numeric.
-        if s.startswith("numba_") or s.startswith("np."):
+        # ``(numba_dmi_inc(...))[2]`` is the ADX scalar picked for non-unpack stores.
+        if (
+            s.startswith("numba_")
+            or s.startswith("np.")
+            or (s.startswith("(numba_") and s.endswith("]"))
+        ):
+            # ta.dmi returns a 3-tuple — not a float64 series element.
+            if re.search(r"\bnumba_dmi(?:_inc)?\s*\(", s) and not s.endswith("]"):
+                return False
             # Still reject if string/object helpers sneaked in as args.
             if re.search(r"\b(safe_float|safe_int|nz_py|store_src_py|udt_|str\()\b", s):
                 return False
@@ -2393,6 +2435,8 @@ class CompilerVisitor(NodeVisitor):
                 return ""
             pine_name = el.id
             names.append(pine_name)
+            if pine_name in self._MODULE_SHADOW_IDENTS:
+                self._protect_module_shadow(pine_name)
             if not self.in_function:
                 # Script-level UDF shadow: ``[pvsraVolume, ...] = pvsraVolume(...)``
                 # must store under ``pvsraVolume__loc`` so the call still binds to
@@ -2715,7 +2759,7 @@ class CompilerVisitor(NodeVisitor):
                 if tern is not None:
                     return f"{target} = {tern}"
                 return self._emit_if_assign(target, node.value)
-            val = self.visit(node.value)
+            val = self._dmi_as_scalar(self.visit(node.value))
             py = self._py_ident(node.target.id)
             # line/label/box handles into series-local → object dtype (not float64)
             if val and (
@@ -2737,14 +2781,16 @@ class CompilerVisitor(NodeVisitor):
             if isinstance(node.value, ast.If):
                 tern = self._try_if_as_ternary(node.value)
                 if tern is not None:
-                    return f"{py} = {tern}"
+                    return f"{py} = {self._dmi_as_scalar(tern)}"
                 return self._emit_if_assign(py, node.value)
-            val = self.visit(node.value)
+            val = self._dmi_as_scalar(self.visit(node.value))
             return f"{py} = {val}"
         # Script-level: drawing/table handle must not setitem float64 series
         # (var table t = na; t := table.new(...) was t_arr[i] = dict → float(dict)).
         if isinstance(node.target, ast.Name):
             name = node.target.id
+            if name in self._MODULE_SHADOW_IDENTS:
+                name = self._protect_module_shadow(name)
             if isinstance(node.value, (ast.ForTo, ast.ForIn, ast.While)):
                 if name in self.scalar_vars or name in self.map_vars:
                     return self._emit_loop_assign(name, node.value)
@@ -2760,6 +2806,7 @@ class CompilerVisitor(NodeVisitor):
                     return self._emit_if_assign(target_store, node.value)
             else:
                 val = self.visit(node.value)
+            val = self._dmi_as_scalar(val)
             if (
                 name in self.scalar_vars
                 or name in self.map_vars
@@ -2824,6 +2871,8 @@ class CompilerVisitor(NodeVisitor):
                     return f"{base} = (({base}) {op_s} ({val}))"
                 py = self._py_ident(name)
                 return f"{py} = (({py}) {op_s} ({val}))"
+            if name in self._MODULE_SHADOW_IDENTS:
+                name = self._protect_module_shadow(name)
             if name in self.scalar_vars or name in self.map_vars:
                 return f"{name} = (({name}) {op_s} ({val}))"
             # Script-level series
@@ -3524,8 +3573,10 @@ class CompilerVisitor(NodeVisitor):
                 aliases={"col": "column", "row": "index"},
             )
             if len(args) >= 4:
+                # Expression-safe mutate-and-return (method ``m.set(r, c, v)``).
                 return (
-                    f"{args[0]}[int({args[1]})].__setitem__(int({args[2]}), {args[3]})"
+                    f"((lambda __m: (__m[int({args[1]})].__setitem__(int({args[2]}), {args[3]}), __m)[1])"
+                    f"({args[0]}))"
                 )
             if len(args) >= 3:
                 return f"safe_list_set({args[0]}, {args[1]}, {args[2]})"
@@ -3599,7 +3650,12 @@ class CompilerVisitor(NodeVisitor):
                 aliases={"col": "column"},
             )
             if len(a) >= 4:
-                return f"{a[0]}[int({a[1]})][int({a[2]})] = {a[3]}"
+                # Expression-safe: ``x = matrix.set(...)`` / ternary / implicit
+                # UDF return cannot embed a ``m[r][c] = v`` statement.
+                return (
+                    f"((lambda __m: (__m[int({a[1]})].__setitem__(int({a[2]}), {a[3]}), __m)[1])"
+                    f"({a[0]}))"
+                )
             return ""
         if func_name == "matrix_rows":
             a = ra(args, kwargs, ("id",))
@@ -7195,7 +7251,7 @@ class CompilerVisitor(NodeVisitor):
                 self.ident_map.setdefault(name, self._safe_ident(name))
                 py = self._py_ident(name)
             else:
-                py = name
+                py = self._protect_module_shadow(name)
             # Expand a += x → (a := ((a) + (x)))
             op = stmt.op
             if isinstance(op, ast.Add):
@@ -7222,9 +7278,9 @@ class CompilerVisitor(NodeVisitor):
             self.ident_map.setdefault(name, self._safe_ident(name))
             py = self._py_ident(name)
         else:
-            py = name
+            py = self._protect_module_shadow(name)
         rhs = self.visit(stmt.value)
-        return f"({py} := ({rhs}))"
+        return f"({py} := ({self._dmi_as_scalar(rhs)}))"
 
     def _switch_arm_cond(self, subject: str | None, pat) -> str:
         """Equality / truth test for a switch arm, including multi-value tuples."""
@@ -7654,7 +7710,9 @@ class CompilerVisitor(NodeVisitor):
         # so ``model(1)`` still calls the function while the param is ``model__p``.
         self.ident_map = {}
         for a in args:
-            if a in self.user_funcs and a not in (pine_name, func_name):
+            if a in self._MODULE_SHADOW_IDENTS:
+                self.ident_map[a] = f"{a}__loc"
+            elif a in self.user_funcs and a not in (pine_name, func_name):
                 self.ident_map[a] = f"{self._safe_ident(a)}__p"
             else:
                 self.ident_map[a] = self._safe_ident(a)
@@ -7675,7 +7733,9 @@ class CompilerVisitor(NodeVisitor):
         # Safe names for assigned locals (sum, max, min, …).
         # Also rename locals that shadow a UDF (``mama = mama(...)`` → UnboundLocal).
         for n in assigned:
-            if n in self.user_funcs or n == pine_name or n == func_name:
+            if n in self._MODULE_SHADOW_IDENTS:
+                self.ident_map[n] = f"{n}__loc"
+            elif n in self.user_funcs or n == pine_name or n == func_name:
                 self.ident_map[n] = f"{self._safe_ident(n)}__loc"
             else:
                 self.ident_map[n] = self._safe_ident(n)
@@ -8342,6 +8402,8 @@ class CompilerVisitor(NodeVisitor):
 
     def visit_ForTo(self, node: ast.ForTo):
         target = node.target.id if isinstance(node.target, ast.Name) else self.visit(node.target)
+        if isinstance(node.target, ast.Name) and target in self._MODULE_SHADOW_IDENTS:
+            target = self._protect_module_shadow(target)
         start = self.visit(node.start)
         end = self.visit(node.end)
         # Pine: omitted ``by`` → +1 when from<=to, -1 when from>to
@@ -8408,6 +8470,8 @@ class CompilerVisitor(NodeVisitor):
         """``for eachLine in id`` — iterate array/collection handles (object mode).
 
         Pine ``for [index, value] in arr`` is lowered to ``enumerate``.
+        Maps (``for [k, v] in m``) use ``dict.items()`` so ``v`` is the value,
+        not the key (``enumerate`` of a dict yields ``(i, key)``).
         """
         self.object_mode = True
         iterable = self.visit(node.iter)
@@ -8418,7 +8482,10 @@ class CompilerVisitor(NodeVisitor):
             names: list[str] = []
             for el in elts:
                 if isinstance(el, ast.Name):
-                    names.append(el.id)
+                    nm = el.id
+                    if nm in self._MODULE_SHADOW_IDENTS:
+                        nm = self._protect_module_shadow(nm)
+                    names.append(nm)
                 else:
                     names.append(self.visit(el))
             for nm in names:
@@ -8429,9 +8496,24 @@ class CompilerVisitor(NodeVisitor):
                 else:
                     self.scalar_vars.add(nm)
             if len(names) == 2:
-                # Index+value form — always enumerate (ignore element-is-tuple)
+                # Arrays: ``for [index, value] in arr`` → enumerate.
+                # Maps: ``for [k, v] in m`` → dict.items() (not keys+indexes).
                 tgt = f"{names[0]}, {names[1]}"
-                lines = [f"for {tgt} in enumerate(safe_iter({iterable})):"]
+                is_map_iter = False
+                if isinstance(node.iter, ast.Name) and (
+                    node.iter.id in self.map_vars
+                    or self.ident_map.get(node.iter.id, node.iter.id) in self.map_vars
+                ):
+                    is_map_iter = True
+                elif iterable in self.map_vars:
+                    is_map_iter = True
+                if is_map_iter:
+                    lines = [
+                        f"for {tgt} in ({iterable}.items() if isinstance({iterable}, dict) "
+                        f"else enumerate(safe_iter({iterable}))):"
+                    ]
+                else:
+                    lines = [f"for {tgt} in enumerate(safe_iter({iterable})):"]
             else:
                 tgt = ", ".join(names)
                 lines = [f"for {tgt} in safe_iter({iterable}):"]
@@ -8441,6 +8523,8 @@ class CompilerVisitor(NodeVisitor):
                 if isinstance(node.target, ast.Name)
                 else self.visit(node.target)
             )
+            if isinstance(node.target, ast.Name) and target in self._MODULE_SHADOW_IDENTS:
+                target = self._protect_module_shadow(target)
             self.loop_counters.add(target)
             added_names.append(target)
             if self.in_function:

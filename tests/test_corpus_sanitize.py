@@ -1220,3 +1220,85 @@ This illustrates the meaning of time.
     assert "meaning of time" not in cleaned
     assert "plot(time)" in cleaned
     _roundtrip(cleaned)
+
+
+def test_replaces_mustache_placeholders() -> None:
+    """MCP / scrape ``{{IDENT}}`` must not reach the lexer."""
+    raw = """//@version=6
+indicator("x {{AS_OF}}")
+x = {{RISK_FREE_PCT}}
+plot(x)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "{" not in cleaned
+    assert "}}" not in cleaned
+    assert 'indicator("x na")' in cleaned
+    assert "x = 0" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_mdx_wrapper_stubs_or_extracts_pine() -> None:
+    """MDX/JSX docs chrome must not feed ``{`` to the parser."""
+    raw = """// set06 corpus entry
+---
+title: Indicators
+description: Create custom technical analysis indicators
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+
+<Steps>
+  <Step>
+    Write PineTS code in the Indicator Editor
+  </Step>
+</Steps>
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "import { Callout }" not in cleaned
+    assert "<Steps>" not in cleaned
+    assert "{" not in cleaned
+    assert 'indicator("x")' in cleaned
+    _roundtrip(cleaned)
+
+
+def test_mdx_extracts_fenced_pine_not_javascript() -> None:
+    """Real `` ```pinescript `` inside MDX is kept; JS fences are not."""
+    raw = """---
+title: t
+---
+import { Callout } from 'fumadocs-ui/components/callout'
+
+```javascript
+indicator('RSI Signal', { overlay: false });
+const rsi = ta.rsi(close, 14);
+```
+
+```pinescript
+//@version=6
+indicator("from fence")
+plot(close)
+```
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert 'indicator("from fence")' in cleaned
+    assert "overlay: false" not in cleaned
+    assert "const rsi" not in cleaned
+    assert "{" not in cleaned
+    _roundtrip(cleaned)
+
+
+def test_rst_study_then_indented_plot_dedents() -> None:
+    """RST literal-block indent after col-0 ``study`` + trailing prose."""
+    raw = """study("Bar date/time")
+    plot(time)
+
+This illustrates the meaning of the variable ``time``.
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert re.search(r"^plot\(time\)\s*$", cleaned, re.M)
+    assert "This illustrates" not in cleaned
+    for ln in cleaned.splitlines():
+        if ln.strip().startswith("plot("):
+            assert not ln[0].isspace(), repr(ln)
+    _roundtrip(cleaned)

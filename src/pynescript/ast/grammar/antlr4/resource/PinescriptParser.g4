@@ -162,7 +162,7 @@ while_structure: WHILE expression local_block;
 
 switch_structure: SWITCH expression? NEWLINE INDENT switch_cases DEDENT;
 
-switch_cases: switch_pattern_case+ switch_default_case?;
+switch_cases: switch_pattern_case* switch_default_case | switch_pattern_case+ switch_default_case?;
 
 // Multi-value arms: ``1, 2 => 100`` (OR-match on subject).
 switch_pattern_case: switch_patterns RARROW local_block;

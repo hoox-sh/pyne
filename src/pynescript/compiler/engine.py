@@ -30,7 +30,7 @@ Pipeline
            → (IR LRU hit → share warm execute)
            → exec / import disk module → execute_script_compiled
            → (numeric) warm-up njit; on TypingError → re-emit object mode
-           → CompiledScript
+           → CompiledScript (run: leftover nopython TypingError → object mode once)
 
 Entry points
 ------------
@@ -57,10 +57,12 @@ Interpret vs compile contracts
   :class:`CompileNumbaRequiredError`.
 - **Errors**: empty emit / missing ``execute_script_compiled`` →
   :class:`CompileEmitError` / :class:`CompileLoadError`. nopython failures
-  during warm-up are **not** raised; the engine falls back to object mode and
-  records :attr:`CompiledScript.nopython_fallback_reason`. Non-nopython errors
-  on warm-up are deferred to the first real run (dummy OHLCV may not match
-  production data shapes).
+  during warm-up **or the first real run** are **not** raised to the host; the
+  engine re-emits object mode and records
+  :attr:`CompiledScript.nopython_fallback_reason`. Dummy-OHLCV warm-up can miss
+  typing that only appears on production bars; ``CompiledScript.run`` recovers
+  once. Non-nopython warm-up errors stay deferred. If object-mode recovery
+  also fails, that error (or the original) is raised.
 - **Sanitize-on-compile**: scraped corpus chrome is stripped via
   ``pynescript.util.corpus_sanitize.sanitize_corpus_source`` (same policy as
   interpret paths). Failures keep the raw source. Cache is probed by **raw**
@@ -609,9 +611,10 @@ class CompiledScript:
         ``True`` when the emit path (or nopython fallback) used the pure-Python
         bar loop. Controls packing only indirectly — the callable already matches.
     nopython_fallback_reason:
-        When numeric warm-up failed with a Numba typing/nopython error and the
-        engine re-emitted object mode, a short human-readable cause. ``None``
-        when numeric mode succeeded or object mode was selected by the visitor.
+        When numeric warm-up **or** the first real ``run`` failed with a Numba
+        typing/nopython error and the engine re-emitted object mode, a short
+        human-readable cause. ``None`` when numeric mode succeeded or object
+        mode was selected by the visitor.
     """
 
     source: str
@@ -660,8 +663,57 @@ class CompiledScript:
                 msg = "time array must have the same length as OHLCV"
                 raise ValueError(msg)
         # Recover from truncated Numba .nbi/.nbc left after code edits / crashes.
-        raw = _call_execute_with_recovery(self.execute, o, h, l, c, v, t)
+        try:
+            raw = _call_execute_with_recovery(self.execute, o, h, l, c, v, t)
+        except Exception as exc:
+            # Dummy-OHLCV warm-up can miss nopython typing that only blows up
+            # on real bars / object values. Do not leak TypingError to the host.
+            if self.object_mode or not _is_numba_nopython_failure(exc):
+                raise
+            raw = self._recover_nopython_at_run(exc, o, h, l, c, v, t)
         return self._pack_result(raw)
+
+    def _recover_nopython_at_run(
+        self,
+        exc: BaseException,
+        o: np.ndarray,
+        h: np.ndarray,
+        l: np.ndarray,
+        c: np.ndarray,
+        v: np.ndarray,
+        t: np.ndarray,
+    ) -> Any:
+        """Re-emit object mode after a run-time nopython failure and retry once.
+
+        Mutates this instance in place (execute / object_mode / generated_code /
+        nopython_fallback_reason) so the in-process compile cache stays recovered.
+        Best-effort: if re-emit or the object-mode retry fails, that error is
+        raised (original nopython error is ``__cause__`` on re-emit failure).
+        """
+        reason = _format_fallback_reason(exc)
+        _log.info("run nopython → object mode: %s", reason)
+        try:
+            code_o, titles_o, kinds_o, _ = _transpile_once(
+                self.source, force_object_mode=True
+            )
+            recovered = _exec_generated(
+                self.source,
+                code_o,
+                titles_o,
+                True,
+                ir_key=_sha256_text(code_o),
+                nopython_fallback_reason=reason,
+                plot_kinds=kinds_o,
+            )
+        except Exception as rec_exc:
+            raise rec_exc from exc
+        self.execute = recovered.execute
+        self.generated_code = recovered.generated_code
+        self.object_mode = True
+        self.nopython_fallback_reason = recovered.nopython_fallback_reason or reason
+        self.plot_titles = list(recovered.plot_titles)
+        self.plot_kinds = list(recovered.plot_kinds)
+        return _call_execute_with_recovery(self.execute, o, h, l, c, v, t)
 
     def _pack_result(self, raw: Any) -> dict[str, Any]:
         """Map execute() output to the public plot-title dict.
@@ -677,15 +729,19 @@ class CompiledScript:
         if _is_plot_sequence(raw):
             packed = _pack_plot_sequence(raw, self.plot_titles)
             if not self.object_mode:
-                packed["__drawings"] = _synthesize_hline_fill_drawings(
+                drawings = _synthesize_hline_fill_drawings(
                     packed, self.plot_titles, self.plot_kinds
                 )
+                if drawings:
+                    packed["__drawings"] = drawings
             return packed
         packed = _normalize_result(raw)
         if not self.object_mode and "__drawings" not in packed:
-            packed["__drawings"] = _synthesize_hline_fill_drawings(
+            drawings = _synthesize_hline_fill_drawings(
                 packed, self.plot_titles, self.plot_kinds
             )
+            if drawings:
+                packed["__drawings"] = drawings
         return packed
 
 

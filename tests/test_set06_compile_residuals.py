@@ -27,7 +27,8 @@ import numpy as np
 
 from pynescript.compiler.engine import compile_script
 from pynescript.compiler.engine import transpile
-from pynescript.runtime import Runtime  # noqa: F401
+from pynescript.runtime import Runtime
+from pynescript.util.corpus_sanitize import sanitize_corpus_source
 
 
 def _ohlcv(n: int = 30, start: float = 100.0):
@@ -149,3 +150,66 @@ plot(val)
 """
     out = _compile_run(src, n=20)
     assert _last(out) == 100.0
+
+
+def test_switch_default_only() -> None:
+    src = """//@version=5
+indicator("UDF Switch Default")
+f_always() =>
+    switch
+        => 42.0
+plot(f_always())
+"""
+    out = _compile_run(src, n=20)
+    assert _last(out) == 42.0
+
+
+def test_map_for_in_pairs() -> None:
+    src = """//@version=5
+indicator("Map Iter")
+var m = map.new<string, float>()
+if bar_index == 0
+    map.put(m, "a", 10.0)
+    map.put(m, "b", 20.0)
+total = 0.0
+for [k, v] in m
+    total += v
+plot(total)
+"""
+    out = _compile_run(src, n=20)
+    assert _last(out) == 30.0
+
+
+def test_dmi_scalar_assign_not_sequence() -> None:
+    src = """//@version=5
+indicator("ADX")
+d = ta.dmi(14, 14)
+plot(d)
+"""
+    out = _compile_run(src, n=20)
+    arr = np.asarray(out["plot_0"], dtype=np.float64)
+    assert arr.size == 20
+
+
+def test_mustache_placeholder_sanitized() -> None:
+    raw = """//@version=5
+indicator("Mustache")
+x = {{FOO}}
+plot(close)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "{{FOO}}" not in cleaned
+    o, h, l, c, v = _ohlcv(8)
+    bars = [
+        {
+            "open": float(o[i]),
+            "high": float(h[i]),
+            "low": float(l[i]),
+            "close": float(c[i]),
+            "volume": float(v[i]),
+            "time": int(i * 60_000),
+        }
+        for i in range(len(c))
+    ]
+    result = Runtime().run(cleaned, bars)
+    assert "error" not in result, result.get("error")

@@ -124,3 +124,19 @@ plot(val)
     pattern = switch.cases[0].pattern
     assert isinstance(pattern, ast.Tuple) or getattr(pattern, "elts", None)
     assert len(pattern.elts) == 2
+
+
+def test_switch_default_only_arm():
+    tree = _roundtrip(
+        """//@version=5
+indicator("UDF Switch Default")
+f_always() =>
+    switch
+        => 42.0
+plot(f_always())
+"""
+    )
+    switch = next(n for n in walk(tree) if isinstance(n, ast.Switch))
+    assert len(switch.cases) == 1
+    assert isinstance(switch.cases[0], ast.Case)
+    assert switch.cases[0].pattern is None
