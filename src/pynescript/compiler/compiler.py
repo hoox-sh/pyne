@@ -525,6 +525,8 @@ class CompilerVisitor(NodeVisitor):
         # type name -> field name -> emitted default expr (``false`` → ``False``)
         self.udt_field_defaults: dict[str, dict[str, str]] = {}
         self.udt_vars: set[str] = set()  # series names holding UDT instances
+        # var / param name → UDT type id (method overload dispatch by receiver)
+        self.udt_var_types: dict[str, str] = {}
         self.map_vars: set[str] = set()  # var map names (single object, not series)
         self.scalar_vars: set[str] = set()  # non-series locals (map handles, etc.)
         self.user_funcs: set[str] = set()  # user-defined function names (Pine ids)
@@ -545,6 +547,12 @@ class CompilerVisitor(NodeVisitor):
         self.func_st_params: dict[str, list[str]] = {}  # func -> transitive __st_* params
         self.func_param_names: dict[str, list[str]] = {}
         self.func_param_defaults: dict[str, dict[str, str]] = {}
+        # Same-name UDF/method overloads: Pine id → emitted Python def names (def order)
+        self.func_overloads: dict[str, list[str]] = {}
+        # Emitted py name → first formal type id (method receiver), if annotated
+        self.func_receiver_types: dict[str, str | None] = {}
+        # Emitted py name → formal type tags (same-arity float/bool/color dispatch)
+        self.func_param_type_tags: dict[str, list[str | None]] = {}
         self.func_free_series: dict[str, list[str]] = {}
         self.func_free_scalars: dict[str, list[str]] = {}
         self.func_returns_sequence: set[str] = set()
@@ -881,7 +889,7 @@ class CompilerVisitor(NodeVisitor):
         alias = node.alias or node.name
         if alias:
             self.import_aliases.add(alias)
-            # Treat as a module-scope scalar so free-var plumbing can pass None
+            # Module-scope scalar so free-var plumbing can pass np.nan (Pine na)
             self.scalar_vars.add(alias)
         self.object_mode = True
         return ""
@@ -1068,7 +1076,12 @@ class CompilerVisitor(NodeVisitor):
         self._emit_series_local_state(lines, indent="    ")
         self._emit_fixed_state(lines, indent="    ")
         for name in sorted(self.map_vars | self.scalar_vars):
-            lines.append(f"    {name} = None")
+            # Import aliases used as values (and later ``float(alias)`` / plot)
+            # must be Pine na, never Python None.
+            if name in self.import_aliases:
+                lines.append(f"    {name} = np.nan")
+            else:
+                lines.append(f"    {name} = None")
         for idx in range(len(self.plots)):
             lines.append(f"    plot_{idx} = np.full(n_bars, np.nan)")
 
@@ -1315,6 +1328,21 @@ class CompilerVisitor(NodeVisitor):
             name = f.attr
         if name and name in getattr(self, "func_returns_string", set()):
             return True
+        # Same-arity color/string overload: ``negate(chart.bg_color)`` is not float.
+        if name and name in getattr(self, "func_overloads", {}):
+            args = list(getattr(node, "args", None) or [])
+            first = None
+            if args:
+                a0 = args[0]
+                if hasattr(a0, "value") and getattr(a0, "name", None) is None:
+                    first = a0.value
+                elif hasattr(a0, "name") and a0.name:
+                    first = a0.value
+                else:
+                    first = a0
+            inf = self._infer_udf_arg_type(first)
+            if inf in ("color", "string"):
+                return True
         return False
 
     def _func_last_value_expr(self, last_ast):
@@ -1637,7 +1665,7 @@ class CompilerVisitor(NodeVisitor):
             # UDF is classified as object-returning (plot(s.strength) / ``s = f()``).
             if typed_udt or self._looks_like_udt_ctor(node.value) or self._val_looks_like_udt_dict(val):
                 self.object_mode = True
-                self.udt_vars.add(name)
+                self._note_udt_var(name, type_id if typed_udt else self._infer_udt_type(node.value))
             return f"{py} = {val}"
 
         # Script-level: never rebind numpy ``np`` / Pine ``na`` in the bar loop.
@@ -1669,7 +1697,10 @@ class CompilerVisitor(NodeVisitor):
         # `var MyState s = na` / `var chart.point p = na` → object-dtype series
         if typed_udt or typed_chart_point:
             self.object_mode = True
-            self.udt_vars.add(name)
+            self._note_udt_var(
+                name,
+                type_id if typed_udt else (self._infer_udt_type(node.value) or "chart.point"),
+            )
             self.arrays.add(f"{name}_arr")
             if is_var:
                 return (
@@ -1686,6 +1717,9 @@ class CompilerVisitor(NodeVisitor):
             self.object_mode = True
             self.scalar_vars.add(name)
             self.arrays.discard(f"{name}_arr")
+            inferred = self._infer_udt_type(node.value)
+            if inferred:
+                self.udt_var_types[name] = inferred
             if self.in_function:
                 self.local_vars.add(name)
                 self.local_sequence_vars.add(name)
@@ -1784,10 +1818,14 @@ class CompilerVisitor(NodeVisitor):
             or self._looks_like_object_handle_expr(val)
             or self._val_looks_like_udt_dict(val)
             or self._call_returns_udt(node.value)
+            or self._infer_udt_type(node.value) is not None
             or rhs_is_udt_name
         ):
             self.object_mode = True
-            self.udt_vars.add(name)
+            inferred = self._infer_udt_type(node.value)
+            if inferred is None and rhs_is_udt_name:
+                inferred = self.udt_var_types.get(node.value.id)
+            self._note_udt_var(name, inferred)
             self.arrays.add(f"{name}_arr")
             if is_var:
                 return (
@@ -1945,6 +1983,18 @@ class CompilerVisitor(NodeVisitor):
         if isinstance(node, ast.Attribute):
             if isinstance(node.value, ast.Name) and node.value.id == "color":
                 return True
+            if (
+                isinstance(node.value, ast.Name)
+                and node.value.id == "chart"
+                and node.attr
+                in (
+                    "bg_color",
+                    "fg_color",
+                    "background_color",
+                    "foreground_color",
+                )
+            ):
+                return True
             return False
         if isinstance(node, ast.Name):
             if node.id in _COLOR_NAMES:
@@ -2054,6 +2104,18 @@ class CompilerVisitor(NodeVisitor):
             return True
         if isinstance(node, ast.Attribute):
             if isinstance(node.value, ast.Name) and node.value.id == "color":
+                return True
+            if (
+                isinstance(node.value, ast.Name)
+                and node.value.id == "chart"
+                and node.attr
+                in (
+                    "bg_color",
+                    "fg_color",
+                    "background_color",
+                    "foreground_color",
+                )
+            ):
                 return True
             return False
         if isinstance(node, ast.Call):
@@ -3086,7 +3148,7 @@ class CompilerVisitor(NodeVisitor):
             # UDT reference reassign: pivot2 := pivot1 (share / rebind handle)
             if isinstance(node.value, ast.Name) and node.value.id in self.udt_vars:
                 self.object_mode = True
-                self.udt_vars.add(name)
+                self._note_udt_var(name, self.udt_var_types.get(node.value.id))
                 self.arrays.add(f"{name}_arr")
                 return f"{name}_arr[__bar_idx] = {val}"
             if (
@@ -3096,7 +3158,7 @@ class CompilerVisitor(NodeVisitor):
                 or self._looks_like_udt_ctor(node.value)
             ):
                 self.object_mode = True
-                self.udt_vars.add(name)
+                self._note_udt_var(name, self._infer_udt_type(node.value))
                 self.arrays.add(f"{name}_arr")
                 return f"{name}_arr[__bar_idx] = {val}"
             # Tuple / sequence handle: never write a Python tuple into float64.
@@ -3396,9 +3458,9 @@ class CompilerVisitor(NodeVisitor):
         if f"{node.id}_arr" in self.arrays and node.id not in self.scalar_vars:
             return f"{node.id}_arr[__bar_idx]"
         if node.id in self.import_aliases:
-            # Library namespace as value — stub null handle
+            # Library namespace as value — Pine na (never Python None)
             self.object_mode = True
-            return "None"
+            return "np.nan"
         # (``_NS`` pure tokens already returned earlier; user shadows use scalar path)
         # UDF names used as values (rare) — not series
         if node.id in self.user_funcs:
@@ -3812,9 +3874,7 @@ class CompilerVisitor(NodeVisitor):
             a = ra(args, kwargs, ("id",))
             if not a:
                 return "[]"
-            return (
-                f"(list({a[0]}) if isinstance({a[0]}, (list, tuple, np.ndarray)) else [])"
-            )
+            return f"(list({a[0]}) if isinstance({a[0]}, (list, tuple, np.ndarray)) else [])"
         if func_name == "array_concat":
             # array.concat(id1, id2) — append id2 onto id1 (mutate) and return id1
             a = ra(
@@ -4315,7 +4375,7 @@ class CompilerVisitor(NodeVisitor):
 
         Large dispatch: namespace attrs, method-style TA, bare collection verbs,
         strategy/drawing (force object mode), and :meth:`_emit_user_func_call`.
-        Unknown external methods stub to ``None`` in object mode.
+        Unknown ``alias.method(...)`` library stubs emit ``np.nan`` (Pine na).
         """
         # Resolve function name (unwrap Specialize for map.new<K,V>())
         func = node.func
@@ -4323,6 +4383,7 @@ class CompilerVisitor(NodeVisitor):
             func = func.value
 
         method_src: str | None = None  # set for method-style TA (expr.rma(p))
+        import_lib_method = False  # unknown ``import … as alias`` method call
         if isinstance(func, ast.Name):
             func_name = func.id
         elif isinstance(func, ast.Attribute):
@@ -4378,6 +4439,9 @@ class CompilerVisitor(NodeVisitor):
                     func_name = f"{alias}_{func.attr}"
                 else:
                     func_name = func.attr
+                    # Fall through so named helpers (sequence_float, unshift, …)
+                    # still match; the unknown-call stub emits np.nan.
+                    import_lib_method = True
             elif isinstance(func.value, ast.Name) and func.value.id in self.udt_types and func.attr == "new":
                 return self._emit_udt_new(func.value.id, node)
             elif isinstance(func.value, ast.Name) and func.value.id in self.udt_types and func.attr == "copy":
@@ -4473,10 +4537,7 @@ class CompilerVisitor(NodeVisitor):
                 for arg in node.args:
                     src = self.visit(arg.value) if hasattr(arg, "value") else self.visit(arg)
                     break
-                return (
-                    f"(dict({src}) if isinstance({src}, dict) else "
-                    f"{{'kind': {func.value.id!r}}})"
-                )
+                return f"(dict({src}) if isinstance({src}, dict) else {{'kind': {func.value.id!r}}})"
             elif func.attr in _ARRAY_METHODS:
                 method_src = self.visit(func.value)
                 func_name = _ARRAY_METHODS[func.attr]
@@ -4499,6 +4560,7 @@ class CompilerVisitor(NodeVisitor):
 
         args: list[str] = []
         kwargs: dict[str, str] = {}
+        arg_nodes: list = []
         for arg in node.args:
             if hasattr(arg, "value"):
                 expr = self.visit(arg.value)
@@ -4506,10 +4568,14 @@ class CompilerVisitor(NodeVisitor):
                     kwargs[str(arg.name)] = expr
                 else:
                     args.append(expr)
+                    arg_nodes.append(arg.value)
             else:
                 args.append(self.visit(arg))
+                arg_nodes.append(arg)
         if method_src is not None:
             args = [method_src] + args
+            recv_node = getattr(func, "value", None)
+            arg_nodes = [recv_node, *arg_nodes]
 
         # Bare collection verbs: push(arr, x) / put(map, k, v) / cell(...)
         if method_src is None and func_name in _BARE_COLLECTION:
@@ -4818,8 +4884,15 @@ class CompilerVisitor(NodeVisitor):
             if needs_safe and not series_expr.startswith("safe_float("):
                 self.object_mode = True
                 series_expr = f"safe_float({series_expr})"
-            # UDT field already expanded
-            self.plots.append({"expr": series_expr, "title": title})
+            # Color is never the numeric plot source — keep hex/object as-is.
+            color_expr = kwargs.get("color")
+            if color_expr is None and len(args) > 2:
+                color_expr = args[2]
+            if color_expr and (color_expr.startswith("float(") or color_expr.startswith("safe_float(")):
+                inner = color_expr[color_expr.find("(") + 1 : color_expr.rfind(")")]
+                if inner and ("'#" in inner or '"#' in inner or inner.endswith("_arr[__bar_idx]")):
+                    color_expr = inner
+            self.plots.append({"expr": series_expr, "title": title, "color": color_expr})
             self._note_visual_series()
             idx = len(self.plots) - 1
             # Always return an *expression* (plot() may be assigned:
@@ -4986,14 +5059,16 @@ class CompilerVisitor(NodeVisitor):
         if func_name in ("alertcondition", "alert"):
             return ""
 
-        # UDF calls win over bare TA aliases (sma, …) and bare math (max/min/abs)
-        if func_name in self.user_funcs:
+        # UDF calls win over bare TA aliases (sma, …) and bare math (max/min/abs).
+        # ``round`` / ``int`` / ``len`` are also Python builtins — the def is
+        # ``round_`` but the Pine call is still ``round(...)``.
+        if func_name in self.user_funcs or self._safe_ident(func_name) in self.user_funcs:
             # Method form ``obj.f()`` on a zero-arg free UDF is not Pine method
             # syntax — treat as unknown library/UDT method (no-op stub).
             if method_src is not None and self._udf_formal_count(func_name) == 0:
                 self.object_mode = True
                 return "None"
-            return self._emit_user_func_call(func_name, args, kwargs)
+            return self._emit_user_func_call(func_name, args, kwargs, arg_nodes=arg_nodes)
 
         # table.cell is emitted as a set mutation above; leftover table.*
         # mutators stay expression-safe no-ops (table_new already in drawing path).
@@ -5723,14 +5798,10 @@ class CompilerVisitor(NodeVisitor):
             default_src = "high_arr" if func_name == "ta_pivothigh" else "low_arr"
             if len(args) >= 3:
                 src, left, right = args[0], args[1], args[2]
-                return (
-                    f"{nb}({_arr(src)}, pine_int({left}), pine_int({right}), __bar_idx)"
-                )
+                return f"{nb}({_arr(src)}, pine_int({left}), pine_int({right}), __bar_idx)"
             if len(args) >= 2:
                 left, right = args[0], args[1]
-                return (
-                    f"{nb}({default_src}, pine_int({left}), pine_int({right}), __bar_idx)"
-                )
+                return f"{nb}({default_src}, pine_int({left}), pine_int({right}), __bar_idx)"
             return f"{nb}({default_src}, 5, 5, __bar_idx)"
         if func_name == "ta_stoch":
             # ta.stoch(source, high, low, length) or ta.stoch(length)
@@ -6100,6 +6171,9 @@ class CompilerVisitor(NodeVisitor):
                 return "np.nan"
             return f"({args[0]} ** {args[1]})" if len(args) > 1 else f"({args[0]} ** 2)"
         if func_name in ("math_round", "round"):
+            # User ``round(value)`` UDF (def ``round_``) must keep extras arity.
+            if func_name == "round" and ("round" in self.user_funcs or "round_" in self.user_funcs):
+                return self._emit_user_func_call("round", args, kwargs)
             if not args:
                 return "0.0"
             # None / non-numeric → NaN (np.round(None) raises)
@@ -6256,7 +6330,7 @@ class CompilerVisitor(NodeVisitor):
             "activation",
         ):
             self.object_mode = True
-            return "None"
+            return "np.nan" if import_lib_method else "None"
         if func_name in ("array_range",) or (func_name.endswith("_range") and "array" in func_name):
             self.object_mode = True
             # array.range(start, end) or range(n) → list
@@ -6269,14 +6343,258 @@ class CompilerVisitor(NodeVisitor):
         # Unknown call: object mode + no-op stub to avoid NameError
         # (external library methods not present in corpus isolation).
         self.object_mode = True
+        # Missing ``alias.method(...)`` is Pine na — never Python None
+        # (``float(None)`` in ta.cross / plot / series stores).
+        if import_lib_method:
+            return "np.nan"
         # Multi-unpack destinations need a sequence; single assign gets None.
         return "None"
+
+    def _type_spec_name(self, spec) -> str | None:
+        """Coarse Pine type id from a Param/Assign type spec (``series color`` → color)."""
+        if spec is None:
+            return None
+        if isinstance(spec, ast.Qualify):
+            return self._type_spec_name(spec.value)
+        if isinstance(spec, ast.Specialize):
+            return self._type_spec_name(spec.value)
+        if type(spec).__name__ == "Subscript":
+            return self._type_spec_name(getattr(spec, "value", None))
+        if isinstance(spec, ast.Name):
+            return spec.id
+        if isinstance(spec, ast.Attribute):
+            parts: list[str] = []
+            cur = spec
+            while isinstance(cur, ast.Attribute):
+                parts.append(cur.attr)
+                cur = cur.value
+            if isinstance(cur, ast.Name):
+                parts.append(cur.id)
+            parts.reverse()
+            return ".".join(parts) if parts else None
+        return None
+
+    def _infer_udf_arg_type(self, node, expr: str | None = None) -> str | None:
+        """Infer a coarse type tag for UDF overload dispatch (float/bool/color/…)."""
+        if node is not None and hasattr(node, "value") and hasattr(node, "name"):
+            node = node.value
+        if node is not None:
+            if isinstance(node, (ast.Compare, ast.BoolOp)):
+                return "bool"
+            if isinstance(node, ast.UnaryOp) and isinstance(getattr(node, "op", None), ast.Not):
+                return "bool"
+            if isinstance(node, ast.Constant):
+                v = node.value
+                if isinstance(v, bool):
+                    return "bool"
+                if isinstance(v, str):
+                    s = v.strip()
+                    if s.startswith("#") or s.startswith("rgb") or s.startswith("color."):
+                        return "color"
+                    return "string"
+                if isinstance(v, int) and not isinstance(v, bool):
+                    return "int"
+                if isinstance(v, float):
+                    return "float"
+            if isinstance(node, ast.Name):
+                if node.id in ("true", "false"):
+                    return "bool"
+                if node.id in self.udt_var_types:
+                    return self.udt_var_types[node.id]
+                if node.id in self.udt_vars:
+                    return self.udt_var_types.get(node.id)
+                if node.id in self.string_series or node.id in self.string_scalars:
+                    return "string"
+                if node.id in (
+                    "open",
+                    "high",
+                    "low",
+                    "close",
+                    "volume",
+                    "hl2",
+                    "hlc3",
+                    "ohlc4",
+                    "hlcc4",
+                ):
+                    return "float"
+                if f"{node.id}_arr" in self.arrays and node.id not in self.udt_vars:
+                    return "float"
+            if isinstance(node, ast.Attribute):
+                if isinstance(node.value, ast.Name) and node.value.id == "color":
+                    return "color"
+                if isinstance(node.value, ast.Name) and node.value.id == "chart" and "color" in node.attr:
+                    return "color"
+            if isinstance(node, ast.Call):
+                f = node.func
+                if isinstance(f, ast.Specialize):
+                    f = f.value
+                if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name):
+                    if f.value.id == "color":
+                        return "color"
+                    if f.value.id == "str":
+                        return "string"
+            if isinstance(node, ast.BinOp):
+                if isinstance(node.op, ast.Add) and (
+                    self._is_stringy_value(node.left) or self._is_stringy_value(node.right)
+                ):
+                    return "string"
+                return "float"
+            if isinstance(node, ast.Conditional):
+                a = self._infer_udf_arg_type(node.body)
+                b = self._infer_udf_arg_type(node.orelse)
+                if a and a == b:
+                    return a
+                if {a, b} <= {"int", "float"}:
+                    return "float"
+                if a in ("color", "string"):
+                    return a
+                if b in ("color", "string"):
+                    return b
+        if expr:
+            return self._receiver_type_from_expr(expr)
+        return None
+
+    def _receiver_type_from_expr(self, expr: str) -> str | None:
+        """Infer a coarse type tag from a visited Python argument expression."""
+        if not expr:
+            return None
+        s = expr.strip()
+        if self._is_quoted_string_expr(s):
+            inner = s[1:-1].strip()
+            if inner.startswith("#") or inner.startswith("rgb") or inner.startswith("color."):
+                return "color"
+            return "string"
+        if re.search(r"""['\"]#""", s):
+            return "color"
+        if s in ("True", "False"):
+            return "bool"
+        if " if " not in s and re.search(r"(==|!=|<=|>=|<|>)", s):
+            return "bool"
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", s):
+            if s in self.udt_var_types:
+                return self.udt_var_types[s]
+            if s in self.udt_vars:
+                return self.udt_var_types.get(s)
+            if s in self.string_scalars or s in self.string_series:
+                return "string"
+        m = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_]*)_arr\[__bar_idx\]", s)
+        if m:
+            base = m.group(1)
+            if base.startswith("__user_"):
+                base = base[len("__user_") :]
+            if base in self.udt_var_types:
+                return self.udt_var_types[base]
+            if base in self.udt_vars:
+                return self.udt_var_types.get(base)
+            if base in self.string_series or base in self.string_scalars:
+                return "string"
+            return "float"
+        if s.endswith("[__bar_idx]") or self._is_safe_numeric_expr(s):
+            return "float"
+        return None
+
+    def _udf_type_match_score(self, tag: str | None, inferred: str | None) -> int:
+        """Higher is better; -1 means this overload cannot accept *inferred*."""
+        if not tag:
+            return 1
+        tag_l = tag.lower()
+        inf = (inferred or "").lower()
+        if not inf:
+            return 5
+        if tag_l == "bool":
+            return 90 if inf == "bool" else -1
+        if tag_l == "int":
+            if inf == "int":
+                return 80
+            if inf == "float":
+                return 40
+            return -1
+        if tag_l == "float":
+            if inf == "float":
+                return 85
+            if inf == "int":
+                return 50
+            return -1
+        if tag_l == "color":
+            if inf == "color":
+                return 90
+            if inf == "string":
+                return 60
+            return -1
+        if tag_l == "string":
+            if inf == "string":
+                return 90
+            if inf == "color":
+                return 50
+            return -1
+        if inf == tag_l:
+            return 80
+        return -1
+
+    def _resolve_user_func_overload(
+        self,
+        pine_name: str,
+        provided: int,
+        recv_type: str | None,
+    ) -> str:
+        """Pick an emitted UDF impl by arity, then same-arity argument type.
+
+        Different-arity overloads (``update()`` vs ``update(x, …)``) stay on the
+        formal-count map. Same-arity ``negate(float)`` / ``negate(bool)`` /
+        ``negate(color)`` dispatch by the first argument's inferred type.
+        """
+        overloads = list(self.func_overloads.get(pine_name) or [])
+        ov = f"{pine_name}__{provided}"
+        typed_key = f"{pine_name}__{provided}__{recv_type}" if recv_type else None
+        if typed_key and typed_key in self.func_name_map:
+            return self.func_name_map[typed_key]
+
+        def _formal_n(py: str) -> int:
+            params = self.func_param_names.get(py)
+            if params is not None:
+                return len(params)
+            return provided
+
+        def _defaults_n(py: str) -> int:
+            d = self.func_param_defaults.get(py) or {}
+            return len(d)
+
+        cands: list[str] = []
+        for py in overloads:
+            n = _formal_n(py)
+            required = max(0, n - _defaults_n(py))
+            if required <= provided <= n:
+                cands.append(py)
+        if not cands:
+            if ov in self.func_name_map:
+                return self.func_name_map[ov]
+            return self.func_name_map.get(pine_name, pine_name)
+        if len(cands) == 1:
+            return cands[0]
+        if recv_type:
+            scored: list[tuple[int, int, str]] = []
+            for i, py in enumerate(cands):
+                tag = self.func_receiver_types.get(py)
+                score = self._udf_type_match_score(tag, recv_type)
+                if score >= 0:
+                    scored.append((score, i, py))
+            if scored:
+                scored.sort(key=lambda t: (t[0], t[1]))
+                return scored[-1][2]
+        exact = [py for py in cands if _formal_n(py) == provided]
+        if exact:
+            return exact[-1]
+        if ov in self.func_name_map:
+            return self.func_name_map[ov]
+        return cands[-1]
 
     def _emit_user_func_call(
         self,
         func_name: str,
         args: list[str],
         kwargs: dict[str, str] | None = None,
+        *,
+        arg_nodes: list | None = None,
     ) -> str:
         """Emit a call to a user-defined function with series/state plumbing.
 
@@ -6284,17 +6602,38 @@ class CompilerVisitor(NodeVisitor):
         defaults, and pads remaining gaps with ``np.nan``.
         """
         kwargs = kwargs or {}
-        arity = len(args) + len(kwargs)
-        ov = f"{func_name}__{arity}"
-        if ov in self.func_name_map:
-            func_name = self.func_name_map[ov]
-        param_names = self.func_param_names.get(func_name, [])
+        # Overload remap selects the emitted def (``round__1`` → ``round_``,
+        # ``update`` + 2 user args + defaults → ``update__9``). Chart extras are
+        # appended *after* this choice and must not count toward arity.
+        pine_key = func_name
+        provided = len(args) + len(kwargs)
+        recv = None
+        if arg_nodes:
+            recv = self._infer_udf_arg_type(arg_nodes[0], args[0] if args else None)
+        if not recv and args:
+            recv = self._receiver_type_from_expr(args[0])
+        func_name = self._resolve_user_func_overload(pine_key, provided, recv)
+        py_mapped = self.func_name_map.get(func_name, self.func_name_map.get(pine_key, func_name))
+        # Do not fall back to the Pine id after a distinct overload remap —
+        # later defs must not leak last-wins metadata onto the first py name.
+        ov = f"{pine_key}__{provided}"
+        meta_keys: tuple[str, ...] = (func_name, py_mapped)
+        if func_name in (pine_key, self.func_name_map.get(pine_key)):
+            meta_keys = (func_name, pine_key, py_mapped, ov)
+
+        def _meta(mapping, default):
+            for k in meta_keys:
+                if k in mapping:
+                    return mapping[k]
+            return default
+
+        param_names = _meta(self.func_param_names, [])
         if not param_names:
             param_names = self.func_param_names.get(ov, [])
-        defaults = self.func_param_defaults.get(func_name, {})
-        series_set = self.func_series_params.get(func_name, set())
-        series_locals = self.func_series_locals.get(func_name, [])
-        st_params = self.func_st_params.get(func_name, [])
+        defaults = _meta(self.func_param_defaults, {})
+        series_set = _meta(self.func_series_params, set())
+        series_locals = _meta(self.func_series_locals, [])
+        st_params = _meta(self.func_st_params, [])
 
         def _series_arg(pname: str | None, a: str) -> str:
             """Pass full series arrays for series params; materialize exprs."""
@@ -6342,15 +6681,15 @@ class CompilerVisitor(NodeVisitor):
                 call_args.append(self._clone_state_arg_for_call(st))
             else:
                 call_args.append(st)
-        free_scalars = getattr(self, "func_free_scalars", {}).get(func_name, [])
+        free_scalars = _meta(getattr(self, "func_free_scalars", {}), [])
         for sc in free_scalars:
             # Prefer current bar of a series array when the outer var is series-like
             arr = f"{sc}_arr"
             if arr in self.arrays or sc in self.string_series or sc in self.udt_vars:
                 call_args.append(f"{arr}[__bar_idx]")
             elif sc in self.import_aliases:
-                # Library namespace — stub None (methods already lowered without alias)
-                call_args.append("None")
+                # Library namespace — Pine na (methods already lowered without alias)
+                call_args.append("np.nan")
             elif sc in self.scalar_vars or sc in self.map_vars:
                 call_args.append(self._py_ident(sc) if sc in self.ident_map else sc)
             else:
@@ -6363,20 +6702,21 @@ class CompilerVisitor(NodeVisitor):
                     if sc in self.scalar_vars or sc in self.map_vars or sc in self.arrays:
                         call_args.append(sc)
                     else:
-                        # Unknown free (import alias missed / undeclared) — safe stub
-                        call_args.append("None")
-        free_series = getattr(self, "func_free_series", {}).get(func_name, [])
+                        # Unknown free (import alias missed / undeclared) — Pine na
+                        call_args.append("np.nan")
+        free_series = _meta(getattr(self, "func_free_series", {}), [])
         for fs in free_series:
             if self._is_ta_state_buf(fs) or self._is_series_local_state(fs):
                 call_args.append(self._clone_state_arg_for_call(fs))
             else:
                 call_args.append(fs)
-        if getattr(self, "func_needs_drawings", {}).get(func_name):
+        if _meta(getattr(self, "func_needs_drawings", {}), False):
             call_args.append("__drawings")
-        if getattr(self, "func_needs_n_bars", {}).get(func_name):
+        if _meta(getattr(self, "func_needs_n_bars", {}), False):
             call_args.append("n_bars")
         # Chart context only when the def was emitted with it (func_needs_bar).
-        if self.func_needs_bar.get(func_name):
+        # Lookup by py name (``round_``) as well as Pine ``round``.
+        if _meta(self.func_needs_bar, False):
             for extra in (
                 "open_arr",
                 "high_arr",
@@ -6387,10 +6727,10 @@ class CompilerVisitor(NodeVisitor):
                 "__bar_idx",
             ):
                 call_args.append(extra)
-        if self.func_needs_strategy.get(func_name):
+        if _meta(self.func_needs_strategy, False):
             call_args.append("__strategy")
-        # Emit safe def name for keywords (``from`` → ``from_``)
-        py_name = self.func_name_map.get(func_name, func_name)
+        # Emit safe def name for keywords (``from`` → ``from_``) / builtins (``round_``)
+        py_name = self.func_name_map.get(func_name, self.func_name_map.get(pine_key, func_name))
         return f"{py_name}({', '.join(call_args)})"
 
     def _emit_strategy_call(self, func_name: str, args: list[str], kwargs: dict[str, str]) -> str:
@@ -7928,24 +8268,55 @@ class CompilerVisitor(NodeVisitor):
             self.func_name_map[pine_name] = func_name
         args = [arg.name for arg in node.args if hasattr(arg, "name")]
         arg_set = set(args)
-        # Same-name overloads (free func + method): keep each arity.
-        existing = self.func_param_names.get(pine_name)
-        if existing is not None and len(existing) != len(args):
-            prev_n = len(existing)
-            prev_py = self.func_name_map.get(pine_name, pine_name)
-            self.func_name_map[f"{pine_name}__{prev_n}"] = prev_py
-            self.func_param_names[f"{pine_name}__{prev_n}"] = list(existing)
-            func_name = self._safe_ident(f"{pine_name}__{len(args)}")
-            self.func_name_map[f"{pine_name}__{len(args)}"] = func_name
+        n_formals = len(args)
+        recv_type = None
+        if node.args:
+            recv_type = self._type_spec_name(getattr(node.args[0], "type", None))
+        # Same-name overloads (free func + method): unique py name per def.
+        # Do not clobber the first overload's metadata under the Pine id.
+        is_overload = pine_name in self.user_funcs
+        if is_overload:
+            prev_list = self.func_overloads.get(pine_name, [])
+            if prev_list:
+                prev_py = prev_list[-1]
+                prev_n = len(self.func_param_names.get(prev_py, []))
+                self.func_name_map.setdefault(f"{pine_name}__{prev_n}", prev_py)
+            func_name = self._safe_ident(f"{pine_name}__{n_formals}")
+            if func_name in self.user_funcs or func_name in self.func_param_names:
+                suffix = recv_type or "ov"
+                func_name = self._safe_ident(f"{pine_name}__{n_formals}_{suffix}")
+                n = 2
+                while func_name in self.user_funcs or func_name in self.func_param_names:
+                    func_name = self._safe_ident(f"{pine_name}__{n_formals}_{suffix}{n}")
+                    n += 1
+            self.func_name_map[f"{pine_name}__{n_formals}"] = func_name
+            if recv_type:
+                self.func_name_map[f"{pine_name}__{n_formals}__{recv_type}"] = func_name
         # Register under both Pine and safe names so call lookup works either way
         self.user_funcs.add(pine_name)
         self.user_funcs.add(func_name)
+        ov_list = self.func_overloads.setdefault(pine_name, [])
+        if func_name not in ov_list:
+            ov_list.append(func_name)
+        self.func_receiver_types[func_name] = recv_type
+        self.func_param_type_tags[func_name] = [
+            self._type_spec_name(getattr(a, "type", None)) for a in node.args if hasattr(a, "name")
+        ]
+        if recv_type:
+            self.func_name_map.setdefault(f"{pine_name}__{n_formals}__{recv_type}", func_name)
+        if recv_type and args:
+            self.udt_var_types[args[0]] = recv_type
+
+        def _bind_func_meta(mapping, value) -> None:
+            mapping[func_name] = value
+            if not is_overload:
+                mapping[pine_name] = value
+
         # Early formal list so recursive/body method-form checks see arity
         # (full free-scalar / series metadata is still filled after body gen).
-        self.func_param_names[pine_name] = list(args)
-        self.func_param_names[func_name] = list(args)
-        self.func_param_names[f"{pine_name}__{len(args)}"] = list(args)
-        self.func_name_map.setdefault(f"{pine_name}__{len(args)}", func_name)
+        _bind_func_meta(self.func_param_names, list(args))
+        self.func_param_names[f"{pine_name}__{n_formals}"] = list(args)
+        self.func_name_map.setdefault(f"{pine_name}__{n_formals}", func_name)
         if getattr(node, "export", None) or getattr(node, "method", None):
             # export / method in libraries → always object mode
             self.object_mode = True
@@ -7977,8 +8348,8 @@ class CompilerVisitor(NodeVisitor):
             d = getattr(arg, "default", None)
             if d is not None:
                 defaults_map[arg.name] = self.visit(d)
-        self.func_param_defaults[pine_name] = defaults_map
-        self.func_param_defaults[func_name] = defaults_map
+        _bind_func_meta(self.func_param_defaults, defaults_map)
+        self.func_param_defaults[f"{pine_name}__{n_formals}"] = defaults_map
         self.param_names = set(args)
         # Rename params that shadow Python builtins (len, sum, id, …)
         # Also params that shadow a *different* UDF (``model`` param vs ``export model``)
@@ -8099,8 +8470,9 @@ class CompilerVisitor(NodeVisitor):
                 ):
                     free_scalars_set.add(sc)
         free_scalars = sorted(free_scalars_set)
-        # Metadata keyed by Pine name (call sites look up by Pine id/attr)
-        self.func_free_scalars[pine_name] = free_scalars
+        # Keyed by emitted py name (and Pine id for the first overload) so
+        # ``_emit_user_func_call`` can resolve extras after overload remap.
+        _bind_func_meta(self.func_free_scalars, free_scalars)
         if (
             self._func_body_returns_sequence(node, last_ast, body_lines)
             if hasattr(self, "_func_body_returns_sequence")
@@ -8124,8 +8496,11 @@ class CompilerVisitor(NodeVisitor):
         if not hasattr(self, "func_returns_string"):
             self.func_returns_string: set[str] = set()
         if self._func_body_returns_string(body_lines):
-            self.func_returns_string.add(pine_name)
             self.func_returns_string.add(func_name)
+            # Mixed same-arity overloads: keep the Pine id numeric if an earlier
+            # impl was (``negate(float)`` vs ``negate(color)``).
+            if pine_name not in self.func_returns_numeric:
+                self.func_returns_string.add(pine_name)
         # Proven-numeric UDFs (arith / numba_* / np.*) may stay in nopython
         # at assign/plot call sites. Fail closed if the body forced object mode.
         body_forced_object = self.object_mode and not obj_before_body
@@ -8139,9 +8514,9 @@ class CompilerVisitor(NodeVisitor):
             self.func_returns_numeric.add(func_name)
         # Record series metadata for call-site lowering (keep parent scope intact
         # until the end of this method — nested defs must not leave in_function=False).
-        self.func_series_params[pine_name] = series_for_func
-        self.func_series_locals[pine_name] = list(series_locals)
-        self.func_param_names[pine_name] = list(args)
+        _bind_func_meta(self.func_series_params, series_for_func)
+        _bind_func_meta(self.func_series_locals, list(series_locals))
+        _bind_func_meta(self.func_param_names, list(args))
         # Temporarily expose this fn's series_params for free_series / needs_ctx
         # analysis below; restored (with optional accumulate) at function end.
         self.series_params = set(series_for_func)
@@ -8163,7 +8538,7 @@ class CompilerVisitor(NodeVisitor):
         )
         # Nested callees may need __st_* state arrays passed through this frame
         st_refs = sorted(set(re.findall(r"__st_[A-Za-z_][A-Za-z0-9_]*", body_text)))
-        self.func_st_params[pine_name] = st_refs
+        _bind_func_meta(self.func_st_params, st_refs)
 
         # series-local params: mangle chart OHLCV collisions (``var vol`` →
         # ``__user_vol_arr`` so chart ``vol_arr`` remains a distinct formal)
@@ -8210,7 +8585,7 @@ class CompilerVisitor(NodeVisitor):
         # Also bare series-param style names already covered; store for call site
         if not hasattr(self, "func_free_series"):
             self.func_free_series: dict[str, list[str]] = {}
-        self.func_free_series[pine_name] = free_series
+        _bind_func_meta(self.func_free_series, free_series)
         # Ensure free series arrays are allocated in execute_script_compiled
         # (skip __*_st — those are sized by _alloc_fixed_state, not n_bars)
         for fs in free_series:
@@ -8222,8 +8597,8 @@ class CompilerVisitor(NodeVisitor):
         # UDFs are module-scope; they cannot close over execute_script locals.
         needs_drawings = "__drawings" in body_text
         needs_n_bars = bool(re.search(r"\bn_bars\b", body_text))
-        self.func_needs_drawings[pine_name] = needs_drawings
-        self.func_needs_n_bars[pine_name] = needs_n_bars
+        _bind_func_meta(self.func_needs_drawings, needs_drawings)
+        _bind_func_meta(self.func_needs_n_bars, needs_n_bars)
         if needs_drawings:
             self.object_mode = True
 
@@ -8273,16 +8648,16 @@ class CompilerVisitor(NodeVisitor):
                 "__bar_idx",
             ]
             param_list.extend(e for e in extra if e not in param_list)
-            self.func_needs_bar[pine_name] = True
+            _bind_func_meta(self.func_needs_bar, True)
         else:
-            self.func_needs_bar[pine_name] = False
+            _bind_func_meta(self.func_needs_bar, False)
         needs_strategy = "__strategy" in body_text
         if needs_strategy:
             self.object_mode = True
             self.uses_strategy = True
             if "__strategy" not in param_list:
                 param_list = list(param_list) + ["__strategy"]
-        self.func_needs_strategy[pine_name] = needs_strategy
+        _bind_func_meta(self.func_needs_strategy, needs_strategy)
 
         deco = "@numba.njit(cache=False)" if not self.object_mode else ""
         lines = []
@@ -8395,8 +8770,41 @@ class CompilerVisitor(NodeVisitor):
         self.var_locals = prev_var_locals
         return ""
 
+    def _infer_udt_type(self, node) -> str | None:
+        """UDT type id from ``Type.new()``, ``Type.new().init()``, or a typed var."""
+        if node is None:
+            return None
+        if isinstance(node, ast.Name):
+            if node.id in self.udt_types:
+                return node.id
+            return getattr(self, "udt_var_types", {}).get(node.id)
+        if isinstance(node, ast.Attribute):
+            if node.attr == "new" and isinstance(node.value, ast.Name) and node.value.id in self.udt_types:
+                return node.value.id
+            # Chained ctor helpers only — not ``obj.update()`` / arbitrary methods
+            if node.attr in ("init", "copy", "new"):
+                return self._infer_udt_type(node.value)
+            return None
+        if isinstance(node, ast.Call):
+            return self._infer_udt_type(node.func)
+        return None
+
+    def _note_udt_var(self, name: str, type_name: str | None = None) -> None:
+        self.udt_vars.add(name)
+        if type_name:
+            self.udt_var_types[name] = type_name
+
     def _udf_formal_count(self, name: str) -> int:
         """Number of user formals for a UDF (0 if unknown / not yet registered)."""
+        ovs = getattr(self, "func_overloads", {}).get(name)
+        if ovs:
+            best = 0
+            for py in ovs:
+                params = self.func_param_names.get(py)
+                if params is not None:
+                    best = max(best, len(params))
+            if best:
+                return best
         params = self.func_param_names.get(name)
         if params is not None:
             return len(params)
