@@ -815,7 +815,7 @@ numba.extending.overload(numba_valuewhen)(_ol_numba_valuewhen)
 
 
 @numba.njit(cache=True)
-def numba_pivothigh(arr, left, right, i):
+def _numba_pivothigh_jit(arr, left, right, i):
     """Pivot high confirmed at bar ``i`` (center = i - right)."""
     left = int(left)
     right = int(right)
@@ -835,8 +835,29 @@ def numba_pivothigh(arr, left, right, i):
     return val
 
 
+def numba_pivothigh(arr, left, right, i):
+    """Pivot high; NaN/None lengths → na (not ``int(nan)``)."""
+    fl = pine_int(left)
+    fr = pine_int(right)
+    if fl != fl or fr != fr:
+        return np.nan
+    if not _is_f64_1d(arr):
+        return np.nan
+    return _numba_pivothigh_jit(arr, int(fl), int(fr), i)
+
+
+def _ol_numba_pivothigh(arr, left, right, i):  # noqa: ARG001
+    def impl(arr, left, right, i):
+        return _numba_pivothigh_jit(arr, left, right, i)
+
+    return impl
+
+
+numba.extending.overload(numba_pivothigh)(_ol_numba_pivothigh)
+
+
 @numba.njit(cache=True)
-def numba_pivotlow(arr, left, right, i):
+def _numba_pivotlow_jit(arr, left, right, i):
     """Pivot low confirmed at bar ``i`` (center = i - right)."""
     left = int(left)
     right = int(right)
@@ -854,6 +875,27 @@ def numba_pivotlow(arr, left, right, i):
         if arr[j] <= val:
             return np.nan
     return val
+
+
+def numba_pivotlow(arr, left, right, i):
+    """Pivot low; NaN/None lengths → na (not ``int(nan)``)."""
+    fl = pine_int(left)
+    fr = pine_int(right)
+    if fl != fl or fr != fr:
+        return np.nan
+    if not _is_f64_1d(arr):
+        return np.nan
+    return _numba_pivotlow_jit(arr, int(fl), int(fr), i)
+
+
+def _ol_numba_pivotlow(arr, left, right, i):  # noqa: ARG001
+    def impl(arr, left, right, i):
+        return _numba_pivotlow_jit(arr, left, right, i)
+
+    return impl
+
+
+numba.extending.overload(numba_pivotlow)(_ol_numba_pivotlow)
 
 
 @numba.njit(cache=True)
@@ -2005,6 +2047,17 @@ def safe_min(x):
         if best != best or f < best:
             best = f
     return best
+
+
+def udt_get_field(obj, key, default=np.nan):
+    """Read ``obj[key]`` when *obj* is a UDT dict; else *default*.
+
+    Evaluates *obj* once (call arg), so it is safe in list-comprehension
+    iterables where a walrus bind is a SyntaxError.
+    """
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return default
 
 
 def udt_index(obj, idx):

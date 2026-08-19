@@ -1484,9 +1484,23 @@ class CompilerVisitor(NodeVisitor):
                 target_store = f"{name}_arr[__bar_idx]"
             return self._emit_loop_assign(target_store, node.value)
 
+        # Pine switch-expression RHS with side-effect arms → statement assign.
+        # ``x = switch …`` must not emit ``x = if cond:`` (invalid Python).
+        if isinstance(node.value, ast.Switch):
+            cases = list(node.value.cases or [])
+            pure = all(self._switch_case_is_expr(c) for c in cases)
+            if self.in_function:
+                self.local_vars.add(name)
+                target_store = self._py_ident(name)
+            else:
+                self.arrays.add(f"{name}_arr")
+                target_store = f"{name}_arr[__bar_idx]"
+            if not pure:
+                return self._emit_switch_assign(target_store, node.value)
+            val = self.visit(node.value)
         # Pine if-expression RHS with side effects → statement-form assign.
         # Pure if-exprs lower to ternaries here (and via visit_If).
-        if isinstance(node.value, ast.If):
+        elif isinstance(node.value, ast.If):
             tern = self._try_if_as_ternary(node.value)
             if tern is None:
                 # Multi-stmt branches: emit if that writes the target.
@@ -1619,6 +1633,11 @@ class CompilerVisitor(NodeVisitor):
                 or (isinstance(node.value, ast.Constant) and isinstance(node.value.value, str))
             ):
                 self.string_scalars.add(name)
+            # UDT locals (``sig = Signal.new()``) must mark ``udt_vars`` so the
+            # UDF is classified as object-returning (plot(s.strength) / ``s = f()``).
+            if typed_udt or self._looks_like_udt_ctor(node.value) or self._val_looks_like_udt_dict(val):
+                self.object_mode = True
+                self.udt_vars.add(name)
             return f"{py} = {val}"
 
         # Script-level: never rebind numpy ``np`` / Pine ``na`` in the bar loop.
@@ -2373,7 +2392,7 @@ class CompilerVisitor(NodeVisitor):
             if re.search(rf"\b{re.escape(uf)}\s*\(", s):
                 return False
         # UDT field-read / walrus bind is never a float64 scalar.
-        if "__u :=" in s or "isinstance(__u" in s:
+        if "__u :=" in s or "isinstance(__u" in s or "udt_get_field(" in s:
             return False
         try:
             float(s)
@@ -3619,7 +3638,7 @@ class CompilerVisitor(NodeVisitor):
             if nm in self.local_vars or nm in self.udt_vars or nm in self.scalar_vars or nm in self.loop_counters:
                 self.object_mode = True
                 base = self.visit(node.value)
-                return f"((__u := ({base}), __u[{node.attr!r}] if isinstance(__u, dict) else np.nan)[1])"
+                return f"udt_get_field({base}, {node.attr!r})"
             return "np.nan"
         # strategy.* series/constants
         if isinstance(node.value, ast.Name) and node.value.id == "strategy":
@@ -3648,12 +3667,12 @@ class CompilerVisitor(NodeVisitor):
         # Use a tuple bind so the name is bound *before* isinstance (walrus in the
         # true-branch of a ternary leaves __u unbound when the cond runs first).
         def _udt_field(base: str, attr: str) -> str:
-            return f"((__u := ({base}), __u[{attr!r}] if isinstance(__u, dict) else np.nan)[1])"
+            return f"udt_get_field({base}, {attr!r})"
 
         # Chained field reads (``udt_series.field.nested``) always re-wrap: the
         # parent visit already emitted a walrus bind, which must not fall through
         # to ``{val}_{attr}`` (invalid Python like ``...)[1])_price``).
-        if "__u :=" in val or "isinstance(__u" in val:
+        if "__u :=" in val or "isinstance(__u" in val or "udt_get_field(" in val:
             self.object_mode = True
             return _udt_field(val, node.attr)
 
@@ -3791,7 +3810,11 @@ class CompilerVisitor(NodeVisitor):
             return f"[{', '.join(args)}]" if args else "[]"
         if func_name == "array_copy":
             a = ra(args, kwargs, ("id",))
-            return f"list({a[0]})" if a else "[]"
+            if not a:
+                return "[]"
+            return (
+                f"(list({a[0]}) if isinstance({a[0]}, (list, tuple, np.ndarray)) else [])"
+            )
         if func_name == "array_concat":
             # array.concat(id1, id2) — append id2 onto id1 (mutate) and return id1
             a = ra(
@@ -4430,6 +4453,30 @@ class CompilerVisitor(NodeVisitor):
                 method_src = self.visit(func.value)
                 func_name = _MAP_METHODS[func.attr]
                 self.object_mode = True
+            elif (
+                isinstance(func.value, ast.Attribute)
+                and func.value.attr == "point"
+                and isinstance(func.value.value, ast.Name)
+                and func.value.value.id == "chart"
+            ):
+                # Must run before ``copy`` → array_copy (``chart.point.copy(pt)``).
+                func_name = f"chart_point_{func.attr}"
+                self.object_mode = True
+            elif (
+                func.attr == "copy"
+                and isinstance(func.value, ast.Name)
+                and func.value.id in ("box", "label", "line", "linefill", "polyline", "table")
+            ):
+                # ``box.copy(id)`` is a drawing clone, not array.copy.
+                self.object_mode = True
+                src = "None"
+                for arg in node.args:
+                    src = self.visit(arg.value) if hasattr(arg, "value") else self.visit(arg)
+                    break
+                return (
+                    f"(dict({src}) if isinstance({src}, dict) else "
+                    f"{{'kind': {func.value.id!r}}})"
+                )
             elif func.attr in _ARRAY_METHODS:
                 method_src = self.visit(func.value)
                 func_name = _ARRAY_METHODS[func.attr]
@@ -5558,7 +5605,7 @@ class CompilerVisitor(NodeVisitor):
             sid = f"__cum{self._expr_cum_i}_arr"
             self._expr_cum_i += 1
             self.arrays.add(sid)
-            return f"numba_cum_expr({sid}, float({src}), __bar_idx)"
+            return f"numba_cum_expr({sid}, safe_float({src}), __bar_idx)"
         if func_name == "ta_sum":
             # ta.sum(source, length) == rolling sum over length bars
             if not args:
@@ -5676,10 +5723,14 @@ class CompilerVisitor(NodeVisitor):
             default_src = "high_arr" if func_name == "ta_pivothigh" else "low_arr"
             if len(args) >= 3:
                 src, left, right = args[0], args[1], args[2]
-                return f"{nb}({_arr(src)}, int({left}), int({right}), __bar_idx)"
+                return (
+                    f"{nb}({_arr(src)}, pine_int({left}), pine_int({right}), __bar_idx)"
+                )
             if len(args) >= 2:
                 left, right = args[0], args[1]
-                return f"{nb}({default_src}, int({left}), int({right}), __bar_idx)"
+                return (
+                    f"{nb}({default_src}, pine_int({left}), pine_int({right}), __bar_idx)"
+                )
             return f"{nb}({default_src}, 5, 5, __bar_idx)"
         if func_name == "ta_stoch":
             # ta.stoch(source, high, low, length) or ta.stoch(length)
@@ -7702,6 +7753,67 @@ class CompilerVisitor(NodeVisitor):
         if node.orelse:
             lines.append("else:")
             lines.extend(_emit_branch(node.orelse))
+        else:
+            lines.append("else:")
+            lines.append(f"    {target_store} = np.nan")
+        return "\n".join(lines)
+
+    def _emit_switch_assign(self, target_store: str, node: ast.Switch) -> str:
+        """Statement-form switch that writes ``target_store = <arm tail>``."""
+        subject = self.visit(node.subject) if getattr(node, "subject", None) is not None else None
+        cases = list(node.cases or [])
+        self.object_mode = True
+        lines: list[str] = []
+        first = True
+        default_body = None
+        seen_default = False
+
+        def _emit_arm(body) -> list[str]:
+            out: list[str] = []
+            stmts = list(body or [])
+            if not stmts:
+                out.append(f"    {target_store} = np.nan")
+                return out
+            for i, stmt in enumerate(stmts):
+                is_tail = i == len(stmts) - 1
+                if is_tail and isinstance(stmt, ast.If):
+                    nested = self._emit_if_assign(target_store, stmt)
+                    out.append("    " + nested.replace("\n", "\n    "))
+                    continue
+                if is_tail and isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.If):
+                    nested = self._emit_if_assign(target_store, stmt.value)
+                    out.append("    " + nested.replace("\n", "\n    "))
+                    continue
+                if is_tail and isinstance(stmt, ast.Expr):
+                    val = self._coerce_if_assign_val(target_store, self.visit(stmt.value))
+                    out.append(f"    {target_store} = {val}")
+                    continue
+                line = self.visit(stmt)
+                if line:
+                    out.append("    " + line.replace("\n", "\n    "))
+            if not any(target_store in ln for ln in out):
+                out.append(f"    {target_store} = np.nan")
+            return out
+
+        for case in cases:
+            pat = getattr(case, "pattern", None)
+            body = getattr(case, "body", None) or []
+            if pat is None:
+                if default_body is None:
+                    default_body = body
+                seen_default = True
+                continue
+            if seen_default:
+                continue
+            cond = self._switch_arm_cond(subject, pat)
+            lines.append(f"if {cond}:" if first else f"elif {cond}:")
+            first = False
+            lines.extend(_emit_arm(body))
+        if default_body is not None:
+            lines.append("else:")
+            lines.extend(_emit_arm(default_body))
+        elif not lines:
+            return f"{target_store} = np.nan"
         else:
             lines.append("else:")
             lines.append(f"    {target_store} = np.nan")
