@@ -142,6 +142,12 @@ _LINE_NUMBER_ONLY_RE = re.compile(r"^[ \t]{0,3}\d{1,4}\s*$")
 _HUGO_SHORTCODE_RE = re.compile(r"^\s*\{\{[<%].*?[%>]\}\}\s*$")
 # Mustache / MCP template placeholders: ``{{AS_OF_DATE}}`` (not Hugo ``{{<``).
 _MUSTACHE_RE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}")
+# Jinja2 statements / comments (``{% for %}`` / ``{# #}``). Expressions with
+# filters or spaces (``{{ title }}`` is mustache-IDENT and is replaced first).
+_JINJA_STMT_RE = re.compile(r"\{%[+-]?")
+_JINJA_COMMENT_RE = re.compile(r"\{#")
+# Markdown list marker (planning docs wrapping `` `indicator(...)` ``).
+_MD_LIST_MARKER_RE = re.compile(r"^[-*+]\s+")
 # RST leftovers after a docs example (``.. _label:``, heading underline).
 _RST_DIRECTIVE_RE = re.compile(r"^\s*\.\.\s+\S")
 _RST_HEADING_ULINE_RE = re.compile(r"^\s*[-=~^\"'`#*+]{3,}\s*$")
@@ -479,8 +485,30 @@ def _has_usable_pine(text: str) -> bool:
     //@version alone is not enough (PR templates often keep only the pragma).
     A script declaration (``indicator`` / ``strategy`` / ``library`` / ``study``)
     is enough — even bare ``library()`` parses and should be preserved.
+
+    Markdown list items and backtick-wrapped inline code (planning docs that
+    mention `` `indicator(...)` ``) are not live declarations.
     """
-    return bool(_SCRIPT_DECL_RE.search(text))
+    for ln in text.splitlines():
+        s = ln.strip()
+        if not s or s.startswith("//"):
+            continue
+        if _MD_LIST_MARKER_RE.match(s) or s.startswith("`"):
+            continue
+        if _SCRIPT_DECL_RE.search(s):
+            return True
+    return False
+
+
+def _looks_like_jinja(text: str) -> bool:
+    """True for Jinja2 templates (``{% %}`` / leftover ``{{`` after mustache)."""
+    for ln in text.splitlines():
+        s = ln.strip()
+        if not s or s.startswith("//"):
+            continue
+        if _JINJA_STMT_RE.search(s) or _JINJA_COMMENT_RE.search(s) or "{{" in s:
+            return True
+    return False
 
 
 # Docs chrome glued onto code lines (Mintlify / reference pages).
@@ -893,6 +921,54 @@ def _is_pine_start_line(cleaned: str) -> bool:
     return bool(_PINE_START_RE.match(cleaned))
 
 
+def _block_comment_open_after_line(line: str, in_block: bool) -> bool:
+    """Whether a ``/* */`` block comment remains open after scanning *line*.
+
+    ``//`` is a line comment only when not already inside ``/*``. Strings hide
+    both forms. Pine block comments do not nest. Used so sanitize does not
+    treat ``Still a comment`` inside ``/* */`` as English prose (and so it
+    never strips ``*`` from ``/*`` / ``*/`` leaving a stray ``/``).
+    """
+    i = 0
+    n = len(line)
+    in_str: str | None = None
+    esc = False
+    while i < n:
+        ch = line[i]
+        if in_block:
+            if ch == "*" and i + 1 < n and line[i + 1] == "/":
+                in_block = False
+                i += 2
+                continue
+            i += 1
+            continue
+        if esc:
+            esc = False
+            i += 1
+            continue
+        if in_str:
+            if ch == "\\":
+                esc = True
+                i += 1
+                continue
+            if ch == in_str:
+                in_str = None
+            i += 1
+            continue
+        if ch == "/" and i + 1 < n and line[i + 1] == "/":
+            break
+        if ch == "/" and i + 1 < n and line[i + 1] == "*":
+            in_block = True
+            i += 2
+            continue
+        if ch in "\"'":
+            in_str = ch
+            i += 1
+            continue
+        i += 1
+    return in_block
+
+
 def _string_state_after_line(line: str, state: str | None) -> str | None:
     """Track open quote state across lines for sanitize (``None`` | ``\"`` | ``'`` | ``\"\"\"`` | ``'''``).
 
@@ -942,16 +1018,24 @@ def _line_filter(source: str) -> str:
     out: list[str] = []
     saw_pine = False
     str_state: str | None = None
+    in_block = False
     # LLM / blog prompts often include a sample ``strategy(...)`` line *before*
     # the real script's ``//@version``. Do not start pine on that decoy.
     has_version_pragma = any(_VERSION_PRAGMA_RE.match(ln) for ln in source.splitlines())
     seen_version = False
     for line in source.splitlines():
+        # Inside ``/* */``: keep verbatim (nested ``//`` and English sentences
+        # are still comments). Do not chrome-strip ``*`` from ``*/``.
+        if in_block:
+            out.append(line)
+            in_block = _block_comment_open_after_line(line, True)
+            continue
         # Inside an open multiline / unclosed string: keep the line verbatim and
         # never apply prose/chrome stops (content often looks like English docs).
         if str_state is not None:
             out.append(line)
             str_state = _string_state_after_line(line, str_state)
+            in_block = _block_comment_open_after_line(line, False)
             continue
 
         if has_version_pragma and not seen_version:
@@ -1028,8 +1112,11 @@ def _line_filter(source: str) -> str:
             # Blank lines before pine are fine to skip
             if not cleaned.strip():
                 continue
-            # Non-pine prose before script
-            continue
+            # Keep ``/*`` so a leading block comment is not dropped as prose
+            # (closer / body are held by ``in_block`` after this line is appended).
+            if not cleaned.lstrip().startswith("/*"):
+                # Non-pine prose before script
+                continue
 
         if _is_pine_start_line(cleaned) or (
             cleaned.strip()
@@ -1041,6 +1128,7 @@ def _line_filter(source: str) -> str:
 
         out.append(cleaned)
         str_state = _string_state_after_line(cleaned, None)
+        in_block = _block_comment_open_after_line(cleaned, False)
 
     text = "\n".join(out)
     if source.endswith("\n") and text and not text.endswith("\n"):
@@ -1867,6 +1955,10 @@ def _looks_like_prose_line(line: str) -> bool:
         or _RST_LINE_ANNOT_RE.match(s)
     ):
         return True
+    # Indented UDT fields: ``    DistMethod distMethod`` is not English prose.
+    # (unindented two-word titles like ``Last Modified`` stay prose / footers.)
+    if line[:1] in " \t" and _TYPE_FIELD_LINE_RE.match(s):
+        return False
     # Title-case sentence / docs prose without call/assign tokens
     return bool(s[0].isupper() and " " in s)
 
@@ -2309,7 +2401,9 @@ def _finalize(provenance: list[str], body: str, ends_with_nl: bool) -> str:
     # keep their declaration + remaining statements — never overwrite with
     # ``indicator("x"); plot(close)``. Broken bare ``library().`` tails are the
     # sole declaration-shaped exception via ``_is_effectively_empty_script``.
-    if not _has_usable_pine(body) or _is_effectively_empty_script(body):
+    # Jinja2 templates (``{% for %}`` / leftover ``{{ expr }}``) are not Pine —
+    # never feed ``{`` to the lexer.
+    if _looks_like_jinja(body) or not _has_usable_pine(body) or _is_effectively_empty_script(body):
         body = _MINIMAL_STUB
     return _compose(provenance, body, ends_with_nl)
 

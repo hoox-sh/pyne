@@ -8,8 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
-- **Compile set06 residuals** — UDF `int m = if` stays a local (not `m_arr`); nested UDFs still receive script-level `a_arr` when a param shadows `a`; object-mode `None` no longer TypingErrors `numba_max`/`min`; matrix UDF/`kron` handles stay objects; `NEWLINE+` before indented `=>` bodies.
-- **Corpus sanitize** — keep trailing commas on wrapped `=>` calls; tab-indented function bodies after `) =>`; drop Hugo/markdown tails after a complete script.
+- **Compile set06 residuals** — UDF `int m = if` stays a local (not `m_arr`); nested UDFs still receive script-level `a_arr` when a param shadows `a`; object-mode `None` no longer TypingErrors `numba_max`/`min`; matrix UDF/`kron` handles stay objects; `NEWLINE+` before indented `=>` bodies; UDF local `vol` does not steal chart `vol_arr`; `timestamp` timezone strings and object `valuewhen`/`running_max`; Pine `int(na)` is na.
+- **Corpus sanitize** — keep trailing commas on wrapped `=>` calls; tab-indented function bodies after `) =>`; drop Hugo/markdown tails after a complete script; keep `/* */` block comments; stub jinja/markdown planning docs.
 
 ## [0.3.15] - 2026-08-19
 

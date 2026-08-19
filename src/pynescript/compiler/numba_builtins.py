@@ -40,8 +40,10 @@ Layers (what this module “registers” for the compile path)
    ``safe_float``, ``safe_int``, ``safe_period``, ``safe_len``, ``safe_iter``,
    ``safe_iter_pairs``, ``safe_sum`` / ``safe_max`` / ``safe_min``, ``na_num``
    (None→nan for arithmetic), ``nz_py`` (unicode-safe nz), ``store_src_py``,
-   ``udt_index``, ``pine_raise``, list/matrix mutators (``safe_list_*``,
-   ``matrix_set``, ``matrix_*``), array stats (``array_mode``, ``array_range``, …).
+   ``udt_index``, ``pine_raise``, ``pine_int`` / ``pine_bool`` / ``pine_string``
+   (Pine ``int()``/``bool()``/``string()`` casts; ``safe_int`` stays NaN→0),
+   list/matrix mutators (``safe_list_*``, ``matrix_set``, ``matrix_*``),
+   array stats (``array_mode``, ``array_range``, …).
 
 Numba constraints
 -----------------
@@ -733,8 +735,53 @@ def numba_cum_expr(state_arr, val, i):
     return s
 
 
+def _is_f64_1d(a):
+    """True for C-contiguous-or-not 1d float64 series (nopython valuewhen path)."""
+    return isinstance(a, np.ndarray) and a.ndim == 1 and a.dtype == np.float64
+
+
+def _valuewhen_cond_true(c):
+    """Object-mode condition: na/0/False skip; never ``isnan`` on unicode."""
+    if c is None:
+        return False
+    if isinstance(c, (str, bytes, dict, list, tuple, set)):
+        return bool(c)
+    try:
+        f = float(c)
+    except (TypeError, ValueError):
+        return bool(c)
+    return not np.isnan(f) and f != 0.0
+
+
+def _valuewhen_py(cond_arr, src_arr, occ, i):
+    """Python occ-th true scan; ``src`` may be string/color/UDT object cells."""
+    try:
+        occ_i = int(occ)
+        idx = int(i)
+    except (TypeError, ValueError):
+        return np.nan
+    if occ_i < 0 or idx < 0:
+        return np.nan
+    try:
+        n = min(len(cond_arr), len(src_arr))
+    except TypeError:
+        return np.nan
+    if n <= 0:
+        return np.nan
+    if idx >= n:
+        idx = n - 1
+    left = occ_i
+    for j in range(idx, -1, -1):
+        if not _valuewhen_cond_true(cond_arr[j]):
+            continue
+        if left == 0:
+            return src_arr[j]
+        left -= 1
+    return np.nan
+
+
 @numba.njit(cache=True)
-def numba_valuewhen(cond_arr, src_arr, occ, i):
+def _numba_valuewhen_jit(cond_arr, src_arr, occ, i):
     """Return source at the ``occ``-th most recent true condition (0 = latest)."""
     occ = int(occ)
     if occ < 0:
@@ -748,6 +795,23 @@ def numba_valuewhen(cond_arr, src_arr, occ, i):
             return src_arr[j]
         left -= 1
     return np.nan
+
+
+def numba_valuewhen(cond_arr, src_arr, occ, i):
+    """valuewhen; object-dtype series use a Python scan (not njit pyobject)."""
+    if _is_f64_1d(cond_arr) and _is_f64_1d(src_arr):
+        return _numba_valuewhen_jit(cond_arr, src_arr, occ, i)
+    return _valuewhen_py(cond_arr, src_arr, occ, i)
+
+
+def _ol_numba_valuewhen(cond_arr, src_arr, occ, i):  # noqa: ARG001
+    def impl(cond_arr, src_arr, occ, i):
+        return _numba_valuewhen_jit(cond_arr, src_arr, occ, i)
+
+    return impl
+
+
+numba.extending.overload(numba_valuewhen)(_ol_numba_valuewhen)
 
 
 @numba.njit(cache=True)
@@ -1741,6 +1805,59 @@ def safe_int(x):
         return int(f)
     except Exception:
         return 0
+
+
+@numba.njit(cache=True)
+def _pine_int_jit(x):
+    """nopython Pine ``int()``: NaN/inf → nan; finite truncate toward zero."""
+    if x != x or not np.isfinite(x):
+        return np.nan
+    return float(int(x))
+
+
+def pine_int(x):
+    """Pine ``int()``: None/NaN/inf → nan; finite floats truncate toward zero.
+
+    Distinct from :func:`safe_int`, which maps NaN → 0 for lengths / indexes.
+    Python ``int(nan)`` raises ``ValueError``; Pine ``int(na)`` is ``na``.
+    """
+    fv = x if _is_plain_float(x) else safe_float(x)
+    return _pine_int_jit(fv)
+
+
+_register_njit_overload(pine_int, _pine_int_jit)
+
+
+@numba.njit(cache=True)
+def _pine_bool_jit(x):
+    """nopython Pine ``bool()``: NaN → False; else nonzero."""
+    if x != x:
+        return False
+    return x != 0.0
+
+
+def pine_bool(x):
+    """Pine ``bool()``: None/NaN → False (Python ``bool(nan)`` is True)."""
+    if x is None:
+        return False
+    if isinstance(x, str):
+        return bool(x)
+    fv = x if _is_plain_float(x) else safe_float(x)
+    return _pine_bool_jit(fv)
+
+
+_register_njit_overload(pine_bool, _pine_bool_jit)
+
+
+def pine_string(x):
+    """Pine ``string()``: None/NaN → ``na``; bools ``true``/``false``."""
+    if x is None:
+        return "na"
+    if isinstance(x, bool):
+        return "true" if x else "false"
+    if isinstance(x, (float, np.floating)) and x != x:
+        return "na"
+    return str(x)
 
 
 def safe_period(x, default: int = 0) -> int:
@@ -4687,13 +4804,13 @@ def numba_falling_inc(arr, length, i, st):
 
 
 @numba.njit(cache=True)
-def numba_valuewhen_inc(cond_arr, src_arr, occ, i, st):
+def _numba_valuewhen_inc_jit(cond_arr, src_arr, occ, i, st):
     """Amortized-O(1) valuewhen via ring of recent true bar indices.
 
     ``st`` layout (size >= 3 + occ + 1):
       [n_found, head, last_i, hist_0, ..., hist_occ]
     ``hist`` is a ring of bar indices (write at ``head % cap``).
-    Matches ``numba_valuewhen`` for sequential / gap / rewind bars.
+    Matches ``_numba_valuewhen_jit`` for sequential / gap / rewind bars.
     """
     occ = int(occ)
     if occ < 0 or i < 0:
@@ -4701,7 +4818,7 @@ def numba_valuewhen_inc(cond_arr, src_arr, occ, i, st):
     cap = occ + 1
     # Require packed hist after the 3 control slots
     if len(st) < 3 + cap:
-        return numba_valuewhen(cond_arr, src_arr, occ, i)
+        return _numba_valuewhen_jit(cond_arr, src_arr, occ, i)
 
     if np.isnan(st[2]):
         last = -1
@@ -4735,8 +4852,25 @@ def numba_valuewhen_inc(cond_arr, src_arr, occ, i, st):
     return src_arr[bar_i]
 
 
+def numba_valuewhen_inc(cond_arr, src_arr, occ, i, st):
+    """Incremental valuewhen; object-dtype cond/src fall back to Python scan."""
+    if _is_f64_1d(cond_arr) and _is_f64_1d(src_arr) and _is_f64_1d(st):
+        return _numba_valuewhen_inc_jit(cond_arr, src_arr, occ, i, st)
+    return numba_valuewhen(cond_arr, src_arr, occ, i)
+
+
+def _ol_numba_valuewhen_inc(cond_arr, src_arr, occ, i, st):  # noqa: ARG001
+    def impl(cond_arr, src_arr, occ, i, st):
+        return _numba_valuewhen_inc_jit(cond_arr, src_arr, occ, i, st)
+
+    return impl
+
+
+numba.extending.overload(numba_valuewhen_inc)(_ol_numba_valuewhen_inc)
+
+
 @numba.njit(cache=True)
-def numba_running_max_inc(arr, i, st):
+def _numba_running_max_inc_jit(arr, i, st):
     """O(1) all-time max of ``arr[0..i]``. ``st``: [max_val, last_i].
 
     Matches ``numba_highest(arr, i+1, i)`` (NaN ignored when a finite exists).
@@ -4760,8 +4894,69 @@ def numba_running_max_inc(arr, i, st):
     return m
 
 
+def _running_ext_py(arr, i, st, *, want_max: bool):
+    """Object-array running max/min; never njit ``array(pyobject)``."""
+    try:
+        idx = int(i)
+    except (TypeError, ValueError):
+        return np.nan
+    if idx < 0:
+        return np.nan
+    m = np.nan
+    last = -1
+    try:
+        if st is not None and len(st) >= 2:
+            m = safe_float(st[0])
+            lf = safe_float(st[1])
+            last = -1 if lf != lf else int(lf)
+    except TypeError:
+        m = np.nan
+        last = -1
+    if idx < last:
+        last = -1
+        m = np.nan
+    try:
+        n = len(arr)
+    except TypeError:
+        return np.nan
+    end = min(idx + 1, n)
+    start = 0 if last < -1 else last + 1
+    if start < 0:
+        start = 0
+    for j in range(start, end):
+        v = safe_float(arr[j])
+        if m != m:
+            m = v
+        elif v == v and ((want_max and v > m) or (not want_max and v < m)):
+            m = v
+    try:
+        if st is not None and len(st) >= 2:
+            st[0] = m
+            st[1] = float(idx)
+    except TypeError:
+        pass
+    return m
+
+
+def numba_running_max_inc(arr, i, st):
+    """Running max; object-dtype buffers use a Python scan."""
+    if _is_f64_1d(arr) and _is_f64_1d(st):
+        return _numba_running_max_inc_jit(arr, i, st)
+    return _running_ext_py(arr, i, st, want_max=True)
+
+
+def _ol_numba_running_max_inc(arr, i, st):  # noqa: ARG001
+    def impl(arr, i, st):
+        return _numba_running_max_inc_jit(arr, i, st)
+
+    return impl
+
+
+numba.extending.overload(numba_running_max_inc)(_ol_numba_running_max_inc)
+
+
 @numba.njit(cache=True)
-def numba_running_min_inc(arr, i, st):
+def _numba_running_min_inc_jit(arr, i, st):
     """O(1) all-time min of ``arr[0..i]``. ``st``: [min_val, last_i].
 
     Matches ``numba_lowest(arr, i+1, i)``.
@@ -4783,6 +4978,23 @@ def numba_running_min_inc(arr, i, st):
     st[0] = m
     st[1] = float(i)
     return m
+
+
+def numba_running_min_inc(arr, i, st):
+    """Running min; object-dtype buffers use a Python scan."""
+    if _is_f64_1d(arr) and _is_f64_1d(st):
+        return _numba_running_min_inc_jit(arr, i, st)
+    return _running_ext_py(arr, i, st, want_max=False)
+
+
+def _ol_numba_running_min_inc(arr, i, st):  # noqa: ARG001
+    def impl(arr, i, st):
+        return _numba_running_min_inc_jit(arr, i, st)
+
+    return impl
+
+
+numba.extending.overload(numba_running_min_inc)(_ol_numba_running_min_inc)
 
 
 @numba.njit(cache=True)
@@ -6767,7 +6979,7 @@ def numba_days_from_civil(y, m, d):
 
 
 @numba.njit(cache=True)
-def numba_timestamp(y, m, d, h=0.0, mi=0.0, s=0.0):
+def _numba_timestamp_jit(y, m, d, h=0.0, mi=0.0, s=0.0):
     """Unix epoch ms from calendar components with month/day overflow.
 
     Matches reference Pine ``timestamp(year, month, day, hour, minute, second)``
@@ -6800,6 +7012,48 @@ def numba_timestamp(y, m, d, h=0.0, mi=0.0, s=0.0):
     base_days = numba_days_from_civil(yi, mo, 1)
     epoch_days = base_days + add_days
     return float(epoch_days * 86400000 + rem * 1000)
+
+
+def _is_timezone_string(y):
+    """True for Pine timezone names/offsets, False for numeric date-part strings."""
+    if not isinstance(y, str):
+        return False
+    s = y.strip()
+    if not s:
+        return True
+    if any(ch.isalpha() for ch in s):
+        return True
+    # +0300 / -05:00 offsets (not a signed year like "-3")
+    return s[0] in "+-" and (":" in s or len(s) >= 4)
+
+
+def numba_timestamp(y, m, d, h=0.0, mi=0.0, s=0.0):
+    """Unix epoch ms; object-mode None/str/NA coerce; leading timezone skipped.
+
+    Pine ``timestamp(timezone, year, month, day, …)`` arrives as a leading
+    string (``"GMT+3"``, ``"America/Chicago"``, ``"+0300"``). Skip it so the
+    float64 jit inner never sees ``unicode_type``. Date-part strings
+    (``"2021"``) still coerce via ``safe_float``.
+    """
+    if _is_timezone_string(y):
+        y, m, d, h, mi, s = m, d, h, mi, s, 0.0
+    fy = _as_njit_float(y)
+    fm = _as_njit_float(m)
+    fd = _as_njit_float(d)
+    fh = _as_njit_float(h)
+    fmi = _as_njit_float(mi)
+    fs = _as_njit_float(s)
+    return _numba_timestamp_jit(fy, fm, fd, fh, fmi, fs)
+
+
+def _ol_numba_timestamp(y, m, d, h=0.0, mi=0.0, s=0.0):  # noqa: ARG001
+    def impl(y, m, d, h=0.0, mi=0.0, s=0.0):
+        return _numba_timestamp_jit(y, m, d, h, mi, s)
+
+    return impl
+
+
+numba.extending.overload(numba_timestamp)(_ol_numba_timestamp)
 
 
 @numba.njit(cache=True)

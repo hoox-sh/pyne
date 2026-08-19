@@ -38,8 +38,9 @@ Host packing / contracts
   is :mod:`pynescript.compiler.engine` (synthetic ``bar*60_000`` ms when time
   omitted; Runtime passes real OHLCV bar-open ms).
 - ``request.security`` / ``security``: same-symbol OHLCV passthrough only;
-  foreign tickers and complex expressions emit ``na`` (no close-as-dividend
-  / unpack-as-chart invention).
+  foreign tickers and complex numeric expressions emit ``na`` (no
+  close-as-dividend / unpack-as-chart invention). A UDT / object-handle
+  expression is passed through as a stub handle (never ``float`` / ``na``).
 - nopython fallback: engine re-visits with ``force_object_mode=True`` after a
   TypingError warm-up; this module only implements the emit switch.
 - UDF series state lives in ``__st_{func}_{local}`` arrays; free chart series
@@ -710,6 +711,20 @@ class CompilerVisitor(NodeVisitor):
             return f"__user_{name}_arr"
         return f"{name}_arr"
 
+    def _series_local_arr(self, name: str) -> str:
+        """UDF series-local buffer name. Never reuses chart ``vol_arr`` / OHLCV.
+
+        A Pine local ``var vol`` must not consume the chart volume formal
+        ``vol_arr`` (def/call arity mismatch; ``volume[length]`` would also
+        read the local). Same for ``open`` / ``high`` / ``low`` / ``close``.
+        """
+        if name in self._CHART_ARR_BASES:
+            return self._series_arr_name(name)
+        py = self._py_ident(name)
+        if py in self._CHART_ARR_BASES:
+            return self._series_arr_name(py)
+        return f"{py}_arr"
+
     def _is_object_dtype_arr(self, arr: str) -> bool:
         """True when ``arr`` is a string/color or UDT object series buffer."""
         # Call-site clones of object UDF series locals (no ``_arr`` suffix)
@@ -1360,6 +1375,14 @@ class CompilerVisitor(NodeVisitor):
             name = f.attr
         if name and name in getattr(self, "func_returns_udt", set()):
             return True
+        if name in ("security", "request_security"):
+            raw = self._security_expression_node(node)
+            if raw is not None and (
+                (isinstance(raw, ast.Name) and raw.id in self.udt_vars)
+                or self._looks_like_udt_ctor(raw)
+                or self._looks_like_udt_copy(raw)
+            ):
+                return True
         return self._looks_like_udt_ctor(node) or self._looks_like_udt_copy(node)
 
     def _val_looks_like_udt_dict(self, val: str | None) -> bool:
@@ -1574,9 +1597,10 @@ class CompilerVisitor(NodeVisitor):
                     self.local_sequence_vars.add(name)
                 # ``var`` init: only on first bar, else carry previous value (aliases
                 # list handles so array.push mutations accumulate across bars).
+                sl_arr = self._series_local_arr(name)
                 if is_var or name in getattr(self, "var_locals", set()):
-                    return f"{py}_arr[__bar_idx] = {val} if __bar_idx == 0 else {py}_arr[__bar_idx - 1]"
-                return f"{py}_arr[__bar_idx] = {val}"
+                    return f"{sl_arr}[__bar_idx] = {val} if __bar_idx == 0 else {sl_arr}[__bar_idx - 1]"
+                return f"{sl_arr}[__bar_idx] = {val}"
             if self._is_map_new(node.value) or self._is_typed_map(type_node):
                 self.object_mode = True
                 self.map_vars.add(name)
@@ -2967,15 +2991,14 @@ class CompilerVisitor(NodeVisitor):
             return f"udt_set_field({obj}, {node.target.attr!r}, {val})"
         # Series locals must write through their persistent array
         if self.in_function and isinstance(node.target, ast.Name) and node.target.id in self.series_locals:
+            sl_arr = self._series_local_arr(node.target.id)
             if isinstance(node.value, ast.If):
                 tern = self._try_if_as_ternary(node.value)
-                py = self._py_ident(node.target.id)
-                target = f"{py}_arr[__bar_idx]"
+                target = f"{sl_arr}[__bar_idx]"
                 if tern is not None:
                     return f"{target} = {tern}"
                 return self._emit_if_assign(target, node.value)
             val = self._dmi_as_scalar(self.visit(node.value))
-            py = self._py_ident(node.target.id)
             # line/label/box / UDT / tuple / color-hex into series-local → object dtype
             if val and (
                 "__drawings" in val
@@ -2992,7 +3015,7 @@ class CompilerVisitor(NodeVisitor):
                 if not hasattr(self, "object_series_locals"):
                     self.object_series_locals = set()
                 self.object_series_locals.add(node.target.id)
-            return f"{py}_arr[__bar_idx] = {val}"
+            return f"{sl_arr}[__bar_idx] = {val}"
         if self.in_function and isinstance(node.target, ast.Name):
             self.local_vars.add(node.target.id)
             py = self._py_ident(node.target.id)
@@ -3105,8 +3128,7 @@ class CompilerVisitor(NodeVisitor):
             if self.in_function:
                 self.local_vars.add(name)
                 if name in self.series_locals:
-                    py = self._py_ident(name)
-                    base = f"{py}_arr[__bar_idx]"
+                    base = f"{self._series_local_arr(name)}[__bar_idx]"
                     return f"{base} = (({base}) {op_s} ({val}))"
                 py = self._py_ident(name)
                 return f"{py} = (({py}) {op_s} ({val}))"
@@ -3137,9 +3159,9 @@ class CompilerVisitor(NodeVisitor):
             # Series-style UDF params are full arrays indexed by current bar
             if node.id in self.series_params:
                 return f"{py}[__bar_idx]"
-            # Series locals: persistent state array passed as {name}_arr
+            # Series locals: persistent state array (mangled away from chart OHLCV)
             if node.id in self.series_locals:
-                return f"{py}_arr[__bar_idx]"
+                return f"{self._series_local_arr(node.id)}[__bar_idx]"
             return py
         # Script-level (or free) rebinding of a UDF: ``sar = sar(...)`` then
         # ``sar > close`` must read ``sar__loc``, not the function object.
@@ -3338,7 +3360,11 @@ class CompilerVisitor(NodeVisitor):
         if self.in_function and node.id not in self.local_vars:
             if node.id in self.series_params or node.id in self.series_locals:
                 py = self._py_ident(node.id)
-                return f"{py}_arr[__bar_idx]" if node.id in self.series_locals else f"{py}[__bar_idx]"
+                return (
+                    f"{self._series_local_arr(node.id)}[__bar_idx]"
+                    if node.id in self.series_locals
+                    else f"{py}[__bar_idx]"
+                )
             # History in this UDF → series free param (handled via free_series *_arr)
             if node.id in getattr(self, "history_names_current", set()):
                 # Will land in free_series as {name}_arr via body scan
@@ -5114,11 +5140,16 @@ class CompilerVisitor(NodeVisitor):
             "request_seed",
         ):
             sym = args[0] if args else ""
-            expr = args[2] if len(args) >= 3 else "close_arr[__bar_idx]"
+            expr = args[2] if len(args) >= 3 else kwargs.get("expression", "close_arr[__bar_idx]")
             if self._is_heikinashi_security_symbol(sym) and self._is_simple_security_expr(expr):
                 self._ensure_heikinashi_arrays()
                 return self._map_ohlcv_expr_to_heikinashi(expr)
             if self._is_chart_security_symbol(sym) and self._is_simple_security_expr(expr):
+                return expr
+            # UDT / object handle: keep the handle (passthrough stub). Never
+            # store float na into a typed UDT series (``requestedInfo.prices``).
+            if func_name in ("security", "request_security") and self._security_expr_is_udt(node, expr):
+                self.object_mode = True
                 return expr
             return "np.nan"
 
@@ -6122,31 +6153,29 @@ class CompilerVisitor(NodeVisitor):
             if not args:
                 return "np.nan"
             arg = args[0]
-            # Known-numeric path: identity (float of float series / literals)
+            # Known-numeric path: identity (float of float series / literals).
+            # ``safe_float`` is Python — do not emit it under nopython.
             if self._is_safe_numeric_expr(arg) and not self.object_mode:
                 return arg
-            # Object / UDT / hline handle / function / string → safe cast
+            # Object / UDT / None / hline handle / function / string → na-safe
             self.object_mode = True
             return f"safe_float({arg})"
         if func_name == "int":
             if not args:
                 return "0"
             arg = args[0]
-            if self._is_safe_numeric_expr(arg) and not self.object_mode:
-                return f"int({arg})" if not arg.isdigit() else arg
-            self.object_mode = True
-            return f"safe_int({arg})"
+            # Always pine_int: Python ``int(nan)`` raises; Pine ``int(na)`` is na.
+            # Truncates finite floats toward zero. nopython via njit overload.
+            return f"pine_int({arg})"
         if func_name == "bool":
             if not args:
                 return "False"
             arg = args[0]
-            if self._is_safe_numeric_expr(arg) and not self.object_mode:
-                return f"bool({arg})"
-            self.object_mode = True
-            return f"(bool(safe_float({arg})) if not isinstance({arg}, str) else bool({arg}))"
+            # Python ``bool(nan)`` is True; Pine ``bool(na)`` is false.
+            return f"pine_bool({arg})"
         if func_name == "string":
             self.object_mode = True
-            return f"str({args[0]})" if args else "''"
+            return f"pine_string({args[0]})" if args else "''"
 
         # math.todegrees / math.toradians (and bare aliases)
         if func_name in ("math_todegrees", "todegrees"):
@@ -6318,6 +6347,14 @@ class CompilerVisitor(NodeVisitor):
         self.object_mode = True
         self.uses_strategy = True
         method = func_name[len("strategy_") :]  # entry, close, order, …
+        # Currency conversion stubs (interpret is identity). Empty emit here
+        # produced ``x =  if __bar_idx == 0 else …`` (invalid syntax).
+        if method in ("convert_to_account", "convert_to_symbol"):
+            if args:
+                return args[0]
+            if "value" in kwargs:
+                return kwargs["value"]
+            return "0.0"
         # Nested: strategy_oca_reduce is not a call on broker
         if method.startswith("oca_") or method.startswith("commission_"):
             # Constants used as bare names rarely appear as calls
@@ -7132,6 +7169,36 @@ class CompilerVisitor(NodeVisitor):
         ]
 
     @staticmethod
+    def _security_expression_node(node: ast.Call):
+        """Third positional / ``expression=`` argument of ``request.security``."""
+        for arg in node.args:
+            if getattr(arg, "name", None) in ("expression", "expr"):
+                return arg.value if hasattr(arg, "value") else arg
+        if len(node.args) >= 3:
+            a2 = node.args[2]
+            return a2.value if hasattr(a2, "value") else a2
+        return None
+
+    def _security_expr_is_udt(self, node: ast.Call, expr: str) -> bool:
+        """True when the security expression is a UDT / object handle, not OHLCV."""
+        raw = self._security_expression_node(node)
+        if raw is not None:
+            if isinstance(raw, ast.Name) and raw.id in self.udt_vars:
+                return True
+            if self._looks_like_udt_ctor(raw) or self._looks_like_udt_copy(raw):
+                return True
+        if self._looks_like_object_handle_expr(expr) or self._val_looks_like_udt_dict(expr):
+            return True
+        if expr.endswith("[__bar_idx]"):
+            base = expr[: -len("[__bar_idx]")]
+            name = base[: -len("_arr")] if base.endswith("_arr") else base
+            if name.startswith("__user_"):
+                name = name[len("__user_") :]
+            if name in self.udt_vars:
+                return True
+        return False
+
+    @staticmethod
     def _is_simple_security_expr(expr: str) -> bool:
         """True for chart OHLCV (current or history) safe as same-symbol stub.
 
@@ -7177,7 +7244,7 @@ class CompilerVisitor(NodeVisitor):
             if name in self.series_params:
                 return self._history_subscript(py, slice_val)
             if name in self.series_locals:
-                return self._history_subscript(f"{py}_arr", slice_val)
+                return self._history_subscript(self._series_local_arr(name), slice_val)
             # Loop counters are pure scalars — history is na
             if name in self.loop_counters:
                 return self._scalar_history_fallback(py, slice_val)
@@ -7829,6 +7896,9 @@ class CompilerVisitor(NodeVisitor):
         for n in assigned:
             if n in self._MODULE_SHADOW_IDENTS:
                 self.ident_map[n] = f"{n}__loc"
+            elif n in self._CHART_ARR_BASES and n not in arg_set:
+                # ``var vol`` must not emit as ``vol_arr`` (chart volume formal)
+                self.ident_map[n] = f"__user_{n}"
             elif n in self.user_funcs or n == pine_name or n == func_name:
                 self.ident_map[n] = f"{self._safe_ident(n)}__loc"
             else:
@@ -7983,8 +8053,9 @@ class CompilerVisitor(NodeVisitor):
         st_refs = sorted(set(re.findall(r"__st_[A-Za-z_][A-Za-z0-9_]*", body_text)))
         self.func_st_params[pine_name] = st_refs
 
-        # series-local params use safe base name + _arr
-        sl_params = [f"{self.ident_map.get(s, s)}_arr" for s in series_locals]
+        # series-local params: mangle chart OHLCV collisions (``var vol`` →
+        # ``__user_vol_arr`` so chart ``vol_arr`` remains a distinct formal)
+        sl_params = [self._series_local_arr(s) for s in series_locals]
         # Free script-level series referenced inside the UDF (e.g. hma3 uses outer `lag`)
         # Functions are emitted at module scope, so they cannot close over execute_script locals.
         _chart = {

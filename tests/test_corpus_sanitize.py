@@ -1584,3 +1584,79 @@ Additional instructions:
     assert 'indicator("Confluence"' in cleaned
     assert "Additional instructions" not in cleaned
     _roundtrip(cleaned)
+
+
+def test_keeps_line_comment_inside_block_comment() -> None:
+    """set06 12242: nested ``//`` inside ``/* */`` must not drop the closer."""
+    raw = """//@version=5
+indicator("Test")
+/*
+// This line-comment is inside block comment
+Still a comment
+*/
+z = 5
+plot(z)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "/*" in cleaned
+    assert "*/" in cleaned
+    assert "Still a comment" in cleaned
+    assert "z = 5" in cleaned
+    assert not re.search(r"^/\s*$", cleaned, re.M)
+    _roundtrip(cleaned)
+
+
+def test_preserves_indented_udt_fields_not_english_prose() -> None:
+    """set06 0018: ``DistMethod distMethod`` is a type field, not a prose stop."""
+    raw = """//@version=6
+library("distance_ratio")
+export type DistSettings
+    DistMethod distMethod
+    float distMul
+    float commissionRatio
+export method unit_price(DistSettings this, float reference) =>
+    switch this.distMethod
+        DistMethod.perc => reference / 100.0
+        =>
+            na
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "DistMethod distMethod" in cleaned
+    assert "float distMul" in cleaned
+    assert "switch this.distMethod" in cleaned
+    assert "DistMethod.perc => reference / 100.0" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_stubs_markdown_planning_doc_with_backticked_indicator() -> None:
+    """set06 2492: markdown planning notes are not Pine — stub, no indent."""
+    raw = """//@version=6`
+  - `indicator("Reversal Radar v2", shorttitle="RevRadar", overlay=true)`
+
+## What this script does
+
+This indicator is a multi-detector reversal scanner.
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert 'indicator("x")' in cleaned
+    assert "Reversal Radar" not in cleaned
+    for ln in cleaned.splitlines():
+        if ln.strip() and not ln.lstrip().startswith("//"):
+            assert not ln[0].isspace(), repr(ln)
+    _roundtrip(cleaned)
+
+
+def test_stubs_jinja2_template_with_for_and_expr() -> None:
+    """set06 14508: Jinja2 ``{% %}`` / ``{{ expr }}`` must not reach the lexer."""
+    raw = """//@version={{ pine_version }}
+indicator(title="{{ title }}", overlay={{ "true" if overlay else "false" }})
+{% for inp in inputs -%}
+{{ inp.name }} = input.{{ inp.type }}({{ inp.default }})
+{% endfor %}
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "{%" not in cleaned
+    assert "{{" not in cleaned
+    assert 'indicator("x")' in cleaned
+    _roundtrip(cleaned)
+
