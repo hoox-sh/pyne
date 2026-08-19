@@ -92,7 +92,10 @@ _PROSE_CONTINUE_RE = re.compile(
     r"We\s+(use|set|provide|define|call|populate|offer|create|do|pass)|"
     r"To\s+(color|plot|use|create|exit|exit|build|learn)|"
     r"You\s+(can|may|will|should)|"
-    r"This\s+(example|plots?|script|configuration|function|parameter)|"
+    r"This\s+(example|plots?|script|configuration|function|parameter|illustrates|shows)|"
+    r"However,|"
+    r"Pinescript had |"
+    r"Added `|"
     r"When\s+(creating|populating|the|using)|"
     r"The\s+(signature|script|color|maximum|initialization|first|second|third|next|last)|"
     r"There\s+are\s+|"
@@ -128,6 +131,11 @@ _UI_CHROME_LINE_RE = re.compile(
 )
 # Standalone line-number gutter from "Copy code" widgets: ``1`` .. ``999``.
 _LINE_NUMBER_ONLY_RE = re.compile(r"^\s*\d{1,4}\s*$")
+# Hugo / Goldmark shortcodes left in scraped markdown (``{{< / highlight >}}``).
+_HUGO_SHORTCODE_RE = re.compile(r"^\s*\{\{[<%].*?[%>]\}\}\s*$")
+# RST leftovers after a docs example (``.. _label:``, heading underline).
+_RST_DIRECTIVE_RE = re.compile(r"^\s*\.\.\s+\S")
+_RST_HEADING_ULINE_RE = re.compile(r"^\s*[-=~^\"'`#*+]{3,}\s*$")
 
 # Lines that look like executable Pine (or annotations / version).
 _PINE_START_RE = re.compile(
@@ -540,6 +548,12 @@ def _strip_line_chrome(line: str) -> str | None:
         return None
     if _CHECKLIST_RE.match(line):
         return None
+    if _HUGO_SHORTCODE_RE.match(line):
+        return None
+    if _RST_DIRECTIVE_RE.match(line):
+        return None
+    if _RST_HEADING_ULINE_RE.match(line):
+        return None
 
     if stripped.startswith(">"):
         if _PROSE_LABEL_RE.match(line):
@@ -642,6 +656,9 @@ def _line_filter(source: str) -> str:
             _UI_CHROME_LINE_RE.match(line)
             or _LINE_NUMBER_ONLY_RE.match(line)
             or _TV_PINE_LABEL_RE.match(line)
+            or _HUGO_SHORTCODE_RE.match(line)
+            or _RST_DIRECTIVE_RE.match(line)
+            or _RST_HEADING_ULINE_RE.match(line)
         ):
             break
 
@@ -658,12 +675,17 @@ def _line_filter(source: str) -> str:
                 or _PROSE_CONTINUE_RE.match(line)
                 or _MD_HEADING_RE.match(line)
                 or _UI_CHROME_LINE_RE.match(line)
+                or _HUGO_SHORTCODE_RE.match(line)
+                or _RST_DIRECTIVE_RE.match(line)
+                or _RST_HEADING_ULINE_RE.match(line)
             ):
                 break
             continue
 
         # After pine started, stop on English prose continuations
         if saw_pine and _PROSE_CONTINUE_RE.match(cleaned):
+            break
+        if saw_pine and _looks_like_prose_line(cleaned):
             break
         # Shell / Python leakage after we already have pine — stop
         if saw_pine and _FOREIGN_LINE_RE.match(cleaned):
@@ -1520,6 +1542,21 @@ def _is_effectively_empty_script(body: str) -> bool:
     return False
 
 
+def _looks_like_prose_line(line: str) -> bool:
+    """True for English/RST leftovers that must not block pine dedent."""
+    s = line.strip()
+    if not s or s.startswith("//") or s.startswith("//@"):
+        return False
+    if _PINE_START_RE.match(s) or _PROSE_CONTINUE_RE.match(s):
+        return bool(_PROSE_CONTINUE_RE.match(s))
+    if "=" in s or "(" in s or s.startswith(("if ", "for ", "while ", "switch ", "else")):
+        return False
+    if _RST_DIRECTIVE_RE.match(s) or _RST_HEADING_ULINE_RE.match(s) or _HUGO_SHORTCODE_RE.match(s):
+        return True
+    # Title-case sentence / docs prose without call/assign tokens
+    return bool(s[0].isupper() and " " in s)
+
+
 def _dedent_if_leading_indent(body: str) -> str:
     """Strip a shared leading indent when the first code line is indented.
 
@@ -1539,6 +1576,8 @@ def _dedent_if_leading_indent(body: str) -> str:
             continue
         # Skip version pragma for indent measurement
         if re.match(r"^//@version\b", s):
+            continue
+        if _looks_like_prose_line(ln):
             continue
         code_idxs.append(i)
     if not code_idxs:
@@ -1570,6 +1609,10 @@ def _dedent_if_leading_indent(body: str) -> str:
     n = len(prefix)
     out: list[str] = []
     for ln in lines:
+        if _looks_like_prose_line(ln):
+            # Drop trailing docs prose so it cannot sit at column 0 beside
+            # still-indented pine (lexer "first statement indented").
+            continue
         if ln.startswith(prefix):
             out.append(ln[n:])
         else:
@@ -1838,7 +1881,7 @@ def _clean_and_score_island(text: str) -> tuple[str, int]:
         filt_lines.pop(0)
     while filt_lines and not filt_lines[0].strip():
         filt_lines.pop(0)
-    body = "\n".join(filt_lines)
+    body = _dedent_if_leading_indent("\n".join(filt_lines))
     sc = _score_pine_block(body)
     dp, db = _code_paren_bracket_depth(body)
     if dp == 0 and db == 0:

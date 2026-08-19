@@ -106,3 +106,21 @@ export avgGrossProfit() =>
     strategy.closedtrades > 0 ? subresult / strategy.closedtrades : na
 """
     )
+
+
+def test_switch_multi_value_arm():
+    tree = _roundtrip(
+        """//@version=5
+indicator("Switch Multi")
+x = 2
+val = switch x
+    1, 2 => 100
+    3, 4 => 200
+    => 0
+plot(val)
+"""
+    )
+    switch = next(n for n in walk(tree) if isinstance(n, ast.Switch))
+    pattern = switch.cases[0].pattern
+    assert isinstance(pattern, ast.Tuple) or getattr(pattern, "elts", None)
+    assert len(pattern.elts) == 2

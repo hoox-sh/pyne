@@ -1083,7 +1083,14 @@ class NodeUnparser(NodeVisitor):
         """
         self.fill()
         if node.pattern:
-            self.traverse(node.pattern)
+            # Multi-value arms store patterns as a Tuple (``1, 2 =>``).
+            if isinstance(node.pattern, ast.Tuple) and getattr(node.pattern, "elts", None):
+                for i, elt in enumerate(node.pattern.elts):
+                    if i:
+                        self._source.append(", ")
+                    self.traverse(elt)
+            else:
+                self.traverse(node.pattern)
             self._source.append(" ")
         self._source.append("=> ")
         if len(node.body) == 1 and isinstance(node.body[0], ast.Expr):

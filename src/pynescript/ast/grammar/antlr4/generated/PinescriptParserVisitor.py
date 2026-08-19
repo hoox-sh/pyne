@@ -224,6 +224,11 @@ class PinescriptParserVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by PinescriptParser#switch_patterns.
+    def visitSwitch_patterns(self, ctx:PinescriptParser.Switch_patternsContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by PinescriptParser#switch_default_case.
     def visitSwitch_default_case(self, ctx:PinescriptParser.Switch_default_caseContext):
         return self.visitChildren(ctx)

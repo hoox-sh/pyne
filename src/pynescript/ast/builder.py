@@ -992,10 +992,16 @@ class PinescriptASTBuilder(
         return cases
 
     def visitSwitch_pattern_case(self, ctx: PinescriptParser.Switch_pattern_caseContext):
-        body = ctx.local_block()
-        pattern = ctx.expression()
-        body = self.visit(body)
-        pattern = self.visit(pattern)
+        body = self.visit(ctx.local_block())
+        pats_ctx = ctx.switch_patterns()
+        exprs = [self.visit(e) for e in pats_ctx.expression()] if pats_ctx else []
+        if not exprs:
+            pattern = None
+        elif len(exprs) == 1:
+            pattern = exprs[0]
+        else:
+            pattern = ast.Tuple(elts=exprs, ctx=ast.Load())
+            self._setLocations(pattern, pats_ctx)
         case = ast.Case(
             body=body,
             pattern=pattern,

@@ -318,6 +318,12 @@ _ARRAY_METHODS: dict[str, str] = {
     "mode": "array_mode",
     "standardize": "array_standardize",
     "normalized": "array_normalized",
+    "abs": "array_abs",
+    "every": "array_every",
+    "some": "array_some",
+    "percentile_linear_interpolation": "array_percentile_linear_interpolation",
+    "percentile_nearest_rank": "array_percentile_nearest_rank",
+    "percentrank": "array_percentrank",
     # matrix methods (same surface as array for avg/max/…; extra matrix-only below)
     "row": "matrix_row",
     "col": "matrix_col",
@@ -339,6 +345,16 @@ _ARRAY_METHODS: dict[str, str] = {
     "trace": "matrix_trace",
     "rows": "matrix_rows",
     "columns": "matrix_columns",
+    "det": "matrix_det",
+    "inv": "matrix_inv",
+    "pinv": "matrix_pinv",
+    "transpose": "matrix_transpose",
+    "mult": "matrix_mult",
+    "diff": "matrix_diff",
+    "kron": "matrix_kron",
+    "pow": "matrix_pow",
+    "elements_count": "matrix_elements_count",
+    "is_square": "matrix_is_square",
 }
 _MAP_METHODS: dict[str, str] = {
     "put": "map_put",
@@ -350,6 +366,7 @@ _MAP_METHODS: dict[str, str] = {
     "values": "map_values",
     "size": "map_size",
     "copy": "map_copy",
+    "put_all": "map_put_all",
 }
 _TABLE_METHODS: dict[str, str] = {
     "cell": "table_cell",
@@ -462,6 +479,12 @@ class CompilerVisitor(NodeVisitor):
         self.series_locals: set[str] = set()  # UDF locals used with history (current fn)
         self.param_names: set[str] = set()  # current UDF formal parameter names
         self.loop_counters: set[str] = set()  # active for-loop counter names (scalars)
+        # ForTo is emitted as ``while``; ``continue`` must still increment.
+        self._loop_inc_stack: list[str] = []
+        # Assign/reassign of a for/while expression writes the last body value here.
+        self._loop_result_target: str | None = None
+        # enum Name → {member: AST value or None}
+        self.enum_types: dict[str, dict[str, object]] = {}
         self.func_series_params: dict[str, set[str]] = {}
         self.func_series_locals: dict[str, list[str]] = {}  # func -> local names needing state arr
         self.func_st_params: dict[str, list[str]] = {}  # func -> transitive __st_* params
@@ -768,6 +791,7 @@ class CompilerVisitor(NodeVisitor):
         Forces object mode for string/UDT/map/scalar object handles or when
         :attr:`force_object_mode` is set (engine nopython recovery).
         """
+        self._register_enums(node.body)
         body_lines: list[str] = []
         for stmt in node.body:
             val = self.visit(stmt)
@@ -1030,10 +1054,31 @@ class CompilerVisitor(NodeVisitor):
         return ""  # type definitions are compile-time only
 
     def visit_EnumDef(self, node: ast.EnumDef):
-        """Enums lower as string constants in object mode only."""
-        # Enums as string constants in object mode
+        """Enums lower as string/int constants in object mode only.
+
+        Members are registered in :meth:`_register_enums` (script hoisting) so
+        ``Dir d = Dir.Up`` works when the enum is declared later.
+        """
         self.object_mode = True
+        self._register_one_enum(node)
         return ""
+
+    def _register_enums(self, stmts) -> None:
+        """Hoist ``enum`` members so forward refs (``Dir.Up`` before the def) work."""
+        for stmt in stmts or []:
+            if isinstance(stmt, ast.EnumDef):
+                self._register_one_enum(stmt)
+
+    def _register_one_enum(self, node: ast.EnumDef) -> None:
+        name = getattr(node, "name", None)
+        if not name:
+            return
+        members: dict[str, object] = dict(self.enum_types.get(name) or {})
+        for item in node.body or []:
+            target = getattr(item, "target", None)
+            if isinstance(target, ast.Name):
+                members[target.id] = getattr(item, "value", None)
+        self.enum_types[name] = members
 
     def _call_returns_sequence(self, node) -> bool:
         """True when *node* is a Call to a UDF known to return array/list handles."""
@@ -1234,6 +1279,29 @@ class CompilerVisitor(NodeVisitor):
 
         name = node.target.id
         is_var = hasattr(node, "mode") and isinstance(node.mode, (ast.Var, ast.VarIp))
+
+        type_node_early = getattr(node, "type", None)
+        type_id_early = type_node_early.id if isinstance(type_node_early, ast.Name) else None
+        if type_id_early and type_id_early in self.enum_types:
+            self.object_mode = True
+            self.scalar_vars.add(name)
+            self.arrays.discard(f"{name}_arr")
+            if isinstance(node.value, (ast.ForTo, ast.ForIn, ast.While)):
+                return self._emit_loop_assign(name, node.value)
+            val = self.visit(node.value)
+            if is_var:
+                return f"if __bar_idx == 0:\n    {name} = {val}"
+            return f"{name} = {val}"
+
+        # Pine for/while used as an expression: last body value → target.
+        if isinstance(node.value, (ast.ForTo, ast.ForIn, ast.While)):
+            if self.in_function:
+                self.local_vars.add(name)
+                target_store = self._py_ident(name)
+            else:
+                self.arrays.add(f"{name}_arr")
+                target_store = f"{name}_arr[__bar_idx]"
+            return self._emit_loop_assign(target_store, node.value)
 
         # Pine if-expression RHS with side effects → statement-form assign.
         # Pure if-exprs lower to ternaries here (and via visit_If).
@@ -2664,6 +2732,8 @@ class CompilerVisitor(NodeVisitor):
         if self.in_function and isinstance(node.target, ast.Name):
             self.local_vars.add(node.target.id)
             py = self._py_ident(node.target.id)
+            if isinstance(node.value, (ast.ForTo, ast.ForIn, ast.While)):
+                return self._emit_loop_assign(py, node.value)
             if isinstance(node.value, ast.If):
                 tern = self._try_if_as_ternary(node.value)
                 if tern is not None:
@@ -2675,6 +2745,11 @@ class CompilerVisitor(NodeVisitor):
         # (var table t = na; t := table.new(...) was t_arr[i] = dict → float(dict)).
         if isinstance(node.target, ast.Name):
             name = node.target.id
+            if isinstance(node.value, (ast.ForTo, ast.ForIn, ast.While)):
+                if name in self.scalar_vars or name in self.map_vars:
+                    return self._emit_loop_assign(name, node.value)
+                self.arrays.add(f"{name}_arr")
+                return self._emit_loop_assign(f"{name}_arr[__bar_idx]", node.value)
             if isinstance(node.value, ast.If):
                 tern = self._try_if_as_ternary(node.value)
                 if tern is not None:
@@ -3022,6 +3097,12 @@ class CompilerVisitor(NodeVisitor):
             if node.attr == "pvi":
                 st = self._alloc_fixed_state("pvi", 4)
                 return f"numba_pvi_inc(close_arr, vol_arr, __bar_idx, {st})"
+            if node.attr == "wad":
+                return "numba_wad(high_arr, low_arr, close_arr, vol_arr, __bar_idx)"
+            if node.attr == "iii":
+                return "numba_iii(high_arr, low_arr, close_arr, __bar_idx)"
+            if node.attr == "wvad":
+                return "numba_wvad(high_arr, low_arr, close_arr, vol_arr, 20, __bar_idx)"
             # Method attrs used as Call targets (ta.sma → ta_sma) stay as identifiers.
             return f"ta_{node.attr}"
         if isinstance(node.value, ast.Name) and node.value.id == "color":
@@ -3185,6 +3266,14 @@ class CompilerVisitor(NodeVisitor):
         # location.abovebar / shape.triangleup / size.small / position.* / etc.
         if isinstance(node.value, ast.Name) and node.value.id in _ENUM_NS:
             return repr(node.attr)
+        # User enum members (``Dir.Up``), including hoisted forward refs.
+        if isinstance(node.value, ast.Name) and node.value.id in self.enum_types:
+            self.object_mode = True
+            members = self.enum_types[node.value.id]
+            raw = members.get(node.attr)
+            if raw is None:
+                return repr(node.attr)
+            return self.visit(raw)
         # barstate.islast / isfirst / …
         if isinstance(node.value, ast.Name) and node.value.id == "barstate":
             return self._emit_barstate(node.attr)
@@ -4891,6 +4980,9 @@ class CompilerVisitor(NodeVisitor):
             "vpt": "ta_pvt",
             "ao": "ta_ao",
             "aroon": "ta_aroon",
+            "wad": "ta_wad",
+            "iii": "ta_iii",
+            "wvad": "ta_wvad",
         }
         if func_name in _BARE_TA and func_name not in self.user_funcs:
             func_name = _BARE_TA[func_name]
@@ -5580,6 +5672,32 @@ class CompilerVisitor(NodeVisitor):
             if len(args) >= 2 and _is_series_arr(args[0]):
                 return f"numba_obv_inc({_arr(args[0])}, {_arr(args[1])}, __bar_idx, {st})"
             return f"numba_obv_inc(close_arr, vol_arr, __bar_idx, {st})"
+        if func_name == "ta_wad":
+            # 0-arg or (h,l,c,v) — use chart arrays when missing
+            if len(args) >= 4:
+                return (
+                    f"numba_wad({_arr(args[0])}, {_arr(args[1])}, {_arr(args[2])}, "
+                    f"{_arr(args[3])}, __bar_idx)"
+                )
+            return "numba_wad(high_arr, low_arr, close_arr, vol_arr, __bar_idx)"
+        if func_name == "ta_iii":
+            if len(args) >= 3:
+                return (
+                    f"numba_iii({_arr(args[0])}, {_arr(args[1])}, {_arr(args[2])}, "
+                    f"__bar_idx)"
+                )
+            return "numba_iii(high_arr, low_arr, close_arr, __bar_idx)"
+        if func_name == "ta_wvad":
+            if len(args) >= 5:
+                return (
+                    f"numba_wvad({_arr(args[0])}, {_arr(args[1])}, {_arr(args[2])}, "
+                    f"{_arr(args[3])}, {self._emit_period(args[4])}, __bar_idx)"
+                )
+            period = args[-1] if args else "20"
+            return (
+                f"numba_wvad(high_arr, low_arr, close_arr, vol_arr, "
+                f"{self._emit_period(period)}, __bar_idx)"
+            )
         if func_name == "ta_nvi":
             st = self._alloc_fixed_state("nvi", 4)
             if len(args) >= 2 and _is_series_arr(args[0]):
@@ -6313,6 +6431,11 @@ class CompilerVisitor(NodeVisitor):
         if func_name == "map_copy":
             a = ra(args, kwargs, ("id",))
             return f"dict({a[0]})" if a else "{}"
+        if func_name == "map_put_all":
+            a = ra(args, kwargs, ("id", "id2"))
+            if len(a) >= 2:
+                return f"map_put_all({a[0]}, {a[1]})"
+            return a[0] if a else "{}"
         return f"{func_name}({', '.join(args)})" if args else "np.nan"
 
     @staticmethod
@@ -7103,6 +7226,21 @@ class CompilerVisitor(NodeVisitor):
         rhs = self.visit(stmt.value)
         return f"({py} := ({rhs}))"
 
+    def _switch_arm_cond(self, subject: str | None, pat) -> str:
+        """Equality / truth test for a switch arm, including multi-value tuples."""
+        if isinstance(pat, ast.Tuple) and getattr(pat, "elts", None):
+            if subject is not None:
+                return (
+                    "("
+                    + " or ".join(f"({subject}) == ({self.visit(e)})" for e in pat.elts)
+                    + ")"
+                )
+            return "(" + " or ".join(f"({self.visit(e)})" for e in pat.elts) + ")"
+        pat_v = self.visit(pat)
+        if subject is not None:
+            return f"({subject}) == ({pat_v})"
+        return f"({pat_v})"
+
     def visit_Switch(self, node: ast.Switch):
         """Lower ``switch`` / ``switch subject``.
 
@@ -7160,11 +7298,8 @@ class CompilerVisitor(NodeVisitor):
                 if pat is None:
                     expr = case_val
                     continue
-                pat_v = self.visit(pat)
-                if subject is not None:
-                    expr = f"({case_val} if ({subject}) == ({pat_v}) else {expr})"
-                else:
-                    expr = f"({case_val} if ({pat_v}) else {expr})"
+                cond = self._switch_arm_cond(subject, pat)
+                expr = f"({case_val} if {cond} else {expr})"
             return expr
 
         # Statement form for arms with nested if/for/etc.
@@ -7178,8 +7313,7 @@ class CompilerVisitor(NodeVisitor):
             if pat is None:
                 default_body = body
                 continue
-            pat_v = self.visit(pat)
-            cond = f"({subject}) == ({pat_v})" if subject is not None else f"({pat_v})"
+            cond = self._switch_arm_cond(subject, pat)
             lines.append(f"if {cond}:" if first else f"elif {cond}:")
             first = False
             emitted = 0
@@ -8152,6 +8286,60 @@ class CompilerVisitor(NodeVisitor):
         n = int(e)
         return n if n > 0 else None
 
+    def _emit_loop_assign(self, target_store: str, node) -> str:
+        prev = self._loop_result_target
+        self._loop_result_target = target_store
+        try:
+            return self.visit(node)
+        finally:
+            self._loop_result_target = prev
+
+    @staticmethod
+    def _is_simple_loop_result(expr: str) -> bool:
+        e = (expr or "").strip()
+        if not e or "\n" in e:
+            return False
+        lead = e.split(None, 1)[0]
+        return lead not in {
+            "if",
+            "elif",
+            "else",
+            "for",
+            "while",
+            "return",
+            "break",
+            "continue",
+            "try",
+            "with",
+            "def",
+            "class",
+        }
+
+    def _emit_loop_body_stmt(self, stmt, *, is_last: bool) -> str | None:
+        target_store = self._loop_result_target
+        if is_last and target_store:
+            if isinstance(stmt, ast.Expr):
+                val = self.visit(stmt.value)
+                return f"{target_store} = {val}" if val else None
+            if isinstance(stmt, (ast.Assign, ast.ReAssign)) and isinstance(
+                stmt.target, ast.Name
+            ):
+                line = self.visit(stmt)
+                lhs = self.visit(ast.Name(id=stmt.target.id, ctx=ast.Load()))
+                parts: list[str] = []
+                if line:
+                    parts.append(line)
+                parts.append(f"{target_store} = {lhs}")
+                return "\n".join(parts)
+            val = self.visit(stmt)
+            if not val:
+                return None
+            if self._is_simple_loop_result(val):
+                return f"{val}\n{target_store} = {val}"
+            return val
+        val = self.visit(stmt)
+        return val or None
+
     def visit_ForTo(self, node: ast.ForTo):
         target = node.target.id if isinstance(node.target, ast.Name) else self.visit(node.target)
         start = self.visit(node.start)
@@ -8186,21 +8374,30 @@ class CompilerVisitor(NodeVisitor):
                 step_expr = f"(1 if (na_num({target}) <= na_num({end_tmp})) else -1)"
             else:
                 step_expr = f"(1 if ({target}) <= ({end_tmp}) else -1)"
-        lines = [
-            f"{target} = {start}",
-            f"{end_tmp} = {end}",
-            f"__step_{target} = {step_expr}",
-            f"while ({target} <= {end_tmp}) if __step_{target} > 0 else ({target} >= {end_tmp}):",
-        ]
+        lines: list[str] = []
+        if self._loop_result_target:
+            lines.append(f"{self._loop_result_target} = np.nan")
+        lines.extend(
+            [
+                f"{target} = {start}",
+                f"{end_tmp} = {end}",
+                f"__step_{target} = {step_expr}",
+                f"while ({target} <= {end_tmp}) if __step_{target} > 0 else ({target} >= {end_tmp}):",
+            ]
+        )
+        inc = f"{target} += __step_{target}"
+        self._loop_inc_stack.append(inc)
         try:
-            for stmt in node.body:
-                val = self.visit(stmt)
+            body = list(node.body or [])
+            for i, stmt in enumerate(body):
+                val = self._emit_loop_body_stmt(stmt, is_last=i == len(body) - 1)
                 if val:
                     val = val.replace("\n", "\n    ")
                     lines.append(f"    {val}")
         finally:
+            self._loop_inc_stack.pop()
             self.loop_counters.discard(target)
-        lines.append(f"    {target} += __step_{target}")
+        lines.append(f"    {inc}")
         if added_local:
             self.local_vars.discard(target)
         if added_scalar:
@@ -8255,10 +8452,13 @@ class CompilerVisitor(NodeVisitor):
             # Guard non-iterables (float/NaN from mis-typed series) so the bar loop
             # does not raise ``float is not iterable``.
             lines = [f"for {target} in safe_iter({iterable}):"]
+        if self._loop_result_target:
+            lines.insert(0, f"{self._loop_result_target} = np.nan")
         try:
             n = 0
-            for stmt in node.body:
-                val = self.visit(stmt)
+            body = list(node.body or [])
+            for i, stmt in enumerate(body):
+                val = self._emit_loop_body_stmt(stmt, is_last=i == len(body) - 1)
                 if val:
                     val = val.replace("\n", "\n    ")
                     lines.append(f"    {val}")
@@ -8280,9 +8480,12 @@ class CompilerVisitor(NodeVisitor):
         test = self.visit(node.test)
         # Keep ambient in_function; do not force True (same rationale as ForTo).
         lines = [f"while {test}:"]
+        if self._loop_result_target:
+            lines.insert(0, f"{self._loop_result_target} = np.nan")
         n = 0
-        for stmt in node.body:
-            val = self.visit(stmt)
+        body = list(node.body or [])
+        for i, stmt in enumerate(body):
+            val = self._emit_loop_body_stmt(stmt, is_last=i == len(body) - 1)
             if val:
                 val = val.replace("\n", "\n    ")
                 lines.append(f"    {val}")
@@ -8294,6 +8497,8 @@ class CompilerVisitor(NodeVisitor):
         return "break"
 
     def visit_Continue(self, node: ast.Continue):
+        if self._loop_inc_stack:
+            return f"{self._loop_inc_stack[-1]}\ncontinue"
         return "continue"
 
     def visit_BoolOp(self, node: ast.BoolOp):

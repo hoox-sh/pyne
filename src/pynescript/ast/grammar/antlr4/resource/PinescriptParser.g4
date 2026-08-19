@@ -164,7 +164,9 @@ switch_structure: SWITCH expression? NEWLINE INDENT switch_cases DEDENT;
 
 switch_cases: switch_pattern_case+ switch_default_case?;
 
-switch_pattern_case: expression RARROW local_block;
+// Multi-value arms: ``1, 2 => 100`` (OR-match on subject).
+switch_pattern_case: switch_patterns RARROW local_block;
+switch_patterns: expression (COMMA expression)*;
 switch_default_case: RARROW local_block;
 
 // LOCAL BLOCK

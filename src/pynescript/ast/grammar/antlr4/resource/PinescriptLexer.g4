@@ -124,6 +124,8 @@ WS:          [ \t\f]+      -> channel(HIDDEN);
 // IMPORTANT: HASH_COMMENT must NOT match #RRGGBB colors — only when '#' is
 // followed by whitespace or a non-hex character.
 COMMENT: '//' ~[\r\n]* -> channel(COMMENT_CHANNEL);
+// Pine / C-style block comments (/* ... */), including newlines.
+BLOCK_COMMENT: '/*' .*? '*/' -> type(COMMENT), channel(COMMENT_CHANNEL);
 HASH_COMMENT: '#' ( [ \t\f] ~[\r\n]* | ~[0-9a-fA-F\r\n] ~[\r\n]* )
     -> type(COMMENT), channel(COMMENT_CHANNEL);
 BACKTICKS: '`'+ -> type(COMMENT), channel(COMMENT_CHANNEL);

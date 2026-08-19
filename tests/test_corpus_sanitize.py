@@ -1166,3 +1166,57 @@ Expand (12 lines)
     assert "ta.rsi" in cleaned
     assert 'indicator("x")' not in cleaned
     _roundtrip(cleaned)
+
+
+def test_strips_hugo_shortcode_after_script() -> None:
+    """Hugo/Goldmark ``{{< / highlight >}}`` after a real script must be dropped."""
+    raw = """//@version=4
+study("x", overlay=true)
+plot(close)
+{{< / highlight >}}
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "{{<" not in cleaned
+    assert "plot(close)" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_rst_docs_indented_example_cut() -> None:
+    """set06 14344-style RST scrape: indented study + ``.. _kwargs`` + version prose."""
+    raw = """//@version=3
+// set06 corpus entry
+// source_repo: xmaooam-pine_script_docs
+// source_path: xmaooam-pine_script_docs/source/Pine_Script_release_notes.rst
+    study("Input with Options")
+    s = input(title="Session", defval="24x7", options=["24x7", "0900-1300"])
+    plot(time(period, s))
+
+.. _kwargs_syntax:
+
+Pine version 3 (17 Apr 2017)
+----------------------------
+Added kwargs syntax for all built-in functions.
+"""
+    cleaned = sanitize_corpus_source(raw)
+    for ln in cleaned.splitlines():
+        if ln.strip() and not ln.lstrip().startswith("//"):
+            assert not ln[0].isspace(), repr(ln)
+            break
+    assert ".. _" not in cleaned
+    assert "Pine version 3" not in cleaned
+    assert 'study("Input with Options")' in cleaned
+    _roundtrip(cleaned)
+
+
+def test_prose_this_illustrates_stops() -> None:
+    """Docs sentence ``This illustrates …`` after a script must not remain."""
+    raw = """//@version=5
+indicator("t")
+plot(time)
+This illustrates the meaning of time.
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "This illustrates" not in cleaned
+    assert "meaning of time" not in cleaned
+    assert "plot(time)" in cleaned
+    _roundtrip(cleaned)

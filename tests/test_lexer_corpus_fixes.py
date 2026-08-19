@@ -230,3 +230,25 @@ plot(x)
         and s.target.attr == "initial_capital"
         for s in stmts
     )
+
+
+def test_c_style_block_comment():
+    _roundtrip(
+        """//@version=5
+indicator("t")
+/* This is a block comment
+   spanning multiple lines */
+a = close
+plot(a)
+"""
+    )
+
+
+def test_inline_block_comment():
+    _roundtrip(
+        """//@version=5
+indicator("t")
+a = close /* inline */
+plot(a)
+"""
+    )

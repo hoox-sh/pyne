@@ -301,7 +301,12 @@ def _switch_case_matches(has_subject: bool, subject_val: Any, pattern_val: Any) 
       ``switch na`` / ``switch float(na)`` wrongly took the first truthy arm).
     """
     if not has_subject:
+        if isinstance(pattern_val, (list, tuple)):
+            return any(bool(p) for p in pattern_val)
         return bool(pattern_val)
+    # Multi-value arm ``1, 2 => …`` — match any element.
+    if isinstance(pattern_val, (list, tuple)):
+        return any(_switch_case_matches(has_subject, subject_val, p) for p in pattern_val)
     # Subject form: na only equals na; otherwise Python equality (try-soft).
     if subject_val is None and pattern_val is None:
         return True

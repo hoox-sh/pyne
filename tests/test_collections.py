@@ -704,6 +704,14 @@ class TestArrayEdgeCorrectness:
     def test_array_push_na_id_soft_noop(self) -> None:
         assert self._call("array.push", [None, 1]) is None
 
+    def test_array_every_unary_all_truthy(self) -> None:
+        assert self._call("array.every", [[1, 2, 3]]) is True
+        assert self._call("array.every", [[1, 0, 3]]) is False
+
+    def test_array_every_unary_na_id(self) -> None:
+        """None id → None (same soft-na coerce as array.avg/sum)."""
+        assert self._call("array.every", [None]) is None
+
     def test_array_newcolor_alias(self) -> None:
         a = self._call("array.newcolor", [0])
         assert a == []

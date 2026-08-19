@@ -5948,6 +5948,63 @@ def numba_cmf_inc(high, low, close, vol, period, i, st):
     return 0.0
 
 
+@numba.njit(cache=True)
+def numba_wad(high, low, close, vol, i):
+    """Williams A/D at bar ``i``. Bar 0 is 0; nan volume counts as 0."""
+    if i < 0:
+        return np.nan
+    wad = 0.0
+    if i == 0:
+        return 0.0
+    for j in range(1, i + 1):
+        c = close[j]
+        pc = close[j - 1]
+        v = vol[j]
+        if np.isnan(v):
+            v = 0.0
+        if c > pc:
+            wad += v * (c - low[j])
+        elif c < pc:
+            wad -= v * (high[j] - c)
+    return wad
+
+
+@numba.njit(cache=True)
+def numba_iii(high, low, close, i):
+    """Intraday Intensity Index at bar ``i``: ``(2*c-h-l)/(h-l)``; range 0 → 0.0."""
+    if i < 0:
+        return np.nan
+    h = high[i]
+    l_ = low[i]
+    c = close[i]
+    rng = h - l_
+    if rng == 0.0:
+        return 0.0
+    return (2.0 * c - h - l_) / rng
+
+
+@numba.njit(cache=True)
+def numba_wvad(high, low, close, vol, period, i):
+    """Williams Volume A/D: ``wad[i] / sum(vol window)``; 0 if vol_sum == 0."""
+    period = int(period)
+    if i < 0:
+        return np.nan
+    if period <= 0:
+        return 0.0
+    wad = numba_wad(high, low, close, vol, i)
+    start = i - period + 1
+    if start < 0:
+        start = 0
+    vol_sum = 0.0
+    for j in range(start, i + 1):
+        v = vol[j]
+        if not np.isnan(v):
+            vol_sum += v
+    if vol_sum == 0.0:
+        return 0.0
+    return wad / vol_sum
+
+
 def array_range(arr):
     """Pine ``array.range(id)`` — max − min of numeric elements; empty → na.
 
@@ -5966,6 +6023,357 @@ def array_range(arr):
         return np.nan
     return hi - lo
 
+
+def _array_finite_nums(arr):
+    """Finite numeric elements of *arr*; bad input → []."""
+    nums = []
+    if arr is None:
+        return nums
+    try:
+        seq = list(arr)
+    except TypeError:
+        return nums
+    for x in seq:
+        f = safe_float(x)
+        if f == f:
+            nums.append(f)
+    return nums
+
+
+def array_abs(arr):
+    """Pine ``array.abs`` — elementwise abs; na stays na."""
+    if arr is None:
+        return []
+    try:
+        seq = list(arr)
+    except TypeError:
+        return []
+    out = []
+    for x in seq:
+        if x is None:
+            out.append(np.nan)
+            continue
+        try:
+            if x != x:
+                out.append(np.nan)
+                continue
+            out.append(abs(x))
+        except (TypeError, ValueError):
+            f = safe_float(x)
+            out.append(abs(f) if f == f else np.nan)
+    return out
+
+
+def array_every(arr, predicate=None):
+    """Unary: all truthy. Binary: all(predicate(x)). Non-callable pred → unary."""
+    if arr is None:
+        return False
+    try:
+        seq = list(arr)
+    except TypeError:
+        return False
+    if not callable(predicate):
+        return all(bool(x) and x == x for x in seq)
+    return all(predicate(x) for x in seq)
+
+
+def array_some(arr, predicate=None):
+    """Unary: any truthy. Binary: any(predicate(x)). Non-callable pred → unary."""
+    if arr is None:
+        return False
+    try:
+        seq = list(arr)
+    except TypeError:
+        return False
+    if not callable(predicate):
+        return any(bool(x) and x == x for x in seq)
+    return any(predicate(x) for x in seq)
+
+
+def array_percentile_linear_interpolation(arr, percentile):
+    """Sort finite nums, ``h=(p/100)*(n-1)``, linear interpolate. Empty → nan."""
+    nums = _array_finite_nums(arr)
+    if not nums:
+        return np.nan
+    try:
+        p = float(percentile)
+    except (TypeError, ValueError):
+        return np.nan
+    if p != p:
+        return np.nan
+    nums.sort()
+    n = len(nums)
+    h = (p / 100.0) * (n - 1)
+    h_floor = int(h)
+    h_frac = h - h_floor
+    if h_floor >= n - 1:
+        return float(nums[-1])
+    if h_floor < 0:
+        return float(nums[0])
+    return float(nums[h_floor] * (1.0 - h_frac) + nums[h_floor + 1] * h_frac)
+
+
+def array_percentile_nearest_rank(arr, percentile):
+    """``rank = max(1, int((p/100)*n + 0.5))``; return sorted[rank-1]. Empty → nan."""
+    nums = _array_finite_nums(arr)
+    if not nums:
+        return np.nan
+    try:
+        p = float(percentile)
+    except (TypeError, ValueError):
+        return np.nan
+    if p != p:
+        return np.nan
+    nums.sort()
+    n = len(nums)
+    rank = max(1, int((p / 100.0) * n + 0.5))
+    if rank > n:
+        rank = n
+    return nums[rank - 1]
+
+
+def array_percentrank(arr, value):
+    """``((count of nums <= value) - 1) / (n - 1) * 100``; ``n==1`` → 0.0."""
+    nums = _array_finite_nums(arr)
+    if not nums:
+        return np.nan
+    v = safe_float(value)
+    if v != v:
+        return np.nan
+    n = len(nums)
+    if n == 1:
+        return 0.0
+    count = sum(1 for x in nums if x <= v)
+    return ((count - 1) / (n - 1)) * 100.0
+
+
+def map_put_all(dest, src):
+    """``dict.update``; no-op if either is not a dict. Return dest."""
+    if not isinstance(dest, dict) or not isinstance(src, dict):
+        return dest
+    dest.update(src)
+    return dest
+
+
+def _matrix_float_array(m):
+    """List-of-lists → 2-d float64 ndarray; bad input → None."""
+    m = _matrix_ensure(m)
+    if not isinstance(m, list):
+        return None
+    if not m:
+        return np.zeros((0, 0), dtype=np.float64)
+    ncols = _matrix_ncols(m)
+    rows = []
+    for row in m:
+        if isinstance(row, (list, tuple, np.ndarray)):
+            cells = [safe_float(x) for x in row]
+        else:
+            cells = [safe_float(row)]
+        if len(cells) < ncols:
+            cells.extend([np.nan] * (ncols - len(cells)))
+        elif ncols >= 0:
+            cells = cells[:ncols]
+        rows.append(cells)
+    try:
+        return np.asarray(rows, dtype=np.float64)
+    except Exception:
+        return None
+
+
+def _matrix_flat_finite(m):
+    """Flatten finite numeric cells of a list-of-lists matrix."""
+    m = _matrix_ensure(m)
+    vals = []
+    for row in m:
+        cells = row if isinstance(row, (list, tuple, np.ndarray)) else [row]
+        for x in cells:
+            f = safe_float(x)
+            if f == f:
+                vals.append(f)
+    return vals
+
+
+def matrix_det(m):
+    """``np.linalg.det`` on list-of-lists; non-square / bad input → nan."""
+    arr = _matrix_float_array(m)
+    if arr is None or arr.ndim != 2 or arr.shape[0] != arr.shape[1]:
+        return np.nan
+    if arr.shape[0] == 0:
+        return 1.0
+    try:
+        return float(np.linalg.det(arr))
+    except Exception:
+        return np.nan
+
+
+def matrix_inv(m):
+    """Inverse of a square list-of-lists matrix; bad input → []."""
+    arr = _matrix_float_array(m)
+    if arr is None or arr.ndim != 2 or arr.shape[0] != arr.shape[1] or arr.shape[0] == 0:
+        return []
+    try:
+        return np.linalg.inv(arr).tolist()
+    except Exception:
+        return []
+
+
+def matrix_pinv(m):
+    """Moore–Penrose pseudoinverse; bad input → []."""
+    arr = _matrix_float_array(m)
+    if arr is None or arr.ndim != 2:
+        return []
+    try:
+        return np.linalg.pinv(arr).tolist()
+    except Exception:
+        return []
+
+
+def matrix_transpose(m):
+    """Transpose list-of-lists; empty / bad input → []."""
+    m = _matrix_ensure(m)
+    if not m:
+        return []
+    ncols = _matrix_ncols(m)
+    out = []
+    for c in range(ncols):
+        col = []
+        for row in m:
+            if isinstance(row, (list, tuple)) and c < len(row):
+                col.append(row[c])
+            else:
+                col.append(np.nan)
+        out.append(col)
+    return out
+
+
+def matrix_median(m):
+    """Median of all finite cells; empty → nan."""
+    vals = _matrix_flat_finite(m)
+    if not vals:
+        return np.nan
+    return float(np.median(vals))
+
+
+def matrix_mode(m):
+    """Mode of flattened finite cells via ``array_mode``."""
+    return array_mode(_matrix_flat_finite(m))
+
+
+def matrix_elements_count(m):
+    """``rows * cols`` of a list-of-lists matrix; bad input → 0."""
+    m = _matrix_ensure(m)
+    return len(m) * _matrix_ncols(m)
+
+
+def matrix_concat(m1, m2, axis=0):
+    """Concatenate along axis 0 (rows) or 1 (cols); mismatch → []."""
+    a = _matrix_ensure(m1)
+    b = _matrix_ensure(m2)
+    try:
+        ax = int(axis) if axis is not None else 0
+    except (TypeError, ValueError):
+        return []
+
+    def _rows(src):
+        return [list(r) if isinstance(r, (list, tuple)) else [r] for r in src]
+
+    if ax == 0:
+        ca, cb = _matrix_ncols(a), _matrix_ncols(b)
+        if a and b and ca != cb:
+            return []
+        return _rows(a) + _rows(b)
+    if a and b and len(a) != len(b):
+        return []
+    if not a:
+        return _rows(b)
+    if not b:
+        return _rows(a)
+    out = []
+    for ra, rb in zip(_rows(a), _rows(b), strict=True):
+        out.append(ra + rb)
+    return out
+
+
+def matrix_mult(m1, other):
+    """Scalar multiply or matmul; bad input → []."""
+    a = _matrix_float_array(m1)
+    if a is None:
+        return []
+    if isinstance(other, (bool, np.bool_)):
+        other = float(other)
+    if isinstance(other, (int, float, np.integer, np.floating)):
+        try:
+            s = float(other)
+        except (TypeError, ValueError):
+            return []
+        if s != s:
+            return []
+        return (a * s).tolist()
+    b = _matrix_float_array(other)
+    if b is not None and b.size > 0:
+        try:
+            return (a @ b).tolist()
+        except Exception:
+            return []
+    # 1-d vector (list of scalars)
+    if isinstance(other, (list, tuple, np.ndarray)):
+        try:
+            vec = np.asarray([safe_float(x) for x in other], dtype=np.float64)
+        except Exception:
+            return []
+        if vec.ndim != 1 or a.shape[1] != vec.shape[0]:
+            return []
+        try:
+            return (a @ vec).tolist()
+        except Exception:
+            return []
+    return []
+
+
+def matrix_diff(m1, m2):
+    """Element-wise ``m1 - m2``; shape mismatch → []."""
+    a = _matrix_float_array(m1)
+    b = _matrix_float_array(m2)
+    if a is None or b is None or a.shape != b.shape:
+        return []
+    return (a - b).tolist()
+
+
+def matrix_kron(m1, m2):
+    """Kronecker product; bad input → []."""
+    a = _matrix_float_array(m1)
+    b = _matrix_float_array(m2)
+    if a is None or b is None:
+        return []
+    try:
+        return np.kron(a, b).tolist()
+    except Exception:
+        return []
+
+
+def matrix_pow(m, n):
+    """Square matrix power; non-square / negative / bad input → []."""
+    arr = _matrix_float_array(m)
+    if arr is None or arr.ndim != 2 or arr.shape[0] != arr.shape[1]:
+        return []
+    try:
+        exp = int(n)
+    except (TypeError, ValueError):
+        return []
+    if exp < 0:
+        return []
+    try:
+        return np.linalg.matrix_power(arr, exp).tolist()
+    except Exception:
+        return []
+
+
+def matrix_is_square(m):
+    """True when rows == cols (including 0×0). Bad input → False."""
+    m = _matrix_ensure(m)
+    if not isinstance(m, list):
+        return False
+    return len(m) == _matrix_ncols(m)
 
 
 # ---------------------------------------------------------------------------

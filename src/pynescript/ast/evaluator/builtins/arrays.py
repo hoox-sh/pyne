@@ -517,16 +517,26 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             return None
         return numerator / denom
 
-    def _builtin_array_every(self, args: list[Any]) -> bool:
+    def _builtin_array_every(self, args: list[Any]) -> bool | None:
+        """``array.every(id, predicate)`` or unary ``id.every()`` on bool arrays.
+
+        Unary form (corpus: ``array.every(arr)`` / ``arr.every()``) treats the
+        array as a bool series and returns whether every element is truthy.
+        """
+        if len(args) == UNARY:
+            sequence = self._coerce_optional_list(args[0])
+            if sequence is None:
+                return None
+            return all(bool(item) for item in sequence)
         if len(args) != BINARY:
-            self._error("array.every takes array and predicate")
+            self._error("array.every takes array and optional predicate")
         sequence = self._expect_list(
             args[0],
             "array.every takes array and predicate",
         )
         predicate = args[1]
         if not callable(predicate):
-            self._error("array.every takes array and predicate")
+            return all(bool(item) for item in sequence)
         return all(predicate(item) for item in sequence)
 
     def _builtin_array_fill(self, args: list[Any]) -> list[Any]:

@@ -395,6 +395,15 @@ class PinescriptParserListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by PinescriptParser#switch_patterns.
+    def enterSwitch_patterns(self, ctx:PinescriptParser.Switch_patternsContext):
+        pass
+
+    # Exit a parse tree produced by PinescriptParser#switch_patterns.
+    def exitSwitch_patterns(self, ctx:PinescriptParser.Switch_patternsContext):
+        pass
+
+
     # Enter a parse tree produced by PinescriptParser#switch_default_case.
     def enterSwitch_default_case(self, ctx:PinescriptParser.Switch_default_caseContext):
         pass
