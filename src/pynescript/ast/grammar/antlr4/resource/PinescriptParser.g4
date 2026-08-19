@@ -162,7 +162,9 @@ while_structure: WHILE expression local_block;
 
 switch_structure: SWITCH expression? NEWLINE INDENT switch_cases DEDENT;
 
-switch_cases: switch_pattern_case* switch_default_case | switch_pattern_case+ switch_default_case?;
+// Default (`=>` with no pattern) may appear anywhere; first default wins.
+switch_case: switch_pattern_case | switch_default_case;
+switch_cases: switch_case+;
 
 // Multi-value arms: ``1, 2 => 100`` (OR-match on subject).
 switch_pattern_case: switch_patterns RARROW local_block;
@@ -360,7 +362,16 @@ type_specification
 type_qualifier:       CONST | INPUT | SIMPLE | SERIES;
 attributed_type_name: name_load (DOT name_load)*;
 
-template_spec_suffix: LESS type_argument_list? GREATER;
+// `>>` lexes as RSHIFT, not two GREATER. Allow RSHIFT as a 2-level closer:
+// `array<array<float>>` = outer LESS + inner `array<float` + RSHIFT.
+template_spec_suffix
+    : LESS type_argument_list? GREATER
+    | LESS rshift_closed_type_args RSHIFT
+    ;
+// Unclosed last type arg so the following RSHIFT can close both levels.
+rshift_closed_type_args
+    : (type_specification COMMA)* type_qualifier? attributed_type_name LESS type_argument_list?
+    ;
 array_type_suffix:    LSQB RSQB;
 
 type_argument_list: type_specification (COMMA type_specification)* COMMA?;

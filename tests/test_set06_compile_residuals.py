@@ -311,6 +311,28 @@ plot(close)
     assert _last(out) == 119.0
 
 
+def test_udf_var_color_rgb_not_float64_store() -> None:
+    """13712: ``var tC = color.rgb(...)`` must keep hex colors as object, not float64."""
+    src = """//@version=5
+indicator("t")
+f(_cr) =>
+    var tC = color.rgb(color.r(_cr), color.g(_cr), color.b(_cr))
+    tC
+c = f(#000000)
+plot(close, color=c)
+"""
+    code = transpile(src)
+    assert "float('#000000')" not in code
+    assert "dtype=object" in code
+    assert "tC_arr[__bar_idx] = '#000000'" in code or "tC_arr[__bar_idx] =" in code
+    from pynescript.compiler.numba_builtins import safe_float
+
+    assert np.isnan(safe_float("#000000"))
+    assert np.isnan(safe_float("#e91e63"))
+    out = _compile_run(src, n=20)
+    assert _last(out) == 119.0
+
+
 def test_library_function_does_not_float_color_or_udt() -> None:
     """Same ``*.function`` emit: color hex / UDT must not hit bare ``float()``."""
     src = """//@version=5
@@ -528,3 +550,71 @@ plot(counter)
 
     out = _run_with_timeout(_go, seconds=5.0)
     assert _last(out) == 4.0
+
+
+def test_switch_default_mid_first_match() -> None:
+    """Mid-default is first-match: ``=>`` always matches, later arms are dead.
+
+    ``x = 2`` does not reach ``2 => 20``; the first default ``0`` wins.
+    Pattern arms *before* the default still match (``x = 1`` would be 10).
+    A second default, if present, is ignored.
+    """
+    src = """//@version=5
+indicator("Switch DefMid")
+x = 2
+var int r = 0
+r := switch x
+    1 => 10
+    => 0
+    2 => 20
+plot(r)
+"""
+    out = _compile_run(src, n=20)
+    assert _last(out) == 0.0
+
+
+def test_not_continuation_compile() -> None:
+    """``not`` + newline + indented operand compiles (lexer operator line-join)."""
+    src = """//@version=5
+indicator("Not Cont")
+x = not
+    (close < open)
+plot(x ? 1 : 0)
+"""
+    out = _compile_run(src, n=20)
+    # _ohlcv uses open == close, so ``close < open`` is false and ``not`` is true.
+    assert _last(out) == 1.0
+
+
+def test_udt_method_last_assign_returns_without_syntax_error() -> None:
+    """set06 6447: method ending in ``self.total :=`` must not split on walrus '='."""
+    src = """//@version=5
+indicator("Method Decl")
+type Acc
+    float total = 0.0
+method add_val(Acc self, float v) =>
+    self.total := self.total + v
+a = Acc.new(0.0)
+a.add_val(10.0)
+a.add_val(20.0)
+plot(a.total)
+"""
+    code = transpile(src)
+    assert "__ret = udt_set_field" in code
+    assert "return __ret" in code
+    compile(code, "<udt_method>", "exec")
+    out = _compile_run(src, n=20)
+    assert abs(_last(out) - 30.0) < 1e-6
+
+
+def test_generic_map_string_key_get() -> None:
+    src = '''//@version=5
+indicator("Generic Map")
+map<string, float> data = map.new<string, float>()
+data.put("close", close)
+result = data.get("close", 0.0)
+plot(result)
+'''
+    out = _compile_run(src, n=20)
+    # last close of arange 100..119 is 119
+    assert abs(_last(out) - 119.0) < 1e-6

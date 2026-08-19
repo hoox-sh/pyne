@@ -698,7 +698,8 @@ class CompilerVisitor(NodeVisitor):
         base = arr[: -len("_arr")]
         if base.startswith("__user_"):
             base = base[len("__user_") :]
-        return base in self.udt_vars or base in self.string_series
+        obj_sl = getattr(self, "object_series_locals", set())
+        return base in self.udt_vars or base in self.string_series or base in obj_sl
 
     def _protect_module_shadow(self, name: str) -> str:
         """Rename Pine names that would rebind generated ``np`` (numpy) or ``na``.
@@ -1491,6 +1492,19 @@ class CompilerVisitor(NodeVisitor):
                     "Subscript",
                     "Specialize",
                 )
+                # ``var tC = color.rgb(...)`` / hex literals — not float64 (set06 13712).
+                looks_stringy = bool(
+                    not typed_numeric
+                    and (
+                        typed_stringy
+                        or self._is_stringy_value(node.value)
+                        or self._call_returns_string(node.value)
+                        or (
+                            self._looks_like_string_expr(val)
+                            and not isinstance(node.value, (ast.BinOp, ast.UnaryOp))
+                        )
+                    )
+                )
                 if (
                     looks_obj
                     or typed_obj
@@ -1498,6 +1512,7 @@ class CompilerVisitor(NodeVisitor):
                     or typed_udt
                     or typed_chart_point
                     or type_is_array
+                    or looks_stringy
                 ):
                     self.object_mode = True
                     # Track object-dtype UDF state only — do NOT add to global
@@ -1515,6 +1530,12 @@ class CompilerVisitor(NodeVisitor):
                         f"else {py}_arr[__bar_idx - 1]"
                     )
                 return f"{py}_arr[__bar_idx] = {val}"
+            if self._is_map_new(node.value) or self._is_typed_map(type_node):
+                self.object_mode = True
+                self.map_vars.add(name)
+                self.local_sequence_vars.add(name)
+                rhs = "{}" if self._is_map_new(node.value) else val
+                return f"{py} = {rhs}"
             # Array/list handles inside UDFs must be tracked as sequence locals
             # so the UDF is marked sequence-returning (knn → nearest_neighbors).
             if hasattr(self, "_rhs_is_sequence") and self._rhs_is_sequence(node.value, val):
@@ -1647,15 +1668,17 @@ class CompilerVisitor(NodeVisitor):
                 )
             return f"{arr_n}[__bar_idx] = {val}"
 
-        # Detect map.new *before* bare ``{}`` is classified as a UDT/object handle
-        # (map.new lowers to ``{}`` which would otherwise become m_arr series).
-        if self._is_map_new(node.value):
+        # Detect map.new / typed ``map<K,V>`` *before* bare ``{}`` is classified
+        # as a UDT/object handle (map.new lowers to ``{}`` which would otherwise
+        # become m_arr series).
+        if self._is_map_new(node.value) or self._is_typed_map(type_node):
             self.object_mode = True
             self.map_vars.add(name)
             self.arrays.discard(f"{name}_arr")
+            rhs = "{}" if self._is_map_new(node.value) else val
             if is_var:
-                return f"if __bar_idx == 0:\n    {name} = {{}}"
-            return f"{name} = {{}}"
+                return f"if __bar_idx == 0:\n    {name} = {rhs}"
+            return f"{name} = {rhs}"
 
         # UDT series / chart.point dict / udt_index handle / UDT ref (p2 = p1)
         # / Type.copy(p1) (shallow dict clone) / UDF returning Type.new(...)
@@ -2832,7 +2855,9 @@ class CompilerVisitor(NodeVisitor):
         return False
 
     def _is_map_new(self, node) -> bool:
-        # map.new<...>() or Specialize(map.new, ...)
+        # map.new<...>() / Specialize(map.new, ...)() / Specialize wrapping Call
+        if isinstance(node, ast.Specialize):
+            return self._is_map_new(node.value)
         if isinstance(node, ast.Call):
             f = node.func
             if isinstance(f, ast.Specialize):
@@ -2841,6 +2866,40 @@ class CompilerVisitor(NodeVisitor):
                 if isinstance(f.value, ast.Name) and f.value.id == "map":
                     return True
         return False
+
+    @staticmethod
+    def _is_typed_map(type_node) -> bool:
+        """True for ``map<K, V>`` / bare ``map`` type annotations."""
+        if type_node is None:
+            return False
+        if isinstance(type_node, ast.Specialize):
+            inner = type_node.value
+            return isinstance(inner, ast.Name) and inner.id == "map"
+        return isinstance(type_node, ast.Name) and type_node.id == "map"
+
+    def _receiver_is_map(self, recv) -> bool:
+        if not isinstance(recv, ast.Name):
+            return False
+        name = recv.id
+        mapped = self.ident_map.get(name, name)
+        return name in self.map_vars or mapped in self.map_vars
+
+    @staticmethod
+    def _map_get_key_is_non_index(node: ast.Call) -> bool:
+        """``m.get("close", 0.0)`` — a string key is never an array/matrix index."""
+        if not node.args:
+            return False
+        raw = node.args[0]
+        key = raw.value if hasattr(raw, "value") else raw
+        return isinstance(key, ast.Constant) and isinstance(
+            getattr(key, "value", None), str
+        )
+
+    def _call_is_map_method(self, func, node: ast.Call) -> bool:
+        """Prefer map.* when the receiver is a tracked map or ``.get`` has a string key."""
+        if self._receiver_is_map(func.value):
+            return True
+        return func.attr == "get" and self._map_get_key_is_non_index(node)
 
     def visit_ReAssign(self, node: ast.ReAssign):
         if isinstance(node.target, ast.Attribute):
@@ -2872,7 +2931,7 @@ class CompilerVisitor(NodeVisitor):
                 return self._emit_if_assign(target, node.value)
             val = self._dmi_as_scalar(self.visit(node.value))
             py = self._py_ident(node.target.id)
-            # line/label/box / UDT / tuple handles into series-local → object dtype
+            # line/label/box / UDT / tuple / color-hex into series-local → object dtype
             if val and (
                 "__drawings" in val
                 or val.startswith("{")
@@ -2884,6 +2943,8 @@ class CompilerVisitor(NodeVisitor):
                     hasattr(self, "_rhs_is_sequence")
                     and self._rhs_is_sequence(node.value, val)
                 )
+                or self._is_stringy_value(node.value)
+                or self._looks_like_string_expr(val)
             ):
                 self.object_mode = True
                 if not hasattr(self, "object_series_locals"):
@@ -4398,6 +4459,12 @@ class CompilerVisitor(NodeVisitor):
                         getattr(raw, "value", None), (int, float)
                     )
                     func_name = f"ta_{func.attr}" if is_len else f"math_{func.attr}"
+            elif func.attr in _MAP_METHODS and self._call_is_map_method(func, node):
+                # ``.get`` is also in _ARRAY_METHODS; map receivers / string keys
+                # must not lower as array_get / matrix.get (int("close")).
+                method_src = self.visit(func.value)
+                func_name = _MAP_METHODS[func.attr]
+                self.object_mode = True
             elif func.attr in _ARRAY_METHODS:
                 method_src = self.visit(func.value)
                 func_name = _ARRAY_METHODS[func.attr]
@@ -6671,9 +6738,15 @@ class CompilerVisitor(NodeVisitor):
                 return f"{a[0]}.__setitem__({a[1]}, {a[2]})"
             return ""
         if func_name == "map_get":
-            a = ra(args, kwargs, ("id", "key"))
+            a = ra(
+                args,
+                kwargs,
+                ("id", "key", "na_value"),
+                aliases={"default": "na_value"},
+            )
             if len(a) >= 2:
-                return f"{a[0]}.get({a[1]}, np.nan)"
+                default = a[2] if len(a) >= 3 else "np.nan"
+                return f"{a[0]}.get({a[1]}, {default})"
             return "np.nan"
         if func_name == "map_contains":
             a = ra(args, kwargs, ("id", "key"))
@@ -7571,6 +7644,8 @@ class CompilerVisitor(NodeVisitor):
                 case_val = _case_value_expr(case)
                 pat = getattr(case, "pattern", None)
                 if pat is None:
+                    # Mid/last default becomes the else base. Later source
+                    # defaults overwrite first here; first-in-source wins.
                     expr = case_val
                     continue
                 cond = self._switch_arm_cond(subject, pat)
@@ -7582,11 +7657,16 @@ class CompilerVisitor(NodeVisitor):
         lines: list[str] = []
         first = True
         default_body = None
+        seen_default = False
         for case in cases:
             pat = getattr(case, "pattern", None)
             body = getattr(case, "body", None) or []
             if pat is None:
-                default_body = body
+                if default_body is None:
+                    default_body = body
+                seen_default = True
+                continue
+            if seen_default:
                 continue
             cond = self._switch_arm_cond(subject, pat)
             lines.append(f"if {cond}:" if first else f"elif {cond}:")
@@ -8321,11 +8401,26 @@ class CompilerVisitor(NodeVisitor):
                     if is_last and returnable and looks_assign:
                         # Pine UDF ending in `out := expr` should return that value
                         # (e.g. custom _rma). Prefer LHS read-back over np.nan.
-                        lhs = first_phys.split("=", 1)[0].strip()
-                        if lhs and not lhs.startswith(("if ", "for ", "while ")):
-                            lines.append(f"    return {lhs}")
-                        else:
+                        # Never split on the first '=' — walrus inside udt_set_field
+                        # (``__u := (self)``) truncated to ``return udt_set_field(..., __u :``.
+                        m_lhs = re.match(
+                            r"^([A-Za-z_][\w\.]*(\[[^\]]*\])?)\s*=(?!=)",
+                            first_phys,
+                        )
+                        if m_lhs:
+                            lines.append(f"    return {m_lhs.group(1)}")
+                        elif first_phys.startswith(("if ", "for ", "while ")):
                             lines.append("    return np.nan")
+                        elif first_phys.startswith("udt_set_field"):
+                            # Already emitted as a statement; do not call again
+                            # (would double-apply ``self.total := self.total + v``).
+                            if lines and lines[-1].lstrip() == first_phys:
+                                lines[-1] = f"    __ret = {first_phys}"
+                            else:
+                                lines.append(f"    __ret = {first_phys}")
+                            lines.append("    return __ret")
+                        else:
+                            lines.append(f"    return {first_phys}")
                     elif is_last and last_is_for and for_ret_name:
                         lines.append(f"    return {for_ret_name}")
         self.functions.append("\n".join(lines))

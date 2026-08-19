@@ -214,6 +214,11 @@ class PinescriptParserVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by PinescriptParser#switch_case.
+    def visitSwitch_case(self, ctx:PinescriptParser.Switch_caseContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by PinescriptParser#switch_cases.
     def visitSwitch_cases(self, ctx:PinescriptParser.Switch_casesContext):
         return self.visitChildren(ctx)
@@ -561,6 +566,11 @@ class PinescriptParserVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by PinescriptParser#template_spec_suffix.
     def visitTemplate_spec_suffix(self, ctx:PinescriptParser.Template_spec_suffixContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by PinescriptParser#rshift_closed_type_args.
+    def visitRshift_closed_type_args(self, ctx:PinescriptParser.Rshift_closed_type_argsContext):
         return self.visitChildren(ctx)
 
 

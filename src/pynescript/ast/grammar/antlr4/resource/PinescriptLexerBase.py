@@ -79,6 +79,7 @@ class PinescriptLexerBase(Lexer):
                     self.LESSEQUAL,
                     self.MINEQUAL,
                     self.MINUS,
+                    self.NOT,
                     self.NOTEQUAL,
                     self.OR,
                     self.PERCENT,

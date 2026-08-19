@@ -287,3 +287,54 @@ plot(x + y)
     assert isinstance(by_name["x"].mode, ast.Var)
     assert by_name["x"].type.id == "float"
     assert isinstance(by_name["y"].mode, ast.Var)
+
+
+def test_switch_default_mid_roundtrip():
+    """Default arm may sit between pattern arms (``=> 0`` then ``2 => 20``)."""
+    _roundtrip(
+        """//@version=5
+indicator("Switch DefMid")
+x = 2
+var int r = 0
+r := switch x
+    1 => 10
+    => 0
+    2 => 20
+plot(r)
+"""
+    )
+
+
+def test_nested_generic_array_new():
+    """``>>`` after a nested type arg is RSHIFT; 2-level ``array.new<array<float>>()``."""
+    _roundtrip(
+        """//@version=5
+indicator("t")
+a = array.new<array<float>>()
+plot(1)
+"""
+    )
+
+
+def test_nested_generic_map_field():
+    """UDT field ``map<string, array<float>>`` (same RSHIFT closer)."""
+    _roundtrip(
+        """//@version=5
+indicator("t")
+type Basket
+    map<string, array<float>> groups
+plot(1)
+"""
+    )
+
+
+def test_not_continuation():
+    """Unary ``not`` must line-join so the operand can start on the next line."""
+    _roundtrip(
+        """//@version=5
+indicator("Not Cont")
+x = not
+    (close < open)
+plot(x ? 1 : 0)
+"""
+    )

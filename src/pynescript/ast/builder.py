@@ -983,13 +983,13 @@ class PinescriptASTBuilder(
         return switch_struct
 
     def visitSwitch_cases(self, ctx: PinescriptParser.Switch_casesContext):
-        pattern_cases = ctx.switch_pattern_case()
-        default_case = ctx.switch_default_case()
-        cases = [self.visit(case) for case in pattern_cases]
-        if default_case:
-            case = self.visit(default_case)
-            cases.append(case)
-        return cases
+        return [self.visit(case) for case in ctx.switch_case()]
+
+    def visitSwitch_case(self, ctx: PinescriptParser.Switch_caseContext):
+        pattern_case = ctx.switch_pattern_case()
+        if pattern_case is not None:
+            return self.visit(pattern_case)
+        return self.visit(ctx.switch_default_case())
 
     def visitSwitch_pattern_case(self, ctx: PinescriptParser.Switch_pattern_caseContext):
         body = self.visit(ctx.local_block())
@@ -1372,9 +1372,43 @@ class PinescriptASTBuilder(
         return ident
 
     def visitTemplate_spec_suffix(self, ctx: PinescriptParser.Template_spec_suffixContext):
+        rshift_args = ctx.rshift_closed_type_args()
+        if rshift_args is not None:
+            return self.visit(rshift_args)
         args = ctx.type_argument_list()
         args = args and self.visit(args)
         return args
+
+    def visitRshift_closed_type_args(self, ctx: PinescriptParser.Rshift_closed_type_argsContext):
+        """Build ``T<U`` (and leading complete args) closed by a following RSHIFT."""
+        complete = [self.visit(t) for t in ctx.type_specification()]
+        ident = self.visit(ctx.attributed_type_name())
+        type_qual = ctx.type_qualifier()
+        inner_args_ctx = ctx.type_argument_list()
+        if inner_args_ctx:
+            spec = ast.Specialize(
+                value=ident,
+                args=self.visit(inner_args_ctx),
+            )
+            self._setLocations(spec, ctx)
+            spec.lineno = ident.lineno
+            spec.col_offset = ident.col_offset
+            ident = spec
+        if type_qual:
+            ident = ast.Qualify(  # type: ignore[assignment]
+                qualifier=self.visit(type_qual),
+                value=ident,
+            )
+            self._setLocations(ident, ctx)
+        args = complete + [ident]
+        if len(args) == 1:
+            return args[0]
+        tup = ast.Tuple(
+            elts=args,
+            ctx=_LOAD,
+        )
+        self._setLocations(tup, ctx)
+        return tup
 
     def visitType_argument_list(self, ctx: PinescriptParser.Type_argument_listContext):
         args = ctx.type_specification()

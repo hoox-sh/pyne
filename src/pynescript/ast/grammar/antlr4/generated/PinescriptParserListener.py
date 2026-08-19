@@ -377,6 +377,15 @@ class PinescriptParserListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by PinescriptParser#switch_case.
+    def enterSwitch_case(self, ctx:PinescriptParser.Switch_caseContext):
+        pass
+
+    # Exit a parse tree produced by PinescriptParser#switch_case.
+    def exitSwitch_case(self, ctx:PinescriptParser.Switch_caseContext):
+        pass
+
+
     # Enter a parse tree produced by PinescriptParser#switch_cases.
     def enterSwitch_cases(self, ctx:PinescriptParser.Switch_casesContext):
         pass
@@ -1004,6 +1013,15 @@ class PinescriptParserListener(ParseTreeListener):
 
     # Exit a parse tree produced by PinescriptParser#template_spec_suffix.
     def exitTemplate_spec_suffix(self, ctx:PinescriptParser.Template_spec_suffixContext):
+        pass
+
+
+    # Enter a parse tree produced by PinescriptParser#rshift_closed_type_args.
+    def enterRshift_closed_type_args(self, ctx:PinescriptParser.Rshift_closed_type_argsContext):
+        pass
+
+    # Exit a parse tree produced by PinescriptParser#rshift_closed_type_args.
+    def exitRshift_closed_type_args(self, ctx:PinescriptParser.Rshift_closed_type_argsContext):
         pass
 
 
