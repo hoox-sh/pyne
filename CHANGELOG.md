@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.17] - 2026-08-19
+
 ### Fixed
 - **Compile object-mode residuals** — user `round()` UDF call sites pass free/chart formals; missing library `alias.method(...)` stubs are `na` not Python `None`; same-arity `negate(float|bool|color)` dispatches by argument type so hex colors stay off float64 series; method overloads on UDT fields (`this.wins.getAvgProfit()`) pick the field's type, not the outer receiver.
 

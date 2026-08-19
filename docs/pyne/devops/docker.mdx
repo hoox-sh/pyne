@@ -79,9 +79,9 @@ docker buildx bake                     # default group: api + api-dev
 docker buildx bake all                 # api + api-dev + lsp + cli
 
 # Multi-platform (amd64 + arm64). Set REGISTRY to push:
-REGISTRY=ghcr.io/hoox-sh/pyne TAG=0.3.16 docker buildx bake release
+REGISTRY=ghcr.io/hoox-sh/pyne TAG=0.3.17 docker buildx bake release
 # release group = api-release + cli-release + lsp-release
-# → ghcr.io/hoox-sh/pyne/{api,cli,lsp}:0.3.16
+# → ghcr.io/hoox-sh/pyne/{api,cli,lsp}:0.3.17
 # Prefer: make docker-push-ghcr  (workflow GHCR on v* tags)
 ```
 
@@ -155,9 +155,9 @@ Production overlay (`docker-compose.prod.yml`): target `api`, **`volumes: !overr
 GitHub Container Registry (workflow **GHCR**, tags `v*`):
 
 ```
-ghcr.io/hoox-sh/pyne/api:0.3.16
-ghcr.io/hoox-sh/pyne/cli:0.3.16
-ghcr.io/hoox-sh/pyne/lsp:0.3.16
+ghcr.io/hoox-sh/pyne/api:0.3.17
+ghcr.io/hoox-sh/pyne/cli:0.3.17
+ghcr.io/hoox-sh/pyne/lsp:0.3.17
 ```
 
 Cloud Build (`cloudbuild.yaml`, **`--target api`** only):
@@ -167,7 +167,7 @@ gcr.io/$PROJECT_ID/pynescript/pynescript-pro-api:$COMMIT_SHA
 gcr.io/$PROJECT_ID/pynescript/pynescript-pro-api:latest
 ```
 
-Substitution `_PYNESCRIPT_VERSION` in that YAML currently defaults to `"0.3.0"` — override at submit time to match `__about__.py` (**0.3.16**).
+Substitution `_PYNESCRIPT_VERSION` in that YAML currently defaults to `"0.3.0"` — override at submit time to match `__about__.py` (**0.3.17**).
 
 ## Internals
 

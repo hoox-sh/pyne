@@ -26,7 +26,7 @@ description: "PYNE forward plan — dual-host residual, runtime residual, plot p
 
 ## Abstract
 
-The roadmap is a **living prioritization document**, not a contract. Source: `docs/ROADMAP.md` (updated **2026-08-19**). Core v6 language/builtins are essentially closed. Product **warm-compile (H2)**, **series caps (T1)**, **pending-fill (F2)**, **L2 webhooks**, **corpus Runtime residual (C1)**, **package Runtime SoT (H1 largely done)**, **interpret Round 9 (0.3.10)**, and **compile object-mode residuals (0.3.16)** have **landed** (set01–04 parse **99.96%**, Runtime interpret **100%** excl. intentional demos). What remains: **H1 worker-only extras** and **interpret↔compile plot residuals (P1p corpus tail)**. Incremental `nvi`/`pvi` (**T2**) and Supertrend goldens (**F1**) have landed.
+The roadmap is a **living prioritization document**, not a contract. Source: `docs/ROADMAP.md` (updated **2026-08-19**). Core v6 language/builtins are essentially closed. Product **warm-compile (H2)**, **series caps (T1)**, **pending-fill (F2)**, **L2 webhooks**, **corpus Runtime residual (C1)**, **package Runtime SoT (H1 largely done)**, **interpret Round 9 (0.3.10)**, and **compile object-mode residuals (0.3.16–0.3.17)** have **landed** (set01–04 parse **99.96%**, Runtime interpret **100%** excl. intentional demos). What remains: **H1 worker-only extras** and **interpret↔compile plot residuals (P1p corpus tail)**. Incremental `nvi`/`pvi` (**T2**) and Supertrend goldens (**F1**) have landed.
 
 ## Conceptual model
 
@@ -58,9 +58,9 @@ flowchart LR
 | Evaluator | ✅ incl. full var/varip, ReAssign |
 | Builtins / TA / collections | ✅ broad (0 missing vs public TV ref list) |
 | Strategy events + broker (OCA, commission, risk) | ✅ |
-| Numba + object-mode compile | ✅ MVP+ (disk IR cache, `mode=auto`, `time_arr`, cache recovery; **0.3.16** UDT/switch/matrix/drawing residuals) |
+| Numba + object-mode compile | ✅ MVP+ (disk IR cache, `mode=auto`, `time_arr`, cache recovery; **0.3.16–0.3.17** UDT/switch/matrix/drawing/round/color residuals) |
 | Pro API + auth + Docker | ✅ (`mode` default `auto`; targets api / api-dev / lsp / **cli**) |
-| PyPI **`hoox-pyne`** | ✅ live **0.3.16** ([pypi.org/project/hoox-pyne](https://pypi.org/project/hoox-pyne/)); CLIs `pyne` / `pyne-lsp` |
+| PyPI **`hoox-pyne`** | ✅ live **0.3.17** ([pypi.org/project/hoox-pyne](https://pypi.org/project/hoox-pyne/)); CLIs `pyne` / `pyne-lsp` |
 | CLI surface (`check`/`format`/`compile`/`run`/`prewarm`/…) | ✅ + Nuitka binaries + CLI Docker image |
 | Alert engine + L2 webhooks | ✅ dual-host export + outbound webhooks |
 | Drawing `max_*_count` GC | ✅ package + Pro API + AXIS Pyodide |

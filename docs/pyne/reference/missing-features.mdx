@@ -19,14 +19,14 @@
 
 ---
 title: "Missing features"
-description: "Known gaps and closed Pine Script™ v6 items — H1/H2/T1/T2/F1/F2/L2/C1 shipped; 0.3.16 compile object-mode residuals; P1p corpus MISMATCH tail remains."
+description: "Known gaps and closed Pine Script™ v6 items — H1/H2/T1/T2/F1/F2/L2/C1 shipped; 0.3.16–0.3.17 compile object-mode residuals; P1p corpus MISMATCH tail remains."
 ---
 
 # Missing features
 
 ## Abstract
 
-“Missing” in PYNE is a **moving frontier**. As of **2026-08-19** (`hoox-pyne` **0.3.16**), core v6 support remains very high (~99%+ for core language), with post-launch TV items closed (multiline strings, library `export const`, footprint mocks, risk enforcement, matrix LA, compile-mode strategy, drawing GC, …) **plus** open-source corpus parse/Runtime hardening, **incremental bar-mode TA** (including 0.3.10–0.3.12 kernels), **alert engine + L2 webhooks**, **series caps**, **warm-compile**, **pending-fill** averaging, **`timeframe.change`**, **package Runtime SoT** (`pynescript.runtime`; `backend.runtime` is a shim), and **compile object-mode residual recovery** (UDF locals, nopython `None`/unicode, matrix handles, UDT returns, `x = switch`, drawing copy, `int(na)`). Remaining gaps cluster into **plot parity residual MISMATCH corpus tail (P1p)**, **by-design platform differences**, and **editor-only features**. Incremental `ta.nvi`/`ta.pvi`/`aroon`/`dpo`/`donchian`/`kst` and Supertrend mid±factor·ATR goldens have landed.
+“Missing” in PYNE is a **moving frontier**. As of **2026-08-19** (`hoox-pyne` **0.3.17**), core v6 support remains very high (~99%+ for core language), with post-launch TV items closed (multiline strings, library `export const`, footprint mocks, risk enforcement, matrix LA, compile-mode strategy, drawing GC, …) **plus** open-source corpus parse/Runtime hardening, **incremental bar-mode TA** (including 0.3.10–0.3.12 kernels), **alert engine + L2 webhooks**, **series caps**, **warm-compile**, **pending-fill** averaging, **`timeframe.change`**, **package Runtime SoT** (`pynescript.runtime`; `backend.runtime` is a shim), and **compile object-mode residual recovery** (UDF locals, nopython `None`/unicode, matrix handles, UDT returns, `x = switch`, drawing copy, `int(na)`, `round()` extras, import stubs, color type dispatch, nested UDT methods). Remaining gaps cluster into **plot parity residual MISMATCH corpus tail (P1p)**, **by-design platform differences**, and **editor-only features**. Incremental `ta.nvi`/`ta.pvi`/`aroon`/`dpo`/`donchian`/`kst` and Supertrend mid±factor·ATR goldens have landed.
 
 Authoritative narrative: `docs/missing_features.md`. Canonical IDs: `docs/ROADMAP.md` (**2026-08-17**).
 
@@ -73,7 +73,7 @@ Summarized — full prose in source doc:
 | Strategy open/closed trades, risk, OCA, commission | Golden tests |
 | Drawing `*.all`, plot registry, **`max_*_count` GC** | Effects recorded; GC on package + Pro + AXIS |
 | Numba compile + object mode + **warm-compile (H2)** | Disk IR cache, prewarm API/CLI, deploy defaults |
-| **Compile object-mode residuals (0.3.16)** | UDF locals / free-series, nopython `None`/`timestamp`, matrix handles, UDT returns, `x = switch`, drawing copy, `pine_int(na)`, sanitize chrome |
+| **Compile object-mode residuals (0.3.16–0.3.17)** | UDF locals / free-series, nopython `None`/`timestamp`, matrix handles, UDT returns, `x = switch`, drawing copy, `pine_int(na)`, sanitize chrome, `round()` extras, import stubs as `na`, color type dispatch, nested UDT methods |
 | Official matrix LA & predicates | det/inv/eigen/… |
 | **0 missing** vs public TV v6 function reference list (434 symbols, 2026-07-25) |
 | Runtime `_pine_defs_locked` + append-only `current_series` | Host hygiene (backend + pyne-worker) |
