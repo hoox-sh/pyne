@@ -7,8 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.15] - 2026-08-19
+
+### Added
+- **`pynescript download-builtins`** — catalog + download TradingView builtin Pine templates via pine-facade (`--list` / `--yes` / `--limit`).
+- **`scripts/search_clone_pine_pool.py`** — search and shallow-clone GitHub Pine repos for corpus collection.
+- **`cf/`** — Cloudflare Containers Worker that fronts the Pro API and keeps a named instance warm.
+
 ### Improved
 - **LSP hover** — types/qualifiers (`series` / `float`), namespaces (`ta` in `ta.sma`), user functions/assignments/`type`/`enum`, and longer keyword briefs. Builtin cards keep signature fence + params when metadata has them.
+
+### Fixed
+- **Compile set06 residuals** — missing `array`/`map`/`matrix` helpers, `for`+`continue` increment, for/while-as-expression emit, multi-value and default-only `switch`, `/* */` comments, map `for-in` pairs, `ta.dmi` scalar assign, `matrix.set` expression form, `np` unpack shadowing, nopython `TypingError` object-mode retry, tuple/UDT stores off float64 series.
+- **Corpus sanitize** — RST/Hugo/MDX chrome, mustache `{{IDENT}}`, indented `study` bodies, column-1 ternary tails, torn string fixtures.
 
 ## [0.3.14] - 2026-08-18
 
