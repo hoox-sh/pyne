@@ -3386,6 +3386,8 @@ class CompilerVisitor(NodeVisitor):
             # Bare free → scalar free param (mult, colBull, settings, …)
             self._free_scalars_current.add(node.id)
             return self._py_ident(node.id)
+        if node.id in self.loop_counters:
+            return self._py_ident(node.id)
         if f"{node.id}_arr" in self.arrays and node.id not in self.scalar_vars:
             return f"{node.id}_arr[__bar_idx]"
         if node.id in self.import_aliases:
@@ -6508,7 +6510,13 @@ class CompilerVisitor(NodeVisitor):
         defaults, and pads remaining gaps with ``np.nan``.
         """
         kwargs = kwargs or {}
+        arity = len(args) + len(kwargs)
+        ov = f"{func_name}__{arity}"
+        if ov in self.func_name_map:
+            func_name = self.func_name_map[ov]
         param_names = self.func_param_names.get(func_name, [])
+        if not param_names:
+            param_names = self.func_param_names.get(ov, [])
         defaults = self.func_param_defaults.get(func_name, {})
         series_set = self.func_series_params.get(func_name, set())
         series_locals = self.func_series_locals.get(func_name, [])
@@ -8069,6 +8077,15 @@ class CompilerVisitor(NodeVisitor):
             self.func_name_map[pine_name] = func_name
         args = [arg.name for arg in node.args if hasattr(arg, "name")]
         arg_set = set(args)
+        # Same-name overloads (free func + method): keep each arity.
+        existing = self.func_param_names.get(pine_name)
+        if existing is not None and len(existing) != len(args):
+            prev_n = len(existing)
+            prev_py = self.func_name_map.get(pine_name, pine_name)
+            self.func_name_map[f"{pine_name}__{prev_n}"] = prev_py
+            self.func_param_names[f"{pine_name}__{prev_n}"] = list(existing)
+            func_name = self._safe_ident(f"{pine_name}__{len(args)}")
+            self.func_name_map[f"{pine_name}__{len(args)}"] = func_name
         # Register under both Pine and safe names so call lookup works either way
         self.user_funcs.add(pine_name)
         self.user_funcs.add(func_name)
@@ -8076,6 +8093,8 @@ class CompilerVisitor(NodeVisitor):
         # (full free-scalar / series metadata is still filled after body gen).
         self.func_param_names[pine_name] = list(args)
         self.func_param_names[func_name] = list(args)
+        self.func_param_names[f"{pine_name}__{len(args)}"] = list(args)
+        self.func_name_map.setdefault(f"{pine_name}__{len(args)}", func_name)
         if getattr(node, "export", None) or getattr(node, "method", None):
             # export / method in libraries → always object mode
             self.object_mode = True
@@ -8916,10 +8935,12 @@ class CompilerVisitor(NodeVisitor):
             names: list[str] = []
             for el in elts:
                 if isinstance(el, ast.Name):
-                    nm = el.id
-                    if nm in self._MODULE_SHADOW_IDENTS:
-                        nm = self._protect_module_shadow(nm)
-                    names.append(nm)
+                    py = self._py_ident(el.id)
+                    names.append(py)
+                    self.loop_counters.add(el.id)
+                    added_names.append(el.id)
+                    if self.in_function:
+                        self.local_vars.add(el.id)
                 else:
                     names.append(self.visit(el))
             for nm in names:

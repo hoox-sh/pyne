@@ -693,3 +693,44 @@ plot(array.size(rows))
 """
     out = _compile_run(src, n=20)
     assert _last(out) == 0.0
+
+
+def test_for_in_len_loop_var_does_not_shadow_builtin() -> None:
+    src = """//@version=5
+indicator("For In Array")
+lengths = array.new<float>(0)
+array.push(lengths, 3.0)
+array.push(lengths, 5.0)
+array.push(lengths, 7.0)
+float total = 0.0
+for [idx, len] in lengths
+    total := total + len
+plot(total)
+"""
+    out = _compile_run(src, n=20)
+    assert abs(_last(out) - 15.0) < 1e-9
+
+
+def test_querypatterns_func_and_method_overloads() -> None:
+    src = """//@version=5
+indicator("qp")
+type SWINGS
+    float lastPrice = 0.0
+    float midPrice = 0.0
+    float prevPrice = 0.0
+queryPatterns(lastPrice, midPrice, prevPrice, isSwingHigh) =>
+    if isSwingHigh
+        prevPrice < midPrice and midPrice >= lastPrice
+    else
+        false
+method queryPatterns(SWINGS this, isSwingHigh) =>
+    this.lastPrice
+s = SWINGS.new(1.0, 2.0, 0.0)
+a = queryPatterns(1.0, 2.0, 0.0, true)
+b = s.queryPatterns(true)
+plot(a ? 1 : 0)
+plot(b)
+"""
+    out = _compile_run(src, n=20)
+    assert _last(out, "plot_0") == 1.0
+    assert _last(out, "plot_1") == 1.0
