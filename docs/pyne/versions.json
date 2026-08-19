@@ -1,10 +1,10 @@
 {
-  "fetched_at": "2026-08-19T12:21:35.256Z",
+  "fetched_at": "2026-08-19T13:14:59.833Z",
   "packages": {
     "hoox-pyne": "0.3.16",
     "@hoox-sh/pynets": "0.2.0",
     "hoox-sh.pyne": "0.3.16",
-    "ghcr.io/hoox-sh/pyne": "0.3.16"
+    "ghcr.io/hoox-sh/pyne": "0.3.14"
   },
   "sources": {
     "pypi": "https://pypi.org/pypi/hoox-pyne/json",
