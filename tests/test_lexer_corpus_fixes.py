@@ -338,3 +338,61 @@ x = not
 plot(x ? 1 : 0)
 """
     )
+
+
+def test_blank_lines_between_arrow_and_indented_method_body():
+    """Blank lines after ``=>`` before an indented method/function body.
+
+    set06 ``13730_ind_mxwll_suite.pine``: ``method tfDraw(...) =>`` then empty
+    lines then an indented body. Same ``local_block`` production as if/else
+    and switch arms.
+    """
+    _roundtrip(
+        """//@version=5
+indicator("t")
+method tfDraw(int tfDiff, bool showLevels) =>
+
+
+
+
+    x = tfDiff
+    if showLevels
+
+
+        x := x + 1
+    x
+f(n) =>
+
+    n + 1
+y = switch close > open
+    true =>
+
+        1
+    =>
+
+        0
+plot(tfDraw(1, true) + f(1) + y)
+"""
+    )
+
+
+def test_multiline_type_new_nested_map_new():
+    """Multiline ``Type.new(...)`` args with nested ``map.new<K,V>()``.
+
+    set06 ``13716_ind_depth_of_market_dom.pine``: commas are line-join ops
+    and ``<K,V>`` must not confuse paren-depth / RSHIFT type-arg closing.
+    """
+    _roundtrip(
+        """//@version=5
+indicator("t")
+type Dom
+    map<float,float> a
+    map<float,float> b
+    map<float,string> c
+newDom() => Dom.new(map.new<float,float>(),
+                 map.new<float,float>(),
+                 map.new<float,string>())
+d = array.new<map<string, float>>()
+plot(1)
+"""
+    )

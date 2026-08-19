@@ -355,6 +355,51 @@ plot(atrSL)
     _roundtrip(cleaned)
 
 
+def test_keeps_trailing_comma_on_wrapped_arrow_call() -> None:
+    """``f() => Type.new(a,`` / ``true => line.new(...,`` must keep the wrap comma."""
+    raw = """//@version=5
+indicator("t")
+type Dom
+    map<float,float> a
+    map<float,float> b
+newDom() => Dom.new(map.new<float,float>(),
+                 map.new<float,float>())
+d = newDom()
+plot(close)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "map.new<float,float>()," in cleaned
+    _roundtrip(cleaned)
+
+    raw2 = """//@version=5
+indicator("t")
+x = 1
+y = switch x
+    1 => line.new(bar_index, high, bar_index, low,
+                 xloc = xloc.bar_index)
+    => na
+plot(close)
+"""
+    cleaned2 = sanitize_corpus_source(raw2)
+    assert "line.new(bar_index, high, bar_index, low," in cleaned2
+    _roundtrip(cleaned2)
+
+
+def test_tab_indented_body_after_wrapped_arrow_not_injected() -> None:
+    """`` ) =>`` (1-space wrap) + tab body is a real function, not ``=> na``."""
+    raw = """//@version=5
+library("t")
+export f(int a,
+ int b) =>
+	float x = a + b
+	x
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert ") => na" not in cleaned
+    assert "=> na" not in cleaned
+    _roundtrip(cleaned)
+
+
 def test_strips_docs_ellipsis_and_nav_chrome() -> None:
     raw = """//@version=6
 strategy("My Strategy", process_orders_on_close = true, ...)
@@ -1180,6 +1225,43 @@ plot(close)
     _roundtrip(cleaned)
 
 
+def test_strips_hugo_and_markdown_after_complete_plot() -> None:
+    """set06 14142 shape: complete ``plot(...)`` then Hugo closer + markdown tail."""
+    raw = """//@version=4
+study(title="[Pirate] T3 Moving Average",shorttitle="T3 MA",overlay=true)
+l=input(title="Length",type=input.integer,minval=1,defval=5)
+a=input(title="Alpha",type=input.float,minval=0,maxval=1,defval=0.7)
+s=input(title="Source",type=input.source,defval=close)
+sColor=input(title="T3 Color",type=input.color,defval=color.blue)
+fWidth=input(title="T3 Line Width", type=input.integer, defval=2, minval=1, maxval=4)
+gd(series,seriesLength,v)=>
+    ema(series,seriesLength)*(1+a)-ema(ema(series,seriesLength),seriesLength)*a
+t3(s,l,a)=>
+    gd(gd(gd(s,l,a),l,a),l,a)
+plot(t3(s,l,a),color=sColor, linewidth=fWidth)
+{{< / highlight >}}
+
+---
+
+### More Information
+> [More information about T3 Moving Averages](https://www.tradingpedia.com/forex-trading-indicators/t3-moving-average-indicator/)
+>
+> [View this indicator on GitHub](https://github.com/PirateCrypto/TradingView/blob/main/Indicators/%5BPirate%5D%20T3%20MA.pine)
+
+---
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "{{" not in cleaned
+    assert "### More" not in cleaned
+    assert "More Information" not in cleaned
+    assert "tradingpedia.com" not in cleaned
+    assert "plot(t3(s,l,a)" in cleaned
+    # Horizontal-rule ``---`` after the script must go; comment rules like
+    # ``//-----`` are unrelated and not present in this fixture.
+    assert not any(ln.strip() == "---" for ln in cleaned.splitlines())
+    _roundtrip(cleaned)
+
+
 def test_rst_docs_indented_example_cut() -> None:
     """set06 14344-style RST scrape: indented study + ``.. _kwargs`` + version prose."""
     raw = """//@version=3
@@ -1419,14 +1501,14 @@ plot(close)
 
 def test_rst_line_n_annotation_does_not_block_indent_dedent() -> None:
     """set06 14350: RST ``Line 1: ``//@version=3```` must not keep study() indented."""
-    raw = '''//@version=3
+    raw = """//@version=3
     study("MACD")
     fast = 12, slow = 26
     plot(close)
 
 Line 1: ``//@version=3``
 Line 2: ``study("MACD")``
-'''
+"""
     cleaned = sanitize_corpus_source(raw)
     for ln in cleaned.splitlines():
         if ln.strip() and not ln.lstrip().startswith("//"):

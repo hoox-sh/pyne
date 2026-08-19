@@ -175,7 +175,10 @@ switch_default_case: RARROW local_block;
 
 local_block: indented_local_block | inline_local_block;
 
-indented_local_block: NEWLINE INDENT statements DEDENT;
+// NEWLINE+ : lexer hides most consecutive blank lines, but a run of
+// default-channel NEWLINEs before INDENT is valid Pine (`=>` / if / for /
+// while / switch arms with empty lines before the indented body).
+indented_local_block: NEWLINE+ INDENT statements DEDENT;
 inline_local_block:   statement;
 
 // SIMPLE ASSIGNMENTS

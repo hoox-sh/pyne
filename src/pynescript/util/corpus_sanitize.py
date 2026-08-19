@@ -805,10 +805,14 @@ def _polish_code_line(line: str) -> str:
     # Dangling ``+`` / ``,`` immediately before a closer (cut mid-concat / mid-args).
     line = re.sub(r"\+\s*([\)\]])", r"\1", line)
     line = re.sub(r",\s*([\)\]])", r"\1", line)
-    # Python-style trailing commas on switch arms (``"EURUSD" => 3.0 * atr,``).
-    # Safe: real multi-value arms are ``=> a, b`` (no trailing comma after last).
+    # Python-style trailing commas on *simple* switch arms
+    # (``"EURUSD" => 3.0 * atr,``). Keep the comma when the RHS still has
+    # ``(`` — wrapped ``Type.new(a,`` / ``true => line.new(...,`` / statement
+    # lists ``=> foo.bar(),``.
     if "=>" in line and not line.lstrip().startswith("//"):
-        line = re.sub(r",\s*$", "", line)
+        after = line.rsplit("=>", 1)[-1]
+        if "(" not in after and line.count("(") <= line.count(")"):
+            line = re.sub(r",\s*$", "", line)
     line = _normalize_unicode_ops(line)
     line = _strip_trailing_semicolon(line)
     return line
@@ -969,7 +973,8 @@ def _line_filter(source: str) -> str:
                 break
             continue
 
-        # UI chrome between truncated preview and full copy (``Copy code``, gutters).
+        # UI chrome / docs tail after a complete script (Hugo shortcode, ``---``,
+        # markdown headings). Stop so trailing scrape prose cannot re-enter.
         if saw_pine and (
             _UI_CHROME_LINE_RE.match(line)
             or _LINE_NUMBER_ONLY_RE.match(line)
@@ -978,6 +983,8 @@ def _line_filter(source: str) -> str:
             or _RST_DIRECTIVE_RE.match(line)
             or _RST_HEADING_ULINE_RE.match(line)
             or _RST_LINE_ANNOT_RE.match(line)
+            or _HR_RE.match(line)
+            or _MD_HEADING_RE.match(line)
         ):
             break
 
@@ -998,6 +1005,7 @@ def _line_filter(source: str) -> str:
                 or _HUGO_SHORTCODE_RE.match(line)
                 or _RST_DIRECTIVE_RE.match(line)
                 or _RST_HEADING_ULINE_RE.match(line)
+                or _HR_RE.match(line)
             ):
                 break
             continue
@@ -1264,6 +1272,12 @@ def _next_line_is_new_statement(lines: list[str], index: int) -> bool:
     return False
 
 
+def _indent_width(line: str) -> int:
+    """Visual indent in columns; tab = 4, matching the Pine lexer."""
+    ws = line[: len(line) - len(line.lstrip(" \t"))]
+    return len(ws.expandtabs(4))
+
+
 def _line_has_arg_continuation(line: str, lines: list[str], index: int) -> bool:
     """True if a following non-empty line continues this statement (indent/join)."""
     j = index + 1
@@ -1272,8 +1286,8 @@ def _line_has_arg_continuation(line: str, lines: list[str], index: int) -> bool:
     if j >= len(lines):
         return False
     nxt = lines[j]
-    base_indent = len(line) - len(line.lstrip(" \t"))
-    nxt_indent = len(nxt) - len(nxt.lstrip(" \t"))
+    base_indent = _indent_width(line)
+    nxt_indent = _indent_width(nxt)
     ns = nxt.lstrip()
     if nxt_indent > base_indent:
         return True

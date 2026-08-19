@@ -48,6 +48,9 @@ Numba constraints
 - nopython kernels use only float64 series + scalars; no dicts/lists/str.
 - Object mode reuses the same import * and may call both njit and Python
   helpers (Numba dispatches Python callables when not nested inside njit).
+- Scalar math wrappers (``numba_max`` / ``numba_min`` / ``numba_abs`` / …)
+  coerce Python ``None`` (object-mode UDT fields / stub getters) to ``nan``
+  before the ``@njit(cache=True)`` inner so nopython helpers never see ``none``.
 - Prefer matching interpret-path seeding (EMA/ATR notes on individual kernels).
 
 Matrix / na
@@ -423,28 +426,91 @@ def numba_macd(arr, fast, slow, signal, i):
     return macd_val, sig, macd_val - sig
 
 
+def _is_plain_float(x):
+    """True for CPython ``float`` / ``np.float64`` (skip ``safe_float``)."""
+    t = type(x)
+    return t is float or t is np.float64
+
+
+def _as_njit_float(x):
+    """Coerce to float64 for njit scalars; ``None``/NA/handles → nan."""
+    return x if _is_plain_float(x) else safe_float(x)
+
+
+def _register_njit_overload(py_fn, jit_fn):
+    """Keep nopython callers on the jit inner (Python path is the None-safe wrap)."""
+    n = py_fn.__code__.co_argcount
+
+    if n == 1:
+
+        def ol(val):  # noqa: ARG001
+            def impl(val):
+                return jit_fn(val)
+
+            return impl
+    else:
+
+        def ol(a, b):  # noqa: ARG001
+            def impl(a, b):
+                return jit_fn(a, b)
+
+            return impl
+
+    numba.extending.overload(py_fn)(ol)
+
+
 @numba.njit(cache=True)
-def numba_nz(val, replacement):
+def _numba_nz_jit(val, replacement):
     """nopython ``nz`` / ``fixnan``: replace float NaN only (not unicode-safe)."""
     if np.isnan(val):
         return replacement
     return val
 
 
+def numba_nz(val, replacement):
+    """``nz``; None/NA → nan then replace (object-mode UDT fields)."""
+    fv = _as_njit_float(val)
+    fr = _as_njit_float(replacement)
+    return _numba_nz_jit(fv, fr)
+
+
+_register_njit_overload(numba_nz, _numba_nz_jit)
+
+
 @numba.njit(cache=True)
-def numba_safe_div(a, b):
+def _numba_safe_div_jit(a, b):
     """Pine division: zero / non-finite divisor → na. Single-eval of both args."""
     if b == 0.0 or np.isnan(b):
         return np.nan
     return a / b
 
 
+def numba_safe_div(a, b):
+    """Pine division; None/NA → nan (object-mode UDT fields)."""
+    fa = _as_njit_float(a)
+    fb = _as_njit_float(b)
+    return _numba_safe_div_jit(fa, fb)
+
+
+_register_njit_overload(numba_safe_div, _numba_safe_div_jit)
+
+
 @numba.njit(cache=True)
-def numba_safe_mod(a, b):
+def _numba_safe_mod_jit(a, b):
     """Pine modulo: zero / non-finite divisor → na. Single-eval of both args."""
     if b == 0.0 or np.isnan(b):
         return np.nan
     return np.fmod(a, b)
+
+
+def numba_safe_mod(a, b):
+    """Pine modulo; None/NA → nan (object-mode UDT fields)."""
+    fa = _as_njit_float(a)
+    fb = _as_njit_float(b)
+    return _numba_safe_mod_jit(fa, fb)
+
+
+_register_njit_overload(numba_safe_mod, _numba_safe_mod_jit)
 
 
 @numba.njit(cache=True)
@@ -511,6 +577,7 @@ def nz_py(val, replacement=0.0):
         return replacement
     return val
 
+
 @numba.njit(cache=True)
 def numba_store(arr, i, value):
     """Write ``value`` into ``arr[i]`` and return it.
@@ -539,27 +606,56 @@ def numba_store_src(dst, val, i):
 
 
 @numba.njit(cache=True)
-def numba_abs(val):
+def _numba_abs_jit(val):
     """Absolute value of a scalar (nopython ``math.abs``)."""
     if val < 0.0:
         return -val
     return val
 
 
+def numba_abs(val):
+    """Scalar abs; None/NA → nan (object-mode UDT fields)."""
+    fv = safe_float(val) if not _is_plain_float(val) else val
+    return _numba_abs_jit(fv)
+
+
+_register_njit_overload(numba_abs, _numba_abs_jit)
+
+
 @numba.njit(cache=True)
-def numba_max(a, b):
+def _numba_max_jit(a, b):
     """Scalar maximum of two values (nopython ``math.max``)."""
     if a > b:
         return a
     return b
 
 
+def numba_max(a, b):
+    """Scalar max; None/NA → nan (object-mode UDT fields)."""
+    fa = safe_float(a) if not _is_plain_float(a) else a
+    fb = safe_float(b) if not _is_plain_float(b) else b
+    return _numba_max_jit(fa, fb)
+
+
+_register_njit_overload(numba_max, _numba_max_jit)
+
+
 @numba.njit(cache=True)
-def numba_min(a, b):
+def _numba_min_jit(a, b):
     """Scalar minimum of two values (nopython ``math.min``)."""
     if a < b:
         return a
     return b
+
+
+def numba_min(a, b):
+    """Scalar min; None/NA → nan (object-mode UDT fields)."""
+    fa = safe_float(a) if not _is_plain_float(a) else a
+    fb = safe_float(b) if not _is_plain_float(b) else b
+    return _numba_min_jit(fa, fb)
+
+
+_register_njit_overload(numba_min, _numba_min_jit)
 
 
 @numba.njit(cache=True)
@@ -1050,6 +1146,7 @@ def numba_lowestbars(arr, length, i):
     if best_idx < 0:
         return -1.0
     return float(-(i - best_idx))
+
 
 @numba.njit(cache=True)
 def numba_percentrank(arr, length, i):
@@ -1549,6 +1646,7 @@ def numba_tsi(arr, short_len, long_len, i):
 # Object-mode coercion helpers (pure Python; never called under njit)
 # ---------------------------------------------------------------------------
 
+
 def pine_add(a, b):
     """Pine ``+``: numeric add, or string concat when either side is text."""
     if isinstance(a, str) or isinstance(b, str):
@@ -1596,9 +1694,7 @@ def safe_float(x):
             # Reject pure words (Round, Neutral, small, tiny, …)
             if any(c.isalpha() for c in s) and not any(c.isdigit() for c in s):
                 return np.nan
-            if s.count(".") > 1 or not (
-                s[0].isdigit() or s[0] in "+-" or s[0] == "."
-            ):
+            if s.count(".") > 1 or not (s[0].isdigit() or s[0] in "+-" or s[0] == "."):
                 return np.nan
             return float(s)
         # array-like with shape (e.g. some matrix stubs)
@@ -1635,6 +1731,7 @@ def na_num(x):
         return float(x)
     return safe_float(x)
 
+
 def safe_int(x):
     """Best-effort int cast; NaN/invalid → 0 (Pine-ish fallback)."""
     try:
@@ -1644,6 +1741,7 @@ def safe_int(x):
         return int(f)
     except Exception:
         return 0
+
 
 def safe_period(x, default: int = 0) -> int:
     """Coerce a TA length / for-loop bound to a plain int.
@@ -1726,6 +1824,7 @@ def safe_iter_pairs(x):
         return enumerate(x)
     except TypeError:
         return ()
+
 
 def safe_sum(x):
     """Sum numeric elements of a collection; skip str/dict/None (no TypeError)."""
@@ -1948,6 +2047,7 @@ def safe_list_set(arr, index, value):
         arr[idx] = value
     return arr
 
+
 def safe_list_append(arr, value):
     """Append to a real list; no-op when *arr* is float/None (misclassified series)."""
     if isinstance(arr, list):
@@ -2086,12 +2186,7 @@ def array_fill(arr, value, index_from=None, index_to=None):
     if not isinstance(arr, list):
         return arr
     # Matrix (list-of-lists) full fill when no range
-    if (
-        arr
-        and isinstance(arr[0], list)
-        and index_from is None
-        and index_to is None
-    ):
+    if arr and isinstance(arr[0], list) and index_from is None and index_to is None:
         for row in arr:
             if isinstance(row, list):
                 for c in range(len(row)):
@@ -2351,6 +2446,10 @@ def array_binary_search_rightmost(arr, value, sort_field=None):
 
 
 def _matrix_ncols(m) -> int:
+    if m is None or isinstance(
+        m, (bool, np.bool_, str, bytes, dict, set, float, int, complex, np.floating, np.integer)
+    ):
+        return 0
     if not m:
         return 0
     try:
@@ -2360,8 +2459,16 @@ def _matrix_ncols(m) -> int:
 
 
 def _matrix_ensure(m):
-    """Coerce *m* to a mutable list-of-lists matrix handle."""
-    if m is None:
+    """Coerce *m* to a mutable list-of-lists matrix handle.
+
+    Numpy/Python scalars are not matrices — return ``[]`` rather than calling
+    ``len()`` (TypeError: object of type 'numpy.float64' has no len()).
+    """
+    if m is None or isinstance(
+        m, (bool, np.bool_, str, bytes, dict, set, float, int, complex, np.floating, np.integer)
+    ):
+        return []
+    if isinstance(m, np.ndarray) and m.ndim == 0:
         return []
     if isinstance(m, list):
         return m
@@ -2540,9 +2647,7 @@ def matrix_reshape(m, rows, cols):
         flat = flat + [np.nan] * (need - len(flat))
     else:
         flat = flat[:need]
-    new_data = [
-        [flat[r * cols_i + c] for c in range(cols_i)] for r in range(rows_i)
-    ]
+    new_data = [[flat[r * cols_i + c] for c in range(cols_i)] for r in range(rows_i)]
     m.clear()
     m.extend(new_data)
     return m
@@ -2617,6 +2722,7 @@ def sequence_from_series(src, length=None, shift=0, direction_forward=True, i=No
 # ---------------------------------------------------------------------------
 # Incremental TA (``*_inc``) — fixed-size ``st`` vectors from CompilerVisitor
 # ---------------------------------------------------------------------------
+
 
 @numba.njit(cache=True)
 def numba_ema_inc(arr, period, i, st):
@@ -2867,6 +2973,8 @@ def numba_macd_inc(arr, fast, slow, signal, i, st):
     if seed_n < signal:
         return macd_val, np.nan, np.nan
     return macd_val, sig, macd_val - sig
+
+
 @numba.njit(cache=True)
 def numba_cum_inc(arr, i, st):
     """Incremental cum. ``st``: [sum, last_i]."""
@@ -2887,8 +2995,10 @@ def numba_cum_inc(arr, i, st):
     st[0] = s
     st[1] = float(i)
     return s
+
+
 @numba.njit(cache=True)
-def numba_pine_eq(a, b):
+def _numba_pine_eq_jit(a, b):
     """Pine ``==``: ``na==na`` is True; any other comparison with ``na`` is False."""
     a_na = a != a  # NaN
     b_na = b != b
@@ -2899,12 +3009,32 @@ def numba_pine_eq(a, b):
     return a == b
 
 
+def numba_pine_eq(a, b):
+    """Pine ``==``; None/NA → nan (object-mode UDT fields)."""
+    fa = _as_njit_float(a)
+    fb = _as_njit_float(b)
+    return _numba_pine_eq_jit(fa, fb)
+
+
+_register_njit_overload(numba_pine_eq, _numba_pine_eq_jit)
+
+
 @numba.njit(cache=True)
-def numba_pine_ne(a, b):
+def _numba_pine_ne_jit(a, b):
     """Pine ``!=``: any comparison involving ``na`` is False (incl. ``na!=na``)."""
     if a != a or b != b:  # either NaN
         return False
     return a != b
+
+
+def numba_pine_ne(a, b):
+    """Pine ``!=``; None/NA → nan (object-mode UDT fields)."""
+    fa = _as_njit_float(a)
+    fb = _as_njit_float(b)
+    return _numba_pine_ne_jit(fa, fb)
+
+
+_register_njit_overload(numba_pine_ne, _numba_pine_ne_jit)
 
 
 @numba.njit(cache=True)
@@ -4905,6 +5035,7 @@ def numba_tema_inc(arr, period, i, st, e1_raw, e2_raw):
 # Round 6: ADX / DMI / Supertrend / ALMA_inc (match current interpret oracle)
 # ---------------------------------------------------------------------------
 
+
 @numba.njit(cache=True)
 def _rma_step4(st, base, x, period):
     """One Wilder RMA sample; ``st[base:base+4]`` = [rma, seed_sum, seed_count, phase].
@@ -6220,6 +6351,10 @@ def map_put_all(dest, src):
 
 def _matrix_float_array(m):
     """List-of-lists → 2-d float64 ndarray; bad input → None."""
+    if isinstance(m, (bool, np.bool_, str, bytes, dict, set, float, int, complex, np.floating, np.integer)):
+        return None
+    if isinstance(m, np.ndarray) and m.ndim == 0:
+        return None
     m = _matrix_ensure(m)
     if not isinstance(m, list):
         return None
@@ -6402,8 +6537,42 @@ def matrix_diff(m1, m2):
     return (a - b).tolist()
 
 
+def matrix_get(m, row, col):
+    """``matrix.get(id, row, column)``; bad handle/index → nan (no ``len()`` on scalars)."""
+    m = _matrix_ensure(m)
+    if not m:
+        return np.nan
+    try:
+        r = int(row)
+        c = int(col)
+    except (TypeError, ValueError):
+        return np.nan
+    if r < 0 or c < 0 or r >= len(m):
+        return np.nan
+    row_data = m[r]
+    if not isinstance(row_data, (list, tuple, np.ndarray)):
+        return np.nan
+    try:
+        if c >= len(row_data):
+            return np.nan
+        return row_data[c]
+    except (TypeError, IndexError):
+        return np.nan
+
+
+def matrix_rows(m):
+    """Row count of a list-of-lists matrix; scalar/bad input → 0."""
+    m = _matrix_ensure(m)
+    return len(m) if isinstance(m, list) else 0
+
+
+def matrix_columns(m):
+    """Column count of a list-of-lists matrix; scalar/bad input → 0."""
+    return _matrix_ncols(_matrix_ensure(m))
+
+
 def matrix_kron(m1, m2):
-    """Kronecker product; bad input → []."""
+    """Kronecker product; bad input (including float64 series) → []."""
     a = _matrix_float_array(m1)
     b = _matrix_float_array(m2)
     if a is None or b is None:
