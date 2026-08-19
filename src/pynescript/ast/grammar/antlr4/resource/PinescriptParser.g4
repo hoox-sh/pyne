@@ -327,9 +327,13 @@ continue_statement: CONTINUE;
 
 // VARIABLE DECLARATION AND ASSIGNMENT RELATED SEGMENTS
 
+// Expand optional declaration_mode so VAR/SWITCH-as-name does not steal
+// `var x = 1` (mode) via type_specification / name_store.
 variable_declaration
-    : declaration_mode? type_specification name_store
-    | declaration_mode? name_store
+    : declaration_mode type_specification name_store
+    | declaration_mode name_store
+    | type_specification name_store
+    | name_store
     ;
 tuple_declaration:    LSQB name_store (COMMA name_store)* COMMA? RSQB;
 
@@ -377,6 +381,8 @@ name
     | AS
     | BY
     | TO
+    | VAR
+    | SWITCH
     ;
 
 name_load:  name;

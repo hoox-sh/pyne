@@ -134,7 +134,10 @@ _UI_CHROME_LINE_RE = re.compile(
     re.I,
 )
 # Standalone line-number gutter from "Copy code" widgets: ``1`` .. ``999``.
-_LINE_NUMBER_ONLY_RE = re.compile(r"^\s*\d{1,4}\s*$")
+# Gutter line numbers from "Copy code" scrapes (``1`` / ``  12``). Do **not**
+# match 4+ space indent: that is a real Pine literal in an if/switch body
+# (``int transp = if cond`` / ``        80``) and must not truncate the file.
+_LINE_NUMBER_ONLY_RE = re.compile(r"^[ \t]{0,3}\d{1,4}\s*$")
 # Hugo / Goldmark shortcodes left in scraped markdown (``{{< / highlight >}}``).
 _HUGO_SHORTCODE_RE = re.compile(r"^\s*\{\{[<%].*?[%>]\}\}\s*$")
 # Mustache / MCP template placeholders: ``{{AS_OF_DATE}}`` (not Hugo ``{{<``).
@@ -142,6 +145,9 @@ _MUSTACHE_RE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}")
 # RST leftovers after a docs example (``.. _label:``, heading underline).
 _RST_DIRECTIVE_RE = re.compile(r"^\s*\.\.\s+\S")
 _RST_HEADING_ULINE_RE = re.compile(r"^\s*[-=~^\"'`#*+]{3,}\s*$")
+# RST walkthrough leftover: ``Line 1: ``//@version=3```` (contains ``=`` so
+# the generic prose heuristic would treat it as code and block indent-dedent).
+_RST_LINE_ANNOT_RE = re.compile(r"^\s*Line\s+\d+\s*:")
 # Docs leftover from broken RST/HTML ``<https://…>`` (``at https:…``).
 _AT_HTTPS_ONLY_RE = re.compile(r"^\s*at\s+https(:\S*)?\s*$", re.I)
 _AT_HTTPS_PROSE_RE = re.compile(r"\bat\s+https:", re.I)
@@ -924,11 +930,18 @@ def _string_state_after_line(line: str, state: str | None) -> str | None:
     return state
 
 
+_VERSION_PRAGMA_RE = re.compile(r"^\s*//@version\s*=")
+
+
 def _line_filter(source: str) -> str:
     """Line-oriented chrome removal when no reliable fence body is available."""
     out: list[str] = []
     saw_pine = False
     str_state: str | None = None
+    # LLM / blog prompts often include a sample ``strategy(...)`` line *before*
+    # the real script's ``//@version``. Do not start pine on that decoy.
+    has_version_pragma = any(_VERSION_PRAGMA_RE.match(ln) for ln in source.splitlines())
+    seen_version = False
     for line in source.splitlines():
         # Inside an open multiline / unclosed string: keep the line verbatim and
         # never apply prose/chrome stops (content often looks like English docs).
@@ -936,6 +949,12 @@ def _line_filter(source: str) -> str:
             out.append(line)
             str_state = _string_state_after_line(line, str_state)
             continue
+
+        if has_version_pragma and not seen_version:
+            if _VERSION_PRAGMA_RE.match(line):
+                seen_version = True
+            else:
+                continue
 
         if _FENCE_RE.match(line):
             # Opening fence before real pine: skip. Closing fence after pine: stop.
@@ -958,6 +977,7 @@ def _line_filter(source: str) -> str:
             or _HUGO_SHORTCODE_RE.match(line)
             or _RST_DIRECTIVE_RE.match(line)
             or _RST_HEADING_ULINE_RE.match(line)
+            or _RST_LINE_ANNOT_RE.match(line)
         ):
             break
 
@@ -971,6 +991,7 @@ def _line_filter(source: str) -> str:
                 or _TV_PINE_LABEL_RE.match(line)
                 or _COPIED_RE.match(line)
                 or _IMAGE_ONLY_RE.match(line)
+                or _RST_LINE_ANNOT_RE.match(line)
                 or _PROSE_CONTINUE_RE.match(line)
                 or _MD_HEADING_RE.match(line)
                 or _UI_CHROME_LINE_RE.match(line)
@@ -1676,11 +1697,11 @@ def _collapse_na_only_control_expr_assignments(text: str) -> str:
         line = lines[i]
         stripped = line.rstrip("\n")
         m = re.match(
-            r"^(\s*)(.*?\S)\s*=\s*(for|while|if|switch)\b(.*)$",
+            r"^(\s*)(.*?\S)\s*(:=|=)\s*(for|while|if|switch)\b(.*)$",
             stripped,
         )
-        if m and not stripped.lstrip().startswith("//") and "=>" not in m.group(4):
-            indent, lhs = m.group(1), m.group(2)
+        if m and not stripped.lstrip().startswith("//") and "=>" not in m.group(5):
+            indent, lhs, op = m.group(1), m.group(2), m.group(3)
             j = i + 1
             has_code = False
             only_na_or_ctrl = True
@@ -1690,13 +1711,18 @@ def _collapse_na_only_control_expr_assignments(text: str) -> str:
                     j += 1
                     continue
                 ni = len(nxt) - len(nxt.lstrip(" \t"))
+                ns = nxt.lstrip().rstrip("\n").rstrip()
+                # ``x = if cond`` / ``else if`` / ``else`` share the assignment indent.
+                if ni == len(indent) and re.match(r"^(else\s+if|else)\b", ns):
+                    has_code = True
+                    j += 1
+                    continue
                 if ni <= len(indent) and nxt.strip():
                     break
                 if nxt.lstrip().startswith("//"):
                     j += 1
                     continue
                 has_code = True
-                ns = nxt.lstrip().rstrip("\n").rstrip()
                 if _CTRL_HEAD_RE.match(ns) or _NA_ONLY_LEAF_RE.match(ns):
                     j += 1
                     continue
@@ -1704,7 +1730,7 @@ def _collapse_na_only_control_expr_assignments(text: str) -> str:
                 break
             if not has_code or only_na_or_ctrl:
                 eol = "\n" if line.endswith("\n") else ""
-                out.append(f"{indent}{lhs} = na{eol}")
+                out.append(f"{indent}{lhs} {op} na{eol}")
                 i = j
                 continue
         out.append(line)
@@ -1820,7 +1846,12 @@ def _looks_like_prose_line(line: str) -> bool:
         return bool(_PROSE_CONTINUE_RE.match(s))
     if "=" in s or "(" in s or s.startswith(("if ", "for ", "while ", "switch ", "else")):
         return False
-    if _RST_DIRECTIVE_RE.match(s) or _RST_HEADING_ULINE_RE.match(s) or _HUGO_SHORTCODE_RE.match(s):
+    if (
+        _RST_DIRECTIVE_RE.match(s)
+        or _RST_HEADING_ULINE_RE.match(s)
+        or _HUGO_SHORTCODE_RE.match(s)
+        or _RST_LINE_ANNOT_RE.match(s)
+    ):
         return True
     # Title-case sentence / docs prose without call/assign tokens
     return bool(s[0].isupper() and " " in s)

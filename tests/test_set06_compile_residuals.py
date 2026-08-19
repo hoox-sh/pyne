@@ -24,6 +24,7 @@ from __future__ import annotations
 import signal
 
 from pathlib import Path
+import re
 
 import numpy as np
 
@@ -40,7 +41,7 @@ def _ohlcv(n: int = 30, start: float = 100.0):
 
 
 def _compile_run(src: str, n: int = 20) -> dict:
-    compiled = compile_script(src)
+    compiled = compile_script(src, use_cache=False)
     return compiled.run(*_ohlcv(n))
 
 
@@ -272,6 +273,77 @@ plot(sig.value)
     assert abs(_last(out) - expected) < 1e-6
 
 
+def test_udt_keyword_fields_var_switch() -> None:
+    src = '''//@version=5
+indicator("Keyword Field Var")
+type Settings
+    float var = 1.0
+    float switch = 2.0
+Settings s = Settings.new()
+var float result = 0.0
+result := s.var + s.switch
+plot(result)
+'''
+    out = _compile_run(src, n=20)
+    assert abs(_last(out) - 3.0) < 1e-9
+
+
+def test_input_string_not_coerced_through_float() -> None:
+    """13641: ``input.string`` / string literals must not hit bare ``float()``.
+
+    ``zigzag.function(method, x, y)`` used to be mis-emitted as
+    ``activation.function`` and do ``float('(MANUAL) Percent …')``.
+    """
+    src = """//@version=5
+indicator("t")
+import Foo/Bar/1 as zigzag
+string m_000 = '(MANUAL) Percent price move over X * Y'
+string zigzag_method = input.string(defval=m_000, title="Method")
+[price_a, is_up, reverse, rl] = zigzag.function(zigzag_method, 1.0, 1.0)
+plot(close)
+"""
+    code = transpile(src)
+    assert "float(zigzag_method" not in code
+    assert "float(m_000" not in code
+    assert "np.exp(-float(" not in code
+    assert "float(zigzag_method_arr" not in code
+    out = _compile_run(src, n=20)
+    assert _last(out) == 119.0
+
+
+def test_library_function_does_not_float_color_or_udt() -> None:
+    """Same ``*.function`` emit: color hex / UDT must not hit bare ``float()``."""
+    src = """//@version=5
+indicator("t")
+import Foo/Bar/1 as lib
+type Box
+    float v = 1.0
+color c = #000000
+x = lib.function(c)
+y = lib.function(Box.new())
+plot(close)
+"""
+    code = transpile(src)
+    assert "float('#000000')" not in code
+    assert "np.exp(-float(" not in code
+    out = _compile_run(src, n=20)
+    assert _last(out) == 119.0
+
+
+def test_activation_function_kw_still_stubs() -> None:
+    """Intended MLActivationFunctions kwargs path still emits the relu stub."""
+    src = """//@version=5
+indicator("t")
+import Foo/Act/1 as activation
+plot(activation.function(value=1.0, name="relu"))
+"""
+    code = transpile(src)
+    assert "safe_float" in code
+    assert "relu" in code
+    out = _compile_run(src, n=20)
+    assert _last(out) == 1.0
+
+
 def test_rst_fill_example_sanitized() -> None:
     raw = """study("fill Example")
     p1 = plot(close)
@@ -297,3 +369,162 @@ def test_rst_fill_example_sanitized() -> None:
     ]
     result = Runtime().run(cleaned, bars, mode="compile")
     assert "error" not in result, result.get("error")
+
+
+def test_field_on_non_udt_does_not_nameerror() -> None:
+    """``close.foo`` must not emit a dead ``close_arr_foo`` identifier."""
+    src = """//@version=6
+indicator("field-on-non-udt")
+y = close.foo
+plot(close)
+"""
+    code = transpile(src)
+    assert "close_arr_foo" not in code
+    out = _compile_run(src, n=20)
+    arr = np.asarray(out["plot_0"], dtype=np.float64)
+    assert arr.size == 20
+
+
+def test_bare_line_namespace_or_style_does_not_nameerror() -> None:
+    """Bare ``line`` is a style token / namespace stub, not a Python NameError."""
+    src = """//@version=5
+indicator("s")
+level_style = line
+hline(50, linestyle=line)
+plot(close)
+"""
+    code = transpile(src)
+    assert "safe_float(line)" not in code
+    assert "linestyle': line}" not in code
+    out = _compile_run(src, n=20)
+    arr = np.asarray(out["plot_1"] if "plot_1" in out else out["plot_0"], dtype=np.float64)
+    assert arr.size == 20
+
+
+def test_udt_type_name_shadow_field_read() -> None:
+    """``hz hz = hz.new(); hz.x`` must not emit a dead ``hz_x`` identifier."""
+    src = """//@version=6
+indicator("INV133")
+type hz
+    int x
+f() =>
+    hz hz = hz.new(1)
+    hz.x
+plot(f())
+"""
+    code = transpile(src)
+    assert "hz_x" not in code
+    out = _compile_run(src, n=20)
+    assert _last(out) == 1.0
+
+
+def test_for_in_udt_field_and_method() -> None:
+    """For-in UDT items: ``bi.t`` / ``each.prices.size()`` are field reads."""
+    src = """//@version=6
+indicator("x")
+type BarInfo
+    int t = 0
+sumTimes(BarInfo[] biList, minTime) =>
+    float total = 0.0
+    for [i, bi] in biList
+        if bi.t >= minTime
+            total += bi.t + i
+    total
+type Asset
+    array<float> prices
+sumSizes() =>
+    float n = 0.0
+    var assets = array.new<Asset>()
+    if bar_index == 0
+        array.push(assets, Asset.new(array.from(1.0, 2.0)))
+    for eachAsset in assets
+        n += eachAsset.prices.size()
+    n
+BarInfo b1 = BarInfo.new(1), BarInfo b2 = BarInfo.new(2)
+plot(sumTimes(array.from(b1, b2), 0))
+plot(sumSizes())
+"""
+    code = transpile(src)
+    assert "bi_t" not in code
+    assert "eachAsset_prices" not in code
+    out = _compile_run(src, n=20)
+    assert _last(out, "plot_0") == 4.0
+    assert _last(out, "plot_1") == 2.0
+
+
+def test_udf_param_shadows_script_series_bool() -> None:
+    """Script-level ``showMetrics_arr`` must not leak into a UDF param of the same name."""
+    src = """//@version=5
+indicator("s")
+bool showAvgInput = input.bool(true, "a")
+bool showStDevInput = input.bool(true, "b")
+bool showPosInput = input.bool(true, "c")
+bool showMetrics = showAvgInput or showStDevInput or showPosInput
+countRows(showMetrics) =>
+    showMetrics ? 1.0 : 0.0
+plot(countRows(showMetrics))
+"""
+    code = transpile(src)
+    assert "if bool(showMetrics_arr[__bar_idx])" not in code
+    out = _compile_run(src, n=20)
+    assert _last(out) == 1.0
+
+
+def test_namespace_fields_not_series_idents() -> None:
+    """``dividends.future_amount`` / ``currency.TRY`` are namespace members, not series."""
+    src = """//@version=6
+indicator("c")
+divFut = dividends.future_amount
+simple string fromCurrency = currency.TRY
+plot(divFut)
+plot(close)
+"""
+    code = transpile(src)
+    assert "dividends_arr_future_amount" not in code
+    assert "currency_arr_TRY" not in code
+    out = _compile_run(src, n=20)
+    arr = np.asarray(out["plot_0"], dtype=np.float64)
+    assert arr.size == 20
+
+
+def test_switch_augassign_mutates_udf_locals() -> None:
+    src = '''//@version=5
+indicator("cvd")
+upDn() =>
+    float upVol = 0.0
+    float dnVol = 0.0
+    switch
+        close > open => upVol += volume
+        close < open => dnVol -= volume
+    [upVol, dnVol]
+[u, d] = upDn()
+plot(u)
+'''
+    out = _compile_run(src, n=20)
+    arr = __import__("numpy").asarray(out["plot_0"], dtype="float64")
+    assert arr.size == 20
+
+
+def test_while_if_expr_numeric_body_does_not_hang() -> None:
+    """set06 13674: sanitize must keep ``80`` / ``counter += 1`` inside while."""
+    raw = """//@version=5
+indicator("t")
+int counter = 0
+n = 4
+while n > counter
+    int transp = if counter != 1
+        80
+    else
+        0
+    counter += 1
+plot(counter)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "counter += 1" in cleaned
+    assert re.search(r"^\s+80\s*$", cleaned, re.M)
+
+    def _go() -> dict:
+        return _compile_run(cleaned, n=8)
+
+    out = _run_with_timeout(_go, seconds=5.0)
+    assert _last(out) == 4.0

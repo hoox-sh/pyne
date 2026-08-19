@@ -252,3 +252,38 @@ a = close /* inline */
 plot(a)
 """
     )
+
+
+def test_udt_keyword_fields_var_switch():
+    """UDT fields may be named ``var`` / ``switch`` (lexer keywords)."""
+    _roundtrip(
+        """//@version=5
+indicator("Keyword Field Var")
+type Settings
+    float var = 1.0
+    float switch = 2.0
+Settings s = Settings.new()
+var float result = 0.0
+result := s.var + s.switch
+plot(result)
+"""
+    )
+
+
+def test_var_declaration_mode_still_parses():
+    """``var float x = 1`` remains a declaration, not an identifier."""
+    from pynescript.ast import node as ast
+
+    tree = parse(
+        """//@version=5
+indicator("t")
+var float x = 1
+var y = 2
+plot(x + y)
+"""
+    )
+    assigns = [s for s in tree.body if isinstance(s, ast.Assign)]
+    by_name = {s.target.id: s for s in assigns if isinstance(s.target, ast.Name)}
+    assert isinstance(by_name["x"].mode, ast.Var)
+    assert by_name["x"].type.id == "float"
+    assert isinstance(by_name["y"].mode, ast.Var)

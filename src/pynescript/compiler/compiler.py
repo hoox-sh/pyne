@@ -96,6 +96,34 @@ _NS = frozenset(
     }
 )
 
+# Fundamentals / currency / adjustment namespaces. Member access must not
+# become a dead series identifier (``dividends_arr_future_amount``).
+_STUB_NS = frozenset(
+    {
+        "dividends",
+        "earnings",
+        "splits",
+        "currency",
+        "adjustment",
+        "backadjustment",
+        "settlement_as_close",
+    }
+)
+
+# Pine type names used as values (TV undeclared-identifier fixtures).
+_BARE_TYPE_NAMES = frozenset(
+    {
+        "int",
+        "float",
+        "bool",
+        "string",
+        "series",
+        "simple",
+        "const",
+        "void",
+    }
+)
+
 # Bare color identifiers (v3/v4 style: plot(..., color=green))
 _COLOR_NAMES = frozenset(
     {
@@ -221,6 +249,7 @@ _LINESTYLE_NAMES = frozenset(
         "solid",
         "dotted",
         "dashed",
+        "line",
         "arrowup",
         "arrowdown",
         "circles",
@@ -3194,11 +3223,23 @@ class CompilerVisitor(NodeVisitor):
         # User series win over namespace tokens (e.g. `barcolor = …` then barcolor(...))
         if node.id in self.udt_vars or node.id in self.string_series:
             return f"{node.id}_arr[__bar_idx]"
-        # Built-in namespaces as bare names — not free scalars.
+        # Built-in namespaces / type names as values — string/None stubs.
+        # Never emit the bare identifier (``line`` is not defined in Python).
         # User vars that *shadow* a namespace are handled earlier via scalar_vars /
         # map_vars (and must become free params for module-scope UDFs).
         if node.id in _NS and node.id not in (self.map_vars | self.scalar_vars):
-            return node.id
+            self.object_mode = True
+            return repr(node.id)
+        if node.id in _STUB_NS and node.id not in (self.map_vars | self.scalar_vars):
+            self.object_mode = True
+            return "None"
+        if (
+            node.id in _BARE_TYPE_NAMES
+            and node.id not in (self.map_vars | self.scalar_vars | self.local_vars)
+            and f"{node.id}_arr" not in self.arrays
+        ):
+            self.object_mode = True
+            return repr(node.id)
         # Inside UDF: free outer vars → bare name (scalar free param) *before*
         # treating script-level ``*_arr`` as series. Otherwise ``mult = input.float``
         # (allocates mult_arr) forces ``mult_arr[__bar_idx]`` inside the UDF and
@@ -3422,6 +3463,27 @@ class CompilerVisitor(NodeVisitor):
             if node.attr in styles:
                 return repr(styles[node.attr])
             return f"hline_{node.attr}"
+        # dividends.future_amount / currency.TRY / earnings.* / splits.*
+        if isinstance(node.value, ast.Name) and node.value.id in _STUB_NS:
+            self.object_mode = True
+            ns = node.value.id
+            if ns in (
+                "currency",
+                "adjustment",
+                "backadjustment",
+                "settlement_as_close",
+            ):
+                return repr(node.attr)
+            if node.attr in (
+                "net",
+                "gross",
+                "estimate",
+                "standardized",
+                "numerator",
+                "denominator",
+            ):
+                return repr(node.attr)
+            return "0.0"
         # location.abovebar / shape.triangleup / size.small / position.* / etc.
         if isinstance(node.value, ast.Name) and node.value.id in _ENUM_NS:
             return repr(node.attr)
@@ -3437,8 +3499,22 @@ class CompilerVisitor(NodeVisitor):
         if isinstance(node.value, ast.Name) and node.value.id == "barstate":
             return self._emit_barstate(node.attr)
         if isinstance(node.value, ast.Name) and node.value.id in self.udt_types:
-            # Point.new handled in Call
-            return f"{node.value.id}_{node.attr}"
+            # Instance (incl. type-name shadow ``hz hz = hz.new(); hz.x``) → field.
+            # Type-level attrs other than .new/.copy (Call) stub to na.
+            nm = node.value.id
+            if (
+                nm in self.local_vars
+                or nm in self.udt_vars
+                or nm in self.scalar_vars
+                or nm in self.loop_counters
+            ):
+                self.object_mode = True
+                base = self.visit(node.value)
+                return (
+                    f"((__u := ({base}), "
+                    f"__u[{node.attr!r}] if isinstance(__u, dict) else np.nan)[1])"
+                )
+            return "np.nan"
         # strategy.* series/constants
         if isinstance(node.value, ast.Name) and node.value.id == "strategy":
             return self._emit_strategy_attr(node.attr)
@@ -3500,11 +3576,20 @@ class CompilerVisitor(NodeVisitor):
             if val.endswith("[__bar_idx]"):
                 # UDT series element may be na (nan) — never subscript a scalar
                 return _udt_field(val, node.attr)
-            if val in self.map_vars or val in self.scalar_vars:
+            if (
+                val in self.map_vars
+                or val in self.scalar_vars
+                or val in self.loop_counters
+                or (
+                    isinstance(node.value, ast.Name)
+                    and node.value.id in self.local_vars
+                )
+            ):
                 return _udt_field(val, node.attr)
             # Other object handles (e.g. array.get returning UDT)
             if not self._is_safe_numeric_expr(val):
                 return _udt_field(val, node.attr)
+        orig_val = val
         if val.endswith("[__bar_idx]"):
             val = val[:-11]
         # Avoid dead identifiers like ``numba_sma_inc(..._st)_rma`` when an
@@ -3526,7 +3611,10 @@ class CompilerVisitor(NodeVisitor):
                 return f"{nb}({src}, __bar_idx + 1, __bar_idx)"
             # Unknown attr on numba result → function call form, not val_attr
             return f"{attr}({val})"
-        return f"{val}_{node.attr}"
+        # Unknown member: UDT/object field, never a dead ``val_attr`` identifier
+        # (``close.foo`` → close_arr_foo, ``bi.t`` → bi_t, ``currency.TRY``).
+        self.object_mode = True
+        return _udt_field(orig_val, node.attr)
     def _emit_barstate(self, attr: str) -> str:
         """barstate.* flags for compile path."""
         if attr in ("isfirst", "isfirstconfirmedhistory"):
@@ -5011,22 +5099,37 @@ class CompilerVisitor(NodeVisitor):
             if func_name == "index_2d_to_1d" and len(a) >= 3:
                 return f"(int({a[1]}) * int({a[0]}) + int({a[2]}))"
             return "0"
-        if func_name == "function" and (
-            # activation.function(value=…, name=…) MLActivationFunctions
-            kwargs
-            or (args and len(args) >= 1)
-        ):
-            self.object_mode = True
-            # activation.function(value=_sum, name=activation_function)
-            val = kwargs.get("value") or (args[0] if args else "0.0")
-            name = kwargs.get("name") or (args[1] if len(args) > 1 else repr("sigmoid"))
-            # simple sigmoid / identity stubs
-            return (
-                f"((1.0 / (1.0 + np.exp(-float({val})))) "
-                f"if str({name}) in ('sigmoid', 'logistic') "
-                f"else (max(0.0, float({val})) if str({name}) == 'relu' "
-                f"else float({val})))"
+        if func_name == "function":
+            # Only MLActivationFunctions: ``activation.function(value=…, name=…)``.
+            # Other imported ``*.function(...)`` (zigzag.function(method, x, y))
+            # must not wrap string/color/UDT args in ``float()``.
+            kw = kwargs or {}
+            val = kw.get("value")
+            name = kw.get("name")
+            if val is None and args:
+                val = args[0]
+            if name is None and len(args) > 1:
+                name = args[1]
+            named_act = "value" in kw or "name" in kw
+            positional_act = (
+                not named_act
+                and val is not None
+                and len(args) <= 2
+                and self._is_safe_numeric_expr(val)
             )
+            if named_act or positional_act:
+                self.object_mode = True
+                if val is None:
+                    val = "0.0"
+                if name is None:
+                    name = repr("sigmoid")
+                return (
+                    f"((1.0 / (1.0 + np.exp(-safe_float({val})))) "
+                    f"if str({name}) in ('sigmoid', 'logistic') "
+                    f"else (max(0.0, safe_float({val})) if str({name}) == 'relu' "
+                    f"else safe_float({val})))"
+                )
+            # Non-activation ``*.function`` falls through to the library stub.
 
         # timeframe.in_seconds(...)
         if func_name == "timeframe_in_seconds":
@@ -7336,7 +7439,11 @@ class CompilerVisitor(NodeVisitor):
         if not body:
             return True
         for stmt in body:
-            if isinstance(stmt, (ast.Assign, ast.ReAssign, ast.AugAssign)):
+            # ``upVol += volume`` must mutate declaration storage (series write
+            # or Python local), not a walrus local that may be unbound.
+            if isinstance(stmt, ast.AugAssign):
+                return False
+            if isinstance(stmt, (ast.Assign, ast.ReAssign)):
                 if not isinstance(stmt.target, ast.Name):
                     return False
                 continue
@@ -7412,6 +7519,8 @@ class CompilerVisitor(NodeVisitor):
 
         Pure expression arms → nested ternary (value context).
         Assign/ReAssign arms use walrus so ``_S := x`` is expression-safe.
+        AugAssign arms (``upVol += volume``) use the statement if/elif chain
+        so they mutate the same storage as the declaration.
         Arms with if/for/side-effect blocks → if/elif statement chain.
         """
         subject = self.visit(node.subject) if getattr(node, "subject", None) is not None else None
@@ -7527,6 +7636,14 @@ class CompilerVisitor(NodeVisitor):
         # Name that is a tracked series → index current bar
         if node is not None and isinstance(node, ast.Name):
             nid = node.id
+            # UDF params/locals shadow script-level series of the same name
+            # (``bool showMetrics = …`` then ``countRows(showMetrics) => if showMetrics``).
+            if self.in_function and nid in self.local_vars:
+                if nid in self.series_params:
+                    return f"bool({self._py_ident(nid)}[__bar_idx])"
+                if nid in self.series_locals:
+                    return f"bool({self._py_ident(nid)}_arr[__bar_idx])"
+                return e
             if f"{nid}_arr" in self.arrays or nid in self.string_series:
                 return f"bool({nid}_arr[__bar_idx])"
             if nid in self.series_params:

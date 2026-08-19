@@ -15,7 +15,7 @@ else:
 
 def serializedATN():
     return [
-        4,1,71,989,2,0,7,0,2,1,7,1,2,2,7,2,2,3,7,3,2,4,7,4,2,5,7,5,2,6,7,
+        4,1,71,990,2,0,7,0,2,1,7,1,2,2,7,2,2,3,7,3,2,4,7,4,2,5,7,5,2,6,7,
         6,2,7,7,7,2,8,7,8,2,9,7,9,2,10,7,10,2,11,7,11,2,12,7,12,2,13,7,13,
         2,14,7,14,2,15,7,15,2,16,7,16,2,17,7,17,2,18,7,18,2,19,7,19,2,20,
         7,20,2,21,7,21,2,22,7,22,2,23,7,23,2,24,7,24,2,25,7,25,2,26,7,26,
@@ -89,17 +89,17 @@ def serializedATN():
         85,841,8,85,1,86,1,86,1,87,1,87,1,88,1,88,1,89,1,89,1,90,1,90,1,
         90,1,90,1,91,1,91,1,91,1,91,5,91,859,8,91,10,91,12,91,862,9,91,1,
         91,3,91,865,8,91,3,91,867,8,91,1,91,1,91,1,92,1,92,1,92,1,92,1,92,
-        1,92,1,92,1,92,3,92,879,8,92,1,93,1,93,1,94,1,94,1,95,3,95,886,8,
-        95,1,95,1,95,1,95,1,95,3,95,892,8,95,1,95,3,95,895,8,95,1,96,1,96,
-        1,96,1,96,5,96,901,8,96,10,96,12,96,904,9,96,1,96,3,96,907,8,96,
-        1,96,1,96,1,97,1,97,1,98,1,98,1,98,1,98,3,98,917,8,98,1,99,1,99,
+        1,92,1,92,1,92,3,92,879,8,92,1,93,1,93,1,94,1,94,1,95,1,95,1,95,
+        1,95,1,95,1,95,1,95,1,95,1,95,1,95,1,95,3,95,896,8,95,1,96,1,96,
+        1,96,1,96,5,96,902,8,96,10,96,12,96,905,9,96,1,96,3,96,908,8,96,
+        1,96,1,96,1,97,1,97,1,98,1,98,1,98,1,98,3,98,918,8,98,1,99,1,99,
         1,99,1,99,1,100,1,100,1,100,1,100,1,100,1,101,1,101,1,102,1,102,
-        1,102,1,102,1,103,1,103,1,104,3,104,937,8,104,1,104,1,104,3,104,
-        941,8,104,1,104,3,104,944,8,104,1,105,1,105,1,106,1,106,1,106,5,
-        106,951,8,106,10,106,12,106,954,9,106,1,107,1,107,3,107,958,8,107,
-        1,107,1,107,1,108,1,108,1,108,1,109,1,109,1,109,5,109,968,8,109,
-        10,109,12,109,971,9,109,1,109,3,109,974,8,109,1,110,1,110,1,111,
-        1,111,1,112,1,112,1,113,4,113,983,8,113,11,113,12,113,984,1,114,
+        1,102,1,102,1,103,1,103,1,104,3,104,938,8,104,1,104,1,104,3,104,
+        942,8,104,1,104,3,104,945,8,104,1,105,1,105,1,106,1,106,1,106,5,
+        106,952,8,106,10,106,12,106,955,9,106,1,107,1,107,3,107,959,8,107,
+        1,107,1,107,1,108,1,108,1,108,1,109,1,109,1,109,5,109,969,8,109,
+        10,109,12,109,972,9,109,1,109,3,109,975,8,109,1,110,1,110,1,111,
+        1,111,1,112,1,112,1,113,4,113,984,8,113,11,113,12,113,985,1,114,
         1,114,1,114,0,7,118,120,122,144,148,152,160,115,0,2,4,6,8,10,12,
         14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50,52,54,56,
         58,60,62,64,66,68,70,72,74,76,78,80,82,84,86,88,90,92,94,96,98,100,
@@ -109,7 +109,7 @@ def serializedATN():
         198,200,202,204,206,208,210,212,214,216,218,220,222,224,226,228,
         0,9,1,0,34,35,1,0,52,53,1,0,54,56,3,0,19,19,48,48,52,53,2,0,12,12,
         26,26,1,0,27,28,1,0,57,61,3,0,7,7,17,17,21,22,7,0,4,4,6,7,10,10,
-        17,18,21,22,24,25,63,63,995,0,230,1,0,0,0,2,233,1,0,0,0,4,237,1,
+        17,18,21,25,27,27,63,63,996,0,230,1,0,0,0,2,233,1,0,0,0,4,237,1,
         0,0,0,6,244,1,0,0,0,8,249,1,0,0,0,10,256,1,0,0,0,12,264,1,0,0,0,
         14,266,1,0,0,0,16,279,1,0,0,0,18,295,1,0,0,0,20,300,1,0,0,0,22,304,
         1,0,0,0,24,307,1,0,0,0,26,313,1,0,0,0,28,317,1,0,0,0,30,321,1,0,
@@ -132,12 +132,12 @@ def serializedATN():
         815,1,0,0,0,166,819,1,0,0,0,168,834,1,0,0,0,170,840,1,0,0,0,172,
         842,1,0,0,0,174,844,1,0,0,0,176,846,1,0,0,0,178,848,1,0,0,0,180,
         850,1,0,0,0,182,854,1,0,0,0,184,870,1,0,0,0,186,880,1,0,0,0,188,
-        882,1,0,0,0,190,894,1,0,0,0,192,896,1,0,0,0,194,910,1,0,0,0,196,
-        916,1,0,0,0,198,918,1,0,0,0,200,922,1,0,0,0,202,927,1,0,0,0,204,
-        929,1,0,0,0,206,933,1,0,0,0,208,936,1,0,0,0,210,945,1,0,0,0,212,
-        947,1,0,0,0,214,955,1,0,0,0,216,961,1,0,0,0,218,964,1,0,0,0,220,
-        975,1,0,0,0,222,977,1,0,0,0,224,979,1,0,0,0,226,982,1,0,0,0,228,
-        986,1,0,0,0,230,231,3,2,1,0,231,1,1,0,0,0,232,234,3,8,4,0,233,232,
+        882,1,0,0,0,190,895,1,0,0,0,192,897,1,0,0,0,194,911,1,0,0,0,196,
+        917,1,0,0,0,198,919,1,0,0,0,200,923,1,0,0,0,202,928,1,0,0,0,204,
+        930,1,0,0,0,206,934,1,0,0,0,208,937,1,0,0,0,210,946,1,0,0,0,212,
+        948,1,0,0,0,214,956,1,0,0,0,216,962,1,0,0,0,218,965,1,0,0,0,220,
+        976,1,0,0,0,222,978,1,0,0,0,224,980,1,0,0,0,226,983,1,0,0,0,228,
+        987,1,0,0,0,230,231,3,2,1,0,231,1,1,0,0,0,232,234,3,8,4,0,233,232,
         1,0,0,0,233,234,1,0,0,0,234,235,1,0,0,0,235,236,5,0,0,1,236,3,1,
         0,0,0,237,239,3,108,54,0,238,240,5,67,0,0,239,238,1,0,0,0,239,240,
         1,0,0,0,240,241,1,0,0,0,241,242,5,0,0,1,242,5,1,0,0,0,243,245,3,
@@ -333,45 +333,45 @@ def serializedATN():
         3,220,110,0,872,873,5,55,0,0,873,874,3,220,110,0,874,875,5,55,0,
         0,875,878,3,172,86,0,876,877,5,4,0,0,877,879,3,220,110,0,878,876,
         1,0,0,0,878,879,1,0,0,0,879,185,1,0,0,0,880,881,5,5,0,0,881,187,
-        1,0,0,0,882,883,5,8,0,0,883,189,1,0,0,0,884,886,3,194,97,0,885,884,
-        1,0,0,0,885,886,1,0,0,0,886,887,1,0,0,0,887,888,3,208,104,0,888,
-        889,3,224,112,0,889,895,1,0,0,0,890,892,3,194,97,0,891,890,1,0,0,
-        0,891,892,1,0,0,0,892,893,1,0,0,0,893,895,3,224,112,0,894,885,1,
-        0,0,0,894,891,1,0,0,0,895,191,1,0,0,0,896,897,5,32,0,0,897,902,3,
-        224,112,0,898,899,5,45,0,0,899,901,3,224,112,0,900,898,1,0,0,0,901,
-        904,1,0,0,0,902,900,1,0,0,0,902,903,1,0,0,0,903,906,1,0,0,0,904,
-        902,1,0,0,0,905,907,5,45,0,0,906,905,1,0,0,0,906,907,1,0,0,0,907,
-        908,1,0,0,0,908,909,5,33,0,0,909,193,1,0,0,0,910,911,7,5,0,0,911,
-        195,1,0,0,0,912,917,3,198,99,0,913,917,3,200,100,0,914,917,3,202,
-        101,0,915,917,3,204,102,0,916,912,1,0,0,0,916,913,1,0,0,0,916,914,
-        1,0,0,0,916,915,1,0,0,0,917,197,1,0,0,0,918,919,3,160,80,0,919,920,
-        5,44,0,0,920,921,3,224,112,0,921,199,1,0,0,0,922,923,3,160,80,0,
-        923,924,5,32,0,0,924,925,3,166,83,0,925,926,5,33,0,0,926,201,1,0,
-        0,0,927,928,3,224,112,0,928,203,1,0,0,0,929,930,5,30,0,0,930,931,
-        3,196,98,0,931,932,5,31,0,0,932,205,1,0,0,0,933,934,7,6,0,0,934,
-        207,1,0,0,0,935,937,3,210,105,0,936,935,1,0,0,0,936,937,1,0,0,0,
-        937,938,1,0,0,0,938,940,3,212,106,0,939,941,3,214,107,0,940,939,
-        1,0,0,0,940,941,1,0,0,0,941,943,1,0,0,0,942,944,3,216,108,0,943,
-        942,1,0,0,0,943,944,1,0,0,0,944,209,1,0,0,0,945,946,7,7,0,0,946,
-        211,1,0,0,0,947,952,3,222,111,0,948,949,5,44,0,0,949,951,3,222,111,
-        0,950,948,1,0,0,0,951,954,1,0,0,0,952,950,1,0,0,0,952,953,1,0,0,
-        0,953,213,1,0,0,0,954,952,1,0,0,0,955,957,5,40,0,0,956,958,3,218,
-        109,0,957,956,1,0,0,0,957,958,1,0,0,0,958,959,1,0,0,0,959,960,5,
-        41,0,0,960,215,1,0,0,0,961,962,5,32,0,0,962,963,5,33,0,0,963,217,
-        1,0,0,0,964,969,3,208,104,0,965,966,5,45,0,0,966,968,3,208,104,0,
-        967,965,1,0,0,0,968,971,1,0,0,0,969,967,1,0,0,0,969,970,1,0,0,0,
-        970,973,1,0,0,0,971,969,1,0,0,0,972,974,5,45,0,0,973,972,1,0,0,0,
-        973,974,1,0,0,0,974,219,1,0,0,0,975,976,7,8,0,0,976,221,1,0,0,0,
-        977,978,3,220,110,0,978,223,1,0,0,0,979,980,3,220,110,0,980,225,
-        1,0,0,0,981,983,3,228,114,0,982,981,1,0,0,0,983,984,1,0,0,0,984,
-        982,1,0,0,0,984,985,1,0,0,0,985,227,1,0,0,0,986,987,5,69,0,0,987,
-        229,1,0,0,0,99,233,239,244,251,256,264,271,275,284,295,300,304,307,
-        326,332,339,344,350,357,361,367,372,374,377,384,391,397,403,410,
-        414,420,423,435,438,444,449,461,466,474,484,491,495,502,512,527,
-        535,545,552,555,557,568,576,588,592,595,617,633,640,648,659,670,
-        681,688,693,705,712,735,749,763,772,784,788,796,798,806,810,815,
-        824,828,834,840,860,864,866,878,885,891,894,902,906,916,936,940,
-        943,952,957,969,973,984
+        1,0,0,0,882,883,5,8,0,0,883,189,1,0,0,0,884,885,3,194,97,0,885,886,
+        3,208,104,0,886,887,3,224,112,0,887,896,1,0,0,0,888,889,3,194,97,
+        0,889,890,3,224,112,0,890,896,1,0,0,0,891,892,3,208,104,0,892,893,
+        3,224,112,0,893,896,1,0,0,0,894,896,3,224,112,0,895,884,1,0,0,0,
+        895,888,1,0,0,0,895,891,1,0,0,0,895,894,1,0,0,0,896,191,1,0,0,0,
+        897,898,5,32,0,0,898,903,3,224,112,0,899,900,5,45,0,0,900,902,3,
+        224,112,0,901,899,1,0,0,0,902,905,1,0,0,0,903,901,1,0,0,0,903,904,
+        1,0,0,0,904,907,1,0,0,0,905,903,1,0,0,0,906,908,5,45,0,0,907,906,
+        1,0,0,0,907,908,1,0,0,0,908,909,1,0,0,0,909,910,5,33,0,0,910,193,
+        1,0,0,0,911,912,7,5,0,0,912,195,1,0,0,0,913,918,3,198,99,0,914,918,
+        3,200,100,0,915,918,3,202,101,0,916,918,3,204,102,0,917,913,1,0,
+        0,0,917,914,1,0,0,0,917,915,1,0,0,0,917,916,1,0,0,0,918,197,1,0,
+        0,0,919,920,3,160,80,0,920,921,5,44,0,0,921,922,3,224,112,0,922,
+        199,1,0,0,0,923,924,3,160,80,0,924,925,5,32,0,0,925,926,3,166,83,
+        0,926,927,5,33,0,0,927,201,1,0,0,0,928,929,3,224,112,0,929,203,1,
+        0,0,0,930,931,5,30,0,0,931,932,3,196,98,0,932,933,5,31,0,0,933,205,
+        1,0,0,0,934,935,7,6,0,0,935,207,1,0,0,0,936,938,3,210,105,0,937,
+        936,1,0,0,0,937,938,1,0,0,0,938,939,1,0,0,0,939,941,3,212,106,0,
+        940,942,3,214,107,0,941,940,1,0,0,0,941,942,1,0,0,0,942,944,1,0,
+        0,0,943,945,3,216,108,0,944,943,1,0,0,0,944,945,1,0,0,0,945,209,
+        1,0,0,0,946,947,7,7,0,0,947,211,1,0,0,0,948,953,3,222,111,0,949,
+        950,5,44,0,0,950,952,3,222,111,0,951,949,1,0,0,0,952,955,1,0,0,0,
+        953,951,1,0,0,0,953,954,1,0,0,0,954,213,1,0,0,0,955,953,1,0,0,0,
+        956,958,5,40,0,0,957,959,3,218,109,0,958,957,1,0,0,0,958,959,1,0,
+        0,0,959,960,1,0,0,0,960,961,5,41,0,0,961,215,1,0,0,0,962,963,5,32,
+        0,0,963,964,5,33,0,0,964,217,1,0,0,0,965,970,3,208,104,0,966,967,
+        5,45,0,0,967,969,3,208,104,0,968,966,1,0,0,0,969,972,1,0,0,0,970,
+        968,1,0,0,0,970,971,1,0,0,0,971,974,1,0,0,0,972,970,1,0,0,0,973,
+        975,5,45,0,0,974,973,1,0,0,0,974,975,1,0,0,0,975,219,1,0,0,0,976,
+        977,7,8,0,0,977,221,1,0,0,0,978,979,3,220,110,0,979,223,1,0,0,0,
+        980,981,3,220,110,0,981,225,1,0,0,0,982,984,3,228,114,0,983,982,
+        1,0,0,0,984,985,1,0,0,0,985,983,1,0,0,0,985,986,1,0,0,0,986,227,
+        1,0,0,0,987,988,5,69,0,0,988,229,1,0,0,0,97,233,239,244,251,256,
+        264,271,275,284,295,300,304,307,326,332,339,344,350,357,361,367,
+        372,374,377,384,391,397,403,410,414,420,423,435,438,444,449,461,
+        466,474,484,491,495,502,512,527,535,545,552,555,557,568,576,588,
+        592,595,617,633,640,648,659,670,681,688,693,705,712,735,749,763,
+        772,784,788,796,798,806,810,815,824,828,834,840,860,864,866,878,
+        895,903,907,917,937,941,944,953,958,970,974,985
     ]
 
 class PinescriptParser ( PinescriptParserBase ):
@@ -1498,7 +1498,7 @@ class PinescriptParser ( PinescriptParserBase ):
             self.state = 304
             self._errHandler.sync(self)
             token = self._input.LA(1)
-            if token in [4, 6, 7, 10, 11, 17, 18, 21, 22, 24, 25, 27, 28, 63]:
+            if token in [4, 6, 7, 10, 11, 17, 18, 21, 22, 23, 24, 25, 27, 28, 63]:
                 self.enterOuterAlt(localctx, 1)
                 self.state = 302
                 self.compound_name_initialization()
@@ -1852,7 +1852,7 @@ class PinescriptParser ( PinescriptParserBase ):
                 self.state = 332
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
-                if (((_la) & ~0x3f) == 0 and ((1 << _la) & -9223372036797758256) != 0):
+                if (((_la) & ~0x3f) == 0 and ((1 << _la) & -9223372036655151920) != 0):
                     self.state = 331
                     self.parameter_list()
 
@@ -1882,7 +1882,7 @@ class PinescriptParser ( PinescriptParserBase ):
                 self.state = 344
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
-                if (((_la) & ~0x3f) == 0 and ((1 << _la) & -9223372036797758256) != 0):
+                if (((_la) & ~0x3f) == 0 and ((1 << _la) & -9223372036655151920) != 0):
                     self.state = 343
                     self.parameter_list()
 
@@ -2167,7 +2167,7 @@ class PinescriptParser ( PinescriptParserBase ):
                 self.state = 384
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
-                if (((_la) & ~0x3f) == 0 and ((1 << _la) & -9223372036797758256) != 0):
+                if (((_la) & ~0x3f) == 0 and ((1 << _la) & -9223372036655151920) != 0):
                     self.state = 383
                     self.method_parameter_list()
 
@@ -2199,7 +2199,7 @@ class PinescriptParser ( PinescriptParserBase ):
                 self.state = 397
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
-                if (((_la) & ~0x3f) == 0 and ((1 << _la) & -9223372036797758256) != 0):
+                if (((_la) & ~0x3f) == 0 and ((1 << _la) & -9223372036655151920) != 0):
                     self.state = 396
                     self.method_parameter_list()
 
@@ -2508,7 +2508,7 @@ class PinescriptParser ( PinescriptParserBase ):
                 self.state = 435 
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
-                if not ((((_la) & ~0x3f) == 0 and ((1 << _la) & -9223372036529322800) != 0)):
+                if not ((((_la) & ~0x3f) == 0 and ((1 << _la) & -9223372036386716464) != 0)):
                     break
 
         except RecognitionException as re:
@@ -2744,7 +2744,7 @@ class PinescriptParser ( PinescriptParserBase ):
                 self.state = 461 
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
-                if not ((((_la) & ~0x3f) == 0 and ((1 << _la) & -9223372036797758256) != 0)):
+                if not ((((_la) & ~0x3f) == 0 and ((1 << _la) & -9223372036655151920) != 0)):
                     break
 
         except RecognitionException as re:
@@ -3694,7 +3694,7 @@ class PinescriptParser ( PinescriptParserBase ):
             self.state = 535
             self._errHandler.sync(self)
             _la = self._input.LA(1)
-            if ((((_la - 4)) & ~0x3f) == 0 and ((1 << (_la - 4)) & 8647773302010863949) != 0):
+            if ((((_la - 4)) & ~0x3f) == 0 and ((1 << (_la - 4)) & 8647773302019776845) != 0):
                 self.state = 534
                 self.expression()
 
@@ -3768,7 +3768,7 @@ class PinescriptParser ( PinescriptParserBase ):
                 self.state = 545
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
-                while ((((_la - 4)) & ~0x3f) == 0 and ((1 << (_la - 4)) & 8647773302010863949) != 0):
+                while ((((_la - 4)) & ~0x3f) == 0 and ((1 << (_la - 4)) & 8647773302019776845) != 0):
                     self.state = 542
                     self.switch_pattern_case()
                     self.state = 547
@@ -3790,7 +3790,7 @@ class PinescriptParser ( PinescriptParserBase ):
                     self.state = 552 
                     self._errHandler.sync(self)
                     _la = self._input.LA(1)
-                    if not (((((_la - 4)) & ~0x3f) == 0 and ((1 << (_la - 4)) & 8647773302010863949) != 0)):
+                    if not (((((_la - 4)) & ~0x3f) == 0 and ((1 << (_la - 4)) & 8647773302019776845) != 0)):
                         break
 
                 self.state = 555
@@ -4289,7 +4289,7 @@ class PinescriptParser ( PinescriptParserBase ):
             self.state = 592
             self._errHandler.sync(self)
             token = self._input.LA(1)
-            if token in [4, 6, 7, 10, 11, 17, 18, 21, 22, 24, 25, 27, 28, 63]:
+            if token in [4, 6, 7, 10, 11, 17, 18, 21, 22, 23, 24, 25, 27, 28, 63]:
                 self.enterOuterAlt(localctx, 1)
                 self.state = 590
                 self.simple_name_initialization()
@@ -6216,7 +6216,7 @@ class PinescriptParser ( PinescriptParserBase ):
                 self.state = 769
                 self.unary_expression()
                 pass
-            elif token in [4, 6, 7, 10, 12, 17, 18, 21, 22, 24, 25, 26, 30, 32, 63, 64, 65, 66]:
+            elif token in [4, 6, 7, 10, 12, 17, 18, 21, 22, 23, 24, 25, 26, 27, 30, 32, 63, 64, 65, 66]:
                 self.enterOuterAlt(localctx, 2)
                 self.state = 771
                 self.primary_expression(0)
@@ -6495,7 +6495,7 @@ class PinescriptParser ( PinescriptParserBase ):
                         self.state = 788
                         self._errHandler.sync(self)
                         _la = self._input.LA(1)
-                        if ((((_la - 4)) & ~0x3f) == 0 and ((1 << (_la - 4)) & 8647773302010863949) != 0):
+                        if ((((_la - 4)) & ~0x3f) == 0 and ((1 << (_la - 4)) & 8647773302019776845) != 0):
                             self.state = 787
                             self.argument_list()
 
@@ -6807,7 +6807,7 @@ class PinescriptParser ( PinescriptParserBase ):
             self.state = 834
             self._errHandler.sync(self)
             token = self._input.LA(1)
-            if token in [4, 6, 7, 10, 17, 18, 21, 22, 24, 25, 63]:
+            if token in [4, 6, 7, 10, 17, 18, 21, 22, 23, 24, 25, 27, 63]:
                 self.enterOuterAlt(localctx, 1)
                 self.state = 830
                 self.name_load()
@@ -7235,7 +7235,7 @@ class PinescriptParser ( PinescriptParserBase ):
             self.state = 866
             self._errHandler.sync(self)
             _la = self._input.LA(1)
-            if ((((_la - 4)) & ~0x3f) == 0 and ((1 << (_la - 4)) & 8647773302010863949) != 0):
+            if ((((_la - 4)) & ~0x3f) == 0 and ((1 << (_la - 4)) & 8647773302019776845) != 0):
                 self.state = 855
                 self.expression()
                 self.state = 860
@@ -7461,16 +7461,16 @@ class PinescriptParser ( PinescriptParserBase ):
             super().__init__(parent, invokingState)
             self.parser = parser
 
+        def declaration_mode(self):
+            return self.getTypedRuleContext(PinescriptParser.Declaration_modeContext,0)
+
+
         def type_specification(self):
             return self.getTypedRuleContext(PinescriptParser.Type_specificationContext,0)
 
 
         def name_store(self):
             return self.getTypedRuleContext(PinescriptParser.Name_storeContext,0)
-
-
-        def declaration_mode(self):
-            return self.getTypedRuleContext(PinescriptParser.Declaration_modeContext,0)
 
 
         def getRuleIndex(self):
@@ -7497,38 +7497,39 @@ class PinescriptParser ( PinescriptParserBase ):
 
         localctx = PinescriptParser.Variable_declarationContext(self, self._ctx, self.state)
         self.enterRule(localctx, 190, self.RULE_variable_declaration)
-        self._la = 0 # Token type
         try:
-            self.state = 894
+            self.state = 895
             self._errHandler.sync(self)
-            la_ = self._interp.adaptivePredict(self._input,87,self._ctx)
+            la_ = self._interp.adaptivePredict(self._input,85,self._ctx)
             if la_ == 1:
                 self.enterOuterAlt(localctx, 1)
+                self.state = 884
+                self.declaration_mode()
                 self.state = 885
-                self._errHandler.sync(self)
-                _la = self._input.LA(1)
-                if _la==27 or _la==28:
-                    self.state = 884
-                    self.declaration_mode()
-
-
-                self.state = 887
                 self.type_specification()
-                self.state = 888
+                self.state = 886
                 self.name_store()
                 pass
 
             elif la_ == 2:
                 self.enterOuterAlt(localctx, 2)
+                self.state = 888
+                self.declaration_mode()
+                self.state = 889
+                self.name_store()
+                pass
+
+            elif la_ == 3:
+                self.enterOuterAlt(localctx, 3)
                 self.state = 891
-                self._errHandler.sync(self)
-                _la = self._input.LA(1)
-                if _la==27 or _la==28:
-                    self.state = 890
-                    self.declaration_mode()
+                self.type_specification()
+                self.state = 892
+                self.name_store()
+                pass
 
-
-                self.state = 893
+            elif la_ == 4:
+                self.enterOuterAlt(localctx, 4)
+                self.state = 894
                 self.name_store()
                 pass
 
@@ -7595,32 +7596,32 @@ class PinescriptParser ( PinescriptParserBase ):
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 896
-            self.match(PinescriptParser.LSQB)
             self.state = 897
+            self.match(PinescriptParser.LSQB)
+            self.state = 898
             self.name_store()
-            self.state = 902
+            self.state = 903
             self._errHandler.sync(self)
-            _alt = self._interp.adaptivePredict(self._input,88,self._ctx)
+            _alt = self._interp.adaptivePredict(self._input,86,self._ctx)
             while _alt!=2 and _alt!=ATN.INVALID_ALT_NUMBER:
                 if _alt==1:
-                    self.state = 898
-                    self.match(PinescriptParser.COMMA)
                     self.state = 899
+                    self.match(PinescriptParser.COMMA)
+                    self.state = 900
                     self.name_store() 
-                self.state = 904
+                self.state = 905
                 self._errHandler.sync(self)
-                _alt = self._interp.adaptivePredict(self._input,88,self._ctx)
+                _alt = self._interp.adaptivePredict(self._input,86,self._ctx)
 
-            self.state = 906
+            self.state = 907
             self._errHandler.sync(self)
             _la = self._input.LA(1)
             if _la==45:
-                self.state = 905
+                self.state = 906
                 self.match(PinescriptParser.COMMA)
 
 
-            self.state = 908
+            self.state = 909
             self.match(PinescriptParser.RSQB)
         except RecognitionException as re:
             localctx.exception = re
@@ -7671,7 +7672,7 @@ class PinescriptParser ( PinescriptParserBase ):
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 910
+            self.state = 911
             _la = self._input.LA(1)
             if not(_la==27 or _la==28):
                 self._errHandler.recoverInline(self)
@@ -7735,30 +7736,30 @@ class PinescriptParser ( PinescriptParserBase ):
         localctx = PinescriptParser.Assignment_targetContext(self, self._ctx, self.state)
         self.enterRule(localctx, 196, self.RULE_assignment_target)
         try:
-            self.state = 916
+            self.state = 917
             self._errHandler.sync(self)
-            la_ = self._interp.adaptivePredict(self._input,90,self._ctx)
+            la_ = self._interp.adaptivePredict(self._input,88,self._ctx)
             if la_ == 1:
                 self.enterOuterAlt(localctx, 1)
-                self.state = 912
+                self.state = 913
                 self.assignment_target_attribute()
                 pass
 
             elif la_ == 2:
                 self.enterOuterAlt(localctx, 2)
-                self.state = 913
+                self.state = 914
                 self.assignment_target_subscript()
                 pass
 
             elif la_ == 3:
                 self.enterOuterAlt(localctx, 3)
-                self.state = 914
+                self.state = 915
                 self.assignment_target_name()
                 pass
 
             elif la_ == 4:
                 self.enterOuterAlt(localctx, 4)
-                self.state = 915
+                self.state = 916
                 self.assignment_target_group()
                 pass
 
@@ -7816,11 +7817,11 @@ class PinescriptParser ( PinescriptParserBase ):
         self.enterRule(localctx, 198, self.RULE_assignment_target_attribute)
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 918
-            self.primary_expression(0)
             self.state = 919
-            self.match(PinescriptParser.DOT)
+            self.primary_expression(0)
             self.state = 920
+            self.match(PinescriptParser.DOT)
+            self.state = 921
             self.name_store()
         except RecognitionException as re:
             localctx.exception = re
@@ -7878,13 +7879,13 @@ class PinescriptParser ( PinescriptParserBase ):
         self.enterRule(localctx, 200, self.RULE_assignment_target_subscript)
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 922
-            self.primary_expression(0)
             self.state = 923
-            self.match(PinescriptParser.LSQB)
+            self.primary_expression(0)
             self.state = 924
-            self.subscript_slice()
+            self.match(PinescriptParser.LSQB)
             self.state = 925
+            self.subscript_slice()
+            self.state = 926
             self.match(PinescriptParser.RSQB)
         except RecognitionException as re:
             localctx.exception = re
@@ -7932,7 +7933,7 @@ class PinescriptParser ( PinescriptParserBase ):
         self.enterRule(localctx, 202, self.RULE_assignment_target_name)
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 927
+            self.state = 928
             self.name_store()
         except RecognitionException as re:
             localctx.exception = re
@@ -7986,11 +7987,11 @@ class PinescriptParser ( PinescriptParserBase ):
         self.enterRule(localctx, 204, self.RULE_assignment_target_group)
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 929
-            self.match(PinescriptParser.LPAR)
             self.state = 930
-            self.assignment_target()
+            self.match(PinescriptParser.LPAR)
             self.state = 931
+            self.assignment_target()
+            self.state = 932
             self.match(PinescriptParser.RPAR)
         except RecognitionException as re:
             localctx.exception = re
@@ -8050,7 +8051,7 @@ class PinescriptParser ( PinescriptParserBase ):
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 933
+            self.state = 934
             _la = self._input.LA(1)
             if not((((_la) & ~0x3f) == 0 and ((1 << _la) & 4467570830351532032) != 0)):
                 self._errHandler.recoverInline(self)
@@ -8116,29 +8117,29 @@ class PinescriptParser ( PinescriptParserBase ):
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 936
+            self.state = 937
             self._errHandler.sync(self)
-            la_ = self._interp.adaptivePredict(self._input,91,self._ctx)
+            la_ = self._interp.adaptivePredict(self._input,89,self._ctx)
             if la_ == 1:
-                self.state = 935
+                self.state = 936
                 self.type_qualifier()
 
 
-            self.state = 938
+            self.state = 939
             self.attributed_type_name()
-            self.state = 940
+            self.state = 941
             self._errHandler.sync(self)
             _la = self._input.LA(1)
             if _la==40:
-                self.state = 939
+                self.state = 940
                 self.template_spec_suffix()
 
 
-            self.state = 943
+            self.state = 944
             self._errHandler.sync(self)
             _la = self._input.LA(1)
             if _la==32:
-                self.state = 942
+                self.state = 943
                 self.array_type_suffix()
 
 
@@ -8197,7 +8198,7 @@ class PinescriptParser ( PinescriptParserBase ):
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 945
+            self.state = 946
             _la = self._input.LA(1)
             if not((((_la) & ~0x3f) == 0 and ((1 << _la) & 6422656) != 0)):
                 self._errHandler.recoverInline(self)
@@ -8260,17 +8261,17 @@ class PinescriptParser ( PinescriptParserBase ):
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 947
+            self.state = 948
             self.name_load()
-            self.state = 952
+            self.state = 953
             self._errHandler.sync(self)
             _la = self._input.LA(1)
             while _la==44:
-                self.state = 948
-                self.match(PinescriptParser.DOT)
                 self.state = 949
+                self.match(PinescriptParser.DOT)
+                self.state = 950
                 self.name_load()
-                self.state = 954
+                self.state = 955
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
 
@@ -8327,17 +8328,17 @@ class PinescriptParser ( PinescriptParserBase ):
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 955
+            self.state = 956
             self.match(PinescriptParser.LESS)
-            self.state = 957
+            self.state = 958
             self._errHandler.sync(self)
             _la = self._input.LA(1)
-            if (((_la) & ~0x3f) == 0 and ((1 << _la) & -9223372036797758256) != 0):
-                self.state = 956
+            if (((_la) & ~0x3f) == 0 and ((1 << _la) & -9223372036655151920) != 0):
+                self.state = 957
                 self.type_argument_list()
 
 
-            self.state = 959
+            self.state = 960
             self.match(PinescriptParser.GREATER)
         except RecognitionException as re:
             localctx.exception = re
@@ -8387,9 +8388,9 @@ class PinescriptParser ( PinescriptParserBase ):
         self.enterRule(localctx, 216, self.RULE_array_type_suffix)
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 961
-            self.match(PinescriptParser.LSQB)
             self.state = 962
+            self.match(PinescriptParser.LSQB)
+            self.state = 963
             self.match(PinescriptParser.RSQB)
         except RecognitionException as re:
             localctx.exception = re
@@ -8447,26 +8448,26 @@ class PinescriptParser ( PinescriptParserBase ):
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 964
+            self.state = 965
             self.type_specification()
-            self.state = 969
+            self.state = 970
             self._errHandler.sync(self)
-            _alt = self._interp.adaptivePredict(self._input,96,self._ctx)
+            _alt = self._interp.adaptivePredict(self._input,94,self._ctx)
             while _alt!=2 and _alt!=ATN.INVALID_ALT_NUMBER:
                 if _alt==1:
-                    self.state = 965
-                    self.match(PinescriptParser.COMMA)
                     self.state = 966
+                    self.match(PinescriptParser.COMMA)
+                    self.state = 967
                     self.type_specification() 
-                self.state = 971
+                self.state = 972
                 self._errHandler.sync(self)
-                _alt = self._interp.adaptivePredict(self._input,96,self._ctx)
+                _alt = self._interp.adaptivePredict(self._input,94,self._ctx)
 
-            self.state = 973
+            self.state = 974
             self._errHandler.sync(self)
             _la = self._input.LA(1)
             if _la==45:
-                self.state = 972
+                self.state = 973
                 self.match(PinescriptParser.COMMA)
 
 
@@ -8519,6 +8520,12 @@ class PinescriptParser ( PinescriptParserBase ):
         def TO(self):
             return self.getToken(PinescriptParser.TO, 0)
 
+        def VAR(self):
+            return self.getToken(PinescriptParser.VAR, 0)
+
+        def SWITCH(self):
+            return self.getToken(PinescriptParser.SWITCH, 0)
+
         def getRuleIndex(self):
             return PinescriptParser.RULE_name
 
@@ -8546,9 +8553,9 @@ class PinescriptParser ( PinescriptParserBase ):
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 975
+            self.state = 976
             _la = self._input.LA(1)
-            if not((((_la) & ~0x3f) == 0 and ((1 << _la) & -9223372036797758256) != 0)):
+            if not((((_la) & ~0x3f) == 0 and ((1 << _la) & -9223372036655151920) != 0)):
                 self._errHandler.recoverInline(self)
             else:
                 self._errHandler.reportMatch(self)
@@ -8599,7 +8606,7 @@ class PinescriptParser ( PinescriptParserBase ):
         self.enterRule(localctx, 222, self.RULE_name_load)
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 977
+            self.state = 978
             self.name()
         except RecognitionException as re:
             localctx.exception = re
@@ -8647,7 +8654,7 @@ class PinescriptParser ( PinescriptParserBase ):
         self.enterRule(localctx, 224, self.RULE_name_store)
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 979
+            self.state = 980
             self.name()
         except RecognitionException as re:
             localctx.exception = re
@@ -8699,13 +8706,13 @@ class PinescriptParser ( PinescriptParserBase ):
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 982 
+            self.state = 983 
             self._errHandler.sync(self)
             _la = self._input.LA(1)
             while True:
-                self.state = 981
+                self.state = 982
                 self.comment()
-                self.state = 984 
+                self.state = 985 
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
                 if not (_la==69):
@@ -8756,7 +8763,7 @@ class PinescriptParser ( PinescriptParserBase ):
         self.enterRule(localctx, 228, self.RULE_comment)
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 986
+            self.state = 987
             self.match(PinescriptParser.COMMENT)
         except RecognitionException as re:
             localctx.exception = re

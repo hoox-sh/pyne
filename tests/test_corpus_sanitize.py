@@ -1415,3 +1415,90 @@ plot(close)
     assert re.search(r"close == open \? 3 : 4", cleaned)
     assert not re.search(r"^\s*\?", cleaned, re.M)
     _roundtrip(cleaned)
+
+
+def test_rst_line_n_annotation_does_not_block_indent_dedent() -> None:
+    """set06 14350: RST ``Line 1: ``//@version=3```` must not keep study() indented."""
+    raw = '''//@version=3
+    study("MACD")
+    fast = 12, slow = 26
+    plot(close)
+
+Line 1: ``//@version=3``
+Line 2: ``study("MACD")``
+'''
+    cleaned = sanitize_corpus_source(raw)
+    for ln in cleaned.splitlines():
+        if ln.strip() and not ln.lstrip().startswith("//"):
+            assert not ln[0].isspace(), repr(ln)
+            break
+    assert 'study("MACD")' in cleaned
+    assert "Line 1:" not in cleaned
+    _roundtrip(cleaned)
+
+
+def test_indented_numeric_if_body_not_gutter_truncated() -> None:
+    """set06 13674: ``int transp = if cond`` / ``        80`` is Pine, not a gutter."""
+    raw = """//@version=5
+indicator("t")
+int counter = 0
+n = 3
+while n > counter
+    int transp = if counter != 1
+        80
+    else if counter != 2
+        0
+    else
+        50
+    counter += 1
+plot(counter)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "counter += 1" in cleaned
+    assert re.search(r"^\s+80\s*$", cleaned, re.M)
+    assert "int transp = na" not in cleaned
+    _roundtrip(cleaned)
+
+
+def test_if_expr_assign_with_na_then_else_if_is_kept() -> None:
+    """set06 13674: ``bgColorH := if cond / na / else if / color`` is not na-only."""
+    raw = """//@version=5
+indicator("t")
+color bgColorH = na
+if barstate.islast
+    bgColorH := if close > 0
+        na
+    else if close > open
+        color.green
+    else
+        color.red
+plot(close)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "bgColorH : = na" not in cleaned
+    assert "bgColorH := if" in cleaned
+    assert "else if close > open" in cleaned
+    assert "color.green" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_skips_prompt_strategy_before_version_pragma() -> None:
+    """LLM strategy-migration scrapes put English + a sample strategy() before //@version."""
+    raw = """You are a professional PineScript version=6 developer.
+- Use this strategy code line:
+strategy("AI - Confluence", overlay=true, commission_type=strategy.commission.percent)
+- strategy.commission.percent and strategy.slippage don't exist in PineScript.
+
+//@version=5
+indicator("Confluence", overlay=true)
+plot(close)
+
+Additional instructions:
+- This is a CONFLUENCE strategy.
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "strategy.commission.percent" not in cleaned
+    assert 'strategy("AI - Confluence"' not in cleaned
+    assert 'indicator("Confluence"' in cleaned
+    assert "Additional instructions" not in cleaned
+    _roundtrip(cleaned)
