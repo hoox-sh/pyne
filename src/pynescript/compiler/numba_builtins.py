@@ -6482,6 +6482,94 @@ def matrix_is_antidiagonal(m):
         return False
 
 
+def input_bool(defval=False, *args, **kwargs):
+    """Pine ``input.bool`` leak fallback — return *defval* as bool."""
+    if defval is None:
+        return False
+    try:
+        return bool(defval)
+    except Exception:
+        return False
+
+
+def _series_f64(x):
+    """Coerce *x* to 1-d float64; bad input → None."""
+    if x is None:
+        return None
+    try:
+        a = np.asarray(x, dtype=np.float64)
+        if a.ndim == 0:
+            a = a.reshape(1)
+        return np.reshape(a, -1)
+    except Exception:
+        return None
+
+
+def ta_wad(*args, **kwargs):
+    """Pine ``ta.wad`` leak fallback. 0/4/5 args ``(h, l, c, v[, i])``; else nan."""
+    try:
+        n = len(args)
+        if n < 4:
+            return np.nan
+        high = _series_f64(args[0])
+        low = _series_f64(args[1])
+        close = _series_f64(args[2])
+        vol = _series_f64(args[3])
+        if high is None or low is None or close is None or vol is None:
+            return np.nan
+        if n >= 5:
+            i = int(args[4])
+        else:
+            i = int(close.shape[0]) - 1
+        return float(numba_wad(high, low, close, vol, i))
+    except Exception:
+        return np.nan
+
+
+def ta_iii(*args, **kwargs):
+    """Pine ``ta.iii`` leak fallback. 0/3/4 args ``(h, l, c[, i])``; else nan."""
+    try:
+        n = len(args)
+        if n < 3:
+            return np.nan
+        high = _series_f64(args[0])
+        low = _series_f64(args[1])
+        close = _series_f64(args[2])
+        if high is None or low is None or close is None:
+            return np.nan
+        if n >= 4:
+            i = int(args[3])
+        else:
+            i = int(close.shape[0]) - 1
+        return float(numba_iii(high, low, close, i))
+    except Exception:
+        return np.nan
+
+
+def ta_wvad(*args, **kwargs):
+    """Pine ``ta.wvad`` leak fallback. Period-only or ``(h,l,c,v,period[,i])``."""
+    try:
+        n = len(args)
+        if n == 1:
+            return np.nan
+        if n < 5:
+            return np.nan
+        high = _series_f64(args[0])
+        low = _series_f64(args[1])
+        close = _series_f64(args[2])
+        vol = _series_f64(args[3])
+        if high is None or low is None or close is None or vol is None:
+            return np.nan
+        period = args[4]
+        if n >= 6:
+            i = int(args[5])
+        else:
+            i = int(close.shape[0]) - 1
+        return float(numba_wvad(high, low, close, vol, period, i))
+    except Exception:
+        return np.nan
+
+
 # ---------------------------------------------------------------------------
 # Calendar / timestamp (njit-safe; matches util.time_parts + reference overflow style)
 # ---------------------------------------------------------------------------

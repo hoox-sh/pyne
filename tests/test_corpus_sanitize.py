@@ -90,7 +90,7 @@ https://www.fmz.com/strategy/482895
 2025-02-27 17:28:19
 """
     cleaned = sanitize_corpus_source(raw)
-    assert "strategy(\"Gold Trading RSI\"" in cleaned
+    assert 'strategy("Gold Trading RSI"' in cleaned
     assert "ta.rsi" in cleaned
     assert "Overview" not in cleaned
     assert "Last Modified" not in cleaned
@@ -164,7 +164,7 @@ strategy.exit("exit", "long", profit = 10, loss = 5)
 ```
 """
     cleaned = sanitize_corpus_source(raw)
-    assert "strategy.exit(\"exit\"" in cleaned
+    assert 'strategy.exit("exit"' in cleaned
     assert "It is a command" not in cleaned
     _roundtrip(cleaned)
 
@@ -305,6 +305,7 @@ if barstate.isconfirmed
     assert "log.info(na)" in cleaned
     _roundtrip(cleaned)
 
+
 def test_closes_truncated_call_in_switch_arm() -> None:
     raw = """//@version=6
 indicator("t")
@@ -315,6 +316,7 @@ switch
     assert "label.new(na)" in cleaned
     _roundtrip(cleaned)
 
+
 def test_closes_truncated_nested_open_parens() -> None:
     raw = """//@version=6
 indicator("t")
@@ -323,6 +325,7 @@ plot(math.max(
     cleaned = sanitize_corpus_source(raw)
     assert "math.max(na)" in cleaned
     _roundtrip(cleaned)
+
 
 def test_closes_truncated_method_definition() -> None:
     raw = """//@version=6
@@ -481,7 +484,7 @@ table.cell_set_text(t, 0, 0, "b")
 plot(close)
 """
     cleaned = sanitize_corpus_source(raw)
-    assert "    table.cell(t, 0, 0, \"a\")" in cleaned or "\ttable.cell" in cleaned
+    assert '    table.cell(t, 0, 0, "a")' in cleaned or "\ttable.cell" in cleaned
     assert "else if barstate.islast" in cleaned
     _roundtrip(cleaned)
 
@@ -543,7 +546,7 @@ plot(ma(close, 14, "SMA"))
 """
     cleaned = sanitize_corpus_source(raw)
     # Must keep the chain — no mid-arm ``: na`` before the next ``type ==``
-    assert re.search(r':\s*na\s*\n\s*type\s*==', cleaned) is None
+    assert re.search(r":\s*na\s*\n\s*type\s*==", cleaned) is None
     assert 'type == "VWMA"' in cleaned
     assert cleaned.count("type ==") == 5
     _roundtrip(cleaned)
@@ -561,7 +564,7 @@ ma(source, length, type) =>
 plot(ma(close, 10, "EMA"))
 """
     cleaned = sanitize_corpus_source(raw)
-    assert re.search(r':\s*na\s*\n\s*type\s*==', cleaned) is None
+    assert re.search(r":\s*na\s*\n\s*type\s*==", cleaned) is None
     _roundtrip(cleaned)
 
 
@@ -596,7 +599,7 @@ if barstate.islast
 """
     cleaned = sanitize_corpus_source(raw)
     assert "+)" not in cleaned
-    assert re.search(r'str\.tostring\(a\)\s*\)', cleaned)
+    assert re.search(r"str\.tostring\(a\)\s*\)", cleaned)
     assert "valueFound" in cleaned
     _roundtrip(cleaned)
 
@@ -1027,9 +1030,7 @@ c = open > close ? color.red : color.green
 plot(close, color=c)
 """
     cleaned = sanitize_corpus_source(raw)
-    assert "color.red : color.green" in cleaned or "color.red: color.green" in cleaned.replace(
-        " ", ""
-    )
+    assert "color.red : color.green" in cleaned or "color.red: color.green" in cleaned.replace(" ", "")
     assert ": na" not in cleaned
     assert "color.green" in cleaned
     _roundtrip(cleaned)
@@ -1096,9 +1097,7 @@ if close > open
 plot(close)
 """
     cleaned = sanitize_corpus_source(raw)
-    assert "barsSinceLastEntry() => na" in cleaned or re.search(
-        r"barsSinceLastEntry\(\)\s*=>\s*\n\s+na", cleaned
-    )
+    assert "barsSinceLastEntry() => na" in cleaned or re.search(r"barsSinceLastEntry\(\)\s*=>\s*\n\s+na", cleaned)
     _roundtrip(cleaned)
 
 
@@ -1301,4 +1300,118 @@ This illustrates the meaning of the variable ``time``.
     for ln in cleaned.splitlines():
         if ln.strip().startswith("plot("):
             assert not ln[0].isspace(), repr(ln)
+    _roundtrip(cleaned)
+
+
+def test_closes_uncontinued_single_quoted_string_at_eol() -> None:
+    """INV025: next line not a Pine wrap (no leading WS) — close opener at EOL."""
+    raw = """//@version=6
+indicator('broken
+[1.0.0]', overlay = true)
+plot(close)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "indicator('broken')" in cleaned
+    # Leftover torn tail must not stay live (would be a second statement).
+    live = [ln for ln in cleaned.splitlines() if ln.strip() and not ln.lstrip().startswith("//")]
+    assert not any(ln.lstrip().startswith("[") for ln in live)
+    _roundtrip(cleaned)
+
+
+def test_closes_uncontinued_double_quoted_string_in_call() -> None:
+    """INV047: broken in-call string closed so later statements still parse."""
+    raw = """//@version=6
+indicator("INV047")
+opt = input.string("A", "Location", ["Top right", "Top
+left", "Middle right"],
+group="X")
+plot(close)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert '["Top right", "Top"]' in cleaned or 'input.string("A"' in cleaned
+    live = "\n".join(ln for ln in cleaned.splitlines() if ln.strip() and not ln.lstrip().startswith("//"))
+    assert "left" not in live
+    assert "plot(close)" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_preserves_indented_pine_string_continuation() -> None:
+    """Leading whitespace on the next line is a real Pine string wrap — keep it."""
+    raw = """//@version=6
+indicator("t")
+s = "hello
+ world"
+plot(close)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "hello" in cleaned
+    assert "world" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_rst_fill_example_dedents_assignment_body() -> None:
+    """Col-0 ``study`` + indented ``p1 =`` / ``fill`` before RST ``.. image::``."""
+    raw = """study("fill Example")
+    p1 = plot(sin(high))
+    p2 = plot(cos(low))
+    fill(p1, p2, color=red)
+    h1 = hline(0)
+    fill(h1, h1, color=lime)
+
+.. image:: images/fill.png
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert re.search(r"^p1 = plot\(sin\(high\)\)\s*$", cleaned, re.M)
+    assert re.search(r"^fill\(h1, h1, color=lime\)\s*$", cleaned, re.M)
+    assert ".." not in cleaned
+    for ln in cleaned.splitlines():
+        if ln.strip() and not ln.lstrip().startswith("//"):
+            assert not ln[0].isspace(), repr(ln)
+    _roundtrip(cleaned)
+
+
+def test_rst_literal_dedents_src_assignment_before_prose() -> None:
+    """More-indented ``src =`` body under col-0 ``study`` + trailing docs prose."""
+    raw = """study("Fill example 2")
+    src = close, len = 10
+    ma = sma(src, 10)
+    plot(ma)
+
+This illustrates the sma workaround.
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert re.search(r"^src = close, len = 10\s*$", cleaned, re.M)
+    assert "This illustrates" not in cleaned
+    _roundtrip(cleaned)
+
+
+def test_rst_fill_example_stops_before_second_study() -> None:
+    """Dedent the first RST block; do not keep a later ``study(`` example."""
+    raw = """study("fill Example")
+    p1 = plot(close)
+    fill(p1, p1, color=red)
+
+.. image:: images/a.png
+
+    study("Fill example 2")
+    src = close, len = 10
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert 'study("fill Example")' in cleaned
+    assert 'study("Fill example 2")' not in cleaned
+    assert "src = close" not in cleaned
+    _roundtrip(cleaned)
+
+
+def test_joins_column1_ternary_question_continuation() -> None:
+    """INV080: a line that is only ``? …`` joins onto the previous ternary."""
+    raw = """//@version=6
+indicator("INV080")
+x = close > open ? 1 : close < open ? 2 : close == open
+? 3 : 4
+plot(close)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert re.search(r"close == open \? 3 : 4", cleaned)
+    assert not re.search(r"^\s*\?", cleaned, re.M)
     _roundtrip(cleaned)

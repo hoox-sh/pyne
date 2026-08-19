@@ -23,8 +23,11 @@ from __future__ import annotations
 
 import signal
 
+from pathlib import Path
+
 import numpy as np
 
+from pynescript.ast.helper import parse
 from pynescript.compiler.engine import compile_script
 from pynescript.compiler.engine import transpile
 from pynescript.runtime import Runtime
@@ -212,4 +215,85 @@ plot(close)
         for i in range(len(c))
     ]
     result = Runtime().run(cleaned, bars)
+    assert "error" not in result, result.get("error")
+
+
+def test_inv025_inv047_broken_strings_do_not_raise_unterminated() -> None:
+    """Broken TV string-wrap fixtures must sanitize so compile can start."""
+    root = Path(__file__).parent / "data" / "set06" / "indicators"
+    for name in (
+        "2162_ind_inv025_string_continuation_indent.pine",
+        "1882_ind_inv047.pine",
+    ):
+        raw = (root / name).read_text(encoding="utf-8")
+        cleaned = sanitize_corpus_source(raw)
+        parse(cleaned)
+        compile_script(raw, use_cache=False)
+
+
+def test_tuple_literal_rhs_does_not_raise() -> None:
+    src = """//@version=6
+indicator("t")
+arr = [1, 2, 3]
+plot(close)
+"""
+    out = _compile_run(src, n=20)
+    arr = np.asarray(out["plot_0"], dtype=np.float64)
+    assert arr.size == 20
+
+
+def test_tuple_udf_to_scalar_does_not_raise() -> None:
+    src = """//@version=6
+indicator("t")
+f() => [1, 2]
+a = f()
+[p, q] = f()
+plot(p + q)
+"""
+    out = _compile_run(src, n=20)
+    assert _last(out) == 3.0
+
+
+def test_udt_factory_assign() -> None:
+    src = """//@version=5
+indicator("UDT method TA")
+type Signal
+    float value = 0.0
+    bool active = false
+calcSignal(src, len) =>
+    Signal.new(ta.sma(src, len), true)
+sig = calcSignal(close, 3)
+plot(sig.value)
+"""
+    n = 20
+    out = _compile_run(src, n=n)
+    close = np.arange(100.0, 100.0 + n, dtype=np.float64)
+    expected = float(np.mean(close[-3:]))
+    assert abs(_last(out) - expected) < 1e-6
+
+
+def test_rst_fill_example_sanitized() -> None:
+    raw = """study("fill Example")
+    p1 = plot(close)
+    p2 = plot(open)
+    fill(p1, p2, color=red)
+
+.. image:: images/fill.png
+"""
+    cleaned = sanitize_corpus_source(raw)
+    compiled = compile_script(cleaned)
+    assert compiled is not None
+    o, h, l, c, v = _ohlcv(8)
+    bars = [
+        {
+            "open": float(o[i]),
+            "high": float(h[i]),
+            "low": float(l[i]),
+            "close": float(c[i]),
+            "volume": float(v[i]),
+            "time": int(i * 60_000),
+        }
+        for i in range(len(c))
+    ]
+    result = Runtime().run(cleaned, bars, mode="compile")
     assert "error" not in result, result.get("error")

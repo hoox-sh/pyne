@@ -494,6 +494,11 @@ class CompilerVisitor(NodeVisitor):
         self.func_free_scalars: dict[str, list[str]] = {}
         self.func_returns_sequence: set[str] = set()
         self.func_returns_numeric: set[str] = set()
+        # Numeric/mixed tuples (``f() => [1, 2]``): still sequence-marked so
+        # ``a = f()`` is a handle, but multi-unpack stays float series.
+        self.func_returns_tuple: set[str] = set()
+        # Last expr is ``Type.new(...)`` / UDT handle — never float(dict).
+        self.func_returns_udt: set[str] = set()
         self.local_sequence_vars: set[str] = set()
         self._free_scalars_current: set[str] = set()
         self.func_needs_bar: dict[str, bool] = {}
@@ -1244,15 +1249,64 @@ class CompilerVisitor(NodeVisitor):
             return True
         return False
 
+    def _func_last_value_expr(self, last_ast):
+        """AST expression a UDF actually returns (last Expr / Assign RHS)."""
+        if isinstance(last_ast, ast.Expr):
+            return last_ast.value
+        if isinstance(last_ast, (ast.Assign, ast.ReAssign)):
+            return last_ast.value
+        return None
+
+    def _func_body_returns_udt(self, last_ast) -> bool:
+        """True when the UDF result is a UDT instance (``Type.new(...)`` / handle)."""
+        ret_expr = self._func_last_value_expr(last_ast)
+        if self._looks_like_udt_ctor(ret_expr) or self._looks_like_udt_copy(ret_expr):
+            return True
+        if isinstance(ret_expr, ast.Name) and ret_expr.id in self.udt_vars:
+            return True
+        if isinstance(last_ast, (ast.Assign, ast.ReAssign)):
+            t = last_ast.target
+            if isinstance(t, ast.Name) and t.id in self.udt_vars:
+                return True
+        return False
+
+    def _call_returns_udt(self, node) -> bool:
+        """True when Call targets a UDF known to return a UDT / object handle."""
+        if not isinstance(node, ast.Call):
+            return False
+        f = node.func
+        if isinstance(f, ast.Specialize):
+            f = f.value
+        name = None
+        if isinstance(f, ast.Name):
+            name = f.id
+        elif isinstance(f, ast.Attribute):
+            name = f.attr
+        if name and name in getattr(self, "func_returns_udt", set()):
+            return True
+        return self._looks_like_udt_ctor(node) or self._looks_like_udt_copy(node)
+
+    def _val_looks_like_udt_dict(self, val: str | None) -> bool:
+        """Visited Python expr is a UDT/object dict — never store into float64."""
+        if not isinstance(val, str) or not val:
+            return False
+        s = val.strip()
+        if "__type__" in s:
+            return True
+        if s.startswith("{") and s.endswith("}") and ":" in s:
+            return True
+        return self._looks_like_object_handle_expr(s)
+
     def _func_body_returns_sequence(
         self, node, last_ast, body_lines: list[str]
     ) -> bool:
-        """Infer UDF returns a list/array handle (not mere numeric multi-return).
+        """Infer UDF returns a list/array handle or a tuple bound to one name.
 
-        Numeric tuples like ``[alpha, beta]`` / ``[spike_up, spike_down]`` stay
-        out of ``func_returns_sequence`` so multi-unpack can use float series.
         Array handles (``array.new*``, list locals) mark the UDF so callers store
-        into scalar/object slots instead of float64 series.
+        into scalar/object slots instead of float64 series. A last-expr
+        ``ast.Tuple`` (or last Assign of a tuple) is also marked so ``a = f()``
+        does not write a Python tuple into a float64 series. Multi-unpack of
+        numeric tuples still uses float series via :attr:`func_returns_tuple`.
         """
         ret_expr = None
         if isinstance(last_ast, ast.Expr):
@@ -1264,10 +1318,10 @@ class CompilerVisitor(NodeVisitor):
             ret_expr = last_ast.value
         if self._ast_expr_is_sequence(ret_expr):
             return True
-        # Numeric multi-return ``[a + 1, b + 2]`` must not be classified as an
-        # array handle just because the generated tuple text has commas / parens.
+        # ``f() => [1, 2]`` / last ``x = [a, b]``: single-target assign needs a
+        # sequence handle. Multi-unpack stays numeric via func_returns_tuple.
         if isinstance(ret_expr, ast.Tuple):
-            return False
+            return True
         # Walk *all* return lines (if/else branches), not only the last statement
         for line in body_lines:
             for raw in str(line).split("\n"):
@@ -1386,6 +1440,8 @@ class CompilerVisitor(NodeVisitor):
                         or "'kind':" in val
                         or '"kind":' in val
                         or "array_" in val
+                        or self._val_looks_like_udt_dict(val)
+                        or self._call_returns_udt(node.value)
                         or (hasattr(self, "_rhs_is_sequence") and self._rhs_is_sequence(node.value, val))
                     )
                 )
@@ -1479,9 +1535,11 @@ class CompilerVisitor(NodeVisitor):
             return f"{name}_arr[__bar_idx] = {val}"
 
         # UDF/list/array handle RHS → scalar handle (never float64 series)
+        # Includes ``arr = [1, 2, 3]`` and ``a = f()`` when f returns a tuple.
         if hasattr(self, "_rhs_is_sequence") and self._rhs_is_sequence(node.value, val):
             self.object_mode = True
             self.scalar_vars.add(name)
+            self.arrays.discard(f"{name}_arr")
             if self.in_function:
                 self.local_vars.add(name)
                 self.local_sequence_vars.add(name)
@@ -1571,7 +1629,7 @@ class CompilerVisitor(NodeVisitor):
             return f"{name} = {{}}"
 
         # UDT series / chart.point dict / udt_index handle / UDT ref (p2 = p1)
-        # / Type.copy(p1) (shallow dict clone)
+        # / Type.copy(p1) (shallow dict clone) / UDF returning Type.new(...)
         rhs_is_udt_name = (
             isinstance(node.value, ast.Name) and node.value.id in self.udt_vars
         )
@@ -1580,6 +1638,8 @@ class CompilerVisitor(NodeVisitor):
             or self._looks_like_udt_ctor(node.value)
             or self._looks_like_udt_copy(node.value)
             or self._looks_like_object_handle_expr(val)
+            or self._val_looks_like_udt_dict(val)
+            or self._call_returns_udt(node.value)
             or rhs_is_udt_name
         ):
             self.object_mode = True
@@ -1638,7 +1698,13 @@ class CompilerVisitor(NodeVisitor):
         self.arrays.add(f"{name}_arr")
         # Coerce suspicious RHS into float series via safe cast (object mode)
         store_val = val
-        if not self._is_safe_numeric_expr(val) and not self.in_function:
+        if not self.in_function and (
+            not self._is_safe_numeric_expr(val)
+            or self._looks_like_sequence_expr(val)
+            or self._val_looks_like_udt_dict(val)
+            or self._call_returns_udt(node.value)
+            or isinstance(node.value, ast.Tuple)
+        ):
             self.object_mode = True
             store_val = f"safe_float({val})"
         # Track bar-constant literals / input defvals for strategy() ctor folding
@@ -2175,6 +2241,18 @@ class CompilerVisitor(NodeVisitor):
             return True
         if s in ("None",):
             return False
+        # Tuple / list literals must not land in float64 (``z := [1, 2]``).
+        if self._looks_like_sequence_expr(s):
+            return False
+        # UDT / object dict handles — never ``float({...})``.
+        if "__type__" in s or (s.startswith("{") and s.endswith("}")):
+            return False
+        for uf in getattr(self, "func_returns_udt", set()):
+            if re.search(rf"\b{re.escape(uf)}\s*\(", s):
+                return False
+        for uf in getattr(self, "func_returns_sequence", set()):
+            if re.search(rf"\b{re.escape(uf)}\s*\(", s):
+                return False
         # UDT field-read / walrus bind is never a float64 scalar.
         if "__u :=" in s or "isinstance(__u" in s:
             return False
@@ -2678,6 +2756,10 @@ class CompilerVisitor(NodeVisitor):
                 seq_udf = bool(uf_name and uf_name in self.func_returns_sequence) or (
                     self._call_returns_sequence(node.value)
                 )
+                # Numeric tuple UDFs are sequence-marked for ``a = f()`` but
+                # multi-unpack must stay on float series (``[p, q] = f()``).
+                if uf_name and uf_name in getattr(self, "func_returns_tuple", set()):
+                    seq_udf = False
                 as_sequence = seq_udf or is_import_method or none_stub
                 return _unpack_call(call_code, as_sequence=as_sequence)
 
@@ -2761,12 +2843,18 @@ class CompilerVisitor(NodeVisitor):
                 return self._emit_if_assign(target, node.value)
             val = self._dmi_as_scalar(self.visit(node.value))
             py = self._py_ident(node.target.id)
-            # line/label/box handles into series-local → object dtype (not float64)
+            # line/label/box / UDT / tuple handles into series-local → object dtype
             if val and (
                 "__drawings" in val
                 or val.startswith("{")
                 or "'kind':" in val
                 or '"kind":' in val
+                or self._val_looks_like_udt_dict(val)
+                or self._call_returns_udt(node.value)
+                or (
+                    hasattr(self, "_rhs_is_sequence")
+                    and self._rhs_is_sequence(node.value, val)
+                )
             ):
                 self.object_mode = True
                 if not hasattr(self, "object_series_locals"):
@@ -2827,16 +2915,38 @@ class CompilerVisitor(NodeVisitor):
                 self.udt_vars.add(name)
                 self.arrays.add(f"{name}_arr")
                 return f"{name}_arr[__bar_idx] = {val}"
-            if self._looks_like_object_handle_expr(val):
+            if self._looks_like_object_handle_expr(val) or self._val_looks_like_udt_dict(
+                val
+            ) or self._call_returns_udt(node.value) or self._looks_like_udt_ctor(
+                node.value
+            ):
                 self.object_mode = True
                 self.udt_vars.add(name)
                 self.arrays.add(f"{name}_arr")
                 return f"{name}_arr[__bar_idx] = {val}"
+            # Tuple / sequence handle: never write a Python tuple into float64.
+            if hasattr(self, "_rhs_is_sequence") and self._rhs_is_sequence(
+                node.value, val
+            ):
+                self.object_mode = True
+                if name in self.scalar_vars or name in self.map_vars:
+                    return f"{name} = {val}"
+                if f"{name}_arr" in self.arrays:
+                    # Existing series (``var z = 0.0`` then ``z := [1, 2]``)
+                    return f"{name}_arr[__bar_idx] = safe_float({val})"
+                self.scalar_vars.add(name)
+                self.arrays.discard(f"{name}_arr")
+                return f"{name} = {val}"
             # Default series reassign
             if f"{name}_arr" in self.arrays or name not in self.scalar_vars:
                 self.arrays.add(f"{name}_arr")
                 store_val = val
                 if not self._is_safe_numeric_expr(val):
+                    self.object_mode = True
+                    store_val = f"safe_float({val})"
+                elif self._looks_like_sequence_expr(val) or self._val_looks_like_udt_dict(
+                    val
+                ):
                     self.object_mode = True
                     store_val = f"safe_float({val})"
                 return f"{name}_arr[__bar_idx] = {store_val}"
@@ -7833,6 +7943,19 @@ class CompilerVisitor(NodeVisitor):
         self.func_free_scalars[pine_name] = free_scalars
         if self._func_body_returns_sequence(node, last_ast, body_lines) if hasattr(self, "_func_body_returns_sequence") else False:
             self.func_returns_sequence.add(pine_name)
+            self.func_returns_sequence.add(func_name)
+        last_ret = self._func_last_value_expr(last_ast)
+        if isinstance(last_ret, ast.Tuple) and not self._ast_expr_is_sequence(last_ret):
+            # Numeric/mixed tuple return: ``a = f()`` is a handle; ``[p, q] = f()``
+            # still unpacks into float series (see _visit_tuple_assign).
+            self.func_returns_tuple.add(pine_name)
+            self.func_returns_tuple.add(func_name)
+            self.func_returns_sequence.add(pine_name)
+            self.func_returns_sequence.add(func_name)
+        if self._func_body_returns_udt(last_ast):
+            self.func_returns_udt.add(pine_name)
+            self.func_returns_udt.add(func_name)
+            self.object_mode = True
         # Detect string/size-enum returning UDFs (``f_gTS → size.tiny``)
         if not hasattr(self, "func_returns_string"):
             self.func_returns_string: set[str] = set()
@@ -7846,6 +7969,7 @@ class CompilerVisitor(NodeVisitor):
             not body_forced_object
             and pine_name not in self.func_returns_sequence
             and pine_name not in self.func_returns_string
+            and pine_name not in getattr(self, "func_returns_udt", set())
         ):
             self.func_returns_numeric.add(pine_name)
             self.func_returns_numeric.add(func_name)
