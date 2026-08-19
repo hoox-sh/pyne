@@ -1,0 +1,18 @@
+{
+  "name": "pyne-api-container",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "types": "wrangler types",
+    "dev": "wrangler dev",
+    "build:image": "docker build --platform linux/amd64 --target api -t pyne-api:cf ..",
+    "deploy": "npm run build:image && wrangler deploy"
+  },
+  "dependencies": {
+    "@cloudflare/containers": "^0.0.31"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "wrangler": "^4.124.0"
+  }
+}
