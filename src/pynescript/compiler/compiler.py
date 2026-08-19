@@ -93,6 +93,8 @@ _NS = frozenset(
         "barmerge",
         "barstate",
         "complex",
+        "footprint",
+        "volume_row",
     }
 )
 
@@ -1582,6 +1584,15 @@ class CompilerVisitor(NodeVisitor):
                 self.object_mode = True
                 self.local_sequence_vars.add(name)
                 return f"{py} = {val}"
+            if not typed_numeric and (
+                typed_stringy
+                or self._is_stringy_value(node.value)
+                or (
+                    isinstance(node.value, ast.Constant)
+                    and isinstance(node.value.value, str)
+                )
+            ):
+                self.string_scalars.add(name)
             return f"{py} = {val}"
 
         # Script-level: never rebind numpy ``np`` / Pine ``na`` in the bar loop.
@@ -5283,9 +5294,26 @@ class CompilerVisitor(NodeVisitor):
             return "np.nan"
 
         # Other request.* APIs — numeric NaN stub (no invent; interpret uses mocks)
+        if func_name == "request_footprint":
+            self.object_mode = True
+            return "{'__type__': 'footprint'}"
         if func_name.startswith("request_"):
             self.object_mode = True
             return "np.nan"
+
+        if func_name.startswith("footprint_"):
+            self.object_mode = True
+            attr = func_name[len("footprint_") :]
+            if attr == "rows":
+                return "[]"
+            if attr in ("get_row_by_price", "poc", "vah", "val"):
+                return "{'__type__': 'volume_row'}"
+            return "0.0"
+        if func_name.startswith("volume_row_"):
+            self.object_mode = True
+            if "has_" in func_name:
+                return "False"
+            return "0.0"
 
         # Calendar / time extractors (optional time argument; else bar open)
         _cal_fn = {

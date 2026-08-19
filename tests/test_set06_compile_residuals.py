@@ -677,6 +677,19 @@ min_tick_format() =>
 s = min_tick_format()
 plot(str.length(s))
 """
+    code = transpile(src)
+    assert "safe_float(min_tick_format())" not in code
     out = _compile_run(src, n=20)
-    # mintick may not append extra '#'; the crash was float("#.#")
+    # mintick may not append extra '#'; must not float("#.#")
     assert _last(out) >= 3.0
+
+
+def test_request_footprint_rows_not_len_on_float() -> None:
+    src = """//@version=6
+indicator("coverage footprint")
+fp = request.footprint(10)
+rows = footprint.rows(fp)
+plot(array.size(rows))
+"""
+    out = _compile_run(src, n=20)
+    assert _last(out) == 0.0
