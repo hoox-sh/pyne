@@ -574,6 +574,54 @@ x = 3
         result = handle_document_symbols(params, "", "file:///test.pine")
         assert len(result) == 0
 
+    def test_handle_document_symbols_selection_contained_in_full_range(self) -> None:
+        """Every symbol's selectionRange must be contained in its fullRange.
+
+        VS Code raises ``selectionRange must be contained in fullRange`` and
+        drops the whole outline otherwise. Single-line statements previously
+        produced zero-width full ranges ending at character 0.
+        """
+
+        def _contains(full: lsp.Range, sel: lsp.Range) -> bool:
+            return (full.start.line, full.start.character) <= (
+                sel.start.line,
+                sel.start.character,
+            ) and (sel.end.line, sel.end.character) <= (full.end.line, full.end.character)
+
+        def _walk(symbols: list[lsp.DocumentSymbol]) -> list[lsp.DocumentSymbol]:
+            out: list[lsp.DocumentSymbol] = []
+            for s in symbols:
+                out.append(s)
+                out.extend(_walk(list(s.children or [])))
+            return out
+
+        source = """//@version=5
+indicator("Test")
+
+length = 14
+fastMA = ta.sma(close, length)
+
+myFunction() =>
+    inner = 1
+    inner
+
+type MySettings
+    int size = 10
+
+settings = MySettings.new()
+"""
+        params = lsp.DocumentSymbolParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+        )
+        result = handle_document_symbols(params, source, "file:///test.pine")
+        assert len(result) >= 1
+
+        for sym in _walk(result):
+            assert sym.range is not None and sym.selection_range is not None
+            assert _contains(sym.range, sym.selection_range), (
+                f"{sym.name}: selection {sym.selection_range} not in full {sym.range}"
+            )
+
     def test_handle_document_symbols_with_type(self) -> None:
         """Test document symbols with user-defined type."""
         source = """//@version=5

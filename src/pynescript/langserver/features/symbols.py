@@ -248,12 +248,23 @@ class DocumentSymbolCollector(NodeVisitor):
             self._current_function = None
 
     def _node_to_range(self, node: Any) -> lsp.Range:
-        """Convert AST node to Range."""
+        """Convert AST node to a Range covering its full source span.
+
+        The end position must not precede the ``selection_range`` produced by
+        :meth:`_name_to_range`; clients (VS Code) reject symbols whose
+        selection range is not contained in the full range.
+        """
         lineno = getattr(node, "lineno", 1) or 1
+        col_offset = getattr(node, "col_offset", 0) or 0
         end_lineno = getattr(node, "end_lineno", lineno) or lineno
+        end_col_offset = getattr(node, "end_col_offset", None)
+        if end_col_offset is None:
+            # Defensive fallback for nodes lacking span info: keep the range
+            # wide enough to contain any name-based selection range.
+            end_col_offset = col_offset + 1 if end_lineno == lineno else 1 << 31
         return lsp.Range(
-            start=lsp.Position(line=max(0, lineno - 1), character=0),
-            end=lsp.Position(line=max(0, end_lineno - 1), character=0),
+            start=lsp.Position(line=max(0, lineno - 1), character=max(0, col_offset)),
+            end=lsp.Position(line=max(0, end_lineno - 1), character=max(0, end_col_offset)),
         )
 
     def _name_to_range(self, node: Any) -> lsp.Range:
