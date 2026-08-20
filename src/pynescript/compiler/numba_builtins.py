@@ -63,8 +63,10 @@ Matrices are list-of-lists handles. ``na_num`` / ``safe_float`` map Pine
 
 from __future__ import annotations
 
-import numpy as np
+import re
+
 import numba
+import numpy as np
 
 
 @numba.njit(cache=True)
@@ -626,14 +628,20 @@ _register_njit_overload(numba_abs, _numba_abs_jit)
 
 @numba.njit(cache=True)
 def _numba_max_jit(a, b):
-    """Scalar maximum of two values (nopython ``math.max``)."""
+    """Scalar maximum; na/NaN args are skipped (Pine ``math.max``)."""
+    a_nan = np.isnan(a)
+    b_nan = np.isnan(b)
+    if a_nan:
+        return b
+    if b_nan:
+        return a
     if a > b:
         return a
     return b
 
 
 def numba_max(a, b):
-    """Scalar max; None/NA → nan (object-mode UDT fields)."""
+    """Scalar max; None/NA skipped like interpret ``math.max`` (all-na → nan)."""
     fa = safe_float(a) if not _is_plain_float(a) else a
     fb = safe_float(b) if not _is_plain_float(b) else b
     return _numba_max_jit(fa, fb)
@@ -644,14 +652,20 @@ _register_njit_overload(numba_max, _numba_max_jit)
 
 @numba.njit(cache=True)
 def _numba_min_jit(a, b):
-    """Scalar minimum of two values (nopython ``math.min``)."""
+    """Scalar minimum; na/NaN args are skipped (Pine ``math.min``)."""
+    a_nan = np.isnan(a)
+    b_nan = np.isnan(b)
+    if a_nan:
+        return b
+    if b_nan:
+        return a
     if a < b:
         return a
     return b
 
 
 def numba_min(a, b):
-    """Scalar min; None/NA → nan (object-mode UDT fields)."""
+    """Scalar min; None/NA skipped like interpret ``math.min`` (all-na → nan)."""
     fa = safe_float(a) if not _is_plain_float(a) else a
     fb = safe_float(b) if not _is_plain_float(b) else b
     return _numba_min_jit(fa, fb)
@@ -900,21 +914,28 @@ numba.extending.overload(numba_pivotlow)(_ol_numba_pivotlow)
 
 @numba.njit(cache=True)
 def numba_stoch(source, high, low, length, i):
-    """Stochastic %K: (src - lowest(low)) / (highest(high) - lowest(low)) * 100."""
+    """Stochastic %K: (src - lowest(low)) / (highest(high) - lowest(low)) * 100.
+
+    Full ``length`` window of finite high/low required (na poisons, like
+    ``ta.highest`` / ``ta.lowest``). Nested ``ta.stoch(rsi, …)`` stays na
+    until RSI itself is fully warmed.
+    """
     length = int(length)
     if length <= 0 or i < length - 1:
         return np.nan
     hh = high[i]
     ll = low[i]
+    if np.isnan(hh) or np.isnan(ll) or np.isnan(source[i]):
+        return np.nan
     for j in range(1, length):
         h = high[i - j]
         l = low[i - j]
-        if h > hh or np.isnan(hh):
+        if np.isnan(h) or np.isnan(l):
+            return np.nan
+        if h > hh:
             hh = h
-        if l < ll or np.isnan(ll):
+        if l < ll:
             ll = l
-    if np.isnan(hh) or np.isnan(ll) or np.isnan(source[i]):
-        return np.nan
     if hh == ll:
         return 50.0
     return 100.0 * (source[i] - ll) / (hh - ll)
@@ -1354,6 +1375,17 @@ def numba_aroon(high, low, length, i):
     up = 100.0 * (length - bars_since_hh) / length
     down = 100.0 * (length - bars_since_ll) / length
     return down, up
+
+
+@numba.njit(cache=True)
+def numba_aroon_up_down(high, low, length, i):
+    """TradingView/ta ``aroon`` tuple: ``(Aroon-Up, Aroon-Down)``.
+
+    Built-in ``ta.aroon`` is ``(down, up)``; the published library swaps that
+    order (see library docs: returns Aroon-Up then Aroon-Down).
+    """
+    down, up = numba_aroon(high, low, length, i)
+    return up, down
 
 
 @numba.njit(cache=True)
@@ -2154,6 +2186,195 @@ def pine_raise(msg) -> None:
     (used by compiled prologs) exports it.
     """
     raise RuntimeError(str(msg))
+
+
+# Host chart identity for compile-mode ``syminfo.ticker`` / ``tickerid`` / ``prefix``.
+# Runtime sets these before ``CompiledScript.run`` so error strings and ticker
+# concatenation match interpret (``:PARITY`` vs hardcoded ``SYMBOL``).
+_CHART_TICKER = "SYMBOL"
+_CHART_TICKERID = "SYMBOL"
+_CHART_PREFIX = ""
+
+
+def set_chart_identity(ticker="SYMBOL", tickerid=None, prefix=""):
+    """Install chart ticker identity for the next compiled run (object mode)."""
+    global _CHART_TICKER, _CHART_TICKERID, _CHART_PREFIX
+    t = "SYMBOL" if ticker is None else str(ticker)
+    _CHART_TICKER = t
+    _CHART_TICKERID = t if tickerid is None else str(tickerid)
+    _CHART_PREFIX = "" if prefix is None else str(prefix)
+
+
+def chart_ticker():
+    """Pine ``syminfo.ticker`` (bare ticker)."""
+    return _CHART_TICKER
+
+
+def chart_tickerid():
+    """Pine ``syminfo.tickerid`` (prefix:ticker or bare)."""
+    return _CHART_TICKERID
+
+
+def chart_prefix():
+    """Pine ``syminfo.prefix`` (exchange / empty)."""
+    return _CHART_PREFIX
+
+
+_RGBA_RE = re.compile(
+    r"^rgba?\(\s*([+-]?\d+(?:\.\d+)?)\s*,\s*([+-]?\d+(?:\.\d+)?)\s*,"
+    r"\s*([+-]?\d+(?:\.\d+)?)"
+    r"(?:\s*,\s*([+-]?\d+(?:\.\d+)?))?\s*\)$",
+    re.IGNORECASE,
+)
+_STR_FORMAT_PLACEHOLDER_RE = re.compile(r"\{([^{}]+)\}")
+
+
+def _parse_color_rgba(base):
+    """Return ``(r, g, b, a_0_255)`` or None from a compile color payload."""
+    if base is None:
+        return None
+    if isinstance(base, (float, np.floating)) and base != base:
+        return None
+    if isinstance(base, str):
+        s = base.strip()
+        if not s:
+            return None
+        m = _RGBA_RE.match(s)
+        if m is not None:
+            r = int(float(m.group(1)))
+            g = int(float(m.group(2)))
+            b = int(float(m.group(3)))
+            if m.group(4) is None:
+                a = 255
+            else:
+                af = float(m.group(4))
+                a = int(af) if af > 1.0 else int(round(af * 255.0))
+            return (max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b)), max(0, min(255, a)))
+        if s[0] == "#":
+            h = s[1:]
+        else:
+            h = s
+        if len(h) == 6:
+            try:
+                r = int(h[0:2], 16)
+                g = int(h[2:4], 16)
+                b = int(h[4:6], 16)
+            except ValueError:
+                return None
+            return (r, g, b, 255)
+        if len(h) == 8:
+            try:
+                r = int(h[0:2], 16)
+                g = int(h[2:4], 16)
+                b = int(h[4:6], 16)
+                a = int(h[6:8], 16)
+            except ValueError:
+                return None
+            return (r, g, b, a)
+        return None
+    to_rgba = getattr(base, "to_rgba", None)
+    if callable(to_rgba):
+        try:
+            return _parse_color_rgba(str(to_rgba()))
+        except Exception:
+            return None
+    return None
+
+
+def pine_color_new(base, transp=None):
+    """Pine ``color.new(base, transp)`` → interpret-style ``rgba(r, g, b, a)``.
+
+    ``transp`` is 0–100 (100 = fully transparent). Alpha uses the interpret
+    contract ``int(255 * (1 - transp/100))`` so bgcolor series match.
+    """
+    parsed = _parse_color_rgba(base)
+    if parsed is None:
+        return None if base is None else base
+    r, g, b, a = parsed
+    if transp is None:
+        return (
+            f"rgba({r}, {g}, {b}, {a / 255.0})"
+            if a != 255
+            else (base if isinstance(base, str) else f"#{r:02X}{g:02X}{b:02X}")
+        )
+    try:
+        if isinstance(transp, (float, np.floating)) and transp != transp:
+            return f"rgba({r}, {g}, {b}, {a / 255.0})"
+        tv = int(transp)
+    except (TypeError, ValueError):
+        return base if isinstance(base, str) else f"#{r:02X}{g:02X}{b:02X}"
+    tv = max(0, min(100, tv))
+    a = int(255 * (1.0 - tv / 100.0))
+    return f"rgba({r}, {g}, {b}, {a / 255.0})"
+
+
+def pine_str_format(fmt, *args):
+    """Pine ``str.format(fmt, ...)`` MessageFormat-ish ``{0}`` placeholders."""
+    if fmt is None:
+        return "NaN"
+    if isinstance(fmt, (float, np.floating)) and fmt != fmt:
+        return "NaN"
+    value = str(fmt)
+    fmt_args = list(args)
+
+    def _replace(match: re.Match) -> str:
+        body = match.group(1)
+        parts = [p.strip() for p in body.split(",")]
+        try:
+            idx = int(parts[0])
+        except (TypeError, ValueError):
+            return match.group(0)
+        if idx < 0 or idx >= len(fmt_args):
+            return ""
+        arg = fmt_args[idx]
+        if arg is None:
+            return "NaN"
+        if isinstance(arg, (float, np.floating)) and arg != arg:
+            return "NaN"
+        kind = parts[1].lower() if len(parts) > 1 else ""
+        pattern = parts[2] if len(parts) > 2 else ""
+        if kind in {"", "string"}:
+            return str(arg)
+        if kind == "number":
+            try:
+                num = float(arg)
+            except (TypeError, ValueError):
+                return str(arg)
+            if pattern:
+                if "." in pattern:
+                    decimals = len(pattern.split(".", 1)[1])
+                    return f"{num:.{decimals}f}"
+                try:
+                    return str(int(num))
+                except (TypeError, ValueError):
+                    return f"{num:g}"
+            return f"{num:g}"
+        if kind == "integer":
+            try:
+                return str(int(float(arg)))
+            except (TypeError, ValueError):
+                return str(arg)
+        return str(arg)
+
+    try:
+        return _STR_FORMAT_PLACEHOLDER_RE.sub(_replace, value)
+    except Exception:
+        try:
+            return value.format(*fmt_args)
+        except Exception:
+            return value + "".join(str(a) for a in fmt_args)
+
+
+def safe_contains(container, value) -> bool:
+    """Pine ``array.includes`` / ``x in y`` that never TypeErrors on scalars."""
+    if container is None:
+        return False
+    if isinstance(container, (float, int, bool, complex, np.floating, np.integer, np.bool_)):
+        return False
+    try:
+        return value in container
+    except TypeError:
+        return False
 
 
 def str_split(value, sep=None):
@@ -3276,6 +3497,57 @@ def numba_vwap_anchor_inc(src, vol, anchor, i, st):
 
 
 @numba.njit(cache=True)
+def numba_vwap_bands_inc(src, vol, anchor, mult, i, st):
+    """Anchored VWAP plus volume-weighted stdev bands.
+
+    ``st``: [cum_pv, cum_v, cum_p2v, last_i]. Returns ``(vwap, upper, lower)``
+    matching reference ``ta.vwap(source, anchor, stdev_mult)``.
+    Variance is ``E[x^2] - E[x]^2`` over the current anchor window (volume
+    weights). Single-sample windows have stdev 0 so bands equal VWAP.
+    """
+    if i < 0:
+        return np.nan, np.nan, np.nan
+    if np.isnan(st[3]):
+        last = -1
+    else:
+        last = int(st[3])
+    if i < last:
+        last = -1
+        st[0] = 0.0
+        st[1] = 0.0
+        st[2] = 0.0
+    cum_pv = 0.0 if last < 0 or np.isnan(st[0]) else st[0]
+    cum_v = 0.0 if last < 0 or np.isnan(st[1]) else st[1]
+    cum_p2v = 0.0 if last < 0 or np.isnan(st[2]) else st[2]
+    for j in range(last + 1, i + 1):
+        a = anchor[j]
+        if not np.isnan(a) and a != 0.0:
+            cum_pv = 0.0
+            cum_v = 0.0
+            cum_p2v = 0.0
+        p = src[j]
+        v = vol[j]
+        if np.isnan(p) or np.isnan(v):
+            continue
+        cum_pv += p * v
+        cum_v += v
+        cum_p2v += p * p * v
+    st[0] = cum_pv
+    st[1] = cum_v
+    st[2] = cum_p2v
+    st[3] = float(i)
+    if cum_v == 0.0:
+        return np.nan, np.nan, np.nan
+    vwap = cum_pv / cum_v
+    var = cum_p2v / cum_v - vwap * vwap
+    if var < 0.0:
+        var = 0.0
+    sd = np.sqrt(var)
+    m = float(mult)
+    return vwap, vwap + sd * m, vwap - sd * m
+
+
+@numba.njit(cache=True)
 def numba_obv_inc(close, vol, i, st):
     """Incremental OBV. ``st``: [obv, last_i]. Matches ``numba_obv``."""
     if i < 0:
@@ -4089,7 +4361,11 @@ def numba_stoch_inc(source, high, low, length, i, st):
     st[4] = float(i)
     if i < length - 1:
         return np.nan
-    if np.isnan(hh) or np.isnan(ll) or np.isnan(source[i]):
+    start = i - length + 1
+    for k in range(start, i + 1):
+        if np.isnan(high[k]) or np.isnan(low[k]):
+            return np.nan
+    if np.isnan(source[i]) or np.isnan(hh) or np.isnan(ll):
         return np.nan
     if hh == ll:
         return 50.0

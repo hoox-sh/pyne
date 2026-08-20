@@ -47,12 +47,14 @@ def _ohlcv(n: int = 30, start: float = 100.0):
 
 
 def test_numba_max_min_none_is_nan_not_typingerror() -> None:
-    """Object-mode UDT None must coerce to nan before the njit compare."""
+    """Object-mode UDT None must coerce before the njit compare (no TypingError).
+
+    Pine ``math.max``/``math.min`` skip na; both-na → nan.
+    """
     mx_right = numba_max(1.0, None)
     mx_left = numba_max(None, 2.0)
     mn_both = numba_min(None, None)
-    assert np.isnan(mx_right)
-    # IEEE: nan > 2.0 is False → return the coerced right arg
+    assert mx_right == 1.0
     assert mx_left == 2.0
     assert np.isnan(mn_both)
 

@@ -2,7 +2,7 @@
  * Copyright (C) 2024-2026 jango_blockchained
  * SPDX-License-Identifier: AGPL-3.0-or-later
  *
- * Static version table. A 5-minute GitHub cron rewrites FALLBACK — no
+ * Static version table. A daily GitHub cron rewrites FALLBACK — no
  * browser fetches, no extra pageload.
  */
 

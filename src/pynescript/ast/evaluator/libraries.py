@@ -129,6 +129,38 @@ STUB_KNOWN_EXPORTS: dict[str, Callable[..., Any]] = {
 }
 
 
+def bind_tradingview_ta_stub_exports(evaluator: Any) -> dict[str, Callable[..., Any]]:
+    """Polyfill ``TradingView/ta`` exports that wrap interpret ``ta.*`` kernels.
+
+    ``TVta.aroon`` returns ``(Aroon-Up, Aroon-Down)`` — swapped vs built-in
+    ``ta.aroon`` which is ``(down, up)``. ``TVta.kama`` matches ``ta.kama``.
+    """
+
+    def aroon(*args: Any, **kwargs: Any) -> tuple[Any, Any]:
+        merged = _merge_stub_args(args, kwargs, ["length"])
+        pair = evaluator._builtin_ta_aroon(merged)
+        if pair is None:
+            return (None, None)
+        down, up = pair
+        return (up, down)
+
+    def kama(*args: Any, **kwargs: Any) -> Any:
+        alias = {
+            "length": "erLen",
+            "fastLength": "fastLen",
+            "slowLength": "slowLen",
+            "fast": "fastLen",
+            "slow": "slowLen",
+        }
+        norm_kw = {alias.get(k, k): v for k, v in kwargs.items()}
+        merged = _merge_stub_args(
+            args, norm_kw, ["source", "erLen", "fastLen", "slowLen"]
+        )
+        return evaluator._builtin_ta_kama(merged)
+
+    return {"aroon": aroon, "kama": kama}
+
+
 @dataclass
 class LibraryModule:
     """A loaded library: title/path identity plus exported callables and values.

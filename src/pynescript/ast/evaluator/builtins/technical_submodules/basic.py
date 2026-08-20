@@ -115,11 +115,13 @@ class BasicIndicators(TechnicalHelpers):
             return self._hma_inc_update(series, period)
         return self._hma(series, period)
 
-    def _builtin_ta_vwap(self, args: list[Any]) -> float | None:
+    def _builtin_ta_vwap(self, args: list[Any]) -> float | tuple[float, float, float] | None:
         """Volume Weighted Average Price.
 
         Reference Pine: ``ta.vwap(source)`` or ``ta.vwap`` (defaults to hlc3).
         Optional second arg is an anchor condition that resets the window.
+        Three-arg ``ta.vwap(source, anchor, stdev_mult)`` returns
+        ``(vwap, upper, lower)`` with volume-weighted stdev bands.
         """
         if self._use_incremental_ta():
             # O(1) cumulative — only need last price/volume samples.
@@ -133,8 +135,12 @@ class BasicIndicators(TechnicalHelpers):
             series_map = getattr(self, "current_series", None) or {}
             volume = series_map.get("volume")
             anchor = args[1] if len(args) >= 2 else None
+            stdev_mult = args[2] if len(args) >= 3 else None
             return self._vwap_inc_update(
-                source, volume if volume else None, anchor=anchor
+                source,
+                volume if volume else None,
+                anchor=anchor,
+                stdev_mult=stdev_mult,
             )
         if len(args) == 0:
             source = self._context_series("hlc3") or self._context_series("close")
@@ -710,13 +716,13 @@ class BasicIndicators(TechnicalHelpers):
         if length < 2:
             self._error("ta.rci length must be at least 2")
         if len(series) < length:
-            return math.nan
+            return None
 
         window = series[-length:]
         valid_values = [(i, v) for i, v in enumerate(window) if v is not None]
 
         if len(valid_values) < 2:
-            return math.nan
+            return None
 
         ranks_idx = sorted(range(len(valid_values)), key=lambda i: i)
         ranks_val = sorted(range(len(valid_values)), key=lambda i: valid_values[i][1])
@@ -726,7 +732,7 @@ class BasicIndicators(TechnicalHelpers):
 
         d_squared = sum((rank_dict_idx[i] - rank_dict_val[i]) ** 2 for i in range(len(valid_values)))
         n = len(valid_values)
-        return 1 - (6 * d_squared) / (n * (n * n - 1)) if n > 1 else math.nan
+        return 1 - (6 * d_squared) / (n * (n * n - 1)) if n > 1 else None
 
     def _builtin_ta_cog(self, args: list[Any]) -> float:
         """Center of Gravity oscillator."""
@@ -1030,26 +1036,7 @@ class BasicIndicators(TechnicalHelpers):
         if self._use_incremental_ta():
             return self._pivothigh_inc_update(source, left_bars, right_bars)
 
-        if len(source) <= left_bars + right_bars:
-            return None
-
-        # Get current value (last in chronological series)
-        current_idx = len(source) - 1
-        current = self._pivot_scalar(source[current_idx])
-        if current is None:
-            return None
-
-        # Check left bars (strict local max)
-        for i in range(1, left_bars + 1):
-            if current_idx - i < 0:
-                return None
-            left_val = self._pivot_scalar(source[current_idx - i])
-            if left_val is not None and left_val >= current:
-                return None
-
-        # Check right bars - would need future bars
-        # For now, only check left bars
-        return current
+        return self._pivot_confirm_window(source, left_bars, right_bars, is_high=True)
 
     def _builtin_ta_pivotlow(self, args: list[Any]) -> float | None:
         """Find the lowest point (pivot low) in a window.
@@ -1078,24 +1065,7 @@ class BasicIndicators(TechnicalHelpers):
         if self._use_incremental_ta():
             return self._pivotlow_inc_update(source, left_bars, right_bars)
 
-        if len(source) <= left_bars + right_bars:
-            return None
-
-        current_idx = len(source) - 1
-        current = self._pivot_scalar(source[current_idx])
-        if current is None:
-            return None
-
-        for i in range(1, left_bars + 1):
-            if current_idx - i < 0:
-                return None
-            left_val = self._pivot_scalar(source[current_idx - i])
-            if left_val is not None and left_val <= current:
-                return None
-
-        # Check right bars - would need future bars
-        # For now, only check left bars
-        return current
+        return self._pivot_confirm_window(source, left_bars, right_bars, is_high=False)
 
     def _builtin_ta_pivot_point_levels(self, args: list[Any]) -> Any:
         """Calculate pivot point levels.

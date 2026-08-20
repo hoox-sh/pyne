@@ -108,11 +108,13 @@ class OscillatorIndicators(TechnicalHelpers):
         if self._use_incremental_ta():
             return self._stoch_k_inc_update(source, highs, lows, length)
         n = len(source)
-        start = max(0, n - length)
+        if n < length:
+            return None
+        start = n - length
         window_h = [highs[i] for i in range(start, min(n, len(highs))) if highs[i] is not None]
         window_l = [lows[i] for i in range(start, min(n, len(lows))) if lows[i] is not None]
         c = source[-1]
-        if c is None or not window_h or not window_l:
+        if c is None or len(window_h) < length or len(window_l) < length:
             return None
         hh = max(window_h)
         ll = min(window_l)
@@ -711,10 +713,10 @@ class OscillatorIndicators(TechnicalHelpers):
         lows: list[float],
         closes: list[float],
         period: int,
-    ) -> float:
+    ) -> float | None:
         """CCI calculation."""
         if period <= 0 or len(closes) < period:
-            return 0.0
+            return None
         typical_prices = [(high + low + close) / 3 for high, low, close in zip(highs, lows, closes, strict=True)]
         sma_values = self._sma(typical_prices, period)
         mean_devs: list[float | None] = []

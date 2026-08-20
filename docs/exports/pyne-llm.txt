@@ -9265,7 +9265,7 @@ The HOOX family splits language, chart, and execution. Mixing the names is the m
 Conceptual model
 Invariant: evaluation never requires a proprietary chart host. AXIS is an optional chart. HOOX is an optional execution mesh. PyneTS is an optional TypeScript import.
 Interface surface
-Published versions (static; a -minute cron rewrites the table when a registry moves):
+Published versions (static; a daily cron rewrites the table when a registry moves):
 Checkouts (this repo vs sisters)
 | Checkout | What you open |
 | --- | --- |

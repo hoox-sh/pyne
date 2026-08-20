@@ -267,6 +267,89 @@ plot(ta.pvt, "pvt")
     assert math.isclose(float(iv[-1]), float(cv[-1]), rel_tol=_RTOL, abs_tol=_ATOL)
 
 
+def test_tvta_aroon_kama_interp_compile() -> None:
+    """TradingView/ta.aroon is (up, down); TVta.kama matches ta.kama."""
+    src = """
+//@version=6
+indicator("tvta_p1p")
+import TradingView/ta/11 as TVta
+[aroonUp, aroonDn] = TVta.aroon(14)
+plot(aroonUp, "up")
+plot(aroonDn, "dn")
+plot(aroonUp - aroonDn, "osc")
+[ad, au] = ta.aroon(14)
+plot(ad, "ta_dn")
+plot(au, "ta_up")
+plot(TVta.kama(close, 10, 2, 30), "kama")
+plot(ta.kama(close, 10, 2, 30), "takama")
+"""
+    n = 40
+    interp, compiled = _run_dual(src, _ohlcv(n))
+    if compiled is None:
+        pytest.skip("numba compile path unavailable")
+    first_up = next((i for i, v in enumerate(interp["series"]["up"]) if not _is_na(v)), None)
+    assert first_up == 14, f"TVta.aroon first finite at {first_up}, expected 14"
+    _assert_finite_match(interp["series"]["up"], compiled["series"]["up"], key="up")
+    _assert_finite_match(interp["series"]["dn"], compiled["series"]["dn"], key="dn")
+    _assert_finite_match(interp["series"]["osc"], compiled["series"]["osc"], key="osc")
+    # Library order is swapped vs built-in ta.aroon
+    _assert_finite_match(interp["series"]["up"], interp["series"]["ta_up"], key="up_vs_ta")
+    _assert_finite_match(interp["series"]["dn"], interp["series"]["ta_dn"], key="dn_vs_ta")
+    _assert_finite_match(interp["series"]["kama"], compiled["series"]["kama"], key="kama")
+    _assert_finite_match(interp["series"]["kama"], interp["series"]["takama"], key="kama_vs_ta")
+
+
+def test_vwap_stdev_tuple_interp_compile() -> None:
+    """ta.vwap(src, anchor, stdev_mult) unpacks (vwap, upper, lower) on both hosts."""
+    src = """
+//@version=6
+indicator("vwap3_p1p")
+newp = timeframe.change("D")
+[_v, _u, _l] = ta.vwap(hlc3, newp, 1)
+plot(_v, "v")
+plot(_u, "u")
+plot(_l, "l")
+plot(ta.vwap(hlc3), "v1")
+"""
+    n = 20
+    interp, compiled = _run_dual(src, _ohlcv(n))
+    if compiled is None:
+        pytest.skip("numba compile path unavailable")
+    _assert_finite_match(interp["series"]["v"], compiled["series"]["v"], key="v")
+    _assert_finite_match(interp["series"]["u"], compiled["series"]["u"], key="u")
+    _assert_finite_match(interp["series"]["l"], compiled["series"]["l"], key="l")
+    _assert_finite_match(interp["series"]["v1"], compiled["series"]["v1"], key="v1")
+    # Daily synthetic bars reset each bar → single-sample stdev 0 → bands == vwap
+    for i, (v, u, lo) in enumerate(
+        zip(interp["series"]["v"], interp["series"]["u"], interp["series"]["l"], strict=True)
+    ):
+        if _is_na(v):
+            continue
+        assert math.isclose(float(v), float(u), rel_tol=_RTOL, abs_tol=_ATOL), f"upper[{i}]"
+        assert math.isclose(float(v), float(lo), rel_tol=_RTOL, abs_tol=_ATOL), f"lower[{i}]"
+
+
+def test_array_unshift_avg_series_snapshot() -> None:
+    """array.unshift(close) stores the bar scalar so array.avg is finite."""
+    src = """
+//@version=6
+indicator("arr_avg_p1p")
+var float[] a = array.new<float>()
+array.unshift(a, close)
+plot(array.avg(a), "avg")
+plot(array.size(a), "sz")
+"""
+    n = 16
+    interp, compiled = _run_dual(src, _ohlcv(n))
+    if compiled is None:
+        pytest.skip("numba compile path unavailable")
+    iv = interp["series"]["avg"]
+    cv = compiled["series"]["avg"]
+    assert not _is_na(iv[0]) and not _is_na(cv[0])
+    _assert_finite_match(iv, cv, key="avg")
+    _assert_finite_match(interp["series"]["sz"], compiled["series"]["sz"], key="sz")
+
+
 @pytest.mark.xfail(
     reason="P1p leftover: v4 bare sma/wma interpret stays all-na after bar-0 site bind; "
     "v5 ta.wma dual-host is OK (same handler).",

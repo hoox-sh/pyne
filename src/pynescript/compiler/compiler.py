@@ -580,6 +580,8 @@ class CompilerVisitor(NodeVisitor):
         self._ta_state_i: int = 0  # synthetic fixed-size state for incremental TA
         # ``ticker.heikinashi`` / ``request.security(…HA…)`` → fill ha_*_arr each bar
         self.needs_heikinashi: bool = False
+        # ``time_close`` / ``time_close[n]`` → next-bar open (last + 86400000)
+        self.needs_time_close: bool = False
         # Fixed-size state vectors: (name, length) allocated once outside bar loop
         self.fixed_state: list[tuple[str, int]] = []
         # name → size for cloning UDF call-site state (Pine: each call is independent)
@@ -970,7 +972,10 @@ class CompilerVisitor(NodeVisitor):
                 "    n_bars = len(close_arr)",
             ]
         )
+        self._emit_time_close_init(lines, indent="    ")
         for arr in sorted(self.arrays):
+            if arr == "time_close_arr":
+                continue
             lines.append(f"    {arr} = np.full(n_bars, np.nan)")
         self._emit_series_local_state(lines, indent="    ")
         self._emit_fixed_state(lines, indent="    ")
@@ -1025,6 +1030,7 @@ class CompilerVisitor(NodeVisitor):
                 "    __drawings = []",
             ]
         )
+        self._emit_time_close_init(lines, indent="    ")
         if self.uses_strategy:
             # Broker ctor kwargs from strategy() declaration when present.
             # Only const-like exprs (literals or folded input/const series) — never
@@ -1068,6 +1074,7 @@ class CompilerVisitor(NodeVisitor):
                 "close_arr",
                 "vol_arr",
                 "time_arr",
+                "time_close_arr",
             ):
                 continue
             # object series use object dtype
@@ -2836,17 +2843,28 @@ class CompilerVisitor(NodeVisitor):
                                 rhs = self._map_ohlcv_expr_to_heikinashi(rhs)
                             lines.append(_store_numeric(name, rhs))
                     return "\n".join(lines) if lines else ""
-                # Multi-target from call expression: ``detect_spike(...)`` multi-return
+                # Multi-target from a UDF / complex expression:
+                # ``[a, b] = request.security(..., calculateMonthlyChanges())``.
+                # Visiting the UDF would run it on the *chart* series and invent
+                # empty-matrix 0s (seasonality months-used). Match visit_Call:
+                # complex security expressions emit na. UDT handles passthrough.
                 if expr_node is not None and len(names) > 1:
                     self.object_mode = True
-                    call_code = (self.visit(expr_node) or "").strip()
-                    if not call_code:
-                        lines = []
-                        for name in names:
-                            lines.append(_store_numeric(name, "np.nan"))
-                        return "\n".join(lines)
-                    as_seq = self._call_returns_sequence(expr_node)
-                    return _unpack_call(call_code, as_sequence=as_seq)
+                    if self._security_expr_is_udt(node.value, ""):
+                        call_code = (self.visit(expr_node) or "").strip()
+                        if not call_code:
+                            lines = []
+                            for name in names:
+                                lines.append(_store_sequence(name, "None"))
+                            return "\n".join(lines)
+                        as_seq = self._call_returns_sequence(expr_node)
+                        return _unpack_call(call_code, as_sequence=as_seq)
+                    # Sequence/matrix handles (not float64 series) so later
+                    # ``for [i, row] in m`` / ``m.rows()`` see na, not a nan series.
+                    lines = []
+                    for name in names:
+                        lines.append(_store_sequence(name, "None"))
+                    return "\n".join(lines) if lines else ""
                 # Single-target / non-tuple expression: assign first name only
                 if expr_node is not None and names:
                     if self._ast_expr_is_sequence(expr_node) or self._call_returns_sequence(expr_node):
@@ -2899,6 +2917,8 @@ class CompilerVisitor(NodeVisitor):
                     "numba_stochrsi(",
                     "numba_stochrsi_inc(",
                     "numba_aroon(",
+                    "numba_aroon_up_down(",
+                    "numba_vwap_bands_inc(",
                 )
             )
             # Explicit multi-value stubs like "(0.0, 0.0, 25.0)" only
@@ -3334,8 +3354,7 @@ class CompilerVisitor(NodeVisitor):
         if node.id == "time":
             return "time_arr[__bar_idx]"
         if node.id == "time_close":
-            # No separate close-time series on compile path — open + 1ms short of bar.
-            return "(time_arr[__bar_idx] + 59999.0)"
+            return self._use_time_close()
         if node.id == "timenow":
             return "time_arr[n_bars - 1]"
         if node.id in ("PI", "pi"):
@@ -3357,24 +3376,10 @@ class CompilerVisitor(NodeVisitor):
         # syminfo_* / timeframe_* flattened scalars (legacy / import style)
         if node.id.startswith("syminfo_"):
             attr = node.id[len("syminfo_") :]
-            stubs = {
-                "mintick": "0.01",
-                "pointvalue": "1.0",
-                "ticker": repr("SYMBOL"),
-                "tickerid": repr("SYMBOL"),
-                "currency": repr("USD"),
-                "basecurrency": repr("USD"),
-                "type": repr("stock"),
-                "timezone": repr("UTC"),
-                "session": repr("0930-1600"),
-                "period": repr("1D"),
-            }
-            if attr in stubs:
-                val = stubs[attr]
-                if val.startswith("'") or val.startswith('"'):
-                    self.object_mode = True
-                return val
-            return "0.0"
+            ident = self._syminfo_compile_expr(attr)
+            if ident is not None:
+                return ident
+            return "np.nan"
         if node.id.startswith("timeframe_"):
             attr = node.id[len("timeframe_") :]
             if attr == "period":
@@ -3589,26 +3594,11 @@ class CompilerVisitor(NodeVisitor):
             return m.get(node.attr.lower(), "1")
         # syminfo.* compile-time stubs
         if isinstance(node.value, ast.Name) and node.value.id == "syminfo":
-            stubs = {
-                "mintick": "0.01",
-                "pointvalue": "1.0",
-                "ticker": repr("SYMBOL"),
-                "tickerid": repr("SYMBOL"),
-                "currency": repr("USD"),
-                "basecurrency": repr("USD"),
-                "type": repr("stock"),
-                "root": repr("SYMBOL"),
-                "prefix": repr(""),
-                "description": repr("SYMBOL"),
-                "timezone": repr("UTC"),
-                "session": repr("0930-1600"),
-                "period": repr("1D"),
-                "mincontract": "1.0",
-                "volumetype": repr("base"),
-            }
-            if node.attr in stubs:
-                return stubs[node.attr]
-            return "0.0"
+            ident = self._syminfo_compile_expr(node.attr)
+            if ident is not None:
+                return ident
+            # Missing fundamentals (target_price_*, employees, …) are na, not 0.
+            return "np.nan"
         # timeframe.* compile-time stubs
         if isinstance(node.value, ast.Name) and node.value.id == "timeframe":
             if node.attr == "period":
@@ -3986,7 +3976,7 @@ class CompilerVisitor(NodeVisitor):
         if func_name == "array_includes":
             a = ra(args, kwargs, ("id", "value"))
             if len(a) > 1:
-                return f"({a[1]} in {a[0]})"
+                return f"safe_contains({a[0]}, {a[1]})"
             return "False"
         if func_name == "array_join":
             a = ra(args, kwargs, ("id", "separator"))
@@ -4350,6 +4340,42 @@ class CompilerVisitor(NodeVisitor):
         self.object_mode = True
         self.uses_strategy = True
         return f"__strategy.{attr}"
+
+    def _syminfo_compile_expr(self, attr: str) -> str | None:
+        """Lower ``syminfo.*`` / flattened ``syminfo_*`` to a compile expression.
+
+        Chart identity uses :func:`chart_ticker` helpers so Runtime can inject
+        the live symbol. Unknown numeric/fundamental fields are ``None`` here
+        so the caller emits ``np.nan`` (not ``0.0``).
+        """
+        if attr == "ticker":
+            self.object_mode = True
+            return "chart_ticker()"
+        if attr in ("tickerid", "root"):
+            self.object_mode = True
+            return "chart_tickerid()" if attr == "tickerid" else "chart_ticker()"
+        if attr == "prefix":
+            self.object_mode = True
+            return "chart_prefix()"
+        stubs = {
+            "mintick": "0.01",
+            "pointvalue": "1.0",
+            "currency": repr("USD"),
+            "basecurrency": repr("USD"),
+            "type": repr("stock"),
+            "description": "chart_tickerid()",
+            "timezone": repr("UTC"),
+            "session": repr("0930-1600"),
+            "period": repr("1D"),
+            "mincontract": "1.0",
+            "volumetype": repr("base"),
+        }
+        if attr in stubs:
+            val = stubs[attr]
+            if val.startswith("'") or val.startswith('"') or val.startswith("chart_"):
+                self.object_mode = True
+            return val
+        return None
 
     def _color_const(self, name: str) -> str:
         colors = {
@@ -5016,15 +5042,22 @@ class CompilerVisitor(NodeVisitor):
                 return args[3]
             return repr("#000000")
         if func_name in ("color_new", "color"):
-            # color.new(base, transp) / v3–v4 color(base, transp) — keep base color string
+            # color.new(base, transp) / v3–v4 color(base, transp)
             self.object_mode = True
-            return args[0] if args else repr("#000000")
+            if not args:
+                return repr("#000000")
+            transp = kwargs.get("transp")
+            if transp is None and len(args) > 1:
+                transp = args[1]
+            if transp is None:
+                return args[0]
+            return f"pine_color_new({args[0]}, {transp})"
 
         if func_name == "time":
             # time(timeframe) / time() — chart open when no session args
             return "time_arr[__bar_idx]"
         if func_name in ("time_close",):
-            return "(time_arr[__bar_idx] + 59999.0)"
+            return self._use_time_close()
         if func_name == "timeframe_from_seconds":
             return repr("1D")
         if func_name == "timeframe_change":
@@ -5117,7 +5150,12 @@ class CompilerVisitor(NodeVisitor):
             return f"str({args[0]})" if args else "''"
         if func_name == "str_format":
             self.object_mode = True
-            return f"str({args[0]})" if args else "''"
+            if not args:
+                return "''"
+            rest = ", ".join(args[1:])
+            if rest:
+                return f"pine_str_format({args[0]}, {rest})"
+            return f"pine_str_format({args[0]})"
         if func_name == "str_length":
             self.object_mode = True
             return f"len(str({args[0]}))" if args else "0"
@@ -5830,14 +5868,19 @@ class CompilerVisitor(NodeVisitor):
             # typical price via (h+l+c)/3 not available as array — use close MVP
             return f"numba_cci_inc(close_arr, {self._emit_period(length)}, __bar_idx, {st})"
         if func_name == "ta_vwap":
-            # ta.vwap([source[, anchor]]) — cumulative source*vol / cum vol.
+            # ta.vwap([source[, anchor[, stdev_mult]]]) — cumulative source*vol / cum vol.
             # Default source is hlc3 (not close). Optional anchor bool resets
             # the cumulative window when true (reference ``ta.vwap(src, anchor)``).
-            st = self._alloc_fixed_state("vwap", 3)
+            # 3-arg form returns (vwap, upper, lower) with volume-weighted stdev bands.
             if args:
                 src = _arr(args[0])
             else:
                 src = _arr("((high_arr[__bar_idx] + low_arr[__bar_idx] + close_arr[__bar_idx]) / 3.0)")
+            if len(args) >= 3:
+                st = self._alloc_fixed_state("vwap", 4)
+                anc = _arr(f"(1.0 if ({args[1]}) else 0.0)")
+                return f"numba_vwap_bands_inc({src}, vol_arr, {anc}, float({args[2]}), __bar_idx, {st})"
+            st = self._alloc_fixed_state("vwap", 3)
             if len(args) >= 2:
                 # Materialize anchor as 1.0/0.0 series for incremental reset.
                 anc = _arr(f"(1.0 if ({args[1]}) else 0.0)")
@@ -6091,8 +6134,12 @@ class CompilerVisitor(NodeVisitor):
             return f"numba_ao(high_arr, low_arr, {self._emit_period(fast)}, {self._emit_period(slow)}, __bar_idx)"
         if func_name == "ta_aroon":
             # ta.aroon(length) → (aroonDown, aroonUp)
+            # TradingView/ta.aroon (import-lib method) → (Aroon-Up, Aroon-Down)
             length = kwargs.get("length", args[0] if args else "14")
-            return f"numba_aroon(high_arr, low_arr, {self._emit_period(length)}, __bar_idx)"
+            period = self._emit_period(length)
+            if import_lib_method:
+                return f"numba_aroon_up_down(high_arr, low_arr, {period}, __bar_idx)"
+            return f"numba_aroon(high_arr, low_arr, {period}, __bar_idx)"
         if func_name in ("nz",):
             if not args:
                 return "0.0"
@@ -6491,9 +6538,7 @@ class CompilerVisitor(NodeVisitor):
                 return self.udt_var_types.get(s)
             if s in self.string_scalars or s in self.string_series:
                 return "string"
-        ug = re.fullmatch(
-            r"udt_get_field\((.+),\s*['\"]([A-Za-z_][A-Za-z0-9_]*)['\"]\)", s
-        )
+        ug = re.fullmatch(r"udt_get_field\((.+),\s*['\"]([A-Za-z_][A-Za-z0-9_]*)['\"]\)", s)
         if ug:
             base_t = self._receiver_type_from_expr(ug.group(1).strip())
             if not base_t:
@@ -7462,6 +7507,9 @@ class CompilerVisitor(NodeVisitor):
         # syminfo.ticker / tickerid / root lowered as chart identity strings
         if "syminfo" in s.lower() and any(k in s for k in ("ticker", "tickerid", "root", "prefix")):
             return True
+        # Runtime-injected chart identity helpers (bare or wrapped in str())
+        if "chart_ticker" in s:
+            return True
         # Bare chart placeholders occasionally emitted
         if s in (
             "''",
@@ -7524,6 +7572,26 @@ class CompilerVisitor(NodeVisitor):
         self.needs_heikinashi = True
         for name in ("ha_open_arr", "ha_high_arr", "ha_low_arr", "ha_close_arr"):
             self.arrays.add(name)
+
+    def _use_time_close(self) -> str:
+        """Chart ``time_close`` as a real series (next bar open; last + 1D)."""
+        self.needs_time_close = True
+        self.arrays.add("time_close_arr")
+        return "time_close_arr[__bar_idx]"
+
+    def _emit_time_close_init(self, lines: list[str], indent: str = "    ") -> None:
+        """Fill ``time_close_arr`` to match interpret Runtime packaging.
+
+        Non-last bars use the next bar's open time; the last bar uses
+        ``time + 86_400_000`` (interpret last-bar fallback).
+        """
+        if not self.needs_time_close:
+            return
+        lines.append(f"{indent}time_close_arr = np.empty(n_bars, dtype=np.float64)")
+        lines.append(f"{indent}if n_bars > 1:")
+        lines.append(f"{indent}    time_close_arr[:-1] = time_arr[1:]")
+        lines.append(f"{indent}if n_bars > 0:")
+        lines.append(f"{indent}    time_close_arr[-1] = time_arr[-1] + 86400000.0")
 
     @staticmethod
     def _map_ohlcv_expr_to_heikinashi(expr: str) -> str:

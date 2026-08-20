@@ -366,13 +366,13 @@ class VolatilityIndicators(TechnicalHelpers):
         if length < BINARY:
             self._error("ta.rci length must be at least 2")
         if len(series) < length:
-            return math.nan
+            return None
 
         window = series[-length:]
         valid_values = [(i, v) for i, v in enumerate(window) if v is not None]
 
         if len(valid_values) < BINARY:
-            return math.nan
+            return None
 
         ranks_idx = sorted(range(len(valid_values)), key=lambda i: i)
         ranks_val = sorted(range(len(valid_values)), key=lambda i: valid_values[i][1])
@@ -382,7 +382,7 @@ class VolatilityIndicators(TechnicalHelpers):
 
         d_squared = sum((rank_dict_idx[i] - rank_dict_val[i]) ** 2 for i in range(len(valid_values)))
         n = len(valid_values)
-        return 1 - (6 * d_squared) / (n * (n * n - 1)) if n > 1 else math.nan
+        return 1 - (6 * d_squared) / (n * (n * n - 1)) if n > 1 else None
 
     def _builtin_ta_dpo(self, args: list[Any]) -> float | None:
         """Detrended Price Oscillator."""

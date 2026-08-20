@@ -43,6 +43,7 @@ from typing import Any
 from pynescript.ast import node as ast
 from pynescript.ast.evaluator.builtins.declarations import ScriptDeclaration
 from pynescript.ast.evaluator.libraries import STUB_KNOWN_EXPORTS
+from pynescript.ast.evaluator.libraries import bind_tradingview_ta_stub_exports
 from pynescript.ast.evaluator.libraries import LibraryModule
 from pynescript.ast.evaluator.names import ast_qualified_name
 from pynescript.ast.helper import parse as parse_pine
@@ -502,6 +503,15 @@ class StatementEvaluator:
         # a fresh set on every plain assign when no history names exist).
         history_names: set[str] | None = getattr(self, "_history_names", None)
         if not history_names or name not in history_names:
+            # Snapshot host/user series (``EP := high``). Storing the handle
+            # makes the local track the live OHLCV series so ``high > EP`` is
+            # never true after the first ``EP := high`` (Parabolic SAR AF).
+            if (
+                value is not None
+                and hasattr(value, "current")
+                and hasattr(value, "history")
+            ):
+                value = getattr(value, "current", value)
             self.context[name] = value
             return value
 
@@ -1889,11 +1899,19 @@ class StatementEvaluator:
                 # do not raise. Missing libraries degrade to empty behaviour.
                 # Known helpers (e.g. ArrayExtension.index_2d_to_1d) are
                 # polyfilled so array.get/set receive real indices.
+                tvta_exports = (
+                    bind_tradingview_ta_stub_exports(self)
+                    if namespace == "TradingView" and name == "ta"
+                    else {}
+                )
+
                 class _StubLib:
                     __pine_import_stub__ = True
                     __pine_import_path__ = path
 
                     def __getattr__(self, item: str) -> Any:
+                        if item in tvta_exports:
+                            return tvta_exports[item]
                         known = STUB_KNOWN_EXPORTS.get(item)
                         if known is not None:
                             return known

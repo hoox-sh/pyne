@@ -144,6 +144,8 @@ class LazyCalendarContext(dict):
             except KeyError:
                 return default
         return dict.get(self, key, default)
+
+
 # Derived built-in series — skip update/append when script never names them.
 _HL2_RE = re.compile(r"\bhl2\b")
 _HLC3_RE = re.compile(r"\bhlc3\b")
@@ -239,10 +241,7 @@ def _export_pine_logs() -> list[dict[str, str]]:
     try:
         from pynescript.ast.evaluator.builtins.logging import get_logger
 
-        return [
-            {"level": str(level).lower(), "message": str(message)}
-            for level, message in get_logger().get_logs()
-        ]
+        return [{"level": str(level).lower(), "message": str(message)} for level, message in get_logger().get_logs()]
     except Exception:  # noqa: BLE001
         return []
 
@@ -1502,9 +1501,7 @@ class Runtime:
         evaluator._plot_n_bars = n_bars  # type: ignore[attr-defined]
         # Shared host packing (same volume/time defaults as mode=compile).
         # Cached by list identity so warm interpret re-runs skip the dict walk.
-        col_open, col_high, col_low, col_close, col_vol, col_time = _pack_ohlcv_columns_cached(
-            ohlcv_data
-        )
+        col_open, col_high, col_low, col_close, col_vol, col_time = _pack_ohlcv_columns_cached(ohlcv_data)
         if col_time:
             context["last_bar_time"] = col_time[-1]
             # Chart viewport times track packed bar-open ms (incl. synthetic).
@@ -1523,22 +1520,13 @@ class Runtime:
         # input.source can pick derived names that never appear as identifiers.
         need_src_input = bool(_INPUT_SOURCE_RE.search(source_code))
         need_hl2 = need_src_input or bool(_HL2_RE.search(source_code))
-        need_hlc3 = (
-            need_src_input
-            or bool(_HLC3_RE.search(source_code))
-            or bool(_VWAP_RE.search(source_code))
-        )
+        need_hlc3 = need_src_input or bool(_HLC3_RE.search(source_code)) or bool(_VWAP_RE.search(source_code))
         need_ohlc4 = need_src_input or bool(_OHLC4_RE.search(source_code))
         need_tr = need_src_input or bool(_TR_RE.search(source_code))
         need_time_close = bool(_TIME_CLOSE_RE.search(source_code))
         need_strategy = bool(_STRATEGY_NAME_RE.search(source_code))
         need_alerts = bool(_ALERT_CALL_RE.search(source_code))
-        need_ta = "ta." in source_code
-        need_cross = (
-            "crossover" in source_code
-            or "crossunder" in source_code
-            or "ta.cross(" in source_code
-        )
+        need_cross = "crossover" in source_code or "crossunder" in source_code or "ta.cross(" in source_code
 
         # Pre-bind hot locals (series lists, methods, strategy buffers)
         sl_open = _series_lists["open"]
@@ -1671,9 +1659,7 @@ class Runtime:
         process_pending = getattr(evaluator, "process_pending_orders", None)
         set_defs_locked = True  # first bar unlocks defs; then permanently locked
         # Indicators never read strategy.*[n] — skip 3 list appends per bar.
-        snapshot_bar = (
-            getattr(strategy_state, "snapshot_bar_series", None) if need_strategy else None
-        )
+        snapshot_bar = getattr(strategy_state, "snapshot_bar_series", None) if need_strategy else None
         _rt_enabled = _rt_first is not None
         _hist_n = 0
         prev_close_f: float | None = None
@@ -1837,11 +1823,12 @@ class Runtime:
                 reset_plots()
                 if need_strategy and strategy_events:
                     strategy_events.clear()
-                # Bar-mode call-site indices (skip unused families)
+                # Bar-mode call-site indices. Always reset TA slots: math.sum /
+                # rolling helpers use ``_ta_next_slot`` even when the script has
+                # no ``ta.`` (CMF, ADR bars, Ultimate Oscillator).
                 if need_cross:
                     evaluator._cross_call_i = 0  # type: ignore[attr-defined]
-                if need_ta:
-                    evaluator._ta_call_i = 0  # type: ignore[attr-defined]
+                evaluator._ta_call_i = 0  # type: ignore[attr-defined]
                 evaluator._plot_call_i = 0  # type: ignore[attr-defined]
 
                 try:
@@ -2144,10 +2131,7 @@ class Runtime:
     def _remember_compile_failure(cache_key: str, reason: str) -> None:
         if not cache_key or not reason:
             return
-        if (
-            len(_HOST_COMPILE_FAIL_CACHE) >= _HOST_COMPILE_FAIL_CACHE_MAX
-            and cache_key not in _HOST_COMPILE_FAIL_CACHE
-        ):
+        if len(_HOST_COMPILE_FAIL_CACHE) >= _HOST_COMPILE_FAIL_CACHE_MAX and cache_key not in _HOST_COMPILE_FAIL_CACHE:
             try:
                 _HOST_COMPILE_FAIL_CACHE.pop(next(iter(_HOST_COMPILE_FAIL_CACHE)))
             except StopIteration:
@@ -2315,9 +2299,17 @@ class Runtime:
 
         t_run0 = time.perf_counter()
         try:
-            series_map = compiled.run(
-                opens, highs, lows, closes, volumes, time=times
-            )
+            try:
+                from pynescript.compiler.numba_builtins import set_chart_identity
+
+                set_chart_identity(
+                    ticker=getattr(self._syminfo, "ticker", None) or self.symbol,
+                    tickerid=getattr(self._syminfo, "tickerid", None) or self.symbol,
+                    prefix=getattr(self._syminfo, "prefix", "") or "",
+                )
+            except Exception:
+                pass
+            series_map = compiled.run(opens, highs, lows, closes, volumes, time=times)
         except Exception as e:
             run_ms = (time.perf_counter() - t_run0) * 1000.0
             return _attach_logs_profile(
