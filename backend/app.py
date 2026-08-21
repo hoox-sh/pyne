@@ -42,6 +42,11 @@ from backend.api.git_oauth import bp as git_oauth_bp
 from backend.api.lsp_http import bp as lsp_bp
 from backend.api.preview import backtest_bp
 from backend.api.preview import preview_bp
+
+try:
+    from backend.api.datafeed import datafeed_bp
+except ImportError:
+    datafeed_bp = None  # type: ignore[assignment]
 from backend.middleware.auth import get_key_store
 from backend.middleware.auth import require_admin_token
 from backend.middleware.auth import require_api_key
@@ -157,9 +162,7 @@ def _origin_allowed(origin: str) -> bool:
         if pat == "*" or pat == origin:
             return True
         try:
-            if re.match(pat + ("" if pat.endswith("$") else "$"), origin) or re.match(
-                pat, origin
-            ):
+            if re.match(pat + ("" if pat.endswith("$") else "$"), origin) or re.match(pat, origin):
                 return True
         except re.error:
             continue
@@ -176,9 +179,7 @@ def _apply_cors_headers(resp, origin: str | None = None):  # type: ignore[no-unt
         resp.headers["Access-Control-Allow-Origin"] = origin
         resp.headers["Vary"] = "Origin"
         resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, HEAD"
-        resp.headers["Access-Control-Allow-Headers"] = (
-            "Content-Type, Authorization, X-Admin-Token, Accept"
-        )
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Admin-Token, Accept"
         resp.headers["Access-Control-Max-Age"] = "86400"
     return resp
 
@@ -295,9 +296,7 @@ def _parse_run_libraries(raw_libs: Any) -> list[dict[str, Any]]:
         except (TypeError, ValueError):
             ver = 1
         if ns and name and src:
-            libraries.append(
-                {"namespace": ns, "name": name, "version": ver, "source": src}
-            )
+            libraries.append({"namespace": ns, "name": name, "version": ver, "source": src})
     return libraries
 
 
@@ -1268,6 +1267,8 @@ app.register_blueprint(backtest_bp)
 app.register_blueprint(lsp_bp)
 # AXIS Connect with GitHub/GitLab (device flow) — same paths as CF Worker
 app.register_blueprint(git_oauth_bp)
+if datafeed_bp is not None:
+    app.register_blueprint(datafeed_bp)
 
 
 @app.errorhandler(404)
