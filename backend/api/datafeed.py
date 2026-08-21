@@ -274,11 +274,17 @@ def gateway_health():  # type: ignore[no-untyped-def]
         has_ccxt = False
 
     exchanges = list(_ENV_KEYS.keys())
-    return jsonify(
-        {
-            "status": "ok",
-            "ccxt": has_ccxt,
-            "exchanges": exchanges,
-            "active_sessions": list(_sessions.keys()),
-        }
-    )
+    payload = {
+        "status": "ok",
+        "ccxt": has_ccxt,
+        "exchanges": exchanges,
+        "active_sessions": list(_sessions.keys()),
+    }
+    if has_ccxt:
+        try:
+            import ccxt as _ccxt  # local alias; top-level import above is probe-only
+
+            payload["ccxt_exchanges"] = sorted(_ccxt.exchanges)
+        except Exception:  # pragma: no cover - defensive: list must not break health
+            pass
+    return jsonify(payload)
