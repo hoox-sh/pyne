@@ -141,14 +141,14 @@ def fetch_ohlcv():  # type: ignore[no-untyped-def]
 
     # CCXTProvider doesn't expose timestamps directly; synthesize from index
     # The provider fetches from `since` (now - period) at the given interval
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     interval_map = {"1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400, "1d": 86400, "1w": 604800}
     step = interval_map.get(timeframe, 3600)
 
     period_days_map = {"1d": 1, "1w": 7, "1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730}
     days = period_days_map.get(period, 365)
-    start_ts = int((datetime.utcnow() - timedelta(days=days)).timestamp())
+    start_ts = int((datetime.now(timezone.utc) - timedelta(days=days)).timestamp())
 
     bars = []
     for i in range(n):
