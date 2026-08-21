@@ -53,7 +53,6 @@ class TestHealth:
     def test_health_shows_active_sessions(self, client: FlaskClient, monkeypatch) -> None:
         monkeypatch.setenv("BINANCE_API_KEY", "k")
         monkeypatch.setenv("BINANCE_SECRET", "s")
-        # Bind a session
         client.post("/datafeed/session", json={"exchange": "binance"})
         resp = client.get("/datafeed/health")
         assert resp.status_code == 200
@@ -78,7 +77,6 @@ class TestOhlcv:
     @patch("backend.api.datafeed._make_provider")
     def test_fetch_ohlcv_success(self, mock_make: MagicMock, client: FlaskClient) -> None:
         mock_provider = MagicMock()
-        # CCXTProvider.fetch returns dict with parallel arrays
         mock_provider.fetch.return_value = {
             "symbol": "BTC/USDT",
             "open": [100.0, 102.0],
@@ -97,7 +95,6 @@ class TestOhlcv:
         assert bars[0]["close"] == 102.0
         assert bars[1]["open"] == 102.0
         assert bars[1]["close"] == 106.0
-        # Verify time fields are unix timestamps (integers)
         assert isinstance(bars[0]["time"], int)
         assert isinstance(bars[1]["time"], int)
 
@@ -117,7 +114,6 @@ class TestOhlcv:
         resp = client.get("/datafeed/ohlcv?exchange=binance&symbol=ETH/USDT&limit=2")
         assert resp.status_code == 200
         bars = resp.json
-        # limit=2 → last 2 bars
         assert len(bars) == 2
         assert bars[0]["open"] == 4.0
         assert bars[1]["open"] == 5.0
@@ -156,15 +152,12 @@ class TestSession:
         resp = client.post("/datafeed/session", json={"exchange": "binance"})
         assert resp.status_code == 204
 
-        # Verify session is active
         health = client.get("/datafeed/health")
         assert "binance" in health.json["active_sessions"]
 
-        # Unbind
         resp = client.delete("/datafeed/session?exchange=binance")
         assert resp.status_code == 204
 
-        # Verify session is gone
         health = client.get("/datafeed/health")
         assert "binance" not in health.json["active_sessions"]
 
@@ -214,3 +207,89 @@ class TestMarkets:
         mock_make.return_value = None
         resp = client.get("/datafeed/markets?exchange=binance")
         assert resp.status_code == 503
+
+
+class TestRunSecretRefusal:
+    """POST /run must refuse inline api_key/secret unless DATAFEED_ALLOW_INLINE_KEYS=1."""
+
+    def test_refuses_inline_api_key(self, client: FlaskClient, monkeypatch) -> None:
+        monkeypatch.delenv("DATAFEED_ALLOW_INLINE_KEYS", raising=False)
+        resp = client.post(
+            "/run",
+            json={
+                "script": 'indicator("test")',
+                "data": [],
+                "data_source": "chart",
+                "data_options": {"api_key": "secret-key", "secret": "secret-value"},
+            },
+            headers={"Content-Type": "application/json"},
+        )
+        assert resp.status_code == 400
+        body = resp.json
+        msg = (body.get("message") or body.get("error") or "").lower()
+        assert "not allowed" in msg
+
+    def test_refuses_only_api_key(self, client: FlaskClient, monkeypatch) -> None:
+        monkeypatch.delenv("DATAFEED_ALLOW_INLINE_KEYS", raising=False)
+        resp = client.post(
+            "/run",
+            json={
+                "script": 'indicator("test")',
+                "data": [],
+                "data_source": "chart",
+                "data_options": {"api_key": "key-only"},
+            },
+            headers={"Content-Type": "application/json"},
+        )
+        assert resp.status_code == 400
+        body = resp.json
+        msg = (body.get("message") or body.get("error") or "").lower()
+        assert "not allowed" in msg
+
+    def test_refuses_only_secret(self, client: FlaskClient, monkeypatch) -> None:
+        monkeypatch.delenv("DATAFEED_ALLOW_INLINE_KEYS", raising=False)
+        resp = client.post(
+            "/run",
+            json={
+                "script": 'indicator("test")',
+                "data": [],
+                "data_source": "chart",
+                "data_options": {"secret": "secret-only"},
+            },
+            headers={"Content-Type": "application/json"},
+        )
+        assert resp.status_code == 400
+        body = resp.json
+        msg = (body.get("message") or body.get("error") or "").lower()
+        assert "not allowed" in msg
+
+    def test_allows_inline_when_flag_set(self, client: FlaskClient, monkeypatch) -> None:
+        monkeypatch.setenv("DATAFEED_ALLOW_INLINE_KEYS", "1")
+        resp = client.post(
+            "/run",
+            json={
+                "script": 'indicator("test")',
+                "data": [],
+                "data_source": "chart",
+                "data_options": {"api_key": "key", "secret": "secret"},
+            },
+            headers={"Content-Type": "application/json"},
+        )
+        body = resp.json
+        msg = (body.get("message") or body.get("error") or "").lower()
+        assert "not allowed" not in msg
+
+    def test_no_data_options_is_fine(self, client: FlaskClient, monkeypatch) -> None:
+        monkeypatch.delenv("DATAFEED_ALLOW_INLINE_KEYS", raising=False)
+        resp = client.post(
+            "/run",
+            json={
+                "script": 'indicator("test")',
+                "data": [],
+                "data_source": "chart",
+            },
+            headers={"Content-Type": "application/json"},
+        )
+        body = resp.json
+        msg = (body.get("message") or body.get("error") or "").lower()
+        assert "not allowed" not in msg

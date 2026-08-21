@@ -362,6 +362,16 @@ def _execute_run_payload_inner(
     if isinstance(data_source, str) and not data_source.strip():
         data_source = None
 
+    # Refuse inline API keys unless explicitly allowed (datafeed security).
+    # Credentials should flow through /datafeed/session, not /run body.
+    if os.environ.get("DATAFEED_ALLOW_INLINE_KEYS", "0") != "1":
+        if "api_key" in data_options or "secret" in data_options:
+            return {
+                "status": "error",
+                "code": "INLINE_KEYS_NOT_ALLOWED",
+                "message": "Inline API keys are not allowed. Use /datafeed/session instead.",
+            }, 400
+
     if not script:
         return {
             "status": "error",
