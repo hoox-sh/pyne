@@ -112,7 +112,11 @@ class TechnicalHelpers:
         return result
 
     def _ta_next_slot(self) -> int:
-        """Per-bar call-site index (reset by Runtime each bar, like crossover)."""
+        """Per-bar call-site index (reset by Runtime each bar, like crossover).
+
+        Slot identity is call *order*, not the ``ta.`` prefix. Host must
+        zero ``_ta_call_i`` on every bar, including v4 bare ``sma``/``wma``.
+        """
         i = int(getattr(self, "_ta_call_i", 0) or 0)
         self._ta_call_i = i + 1  # type: ignore[attr-defined]
         return i
@@ -1376,17 +1380,18 @@ class TechnicalHelpers:
         """Incremental ``ta.rising`` matching full ``_rising`` last-value semantics."""
         if period < 1:
             return False
+        need = period + 1
         slot = self._ta_next_slot()
         key = ("rising", slot, period)
         bucket = self._ta_state_bucket()
         st = bucket.get(key)
         if st is None:
-            st = {"window": deque(maxlen=period), "value": False}
+            st = {"window": deque(maxlen=need), "value": False}
             bucket[key] = st
         x = self._series_last(series)
         window: deque[Any] = st["window"]
         window.append(x)
-        if len(window) < period:
+        if len(window) < need:
             st["value"] = False
             return False
         # Delegate to full helper so MRO / oracle semantics stay identical.
@@ -1397,21 +1402,68 @@ class TechnicalHelpers:
         """Incremental ``ta.falling`` matching full ``_falling`` last-value semantics."""
         if period < 1:
             return False
+        need = period + 1
         slot = self._ta_next_slot()
         key = ("falling", slot, period)
         bucket = self._ta_state_bucket()
         st = bucket.get(key)
         if st is None:
-            st = {"window": deque(maxlen=period), "value": False}
+            st = {"window": deque(maxlen=need), "value": False}
             bucket[key] = st
         x = self._series_last(series)
         window: deque[Any] = st["window"]
         window.append(x)
-        if len(window) < period:
+        if len(window) < need:
             st["value"] = False
             return False
         st["value"] = bool(self._falling(list(window), period))
         return bool(st["value"])
+
+    def _rci_spearman(self, window: list[Any]) -> float | None:
+        """Spearman rho of time vs value ranks. Any na → na (match ``numba_rci``)."""
+        n = len(window)
+        if n < 2:
+            return None
+        vals: list[float] = []
+        for v in window:
+            f = self._finite_or_none(v)
+            if f is None:
+                return None
+            vals.append(f)
+        d2 = 0.0
+        for a in range(n):
+            va = vals[a]
+            rank = 0
+            for b in range(n):
+                vb = vals[b]
+                if vb < va or (vb == va and b < a):
+                    rank += 1
+            d = float(a - rank)
+            d2 += d * d
+        denom = float(n) * (float(n) * float(n) - 1.0)
+        if denom == 0.0:
+            return None
+        return 1.0 - (6.0 * d2) / denom
+
+    def _rci_inc_update(self, series: Any, length: int) -> float | None:
+        """Incremental ``ta.rci`` from last-sample sources (``input.source``)."""
+        length = int(length)
+        if length < 2:
+            return None
+        slot = self._ta_next_slot()
+        key = ("rci", slot, length)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"window": deque(maxlen=length), "value": None}
+            bucket[key] = st
+        window: deque[Any] = st["window"]
+        window.append(self._series_last(series))
+        if len(window) < length:
+            st["value"] = None
+            return None
+        st["value"] = self._rci_spearman(list(window))
+        return st.get("value")
 
     def _median_inc_update(self, series: list[Any], period: int) -> float | None:
         """Incremental rolling median matching full ``_median`` (last value)."""
@@ -3820,13 +3872,13 @@ class TechnicalHelpers:
     def _falling(self, series: list[float], period: int) -> bool:
         """Check if series is falling for period (na-safe).
 
-        Strict consecutive decline: ``s[-1] < s[-2] < ...`` over ``period`` bars.
+        ``period`` pairwise steps (``s[-1] < s[-2] < …``), needing
+        ``period+1`` samples — matches ``numba_falling`` (``i >= length``).
         Any Pine na (None) or non-numeric sample → False (never TypeError).
         """
-        if len(series) < period or period < 1:
+        if period < 1 or len(series) < period + 1:
             return False
-        for idx in range(1, period):
-            # consecutive: series[-idx] < series[-idx-1] for falling
+        for idx in range(1, period + 1):
             a, b = series[-idx], series[-idx - 1]
             if a is None or b is None:
                 return False
@@ -3840,11 +3892,12 @@ class TechnicalHelpers:
     def _rising(self, series: list[float], period: int) -> bool:
         """Check if series is rising for period (na-safe).
 
-        Strict consecutive rise; any na / non-numeric → False (never TypeError).
+        ``period`` pairwise steps, needing ``period+1`` samples — matches
+        ``numba_rising``. Any na / non-numeric → False (never TypeError).
         """
-        if len(series) < period or period < 1:
+        if period < 1 or len(series) < period + 1:
             return False
-        for idx in range(1, period):
+        for idx in range(1, period + 1):
             a, b = series[-idx], series[-idx - 1]
             if a is None or b is None:
                 return False

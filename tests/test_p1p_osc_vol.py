@@ -221,6 +221,28 @@ plot(ta.sma(r, 14), "MA")
     _assert_finite_match(m_i, m_c, key="MA")
 
 
+def test_rci_input_source_interp_compile() -> None:
+    """input.source last-sample must still feed ta.rci (rank_correlation_index)."""
+    src = """
+//@version=6
+indicator("rci_src_p1p")
+source = input.source(close, title = "Source")
+plot(ta.rci(source, 10), "RCI")
+plot(ta.sma(ta.rci(source, 10), 14), "MA")
+"""
+    interp, compiled = _run_dual(src, _ohlcv(50))
+    if compiled is None:
+        pytest.skip("numba compile path unavailable")
+    r_i, r_c = interp["series"]["RCI"], compiled["series"]["RCI"]
+    m_i, m_c = interp["series"]["MA"], compiled["series"]["MA"]
+    assert _first_finite(r_i) == 9
+    assert _first_finite(r_c) == 9
+    assert _first_finite(m_i) == 22
+    assert _first_finite(m_c) == 22
+    _assert_finite_match(r_i, r_c, key="RCI")
+    _assert_finite_match(m_i, m_c, key="MA")
+
+
 def test_rvi_ema_consecutive_seed_interp_compile() -> None:
     """RVI EMA seed is a consecutive finite window (not first-N skipping na)."""
     src = """

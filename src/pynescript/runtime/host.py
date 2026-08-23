@@ -1826,9 +1826,9 @@ class Runtime:
                 reset_plots()
                 if need_strategy and strategy_events:
                     strategy_events.clear()
-                # Bar-mode call-site indices. Always reset TA slots: math.sum /
-                # rolling helpers use ``_ta_next_slot`` even when the script has
-                # no ``ta.`` (CMF, ADR bars, Ultimate Oscillator).
+                # Always reset TA slots. v4 bare sma/wma, math.sum, and other
+                # rolling helpers call ``_ta_next_slot`` even with no ``ta.``
+                # in source (gating on ``"ta."`` left those sites all-na).
                 if need_cross:
                     evaluator._cross_call_i = 0  # type: ignore[attr-defined]
                 evaluator._ta_call_i = 0  # type: ignore[attr-defined]

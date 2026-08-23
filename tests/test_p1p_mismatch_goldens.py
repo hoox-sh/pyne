@@ -329,6 +329,39 @@ plot(ta.vwap(hlc3), "v1")
         assert math.isclose(float(v), float(lo), rel_tol=_RTOL, abs_tol=_ATOL), f"lower[{i}]"
 
 
+def test_rising_falling_length_steps_interp_compile() -> None:
+    """ta.rising/falling need ``length`` consecutive steps (``i >= length``)."""
+    src = """
+//@version=6
+indicator("rise_p1p")
+plot(ta.rising(close, 3) ? 1 : 0, "r")
+plot(ta.falling(close, 3) ? 1 : 0, "f")
+"""
+    closes = [1.0, 2.0, 3.0, 4.0, 5.0, 4.0, 3.0, 2.0, 1.0, 2.0]
+    bars: list[dict[str, float | int]] = []
+    for i, c in enumerate(closes):
+        bars.append(
+            {
+                "open": c,
+                "high": c + 0.5,
+                "low": max(c - 0.5, 0.01),
+                "close": c,
+                "time": 1_000_000 + i * 86_400_000,
+                "volume": 1000.0,
+            }
+        )
+    interp, compiled = _run_dual(src, bars)
+    if compiled is None:
+        pytest.skip("numba compile path unavailable")
+    r_i, r_c = interp["series"]["r"], compiled["series"]["r"]
+    f_i, f_c = interp["series"]["f"], compiled["series"]["f"]
+    # 3 pairwise steps → first True at index 3 (4 samples)
+    assert [float(v) for v in r_i] == [0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    assert [float(v) for v in f_i] == [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0]
+    _assert_finite_match(r_i, r_c, key="r")
+    _assert_finite_match(f_i, f_c, key="f")
+
+
 def test_array_unshift_avg_series_snapshot() -> None:
     """array.unshift(close) stores the bar scalar so array.avg is finite."""
     src = """
@@ -350,17 +383,13 @@ plot(array.size(a), "sz")
     _assert_finite_match(interp["series"]["sz"], compiled["series"]["sz"], key="sz")
 
 
-@pytest.mark.xfail(
-    reason="P1p leftover: v4 bare sma/wma interpret stays all-na after bar-0 site bind; "
-    "v5 ta.wma dual-host is OK (same handler).",
-    strict=False,
-)
-def test_v4_bare_wma_interp_compile() -> None:
-    """v4 ``wma(close, 22)`` should match ``ta.wma`` on both hosts."""
-    src = """
+@pytest.mark.parametrize("fn", ["wma", "sma"])
+def test_v4_bare_ma_interp_compile(fn: str) -> None:
+    """v4 bare ``sma``/``wma`` match compile (TA slots reset without ``ta.``)."""
+    src = f"""
 //@version=4
-study("wma_p1p")
-plot(wma(close, 22), "w")
+study("{fn}_p1p")
+plot({fn}(close, 22), "w")
 """
     n = 40
     interp, compiled = _run_dual(src, _ohlcv(n))
@@ -371,6 +400,6 @@ plot(wma(close, 22), "w")
     cv = compiled["series"]["w"]
     first_i = next((i for i, v in enumerate(iv) if not _is_na(v)), None)
     first_c = next((i for i, v in enumerate(cv) if not _is_na(v)), None)
-    assert first_i == 21, f"interpret wma first finite at {first_i}"
-    assert first_c == 21, f"compile wma first finite at {first_c}"
-    _assert_finite_match(iv, cv, key="w")
+    assert first_i == 21, f"interpret {fn} first finite at {first_i}"
+    assert first_c == 21, f"compile {fn} first finite at {first_c}"
+    _assert_finite_match(iv, cv, key=fn)

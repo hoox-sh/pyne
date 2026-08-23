@@ -705,34 +705,21 @@ class BasicIndicators(TechnicalHelpers):
         # reference Pine: intercept + slope * (length - 1 - offset) with x = 0..n-1 oldest→newest
         return mean_y + slope * ((n - 1 - offset) - mean_x)
 
-    def _builtin_ta_rci(self, args: list[Any]) -> float:
-        """Rank Correlation Index (Spearman's correlation)."""
-        if len(args) != BINARY:
-            self._error("ta.rci takes source series and length")
-
-        series = self._as_series(args[0])
-        length = self._expect_int(args[1], "ta.rci takes source series and length")
-
+    def _builtin_ta_rci(self, args: list[Any]) -> float | None:
+        """Rank Correlation Index (Spearman rho of time vs value ranks)."""
+        series, length = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if length < 2:
             self._error("ta.rci length must be at least 2")
+        if self._use_incremental_ta():
+            return self._rci_inc_update(series, length)
+        # Bar-mode locals (input.source) are last-sample scalars.
+        if self._bar_mode() and (not isinstance(series, list) or len(series) < length):
+            return self._rci_inc_update(series, length)
+        if not isinstance(series, list):
+            series = self._as_series(series)
         if len(series) < length:
             return None
-
-        window = series[-length:]
-        valid_values = [(i, v) for i, v in enumerate(window) if v is not None]
-
-        if len(valid_values) < 2:
-            return None
-
-        ranks_idx = sorted(range(len(valid_values)), key=lambda i: i)
-        ranks_val = sorted(range(len(valid_values)), key=lambda i: valid_values[i][1])
-
-        rank_dict_idx = {idx: rank for rank, idx in enumerate(ranks_idx)}
-        rank_dict_val = {idx: rank for rank, idx in enumerate(ranks_val)}
-
-        d_squared = sum((rank_dict_idx[i] - rank_dict_val[i]) ** 2 for i in range(len(valid_values)))
-        n = len(valid_values)
-        return 1 - (6 * d_squared) / (n * (n * n - 1)) if n > 1 else None
+        return self._rci_spearman(series[-length:])
 
     def _builtin_ta_cog(self, args: list[Any]) -> float:
         """Center of Gravity oscillator."""
