@@ -452,6 +452,38 @@ class AlphaVantageProvider(DataProvider):
         }
 
 
+# Spot market-data CDN. api.binance.com / fapi.binance.com return HTTP 451
+# from restricted regions (e.g. US VPS). Vision serves public klines + exchangeInfo.
+_BINANCE_PUBLIC_HOST = "https://data-api.binance.vision"
+
+
+def tune_ccxt_public_urls(exchange: Any, exchange_name: str) -> None:
+    """Retarget geo-blocked public REST hosts (Binance spot → data-api.binance.vision).
+
+    Does not touch futures (fapi/dapi) hosts. Call after constructing the CCXT
+    instance. Safe no-op for other venues.
+    """
+    name = str(exchange_name or "").lower().strip()
+    if name != "binance":
+        return
+    opts = getattr(exchange, "options", None)
+    if not isinstance(opts, dict):
+        opts = {}
+    opts["defaultType"] = "spot"
+    opts["fetchMarkets"] = ["spot"]
+    exchange.options = opts
+    urls = getattr(exchange, "urls", None)
+    if not isinstance(urls, dict):
+        return
+    api = urls.get("api")
+    if not isinstance(api, dict):
+        return
+    for key, val in list(api.items()):
+        if isinstance(val, str) and val.startswith("https://api.binance.com"):
+            api[key] = val.replace("https://api.binance.com", _BINANCE_PUBLIC_HOST, 1)
+    urls["api"] = api
+
+
 class CCXTProvider(DataProvider):
     """CCXT crypto exchange data provider.
 
@@ -498,7 +530,7 @@ class CCXTProvider(DataProvider):
                     msg = f"Exchange '{self._exchange_name}' not found in CCXT"
                     raise DataProviderError(msg)
 
-                params: dict[str, Any] = {"enableRateLimit": True}
+                params: dict[str, Any] = {"enableRateLimit": True, "timeout": 20_000}
                 if self._api_key and self._secret:
                     params["apiKey"] = self._api_key
                     params["secret"] = self._secret
@@ -506,8 +538,11 @@ class CCXTProvider(DataProvider):
                     params["password"] = self._password
                 if self._uid:
                     params["uid"] = self._uid
+                if self._exchange_name.lower() == "binance":
+                    params["options"] = {"defaultType": "spot", "fetchMarkets": ["spot"]}
 
                 self._exchange = exchange_class(params)
+                tune_ccxt_public_urls(self._exchange, self._exchange_name)
             except ImportError:
                 msg = "ccxt not installed. Install with: pip install ccxt"
                 raise DataProviderError(msg)
@@ -716,4 +751,5 @@ __all__ = [
     "YahooFinanceProvider",
     "get_provider",
     "resolve_request_sources",
+    "tune_ccxt_public_urls",
 ]

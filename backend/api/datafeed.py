@@ -39,6 +39,8 @@ import json
 import logging
 import math
 import os
+import queue
+import threading
 
 from datetime import datetime
 from datetime import timedelta
@@ -388,8 +390,89 @@ def gateway_health():  # type: ignore[no-untyped-def]
     return jsonify(payload)
 
 
+def _watch_put(out_q: queue.Queue[Any], bar: dict[str, float | int]) -> None:
+    try:
+        out_q.put_nowait(bar)
+    except queue.Full:
+        try:
+            out_q.get_nowait()
+        except queue.Empty:
+            pass
+        try:
+            out_q.put_nowait(bar)
+        except queue.Full:
+            pass
+
+
+_WATCH_POLL_SEC = 1.0
+
+
+def watch_rest_poll(
+    provider: Any,
+    symbol: str,
+    timeframe: str,
+    out_q: queue.Queue[Any],
+    stop: threading.Event,
+) -> None:
+    """Emit latest REST candle while *stop* is clear (geo-block / Pro WS fallback)."""
+    last: dict[str, float | int] | None = None
+    while not stop.is_set():
+        try:
+            raw = provider.fetch_ohlcv(symbol, timeframe, since=None, limit=2)
+            bar = _candle_to_bar(_latest_candle(raw))
+            if bar is not None and bar != last:
+                last = bar
+                _watch_put(out_q, bar)
+        except Exception as exc:
+            logger.warning("datafeed watch poll error: %s", exc)
+        stop.wait(_WATCH_POLL_SEC)
+
+
+def run_watch_producer(  # noqa: PLR0913
+    exchange: str,
+    creds: dict[str, str],
+    symbol: str,
+    timeframe: str,
+    out_q: queue.Queue[Any],
+    stop: threading.Event,
+) -> None:
+    """CCXT Pro watch, then REST poll if the venue/WS is unreachable."""
+    try:
+        from pynescript.util.datafeed import CCXTProDataFeed  # noqa: PLC0415
+
+        opts: dict[str, Any] = {}
+        if creds.get("uid"):
+            opts["uid"] = creds["uid"]
+
+        async def _pro() -> None:
+            feed = CCXTProDataFeed(
+                exchange=exchange,
+                api_key=creds.get("api_key", ""),
+                secret=creds.get("secret", ""),
+                password=creds.get("password", ""),
+                **opts,
+            )
+            async with feed:
+                agen = feed.watch_ohlcv(symbol, timeframe)
+                while not stop.is_set():
+                    raw = await asyncio.wait_for(agen.__anext__(), timeout=20.0)
+                    bar = _candle_to_bar(_latest_candle(raw))
+                    if bar is not None:
+                        _watch_put(out_q, bar)
+
+        asyncio.run(_pro())
+    except Exception as exc:
+        if stop.is_set():
+            return
+        logger.warning("datafeed watch pro failed, polling REST: %s", exc)
+        provider = _make_provider(exchange, creds)
+        if provider is None:
+            return
+        watch_rest_poll(provider, symbol, timeframe, out_q, stop)
+
+
 def register_watch_route(sock: Any) -> None:
-    """Register ``WS /datafeed/watch`` on the flask-sock instance (CCXT Pro)."""
+    """Register ``WS /datafeed/watch`` (CCXT Pro, REST poll fallback)."""
 
     @sock.route("/datafeed/watch")
     def datafeed_watch(ws):  # type: ignore[no-untyped-def]
@@ -406,34 +489,23 @@ def register_watch_route(sock: Any) -> None:
                 pass
             return
 
-        creds = credentials or {}
-
-        async def _stream() -> None:
-            from pynescript.util.datafeed import CCXTProDataFeed  # noqa: PLC0415
-
-            opts: dict[str, Any] = {}
-            if creds.get("uid"):
-                opts["uid"] = creds["uid"]
-            feed = CCXTProDataFeed(
-                exchange=exchange,
-                api_key=creds.get("api_key", ""),
-                secret=creds.get("secret", ""),
-                password=creds.get("password", ""),
-                **opts,
-            )
-            async with feed:
-                async for raw in feed.watch_ohlcv(symbol, timeframe):
-                    candle = _latest_candle(raw)
-                    bar = _candle_to_bar(candle)
-                    if bar is None:
-                        continue
-                    ws.send(json.dumps(bar))
-
+        stop = threading.Event()
+        out_q: queue.Queue[Any] = queue.Queue(maxsize=8)
+        worker = threading.Thread(
+            target=run_watch_producer,
+            args=(exchange, credentials or {}, symbol, timeframe, out_q, stop),
+            name="datafeed-watch",
+            daemon=True,
+        )
+        worker.start()
         try:
-            asyncio.run(_stream())
+            while worker.is_alive() or not out_q.empty():
+                try:
+                    bar = out_q.get(timeout=1.0)
+                except queue.Empty:
+                    continue
+                ws.send(json.dumps(bar))
         except Exception as exc:
-            logger.warning("datafeed watch error: %s", exc)
-            try:
-                ws.close()
-            except Exception:  # noqa: S110
-                pass
+            logger.warning("datafeed watch send error: %s", exc)
+        finally:
+            stop.set()

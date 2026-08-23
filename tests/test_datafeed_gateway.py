@@ -402,3 +402,54 @@ class TestCcxtProviderPassThrough:
         out = p.fetch_ohlcv("BTC/USDT", "3m", since=10, limit=50)
         ex.fetch_ohlcv.assert_called_once_with("BTC/USDT", "3m", 10, 50)
         assert out == [[1_700_000_000_000, 1, 1, 1, 1, 1]]
+
+    def test_tune_binance_spot_uses_vision_host(self) -> None:
+        from types import SimpleNamespace
+
+        from pynescript.util.data import tune_ccxt_public_urls
+
+        ex = SimpleNamespace(
+            urls={
+                "api": {
+                    "public": "https://api.binance.com/api/v3",
+                    "private": "https://api.binance.com/api/v3",
+                    "fapiPublic": "https://fapi.binance.com/fapi/v1",
+                }
+            },
+            options={},
+        )
+        tune_ccxt_public_urls(ex, "binance")
+        assert ex.urls["api"]["public"].startswith("https://data-api.binance.vision")
+        assert ex.urls["api"]["fapiPublic"].startswith("https://fapi.binance.com")
+        assert ex.options["fetchMarkets"] == ["spot"]
+        tune_ccxt_public_urls(ex, "okx")  # no-op
+
+
+class TestWatchRestPoll:
+    def test_poll_emits_latest_bar_then_stops(self) -> None:
+        import queue
+        import threading
+
+        provider = MagicMock()
+        provider.fetch_ohlcv.return_value = [
+            [1_700_000_000_000, 1, 2, 0.5, 1.5, 10],
+        ]
+        out: queue.Queue = queue.Queue()
+        stop = threading.Event()
+
+        def _run() -> None:
+            datafeed_mod.watch_rest_poll(provider, "BTC/USDT", "1m", out, stop)
+
+        prev = datafeed_mod._WATCH_POLL_SEC
+        datafeed_mod._WATCH_POLL_SEC = 0.01
+        t = threading.Thread(target=_run, daemon=True)
+        t.start()
+        try:
+            bar = out.get(timeout=2.0)
+            stop.set()
+            t.join(timeout=2.0)
+        finally:
+            stop.set()
+            datafeed_mod._WATCH_POLL_SEC = prev
+        assert bar["time"] == 1_700_000_000
+        assert bar["close"] == 1.5

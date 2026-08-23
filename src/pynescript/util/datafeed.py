@@ -202,8 +202,15 @@ class CCXTProDataFeed(DataFeed):
                 params["password"] = self._password
             if self._sandbox:
                 params["sandbox"] = True
+            if self._exchange_name == "binance":
+                opts = params.get("options") if isinstance(params.get("options"), dict) else {}
+                opts = {**opts, "defaultType": "spot", "fetchMarkets": ["spot"]}
+                params["options"] = opts
 
             self._exchange = exchange_class(params)
+            from pynescript.util.data import tune_ccxt_public_urls  # noqa: PLC0415
+
+            tune_ccxt_public_urls(self._exchange, self._exchange_name)
 
         return self._exchange
 
