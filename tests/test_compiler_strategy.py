@@ -1128,6 +1128,53 @@ strategy.exit("X", from_entry="L", profit=100, loss=50)
         assert "loss=50" in code
         assert "__strategy.close" in code
 
+    def test_max_contracts_held_series(self) -> None:
+        """AXIS compile plots of strategy.max_contracts_held_* must not AttributeError."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0)
+        b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
+        b.entry("L", "long", 5.0)
+        assert b.max_contracts_held_long == pytest.approx(5.0)
+        assert b.max_contracts_held_all == pytest.approx(5.0)
+        assert b.max_contracts_held_short == pytest.approx(0.0)
+        b.close("L")
+        b.entry("S", "short", 3.0)
+        assert b.max_contracts_held_short == pytest.approx(3.0)
+        assert b.max_contracts_held_all == pytest.approx(5.0)
+
+    def test_runtime_compile_max_contracts_held_plot(self) -> None:
+        src = """//@version=5
+strategy("s")
+if bar_index == 0
+    strategy.entry("L", strategy.long, qty=5)
+if bar_index == 1
+    strategy.close("L")
+    strategy.entry("S", strategy.short, qty=3)
+plot(strategy.max_contracts_held_all, "all")
+plot(strategy.max_contracts_held_long, "long")
+plot(strategy.max_contracts_held_short, "short")
+"""
+        ohlcv = [
+            {
+                "open": 100.0,
+                "high": 101.0,
+                "low": 99.0,
+                "close": 100.0 + i,
+                "volume": 1.0,
+                "time": i * 60_000,
+            }
+            for i in range(4)
+        ]
+        result = Runtime().run(src, ohlcv, mode="compile")
+        assert "error" not in result, result.get("error")
+        assert result["series"]["all"][0] == pytest.approx(5.0)
+        assert result["series"]["long"][0] == pytest.approx(5.0)
+        assert result["series"]["short"][0] == pytest.approx(0.0)
+        assert result["series"]["all"][-1] == pytest.approx(5.0)
+        assert result["series"]["long"][-1] == pytest.approx(5.0)
+        assert result["series"]["short"][-1] == pytest.approx(3.0)
+
     def test_openprofit_percent_and_cash_series(self) -> None:
         """Missing compile attrs caused AttributeError / compile_error on plots."""
         from pynescript.compiler.strategy_broker import CompileStrategyBroker

@@ -4300,11 +4300,23 @@ class CompilerVisitor(NodeVisitor):
             "max_drawdown_percent": "__strategy.max_drawdown_percent",
             "max_runup_percent": "__strategy.max_runup_percent",
             "openprofit": "__strategy.openprofit",
+            "openprofit_percent": "__strategy.openprofit_percent",
             "grossprofit": "__strategy.grossprofit",
+            "grossprofit_percent": "__strategy.grossprofit_percent",
             "grossloss": "__strategy.grossloss",
+            "grossloss_percent": "__strategy.grossloss_percent",
+            "netprofit_percent": "__strategy.netprofit_percent",
             "wintrades": "__strategy.wintrades",
             "losstrades": "__strategy.losstrades",
+            "eventrades": "__strategy.eventrades",
+            "max_contracts_held_all": "__strategy.max_contracts_held_all",
+            "max_contracts_held_long": "__strategy.max_contracts_held_long",
+            "max_contracts_held_short": "__strategy.max_contracts_held_short",
             "margin_liquidation_price": "__strategy.margin_liquidation_price",
+            "cash": "__strategy.cash",
+            "avg_trade": "__strategy.avg_trade",
+            "avg_winning_trade": "__strategy.avg_winning_trade",
+            "avg_losing_trade": "__strategy.avg_losing_trade",
         }
         if attr in series_map:
             self.object_mode = True

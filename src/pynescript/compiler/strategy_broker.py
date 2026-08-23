@@ -331,6 +331,10 @@ class CompileStrategyBroker:
         self.eventrades: int = 0
         self.grossprofit: float = 0.0
         self.grossloss: float = 0.0
+        # Pine strategy.max_contracts_held_* (unsigned qty peaks; interpret parity)
+        self.max_contracts_held_all: float = 0.0
+        self.max_contracts_held_long: float = 0.0
+        self.max_contracts_held_short: float = 0.0
         self.events: list[dict[str, Any]] = []
         self.pending_orders: dict[str, PendingOrder] = {}
         self._bar_index: int = 0
@@ -669,6 +673,21 @@ class CompileStrategyBroker:
         """Count one filled order toward max_intraday_filled_orders."""
         self._roll_fill_day()
         self._day_filled_orders += 1
+        self._note_position_size()
+
+    def _note_position_size(self) -> None:
+        """Update ``strategy.max_contracts_held_*`` after a fill.
+
+        Compile ``position_size`` is signed; peaks are unsigned quantities
+        (same as interpret ``StrategyState.note_position_size``).
+        """
+        size = abs(float(self.position_size))
+        if size > self.max_contracts_held_all:
+            self.max_contracts_held_all = size
+        if self.position_size > 0 and size > self.max_contracts_held_long:
+            self.max_contracts_held_long = size
+        elif self.position_size < 0 and size > self.max_contracts_held_short:
+            self.max_contracts_held_short = size
 
     def _ensure_legs(self) -> None:
         """Materialise a single synthetic leg when size is open but list empty."""
