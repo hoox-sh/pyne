@@ -146,9 +146,10 @@ set -euo pipefail
 cd "${VPS_PATH}"
 if [[ -x .venv/bin/pip ]]; then
   # Editable package + Pro API deps (includes numba for compile mode)
-  .venv/bin/pip install -e ".[lsp,compile]" -q
+  .venv/bin/pip install -e ".[lsp,compile,datafeed]" -q
   .venv/bin/pip install -r backend/requirements.txt -q
   .venv/bin/python -c "import pynescript; import numba; from pynescript.compiler.engine import has_numba; print('venv', pynescript.__file__, 'numba', numba.__version__, 'has_numba', has_numba())"
+  .venv/bin/python -c "import ccxt; print('ccxt', ccxt.__version__, 'exchanges', len(ccxt.exchanges))"
 else
   echo "no .venv/bin/pip — skip install" >&2
 fi

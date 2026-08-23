@@ -468,6 +468,8 @@ class CCXTProvider(DataProvider):
         exchange: str = "binance",
         api_key: str = "",
         secret: str = "",
+        password: str = "",
+        uid: str = "",
     ):
         """Initialize CCXT provider.
 
@@ -475,10 +477,14 @@ class CCXTProvider(DataProvider):
             exchange: Exchange name (binance, coinbase, kraken, etc.)
             api_key: API key for authenticated requests
             secret: API secret for authenticated requests
+            password: Optional passphrase (OKX, KuCoin, Coinbase)
+            uid: Optional account uid (some CCXT venues)
         """
         self._exchange_name = exchange
         self._api_key = api_key
         self._secret = secret
+        self._password = password
+        self._uid = uid
         self._exchange: Any | None = None
 
     def _get_exchange(self):
@@ -492,10 +498,14 @@ class CCXTProvider(DataProvider):
                     msg = f"Exchange '{self._exchange_name}' not found in CCXT"
                     raise DataProviderError(msg)
 
-                params = {}
+                params: dict[str, Any] = {"enableRateLimit": True}
                 if self._api_key and self._secret:
                     params["apiKey"] = self._api_key
                     params["secret"] = self._secret
+                if self._password:
+                    params["password"] = self._password
+                if self._uid:
+                    params["uid"] = self._uid
 
                 self._exchange = exchange_class(params)
             except ImportError:
@@ -504,18 +514,30 @@ class CCXTProvider(DataProvider):
         return self._exchange
 
     def _parse_timeframe(self, interval: str) -> str:
-        """Convert interval to CCXT timeframe."""
-        mapping = {
-            "1m": "1m",
-            "5m": "5m",
-            "15m": "15m",
-            "30m": "30m",
-            "1h": "1h",
-            "4h": "4h",
-            "1d": "1d",
-            "1w": "1w",
-        }
-        return mapping.get(interval, "1d")
+        """Pass interval through to CCXT (unknown TFs must not silently become 1d)."""
+        raw = str(interval or "1d").strip()
+        return raw or "1d"
+
+    def fetch_ohlcv(
+        self,
+        symbol: str,
+        timeframe: str = "1h",
+        since: int | None = None,
+        limit: int | None = None,
+    ) -> list[list[Any]]:
+        """CCXT ``fetch_ohlcv(symbol, timeframe, since, limit)`` — raw candles.
+
+        ``since`` is milliseconds (AXIS walk-back). Each candle is
+        ``[ms, open, high, low, close, volume]``.
+        """
+        exchange = self._get_exchange()
+        tf = self._parse_timeframe(timeframe)
+        try:
+            raw = exchange.fetch_ohlcv(symbol, tf, since, limit)
+        except Exception as e:
+            msg = f"Failed to fetch data from {self._exchange_name}: {e}"
+            raise DataProviderError(msg)
+        return list(raw or [])
 
     def fetch(
         self,
@@ -533,8 +555,6 @@ class CCXTProvider(DataProvider):
         Returns:
             Dictionary with OHLCV data
         """
-        exchange = self._get_exchange()
-
         period_map = {
             "1d": 1,
             "1w": 7,
@@ -546,14 +566,7 @@ class CCXTProvider(DataProvider):
         }
         days = period_map.get(period, 365)
         since = int((datetime.now() - timedelta(days=days)).timestamp() * 1000)
-
-        timeframe = self._parse_timeframe(interval)
-
-        try:
-            ohlcv = exchange.fetch_ohlcv(symbol, timeframe, since=since)
-        except Exception as e:
-            msg = f"Failed to fetch data from {self._exchange_name}: {e}"
-            raise DataProviderError(msg)
+        ohlcv = self.fetch_ohlcv(symbol, interval, since=since)
 
         return {
             "symbol": symbol,
@@ -629,6 +642,8 @@ def get_provider(name: str = "yahoo", **kwargs) -> DataProvider:
         provider_kwargs["exchange"] = kwargs.get("exchange", "binance")
         provider_kwargs["api_key"] = kwargs.get("api_key", "")
         provider_kwargs["secret"] = kwargs.get("secret", "")
+        provider_kwargs["password"] = kwargs.get("password", "")
+        provider_kwargs["uid"] = kwargs.get("uid", "")
     elif name == "chart":
         provider_kwargs["bars"] = kwargs.get("bars", [])
         provider_kwargs["symbol"] = kwargs.get("symbol", "CHART")

@@ -25,8 +25,10 @@ from unittest.mock import MagicMock
 from unittest.mock import patch
 
 import pytest
+
 from flask.testing import FlaskClient
 
+from backend.api import datafeed as datafeed_mod
 from backend.app import app
 
 
@@ -38,6 +40,13 @@ def client(tmp_path, monkeypatch) -> FlaskClient:
     monkeypatch.setenv("API_KEY_STORE", str(tmp_path / "api_keys.json"))
     with app.test_client() as c:
         yield c
+
+
+@pytest.fixture(autouse=True)
+def _clear_sessions() -> None:
+    datafeed_mod._sessions.clear()
+    yield
+    datafeed_mod._sessions.clear()
 
 
 class TestHealth:
@@ -77,14 +86,10 @@ class TestOhlcv:
     @patch("backend.api.datafeed._make_provider")
     def test_fetch_ohlcv_success(self, mock_make: MagicMock, client: FlaskClient) -> None:
         mock_provider = MagicMock()
-        mock_provider.fetch.return_value = {
-            "symbol": "BTC/USDT",
-            "open": [100.0, 102.0],
-            "high": [105.0, 108.0],
-            "low": [95.0, 101.0],
-            "close": [102.0, 106.0],
-            "volume": [1000.0, 1200.0],
-        }
+        mock_provider.fetch_ohlcv.return_value = [
+            [1_700_000_000_000, 100.0, 105.0, 95.0, 102.0, 1000.0],
+            [1_700_003_600_000, 102.0, 108.0, 101.0, 106.0, 1200.0],
+        ]
         mock_make.return_value = mock_provider
 
         resp = client.get("/datafeed/ohlcv?exchange=binance&symbol=BTC/USDT&timeframe=1h&limit=2")
@@ -93,35 +98,45 @@ class TestOhlcv:
         assert len(bars) == 2
         assert bars[0]["open"] == 100.0
         assert bars[0]["close"] == 102.0
+        assert bars[0]["time"] == 1_700_000_000
         assert bars[1]["open"] == 102.0
         assert bars[1]["close"] == 106.0
-        assert isinstance(bars[0]["time"], int)
-        assert isinstance(bars[1]["time"], int)
+        assert bars[1]["time"] == 1_700_003_600
+        mock_provider.fetch_ohlcv.assert_called_once_with(
+            symbol="BTC/USDT", timeframe="1h", since=None, limit=2
+        )
 
     @patch("backend.api.datafeed._make_provider")
-    def test_fetch_ohlcv_limit_slicing(self, mock_make: MagicMock, client: FlaskClient) -> None:
+    def test_fetch_ohlcv_passes_since_and_limit(self, mock_make: MagicMock, client: FlaskClient) -> None:
         mock_provider = MagicMock()
-        mock_provider.fetch.return_value = {
-            "symbol": "ETH/USDT",
-            "open": [1.0, 2.0, 3.0, 4.0, 5.0],
-            "high": [1.1, 2.1, 3.1, 4.1, 5.1],
-            "low": [0.9, 1.9, 2.9, 3.9, 4.9],
-            "close": [1.05, 2.05, 3.05, 4.05, 5.05],
-            "volume": [100.0, 200.0, 300.0, 400.0, 500.0],
-        }
+        mock_provider.fetch_ohlcv.return_value = []
         mock_make.return_value = mock_provider
 
-        resp = client.get("/datafeed/ohlcv?exchange=binance&symbol=ETH/USDT&limit=2")
+        # AXIS walk-back: since = endTime*1000 - 100 * 3_600_000
+        resp = client.get(
+            "/datafeed/ohlcv?exchange=okx&symbol=ETH/USDT&timeframe=1h"
+            "&since=1699640000000&limit=100"
+        )
         assert resp.status_code == 200
-        bars = resp.json
-        assert len(bars) == 2
-        assert bars[0]["open"] == 4.0
-        assert bars[1]["open"] == 5.0
+        mock_provider.fetch_ohlcv.assert_called_once_with(
+            symbol="ETH/USDT", timeframe="1h", since=1_699_640_000_000, limit=100
+        )
+
+    @patch("backend.api.datafeed._make_provider")
+    def test_fetch_ohlcv_passes_unknown_timeframe(self, mock_make: MagicMock, client: FlaskClient) -> None:
+        mock_provider = MagicMock()
+        mock_provider.fetch_ohlcv.return_value = []
+        mock_make.return_value = mock_provider
+        resp = client.get("/datafeed/ohlcv?exchange=binance&symbol=BTC/USDT&timeframe=3m&limit=10")
+        assert resp.status_code == 200
+        mock_provider.fetch_ohlcv.assert_called_once_with(
+            symbol="BTC/USDT", timeframe="3m", since=None, limit=10
+        )
 
     @patch("backend.api.datafeed._make_provider")
     def test_fetch_ohlcv_ccxt_error(self, mock_make: MagicMock, client: FlaskClient) -> None:
         mock_provider = MagicMock()
-        mock_provider.fetch.side_effect = Exception("Network error")
+        mock_provider.fetch_ohlcv.side_effect = Exception("Network error")
         mock_make.return_value = mock_provider
 
         resp = client.get("/datafeed/ohlcv?exchange=binance&symbol=BTC/USDT")
@@ -164,6 +179,53 @@ class TestSession:
     def test_unbind_missing_exchange(self, client: FlaskClient) -> None:
         resp = client.delete("/datafeed/session")
         assert resp.status_code == 400
+
+    def test_bind_axis_body_and_unbind_cred(self, client: FlaskClient) -> None:
+        resp = client.post(
+            "/datafeed/session",
+            json={
+                "exchange": "bybit",
+                "credentialId": "ccxt:bybit",
+                "apiKey": "AK-live",
+                "secret": "SK-live",
+                "password": "pp",
+                "uid": "uid-1",
+            },
+        )
+        assert resp.status_code == 204
+        health = client.get("/datafeed/health")
+        assert "bybit" in health.json["active_sessions"]
+        assert datafeed_mod._sessions["bybit"]["password"] == "pp"  # noqa: S105
+        assert datafeed_mod._sessions["ccxt:bybit"]["uid"] == "uid-1"
+
+        resp = client.delete("/datafeed/session?cred=ccxt:bybit")
+        assert resp.status_code == 204
+        health = client.get("/datafeed/health")
+        assert "bybit" not in health.json["active_sessions"]
+
+    @patch("pynescript.util.data.CCXTProvider")
+    def test_ohlcv_forwards_password_uid(self, mock_cls: MagicMock, client: FlaskClient) -> None:
+        mock_inst = MagicMock()
+        mock_inst.fetch_ohlcv.return_value = []
+        mock_cls.return_value = mock_inst
+        client.post(
+            "/datafeed/session",
+            json={
+                "exchange": "okx",
+                "credentialId": "ccxt:okx",
+                "apiKey": "k",
+                "secret": "s",
+                "password": "passphrase",
+                "uid": "u1",
+            },
+        )
+        resp = client.get("/datafeed/ohlcv?exchange=okx&symbol=BTC/USDT&cred=ccxt:okx&limit=1")
+        assert resp.status_code == 200
+        kwargs = mock_cls.call_args.kwargs
+        assert kwargs["api_key"] == "k"
+        assert kwargs["secret"] == "s"  # noqa: S105
+        assert kwargs["password"] == "passphrase"  # noqa: S105
+        assert kwargs["uid"] == "u1"
 
 
 class TestMarkets:
@@ -293,3 +355,50 @@ class TestRunSecretRefusal:
         body = resp.json
         msg = (body.get("message") or body.get("error") or "").lower()
         assert "not allowed" not in msg
+
+
+class TestCandleHelpers:
+    def test_candle_to_bar_ms_timestamp(self) -> None:
+        bar = datafeed_mod._candle_to_bar([1_700_000_000_000, 1, 2, 0.5, 1.5, 10])
+        assert bar is not None
+        assert bar["time"] == 1_700_000_000
+        assert bar["open"] == 1.0
+        assert bar["high"] == 2.0
+        assert bar["low"] == 0.5
+        assert bar["close"] == 1.5
+        assert bar["volume"] == 10.0
+
+    def test_latest_candle_from_watch_batch(self) -> None:
+        raw = [
+            [1, 1, 1, 1, 1, 1],
+            [2, 2, 2, 2, 2, 2],
+        ]
+        assert datafeed_mod._latest_candle(raw) == [2, 2, 2, 2, 2, 2]
+
+
+class TestCcxtProviderPassThrough:
+    def test_parse_timeframe_does_not_remap_unknown(self) -> None:
+        from pynescript.util.data import CCXTProvider
+
+        p = CCXTProvider(exchange="binance")
+        assert p._parse_timeframe("3m") == "3m"
+        assert p._parse_timeframe("12h") == "12h"
+        assert p._parse_timeframe("1M") == "1M"
+
+    def test_constructor_stores_password_uid(self) -> None:
+        from pynescript.util.data import CCXTProvider
+
+        p = CCXTProvider(exchange="okx", api_key="k", secret="s", password="pp", uid="u")  # noqa: S106
+        assert p._password == "pp"  # noqa: S105
+        assert p._uid == "u"
+
+    def test_fetch_ohlcv_forwards_since_limit_timeframe(self) -> None:
+        from pynescript.util.data import CCXTProvider
+
+        p = CCXTProvider(exchange="binance")
+        ex = MagicMock()
+        ex.fetch_ohlcv.return_value = [[1_700_000_000_000, 1, 1, 1, 1, 1]]
+        p._exchange = ex
+        out = p.fetch_ohlcv("BTC/USDT", "3m", since=10, limit=50)
+        ex.fetch_ohlcv.assert_called_once_with("BTC/USDT", "3m", 10, 50)
+        assert out == [[1_700_000_000_000, 1, 1, 1, 1, 1]]

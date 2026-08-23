@@ -17,33 +17,42 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Datafeed gateway blueprint — HTTP wrapper around CCXTProvider.
+"""Datafeed gateway blueprint — CCXT REST + optional CCXT Pro watch.
 
-Endpoints:
-    GET  /datafeed/ohlcv    — fetch historical OHLCV via CCXTProvider
-    GET  /datafeed/markets  — list markets for an exchange
-    POST /datafeed/session  — bind server-side credentials for an exchange
-    DELETE /datafeed/session — unbind credentials
-    GET  /datafeed/health   — gateway health + available exchanges
+Mirrors the AXIS sidecar contract (`packages/datafeed`):
+
+    GET    /datafeed/ohlcv     — ``fetch_ohlcv(symbol, timeframe, since, limit)``
+    GET    /datafeed/markets   — list markets for an exchange
+    POST   /datafeed/session   — bind RAM credentials (exchange and/or credentialId)
+    DELETE /datafeed/session   — unbind (``exchange=`` or ``cred=ccxt:<exchange>``)
+    GET    /datafeed/health    — gateway health + ``ccxt_exchanges``
+    WS     /datafeed/watch     — CCXT Pro ``watch_ohlcv`` (registered via flask-sock)
+
+Bars are ``{time, open, high, low, close, volume}`` with ``time`` in unix seconds
+from CCXT ``candle[0]`` (ms). AXIS DSM walk-back sends ``since`` in milliseconds.
 """
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
+import math
 import os
+
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
 from typing import Any
 
 from flask import Blueprint
 from flask import jsonify
 from flask import request
 
+
 logger = logging.getLogger(__name__)
 
 datafeed_bp = Blueprint("datafeed", __name__, url_prefix="/datafeed")
-
-# ---------------------------------------------------------------------------
-# Credential store (server-side, env-based for v1)
-# ---------------------------------------------------------------------------
 
 _ENV_KEYS: dict[str, dict[str, str]] = {
     "binance": {"api_key": "BINANCE_API_KEY", "secret": "BINANCE_SECRET"},
@@ -61,14 +70,69 @@ _ENV_KEYS: dict[str, dict[str, str]] = {
     "kraken": {"api_key": "KRAKEN_API_KEY", "secret": "KRAKEN_SECRET"},
 }
 
-# Active sessions: exchange -> credential dict (RAM-only)
+_PERIOD_DAYS: dict[str, int] = {
+    "1d": 1,
+    "1w": 7,
+    "1mo": 30,
+    "3mo": 90,
+    "6mo": 180,
+    "1y": 365,
+    "2y": 730,
+}
+
+# RAM-only: exchange id and optional AXIS credentialId (``ccxt:<exchange>``)
 _sessions: dict[str, dict[str, str]] = {}
 
 
-def _get_credentials(exchange: str) -> dict[str, str] | None:
-    """Return credentials for an exchange from active session or env vars."""
-    if exchange in _sessions:
-        return _sessions[exchange]
+def _opt_int(raw: Any) -> int | None:
+    if raw is None or raw == "":
+        return None
+    try:
+        n = int(float(raw))
+    except (TypeError, ValueError):
+        return None
+    return n
+
+
+_CCXT_CANDLE_LEN = 6
+_CCXT_MS_EPOCH = 10_000_000_000  # values above this are milliseconds, not seconds
+
+
+def _candle_to_bar(candle: Any) -> dict[str, float | int] | None:
+    """Map a CCXT candle ``[ms, o, h, l, c, v]`` to an AXIS bar (unix seconds)."""
+    if not isinstance(candle, (list, tuple)) or len(candle) < _CCXT_CANDLE_LEN:
+        return None
+    try:
+        ts = float(candle[0])
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(ts):
+        return None
+    # CCXT timestamps are milliseconds; AXIS sidecar does Math.floor(c[0]/1000).
+    time_s = int(ts // 1000) if ts > _CCXT_MS_EPOCH else int(ts)
+    try:
+        return {
+            "time": time_s,
+            "open": float(candle[1]),
+            "high": float(candle[2]),
+            "low": float(candle[3]),
+            "close": float(candle[4]),
+            "volume": float(candle[5]),
+        }
+    except (TypeError, ValueError):
+        return None
+
+
+def _latest_candle(raw: Any) -> Any:
+    """CCXT Pro ``watch_ohlcv`` yields a list of candles; REST yields the same."""
+    if not raw:
+        return None
+    if isinstance(raw, (list, tuple)) and raw and isinstance(raw[0], (list, tuple)):
+        return raw[-1]
+    return raw
+
+
+def _get_env_credentials(exchange: str) -> dict[str, str] | None:
     env_map = _ENV_KEYS.get(exchange.lower())
     if not env_map:
         return None
@@ -80,15 +144,48 @@ def _get_credentials(exchange: str) -> dict[str, str] | None:
     return creds if creds else None
 
 
+def _get_credentials(exchange: str) -> dict[str, str] | None:
+    if exchange in _sessions:
+        return _sessions[exchange]
+    return _get_env_credentials(exchange)
+
+
+def _resolve_session(exchange: str, cred: str) -> tuple[str, dict[str, str] | None]:
+    """Resolve exchange id + bound keys from ``exchange=`` and/or ``cred=ccxt:<ex>``."""
+    exchange = (exchange or "").strip()
+    cred = (cred or "").strip()
+    if not exchange and cred.startswith("ccxt:"):
+        exchange = cred[5:]
+    elif not exchange and cred:
+        exchange = cred
+    creds: dict[str, str] | None = None
+    if cred and cred in _sessions:
+        creds = _sessions[cred]
+    if creds is None and exchange:
+        creds = _get_credentials(exchange)
+    return exchange, creds
+
+
 def _make_provider(exchange: str, credentials: dict[str, str] | None = None):
-    """Create a CCXTProvider instance for the given exchange."""
+    """Create a CCXTProvider for *exchange* (public if credentials are empty)."""
     try:
-        from pynescript.util.data import CCXTProvider
+        from pynescript.util.data import CCXTProvider  # noqa: PLC0415
     except ImportError:
         return None
-    api_key = credentials.get("api_key", "") if credentials else ""
-    secret = credentials.get("secret", "") if credentials else ""
-    return CCXTProvider(exchange=exchange, api_key=api_key, secret=secret)
+    creds = credentials or {}
+    return CCXTProvider(
+        exchange=exchange,
+        api_key=creds.get("api_key", ""),
+        secret=creds.get("secret", ""),
+        password=creds.get("password", ""),
+        uid=creds.get("uid", ""),
+    )
+
+
+def _store_session(exchange: str, creds: dict[str, str], credential_id: str = "") -> None:
+    _sessions[exchange] = creds
+    if credential_id:
+        _sessions[credential_id] = creds
 
 
 # ---------------------------------------------------------------------------
@@ -98,25 +195,33 @@ def _make_provider(exchange: str, credentials: dict[str, str] | None = None):
 
 @datafeed_bp.route("/ohlcv", methods=["GET"])
 def fetch_ohlcv():  # type: ignore[no-untyped-def]
-    """Fetch historical OHLCV candles via CCXTProvider.
+    """Fetch historical OHLCV via CCXT ``fetch_ohlcv``.
 
-    Query params:
-        exchange  — exchange id (binance, okx, bybit, coinbase, kraken)
-        symbol    — unified symbol (BTC/USDT)
-        timeframe — candle interval (1m, 5m, 1h, 1d)
-        period    — time period (1d, 1w, 1mo, 3mo, 6mo, 1y, 2y)
-        limit     — max bars to return (sliced from provider result)
+    Query params (AXIS ``ccxt-rest``):
+        exchange, symbol, timeframe, since (ms), limit, cred
+    Legacy: period (1d/1w/1mo/…) derives ``since`` when ``since`` is omitted.
     """
-    exchange = request.args.get("exchange", "").strip()
+    exchange, credentials = _resolve_session(
+        request.args.get("exchange", "").strip(),
+        request.args.get("cred", "").strip(),
+    )
     symbol = request.args.get("symbol", "").strip()
-    timeframe = request.args.get("timeframe", "1h").strip()
-    period = request.args.get("period", "1y").strip()
-    limit = request.args.get("limit", 500, type=int)
+    timeframe = request.args.get("timeframe", "1h").strip() or "1h"
 
     if not exchange or not symbol:
         return jsonify({"error": "exchange and symbol are required"}), 400
 
-    credentials = _get_credentials(exchange)
+    since = _opt_int(request.args.get("since"))
+    limit = _opt_int(request.args.get("limit"))
+    if limit is not None and limit <= 0:
+        limit = None
+    period = request.args.get("period", "").strip()
+    if since is None and period:
+        days = _PERIOD_DAYS.get(period, 365)
+        since = int((datetime.now(timezone.utc) - timedelta(days=days)).timestamp() * 1000)
+    if since is None and limit is None:
+        limit = 500
+
     provider = _make_provider(exchange, credentials)
     if provider is None:
         return (
@@ -125,47 +230,19 @@ def fetch_ohlcv():  # type: ignore[no-untyped-def]
         )
 
     try:
-        result = provider.fetch(symbol=symbol, period=period, interval=timeframe)
+        raw = provider.fetch_ohlcv(symbol=symbol, timeframe=timeframe, since=since, limit=limit)
     except Exception as exc:
+        msg = str(exc)
         logger.warning("datafeed ohlcv error: %s", exc)
-        return jsonify({"error": str(exc)}), 502
-
-    # CCXTProvider returns {symbol, open[], high[], low[], close[], volume[]}
-    # Convert to AXIS Bar format: {time, open, high, low, close, volume}
-    opens = result.get("open", [])
-    highs = result.get("high", [])
-    lows = result.get("low", [])
-    closes = result.get("close", [])
-    volumes = result.get("volume", [])
-    n = min(len(opens), len(highs), len(lows), len(closes), len(volumes))
-
-    # CCXTProvider doesn't expose timestamps directly; synthesize from index
-    # The provider fetches from `since` (now - period) at the given interval
-    from datetime import datetime, timedelta, timezone
-
-    interval_map = {"1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400, "1d": 86400, "1w": 604800}
-    step = interval_map.get(timeframe, 3600)
-
-    period_days_map = {"1d": 1, "1w": 7, "1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730}
-    days = period_days_map.get(period, 365)
-    start_ts = int((datetime.now(timezone.utc) - timedelta(days=days)).timestamp())
+        if "not installed" in msg.lower():
+            return jsonify({"error": msg}), 503
+        return jsonify({"error": msg}), 502
 
     bars = []
-    for i in range(n):
-        bars.append(
-            {
-                "time": start_ts + i * step,
-                "open": float(opens[i]),
-                "high": float(highs[i]),
-                "low": float(lows[i]),
-                "close": float(closes[i]),
-                "volume": float(volumes[i]),
-            }
-        )
-
-    if limit and len(bars) > limit:
-        bars = bars[-limit:]
-
+    for candle in raw or []:
+        bar = _candle_to_bar(candle)
+        if bar is not None:
+            bars.append(bar)
     return jsonify(bars)
 
 
@@ -176,16 +253,14 @@ def fetch_ohlcv():  # type: ignore[no-untyped-def]
 
 @datafeed_bp.route("/markets", methods=["GET"])
 def fetch_markets():  # type: ignore[no-untyped-def]
-    """List available markets for an exchange.
-
-    Query params:
-        exchange — exchange id
-    """
-    exchange = request.args.get("exchange", "").strip()
+    """List available markets for an exchange."""
+    exchange, credentials = _resolve_session(
+        request.args.get("exchange", "").strip(),
+        request.args.get("cred", "").strip(),
+    )
     if not exchange:
         return jsonify({"error": "exchange is required"}), 400
 
-    credentials = _get_credentials(exchange)
     provider = _make_provider(exchange, credentials)
     if provider is None:
         return jsonify({"error": "CCXT not installed"}), 503
@@ -193,7 +268,6 @@ def fetch_markets():  # type: ignore[no-untyped-def]
     try:
         ex = provider._get_exchange()
         markets = ex.fetch_markets()
-        # Simplify to essential fields
         simplified = []
         for m in markets:
             simplified.append(
@@ -217,24 +291,45 @@ def fetch_markets():  # type: ignore[no-untyped-def]
 
 @datafeed_bp.route("/session", methods=["POST"])
 def bind_session():  # type: ignore[no-untyped-def]
-    """Bind server-side credentials for an exchange.
+    """Bind RAM credentials.
 
-    Body (JSON):
-        { "exchange": "binance" }
+    AXIS body: ``{exchange, credentialId, apiKey, secret, password?, uid?}``.
+    Operator fallback: ``{exchange}`` binds env vars.
     """
     body = request.get_json(silent=True) or {}
-    exchange = body.get("exchange", "").strip()
+    exchange = str(body.get("exchange", "")).strip()
     if not exchange:
         return jsonify({"error": "exchange is required"}), 400
 
-    credentials = _get_credentials(exchange)
+    credential_id = str(body.get("credentialId") or body.get("credential_id") or "").strip()
+    api_key = str(body.get("apiKey") or body.get("api_key") or "").strip()
+    secret = str(body.get("secret") or "").strip()
+    password = str(body.get("password") or body.get("passphrase") or "").strip()
+    uid = str(body.get("uid") or "").strip()
+    if api_key and secret:
+        creds: dict[str, str] = {"api_key": api_key, "secret": secret}
+        if password:
+            creds["password"] = password
+        if uid:
+            creds["uid"] = uid
+        _store_session(exchange, creds, credential_id)
+        return "", 204
+
+    credentials = _get_credentials(exchange) or _get_env_credentials(exchange)
     if not credentials:
         return (
-            jsonify({"error": f"No credentials found for {exchange}. Set env vars or use /datafeed/session."}),
+            jsonify(
+                {
+                    "error": (
+                        f"No credentials found for {exchange}. "
+                        "POST apiKey+secret or set env vars."
+                    )
+                }
+            ),
             404,
         )
 
-    _sessions[exchange] = credentials
+    _store_session(exchange, credentials, credential_id)
     return "", 204
 
 
@@ -245,16 +340,19 @@ def bind_session():  # type: ignore[no-untyped-def]
 
 @datafeed_bp.route("/session", methods=["DELETE"])
 def unbind_session():  # type: ignore[no-untyped-def]
-    """Remove bound credentials for an exchange.
-
-    Query params:
-        exchange — exchange id
-    """
+    """Remove bound credentials (``exchange=`` and/or AXIS ``cred=ccxt:<ex>``)."""
     exchange = request.args.get("exchange", "").strip()
-    if not exchange:
+    cred = request.args.get("cred", "").strip()
+    if not exchange and cred.startswith("ccxt:"):
+        exchange = cred[5:]
+    if not exchange and not cred:
         return jsonify({"error": "exchange is required"}), 400
 
-    _sessions.pop(exchange, None)
+    if cred:
+        _sessions.pop(cred, None)
+    if exchange:
+        _sessions.pop(exchange, None)
+        _sessions.pop(f"ccxt:{exchange}", None)
     return "", 204
 
 
@@ -267,24 +365,75 @@ def unbind_session():  # type: ignore[no-untyped-def]
 def gateway_health():  # type: ignore[no-untyped-def]
     """Gateway health check + available exchanges."""
     try:
-        import ccxt  # noqa: F401
+        import ccxt  # noqa: F401,PLC0415
 
         has_ccxt = True
     except ImportError:
         has_ccxt = False
 
     exchanges = list(_ENV_KEYS.keys())
-    payload = {
+    payload: dict[str, Any] = {
         "status": "ok",
         "ccxt": has_ccxt,
         "exchanges": exchanges,
-        "active_sessions": list(_sessions.keys()),
+        "active_sessions": sorted({k for k in _sessions if not k.startswith("ccxt:")}),
     }
     if has_ccxt:
         try:
-            import ccxt as _ccxt  # local alias; top-level import above is probe-only
+            import ccxt as _ccxt  # noqa: PLC0415
 
             payload["ccxt_exchanges"] = sorted(_ccxt.exchanges)
-        except Exception:  # pragma: no cover - defensive: list must not break health
+        except Exception:  # pragma: no cover  # noqa: S110
             pass
     return jsonify(payload)
+
+
+def register_watch_route(sock: Any) -> None:
+    """Register ``WS /datafeed/watch`` on the flask-sock instance (CCXT Pro)."""
+
+    @sock.route("/datafeed/watch")
+    def datafeed_watch(ws):  # type: ignore[no-untyped-def]
+        exchange, credentials = _resolve_session(
+            request.args.get("exchange", "").strip(),
+            request.args.get("cred", "").strip(),
+        )
+        symbol = request.args.get("symbol", "").strip()
+        timeframe = request.args.get("timeframe", "1m").strip() or "1m"
+        if not exchange or not symbol:
+            try:
+                ws.close()
+            except Exception:  # noqa: S110
+                pass
+            return
+
+        creds = credentials or {}
+
+        async def _stream() -> None:
+            from pynescript.util.datafeed import CCXTProDataFeed  # noqa: PLC0415
+
+            opts: dict[str, Any] = {}
+            if creds.get("uid"):
+                opts["uid"] = creds["uid"]
+            feed = CCXTProDataFeed(
+                exchange=exchange,
+                api_key=creds.get("api_key", ""),
+                secret=creds.get("secret", ""),
+                password=creds.get("password", ""),
+                **opts,
+            )
+            async with feed:
+                async for raw in feed.watch_ohlcv(symbol, timeframe):
+                    candle = _latest_candle(raw)
+                    bar = _candle_to_bar(candle)
+                    if bar is None:
+                        continue
+                    ws.send(json.dumps(bar))
+
+        try:
+            asyncio.run(_stream())
+        except Exception as exc:
+            logger.warning("datafeed watch error: %s", exc)
+            try:
+                ws.close()
+            except Exception:  # noqa: S110
+                pass

@@ -130,6 +130,7 @@ _FREE_CORS_PATH_PREFIXES = (
     "/compile",
     "/lsp/",
     "/ws/",
+    "/datafeed",
 )
 
 # Once-per-worker host prewarm (builtins + disk cache dir). Soft-fail without Numba.
@@ -178,7 +179,7 @@ def _apply_cors_headers(resp, origin: str | None = None):  # type: ignore[no-unt
     if _path_is_free_cors(path) or _origin_allowed(origin):
         resp.headers["Access-Control-Allow-Origin"] = origin
         resp.headers["Vary"] = "Origin"
-        resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, HEAD"
+        resp.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS, HEAD"
         resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Admin-Token, Accept"
         resp.headers["Access-Control-Max-Age"] = "86400"
     return resp
@@ -187,7 +188,7 @@ def _apply_cors_headers(resp, origin: str | None = None):  # type: ignore[no-unt
 CORS(
     app,
     origins=ALLOWED_ORIGINS if ALLOWED_ORIGINS != "*" else "*",
-    methods=["GET", "POST", "OPTIONS", "HEAD"],
+    methods=["GET", "POST", "DELETE", "OPTIONS", "HEAD"],
     allow_headers=["Content-Type", "Authorization", "X-Admin-Token", "Accept"],
     expose_headers=["Content-Type"],
     supports_credentials=False,
@@ -220,6 +221,13 @@ if sock is None:
         "flask-sock not installed — WS /ws/run disabled (AXIS falls back to POST /run). "
         "Install: pip install 'pyne[pro]'  or  pip install flask-sock simple-websocket"
     )
+else:
+    try:
+        from backend.api.datafeed import register_watch_route
+
+        register_watch_route(sock)
+    except ImportError:
+        pass
 
 
 def _maybe_host_compile_prewarm(*, force: bool = False) -> dict[str, Any] | None:
@@ -589,6 +597,10 @@ def _health_payload() -> dict[str, Any]:
     }
     if sock is not None:
         endpoints["WS /ws/run"] = "Run Pine Script over WebSocket (prefer WSS when available)"
+        endpoints["WS /datafeed/watch"] = "CCXT Pro OHLCV stream (AXIS ccxt-ws)"
+    endpoints["GET /datafeed/ohlcv"] = "CCXT historical OHLCV (AXIS ccxt-rest)"
+    endpoints["GET /datafeed/markets"] = "CCXT markets for an exchange"
+    endpoints["GET /datafeed/health"] = "Datafeed gateway + ccxt_exchanges"
     from .alert_forwarder import default_webhook_url
 
     return {
