@@ -457,6 +457,40 @@ class AlphaVantageProvider(DataProvider):
 _BINANCE_PUBLIC_HOST = "https://data-api.binance.vision"
 
 
+def normalize_ccxt_symbol(exchange_name: str, symbol: str) -> str:
+    """AXIS-aligned unified-symbol aliases (Coinbase has no USDT spot book)."""
+    name = str(exchange_name or "").lower().strip()
+    s = str(symbol or "").strip()
+    if not s:
+        return s
+    if name in {"coinbase", "coinbaseexchange"}:
+        upper = s.upper()
+        if upper.endswith("/USDT"):
+            return s[: -len("USDT")] + "USD"
+        if upper.endswith("/USDC"):
+            return s[: -len("USDC")] + "USD"
+        if upper.endswith("USDT") and "/" not in s:
+            return s[: -len("USDT")] + "/USD"
+    return s
+
+
+def geo_block_message(exchange_name: str, err: BaseException) -> str | None:
+    """Short operator hint when a venue CDN refuses this host's region."""
+    text = str(err)
+    blocked = (
+        "block access from your country" in text
+        or "restricted location" in text
+        or "Eligibility" in text
+    )
+    if not blocked:
+        return None
+    name = str(exchange_name or "").strip() or "exchange"
+    return (
+        f"{name} public API is blocked from this host's region. "
+        "Use kraken, okx, gate, or binance (spot)."
+    )
+
+
 def tune_ccxt_public_urls(exchange: Any, exchange_name: str) -> None:
     """Retarget geo-blocked public REST hosts (Binance spot → data-api.binance.vision).
 
@@ -567,10 +601,12 @@ class CCXTProvider(DataProvider):
         """
         exchange = self._get_exchange()
         tf = self._parse_timeframe(timeframe)
+        unified = normalize_ccxt_symbol(self._exchange_name, symbol)
         try:
-            raw = exchange.fetch_ohlcv(symbol, tf, since, limit)
+            raw = exchange.fetch_ohlcv(unified, tf, since, limit)
         except Exception as e:
-            msg = f"Failed to fetch data from {self._exchange_name}: {e}"
+            hint = geo_block_message(self._exchange_name, e)
+            msg = hint or f"Failed to fetch data from {self._exchange_name}: {e}"
             raise DataProviderError(msg)
         return list(raw or [])
 
@@ -622,11 +658,13 @@ class CCXTProvider(DataProvider):
             Dictionary with quote data
         """
         exchange = self._get_exchange()
+        unified = normalize_ccxt_symbol(self._exchange_name, symbol)
 
         try:
-            ticker = exchange.fetch_ticker(symbol)
+            ticker = exchange.fetch_ticker(unified)
         except Exception as e:
-            msg = f"Failed to fetch quote: {e}"
+            hint = geo_block_message(self._exchange_name, e)
+            msg = hint or f"Failed to fetch quote: {e}"
             raise DataProviderError(msg)
 
         return {
@@ -749,7 +787,9 @@ __all__ = [
     "DataProviderError",
     "MockDataProvider",
     "YahooFinanceProvider",
+    "geo_block_message",
     "get_provider",
+    "normalize_ccxt_symbol",
     "resolve_request_sources",
     "tune_ccxt_public_urls",
 ]

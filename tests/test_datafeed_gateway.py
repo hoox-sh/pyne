@@ -403,6 +403,16 @@ class TestCcxtProviderPassThrough:
         ex.fetch_ohlcv.assert_called_once_with("BTC/USDT", "3m", 10, 50)
         assert out == [[1_700_000_000_000, 1, 1, 1, 1, 1]]
 
+    def test_fetch_ohlcv_rewrites_coinbase_usdt(self) -> None:
+        from pynescript.util.data import CCXTProvider
+
+        p = CCXTProvider(exchange="coinbase")
+        ex = MagicMock()
+        ex.fetch_ohlcv.return_value = [[1_700_000_000_000, 1, 1, 1, 1, 1]]
+        p._exchange = ex
+        p.fetch_ohlcv("BTC/USDT", "1m", since=None, limit=2)
+        ex.fetch_ohlcv.assert_called_once_with("BTC/USD", "1m", None, 2)
+
     def test_tune_binance_spot_uses_vision_host(self) -> None:
         from types import SimpleNamespace
 
@@ -423,6 +433,26 @@ class TestCcxtProviderPassThrough:
         assert ex.urls["api"]["fapiPublic"].startswith("https://fapi.binance.com")
         assert ex.options["fetchMarkets"] == ["spot"]
         tune_ccxt_public_urls(ex, "okx")  # no-op
+
+    def test_normalize_coinbase_usdt_to_usd(self) -> None:
+        from pynescript.util.data import normalize_ccxt_symbol
+
+        assert normalize_ccxt_symbol("coinbase", "BTC/USDT") == "BTC/USD"
+        assert normalize_ccxt_symbol("coinbase", "ETH/USDC") == "ETH/USD"
+        assert normalize_ccxt_symbol("binance", "BTC/USDT") == "BTC/USDT"
+
+    def test_geo_block_message(self) -> None:
+        from pynescript.util.data import geo_block_message
+
+        err = RuntimeError(
+            "bybit GET https://api.bybit.com 403 Forbidden "
+            "{ error:The Amazon CloudFront distribution is configured to block access from your country }"
+        )
+        msg = geo_block_message("bybit", err)
+        assert msg is not None
+        assert "blocked from this host" in msg
+        assert "kraken" in msg
+        assert geo_block_message("okx", RuntimeError("timeout")) is None
 
 
 class TestWatchRestPoll:
