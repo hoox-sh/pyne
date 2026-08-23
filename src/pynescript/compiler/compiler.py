@@ -3720,6 +3720,14 @@ class CompilerVisitor(NodeVisitor):
                 return repr(node.attr)
             if parent == "direction" and node.attr in ("long", "short", "all"):
                 return repr(node.attr)
+            if parent == "opentrades" and node.attr == "capital_held":
+                self.object_mode = True
+                self.uses_strategy = True
+                return "__strategy.capital_held"
+            if parent == "closedtrades" and node.attr == "first_index":
+                self.object_mode = True
+                self.uses_strategy = True
+                return "__strategy.closedtrades_first_index"
 
         val = self.visit(node.value)
 
@@ -4317,6 +4325,8 @@ class CompilerVisitor(NodeVisitor):
             "avg_trade": "__strategy.avg_trade",
             "avg_winning_trade": "__strategy.avg_winning_trade",
             "avg_losing_trade": "__strategy.avg_losing_trade",
+            "account_currency": "__strategy.account_currency",
+            "closedtrades_first_index": "__strategy.closedtrades_first_index",
         }
         if attr in series_map:
             self.object_mode = True

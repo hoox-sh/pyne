@@ -1175,6 +1175,47 @@ plot(strategy.max_contracts_held_short, "short")
         assert result["series"]["long"][-1] == pytest.approx(5.0)
         assert result["series"]["short"][-1] == pytest.approx(3.0)
 
+    def test_account_currency_and_capital_held_series(self) -> None:
+        """AXIS compile plots of remaining strategy series must not AttributeError."""
+        from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+        b = CompileStrategyBroker(initial_capital=10_000.0)
+        assert b.account_currency == "USD"
+        assert b.closedtrades_first_index == 0
+        assert b.capital_held == pytest.approx(0.0)
+        b.begin_bar(0, 50.0, 50.0, 50.0, 50.0)
+        b.entry("L", "long", 3.0)
+        assert b.capital_held == pytest.approx(150.0)
+        b.close("L")
+        assert b.closed_trades == 1
+        assert b.closedtrades_first_index == 0
+
+    def test_runtime_compile_account_currency_and_capital_held_plot(self) -> None:
+        src = """//@version=5
+strategy("s")
+if bar_index == 0
+    strategy.entry("L", strategy.long, qty=3)
+plot(strategy.opentrades.capital_held, "held")
+plot(strategy.closedtrades.first_index, "cfi")
+plot(str.length(strategy.account_currency), "cc")
+"""
+        ohlcv = [
+            {
+                "open": 50.0,
+                "high": 51.0,
+                "low": 49.0,
+                "close": 50.0,
+                "volume": 1.0,
+                "time": i * 60_000,
+            }
+            for i in range(3)
+        ]
+        result = Runtime().run(src, ohlcv, mode="compile")
+        assert "error" not in result, result.get("error")
+        assert result["series"]["held"][0] == pytest.approx(150.0)
+        assert result["series"]["cfi"][0] == pytest.approx(0.0)
+        assert result["series"]["cc"][0] == pytest.approx(3.0)
+
     def test_openprofit_percent_and_cash_series(self) -> None:
         """Missing compile attrs caused AttributeError / compile_error on plots."""
         from pynescript.compiler.strategy_broker import CompileStrategyBroker

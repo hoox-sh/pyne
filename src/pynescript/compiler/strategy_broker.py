@@ -335,6 +335,8 @@ class CompileStrategyBroker:
         self.max_contracts_held_all: float = 0.0
         self.max_contracts_held_long: float = 0.0
         self.max_contracts_held_short: float = 0.0
+        self.account_currency: str = "USD"
+        self.closedtrades_first_index: int = 0
         self.events: list[dict[str, Any]] = []
         self.pending_orders: dict[str, PendingOrder] = {}
         self._bar_index: int = 0
@@ -1986,15 +1988,19 @@ class CompileStrategyBroker:
         return self._pct_of_initial(self.grossloss)
 
     @property
-    def cash(self) -> float:
-        """Approximate free cash: equity minus margin locked (notional / leverage)."""
+    def capital_held(self) -> float:
+        """Margin locked in open positions (notional / leverage). Pine ``opentrades.capital_held``."""
         ps = self.position_size
         if ps == 0.0 or self.position_avg_price != self.position_avg_price:
-            return float(self.equity)
+            return 0.0
         notional = abs(float(self.position_avg_price) * float(ps))
         lev = float(self.leverage) if self.leverage and self.leverage > 0 else 1.0
-        held = notional / lev
-        return float(self.equity) - held
+        return notional / lev
+
+    @property
+    def cash(self) -> float:
+        """Approximate free cash: equity minus margin locked (notional / leverage)."""
+        return float(self.equity) - float(self.capital_held)
 
     @property
     def margin_liquidation_price(self) -> float:
