@@ -593,6 +593,9 @@ def _pack_interpret_plot_columns(
                     meta_entry["price"] = float(price_val)
                 except (TypeError, ValueError):
                     meta_entry["price"] = price_val
+        display = m0.get("display")
+        if display is not None and display != "":
+            meta_entry["display"] = display
         plot_meta[title] = meta_entry
 
     final_series = next(iter(series_map.values()), [])

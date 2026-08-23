@@ -63,6 +63,22 @@ def _serialize_color(c: Any) -> str | None:
     return s if s else None
 
 
+def _plot_display_kw(kwargs: dict[str, Any] | None) -> str | int | None:
+    """Pine ``display=`` from kwargs — int bitfield or token string."""
+    if not kwargs:
+        return None
+    raw = kwargs.get("display")
+    if raw is None or raw == "":
+        return None
+    t = type(raw)
+    if t is int:
+        return raw
+    if t is float and raw == raw:
+        return int(raw)
+    s = str(raw).strip()
+    return s or None
+
+
 def _unwrap_scalar(value: Any) -> Any:
     """Bar-mode: PineSeries / list → current scalar for plot capture."""
     t = type(value)
@@ -416,6 +432,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
                 _as_plot_int(linewidth, 1),
                 style=style_s,
                 linestyle=linestyle_s,
+                display=_plot_display_kw(kwargs),
             )
             return self._maybe_registry("_builtin_plot", args, kwargs) if self._pine_need_plot_ids else None
 
@@ -473,6 +490,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
                 _as_plot_int(linewidth, 1),
                 linestyle=str(linestyle or "linestyle_solid"),
                 style="hline",
+                display=_plot_display_kw(kwargs),
             )
             return self._maybe_registry("_builtin_hline", args, kwargs) if self._pine_need_plot_ids else None
 
@@ -524,6 +542,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
             color_s,
             str(title or "") or "bgcolor",
             color_s,
+            display=_plot_display_kw(kwargs if kwargs else None),
         )
         return self._maybe_registry("_builtin_bgcolor", args, kwargs) if self._pine_need_plot_ids else None
 
@@ -587,6 +606,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
             style="fill",
             plot1=t1,
             plot2=t2,
+            display=_plot_display_kw(kwargs),
         )
         return reg
 
@@ -623,6 +643,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
                 text=str(text) if text is not None else "",
                 size=size_s,
                 text_size=size_s,
+                display=_plot_display_kw(kwargs),
             )
             return self._maybe_registry("_builtin_plotshape", args, kwargs) if self._pine_need_plot_ids else None
 
@@ -678,6 +699,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
                 location=location_s,
                 text=char_s,
                 char=char_s,
+                display=_plot_display_kw(kwargs),
             )
             return self._maybe_registry("_builtin_plotchar", args, kwargs) if self._pine_need_plot_ids else None
 
@@ -727,6 +749,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
             str(title or "") or "arrow",
             _serialize_color(color) if color is not None else None,
             style="arrow",
+            display=_plot_display_kw(kwargs),
         )
         return self._maybe_registry("_builtin_plotarrow", args, kwargs) if self._pine_need_plot_ids else None
 
@@ -749,6 +772,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
             str(title or "") or "barcolor",
             color_s,
             style="barcolor",
+            display=_plot_display_kw(kwargs),
         )
         return self._maybe_registry("_builtin_barcolor", args, kwargs) if self._pine_need_plot_ids else None
 
@@ -772,6 +796,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
             str(title or "") or "bars",
             _serialize_color(color) if color is not None else None,
             style="bars",
+            display=_plot_display_kw(kwargs),
         )
         return self._maybe_registry("_builtin_plotbar", args, kwargs) if self._pine_need_plot_ids else None
 
@@ -795,6 +820,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
             str(title or "") or "candles",
             _serialize_color(color) if color is not None else None,
             style="candles",
+            display=_plot_display_kw(kwargs),
         )
         return self._maybe_registry("_builtin_plotcandle", args, kwargs) if self._pine_need_plot_ids else None
 
