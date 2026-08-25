@@ -491,3 +491,18 @@ class TestCompileAttrs:
         r = Runtime().run(script, _bars(), mode="compile")
         m = r["plot_meta"]["d"]
         assert not isinstance(m.get("linewidth"), str)
+
+    def test_ir_share_does_not_leak_titles_or_attrs(self) -> None:
+        # Metadata-only siblings share numeric IR; each payload keeps its own
+        # titles/attrs (IR-cache share is gated on metadata equality).
+        clear_compile_cache()
+        bars = _bars(12)
+        src_a = '//@version=6\nindicator("a")\nplot(close, title="alpha")\n'
+        src_b = '//@version=6\nindicator("b")\nplot(close, title="beta", linewidth=4)\n'
+        ra = Runtime().run(src_a, bars, mode="compile")
+        rb = Runtime().run(src_b, bars, mode="compile")
+        ma, mb = ra["plot_meta"]["alpha"], rb["plot_meta"]["beta"]
+        assert ma["title"] == "alpha"
+        assert mb["title"] == "beta"
+        assert mb.get("linewidth") == 4
+        assert ma.get("linewidth") in (1, None)

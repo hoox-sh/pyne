@@ -116,6 +116,15 @@ _PLOT_ATTR_SPECS: dict[str, tuple[str, ...]] = {
 _PLOT_ATTR_FALLBACK_IDX: dict[str, int] = {"linewidth": 3, "style": 4}
 _MAX_FOLD_EXPR_LEN = 128
 
+
+def _fold_int_attr(value: Any, default: int) -> int:
+    """Best-effort ``int()`` of a folded literal; *default* when unconvertible."""
+    try:
+        return int(value)  # float("inf") → OverflowError, nan → ValueError
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
 # Fundamentals / currency / adjustment namespaces. Member access must not
 # become a dead series identifier (``dividends_arr_future_amount``).
 _STUB_NS = frozenset(
@@ -7134,7 +7143,7 @@ class CompilerVisitor(NodeVisitor):
         """Fold a generated expression string to a literal int/float/str/bool.
 
         Returns the Python value for pure literals ("#ff0000", 2, -1.5, True),
-        else None. Records compile-time plot attrs for AXIS plot_meta.
+        else None (dynamic expressions, non-scalars, oversized text).
         """
         if isinstance(expr, bool) or isinstance(expr, (int, float)):
             return expr
@@ -7167,7 +7176,7 @@ class CompilerVisitor(NodeVisitor):
         elif name in WIRE_INT_PARAMS or name == "linewidth":
             if not isinstance(value, bool) and isinstance(value, (int, float)):
                 default = WIRE_DEFAULTS.get(name, 1 if name == "linewidth" else 0)
-                iv = int(value)
+                iv = _fold_int_attr(value, default)
                 if iv != default:
                     coerced = iv
         elif name in WIRE_FLOAT_PARAMS:

@@ -170,7 +170,9 @@ _BUILTINS_WARMED = False
 # Bump when generated IR semantics change so source→IR disk index is invalidated
 # (source hash alone is stable across compiler fixes, e.g. fill() series keys).
 # v5: strategy series history + Pine na-aware ==/!=
-_DISK_META_VERSION = 11  # v11: per-plot constant-folded attrs in source meta
+_DISK_META_VERSION = 12  # v12: invalidate metas written before the IR-share
+# metadata gate — pre-gate runs could persist donor titles/kinds/attrs into a
+# sibling source's src_*.json (self-rewriting on every load).
 _NJIT_CACHE_FALSE = "@numba.njit(cache=False)"
 _NJIT_CACHE_TRUE = "@numba.njit(cache=True)"
 
@@ -1304,8 +1306,30 @@ def _cache_put(cache: OrderedDict[str, Any], key: str, value: Any, maxsize: int)
     cache.move_to_end(key)
 
 
-def _share_compiled(source: str, base: CompiledScript) -> CompiledScript:
-    """Clone cache entry for a new source string sharing the same IR / execute."""
+def _share_compiled(
+    source: str,
+    base: CompiledScript,
+    *,
+    titles: list[str],
+    kinds: list[str],
+    attrs: list[dict[str, Any]],
+) -> CompiledScript | None:
+    """Clone a cache entry for a new source string sharing the same IR / execute.
+
+    Shares ONLY when the cached entry's wire metadata equals *titles* /
+    *kinds* / *attrs* (the new source's own derived or persisted metadata):
+    semantically-identical numeric IR can still differ in plot titles and
+    constant-folded attrs, and sharing would leak the donor's into the
+    sibling payload. On divergence returns ``None`` — callers must fall back
+    to a fresh transpile (or keep their already-correct instance).
+    """
+    if (
+        base.plot_titles != list(titles)
+        or base.plot_kinds != list(kinds)
+        or [dict(a) for a in base.plot_attrs] != [dict(a) for a in attrs]
+    ):
+        # Metadata-only divergence: same numeric IR, different wire meta.
+        return None
     return CompiledScript(
         source=source,
         generated_code=base.generated_code,
@@ -1403,6 +1427,87 @@ def _warm_numeric_or_fallback(
         return recovered, ir_key_o
 
 
+def _compile_via_disk_index(
+    source: str,
+    san_key: str,
+    cache_keys: list[str],
+) -> CompiledScript | None:
+    """Cross-process disk-index fast paths for :func:`compile_script`.
+
+    1. Warm-IR reuse: when the persisted source meta points at an IR already
+       warmed in-process, clone it — ONLY when its wire metadata (titles /
+       kinds / attrs) equals this source's own persisted meta.
+    2. Full disk load: rehydrate from this source's meta + IR module; the warm
+       dispatcher is shared only on metadata equality, otherwise the
+       disk-loaded instance (whose own meta is authoritative) is kept/warmed.
+
+    Returns the compiled script, or ``None`` when neither path applies
+    (caller proceeds with a fresh transpile). Metadata-only divergence — same
+    numeric IR, different titles/attrs — must never leak donor wire meta into
+    a sibling source's payload.
+    """
+    disk_meta = _read_disk_src_meta(san_key)
+    if disk_meta is not None:
+        ir_key_meta = str(disk_meta.get("ir_key") or "")
+        if ir_key_meta and ir_key_meta in _IR_CACHE:
+            shared = _share_compiled(
+                source,
+                _IR_CACHE[ir_key_meta],
+                titles=[str(t) for t in (disk_meta.get("titles") or [])],
+                kinds=[str(k) for k in (disk_meta.get("kinds") or [])],
+                attrs=[dict(a or {}) for a in (disk_meta.get("attrs") or [])],
+            )
+            if shared is not None:
+                _memory_cache_store(cache_keys, shared)
+                _IR_CACHE.move_to_end(ir_key_meta)
+                # Ensure this source hash has a disk index entry too.
+                _disk_write_artifacts(
+                    source_key=san_key,
+                    ir_key=ir_key_meta,
+                    code=shared.generated_code,
+                    titles=shared.plot_titles,
+                    object_mode=shared.object_mode,
+                    nopython_fallback_reason=shared.nopython_fallback_reason,
+                    kinds=shared.plot_kinds,
+                    attrs=shared.plot_attrs,
+                )
+                return shared
+
+        disk_hit = _try_load_disk_compiled(source, san_key)
+        if disk_hit is not None:
+            ir_key_d = _sha256_text(disk_hit.generated_code)
+            # Another source may have already warmed this IR while we loaded
+            # from disk (race-free in single-thread; still cheap to re-check).
+            shared_d = None
+            if ir_key_d in _IR_CACHE:
+                shared_d = _share_compiled(
+                    source,
+                    _IR_CACHE[ir_key_d],
+                    titles=disk_hit.plot_titles,
+                    kinds=disk_hit.plot_kinds,
+                    attrs=disk_hit.plot_attrs,
+                )
+            if shared_d is not None:
+                disk_hit = shared_d
+            elif not disk_hit.object_mode:
+                # Cold own-instance (no warm donor) → warm njit / fall back.
+                disk_hit, ir_key_d = _warm_numeric_or_fallback(source, disk_hit, ir_key=ir_key_d)
+            _memory_cache_store(cache_keys, disk_hit)
+            _cache_put(_IR_CACHE, ir_key_d, disk_hit, _IR_CACHE_MAX)
+            _disk_write_artifacts(
+                source_key=san_key,
+                ir_key=ir_key_d,
+                code=disk_hit.generated_code,
+                titles=disk_hit.plot_titles,
+                object_mode=disk_hit.object_mode,
+                nopython_fallback_reason=disk_hit.nopython_fallback_reason,
+                kinds=disk_hit.plot_kinds,
+                attrs=disk_hit.plot_attrs,
+            )
+            return disk_hit
+    return None
+
+
 def compile_script(source: str, *, use_cache: bool = True) -> CompiledScript:
     """Transpile Pine source and load the compiled entry point.
 
@@ -1444,71 +1549,37 @@ def compile_script(source: str, *, use_cache: bool = True) -> CompiledScript:
             return hit
 
     # Disk source index (cross-process; still warms njit if Numba cache cold).
-    # Prefer in-process IR share when the on-disk meta points at an IR we already
-    # warmed — avoids a second CPUDispatcher for comment-only source variants.
+    # Prefer in-process IR share when the on-disk meta points at an IR we
+    # already warmed — avoids a second CPUDispatcher for comment-only source
+    # variants. Metadata-gated: divergent donors never share across sources.
     if use_cache:
-        disk_meta = _read_disk_src_meta(san_key)
-        if disk_meta is not None:
-            ir_key_meta = str(disk_meta.get("ir_key") or "")
-            if ir_key_meta and ir_key_meta in _IR_CACHE:
-                compiled = _share_compiled(source, _IR_CACHE[ir_key_meta])
-                _memory_cache_store(cache_keys, compiled)
-                _IR_CACHE.move_to_end(ir_key_meta)
-                # Ensure this source hash has a disk index entry too.
-                _disk_write_artifacts(
-                    source_key=san_key,
-                    ir_key=ir_key_meta,
-                    code=compiled.generated_code,
-                    titles=compiled.plot_titles,
-                    object_mode=compiled.object_mode,
-                    nopython_fallback_reason=compiled.nopython_fallback_reason,
-                    kinds=compiled.plot_kinds,
-                    attrs=compiled.plot_attrs,
-                )
-                return compiled
-
-        disk_hit = _try_load_disk_compiled(source, san_key)
-        if disk_hit is not None:
-            ir_key_d = _sha256_text(disk_hit.generated_code)
-            # Another source may have already warmed this IR while we loaded
-            # from disk (race-free in single-thread; still cheap to re-check).
-            if ir_key_d in _IR_CACHE:
-                disk_hit = _share_compiled(source, _IR_CACHE[ir_key_d])
-            elif not disk_hit.object_mode:
-                disk_hit, ir_key_d = _warm_numeric_or_fallback(source, disk_hit, ir_key=ir_key_d)
-            _memory_cache_store(cache_keys, disk_hit)
-            _cache_put(_IR_CACHE, ir_key_d, disk_hit, _IR_CACHE_MAX)
-            _disk_write_artifacts(
-                source_key=san_key,
-                ir_key=ir_key_d,
-                code=disk_hit.generated_code,
-                titles=disk_hit.plot_titles,
-                object_mode=disk_hit.object_mode,
-                nopython_fallback_reason=disk_hit.nopython_fallback_reason,
-                kinds=disk_hit.plot_kinds,
-                attrs=disk_hit.plot_attrs,
-            )
-            return disk_hit
+        shared_disk = _compile_via_disk_index(source, san_key, cache_keys)
+        if shared_disk is not None:
+            return shared_disk
 
     code, titles, kinds, object_mode, attrs = _transpile_once(source, force_object_mode=False)
     ir_key = _sha256_text(code)
 
-    # Same generated IR as a prior script → reuse warm njit callable.
+    # Same generated IR as a prior script → reuse warm njit callable, but only
+    # when its wire metadata matches this source's freshly derived meta:
+    # metadata-only divergence (same numeric IR, different titles/attrs) must
+    # fall through to a fresh transpile instead of leaking the donor's meta.
     if use_cache and ir_key in _IR_CACHE:
-        compiled = _share_compiled(source, _IR_CACHE[ir_key])
-        _memory_cache_store(cache_keys, compiled)
-        _IR_CACHE.move_to_end(ir_key)
-        _disk_write_artifacts(
-            source_key=san_key,
-            ir_key=ir_key,
-            code=compiled.generated_code,
-            titles=compiled.plot_titles,
-            object_mode=compiled.object_mode,
-            nopython_fallback_reason=compiled.nopython_fallback_reason,
-            kinds=compiled.plot_kinds,
-            attrs=compiled.plot_attrs,
-        )
-        return compiled
+        shared = _share_compiled(source, _IR_CACHE[ir_key], titles=titles, kinds=kinds, attrs=attrs)
+        if shared is not None:
+            _memory_cache_store(cache_keys, shared)
+            _IR_CACHE.move_to_end(ir_key)
+            _disk_write_artifacts(
+                source_key=san_key,
+                ir_key=ir_key,
+                code=shared.generated_code,
+                titles=shared.plot_titles,
+                object_mode=shared.object_mode,
+                nopython_fallback_reason=shared.nopython_fallback_reason,
+                kinds=shared.plot_kinds,
+                attrs=shared.plot_attrs,
+            )
+            return shared
 
     compiled = _exec_generated(source, code, titles, object_mode, ir_key=ir_key, plot_kinds=kinds, plot_attrs=attrs)
     compiled, ir_key = _warm_numeric_or_fallback(source, compiled, ir_key=ir_key)

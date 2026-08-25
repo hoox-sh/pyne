@@ -1002,6 +1002,11 @@ def _stamp_compile_plot_attrs(
     """
     if not plot_meta or not attrs:
         return
+    # Positional walk — invariant: plot_meta keys are inserted in
+    # json_series order, which mirrors compiled.plot_titles order (both follow
+    # first plot()/hline()/fill() sighting), and *attrs* is aligned to that
+    # same titles list by the engine. Reordering either side silently
+    # misaligns attrs onto the wrong plot.
     for i, title in enumerate(plot_meta.keys()):
         if i >= len(attrs):
             break

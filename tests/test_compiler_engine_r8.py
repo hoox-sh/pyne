@@ -37,6 +37,7 @@ from pynescript.compiler.engine import _is_numba_cache_corruption
 from pynescript.compiler.engine import _is_plot_sequence
 from pynescript.compiler.engine import _normalize_result
 from pynescript.compiler.engine import _pack_plot_sequence
+from pynescript.compiler.engine import _sha256_text
 from pynescript.compiler.engine import _uniquify_series_key
 from pynescript.compiler.engine import _uniquify_title_list
 from pynescript.compiler.engine import clear_compile_cache
@@ -190,16 +191,12 @@ plot(close, title="c")
         assert "c" in out
         assert "__drawings" in out
         assert isinstance(out["__drawings"], list)
-        assert any(
-            isinstance(d, dict) and d.get("kind") == "hline" for d in out["__drawings"]
-        )
+        assert any(isinstance(d, dict) and d.get("kind") == "hline" for d in out["__drawings"])
 
 
 class TestLegacyArityAndCache:
     def test_legacy_arity_error_detector(self) -> None:
-        assert _is_legacy_execute_arity_error(
-            TypeError("old_exec() takes 5 positional arguments but 6 were given")
-        )
+        assert _is_legacy_execute_arity_error(TypeError("old_exec() takes 5 positional arguments but 6 were given"))
         assert not _is_legacy_execute_arity_error(TypeError("something else"))
         assert not _is_legacy_execute_arity_error(ValueError("nope"))
 
@@ -235,6 +232,43 @@ class TestLegacyArityAndCache:
         assert _is_numba_cache_corruption(EOFError("Ran out of input"))
         assert _is_numba_cache_corruption(pickle.UnpicklingError("pickle data was truncated"))
         assert not _is_numba_cache_corruption(RuntimeError("unrelated"))
+
+
+class TestIrShareMetadataGate:
+    """IR-share must not leak titles/kinds/attrs across metadata-divergent sources."""
+
+    def test_ir_share_does_not_leak_titles_or_attrs(self) -> None:
+        clear_compile_cache()
+        # Metadata-only variants: identical numeric IR (titles/attrs live in
+        # pack-time metadata, not emitted code) → colliding ir_key.
+        src_a = '//@version=6\nindicator("a")\nplot(close, title="alpha")\n'
+        src_b = '//@version=6\nindicator("b")\nplot(close, title="beta", linewidth=4)\n'
+        ca = compile_script(src_a)
+        cb = compile_script(src_b)
+        # Precondition: the sources really collide on generated IR.
+        assert _sha256_text(ca.generated_code) == _sha256_text(cb.generated_code)
+        # Sibling keeps its OWN wire meta (donor alpha must not bleed).
+        assert cb.plot_titles == ["beta"]
+        assert cb.plot_attrs == [{"linewidth": 4}]
+        # Donor stays intact too.
+        assert ca.plot_titles == ["alpha"]
+        assert ca.plot_attrs == [{}]
+        # Warm hits stay stable in both directions.
+        cb2 = compile_script(src_b)
+        ca2 = compile_script(src_a)
+        assert cb2.plot_titles == ["beta"] and cb2.plot_attrs == [{"linewidth": 4}]
+        assert ca2.plot_titles == ["alpha"] and ca2.plot_attrs == [{}]
+
+    def test_ir_share_still_dedups_metadata_equal_sources(self) -> None:
+        clear_compile_cache()
+        src_a = '//@version=6\nindicator("a")\nplot(close, title="same")\n'
+        # Comment-only variant → same IR AND same wire meta → share allowed.
+        src_c = '//@version=6\nindicator("a")  # variant\nplot(close, title="same")\n'
+        ca = compile_script(src_a)
+        cc = compile_script(src_c)
+        assert cc.execute is ca.execute
+        assert cc is not ca
+        assert cc.plot_titles == ["same"]
 
 
 class TestTranspileTitlesMatchRun:
