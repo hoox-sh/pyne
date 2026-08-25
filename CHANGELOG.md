@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- AXIS contract parity: `plot_meta` exports Pine visual params (`offset`,
+  `histbase`, `trackprice`, `join`, `editable`, `show_last`) on interpret and
+  compile hosts; omitted keys equal Pine defaults.
+- `plotcandle` / `plotbar` export OHLC as close-primary series plus
+  `<title>.open/.high/.low` siblings referenced from `plot_meta`
+  (`open`/`high`/`low`/`close`), with `wickcolor` / `bordercolor`.
+- Drawing/table exports gain stored-but-unexported styling: box
+  extend/border_style/text styling, label tooltip/alignment/formatting,
+  polyline curved/fill_color/force_overlay, table frame_width/border_color/
+  border_width plus `merged_cells`.
+
+### Fixed
+
+- Positional `plot(...)` calls misread linewidth/style indices (now
+  linewidth = 3rd arg, style = 4th per Pine v6 signature).
+- `table.clear(t, r0, c0, r1, c1)` clears only the requested range;
+  `table.merge_cells` records ranges and exports them.
+- Compile-mode `plot_meta` no longer hardcodes `linewidth=1` when source
+  declares constant linewidth/style/offset/histbase.
+- Compile IR cache no longer shares entries whose titles/kinds/attrs diverge
+  (metadata bleed across sources).
+
 ## [0.3.17] - 2026-08-19
 
 ### Fixed
