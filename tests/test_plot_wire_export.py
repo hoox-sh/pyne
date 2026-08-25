@@ -122,7 +122,8 @@ bgcolor(close > open ? color.green : na, title="bg", offset=1)
 
 
 class TestRuntimeWireMeta:
-    def test_plot_wire_params_in_capture(self) -> None:
+    def test_runtime_run_smoke(self) -> None:
+        # Packing passthrough of wire keys lands in Task 4; smoke-check linewidth.
         r = Runtime().run(_WIRE_SCRIPT, _bars(), mode="interpret")
         meta = r["plot_meta"]["base"]
         assert meta["linewidth"] == 2
@@ -174,4 +175,35 @@ class TestCaptureLayer:
         script = '//@version=6\nindicator("d")\nvar int off = na\nplot(close, title="dyn", offset=off)\n'
         ev = self._run_evaluator(script)
         pend_before = ev._plot_wire_pending
-        assert isinstance(pend_before, int) and pend_before >= 0
+        assert pend_before == 1
+        m = next(m for m in ev._plot_meta_list if m.get("title") == "dyn")
+        assert m["_wire_missing"] == ("offset",)
+
+
+class TestLazyWireResolution:
+    def _seed(self):
+        from pynescript.runtime.evaluator import CustomEvaluator
+
+        ev = CustomEvaluator()
+        ev._plot_value_cols.append([None])
+        ev._plot_meta_list.append(
+            {"type": "plot", "kind": "plot", "title": "t", "_wire_missing": ("offset", "histbase")}
+        )
+        ev._plot_wire_pending = 1
+        return ev
+
+    def test_full_resolution_decrements_pending(self) -> None:
+        ev = self._seed()
+        ev._lazy_plot_wire(0, "plot", ["c"], {"offset": 2, "histbase": -5})
+        m = ev._plot_meta_list[0]
+        assert m["offset"] == 2 and m["histbase"] == -5.0
+        assert "_wire_missing" not in m
+        assert ev._plot_wire_pending == 0
+
+    def test_partial_fill_retains_remainder(self) -> None:
+        ev = self._seed()
+        ev._lazy_plot_wire(0, "plot", ["c"], {"offset": 2})
+        m = ev._plot_meta_list[0]
+        assert m["offset"] == 2
+        assert m["_wire_missing"] == ("histbase",)
+        assert ev._plot_wire_pending == 1

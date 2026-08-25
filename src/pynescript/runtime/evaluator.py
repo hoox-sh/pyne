@@ -425,6 +425,12 @@ class CustomEvaluator(NodeLiteralEvaluator):
         else:
             self._plot_wire_pending -= 1
 
+    def _append_wire(self, value: Any, kind: str, args: list[Any], kwargs: dict[str, Any] | None) -> None:
+        """Append cell + retry pending wire params (no-op unless pending)."""
+        i = self._append_plot_value(value)
+        if self._plot_wire_pending:
+            self._lazy_plot_wire(i, kind, args, kwargs)
+
     def _builtin_plot(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
         """Capture plot value + title/color for multi-series AXIS response."""
         if self._pine_light_plots:
@@ -526,9 +532,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
                 raw = args[0]
             else:
                 return None
-            i = self._append_plot_value(_plot_numeric_cell(raw))
-            if self._plot_wire_pending:
-                self._lazy_plot_wire(i, "hline", args, kwargs)
+            self._append_wire(_plot_numeric_cell(raw), "hline", args, kwargs)
             if self._pine_need_plot_ids:
                 return self._maybe_registry("_builtin_hline", args, kwargs)
             return None
@@ -585,15 +589,13 @@ class CustomEvaluator(NodeLiteralEvaluator):
             raw = args[0] if args else None
         color_s = _serialize_color(_unwrap_scalar(raw))
         if self._plot_capture_i < len(self._plot_value_cols):
-            i = self._append_plot_value(color_s)
             if self._plot_color_pending and color_s is not None:
-                m = self._plot_meta_list[i]
+                m = self._plot_meta_list[self._plot_capture_i]
                 if m.get("color") is None:
                     m["color"] = color_s
                     pending = self._plot_color_pending - 1
                     self._plot_color_pending = pending if pending > 0 else 0
-            if self._plot_wire_pending:
-                self._lazy_plot_wire(i, "bgcolor", args, kwargs)
+            self._append_wire(color_s, "bgcolor", args, kwargs)
             if self._pine_need_plot_ids:
                 return self._maybe_registry("_builtin_bgcolor", args, kwargs)
             return None
@@ -683,9 +685,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
                 return None
             value = _coerce_plot_shape(_unwrap_scalar(kwargs.get("series", args[0] if args else None)))
             if self._plot_capture_i < len(self._plot_value_cols):
-                i = self._append_plot_value(value)
-                if self._plot_wire_pending:
-                    self._lazy_plot_wire(i, "plotshape", args, kwargs)
+                self._append_wire(value, "plotshape", args, kwargs)
                 if self._pine_need_plot_ids:
                     return self._maybe_registry("_builtin_plotshape", args, kwargs)
                 return None
@@ -718,9 +718,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
             return None
         value = _coerce_plot_shape(_unwrap_scalar(args[0]))
         if self._plot_capture_i < len(self._plot_value_cols):
-            i = self._append_plot_value(value)
-            if self._plot_wire_pending:
-                self._lazy_plot_wire(i, "plotshape", args, None)
+            self._append_wire(value, "plotshape", args, None)
             if self._pine_need_plot_ids:
                 return self._maybe_registry("_builtin_plotshape", args, None)
             return None
@@ -750,9 +748,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
                 return None
             value = _coerce_plot_shape(_unwrap_scalar(kwargs.get("series", args[0] if args else None)))
             if self._plot_capture_i < len(self._plot_value_cols):
-                i = self._append_plot_value(value)
-                if self._plot_wire_pending:
-                    self._lazy_plot_wire(i, "plotchar", args, kwargs)
+                self._append_wire(value, "plotchar", args, kwargs)
                 if self._pine_need_plot_ids:
                     return self._maybe_registry("_builtin_plotchar", args, kwargs)
                 return None
@@ -780,9 +776,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
             return None
         value = _coerce_plot_shape(_unwrap_scalar(args[0]))
         if self._plot_capture_i < len(self._plot_value_cols):
-            i = self._append_plot_value(value)
-            if self._plot_wire_pending:
-                self._lazy_plot_wire(i, "plotchar", args, None)
+            self._append_wire(value, "plotchar", args, None)
             if self._pine_need_plot_ids:
                 return self._maybe_registry("_builtin_plotchar", args, None)
             return None
@@ -837,9 +831,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
         raw = kwargs.get("color", args[0] if args else None)
         color_s = _serialize_color(_unwrap_scalar(raw))
         if self._plot_capture_i < len(self._plot_value_cols):
-            i = self._append_plot_value(color_s)
-            if self._plot_wire_pending:
-                self._lazy_plot_wire(i, "barcolor", args, kwargs or None)
+            self._append_wire(color_s, "barcolor", args, kwargs or None)
             if self._pine_need_plot_ids:
                 return self._maybe_registry("_builtin_barcolor", args, kwargs)
             return None
