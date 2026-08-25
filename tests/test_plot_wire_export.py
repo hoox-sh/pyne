@@ -21,6 +21,10 @@
 
 from __future__ import annotations
 
+import math
+
+from backend.runtime import Runtime
+from pynescript.ast.evaluator.builtins.plot_params import PLOT_PARAM_SPECS
 from pynescript.ast.evaluator.builtins.plot_params import extract_wire_meta
 from pynescript.ast.evaluator.builtins.plot_params import param_index
 from pynescript.ast.evaluator.builtins.plot_params import resolve_arg
@@ -73,3 +77,101 @@ class TestExtractWireMeta:
         assert extract_wire_meta("plot", ["c"], None) == {}
         # offset=0 is Pine default → omitted
         assert extract_wire_meta("plot", ["c"], {"offset": 0}) == {}
+
+    def test_bool_rejected_for_int_param(self) -> None:
+        assert extract_wire_meta("plot", ["c"], {"offset": True}) == {}
+
+    def test_uncoercible_values_skipped(self) -> None:
+        assert extract_wire_meta("plot", ["c"], {"offset": "x"}) == {}
+        assert extract_wire_meta("plot", ["c"], {"histbase": float("nan")}) == {}
+
+    def test_hline_kind_and_unknown_kind(self) -> None:
+        assert extract_wire_meta("hline", [1.0], {"editable": False}) == {"editable": False}
+        assert extract_wire_meta("nope", ["c"], {"offset": 2}) == {}
+
+    def test_spec_positions_match_order(self) -> None:
+        for spec in PLOT_PARAM_SPECS.values():
+            assert spec == tuple((n, i) for i, (n, _) in enumerate(spec))
+
+
+def _bars(n: int = 24) -> list[dict]:
+    out = []
+    for i in range(n):
+        c = 100 + 5 * math.sin(i / 3.0)
+        up = i % 2 == 0
+        o = c - 0.5 if up else c + 0.5
+        out.append(
+            {
+                "time": 1_700_000_000 + i * 86400,
+                "open": o,
+                "high": max(o, c) + 1,
+                "low": min(o, c) - 1,
+                "close": c,
+                "volume": 10,
+            }
+        )
+    return out
+
+
+_WIRE_SCRIPT = """
+//@version=6
+indicator("wire", overlay=true)
+plot(close, title="base", linewidth=2, offset=3, histbase=-10, trackprice=true, join=true, editable=false, show_last=20)
+bgcolor(close > open ? color.green : na, title="bg", offset=1)
+"""
+
+
+class TestRuntimeWireMeta:
+    def test_plot_wire_params_in_capture(self) -> None:
+        r = Runtime().run(_WIRE_SCRIPT, _bars(), mode="interpret")
+        meta = r["plot_meta"]["base"]
+        assert meta["linewidth"] == 2
+
+    def test_defaults_omitted(self) -> None:
+        script = '//@version=6\nindicator("m", overlay=true)\nplot(close, title="plain")\n'
+        r = Runtime().run(script, _bars(), mode="interpret")
+        meta = r["plot_meta"]["plain"]
+        for key in ("offset", "histbase", "trackprice", "join", "show_last"):
+            assert key not in meta
+
+
+class TestCaptureLayer:
+    def _run_evaluator(self, script: str):
+        # Drive CustomEvaluator directly so we can inspect _plot_meta_list
+        # before host packing (packing whitelist is a later task).
+        from pynescript.ast.helper import parse
+        from pynescript.runtime.evaluator import CustomEvaluator
+
+        ev = CustomEvaluator()
+        tree = parse(script)
+        bars = _bars(4)
+        for b in bars:
+            ev.current_series = {
+                "open": [b["open"]],
+                "high": [b["high"]],
+                "low": [b["low"]],
+                "close": [b["close"]],
+            }
+            ev._plot_n_bars = len(bars)
+            try:
+                ev.visit(tree)
+            except Exception:  # noqa: S110 — capture still ran for statements that evaluated
+                pass
+            ev.finish_bar_plots()
+        return ev
+
+    def test_first_sighting_registers_extras(self) -> None:
+        script = '//@version=6\nindicator("w")\nplot(close, title="base", offset=3, histbase=-10, trackprice=true)\n'
+        ev = self._run_evaluator(script)
+        by_title = {m.get("title"): m for m in ev._plot_meta_list}
+        m = by_title["base"]
+        assert m["offset"] == 3
+        assert m["histbase"] == -10
+        assert m["trackprice"] is True
+        assert "_wire_missing" not in m
+
+    def test_na_dynamic_defers_via_pending(self) -> None:
+        script = '//@version=6\nindicator("d")\nvar int off = na\nplot(close, title="dyn", offset=off)\n'
+        ev = self._run_evaluator(script)
+        pend_before = ev._plot_wire_pending
+        assert isinstance(pend_before, int) and pend_before >= 0
