@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   extend/border_style/text styling, label tooltip/alignment/formatting,
   polyline curved/fill_color/force_overlay, table frame_width/border_color/
   border_width plus `merged_cells`.
+- LSP builtin metadata carries canonical Pine v6 signatures for plot-family
+  builtins.
 
 ### Fixed
 
@@ -30,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   declares constant linewidth/style/offset/histbase.
 - Compile IR cache no longer shares entries whose titles/kinds/attrs diverge
   (metadata bleed across sources).
+- Positional wickcolor/bordercolor args on plotcandle/plotbar are captured
+  (previously kwargs-only).
 
 ## [0.3.17] - 2026-08-19
 
