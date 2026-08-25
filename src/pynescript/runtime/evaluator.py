@@ -847,6 +847,66 @@ class CustomEvaluator(NodeLiteralEvaluator):
         )
         return self._maybe_registry("_builtin_barcolor", args, kwargs) if self._pine_need_plot_ids else None
 
+    def _find_registered_ohlc_site(self, kind: str, title: str) -> int:
+        """Base meta index of an already-registered candle/bar site (-1 when none)."""
+        for j, m in enumerate(self._plot_meta_list):
+            if m.get("kind") == kind and not m.get("ohlc_component") and m.get("title") == title:
+                return j
+        return -1
+
+    def _write_ohlc_cells(self, i: int, vals: tuple[Any, ...]) -> None:
+        """Steady-state write of close/open/high/low cells at slots i..i+3."""
+        bar = self._plot_bars_done
+        cols = self._plot_value_cols
+        for off, v in enumerate(vals):
+            col = cols[i + off]
+            if bar < len(col):
+                col[bar] = v
+            else:
+                col.append(v)
+
+    def _register_ohlc_site(
+        self,
+        kind: str,
+        args: list[Any],
+        kwargs: dict[str, Any],
+        vals: tuple[Any, ...],
+        title_s: str,
+    ) -> None:
+        """First sighting: parent meta + close/open/high/low columns at the tail."""
+        raw_color = kwargs.get("color", args[5] if len(args) > 5 else None)
+        entry: dict[str, Any] = {
+            "type": kind,
+            "kind": kind,
+            "title": title_s,
+            "color": _serialize_color(_unwrap_scalar(raw_color)) if raw_color is not None else None,
+            "linewidth": 1,
+        }
+        extras = self._plot_wire_extras(kind, [], kwargs)
+        wire_missing = extras.pop("_wire_missing", None)
+        for k, v in extras.items():
+            entry[k] = v
+        if wire_missing:
+            entry["_wire_missing"] = wire_missing
+        display = _plot_display_kw(kwargs)
+        if display is not None:
+            entry["display"] = display
+        cols = self._plot_value_cols
+        meta = self._plot_meta_list
+        cols.append(self._new_plot_column(vals[0]))
+        meta.append(entry)
+        for off, key in enumerate(("open", "high", "low"), start=1):
+            cols.append(self._new_plot_column(vals[off]))
+            meta.append(
+                {
+                    "type": "ohlc_ref",
+                    "kind": "ohlc_ref",
+                    "ohlc_component": True,
+                    "component_key": key,
+                }
+            )
+        self._plot_capture_i += 4
+
     def _capture_ohlc_plot(
         self,
         kind: str,
@@ -867,46 +927,29 @@ class CustomEvaluator(NodeLiteralEvaluator):
             _plot_numeric_cell(_unwrap_scalar(h)),
             _plot_numeric_cell(_unwrap_scalar(low)),
         )
+        default_title = "candles" if kind == "plotcandle" else "bars"
+        raw_title = kwargs.get("title", args[4] if len(args) > 4 else None)
+        title_s = str(raw_title or "") or default_title
         i = self._plot_capture_i
-        cols = self._plot_value_cols
-        bar = self._plot_bars_done
-        if i < len(cols):  # steady state: four cells at i..i+3
-            for off, v in enumerate(vals):
-                col = cols[i + off]
-                if bar < len(col):
-                    col[bar] = v
-                else:
-                    col.append(v)
+        # Steady state needs group completeness AND site identity: a candle whose
+        # program-order slot was taken by an earlier-registering site must not
+        # write cols[i..i+3] blindly (IndexError / cross-site corruption).
+        meta_ok = i < len(self._plot_meta_list) and self._plot_meta_list[i].get("kind") == kind
+        if not meta_ok:
+            j = self._find_registered_ohlc_site(kind, title_s)
+            if j >= 0:
+                i = j
+                meta_ok = True
+        if meta_ok and i + 3 < len(self._plot_value_cols):
+            self._write_ohlc_cells(i, vals)
             self._plot_capture_i = i + 4
+            if self._plot_wire_pending:
+                self._lazy_plot_wire(i, kind, args, kwargs)
             if self._pine_need_plot_ids:
                 return self._maybe_registry(f"_builtin_{kind}", args, kwargs)
             return None
 
-        default_title = "candles" if kind == "plotcandle" else "bars"
-        raw_title = kwargs.get("title", args[4] if len(args) > 4 else None)
-        raw_color = kwargs.get("color", args[5] if len(args) > 5 else None)
-        entry: dict[str, Any] = {
-            "type": kind,
-            "kind": kind,
-            "title": str(raw_title or "") or default_title,
-            "color": _serialize_color(_unwrap_scalar(raw_color)) if raw_color is not None else None,
-            "linewidth": 1,
-        }
-        for k, v in extract_wire_meta(kind, [], kwargs, unwrap=_unwrap_scalar).items():
-            entry[k] = v
-        cols.append(self._new_plot_column(vals[0]))
-        self._plot_meta_list.append(entry)
-        for off, key in enumerate(("open", "high", "low"), start=1):
-            cols.append(self._new_plot_column(vals[off]))
-            self._plot_meta_list.append(
-                {
-                    "type": "ohlc_ref",
-                    "kind": "ohlc_ref",
-                    "ohlc_component": True,
-                    "component_key": key,
-                }
-            )
-        self._plot_capture_i = i + 4
+        self._register_ohlc_site(kind, args, kwargs, vals, title_s)
         if self._pine_need_plot_ids:
             return self._maybe_registry(f"_builtin_{kind}", args, kwargs)
         return None

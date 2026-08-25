@@ -284,3 +284,32 @@ class TestCandleOhlc:
         script = '//@version=6\nindicator("b")\nplotbar(open, high, low, close, title="brs")\n'
         r = Runtime().run(script, _bars(), mode="interpret")
         assert {"brs", "brs.open", "brs.high", "brs.low"} <= set(r["series"])
+
+    def test_candle_display_exported(self) -> None:
+        script = (
+            '//@version=6\nindicator("cd", overlay=true)\n'
+            'plotcandle(open, high, low, close, title="pd", display=display.all)\n'
+        )
+        r = Runtime().run(script, _bars(), mode="interpret")
+        assert r["plot_meta"]["pd"].get("display") is not None
+
+    def test_mid_run_first_fire_no_crash(self) -> None:
+        script = (
+            '//@version=6\nindicator("mr", overlay=true)\n'
+            'if close > 100\n    plotcandle(open, high, low, close, title="mx")\n'
+            'plot(close, title="after")\n'
+        )
+        r = Runtime().run(script, _bars(), mode="interpret")  # must not raise
+        assert "after" in r["series"]
+        assert "mx" in r["series"]
+
+    def test_dynamic_color_resolves_late(self) -> None:
+        script = (
+            '//@version=6\nindicator("dyn", overlay=true)\n'
+            "var color wc = na\n"
+            "if bar_index == 3\n    wc := color.orange\n"
+            'plotcandle(open, high, low, close, title="dx", wickcolor=wc)\n'
+        )
+        r = Runtime().run(script, _bars(8), mode="interpret")
+        meta = r["plot_meta"]["dx"]
+        assert meta.get("wickcolor") == "#FF6D00"
