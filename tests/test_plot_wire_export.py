@@ -24,6 +24,11 @@ from __future__ import annotations
 import math
 
 from backend.runtime import Runtime
+from pynescript.ast.evaluator.builtins.drawing import Box
+from pynescript.ast.evaluator.builtins.drawing import ChartPoint
+from pynescript.ast.evaluator.builtins.drawing import DrawingRegistry
+from pynescript.ast.evaluator.builtins.drawing import Label
+from pynescript.ast.evaluator.builtins.drawing import Polyline
 from pynescript.ast.evaluator.builtins.plot_params import PLOT_PARAM_SPECS
 from pynescript.ast.evaluator.builtins.plot_params import extract_wire_meta
 from pynescript.ast.evaluator.builtins.plot_params import param_index
@@ -324,3 +329,85 @@ class TestCandleOhlc:
         s = r["series"]
         assert {"candles", "candles.open", "candles.high", "candles.low"} <= set(s)
         assert {"candles_2", "candles_2.open", "candles_2.high", "candles_2.low"} <= set(s)
+
+
+def _clean_registry() -> None:
+    DrawingRegistry.lines.clear()
+    DrawingRegistry.boxes.clear()
+    DrawingRegistry.labels.clear()
+    DrawingRegistry.tables.clear()
+    DrawingRegistry.polylines.clear()
+    DrawingRegistry.linefills.clear()
+
+
+class TestDrawingExportParity:
+    def test_box_full_styling(self) -> None:
+        _clean_registry()
+        DrawingRegistry.boxes.append(
+            Box(
+                left=1,
+                top=110.0,
+                right=10,
+                bottom=100.0,
+                border_style="dashed",
+                extend="right",
+                text="zone",
+                text_color="#00ff00",
+                text_halign="left",
+                text_valign="top",
+                text_size=14,
+                text_wrap="auto",
+            )
+        )
+        out = {d["type"]: d for d in DrawingRegistry.export_for_api([])}["box"]
+        assert out["extend"] == "right"
+        assert out["border_style"] == "dashed"
+        assert out["text_color"] == "#00ff00"
+        assert out["text_halign"] == "left"
+        assert out["text_valign"] == "top"
+        assert out["text_size"] == 14
+        assert out["text_wrap"] == "auto"
+
+    def test_label_tooltip_and_alignment(self) -> None:
+        _clean_registry()
+        DrawingRegistry.labels.append(
+            Label(
+                x=2,
+                y=101.0,
+                text="hi",
+                tooltip="tt",
+                text_halign="right",
+                text_valign="bottom",
+                text_formatting="bold",
+            )
+        )
+        out = DrawingRegistry.export_for_api([0, 1])[0]
+        assert out["type"] == "label"
+        assert out["tooltip"] == "tt"
+        assert out["text_halign"] == "right"
+        assert out["text_valign"] == "bottom"
+        assert out["text_formatting"] == "bold"
+
+    def test_polyline_curved_fill_overlay(self) -> None:
+        _clean_registry()
+        DrawingRegistry.polylines.append(
+            Polyline(
+                points=[ChartPoint(index=0, price=100.0), ChartPoint(index=3, price=105.0)],
+                curved=True,
+                fill_color="rgba(255,0,0,0.2)",
+                force_overlay=True,
+            )
+        )
+        out = DrawingRegistry.export_for_api([0, 1, 2, 3])[0]
+        assert out["type"] == "polyline"
+        assert out["curved"] is True
+        assert out["fill_color"] == "rgba(255,0,0,0.2)"
+        assert out["force_overlay"] is True
+
+    def test_polyline_fill_color_omitted_when_none(self) -> None:
+        _clean_registry()
+        DrawingRegistry.polylines.append(
+            Polyline(points=[ChartPoint(index=0, price=100.0), ChartPoint(index=3, price=105.0)])
+        )
+        out = DrawingRegistry.export_for_api([0, 1, 2, 3])[0]
+        assert "fill_color" not in out

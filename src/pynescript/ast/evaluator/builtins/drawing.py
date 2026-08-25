@@ -644,6 +644,14 @@ class DrawingRegistry:
                     "width": int(_num(bx.border_width) or 1),
                     "text": str(bx.text or ""),
                     "force_overlay": bool(getattr(bx, "force_overlay", False)),
+                    "extend": _extend(bx.extend),
+                    "border_style": str(bx.border_style or "solid"),
+                    "text_color": _color(bx.text_color),
+                    "text_halign": str(bx.text_halign or "center"),
+                    "text_valign": str(bx.text_valign or "center"),
+                    "text_size": bx.text_size if isinstance(bx.text_size, (int, float)) else str(bx.text_size),
+                    "text_wrap": str(bx.text_wrap or "none"),
+                    "text_font_family": str(bx.text_font_family or "default"),
                 }
             )
 
@@ -675,6 +683,11 @@ class DrawingRegistry:
                     "style": str(lb.style or "label_center"),
                     "yloc": yloc_raw,
                     "size": size_raw if isinstance(size_raw, (int, float)) else str(size_raw),
+                    "tooltip": str(getattr(lb, "tooltip", "") or ""),
+                    "text_halign": str(lb.text_halign or "center"),
+                    "text_valign": str(lb.text_valign or "center"),
+                    "text_font_family": str(lb.text_font_family or "default"),
+                    "text_formatting": str(lb.text_formatting or ""),
                 }
             )
 
@@ -699,6 +712,10 @@ class DrawingRegistry:
                 pts_out.append({"time": t, "price": price})
             if len(pts_out) < 2:
                 continue
+            pl_extra: dict[str, Any] = {}
+            fill_c = getattr(pl, "fill_color", None)
+            if fill_c:
+                pl_extra["fill_color"] = _color(fill_c)
             out.append(
                 {
                     "type": "polyline",
@@ -707,6 +724,9 @@ class DrawingRegistry:
                     "color": _color(pl.color),
                     "width": int(_num(pl.width) or 1),
                     "style": str(pl.style or "solid"),
+                    "curved": bool(getattr(pl, "curved", False)),
+                    "force_overlay": bool(getattr(pl, "force_overlay", False)),
+                    **pl_extra,
                     "t1": pts_out[0]["time"],
                     "p1": pts_out[0]["price"],
                     "t2": pts_out[-1]["time"],
