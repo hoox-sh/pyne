@@ -55,12 +55,19 @@ entry points and non-obvious helpers — not every ``visit_*`` leaf.
 
 from __future__ import annotations
 
+import ast as py_ast
 import keyword
+import math
 import re
 
 from typing import Any
 
 from pynescript.ast import node as ast
+from pynescript.ast.evaluator.builtins.plot_params import WIRE_BOOL_PARAMS
+from pynescript.ast.evaluator.builtins.plot_params import WIRE_DEFAULTS
+from pynescript.ast.evaluator.builtins.plot_params import WIRE_FLOAT_PARAMS
+from pynescript.ast.evaluator.builtins.plot_params import WIRE_INT_PARAMS
+from pynescript.ast.evaluator.builtins.plot_params import param_index
 from pynescript.ast.visitor import NodeVisitor
 
 _NS = frozenset(
@@ -98,6 +105,16 @@ _NS = frozenset(
         "volume_row",
     }
 )
+
+# Constant-folded AXIS plot attrs: per-kind wire params (canonical order) and
+# positional fallbacks beyond param_index() (plot(series, title, color,
+# linewidth, style, …)).
+_PLOT_ATTR_SPECS: dict[str, tuple[str, ...]] = {
+    "plot": ("trackprice", "histbase", "offset", "join", "editable", "show_last", "linewidth", "style"),
+    "hline": ("editable",),
+}
+_PLOT_ATTR_FALLBACK_IDX: dict[str, int] = {"linewidth": 3, "style": 4}
+_MAX_FOLD_EXPR_LEN = 128
 
 # Fundamentals / currency / adjustment namespaces. Member access must not
 # become a dead series identifier (``dividends_arr_future_amount``).
@@ -4837,7 +4854,11 @@ class CompilerVisitor(NodeVisitor):
             elif len(args) > 1 and args[1]:
                 title = self._literal_str(args[1], default="hline") or "hline"
             title = self._unique_plot_title(title)
-            self.plots.append({"expr": price_expr, "title": title, "kind": "hline"})
+            entry = {"expr": price_expr, "title": title, "kind": "hline"}
+            hline_attrs = self._collect_plot_attrs("hline", args, kwargs)
+            if hline_attrs:
+                entry["attrs"] = hline_attrs
+            self.plots.append(entry)
             self._note_visual_series()
             idx = len(self.plots) - 1
             # Statement-form ``hline(price)`` is metadata + a float series.
@@ -4948,7 +4969,11 @@ class CompilerVisitor(NodeVisitor):
                 inner = color_expr[color_expr.find("(") + 1 : color_expr.rfind(")")]
                 if inner and ("'#" in inner or '"#' in inner or inner.endswith("_arr[__bar_idx]")):
                     color_expr = inner
-            self.plots.append({"expr": series_expr, "title": title, "color": color_expr})
+            plot_entry = {"expr": series_expr, "title": title, "color": color_expr}
+            plot_attrs = self._collect_plot_attrs("plot", args, kwargs)
+            if plot_attrs:
+                plot_entry["attrs"] = plot_attrs
+            self.plots.append(plot_entry)
             self._note_visual_series()
             idx = len(self.plots) - 1
             # Always return an *expression* (plot() may be assigned:
@@ -7103,6 +7128,82 @@ class CompilerVisitor(NodeVisitor):
         # Match historical plot() title extraction for odd shapes.
         stripped = e.strip("\"'")
         return stripped if stripped else default
+
+    @staticmethod
+    def _fold_const(expr: Any) -> Any:
+        """Fold a generated expression string to a literal int/float/str/bool.
+
+        Returns the Python value for pure literals ("#ff0000", 2, -1.5, True),
+        else None. Records compile-time plot attrs for AXIS plot_meta.
+        """
+        if isinstance(expr, bool) or isinstance(expr, (int, float)):
+            return expr
+        if not isinstance(expr, str):
+            return None
+        s = expr.strip()
+        if not s or len(s) > _MAX_FOLD_EXPR_LEN:
+            return None
+        try:
+            v = py_ast.literal_eval(s)
+        except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+            return None
+        return v if isinstance(v, (bool, int, float, str)) else None
+
+    @staticmethod
+    def _coerce_folded_attr(name: str, value: Any) -> Any:
+        """Map a folded literal to its AXIS wire form (None → omit).
+
+        Mirrors interpret-mode ``extract_wire_meta`` coercion so
+        interpret↔compile plot_meta values match; style keeps the
+        evaluator's canonical ``style_*`` tag form.
+        """
+        coerced: Any = None
+        if name == "style":
+            # Emit-site style exprs arrive as repr'd attrs of the plot
+            # namespace ('style_histogram' / 'plot.style_histogram').
+            sval = str(value).replace("plot.", "")
+            if sval and sval not in ("line", "style_line"):
+                coerced = sval
+        elif name in WIRE_INT_PARAMS or name == "linewidth":
+            if not isinstance(value, bool) and isinstance(value, (int, float)):
+                default = WIRE_DEFAULTS.get(name, 1 if name == "linewidth" else 0)
+                iv = int(value)
+                if iv != default:
+                    coerced = iv
+        elif name in WIRE_FLOAT_PARAMS:
+            try:
+                fv = float(value)
+            except (TypeError, ValueError):
+                fv = float("nan")
+            if not math.isnan(fv) and fv != WIRE_DEFAULTS.get(name, 0.0):
+                coerced = fv
+        elif name in WIRE_BOOL_PARAMS and isinstance(value, (bool, int, float)):
+            coerced = bool(value)
+        return coerced
+
+    def _collect_plot_attrs(self, kind: str, args: list[str], kwargs: dict[str, str]) -> dict[str, Any]:
+        """Constant-folded AXIS plot attrs for one emit-site call.
+
+        Kwarg-first resolution with canonical positional fallbacks; dynamic
+        expressions fold to None and are skipped (defaults never emitted).
+        """
+        out: dict[str, Any] = {}
+        for name in _PLOT_ATTR_SPECS.get(kind, ()):
+            raw = kwargs.get(name)
+            if raw is None:
+                idx = param_index(kind, name)
+                if idx < 0:
+                    idx = _PLOT_ATTR_FALLBACK_IDX.get(name, -1)
+                if idx < 0 or len(args) <= idx:
+                    continue
+                raw = args[idx]
+            value = self._fold_const(raw)
+            if value is None or value == "":
+                continue
+            coerced = self._coerce_folded_attr(name, value)
+            if coerced is not None:
+                out[name] = coerced
+        return out
 
     def _unique_plot_title(self, title: str) -> str:
         """Return a series key unused by already-registered plots (hline_2, …)."""

@@ -35,6 +35,7 @@ from pynescript.ast.evaluator.builtins.plot_params import PLOT_PARAM_SPECS
 from pynescript.ast.evaluator.builtins.plot_params import extract_wire_meta
 from pynescript.ast.evaluator.builtins.plot_params import param_index
 from pynescript.ast.evaluator.builtins.plot_params import resolve_arg
+from pynescript.compiler.engine import clear_compile_cache
 
 
 class TestParamSpec:
@@ -473,3 +474,20 @@ class TestTableParity:
                 tb.cells[(r, c)] = TableCell(text=f"{r}{c}")
         ev._handle_table_clear([tb, 1, 1, 2, 2])
         assert set(tb.cells) == {(0, 0), (0, 1), (0, 2), (1, 0), (2, 0)}
+
+
+class TestCompileAttrs:
+    def test_static_attrs_propagate(self) -> None:
+        clear_compile_cache()
+        script = '//@version=6\nindicator("cm", overlay=true)\nplot(close, title="cm_line", linewidth=3, offset=2)\n'
+        r = Runtime().run(script, _bars(), mode="compile")
+        meta = r["plot_meta"]["cm_line"]
+        assert meta["linewidth"] == 3
+        assert meta.get("offset") == 2
+
+    def test_dynamic_attr_omitted(self) -> None:
+        clear_compile_cache()
+        script = '//@version=6\nindicator("cd")\nplot(sma(close, 3), title="d", linewidth=nz(close[0]))\n'
+        r = Runtime().run(script, _bars(), mode="compile")
+        m = r["plot_meta"]["d"]
+        assert not isinstance(m.get("linewidth"), str)

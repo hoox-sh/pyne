@@ -989,6 +989,28 @@ def _stamp_compile_plot_kinds(
             entry["kind"] = kind
 
 
+def _stamp_compile_plot_attrs(
+    plot_meta: dict[str, dict[str, Any]],
+    attrs: list[dict[str, Any]] | None,
+) -> None:
+    """Overlay constant-folded plot attrs onto compile plot_meta.
+
+    *attrs* is aligned with the compiler's uniquified plot titles (same order
+    as :func:`_stamp_compile_plot_kinds`). Folded values replace the
+    ``_compile_plot_meta`` placeholders (hardcoded ``linewidth: 1``) and add
+    missing keys; identity fields (title/index/kind/color) are never touched.
+    """
+    if not plot_meta or not attrs:
+        return
+    for i, title in enumerate(plot_meta.keys()):
+        if i >= len(attrs):
+            break
+        for k, v in attrs[i].items():
+            if k in ("title", "index", "kind", "color"):
+                continue
+            plot_meta[title][k] = v
+
+
 def _clear_pine_call_sites(tree: Any) -> None:
     """Drop evaluator-bound call-site caches from a shared AST tree.
 
@@ -2420,6 +2442,7 @@ class Runtime:
         header = _parse_script_header_fields(source_code)
         plot_meta = _compile_plot_meta(json_series)
         _stamp_compile_plot_kinds(plot_meta, compiled.plot_titles, compiled.plot_kinds)
+        _stamp_compile_plot_attrs(plot_meta, getattr(compiled, "plot_attrs", None))
         _n_visual = int(n_bars_hint or 0) or len(ohlcv_data or ())
         if isinstance(drawings, list) and drawings and _n_visual > 0:
             try:
