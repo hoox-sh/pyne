@@ -847,53 +847,77 @@ class CustomEvaluator(NodeLiteralEvaluator):
         )
         return self._maybe_registry("_builtin_barcolor", args, kwargs) if self._pine_need_plot_ids else None
 
-    def _builtin_plotbar(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
-        """Capture plotbar as a close series + plotbar kind (AXIS overlay)."""
+    def _capture_ohlc_plot(
+        self,
+        kind: str,
+        args: list[Any],
+        kwargs: dict[str, Any] | None,
+    ) -> Any:
+        """plotbar/plotcandle: close-primary column + open/high/low siblings."""
         if self._pine_light_plots:
             return None
         kwargs = kwargs or {}
-        close = kwargs.get("close", args[3] if len(args) > 3 else (args[0] if args else None))
-        value = _plot_numeric_cell(_unwrap_scalar(close))
-        if self._plot_capture_i < len(self._plot_value_cols):
-            self._append_plot_value(value)
-            if self._pine_need_plot_ids:
-                return self._maybe_registry("_builtin_plotbar", args, kwargs)
-            return None
-        title = kwargs.get("title", args[4] if len(args) > 4 else "bars")
-        color = _unwrap_scalar(kwargs.get("color", args[5] if len(args) > 5 else None))
-        self._capture_plot(
-            "plotbar",
-            value,
-            str(title or "") or "bars",
-            _serialize_color(color) if color is not None else None,
-            style="bars",
-            display=_plot_display_kw(kwargs),
+        o = kwargs.get("open", args[0] if args else None)
+        h = kwargs.get("high", args[1] if len(args) > 1 else None)
+        low = kwargs.get("low", args[2] if len(args) > 2 else None)
+        c = kwargs.get("close", args[3] if len(args) > 3 else None)
+        vals = (
+            _plot_numeric_cell(_unwrap_scalar(c)),
+            _plot_numeric_cell(_unwrap_scalar(o)),
+            _plot_numeric_cell(_unwrap_scalar(h)),
+            _plot_numeric_cell(_unwrap_scalar(low)),
         )
-        return self._maybe_registry("_builtin_plotbar", args, kwargs) if self._pine_need_plot_ids else None
+        i = self._plot_capture_i
+        cols = self._plot_value_cols
+        bar = self._plot_bars_done
+        if i < len(cols):  # steady state: four cells at i..i+3
+            for off, v in enumerate(vals):
+                col = cols[i + off]
+                if bar < len(col):
+                    col[bar] = v
+                else:
+                    col.append(v)
+            self._plot_capture_i = i + 4
+            if self._pine_need_plot_ids:
+                return self._maybe_registry(f"_builtin_{kind}", args, kwargs)
+            return None
+
+        default_title = "candles" if kind == "plotcandle" else "bars"
+        raw_title = kwargs.get("title", args[4] if len(args) > 4 else None)
+        raw_color = kwargs.get("color", args[5] if len(args) > 5 else None)
+        entry: dict[str, Any] = {
+            "type": kind,
+            "kind": kind,
+            "title": str(raw_title or "") or default_title,
+            "color": _serialize_color(_unwrap_scalar(raw_color)) if raw_color is not None else None,
+            "linewidth": 1,
+        }
+        for k, v in extract_wire_meta(kind, [], kwargs, unwrap=_unwrap_scalar).items():
+            entry[k] = v
+        cols.append(self._new_plot_column(vals[0]))
+        self._plot_meta_list.append(entry)
+        for off, key in enumerate(("open", "high", "low"), start=1):
+            cols.append(self._new_plot_column(vals[off]))
+            self._plot_meta_list.append(
+                {
+                    "type": "ohlc_ref",
+                    "kind": "ohlc_ref",
+                    "ohlc_component": True,
+                    "component_key": key,
+                }
+            )
+        self._plot_capture_i = i + 4
+        if self._pine_need_plot_ids:
+            return self._maybe_registry(f"_builtin_{kind}", args, kwargs)
+        return None
 
     def _builtin_plotcandle(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
-        """Capture plotcandle as a close series + plotcandle kind."""
-        if self._pine_light_plots:
-            return None
-        kwargs = kwargs or {}
-        close = kwargs.get("close", args[3] if len(args) > 3 else (args[0] if args else None))
-        value = _plot_numeric_cell(_unwrap_scalar(close))
-        if self._plot_capture_i < len(self._plot_value_cols):
-            self._append_plot_value(value)
-            if self._pine_need_plot_ids:
-                return self._maybe_registry("_builtin_plotcandle", args, kwargs)
-            return None
-        title = kwargs.get("title", args[4] if len(args) > 4 else "candles")
-        color = _unwrap_scalar(kwargs.get("color", args[5] if len(args) > 5 else None))
-        self._capture_plot(
-            "plotcandle",
-            value,
-            str(title or "") or "candles",
-            _serialize_color(color) if color is not None else None,
-            style="candles",
-            display=_plot_display_kw(kwargs),
-        )
-        return self._maybe_registry("_builtin_plotcandle", args, kwargs) if self._pine_need_plot_ids else None
+        """Capture plotcandle OHLC columns + wick/border colors (AXIS tier-2)."""
+        return self._capture_ohlc_plot("plotcandle", args, kwargs)
+
+    def _builtin_plotbar(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
+        """Capture plotbar OHLC columns + border color (AXIS tier-2)."""
+        return self._capture_ohlc_plot("plotbar", args, kwargs)
 
     def reset_plots(self):
         # Per-bar index reset; columns accumulate across the run.

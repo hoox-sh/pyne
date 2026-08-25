@@ -93,11 +93,14 @@ WIRE_PARAMS: dict[str, tuple[str, ...]] = {
     "barcolor": ("offset", "editable", "show_last"),
     "plotshape": ("offset", "editable", "show_last"),
     "plotchar": ("offset", "editable", "show_last"),
+    "plotcandle": ("wickcolor", "bordercolor"),
+    "plotbar": ("bordercolor",),
 }
 
 WIRE_INT_PARAMS = frozenset({"offset", "show_last"})
 WIRE_FLOAT_PARAMS = frozenset({"histbase"})
 WIRE_BOOL_PARAMS = frozenset({"trackprice", "join", "editable"})
+WIRE_COLOR_PARAMS = frozenset({"wickcolor", "bordercolor"})
 
 # Pine defaults; equal values are omitted from the wire payload.
 WIRE_DEFAULTS: dict[str, Any] = {"offset": 0, "histbase": 0.0}
@@ -130,6 +133,24 @@ def resolve_arg(
     return default
 
 
+def _wire_color(value: Any) -> str | None:
+    """Best-effort JSON-safe color string (hex int, str, to_rgba()/to_hex())."""
+    if isinstance(value, str):
+        return value or None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return f"#{value & 0xFFFFFF:06X}"
+    for meth in ("to_rgba", "to_hex"):
+        fn = getattr(value, meth, None)
+        if callable(fn):
+            try:
+                return str(fn())
+            except Exception:
+                return None
+    return None
+
+
 def _coerce_wire_value(param: str, value: Any) -> Any:
     """Coerce *value* to its wire type; None when unserializable or default."""
     if param in WIRE_INT_PARAMS:
@@ -145,7 +166,7 @@ def _coerce_wire_value(param: str, value: Any) -> Any:
         return None if math.isnan(fv) or fv == WIRE_DEFAULTS.get(param) else fv
     if param in WIRE_BOOL_PARAMS and isinstance(value, (bool, int, float)):
         return bool(value)
-    return None
+    return _wire_color(value) if param in WIRE_COLOR_PARAMS else None
 
 
 def extract_wire_meta(

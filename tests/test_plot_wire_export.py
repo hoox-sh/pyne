@@ -246,3 +246,41 @@ class TestLazyWireResolution:
         assert m["offset"] == 2
         assert m["_wire_missing"] == ("histbase",)
         assert ev._plot_wire_pending == 1
+
+
+_CANDLE_SCRIPT = """
+//@version=6
+indicator("c", overlay=true)
+plotcandle(open, high, low, close, title="px", color=color.blue,
+           wickcolor=color.orange, bordercolor=color.red)
+"""
+
+
+class TestCandleOhlc:
+    def test_sibling_columns_and_meta_refs(self) -> None:
+        r = Runtime().run(_CANDLE_SCRIPT, _bars(), mode="interpret")
+        s = r["series"]
+        assert {"px", "px.open", "px.high", "px.low"} <= set(s)
+        b = _bars()[5]
+        assert s["px.open"][5] == b["open"]
+        assert s["px.high"][5] == b["high"]
+        assert s["px.low"][5] == b["low"]
+        assert s["px"][5] == b["close"]
+        meta = r["plot_meta"]["px"]
+        assert meta["kind"] == "plotcandle"
+        assert meta["open"] == "px.open"
+        assert meta["high"] == "px.high"
+        assert meta["low"] == "px.low"
+        assert meta["close"] == "px"
+
+    def test_wick_border_colors(self) -> None:
+        r = Runtime().run(_CANDLE_SCRIPT, _bars(), mode="interpret")
+        meta = r["plot_meta"]["px"]
+        # colors serialize via to_rgba/to_hex/hex-int paths; assert presence + string
+        assert isinstance(meta.get("wickcolor"), str) and meta["wickcolor"]
+        assert isinstance(meta.get("bordercolor"), str) and meta["bordercolor"]
+
+    def test_plotbar_ohlc(self) -> None:
+        script = '//@version=6\nindicator("b")\nplotbar(open, high, low, close, title="brs")\n'
+        r = Runtime().run(script, _bars(), mode="interpret")
+        assert {"brs", "brs.open", "brs.high", "brs.low"} <= set(r["series"])

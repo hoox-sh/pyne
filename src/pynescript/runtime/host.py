@@ -497,6 +497,8 @@ def _pack_interpret_plot_columns(
 
     for pi in range(max_plots):
         m0 = meta_list[pi] if pi < len(meta_list) else {}
+        if m0.get("ohlc_component"):
+            continue  # consumed by its parent candle/bar entry
         # Capture meta titles are already str (or missing). Avoid str() + intern
         # churn when the same interned title is reused across warm re-runs.
         raw_title = m0.get("title")
@@ -610,6 +612,26 @@ def _pack_interpret_plot_columns(
                 meta_entry["histbase"] = float(wv)
             except (TypeError, ValueError):
                 pass
+        if kind in ("plotcandle", "plotbar"):
+            for cparam in ("wickcolor", "bordercolor"):
+                cv = m0.get(cparam)
+                if isinstance(cv, str) and cv:
+                    meta_entry[cparam] = cv
+            meta_entry["close"] = title
+            for off, ckey in ((1, "open"), (2, "high"), (3, "low")):
+                cj = pi + off
+                if cj >= max_plots:
+                    break
+                cm = meta_list[cj] if cj < len(meta_list) else {}
+                if not cm.get("ohlc_component"):
+                    break
+                raw_c = value_cols[cj]
+                cn = bars_done if bars_done > 0 else len(raw_c)
+                if cn < len(raw_c):
+                    raw_c = raw_c[:cn]
+                cname = f"{title}.{ckey}"
+                series_map[cname] = [_json_plot_value(v, "plot") for v in raw_c]
+                meta_entry[ckey] = cname
         plot_meta[title] = meta_entry
 
     final_series = next(iter(series_map.values()), [])

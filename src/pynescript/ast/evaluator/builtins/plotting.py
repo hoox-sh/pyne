@@ -34,6 +34,8 @@ wire from Runtime / engine when dual-mode packing is enabled).
 
 from __future__ import annotations
 
+import math
+
 from collections import defaultdict
 from dataclasses import dataclass
 from sys import intern
@@ -164,6 +166,42 @@ def uniquify_series_title(title: str, used: MutableMapping[str, Any] | set[str] 
 
 def _visual_default_title(kind: str) -> str:
     return DEFAULT_VISUAL_TITLES.get(kind, kind or "plot")
+
+
+def _visual_color_str(value: Any) -> str | None:
+    """Best-effort JSON-safe color string from a compile drawing event value."""
+    cs: Any = value
+    if isinstance(value, bool):
+        cs = None
+    elif isinstance(value, int):
+        v = value & 0xFFFFFF
+        cs = f"#{v:06X}"
+    else:
+        fn = getattr(value, "to_rgba", None)
+        if callable(fn):
+            try:
+                cs = fn()
+            except Exception:
+                cs = None
+    if cs is None:
+        return None
+    s = str(cs).strip()
+    if not s or s.lower() == "nan":
+        return None
+    return s
+
+
+def _ohlc_num_cell(value: Any) -> Any:
+    """JSON-safe numeric OHLC sibling cell (NaN → None, never na→0)."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return float(value)
+    try:
+        fv = float(value)
+    except (TypeError, ValueError):
+        return None
+    return None if math.isnan(fv) else fv
 
 
 def _json_safe_visual_value(kind: str, event: Mapping[str, Any]) -> Any:
@@ -328,7 +366,24 @@ def materialize_visual_series_from_drawings(
         color = ev.get("color")
         if color is not None and str(color).strip() != "":
             meta["color"] = str(color) if not isinstance(color, str) else color
-        sites.append({"key": key, "kind": kind, "meta": meta})
+        site: dict[str, Any] = {"key": key, "kind": kind, "meta": meta}
+        if kind in ("plotbar", "plotcandle"):
+            # AXIS tier-2 OHLC siblings: close-primary parent + open/high/low refs
+            # (mirrors interpret capture; components never get standalone meta).
+            sibs: dict[str, str] = {}
+            for ck in ("open", "high", "low"):
+                sk = f"{key}.{ck}"
+                used.add(sk)
+                sibs[ck] = sk
+            site["siblings"] = sibs
+            meta["close"] = key
+            for ck, sk in sibs.items():
+                meta[ck] = sk
+            for cparam in ("wickcolor", "bordercolor"):
+                cs = _visual_color_str(ev.get(cparam))
+                if cs:
+                    meta[cparam] = cs
+        sites.append(site)
 
     if not sites:
         return series_map, plot_meta
@@ -336,6 +391,8 @@ def materialize_visual_series_from_drawings(
     for site in sites:
         series_map[site["key"]] = [None] * n_bars
         plot_meta[site["key"]] = dict(site["meta"])
+        for sk in site.get("siblings", {}).values():
+            series_map[sk] = [None] * n_bars
 
     # Fill columns: zip per-bar visual events with discovered sites by position
     # when counts match; otherwise match by running kind-order index.
@@ -353,6 +410,10 @@ def materialize_visual_series_from_drawings(
             ek = str(ev.get("kind") or kind)
             val = _json_safe_visual_value(ek, ev)
             series_map[site["key"]][bar] = val
+            sib = site.get("siblings")
+            if sib:
+                for ck, sk in sib.items():
+                    series_map[sk][bar] = _ohlc_num_cell(ev.get(ck))
             # Lazy first non-null color into meta
             if plot_meta[site["key"]].get("color") is None:
                 c = ev.get("color")
@@ -374,14 +435,14 @@ def merge_visual_series_from_drawings(
     Returns the same *series* mapping for chaining. When *plot_meta* is provided,
     new keys get meta entries (existing meta keys are left untouched).
     """
-    extra, meta = materialize_visual_series_from_drawings(
-        drawings, n_bars, existing_keys=series.keys()
-    )
+    extra, meta = materialize_visual_series_from_drawings(drawings, n_bars, existing_keys=series.keys())
     for key, col in extra.items():
         if key not in series:
             series[key] = col
             if plot_meta is not None and key not in plot_meta:
-                plot_meta[key] = meta[key]
+                mk_entry = meta.get(key)
+                if mk_entry is not None:
+                    plot_meta[key] = mk_entry
         elif plot_meta is not None:
             mk = (meta.get(key) or {}).get("kind")
             entry = plot_meta.get(key)
