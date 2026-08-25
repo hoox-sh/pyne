@@ -136,6 +136,36 @@ class TestRuntimeWireMeta:
             assert key not in meta
 
 
+class TestPositionalIndex:
+    def test_positional_linewidth_style_runtime(self) -> None:
+        # Pine v6 canonical order: plot(series, title, color, linewidth, style, ...)
+        script = '//@version=6\nindicator("p")\nplot(close, "t", color.red, 3, plot.style_histogram)\n'
+        r = Runtime().run(script, _bars(), mode="interpret")
+        meta = r["plot_meta"]["t"]
+        assert meta["linewidth"] == 3
+        assert meta["style"] == "style_histogram"
+
+    def test_positional_linewidth_interpret(self) -> None:
+        from pynescript.ast.evaluator import NodeLiteralEvaluator
+        from pynescript.ast.evaluator.builtins.plotting import PlotRegistry
+        from pynescript.ast.helper import parse
+
+        PlotRegistry.reset()
+        ev = NodeLiteralEvaluator()
+        ev.visit(parse('plot(close, "t", color.red, 4)', mode="eval").body)
+        assert len(PlotRegistry.plots) == 1
+        assert PlotRegistry.plots[0].linewidth == 4
+
+    def test_kwargs_branch_positional_fallbacks(self) -> None:
+        from pynescript.runtime.evaluator import CustomEvaluator
+
+        ev = CustomEvaluator()
+        ev._builtin_plot([1.0, "t", "#f00", 3], {"style": "style_histogram"})
+        m = ev._plot_meta_list[0]
+        assert m["linewidth"] == 3
+        assert m["style"] == "style_histogram"
+
+
 class TestCaptureLayer:
     def _run_evaluator(self, script: str):
         # Drive CustomEvaluator directly so we can inspect _plot_meta_list

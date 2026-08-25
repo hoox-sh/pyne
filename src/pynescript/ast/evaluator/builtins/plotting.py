@@ -653,7 +653,7 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
             title = _as_str(args[1], _EMPTY) if n > 1 else _EMPTY
             color = args[2] if n > 2 else None
             style = _as_str(args[4], _EMPTY) if n > 4 else _EMPTY
-            linewidth = _as_int(args[5], 1) if n > 5 else 1
+            linewidth = _as_int(args[3], 1) if n > 3 else 1
             return self._upsert_simple_plot(series, title, color, style, linewidth)
 
         return self._plot_upsert(
@@ -662,7 +662,7 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
             title=_as_str(_kw(args, kwargs, "title", 1, _EMPTY), _EMPTY),
             color=_kw(args, kwargs, "color", 2),
             style=_as_str(_kw(args, kwargs, "style", 4, _EMPTY), _EMPTY),
-            linewidth=_as_int(_kw(args, kwargs, "linewidth", 5, 1), 1),
+            linewidth=_as_int(_kw(args, kwargs, "linewidth", 3, 1), 1),
             linestyle=_as_str(_kw(args, kwargs, "linestyle", None, _LS_SOLID), _LS_SOLID),
             text=_as_str(_kw(args, kwargs, "text", 12, _EMPTY), _EMPTY),
             text_size=_kw(args, kwargs, "text_size", 15, _AUTO),

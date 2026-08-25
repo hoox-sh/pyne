@@ -475,8 +475,8 @@ class CustomEvaluator(NodeLiteralEvaluator):
             raw = kwargs.get("series", args[0] if args else None)
             title = kwargs.get("title", args[1] if len(args) > 1 else "")
             color = kwargs.get("color", args[2] if len(args) > 2 else None)
-            style = kwargs.get("style", args[3] if len(args) > 3 else None)
-            linewidth = kwargs.get("linewidth", args[5] if len(args) > 5 else 1)
+            style = kwargs.get("style", args[4] if len(args) > 4 else None)
+            linewidth = kwargs.get("linewidth", args[3] if len(args) > 3 else 1)
             linestyle = kwargs.get("linestyle", None)
             color_s = _serialize_color(color) if color is not None else None
             title_s = str(title or "") or None
@@ -503,8 +503,8 @@ class CustomEvaluator(NodeLiteralEvaluator):
         n = len(args)
         title = args[1] if n > 1 else ""
         color = args[2] if n > 2 else None
-        style = args[3] if n > 3 else None
-        linewidth = args[5] if n > 5 else 1
+        linewidth = args[3] if n > 3 else 1
+        style = args[4] if n > 4 else None
         color_s = _serialize_color(color) if color is not None else None
         title_s = str(title or "") or None
         style_s = None if style is None or style == "" else str(style)
