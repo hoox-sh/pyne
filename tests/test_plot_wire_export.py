@@ -313,3 +313,14 @@ class TestCandleOhlc:
         r = Runtime().run(script, _bars(8), mode="interpret")
         meta = r["plot_meta"]["dx"]
         assert meta.get("wickcolor") == "#FF6D00"
+
+    def test_two_same_titled_candles_register_both(self) -> None:
+        script = (
+            '//@version=6\nindicator("dup", overlay=true)\n'
+            "plotcandle(open, high, low, close)\n"
+            "plotcandle(open, high, low, close)\n"
+        )
+        r = Runtime().run(script, _bars(), mode="interpret")
+        s = r["series"]
+        assert {"candles", "candles.open", "candles.high", "candles.low"} <= set(s)
+        assert {"candles_2", "candles_2.open", "candles_2.high", "candles_2.low"} <= set(s)

@@ -905,7 +905,9 @@ class CustomEvaluator(NodeLiteralEvaluator):
                     "component_key": key,
                 }
             )
-        self._plot_capture_i += 4
+        # Tail registration: continue subsequent program-order sites at the new
+        # tail (stale base + 4 would land inside the fresh component columns).
+        self._plot_capture_i = len(self._plot_value_cols)
 
     def _capture_ohlc_plot(
         self,
@@ -935,7 +937,9 @@ class CustomEvaluator(NodeLiteralEvaluator):
         # program-order slot was taken by an earlier-registering site must not
         # write cols[i..i+3] blindly (IndexError / cross-site corruption).
         meta_ok = i < len(self._plot_meta_list) and self._plot_meta_list[i].get("kind") == kind
-        if not meta_ok:
+        if not meta_ok and i < len(self._plot_value_cols):
+            # Displaced inside the registered structure: reuse the already-known
+            # site. i past the tail is legitimate fresh-registration territory.
             j = self._find_registered_ohlc_site(kind, title_s)
             if j >= 0:
                 i = j
