@@ -13,7 +13,7 @@
     "kind": "function",
     "detail": "accdist(...)",
     "brief": "Accumulation/Distribution Index",
-    "documentation": "Accumulation/Distribution Index.\n\nTV: ``ta.accdist`` / ``ta.accdist()`` with no args uses H/L/C/V context.",
+    "documentation": "Accumulation/Distribution Index.\n\nReference Pine: ``ta.accdist`` / ``ta.accdist()`` with no args uses H/L/C/V context.",
     "snippet": "accdist(${1:arg})",
     "category": "builtin"
   },
@@ -33,6 +33,15 @@
     "brief": "",
     "documentation": "",
     "snippet": "acos(${1:arg})",
+    "category": "builtin"
+  },
+  "ad": {
+    "label": "ad",
+    "kind": "function",
+    "detail": "ad(...)",
+    "brief": "Accumulation/Distribution Index",
+    "documentation": "Accumulation/Distribution Index.\n\nReference Pine: ``ta.accdist`` / ``ta.accdist()`` with no args uses H/L/C/V context.",
+    "snippet": "ad(${1:arg})",
     "category": "builtin"
   },
   "advanced_breakout_detector": {
@@ -56,18 +65,45 @@
   "alert": {
     "label": "alert",
     "kind": "function",
-    "detail": "alert(message, freq)",
+    "detail": "alert(...)",
     "brief": "Send an alert notification",
-    "documentation": "Send an alert notification.\n\nSignature: alert(message, freq)",
+    "documentation": "Send an alert notification.\n\nSignature: ``alert(message, freq)``.\n\nZero-arg ``alert()`` (linter signature demos / truncated scrapes) is a\nsoft no-op rather than a hard Runtime Error so residual corpus scripts\nkeep evaluating other statements.",
     "snippet": "alert(${1:arg})",
     "category": "builtin"
+  },
+  "alert.freq_all": {
+    "label": "alert.freq_all",
+    "kind": "function",
+    "detail": "alert.freq_all(...)",
+    "brief": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string obje...",
+    "documentation": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string object from the given object. If encoding or\nerrors is specified, then the object must expose a data buffer\nthat will be decoded using the given encoding and error handler.\nOtherwise, returns the result of object.__str__() (if defined)\nor repr(object).\nencoding defaults to 'utf-8'.\nerrors defaults to 'strict'.",
+    "snippet": "alert.freq_all(${1:param1})",
+    "category": "alert"
+  },
+  "alert.freq_once_per_bar": {
+    "label": "alert.freq_once_per_bar",
+    "kind": "function",
+    "detail": "alert.freq_once_per_bar(...)",
+    "brief": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string obje...",
+    "documentation": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string object from the given object. If encoding or\nerrors is specified, then the object must expose a data buffer\nthat will be decoded using the given encoding and error handler.\nOtherwise, returns the result of object.__str__() (if defined)\nor repr(object).\nencoding defaults to 'utf-8'.\nerrors defaults to 'strict'.",
+    "snippet": "alert.freq_once_per_bar(${1:param1})",
+    "category": "alert"
+  },
+  "alert.freq_once_per_bar_close": {
+    "label": "alert.freq_once_per_bar_close",
+    "kind": "function",
+    "detail": "alert.freq_once_per_bar_close(...)",
+    "brief": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string obje...",
+    "documentation": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string object from the given object. If encoding or\nerrors is specified, then the object must expose a data buffer\nthat will be decoded using the given encoding and error handler.\nOtherwise, returns the result of object.__str__() (if defined)\nor repr(object).\nencoding defaults to 'utf-8'.\nerrors defaults to 'strict'.",
+    "snippet": "alert.freq_once_per_bar_close(${1:param1})",
+    "category": "alert"
   },
   "alertcondition": {
     "label": "alertcondition",
     "kind": "function",
-    "detail": "alertcondition(condition, title, message)",
-    "brief": "Define an alert condition",
-    "documentation": "Define an alert condition.\n\nSignature: alertcondition(condition, title, message)",
+    "detail": "alertcondition(...)",
+    "brief": "Define / evaluate an alert condition",
+    "documentation": "Define / evaluate an alert condition.\n\nSignature: ``alertcondition(condition, title, message)``\n\nOn each bar where *condition* is true, the engine records the condition\nand fires a host alert (``source=alertcondition``) with\n``freq_once_per_bar`` semantics so cron / API consumers see firings.",
     "snippet": "alertcondition(${1:arg})",
     "category": "builtin"
   },
@@ -80,6 +116,15 @@
     "snippet": "alma(${1:arg})",
     "category": "builtin"
   },
+  "ao": {
+    "label": "ao",
+    "kind": "function",
+    "detail": "ao(...)",
+    "brief": "Awesome Oscillator: ``sma(hl2, 5) - sma(hl2, 34)`` (reference Pine ``ta",
+    "documentation": "Awesome Oscillator: ``sma(hl2, 5) - sma(hl2, 34)`` (reference Pine ``ta.ao``).\n\nOptional args override fast/slow periods (default 5 / 34).",
+    "snippet": "ao(${1:arg})",
+    "category": "builtin"
+  },
   "apo": {
     "label": "apo",
     "kind": "function",
@@ -87,6 +132,15 @@
     "brief": "Absolute Price Oscillator",
     "documentation": "Absolute Price Oscillator.\n\nta.apo(series, fast_period, slow_period)\nAPO = EMA(fast) - EMA(slow)\nReturns APO series.",
     "snippet": "apo(${1:arg})",
+    "category": "builtin"
+  },
+  "aroon": {
+    "label": "aroon",
+    "kind": "function",
+    "detail": "aroon(...)",
+    "brief": "Aroon oscillator pair: ``[aroonDown, aroonUp]`` (reference Pine ``ta",
+    "documentation": "Aroon oscillator pair: ``[aroonDown, aroonUp]`` (reference Pine ``ta.aroon(length)``).\n\n``aroonUp = 100 * (length - bars_since_hh) / length``\n``aroonDown = 100 * (length - bars_since_ll) / length``",
+    "snippet": "aroon(${1:arg})",
     "category": "builtin"
   },
   "array.abs": {
@@ -110,36 +164,36 @@
   "array.binary_search": {
     "label": "array.binary_search",
     "kind": "function",
-    "detail": "array.binary_search(id, value, sort_field)",
-    "brief": "Binary search a sorted array; UDT arrays compare sort_field",
-    "documentation": "Searches a sorted array and returns the matching index, or -1 if not found. For arrays of user-defined types, sort_field is a const int field index (0 by default, the first declared field) or a const string field name. The array must be sorted by that field in ascending order.",
-    "snippet": "array.binary_search(${1:id}, ${2:value}, ${3:sort_field})",
+    "detail": "array.binary_search(...)",
+    "brief": "``array",
+    "documentation": "``array.binary_search(id, value, sort_field?)`` — index or ``-1``.\n\nAugust 2026: UDT arrays compare ``sort_field`` (const int index, default\n0, or const string name). Array must be sorted by that field ascending.",
+    "snippet": "array.binary_search(${1:param1})",
     "category": "array"
   },
   "array.binary_search_leftmost": {
     "label": "array.binary_search_leftmost",
     "kind": "function",
-    "detail": "array.binary_search_leftmost(id, value, sort_field)",
-    "brief": "Binary search for the leftmost (first) occurrence of a value",
-    "documentation": "Binary search for the leftmost (first) occurrence of a value. For UDT arrays, sort_field selects the compared object field (const int index, default 0, or const string name).",
-    "snippet": "array.binary_search_leftmost(${1:id}, ${2:value}, ${3:sort_field})",
+    "detail": "array.binary_search_leftmost(...)",
+    "brief": "``array",
+    "documentation": "``array.binary_search_leftmost(id, value, sort_field?)`` — first match or ``-1``.",
+    "snippet": "array.binary_search_leftmost(${1:param1})",
     "category": "array"
   },
   "array.binary_search_rightmost": {
     "label": "array.binary_search_rightmost",
     "kind": "function",
-    "detail": "array.binary_search_rightmost(id, value, sort_field)",
-    "brief": "Binary search for the rightmost (last) occurrence of a value",
-    "documentation": "Binary search for the rightmost (last) occurrence of a value. For UDT arrays, sort_field selects the compared object field (const int index, default 0, or const string name).",
-    "snippet": "array.binary_search_rightmost(${1:id}, ${2:value}, ${3:sort_field})",
+    "detail": "array.binary_search_rightmost(...)",
+    "brief": "``array",
+    "documentation": "``array.binary_search_rightmost(id, value, sort_field?)`` — last match or ``-1``.",
+    "snippet": "array.binary_search_rightmost(${1:param1})",
     "category": "array"
   },
   "array.clear": {
     "label": "array.clear",
     "kind": "function",
     "detail": "array.clear(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "``array",
+    "documentation": "``array.clear(id)`` — clear in place; ``na`` id → no-op.",
     "snippet": "array.clear(${1:param1})",
     "category": "array"
   },
@@ -166,7 +220,7 @@
     "kind": "function",
     "detail": "array.covariance(...)",
     "brief": "``array",
-    "documentation": "``array.covariance(id1, id2, biased=true)`` — covariance of two arrays.\n\nTradingView signature is two equal-length arrays plus optional ``biased``\n(default true = population / n; false = sample / n-1). Older internal\nternary form ``(series1, series2, length)`` is still accepted when the\nthird argument is an int length (not a bool).",
+    "documentation": "``array.covariance(id1, id2, biased=true)`` — covariance of two arrays.\n\nreference Pine signature is two equal-length arrays plus optional ``biased``\n(default true = population / n; false = sample / n-1). Older internal\nternary form ``(series1, series2, length)`` is still accepted when the\nthird argument is an int length (not a bool).",
     "snippet": "array.covariance(${1:param1})",
     "category": "array"
   },
@@ -174,8 +228,8 @@
     "label": "array.every",
     "kind": "function",
     "detail": "array.every(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "``array",
+    "documentation": "``array.every(id, predicate)`` or unary ``id.every()`` on bool arrays.\n\nUnary form (corpus: ``array.every(arr)`` / ``arr.every()``) treats the\narray as a bool series and returns whether every element is truthy.",
     "snippet": "array.every(${1:param1})",
     "category": "array"
   },
@@ -183,8 +237,8 @@
     "label": "array.fill",
     "kind": "function",
     "detail": "array.fill(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "``array",
+    "documentation": "``array.fill(id, value)`` or ``array.fill(id, value, index_from, index_to)``.\n\nRange form fills half-open ``[index_from, index_to)`` (reference Pine).\nMissing / na bounds fill the whole array; OOB bounds are clamped.",
     "snippet": "array.fill(${1:param1})",
     "category": "array"
   },
@@ -192,8 +246,8 @@
     "label": "array.first",
     "kind": "function",
     "detail": "array.first(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "``array",
+    "documentation": "``array.first(id)`` — first element; ``na`` id → ``na``; empty still errors.",
     "snippet": "array.first(${1:param1})",
     "category": "array"
   },
@@ -201,8 +255,8 @@
     "label": "array.from",
     "kind": "function",
     "detail": "array.from(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "``array",
+    "documentation": "``array.from(...)`` — build array; zero-arg → empty (truncated demos).",
     "snippet": "array.from(${1:param1})",
     "category": "array"
   },
@@ -210,8 +264,8 @@
     "label": "array.get",
     "kind": "function",
     "detail": "array.get(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "``array",
+    "documentation": "``array.get(id, index)`` — reference v6 negative index from end; OOB/na → na.",
     "snippet": "array.get(${1:param1})",
     "category": "array"
   },
@@ -237,8 +291,8 @@
     "label": "array.insert",
     "kind": "function",
     "detail": "array.insert(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "``array",
+    "documentation": "``array.insert(id, index, value)`` — insert at index (append if index ≥ size).\n\nreference v6: negative *index* counts from the end. ``na`` id → no-op.",
     "snippet": "array.insert(${1:param1})",
     "category": "array"
   },
@@ -246,8 +300,8 @@
     "label": "array.join",
     "kind": "function",
     "detail": "array.join(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "array",
+    "documentation": "array.join(id, separator?) / id.join(separator?) → concatenated string.\n\nSeparator defaults to ``\"\"`` when omitted (common in motion: ``this.join()``).\n``na`` elements are stringified as empty. ``na`` id → ``na``.",
     "snippet": "array.join(${1:param1})",
     "category": "array"
   },
@@ -255,8 +309,8 @@
     "label": "array.last",
     "kind": "function",
     "detail": "array.last(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "``array",
+    "documentation": "``array.last(id)`` — last element; ``na`` id → ``na``; empty still errors.",
     "snippet": "array.last(${1:param1})",
     "category": "array"
   },
@@ -422,6 +476,105 @@
     "snippet": "array.new_table(${1:param1})",
     "category": "array"
   },
+  "array.newbool": {
+    "label": "array.newbool",
+    "kind": "function",
+    "detail": "array.newbool(...)",
+    "brief": "Create a new array",
+    "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
+    "snippet": "array.newbool(${1:param1})",
+    "category": "array"
+  },
+  "array.newbox": {
+    "label": "array.newbox",
+    "kind": "function",
+    "detail": "array.newbox(...)",
+    "brief": "Create a new array",
+    "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
+    "snippet": "array.newbox(${1:param1})",
+    "category": "array"
+  },
+  "array.newcolor": {
+    "label": "array.newcolor",
+    "kind": "function",
+    "detail": "array.newcolor(...)",
+    "brief": "Create a new array",
+    "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
+    "snippet": "array.newcolor(${1:param1})",
+    "category": "array"
+  },
+  "array.newfloat": {
+    "label": "array.newfloat",
+    "kind": "function",
+    "detail": "array.newfloat(...)",
+    "brief": "Create a new array",
+    "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
+    "snippet": "array.newfloat(${1:param1})",
+    "category": "array"
+  },
+  "array.newint": {
+    "label": "array.newint",
+    "kind": "function",
+    "detail": "array.newint(...)",
+    "brief": "Create a new array",
+    "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
+    "snippet": "array.newint(${1:param1})",
+    "category": "array"
+  },
+  "array.newlabel": {
+    "label": "array.newlabel",
+    "kind": "function",
+    "detail": "array.newlabel(...)",
+    "brief": "Create a new array",
+    "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
+    "snippet": "array.newlabel(${1:param1})",
+    "category": "array"
+  },
+  "array.newline": {
+    "label": "array.newline",
+    "kind": "function",
+    "detail": "array.newline(...)",
+    "brief": "Create a new array",
+    "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
+    "snippet": "array.newline(${1:param1})",
+    "category": "array"
+  },
+  "array.newlinefill": {
+    "label": "array.newlinefill",
+    "kind": "function",
+    "detail": "array.newlinefill(...)",
+    "brief": "Create a new array",
+    "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
+    "snippet": "array.newlinefill(${1:param1})",
+    "category": "array"
+  },
+  "array.newpolyline": {
+    "label": "array.newpolyline",
+    "kind": "function",
+    "detail": "array.newpolyline(...)",
+    "brief": "Create a new array",
+    "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
+    "snippet": "array.newpolyline(${1:param1})",
+    "category": "array"
+  },
+  "array.newstring": {
+    "label": "array.newstring",
+    "kind": "function",
+    "detail": "array.newstring(...)",
+    "brief": "Create a new array",
+    "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
+    "snippet": "array.newstring(${1:param1})",
+    "category": "array"
+  },
+  "array.newtable": {
+    "label": "array.newtable",
+    "kind": "function",
+    "detail": "array.newtable(...)",
+    "brief": "Create a new array",
+    "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
+    "snippet": "array.newtable(${1:param1})",
+    "category": "array"
+  },
   "array.percentile_linear_interpolation": {
     "label": "array.percentile_linear_interpolation",
     "kind": "function",
@@ -453,8 +606,8 @@
     "label": "array.pop",
     "kind": "function",
     "detail": "array.pop(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "``array",
+    "documentation": "``array.pop(id)`` — remove last; ``na`` id / empty → ``na`` (soft).",
     "snippet": "array.pop(${1:param1}, ${2:param2})",
     "category": "array"
   },
@@ -462,8 +615,8 @@
     "label": "array.push",
     "kind": "function",
     "detail": "array.push(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "``array",
+    "documentation": "``array.push(id, value)`` — append value; soft-na / incomplete call resilience.\n\nCorpus residuals (set05):\n- Zero-arg ``array.push()`` left by truncated reference docs demos → no-op.\n- ``array.push(id=na, value=…)`` / na receiver → no-op (reference soft-na).\n- Kwargs ``id=`` / ``value=`` via ``_KWARG_ORDER`` (including ``value=na``).",
     "snippet": "array.push(${1:param1}, ${2:param2})",
     "category": "array"
   },
@@ -472,7 +625,7 @@
     "kind": "function",
     "detail": "array.range(...)",
     "brief": "``array",
-    "documentation": "``array.range(id)`` — difference between max and min of array values.\n\nTradingView statistical helper (not Python ``range``). Empty / all-na → na.",
+    "documentation": "``array.range(id)`` — difference between max and min of array values.\n\nreference Pine statistical helper (not Python ``range``). Empty / all-na → na.",
     "snippet": "array.range(${1:param1})",
     "category": "array"
   },
@@ -480,8 +633,8 @@
     "label": "array.remove",
     "kind": "function",
     "detail": "array.remove(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "``array",
+    "documentation": "``array.remove(id, index)`` — reference v6 negative index from end.\n\n``na`` id → ``na``; invalid index still hard-errors (library guards).",
     "snippet": "array.remove(${1:param1})",
     "category": "array"
   },
@@ -498,8 +651,8 @@
     "label": "array.set",
     "kind": "function",
     "detail": "array.set(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "``array",
+    "documentation": "``array.set(id, index, value)`` — reference v6 negative index from end.\n\n* ``na`` id / index → no-op\n* Negative in-range → set from end (``-1`` = last)\n* Positive OOB → soft-grow (ring-buffer UDF recovery)",
     "snippet": "array.set(${1:param1})",
     "category": "array"
   },
@@ -507,8 +660,8 @@
     "label": "array.shift",
     "kind": "function",
     "detail": "array.shift(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "``array",
+    "documentation": "``array.shift(id)`` — remove first; ``na`` id / empty → ``na``.",
     "snippet": "array.shift(${1:param1}, ${2:param2})",
     "category": "array"
   },
@@ -517,7 +670,7 @@
     "kind": "function",
     "detail": "array.size(...)",
     "brief": "``array",
-    "documentation": "``array.size(id)`` — size of array; ``na`` id → ``na`` (TV).",
+    "documentation": "``array.size(id)`` — size of array; ``na`` id → ``na`` (reference).",
     "snippet": "array.size(${1:param1})",
     "category": "array"
   },
@@ -526,7 +679,7 @@
     "kind": "function",
     "detail": "array.slice(...)",
     "brief": "``array",
-    "documentation": "``array.slice(id, index_from, index_to)`` — half-open ``[from, to)``.\n\nTV: na bounds → empty result rather than a hard runtime error when\nintermediate length math produces na (common in NN weight slicing).",
+    "documentation": "``array.slice(id, index_from, index_to)`` — half-open ``[from, to)``.\n\nReference Pine: na bounds → empty result rather than a hard runtime error when\nintermediate length math produces na (common in NN weight slicing).",
     "snippet": "array.slice(${1:param1})",
     "category": "array"
   },
@@ -534,8 +687,8 @@
     "label": "array.some",
     "kind": "function",
     "detail": "array.some(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "``array",
+    "documentation": "``array.some(id, predicate)`` or unary ``id.some()`` on bool arrays.\n\nCorpus residual (confluence alerts): ``array.from(cond_1, …).some()``\nwithout a predicate treats the array as bool series and returns whether\nany element is truthy. Full form still requires a callable predicate.",
     "snippet": "array.some(${1:param1})",
     "category": "array"
   },
@@ -553,7 +706,7 @@
     "kind": "function",
     "detail": "array.sort_indices(...)",
     "brief": "Return indices that would sort the array (``na`` indices last)",
-    "documentation": "Return indices that would sort the array (``na`` indices last).",
+    "documentation": "Return indices that would sort the array (``na`` indices last).\n\nHonors optional *order* and *sort_field* (UDT field name or index).\n``na`` id → ``na``.",
     "snippet": "array.sort_indices(${1:param1})",
     "category": "array"
   },
@@ -562,7 +715,7 @@
     "kind": "function",
     "detail": "array.standardize(...)",
     "brief": "Standardize array values (z-score normalization)",
-    "documentation": "Standardize array values (z-score normalization).",
+    "documentation": "Standardize array values (z-score normalization).\n\nDrops ``na`` / non-numeric slots (``close[i]`` past history) rather than\nhard-failing ``statistics.mean`` with ``NoneType``. Fewer than 2 finite\nsamples or zero stdev → ``na`` array (soft) instead of Runtime Error.",
     "snippet": "array.standardize(${1:param1})",
     "category": "array"
   },
@@ -571,7 +724,7 @@
     "kind": "function",
     "detail": "array.stdev(...)",
     "brief": "array",
-    "documentation": "array.stdev(id) | array.stdev(id, biased) → float.\n\nTV ``biased``: true → population (n); false → sample (n-1). Default true.",
+    "documentation": "array.stdev(id) | array.stdev(id, biased) → float.\n\nreference ``biased``: true → population (n); false → sample (n-1). Default true.\n``na`` id → ``na``.",
     "snippet": "array.stdev(${1:param1})",
     "category": "array"
   },
@@ -588,8 +741,8 @@
     "label": "array.unshift",
     "kind": "function",
     "detail": "array.unshift(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "``array",
+    "documentation": "``array.unshift(id, value)`` — prepend; ``na`` id → no-op.",
     "snippet": "array.unshift(${1:param1}, ${2:param2})",
     "category": "array"
   },
@@ -598,7 +751,7 @@
     "kind": "function",
     "detail": "array.variance(...)",
     "brief": "array",
-    "documentation": "array.variance(id) | array.variance(id, biased) → float.",
+    "documentation": "array.variance(id) | array.variance(id, biased) → float; na id → na.",
     "snippet": "array.variance(${1:param1})",
     "category": "array"
   },
@@ -625,7 +778,7 @@
     "kind": "function",
     "detail": "atr(...)",
     "brief": "Average True Range",
-    "documentation": "Average True Range. TV: ``ta.atr(length)``; also legacy 4-arg form.",
+    "documentation": "Average True Range. reference Pine: ``ta.atr(length)``; also legacy 4-arg form.",
     "snippet": "atr(${1:arg})",
     "category": "builtin"
   },
@@ -651,17 +804,17 @@
     "label": "avg",
     "kind": "function",
     "detail": "avg(...)",
-    "brief": "Average of array, or of multiple scalar/series args (TV ``math",
-    "documentation": "Average of array, or of multiple scalar/series args (TV ``math.avg(a,b,...)``).",
+    "brief": "Average of array, or of multiple scalar/series args (reference ``math",
+    "documentation": "Average of array, or of multiple scalar/series args (reference ``math.avg(a,b,...)``).",
     "snippet": "avg(${1:arg})",
     "category": "builtin"
   },
   "barcolor": {
     "label": "barcolor",
     "kind": "function",
-    "detail": "barcolor(...)",
-    "brief": "",
-    "documentation": "",
+    "detail": "barcolor(color, offset, editable, show_last, title, display)",
+    "brief": "Set the color of the chart bars",
+    "documentation": "Set the color of the chart bars.\n\nSignature: barcolor(color, offset, editable, show_last, title, display)",
     "snippet": "barcolor(${1:arg})",
     "category": "builtin"
   },
@@ -713,9 +866,9 @@
   "bgcolor": {
     "label": "bgcolor",
     "kind": "function",
-    "detail": "bgcolor(...)",
-    "brief": "",
-    "documentation": "",
+    "detail": "bgcolor(color, offset, editable, show_last, title, display)",
+    "brief": "Set the chart background color",
+    "documentation": "Set the chart background color.\n\nSignature: bgcolor(color, offset, editable, show_last, title, display)",
     "snippet": "bgcolor(${1:arg})",
     "category": "builtin"
   },
@@ -1155,8 +1308,8 @@
     "label": "color.aqua",
     "kind": "function",
     "detail": "color.aqua(...)",
-    "brief": "Represents an RGBA color",
-    "documentation": "Represents an RGBA color.",
+    "brief": "RGBA color value used by plot/drawing builtins and ``color",
+    "documentation": "RGBA color value used by plot/drawing builtins and ``color.*`` helpers.\n\nComponents are clamped to 0–255. Stringification yields an 8-digit hex\nform (``#RRGGBBAA``) suitable for export and comparison.",
     "snippet": "color.aqua(${1:param1})",
     "category": "color"
   },
@@ -1165,7 +1318,7 @@
     "kind": "function",
     "detail": "color.b(...)",
     "brief": "Get the blue component of a color",
-    "documentation": "Get the blue component of a color.\n\nArgs:\n    c: Color object\n\nReturns:\n    Blue component (0-255)",
+    "documentation": "Get the blue component of a color.\n\nArgs:\n    c: Color object, hex/named/rgb(a) string, or int color\n\nReturns:\n    Blue component (0-255)",
     "snippet": "color.b(${1:param1})",
     "category": "color"
   },
@@ -1173,8 +1326,8 @@
     "label": "color.black",
     "kind": "function",
     "detail": "color.black(...)",
-    "brief": "Represents an RGBA color",
-    "documentation": "Represents an RGBA color.",
+    "brief": "RGBA color value used by plot/drawing builtins and ``color",
+    "documentation": "RGBA color value used by plot/drawing builtins and ``color.*`` helpers.\n\nComponents are clamped to 0–255. Stringification yields an 8-digit hex\nform (``#RRGGBBAA``) suitable for export and comparison.",
     "snippet": "color.black(${1:param1})",
     "category": "color"
   },
@@ -1182,8 +1335,8 @@
     "label": "color.blue",
     "kind": "function",
     "detail": "color.blue(...)",
-    "brief": "Represents an RGBA color",
-    "documentation": "Represents an RGBA color.",
+    "brief": "RGBA color value used by plot/drawing builtins and ``color",
+    "documentation": "RGBA color value used by plot/drawing builtins and ``color.*`` helpers.\n\nComponents are clamped to 0–255. Stringification yields an 8-digit hex\nform (``#RRGGBBAA``) suitable for export and comparison.",
     "snippet": "color.blue(${1:param1})",
     "category": "color"
   },
@@ -1200,8 +1353,8 @@
     "label": "color.fuchsia",
     "kind": "function",
     "detail": "color.fuchsia(...)",
-    "brief": "Represents an RGBA color",
-    "documentation": "Represents an RGBA color.",
+    "brief": "RGBA color value used by plot/drawing builtins and ``color",
+    "documentation": "RGBA color value used by plot/drawing builtins and ``color.*`` helpers.\n\nComponents are clamped to 0–255. Stringification yields an 8-digit hex\nform (``#RRGGBBAA``) suitable for export and comparison.",
     "snippet": "color.fuchsia(${1:param1})",
     "category": "color"
   },
@@ -1210,7 +1363,7 @@
     "kind": "function",
     "detail": "color.g(...)",
     "brief": "Get the green component of a color",
-    "documentation": "Get the green component of a color.\n\nArgs:\n    c: Color object\n\nReturns:\n    Green component (0-255)",
+    "documentation": "Get the green component of a color.\n\nArgs:\n    c: Color object, hex/named/rgb(a) string, or int color\n\nReturns:\n    Green component (0-255)",
     "snippet": "color.g(${1:param1})",
     "category": "color"
   },
@@ -1218,8 +1371,8 @@
     "label": "color.gray",
     "kind": "function",
     "detail": "color.gray(...)",
-    "brief": "Represents an RGBA color",
-    "documentation": "Represents an RGBA color.",
+    "brief": "RGBA color value used by plot/drawing builtins and ``color",
+    "documentation": "RGBA color value used by plot/drawing builtins and ``color.*`` helpers.\n\nComponents are clamped to 0–255. Stringification yields an 8-digit hex\nform (``#RRGGBBAA``) suitable for export and comparison.",
     "snippet": "color.gray(${1:param1})",
     "category": "color"
   },
@@ -1227,8 +1380,8 @@
     "label": "color.green",
     "kind": "function",
     "detail": "color.green(...)",
-    "brief": "Represents an RGBA color",
-    "documentation": "Represents an RGBA color.",
+    "brief": "RGBA color value used by plot/drawing builtins and ``color",
+    "documentation": "RGBA color value used by plot/drawing builtins and ``color.*`` helpers.\n\nComponents are clamped to 0–255. Stringification yields an 8-digit hex\nform (``#RRGGBBAA``) suitable for export and comparison.",
     "snippet": "color.green(${1:param1})",
     "category": "color"
   },
@@ -1236,8 +1389,8 @@
     "label": "color.grey",
     "kind": "function",
     "detail": "color.grey(...)",
-    "brief": "Represents an RGBA color",
-    "documentation": "Represents an RGBA color.",
+    "brief": "RGBA color value used by plot/drawing builtins and ``color",
+    "documentation": "RGBA color value used by plot/drawing builtins and ``color.*`` helpers.\n\nComponents are clamped to 0–255. Stringification yields an 8-digit hex\nform (``#RRGGBBAA``) suitable for export and comparison.",
     "snippet": "color.grey(${1:param1})",
     "category": "color"
   },
@@ -1245,8 +1398,8 @@
     "label": "color.lime",
     "kind": "function",
     "detail": "color.lime(...)",
-    "brief": "Represents an RGBA color",
-    "documentation": "Represents an RGBA color.",
+    "brief": "RGBA color value used by plot/drawing builtins and ``color",
+    "documentation": "RGBA color value used by plot/drawing builtins and ``color.*`` helpers.\n\nComponents are clamped to 0–255. Stringification yields an 8-digit hex\nform (``#RRGGBBAA``) suitable for export and comparison.",
     "snippet": "color.lime(${1:param1})",
     "category": "color"
   },
@@ -1254,8 +1407,8 @@
     "label": "color.maroon",
     "kind": "function",
     "detail": "color.maroon(...)",
-    "brief": "Represents an RGBA color",
-    "documentation": "Represents an RGBA color.",
+    "brief": "RGBA color value used by plot/drawing builtins and ``color",
+    "documentation": "RGBA color value used by plot/drawing builtins and ``color.*`` helpers.\n\nComponents are clamped to 0–255. Stringification yields an 8-digit hex\nform (``#RRGGBBAA``) suitable for export and comparison.",
     "snippet": "color.maroon(${1:param1})",
     "category": "color"
   },
@@ -1263,8 +1416,8 @@
     "label": "color.navy",
     "kind": "function",
     "detail": "color.navy(...)",
-    "brief": "Represents an RGBA color",
-    "documentation": "Represents an RGBA color.",
+    "brief": "RGBA color value used by plot/drawing builtins and ``color",
+    "documentation": "RGBA color value used by plot/drawing builtins and ``color.*`` helpers.\n\nComponents are clamped to 0–255. Stringification yields an 8-digit hex\nform (``#RRGGBBAA``) suitable for export and comparison.",
     "snippet": "color.navy(${1:param1})",
     "category": "color"
   },
@@ -1281,8 +1434,8 @@
     "label": "color.olive",
     "kind": "function",
     "detail": "color.olive(...)",
-    "brief": "Represents an RGBA color",
-    "documentation": "Represents an RGBA color.",
+    "brief": "RGBA color value used by plot/drawing builtins and ``color",
+    "documentation": "RGBA color value used by plot/drawing builtins and ``color.*`` helpers.\n\nComponents are clamped to 0–255. Stringification yields an 8-digit hex\nform (``#RRGGBBAA``) suitable for export and comparison.",
     "snippet": "color.olive(${1:param1})",
     "category": "color"
   },
@@ -1290,8 +1443,8 @@
     "label": "color.orange",
     "kind": "function",
     "detail": "color.orange(...)",
-    "brief": "Represents an RGBA color",
-    "documentation": "Represents an RGBA color.",
+    "brief": "RGBA color value used by plot/drawing builtins and ``color",
+    "documentation": "RGBA color value used by plot/drawing builtins and ``color.*`` helpers.\n\nComponents are clamped to 0–255. Stringification yields an 8-digit hex\nform (``#RRGGBBAA``) suitable for export and comparison.",
     "snippet": "color.orange(${1:param1})",
     "category": "color"
   },
@@ -1299,8 +1452,8 @@
     "label": "color.purple",
     "kind": "function",
     "detail": "color.purple(...)",
-    "brief": "Represents an RGBA color",
-    "documentation": "Represents an RGBA color.",
+    "brief": "RGBA color value used by plot/drawing builtins and ``color",
+    "documentation": "RGBA color value used by plot/drawing builtins and ``color.*`` helpers.\n\nComponents are clamped to 0–255. Stringification yields an 8-digit hex\nform (``#RRGGBBAA``) suitable for export and comparison.",
     "snippet": "color.purple(${1:param1})",
     "category": "color"
   },
@@ -1309,7 +1462,7 @@
     "kind": "function",
     "detail": "color.r(...)",
     "brief": "Get the red component of a color",
-    "documentation": "Get the red component of a color.\n\nArgs:\n    c: Color object\n\nReturns:\n    Red component (0-255)",
+    "documentation": "Get the red component of a color.\n\nArgs:\n    c: Color object, hex/named/rgb(a) string, or int color\n\nReturns:\n    Red component (0-255)",
     "snippet": "color.r(${1:param1})",
     "category": "color"
   },
@@ -1317,8 +1470,8 @@
     "label": "color.red",
     "kind": "function",
     "detail": "color.red(...)",
-    "brief": "Represents an RGBA color",
-    "documentation": "Represents an RGBA color.",
+    "brief": "RGBA color value used by plot/drawing builtins and ``color",
+    "documentation": "RGBA color value used by plot/drawing builtins and ``color.*`` helpers.\n\nComponents are clamped to 0–255. Stringification yields an 8-digit hex\nform (``#RRGGBBAA``) suitable for export and comparison.",
     "snippet": "color.red(${1:param1})",
     "category": "color"
   },
@@ -1335,8 +1488,8 @@
     "label": "color.silver",
     "kind": "function",
     "detail": "color.silver(...)",
-    "brief": "Represents an RGBA color",
-    "documentation": "Represents an RGBA color.",
+    "brief": "RGBA color value used by plot/drawing builtins and ``color",
+    "documentation": "RGBA color value used by plot/drawing builtins and ``color.*`` helpers.\n\nComponents are clamped to 0–255. Stringification yields an 8-digit hex\nform (``#RRGGBBAA``) suitable for export and comparison.",
     "snippet": "color.silver(${1:param1})",
     "category": "color"
   },
@@ -1345,7 +1498,7 @@
     "kind": "function",
     "detail": "color.t(...)",
     "brief": "Get the transparency of a color",
-    "documentation": "Get the transparency of a color.\n\nArgs:\n    c: Color object\n\nReturns:\n    Transparency value (0-100, where 100 is fully transparent)",
+    "documentation": "Get the transparency of a color.\n\nArgs:\n    c: Color object, hex/named/rgb(a) string, or int color\n\nReturns:\n    Transparency value (0-100, where 100 is fully transparent)",
     "snippet": "color.t(${1:param1})",
     "category": "color"
   },
@@ -1353,8 +1506,8 @@
     "label": "color.teal",
     "kind": "function",
     "detail": "color.teal(...)",
-    "brief": "Represents an RGBA color",
-    "documentation": "Represents an RGBA color.",
+    "brief": "RGBA color value used by plot/drawing builtins and ``color",
+    "documentation": "RGBA color value used by plot/drawing builtins and ``color.*`` helpers.\n\nComponents are clamped to 0–255. Stringification yields an 8-digit hex\nform (``#RRGGBBAA``) suitable for export and comparison.",
     "snippet": "color.teal(${1:param1})",
     "category": "color"
   },
@@ -1362,8 +1515,8 @@
     "label": "color.white",
     "kind": "function",
     "detail": "color.white(...)",
-    "brief": "Represents an RGBA color",
-    "documentation": "Represents an RGBA color.",
+    "brief": "RGBA color value used by plot/drawing builtins and ``color",
+    "documentation": "RGBA color value used by plot/drawing builtins and ``color.*`` helpers.\n\nComponents are clamped to 0–255. Stringification yields an 8-digit hex\nform (``#RRGGBBAA``) suitable for export and comparison.",
     "snippet": "color.white(${1:param1})",
     "category": "color"
   },
@@ -1371,8 +1524,8 @@
     "label": "color.yellow",
     "kind": "function",
     "detail": "color.yellow(...)",
-    "brief": "Represents an RGBA color",
-    "documentation": "Represents an RGBA color.",
+    "brief": "RGBA color value used by plot/drawing builtins and ``color",
+    "documentation": "RGBA color value used by plot/drawing builtins and ``color.*`` helpers.\n\nComponents are clamped to 0–255. Stringification yields an 8-digit hex\nform (``#RRGGBBAA``) suitable for export and comparison.",
     "snippet": "color.yellow(${1:param1})",
     "category": "color"
   },
@@ -1425,8 +1578,8 @@
     "label": "cross",
     "kind": "function",
     "detail": "cross(...)",
-    "brief": "Cross check",
-    "documentation": "Cross check.",
+    "brief": "Cross check (either direction)",
+    "documentation": "Cross check (either direction).",
     "snippet": "cross(${1:arg})",
     "category": "builtin"
   },
@@ -1434,8 +1587,8 @@
     "label": "crossover",
     "kind": "function",
     "detail": "crossover(...)",
-    "brief": "Crossover check (works with full series or bar-mode scalars)",
-    "documentation": "Crossover check (works with full series or bar-mode scalars).",
+    "brief": "Crossover check (works with full series or bar-mode last-sample)",
+    "documentation": "Crossover check (works with full series or bar-mode last-sample).",
     "snippet": "crossover(${1:arg})",
     "category": "builtin"
   },
@@ -1443,8 +1596,8 @@
     "label": "crossunder",
     "kind": "function",
     "detail": "crossunder(...)",
-    "brief": "Crossunder check (works with full series or bar-mode scalars)",
-    "documentation": "Crossunder check (works with full series or bar-mode scalars).",
+    "brief": "Crossunder check (works with full series or bar-mode last-sample)",
+    "documentation": "Crossunder check (works with full series or bar-mode last-sample).",
     "snippet": "crossunder(${1:arg})",
     "category": "builtin"
   },
@@ -1462,7 +1615,7 @@
     "kind": "function",
     "detail": "cum(...)",
     "brief": "Cumulative sum",
-    "documentation": "Cumulative sum. TV: ``ta.cum(source)`` — accepts series-like objects.",
+    "documentation": "Cumulative sum. reference Pine: ``ta.cum(source)`` — ``na`` treated as 0.",
     "snippet": "cum(${1:arg})",
     "category": "builtin"
   },
@@ -1525,7 +1678,7 @@
     "kind": "function",
     "detail": "dmi(...)",
     "brief": "Directional Movement Index",
-    "documentation": "Directional Movement Index.\n\nTradingView: ``ta.dmi(diLength, adxSmoothing) → [+DI, -DI, ADX]`` using\nchart high/low/close. Legacy 4-arg ``(high, low, close, length)`` still\naccepted (adxSmoothing defaults to diLength).",
+    "documentation": "Directional Movement Index.\n\nReference Pine: ``ta.dmi(diLength, adxSmoothing) → [+DI, -DI, ADX]`` using\nchart high/low/close. Legacy 4-arg ``(high, low, close, length)`` still\naccepted (adxSmoothing defaults to diLength).\n\nPeriod soft-na (corpus residual): ``na`` / unresolved length names →\n``[na, na, na]`` rather than hard-fail (matches ``ta.sma`` / ``_expect_period``).",
     "snippet": "dmi(${1:arg})",
     "category": "builtin"
   },
@@ -1856,9 +2009,9 @@
   "hline": {
     "label": "hline",
     "kind": "function",
-    "detail": "hline(...)",
-    "brief": "",
-    "documentation": "",
+    "detail": "hline(price, title, color, linestyle, linewidth, editable, display)",
+    "brief": "Draw a horizontal price level on the chart",
+    "documentation": "Draw a horizontal price level on the chart.\n\nSignature: hline(price, title, color, linestyle, linewidth, editable, display)",
     "snippet": "hline(${1:arg})",
     "category": "builtin"
   },
@@ -1957,7 +2110,7 @@
     "kind": "function",
     "detail": "input.enum(...)",
     "brief": "input",
-    "documentation": "input.enum(defval, title, options, ...) → selected enum value.",
+    "documentation": "input.enum(defval, title, options?, ...) → selected enum value.\n\nPine signature (v5/v6)::\n\n    input.enum(defval, title, options, tooltip, inline, group, confirm, display, active)\n\n``options`` is optional. When omitted, reference Pine populates the dropdown\nfrom the enum type of ``defval``. Keyword-only calls like\n``input.enum(Easing.linear, title=\"…\", group=\"…\")`` leave a sparse\nkwargs merge hole at the ``options`` slot (``None``), which must not be\ntreated as an iterable.",
     "snippet": "input.enum(${1:param1})",
     "category": "input"
   },
@@ -2002,7 +2155,7 @@
     "kind": "function",
     "detail": "input.source(...)",
     "brief": "input",
-    "documentation": "input.source(...) → series source (string name or series value).",
+    "documentation": "input.source(...) → series source (string name or series value).\n\nHosts (AXIS settings, etc.) need the standard OHLC enum list when no\ncustom options are provided — mirror reference Pine source dropdown:\nopen, high, low, close, hl2, hlc3, ohlc4.\n\nHosts may also pass a full series list (other indicator plot) as the\noverride; it is sampled per ``bar_index``.",
     "snippet": "input.source(${1:param1})",
     "category": "input"
   },
@@ -2065,7 +2218,7 @@
     "kind": "function",
     "detail": "int(...)",
     "brief": "Convert value to integer",
-    "documentation": "Convert value to integer. ``int(na)`` → na (None).",
+    "documentation": "Convert value to integer. ``int(na)`` / non-numeric → na (None).\n\nreference Pine soft-fails non-numeric strings (enum labels, unresolved\nname leaks such as ``\"pyramid_val\"``) to ``na`` rather than aborting\nthe bar. Numeric strings accept a float step so ``int(\"2.01\")`` → 2.",
     "snippet": "int(${1:arg})",
     "category": "builtin"
   },
@@ -2092,7 +2245,7 @@
     "kind": "function",
     "detail": "kama(...)",
     "brief": "Kaufman's Adaptive Moving Average",
-    "documentation": "Kaufman's Adaptive Moving Average.",
+    "documentation": "Kaufman's Adaptive Moving Average.\n\nreference / community form: ``ta.kama(source, length, fastLength=2, slowLength=30)``.\nAccepts 2–4 positional args (fast/slow default to Kaufman's 2/30).",
     "snippet": "kama(${1:arg})",
     "category": "builtin"
   },
@@ -2101,7 +2254,7 @@
     "kind": "function",
     "detail": "kc(...)",
     "brief": "Keltner Channels (returns middle, upper, lower)",
-    "documentation": "Keltner Channels (returns middle, upper, lower).\n\nTV: ``ta.kc(series, length, mult)``; legacy ``(high, low, close, length)``.",
+    "documentation": "Keltner Channels (returns middle, upper, lower).\n\nReference Pine: ``ta.kc(series, length, mult)``; legacy ``(high, low, close, length)``.",
     "snippet": "kc(${1:arg})",
     "category": "builtin"
   },
@@ -2128,7 +2281,7 @@
     "kind": "function",
     "detail": "klinger(...)",
     "brief": "Klinger Oscillator",
-    "documentation": "Klinger Oscillator.\n\nta.klinger(high, low, close, volume, fast_period, slow_period)\nVolume-based momentum oscillator.\nReturns KO series.",
+    "documentation": "Klinger Oscillator.\n\nta.klinger(high, low, close, volume, fast_period, slow_period)\nVolume-based momentum oscillator.\nReturns KO series (full) or last scalar (incremental bar mode).",
     "snippet": "klinger(${1:arg})",
     "category": "builtin"
   },
@@ -2479,7 +2632,7 @@
     "kind": "function",
     "detail": "line.get_price(...)",
     "brief": "line",
-    "documentation": "line.get_price(id, x) — interpolate Y at X between endpoints.",
+    "documentation": "line.get_price(id, x) — interpolate Y at X between endpoints.\n\nreference soft-na: ``na`` line, ``na`` sample *x*, or any na endpoint → ``na``.\nPineSeries / series-wrapper endpoints are coerced to their current\nscalar (bar-mode ``high`` / ``hlc3`` often land unwrapped only later).",
     "snippet": "line.get_price(${1:param1})",
     "category": "line"
   },
@@ -2488,7 +2641,7 @@
     "kind": "function",
     "detail": "line.get_x1(...)",
     "brief": "line",
-    "documentation": "line.get_x1(line)",
+    "documentation": "line.get_x1(line) — soft-na when id/endpoint is na; unwrap series.",
     "snippet": "line.get_x1(${1:param1})",
     "category": "line"
   },
@@ -2497,7 +2650,7 @@
     "kind": "function",
     "detail": "line.get_x2(...)",
     "brief": "line",
-    "documentation": "line.get_x2(line)",
+    "documentation": "line.get_x2(line) — soft-na when id/endpoint is na; unwrap series.",
     "snippet": "line.get_x2(${1:param1})",
     "category": "line"
   },
@@ -2506,7 +2659,7 @@
     "kind": "function",
     "detail": "line.get_y1(...)",
     "brief": "line",
-    "documentation": "line.get_y1(line)",
+    "documentation": "line.get_y1(line) — soft-na when id/endpoint is na; unwrap series.",
     "snippet": "line.get_y1(${1:param1})",
     "category": "line"
   },
@@ -2515,7 +2668,7 @@
     "kind": "function",
     "detail": "line.get_y2(...)",
     "brief": "line",
-    "documentation": "line.get_y2(line)",
+    "documentation": "line.get_y2(line) — soft-na when id/endpoint is na; unwrap series.",
     "snippet": "line.get_y2(${1:param1})",
     "category": "line"
   },
@@ -2713,7 +2866,7 @@
     "kind": "function",
     "detail": "linreg(...)",
     "brief": "Linear Regression value",
-    "documentation": "Linear Regression value.\n\nTV: ``ta.linreg(source, length, offset)`` — offset is optional (default 0).",
+    "documentation": "Linear Regression value.\n\nReference Pine: ``ta.linreg(source, length, offset)`` — offset is optional (default 0).\nLength < 2 is soft-na (reference returns na rather than hard-error for short length).",
     "snippet": "linreg(${1:arg})",
     "category": "builtin"
   },
@@ -2739,8 +2892,8 @@
     "label": "log.error",
     "kind": "function",
     "detail": "log.error(...)",
-    "brief": "Log an error message",
-    "documentation": "Log an error message.\n\nIn PineScript, errors are logged to the console and script execution may halt.\n\nArgs:\n    message: The error message to log",
+    "brief": "Log an error message (printf / format varargs supported)",
+    "documentation": "Log an error message (printf / format varargs supported).",
     "snippet": "log.error(${1:param1})",
     "category": "log"
   },
@@ -2748,8 +2901,8 @@
     "label": "log.info",
     "kind": "function",
     "detail": "log.info(...)",
-    "brief": "Log an info message",
-    "documentation": "Log an info message.\n\nIn PineScript, info messages are logged to the console.\n\nArgs:\n    message: The info message to log",
+    "brief": "Log an info message (printf / format varargs supported)",
+    "documentation": "Log an info message (printf / format varargs supported).",
     "snippet": "log.info(${1:param1})",
     "category": "log"
   },
@@ -2757,8 +2910,8 @@
     "label": "log.warning",
     "kind": "function",
     "detail": "log.warning(...)",
-    "brief": "Log a warning message",
-    "documentation": "Log a warning message.\n\nIn PineScript, warnings are logged to the console.\n\nArgs:\n    message: The warning message to log",
+    "brief": "Log a warning message (printf / format varargs supported)",
+    "documentation": "Log a warning message (printf / format varargs supported).",
     "snippet": "log.warning(${1:param1})",
     "category": "log"
   },
@@ -2794,7 +2947,7 @@
     "kind": "function",
     "detail": "macd(...)",
     "brief": "MACD (Moving Average Convergence Divergence)",
-    "documentation": "MACD (Moving Average Convergence Divergence).\n\nTradingView: ``ta.macd(source, fastlen, slowlen, siglen)`` →\n``[macdLine, signalLine, histLine]``.\n\nAccepts:\n- Full form with series + three lengths (defaults 12/26/9 if omitted).\n- Series may be a list, PineSeries, or scalar wrapper (bar-mode input).\n- Extra / unknown kwargs are ignored by the call site (ta.* path).",
+    "documentation": "MACD (Moving Average Convergence Divergence).\n\nReference Pine: ``ta.macd(source, fastlen, slowlen, siglen)`` →\n``[macdLine, signalLine, histLine]``.\n\nAccepts:\n- Full form with series + three lengths (defaults 12/26/9 if omitted).\n- Series may be a list, PineSeries, or scalar wrapper (bar-mode input).\n- Extra / unknown kwargs are ignored by the call site (ta.* path).",
     "snippet": "macd(${1:arg})",
     "category": "builtin"
   },
@@ -2812,7 +2965,7 @@
     "kind": "function",
     "detail": "map.clear(...)",
     "brief": "map",
-    "documentation": "map.clear(map) -> void\n\nRemoves all entries from map.",
+    "documentation": "map.clear(map) -> void\n\nRemoves all entries from map. ``na`` map → no-op.",
     "snippet": "map.clear(${1:param1})",
     "category": "map"
   },
@@ -2821,7 +2974,7 @@
     "kind": "function",
     "detail": "map.contains(...)",
     "brief": "map",
-    "documentation": "map.contains(map, key) -> bool\n\nReturns true if key exists in map.",
+    "documentation": "map.contains(map, key) -> bool; ``na`` map → ``na``.",
     "snippet": "map.contains(${1:param1})",
     "category": "map"
   },
@@ -2830,7 +2983,7 @@
     "kind": "function",
     "detail": "map.copy(...)",
     "brief": "map",
-    "documentation": "map.copy(map) -> Map\n\nCreates shallow copy of map.",
+    "documentation": "map.copy(map) -> Map; ``na`` map → ``na``.",
     "snippet": "map.copy(${1:param1})",
     "category": "map"
   },
@@ -2839,7 +2992,7 @@
     "kind": "function",
     "detail": "map.get(...)",
     "brief": "map",
-    "documentation": "map.get(map, key) -> value\n\nReturns value for key, or None if not found.",
+    "documentation": "map.get(map, key) -> value\n\nReturns value for key, or None if not found. ``na`` map → ``na``.",
     "snippet": "map.get(${1:param1})",
     "category": "map"
   },
@@ -2848,7 +3001,7 @@
     "kind": "function",
     "detail": "map.keys(...)",
     "brief": "map",
-    "documentation": "map.keys(map) -> array\n\nReturns array of all keys in map.",
+    "documentation": "map.keys(map) -> array; ``na`` map → ``na``.",
     "snippet": "map.keys(${1:param1})",
     "category": "map"
   },
@@ -2866,7 +3019,7 @@
     "kind": "function",
     "detail": "map.put(...)",
     "brief": "map",
-    "documentation": "map.put(map, key, value) -> void\n\nInserts or updates key-value pair.",
+    "documentation": "map.put(map, key, value) -> void\n\nInserts or updates key-value pair. ``na`` map → no-op.",
     "snippet": "map.put(${1:param1})",
     "category": "map"
   },
@@ -2875,7 +3028,7 @@
     "kind": "function",
     "detail": "map.put_all(...)",
     "brief": "map",
-    "documentation": "map.put_all(map, other_map) -> void\n\nInserts all key-value pairs from another map.",
+    "documentation": "map.put_all(map, other_map) -> void\n\nInserts all key-value pairs from another map. ``na`` either → no-op.",
     "snippet": "map.put_all(${1:param1})",
     "category": "map"
   },
@@ -2884,7 +3037,7 @@
     "kind": "function",
     "detail": "map.remove(...)",
     "brief": "map",
-    "documentation": "map.remove(map, key) -> void\n\nRemoves key from map (no error if not found).",
+    "documentation": "map.remove(map, key) -> previous value or na\n\nRemoves key and returns the prior value (reference). Missing key / na map → na.",
     "snippet": "map.remove(${1:param1})",
     "category": "map"
   },
@@ -2893,7 +3046,7 @@
     "kind": "function",
     "detail": "map.size(...)",
     "brief": "map",
-    "documentation": "map.size(map) -> int\n\nReturns number of key-value pairs in map.",
+    "documentation": "map.size(map) -> int; ``na`` map → ``na`` (reference soft-na).",
     "snippet": "map.size(${1:param1})",
     "category": "map"
   },
@@ -2902,7 +3055,7 @@
     "kind": "function",
     "detail": "map.values(...)",
     "brief": "map",
-    "documentation": "map.values(map) -> array\n\nReturns array of all values in map.",
+    "documentation": "map.values(map) -> array; ``na`` map → ``na``.",
     "snippet": "map.values(${1:param1})",
     "category": "map"
   },
@@ -2973,8 +3126,8 @@
     "label": "math.avg",
     "kind": "function",
     "detail": "math.avg(...)",
-    "brief": "Average of array, or of multiple scalar/series args (TV ``math",
-    "documentation": "Average of array, or of multiple scalar/series args (TV ``math.avg(a,b,...)``).",
+    "brief": "Average of array, or of multiple scalar/series args (reference ``math",
+    "documentation": "Average of array, or of multiple scalar/series args (reference ``math.avg(a,b,...)``).",
     "snippet": "math.avg(${1:param1})",
     "category": "math"
   },
@@ -3012,6 +3165,15 @@
     "brief": "",
     "documentation": "",
     "snippet": "math.floor(${1:param1})",
+    "category": "math"
+  },
+  "math.isfinite": {
+    "label": "math.isfinite",
+    "kind": "function",
+    "detail": "math.isfinite(...)",
+    "brief": "``math",
+    "documentation": "``math.isfinite(x)`` — True when *x* is finite; ``na`` → ``na``.",
+    "snippet": "math.isfinite(${1:param1})",
     "category": "math"
   },
   "math.log": {
@@ -3064,7 +3226,7 @@
     "kind": "function",
     "detail": "math.random(...)",
     "brief": "Uniform random",
-    "documentation": "Uniform random.\n\nForms:\n- ``math.random()`` → [0, 1)\n- ``math.random(min, max)`` → [min, max] (TV docs; both inclusive floats)",
+    "documentation": "Uniform random.\n\nForms:\n- ``math.random()`` → [0, 1)\n- ``math.random(min, max)`` → [min, max] (reference docs; both inclusive floats)",
     "snippet": "math.random(${1:param1})",
     "category": "math"
   },
@@ -3118,7 +3280,7 @@
     "kind": "function",
     "detail": "math.sum(...)",
     "brief": "Sum of array, or rolling sum ``math",
-    "documentation": "Sum of array, or rolling sum ``math.sum(source, length)`` (TV).",
+    "documentation": "Sum of array, or rolling sum ``math.sum(source, length)`` (reference).",
     "snippet": "math.sum(${1:param1})",
     "category": "math"
   },
@@ -3154,7 +3316,7 @@
     "kind": "function",
     "detail": "matrix.add_col(...)",
     "brief": "matrix",
-    "documentation": "matrix.add_col(matrix, col_data) -> void",
+    "documentation": "matrix.add_col(id) | matrix.add_col(id, array) | matrix.add_col(id, column, array).",
     "snippet": "matrix.add_col(${1:param1})",
     "category": "matrix"
   },
@@ -3163,7 +3325,7 @@
     "kind": "function",
     "detail": "matrix.add_row(...)",
     "brief": "matrix",
-    "documentation": "matrix.add_row(id) | matrix.add_row(id, array) | matrix.add_row(id, row, array).\n\nTV: omitting the array appends a row of ``na`` (None) values. Instance\nform ``m.add_row()`` is common in scripts such as seasonality.",
+    "documentation": "matrix.add_row(id) | matrix.add_row(id, array) | matrix.add_row(id, row, array).\n\nReference Pine: omitting the array appends a row of ``na`` (None) values. Instance\nform ``m.add_row()`` is common in scripts such as seasonality.\nThree-arg form inserts at *row* index (not always append).",
     "snippet": "matrix.add_row(${1:param1})",
     "category": "matrix"
   },
@@ -3217,7 +3379,7 @@
     "kind": "function",
     "detail": "matrix.columns(...)",
     "brief": "matrix",
-    "documentation": "matrix.columns(matrix) -> int",
+    "documentation": "matrix.columns(matrix) -> int; ``na`` → ``na``.",
     "snippet": "matrix.columns(${1:param1})",
     "category": "matrix"
   },
@@ -3298,7 +3460,7 @@
     "kind": "function",
     "detail": "matrix.elements_count(...)",
     "brief": "matrix",
-    "documentation": "matrix.elements_count(matrix) -> int",
+    "documentation": "matrix.elements_count(matrix) -> int; ``na`` → ``na``.",
     "snippet": "matrix.elements_count(${1:param1})",
     "category": "matrix"
   },
@@ -3307,7 +3469,7 @@
     "kind": "function",
     "detail": "matrix.fill(...)",
     "brief": "matrix",
-    "documentation": "matrix.fill(matrix, value) -> void",
+    "documentation": "matrix.fill(id, value[, from_row, to_row, from_column, to_column]) -> void.\n\nreference region form uses half-open ``[from_row, to_row)`` × ``[from_col, to_col)``.\n``na`` matrix → no-op; ``na`` region bound → full extent for that edge.",
     "snippet": "matrix.fill(${1:param1})",
     "category": "matrix"
   },
@@ -3343,7 +3505,7 @@
     "kind": "function",
     "detail": "matrix.get(...)",
     "brief": "matrix",
-    "documentation": "matrix.get(matrix, row, col) -> value",
+    "documentation": "matrix.get(matrix, row, col) -> value\n\n``na`` matrix / row / col → ``na``. Hard OOB still errors (real bounds).\nWrong non-na type still hard-errors.",
     "snippet": "matrix.get(${1:param1})",
     "category": "matrix"
   },
@@ -3586,7 +3748,7 @@
     "kind": "function",
     "detail": "matrix.new(...)",
     "brief": "matrix",
-    "documentation": "matrix.new(rows, cols, default_value) -> Matrix",
+    "documentation": "matrix.new() | matrix.new(rows, cols, default_value?) -> Matrix.\n\nZero-arg form creates an empty 0×0 matrix (reference ``matrix.new<T>()``).\nSoft: ``na`` rows/cols → empty 0×0 (unresolved size inputs).",
     "snippet": "matrix.new(${1:param1})",
     "category": "matrix"
   },
@@ -3685,7 +3847,7 @@
     "kind": "function",
     "detail": "matrix.rows(...)",
     "brief": "matrix",
-    "documentation": "matrix.rows(matrix) -> int",
+    "documentation": "matrix.rows(matrix) -> int; ``na`` → ``na``.",
     "snippet": "matrix.rows(${1:param1})",
     "category": "matrix"
   },
@@ -3694,7 +3856,7 @@
     "kind": "function",
     "detail": "matrix.set(...)",
     "brief": "matrix",
-    "documentation": "matrix.set(matrix, row, col, value) -> void",
+    "documentation": "matrix.set(matrix, row, col, value) -> void\n\n``na`` matrix / row / col → no-op. Hard OOB still errors.",
     "snippet": "matrix.set(${1:param1})",
     "category": "matrix"
   },
@@ -3702,8 +3864,8 @@
     "label": "matrix.sort",
     "kind": "function",
     "detail": "matrix.sort(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "matrix",
+    "documentation": "matrix.sort(id, column?, order?, sort_field?) — UDT sort_field supported.",
     "snippet": "matrix.sort(${1:param1})",
     "category": "matrix"
   },
@@ -3711,8 +3873,8 @@
     "label": "matrix.sort_indices",
     "kind": "function",
     "detail": "matrix.sort_indices(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "matrix",
+    "documentation": "matrix.sort_indices(id, column?, order?, sort_field?) — UDT sort_field supported.",
     "snippet": "matrix.sort_indices(${1:param1})",
     "category": "matrix"
   },
@@ -3973,7 +4135,7 @@
     "kind": "function",
     "detail": "nz(...)",
     "brief": "Replace None with default value (0 if not specified)",
-    "documentation": "Replace None with default value (0 if not specified).",
+    "documentation": "Replace None with default value (0 if not specified).\n\nUnwraps series wrappers so ``nz(close)`` / ``nz(series_param)`` yield the\ncurrent scalar (bar-mode). Returning a live ``PineSeries`` would make\n``float x = nz(close)`` alias the host series and break array rings.",
     "snippet": "nz(${1:arg})",
     "category": "builtin"
   },
@@ -3984,6 +4146,15 @@
     "brief": "On-Balance Volume",
     "documentation": "On-Balance Volume.\n\nForms:\n- ``ta.obv`` / ``ta.obv()`` — chart close + volume\n- ``ta.obv(close, volume)`` — explicit series",
     "snippet": "obv(${1:arg})",
+    "category": "builtin"
+  },
+  "offset": {
+    "label": "offset",
+    "kind": "function",
+    "detail": "offset(...)",
+    "brief": "``offset(source, length)`` — series lookback, equivalent to ``source[length]``",
+    "documentation": "``offset(source, length)`` — series lookback, equivalent to ``source[length]``.\n\nUsed by community scripts (esp. Ichimoku) as a bare helper. Pine has no\nofficial global ``offset()``; plot ``offset=`` is display-only. When the\nsource is a :class:`PineSeries` (or list), return the value *length* bars\nago; scalars with no history return themselves for ``length==0`` and\n``na`` otherwise.",
+    "snippet": "offset(${1:arg})",
     "category": "builtin"
   },
   "optimal_entry_zone": {
@@ -4045,7 +4216,7 @@
     "kind": "function",
     "detail": "pivot_point_levels(...)",
     "brief": "Calculate pivot point levels",
-    "documentation": "Calculate pivot point levels.\n\nTV: ``ta.pivot_point_levels(type, anchor, developing?)`` → array of floats\nusing chart high/low/close. Legacy: ``(high, low, close, is_traditional)``.",
+    "documentation": "Calculate pivot point levels.\n\nReference Pine: ``ta.pivot_point_levels(type, anchor, developing?)`` → array of floats\nusing chart high/low/close. Legacy: ``(high, low, close, is_traditional)``.",
     "snippet": "pivot_point_levels(${1:arg})",
     "category": "builtin"
   },
@@ -4054,7 +4225,7 @@
     "kind": "function",
     "detail": "pivothigh(...)",
     "brief": "Find the highest point (pivot high) in a window",
-    "documentation": "Find the highest point (pivot high) in a window.\n\nTV: ``ta.pivothigh(leftbars, rightbars)`` (source=high) or\n``ta.pivothigh(source, leftbars, rightbars)``.",
+    "documentation": "Find the highest point (pivot high) in a window.\n\nReference Pine: ``ta.pivothigh(leftbars, rightbars)`` (source=high) or\n``ta.pivothigh(source, leftbars, rightbars)``.\n\nSource may be a list (``current_series``), a ``PineSeries`` from the\nruntime host, or a bare scalar; always materialize before float().",
     "snippet": "pivothigh(${1:arg})",
     "category": "builtin"
   },
@@ -4063,16 +4234,16 @@
     "kind": "function",
     "detail": "pivotlow(...)",
     "brief": "Find the lowest point (pivot low) in a window",
-    "documentation": "Find the lowest point (pivot low) in a window.\n\nTV: ``ta.pivotlow(leftbars, rightbars)`` (source=low) or\n``ta.pivotlow(source, leftbars, rightbars)``.",
+    "documentation": "Find the lowest point (pivot low) in a window.\n\nReference Pine: ``ta.pivotlow(leftbars, rightbars)`` (source=low) or\n``ta.pivotlow(source, leftbars, rightbars)``.\n\nSource may be a list, ``PineSeries``, or scalar — see pivothigh.",
     "snippet": "pivotlow(${1:arg})",
     "category": "builtin"
   },
   "plot": {
     "label": "plot",
     "kind": "function",
-    "detail": "plot(...)",
+    "detail": "plot(series, title, color, linewidth, style, trackprice, histbase, offset, join, editable, show_last, display)",
     "brief": "plot(series, title, color, …) → plot id (Plot object)",
-    "documentation": "plot(series, title, color, …) → plot id (Plot object).",
+    "documentation": "plot(series, title, color, …) → plot id (Plot object).\n\nSignature: plot(series, title, color, linewidth, style,\n    trackprice, histbase, offset, join, editable, show_last, display)",
     "snippet": "plot(${1:arg})",
     "category": "builtin"
   },
@@ -4101,6 +4272,105 @@
     "brief": "",
     "documentation": "",
     "snippet": "plot.linestyle_solid(${1:param1})",
+    "category": "plot"
+  },
+  "plot.style_area": {
+    "label": "plot.style_area",
+    "kind": "function",
+    "detail": "plot.style_area(...)",
+    "brief": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string obje...",
+    "documentation": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string object from the given object. If encoding or\nerrors is specified, then the object must expose a data buffer\nthat will be decoded using the given encoding and error handler.\nOtherwise, returns the result of object.__str__() (if defined)\nor repr(object).\nencoding defaults to 'utf-8'.\nerrors defaults to 'strict'.",
+    "snippet": "plot.style_area(${1:param1})",
+    "category": "plot"
+  },
+  "plot.style_areabr": {
+    "label": "plot.style_areabr",
+    "kind": "function",
+    "detail": "plot.style_areabr(...)",
+    "brief": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string obje...",
+    "documentation": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string object from the given object. If encoding or\nerrors is specified, then the object must expose a data buffer\nthat will be decoded using the given encoding and error handler.\nOtherwise, returns the result of object.__str__() (if defined)\nor repr(object).\nencoding defaults to 'utf-8'.\nerrors defaults to 'strict'.",
+    "snippet": "plot.style_areabr(${1:param1})",
+    "category": "plot"
+  },
+  "plot.style_circles": {
+    "label": "plot.style_circles",
+    "kind": "function",
+    "detail": "plot.style_circles(...)",
+    "brief": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string obje...",
+    "documentation": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string object from the given object. If encoding or\nerrors is specified, then the object must expose a data buffer\nthat will be decoded using the given encoding and error handler.\nOtherwise, returns the result of object.__str__() (if defined)\nor repr(object).\nencoding defaults to 'utf-8'.\nerrors defaults to 'strict'.",
+    "snippet": "plot.style_circles(${1:param1})",
+    "category": "plot"
+  },
+  "plot.style_columns": {
+    "label": "plot.style_columns",
+    "kind": "function",
+    "detail": "plot.style_columns(...)",
+    "brief": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string obje...",
+    "documentation": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string object from the given object. If encoding or\nerrors is specified, then the object must expose a data buffer\nthat will be decoded using the given encoding and error handler.\nOtherwise, returns the result of object.__str__() (if defined)\nor repr(object).\nencoding defaults to 'utf-8'.\nerrors defaults to 'strict'.",
+    "snippet": "plot.style_columns(${1:param1})",
+    "category": "plot"
+  },
+  "plot.style_cross": {
+    "label": "plot.style_cross",
+    "kind": "function",
+    "detail": "plot.style_cross(...)",
+    "brief": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string obje...",
+    "documentation": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string object from the given object. If encoding or\nerrors is specified, then the object must expose a data buffer\nthat will be decoded using the given encoding and error handler.\nOtherwise, returns the result of object.__str__() (if defined)\nor repr(object).\nencoding defaults to 'utf-8'.\nerrors defaults to 'strict'.",
+    "snippet": "plot.style_cross(${1:param1})",
+    "category": "plot"
+  },
+  "plot.style_histogram": {
+    "label": "plot.style_histogram",
+    "kind": "function",
+    "detail": "plot.style_histogram(...)",
+    "brief": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string obje...",
+    "documentation": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string object from the given object. If encoding or\nerrors is specified, then the object must expose a data buffer\nthat will be decoded using the given encoding and error handler.\nOtherwise, returns the result of object.__str__() (if defined)\nor repr(object).\nencoding defaults to 'utf-8'.\nerrors defaults to 'strict'.",
+    "snippet": "plot.style_histogram(${1:param1})",
+    "category": "plot"
+  },
+  "plot.style_line": {
+    "label": "plot.style_line",
+    "kind": "function",
+    "detail": "plot.style_line(...)",
+    "brief": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string obje...",
+    "documentation": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string object from the given object. If encoding or\nerrors is specified, then the object must expose a data buffer\nthat will be decoded using the given encoding and error handler.\nOtherwise, returns the result of object.__str__() (if defined)\nor repr(object).\nencoding defaults to 'utf-8'.\nerrors defaults to 'strict'.",
+    "snippet": "plot.style_line(${1:param1})",
+    "category": "plot"
+  },
+  "plot.style_linebr": {
+    "label": "plot.style_linebr",
+    "kind": "function",
+    "detail": "plot.style_linebr(...)",
+    "brief": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string obje...",
+    "documentation": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string object from the given object. If encoding or\nerrors is specified, then the object must expose a data buffer\nthat will be decoded using the given encoding and error handler.\nOtherwise, returns the result of object.__str__() (if defined)\nor repr(object).\nencoding defaults to 'utf-8'.\nerrors defaults to 'strict'.",
+    "snippet": "plot.style_linebr(${1:param1})",
+    "category": "plot"
+  },
+  "plot.style_stepline": {
+    "label": "plot.style_stepline",
+    "kind": "function",
+    "detail": "plot.style_stepline(...)",
+    "brief": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string obje...",
+    "documentation": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string object from the given object. If encoding or\nerrors is specified, then the object must expose a data buffer\nthat will be decoded using the given encoding and error handler.\nOtherwise, returns the result of object.__str__() (if defined)\nor repr(object).\nencoding defaults to 'utf-8'.\nerrors defaults to 'strict'.",
+    "snippet": "plot.style_stepline(${1:param1})",
+    "category": "plot"
+  },
+  "plot.style_stepline_diamond": {
+    "label": "plot.style_stepline_diamond",
+    "kind": "function",
+    "detail": "plot.style_stepline_diamond(...)",
+    "brief": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string obje...",
+    "documentation": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string object from the given object. If encoding or\nerrors is specified, then the object must expose a data buffer\nthat will be decoded using the given encoding and error handler.\nOtherwise, returns the result of object.__str__() (if defined)\nor repr(object).\nencoding defaults to 'utf-8'.\nerrors defaults to 'strict'.",
+    "snippet": "plot.style_stepline_diamond(${1:param1})",
+    "category": "plot"
+  },
+  "plot.style_steplinebr": {
+    "label": "plot.style_steplinebr",
+    "kind": "function",
+    "detail": "plot.style_steplinebr(...)",
+    "brief": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string obje...",
+    "documentation": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string object from the given object. If encoding or\nerrors is specified, then the object must expose a data buffer\nthat will be decoded using the given encoding and error handler.\nOtherwise, returns the result of object.__str__() (if defined)\nor repr(object).\nencoding defaults to 'utf-8'.\nerrors defaults to 'strict'.",
+    "snippet": "plot.style_steplinebr(${1:param1})",
     "category": "plot"
   },
   "plotarrow": {
@@ -4133,18 +4403,18 @@
   "plotchar": {
     "label": "plotchar",
     "kind": "function",
-    "detail": "plotchar(...)",
-    "brief": "",
-    "documentation": "",
+    "detail": "plotchar(series, title, char, location, color, offset, text, text_size, editable, show_last, display)",
+    "brief": "Plot a character at the specified location on the chart",
+    "documentation": "Plot a character at the specified location on the chart.\n\nSignature: plotchar(series, title, char, location, color, offset, text, text_size, editable, show_last, display)",
     "snippet": "plotchar(${1:arg})",
     "category": "builtin"
   },
   "plotshape": {
     "label": "plotshape",
     "kind": "function",
-    "detail": "plotshape(...)",
-    "brief": "",
-    "documentation": "",
+    "detail": "plotshape(series, title, style, location, color, offset, text, text_size, editable, show_last, display)",
+    "brief": "Plot shapes on the chart at the specified location",
+    "documentation": "Plot shapes on the chart at the specified location.\n\nSignature: plotshape(series, title, style, location, color,\n    offset, text, text_size, editable, show_last, display)",
     "snippet": "plotshape(${1:arg})",
     "category": "builtin"
   },
@@ -4153,7 +4423,7 @@
     "kind": "function",
     "detail": "pointfigure(...)",
     "brief": "Create a Point and Figure chart ticker from a symbol",
-    "documentation": "Create a Point and Figure chart ticker from a symbol.\n\nApplies Point and Figure charting transformation. v6: style e.g. \"PercentageLTP\"\n\nArgs:\n    ticker_str: The base ticker symbol\n    boxsize: The box size for point and figure charting\n    style: optional style\n\nReturns:\n    TickerInfo with Point and Figure transformation applied",
+    "documentation": "Create a Point and Figure chart ticker from a symbol.\n\nreference Pine forms:\n\n- ``ticker.pointfigure(symbol, boxsize)`` / ``(..., boxsize, style)``\n  (legacy short form)\n- ``ticker.pointfigure(symbol, source, style, param, reversal)``\n  e.g. ``ticker.pointfigure(syminfo.tickerid, \"hl\", \"Traditional\", 1, 3)``\n  or ``(..., \"hl\", \"ATR\", 14, 3)``\n\nExtra positional args are ignored so corpus arity does not TypeError.",
     "snippet": "pointfigure(${1:arg})",
     "category": "builtin"
   },
@@ -4166,6 +4436,15 @@
     "snippet": "polyline.all(${1:param1})",
     "category": "polyline"
   },
+  "polyline.copy": {
+    "label": "polyline.copy",
+    "kind": "function",
+    "detail": "polyline.copy(...)",
+    "brief": "polyline",
+    "documentation": "polyline.copy(id) → new polyline with copied fields.",
+    "snippet": "polyline.copy(${1:param1})",
+    "category": "polyline"
+  },
   "polyline.delete": {
     "label": "polyline.delete",
     "kind": "function",
@@ -4175,6 +4454,15 @@
     "snippet": "polyline.delete(${1:param1})",
     "category": "polyline"
   },
+  "polyline.get_points": {
+    "label": "polyline.get_points",
+    "kind": "function",
+    "detail": "polyline.get_points(...)",
+    "brief": "polyline",
+    "documentation": "polyline.get_points(id) → array of chart.point.",
+    "snippet": "polyline.get_points(${1:param1})",
+    "category": "polyline"
+  },
   "polyline.new": {
     "label": "polyline.new",
     "kind": "function",
@@ -4182,6 +4470,87 @@
     "brief": "polyline",
     "documentation": "polyline.new(points, closed=..., xloc=..., color=..., width=..., style=...).",
     "snippet": "polyline.new(${1:param1})",
+    "category": "polyline"
+  },
+  "polyline.set_closed": {
+    "label": "polyline.set_closed",
+    "kind": "function",
+    "detail": "polyline.set_closed(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "polyline.set_closed(${1:param1})",
+    "category": "polyline"
+  },
+  "polyline.set_curved": {
+    "label": "polyline.set_curved",
+    "kind": "function",
+    "detail": "polyline.set_curved(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "polyline.set_curved(${1:param1})",
+    "category": "polyline"
+  },
+  "polyline.set_fill_color": {
+    "label": "polyline.set_fill_color",
+    "kind": "function",
+    "detail": "polyline.set_fill_color(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "polyline.set_fill_color(${1:param1})",
+    "category": "polyline"
+  },
+  "polyline.set_force_overlay": {
+    "label": "polyline.set_force_overlay",
+    "kind": "function",
+    "detail": "polyline.set_force_overlay(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "polyline.set_force_overlay(${1:param1})",
+    "category": "polyline"
+  },
+  "polyline.set_line_color": {
+    "label": "polyline.set_line_color",
+    "kind": "function",
+    "detail": "polyline.set_line_color(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "polyline.set_line_color(${1:param1})",
+    "category": "polyline"
+  },
+  "polyline.set_line_style": {
+    "label": "polyline.set_line_style",
+    "kind": "function",
+    "detail": "polyline.set_line_style(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "polyline.set_line_style(${1:param1})",
+    "category": "polyline"
+  },
+  "polyline.set_line_width": {
+    "label": "polyline.set_line_width",
+    "kind": "function",
+    "detail": "polyline.set_line_width(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "polyline.set_line_width(${1:param1})",
+    "category": "polyline"
+  },
+  "polyline.set_points": {
+    "label": "polyline.set_points",
+    "kind": "function",
+    "detail": "polyline.set_points(...)",
+    "brief": "polyline",
+    "documentation": "polyline.set_points(id, points).",
+    "snippet": "polyline.set_points(${1:param1})",
+    "category": "polyline"
+  },
+  "polyline.set_xloc": {
+    "label": "polyline.set_xloc",
+    "kind": "function",
+    "detail": "polyline.set_xloc(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "polyline.set_xloc(${1:param1})",
     "category": "polyline"
   },
   "position_sizing": {
@@ -4247,6 +4616,15 @@
     "snippet": "pvi(${1:arg})",
     "category": "builtin"
   },
+  "pvt": {
+    "label": "pvt",
+    "kind": "function",
+    "detail": "pvt(...)",
+    "brief": "Volume Price Trend / Price Volume Trend",
+    "documentation": "Volume Price Trend / Price Volume Trend.\n\nForms:\n- ``ta.vpt`` / ``ta.pvt`` / ``ta.vpt()`` — chart close + volume\n- ``ta.vpt(series)`` — unused series arg for API compatibility (chart OHLCV used)",
+    "snippet": "pvt(${1:arg})",
+    "category": "builtin"
+  },
   "r_squared": {
     "label": "r_squared",
     "kind": "function",
@@ -4256,12 +4634,21 @@
     "snippet": "r_squared(${1:arg})",
     "category": "builtin"
   },
+  "random": {
+    "label": "random",
+    "kind": "function",
+    "detail": "random(...)",
+    "brief": "Uniform random",
+    "documentation": "Uniform random.\n\nForms:\n- ``math.random()`` → [0, 1)\n- ``math.random(min, max)`` → [min, max] (reference docs; both inclusive floats)",
+    "snippet": "random(${1:arg})",
+    "category": "builtin"
+  },
   "rci": {
     "label": "rci",
     "kind": "function",
     "detail": "rci(...)",
-    "brief": "Rank Correlation Index (Spearman's correlation)",
-    "documentation": "Rank Correlation Index (Spearman's correlation).",
+    "brief": "Rank Correlation Index (Spearman rho of time vs value ranks)",
+    "documentation": "Rank Correlation Index (Spearman rho of time vs value ranks).",
     "snippet": "rci(${1:arg})",
     "category": "builtin"
   },
@@ -4351,7 +4738,7 @@
     "kind": "function",
     "detail": "request.security(...)",
     "brief": "request",
-    "documentation": "request.security(symbol, timeframe, expression, gaps, lookahead)\n\nRequest data from another symbol or timeframe.\n\nv6+: Supports real data via context['data_provider'] (historical)\nor context['data_feed'] (CCXTProDataFeed for live/latest data).\n\nFalls back to mock data if no real provider/feed is configured.",
+    "documentation": "request.security(symbol, timeframe, expression, gaps, lookahead)\n\nRequest data from another symbol or timeframe.\n\nv6+: Supports real data via context['data_provider'] (historical)\nor context['data_feed'] (CCXTProDataFeed for live/latest data).\n\nPolicy (parity with compile foreign-na / same-symbol simple OHLCV):\n\n- **Foreign** without a multi-symbol feed hit → ``na`` (never invent chart\n  series or legacy mock OHLCV as foreign fundamentals when a host chart\n  identity is wired). Standalone unit eval without chart identity may\n  still use legacy mock prices for bare string series names.\n- **Same-symbol + simple OHLCV** on a **coarser** TF with bar times →\n  timestamp resample of chart OHLCV (``htf_ohlcv_resample``): last\n  completed HTF bar only (lookahead_off-style; gaps/lookahead unused).\n- **Same-symbol + allowlisted simple ta.*** (``ta.sma/ema/rsi/atr/wma/rma`` with\n  bare OHLCV source + const length) on a **coarser** TF → run the\n  interpret TA helper on resampled HTF bars (``htf_simple_ta_resample``).\n- **Same-symbol + simple OHLCV** otherwise → chart passthrough /\n  provider series (``chart_passthrough_htf_stub`` / same-TF eval).\n- **Same-symbol Heikin-Ashi** (``ticker.heikinashi``) → transform chart\n  OHLCV to HA (do not return raw chart candles or all-``na``).\n- **Same-symbol + complex pre-eval** (UDF / nested / multi-arg ta) on a\n  **different** TF → ``na`` without full multi-TF re-eval.\n- **Same-symbol + same TF** pre-eval → chart eval is correct; allow.\n- **gaps / lookahead** (``barmerge.*``) are accepted for API shape but\n  **unused** (no gap-fill series, no lookahead offset). Recorded in\n  policy metadata rather than silently affecting values.",
     "snippet": "request.security(${1:param1})",
     "category": "request"
   },
@@ -4436,6 +4823,15 @@
     "snippet": "round(${1:arg})",
     "category": "builtin"
   },
+  "round_to_mintick": {
+    "label": "round_to_mintick",
+    "kind": "function",
+    "detail": "round_to_mintick(...)",
+    "brief": "Round value to the nearest tick (minimum price increment)",
+    "documentation": "Round value to the nearest tick (minimum price increment).",
+    "snippet": "round_to_mintick(${1:arg})",
+    "category": "builtin"
+  },
   "rsi": {
     "label": "rsi",
     "kind": "function",
@@ -4477,7 +4873,7 @@
     "kind": "function",
     "detail": "sar(...)",
     "brief": "Parabolic SAR",
-    "documentation": "Parabolic SAR. TV: ``ta.sar(start, inc, max)`` using high/low context.",
+    "documentation": "Parabolic SAR. reference Pine: ``ta.sar(start, inc, max)`` using high/low context.",
     "snippet": "sar(${1:arg})",
     "category": "builtin"
   },
@@ -4495,7 +4891,7 @@
     "kind": "function",
     "detail": "security(...)",
     "brief": "request",
-    "documentation": "request.security(symbol, timeframe, expression, gaps, lookahead)\n\nRequest data from another symbol or timeframe.\n\nv6+: Supports real data via context['data_provider'] (historical)\nor context['data_feed'] (CCXTProDataFeed for live/latest data).\n\nFalls back to mock data if no real provider/feed is configured.",
+    "documentation": "request.security(symbol, timeframe, expression, gaps, lookahead)\n\nRequest data from another symbol or timeframe.\n\nv6+: Supports real data via context['data_provider'] (historical)\nor context['data_feed'] (CCXTProDataFeed for live/latest data).\n\nPolicy (parity with compile foreign-na / same-symbol simple OHLCV):\n\n- **Foreign** without a multi-symbol feed hit → ``na`` (never invent chart\n  series or legacy mock OHLCV as foreign fundamentals when a host chart\n  identity is wired). Standalone unit eval without chart identity may\n  still use legacy mock prices for bare string series names.\n- **Same-symbol + simple OHLCV** on a **coarser** TF with bar times →\n  timestamp resample of chart OHLCV (``htf_ohlcv_resample``): last\n  completed HTF bar only (lookahead_off-style; gaps/lookahead unused).\n- **Same-symbol + allowlisted simple ta.*** (``ta.sma/ema/rsi/atr/wma/rma`` with\n  bare OHLCV source + const length) on a **coarser** TF → run the\n  interpret TA helper on resampled HTF bars (``htf_simple_ta_resample``).\n- **Same-symbol + simple OHLCV** otherwise → chart passthrough /\n  provider series (``chart_passthrough_htf_stub`` / same-TF eval).\n- **Same-symbol Heikin-Ashi** (``ticker.heikinashi``) → transform chart\n  OHLCV to HA (do not return raw chart candles or all-``na``).\n- **Same-symbol + complex pre-eval** (UDF / nested / multi-arg ta) on a\n  **different** TF → ``na`` without full multi-TF re-eval.\n- **Same-symbol + same TF** pre-eval → chart eval is correct; allow.\n- **gaps / lookahead** (``barmerge.*``) are accepted for API shape but\n  **unused** (no gap-fill series, no lookahead offset). Recorded in\n  policy metadata rather than silently affecting values.",
     "snippet": "security(${1:arg})",
     "category": "builtin"
   },
@@ -4629,8 +5025,8 @@
     "label": "str.contains",
     "kind": "function",
     "detail": "str.contains(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "Reference Pine: ``str",
+    "documentation": "Reference Pine: ``str.contains(source, str)`` → bool; either arg ``na`` → ``na``.\n\nSoft-coerces non-strings (numbers / series scalars) via ``str(...)`` so\ncorpus residual paths that leak non-string types do not hard-fail.",
     "snippet": "str.contains(${1:param1})",
     "category": "str"
   },
@@ -4638,8 +5034,8 @@
     "label": "str.endswith",
     "kind": "function",
     "detail": "str.endswith(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "Reference Pine: ``str",
+    "documentation": "Reference Pine: ``str.endswith(source, str)`` → bool; either arg ``na`` → ``na``.",
     "snippet": "str.endswith(${1:param1})",
     "category": "str"
   },
@@ -4648,7 +5044,7 @@
     "kind": "function",
     "detail": "str.format(...)",
     "brief": "Pine ``str",
-    "documentation": "Pine ``str.format(fmt, ...)`` — Java MessageFormat-ish placeholders.\n\nSupports ``{0}``, ``{1,number}``, ``{0,number,#.####}``. Falls back to\na best-effort string when the placeholder is unknown (Console.show uses\n``{0,number,#####}`` for bar indices).",
+    "documentation": "Pine ``str.format(fmt, ...)`` — Java MessageFormat-ish placeholders.\n\nSupports ``{0}``, ``{1,number}``, ``{0,number,#.####}``. Falls back to\na best-effort string when the placeholder is unknown (Console.show uses\n``{0,number,#####}`` for bar indices).\n\nArity edges:\n- 0 args → error\n- 1 arg (format only, or corpus-sanitize ``str.format(na)``) → format\n  with empty placeholders / ``\"NaN\"`` when the sole arg is ``na``\n- 2+ args → normal MessageFormat path",
     "snippet": "str.format(${1:param1})",
     "category": "str"
   },
@@ -4656,8 +5052,8 @@
     "label": "str.format_time",
     "kind": "function",
     "detail": "str.format_time(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "``str",
+    "documentation": "``str.format_time(time[, format[, timezone]])``.\n\nUnary form uses the ISO-8601 default format\n``yyyy-MM-dd'T'HH:mm:ssZ`` (reference Pine default when *format* is omitted).",
     "snippet": "str.format_time(${1:param1})",
     "category": "str"
   },
@@ -4665,8 +5061,8 @@
     "label": "str.join",
     "kind": "function",
     "detail": "str.join(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "``str",
+    "documentation": "``str.join(array, separator)`` — join stringified items.\n\n``na`` array → ``na``; ``na`` separator → ``\"\"``; ``na`` elements → empty.",
     "snippet": "str.join(${1:param1})",
     "category": "str"
   },
@@ -4674,8 +5070,8 @@
     "label": "str.length",
     "kind": "function",
     "detail": "str.length(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "str",
+    "documentation": "str.length(string) → int, or ``na`` when *string* is ``na``.\n\nMotion uses ``str.length(seqArr.get(pointer))``; out-of-range / unset\n``array.get`` yields ``na`` and must not hard-fail the bar.",
     "snippet": "str.length(${1:param1})",
     "category": "str"
   },
@@ -4683,8 +5079,8 @@
     "label": "str.lower",
     "kind": "function",
     "detail": "str.lower(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "``str",
+    "documentation": "``str.lower(string)`` → lowercased string; ``na`` → ``na``.",
     "snippet": "str.lower(${1:param1})",
     "category": "str"
   },
@@ -4692,8 +5088,8 @@
     "label": "str.match",
     "kind": "function",
     "detail": "str.match(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "Reference Pine: ``str",
+    "documentation": "Reference Pine: ``str.match(source, regex)`` → first matching substring or ``na``.\n\nNote: returns the matched *string* (not a bool). Either arg ``na`` → ``na``.\nInvalid regex → ``na`` rather than hard-fail (corpus residual resilience).",
     "snippet": "str.match(${1:param1})",
     "category": "str"
   },
@@ -4701,8 +5097,8 @@
     "label": "str.pos",
     "kind": "function",
     "detail": "str.pos(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "Reference Pine: ``str",
+    "documentation": "Reference Pine: ``str.pos(source, str)`` → first index of *str* in *source*, or ``-1``.\n\nEither arg ``na`` → ``na`` (reference soft-na). Aligns with compile emit\n``str(source).find(str(needle))``.",
     "snippet": "str.pos(${1:param1})",
     "category": "str"
   },
@@ -4710,8 +5106,8 @@
     "label": "str.repeat",
     "kind": "function",
     "detail": "str.repeat(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "str",
+    "documentation": "str.repeat(source, num) → string, or ``na`` if either arg is ``na``.",
     "snippet": "str.repeat(${1:param1})",
     "category": "str"
   },
@@ -4719,8 +5115,8 @@
     "label": "str.replace",
     "kind": "function",
     "detail": "str.replace(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "Reference Pine: ``str",
+    "documentation": "Reference Pine: ``str.replace(source, target, replacement, occurrence=0)``.\n\nAccepts 3 or 4 arguments. Optional *occurrence* (int, 0-based) selects\nwhich match to replace; default ``0`` replaces the first match only.",
     "snippet": "str.replace(${1:param1})",
     "category": "str"
   },
@@ -4728,8 +5124,8 @@
     "label": "str.replace_all",
     "kind": "function",
     "detail": "str.replace_all(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "Reference Pine: ``str",
+    "documentation": "Reference Pine: ``str.replace_all(source, target, replacement)``.",
     "snippet": "str.replace_all(${1:param1})",
     "category": "str"
   },
@@ -4737,8 +5133,8 @@
     "label": "str.split",
     "kind": "function",
     "detail": "str.split(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "str",
+    "documentation": "str.split(source, separator?) → array of substrings.\n\nAligns with :func:`pynescript.compiler.numba_builtins.str_split`:\n\n- ``na`` / ``None`` source → empty string (so ``x.isset(str.split(na, …))``\n  patterns in motion/console libraries do not hard-fail while evaluating\n  the fallback).\n- empty separator → split into characters (Python forbids ``\"\".split(\"\")``).",
     "snippet": "str.split(${1:param1})",
     "category": "str"
   },
@@ -4746,8 +5142,8 @@
     "label": "str.startswith",
     "kind": "function",
     "detail": "str.startswith(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "Reference Pine: ``str",
+    "documentation": "Reference Pine: ``str.startswith(source, str)`` → bool; either arg ``na`` → ``na``.",
     "snippet": "str.startswith(${1:param1})",
     "category": "str"
   },
@@ -4755,8 +5151,8 @@
     "label": "str.substring",
     "kind": "function",
     "detail": "str.substring(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "str",
+    "documentation": "str.substring(source, begin_pos, end_pos?) → substring or ``na``.\n\nAny ``na`` argument propagates ``na`` (motion: ``sub_start`` /\n``sub_length`` often unset → end becomes ``na``).",
     "snippet": "str.substring(${1:param1})",
     "category": "str"
   },
@@ -4764,8 +5160,8 @@
     "label": "str.tonumber",
     "kind": "function",
     "detail": "str.tonumber(...)",
-    "brief": "TV: ``str",
-    "documentation": "TV: ``str.tonumber(string)`` → float, or ``na`` when not parseable.\n\nPlaceholder defaults such as ``\"YYYY-MM\"`` must not raise — scripts\nlike seasonality push rounded tonumber results into arrays and rely\non na propagation.",
+    "brief": "Reference Pine: ``str",
+    "documentation": "Reference Pine: ``str.tonumber(string)`` → float, or ``na`` when not parseable.\n\nPlaceholder defaults such as ``\"YYYY-MM\"`` must not raise — scripts\nlike seasonality push rounded tonumber results into arrays and rely\non na propagation.\n\nSoft-coerces ``na`` / non-string (array.get miss, numbers) → ``na`` or\n``float(value)`` rather than hard-failing ``takes a string argument``.",
     "snippet": "str.tonumber(${1:param1})",
     "category": "str"
   },
@@ -4773,8 +5169,8 @@
     "label": "str.tostring",
     "kind": "function",
     "detail": "str.tostring(...)",
-    "brief": "TV: ``str",
-    "documentation": "TV: ``str.tostring(value)`` or ``str.tostring(value, format)``.",
+    "brief": "Reference Pine: ``str",
+    "documentation": "Reference Pine: ``str.tostring(value)`` or ``str.tostring(value, format)``.",
     "snippet": "str.tostring(${1:param1})",
     "category": "str"
   },
@@ -4782,8 +5178,8 @@
     "label": "str.trim",
     "kind": "function",
     "detail": "str.trim(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "``str",
+    "documentation": "``str.trim(string)`` → strip whitespace; ``na`` → ``na``.",
     "snippet": "str.trim(${1:param1})",
     "category": "str"
   },
@@ -4791,8 +5187,8 @@
     "label": "str.upper",
     "kind": "function",
     "detail": "str.upper(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "``str",
+    "documentation": "``str.upper(string)`` → uppercased string; ``na`` → ``na``.",
     "snippet": "str.upper(${1:param1})",
     "category": "str"
   },
@@ -4830,6 +5226,33 @@
     "brief": "",
     "documentation": "",
     "snippet": "strategy.avg_losing_trade_percent(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.avg_price_futures": {
+    "label": "strategy.avg_price_futures",
+    "kind": "function",
+    "detail": "strategy.avg_price_futures(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "strategy.avg_price_futures(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.avg_price_inverse": {
+    "label": "strategy.avg_price_inverse",
+    "kind": "function",
+    "detail": "strategy.avg_price_inverse(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "strategy.avg_price_inverse(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.avg_price_stock": {
+    "label": "strategy.avg_price_stock",
+    "kind": "function",
+    "detail": "strategy.avg_price_stock(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "strategy.avg_price_stock(${1:param1}, ${2:param2})",
     "category": "strategy"
   },
   "strategy.avg_trade": {
@@ -4890,8 +5313,8 @@
     "label": "strategy.cash",
     "kind": "function",
     "detail": "strategy.cash(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "Free capital remaining; also tags default_qty_type=cash via StrategyCashAmount",
+    "documentation": "Free capital remaining; also tags default_qty_type=cash via StrategyCashAmount.",
     "snippet": "strategy.cash(${1:param1}, ${2:param2})",
     "category": "strategy"
   },
@@ -4940,6 +5363,24 @@
     "snippet": "strategy.closedtrades.entry_bar_index(${1:param1}, ${2:param2})",
     "category": "strategy"
   },
+  "strategy.closedtrades.entry_comment": {
+    "label": "strategy.closedtrades.entry_comment",
+    "kind": "function",
+    "detail": "strategy.closedtrades.entry_comment(...)",
+    "brief": "strategy",
+    "documentation": "strategy.closedtrades.entry_comment(trade_index)",
+    "snippet": "strategy.closedtrades.entry_comment(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.closedtrades.entry_id": {
+    "label": "strategy.closedtrades.entry_id",
+    "kind": "function",
+    "detail": "strategy.closedtrades.entry_id(...)",
+    "brief": "strategy",
+    "documentation": "strategy.closedtrades.entry_id(trade_index)",
+    "snippet": "strategy.closedtrades.entry_id(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
   "strategy.closedtrades.entry_price": {
     "label": "strategy.closedtrades.entry_price",
     "kind": "function",
@@ -4967,6 +5408,24 @@
     "snippet": "strategy.closedtrades.exit_bar_index(${1:param1}, ${2:param2})",
     "category": "strategy"
   },
+  "strategy.closedtrades.exit_comment": {
+    "label": "strategy.closedtrades.exit_comment",
+    "kind": "function",
+    "detail": "strategy.closedtrades.exit_comment(...)",
+    "brief": "strategy",
+    "documentation": "strategy.closedtrades.exit_comment(trade_index)",
+    "snippet": "strategy.closedtrades.exit_comment(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.closedtrades.exit_id": {
+    "label": "strategy.closedtrades.exit_id",
+    "kind": "function",
+    "detail": "strategy.closedtrades.exit_id(...)",
+    "brief": "strategy",
+    "documentation": "strategy.closedtrades.exit_id(trade_index)",
+    "snippet": "strategy.closedtrades.exit_id(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
   "strategy.closedtrades.exit_price": {
     "label": "strategy.closedtrades.exit_price",
     "kind": "function",
@@ -4992,6 +5451,24 @@
     "brief": "",
     "documentation": "",
     "snippet": "strategy.closedtrades.first_index(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.closedtrades.max_drawdown": {
+    "label": "strategy.closedtrades.max_drawdown",
+    "kind": "function",
+    "detail": "strategy.closedtrades.max_drawdown(...)",
+    "brief": "strategy",
+    "documentation": "strategy.closedtrades.max_drawdown(trade_index)",
+    "snippet": "strategy.closedtrades.max_drawdown(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.closedtrades.max_runup": {
+    "label": "strategy.closedtrades.max_runup",
+    "kind": "function",
+    "detail": "strategy.closedtrades.max_runup(...)",
+    "brief": "strategy",
+    "documentation": "strategy.closedtrades.max_runup(trade_index)",
+    "snippet": "strategy.closedtrades.max_runup(${1:param1}, ${2:param2})",
     "category": "strategy"
   },
   "strategy.closedtrades.profit": {
@@ -5125,8 +5602,17 @@
     "kind": "function",
     "detail": "strategy.exit(...)",
     "brief": "strategy",
-    "documentation": "strategy.exit(id, from_entry, qty, limit, stop, comment, alert, ...)\n\nCreate exit order closing a specific entry.\n\nParameters:\n    id: Order identifier (str)\n    from_entry: Entry order to close (str)\n    qty: Quantity to close (float or None for all)\n    limit: Limit price (float or None)\n    stop: Stop price (float or None)\n    comment: Order comment (str)\n\nReturns None. Closes position or partial position.",
+    "documentation": "strategy.exit(id, from_entry, qty, qty_percent, profit, limit, loss, stop,\ntrail_price, trail_points, trail_offset, ...)\n\nPlace a bracket exit against the open position.\n\n* ``profit`` / ``loss`` are **ticks** from entry average\n  (``ticks * syminfo.mintick``). Long: ``entry ± ticks*mintick``;\n  short flips the sign. ``na`` / None / ``<= 0`` ignore that leg.\n* ``limit`` / ``stop`` are absolute prices (unchanged).\n* No ``limit``/``stop``/profit/loss/trail → market close now (with slippage).\n* With ``limit`` and/or ``stop`` (after tick conversion) → pending\n  order(s) filled by :meth:`process_pending_orders` when bar OHLC\n  touches the level. Both legs share an OCA cancel group so one fill\n  cancels the other (first-touch pair-eval unchanged).\n* ``qty_percent`` (kwargs or Pine positional) sizes the exit as a\n  percent of the open target (whole position or ``from_entry`` size);\n  wins over absolute ``qty`` when both are set.\n* Trail: ``trail_points`` / ``trail_offset`` (ticks × mintick) with\n  optional ``trail_price`` activation. Pending stop ratchets with\n  favorable extremes after arming.\n* When ``from_entry`` is set, only that entry id's open qty is reduced;\n  other open trades (pyramiding) are left intact. Unknown from_entry is\n  a soft no-op after the placement event (no crash).\n\nAlways records a ``kind=exit`` event for host bookkeeping (placement).",
     "snippet": "strategy.exit(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.fixed": {
+    "label": "strategy.fixed",
+    "kind": "function",
+    "detail": "strategy.fixed(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "strategy.fixed(${1:param1}, ${2:param2})",
     "category": "strategy"
   },
   "strategy.grossloss": {
@@ -5174,6 +5660,15 @@
     "snippet": "strategy.initial_capital(${1:param1}, ${2:param2})",
     "category": "strategy"
   },
+  "strategy.leverage": {
+    "label": "strategy.leverage",
+    "kind": "function",
+    "detail": "strategy.leverage(...)",
+    "brief": "Configured leverage multiplier from ``strategy(",
+    "documentation": "Configured leverage multiplier from ``strategy(..., leverage=N)``.",
+    "snippet": "strategy.leverage(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
   "strategy.long": {
     "label": "strategy.long",
     "kind": "function",
@@ -5196,8 +5691,8 @@
     "label": "strategy.margin_liquidation_price",
     "kind": "function",
     "detail": "strategy.margin_liquidation_price(...)",
-    "brief": "",
-    "documentation": "",
+    "brief": "Approximate isolated liquidation price from entry + leverage",
+    "documentation": "Approximate isolated liquidation price from entry + leverage.\n\nSimple linear model (no fees / maintenance margin):\n- long:  entry * (1 - 1/leverage)\n- short: entry * (1 + 1/leverage)\n\nReturns ``na`` when flat or leverage ≤ 1 (full-margin cash book).",
     "snippet": "strategy.margin_liquidation_price(${1:param1}, ${2:param2})",
     "category": "strategy"
   },
@@ -5363,6 +5858,24 @@
     "snippet": "strategy.opentrades.entry_bar_index(${1:param1}, ${2:param2})",
     "category": "strategy"
   },
+  "strategy.opentrades.entry_comment": {
+    "label": "strategy.opentrades.entry_comment",
+    "kind": "function",
+    "detail": "strategy.opentrades.entry_comment(...)",
+    "brief": "strategy",
+    "documentation": "strategy.opentrades.entry_comment(trade_index)",
+    "snippet": "strategy.opentrades.entry_comment(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.opentrades.entry_id": {
+    "label": "strategy.opentrades.entry_id",
+    "kind": "function",
+    "detail": "strategy.opentrades.entry_id(...)",
+    "brief": "strategy",
+    "documentation": "strategy.opentrades.entry_id(trade_index)",
+    "snippet": "strategy.opentrades.entry_id(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
   "strategy.opentrades.entry_price": {
     "label": "strategy.opentrades.entry_price",
     "kind": "function",
@@ -5379,6 +5892,24 @@
     "brief": "strategy",
     "documentation": "strategy.opentrades.entry_time(trade_index)",
     "snippet": "strategy.opentrades.entry_time(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.opentrades.max_drawdown": {
+    "label": "strategy.opentrades.max_drawdown",
+    "kind": "function",
+    "detail": "strategy.opentrades.max_drawdown(...)",
+    "brief": "strategy",
+    "documentation": "strategy.opentrades.max_drawdown(trade_index)",
+    "snippet": "strategy.opentrades.max_drawdown(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.opentrades.max_runup": {
+    "label": "strategy.opentrades.max_runup",
+    "kind": "function",
+    "detail": "strategy.opentrades.max_runup(...)",
+    "brief": "strategy",
+    "documentation": "strategy.opentrades.max_runup(trade_index)",
+    "snippet": "strategy.opentrades.max_runup(${1:param1}, ${2:param2})",
     "category": "strategy"
   },
   "strategy.opentrades.profit": {
@@ -5404,8 +5935,17 @@
     "kind": "function",
     "detail": "strategy.order(...)",
     "brief": "strategy",
-    "documentation": "strategy.order(id, direction, qty, limit, stop, oca_name, oca_type, comment, ...)\n\nOfficial positional order (TV reference). Pending orders fill via\n:meth:`process_pending_orders`. Supports OCA groups and partial fills\n(``max_fill_per_bar`` kwarg).",
+    "documentation": "strategy.order(id, direction, qty, limit, stop, oca_name, oca_type, comment, ...)\n\nOfficial positional order (reference Pine). Pending orders fill via\n:meth:`process_pending_orders`. Supports OCA groups and partial fills\n(``max_fill_per_bar`` kwarg).",
     "snippet": "strategy.order(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.percent_of_equity": {
+    "label": "strategy.percent_of_equity",
+    "kind": "function",
+    "detail": "strategy.percent_of_equity(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "strategy.percent_of_equity(${1:param1}, ${2:param2})",
     "category": "strategy"
   },
   "strategy.position_avg_price": {
@@ -5539,7 +6079,7 @@
     "kind": "function",
     "detail": "sum(...)",
     "brief": "Sum of array, or rolling sum ``math",
-    "documentation": "Sum of array, or rolling sum ``math.sum(source, length)`` (TV).",
+    "documentation": "Sum of array, or rolling sum ``math.sum(source, length)`` (reference).",
     "snippet": "sum(${1:arg})",
     "category": "builtin"
   },
@@ -5547,8 +6087,8 @@
     "label": "supertrend",
     "kind": "function",
     "detail": "supertrend(...)",
-    "brief": "Supertrend indicator",
-    "documentation": "Supertrend indicator.\n\nTradingView: ``ta.supertrend(factor, atrPeriod)`` → ``[supertrend, direction]``.\nAlso accepts legacy ``(high, low, length, multiplier)``.",
+    "brief": "``ta",
+    "documentation": "``ta.supertrend(factor, atrPeriod)`` → ``[supertrend, direction]``.\n\nAlso accepts legacy ``(high, low, length, multiplier)``.\nFull path uses :meth:`_supertrend`; incremental uses\n:meth:`_supertrend_inc_update`. Same simplified contract as Numba.",
     "snippet": "supertrend(${1:arg})",
     "category": "builtin"
   },
@@ -5556,17 +6096,35 @@
     "label": "swma",
     "kind": "function",
     "detail": "swma(...)",
-    "brief": "Symmetric Weighted Moving Average (TV: one-arg source)",
-    "documentation": "Symmetric Weighted Moving Average (TV: one-arg source).",
+    "brief": "Symmetric Weighted Moving Average (reference Pine: one-arg source)",
+    "documentation": "Symmetric Weighted Moving Average (reference Pine: one-arg source).",
     "snippet": "swma(${1:arg})",
     "category": "builtin"
+  },
+  "syminfo.prefix": {
+    "label": "syminfo.prefix",
+    "kind": "function",
+    "detail": "syminfo.prefix(...)",
+    "brief": "``syminfo",
+    "documentation": "``syminfo.prefix`` / ``syminfo.prefix(tickerid)``.\n\nZero-arg returns the chart exchange prefix; one-arg parses the given\nticker id (``\"NASDAQ:AAPL\"`` → ``\"NASDAQ\"``).",
+    "snippet": "syminfo.prefix(${1:param1})",
+    "category": "syminfo"
+  },
+  "syminfo.ticker": {
+    "label": "syminfo.ticker",
+    "kind": "function",
+    "detail": "syminfo.ticker(...)",
+    "brief": "``syminfo",
+    "documentation": "``syminfo.ticker`` / ``syminfo.ticker(tickerid)``.\n\nZero-arg returns the chart ticker without exchange; one-arg parses the\ngiven ticker id (``\"NASDAQ:AAPL\"`` → ``\"AAPL\"``).",
+    "snippet": "syminfo.ticker(${1:param1})",
+    "category": "syminfo"
   },
   "ta.accdist": {
     "label": "ta.accdist",
     "kind": "function",
     "detail": "ta.accdist(...)",
     "brief": "Accumulation/Distribution Index",
-    "documentation": "Accumulation/Distribution Index.\n\nTV: ``ta.accdist`` / ``ta.accdist()`` with no args uses H/L/C/V context.",
+    "documentation": "Accumulation/Distribution Index.\n\nReference Pine: ``ta.accdist`` / ``ta.accdist()`` with no args uses H/L/C/V context.",
     "snippet": "ta.accdist(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
@@ -5577,6 +6135,15 @@
     "brief": "Acceleration Factor - Momentum acceleration/deceleration",
     "documentation": "Acceleration Factor - Momentum acceleration/deceleration.\n\nta.acceleration_factor(momentum_list, period)\nReturns: Factor (-2.0 to 2.0)",
     "snippet": "ta.acceleration_factor(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.ad": {
+    "label": "ta.ad",
+    "kind": "function",
+    "detail": "ta.ad(...)",
+    "brief": "Accumulation/Distribution Index",
+    "documentation": "Accumulation/Distribution Index.\n\nReference Pine: ``ta.accdist`` / ``ta.accdist()`` with no args uses H/L/C/V context.",
+    "snippet": "ta.ad(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
   "ta.advanced_breakout_detector": {
@@ -5606,6 +6173,15 @@
     "snippet": "ta.alma(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
+  "ta.ao": {
+    "label": "ta.ao",
+    "kind": "function",
+    "detail": "ta.ao(...)",
+    "brief": "Awesome Oscillator: ``sma(hl2, 5) - sma(hl2, 34)`` (reference Pine ``ta",
+    "documentation": "Awesome Oscillator: ``sma(hl2, 5) - sma(hl2, 34)`` (reference Pine ``ta.ao``).\n\nOptional args override fast/slow periods (default 5 / 34).",
+    "snippet": "ta.ao(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
   "ta.apo": {
     "label": "ta.apo",
     "kind": "function",
@@ -5615,12 +6191,21 @@
     "snippet": "ta.apo(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
+  "ta.aroon": {
+    "label": "ta.aroon",
+    "kind": "function",
+    "detail": "ta.aroon(...)",
+    "brief": "Aroon oscillator pair: ``[aroonDown, aroonUp]`` (reference Pine ``ta",
+    "documentation": "Aroon oscillator pair: ``[aroonDown, aroonUp]`` (reference Pine ``ta.aroon(length)``).\n\n``aroonUp = 100 * (length - bars_since_hh) / length``\n``aroonDown = 100 * (length - bars_since_ll) / length``",
+    "snippet": "ta.aroon(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
   "ta.atr": {
     "label": "ta.atr",
     "kind": "function",
     "detail": "ta.atr(...)",
     "brief": "Average True Range",
-    "documentation": "Average True Range. TV: ``ta.atr(length)``; also legacy 4-arg form.",
+    "documentation": "Average True Range. reference Pine: ``ta.atr(length)``; also legacy 4-arg form.",
     "snippet": "ta.atr(${1:param1}, ${2:param2}, ${3:param3})",
     "category": "ta.technical_analysis"
   },
@@ -5799,8 +6384,8 @@
     "label": "ta.cross",
     "kind": "function",
     "detail": "ta.cross(...)",
-    "brief": "Cross check",
-    "documentation": "Cross check.",
+    "brief": "Cross check (either direction)",
+    "documentation": "Cross check (either direction).",
     "snippet": "ta.cross(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
@@ -5808,8 +6393,8 @@
     "label": "ta.crossover",
     "kind": "function",
     "detail": "ta.crossover(...)",
-    "brief": "Crossover check (works with full series or bar-mode scalars)",
-    "documentation": "Crossover check (works with full series or bar-mode scalars).",
+    "brief": "Crossover check (works with full series or bar-mode last-sample)",
+    "documentation": "Crossover check (works with full series or bar-mode last-sample).",
     "snippet": "ta.crossover(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
@@ -5817,8 +6402,8 @@
     "label": "ta.crossunder",
     "kind": "function",
     "detail": "ta.crossunder(...)",
-    "brief": "Crossunder check (works with full series or bar-mode scalars)",
-    "documentation": "Crossunder check (works with full series or bar-mode scalars).",
+    "brief": "Crossunder check (works with full series or bar-mode last-sample)",
+    "documentation": "Crossunder check (works with full series or bar-mode last-sample).",
     "snippet": "ta.crossunder(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
@@ -5836,7 +6421,7 @@
     "kind": "function",
     "detail": "ta.cum(...)",
     "brief": "Cumulative sum",
-    "documentation": "Cumulative sum. TV: ``ta.cum(source)`` — accepts series-like objects.",
+    "documentation": "Cumulative sum. reference Pine: ``ta.cum(source)`` — ``na`` treated as 0.",
     "snippet": "ta.cum(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
@@ -5881,7 +6466,7 @@
     "kind": "function",
     "detail": "ta.dmi(...)",
     "brief": "Directional Movement Index",
-    "documentation": "Directional Movement Index.\n\nTradingView: ``ta.dmi(diLength, adxSmoothing) → [+DI, -DI, ADX]`` using\nchart high/low/close. Legacy 4-arg ``(high, low, close, length)`` still\naccepted (adxSmoothing defaults to diLength).",
+    "documentation": "Directional Movement Index.\n\nReference Pine: ``ta.dmi(diLength, adxSmoothing) → [+DI, -DI, ADX]`` using\nchart high/low/close. Legacy 4-arg ``(high, low, close, length)`` still\naccepted (adxSmoothing defaults to diLength).\n\nPeriod soft-na (corpus residual): ``na`` / unresolved length names →\n``[na, na, na]`` rather than hard-fail (matches ``ta.sma`` / ``_expect_period``).",
     "snippet": "ta.dmi(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
@@ -6133,7 +6718,7 @@
     "kind": "function",
     "detail": "ta.kama(...)",
     "brief": "Kaufman's Adaptive Moving Average",
-    "documentation": "Kaufman's Adaptive Moving Average.",
+    "documentation": "Kaufman's Adaptive Moving Average.\n\nreference / community form: ``ta.kama(source, length, fastLength=2, slowLength=30)``.\nAccepts 2–4 positional args (fast/slow default to Kaufman's 2/30).",
     "snippet": "ta.kama(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
@@ -6142,7 +6727,7 @@
     "kind": "function",
     "detail": "ta.kc(...)",
     "brief": "Keltner Channels (returns middle, upper, lower)",
-    "documentation": "Keltner Channels (returns middle, upper, lower).\n\nTV: ``ta.kc(series, length, mult)``; legacy ``(high, low, close, length)``.",
+    "documentation": "Keltner Channels (returns middle, upper, lower).\n\nReference Pine: ``ta.kc(series, length, mult)``; legacy ``(high, low, close, length)``.",
     "snippet": "ta.kc(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
@@ -6169,7 +6754,7 @@
     "kind": "function",
     "detail": "ta.klinger(...)",
     "brief": "Klinger Oscillator",
-    "documentation": "Klinger Oscillator.\n\nta.klinger(high, low, close, volume, fast_period, slow_period)\nVolume-based momentum oscillator.\nReturns KO series.",
+    "documentation": "Klinger Oscillator.\n\nta.klinger(high, low, close, volume, fast_period, slow_period)\nVolume-based momentum oscillator.\nReturns KO series (full) or last scalar (incremental bar mode).",
     "snippet": "ta.klinger(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
@@ -6196,7 +6781,7 @@
     "kind": "function",
     "detail": "ta.linreg(...)",
     "brief": "Linear Regression value",
-    "documentation": "Linear Regression value.\n\nTV: ``ta.linreg(source, length, offset)`` — offset is optional (default 0).",
+    "documentation": "Linear Regression value.\n\nReference Pine: ``ta.linreg(source, length, offset)`` — offset is optional (default 0).\nLength < 2 is soft-na (reference returns na rather than hard-error for short length).",
     "snippet": "ta.linreg(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
@@ -6232,7 +6817,7 @@
     "kind": "function",
     "detail": "ta.macd(...)",
     "brief": "MACD (Moving Average Convergence Divergence)",
-    "documentation": "MACD (Moving Average Convergence Divergence).\n\nTradingView: ``ta.macd(source, fastlen, slowlen, siglen)`` →\n``[macdLine, signalLine, histLine]``.\n\nAccepts:\n- Full form with series + three lengths (defaults 12/26/9 if omitted).\n- Series may be a list, PineSeries, or scalar wrapper (bar-mode input).\n- Extra / unknown kwargs are ignored by the call site (ta.* path).",
+    "documentation": "MACD (Moving Average Convergence Divergence).\n\nReference Pine: ``ta.macd(source, fastlen, slowlen, siglen)`` →\n``[macdLine, signalLine, histLine]``.\n\nAccepts:\n- Full form with series + three lengths (defaults 12/26/9 if omitted).\n- Series may be a list, PineSeries, or scalar wrapper (bar-mode input).\n- Extra / unknown kwargs are ignored by the call site (ta.* path).",
     "snippet": "ta.macd(${1:param1}, ${2:param2}, ${3:param3})",
     "category": "ta.technical_analysis"
   },
@@ -6457,7 +7042,7 @@
     "kind": "function",
     "detail": "ta.pivot_point_levels(...)",
     "brief": "Calculate pivot point levels",
-    "documentation": "Calculate pivot point levels.\n\nTV: ``ta.pivot_point_levels(type, anchor, developing?)`` → array of floats\nusing chart high/low/close. Legacy: ``(high, low, close, is_traditional)``.",
+    "documentation": "Calculate pivot point levels.\n\nReference Pine: ``ta.pivot_point_levels(type, anchor, developing?)`` → array of floats\nusing chart high/low/close. Legacy: ``(high, low, close, is_traditional)``.",
     "snippet": "ta.pivot_point_levels(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
@@ -6466,7 +7051,7 @@
     "kind": "function",
     "detail": "ta.pivothigh(...)",
     "brief": "Find the highest point (pivot high) in a window",
-    "documentation": "Find the highest point (pivot high) in a window.\n\nTV: ``ta.pivothigh(leftbars, rightbars)`` (source=high) or\n``ta.pivothigh(source, leftbars, rightbars)``.",
+    "documentation": "Find the highest point (pivot high) in a window.\n\nReference Pine: ``ta.pivothigh(leftbars, rightbars)`` (source=high) or\n``ta.pivothigh(source, leftbars, rightbars)``.\n\nSource may be a list (``current_series``), a ``PineSeries`` from the\nruntime host, or a bare scalar; always materialize before float().",
     "snippet": "ta.pivothigh(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
@@ -6475,7 +7060,7 @@
     "kind": "function",
     "detail": "ta.pivotlow(...)",
     "brief": "Find the lowest point (pivot low) in a window",
-    "documentation": "Find the lowest point (pivot low) in a window.\n\nTV: ``ta.pivotlow(leftbars, rightbars)`` (source=low) or\n``ta.pivotlow(source, leftbars, rightbars)``.",
+    "documentation": "Find the lowest point (pivot low) in a window.\n\nReference Pine: ``ta.pivotlow(leftbars, rightbars)`` (source=low) or\n``ta.pivotlow(source, leftbars, rightbars)``.\n\nSource may be a list, ``PineSeries``, or scalar — see pivothigh.",
     "snippet": "ta.pivotlow(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
@@ -6533,6 +7118,15 @@
     "snippet": "ta.pvi(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
+  "ta.pvt": {
+    "label": "ta.pvt",
+    "kind": "function",
+    "detail": "ta.pvt(...)",
+    "brief": "Volume Price Trend / Price Volume Trend",
+    "documentation": "Volume Price Trend / Price Volume Trend.\n\nForms:\n- ``ta.vpt`` / ``ta.pvt`` / ``ta.vpt()`` — chart close + volume\n- ``ta.vpt(series)`` — unused series arg for API compatibility (chart OHLCV used)",
+    "snippet": "ta.pvt(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
   "ta.r_squared": {
     "label": "ta.r_squared",
     "kind": "function",
@@ -6555,8 +7149,8 @@
     "label": "ta.rci",
     "kind": "function",
     "detail": "ta.rci(...)",
-    "brief": "Rank Correlation Index (Spearman's correlation)",
-    "documentation": "Rank Correlation Index (Spearman's correlation).",
+    "brief": "Rank Correlation Index (Spearman rho of time vs value ranks)",
+    "documentation": "Rank Correlation Index (Spearman rho of time vs value ranks).",
     "snippet": "ta.rci(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
@@ -6646,7 +7240,7 @@
     "kind": "function",
     "detail": "ta.sar(...)",
     "brief": "Parabolic SAR",
-    "documentation": "Parabolic SAR. TV: ``ta.sar(start, inc, max)`` using high/low context.",
+    "documentation": "Parabolic SAR. reference Pine: ``ta.sar(start, inc, max)`` using high/low context.",
     "snippet": "ta.sar(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
@@ -6754,7 +7348,7 @@
     "kind": "function",
     "detail": "ta.sum(...)",
     "brief": "Rolling sum ``ta",
-    "documentation": "Rolling sum ``ta.sum(source, length)`` — alias of ``math.sum(source, length)``.\n\nCommunity scripts often use ``ta.sum``; TV documents ``math.sum`` for the\nsame rolling window sum over a series.",
+    "documentation": "Rolling sum ``ta.sum(source, length)`` — alias of ``math.sum(source, length)``.\n\nCommunity scripts often use ``ta.sum``; reference documents ``math.sum`` for the\nsame rolling window sum over a series.",
     "snippet": "ta.sum(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
@@ -6762,8 +7356,8 @@
     "label": "ta.supertrend",
     "kind": "function",
     "detail": "ta.supertrend(...)",
-    "brief": "Supertrend indicator",
-    "documentation": "Supertrend indicator.\n\nTradingView: ``ta.supertrend(factor, atrPeriod)`` → ``[supertrend, direction]``.\nAlso accepts legacy ``(high, low, length, multiplier)``.",
+    "brief": "``ta",
+    "documentation": "``ta.supertrend(factor, atrPeriod)`` → ``[supertrend, direction]``.\n\nAlso accepts legacy ``(high, low, length, multiplier)``.\nFull path uses :meth:`_supertrend`; incremental uses\n:meth:`_supertrend_inc_update`. Same simplified contract as Numba.",
     "snippet": "ta.supertrend(${1:param1}, ${2:param2}, ${3:param3})",
     "category": "ta.technical_analysis"
   },
@@ -6771,8 +7365,8 @@
     "label": "ta.swma",
     "kind": "function",
     "detail": "ta.swma(...)",
-    "brief": "Symmetric Weighted Moving Average (TV: one-arg source)",
-    "documentation": "Symmetric Weighted Moving Average (TV: one-arg source).",
+    "brief": "Symmetric Weighted Moving Average (reference Pine: one-arg source)",
+    "documentation": "Symmetric Weighted Moving Average (reference Pine: one-arg source).",
     "snippet": "ta.swma(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
@@ -6790,7 +7384,7 @@
     "kind": "function",
     "detail": "ta.tr(...)",
     "brief": "True Range",
-    "documentation": "True Range.\n\nTradingView: ``ta.tr(handle_na)`` with 0–1 args (uses high/low/close\nfrom context). Also accepts the legacy 3-arg form for unit tests.",
+    "documentation": "True Range.\n\nReference Pine: ``ta.tr(handle_na)`` with 0–1 args (uses high/low/close\nfrom context). Also accepts the legacy 3-arg form for unit tests.",
     "snippet": "ta.tr(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
@@ -6826,7 +7420,7 @@
     "kind": "function",
     "detail": "ta.tsi(...)",
     "brief": "True Strength Index",
-    "documentation": "True Strength Index.\n\nForms:\n- ``ta.tsi(short, long)`` — source defaults to close\n- ``ta.tsi(source, short, long)`` — TV order (short then long)\n- Also accepts legacy ``(source, long, short)`` when 3 period-like after series",
+    "documentation": "True Strength Index.\n\nForms:\n- ``ta.tsi(short, long)`` — source defaults to close\n- ``ta.tsi(source, short, long)`` — reference order (short then long)\n- Also accepts legacy ``(source, long, short)`` when 3 period-like after series",
     "snippet": "ta.tsi(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
@@ -6844,7 +7438,7 @@
     "kind": "function",
     "detail": "ta.valuewhen(...)",
     "brief": "Get value when condition was true",
-    "documentation": "Get value when condition was true. TV: ``ta.valuewhen(cond, source, occurrence=0)``.",
+    "documentation": "Get value when condition was true. reference Pine: ``ta.valuewhen(cond, source, occurrence=0)``.",
     "snippet": "ta.valuewhen(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
@@ -6933,8 +7527,8 @@
     "label": "ta.vpt",
     "kind": "function",
     "detail": "ta.vpt(...)",
-    "brief": "Volume Price Trend",
-    "documentation": "Volume Price Trend.\n\nta.vpt(series)\nCombines volume and price direction.",
+    "brief": "Volume Price Trend / Price Volume Trend",
+    "documentation": "Volume Price Trend / Price Volume Trend.\n\nForms:\n- ``ta.vpt`` / ``ta.pvt`` / ``ta.vpt()`` — chart close + volume\n- ``ta.vpt(series)`` — unused series arg for API compatibility (chart OHLCV used)",
     "snippet": "ta.vpt(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
@@ -6943,7 +7537,7 @@
     "kind": "function",
     "detail": "ta.vwap(...)",
     "brief": "Volume Weighted Average Price",
-    "documentation": "Volume Weighted Average Price.\n\nTradingView: ``ta.vwap(source)`` or ``ta.vwap`` (defaults to hlc3).\nExtra anchor/args beyond the source are ignored for now.",
+    "documentation": "Volume Weighted Average Price.\n\nReference Pine: ``ta.vwap(source)`` or ``ta.vwap`` (defaults to hlc3).\nOptional second arg is an anchor condition that resets the window.\nThree-arg ``ta.vwap(source, anchor, stdev_mult)`` returns\n``(vwap, upper, lower)`` with volume-weighted stdev bands.",
     "snippet": "ta.vwap(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
@@ -6965,6 +7559,15 @@
     "snippet": "ta.wad(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
+  "ta.willr": {
+    "label": "ta.willr",
+    "kind": "function",
+    "detail": "ta.willr(...)",
+    "brief": "Williams %R",
+    "documentation": "Williams %R. reference Pine: ``ta.wpr(length)`` or legacy 4-arg form.",
+    "snippet": "ta.willr(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
   "ta.wma": {
     "label": "ta.wma",
     "kind": "function",
@@ -6979,7 +7582,7 @@
     "kind": "function",
     "detail": "ta.wpr(...)",
     "brief": "Williams %R",
-    "documentation": "Williams %R. TV: ``ta.wpr(length)`` or legacy 4-arg form.",
+    "documentation": "Williams %R. reference Pine: ``ta.wpr(length)`` or legacy 4-arg form.",
     "snippet": "ta.wpr(${1:param1}, ${2:param2})",
     "category": "ta.technical_analysis"
   },
@@ -7024,7 +7627,7 @@
     "kind": "function",
     "detail": "table.cell(...)",
     "brief": "table",
-    "documentation": "table.cell(table_id, column, row, text, ...).\n\nTradingView order is **column then row** (not row, column).\nOptional text and style kwargs update the cell in place.",
+    "documentation": "table.cell(table_id, column, row, text, ...).\n\nreference Pine order is **column then row** (not row, column).\nOptional text and style kwargs update the cell in place.",
     "snippet": "table.cell(${1:param1})",
     "category": "table"
   },
@@ -7276,7 +7879,7 @@
     "kind": "function",
     "detail": "ticker.inherit(...)",
     "brief": "Inherit chart properties for a ticker (session/adjust from main chart)",
-    "documentation": "Inherit chart properties for a ticker (session/adjust from main chart).\n\nPine forms:\n- ``ticker.inherit(symbol)`` — inherit chart session/adjust for *symbol*\n- ``ticker.inherit(from, symbol)`` — inherit from *from* ticker for *symbol*\n  (used by TradingView sample scripts such as Performance)",
+    "documentation": "Inherit chart properties for a ticker (session/adjust from main chart).\n\nPine forms:\n- ``ticker.inherit(symbol)`` — inherit chart session/adjust for *symbol*\n- ``ticker.inherit(from, symbol)`` — inherit from *from* ticker for *symbol*\n  (used by reference Pine sample scripts such as Performance)",
     "snippet": "ticker.inherit(${1:param1})",
     "category": "ticker"
   },
@@ -7303,7 +7906,7 @@
     "kind": "function",
     "detail": "ticker.modify(...)",
     "brief": "Modify an existing ticker object",
-    "documentation": "Modify an existing ticker object.\n\nCreates a copy of the ticker with modified parameters.\n\nArgs:\n    ticker: The original ticker object (or raw symbol string)\n    symbol: New symbol (or None to keep original)\n    session: New session (or None to keep original)\n    adjust: New adjustment (or None to keep original)\n\nReturns:\n    New TickerInfo object with modified parameters",
+    "documentation": "Modify an existing ticker object.\n\nCreates a copy of the ticker with modified parameters.\n\nreference Pine forms::\n\n    ticker.modify(tickerid, session, adjustment)\n    ticker.modify(syminfo.tickerid, adjustment=adjustment.dividends)\n\n``adjustment`` is accepted as a kw alias for ``adjust`` (corpus demos).\nExtra positional/keyword args are ignored so arity drift does not TypeError.\n\nArgs:\n    ticker: The original ticker object (or raw symbol string)\n    symbol: New symbol (or None to keep original)\n    session: New session (or None to keep original)\n    adjust: New adjustment (or None to keep original)\n\nReturns:\n    New TickerInfo object with modified parameters",
     "snippet": "ticker.modify(${1:param1})",
     "category": "ticker"
   },
@@ -7312,7 +7915,7 @@
     "kind": "function",
     "detail": "ticker.new(...)",
     "brief": "Create a new ticker object",
-    "documentation": "Create a new ticker object.\n\nCreates a ticker symbol with optional session and adjustment parameters.\nExtra positional/keyword args (TV has more overloads) are ignored.\n\nArgs:\n    symbol: The ticker symbol (e.g., \"AAPL\", \"EURUSD\")\n    session: Trading session (\"regular\", \"extended\", etc.)\n    adjust: Adjustment type (\"splits\", \"dividends\", etc.)\n\nReturns:\n    TickerInfo object representing the configured ticker",
+    "documentation": "Create a new ticker object.\n\nCreates a ticker symbol with optional session and adjustment parameters.\nExtra positional/keyword args (reference has more overloads) are ignored.\n\nArgs:\n    symbol: The ticker symbol (e.g., \"AAPL\", \"EURUSD\")\n    session: Trading session (\"regular\", \"extended\", etc.)\n    adjust: Adjustment type (\"splits\", \"dividends\", etc.)\n\nReturns:\n    TickerInfo object representing the configured ticker",
     "snippet": "ticker.new(${1:param1})",
     "category": "ticker"
   },
@@ -7321,7 +7924,7 @@
     "kind": "function",
     "detail": "ticker.pointfigure(...)",
     "brief": "Create a Point and Figure chart ticker from a symbol",
-    "documentation": "Create a Point and Figure chart ticker from a symbol.\n\nApplies Point and Figure charting transformation. v6: style e.g. \"PercentageLTP\"\n\nArgs:\n    ticker_str: The base ticker symbol\n    boxsize: The box size for point and figure charting\n    style: optional style\n\nReturns:\n    TickerInfo with Point and Figure transformation applied",
+    "documentation": "Create a Point and Figure chart ticker from a symbol.\n\nreference Pine forms:\n\n- ``ticker.pointfigure(symbol, boxsize)`` / ``(..., boxsize, style)``\n  (legacy short form)\n- ``ticker.pointfigure(symbol, source, style, param, reversal)``\n  e.g. ``ticker.pointfigure(syminfo.tickerid, \"hl\", \"Traditional\", 1, 3)``\n  or ``(..., \"hl\", \"ATR\", 14, 3)``\n\nExtra positional args are ignored so corpus arity does not TypeError.",
     "snippet": "ticker.pointfigure(${1:param1})",
     "category": "ticker"
   },
@@ -7339,7 +7942,7 @@
     "kind": "function",
     "detail": "ticker.standard(...)",
     "brief": "Create a standard OHLC ticker from a symbol",
-    "documentation": "Create a standard OHLC ticker from a symbol.\n\nEnsures standard candlestick format.\n\nArgs:\n    ticker_str: The base ticker symbol\n\nReturns:\n    TickerInfo with standard OHLC format",
+    "documentation": "Create a standard OHLC ticker from a symbol.\n\nEnsures standard candlestick format. reference also allows the zero-arg form\n``ticker.standard()`` which means \"standard OHLC of the chart symbol\"\n(host fills chart ticker via kwargs / empty → host default later).\n\nArgs:\n    ticker_str: The base ticker symbol (optional; default chart / empty)\n\nReturns:\n    TickerInfo with standard OHLC format",
     "snippet": "ticker.standard(${1:param1})",
     "category": "ticker"
   },
@@ -7383,8 +7986,8 @@
     "label": "timeframe.change",
     "kind": "function",
     "detail": "timeframe.change(...)",
-    "brief": "Check if the timeframe has changed on the current bar",
-    "documentation": "Check if the timeframe has changed on the current bar.\n\nReturns true if the timeframe specified in the argument has changed\non the current bar.\n\nArgs:\n    _timeframe_str: Timeframe specification (e.g., \"5\", \"15\", \"D\", \"W\", \"M\")\n\nReturns:\n    Boolean indicating if timeframe has changed",
+    "brief": "``timeframe",
+    "documentation": "``timeframe.change(tf)`` — true on the first bar of a new *tf* period.\n\nUTC fixed-width buckets (same widths as ``timeframe.in_seconds``).\nBar 0 is a new period. Missing times / unusable tf → False.",
     "snippet": "timeframe.change(${1:param1})",
     "category": "timeframe"
   },
@@ -7514,21 +8117,39 @@
     "snippet": "timeframe.period(${1:param1})",
     "category": "timeframe"
   },
+  "timenow": {
+    "label": "timenow",
+    "kind": "function",
+    "detail": "timenow(...)",
+    "brief": "Current UNIX time in ms (reference ``timenow``)",
+    "documentation": "Current UNIX time in ms (reference ``timenow``).\n\nHosts may seed ``context['timenow']``. Otherwise prefer the dataset's\nlast bar time (deterministic backtests / corpus), then the current bar\n``time``, then wall-clock UTC ms.",
+    "snippet": "timenow(${1:arg})",
+    "category": "builtin"
+  },
   "timestamp": {
     "label": "timestamp",
     "kind": "function",
     "detail": "timestamp(...)",
     "brief": "Create Unix timestamp from date/time components or a date string",
-    "documentation": "Create Unix timestamp from date/time components or a date string.\n\nForms:\n- ``timestamp(\"Dec 01 2021 23:59:59\")``\n- ``timestamp(\"01 Jan 2000 00:00:00 GMT+10\")``\n- ``timestamp(year, month, day[, hour, minute, second])``\n- ``timestamp(timezone, year, month, day[, hour, minute, second])``\n  e.g. ``timestamp(\"GMT\", 2019, 8, 5, 12, 0)`` or\n  ``timestamp(syminfo.timezone, y, m, d, 0, 0)``\n\nAccepts overflow/underflow on day (e.g. day=40 or day=-5) via month\nrollover, matching TradingView ``timestamp`` arithmetic used by scripts\nsuch as dividend_yield.",
+    "documentation": "Create Unix timestamp from date/time components or a date string.\n\nForms:\n- ``timestamp(\"Dec 01 2021 23:59:59\")``\n- ``timestamp(\"01 Jan 2000 00:00:00 GMT+10\")``\n- ``timestamp(year, month, day[, hour, minute, second])``\n- ``timestamp(timezone, year, month, day[, hour, minute, second])``\n  e.g. ``timestamp(\"GMT\", 2019, 8, 5, 12, 0)`` or\n  ``timestamp(syminfo.timezone, y, m, d, 0, 0)``\n- kwargs: ``timestamp(timezone=…, year=…, month=…, day=…, …)``\n\nAccepts overflow/underflow on month/day/hour/minute/second (e.g.\nmonth=0 → January, month=13 → next Jan, day=40, hour=24, minute=60)\nvia calendar rollover, matching reference Pine ``timestamp`` arithmetic\nused by dividend_yield and backtest windows (``ToYear=9999`` /\n``999999`` clamped to 9999).\n\n``na`` year/month/day soft-returns ``na`` (None) rather than hard-failing\n(set05 residual: ``year(timenow)`` before ``timenow`` was wired).\n\nTimezone-first form interprets components in that zone and returns UTC ms.",
     "snippet": "timestamp(${1:arg})",
+    "category": "builtin"
+  },
+  "tonumber": {
+    "label": "tonumber",
+    "kind": "function",
+    "detail": "tonumber(...)",
+    "brief": "Reference Pine: ``str",
+    "documentation": "Reference Pine: ``str.tonumber(string)`` → float, or ``na`` when not parseable.\n\nPlaceholder defaults such as ``\"YYYY-MM\"`` must not raise — scripts\nlike seasonality push rounded tonumber results into arrays and rely\non na propagation.\n\nSoft-coerces ``na`` / non-string (array.get miss, numbers) → ``na`` or\n``float(value)`` rather than hard-failing ``takes a string argument``.",
+    "snippet": "tonumber(${1:arg})",
     "category": "builtin"
   },
   "tostring": {
     "label": "tostring",
     "kind": "function",
     "detail": "tostring(...)",
-    "brief": "TV: ``str",
-    "documentation": "TV: ``str.tostring(value)`` or ``str.tostring(value, format)``.",
+    "brief": "Reference Pine: ``str",
+    "documentation": "Reference Pine: ``str.tostring(value)`` or ``str.tostring(value, format)``.",
     "snippet": "tostring(${1:arg})",
     "category": "builtin"
   },
@@ -7564,7 +8185,7 @@
     "kind": "function",
     "detail": "tsi(...)",
     "brief": "True Strength Index",
-    "documentation": "True Strength Index.\n\nForms:\n- ``ta.tsi(short, long)`` — source defaults to close\n- ``ta.tsi(source, short, long)`` — TV order (short then long)\n- Also accepts legacy ``(source, long, short)`` when 3 period-like after series",
+    "documentation": "True Strength Index.\n\nForms:\n- ``ta.tsi(short, long)`` — source defaults to close\n- ``ta.tsi(source, short, long)`` — reference order (short then long)\n- Also accepts legacy ``(source, long, short)`` when 3 period-like after series",
     "snippet": "tsi(${1:arg})",
     "category": "builtin"
   },
@@ -7582,7 +8203,7 @@
     "kind": "function",
     "detail": "valuewhen(...)",
     "brief": "Get value when condition was true",
-    "documentation": "Get value when condition was true. TV: ``ta.valuewhen(cond, source, occurrence=0)``.",
+    "documentation": "Get value when condition was true. reference Pine: ``ta.valuewhen(cond, source, occurrence=0)``.",
     "snippet": "valuewhen(${1:arg})",
     "category": "builtin"
   },
@@ -7743,8 +8364,8 @@
     "label": "vpt",
     "kind": "function",
     "detail": "vpt(...)",
-    "brief": "Volume Price Trend",
-    "documentation": "Volume Price Trend.\n\nta.vpt(series)\nCombines volume and price direction.",
+    "brief": "Volume Price Trend / Price Volume Trend",
+    "documentation": "Volume Price Trend / Price Volume Trend.\n\nForms:\n- ``ta.vpt`` / ``ta.pvt`` / ``ta.vpt()`` — chart close + volume\n- ``ta.vpt(series)`` — unused series arg for API compatibility (chart OHLCV used)",
     "snippet": "vpt(${1:arg})",
     "category": "builtin"
   },
@@ -7753,7 +8374,7 @@
     "kind": "function",
     "detail": "vwap(...)",
     "brief": "Volume Weighted Average Price",
-    "documentation": "Volume Weighted Average Price.\n\nTradingView: ``ta.vwap(source)`` or ``ta.vwap`` (defaults to hlc3).\nExtra anchor/args beyond the source are ignored for now.",
+    "documentation": "Volume Weighted Average Price.\n\nReference Pine: ``ta.vwap(source)`` or ``ta.vwap`` (defaults to hlc3).\nOptional second arg is an anchor condition that resets the window.\nThree-arg ``ta.vwap(source, anchor, stdev_mult)`` returns\n``(vwap, upper, lower)`` with volume-weighted stdev bands.",
     "snippet": "vwap(${1:arg})",
     "category": "builtin"
   },
@@ -7784,6 +8405,15 @@
     "snippet": "weekofyear(${1:arg})",
     "category": "builtin"
   },
+  "willr": {
+    "label": "willr",
+    "kind": "function",
+    "detail": "willr(...)",
+    "brief": "Williams %R",
+    "documentation": "Williams %R. reference Pine: ``ta.wpr(length)`` or legacy 4-arg form.",
+    "snippet": "willr(${1:arg})",
+    "category": "builtin"
+  },
   "wma": {
     "label": "wma",
     "kind": "function",
@@ -7798,7 +8428,7 @@
     "kind": "function",
     "detail": "wpr(...)",
     "brief": "Williams %R",
-    "documentation": "Williams %R. TV: ``ta.wpr(length)`` or legacy 4-arg form.",
+    "documentation": "Williams %R. reference Pine: ``ta.wpr(length)`` or legacy 4-arg form.",
     "snippet": "wpr(${1:arg})",
     "category": "builtin"
   },
@@ -7828,23 +8458,5 @@
     "documentation": "Zigzag pattern detector (returns high, low, direction).",
     "snippet": "zigzag(${1:arg})",
     "category": "builtin"
-  },
-  "strategy.percent_of_equity": {
-    "label": "strategy.percent_of_equity",
-    "kind": "constant",
-    "detail": "strategy.percent_of_equity",
-    "brief": "default_qty_type: size orders as % of equity",
-    "documentation": "Quantity type for strategy(..., default_qty_type=strategy.percent_of_equity).\nOrders size as a percentage of equity (default_qty_value).",
-    "snippet": "strategy.percent_of_equity",
-    "category": "strategy"
-  },
-  "strategy.fixed": {
-    "label": "strategy.fixed",
-    "kind": "constant",
-    "detail": "strategy.fixed",
-    "brief": "default_qty_type: fixed contract quantity",
-    "documentation": "Quantity type for strategy(..., default_qty_type=strategy.fixed).\nOrders use a fixed quantity (default_qty_value).",
-    "snippet": "strategy.fixed",
-    "category": "strategy"
   }
 }

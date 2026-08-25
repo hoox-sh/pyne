@@ -78,9 +78,10 @@ def _extract_signature(name: str, doc: str) -> str:
     """Extract signature from docstring or generate one."""
     # Try to extract from "Signature: func(args)" pattern
     if "Signature:" in doc:
-        match = re.search(r"Signature:\s*(\w+\([^\)]*\))", doc)
+        match = re.search(r"Signature:\s*(\w+\([^\)]*\))", doc, re.DOTALL)
         if match:
-            return match.group(1)
+            # Collapse wrapped lines so the stored signature stays canonical.
+            return " ".join(match.group(1).split())
 
     # Generate based on function type
     parts = name.split(".")

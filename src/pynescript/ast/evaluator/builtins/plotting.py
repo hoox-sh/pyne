@@ -690,7 +690,11 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
         return PlotRegistry.add(_fill_plot(Plot(), **fields))
 
     def _builtin_plot(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Plot:
-        """plot(series, title, color, …) → plot id (Plot object)."""
+        """plot(series, title, color, …) → plot id (Plot object).
+
+        Signature: plot(series, title, color, linewidth, style,
+            trackprice, histbase, offset, join, editable, show_last, display)
+        """
         # Bar-mode reuse: series/color only — skip title/style/int coercions.
         if getattr(self, "_pine_bar_mode", False):
             i = getattr(self, "_plot_call_i", 0) or 0
@@ -794,6 +798,10 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
         )
 
     def _builtin_plotchar(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Plot:
+        """Plot a character at the specified location on the chart.
+
+        Signature: plotchar(series, title, char, location, color, offset, text, text_size, editable, show_last, display)
+        """
         reused = self._bar_reuse_plot()
         if reused is not None:
             reused.series = _kw(args, kwargs, "series", 0)
@@ -813,6 +821,11 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
         )
 
     def _builtin_plotshape(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Plot:
+        """Plot shapes on the chart at the specified location.
+
+        Signature: plotshape(series, title, style, location, color,
+            offset, text, text_size, editable, show_last, display)
+        """
         reused = self._bar_reuse_plot()
         if reused is not None:
             reused.series = _kw(args, kwargs, "series", 0)
@@ -849,6 +862,10 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
         )
 
     def _builtin_bgcolor(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Plot:
+        """Set the chart background color.
+
+        Signature: bgcolor(color, offset, editable, show_last, title, display)
+        """
         reused = self._bar_reuse_plot()
         if reused is not None:
             reused.color = _kw(args, kwargs, "color", 0)
@@ -863,6 +880,10 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
         )
 
     def _builtin_barcolor(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Plot:
+        """Set the color of the chart bars.
+
+        Signature: barcolor(color, offset, editable, show_last, title, display)
+        """
         reused = self._bar_reuse_plot()
         if reused is not None:
             reused.color = _kw(args, kwargs, "color", 0)
@@ -876,6 +897,10 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
         )
 
     def _builtin_hline(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Plot:
+        """Draw a horizontal price level on the chart.
+
+        Signature: hline(price, title, color, linestyle, linewidth, editable, display)
+        """
         price = _kw(args, kwargs, "price", 0, 0.0)
         reused = self._bar_reuse_plot()
         if reused is not None:
