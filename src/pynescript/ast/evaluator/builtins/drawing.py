@@ -201,6 +201,7 @@ class DrawingRegistry:
         cls.max_polylines_count = _DEFAULT_DRAWING_LIMIT
         # Also reset plot real effects
         from .plotting import PlotRegistry
+
         PlotRegistry.reset()
 
     @classmethod
@@ -214,21 +215,13 @@ class DrawingRegistry:
     ) -> None:
         """Set GC caps (None keeps the current value for that type)."""
         if max_lines_count is not None:
-            cls.max_lines_count = _clamp_drawing_limit(
-                max_lines_count, hard_cap=_HARD_CAP_LINES_LABELS_BOXES
-            )
+            cls.max_lines_count = _clamp_drawing_limit(max_lines_count, hard_cap=_HARD_CAP_LINES_LABELS_BOXES)
         if max_labels_count is not None:
-            cls.max_labels_count = _clamp_drawing_limit(
-                max_labels_count, hard_cap=_HARD_CAP_LINES_LABELS_BOXES
-            )
+            cls.max_labels_count = _clamp_drawing_limit(max_labels_count, hard_cap=_HARD_CAP_LINES_LABELS_BOXES)
         if max_boxes_count is not None:
-            cls.max_boxes_count = _clamp_drawing_limit(
-                max_boxes_count, hard_cap=_HARD_CAP_LINES_LABELS_BOXES
-            )
+            cls.max_boxes_count = _clamp_drawing_limit(max_boxes_count, hard_cap=_HARD_CAP_LINES_LABELS_BOXES)
         if max_polylines_count is not None:
-            cls.max_polylines_count = _clamp_drawing_limit(
-                max_polylines_count, hard_cap=_HARD_CAP_POLYLINES
-            )
+            cls.max_polylines_count = _clamp_drawing_limit(max_polylines_count, hard_cap=_HARD_CAP_POLYLINES)
         # If caps shrank, immediately collect
         cls.gc_all()
 
@@ -415,9 +408,10 @@ class DrawingRegistry:
                 for existing in cells:
                     if not isinstance(existing, dict):
                         continue
-                    if _cell_int(existing.get("row", 0)) == row and _cell_int(
-                        existing.get("col", existing.get("column", 0))
-                    ) == col:
+                    if (
+                        _cell_int(existing.get("row", 0)) == row
+                        and _cell_int(existing.get("col", existing.get("column", 0))) == col
+                    ):
                         cell = existing
                         break
                 if cell is None:
@@ -530,9 +524,7 @@ class DrawingRegistry:
             "line": max(0, counts["line"] - int(lim.get("max_lines_count", _DEFAULT_DRAWING_LIMIT))),
             "box": max(0, counts["box"] - int(lim.get("max_boxes_count", _DEFAULT_DRAWING_LIMIT))),
             "label": max(0, counts["label"] - int(lim.get("max_labels_count", _DEFAULT_DRAWING_LIMIT))),
-            "polyline": max(
-                0, counts["polyline"] - int(lim.get("max_polylines_count", _DEFAULT_DRAWING_LIMIT))
-            ),
+            "polyline": max(0, counts["polyline"] - int(lim.get("max_polylines_count", _DEFAULT_DRAWING_LIMIT))),
         }
         if not any(skip.values()):
             return drawings
@@ -557,14 +549,7 @@ class DrawingRegistry:
         Used by Runtime to skip ``export_for_api`` and bar_times materialization.
         """
         # truthiness of a list is len != 0 — no iteration
-        return not (
-            cls.lines
-            or cls.boxes
-            or cls.labels
-            or cls.tables
-            or cls.polylines
-            or cls.linefills
-        )
+        return not (cls.lines or cls.boxes or cls.labels or cls.tables or cls.polylines or cls.linefills)
 
     @classmethod
     def export_for_api(cls, bar_times: list[int] | None = None) -> list[dict[str, Any]]:
@@ -575,14 +560,7 @@ class DrawingRegistry:
         Fast path: empty registry returns ``[]`` without allocating helpers or
         walking collections (most indicator scripts never draw).
         """
-        if not (
-            cls.lines
-            or cls.boxes
-            or cls.labels
-            or cls.tables
-            or cls.polylines
-            or cls.linefills
-        ):
+        if not (cls.lines or cls.boxes or cls.labels or cls.tables or cls.polylines or cls.linefills):
             return []
 
         out: list[dict[str, Any]] = []
@@ -802,7 +780,11 @@ class DrawingRegistry:
                     "columns": int(getattr(tb, "columns", 0) or 0),
                     "cells": cells,
                     "frame_color": _color(getattr(tb, "frame_color", "#000000")),
+                    "frame_width": int(getattr(tb, "frame_width", 1) or 1),
+                    "border_color": _color(getattr(tb, "border_color", "#000000")),
+                    "border_width": int(getattr(tb, "border_width", 1) or 1),
                     "bgcolor": _color(getattr(tb, "bgcolor", "rgba(255,255,255,255)")),
+                    "merged_cells": [[m[0], m[1], m[2], m[3]] for m in getattr(tb, "merged", ())],
                     "t1": 0,
                     "p1": 0,
                     "color": _color(getattr(tb, "frame_color", "#000000")),
@@ -1167,6 +1149,7 @@ class Table:
     bgcolor: str = "rgba(255,255,255,255)"
     force_overlay: bool = False  # v6
     cells: dict[tuple[int, int], TableCell] = field(default_factory=dict)
+    merged: list[tuple[int, int, int, int]] = field(default_factory=list)
     deleted: bool = False
 
 
@@ -2039,9 +2022,15 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         force_overlay = args[8] if len(args) > 8 else False
 
         table = Table(
-            position, rows, columns, frame_color, frame_width,
-            border_color, border_width, bgcolor,
-            force_overlay=force_overlay
+            position,
+            rows,
+            columns,
+            frame_color,
+            frame_width,
+            border_color,
+            border_width,
+            bgcolor,
+            force_overlay=force_overlay,
         )
         return DrawingRegistry.add_table(table)
 
@@ -2170,14 +2159,30 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         """table.clear(table, start_row, start_col, end_row, end_col)"""
         table = args[0] if len(args) > 0 else None
 
-        if isinstance(table, Table):
+        if not isinstance(table, Table):
+            return
+        if len(args) < 5:
             table.cells.clear()
+            return
+        r0 = int(args[1])
+        c0 = int(args[2])
+        r1 = int(args[3])
+        c1 = int(args[4])
+        for key in [k for k in table.cells if r0 <= k[0] <= r1 and c0 <= k[1] <= c1]:
+            del table.cells[key]
 
     def _handle_table_merge_cells(self, args: list[Any]) -> None:
         """table.merge_cells(table, start_row, start_col, end_row, end_col)"""
-        # Mock implementation - in real Pine Script this would merge cells
-        # For now, we just register the merge without doing anything special
-        pass
+        table = args[0] if len(args) > 0 else None
+        if not isinstance(table, Table) or len(args) < 5:
+            return
+        r0, c0, r1, c1 = (int(a) for a in args[1:5])
+        if r1 < r0 or c1 < c0:
+            return
+        for er0, ec0, er1, ec1 in table.merged:
+            if not (r1 < er0 or er1 < r0 or c1 < ec0 or ec1 < c0):
+                return  # overlap → soft-ignore (Pine errors; we drop silently)
+        table.merged.append((r0, c0, r1, c1))
 
     # CHART POINT HANDLERS
 
@@ -2217,9 +2222,7 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         except (TypeError, ValueError):
             return None
 
-    def _handle_chart_point_from_time(
-        self, args: list[Any], kwargs: dict[str, Any] | None = None
-    ) -> ChartPoint | None:
+    def _handle_chart_point_from_time(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> ChartPoint | None:
         """chart.point.from_time(time, price) - Create a point from timestamp and price"""
         kw = kwargs or {}
         time = kw.get("time", args[0] if len(args) > 0 else None)

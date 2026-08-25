@@ -29,6 +29,8 @@ from pynescript.ast.evaluator.builtins.drawing import ChartPoint
 from pynescript.ast.evaluator.builtins.drawing import DrawingRegistry
 from pynescript.ast.evaluator.builtins.drawing import Label
 from pynescript.ast.evaluator.builtins.drawing import Polyline
+from pynescript.ast.evaluator.builtins.drawing import Table
+from pynescript.ast.evaluator.builtins.drawing import TableCell
 from pynescript.ast.evaluator.builtins.plot_params import PLOT_PARAM_SPECS
 from pynescript.ast.evaluator.builtins.plot_params import extract_wire_meta
 from pynescript.ast.evaluator.builtins.plot_params import param_index
@@ -340,6 +342,13 @@ def _clean_registry() -> None:
     DrawingRegistry.linefills.clear()
 
 
+def _make_table_host():
+    """Evaluator instance exposing drawing table handlers."""
+    from pynescript.ast.evaluator import NodeLiteralEvaluator
+
+    return NodeLiteralEvaluator()
+
+
 class TestDrawingExportParity:
     def test_box_full_styling(self) -> None:
         _clean_registry()
@@ -411,3 +420,56 @@ class TestDrawingExportParity:
         )
         out = DrawingRegistry.export_for_api([0, 1, 2, 3])[0]
         assert "fill_color" not in out
+
+
+class TestTableParity:
+    def test_frame_border_export(self) -> None:
+        _clean_registry()
+        DrawingRegistry.tables.append(
+            Table(
+                position="top_right",
+                rows=2,
+                columns=2,
+                frame_color="#111111",
+                frame_width=2,
+                border_color="#222222",
+                border_width=3,
+            )
+        )
+        out = DrawingRegistry.export_for_api([])[0]
+        assert out["type"] == "table"
+        assert out["frame_width"] == 2
+        assert out["border_color"] == "#222222"
+        assert out["border_width"] == 3
+
+    def test_merge_cells_registry_and_export(self) -> None:
+        _clean_registry()
+        tb = Table(rows=4, columns=4)
+        DrawingRegistry.tables.append(tb)
+        ev = _make_table_host()
+        ev._handle_table_merge_cells([tb, 0, 0, 1, 1])
+        assert tb.merged == [(0, 0, 1, 1)]
+        out = DrawingRegistry.export_for_api([])[0]
+        assert out["merged_cells"] == [[0, 0, 1, 1]]
+
+    def test_merge_overlap_soft_ignored(self) -> None:
+        tb = Table(rows=4, columns=4)
+        ev = _make_table_host()
+        ev._handle_table_merge_cells([tb, 0, 0, 1, 1])
+        ev._handle_table_merge_cells([tb, 1, 1, 2, 2])  # overlaps → ignored
+        ev._handle_table_merge_cells([tb, 2, 0, 3, 1])  # disjoint → kept
+        assert tb.merged == [(0, 0, 1, 1), (2, 0, 3, 1)]
+
+    def test_clear_full_vs_range(self) -> None:
+        tb = Table(rows=3, columns=3)
+        for r in range(3):
+            for c in range(3):
+                tb.cells[(r, c)] = TableCell(text=f"{r}{c}")
+        ev = _make_table_host()
+        ev._handle_table_clear([tb])
+        assert tb.cells == {}
+        for r in range(3):
+            for c in range(3):
+                tb.cells[(r, c)] = TableCell(text=f"{r}{c}")
+        ev._handle_table_clear([tb, 1, 1, 2, 2])
+        assert set(tb.cells) == {(0, 0), (0, 1), (0, 2), (1, 0), (2, 0)}
