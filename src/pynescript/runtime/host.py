@@ -596,6 +596,20 @@ def _pack_interpret_plot_columns(
         display = m0.get("display")
         if display is not None and display != "":
             meta_entry["display"] = display
+        for key in ("offset", "show_last"):
+            wv = m0.get(key)
+            if isinstance(wv, (int, float)) and not isinstance(wv, bool):
+                meta_entry[key] = int(wv)
+        for key in ("trackprice", "join", "editable"):
+            wv = m0.get(key)
+            if isinstance(wv, bool):
+                meta_entry[key] = wv
+        wv = m0.get("histbase")
+        if isinstance(wv, (int, float)) and not isinstance(wv, bool):
+            try:
+                meta_entry["histbase"] = float(wv)
+            except (TypeError, ValueError):
+                pass
         plot_meta[title] = meta_entry
 
     final_series = next(iter(series_map.values()), [])

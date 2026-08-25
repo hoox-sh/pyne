@@ -122,11 +122,20 @@ bgcolor(close > open ? color.green : na, title="bg", offset=1)
 
 
 class TestRuntimeWireMeta:
-    def test_runtime_run_smoke(self) -> None:
-        # Packing passthrough of wire keys lands in Task 4; smoke-check linewidth.
+    def test_plot_wire_params_exported(self) -> None:
         r = Runtime().run(_WIRE_SCRIPT, _bars(), mode="interpret")
         meta = r["plot_meta"]["base"]
         assert meta["linewidth"] == 2
+        assert meta["offset"] == 3
+        assert meta["histbase"] == -10.0
+        assert meta["trackprice"] is True
+        assert meta["join"] is True
+        assert meta["editable"] is False
+        assert meta["show_last"] == 20
+
+    def test_bgcolor_offset(self) -> None:
+        r = Runtime().run(_WIRE_SCRIPT, _bars(), mode="interpret")
+        assert r["plot_meta"]["bg"].get("offset") == 1
 
     def test_defaults_omitted(self) -> None:
         script = '//@version=6\nindicator("m", overlay=true)\nplot(close, title="plain")\n'
