@@ -83,6 +83,31 @@ PLOT_PARAM_SPECS: dict[str, tuple[tuple[str, int], ...]] = {
         ("editable", 8),
         ("show_last", 9),
     ),
+    "plotcandle": (
+        ("open", 0),
+        ("high", 1),
+        ("low", 2),
+        ("close", 3),
+        ("title", 4),
+        ("color", 5),
+        ("wickcolor", 6),
+        ("editable", 7),
+        ("show_last", 8),
+        ("bordercolor", 9),
+        ("display", 10),
+    ),
+    "plotbar": (
+        ("open", 0),
+        ("high", 1),
+        ("low", 2),
+        ("close", 3),
+        ("title", 4),
+        ("color", 5),
+        ("editable", 6),
+        ("show_last", 7),
+        ("bordercolor", 8),
+        ("display", 9),
+    ),
 }
 
 # Params exported to AXIS plot_meta, per kind (subset of the spec above).

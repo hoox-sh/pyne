@@ -280,6 +280,7 @@ class TestCandleOhlc:
         assert meta["high"] == "px.high"
         assert meta["low"] == "px.low"
         assert meta["close"] == "px"
+        assert meta["style"] == "candles"
 
     def test_wick_border_colors(self) -> None:
         r = Runtime().run(_CANDLE_SCRIPT, _bars(), mode="interpret")
@@ -287,6 +288,29 @@ class TestCandleOhlc:
         # colors serialize via to_rgba/to_hex/hex-int paths; assert presence + string
         assert isinstance(meta.get("wickcolor"), str) and meta["wickcolor"]
         assert isinstance(meta.get("bordercolor"), str) and meta["bordercolor"]
+
+    def test_positional_wick_border(self) -> None:
+        # Pine v6 canonical order: open, high, low, close, title@4, color@5,
+        # wickcolor@6 — previously kwargs-only.
+        script = (
+            '//@version=6\nindicator("pw", overlay=true)\n'
+            'plotcandle(open, high, low, close, "pt", color.blue, color.orange)\n'
+        )
+        r = Runtime().run(script, _bars(), mode="interpret")
+        meta = r["plot_meta"]["pt"]
+        assert isinstance(meta.get("wickcolor"), str) and meta["wickcolor"]
+        assert meta.get("color") == "#2962FF"
+
+    def test_positional_plotbar_bordercolor(self) -> None:
+        # bordercolor@8 (after editable@6, show_last@7)
+        script = (
+            '//@version=6\nindicator("pb", overlay=true)\n'
+            'plotbar(open, high, low, close, "pb", color.green, true, 10, color.red)\n'
+        )
+        r = Runtime().run(script, _bars(), mode="interpret")
+        meta = r["plot_meta"]["pb"]
+        assert isinstance(meta.get("bordercolor"), str) and meta["bordercolor"]
+        assert meta["style"] == "bars"
 
     def test_plotbar_ohlc(self) -> None:
         script = '//@version=6\nindicator("b")\nplotbar(open, high, low, close, title="brs")\n'
@@ -491,6 +515,19 @@ class TestCompileAttrs:
         r = Runtime().run(script, _bars(), mode="compile")
         m = r["plot_meta"]["d"]
         assert not isinstance(m.get("linewidth"), str)
+
+    def test_bgcolor_offset_parity_both_modes(self) -> None:
+        # bgcolor meta comes from __drawings events in compile mode; the
+        # constant offset must fold into plot_meta like interpret.
+        script = (
+            '//@version=6\nindicator("bgp", overlay=true)\n'
+            'bgcolor(close > open ? color.green : na, title="bgp_bg", offset=1)\n'
+        )
+        ri = Runtime().run(script, _bars(), mode="interpret")
+        clear_compile_cache()
+        rc = Runtime().run(script, _bars(), mode="compile")
+        assert ri["plot_meta"]["bgp_bg"].get("offset") == 1
+        assert rc["plot_meta"]["bgp_bg"].get("offset") == 1
 
     def test_ir_share_does_not_leak_titles_or_attrs(self) -> None:
         # Metadata-only siblings share numeric IR; each payload keeps its own

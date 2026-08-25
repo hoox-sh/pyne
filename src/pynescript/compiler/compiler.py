@@ -111,10 +111,18 @@ _NS = frozenset(
 # linewidth, style, …)).
 _PLOT_ATTR_SPECS: dict[str, tuple[str, ...]] = {
     "plot": ("trackprice", "histbase", "offset", "join", "editable", "show_last", "linewidth", "style"),
-    "hline": ("editable",),
+    "hline": ("editable", "linewidth"),
+    "bgcolor": ("offset", "editable", "show_last"),
+    "barcolor": ("offset", "editable", "show_last"),
+    "plotshape": ("offset", "editable", "show_last"),
+    "plotchar": ("offset", "editable", "show_last"),
 }
 _PLOT_ATTR_FALLBACK_IDX: dict[str, int] = {"linewidth": 3, "style": 4}
 _MAX_FOLD_EXPR_LEN = 128
+
+# Visual kinds whose plot_meta comes from __drawings events (not visitor.plots):
+# constant-folded wire attrs are appended to their event dicts in _emit_drawing.
+_VISUAL_EVENT_FOLD_KINDS = frozenset({"bgcolor", "barcolor", "plotshape", "plotchar"})
 
 
 def _fold_int_attr(value: Any, default: int) -> int:
@@ -7386,6 +7394,13 @@ class CompilerVisitor(NodeVisitor):
         for k, v in kwargs.items():
             if k not in ("title", "color"):
                 parts.append(f"{k!r}: {v}")
+        if kind in _VISUAL_EVENT_FOLD_KINDS:
+            # Constant wire params fold to literals here (their plot_meta is
+            # built from these events, not visitor.plots). Appended after raw
+            # kwargs so folded values win duplicate keys; dynamic exprs stay
+            # untouched above (merge-side coercion skips non-integers).
+            for name, val in self._collect_plot_attrs(kind, args, kwargs).items():
+                parts.append(f"{name!r}: {val!r}")
         event = f"{{{', '.join(parts)}}}"
         # Object constructors + hline return a handle dict so later set_* /
         # float(handle) can reference it (float → na via safe_float).

@@ -882,7 +882,8 @@ class CustomEvaluator(NodeLiteralEvaluator):
             "color": _serialize_color(_unwrap_scalar(raw_color)) if raw_color is not None else None,
             "linewidth": 1,
         }
-        extras = self._plot_wire_extras(kind, [], kwargs)
+        entry["style"] = "candles" if kind == "plotcandle" else "bars"
+        extras = self._plot_wire_extras(kind, list(args), kwargs)
         wire_missing = extras.pop("_wire_missing", None)
         for k, v in extras.items():
             entry[k] = v

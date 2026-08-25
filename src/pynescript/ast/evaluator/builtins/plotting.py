@@ -48,6 +48,9 @@ from typing import Sequence
 
 from .base import BuiltinDispatchMixin
 from .base import BuiltinHandler
+from .plot_params import WIRE_PARAMS
+from .plot_params import extract_wire_meta
+
 
 # Hot-path constants (avoid attribute lookups + str() on defaults every bar)
 _LS_SOLID = "linestyle_solid"
@@ -366,6 +369,17 @@ def materialize_visual_series_from_drawings(
         color = ev.get("color")
         if color is not None and str(color).strip() != "":
             meta["color"] = str(color) if not isinstance(color, str) else color
+        # Constant-folded wire params (compile events carry literals; dynamic
+        # per-bar values are skipped so interpret↔compile meta stay aligned).
+        wire_kw: dict[str, Any] = {}
+        for p in WIRE_PARAMS.get(kind, ()):
+            v = ev.get(p)
+            if isinstance(v, float) and (v != v or v in (math.inf, -math.inf)):
+                continue
+            if v is not None:
+                wire_kw[p] = v
+        if wire_kw:
+            meta.update(extract_wire_meta(kind, [], wire_kw))
         site: dict[str, Any] = {"key": key, "kind": kind, "meta": meta}
         if kind in ("plotbar", "plotcandle"):
             # AXIS tier-2 OHLC siblings: close-primary parent + open/high/low refs
