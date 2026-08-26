@@ -2,26 +2,27 @@
 # Copyright (C) 2024-2026 jango_blockchained
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Deploy pyne (pynescript) to the namecheap VPS and keep AXIS PWA alive.
+# Deploy pyne (pynescript) Pro API to the Hetzner VPS (pynescript.online).
+# AXIS PWA is served from Cloudflare Pages (axis.hoox.sh) — skip dist by default.
 #
 # Usage:
 #   ./scripts/deploy_vps.sh
 #   # password auth (optional override):
 #   SSHPASS='…' ./scripts/deploy_vps.sh
 #
-# Defaults to key auth with ~/.ssh/id_ed25519 (matches Host "namecheap" in
+# Defaults to key auth with ~/.ssh/id_ed25519 (matches Host "pynescript" in
 # ~/.ssh/config). Prefer identity file when connecting by IP so HostName
 # matching is not required.
 #
 # Env overrides:
-#   VPS_HOST=162.254.38.194   # or Host alias e.g. namecheap
+#   VPS_HOST=pynescript       # or 204.168.138.51
 #   VPS_USER=root
 #   VPS_PORT=22
 #   VPS_PATH=/root/pynescript
 #   VPS_IDENTITY_FILE=~/.ssh/id_ed25519
 #   AXIS_REPO=/path/to/axis   (default: sibling ../axis)
 #   AXIS_BUILD=1              # run `bun run build` in AXIS_REPO before rsync
-#   AXIS_SKIP_DIST=1          # skip rsync of axis dist/
+#   AXIS_SKIP_DIST=1          # skip rsync of axis dist/ (default on this host)
 #
 # Copyright (C) 2024-2026 jango_blockchained
 # SPDX-License-Identifier: AGPL-3.0-or-later
@@ -29,7 +30,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VPS_HOST="${VPS_HOST:-162.254.38.194}"
+VPS_HOST="${VPS_HOST:-pynescript}"
 VPS_USER="${VPS_USER:-root}"
 VPS_PORT="${VPS_PORT:-22}"
 VPS_PATH="${VPS_PATH:-/root/pynescript}"
@@ -108,9 +109,9 @@ rsync -az --delete --info=stats1 \
   "${ROOT}/" "${TARGET}"
 
 # AXIS static server lives in the sister axis repo (not in pyne after frontend extract).
-# systemd unit: ExecStart=python3 /root/pynescript/frontend/axis_pwa_server.py
-# WorkingDirectory + server ROOT → /root/pynescript/frontend/dist
-if [[ -n "${AXIS_REPO}" && -f "${AXIS_REPO}/axis_pwa_server.py" ]]; then
+# Hetzner origin is API-only (PWA on CF Pages). Opt in with AXIS_SKIP_DIST=0.
+AXIS_SKIP_DIST="${AXIS_SKIP_DIST:-1}"
+if [[ "${AXIS_SKIP_DIST}" != "1" && -n "${AXIS_REPO}" && -f "${AXIS_REPO}/axis_pwa_server.py" ]]; then
   echo "==> restore AXIS PWA server from ${AXIS_REPO}"
   rsync -az -e "${RSYNC_E[*]}" \
     "${AXIS_REPO}/axis_pwa_server.py" \
@@ -137,7 +138,7 @@ if [[ -n "${AXIS_REPO}" && -f "${AXIS_REPO}/axis_pwa_server.py" ]]; then
     fi
   fi
 else
-  echo "!! AXIS_REPO not found or missing axis_pwa_server.py — skipping (axis-pwa may stay down)" >&2
+  echo "==> skip AXIS PWA rsync (API-only host; set AXIS_SKIP_DIST=0 to ship dist)"
 fi
 
 echo "==> remote: pip install + restart services"
@@ -155,12 +156,14 @@ else
 fi
 systemctl reset-failed axis-pwa.service 2>/dev/null || true
 systemctl restart pynescript-api.service
-systemctl restart axis-pwa.service
+# AXIS PWA is on CF Pages; axis-pwa.service is optional on this host.
+if systemctl list-unit-files axis-pwa.service >/dev/null 2>&1; then
+  systemctl restart axis-pwa.service || true
+fi
 sleep 1
-systemctl is-active pynescript-api.service axis-pwa.service
-curl -s -o /dev/null -w "api=%{http_code}\n" --max-time 5 http://127.0.0.1:5002/ || true
-# VPS axis-pwa binds 127.0.0.1:80 (local PWA is :8081)
-curl -s -o /dev/null -w "axis=%{http_code}\n" --max-time 5 http://127.0.0.1:80/ || true
+systemctl is-active pynescript-api.service
+curl -s -o /dev/null -w "api=%{http_code}\n" --max-time 5 http://127.0.0.1:5002/health || true
+curl -s -o /dev/null -w "nginx=%{http_code}\n" --max-time 5 -k https://127.0.0.1/health || true
 EOF
 
 echo "==> done"
