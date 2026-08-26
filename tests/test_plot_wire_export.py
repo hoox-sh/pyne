@@ -543,3 +543,148 @@ class TestCompileAttrs:
         assert mb["title"] == "beta"
         assert mb.get("linewidth") == 4
         assert ma.get("linewidth") in (1, None)
+
+
+# ---------------------------------------------------------------------------
+# Arnjesix regression matrix: offset contract validation (issue #6)
+# ---------------------------------------------------------------------------
+
+
+_OFFSET_SCRIPT = """
+//@version=6
+indicator("off", overlay=true)
+plot(close, title="p_n2", offset=-2)
+plot(close, title="p_0")
+plot(close, title="p_2", offset=2)
+bgcolor(color.red, title="bg_n2", offset=-2)
+bgcolor(color.blue, title="bg_2", offset=2)
+barcolor(color.green, title="bc_n2", offset=-2)
+barcolor(color.orange, title="bc_2", offset=2)
+plotshape(close > open, title="ps_n2", offset=-2)
+plotshape(close > open, title="ps_2", offset=2)
+plotchar(close > open, title="pc_n2", offset=-2)
+plotchar(close > open, title="pc_2", offset=2)
+"""
+
+
+class TestOffsetContractMatrix:
+    """Validate arnjesix's 5 pass conditions for the offset wire contract."""
+
+    def test_raw_samples_identical_regardless_of_offset(self) -> None:
+        """Pass condition 1: raw sample sequence identical between offset 0 and 2."""
+        bars = _bars(10)
+        r = Runtime().run(_OFFSET_SCRIPT, bars, mode="interpret")
+        series = r["series"]
+        # All plot variants capture the same close values — offset is metadata-only
+        for title in ("p_n2", "p_0", "p_2"):
+            assert series[title] == series["p_0"], f"raw samples differ for {title}"
+
+    def test_only_metadata_differs(self) -> None:
+        """Pass condition 2: only plot_meta.offset differs."""
+        r = Runtime().run(_OFFSET_SCRIPT, _bars(10), mode="interpret")
+        meta = r["plot_meta"]
+        assert meta["p_n2"]["offset"] == -2
+        assert "offset" not in meta["p_0"]  # 0 is default → omitted
+        assert meta["p_2"]["offset"] == 2
+
+    def test_json_round_trip_preserves_signed_offset(self) -> None:
+        """Pass condition 3: JSON round-trip preserves signed value."""
+        import json
+
+        r = Runtime().run(_OFFSET_SCRIPT, _bars(10), mode="interpret")
+        payload = json.dumps(r["plot_meta"])
+        restored = json.loads(payload)
+        assert restored["p_n2"]["offset"] == -2
+        assert restored["p_2"]["offset"] == 2
+        assert restored["bg_n2"]["offset"] == -2
+        assert restored["bc_2"]["offset"] == 2
+
+    def test_offset_per_kind_all_variants(self) -> None:
+        """Each plot-like output owns its own offset."""
+        r = Runtime().run(_OFFSET_SCRIPT, _bars(10), mode="interpret")
+        meta = r["plot_meta"]
+        assert meta["bg_n2"]["offset"] == -2
+        assert meta["bg_2"]["offset"] == 2
+        assert meta["bc_n2"]["offset"] == -2
+        assert meta["bc_2"]["offset"] == 2
+        assert meta["ps_n2"]["offset"] == -2
+        assert meta["ps_2"]["offset"] == 2
+        assert meta["pc_n2"]["offset"] == -2
+        assert meta["pc_2"]["offset"] == 2
+
+    def test_no_shared_or_last_write_wins(self) -> None:
+        """Two plots with different offsets do not clobber each other."""
+        r = Runtime().run(_OFFSET_SCRIPT, _bars(10), mode="interpret")
+        meta = r["plot_meta"]
+        assert meta["p_n2"]["offset"] == -2
+        assert meta["p_2"]["offset"] == 2
+        # Cross-check: changing one didn't affect the other
+        assert meta["p_n2"]["offset"] != meta["p_2"]["offset"]
+
+    def test_offset_with_na_gaps(self) -> None:
+        """Offset works when the value series contains na gaps."""
+        script = (
+            '//@version=6\nindicator("off_na", overlay=true)\n'
+            'plot(close > 100 ? close : na, title="na_plot", offset=2)\n'
+            'bgcolor(close > 100 ? color.green : na, title="na_bg", offset=-1)\n'
+        )
+        r = Runtime().run(script, _bars(20), mode="interpret")
+        meta = r["plot_meta"]
+        assert meta["na_plot"]["offset"] == 2
+        assert meta["na_bg"]["offset"] == -1
+
+    def test_existing_scripts_without_offset_unchanged(self) -> None:
+        """Pass condition 5: scripts omitting offset retain output and get default 0."""
+        script = '//@version=6\nindicator("def")\nplot(close, title="plain")\n'
+        r = Runtime().run(script, _bars(10), mode="interpret")
+        meta = r["plot_meta"]["plain"]
+        assert "offset" not in meta  # default 0 → omitted
+
+    def test_offset_parity_interpret_vs_compile(self) -> None:
+        """Offset folds identically in both modes."""
+        script = (
+            '//@version=6\nindicator("off_cm", overlay=true)\n'
+            'plot(close, title="cm_off", offset=3)\n'
+            'bgcolor(color.red, title="cm_bg_off", offset=-2)\n'
+        )
+        ri = Runtime().run(script, _bars(10), mode="interpret")
+        clear_compile_cache()
+        rc = Runtime().run(script, _bars(10), mode="compile")
+        assert ri["plot_meta"]["cm_off"]["offset"] == 3
+        assert rc["plot_meta"]["cm_off"]["offset"] == 3
+        assert ri["plot_meta"]["cm_bg_off"]["offset"] == -2
+        assert rc["plot_meta"]["cm_bg_off"]["offset"] == -2
+
+
+# ---------------------------------------------------------------------------
+# Compile-mode wire params for trackprice/show_last/editable/join (issue #7)
+# ---------------------------------------------------------------------------
+
+
+class TestCompileWireParams:
+    """Verify trackprice/show_last/editable/join round-trip in compile mode."""
+
+    def test_plot_wire_params_compile_parity(self) -> None:
+        script = (
+            '//@version=6\nindicator("cw", overlay=true)\n'
+            'plot(close, title="cw_line", trackprice=true, show_last=50, '
+            "editable=false, join=true, offset=2)\n"
+        )
+        ri = Runtime().run(script, _bars(10), mode="interpret")
+        clear_compile_cache()
+        rc = Runtime().run(script, _bars(10), mode="compile")
+        for mode_name, r in (("interpret", ri), ("compile", rc)):
+            meta = r["plot_meta"]["cw_line"]
+            assert meta.get("trackprice") is True, f"{mode_name}: trackprice"
+            assert meta.get("show_last") == 50, f"{mode_name}: show_last"
+            assert meta.get("editable") is False, f"{mode_name}: editable"
+            assert meta.get("join") is True, f"{mode_name}: join"
+            assert meta.get("offset") == 2, f"{mode_name}: offset"
+
+    def test_hline_editable_compile_parity(self) -> None:
+        script = '//@version=6\nindicator("ch", overlay=true)\nhline(100, "level", editable=false)\n'
+        ri = Runtime().run(script, _bars(5), mode="interpret")
+        clear_compile_cache()
+        rc = Runtime().run(script, _bars(5), mode="compile")
+        assert ri["plot_meta"]["level"].get("editable") is False
+        assert rc["plot_meta"]["level"].get("editable") is False
