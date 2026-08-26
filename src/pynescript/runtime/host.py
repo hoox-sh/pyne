@@ -1016,6 +1016,35 @@ def _stamp_compile_plot_attrs(
             plot_meta[title][k] = v
 
 
+def _backfill_plot_meta_from_drawings(
+    plot_meta: dict[str, dict[str, Any]],
+    drawings: list[dict[str, Any]] | None,
+) -> None:
+    """Backfill ``linestyle`` / ``color`` / ``price`` from ``__drawings`` into ``plot_meta``.
+
+    The compile path ``plot_attrs`` are often empty (e.g. for hline/fill), so
+    ``plot_meta`` only gets ``kind`` from ``_stamp_compile_plot_kinds``.  This
+    function reads the first drawing per title and fills in missing visual attrs.
+    """
+    if not plot_meta or not drawings:
+        return
+    seen: set[str] = set()
+    for d in drawings:
+        if not isinstance(d, dict):
+            continue
+        title = d.get("title")
+        if not title or title in seen:
+            continue
+        seen.add(title)
+        entry = plot_meta.get(title)
+        if entry is None:
+            continue
+        # Backfill only fields that are still missing / None.
+        for key in ("linestyle", "color", "price", "linewidth"):
+            if key in d and (entry.get(key) is None or key not in entry):
+                entry[key] = d[key]
+
+
 def _clear_pine_call_sites(tree: Any) -> None:
     """Drop evaluator-bound call-site caches from a shared AST tree.
 
@@ -2448,6 +2477,7 @@ class Runtime:
         plot_meta = _compile_plot_meta(json_series)
         _stamp_compile_plot_kinds(plot_meta, compiled.plot_titles, compiled.plot_kinds)
         _stamp_compile_plot_attrs(plot_meta, getattr(compiled, "plot_attrs", None))
+        _backfill_plot_meta_from_drawings(plot_meta, drawings)
         _n_visual = int(n_bars_hint or 0) or len(ohlcv_data or ())
         if isinstance(drawings, list) and drawings and _n_visual > 0:
             try:
