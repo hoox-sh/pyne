@@ -110,8 +110,8 @@ _NS = frozenset(
 # positional fallbacks beyond param_index() (plot(series, title, color,
 # linewidth, style, …)).
 _PLOT_ATTR_SPECS: dict[str, tuple[str, ...]] = {
-    "plot": ("trackprice", "histbase", "offset", "join", "editable", "show_last", "linewidth", "style"),
-    "hline": ("editable", "linewidth"),
+    "plot": ("trackprice", "histbase", "offset", "join", "editable", "show_last", "linewidth", "style", "display"),
+    "hline": ("editable", "linewidth", "display"),
     "bgcolor": ("offset", "editable", "show_last"),
     "barcolor": ("offset", "editable", "show_last"),
     "plotshape": ("offset", "editable", "show_last"),
@@ -119,6 +119,23 @@ _PLOT_ATTR_SPECS: dict[str, tuple[str, ...]] = {
 }
 _PLOT_ATTR_FALLBACK_IDX: dict[str, int] = {"linewidth": 3, "style": 4}
 _MAX_FOLD_EXPR_LEN = 128
+
+# Pine display.* constants — bitfield values.
+_PINE_DISPLAY_CONSTANTS: dict[str, int] = {
+    "display.none": 0,
+    "display.pane": 1,
+    "display.data_window": 2,
+    "display.price_scale": 4,
+    "display.status_line": 8,
+    "display.all": 15,
+    # Stripped forms (compiler resolves display.data_window → "data_window").
+    "none": 0,
+    "pane": 1,
+    "data_window": 2,
+    "price_scale": 4,
+    "status_line": 8,
+    "all": 15,
+}
 
 # Visual kinds whose plot_meta comes from __drawings events (not visitor.plots):
 # constant-folded wire attrs are appended to their event dicts in _emit_drawing.
@@ -7151,6 +7168,7 @@ class CompilerVisitor(NodeVisitor):
         """Fold a generated expression string to a literal int/float/str/bool.
 
         Returns the Python value for pure literals ("#ff0000", 2, -1.5, True),
+        Pine display.* constants (display.data_window → 2),
         else None (dynamic expressions, non-scalars, oversized text).
         """
         if isinstance(expr, bool) or isinstance(expr, (int, float)):
@@ -7160,6 +7178,24 @@ class CompilerVisitor(NodeVisitor):
         s = expr.strip()
         if not s or len(s) > _MAX_FOLD_EXPR_LEN:
             return None
+        # Resolve Pine display.* token constants.
+        pine_const = _PINE_DISPLAY_CONSTANTS.get(s)
+        if pine_const is not None:
+            return pine_const
+        # Handle addition expressions for display bitfield (e.g. display.pane + display.data_window).
+        if "+" in s or "|" in s:
+            parts = [p.strip() for p in s.replace("|", "+").split("+")]
+            total = 0
+            all_resolved = True
+            for part in parts:
+                val = _PINE_DISPLAY_CONSTANTS.get(part)
+                if val is not None:
+                    total |= val
+                else:
+                    all_resolved = False
+                    break
+            if all_resolved:
+                return total
         try:
             v = py_ast.literal_eval(s)
         except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
@@ -7181,6 +7217,14 @@ class CompilerVisitor(NodeVisitor):
             sval = str(value).replace("plot.", "")
             if sval and sval not in ("line", "style_line"):
                 coerced = sval
+        elif name == "display":
+            iv: int | None = None
+            if isinstance(value, (int, float)):
+                iv = int(value)
+            elif isinstance(value, str):
+                iv = _PINE_DISPLAY_CONSTANTS.get(value) or _PINE_DISPLAY_CONSTANTS.get(value.lower())
+            if iv is not None and iv != 15:
+                coerced = iv
         elif name in WIRE_INT_PARAMS or name == "linewidth":
             if not isinstance(value, bool) and isinstance(value, (int, float)):
                 default = WIRE_DEFAULTS.get(name, 1 if name == "linewidth" else 0)
