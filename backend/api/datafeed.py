@@ -234,11 +234,10 @@ def fetch_ohlcv():  # type: ignore[no-untyped-def]
     try:
         raw = provider.fetch_ohlcv(symbol=symbol, timeframe=timeframe, since=since, limit=limit)
     except Exception as exc:
-        msg = str(exc)
-        logger.warning("datafeed ohlcv error: %s", exc)
-        if "not installed" in msg.lower():
-            return jsonify({"error": msg}), 503
-        return jsonify({"error": msg}), 502
+        logger.warning("datafeed ohlcv: %s", exc)
+        if "not installed" in str(exc).lower():
+            return jsonify({"error": "Data provider not installed"}), 503
+        return jsonify({"error": "Failed to fetch OHLCV data"}), 502
 
     bars = []
     for candle in raw or []:
@@ -282,8 +281,8 @@ def fetch_markets():  # type: ignore[no-untyped-def]
             )
         return jsonify(simplified)
     except Exception as exc:
-        logger.warning("datafeed markets error: %s", exc)
-        return jsonify({"error": str(exc)}), 502
+        logger.warning("datafeed markets: %s", exc)
+        return jsonify({"error": "Failed to fetch market data"}), 502
 
 
 # ---------------------------------------------------------------------------
@@ -320,14 +319,7 @@ def bind_session():  # type: ignore[no-untyped-def]
     credentials = _get_credentials(exchange) or _get_env_credentials(exchange)
     if not credentials:
         return (
-            jsonify(
-                {
-                    "error": (
-                        f"No credentials found for {exchange}. "
-                        "POST apiKey+secret or set env vars."
-                    )
-                }
-            ),
+            jsonify({"error": (f"No credentials found for {exchange}. POST apiKey+secret or set env vars.")}),
             404,
         )
 

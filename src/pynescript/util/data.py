@@ -48,6 +48,7 @@ from abc import abstractmethod
 from datetime import datetime
 from datetime import timedelta
 from typing import Any
+from urllib.parse import urlparse
 
 
 class DataProvider(ABC):
@@ -477,18 +478,11 @@ def normalize_ccxt_symbol(exchange_name: str, symbol: str) -> str:
 def geo_block_message(exchange_name: str, err: BaseException) -> str | None:
     """Short operator hint when a venue CDN refuses this host's region."""
     text = str(err)
-    blocked = (
-        "block access from your country" in text
-        or "restricted location" in text
-        or "Eligibility" in text
-    )
+    blocked = "block access from your country" in text or "restricted location" in text or "Eligibility" in text
     if not blocked:
         return None
     name = str(exchange_name or "").strip() or "exchange"
-    return (
-        f"{name} public API is blocked from this host's region. "
-        "Use kraken, okx, gate, or binance (spot)."
-    )
+    return f"{name} public API is blocked from this host's region. Use kraken, okx, gate, or binance (spot)."
 
 
 def tune_ccxt_public_urls(exchange: Any, exchange_name: str) -> None:
@@ -513,8 +507,10 @@ def tune_ccxt_public_urls(exchange: Any, exchange_name: str) -> None:
     if not isinstance(api, dict):
         return
     for key, val in list(api.items()):
-        if isinstance(val, str) and val.startswith("https://api.binance.com"):
-            api[key] = val.replace("https://api.binance.com", _BINANCE_PUBLIC_HOST, 1)
+        if isinstance(val, str):
+            parsed = urlparse(val)
+            if parsed.scheme == "https" and parsed.hostname == "api.binance.com":
+                api[key] = val.replace("https://api.binance.com", _BINANCE_PUBLIC_HOST, 1)
     urls["api"] = api
 
 

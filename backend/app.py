@@ -28,9 +28,12 @@ Start with ``python -m backend.app`` (dev) or gunicorn in production.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from flask import Flask
 from flask import g
@@ -261,7 +264,8 @@ def _maybe_host_compile_prewarm(*, force: bool = False) -> dict[str, Any] | None
 
         _logging.getLogger(__name__).debug("host compile prewarm failed: %s", exc, exc_info=True)
         _HOST_COMPILE_PREWARMED = True
-        return {"error": str(exc), "has_numba": False}
+        logger.warning("host compile prewarm failed: %s", exc)
+        return {"error": "Internal server error", "has_numba": False}
 
 
 def _err_to_dict(err: tuple) -> tuple[dict[str, Any], int]:
@@ -430,10 +434,11 @@ def _execute_run_payload_inner(
             source_options=data_options if isinstance(data_options, dict) else {},
         )
     except Exception as e:  # noqa: BLE001 — surface config errors cleanly
+        logger.warning("data source config: %s", e)
         return {
             "status": "error",
             "code": "DATA_SOURCE_ERROR",
-            "message": f"Failed to configure data source: {e}",
+            "message": "Failed to configure data source",
         }, 400
 
     inputs = validated.get("inputs") or {}
@@ -537,7 +542,8 @@ def _execute_run_payload_inner(
         if alert_fwd is not None:
             resp["alert_forward"] = alert_fwd
     except Exception as e:  # noqa: BLE001 — never fail the run on webhook errors
-        resp["alert_forward_error"] = str(e)
+        logger.warning("alert forward: %s", e)
+        resp["alert_forward_error"] = "Alert forwarding failed"
 
     return resp, 200
 
@@ -569,9 +575,10 @@ def _compile_health_section() -> dict[str, Any]:
             "host_prewarmed": _HOST_COMPILE_PREWARMED,
         }
     except Exception as exc:  # noqa: BLE001 — health must stay up
+        logger.warning("compile health: %s", exc)
         return {
             "has_numba": False,
-            "error": str(exc),
+            "error": "Internal server error",
             "default_mode": "auto",
             "host_prewarmed": _HOST_COMPILE_PREWARMED,
         }
@@ -731,7 +738,8 @@ def execute_optimize_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]
         try:
             space = space_from_payload(validated.get("space"))
         except ValueError as exc:
-            return {"status": "error", "code": "INVALID_SPACE", "message": str(exc)}, 400
+            logger.warning("invalid space: %s", exc)
+            return {"status": "error", "code": "INVALID_SPACE", "message": "Invalid space parameter"}, 400
 
         raw_val = validated.get("validation") or {}
         if not isinstance(raw_val, dict):
@@ -757,10 +765,11 @@ def execute_optimize_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]
             seed_raw = validated.get("seed")
             seed = int(seed_raw) if seed_raw is not None else None
         except (TypeError, ValueError) as exc:
+            logger.warning("optimize validation: %s", exc)
             return {
                 "status": "error",
                 "code": "INVALID_VALIDATION",
-                "message": str(exc),
+                "message": "Invalid optimization parameters",
             }, 400
         libs = _parse_run_libraries(validated.get("libraries"))
         raw_fixed = validated.get("fixed_inputs")
@@ -862,11 +871,12 @@ def compile_prewarm():
             result = prewarm_scripts(sources or None, force_builtins=force)
             _HOST_COMPILE_PREWARMED = True
         except Exception as exc:  # noqa: BLE001
+            logger.warning("prewarm error: %s", exc)
             return jsonify(
                 {
                     "status": "error",
                     "code": "PREWARM_ERROR",
-                    "message": str(exc),
+                    "message": "Prewarm failed",
                 }
             ), 500
 
@@ -1100,11 +1110,12 @@ def _run_pine_script_batch_inner():
             source_options=data_options if isinstance(data_options, dict) else {},
         )
     except Exception as e:  # noqa: BLE001
+        logger.warning("batch data source: %s", e)
         return jsonify(
             {
                 "status": "error",
                 "code": "DATA_SOURCE_ERROR",
-                "message": f"Failed to configure data source: {e}",
+                "message": "Failed to configure data source",
             }
         ), 400
 
@@ -1125,12 +1136,13 @@ def _run_pine_script_batch_inner():
                 **timeout_kw,
             )
         except Exception as e:  # noqa: BLE001 — per-script isolation
+            logger.warning("batch script error: %s", e)
             results.append(
                 {
                     "id": sid,
                     "status": "error",
                     "code": "EXECUTION_ERROR",
-                    "message": str(e),
+                    "message": "Script execution failed",
                 }
             )
             continue
@@ -1178,7 +1190,8 @@ def _run_pine_script_batch_inner():
             if alert_fwd is not None:
                 item["alert_forward"] = alert_fwd
         except Exception as e:  # noqa: BLE001
-            item["alert_forward_error"] = str(e)
+            logger.warning("batch alert forward: %s", e)
+            item["alert_forward_error"] = "Alert forwarding failed"
         results.append(item)
 
     ok = sum(1 for r in results if r.get("status") == "success")

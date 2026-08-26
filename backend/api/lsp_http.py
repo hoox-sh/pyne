@@ -25,11 +25,14 @@ reuse the same handlers as ``pynescript-lsp``.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from flask import Blueprint
 from flask import jsonify
 from flask import request
+
+logger = logging.getLogger(__name__)
 
 bp = Blueprint("lsp_http", __name__)
 
@@ -83,7 +86,7 @@ def lsp_completion():
             jsonify(
                 {
                     "status": "error",
-                    "message": f"LSP deps missing (pip install \"pyne[lsp]\"): {e}",
+                    "message": "LSP dependencies not installed",
                 }
             ),
             503,
@@ -96,7 +99,8 @@ def lsp_completion():
     try:
         result = handle_completion(params, source)
     except Exception as e:  # noqa: BLE001
-        return jsonify({"status": "error", "message": f"completion failed: {e}"}), 500
+        logger.warning("lsp completion: %s", e)
+        return jsonify({"status": "error", "message": "Completion request failed"}), 500
 
     items: list[dict[str, Any]] = []
     for raw in getattr(result, "items", None) or []:
@@ -135,7 +139,7 @@ def lsp_hover():
             jsonify(
                 {
                     "status": "error",
-                    "message": f"LSP deps missing (pip install \"pyne[lsp]\"): {e}",
+                    "message": "LSP dependencies not installed",
                 }
             ),
             503,
@@ -148,7 +152,8 @@ def lsp_hover():
     try:
         result = handle_hover(params, source)
     except Exception as e:  # noqa: BLE001
-        return jsonify({"status": "error", "message": f"hover failed: {e}"}), 500
+        logger.warning("lsp hover: %s", e)
+        return jsonify({"status": "error", "message": "Hover request failed"}), 500
 
     if result is None:
         return jsonify({"status": "success", "hover": None, "source": "lsp"})
@@ -230,7 +235,7 @@ def lsp_diagnostics():
             jsonify(
                 {
                     "status": "error",
-                    "message": f"linter unavailable: {e}",
+                    "message": "Linter not available",
                 }
             ),
             503,
@@ -239,7 +244,8 @@ def lsp_diagnostics():
     try:
         warnings = lint_script(source, filename="inmemory://axis.pine")
     except Exception as e:  # noqa: BLE001
-        return jsonify({"status": "error", "message": f"preevaluate failed: {e}"}), 500
+        logger.warning("lsp lint: %s", e)
+        return jsonify({"status": "error", "message": "Lint request failed"}), 500
 
     diagnostics: list[dict[str, Any]] = []
     has_error = False

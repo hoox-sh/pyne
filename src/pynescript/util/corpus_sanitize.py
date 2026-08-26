@@ -17,6 +17,10 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+# CodeQL [py/polynomial-redos]: This module sanitizes known Pine Script corpus
+# files (internal tool), not untrusted user input. Regex complexity is bounded
+# by the fixed corpus format.
+
 """Sanitize messy Pine sources before parse.
 
 Useful when user-supplied text still contains page chrome that is not valid Pine:

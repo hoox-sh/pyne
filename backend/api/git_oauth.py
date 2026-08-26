@@ -37,6 +37,7 @@ Env (optional — body may supply ``clientId`` for self-hosted OAuth apps):
 from __future__ import annotations
 
 import json
+import logging
 import os
 import urllib.error
 import urllib.parse
@@ -46,6 +47,8 @@ from typing import Any
 from flask import Blueprint
 from flask import jsonify
 from flask import request
+
+logger = logging.getLogger(__name__)
 
 bp = Blueprint("git_oauth", __name__)
 
@@ -126,8 +129,7 @@ def _start_device(provider: str, client_id: str, scope: str) -> dict[str, Any]:
         "provider": "gitlab",
         "device_code": data.get("device_code"),
         "user_code": data.get("user_code"),
-        "verification_uri": data.get("verification_uri")
-        or "https://gitlab.com/-/profile/device",
+        "verification_uri": data.get("verification_uri") or "https://gitlab.com/-/profile/device",
         "verification_uri_complete": data.get("verification_uri_complete"),
         "expires_in": data.get("expires_in") or 300,
         "interval": data.get("interval") or 5,
@@ -149,9 +151,7 @@ def _poll_device(provider: str, client_id: str, device_code: str) -> dict[str, A
             return {
                 "status": "pending",
                 "error": str(data.get("error")),
-                "error_description": (
-                    str(data["error_description"]) if data.get("error_description") else None
-                ),
+                "error_description": (str(data["error_description"]) if data.get("error_description") else None),
                 "interval": data.get("interval"),
             }
         if not data.get("access_token"):
@@ -176,14 +176,10 @@ def _poll_device(provider: str, client_id: str, device_code: str) -> dict[str, A
         return {
             "status": "pending",
             "error": str(data.get("error")),
-            "error_description": (
-                str(data["error_description"]) if data.get("error_description") else None
-            ),
+            "error_description": (str(data["error_description"]) if data.get("error_description") else None),
         }
     if status >= 400 or not data.get("access_token"):
-        raise RuntimeError(
-            f"GitLab token poll failed: {data.get('error_description') or data.get('error') or status}"
-        )
+        raise RuntimeError(f"GitLab token poll failed: {data.get('error_description') or data.get('error') or status}")
     return {
         "status": "success",
         "access_token": data.get("access_token"),
@@ -215,19 +211,18 @@ def device_start():
         )
         return jsonify({"status": "error", "code": "NO_CLIENT_ID", "message": msg}), 400
 
-    scope = str(body.get("scope") or "").strip() or (
-        GITLAB_SCOPE if provider == "gitlab" else GITHUB_SCOPE
-    )
+    scope = str(body.get("scope") or "").strip() or (GITLAB_SCOPE if provider == "gitlab" else GITHUB_SCOPE)
     try:
         started = _start_device(provider, client_id, scope)
         return jsonify({"status": "success", **started}), 200
     except Exception as e:  # noqa: BLE001 — surface upstream OAuth errors cleanly
+        logger.warning("oauth start: %s", e)
         return (
             jsonify(
                 {
                     "status": "error",
                     "code": "OAUTH_UPSTREAM",
-                    "message": str(e) or "OAuth start failed",
+                    "message": "OAuth start failed",
                 }
             ),
             502,
@@ -266,12 +261,13 @@ def device_poll():
         polled = _poll_device(provider, client_id, device_code)
         return jsonify(polled), 200
     except Exception as e:  # noqa: BLE001
+        logger.warning("oauth poll: %s", e)
         return (
             jsonify(
                 {
                     "status": "error",
                     "code": "OAUTH_UPSTREAM",
-                    "message": str(e) or "OAuth poll failed",
+                    "message": "OAuth poll failed",
                 }
             ),
             502,

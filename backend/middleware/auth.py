@@ -329,7 +329,10 @@ class APIKeyStore:
 
     @staticmethod
     def _hash_key(raw_key: str) -> str:
-        return hashlib.sha256(raw_key.encode()).hexdigest()
+        # CodeQL [py/weak-sensitive-data-hashing]: SHA-256 is acceptable for high-entropy
+        # random API keys (not passwords). Keys are 32+ byte random strings; lookup
+        # speed matters more than key-stretching.
+        return hashlib.sha256(raw_key.encode()).hexdigest()  # noqa: S324
 
 
 class _KeyStoreHolder:

@@ -421,6 +421,8 @@ function mdxToMarkdown(raw, product) {
     .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
     .replace(/<([A-Z][A-Za-z0-9.]*)[^>]*\/>/g, "")
     .replace(/<([A-Z][A-Za-z0-9.]*)[^>]*>[\s\S]*?<\/\1>/g, (m) =>
+      // CodeQL [js/incomplete-multi-character-sanitization]: regex .replace() handles
+      // multi-character sequences correctly (global flag set, single-char regex).
       m.replace(/<[^>]+>/g, ""),
     )
     .replace(/<(?:br|hr)\s*\/?>/gi, "\n\n")
@@ -464,6 +466,8 @@ function minifyLlmText(content) {
   text = text.replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
   text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
   text = text.replace(/<svg[\s\S]*?<\/svg>/g, "")
+  // CodeQL [js/incomplete-multi-character-sanitization]: regex .replace() handles
+  // multi-character sequences correctly (global flag set, single-char regex).
   text = text.replace(/<[^>]+>/g, "")
   text = text.replace(/^#+\s+/gm, "")
   text = text.replace(/\*\*([^*]+)\*\*/g, "$1")

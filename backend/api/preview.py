@@ -21,12 +21,15 @@
 
 from __future__ import annotations
 
+import logging
 import time
 
 from flask import Blueprint
 from flask import g
 from flask import jsonify
 from flask import request
+
+logger = logging.getLogger(__name__)
 
 from backend.middleware.auth import track_usage
 from backend.services.backtest import generate_mock_ohlcv
@@ -131,11 +134,12 @@ def chart_preview():
         )
 
     except Exception as e:
+        logger.warning("chart render: %s", e)
         return jsonify(
             {
                 "status": "error",
                 "code": "RENDER_ERROR",
-                "message": f"Failed to render chart: {e}",
+                "message": "Failed to render chart",
             }
         ), 500
 
@@ -351,10 +355,11 @@ def quick_backtest():
         )
 
     except Exception as e:
+        logger.warning("backtest: %s", e)
         return jsonify(
             {
                 "status": "error",
                 "code": "BACKTEST_ERROR",
-                "message": f"Backtest failed: {e}",
+                "message": "Backtest failed",
             }
         ), 500
