@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-25
+
+### Changed
+
+- **VPS origin is Hetzner `pynescript.online` (`204.168.138.51`)** — `scripts/deploy_vps.sh` defaults to SSH host `pynescript` and skips AXIS dist (PWA is on Cloudflare Pages). API-only gunicorn behind nginx; `axis-pwa.service` is optional.
+
 ## [0.3.18] - 2026-08-25
 
 ### Added
@@ -336,3 +342,5 @@ First public **PYNE** release. PyPI distribution name is **`hoox-pyne`**
 - Stale `Dockerfile.api` (folded into multi-target `Dockerfile`).
 - Dead `technical_refactored.py` and internal refactoring notes from the published package tree.
 - Broken AXIS-only GitHub workflows (`axis-nightly`, PWA/e2e jobs) — AXIS CI lives in [jango-blockchained/axis](https://github.com/jango-blockchained/axis).
+
+[0.4.0]: https://github.com/hoox-sh/pyne/compare/v0.3.18...v0.4.0
