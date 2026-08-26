@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 from unittest.mock import patch
+from urllib.parse import urlparse
 
 import pytest
 
@@ -102,9 +103,7 @@ class TestOhlcv:
         assert bars[1]["open"] == 102.0
         assert bars[1]["close"] == 106.0
         assert bars[1]["time"] == 1_700_003_600
-        mock_provider.fetch_ohlcv.assert_called_once_with(
-            symbol="BTC/USDT", timeframe="1h", since=None, limit=2
-        )
+        mock_provider.fetch_ohlcv.assert_called_once_with(symbol="BTC/USDT", timeframe="1h", since=None, limit=2)
 
     @patch("backend.api.datafeed._make_provider")
     def test_fetch_ohlcv_passes_since_and_limit(self, mock_make: MagicMock, client: FlaskClient) -> None:
@@ -113,10 +112,7 @@ class TestOhlcv:
         mock_make.return_value = mock_provider
 
         # AXIS walk-back: since = endTime*1000 - 100 * 3_600_000
-        resp = client.get(
-            "/datafeed/ohlcv?exchange=okx&symbol=ETH/USDT&timeframe=1h"
-            "&since=1699640000000&limit=100"
-        )
+        resp = client.get("/datafeed/ohlcv?exchange=okx&symbol=ETH/USDT&timeframe=1h&since=1699640000000&limit=100")
         assert resp.status_code == 200
         mock_provider.fetch_ohlcv.assert_called_once_with(
             symbol="ETH/USDT", timeframe="1h", since=1_699_640_000_000, limit=100
@@ -129,9 +125,7 @@ class TestOhlcv:
         mock_make.return_value = mock_provider
         resp = client.get("/datafeed/ohlcv?exchange=binance&symbol=BTC/USDT&timeframe=3m&limit=10")
         assert resp.status_code == 200
-        mock_provider.fetch_ohlcv.assert_called_once_with(
-            symbol="BTC/USDT", timeframe="3m", since=None, limit=10
-        )
+        mock_provider.fetch_ohlcv.assert_called_once_with(symbol="BTC/USDT", timeframe="3m", since=None, limit=10)
 
     @patch("backend.api.datafeed._make_provider")
     def test_fetch_ohlcv_ccxt_error(self, mock_make: MagicMock, client: FlaskClient) -> None:
@@ -429,8 +423,8 @@ class TestCcxtProviderPassThrough:
             options={},
         )
         tune_ccxt_public_urls(ex, "binance")
-        assert ex.urls["api"]["public"].startswith("https://data-api.binance.vision")
-        assert ex.urls["api"]["fapiPublic"].startswith("https://fapi.binance.com")
+        assert urlparse(ex.urls["api"]["public"]).hostname == "data-api.binance.vision"
+        assert urlparse(ex.urls["api"]["fapiPublic"]).hostname == "fapi.binance.com"
         assert ex.options["fetchMarkets"] == ["spot"]
         tune_ccxt_public_urls(ex, "okx")  # no-op
 

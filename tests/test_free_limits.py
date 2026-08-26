@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 import json
+
 from pathlib import Path
 
 import pytest
@@ -127,9 +128,9 @@ def test_json_key_store_is_hash_only(tmp_path: Path) -> None:
     blob = store_path.read_text(encoding="utf-8")
     assert raw not in blob
     assert raw not in on_disk
-    # Keys are SHA-256 hex digests
+    # Keys are PBKDF2 v2 hashes (v2: + 64 hex chars)
     for k, rec in on_disk.items():
-        assert len(k) == 64
+        assert k.startswith("v2:") and len(k) == 67
         assert rec["key_hash"] == k
         assert rec["key_id"] == key_id
 
@@ -198,10 +199,7 @@ def test_run_rejects_ssrf_webhook(client, monkeypatch) -> None:
 def test_run_rejects_too_many_bars(client, monkeypatch) -> None:
     monkeypatch.setenv("FREE_TIER_LIMITS", "1")
     monkeypatch.setenv("FREE_MAX_BARS", "3")
-    bars = [
-        {"open": 1, "high": 1, "low": 1, "close": 1, "time": i, "volume": 1}
-        for i in range(5)
-    ]
+    bars = [{"open": 1, "high": 1, "low": 1, "close": 1, "time": i, "volume": 1} for i in range(5)]
     script = '//@version=5\nindicator("t")\nplot(close)\n'
     resp = client.post(
         "/run",
@@ -224,10 +222,7 @@ def test_health_reports_free_tier_limits_flag(client, monkeypatch) -> None:
 def test_run_skips_bar_cap_when_limits_off(client, monkeypatch) -> None:
     monkeypatch.delenv("FREE_TIER_LIMITS", raising=False)
     monkeypatch.setenv("FREE_MAX_BARS", "3")
-    bars = [
-        {"open": 1, "high": 1, "low": 1, "close": 1, "time": i, "volume": 1}
-        for i in range(5)
-    ]
+    bars = [{"open": 1, "high": 1, "low": 1, "close": 1, "time": i, "volume": 1} for i in range(5)]
     script = '//@version=5\nindicator("t")\nplot(close)\n'
     resp = client.post(
         "/run",

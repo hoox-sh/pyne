@@ -30,10 +30,25 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
+
 from typing import Any
 
+
 logger = logging.getLogger(__name__)
+
+_INTERNAL_PATH_RE = re.compile(r'(?:File ")?[\\/](?:[\w.-]+[\\/])*[\w.-]+\.py(?:", line \d+)?')
+_MAX_ERROR_MSG_LEN = 500
+
+
+def _sanitize_error_for_response(msg: str) -> str:
+    """Strip internal file paths and stack trace details from error messages."""
+    msg = _INTERNAL_PATH_RE.sub("", msg)
+    if len(msg) > _MAX_ERROR_MSG_LEN:
+        msg = msg[:_MAX_ERROR_MSG_LEN] + "..."
+    return msg.strip() or "An error occurred"
+
 
 from flask import Flask
 from flask import g
@@ -45,6 +60,7 @@ from backend.api.git_oauth import bp as git_oauth_bp
 from backend.api.lsp_http import bp as lsp_bp
 from backend.api.preview import backtest_bp
 from backend.api.preview import preview_bp
+
 
 try:
     from backend.api.datafeed import datafeed_bp
@@ -59,6 +75,7 @@ from backend.middleware.schemas import RUN_SCHEMA
 from backend.middleware.schemas import VALIDATE_KEY_SCHEMA
 from backend.middleware.schemas import validate
 from backend.runtime import Runtime
+
 
 try:
     from flask_sock import Sock
@@ -465,13 +482,13 @@ def _execute_run_payload_inner(
         err_body: dict[str, Any] = {
             "status": "error",
             "code": "EXECUTION_ERROR",
-            "message": result["error"],
+            "message": _sanitize_error_for_response(str(result["error"])),
         }
         # Pass through Runtime classification when present (parse/compile/runtime/…).
         if result.get("error_kind"):
             err_body["error_kind"] = result["error_kind"]
         if result.get("error_type"):
-            err_body["error_type"] = result["error_type"]
+            err_body["error_type"] = _sanitize_error_for_response(str(result["error_type"]))
         if result.get("error_bar") is not None:
             err_body["error_bar"] = result["error_bar"]
         if result.get("timed_out"):
@@ -1021,7 +1038,8 @@ def run_pine_script_batch():
 def _run_pine_script_batch_inner():
     """Batch run body after free-tier gates (see :func:`run_pine_script_batch`)."""
     from backend.middleware.free_limits import validate_free_run_bounds
-    from backend.middleware.schemas import RUN_BATCH_MAX_SCRIPTS, RUN_BATCH_SCHEMA
+    from backend.middleware.schemas import RUN_BATCH_MAX_SCRIPTS
+    from backend.middleware.schemas import RUN_BATCH_SCHEMA
 
     data, err = validate(request.get_json(silent=True) or {}, RUN_BATCH_SCHEMA)
     if err is not None:
@@ -1151,7 +1169,7 @@ def _run_pine_script_batch_inner():
                 "id": sid,
                 "status": "error",
                 "code": "EXECUTION_ERROR",
-                "message": result["error"],
+                "message": _sanitize_error_for_response(str(result["error"])),
             }
             if result.get("timed_out"):
                 err_item["timed_out"] = True

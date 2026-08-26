@@ -174,7 +174,7 @@ class PineLinter:
         """Heuristic naming checks for ``ta.*`` assignments (``C001``)."""
         lines = source.split("\n")
         for i, line in enumerate(lines, 1):
-            if match := re.search(r"(\w+)\s*=\s*ta\.", line):
+            if match := re.search(r"(\w+)[ \t]*=[ \t]*ta\.", line):
                 var_name = match.group(1)
                 if re.match(r"^[a-z]", var_name):
                     self._add_warning(

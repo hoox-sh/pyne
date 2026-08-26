@@ -44,6 +44,10 @@ from flask import jsonify
 from flask import request
 
 
+_HASH_SALT = b"pynescript-api-key-store"
+_HASH_ITERATIONS = 100_000
+
+
 @dataclass
 class APIKey:
     """In-memory view of a hashed API key (tier, usage, limits).
@@ -169,6 +173,7 @@ class APIKeyStore:
         # JSON mode only — maps key_hash → APIKey (never raw secret).
         self._keys: dict[str, APIKey] = {}
         self._key_by_id: dict[str, str] = {}  # key_id → key_hash
+        self._legacy_keys: dict[str, APIKey] = {}  # v1 sha256 → APIKey (migration)
         if self._backend is None:
             self._load()
 
@@ -202,6 +207,8 @@ class APIKeyStore:
                 )
                 self._keys[key_hash] = api_key
                 self._key_by_id[key_id] = key_hash
+                if not key_hash.startswith("v2:"):
+                    self._legacy_keys[key_hash] = api_key
         except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
             # Corrupt or partial store — start empty rather than crash the API.
             self._keys.clear()
@@ -280,16 +287,31 @@ class APIKeyStore:
         )
 
     def get_key(self, raw_key: str) -> APIKey | None:
-        """Look up a key by raw secret (always via SHA-256 hash)."""
+        """Look up a key by raw secret (tries PBKDF2 v2, falls back to legacy SHA-256)."""
         if not raw_key:
             return None
         key_hash = self._hash_key(raw_key)
         if self._backend is not None:
             record = self._backend.get_by_hash(key_hash)
-            if record is None:
-                return None
-            return self._api_key_from_record(record)
-        return self._keys.get(key_hash)
+            if record is not None:
+                return self._api_key_from_record(record)
+            # Legacy fallback for backends
+            legacy_hash = self._legacy_hash_key(raw_key)
+            record = self._backend.get_by_hash(legacy_hash)
+            if record is not None:
+                return self._api_key_from_record(record)
+            return None
+        api_key = self._keys.get(key_hash)
+        if api_key is not None:
+            return api_key
+        legacy_hash = self._legacy_hash_key(raw_key)
+        api_key = self._legacy_keys.pop(legacy_hash, None)
+        if api_key is not None:
+            api_key.key_hash = key_hash
+            self._keys[key_hash] = api_key
+            self._key_by_id[api_key.key_id] = key_hash
+            self._save()
+        return api_key
 
     def get_by_id(self, key_id: str) -> APIKey | None:
         """Look up a key by public ``key_id`` (not the raw secret)."""
@@ -318,21 +340,38 @@ class APIKeyStore:
             return False
         key_hash = self._hash_key(raw_key)
         if self._backend is not None:
-            return self._backend.delete_by_hash(key_hash)
-        api_key = self._keys.get(key_hash)
-        if api_key is None:
-            return False
-        del self._keys[key_hash]
-        self._key_by_id.pop(api_key.key_id, None)
-        self._save()
-        return True
+            if self._backend.delete_by_hash(key_hash):
+                return True
+            # Legacy fallback
+            return self._backend.delete_by_hash(self._legacy_hash_key(raw_key))
+        api_key = self._keys.pop(key_hash, None)
+        if api_key is not None:
+            self._key_by_id.pop(api_key.key_id, None)
+            self._save()
+            return True
+        legacy_hash = self._legacy_hash_key(raw_key)
+        api_key = self._legacy_keys.pop(legacy_hash, None)
+        if api_key is not None:
+            self._key_by_id.pop(api_key.key_id, None)
+            self._save()
+            return True
+        return False
 
     @staticmethod
     def _hash_key(raw_key: str) -> str:
-        # CodeQL [py/weak-sensitive-data-hashing]: SHA-256 is acceptable for high-entropy
-        # random API keys (not passwords). Keys are 32+ byte random strings; lookup
-        # speed matters more than key-stretching.
-        return hashlib.sha256(raw_key.encode()).hexdigest()  # noqa: S324
+        """Hash an API key for storage using PBKDF2-HMAC-SHA256 (v2)."""
+        dk = hashlib.pbkdf2_hmac(
+            "sha256",
+            raw_key.encode(),
+            _HASH_SALT,
+            _HASH_ITERATIONS,
+        )
+        return f"v2:{dk.hex()}"
+
+    @staticmethod
+    def _legacy_hash_key(raw_key: str) -> str:
+        """Legacy SHA-256 hash for backward compatibility."""
+        return hashlib.sha256(raw_key.encode()).hexdigest()
 
 
 class _KeyStoreHolder:

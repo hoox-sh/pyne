@@ -187,10 +187,10 @@ def trailing_ident(text_before_cursor: str) -> str:
     if not text_before_cursor:
         return ""
     match = re.search(
-        r"([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*\.?)$",
+        r"([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)(\.?)$",
         text_before_cursor,
     )
-    return match.group(1) if match else ""
+    return (match.group(1) + match.group(2)) if match else ""
 
 
 def extract_module_prefix(word: str) -> str | None:

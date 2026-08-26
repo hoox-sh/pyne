@@ -233,7 +233,7 @@ def build_keyword_items(prefix: str = "") -> list[lsp.CompletionItem]:
 
 
 _ENUM_HEADER = re.compile(r"^[ \t]*(?:export[ \t]+)?enum[ \t]+([A-Za-z_][A-Za-z0-9_]*)")
-_ENUM_MEMBER = re.compile(r"^[ \t]+([A-Za-z_][A-Za-z0-9_]*)(?:[ \t]*=[ \t]*(.+?))?[ \t]*$")
+_ENUM_MEMBER = re.compile(r"^[ \t]+([A-Za-z_][A-Za-z0-9_]*)(?:[ \t]*=[ \t]*([^\n \t]+?))?[ \t]*$")
 
 
 def collect_user_enums(tree: Any, source: str | None = None) -> dict[str, dict[str, Any]]:

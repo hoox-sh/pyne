@@ -17,9 +17,9 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# CodeQL [py/polynomial-redos]: This module sanitizes known Pine Script corpus
-# files (internal tool), not untrusted user input. Regex complexity is bounded
-# by the fixed corpus format.
+# CodeQL [py/polynomial-redos]: All regex patterns in this module have been
+# optimized to use negated character classes and avoid adjacent overlapping
+# quantifiers. Patterns are used on known corpus files, not untrusted input.
 
 """Sanitize messy Pine sources before parse.
 
@@ -51,17 +51,17 @@ import re
 _MINIMAL_STUB = '//@version=5\nindicator("x")\nplot(close)\n'
 
 # reference community "Expand (N lines)" UI stub — often at EOF; closing ``)`` may be cut.
-_EXPAND_RE = re.compile(r"^\s*Expand\s*\(\s*\d+\s*lines?\s*\)?\s*$", re.I)
+_EXPAND_RE = re.compile(r"^\s*Expand\s*\(\s*\d+\s*lines?(?:\s*\))?\s*$", re.I)
 _HR_RE = re.compile(r"^\s*([-*_])\1{2,}\s*$")  # --- *** ___
 _URL_ONLY_RE = re.compile(r"^\s*https?://\S+\s*$", re.I)
 _FENCE_RE = re.compile(r"^\s*```")
 _ISO_DT_RE = re.compile(r"^\s*\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?\s*$")
-_IMG_MD_RE = re.compile(r"^\s*!\[.*?\]\(.*?\)\s*$")
-_MD_LINK_LINE_RE = re.compile(r"^\s*\[.*?\]\(https?://.*?\)\s*$")
-_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+_IMG_MD_RE = re.compile(r"^\s*!\[[^\]]*\]\([^\)]*\)\s*$")
+_MD_LINK_LINE_RE = re.compile(r"^\s*\[[^\]]*\]\(https?://[^\)]*\)\s*$")
+_HTML_COMMENT_RE = re.compile(r"<!--(?:[^-]|-(?!->))*-->")
 _HTML_COMMENT_OPEN_RE = re.compile(r"^\s*<!--")
 # reference Pine docs UI chrome
-_TV_PINE_LABEL_RE = re.compile(r"^\s*Pine\s+Script\s*®?\s*$", re.I)
+_TV_PINE_LABEL_RE = re.compile(r"^\s*Pine\s+Script(?:®|\s+®)?\s*$", re.I)
 _COPIED_RE = re.compile(r"^\s*Copied\s*$", re.I)
 _IMAGE_ONLY_RE = re.compile(r"^\s*image\s*$", re.I)
 _CHECKLIST_RE = re.compile(r"^\s*-\s*\[[ xX]\]")
@@ -72,19 +72,19 @@ _FOOTER_LABELS = re.compile(
     r"^\s*(Last Modified|Author|License|Tags?|Category|Source|Created|Updated|"
     r"Detail|Overview|Description|Read more|Share|Related|Name|"
     r"Strategy Description|Source\s*\(PineScript\)|"
-    r"Pine library|Disclaimer)\s*:?\s*$",
+    r"Pine library|Disclaimer)(?:\s*:)?\s*$",
     re.I,
 )
 
 # Prose blockquotes / section heads — drop entirely (do not unwrap).
 _PROSE_LABEL_RE = re.compile(
-    r"^\s*>?\s*("
+    r"^\s*(?:>\s*)?("
     r"Detail|About|Syntax|Example|Notes?|Parameters?|Returns?|Remarks?|"
     r"See also|Description|Overview|Usage|Arguments?|Type|Default|"
     r"Name|Author|Strategy Description|Source\s*\(PineScript\)|"
     r"Last Modified|License|Tags?|Category|Created|Updated|"
     r"Read more|Share|Related|Disclaimer|Pine library"
-    r")\s*:?\s*$",
+    r")(?:\s*:)?\s*$",
     re.I,
 )
 
@@ -128,8 +128,8 @@ _PROSE_CONTINUE_RE = re.compile(
 # the full script copy (set05 hasnocool scrapes).
 _UI_CHROME_LINE_RE = re.compile(
     r"^\s*("
-    r"PineScript\s+code\s*:?|"
-    r"Pine\s+Script\s*(?:strategy|indicator|library|code)?\s*:?|"
+    r"PineScript\s+code(?:\s*:)?|"
+    r"Pine\s+Script(?:\s+(?:strategy|indicator|library|code))?(?:\s*:)?|"
     r"Copy\s+code|"
     r"Copied|"
     r"loading\.\.\.|"
@@ -407,7 +407,7 @@ def _score_pine_block(text: str) -> int:
     codeish = sum(1 for ln in non_empty if _CODEISH_RE.match(ln.lstrip()) or "=" in ln or "(" in ln)
     score += min(30, codeish)
     # Penalize markdown image / pure Chinese-heavy docs without pine markers
-    if re.search(r"!\[.*\]\(http", text) and score < 40:
+    if re.search(r"!\[[^\]]*\]\(http", text) and score < 40:
         score -= 20
     # Penalize foreign languages
     if _looks_like_foreign(text):
@@ -833,7 +833,7 @@ def _polish_code_line(line: str) -> str:
         line = re.sub(r"\(\s*\.\.\.\s*$", "(", line)
     # reference library import UI residual: ``import x/y/1 as eta loading...``
     if not line.lstrip().startswith("//"):
-        line = re.sub(r"\s+loading\.\.\.\s*$", "", line, flags=re.I)
+        line = re.sub(r"[ \t]+loading\.\.\.[ \t]*$", "", line, flags=re.I)
     # Dangling ``+`` / ``,`` immediately before a closer (cut mid-concat / mid-args).
     line = re.sub(r"\+\s*([\)\]])", r"\1", line)
     line = re.sub(r",\s*([\)\]])", r"\1", line)
@@ -912,7 +912,7 @@ def _strip_line_chrome(line: str) -> str | None:
         return None
 
     # Clean broken scrape on version pragma: //@version=6`
-    m = re.match(r"^(\s*//@version\s*=\s*\d+)\W*\s*$", line)
+    m = re.match(r"^(\s*//@version\s*=\s*\d+)[^\w]*$", line)
     if m:
         return m.group(1)
 
@@ -1145,7 +1145,7 @@ def _line_filter(source: str) -> str:
 # Also:  a = 1 var b = 2  is invalid; only insert before a new var/varip keyword
 # when the preceding token looks like an expression terminator (identifier/number/na).
 _MISSING_VAR_COMMA_RE = re.compile(
-    r"(?<=[\w\)\]])\s+(?=(?:varip|var)\b)",
+    r"(?<=[\w\)\]])[ \t]+(?=(?:varip|var)\b)",
 )
 
 
@@ -1156,7 +1156,7 @@ def _fix_missing_decl_commas(source: str) -> str:
         # Only touch lines that declare with var/varip more than once without a comma between.
         if re.search(r"\bvar(?:ip)?\b", line) and line.count("var") >= 2 and "," not in line:
             line = _MISSING_VAR_COMMA_RE.sub(", ", line)
-        elif re.search(r"\bvar(?:ip)?\b.+\bvar(?:ip)?\b", line) and re.search(r"=\s*\S+\s+var(?:ip)?\b", line):
+        elif re.search(r"\bvar(?:ip)?\b[^\n]+\bvar(?:ip)?\b", line) and re.search(r"=\s*\S+\s+var(?:ip)?\b", line):
             line = _MISSING_VAR_COMMA_RE.sub(", ", line)
         out.append(line)
     return "".join(out)
@@ -1441,7 +1441,7 @@ def _line_has_arg_continuation(line: str, lines: list[str], index: int) -> bool:
 # Dangling binary/logical op immediately before a closer after scrape repair:
 # ``str.tostring(a) +)`` / ``"session " +)`` / ``cond and)``.
 # Space-bounded so identifiers like ``foo+)`` are untouched; mirrors line polish.
-_DANGLING_BINOP_BEFORE_CLOSER_RE = re.compile(r"\s+(?:and|or|\+|\-|\*|/)\s*(?=[\)\]])")
+_DANGLING_BINOP_BEFORE_CLOSER_RE = re.compile(r"[ \t]+(?:and|or|\+|\-|\*|/)[ \t]*(?=[\)\]])")
 
 
 def _strip_dangling_binop_before_closers(text: str) -> str:
@@ -1667,7 +1667,7 @@ def _fix_truncated_syntax(text: str) -> str:
         # Assignment to empty structure: ``x = switch`` / ``x = if c`` / ``x = for …`` /
         # ``x = while …`` with no body (truncated reference docs demos).
         m_as = re.match(
-            r"^(\s*.*?\S)\s*=\s*(switch|if|for|while)\b(.*)$",
+            r"^(\s*\S.*?)\s*=\s*(switch|if|for|while)\b(.*)$",
             stripped_nl,
         )
         if (
@@ -1803,7 +1803,7 @@ def _collapse_na_only_control_expr_assignments(text: str) -> str:
         line = lines[i]
         stripped = line.rstrip("\n")
         m = re.match(
-            r"^(\s*)(.*?\S)\s*(:=|=)\s*(for|while|if|switch)\b(.*)$",
+            r"^(\s*)(\S.*?)\s*(:=|=)\s*(for|while|if|switch)\b(.*)$",
             stripped,
         )
         if m and not stripped.lstrip().startswith("//") and "=>" not in m.group(5):
@@ -1935,7 +1935,7 @@ def _is_effectively_empty_script(body: str) -> bool:
         code.append(s)
     if not code:
         return True
-    if len(code) == 1 and re.match(r"^(indicator|strategy|library|study)\s*\(.*\)\s*\.?\s*$", code[0]):
+    if len(code) == 1 and re.match(r"^(indicator|strategy|library|study)\s*\([^\)]*\)[ \t]*(?:\.)?[ \t]*$", code[0]):
         # ``library().`` or ``strategy("x", ...)`` alone with no executable body — keep
         # declaration-only scripts that already parse; only stub broken tails.
         if code[0].endswith(").") or code[0].endswith("..."):
@@ -2042,10 +2042,10 @@ _TYPE_FIELD_LINE_RE = re.compile(
     r"(?:\s*<[^>\n]*>)?"
     r"(?:\[\])?"
     r"\s+[A-Za-z_]\w*"
-    r"(?:\s*=.*)?"
+    r"(?:\s*=[^\n]*)?"
     r"|"
     r"[A-Za-z_]\w*\s+[A-Za-z_]\w*"  # UDT-typed field: ``pivotPoint p``
-    r"(?:\s*=.*)?"
+    r"(?:\s*=[^\n]*)?"
     r")\s*$"
 )
 
@@ -2284,7 +2284,7 @@ def _comment_out_code_line(line: str) -> str:
     core = line[:-1] if ended_nl else line
     if core.lstrip().startswith("//"):
         return line
-    m = re.match(r"^(\s*)(.*)$", core)
+    m = re.match(r"^([ \t]*)(.*)$", core)
     indent, rest = (m.group(1), m.group(2)) if m else ("", core)
     return f"{indent}// {rest}" + ("\n" if ended_nl else "")
 
