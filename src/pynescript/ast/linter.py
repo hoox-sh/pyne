@@ -172,16 +172,28 @@ class PineLinter:
 
     def _check_naming(self, source: str) -> None:
         """Heuristic naming checks for ``ta.*`` assignments (``C001``)."""
-        lines = source.split("\n")
-        for i, line in enumerate(lines, 1):
-            if match := re.search(r"(\w+)[ \t]*=[ \t]*ta\.", line):
-                var_name = match.group(1)
-                if re.match(r"^[a-z]", var_name):
-                    self._add_warning(
-                        code="C001",
-                        message=f"Variable '{var_name}' should use camelCase (e.g., '{_to_camel(var_name)}')",
-                        line=i,
-                    )
+        for i, line in enumerate(source.split("\n"), 1):
+            eq = line.find("=")
+            if eq <= 0:
+                continue
+            if line[eq - 1] == ":":
+                continue
+            lhs = line[:eq].rstrip(" \t")
+            j = len(lhs)
+            while j > 0 and (lhs[j - 1].isalnum() or lhs[j - 1] == "_"):
+                j -= 1
+            var_name = lhs[j:]
+            if not var_name:
+                continue
+            rhs = line[eq + 1 :].lstrip(" \t")
+            if not rhs.startswith("ta."):
+                continue
+            if "a" <= var_name[0] <= "z":
+                self._add_warning(
+                    code="C001",
+                    message=f"Variable '{var_name}' should use camelCase (e.g., '{_to_camel(var_name)}')",
+                    line=i,
+                )
 
     def _check_style(self, source: str) -> None:
         """Line length, if-style, and trailing-newline style rules (``C002``–``C004``)."""

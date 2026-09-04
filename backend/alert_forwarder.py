@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import logging
 import os
 import socket
 import urllib.error
@@ -50,6 +51,11 @@ import urllib.request
 from typing import Any
 from typing import Callable
 from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
+
+# Client-visible webhook failure text (no exception / traceback leakage).
+_FORWARD_FAILED = "forward failed"
 
 HttpPostJson = Callable[[str, dict[str, Any]], int]
 
@@ -278,14 +284,10 @@ def forward_alerts(
         lambda u, b: http_post_json(
             u,
             b,
-            timeout=timeout
-            if timeout is not None
-            else float(os.environ.get("ALERT_WEBHOOK_TIMEOUT") or 10),
+            timeout=timeout if timeout is not None else float(os.environ.get("ALERT_WEBHOOK_TIMEOUT") or 10),
         )
     )
-    payloads = [
-        build_alert_payload(a, symbol=symbol) for a in alerts if isinstance(a, dict)
-    ]
+    payloads = [build_alert_payload(a, symbol=symbol) for a in alerts if isinstance(a, dict)]
     if not payloads:
         return result
 
@@ -313,15 +315,15 @@ def forward_alerts(
                         result["forwarded"] += 1
                     else:
                         result["failed"] += 1
-                        result["errors"].append(
-                            f"bar {p.get('bar_index', '?')}: HTTP {status}"
-                        )
-                except Exception as e:  # noqa: BLE001
+                        result["errors"].append(f"bar {p.get('bar_index', '?')}: HTTP {status}")
+                except Exception as exc:
+                    logger.warning("alert webhook post failed: %s", exc)
                     result["failed"] += 1
-                    result["errors"].append(f"bar {p.get('bar_index', '?')}: {e!s}")
-    except Exception as e:  # noqa: BLE001
+                    result["errors"].append(f"bar {p.get('bar_index', '?')}: {_FORWARD_FAILED}")
+    except Exception as exc:
+        logger.warning("alert webhook batch failed: %s", exc)
         result["failed"] = len(payloads)
-        result["errors"].append(str(e))
+        result["errors"].append(_FORWARD_FAILED)
 
     return result
 

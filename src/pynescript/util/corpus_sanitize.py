@@ -17,9 +17,8 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# CodeQL [py/polynomial-redos]: All regex patterns in this module have been
-# optimized to use negated character classes and avoid adjacent overlapping
-# quantifiers. Patterns are used on known corpus files, not untrusted input.
+# CodeQL [py/polynomial-redos]: flagged sites use string scans instead of
+# overlapping quantifiers. Remaining regexes are linear and corpus-bounded.
 
 """Sanitize messy Pine sources before parse.
 
@@ -407,7 +406,7 @@ def _score_pine_block(text: str) -> int:
     codeish = sum(1 for ln in non_empty if _CODEISH_RE.match(ln.lstrip()) or "=" in ln or "(" in ln)
     score += min(30, codeish)
     # Penalize markdown image / pure Chinese-heavy docs without pine markers
-    if re.search(r"!\[[^\]]*\]\(http", text) and score < 40:
+    if score < 40 and _has_md_image_http(text):
         score -= 20
     # Penalize foreign languages
     if _looks_like_foreign(text):
@@ -833,7 +832,7 @@ def _polish_code_line(line: str) -> str:
         line = re.sub(r"\(\s*\.\.\.\s*$", "(", line)
     # reference library import UI residual: ``import x/y/1 as eta loading...``
     if not line.lstrip().startswith("//"):
-        line = re.sub(r"[ \t]+loading\.\.\.[ \t]*$", "", line, flags=re.I)
+        line = _strip_trailing_loading_ellipsis(line)
     # Dangling ``+`` / ``,`` immediately before a closer (cut mid-concat / mid-args).
     line = re.sub(r"\+\s*([\)\]])", r"\1", line)
     line = re.sub(r",\s*([\)\]])", r"\1", line)
@@ -1144,20 +1143,146 @@ def _line_filter(source: str) -> str:
 #   var float a = na var float b = na  →  var float a = na, var float b = na
 # Also:  a = 1 var b = 2  is invalid; only insert before a new var/varip keyword
 # when the preceding token looks like an expression terminator (identifier/number/na).
-_MISSING_VAR_COMMA_RE = re.compile(
-    r"(?<=[\w\)\]])[ \t]+(?=(?:varip|var)\b)",
-)
+
+
+def _is_word_char(ch: str) -> bool:
+    return ch.isalnum() or ch == "_"
+
+
+def _has_md_image_http(text: str) -> bool:
+    """True when ``![alt](http…`` appears (markdown image with http dest)."""
+    start = 0
+    while True:
+        i = text.find("![", start)
+        if i < 0:
+            return False
+        j = text.find("](", i + 2)
+        if j < 0:
+            return False
+        if "]" not in text[i + 2 : j] and text.startswith("http", j + 2):
+            return True
+        start = i + 2
+
+
+def _strip_trailing_loading_ellipsis(line: str) -> str:
+    """Drop a trailing `` loading...`` UI leftover (case-insensitive)."""
+    nl = ""
+    core = line
+    if core.endswith("\n"):
+        nl = "\n"
+        core = core[:-1]
+        if core.endswith("\r"):
+            nl = "\r\n"
+            core = core[:-1]
+    end = len(core)
+    while end > 0 and core[end - 1] in " \t":
+        end -= 1
+    token = "loading..."
+    tlen = len(token)
+    if end < tlen or core[end - tlen : end].lower() != token:
+        return line
+    pre = end - tlen
+    if pre == 0 or core[pre - 1] not in " \t":
+        return line
+    while pre > 0 and core[pre - 1] in " \t":
+        pre -= 1
+    return core[:pre] + nl
+
+
+def _var_keyword_end(s: str, i: int) -> int | None:
+    """If ``s[i:]`` starts with ``var`` / ``varip`` at a word boundary, return end."""
+    if i > 0 and _is_word_char(s[i - 1]):
+        return None
+    if s.startswith("varip", i) and (i + 5 == len(s) or not _is_word_char(s[i + 5])):
+        return i + 5
+    if s.startswith("var", i) and (i + 3 == len(s) or not _is_word_char(s[i + 3])):
+        return i + 3
+    return None
+
+
+def _has_var_keyword(line: str) -> bool:
+    i = 0
+    while True:
+        j = line.find("var", i)
+        if j < 0:
+            return False
+        if _var_keyword_end(line, j) is not None:
+            return True
+        i = j + 1
+
+
+def _count_var_keywords(line: str) -> int:
+    n = 0
+    i = 0
+    while True:
+        j = line.find("var", i)
+        if j < 0:
+            return n
+        end = _var_keyword_end(line, j)
+        if end is not None:
+            n += 1
+            i = end
+        else:
+            i = j + 1
+
+
+def _has_assign_then_var(line: str) -> bool:
+    """True for ``= <token> var`` / ``varip`` (second same-line declaration)."""
+    start = 0
+    n = len(line)
+    while True:
+        eq = line.find("=", start)
+        if eq < 0:
+            return False
+        j = eq + 1
+        while j < n and line[j].isspace():
+            j += 1
+        if j >= n:
+            return False
+        while j < n and not line[j].isspace():
+            j += 1
+        if j >= n or not line[j].isspace():
+            start = eq + 1
+            continue
+        while j < n and line[j].isspace():
+            j += 1
+        if _var_keyword_end(line, j) is not None:
+            return True
+        start = eq + 1
+
+
+def _insert_var_commas(line: str) -> str:
+    """Insert ``, `` before a ``var`` / ``varip`` that follows a terminator token."""
+    out: list[str] = []
+    i = 0
+    n = len(line)
+    while i < n:
+        if line[i] not in " \t":
+            out.append(line[i])
+            i += 1
+            continue
+        ws_start = i
+        while i < n and line[i] in " \t":
+            i += 1
+        prev = line[ws_start - 1] if ws_start else ""
+        if ws_start > 0 and (_is_word_char(prev) or prev in ")]") and _var_keyword_end(line, i) is not None:
+            out.append(", ")
+        else:
+            out.append(line[ws_start:i])
+    return "".join(out)
 
 
 def _fix_missing_decl_commas(source: str) -> str:
     """Insert commas between space-separated var declarations on one line."""
     out: list[str] = []
     for line in source.splitlines(keepends=True):
-        # Only touch lines that declare with var/varip more than once without a comma between.
-        if re.search(r"\bvar(?:ip)?\b", line) and line.count("var") >= 2 and "," not in line:
-            line = _MISSING_VAR_COMMA_RE.sub(", ", line)
-        elif re.search(r"\bvar(?:ip)?\b[^\n]+\bvar(?:ip)?\b", line) and re.search(r"=\s*\S+\s+var(?:ip)?\b", line):
-            line = _MISSING_VAR_COMMA_RE.sub(", ", line)
+        if "var" not in line:
+            out.append(line)
+            continue
+        first = _has_var_keyword(line) and line.count("var") >= 2 and "," not in line
+        second = (not first) and _count_var_keywords(line) >= 2 and _has_assign_then_var(line)
+        if first or second:
+            line = _insert_var_commas(line)
         out.append(line)
     return "".join(out)
 
@@ -1441,12 +1566,37 @@ def _line_has_arg_continuation(line: str, lines: list[str], index: int) -> bool:
 # Dangling binary/logical op immediately before a closer after scrape repair:
 # ``str.tostring(a) +)`` / ``"session " +)`` / ``cond and)``.
 # Space-bounded so identifiers like ``foo+)`` are untouched; mirrors line polish.
-_DANGLING_BINOP_BEFORE_CLOSER_RE = re.compile(r"[ \t]+(?:and|or|\+|\-|\*|/)[ \t]*(?=[\)\]])")
+_DANGLING_BINOPS = ("and", "or", "+", "-", "*", "/")
 
 
 def _strip_dangling_binop_before_closers(text: str) -> str:
     """Drop incomplete trailing binops glued to ``)`` / ``]`` by closer injection."""
-    return _DANGLING_BINOP_BEFORE_CLOSER_RE.sub("", text)
+    out: list[str] = []
+    i = 0
+    n = len(text)
+    while i < n:
+        if text[i] not in " \t":
+            out.append(text[i])
+            i += 1
+            continue
+        ws_start = i
+        while i < n and text[i] in " \t":
+            i += 1
+        dropped = False
+        for op in _DANGLING_BINOPS:
+            if not text.startswith(op, i):
+                continue
+            after = i + len(op)
+            j = after
+            while j < n and text[j] in " \t":
+                j += 1
+            if j < n and text[j] in ")]":
+                i = j
+                dropped = True
+                break
+        if not dropped:
+            out.append(text[ws_start:i])
+    return "".join(out)
 
 
 def _close_trailing_opens_on_line(core: str) -> str:
@@ -1666,17 +1816,14 @@ def _fix_truncated_syntax(text: str) -> str:
 
         # Assignment to empty structure: ``x = switch`` / ``x = if c`` / ``x = for …`` /
         # ``x = while …`` with no body (truncated reference docs demos).
-        m_as = re.match(
-            r"^(\s*\S.*?)\s*=\s*(switch|if|for|while)\b(.*)$",
-            stripped_nl,
-        )
+        ctrl_as = _split_ctrl_assignment(stripped_nl, allow_colon_eq=False)
         if (
-            m_as
+            ctrl_as is not None
             and not stripped_nl.lstrip().startswith("//")
-            and "=>" not in m_as.group(3)
+            and "=>" not in ctrl_as[3]
             and not _line_has_arg_continuation(line, lines, i)
         ):
-            indent = re.match(r"^(\s*)", stripped_nl).group(1)  # type: ignore[union-attr]
+            indent, lhs, _op, _rest = ctrl_as
             j = i + 1
             has_body = False
             while j < len(lines):
@@ -1693,7 +1840,7 @@ def _fix_truncated_syntax(text: str) -> str:
                 break
             if not has_body:
                 # Replace RHS structure with na (structure body was truncated).
-                out.append(m_as.group(1) + " = na" + eol)
+                out.append(indent + lhs + " = na" + eol)
                 i += 1
                 continue
 
@@ -1802,12 +1949,9 @@ def _collapse_na_only_control_expr_assignments(text: str) -> str:
     while i < len(lines):
         line = lines[i]
         stripped = line.rstrip("\n")
-        m = re.match(
-            r"^(\s*)(\S.*?)\s*(:=|=)\s*(for|while|if|switch)\b(.*)$",
-            stripped,
-        )
-        if m and not stripped.lstrip().startswith("//") and "=>" not in m.group(5):
-            indent, lhs, op = m.group(1), m.group(2), m.group(3)
+        ctrl = _split_ctrl_assignment(stripped, allow_colon_eq=True)
+        if ctrl is not None and not stripped.lstrip().startswith("//") and "=>" not in ctrl[3]:
+            indent, lhs, op = ctrl[0], ctrl[1], ctrl[2]
             j = i + 1
             has_code = False
             only_na_or_ctrl = True
@@ -1935,7 +2079,7 @@ def _is_effectively_empty_script(body: str) -> bool:
         code.append(s)
     if not code:
         return True
-    if len(code) == 1 and re.match(r"^(indicator|strategy|library|study)\s*\([^\)]*\)[ \t]*(?:\.)?[ \t]*$", code[0]):
+    if len(code) == 1 and _is_decl_only_call(code[0]):
         # ``library().`` or ``strategy("x", ...)`` alone with no executable body — keep
         # declaration-only scripts that already parse; only stub broken tails.
         if code[0].endswith(").") or code[0].endswith("..."):
@@ -1961,7 +2105,7 @@ def _looks_like_prose_line(line: str) -> bool:
         return True
     # Indented UDT fields: ``    DistMethod distMethod`` is not English prose.
     # (unindented two-word titles like ``Last Modified`` stay prose / footers.)
-    if line[:1] in " \t" and _TYPE_FIELD_LINE_RE.match(s):
+    if line[:1] in " \t" and _is_type_field_line(s):
         return False
     # Title-case sentence / docs prose without call/assign tokens
     return bool(s[0].isupper() and " " in s)
@@ -2034,20 +2178,127 @@ def _dedent_if_leading_indent(body: str) -> str:
 #   type pivotPoint
 #   int x
 #   float y = close
-_TYPE_FIELD_LINE_RE = re.compile(
-    r"^(?:"
-    r"(?:(?:series|simple|const)\s+)?"
-    r"(?:int|float|bool|string|color|line|label|box|table|array|map|matrix|"
-    r"chart\.point)"
-    r"(?:\s*<[^>\n]*>)?"
-    r"(?:\[\])?"
-    r"\s+[A-Za-z_]\w*"
-    r"(?:\s*=[^\n]*)?"
-    r"|"
-    r"[A-Za-z_]\w*\s+[A-Za-z_]\w*"  # UDT-typed field: ``pivotPoint p``
-    r"(?:\s*=[^\n]*)?"
-    r")\s*$"
+_FIELD_TYPES = frozenset(
+    {
+        "int",
+        "float",
+        "bool",
+        "string",
+        "color",
+        "line",
+        "label",
+        "box",
+        "table",
+        "array",
+        "map",
+        "matrix",
+        "chart.point",
+    }
 )
+_FIELD_QUALS = frozenset({"series", "simple", "const"})
+_CTRL_ASSIGN_KWS = ("switch", "if", "for", "while")
+_DECL_CALL_NAMES = ("indicator", "strategy", "library", "study")
+
+
+def _is_ascii_ident(tok: str) -> bool:
+    if not tok:
+        return False
+    c0 = tok[0]
+    if not (("A" <= c0 <= "Z") or ("a" <= c0 <= "z") or c0 == "_"):
+        return False
+    return all(("A" <= c <= "Z") or ("a" <= c <= "z") or ("0" <= c <= "9") or c == "_" for c in tok[1:])
+
+
+def _is_builtin_field_type(tok: str) -> bool:
+    if tok.endswith("[]"):
+        tok = tok[:-2]
+    lt = tok.find("<")
+    if lt >= 0:
+        if not tok.endswith(">") or ">" in tok[lt + 1 : -1]:
+            return False
+        tok = tok[:lt]
+    return tok in _FIELD_TYPES
+
+
+def _is_type_field_line(raw: str) -> bool:
+    """True for a UDT field line (builtin or user type, optional default)."""
+    s = raw.rstrip(" \t")
+    if not s:
+        return False
+    eq = s.find("=")
+    if eq >= 0:
+        s = s[:eq].rstrip(" \t")
+    parts = s.split()
+    if len(parts) == 2:
+        typ, name = parts
+        if not _is_ascii_ident(name):
+            return False
+        return _is_builtin_field_type(typ) or _is_ascii_ident(typ)
+    if len(parts) == 3 and parts[0] in _FIELD_QUALS:
+        typ, name = parts[1], parts[2]
+        return _is_ascii_ident(name) and _is_builtin_field_type(typ)
+    return False
+
+
+def _keyword_at(s: str, kws: tuple[str, ...]) -> tuple[str, str] | None:
+    for kw in kws:
+        if s.startswith(kw) and (len(s) == len(kw) or not _is_word_char(s[len(kw)])):
+            return kw, s[len(kw) :]
+    return None
+
+
+def _split_ctrl_assignment(line: str, *, allow_colon_eq: bool) -> tuple[str, str, str, str] | None:
+    """Split ``lhs = if/for/while/switch …`` (optional ``:=``).
+
+    Returns ``(indent, lhs, op, rest_after_keyword)`` or ``None``.
+    """
+    body = line.lstrip()
+    indent = line[: len(line) - len(body)]
+    pos = 0
+    while True:
+        eq = body.find("=", pos)
+        if eq < 0:
+            return None
+        op = "="
+        lhs_end = eq
+        if allow_colon_eq and eq > 0 and body[eq - 1] == ":":
+            op = ":="
+            lhs_end = eq - 1
+        lhs = body[:lhs_end].rstrip(" \t")
+        if lhs:
+            rhs = body[eq + 1 :].lstrip(" \t")
+            hit = _keyword_at(rhs, _CTRL_ASSIGN_KWS)
+            if hit is not None:
+                _kw, rest = hit
+                return indent, lhs, op, rest
+        pos = eq + 1
+
+
+def _is_decl_only_call(s: str) -> bool:
+    """True for a lone ``indicator/strategy/library/study(…)`` (optional trailing ``.``)."""
+    for name in _DECL_CALL_NAMES:
+        if not s.startswith(name):
+            continue
+        rest = s[len(name) :]
+        k = 0
+        while k < len(rest) and rest[k].isspace():
+            k += 1
+        if k >= len(rest) or rest[k] != "(":
+            continue
+        close = rest.find(")", k + 1)
+        if close < 0:
+            continue
+        tail = rest[close + 1 :]
+        t = 0
+        while t < len(tail) and tail[t] in " \t":
+            t += 1
+        if t < len(tail) and tail[t] == ".":
+            t += 1
+            while t < len(tail) and tail[t] in " \t":
+                t += 1
+        if t == len(tail):
+            return True
+    return False
 
 
 def _fix_empty_type_body(body: str) -> str:
@@ -2122,7 +2373,7 @@ def _fix_empty_type_body(body: str) -> str:
                             )
                         ) or re.match(r"^//@version\b", ns):
                             break
-                        if not _TYPE_FIELD_LINE_RE.match(ns):
+                        if not _is_type_field_line(ns):
                             # Non-field sibling (e.g. ``pivotHighPrice = …``)
                             break
                         piece = indent + child + ns
@@ -2284,8 +2535,10 @@ def _comment_out_code_line(line: str) -> str:
     core = line[:-1] if ended_nl else line
     if core.lstrip().startswith("//"):
         return line
-    m = re.match(r"^([ \t]*)(.*)$", core)
-    indent, rest = (m.group(1), m.group(2)) if m else ("", core)
+    i = 0
+    while i < len(core) and core[i] in " \t":
+        i += 1
+    indent, rest = core[:i], core[i:]
     return f"{indent}// {rest}" + ("\n" if ended_nl else "")
 
 

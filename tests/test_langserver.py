@@ -25,6 +25,7 @@ from lsprotocol import types as lsp
 
 from pynescript.ast.linter import LintWarning
 from pynescript.langserver.features.diagnostics import lint_warnings_to_diagnostics
+from pynescript.langserver.protocol.utils import trailing_ident
 from pynescript.langserver.workspace import Workspace
 from pynescript.langserver.workspace import _apply_text_edit
 from pynescript.langserver.workspace import _lint_warning_to_diagnostic
@@ -252,3 +253,18 @@ if barstate.isfirst
         doc = ws.put_document("test://c003.pine", source)
         diags = ws._lint_warnings_to_diagnostics(doc)
         assert not any(d.code == "C003" for d in diags)
+
+
+class TestTrailingIdent:
+    """Completion prefix extraction without a polynomial regex."""
+
+    def test_dotted_and_trailing_dot(self) -> None:
+        assert trailing_ident("plot(ta.") == "ta."
+        assert trailing_ident("s = Side.b") == "Side.b"
+        assert trailing_ident("ta.sma") == "ta.sma"
+        assert trailing_ident("foo") == "foo"
+        assert trailing_ident("") == ""
+        assert trailing_ident(".") == ""
+        assert trailing_ident("123") == ""
+        assert trailing_ident("foo.123") == ""
+        assert trailing_ident("a.b.c.") == "a.b.c."

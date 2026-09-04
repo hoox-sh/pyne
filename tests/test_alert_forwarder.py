@@ -114,3 +114,43 @@ def test_maybe_forward_last_bar_only() -> None:
     assert meta["forwarded"] == 1
     assert meta["filter"] == "last_bar"
     assert posted[0]["alerts"][0]["message"] == "new"
+
+
+def test_forward_exception_does_not_leak_message() -> None:
+    """Webhook transport failures must not echo exception text to the client."""
+    secret = "secret traceback details"
+
+    def boom(_url: str, _body: dict) -> int:
+        raise RuntimeError(secret)
+
+    meta = forward_alerts(
+        [{"message": "a"}],
+        "https://hooks.test/",
+        http_post=boom,
+        batch=True,
+    )
+    assert meta["failed"] == 1
+    assert meta["errors"] == ["forward failed"]
+    blob = str(meta)
+    assert "secret" not in blob
+    assert "traceback" not in blob
+    assert "RuntimeError" not in blob
+
+
+def test_forward_per_alert_exception_does_not_leak_message() -> None:
+    secret = "connection reset by peer: internal host"
+
+    def boom(_url: str, _body: dict) -> int:
+        raise OSError(secret)
+
+    meta = forward_alerts(
+        [{"message": "a", "bar_index": 3}],
+        "https://hooks.test/",
+        http_post=boom,
+        batch=False,
+    )
+    assert meta["failed"] == 1
+    assert meta["errors"] == ["bar 3: forward failed"]
+    blob = str(meta)
+    assert "connection reset" not in blob
+    assert "internal host" not in blob

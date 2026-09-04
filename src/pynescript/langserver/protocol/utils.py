@@ -178,6 +178,14 @@ def get_trigger_char(text: str, line: int, column: int) -> str | None:
     return None
 
 
+def _is_ascii_ident_start(ch: str) -> bool:
+    return ("A" <= ch <= "Z") or ("a" <= ch <= "z") or ch == "_"
+
+
+def _is_ascii_ident_cont(ch: str) -> bool:
+    return _is_ascii_ident_start(ch) or ("0" <= ch <= "9")
+
+
 def trailing_ident(text_before_cursor: str) -> str:
     """Return the trailing identifier or dotted path (optional trailing ``.``).
 
@@ -186,11 +194,34 @@ def trailing_ident(text_before_cursor: str) -> str:
     """
     if not text_before_cursor:
         return ""
-    match = re.search(
-        r"([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)(\.?)$",
-        text_before_cursor,
-    )
-    return (match.group(1) + match.group(2)) if match else ""
+    end = len(text_before_cursor)
+    trailing_dot = False
+    if text_before_cursor[-1] == ".":
+        trailing_dot = True
+        end -= 1
+        if end == 0:
+            return ""
+    i = end
+    while i > 0:
+        ch = text_before_cursor[i - 1]
+        if _is_ascii_ident_cont(ch) or ch == ".":
+            i -= 1
+            continue
+        break
+    parts = text_before_cursor[i:end].split(".")
+    kept: list[str] = []
+    for seg in reversed(parts):
+        if seg and _is_ascii_ident_start(seg[0]) and all(_is_ascii_ident_cont(c) for c in seg):
+            kept.append(seg)
+        else:
+            break
+    kept.reverse()
+    if not kept:
+        return ""
+    result = ".".join(kept)
+    if trailing_dot:
+        result += "."
+    return result
 
 
 def extract_module_prefix(word: str) -> str | None:

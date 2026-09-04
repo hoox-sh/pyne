@@ -370,7 +370,14 @@ class APIKeyStore:
 
     @staticmethod
     def _legacy_hash_key(raw_key: str) -> str:
-        """Legacy SHA-256 hash for backward compatibility."""
+        """Lookup fingerprint for pre-v2 stored API-key records (SHA-256 hex).
+
+        New keys use PBKDF2-HMAC-SHA256 via :meth:`_hash_key`. This helper only
+        matches already-stored high-entropy token fingerprints so they can be
+        migrated; it is not used to hash new secrets.
+        """
+        # lgtm[py/weak-sensitive-data-hashing]
+        # codeql[py/weak-sensitive-data-hashing]
         return hashlib.sha256(raw_key.encode()).hexdigest()
 
 
