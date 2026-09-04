@@ -89,7 +89,7 @@ jobs:
       contents: read
     steps:
       - name: Download dist
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: hoox-pyne-release-dist
           path: dist
@@ -117,9 +117,14 @@ jobs:
           packages-dir: dist/
           user: __token__
           password: ${{ secrets.PYPI_API_TOKEN }}
+          # Re-running the same tag (or a duplicate push) must not 400.
+          skip-existing: true
 
       - name: Publish package (Trusted Publishing OIDC)
         if: steps.auth.outputs.mode == 'oidc'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/
+          skip-existing: true
+          # skip-existing is incompatible with PEP 740 attestations.
+          attestations: false

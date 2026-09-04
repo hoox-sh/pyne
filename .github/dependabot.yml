@@ -35,6 +35,11 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - dependencies
+    ignore:
+      # vsce requires @types/vscode <= engines.vscode (^1.91.0 for
+      # vscode-languageclient 10). A caret range here resolves to latest
+      # and fails `vsce package`.
+      - dependency-name: "@types/vscode"
   - package-ecosystem: npm
     directory: /cf
     schedule:

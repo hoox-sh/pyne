@@ -412,7 +412,7 @@ jobs:
           fi
 
       - name: Download package + binary artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
           # Exclude buildx cache blobs (hoox-sh~pyne~*.dockerbuild) that
@@ -421,7 +421,7 @@ jobs:
           merge-multiple: false
 
       - name: Download PyPI dist artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: hoox-pyne-dist
           path: artifacts/hoox-pyne-dist
@@ -610,7 +610,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Download VSIX
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: pynescript-vscode-extension
           path: .

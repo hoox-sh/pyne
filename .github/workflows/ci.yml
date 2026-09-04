@@ -282,9 +282,13 @@ jobs:
       - name: Install, compile, package
         working-directory: vscode-extension
         run: |
+          set -euo pipefail
           npm ci
           npm run compile
-          npx vsce package --allow-missing-repository --no-git-tag-version
+          VER=$(node -p "require('./package.json').version")
+          # @vscode/vsce (not deprecated `vsce`); types must be <= engines.vscode.
+          npx --yes @vscode/vsce package --no-dependencies --no-git-tag-version \
+            --out "pyne-vscode-${VER}.vsix"
 
       - name: Upload VSIX
         uses: actions/upload-artifact@v7
