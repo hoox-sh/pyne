@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-09-04
+
+### Added
+
+- **`pynescript convert --to 5|6`** — source-level v5 ↔ v6 rewriter (`//@version`,
+  `study(` → `indicator(` on the way to v6, bare `security(` / `financial(` / …
+  ↔ `request.*`). Comments and string literals are left alone. Not a semantic
+  migrator (bool-as-int, `na` tightening).
+
+### Fixed
+
+- Compile `plot(..., display=)` bitfield is folded into `plot_attrs` so
+  `plot_meta` carries it (follow-up to 0.4.2).
+- UDF `var` + history (`x[1]`) is per call site; interpret no longer drops
+  every-other-bar `na` vs compile (e.g. `moon_phases.pine`).
+- `table.merge_cells` no-ops on `na` coordinates instead of `int(None)` on
+  the last bar.
+- Remaining CodeQL: stack traces not returned in alert-forward errors; ReDoS
+  regexes rewritten as linear scans.
+
+### Changed
+
+- **Pro API key store (breaking for SHA-256-only records):** keys are
+  PBKDF2-HMAC-SHA256 (`v2:`). JSON files keyed by the raw secret are rehashed
+  on load. Orphaned 64-hex SHA-256 records are skipped — remint those keys.
+- CI: ruff E/F/W over `backend/`; VS Code VSIX packaged with `@vscode/vsce`
+  (`@types/vscode` pinned to `engines.vscode` 1.91); `download-artifact@v8`;
+  PyPI publish `skip-existing` so a duplicate tag run does not 400.
+- Dependabot weekly updates landed (Actions, docs, vscode-languageclient 10,
+  TypeScript 7, wrangler).
+
+## [0.4.2] - 2026-08-26
+
+### Fixed
+
+- Compile `plot(..., display=)` is stored on `plot_attrs` so `plot_meta`
+  exports the display bitfield.
+- First CodeQL pass: errors, high, and medium alerts on the tagged tree.
+
+## [0.4.1] - 2026-08-26
+
+### Fixed
+
+- Compile `plot_meta` backfills hline linestyle from `__drawings`.
+
 ## [0.4.0] - 2026-08-25
 
 ### Changed
@@ -343,4 +388,7 @@ First public **PYNE** release. PyPI distribution name is **`hoox-pyne`**
 - Dead `technical_refactored.py` and internal refactoring notes from the published package tree.
 - Broken AXIS-only GitHub workflows (`axis-nightly`, PWA/e2e jobs) — AXIS CI lives in [jango-blockchained/axis](https://github.com/jango-blockchained/axis).
 
+[0.4.3]: https://github.com/hoox-sh/pyne/compare/v0.4.2...v0.4.3
+[0.4.2]: https://github.com/hoox-sh/pyne/compare/v0.4.1...v0.4.2
+[0.4.1]: https://github.com/hoox-sh/pyne/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/hoox-sh/pyne/compare/v0.3.18...v0.4.0
