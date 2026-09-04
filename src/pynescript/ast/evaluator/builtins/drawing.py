@@ -2155,6 +2155,22 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
                 return table.cells[key].text
         return ""
 
+    def _table_cell_index(self, value: Any) -> int | None:
+        """Coerce a table row/column to int; ``na`` / non-numeric → ``None``."""
+        if value is None:
+            return None
+        current = getattr(value, "current", None)
+        if current is not None and not isinstance(value, (int, float, bool)):
+            value = current
+        if value is None:
+            return None
+        try:
+            if isinstance(value, float) and value != value:
+                return None
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
     def _handle_table_clear(self, args: list[Any]) -> None:
         """table.clear(table, start_row, start_col, end_row, end_col)"""
         table = args[0] if len(args) > 0 else None
@@ -2164,10 +2180,10 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         if len(args) < 5:
             table.cells.clear()
             return
-        r0 = int(args[1])
-        c0 = int(args[2])
-        r1 = int(args[3])
-        c1 = int(args[4])
+        coords = [self._table_cell_index(a) for a in args[1:5]]
+        if any(c is None for c in coords):
+            return
+        r0, c0, r1, c1 = coords
         for key in [k for k in table.cells if r0 <= k[0] <= r1 and c0 <= k[1] <= c1]:
             del table.cells[key]
 
@@ -2176,7 +2192,10 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         table = args[0] if len(args) > 0 else None
         if not isinstance(table, Table) or len(args) < 5:
             return
-        r0, c0, r1, c1 = (int(a) for a in args[1:5])
+        coords = [self._table_cell_index(a) for a in args[1:5]]
+        if any(c is None for c in coords):
+            return
+        r0, c0, r1, c1 = coords
         if r1 < r0 or c1 < c0:
             return
         for er0, ec0, er1, ec1 in table.merged:

@@ -467,6 +467,14 @@ class TestTableParity:
         assert out["border_color"] == "#222222"
         assert out["border_width"] == 3
 
+    def test_merge_cells_na_coords_are_noop(self) -> None:
+        """Pine ``na`` row/col must not raise (seasonality heatmap on last bar)."""
+        tb = Table(rows=4, columns=4)
+        ev = _make_table_host()
+        ev._handle_table_merge_cells([tb, 0, None, 12, None])
+        ev._handle_table_clear([tb, None, 0, 1, 1])
+        assert tb.merged == []
+
     def test_merge_cells_registry_and_export(self) -> None:
         _clean_registry()
         tb = Table(rows=4, columns=4)

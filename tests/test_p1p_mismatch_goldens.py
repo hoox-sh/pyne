@@ -101,9 +101,7 @@ def _assert_finite_match(
         if (not bn) and _is_na(a):
             # interpret na / missing → compile must not emit a silent 0
             if not (allow_interp_zero_warmup and float(b) == 0.0):
-                assert abs(float(b)) > 1e-15 or allow_interp_zero_warmup, (
-                    f"{key}[{i}]: compile filled na with {b!r}"
-                )
+                assert abs(float(b)) > 1e-15 or allow_interp_zero_warmup, f"{key}[{i}]: compile filled na with {b!r}"
             continue
         if an or bn:
             if allow_interp_zero_warmup and (not an) and float(a) == 0.0 and bn:
@@ -115,9 +113,7 @@ def _assert_finite_match(
                 continue
             continue
         n_both += 1
-        assert math.isclose(float(a), float(b), rel_tol=_RTOL, abs_tol=_ATOL), (
-            f"{key}[{i}]: interp={a!r} compile={b!r}"
-        )
+        assert math.isclose(float(a), float(b), rel_tol=_RTOL, abs_tol=_ATOL), f"{key}[{i}]: interp={a!r} compile={b!r}"
     assert n_both >= 1, f"{key}: no overlapping finite cells"
 
 
@@ -173,9 +169,7 @@ plot(ta.obv(), "obv")
     assert oi[1] == 0.0 and oc[1] == 0.0
     for i, (a, b) in enumerate(zip(oi, oc, strict=True)):
         assert not _is_na(a) and not _is_na(b), f"obv[{i}] na"
-        assert math.isclose(float(a), float(b), rel_tol=_RTOL, abs_tol=_ATOL), (
-            f"obv[{i}]: interp={a!r} compile={b!r}"
-        )
+        assert math.isclose(float(a), float(b), rel_tol=_RTOL, abs_tol=_ATOL), f"obv[{i}]: interp={a!r} compile={b!r}"
     # First change close[1] vs close[0] is skipped — bar 2 uses vol[2] only
     bars = _ohlcv(n)
     expected2 = 0.0
@@ -260,9 +254,7 @@ plot(ta.pvt, "pvt")
     last_inc = 0.0
     prev = float(bars[-2]["close"])
     if prev != 0.0:
-        last_inc = float(bars[-1]["volume"]) * (
-            (float(bars[-1]["close"]) - prev) / prev
-        )
+        last_inc = float(bars[-1]["volume"]) * ((float(bars[-1]["close"]) - prev) / prev)
     assert abs(float(iv[-1]) - last_inc) > 1e-9 or n <= 2
     assert math.isclose(float(iv[-1]), float(cv[-1]), rel_tol=_RTOL, abs_tol=_ATOL)
 
@@ -403,3 +395,39 @@ plot({fn}(close, 22), "w")
     assert first_i == 21, f"interpret {fn} first finite at {first_i}"
     assert first_c == 21, f"compile {fn} first finite at {first_c}"
     _assert_finite_match(iv, cv, key=fn)
+
+
+def test_udf_var_history_carry_interp_compile() -> None:
+    """UDF ``var`` + ``x[1]`` must persist across bars (moon_phases stickiness)."""
+    src = """
+//@version=6
+indicator("udf_var_hist")
+f() =>
+    var int v = 0
+    v := v + 1
+    v[1]
+plot(f(), "prev")
+"""
+    n = 12
+    interp, compiled = _run_dual(src, _ohlcv(n))
+    if compiled is None:
+        pytest.skip("numba compile path unavailable")
+    iv = interp["series"]["prev"]
+    cv = compiled["series"]["prev"]
+    assert _is_na(iv[0]) and _is_na(cv[0])
+    # bar 1+: previous counter (init 0, := +1 → 1, 2, 3, …)
+    for i in range(1, n):
+        assert not _is_na(iv[i]), f"interp prev[{i}] na"
+        assert math.isclose(float(iv[i]), float(i), abs_tol=_ATOL)
+    _assert_finite_match(iv, cv, key="prev", allow_interp_zero_warmup=True)
+
+
+def test_seasonality_last_bar_table_does_not_crash() -> None:
+    """table.merge_cells with na coords must not TypeError (builtin seasonality)."""
+    from pathlib import Path
+
+    src = Path("tests/data/builtin_scripts/seasonality.pine").read_text(encoding="utf-8")
+    interp, compiled = _run_dual(src, _ohlcv(80))
+    assert "error" not in interp, interp.get("error")
+    if compiled is not None:
+        assert "error" not in compiled, compiled.get("error")

@@ -506,11 +506,7 @@ class StatementEvaluator:
             # Snapshot host/user series (``EP := high``). Storing the handle
             # makes the local track the live OHLCV series so ``high > EP`` is
             # never true after the first ``EP := high`` (Parabolic SAR AF).
-            if (
-                value is not None
-                and hasattr(value, "current")
-                and hasattr(value, "history")
-            ):
+            if value is not None and hasattr(value, "current") and hasattr(value, "history"):
                 value = getattr(value, "current", value)
             self.context[name] = value
             return value
@@ -520,11 +516,7 @@ class StatementEvaluator:
         # ``last := …`` would otherwise mutate the host ``time`` buffer
         # (dividend_yield last_div_ttm_time path) and break ``time[j]`` history.
         # Copy the current scalar into a fresh series for *name* instead.
-        if (
-            hasattr(value, "current")
-            and hasattr(value, "history")
-            and hasattr(value, "update")
-        ):
+        if hasattr(value, "current") and hasattr(value, "history") and hasattr(value, "update"):
             value = getattr(value, "current", value)
 
         # Track scalars that need bar history: numerics, bools, na, and strings.
@@ -563,11 +555,7 @@ class StatementEvaluator:
         track_key: Any = (udf_site, name) if udf_site is not None else name
 
         existing = self.context.get(name)
-        if (
-            hasattr(existing, "update")
-            and hasattr(existing, "current")
-            and hasattr(existing, "history")
-        ):
+        if hasattr(existing, "update") and hasattr(existing, "current") and hasattr(existing, "history"):
             if last_map.get(track_key) == bar_i and hasattr(existing, "set_current"):
                 existing.set_current(value)
             elif last_map.get(track_key) == bar_i:
@@ -716,11 +704,7 @@ class StatementEvaluator:
                     last = visit(val)  # type: ignore[attr-defined]
             else:
                 last = visit(stmt)  # type: ignore[attr-defined]
-            if (
-                detect_library
-                and isinstance(last, ScriptDeclaration)
-                and last.script_type == "library"
-            ):
+            if detect_library and isinstance(last, ScriptDeclaration) and last.script_type == "library":
                 self._active_library = LibraryModule(title=str(last.title))  # type: ignore[attr-defined]
         return last
 
@@ -757,14 +741,39 @@ class StatementEvaluator:
             if last_map.get(name) == bar_i:
                 continue
             existing = ctx.get(name)
-            if not (
-                hasattr(existing, "update")
-                and hasattr(existing, "current")
-                and hasattr(existing, "history")
-            ):
+            if not (hasattr(existing, "update") and hasattr(existing, "current") and hasattr(existing, "history")):
                 continue
             existing.update(getattr(existing, "current", None))
             last_map[name] = bar_i
+
+    def _commit_udf_series_history(self, names: frozenset[str], site: int) -> None:
+        """Start-of-call carry for UDF series locals so ``x[1]`` sees last bar.
+
+        Script-level :meth:`_commit_unwritten_history` does not run inside a
+        UDF. Without this, ``var`` + ``x[1]`` in a function body sees ``na``
+        on the first read of each bar (history length stays 1).
+        """
+        if not names:
+            return
+        last_map: dict[Any, int] | None = getattr(self, "_series_assign_bar", None)
+        if last_map is None:
+            last_map = {}
+            self._series_assign_bar = last_map  # type: ignore[attr-defined]
+        bar = self.context.get("bar_index", 0)
+        try:
+            bar_i = int(bar) if bar is not None else 0
+        except (TypeError, ValueError):
+            bar_i = 0
+        ctx = self.context
+        for name in names:
+            track_key: Any = (site, name)
+            if last_map.get(track_key) == bar_i:
+                continue
+            existing = ctx.get(name)
+            if not (hasattr(existing, "update") and hasattr(existing, "current") and hasattr(existing, "history")):
+                continue
+            existing.update(getattr(existing, "current", None))
+            last_map[track_key] = bar_i
 
     def _finalize_library_registration(self) -> None:
         """If this script was a library, register collected exports."""
@@ -926,16 +935,12 @@ class StatementEvaluator:
             current = getattr(value, "current", None)
             if isinstance(current, (list, tuple)) and len(current) == len(elts):
                 values = list(current)
-            elif len(hist) == len(elts) and not all(
-                x is None or isinstance(x, (int, float, bool)) for x in hist
-            ):
+            elif len(hist) == len(elts) and not all(x is None or isinstance(x, (int, float, bool)) for x in hist):
                 # chronological order for unpack (history is reverse)
                 values = list(reversed(hist))
             else:
                 values = [current] * len(elts)
-        elif value is not None and hasattr(value, "__iter__") and not isinstance(
-            value, (str, bytes, dict)
-        ):
+        elif value is not None and hasattr(value, "__iter__") and not isinstance(value, (str, bytes, dict)):
             # Do NOT iterate Matrix/UDT objects as unpack sources — only
             # plain sequences. Matrices are iterable by row and would
             # corrupt `[arr, mat] = …` when the RHS is wrongly a matrix.
@@ -1024,11 +1029,7 @@ class StatementEvaluator:
             value = self.visit(node.value)  # type: ignore[attr-defined]
             stored = self._bind_series_name(target.id, value)
             # Pine ``:=`` is an expression; UDF bodies may end with reassignment.
-            if (
-                stored is not None
-                and hasattr(stored, "current")
-                and hasattr(stored, "history")
-            ):
+            if stored is not None and hasattr(stored, "current") and hasattr(stored, "history"):
                 return getattr(stored, "current", stored)
             return stored
 
@@ -1360,12 +1361,9 @@ class StatementEvaluator:
 
         # Static end/step: Constant nodes cannot change mid-loop.
         end_node = node.end
-        static_end = type(end_node) is ast.Constant and (
-            end_node.kind is None or end_node.kind == "#"
-        )
+        static_end = type(end_node) is ast.Constant and (end_node.kind is None or end_node.kind == "#")
         static_step = (not explicit_step) or (
-            type(node.step) is ast.Constant
-            and (node.step.kind is None or node.step.kind == "#")  # type: ignore[union-attr]
+            type(node.step) is ast.Constant and (node.step.kind is None or node.step.kind == "#")  # type: ignore[union-attr]
         )
 
         if static_end and static_step:
@@ -1378,9 +1376,7 @@ class StatementEvaluator:
                 return None
             if step is None:
                 step = 1.0 if start_f <= end_f else -1.0
-            return self._run_for_to_static(
-                target_name, start_f, end_f, step, node.body
-            )
+            return self._run_for_to_static(target_name, start_f, end_f, step, node.body)
 
         # v6: re-evaluate the end bound on every iteration (dynamic for loop boundaries)
         # Pine Script for loops are inclusive of end
@@ -1426,12 +1422,7 @@ class StatementEvaluator:
         last_result = None
         max_iters = 1_000_000
         # Integer range: use Python range (faster counter + inclusive end).
-        if (
-            start_f == int(start_f)
-            and end_f == int(end_f)
-            and step == int(step)
-            and step != 0
-        ):
+        if start_f == int(start_f) and end_f == int(end_f) and step == int(step) and step != 0:
             start_i = int(start_f)
             end_i = int(end_f)
             step_i = int(step)
@@ -1492,11 +1483,7 @@ class StatementEvaluator:
         try:
             # Pine: ``for [i, v] in array`` yields index+value pairs.
             # Use enumerate when iterating a list with a 2-tuple target.
-            use_enumerate = (
-                isinstance(target, ast.Tuple)
-                and len(target.elts) == 2
-                and isinstance(iterable, list)
-            )
+            use_enumerate = isinstance(target, ast.Tuple) and len(target.elts) == 2 and isinstance(iterable, list)
             iterator = enumerate(iterable) if use_enumerate else iter(iterable)
         except TypeError:
             return None
@@ -1563,9 +1550,7 @@ class StatementEvaluator:
         params = tuple(arg for arg in node.args if isinstance(arg, ast.Param))
         param_names = tuple(p.name for p in params)
         param_name_set = frozenset(param_names)
-        defaults: tuple[tuple[str, Any], ...] = tuple(
-            (p.name, p.default) for p in params if p.default is not None
-        )
+        defaults: tuple[tuple[str, Any], ...] = tuple((p.name, p.default) for p in params if p.default is not None)
         body_plan: list[tuple[bool, Any]] = []
         for stmt in node.body:
             if type(stmt) is ast.Expr:
@@ -1627,9 +1612,7 @@ class StatementEvaluator:
             site = int(getattr(self, "_pine_udf_site", 0) or 0)
             site_store: dict[str, Any] | None = None
             if __series_locals:
-                all_stores: dict[tuple[str, int], dict[str, Any]] = getattr(
-                    self, "_udf_call_site_state", None
-                )  # type: ignore[attr-defined]
+                all_stores: dict[tuple[str, int], dict[str, Any]] = getattr(self, "_udf_call_site_state", None)  # type: ignore[attr-defined]
                 if all_stores is None:
                     all_stores = {}
                     self._udf_call_site_state = all_stores  # type: ignore[attr-defined]
@@ -1649,6 +1632,7 @@ class StatementEvaluator:
                             ctx[n] = site_store[n]
                         else:
                             ctx.pop(n, None)
+                    self._commit_udf_series_history(__series_locals, site)
 
                 # Bind positional arguments
                 for i, value in enumerate(args):
@@ -1793,9 +1777,7 @@ class StatementEvaluator:
             if param is first:
                 continue
             param_type: Type = (
-                self._convert_type_spec_to_type(param.type)
-                if param.type
-                else BuiltinType(BuiltinTypeKind.STRING)
+                self._convert_type_spec_to_type(param.type) if param.type else BuiltinType(BuiltinTypeKind.STRING)
             )
             parameters.append((param.name, param_type))
 
@@ -1844,10 +1826,7 @@ class StatementEvaluator:
                             "strategy",
                         }:
                             last = self.visit(stmt)  # type: ignore[attr-defined]
-                            if (
-                                isinstance(last, ScriptDeclaration)
-                                and last.script_type == "library"
-                            ):
+                            if isinstance(last, ScriptDeclaration) and last.script_type == "library":
                                 self._active_library = LibraryModule(  # type: ignore[attr-defined]
                                     title=str(last.title)
                                 )
@@ -1900,9 +1879,7 @@ class StatementEvaluator:
                 # Known helpers (e.g. ArrayExtension.index_2d_to_1d) are
                 # polyfilled so array.get/set receive real indices.
                 tvta_exports = (
-                    bind_tradingview_ta_stub_exports(self)
-                    if namespace == "TradingView" and name == "ta"
-                    else {}
+                    bind_tradingview_ta_stub_exports(self) if namespace == "TradingView" and name == "ta" else {}
                 )
 
                 class _StubLib:
