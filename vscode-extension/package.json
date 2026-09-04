@@ -25,7 +25,7 @@
     "url": "https://github.com/hoox-sh/pyne/issues"
   },
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.91.0"
   },
   "categories": [
     "Programming Languages",
@@ -203,13 +203,13 @@
     "lint": "eslint src --ext ts"
   },
   "devDependencies": {
-    "@types/node": "^20.10.0",
-    "@types/vscode": "^1.85.0",
-    "@vscode/test-electron": "^2.3.0",
-    "esbuild": "^0.25.0",
-    "typescript": "^5.3.0"
+    "@types/node": "^26.4.0",
+    "@types/vscode": "^1.136.0",
+    "@vscode/test-electron": "^3.1.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
   },
   "dependencies": {
-    "vscode-languageclient": "^9.0.1"
+    "vscode-languageclient": "^10.1.1"
   }
 }

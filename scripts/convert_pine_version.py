@@ -35,6 +35,11 @@ import sys
 from pathlib import Path
 
 from pynescript.util.pine_convert import convert_pine
+from pynescript.util.pine_convert import convert_v5_to_v6
+from pynescript.util.pine_convert import convert_v6_to_v5
+
+
+__all__ = ["convert_pine", "convert_v5_to_v6", "convert_v6_to_v5", "main"]
 
 
 _MIN_ARGS = 3

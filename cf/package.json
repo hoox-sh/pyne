@@ -9,10 +9,10 @@
     "deploy": "npm run build:image && wrangler deploy"
   },
   "dependencies": {
-    "@cloudflare/containers": "^0.0.31"
+    "@cloudflare/containers": "^0.3.7"
   },
   "devDependencies": {
-    "typescript": "^5.9.2",
-    "wrangler": "^4.124.0"
+    "typescript": "^7.0.2",
+    "wrangler": "^4.127.1"
   }
 }

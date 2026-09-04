@@ -37,7 +37,7 @@ import {
   commands,
   env,
   ExtensionContext,
-  OutputChannel,
+  LogOutputChannel,
   StatusBarAlignment,
   StatusBarItem,
   window,
@@ -61,7 +61,7 @@ export const COMMANDS = {
 
 let client: LanguageClient | undefined;
 let statusBar: StatusBarItem | undefined;
-let output: OutputChannel | undefined;
+let output: LogOutputChannel | undefined;
 /** Prevent concurrent start/stop races from config changes + palette commands. */
 let clientOp: Promise<void> = Promise.resolve();
 
@@ -383,7 +383,7 @@ function registerCommands(context: ExtensionContext): void {
 }
 
 export async function activate(context: ExtensionContext): Promise<void> {
-  output = window.createOutputChannel('PYNE Language Server');
+  output = window.createOutputChannel('PYNE Language Server', { log: true });
   context.subscriptions.push(output);
   log('Activating PYNE extension…');
 
