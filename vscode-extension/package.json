@@ -203,7 +203,7 @@
     "lint": "eslint src --ext ts"
   },
   "devDependencies": {
-    "@types/node": "^20.10.0",
+    "@types/node": "^26.4.0",
     "@types/vscode": "^1.85.0",
     "@vscode/test-electron": "^2.3.0",
     "esbuild": "^0.25.0",
