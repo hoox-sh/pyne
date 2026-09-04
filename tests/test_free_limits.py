@@ -144,19 +144,15 @@ def test_json_key_store_is_hash_only(tmp_path: Path) -> None:
 
 
 def test_json_key_store_migrates_legacy_raw_keys(tmp_path: Path) -> None:
-    """Legacy files keyed by raw secret are rewritten hash-only on load."""
+    """Legacy files keyed by raw secret are rewritten as PBKDF2 hashes on load."""
     store_path = tmp_path / "legacy.json"
     raw = "pyn_legacy_secret_for_migration_test_only"
-    import hashlib
-
-    key_hash = hashlib.sha256(raw.encode()).hexdigest()
-    key_id = key_hash[:12]
     store_path.write_text(
         json.dumps(
             {
                 raw: {
-                    "key_id": key_id,
-                    "key_hash": key_hash,
+                    "key_id": "legacykeyid1",
+                    "key_hash": "0" * 64,
                     "tier": "hobby",
                     "calls_used": 0,
                     "calls_limit": 5000,
@@ -168,11 +164,40 @@ def test_json_key_store_migrates_legacy_raw_keys(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     store = APIKeyStore(store_path=str(store_path))
-    assert store.validate_key(raw) is not None
+    found = store.validate_key(raw)
+    assert found is not None
+    assert found.key_id == "legacykeyid1"
     rewritten = store_path.read_text(encoding="utf-8")
     assert raw not in rewritten
     data = json.loads(rewritten)
-    assert key_hash in data
+    assert all(k.startswith("v2:") and len(k) == 67 for k in data)
+    assert found.key_hash in data
+
+
+def test_json_key_store_skips_orphaned_sha256_records(tmp_path: Path) -> None:
+    """Pre-v2 SHA-256 fingerprints without the raw secret cannot be verified."""
+    store_path = tmp_path / "sha256_only.json"
+    orphan = "a" * 64
+    store_path.write_text(
+        json.dumps(
+            {
+                orphan: {
+                    "key_id": "orphaned0001",
+                    "key_hash": orphan,
+                    "tier": "hobby",
+                    "calls_used": 0,
+                    "calls_limit": 5000,
+                    "created_at": 1.0,
+                    "last_used": 0.0,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    store = APIKeyStore(store_path=str(store_path))
+    assert store.get_by_id("orphaned0001") is None
+    data = json.loads(store_path.read_text(encoding="utf-8"))
+    assert data == {}
 
 
 def test_run_rejects_ssrf_webhook(client, monkeypatch) -> None:

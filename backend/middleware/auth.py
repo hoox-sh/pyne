@@ -152,8 +152,8 @@ class APIKeyStore:
     Backends:
 
     * ``json`` (default) — single-process JSON file. **Hash-only** (raw secret
-      is never written to disk; keyed by SHA-256 of the secret). Not multi-worker
-      safe for concurrent writes.
+      is never written to disk; keyed by PBKDF2-HMAC-SHA256 of the secret).
+      Not multi-worker safe for concurrent writes.
     * ``sqlite`` — hash-only SQLite (WAL). Safe for multi-worker single host
       when the DB path is on a shared volume (e.g. ``/data/api_keys.db``).
     * ``redis`` — hash-only Redis. Safe for multi-replica (Cloud Run + Memorystore).
@@ -161,7 +161,9 @@ class APIKeyStore:
     Select via ``STORE_BACKEND`` (see :func:`get_key_store`).
 
     Legacy JSON files that used the raw secret as the object key are migrated
-    on load: entries are re-keyed by ``key_hash`` and the raw secret is dropped.
+    on load: the secret is hashed with PBKDF2, the file is re-keyed by that
+    hash, and the raw secret is dropped. Pre-v2 SHA-256 fingerprints without
+    the raw secret cannot be verified and are skipped (re-issue those keys).
     """
 
     _DEFAULT_JSON_PATH = "/data/api_keys.json"
@@ -173,7 +175,6 @@ class APIKeyStore:
         # JSON mode only — maps key_hash → APIKey (never raw secret).
         self._keys: dict[str, APIKey] = {}
         self._key_by_id: dict[str, str] = {}  # key_id → key_hash
-        self._legacy_keys: dict[str, APIKey] = {}  # v1 sha256 → APIKey (migration)
         if self._backend is None:
             self._load()
 
@@ -192,9 +193,15 @@ class APIKeyStore:
                 key_id = str(info.get("key_id") or "")
                 if not key_hash or not key_id:
                     continue
-                # Legacy format: object key was the raw secret (pyn_…). Drop it.
+                # Legacy format: object key was the raw secret (pyn_…). Rehash
+                # with PBKDF2 now so lookup never uses SHA-256 on the secret.
                 if store_key != key_hash:
+                    key_hash = self._hash_key(store_key)
                     migrated = True
+                elif not key_hash.startswith("v2:"):
+                    # SHA-256-keyed record; raw secret is gone. Skip.
+                    migrated = True
+                    continue
                 api_key = APIKey(
                     key_id=key_id,
                     key_hash=key_hash,
@@ -207,8 +214,6 @@ class APIKeyStore:
                 )
                 self._keys[key_hash] = api_key
                 self._key_by_id[key_id] = key_hash
-                if not key_hash.startswith("v2:"):
-                    self._legacy_keys[key_hash] = api_key
         except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
             # Corrupt or partial store — start empty rather than crash the API.
             self._keys.clear()
@@ -225,7 +230,7 @@ class APIKeyStore:
             os.makedirs(parent, exist_ok=True)
         data = {}
         for key_hash, api_key in self._keys.items():
-            # Hash-only: object key is the SHA-256, never the raw secret.
+            # Hash-only: object key is the PBKDF2 digest, never the raw secret.
             data[key_hash] = {
                 "key_id": api_key.key_id,
                 "key_hash": api_key.key_hash,
@@ -248,7 +253,7 @@ class APIKeyStore:
     def create_key(self, tier: str = "hobby") -> tuple[str, str]:
         """Mint a new API key; returns ``(raw_key, key_id)`` (raw shown once)."""
         raw_key = f"pyn_{secrets.token_urlsafe(32)}"
-        key_id = hashlib.sha256(raw_key.encode()).hexdigest()[:12]
+        key_id = secrets.token_hex(6)
         key_hash = self._hash_key(raw_key)
         calls_limit = _TIER_LIMITS.get(tier, 0)
 
@@ -287,31 +292,16 @@ class APIKeyStore:
         )
 
     def get_key(self, raw_key: str) -> APIKey | None:
-        """Look up a key by raw secret (tries PBKDF2 v2, falls back to legacy SHA-256)."""
+        """Look up a key by raw secret (PBKDF2-HMAC-SHA256)."""
         if not raw_key:
             return None
         key_hash = self._hash_key(raw_key)
         if self._backend is not None:
             record = self._backend.get_by_hash(key_hash)
-            if record is not None:
-                return self._api_key_from_record(record)
-            # Legacy fallback for backends
-            legacy_hash = self._legacy_hash_key(raw_key)
-            record = self._backend.get_by_hash(legacy_hash)
-            if record is not None:
-                return self._api_key_from_record(record)
-            return None
-        api_key = self._keys.get(key_hash)
-        if api_key is not None:
-            return api_key
-        legacy_hash = self._legacy_hash_key(raw_key)
-        api_key = self._legacy_keys.pop(legacy_hash, None)
-        if api_key is not None:
-            api_key.key_hash = key_hash
-            self._keys[key_hash] = api_key
-            self._key_by_id[api_key.key_id] = key_hash
-            self._save()
-        return api_key
+            if record is None:
+                return None
+            return self._api_key_from_record(record)
+        return self._keys.get(key_hash)
 
     def get_by_id(self, key_id: str) -> APIKey | None:
         """Look up a key by public ``key_id`` (not the raw secret)."""
@@ -340,22 +330,13 @@ class APIKeyStore:
             return False
         key_hash = self._hash_key(raw_key)
         if self._backend is not None:
-            if self._backend.delete_by_hash(key_hash):
-                return True
-            # Legacy fallback
-            return self._backend.delete_by_hash(self._legacy_hash_key(raw_key))
+            return self._backend.delete_by_hash(key_hash)
         api_key = self._keys.pop(key_hash, None)
-        if api_key is not None:
-            self._key_by_id.pop(api_key.key_id, None)
-            self._save()
-            return True
-        legacy_hash = self._legacy_hash_key(raw_key)
-        api_key = self._legacy_keys.pop(legacy_hash, None)
-        if api_key is not None:
-            self._key_by_id.pop(api_key.key_id, None)
-            self._save()
-            return True
-        return False
+        if api_key is None:
+            return False
+        self._key_by_id.pop(api_key.key_id, None)
+        self._save()
+        return True
 
     @staticmethod
     def _hash_key(raw_key: str) -> str:
@@ -367,18 +348,6 @@ class APIKeyStore:
             _HASH_ITERATIONS,
         )
         return f"v2:{dk.hex()}"
-
-    @staticmethod
-    def _legacy_hash_key(raw_key: str) -> str:
-        """Lookup fingerprint for pre-v2 stored API-key records (SHA-256 hex).
-
-        New keys use PBKDF2-HMAC-SHA256 via :meth:`_hash_key`. This helper only
-        matches already-stored high-entropy token fingerprints so they can be
-        migrated; it is not used to hash new secrets.
-        """
-        # lgtm[py/weak-sensitive-data-hashing]
-        # codeql[py/weak-sensitive-data-hashing]
-        return hashlib.sha256(raw_key.encode()).hexdigest()
 
 
 class _KeyStoreHolder:
