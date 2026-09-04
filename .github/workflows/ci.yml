@@ -186,7 +186,7 @@ jobs:
           echo "Building Docker images with PYNESCRIPT_VERSION=${VER}"
 
       - name: Build production API image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile
@@ -233,7 +233,7 @@ jobs:
           echo
 
       - name: Build CLI image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile
