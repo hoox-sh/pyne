@@ -39,7 +39,7 @@ jobs:
         # Full style set still has legacy debt across evaluator/compiler; CI gates
         # pyflakes-class errors (E/F/W) so public main stays green. Local: make lint.
         run: |
-          ruff check src/ tests/ backend/middleware/auth.py \
+          ruff check src/ tests/ backend/ \
             --select E,F,W \
             --ignore E501,E741,F841,W293,E402 \
             --output-format=github
