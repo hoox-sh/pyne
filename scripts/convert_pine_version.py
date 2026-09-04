@@ -18,52 +18,39 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Pine Script v5 <-> v6 converter stub (plan §6 / roadmap D1).
+"""CLI wrapper for :mod:`pynescript.util.pine_convert` (roadmap L1).
 
-Minimal starting point. Expand with real diff rules as needed.
-
-CLI::
+::
 
     python scripts/convert_pine_version.py <v5|v6> <file.pine>
 
-``v5`` rewrites toward v5 (e.g. indicator→study); any other direction
-applies the v5→v6 placeholder rules. Converted source is printed to stdout.
+``v5`` rewrites toward v5; ``v6`` (or any other token) toward v6.
+Converted source is printed to stdout. Prefer ``pynescript convert``.
 """
 
 from __future__ import annotations
 
 import sys
+
 from pathlib import Path
 
-
-def convert_v5_to_v6(source: str) -> str:
-    """Very basic v5 to v6 adjustments (examples only)."""
-    out = source
-    # Example: some v5 things that changed
-    # (real ones would be more; this is placeholder per plan)
-    out = out.replace("study(", "indicator(")
-    return out
+from pynescript.util.pine_convert import convert_pine
 
 
-def convert_v6_to_v5(source: str) -> str:
-    """Reverse (placeholder)."""
-    out = source
-    out = out.replace("indicator(", "study(")
-    return out
+_MIN_ARGS = 3
 
 
 def main() -> None:
-    if len(sys.argv) < 3:
-        print("Usage: python scripts/convert_pine_version.py <v5|v6> <file.pine>")
-        sys.exit(1)
-    direction = sys.argv[1]
+    if len(sys.argv) < _MIN_ARGS:
+        sys.stderr.write("Usage: python scripts/convert_pine_version.py <v5|v6> <file.pine>\n")
+        raise SystemExit(1)
+    direction = sys.argv[1].lower().lstrip("v")
     path = Path(sys.argv[2])
     src = path.read_text(encoding="utf-8")
-    if direction == "v5":
-        dst = convert_v6_to_v5(src)
-    else:
-        dst = convert_v5_to_v6(src)
-    print(dst)
+    to = 5 if direction == "5" else 6
+    sys.stdout.write(convert_pine(src, to=to))
+    if not src.endswith("\n"):
+        sys.stdout.write("\n")
 
 
 if __name__ == "__main__":

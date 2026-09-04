@@ -91,15 +91,15 @@ Historical Phase A–D “build API / LSP / Jupyter” items are **done**. Do no
 
 | ID | Item | Pri | Owner |
 | --- | --- | --- | --- |
-| **H1** | Port R5–R6 host surface to pyne-worker (fail-cache, `error_kind`, inputs→interpret, compile cache) | P1 ✅ **largely done** — package Runtime SoT + backend shims + pyne-worker thin wrap; residual = worker-only extras (logs/profile, CF first-plot), not a forked bar loop | sibling `hoox-sh/pyne-worker` |
+| **H1** | Port R5–R6 host surface to pyne-worker (fail-cache, `error_kind`, inputs→interpret, compile cache) | P1 ✅ package Runtime SoT + worker thin wrap; `/run` already forwards `logs` / `profile` / `plot_meta` / `error_kind` | sibling `hoox-sh/pyne-worker` |
 | **H2** | Product warm-compile path (document SLOs; optional prewarm workers; IR cache on in deploy) | P1 ✅ SLOs + prewarm API/CLI + deploy defaults (2026-08); Numba `.nb*` corrupt-cache recovery landed | pyne + ops |
 | **C1** | Corpus Runtime residual (set01–04) | P1 ✅ **closed (2026-08-09)** — parse **99.96%** (2476/2477); Runtime interpret **100%** excl. EXPECTED_FAIL (2466 OK + 11 intentional demos); set01 **249/249**. Residual class = intentional `runtime.error` / lower-TF / pathological loop demos only | pyne |
-| **P1p** | Compile/interpret **plot parity** residual | P1 ⚙️ first-party smoke + goldens (MACD/OBV/ao/aroon + plot keys); residual = corpus value `MISMATCH` tail / interpret-side leftovers | pyne |
+| **P1p** | Compile/interpret **plot parity** residual | P1 ⚙️ first-party + `tests/fixtures/parity/pine` **0 MISMATCH** (2026-09); residual = optional TV builtin / set0x corpus value tail | pyne |
 | **T1** | Cap `current_series` to `max_bars_back` / `_SERIES_MAX` | P2 ✅ `PYNE_SERIES_CAP` default ON + goldens (R7 Agent 03) | pyne |
 | **T2** | Incremental TA for remaining heavy kernels (`ta.bb`, nested full paths) | P2 ✅ R7: bb/kama/cmo/stochrsi; wma/hma/linreg; **R9: obv/wad/wvad/cmf/klinger**; **nvi/pvi**; **aroon/dpo/donchian/kst** | pyne |
 | **F1** | ATR Wilder / TV supertrend re-baseline **only** with dedicated goldens | P2 ✅ interpret ATR is Wilder RMA of TR; Supertrend mid±factor·ATR locked (inc ≡ compile ≡ Numba). TV ratchet is out of scope | pyne |
 | **F2** | Pending-fill averaging when pyramiding ≤ 0 | P2 ✅ R7 Agent 10 (interpret + compile broker goldens) | pyne |
-| **L1** | v5↔v6 converter maturity (`scripts/convert_pine_version.py`) | P3 | pyne |
+| **L1** | v5↔v6 converter maturity (`scripts/convert_pine_version.py`) | P3 ✅ `pynescript convert --to 5\|6` — version / `study` / `request.*` rewrites (not semantic bool/na migrator) | pyne |
 | **L2** | Webhook alerts productization | P3 ✅ pyne-worker edge + Pro API `/run` export **and** outbound `ALERT_WEBHOOK_URL` / `webhook_url` | pyne-worker + backend |
 | **L3** | Legacy TS Worker builtin parity | P3 | leftover sibling `hoox-sh/pine-worker` — not a product-docs target; new TS work is `hoox-sh/pynets` |
 | **B1** | Real (non-mock) `request.*` market data | ⚙️ by design; **foreign-na policy** landed (same-symbol OHLCV only; foreign/complex `request.security` → `na`, no chart-close-as-dividend) | adapters |
@@ -141,14 +141,14 @@ P0 docs honesty → P1 dual-host H1 ✅ (package SoT + shims + worker thin wrap)
 ## Priority Recommendation
 
 ### Short-term (Next)
-1. **P1p Plot parity residual** — remaining corpus `MISMATCH` tail (interpret-side leftovers; first-party goldens landed)
-2. **H1 residual polish** — worker-only extras (logs/profile, CF first-plot); bar loop is already package SoT
+1. **P1p corpus tail** — optional TV builtin / set0x `MISMATCH` (shipped first-party + parity fixtures are 0 MISMATCH)
+2. Grow goldens from `scripts/compare_interp_compile.py` buckets when a new kernel diverges
 
 ### Medium-term
 3. Further nested incremental TA where profiled
 
 ### Long-term
-6. **L1** Converter maturity. TypeScript library work is PyneTS (**L2 webhooks ✅**).
+6. TypeScript library work is PyneTS (**L1 converter ✅** source rewrite; **L2 webhooks ✅**).
 
 ---
 

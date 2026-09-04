@@ -30,6 +30,7 @@ Commands
 --------
 - ``check`` — parse-only validation (CI-friendly exit codes)
 - ``format`` / ``fmt`` — parse → unparse (optional in-place write)
+- ``convert`` — v5 ↔ v6 source rewrite (``request.*``, version pragma)
 - ``parse-and-dump`` / ``dump`` / ``ast`` — AST dump
 - ``parse-and-unparse`` / ``unparse`` — round-trip source
 - ``lint`` — linter with colored / JSON output
@@ -94,6 +95,7 @@ _EPILOG = """\
 Examples:
   pynescript check script.pine
   pynescript format script.pine -w
+  pynescript convert script.pine --to 6
   pynescript dump script.pine --indent 2
   pynescript lint script.pine --json
   pynescript compile script.pine --emit
@@ -251,13 +253,8 @@ def _print_banner() -> None:
 
     con = _console()
     if con is not None:
-        con.print(
-            f"[pyne.accent]◆ PYNE[/] [pyne.fg]pynescript[/] "
-            f"[pyne.muted]v{__version__}[/]"
-        )
-        con.print(
-            "[pyne.muted]Pine Script toolchain — parse · lint · compile · run[/]"
-        )
+        con.print(f"[pyne.accent]◆ PYNE[/] [pyne.fg]pynescript[/] [pyne.muted]v{__version__}[/]")
+        con.print("[pyne.muted]Pine Script toolchain — parse · lint · compile · run[/]")
     else:
         _echo(f"PYNE pynescript v{__version__}")
         _echo("Pine Script toolchain — parse · lint · compile · run")
@@ -572,6 +569,71 @@ def format_cmd(
 
 
 # ---------------------------------------------------------------------------
+# convert (v5 ↔ v6)
+# ---------------------------------------------------------------------------
+
+
+@cli.command("convert", short_help="Rewrite Pine toward v5 or v6 (request.*, version).")
+@click.argument(
+    "filename",
+    metavar="PATH",
+    type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, allow_dash=True),
+)
+@click.option(
+    "--to",
+    "target",
+    type=click.Choice(["5", "6", "v5", "v6"]),
+    required=True,
+    help="Target language version.",
+)
+@click.option("--encoding", default="utf-8", help="Text encoding of the file.")
+@click.option(
+    "-w",
+    "--write",
+    "write_inplace",
+    is_flag=True,
+    help="Write converted source back to PATH (not for stdin).",
+)
+@click.option(
+    "--output-file",
+    "-o",
+    metavar="PATH",
+    type=click.Path(writable=True, allow_dash=True),
+    default="-",
+    help="Output path when not using --write (default: stdout).",
+)
+def convert_cmd(
+    filename: str,
+    target: str,
+    encoding: str,
+    write_inplace: bool,
+    output_file: str,
+) -> None:
+    """Rewrite ``//@version``, ``study(``→``indicator(``, and ``request.*`` names.
+
+    Does not attempt semantic v6 tightening (bool-as-int, ``na``). Comments
+    and string literals are left unchanged.
+    """
+    from pynescript.util.pine_convert import convert_pine
+
+    if filename == "-" and write_inplace:
+        raise click.ClickException("cannot --write stdin")
+
+    source, label = _read_source(filename if filename != "-" else "-", encoding)
+    to = int(target.lstrip("v"))
+    converted = convert_pine(source, to=to)
+    if not converted.endswith("\n"):
+        converted += "\n"
+
+    if write_inplace:
+        Path(filename).write_text(converted, encoding=encoding)
+        _echo_status("ok", f"converted {label} → v{to}")
+        return
+
+    _write_out(converted.rstrip("\n"), output_file, encoding)
+
+
+# ---------------------------------------------------------------------------
 # lint
 # ---------------------------------------------------------------------------
 
@@ -685,9 +747,7 @@ def lint(filename: str | None, encoding: str, fail_on: str, as_json: bool, quiet
     help="Where to write --emit output (default: stdout).",
 )
 @click.option("--time/--no-time", "show_time", default=True, help="Print compile timing.")
-def compile_cmd(
-    filename: str, encoding: str, emit: bool, output_file: str, show_time: bool
-) -> None:
+def compile_cmd(filename: str, encoding: str, emit: bool, output_file: str, show_time: bool) -> None:
     """Compile PATH through :func:`pynescript.compiler.compile_script`.
 
     Without ``--emit``, loads the compiled entry (and warm-ups Numba when
@@ -722,9 +782,7 @@ def compile_cmd(
             msg += "  (numba missing?)"
         _echo_status("ok", msg)
         if compiled.plot_titles:
-            _echo(
-                f"  plots: {', '.join(compiled.plot_titles[:12])}" + ("…" if plots > 12 else "")
-            )
+            _echo(f"  plots: {', '.join(compiled.plot_titles[:12])}" + ("…" if plots > 12 else ""))
     except Exception as e:
         _echo_status("fail", f"{type(e).__name__}: {e}", err=True)
         raise SystemExit(1) from e
@@ -879,8 +937,9 @@ def run_cmd(filename: str, encoding: str, bars: int, as_json: bool, quiet: bool)
             con.print(table)
         else:
             for title, series in plots.items():
-                _echo(f"  {title}: n={len(series) if hasattr(series, '__len__') else '?'}  "
-                      f"last={_jsonable_last(series)}")
+                _echo(
+                    f"  {title}: n={len(series) if hasattr(series, '__len__') else '?'}  last={_jsonable_last(series)}"
+                )
     else:
         _echo("  (no plot series)")
     if extras:
@@ -917,17 +976,13 @@ def _validation_from_cli(
         step_bars=step,
     )
     if mode == "walk-forward" and not rolling_windows(bars, spec):
-        raise click.ClickException(
-            f"walk-forward needs --bars >= train+test ({train}+{test}); got {bars}"
-        )
+        raise click.ClickException(f"walk-forward needs --bars >= train+test ({train}+{test}); got {bars}")
     return spec
 
 
 def _emit_optimize_study(study: Any, label: str, *, as_json: bool) -> None:
     all_errored = bool(study.trials) and all(t.error for t in study.trials)
-    failed = study.status == "error" or all_errored or (
-        study.best_params is None and all_errored
-    )
+    failed = study.status == "error" or all_errored or (study.best_params is None and all_errored)
     if as_json:
         _echo(json.dumps(study.to_dict(), indent=2, default=str))
         if failed:
@@ -1208,10 +1263,7 @@ def data(
             lines = ["open,high,low,close,volume"]
             vols = result.get("volume") or [0] * n
             for i in range(n):
-                lines.append(
-                    f"{result['open'][i]},{result['high'][i]},{result['low'][i]},"
-                    f"{closes[i]},{vols[i]}"
-                )
+                lines.append(f"{result['open'][i]},{result['high'][i]},{result['low'][i]},{closes[i]},{vols[i]}")
             _write_out("\n".join(lines) + "\n", output_file)
             return
 
