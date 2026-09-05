@@ -55,6 +55,8 @@ Pine Script v6 launched December 2024, followed by monthly updates. Key sources:
   - **Status**: ✅ Implemented (arrays pre-existing; matrix added with UDT key support + basic numeric sort).
 - **Binary search in UDT arrays** (August 2026): `array.binary_search()`, `array.binary_search_leftmost()`, `array.binary_search_rightmost()` accept `sort_field` (const int index, default 0, or const string name).
   - **Status**: ✅ Implemented (interpret + compile object-mode; same field-key rules as UDT sort).
+- **`once` conditional structure** (August 2026): fire a block the first time the optional condition is true on a closed bar; no return value.
+  - **Status**: ✅ Implemented in **0.4.4** (grammar + ASDL `Once`, interpret confirmed-bar latch, compile historical flags, LSP keyword, VS Code TextMate). Soft keyword so `once` as an identifier still parses.
 - **Other updates** (multiline in editor, line wrapping changes, dynamic loops, bid/ask on 1T, etc.): Mostly editor or minor; runtime support varies (bid/ask referenced in tests).
 
 ---
@@ -66,6 +68,7 @@ Pine Script v6 launched December 2024, followed by monthly updates. Key sources:
 - ✅ **Library `export const`** (June 2025) — parse/AST/unparse + **runtime**: library scripts register exports; `import user/Lib/1 as x` resolves via in-process registry / `register_library_source`; `x.MEMBER` attribute access; exported functions callable; **exported types** (`export type` + `.new`) and **enums** (`export enum` + members) via import alias.
 - ✅ **UDT collection sorting with `sort_field`** — arrays had support; matrix.sort + matrix.sort_indices now fully implemented in Matrix class + evaluator mixin with int index or str name + UDT get_field keys.
 - ✅ **Binary search in UDT arrays** (August 2026) — `array.binary_search*` honor `sort_field` (int index default 0, or string name) on UDT collections, matching sort.
+- ✅ **`once` conditional structure** (August 2026, **0.4.4**) — statement-only; interpret commits on `barstate.isconfirmed`; compile is historical.
 - ✅ Additional v6 syminfo/timeframe constants (isin, current_contract, main_tickerid, main_period) added to default context.
 - ✅ behind_chart on indicator/strategy/library, force_overlay on drawing objects (line, box, label, polyline, table) and plot() - captured in metadata and ctors.
 - ✅ timeframe_bars_back documented and accepted in time()/time_close().

@@ -94,7 +94,7 @@ Bar open time is the host `time_arr` series (synthetic when the runner omits tim
 
 ### Control flow
 
-`if` / `for` / `while` emit Python control flow **inside** the njit function—supported Numba subset only (no heap objects, no Python lists of mixed types).
+`if` / `for` / `while` / `once` emit Python control flow **inside** the njit function—supported Numba subset only (no heap objects, no Python lists of mixed types). `once` lowers to a persistent `__once_fired_N` bool set when the body runs (compile is historical: `barstate.isconfirmed` is always true). A `once` inside a UDF forces object mode so the flag is module-level.
 
 ## Cache
 

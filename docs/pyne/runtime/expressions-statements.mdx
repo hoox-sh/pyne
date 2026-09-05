@@ -34,7 +34,7 @@ Evaluation is pure visitor dispatch: each ASDL node type maps to a `visit_*` met
 flowchart TB
   Script[Script body] --> Stmt[Statements]
   Stmt --> Assign[Assign / ReAssign]
-  Stmt --> If[If / For / While]
+  Stmt --> If[If / For / While / Once]
   Stmt --> Def[FunctionDef / TypeDef / EnumDef]
   Stmt --> ExprStmt[Expression statements]
   ExprStmt --> Expr[Expressions]
@@ -80,6 +80,7 @@ Binary ops coerce `PineSeries`-like objects to `.current` before operating. List
 | `Assign` | `var`/`varip` once-per-declaration; `const`; ordinary assign; tuple unpack; `export` registration. History-tracked `var` series get a start-of-bar carry so `x[1]` is the prior persist. |
 | `ReAssign` (`:=`) | Update existing binding (and UDT fields) |
 | `If` / `For` / `While` | Standard control flow; loop variables in context |
+| `Once` | Fire body the first time `test` is true (omit `test` → `true`) on a **confirmed** bar, then skip. Unconfirmed realtime ticks may re-run until `barstate.isconfirmed` commits the fired flag. Does not return a value. |
 | `FunctionDef` | Store callable in context; multi-dispatch overload lists; `export`; methods tagged `__pine_method__`. After bar 0 the host walks a **hot body** that skips Function/Type/Enum/Import (already bound). |
 | `TypeDef` / `EnumDef` | Type registry / enum member dicts |
 | `Import` | Resolve `LibraryRegistry` → bind alias to `LibraryModule` |
@@ -143,6 +144,19 @@ plot(f(close, 14))
 ```
 
 `f` is stored as a Python callable that rebinds `x`/`n` and visits the function body AST each call.
+
+### `once` (August 2026)
+
+```pine
+//@version=6
+indicator("once")
+var int n = 0
+once close > ta.sma(close, 20)
+    n := 1
+plot(n)
+```
+
+Equivalent to a `var bool` latch plus `if`, but cheaper: the structure is not re-evaluated after it fires on a closed bar. On a forming realtime bar (`Runtime.run(..., realtime_last_bar=True, realtime_ticks=N)`), the latch is not committed until `barstate.isconfirmed`. Compile is historical (`isconfirmed` always true).
 
 ### Method multi-dispatch sketch
 

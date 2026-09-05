@@ -120,7 +120,7 @@ EXPECTED_FAIL are path-listed demos (`runtime.error` library guards, lower-TF se
     | Parse → unparse | Working | Structural fidelity; whitespace may differ |
     | `var` / `varip` / `:=` | Working | Execution-site init; start-of-bar carry |
     | Functions, methods, type annotations | Working | |
-    | Control flow, `switch`, enums | Working | Strict bool; `na` is false in conditions |
+    | Control flow, `switch`, `once`, enums | Working | Strict bool; `na` is false in conditions. `once` (0.4.4) is statement-only |
     | UDTs + `.new` | Working | Field defaults on compile (0.3.8) |
     | Libraries `export` / `import ns/Name/ver` | Working | In-process `register_library_source`; `Runtime.run(..., libraries=)` |
     | String interpolation, tuple unpack, method chaining | Working | |

@@ -156,6 +156,10 @@ Static diagnostics with `code`, `message`, `line`, `severity` (`error`|`warning`
 
 **Language Server Protocol.** `pyne-lsp` process (alias `pynescript-lsp`) implementing diagnostics, completion, hover, navigation, formatting.
 
+### `once`
+
+August 2026 Pine **conditional structure** (`hoox-pyne` **0.4.4**). `once [cond]` runs its indented block the first time the condition is true on a **closed** bar, then never again. Optional condition defaults to `true`. Unlike `if` / `switch`, it **does not return a value** (`x = once …` does not parse). Interpret may re-run the body on unconfirmed realtime ticks until `barstate.isconfirmed`. See [Expressions & statements](/pyne/docs/runtime/expressions-statements).
+
 ### NodeVisitor / NodeTransformer
 
 Patterns for traversing or rewriting ASTs (`visitor.py`, `transformer.py`).

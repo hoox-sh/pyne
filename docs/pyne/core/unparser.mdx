@@ -130,6 +130,8 @@ Matches `IntEnum` order in `unparser.py`:
 
 `visit_If` detects `orelse == [Expr(If(...))]` and emits `else if` rather than nested `else` + `if` blocks — matching idiomatic Pine.
 
+`visit_Once` emits `once` plus an optional test and an indented body.
+
 ### Type body ordering
 
 `visit_TypeDef` partitions body into field statements vs `FunctionDef` with `method` set, emitting fields first then methods.

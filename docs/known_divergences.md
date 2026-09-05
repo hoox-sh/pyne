@@ -90,6 +90,8 @@ Full-list `_ema` / `_ema_state_step` and incremental / Numba paths all use **SMA
 | `Runtime.run(..., realtime_from_bar=I)` | Absolute window start: bars in `[I, n_bars)` are realtime-forming (overrides `realtime_bars` / last-bar-only for window extent). |
 | When `isrealtime` | Evaluator **re-evaluates `varip` RHS** each visit; `var` does **not** re-init (keeps prior binding). This is a simplified stand-in for reference tick persistence — not a full rollback of non-`varip` series/strategy state between ticks. |
 
+**`once` (0.4.4):** interpret commits the fired flag only when `barstate.isconfirmed` (so unconfirmed realtime ticks can re-run the body). Compile always treats the bar as confirmed. Side effects inside the body still follow the `var` / `varip` contract above — there is no extra snapshot of non-`varip` state just for `once`.
+
 **Not yet:** true intrabar rollback of non-`varip` state, live datafeed-driven ticks, or compile-mode realtime multi-pass.
 
 **Track:** audit AGENT_02; host kwargs in `pynescript.runtime.host.Runtime.run`.

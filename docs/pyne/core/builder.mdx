@@ -113,7 +113,7 @@ End column calculation accounts for embedded newlines in the stop token text. Th
 | `visitSimple_name_initialization` / `visitCompound_name_initialization` | `Assign` (`export=1` if `EXPORT`) |
 | `visitSimple_reassignment` / `visitCompound_reassignment` | `ReAssign` (`:=`, or `=` on attr/subscript) |
 | `visit*_*_augassignment` | `AugAssign` |
-| `visitIf_structure` / `visitFor_*` / `visitWhile_*` / `visitSwitch_*` | Structure expressions |
+| `visitIf_structure` / `visitFor_*` / `visitWhile_*` / `visitSwitch_*` / `visitOnce_structure` | Structure expressions (`once` is statement-only) |
 | `visit*_*_expression` (disjunction → … → primary) | Operator trees with correct associativity |
 | `visitLiteral_*` | `Constant` (numbers via `ast.literal_eval`, strings, bools, colors) |
 | `visitPrimary_expression_call` | `Call` + `Arg` list (positional/keyword) |

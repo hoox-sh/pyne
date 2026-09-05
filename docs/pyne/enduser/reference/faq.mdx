@@ -88,6 +88,10 @@ The registered entry point is the separate script **`pynescript-lsp`**. Some doc
 
 v6 is the recommended surface (declare `//@version=6`); v5 remains fully supported. See [implementation status](/pyne/docs/reference/implementation-status), [missing features](/pyne/docs/reference/missing-features), and [pine v6 surface](/pyne/docs/reference/pine-v6-surface).
 
+### Does PYNE support the `once` keyword?
+
+Yes, as of **hoox-pyne 0.4.4** (TradingView® August 2026). `once [cond]` runs its block the first time the condition is true on a closed bar. It is **not** an expression — you cannot assign its result. See [Expressions & statements](/pyne/docs/runtime/expressions-statements).
+
 ### Is this affiliated with TradingView?
 
 No. Independent open-source toolchain. Pine Script™ and TradingView® are trademarks of TradingView, Inc.

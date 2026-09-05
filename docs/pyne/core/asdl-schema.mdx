@@ -89,6 +89,7 @@ Operators and primaries:
 - `BoolOp`, `BinOp`, `UnaryOp`, `Conditional` (`? :`), `Compare`
 - `Call`, `Constant`, `Attribute`, `Subscript`, `Name`, `Tuple`
 - **Structures as expressions:** `ForTo`, `ForIn`, `While`, `If`, `Switch` — same shapes can appear as values (Pine’s expression-oriented control flow)
+- **`Once(expr? test, stmt* body)`** — August 2026 `once [cond]` block. Lives under `expr` like other structures so `structure_statement` can wrap it in `Expr`, but it is **not** a usable value (parser forbids it on `=` / `:=` RHS)
 - `Qualify` — `const`/`input`/`simple`/`series` applied to a type/expression
 - `Specialize` — generic specialization form (`value` + `args`)
 

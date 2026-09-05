@@ -1,5 +1,5 @@
 PYNE CONSOLIDATED DOCUMENTATION — LLM CONTEXT PACK
-Generated: 2026-08-16
+Generated: 2026-09-05
 Source: docs/pyne
 Public: https://hoox.sh/pyne/docs
 Repository: https://github.com/hoox-sh/pyne
@@ -227,7 +227,7 @@ GET / and GET /health are the same handler. AXIS Settings probes /health. Payloa
 version here is the API service label (..), not the hoox-pyne package version.
 Hard limits
 MAXCONTENTLENGTH = — reject oversized bodies before JSON parse fills memory (audit -- / S).
-Free compute also gated by backend/middleware/freelimits.py: max bars (FREEMAXBARS, default ), script chars (FREEMAXSCRIPTCHARS, KiB), per-IP rate (FREERATELIMIT / FREERATEWINDOWSEC, / s), concurrency (FREEMAXCONCURRENT, ). Chart/mock data sources only.
+Free compute is optionally gated by backend/middleware/freelimits.py when FREETIERLIMITS is truthy (default off): max bars (FREEMAXBARS, ), script chars (FREEMAXSCRIPTCHARS, KiB), per-IP rate (FREERATELIMIT / FREERATEWINDOWSEC, / s), concurrency (FREEMAXCONCURRENT, ). Chart/mock data sources only. Production compose sets FREETIERLIMITS=.
 CORS methods: GET, POST, OPTIONS, HEAD.
 Allow headers: Content-Type, Authorization, X-Admin-Token, Accept.
 supportscredentials=False.
@@ -258,7 +258,7 @@ Internals
 | backend/api/preview.py | Pro preview + backtest blueprints |
 | backend/api/lsphttp.py | Free AXIS LSP-HTTP |
 | backend/middleware/schemas.py | Request validation for /run and auth |
-| backend/middleware/freelimits.py | Bar / script / rate / concurrency caps |
+| backend/middleware/freelimits.py | Optional bar / script / rate / concurrency caps (FREETIERLIMITS) |
 | backend/requirements.txt | Flask, flask-cors, numpy, matplotlib, … |
 Recommended production: gunicorn/uvicorn-class WSGI with multiple workers; for multi-worker key consistency prefer SQLite/Redis stores over the default in-memory/file singleton assumptions — see auth.
 Invariants and edge cases
@@ -744,6 +744,98 @@ Runtime bridge — faithful strategy events via /run`
 Chart renderer
 Strategy builtins
 ---
+FILE: docs/pyne/api/endpoints/optimize.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+SPDX-License-Identifier: AGPL-.-or-later
+---
+title: "POST /optimize"
+description: "Strategy hyperparameter search — N interpret Runtime runs with input. overrides, TPE/random/grid, holdout or walk-forward."
+---
+POST /optimize
+Abstract
+/optimize searches Pine input. values for a strategy() script. It loops the package Runtime (same interpret path as /run) with different overrides, scores closed trades, and returns the best assignment plus every trial.
+This is not /backtest/quick (that route is a demo SMA simulator). It is not a Pine language surface — there is no optimize. builtin.
+AXIS Hyperparameter Optimisation calls this when the active engine is the Pro API (server). Pyodide / edge engines fall back to a client-side loop.
+Conceptual model
+Request
+| Field | Type | Required | Default | Notes |
+| --- | --- | --- | --- | --- |
+| script | string | yes | | Must declare strategy( |
+| data | list | yes | | Same OHLCV objects as /run |
+| space | object | yes | | { params: [{ name, kind, min, max, step?, choices? }] } |
+| ntrials | int | no | | Capped at |
+| sampler | string | no | auto | auto \| random \| tpe \| grid (auto → random if N&lt; else TPE) |
+| objective | string | no | composite | netpnl \| profitfactor \| calmar \| composite |
+| validation | object | no | { mode: "holdout" } | holdout \| walk-forward \| in-sample |
+| mintrades | int | no | | Trials below this score -inf |
+| seed | int | no | | RNG seed |
+| symbol | string | no | CHART | |
+| ooseverytrial | bool | no | true | Holdout: score every trial on the test slice |
+| fixedinputs | object | no | {} | Current input. values for names not in space (trial params win on overlap) |
+| libraries | list | no | [] | Same AXIS git-publish list as /run |
+space.params[].kind: int \| float \| bool \| categorical. Numeric axes require min and max.
+validation extras: holdoutfrac (default .), trainbars / testbars / stepbars for walk-forward.
+Estimated engine runs are capped at (ntrials folds).
+Success
+``json
+{
+"status": "success",
+"sampler": "tpe",
+"objective": "composite",
+"validation": { "mode": "holdout", "holdoutfrac": ., "trainbars": , "testbars": , "stepbars": , "warmupbars": },
+"ntrials": ,
+"trials": [
+{
+"index": ,
+"params": { "Fast": },
+"isscore": .,
+"oosscore": .,
+"isstats": { "totalpnl": , "trades": , "maxdd": . },
+"oosstats": { "totalpnl": , "trades": , "maxdd": . },
+"error": null,
+"engineruns": ,
+"ms": .
+}
+],
+"bestindex": ,
+"bestparams": { "Fast": },
+"bestisscore": .,
+"bestoosscore": .,
+"engineruns": ,
+"ms": .,
+"warning": null
+}
+`
+Full event arrays are not returned (memory). Re-run the winner via /run + inputs. Success includes validation and per-trial oosstats / engineruns / ms.
+Errors
+| HTTP | code | When |
+| --- | --- | --- |
+| | MISSINGFIELD / INVALIDFIELD / UNKNOWNFIELDS / INVALIDBODY | Schema — empty/{} body, missing required fields, wrong types, extras |
+| | NOSCRIPT / NODATA | script / data present but empty after schema |
+| | NOTASTRATEGY | Script is not strategy() |
+| | INVALIDSPACE | Missing bounds / empty params |
+| | INVALIDVALIDATION | validation.mode not holdout \| walk-forward \| in-sample |
+| | TOOMANYRUNS | Estimated runs exceed |
+| | GRIDTOOLARGE | Grid sampler product exceeds cells |
+| / | same as /run | Free-tier caps — only when FREETIER_LIMITS is on |
+Invariants
+. Always interpret (input overrides skip compile).
+. Train and test are bar slices, not trade filters on a full-sample run.
+. In-sample mode is allowed and warned.
+. Ranking prefers OOS score when validation is holdout or walk-forward.
+CLI
+`bash
+pyne optimize strat.pine --trials --sampler tpe \
+--space '{"params":[{"name":"Fast","kind":"int","min":,"max":}]}'
+walk-forward: --validation walk-forward (derives train/test from --bars)
+override: --train-bars --test-bars --step-bars
+``
+See also
+POST /run
+Runtime bridge
+AXIS end-user guide: Hyperparameter Optimisation
+---
 FILE: docs/pyne/api/endpoints/preview.mdx
 Copyright (C) - jangoblockchained
 This file is part of pynescript.
@@ -889,7 +981,7 @@ description: "Free evaluate endpoints: single-script /run and multi-script /run/
 ---
 POST /run and /run/batch
 Abstract
-/run is the primary free evaluate entry: accept Pine source + bar list, optionally wire request. data sources, execute via package pynescript.runtime.Runtime (Pro API uses backend.runtime re-export), and return plots/series/events/drawings/alerts. /run/batch runs up to eight scripts on the same OHLCV (AXIS multi-indicator), isolating per-script errors so one failure does not discard siblings. Free paths enforce bar/script caps, rate limit, concurrency, and chart/mock-only data (backend/middleware/freelimits.py). Optional L webhooks POST last-bar (default) alert() / alertcondition() firings to webhookurl or env ALERTWEBHOOKURL (SSRF-safe).
+/run is the primary free evaluate entry: accept Pine source + bar list, optionally wire request. data sources, execute via package pynescript.runtime.Runtime (Pro API uses backend.runtime re-export), and return plots/series/events/drawings/alerts. /run/batch runs up to eight scripts on the same OHLCV (AXIS multi-indicator), isolating per-script errors so one failure does not discard siblings. Optional free-tier guards (FREETIERLIMITS, default off) enforce bar/script caps, rate limit, concurrency, and chart/mock-only data (backend/middleware/freelimits.py). Optional L webhooks POST last-bar (default) alert() / alertcondition() firings to webhookurl or env ALERTWEBHOOKURL (SSRF-safe).
 Conceptual model
 Interface surface
 POST /run
@@ -965,9 +1057,9 @@ Errors
 | | NOSCRIPT / NODATA | Empty after defaults |
 | | DATASOURCEERROR | resolverequestsources failed |
 | | WEBHOOKURLBLOCKED | webhookurl is private/loopback/metadata (SSRF denylist) |
-| | DATASOURCEFORBIDDEN | Free path rejected live provider (ccxt / yahoo / …) |
-| | TOOMANYBARS / SCRIPTTOOLARGE | Exceeded FREEMAXBARS () or FREEMAXSCRIPTCHARS ( KiB) |
-| | RATELIMITED / TOOMANYREQUESTS | Free IP rate ( / s) or concurrency () |
+| | DATASOURCEFORBIDDEN | Free path rejected live provider (ccxt / yahoo / …) — only when FREETIERLIMITS is on |
+| | TOOMANYBARS / SCRIPTTOOLARGE | Exceeded FREEMAXBARS () or FREEMAXSCRIPTCHARS ( KiB) — only when FREETIERLIMITS is on |
+| | RATELIMITED / TOOMANYREQUESTS | Free IP rate ( / s) or concurrency () — only when FREETIERLIMITS is on |
 | | EXECUTIONERROR | Runtime returned error key; body may include errorkind / errortype / errorbar |
 POST /run/batch
 Request (RUNBATCHSCHEMA)
@@ -999,9 +1091,9 @@ result = runtime.run(script, ohlcv, datafeed=…, dataprovider=…, mode=…)
 See runtime bridge for bar-loop details and compile mode.
 Paths: backend/app.py (runpinescript, runpinescriptbatch, compileprewarm, WS /ws/run), backend/middleware/schemas.py, backend/middleware/freelimits.py, backend/alertforwarder.py.
 Invariants and edge cases
-. No API key on these routes — free-tier guards still apply (see Pro API usage); protect further at the edge if needed.
+. No API key on these routes — free-tier guards apply only when FREETIERLIMITS is on (see Pro API usage); protect further at the edge if needed.
 . Batch isolates exceptions per script (try/except around runtime.run).
-. Whitespace-only datasource coerced to None → chart default; free paths reject live providers (ccxt/yahoo/…).
+. Whitespace-only datasource coerced to None → chart default; free paths reject live providers (ccxt/yahoo/…) when FREETIERLIMITS is on.
 . Compile mode may omit alert side effects (alerts: []); use interpret/auto for alerts.
 . Schema rejects extras — clients must not send AXIS-only fields without updating schema.
 . Webhook delivery is best-effort — evaluate still returns status: success if the hook fails; check alertforward.
@@ -1072,7 +1164,7 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-.-or-later
 ---
 title: "Pro API"
-description: "Flask Pro API — /run with mode=auto, plotmeta/fill, alerts + L webhooks, preview, backtest, and shared evaluate contract."
+description: "Flask Pro API — /run with mode=auto, /optimize strategy search, plotmeta/fill, alerts + L webhooks, preview, backtest, and shared evaluate contract."
 ---
 Pro API
 The PYNE Pro API is a Flask HTTP service that runs Pine scripts over caller-supplied OHLCV, returns plots / series / plotmeta (incl. fill bands) / strategy events / drawings / alerts, optional L alert webhooks, and gates thumbnail + backtest routes behind API keys. Default evaluate path is mode=auto (compile when safe, interpret on fallback). It is intentionally not the language server: different auth, scaling, and failure domains.
@@ -1085,7 +1177,7 @@ POST JSON { script, data: OHLCV[], mode?, libraries?, webhookurl?, … }
 mode, autobackend?, compilefallbackreason?,
 scriptid, runid, alertforward?, … }
 `
-Free-tier evaluate (POST /run, POST /run/batch) validates bodies with hand-rolled schemas, enforces a MB body cap, bar/script/rate/concurrency guards (backend/middleware/freelimits.py), and restricts CORS. GET / and GET /health are the same unauthenticated readiness payload. Optional L webhooks POST last-bar alert() / alertcondition() firings to webhookurl or env ALERTWEBHOOKURL (see Alerts). Pro routes under /preview/ and /backtest/ use trackusage (Bearer / ApiKey / query key). Chart PNGs are matplotlib Agg renders encoded as base.
+Free-tier evaluate (POST /run, POST /run/batch) validates bodies with hand-rolled schemas, enforces a MB body cap, and restricts CORS. Optional bar/script/rate/concurrency guards (backend/middleware/freelimits.py) are off unless FREETIERLIMITS is /true/yes/on. GET / and GET /health are the same unauthenticated readiness payload (features.freetierlimits reports the switch). Optional L webhooks POST last-bar alert() / alertcondition() firings to webhookurl or env ALERTWEBHOOKURL (see Alerts). Pro routes under /preview/ and /backtest/ use trackusage (Bearer / ApiKey / query key). Chart PNGs are matplotlib Agg renders encoded as base.
 The same evaluate contract is mirrored by pyne-worker so AXIS and HOOX can swap hosts without redesigning payloads — see contract.
 Conceptual model
 Interface surface
@@ -1094,6 +1186,7 @@ Interface surface
 | GET | / · /health | none | Health + endpoint map + compile cache section |
 | POST | /run | none (free) | Single-script evaluate (mode default auto; libraries[]; alerts + optional webhooks) |
 | POST | /run/batch | none (free) | ≤ scripts, shared OHLCV |
+| POST | /optimize | none (free) | Strategy input. search — N interpret Runtime runs (docs) |
 | WS | /ws/run | none (free) | Same evaluate contract over JSON frames (flask-sock optional) |
 | POST | /preview/chart | API key + usage | Line / OHLCV PNG |
 | POST | /preview/indicator | API key + usage | Expression series PNG |
@@ -1119,7 +1212,7 @@ Local runner: make run → python -m backend.app (default ...:).
 Tracks in this tab
 . App lifecycle — Flask app, CORS, limits, blueprints
 . Auth and keys — tiers, stores, decorators
-. Run · Preview · Backtest
+. Run · Optimize · Preview · Backtest
 . Chart renderer
 . Runtime bridge — Runtime / series / evaluator glue
 . Contract — shared evaluate schema across Flask and workers
@@ -1428,7 +1521,7 @@ Always-on unit coverage lives in tests/testinterpcompileparity.py (harness helpe
 pytest tests/testinterpcompileparity.py -m interpcompilefull
 or: PYNEINTERPCOMPILEFULL= pytest tests/testinterpcompileparity.py
 `
-Report artifact: .cache/interpcompileparity.json. Value mismatches on shared series keys are regressions. First-party hline/fill/bgcolor/plotshape keys match (..); --ignore-hline-keys / --ignore-fill-keys are optional for leftover corpus noise. End-user mode semantics: Evaluate scripts — Runtime modes.
+Report artifact: .cache/interpcompileparity.json. Value mismatches on shared series keys are regressions. First-party hline / fill / bgcolor / plotshape / barcolor / plotarrow / plotbar / plotcandle keys match (..); drawings is geometry-only. --ignore-hline-keys / --ignore-fill-keys are optional for leftover corpus noise. End-user mode semantics: Evaluate scripts — Runtime modes.
 Secrets & crypto
 scripts/build/.metadata.key is gitignored
 CI must supply stable CRYPTOKEY from METADATAKEY / METADATAKEY for reproducible .enc blobs
@@ -1536,6 +1629,7 @@ Operators and primaries:
 BoolOp, BinOp, UnaryOp, Conditional (? :), Compare
 Call, Constant, Attribute, Subscript, Name, Tuple
 Structures as expressions: ForTo, ForIn, While, If, Switch — same shapes can appear as values (Pine’s expression-oriented control flow)
+Once(expr? test, stmt body) — August once [cond] block. Lives under expr like other structures so structurestatement can wrap it in Expr, but it is not a usable value (parser forbids it on = / := RHS)
 Qualify — const/input/simple/series applied to a type/expression
 Specialize — generic specialization form (value + args)
 Auxiliaries
@@ -1638,7 +1732,7 @@ Failure modes
 | --- | --- |
 | AttributeError on new field | Schema regenerated but consumer not updated |
 | Builder constructs wrong product | ASDL and grammar out of sync |
-| Unparser omits new node | Missing visitNewNode → generic_visit may emit nothing useful |
+| Unparser omits new node | Missing visitNewNode → genericvisit may emit nothing useful |
 | Hand-edit of generated nodes lost | Edited generated/ instead of .asdl` |
 See also
 Builder
@@ -1716,8 +1810,8 @@ Representative visit methods
 | visitSimplenameinitialization / visitCompoundnameinitialization | Assign (export= if EXPORT) |
 | visitSimplereassignment / visitCompoundreassignment | ReAssign (:=, or = on attr/subscript) |
 | visit_augassignment | AugAssign |
-| visitIfstructure / visitFor / visitWhile / visitSwitch | Structure expressions |
-| visitexpression (disjunction → … → primary) | Operator trees with correct associativity |
+| visitIfstructure / visitFor / visitWhile / visitSwitch / visitOncestructure | Structure expressions (once is statement-only) |
+| visit_expression (disjunction → … → primary) | Operator trees with correct associativity |
 | visitLiteral | Constant (numbers via ast.literaleval, strings, bools, colors) |
 | visitPrimaryexpressioncall | Call + Arg list (positional/keyword) |
 Expression climbing follows the grammar’s layered rules (conditional → disjunction → conjunction → bitwise or/xor/and → equality → inequality → shift → additive → multiplicative → unary (~/not/+/-) → primary).
@@ -1997,11 +2091,11 @@ Lexer structural facts
 | ERRORTOKEN | Catch-all . for recovery/reporting |
 | TRIPLEDQSTRING / TRIPLESQSTRING | v multiline strings, typed as STRING |
 | LSHIFT / RSHIFT / TILDE / AMP / PIPE / CARET | Bitwise > ~ & | ^ (multi-char ops declared before ) |
-Keywords include var, varip, method, export, enum, type, qualifiers const/input/simple/series, and control forms if/for/while/switch. Many of those words are soft in identifier position (name alternatives) so as = input(...) parses.
+Keywords include var, varip, method, export, enum, type, qualifiers const/input/simple/series, and control forms if/for/while/switch/once (August ). Many of those words are soft in identifier position (name alternatives) so as = input(...) and once = parse.
 Parser structural facts
 Compound vs simple statements. Functions, methods, types, enums, and structure-valued assignments are compound; imports, break/continue, expression statements, and simple assignments terminate with NEWLINE.
 Trailing structures. a = , for i = to n is trailingstructurestatements (comma-separated simples ending in a structure).
-Structures are dual-use. if/for/while/switch appear both as statements and as expressions (structureexpression) — the classic Pine “if returns a value” form.
+Structures are dual-use. if/for/while/switch appear both as statements and as expressions (structureexpression) — the classic Pine “if returns a value” form. once is statement-only (oncestructure is not in valuestructure); x = once … is a parse error.
 Local blocks. Either indented (NEWLINE INDENT statements DEDENT) or inline single statement.
 Library export. EXPORT? prefixes function/method/type/enum and June- export const T name = … compound initializers.
 UDF return types. functiondeclaration / methoddeclaration accept an optional leading typespecification (int ilog(int n) => …). Builder stores it on FunctionDef.returns.
@@ -2769,6 +2863,7 @@ visit resets source, precedences, and indent, then calls traverse. traverse acce
 visitFunctionDef emits returns (when set) as a leading type spec: export method int name(args) => ….
 If / else if chains
 visitIf detects orelse == [Expr(If(...))] and emits else if rather than nested else + if blocks — matching idiomatic Pine.
+visitOnce emits once plus an optional test and an indented body.
 Type body ordering
 visitTypeDef partitions body into field statements vs FunctionDef with method set, emitting fields first then methods.
 Constants
@@ -2802,7 +2897,7 @@ Reassignment vs declaration
 Failure modes
 | Symptom | Cause |
 | --- | --- |
-| Missing visit output | Falls through generic_visit which only walks children — may emit empty string for leaf-like unhandled nodes |
+| Missing visit output | Falls through genericvisit which only walks children — may emit empty string for leaf-like unhandled nodes |
 | Extra parentheses everywhere | Over-conservative precedence |
 | Re-parse differs in binding | Under-parenthesized output |
 | Lost comments | Only annotation strings are stored; plain // comments are dropped after parse |
@@ -2994,7 +3089,7 @@ AXIS PWA/ee CI lives in the sister axis repo — not here.
 | release.yml | Build & Release | Tag v + dispatch: wheels, CLI/LSP Nuitka binaries, CLI image tarball, VSIX, GitHub Release |
 | publish.yml | Publish | Tag v + dispatch: PyPI hoox-pyne (token or OIDC) |
 | ghcr.yml | GHCR | Tag v + dispatch: ghcr.io/hoox-sh/pyne/{api,cli,lsp} multi-arch |
-| docs-versions.yml | Docs versions | Every minutes: refresh PyPI / npm / Open VSX / GitHub release stamps. Commits only on change. No docs pageload. |
+| docs-versions.yml | Docs versions | Daily: refresh PyPI / npm / Open VSX / GitHub release stamps. Commits only on change. No docs pageload. |
 Conceptual model
 Interface surface
 Triggers
@@ -4469,7 +4564,7 @@ Pro API /run optional fields:
 | forwardalerts / alertlastbar / alertbatch | bool | Webhook delivery controls (see Alerts) |
 timeoutseconds is accepted on Runtime.run, POST /run, and POST /run/batch. Extra keys that are not in the schema still → UNKNOWNFIELDS.
 Operators can also POST /compile/prewarm or run pyne prewarm (and pyne prewarm script.pine …) to warm Numba builtins / script IR caches before interactive traffic. Requires pip install "hoox-pyne[compile]" for full Numba warm-up.
-Free-tier Pro API guards (unauthenticated /run): FREEMAXBARS, FREEMAXSCRIPTCHARS, FREEMAXCONCURRENT, FREERATELIMIT / FREERATEWINDOWSEC — see Pro API usage.
+Free-tier Pro API guards (unauthenticated /run) are off by default. Set FREETIERLIMITS= to enable FREEMAXBARS, FREEMAXSCRIPTCHARS, FREEMAXCONCURRENT, FREERATELIMIT / FREERATEWINDOWSEC — see Pro API usage.
 Editor / LSP client settings
 VS Code extension keys (from clients/README.md):
 | Setting | Default | Meaning |
@@ -4918,7 +5013,7 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-.-or-later
 ---
 title: "CLI Guide"
-description: "Use the pyne Click CLI to check, format, lint, compile, run, prewarm, fetch data, and more."
+description: "Use the pyne Click CLI to check, format, lint, compile, run, optimize, prewarm, fetch data, and more."
 ---
 CLI Guide
 Abstract
@@ -4931,6 +5026,7 @@ Conceptual model
 | parse-and-dump / dump | parse + dump |
 | lint | lintscript |
 | compile / prewarm / run | pynescript.compiler (+ [compile] extra) |
+| optimize | pynescript.optimize.runstudy |
 | data | pynescript.util.data.getprovider |
 | info | version + optional extras |
 Interface surface
@@ -4950,6 +5046,7 @@ alias: pynescript …
 | compile PATH | file | emit Python or compile-check |
 | prewarm [PATH…] | optional files | warm Numba / IR cache |
 | run PATH | file | synthetic-bar execute |
+| optimize PATH | file + --space JSON | strategy hyperparameter search |
 | data SYMBOL | symbol + provider opts | table / json / csv |
 | info | — | version + extras |
 Not part of this Click group: language server — use pyne-lsp (alias pynescript-lsp).
@@ -5045,7 +5142,7 @@ python - <<'PY'
 from pathlib import Path
 from pynescript.runtime import Runtime
 hand off to Runtime or your own visitor
-print(Path("/tmp/s.pine").readtext()[:])
+print(Path("/tmp/s.pine").read_text()[:])
 PY
 `
 Failure modes
@@ -5349,7 +5446,7 @@ mode="compile" (strict) — does not fall back; you get an error payload instead
 Numba is not required for compile eligibility: strategy / UDT / map-heavy scripts can still run in object-mode compile. Missing Numba only blocks pure-numeric emit.
 Plot series parity
 Both backends export the same Runtime contract shape: series (title → per-bar values), plots, plotmeta, events, drawings, plus mode / diagnostics. For charting, shared plot series keys should agree within floating-point tolerance (na/None/NaN treated as NA).
-First-party hline / fill / bgcolor / plotshape keys match interpret compile (..). Harness --ignore-hline-keys / --ignore-fill-keys stay optional for leftover corpus noise, not first-party fixtures. Deeper compiler notes: Compiler overview.
+First-party hline / fill / bgcolor / plotshape keys match interpret compile (..). .. also matches barcolor / plotarrow / plotbar / plotcandle kinds and geometry-only drawings (line/box/label/polyline/table/linefill) — coordinates are snapshotted at create/set. Harness --ignore-hline-keys / --ignore-fill-keys stay optional for leftover corpus noise, not first-party fixtures. Deeper compiler notes: Compiler overview.
 Compare interpret vs compile (corpus harness)
 From the repo root (monorepo with backend/ + editable pynescript):
 `bash
@@ -5468,7 +5565,7 @@ Determinism. Same source + same OHLCV + same mode should yield reproducible seri
 na / warmup. TA functions need enough bars; early bars may be na/None-like — guard like Pine (not na(x)).
 mode="compile" uses numeric Numba when the script is pure-numeric; otherwise object-mode compile. Strict compile errors instead of falling back; use auto for production “prefer fast path” behavior (see Runtime modes).
 mode="auto" may set compilefallbackreason and still return a successful interpret result — check autobackend if you need to know which path ran.
-Series parity. Shared series keys should match within harness tolerances. First-party hline/fill/bgcolor/plotshape keys match; ignore flags are for leftover corpus noise.
+Series parity. Shared series keys should match within harness tolerances. First-party hline / fill / bgcolor / plotshape / barcolor / plotarrow / plotbar / plotcandle keys match; drawings is geometry-only. Ignore flags are for leftover corpus noise.
 History indexing. Confirm []/[] semantics against your evaluator version before porting TV scripts that assume closed-bar rules.
 Strategy events include run/script ids when stamped by Runtime — useful for HOOX downstream.
 Body size / bar count. HTTP path caps payload size ( MiB); very long histories should be downsampled or chunked.
@@ -5552,7 +5649,7 @@ description: "Embed pynescript: parse, dump, unparse, walk, transform, and lint 
 ---
 Library API
 Abstract
-The public Python surface for language work lives primarily under pynescript.ast: parse source into an ASDL-backed tree, serialize it (dump), regenerate source (unparse), traverse (walk, visitors), rewrite (NodeTransformer), and lint (lintscript). Expression evaluation (literaleval) and full script execution (pynescript.runtime.Runtime) sit adjacent; this page focuses on structural APIs. Evaluation workflows are covered in Evaluate scripts. Install via pip install hoox-pyne (import pynescript).
+The public Python surface for language work lives primarily under pynescript.ast: parse source into an ASDL-backed tree, serialize it (dump), regenerate source (unparse), traverse (walk, visitors), rewrite (NodeTransformer), and lint (lintscript). Expression evaluation (literaleval) and full script execution (pynescript.runtime.Runtime) sit adjacent; this page focuses on structural APIs. Evaluation workflows are covered in Evaluate scripts. Strategy hyperparameter search is pynescript.optimize.runstudy (not a Pine builtin) — POST /optimize. Install via pip install hoox-pyne (import pynescript).
 Conceptual model
 Design intent mirrors Python’s ast module: stable tree operations, location attributes, and visitor protocols — specialized for Pine’s script model (annotations, series-aware semantics live at evaluation time).
 Interface surface
@@ -5668,6 +5765,24 @@ Transformers mutate or replace nodes depending on your visit methods; prefer ret
 Round-trip fidelity is tested against a large corpus but is not a proof of bit-identical source; whitespace and some sugar may normalize.
 Do not edit generated grammar modules; extend via resource grammars if contributing.
 Worked examples
+Strategy hyperparameter search (..)
+`python
+from pynescript.optimize import runstudy, spacefrompayload
+from pynescript.optimize.types import ValidationSpec
+space = spacefrompayload({
+"params": [{"name": "Fast", "kind": "int", "min": , "max": }],
+})
+study = runstudy(
+open("strategy.pine").read(),
+ohlcvbars,
+space,
+ntrials=,
+sampler="tpe",
+validation=ValidationSpec(mode="holdout"),
+)
+print(study.bestparams, study.bestoosscore)
+`
+HTTP: POST /optimize. CLI: pyne optimize.
 End-to-end inspect
 `python
 from pynescript.ast import parse, dump, unparse, walk
@@ -5738,17 +5853,18 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-.-or-later
 ---
 title: "Pro API Usage"
-description: "Call the PYNE Flask Pro API as a consumer: health, /run, /run/batch, chart preview, indicator preview, quick backtest, and auth."
+description: "Call the PYNE Flask Pro API as a consumer: health, /run, /run/batch, /optimize, chart preview, indicator preview, quick backtest, and auth."
 ---
 Pro API Usage
 Abstract
-The Pro API is the HTTP evaluate contract for PYNE: POST Pine source plus OHLCV, receive plots, series, events, drawings, and alerts. Free-tier evaluate endpoints (/run, /run/batch) are usable without a key but are guarded (bar/script caps, IP rate limit, concurrency, chart/mock-only free data, SSRF-safe webhooks). Optional L alert webhooks POST last-bar firings to webhookurl or ALERTWEBHOOKURL. Pro preview/backtest routes track usage via API keys. This page is for callers (AXIS, scripts, workers). Server lifecycle and auth design are under API.
+The Pro API is the HTTP evaluate contract for PYNE: POST Pine source plus OHLCV, receive plots, series, events, drawings, and alerts. Free-tier evaluate endpoints (/run, /run/batch) are usable without a key. Bar/script/rate/concurrency and chart/mock-only data guards apply only when FREETIERLIMITS is truthy ( / true / yes / on); default off. Production compose sets ${FREETIERLIMITS:-}. Webhook URLs stay SSRF-safe regardless. Optional L alert webhooks POST last-bar firings to webhookurl or ALERTWEBHOOKURL. Pro preview/backtest routes track usage via API keys. This page is for callers (AXIS, scripts, workers). Server lifecycle and auth design are under API.
 Conceptual model
 | Endpoint | Auth | Purpose |
 | --- | --- | --- |
 | GET / / GET /health | none | Health + endpoint map (defaultrunmode: auto) |
 | POST /run | none (free) | Single script evaluate |
 | POST /run/batch | none (free) | ≤ scripts, shared OHLCV |
+| POST /optimize | none (free) | Strategy hyperparameter search (docs) |
 | POST /compile/prewarm | none (free) | Warm Numba builtins / script IR |
 | WS /ws/run | none (free) | AXIS WebSocket evaluate channel |
 | POST /preview/chart | Pro usage | Chart thumbnail |
@@ -5915,15 +6031,16 @@ libraries (..+) — [{namespace, name, version, source}] binds import ns/Name/ve
 timeoutseconds — optional interpret wall-clock budget on /run and /run/batch. Omit / null / ≤ → no timeout. Exceeded runs surface timedout on the HTTP body.
 Alerts — alerts[] on success (interpret). L webhooks: body webhookurl or env ALERTWEBHOOKURL; defaults last-bar + batch POST. See Alerts.
 Batch cap — TOOMANYSCRIPTS if exceeded.
-Free-tier guards (..+) — process-local limits on unauthenticated /run, /run/batch, /compile/prewarm (and WS run):
+Free-tier guards (..+; opt-in) — process-local limits on unauthenticated /run, /run/batch, /compile/prewarm (and WS run). Off unless FREETIERLIMITS is / true / yes / on. Production compose sets that to .
 | Env | Default | Role |
 | --- | ---: | --- |
-| FREEMAXBARS | | Max OHLCV bars |
-| FREEMAXSCRIPTCHARS | KiB | Max Pine source length |
-| FREEMAXCONCURRENT | | Simultaneous free runs per worker |
-| FREERATELIMIT / FREERATEWINDOWSEC | / s | Sliding-window IP rate limit |
-| Free datasource | chart / mock / none only | No outbound ccxt/yahoo on free paths |
-Webhook URLs are SSRF-filtered. Raise limits via env for local demos; put a reverse proxy in front for multi-worker production.
+| FREETIERLIMITS | off | Master switch for the rows below |
+| FREEMAXBARS | | Max OHLCV bars (when on) |
+| FREEMAXSCRIPTCHARS | KiB | Max Pine source length (when on) |
+| FREEMAXCONCURRENT | | Simultaneous free runs per worker (when on) |
+| FREERATELIMIT / FREERATEWINDOWSEC | / s | Sliding-window IP rate limit (when on) |
+| Free datasource | chart / mock / none only | No outbound ccxt/yahoo on free paths (when on) |
+Numeric knobs treat as unlimited. Health features.freetierlimits reports the master switch. Webhook URLs stay SSRF-filtered regardless. Put a reverse proxy in front for multi-worker production.
 AXIS multi-indicator UIs prefer /run/batch to share bar payloads; read series + plotmeta (including fill band refs) for charts.
 Worked examples
 Python requests client for /run
@@ -6152,15 +6269,15 @@ PYNE exposes one language pipeline through several thin surfaces:
 → plots / fill / events / drawings / alerts / metrics
 → optional L webhooks (Pro API / edge)
 `
-The desk path is the pyne Click CLI (alias pynescript) and pynescript.ast / pynescript.runtime library API (PyPI distribution name hoox-pyne). The TypeScript desk path is PyneTS (bun add @hoox-sh/pynets). The editor path is pyne-lsp (alias pynescript-lsp; stdio; first-class .pyne association). The HTTP path is the Flask Pro API (POST /run with alerts export + webhooks, preview, backtest). The optional chart is AXIS; the optional trade mesh is HOOX. Evaluation does not require either. Defaults for mode differ by surface — modes.
+The desk path is the pyne Click CLI (alias pynescript) and pynescript.ast / pynescript.runtime library API (PyPI distribution name hoox-pyne). The TypeScript desk path is PyneTS (bun add @hoox-sh/pynets). The editor path is pyne-lsp (alias pynescript-lsp; stdio; first-class .pyne association). The HTTP path is the Flask Pro API (POST /run with alerts export + webhooks, POST /optimize, preview, backtest). The optional chart is AXIS; the optional trade mesh is HOOX. Evaluation does not require either. Defaults for mode differ by surface — modes.
 Conceptual model
 | Surface | Entry | Typical job |
 | --- | --- | --- |
-| CLI | pyne … (alias pynescript) | One-shot parse, format, lint, compile, run (synthetic bars), prewarm, data |
+| CLI | pyne … (alias pynescript) | One-shot parse, format, lint, compile, run, optimize, prewarm, data |
 | Library | from pynescript.ast import parse, unparse | Embed parse/transform/eval in tools |
 | PyneTS | import { parse, Runtime } from "@hoox-sh/pynets" | Same names in TypeScript / Bun |
 | LSP | pyne-lsp (alias pynescript-lsp) | Diagnostics, completion, hover (.pyne / .pine) |
-| Pro API | POST /run | Evaluate contract: plots, alerts, optional webhooks |
+| Pro API | POST /run · POST /optimize | Evaluate contract + strategy input. search |
 | AXIS | separate product | Chart PWA AXIS over evaluate results |
 | HOOX | separate product | Edge execution mesh after strategy events |
 Choose your path
@@ -6171,11 +6288,11 @@ Quick start — Parse → dump → unparse → lint → literaleval in under ten
 Configuration — Extras, console scripts, Pro API env vars (ALERTWEBHOOKURL, compile cache), editor settings.
 . Operational guides
 Daily workflows against the same pipeline:
-CLI — check, format, lint, compile, prewarm, run, data, …
-Library API — parse, unparse, dump, walk, visitors, transformers, linter.
+CLI — check, format, lint, compile, prewarm, run, optimize, data, …
+Library API — parse, unparse, dump, walk, visitors, transformers, linter, optimize.runstudy.
 Evaluate scripts — Expression eval, bar-loop Runtime (mode=auto), strategy events, alerts export, mock vs live data.
 Editors — VS Code (.pyne first-class), Neovim, Zed, Emacs, Helix; clients/ snippets.
-Pro API usage — /run (+ webhookurl / L webhooks), /run/batch, preview, backtest as a consumer.
+Pro API usage — /run (+ webhookurl / L webhooks), /run/batch, /optimize, preview, backtest as a consumer.
 Troubleshooting — Parse failures, recursion limits, missing extras, CORS, auth.
 . Reference
 CLI commands — Full option trees for every Click command.
@@ -6196,6 +6313,7 @@ Interface surface (consumer map)
 | Bar-loop eval | from pynescript.runtime import Runtime (mode default interpret) | Evaluate · modes |
 | Compile-only smoke | pyne run script.pine --bars | CLI |
 | Warm Numba / IR | pyne prewarm / POST /compile/prewarm | CLI |
+| Strategy HPO | pyne optimize / POST /optimize / pynescript.optimize.runstudy | Optimize |
 | Alerts + webhooks | /run → alerts[] / webhookurl | Alerts |
 | Start LSP | pyne-lsp (stdio) | Editors |
 | Local Pro API | make run / python -m backend.app | Pro API usage |
@@ -6209,7 +6327,7 @@ Internals (repo paths)
 Consumer-relevant code only — deeper design is linked from each guide:
 | Path | Role |
 | --- | --- |
-| src/pynescript/main.py | Click CLI: check, format, lint, compile, prewarm, run, data, info |
+| src/pynescript/main.py | Click CLI: check, format, lint, compile, prewarm, run, optimize, data, info |
 | src/pynescript/ast/helper.py | Public parse, unparse, dump, walk, literaleval |
 | src/pynescript/ast/linter.py | lintscript / PineLinter |
 | src/pynescript/ast/evaluator/ | Bar-aware and literal evaluators |
@@ -6283,7 +6401,7 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-.-or-later
 ---
 title: "CLI Commands Reference"
-description: "Complete option reference for the pyne Click CLI: check, format, lint, compile, run, prewarm, data, info, and more."
+description: "Complete option reference for the pyne Click CLI: check, format, lint, compile, run, optimize, prewarm, data, info, and more."
 ---
 CLI Commands Reference
 Abstract
@@ -6304,6 +6422,7 @@ Command index
 | compile | | Transpile or compile-check (Numba path) |
 | prewarm | | Warm Numba builtins / script IR caches (H) |
 | run | | Compile + execute on synthetic OHLCV |
+| optimize | | Search input. values over N interpret Runtime runs |
 | data | | Fetch market bars |
 | info | ls | Version + optional extras |
 ``bash
@@ -6428,6 +6547,35 @@ pyne run strategy.pine --bars
 pyne run strategy.pine --json
 `
 ---
+pyne optimize
+Search input. values for a strategy() script. Loops interpret Runtime (not /backtest/quick). Requires --space JSON.
+| Kind | Name | Default | Description |
+| --- | --- | --- | --- |
+| argument | PATH | required | Pine file (- = stdin) |
+| option | --encoding | utf- | |
+| option | --bars | | Synthetic bar count (min ) |
+| option | --trials | | Trial budget (max ) |
+| option | --space | required | JSON {"params":[{"name","kind","min","max"}]} |
+| option | --sampler | auto | auto \| random \| tpe \| grid |
+| option | --objective | composite | composite \| netpnl \| profitfactor \| calmar |
+| option | --validation | holdout | holdout \| walk-forward \| in-sample |
+| option | --train-bars | derive | Walk-forward train window |
+| option | --test-bars | derive | Walk-forward test window |
+| option | --step-bars | derive | Walk-forward step (default: the test window) |
+| option | --holdout-frac | . | Holdout test fraction |
+| option | --seed | unset | RNG seed |
+| option | --json | off | Full study JSON |
+--validation walk-forward derives windows from --bars when the bar flags are omitted: train=max(, bars//), test=max(, bars//), step=max(, test) (so default --bars → //). Explicit --train-bars / --test-bars / --step-bars override that. The CLI refuses walk-forward when --bars < train+test. All-errored studies exit even if the study status is success.
+`bash
+pyne optimize strat.pine --trials --sampler tpe \
+--space '{"params":[{"name":"Fast","kind":"int","min":,"max":}]}'
+pyne optimize strat.pine --validation walk-forward --bars --trials \
+--space '{"params":[{"name":"Fast","kind":"int","min":,"max":}]}'
+pyne optimize strat.pine --validation walk-forward --train-bars --test-bars \
+--space '{"params":[{"name":"Fast","kind":"int","min":,"max":}]}'
+`
+Library: pynescript.optimize.run_study. HTTP: POST /optimize.
+---
 pyne data
 | Kind | Name | Default | Description |
 | --- | --- | --- | --- |
@@ -6467,6 +6615,7 @@ Internals
 | parse/dump/unparse | src/pynescript/ast/helper.py |
 | lint | src/pynescript/ast/linter.py |
 | compile / prewarm | src/pynescript/compiler/ |
+| optimize | src/pynescript/optimize/ |
 | data | src/pynescript/util/data.py |
 Invariants
 Aliases: dump/ast → parse-and-dump; unparse → parse-and-unparse; fmt → format; ls → info.
@@ -6547,6 +6696,8 @@ Why is pynescript lsp missing?
 The registered entry point is the separate script pynescript-lsp. Some docs historically mentioned a lsp subcommand; trust pyproject.toml [project.scripts] and main.py for ground truth.
 Which Pine versions are supported?
 v is the recommended surface (declare //@version=); v remains fully supported. See implementation status, missing features, and pine v surface.
+Does PYNE support the once keyword?
+Yes, as of hoox-pyne .. (TradingView August ). once [cond] runs its block the first time the condition is true on a closed bar. It is not an expression — you cannot assign its result. See Expressions & statements.
 Is this affiliated with TradingView?
 No. Independent open-source toolchain. Pine Script and TradingView are trademarks of TradingView, Inc.
 Will my TradingView strategy produce identical PnL?
@@ -6573,7 +6724,7 @@ pip install "hoox-pyne[data]" for ccxt
 `
 Or providers in Python via pynescript.util.data.getprovider.
 What is the Pro API free tier?
-POST /run and POST /run/batch are exposed as free evaluate endpoints (still your CPU if self-hosted). Default body mode is auto (prefer warm compile; fall back to interpret). Responses include alerts[] when scripts call alert() / true alertcondition() (interpret path). Optional L webhooks: body webhookurl or env ALERTWEBHOOKURL. Preview/backtest routes are Pro-tier with API keys.
+POST /run and POST /run/batch are exposed as free evaluate endpoints (still your CPU if self-hosted). Default body mode is auto (prefer warm compile; fall back to interpret). Bar/script/rate/concurrency caps are off unless you set FREETIERLIMITS=. Responses include alerts[] when scripts call alert() / true alertcondition() (interpret path). Optional L webhooks: body webhookurl or env ALERTWEBHOOKURL. Preview/backtest routes are Pro-tier with API keys.
 How do interpret and compile compare?
 Use the dual-host harness (repo root):
 `bash
@@ -6730,6 +6881,8 @@ Lint / LintWarning
 Static diagnostics with code, message, line, severity (error|warning). Entry: lintscript.
 LSP
 Language Server Protocol. pyne-lsp process (alias pynescript-lsp) implementing diagnostics, completion, hover, navigation, formatting.
+once
+August Pine conditional structure (hoox-pyne ..). once [cond] runs its indented block the first time the condition is true on a closed bar, then never again. Optional condition defaults to true. Unlike if / switch, it does not return a value (x = once … does not parse). Interpret may re-run the body on unconfirmed realtime ticks until barstate.isconfirmed. See Expressions & statements.
 NodeVisitor / NodeTransformer
 Patterns for traversing or rewriting ASTs (visitor.py, transformer.py).
 OHLCV
@@ -6756,6 +6909,10 @@ Strategy event
 Structured record of entries/exits/orders emitted during strategy evaluation for downstream systems (HOOX, analytics).
 timeoutseconds
 Optional Runtime.run wall-clock budget (interpret path). Also a POST /run / /run/batch body field (..+). Exceeded runs return partial plots with timedout. Omit / null / ≤ → no timeout.
+Optimize (hyperparameter search)
+pynescript.optimize.runstudy / pyne optimize / POST /optimize (..+). Loops interpret Runtime with input. overrides for a strategy() script. Not a Pine builtin and not /backtest/quick.
+timeframe.change
+timeframe.change(tf) is true on the first bar of a new UTC fixed-width period (..+). Not exchange-calendar / DST aware. See known divergences.
 Unparse
 unparse(node) — regenerate Pine source text from an AST.
 //@version
@@ -6777,7 +6934,7 @@ Misusing terms often causes support confusion:
 | Confused pair | Distinction |
 | --- | --- |
 | dump vs unparse | dump is debug AST text; unparse is Pine source |
-| literaleval vs Runtime | single-shot expressions vs multi-bar scripts |
+| literal_eval vs Runtime | single-shot expressions vs multi-bar scripts |
 | pyne vs pyne-lsp | desk CLI vs language server (aliases: pynescript) |
 | AXIS vs PYNE | AXIS vs evaluate engine |
 | data provider vs data feed | historical fetch vs realtime stream |
@@ -6951,7 +7108,7 @@ Product map
 | Language core | Grammar, AST, visitors, type system | Core |
 | Runtime | Series caps, builtins, strategy, alerts, compiler parity | Runtime |
 | LSP | Diagnostics, completion, hover, format (.pyne / .pine) | LSP |
-| Pro API | HTTP /run (alerts + L webhooks), preview, backtest | API |
+| Pro API | HTTP /run (alerts + L webhooks), /optimize, preview, backtest | API |
 | Ops | CI, Docker, Nuitka, secrets, GCP | DevOps |
 | PyneTS | TypeScript / Bun library (parse / unparse / Runtime.run) | PyneTS |
 | AXIS (separate product) | Charting PWA AXIS | AXIS docs |
@@ -6963,7 +7120,7 @@ End User
 Install the package (pip install hoox-pyne), run the CLI, embed the library API, wire an editor (.pyne / .pine), or call the Pro API as a consumer — including alerts export and webhooks.
 → End User hub
 Core / Runtime / LSP / API
-Contributor and systems manuals: how the front-end, semantics, editor protocol, and HTTP bridge are built. Runtime covers series caps, incremental TA, drawing GC, fill() export, foreign request.security → na, and parity.
+Contributor and systems manuals: how the front-end, semantics, editor protocol, and HTTP bridge are built. Runtime covers series caps, incremental TA, drawing GC, fill() export, foreign request.security → na, strategy optimize, and parity.
 DevOps
 CI matrices, Fernet metadata encryption, Nuitka LSP binaries, containers, Cloud Build.
 → DevOps hub
@@ -6989,6 +7146,7 @@ Runtime modes
 Alerts & webhooks
 Grammar pipeline
 Evaluate contract
+POST /optimize
 pyne-worker
 pyne-agent-worker
 Roadmap
@@ -9094,25 +9252,26 @@ Grouped map
 | Parse → unparse | Working | Structural fidelity; whitespace may differ |
 | var / varip / := | Working | Execution-site init; start-of-bar carry |
 | Functions, methods, type annotations | Working | |
-| Control flow, switch, enums | Working | Strict bool; na is false in conditions |
+| Control flow, switch, once, enums | Working | Strict bool; na is false in conditions. once (..) is statement-only |
 | UDTs + .new | Working | Field defaults on compile (..) |
 | Libraries export / import ns/Name/ver | Working | In-process registerlibrarysource; Runtime.run(..., libraries=) |
 | String interpolation, tuple unpack, method chaining | Working | |
 | Series [] history | Working | OOB / negative → na (not wrap) |
+| timeframe.change | Working | UTC fixed-width buckets (..). Not exchange calendar |
 | Area | Status | Notes |
 | --- | --- | --- |
 | pynescript.runtime.Runtime | Working | Package SoT; backend.runtime re-exports |
 | Modes interpret / compile / auto | Working | Defaults differ by surface — modes |
 | Series caps | Working | PYNESERIESCAP default on |
-| Incremental ta. | Working | Default on; PYNETAINCREMENTAL= full recompute |
+| Incremental ta. | Working | Default on; PYNETAINCREMENTAL= full recompute. .. aroon/dpo/donchian/kst |
 | Derived OHLCV skip | Working | Unused hl/hlc/ohlc/tr not written; ta.vwap still updates hlc |
 | timeoutseconds | Working | Library / edge / Flask /run + /run/batch (omit = no budget) |
 | Ring buffer | Residual | PYNESERIESRING default off |
 | Area | Status | Notes |
 | --- | --- | --- |
 | MAs | Working | sma/ema/rma/wma/hma/vwma/kama/dema/tema/alma incremental |
-| Oscillators | Working | rsi/macd/stoch/cci/cmo/tsi/roc/wpr |
-| Volatility / structure | Working | atr (Wilder rma(tr)), bb, kc, stdev, highest/lowest, linreg, adx/dmi, supertrend, sar |
+| Oscillators | Working | rsi/macd/stoch/cci/cmo/tsi/roc/wpr; .. incremental aroon/dpo/kst |
+| Volatility / structure | Working | atr (Wilder rma(tr)), bb, kc, stdev, highest/lowest, linreg, adx/dmi, supertrend, sar; .. incremental donchian |
 | Volume | Working | Incremental obv/wad/wvad/cmf/klinger/mfi/vwap/nvi/pvi |
 | Supertrend | Working | Locked mid±factor·ATR (inc ≡ compile ≡ Numba). TV band ratchet is out of scope |
 | Area | Status | Notes |
@@ -9133,15 +9292,15 @@ Grouped map
 | Licensed broker / exchange fills | Out of scope | In-process model only |
 | Area | Status | Notes |
 | --- | --- | --- |
-| plot / plotshape / plotchar / plotarrow / hline / bgcolor / fill | Working | Registry + columnar capture |
-| line / box / label / table / polyline / linefill | Working | .all, set / delete fold on compile |
+| plot / plotshape / plotchar / plotarrow / hline / bgcolor / barcolor / fill / plotbar / plotcandle | Working | Registry + columnar capture; plotshape off = None (dual-host) |
+| line / box / label / table / polyline / linefill | Working | Coordinates snapshotted at create/set; compile drawings normalized to geometry-only AXIS export |
 | maxcount GC | Working | Interpret registry |
 | forceoverlay | Working | Export payload |
 | Pixel paint | Out of scope | AXIS / clients consume series + drawings |
 | Compile hline/fill/bgcolor/plotshape keys | Working | First-party key sets match interpret. Harness ignore flags stay optional CLI |
 | Area | Status | Notes |
 | --- | --- | --- |
-| Same-symbol simple OHLCV / HTF | Working | Allowlisted ta.sma/ema/rsi/atr on HTF |
+| Same-symbol simple OHLCV / HTF | Working | Allowlisted ta.sma/ema/rsi/atr/wma/rma on HTF |
 | Foreign / complex request.security | Partial | Resolves to na (no invented chart-close) |
 | request.footprint / financial / economic | Partial | Mock / feed-scaled; not a live vendor |
 | input. including active / enum | Working | Values + metadata |
@@ -9158,6 +9317,8 @@ Grouped map
 | CLI / LSP / Pro API / Docker | Working | pyne / pyne-lsp; Flask /run |
 | Flask /run libraries | Working | Max ; also /run/batch |
 | Flask timeoutseconds | Working | Optional on /run and /run/batch; omit / ≤ = no timeout |
+| timeframe.change | Working | UTC fixed-width buckets (not exchange calendar). Interpret + compile |
+| POST /optimize / pyne optimize | Working | Strategy input. search — not a Pine builtin |
 | Surface | Status | Notes |
 | --- | --- | --- |
 | Python Runtime | Working | Language oracle |
@@ -9223,7 +9384,7 @@ Failure modes
 | Interpret vs compile series mismatch | Foreign request., UDF last-assign na, leftover corpus keys |
 | Strategy equity ≠ TV | Commission / slippage / OHLC vs tick path |
 | import unresolved | Library not in libraries= / registry |
-| /run UNKNOWNFIELDS | Extra key not in RUNSCHEMA` |
+| /run UNKNOWNFIELDS | Extra key not in RUN_SCHEMA` |
 See also
 Implementation status
 Missing features
@@ -9358,7 +9519,7 @@ Legend
 Component rollup
 | Component | Posture (- consolidation) |
 | --- | --- |
-| Parser (ANTLR) | Complete for v/v core + recent multiline / export work |
+| Parser (ANTLR) | Complete for v/v core + multiline / export / once (..) |
 | Evaluator | Full bar-loop with var/varip, reassignment |
 | Builtins | + historical count; callables on live dispatch inventory (--) |
 | TA | + ta. keys in inventory |
@@ -9371,8 +9532,8 @@ Component rollup
 | PyneTS | @hoox-sh/pynets .. (npm + this repo’s pynets/ pin v..) — interpret + JS compile. Python Runtime remains the oracle — see PyneTS |
 | pyne-worker | Python Cloudflare evaluate host (sister repo) — docs |
 | pyne-agent-worker | NL authoring host (sister repo) — docs |
-| Numba compile path | MVP + object-mode fallback |
-| Incremental ta. | Default on (PYNETAINCREMENTAL); .. volume obv/wad/cmf/klinger; .. nvi/pvi |
+| Numba compile path | MVP + object-mode fallback; ..–.. UDT/switch/matrix/drawing/round/color residual recovery |
+| Incremental ta. | Default on (PYNETAINCREMENTAL); .. volume obv/wad/cmf/klinger; .. nvi/pvi; .. aroon/dpo/donchian/kst |
 | Interpret bar-loop | .. dispatch inlining + unused derived-series skip |
 Series & context (illustrative families)
 Fully listed in the source doc; representative groups:
@@ -9438,11 +9599,11 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-.-or-later
 ---
 title: "Missing features"
-description: "Known gaps and closed Pine Script v items — H/H/T/T/F/F/L/C shipped; Pp corpus MISMATCH tail remains."
+description: "Known gaps and closed Pine Script v items — H/H/T/T/F/F/L/C shipped; ..–.. compile object-mode residuals; Pp corpus MISMATCH tail remains."
 ---
 Missing features
 Abstract
-“Missing” in PYNE is a moving frontier. As of -- (hoox-pyne ..), core v support remains very high (~%+ for core language), with post-launch TV items closed (multiline strings, library export const, footprint mocks, risk enforcement, matrix LA, compile-mode strategy, drawing GC, …) plus open-source corpus parse/Runtime hardening, incremental bar-mode TA (including ..–.. volume kernels), alert engine + L webhooks, series caps, warm-compile, pending-fill averaging, and package Runtime SoT (pynescript.runtime; backend.runtime is a shim). Remaining gaps cluster into plot parity residual MISMATCH corpus tail (Pp), by-design platform differences, and editor-only features. Incremental ta.nvi/ta.pvi and Supertrend mid±factor·ATR goldens have landed.
+“Missing” in PYNE is a moving frontier. As of -- (hoox-pyne ..), core v support remains very high (~%+ for core language), with post-launch TV items closed (multiline strings, library export const, footprint mocks, risk enforcement, matrix LA, compile-mode strategy, drawing GC, …) plus open-source corpus parse/Runtime hardening, incremental bar-mode TA (including ..–.. kernels), alert engine + L webhooks, series caps, warm-compile, pending-fill averaging, timeframe.change, package Runtime SoT (pynescript.runtime; backend.runtime is a shim), and compile object-mode residual recovery (UDF locals, nopython None/unicode, matrix handles, UDT returns, x = switch, drawing copy, int(na), round() extras, import stubs, color type dispatch, nested UDT methods). Remaining gaps cluster into plot parity residual MISMATCH corpus tail (Pp), by-design platform differences, and editor-only features. Incremental ta.nvi/ta.pvi/aroon/dpo/donchian/kst and Supertrend mid±factor·ATR goldens have landed.
 Authoritative narrative: docs/missingfeatures.md. Canonical IDs: docs/ROADMAP.md (--).
 Conceptual model
 Interface surface
@@ -9454,12 +9615,14 @@ Summarized — full prose in source doc:
 | Library export const + types/enums | Parse/AST/runtime registry |
 | UDT sortfield on array/matrix sort | Implemented |
 | UDT sortfield on array.binarysearch (August ) | Implemented (interpret + compile, ..) |
+| once conditional structure (August ) | Implemented in .. — parse/unparse, interpret (confirmed-bar latch + realtime re-fire), compile historical flags. Statement-only. |
 | input..active | Metadata-driven |
 | Dynamic request. | Shared resolvers; mock/feed scaling |
 | Enums runtime + input.enum | Type kind + LSP partial |
 | Strategy open/closed trades, risk, OCA, commission | Golden tests |
 | Drawing .all, plot registry, maxcount GC | Effects recorded; GC on package + Pro + AXIS |
 | Numba compile + object mode + warm-compile (H) | Disk IR cache, prewarm API/CLI, deploy defaults |
+| Compile object-mode residuals (..–..) | UDF locals / free-series, nopython None/timestamp, matrix handles, UDT returns, x = switch, drawing copy, pineint(na), sanitize chrome, round() extras, import stubs as na, color type dispatch, nested UDT methods |
 | Official matrix LA & predicates | det/inv/eigen/… |
 | missing vs public TV v function reference list ( symbols, --) |
 | Runtime pinedefslocked + append-only currentseries | Host hygiene (backend + pyne-worker) |
@@ -9469,7 +9632,7 @@ Summarized — full prose in source doc:
 | Alert engine + L webhooks (L) | Dual-host /run export, ALERTWEBHOOKURL / webhookurl |
 | request.security foreign-na policy | Foreign/complex → na both backends; same-symbol OHLCV passthrough |
 | Plot parity harness (Pp partial) | scripts/compareinterpcompile.py, first-party goldens; residual corpus MISMATCH tail |
-| fill() export for AXIS | series + plotmeta / compile drawings |
+| fill() export for AXIS | series + plotmeta / compile _drawings |
 Still incomplete / by design
 | Item | Status posture |
 | --- | --- |
@@ -9485,9 +9648,10 @@ Still incomplete / by design
 | Warm-compile product path (H) | SLOs / prewarm / deploy IR cache defaults (-) |
 | Runtime residual (C) | set– Runtime interpret % excl. EXPECTEDFAIL (--); third-party corpus not shipped |
 | Series cap (T) | PYNESERIESCAP default ON |
-| Residual TA inc (T) | R bb/kama/cmo/stochrsi + wma/hma/linreg; .. obv/wad/cmf/klinger; .. nvi/pvi |
+| Residual TA inc (T) | R bb/kama/cmo/stochrsi + wma/hma/linreg; .. obv/wad/cmf/klinger; .. nvi/pvi; .. aroon/dpo/donchian/kst |
 | Pending-fill (F) | R interpret + compile goldens |
 | Plot parity residual (Pp) | ️ Harness + first-party goldens (MACD/OBV/ao/aroon + plot keys); corpus value MISMATCH tail remains |
+| Compile leftover library stubs | ️ Some float(None) / UDF arity on missing import libraries; INV expected-fail fixtures stay fail |
 | TV Wilder RMA-ATR / supertrend (F) | interpret ATR is ta.rma(ta.tr); Supertrend mid±factor·ATR locked. TV ratchet is out of scope |
 | Alert webhooks (L) | Pro API + pyne-worker; see Alerts |
 Post-v launch themes (historical gap list)
@@ -9793,7 +9957,7 @@ description: "PYNE forward plan — dual-host residual, runtime residual, plot p
 ---
 Roadmap
 Abstract
-The roadmap is a living prioritization document, not a contract. Source: docs/ROADMAP.md (updated --). Core v language/builtins are essentially closed. Product warm-compile (H), series caps (T), pending-fill (F), L webhooks, corpus Runtime residual (C), package Runtime SoT (H largely done), and interpret Round (..) have landed (set– parse .%, Runtime interpret % excl. intentional demos). What remains: H worker-only extras and interpretcompile plot residuals (Pp corpus tail). Incremental nvi/pvi (T) and Supertrend goldens (F) have landed.
+The roadmap is a living prioritization document, not a contract. Source: docs/ROADMAP.md (updated --). Core v language/builtins are essentially closed. Product warm-compile (H), series caps (T), pending-fill (F), L webhooks, corpus Runtime residual (C), package Runtime SoT (H largely done), interpret Round (..), and compile object-mode residuals (..–..) have landed (set– parse .%, Runtime interpret % excl. intentional demos). What remains: H worker-only extras and interpretcompile plot residuals (Pp corpus tail). Incremental nvi/pvi (T) and Supertrend goldens (F) have landed.
 Conceptual model
 ``text
 P docs honesty → P dual-host H (package SoT + shims + worker thin wrap)
@@ -9810,9 +9974,9 @@ Status snapshot
 | Evaluator | incl. full var/varip, ReAssign |
 | Builtins / TA / collections | broad ( missing vs public TV ref list) |
 | Strategy events + broker (OCA, commission, risk) | |
-| Numba + object-mode compile | MVP+ (disk IR cache, mode=auto, timearr, cache recovery) |
+| Numba + object-mode compile | MVP+ (disk IR cache, mode=auto, timearr, cache recovery; ..–.. UDT/switch/matrix/drawing/round/color residuals) |
 | Pro API + auth + Docker | (mode default auto; targets api / api-dev / lsp / cli) |
-| PyPI hoox-pyne | live ..+ (pypi.org/project/hoox-pyne); CLIs pyne / pyne-lsp |
+| PyPI hoox-pyne | live .. (pypi.org/project/hoox-pyne); CLIs pyne / pyne-lsp |
 | CLI surface (check/format/compile/run/prewarm/…) | + Nuitka binaries + CLI Docker image |
 | Alert engine + L webhooks | dual-host export + outbound webhooks |
 | Drawing max_count GC | package + Pro API + AXIS Pyodide |
@@ -9851,7 +10015,7 @@ Open backlog (IDs stable)
 | C | Corpus set– residual (parse .%; Runtime % excl. EXPECTED) | P | -- |
 | Pp | Compile/interpret plot parity residual | P | ️ first-party goldens landed; residual corpus MISMATCH tail |
 | T | Cap currentseries to maxbarsback / SERIESMAX | P | PYNESERIESCAP default ON |
-| T | Incremental TA for remaining heavy kernels | P | R + .. volume inc + .. nvi/pvi |
+| T | Incremental TA for remaining heavy kernels | P | R + .. volume inc + .. nvi/pvi + .. aroon/dpo/donchian/kst |
 | F | ATR Wilder / TV supertrend re-baseline only with dedicated goldens | P | mid±factor·ATR locked; TV ratchet out of scope |
 | F | Pending-fill averaging when pyramiding ≤ | P | |
 | L | vv converter maturity | P | open |
@@ -10197,42 +10361,43 @@ Plotting (PlottingFunctionsMixin)
 | Function | Kind | Notes |
 | --- | --- | --- |
 | plot | plot | Returns Plot id for fill(plot, plot); series values in host export |
-| plotshape / plotchar / plotarrow | markers | Interpret: bool/condition series + style/location/char meta. Compile: drawings events (object mode) |
-| plotbar / plotcandle | OHLC visuals | open/high/low/close fields |
-| hline | horizontal | Both interpret and compile export a constant price series keyed by title, and a drawing/drawings event |
-| bgcolor / barcolor | coloring | Interpret: color string series. Compile: drawings only (object mode) |
-| fill | fill | Both export a titled series key (values often all-null); band color + plot refs live in meta/drawings |
+| plotshape / plotchar / plotarrow | markers | Condition series + plotmeta.kind (style/location/char). Visuals are not in drawings |
+| barcolor / plotbar / plotcandle | overlays | Per-bar color / OHLC series + kind stamp (.. dual-host) |
+| hline | horizontal | Both hosts export a constant price series keyed by title + plotmeta.kind: "hline". Not in drawings |
+| bgcolor / barcolor | coloring | Color-string series + plotmeta.kind. Not in drawings |
+| fill | fill | Both export a titled series key (values often all-null); band color + plot refs live in plotmeta |
 Style constants: plot.linestylesolid / dashed / dotted. Plot style tokens: plot.styleline, linebr, stepline, steplinebr, steplinediamond, histogram, columns, cross, area, areabr, circles.
 Each call constructs a Plot dataclass (kind, series, title, color, linewidth, text formatting, forceoverlay, …) and appends it to PlotRegistry.plots.
 Hosts often also capture per-bar plot values on the evaluator (plotoutputs / plotvaluecols) for time-aligned series maps—see src/pynescript/runtime/evaluator.py and packaging in src/pynescript/runtime/host.py (backend.evaluator / backend.runtime re-export those modules).
 PYNELIGHTPLOTS= skips columnar capture, plot-registry handles, and input. metadata (corpus OK/fail only).
 Title defaults and series keys
-Runtime packages plots into result["series"] / result["plotmeta"] (interpret) or result["series"] + result["drawings"] (compile). Empty or missing titles get defaults; collisions get , , … suffixes so map keys stay unique.
+Runtime packages plots into result["series"] / result["plotmeta"] on both hosts. result["drawings"] is geometry-only (line / box / label / polyline / table / linefill). Compile _drawings is an internal event list that Runtime folds and strips before JSON — hosts never need it. Empty or missing titles get defaults; collisions get , , … suffixes so map keys stay unique.
 | Call | Default title | Notes |
 | --- | --- | --- |
 | plot | plot, plot, … | Compile emits plot{n} at emit time; interpret empty title → plot{index} at JSON packaging |
 | hline | hline | Uniquified hline, hline, … when untitled levels repeat |
 | fill | fill | Same uniquify rule (Background / Background, …) |
-| bgcolor | bgcolor | Interpret series + meta |
-| plotshape | shape | Interpret series + meta |
+| bgcolor | bgcolor | Series + plotmeta (both hosts) |
+| plotshape | shape | Series + plotmeta (both hosts) |
 Explicit title= (or positional title) wins when present.
-hline — constant series + drawings (both modes)
+hline — constant series (both modes)
 Interpret (src/pynescript/runtime/evaluator.py + Runtime packaging):
 Captures kind hline with the price as the series cell each bar.
 JSON export forward-fills nulls with the known constant so AXIS can draw a full-width level.
 plotmeta[title] includes kind: "hline", price, color, linewidth, …
-Compile (object mode):
-Forces object mode; appends a plot array (safefloat(price) every bar) under the uniquified title and a _drawings event (kind: "hline", price, title, color).
+Compile:
+Emits a plot array (safefloat(price) every bar) under the uniquified title and stamps plotmeta.kind: "hline".
+May also append an internal _drawings event; Runtime packaging strips visual kinds so host drawings stays geometry-only.
 Host wraps NaN → null; constant levels remain numeric across the bar range.
-Parity tests: tests/testmultiplotcross.py (testhlineserieskeyscompilematchesinterpret), tests/testcompilerobjects.py.
+Parity tests: tests/testmultiplotcross.py (testhlineserieskeyscompilematchesinterpret), tests/testplotdrawingdualhost.py, tests/testcompilerobjects.py.
 fill — titled series key for key-set parity (both modes)
 Interpret:
 Meta stores sibling series titles as plot / plot (resolved from plot() handles).
 Capture may hold a color string on the column; Runtime JSON packaging typically emits all-null series cells for fills (non-numeric / non-bgcolor strings → null). Band color and plot refs stay in plotmeta (and registry fill objects when ids are enabled).
 Compile:
-Forces object mode; registers a series key with expression None (float NaN → JSON null) under the uniquified title so series key sets match interpret.
-Band details (plot refs, color) go on the drawings fill event—not a numeric column.
-Parity tests: testfillbackgroundserieskeyscompilematchesinterpret, testfilltitleserieskeyanddrawings.
+Registers a series key with expression None (float NaN → JSON null) under the uniquified title so series key sets match interpret.
+Band details (plot refs, color) land in plotmeta. An internal _drawings fill event, if emitted, is stripped before Runtime JSON.
+Parity tests: testfillbackgroundserieskeyscompilematchesinterpret, testfilltitleserieskeyanddrawings, tests/testplotdrawingdualhost.py.
 Import stubs must not leak as series strings
 Unresolved import … libraries become chainable stubs marked _pineimportstub = True (repr like `). If a script plots a stub member, Runtime’s jsonplotvalue maps those cells to null—never the stub repr or a color-like string—so AXIS and interpret/compile comparisons never see "" as a plot series value.
 Drawing objects (DrawingBuiltinsMixin)
@@ -10268,9 +10433,9 @@ Compile object-mode drawings are a simplified event list—GC caps apply on the 
 fill + plotmeta for AXIS
 For dual plot + fill bands:
 . Each plot() contributes a numeric series under its title (default plot, …).
-. fill(p, p, …) contributes a titled series key (often all-null cells) so key-sets stay stable, plus meta/drawings that carry band color and plot refs.
+. fill(p, p, …) contributes a titled series key (often all-null cells) so key-sets stay stable, plus plotmeta that carries band color and plot refs.
 . Hosts such as AXIS should read plotmeta[title] for kind, colors, and sibling plot titles (plot / plot) rather than treating fill series as prices.
-Interpret packaging lives in src/pynescript/runtime/host.py / evaluator.py; compile emits matching series keys + drawings fill events.
+Interpret packaging lives in src/pynescript/runtime/host.py / evaluator.py; compile emits matching series keys. Internal _drawings fill events are folded/stripped before Runtime JSON.
 Internals
 | Path | Role |
 | --- | --- |
@@ -10278,26 +10443,27 @@ Internals
 | src/pynescript/ast/evaluator/builtins/drawing.py | Drawing types, registry, builtins, exportforapi, foldcompiledrawingmutations |
 | src/pynescript/runtime/evaluator.py | Host plot capture: hline / fill / bgcolor / plotshape series + meta |
 | src/pynescript/runtime/host.py | JSON packaging: series keys, stub nulling, hline fill-forward, fill plot refs |
-| src/pynescript/compiler/compiler.py | hline/fill series + _drawings; plotshape/bgcolor events |
+| src/pynescript/compiler/compiler.py | hline/fill series + internal _drawings; visual events lifted then stripped |
 | src/pynescript/ast/evaluator/names.py | DRAWINGMETHODNS |
-| tests/testplottingeffects.py, testdrawingallandlastbar.py, testmultiplotcross.py, testbgcolorplotshapeexport.py, testcompilerobjects.py | Behavior / parity |
-Compile object-mode notes (plotshape / bgcolor)
-Drawings and marker-style plot calls force object mode (pure-Python bar loop; drawings append-only event list)—not full DrawingRegistry / interpret series parity.
-| Call | Compile behavior | Interpret parity gap |
+| tests/testplottingeffects.py, testdrawingallandlastbar.py, testmultiplotcross.py, testbgcolorplotshapeexport.py, testplotdrawingdualhost.py, testcompilerobjects.py | Behavior / parity |
+Compile object-mode notes
+Geometry factories and some marker-style calls force object mode (pure-Python bar loop with an append-only drawings event list). Runtime packaging lifts visual events into series + plotmeta.kind, then strips them so host drawings is geometry-only — the same AXIS shape as interpret exportforapi.
+| Call | Host export (both modes) | Compile internals |
 | --- | --- | --- |
-| hline | Series key (constant) + drawings | Aligned on series keys + drawings export |
-| fill | Series key (all-null) + drawings | Aligned on series key sets; color/refs differ (meta vs event) |
-| plotshape / plotchar / plotarrow | drawings event only (series, optional title, …) | Interpret also builds bool/condition series + plotmeta style/location/char |
-| bgcolor / barcolor | _drawings event only (color, bar index) | Interpret builds color-string series + plotmeta.kind |
-| label / line / box / polyline / table | Handle dict + _drawings; set and .delete (kind: "delete") fold via DrawingRegistry.foldcompiledrawingmutations (..) | Interpret still has full registry, GC caps, last-bar helpers |
-Numeric mode still supports plain plot float arrays; any of the drawing/marker calls above flips object mode for that script.
+| hline | Constant series + plotmeta.kind | Series array; optional drawings event stripped |
+| fill | All-null series key + plotmeta color/refs | Series key; optional _drawings event stripped |
+| plotshape / plotchar / plotarrow | Condition/signed series + plotmeta.kind | Visual events lifted into series, then stripped |
+| bgcolor / barcolor | Color-string series + plotmeta.kind | Same lift/strip as other visuals |
+| plotbar / plotcandle | OHLC series + kind stamp | Same lift/strip |
+| label / line / box / polyline / table / linefill | Geometry objects in drawings | Handle dict + drawings; set / .delete fold via DrawingRegistry.foldcompiledrawingmutations |
+Numeric mode still supports plain plot float arrays; geometry or marker calls can flip object mode for that script.
 Invariants & edge cases
 . plot returns an id. Required for fill; treating it as “void” breaks band fills. Hosts that skip PlotRegistry unless fill( appears in source must still soft-fail fill gracefully.
 . Deleted flag. Soft-delete keeps history for debugging; active() filters deleted plots and GC-collected drawings.
 . maxcount GC. Oldest active drawings are deleted when caps are exceeded (interpret registry).
 . Series in drawings. Prices may be series wrappers—export coerces .current and maps NaN → omit.
-. Compile path. Numeric mode supports plot arrays; drawings force object mode with a simplified event list. set / .delete fold onto live handles before export (not interpret GC / .all). Prefer interpret when you need bgcolor/plotshape series columns, not only drawing events.
-. Import stubs → null. _pineimportstub and "" strings never appear as plot series cells after Runtime packaging.
+. Compile path. Numeric mode supports plot arrays; geometry/markers force object mode with an internal drawings event list. Runtime folds set / .delete, lifts visual events into series + plotmeta.kind, then strips them so drawings is geometry-only. Prefer interpret when you need full last-bar / .all / registry GC — not because visuals lack series.
+. Import stubs → null. pineimportstub and "" strings never appear as plot series cells after Runtime packaging.
 . No GPU/canvas in-process. Registries are data; AXIS/HOOX render elsewhere.
 Worked examples
 Dual plot + fill
@@ -10325,7 +10491,7 @@ Failure modes
 | Stale labels across HTTP runs | Missing registry reset between Runtime.run calls (Runtime resets—custom hosts must) |
 | Object mode missing drawing | Compile still folds set / delete; leftover events usually mean fold did not run |
 | Only labels/lines visible | Default maxcount; raise on indicator/strategy (≤ hard cap) |
-| fill series all null | Expected for band keys; use plotmeta` / drawings for color + plot refs |
+| fill series all null | Expected for band keys; use plotmeta` for color + plot refs |
 See also
 Builtins hub
 Pro API preview / chart renderer
@@ -10467,7 +10633,7 @@ Resolution order (simplified):
 . Normalize symbol (series → last element; ticker. → symbol string) and timeframe.
 . Classify chart vs foreign (ischartsymbol vs host syminfo / provider symbol).
 . Try datafeed.fetchlatestohlcv / ticker, then dataprovider.fetch.
-. Same-symbol coarser timeframe (HTF resample, ..+): bucket chart OHLCV to the requested TF; last completed HTF bar only (lookaheadoff-style — the forming bucket is never returned). Allowlisted simple TA on HTF series — ta.sma / ta.ema / ta.rsi / ta.atr (bare close/high/… source + const length; ta.atr(n) length-only) — evaluates on the unique completed HTF series. Nested ta., UDFs, and non-const lengths stay na. barmerge.gaps / lookahead are accepted but unused. Policy meta is exposed on result["meta"]["requestsecurity"].
+. Same-symbol coarser timeframe (HTF resample, ..+): bucket chart OHLCV to the requested TF; last completed HTF bar only (lookaheadoff-style — the forming bucket is never returned). Allowlisted simple TA on HTF series — ta.sma / ta.ema / ta.rsi / ta.atr / ta.wma / ta.rma (bare close/high/… source + const length; ta.atr(n) length-only) — evaluates on the unique completed HTF series. Nested ta., UDFs, and non-const lengths stay na. barmerge.gaps / lookahead are accepted but unused. Policy meta is exposed on result["meta"]["requestsecurity"].
 . Foreign + pre-evaluated expression (UDF result, list/tuple of chart values, non-string expr) without multi-symbol data → na (not chart close as “dividends”).
 . Fundamental / non-equity prefixes (DIVIDEND, FACTSET, EARNINGS, ESD) with no feed hit → na (no mock OHLCV).
 . Bare equity-style string names may still use legacy mock prices for offline demos when no feed is wired.
@@ -10628,64 +10794,7 @@ strategy.exit("X", fromentry="L", stop=low ., limit=high ., qtypercent=)
 `
 Position and performance series
 Zero-arg builtins include strategy.positionsize (signed: +long / −short), positionavgprice, positionentryname, opentrades / closedtrades counts, netprofit, openprofit, equity, cash, gross win/loss stats, averages, max drawdown/runup, and max contracts held.
-Trade queries
-Indexed accessors:
-strategy.closedtrades.entry / exit / profit / size / commission
-strategy.opentrades.entry / size / profit / commission
-Open/closed trade fields include bar/time/id/comment plus approximate MAE/MFE (maxdrawdown / maxrunup from bar high/low)
-Risk (interpret + compile halt cascade)
-| Builtin | Effect |
-| --- | --- |
-| strategy.risk.maxpositionsize | Cap size as % of equity |
-| strategy.risk.maxintradayloss | Intraday loss gate |
-| strategy.risk.maxintradayfilledorders | Order count cap (day-scoped on compile) |
-| strategy.risk.maxdrawdown | Absolute / percent drawdown halt |
-| strategy.risk.maxconslossdays | Consecutive losing calendar days → entriesblocked |
-| strategy.risk.allowentryin | "all" \| "long" \| "short" |
-Blocked entries still emit a diagnostic-style event with comment riskblocked where implemented. Compile broker shares the common halt cascade above (not a full TradingView risk engine).
-Declaration
-strategy(title, …) applies broker settings onto StrategyState: initialcapital, commission type/value, slippage ticks, pyramiding, avgpricemodel, etc.
-Average price model (pynescript extension)
-Not part of official TradingView Pine. Controls how strategy.positionavgprice evolves when size changes:
-| avgpricemodel | On same-direction adds | On partial reduce |
-| --- | --- | --- |
-| "stock" (default) | Arithmetic VWAP of fills | Re-average remaining open legs (FIFO multi-trade style) |
-| "futures" | Same arithmetic VWAP | Sticky net AEP until flat (linear USDT-M / BTCUSDT-like) |
-| "inverse" | Arithmetic today; harmonic add planned | Sticky until flat (same reduce rule as futures) |
-`pine
-strategy("Perp style", avgpricemodel="futures")
-// or tokens:
-// strategy(..., avgpricemodel=strategy.avgpricefutures)
-`
-Linear add formula (stock and futures):
-\[
-avg' = \frac{avg \cdot |size| + p \cdot q}{|size| + q}
-\]
-Under "futures", partial closes realize PnL against the sticky average (not per-leg FIFO entry prices), and closed-trade entryprice records that same average. Commission is never folded into the average numerator.
-There is no strategy.order.avgfutureprice series—use strategy.positionavgprice with the mode switch.
-Leverage (pynescript extension — simpler futures UI)
-Exchanges expose leverage (e.g. × / × / ×). Prefer that over TV-style marginlong / marginshort percentages:
-`pine
-//@version=
-// TV-safe: strategy() kwargs need const (literals / const vars).
-// Host UI can still inject runtime input overrides into PYNE.
-strategy(
-"BTCUSDT style",
-avgpricemodel="futures",
-leverage=,
-defaultqtytype=strategy.percentofequity,
-defaultqtyvalue=, // use full equity as margin
-initialcapital=)
-// Optional Inputs-tab control for trade logic (not TV strategy Properties):
-// lev = input.float(, "Leverage", minval=, maxval=)
-`
-| Setting | Effect |
-| --- | --- |
-| leverage=N (default ) | Buying power multiplier |
-| percentofequity / cash default qty | qty = margin × leverage / price |
-| fixed default qty | Unchanged (contracts as written) |
-| strategy.cash / capital held | Margin locked = notional / leverage |
-| strategy.marginliquidationprice | Simple isolated estimate when leverage > |
+strategy.positionavgprice is the VWAP of open entry fills. A filled position is not overwritten when strategy.entry is called again with the same id (if cond: strategy.entry("L", strategy.long) stays at the first fill when pyramiding=). Extra same-direction fills only occur when opentrades |
 | strategy.leverage | Read-back of configured multiplier |
 leverage= also sets internal margin % to / = (TV marginlong/marginshort equivalent). If only marginlong is set, leverage is derived as / marginlong.
 input before strategy() — TV vs PYNE
@@ -10733,8 +10842,8 @@ When pinebarmode and pinetaincremental are enabled (Runtime default; disable wit
 | Family | Incremental builtins (non-exhaustive) |
 | --- | --- |
 | Moving averages | sma, ema, rma, wma, hma, vwma, swma, kama, dema, tema, alma |
-| Oscillators | rsi, macd, stoch/stochrsi, cci, cmo, tsi, roc, wpr |
-| Volatility / structure | atr, tr, stdev, bb, highest/lowest, linreg, adx/dmi, supertrend, kc, sar |
+| Oscillators | rsi, macd, stoch/stochrsi, cci, cmo, tsi, roc, wpr, aroon, dpo, kst |
+| Volatility / structure | atr, tr, stdev, bb, highest/lowest, linreg, adx/dmi, supertrend, kc, sar, donchian |
 | Volume (..–..) | obv, wad/wvad, cmf, klinger, mfi, vwap, accdist, nvi, pvi |
 | Other | change/mom/cum, median, percentrank, rising/falling, barssince, pivots |
 ta.nvi / ta.pvi are incremental (O()/bar; PYNETAINCREMENTAL= full-list). ta.atr is Wilder RMA of true range on interpret (full + incremental) and Numba (ta.rma(ta.tr, length) — ..+). Supertrend is locked mid±factor·ATR (not the TV band ratchet).
@@ -10959,9 +11068,9 @@ description: "Source-to-source compilation: CompilerVisitor, numeric vs object m
 ---
 Compiler overview
 Abstract
-The compile path lowers Pine’s ASDL AST to executable Python that walks bars with an explicit index (baridx) over contiguous numpy arrays—avoiding per-node visitor overhead. Pure numeric scripts wrap the loop in @numba.njit; scripts that touch UDTs, maps, drawings, or strategy select object mode (a tight Python/numpy loop, no AST walk). Numba is required only for numeric mode; object mode runs with numpy alone.
+The compile path lowers Pine’s ASDL AST to executable Python that walks bars with an explicit index (baridx) over contiguous numpy arrays—avoiding per-node visitor overhead. Pure numeric scripts wrap the loop in @numba.njit; scripts that touch UDTs, maps, drawings, or strategy select object mode (a tight Python/numpy loop, no AST walk). Numba is required only for numeric mode; object mode runs with numpy alone. once (..) lowers to a persistent _oncefiredN flag; UDF-scoped once forces object mode.
 The public façade is pynescript.compiler.engine (transpile, compilescript, runscript), also reachable as Runtime.run(..., mode="compile") or mode="auto".
-This is an MVP with growing surface—not a full substitute for the interpreter on every script (notably multi-asset request. and full strategy analytics).
+This is an MVP with growing surface—not a full substitute for the interpreter on every script (notably multi-asset request. and full strategy analytics). ..–.. recovered a large object-mode residual class: UDF locals, nopython None/unicode helpers, matrix handles, UDT returns, statement switch assign, drawing/chart.point copy, round() extras, import stubs as na, color type dispatch, and nested UDT method fields. Plot-value MISMATCH vs interpret (Pp) remains a residual, not a missing language surface.
 Conceptual model
 Generated entry point is always:
 ``text
@@ -10987,7 +11096,7 @@ result: dict of plot title → float array, optional drawings, events, …
 | clearcompilecache | In-process LRU only |
 | cleardiskcompilecache | Disk IR / index under cache dir |
 | clearnumbafunctioncaches | Purge Numba .nbi/.nbc under known dirs |
-CompiledScript fields: source, generatedcode, execute, plottitles, plotkinds (per-plot plot / hline / fill tags used to synthesize numeric-mode drawings), objectmode, optional nopythonfallbackreason.
+CompiledScript fields: source, generatedcode, execute, plottitles, plotkinds (per-plot plot / hline / fill tags used to synthesize numeric-mode _drawings), objectmode, optional nopythonfallbackreason.
 CompiledScript.run signature
 `python
 def run(
@@ -11116,7 +11225,7 @@ python scripts/compareinterpcompile.py --glob 'ta.pine' --bars
 python scripts/compareinterpcompile.py --files tests/fixtures/parity/pine/strategyentrylong.pine
 python scripts/compareinterpcompile.py --ignore-hline-keys --ignore-fill-keys --strict-keys
 `
-Writes .cache/interpcompileparity.json. First-party hline/fill keys match (..); ignore flags are for leftover corpus noise.
+Writes .cache/interpcompileparity.json. First-party hline / fill / bgcolor / plotshape / barcolor / plotarrow / plotbar / plotcandle keys match interpret compile (..); drawings is geometry-only. Ignore flags are for leftover corpus noise.
 Failure modes
 | Symptom | Cause |
 | --- | --- |
@@ -11176,7 +11285,7 @@ python scripts/compareinterpcompile.py --files tests/fixtures/parity/pine/strate
 | Tolerances | rtol=e-, atol=e- (nan-aware) |
 | Report | .cache/interpcompileparity.json |
 | Exit | No value/nan mismatches on common series keys |
-Buckets: OK, fillbackgroundonly, botherrorsame, expectederror, botherror, MISMATCH, interperror, compileerror, structuralonly. Matched errors on both backends (botherrorsame) and intentional demo failures (expectederror, e.g. auto-fib / pivot-depth) count as success unless --strict-errors. First-party hline/fill/bgcolor/plotshape keys match interpret (..). --ignore-hline-keys / --ignore-fill-keys remain optional for leftover corpus key noise; --strict-keys fails on any one-sided key.
+Buckets: OK, fillbackgroundonly, botherrorsame, expectederror, botherror, MISMATCH, interperror, compileerror, structuralonly. Matched errors on both backends (botherrorsame) and intentional demo failures (expectederror, e.g. auto-fib / pivot-depth) count as success unless --strict-errors. First-party hline / fill / bgcolor / plotshape / barcolor / plotarrow / plotbar / plotcandle keys match interpret compile (..); drawings is geometry-only. --ignore-hline-keys / --ignore-fill-keys remain optional for leftover corpus key noise; --strict-keys fails on any one-sided key.
 Focused unit tests
 | Test | Scope |
 | --- | --- |
@@ -11506,6 +11615,7 @@ Statements (StatementEvaluator)
 | Assign | var/varip once-per-declaration; const; ordinary assign; tuple unpack; export registration. History-tracked var series get a start-of-bar carry so x[] is the prior persist. |
 | ReAssign (:=) | Update existing binding (and UDT fields) |
 | If / For / While | Standard control flow; loop variables in context |
+| Once | Fire body the first time test is true (omit test → true) on a confirmed bar, then skip. Unconfirmed realtime ticks may re-run until barstate.isconfirmed commits the fired flag. Does not return a value. |
 | FunctionDef | Store callable in context; multi-dispatch overload lists; export; methods tagged _pinemethod_. After bar the host walks a hot body that skips Function/Type/Enum/Import (already bound). |
 | TypeDef / EnumDef | Type registry / enum member dicts |
 | Import | Resolve LibraryRegistry → bind alias to LibraryModule |
@@ -11553,12 +11663,22 @@ ta.sma(x, n)
 plot(f(close, ))
 `
 f is stored as a Python callable that rebinds x/n and visits the function body AST each call.
+once (August )
+`pine
+//@version=
+indicator("once")
+var int n =
+once close > ta.sma(close, )
+n :=
+plot(n)
+`
+Equivalent to a var bool latch plus if, but cheaper: the structure is not re-evaluated after it fires on a closed bar. On a forming realtime bar (Runtime.run(..., realtimelastbar=True, realtimeticks=N)), the latch is not committed until barstate.isconfirmed. Compile is historical (isconfirmed always true).
 Method multi-dispatch sketch
 `pine
 method log(this, string s) => ...
 method log(this, float x) => ...
 `
-Both register under the same name with _pineoverloads_; call sites pick by receiver/arg type tags.
+Both register under the same name with pineoverloads_; call sites pick by receiver/arg type tags.
 Failure modes
 | Error | Meaning |
 | --- | --- |

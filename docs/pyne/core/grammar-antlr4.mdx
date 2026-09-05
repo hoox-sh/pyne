@@ -111,13 +111,13 @@ The public parse path is higher level — [Helper API](/pyne/docs/core/helper-ap
 | `TRIPLE_DQ_STRING` / `TRIPLE_SQ_STRING` | v6 multiline strings, typed as `STRING` |
 | `LSHIFT` / `RSHIFT` / `TILDE` / `AMP` / `PIPE` / `CARET` | Bitwise `<<` `>>` `~` `&` `|` `^` (multi-char ops declared before `<`/`>`) |
 
-Keywords include `var`, `varip`, `method`, `export`, `enum`, `type`, qualifiers `const`/`input`/`simple`/`series`, and control forms `if`/`for`/`while`/`switch`. Many of those words are **soft** in identifier position (`name` alternatives) so `as = input(...)` parses.
+Keywords include `var`, `varip`, `method`, `export`, `enum`, `type`, qualifiers `const`/`input`/`simple`/`series`, and control forms `if`/`for`/`while`/`switch`/`once` (August 2026). Many of those words are **soft** in identifier position (`name` alternatives) so `as = input(...)` and `once = 3` parse.
 
 ### Parser structural facts
 
 - **Compound vs simple statements.** Functions, methods, types, enums, and structure-valued assignments are compound; imports, break/continue, expression statements, and simple assignments terminate with `NEWLINE`.
 - **Trailing structures.** `a = 0, for i = 0 to n` is `trailing_structure_statements` (comma-separated simples ending in a structure).
-- **Structures are dual-use.** `if`/`for`/`while`/`switch` appear both as statements and as **expressions** (`structure_expression`) — the classic Pine “if returns a value” form.
+- **Structures are dual-use.** `if`/`for`/`while`/`switch` appear both as statements and as **expressions** (`structure_expression`) — the classic Pine “if returns a value” form. **`once` is statement-only** (`once_structure` is not in `value_structure`); `x = once …` is a parse error.
 - **Local blocks.** Either indented (`NEWLINE INDENT statements DEDENT`) or inline single statement.
 - **Library export.** `EXPORT?` prefixes function/method/type/enum and June-2025 `export const T name = …` compound initializers.
 - **UDF return types.** `function_declaration` / `method_declaration` accept an optional leading `type_specification` (`int ilog2(int n) => …`). Builder stores it on `FunctionDef.returns`.
