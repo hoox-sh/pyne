@@ -93,23 +93,24 @@ _FG = "#EFEFE8"
 _EPILOG = """\
 \b
 Examples:
-  pynescript check script.pine
-  pynescript format script.pine -w
-  pynescript convert script.pine --to 6
-  pynescript dump script.pine --indent 2
-  pynescript lint script.pine --json
-  pynescript compile script.pine --emit
-  pynescript run script.pine --bars 100
-  pynescript data AAPL --provider yahoo --period 6mo
-  pynescript download-builtins --list
-  pynescript download-builtins --yes
-  pynescript info
+  pyne check script.pine
+  pyne format script.pine -w
+  pyne convert script.pine --to 6
+  pyne dump script.pine --indent 2
+  pyne lint script.pine --json
+  pyne compile script.pine --emit
+  pyne run script.pine --bars 100
+  pyne data AAPL --provider yahoo --period 6mo
+  pyne download-builtins --list
+  pyne download-builtins --yes
+  pyne info
 
 \b
 Aliases:  dump -> parse-and-dump  ast -> parse-and-dump  unparse -> parse-and-unparse
           fmt -> format  ls -> info
+          pynescript remains a compatibility alias of pyne
 
-Language server:  pynescript-lsp  (separate entry point, not a subcommand)
+Language server:  pyne-lsp  (alias: pynescript-lsp; separate entry point, not a subcommand)
 Docs:             https://hoox.sh/pyne
 """
 
@@ -253,10 +254,10 @@ def _print_banner() -> None:
 
     con = _console()
     if con is not None:
-        con.print(f"[pyne.accent]◆ PYNE[/] [pyne.fg]pynescript[/] [pyne.muted]v{__version__}[/]")
+        con.print(f"[pyne.accent]◆ PYNE[/] [pyne.fg]pyne[/] [pyne.muted]v{__version__}[/]")
         con.print("[pyne.muted]Pine Script toolchain — parse · lint · compile · run[/]")
     else:
-        _echo(f"PYNE pynescript v{__version__}")
+        _echo(f"PYNE pyne v{__version__}")
         _echo("Pine Script toolchain — parse · lint · compile · run")
 
 
@@ -275,7 +276,7 @@ def _print_banner() -> None:
     "--version",
     "-V",
     message="%(version)s",
-    prog_name="pynescript",
+    prog_name="pyne",
 )
 @click.option(
     "--no-color",
@@ -284,9 +285,10 @@ def _print_banner() -> None:
 )
 @click.pass_context
 def cli(ctx: click.Context, no_color: bool) -> None:
-    """Pyne / pynescript -- Pine Script parse, lint, compile, and run.
+    """pyne -- Pine Script parse, lint, compile, and run.
 
-    Use ``pynescript COMMAND -h`` for per-command help.
+    Use ``pyne COMMAND -h`` for per-command help.
+    ``pynescript`` remains a compatibility alias of ``pyne``.
     """
     if no_color:
         import os
@@ -1212,9 +1214,9 @@ def data(
 
     \b
     Examples:
-      pynescript data AAPL
-      pynescript data BTC-USD --provider yahoo --period 6mo
-      pynescript data BTC/USDT --provider ccxt --exchange binance --format csv
+      pyne data AAPL
+      pyne data BTC-USD --provider yahoo --period 6mo
+      pyne data BTC/USDT --provider ccxt --exchange binance --format csv
     """
     from pynescript.util.data import DataProviderError
     from pynescript.util.data import get_provider
@@ -1347,9 +1349,9 @@ def download_builtins_cmd(
 
     \b
     Examples:
-      pynescript download-builtins --list
-      pynescript download-builtins --yes
-      pynescript download-builtins /tmp/pine-builtins --limit 5 --yes
+      pyne download-builtins --list
+      pyne download-builtins --yes
+      pyne download-builtins /tmp/pine-builtins --limit 5 --yes
       python -m pynescript.util.pine_facade --list
     """
     from pynescript.util.pine_facade import DEFAULT_DEST
@@ -1376,4 +1378,4 @@ def download_builtins_cmd(
 
 
 if __name__ == "__main__":
-    cli(prog_name="pynescript")  # pragma: no cover
+    cli(prog_name="pyne")  # pragma: no cover

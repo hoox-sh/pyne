@@ -55,6 +55,8 @@ npm run package
 code --install-extension pyne-*.vsix
 ```
 
+Site download: [https://hoox.sh/pyne-vscode.vsix](https://hoox.sh/pyne-vscode.vsix) (unversioned alias). Versioned `pyne-vscode-0.4.4.vsix` is built in this folder and on GitHub Releases.
+
 > The VSIX is **self-contained** (esbuild bundles `vscode-languageclient`). You still need the **language server** on the machine (`pip install "hoox-pyne[lsp]"`).
 
 ### Development

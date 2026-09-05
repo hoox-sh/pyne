@@ -149,6 +149,8 @@ make build-vscode
 
 Requires Node 22. `compile:tsc` is typecheck-only (`tsc --noEmit`).
 
+Site download: [https://hoox.sh/pyne-vscode.vsix](https://hoox.sh/pyne-vscode.vsix) (unversioned alias). Versioned `pyne-vscode-0.4.4.vsix` is built in-tree (`vscode-extension/`) and on GitHub Releases.
+
 ## Invariants and edge cases
 
 1. **`lsp.enabled === false` short-circuits activate** — no client, no restart command registration beyond early return (commands not registered).

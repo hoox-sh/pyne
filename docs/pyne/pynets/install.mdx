@@ -90,7 +90,9 @@ This is a library import, not a hosted evaluate API.
 
 ```bash
 git clone --recurse-submodules https://github.com/hoox-sh/pyne.git
-cd pyne/pynets
+cd pyne
+git submodule update --init --recursive   # after a plain clone
+cd pynets
 bun install
 bun test
 ```

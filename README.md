@@ -112,6 +112,7 @@ pip install "hoox-pyne[pro]"          # Flask Pro API stack
 # Development install from a clone
 git clone --recurse-submodules https://github.com/hoox-sh/pyne.git
 cd pyne
+git submodule update --init --recursive   # pynets/; needed after a plain clone
 pip install -e ".[lsp,pro]"
 ```
 
@@ -333,6 +334,7 @@ HOOX also publishes execution-plane workers (`hoox-worker`, `trade-worker`, `tel
 
 ```bash
 git clone --recurse-submodules https://github.com/hoox-sh/pyne.git   # PYNE + pynets/ submodule (pyne-lsp is in-tree)
+git submodule update --init --recursive                              # after a plain clone
 pip install -e ".[lsp,pro]"                                          # CLI + LSP + Pro API
 git clone https://github.com/hoox-sh/pynets.git                      # TypeScript library
 git clone https://github.com/hoox-sh/pyne-worker.git                 # edge POST /run

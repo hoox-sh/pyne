@@ -89,6 +89,9 @@ hatch run lint:gen-parser
 ### Quick desk loop
 
 ```bash
+git clone https://github.com/hoox-sh/pyne.git
+cd pyne
+git submodule update --init --recursive   # pynets/; needed after a plain clone
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[lsp,compile,pro]"
 pyne info

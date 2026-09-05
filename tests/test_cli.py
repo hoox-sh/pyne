@@ -85,6 +85,8 @@ def test_root_help(runner: CliRunner) -> None:
     assert "format" in out
     assert "info" in out
     assert "download-builtins" in out
+    assert "pyne check" in out
+    assert "pynescript remains a compatibility alias" in out
     # Windows GH runners default to cp1252; Click --help must not use → / —.
     out.encode("cp1252")
 
