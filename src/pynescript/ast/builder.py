@@ -742,7 +742,7 @@ class PinescriptASTBuilder(
         return stmt
 
     def visitStructure_expression(self, ctx: PinescriptParser.Structure_expressionContext):
-        struct = ctx.structure()
+        struct = ctx.value_structure()
         struct = self.visit(struct)
         expr = struct
         self._setLocations(expr, ctx)
@@ -981,6 +981,18 @@ class PinescriptASTBuilder(
         )
         self._setLocations(switch_struct, ctx)
         return switch_struct
+
+    def visitOnce_structure(self, ctx: PinescriptParser.Once_structureContext):
+        """``once [cond]`` block. Optional test defaults to true at runtime."""
+        test_ctx = ctx.expression()
+        test = test_ctx and self.visit(test_ctx)
+        body = self.visit(ctx.local_block())
+        once_struct = ast.Once(
+            test=test,
+            body=body,
+        )
+        self._setLocations(once_struct, ctx)
+        return once_struct
 
     def visitSwitch_cases(self, ctx: PinescriptParser.Switch_casesContext):
         return [self.visit(case) for case in ctx.switch_case()]

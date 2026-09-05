@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`once` conditional structure** (Pine Script, August 2026). Executes its
+  block the first time the optional condition is true on a closed bar, then
+  never again. Soft keyword so existing `once` identifiers still parse.
+  Interpret honors realtime rollback (unconfirmed ticks can re-fire);
+  compile is historical (`isconfirmed` always true).
+
 ## [0.4.3] - 2026-09-04
 
 ### Added

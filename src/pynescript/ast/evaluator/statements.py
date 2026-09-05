@@ -2012,6 +2012,47 @@ class StatementEvaluator:
             return self._execute_block(case.body)  # type: ignore[arg-type, attr-defined]
         return None
 
+    def _once_bar_is_confirmed(self) -> bool:
+        """True when the current bar is closed (Pine rollback commits ``once``)."""
+        ctx = getattr(self, "context", None) or {}
+        bs = ctx.get("barstate")
+        if bs is not None:
+            conf = getattr(bs, "isconfirmed", None)
+            if conf is None and isinstance(bs, dict):
+                conf = bs.get("isconfirmed")
+            if conf is not None:
+                return bool(conf)
+        if "barstate.isconfirmed" in ctx:
+            return bool(ctx.get("barstate.isconfirmed"))
+        return True
+
+    def visit_Once(self, node: ast.Once):
+        """Fire the body the first time ``test`` is true on a confirmed bar.
+
+        On unconfirmed realtime ticks the body may run again because rollback
+        has not committed the fired flag (TradingView Aug 2026 ``once``).
+        ``once`` does not return a usable value.
+        """
+        fired: dict[int, bool] = getattr(self, "_once_fired", None)  # type: ignore[assignment]
+        if fired is None:
+            fired = {}
+            self._once_fired = fired  # type: ignore[attr-defined]
+        key = id(node)
+        if fired.get(key):
+            return None
+        if node.test is None:
+            test_val: Any = True
+        else:
+            test_val = self.visit(node.test)  # type: ignore[attr-defined]
+            if test_val is None:
+                test_val = False
+        if not bool(test_val):
+            return None
+        self._execute_block(node.body)
+        if self._once_bar_is_confirmed():
+            fired[key] = True
+        return None
+
     def _execute_loop_body(self, stmts: Sequence[ast.AST]) -> tuple[Any, bool]:
         """Run one loop iteration; map :class:`BreakLoop` / :class:`ContinueLoop`.
 

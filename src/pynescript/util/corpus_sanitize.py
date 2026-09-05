@@ -198,7 +198,7 @@ _PINE_START_RE = re.compile(
     r"var(ip)?\s+|"
     r"(int|float|bool|string|color|line|label|box|table|array|map|matrix|"
     r"const|simple|series)\s+\w|"
-    r"(if|for|while|switch)\s|"
+    r"(if|for|while|switch|once)\s|"
     r"(plot|plotshape|plotchar|plotcandle|plotbar|fill|bgcolor|barcolor|"
     r"hline|alertcondition|alert|runtime\.|request\.|ta\.|math\.|str\.|"
     r"color\.|input\.|input\s*\(|strategy\.|ticker\.|syminfo\.|timeframe\.)"
@@ -213,7 +213,7 @@ _CODEISH_RE = re.compile(
     r"^//|"
     r"^[0-9]|"
     r"^[\(\{\[]|"
-    r"^(if|for|while|switch|var|varip|type|enum|import|export|strategy|"
+    r"^(if|for|while|switch|once|var|varip|type|enum|import|export|strategy|"
     r"indicator|library|study|plot|plotshape|line|label|box|table|array|map|"
     r"matrix|request|ta\.|math\.|str\.|color\.|input)"
 )
@@ -1125,7 +1125,7 @@ def _line_filter(source: str) -> str:
             cleaned.strip()
             and not cleaned.lstrip().startswith("//")
             and not _SHELL_IF_RE.match(cleaned)
-            and ("=" in cleaned or "(" in cleaned or cleaned.lstrip().startswith(("if ", "for ", "while ", "switch ")))
+            and ("=" in cleaned or "(" in cleaned or cleaned.lstrip().startswith(("if ", "for ", "while ", "switch ", "once ")))
         ):
             saw_pine = True
 
@@ -1324,7 +1324,7 @@ def _starts_structural_statement(ns: str) -> bool:
     """True if *ns* begins a control/decl statement (not soft-keyword as identifier)."""
     if not ns:
         return False
-    if re.match(r"^(if|for|while|switch|else|import|export|var|varip)\b", ns):
+    if re.match(r"^(if|for|while|switch|once|else|import|export|var|varip)\b", ns):
         return True
     if _is_type_or_enum_declaration(ns) or re.match(r"^(type|enum)\s*$", ns):
         return True
@@ -1471,7 +1471,7 @@ def _next_line_is_new_statement(lines: list[str], index: int) -> bool:
     ns = lines[j].lstrip()
     # Soft keywords ``type``/``method``/``enum`` are identifiers unless declaration form.
     if re.match(
-        r"^(if|for|while|switch|else|import|export|var|varip|"
+        r"^(if|for|while|switch|once|else|import|export|var|varip|"
         r"indicator|strategy|library|study|plot|plotshape|plotchar|plotcandle|"
         r"plotbar|fill|bgcolor|barcolor|hline|alertcondition|alert)\b",
         ns,
@@ -1845,7 +1845,7 @@ def _fix_truncated_syntax(text: str) -> str:
                 continue
 
         # Control header with empty/comment-only body (includes switch)
-        m = re.match(r"^(\s*)(if|else if|else|for|while|switch)\b(.*)$", stripped_nl)
+        m = re.match(r"^(\s*)(if|else if|else|for|while|switch|once)\b(.*)$", stripped_nl)
         if m and not stripped_nl.rstrip().endswith(("=>", ":")):
             indent, kw, rest = m.group(1), m.group(2), m.group(3)
             if "=>" not in rest:
@@ -1876,7 +1876,7 @@ def _fix_truncated_syntax(text: str) -> str:
                         and kw in {"if", "else if", "else", "for", "while"}
                         and not lines[first_same]
                         .lstrip()
-                        .startswith(("else", "else if", "if ", "for ", "while ", "switch ", "type ", "enum "))
+                        .startswith(("else", "else if", "if ", "for ", "while ", "switch ", "once ", "type ", "enum "))
                     ):
                         out.append(line if line.endswith("\n") else line + "\n")
                         k = first_same
@@ -1891,7 +1891,7 @@ def _fix_truncated_syntax(text: str) -> str:
                                 break
                             ns = ln.lstrip()
                             if li == len(indent) and ns.startswith(
-                                ("else", "else if", "if ", "for ", "while ", "switch ", "type ", "enum ")
+                                ("else", "else if", "if ", "for ", "while ", "switch ", "once ", "type ", "enum ")
                             ):
                                 break
                             if li == len(indent):
@@ -1924,7 +1924,7 @@ def _fix_truncated_syntax(text: str) -> str:
 
 # Statement / expression leaves that do not constitute a real truncated-demo body.
 _NA_ONLY_LEAF_RE = re.compile(r"^(na|continue|break)\s*$")
-_CTRL_HEAD_RE = re.compile(r"^(if|else if|else|for|while|switch)\b")
+_CTRL_HEAD_RE = re.compile(r"^(if|else if|else|for|while|switch|once)\b")
 
 
 def _collapse_na_only_control_expr_assignments(text: str) -> str:
@@ -2094,7 +2094,7 @@ def _looks_like_prose_line(line: str) -> bool:
         return False
     if _PINE_START_RE.match(s) or _PROSE_CONTINUE_RE.match(s):
         return bool(_PROSE_CONTINUE_RE.match(s))
-    if "=" in s or "(" in s or s.startswith(("if ", "for ", "while ", "switch ", "else")):
+    if "=" in s or "(" in s or s.startswith(("if ", "for ", "while ", "switch ", "once ", "else")):
         return False
     if (
         _RST_DIRECTIVE_RE.match(s)
@@ -2366,6 +2366,7 @@ def _fix_empty_type_body(body: str) -> str:
                                 "for ",
                                 "while ",
                                 "switch ",
+                                "once ",
                                 "indicator(",
                                 "strategy(",
                                 "library(",

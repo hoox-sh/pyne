@@ -125,10 +125,11 @@ enum_definition:  name_store (EQUAL expression)? NEWLINE;
 
 // STRUCTURES
 
-structure: if_structure | for_structure | while_structure | switch_structure;
-
-structure_statement:  structure;
-structure_expression: structure;
+value_structure: if_structure | for_structure | while_structure | switch_structure;
+structure: value_structure | once_structure;
+structure_statement: structure;
+// ``once`` does not return a value (TV Aug 2026) — not valid on the RHS of ``=``.
+structure_expression: value_structure;
 
 // IF STRUCTURE
 
@@ -161,6 +162,12 @@ while_structure: WHILE expression local_block;
 // SWITCH STRUCTURE
 
 switch_structure: SWITCH expression? NEWLINE INDENT switch_cases DEDENT;
+
+// ONCE STRUCTURE (Aug 2026)
+// Optional series-bool condition (default true). Body required.
+// Fires the first time the condition is true on a closed bar, then never again.
+
+once_structure: ONCE expression? local_block;
 
 // Default (`=>` with no pattern) may appear anywhere; first default wins.
 switch_case: switch_pattern_case | switch_default_case;
@@ -397,6 +404,7 @@ name
     | TO
     | VAR
     | SWITCH
+    | ONCE
     ;
 
 name_load:  name;

@@ -260,6 +260,15 @@ class PinescriptParserListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by PinescriptParser#value_structure.
+    def enterValue_structure(self, ctx:PinescriptParser.Value_structureContext):
+        pass
+
+    # Exit a parse tree produced by PinescriptParser#value_structure.
+    def exitValue_structure(self, ctx:PinescriptParser.Value_structureContext):
+        pass
+
+
     # Enter a parse tree produced by PinescriptParser#structure.
     def enterStructure(self, ctx:PinescriptParser.StructureContext):
         pass
@@ -374,6 +383,15 @@ class PinescriptParserListener(ParseTreeListener):
 
     # Exit a parse tree produced by PinescriptParser#switch_structure.
     def exitSwitch_structure(self, ctx:PinescriptParser.Switch_structureContext):
+        pass
+
+
+    # Enter a parse tree produced by PinescriptParser#once_structure.
+    def enterOnce_structure(self, ctx:PinescriptParser.Once_structureContext):
+        pass
+
+    # Exit a parse tree produced by PinescriptParser#once_structure.
+    def exitOnce_structure(self, ctx:PinescriptParser.Once_structureContext):
         pass
 
 

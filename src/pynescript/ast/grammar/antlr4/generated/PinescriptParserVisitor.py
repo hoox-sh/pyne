@@ -149,6 +149,11 @@ class PinescriptParserVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by PinescriptParser#value_structure.
+    def visitValue_structure(self, ctx:PinescriptParser.Value_structureContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by PinescriptParser#structure.
     def visitStructure(self, ctx:PinescriptParser.StructureContext):
         return self.visitChildren(ctx)
@@ -211,6 +216,11 @@ class PinescriptParserVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by PinescriptParser#switch_structure.
     def visitSwitch_structure(self, ctx:PinescriptParser.Switch_structureContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by PinescriptParser#once_structure.
+    def visitOnce_structure(self, ctx:PinescriptParser.Once_structureContext):
         return self.visitChildren(ctx)
 
 

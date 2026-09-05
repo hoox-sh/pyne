@@ -40,6 +40,7 @@ Structure = (
     ast.While,
     ast.If,
     ast.Switch,
+    ast.Once,
 )
 
 
@@ -142,6 +143,11 @@ class StatementCollector(NodeVisitor):
         """Yield statements from each switch case."""
         for case in node.cases:
             yield from self.visit(case)
+
+    def visit_Once(self, node: ast.Once) -> Iterator[ast.AST]:
+        """Yield statements inside a ``once`` body."""
+        for stmt in node.body:
+            yield from self.visit(stmt)
 
     def visit_Case(self, node: ast.Case) -> Iterator[ast.AST]:
         """Yield statements in a switch case body."""

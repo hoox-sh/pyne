@@ -62,6 +62,7 @@ PINE_KEYWORDS: tuple[tuple[str, str], ...] = (
     ("in", "Iterate a collection in a `for ... in` loop."),
     ("method", "Declare a method on a user-defined type."),
     ("not", "Logical NOT."),
+    ("once", "Run a block the first time its condition is true on a closed bar."),
     ("or", "Logical OR; true if either operand is true."),
     ("switch", "Multi-way `switch` expression."),
     ("to", "End bound of a counted `for` loop."),

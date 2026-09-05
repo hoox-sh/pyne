@@ -621,6 +621,15 @@ class NodeUnparser(NodeVisitor):
         with self.block():
             self.traverse(node.cases)
 
+    def visit_Once(self, node: ast.Once) -> None:
+        """Emit ``once [cond]`` with an indented body (no return value)."""
+        self._source.append("once")
+        if node.test is not None:
+            self._source.append(" ")
+            self.traverse(node.test)
+        with self.block():
+            self.traverse(node.body)
+
     def visit_Import(self, node: ast.Import):
         self.fill()
         src = self._source

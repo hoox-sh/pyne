@@ -34,6 +34,7 @@ module Pinescript
           | While(expr test, stmt* body)
           | If(expr test, stmt* body, stmt* orelse)
           | Switch(case* cases, expr? subject)
+          | Once(expr? test, stmt* body)
 
           | Qualify(type_qual qualifier, expr value)
           | Specialize(expr value, expr args)

@@ -51,6 +51,7 @@ IN:       'in';
 INPUT:    'input';
 METHOD:   'method';
 NOT:      'not';
+ONCE:     'once';
 OR:       'or';
 SERIES:   'series';
 SIMPLE:   'simple';

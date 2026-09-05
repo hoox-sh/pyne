@@ -246,6 +246,8 @@ class CustomEvaluator(NodeLiteralEvaluator):
         self.current_series: dict[str, list] = {}
         if not hasattr(self, "_var_declarations"):
             self._var_declarations = set()
+        if not hasattr(self, "_once_fired"):
+            self._once_fired = {}
 
     def _write_plot_cell(self, i: int, value: Any) -> None:
         """Write one cell at the current bar (pre-sized index, else append)."""
@@ -977,6 +979,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
     def reset_var_declarations(self):
         """Reset var declarations set for per-run (from plan branch var support)."""
         self._var_declarations = set()
+        self._once_fired = {}
 
     def reset_events(self):
         """Reset per-bar events (from strategy events integration)."""

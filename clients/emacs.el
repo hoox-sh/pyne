@@ -26,7 +26,7 @@
 
 ;; Optional: Font locking
 (defvar pinescript-font-lock-keywords
-  '(("\\(?:if\\|else\\|for\\|while\\|switch\\|return\\|break\\|continue\\)\\b" . font-lock-keyword-face)
+  '(("\\(?:if\\|else\\|for\\|while\\|switch\\|once\\|return\\|break\\|continue\\)\\b" . font-lock-keyword-face)
     ("\\(?:import\\|from\\|as\\|type\\|method\\|var\\|const\\|strategy\\|indicator\\|library\\)\\b" . font-lock-keyword-face)
     ("\\(?:and\\|or\\|not\\|in\\|to\\)\\b" . font-lock-operator-face)
     ("\\(?:true\\|false\\|na\\|na\\)\\b" . font-lock-constant-face)

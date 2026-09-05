@@ -216,7 +216,7 @@
       "patterns": [
         {
           "name": "keyword.control.conditional.pinescript",
-          "match": "\\b(if|else|switch)\\b"
+          "match": "\\b(if|else|switch|once)\\b"
         },
         {
           "name": "keyword.control.loop.pinescript",

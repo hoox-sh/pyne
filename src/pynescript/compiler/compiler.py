@@ -582,6 +582,10 @@ class CompilerVisitor(NodeVisitor):
         self.udt_field_types: dict[str, dict[str, str]] = {}
         self.map_vars: set[str] = set()  # var map names (single object, not series)
         self.scalar_vars: set[str] = set()  # non-series locals (map handles, etc.)
+        # ``once`` fired flags (Aug 2026). Script-level bools stay nopython;
+        # a ``once`` inside a UDF forces object mode + module-level flags.
+        self.once_flags: list[str] = []
+        self.once_in_function: bool = False
         self.user_funcs: set[str] = set()  # user-defined function names (Pine ids)
         # Pine UDF name → safe Python def name (``from`` → ``from_``)
         self.func_name_map: dict[str, str] = {}
@@ -1030,6 +1034,7 @@ class CompilerVisitor(NodeVisitor):
             lines.append(f"    {arr} = np.full(n_bars, np.nan)")
         self._emit_series_local_state(lines, indent="    ")
         self._emit_fixed_state(lines, indent="    ")
+        self._emit_once_flags(lines, indent="    ")
         for idx in range(len(self.plots)):
             lines.append(f"    plot_{idx} = np.full(n_bars, np.nan)")
         lines.append("    for __bar_idx in range(n_bars):")
@@ -1062,6 +1067,7 @@ class CompilerVisitor(NodeVisitor):
         if self.uses_strategy:
             lines.append("from pynescript.compiler.strategy_broker import CompileStrategyBroker")
             lines.append("")
+        self._emit_once_module_globals(lines)
         for func in self.functions:
             # strip @numba.njit for object-mode user functions
             cleaned = "\n".join(l for l in func.splitlines() if not l.startswith("@numba"))
@@ -1135,6 +1141,7 @@ class CompilerVisitor(NodeVisitor):
                 lines.append(f"    {arr} = np.full(n_bars, np.nan)")
         self._emit_series_local_state(lines, indent="    ")
         self._emit_fixed_state(lines, indent="    ")
+        self._emit_once_flags(lines, indent="    ")
         for name in sorted(self.map_vars | self.scalar_vars):
             # Import aliases used as values (and later ``float(alias)`` / plot)
             # must be Pine na, never Python None.
@@ -1197,6 +1204,36 @@ class CompilerVisitor(NodeVisitor):
         """Preallocate small state vectors for incremental TA kernels."""
         for name, size in self.fixed_state:
             lines.append(f"{indent}{name} = np.full({size}, np.nan)")
+
+    def _alloc_once_flag(self) -> str:
+        """Unique ``__once_fired_N`` name; UDF-scoped ``once`` forces object mode."""
+        name = f"__once_fired_{len(self.once_flags)}"
+        self.once_flags.append(name)
+        if self.in_function:
+            self.once_in_function = True
+            self.object_mode = True
+        return name
+
+    def _emit_once_module_globals(self, lines: list[str]) -> None:
+        """Module-level flags so object-mode UDFs can mutate them."""
+        if not self.once_in_function:
+            return
+        for name in self.once_flags:
+            lines.append(f"{name} = False")
+        if self.once_flags:
+            lines.append("")
+
+    def _emit_once_flags(self, lines: list[str], *, indent: str = "    ") -> None:
+        """Initialize ``once`` flags before the bar loop (reset each run)."""
+        if not self.once_flags:
+            return
+        if self.once_in_function:
+            for name in self.once_flags:
+                lines.append(f"{indent}global {name}")
+                lines.append(f"{indent}{name} = False")
+            return
+        for name in self.once_flags:
+            lines.append(f"{indent}{name} = False")
 
     # ---------------------------------------------------------------- statements
     def visit_TypeDef(self, node: ast.TypeDef):
@@ -8274,7 +8311,7 @@ class CompilerVisitor(NodeVisitor):
             if not stmts or len(stmts) != 1:
                 return None
             s = stmts[0]
-            if isinstance(s, (ast.ForTo, ast.ForIn, ast.While, ast.Break, ast.Continue)):
+            if isinstance(s, (ast.ForTo, ast.ForIn, ast.While, ast.Break, ast.Continue, ast.Once)):
                 return None
             if isinstance(s, (ast.Assign, ast.ReAssign)):
                 return None
@@ -8283,7 +8320,7 @@ class CompilerVisitor(NodeVisitor):
             if isinstance(s, ast.Expr):
                 if isinstance(s.value, ast.If):
                     return self._try_if_as_ternary(s.value)
-                if isinstance(s.value, (ast.ForTo, ast.ForIn, ast.While, ast.Switch)):
+                if isinstance(s.value, (ast.ForTo, ast.ForIn, ast.While, ast.Switch, ast.Once)):
                     return None
                 # Reject statement-like nested forms; plain exprs only.
                 val = self.visit(s.value)
@@ -8479,7 +8516,7 @@ class CompilerVisitor(NodeVisitor):
                         is_stmt_like = (
                             isinstance(
                                 inner,
-                                (ast.ForTo, ast.ForIn, ast.While, ast.If, ast.Switch),
+                                (ast.ForTo, ast.ForIn, ast.While, ast.If, ast.Switch, ast.Once),
                             )
                             or "\n" in val
                             or stripped.startswith(
@@ -8487,6 +8524,7 @@ class CompilerVisitor(NodeVisitor):
                                     "if ",
                                     "for ",
                                     "while ",
+                                    "once ",
                                     "return ",
                                     "else:",
                                     "elif ",
@@ -8525,6 +8563,31 @@ class CompilerVisitor(NodeVisitor):
         elif ret_mode:
             lines.append("else:")
             lines.append("    return np.nan")
+        return "\n".join(lines)
+
+    def visit_Once(self, node: ast.Once):
+        """Lower ``once [cond]`` to a persistent fired flag + nested if.
+
+        Compile is historical (``barstate.isconfirmed`` is always true), so the
+        flag is set as soon as the body runs. Realtime rollback is interpret-only.
+        """
+        flag = self._alloc_once_flag()
+        test = (
+            "True"
+            if node.test is None
+            else self._as_bool_cond(self.visit(node.test), node=node.test)
+        )
+        lines = [f"if not {flag}:", f"    if {test}:"]
+        n = 0
+        for stmt in node.body or []:
+            val = self.visit(stmt)
+            if val:
+                val = val.replace("\n", "\n        ")
+                lines.append(f"        {val}")
+                n += 1
+        if n == 0:
+            lines.append("        pass")
+        lines.append(f"        {flag} = True")
         return "\n".join(lines)
 
     def visit_FunctionDef(self, node: ast.FunctionDef):
