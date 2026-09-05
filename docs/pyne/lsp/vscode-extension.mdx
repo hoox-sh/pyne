@@ -26,7 +26,7 @@ description: "PYNE VS Code extension: HOOX branding, TextMate grammar, LanguageC
 
 ## Abstract
 
-**PYNE** (`hoox-sh.pyne` **0.4.3**) is a **LanguageClient host** plus a rich TextMate grammar, branded as part of the **HOOX open trading stack**. It does not reimplement diagnostics or completion in TypeScript; it resolves `pyne-lsp` (then alias `pynescript-lsp`, then `python -m pynescript.langserver`) or a configured command over STDIO via `vscode-languageclient`, maps **`.pyne` (first-class)** plus `*.pine` / `*.pinev5` / `*.pinev6` / `*.pinescript` to language id `pinescript`, and exposes a small settings surface for enablement and feature toggles.
+**PYNE** (`hoox-sh.pyne` **0.4.4**) is a **LanguageClient host** plus a rich TextMate grammar, branded as part of the **HOOX open trading stack**. It does not reimplement diagnostics or completion in TypeScript; it resolves `pyne-lsp` (then alias `pynescript-lsp`, then `python -m pynescript.langserver`) or a configured command over STDIO via `vscode-languageclient`, maps **`.pyne` (first-class)** plus `*.pine` / `*.pinev5` / `*.pinev6` / `*.pinescript` to language id `pinescript`, and exposes a small settings surface for enablement and feature toggles.
 
 ## Conceptual model
 
@@ -50,7 +50,7 @@ From `vscode-extension/package.json`:
 | --- | --- |
 | name | `pyne` |
 | displayName | `PYNE Language Support` |
-| version | `0.4.3` |
+| version | `0.4.4` |
 | publisher | `hoox-sh` |
 | extension id | `hoox-sh.pyne` |
 | icon | `media/icon.png` (HOOX mark) |
@@ -134,7 +134,7 @@ Server launch (`resolveLspLaunch` in `extension.ts`):
 3. Else try `pynescript.lsp.python` (then `python3` / `python`) with `-m pynescript.langserver`.
 4. Else status-bar error: install `hoox-pyne[lsp]`.
 
-No `--parent-dir` / `PYTHONPATH` rewrite. Transport is STDIO. Release packaging expects `pyne-lsp` on `PATH` (pip, Nuitka onefile, or `docker run -i ghcr.io/hoox-sh/pyne/lsp:0.4.3`).
+No `--parent-dir` / `PYTHONPATH` rewrite. Transport is STDIO. Release packaging expects `pyne-lsp` on `PATH` (pip, Nuitka onefile, or `docker run -i ghcr.io/hoox-sh/pyne/lsp:0.4.4`).
 
 ### Build
 
@@ -142,7 +142,7 @@ No `--parent-dir` / `PYTHONPATH` rewrite. Transport is STDIO. Release packaging 
 cd vscode-extension
 npm ci
 npm run compile          # esbuild.mjs → out/extension.js
-npm run package          # pyne-vscode-0.4.3.vsix
+npm run package          # pyne-vscode-0.4.4.vsix
 # or monorepo:
 make build-vscode
 ```
