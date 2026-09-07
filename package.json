@@ -1,10 +1,10 @@
 {
   "name": "pyne",
   "version": "0.4.4",
-  "private": true,
+  "private": false,
   "type": "module",
   "license": "AGPL-3.0-or-later",
-  "author": "jango_blockchained",
+  "author": "jango-blockchained",
   "description": "pyne — Pine Script™ Python toolchain (parser, evaluator, LSP, Pro API). Part of HOOX: hoox.sh",
   "repository": {
     "type": "git",
