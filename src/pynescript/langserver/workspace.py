@@ -67,6 +67,9 @@ class TextDocumentState:
     diagnostics: list[LintWarning] = field(default_factory=list)
     parse_error: str | None = None
     parse_error_line: int | None = None
+    # Feature-level memo (semantic tokens, inlay hints, hover decl maps…).
+    # Cleared whenever source/AST changes; keys are feature-defined strings.
+    feature_cache: dict[str, Any] = field(default_factory=dict)
 
     @property
     def path(self) -> Path | None:
@@ -111,17 +114,28 @@ class Workspace:
         self._parse_and_lint(doc)
         return doc
 
+    def _invalidate_feature_cache(self, doc: TextDocumentState) -> None:
+        """Drop per-version feature results after a source/AST change."""
+        doc.feature_cache.clear()
+
     def remove_document(self, uri: str) -> None:
         """Drop *uri* from the workspace (no-op if missing)."""
         self._documents.pop(uri, None)
+        self._parse_errors.discard(uri)
 
     def update_document(
-        self, uri: str, changes: list[lsp.TextDocumentContentChangeEvent], version: int
+        self,
+        uri: str,
+        changes: list[lsp.TextDocumentContentChangeEvent],
+        version: int,
+        relint: bool = True,
     ) -> TextDocumentState:
         """Apply full-document or incremental LSP content changes, then re-lint.
 
         Skips re-parse/lint when the buffer text is unchanged (version-only
         bumps or no-op edits) so large docs are not re-parsed for free.
+        With ``relint=False`` only the text/version are applied — the caller
+        schedules the parse+lint itself (e.g. debounced and off-loop).
 
         Raises:
             ValueError: If *uri* is not in the workspace.
@@ -142,16 +156,20 @@ class Workspace:
         doc.version = version
         # Correctness: only skip when text is identical. Version is still updated.
         if doc.source != previous_source:
-            self._parse_and_lint(doc)
+            self._invalidate_feature_cache(doc)
+            if relint:
+                self._parse_and_lint(doc)
         return doc
 
     def _parse_and_lint(self, doc: TextDocumentState) -> None:
         """Parse the document and run the linter."""
+        self._invalidate_feature_cache(doc)
         try:
             doc.ast = parse(doc.source, filename=doc.uri)
             doc.parse_error = None
             doc.parse_error_line = None
-            doc.diagnostics = lint_script(doc.source, filename=doc.uri)
+            # Reuse the fresh tree; lint_script would otherwise re-parse.
+            doc.diagnostics = lint_script(doc.source, filename=doc.uri, tree=doc.ast)
         except Exception as e:
             doc.ast = None
             doc.parse_error = str(e)

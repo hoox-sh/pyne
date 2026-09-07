@@ -242,6 +242,13 @@ class Trade:
 
 
 # Strategy state management
+
+# End-of-bar history retention for strategy.*(n) series reads. Pine history
+# offsets are bounded by max_bars_back (host cap ≈ few hundred), so trimming
+# to 512 keeps every observable offset while bounding memory on long runs.
+_HIST_KEEP = 512
+
+
 class StrategyState:
     """Per-run strategy execution state.
 
@@ -338,6 +345,12 @@ class StrategyState:
         else:
             self._avg_price_hist.append(float(self.entry_price))
         self._closed_trades_hist.append(float(len(self.closed_trades)))
+        # Cap history to the observable lookback (series_at reads small
+        # offsets only; beyond-cap offsets already return nan) — 100k-bar
+        # strategy runs would otherwise accumulate 300k floats per run.
+        if len(self._size_hist) > _HIST_KEEP:
+            for hist in (self._size_hist, self._avg_price_hist, self._closed_trades_hist):
+                del hist[: len(hist) - _HIST_KEEP]
 
     def series_at(self, key: str, offset: int) -> float:
         """Pine history offset on strategy series (0 = live, 1 = prior bar end)."""

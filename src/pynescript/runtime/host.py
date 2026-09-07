@@ -40,7 +40,9 @@ import uuid
 from sys import intern
 from typing import Any
 
-from pynescript.ast.helper import parse, walk
+from pynescript.ast.helper import _scrub_pine_call_sites
+from pynescript.ast.helper import parse
+from pynescript.ast.helper import walk
 from pynescript.util.time_parts import utc_parts_from_ms
 
 from .evaluator import CustomEvaluator
@@ -719,6 +721,49 @@ _OHLCV_LIST_CACHE: dict[
 ] = {}
 _OHLCV_LIST_CACHE_MAX = 8
 
+# Byte-bounding: entries pin the caller's full OHLCV dict list (a 5MB JSON
+# payload → tens of MB of rows), so cap tracked bars, not just entries —
+# otherwise memory grows with payload size on server deployments.
+_OHLCV_CACHE_MAX_BARS_DEFAULT = 2_000_000
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name, "").strip()
+    if raw:
+        try:
+            value = int(raw)
+            if value >= 0:
+                return value
+        except ValueError:
+            pass
+    return default
+
+
+def _ohlcv_cache_total_bars(cache: dict[int, tuple[Any, tuple, Any]]) -> int:
+    total = 0
+    for entry in cache.values():
+        fp = entry[1]
+        if fp and isinstance(fp[0], int):
+            total += fp[0]
+    return total
+
+
+def _ohlcv_cache_insert(
+    cache: dict[int, tuple[Any, tuple, Any]],
+    oid: int,
+    entry: tuple[Any, tuple, Any],
+    max_entries: int,
+) -> None:
+    """Insert into an OHLCV cache, enforcing entry and tracked-bar limits."""
+    cache[oid] = entry
+    max_bars = _env_int("PYNE_OHLCV_CACHE_MAX_BARS", _OHLCV_CACHE_MAX_BARS_DEFAULT)
+    # Evict oldest-first while over either bound (never the fresh entry).
+    while len(cache) > 1 and (
+        len(cache) > max_entries or _ohlcv_cache_total_bars(cache) > max_bars
+    ):
+        oldest = next(iter(cache))
+        cache.pop(oldest, None)
+
 # Synthetic bar-open spacing when host omits ``time`` (matches CompiledScript.run).
 _SYNTHETIC_BAR_MS = 60_000.0
 
@@ -853,12 +898,7 @@ def _pack_ohlcv_columns_cached(
     if hit is not None and hit[0] is ohlcv_data and hit[1] == fp:
         return hit[2]
     packed = _pack_ohlcv_columns(ohlcv_data)
-    if len(_OHLCV_LIST_CACHE) >= _OHLCV_LIST_CACHE_MAX:
-        try:
-            _OHLCV_LIST_CACHE.pop(next(iter(_OHLCV_LIST_CACHE)))
-        except StopIteration:
-            pass
-    _OHLCV_LIST_CACHE[oid] = (ohlcv_data, fp, packed)
+    _ohlcv_cache_insert(_OHLCV_LIST_CACHE, oid, (ohlcv_data, fp, packed), _OHLCV_LIST_CACHE_MAX)
     return packed
 
 
@@ -908,12 +948,7 @@ def _ohlcv_pack_cached(
             np.asarray(v_l, dtype=np.float64),
             np.asarray(t_l, dtype=np.float64),
         )
-    if len(_OHLCV_PACK_CACHE) >= _OHLCV_PACK_CACHE_MAX:
-        try:
-            _OHLCV_PACK_CACHE.pop(next(iter(_OHLCV_PACK_CACHE)))
-        except StopIteration:
-            pass
-    _OHLCV_PACK_CACHE[oid] = (ohlcv_data, fp, packed)
+    _ohlcv_cache_insert(_OHLCV_PACK_CACHE, oid, (ohlcv_data, fp, packed), _OHLCV_PACK_CACHE_MAX)
     return packed
 
 
@@ -1052,21 +1087,8 @@ def _clear_pine_call_sites(tree: Any) -> None:
     the evaluator that first resolved the site). Package ``parse`` caches trees
     by source hash; without this clear, a second ``Runtime`` reuses the *first*
     evaluator's ``plot`` / ``ta.*`` handlers (empty plots / wrong state).
-
-    Clear once at run start; bar 0 rebinds for the current evaluator.
     """
-    try:
-        for node in walk(tree):
-            if getattr(node, "_pine_call_site", None) is not None:
-                try:
-                    delattr(node, "_pine_call_site")
-                except Exception:
-                    try:
-                        object.__setattr__(node, "_pine_call_site", None)
-                    except Exception:
-                        pass
-    except Exception:
-        pass
+    _scrub_pine_call_sites(tree)
 
 
 def _discard_realtime_plot_tick(evaluator: Any) -> None:
@@ -1100,12 +1122,11 @@ def _parse_script(source_code: str) -> Any:
     """Parse Pine source for Runtime (shared package-level AST cache).
 
     Caching and invalidation are owned by :func:`pynescript.ast.helper.parse`
-    (``clear_parse_cache``, ``PYNE_PARSE_CACHE=0``). Shared trees are scrubbed of
-    bound call-site caches so multi-run reuse stays correct.
+    (``clear_parse_cache``, ``PYNE_PARSE_CACHE=0``). ``parse`` already scrubs
+    bound call-site caches on every cache hit and a fresh parse is clean, so
+    no extra full-tree walk is needed here (halves per-run AST overhead).
     """
-    tree = parse(source_code, mode="exec")
-    _clear_pine_call_sites(tree)
-    return tree
+    return parse(source_code, mode="exec")
 
 
 class Syminfo:
@@ -1925,6 +1946,9 @@ class Runtime:
                     evaluator._cross_call_i = 0  # type: ignore[attr-defined]
                 evaluator._ta_call_i = 0  # type: ignore[attr-defined]
                 evaluator._plot_call_i = 0  # type: ignore[attr-defined]
+                # Drop the per-bar PineSeries reversal cache — id-keyed entries
+                # from a previous bar must never serve a different series.
+                evaluator._pine_as_series_cache = None  # type: ignore[attr-defined]
 
                 try:
                     visit(tree)

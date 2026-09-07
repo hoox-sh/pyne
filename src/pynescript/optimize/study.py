@@ -115,13 +115,27 @@ def _bar_open_time(bar: dict[str, Any]) -> float | None:
 
 
 def _score_window(bars: list[dict[str, Any]] | None) -> tuple[float, float] | None:
-    """``(t0, t1)`` of bar open times, or ``None`` when the slice has no times."""
+    """``(t0, t1)`` of bar open times, or ``None`` when the slice has no times.
+
+    Bars are chronological, so the extremes are the first/last valid times —
+    a single pass without materializing an O(n) list per scoring window.
+    """
     if not bars:
         return None
-    times = [t for t in (_bar_open_time(b) for b in bars if isinstance(b, dict)) if t is not None]
-    if not times:
+    t0: float | None = None
+    t1: float | None = None
+    for b in bars:
+        if not isinstance(b, dict):
+            continue
+        t = _bar_open_time(b)
+        if t is None:
+            continue
+        if t0 is None:
+            t0 = t
+        t1 = t
+    if t0 is None:
         return None
-    return min(times), max(times)
+    return t0, t1
 
 
 def _test_run_bars(

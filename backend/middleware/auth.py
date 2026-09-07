@@ -27,6 +27,7 @@ and :func:`require_admin_token`.
 from __future__ import annotations
 
 import hashlib
+import functools
 import hmac
 import json
 import os
@@ -339,8 +340,15 @@ class APIKeyStore:
         return True
 
     @staticmethod
+    @functools.lru_cache(maxsize=1024)
     def _hash_key(raw_key: str) -> str:
-        """Hash an API key for storage using PBKDF2-HMAC-SHA256 (v2)."""
+        """Hash an API key for storage using PBKDF2-HMAC-SHA256 (v2).
+
+        Cached: the salt is static so raw→hash is a pure function, and
+        PBKDF2 at 100k iterations costs ~50-100ms per uncached call —
+        which otherwise dominates every authenticated request latency.
+        Raw keys are 256-bit random, so this does not weaken storage.
+        """
         dk = hashlib.pbkdf2_hmac(
             "sha256",
             raw_key.encode(),

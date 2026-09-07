@@ -609,7 +609,13 @@ class TechnicalHelpers:
         return st.get("value")
 
     def _highest_inc_update(self, series: list[Any], period: int) -> float | None:
-        """Incremental highest matching full ``_highest`` (last value)."""
+        """Incremental highest matching full ``_highest`` (last value).
+
+        Monotonic-deque sliding maximum: amortized O(1) per bar instead of
+        the former O(period) scan (``ta.highest(high, 200)`` × 50k bars was
+        10M comparisons per call site). na / non-numeric samples are skipped
+        (they poison nothing), matching the previous scan semantics.
+        """
         if period <= 0:
             return None
         slot = self._ta_next_slot()
@@ -617,31 +623,42 @@ class TechnicalHelpers:
         bucket = self._ta_state_bucket()
         st = bucket.get(key)
         if st is None:
-            st = {"window": deque(), "value": None}
+            st = {"dq": deque(), "count": 0, "value": None}
             bucket[key] = st
         x = self._series_last(series)
-        window: deque[Any] = st["window"]
-        if len(window) == period:
-            window.popleft()
-        window.append(x)
-        if len(window) < period:
+        dq: deque[Any] = st["dq"]
+        st["count"] += 1
+        seq = st["count"]
+        fv: float | None = None
+        if x is not None:
+            try:
+                fv = float(x)
+            except (TypeError, ValueError):
+                fv = None
+            if fv is not None and fv != fv:  # NaN
+                fv = None
+        if fv is not None:
+            # Drop dominated records (ties included — equal values are
+            # interchangeable for max semantics); keep the newest.
+            while dq and dq[-1][1] <= fv:
+                dq.pop()
+            dq.append((seq, fv))
+        # Evict records that fell out of the period window.
+        min_seq = seq - period + 1
+        while dq and dq[0][0] < min_seq:
+            dq.popleft()
+        if seq < period:
             st["value"] = None
             return None
-        best: float | None = None
-        for v in window:
-            if v is None:
-                continue
-            try:
-                fv = float(v)
-            except (TypeError, ValueError):
-                continue
-            if best is None or fv > best:
-                best = fv
+        best = dq[0][1] if dq else None
         st["value"] = best
         return best
 
     def _lowest_inc_update(self, series: list[Any], period: int) -> float | None:
-        """Incremental lowest matching full ``_lowest`` (last value)."""
+        """Incremental lowest matching full ``_lowest`` (last value).
+
+        Monotonic-deque sliding minimum (see :meth:`_highest_inc_update`).
+        """
         if period <= 0:
             return None
         slot = self._ta_next_slot()
@@ -649,26 +666,31 @@ class TechnicalHelpers:
         bucket = self._ta_state_bucket()
         st = bucket.get(key)
         if st is None:
-            st = {"window": deque(), "value": None}
+            st = {"dq": deque(), "count": 0, "value": None}
             bucket[key] = st
         x = self._series_last(series)
-        window: deque[Any] = st["window"]
-        if len(window) == period:
-            window.popleft()
-        window.append(x)
-        if len(window) < period:
+        dq: deque[Any] = st["dq"]
+        st["count"] += 1
+        seq = st["count"]
+        fv: float | None = None
+        if x is not None:
+            try:
+                fv = float(x)
+            except (TypeError, ValueError):
+                fv = None
+            if fv is not None and fv != fv:  # NaN
+                fv = None
+        if fv is not None:
+            while dq and dq[-1][1] >= fv:
+                dq.pop()
+            dq.append((seq, fv))
+        min_seq = seq - period + 1
+        while dq and dq[0][0] < min_seq:
+            dq.popleft()
+        if seq < period:
             st["value"] = None
             return None
-        best: float | None = None
-        for v in window:
-            if v is None:
-                continue
-            try:
-                fv = float(v)
-            except (TypeError, ValueError):
-                continue
-            if best is None or fv < best:
-                best = fv
+        best = dq[0][1] if dq else None
         st["value"] = best
         return best
 
@@ -863,6 +885,53 @@ class TechnicalHelpers:
             st["value"] = None
         return st.get("value")
 
+    def _extreme_window_push(self, st: dict[str, Any], x: Any, period: int, *, mode: str) -> float | None:
+        """Maintain a monotonic-deque sliding extreme (amortized O(1)/bar).
+
+        State (``st``): ``dq`` of ``(seq, value)`` records (dominated entries
+        popped), ``bad`` seq list of invalid (na/non-numeric) samples,
+        ``count`` total samples seen, ``na_count`` invalid samples currently
+        in the period window. Returns the window extreme once the window is
+        full and na-free; ``None`` while warming up or when any sample in the
+        window is invalid (na poisons the window — callers decide na policy).
+        """
+        dq: deque[Any] = st["dq"]
+        bad: deque[Any] = st["bad"]
+        st["count"] += 1
+        seq = int(st["count"])
+        fv: float | None = None
+        if x is not None:
+            try:
+                fv = float(x)
+            except (TypeError, ValueError):
+                fv = None
+            if fv is not None and fv != fv:  # NaN
+                fv = None
+        if fv is None:
+            st["na_count"] += 1
+            bad.append(seq)
+        elif mode == "high":
+            while dq and dq[-1][1] <= fv:
+                dq.pop()
+            dq.append((seq, fv))
+        else:
+            while dq and dq[-1][1] >= fv:
+                dq.pop()
+            dq.append((seq, fv))
+        # One sample leaves per bar once the window is full: the dropped
+        # sample is seq - period (the window covers [seq-period+1, seq]).
+        min_seq = seq - period + 1
+        if seq > period:
+            dropped = seq - period
+            if bad and bad[0] == dropped:
+                bad.popleft()
+                st["na_count"] -= 1
+        while dq and dq[0][0] < min_seq:
+            dq.popleft()
+        if seq < period or st["na_count"] > 0:
+            return None
+        return dq[0][1] if dq else None
+
     def _stoch_k_inc_update(
         self,
         source: list[Any],
@@ -879,36 +948,25 @@ class TechnicalHelpers:
         st = bucket.get(key)
         if st is None:
             st = {
-                "h_win": deque(maxlen=length),
-                "l_win": deque(maxlen=length),
+                "h": {"dq": deque(), "bad": deque(), "count": 0, "na_count": 0},
+                "l": {"dq": deque(), "bad": deque(), "count": 0, "na_count": 0},
                 "value": None,
             }
             bucket[key] = st
         c = self._finite_or_none(self._series_last(source))
-        h = self._finite_or_none(self._series_last(highs))
-        l = self._finite_or_none(self._series_last(lows))
-        h_win: deque[Any] = st["h_win"]
-        l_win: deque[Any] = st["l_win"]
-        h_win.append(h)
-        l_win.append(l)
-        # Full ``length`` window required (compile ``numba_stoch_inc`` / Pine).
-        if len(h_win) < length or c is None or h is None or l is None:
+        h = self._series_last(highs)
+        l = self._series_last(lows)
+        # Monotonic-deque extremes (amortized O(1)); na anywhere → na
+        # (matches full ``length`` window requirement / numba_stoch_inc).
+        hh = self._extreme_window_push(st["h"], h, length, mode="high")
+        ll = self._extreme_window_push(st["l"], l, length, mode="low")
+        if hh is None or ll is None or c is None:
             st["value"] = None
             return None
-        window_h = [v for v in h_win if v is not None]
-        window_l = [v for v in l_win if v is not None]
-        if len(window_h) < length or len(window_l) < length:
-            st["value"] = None
-            return None
-        try:
-            hh = max(float(v) for v in window_h)
-            ll = min(float(v) for v in window_l)
-            if hh == ll:
-                st["value"] = 50.0
-                return 50.0
-            st["value"] = 100.0 * (c - ll) / (hh - ll)
-        except (TypeError, ValueError):
-            st["value"] = None
+        if hh == ll:
+            st["value"] = 50.0
+            return 50.0
+        st["value"] = 100.0 * (c - ll) / (hh - ll)
         return st.get("value")
 
     def _cum_inc_update(self, series: list[Any]) -> float | None:
@@ -958,6 +1016,7 @@ class TechnicalHelpers:
                 "v_win": deque(maxlen=period),
                 "sum_pv": 0.0,
                 "sum_v": 0.0,
+                "na_count": 0,
                 "value": None,
             }
             bucket[key] = st
@@ -969,40 +1028,31 @@ class TechnicalHelpers:
         if len(s_win) == period:
             old_s = s_win[0]
             old_v = v_win[0]
-            if old_s is not None and old_v is not None:
+            if old_s is None or old_v is None:
+                st["na_count"] -= 1
+            else:
                 try:
                     st["sum_pv"] -= float(old_s) * float(old_v)
                     st["sum_v"] -= float(old_v)
                 except (TypeError, ValueError):
-                    pass
+                    st["na_count"] -= 1
         s_win.append(x)
         v_win.append(v)
-        if x is not None and v is not None:
+        if x is None or v is None:
+            st["na_count"] += 1
+        else:
             try:
                 st["sum_pv"] += float(x) * float(v)
                 st["sum_v"] += float(v)
             except (TypeError, ValueError):
-                st["value"] = None
-                return None
+                st["na_count"] += 1
         if len(s_win) < period:
             st["value"] = None
             return None
-        # Any None in window → recompute carefully (match NaN windows)
-        if any(a is None or b is None for a, b in zip(s_win, v_win, strict=True)):
-            sp = 0.0
-            sv = 0.0
-            for a, b in zip(s_win, v_win, strict=True):
-                if a is None or b is None:
-                    st["value"] = None
-                    return None
-                try:
-                    sp += float(a) * float(b)
-                    sv += float(b)
-                except (TypeError, ValueError):
-                    st["value"] = None
-                    return None
-            st["sum_pv"] = sp
-            st["sum_v"] = sv
+        # Any na in window → na (match NaN windows); running sums stay exact.
+        if st["na_count"] > 0:
+            st["value"] = None
+            return None
         if st["sum_v"] == 0.0:
             st["value"] = None
             return None
@@ -1202,34 +1252,28 @@ class TechnicalHelpers:
         st = bucket.get(key)
         if st is None:
             st = {
-                "h_win": deque(maxlen=period),
-                "l_win": deque(maxlen=period),
+                "h": {"dq": deque(), "bad": deque(), "count": 0, "na_count": 0},
+                "l": {"dq": deque(), "bad": deque(), "count": 0, "na_count": 0},
                 "value": 0.0,
             }
             bucket[key] = st
         h = self._series_last(highs)
         l = self._series_last(lows)
         c = self._series_last(closes)
-        h_win: deque[Any] = st["h_win"]
-        l_win: deque[Any] = st["l_win"]
-        h_win.append(h)
-        l_win.append(l)
-        if len(h_win) < period:
+        # Monotonic-deque extremes (amortized O(1)); na anywhere → 0.0
+        # (full path: float(None) raises → caught → 0.0).
+        hh = self._extreme_window_push(st["h"], h, period, mode="high")
+        ll = self._extreme_window_push(st["l"], l, period, mode="low")
+        if hh is None or ll is None:
             st["value"] = 0.0
             return 0.0
-        try:
-            # Match full path: max/min over raw window (no None filter)
-            hh = max(float(v) for v in h_win)
-            ll = min(float(v) for v in l_win)
-            if hh == ll:
-                st["value"] = 0.0
-                return 0.0
-            if c is None:
-                st["value"] = 0.0
-                return 0.0
-            st["value"] = -100.0 * (hh - float(c)) / (hh - ll)
-        except (TypeError, ValueError):
+        if hh == ll:
             st["value"] = 0.0
+            return 0.0
+        if c is None:
+            st["value"] = 0.0
+            return 0.0
+        st["value"] = -100.0 * (hh - float(c)) / (hh - ll)
         return float(st["value"])
 
     def _dev_inc_update(self, series: list[Any], period: int) -> float | None:
@@ -1420,7 +1464,12 @@ class TechnicalHelpers:
         return bool(st["value"])
 
     def _rci_spearman(self, window: list[Any]) -> float | None:
-        """Spearman rho of time vs value ranks. Any na → na (match ``numba_rci``)."""
+        """Spearman rho of time vs value ranks. Any na → na (match ``numba_rci``).
+
+        Rank of index ``a`` is ``#{b: vb < va} + #{b: vb == va and b < a}``,
+        i.e. the position in a stable sort by value — so one O(n log n) sort
+        replaces the former O(n²) pairwise scan (this runs per bar).
+        """
         n = len(window)
         if n < 2:
             return None
@@ -1431,14 +1480,8 @@ class TechnicalHelpers:
                 return None
             vals.append(f)
         d2 = 0.0
-        for a in range(n):
-            va = vals[a]
-            rank = 0
-            for b in range(n):
-                vb = vals[b]
-                if vb < va or (vb == va and b < a):
-                    rank += 1
-            d = float(a - rank)
+        for pos, idx in enumerate(sorted(range(n), key=vals.__getitem__)):
+            d = float(idx - pos)
             d2 += d * d
         denom = float(n) * (float(n) * float(n) - 1.0)
         if denom == 0.0:
@@ -3288,14 +3331,23 @@ class TechnicalHelpers:
                 take = n if n <= cap else cap
                 # Same-bar cache: many ta.* calls share one PineSeries per bar.
                 head = hist[0]
+                # Fingerprint the two newest samples (`is`) — small ints are
+                # interned, so one sample cannot distinguish two series.
+                head2 = hist[1] if take > 1 else None
                 cache = getattr(self, "_pine_as_series_cache", None)
                 if cache is None:
                     cache = {}
                     self._pine_as_series_cache = cache  # type: ignore[attr-defined]
                 key = id(value)
                 ent = cache.get(key)
-                if ent is not None and ent[0] == n and ent[1] is head and ent[2] == take:
-                    return ent[3]
+                if (
+                    ent is not None
+                    and ent[0] == n
+                    and ent[1] is head
+                    and ent[2] is head2
+                    and ent[3] == take
+                ):
+                    return ent[4]
                 # Newest-first → take first `take` then reverse to chronological.
                 # Avoid list(reversed(full_history)) when n >> SERIES_MAX.
                 if take == n:
@@ -3303,7 +3355,7 @@ class TechnicalHelpers:
                 else:
                     # hist[0] newest … hist[take-1] oldest among window
                     raw = [hist[i] for i in range(take - 1, -1, -1)]
-                cache[key] = (n, head, take, raw)
+                cache[key] = (n, head, head2, take, raw)
                 return raw
         # Named series reference — look up from the pre-loaded dict
         series_map = getattr(self, "current_series", None) or {}

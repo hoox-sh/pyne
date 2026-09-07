@@ -143,34 +143,6 @@ class PinescriptASTLocator:
 
     # ruff: noqa: N802
 
-    def _getLocations(self, ctx: ParserRuleContext) -> dict[str, int]:
-        """Extract location info from a parse tree context.
-
-        Args:
-            ctx: ANTLR parser context node
-
-        Returns:
-            Dict with lineno, col_offset, end_lineno, end_col_offset keys
-        """
-        start = ctx.start
-        stop = ctx.stop
-        stop_text = stop.text
-        stop_len = stop.stop - stop.start + 1
-        if stop_text is not None and "\n" in stop_text:
-            stop_nls = stop_text.count("\n")
-            stop_nlpos = stop_text.rfind("\n")
-            end_lineno = stop.line + stop_nls
-            end_col_offset = stop_len - stop_nlpos + 1
-        else:
-            end_lineno = stop.line
-            end_col_offset = stop.column + stop_len
-        return {
-            "lineno": start.line,
-            "col_offset": start.column,
-            "end_lineno": end_lineno,
-            "end_col_offset": end_col_offset,
-        }
-
     def _setLocations(self, node: ast.AST, ctx: ParserRuleContext) -> ast.AST:
         """Attach location metadata from parser context to AST node.
 
@@ -181,16 +153,24 @@ class PinescriptASTLocator:
         Returns:
             The modified node with location info attached
         """
-        # Optimized: directly set attributes; cache stop.text (hot path)
+        # Optimized: directly set attributes (hot path — called per node).
         start = ctx.start
         stop = ctx.stop
-        stop_text = stop.text
         stop_len = stop.stop - stop.start + 1
 
         node.lineno = start.line  # type: ignore[attr-defined]
         node.col_offset = start.column  # type: ignore[attr-defined]
 
-        # Most tokens are single-line; avoid count/rfind when no newline present
+        # Fast path: the lexer only bumps `line` on '\n', so a token that
+        # starts and ends on the same line cannot contain a newline — skip the
+        # stop.text substring allocation entirely (most tokens).
+        if stop.line == start.line:
+            node.end_lineno = stop.line  # type: ignore[attr-defined]
+            node.end_col_offset = stop.column + stop_len  # type: ignore[attr-defined]
+            return node
+
+        # Multi-line token (multiline strings/comments): may need the text.
+        stop_text = stop.text
         if stop_text is not None and "\n" in stop_text:
             stop_nls = stop_text.count("\n")
             stop_nlpos = stop_text.rfind("\n")
@@ -1250,6 +1230,12 @@ class PinescriptASTBuilder(
         text = ctx.getText()
         if (text.startswith('"""') and text.endswith('"""')) or (text.startswith("'''") and text.endswith("'''")):
             return text[3:-3]
+        # Fast path: simple quoted string with no backslash escapes — skip
+        # ast.literal_eval (which builds a Python AST internally).
+        if len(text) >= 2 and "\\" not in text:
+            quote = text[0]
+            if quote in "\"'" and text[-1] == quote:
+                return text[1:-1]
         return literal_eval(text)
 
     def visitLiteral_bool(self, ctx: PinescriptParser.Literal_boolContext):

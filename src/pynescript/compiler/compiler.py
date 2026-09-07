@@ -60,6 +60,7 @@ import keyword
 import math
 import re
 
+from collections.abc import Iterator
 from typing import Any
 
 from pynescript.ast import node as ast
@@ -519,6 +520,21 @@ _DRAWING_FUNCS = frozenset(
         "polyline_delete",
     }
 )
+
+
+def _iter_child_values(node: Any) -> Iterator[Any]:
+    """Yield child field values of an AST node (slots-compatible traversal).
+
+    ``node.__dict__.values()`` was used before AST nodes became slotted
+    dataclasses — slotted nodes have no ``__dict__``, so traversal must go
+    through the declared ``_fields``. Mirrors the old semantics: lists are
+    yielded whole (callers recurse per item); unset fields are skipped.
+    """
+    for name in node._fields:
+        try:
+            yield getattr(node, name)
+        except AttributeError:
+            continue
 
 
 class CompilerVisitor(NodeVisitor):
@@ -9269,7 +9285,7 @@ class CompilerVisitor(NodeVisitor):
 
     def _mark_series_params(self, node) -> None:
         """Mark UDF params used as series: history subscripts or TA series sources."""
-        if node is None or not hasattr(node, "__dict__"):
+        if node is None or not hasattr(node, "_fields"):
             return
         if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name):
             if node.value.id in self.local_vars:
@@ -9306,7 +9322,7 @@ class CompilerVisitor(NodeVisitor):
                 if key in ("stoch", "ta_stoch"):
                     for e in pos[:3]:
                         self._mark_name_series_param(e)
-        for child in node.__dict__.values():
+        for child in _iter_child_values(node):
             if isinstance(child, list):
                 for c in child:
                     self._mark_series_params(c)
@@ -9315,7 +9331,7 @@ class CompilerVisitor(NodeVisitor):
 
     def _collect_assigned_names(self, node, out: set[str]) -> None:
         """Collect Name targets of Assign/ReAssign in a subtree."""
-        if node is None or not hasattr(node, "__dict__"):
+        if node is None or not hasattr(node, "_fields"):
             return
         if isinstance(node, (ast.Assign, ast.ReAssign)):
             t = node.target
@@ -9325,7 +9341,7 @@ class CompilerVisitor(NodeVisitor):
                 for el in getattr(t, "elts", []) or []:
                     if isinstance(el, ast.Name):
                         out.add(el.id)
-        for child in node.__dict__.values():
+        for child in _iter_child_values(node):
             if isinstance(child, list):
                 for c in child:
                     self._collect_assigned_names(c, out)
@@ -9334,11 +9350,11 @@ class CompilerVisitor(NodeVisitor):
 
     def _collect_history_names(self, node, out: set[str]) -> None:
         """Collect Name bases of history Subscripts (x[1], x[n])."""
-        if node is None or not hasattr(node, "__dict__"):
+        if node is None or not hasattr(node, "_fields"):
             return
         if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name):
             out.add(node.value.id)
-        for child in node.__dict__.values():
+        for child in _iter_child_values(node):
             if isinstance(child, list):
                 for c in child:
                     self._collect_history_names(c, out)
@@ -9347,7 +9363,7 @@ class CompilerVisitor(NodeVisitor):
 
     def _collect_var_names(self, node, out: set[str]) -> None:
         """Collect Name targets of ``var`` / ``varip`` Assign in a subtree."""
-        if node is None or not hasattr(node, "__dict__"):
+        if node is None or not hasattr(node, "_fields"):
             return
         if isinstance(node, ast.Assign):
             mode = getattr(node, "mode", None)
@@ -9359,7 +9375,7 @@ class CompilerVisitor(NodeVisitor):
                     for el in getattr(t, "elts", []) or []:
                         if isinstance(el, ast.Name):
                             out.add(el.id)
-        for child in node.__dict__.values():
+        for child in _iter_child_values(node):
             if isinstance(child, list):
                 for c in child:
                     self._collect_var_names(c, out)

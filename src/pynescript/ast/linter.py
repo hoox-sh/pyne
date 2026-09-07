@@ -37,6 +37,7 @@ from __future__ import annotations
 import re
 
 from dataclasses import dataclass
+from typing import Any
 
 from pynescript.ast import parse
 
@@ -75,19 +76,24 @@ class PineLinter:
         """Create a linter with an empty :attr:`warnings` list."""
         self.warnings: list[LintWarning] = []
 
-    def lint(self, source: str, filename: str = "<input>") -> list[LintWarning]:
+    def lint(self, source: str, filename: str = "<input>", *, tree: Any | None = None) -> list[LintWarning]:
         """Run all rules on *source* and return findings.
 
         Args:
             source: Full script text.
             filename: Label passed to the parser for syntax diagnostics.
+            tree: Pre-parsed AST. When given, the syntax rule reuses it
+                instead of re-parsing *source* (halves parse cost for
+                callers that already have the tree, e.g. the language
+                server workspace).
 
         Returns:
             List of :class:`LintWarning` (also stored on :attr:`warnings`).
         """
         self.warnings = []
 
-        self._check_syntax(source, filename)
+        if tree is None:
+            self._check_syntax(source, filename)
         self._check_version(source)
         self._check_deprecated(source)
         self._check_naming(source)
@@ -227,18 +233,19 @@ def _to_camel(name: str) -> str:
     return components[0] + "".join(x.title() for x in components[1:])
 
 
-def lint_script(source: str, filename: str = "<input>") -> list[LintWarning]:
+def lint_script(source: str, filename: str = "<input>", *, tree: Any | None = None) -> list[LintWarning]:
     """Lint a source string; convenience wrapper around :class:`PineLinter`.
 
     Args:
         source: Decoded Pine Script text.
         filename: Label for diagnostics.
+        tree: Pre-parsed AST; skips the internal re-parse when given.
 
     Returns:
         Findings from a fresh linter instance.
     """
     linter = PineLinter()
-    return linter.lint(source, filename)
+    return linter.lint(source, filename, tree=tree)
 
 
 def lint_file(filepath: str) -> list[LintWarning]:

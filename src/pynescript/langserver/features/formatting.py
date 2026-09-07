@@ -29,15 +29,20 @@ Parse failures yield an empty edit list (no throw to the client).
 
 from __future__ import annotations
 
+from typing import Any
+
 from lsprotocol import types as lsp
 
 
-def handle_formatting(params: lsp.DocumentFormattingParams, source: str | None) -> list[lsp.TextEdit] | None:
+def handle_formatting(
+    params: lsp.DocumentFormattingParams, source: str | None, tree: Any | None = None
+) -> list[lsp.TextEdit] | None:
     """Format the whole document; return one replace-edit or ``[]`` if unchanged/error.
 
     Args:
         params: Client formatting options (tab size unused; unparser-driven).
         source: Document text, or ``None``.
+        tree: Pre-parsed AST to reuse instead of re-parsing *source*.
 
     Returns:
         List of :class:`~lsprotocol.types.TextEdit`, or empty list on failure.
@@ -49,7 +54,8 @@ def handle_formatting(params: lsp.DocumentFormattingParams, source: str | None) 
         from pynescript.ast.helper import parse
         from pynescript.ast.unparser import NodeUnparser
 
-        tree = parse(source, filename="<format>")
+        if tree is None:
+            tree = parse(source, filename="<format>")
 
         unparser = NodeUnparser()
         formatted = unparser.visit(tree)
@@ -75,12 +81,15 @@ def handle_formatting(params: lsp.DocumentFormattingParams, source: str | None) 
         return []
 
 
-def handle_range_formatting(params: lsp.DocumentRangeFormattingParams, source: str | None) -> list[lsp.TextEdit] | None:
+def handle_range_formatting(
+    params: lsp.DocumentRangeFormattingParams, source: str | None, tree: Any | None = None
+) -> list[lsp.TextEdit] | None:
     """Format the lines covering *params.range*; return a replace-edit or ``[]``.
 
     Args:
         params: Client range + formatting options.
         source: Document text, or ``None``.
+        tree: Pre-parsed AST to reuse instead of re-parsing *source*.
 
     Returns:
         List of :class:`~lsprotocol.types.TextEdit`, or empty list on failure.
@@ -92,7 +101,8 @@ def handle_range_formatting(params: lsp.DocumentRangeFormattingParams, source: s
         from pynescript.ast.helper import parse
         from pynescript.ast.unparser import NodeUnparser
 
-        tree = parse(source, filename="<format>")
+        if tree is None:
+            tree = parse(source, filename="<format>")
 
         unparser = NodeUnparser()
         formatted = unparser.visit(tree)

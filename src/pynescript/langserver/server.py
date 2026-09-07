@@ -46,8 +46,11 @@ call ``start_io()``.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import os
 
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from lsprotocol import types as lsp
@@ -68,6 +71,22 @@ from pynescript.langserver.workspace import Workspace
 
 logger = logging.getLogger(__name__)
 
+_DEBOUNCE_MS_DEFAULT = 250
+
+# Sentinel for feature-cache misses (distinct from a cached ``None`` result).
+_MISSING = object()
+
+
+def _debounce_seconds() -> float:
+    """Debounce window for diagnostics after ``didChange`` (``PYNESCRIPT_LSP_DEBOUNCE_MS``)."""
+    raw = os.environ.get("PYNESCRIPT_LSP_DEBOUNCE_MS", "").strip()
+    if raw:
+        try:
+            return max(0, int(raw)) / 1000
+        except ValueError:
+            pass
+    return _DEBOUNCE_MS_DEFAULT / 1000
+
 
 class PynescriptLanguageServer(LanguageServer):
     """Pine Script LSP server (pygls :class:`~pygls.lsp.server.LanguageServer` subclass).
@@ -85,6 +104,10 @@ class PynescriptLanguageServer(LanguageServer):
         )
 
         self.pine_workspace = Workspace()
+        self._pending_diag_tasks: dict[str, asyncio.Task] = {}
+        # Single worker serializes parse+lint so typing bursts cannot spawn
+        # concurrent parses; keeps one warm thread-local ANTLR engine.
+        self._diag_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pine-lsp-parse")
 
         self.setup_method_handlers()
 
@@ -108,16 +131,24 @@ class PynescriptLanguageServer(LanguageServer):
             logger.info(f"Opened document: {uri}")
 
         @self.feature(lsp.TEXT_DOCUMENT_DID_CHANGE)
-        def did_change(params: lsp.DidChangeTextDocumentParams) -> None:
-            """Handle text document changes."""
+        async def did_change(params: lsp.DidChangeTextDocumentParams) -> None:
+            """Handle text document changes.
+
+            Applies edits synchronously (cheap) and schedules debounced,
+            off-loop parse+lint so the event loop stays responsive during
+            typing; diagnostics publish once the parse completes.
+            """
             uri = params.text_document.uri
             version = params.text_document.version
             changes = params.content_changes
 
-            doc = self.pine_workspace.update_document(uri, list(changes), version)
+            # Graceful recovery: some clients send didChange without didOpen
+            # (e.g. after a server restart). Treat as an empty open.
+            if self.pine_workspace.get_document(uri) is None:
+                self.pine_workspace.put_document(uri, "", version)
 
-            lsp_diags = self.pine_workspace._lint_warnings_to_diagnostics(doc)
-            self.text_document_publish_diagnostics(lsp.PublishDiagnosticsParams(uri=uri, diagnostics=lsp_diags))
+            doc = self.pine_workspace.update_document(uri, list(changes), version, relint=False)
+            self._schedule_diagnostics(uri, doc)
 
             logger.debug(f"Changed document: {uri} (v{version})")
 
@@ -125,16 +156,23 @@ class PynescriptLanguageServer(LanguageServer):
         def did_close(params: lsp.DidCloseTextDocumentParams) -> None:
             """Handle text document close."""
             uri = params.text_document.uri
+            self._cancel_pending_diagnostics(uri)
             self.pine_workspace.remove_document(uri)
             self.text_document_publish_diagnostics(lsp.PublishDiagnosticsParams(uri=uri, diagnostics=[]))
             logger.info(f"Closed document: {uri}")
 
         @self.feature(lsp.TEXT_DOCUMENT_DID_SAVE)
         def did_save(params: lsp.DidSaveTextDocumentParams) -> None:
-            """Handle text document save."""
+            """Handle text document save.
+
+            Flushes any pending debounced diagnostics so the on-disk state
+            is validated immediately.
+            """
             uri = params.text_document.uri
+            self._cancel_pending_diagnostics(uri)
             doc = self.pine_workspace.get_document(uri)
             if doc:
+                self.pine_workspace._parse_and_lint(doc)
                 lsp_diags = self.pine_workspace._lint_warnings_to_diagnostics(doc)
                 self.text_document_publish_diagnostics(lsp.PublishDiagnosticsParams(uri=uri, diagnostics=lsp_diags))
             logger.info(f"Saved document: {uri}")
@@ -223,7 +261,11 @@ class PynescriptLanguageServer(LanguageServer):
 
             for uri, doc in self.pine_workspace.documents.items():
                 if doc.ast:
-                    symbols = _collect_workspace_symbols(doc, uri)
+                    # Per-version memo: the symbol walk is identical between edits.
+                    symbols = doc.feature_cache.get("symbols", _MISSING)
+                    if symbols is _MISSING:
+                        symbols = _collect_workspace_symbols(doc, uri)
+                        doc.feature_cache["symbols"] = symbols
                     for sym in symbols:
                         if query in sym.name.lower():
                             results.append(sym)
@@ -263,7 +305,7 @@ class PynescriptLanguageServer(LanguageServer):
             doc = self.pine_workspace.get_document(uri)
             if not doc:
                 return hover_feature.handle_hover(params, None)
-            return hover_feature.handle_hover(params, doc.source, tree=doc.ast)
+            return hover_feature.handle_hover(params, doc.source, tree=doc.ast, cache=doc.feature_cache)
 
         @self.feature(lsp.TEXT_DOCUMENT_DEFINITION)
         def text_definition(
@@ -305,8 +347,10 @@ class PynescriptLanguageServer(LanguageServer):
         ) -> list[lsp.TextEdit] | None:
             """Handle textDocument/formatting request."""
             uri = params.text_document.uri
-            source = self.pine_workspace.get_source(uri)
-            return formatting_feature.handle_formatting(params, source)
+            doc = self.pine_workspace.get_document(uri)
+            if not doc:
+                return formatting_feature.handle_formatting(params, None)
+            return formatting_feature.handle_formatting(params, doc.source, tree=doc.ast)
 
         @self.feature(lsp.TEXT_DOCUMENT_RANGE_FORMATTING)
         def text_range_formatting(
@@ -314,8 +358,10 @@ class PynescriptLanguageServer(LanguageServer):
         ) -> list[lsp.TextEdit] | None:
             """Handle textDocument/rangeFormatting request."""
             uri = params.text_document.uri
-            source = self.pine_workspace.get_source(uri)
-            return formatting_feature.handle_range_formatting(params, source)
+            doc = self.pine_workspace.get_document(uri)
+            if not doc:
+                return formatting_feature.handle_range_formatting(params, None)
+            return formatting_feature.handle_range_formatting(params, doc.source, tree=doc.ast)
 
         @self.feature(lsp.TEXT_DOCUMENT_INLAY_HINT)
         def text_inlay_hints(
@@ -326,7 +372,13 @@ class PynescriptLanguageServer(LanguageServer):
             doc = self.pine_workspace.get_document(uri)
             if not doc:
                 return inlay_hints_feature.handle_inlay_hints(params, None)
-            return inlay_hints_feature.handle_inlay_hints(params, doc.source, tree=doc.ast)
+            # Pure function of (source, tree): memoize per document version.
+            cached = doc.feature_cache.get("inlay_hints", _MISSING)
+            if cached is not _MISSING:
+                return cached
+            result = inlay_hints_feature.handle_inlay_hints(params, doc.source, tree=doc.ast)
+            doc.feature_cache["inlay_hints"] = result
+            return result
 
         @self.feature(lsp.TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL)
         def text_semantic_tokens(
@@ -337,7 +389,42 @@ class PynescriptLanguageServer(LanguageServer):
             doc = self.pine_workspace.get_document(uri)
             if not doc:
                 return semantic_tokens_feature.handle_semantic_tokens(params, None)
-            return semantic_tokens_feature.handle_semantic_tokens(params, doc.source, tree=doc.ast)
+            # Pure function of (source, tree): memoize per document version.
+            cached = doc.feature_cache.get("semantic_tokens", _MISSING)
+            if cached is not _MISSING:
+                return cached
+            result = semantic_tokens_feature.handle_semantic_tokens(params, doc.source, tree=doc.ast)
+            doc.feature_cache["semantic_tokens"] = result
+            return result
+
+    def _schedule_diagnostics(self, uri: str, doc: Any) -> None:
+        """Schedule (or re-schedule) a debounced parse+lint+publish for *uri*."""
+        pending = self._pending_diag_tasks.get(uri)
+        if pending is not None and not pending.done():
+            pending.cancel()
+        self._pending_diag_tasks[uri] = asyncio.ensure_future(self._publish_diagnostics_after(uri, doc))
+
+    def _cancel_pending_diagnostics(self, uri: str) -> None:
+        """Drop any pending debounced diagnostics task for *uri*."""
+        pending = self._pending_diag_tasks.pop(uri, None)
+        if pending is not None and not pending.done():
+            pending.cancel()
+
+    async def _publish_diagnostics_after(self, uri: str, doc: Any) -> None:
+        """Debounce, parse+lint off the event loop, then publish diagnostics."""
+        try:
+            await asyncio.sleep(_debounce_seconds())
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(self._diag_executor, self.pine_workspace._parse_and_lint, doc)
+            lsp_diags = self.pine_workspace._lint_warnings_to_diagnostics(doc)
+            self.text_document_publish_diagnostics(lsp.PublishDiagnosticsParams(uri=uri, diagnostics=lsp_diags))
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Debounced diagnostics failed for %s", uri)
+        finally:
+            if self._pending_diag_tasks.get(uri) is asyncio.current_task():
+                self._pending_diag_tasks.pop(uri, None)
 
 
 def _collect_workspace_symbols(doc: Any, uri: str) -> list[lsp.SymbolInformation]:

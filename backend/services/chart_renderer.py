@@ -30,8 +30,11 @@ import matplotlib
 
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+# OO API (matplotlib.figure.Figure) instead of pyplot: pyplot's global figure
+# manager is not thread-safe and this runs under gunicorn --threads 4.
+import matplotlib.patches as mpatches
 import numpy as np
+from matplotlib.figure import Figure
 
 
 def render_line_chart(
@@ -67,7 +70,8 @@ def render_line_chart(
     y = np.array(clean_values)
 
     fig_height = 3.5 if show_volume else 3.0
-    fig, ax = plt.subplots(figsize=(width / 100, fig_height), dpi=100)
+    fig = Figure(figsize=(width / 100, fig_height), dpi=100)
+    ax = fig.subplots()
     fig.patch.set_facecolor("#1E1E1E")
     ax.set_facecolor("#252526")
 
@@ -98,11 +102,10 @@ def render_line_chart(
         ax2.tick_params(colors="#888888", labelsize=7)
         ax2.spines["right"].set_color("#444444")
 
-    plt.tight_layout()
+    fig.tight_layout()
 
     buf = io.BytesIO()
-    plt.savefig(buf, format="png", facecolor=fig.get_facecolor(), dpi=100, bbox_inches="tight")
-    plt.close(fig)
+    fig.savefig(buf, format="png", facecolor=fig.get_facecolor(), dpi=100, bbox_inches="tight")
 
     buf.seek(0)
     png_b64 = base64.b64encode(buf.read()).decode("utf-8")
@@ -133,7 +136,8 @@ def render_equity_curve(
     x = np.arange(len(values))
     y = np.array(values)
 
-    fig, ax = plt.subplots(figsize=(width / 100, 3.0), dpi=100)
+    fig = Figure(figsize=(width / 100, 3.0), dpi=100)
+    ax = fig.subplots()
     fig.patch.set_facecolor("#1E1E1E")
     ax.set_facecolor("#252526")
 
@@ -158,11 +162,10 @@ def render_equity_curve(
         ax.set_xticks(tick_positions)
         ax.set_xticklabels(tick_labels, rotation=30, ha="right", fontsize=7, color="#888888")
 
-    plt.tight_layout()
+    fig.tight_layout()
 
     buf = io.BytesIO()
-    plt.savefig(buf, format="png", facecolor=fig.get_facecolor(), dpi=100, bbox_inches="tight")
-    plt.close(fig)
+    fig.savefig(buf, format="png", facecolor=fig.get_facecolor(), dpi=100, bbox_inches="tight")
 
     buf.seek(0)
     png_b64 = base64.b64encode(buf.read()).decode("utf-8")
@@ -201,9 +204,12 @@ def render_ohlcv_chart(
 
     x = np.arange(n)
 
-    fig, (ax1, ax2) = plt.subplots(
-        2, 1, figsize=(width / 100, 3.5), dpi=100, gridspec_kw={"height_ratios": [3, 1]}, sharex=True
+    fig = Figure(figsize=(width / 100, 3.5), dpi=100)
+    axes = fig.subplots(
+        2, 1, gridspec_kw={"height_ratios": [3, 1]}, sharex=True
     )
+    assert axes is not None
+    ax1, ax2 = axes
     fig.patch.set_facecolor("#1E1E1E")
 
     for ax in (ax1, ax2):
@@ -224,7 +230,9 @@ def render_ohlcv_chart(
         body_bottom = min(open_prices[i], close_prices[i])
         body_height = abs(close_prices[i] - open_prices[i]) + 1e-9
         ax1.add_patch(
-            plt.Rectangle((i - candle_width / 2, body_bottom), candle_width, body_height, color=color, linewidth=0.5)
+            mpatches.Rectangle(
+                (i - candle_width / 2, body_bottom), candle_width, body_height, color=color, linewidth=0.5
+            )
         )
 
     ax1.set_ylabel("Price", color="#888888", fontsize=8)
@@ -233,11 +241,10 @@ def render_ohlcv_chart(
     ax2.bar(x, volumes, color="#666666", alpha=0.5, width=0.8)
     ax2.set_ylabel("Volume", color="#888888", fontsize=8)
 
-    plt.tight_layout()
+    fig.tight_layout()
 
     buf = io.BytesIO()
-    plt.savefig(buf, format="png", facecolor=fig.get_facecolor(), dpi=100, bbox_inches="tight")
-    plt.close(fig)
+    fig.savefig(buf, format="png", facecolor=fig.get_facecolor(), dpi=100, bbox_inches="tight")
 
     buf.seek(0)
     png_b64 = base64.b64encode(buf.read()).decode("utf-8")
@@ -245,7 +252,8 @@ def render_ohlcv_chart(
 
 
 def _render_empty_chart(title: str, width: int, height: int) -> str:
-    fig, ax = plt.subplots(figsize=(width / 100, 2.5), dpi=100)
+    fig = Figure(figsize=(width / 100, 2.5), dpi=100)
+    ax = fig.subplots()
     fig.patch.set_facecolor("#1E1E1E")
     ax.set_facecolor("#252526")
     ax.set_title(title, color="#888888", fontsize=11, pad=20)
@@ -253,10 +261,9 @@ def _render_empty_chart(title: str, width: int, height: int) -> str:
         0.5, 0.5, "No data available", color="#666666", ha="center", va="center", transform=ax.transAxes, fontsize=12
     )
     ax.axis("off")
-    plt.tight_layout()
+    fig.tight_layout()
 
     buf = io.BytesIO()
-    plt.savefig(buf, format="png", facecolor=fig.get_facecolor(), dpi=100, bbox_inches="tight")
-    plt.close(fig)
+    fig.savefig(buf, format="png", facecolor=fig.get_facecolor(), dpi=100, bbox_inches="tight")
     buf.seek(0)
     return base64.b64encode(buf.read()).decode("utf-8")

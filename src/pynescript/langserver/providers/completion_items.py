@@ -40,6 +40,7 @@ from lsprotocol import types as lsp
 from pynescript.ast import node as ast
 from pynescript.langserver.providers.builtin_metadata import fuzzy_filter
 from pynescript.langserver.providers.builtin_metadata import get_all_categories
+from pynescript.langserver.providers.builtin_metadata import get_fuzzy_index
 from pynescript.langserver.providers.builtin_metadata import get_metadata
 
 
@@ -85,16 +86,18 @@ def build_completion_list(prefix: str = "", include_categories: bool = True) -> 
         LSP CompletionList with completion items.
     """
     metadata = get_metadata()
-    items = list(metadata.values())
 
     # Filter by prefix
     if prefix:
         if prefix.endswith("."):
             # Module completion (e.g., "ta.")
-            items = [i for i in items if i.get("label", "").startswith(prefix)]
+            items = [i for i in metadata.values() if i.get("label", "").startswith(prefix)]
         else:
-            # Fuzzy filter
-            items = fuzzy_filter(prefix, items)
+            # Fuzzy filter (with pre-lowered fields from the metadata cache)
+            all_items, fuzzy_fields = get_fuzzy_index()
+            items = fuzzy_filter(prefix, all_items, fields=fuzzy_fields)
+    else:
+        items = list(metadata.values())
 
     # Sort alphabetically
     items.sort(key=lambda x: x.get("label", ""))
@@ -134,6 +137,10 @@ def build_completion_list(prefix: str = "", include_categories: bool = True) -> 
 def build_completion_item(info: dict, *, insert_leaf: bool = False) -> lsp.CompletionItem:
     """Build a single CompletionItem from metadata.
 
+    Results are memoized per ``(label, insert_leaf)`` — items are immutable
+    output of the (static) metadata, so rebuilding them per keystroke is
+    pure waste. A returned item must not be mutated by callers.
+
     Args:
         info: Metadata dict from builtin_metadata.
         insert_leaf: When True, insert only the name after the last ``.``
@@ -143,6 +150,11 @@ def build_completion_item(info: dict, *, insert_leaf: bool = False) -> lsp.Compl
     Returns:
         LSP CompletionItem.
     """
+    label = info.get("label", "")
+    cache_key = (label, insert_leaf)
+    cached = _ITEM_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
     label = info.get("label", "")
     detail = info.get("detail", "")
     brief = info.get("brief", "")
@@ -164,7 +176,7 @@ def build_completion_item(info: dict, *, insert_leaf: bool = False) -> lsp.Compl
         elif "." in insert_text:
             insert_text = insert_text.rsplit(".", 1)[-1]
 
-    return lsp.CompletionItem(
+    item = lsp.CompletionItem(
         label=label,
         kind=lsp.CompletionItemKind.Function,
         detail=detail,
@@ -174,6 +186,10 @@ def build_completion_item(info: dict, *, insert_leaf: bool = False) -> lsp.Compl
         filter_text=" ".join(label.split(".")) + " " + brief,
         sort_text=_sort_text(label),
     )
+    if len(_ITEM_CACHE) > 4096:
+        _ITEM_CACHE.clear()
+    _ITEM_CACHE[cache_key] = item
+    return item
 
 
 def build_module_completion(module: str, member_prefix: str = "") -> lsp.CompletionList:
@@ -232,6 +248,10 @@ def build_keyword_items(prefix: str = "") -> list[lsp.CompletionItem]:
         )
     return items
 
+
+# Memoized CompletionItems (label, insert_leaf) → item. Bounded by the
+# metadata size in practice; cleared if it ever overflows.
+_ITEM_CACHE: dict[tuple[str, bool], lsp.CompletionItem] = {}
 
 _ENUM_HEADER = re.compile(r"^[ \t]*(?:export[ \t]+)?enum[ \t]+([A-Za-z_][A-Za-z0-9_]*)")
 _ENUM_MEMBER = re.compile(r"^[ \t]+([A-Za-z_][A-Za-z0-9_]*)(?:[ \t]*=[ \t]*([^\n \t]+?))?[ \t]*$")

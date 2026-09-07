@@ -208,9 +208,16 @@ def _scrub_pine_call_sites(tree: AST) -> AST:
     ``visit_Call`` may cache bound handlers stamped with evaluator generation.
     A later evaluator ignores a mismatched generation, but scrubbing still
     drops dead instance-method refs so cached trees do not pin evaluators.
+
+    Specialized stack-DFS (no generator, no deque) — this runs on *every*
+    parse-cache hit, so it is tuned for the common "nothing stamped" case.
     """
     try:
-        for node in walk(tree):
+        stack: list[AST] = [tree]
+        pop = stack.pop
+        push = stack.append
+        while stack:
+            node = pop()
             if getattr(node, "_pine_call_site", None) is not None:
                 try:
                     delattr(node, "_pine_call_site")
@@ -219,6 +226,14 @@ def _scrub_pine_call_sites(tree: AST) -> AST:
                         object.__setattr__(node, "_pine_call_site", None)
                     except Exception:
                         pass
+            for name in getattr(type(node), "_fields", None) or ():
+                child = getattr(node, name, None)
+                if child.__class__ is list:
+                    for item in child:
+                        if getattr(type(item), "_fields", None) is not None:
+                            push(item)
+                elif getattr(type(child), "_fields", None) is not None:
+                    push(child)
     except Exception:
         pass
     return tree

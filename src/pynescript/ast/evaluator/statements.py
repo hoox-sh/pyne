@@ -59,6 +59,23 @@ from pynescript.ast.type_system import UserDefinedType
 # Sentinel: param was not present in context before binding (pop on unbind).
 _CONTEXT_MISSING: Any = object()
 
+# Lazy handles into expressions.py (import cycle + per-bar hot paths:
+# hoisting avoids the import machinery on every ``x += 1`` / switch).
+_BINOP_RAW: Any = None
+_elementwise_binary: Any = None
+_switch_case_matches: Any = None
+
+
+def _load_expression_helpers() -> None:
+    """Bind lazy expression helpers once (first hot-path use)."""
+    global _BINOP_RAW, _elementwise_binary, _switch_case_matches
+    if _BINOP_RAW is None:
+        from pynescript.ast.evaluator import expressions as _expr_mod
+
+        _BINOP_RAW = _expr_mod._BINOP_RAW
+        _elementwise_binary = _expr_mod._elementwise_binary
+        _switch_case_matches = _expr_mod._switch_case_matches
+
 # Top-level declarations that are no-ops after the host locks defs (bar 1+).
 _DECL_CALL_NAMES = frozenset({"indicator", "strategy", "library", "study"})
 _SKIP_AFTER_LOCK = (ast.FunctionDef, ast.TypeDef, ast.EnumDef, ast.Import)
@@ -172,6 +189,30 @@ _NA_EXCLUDED_TAGS = frozenset(
     }
 )
 
+# Cached drawing / matrix classes for overload dispatch (lazy to avoid a
+# hard import cycle; the tuple is built once and reused per call per bar).
+_drawing_matrix_cache: tuple[type, ...] | None = None
+
+
+def _drawing_matrix_types() -> tuple[Any, ...]:
+    """Return ``(Box, ChartPoint, Label, Line, LineFill, Polyline, Table, Matrix)``."""
+    global _drawing_matrix_cache
+    if _drawing_matrix_cache is None:
+        try:
+            from pynescript.ast.evaluator.builtins.drawing import Box
+            from pynescript.ast.evaluator.builtins.drawing import ChartPoint
+            from pynescript.ast.evaluator.builtins.drawing import Label
+            from pynescript.ast.evaluator.builtins.drawing import Line
+            from pynescript.ast.evaluator.builtins.drawing import LineFill
+            from pynescript.ast.evaluator.builtins.drawing import Polyline
+            from pynescript.ast.evaluator.builtins.drawing import Table
+            from pynescript.ast.evaluator.builtins.matrix import Matrix
+
+            _drawing_matrix_cache = (Box, ChartPoint, Label, Line, LineFill, Polyline, Table, Matrix)
+        except Exception:  # pragma: no cover
+            _drawing_matrix_cache = ((), (), (), (), (), (), (), ())
+    return _drawing_matrix_cache
+
 
 def _receiver_matches_type_tag(tag: str | None, receiver: Any) -> bool:
     """True if *receiver* is compatible with a method first-param type tag."""
@@ -184,18 +225,9 @@ def _receiver_matches_type_tag(tag: str | None, receiver: Any) -> bool:
         base = tag_l.split(".", 1)[0]
         return base not in _NA_EXCLUDED_TAGS
 
-    # Built-in drawing / collection types
-    try:
-        from pynescript.ast.evaluator.builtins.drawing import Box
-        from pynescript.ast.evaluator.builtins.drawing import ChartPoint
-        from pynescript.ast.evaluator.builtins.drawing import Label
-        from pynescript.ast.evaluator.builtins.drawing import Line
-        from pynescript.ast.evaluator.builtins.drawing import LineFill
-        from pynescript.ast.evaluator.builtins.drawing import Polyline
-        from pynescript.ast.evaluator.builtins.drawing import Table
-        from pynescript.ast.evaluator.builtins.matrix import Matrix
-    except Exception:  # pragma: no cover
-        Box = Label = Line = LineFill = Polyline = Table = ChartPoint = Matrix = ()  # type: ignore
+    # Built-in drawing / collection types (cached at module scope — this
+    # dispatch runs per call site per bar in method-heavy library scripts).
+    Box, ChartPoint, Label, Line, LineFill, Polyline, Table, Matrix = _drawing_matrix_types()
 
     # matrix / matrix.float / matrix.string
     if tag_l == "matrix" or tag_l.startswith("matrix."):
@@ -438,11 +470,15 @@ class StatementEvaluator:
 
     def _collect_history_names(self, node: Any, out: set[str]) -> None:
         """Collect Name bases of history Subscripts (``x[1]``, ``x[n]``)."""
-        if node is None or not hasattr(node, "__dict__"):
+        if node is None or not hasattr(node, "_fields"):
             return
         if isinstance(node, ast.Subscript) and isinstance(getattr(node, "value", None), ast.Name):
             out.add(node.value.id)
-        for child in node.__dict__.values():
+        for name in node._fields:
+            try:
+                child = getattr(node, name)
+            except AttributeError:
+                continue
             if isinstance(child, list):
                 for c in child:
                     self._collect_history_names(c, out)
@@ -725,6 +761,16 @@ class StatementEvaluator:
         declared: set[str] | None = getattr(self, "_var_declarations", None)
         if not history_names or not declared:
             return
+        # Both sets are static after bar 0 — intersect once, then iterate only
+        # the (usually small) overlap instead of the full history set per bar.
+        commit_names: frozenset[str] | None = getattr(self, "_commit_history_names", None)
+        stamp = getattr(self, "_commit_history_stamp", None)
+        if commit_names is None or stamp is None or stamp[0] is not history_names or stamp[1] is not declared:
+            commit_names = frozenset(history_names & declared)
+            self._commit_history_names = commit_names  # type: ignore[attr-defined]
+            self._commit_history_stamp = (history_names, declared)  # type: ignore[attr-defined]
+        if not commit_names:
+            return
         last_map: dict[Any, int] | None = getattr(self, "_series_assign_bar", None)
         if last_map is None:
             last_map = {}
@@ -735,9 +781,7 @@ class StatementEvaluator:
         except (TypeError, ValueError):
             bar_i = 0
         ctx = self.context
-        for name in history_names:
-            if name not in declared:
-                continue
+        for name in commit_names:
             if last_map.get(name) == bar_i:
                 continue
             existing = ctx.get(name)
@@ -1125,10 +1169,8 @@ class StatementEvaluator:
                 current = ctx[var_name]
                 rhs = self.visit(node.value)  # type: ignore[attr-defined]
                 # Direct elementwise path (no wrapper frame); matches visit_BinOp.
-                from pynescript.ast.evaluator.expressions import (
-                    _BINOP_RAW,
-                    _elementwise_binary,
-                )
+                if _elementwise_binary is None:
+                    _load_expression_helpers()
 
                 raw = _BINOP_RAW.get(type(node.op))
                 if raw is not None:
@@ -1998,7 +2040,8 @@ class StatementEvaluator:
         mixes StatementEvaluator alone: **subject present but ``na``** uses
         equality (``na`` only matches ``na``), never boolean-pattern mode.
         """
-        from pynescript.ast.evaluator.expressions import _switch_case_matches
+        if _switch_case_matches is None:
+            _load_expression_helpers()
 
         has_subject = node.subject is not None
         subject_val = self.visit(node.subject) if has_subject else None  # type: ignore[attr-defined]

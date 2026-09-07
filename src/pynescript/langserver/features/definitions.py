@@ -99,6 +99,7 @@ class DefinitionFinder(NodeVisitor):
         self.target_name = target_name
         self.uri = uri
         self.locations: list[lsp.Location] = []
+        self._seen_lines: set[int] = set()
         self.in_user_function: str | None = None
         self.in_user_type: str | None = None
 
@@ -179,16 +180,20 @@ class DefinitionFinder(NodeVisitor):
             self.visit(arg)
 
     def _add_location(self, name: str, lineno: int | None) -> None:
-        """Add a definition location."""
+        """Add a definition location (deduped by line — O(1) per hit)."""
         if not lineno:
             lineno = 1
 
-        location = lsp.Location(
-            uri=self.uri,
-            range=lsp.Range(
-                start=lsp.Position(line=max(0, lineno - 1), character=0),
-                end=lsp.Position(line=max(0, lineno - 1), character=0),
-            ),
+        line = max(0, lineno - 1)
+        if line in self._seen_lines:
+            return
+        self._seen_lines.add(line)
+        self.locations.append(
+            lsp.Location(
+                uri=self.uri,
+                range=lsp.Range(
+                    start=lsp.Position(line=line, character=0),
+                    end=lsp.Position(line=line, character=0),
+                ),
+            )
         )
-        if location not in self.locations:
-            self.locations.append(location)

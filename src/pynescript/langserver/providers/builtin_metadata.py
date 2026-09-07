@@ -56,11 +56,19 @@ class _MetadataCache:
     """Process-local metadata cache (avoids module-level ``global``)."""
 
     data: dict[str, Any] | None = None
+    categories: list[str] | None = None
+    # Parallel lowercase fields for fuzzy_filter (rebuilt only when the
+    # items list identity changes, i.e. once per metadata load).
+    fuzzy_items: list[dict[str, Any]] | None = None
+    fuzzy_fields: list[tuple[str, str, str]] | None = None
 
 
 def reset_metadata_cache() -> None:
     """Drop the in-process cache (tests / after regenerating JSON)."""
     _MetadataCache.data = None
+    _MetadataCache.categories = None
+    _MetadataCache.fuzzy_items = None
+    _MetadataCache.fuzzy_fields = None
 
 
 def get_metadata() -> dict[str, Any]:
@@ -129,26 +137,53 @@ def get_builtins_by_category(category: str) -> list[dict[str, Any]]:
 
 
 def get_all_categories() -> list[str]:
-    """Get all unique categories.
+    """Get all unique categories (cached per metadata load)."""
+    if _MetadataCache.categories is None:
+        metadata = get_metadata()
+        categories = {info.get("category") for info in metadata.values()}
+        _MetadataCache.categories = sorted(c for c in categories if c is not None)
+    return _MetadataCache.categories
 
-    Returns:
-        Sorted list of category names.
+
+def get_fuzzy_index() -> tuple[list[dict[str, Any]], list[tuple[str, str, str]]]:
+    """Return ``(items, lowercase_fields)`` for fuzzy matching.
+
+    ``lowercase_fields[i]`` is ``(label.lower(), category.lower(), brief.lower())``
+    for ``items[i]`` — computed once per metadata load instead of per keystroke.
     """
     metadata = get_metadata()
-    categories = {info.get("category") for info in metadata.values()}
-    return sorted(c for c in categories if c is not None)
+    items = list(metadata.values())
+    if _MetadataCache.fuzzy_items is not items or _MetadataCache.fuzzy_fields is None:
+        _MetadataCache.fuzzy_items = items
+        _MetadataCache.fuzzy_fields = [
+            (
+                item.get("label", "").lower(),
+                item.get("category", "").lower(),
+                item.get("brief", "").lower(),
+            )
+            for item in items
+        ]
+    return items, _MetadataCache.fuzzy_fields
 
 
-def fuzzy_filter(query: str, items: list[dict[str, Any]], limit: int = 50) -> list[dict[str, Any]]:
+def fuzzy_filter(
+    query: str,
+    items: list[dict[str, Any]],
+    limit: int = 50,
+    fields: list[tuple[str, str, str]] | None = None,
+) -> list[dict[str, Any]]:
     """Filter items by fuzzy match on label.
 
     Args:
         query: The search query.
         items: List of metadata dicts.
         limit: Maximum number of results.
+        fields: Optional pre-lowered ``(label, category, brief)`` per item
+            (from :func:`get_fuzzy_index`) — avoids re-lowering on every
+            keystroke.
 
     Returns:
-        Filtered list of items.
+        List of metadata dicts.
     """
     if not query:
         return items[:limit]
@@ -156,10 +191,13 @@ def fuzzy_filter(query: str, items: list[dict[str, Any]], limit: int = 50) -> li
     query_lower = query.lower()
     results = []
 
-    for item in items:
-        label = item.get("label", "").lower()
-        category = item.get("category", "").lower()
-        brief = item.get("brief", "").lower()
+    for index, item in enumerate(items):
+        if fields is not None and index < len(fields):
+            label, category, brief = fields[index]
+        else:
+            label = item.get("label", "").lower()
+            category = item.get("category", "").lower()
+            brief = item.get("brief", "").lower()
 
         score = 0
         if label == query_lower:

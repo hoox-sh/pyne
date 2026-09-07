@@ -77,6 +77,7 @@ def handle_hover(
     params: lsp.HoverParams,
     source: str | None,
     tree: Any | None = ...,
+    cache: dict[str, Any] | None = None,
 ) -> lsp.Hover | None:
     """Return markdown hover for a symbol at the cursor, or ``None``.
 
@@ -86,6 +87,9 @@ def handle_hover(
         tree: Pre-parsed AST from the workspace cache. Pass ``None`` when the
             workspace already failed to parse. Omit (default ``...``) to parse
             from *source*.
+        cache: Optional per-document-version memo (the workspace
+            ``feature_cache``). Caches the user-declaration walk — without it
+            every hover re-walks the whole AST.
 
     Returns:
         :class:`~lsprotocol.types.Hover` with docs, or ``None`` if the
@@ -125,7 +129,7 @@ def handle_hover(
     if enum_hover is not None:
         return enum_hover
 
-    decl_hover = _hover_user_decl(segment, resolved, source, position.line, seg_start, seg_end)
+    decl_hover = _hover_user_decl(segment, resolved, source, position.line, seg_start, seg_end, cache=cache)
     if decl_hover is not None:
         return decl_hover
 
@@ -194,12 +198,18 @@ def _hover_user_decl(
     line: int,
     start: int,
     end: int,
+    cache: dict[str, Any] | None = None,
 ) -> lsp.Hover | None:
     """Hover for a user function, assignment, type, or enum from the AST."""
     if not name or tree is None:
         return None
     try:
-        decls = _collect_user_decls(tree, source)
+        if cache is not None and "user_decls" in cache:
+            decls = cache["user_decls"]
+        else:
+            decls = _collect_user_decls(tree, source)
+            if cache is not None:
+                cache["user_decls"] = decls
     except Exception:
         return None
     info = decls.get(name)
@@ -213,11 +223,13 @@ def _hover_user_decl(
 def _collect_user_decls(tree: Any, source: str) -> dict[str, dict[str, str]]:
     """Map identifier → first declaration (kind + source signature)."""
     found: dict[str, dict[str, str]] = {}
+    # Split once — a per-declaration split is O(decls × doc-size).
+    lines = source.split("\n") if source else []
 
     def add(name: str | None, kind: str, node: Any, fallback: str) -> None:
         if not name or name in found:
             return
-        snippet = _line_snippet(source, getattr(node, "lineno", None))
+        snippet = _snippet_from_lines(lines, getattr(node, "lineno", None))
         found[name] = {"kind": kind, "signature": snippet or fallback}
 
     def walk(node: Any) -> None:
@@ -271,7 +283,13 @@ def _function_fallback(node: ast.FunctionDef) -> str:
 def _line_snippet(source: str, lineno: int | None) -> str:
     if not source or not lineno:
         return ""
-    lines = source.split("\n")
+    return _snippet_from_lines(source.split("\n"), lineno)
+
+
+def _snippet_from_lines(lines: list[str], lineno: int | None) -> str:
+    """Stripped source line *lineno* (1-based) from a pre-split line list."""
+    if not lines or not lineno:
+        return ""
     idx = lineno - 1
     if 0 <= idx < len(lines):
         return lines[idx].strip()

@@ -170,9 +170,7 @@ _BUILTINS_WARMED = False
 # Bump when generated IR semantics change so source→IR disk index is invalidated
 # (source hash alone is stable across compiler fixes, e.g. fill() series keys).
 # v5: strategy series history + Pine na-aware ==/!=
-_DISK_META_VERSION = 12  # v12: invalidate metas written before the IR-share
-# metadata gate — pre-gate runs could persist donor titles/kinds/attrs into a
-# sibling source's src_*.json (self-rewriting on every load).
+_DISK_META_VERSION = 13  # v13: slotted AST nodes + `_fields`-based compiler walks
 _NJIT_CACHE_FALSE = "@numba.njit(cache=False)"
 _NJIT_CACHE_TRUE = "@numba.njit(cache=True)"
 

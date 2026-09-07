@@ -40,6 +40,16 @@ class PythonGenerator(pyasdl.ASDLVisitor):
         self._base = ast.Name("AST", ast.Load())
         self._dataclasses = ast.Name("_dataclasses", ast.Load())
         self._dataclass = ast.Attribute(self._dataclasses, "dataclass", ast.Load())
+        # dataclass(slots=True): AST nodes carry no __dict__ (large scripts
+        # allocate tens of thousands of nodes; __dict__ roughly doubles the
+        # per-node footprint). Dynamic attributes used by the evaluator
+        # (_pine_call_site / _pine_site_id) are declared as slots on the
+        # shared AST base below.
+        self._dataclass_slots = ast.Call(
+            self._dataclass,
+            [],
+            [ast.keyword("slots", ast.Constant(value=True))],
+        )
         self._field = ast.Attribute(self._dataclasses, "field", ast.Load())
         self._typing = ast.Name("_typing", ast.Load())
         self._classvar = ast.Attribute(self._typing, "ClassVar", ast.Load())
@@ -119,10 +129,18 @@ class PythonGenerator(pyasdl.ASDLVisitor):
         class AST:
             _fields: ClassVar[list[str]] = []
             _attributes: ClassVar[list[str]] = []
+            # Evaluator dynamic attrs (object.__setattr__ in expressions.py)
         """
         return ast.ClassDef(
             name=self._base.id,
             body=[
+                ast.Assign(
+                    [ast.Name("__slots__", ast.Store())],
+                    ast.Tuple(
+                        [ast.Constant("_pine_call_site"), ast.Constant("_pine_site_id")],
+                        ast.Load(),
+                    ),
+                ),
                 ast.AnnAssign(self._fields, self._classvar_list_str, ast.List([], ast.Load()), simple=1),
                 ast.AnnAssign(self._attributes, self._classvar_list_str, ast.List([], ast.Load()), simple=1),
             ],
@@ -199,7 +217,7 @@ class PythonGenerator(pyasdl.ASDLVisitor):
             body=body,
             bases=[self._base],
             keywords=[],
-            decorator_list=[self._dataclass],
+            decorator_list=[self._dataclass_slots],
         )
         definitions = []
         definitions.append(cls)
@@ -220,7 +238,7 @@ class PythonGenerator(pyasdl.ASDLVisitor):
             body=body,
             bases=[base],
             keywords=[],
-            decorator_list=[self._dataclass],
+            decorator_list=[self._dataclass_slots],
         )
         return cls
 
@@ -237,7 +255,7 @@ class PythonGenerator(pyasdl.ASDLVisitor):
             body=body,
             bases=[self._base],
             keywords=[],
-            decorator_list=[self._dataclass],
+            decorator_list=[self._dataclass_slots],
         )
         return cls
 

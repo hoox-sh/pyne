@@ -59,6 +59,10 @@ from pynescript.ast.type_system import ObjectInstance
 
 _MATRIX_INDEX_DIMENSIONS = 2
 
+# Lazy handle (expressions.py imports this module at top level, so a static
+# import would be circular; subscript call-sites hit this per bar).
+_pine_call_site_id: Any = None
+
 # Drawing instance → namespace for method dispatch (``la.get_text()`` → ``label.get_text``).
 _DRAWING_METHOD_NS: dict[type, str] = {
     Label: "label",
@@ -455,9 +459,12 @@ class NameEvaluator:
             if store_map is None:
                 store_map = {}
                 self._call_expr_history = store_map  # type: ignore[attr-defined]
-            from pynescript.ast.evaluator.expressions import pine_call_site_id
+            global _pine_call_site_id
+            if _pine_call_site_id is None:
+                from pynescript.ast.evaluator.expressions import pine_call_site_id as _pine_call_site_id_fn
 
-            site = pine_call_site_id(value_node)
+                _pine_call_site_id = _pine_call_site_id_fn
+            site = _pine_call_site_id(value_node)
             bar = self.context.get("bar_index", 0)  # type: ignore[attr-defined]
             try:
                 bar_i = int(bar) if bar is not None else 0

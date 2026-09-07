@@ -97,6 +97,7 @@ class ReferencesFinder(NodeVisitor):
         self.uri = uri
         self.include_declaration = include_declaration
         self.locations: list[lsp.Location] = []
+        self._seen_lines: set[int] = set()
         self.declaration_found = False
 
     def visit_Script(self, node: ast.Script) -> Any:
@@ -176,16 +177,20 @@ class ReferencesFinder(NodeVisitor):
             self.visit(arg)
 
     def _add_location(self, name: str, lineno: int | None) -> None:
-        """Add a reference location."""
+        """Add a reference location (deduped by line — O(1) per hit)."""
         if not lineno:
             lineno = 1
 
-        location = lsp.Location(
-            uri=self.uri,
-            range=lsp.Range(
-                start=lsp.Position(line=max(0, lineno - 1), character=0),
-                end=lsp.Position(line=max(0, lineno - 1), character=0),
-            ),
+        line = max(0, lineno - 1)
+        if line in self._seen_lines:
+            return
+        self._seen_lines.add(line)
+        self.locations.append(
+            lsp.Location(
+                uri=self.uri,
+                range=lsp.Range(
+                    start=lsp.Position(line=line, character=0),
+                    end=lsp.Position(line=line, character=0),
+                ),
+            )
         )
-        if location not in self.locations:
-            self.locations.append(location)

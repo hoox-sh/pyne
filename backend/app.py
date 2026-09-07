@@ -329,13 +329,31 @@ def _parse_run_libraries(raw_libs: Any) -> list[dict[str, Any]]:
     return libraries
 
 
+_RUN_TIMEOUT_DEFAULT = 30.0
+
+
+def _default_run_timeout() -> float:
+    """Server-side default execution timeout (``PYNE_RUN_TIMEOUT``, seconds)."""
+    raw = os.environ.get("PYNE_RUN_TIMEOUT", "").strip()
+    if raw:
+        try:
+            value = float(raw)
+            if value > 0:
+                return value
+        except ValueError:
+            pass
+    return _RUN_TIMEOUT_DEFAULT
+
+
 def _timeout_seconds_kwarg(raw: Any) -> dict[str, float]:
-    """Return ``timeout_seconds=`` only when set and > 0."""
-    if isinstance(raw, bool) or not isinstance(raw, (int, float)):
-        return {}
-    if raw <= 0:
-        return {}
-    return {"timeout_seconds": float(raw)}
+    """Return ``timeout_seconds=`` — client value, else a server-side default.
+
+    Without this, a pathological script runs until gunicorn's ``--timeout``
+    SIGKILLs the worker, dropping every in-flight request on it.
+    """
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool) and raw > 0:
+        return {"timeout_seconds": float(raw)}
+    return {"timeout_seconds": _default_run_timeout()}
 
 
 def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
