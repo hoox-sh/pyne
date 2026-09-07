@@ -12,6 +12,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docs: `once` on grammar/ASDL/builder/unparser, interpret + compile pages,
   compatibility, glossary, FAQ, missing-features. Version table **0.4.4**.
 
+## [0.5.0] - 2026-09-07
+
+Performance release across the whole stack, plus several correctness fixes
+surfaced by the work.
+
+### Changed
+
+- **Slotted AST nodes.** ASDL generator emits `@dataclass(slots=True)`; the
+  shared `AST` base carries `__slots__` for evaluator call-site stamps.
+  Removes the per-node `__dict__` (large scripts allocate tens of thousands
+  of nodes). Regenerate via `python src/pynescript/ast/grammar/asdl/tool/generate.py`.
+- **LSP typing latency (~3-5×).** `didChange` no longer runs two full ANTLR
+  parses (the linter accepts a pre-built `tree=`), and parse+lint now run
+  debounced (250ms, `PYNESCRIPT_LSP_DEBOUNCE_MS`) on a worker thread so the
+  event loop stays responsive. Semantic tokens, inlay hints, hover decl maps,
+  and workspace/symbol results are memoized per document version; completion
+  items, fuzzy-filter fields, and categories are cached per metadata load;
+  references/definitions dedupe is O(1) per line.
+- **TA incremental coverage.** `ta.max` / `ta.min` / `ta.range` now use the
+  incremental kernels; `ta.highest` / `ta.lowest` / `ta.wpr` / `ta.stoch`
+  incremental use monotonic-deque sliding extremes (amortized O(1)/bar
+  instead of O(period) scans); `ta.rci` rank computation is O(n log n)
+  (was O(n²) per bar); `ta.vwma` incremental drops its O(period) na-scan.
+- Per-bar `import` statements hoisted out of hot paths (`+=` assignment,
+  subscript call-sites, `switch`, overload dispatch); `_commit_unwritten_history`
+  iterates a cached `history ∩ var` intersection.
+- Parse-cache hit scrub is a specialized stack walk (was generator BFS);
+  `Runtime._parse_script` no longer performs a second redundant full-tree walk.
+- Builder: single-line token fast path skips the per-node `stop.text`
+  substring allocation; simple string literals skip `ast.literal_eval`.
+- Backend: `/run` applies a server-side default timeout (`PYNE_RUN_TIMEOUT`,
+  30s) so pathological scripts cannot kill a gunicorn worker; PBKDF2 key
+  hashing is LRU-cached (~50-100ms → O(1) per authenticated request);
+  SSRF DNS verdicts are TTL-cached; optional off-thread webhook delivery
+  (`ALERT_WEBHOOK_ASYNC=1`); chart renderer uses the thread-safe OO
+  matplotlib API (pyplot globals raced under `--threads 4`).
+- OHLCV pack/list caches are bounded by tracked bars
+  (`PYNE_OHLCV_CACHE_MAX_BARS`, default 2M), not just entry count.
+- Strategy `position_size`/`position_avg_price`/`closedtrades` end-of-bar
+  history is capped at 512 entries.
+
+### Fixed
+
+- Five compiler/evaluator subtree walks used `node.__dict__.values()`, which
+  silently collected nothing on slotted nodes and broke UDF `var`-local and
+  history-series detection; traversal now goes through `_fields`.
+- `_as_series` same-bar cache could false-hit on a different series (single
+  interned-int fingerprint): fingerprint uses the two newest samples and the
+  host clears the cache every bar.
+- OHLCV pack cache evicted from the *list* cache, so the pack cache was
+  never bounded.
+- `didChange` without a prior `didOpen` crashed the LSP handler (now treated
+  as an empty open); closed documents leaked into the workspace parse-error
+  set.
+
 ## [0.4.4] - 2026-09-05
 
 ### Added
