@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Docs: `once` on grammar/ASDL/builder/unparser, interpret + compile pages,
-  compatibility, glossary, FAQ, missing-features. Version table **0.4.4**.
+  compatibility, glossary, FAQ, missing-features. Version table **0.5.0**.
 
 ## [0.5.0] - 2026-09-07
 
