@@ -129,12 +129,39 @@ jobs:
           FREE_RATE_LIMIT: "0"
           FREE_MAX_CONCURRENT: "0"
 
-      - name: Upload coverage
+      - name: Upload unit coverage
         if: matrix.python-version == '3.13'
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
-          files: ./coverage.xml,./coverage-unit.xml,./coverage-runtime.xml,./coverage-lsp.xml
-          flags: backend,unit,runtime,lsp
+          files: ./coverage-unit.xml
+          flags: unit
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload runtime coverage
+        if: matrix.python-version == '3.13'
+        uses: codecov/codecov-action@v7
+        with:
+          files: ./coverage-runtime.xml
+          flags: runtime
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload LSP coverage
+        if: matrix.python-version == '3.13'
+        uses: codecov/codecov-action@v7
+        with:
+          files: ./coverage-lsp.xml
+          flags: lsp
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload backend coverage
+        if: matrix.python-version == '3.13'
+        uses: codecov/codecov-action@v7
+        with:
+          files: ./coverage.xml
+          flags: backend
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
