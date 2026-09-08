@@ -42,7 +42,6 @@ from typing import Any
 
 from pynescript.ast.helper import _scrub_pine_call_sites
 from pynescript.ast.helper import parse
-from pynescript.ast.helper import walk
 from pynescript.util.time_parts import utc_parts_from_ms
 
 from .evaluator import CustomEvaluator
