@@ -77,7 +77,9 @@ jobs:
             tests/test_linter.py \
             tests/test_evaluator.py \
             tests/test_cli.py \
-            -q --tb=short
+            -q --tb=short \
+            --cov=src/pynescript \
+            --cov-report=xml:coverage-unit.xml --cov-report=term-missing:skip-covered
 
       - name: Core runtime (parity / strategy / series)
         # Audit 2026-08-10 Wave A: PR-gate first-party correctness without
@@ -99,7 +101,9 @@ jobs:
             tests/test_first_party_ta_goldens.py \
             tests/test_runtime_package.py \
             -q --tb=short \
-            -k "not optional_corpus"
+            -k "not optional_corpus" \
+            --cov=src/pynescript \
+            --cov-report=xml:coverage-runtime.xml --cov-report=term-missing:skip-covered
         env:
           # Keep free-tier rate limits out of the way for unit tests.
           FREE_RATE_LIMIT: "0"
@@ -111,7 +115,9 @@ jobs:
           python -m pytest \
             tests/test_langserver.py \
             tests/test_lsp_features.py \
-            -v --tb=short
+            -v --tb=short \
+            --cov=src/pynescript \
+            --cov-report=xml:coverage-lsp.xml --cov-report=term-missing:skip-covered
 
       - name: Backend / Pro API tests
         run: |
@@ -125,10 +131,12 @@ jobs:
 
       - name: Upload coverage
         if: matrix.python-version == '3.13'
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@v5
         with:
-          files: ./coverage.xml
+          files: ./coverage.xml,./coverage-unit.xml,./coverage-runtime.xml,./coverage-lsp.xml
+          flags: backend,unit,runtime,lsp
           fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   package:
     name: Package (sdist + wheel)

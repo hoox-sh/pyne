@@ -1,0 +1,40 @@
+# Codecov configuration — hoox-sh/pyne
+# CI uploads coverage from the Python 3.13 matrix leg only (unit, runtime,
+# LSP, backend flags).
+
+codecov:
+  require_ci_to_pass: true
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+    patch:
+      default:
+        target: 80%
+
+flags:
+  unit:
+    carryforward: true
+  runtime:
+    carryforward: true
+  lsp:
+    carryforward: true
+  backend:
+    carryforward: true
+
+ignore:
+  - "docs/"
+  - "vscode-extension/"
+  - "pynets/"
+  - "cf/"
+  - "clients/"
+  - "examples/"
+  - "scripts/"
+  - "tests/fixtures/"
+
+comment:
+  layout: "reach, diff, flags, files"
+  behavior: default
+  require_changes: false
