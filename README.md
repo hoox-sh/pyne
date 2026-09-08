@@ -8,13 +8,15 @@
 
 ![FAILURE IS LOCAL. RESILIENCE IS GLOBAL.](brand/png/tagline-failure-is-local-github-1280x640-br-split-dark.png)
 
-[![Python](https://shieldcn.dev/badge/Language-Python_3.10%2B-3776ab.png?size=sm&logo=python)](https://www.python.org/)
-[![PyPI](https://shieldcn.dev/badge/PyPI-hoox--pyne-F97316.png?size=sm&logo=pypi)](https://pypi.org/project/hoox-pyne/)
-[![License](https://shieldcn.dev/badge/License-AGPL_3.0-6b7280.png?size=sm)](LICENSE)
-[![CI](https://shieldcn.dev/github/ci/hoox-sh/pyne.png?size=sm)](https://github.com/hoox-sh/pyne/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/hoox-sh/pyne/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/hoox-sh/pyne/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/hoox-sh/pyne/graph/badge.svg)](https://codecov.io/gh/hoox-sh/pyne)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776ab?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![PyPI](https://img.shields.io/pypi/v/hoox-pyne?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/hoox-pyne/)
+[![License](https://img.shields.io/github/license/hoox-sh/pyne?style=flat-square)](LICENSE)
 
 **Website:** [hoox.sh/pyne](https://hoox.sh/pyne) · **Docs:** [hoox.sh/pyne/docs](https://hoox.sh/pyne/docs) · **Source:** [github.com/hoox-sh/pyne](https://github.com/hoox-sh/pyne)
+
+**Stack:** ⚡ [HOOX](https://github.com/hoox-sh/hoox) · 🐍 [**PYNE**](https://github.com/hoox-sh/pyne) *(this repo)* · 📊 [AXIS](https://github.com/hoox-sh/axis)
 
 </div>
 
@@ -287,15 +289,11 @@ make test      # pytest
 make lint      # ruff
 ```
 
-## HOOX Open Trading Stack
+---
 
-**PYNE** is part of the **[HOOX Open Trading Stack](https://hoox.sh)** — three complementary open projects under one product site:
+## The HOOX Stack — all products & sister projects
 
-| Product | Role | Repository | Website |
-|---------|------|------------|---------|
-| **[HOOX](https://hoox.sh)** | Edge trading framework (Cloudflare® Workers) — signal validation and execution at the edge | [hoox-sh/hoox](https://github.com/hoox-sh/hoox) | [hoox.sh](https://hoox.sh) · [docs](https://docs.hoox.sh) |
-| **[PYNE](https://hoox.sh/pyne)** | Pine Script™-oriented toolchain, LSP, Pro API, dual-engine runtime (**this repository**) | [hoox-sh/pyne](https://github.com/hoox-sh/pyne) | [hoox.sh/pyne](https://hoox.sh/pyne) · [docs](https://hoox.sh/pyne/docs) |
-| **[AXIS](https://hoox.sh/axis)** | Installable charting PWA (Solid + Vite) — optional UI over evaluate contracts | [hoox-sh/axis](https://github.com/hoox-sh/axis) | [hoox.sh/axis](https://hoox.sh/axis) · [docs](https://hoox.sh/axis/docs) |
+Everything under [github.com/hoox-sh](https://github.com/hoox-sh) — one open trading stack on [hoox.sh](https://hoox.sh):
 
 ```text
                     https://hoox.sh
@@ -310,28 +308,57 @@ make lint      # ruff
 
 **How they relate**
 
-- **PYNE** owns language semantics: parse, evaluate/compile, alerts, strategy events, and the HTTP evaluate surface (`/run`, batch, previews).
-- **[AXIS](https://github.com/hoox-sh/axis)** is an optional chart host. It can call PYNE’s Pro API (or edge workers) to plot series, fills, and drawings — evaluation does not require AXIS.
+- **PYNE** *(this repo)* owns language semantics: parse, evaluate/compile, alerts, strategy events, and the HTTP evaluate surface (`/run`, batch, previews).
+- **[AXIS](https://github.com/hoox-sh/axis)** is an optional chart host. It can call PYNE's Pro API (or edge workers) to plot series, fills, and drawings — evaluation does not require AXIS.
 - **[HOOX](https://github.com/hoox-sh/hoox)** is an optional execution mesh. Strategy events and alert webhooks from PYNE can feed edge trade paths; HOOX does not replace the PYNE runtime.
 
-Evaluation never depends on a proprietary chart host. AXIS and HOOX are optional clients of the same open evaluate contract. None of these projects is affiliated with or endorsed by TradingView, Inc.
+**Main products**
 
-## Side projects
+| Product | Role | Repository | Website |
+|---------|------|------------|---------|
+| **HOOX** | Edge trading framework — signal validation & execution on Cloudflare® Workers | [hoox-sh/hoox](https://github.com/hoox-sh/hoox) | [hoox.sh](https://hoox.sh) · [docs](https://docs.hoox.sh) |
+| **PYNE** *(this repo)* | Pine Script™ toolchain — grammar, AST, dual-engine runtime, LSP, Pro API | [hoox-sh/pyne](https://github.com/hoox-sh/pyne) | [hoox.sh/pyne](https://hoox.sh/pyne) · [docs](https://hoox.sh/pyne/docs) |
+| **AXIS** | Installable charting PWA — CEX OHLCV, drawings, on-chain overlays | [hoox-sh/axis](https://github.com/hoox-sh/axis) | [hoox.sh/axis](https://hoox.sh/axis) · [docs](https://hoox.sh/axis/docs) |
 
-This repository plus satellites that share the evaluate contract. Python `pynescript.runtime` remains the language SoT.
+**PYNE satellites**
 
 | Project | Role | Repository |
 |---------|------|------------|
-| **[PYNE](https://github.com/hoox-sh/pyne)** | This repository — grammar, AST, dual-engine Runtime, Pro API, CLI (`pyne` / `pynescript`). PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/). | [hoox-sh/pyne](https://github.com/hoox-sh/pyne) |
-| **[pyne-lsp](https://hoox.sh/pyne/docs/lsp)** | Language server (`pyne-lsp` / `pynescript-lsp`) — extras `[lsp]`, Nuitka binaries, Docker `ghcr.io/hoox-sh/pyne/lsp`. | [hoox-sh/pyne](https://github.com/hoox-sh/pyne) · [docs](https://hoox.sh/pyne/docs/lsp) · [GHCR](https://github.com/hoox-sh/pyne/pkgs/container/pyne%2Flsp) |
-| **[pyne-vscode](./vscode-extension/)** | VS Code / Open VSX extension (`hoox-sh.pyne`). Package `pyne-vscode-*.vsix` on Releases. Needs `hoox-pyne[lsp]` or a `pyne-lsp` binary. | [vscode-extension/](./vscode-extension/) · [Marketplace](https://marketplace.visualstudio.com/items?itemName=hoox-sh.pyne) |
-| **[PyneTS](https://github.com/hoox-sh/pynets)** | TypeScript / Bun library (`@hoox/pynets`) — parse, unparse, interpret. Same public names as Python. Submodule `pynets/`. | [hoox-sh/pynets](https://github.com/hoox-sh/pynets) |
-| **[pyne-worker](https://github.com/hoox-sh/pyne-worker)** | Python Cloudflare® Worker — edge `POST /run`, cron, R2, alerts. Thin host over package Runtime. | [hoox-sh/pyne-worker](https://github.com/hoox-sh/pyne-worker) · [docs](https://hoox.sh/pyne/docs/pyne-worker) |
-| **[pyne-agent-worker](https://github.com/hoox-sh/pyne-agent-worker)** | Workers AI PYNE Agent (RAG + optional pyne-worker validate). AXIS plugin. | [hoox-sh/pyne-agent-worker](https://github.com/hoox-sh/pyne-agent-worker) · [docs](https://hoox.sh/pyne/docs/agent) |
-| **[AXIS](https://github.com/hoox-sh/axis)** | Charting PWA (Solid + Vite). Calls Pro API or edge `/run`; ships the VPS static `frontend/dist`. | [hoox-sh/axis](https://github.com/hoox-sh/axis) |
-| **[HOOX](https://github.com/hoox-sh/hoox)** | Edge trading mesh. Optional sink for strategy events and alert webhooks. | [hoox-sh/hoox](https://github.com/hoox-sh/hoox) |
+| **PyneTS** | TypeScript / Bun library (`@hoox-sh/pynets`) — parse, unparse, interpret | [hoox-sh/pynets](https://github.com/hoox-sh/pynets) |
+| **pyne-worker** | Python Cloudflare® Worker — edge `POST /run`, cron, R2, alerts | [hoox-sh/pyne-worker](https://github.com/hoox-sh/pyne-worker) · [docs](https://hoox.sh/pyne/docs/pyne-worker) |
+| **pyne-agent-worker** | Workers AI Pine agent — RAG + validate loop | [hoox-sh/pyne-agent-worker](https://github.com/hoox-sh/pyne-agent-worker) · [docs](https://hoox.sh/pyne/docs/agent) |
+| **pyne-lsp** | Language server `pyne-lsp` / `pynescript-lsp` — extras `[lsp]`, Nuitka binaries, GHCR image (in the PYNE tree) | [hoox-sh/pyne](https://github.com/hoox-sh/pyne) · [docs](https://hoox.sh/pyne/docs/lsp) · [GHCR](https://github.com/hoox-sh/pyne/pkgs/container/pyne%2Flsp) |
+| **pyne-vscode** | VS Code / Open VSX extension `hoox-sh.pyne` (in the PYNE tree) | [vscode-extension](https://github.com/hoox-sh/pyne/tree/main/vscode-extension) · [Marketplace](https://marketplace.visualstudio.com/items?itemName=hoox-sh.pyne) |
 
-HOOX also publishes execution-plane workers (`hoox-worker`, `trade-worker`, `telegram-worker`, `d1-worker`, …) under [github.com/hoox-sh](https://github.com/hoox-sh). Those are execution and ops, not the Pine language toolchain.
+**AXIS satellites**
+
+| Project | Role | Repository |
+|---------|------|------------|
+| **axis-plugin-boilerplate** | Starter for source / stream / engine / dataset / component plugins | [hoox-sh/axis-plugin-boilerplate](https://github.com/hoox-sh/axis-plugin-boilerplate) |
+
+**HOOX execution & ops plane**
+
+| Worker | Role | Repository |
+|--------|------|------------|
+| **hoox-worker** | Public gateway — webhooks, WAF, DO idempotency, dispatch | [hoox-sh/hoox-worker](https://github.com/hoox-sh/hoox-worker) |
+| **trade-worker** | Multi-exchange execution — Binance, Bybit, MEXC | [hoox-sh/trade-worker](https://github.com/hoox-sh/trade-worker) |
+| **agent-worker** | AI risk manager — cron, trailing stops, kill switch | [hoox-sh/agent-worker](https://github.com/hoox-sh/agent-worker) |
+| **d1-worker** | D1 SQL proxy — balances, positions, settings | [hoox-sh/d1-worker](https://github.com/hoox-sh/d1-worker) |
+| **telegram-worker** | Telegram alerts + RAG copilot | [hoox-sh/telegram-worker](https://github.com/hoox-sh/telegram-worker) |
+| **web3-wallet-worker** | On-chain wallet identity (ethers.js) | [hoox-sh/web3-wallet-worker](https://github.com/hoox-sh/web3-wallet-worker) |
+| **email-worker** | Mailgun ingress — natural language → trade signals | [hoox-sh/email-worker](https://github.com/hoox-sh/email-worker) |
+| **analytics-worker** | Analytics Engine fan-in — trades, signals, latency | [hoox-sh/analytics-worker](https://github.com/hoox-sh/analytics-worker) |
+| **report-worker** | Browser Rendering PDFs → R2, cron delivery | [hoox-sh/report-worker](https://github.com/hoox-sh/report-worker) |
+| **dashboard** | Next.js ops console (in the HOOX tree) | [hoox-sh/hoox](https://github.com/hoox-sh/hoox) |
+| **pine-worker** | Pine evaluator → trade events (private) | [hoox-sh/pine-worker](https://github.com/hoox-sh/pine-worker) |
+
+**Web**
+
+| Project | Role | Repository |
+|---------|------|------------|
+| **hoox-landing-page** | Marketing site source for [hoox.sh](https://hoox.sh) | [hoox-sh/hoox-landing-page](https://github.com/hoox-sh/hoox-landing-page) |
+
+### Clone the stack
 
 ```bash
 git clone --recurse-submodules https://github.com/hoox-sh/pyne.git   # PYNE + pynets/ submodule (pyne-lsp is in-tree)
@@ -342,6 +369,18 @@ git clone https://github.com/hoox-sh/pyne-worker.git                 # edge POST
 git clone https://github.com/hoox-sh/pyne-agent-worker.git           # NL authoring
 git clone https://github.com/hoox-sh/axis.git
 ```
+
+## Ethos
+
+- **Independent & open** — no proprietary chart host, no closed data services; evaluation never depends on TradingView®.
+- **Edge-first** — compute colocated with exchanges on Cloudflare's global network.
+- **Local-first** — AXIS runs fully offline (Pyodide); PYNE runs on your machine; HOOX self-hosts on the free tier.
+- **No vendor lock-in** — open core, self-hostable, exportable.
+- **Batteries included** — CLIs, LSP, dashboards, docs, and one-click deploy buttons ship in the box.
+
+> **Disclaimer.** *Pine Script™* and *TradingView®* are trademarks of [TradingView, Inc.](https://www.tradingview.com/); *Cloudflare®* is a trademark of Cloudflare, Inc. The HOOX stack is **independent** and is not affiliated with, authorized by, sponsored by, or endorsed by either company. Educational and research use; trading involves substantial risk of loss — this is not financial advice.
+
+⚡ **Powered by Cloudflare** — Workers · D1 · R2 · KV · Queues · Analytics Engine · Workers AI · Browser Rendering
 
 ## License
 
