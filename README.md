@@ -2,7 +2,7 @@
 
 **Independent open toolchain for the Pine Script™ language** — formal grammar, algebraic AST, dual-engine bar-loop runtime, language server, and HTTP evaluation surface. Part of the [HOOX](https://hoox.sh) open trading stack.
 
-**0.4.4** · PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) · import `pynescript` · CLIs `pyne` · `pyne-lsp` (aliases: `pynescript` · `pynescript-lsp`)
+**0.6.0** · PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) · import `pynescript` · CLIs `pyne` · `pyne-lsp` (aliases: `pynescript` · `pynescript-lsp`)
 
 <div align="center">
 
@@ -14,7 +14,7 @@
 [![PyPI](https://img.shields.io/pypi/v/hoox-pyne?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/hoox-pyne/)
 [![License](https://img.shields.io/github/license/hoox-sh/pyne?style=flat-square)](LICENSE)
 
-**Website:** [hoox.sh/pyne](https://hoox.sh/pyne) · **Docs:** [hoox.sh/pyne/docs](https://hoox.sh/pyne/docs) · **Source:** [github.com/hoox-sh/pyne](https://github.com/hoox-sh/pyne)
+**Site:** [hoox.sh/pyne](https://hoox.sh/pyne) · **Docs:** [hoox.sh/pyne/docs](https://hoox.sh/pyne/docs) · **Repo:** [github.com/hoox-sh/pyne](https://github.com/hoox-sh/pyne)
 
 **Stack:** ⚡ [HOOX](https://github.com/hoox-sh/hoox) · 🐍 [**PYNE**](https://github.com/hoox-sh/pyne) *(this repo)* · 📊 [AXIS](https://github.com/hoox-sh/axis)
 
@@ -90,7 +90,7 @@ Not a claim of TradingView® platform parity. Intentional demos are classified s
 - **Strategy surface.** Entries, exits, events, commission/slippage paths, pending-fill behaviour under pyramiding constraints.
 - **Drawing GC.** Honour of `max_lines_count`, `max_labels_count`, `max_boxes_count`, `max_polylines_count`.
 - **UDT collections.** `array.sort` / `array.sort_indices` / `matrix.sort` and `array.binary_search*` take `sort_field` (const int index, default 0, or const string name) on arrays of user-defined types.
-- **Security policy.** Same-symbol simple OHLCV for `request.security`; foreign or complex security resolves to `na` (no invented foreign closes).
+- **Security policy.** Same-symbol simple OHLCV and allowlisted `ta.*` resample for `request.security`, with `gaps_on` / `lookahead_on` barmerge; foreign or complex security resolves to `na` (no invented foreign closes).
 
 ### Surfaces
 
@@ -101,7 +101,7 @@ Not a claim of TradingView® platform parity. Intentional demos are classified s
 | **VS Code extension** | First-class `.pyne` / `.pine` (and related) associations |
 | **Pro API** | HTTP evaluate, batch run, chart preview, quick backtest |
 | **Editors** | Configurations for Neovim, Zed, Emacs (see `clients/`) |
-| **PyneTS** | TypeScript / Bun library (`@hoox/pynets`) — [standalone repo](https://github.com/hoox-sh/pynets), consumed here only as the `pynets/` git submodule |
+| **PyneTS** | TypeScript / Bun library (`@hoox-sh/pynets`) — [standalone repo](https://github.com/hoox-sh/pynets), consumed here only as the `pynets/` git submodule |
 
 ## Installation
 
@@ -125,16 +125,16 @@ Multi-arch (`linux/amd64`, `linux/arm64`) images publish to GitHub Container Reg
 
 ```bash
 # CLI
-docker pull ghcr.io/hoox-sh/pyne/cli:0.4.4
-docker run --rm -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/cli:0.4.4 check script.pine
+docker pull ghcr.io/hoox-sh/pyne/cli:0.6.0
+docker run --rm -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/cli:0.6.0 check script.pine
 
 # Language server (stdio; -i required)
-docker pull ghcr.io/hoox-sh/pyne/lsp:0.4.4
-docker run --rm -i -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/lsp:0.4.4
+docker pull ghcr.io/hoox-sh/pyne/lsp:0.6.0
+docker run --rm -i -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/lsp:0.6.0
 
 # Pro API
-docker pull ghcr.io/hoox-sh/pyne/api:0.4.4
-docker run --rm -p 5002:8080 -e ADMIN_TOKEN=… ghcr.io/hoox-sh/pyne/api:0.4.4
+docker pull ghcr.io/hoox-sh/pyne/api:0.6.0
+docker run --rm -p 5002:8080 -e ADMIN_TOKEN=… ghcr.io/hoox-sh/pyne/api:0.6.0
 ```
 
 Packages: [ghcr.io/hoox-sh/pyne](https://github.com/hoox-sh/pyne/pkgs/container/pyne%2Fcli). Local: `make docker-build-lsp`.
