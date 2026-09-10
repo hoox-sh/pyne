@@ -7078,7 +7078,8 @@ class CompilerVisitor(NodeVisitor):
             return f"__strategy.risk_max_cons_loss_days({days})"
         if risk == "max_intraday_loss":
             val = args[0] if args else kwargs.get("percent", kwargs.get("value", "None"))
-            return f"__strategy.risk_max_intraday_loss({val})"
+            rtype = args[1] if len(args) > 1 else kwargs.get("type", repr("percent"))
+            return f"__strategy.risk_max_intraday_loss({val}, {rtype})"
         if risk == "max_intraday_filled_orders":
             val = args[0] if args else kwargs.get("max_orders", kwargs.get("value", kwargs.get("max", "None")))
             return f"__strategy.risk_max_intraday_filled_orders({val})"

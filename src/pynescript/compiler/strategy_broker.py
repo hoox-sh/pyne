@@ -360,6 +360,9 @@ class CompileStrategyBroker:
         self.max_cons_loss_days: int | None = None
         # Intraday loss halt as % of initial capital (interpret stores; we enforce)
         self.max_intraday_loss: float = float("inf")
+        # Absolute-cash intraday loss cap (account currency, no FX conversion).
+        # Percent (default) and cash are mutually exclusive.
+        self.max_intraday_loss_cash: float | None = None
         # Cap filled orders per calendar-day bucket (entries + exits)
         self.max_intraday_filled_orders: int | None = None
         self.entries_blocked: bool = False  # risk halt (drawdown / cons loss / intraday)
@@ -1062,9 +1065,11 @@ class CompileStrategyBroker:
             return
         self.max_cons_loss_days = d
 
-    def risk_max_intraday_loss(self, percent: Any = None, **_kwargs: Any) -> None:
-        """``strategy.risk.max_intraday_loss(percent)`` — halt on day loss % of capital.
+    def risk_max_intraday_loss(self, percent: Any = None, type: Any = "percent", **_kwargs: Any) -> None:
+        """``strategy.risk.max_intraday_loss(value, type)`` — % of capital or cash.
 
+        Percent (default) halts on day loss % of initial capital; ``cash`` /
+        ``strategy.cash`` halts on absolute account-currency loss (no FX).
         Interpret stores the limit; compile also enforces via day PnL tracking
         shared with :meth:`note_closed_trade_day`.
         """
@@ -1077,7 +1082,14 @@ class CompileStrategyBroker:
             return
         if not math.isfinite(p) or p < 0:
             return
-        self.max_intraday_loss = p
+        risk_type = type if type is not None else _kwargs.get("type", "percent")
+        rt = str(risk_type).replace("strategy.", "").strip().lower()
+        if rt in {"cash"}:
+            self.max_intraday_loss_cash = p
+            self.max_intraday_loss = float("inf")
+        else:
+            self.max_intraday_loss = p
+            self.max_intraday_loss_cash = None
 
     def risk_max_intraday_filled_orders(self, max_orders: Any = None, **_kwargs: Any) -> None:
         """``strategy.risk.max_intraday_filled_orders(max)`` — cap fills per day.
@@ -1086,8 +1098,10 @@ class CompileStrategyBroker:
         bucket. Further entries are blocked (``risk_blocked``) once the cap is
         hit; the counter resets when the day bucket rolls.
         """
-        raw = max_orders if max_orders is not None else _kwargs.get(
-            "max_orders", _kwargs.get("value", _kwargs.get("max"))
+        raw = (
+            max_orders
+            if max_orders is not None
+            else _kwargs.get("max_orders", _kwargs.get("value", _kwargs.get("max")))
         )
         if raw is None or _is_na(raw):
             return
@@ -1166,6 +1180,13 @@ class CompileStrategyBroker:
             if loss_pct >= float(self.max_intraday_loss):
                 self.entries_blocked = True
                 return False
+        if (
+            self.max_intraday_loss_cash is not None
+            and self._day_pnl < 0
+            and -self._day_pnl >= float(self.max_intraday_loss_cash)
+        ):
+            self.entries_blocked = True
+            return False
         # Day-scoped fill cap (resets when bar-time day bucket rolls)
         if self.max_intraday_filled_orders is not None:
             self._roll_fill_day()
@@ -1254,9 +1275,7 @@ class CompileStrategyBroker:
             px = px_hint
             if self.slippage_ticks > 0:
                 px = self._slip(px, d)
-            self._open_or_add(
-                d, q, px, str(id), comment, respect_pyramiding=True
-            )
+            self._open_or_add(d, q, px, str(id), comment, respect_pyramiding=True)
             return
 
         ot = self._classify_order_type(limit, stop)
@@ -1289,9 +1308,7 @@ class CompileStrategyBroker:
             px = self._slip(px, d)
         else:
             px = float(px)
-        self._open_or_add(
-            d, q, px, str(id), comment, respect_pyramiding=True
-        )
+        self._open_or_add(d, q, px, str(id), comment, respect_pyramiding=True)
 
     def _resolve_trail_params(
         self,
@@ -1377,13 +1394,9 @@ class CompileStrategyBroker:
         """
         entry_avg = self._exit_entry_avg(from_entry)
         if limit_p is None:
-            limit_p = self._tick_offset_price(
-                profit_ticks, entry_avg, is_long=is_long, is_profit=True
-            )
+            limit_p = self._tick_offset_price(profit_ticks, entry_avg, is_long=is_long, is_profit=True)
         if stop_p is None:
-            stop_p = self._tick_offset_price(
-                loss_ticks, entry_avg, is_long=is_long, is_profit=False
-            )
+            stop_p = self._tick_offset_price(loss_ticks, entry_avg, is_long=is_long, is_profit=False)
         return limit_p, stop_p
 
     def close(
@@ -1510,9 +1523,7 @@ class CompileStrategyBroker:
                     comment="invalid_qty",
                 )
                 return
-            close_qty = (
-                float(target_size) if status == "missing" else min(abs(float(parsed)), float(target_size))
-            )
+            close_qty = float(target_size) if status == "missing" else min(abs(float(parsed)), float(target_size))
         if close_qty <= 0 or not math.isfinite(close_qty):
             return
 
@@ -1712,9 +1723,7 @@ class CompileStrategyBroker:
         use_sticky = model in {"futures", "inverse"}
         sticky_avg = float(self.position_avg_price) if self.position_avg_price == self.position_avg_price else 0.0
 
-        eligible = (
-            [leg for leg in self.open_legs if leg.entry_id == fe] if fe is not None else list(self.open_legs)
-        )
+        eligible = [leg for leg in self.open_legs if leg.entry_id == fe] if fe is not None else list(self.open_legs)
         total_close = min(float(close_qty), float(sum(leg.size for leg in eligible)))
         if total_close <= 0:
             return
