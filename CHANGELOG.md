@@ -7,10 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-10
+
+Parity increments across strategy risk, realtime scope, timeframes,
+`request.security` barmerge, and the linter.
+
+### Added
+
+- Strategy risk: `strategy.risk.max_intraday_loss(value, type)` honors
+  percent-of-equity vs cash on both brokers; interpret enforces intraday
+  loss plus the day-scoped `max_intraday_filled_orders` cap, with
+  order-level fill counting on both hosts.
+- Realtime: intrabar rollback of the `var` scope plus series currents on
+  interpret realtime ticks (`varip` persists); `once` fires once from
+  confirmed state.
+- Timeframes: `timeframe.change` D/W/M on the exchange calendar
+  (`syminfo.timezone`, UTC default; DST-aware days, Monday weeks, calendar
+  months); compile routes calendar TFs through object mode.
+- `request.security`: `gaps_on` / `lookahead_on` honored on the HTF resample
+  paths (bucket-start na-gaps, forming-bucket reads); presence-vs-effect
+  policy tags (`gaps_lookahead_provided` vs `gaps_applied` /
+  `lookahead_applied`).
+
 ### Changed
 
 - Docs: `once` on grammar/ASDL/builder/unparser, interpret + compile pages,
   compatibility, glossary, FAQ, missing-features. Version table **0.5.0**.
+- `docs/known_divergences.md`: F-12…F-16 closed; D-02/D-04/D-06 narrowed to
+  their documented residuals.
+- Disk IR cache v14 (calendar routing changed codegen).
+
+### Removed
+
+- Linter: retired legacy rules `C003` (indented `if` without "braces"),
+  `W102` (histogram → plotcandle), `W103` (`var int x = na` → 0); codes stay
+  retired so history stays greppable. LSP `C003` noise filter removed with
+  the rule.
 
 ## [0.5.0] - 2026-09-07
 
