@@ -76,6 +76,7 @@ def _load_expression_helpers() -> None:
         _elementwise_binary = _expr_mod._elementwise_binary
         _switch_case_matches = _expr_mod._switch_case_matches
 
+
 # Top-level declarations that are no-ops after the host locks defs (bar 1+).
 _DECL_CALL_NAMES = frozenset({"indicator", "strategy", "library", "study"})
 _SKIP_AFTER_LOCK = (ast.FunctionDef, ast.TypeDef, ast.EnumDef, ast.Import)
@@ -932,13 +933,19 @@ class StatementEvaluator:
                     if node.value:
                         value = self.visit(node.value)  # type: ignore[attr-defined]
                         self._bind_series_name(name, value)
-                    declared.add(name)
-                    return
-                if name not in declared:
+                elif name not in declared:
                     if node.value:
                         value = self.visit(node.value)  # type: ignore[attr-defined]
                         self._bind_series_name(name, value)
-                    declared.add(name)
+                declared.add(name)
+                if is_varip:
+                    # Tracked separately so intrabar rollback can persist
+                    # varip while restoring var (reference tick semantics).
+                    varips: set[str] = getattr(self, "_varip_declarations", None)  # type: ignore[assignment]
+                    if varips is None:
+                        varips = set()
+                        self._varip_declarations = varips  # type: ignore[attr-defined]
+                    varips.add(name)
                 return
             msg = f"Unsupported var/varip target: {type(node.target)}"
             self._error(msg)  # type: ignore[attr-defined]

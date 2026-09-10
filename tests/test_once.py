@@ -179,7 +179,10 @@ plot(n, "n")
         assert "error" not in out, out.get("error")
         series = out["series"]["n"]
         assert series[:-1] == [0] * (bars - 1)
-        assert series[-1] == ticks
+        # The body runs on unconfirmed ticks but ``var`` rolls back, and the
+        # fired flag commits only on confirmation — so the final (confirmed)
+        # tick fires exactly once from 0.
+        assert series[-1] == 1
 
 
 class TestOnceCompile:

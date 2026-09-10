@@ -106,12 +106,13 @@ plot(vip, "vip")
 
 
 def test_varip_reinit_under_realtime_last_bar_multi_tick() -> None:
-    """Multi-tick last bar: varip re-inits each tick; var keeps accumulating.
+    """Multi-tick last bar: varip re-inits each tick; var rolls back.
 
     Evaluator contract when barstate.isrealtime: varip RHS re-runs each visit;
-    var stays init-once. With ``v := v + 1`` / ``vip := vip + 1`` after
-    ``var/varip int x = 0``, after N realtime ticks on the last bar:
-    - ``v`` ends at historical_bars + N (accumulates across ticks)
+    var rolls back to the last confirmed bar on intermediate ticks, so only
+    the final (confirmed) tick commits. With ``v := v + 1`` / ``vip := vip + 1``
+    after ``var/varip int x = 0``, after N realtime ticks on the last bar:
+    - ``v`` ends at historical_bars + 1 (one commit, not N)
     - ``vip`` ends at 1 (reset to 0 then +1 on the final tick)
     """
     src = """
@@ -138,8 +139,9 @@ plot(vip, "vip")
     # Series length still one cell per OHLCV bar (intermediate ticks discarded)
     assert len(series["v"]) == n
     assert len(series["vip"]) == n
-    # Historical bars 0..n-2: one visit each → n-1 increments, then last bar N ticks
-    assert series["v"][-1] == (n - 1) + ticks
+    # Historical bars 0..n-2: one visit each → n-1 increments, then last bar
+    # ticks roll var back so only the final tick commits (+1)
+    assert series["v"][-1] == n
     # varip re-inits to 0 on each realtime tick, then +1 → final cell is 1
     assert series["vip"][-1] == 1
 
@@ -166,7 +168,8 @@ plot(vip, "vip")
     )
     assert "error" not in out, out.get("error")
     series = out["series"]
-    assert series["v"][-1] == (n - 1) + ticks
+    # Ticks roll var back: last bar commits once (n), varip re-inits → 1.
+    assert series["v"][-1] == n
     assert series["vip"][-1] == 1
 
 
@@ -189,9 +192,7 @@ plot(vip, "vip")
     n = 12
     bars = _bars(n)
     hist = Runtime(symbol="TEST").run(src, bars, mode="interpret")
-    rt = Runtime(symbol="TEST").run(
-        src, bars, mode="interpret", realtime_last_bar=True
-    )
+    rt = Runtime(symbol="TEST").run(src, bars, mode="interpret", realtime_last_bar=True)
     assert "error" not in hist, hist.get("error")
     assert "error" not in rt, rt.get("error")
     # Historical: both accumulate one increment per bar
@@ -207,7 +208,7 @@ def test_varip_vs_var_across_last_two_realtime_bars() -> None:
 
     Bars ``[0, n-2)`` stay historical (one visit, isrealtime=False).
     Bars ``n-2`` and ``n-1`` each re-visit ``ticks`` times with isrealtime.
-    - ``var`` accumulates across every visit
+    - ``var`` rolls back on intermediate ticks: each realtime bar commits +1
     - ``varip`` re-inits on each realtime tick → final cell per RT bar is 1
     Series length remains one sample per OHLCV bar.
     """
@@ -241,12 +242,12 @@ plot(vip, "vip")
     assert series["v"][hist_visits - 1] == hist_visits
     assert series["vip"][hist_visits - 1] == hist_visits
 
-    # First realtime bar (index n-2): var += ticks; varip final = 1
-    assert series["v"][-2] == hist_visits + ticks
+    # First realtime bar (index n-2): var commits +1; varip final = 1
+    assert series["v"][-2] == hist_visits + 1
     assert series["vip"][-2] == 1
 
-    # Last realtime bar: var += another ticks; varip final = 1
-    assert series["v"][-1] == hist_visits + k * ticks
+    # Last realtime bar: var commits another +1; varip final = 1
+    assert series["v"][-1] == hist_visits + 2
     assert series["vip"][-1] == 1
 
 
@@ -275,7 +276,8 @@ plot(vip, "vip")
     assert "error" not in out, out.get("error")
     series = out["series"]
     hist_visits = from_bar
-    assert series["v"][-1] == hist_visits + 2 * ticks
+    # Each realtime bar commits var once (rollback); varip re-inits → 1.
+    assert series["v"][-1] == hist_visits + 2
     assert series["vip"][-1] == 1
     assert series["vip"][-2] == 1
     # Bar before window is still historical accumulation for varip
@@ -295,9 +297,7 @@ plot(v, "v")
 plot(vip, "vip")
 """
     n = 5
-    out = Runtime(symbol="TEST").run(
-        src, _bars(n), mode="interpret", realtime_bars=0, realtime_ticks=1
-    )
+    out = Runtime(symbol="TEST").run(src, _bars(n), mode="interpret", realtime_bars=0, realtime_ticks=1)
     assert "error" not in out, out.get("error")
     assert out["series"]["v"][-1] == n
     assert out["series"]["vip"][-1] == n
@@ -350,12 +350,8 @@ plot(time_close, "tc")
     series = out["series"]
     last = bars[-1]
     assert series["hl2"][-1] == pytest.approx((last["high"] + last["low"]) * 0.5)
-    assert series["hlc3"][-1] == pytest.approx(
-        (last["high"] + last["low"] + last["close"]) / 3.0
-    )
-    assert series["ohlc4"][-1] == pytest.approx(
-        (last["open"] + last["high"] + last["low"] + last["close"]) * 0.25
-    )
+    assert series["hlc3"][-1] == pytest.approx((last["high"] + last["low"] + last["close"]) / 3.0)
+    assert series["ohlc4"][-1] == pytest.approx((last["open"] + last["high"] + last["low"] + last["close"]) * 0.25)
     prev = bars[-2]
     expect_tr = max(
         last["high"] - last["low"],
@@ -401,9 +397,7 @@ plot(src, "s")
 """
     n = 6
     bars = _bars(n)
-    out = Runtime(symbol="TEST").run(
-        src, bars, mode="interpret", inputs={"Source": "hl2"}
-    )
+    out = Runtime(symbol="TEST").run(src, bars, mode="interpret", inputs={"Source": "hl2"})
     assert "error" not in out, out.get("error")
     last = bars[-1]
     expect = (last["high"] + last["low"]) * 0.5

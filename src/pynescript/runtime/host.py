@@ -757,11 +757,10 @@ def _ohlcv_cache_insert(
     cache[oid] = entry
     max_bars = _env_int("PYNE_OHLCV_CACHE_MAX_BARS", _OHLCV_CACHE_MAX_BARS_DEFAULT)
     # Evict oldest-first while over either bound (never the fresh entry).
-    while len(cache) > 1 and (
-        len(cache) > max_entries or _ohlcv_cache_total_bars(cache) > max_bars
-    ):
+    while len(cache) > 1 and (len(cache) > max_entries or _ohlcv_cache_total_bars(cache) > max_bars):
         oldest = next(iter(cache))
         cache.pop(oldest, None)
+
 
 # Synthetic bar-open spacing when host omits ``time`` (matches CompiledScript.run).
 _SYNTHETIC_BAR_MS = 60_000.0
@@ -1113,6 +1112,99 @@ def _discard_realtime_plot_tick(evaluator: Any) -> None:
                 col.pop()
     try:
         evaluator._plot_capture_i = 0
+    except Exception:
+        pass
+
+
+def _snapshot_realtime_scope(evaluator: Any) -> dict[str, Any] | None:
+    """Snapshot ``var`` scope before an intermediate realtime tick.
+
+    Reference Pine re-executes forming bars per tick with non-``varip``
+    state rolled back to the last confirmed bar. The snapshot holds context
+    bindings (by reference), ``.current`` of series-like values, and the
+    ``var`` declaration set — everything
+    :func:`_restore_realtime_scope` needs to undo one tick. ``varip`` names
+    are recorded (not snapshotted) so they persist across ticks.
+    Shallow by design: in-place mutations of referenced containers
+    (arrays / matrices / UDTs) are not deep-rolled-back.
+    """
+    ctx = getattr(evaluator, "context", None)
+    if not isinstance(ctx, dict):
+        return None
+    try:
+        bindings = dict(ctx)
+    except Exception:
+        return None
+    varips = getattr(evaluator, "_varip_declarations", None)
+    varip_names = set(varips) if varips else set()
+    currents: dict[str, Any] = {}
+    for name, value in bindings.items():
+        if name in varip_names:
+            continue
+        try:
+            if hasattr(value, "update") and hasattr(value, "current") and hasattr(value, "history"):
+                currents[name] = getattr(value, "current", None)
+        except Exception:
+            continue
+    declared = getattr(evaluator, "_var_declarations", None)
+    try:
+        return {
+            "bindings": bindings,
+            "currents": currents,
+            "varip_names": varip_names,
+            "var_declarations": set(declared) if declared else set(),
+        }
+    except Exception:
+        return None
+
+
+def _restore_realtime_scope(evaluator: Any, snap: dict[str, Any] | None) -> None:
+    """Undo one intermediate realtime tick (see :func:`_snapshot_realtime_scope`).
+
+    Restores ``var`` bindings and series ``.current`` values in place — the
+    context dict itself is never replaced. ``varip`` names keep their
+    post-tick values (reference persistence). History pushes and the
+    series-assign map are intentionally left alone: the start-of-visit
+    commit already ran for this bar, and re-running it on the final tick
+    would double-push. Best-effort: never raises.
+    """
+    if not snap:
+        return
+    ctx = getattr(evaluator, "context", None)
+    if not isinstance(ctx, dict):
+        return
+    before = snap.get("bindings") or {}
+    varip_names = snap.get("varip_names") or set()
+    try:
+        for name in [k for k in ctx if k not in before]:
+            if name in varip_names:
+                continue
+            try:
+                del ctx[name]
+            except Exception:
+                pass
+        for name, value in before.items():
+            if name in varip_names:
+                continue
+            try:
+                if name not in ctx or ctx[name] is not value:
+                    ctx[name] = value
+            except Exception:
+                pass
+        for name, current in (snap.get("currents") or {}).items():
+            target = ctx.get(name)
+            try:
+                if target is not None and hasattr(target, "update") and hasattr(target, "current"):
+                    target.current = current
+            except Exception:
+                pass
+    except Exception:
+        pass
+    try:
+        declared = getattr(evaluator, "_var_declarations", None)
+        if isinstance(declared, set):
+            declared.clear()
+            declared.update(snap.get("var_declarations") or ())
     except Exception:
         pass
 
@@ -1934,6 +2026,10 @@ class Runtime:
                     barstate.isconfirmed = tick_i == n_ticks - 1
                     barstate.islastconfirmedhistory = False
 
+                # Intermediate realtime ticks start from confirmed state:
+                # snapshot var scope, restore after the visit (varip persists).
+                rt_snap = _snapshot_realtime_scope(evaluator) if bar_rt and tick_i < n_ticks - 1 else None
+
                 # Reset per-bar/tick plot index; clear strategy event buffer
                 reset_plots()
                 if need_strategy and strategy_events:
@@ -1973,8 +2069,10 @@ class Runtime:
                     )
 
                 if tick_i < n_ticks - 1:
-                    # Intermediate realtime tick: keep state (var/varip) but
-                    # discard plot cells so series length stays 1 per bar.
+                    # Intermediate realtime tick: roll back var scope to
+                    # confirmed state (varip persists) and discard plot
+                    # cells so series length stays 1 per bar.
+                    _restore_realtime_scope(evaluator, rt_snap)
                     _discard_realtime_plot_tick(evaluator)
                     continue
 

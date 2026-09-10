@@ -94,6 +94,7 @@ class NodeLiteralEvaluator(
 
     - ``_strategy_state`` — position + :class:`~.events.StrategyEvent` buffer
     - ``_var_declarations`` — names already initialized by ``var`` / ``varip``
+    - ``_varip_declarations`` — subset initialized by ``varip`` (rollback-exempt)
     - ``_once_fired`` — confirmed ``once`` structures (keyed by ``id(node)``)
 
     Hosts often set ``_pine_defs_locked = True`` after the first bar so
@@ -119,6 +120,8 @@ class NodeLiteralEvaluator(
 
         if not hasattr(self, "_var_declarations"):
             self._var_declarations = set()
+        if not hasattr(self, "_varip_declarations"):
+            self._varip_declarations = set()
         if not hasattr(self, "_once_fired"):
             self._once_fired = {}
 
