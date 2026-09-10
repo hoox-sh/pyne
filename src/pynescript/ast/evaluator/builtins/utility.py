@@ -455,13 +455,13 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         except (TypeError, ValueError):
             return None
 
-    def _builtin_timeframe_change(
-        self, args: list[Any], kwargs: dict[str, Any] | None = None
-    ) -> bool:
+    def _builtin_timeframe_change(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> bool:
         """``timeframe.change(tf)`` — true on the first bar of a new *tf* period.
 
-        UTC fixed-width buckets (same widths as ``timeframe.in_seconds``).
-        Bar 0 is a new period. Missing times / unusable tf → False.
+        Bare ``D`` / ``W`` / ``M`` resolve on the exchange calendar in
+        ``syminfo.timezone`` (UTC when the host leaves it unset); all other
+        frames keep fixed-width UTC buckets. Bar 0 is a new period.
+        Missing times / unusable tf → False.
         """
         kw = kwargs or {}
         raw = args[0] if args else kw.get("timeframe", kw.get("tf"))
@@ -485,13 +485,18 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         bar_index = None
         if "bar_index" in ctx:
             bar_index = int(self._coerce_ctx_number("bar_index", 0))
-        return timeframe_period_changed(
-            curr, self._prev_bar_time_ms(), tf, bar_index=bar_index
-        )
+        tz = None
+        sym = self._syminfo_host()
+        if sym is not None:
+            raw_tz = getattr(sym, "timezone", None)
+            if raw_tz:
+                try:
+                    tz = _parse_pine_timezone(raw_tz)
+                except Exception:
+                    tz = None
+        return timeframe_period_changed(curr, self._prev_bar_time_ms(), tf, bar_index=bar_index, tz=tz)
 
-    def _resolve_timestamp_arg(
-        self, args: list[Any], *, name: str
-    ) -> tuple[float | None, Any]:
+    def _resolve_timestamp_arg(self, args: list[Any], *, name: str) -> tuple[float | None, Any]:
         """Resolve optional timestamp + timezone; bare form uses chart ``time``.
 
         Forms (reference):

@@ -32,6 +32,14 @@ dispatch map from :class:`~pynescript.ast.evaluator.builtins.BuiltinEvaluator`.
 
 from __future__ import annotations
 
+import datetime as _datetime
+
+
+try:
+    from zoneinfo import ZoneInfo as _ZoneInfo
+except ImportError:  # minimal platforms without tzdata
+    _ZoneInfo = None  # type: ignore[assignment, misc]
+
 
 # Time unit constants in seconds
 SECONDS_PER_MINUTE = 60
@@ -99,9 +107,11 @@ def timeframe_bucket_ms(timeframe_str: str | None) -> float | None:
 def timeframe_bucket_id(ts: object, timeframe_str: str | None) -> int | None:
     """UTC fixed-width bucket id for *ts* under *timeframe_str*.
 
-    Detects seconds vs milliseconds. Daily/weekly/monthly use the same
-    fixed-ms widths as :func:`timeframe_in_seconds` (UTC epoch alignment,
-    not exchange calendar).
+    Legacy fixed-width primitive (kept for intraday buckets and the Numba
+    path). Daily/weekly/monthly use the same fixed-ms widths as
+    :func:`timeframe_in_seconds` (UTC epoch alignment, not exchange
+    calendar). Prefer :func:`timeframe_calendar_id` / calendar-aware
+    :func:`timeframe_period_changed` for ``D`` / ``W`` / ``M``.
     """
     t = _normalize_time_ms(ts)
     bucket = timeframe_bucket_ms(timeframe_str)
@@ -110,20 +120,100 @@ def timeframe_bucket_id(ts: object, timeframe_str: str | None) -> int | None:
     return int(t // bucket)
 
 
+#: Bare daily/weekly/monthly frames resolved on the exchange calendar
+#: (``1D`` / ``1W`` / ``1M`` spellings included). Anything else — intraday,
+#: multi-day (``3D``), seconds — keeps fixed-width UTC buckets.
+_CALENDAR_TFS = frozenset({"D", "W", "M", "1D", "1W", "1M"})
+
+
+def timeframe_is_calendar_tf(timeframe_str: object) -> bool:
+    """True when *timeframe_str* is a bare ``D`` / ``W`` / ``M`` frame."""
+    if timeframe_str is None:
+        return False
+    return str(timeframe_str).strip() in _CALENDAR_TFS
+
+
+def _resolve_change_tz(tz: object) -> _datetime.tzinfo:
+    """Coerce *tz* to a tzinfo, falling back to UTC — never raises.
+
+    Accepts IANA names (``America/New_York``), ``datetime`` tzinfo /
+    timedelta offsets, and the ``syminfo.timezone`` sentinel. Unknown or
+    missing zoneinfo data → UTC.
+    """
+    utc = _datetime.timezone.utc
+    if tz is None:
+        return utc
+    if isinstance(tz, _datetime.tzinfo):
+        return tz
+    if isinstance(tz, _datetime.timedelta):
+        try:
+            return _datetime.timezone(tz)
+        except Exception:
+            return utc
+    s = str(tz).strip()
+    if not s or s in {"syminfo.timezone", "UTC", "utc", "Etc/UTC", "GMT", "gmt"}:
+        return utc
+    if _ZoneInfo is None:
+        return utc
+    try:
+        return _ZoneInfo(s)
+    except Exception:
+        return utc
+
+
+def timeframe_calendar_id(ts: object, timeframe_str: str | None, tz: object = None) -> int | None:
+    """Exchange-calendar period id for *ts* under a bare ``D`` / ``W`` / ``M`` frame.
+
+    - ``D`` → proleptic ordinal (midnight-to-midnight in *tz*, DST-aware).
+    - ``W`` → ISO year/week (Monday start, DST-aware).
+    - ``M`` → calendar month (``year * 12 + month``).
+    - Anything else → None (caller falls back to fixed buckets).
+
+    Unusable timestamps → None. Unknown timezones → UTC.
+    """
+    raw = str(timeframe_str).strip() if timeframe_str is not None else ""
+    if raw not in _CALENDAR_TFS:
+        return None
+    kind = raw[-1]
+    t = _normalize_time_ms(ts)
+    if t is None:
+        return None
+    d = _datetime.datetime.fromtimestamp(t / 1000.0, tz=_resolve_change_tz(tz))
+    if kind == "D":
+        return d.toordinal()
+    if kind == "W":
+        iso = d.isocalendar()
+        return iso[0] * 100 + iso[1]
+    return d.year * 12 + d.month
+
+
+def _period_id(ts: object, timeframe_str: str | None, tz: object = None) -> int | None:
+    """Calendar id for bare ``D`` / ``W`` / ``M``, else fixed-width bucket id."""
+    if timeframe_is_calendar_tf(timeframe_str):
+        return timeframe_calendar_id(ts, timeframe_str, tz)
+    return timeframe_bucket_id(ts, timeframe_str)
+
+
 def timeframe_period_changed(
     curr_ts: object,
     prev_ts: object,
     timeframe_str: str | None,
     bar_index: int | None = None,
+    tz: object = None,
 ) -> bool:
     """True on the first bar of a new *timeframe_str* period.
+
+    Bare ``D`` / ``W`` / ``M`` (plus ``1D`` / ``1W`` / ``1M``) resolve on
+    the exchange calendar in *tz* (``syminfo.timezone``; UTC fallback):
+    midnight-to-midnight days (DST-aware), ISO Monday-start weeks, calendar
+    months. All other frames keep fixed-width UTC buckets.
 
     Bar 0 (``bar_index <= 0``) is a new period. Missing previous timestamp
     on later bars is not a change. Unusable times or timeframe strings
     return False (cannot detect a change). When *bar_index* is omitted,
     ``prev_ts is None`` is treated as bar 0 for the standalone helper.
     """
-    curr_id = timeframe_bucket_id(curr_ts, timeframe_str)
+    curr_id = _period_id(curr_ts, timeframe_str, tz)
     if curr_id is None:
         return False
     if bar_index is not None:
@@ -133,7 +223,7 @@ def timeframe_period_changed(
             return False
     elif prev_ts is None:
         return True
-    prev_id = timeframe_bucket_id(prev_ts, timeframe_str)
+    prev_id = _period_id(prev_ts, timeframe_str, tz)
     if prev_id is None:
         return False
     return curr_id != prev_id
@@ -205,7 +295,7 @@ def timeframe_in_seconds(timeframe_str: str | None = None) -> int:
     for suffix, multiplier in TIMEFRAME_SUFFIXES.items():
         if timeframe_str.endswith(suffix):
             try:
-                number = int(timeframe_str[:-len(suffix)])
+                number = int(timeframe_str[: -len(suffix)])
                 return number * multiplier
             except ValueError:
                 continue
@@ -278,12 +368,12 @@ def _period_flags(period: str) -> dict[str, bool | int | str]:
     # Minutes are numeric-only ("1", "5", "15"); NM is N months.
     is_minutes = p_norm.isdigit()
     # reference period for minutes is "1","5","15","60"; hours "120","240" or "1H","4H"
-    is_hours = p_norm.endswith("H") or (p_norm.isdigit() and int(p_norm) >= 60 and int(p_norm) % 60 == 0 and int(p_norm) < 1440)
+    is_hours = p_norm.endswith("H") or (
+        p_norm.isdigit() and int(p_norm) >= 60 and int(p_norm) % 60 == 0 and int(p_norm) < 1440
+    )
     is_daily = p_norm in {"D", "1D"} or (p_norm.endswith("D") and p_norm[:-1].isdigit())
     is_weekly = p_norm in {"W", "1W"} or (p_norm.endswith("W") and p_norm[:-1].isdigit())
-    is_monthly = (
-        p_norm in {"M", "1M", "MO"} or p_norm.endswith("MO") or is_nm_month
-    )
+    is_monthly = p_norm in {"M", "1M", "MO"} or p_norm.endswith("MO") or is_nm_month
     # Numeric-only periods are minutes (intraday)
     if p_norm.isdigit():
         is_minutes = True
@@ -335,4 +425,3 @@ def register_timeframe_functions(namespace: dict) -> None:
     defaults = _period_flags("D")
     for key, value in defaults.items():
         namespace[f"timeframe.{key}"] = value
-

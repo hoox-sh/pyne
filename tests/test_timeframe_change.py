@@ -17,13 +17,23 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""``timeframe.change`` — first bar of a new UTC fixed-width period."""
+"""``timeframe.change`` — calendar-aware D/W/M, fixed buckets otherwise."""
 
 from __future__ import annotations
 
+from datetime import datetime
+from types import SimpleNamespace
+
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    ZoneInfo = None  # type: ignore[assignment, misc]
+
 from pynescript.ast.evaluator.builtins.timeframe import SECONDS_PER_MONTH
 from pynescript.ast.evaluator.builtins.timeframe import timeframe_bucket_id
+from pynescript.ast.evaluator.builtins.timeframe import timeframe_calendar_id
 from pynescript.ast.evaluator.builtins.timeframe import timeframe_change
+from pynescript.ast.evaluator.builtins.timeframe import timeframe_is_calendar_tf
 from pynescript.ast.evaluator.builtins.timeframe import _period_flags
 from pynescript.ast.evaluator.builtins.timeframe import timeframe_in_seconds
 from pynescript.ast.evaluator.builtins.timeframe import timeframe_period_changed
@@ -141,13 +151,14 @@ def test_timeframe_in_seconds_monthly_not_minutes() -> None:
 
 
 def _monthly_change_indexes(n: int) -> set[int]:
+    """Calendar-month change bars (Feb 1 + Mar 1 2024 for the hourly grid)."""
     expected = {0}
-    prev = timeframe_bucket_id(_T0_MS, "1M")
+    prev = timeframe_calendar_id(_T0_MS, "1M")
     for i in range(1, n):
-        bid = timeframe_bucket_id(_T0_MS + i * _HOUR_MS, "1M")
-        if bid != prev:
+        cid = timeframe_calendar_id(_T0_MS + i * _HOUR_MS, "1M")
+        if cid != prev:
             expected.add(i)
-            prev = bid
+            prev = cid
     return expected
 
 
@@ -234,3 +245,119 @@ def test_missing_prev_after_bar_0_is_false() -> None:
         assert bool(numba_timeframe_change(nan_prev, 1, day_ms)) is False
         assert bool(numba_timeframe_change(ok, 0, day_ms)) is True
         assert bool(numba_timeframe_change(ok, 1, day_ms)) is False
+
+
+def _utc_ms(year: int, month: int, day: int, hour: int = 12) -> int:
+    return int(datetime(year, month, day, hour).timestamp() * 1000)
+
+
+def test_calendar_tf_routing() -> None:
+    """Only bare D/W/M (plus 1D/1W/1M) take the calendar path."""
+    for tf in ("D", "W", "M", "1D", "1W", "1M"):
+        assert timeframe_is_calendar_tf(tf) is True, tf
+    for tf in ("60", "240", "3D", "2W", "12M", "d", "", None):
+        assert timeframe_is_calendar_tf(tf) is False, tf
+    assert timeframe_calendar_id(_T0_MS, "60") is None
+    assert timeframe_calendar_id(_T0_MS, None) is None
+
+
+def test_calendar_week_starts_monday() -> None:
+    """Sun→Mon is a change; 7-day epoch buckets (Thursday start) disagree."""
+    sun = _utc_ms(2024, 1, 7)
+    mon = _utc_ms(2024, 1, 8)
+    tue = _utc_ms(2024, 1, 9)
+    assert timeframe_period_changed(mon, sun, "W") is True
+    assert timeframe_period_changed(tue, mon, "W") is False
+    # Fixed 7d buckets count from a Thursday epoch — same bucket here.
+    assert timeframe_bucket_id(mon, "W") == timeframe_bucket_id(sun, "W")
+
+
+def test_calendar_month_lengths_leap_year() -> None:
+    """Feb 29 → Mar 1 changes; Feb 1 → Feb 29 does not (30d buckets differ)."""
+    feb1 = _utc_ms(2024, 2, 1)
+    feb29 = _utc_ms(2024, 2, 29)
+    mar1 = _utc_ms(2024, 3, 1)
+    assert timeframe_period_changed(mar1, feb29, "M") is True
+    assert timeframe_period_changed(mar1, feb29, "1M") is True
+    assert timeframe_period_changed(feb29, feb1, "M") is False
+
+
+def test_calendar_day_dst_spring_forward() -> None:
+    """23-hour Sunday 2026-03-08 stays one New York day (UTC says two)."""
+    if ZoneInfo is None:
+        return
+    ny = ZoneInfo("America/New_York")
+
+    def _ny_ms(month: int, day: int, hour: int, minute: int = 30) -> int:
+        return int(datetime(2026, month, day, hour, minute, tzinfo=ny).timestamp() * 1000)
+
+    sun_am = _ny_ms(3, 8, 0)  # 05:30 UTC Sun (EST)
+    sun_pm = _ny_ms(3, 8, 23)  # 03:30 UTC Mon (EDT) — still Sunday in NY
+    mon_am = _ny_ms(3, 9, 0)  # 04:30 UTC Mon — Monday in NY
+    assert timeframe_calendar_id(sun_am, "D", "America/New_York") == timeframe_calendar_id(
+        sun_pm, "D", "America/New_York"
+    )
+    assert timeframe_period_changed(sun_pm, sun_am, "D", tz="America/New_York") is False
+    # UTC date rolled over mid-day NY time.
+    assert timeframe_period_changed(sun_pm, sun_am, "D") is True
+    assert timeframe_period_changed(mon_am, sun_pm, "D", tz="America/New_York") is True
+
+
+def test_calendar_bad_timezone_falls_back_utc() -> None:
+    """Unknown zones behave like UTC instead of raising."""
+    feb29 = _utc_ms(2024, 2, 29)
+    mar1 = _utc_ms(2024, 3, 1)
+    assert timeframe_period_changed(mar1, feb29, "M", tz="Mars/Olympus_Mons") is True
+    assert timeframe_calendar_id(mar1, "M", tz="Mars/Olympus_Mons") == timeframe_calendar_id(mar1, "M")
+
+
+def test_builtin_uses_syminfo_timezone() -> None:
+    """Interpret ``timeframe.change`` reads the host exchange timezone."""
+    if ZoneInfo is None:
+        return
+    ny = ZoneInfo("America/New_York")
+
+    def _ny_ms(month: int, day: int, hour: int) -> int:
+        return int(datetime(2026, month, day, hour, 30, tzinfo=ny).timestamp() * 1000)
+
+    curr = _ny_ms(3, 8, 23)
+    prev = _ny_ms(3, 8, 0)
+
+    class _Host(UtilityFunctionsMixin):
+        def __init__(self) -> None:
+            self.context: dict = {}
+
+    host = _Host()
+    host.context = {
+        "time": SimpleNamespace(current=curr, history=[curr, prev]),
+        "bar_index": 5,
+        "syminfo": SimpleNamespace(timezone="America/New_York"),
+    }
+    assert host._builtin_timeframe_change(["D"]) is False
+    host.context["syminfo"] = SimpleNamespace(timezone="UTC")
+    assert host._builtin_timeframe_change(["D"]) is True
+
+
+def test_timeframe_change_weekly_compile_matches_interpret() -> None:
+    """Weekly calendar routing (object mode) agrees on both hosts."""
+    if not has_numba():
+        return
+    src = """
+//@version=6
+indicator("tfchg_w")
+plot(timeframe.change("W") ? 1 : 0, "chg_w")
+"""
+    bars = _hourly_bars(24 * 21)
+    clear_parse_cache()
+    clear_compile_cache()
+    ri = Runtime(symbol="TF").run(src, bars, mode="interpret")
+    clear_parse_cache()
+    rc = Runtime(symbol="TF").run(src, bars, mode="compile")
+    assert "error" not in ri, ri.get("error")
+    assert "error" not in rc, rc.get("error")
+    a, b = ri["series"]["chg_w"], rc["series"]["chg_w"]
+    assert len(a) == len(b)
+    # Mondays at bar 0 (2024-01-01), 168, 336.
+    assert {i for i, v in enumerate(a) if float(v) == 1.0} == {0, 168, 336}
+    for i, (x, y) in enumerate(zip(a, b, strict=True)):
+        assert float(x) == float(y), (i, x, y)

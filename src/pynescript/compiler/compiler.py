@@ -5196,6 +5196,21 @@ class CompilerVisitor(NodeVisitor):
             return repr("1D")
         if func_name == "timeframe_change":
             tf_expr = args[0] if args else repr("D")
+            # Bare D/W/M resolve on the exchange calendar (tz-aware Python),
+            # which Numba cannot express — route them through object mode so
+            # both hosts share timeframe_period_changed. All other frames
+            # keep the nopython fixed-bucket fast path.
+            s = (tf_expr or "").strip()
+            inner = s[1:-1] if len(s) >= 2 and s[0] == s[-1] and s[0] in {"'", '"'} else None
+            if inner is not None:
+                try:
+                    from pynescript.ast.evaluator.builtins.timeframe import timeframe_is_calendar_tf
+
+                    if timeframe_is_calendar_tf(inner):
+                        self.object_mode = True
+                        return f"timeframe_change_at(time_arr, __bar_idx, {tf_expr})"
+                except Exception:
+                    pass
             bucket = self._compile_tf_bucket_ms(tf_expr)
             if bucket is not None:
                 return f"numba_timeframe_change(time_arr, __bar_idx, {bucket})"
@@ -8588,11 +8603,7 @@ class CompilerVisitor(NodeVisitor):
         flag is set as soon as the body runs. Realtime rollback is interpret-only.
         """
         flag = self._alloc_once_flag()
-        test = (
-            "True"
-            if node.test is None
-            else self._as_bool_cond(self.visit(node.test), node=node.test)
-        )
+        test = "True" if node.test is None else self._as_bool_cond(self.visit(node.test), node=node.test)
         lines = [f"if not {flag}:", f"    if {test}:"]
         n = 0
         for stmt in node.body or []:
