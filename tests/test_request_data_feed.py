@@ -527,10 +527,10 @@ class TestRequestSecurityHonestyMeta:
     """Runtime metadata + documented no-crash behavior for limited security surface."""
 
     def test_gaps_lookahead_accepted_unused_and_meta(self) -> None:
-        """barmerge.gaps_* / lookahead_* must not crash; still unused for merge."""
+        """barmerge.gaps_* / lookahead_* must not crash; lookahead_on is honored."""
         from backend.runtime import Runtime
 
-        # Aligned 1m bars for 60m HTF resample (gaps/lookahead still unused).
+        # Aligned 1m bars for 60m HTF resample.
         hour0 = 1_700_000_000_000
         hour0 -= hour0 % 3_600_000
         bars: list[dict] = []
@@ -559,15 +559,15 @@ plot(close, title="c")
 """
         out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
         assert not out.get("error"), out.get("error")
-        # No crash; simple OHLCV uses HTF resample (not lookahead_on forming bar)
-        hour0_close = float(bars[59]["close"])
-        assert abs(float(out["series"]["sec"][-1]) - hour0_close) < 1e-9
+        # lookahead_on reads the forming HTF bucket: last bar → last chart close.
+        assert abs(float(out["series"]["sec"][-1]) - float(bars[-1]["close"])) < 1e-9
         pol = (out.get("meta") or {}).get("request_security") or {}
         assert pol.get("htf_reeval") is False
         assert pol.get("gaps_supported") is False
-        assert pol.get("lookahead_supported") is False
+        assert pol.get("lookahead_supported") is True
         policies = pol.get("policies") or {}
-        assert "gaps_lookahead_unused" in policies
+        assert "gaps_lookahead_provided" in policies
+        assert "lookahead_applied" in policies
         assert "htf_ohlcv_resample" in policies
         notes = pol.get("notes") or []
         assert any("lookahead" in str(n).lower() for n in notes)
@@ -640,8 +640,186 @@ plot(close, title="c")
         assert "legacy_mock_ohlcv" in (state.get("policies") or {})
 
     def test_barmerge_constants_resolve(self) -> None:
-        """barmerge.* constants are wired (True/False) even though unused by security."""
+        """barmerge.* constants are wired (True/False) for gaps/lookahead merge args."""
         assert _eval(NodeLiteralEvaluator(), "barmerge.lookahead_on") is True
         assert _eval(NodeLiteralEvaluator(), "barmerge.lookahead_off") is False
         assert _eval(NodeLiteralEvaluator(), "barmerge.gaps_on") is True
         assert _eval(NodeLiteralEvaluator(), "barmerge.gaps_off") is False
+
+
+def _hour_bars(n: int = 180) -> list[dict]:
+    """Aligned 1m bars starting on an hour boundary (3 full hours)."""
+    hour0 = 1_700_000_000_000
+    hour0 -= hour0 % 3_600_000
+    bars: list[dict] = []
+    price = 100.0
+    for i in range(n):
+        o = round(price, 2)
+        c = round(price + (1.0 if i % 3 else -0.5), 2)
+        h = round(max(o, c) + 0.8, 2)
+        lo = round(min(o, c) - 0.8, 2)
+        bars.append(
+            {
+                "open": o,
+                "high": h,
+                "low": max(lo, 0.01),
+                "close": c,
+                "time": hour0 + i * 60_000,
+                "volume": 1000.0 + i,
+            }
+        )
+        price = c
+    return bars
+
+
+def _is_na(v: object) -> bool:
+    """Series layer stores na as None or float nan."""
+    return v is None or (isinstance(v, float) and v != v)
+
+
+class TestRequestSecurityBarmerge:
+    """gaps_on / lookahead_on on the HTF resample paths (reference barmerge)."""
+
+    def test_gaps_on_ohlcv_only_bucket_starts(self) -> None:
+        """gaps_on close: previous hour close on hour-open bars, na elsewhere."""
+        from backend.runtime import Runtime
+
+        bars = _hour_bars()
+        src = """//@version=6
+indicator("t")
+v = request.security(syminfo.tickerid, "60", close, barmerge.gaps_on, barmerge.lookahead_off)
+plot(v, title="sec")
+"""
+        out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
+        assert not out.get("error"), out.get("error")
+        sec = out["series"]["sec"]
+        assert len(sec) == len(bars)
+        import math
+
+        # First hour: no completed bucket yet → all na (bar 0 excepted: with a
+        # single bar the HTF-vs-chart inference falls back to chart period and
+        # takes the passthrough stub — pre-existing edge, same as gaps_off).
+        assert all(_is_na(v) for v in sec[1:60])
+        # Hour opens (bars 60, 120) carry the previous hour's final close.
+        assert abs(float(sec[60]) - float(bars[59]["close"])) < 1e-9
+        assert abs(float(sec[120]) - float(bars[119]["close"])) < 1e-9
+        # Mid-hour bars are na.
+        assert all(_is_na(v) for v in sec[61:120])
+        assert all(_is_na(v) for v in sec[121:])
+        pol = (out.get("meta") or {}).get("request_security") or {}
+        assert pol.get("gaps_supported") is True
+        assert pol.get("lookahead_supported") is False
+        assert "gaps_applied" in (pol.get("policies") or {})
+
+    def test_lookahead_on_ohlcv_forming_bucket(self) -> None:
+        """lookahead_on close: developing close every bar; high runs up intra-hour."""
+        from backend.runtime import Runtime
+
+        bars = _hour_bars()
+        src = """//@version=6
+indicator("t")
+c = request.security(syminfo.tickerid, "60", close, barmerge.gaps_off, barmerge.lookahead_on)
+h = request.security(syminfo.tickerid, "60", high, barmerge.gaps_off, barmerge.lookahead_on)
+plot(c, title="sec_c")
+plot(h, title="sec_h")
+"""
+        out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
+        assert not out.get("error"), out.get("error")
+        sec_c = out["series"]["sec_c"]
+        sec_h = out["series"]["sec_h"]
+        # Forming close == chart close on every bar (developing bucket, 1m chart).
+        for i in (0, 30, 59, 60, 90, 119, 179):
+            assert abs(float(sec_c[i]) - float(bars[i]["close"])) < 1e-9
+        # Forming high == running max of chart highs within the hour.
+        for i in (0, 30, 59, 60, 61, 119):
+            hour_start = (i // 60) * 60
+            expect = max(float(b["high"]) for b in bars[hour_start : i + 1])
+            assert abs(float(sec_h[i]) - expect) < 1e-9
+
+    def test_gaps_and_lookahead_combined(self) -> None:
+        """gaps_on + lookahead_on: forming value on bucket starts, na elsewhere."""
+        from backend.runtime import Runtime
+
+        bars = _hour_bars()
+        src = """//@version=6
+indicator("t")
+v = request.security(syminfo.tickerid, "60", close, barmerge.gaps_on, barmerge.lookahead_on)
+plot(v, title="sec")
+"""
+        out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
+        assert not out.get("error"), out.get("error")
+        sec = out["series"]["sec"]
+        # Bucket-start bar 60: forming bucket holds just bar 60 → its close.
+        assert abs(float(sec[60]) - float(bars[60]["close"])) < 1e-9
+        assert abs(float(sec[120]) - float(bars[120]["close"])) < 1e-9
+        assert all(_is_na(v) for v in sec[1:60])
+        assert all(_is_na(v) for v in sec[61:120])
+
+    def test_gaps_on_simple_ta(self) -> None:
+        """gaps_on ta.sma: HTF SMA on bucket starts, na elsewhere."""
+        from backend.runtime import Runtime
+
+        bars = _hour_bars(300)  # 5 hours → completed HTF bars for sma(3)
+        src = """//@version=6
+indicator("t")
+v = request.security(syminfo.tickerid, "60", ta.sma(close, 3), barmerge.gaps_on, barmerge.lookahead_off)
+plot(v, title="sec")
+"""
+        out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
+        assert not out.get("error"), out.get("error")
+        sec = out["series"]["sec"]
+        import math
+
+        # sma(3) needs 3 completed hours → first value at hour-3 open (bar 180).
+        # (sec[0] excepted: single-bar HTF inference takes the passthrough stub.)
+        assert all(_is_na(v) for v in sec[1:180])
+        h2 = float(bars[119]["close"])
+        h3 = float(bars[179]["close"])
+        h4 = float(bars[239]["close"])
+        expect_180 = (float(bars[59]["close"]) + h2 + h3) / 3.0
+        expect_240 = (h2 + h3 + h4) / 3.0
+        assert abs(float(sec[180]) - expect_180) < 1e-9
+        assert abs(float(sec[240]) - expect_240) < 1e-9
+        assert all(_is_na(v) for v in sec[181:240])
+        pol = (out.get("meta") or {}).get("request_security") or {}
+        assert "htf_simple_ta_resample" in (pol.get("policies") or {})
+
+    def test_lookahead_on_simple_ta_developing(self) -> None:
+        """lookahead_on ta.sma: value every bar once enough HTF bars exist."""
+        from backend.runtime import Runtime
+
+        bars = _hour_bars(300)
+        src = """//@version=6
+indicator("t")
+v = request.security(syminfo.tickerid, "60", ta.sma(close, 3), barmerge.gaps_off, barmerge.lookahead_on)
+plot(v, title="sec")
+"""
+        out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
+        assert not out.get("error"), out.get("error")
+        sec = out["series"]["sec"]
+        # Completed hours 0,1 + forming hour 2 (bar 120) → first developing sma.
+        expect_120 = (float(bars[59]["close"]) + float(bars[119]["close"]) + float(bars[120]["close"])) / 3.0
+        assert abs(float(sec[120]) - expect_120) < 1e-9
+        # Mid-hour bar develops further (forming close moves).
+        expect_130 = (float(bars[59]["close"]) + float(bars[119]["close"]) + float(bars[130]["close"])) / 3.0
+        assert abs(float(sec[130]) - expect_130) < 1e-9
+
+    def test_gaps_unused_on_passthrough_paths(self) -> None:
+        """gaps_on with same-TF passthrough: provided but not applied."""
+        from backend.runtime import Runtime
+
+        bars = _hour_bars(60)
+        src = """//@version=6
+indicator("t")
+v = request.security(syminfo.tickerid, "1", close, barmerge.gaps_on, barmerge.lookahead_off)
+plot(v, title="sec")
+plot(close, title="c")
+"""
+        out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
+        assert not out.get("error"), out.get("error")
+        assert out["series"]["sec"][-1] == out["series"]["c"][-1]
+        pol = (out.get("meta") or {}).get("request_security") or {}
+        assert pol.get("gaps_supported") is False
+        policies = pol.get("policies") or {}
+        assert "gaps_lookahead_provided" in policies
+        assert "gaps_applied" not in policies

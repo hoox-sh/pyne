@@ -2227,7 +2227,7 @@ class Runtime:
         if drawing_limits:
             meta_out.update(drawing_limits)
         # request.security honesty: policies when no real HTF / multi-symbol feed
-        # (complex_htf_na, chart_passthrough_htf_stub, gaps_lookahead_unused, …).
+        # (complex_htf_na, chart_passthrough_htf_stub, gaps_lookahead_provided, …).
         try:
             sec_pol = getattr(evaluator, "_request_security_policy", None)
             if not isinstance(sec_pol, dict):
