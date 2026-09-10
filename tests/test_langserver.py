@@ -241,15 +241,18 @@ class TestDiagnostics:
         diags = ws._lint_warnings_to_diagnostics(doc)
         assert any(d.code == "C001" for d in diags)
 
-    def test_c003_skipped_for_block_if(self) -> None:
-        """Indented multi-line ``if`` is not a single-line-if warning."""
-        ws = Workspace()
+    def test_c003_retired_at_source(self) -> None:
+        """C003 no longer exists — the linter emits it for no input."""
+        from pynescript.ast.linter import lint_script
+
         source = """//@version=6
 indicator('T')
 if barstate.isfirst
     if close > open
         x = 1
 """
+        assert [w.code for w in lint_script(source)].count("C003") == 0
+        ws = Workspace()
         doc = ws.put_document("test://c003.pine", source)
         diags = ws._lint_warnings_to_diagnostics(doc)
         assert not any(d.code == "C003" for d in diags)

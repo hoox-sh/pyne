@@ -96,3 +96,56 @@ sma_value = ta.sma(close, 14)
         codes = [w.code for w in warnings]
         assert "W002" in codes
         assert "C001" in codes
+
+
+class TestRetiredRules:
+    """Retired codes (C003, W102, W103) are never emitted — D-07."""
+
+    def test_c003_retired_indented_if(self) -> None:
+        """Indented ``if`` blocks — the old C003 trigger — are clean."""
+        code = """//@version=6
+indicator("Test")
+if barstate.isfirst
+    if close > open
+        x = 1
+"""
+        assert "C003" not in [w.code for w in lint_script(code)]
+
+    def test_c003_retired_single_line_if(self) -> None:
+        """Even single-line ``if`` forms emit no C003 (Pine has no braces)."""
+        code = """//@version=6
+indicator("Test")
+if close > open
+    x = 1
+"""
+        assert "C003" not in [w.code for w in lint_script(code)]
+
+    def test_w102_retired_histogram_plot(self) -> None:
+        """Histogram-style plots are legitimate — no plotcandle nudge."""
+        code = """//@version=6
+indicator("Test")
+plot(close, style=plot.style_histogram)
+"""
+        assert "W102" not in [w.code for w in lint_script(code)]
+
+    def test_w103_retired_na_init(self) -> None:
+        """``var int x = na`` is idiomatic — no coerce-to-0 nudge."""
+        code = """//@version=6
+indicator("Test")
+var int x = na
+"""
+        assert "W103" not in [w.code for w in lint_script(code)]
+
+    def test_retired_codes_absent_kitchen_sink(self) -> None:
+        """No retired code on a script exercising all three old triggers."""
+        code = """//@version=6
+indicator("Test")
+var int x = na
+plot(close, style=plot.style_histogram)
+if barstate.islast
+    x := 1
+"""
+        codes = [w.code for w in lint_script(code)]
+        assert "C003" not in codes
+        assert "W102" not in codes
+        assert "W103" not in codes

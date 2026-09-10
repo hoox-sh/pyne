@@ -164,11 +164,15 @@ class PineLinter:
                 )
 
     def _check_deprecated(self, source: str) -> None:
-        """Flag known deprecated call/init patterns (``W101``–``W103``)."""
+        """Flag known deprecated call patterns (``W101``).
+
+        Retired: ``W102`` (histogram → plotcandle was wrong guidance —
+        plotcandle is not a histogram substitute) and ``W103``
+        (``var int x = na`` → 0 changes semantics; na-init is idiomatic).
+        Codes stay retired so history stays greppable.
+        """
         deprecated_patterns = [
             (r"\bsecurity\s*\(\s*'[A-Z]+:[A-Z]+'", "W101", "Use request.security() with explicit parameters"),
-            (r"plot\(.*style=plot\.style_histogram", "W102", "Consider using plotcandle for better visualization"),
-            (r"var\s+int\s+\w+\s*=\s*na", "W103", "Initialize with 0 instead of na for better type safety"),
         ]
 
         for pattern, code, message in deprecated_patterns:
@@ -202,20 +206,18 @@ class PineLinter:
                 )
 
     def _check_style(self, source: str) -> None:
-        """Line length, if-style, and trailing-newline style rules (``C002``–``C004``)."""
+        """Line length and trailing-newline style rules (``C002``, ``C004``).
+
+        Retired: ``C003`` (indented ``if`` without “braces” — Pine has no
+        braces, so the rule fired on every normal block). Code stays
+        retired so history stays greppable.
+        """
         lines = source.split("\n")
         for i, line in enumerate(lines, 1):
             if len(line.rstrip()) > 120:
                 self._add_warning(
                     code="C002",
                     message=f"Line exceeds 120 characters ({len(line.rstrip())})",
-                    line=i,
-                )
-
-            if re.match(r"^\s+if\s+", line):
-                self._add_warning(
-                    code="C003",
-                    message="Avoid single-line if statements without braces",
                     line=i,
                 )
 
