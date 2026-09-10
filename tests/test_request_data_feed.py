@@ -694,8 +694,6 @@ plot(v, title="sec")
         assert not out.get("error"), out.get("error")
         sec = out["series"]["sec"]
         assert len(sec) == len(bars)
-        import math
-
         # First hour: no completed bucket yet → all na (bar 0 excepted: with a
         # single bar the HTF-vs-chart inference falls back to chart period and
         # takes the passthrough stub — pre-existing edge, same as gaps_off).
@@ -768,8 +766,6 @@ plot(v, title="sec")
         out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
         assert not out.get("error"), out.get("error")
         sec = out["series"]["sec"]
-        import math
-
         # sma(3) needs 3 completed hours → first value at hour-3 open (bar 180).
         # (sec[0] excepted: single-bar HTF inference takes the passthrough stub.)
         assert all(_is_na(v) for v in sec[1:180])
