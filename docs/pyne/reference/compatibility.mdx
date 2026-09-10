@@ -125,7 +125,7 @@ EXPECTED_FAIL are path-listed demos (`runtime.error` library guards, lower-TF se
     | Libraries `export` / `import ns/Name/ver` | Working | In-process `register_library_source`; `Runtime.run(..., libraries=)` |
     | String interpolation, tuple unpack, method chaining | Working | |
     | Series `[]` history | Working | OOB / negative → `na` (not wrap) |
-    | `timeframe.change` | Working | UTC fixed-width buckets (0.3.12). Not exchange calendar |
+    | `timeframe.change` | Working | Intraday fixed-width buckets; D/W/M on the exchange calendar (0.6.0, `syminfo.timezone`, UTC default) |
   </Accordion>
 
   <Accordion title="Bar-loop host — working">
@@ -201,12 +201,12 @@ EXPECTED_FAIL are path-listed demos (`runtime.error` library guards, lower-TF se
     | L2 webhooks | Working | `webhook_url` / `ALERT_WEBHOOK_URL` |
     | Compile alerts | Partial | Interpret is the alert oracle |
     | Numba + object-mode compile | Working | `mode=auto` falls back; `import` / `request.*` / `inputs=` skip compile |
-    | Warm compile / disk IR | Working | Prewarm CLI/API; cache meta v10 |
+    | Warm compile / disk IR | Working | Prewarm CLI/API; cache meta v14 |
     | Interp ↔ compile plot parity | Partial | Harness + first-party goldens; residual corpus MISMATCH tail (P1p) |
     | CLI / LSP / Pro API / Docker | Working | `pyne` / `pyne-lsp`; Flask `/run` |
     | Flask `/run` `libraries` | Working | Max 32; also `/run/batch` |
     | Flask `timeout_seconds` | Working | Optional on `/run` and `/run/batch`; omit / `≤ 0` = no timeout |
-    | `timeframe.change` | Working | UTC fixed-width buckets (not exchange calendar). Interpret + compile |
+    | `timeframe.change` | Working | Intraday fixed-width; D/W/M exchange calendar. Interpret + compile (calendar via object mode) |
     | `POST /optimize` / `pyne optimize` | Working | Strategy `input.*` search — not a Pine builtin |
   </Accordion>
 

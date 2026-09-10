@@ -102,8 +102,8 @@ Indexed accessors:
 | Builtin | Effect |
 | --- | --- |
 | `strategy.risk.max_position_size` | Cap size as % of equity |
-| `strategy.risk.max_intraday_loss` | Intraday loss gate |
-| `strategy.risk.max_intraday_filled_orders` | Order count cap (day-scoped on compile) |
+| `strategy.risk.max_intraday_loss` | Intraday loss gate — percent-of-equity default, `strategy.cash` absolute (0.6.0, both brokers) |
+| `strategy.risk.max_intraday_filled_orders` | Order count cap (day-scoped, enforced on both brokers) |
 | `strategy.risk.max_drawdown` | Absolute / percent drawdown halt |
 | `strategy.risk.max_cons_loss_days` | Consecutive losing calendar days → `entries_blocked` |
 | `strategy.risk.allow_entry_in` | `"all"` \| `"long"` \| `"short"` |

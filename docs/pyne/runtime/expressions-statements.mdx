@@ -158,6 +158,10 @@ plot(n)
 
 Equivalent to a `var bool` latch plus `if`, but cheaper: the structure is not re-evaluated after it fires on a closed bar. On a forming realtime bar (`Runtime.run(..., realtime_last_bar=True, realtime_ticks=N)`), the latch is not committed until `barstate.isconfirmed`. Compile is historical (`isconfirmed` always true).
 
+### Intrabar rollback on realtime ticks (0.6.0)
+
+On a forming realtime bar, intermediate ticks snapshot the `var` scope (context bindings, series currents, declaration set) and restore it after the visit — every tick starts from confirmed state and only the final tick commits. `varip` names persist across ticks by design. Shallow by design: history pushes, the series-assign map, in-place container mutations, and broker side effects are not rolled back.
+
 ### Method multi-dispatch sketch
 
 ```pine
