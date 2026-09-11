@@ -27,7 +27,6 @@ flags:
 ignore:
   - "docs/"
   - "vscode-extension/"
-  - "pynets/"
   - "cf/"
   - "clients/"
   - "examples/"
