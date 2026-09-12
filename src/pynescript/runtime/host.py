@@ -833,8 +833,8 @@ def _pack_ohlcv_columns(
     """
     n = len(ohlcv_data)
     if n == 0:
-        empty: list[float] = []
-        return empty, empty, empty, empty, empty, empty
+        # Distinct lists: callers may extend columns independently (sessions).
+        return [], [], [], [], [], []
 
     o_l: list[float] = []
     h_l: list[float] = []
@@ -1209,6 +1209,118 @@ def _restore_realtime_scope(evaluator: Any, snap: dict[str, Any] | None) -> None
         pass
 
 
+def _copy_ta_value(value: Any) -> Any:
+    """Deep-ish copy of one TA state slot (deque/list/dict/tuple/scalar).
+
+    Incremental TA buckets hold ``deque`` windows (some with ``maxlen``),
+    plain lists (seed buffers), nested dicts (supertrend high/low legs) and
+    immutable scalars. Copy containers so a snapshot stays pristine while
+    later ticks mutate live state; unknown objects fall back to reference
+    (best-effort, never raises).
+    """
+    try:
+        from collections import deque as _deque
+
+        if isinstance(value, _deque):
+            try:
+                return _deque(list(value), maxlen=value.maxlen)
+            except Exception:
+                return _deque(list(value))
+        if isinstance(value, list):
+            return list(value)
+        if isinstance(value, dict):
+            return {k: _copy_ta_value(v) for k, v in value.items()}
+        if isinstance(value, tuple):
+            return tuple(_copy_ta_value(v) for v in value)
+    except Exception:
+        pass
+    return value
+
+
+def _snapshot_ta_state(evaluator: Any) -> tuple[Any, Any] | None:
+    """Snapshot incremental TA buckets (``_ta_inc_state`` + ``_cross_state``).
+
+    Intermediate realtime ticks push one sample per call site into these
+    windows; without rollback the same bar is counted N times (e.g.
+    ``ta.sma(close,3)`` on a 3-tick bar). Returns ``(ta, cross)`` copies or
+    ``None`` when the evaluator exposes no TA state.
+    """
+    try:
+        ta = getattr(evaluator, "_ta_inc_state", None)
+        cross = getattr(evaluator, "_cross_state", None)
+        if ta is None and cross is None:
+            return None
+        ta_copy = {k: _copy_ta_value(v) for k, v in ta.items()} if ta else {}
+        cross_copy = dict(cross) if cross else {}
+        return (ta_copy, cross_copy)
+    except Exception:
+        return None
+
+
+def _restore_ta_state(evaluator: Any, snap: tuple[Any, Any] | None) -> None:
+    """Restore TA buckets from :func:`_snapshot_ta_state` (copy-on-restore).
+
+    Copies out of the snapshot so one bar-open snapshot can serve many
+    forming-bar ticks. Best-effort: never raises.
+    """
+    if not snap:
+        return
+    try:
+        ta_copy, cross_copy = snap
+    except (TypeError, ValueError):
+        return
+    try:
+        if ta_copy is not None:
+            evaluator._ta_inc_state = {k: _copy_ta_value(v) for k, v in ta_copy.items()}
+        if cross_copy is not None:
+            evaluator._cross_state = dict(cross_copy)
+    except Exception:
+        pass
+
+
+def _resolve_realtime_first(
+    n_bars: int,
+    *,
+    realtime_ticks: int = 1,
+    realtime_bars: int = 0,
+    realtime_from_bar: int | None = None,
+    realtime_last_bar: bool = False,
+) -> tuple[int | None, int]:
+    """Resolve a realtime window start (inclusive) + tick count.
+
+    Precedence mirrors :meth:`Runtime.run`: ``realtime_from_bar`` >
+    ``realtime_bars`` > last-bar-only flags. Returns ``(first, ticks)``
+    with ``first=None`` for a purely historical run.
+    """
+    try:
+        rt_ticks = int(realtime_ticks)
+    except (TypeError, ValueError):
+        rt_ticks = 1
+    if rt_ticks < 1:
+        rt_ticks = 1
+    try:
+        rt_bars = int(realtime_bars)
+    except (TypeError, ValueError):
+        rt_bars = 0
+    if rt_bars < 0:
+        rt_bars = 0
+    if realtime_from_bar is not None:
+        try:
+            first = int(realtime_from_bar)
+        except (TypeError, ValueError):
+            first = 0
+        if first < 0:
+            first = 0
+        if first >= n_bars:
+            return None, rt_ticks
+        return first, rt_ticks
+    if rt_bars > 0:
+        return (n_bars - rt_bars if n_bars > rt_bars else 0), rt_ticks
+    if bool(realtime_last_bar) or rt_ticks > 1:
+        return (n_bars - 1 if n_bars > 0 else None), rt_ticks
+    return None, rt_ticks
+
+
 def _parse_script(source_code: str) -> Any:
     """Parse Pine source for Runtime (shared package-level AST cache).
 
@@ -1336,6 +1448,834 @@ class Chart:
     right_visible_bar_time: int | float = 0
 
 
+class InterpretSession:
+    """Persistent interpret bar-loop state for O(delta) appends.
+
+    Created via :meth:`Runtime.create_session`. Holds the live
+    ``CustomEvaluator``, ``PineSeries`` OHLCV wrappers, ``current_series``
+    lists, TA incremental state, plot columns and strategy events across
+    calls so new closed bars only pay ``visit(tree)`` for the delta.
+
+    Streaming semantics: already-committed bars keep their values (like
+    TradingView confirmed history). Scripts branching on
+    ``barstate.islast`` will diverge from a full replay for the previously
+    last bar — that bar was committed with ``islast=True``. Prefer
+    ``islastconfirmedhistory`` / historical logic for append-parity, or
+    re-run full ``Runtime.run`` when exact ``islast`` replay is required.
+
+    Realtime windows (``realtime_ticks`` / ``realtime_bars`` /
+    ``realtime_from_bar`` / ``realtime_last_bar``) are honored per batch:
+    ``create_session`` resolves the window over the initial bars,
+    ``append_bars`` over the appended batch. Intermediate ticks roll back
+    ``var`` scope and incremental TA windows (``varip`` persists), matching
+    :meth:`Runtime.run`. Windows do not span append boundaries — previously
+    committed bars stay confirmed.
+
+    Use :meth:`update_last_bar` for forming-bar tick updates on the current
+    last bar (overwrites in place, ``var`` rolls back per tick).
+    """
+
+    def __init__(
+        self,
+        runtime: Runtime,
+        source_code: str,
+        ohlcv_data: list[dict],
+        data_feed=None,
+        data_provider=None,
+        inputs: dict | None = None,
+        libraries: list[dict[str, Any]] | None = None,
+        profiler: bool = False,
+        realtime_ticks: int = 1,
+        realtime_bars: int = 0,
+        realtime_from_bar: int | None = None,
+        realtime_last_bar: bool = False,
+    ):
+        self._runtime = runtime
+        self._source = source_code
+        self._profiler = profiler
+        self._t_total0 = time.perf_counter()
+        _clear_pine_logger()
+        try:
+            from pynescript.util.data import resolve_request_sources
+
+            data_feed, data_provider = resolve_request_sources(
+                data_feed=data_feed,
+                data_provider=data_provider,
+                chart_bars=list(ohlcv_data),
+                symbol=getattr(runtime, "symbol", "CHART") or "CHART",
+            )
+        except Exception:
+            pass
+        self._data_feed = data_feed
+        self._data_provider = data_provider
+        t_parse0 = time.perf_counter()
+        self._tree = _parse_script(source_code)
+        self._parse_ms = (time.perf_counter() - t_parse0) * 1000.0
+        self._t_eval0 = time.perf_counter()
+
+        _cap_on = series_cap_enabled()
+        _mbb_decl = parse_max_bars_back_from_source(source_code)
+        _host_series_cap = resolve_series_cap(max_bars_back=_mbb_decl)
+        _ps_hist = pineseries_history_length(series_cap=_host_series_cap)
+        self._use_ring = series_ring_enabled()
+        if self._use_ring:
+            msg = "InterpretSession requires PYNE_SERIES_RING=0 (default list path)"
+            raise ValueError(msg)
+
+        self.open_series = make_pine_series(history_length=_ps_hist)
+        self.high_series = make_pine_series(history_length=_ps_hist)
+        self.low_series = make_pine_series(history_length=_ps_hist)
+        self.close_series = make_pine_series(history_length=_ps_hist)
+        self.volume_series = make_pine_series(history_length=_ps_hist)
+        self.hl2_series = make_pine_series(history_length=_ps_hist)
+        self.hlc3_series = make_pine_series(history_length=_ps_hist)
+        self.ohlc4_series = make_pine_series(history_length=_ps_hist)
+        self.tr_series = make_pine_series(history_length=_ps_hist)
+        self.time_series = make_pine_series(history_length=_ps_hist)
+        self.time_close_series = make_pine_series(history_length=_ps_hist)
+
+        tf = Timeframe()
+        barstate = Barstate()
+        self._barstate = barstate
+        context: LazyCalendarContext = LazyCalendarContext(
+            {
+                "open": self.open_series,
+                "high": self.high_series,
+                "low": self.low_series,
+                "close": self.close_series,
+                "volume": self.volume_series,
+                "hl2": self.hl2_series,
+                "hlc3": self.hlc3_series,
+                "ohlc4": self.ohlc4_series,
+                "tr": self.tr_series,
+                "syminfo": runtime._syminfo,
+                "timeframe": tf,
+                "barstate": barstate,
+                "chart": runtime._make_chart(ohlcv_data),
+                "timeframe.period": tf.period,
+                "timeframe.main_period": tf.main_period,
+                "timeframe.multiplier": tf.multiplier,
+                "timeframe.isintraday": tf.isintraday,
+                "timeframe.isdaily": tf.isdaily,
+                "timeframe.isweekly": tf.isweekly,
+                "timeframe.ismonthly": tf.ismonthly,
+                "timeframe.isseconds": tf.isseconds,
+                "timeframe.isinseconds": tf.isinseconds,
+                "timeframe.isdwm": tf.isdwm,
+                "bar_index": 0,
+                "time": self.time_series,
+                "time_close": self.time_close_series,
+                "last_bar_index": max(0, len(ohlcv_data) - 1),
+                "last_bar_time": 0,
+            }
+        )
+        self.context = context
+        evaluator = CustomEvaluator(context=context, data_feed=data_feed, data_provider=data_provider)
+        self.evaluator = evaluator
+        evaluator.reset_var_declarations()
+        for lib in libraries or []:
+            if not isinstance(lib, dict):
+                continue
+            ns = str(lib.get("namespace") or "")
+            name = str(lib.get("name") or "")
+            src = str(lib.get("source") or "")
+            try:
+                ver = int(lib.get("version") or 1)
+            except (TypeError, ValueError):
+                ver = 1
+            if ns and name and src:
+                try:
+                    evaluator.register_library_source(ns, name, ver, src)
+                except Exception:
+                    pass
+        if inputs and isinstance(inputs, dict):
+            try:
+                evaluator._input_overrides = dict(inputs)  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        try:
+            evaluator._input_declarations = []  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        if profiler:
+            try:
+                evaluator._pine_line_profile = {}  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        light_plots = _env_truthy("PYNE_LIGHT_PLOTS")
+        evaluator._pine_light_plots = light_plots  # type: ignore[attr-defined]
+        if light_plots:
+            evaluator._pine_need_plot_ids = False  # type: ignore[attr-defined]
+        else:
+            evaluator._pine_need_plot_ids = bool(_FILL_CALL_RE.search(source_code))  # type: ignore[attr-defined]
+        self._light_plots = light_plots
+
+        self._series_lists: dict[str, list] = {
+            "open": [],
+            "high": [],
+            "low": [],
+            "close": [],
+            "volume": [],
+            "hl2": [],
+            "hlc3": [],
+            "ohlc4": [],
+            "tr": [],
+        }
+        evaluator.current_series = self._series_lists
+        try:
+            from pynescript.ast.evaluator.builtins.drawing import DrawingRegistry
+
+            DrawingRegistry.reset()
+        except Exception:
+            pass
+        clear_alerts = getattr(evaluator, "clear_alerts", None)
+        if callable(clear_alerts):
+            try:
+                clear_alerts()
+            except Exception:
+                pass
+
+        self._all_events: list[dict] = []
+        self.script_id = hashlib.sha256(source_code.encode("utf-8")).hexdigest()[:16]
+        self.run_id = runtime._run_id
+
+        self._ohlcv_data: list[dict] = list(ohlcv_data)
+        col_open, col_high, col_low, col_close, col_vol, col_time = _pack_ohlcv_columns(ohlcv_data)
+        self._col_open = col_open
+        self._col_high = col_high
+        self._col_low = col_low
+        self._col_close = col_close
+        self._col_vol = col_vol
+        self._col_time = col_time
+        if col_time:
+            context["last_bar_time"] = col_time[-1]
+            try:
+                chart = context.get("chart")
+                if chart is not None:
+                    chart.left_visible_bar_time = int(col_time[0])
+                    chart.right_visible_bar_time = int(col_time[-1])
+            except Exception:
+                pass
+
+        need_src_input = bool(_INPUT_SOURCE_RE.search(source_code))
+        self._need_hl2 = need_src_input or bool(_HL2_RE.search(source_code))
+        self._need_hlc3 = need_src_input or bool(_HLC3_RE.search(source_code)) or bool(_VWAP_RE.search(source_code))
+        self._need_ohlc4 = need_src_input or bool(_OHLC4_RE.search(source_code))
+        self._need_tr = need_src_input or bool(_TR_RE.search(source_code))
+        self._need_time_close = bool(_TIME_CLOSE_RE.search(source_code))
+        self._need_strategy = bool(_STRATEGY_NAME_RE.search(source_code))
+        self._need_alerts = bool(_ALERT_CALL_RE.search(source_code))
+        self._need_cross = "crossover" in source_code or "crossunder" in source_code or "ta.cross(" in source_code
+
+        _ev_series_max = int(getattr(evaluator, "_SERIES_MAX", 256) or 256)
+        series_cap = resolve_series_cap(series_max=_ev_series_max, max_bars_back=_mbb_decl)
+        if series_cap < _host_series_cap:
+            series_cap = max(series_cap, _host_series_cap)
+        self._series_cap = series_cap
+        self._do_series_cap = _cap_on
+        self._series_trim_limit = series_cap_limit(series_cap) if _cap_on else 0
+        self._hist_n = 0
+        self._series_list_refs = self._build_series_refs()
+        # Short charts never hit the slack limit — skip the per-bar length check.
+        if self._do_series_cap and len(ohlcv_data) <= self._series_trim_limit:
+            # Re-evaluate on append (chart may grow past the limit).
+            pass
+        try:
+            evaluator._pine_series_cap = series_cap  # type: ignore[attr-defined]
+            evaluator._pine_series_cap_enabled = self._do_series_cap  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+        evaluator._plot_n_bars = len(ohlcv_data)  # type: ignore[attr-defined]
+        barstate.isnew = True
+        barstate.ishistory = True
+        barstate.isconfirmed = True
+        barstate.isrealtime = False
+        self._set_defs_locked = True
+        self._prev_close_f: float | None = None
+        self._n_bars = 0
+        # Bar-open rollback state for the current last bar (update_last_bar).
+        # Captured before the last bar's first visit; refreshed on append.
+        self._last_open_var_snap: dict[str, Any] | None = None
+        self._last_open_ta_snap: tuple[Any, Any] | None = None
+        self._last_open_event_len = 0
+        self._last_open_alert_len = 0
+        self._last_open_cond_len = 0
+
+        if ohlcv_data:
+            rt_first, rt_ticks = _resolve_realtime_first(
+                len(ohlcv_data),
+                realtime_ticks=realtime_ticks,
+                realtime_bars=realtime_bars,
+                realtime_from_bar=realtime_from_bar,
+                realtime_last_bar=realtime_last_bar,
+            )
+            self._run_batch(0, rt_first=rt_first, rt_ticks=rt_ticks)
+
+    def _build_series_refs(self) -> tuple:
+        refs = [
+            self._series_lists["open"],
+            self._series_lists["high"],
+            self._series_lists["low"],
+            self._series_lists["close"],
+            self._series_lists["volume"],
+        ]
+        if self._need_tr:
+            refs.append(self._series_lists["tr"])
+        if self._need_hl2:
+            refs.append(self._series_lists["hl2"])
+        if self._need_hlc3:
+            refs.append(self._series_lists["hlc3"])
+        if self._need_ohlc4:
+            refs.append(self._series_lists["ohlc4"])
+        return tuple(refs)
+
+    @property
+    def bar_count(self) -> int:
+        """Number of bars committed in this session."""
+        return self._n_bars
+
+    def _run_batch(self, start: int, rt_first: int | None = None, rt_ticks: int = 1) -> None:
+        ev = self.evaluator
+        ctx = self.context
+        barstate = self._barstate
+        tree = self._tree
+        visit = ev.visit
+        reset_plots = ev.reset_plots
+        finish_bar_plots = ev.finish_bar_plots
+        strategy_state = ev._strategy_state
+        pending_orders = strategy_state.pending_orders
+        strategy_events = strategy_state._events
+        process_pending = getattr(ev, "process_pending_orders", None)
+        snapshot_bar = getattr(strategy_state, "snapshot_bar_series", None) if self._need_strategy else None
+        n_total = len(self._col_open)
+        last_bar_i = n_total - 1
+        ctx["last_bar_index"] = last_bar_i
+        if self._col_time:
+            ctx["last_bar_time"] = self._col_time[-1]
+        rt_enabled = rt_first is not None
+
+        sl_open = self._series_lists["open"]
+        sl_high = self._series_lists["high"]
+        sl_low = self._series_lists["low"]
+        sl_close = self._series_lists["close"]
+        sl_vol = self._series_lists["volume"]
+        sl_hl2 = self._series_lists["hl2"]
+        sl_hlc3 = self._series_lists["hlc3"]
+        sl_ohlc4 = self._series_lists["ohlc4"]
+        sl_tr = self._series_lists["tr"]
+
+        open_al = self.open_series.history.appendleft
+        high_al = self.high_series.history.appendleft
+        low_al = self.low_series.history.appendleft
+        close_al = self.close_series.history.appendleft
+        volume_al = self.volume_series.history.appendleft
+        time_al = self.time_series.history.appendleft
+        hl2_al = self.hl2_series.history.appendleft if self._need_hl2 else None
+        hlc3_al = self.hlc3_series.history.appendleft if self._need_hlc3 else None
+        ohlc4_al = self.ohlc4_series.history.appendleft if self._need_ohlc4 else None
+        tr_al = self.tr_series.history.appendleft if self._need_tr else None
+        time_close_al = self.time_close_series.history.appendleft if self._need_time_close else None
+
+        do_cap = self._do_series_cap and n_total > self._series_trim_limit
+        for bar_index in range(start, n_total):
+            o = self._col_open[bar_index]
+            h = self._col_high[bar_index]
+            low = self._col_low[bar_index]
+            c = self._col_close[bar_index]
+            v = self._col_vol[bar_index]
+            self.open_series.current = o
+            open_al(o)
+            self.high_series.current = h
+            high_al(h)
+            self.low_series.current = low
+            low_al(low)
+            self.close_series.current = c
+            close_al(c)
+            self.volume_series.current = v
+            volume_al(v)
+            if self._need_hl2:
+                hl2_val = (h + low) * 0.5
+                self.hl2_series.current = hl2_val
+                hl2_al(hl2_val)
+                sl_hl2.append(hl2_val)
+            if self._need_hlc3:
+                hlc3_val = (h + low + c) / 3.0
+                self.hlc3_series.current = hlc3_val
+                hlc3_al(hlc3_val)
+                sl_hlc3.append(hlc3_val)
+            if self._need_ohlc4:
+                ohlc4_val = (self._col_open[bar_index] + h + low + c) * 0.25
+                self.ohlc4_series.current = ohlc4_val
+                ohlc4_al(ohlc4_val)
+                sl_ohlc4.append(ohlc4_val)
+            if self._need_tr:
+                if self._prev_close_f is None:
+                    tr_val = h - low
+                else:
+                    tr_val = max(h - low, abs(h - self._prev_close_f), abs(low - self._prev_close_f))
+                self._prev_close_f = c
+                self.tr_series.current = tr_val
+                tr_al(tr_val)
+                sl_tr.append(tr_val)
+            elif self._prev_close_f is None:
+                # Keep TR seed aligned even when tr is unused (matches host loop).
+                self._prev_close_f = c
+            sl_open.append(o)
+            sl_high.append(h)
+            sl_low.append(low)
+            sl_close.append(c)
+            sl_vol.append(v)
+            if do_cap:
+                self._hist_n += 1
+                if self._hist_n > self._series_trim_limit:
+                    self._hist_n = trim_series_lists(
+                        self._series_list_refs,
+                        keep=self._series_cap,
+                        length_hint=self._hist_n,
+                    )
+            bar_time = self._col_time[bar_index]
+            ctx["bar_index"] = bar_index
+            self.time_series.current = bar_time
+            time_al(bar_time)
+            if self._need_time_close:
+                if bar_index < last_bar_i:
+                    time_close = self._col_time[bar_index + 1] or bar_time
+                else:
+                    time_close = int(bar_time) + 86_400_000
+                self.time_close_series.current = time_close
+                time_close_al(time_close)
+            ctx.set_bar_time(bar_time)
+            is_last = bar_index == last_bar_i
+            barstate.isfirst = bar_index == 0
+            barstate.islast = is_last
+            if rt_enabled:
+                bar_rt = bar_index >= rt_first  # type: ignore[operator]
+                n_ticks = rt_ticks if bar_rt else 1
+                if not bar_rt:
+                    barstate.isnew = True
+                    barstate.ishistory = True
+                    barstate.isconfirmed = True
+                    barstate.isrealtime = False
+                    barstate.islastconfirmedhistory = is_last
+            else:
+                bar_rt = False
+                n_ticks = 1
+                if is_last:
+                    barstate.islastconfirmedhistory = True
+            if process_pending is not None and pending_orders:
+                process_pending(open_=o, high=h, low=low, close=c)
+            # Bar-open rollback state for the session's current last bar.
+            # update_last_bar restores var scope + TA windows to these so a
+            # forming bar re-tick starts from bar-open (varip persists).
+            if is_last:
+                self._last_open_var_snap = _snapshot_realtime_scope(ev)
+                self._last_open_ta_snap = _snapshot_ta_state(ev)
+                self._last_open_event_len = len(self._all_events)
+                try:
+                    self._last_open_alert_len = len(getattr(ev, "_triggered_alerts", None) or [])
+                    self._last_open_cond_len = len(getattr(ev, "_alert_conditions", None) or [])
+                except Exception:
+                    pass
+            for tick_i in range(n_ticks):
+                if bar_rt:
+                    barstate.isrealtime = True
+                    barstate.ishistory = False
+                    barstate.isnew = tick_i == 0
+                    barstate.isconfirmed = tick_i == n_ticks - 1
+                    barstate.islastconfirmedhistory = False
+                tick_var_snap = _snapshot_realtime_scope(ev) if bar_rt and tick_i < n_ticks - 1 else None
+                tick_ta_snap = _snapshot_ta_state(ev) if bar_rt and tick_i < n_ticks - 1 else None
+                reset_plots()
+                if self._need_strategy and strategy_events:
+                    strategy_events.clear()
+                if self._need_cross:
+                    ev._cross_call_i = 0  # type: ignore[attr-defined]
+                ev._ta_call_i = 0  # type: ignore[attr-defined]
+                ev._plot_call_i = 0  # type: ignore[attr-defined]
+                ev._pine_as_series_cache = None  # type: ignore[attr-defined]
+                visit(tree)
+                if tick_i < n_ticks - 1:
+                    _restore_realtime_scope(ev, tick_var_snap)
+                    _restore_ta_state(ev, tick_ta_snap)
+                    _discard_realtime_plot_tick(ev)
+                    continue
+                if snapshot_bar is not None:
+                    snapshot_bar()
+                finish_bar_plots()
+                if self._set_defs_locked:
+                    ev._pine_defs_locked = True  # type: ignore[attr-defined]
+                    self._set_defs_locked = False
+                if self._need_strategy and strategy_events:
+                    for e in strategy_state.drain_events():
+                        d = e.to_dict()
+                        d["script_id"] = self.script_id
+                        d["run_id"] = self.run_id
+                        self._all_events.append(d)
+        self._n_bars = n_total
+        try:
+            chart = ctx.get("chart")
+            if chart is not None and self._col_time:
+                chart.left_visible_bar_time = int(self._col_time[0])
+                chart.right_visible_bar_time = int(self._col_time[-1])
+        except Exception:
+            pass
+
+    def append_bars(
+        self,
+        new_bars: list[dict],
+        realtime_ticks: int = 1,
+        realtime_bars: int = 0,
+        realtime_from_bar: int | None = None,
+        realtime_last_bar: bool = False,
+    ) -> dict[str, Any]:
+        """Append closed bars (O(delta)) and return the full result envelope.
+
+        Realtime window params mirror :meth:`Runtime.run` but apply to the
+        appended batch: e.g. ``realtime_ticks=3`` re-visits the last appended
+        bar 3 times with ``var`` + TA rollback (``varip`` persists).
+        Previously committed bars stay confirmed — windows do not span
+        append boundaries.
+        """
+        if new_bars is None or len(new_bars) == 0:
+            return self.result()
+        o_l, h_l, low_l, c_l, v_l, t_l = _pack_ohlcv_columns(new_bars)
+        start = len(self._col_open)
+        self._ohlcv_data.extend(list(new_bars))
+        self._col_open.extend(o_l)
+        self._col_high.extend(h_l)
+        self._col_low.extend(low_l)
+        self._col_close.extend(c_l)
+        self._col_vol.extend(v_l)
+        self._col_time.extend(t_l)
+        # Extend pre-sized plot columns so new writes hit index slots.
+        new_n = len(self._col_open)
+        try:
+            cols = getattr(self.evaluator, "_plot_value_cols", None) or []
+            for col in cols:
+                if len(col) < new_n:
+                    col.extend([None] * (new_n - len(col)))
+            self.evaluator._plot_n_bars = new_n  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        self._series_list_refs = self._build_series_refs()
+        rt_first, rt_ticks = _resolve_realtime_first(
+            new_n,
+            realtime_ticks=realtime_ticks,
+            realtime_bars=realtime_bars,
+            realtime_from_bar=realtime_from_bar,
+            realtime_last_bar=realtime_last_bar,
+        )
+        if rt_first is not None and rt_first < start:
+            # Previously committed bars stay confirmed; only re-tick the tail.
+            rt_first = start
+        self._run_batch(start, rt_first=rt_first, rt_ticks=rt_ticks)
+        return self.result()
+
+    def update_last_bar(self, bar: dict) -> dict[str, Any]:
+        """Re-tick the forming last bar with revised OHLCV (O(1) bars).
+
+        Overwrites the last committed cell in place — bar count and bar
+        index do not advance. ``var`` scope and incremental TA windows roll
+        back to bar-open before each tick (``varip`` persists), so repeated
+        ticks behave like intermediate realtime ticks in :meth:`Runtime.run`
+        and a later :meth:`append_bars` stays exact.
+
+        Strategy fills are not rolled back across ticks (same limitation as
+        the realtime tick loop in :meth:`Runtime.run`); strategy series
+        history (``_size_hist`` …) is overwritten, not appended.
+        """
+        if self._n_bars <= 0:
+            msg = "update_last_bar requires at least one committed bar"
+            raise ValueError(msg)
+        if not isinstance(bar, dict):
+            msg = f"update_last_bar requires an OHLCV dict, got {type(bar)}"
+            raise ValueError(msg)
+        (o_l, h_l, low_l, c_l, v_l, t_l) = _pack_ohlcv_columns([bar])
+        o, h, low, c, v = o_l[0], h_l[0], low_l[0], c_l[0], v_l[0]
+        bar_time = t_l[0]
+        idx = self._n_bars - 1
+        ev = self.evaluator
+        ctx = self.context
+        barstate = self._barstate
+
+        # Roll back to bar-open: var scope (varip persists) + TA windows.
+        _restore_realtime_scope(ev, self._last_open_var_snap)
+        _restore_ta_state(ev, self._last_open_ta_snap)
+        # Drop this bar's events/alerts/conditions; the re-visit re-emits.
+        try:
+            del self._all_events[self._last_open_event_len :]
+        except Exception:
+            pass
+        try:
+            trig = getattr(ev, "_triggered_alerts", None)
+            if isinstance(trig, list):
+                del trig[self._last_open_alert_len :]
+            conds = getattr(ev, "_alert_conditions", None)
+            if isinstance(conds, list):
+                del conds[self._last_open_cond_len :]
+        except Exception:
+            pass
+
+        # Overwrite packed columns + raw bar (no push; count unchanged).
+        self._col_open[idx] = o
+        self._col_high[idx] = h
+        self._col_low[idx] = low
+        self._col_close[idx] = c
+        self._col_vol[idx] = v
+        self._col_time[idx] = bar_time
+        self._ohlcv_data[idx] = bar
+        ctx["last_bar_time"] = bar_time
+        try:
+            chart = ctx.get("chart")
+            if chart is not None:
+                chart.right_visible_bar_time = int(bar_time)
+        except Exception:
+            pass
+
+        # Overwrite host series heads (history[0] is the current bar).
+        self.open_series.current = o
+        self.open_series.history[0] = o
+        self.high_series.current = h
+        self.high_series.history[0] = h
+        self.low_series.current = low
+        self.low_series.history[0] = low
+        self.close_series.current = c
+        self.close_series.history[0] = c
+        self.volume_series.current = v
+        self.volume_series.history[0] = v
+        self._series_lists["open"][-1] = o
+        self._series_lists["high"][-1] = h
+        self._series_lists["low"][-1] = low
+        self._series_lists["close"][-1] = c
+        self._series_lists["volume"][-1] = v
+        if self._need_hl2:
+            hl2_val = (h + low) * 0.5
+            self.hl2_series.current = hl2_val
+            self.hl2_series.history[0] = hl2_val
+            self._series_lists["hl2"][-1] = hl2_val
+        if self._need_hlc3:
+            hlc3_val = (h + low + c) / 3.0
+            self.hlc3_series.current = hlc3_val
+            self.hlc3_series.history[0] = hlc3_val
+            self._series_lists["hlc3"][-1] = hlc3_val
+        if self._need_ohlc4:
+            ohlc4_val = (o + h + low + c) * 0.25
+            self.ohlc4_series.current = ohlc4_val
+            self.ohlc4_series.history[0] = ohlc4_val
+            self._series_lists["ohlc4"][-1] = ohlc4_val
+        if self._need_tr:
+            prev_c = self._col_close[idx - 1] if idx > 0 else None
+            if prev_c is None:
+                tr_val = h - low
+            else:
+                tr_val = max(h - low, abs(h - prev_c), abs(low - prev_c))
+            self.tr_series.current = tr_val
+            self.tr_series.history[0] = tr_val
+            self._series_lists["tr"][-1] = tr_val
+        self._prev_close_f = c
+        ctx["bar_index"] = idx
+        self.time_series.current = bar_time
+        self.time_series.history[0] = bar_time
+        if self._need_time_close:
+            # Last bar of the session: next-bar time unknown → +1d fallback.
+            time_close = int(bar_time) + 86_400_000
+            self.time_close_series.current = time_close
+            self.time_close_series.history[0] = time_close
+        ctx.set_bar_time(bar_time)
+
+        # Forming-bar flags (unconfirmed tick, not a new bar).
+        barstate.isfirst = idx == 0
+        barstate.islast = True
+        barstate.isnew = False
+        barstate.ishistory = False
+        barstate.isrealtime = True
+        barstate.isconfirmed = False
+        barstate.islastconfirmedhistory = False
+
+        strategy_state = ev._strategy_state
+        strategy_events = strategy_state._events
+        # Re-visit at the last-bar plot slot (no _plot_bars_done advance).
+        try:
+            ev._plot_bars_done = idx  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        ev.reset_plots()
+        if self._need_strategy and strategy_events:
+            strategy_events.clear()
+        if self._need_cross:
+            ev._cross_call_i = 0  # type: ignore[attr-defined]
+        ev._ta_call_i = 0  # type: ignore[attr-defined]
+        ev._plot_call_i = 0  # type: ignore[attr-defined]
+        ev._pine_as_series_cache = None  # type: ignore[attr-defined]
+        ev.visit(self._tree)
+        # Overwrite (not append) strategy series history for this bar.
+        if self._need_strategy:
+            try:
+                if strategy_state._size_hist:
+                    strategy_state._size_hist[-1] = strategy_state.signed_position_size()
+                if strategy_state._avg_price_hist:
+                    if strategy_state.position_direction == "flat":
+                        strategy_state._avg_price_hist[-1] = float("nan")
+                    else:
+                        strategy_state._avg_price_hist[-1] = float(strategy_state.entry_price)
+                if strategy_state._closed_trades_hist:
+                    strategy_state._closed_trades_hist[-1] = float(len(strategy_state.closed_trades))
+            except Exception:
+                pass
+        ev.finish_bar_plots()
+        if self._need_strategy and strategy_events:
+            for e in strategy_state.drain_events():
+                d = e.to_dict()
+                d["script_id"] = self.script_id
+                d["run_id"] = self.run_id
+                self._all_events.append(d)
+        return self.result()
+
+    def result(self) -> dict[str, Any]:
+        """Build the same envelope as ``Runtime.run`` for bars committed so far."""
+        ev = self.evaluator
+        series_map: dict[str, list[Any]] = {}
+        plot_meta: dict[str, dict[str, Any]] = {}
+        final_series: list[Any] = []
+        n_result_bars = self._n_bars
+        if not self._light_plots:
+            value_cols = getattr(ev, "_plot_value_cols", None) or []
+            meta_list = getattr(ev, "_plot_meta_list", None) or []
+            bars_done = int(getattr(ev, "_plot_bars_done", 0) or 0)
+            pack_dirty = bool(getattr(ev, "_plot_pack_dirty", False))
+            if value_cols:
+                n_result_bars = bars_done if bars_done > 0 else len(value_cols[0])
+            series_map, plot_meta, final_series = _pack_interpret_plot_columns(
+                value_cols,
+                meta_list,
+                bars_done=bars_done,
+                pack_dirty=pack_dirty,
+            )
+        drawings: list[dict] = []
+        try:
+            from pynescript.ast.evaluator.builtins.drawing import DrawingRegistry
+
+            if not DrawingRegistry.is_empty():
+                bar_times = [int(t or 0) for t in self._col_time]
+                drawings = DrawingRegistry.export_for_api(bar_times)
+        except Exception:
+            drawings = []
+        alerts: list[dict[str, Any]] = []
+        alert_conditions: list[dict[str, Any]] = []
+        if self._need_alerts:
+            try:
+                try:
+                    from pynescript.ast.evaluator.builtins.alerts import export_alerts_from_evaluator
+
+                    alerts = list(export_alerts_from_evaluator(ev) or [])
+                except ImportError:
+                    raw = getattr(ev, "get_triggered_alerts", None)
+                    items = raw() if callable(raw) else getattr(ev, "_triggered_alerts", None) or []
+                    for a in items or []:
+                        if hasattr(a, "to_dict"):
+                            alerts.append(a.to_dict())
+                        elif isinstance(a, dict):
+                            alerts.append(dict(a))
+                exp_c = getattr(ev, "export_alert_conditions", None)
+                if callable(exp_c):
+                    alert_conditions = list(exp_c() or [])
+            except Exception:
+                alerts = []
+                alert_conditions = []
+            for a in alerts:
+                if isinstance(a, dict):
+                    a.setdefault("script_id", self.script_id)
+                    a.setdefault("run_id", self.run_id)
+        decl = getattr(ev, "_script_declaration", None)
+        overlay = True
+        script_name = "plot"
+        script_type = "indicator"
+        if decl is not None:
+            script_type = str(getattr(decl, "script_type", "indicator") or "indicator")
+            title = str(getattr(decl, "title", "") or "").strip()
+            if title:
+                script_name = title
+            if hasattr(decl, "overlay"):
+                overlay = bool(decl.overlay)
+            else:
+                kw = getattr(decl, "kwargs", None) or {}
+                if "overlay" in kw:
+                    overlay = bool(kw["overlay"])
+                else:
+                    overlay = script_type == "strategy"
+        drawing_limits: dict[str, int] = {}
+        try:
+            from pynescript.ast.evaluator.builtins.drawing import DrawingRegistry
+
+            drawing_limits = DrawingRegistry.limits_dict()
+        except Exception:
+            drawing_limits = {}
+        input_defs: list[dict[str, Any]] = []
+        try:
+            decls = list(getattr(ev, "_input_declarations", None) or [])
+            seen_titles: set[str] = set()
+            for d in decls:
+                if not isinstance(d, dict):
+                    continue
+                t = str(d.get("title") or "")
+                if t and t in seen_titles:
+                    continue
+                if t:
+                    seen_titles.add(t)
+                safe: dict[str, Any] = {}
+                for k, v in d.items():
+                    if isinstance(v, (str, int, float, bool)) or v is None:
+                        safe[k] = v
+                    elif isinstance(v, (list, tuple)):
+                        safe[k] = [str(x) if not isinstance(x, (str, int, float, bool, type(None))) else x for x in v]
+                    else:
+                        safe[k] = str(v)
+                input_defs.append(safe)
+        except Exception:
+            input_defs = []
+        eval_ms = (time.perf_counter() - self._t_eval0) * 1000.0
+        total_ms = (time.perf_counter() - self._t_total0) * 1000.0
+        line_rows = _export_line_profile(ev) if self._profiler else []
+        meta_out: dict[str, Any] = {
+            "overlay": overlay,
+            "script_name": script_name,
+            "script_type": script_type,
+            "inputs": input_defs,
+        }
+        if drawing_limits:
+            meta_out.update(drawing_limits)
+        out: dict[str, Any] = {
+            "plots": final_series,
+            "series": series_map,
+            "plot_meta": plot_meta,
+            "events": list(self._all_events),
+            "drawings": drawings,
+            "alerts": alerts,
+            "inputs": input_defs,
+            "count": n_result_bars,
+            "script_id": self.script_id,
+            "run_id": self.run_id,
+            "mode": "interpret",
+            "overlay": overlay,
+            "script_name": script_name,
+            "script_type": script_type,
+            "meta": meta_out,
+            "session_bars": self._n_bars,
+        }
+        if alert_conditions:
+            out["alert_conditions"] = alert_conditions
+        return _attach_logs_profile(
+            out,
+            total_ms=total_ms,
+            bars=n_result_bars,
+            mode="interpret",
+            parse_ms=self._parse_ms,
+            eval_ms=eval_ms,
+            lines=line_rows,
+        )
+
+
 class Runtime:
     """Bar-mode host that evaluates Pine over OHLCV (interpret / compile / auto).
 
@@ -1411,6 +2351,49 @@ class Runtime:
         """
         self._bid = bid
         self._ask = ask
+
+    def create_session(
+        self,
+        source_code: str,
+        ohlcv_data: list[dict],
+        data_feed=None,
+        data_provider=None,
+        inputs: dict | None = None,
+        libraries: list[dict[str, Any]] | None = None,
+        profiler: bool = False,
+        mode: str | None = None,
+        realtime_ticks: int = 1,
+        realtime_bars: int = 0,
+        realtime_from_bar: int | None = None,
+        realtime_last_bar: bool = False,
+    ) -> InterpretSession:
+        """Create a persistent interpret session for O(delta) appends.
+
+        Runs the initial bars once, then use
+        ``session.append_bars(new_closed_bars)`` for each new candle and
+        ``session.update_last_bar(partial_bar)`` for forming-bar ticks.
+        ``mode`` must be omitted or ``"interpret"`` (compile has no
+        resumable evaluator state). Realtime window params mirror
+        :meth:`run` and apply to the initial bars.
+        """
+        mode_norm = (mode or "interpret").strip().lower() if mode else "interpret"
+        if mode_norm != "interpret":
+            msg = f"create_session supports interpret only, got {mode!r}"
+            raise ValueError(msg)
+        return InterpretSession(
+            self,
+            source_code,
+            list(ohlcv_data),
+            data_feed=data_feed,
+            data_provider=data_provider,
+            inputs=inputs,
+            libraries=libraries,
+            profiler=profiler,
+            realtime_ticks=realtime_ticks,
+            realtime_bars=realtime_bars,
+            realtime_from_bar=realtime_from_bar,
+            realtime_last_bar=realtime_last_bar,
+        )
 
     def run(
         self,
@@ -2027,8 +3010,11 @@ class Runtime:
                     barstate.islastconfirmedhistory = False
 
                 # Intermediate realtime ticks start from confirmed state:
-                # snapshot var scope, restore after the visit (varip persists).
+                # snapshot var scope + TA windows, restore after the visit
+                # (varip persists). TA must roll back too: each tick pushes
+                # one sample per call site, else the same bar counts N times.
                 rt_snap = _snapshot_realtime_scope(evaluator) if bar_rt and tick_i < n_ticks - 1 else None
+                ta_snap = _snapshot_ta_state(evaluator) if bar_rt and tick_i < n_ticks - 1 else None
 
                 # Reset per-bar/tick plot index; clear strategy event buffer
                 reset_plots()
@@ -2069,10 +3055,11 @@ class Runtime:
                     )
 
                 if tick_i < n_ticks - 1:
-                    # Intermediate realtime tick: roll back var scope to
-                    # confirmed state (varip persists) and discard plot
-                    # cells so series length stays 1 per bar.
+                    # Intermediate realtime tick: roll back var scope + TA
+                    # windows to confirmed state (varip persists) and discard
+                    # plot cells so series length stays 1 per bar.
                     _restore_realtime_scope(evaluator, rt_snap)
+                    _restore_ta_state(evaluator, ta_snap)
                     _discard_realtime_plot_tick(evaluator)
                     continue
 
