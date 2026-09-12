@@ -1610,10 +1610,14 @@ class StatementEvaluator:
         n_params = len(params)
         # Series locals that use history (``kf[1]``) must be isolated per
         # call site — two ``kahlman(...)`` invocations cannot share one ``kf``.
-        series_locals: set[str] = set()
-        self._collect_history_names(node, series_locals)
-        series_locals -= param_name_set
+        history_in_fn: set[str] = set()
+        self._collect_history_names(node, history_in_fn)
+        series_locals: set[str] = set(history_in_fn - param_name_set)
         series_locals_t = frozenset(series_locals)
+        # Params subscripted in the body (``s[1]``) need a per-site series even
+        # when the caller passed a scalar (``src = close`` is not in
+        # ``_history_names`` unless ``src`` itself is indexed).
+        series_params_t = frozenset(history_in_fn & param_name_set)
         fsl: dict[str, frozenset[str]] = getattr(self, "_func_series_locals", None)  # type: ignore[attr-defined]
         if fsl is None:
             fsl = {}
@@ -1629,6 +1633,7 @@ class StatementEvaluator:
             __n=n_params,
             __fname=func_name,
             __series_locals=series_locals_t,
+            __series_params=series_params_t,
             **kwargs,
         ):
             """Invoke a UDF with in-place param rebind on the live context.
@@ -1647,6 +1652,8 @@ class StatementEvaluator:
             Series locals with history (``x[1]``) are persisted **per call site**
             (``id`` of the Call AST node, set by ``visit_Call``) so multiple
             invocations of the same UDF do not share one ``kf``/``velo`` series.
+            Series params (``s[1]``) get the same per-site wrap so a scalar
+            caller like ``src = close; f(src)`` still has previous-bar ``s``.
             """
             ctx = self.context  # type: ignore[attr-defined]
             saved: dict[str, Any] = {}
@@ -1657,10 +1664,10 @@ class StatementEvaluator:
                     saved[name] = ctx[name] if name in ctx else missing
                 ctx[name] = value
 
-            # Per-call-site store for series locals (compile uses __st_*_cN).
+            # Per-call-site store for series locals/params (compile uses __st_*_cN).
             site = int(getattr(self, "_pine_udf_site", 0) or 0)
             site_store: dict[str, Any] | None = None
-            if __series_locals:
+            if __series_locals or __series_params:
                 all_stores: dict[tuple[str, int], dict[str, Any]] = getattr(self, "_udf_call_site_state", None)  # type: ignore[attr-defined]
                 if all_stores is None:
                     all_stores = {}
@@ -1672,7 +1679,7 @@ class StatementEvaluator:
                 if __fname not in saved:
                     saved[__fname] = ctx[__fname] if __fname in ctx else missing
 
-                # Restore this call site's series locals (or clear for first run).
+                # Restore this call site's series locals/params (or clear for first run).
                 if site_store is not None:
                     for n in __series_locals:
                         if n not in saved:
@@ -1681,21 +1688,51 @@ class StatementEvaluator:
                             ctx[n] = site_store[n]
                         else:
                             ctx.pop(n, None)
+                    for n in __series_params:
+                        if n not in saved:
+                            saved[n] = ctx[n] if n in ctx else missing
+                        if n in site_store:
+                            ctx[n] = site_store[n]
+                        else:
+                            ctx.pop(n, None)
                     self._commit_udf_series_history(__series_locals, site)
 
-                # Bind positional arguments
+                # Bind positional arguments. Series params keep the restored
+                # PineSeries (``_bind_series_name`` updates current); do not
+                # overwrite it with a raw scalar first.
+                bound: set[str] = set()
                 for i, value in enumerate(args):
                     if i < __n:
-                        _bind(__names[i], value)
+                        pname = __names[i]
+                        bound.add(pname)
+                        if pname in __series_params:
+                            if pname not in saved:
+                                saved[pname] = ctx[pname] if pname in ctx else missing
+                            self._bind_series_name(pname, value)
+                        else:
+                            _bind(pname, value)
 
                 # Bind keyword arguments
                 for key, value in kwargs.items():
-                    _bind(key, value)
+                    bound.add(key)
+                    if key in __series_params:
+                        if key not in saved:
+                            saved[key] = ctx[key] if key in ctx else missing
+                        self._bind_series_name(key, value)
+                    else:
+                        _bind(key, value)
 
                 # Apply parameter defaults for unbound params
                 for dname, dast in __defaults:
-                    if dname not in saved:
-                        _bind(dname, self.visit(dast))  # type: ignore[attr-defined]
+                    if dname in bound:
+                        continue
+                    dval = self.visit(dast)  # type: ignore[attr-defined]
+                    if dname in __series_params:
+                        if dname not in saved:
+                            saved[dname] = ctx[dname] if dname in ctx else missing
+                        self._bind_series_name(dname, dval)
+                    else:
+                        _bind(dname, dval)
 
                 # Execute pre-classified body
                 result = None
@@ -1717,9 +1754,12 @@ class StatementEvaluator:
                         val = visit(item)  # type: ignore[attr-defined]
                         if type(item) in (ast.Assign, ast.ReAssign):
                             result = val
-                # Persist series locals for this call site across bars.
+                # Persist series locals/params for this call site across bars.
                 if site_store is not None:
                     for n in __series_locals:
+                        if n in ctx:
+                            site_store[n] = ctx[n]
+                    for n in __series_params:
                         if n in ctx:
                             site_store[n] = ctx[n]
                 return result

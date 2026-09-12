@@ -21,7 +21,7 @@
 
 **Last Updated:** 2026-08-19 (0.3.17: UDF round extras / import stubs / color overloads / nested UDT method dispatch; 0.3.16 compile object-mode corpus residuals; 0.3.15 download-builtins + compile set06; 0.3.14 free-tier opt-in + position_avg_price/leverage)
 **Status:** Core v6 language/builtins essentially closed. Remaining work is
-**interpret↔compile plot residuals (P1p corpus tail)** — not missing syntax.
+**interpret↔compile plot parity (P1p)** — official builtins closed; optional set0x community corpus unmeasured — not missing syntax.
 Product warm-compile (H2), series caps (T1), package Runtime SoT (H1),
 incremental volume TA including nvi/pvi (T2), Supertrend goldens (F1), and
 compile object-mode UDT/switch/matrix/drawing/round/color residuals (0.3.16–0.3.17) landed.
@@ -44,7 +44,7 @@ compile object-mode UDT/switch/matrix/drawing/round/color residuals (0.3.16–0.
 | Linter / Jupyter / data providers | ✅ |
 | LSP (core) | ✅ advanced set; polish only |
 | Drawing max_*_count GC | ✅ (package + Pro API + AXIS pyodide) |
-| Interpret↔compile plot parity | ⚙️ harness + goldens landed; residual MISMATCH tail open |
+| Interpret↔compile plot parity | ✅ harness + goldens + official TV builtins **0 MISMATCH**; optional set0x unmeasured |
 | Dual-host Runtime parity | ✅ largely done (package SoT + backend shims + pyne-worker thin wrap) |
 | Tests | **2474** collected (0.3.17) |
 
@@ -94,7 +94,7 @@ Historical Phase A–D “build API / LSP / Jupyter” items are **done**. Do no
 | **H1** | Port R5–R6 host surface to pyne-worker (fail-cache, `error_kind`, inputs→interpret, compile cache) | P1 ✅ package Runtime SoT + worker thin wrap; `/run` already forwards `logs` / `profile` / `plot_meta` / `error_kind` | sibling `hoox-sh/pyne-worker` |
 | **H2** | Product warm-compile path (document SLOs; optional prewarm workers; IR cache on in deploy) | P1 ✅ SLOs + prewarm API/CLI + deploy defaults (2026-08); Numba `.nb*` corrupt-cache recovery landed | pyne + ops |
 | **C1** | Corpus Runtime residual (set01–04) | P1 ✅ **closed (2026-08-09)** — parse **99.96%** (2476/2477); Runtime interpret **100%** excl. EXPECTED_FAIL (2466 OK + 11 intentional demos); set01 **249/249**. Residual class = intentional `runtime.error` / lower-TF / pathological loop demos only | pyne |
-| **P1p** | Compile/interpret **plot parity** residual | P1 ⚙️ first-party + `tests/fixtures/parity/pine` **0 MISMATCH** (2026-09); residual = optional TV builtin / set0x corpus value tail | pyne |
+| **P1p** | Compile/interpret **plot parity** residual | P1 ✅ first-party + parity fixtures + official `tests/data/builtin_scripts` **0 MISMATCH** (2026-09-12; Connors RSI UDF `s[1]` param history). Optional set0x community corpus remains unmeasured | pyne |
 | **T1** | Cap `current_series` to `max_bars_back` / `_SERIES_MAX` | P2 ✅ `PYNE_SERIES_CAP` default ON + goldens (R7 Agent 03) | pyne |
 | **T2** | Incremental TA for remaining heavy kernels (`ta.bb`, nested full paths) | P2 ✅ R7: bb/kama/cmo/stochrsi; wma/hma/linreg; **R9: obv/wad/wvad/cmf/klinger**; **nvi/pvi**; **aroon/dpo/donchian/kst** | pyne |
 | **F1** | ATR Wilder / TV supertrend re-baseline **only** with dedicated goldens | P2 ✅ interpret ATR is Wilder RMA of TR; Supertrend mid±factor·ATR locked (inc ≡ compile ≡ Numba). TV ratchet is out of scope | pyne |
@@ -122,7 +122,7 @@ P0 docs honesty → P1 dual-host H1 ✅ (package SoT + shims + worker thin wrap)
 
 ### Landed residual notes (2026-08; keep for agents)
 
-- **Compile/interpret plot parity:** Always-on smoke set in `tests/test_interp_compile_parity.py` (e.g. ALMA/ATR/AO-class scripts). First-party hline/fill/bgcolor/plotshape keys match (cache meta v10). Full corpus compare is opt-in via `python scripts/compare_interp_compile.py`. Flags `--ignore-hline-keys` / `--ignore-fill-keys` remain optional CLI. Grow goldens from harness `MISMATCH` buckets, not ad-hoc benches.
+- **Compile/interpret plot parity:** Always-on smoke set in `tests/test_interp_compile_parity.py` (e.g. ALMA/ATR/AO-class scripts). First-party hline/fill/bgcolor/plotshape keys match (cache meta v10). Official TV `builtin_scripts` (148) **0 MISMATCH** vs compile (2026-09-12). Full community-corpus compare is opt-in via `python scripts/compare_interp_compile.py`. Flags `--ignore-hline-keys` / `--ignore-fill-keys` remain optional CLI. Grow goldens from harness `MISMATCH` buckets, not ad-hoc benches.
 - **Corpus (C1, 2026-08-09):** set01–04 parse **99.96%** (2476/2477); Runtime interpret **100%** excl. EXPECTED_FAIL (2466 OK + 11 intentional demos: library `runtime.error`, lower-TF security guards, invalid-wrap docs, pathological loops). set01 Runtime **249/249**. Not core syntax gaps.
 - **`auto_fib` pivot data limits:** Auto Fib Extension/Retracement raise the same “not enough data / Depth” insufficient-pivot errors on interpret and compile when pivot arrays are empty (normalized as `both_error_same` in the parity harness). Not a silent success path; hosts must supply enough bars or lower Depth.
 - **`request.*` foreign-na policy:** `request.security` / bare `security` on foreign symbols or complex expressions resolve to `na` on both backends; `ChartOHLCVProvider` refuses non-chart symbols. Same-symbol simple OHLCV still passthrough. Real fundamentals remain **B1** (adapters).
@@ -141,8 +141,8 @@ P0 docs honesty → P1 dual-host H1 ✅ (package SoT + shims + worker thin wrap)
 ## Priority Recommendation
 
 ### Short-term (Next)
-1. **P1p corpus tail** — optional TV builtin / set0x `MISMATCH` (shipped first-party + parity fixtures are 0 MISMATCH)
-2. Grow goldens from `scripts/compare_interp_compile.py` buckets when a new kernel diverges
+1. Grow goldens from `scripts/compare_interp_compile.py` buckets when a new kernel diverges (P1p official builtins closed)
+2. Optional set0x community-corpus value sweep if a new MISMATCH class shows up
 
 ### Medium-term
 3. Further nested incremental TA where profiled

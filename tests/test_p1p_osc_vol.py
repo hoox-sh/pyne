@@ -243,6 +243,60 @@ plot(ta.sma(ta.rci(source, 10), 14), "MA")
     _assert_finite_match(m_i, m_c, key="MA")
 
 
+def test_udf_series_param_history_from_scalar_src() -> None:
+    """``src = close; f(src)`` must still give ``s[1]`` previous close.
+
+    Script-level ``src`` is a scalar unless ``src`` itself is subscripted.
+    Compile threads the full series into the UDF; interpret must wrap the
+    per-call-site argument stream (Connors RSI ``updown(src)``).
+    """
+    src = """
+//@version=6
+indicator("udf_param_hist")
+src = close
+updown(s) =>
+    isGrowing = s > s[1]
+    ud = 0.0
+    ud := isGrowing ? (nz(ud[1]) <= 0 ? 1 : nz(ud[1]) + 1) : (nz(ud[1]) >= 0 ? -1 : nz(ud[1]) - 1)
+    ud
+plot(updown(src), "ud")
+plot(ta.rsi(src, 3), "rsi")
+plot(ta.rsi(updown(src), 2), "udrsi")
+"""
+    interp, compiled = _run_dual(src, _ohlcv(30))
+    if compiled is None:
+        pytest.skip("numba compile path unavailable")
+    _assert_finite_match(interp["series"]["ud"], compiled["series"]["ud"], key="ud")
+    _assert_finite_match(interp["series"]["udrsi"], compiled["series"]["udrsi"], key="udrsi")
+    ud = interp["series"]["ud"]
+    assert ud[0] == -1
+    assert ud[1] == 1
+    assert ud[2] == 2
+
+
+def test_connors_rsi_builtin_interp_compile() -> None:
+    """Official Connors RSI builtin: math.avg(rsi, rsi(updown), percentrank)."""
+    src = """
+//@version=6
+indicator("crsi_p1p")
+src = close
+updown(s) =>
+    isEqual = s == s[1]
+    isGrowing = s > s[1]
+    ud = 0.0
+    ud := isEqual ? 0 : isGrowing ? (nz(ud[1]) <= 0 ? 1 : nz(ud[1])+1) : (nz(ud[1]) >= 0 ? -1 : nz(ud[1])-1)
+    ud
+rsi = ta.rsi(src, 3)
+updownrsi = ta.rsi(updown(src), 2)
+percentrank = ta.percentrank(ta.roc(src, 1), 100)
+plot(math.avg(rsi, updownrsi, percentrank), "CRSI")
+"""
+    interp, compiled = _run_dual(src, _ohlcv(160))
+    if compiled is None:
+        pytest.skip("numba compile path unavailable")
+    _assert_finite_match(interp["series"]["CRSI"], compiled["series"]["CRSI"], key="CRSI")
+
+
 def test_rvi_ema_consecutive_seed_interp_compile() -> None:
     """RVI EMA seed is a consecutive finite window (not first-N skipping na)."""
     src = """

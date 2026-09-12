@@ -102,7 +102,7 @@ Not shipped in git. Not a TV platform score.
 
 | Item | ID |
 | --- | --- |
-| Interp↔compile value MISMATCH tail (corpus leftovers) | P1p |
+| Interp↔compile value MISMATCH (optional set0x community corpus) | P1p ✅ official builtins 0 MISMATCH |
 | `PYNE_SERIES_RING` default off | flagged |
 
 ### Out of scope

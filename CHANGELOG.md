@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-09-12
+
+P1p plot-parity tail on official TV builtins.
+
+### Fixed
+
+- Interpret UDF series parameters: `s[1]` inside a function now tracks the
+  per-call-site argument stream when the caller passed a scalar
+  (`src = close; updown(src)`). Official Connors RSI and the TV builtin
+  script set are 0 MISMATCH vs compile.
+
 ## [0.6.1] - 2026-09-12
 
 Correctness follow-up on 0.6.0 dual-host risk, InterpretSession, and HTF
@@ -528,6 +539,7 @@ First public **PYNE** release. PyPI distribution name is **`hoox-pyne`**
 - Dead `technical_refactored.py` and internal refactoring notes from the published package tree.
 - Broken AXIS-only GitHub workflows (`axis-nightly`, PWA/e2e jobs) — AXIS CI lives in [jango-blockchained/axis](https://github.com/jango-blockchained/axis).
 
+[0.6.2]: https://github.com/hoox-sh/pyne/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/hoox-sh/pyne/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/hoox-sh/pyne/compare/v0.5.0...v0.6.0
 [0.4.4]: https://github.com/hoox-sh/pyne/compare/v0.4.3...v0.4.4

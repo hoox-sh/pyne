@@ -19,14 +19,14 @@
 
 ---
 title: "Compatibility guarantee"
-description: "Grouped map of what PYNE implements for Pine Script™ v5/v6 — working, partial, residual, and by-design out of scope. hoox-pyne 0.6.1."
+description: "Grouped map of what PYNE implements for Pine Script™ v5/v6 — working, partial, residual, and by-design out of scope. hoox-pyne 0.6.2."
 ---
 
 # Compatibility guarantee
 
 ## Abstract
 
-PYNE implements Pine Script™ **v5/v6 language core** as an inspectable pipeline: parse → AST → bar-loop evaluate. The map below is the product-facing compatibility surface for **`hoox-pyne` 0.6.1**. It is **not** TradingView® platform identity (chart host, proprietary data, editor-only UI) and **not** bit-identical results vs the hosted platform on every script or bar.
+PYNE implements Pine Script™ **v5/v6 language core** as an inspectable pipeline: parse → AST → bar-loop evaluate. The map below is the product-facing compatibility surface for **`hoox-pyne` 0.6.2**. It is **not** TradingView® platform identity (chart host, proprietary data, editor-only UI) and **not** bit-identical results vs the hosted platform on every script or bar.
 
 Name-level dispatch lives in [Pine v6 surface](/pyne/docs/reference/pine-v6-surface) (`docs/pine_v6_full_surface_inventory.md`). Gaps: [Missing features](/pyne/docs/reference/missing-features). Checkmarks: [Implementation status](/pyne/docs/reference/implementation-status).
 
@@ -202,7 +202,7 @@ EXPECTED_FAIL are path-listed demos (`runtime.error` library guards, lower-TF se
     | Compile alerts | Partial | Interpret is the alert oracle |
     | Numba + object-mode compile | Working | `mode=auto` falls back; `import` / `request.*` / `inputs=` skip compile |
     | Warm compile / disk IR | Working | Prewarm CLI/API; cache meta v16 |
-    | Interp ↔ compile plot parity | Partial | Harness + first-party goldens; residual corpus MISMATCH tail (P1p) |
+    | Interp ↔ compile plot parity | Working | Harness + first-party goldens + official TV builtins **0 MISMATCH** (P1p); optional set0x community corpus unmeasured |
     | CLI / LSP / Pro API / Docker | Working | `pyne` / `pyne-lsp`; Flask `/run` |
     | Flask `/run` `libraries` | Working | Max 32; also `/run/batch` |
     | Flask `timeout_seconds` | Working | Optional on `/run` and `/run/batch`; omit / `≤ 0` = no timeout |
@@ -225,7 +225,7 @@ EXPECTED_FAIL are path-listed demos (`runtime.error` library guards, lower-TF se
 
 | Item | Class |
 | --- | --- |
-| Interpret↔compile value `MISMATCH` corpus tail | Residual (P1p) |
+| Interpret↔compile value `MISMATCH` (optional set0x community corpus) | Residual (P1p official builtins closed) |
 | `PYNE_SERIES_RING` default-on | Residual (flagged off) |
 | Pixel chart / editor word-wrap / TV UI | Out of scope |
 | Foreign live fundamentals without a feed | Out of scope |

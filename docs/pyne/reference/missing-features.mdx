@@ -19,14 +19,14 @@
 
 ---
 title: "Missing features"
-description: "Known gaps and closed Pine Script™ v6 items — 0.6.1 correctness follow-up on 0.6.0 parity (intraday risk, sessions, calendar timeframes, security barmerge, linter retirements); P1p corpus MISMATCH tail remains."
+description: "Known gaps and closed Pine Script™ v6 items — 0.6.2 P1p official builtins 0 MISMATCH; 0.6.1 correctness follow-up on 0.6.0 parity (intraday risk, sessions, calendar timeframes, security barmerge, linter retirements)."
 ---
 
 # Missing features
 
 ## Abstract
 
-“Missing” in PYNE is a **moving frontier**. As of **2026-09-12** (`hoox-pyne` **0.6.1**), core v6 support remains very high (~99%+ for core language), with post-launch TV items closed (multiline strings, library `export const`, footprint mocks, risk enforcement, matrix LA, compile-mode strategy, drawing GC, …) **plus** open-source corpus parse/Runtime hardening, **incremental bar-mode TA** (including 0.3.10–0.3.12 kernels), **alert engine + L2 webhooks**, **series caps**, **warm-compile**, **pending-fill** averaging, **`timeframe.change` (intraday buckets + 0.6.0 D/W/M exchange calendar)**, **package Runtime SoT** (`pynescript.runtime`; `backend.runtime` is a shim), **compile object-mode residual recovery** (UDF locals, nopython `None`/unicode, matrix handles, UDT returns, `x = switch`, drawing copy, `int(na)`, `round()` extras, import stubs, color type dispatch, nested UDT methods), **type-aware intraday risk enforcement on both brokers**, **intrabar `var` rollback on realtime ticks**, **`request.security` barmerge on HTF resample paths**, and **linter legacy-rule retirements**. Remaining gaps cluster into **plot parity residual MISMATCH corpus tail (P1p)**, **by-design platform differences**, and **editor-only features**. Incremental `ta.nvi`/`ta.pvi`/`aroon`/`dpo`/`donchian`/`kst` and Supertrend mid±factor·ATR goldens have landed.
+“Missing” in PYNE is a **moving frontier**. As of **2026-09-12** (`hoox-pyne` **0.6.2**), core v6 support remains very high (~99%+ for core language), with post-launch TV items closed (multiline strings, library `export const`, footprint mocks, risk enforcement, matrix LA, compile-mode strategy, drawing GC, …) **plus** open-source corpus parse/Runtime hardening, **incremental bar-mode TA** (including 0.3.10–0.3.12 kernels), **alert engine + L2 webhooks**, **series caps**, **warm-compile**, **pending-fill** averaging, **`timeframe.change` (intraday buckets + 0.6.0 D/W/M exchange calendar)**, **package Runtime SoT** (`pynescript.runtime`; `backend.runtime` is a shim), **compile object-mode residual recovery** (UDF locals, nopython `None`/unicode, matrix handles, UDT returns, `x = switch`, drawing copy, `int(na)`, `round()` extras, import stubs, color type dispatch, nested UDT methods), **type-aware intraday risk enforcement on both brokers**, **intrabar `var` rollback on realtime ticks**, **`request.security` barmerge on HTF resample paths**, and **linter legacy-rule retirements**. Remaining gaps cluster into **optional set0x community-corpus plot parity (P1p official builtins closed)**, **by-design platform differences**, and **editor-only features**. Incremental `ta.nvi`/`ta.pvi`/`aroon`/`dpo`/`donchian`/`kst` and Supertrend mid±factor·ATR goldens have landed.
 
 Authoritative narrative: `docs/missing_features.md`. Canonical IDs: `docs/ROADMAP.md` (**2026-08-17**).
 
@@ -83,7 +83,7 @@ Summarized — full prose in source doc:
 | **Pending-fill averaging (F2)** | Pyramiding ≤ 0; interpret + compile broker goldens |
 | Alert engine + **L2 webhooks (L2)** | Dual-host `/run` export, `ALERT_WEBHOOK_URL` / `webhook_url` |
 | **`request.security` foreign-na policy** | Foreign/complex → `na` both backends; same-symbol OHLCV passthrough |
-| **Plot parity harness (P1p partial)** | `scripts/compare_interp_compile.py`, first-party goldens; residual corpus MISMATCH tail |
+| **Plot parity harness (P1p)** | `scripts/compare_interp_compile.py`, first-party goldens + official TV builtins **0 MISMATCH** |
 | `fill()` export for AXIS | series + `plot_meta` / compile `__drawings` |
 
 ### Still incomplete / by design
@@ -104,7 +104,7 @@ Summarized — full prose in source doc:
 | Series cap (**T1**) | ✅ `PYNE_SERIES_CAP` default ON |
 | Residual TA inc (**T2**) | ✅ R7 bb/kama/cmo/stochrsi + wma/hma/linreg; **0.3.10** `obv`/`wad`/`cmf`/`klinger`; **0.3.11** `nvi`/`pvi`; **0.3.12** `aroon`/`dpo`/`donchian`/`kst` |
 | Pending-fill (**F2**) | ✅ R7 interpret + compile goldens |
-| Plot parity residual (**P1p**) | ⚙️ Harness + first-party goldens (MACD/OBV/ao/aroon + plot keys); corpus value MISMATCH tail remains |
+| Plot parity residual (**P1p**) | ✅ Harness + first-party goldens + official TV builtins **0 MISMATCH**; optional set0x community corpus unmeasured |
 | Compile leftover library stubs | ⚙️ Some `float(None)` / UDF arity on missing `import` libraries; INV expected-fail fixtures stay fail |
 | TV Wilder RMA-ATR / supertrend (**F1**) | ✅ interpret ATR is `ta.rma(ta.tr)`; Supertrend mid±factor·ATR locked. TV ratchet is out of scope |
 | Alert webhooks (**L2**) | ✅ Pro API + pyne-worker; see [Alerts](/pyne/docs/runtime/alerts) |
