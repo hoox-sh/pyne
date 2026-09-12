@@ -150,8 +150,8 @@ for w in warnings:
 | --- | --- |
 | `E001` | Syntax error (error severity) |
 | `W001`–`W002` | Missing / old `@version` |
-| `W101`–`W103` | Deprecated patterns |
-| `C001`–`C004` | Naming / style (line length 120, trailing newline, …) |
+| `W101` | Deprecated `security('EXCHANGE:SYM')` (W102/W103 retired) |
+| `C001` / `C002` / `C004` | Naming / style (line length 120, trailing newline). `C003` retired. |
 
 `PineLinter.lint` runs: syntax → version → deprecated → naming → style.
 

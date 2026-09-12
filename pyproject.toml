@@ -101,6 +101,7 @@ exclude = [
   "/.github",
   "/.opencode",
   "/.private",
+  "/.cache",
   "/brand",
   "/docs/exports",
   "/docs/_build",
@@ -260,6 +261,8 @@ branch = true
 parallel = true
 omit = [
   "src/pynescript/__about__.py",
+  "src/pynescript/ast/grammar/antlr4/generated/*",
+  "src/pynescript/ast/grammar/asdl/generated/*",
 ]
 
 [tool.coverage.paths]

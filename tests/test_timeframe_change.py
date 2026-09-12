@@ -24,18 +24,19 @@ from __future__ import annotations
 from datetime import datetime
 from types import SimpleNamespace
 
+
 try:
     from zoneinfo import ZoneInfo
 except ImportError:
     ZoneInfo = None  # type: ignore[assignment, misc]
 
 from pynescript.ast.evaluator.builtins.timeframe import SECONDS_PER_MONTH
+from pynescript.ast.evaluator.builtins.timeframe import _period_flags
 from pynescript.ast.evaluator.builtins.timeframe import timeframe_bucket_id
 from pynescript.ast.evaluator.builtins.timeframe import timeframe_calendar_id
 from pynescript.ast.evaluator.builtins.timeframe import timeframe_change
-from pynescript.ast.evaluator.builtins.timeframe import timeframe_is_calendar_tf
-from pynescript.ast.evaluator.builtins.timeframe import _period_flags
 from pynescript.ast.evaluator.builtins.timeframe import timeframe_in_seconds
+from pynescript.ast.evaluator.builtins.timeframe import timeframe_is_calendar_tf
 from pynescript.ast.evaluator.builtins.timeframe import timeframe_period_changed
 from pynescript.ast.evaluator.builtins.utility import UtilityFunctionsMixin
 from pynescript.ast.helper import clear_parse_cache
@@ -361,3 +362,78 @@ plot(timeframe.change("W") ? 1 : 0, "chg_w")
     assert {i for i, v in enumerate(a) if float(v) == 1.0} == {0, 168, 336}
     for i, (x, y) in enumerate(zip(a, b, strict=True)):
         assert float(x) == float(y), (i, x, y)
+
+
+def test_timeframe_change_at_threads_timezone() -> None:
+    """Compile helper must honor tz, not always UTC."""
+    if ZoneInfo is None:
+        return
+    ny = ZoneInfo("America/New_York")
+
+    def _ny_ms(month: int, day: int, hour: int) -> int:
+        return int(datetime(2026, month, day, hour, 30, tzinfo=ny).timestamp() * 1000)
+
+    times = [_ny_ms(3, 8, 0), _ny_ms(3, 8, 23), _ny_ms(3, 9, 0)]
+    assert timeframe_change_at(times, 1, "D", "America/New_York") is False
+    assert timeframe_change_at(times, 1, "D", "UTC") is True
+    assert timeframe_change_at(times, 2, "D", "America/New_York") is True
+
+
+def _ny_session_bars() -> list[dict[str, float | int]]:
+    """Intraday bars across 2026-03-08 spring-forward and 2026-11-01 fall-back."""
+    ny = ZoneInfo("America/New_York")
+    stamps: list[tuple[int, int, int]] = [
+        (3, 7, 12),
+        (3, 8, 0),
+        (3, 8, 12),
+        (3, 8, 23),
+        (3, 9, 0),
+        (3, 9, 12),
+        (11, 1, 0),
+        (11, 1, 12),
+        (11, 1, 23),
+        (11, 2, 0),
+    ]
+    bars: list[dict[str, float | int]] = []
+    for i, (month, day, hour) in enumerate(stamps):
+        ts = int(datetime(2026, month, day, hour, 30, tzinfo=ny).timestamp() * 1000)
+        c = 100.0 + i
+        bars.append({"time": ts, "open": c, "high": c, "low": c, "close": c, "volume": 1000.0})
+    return bars
+
+
+def test_calendar_change_runtime_ny_dst_parity() -> None:
+    """Runtime interpret/compile agree on NY midnight-to-midnight days (not session 09:30)."""
+    if ZoneInfo is None:
+        return
+    src = """
+//@version=6
+indicator("tfchg_ny")
+plot(timeframe.change("D") ? 1 : 0, "chg")
+"""
+    bars = _ny_session_bars()
+    clear_parse_cache()
+    clear_compile_cache()
+    ri_host = Runtime(symbol="TF")
+    ri_host._syminfo.timezone = "America/New_York"
+    ri = ri_host.run(src, bars, mode="interpret")
+    rc_host = Runtime(symbol="TF")
+    rc_host._syminfo.timezone = "America/New_York"
+    rc = rc_host.run(src, bars, mode="compile")
+    assert "error" not in ri, ri.get("error")
+    assert "error" not in rc, rc.get("error")
+    a = [float(v) for v in ri["series"]["chg"]]
+    b = [float(v) for v in rc["series"]["chg"]]
+    assert a == b
+    # bar 0 is a new period; 03-08 00:30 is a new NY day vs 03-07;
+    # 03-08 12:30 and 23:30 stay the same NY day; 03-09 00:30 changes.
+    assert a[0] == 1.0
+    assert a[1] == 1.0
+    assert a[2] == 0.0
+    assert a[3] == 0.0
+    assert a[4] == 1.0
+    # Fall-back: 11-01 00:30 / 12:30 / 23:30 are one NY day; 11-02 changes.
+    assert a[6] == 1.0
+    assert a[7] == 0.0
+    assert a[8] == 0.0
+    assert a[9] == 1.0

@@ -2154,7 +2154,7 @@ def numba_timeframe_change(time_arr, i, bucket_ms):
     return (t0 // bucket_ms) != (t1 // bucket_ms)
 
 
-def timeframe_change_at(time_arr, i, timeframe_str):
+def timeframe_change_at(time_arr, i, timeframe_str, tz=None):
     """Object-mode ``timeframe.change`` for a (possibly dynamic) TF string."""
     from pynescript.ast.evaluator.builtins.timeframe import timeframe_period_changed
 
@@ -2172,7 +2172,8 @@ def timeframe_change_at(time_arr, i, timeframe_str):
         return False
     curr = time_arr[idx]
     prev = time_arr[idx - 1] if idx > 0 else None
-    return timeframe_period_changed(curr, prev, timeframe_str, bar_index=idx)
+    zone = tz if tz is not None else chart_timezone()
+    return timeframe_period_changed(curr, prev, timeframe_str, bar_index=idx, tz=zone)
 
 
 def pine_raise(msg) -> None:
@@ -2194,15 +2195,18 @@ def pine_raise(msg) -> None:
 _CHART_TICKER = "SYMBOL"
 _CHART_TICKERID = "SYMBOL"
 _CHART_PREFIX = ""
+_CHART_TIMEZONE = "UTC"
 
 
-def set_chart_identity(ticker="SYMBOL", tickerid=None, prefix=""):
+def set_chart_identity(ticker="SYMBOL", tickerid=None, prefix="", timezone="UTC"):
     """Install chart ticker identity for the next compiled run (object mode)."""
-    global _CHART_TICKER, _CHART_TICKERID, _CHART_PREFIX
+    global _CHART_TICKER, _CHART_TICKERID, _CHART_PREFIX, _CHART_TIMEZONE
     t = "SYMBOL" if ticker is None else str(ticker)
     _CHART_TICKER = t
     _CHART_TICKERID = t if tickerid is None else str(tickerid)
     _CHART_PREFIX = "" if prefix is None else str(prefix)
+    z = "UTC" if timezone is None else str(timezone).strip()
+    _CHART_TIMEZONE = z or "UTC"
 
 
 def chart_ticker():
@@ -2218,6 +2222,11 @@ def chart_tickerid():
 def chart_prefix():
     """Pine ``syminfo.prefix`` (exchange / empty)."""
     return _CHART_PREFIX
+
+
+def chart_timezone():
+    """Pine ``syminfo.timezone`` (IANA name; UTC default)."""
+    return _CHART_TIMEZONE
 
 
 _RGBA_RE = re.compile(

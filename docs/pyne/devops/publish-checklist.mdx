@@ -39,7 +39,7 @@ project under the **personal** account
 | PyPI account (owner) | [`jango-blockchained`](https://pypi.org/user/jango-blockchained/) (personal) |
 | PyPI project | `hoox-pyne` |
 | Import / CLIs | import `pynescript`; CLIs `pyne` / `pyne-lsp` (aliases `pynescript` / `pynescript-lsp`) |
-| Package version | `src/pynescript/__about__.py` → **0.5.0** |
+| Package version | `src/pynescript/__about__.py` → **0.6.1** |
 | VS Marketplace / Open VSX publisher | `hoox-sh` (`hoox-sh.pyne` 0.4.4) |
 
 ## 1. Confirm repo host (`hoox-sh/pyne`)
@@ -98,12 +98,12 @@ Details: [PyPI publish](/pyne/docs/devops/pypi-publish).
 ## 3. Local package smoke (no upload)
 
 ```bash
-# version already 0.5.0 in src/pynescript/__about__.py
+# version already 0.6.1 in src/pynescript/__about__.py
 pip install build twine
 rm -rf dist/
 python -m build
 twine check dist/*
-# expect: hoox_pyne-0.5.0-py3-none-any.whl  hoox_pyne-0.5.0.tar.gz
+# expect: hoox_pyne-0.6.1-py3-none-any.whl  hoox_pyne-0.6.1.tar.gz
 
 python -m venv /tmp/pyne-smoke
 /tmp/pyne-smoke/bin/pip install dist/*.whl
@@ -117,29 +117,29 @@ python -m venv /tmp/pyne-smoke
 2. Confirm **CI** green (lint, test matrix, package, docker, vscode-ext).
 3. Actions → **Publish** → Run workflow → `dry_run=true` (build + twine only, no upload).
 
-## 5. Cut `v0.5.0`
+## 5. Cut `v0.6.1`
 
-1. Move `CHANGELOG.md` **Unreleased** notes into `## [0.5.0] - YYYY-MM-DD`.
+1. Move `CHANGELOG.md` **Unreleased** notes into `## [0.6.1] - YYYY-MM-DD`.
 2. Align VSIX version in `vscode-extension/package.json` (already **0.4.4**) if shipping Marketplace/VSIX with this tag.
 3. Tag and push:
 
 ```bash
-git tag -a v0.5.0 -m "v0.5.0"
-git push origin v0.5.0
+git tag -a v0.6.1 -m "v0.6.1"
+git push origin v0.6.1
 ```
 
 4. Watch in parallel:
    - **Publish** → PyPI `hoox-pyne`
    - **Build & Release** → GitHub Release assets + optional Marketplace
-   - **GHCR** → `ghcr.io/hoox-sh/pyne/{api,cli,lsp}:0.5.0`
+   - **GHCR** → `ghcr.io/hoox-sh/pyne/{api,cli,lsp}:0.6.1`
 
 ## 6. Post-publish verify
 
 ```bash
-pip index versions hoox-pyne   # or: pip install hoox-pyne==0.5.0
+pip index versions hoox-pyne   # or: pip install hoox-pyne==0.6.1
 python -c "import pynescript; print(pynescript.__version__)"
-# GitHub Release: https://github.com/hoox-sh/pyne/releases/tag/v0.5.0
-# PyPI: https://pypi.org/project/hoox-pyne/0.5.0/
+# GitHub Release: https://github.com/hoox-sh/pyne/releases/tag/v0.6.1
+# PyPI: https://pypi.org/project/hoox-pyne/0.6.1/
 ```
 
 ## Hardcoded owner map (repo automation)

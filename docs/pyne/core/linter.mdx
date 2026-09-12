@@ -115,10 +115,10 @@ Pattern: `//\s*@version\s*=\s*(\d+)`.
 | Code | Pattern (simplified) | Advice |
 | --- | --- | --- |
 | `W101` | `security('EXCHANGE:SYM'…)` style | Prefer `request.security()` with explicit params |
-| `W102` | `plot(… style=plot.style_histogram` | Consider `plotcandle` |
-| `W103` | `var int name = na` | Prefer `0` for type safety |
+| `W102` | *(retired)* `plot(… style=plot.style_histogram` | Was: consider `plotcandle`. Code kept greppable; the rule no longer fires. |
+| `W103` | *(retired)* `var int name = na` | Was: prefer `0` for type safety. Code kept greppable; the rule no longer fires. |
 
-Matches set `line` from prefix newline count. Case-insensitive search.
+Matches set `line` from prefix newline count. Case-insensitive search. Live deprecated rule is `W101` only.
 
 ### Naming (`_check_naming`)
 
@@ -133,7 +133,7 @@ Heuristic only: line-local regex `(\w+)\s*=\s*ta\.`.
 | Code | Condition |
 | --- | --- |
 | `C002` | Line length (rstrip) > 120 |
-| `C003` | Line matches `^\s+if\s+` — flagged as “single-line if without braces” heuristic |
+| `C003` | *(retired)* Line matches `^\s+if\s+` — was “single-line if without braces”; code kept greppable |
 | `C004` | File does not end with newline |
 
 ## Internals
@@ -202,7 +202,7 @@ if errors:
 
 | Issue | Explanation |
 | --- | --- |
-| `C003` on legitimate indented `if` blocks | Regex is coarse; multi-line `if` with body still matches `^\s+if\s+` |
+| `C003` on legitimate indented `if` blocks | Rule retired in 0.6.0; the code no longer fires (was a coarse `^\s+if\s+` heuristic) |
 | `C001` noise | Many valid snake_case or lower identifiers |
 | `E001` still not a caret dump | Linter stores the short `.message` plus line/column; catch `pynescript.ast.error.SyntaxError` for the full caret `__str__` |
 | Encoding errors in `lint_file` | Non-UTF-8 files raise at read time |

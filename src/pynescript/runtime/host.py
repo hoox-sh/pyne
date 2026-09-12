@@ -1147,12 +1147,14 @@ def _snapshot_realtime_scope(evaluator: Any) -> dict[str, Any] | None:
         except Exception:
             continue
     declared = getattr(evaluator, "_var_declarations", None)
+    once_fired = getattr(evaluator, "_once_fired", None)
     try:
         return {
             "bindings": bindings,
             "currents": currents,
             "varip_names": varip_names,
             "var_declarations": set(declared) if declared else set(),
+            "once_fired": dict(once_fired) if isinstance(once_fired, dict) else {},
         }
     except Exception:
         return None
@@ -1205,6 +1207,16 @@ def _restore_realtime_scope(evaluator: Any, snap: dict[str, Any] | None) -> None
         if isinstance(declared, set):
             declared.clear()
             declared.update(snap.get("var_declarations") or ())
+    except Exception:
+        pass
+    try:
+        fired = getattr(evaluator, "_once_fired", None)
+        restored = snap.get("once_fired") or {}
+        if isinstance(fired, dict):
+            fired.clear()
+            fired.update(restored)
+        else:
+            evaluator._once_fired = dict(restored)
     except Exception:
         pass
 
@@ -1647,6 +1659,24 @@ class InterpretSession:
         self._col_close = col_close
         self._col_vol = col_vol
         self._col_time = col_time
+        try:
+            evaluator._htf_full_ohlcv = {  # type: ignore[attr-defined]
+                "open": col_open,
+                "high": col_high,
+                "low": col_low,
+                "close": col_close,
+                "volume": col_vol,
+                "time": col_time,
+            }
+        except Exception:
+            pass
+        # Keep the chart provider on the live bar list so append/tick are visible.
+        try:
+            prov = self._data_provider
+            if prov is not None and hasattr(prov, "_bars"):
+                prov._bars = self._ohlcv_data
+        except Exception:
+            pass
         if col_time:
             context["last_bar_time"] = col_time[-1]
             try:
@@ -1676,10 +1706,6 @@ class InterpretSession:
         self._series_trim_limit = series_cap_limit(series_cap) if _cap_on else 0
         self._hist_n = 0
         self._series_list_refs = self._build_series_refs()
-        # Short charts never hit the slack limit — skip the per-bar length check.
-        if self._do_series_cap and len(ohlcv_data) <= self._series_trim_limit:
-            # Re-evaluate on append (chart may grow past the limit).
-            pass
         try:
             evaluator._pine_series_cap = series_cap  # type: ignore[attr-defined]
             evaluator._pine_series_cap_enabled = self._do_series_cap  # type: ignore[attr-defined]
@@ -1701,6 +1727,8 @@ class InterpretSession:
         self._last_open_event_len = 0
         self._last_open_alert_len = 0
         self._last_open_cond_len = 0
+        self._last_bar_unconfirmed = False
+        self._error_result: dict[str, Any] | None = None
 
         if ohlcv_data:
             rt_first, rt_ticks = _resolve_realtime_first(
@@ -1852,19 +1880,30 @@ class InterpretSession:
             if rt_enabled:
                 bar_rt = bar_index >= rt_first  # type: ignore[operator]
                 n_ticks = rt_ticks if bar_rt else 1
-                if not bar_rt:
-                    barstate.isnew = True
-                    barstate.ishistory = True
-                    barstate.isconfirmed = True
-                    barstate.isrealtime = False
-                    barstate.islastconfirmedhistory = is_last
             else:
                 bar_rt = False
                 n_ticks = 1
-                if is_last:
-                    barstate.islastconfirmedhistory = True
+            if not bar_rt:
+                barstate.isnew = True
+                barstate.ishistory = True
+                barstate.isconfirmed = True
+                barstate.isrealtime = False
+                barstate.islastconfirmedhistory = is_last
             if process_pending is not None and pending_orders:
-                process_pending(open_=o, high=h, low=low, close=c)
+                try:
+                    process_pending(open_=o, high=h, low=low, close=c)
+                except Exception as e:
+                    self._error_result = _error_payload(
+                        _format_exc_message(
+                            f"Order fill error at bar {bar_time} (index {bar_index})",
+                            e,
+                        ),
+                        kind=ERROR_KIND_ORDER,
+                        exc=e,
+                        bar_index=bar_index,
+                        bar_time=bar_time,
+                    )
+                    return
             # Bar-open rollback state for the session's current last bar.
             # update_last_bar restores var scope + TA windows to these so a
             # forming bar re-tick starts from bar-open (varip persists).
@@ -1894,7 +1933,20 @@ class InterpretSession:
                 ev._ta_call_i = 0  # type: ignore[attr-defined]
                 ev._plot_call_i = 0  # type: ignore[attr-defined]
                 ev._pine_as_series_cache = None  # type: ignore[attr-defined]
-                visit(tree)
+                try:
+                    visit(tree)
+                except Exception as e:
+                    self._error_result = _error_payload(
+                        _format_exc_message(
+                            f"Runtime Error at bar {bar_time} (index {bar_index})",
+                            e,
+                        ),
+                        kind=ERROR_KIND_RUNTIME,
+                        exc=e,
+                        bar_index=bar_index,
+                        bar_time=bar_time,
+                    )
+                    return
                 if tick_i < n_ticks - 1:
                     _restore_realtime_scope(ev, tick_var_snap)
                     _restore_ta_state(ev, tick_ta_snap)
@@ -1937,7 +1989,13 @@ class InterpretSession:
         Previously committed bars stay confirmed — windows do not span
         append boundaries.
         """
-        if new_bars is None or len(new_bars) == 0:
+        if self._error_result is not None:
+            return self._error_result
+        more = new_bars is not None and len(new_bars) > 0
+        self._confirm_forming_last_bar(more_bars=more)
+        if self._error_result is not None:
+            return self._error_result
+        if not more:
             return self.result()
         o_l, h_l, low_l, c_l, v_l, t_l = _pack_ohlcv_columns(new_bars)
         start = len(self._col_open)
@@ -1970,6 +2028,8 @@ class InterpretSession:
             # Previously committed bars stay confirmed; only re-tick the tail.
             rt_first = start
         self._run_batch(start, rt_first=rt_first, rt_ticks=rt_ticks)
+        if self._error_result is not None:
+            return self._error_result
         return self.result()
 
     def update_last_bar(self, bar: dict) -> dict[str, Any]:
@@ -1985,6 +2045,8 @@ class InterpretSession:
         the realtime tick loop in :meth:`Runtime.run`); strategy series
         history (``_size_hist`` …) is overwritten, not appended.
         """
+        if self._error_result is not None:
+            return self._error_result
         if self._n_bars <= 0:
             msg = "update_last_bar requires at least one committed bar"
             raise ValueError(msg)
@@ -2025,6 +2087,11 @@ class InterpretSession:
         self._col_vol[idx] = v
         self._col_time[idx] = bar_time
         self._ohlcv_data[idx] = bar
+        try:
+            ev._htf_ohlcv_cache = {}  # type: ignore[attr-defined]
+            ev._htf_simple_ta_cache = {}  # type: ignore[attr-defined]
+        except Exception:
+            pass
         ctx["last_bar_time"] = bar_time
         try:
             chart = ctx.get("chart")
@@ -2108,7 +2175,21 @@ class InterpretSession:
         ev._ta_call_i = 0  # type: ignore[attr-defined]
         ev._plot_call_i = 0  # type: ignore[attr-defined]
         ev._pine_as_series_cache = None  # type: ignore[attr-defined]
-        ev.visit(self._tree)
+        try:
+            ev.visit(self._tree)
+        except Exception as e:
+            self._error_result = _error_payload(
+                _format_exc_message(
+                    f"Runtime Error at bar {bar_time} (index {idx})",
+                    e,
+                ),
+                kind=ERROR_KIND_RUNTIME,
+                exc=e,
+                bar_index=idx,
+                bar_time=bar_time,
+            )
+            return self._error_result
+        self._last_bar_unconfirmed = True
         # Overwrite (not append) strategy series history for this bar.
         if self._need_strategy:
             try:
@@ -2132,8 +2213,114 @@ class InterpretSession:
                 self._all_events.append(d)
         return self.result()
 
+    def _confirm_forming_last_bar(self, *, more_bars: bool = False) -> None:  # noqa: C901, PLR0915
+        """Re-visit the last bar as confirmed after unconfirmed forming ticks."""
+        if not self._last_bar_unconfirmed or self._n_bars <= 0 or self._error_result is not None:
+            return
+        ev = self.evaluator
+        barstate = self._barstate
+        idx = self._n_bars - 1
+        bar_time = self._col_time[idx] if self._col_time else 0
+        _restore_realtime_scope(ev, self._last_open_var_snap)
+        _restore_ta_state(ev, self._last_open_ta_snap)
+        try:
+            del self._all_events[self._last_open_event_len :]
+        except Exception:
+            pass
+        try:
+            trig = getattr(ev, "_triggered_alerts", None)
+            if isinstance(trig, list):
+                del trig[self._last_open_alert_len :]
+            conds = getattr(ev, "_alert_conditions", None)
+            if isinstance(conds, list):
+                del conds[self._last_open_cond_len :]
+        except Exception:
+            pass
+        barstate.isfirst = idx == 0
+        # Empty append confirms in place (still last); a follow-on batch is not.
+        barstate.islast = not more_bars
+        barstate.isnew = True
+        barstate.ishistory = True
+        barstate.isrealtime = False
+        barstate.isconfirmed = True
+        barstate.islastconfirmedhistory = not more_bars
+        o, h, low, c, v = (
+            self._col_open[idx],
+            self._col_high[idx],
+            self._col_low[idx],
+            self._col_close[idx],
+            self._col_vol[idx],
+        )
+        self.open_series.current = o
+        self.open_series.history[0] = o
+        self.high_series.current = h
+        self.high_series.history[0] = h
+        self.low_series.current = low
+        self.low_series.history[0] = low
+        self.close_series.current = c
+        self.close_series.history[0] = c
+        self.volume_series.current = v
+        self.volume_series.history[0] = v
+        ctx = self.context
+        ctx["bar_index"] = idx
+        self.time_series.current = bar_time
+        self.time_series.history[0] = bar_time
+        ctx.set_bar_time(bar_time)
+        try:
+            ev._plot_bars_done = idx  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        ev.reset_plots()
+        strategy_state = ev._strategy_state
+        strategy_events = strategy_state._events
+        if self._need_strategy and strategy_events:
+            strategy_events.clear()
+        if self._need_cross:
+            ev._cross_call_i = 0  # type: ignore[attr-defined]
+        ev._ta_call_i = 0  # type: ignore[attr-defined]
+        ev._plot_call_i = 0  # type: ignore[attr-defined]
+        ev._pine_as_series_cache = None  # type: ignore[attr-defined]
+        try:
+            ev.visit(self._tree)
+        except Exception as e:
+            self._error_result = _error_payload(
+                _format_exc_message(
+                    f"Runtime Error at bar {bar_time} (index {idx})",
+                    e,
+                ),
+                kind=ERROR_KIND_RUNTIME,
+                exc=e,
+                bar_index=idx,
+                bar_time=bar_time,
+            )
+            return
+        # Overwrite (not append) — the forming bar already has a history slot.
+        if self._need_strategy:
+            try:
+                if strategy_state._size_hist:
+                    strategy_state._size_hist[-1] = strategy_state.signed_position_size()
+                if strategy_state._avg_price_hist:
+                    if strategy_state.position_direction == "flat":
+                        strategy_state._avg_price_hist[-1] = float("nan")
+                    else:
+                        strategy_state._avg_price_hist[-1] = float(strategy_state.entry_price)
+                if strategy_state._closed_trades_hist:
+                    strategy_state._closed_trades_hist[-1] = float(len(strategy_state.closed_trades))
+            except Exception:
+                pass
+        ev.finish_bar_plots()
+        if self._need_strategy and strategy_events:
+            for e in strategy_state.drain_events():
+                d = e.to_dict()
+                d["script_id"] = self.script_id
+                d["run_id"] = self.run_id
+                self._all_events.append(d)
+        self._last_bar_unconfirmed = False
+
     def result(self) -> dict[str, Any]:
         """Build the same envelope as ``Runtime.run`` for bars committed so far."""
+        if self._error_result is not None:
+            return self._error_result
         ev = self.evaluator
         series_map: dict[str, list[Any]] = {}
         plot_meta: dict[str, dict[str, Any]] = {}
@@ -2692,6 +2879,17 @@ class Runtime:
         # Shared host packing (same volume/time defaults as mode=compile).
         # Cached by list identity so warm interpret re-runs skip the dict walk.
         col_open, col_high, col_low, col_close, col_vol, col_time = _pack_ohlcv_columns_cached(ohlcv_data)
+        try:
+            evaluator._htf_full_ohlcv = {  # type: ignore[attr-defined]
+                "open": col_open,
+                "high": col_high,
+                "low": col_low,
+                "close": col_close,
+                "volume": col_vol,
+                "time": col_time,
+            }
+        except Exception:
+            pass
         if col_time:
             context["last_bar_time"] = col_time[-1]
             # Chart viewport times track packed bar-open ms (incl. synthetic).
@@ -3509,6 +3707,7 @@ class Runtime:
                     ticker=getattr(self._syminfo, "ticker", None) or self.symbol,
                     tickerid=getattr(self._syminfo, "tickerid", None) or self.symbol,
                     prefix=getattr(self._syminfo, "prefix", "") or "",
+                    timezone=getattr(self._syminfo, "timezone", None) or "UTC",
                 )
             except Exception:
                 pass

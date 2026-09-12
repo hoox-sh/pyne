@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-09-12
+
+Correctness follow-up on 0.6.0 dual-host risk, InterpretSession, and HTF
+resample, plus the session API that landed after the `v0.6.0` tag.
+
+### Added
+
+- Persistent `InterpretSession`: delta `append_bars`, realtime
+  `update_last_bar` ticks, TA rollback, confirm-on-append.
+
+### Fixed
+
+- `strategy.cash` as a qty-type identifier now selects cash mode on both
+  interpret and compile (string `"cash"` was the only working form).
+- Compile `begin_bar` receives bar time so day-scoped fill caps and
+  consecutive-loss days roll on `Runtime.run(mode="compile")`.
+- Pending fills are risk-gated at fill time on both brokers; covering
+  leftover cannot reverse-open after an intraday halt.
+- Session `barstate` no longer leaks across appends; confirm overwrites
+  strategy history; `islast` is false on a confirmed bar when more bars
+  follow; `_once_fired` rolls back with the bar-open snapshot.
+- HTF `lookahead_on` leaks each bucket's **final** value from the period
+  start on historical bars (not developing-as-of-this-bar); `close[1]`
+  resamples previous HTF bars (same-TF falls back to chart history); bare
+  D/W/M buckets follow `timeframe.change` (Monday weeks, `syminfo.timezone`).
+- Codecov per-flag uploads set `disable_search` so reports stay isolated.
+
+### Changed
+
+- Disk IR cache v16 (`begin_bar` bar time, calendar `chart_timezone()`,
+  `strategy.cash` qty-type emit).
+- Docs: PyneTS as standalone package (no `pynets/` submodule); retired
+  linter codes C003/W102/W103; version stamps **0.6.1**.
+
+### Security
+
+- wrangler 4.131.0 (sharp 0.35.4, GHSA-rgj7-g3m4-5g8c).
+
 ## [0.6.0] - 2026-09-10
 
 Parity increments across strategy risk, realtime scope, timeframes,
@@ -32,7 +70,7 @@ Parity increments across strategy risk, realtime scope, timeframes,
 ### Changed
 
 - Docs: `once` on grammar/ASDL/builder/unparser, interpret + compile pages,
-  compatibility, glossary, FAQ, missing-features. Version table **0.5.0**.
+  compatibility, glossary, FAQ, missing-features. Version table **0.6.0**.
 - `docs/known_divergences.md`: F-12…F-16 closed; D-02/D-04/D-06 narrowed to
   their documented residuals.
 - Disk IR cache v14 (calendar routing changed codegen).
@@ -490,6 +528,8 @@ First public **PYNE** release. PyPI distribution name is **`hoox-pyne`**
 - Dead `technical_refactored.py` and internal refactoring notes from the published package tree.
 - Broken AXIS-only GitHub workflows (`axis-nightly`, PWA/e2e jobs) — AXIS CI lives in [jango-blockchained/axis](https://github.com/jango-blockchained/axis).
 
+[0.6.1]: https://github.com/hoox-sh/pyne/compare/v0.6.0...v0.6.1
+[0.6.0]: https://github.com/hoox-sh/pyne/compare/v0.5.0...v0.6.0
 [0.4.4]: https://github.com/hoox-sh/pyne/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/hoox-sh/pyne/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/hoox-sh/pyne/compare/v0.4.1...v0.4.2

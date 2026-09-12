@@ -273,9 +273,7 @@ class StrategyState:
         self.open_trades: list[OpenTrade] = []
         self.pending_orders: dict[str, Order] = {}
         self.max_intraday_loss: float = float("inf")
-        # Absolute-cash intraday loss cap (account currency, no FX conversion).
-        # Percent (default) and cash are mutually exclusive — setting one
-        # clears the other, mirroring max_drawdown_risk(_percent).
+        # Percent vs cash are exclusive — setting one clears the other.
         self.max_intraday_loss_cash: float | None = None
         self.initial_capital: float = 100_000.0
         self.risk_free_capital: float = 100_000.0
@@ -418,9 +416,7 @@ class StrategyState:
     def note_fill_day(self, bar_time: int | float | None) -> None:
         """Count one filled order toward max_intraday_filled_orders.
 
-        Entry + exit fills share one counter per bar-time day bucket (compile
-        ``_note_filled_order`` parity). The bucket rolls on day change; the
-        gate itself stays day-scoped (no permanent ``entries_blocked``).
+        The fill cap is day-scoped (not a permanent halt) and resets on day roll.
         """
         try:
             day = self._day_bucket(int(float(bar_time))) if bar_time is not None else None
@@ -1279,9 +1275,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         if st.max_cons_loss_days is not None and st.consecutive_loss_days >= int(st.max_cons_loss_days):
             st.entries_blocked = True
             return False
-        # Intraday loss halt: % of initial capital, or absolute cash.
-        # Permanent halt once tripped (compile-broker parity); the day PnL
-        # itself resets on day roll via note_closed_trade_day.
+        # Intraday loss: percent-of-initial-capital or absolute cash; halt is permanent.
         if (
             st.max_intraday_loss is not None
             and math.isfinite(st.max_intraday_loss)
@@ -2158,6 +2152,29 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             return
         action = order.direction
         fill_price = self._apply_slippage(float(fill_price), action)
+        # Gate pure entries before consuming remaining qty (cover fills still proceed).
+        opening_long = action in {"buy", "long"} and self._strategy_state.position_direction != "short"
+        opening_short = action not in {"buy", "long"} and self._strategy_state.position_direction != "long"
+        if opening_long and not self._risk_allows_entry("long", fill_price):
+            self._emit_rejected_order(
+                order_id=order.order_id,
+                direction="long",
+                reason="risk_blocked",
+                limit=order.limit_price,
+                stop=order.stop_price,
+            )
+            self._strategy_state.pending_orders.pop(order.order_id, None)
+            return
+        if opening_short and not self._risk_allows_entry("short", fill_price):
+            self._emit_rejected_order(
+                order_id=order.order_id,
+                direction="short",
+                reason="risk_blocked",
+                limit=order.limit_price,
+                stop=order.stop_price,
+            )
+            self._strategy_state.pending_orders.pop(order.order_id, None)
+            return
         order.filled_qty += fill_qty
         bar_time = self._bar_time()
         bar_index = self._bar_index()
@@ -2173,10 +2190,19 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 cover = min(fill_qty, max_cover)
                 self._close_position(fill_price, cover, bar_time, from_entry=order_from_entry)
                 leftover = fill_qty - cover
-                if leftover > 1e-12 and self._risk_allows_entry("long", fill_price):
-                    self._open_position_qty(
-                        "long", leftover, fill_price, order.order_id, bar_index, bar_time, commission
-                    )
+                if leftover > 1e-12:
+                    if self._risk_allows_entry("long", fill_price):
+                        self._open_position_qty(
+                            "long", leftover, fill_price, order.order_id, bar_index, bar_time, commission
+                        )
+                    else:
+                        self._emit_rejected_order(
+                            order_id=order.order_id,
+                            direction="long",
+                            reason="risk_blocked",
+                            limit=order.limit_price,
+                            stop=order.stop_price,
+                        )
             else:
                 if self._risk_allows_entry("long", fill_price):
                     self._open_position_qty(
@@ -2190,10 +2216,19 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 cover = min(fill_qty, max_cover)
                 self._close_position(fill_price, cover, bar_time, from_entry=order_from_entry)
                 leftover = fill_qty - cover
-                if leftover > 1e-12 and self._risk_allows_entry("short", fill_price):
-                    self._open_position_qty(
-                        "short", leftover, fill_price, order.order_id, bar_index, bar_time, commission
-                    )
+                if leftover > 1e-12:
+                    if self._risk_allows_entry("short", fill_price):
+                        self._open_position_qty(
+                            "short", leftover, fill_price, order.order_id, bar_index, bar_time, commission
+                        )
+                    else:
+                        self._emit_rejected_order(
+                            order_id=order.order_id,
+                            direction="short",
+                            reason="risk_blocked",
+                            limit=order.limit_price,
+                            stop=order.stop_price,
+                        )
             else:
                 if self._risk_allows_entry("short", fill_price):
                     self._open_position_qty(
@@ -2752,7 +2787,11 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             return
         if not math.isfinite(value) or value < 0:
             return
-        risk_type = str(kw.get("type", args[1] if len(args) > 1 else "percent")).lower()
+        raw_type = kw.get("type", args[1] if len(args) > 1 else "percent")
+        if getattr(raw_type, "_pine_qty_type", None) == "cash":
+            risk_type = "cash"
+        else:
+            risk_type = str(raw_type).lower()
         if risk_type in {"cash", "strategy.cash"}:
             self._strategy_state.max_intraday_loss_cash = value
             self._strategy_state.max_intraday_loss = float("inf")

@@ -110,7 +110,6 @@ pip install "hoox-pyne[lsp,compile,data]"
 ```bash
 git clone https://github.com/hoox-sh/pyne.git
 cd pyne
-git submodule update --init --recursive   # pynets/
 pip install -e ".[lsp,pro]"
 # or:
 make install
@@ -121,7 +120,6 @@ make install
 ```bash
 docker pull   # when published to a registry; or build from source:
 git clone https://github.com/hoox-sh/pyne.git && cd pyne
-git submodule update --init --recursive
 make docker-build-cli
 docker run --rm -v "$PWD:/work" -w /work pynescript-cli:latest check script.pine
 # ≡ make docker-cli ARGS="check script.pine"
@@ -192,7 +190,6 @@ pyne lint examples/rsi_strategy.pine
 ```bash
 git clone https://github.com/hoox-sh/pyne.git
 cd pyne
-git submodule update --init --recursive   # pynets/
 pip install -e ".[lsp,pro]"
 make run   # Flask on :5002
 ```

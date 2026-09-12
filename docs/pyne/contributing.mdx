@@ -151,7 +151,7 @@ Report artifact: `.cache/interp_compile_parity.json`. Value mismatches on shared
 | Pro API route | `backend/api/preview.py`, `backend/app.py` |
 | Runtime modes / compile fallback | `src/pynescript/runtime/host.py` (`Runtime.run`); `backend/runtime.py` is a shim |
 | Interp/compile series parity | `scripts/compare_interp_compile.py`, `tests/test_interp_compile_parity.py` |
-| TS library | sister repo [hoox-sh/pynets](https://github.com/hoox-sh/pynets) (`pynets/` submodule here) |
+| TS library | sister repo [hoox-sh/pynets](https://github.com/hoox-sh/pynets) / `@hoox-sh/pynets` |
 
 ## Style
 
@@ -181,8 +181,8 @@ AXIS charting releases live in [hoox-sh/axis](https://github.com/hoox-sh/axis) (
 - Work in [hoox-sh/pynets](https://github.com/hoox-sh/pynets), not a `pine-worker/` directory in this repo
 - Bun for install / test / typecheck; `bun run generate` after PYNE `.g4` changes
 - Python remains the oracle — see [PyneTS parity](/pyne/docs/pynets/parity)
-- Do not copy PyneTS sources into this tree; PYNE consumes the `pynets/` submodule only
-- The `pynets/` submodule pin is **v0.2.0** (interpret + JS compile), matching standalone `@hoox-sh/pynets`. Python remains the oracle.
+- Do not copy PyneTS sources into this tree; work in the standalone [hoox-sh/pynets](https://github.com/hoox-sh/pynets) repo / `@hoox-sh/pynets` package
+- Python Runtime remains the oracle.
 
 ## Failure modes for contributors
 

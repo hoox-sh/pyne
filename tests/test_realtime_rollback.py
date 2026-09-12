@@ -34,6 +34,21 @@ from pynescript.runtime.host import _restore_realtime_scope
 from pynescript.runtime.host import _snapshot_realtime_scope
 
 
+def test_snapshot_restores_once_fired() -> None:
+    ev = SimpleNamespace(
+        context={"x": 1},
+        _var_declarations=set(),
+        _once_fired={42: True},
+        _varip_declarations=set(),
+    )
+    snap = _snapshot_realtime_scope(ev)
+    assert snap is not None
+    assert snap["once_fired"] == {42: True}
+    ev._once_fired[99] = True
+    _restore_realtime_scope(ev, snap)
+    assert ev._once_fired == {42: True}
+
+
 def _bars(n: int = 5) -> list[dict[str, float | int]]:
     out: list[dict[str, float | int]] = []
     for i in range(n):

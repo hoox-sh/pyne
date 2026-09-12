@@ -39,10 +39,10 @@ when moving it between tables.
 | F-10 | Quotes | `bid` / `ask` no longer mocked — `na` when the host omits quotes | Closed ([details](#sec-bidask)) |
 | F-11 | Linter | `C004` trailing-newline no longer `strip()`s before the check | Wave B ([details](#sec-linter)) |
 | F-12 | Linter | Legacy rules retired: `C003` (indented `if` without “braces” — Pine has none), `W102` (histogram → plotcandle), `W103` (`var int x = na` → 0); LSP noise filter for `C003` removed with the rule | 0.6.0 ([details](#sec-linter)) |
-| F-13 | Timeframes | `timeframe.change` D/W/M on the exchange calendar (`syminfo.timezone`, UTC default; DST-aware days, Monday weeks, calendar months); intraday unchanged; compile calendar TFs via object mode; disk IR cache v14 | 0.6.0 ([details](#sec-tf-change)) |
+| F-13 | Timeframes | `timeframe.change` D/W/M on the exchange calendar (`syminfo.timezone`, UTC default; DST-aware days, Monday weeks, calendar months); intraday unchanged; compile calendar TFs via object mode; disk IR cache v16 | 0.6.0 ([details](#sec-tf-change)) |
 | F-14 | Realtime | Intrabar rollback of `var` scope + series currents on interpret realtime ticks (`varip` persists via `_varip_declarations`); `once` fires once from confirmed state | 0.6.0 ([details](#sec-varip)) |
-| F-15 | Strategy risk | Intraday parity: `max_intraday_loss(value, type)` honors percent-of-equity vs cash on both brokers; interpret enforces intraday loss + day-scoped fill cap (previously store-only / empty stub); order-level fill counting on both hosts | 0.6.0 ([details](#sec-risk-compile)) |
-| F-16 | `request.security` | `gaps_on` / `lookahead_on` honored on HTF resample paths (OHLCV + allowlisted `ta.*`): bucket-start na-gaps, forming-bucket reads with reference lookahead bias; presence-vs-effect policy tags (`gaps_lookahead_provided` vs `gaps_applied` / `lookahead_applied`) | 0.6.0 ([details](#sec-security)) |
+| F-15 | Strategy risk | Intraday parity: `max_intraday_loss(value, type)` honors percent-of-initial-capital vs cash on both brokers; interpret enforces intraday loss + day-scoped fill cap; order-level fill counting on both hosts | 0.6.0 ([details](#sec-risk-compile)) |
+| F-16 | `request.security` | `gaps_on` / `lookahead_on` honored on HTF resample paths (OHLCV + allowlisted `ta.*`): bucket-start na-gaps; `lookahead_on` leaks each HTF bucket's final value from the period start; presence-vs-effect policy tags (`gaps_lookahead_provided` vs `gaps_applied` / `lookahead_applied`) | 0.6.0 ([details](#sec-security)) |
 
 ---
 
@@ -77,14 +77,16 @@ when moving it between tables.
 | `strategy.risk.max_position_size` | **Wired** — caps entry qty to `%` of equity at fill price |
 | `strategy.risk.max_drawdown` | **Wired** — absolute and/or `%` of peak; sets `entries_blocked` when exceeded |
 | `strategy.risk.max_cons_loss_days` | **Wired** — consecutive calendar-day loss tracking on closes; halt when N hit |
-| `strategy.risk.max_intraday_loss` | **Wired** — day PnL as `%` of initial capital; halt when exceeded (stricter than interpret store-only) |
-| `strategy.risk.max_intraday_filled_orders` | **Wired** — counts entry+exit fills per bar-time day bucket; blocks new entries when cap hit (day-scoped; resets on next day) |
+| `strategy.risk.max_intraday_loss` | **Wired on both brokers** — day PnL as `%` of initial capital or absolute cash |
+| `strategy.risk.max_intraday_filled_orders` | **Wired on both brokers** — counts entry+exit fills per bar-time day bucket; blocks new entries when cap hit (day-scoped; resets on next day) |
 
 **Impact:** common risk halt gates now share interpret-like `entries_blocked` + `risk_blocked` comments on compile (filled-order cap is day-scoped without permanent `entries_blocked`).
 
 **Known residual:** `strategy.risk.max_position_size` caps entry notional as %-of-equity on both hosts; reference takes absolute contracts/shares. Changing it would break pinned behavior, so it stays documented until explicitly scheduled. Same for cash thresholds (account units, no FX) and tick-accurate risk accounting.
 
-**Intraday parity (0.6.0):** `strategy.risk.max_intraday_loss(value, type)` honors `type` on both brokers — percent-of-initial-capital by default (`percent` / `strategy.percent_of_equity` / `%`), absolute account-currency cash for `cash` / `strategy.cash` (no FX conversion; unknown types fall back to percent). Percent and cash are mutually exclusive. Interpret now enforces intraday loss and the day-scoped fill cap in `_risk_allows_entry` (previously store-only / empty stub), with order-level fill counting (`_open_position_qty`, `_close_position`, flat market entries) matching compile's `_note_filled_order`. Loss halts are permanent once tripped on both hosts; the fill cap resets on day roll.
+**D-02 residuals:** loss halts are permanent once tripped (reference Pine resumes the next trading day). Day buckets are UTC-epoch (`floor(time / 86_400_000)`), not `syminfo.timezone` / exchange session days.
+
+**Intraday parity (0.6.0):** `strategy.risk.max_intraday_loss(value, type)` honors `type` on both brokers — percent-of-initial-capital by default (`percent` / `strategy.percent_of_equity` / `%`), absolute account-currency cash for `cash` / `strategy.cash` (no FX conversion; unknown types fall back to percent). Percent and cash are mutually exclusive. Interpret and compile both enforce the loss halt and the day-scoped fill cap in `_risk_allows_entry`, including pending `strategy.entry` / `strategy.order` fills. The fill cap resets on day roll.
 
 **Track:** audit AGENT_04; tests in `tests/test_compiler_strategy.py`, `tests/test_strategy_risk_intraday.py`.
 
@@ -152,11 +154,11 @@ Full-list `_ema` / `_ema_state_step` and incremental / Numba paths all use **SMA
 
 **Reference Pine:** First bar of a new *higher* period on the **exchange calendar** (session-aware daily/weekly/monthly).
 
-**pynescript:** Bare `D` / `W` / `M` (plus `1D` / `1W` / `1M`) resolve on the exchange calendar in `syminfo.timezone` — midnight-to-midnight days (DST-aware via zoneinfo), ISO Monday-start weeks, calendar months. The host leaves `syminfo.timezone` at UTC today, so UTC series already get real months (no more 30-day drift) and Monday weeks (no more epoch-Thursday buckets); non-UTC exchanges plug in when the host provides the zone. All other frames (intraday, multi-day like `3D`) keep fixed-width UTC buckets. Unusable timestamps or zones → `False` / UTC fallback, never raise.
+**pynescript:** Bare `D` / `W` / `M` (plus `1D` / `1W` / `1M`) resolve on the exchange calendar in `syminfo.timezone` — midnight-to-midnight days (DST-aware via zoneinfo), ISO Monday-start weeks, calendar months. Days are **not session-aware** (NYSE 09:30 does not start the day). The host default zone is UTC; set `_syminfo.timezone` for a non-UTC exchange. All other frames (intraday, multi-day like `3D`) keep fixed-width UTC buckets. Unusable timestamps or zones → `False` / UTC fallback, never raise.
 
-**Dual-host:** interpret and compile-object-mode share `timeframe_period_changed` (interpret reads the zone from context `syminfo`). Constant calendar TFs compile in object mode — Numba cannot express tz rules — and dynamic TF strings resolve the same helper at run time, so both hosts agree. Unknown zones behave like UTC on both.
+**Dual-host:** interpret and compile-object-mode share `timeframe_period_changed` (interpret reads the zone from context `syminfo`; compile threads `chart_timezone()` into `timeframe_change_at`). Constant calendar TFs compile in object mode — Numba cannot express tz rules — and dynamic TF strings resolve the same helper at run time, so both hosts agree. Unknown zones behave like UTC on both.
 
-**Track:** `tests/test_timeframe_change.py` (DST spring-forward, Monday weeks, leap months, bad-zone fallback, syminfo wiring, weekly dual-host parity). Disk IR cache bumped to v14 (codegen routing changed).
+**Track:** `tests/test_timeframe_change.py` (DST spring-forward, Monday weeks, leap months, bad-zone fallback, syminfo wiring, weekly dual-host parity). Disk IR cache bumped to v16 (codegen routing changed).
 
 <span id="sec-augassign"></span>
 ### `AugAssign` / tuple unpack series bind (fixed Wave B)
@@ -187,18 +189,19 @@ When the host omits quotes, `bid`/`ask` are **na (`None`)**, not mock prices (`1
 |------|----------|
 | Foreign ticker + host chart wired + no multi-symbol feed hit | **`na`** (no mock invent; matches compile foreign-na) |
 | Same-symbol + **complex** pre-eval (UDF / nested / non-allowlist `ta.*`) + request TF ≠ chart TF | **`na`** — no full multi-TF re-eval engine (do not invent HTF structure) |
-| Same-symbol + **simple OHLCV** + request TF **coarser** than chart bar spacing (parseable fixed TF, bar times present) | **Timestamp resample** of chart OHLCV (`htf_ohlcv_resample`): open/high/low/close/volume/time/hl2/hlc3/ohlc4 on **last completed** HTF bucket only (lookahead_off-style). |
+| Same-symbol + **simple OHLCV** + request TF **coarser** than chart bar spacing (parseable fixed TF or bare `D`/`W`/`M`, bar times present) | **Timestamp / calendar resample** of chart OHLCV (`htf_ohlcv_resample`): open/high/low/close/volume/time/hl2/hlc3/ohlc4 on **last completed** HTF bucket only (lookahead_off-style). Bare `D`/`W`/`M` use the same calendar ids as `timeframe.change` (`3D` / `2W` stay fixed-width). |
 | Same-symbol + **allowlisted simple ta.*** (`ta.sma` / `ta.ema` / `ta.rsi` / `ta.wma` / `ta.rma` with bare OHLCV source + const length; `ta.atr(length)`) + request TF **coarser** | **HTF series TA** (`htf_simple_ta_resample`): bucket chart bars → run interpret TA helper on unique completed HTF OHLCV → map last completed value to chart bars. Not arbitrary AST re-eval. |
-| Same-symbol + **simple OHLCV** otherwise (same TF, LTF, history offsets like `high[1]`, unparseable TF, …) | Chart series **passthrough** / provider series (`same_tf_chart_eval` / `chart_passthrough_htf_stub`) |
+| Same-symbol + **OHLCV history offset** (`close[1]`, …) + request TF **coarser** | **HTF offset resample** (`htf_ohlcv_offset`): offset is taken on unique HTF bars (TV non-repaint pattern with `lookahead_on`). |
+| Same-symbol + **simple OHLCV** otherwise (same TF, LTF, unparseable TF, …) | Chart series **passthrough** / provider series (`same_tf_chart_eval` / `chart_passthrough_htf_stub`) |
 | Same-symbol `ticker.heikinashi` | Chart OHLC → Heikin-Ashi transform (not raw chart candles) |
 | `barmerge.gaps_on` / `gaps_off` | **Honored on HTF resample paths**, still unused elsewhere — see below |
 | `barmerge.lookahead_on` / `lookahead_off` | **Honored on HTF resample paths**, still unused elsewhere — see below |
 | Fundamentals / footprint / dividends / … | Mock or soft-fail (see module docstring) |
 | Standalone evaluator (no chart identity) | Legacy mock OHLCV for bare string series names (offline demos) |
 
-**HTF resample limits (intentional):** bare series fields (`close`, `open`, …) / string names, plus the allowlisted simple `ta.*` shapes above. Not `high[1]`, nested `ta.sma(ta.ema(...))`, multi-arg ATR, or UDF bodies. Monthly calendar TFs are not fixed-ms buckets and stay on the stub path. Expression must appear **inline** as the security third arg AST (pre-bound variables stay on the complex/na path).
+**HTF resample limits (intentional):** bare series fields (`close`, `open`, …) / string names, allowlisted simple `ta.*` shapes, and inline history offsets such as `close[1]`. Not nested `ta.sma(ta.ema(...))`, multi-arg ATR, or UDF bodies. Expression must appear **inline** as the security third arg AST (pre-bound variables stay on the complex/na path).
 
-**Barmerge on resample paths (0.6.0):** `gaps_on` delivers the resampled value only on the first chart bar of a newly completed HTF bucket (`na` elsewhere — previous bucket's final value, no future leak). `lookahead_on` reads the still-forming bucket as of the current bar (developing open/high/low/close/volume; TA helpers run over completed buckets + forming) — on historical bars this shows the bucket's final value from the period start, i.e. the documented reference lookahead bias (repaints like reference; combine with an offset expression such as `close[1]` to avoid it). The two compose: `gaps_on` + `lookahead_on` yields the forming value on bucket-start bars only. Single-bar charts fall back to chart-period inference and may take the passthrough stub on bar 0 (pre-existing edge, same as `gaps_off`).
+**Barmerge on resample paths (0.6.0):** `gaps_on` delivers the resampled value only on the first chart bar of an HTF bucket (`na` elsewhere). `lookahead_on` shows each HTF bucket's **final** value from the period start on historical bars (TV lookahead bias / repaint). Combine with `close[1]` (now resampled on the HTF unique series) for the TV non-repaint pattern. The two compose: `gaps_on` + `lookahead_on` yields the leaked final value on bucket-start bars, including bar 0 of the first period. Single-bar charts fall back to chart-period inference and may take the passthrough stub on bar 0 (pre-existing edge, same as `gaps_off`).
 
 Runtime **interpret** results expose honesty metadata when any `request.security` ran:
 

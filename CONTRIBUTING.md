@@ -8,12 +8,10 @@ Thank you for your interest in contributing to pyne!
 ## Getting Started
 
 ```bash
-git clone --recurse-submodules https://github.com/hoox-sh/pyne.git
-# or after a plain clone:
-git submodule update --init --recursive
+git clone https://github.com/hoox-sh/pyne.git
 ```
 
-`pynets/` is the only git submodule ([hoox-sh/pynets](https://github.com/hoox-sh/pynets)). Do not add in-tree copies. Work on PyneTS in the standalone repo and bump the submodule pointer here. **`pyne-lsp` is in-tree** (`src/pynescript/langserver/`), not a submodule.
+PyneTS lives in the standalone [hoox-sh/pynets](https://github.com/hoox-sh/pynets) repo / `@hoox-sh/pynets` package — it is not an in-tree submodule. **`pyne-lsp` is in-tree** (`src/pynescript/langserver/`).
 
 Please refer to the documentation in the `docs/` directory for detailed instructions on setting up your development environment and understanding the project structure.
 

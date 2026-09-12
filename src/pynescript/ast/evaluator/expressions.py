@@ -42,6 +42,7 @@ from itertools import count
 from typing import Any
 
 from pynescript.ast import node as ast
+from pynescript.ast.evaluator.builtins.request import match_htf_offset_ast
 from pynescript.ast.evaluator.builtins.request import match_htf_simple_ta_ast
 from pynescript.ast.evaluator.names import _BARE_SERIES_BUILTINS
 from pynescript.ast.evaluator.names import ast_qualified_name
@@ -133,6 +134,7 @@ def _pineseries_type() -> Any:
         return _PS
     return ps
 
+
 # Process-wide Call identity. Stamped on the AST as ``_pine_site_id`` so
 # UDF / call-expr history keys survive CPython ``id()`` reuse after GC.
 # Do **not** scrub this on parse-cache hits — it names the node in the tree.
@@ -200,12 +202,7 @@ def _classify_arg_plan(plan: tuple) -> int:
         if c0 == _AP_CONST and c1 == _AP_CONST:
             return _PS_CC
         return _PS_OTHER
-    if (
-        n == 3
-        and plan[0][0] == _AP_NAME
-        and plan[1][0] == _AP_CONST
-        and plan[2][0] == _AP_CONST
-    ):
+    if n == 3 and plan[0][0] == _AP_NAME and plan[1][0] == _AP_CONST and plan[2][0] == _AP_CONST:
         return _PS_NCC
     return _PS_OTHER
 
@@ -852,9 +849,7 @@ class ExpressionEvaluator:
                                     return None
                             finally:
                                 self._pine_udf_site = prev_site  # type: ignore[attr-defined]
-                    if name in _DECL_CALL_NAMES and getattr(
-                        self, "_pine_defs_locked", False
-                    ):
+                    if name in _DECL_CALL_NAMES and getattr(self, "_pine_defs_locked", False):
                         existing = getattr(self, "_script_declaration", None)
                         if existing is not None:
                             return existing
@@ -864,9 +859,7 @@ class ExpressionEvaluator:
                     if args is None:
                         args, kwargs = self._eval_arg_plan(plan)
                         if name == "request.security" or name == "security":
-                            args = self._maybe_attach_security_simple_ta(
-                                name, node, args
-                            )
+                            args = self._maybe_attach_security_simple_ta(name, node, args)
                     if kwargs is not _EMPTY_KW and kwargs:
                         return self._call_builtin(name, args, kwargs=kwargs)  # type: ignore[attr-defined]
                     if tag == 1:
@@ -1040,7 +1033,9 @@ class ExpressionEvaluator:
         expr_ast = getattr(arg_nodes[2], "value", None)
         if expr_ast is None:
             return args
-        matched = match_htf_simple_ta_ast(expr_ast)
+        matched: Any = match_htf_simple_ta_ast(expr_ast)
+        if matched is None:
+            matched = match_htf_offset_ast(expr_ast)
         if matched is None:
             return args
         out = list(args)
@@ -1406,9 +1401,7 @@ class ExpressionEvaluator:
                     if recovered is not _ATTR_CALL_MISS:
                         return recovered
                 return None
-            if type(node_func) is ast.Attribute and (
-                "." in func or not self._is_registered_builtin(func)
-            ):
+            if type(node_func) is ast.Attribute and ("." in func or not self._is_registered_builtin(func)):
                 recovered = self._recover_instance_attr_call(node_func, args, kwargs)
                 if recovered is not _ATTR_CALL_MISS:
                     return recovered

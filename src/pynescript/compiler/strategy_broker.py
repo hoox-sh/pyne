@@ -556,10 +556,23 @@ class CompileStrategyBroker:
         fill_qty = min(fill_qty, order.remaining)
         if fill_qty <= 0:
             return
-        order.filled_qty += fill_qty
         d = order.direction
         px = self._slip(float(fill_price), d)
         fe = order.from_entry
+        if order.is_entry:
+            covering = (d == "long" and self.position_size < 0) or (d == "short" and self.position_size > 0)
+            if not covering and not self._risk_allows_entry(d):
+                self._emit(
+                    "order",
+                    id=order.order_id,
+                    direction=d,
+                    qty=0.0,
+                    order_type="market",
+                    comment="risk_blocked",
+                )
+                self.pending_orders.pop(order.order_id, None)
+                return
+        order.filled_qty += fill_qty
         # Closing opposite / reducing — honor from_entry when set (exit brackets)
         if not order.is_entry:
             # Force close in this direction (sell covers long, buy covers short)
@@ -582,7 +595,27 @@ class CompileStrategyBroker:
             else:
                 self._open_or_add(d, fill_qty, px, order.order_id, order.comment)
         else:
-            self._open_or_add(d, fill_qty, px, order.order_id, order.comment)
+            covering = (d == "long" and self.position_size < 0) or (d == "short" and self.position_size > 0)
+            if covering:
+                cover = min(fill_qty, abs(float(self.position_size)))
+                leftover = fill_qty - cover
+                if cover > 0:
+                    self.close(id=order.order_id, qty=cover, price=px, comment="reverse")
+                if leftover > 1e-12:
+                    if not self._risk_allows_entry(d):
+                        self._emit(
+                            "order",
+                            id=order.order_id,
+                            direction=d,
+                            qty=0.0,
+                            order_type="market",
+                            comment="risk_blocked",
+                        )
+                        self.pending_orders.pop(order.order_id, None)
+                    else:
+                        self._open_or_add(d, leftover, px, order.order_id, order.comment)
+            else:
+                self._open_or_add(d, fill_qty, px, order.order_id, order.comment)
 
         self._emit(
             "order",
@@ -1070,8 +1103,6 @@ class CompileStrategyBroker:
 
         Percent (default) halts on day loss % of initial capital; ``cash`` /
         ``strategy.cash`` halts on absolute account-currency loss (no FX).
-        Interpret stores the limit; compile also enforces via day PnL tracking
-        shared with :meth:`note_closed_trade_day`.
         """
         raw = percent if percent is not None else _kwargs.get("percent", _kwargs.get("value"))
         if raw is None or _is_na(raw):
@@ -1083,7 +1114,10 @@ class CompileStrategyBroker:
         if not math.isfinite(p) or p < 0:
             return
         risk_type = type if type is not None else _kwargs.get("type", "percent")
-        rt = str(risk_type).replace("strategy.", "").strip().lower()
+        if getattr(risk_type, "_pine_qty_type", None) == "cash":
+            rt = "cash"
+        else:
+            rt = str(risk_type).replace("strategy.", "").strip().lower()
         if rt in {"cash"}:
             self.max_intraday_loss_cash = p
             self.max_intraday_loss = float("inf")

@@ -27,6 +27,9 @@ from __future__ import annotations
 
 import math
 
+from datetime import datetime
+from datetime import timezone
+
 from pynescript.ast.evaluator import NodeLiteralEvaluator
 from pynescript.ast.helper import parse
 from pynescript.util.datafeed import MockDataFeed
@@ -242,17 +245,18 @@ plot(close, title="c")
         assert pol.get("htf_reeval") is False
 
     def test_same_symbol_htf_high1_passthrough(self) -> None:
-        """History offsets are not HTF-field identity → chart passthrough stub."""
+        """``high[1]`` resamples the previous HTF bar, not the previous LTF high."""
         from backend.runtime import Runtime
 
-        bars = _bars(40)
+        bars = _hour_bars()
         src = """//@version=6
 indicator("t")
 plot(request.security(syminfo.tickerid, "60", high[1]), title="h")
 """
         out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
         assert not out.get("error"), out.get("error")
-        assert abs(float(out["series"]["h"][-1]) - float(bars[-2]["high"])) < 1e-9
+        hour0_high = max(float(b["high"]) for b in bars[0:60])
+        assert abs(float(out["series"]["h"][-1]) - hour0_high) < 1e-9
 
     def test_same_symbol_complex_htf_udf_is_na(self) -> None:
         from backend.runtime import Runtime
@@ -710,7 +714,7 @@ plot(v, title="sec")
         assert "gaps_applied" in (pol.get("policies") or {})
 
     def test_lookahead_on_ohlcv_forming_bucket(self) -> None:
-        """lookahead_on close: developing close every bar; high runs up intra-hour."""
+        """lookahead_on: each hour's final close/high is visible from the hour start."""
         from backend.runtime import Runtime
 
         bars = _hour_bars()
@@ -725,17 +729,19 @@ plot(h, title="sec_h")
         assert not out.get("error"), out.get("error")
         sec_c = out["series"]["sec_c"]
         sec_h = out["series"]["sec_h"]
-        # Forming close == chart close on every bar (developing bucket, 1m chart).
-        for i in (0, 30, 59, 60, 90, 119, 179):
-            assert abs(float(sec_c[i]) - float(bars[i]["close"])) < 1e-9
-        # Forming high == running max of chart highs within the hour.
-        for i in (0, 30, 59, 60, 61, 119):
-            hour_start = (i // 60) * 60
-            expect = max(float(b["high"]) for b in bars[hour_start : i + 1])
-            assert abs(float(sec_h[i]) - expect) < 1e-9
+        for i in (0, 30, 59):
+            assert abs(float(sec_c[i]) - float(bars[59]["close"])) < 1e-9
+        for i in (60, 90, 119):
+            assert abs(float(sec_c[i]) - float(bars[119]["close"])) < 1e-9
+        hour0_high = max(float(b["high"]) for b in bars[0:60])
+        hour1_high = max(float(b["high"]) for b in bars[60:120])
+        for i in (0, 30, 59):
+            assert abs(float(sec_h[i]) - hour0_high) < 1e-9
+        for i in (60, 61, 119):
+            assert abs(float(sec_h[i]) - hour1_high) < 1e-9
 
     def test_gaps_and_lookahead_combined(self) -> None:
-        """gaps_on + lookahead_on: forming value on bucket starts, na elsewhere."""
+        """gaps_on + lookahead_on: final bucket value on period starts, including bar 0."""
         from backend.runtime import Runtime
 
         bars = _hour_bars()
@@ -747,9 +753,9 @@ plot(v, title="sec")
         out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
         assert not out.get("error"), out.get("error")
         sec = out["series"]["sec"]
-        # Bucket-start bar 60: forming bucket holds just bar 60 → its close.
-        assert abs(float(sec[60]) - float(bars[60]["close"])) < 1e-9
-        assert abs(float(sec[120]) - float(bars[120]["close"])) < 1e-9
+        assert abs(float(sec[0]) - float(bars[59]["close"])) < 1e-9
+        assert abs(float(sec[60]) - float(bars[119]["close"])) < 1e-9
+        assert abs(float(sec[120]) - float(bars[179]["close"])) < 1e-9
         assert all(_is_na(v) for v in sec[1:60])
         assert all(_is_na(v) for v in sec[61:120])
 
@@ -781,7 +787,7 @@ plot(v, title="sec")
         assert "htf_simple_ta_resample" in (pol.get("policies") or {})
 
     def test_lookahead_on_simple_ta_developing(self) -> None:
-        """lookahead_on ta.sma: value every bar once enough HTF bars exist."""
+        """lookahead_on ta.sma: current period's final HTF SMA from the period start."""
         from backend.runtime import Runtime
 
         bars = _hour_bars(300)
@@ -793,12 +799,9 @@ plot(v, title="sec")
         out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
         assert not out.get("error"), out.get("error")
         sec = out["series"]["sec"]
-        # Completed hours 0,1 + forming hour 2 (bar 120) → first developing sma.
-        expect_120 = (float(bars[59]["close"]) + float(bars[119]["close"]) + float(bars[120]["close"])) / 3.0
+        expect_120 = (float(bars[59]["close"]) + float(bars[119]["close"]) + float(bars[179]["close"])) / 3.0
         assert abs(float(sec[120]) - expect_120) < 1e-9
-        # Mid-hour bar develops further (forming close moves).
-        expect_130 = (float(bars[59]["close"]) + float(bars[119]["close"]) + float(bars[130]["close"])) / 3.0
-        assert abs(float(sec[130]) - expect_130) < 1e-9
+        assert abs(float(sec[130]) - expect_120) < 1e-9
 
     def test_gaps_unused_on_passthrough_paths(self) -> None:
         """gaps_on with same-TF passthrough: provided but not applied."""
@@ -819,3 +822,92 @@ plot(close, title="c")
         policies = pol.get("policies") or {}
         assert "gaps_lookahead_provided" in policies
         assert "gaps_applied" not in policies
+
+    def test_same_tf_close_offset_is_chart_history(self) -> None:
+        """Same-TF ``close[1]`` is the previous chart close, not na."""
+        from backend.runtime import Runtime
+
+        bars = _hour_bars(60)
+        src = """//@version=6
+indicator("t")
+v = request.security(syminfo.tickerid, "1", close[1])
+plot(v, title="sec")
+"""
+        out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
+        assert not out.get("error"), out.get("error")
+        sec = out["series"]["sec"]
+        assert abs(float(sec[-1]) - float(bars[-2]["close"])) < 1e-9
+        pol = (out.get("meta") or {}).get("request_security") or {}
+        policies = pol.get("policies") or {}
+        assert "same_tf_chart_eval" in policies or "chart_passthrough_htf_stub" in policies
+
+    def test_lookahead_on_close_offset_is_previous_htf_bar(self) -> None:
+        """``close[1]`` + lookahead_on is the previous HTF bar (non-repaint pattern)."""
+        from backend.runtime import Runtime
+
+        bars = _hour_bars()
+        src = """//@version=6
+indicator("t")
+v = request.security(syminfo.tickerid, "60", close[1], barmerge.gaps_off, barmerge.lookahead_on)
+plot(v, title="sec")
+"""
+        out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
+        assert not out.get("error"), out.get("error")
+        sec = out["series"]["sec"]
+        assert all(_is_na(v) for v in sec[0:60])
+        for i in (60, 90, 119):
+            assert abs(float(sec[i]) - float(bars[59]["close"])) < 1e-9
+        for i in (120, 150, 179):
+            assert abs(float(sec[i]) - float(bars[119]["close"])) < 1e-9
+
+    def test_session_update_last_bar_refreshes_lookahead_high(self) -> None:
+        """In-place last-bar ticks must invalidate the HTF cache."""
+        from pynescript.runtime import Runtime as HostRuntime
+
+        bars = _hour_bars(30)
+        src = """//@version=6
+indicator("t")
+h = request.security(syminfo.tickerid, "60", high, barmerge.gaps_off, barmerge.lookahead_on)
+plot(h, title="sec_h")
+"""
+        rt = HostRuntime(symbol="AAPL")
+        sess = rt.create_session(src, bars, mode="interpret")
+        out0 = sess.result()
+        assert not out0.get("error"), out0.get("error")
+        base = float(out0["series"]["sec_h"][-1])
+        tick = dict(bars[-1])
+        tick["high"] = base + 50.0
+        out1 = sess.update_last_bar(tick)
+        assert not out1.get("error"), out1.get("error")
+        assert float(out1["series"]["sec_h"][-1]) == tick["high"]
+
+    def test_weekly_htf_follows_monday_calendar(self) -> None:
+        """Bare W security buckets ISO Monday weeks, not Thursday-epoch widths."""
+        from backend.runtime import Runtime
+
+        # Thu 2024-01-04, Fri 01-05, Mon 01-08, Tue 01-09 (daily bars at noon UTC).
+        days = [
+            (2024, 1, 4, 10.0),
+            (2024, 1, 5, 20.0),
+            (2024, 1, 8, 30.0),
+            (2024, 1, 9, 40.0),
+        ]
+        bars = []
+        for y, m, d, c in days:
+            ts = int(datetime(y, m, d, 12, 0, tzinfo=timezone.utc).timestamp() * 1000)
+            bars.append({"time": ts, "open": c, "high": c, "low": c, "close": c, "volume": 1000.0})
+        src = """//@version=6
+indicator("t")
+v = request.security(syminfo.tickerid, "W", close)
+plot(v, title="sec")
+plot(timeframe.change("W") ? 1 : 0, "chg")
+"""
+        out = Runtime(symbol="AAPL").run(src, bars, mode="interpret")
+        assert not out.get("error"), out.get("error")
+        chg = out["series"]["chg"]
+        sec = out["series"]["sec"]
+        assert float(chg[2]) == 1.0  # Monday
+        assert float(chg[3]) == 0.0
+        # Monday opens a new week: last completed weekly close is Friday's 20.
+        assert abs(float(sec[2]) - 20.0) < 1e-9
+        assert abs(float(sec[3]) - 20.0) < 1e-9

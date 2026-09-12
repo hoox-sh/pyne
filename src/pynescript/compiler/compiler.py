@@ -1179,7 +1179,8 @@ class CompilerVisitor(NodeVisitor):
                 "        __strategy.begin_bar("
                 "__bar_idx, "
                 "open_arr[__bar_idx], high_arr[__bar_idx], "
-                "low_arr[__bar_idx], close_arr[__bar_idx])"
+                "low_arr[__bar_idx], close_arr[__bar_idx], "
+                "int(time_arr[__bar_idx]) if time_arr[__bar_idx] == time_arr[__bar_idx] else 0)"
             )
         if not body_lines and not self.uses_strategy:
             lines.append("        pass")
@@ -2040,6 +2041,9 @@ class CompilerVisitor(NodeVisitor):
         s = (expr or "").strip()
         if not s:
             return None
+        # strategy.cash is dual series/qty-type; ctor wants the qty-type sentinel.
+        if s in {"__strategy.cash", "strategy.cash"}:
+            return repr("cash")
         if self._looks_like_const_expr(s):
             return s
         m = re.fullmatch(r"([A-Za-z_]\w*)_arr\[__bar_idx\]", s)
@@ -4490,7 +4494,7 @@ class CompilerVisitor(NodeVisitor):
             "basecurrency": repr("USD"),
             "type": repr("stock"),
             "description": "chart_tickerid()",
-            "timezone": repr("UTC"),
+            "timezone": "chart_timezone()",
             "session": repr("0930-1600"),
             "period": repr("1D"),
             "mincontract": "1.0",
@@ -5208,14 +5212,14 @@ class CompilerVisitor(NodeVisitor):
 
                     if timeframe_is_calendar_tf(inner):
                         self.object_mode = True
-                        return f"timeframe_change_at(time_arr, __bar_idx, {tf_expr})"
+                        return f"timeframe_change_at(time_arr, __bar_idx, {tf_expr}, chart_timezone())"
                 except Exception:
                     pass
             bucket = self._compile_tf_bucket_ms(tf_expr)
             if bucket is not None:
                 return f"numba_timeframe_change(time_arr, __bar_idx, {bucket})"
             self.object_mode = True
-            return f"timeframe_change_at(time_arr, __bar_idx, {tf_expr})"
+            return f"timeframe_change_at(time_arr, __bar_idx, {tf_expr}, chart_timezone())"
         if func_name == "timestamp":
             # Real UTC ms from components (or string → na on compile path).
             # Year-first: timestamp(y, m, d[, h, mi, s]); timezone-first skipped.
@@ -7079,6 +7083,9 @@ class CompilerVisitor(NodeVisitor):
         if risk == "max_intraday_loss":
             val = args[0] if args else kwargs.get("percent", kwargs.get("value", "None"))
             rtype = args[1] if len(args) > 1 else kwargs.get("type", repr("percent"))
+            # strategy.cash is also the free-capital series; emit the qty-type sentinel.
+            if rtype in {"__strategy.cash", "strategy.cash"}:
+                rtype = repr("cash")
             return f"__strategy.risk_max_intraday_loss({val}, {rtype})"
         if risk == "max_intraday_filled_orders":
             val = args[0] if args else kwargs.get("max_orders", kwargs.get("value", kwargs.get("max", "None")))

@@ -135,6 +135,7 @@ jobs:
         with:
           files: ./coverage-unit.xml
           flags: unit
+          disable_search: true
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -144,6 +145,7 @@ jobs:
         with:
           files: ./coverage-runtime.xml
           flags: runtime
+          disable_search: true
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -153,6 +155,7 @@ jobs:
         with:
           files: ./coverage-lsp.xml
           flags: lsp
+          disable_search: true
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -162,6 +165,7 @@ jobs:
         with:
           files: ./coverage.xml
           flags: backend
+          disable_search: true
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 

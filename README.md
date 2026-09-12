@@ -2,7 +2,7 @@
 
 **Independent open toolchain for the Pine Script™ language** — formal grammar, algebraic AST, dual-engine bar-loop runtime, language server, and HTTP evaluation surface. Part of the [HOOX](https://hoox.sh) open trading stack.
 
-**0.6.0** · PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) · import `pynescript` · CLIs `pyne` · `pyne-lsp` (aliases: `pynescript` · `pynescript-lsp`)
+**0.6.1** · PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) · import `pynescript` · CLIs `pyne` · `pyne-lsp` (aliases: `pynescript` · `pynescript-lsp`)
 
 <div align="center">
 
@@ -101,7 +101,7 @@ Not a claim of TradingView® platform parity. Intentional demos are classified s
 | **VS Code extension** | First-class `.pyne` / `.pine` (and related) associations |
 | **Pro API** | HTTP evaluate, batch run, chart preview, quick backtest |
 | **Editors** | Configurations for Neovim, Zed, Emacs (see `clients/`) |
-| **PyneTS** | TypeScript / Bun library (`@hoox-sh/pynets`) — [standalone repo](https://github.com/hoox-sh/pynets), consumed here only as the `pynets/` git submodule |
+| **PyneTS** | TypeScript / Bun library (`@hoox-sh/pynets`) — [standalone repo](https://github.com/hoox-sh/pynets) |
 
 ## Installation
 
@@ -113,9 +113,8 @@ pip install "hoox-pyne[data]"         # market data providers
 pip install "hoox-pyne[pro]"          # Flask Pro API stack
 
 # Development install from a clone
-git clone --recurse-submodules https://github.com/hoox-sh/pyne.git
+git clone https://github.com/hoox-sh/pyne.git
 cd pyne
-git submodule update --init --recursive   # pynets/; needed after a plain clone
 pip install -e ".[lsp,pro]"
 ```
 
@@ -125,16 +124,16 @@ Multi-arch (`linux/amd64`, `linux/arm64`) images publish to GitHub Container Reg
 
 ```bash
 # CLI
-docker pull ghcr.io/hoox-sh/pyne/cli:0.6.0
-docker run --rm -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/cli:0.6.0 check script.pine
+docker pull ghcr.io/hoox-sh/pyne/cli:0.6.1
+docker run --rm -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/cli:0.6.1 check script.pine
 
 # Language server (stdio; -i required)
-docker pull ghcr.io/hoox-sh/pyne/lsp:0.6.0
-docker run --rm -i -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/lsp:0.6.0
+docker pull ghcr.io/hoox-sh/pyne/lsp:0.6.1
+docker run --rm -i -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/lsp:0.6.1
 
 # Pro API
-docker pull ghcr.io/hoox-sh/pyne/api:0.6.0
-docker run --rm -p 5002:8080 -e ADMIN_TOKEN=… ghcr.io/hoox-sh/pyne/api:0.6.0
+docker pull ghcr.io/hoox-sh/pyne/api:0.6.1
+docker run --rm -p 5002:8080 -e ADMIN_TOKEN=… ghcr.io/hoox-sh/pyne/api:0.6.1
 ```
 
 Packages: [ghcr.io/hoox-sh/pyne](https://github.com/hoox-sh/pyne/pkgs/container/pyne%2Fcli). Local: `make docker-build-lsp`.
@@ -361,10 +360,9 @@ Everything under [github.com/hoox-sh](https://github.com/hoox-sh) — one open t
 ### Clone the stack
 
 ```bash
-git clone --recurse-submodules https://github.com/hoox-sh/pyne.git   # PYNE + pynets/ submodule (pyne-lsp is in-tree)
-git submodule update --init --recursive                              # after a plain clone
+git clone https://github.com/hoox-sh/pyne.git                        # PYNE (pyne-lsp is in-tree)
 pip install -e ".[lsp,pro]"                                          # CLI + LSP + Pro API
-git clone https://github.com/hoox-sh/pynets.git                      # TypeScript library
+git clone https://github.com/hoox-sh/pynets.git                      # TypeScript library (@hoox-sh/pynets)
 git clone https://github.com/hoox-sh/pyne-worker.git                 # edge POST /run
 git clone https://github.com/hoox-sh/pyne-agent-worker.git           # NL authoring
 git clone https://github.com/hoox-sh/axis.git
