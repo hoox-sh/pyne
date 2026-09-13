@@ -86,6 +86,10 @@ last := last + 1     // mutates only `last`, never the host `time` buffer
 
 Implemented in `StatementEvaluator._bind_series_name`: if the RHS has `.current` / `.history` / `.update` (a host or tracked series), the RHS is reduced to its **current scalar** before allocating or updating the LHS series. Same-bar reassignment (`x = 0` then `x := expr`) overwrites the current sample so `x[1]` remains the previous bar’s final value. This prevents scripts such as dividend TTM time tracking from corrupting `time[j]` history when they rebind through a local.
 
+### UDF series parameters (0.6.2)
+
+A Pine function parameter that is subscripted (`s[1]` inside `f(s) => …`) is a **series of that argument**, not a scalar that happens to be named `s`. Interpret now allocates a per-call-site history wrapper when the caller passed a scalar or a host-series current (`src = close; updown(src)`). Compile already tracked UDF series state; the two hosts agree on official TradingView® builtins (P1p **0 MISMATCH**). Nested calls get distinct streams. See [Expressions & statements](/pyne/docs/runtime/expressions-statements).
+
 ### `var` / `varip` / `const`
 
 | Qualifier | Semantics in PYNE |

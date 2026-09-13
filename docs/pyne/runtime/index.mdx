@@ -91,6 +91,7 @@ Compile inputs are contiguous arrays: `open_arr` … `vol_arr` plus **`time_arr`
 | `timeout_seconds=` | `None` | Interpret wall-clock budget; checked every 32 bars → `timed_out` + `error_kind=runtime` |
 | `libraries=` | `[]` | `{namespace, name, version, source}` registered before `import` (auto forwards into interpret fallback) |
 | `realtime_*` | historical | Interpret-only `varip` / forming-bar simulation (`realtime_last_bar` / `ticks` / `bars` / `from_bar`) |
+| `Runtime.create_session` | interpret | Persistent `InterpretSession` (0.6.1): delta `append_bars`, forming-bar `update_last_bar`; compile has no resumable state |
 
 ## Interface surface
 
@@ -106,6 +107,7 @@ Compile inputs are contiguous arrays: `open_arr` … `vol_arr` plus **`time_arr`
 | `alert()` / webhooks | [Alerts](/pyne/docs/runtime/alerts) |
 | Numba / object-mode compiler | [Compiler overview](/pyne/docs/runtime/compiler/overview) |
 | Interpret vs compile plot parity | [Parity testing](/pyne/docs/runtime/compiler/parity) |
+| Incremental interpret sessions (`create_session`) | [Evaluate scripts](/pyne/docs/enduser/guides/evaluate-scripts) |
 
 Library callers typically use `NodeLiteralEvaluator` or the package **`pynescript.runtime.Runtime`** (Pro API re-export) rather than wiring the bar loop by hand:
 
@@ -121,6 +123,10 @@ result = ev.evaluate_script('//@version=6\nindicator("x")\nplot(close)')
 #     source, ohlcv_data=bars, mode="auto",
 #     timeout_seconds=None, libraries=None,
 # )
+# Incremental interpret (0.6.1):
+# sess = Runtime(symbol="CHART").create_session(source, bars)
+# sess.append_bars(new_closed_bars)
+# sess.update_last_bar(forming_bar)
 ```
 
 Hosts that own OHLCV (Pro API, workers) use the package host: push bar → fill pending orders → `visit(tree)` → drain events → collect plots. **SoT:** `src/pynescript/runtime/` (`host.py`, `series.py`, `evaluator.py`). `backend.runtime` / `backend.series` / `backend.evaluator` are identity re-export shims for the Pro API.

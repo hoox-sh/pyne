@@ -76,6 +76,8 @@ python scripts/compare_interp_compile.py --files tests/fixtures/parity/pine/stra
 
 Pro API `/run` defaults to **`mode=auto`**: compile when `_compile_eligible` passes (no top-level `import`, no `request.` token), otherwise interpret with `compile_fallback_reason`. Parity harness always forces explicit `interpret` vs `compile` so fallbacks do not hide drift.
 
+**Official TradingView® builtins (0.6.2):** interpret UDF series-parameter history (`s[1]` per call site) closed the remaining P1p plot MISMATCH tail on that set — **0 MISMATCH** vs compile. Optional set0x community corpus is unmeasured, not a missing language surface.
+
 ## What must match
 
 1. **Common plot keys** — float series after `None`↔`nan` normalization.

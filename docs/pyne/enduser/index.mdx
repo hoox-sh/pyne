@@ -125,6 +125,7 @@ Daily workflows against the same pipeline:
 | Library parse | `from pynescript.ast import parse, unparse` | [Library API](/pyne/docs/enduser/guides/library-api) |
 | Expression eval | `from pynescript.ast.helper import literal_eval` | [Evaluate](/pyne/docs/enduser/guides/evaluate-scripts) |
 | Bar-loop eval | `from pynescript.runtime import Runtime` (`mode` default **interpret**) | [Evaluate](/pyne/docs/enduser/guides/evaluate-scripts) · [modes](/pyne/docs/enduser/reference/modes) |
+| Incremental interpret | `Runtime.create_session` → `append_bars` / `update_last_bar` (0.6.1) | [Evaluate](/pyne/docs/enduser/guides/evaluate-scripts) |
 | Compile-only smoke | `pyne run script.pine --bars 50` | [CLI](/pyne/docs/enduser/guides/cli) |
 | Warm Numba / IR | `pyne prewarm` / `POST /compile/prewarm` | [CLI](/pyne/docs/enduser/guides/cli) |
 | Strategy HPO | `pyne optimize` / `POST /optimize` / `pynescript.optimize.run_study` | [Optimize](/pyne/docs/api/endpoints/optimize) |

@@ -229,6 +229,27 @@ result = runtime.run(
 
 `backend.runtime.Runtime` remains a thin compat import for monorepo Pro API code. Dual-host TA goldens (ATR / Supertrend / Keltner) and `tests/test_ta_incremental` gate interpret↔compile numerical parity. Pro API wraps the same runtime — see [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage).
 
+### Persistent interpret sessions (0.6.1)
+
+`Runtime.run` always replays the full history. For live or incremental feeds, **`Runtime.create_session`** keeps the evaluator, series, TA state, and plot columns across calls so new closed bars only pay `visit(tree)` for the delta:
+
+```python
+from pynescript.runtime import Runtime
+
+rt = Runtime(symbol="AAPL")
+session = rt.create_session(source, ohlcv_data=bars)  # interpret only
+result = session.append_bars(new_closed_bars)         # O(delta)
+tick = session.update_last_bar(forming_bar)           # overwrite last bar in place
+```
+
+| Method | Role |
+| --- | --- |
+| `create_session(source, ohlcv, …)` | Parse once, evaluate the initial bars, return an `InterpretSession`. `mode` must be omitted or `"interpret"` (compile has no resumable evaluator state). |
+| `append_bars(new_bars, realtime_ticks=1, …)` | Confirm the previous last bar, then visit only the appended batch. Realtime window params apply to **this batch**, not previously committed bars. |
+| `update_last_bar(bar)` | Re-tick the forming last bar with revised OHLCV. Bar count does not advance. `var` scope and incremental TA windows roll back to bar-open (`varip` persists). |
+
+Streaming contract: already-committed bars keep their values (like TradingView® confirmed history). Scripts that branch on `barstate.islast` will diverge from a full `Runtime.run` replay for the previously last bar — that bar was committed with `islast=True`. Prefer `islastconfirmedhistory` / historical logic for append-parity, or re-run full `Runtime.run` when exact `islast` replay is required. `PYNE_SERIES_RING` must stay off (the default). Tests: `tests/test_runtime_session.py`.
+
 ### Data providers and feeds
 
 Historical CLI/library:
@@ -265,7 +286,7 @@ feed = get_datafeed("ccxtpro", exchange="binance")
 | `src/pynescript/ast/evaluator/__init__.py` | `NodeLiteralEvaluator` composition |
 | `src/pynescript/ast/evaluator/builtins/` | `ta.*`, `strategy.*`, arrays, … |
 | `src/pynescript/ast/evaluator/events.py` | Event emission hooks |
-| `src/pynescript/runtime/host.py` | Multi-bar `Runtime.run` SoT (`interpret` / `compile` / `auto`, `timeout_seconds`) |
+| `src/pynescript/runtime/host.py` | Multi-bar `Runtime.run` SoT (`interpret` / `compile` / `auto`, `timeout_seconds`) plus `InterpretSession` (`create_session` / `append_bars` / `update_last_bar`) |
 | `src/pynescript/runtime/series.py` | `PineSeries` history model |
 | `backend/runtime.py` / `backend/series.py` | Compat re-exports of package Runtime |
 | `src/pynescript/compiler/` | Transpile + Numba/object bar loops |
@@ -287,6 +308,7 @@ feed = get_datafeed("ccxtpro", exchange="binance")
 - **History indexing.** Confirm `[0]`/`[1]` semantics against your evaluator version before porting TV scripts that assume closed-bar rules.
 - **Strategy events** include run/script ids when stamped by Runtime — useful for HOOX downstream.
 - **Body size / bar count.** HTTP path caps payload size (5 MiB); very long histories should be downsampled or chunked.
+- **InterpretSession.** `create_session` is interpret-only. `append_bars` confirms the previous last bar; scripts that branch on `barstate.islast` are not replay-identical to a full `Runtime.run` for that bar. `PYNE_SERIES_RING` must stay off.
 
 ## Worked examples
 
@@ -348,6 +370,7 @@ When calling `/run` or Runtime, pass `data_source` / providers so `request.secur
 | Numerical mismatch vs TV | Warmup, float path, or builtin parity gap — [numerical validation](/pyne/docs/reference/numerical-validation) |
 | Interpret vs compile series MISMATCH | Run `scripts/compare_interp_compile.py` on the script; check report buckets |
 | `timed_out` + partial plots | `timeout_seconds` budget exceeded on interpret |
+| `create_session supports interpret only` | `mode="compile"` / `"auto"` passed to `create_session` — sessions are interpret-only |
 | `UNKNOWN_FIELDS` | Extra key not in `RUN_SCHEMA` / `RUN_BATCH_SCHEMA` |
 | `DataProviderError` | Provider misconfig |
 | Async feed errors | Missing ccxt.pro / network |

@@ -59,7 +59,17 @@ The same pipeline powers the desk CLI, the LSP binary, the Pro API, browser Pyod
 
 TypeScript consumers import **[PyneTS](/pyne/docs/pynets)** (`@hoox-sh/pynets`) — same public names; Python remains the oracle.
 
-## Product map
+## What's new
+
+**`hoox-pyne` 0.6.2** (2026-09-12) — interpret wraps subscripted UDF parameters (`s[1]`) per call site so `src = close; updown(src)` matches compile. Official TradingView® builtin scripts are **0 MISMATCH** vs compile.
+
+**0.6.1** — persistent `InterpretSession` (`Runtime.create_session`, delta `append_bars`, forming-bar `update_last_bar`). Dual-host `strategy.cash` qty-type, fill-time risk gates, session confirm-on-append, finalized-bucket HTF `lookahead_on`.
+
+**0.6.0** — type-aware intraday risk on both brokers, intrabar `var` rollback on realtime ticks, exchange-calendar `timeframe.change` D/W/M, `request.security` `gaps_on` / `lookahead_on` on HTF resample paths.
+
+Full notes: [GitHub releases](https://github.com/hoox-sh/pyne/releases) · [compatibility](/pyne/docs/reference/compatibility) · [evaluate scripts](/pyne/docs/enduser/guides/evaluate-scripts).
+
+## How to use
 
 | Surface | Role | Start here |
 | --- | --- | --- |

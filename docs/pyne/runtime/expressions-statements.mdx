@@ -145,6 +145,8 @@ plot(f(close, 14))
 
 `f` is stored as a Python callable that rebinds `x`/`n` and visits the function body AST each call.
 
+**UDF series parameters (0.6.2):** when a caller passes a scalar (or a host-series current) into a function that then reads `s[1]`, interpret wraps that parameter as a per-call-site history stream. `src = close; updown(src)` therefore matches compile — the previous-bar sample is the previous argument at that call site, not an empty scalar. Official TradingView® builtin scripts are 0 MISMATCH vs compile on this contract.
+
 ### `once` (August 2026)
 
 ```pine

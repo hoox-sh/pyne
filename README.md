@@ -85,7 +85,8 @@ Not a claim of TradingView® platform parity. Intentional demos are classified s
 - **Bar-loop evaluation.** Deterministic indicator and strategy execution on OHLCV. Interpret (0.3.10) inlines Assign/Call after bar 0, skips unused derived series, and incrementally updates volume TA (`obv` / `wad` / `cmf` / `klinger`). `PYNE_SERIES_RING` default **off**.
 - **Dual engine.** Interpret (AST walk) and compile (Numba nopython kernels with object-mode fallback); `mode` ∈ {`auto`, `compile`, `interpret`}. Object-mode recovers UDT/switch/map/matrix/drawing scripts that previously leaked `TypingError` or stored objects into float64 series.
 - **Warm compile.** Disk IR cache, process prewarm, and recovery from corrupt cache state.
-- **Plot parity.** Interpret ↔ compile series alignment verified by harness and tests (internal engine consistency, not platform certification).
+- **Plot parity.** Interpret ↔ compile series alignment verified by harness and tests (internal engine consistency, not platform certification). Official TradingView® builtins are **0 MISMATCH** vs compile (0.6.2 UDF series-parameter history).
+- **Persistent interpret sessions.** `Runtime.create_session` holds evaluator / series / TA state across calls; `append_bars` is O(delta), `update_last_bar` re-ticks a forming bar with `var` + TA rollback.
 - **Alerts.** `alert()` / `alertcondition()` with documented frequency semantics (`once_per_bar`, `once_per_bar_close`, `all`); structured export on Pro `/run` and optional L2 webhooks.
 - **Strategy surface.** Entries, exits, events, commission/slippage paths, pending-fill behaviour under pyramiding constraints.
 - **Drawing GC.** Honour of `max_lines_count`, `max_labels_count`, `max_boxes_count`, `max_polylines_count`.
