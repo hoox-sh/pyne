@@ -48,6 +48,7 @@ flowchart LR
 | --- | --- |
 | `check` | `parse` only (exit codes) |
 | `format` / `fmt` | `parse` + `unparse` |
+| `convert` | `pynescript.util.pine_convert` (any older version → v6) |
 | `parse-and-dump` / `dump` | `parse` + `dump` |
 | `lint` | `lint_script` |
 | `compile` / `prewarm` / `run` | `pynescript.compiler` (+ `[compile]` extra) |
@@ -69,6 +70,7 @@ pyne <command> --help
 | --- | --- | --- |
 | `check PATHS…` | files / dirs / stdin | ok/fail lines + exit code |
 | `format PATH` | file or `-` | formatted source (`-w` / `--check`) |
+| `convert PATH --to 6` | file or `-` | rewritten v6 source (`-w`) |
 | `parse-and-dump PATH` | file | AST dump |
 | `parse-and-unparse PATH` | file | Pine source |
 | `lint [PATH\|-]` | file or stdin | diagnostics (`--json`) |

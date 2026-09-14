@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Editor **Convert to Pine v6**: AXIS overflow menu + command palette, VS Code
+  ``PYNE: Convert to Pine v6`` / lightbulb, LSP code action, and
+  ``POST /lsp/convert``. Source-level rewrite from any older version (missing
+  pragma = v1) — colors / ``n`` / timeframe idents, ``ta.*`` / ``math.*`` /
+  ``request.*`` namespaces, ``study(``→``indicator(``, typed ``input.*()``,
+  ``iff`` / ``offset``. Not a semantic v6 migrator.
+
+### Changed
+
+- ``pyne convert --to 6`` now runs the full v1-v5 pipeline, not only
+  leftover ``study(`` / ``request.*`` names.
+
 ## [0.6.3] - 2026-09-14
 
 Hosted script runner on Flask / VPS / container, plus `pyne runner` CLI.

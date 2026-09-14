@@ -36,6 +36,7 @@
 - documentSymbol, workspace/symbol
 - formatting / rangeFormatting
 - inlayHint, semanticTokens/full
+- codeAction + ``pynescript.convertToV6`` executeCommand
 
 Advertised capabilities come from :func:`pynescript.langserver.config.get_server_capabilities`
 — only list methods that have implementations here.
@@ -59,6 +60,7 @@ from pygls.lsp.server import LanguageServer
 from pynescript.__about__ import __version__
 from pynescript.langserver import config
 from pynescript.langserver.features import completion as completion_feature
+from pynescript.langserver.features import convert as convert_feature
 from pynescript.langserver.features import definitions as definitions_feature
 from pynescript.langserver.features import formatting as formatting_feature
 from pynescript.langserver.features import hover as hover_feature
@@ -276,7 +278,23 @@ class PynescriptLanguageServer(LanguageServer):
         def execute_command(params: lsp.ExecuteCommandParams) -> Any:
             """Handle workspace execute command."""
             logger.info(f"Execute command: {params.command}")
-            return None
+            if params.command != convert_feature.COMMAND_CONVERT_V6:
+                return None
+            args = list(params.arguments or [])
+            uri = str(args[0]) if args else ""
+            doc = self.pine_workspace.get_document(uri) if uri else None
+            source = doc.source if doc else ""
+            payload = convert_feature.handle_convert_to_v6(source)
+            payload["uri"] = uri
+            return payload
+
+        @self.feature(lsp.TEXT_DOCUMENT_CODE_ACTION)
+        def code_action(params: lsp.CodeActionParams) -> list[lsp.CodeAction]:
+            """Offer Convert-to-v6 when the script is older than v6."""
+            uri = params.text_document.uri
+            doc = self.pine_workspace.get_document(uri)
+            source = doc.source if doc else None
+            return convert_feature.handle_code_action(params, source)
 
         @self.feature(lsp.TEXT_DOCUMENT_COMPLETION)
         def text_completion(

@@ -24,6 +24,8 @@ from __future__ import annotations
 from lsprotocol import types as lsp
 
 from pynescript.langserver.features.completion import handle_completion
+from pynescript.langserver.features.convert import handle_code_action
+from pynescript.langserver.features.convert import handle_convert_to_v6
 from pynescript.langserver.features.definitions import handle_definition
 from pynescript.langserver.features.formatting import handle_formatting
 from pynescript.langserver.features.formatting import handle_range_formatting
@@ -782,15 +784,57 @@ x = 1
         assert result.data == []
 
 
+class TestConvertToV6:
+    """Source-level Convert-to-v6 command + code action."""
+
+    def test_handle_convert_rewrites_v4(self) -> None:
+        src = '//@version=4\nstudy("t")\nplot(sma(close, 14))\n'
+        payload = handle_convert_to_v6(src)
+        assert payload["from_version"] == 4
+        assert payload["to_version"] == 6
+        assert payload["changed"] is True
+        assert "ta.sma(" in payload["source"]
+        assert "indicator(" in payload["source"]
+
+    def test_code_action_offered_for_old_version(self) -> None:
+        src = '//@version=5\nindicator("t")\nplot(close)\n'
+        params = lsp.CodeActionParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///t.pine"),
+            range=lsp.Range(
+                start=lsp.Position(line=0, character=0),
+                end=lsp.Position(line=0, character=1),
+            ),
+            context=lsp.CodeActionContext(diagnostics=[]),
+        )
+        actions = handle_code_action(params, src)
+        assert len(actions) == 1
+        assert "v5" in actions[0].title
+        assert actions[0].edit is not None
+
+    def test_code_action_hidden_for_v6(self) -> None:
+        src = '//@version=6\nindicator("t")\nplot(close)\n'
+        params = lsp.CodeActionParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///t.pine"),
+            range=lsp.Range(
+                start=lsp.Position(line=0, character=0),
+                end=lsp.Position(line=0, character=1),
+            ),
+            context=lsp.CodeActionContext(diagnostics=[]),
+        )
+        assert handle_code_action(params, src) == []
+
+
 class TestCapabilities:
     """Advertised capabilities must match implemented handlers only."""
 
-    def test_no_unimplemented_signature_help_or_code_action(self) -> None:
+    def test_no_unimplemented_signature_help(self) -> None:
         from pynescript.langserver.config import get_server_capabilities
 
         caps = get_server_capabilities()
         assert caps.signature_help_provider is None
-        assert caps.code_action_provider is None or caps.code_action_provider is False
+        assert caps.code_action_provider is not None
+        assert caps.execute_command_provider is not None
+        assert "pynescript.convertToV6" in (caps.execute_command_provider.commands or [])
         assert caps.hover_provider is True
         assert caps.definition_provider is True
         assert caps.semantic_tokens_provider is not None

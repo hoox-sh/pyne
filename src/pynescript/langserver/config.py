@@ -21,8 +21,8 @@
 
 :func:`get_server_capabilities` is returned from the ``initialize`` handler in
 :mod:`pynescript.langserver.server`. Only declare providers that have working
-handlers — signature help and code actions are intentionally omitted until
-implemented.
+handlers — signature help is omitted until implemented; code actions
+expose Convert-to-v6.
 
 Semantic token type/modifier order in :func:`semantic_token_types` /
 :func:`semantic_token_modifiers` **must** stay aligned with indices used by
@@ -70,6 +70,12 @@ def get_server_capabilities() -> lsp.ServerCapabilities:
         ),
         document_formatting_provider=True,
         document_range_formatting_provider=True,
+        code_action_provider=lsp.CodeActionOptions(
+            code_action_kinds=[lsp.CodeActionKind.RefactorRewrite],
+        ),
+        execute_command_provider=lsp.ExecuteCommandOptions(
+            commands=["pynescript.convertToV6"],
+        ),
         inlay_hint_provider=lsp.InlayHintOptions(
             resolve_provider=False,
         ),
@@ -82,7 +88,7 @@ def get_server_capabilities() -> lsp.ServerCapabilities:
             range=False,
             full=True,
         ),
-        # signatureHelp / codeAction intentionally omitted until handlers exist.
+        # signatureHelp intentionally omitted until a handler exists.
     )
 
 

@@ -35,6 +35,7 @@ Modules:
 - :mod:`.symbols` — ``textDocument/documentSymbol``
 - :mod:`.semantic_tokens` — ``textDocument/semanticTokens/full``
 - :mod:`.inlay_hints` — ``textDocument/inlayHint``
+- :mod:`.convert` — ``workspace/executeCommand`` Convert-to-v6 + code action
 
 This package re-exports :mod:`.diagnostics` for convenience; other features are
 imported by name from :mod:`pynescript.langserver.server`.

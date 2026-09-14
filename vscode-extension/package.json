@@ -54,6 +54,7 @@
     "onCommand:pynescript.formatDocument",
     "onCommand:pynescript.showLspOutput",
     "onCommand:pynescript.showLspCommand",
+    "onCommand:pynescript.convertToV6",
     "workspaceContains:**/*.pyne",
     "workspaceContains:**/*.pine",
     "workspaceContains:**/*.pinev5",
@@ -167,6 +168,11 @@
         "command": "pynescript.showLspCommand",
         "title": "Show Resolved LSP Launch Command",
         "category": "PYNE"
+      },
+      {
+        "command": "pynescript.convertToV6",
+        "title": "Convert to Pine v6",
+        "category": "PYNE"
       }
     ],
     "menus": {
@@ -183,6 +189,10 @@
         },
         {
           "command": "pynescript.showLspCommand"
+        },
+        {
+          "command": "pynescript.convertToV6",
+          "when": "editorLangId == pinescript"
         }
       ],
       "editor/context": [
@@ -190,6 +200,11 @@
           "command": "pynescript.formatDocument",
           "when": "editorLangId == pinescript",
           "group": "1_modification@10"
+        },
+        {
+          "command": "pynescript.convertToV6",
+          "when": "editorLangId == pinescript",
+          "group": "1_modification@11"
         }
       ]
     }

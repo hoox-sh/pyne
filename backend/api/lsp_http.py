@@ -17,7 +17,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""HTTP bridge to langserver completion/hover for AXIS (browser).
+"""HTTP bridge to langserver completion/hover/convert for AXIS (browser).
 
 Full LSP is stdio/TCP; AXIS cannot spawn pygls in-tab. These free endpoints
 reuse the same handlers as ``pynescript-lsp``.
@@ -31,6 +31,9 @@ from typing import Any
 from flask import Blueprint
 from flask import jsonify
 from flask import request
+
+from pynescript.util.pine_convert import convert_to_v6
+from pynescript.util.pine_convert import detect_version
 
 logger = logging.getLogger(__name__)
 
@@ -283,5 +286,36 @@ def lsp_diagnostics():
             "ok": not has_error,
             "diagnostics": diagnostics,
             "source": "lsp",
+        }
+    )
+
+
+@bp.post("/lsp/convert")
+def lsp_convert():
+    """POST { source } → rewrite older Pine toward v6.
+
+    Free endpoint (same CORS surface as completion/hover). Source-level
+    only — not a semantic migrator.
+    """
+    data = request.get_json(silent=True) or {}
+    source = data.get("source") if data.get("source") is not None else data.get("text")
+    if not isinstance(source, str):
+        return jsonify({"status": "error", "message": "source string required"}), 400
+    declared = detect_version(source)
+    from_ver = 1 if declared is None else declared
+    converted = convert_to_v6(source)
+    payload = {
+        "source": converted,
+        "from_version": from_ver,
+        "to_version": 6,
+        "changed": converted != source,
+    }
+    return jsonify(
+        {
+            "status": "success",
+            "source": payload["source"],
+            "from_version": payload["from_version"],
+            "to_version": payload["to_version"],
+            "changed": payload["changed"],
         }
     )

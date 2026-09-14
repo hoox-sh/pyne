@@ -106,9 +106,10 @@ From `config.py`:
 - Hover, definition, references
 - Document + workspace symbols
 - Full + range formatting
+- Code action (Convert to Pine v6) + executeCommand `pynescript.convertToV6`
 - Inlay hints (`resolve_provider=False`)
 - Semantic tokens full (legend of standard token types/modifiers; range=false)
-- Signature help and code action are **not** advertised (`config.py` omits them until handlers exist). `workspace/executeCommand` is registered but returns `None`.
+- Signature help is **not** advertised.
 
 File filters (`get_filter_options`): `*.pine`, `*.pinev5`, `*.pinev6` under language id `pinescript`. **`.pyne` is not in this helper** — VS Code still maps it via the extension contribution (`extensions: .pyne` first).
 

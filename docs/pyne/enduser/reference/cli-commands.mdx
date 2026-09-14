@@ -40,6 +40,7 @@ The language server is a **separate** console script (`pyne-lsp`; alias `pynescr
 | --- | --- | --- |
 | `check` | | Parse-only validation (CI-friendly exit codes) |
 | `format` | `fmt` | Parse → unparse (structural format) |
+| `convert` | | Rewrite older Pine toward v5 or v6 |
 | `parse-and-dump` | `dump`, `ast` | AST dump |
 | `parse-and-unparse` | `unparse` | Round-trip source |
 | `lint` | | Static diagnostics (JSON / fail-on) |
@@ -98,6 +99,28 @@ Canonicalize Pine by parse → unparse (structural, not a full style formatter).
 pyne format script.pine            # stdout
 pyne fmt script.pine -w
 pyne format script.pine --check    # CI drift gate
+```
+
+---
+
+### `pyne convert`
+
+Rewrite older Pine toward v5 or v6. `--to 6` converts **any** older version
+(missing `//@version` counts as v1): color / `n` / timeframe idents, `ta.*` /
+`math.*` / `request.*` namespaces, `study(` → `indicator(`, typed `input.*()`,
+`iff` / `offset`. Not a semantic v6 migrator (bool-as-int, `na`).
+
+| Kind | Name | Default | Description |
+| --- | --- | --- | --- |
+| argument | `PATH` | required | File or `-` (stdin) |
+| option | `--to` | required | `5` / `6` / `v5` / `v6` |
+| option | `--encoding` | `utf-8` | |
+| option | `-w, --write` | off | Write back to PATH (not for stdin) |
+| option | `-o, --output-file` | `-` | Output when not using `--write` |
+
+```bash
+pyne convert old.pine --to 6
+pyne convert strategy.pine --to 6 -w
 ```
 
 ---

@@ -76,6 +76,25 @@ def test_lsp_diagnostics_ok(client):
     assert all(d.get("severity") != "error" for d in diags)
 
 
+def test_lsp_convert_v4_to_v6(client):
+    src = '//@version=4\nstudy("t")\nplot(sma(close, 14))\n'
+    resp = client.post("/lsp/convert", json={"source": src})
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    body = resp.get_json()
+    assert body["status"] == "success"
+    assert body["from_version"] == 4
+    assert body["to_version"] == 6
+    assert body["changed"] is True
+    assert "//@version=6" in body["source"]
+    assert "indicator(" in body["source"]
+    assert "ta.sma(" in body["source"]
+
+
+def test_lsp_convert_requires_source(client):
+    resp = client.post("/lsp/convert", json={})
+    assert resp.status_code == 400
+
+
 def test_lsp_diagnostics_syntax_error(client):
     src = '//@version=5\nindicator("t")\nplot(close\n'
     resp = client.post("/lsp/preevaluate", json={"source": src})

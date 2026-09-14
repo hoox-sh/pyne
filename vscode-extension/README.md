@@ -17,7 +17,7 @@ Part of the **[HOOX](https://hoox.sh) open trading stack** — sister products: 
 |---------|---------|
 | **File types** | **`.pyne`** (primary), `.pine`, `.pinev5`, `.pinev6`, `.pinescript` |
 | **Syntax highlighting** | TextMate grammar — namespaces (`ta.`, `strategy.`, `color.`…), annotations (`//@version=`), colors, history refs, UDTs, multiline strings |
-| **Language Server** | Diagnostics, autocomplete, hover docs, document symbols, formatting (`pip install "hoox-pyne[lsp]"`) |
+| **Language Server** | Diagnostics, autocomplete, hover docs, document symbols, formatting, Convert to v6 (`pip install "hoox-pyne[lsp]"`) |
 | **Status bar** | `PYNE LSP` indicator (click → server output) |
 | **Auto-detect LSP** | `pyne-lsp` (or alias `pynescript-lsp`) on `PATH`, or `python3 -m pynescript.langserver` |
 
@@ -139,6 +139,7 @@ Search for **PYNE**:
 | **PYNE: Format Document** | `pynescript.formatDocument` | `.pyne` / `.pine` only; needs running LSP |
 | **PYNE: Show Language Server Output** | `pynescript.showLspOutput` | Also status-bar click |
 | **PYNE: Show Resolved LSP Launch Command** | `pynescript.showLspCommand` | Copy / debug launch path |
+| **PYNE: Convert to Pine v6** | `pynescript.convertToV6` | Rewrite older Pine (v1-v5) toward v6 |
 
 From the CLI / developer host you can also run:
 

@@ -38,12 +38,14 @@ import {
   env,
   ExtensionContext,
   LogOutputChannel,
+  Range,
   StatusBarAlignment,
   StatusBarItem,
   window,
   workspace,
 } from 'vscode';
 import {
+  ExecuteCommandRequest,
   LanguageClient,
   LanguageClientOptions,
   ServerOptions,
@@ -57,6 +59,7 @@ export const COMMANDS = {
   formatDocument: 'pynescript.formatDocument',
   showLspOutput: 'pynescript.showLspOutput',
   showLspCommand: 'pynescript.showLspCommand',
+  convertToV6: 'pynescript.convertToV6',
 } as const;
 
 let client: LanguageClient | undefined;
@@ -380,6 +383,88 @@ function registerCommands(context: ExtensionContext): void {
       }
     }),
   );
+
+  context.subscriptions.push(
+    commands.registerCommand(COMMANDS.convertToV6, async () => {
+      const editor = window.activeTextEditor;
+      if (!editor) {
+        void window.showWarningMessage('No active editor to convert.');
+        return;
+      }
+      if (editor.document.languageId !== 'pinescript') {
+        void window.showWarningMessage('Convert to Pine v6 is only available for .pyne / .pine files.');
+        return;
+      }
+      const prev = editor.document.getText();
+      let next = prev;
+      try {
+        if (isClientRunning() && client) {
+          const payload = (await client.sendRequest(ExecuteCommandRequest.type, {
+            command: COMMANDS.convertToV6,
+            arguments: [editor.document.uri.toString()],
+          })) as { source?: string; from_version?: number; changed?: boolean } | null;
+          if (payload && typeof payload.source === 'string') {
+            next = payload.source;
+          } else {
+            next = convertViaPython(prev);
+          }
+        } else {
+          next = convertViaPython(prev);
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        log(`convertToV6 failed: ${msg}`);
+        try {
+          next = convertViaPython(prev);
+        } catch (err2) {
+          const msg2 = err2 instanceof Error ? err2.message : String(err2);
+          void window.showErrorMessage(`Convert to Pine v6 failed: ${msg2}`);
+          return;
+        }
+      }
+      if (next === prev) {
+        void window.showInformationMessage('Already Pine v6.');
+        return;
+      }
+      const full = new Range(
+        editor.document.positionAt(0),
+        editor.document.positionAt(prev.length),
+      );
+      const ok = await editor.edit((builder) => builder.replace(full, next));
+      if (!ok) {
+        void window.showErrorMessage('Convert to Pine v6 could not apply the edit.');
+        return;
+      }
+      void window.showInformationMessage('Converted script to Pine v6.');
+    }),
+  );
+}
+
+function convertViaPython(source: string): string {
+  const launch = resolveLspLaunch();
+  const python =
+    launch.command === 'python' ||
+    launch.command === 'python3' ||
+    launch.command.endsWith('/python') ||
+    launch.command.endsWith('/python3')
+      ? launch.command
+      : (cfg<string>('lsp.python') || 'python3').trim() || 'python3';
+  const script =
+    'from pynescript.util.pine_convert import convert_to_v6\n' +
+    'import sys\n' +
+    'sys.stdout.write(convert_to_v6(sys.stdin.read()))\n';
+  try {
+    return execFileSync(python, ['-c', script], {
+      input: source,
+      encoding: 'utf8',
+      timeout: 15000,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `Need Python with hoox-pyne installed (pip install hoox-pyne). ${msg}`,
+    );
+  }
 }
 
 export async function activate(context: ExtensionContext): Promise<void> {

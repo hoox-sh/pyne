@@ -30,7 +30,7 @@ Commands
 --------
 - ``check`` — parse-only validation (CI-friendly exit codes)
 - ``format`` / ``fmt`` — parse → unparse (optional in-place write)
-- ``convert`` — v5 ↔ v6 source rewrite (``request.*``, version pragma)
+- ``convert`` — rewrite older Pine toward v5 or v6 (any older version → v6)
 - ``parse-and-dump`` / ``dump`` / ``ast`` — AST dump
 - ``parse-and-unparse`` / ``unparse`` — round-trip source
 - ``lint`` — linter with colored / JSON output
@@ -579,7 +579,7 @@ def format_cmd(
 # ---------------------------------------------------------------------------
 
 
-@cli.command("convert", short_help="Rewrite Pine toward v5 or v6 (request.*, version).")
+@cli.command("convert", short_help="Rewrite older Pine toward v5 or v6.")
 @click.argument(
     "filename",
     metavar="PATH",
@@ -615,8 +615,11 @@ def convert_cmd(
     write_inplace: bool,
     output_file: str,
 ) -> None:
-    """Rewrite ``//@version``, ``study(``→``indicator(``, and ``request.*`` names.
+    """Rewrite older Pine toward v5 or v6.
 
+    ``--to 6`` converts any older version (missing ``//@version`` counts as v1):
+    colors / ``n`` / timeframe idents, ``ta.*`` / ``math.*`` / ``request.*``
+    namespaces, ``study(``→``indicator(``, typed ``input.*()``, ``iff`` / ``offset``.
     Does not attempt semantic v6 tightening (bool-as-int, ``na``). Comments
     and string literals are left unchanged.
     """

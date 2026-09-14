@@ -28,8 +28,10 @@ from click.testing import CliRunner
 from pynescript.__main__ import cli
 from pynescript.ast.helper import parse
 from pynescript.util.pine_convert import convert_pine
+from pynescript.util.pine_convert import convert_to_v6
 from pynescript.util.pine_convert import convert_v5_to_v6
 from pynescript.util.pine_convert import convert_v6_to_v5
+from pynescript.util.pine_convert import detect_version
 
 
 V5 = """//@version=5
@@ -99,3 +101,107 @@ def test_cli_convert_to_v6(tmp_path: Path) -> None:
     assert r.exit_code == 0, r.output
     assert "request.security(" in r.output
     assert "//@version=6" in r.output
+
+
+def test_detect_version_missing_is_none() -> None:
+    assert detect_version("study('x')\nplot(close)\n") is None
+    assert detect_version("//@version=4\nstudy('x')\n") == 4
+
+
+def test_v4_to_v6_namespaces_and_indicator() -> None:
+    src = """//@version=4
+study("x")
+s = sma(close, 14)
+h = security(tickerid, "D", close)
+plot(s)
+"""
+    out = convert_to_v6(src)
+    assert "//@version=6" in out
+    assert "indicator(" in out
+    assert "study(" not in out
+    assert "ta.sma(" in out
+    assert "request.security(" in out
+    assert "syminfo.tickerid" in out
+    assert "request.request." not in out
+    parse(out)
+
+
+def test_v3_to_v6_colors_bar_index_and_ta() -> None:
+    src = """//@version=3
+study("old")
+len = input(14, type=integer)
+s = sma(close, len)
+plot(s, color=red, style=line)
+bgcolor(n == 0 ? green : na)
+"""
+    out = convert_to_v6(src)
+    assert "//@version=6" in out
+    assert "indicator(" in out
+    assert "input.int(" in out
+    assert "ta.sma(" in out
+    assert "color.red" in out
+    assert "plot.style_line" in out
+    assert "bar_index" in out
+    assert "color.green" in out
+    parse(out)
+
+
+def test_v1_missing_pragma_inserts_indicator() -> None:
+    src = "plot(close)\n"
+    out = convert_to_v6(src)
+    assert out.startswith("//@version=6")
+    assert 'indicator("Converted")' in out
+    assert "plot(close)" in out
+    parse(out)
+
+
+def test_iff_and_offset_rewrite() -> None:
+    src = """//@version=4
+study("x")
+v = iff(close > open, offset(close, 1), open)
+plot(v)
+"""
+    out = convert_to_v6(src)
+    assert "iff(" not in out
+    assert "offset(" not in out
+    assert "close[1]" in out
+    assert "?" in out
+    parse(out)
+
+
+def test_tostring_math_and_heikinashi() -> None:
+    src = """//@version=4
+study("x")
+t = heikinashi(tickerid("BINANCE", "BTCUSDT"))
+s = tostring(close)
+m = abs(close - open)
+plot(close)
+"""
+    out = convert_to_v6(src)
+    assert "ticker.heikinashi(" in out
+    assert "ticker.new(" in out
+    assert "str.tostring(" in out
+    assert "math.abs(" in out
+    parse(out)
+
+
+def test_v6_is_idempotent() -> None:
+    src = """//@version=6
+indicator("x")
+plot(ta.sma(close, 14))
+"""
+    out = convert_to_v6(src)
+    assert out == src
+    assert convert_pine(src, to=6) == src
+
+
+def test_does_not_double_prefix_namespaces() -> None:
+    src = """//@version=5
+indicator("x")
+plot(ta.sma(close, 14), color=color.red)
+"""
+    out = convert_to_v6(src)
+    assert "ta.ta." not in out
+    assert "color.color." not in out
+    assert "ta.sma(" in out
+    parse(out)
