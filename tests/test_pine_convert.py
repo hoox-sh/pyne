@@ -185,6 +185,23 @@ plot(close)
     parse(out)
 
 
+def test_does_not_prefix_udf_defs_or_params() -> None:
+    src = """//@version=4
+study("x")
+hma(src, len) => wma(src, len)
+minimax(X, p, min, max) => max - min
+[rsi, dev] = rsi(close, 14)
+plot(hma(close, 9))
+"""
+    out = convert_to_v6(src)
+    assert "hma(src, len) =>" in out
+    assert "ta.wma(" in out
+    assert "minimax(X, p, min, max) =>" in out
+    assert "[rsi, dev] =" in out
+    assert "ta.rsi(" in out
+    parse(out)
+
+
 def test_v6_is_idempotent() -> None:
     src = """//@version=6
 indicator("x")

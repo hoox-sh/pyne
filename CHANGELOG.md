@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-09-14
+
+Convert-to-v6 no longer rewrites user UDF names, parameters, or unpack targets.
+
+### Fixed
+
+- ``ta.*`` / ``math.*`` / ``ticker.*`` prefixes apply only to **calls**. UDF
+  definitions (``hma(...) =>``), parameters named ``min``/``max``/``mode``, and
+  unpack targets (``[rsi, dev] =``) stay user identifiers. set01–04 scripts
+  older than v6 parse 323/323 after convert.
+
 ## [0.6.4] - 2026-09-14
 
 Convert older Pine to v6 in the editor, LSP, CLI, and HTTP.
@@ -570,6 +581,7 @@ First public **PYNE** release. PyPI distribution name is **`hoox-pyne`**
 - Dead `technical_refactored.py` and internal refactoring notes from the published package tree.
 - Broken AXIS-only GitHub workflows (`axis-nightly`, PWA/e2e jobs) — AXIS CI lives in [jango-blockchained/axis](https://github.com/jango-blockchained/axis).
 
+[0.6.5]: https://github.com/hoox-sh/pyne/compare/v0.6.4...v0.6.5
 [0.6.4]: https://github.com/hoox-sh/pyne/compare/v0.6.3...v0.6.4
 [0.6.3]: https://github.com/hoox-sh/pyne/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/hoox-sh/pyne/compare/v0.6.1...v0.6.2

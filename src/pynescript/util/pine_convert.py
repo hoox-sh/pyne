@@ -308,6 +308,12 @@ def _prefix_idents(span: str, names: tuple[str, ...], namespace: str) -> str:
     return _ident_re(names).sub(rf"{namespace}.\1", span)
 
 
+def _prefix_calls(span: str, names: tuple[str, ...], namespace: str) -> str:
+    """Prefix *names* only when used as a call (``name(``), not params/LHS."""
+    alt = "|".join(re.escape(n) for n in names)
+    return re.sub(rf"(?<![\w.])({alt})\s*(?=\()", rf"{namespace}.\1", span)
+
+
 def _close_paren(source: str, open_idx: int) -> int | None:
     """Index of the matching ``)`` for ``source[open_idx] == '('``, or ``None``."""
     depth = 1
@@ -509,9 +515,9 @@ def _convert_v4_to_v5_span(span: str) -> str:
     span = re.sub(r"(?<![\w.])resolution_gaps\b", "timeframe_gaps", span)
     span = re.sub(r"(?<![\w.])resolution\s*=", "timeframe=", span)
     span = re.sub(r"(?<![\w.])tickerid(?![\w.])", "syminfo.tickerid", span)
-    span = _prefix_idents(span, _TICKER_FNS, "ticker")
-    span = _prefix_idents(span, _TA_NAMES, "ta")
-    span = _prefix_idents(span, _MATH_NAMES, "math")
+    span = _prefix_calls(span, _TICKER_FNS, "ticker")
+    span = _prefix_calls(span, _TA_NAMES, "ta")
+    span = _prefix_calls(span, _MATH_NAMES, "math")
     span = re.sub(r"(?<![\w.])tostring\s*\(", "str.tostring(", span)
     span = re.sub(r"(?<![\w.])tonumber\s*\(", "str.tonumber(", span)
     span = _BARE_REQUEST_RE.sub(r"request.\1(", span)
@@ -536,10 +542,65 @@ def convert_v3_to_v4(source: str) -> str:
     return _map_code_spans(source, _convert_v3_to_v4_span)
 
 
+def _unprefix_udf_defs(source: str) -> str:
+    """Keep user ``name(...) =>`` definitions from becoming ``ta.name(...) =>``."""
+    pat = re.compile(r"(?<![\w.])(ta|math|ticker|str|request)\.(\w+)\s*\(")
+    out: list[str] = []
+    i = 0
+    n = len(source)
+    in_str: str | None = None
+    escaped = False
+    while i < n:
+        ch = source[i]
+        if in_str is not None:
+            out.append(ch)
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == in_str:
+                in_str = None
+            i += 1
+            continue
+        if ch == "/" and i + 1 < n and source[i + 1] == "/":
+            nl = source.find("\n", i)
+            end = n if nl < 0 else nl
+            out.append(source[i:end])
+            i = end
+            continue
+        if ch in "\"'":
+            in_str = ch
+            out.append(ch)
+            i += 1
+            continue
+        match = pat.match(source, i)
+        if match:
+            open_idx = match.end() - 1
+            close_idx = _close_paren(source, open_idx)
+            if close_idx is None:
+                out.append(ch)
+                i += 1
+                continue
+            j = close_idx + 1
+            while j < n and source[j] in " \t":
+                j += 1
+            if source.startswith("=>", j):
+                out.append(match.group(2))
+                out.append(source[open_idx : close_idx + 1])
+            else:
+                out.append(source[i : close_idx + 1])
+            i = close_idx + 1
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
 def convert_v4_to_v5(source: str) -> str:
     """Rewrite v4 toward v5 namespaces, ``indicator()``, and typed inputs."""
     text = _rewrite_tickerid_call(source)
     text = _map_code_spans(text, _convert_v4_to_v5_span)
+    text = _unprefix_udf_defs(text)
     text = _rewrite_iff(text)
     text = _rewrite_offset(text)
     return _rewrite_typed_input(text)
