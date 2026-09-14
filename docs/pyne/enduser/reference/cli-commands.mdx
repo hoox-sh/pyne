@@ -48,6 +48,7 @@ The language server is a **separate** console script (`pyne-lsp`; alias `pynescr
 | `run` | | Compile + execute on synthetic OHLCV |
 | `optimize` | | Search `input.*` values over N interpret Runtime runs |
 | `data` | | Fetch market bars |
+| `runner` | | Hosted scripts on the Pro API (`deploy` / `tick` / `list`) |
 | `info` | `ls` | Version + optional extras |
 
 ```bash
@@ -268,6 +269,36 @@ pyne data BTC/USDT --provider ccxt --exchange binance --format csv
 ```
 
 CCXT needs `pip install "hoox-pyne[data]"`.
+
+---
+
+### `pyne runner`
+
+HTTP client for the optional Flask hosted runner (`PYNE_RUNNER=1`). Group options apply to every subcommand.
+
+| Kind | Name | Default | Description |
+| --- | --- | --- | --- |
+| option | `--url` | `http://127.0.0.1:5002` | Pro API origin (`PYNE_API_URL`) |
+| option | `--token` | empty | `X-Admin-Token` (`ADMIN_TOKEN`) |
+
+| Subcommand | Role |
+| --- | --- |
+| `deploy PATH` | Read a `.pine` / `.pyne` file and `POST /scripts` |
+| `list` | `GET /scripts` |
+| `show ID` | `GET /scripts/:id` |
+| `delete ID` | `DELETE /scripts/:id` |
+| `tick` | `POST /cron/run` (`--id`, `--force`) |
+| `jobs` | `GET /cron/jobs` |
+| `enable ID` / `disable ID` | `PUT /cron/jobs` |
+
+```bash
+pyne runner deploy script.pine --id demo --symbol BTCUSDT --source mock
+pyne runner tick --id demo --force
+pyne runner list
+pyne runner --url http://127.0.0.1:5002 jobs
+```
+
+Full HTTP contract: [hosted runner](/pyne/docs/api/endpoints/runner).
 
 ---
 

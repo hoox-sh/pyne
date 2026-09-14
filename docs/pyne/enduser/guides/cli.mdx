@@ -40,6 +40,7 @@ flowchart LR
   C --> CO[compile / prewarm / run]
   C --> OPT[optimize]
   C --> M[data]
+  C --> RN[runner]
   C --> I[info]
 ```
 
@@ -52,6 +53,7 @@ flowchart LR
 | `compile` / `prewarm` / `run` | `pynescript.compiler` (+ `[compile]` extra) |
 | `optimize` | `pynescript.optimize.run_study` |
 | `data` | `pynescript.util.data.get_provider` |
+| `runner` | HTTP client for Flask `/scripts` + `/cron/run` (`PYNE_RUNNER`) |
 | `info` | version + optional extras |
 
 ## Interface surface
@@ -75,6 +77,7 @@ pyne <command> --help
 | `run PATH` | file | synthetic-bar execute |
 | `optimize PATH` | file + `--space` JSON | strategy hyperparameter search |
 | `data SYMBOL` | symbol + provider opts | table / json / csv |
+| `runner …` | file / id | hosted deploy + tick ([runner](/pyne/docs/api/endpoints/runner)) |
 | `info` | — | version + extras |
 
 **Not** part of this Click group: language server — use **`pyne-lsp`** (alias `pynescript-lsp`).
@@ -110,6 +113,7 @@ chmod +x pynescript-cli-linux-x86_64
 | `src/pynescript/ast/linter.py` | `lint_script` |
 | `src/pynescript/compiler/` | `compile` / `prewarm` / `run` |
 | `src/pynescript/util/data.py` | providers + `DataProviderError` |
+| `src/pynescript/util/runner_cli.py` | `pyne runner` HTTP client |
 | `examples/` | sample `.pine` inputs |
 | `tests/test_cli.py` | CLI unit suite (CI) |
 

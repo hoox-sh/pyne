@@ -85,6 +85,7 @@ def test_root_help(runner: CliRunner) -> None:
     assert "format" in out
     assert "info" in out
     assert "download-builtins" in out
+    assert "runner" in out
     assert "pyne check" in out
     assert "pynescript remains a compatibility alias" in out
     # Windows GH runners default to cp1252; Click --help must not use → / —.
@@ -380,3 +381,62 @@ def test_data_does_not_use_network_providers_in_suite() -> None:
 def test_unknown_command(runner: CliRunner) -> None:
     r = runner.invoke(cli, ["this-command-does-not-exist-xyz"])
     assert r.exit_code != 0
+
+
+# ---------------------------------------------------------------------------
+# runner -- HTTP client for Flask hosted runner (mocked, no network)
+# ---------------------------------------------------------------------------
+
+
+def test_runner_help(runner: CliRunner) -> None:
+    r = runner.invoke(cli, ["runner", "--help"])
+    assert r.exit_code == 0, r.output
+    out = r.output
+    assert "deploy" in out
+    assert "tick" in out
+    assert "list" in out
+    out.encode("cp1252")
+
+
+def test_runner_deploy_and_tick(runner: CliRunner, pine_file: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[str, str, dict | None]] = []
+
+    def fake_api(url: str, method: str, path: str, **kwargs: object) -> dict:
+        body = kwargs.get("body") if isinstance(kwargs.get("body"), dict) else None
+        calls.append((method, path, body))
+        if method == "POST" and path == "/scripts":
+            sid = body.get("id") if body else ""
+            return {"status": "success", "script": {"id": sid, "data_source": "mock", "enabled": True}}
+        if method == "POST" and path == "/cron/run":
+            job = {"script_id": "demo", "status": "ok", "mode": "interpret"}
+            return {"status": "success", "jobs": [job]}
+        return {"status": "success"}
+
+    monkeypatch.setattr("pynescript.util.runner_cli.api_request", fake_api)
+
+    r = runner.invoke(cli, ["runner", "deploy", str(pine_file), "--id", "demo", "--source", "mock"])
+    assert r.exit_code == 0, r.output
+    assert "deployed demo" in r.output
+    assert calls[0][0] == "POST"
+    assert calls[0][1] == "/scripts"
+    assert "indicator" in (calls[0][2] or {}).get("script", "")
+
+    r = runner.invoke(cli, ["runner", "tick", "--id", "demo", "--force"])
+    assert r.exit_code == 0, r.output
+    assert "demo" in r.output
+    assert calls[1][0] == "POST"
+    assert calls[1][1] == "/cron/run"
+    assert (calls[1][2] or {}).get("force") is True
+
+
+def test_runner_disabled_message(runner: CliRunner, monkeypatch: pytest.MonkeyPatch) -> None:
+    import click
+
+    def fake_api(*_a: object, **_k: object) -> dict:
+        msg = "Hosted runner is off. Set PYNE_RUNNER=1 on the API host."
+        raise click.ClickException(msg)
+
+    monkeypatch.setattr("pynescript.util.runner_cli.api_request", fake_api)
+    r = runner.invoke(cli, ["runner", "list"])
+    assert r.exit_code != 0
+    assert "PYNE_RUNNER=1" in (r.output + str(r.exception))

@@ -37,6 +37,7 @@ Commands
 - ``compile`` — transpile or compile-check via Numba pipeline
 - ``prewarm`` — warm Numba builtins / optional script IR caches (H2)
 - ``run`` — compile + execute on synthetic OHLCV
+- ``runner`` — deploy / tick hosted scripts on the Pro API (``PYNE_RUNNER``)
 - ``data`` — fetch market bars (mock / Yahoo / …)
 - ``download-builtins`` — fetch TradingView builtin Pine templates
 - ``info`` — version and optional extras (numba, rich, …)
@@ -58,6 +59,7 @@ import click
 
 # Explicit version: PyPI dist is ``hoox-pyne``; import package is ``pynescript``.
 from pynescript.__about__ import __version__ as _CLI_VERSION
+from pynescript.util.runner_cli import runner_group
 
 
 def _configure_stdio() -> None:
@@ -100,6 +102,8 @@ Examples:
   pyne lint script.pine --json
   pyne compile script.pine --emit
   pyne run script.pine --bars 100
+  pyne runner deploy script.pine --id demo
+  pyne runner tick --id demo --force
   pyne data AAPL --provider yahoo --period 6mo
   pyne download-builtins --list
   pyne download-builtins --yes
@@ -1375,6 +1379,9 @@ def download_builtins_cmd(
 # ---------------------------------------------------------------------------
 # entry
 # ---------------------------------------------------------------------------
+
+
+cli.add_command(runner_group)
 
 
 if __name__ == "__main__":

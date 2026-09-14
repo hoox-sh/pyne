@@ -98,6 +98,14 @@ Local (no Docker):
 ```bash
 export PYNE_RUNNER=1 PYNE_RUNNER_SCHEDULER=1
 python -m backend.app   # :5002
+pyne runner deploy script.pine --id demo --symbol BTCUSDT --source mock
+pyne runner tick --id demo --force
+pyne runner list
+```
+
+Same HTTP without the CLI:
+
+```bash
 curl -sS -X POST http://127.0.0.1:5002/scripts -H 'Content-Type: application/json' \
   -d '{"id":"demo","script":"//@version=6\nindicator(\"t\")\nplot(close)","data_source":"mock","timeframe":"1d","max_bars":80}'
 curl -sS -X POST http://127.0.0.1:5002/cron/run -d '{"force":true}' -H 'Content-Type: application/json'
