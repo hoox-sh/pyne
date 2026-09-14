@@ -124,6 +124,7 @@ Do not author in `hoox-landing-page/content/*` — that is a sync artifact.
 | Parse / lint / LSP on a laptop | `pip install "hoox-pyne[lsp]"` |
 | Embed evaluate in TypeScript | `bun add @hoox-sh/pynets` |
 | HTTP evaluate at the edge | Deploy **[pyne-worker](/pyne/docs/pyne-worker)** |
+| Upload then keep running (Flask/VPS/container) | `PYNE_RUNNER=1` — [hosted runner](/pyne/docs/api/endpoints/runner) |
 | Chart + editor | AXIS PWA + Flask or Pyodide |
 | Live CEX orders from strategy events | pyne-worker `TRADE_SERVICE` → HOOX |
 | Chat → script | **[pyne-agent-worker](/pyne/docs/agent)** |

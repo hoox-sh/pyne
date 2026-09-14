@@ -69,6 +69,7 @@ flowchart TB
 | `GET` | `/` · `/health` | none | Health + endpoint map + compile cache section |
 | `POST` | `/run` | none (free) | Single-script evaluate (`mode` default `auto`; `libraries[]`; alerts + optional webhooks) |
 | `POST` | `/run/batch` | none (free) | ≤8 scripts, shared OHLCV |
+| `POST` | `/scripts` · `/cron/*` | optional runner | Hosted scripts + bar-close — **off** unless `PYNE_RUNNER=1` ([runner](/pyne/docs/api/endpoints/runner)) |
 | `POST` | `/optimize` | none (free) | Strategy `input.*` search — N interpret Runtime runs ([docs](/pyne/docs/api/endpoints/optimize)) |
 | `WS` | `/ws/run` | none (free) | Same evaluate contract over JSON frames (`flask-sock` optional) |
 | `POST` | `/preview/chart` | API key + usage | Line / OHLCV PNG |

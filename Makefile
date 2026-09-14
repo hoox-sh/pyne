@@ -74,7 +74,7 @@ test-lsp:
 	python -m pytest tests/test_langserver.py tests/test_lsp_features.py -v
 
 test-backend:
-	python -m pytest tests/test_backend.py -v
+	python -m pytest tests/test_backend.py tests/test_backend_runner.py -v
 
 lint:
 	ruff check src/ tests/ backend/

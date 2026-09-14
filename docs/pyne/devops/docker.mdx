@@ -146,6 +146,9 @@ Production overlay (`docker-compose.prod.yml`): target `api`, **`volumes: !overr
 | `API_KEY_STORE_SQLITE` | `/data/api_keys.db` | SQLite path (`STORE_BACKEND=sqlite`) |
 | `ALLOWED_ORIGINS` | compose default includes `https://hoox.sh`, `https://hoox.sh/axis`, and **local AXIS `:8081`** | CORS allow-list. VPS AXIS is **:80** — do not copy 8081 into VPS env |
 | `ADMIN_TOKEN` | unset | Required for `POST /auth/create_key` (`X-Admin-Token`) and prod compose |
+| `PYNE_RUNNER` | `0` | Optional hosted runner ([docs](/pyne/docs/api/endpoints/runner)). `1` enables `/scripts` + `/cron/*` |
+| `PYNE_RUNNER_SCHEDULER` | `0` | In-process bar-close poll. Prefer `GUNICORN_WORKERS=1` when on |
+| `PYNE_RUNNER_DB` | `/data/runner.db` | SQLite on the `api_data` volume |
 | `REDIS_URL` | empty in prod; compose dev default `redis://redis:6379/0` | Required when `STORE_BACKEND=redis` |
 | `GUNICORN_WORKERS` / `GUNICORN_THREADS` / `GUNICORN_TIMEOUT` | `2` / `4` / **`120`** (entrypoint default; prod compose overlay defaults to `60`) | Prod entrypoint knobs |
 | `GUNICORN_BIND` | `0.0.0.0:${PORT}` | Optional gunicorn bind override |

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Optional Flask hosted runner (`PYNE_RUNNER=1`): SQLite script registry,
+  `POST/GET/DELETE /scripts`, `GET/PUT /cron/jobs`, `POST /cron/run`.
+  Background bar-close polling is a second switch (`PYNE_RUNNER_SCHEDULER=1`).
+  Docker / VPS / Cloudflare Container pick it up via env; default remains off.
+
 ## [0.6.2] - 2026-09-12
 
 P1p plot-parity tail on official TV builtins.

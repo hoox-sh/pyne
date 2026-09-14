@@ -59,7 +59,11 @@ Environment:
 | `PORT` | `5002` | Listen port |
 | `ALLOWED_ORIGINS` | `https://pynescript.ai`, `https://app.pynescript.ai`, localhost regex | CORS origins (comma-separated; regex allowed). `*` / `any` opens all. Code **always appends** localhost, private-LAN, and product (`hoox.sh` / `pynescript.ai` / `pynescript-axis.pages.dev`) regexes unless the value is `*` |
 | `API_KEY_STORE` | `/data/api_keys.json` | JSON key-store path (`auth.APIKeyStore` default) |
-| `ADMIN_TOKEN` | unset | Fail-closed admin minting (see [auth](/pyne/docs/api/auth-and-keys)) |
+| `ADMIN_TOKEN` | unset | Fail-closed admin minting (see [auth](/pyne/docs/api/auth-and-keys)). When set, hosted-runner writes also require it |
+| `PYNE_RUNNER` | off | Optional hosted script registry + `/cron/run` ([runner](/pyne/docs/api/endpoints/runner)) |
+| `PYNE_RUNNER_SCHEDULER` | off | In-process bar-close poll (requires `PYNE_RUNNER`) |
+| `PYNE_RUNNER_POLL_SECONDS` | `60` | Scheduler interval |
+| `PYNE_RUNNER_DB` | `/data/runner.db` or temp | SQLite registry path |
 
 `debug=False` always on the dev runner.
 
@@ -78,7 +82,9 @@ Environment:
     "alerts": true,
     "alert_webhooks": true,
     "warm_compile": true,
-    "default_run_mode": "auto"
+    "default_run_mode": "auto",
+    "script_runner": false,
+    "script_runner_scheduler": false
   },
   "compile": {
     "has_numba": true,

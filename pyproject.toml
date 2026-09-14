@@ -254,6 +254,8 @@ required-imports = ["from __future__ import annotations"]
 "src/pynescript/ast/evaluator/builtins/alerts.py" = ["PLR2004"]
 "src/pynescript/ast/evaluator/builtins/input.py" = ["PLR2004"]
 "src/pynescript/ast/evaluator/builtins/numeric.py" = ["PLR2004"]
+"backend/runner/**" = ["PLC0415", "PLR2004", "EM101", "EM102", "C901", "PLR0912", "PLR0915", "S108", "S110", "SIM105", "FBT001", "BLE001", "PLW0603"]
+"backend/api/runner.py" = ["PLC0415"]
 
 [tool.coverage.run]
 source_pkgs = ["pynescript", "tests"]

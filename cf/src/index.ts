@@ -22,6 +22,11 @@ export class PyneApiContainer extends Container {
     FREE_TIER_LIMITS: "1",
     STORE_BACKEND: "sqlite",
     PYTHONPATH: "/app/src:/app",
+    // Optional hosted runner: set PYNE_RUNNER=1 (and PYNE_RUNNER_SCHEDULER=1)
+    // via wrangler vars / secrets. Off by default — container stays evaluate-only.
+    PYNE_RUNNER: "0",
+    PYNE_RUNNER_SCHEDULER: "0",
+    PYNE_RUNNER_DB: "/data/runner.db",
   };
 
   override onStart(): void {

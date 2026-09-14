@@ -56,6 +56,7 @@ flowchart LR
 | `GET /auth/usage` | Pro | Usage stats |
 | `POST /auth/validate` | body key | Validate key |
 | `POST /lsp/{completion,hover,diagnostics}` | none (free) | AXIS HTTP LSP bridge — see [LSP](/pyne/docs/lsp) |
+| `/scripts` · `/cron/*` | `PYNE_RUNNER=1` | Hosted scripts + bar-close ([runner](/pyne/docs/api/endpoints/runner)) |
 
 Default local bind: `127.0.0.1:5002`.
 

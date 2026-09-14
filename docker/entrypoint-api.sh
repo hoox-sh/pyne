@@ -29,6 +29,9 @@ CACHE_DIR="${PYNE_COMPILE_CACHE_DIR:-/data/compile-cache}"
 if [ "${PYNE_COMPILE_DISK_CACHE:-1}" != "0" ]; then
   mkdir -p "${CACHE_DIR}" 2>/dev/null || true
 fi
+if [ "${PYNE_RUNNER:-0}" != "0" ]; then
+  mkdir -p "$(dirname "${PYNE_RUNNER_DB:-/data/runner.db}")" 2>/dev/null || true
+fi
 
 exec gunicorn \
   --bind "${BIND}" \

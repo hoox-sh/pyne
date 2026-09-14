@@ -24,6 +24,7 @@ Submodules:
 - :mod:`backend.api.preview` — chart thumbnails and quick backtests (keyed)
 - :mod:`backend.api.lsp_http` — free completion/hover for AXIS (browser LSP)
 - :mod:`backend.api.git_oauth` — GitHub/GitLab device OAuth proxy for AXIS Connect
+- :mod:`backend.api.runner` — optional hosted scripts / cron (``PYNE_RUNNER``)
 """
 
 from __future__ import annotations

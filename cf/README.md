@@ -16,3 +16,9 @@ Worker-only ready check: `/__cf/ready`.
 
 `standard-2` (1 vCPU / 6 GiB). Named instance `api` keeps the IR cache warm.
 Set `?instance=` to address another instance (max 2).
+
+Optional **hosted runner** (script registry + bar-close, same as Flask
+`PYNE_RUNNER`): keep `PYNE_RUNNER=0` in `src/index.ts` unless you want
+`POST /scripts` + `POST /cron/run` inside the container. Enable with
+`PYNE_RUNNER=1` and `PYNE_RUNNER_SCHEDULER=1` (one gunicorn worker is
+already the container default).

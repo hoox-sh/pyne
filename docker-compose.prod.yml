@@ -37,6 +37,11 @@ services:
       # Public hosts: opt in to unauthenticated /run caps. Override with 0 to disable.
       FREE_TIER_LIMITS: ${FREE_TIER_LIMITS:-1}
       PYTHONPATH: /app/src:/app
+      # Optional: PYNE_RUNNER=1 PYNE_RUNNER_SCHEDULER=1 (prefer GUNICORN_WORKERS=1)
+      PYNE_RUNNER: ${PYNE_RUNNER:-0}
+      PYNE_RUNNER_SCHEDULER: ${PYNE_RUNNER_SCHEDULER:-0}
+      PYNE_RUNNER_POLL_SECONDS: ${PYNE_RUNNER_POLL_SECONDS:-60}
+      PYNE_RUNNER_DB: /data/runner.db
     # Compose merges volumes by mount *target*; !override replaces the base
     # list so ./src and ./backend binds from docker-compose.yml are dropped.
     volumes: !override

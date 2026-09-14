@@ -60,6 +60,7 @@ from backend.api.git_oauth import bp as git_oauth_bp
 from backend.api.lsp_http import bp as lsp_bp
 from backend.api.preview import backtest_bp
 from backend.api.preview import preview_bp
+from backend.api.runner import bp as runner_bp
 
 
 try:
@@ -637,6 +638,17 @@ def _health_payload() -> dict[str, Any]:
         "POST /auth/create_key": "Create API key (requires admin)",
         "GET /auth/usage": "Get usage stats (Pro)",
     }
+    from backend.runner import runner_enabled
+    from backend.runner import scheduler_enabled
+
+    if runner_enabled():
+        endpoints["POST /scripts"] = "Deploy a hosted script (optional runner)"
+        endpoints["GET /scripts"] = "List hosted scripts"
+        endpoints["GET /scripts/:id"] = "Get hosted script + cron state"
+        endpoints["DELETE /scripts/:id"] = "Delete hosted script"
+        endpoints["GET /cron/jobs"] = "List runner jobs"
+        endpoints["PUT /cron/jobs"] = "Enable/disable runner jobs"
+        endpoints["POST /cron/run"] = "Tick hosted scripts (bar-close)"
     if sock is not None:
         endpoints["WS /ws/run"] = "Run Pine Script over WebSocket (prefer WSS when available)"
         endpoints["WS /datafeed/watch"] = "CCXT Pro OHLCV stream (AXIS ccxt-ws)"
@@ -659,10 +671,22 @@ def _health_payload() -> dict[str, Any]:
             "default_run_mode": "auto",
             "optimize": True,
             "free_tier_limits": _free_tier_limits_flag(),
+            "script_runner": runner_enabled(),
+            "script_runner_scheduler": scheduler_enabled(),
         },
         "compile": _compile_health_section(),
         "endpoints": endpoints,
     }
+
+
+@app.before_request
+def _runner_scheduler_boot():
+    """Start the optional poll loop in this process (gunicorn --preload fork)."""
+    from backend.runner import scheduler_enabled
+    from backend.runner.scheduler import maybe_start_background
+
+    if scheduler_enabled():
+        maybe_start_background()
 
 
 @app.route("/", methods=["GET"])
@@ -1340,6 +1364,13 @@ app.register_blueprint(lsp_bp)
 app.register_blueprint(git_oauth_bp)
 if datafeed_bp is not None:
     app.register_blueprint(datafeed_bp)
+app.register_blueprint(runner_bp)
+try:
+    from backend.runner.scheduler import maybe_start_background
+
+    maybe_start_background()
+except Exception:  # noqa: BLE001 — boot must not fail if runner misconfigured
+    logger.exception("pyne runner scheduler failed to start")
 
 
 @app.errorhandler(404)

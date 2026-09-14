@@ -35,6 +35,7 @@ Layout:
 - :mod:`backend.middleware` — API keys, schemas, store backends
 - :mod:`backend.services` — chart PNG rendering and quick backtests
 - :mod:`backend.alert_forwarder` — alert webhook delivery for ``POST /run``
+- :mod:`backend.runner` — optional hosted scripts + bar-close scheduler (``PYNE_RUNNER``)
 """
 
 from __future__ import annotations
