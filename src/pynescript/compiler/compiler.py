@@ -574,6 +574,8 @@ class CompilerVisitor(NodeVisitor):
         super().__init__()
         self.arrays: set[str] = set()
         self.plots: list[dict] = []
+        # Pine ident → last plot()/hline() title (`u = plot(high)` → fill(u, l)).
+        self._plot_var_titles: dict[str, str] = {}
         self.functions: list[str] = []
         self.in_function = False
         self.local_vars: set[str] = set()
@@ -1664,6 +1666,7 @@ class CompilerVisitor(NodeVisitor):
             val = tern
         else:
             val = self.visit(node.value)
+        self._bind_plot_var(name, node.value)
         # ta.dmi → 3-tuple; single-target series store must keep a float (ADX).
         val = self._dmi_as_scalar(val)
 
@@ -4987,7 +4990,20 @@ class CompilerVisitor(NodeVisitor):
                 color_expr = kwargs["color"]
             elif len(args) > 2:
                 color_expr = args[2]
-            self.plots.append({"expr": color_expr, "title": title, "kind": "fill"})
+            fill_attrs: dict[str, Any] = {}
+            e1, e2 = self._resolve_fill_plot_titles(arg_nodes, node)
+            if e1:
+                fill_attrs["plot1"] = e1
+            if e2:
+                fill_attrs["plot2"] = e2
+            color_raw = kwargs.get("color") or (args[2] if len(args) > 2 else None)
+            folded_color = self._fold_const(color_raw) if color_raw else None
+            if isinstance(folded_color, str) and folded_color.strip():
+                fill_attrs["color"] = folded_color.strip()
+            fill_entry: dict[str, Any] = {"expr": color_expr, "title": title, "kind": "fill"}
+            if fill_attrs:
+                fill_entry["attrs"] = fill_attrs
+            self.plots.append(fill_entry)
             self._note_visual_series()
             # Statement-form titled fill is a NaN series key only (band color
             # lives in plot meta). No in-loop ``__drawings`` → stay nopython.
@@ -7348,6 +7364,79 @@ class CompilerVisitor(NodeVisitor):
             if coerced is not None:
                 out[name] = coerced
         return out
+
+    @staticmethod
+    def _is_plot_or_hline_call(node: Any) -> bool:
+        if node is None or not isinstance(node, ast.Call):
+            return False
+        f = node.func
+        if isinstance(f, ast.Specialize):
+            f = f.value
+        return isinstance(f, ast.Name) and f.id in ("plot", "hline")
+
+    def _bind_plot_var(self, name: str, value_node: Any) -> None:
+        if not name or not self.plots or not self._is_plot_or_hline_call(value_node):
+            return
+        last = self.plots[-1]
+        if last.get("kind") not in (None, "plot", "hline"):
+            return
+        title = last.get("title")
+        if title:
+            self._plot_var_titles[name] = str(title)
+
+    def _resolve_fill_plot_titles(self, arg_nodes: list[Any], node: Any) -> tuple[str | None, str | None]:
+        """Map fill(plot1, plot2) args to packed plot()/hline() titles."""
+        named: dict[str, Any] = {}
+        for arg in getattr(node, "args", []) or []:
+            key = getattr(arg, "name", None)
+            if key in ("plot1", "plot2"):
+                named[str(key)] = arg.value if hasattr(arg, "value") else arg
+
+        def from_node(n: Any) -> str | None:
+            if n is None:
+                return None
+            if isinstance(n, ast.Name):
+                return self._plot_var_titles.get(n.id)
+            return None
+
+        t1 = from_node(named.get("plot1") or (arg_nodes[0] if arg_nodes else None))
+        t2 = from_node(named.get("plot2") or (arg_nodes[1] if len(arg_nodes) > 1 else None))
+        call_nodes = [
+            n
+            for n in (
+                named.get("plot1") or (arg_nodes[0] if arg_nodes else None),
+                named.get("plot2") or (arg_nodes[1] if len(arg_nodes) > 1 else None),
+            )
+            if self._is_plot_or_hline_call(n)
+        ]
+        recent = [
+            str(p.get("title"))
+            for p in self.plots
+            if p.get("kind") in (None, "plot", "hline") and p.get("title")
+        ]
+        call_titles = recent[-len(call_nodes) :] if call_nodes else []
+        ci = 0
+        used: set[str] = {t for t in (t1, t2) if t}
+
+        def edge(resolved: str | None, n: Any) -> str | None:
+            nonlocal ci
+            if resolved:
+                return resolved
+            if self._is_plot_or_hline_call(n) and ci < len(call_titles):
+                t = call_titles[ci]
+                ci += 1
+                if t and t not in used:
+                    used.add(t)
+                    return t
+            for t in reversed(recent):
+                if t not in used:
+                    used.add(t)
+                    return t
+            return None
+
+        n1 = named.get("plot1") or (arg_nodes[0] if arg_nodes else None)
+        n2 = named.get("plot2") or (arg_nodes[1] if len(arg_nodes) > 1 else None)
+        return edge(t1, n1), edge(t2, n2)
 
     def _unique_plot_title(self, title: str) -> str:
         """Return a series key unused by already-registered plots (hline_2, …)."""

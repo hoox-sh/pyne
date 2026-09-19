@@ -109,3 +109,32 @@ def test_dual_host_key_set_hline_fill_bgcolor_empty_plotshape() -> None:
     assert "plot" not in keys
     plot_ns = sorted(k for k in keys if k.startswith("plot_"))
     assert len(plot_ns) == 2, plot_ns
+
+
+def test_compile_plot_meta_fill_edges_and_kind() -> None:
+    """Compile plot_meta must stamp fill kind + distinct plot1/plot2 keys."""
+    src = """
+//@version=6
+indicator("fill meta", overlay=true)
+u = plot(high)
+l = plot(low)
+fill(u, l, color=color.new(color.blue, 85), title="UntitledBand")
+pHi = plot(high, "BB Upper")
+pLo = plot(low, "BB Lower")
+fill(pHi, pLo, color=color.green, title="Cloud")
+"""
+    bars = _bars(16)
+    rc = Runtime().run(src, bars, mode="compile")
+    assert "error" not in rc, rc.get("error")
+    pm = rc.get("plot_meta") or (rc.get("meta") or {}).get("plot_meta") or {}
+    untitled = pm.get("UntitledBand") or {}
+    assert untitled.get("kind") == "fill", untitled
+    assert untitled.get("plot1") in rc["series"], untitled
+    assert untitled.get("plot2") in rc["series"], untitled
+    assert untitled.get("plot1") != untitled.get("plot2"), untitled
+    cloud = pm.get("Cloud") or {}
+    assert cloud.get("kind") == "fill", cloud
+    assert cloud.get("plot1") == "BB Upper", cloud
+    assert cloud.get("plot2") == "BB Lower", cloud
+    meta_nested = (rc.get("meta") or {}).get("plot_meta") or {}
+    assert meta_nested.get("Cloud", {}).get("kind") == "fill"

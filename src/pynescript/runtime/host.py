@@ -1081,9 +1081,31 @@ def _stamp_compile_plot_attrs(
         if i >= len(attrs):
             break
         for k, v in attrs[i].items():
-            if k in ("title", "index", "kind", "color"):
+            if k in ("title", "index", "kind"):
+                continue
+            if k == "color" and plot_meta[title].get("color"):
                 continue
             plot_meta[title][k] = v
+
+
+def _stamp_compile_fill_edges(
+    plot_meta: dict[str, dict[str, Any]],
+    series_map: dict[str, list[Any]],
+) -> None:
+    """Resolve fill plot1/plot2 titles onto packed series keys (plot vs plot_2)."""
+    if not plot_meta:
+        return
+    for entry in plot_meta.values():
+        if entry.get("kind") != "fill":
+            continue
+        used: set[str] = set()
+        e1 = _fill_edge_series_key(series_map, plot_meta, entry.get("plot1"), used)
+        if e1:
+            entry["plot1"] = e1
+            used.add(e1)
+        e2 = _fill_edge_series_key(series_map, plot_meta, entry.get("plot2"), used)
+        if e2:
+            entry["plot2"] = e2
 
 
 def _backfill_plot_meta_from_drawings(
@@ -3822,6 +3844,7 @@ class Runtime:
         _stamp_compile_plot_kinds(plot_meta, compiled.plot_titles, compiled.plot_kinds)
         _stamp_compile_plot_attrs(plot_meta, getattr(compiled, "plot_attrs", None))
         _backfill_plot_meta_from_drawings(plot_meta, drawings)
+        _stamp_compile_fill_edges(plot_meta, json_series)
         _n_visual = int(n_bars_hint or 0) or len(ohlcv_data or ())
         if isinstance(drawings, list) and drawings and _n_visual > 0:
             try:
@@ -3863,6 +3886,7 @@ class Runtime:
             "script_name": header["script_name"],
             "script_type": header["script_type"],
             "inputs": input_defs,
+            "plot_meta": plot_meta,
         }
         meta_out.update(drawing_limits)
 
