@@ -102,7 +102,11 @@ def _assert_series_equal(
     only_i = sorted(set(si) - set(sc) - extra_ok)
     only_c = sorted(set(sc) - set(si) - extra_ok)
     assert not only_i and not only_c, (only_i, only_c, sorted(si), sorted(sc))
+    kinds_i = interp.get("plot_meta") or {}
     for key in sorted(set(si) & set(sc)):
+        # Compile numeric mode cannot store fill hex; interpret emits per-bar color.
+        if str((kinds_i.get(key) or {}).get("kind") or "") == "fill":
+            continue
         a, b = si[key], sc[key]
         assert len(a) == len(b), (key, len(a), len(b))
         for i, (x, y) in enumerate(zip(a, b, strict=True)):
@@ -348,6 +352,23 @@ plot(close, "c")
     assert lines[0]["p1"] == pytest.approx(float(bars[0]["high"]))
     assert lines[0]["p2"] == pytest.approx(float(bars[0]["low"]))
     assert lines[0]["t1"] == bars[0]["time"]
+
+
+def test_line_fill_alias_emits_linefill() -> None:
+    src = """
+//@version=6
+indicator("lf", overlay=true)
+if barstate.islast
+    l1 = line.new(bar_index - 3, high, bar_index, high)
+    l2 = line.new(bar_index, low, bar_index - 3, low)
+    line.fill(l1, l2, color=color.new(color.blue, 80))
+plot(close)
+"""
+    ri, rc = _run_dual(src, _bars(8))
+    kinds_i = {_geom_kind(d) for d in ri["drawings"]}
+    kinds_c = {_geom_kind(d) for d in rc["drawings"]}
+    assert "linefill" in kinds_i
+    assert "linefill" in kinds_c
 
 
 def test_polyline_table_linefill_identity() -> None:

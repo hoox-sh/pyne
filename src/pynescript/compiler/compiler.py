@@ -513,6 +513,7 @@ _DRAWING_FUNCS = frozenset(
         "table_new",
         "polyline_new",
         "linefill_new",
+        "line_fill",
         "label_delete",
         "line_delete",
         "box_delete",
@@ -2342,6 +2343,8 @@ class CompilerVisitor(NodeVisitor):
             return True
         if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name):
             if f.value.id in ("label", "line", "box", "table", "polyline", "linefill") and f.attr == "new":
+                return True
+            if f.value.id == "line" and f.attr == "fill":
                 return True
         return False
 
@@ -4970,9 +4973,8 @@ class CompilerVisitor(NodeVisitor):
             return f"(plot_{idx}.__setitem__(__bar_idx, {store_expr}) or {drawing})"
 
         # fill(plot1, plot2, color=…, title=…) → series key (interpret parity) +
-        # __drawings event. Interpret stores a null color column (JSON nulls) and
-        # puts band color/plot refs in plot_meta; compile leaves the series as na
-        # (float64 nan → null) so AXIS / compare_interp_compile key sets match.
+        # __drawings event. Per-bar color lives in the fill series (hex/rgba);
+        # plot_meta.color is the fallback.
         if func_name == "fill":
             title = "fill"
             if "title" in kwargs:
@@ -4980,7 +4982,12 @@ class CompilerVisitor(NodeVisitor):
             elif len(args) > 3 and args[3]:
                 title = self._literal_str(args[3], default="fill") or "fill"
             title = self._unique_plot_title(title)
-            self.plots.append({"expr": "None", "title": title, "kind": "fill"})
+            color_expr = "None"
+            if "color" in kwargs:
+                color_expr = kwargs["color"]
+            elif len(args) > 2:
+                color_expr = args[2]
+            self.plots.append({"expr": color_expr, "title": title, "kind": "fill"})
             self._note_visual_series()
             # Statement-form titled fill is a NaN series key only (band color
             # lives in plot meta). No in-loop ``__drawings`` → stay nopython.
@@ -7388,6 +7395,8 @@ class CompilerVisitor(NodeVisitor):
         ``set_*`` and ``safe_float(handle)`` soft-fail to na.
         """
         kind = func_name.replace("_new", "").replace("_delete", "")
+        if kind in ("line_fill", "linefill"):
+            kind = "linefill"
         if func_name.endswith("_delete"):
             # Record delete on __drawings so fold_compile_drawing_mutations can
             # drop the target handle (shared identity from *.new).

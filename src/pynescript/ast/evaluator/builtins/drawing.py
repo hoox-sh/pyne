@@ -1335,6 +1335,7 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             "table.set_frame_width": self._handle_table_set_frame_width,
             # Linefill
             "linefill.new": self._handle_linefill_new,
+            "line.fill": self._handle_linefill_new,
             "linefill.delete": self._handle_linefill_delete,
             "linefill.set_color": self._handle_linefill_set_color,
             "linefill.get_line1": self._handle_linefill_get_line1,

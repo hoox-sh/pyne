@@ -652,23 +652,22 @@ class CustomEvaluator(NodeLiteralEvaluator):
             t1 = t1 or self._plot_ref_title(getattr(reg, "plot1", None))
             t2 = t2 or self._plot_ref_title(getattr(reg, "plot2", None))
         color_s = _serialize_color(_unwrap_scalar(color)) if color is not None else None
-        # Exported fill series is all-null (color lives on plot_meta).
-        fill_cell = None
+        # Per-bar color in the fill series (na/None = inactive). Meta.color is fallback.
 
         if self._plot_capture_i < len(self._plot_value_cols):
-            i = self._append_plot_value(fill_cell)
+            i = self._append_plot_value(color_s)
             m = self._plot_meta_list[i]
             if t1 and not m.get("plot1"):
                 m["plot1"] = t1
             if t2 and not m.get("plot2"):
                 m["plot2"] = t2
-            if color_s is not None and m.get("color") is None:
+            if color_s is not None:
                 m["color"] = color_s
             return reg
 
         self._capture_plot(
             "fill",
-            fill_cell,
+            color_s,
             str(title or "") or "fill",
             color_s,
             style="fill",

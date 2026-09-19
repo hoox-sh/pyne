@@ -458,6 +458,35 @@ _PACK_READY_KINDS: frozenset[str] = frozenset(
 )
 
 
+def _fill_edge_series_key(
+    series_map: dict[str, list[Any]],
+    plot_meta: dict[str, dict[str, Any]],
+    ref: Any,
+    used: set[str],
+) -> str | None:
+    """Map a fill plot1/plot2 title to a packed series key (unique after title clash)."""
+    if ref is None:
+        return None
+    name = str(ref).strip()
+    if not name:
+        return None
+    if name in series_map and name not in used:
+        return name
+    for key, meta in plot_meta.items():
+        if key in used:
+            continue
+        if meta.get("title") == name or meta.get("orig_title") == name:
+            if key in series_map:
+                return key
+    prefix = name + "_"
+    for key in series_map:
+        if key in used:
+            continue
+        if key == name or key.startswith(prefix):
+            return key
+    return None
+
+
 def _hline_fill_constant(values: list[Any]) -> list[Any]:
     """Fill hline None gaps with the first known price (in-place when possible)."""
     fill = None
@@ -503,12 +532,16 @@ def _pack_interpret_plot_columns(
         # Capture meta titles are already str (or missing). Avoid str() + intern
         # churn when the same interned title is reused across warm re-runs.
         raw_title = m0.get("title")
+        orig_title: str | None
         if raw_title is None or raw_title == "":
             title = f"plot_{pi}"
+            orig_title = None
         elif type(raw_title) is str:
             title = raw_title
+            orig_title = raw_title
         else:
             title = str(raw_title)
+            orig_title = title
         color = m0.get("color")
         if color is not None and type(color) is not str:
             color = _color_str(color)
@@ -584,11 +617,15 @@ def _pack_interpret_plot_columns(
         if size is not None and size != "":
             meta_entry["size"] = size
             meta_entry["text_size"] = size
+        if orig_title and orig_title != title:
+            meta_entry["orig_title"] = orig_title
         if kind == "fill":
+            used_edges: set[str] = set()
             for ref_key in ("plot1", "plot2"):
-                ref = m0.get(ref_key)
-                if ref is not None and str(ref).strip() != "":
-                    meta_entry[ref_key] = str(ref)
+                key = _fill_edge_series_key(series_map, plot_meta, m0.get(ref_key), used_edges)
+                if key:
+                    meta_entry[ref_key] = key
+                    used_edges.add(key)
         if kind == "hline":
             price_val = next((v for v in values if v is not None), None)
             if price_val is not None:
