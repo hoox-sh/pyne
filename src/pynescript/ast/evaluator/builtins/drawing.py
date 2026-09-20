@@ -2616,6 +2616,12 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             table.frame_width = int(args[1])
 
     def _handle_linefill_new(self, args: list[Any]) -> LineFill:
+        """Fill the region between two lines.
+
+        Signature: linefill.new(line1, line2, color)
+
+        ``line.fill`` is an alias of ``linefill.new``.
+        """
         line1 = args[0] if len(args) > 0 else None
         line2 = args[1] if len(args) > 1 else None
         color = args[2] if len(args) > 2 else "rgba(0,0,0,0)"

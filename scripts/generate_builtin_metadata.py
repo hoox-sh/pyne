@@ -112,6 +112,9 @@ def _generate_snippet(name: str) -> str:
         "price": "${1:price}",
     }
 
+    if name in ("line.fill", "linefill.new"):
+        return f"{name}(${{1:line1}}, ${{2:line2}}, ${{3:color}})"
+
     # Generate snippet with numbered placeholders
     if "." in name:
         snippet = name + "("
@@ -148,6 +151,10 @@ def _count_params(name: str) -> int:
     # Strategy
     if name.startswith("strategy."):
         return 2
+
+    # Drawing fills (line.fill is an alias of linefill.new)
+    if name in ("line.fill", "linefill.new"):
+        return 3
 
     # Others
     return 1

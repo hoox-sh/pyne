@@ -65,6 +65,28 @@ class TestBuiltinMetadata:
         assert info2 is not None
         assert info2["category"] == "strategy"
 
+    def test_line_fill_alias_in_metadata(self) -> None:
+        """``line.fill`` is a runtime alias of ``linefill.new`` and must be in LSP catalog."""
+        info = get_builtin("line.fill")
+        assert info is not None
+        assert info["label"] == "line.fill"
+        assert info["category"] == "line"
+        assert "line1" in info["snippet"]
+        assert "color" in info["documentation"]
+
+    def test_metadata_covers_dispatch_names(self) -> None:
+        """Every BuiltinEvaluator dispatch key must appear in LSP metadata.
+
+        AXIS pre-eval flags unknown ``module.member`` paths against this catalog
+        (e.g. ``line.fill`` → ``line.all`` when the alias is missing).
+        """
+        from pynescript.ast.evaluator.builtins import BuiltinEvaluator
+
+        dispatch = BuiltinEvaluator()._build_builtin_map()
+        metadata = get_metadata()
+        missing = sorted(set(dispatch) - set(metadata))
+        assert missing == [], f"LSP metadata missing dispatch names: {missing}"
+
 
 class TestCompletionList:
     """Test completion list building."""
@@ -120,6 +142,21 @@ class TestCompletionHandler:
         # Source with "ta." at cursor
         result = handle_completion(params, "//@version=5\nta.")
         assert isinstance(result, lsp.CompletionList)
+
+    def test_handle_completion_line_fill(self) -> None:
+        """``line.`` completes ``line.fill`` (alias of linefill.new)."""
+        source = "//@version=6\nindicator('T')\nline."
+        params = lsp.CompletionParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=2, character=5),
+            context=lsp.CompletionContext(
+                trigger_kind=lsp.CompletionTriggerKind.TriggerCharacter,
+                trigger_character=".",
+            ),
+        )
+        result = handle_completion(params, source)
+        labels = [i.label for i in result.items]
+        assert "line.fill" in labels
 
     def test_handle_completion_after_call_open_paren(self) -> None:
         """``plot(ta.`` must complete ``ta`` members, not an empty list."""
@@ -212,6 +249,21 @@ class TestHoverHandler:
         assert result is not None
         assert isinstance(result, lsp.Hover)
         assert isinstance(result.contents, lsp.MarkupContent)
+
+    def test_handle_hover_line_fill(self) -> None:
+        """Hover over ``line.fill`` (alias of linefill.new)."""
+        source = (
+            "//@version=6\nindicator('T')\n"
+            "line.fill(line.new(0, high, 1, low), line.new(0, low, 1, high), color.blue)\n"
+        )
+        params = lsp.HoverParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=2, character=6),  # On "fill"
+        )
+        result = handle_hover(params, source)
+        assert result is not None
+        assert isinstance(result.contents, lsp.MarkupContent)
+        assert "line.fill" in result.contents.value
 
     def test_handle_hover_no_symbol(self) -> None:
         """Test hover where there's no symbol."""

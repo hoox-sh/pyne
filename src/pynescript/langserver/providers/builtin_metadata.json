@@ -2627,6 +2627,15 @@
     "snippet": "line.delete(${1:param1})",
     "category": "line"
   },
+  "line.fill": {
+    "label": "line.fill",
+    "kind": "function",
+    "detail": "line.fill(line1, line2, color)",
+    "brief": "Fill the region between two lines (alias of linefill.new)",
+    "documentation": "line.fill(line1, line2, color)\n\nFill the region between two line objects. Alias of linefill.new(line1, line2, color).",
+    "snippet": "line.fill(${1:line1}, ${2:line2}, ${3:color})",
+    "category": "line"
+  },
   "line.get_price": {
     "label": "line.get_price",
     "kind": "function",
@@ -2846,10 +2855,10 @@
   "linefill.new": {
     "label": "linefill.new",
     "kind": "function",
-    "detail": "linefill.new(...)",
-    "brief": "",
-    "documentation": "",
-    "snippet": "linefill.new(${1:param1})",
+    "detail": "linefill.new(line1, line2, color)",
+    "brief": "Fill the region between two lines",
+    "documentation": "linefill.new(line1, line2, color)\n\nFill the region between two line objects. ``line.fill`` is an alias.",
+    "snippet": "linefill.new(${1:line1}, ${2:line2}, ${3:color})",
     "category": "linefill"
   },
   "linefill.set_color": {
