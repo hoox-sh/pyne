@@ -24,6 +24,7 @@ from __future__ import annotations
 from lsprotocol import types as lsp
 
 from pynescript.langserver.features.completion import handle_completion
+from pynescript.langserver.features.completion import handle_completion_resolve
 from pynescript.langserver.features.convert import handle_code_action
 from pynescript.langserver.features.convert import handle_convert_to_v6
 from pynescript.langserver.features.definitions import handle_definition
@@ -214,6 +215,56 @@ s = Side.
         assert buy.kind == lsp.CompletionItemKind.EnumMember
         assert buy.insert_text == "buy"
 
+    def test_handle_completion_strategy_risk_keeps_nested_path(self) -> None:
+        """``strategy.`` insert text must keep ``risk.`` for nested members."""
+        source = "//@version=6\nindicator('T')\nstrategy."
+        params = lsp.CompletionParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=2, character=9),
+            context=lsp.CompletionContext(
+                trigger_kind=lsp.CompletionTriggerKind.TriggerCharacter,
+                trigger_character=".",
+            ),
+        )
+        result = handle_completion(params, source)
+        item = next(i for i in result.items if i.label == "strategy.risk.max_drawdown")
+        insert = str(item.insert_text)
+        assert insert.startswith("risk.max_drawdown")
+        assert not insert.startswith("max_drawdown")
+        assert not insert.startswith("strategy.")
+
+        nested_source = "//@version=6\nindicator('T')\nstrategy.risk."
+        nested_params = lsp.CompletionParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=2, character=14),
+            context=lsp.CompletionContext(
+                trigger_kind=lsp.CompletionTriggerKind.TriggerCharacter,
+                trigger_character=".",
+            ),
+        )
+        nested = handle_completion(nested_params, nested_source)
+        nested_item = next(i for i in nested.items if i.label == "strategy.risk.max_drawdown")
+        nested_insert = str(nested_item.insert_text)
+        assert nested_insert.startswith("max_drawdown")
+        assert "risk.max_drawdown" not in nested_insert
+
+    def test_completion_resolve_preserves_leaf_insert_text(self) -> None:
+        """Resolve must not restore the fully-qualified snippet after ``ta.``."""
+        source = "//@version=6\nindicator('T')\nplot(ta."
+        params = lsp.CompletionParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=2, character=8),
+            context=lsp.CompletionContext(
+                trigger_kind=lsp.CompletionTriggerKind.TriggerCharacter,
+                trigger_character=".",
+            ),
+        )
+        result = handle_completion(params, source)
+        sma = next(i for i in result.items if i.label == "ta.sma")
+        resolved = handle_completion_resolve(sma)
+        assert resolved.insert_text == sma.insert_text
+        assert not str(resolved.insert_text).startswith("ta.")
+
     def test_handle_completion_user_enum_name(self) -> None:
         """Bare prefix offers the user enum type name."""
         source = """//@version=6
@@ -398,6 +449,49 @@ s = Side.buy
         text = result.contents.value.lower()
         assert "ta" in text
         assert "namespace" in text or "technical" in text
+
+    def test_handle_hover_line_namespace_and_type(self) -> None:
+        """``line.fill`` module prefix is the namespace; bare ``line`` is the type."""
+        dotted = (
+            "//@version=6\nindicator('T')\n"
+            "line.fill(line.new(0, high, 1, low), line.new(0, low, 1, high), color.blue)\n"
+        )
+        ns_params = lsp.HoverParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=2, character=1),  # on "line" in line.fill
+        )
+        ns_hover = handle_hover(ns_params, dotted)
+        assert ns_hover is not None
+        assert isinstance(ns_hover.contents, lsp.MarkupContent)
+        ns_text = ns_hover.contents.value.lower()
+        assert "namespace" in ns_text
+        assert "line.fill" in ns_text or "line.new" in ns_text
+
+        typed = "//@version=6\nindicator('T')\nline l = line.new(0, high, 1, low)\n"
+        type_params = lsp.HoverParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=2, character=1),  # on type ``line``
+        )
+        type_hover = handle_hover(type_params, typed)
+        assert type_hover is not None
+        assert isinstance(type_hover.contents, lsp.MarkupContent)
+        type_text = type_hover.contents.value.lower()
+        assert "type" in type_text
+        assert "namespace" not in type_text
+
+    def test_handle_hover_log_namespace(self) -> None:
+        """Hover on ``log`` in ``log.info`` documents the namespace."""
+        source = '//@version=6\nindicator("T")\nlog.info("hi")\n'
+        params = lsp.HoverParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=2, character=1),  # on "log"
+        )
+        result = handle_hover(params, source)
+        assert result is not None
+        assert isinstance(result.contents, lsp.MarkupContent)
+        text = result.contents.value.lower()
+        assert "namespace" in text
+        assert "log.info" in text or "log" in text
 
     def test_handle_hover_user_function(self) -> None:
         """Hover on a user function shows kind plus the source signature."""

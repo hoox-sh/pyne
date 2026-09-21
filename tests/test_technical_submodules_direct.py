@@ -322,7 +322,10 @@ class TestOscillators:
         assert _Osc._builtin_ta_roc(ev, [_trend(), 9]) == pytest.approx(42.857, abs=0.01)
 
     def test_ao_aroon(self, ev: NodeLiteralEvaluator) -> None:
-        assert _Osc._builtin_ta_ao(ev, []) is None
+        # Linear hl2 = 95+i over 60 bars: SMA5-SMA34 last = 14.5
+        assert _Osc._builtin_ta_ao(ev, []) == pytest.approx(14.5)
+        empty = NodeLiteralEvaluator()
+        assert _Osc._builtin_ta_ao(empty, []) is None
         up, down = _Osc._builtin_ta_aroon(ev, [14])
         assert (up, down) == (pytest.approx(0.0), pytest.approx(100.0))
 

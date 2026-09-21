@@ -21,6 +21,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from backend.alert_forwarder import build_alert_payload
 from backend.alert_forwarder import filter_alerts_for_bar
 from backend.alert_forwarder import forward_alerts
@@ -46,6 +48,64 @@ def test_normalize_webhook_url_blocks_ssrf_targets() -> None:
     assert normalize_webhook_url("http://169.254.169.254/latest/meta-data/") is None
     assert normalize_webhook_url("http://metadata.google.internal/") is None
     assert is_webhook_url_safe("https://hooks.example.com/x") is True
+
+
+def test_normalize_webhook_url_blocks_mapped_and_decimal_loopback() -> None:
+    """IPv4-mapped IPv6 and decimal IPv4 must not bypass the private-host check."""
+    assert normalize_webhook_url("http://[::ffff:127.0.0.1]/hook") is None
+    assert normalize_webhook_url("http://[::ffff:169.254.169.254]/latest/meta-data/") is None
+    assert normalize_webhook_url("http://[::ffff:10.0.0.5]/hook") is None
+    assert normalize_webhook_url("http://2130706433/hook") is None  # 127.0.0.1
+
+
+def test_http_post_json_rejects_blocked_url() -> None:
+    from backend.alert_forwarder import http_post_json
+
+    with pytest.raises(ValueError, match="blocked"):
+        http_post_json("http://127.0.0.1/hook", {"a": 1})
+
+
+def test_http_post_json_does_not_follow_redirect(monkeypatch) -> None:
+    """Public-looking 302 must not be followed (SSRF via Location)."""
+    import threading
+
+    from http.server import BaseHTTPRequestHandler
+    from http.server import HTTPServer
+
+    from backend.alert_forwarder import http_post_json
+
+    hits: list[str] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, fmt: str, *args: object) -> None:
+            return
+
+        def do_POST(self) -> None:
+            hits.append(self.path)
+            length = int(self.headers.get("Content-Length") or 0)
+            if length:
+                self.rfile.read(length)
+            if self.path == "/hook":
+                self.send_response(302)
+                self.send_header("Location", "/private")
+                self.end_headers()
+                return
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"ok")
+
+    httpd = HTTPServer(("127.0.0.1", 0), Handler)
+    port = int(httpd.server_address[1])
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        monkeypatch.setenv("ALERT_WEBHOOK_ALLOW_PRIVATE", "1")
+        status = http_post_json(f"http://127.0.0.1:{port}/hook", {"x": 1})
+        assert status == 302
+        assert hits == ["/hook"]
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
 
 
 def test_normalize_webhook_url_allow_private_env(monkeypatch) -> None:

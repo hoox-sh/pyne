@@ -155,6 +155,8 @@ _TR_RE = re.compile(r"\btr\b")
 _TIME_CLOSE_RE = re.compile(r"\btime_close\b")
 # ta.vwap() / vwap with no source defaults to hlc3 (name may be absent).
 _VWAP_RE = re.compile(r"\b(?:ta\.)?vwap\b")
+# ta.ao / bare v4 ao is SMA(hl2,5)-SMA(hl2,34); identifier hl2 is often absent.
+_AO_RE = re.compile(r"\b(?:ta\.)?ao\b")
 # input.source dropdown can pick hl2/hlc3/ohlc4/tr even when those ids are absent.
 _INPUT_SOURCE_RE = re.compile(r"\binput\.source\b")
 # Strategy snapshot / drain only when the script actually uses the broker.
@@ -1747,7 +1749,7 @@ class InterpretSession:
                 pass
 
         need_src_input = bool(_INPUT_SOURCE_RE.search(source_code))
-        self._need_hl2 = need_src_input or bool(_HL2_RE.search(source_code))
+        self._need_hl2 = need_src_input or bool(_HL2_RE.search(source_code)) or bool(_AO_RE.search(source_code))
         self._need_hlc3 = need_src_input or bool(_HLC3_RE.search(source_code)) or bool(_VWAP_RE.search(source_code))
         self._need_ohlc4 = need_src_input or bool(_OHLC4_RE.search(source_code))
         self._need_tr = need_src_input or bool(_TR_RE.search(source_code))
@@ -2966,7 +2968,7 @@ class Runtime:
                 break
         # input.source can pick derived names that never appear as identifiers.
         need_src_input = bool(_INPUT_SOURCE_RE.search(source_code))
-        need_hl2 = need_src_input or bool(_HL2_RE.search(source_code))
+        need_hl2 = need_src_input or bool(_HL2_RE.search(source_code)) or bool(_AO_RE.search(source_code))
         need_hlc3 = need_src_input or bool(_HLC3_RE.search(source_code)) or bool(_VWAP_RE.search(source_code))
         need_ohlc4 = need_src_input or bool(_OHLC4_RE.search(source_code))
         need_tr = need_src_input or bool(_TR_RE.search(source_code))

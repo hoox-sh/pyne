@@ -221,6 +221,27 @@ def test_run_rejects_ssrf_webhook(client, monkeypatch) -> None:
     assert resp.json["code"] == "WEBHOOK_URL_BLOCKED"
 
 
+def test_run_batch_rejects_ssrf_webhook(client, monkeypatch) -> None:
+    """POST /run/batch matches /run: blocked webhook_url is 400, not silent skip."""
+    monkeypatch.delenv("ALERT_WEBHOOK_ALLOW_PRIVATE", raising=False)
+    bars = [
+        {"open": 1, "high": 1, "low": 1, "close": 1, "time": 1, "volume": 1},
+        {"open": 1, "high": 1, "low": 1, "close": 1, "time": 2, "volume": 1},
+    ]
+    script = '//@version=5\nindicator("t")\nplot(close)\n'
+    resp = client.post(
+        "/run/batch",
+        json={
+            "scripts": [{"id": "a", "script": script}],
+            "data": bars,
+            "mode": "interpret",
+            "webhook_url": "http://127.0.0.1/hook",
+        },
+    )
+    assert resp.status_code == 400
+    assert resp.json["code"] == "WEBHOOK_URL_BLOCKED"
+
+
 def test_run_rejects_too_many_bars(client, monkeypatch) -> None:
     monkeypatch.setenv("FREE_TIER_LIMITS", "1")
     monkeypatch.setenv("FREE_MAX_BARS", "3")

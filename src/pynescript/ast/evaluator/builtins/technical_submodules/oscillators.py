@@ -57,6 +57,13 @@ class OscillatorIndicators(TechnicalHelpers):
         """
         if len(args) == UNARY and self._is_period_like(args[0]):
             length = self._expect_int(args[0], "ta.stoch length must be an integer")
+            if self._use_incremental_ta():
+                return self._stoch_k(
+                    self._context_source("close"),
+                    self._context_source("high"),
+                    self._context_source("low"),
+                    length,
+                )
             source = self._context_series("close")
             highs = self._context_series("high")
             lows = self._context_series("low")
@@ -72,6 +79,13 @@ class OscillatorIndicators(TechnicalHelpers):
         # Two-arg community form sometimes used as (kLength, dPeriod) — return %K only
         if len(args) == BINARY and self._is_period_like(args[0]) and self._is_period_like(args[1]):
             length = self._expect_int(args[0], "ta.stoch length must be an integer")
+            if self._use_incremental_ta():
+                return self._stoch_k(
+                    self._context_source("close"),
+                    self._context_source("high"),
+                    self._context_source("low"),
+                    length,
+                )
             source = self._context_series("close")
             highs = self._context_series("high")
             lows = self._context_series("low")
@@ -158,16 +172,20 @@ class OscillatorIndicators(TechnicalHelpers):
         """
         if len(args) == UNARY and self._is_period_like(args[0]):
             period = self._expect_int(args[0], "ta.cci length must be int")
+            if self._use_incremental_ta():
+                highs = self._context_source("high")
+                lows = self._context_source("low")
+                closes = self._context_source("close")
+                if highs and lows and closes:
+                    return self._cci_inc_update(highs, lows, closes, period)
+                series = self._context_source("hlc3") or closes
+                return self._cci_inc_update(series, series, series, period)
             highs = self._context_series("high")
             lows = self._context_series("low")
             closes = self._context_series("close")
             if highs and lows and closes:
-                if self._use_incremental_ta():
-                    return self._cci_inc_update(highs, lows, closes, period)
                 return self._cci(highs, lows, closes, period)
             series = self._context_series("hlc3") or closes
-            if self._use_incremental_ta():
-                return self._cci_inc_update(series, series, series, period)
             return self._cci(series, series, series, period)
         if len(args) == BINARY:
             series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
@@ -197,11 +215,16 @@ class OscillatorIndicators(TechnicalHelpers):
         """Williams %R. reference Pine: ``ta.wpr(length)`` or legacy 4-arg form."""
         if len(args) == UNARY and self._is_period_like(args[0]):
             length = self._expect_int(args[0], "ta.wpr length must be int")
+            if self._use_incremental_ta():
+                return self._wpr_inc_update(
+                    self._context_source("high"),
+                    self._context_source("low"),
+                    self._context_source("close"),
+                    length,
+                )
             highs = self._context_series("high")
             lows = self._context_series("low")
             closes = self._context_series("close")
-            if self._use_incremental_ta():
-                return self._wpr_inc_update(highs, lows, closes, length)
             return self._wpr(highs, lows, closes, length)
         msg = "ta.wpr expects length (or high, low, close, length)"
         if len(args) != QUATERNARY:
@@ -225,23 +248,35 @@ class OscillatorIndicators(TechnicalHelpers):
             fast = self._expect_int(args[0], "ta.ao fast must be int")
         if len(args) >= 2 and self._is_period_like(args[1]):
             slow = self._expect_int(args[1], "ta.ao slow must be int")
-        hl2 = self._context_series("hl2")
-        if not hl2:
-            highs = self._context_series("high")
-            lows = self._context_series("low")
-            n = min(len(highs), len(lows)) if highs and lows else 0
-            hl2 = [(float(highs[i]) + float(lows[i])) / 2.0 for i in range(n)] if n else []
         if slow <= 0 or fast <= 0:
             return None
         if self._use_incremental_ta():
-            # Two independent SMA call sites (separate slots)
+            # Last-sample only — do not rebuild hl2 from high/low every bar.
+            hl2 = self._context_source("hl2")
+            if not hl2:
+                high_s = self._series_last(self._context_source("high"))
+                low_s = self._series_last(self._context_source("low"))
+                if high_s is None or low_s is None:
+                    return None
+                try:
+                    hl2 = (float(high_s) + float(low_s)) * 0.5
+                except (TypeError, ValueError):
+                    return None
             fast_v = self._sma_inc_update(hl2, fast)
             slow_v = self._sma_inc_update(hl2, slow)
-        elif len(hl2) < slow:
-            return None
         else:
-            fast_v = self._sma(hl2, fast)
-            slow_v = self._sma(hl2, slow)
+            hl2 = self._context_series("hl2")
+            if not hl2:
+                highs = self._context_series("high")
+                lows = self._context_series("low")
+                n = min(len(highs), len(lows)) if highs and lows else 0
+                hl2 = [(float(highs[i]) + float(lows[i])) / 2.0 for i in range(n)] if n else []
+            if len(hl2) < slow:
+                return None
+            fast_s = self._sma(hl2, fast)
+            slow_s = self._sma(hl2, slow)
+            fast_v = fast_s[-1] if fast_s else None
+            slow_v = slow_s[-1] if slow_s else None
         if fast_v is None or slow_v is None:
             return None
         try:

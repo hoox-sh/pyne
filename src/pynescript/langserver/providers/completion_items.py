@@ -134,24 +134,26 @@ def build_completion_list(prefix: str = "", include_categories: bool = True) -> 
     )
 
 
-def build_completion_item(info: dict, *, insert_leaf: bool = False) -> lsp.CompletionItem:
+def build_completion_item(info: dict, *, insert_leaf: bool = False, module: str = "") -> lsp.CompletionItem:
     """Build a single CompletionItem from metadata.
 
-    Results are memoized per ``(label, insert_leaf)`` — items are immutable
-    output of the (static) metadata, so rebuilding them per keystroke is
-    pure waste. A returned item must not be mutated by callers.
+    Results are memoized per ``(label, insert_leaf, module)`` — items are
+    immutable output of the (static) metadata, so rebuilding them per
+    keystroke is pure waste. A returned item must not be mutated by callers.
 
     Args:
         info: Metadata dict from builtin_metadata.
-        insert_leaf: When True, insert only the name after the last ``.``
-            (used after a module trigger so ``ta.`` + ``sma`` does not become
-            ``ta.ta.sma``).
+        insert_leaf: When True, insert only the name after *module* (used
+            after a module trigger so ``ta.`` + ``sma`` does not become
+            ``ta.ta.sma``). Nested paths keep intermediate segments
+            (``strategy.`` + ``risk.max_drawdown``).
+        module: Prefix being completed (``ta``, ``strategy``, ``strategy.risk``).
 
     Returns:
         LSP CompletionItem.
     """
     label = info.get("label", "")
-    cache_key = (label, insert_leaf)
+    cache_key = (label, insert_leaf, module)
     cached = _ITEM_CACHE.get(cache_key)
     if cached is not None:
         return cached
@@ -170,9 +172,15 @@ def build_completion_item(info: dict, *, insert_leaf: bool = False) -> lsp.Compl
         insert_text = label
 
     if insert_leaf and "." in label:
-        leaf = label.rsplit(".", 1)[-1]
+        prefix = f"{module}." if module else ""
+        if prefix and label.startswith(prefix):
+            leaf = label[len(prefix) :]
+        else:
+            leaf = label.rsplit(".", 1)[-1]
         if insert_text.startswith(label):
             insert_text = leaf + insert_text[len(label) :]
+        elif prefix and insert_text.startswith(prefix):
+            insert_text = insert_text[len(prefix) :]
         elif "." in insert_text:
             insert_text = insert_text.rsplit(".", 1)[-1]
 
@@ -219,7 +227,7 @@ def build_module_completion(module: str, member_prefix: str = "") -> lsp.Complet
 
     completion_items = []
     for info in items:
-        completion_items.append(build_completion_item(info, insert_leaf=True))
+        completion_items.append(build_completion_item(info, insert_leaf=True, module=module))
 
     return lsp.CompletionList(
         is_incomplete=False,
@@ -249,9 +257,9 @@ def build_keyword_items(prefix: str = "") -> list[lsp.CompletionItem]:
     return items
 
 
-# Memoized CompletionItems (label, insert_leaf) → item. Bounded by the
+# Memoized CompletionItems (label, insert_leaf, module) → item. Bounded by the
 # metadata size in practice; cleared if it ever overflows.
-_ITEM_CACHE: dict[tuple[str, bool], lsp.CompletionItem] = {}
+_ITEM_CACHE: dict[tuple[str, bool, str], lsp.CompletionItem] = {}
 
 _ENUM_HEADER = re.compile(r"^[ \t]*(?:export[ \t]+)?enum[ \t]+([A-Za-z_][A-Za-z0-9_]*)")
 _ENUM_MEMBER = re.compile(r"^[ \t]+([A-Za-z_][A-Za-z0-9_]*)(?:[ \t]*=[ \t]*([^\n \t]+?))?[ \t]*$")

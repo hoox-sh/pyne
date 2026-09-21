@@ -1540,7 +1540,7 @@ plot(ta.linreg(close, 14, 0))
 class _FakePineSeries:
     """Newest-first history duck-type matching backend.series.PineSeries."""
 
-    __slots__ = ("history", "current")
+    __slots__ = ("current", "history")
 
     def __init__(self) -> None:
         self.history: list[float | None] = []
@@ -1592,7 +1592,7 @@ def test_builtin_sma_via_pineseries_matches_list_inc() -> None:
     ev = _IncTA()
     ps = _FakePineSeries()
     got: list[float | None] = []
-    for i, c in enumerate(closes):
+    for c in closes:
         ps.update(c)
         ev._ta_call_i = 0
         # Builtin path: last_sample_ok → raw PineSeries into _sma_inc_update
@@ -3689,3 +3689,89 @@ plot(dc.mid, "dc_m")
     assert "kst" in kinds, bucket.keys()
     assert any(key[0] == "dpo" and key[2] == 21 for key in bucket)
     assert any(key[0] == "kst" and key[2] == (10, 15, 20, 30) for key in bucket)
+
+
+# ---------------------------------------------------------------------------
+# Last-sample period-only oscillators (stoch/cci/wpr/ao) — no per-bar hl2 rebuild
+# ---------------------------------------------------------------------------
+
+
+def test_incremental_ao_last_sample_without_hl2_list() -> None:
+    """Inc ``ta.ao`` from high/low last samples ≡ full SMA(hl2,5)-SMA(hl2,34)."""
+    highs, lows, _closes = _ohlc(80)
+    hl2 = [(float(highs[i]) + float(lows[i])) * 0.5 for i in range(len(highs))]
+    full = _FullTA()
+    expected: list[float | None] = []
+    for i in range(len(hl2)):
+        window = hl2[: i + 1]
+        if len(window) < 34:
+            expected.append(None)
+            continue
+        fast_s = full._sma(window, 5)
+        slow_s = full._sma(window, 34)
+        fv = fast_s[-1] if fast_s else None
+        sv = slow_s[-1] if slow_s else None
+        if fv is None or sv is None:
+            expected.append(None)
+        else:
+            expected.append(float(fv) - float(sv))
+
+    ev = _IncTA()
+    got: list[float | None] = []
+    for i in range(len(highs)):
+        ev._ta_call_i = 0
+        # No hl2 series — last-sample path must derive (h+l)/2 per bar.
+        ev.current_series = {"high": highs[: i + 1], "low": lows[: i + 1], "hl2": []}
+        got.append(ev._builtin_ta_ao([]))
+    _assert_series_close(got, expected)
+
+
+def test_runtime_ao_stoch_cci_wpr_period_only_vs_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Period-only oscillators: last-sample inc ≡ PYNE_TA_INCREMENTAL=0.
+
+    Source does not mention ``hl2`` so host used to skip derived hl2 and
+    ``ta.ao`` rebuilt the full (high+low)/2 list every bar.
+    """
+    from backend.runtime import Runtime
+
+    try:
+        from pynescript.ast.helper import clear_parse_cache
+    except ImportError:  # pragma: no cover
+
+        def clear_parse_cache() -> None:
+            return None
+
+    bars = _ohlcv_bars(80)
+    src = """//@version=5
+indicator("ao stoch cci wpr")
+plot(ta.ao(), "ao")
+plot(ta.stoch(14), "stoch")
+plot(ta.cci(14), "cci")
+plot(ta.wpr(14), "wpr")
+"""
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    clear_parse_cache()
+    r_on = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_on, r_on.get("error")
+    monkeypatch.setenv("PYNE_TA_INCREMENTAL", "0")
+    clear_parse_cache()
+    r_off = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_off, r_off.get("error")
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    clear_parse_cache()
+
+    expected_plots = {"ao", "stoch", "cci", "wpr"}
+    assert expected_plots <= set(r_on["series"]), r_on["series"].keys()
+    assert set(r_on["series"]) == set(r_off["series"])
+    # AO must actually compute (not stay all-na) after slow SMA warmup.
+    ao = r_on["series"]["ao"]
+    assert any(v is not None and not (isinstance(v, float) and math.isnan(v)) for v in ao[33:])
+    for key in r_on["series"]:
+        for i, (a, b) in enumerate(zip(r_on["series"][key], r_off["series"][key], strict=True)):
+            a_na = a is None or (isinstance(a, float) and math.isnan(a))
+            b_na = b is None or (isinstance(b, float) and math.isnan(b))
+            if a_na and b_na:
+                continue
+            assert not a_na, f"{key} bar {i}: incremental na, disabled={b}"
+            assert not b_na, f"{key} bar {i}: disabled na, incremental={a}"
+            assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"

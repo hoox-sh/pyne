@@ -49,6 +49,15 @@ _TYPE_DOCS: dict[str, str] = {
     "bool": "Built-in type. Boolean value (`true` or `false`).",
     "string": "Built-in type. Text value.",
     "color": "Built-in type. RGBA color value.",
+    "array": "Built-in type. Ordered collection (`array.new<type>()`, `array.get`).",
+    "matrix": "Built-in type. Two-dimensional collection (`matrix.new<type>()`).",
+    "map": "Built-in type. Key/value collection (`map.new<key, value>()`).",
+    "line": "Built-in type. Drawing line object (`line.new`).",
+    "linefill": "Built-in type. Fill between two lines (`linefill.new`, `line.fill`).",
+    "label": "Built-in type. Drawing label object (`label.new`).",
+    "box": "Built-in type. Drawing box object (`box.new`).",
+    "table": "Built-in type. Drawing table object (`table.new`).",
+    "polyline": "Built-in type. Multi-point drawing object (`polyline.new`).",
 }
 
 _QUALIFIER_DOCS: dict[str, str] = {
@@ -64,10 +73,28 @@ _QUALIFIER_DOCS: dict[str, str] = {
 _NAMESPACE_DOCS: dict[str, str] = {
     "ta": "Namespace. Technical-analysis functions (`ta.sma`, `ta.ema`, `ta.rsi`, …).",
     "math": "Namespace. Mathematical functions (`math.abs`, `math.max`, `math.log`, …).",
+    "str": "Namespace. String helpers (`str.tostring`, `str.format`, …).",
     "strategy": "Namespace. Strategy orders, positions, and properties.",
     "input": "Namespace. Script input widgets (`input.int`, `input.float`, …).",
     "request": "Namespace. Data requests from other contexts (`request.security`, …).",
     "color": "Namespace. Color constants and helpers (`color.new`, `color.rgb`, `color.red`, …).",
+    "array": "Namespace. Array helpers (`array.new`, `array.get`, `array.push`, …).",
+    "matrix": "Namespace. Matrix helpers (`matrix.new`, `matrix.get`, …).",
+    "map": "Namespace. Map helpers (`map.new`, `map.get`, `map.put`, …).",
+    "line": "Namespace. Line drawings (`line.new`, `line.fill`, `line.set_xy1`, …).",
+    "linefill": "Namespace. Fill between two lines (`linefill.new`, `linefill.delete`, …).",
+    "label": "Namespace. Label drawings (`label.new`, `label.set_text`, …).",
+    "box": "Namespace. Box drawings (`box.new`, `box.set_bgcolor`, …).",
+    "table": "Namespace. Table drawings (`table.new`, `table.cell`, …).",
+    "polyline": "Namespace. Polyline drawings (`polyline.new`, `polyline.delete`, …).",
+    "ticker": "Namespace. Ticker constructors (`ticker.new`, `ticker.heikinashi`, …).",
+    "timeframe": "Namespace. Timeframe helpers (`timeframe.period`, `timeframe.change`, …).",
+    "chart": "Namespace. Chart context (`chart.bg_color`, `chart.point`, …).",
+    "log": "Namespace. Script log helpers (`log.info`, `log.warning`, `log.error`).",
+    "alert": "Namespace. Alert helpers (`alert()`, `alertcondition`, frequency constants).",
+    "syminfo": "Namespace. Symbol metadata (`syminfo.ticker`, `syminfo.tickerid`, …).",
+    "barstate": "Namespace. Bar-state flags (`barstate.islast`, `barstate.ishistory`, …).",
+    "session": "Namespace. Session helpers (`session.ismarket`, `session.regular`, …).",
 }
 
 _SNIPPET_PLACEHOLDER = re.compile(r"\$\{(\d+):([^}]+)\}|\$\{(\d+)\}|\$(\d+)")
@@ -105,9 +132,7 @@ def handle_hover(
         return None
 
     line_text = lines[position.line]
-    segment, seg_start, seg_end, word = get_identifier_segment_at_position(
-        source, position.line, position.character
-    )
+    segment, seg_start, seg_end, word = get_identifier_segment_at_position(source, position.line, position.character)
     if not word:
         return None
 
@@ -167,9 +192,10 @@ def _hover_namespace(
         return None
     dotted = word.startswith(segment + ".") or (end < len(line_text) and line_text[end] == ".")
     if not dotted:
-        # Bare `ta` / `math` still document the module; `strategy(` / `input(` /
-        # `color(` are declaration or constructor builtins.
-        if _followed_by_paren(line_text, end) or segment in ("strategy", "input", "color"):
+        # Bare `ta` / `math` still document the module. Types that share a
+        # name (`line`, `array`, `color`) and callables (`strategy(`, `input(`)
+        # fall through to type / builtin hover.
+        if _followed_by_paren(line_text, end) or segment in _TYPE_DOCS or segment in ("strategy", "input"):
             return None
     return _markdown_hover(segment, brief, line, start, end)
 

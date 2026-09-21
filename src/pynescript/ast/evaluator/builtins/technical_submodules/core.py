@@ -3308,15 +3308,9 @@ class TechnicalHelpers:
         """
         if isinstance(value, list):
             return self._cap_series_list(value)
-        # ChronoTailView (oldest-first Sequence, no .history)
-        if isinstance(value, Sequence) and not isinstance(value, (str, bytes)) and getattr(
-            value, "history", None
-        ) is None:
-            try:
-                return self._cap_series_list(list(value))
-            except TypeError:
-                pass
-        # Duck-type PineSeries: newest-first history (deque or list)
+        # Duck-type PineSeries first (dominant Runtime arg). Checking
+        # ``history`` before ``isinstance(..., Sequence)`` skips the ABC
+        # cache on every full-recompute materialization.
         hist = getattr(value, "history", None)
         if hist is not None:
             try:
@@ -3357,6 +3351,12 @@ class TechnicalHelpers:
                     raw = [hist[i] for i in range(take - 1, -1, -1)]
                 cache[key] = (n, head, head2, take, raw)
                 return raw
+        # ChronoTailView (oldest-first Sequence, no .history)
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+            try:
+                return self._cap_series_list(list(value))
+            except TypeError:
+                pass
         # Named series reference — look up from the pre-loaded dict
         series_map = getattr(self, "current_series", None) or {}
         if isinstance(value, str):

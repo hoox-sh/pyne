@@ -202,6 +202,26 @@ plot(hma(close, 9))
     parse(out)
 
 
+def test_does_not_prefix_request_udf_defs_on_v5() -> None:
+    """v5 ``security(...) =>`` must stay a user def, not ``request.security(...) =>``."""
+    src = """//@version=5
+indicator("x")
+security(sym, tf, expr) => close
+financial(sym, id, period) => 0.0
+plot(security(syminfo.tickerid, "D", close))
+"""
+    out = convert_to_v6(src)
+    assert "security(sym, tf, expr) =>" in out
+    assert "financial(sym, id, period) =>" in out
+    assert "request.security(...) =>" not in out
+    assert "request.financial(...) =>" not in out
+    assert "request.security(" in out
+    parse(out)
+    v5_out = convert_v5_to_v6(src)
+    assert "security(sym, tf, expr) =>" in v5_out
+    parse(v5_out)
+
+
 def test_v6_is_idempotent() -> None:
     src = """//@version=6
 indicator("x")

@@ -110,6 +110,80 @@ class TestHealth:
 
         assert re.match(PRODUCT_ORIGIN_RE, "https://evil.pages.dev") is None
 
+    def test_oversized_body_json_413(self, client: FlaskClient):
+        """Bodies over MAX_CONTENT_LENGTH return JSON, not Werkzeug HTML."""
+        resp = client.post(
+            "/run",
+            data=b"x" * (6 * 1024 * 1024),
+            content_type="application/json",
+        )
+        assert resp.status_code == 413
+        body = resp.get_json()
+        assert body is not None
+        assert body["status"] == "error"
+        assert body["code"] == "PAYLOAD_TOO_LARGE"
+        assert "5 MB" in body["message"]
+
+
+class TestGitOAuth:
+    def test_start_requires_client_id(self, client: FlaskClient, monkeypatch):
+        monkeypatch.delenv("GITHUB_OAUTH_CLIENT_ID", raising=False)
+        monkeypatch.delenv("GITLAB_OAUTH_CLIENT_ID", raising=False)
+        resp = client.post("/api/git/oauth/device/start", json={"provider": "github"})
+        assert resp.status_code == 400
+        assert resp.json["code"] == "NO_CLIENT_ID"
+
+    def test_poll_requires_device_code(self, client: FlaskClient, monkeypatch):
+        monkeypatch.setenv("GITHUB_OAUTH_CLIENT_ID", "client-from-env")
+        resp = client.post("/api/git/oauth/device/poll", json={"provider": "github"})
+        assert resp.status_code == 400
+        assert resp.json["code"] == "BAD_REQUEST"
+
+    def test_start_rewrites_foreign_verification_uri(self, client: FlaskClient, monkeypatch):
+        """Upstream Location-style URIs must stay on github.com / gitlab.com."""
+
+        def fake_post(url: str, params: dict[str, str]):
+            return 200, {
+                "device_code": "dev-1",
+                "user_code": "ABCD-1234",
+                "verification_uri": "https://evil.example/phish",
+                "verification_uri_complete": "http://github.com.evil/login",
+                "expires_in": 900,
+                "interval": 5,
+            }
+
+        monkeypatch.setattr("backend.api.git_oauth._post_form", fake_post)
+        resp = client.post(
+            "/api/git/oauth/device/start",
+            json={"provider": "github", "clientId": "iv1.public"},
+        )
+        assert resp.status_code == 200, resp.json
+        body = resp.json
+        assert body["status"] == "success"
+        assert body["verification_uri"] == "https://github.com/login/device"
+        assert body["verification_uri_complete"] is None
+        assert body["user_code"] == "ABCD-1234"
+
+    def test_start_keeps_github_verification_uri(self, client: FlaskClient, monkeypatch):
+        def fake_post(url: str, params: dict[str, str]):
+            return 200, {
+                "device_code": "dev-2",
+                "user_code": "WXYZ-9999",
+                "verification_uri": "https://github.com/login/device",
+                "verification_uri_complete": "https://github.com/login/device?user_code=WXYZ-9999",
+                "expires_in": 900,
+                "interval": 5,
+            }
+
+        monkeypatch.setattr("backend.api.git_oauth._post_form", fake_post)
+        resp = client.post(
+            "/api/git/oauth/device/start",
+            json={"provider": "github", "clientId": "iv1.public"},
+        )
+        assert resp.status_code == 200, resp.json
+        assert resp.json["verification_uri"] == "https://github.com/login/device"
+        assert resp.json["verification_uri_complete"].startswith("https://github.com/login/device")
+
 
 class TestAuth:
     def test_create_key(self, client: FlaskClient):
@@ -968,10 +1042,7 @@ class TestOptimizeEndpoint:
         resp = client.post(
             "/optimize",
             json={
-                "script": (
-                    '//@version=6\nstrategy("s")\n'
-                    'n = input.int(5, "N", minval=2, maxval=10)\n'
-                ),
+                "script": ('//@version=6\nstrategy("s")\nn = input.int(5, "N", minval=2, maxval=10)\n'),
                 "data": bars,
                 "space": {"params": [{"name": "N", "kind": "int", "min": 2, "max": 6}]},
                 "n_trials": 1,
@@ -986,10 +1057,7 @@ class TestOptimizeEndpoint:
         resp = client.post(
             "/optimize",
             json={
-                "script": (
-                    '//@version=6\nstrategy("s")\n'
-                    'n = input.int(5, "N", minval=2, maxval=10)\n'
-                ),
+                "script": ('//@version=6\nstrategy("s")\nn = input.int(5, "N", minval=2, maxval=10)\n'),
                 "data": [
                     {
                         "time": 1,

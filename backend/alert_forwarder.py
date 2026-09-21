@@ -99,6 +99,7 @@ def _forward_logged(
     except Exception:  # noqa: BLE001 — background task; log only
         logger.exception("async alert forward failed: %s", url)
 
+
 # Hostnames blocked even when they resolve to public IPs (defense in depth).
 _BLOCKED_WEBHOOK_HOSTS = frozenset(
     {
@@ -150,6 +151,24 @@ def _resolve_dns_blocked(host: str) -> bool:
     return blocked
 
 
+def _ip_is_blocked(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """True when *ip* is not a public unicast address.
+
+    Unwraps IPv4-mapped / 6to4 so ``::ffff:127.0.0.1`` is treated as loopback.
+    """
+    if isinstance(ip, ipaddress.IPv6Address):
+        mapped = ip.ipv4_mapped
+        if mapped is not None:
+            ip = mapped
+        else:
+            sixtofour = ip.sixtofour
+            if sixtofour is not None:
+                ip = sixtofour
+    return bool(
+        ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified
+    )
+
+
 def _dns_resolve_blocked_uncached(host: str) -> bool:
     try:
         infos = socket.getaddrinfo(host, None)
@@ -161,16 +180,23 @@ def _dns_resolve_blocked_uncached(host: str) -> bool:
             ip = ipaddress.ip_address(addr)
         except ValueError:
             continue
-        if (
-            ip.is_private
-            or ip.is_loopback
-            or ip.is_link_local
-            or ip.is_reserved
-            or ip.is_multicast
-            or ip.is_unspecified
-        ):
+        if _ip_is_blocked(ip):
             return True
     return False
+
+
+def _parse_literal_ip(host: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
+    """Parse a hostname that is itself an IP (dotted, IPv6, or decimal IPv4)."""
+    try:
+        return ipaddress.ip_address(host)
+    except ValueError:
+        pass
+    if not host.isdigit():
+        return None
+    try:
+        return ipaddress.IPv4Address(int(host))
+    except (ValueError, OverflowError):
+        return None
 
 
 def _host_is_blocked(hostname: str) -> bool:
@@ -183,21 +209,9 @@ def _host_is_blocked(hostname: str) -> bool:
     # Strip brackets from IPv6 literals
     if host.startswith("[") and host.endswith("]"):
         host = host[1:-1]
-    # Literal IP?
-    try:
-        ip = ipaddress.ip_address(host)
-        if _allow_private_webhooks():
-            return False
-        return bool(
-            ip.is_private
-            or ip.is_loopback
-            or ip.is_link_local
-            or ip.is_reserved
-            or ip.is_multicast
-            or ip.is_unspecified
-        )
-    except ValueError:
-        pass
+    ip = _parse_literal_ip(host)
+    if ip is not None:
+        return False if _allow_private_webhooks() else _ip_is_blocked(ip)
     if _allow_private_webhooks():
         return False
     # Resolve DNS and reject if any address is non-public.
@@ -300,8 +314,25 @@ def build_alert_payload(alert: dict[str, Any], *, symbol: str | None = None) -> 
     return payload
 
 
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Refuse 30x so a public hook cannot bounce into RFC1918 / metadata."""
+
+    def redirect_request(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        return None
+
+
+_NO_REDIRECT_OPENER = urllib.request.build_opener(_NoRedirectHandler)
+
+
 def http_post_json(url: str, body: dict[str, Any], *, timeout: float = 10.0) -> int:
-    """POST JSON via urllib; returns HTTP status code."""
+    """POST JSON via urllib; returns HTTP status code.
+
+    Does not follow redirects (SSRF: public URL → 302 → loopback/metadata).
+    Re-checks :func:`is_webhook_url_safe` at POST time (DNS rebinding).
+    """
+    if not is_webhook_url_safe(url):
+        msg = "blocked webhook url"
+        raise ValueError(msg)
     data = json.dumps(body).encode("utf-8")
     req = urllib.request.Request(
         url,
@@ -314,7 +345,7 @@ def http_post_json(url: str, body: dict[str, Any], *, timeout: float = 10.0) -> 
         },
     )
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with _NO_REDIRECT_OPENER.open(req, timeout=timeout) as resp:
             return int(getattr(resp, "status", 200) or 200)
     except urllib.error.HTTPError as e:
         return int(e.code)

@@ -543,7 +543,11 @@ def convert_v3_to_v4(source: str) -> str:
 
 
 def _unprefix_udf_defs(source: str) -> str:
-    """Keep user ``name(...) =>`` definitions from becoming ``ta.name(...) =>``."""
+    """Keep user ``name(...) =>`` definitions from becoming ``ta.name(...) =>``.
+
+    Also covers v5 leftovers: ``security(...) =>`` must not become
+    ``request.security(...) =>`` (same class as the 0.6.5 UDF-name fix).
+    """
     pat = re.compile(r"(?<![\w.])(ta|math|ticker|str|request)\.(\w+)\s*\(")
     out: list[str] = []
     i = 0
@@ -606,14 +610,16 @@ def convert_v4_to_v5(source: str) -> str:
     return _rewrite_typed_input(text)
 
 
+def _convert_v5_to_v6_span(span: str) -> str:
+    span = _STUDY_RE.sub("indicator(", span)
+    return _BARE_REQUEST_RE.sub(r"request.\1(", span)
+
+
 def convert_v5_to_v6(source: str) -> str:
     """Rewrite v5 (or v4 leftovers) toward v6 namespaces and ``indicator()``."""
-
-    def code(span: str) -> str:
-        span = _STUDY_RE.sub("indicator(", span)
-        return _BARE_REQUEST_RE.sub(r"request.\1(", span)
-
-    return _set_version(_map_code_spans(source, code), _V6)
+    text = _map_code_spans(source, _convert_v5_to_v6_span)
+    text = _unprefix_udf_defs(text)
+    return _set_version(text, _V6)
 
 
 def convert_v6_to_v5(source: str) -> str:
@@ -637,13 +643,8 @@ def convert_to_v6(source: str) -> str:
     if from_ver <= _V4:
         text = convert_v4_to_v5(text)
     else:
-        text = _map_code_spans(
-            text,
-            lambda span: _BARE_REQUEST_RE.sub(
-                r"request.\1(",
-                _STUDY_RE.sub("indicator(", span),
-            ),
-        )
+        text = _map_code_spans(text, _convert_v5_to_v6_span)
+        text = _unprefix_udf_defs(text)
     text = _ensure_declaration(text)
     return _set_version(text, _V6)
 

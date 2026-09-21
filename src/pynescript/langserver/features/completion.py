@@ -121,7 +121,8 @@ def handle_completion_resolve(
 ) -> lsp.CompletionItem:
     """Handle completionItem/resolve request.
 
-    Enriches a completion item with full documentation.
+    Enriches a completion item with full documentation without replacing
+    leaf insert text (``ta.`` + ``sma(...)`` must not become ``ta.ta.sma``).
 
     Args:
         params: The completion item to resolve.
@@ -129,10 +130,20 @@ def handle_completion_resolve(
     Returns:
         The resolved completion item with full documentation.
     """
-    # Check if it's a builtin
     builtin_info = get_builtin(params.label)
-    if builtin_info:
-        return build_completion_item(builtin_info)
-
-    # Return as-is if not a builtin
-    return params
+    if not builtin_info:
+        return params
+    resolved = build_completion_item(builtin_info)
+    insert_text = params.insert_text
+    if not insert_text or insert_text == resolved.insert_text:
+        return resolved
+    return lsp.CompletionItem(
+        label=resolved.label,
+        kind=resolved.kind,
+        detail=resolved.detail,
+        documentation=resolved.documentation,
+        insert_text=insert_text,
+        insert_text_format=params.insert_text_format or resolved.insert_text_format,
+        filter_text=resolved.filter_text,
+        sort_text=resolved.sort_text,
+    )

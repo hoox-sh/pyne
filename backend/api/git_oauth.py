@@ -54,6 +54,29 @@ bp = Blueprint("git_oauth", __name__)
 
 GITHUB_SCOPE = "repo read:user"
 GITLAB_SCOPE = "api"
+_GITHUB_URI_HOSTS = frozenset({"github.com", "www.github.com"})
+_GITLAB_URI_HOSTS = frozenset({"gitlab.com", "www.gitlab.com"})
+_GITHUB_DEVICE_URI = "https://github.com/login/device"
+_GITLAB_DEVICE_URI = "https://gitlab.com/-/profile/device"
+
+
+def _safe_oauth_https_uri(
+    url: Any,
+    *,
+    allowed_hosts: frozenset[str],
+    fallback: str | None = None,
+) -> str | None:
+    """Keep only https URIs on *allowed_hosts*; else *fallback* (open-redirect)."""
+    raw = str(url or "").strip()
+    if not raw:
+        return fallback
+    parsed = urllib.parse.urlparse(raw)
+    host = (parsed.hostname or "").lower().rstrip(".")
+    if parsed.scheme != "https" or host not in allowed_hosts:
+        return fallback
+    if parsed.username is not None or parsed.password is not None:
+        return fallback
+    return raw
 
 
 def _form_body(params: dict[str, str]) -> bytes:
@@ -112,8 +135,15 @@ def _start_device(provider: str, client_id: str, scope: str) -> dict[str, Any]:
             "provider": "github",
             "device_code": data.get("device_code"),
             "user_code": data.get("user_code"),
-            "verification_uri": data.get("verification_uri") or "https://github.com/login/device",
-            "verification_uri_complete": data.get("verification_uri_complete"),
+            "verification_uri": _safe_oauth_https_uri(
+                data.get("verification_uri"),
+                allowed_hosts=_GITHUB_URI_HOSTS,
+                fallback=_GITHUB_DEVICE_URI,
+            ),
+            "verification_uri_complete": _safe_oauth_https_uri(
+                data.get("verification_uri_complete"),
+                allowed_hosts=_GITHUB_URI_HOSTS,
+            ),
             "expires_in": data.get("expires_in") or 900,
             "interval": data.get("interval") or 5,
         }
@@ -129,8 +159,15 @@ def _start_device(provider: str, client_id: str, scope: str) -> dict[str, Any]:
         "provider": "gitlab",
         "device_code": data.get("device_code"),
         "user_code": data.get("user_code"),
-        "verification_uri": data.get("verification_uri") or "https://gitlab.com/-/profile/device",
-        "verification_uri_complete": data.get("verification_uri_complete"),
+        "verification_uri": _safe_oauth_https_uri(
+            data.get("verification_uri"),
+            allowed_hosts=_GITLAB_URI_HOSTS,
+            fallback=_GITLAB_DEVICE_URI,
+        ),
+        "verification_uri_complete": _safe_oauth_https_uri(
+            data.get("verification_uri_complete"),
+            allowed_hosts=_GITLAB_URI_HOSTS,
+        ),
         "expires_in": data.get("expires_in") or 300,
         "interval": data.get("interval") or 5,
     }

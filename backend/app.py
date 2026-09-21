@@ -357,6 +357,25 @@ def _timeout_seconds_kwarg(raw: Any) -> dict[str, float]:
     return {"timeout_seconds": _default_run_timeout()}
 
 
+def _blocked_webhook_error(wh_raw: Any) -> tuple[dict[str, Any], int] | None:
+    """Return a 400 body when *wh_raw* is a non-empty blocked webhook URL."""
+    if not isinstance(wh_raw, str) or not wh_raw.strip():
+        return None
+    from .alert_forwarder import normalize_webhook_url
+
+    if normalize_webhook_url(wh_raw) is not None:
+        return None
+    return {
+        "status": "error",
+        "code": "WEBHOOK_URL_BLOCKED",
+        "message": (
+            "webhook_url is invalid or blocked (private/loopback/"
+            "metadata hosts are not allowed). Use a public https URL "
+            "or set ALERT_WEBHOOK_ALLOW_PRIVATE=1 for private demos."
+        ),
+    }, 400
+
+
 def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
     """Shared run logic for POST /run and WS /ws/run.
 
@@ -443,20 +462,9 @@ def _execute_run_payload_inner(
         return _err_to_dict(bounds_err)
 
     # Reject blocked webhook URLs early (SSRF) so clients get a clear 400.
-    wh_raw = validated.get("webhook_url") or ""
-    if isinstance(wh_raw, str) and wh_raw.strip():
-        from .alert_forwarder import normalize_webhook_url
-
-        if normalize_webhook_url(wh_raw) is None:
-            return {
-                "status": "error",
-                "code": "WEBHOOK_URL_BLOCKED",
-                "message": (
-                    "webhook_url is invalid or blocked (private/loopback/"
-                    "metadata hosts are not allowed). Use a public https URL "
-                    "or set ALERT_WEBHOOK_ALLOW_PRIVATE=1 for private demos."
-                ),
-            }, 400
+    blocked = _blocked_webhook_error(validated.get("webhook_url") or "")
+    if blocked is not None:
+        return blocked
 
     data_feed = None
     data_provider = None
@@ -1122,6 +1130,11 @@ def _run_pine_script_batch_inner():
             }
         ), 400
 
+    blocked = _blocked_webhook_error(data.get("webhook_url") or "")
+    if blocked is not None:
+        body, code = blocked
+        return jsonify(body), code
+
     # Normalize script entries
     jobs: list[tuple[str, str]] = []
     for i, item in enumerate(scripts):
@@ -1384,6 +1397,18 @@ def not_found(e):
             "message": f"Endpoint {request.path} not found.",
         }
     ), 404
+
+
+@app.errorhandler(413)
+def payload_too_large(_e):
+    """JSON 413 for bodies over ``MAX_CONTENT_LENGTH`` (no Werkzeug HTML)."""
+    return jsonify(
+        {
+            "status": "error",
+            "code": "PAYLOAD_TOO_LARGE",
+            "message": "Request body exceeds the 5 MB limit.",
+        }
+    ), 413
 
 
 @app.errorhandler(500)

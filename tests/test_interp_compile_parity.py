@@ -292,8 +292,7 @@ def test_interp_compile_parity_smoke(harness, name: str) -> None:
     # than red the whole suite (value parity is the contract we enforce).
     if result["status"] in _SKIP_STATUSES:
         pytest.skip(
-            f"{name}: {result['status']} interp={result.get('interp_error')!r} "
-            f"compile={result.get('compile_error')!r}"
+            f"{name}: {result['status']} interp={result.get('interp_error')!r} compile={result.get('compile_error')!r}"
         )
     # fill_background_only is structural warn, not a value failure
     assert result["status"] in ("OK", "fill_background_only"), (
@@ -318,8 +317,7 @@ def test_interp_compile_parity_optional_corpus(harness, name: str) -> None:
     )
     if result["status"] in _SKIP_STATUSES:
         pytest.skip(
-            f"{name}: {result['status']} interp={result.get('interp_error')!r} "
-            f"compile={result.get('compile_error')!r}"
+            f"{name}: {result['status']} interp={result.get('interp_error')!r} compile={result.get('compile_error')!r}"
         )
     assert result["status"] in ("OK", "fill_background_only"), (
         f"{name}: status={result['status']} mismatches={result.get('mismatches')}"
@@ -507,3 +505,45 @@ plot(x[1], "x1")
             assert _is_na(compiled["series"]["x1"][i])
         else:
             assert compiled["series"]["x1"][i] == x1[i]
+
+
+def test_wad_iii_wvad_interp_compile() -> None:
+    """ta.wad / ta.iii / ta.wvad kernels already exist on both hosts — lock values."""
+    src = """
+//@version=6
+indicator("vol-ad")
+plot(ta.wad(), "wad")
+plot(ta.iii(), "iii")
+plot(ta.wvad(10), "wvad")
+"""
+    bars: list[dict[str, float | int]] = []
+    price = 100.0
+    for i in range(40):
+        delta = 1.5 if i % 3 else -0.8
+        o = price
+        c = price + delta
+        bars.append(
+            {
+                "open": o,
+                "high": max(o, c) + 0.4,
+                "low": min(o, c) - 0.4,
+                "close": c,
+                "volume": 800.0 + i * 10.0,
+                "time": 1_700_000_000_000 + i * 60_000,
+            }
+        )
+        price = c
+    interp, compiled = _run_interp_and_optional_compile(src, bars)
+    for key in ("wad", "iii", "wvad"):
+        left = interp["series"][key]
+        assert len(left) == 40
+        assert any(not _is_na(v) for v in left), key
+        if compiled is None:
+            continue
+        right = compiled["series"][key]
+        assert len(right) == 40
+        for i, (a, b) in enumerate(zip(left, right, strict=True)):
+            if _is_na(a):
+                assert _is_na(b), f"{key}[{i}] compile={b!r} expected na"
+            else:
+                assert abs(float(a) - float(b)) <= 1e-9, f"{key}[{i}] interp={a!r} compile={b!r}"

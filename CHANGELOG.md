@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- ``ta.ao()`` no longer rebuilds ``hl2`` every bar when the identifier is
+  absent; the full-recompute path returns the last SMA sample instead of
+  ``None``. Period-only ``ta.stoch`` / ``ta.cci`` / ``ta.wpr`` skip series
+  cap-slice copies on the incremental path.
+- Convert-to-v6 no longer rewrites v5 UDF definitions named ``security`` /
+  ``financial`` / other ``request.*`` leaves to ``request.<name>(...) =>``.
+- LSP ``strategy.`` completion keeps nested ``risk.*`` insert text;
+  completion resolve no longer restores a fully-qualified snippet after
+  ``ta.``. Hover documents additional namespaces and drawing/collection
+  types; bare ``line`` stays a type card.
+
+### Security
+
+- Alert webhooks unwrap IPv4-mapped / 6to4 / decimal IPv4, refuse HTTP
+  redirects, and re-check the URL at POST time. ``POST /run/batch`` now
+  returns ``WEBHOOK_URL_BLOCKED`` instead of silently skipping.
+- Oversized request bodies return JSON ``PAYLOAD_TOO_LARGE`` (413).
+- Git OAuth device-flow ``verification_uri`` values are allowlisted to
+  ``github.com`` / ``gitlab.com``.
+
 ## [0.6.5] - 2026-09-14
 
 Convert-to-v6 no longer rewrites user UDF names, parameters, or unpack targets.
