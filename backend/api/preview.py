@@ -32,6 +32,10 @@ from flask import request
 logger = logging.getLogger(__name__)
 
 from backend.middleware.auth import track_usage
+from backend.middleware.schemas import BACKTEST_QUICK_SCHEMA
+from backend.middleware.schemas import PREVIEW_CHART_SCHEMA
+from backend.middleware.schemas import PREVIEW_INDICATOR_SCHEMA
+from backend.middleware.schemas import validate
 from backend.services.backtest import generate_mock_ohlcv
 from backend.services.backtest import run_quick_backtest
 from backend.services.chart_renderer import render_line_chart
@@ -71,11 +75,12 @@ def chart_preview():
         }
     }
     """
-    data = request.get_json() or {}
+    data, err = validate(request.get_json(silent=True) or {}, PREVIEW_CHART_SCHEMA)
+    if err is not None:
+        return err
 
-    script = data.get("script", "")
-    ohlcv = data.get("data", {})
-    opts = data.get("options", {})
+    ohlcv = data.get("data") or {}
+    opts = data.get("options") or {}
 
     if not ohlcv:
         return jsonify(
@@ -156,11 +161,13 @@ def indicator_preview():
         "options": {...}
     }
     """
-    data = request.get_json() or {}
+    data, err = validate(request.get_json(silent=True) or {}, PREVIEW_INDICATOR_SCHEMA)
+    if err is not None:
+        return err
 
-    expression = data.get("expression", "")
-    ohlcv = data.get("data", {})
-    opts = data.get("options", {})
+    expression = data.get("expression") or ""
+    ohlcv = data.get("data") or {}
+    opts = data.get("options") or {}
 
     if not ohlcv:
         return jsonify(
@@ -309,13 +316,15 @@ def quick_backtest():
         }
     }
     """
-    data = request.get_json() or {}
+    data, err = validate(request.get_json(silent=True) or {}, BACKTEST_QUICK_SCHEMA)
+    if err is not None:
+        return err
 
-    script = data.get("script", "")
-    ohlcv = data.get("data", {})
-    initial_capital = float(data.get("initial_capital", 10000.0))
-    use_mock = data.get("mock_data", False)
-    mock_bars = int(data.get("mock_bars", 252))
+    script = data.get("script") or ""
+    ohlcv = data.get("data") or {}
+    initial_capital = float(data["initial_capital"])
+    use_mock = bool(data["mock_data"])
+    mock_bars = int(data["mock_bars"])
 
     if not script:
         return jsonify(

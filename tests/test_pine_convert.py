@@ -155,7 +155,7 @@ s = sma(close, period)
 bgcolor(n == 0 ? green : na)
 sum = 0.0
 for n = 0 to 3
-    sum := sum + close
+    sum := sum + n
 plot(s)
 plot(period)
 """
@@ -164,6 +164,8 @@ plot(period)
     assert "timeframe.period" not in out
     assert "sma(close, period)" in out or "ta.sma(close, period)" in out
     assert "for n =" in out
+    assert "sum + n" in out
+    assert "sum + bar_index" not in out
     assert "bar_index ==" in out
     parse(out)
 

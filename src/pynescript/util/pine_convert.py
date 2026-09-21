@@ -504,7 +504,9 @@ def _rewrite_tickerid_call(span: str) -> str:
     return _rewrite_named_calls(span, "tickerid", replacer)
 
 
-def _convert_v3_to_v4_span(span: str, *, tf_names: tuple[str, ...] = _TF_IDENTS) -> str:
+def _convert_v3_to_v4_span(
+    span: str, *, tf_names: tuple[str, ...] = _TF_IDENTS, skip_n: bool = False
+) -> str:
     span = re.sub(r"(?<![\w.])color\s*\(", "color.new(", span)
     span = _prefix_idents(span, _COLOR_NAMES, "color")
     span = _prefix_idents(span, _DOW_NAMES, "dayofweek")
@@ -512,11 +514,12 @@ def _convert_v3_to_v4_span(span: str, *, tf_names: tuple[str, ...] = _TF_IDENTS)
     span = re.sub(r"(?<![\w.])interval(?![\w.])", "timeframe.multiplier", span)
     span = re.sub(r"(?<![\w.])tickerid(?![\w.(])", "syminfo.tickerid", span)
     span = re.sub(r"(?<![\w.])ticker(?![\w.])", "syminfo.ticker", span)
-    span = re.sub(
-        r"(?<![\w.])n(?![\w.])",
-        lambda m: m.group(0) if _followed_by_assign(span, m.end()) else "bar_index",
-        span,
-    )
+    if not skip_n:
+        span = re.sub(
+            r"(?<![\w.])n(?![\w.])",
+            lambda m: m.group(0) if _followed_by_assign(span, m.end()) else "bar_index",
+            span,
+        )
     styles = "|".join(_PLOT_STYLES)
     span = re.sub(rf"\bstyle\s*=\s*({styles})\b", r"style=plot.style_\1", span)
     hstyles = "|".join(_HLINE_STYLES)
@@ -560,6 +563,9 @@ def _ensure_declaration(source: str) -> str:
     return source[: end + 1] + insert + source[end + 1 :]
 
 
+_FOR_N_RE = re.compile(r"(?<![\w.])for\s+n\s*=")
+
+
 def convert_v3_to_v4(source: str) -> str:
     """Rename v3 colors / ``n`` / timeframe idents toward v4 namespaces."""
     # Line-wise mapping cannot see ``period = input(14)`` on later uses.
@@ -567,10 +573,35 @@ def convert_v3_to_v4(source: str) -> str:
     if re.search(r"(?<![\w.])period\s*=(?!=)", source):
         tf_names = tuple(n for n in _TF_IDENTS if n != "period")
 
-    def span(text: str) -> str:
-        return _convert_v3_to_v4_span(text, tf_names=tf_names)
+    ended_nl = source.endswith("\n")
+    in_for_n = False
+    for_indent = -1
+    out: list[str] = []
+    for line in source.splitlines():
+        indent = len(line) - len(line.lstrip(" \t"))
+        code_head = line.split("//", 1)[0]
+        if _FOR_N_RE.search(code_head):
+            in_for_n = True
+            for_indent = indent
+            skip_n = False
+        elif in_for_n:
+            stripped = line.strip()
+            if stripped and indent <= for_indent:
+                in_for_n = False
+                skip_n = False
+            else:
+                skip_n = True
+        else:
+            skip_n = False
 
-    return _map_code_spans(source, span)
+        def span(text: str, *, _skip: bool = skip_n) -> str:
+            return _convert_v3_to_v4_span(text, tf_names=tf_names, skip_n=_skip)
+
+        out.append(_map_line(line, span))
+    body = "\n".join(out)
+    if ended_nl:
+        body += "\n"
+    return body
 
 
 def _unprefix_udf_defs(source: str) -> str:

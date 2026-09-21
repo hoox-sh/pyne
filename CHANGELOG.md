@@ -14,7 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ``None``. Period-only ``ta.stoch`` / ``ta.cci`` / ``ta.wpr`` skip series
   cap-slice copies on the incremental path. Period-only ``ta.dmi`` uses the
   same last-sample incremental path. Incremental ``ta.bb`` shares one SMA+stdev
-  window instead of two nested deques.
+  window instead of two nested deques. ``ta.cog`` / ``ta.mode`` use last-sample
+  incremental kernels.
+- Convert-to-v6 leaves ``n`` inside ``for n =`` bodies as the loop variable.
 - Interpret ``color.*`` named constants use the Pine v6 palette (``color.green``
   is ``#22AB94``), matching compile ``_color_const``.
 - Linter ``C001`` only fires on snake_case ``ta.*`` assignments (``fastMA`` /
@@ -40,6 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ``webhook_url`` when ``ADMIN_TOKEN`` is set and the request is unauthenticated.
 - Client ``timeout_seconds`` is capped (default 120s, ``PYNE_RUN_TIMEOUT_MAX``)
   so a huge value cannot hold a gunicorn worker until SIGKILL.
+- ``POST /preview/chart``, ``/preview/indicator``, and ``/backtest/quick``
+  validate against their schemas (unknown fields rejected).
 
 ## [0.6.5] - 2026-09-14
 

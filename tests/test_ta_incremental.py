@@ -1180,6 +1180,62 @@ def test_incremental_median_matches_full() -> None:
         )
 
 
+def _bar_walk_full_mode(src: list[float], period: int) -> list[float | None]:
+    ev = _FullTA()
+    return [ev._mode(src[: i + 1], period) for i in range(len(src))]
+
+
+def _bar_walk_inc_mode(src: list[float], period: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._mode_inc_update(src[: i + 1], period))
+    return out
+
+
+def _bar_walk_full_cog(src: list[float], length: int) -> list[float]:
+    ev = _FullTA()
+    out: list[float] = []
+    for i in range(len(src)):
+        window = src[: i + 1]
+        if len(window) < length:
+            out.append(float("nan"))
+            continue
+        w = window[-length:]
+        num_sum = sum((j + 1) * val for j, val in enumerate(reversed(w)) if val is not None)
+        den_sum = sum(val for val in w if val is not None)
+        out.append(float("nan") if den_sum == 0 else -num_sum / den_sum)
+    return out
+
+
+def _bar_walk_inc_cog(src: list[float], length: int) -> list[float]:
+    ev = _IncTA()
+    out: list[float] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._cog_inc_update(src[: i + 1], length))
+    return out
+
+
+def test_incremental_mode_matches_full() -> None:
+    src = _series(80)
+    for period in (5, 14):
+        _assert_series_close(
+            _bar_walk_inc_mode(src, period),
+            _bar_walk_full_mode(src, period),
+        )
+
+
+def test_incremental_cog_matches_full() -> None:
+    src = _series(80)
+    for length in (5, 10, 14):
+        _assert_series_close(
+            _bar_walk_inc_cog(src, length),
+            _bar_walk_full_cog(src, length),
+        )
+
+
 def test_incremental_percentrank_matches_full() -> None:
     src = _series(120)
     for period in (5, 14, 20):

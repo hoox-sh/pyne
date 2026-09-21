@@ -130,22 +130,22 @@ OPTIMIZE_SCHEMA: dict[str, tuple[type, bool, Any]] = {
 # Schema for /preview/chart.
 PREVIEW_CHART_SCHEMA: dict[str, tuple[type, bool, Any]] = {
     "script": (str, False, ""),
-    "data": (dict, True, {}),
+    "data": (dict, False, {}),
     "options": (dict, False, {}),
 }
 
 
 # Schema for /preview/indicator.
 PREVIEW_INDICATOR_SCHEMA: dict[str, tuple[type, bool, Any]] = {
-    "expression": (str, True, ""),
-    "data": (dict, True, {}),
+    "expression": (str, False, ""),
+    "data": (dict, False, {}),
     "options": (dict, False, {}),
 }
 
 
 # Schema for /backtest/quick.
 BACKTEST_QUICK_SCHEMA: dict[str, tuple[type, bool, Any]] = {
-    "script": (str, True, ""),
+    "script": (str, False, ""),
     "data": (dict, False, {}),
     "initial_capital": (float, False, 10000.0),
     "mock_data": (bool, False, False),

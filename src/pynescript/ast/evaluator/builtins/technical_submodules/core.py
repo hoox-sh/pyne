@@ -1540,6 +1540,73 @@ class TechnicalHelpers:
         st["value"] = statistics.median(valid)
         return st.get("value")
 
+    def _mode_inc_update(self, series: list[Any], period: int) -> float | None:
+        """Incremental mode matching full ``_mode`` (last value)."""
+        if period <= 0:
+            return None
+        slot = self._ta_next_slot()
+        key = ("mode", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"window": deque(maxlen=period), "value": None}
+            bucket[key] = st
+        raw = self._series_last(series)
+        x: float | None
+        if raw is None:
+            x = None
+        else:
+            try:
+                x = float(raw)
+            except (TypeError, ValueError):
+                x = None
+        window: deque[float | None] = st["window"]
+        window.append(x)
+        if len(window) < period:
+            st["value"] = None
+            return None
+        valid = [v for v in window if v is not None]
+        if not valid:
+            st["value"] = None
+            return None
+        try:
+            st["value"] = float(statistics.mode(valid))
+        except statistics.StatisticsError:
+            st["value"] = float(valid[0])
+        return st.get("value")
+
+    def _cog_inc_update(self, series: list[Any], length: int) -> float:
+        """Incremental Center of Gravity matching full ``_builtin_ta_cog``."""
+        if length < 1:
+            return math.nan
+        slot = self._ta_next_slot()
+        key = ("cog", slot, int(length))
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"window": deque(maxlen=length)}
+            bucket[key] = st
+        raw = self._series_last(series)
+        x: float | None
+        if raw is None:
+            x = None
+        else:
+            try:
+                x = float(raw)
+                if x != x:
+                    x = None
+            except (TypeError, ValueError):
+                x = None
+        window: deque[float | None] = st["window"]
+        window.append(x)
+        if len(window) < length:
+            return math.nan
+        num_sum = sum((i + 1) * val for i, val in enumerate(reversed(window)) if val is not None)
+        den_sum = sum(val for val in window if val is not None)
+        if den_sum == 0:
+            return math.nan
+        return -num_sum / den_sum
+
     def _percentrank_inc_update(self, series: list[Any], period: int) -> float | None:
         """Incremental percentrank matching full ``_percentrank`` (last value)."""
         if period <= 0:

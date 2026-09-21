@@ -819,6 +819,18 @@ class TestPreview:
         assert resp.status_code == 400
         assert resp.json["code"] == "NO_CLOSE_DATA"
 
+    def test_chart_preview_rejects_unknown_field(self, client: FlaskClient, api_key: str):
+        resp = client.post(
+            "/preview/chart",
+            json={
+                "data": {"close": [100, 101]},
+                "not_a_real_field": 1,
+            },
+            headers={"Authorization": f"Bearer {api_key}"},
+        )
+        assert resp.status_code == 400
+        assert resp.json["code"] == "UNKNOWN_FIELDS"
+
     def test_indicator_preview_sma(self, client: FlaskClient, api_key: str):
         resp = client.post(
             "/preview/indicator",
