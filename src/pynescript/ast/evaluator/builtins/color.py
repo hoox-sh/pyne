@@ -43,26 +43,27 @@ _RGBA_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Common Pine Script named colors (hex RGB)
+# Pine v6 named colors — keep in sync with compiler ``_color_const`` /
+# ``BaseEvaluator`` context (not CSS keyword hex).
 _NAMED_COLORS: dict[str, str] = {
-    "red": "#FF0000",
-    "green": "#008000",
-    "blue": "#0000FF",
+    "red": "#F23645",
+    "green": "#22AB94",
+    "blue": "#2962FF",
     "black": "#000000",
     "white": "#FFFFFF",
-    "gray": "#808080",
-    "grey": "#808080",
-    "orange": "#FFA500",
-    "purple": "#800080",
-    "yellow": "#FFFF00",
-    "aqua": "#00FFFF",
-    "fuchsia": "#FF00FF",
-    "lime": "#00FF00",
-    "maroon": "#800000",
-    "navy": "#000080",
+    "gray": "#787B86",
+    "grey": "#787B86",
+    "orange": "#FF6D00",
+    "purple": "#7B1FA2",
+    "yellow": "#FDD835",
+    "aqua": "#00BCD4",
+    "fuchsia": "#E040FB",
+    "lime": "#00E676",
+    "maroon": "#880E4F",
+    "navy": "#311B92",
     "olive": "#808000",
-    "silver": "#C0C0C0",
-    "teal": "#008080",
+    "silver": "#B2B5BE",
+    "teal": "#089981",
 }
 
 

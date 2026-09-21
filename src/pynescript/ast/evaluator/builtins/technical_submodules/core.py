@@ -2827,16 +2827,53 @@ class TechnicalHelpers:
     ) -> tuple[float | None, float | None, float | None]:
         """Incremental Bollinger Bands (upper, middle, lower).
 
-        Nested ``_sma_inc_update`` + ``_stdev_inc_update`` (own call-site slots).
-        Matches ``_bollinger_bands`` last-value oracle.
+        One sliding window shared by SMA (middle) and sample stdev (ddof=1),
+        matching ``_bollinger_bands`` last-value oracle. ``period <= 1`` is
+        na (stdev needs two samples).
         """
-        middle = self._sma_inc_update(series, period)
-        deviation = self._stdev_inc_update(series, period)
-        if middle is None or deviation is None:
+        if period <= 1:
             return None, None, None
+        slot = self._ta_next_slot()
+        key = ("bb", slot, int(period))
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"window": deque(), "sum": 0.0, "sumsq": 0.0, "count": 0}
+            bucket[key] = st
+        raw = self._series_last(series)
+        x: float | None
+        if raw is None:
+            x = None
+        else:
+            try:
+                x = float(raw)
+                if x != x:  # NaN
+                    x = None
+            except (TypeError, ValueError):
+                x = None
+        window: deque[float | None] = st["window"]
+        if len(window) == period:
+            old = window.popleft()
+            if old is not None:
+                st["sum"] -= old
+                st["sumsq"] -= old * old
+                st["count"] -= 1
+        window.append(x)
+        if x is not None:
+            st["sum"] += x
+            st["sumsq"] += x * x
+            st["count"] += 1
+        n = int(st["count"])
+        if len(window) < period or n != period:
+            return None, None, None
+        s = float(st["sum"])
+        ss = float(st["sumsq"])
+        var = (ss - (s * s) / n) / (n - 1)
+        if var < 0.0:
+            var = 0.0
         try:
-            mid_f = float(middle)
-            dev_f = float(deviation)
+            mid_f = s / period
+            dev_f = math.sqrt(var)
             mult = float(multiplier)
         except (TypeError, ValueError):
             return None, None, None

@@ -827,8 +827,8 @@ class TestColorFunctions:
 
     def test_parse_color_string(self) -> None:
         assert _parse_color_string("") is None
-        assert _parse_color_string("red") == (255, 0, 0, 255)
-        assert _parse_color_string("color.blue") == (0, 0, 255, 255)
+        assert _parse_color_string("red") == (0xF2, 0x36, 0x45, 255)
+        assert _parse_color_string("color.blue") == (0x29, 0x62, 0xFF, 255)
         assert _parse_color_string("rgb(255,0,0)") == (255, 0, 0, 255)
         assert _parse_color_string("rgba(255,0,0,0.5)")[3] == 128
         assert _parse_color_string("rgba(1,2,3,200)") == (1, 2, 3, 200)
@@ -860,6 +860,9 @@ class TestColorFunctions:
         ns: dict[str, object] = {}
         register_color_functions(ns)
         assert "color.new" in ns and "color.red" in ns and "color" in ns
+        # TV v6 palette (compiler ``_color_const``), not CSS keyword hex.
+        assert str(ns["color.green"]).upper().startswith("#22AB94")
+        assert str(ns["color.red"]).upper().startswith("#F23645")
 
 
 # ---------------------------------------------------------------------------

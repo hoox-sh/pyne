@@ -80,6 +80,15 @@ def _env_truthy(name: str, default: bool = False) -> bool:
     return raw.strip().lower() in ("1", "true", "yes", "on")
 
 
+def _drop_as_series_cache(ev: Any) -> None:
+    """Reuse the per-bar PineSeries reversal dict instead of reallocating it."""
+    cache = getattr(ev, "_pine_as_series_cache", None)
+    if isinstance(cache, dict):
+        cache.clear()
+    else:
+        ev._pine_as_series_cache = None
+
+
 class LazyCalendarContext(dict):
     """Host context that materializes UTC calendar fields on first read.
 
@@ -1993,7 +2002,7 @@ class InterpretSession:
                     ev._cross_call_i = 0  # type: ignore[attr-defined]
                 ev._ta_call_i = 0  # type: ignore[attr-defined]
                 ev._plot_call_i = 0  # type: ignore[attr-defined]
-                ev._pine_as_series_cache = None  # type: ignore[attr-defined]
+                _drop_as_series_cache(ev)
                 try:
                     visit(tree)
                 except Exception as e:
@@ -2235,7 +2244,7 @@ class InterpretSession:
             ev._cross_call_i = 0  # type: ignore[attr-defined]
         ev._ta_call_i = 0  # type: ignore[attr-defined]
         ev._plot_call_i = 0  # type: ignore[attr-defined]
-        ev._pine_as_series_cache = None  # type: ignore[attr-defined]
+        _drop_as_series_cache(ev)
         try:
             ev.visit(self._tree)
         except Exception as e:
@@ -2340,7 +2349,7 @@ class InterpretSession:
             ev._cross_call_i = 0  # type: ignore[attr-defined]
         ev._ta_call_i = 0  # type: ignore[attr-defined]
         ev._plot_call_i = 0  # type: ignore[attr-defined]
-        ev._pine_as_series_cache = None  # type: ignore[attr-defined]
+        _drop_as_series_cache(ev)
         try:
             ev.visit(self._tree)
         except Exception as e:
@@ -3288,7 +3297,7 @@ class Runtime:
                 evaluator._plot_call_i = 0  # type: ignore[attr-defined]
                 # Drop the per-bar PineSeries reversal cache — id-keyed entries
                 # from a previous bar must never serve a different series.
-                evaluator._pine_as_series_cache = None  # type: ignore[attr-defined]
+                _drop_as_series_cache(evaluator)
 
                 try:
                     visit(tree)

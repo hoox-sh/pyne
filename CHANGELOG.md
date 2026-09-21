@@ -13,7 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   absent; the full-recompute path returns the last SMA sample instead of
   ``None``. Period-only ``ta.stoch`` / ``ta.cci`` / ``ta.wpr`` skip series
   cap-slice copies on the incremental path. Period-only ``ta.dmi`` uses the
-  same last-sample incremental path.
+  same last-sample incremental path. Incremental ``ta.bb`` shares one SMA+stdev
+  window instead of two nested deques.
+- Interpret ``color.*`` named constants use the Pine v6 palette (``color.green``
+  is ``#22AB94``), matching compile ``_color_const``.
+- Linter ``C001`` only fires on snake_case ``ta.*`` assignments (``fastMA`` /
+  ``sma`` are quiet; ``pyne lint`` matches the LSP filter).
 - Convert-to-v6 no longer rewrites v5 UDF definitions named ``security`` /
   ``financial`` / other ``request.*`` leaves to ``request.<name>(...) =>``.
   v3 ``period =`` / ``for n =`` stay user identifiers; ``n == 0`` still
@@ -33,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ``github.com`` / ``gitlab.com``.
 - Hosted runner GET ``/scripts`` / ``/scripts/:id`` / ``/cron/jobs`` redact
   ``webhook_url`` when ``ADMIN_TOKEN`` is set and the request is unauthenticated.
+- Client ``timeout_seconds`` is capped (default 120s, ``PYNE_RUN_TIMEOUT_MAX``)
+  so a huge value cannot hold a gunicorn worker until SIGKILL.
 
 ## [0.6.5] - 2026-09-14
 

@@ -198,7 +198,8 @@ class PineLinter:
             rhs = line[eq + 1 :].lstrip(" \t")
             if not rhs.startswith("ta."):
                 continue
-            if "a" <= var_name[0] <= "z":
+            # snake_case only — ``fastMA`` / ``sma`` are already camel/short.
+            if "_" in var_name and "a" <= var_name[0] <= "z":
                 self._add_warning(
                     code="C001",
                     message=f"Variable '{var_name}' should use camelCase (e.g., '{_to_camel(var_name)}')",

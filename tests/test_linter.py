@@ -86,6 +86,15 @@ sma_value = ta.sma(close, 14)
         codes = [w.code for w in warnings]
         assert "C001" in codes
 
+    def test_c001_skips_camel_and_short_names(self) -> None:
+        """``fastMA`` and ``sma`` are not snake_case — C001 stays quiet."""
+        code = """//@version=6
+indicator("Test")
+fastMA = ta.sma(close, 14)
+sma = ta.sma(close, 21)
+"""
+        assert "C001" not in [w.code for w in lint_script(code)]
+
     def test_multiple_warnings(self) -> None:
         """Test multiple warnings from different rules."""
         code = """//@version=3

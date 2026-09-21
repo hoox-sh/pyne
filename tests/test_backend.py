@@ -319,6 +319,16 @@ plot(x.FOO)
         assert resp.json["status"] == "success"
         assert resp.json["plots"] == [1.5, 1.5]
 
+    def test_run_timeout_seconds_capped(self, monkeypatch):
+        """Client ``timeout_seconds`` cannot exceed ``PYNE_RUN_TIMEOUT_MAX`` (120)."""
+        from backend.app import _timeout_seconds_kwarg
+
+        monkeypatch.delenv("PYNE_RUN_TIMEOUT_MAX", raising=False)
+        assert _timeout_seconds_kwarg(1_000_000)["timeout_seconds"] == 120.0
+        monkeypatch.setenv("PYNE_RUN_TIMEOUT_MAX", "10")
+        assert _timeout_seconds_kwarg(30)["timeout_seconds"] == 10.0
+        assert _timeout_seconds_kwarg(5)["timeout_seconds"] == 5.0
+
     def test_run_timeout_seconds_accepted(self, client: FlaskClient):
         """Optional ``timeout_seconds`` is in ``RUN_SCHEMA`` (omit still works)."""
         resp = client.post(

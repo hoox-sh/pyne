@@ -331,6 +331,8 @@ def _parse_run_libraries(raw_libs: Any) -> list[dict[str, Any]]:
 
 
 _RUN_TIMEOUT_DEFAULT = 30.0
+# Matches docker/entrypoint-api.sh GUNICORN_TIMEOUT default.
+_RUN_TIMEOUT_MAX_DEFAULT = 120.0
 
 
 def _default_run_timeout() -> float:
@@ -346,14 +348,29 @@ def _default_run_timeout() -> float:
     return _RUN_TIMEOUT_DEFAULT
 
 
+def _max_run_timeout() -> float:
+    """Cap for client-supplied ``timeout_seconds`` (``PYNE_RUN_TIMEOUT_MAX``)."""
+    raw = os.environ.get("PYNE_RUN_TIMEOUT_MAX", "").strip()
+    if raw:
+        try:
+            value = float(raw)
+            if value > 0:
+                return value
+        except ValueError:
+            pass
+    return _RUN_TIMEOUT_MAX_DEFAULT
+
+
 def _timeout_seconds_kwarg(raw: Any) -> dict[str, float]:
     """Return ``timeout_seconds=`` — client value, else a server-side default.
 
     Without this, a pathological script runs until gunicorn's ``--timeout``
-    SIGKILLs the worker, dropping every in-flight request on it.
+    SIGKILLs the worker, dropping every in-flight request on it. Client values
+    are capped so a huge ``timeout_seconds`` cannot hold a worker indefinitely.
     """
+    cap = _max_run_timeout()
     if isinstance(raw, (int, float)) and not isinstance(raw, bool) and raw > 0:
-        return {"timeout_seconds": float(raw)}
+        return {"timeout_seconds": min(float(raw), cap)}
     return {"timeout_seconds": _default_run_timeout()}
 
 
