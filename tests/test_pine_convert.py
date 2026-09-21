@@ -146,6 +146,38 @@ bgcolor(n == 0 ? green : na)
     parse(out)
 
 
+def test_v3_assignment_period_and_for_n_stay_user_idents() -> None:
+    """v3 builtin ``period`` / ``n`` must not eat assignment or for-loop targets."""
+    src = """//@version=3
+study("old")
+period = input(14)
+s = sma(close, period)
+bgcolor(n == 0 ? green : na)
+sum = 0.0
+for n = 0 to 3
+    sum := sum + close
+plot(s)
+plot(period)
+"""
+    out = convert_to_v6(src)
+    assert "period = input(" in out or "period = input.int(" in out
+    assert "timeframe.period" not in out
+    assert "sma(close, period)" in out or "ta.sma(close, period)" in out
+    assert "for n =" in out
+    assert "bar_index ==" in out
+    parse(out)
+
+
+def test_v3_bare_period_becomes_timeframe_period() -> None:
+    src = """//@version=3
+study("old")
+plot(period)
+"""
+    out = convert_to_v6(src)
+    assert "timeframe.period" in out
+    parse(out)
+
+
 def test_v1_missing_pragma_inserts_indicator() -> None:
     src = "plot(close)\n"
     out = convert_to_v6(src)

@@ -264,7 +264,7 @@
       "patterns": [
         {
           "name": "meta.namespace.member.pinescript",
-          "match": "\\b(ta|math|str|array|matrix|map|request|ticker|timeframe|session|syminfo|barstate|chart|runtime|color|line|linefill|label|box|table|polyline|plot|plotshape|plotchar|plotcandle|plotbar|hline|fill|bgcolor|barcolor|alert|alertcondition|strategy|input|timestamp|year|month|weekofyear|dayofmonth|dayofweek|hour|minute|second)\\s*(\\.)\\s*([A-Za-z_][A-Za-z0-9_]*)",
+          "match": "\\b(ta|math|str|log|array|matrix|map|request|ticker|timeframe|session|syminfo|barstate|chart|runtime|color|line|linefill|label|box|table|polyline|plot|plotshape|plotchar|plotcandle|plotbar|hline|fill|bgcolor|barcolor|alert|alertcondition|strategy|input|timestamp|year|month|weekofyear|dayofmonth|dayofweek|hour|minute|second)\\s*(\\.)\\s*([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
             "1": { "name": "support.module.pinescript" },
             "2": { "name": "punctuation.accessor.dot.pinescript" },
@@ -273,7 +273,7 @@
         },
         {
           "name": "support.module.pinescript",
-          "match": "\\b(ta|math|str|array|matrix|map|request|ticker|timeframe|session|syminfo|barstate|chart|runtime|color|strategy|input)\\b(?=\\s*\\.)"
+          "match": "\\b(ta|math|str|log|array|matrix|map|request|ticker|timeframe|session|syminfo|barstate|chart|runtime|color|strategy|input)\\b(?=\\s*\\.)"
         }
       ]
     },
@@ -285,7 +285,7 @@
         },
         {
           "name": "support.function.drawing.pinescript",
-          "match": "\\b(line\\.(?:new|delete|get_x1|get_x2|get_y1|get_y2|set_x1|set_x2|set_y1|set_y2|set_xy1|set_xy2|set_color|set_style|set_width|set_extend|copy)|label\\.(?:new|delete|get_x|get_y|get_text|set_x|set_y|set_xy|set_text|set_color|set_style|set_textcolor|set_size|set_tooltip|copy)|box\\.(?:new|delete|get_left|get_right|get_top|get_bottom|set_left|set_right|set_top|set_bottom|set_bgcolor|set_border_color|set_border_width|set_border_style|set_extend|set_text|copy)|table\\.(?:new|delete|cell|cell_set_text|cell_set_text_color|cell_set_bgcolor|cell_set_text_halign|cell_set_text_valign|cell_set_text_size|clear|merge_cells)|polyline\\.(?:new|delete|get_points))\\b"
+          "match": "\\b(line\\.(?:new|fill|delete|get_x1|get_x2|get_y1|get_y2|set_x1|set_x2|set_y1|set_y2|set_xy1|set_xy2|set_color|set_style|set_width|set_extend|copy)|label\\.(?:new|delete|get_x|get_y|get_text|set_x|set_y|set_xy|set_text|set_color|set_style|set_textcolor|set_size|set_tooltip|copy)|box\\.(?:new|delete|get_left|get_right|get_top|get_bottom|set_left|set_right|set_top|set_bottom|set_bgcolor|set_border_color|set_border_width|set_border_style|set_extend|set_text|copy)|table\\.(?:new|delete|cell|cell_set_text|cell_set_text_color|cell_set_bgcolor|cell_set_text_halign|cell_set_text_valign|cell_set_text_size|clear|merge_cells)|polyline\\.(?:new|delete|get_points))\\b"
         },
         {
           "name": "variable.language.series.pinescript",

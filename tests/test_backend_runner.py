@@ -134,6 +134,29 @@ class TestRunnerRegistry:
         )
         assert resp.status_code == 201, resp.json
 
+    def test_get_redacts_webhook_without_admin_token(self, client: FlaskClient, monkeypatch):
+        monkeypatch.setenv("ADMIN_TOKEN", "secret-admin")
+        headers = {"X-Admin-Token": "secret-admin"}
+        hook = "https://example.com/hooks/abc"
+        assert (
+            client.post(
+                "/scripts",
+                json=_script_body(id="hooked", webhook_url=hook),
+                headers=headers,
+            ).status_code
+            == 201
+        )
+        listed = client.get("/scripts")
+        assert listed.status_code == 200
+        assert listed.json["scripts"][0]["webhook_url"] == ""
+        got = client.get("/scripts/hooked")
+        assert got.status_code == 200
+        assert got.json["script"]["webhook_url"] == ""
+        listed_admin = client.get("/scripts", headers=headers)
+        assert listed_admin.json["scripts"][0]["webhook_url"] == hook
+        got_admin = client.get("/scripts/hooked", headers=headers)
+        assert got_admin.json["script"]["webhook_url"] == hook
+
 
 class TestRunnerCron:
     def test_tick_mock_then_skip(self, client: FlaskClient):

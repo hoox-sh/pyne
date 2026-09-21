@@ -12,9 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ``ta.ao()`` no longer rebuilds ``hl2`` every bar when the identifier is
   absent; the full-recompute path returns the last SMA sample instead of
   ``None``. Period-only ``ta.stoch`` / ``ta.cci`` / ``ta.wpr`` skip series
-  cap-slice copies on the incremental path.
+  cap-slice copies on the incremental path. Period-only ``ta.dmi`` uses the
+  same last-sample incremental path.
 - Convert-to-v6 no longer rewrites v5 UDF definitions named ``security`` /
   ``financial`` / other ``request.*`` leaves to ``request.<name>(...) =>``.
+  v3 ``period =`` / ``for n =`` stay user identifiers; ``n == 0`` still
+  becomes ``bar_index``.
 - LSP ``strategy.`` completion keeps nested ``risk.*`` insert text;
   completion resolve no longer restores a fully-qualified snippet after
   ``ta.``. Hover documents additional namespaces and drawing/collection
@@ -28,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Oversized request bodies return JSON ``PAYLOAD_TOO_LARGE`` (413).
 - Git OAuth device-flow ``verification_uri`` values are allowlisted to
   ``github.com`` / ``gitlab.com``.
+- Hosted runner GET ``/scripts`` / ``/scripts/:id`` / ``/cron/jobs`` redact
+  ``webhook_url`` when ``ADMIN_TOKEN`` is set and the request is unauthenticated.
 
 ## [0.6.5] - 2026-09-14
 

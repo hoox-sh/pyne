@@ -20,7 +20,8 @@
 """Optional hosted runner HTTP surface (``/scripts``, ``/cron/*``).
 
 Registered always; handlers 404 with ``RUNNER_DISABLED`` unless
-``PYNE_RUNNER`` is on. When ``ADMIN_TOKEN`` is set, mutating routes require it.
+``PYNE_RUNNER`` is on. When ``ADMIN_TOKEN`` is set, mutating routes require it
+and GET responses redact ``webhook_url`` unless the token is presented.
 """
 
 from __future__ import annotations
@@ -123,10 +124,28 @@ def _require_runner_write(f):
     return decorated
 
 
+def _admin_ok() -> bool:
+    """True when writes are open (no token) or the request carries ``ADMIN_TOKEN``."""
+    expected = (os.environ.get("ADMIN_TOKEN") or "").strip()
+    if not expected:
+        return True
+    provided = _provided_admin_token()
+    return bool(provided) and hmac.compare_digest(provided, expected)
+
+
+def _public_script(rec: dict[str, Any]) -> dict[str, Any]:
+    """Drop ``webhook_url`` from unauthenticated reads (Discord-style secrets)."""
+    if _admin_ok():
+        return rec
+    out = dict(rec)
+    out["webhook_url"] = ""
+    return out
+
+
 @bp.route("/scripts", methods=["GET"])
 @_require_runner
 def list_scripts():
-    rows = store.list_scripts(include_source=False)
+    rows = [_public_script(r) for r in store.list_scripts(include_source=False)]
     return jsonify({"status": "success", "scripts": rows, "count": len(rows)})
 
 
@@ -164,7 +183,7 @@ def get_script(script_id: str):
         return jsonify({"status": "error", "code": "NOT_FOUND", "message": "Unknown script."}), 404
     state = store.get_cron_state(script_id)
     rec["cron"] = state
-    return jsonify({"status": "success", "script": rec})
+    return jsonify({"status": "success", "script": _public_script(rec)})
 
 
 @bp.route("/scripts/<script_id>", methods=["DELETE"])
@@ -181,7 +200,7 @@ def get_cron_jobs():
     jobs = []
     for rec in store.list_scripts(include_source=False):
         state = store.get_cron_state(str(rec["id"]))
-        jobs.append({**rec, "cron": state})
+        jobs.append({**_public_script(rec), "cron": state})
     return jsonify({"status": "success", "jobs": jobs, "count": len(jobs)})
 
 

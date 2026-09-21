@@ -304,8 +304,27 @@ def _ident_re(names: tuple[str, ...]) -> re.Pattern[str]:
     return re.compile(rf"(?<![\w.])({alt})(?![\w.])")
 
 
+def _followed_by_assign(span: str, end: int) -> bool:
+    """True when *end* sits on an assignment ``=`` (not ``==`` / ``=>``)."""
+    i = end
+    n = len(span)
+    while i < n and span[i] in " \t":
+        i += 1
+    if i >= n or span[i] != "=":
+        return False
+    nxt = span[i + 1] if i + 1 < n else ""
+    return nxt not in "=><"
+
+
 def _prefix_idents(span: str, names: tuple[str, ...], namespace: str) -> str:
-    return _ident_re(names).sub(rf"{namespace}.\1", span)
+    """Prefix builtin idents, but not assignment targets (``period = input(14)``)."""
+
+    def repl(match: re.Match[str]) -> str:
+        if _followed_by_assign(span, match.end()):
+            return match.group(0)
+        return f"{namespace}.{match.group(1)}"
+
+    return _ident_re(names).sub(repl, span)
 
 
 def _prefix_calls(span: str, names: tuple[str, ...], namespace: str) -> str:
@@ -485,15 +504,19 @@ def _rewrite_tickerid_call(span: str) -> str:
     return _rewrite_named_calls(span, "tickerid", replacer)
 
 
-def _convert_v3_to_v4_span(span: str) -> str:
+def _convert_v3_to_v4_span(span: str, *, tf_names: tuple[str, ...] = _TF_IDENTS) -> str:
     span = re.sub(r"(?<![\w.])color\s*\(", "color.new(", span)
     span = _prefix_idents(span, _COLOR_NAMES, "color")
     span = _prefix_idents(span, _DOW_NAMES, "dayofweek")
-    span = _prefix_idents(span, _TF_IDENTS, "timeframe")
+    span = _prefix_idents(span, tf_names, "timeframe")
     span = re.sub(r"(?<![\w.])interval(?![\w.])", "timeframe.multiplier", span)
     span = re.sub(r"(?<![\w.])tickerid(?![\w.(])", "syminfo.tickerid", span)
     span = re.sub(r"(?<![\w.])ticker(?![\w.])", "syminfo.ticker", span)
-    span = re.sub(r"(?<![\w.])n(?![\w.])", "bar_index", span)
+    span = re.sub(
+        r"(?<![\w.])n(?![\w.])",
+        lambda m: m.group(0) if _followed_by_assign(span, m.end()) else "bar_index",
+        span,
+    )
     styles = "|".join(_PLOT_STYLES)
     span = re.sub(rf"\bstyle\s*=\s*({styles})\b", r"style=plot.style_\1", span)
     hstyles = "|".join(_HLINE_STYLES)
@@ -539,7 +562,15 @@ def _ensure_declaration(source: str) -> str:
 
 def convert_v3_to_v4(source: str) -> str:
     """Rename v3 colors / ``n`` / timeframe idents toward v4 namespaces."""
-    return _map_code_spans(source, _convert_v3_to_v4_span)
+    # Line-wise mapping cannot see ``period = input(14)`` on later uses.
+    tf_names = _TF_IDENTS
+    if re.search(r"(?<![\w.])period\s*=(?!=)", source):
+        tf_names = tuple(n for n in _TF_IDENTS if n != "period")
+
+    def span(text: str) -> str:
+        return _convert_v3_to_v4_span(text, tf_names=tf_names)
+
+    return _map_code_spans(source, span)
 
 
 def _unprefix_udf_defs(source: str) -> str:

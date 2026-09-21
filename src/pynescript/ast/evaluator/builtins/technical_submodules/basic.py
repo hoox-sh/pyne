@@ -531,6 +531,14 @@ class BasicIndicators(TechnicalHelpers):
             # na length → soft-na before materializing chart series (None so nz/na() work)
             if di_len < 1 or adx_smooth < 1:
                 return None, None, None  # type: ignore[return-value]
+            if self._use_incremental_ta():
+                return self._dmi_inc_update(
+                    self._context_source("high"),
+                    self._context_source("low"),
+                    self._context_source("close"),
+                    di_len,
+                    adx_smooth,
+                )
             highs = self._context_series("high")
             lows = self._context_series("low")
             closes = self._context_series("close")
