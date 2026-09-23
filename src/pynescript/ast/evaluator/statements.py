@@ -538,13 +538,27 @@ class StatementEvaluator:
         """
         # Empty set is falsy — never ``getattr(...) or set()`` (that allocated
         # a fresh set on every plain assign when no history names exist).
-        history_names: set[str] | None = getattr(self, "_history_names", None)
+        history_names: set[str] | None = self._history_names
         if not history_names or name not in history_names:
+            # Floats / ints from ta.* are the common assign. Skip the
+            # PineSeries hasattr probes those values can never satisfy.
+            vt = type(value)
+            if (
+                value is None
+                or vt is float
+                or vt is int
+                or vt is bool
+                or vt is str
+                or vt is tuple
+                or vt is list
+            ):
+                self.context[name] = value
+                return value
             # Snapshot host/user series (``EP := high``). Storing the handle
             # makes the local track the live OHLCV series so ``high > EP`` is
             # never true after the first ``EP := high`` (Parabolic SAR AF).
-            if value is not None and hasattr(value, "current") and hasattr(value, "history"):
-                value = getattr(value, "current", value)
+            if hasattr(value, "current") and hasattr(value, "history"):
+                value = value.current
             self.context[name] = value
             return value
 
@@ -643,7 +657,7 @@ class StatementEvaluator:
         """
         # Once per script: collect names used with history subscript so assigns
         # can track PineSeries across bars (``ma[barsback]``, ``x[1]``, …).
-        if not getattr(self, "_history_names_scanned", False):
+        if not self._history_names_scanned:
             hist: set[str] = set()
             self._collect_history_names(node, hist)
             self._history_names = hist  # type: ignore[attr-defined]
@@ -652,14 +666,14 @@ class StatementEvaluator:
         # this bar sees the prior-bar value (end-of-previous-bar carry).
         self._commit_unwritten_history()
         # Reuse the export buffer — do not allocate ``{}`` every bar.
-        pending = getattr(self, "_pending_library_exports", None)
+        pending = self._pending_library_exports
         if pending:
             pending.clear()
         elif pending is None:
             self._pending_library_exports = {}  # type: ignore[attr-defined]
         self._active_library = None  # type: ignore[attr-defined]
         last: Any = None
-        line_prof: dict[int, list[float]] | None = getattr(self, "_pine_line_profile", None)
+        line_prof: dict[int, list[float]] | None = self._pine_line_profile
         if line_prof is not None:
             # Lazy import keeps hot path free of time when profiler is off
             from time import perf_counter
@@ -682,10 +696,10 @@ class StatementEvaluator:
             self._finalize_library_registration()
             return last
 
-        locked = bool(getattr(self, "_pine_defs_locked", False))
+        locked = self._pine_defs_locked
         body: Sequence[ast.AST] = node.body
         if locked:
-            hot = getattr(self, "_hot_body", None)
+            hot = self._hot_body
             if hot is None:
                 hot = self._build_hot_body(body)
                 self._hot_body = hot  # type: ignore[attr-defined]
@@ -974,6 +988,20 @@ class StatementEvaluator:
     def _assign_tuple_unpack(self, target: ast.Tuple, value: Any) -> None:
         """Unpack RHS into ``[a, b, …]`` targets (lists, multi-value series, soft-fail)."""
         elts = target.elts
+        vt = type(value)
+        if vt is tuple or vt is list:
+            n_elt = len(elts)
+            n_val = len(value)
+            bind = self._bind_series_name
+            Name = ast.Name
+            for i in range(n_elt):
+                target_node = elts[i]
+                if type(target_node) is not Name:
+                    msg = f"Unsupported unpack target: {type(target_node)}"
+                    self._error(msg)  # type: ignore[attr-defined]
+                    return
+                bind(target_node.id, value[i] if i < n_val else None)  # type: ignore[attr-defined]
+            return
         if isinstance(value, (list, tuple)):
             values = list(value)
         elif hasattr(value, "history") and isinstance(getattr(value, "history", None), list):

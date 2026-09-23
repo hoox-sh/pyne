@@ -54,10 +54,6 @@ QUINARY = 5
 
 MIN_SERIES_LENGTH = 2
 
-# Sentinel for ``_series_last`` getattr default (distinct from None / na).
-_MISSING: Any = object()
-
-
 class TechnicalHelpers:
     """Base utilities for ``ta.*`` handlers (series expect, SMA helpers, state).
 
@@ -97,7 +93,10 @@ class TechnicalHelpers:
 
         Resolved once per evaluator instance (hot path is called many times/bar).
         """
-        cached = getattr(self, "_pine_ta_inc_cached", None)
+        try:
+            cached = self._pine_ta_inc_cached
+        except AttributeError:
+            cached = None
         if cached is not None:
             return cached
         if not self._bar_mode():
@@ -117,16 +116,77 @@ class TechnicalHelpers:
         Slot identity is call *order*, not the ``ta.`` prefix. Host must
         zero ``_ta_call_i`` on every bar, including v4 bare ``sma``/``wma``.
         """
-        i = int(getattr(self, "_ta_call_i", 0) or 0)
+        try:
+            i = self._ta_call_i
+        except AttributeError:
+            i = 0
+        if type(i) is not int:
+            i = int(i or 0)
         self._ta_call_i = i + 1  # type: ignore[attr-defined]
         return i
 
     def _ta_state_bucket(self) -> dict[tuple[Any, ...], dict[str, Any]]:
-        state = getattr(self, "_ta_inc_state", None)
+        try:
+            state = self._ta_inc_state
+        except AttributeError:
+            state = None
         if state is None:
             state = {}
             self._ta_inc_state = state  # type: ignore[attr-defined]
         return state
+
+    def _ta_key1(
+        self, kind: str, period: int
+    ) -> tuple[dict[tuple[Any, ...], dict[str, Any]], tuple[Any, ...]]:
+        """Advance the call-site slot and return ``(bucket, key)``.
+
+        ``key`` is ``(kind, slot, period)``. The tuple is reused across bars
+        when that signature stays put, so the dict lookup keeps its cached
+        hash. A period change, or a realtime rollback that restored a
+        different signature, allocates a fresh key and looks that up.
+        Slot order matches :meth:`_ta_next_slot` (one increment per call).
+        """
+        try:
+            i = self._ta_call_i
+        except AttributeError:
+            i = 0
+        if type(i) is not int:
+            i = int(i or 0)
+        self._ta_call_i = i + 1  # type: ignore[attr-defined]
+        try:
+            bucket = self._ta_inc_state
+        except AttributeError:
+            bucket = None
+        if bucket is None:
+            bucket = {}
+            self._ta_inc_state = bucket  # type: ignore[attr-defined]
+        try:
+            cache = self._ta_key_cache
+        except AttributeError:
+            cache = []
+            self._ta_key_cache = cache  # type: ignore[attr-defined]
+        if cache is None:
+            cache = []
+            self._ta_key_cache = cache  # type: ignore[attr-defined]
+        key: tuple[Any, ...] | None = cache[i] if i < len(cache) else None
+        if (
+            key is not None
+            and key[0] == kind
+            and key[1] == i
+            and len(key) == 3
+            and key[2] == period
+        ):
+            return bucket, key
+        key = (kind, i, period)
+        ncache = len(cache)
+        if i == ncache:
+            cache.append(key)
+        elif i < ncache:
+            cache[i] = key
+        else:
+            cache.extend([None] * (i - ncache))
+            cache.append(key)
+        return bucket, key
 
     @staticmethod
     def _series_last(series: Any) -> Any:
@@ -146,10 +206,13 @@ class TechnicalHelpers:
             return series[-1] if series else None
         if series is None or t is float or t is int or t is bool:
             return series
-        # PineSeries / series wrapper: prefer .current (avoids history access)
-        current = getattr(series, "current", _MISSING)
-        if current is not _MISSING:
-            return current
+        # PineSeries / RingPineSeries store the bar sample on ``.current``.
+        # LOAD_ATTR beats getattr() on the TA hot path; objects without the
+        # attribute fall through to history / sequence.
+        try:
+            return series.current  # type: ignore[attr-defined]
+        except AttributeError:
+            pass
         hist = getattr(series, "history", None)
         if hist is not None:
             try:
@@ -193,9 +256,7 @@ class TechnicalHelpers:
         """
         if period <= 0:
             return None
-        slot = self._ta_next_slot()
-        key = ("sma", slot, period)
-        bucket = self._ta_state_bucket()
+        bucket, key = self._ta_key1("sma", period)
         st = bucket.get(key)
         if st is None:
             st = {"window": deque(), "sum": 0.0, "count": 0, "value": None}
@@ -278,9 +339,7 @@ class TechnicalHelpers:
         """
         if period <= 0:
             return None
-        slot = self._ta_next_slot()
-        key = ("ema", slot, period)
-        bucket = self._ta_state_bucket()
+        bucket, key = self._ta_key1("ema", period)
         st = bucket.get(key)
         if st is None:
             st = {
@@ -377,9 +436,7 @@ class TechnicalHelpers:
         """Incremental RSI using RMA of gains/losses (matches ``_rsi`` structure)."""
         if period <= 0:
             return None
-        slot = self._ta_next_slot()
-        key = ("rsi", slot, period)
-        bucket = self._ta_state_bucket()
+        bucket, key = self._ta_key1("rsi", period)
         st = bucket.get(key)
         if st is None:
             st = {
@@ -520,9 +577,7 @@ class TechnicalHelpers:
         """
         if period <= 0:
             return None
-        slot = self._ta_next_slot()
-        key = ("atr", slot, period)
-        bucket = self._ta_state_bucket()
+        bucket, key = self._ta_key1("atr", period)
         st = bucket.get(key)
         if st is None:
             st = {
@@ -563,9 +618,7 @@ class TechnicalHelpers:
         """
         if period <= 1:
             return None
-        slot = self._ta_next_slot()
-        key = ("stdev", slot, period)
-        bucket = self._ta_state_bucket()
+        bucket, key = self._ta_key1("stdev", period)
         st = bucket.get(key)
         if st is None:
             st = {"window": deque(), "sum": 0.0, "sumsq": 0.0, "count": 0, "value": None}
@@ -618,9 +671,7 @@ class TechnicalHelpers:
         """
         if period <= 0:
             return None
-        slot = self._ta_next_slot()
-        key = ("highest", slot, period)
-        bucket = self._ta_state_bucket()
+        bucket, key = self._ta_key1("highest", period)
         st = bucket.get(key)
         if st is None:
             st = {"dq": deque(), "count": 0, "value": None}
@@ -661,9 +712,7 @@ class TechnicalHelpers:
         """
         if period <= 0:
             return None
-        slot = self._ta_next_slot()
-        key = ("lowest", slot, period)
-        bucket = self._ta_state_bucket()
+        bucket, key = self._ta_key1("lowest", period)
         st = bucket.get(key)
         if st is None:
             st = {"dq": deque(), "count": 0, "value": None}
@@ -1274,6 +1323,130 @@ class TechnicalHelpers:
             st["value"] = 0.0
             return 0.0
         st["value"] = -100.0 * (hh - float(c)) / (hh - ll)
+        return float(st["value"])
+
+    def _uo_avg(
+        self,
+        highs: list[Any],
+        lows: list[Any],
+        closes: list[Any],
+        i: int,
+        length: int,
+    ) -> float | None:
+        """Buying-pressure / Williams true-range average ending at ``i``."""
+        if length <= 0 or i < length:
+            return None
+        bp = 0.0
+        tr = 0.0
+        for j in range(i - length + 1, i + 1):
+            prev = closes[j - 1]
+            h = highs[j]
+            lo = lows[j]
+            c = closes[j]
+            if prev is None or h is None or lo is None or c is None:
+                return None
+            try:
+                prevf = float(prev)
+                hf = float(h)
+                lf = float(lo)
+                cf = float(c)
+            except (TypeError, ValueError):
+                return None
+            # NaN
+            if prevf != prevf or hf != hf or lf != lf or cf != cf:
+                return None
+            low_ref = lf if lf < prevf else prevf
+            high_ref = hf if hf > prevf else prevf
+            bp += cf - low_ref
+            tr += high_ref - low_ref
+        if tr == 0.0:
+            return None
+        return bp / tr
+
+    def _uo_last(
+        self,
+        highs: list[Any],
+        lows: list[Any],
+        closes: list[Any],
+        n1: int,
+        n2: int,
+        n3: int,
+    ) -> float | None:
+        """Ultimate Oscillator at the last bar. Weights are 4, 2, 1 by argument."""
+        if n1 <= 0 or n2 <= 0 or n3 <= 0:
+            return None
+        n = min(len(highs), len(lows), len(closes))
+        if n <= max(n1, n2, n3):
+            return None
+        i = n - 1
+        a1 = self._uo_avg(highs, lows, closes, i, n1)
+        a2 = self._uo_avg(highs, lows, closes, i, n2)
+        a3 = self._uo_avg(highs, lows, closes, i, n3)
+        if a1 is None or a2 is None or a3 is None:
+            return None
+        return 100.0 * (4.0 * a1 + 2.0 * a2 + a3) / 7.0
+
+    def _uo_inc_update(self, n1: int, n2: int, n3: int) -> float | None:
+        """Bar-mode Ultimate Oscillator. O(longest window), not the full history."""
+        if n1 <= 0 or n2 <= 0 or n3 <= 0:
+            return None
+        need = max(n1, n2, n3)
+        slot = self._ta_next_slot()
+        key = ("uo", slot, n1, n2, n3)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"prev": None, "window": deque(), "value": None}
+            bucket[key] = st
+        h = self._series_last(self._context_source("high"))
+        lo = self._series_last(self._context_source("low"))
+        c = self._series_last(self._context_source("close"))
+        prev = st["prev"]
+        st["prev"] = c
+        bp: float | None = None
+        tr: float | None = None
+        if prev is not None and h is not None and lo is not None and c is not None:
+            try:
+                prevf = float(prev)
+                hf = float(h)
+                lf = float(lo)
+                cf = float(c)
+                if prevf == prevf and hf == hf and lf == lf and cf == cf:
+                    low_ref = lf if lf < prevf else prevf
+                    high_ref = hf if hf > prevf else prevf
+                    bp = cf - low_ref
+                    tr = high_ref - low_ref
+            except (TypeError, ValueError):
+                bp = None
+                tr = None
+        window: deque[tuple[float | None, float | None]] = st["window"]
+        window.append((bp, tr))
+        if len(window) > need:
+            window.popleft()
+        if len(window) < need:
+            st["value"] = None
+            return None
+        items = list(window)
+
+        def avg(length: int) -> float | None:
+            bp_s = 0.0
+            tr_s = 0.0
+            for b, t in items[-length:]:
+                if b is None or t is None:
+                    return None
+                bp_s += b
+                tr_s += t
+            if tr_s == 0.0:
+                return None
+            return bp_s / tr_s
+
+        a1 = avg(n1)
+        a2 = avg(n2)
+        a3 = avg(n3)
+        if a1 is None or a2 is None or a3 is None:
+            st["value"] = None
+            return None
+        st["value"] = 100.0 * (4.0 * a1 + 2.0 * a2 + a3) / 7.0
         return float(st["value"])
 
     def _dev_inc_update(self, series: list[Any], period: int) -> float | None:
@@ -2900,9 +3073,7 @@ class TechnicalHelpers:
         """
         if period <= 1:
             return None, None, None
-        slot = self._ta_next_slot()
-        key = ("bb", slot, int(period))
-        bucket = self._ta_state_bucket()
+        bucket, key = self._ta_key1("bb", int(period))
         st = bucket.get(key)
         if st is None:
             st = {"window": deque(), "sum": 0.0, "sumsq": 0.0, "count": 0}
@@ -3522,7 +3693,12 @@ class TechnicalHelpers:
         Incremental kernels only read ``_series_last``; return the live list
         (or empty) without allocating a capped slice.
         """
-        series_map = getattr(self, "current_series", None) or {}
+        try:
+            series_map = self.current_series
+        except AttributeError:
+            return []
+        if not series_map:
+            return []
         src = series_map.get(name)
         if src is None:
             return []

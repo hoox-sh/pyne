@@ -110,6 +110,12 @@ _PS_CC = 5  # Const, Const
 _PS_NCC = 6  # Name, Const, Const  (ta.bb(close, 20, 2.0))
 _PS_OTHER = 9
 
+# Calendar series materialize on first read (LazyCalendarContext). Every other
+# name is a plain dict slot — dict.__getitem__ skips that Python override.
+_CAL_ARG_NAMES = frozenset(
+    {"year", "month", "dayofmonth", "hour", "minute", "second", "dayofweek"}
+)
+
 # Script declarations — constant after bar 0 (host sets ``_pine_defs_locked``).
 _DECL_CALL_NAMES = frozenset({"indicator", "strategy", "library", "study"})
 
@@ -785,9 +791,13 @@ class ExpressionEvaluator:
         # Hot path inlines site lookup (no ``_call_site_for_evaluator`` /
         # ``_evaluator_generation`` frames) and shaped positional arg loads
         # (no ``_eval_arg_plan`` / security-attach / empty-UDF lookup).
-        site = getattr(node, "_pine_call_site", None)
-        ev_gen = getattr(self, "_eval_generation", None)
-        if ev_gen is None:
+        try:
+            site = node._pine_call_site
+        except AttributeError:
+            site = None
+        try:
+            ev_gen = self._eval_generation
+        except AttributeError:
             ev_gen = _evaluator_generation(self)
         if site is not None:
             kind = site[0]
@@ -1129,6 +1139,25 @@ class ExpressionEvaluator:
             return self._call_builtin(name, [])  # type: ignore[attr-defined]
         return name
 
+    def _load_plan_name(self: EvaluatorProtocol, ctx: Any, name: str) -> Any:
+        """Context lookup for a precompiled Name arg.
+
+        Calendar keys go through ``ctx[name]`` so ``LazyCalendarContext`` can
+        fill year/month/… on first read. Every other name uses
+        ``dict.__getitem__`` (same value, no Python ``__getitem__`` override).
+        """
+        try:
+            if name in _CAL_ARG_NAMES:
+                return ctx[name]
+            return dict.__getitem__(ctx, name)
+        except KeyError:
+            return self._resolve_name_arg(name)
+        except TypeError:
+            try:
+                return ctx[name]
+            except KeyError:
+                return self._resolve_name_arg(name)
+
     def _eval_shaped_args(self: EvaluatorProtocol, plan: tuple, shape: int):
         """Load a preclassified positional plan into the reused scratch list.
 
@@ -1139,19 +1168,12 @@ class ExpressionEvaluator:
         if shape == _PS_NC:
             buf = self._arg2  # type: ignore[attr-defined]
             name = plan[0][1]
-            try:
-                buf[0] = ctx[name]
-            except KeyError:
-                buf[0] = self._resolve_name_arg(name)
+            buf[0] = self._load_plan_name(ctx, name)
             buf[1] = plan[1][1]
             return buf
         if shape == _PS_N1:
             buf = self._arg1  # type: ignore[attr-defined]
-            name = plan[0][1]
-            try:
-                buf[0] = ctx[name]
-            except KeyError:
-                buf[0] = self._resolve_name_arg(name)
+            buf[0] = self._load_plan_name(ctx, plan[0][1])
             return buf
         if shape == _PS_C1:
             buf = self._arg1  # type: ignore[attr-defined]
@@ -1159,11 +1181,7 @@ class ExpressionEvaluator:
             return buf
         if shape == _PS_NCC:
             buf = self._arg3  # type: ignore[attr-defined]
-            name = plan[0][1]
-            try:
-                buf[0] = ctx[name]
-            except KeyError:
-                buf[0] = self._resolve_name_arg(name)
+            buf[0] = self._load_plan_name(ctx, plan[0][1])
             buf[1] = plan[1][1]
             buf[2] = plan[2][1]
             return buf
@@ -1171,10 +1189,16 @@ class ExpressionEvaluator:
             buf = self._arg2  # type: ignore[attr-defined]
             n0, n1 = plan[0][1], plan[1][1]
             try:
-                buf[0] = ctx[n0]
-                buf[1] = ctx[n1]
+                if n0 in _CAL_ARG_NAMES or n1 in _CAL_ARG_NAMES:
+                    buf[0] = ctx[n0]
+                    buf[1] = ctx[n1]
+                else:
+                    buf[0] = dict.__getitem__(ctx, n0)
+                    buf[1] = dict.__getitem__(ctx, n1)
                 return buf
             except KeyError:
+                return None
+            except TypeError:
                 return None
         if shape == _PS_CC:
             buf = self._arg2  # type: ignore[attr-defined]

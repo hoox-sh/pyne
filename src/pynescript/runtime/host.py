@@ -82,11 +82,14 @@ def _env_truthy(name: str, default: bool = False) -> bool:
 
 def _drop_as_series_cache(ev: Any) -> None:
     """Reuse the per-bar PineSeries reversal dict instead of reallocating it."""
-    cache = getattr(ev, "_pine_as_series_cache", None)
-    if isinstance(cache, dict):
+    try:
+        cache = ev._pine_as_series_cache
+    except AttributeError:
+        cache = None
+    if type(cache) is dict:
         cache.clear()
     else:
-        ev._pine_as_series_cache = None
+        ev._pine_as_series_cache = {}
 
 
 class LazyCalendarContext(dict):

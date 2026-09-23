@@ -45,6 +45,16 @@ class BasicIndicators(TechnicalHelpers):
 
     def _builtin_ta_sma(self, args: list[Any]) -> list[float | None]:
         """Simple Moving Average."""
+        # Steady bar: positive int period, incremental already resolved.
+        # Skips _expect_series / a second _use_incremental_ta. Slot is still
+        # taken inside _sma_inc_update (same order as the slow path).
+        if (
+            self._pine_ta_inc_cached is True
+            and len(args) == BINARY
+            and type(args[1]) is int
+            and args[1] > 0
+        ):
+            return self._sma_inc_update(args[0], args[1])
         series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if self._use_incremental_ta():
             return self._sma_inc_update(series, period)
@@ -52,6 +62,13 @@ class BasicIndicators(TechnicalHelpers):
 
     def _builtin_ta_ema(self, args: list[Any]) -> list[float | None]:
         """Exponential Moving Average."""
+        if (
+            self._pine_ta_inc_cached is True
+            and len(args) == BINARY
+            and type(args[1]) is int
+            and args[1] > 0
+        ):
+            return self._ema_inc_update(args[0], args[1])
         series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if self._use_incremental_ta():
             return self._ema_inc_update(series, period)
@@ -221,6 +238,13 @@ class BasicIndicators(TechnicalHelpers):
 
     def _builtin_ta_highest(self, args: list[Any]) -> Any:
         """Highest value. ``ta.highest(source, length)`` or ``ta.highest(length)`` → high."""
+        if (
+            self._pine_ta_inc_cached is True
+            and len(args) == BINARY
+            and type(args[1]) is int
+            and args[1] > 0
+        ):
+            return self._highest_inc_update(args[0], args[1])
         series, period = self._expect_series(
             args,
             length=BINARY,
@@ -234,6 +258,13 @@ class BasicIndicators(TechnicalHelpers):
 
     def _builtin_ta_lowest(self, args: list[Any]) -> Any:
         """Lowest value. ``ta.lowest(source, length)`` or ``ta.lowest(length)`` → low."""
+        if (
+            self._pine_ta_inc_cached is True
+            and len(args) == BINARY
+            and type(args[1]) is int
+            and args[1] > 0
+        ):
+            return self._lowest_inc_update(args[0], args[1])
         series, period = self._expect_series(
             args,
             length=BINARY,
@@ -314,6 +345,13 @@ class BasicIndicators(TechnicalHelpers):
 
     def _builtin_ta_stdev(self, args: list[Any]) -> float | None:
         """Standard Deviation."""
+        if (
+            self._pine_ta_inc_cached is True
+            and len(args) == BINARY
+            and type(args[1]) is int
+            and args[1] > 1
+        ):
+            return self._stdev_inc_update(args[0], args[1])
         series, period = self._expect_series(args, length=BINARY, last_sample_ok=True)
         if self._use_incremental_ta():
             return self._stdev_inc_update(series, period)
@@ -400,8 +438,16 @@ class BasicIndicators(TechnicalHelpers):
                 else self._context_series("close")
             )
         elif len(args) == TERNARY:
-            length = self._expect_int(args[1], msg)
+            length_raw = args[1]
             multiplier = args[2]
+            if (
+                self._pine_ta_inc_cached is True
+                and type(length_raw) is int
+                and length_raw > 1
+                and (type(multiplier) is float or type(multiplier) is int)
+            ):
+                return self._bb_inc_update(args[0], length_raw, float(multiplier))
+            length = self._expect_int(length_raw, msg)
             # Inc path: last-sample only (``_series_last``). Full path needs chrono list.
             series = self._as_series_or_raw(args[0], last_sample_ok=True)
         else:
@@ -418,6 +464,13 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_atr(self, args: list[Any]) -> Any:
         """Average True Range. reference Pine: ``ta.atr(length)``; also legacy 4-arg form."""
         if len(args) == 1 and self._is_period_like(args[0]):
+            if self._pine_ta_inc_cached is True and type(args[0]) is int and args[0] > 0:
+                return self._atr_inc_update(
+                    self._context_source("high"),
+                    self._context_source("low"),
+                    self._context_source("close"),
+                    args[0],
+                )
             length = self._expect_int(args[0], "ta.atr length must be an integer")
             if self._use_incremental_ta():
                 return self._atr_inc_update(

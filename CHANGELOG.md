@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.7] - 2026-09-23
+
+Faster interpret dispatch, and `ta.uo` on both the incremental kernel and compile.
+
+### Changed
+
+- Interpret hot path loads call-site, assignment, and TA state by attribute
+  instead of ``getattr``, reuses each TA dict key across bars, and skips
+  repeated argument checks for steady ``ta.sma`` / ``ema`` / ``rsi`` /
+  ``stdev`` / ``bb`` / ``atr`` / ``highest`` / ``lowest``. Calendar names
+  (``year``, ``month``, …) still materialize on first read. On a 2000-bar
+  interpret bench, mixed TA went from 135 ms to 113 ms and ``plot(close)``
+  from 12.5 ms to 10.0 ms.
+
+### Fixed
+
+- ``ta.uo`` no longer copies one buying-pressure ratio into all three
+  averages. Interpret uses the three-window incremental kernel. Compile
+  emits ``numba_uo`` in nopython mode.
+
 ## [0.6.6] - 2026-09-22
 
 Runtime last-sample TA, convert-to-v6 identifier safety, webhook SSRF, LSP nested completion.
@@ -626,6 +646,7 @@ First public **PYNE** release. PyPI distribution name is **`hoox-pyne`**
 - Dead `technical_refactored.py` and internal refactoring notes from the published package tree.
 - Broken AXIS-only GitHub workflows (`axis-nightly`, PWA/e2e jobs) — AXIS CI lives in [jango-blockchained/axis](https://github.com/jango-blockchained/axis).
 
+[0.6.7]: https://github.com/hoox-sh/pyne/compare/v0.6.6...v0.6.7
 [0.6.6]: https://github.com/hoox-sh/pyne/compare/v0.6.5...v0.6.6
 [0.6.5]: https://github.com/hoox-sh/pyne/compare/v0.6.4...v0.6.5
 [0.6.4]: https://github.com/hoox-sh/pyne/compare/v0.6.3...v0.6.4

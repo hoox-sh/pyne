@@ -3717,6 +3717,31 @@ plot(ta.bbw(close, 20, 2.0), title="bbw")
             max_err = max(max_err, abs(float(full) - float(inc)))
         assert max_err <= 1e-10, max_err
 
+    def test_uo_emits_numeric_plot(self) -> None:
+        src = """//@version=6
+indicator("x")
+plot(ta.uo(7, 14, 28), title="uo")
+"""
+        code = transpile(src)
+        assert "numba_uo" in code
+        compiled = compile_script(src, use_cache=False)
+        assert not compiled.object_mode
+        _o, h, l, c, v = _ohlcv(80)
+        out = compiled.run(_o, h, l, c, v)
+        assert not np.isnan(out["uo"][-1])
+        # Linear OHLC: every bar's buying-pressure / true-range ratio is constant.
+        assert out["uo"][-1] == pytest.approx(50.0)
+        assert np.isnan(out["uo"][0])
+        # Unequal windows must not collapse to one average.
+        from pynescript.compiler import numba_builtins as nb
+
+        hh = np.array([10.0, 11.0, 12.0, 10.0])
+        ll = np.array([8.0, 8.0, 9.0, 7.0])
+        cc = np.array([9.0, 10.0, 11.0, 8.0])
+        assert nb.numba_uo(hh, ll, cc, 1, 1, 2, 3) == pytest.approx(
+            100.0 * (4.0 * 0.25 + 2.0 * 0.25 + 3.0 / 7.0) / 7.0
+        )
+
         # cmo zero-momentum flat series → 0 after seed
         flat = np.full(30, 50.0)
         assert abs(nb.numba_cmo(flat, 10, 20)) < 1e-12

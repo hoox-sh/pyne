@@ -6246,6 +6246,55 @@ def numba_wpr(high, low, close, period, i):
 
 
 @numba.njit(cache=True)
+def _numba_uo_avg(high, low, close, length, i):
+    """Buying-pressure / true-range average over ``length`` bars ending at ``i``.
+
+    Williams true range: ``max(high, prev_close) - min(low, prev_close)``.
+    Returns NaN when the window is short, contains NaN, or true-range sum is 0.
+    """
+    length = int(length)
+    if length <= 0 or i < length:
+        return np.nan
+    bp = 0.0
+    tr = 0.0
+    start = i - length + 1
+    for j in range(start, i + 1):
+        prev = close[j - 1]
+        h = high[j]
+        l_ = low[j]
+        c = close[j]
+        if np.isnan(prev) or np.isnan(h) or np.isnan(l_) or np.isnan(c):
+            return np.nan
+        low_ref = l_ if l_ < prev else prev
+        high_ref = h if h > prev else prev
+        bp += c - low_ref
+        tr += high_ref - low_ref
+    if tr == 0.0:
+        return np.nan
+    return bp / tr
+
+
+@numba.njit(cache=True)
+def numba_uo(high, low, close, len1, len2, len3, i):
+    """Ultimate Oscillator at bar ``i`` (reference ``ta.uo``).
+
+    ``100 * (4*avg(len1) + 2*avg(len2) + avg(len3)) / 7``. Warm-up is NaN
+    until the longest window has a previous close.
+    """
+    len1 = int(len1)
+    len2 = int(len2)
+    len3 = int(len3)
+    if len1 <= 0 or len2 <= 0 or len3 <= 0:
+        return np.nan
+    a1 = _numba_uo_avg(high, low, close, len1, i)
+    a2 = _numba_uo_avg(high, low, close, len2, i)
+    a3 = _numba_uo_avg(high, low, close, len3, i)
+    if np.isnan(a1) or np.isnan(a2) or np.isnan(a3):
+        return np.nan
+    return 100.0 * (4.0 * a1 + 2.0 * a2 + a3) / 7.0
+
+
+@numba.njit(cache=True)
 def numba_cmo(arr, length, i):
     """Chande Momentum Oscillator over ``length`` changes ending at ``i``.
 

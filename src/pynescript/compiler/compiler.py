@@ -5602,6 +5602,7 @@ class CompilerVisitor(NodeVisitor):
             "cmf": "ta_cmf",
             "stochrsi": "ta_stochrsi",
             "willr": "ta_wpr",
+            "uo": "ta_uo",
             "accdist": "ta_accdist",
             "pvt": "ta_pvt",
             "vpt": "ta_pvt",
@@ -5814,6 +5815,14 @@ class CompilerVisitor(NodeVisitor):
                 return f"numba_wpr({_arr(args[0])}, {_arr(args[1])}, {_arr(args[2])}, int({args[3]}), __bar_idx)"
             length = args[0] if args else "14"
             return f"numba_wpr(high_arr, low_arr, close_arr, {self._emit_period(length)}, __bar_idx)"
+        if func_name == "ta_uo":
+            # ta.uo(short, mid, long) — chart high/low/close
+            if len(args) < 3:
+                return "np.nan"
+            return (
+                f"numba_uo(high_arr, low_arr, close_arr, {self._emit_period(args[0])}, "
+                f"{self._emit_period(args[1])}, {self._emit_period(args[2])}, __bar_idx)"
+            )
         if func_name == "ta_cmo":
             # ta.cmo(source, length) or ta.cmo(length) on close
             if len(args) >= 2:

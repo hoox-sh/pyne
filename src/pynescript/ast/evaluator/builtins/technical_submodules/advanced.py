@@ -807,37 +807,16 @@ class AdvancedIndicators(TechnicalHelpers):
         length2 = self._expect_int(args[1], "length2 must be integer")
         length3 = self._expect_int(args[2], "length3 must be integer")
 
-        closes = (getattr(self, "current_series", None) or {}).get("close", [])
-        highs = (getattr(self, "current_series", None) or {}).get("high", [])
-        lows = (getattr(self, "current_series", None) or {}).get("low", [])
-
-        if not closes or not highs or not lows or len(closes) < length3:
-            return None
-
-        max_len = max(length1, length2, length3)
-
-        # True Range and Buying Pressure
-        tr_sum = 0.0
-        bp_sum = 0.0
-        for i in range(len(closes) - max_len, len(closes)):
-            high_low = highs[i] - lows[i]
-            high_close = abs(highs[i] - closes[i - 1]) if i > 0 else high_low
-            low_close = abs(lows[i] - closes[i - 1]) if i > 0 else 0
-            tr = max(high_low, high_close, low_close)
-
-            bp = closes[i] - min(lows[i], closes[i - 1]) if i > 0 else 0
-            tr_sum += tr
-            bp_sum += bp
-
-        if tr_sum == 0:
-            return 0.0
-
-        avg1 = bp_sum / tr_sum
-        avg2 = bp_sum / tr_sum
-        avg3 = bp_sum / tr_sum
-
-        uo_val = 100.0 * ((avg1 * 4.0 + avg2 * 2.0 + avg3) / 7.0)
-        return uo_val
+        if self._use_incremental_ta():
+            return self._uo_inc_update(length1, length2, length3)
+        return self._uo_last(
+            self._context_series("high"),
+            self._context_series("low"),
+            self._context_series("close"),
+            length1,
+            length2,
+            length3,
+        )
 
     def _builtin_ta_stdev(self, args: list[Any]) -> float | None:
         """Standard Deviation (delegates to core helper / incremental path).
