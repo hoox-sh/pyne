@@ -1,5 +1,5 @@
 PYNE CONSOLIDATED DOCUMENTATION — LLM CONTEXT PACK
-Generated: 2026-09-05
+Generated: 2026-09-23
 Source: docs/pyne
 Public: https://hoox.sh/pyne/docs
 Repository: https://github.com/hoox-sh/pyne
@@ -198,7 +198,11 @@ Environment:
 | PORT | | Listen port |
 | ALLOWEDORIGINS | https://pynescript.ai, https://app.pynescript.ai, localhost regex | CORS origins (comma-separated; regex allowed). / any opens all. Code always appends localhost, private-LAN, and product (hoox.sh / pynescript.ai / pynescript-axis.pages.dev) regexes unless the value is |
 | APIKEYSTORE | /data/apikeys.json | JSON key-store path (auth.APIKeyStore default) |
-| ADMINTOKEN | unset | Fail-closed admin minting (see auth) |
+| ADMINTOKEN | unset | Fail-closed admin minting (see auth). When set, hosted-runner writes also require it |
+| PYNERUNNER | off | Optional hosted script registry + /cron/run (runner) |
+| PYNERUNNERSCHEDULER | off | In-process bar-close poll (requires PYNERUNNER) |
+| PYNERUNNERPOLLSECONDS | | Scheduler interval |
+| PYNERUNNERDB | /data/runner.db or temp | SQLite registry path |
 debug=False always on the dev runner.
 Health
 GET / and GET /health are the same handler. AXIS Settings probes /health. Payload includes compile-cache diagnostics:
@@ -213,7 +217,9 @@ GET / and GET /health are the same handler. AXIS Settings probes /health. Payloa
 "alerts": true,
 "alertwebhooks": true,
 "warmcompile": true,
-"defaultrunmode": "auto"
+"defaultrunmode": "auto",
+"scriptrunner": false,
+"scriptrunnerscheduler": false
 },
 "compile": {
 "hasnumba": true,
@@ -1148,6 +1154,104 @@ Contract
 Runtime bridge
 App lifecycle
 ---
+FILE: docs/pyne/api/endpoints/runner.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-or-later
+---
+title: "Hosted runner"
+description: "Optional Flask/VPS/container script registry + bar-close scheduler (PYNERUNNER). Off by default."
+---
+Hosted runner
+Abstract
+The Pro API is request/response: AXIS (or curl) POSTs bars, gets alerts[] in that reply, and nothing runs after the client disconnects. PYNERUNNER is an optional Flask-side loop that matches pyne-worker’s “upload then keep going” model on local, Docker, VPS, and Cloudflare Containers.
+Off unless PYNERUNNER= (or true / yes / on). Routes then with RUNNERDISABLED. Health reports features.scriptrunner.
+This is not HOOX order routing. Alerts leave via the same L webhooks as POST /run. Strategy events stay on the tick JSON unless you forward them yourself.
+Conceptual model
+Each tick fetches OHLCV for the script’s symbol / timeframe / datasource. If last bar time did not advance, the job is skipped. Otherwise a full Runtime.run (same evaluate contract as /run) and last-bar alert webhooks.
+Interface surface
+Environment
+| Variable | Default | Role |
+| --- | --- | --- |
+| PYNERUNNER | off | Master switch — HTTP registry + /cron/run |
+| PYNERUNNERSCHEDULER | off | In-process poll loop (needs PYNERUNNER) |
+| PYNERUNNERPOLLSECONDS | | Poll interval (floor s) |
+| PYNERUNNERDB | /data/runner.db if /data exists | SQLite file |
+| ADMINTOKEN | unset | When set, writes require X-Admin-Token |
+Gunicorn multi-worker: every worker may start a scheduler thread; ticks take a flock on PYNERUNNERDB.lock. Prefer GUNICORNWORKERS= when the scheduler is on.
+Routes (PYNERUNNER=)
+| Method | Path | Auth | Role |
+| --- | --- | --- | --- |
+| POST | /scripts | admin if ADMINTOKEN | Deploy / replace |
+| GET | /scripts | none | List (no source) |
+| GET | /scripts/:id | none | Source + cron state |
+| DELETE | /scripts/:id | admin if ADMINTOKEN | Remove |
+| GET | /cron/jobs | none | Scripts + last tick |
+| PUT | /cron/jobs | admin if ADMINTOKEN | {jobs:[{scriptid, enabled}]} |
+| POST | /cron/run | admin if ADMINTOKEN | Tick now (force, optional scriptid) |
+Deploy body
+``json
+{
+"id": "btc-sma",
+"script": "//@version=\nindicator(\"t\")\nplot(close)\nalertcondition(close>open,\"up\",\"green\")",
+"symbol": "BTCUSDT",
+"timeframe": "d",
+"mode": "interpret",
+"datasource": "mock",
+"period": "mo",
+"maxbars": ,
+"enabled": true,
+"webhookurl": "https://hooks.example.com/pine",
+"forwardalerts": true
+}
+`
+datasource: mock (deterministic, no network), yahoo, ccxt (dataoptions.exchange), alphavantage. Same provider factory as CLI pyne data.
+Worked examples
+Local (no Docker):
+`bash
+export PYNERUNNER= PYNERUNNERSCHEDULER=
+python -m backend.app :
+pyne runner deploy script.pine --id demo --symbol BTCUSDT --source mock
+pyne runner tick --id demo --force
+pyne runner list
+`
+Same HTTP without the CLI:
+`bash
+curl -sS -X POST http://...:/scripts -H 'Content-Type: application/json' \
+-d '{"id":"demo","script":"//@version=\nindicator(\"t\")\nplot(close)","datasource":"mock","timeframe":"d","maxbars":}'
+curl -sS -X POST http://...:/cron/run -d '{"force":true}' -H 'Content-Type: application/json'
+`
+Docker:
+`bash
+PYNERUNNER= PYNERUNNERSCHEDULER= docker compose up --build api
+`
+VPS: set the same env on pynescript-api.service (or the process environment scripts/deployvps.sh restarts). SQLite path should sit on a persistent disk (PYNERUNNERDB=/data/runner.db).
+Cloudflare Container: keep PYNERUNNER= in cf/src/index.ts unless you want the runner inside the isolate; one gunicorn worker is already the default.
+Failure modes
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| RUNNERDISABLED | Switch off | PYNERUNNER= |
+| FORBIDDEN | ADMINTOKEN set, header missing | X-Admin-Token |
+| skipped / nonewbar | Last close unchanged | Wait, or force: true |
+| fetchfailed | yahoo/ccxt error | Use mock or fix dataoptions |
+| Double ticks | Several gunicorn workers | GUNICORN_WORKERS=` or rely on flock |
+See also
+POST /run
+Alerts
+pyne-worker cron — edge equivalent
+Docker
+App lifecycle
+---
 FILE: docs/pyne/api/index.mdx
 Copyright (C) - jangoblockchained
 This file is part of pynescript.
@@ -1186,6 +1290,7 @@ Interface surface
 | GET | / · /health | none | Health + endpoint map + compile cache section |
 | POST | /run | none (free) | Single-script evaluate (mode default auto; libraries[]; alerts + optional webhooks) |
 | POST | /run/batch | none (free) | ≤ scripts, shared OHLCV |
+| POST | /scripts · /cron/ | optional runner | Hosted scripts + bar-close — off unless PYNERUNNER= (runner) |
 | POST | /optimize | none (free) | Strategy input. search — N interpret Runtime runs (docs) |
 | WS | /ws/run | none (free) | Same evaluate contract over JSON frames (flask-sock optional) |
 | POST | /preview/chart | API key + usage | Line / OHLCV PNG |
@@ -1202,7 +1307,7 @@ Interface surface
 | --- | --- |
 | series / plots / plotmeta | Bar values + display meta (color, linewidth, kind, fill band refs) |
 | events | Strategy broker events |
-| drawings | Drawing registry / compile _drawings |
+| drawings | Drawing registry / compile drawings |
 | alerts | Structured alert() / alertcondition() firings |
 | mode / autobackend | Effective path (interpret \| compile) |
 | compilefallbackreason | Why auto chose interpret (eligibility or compile error) |
@@ -1537,7 +1642,7 @@ Internals (where to change what)
 | Pro API route | backend/api/preview.py, backend/app.py |
 | Runtime modes / compile fallback | src/pynescript/runtime/host.py (Runtime.run); backend/runtime.py is a shim |
 | Interp/compile series parity | scripts/compareinterpcompile.py, tests/testinterpcompileparity.py |
-| TS library | sister repo hoox-sh/pynets (pynets/ submodule here) |
+| TS library | sister repo hoox-sh/pynets / @hoox-sh/pynets |
 Style
 Ruff line length ; broad rule set in pyproject.toml
 Black target py (via toolchain config)
@@ -1558,8 +1663,8 @@ PyneTS contributions
 Work in hoox-sh/pynets, not a pine-worker/ directory in this repo
 Bun for install / test / typecheck; bun run generate after PYNE .g changes
 Python remains the oracle — see PyneTS parity
-Do not copy PyneTS sources into this tree; PYNE consumes the pynets/ submodule only
-The pynets/ submodule pin is v.. (interpret + JS compile), matching standalone @hoox-sh/pynets. Python remains the oracle.
+Do not copy PyneTS sources into this tree; work in the standalone hoox-sh/pynets repo / @hoox-sh/pynets package
+Python Runtime remains the oracle.
 Failure modes for contributors
 | Mistake | Fallout |
 | --- | --- |
@@ -2558,7 +2663,7 @@ Version
 | --- | --- |
 | W | No //@version = N (flexible whitespace) match |
 | W | Version integer |
-| C | Line matches ^\s+if\s+ — flagged as “single-line if without braces” heuristic |
+| C | (retired) Line matches ^\s+if\s+ — was “single-line if without braces”; code kept greppable |
 | C | File does not end with newline |
 Internals
 Path
@@ -2604,7 +2709,7 @@ raise SystemExit()
 Failure modes
 | Issue | Explanation |
 | --- | --- |
-| C on legitimate indented if blocks | Regex is coarse; multi-line if with body still matches ^\s+if\s+ |
+| C on legitimate indented if blocks | Rule retired in ..; the code no longer fires (was a coarse ^\s+if\s+ heuristic) |
 | C noise | Many valid snakecase or lower identifiers |
 | E still not a caret dump | Linter stores the short .message plus line/column; catch pynescript.ast.error.SyntaxError for the full caret str |
 | Encoding errors in lintfile | Non-UTF- files raise at read time |
@@ -3249,6 +3354,9 @@ Environment variables
 | APIKEYSTORESQLITE | /data/apikeys.db | SQLite path (STOREBACKEND=sqlite) |
 | ALLOWEDORIGINS | compose default includes https://hoox.sh, https://hoox.sh/axis, and local AXIS : | CORS allow-list. VPS AXIS is : — do not copy into VPS env |
 | ADMINTOKEN | unset | Required for POST /auth/createkey (X-Admin-Token) and prod compose |
+| PYNERUNNER | | Optional hosted runner (docs). enables /scripts + /cron/ |
+| PYNERUNNERSCHEDULER | | In-process bar-close poll. Prefer GUNICORNWORKERS= when on |
+| PYNERUNNERDB | /data/runner.db | SQLite on the apidata volume |
 | REDISURL | empty in prod; compose dev default redis://redis:/ | Required when STOREBACKEND=redis |
 | GUNICORNWORKERS / GUNICORNTHREADS / GUNICORNTIMEOUT | / / (entrypoint default; prod compose overlay defaults to ) | Prod entrypoint knobs |
 | GUNICORNBIND | ...:${PORT} | Optional gunicorn bind override |
@@ -3264,7 +3372,7 @@ Cloud Build (cloudbuild.yaml, --target api only):
 gcr.io/$PROJECTID/pynescript/pynescript-pro-api:$COMMITSHA
 gcr.io/$PROJECTID/pynescript/pynescript-pro-api:latest
 `
-Substitution PYNESCRIPTVERSION in that YAML currently defaults to ".." — override at submit time to match about.py (..).
+Substitution PYNESCRIPTVERSION in that YAML defaults to .., matching about.py.
 Internals
 Build stages
 . base-os / base — slim image, non-root appuser; API/LSP base also installs curl + freetype/png
@@ -3326,7 +3434,7 @@ Failure modes
 | Permission denied writing keys | Running as appuser outside /data | Set APIKEYSTORE=/data/... and mount apidata |
 | Import errors after mount | PYTHONPATH / stale site-packages | PYTHONPATH=/app/src:/app; rebuild after dependency changes |
 | OOM under load | Small memory cap | Raise APIMEMLIMIT / Cloud Run memory; reduce concurrency |
-| CORS failures from PWA | Origin not allowed | Set ALLOWEDORIGINS |
+| CORS failures from PWA | Origin not allowed | Set ALLOWED_ORIGINS |
 | Huge build context | Missing .dockerignore | Ensure .dockerignore` is present (corpus/docs excluded) |
 See also
 GCP
@@ -3365,7 +3473,7 @@ Substitutions (cloudbuild.yaml)
 | REGION | us-central | Deploy region |
 | REPOSITORY | pynescript | Image path segment |
 | METADATAKEY | (secret/subst) | Fernet key → CRYPTOKEY for LSP stage |
-| PYNESCRIPTVERSION | ".." (stale default in YAML) | OCI label; override to .. at submit |
+| PYNESCRIPTVERSION | ".." | OCI label. Matches src/pynescript/about.py. |
 Build steps
 . build — docker build with BuildKit; tags $COMMITSHA + latest; cache-from latest
 . push — docker push --all-tags
@@ -3459,10 +3567,10 @@ description: "CI matrices, containers, Nuitka LSP binaries, metadata crypto, Clo
 ---
 DevOps
 Abstract
-PYNE is a multi-surface product: pure-Python library + Click CLI (pyne / alias pynescript), pygls Language Server (pyne-lsp), Flask Pro API, VS Code extension (hoox-sh.pyne ..), and Docker targets (api / cli / lsp). Edge workers and the AXIS charting PWA are sister repos — not built in this tree.
+PYNE is a multi-surface product: pure-Python library + Click CLI (pyne / alias pynescript), pygls Language Server (pyne-lsp), Flask Pro API, VS Code extension (hoox-sh.pyne ..; the Python package is ..), and Docker targets (api / cli / lsp). Edge workers and the AXIS charting PWA are sister repos — not built in this tree.
 This tab documents the operational graph: local loops, GitHub Actions, release tags, Docker images, Nuitka CLI/LSP binaries, Fernet-encrypted LSP metadata, GCP Cloud Build/Run, observability hooks, and security controls.
 Conceptual model
-Invariant: CI green on main is necessary but not sufficient for a full release. Tag v fires Build & Release (binaries + VSIX + GitHub Release), Publish (hoox-pyne .. to PyPI), and GHCR (ghcr.io/hoox-sh/pyne/{api,cli,lsp}). Cloud Build deploys the API image separately.
+Invariant: CI green on main is necessary but not sufficient for a full release. Tag v fires Build & Release (binaries + VSIX + GitHub Release), Publish (hoox-pyne from about.py, currently .., to PyPI), and GHCR (ghcr.io/hoox-sh/pyne/{api,cli,lsp}). Cloud Build deploys the API image separately.
 Interface surface
 | Concern | Entry | Doc |
 | --- | --- | --- |
@@ -3546,8 +3654,8 @@ description: "Install, test, lint, package, and run PYNE — Make targets after 
 Local development
 Abstract
 A PYNE checkout is a Python-first workspace: src-layout package + Flask Pro API,
-optional VS Code extension (Node), and the pynets/ submodule (Bun/TS library). The AXIS
-charting PWA is a sister repo (axis) — do not recreate frontend/ here. Prefer the standalone hoox-sh/pynets checkout for TS work.
+optional VS Code extension (Node). PyneTS is the standalone hoox-sh/pynets / @hoox-sh/pynets package. The AXIS
+charting PWA is a sister repo (axis) — do not recreate frontend/ here.
 Conceptual model
 Interface surface
 Make targets (primary)
@@ -3589,6 +3697,8 @@ hatch run lint:gen-parser
 `
 Quick desk loop
 `bash
+git clone https://github.com/hoox-sh/pyne.git
+cd pyne
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[lsp,compile,pro]"
 pyne info
@@ -3607,7 +3717,7 @@ Internals
 | src/pynescript/ | Editable package root |
 | tests/conftest.py | Optional --example-scripts-dir only; no third-party corpus shipped |
 | backend/requirements.txt | Pro API deps (also covered by [pro] extra) |
-| pynets/ | TS library submodule; prefer standalone hoox-sh/pynets |
+| hoox-sh/pynets | Standalone TS library (@hoox-sh/pynets); not an in-tree submodule |
 | vscode-extension/ | PYNE VS Code extension |
 | Dockerfile | targets api, api-dev, lsp, cli |
 Python
@@ -4172,7 +4282,7 @@ Cut a release
 `bash
 . Version + changelog on main
 src/pynescript/about.py → ..
-vscode-extension/package.json version (same pin when shipping VSIX)
+vscode-extension/package.json is a separate pin (currently ..)
 CHANGELOG.md
 . Local smoke (no upload)
 pip install build twine
@@ -4293,7 +4403,7 @@ Release asset contract (from release body)
 | pynescript-lsp-linux-x | chmod +x → /usr/local/bin/pynescript-lsp |
 | pynescript-lsp-windows-x.exe | Place on PATH |
 | pynescript-lsp-macos-arm | Place on PATH (Apple Silicon runners) |
-| pyne-vscode-.vsix (hoox-sh.pyne ..) | code --install-extension pyne-vscode-.vsix |
+| pyne-vscode-.vsix (hoox-sh.pyne ..) | code --install-extension pyne-vscode-.vsix · site: hoox.sh/pyne-vscode.vsix (unversioned) |
 Invariants & edge cases
 . CRYPTOKEY must be stable across builds if you care about byte-identical builtinmetadata.json.enc. Supply secrets.METADATAKEY.
 . Tag name is the version source for the GitHub Release title (v prefix stripped).
@@ -4680,7 +4790,7 @@ description: "Install hoox-pyne from PyPI (live) or a source checkout — CLI, L
 ---
 Installation
 Abstract
-PYNE is live on PyPI as hoox-pyne (currently ..+). The import package remains pynescript (src-layout under src/pynescript/). Preferred console scripts are pyne / pyne-lsp; legacy pynescript / pynescript-lsp remain installed as aliases.
+PYNE is live on PyPI as hoox-pyne (currently ..). The import package remains pynescript (src-layout under src/pynescript/). Preferred console scripts are pyne / pyne-lsp; legacy pynescript / pynescript-lsp remain installed as aliases.
 Do not install:
 plain pyne / PyNE from PyPI without the hoox- prefix — unrelated .. process-networking library (our wheel is hoox-pyne)
 upstream pynescript (elbakramer) — different project
@@ -4838,7 +4948,7 @@ Conceptual model
 Interface surface
 Assumes:
 ``bash
-pip install hoox-pyne https://pypi.org/project/hoox-pyne/ · ..+
+pip install hoox-pyne https://pypi.org/project/hoox-pyne/ · ..
 optional:
 pip install "hoox-pyne[lsp]" editors
 pip install "hoox-pyne[compile]" compile / run / prewarm
@@ -5023,11 +5133,13 @@ Conceptual model
 | --- | --- |
 | check | parse only (exit codes) |
 | format / fmt | parse + unparse |
+| convert | pynescript.util.pineconvert (any older version → v) |
 | parse-and-dump / dump | parse + dump |
 | lint | lintscript |
 | compile / prewarm / run | pynescript.compiler (+ [compile] extra) |
 | optimize | pynescript.optimize.runstudy |
 | data | pynescript.util.data.getprovider |
+| runner | HTTP client for Flask /scripts + /cron/run (PYNERUNNER) |
 | info | version + optional extras |
 Interface surface
 ``bash
@@ -5040,6 +5152,7 @@ alias: pynescript …
 | --- | --- | --- |
 | check PATHS… | files / dirs / stdin | ok/fail lines + exit code |
 | format PATH | file or - | formatted source (-w / --check) |
+| convert PATH --to | file or - | rewritten v source (-w) |
 | parse-and-dump PATH | file | AST dump |
 | parse-and-unparse PATH | file | Pine source |
 | lint [PATH\|-] | file or stdin | diagnostics (--json) |
@@ -5048,6 +5161,7 @@ alias: pynescript …
 | run PATH | file | synthetic-bar execute |
 | optimize PATH | file + --space JSON | strategy hyperparameter search |
 | data SYMBOL | symbol + provider opts | table / json / csv |
+| runner … | file / id | hosted deploy + tick (runner) |
 | info | — | version + extras |
 Not part of this Click group: language server — use pyne-lsp (alias pynescript-lsp).
 Install options
@@ -5075,6 +5189,7 @@ Internals (repo paths)
 | src/pynescript/ast/linter.py | lintscript |
 | src/pynescript/compiler/ | compile / prewarm / run |
 | src/pynescript/util/data.py | providers + DataProviderError |
+| src/pynescript/util/runnercli.py | pyne runner HTTP client |
 | examples/ | sample .pine inputs |
 | tests/testcli.py | CLI unit suite (CI) |
 Invariants & edge cases
@@ -5142,7 +5257,7 @@ python - <<'PY'
 from pathlib import Path
 from pynescript.runtime import Runtime
 hand off to Runtime or your own visitor
-print(Path("/tmp/s.pine").read_text()[:])
+print(Path("/tmp/s.pine").readtext()[:])
 PY
 `
 Failure modes
@@ -5212,7 +5327,7 @@ npm run compile
 package: npx vsce package (or make build-vscode)
 `
 . Open a .pyne (preferred for HOOX / PYNE stack sources), .pine, .pinev, .pinev, or .pinescript file — LSP activates when enabled. The VS Code extension also activates on workspaceContains:/.{pyne,pine,…}.
-Marketplace / VSIX: extension id hoox-sh.pyne (publisher hoox-sh, package name pyne). VS Marketplace. Local package: cd vscode-extension && npm ci && npm run package then code --install-extension pyne-vscode-...vsix. The VSIX is self-contained; you still need pip install "hoox-pyne[lsp]" (or a pyne-lsp binary) on the machine.
+Marketplace / VSIX: extension id hoox-sh.pyne (publisher hoox-sh, package name pyne). VS Marketplace. Site download: hoox.sh/pyne-vscode.vsix (unversioned alias). Local package: cd vscode-extension && npm ci && npm run package then code --install-extension pyne-vscode-...vsix. The VSIX is self-contained; you still need pip install "hoox-pyne[lsp]" (or a pyne-lsp binary) on the machine.
 Settings (from vscode-extension/package.json):
 | Key | Default | Notes |
 | --- | --- | --- |
@@ -5523,6 +5638,21 @@ auto may set autobackend + compilefallbackreason
 or {"error": "...", "errorkind": "parse|compile|runtime|data|order|mode", ...}
 `
 backend.runtime.Runtime remains a thin compat import for monorepo Pro API code. Dual-host TA goldens (ATR / Supertrend / Keltner) and tests/testtaincremental gate interpretcompile numerical parity. Pro API wraps the same runtime — see Pro API usage.
+Persistent interpret sessions (..)
+Runtime.run always replays the full history. For live or incremental feeds, Runtime.createsession keeps the evaluator, series, TA state, and plot columns across calls so new closed bars only pay visit(tree) for the delta:
+`python
+from pynescript.runtime import Runtime
+rt = Runtime(symbol="AAPL")
+session = rt.createsession(source, ohlcvdata=bars) interpret only
+result = session.appendbars(newclosedbars) O(delta)
+tick = session.updatelastbar(formingbar) overwrite last bar in place
+`
+| Method | Role |
+| --- | --- |
+| createsession(source, ohlcv, …) | Parse once, evaluate the initial bars, return an InterpretSession. mode must be omitted or "interpret" (compile has no resumable evaluator state). |
+| appendbars(newbars, realtimeticks=, …) | Confirm the previous last bar, then visit only the appended batch. Realtime window params apply to this batch, not previously committed bars. |
+| updatelastbar(bar) | Re-tick the forming last bar with revised OHLCV. Bar count does not advance. var scope and incremental TA windows roll back to bar-open (varip persists). |
+Streaming contract: already-committed bars keep their values (like TradingView confirmed history). Scripts that branch on barstate.islast will diverge from a full Runtime.run replay for the previously last bar — that bar was committed with islast=True. Prefer islastconfirmedhistory / historical logic for append-parity, or re-run full Runtime.run when exact islast replay is required. PYNESERIESRING must stay off (the default). Tests: tests/testruntimesession.py.
 Data providers and feeds
 Historical CLI/library:
 `python
@@ -5549,7 +5679,7 @@ Internals (repo paths)
 | src/pynescript/ast/evaluator/init.py | NodeLiteralEvaluator composition |
 | src/pynescript/ast/evaluator/builtins/ | ta., strategy., arrays, … |
 | src/pynescript/ast/evaluator/events.py | Event emission hooks |
-| src/pynescript/runtime/host.py | Multi-bar Runtime.run SoT (interpret / compile / auto, timeoutseconds) |
+| src/pynescript/runtime/host.py | Multi-bar Runtime.run SoT (interpret / compile / auto, timeoutseconds) plus InterpretSession (createsession / appendbars / updatelastbar) |
 | src/pynescript/runtime/series.py | PineSeries history model |
 | backend/runtime.py / backend/series.py | Compat re-exports of package Runtime |
 | src/pynescript/compiler/ | Transpile + Numba/object bar loops |
@@ -5569,6 +5699,7 @@ Series parity. Shared series keys should match within harness tolerances. First-
 History indexing. Confirm []/[] semantics against your evaluator version before porting TV scripts that assume closed-bar rules.
 Strategy events include run/script ids when stamped by Runtime — useful for HOOX downstream.
 Body size / bar count. HTTP path caps payload size ( MiB); very long histories should be downsampled or chunked.
+InterpretSession. createsession is interpret-only. appendbars confirms the previous last bar; scripts that branch on barstate.islast are not replay-identical to a full Runtime.run for that bar. PYNESERIESRING must stay off.
 Worked examples
 RSI on a synthetic series
 `python
@@ -5615,7 +5746,8 @@ Failure modes
 | Numerical mismatch vs TV | Warmup, float path, or builtin parity gap — numerical validation |
 | Interpret vs compile series MISMATCH | Run scripts/compareinterpcompile.py on the script; check report buckets |
 | timedout + partial plots | timeoutseconds budget exceeded on interpret |
-| UNKNOWNFIELDS | Extra key not in RUNSCHEMA / RUNBATCHSCHEMA |
+| createsession supports interpret only | mode="compile" / "auto" passed to createsession — sessions are interpret-only |
+| UNKNOWNFIELDS | Extra key not in RUNSCHEMA / RUNBATCH_SCHEMA |
 | DataProviderError` | Provider misconfig |
 | Async feed errors | Missing ccxt.pro / network |
 See also
@@ -5729,8 +5861,8 @@ print(w.code, w.severity, w.line, w.message)
 | --- | --- |
 | E | Syntax error (error severity) |
 | W–W | Missing / old @version |
-| W–W | Deprecated patterns |
-| C–C | Naming / style (line length , trailing newline, …) |
+| W | Deprecated security('EXCHANGE:SYM') (W/W retired) |
+| C / C / C | Naming / style (line length , trailing newline). C retired. |
 PineLinter.lint runs: syntax → version → deprecated → naming → style.
 literaleval (bridge to evaluation)
 `python
@@ -5874,6 +6006,7 @@ Conceptual model
 | GET /auth/usage | Pro | Usage stats |
 | POST /auth/validate | body key | Validate key |
 | POST /lsp/{completion,hover,diagnostics} | none (free) | AXIS HTTP LSP bridge — see LSP |
+| /scripts · /cron/ | PYNERUNNER= | Hosted scripts + bar-close (runner) |
 Default local bind: ...:.
 Interface surface
 Run the server (local)
@@ -6121,7 +6254,7 @@ Failure modes
 | EXECUTIONERROR | Runtime exception | Simplify script; check message |
 | on createkey | ADMINTOKEN unset/wrong | Export token |
 | | Body too large | Fewer bars / compress strategy |
-| CORS browser error | Origin not allowed | Update ALLOWED_ORIGINS |
+| CORS browser error | Origin not allowed | Update ALLOWEDORIGINS |
 | Empty series | Script never plotted | Add plot / check declaration |
 See also
 Evaluate scripts
@@ -6255,17 +6388,17 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-.-or-later
 ---
 title: "End User Hub"
-description: "Install PYNE (pip install hoox-pyne), run CLI/library eval with mode=auto, wire editors (.pyne/.pine), and call Pro API alerts + webhooks."
+description: "Install PYNE (pip install hoox-pyne). Library default is interpret, pyne run is compile-only, Pro API /run defaults to auto."
 ---
 End User Hub
-This track is for people who consume PYNE: parse and reformat Pine Script, lint before upload, evaluate expressions or full scripts against OHLCV (mode=auto / interpret / compile), export alerts (optional L webhooks), wire an editor via LSP (.pyne / .pine), or call the HTTP evaluate contract. Contributor internals (grammar regeneration, AST builder, bar-loop semantics) live under Core, Runtime, and DevOps.
+This track is for people who consume PYNE: parse and reformat Pine Script, lint before upload, evaluate expressions or full scripts against OHLCV (library default interpret, pyne run is compile-only, Pro API /run defaults to auto), export alerts (optional L webhooks), wire an editor via LSP (.pyne / .pine), or call the HTTP evaluate contract. Contributor internals (grammar regeneration, AST builder, bar-loop semantics) live under Core, Runtime, and DevOps.
 Abstract
 PYNE exposes one language pipeline through several thin surfaces:
 ``
 .pyne / .pine source
 → parse (ANTLR + ASDL AST)
 → optional: dump | unparse | lint | walk/transform
-→ optional: evaluate (literaleval | Runtime mode=auto|interpret|compile)
+→ optional: evaluate (literaleval | Runtime default interpret | Pro API mode=auto)
 → plots / fill / events / drawings / alerts / metrics
 → optional L webhooks (Pro API / edge)
 `
@@ -6290,7 +6423,7 @@ Configuration — Extras, console scripts, Pro API env vars (ALERTWEBHOOKURL, co
 Daily workflows against the same pipeline:
 CLI — check, format, lint, compile, prewarm, run, optimize, data, …
 Library API — parse, unparse, dump, walk, visitors, transformers, linter, optimize.runstudy.
-Evaluate scripts — Expression eval, bar-loop Runtime (mode=auto), strategy events, alerts export, mock vs live data.
+Evaluate scripts — Expression eval, bar-loop Runtime (library default interpret), strategy events, alerts export, mock vs live data.
 Editors — VS Code (.pyne first-class), Neovim, Zed, Emacs, Helix; clients/ snippets.
 Pro API usage — /run (+ webhookurl / L webhooks), /run/batch, /optimize, preview, backtest as a consumer.
 Troubleshooting — Parse failures, recursion limits, missing extras, CORS, auth.
@@ -6311,6 +6444,7 @@ Interface surface (consumer map)
 | Library parse | from pynescript.ast import parse, unparse | Library API |
 | Expression eval | from pynescript.ast.helper import literaleval | Evaluate |
 | Bar-loop eval | from pynescript.runtime import Runtime (mode default interpret) | Evaluate · modes |
+| Incremental interpret | Runtime.createsession → appendbars / updatelastbar (..) | Evaluate |
 | Compile-only smoke | pyne run script.pine --bars | CLI |
 | Warm Numba / IR | pyne prewarm / POST /compile/prewarm | CLI |
 | Strategy HPO | pyne optimize / POST /optimize / pynescript.optimize.runstudy | Optimize |
@@ -6416,6 +6550,7 @@ Command index
 | --- | --- | --- |
 | check | | Parse-only validation (CI-friendly exit codes) |
 | format | fmt | Parse → unparse (structural format) |
+| convert | | Rewrite older Pine toward v or v |
 | parse-and-dump | dump, ast | AST dump |
 | parse-and-unparse | unparse | Round-trip source |
 | lint | | Static diagnostics (JSON / fail-on) |
@@ -6424,6 +6559,7 @@ Command index
 | run | | Compile + execute on synthetic OHLCV |
 | optimize | | Search input. values over N interpret Runtime runs |
 | data | | Fetch market bars |
+| runner | | Hosted scripts on the Pro API (deploy / tick / list) |
 | info | ls | Version + optional extras |
 ``bash
 pyne --help
@@ -6461,6 +6597,23 @@ Canonicalize Pine by parse → unparse (structural, not a full style formatter).
 pyne format script.pine stdout
 pyne fmt script.pine -w
 pyne format script.pine --check CI drift gate
+`
+---
+pyne convert
+Rewrite older Pine toward v or v. --to converts any older version
+(missing //@version counts as v): color / n / timeframe idents, ta. /
+math. / request. namespaces, study( → indicator(, typed input.(),
+iff / offset. Not a semantic v migrator (bool-as-int, na).
+| Kind | Name | Default | Description |
+| --- | --- | --- | --- |
+| argument | PATH | required | File or - (stdin) |
+| option | --to | required | / / v / v |
+| option | --encoding | utf- | |
+| option | -w, --write | off | Write back to PATH (not for stdin) |
+| option | -o, --output-file | - | Output when not using --write |
+`bash
+pyne convert old.pine --to
+pyne convert strategy.pine --to -w
 `
 ---
 pyne parse-and-dump (dump / ast)
@@ -6574,7 +6727,7 @@ pyne optimize strat.pine --validation walk-forward --bars --trials \
 pyne optimize strat.pine --validation walk-forward --train-bars --test-bars \
 --space '{"params":[{"name":"Fast","kind":"int","min":,"max":}]}'
 `
-Library: pynescript.optimize.run_study. HTTP: POST /optimize.
+Library: pynescript.optimize.runstudy. HTTP: POST /optimize.
 ---
 pyne data
 | Kind | Name | Default | Description |
@@ -6593,6 +6746,29 @@ pyne data AAPL --provider yahoo --period mo
 pyne data BTC/USDT --provider ccxt --exchange binance --format csv
 `
 CCXT needs pip install "hoox-pyne[data]".
+---
+pyne runner
+HTTP client for the optional Flask hosted runner (PYNERUNNER=). Group options apply to every subcommand.
+| Kind | Name | Default | Description |
+| --- | --- | --- | --- |
+| option | --url | http://...: | Pro API origin (PYNEAPIURL) |
+| option | --token | empty | X-Admin-Token (ADMIN_TOKEN) |
+| Subcommand | Role |
+| --- | --- |
+| deploy PATH | Read a .pine / .pyne file and POST /scripts |
+| list | GET /scripts |
+| show ID | GET /scripts/:id |
+| delete ID | DELETE /scripts/:id |
+| tick | POST /cron/run (--id, --force) |
+| jobs | GET /cron/jobs |
+| enable ID / disable ID | PUT /cron/jobs |
+`bash
+pyne runner deploy script.pine --id demo --symbol BTCUSDT --source mock
+pyne runner tick --id demo --force
+pyne runner list
+pyne runner --url http://...: jobs
+`
+Full HTTP contract: hosted runner.
 ---
 pyne info (ls)
 | Kind | Name | Description |
@@ -6677,7 +6853,7 @@ Trademark disclaimer lives on the product index once — not repeated here in fu
 Questions
 What is PYNE vs pynescript vs pyne?
 PYNE — product documentation brand for the open evaluate stack (grammar → AST → runtime → LSP → Pro API → workers).
-hoox-pyne — PyPI distribution name (live, ..+). Install with pip install hoox-pyne. Do not install plain pyne/PyNE from PyPI without the hoox- prefix (unrelated) or the upstream pynescript package (elbakramer).
+hoox-pyne — PyPI distribution name (live, ..). Install with pip install hoox-pyne. Do not install plain pyne/PyNE from PyPI without the hoox- prefix (unrelated) or the upstream pynescript package (elbakramer).
 pynescript — import package (import pynescript, including pynescript.runtime).
 pyne / pyne-lsp — preferred console scripts; pynescript / pynescript-lsp remain aliases.
 What Python versions are supported?
@@ -6730,7 +6906,7 @@ Use the dual-host harness (repo root):
 `bash
 python scripts/compareinterpcompile.py --bars --limit
 `
-See Interpret compile parity. Prefer mode=auto in production; force interpret when you need alerts, input. overrides, or full request..
+See Interpret compile parity. Pro API POST /run defaults to mode=auto. The library defaults to interpret. Force interpret when you need alerts, input. overrides, or full request..
 What file extension should I use?
 Prefer .pyne for HOOX / PYNE stack sources. .pine / .pinev / .pinev remain supported by the VS Code extension and parsers.
 How complete is real-world script runtime?
@@ -7082,7 +7258,7 @@ import { PackageVersions } from "/snippets/package-versions.jsx"
 PYNE Documentation
 PYNE is the open evaluation stack for TradingView Pine Script: a formal ANTLR grammar, an ASDL algebraic AST, a deterministic bar-loop evaluator (interpret / compile / mode=auto), a Language Server Protocol surface, a Flask Pro API, and edge workers that share one evaluate contract — including alerts and optional L webhooks.
 For natural-language authoring (PYNE Agent), see the sister project pyne-agent-worker — standalone Cloudflare Workers AI agent with optional AXIS plugin; does not require pyne-worker.
-Pine Script and TradingView are trademarks of TradingView, Inc. This project is independent and not affiliated with or endorsed by TradingView, Inc. Cloudflare is a trademark of Cloudflare, Inc._
+Pine Script and TradingView are trademarks of TradingView, Inc. This project is independent and not affiliated with or endorsed by TradingView, Inc. Cloudflare is a trademark of Cloudflare, Inc.
 Abstract
 Where closed hosts couple the language to a proprietary charting host, PYNE treats the language as an inspectable pipeline:
 ``
@@ -7101,7 +7277,17 @@ aliases: pynescript / pynescript-lsp
 `
 The same pipeline powers the desk CLI, the LSP binary, the Pro API, browser Pyodide (via AXIS), and Cloudflare workers. Round-trip fidelity (parse → unparse) and interpretcompile plot parity are first-class invariants — see compatibility and implementation status. Local open-corpus set– (--): parse .%, Runtime interpret % excl. intentional demos (set /). The repository does not ship third-party script corpora.
 TypeScript consumers import PyneTS (@hoox-sh/pynets) — same public names; Python remains the oracle.
-Product map
+What's new
+hoox-pyne .. (--) — faster interpret dispatch (reused TA keys, steady ta.sma/bb/atr path) and compile ta.uo via numbauo.
+.. (--) — last-sample TA (ao/dmi/bb/cog/mode), convert-to-v keeps UDF/for n names, webhook SSRF, LSP nested strategy.risk completion.
+.. — convert-to-v leaves UDF definitions, parameters, and unpack names alone (set– older scripts parse / after convert).
+.. — convert any older Pine version to v from the editor, LSP code action, pyne convert --to , and POST /lsp/convert.
+.. — optional Flask/VPS/container hosted runner (PYNERUNNER) plus CLI pyne runner (deploy / tick / list). Scripts keep evaluating after upload without AXIS holding the connection.
+.. — interpret wraps subscripted UDF parameters (s[]) per call site so src = close; updown(src) matches compile. Official TradingView builtin scripts are MISMATCH vs compile.
+.. — persistent InterpretSession (Runtime.createsession, delta appendbars, forming-bar updatelastbar). Dual-host strategy.cash qty-type, fill-time risk gates, session confirm-on-append, finalized-bucket HTF lookaheadon.
+.. — type-aware intraday risk on both brokers, intrabar var rollback on realtime ticks, exchange-calendar timeframe.change D/W/M, request.security gapson / lookaheadon on HTF resample paths.
+Full notes: GitHub releases · compatibility · evaluate scripts.
+How to use
 | Surface | Role | Start here |
 | --- | --- | --- |
 | Library + CLI | Parse, lint, unparse, evaluate. Library Runtime.run defaults to interpret; pyne run is compile-only smoke | End User hub · modes |
@@ -7120,14 +7306,14 @@ End User
 Install the package (pip install hoox-pyne), run the CLI, embed the library API, wire an editor (.pyne / .pine), or call the Pro API as a consumer — including alerts export and webhooks.
 → End User hub
 Core / Runtime / LSP / API
-Contributor and systems manuals: how the front-end, semantics, editor protocol, and HTTP bridge are built. Runtime covers series caps, incremental TA, drawing GC, fill() export, foreign request.security → na, strategy optimize, and parity.
+Contributor and systems manuals: how the front-end, semantics, editor protocol, and HTTP bridge are built. Runtime covers series caps, incremental TA, drawing GC, fill() export, request.security HTF resample + barmerge (foreign/complex → na), strategy optimize, and parity.
 DevOps
 CI matrices, Fernet metadata encryption, Nuitka LSP binaries, containers, Cloud Build.
 → DevOps hub
 Reference
 Compatibility guarantees, missing surface, numerical validation, PyneTS, ecosystem map, roadmap.
 Sister surfaces
-PyneTS — TypeScript / Bun library. Standalone hoox-sh/pynets; PYNE consumes it only as the pynets/ submodule. See PyneTS.
+PyneTS — TypeScript / Bun library. Standalone hoox-sh/pynets / @hoox-sh/pynets. See PyneTS.
 pyne-worker (sister repo) — Python Cloudflare Worker for production POST /run (alerts + cron + R).
 pyne-agent-worker (sister repo) — NL authoring host (POST /v/chat); optional validate via pyne-worker.
 AXIS — installable PWA; documented at hoox.sh/axis/docs.
@@ -7211,9 +7397,10 @@ Completion: trigger ".", resolveprovider=True
 Hover, definition, references
 Document + workspace symbols
 Full + range formatting
+Code action (Convert to Pine v) + executeCommand pynescript.convertToV
 Inlay hints (resolveprovider=False)
 Semantic tokens full (legend of standard token types/modifiers; range=false)
-Signature help and code action are not advertised (config.py omits them until handlers exist). workspace/executeCommand is registered but returns None.
+Signature help is not advertised.
 File filters (getfilteroptions): .pine, .pinev, .pinev under language id pinescript. .pyne is not in this helper — VS Code still maps it via the extension contribution (extensions: .pyne first).
 Internals
 Workspace
@@ -7675,7 +7862,7 @@ Internals
 | Path | Role |
 | --- | --- |
 | src/pynescript/langserver/workspace.py | parseandlint, E append, incremental edits |
-| src/pynescript/langserver/features/diagnostics.py | Lint conversion, C/C noise filters, tags, createquickfix |
+| src/pynescript/langserver/features/diagnostics.py | Lint conversion, C noise filter, tags, createquickfix |
 | src/pynescript/ast/linter.py | Rule engine producing LintWarning |
 Severity map
 ``text
@@ -7701,7 +7888,7 @@ Invariants and edge cases
 . End column heuristic uses the remainder of the line and clamps to characters — not a precise token span.
 . interfiledependencies=False: no cross-file analysis; each URI is independent.
 . Push and pull should agree for a given buffer version; both read the same TextDocumentState.
-. Noise filters: C on names that already lack (camelCase fastMA) is dropped; C on block if (next non-empty line more indented) is dropped.
+. Noise filters: C on names that already lack (camelCase fastMA) is dropped. The C block-if noise filter was removed with the rule (retired ..).
 Worked example
 Source:
 `pinescript
@@ -8280,6 +8467,7 @@ Commands
 | --- | --- | --- |
 | PYNE: Restart Language Server | pynescript.restartServer | Stop then start the language client |
 | PYNE: Format Document | pynescript.formatDocument | editor.action.formatDocument (.pyne / .pine) |
+| PYNE: Convert to Pine v | pynescript.convertToV | Rewrite v-v source toward v (LSP command or local Python) |
 | PYNE: Show Language Server Output | pynescript.showLspOutput | Open Output channel / status-bar target |
 | PYNE: Show Resolved LSP Launch Command | pynescript.showLspCommand | Show and copy resolved pyne-lsp launch |
 Client options
@@ -8311,6 +8499,7 @@ or monorepo:
 make build-vscode
 `
 Requires Node . compile:tsc is typecheck-only (tsc --noEmit).
+Site download: https://hoox.sh/pyne-vscode.vsix (unversioned alias). Versioned pyne-vscode-...vsix is built in-tree (vscode-extension/) and on GitHub Releases.
 Invariants and edge cases
 . lsp.enabled === false short-circuits activate — no client, no restart command registration beyond early return (commands not registered).
 . Binary vs module: production users should install hoox-pyne[lsp] or the Nuitka onefile (pynescript-lsp- on GitHub Releases) and set pynescript.lsp.command if not on PATH.
@@ -8364,7 +8553,7 @@ Vendor sync
 ./scripts/syncvendor.sh
 npx wrangler deploy
 `
-Skip sync and the edge still runs the last snapshot (may lag hoox-pyne ..+).
+Skip sync and the edge still runs the last snapshot. That tree disagrees with itself: pythonmodules/pynescript/about.py says .., and pynescript-...dist-info says ... Live PyPI hoox-pyne is ... The worker package itself is ... Run ./scripts/syncvendor.sh before treating the snapshot as current.
 Script + m cron
 `bash
 export WORKER=https://pyne-worker..workers.dev
@@ -8732,6 +8921,7 @@ na is null. Lookback, TA call-sites, foreign security → na.
 check / format / run / dump / info. Pipes stay JSON.
 JS bar-loop emit. mode interpret | compile | auto.
 Compare plots against Python Runtime.run on the same bars.
+Builtin and host gaps versus Python. Drawings, strategy fields, compile lag.
 PYNE · PyneTS · pyne-worker · pyne-agent-worker · AXIS · HOOX.
 Abstract
 Most TypeScript Pine ports rewrite the language. PyneTS does not. It is the library-shaped port of PYNE: the same ANTLR grammar, the same ASDL field names (kind, lineno, coloffset, …), the same interpret contract.
@@ -8841,6 +9031,7 @@ Runtime contract
 CLI
 JS compile
 Parity
+Missing features
 Evaluate scripts (Python)
 Modes matrix
 Ecosystem
@@ -8902,7 +9093,9 @@ This is a library import, not a hosted evaluate API.
 From a PYNE checkout
 `bash
 git clone --recurse-submodules https://github.com/hoox-sh/pyne.git
-cd pyne/pynets
+cd pyne
+git submodule update --init --recursive after a plain clone
+cd pynets
 bun install
 bun test
 `
@@ -8969,6 +9162,124 @@ PyneTS hub
 CLI
 Python install
 Ecosystem
+---
+FILE: docs/pyne/pynets/missing-features.mdx
+Copyright (C) - jangoblockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-.-or-later
+---
+title: "PyneTS missing features"
+description: "Builtin and host gaps between @hoox-sh/pynets and Python pynescript.runtime. Measured -- on the working tree, not the published .. tag."
+---
+PyneTS missing features
+Abstract
+This page is the checklist of what @hoox-sh/pynets still does not match in Python pynescript.runtime. The oracle is Python Runtime.run on the same source and the same bars. It is not a TradingView certification list.
+Measured -- against the PyneTS working tree (interpret tests green: test/interpretonce.test.ts, test/interprettagap.test.ts, test/interpretmatrixgap.test.ts, test/interpretutilitygap.test.ts). Published npm .. does not include that slice yet.
+A raw scan of Python _builtinmap keys finds names. About of those strings are absent from the interpret sources. Many strategy. series are false misses: they are attributes (strategy.netprofit), not quoted call names. The lists below are the scan plus that correction.
+Conceptual model
+Port order when closing an item: read the winning Python method (mixin MRO, not a later duplicate), port na / lookback / call-site state, wire evalCall or the matching evalCall, add test/interpret.test.ts, compare plots. Do not edit src/runtime/compile/ in the same change as interpret.ts.
+Interface surface
+Closed on this working tree
+Do not re-open these as missing.
+| Area | What landed |
+| --- | --- |
+| once [cond] | Parse, unparse, interpret, compile. Body runs the first time the test is true. Bare once runs on bar . Nested once inside if fires once. na does not fire. x = once … is a syntax error. |
+| Multi-value switch | , => matches any element on interpret and compile. |
+| Matrix row/col | sum, avg, min, max, mode, copyrow / copycol, fillrow / fillcol / filldiagonal, reverserows / reversecols, stdev, variance. |
+| TA | ta.uo, ta.rci, ta.dpo, ta.kst, ta.stochrsi, ta.donchian, ta.ichimoku, ta.bbpct, ta.emv, ta.fractal, ta.atrstop, ta.zigzag, plus the v/v bare aliases Python registers. Dict results use taRecord (dc.high, stochrsi.signal, …). |
+| Host helpers | timeframe.change, timeclose / timeclose(), syminfo.prefix and syminfo.prefix(tickerid), bare roundtomintick, every Python array.new spelling, plotcandle / plotbar (primary series is close), timenow / timenow(), maxbarsback, alertcondition, plot.linestyle, bare random, bare security / securitylowertf. |
+| JS compile | Emit for the TA / matrix / host names in this table so compileToResult matches interpret (no per-bar timeclose column; default path is next open / last+d). |
+| Drawings | Getters, remaining setters, .all, .copy, remaining deletes, chart.point., line.fill. Constructor coords snapshot so getters after new are not na. |
+| Strategy | strategy.cash is free cash tagged pineqtytype="cash"; accountcurrency, positionentryname, defaultentryqty, convertto, maxcontractsheld, closed/open trade time/comment/drawdown/runup/commission/capitalheld/firstindex; oca., direction., commission. constants; zero-arg series calls (strategy.netprofit()). |
+ta.rci with length under is a runtime error whose message contains ta.rci length must be at least .
+Language the host does not have
+| Item | Python | PyneTS |
+| --- | --- | --- |
+| Realtime once | Unconfirmed ticks do not commit the fired flag; rollback can re-fire. Confirmed bar latches. | barstate.isrealtime is . The flag commits as soon as the body runs. No interpret session, no tick rollback. |
+strategy.
+Attribute and zero-arg call forms for the main series and the fields listed as closed above are implemented. strategy.cash plots as a number; defaultqtytype=strategy.cash still selects cash sizing.
+Compile does not emit the new strategy fields (strategy.cash free-cash object, trade-history extras, constants). Use interpret until that emit lands.
+Drawings
+Interpret now covers the Python drawing.py map (getters, setters, .all, .copy, deletes, chart.point., line.fill). line.copy(na) is na here; Python returns an unregistered Line. Compile DRAWMETHODS still lags some of the new setters.
+ta. still absent
+Leave these alone unless a Python plot is non-na. In bar mode the series argument is a one-element list, so Runtime.run stays na for the whole run. A windowed port would not match:
+ta.beta, ta.rsquared, ta.comovement, ta.apo
+Indicators and detectors still unwired (read technicalsubmodules/ and the winning mixin; AdvancedIndicators is first in the MRO):
+ta.accelerationfactor, ta.atrnormalized, ta.bidaskimbalance, ta.cumulativedelta, ta.doubletopbottom, ta.engulfing, ta.gapdetector, ta.garmanklass, ta.hammer, ta.insidebarpattern, ta.kurtosis, ta.macdsignal, ta.parkinson, ta.rsidivergence, ta.rsioversoldoverbought, ta.skewness, ta.smaweighted, ta.stochsmooth, ta.voi, ta.volumemomentum, ta.volumeprofilehigh, ta.volumeprofilelow, ta.volumethrust, ta.volumeweightedmomentum
+PYNE extension analytics (present in the Python map, not the public TradingView ta. reference). Port only when a caller needs that name:
+ta.advancedbreakoutdetector, ta.breakevenlevel, ta.breakoutdetection, ta.contrariansignal, ta.correlationfilter, ta.crowdsentiment, ta.divergencedetector, ta.drawdownrecoverylevel, ta.economicimpactscore, ta.emacrosssignal, ta.employmentcycleindicator, ta.expectedvalue, ta.feargreedindex, ta.gammalevels, ta.gdpgrowthproxy, ta.inflationproxyindicator, ta.intelligentstrategysynthesizer, ta.kellycriterion, ta.liquidityscore, ta.marketcondition, ta.marketstructurepivot, ta.markettimingindex, ta.maxlosslevel, ta.meanreversionentry, ta.meanreversionscore, ta.momentumdivergence, ta.momentumfilter, ta.multitimeframesignal, ta.optimalentryzone, ta.orderflowimbalance, ta.positionsizing, ta.positionsizingscore, ta.probabilityofmovement, ta.profitlocklevel, ta.pullbackbouncelevel, ta.regimeadaptivesignal, ta.riskrewardasymmetry, ta.riskrewardratio, ta.signalconfluence, ta.smartmoneyflow, ta.spreadanalysis, ta.strategyscore, ta.trailingexitlevel, ta.trendconfirmationscore, ta.trendstrength, ta.volatilityregime, ta.volatilityregimescore
+Request, footprint
+| Names | Notes |
+| --- | --- |
+| footprint.buyvolume, footprint.delta, footprint.getrowbyprice, footprint.poc, footprint.rows, footprint.sellvolume, footprint.totalvolume, footprint.vah, footprint.val | Python footprint mocks. Not in interpret. |
+| volumerow.buyvolume, .delta, .downprice, .hasbuyimbalance, .hassellimbalance, .sellvolume, .totalvolume, .upprice | Row fields on those mocks. |
+request.security on a foreign symbol or HTF without data returns na on both sides. That is the Python policy, not a hole to fill with invented bars.
+JS compile lag
+TA / matrix / host helpers from the previous interpret slice now emit. Still interpret-only:
+New drawing setters/getters/.all/chart.point beyond the older DRAWMETHODS table
+New strategy cash object, trade-history fields, and constants
+timenow, maxbarsback, alertcondition, plot.linestyle, bare random, bare security
+mode: "auto" prefers compile when emit succeeds. Names compile does not know become na even though interpret matches Python.
+Internals
+| Path | Role |
+| --- | --- |
+| PYNE src/pynescript/ast/evaluator/builtins/ | Handler source of truth. TechnicalAnalysisMixin MRO: Advanced, Basic, Common, MovingAverage, Oscillator, Pattern, Economics, Strategies, Synthesizer, Volatility, Volume. |
+| PYNE technicalsubmodules/core.py | Incremental kernels (useincrementalta). |
+| pynets/src/runtime/interpret.ts | evalCall and evalCall. |
+| pynets/src/runtime/ta.ts, matrix.ts, drawings.ts, strategy.ts, timeframe.ts | State and values. |
+| pynets/src/runtime/compile/emitcall.ts | Compile dispatch. Do not edit it in the same change as interpret.ts. |
+| pynets/test/interpret.test.ts | Focused parity tests. |
+lastbarindex, lastbartime, and syminfo.ticker are not missing. The first two are written in beginBar. syminfo.ticker / tickerid return the runtime symbol.
+Invariants & edge cases
+. Python wins. If a port would plot a nicer series than Runtime.run, do not land it.
+. na is null. Non-finite in or out is na.
+. TA state is one sample per bar, keyed by call site.
+. Dict-shaped ta. results are taRecord objects. evalAttribute reads only that brand.
+. strategy.cash plots free cash and still tags defaultqtytype.
+. Numba, Worker packaging, and ASDL codegen are out of scope for this repo. They are not rows on this list.
+Worked examples
+Compare before closing a row:
+``bash
+PyneTS
+bun -e 'import { Runtime } from "./src/index.ts";
+console.log(new Runtime("TEST").run(//@version=
+indicator("t")
+plot(ta.dpo()), [{close:},{close:},{close:}]))'
+Python
+/path/to/pynescript/.venv/bin/python -c 'from pynescript.runtime import Runtime
+print(Runtime("TEST").run("""//@version=
+indicator("t")
+plot(ta.dpo())""", [{"close":},{"close":},{"close":}], mode="interpret"))'
+`
+Suggested close order:
+. Compile emit for the new drawing, strategy, and host names.
+. The unwired indicator list. Skip the four bar-mode-na names and the extension-analytics list until a script needs them.
+. Footprint / volumerow mocks if a caller needs them.
+. Realtime once rollback (interpret sessions).
+Failure modes
+| Symptom | Cause |
+| --- | --- |
+| dc.high is na on an old build | _taRecord field read is only on this working tree. |
+| Compile plots na, interpret matches Python | Name not in emitcall.ts (drawings, new strategy fields, timenow). |
+| New ta.beta port is non-na while Python is na | Bar-mode one-element series. Revert the port. |
+| once` fires again on a realtime tick in Python and once in PyneTS | No tick rollback in the TS host. |
+See also
+PyneTS parity
+PyneTS runtime
+JS compile
+PYNE missing features
+Drawing and plotting
+Strategy
 ---
 FILE: docs/pyne/pynets/parity.mdx
 Copyright (C) - jangoblockchained
@@ -9062,6 +9373,7 @@ Failure modes
 | Compile matches interpret, both wrong | Shared host bug | Fix interpret first (Python SoT) |
 | Copied sources into PYNE | Submodule rule | PYNE consumes pynets/` only |
 See also
+PyneTS missing features
 PyneTS hub
 Runtime
 Python interpretcompile parity
@@ -9257,7 +9569,7 @@ Grouped map
 | Libraries export / import ns/Name/ver | Working | In-process registerlibrarysource; Runtime.run(..., libraries=) |
 | String interpolation, tuple unpack, method chaining | Working | |
 | Series [] history | Working | OOB / negative → na (not wrap) |
-| timeframe.change | Working | UTC fixed-width buckets (..). Not exchange calendar |
+| timeframe.change | Working | Intraday fixed-width buckets; D/W/M on the exchange calendar (.., syminfo.timezone, UTC default) |
 | Area | Status | Notes |
 | --- | --- | --- |
 | pynescript.runtime.Runtime | Working | Package SoT; backend.runtime re-exports |
@@ -9313,11 +9625,11 @@ Grouped map
 | Compile alerts | Partial | Interpret is the alert oracle |
 | Numba + object-mode compile | Working | mode=auto falls back; import / request. / inputs= skip compile |
 | Warm compile / disk IR | Working | Prewarm CLI/API; cache meta v |
-| Interp compile plot parity | Partial | Harness + first-party goldens; residual corpus MISMATCH tail (Pp) |
+| Interp compile plot parity | Working | Harness + first-party goldens + official TV builtins MISMATCH (Pp); optional setx community corpus unmeasured |
 | CLI / LSP / Pro API / Docker | Working | pyne / pyne-lsp; Flask /run |
 | Flask /run libraries | Working | Max ; also /run/batch |
 | Flask timeoutseconds | Working | Optional on /run and /run/batch; omit / ≤ = no timeout |
-| timeframe.change | Working | UTC fixed-width buckets (not exchange calendar). Interpret + compile |
+| timeframe.change | Working | Intraday fixed-width; D/W/M exchange calendar. Interpret + compile (calendar via object mode) |
 | POST /optimize / pyne optimize | Working | Strategy input. search — not a Pine builtin |
 | Surface | Status | Notes |
 | --- | --- | --- |
@@ -9329,7 +9641,7 @@ Grouped map
 Residual and out of scope (compact)
 | Item | Class |
 | --- | --- |
-| Interpretcompile value MISMATCH corpus tail | Residual (Pp) |
+| Interpretcompile value MISMATCH (optional setx community corpus) | Residual (Pp official builtins closed) |
 | PYNESERIESRING default-on | Residual (flagged off) |
 | Pixel chart / editor word-wrap / TV UI | Out of scope |
 | Foreign live fundamentals without a feed | Out of scope |
@@ -9432,7 +9744,6 @@ Checkouts (this repo vs sisters)
 | --- | --- |
 | hoox-sh/pyne | PYNE SoT (hoox-pyne ..) |
 | hoox-sh/pynets | Standalone @hoox-sh/pynets .. (JS compile + stream) |
-| pynets/ submodule in this repo | Pin v.. — interpret + JS compile (same surface as npm) |
 | hoox-sh/pyne-worker | Python edge /run |
 | hoox-sh/pyne-agent-worker | NL authoring (not in this tree) |
 | hoox-sh/axis | AXIS PWA |
@@ -9453,7 +9764,7 @@ Invariants & edge cases
 . AXIS ≠ execution. Drawing a strategy on AXIS does not call trade-worker.
 . Alerts ≠ orders. alert() webhooks are not StrategyEvent forwards unless you point them at the HOOX gateway yourself.
 . Do not pip install pyne or pip install pynescript for this project. Dist name is hoox-pyne.
-. Do not treat the submodule package name as the published npm name. This checkout pins v..; npm is @hoox-sh/pynets ... Python Runtime remains the oracle.
+. Do not npm install pynets for this project. The published package is @hoox-sh/pynets from the standalone hoox-sh/pynets repo. Python Runtime remains the oracle.
 . pine-worker is a leftover TypeScript Cloudflare experiment (hoox-sh/pine-worker). It is not a product evaluate host and has no pages on this site.
 Worked examples
 Pick a surface
@@ -9462,8 +9773,9 @@ Pick a surface
 | Parse / lint / LSP on a laptop | pip install "hoox-pyne[lsp]" |
 | Embed evaluate in TypeScript | bun add @hoox-sh/pynets |
 | HTTP evaluate at the edge | Deploy pyne-worker |
+| Upload then keep running (Flask/VPS/container) | PYNERUNNER= — hosted runner |
 | Chart + editor | AXIS PWA + Flask or Pyodide |
-| Live CEX orders from strategy events | pyne-worker TRADESERVICE → HOOX |
+| Live CEX orders from strategy events | pyne-worker TRADE_SERVICE → HOOX |
 | Chat → script | pyne-agent-worker |
 Failure modes
 | Mix-up | What goes wrong |
@@ -9599,11 +9911,11 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-.-or-later
 ---
 title: "Missing features"
-description: "Known gaps and closed Pine Script v items — H/H/T/T/F/F/L/C shipped; ..–.. compile object-mode residuals; Pp corpus MISMATCH tail remains."
+description: "Known gaps and closed Pine Script v items — .. interpret dispatch and compile ta.uo; .. last-sample TA and convert/for-n safety; .. convert-to-v UDF-safe prefixes; .. convert-to-v; .. hosted runner; .. Pp official builtins MISMATCH."
 ---
 Missing features
 Abstract
-“Missing” in PYNE is a moving frontier. As of -- (hoox-pyne ..), core v support remains very high (~%+ for core language), with post-launch TV items closed (multiline strings, library export const, footprint mocks, risk enforcement, matrix LA, compile-mode strategy, drawing GC, …) plus open-source corpus parse/Runtime hardening, incremental bar-mode TA (including ..–.. kernels), alert engine + L webhooks, series caps, warm-compile, pending-fill averaging, timeframe.change, package Runtime SoT (pynescript.runtime; backend.runtime is a shim), and compile object-mode residual recovery (UDF locals, nopython None/unicode, matrix handles, UDT returns, x = switch, drawing copy, int(na), round() extras, import stubs, color type dispatch, nested UDT methods). Remaining gaps cluster into plot parity residual MISMATCH corpus tail (Pp), by-design platform differences, and editor-only features. Incremental ta.nvi/ta.pvi/aroon/dpo/donchian/kst and Supertrend mid±factor·ATR goldens have landed.
+“Missing” in PYNE is a moving frontier. As of -- (hoox-pyne ..), core v support remains very high (~%+ for core language), with post-launch TV items closed (multiline strings, library export const, footprint mocks, risk enforcement, matrix LA, compile-mode strategy, drawing GC, …) plus open-source corpus parse/Runtime hardening, incremental bar-mode TA (including ..–.. kernels), alert engine + L webhooks, series caps, warm-compile, pending-fill averaging, timeframe.change (intraday buckets + .. D/W/M exchange calendar), package Runtime SoT (pynescript.runtime; backend.runtime is a shim), compile object-mode residual recovery (UDF locals, nopython None/unicode, matrix handles, UDT returns, x = switch, drawing copy, int(na), round() extras, import stubs, color type dispatch, nested UDT methods), type-aware intraday risk enforcement on both brokers, intrabar var rollback on realtime ticks, request.security barmerge on HTF resample paths, and linter legacy-rule retirements. Remaining gaps cluster into optional setx community-corpus plot parity (Pp official builtins closed), by-design platform differences, and editor-only features. Incremental ta.nvi/ta.pvi/aroon/dpo/donchian/kst and Supertrend mid±factor·ATR goldens have landed.
 Authoritative narrative: docs/missingfeatures.md. Canonical IDs: docs/ROADMAP.md (--).
 Conceptual model
 Interface surface
@@ -9631,7 +9943,7 @@ Summarized — full prose in source doc:
 | Pending-fill averaging (F) | Pyramiding ≤ ; interpret + compile broker goldens |
 | Alert engine + L webhooks (L) | Dual-host /run export, ALERTWEBHOOKURL / webhookurl |
 | request.security foreign-na policy | Foreign/complex → na both backends; same-symbol OHLCV passthrough |
-| Plot parity harness (Pp partial) | scripts/compareinterpcompile.py, first-party goldens; residual corpus MISMATCH tail |
+| Plot parity harness (Pp) | scripts/compareinterpcompile.py, first-party goldens + official TV builtins MISMATCH |
 | fill() export for AXIS | series + plotmeta / compile _drawings |
 Still incomplete / by design
 | Item | Status posture |
@@ -9642,7 +9954,7 @@ Still incomplete / by design
 | Pixel chart host | External (AXIS / clients) |
 | Some unlimited-history / trim edge cases | High-level support; exotic TV behaviors may differ |
 | Editor word-wrap / UI-only release notes | N/A |
-| PyneTS full builtin parity (L) | ️ interpret + JS compile landed in @hoox-sh/pynets ..; Python remains oracle |
+| PyneTS full builtin parity (L) | ️ interpret + JS compile landed in @hoox-sh/pynets ..; Python remains oracle. Open rows: PyneTS missing features |
 | Bit-identical every recursive smoother vs TV | Numerical bounds, not bits |
 | Dual Runtime host copies (H) | largely done — package pynescript.runtime SoT + backend. shims + pyne-worker thin wrap. Residual = worker-only extras (logs/profile, CF first-plot), not a forked bar loop |
 | Warm-compile product path (H) | SLOs / prewarm / deploy IR cache defaults (-) |
@@ -9650,7 +9962,7 @@ Still incomplete / by design
 | Series cap (T) | PYNESERIESCAP default ON |
 | Residual TA inc (T) | R bb/kama/cmo/stochrsi + wma/hma/linreg; .. obv/wad/cmf/klinger; .. nvi/pvi; .. aroon/dpo/donchian/kst |
 | Pending-fill (F) | R interpret + compile goldens |
-| Plot parity residual (Pp) | ️ Harness + first-party goldens (MACD/OBV/ao/aroon + plot keys); corpus value MISMATCH tail remains |
+| Plot parity residual (Pp) | Harness + first-party goldens + official TV builtins MISMATCH; optional setx community corpus unmeasured |
 | Compile leftover library stubs | ️ Some float(None) / UDF arity on missing import libraries; INV expected-fail fixtures stay fail |
 | TV Wilder RMA-ATR / supertrend (F) | interpret ATR is ta.rma(ta.tr); Supertrend mid±factor·ATR locked. TV ratchet is out of scope |
 | Alert webhooks (L) | Pro API + pyne-worker; see Alerts |
@@ -9957,7 +10269,7 @@ description: "PYNE forward plan — dual-host residual, runtime residual, plot p
 ---
 Roadmap
 Abstract
-The roadmap is a living prioritization document, not a contract. Source: docs/ROADMAP.md (updated --). Core v language/builtins are essentially closed. Product warm-compile (H), series caps (T), pending-fill (F), L webhooks, corpus Runtime residual (C), package Runtime SoT (H largely done), interpret Round (..), and compile object-mode residuals (..–..) have landed (set– parse .%, Runtime interpret % excl. intentional demos). What remains: H worker-only extras and interpretcompile plot residuals (Pp corpus tail). Incremental nvi/pvi (T) and Supertrend goldens (F) have landed.
+The roadmap is a living prioritization document, not a contract. Source: docs/ROADMAP.md (updated --). Core v language/builtins are essentially closed. Product warm-compile (H), series caps (T), pending-fill (F), L webhooks, corpus Runtime residual (C), package Runtime SoT (H largely done), interpret Round (..), and compile object-mode residuals (..–..) have landed (set– parse .%, Runtime interpret % excl. intentional demos). What remains: H worker-only extras. Pp official TV builtins are MISMATCH (optional setx community corpus unmeasured). Incremental nvi/pvi (T) and Supertrend goldens (F) have landed.
 Conceptual model
 ``text
 P docs honesty → P dual-host H (package SoT + shims + worker thin wrap)
@@ -9993,7 +10305,7 @@ Status snapshot
 | Runtime timeoutseconds | .. — wall-clock circuit breaker on interpret |
 | UDT array.binarysearch sortfield | .. — interpret + compile (Pine August ) |
 | Runtime.run(..., libraries=) / POST /run libraries | ..+ — AXIS import ns/Name/ver; export finalize in ..; auto fallback keeps libs |
-| pyne-worker .. | edge /run libraries + plotmeta/logs; engine vendor .. |
+| pyne-worker .. | edge /run; vendored engine is inconsistent (about.py .., dist-info ..) and lags PyPI .. |
 | PyneTS (@hoox-sh/pynets) | standalone TS library .. — interpret + JS compile; Python remains oracle |
 | pyne-agent-worker | sister NL authoring host (POST /v/chat) |
 | Full TV platform identity | ️ out of scope |
@@ -10013,7 +10325,7 @@ Open backlog (IDs stable)
 | H | Dual-host Runtime (package SoT + backend shims + pyne-worker thin wrap ; residual = worker-only extras) | P | largely done |
 | H | Product warm-compile (SLOs, prewarm API/CLI, IR cache on in deploy) | P | |
 | C | Corpus set– residual (parse .%; Runtime % excl. EXPECTED) | P | -- |
-| Pp | Compile/interpret plot parity residual | P | ️ first-party goldens landed; residual corpus MISMATCH tail |
+| Pp | Compile/interpret plot parity residual | P | first-party + official TV builtins MISMATCH; optional setx unmeasured |
 | T | Cap currentseries to maxbarsback / SERIESMAX | P | PYNESERIESCAP default ON |
 | T | Incremental TA for remaining heavy kernels | P | R + .. volume inc + .. nvi/pvi + .. aroon/dpo/donchian/kst |
 | F | ATR Wilder / TV supertrend re-baseline only with dedicated goldens | P | mid±factor·ATR locked; TV ratchet out of scope |
@@ -10026,7 +10338,7 @@ Longer horizon (not next): ML wrappers, automatic refactor, parallel/distributed
 Priority recommendation
 | Horizon | Focus |
 | --- | --- |
-| Short | Pp corpus MISMATCH tail; H worker extras (logs/profile) |
+| Short | H worker extras (logs/profile); optional setx Pp sweep |
 | Medium | Further nested incremental TA where profiled |
 | Long | L converter maturity; TypeScript library work is PyneTS (L ) |
 Landed residual notes (-)
@@ -10059,7 +10371,7 @@ pytest tests/testvfeatures.py -k footprint -v
 Plot parity smoke
 `bash
 pytest tests/testinterpcompileparity.py -q
-python scripts/compareinterp_compile.py opt-in full compare
+python scripts/compareinterpcompile.py opt-in full compare
 `
 TypeScript library gate (PyneTS)
 `bash
@@ -10633,7 +10945,7 @@ Resolution order (simplified):
 . Normalize symbol (series → last element; ticker. → symbol string) and timeframe.
 . Classify chart vs foreign (ischartsymbol vs host syminfo / provider symbol).
 . Try datafeed.fetchlatestohlcv / ticker, then dataprovider.fetch.
-. Same-symbol coarser timeframe (HTF resample, ..+): bucket chart OHLCV to the requested TF; last completed HTF bar only (lookaheadoff-style — the forming bucket is never returned). Allowlisted simple TA on HTF series — ta.sma / ta.ema / ta.rsi / ta.atr / ta.wma / ta.rma (bare close/high/… source + const length; ta.atr(n) length-only) — evaluates on the unique completed HTF series. Nested ta., UDFs, and non-const lengths stay na. barmerge.gaps / lookahead are accepted but unused. Policy meta is exposed on result["meta"]["requestsecurity"].
+. Same-symbol coarser timeframe (HTF resample, ..+): bucket chart OHLCV to the requested TF; last completed HTF bar by default (lookaheadoff-style). Allowlisted simple TA on HTF series — ta.sma / ta.ema / ta.rsi / ta.atr / ta.wma / ta.rma (bare close/high/… source + const length; ta.atr(n) length-only) — evaluates on the unique completed HTF series. Nested ta., UDFs, and non-const lengths stay na. barmerge.gapson / lookaheadon are honored on these resample paths (.., finalized-bucket lookahead in ..): gaps deliver the value only on bucket-start bars, lookahead leaks each HTF bucket's final value from the period start on historical bars. Both stay unused on passthrough / provider / complex-na paths. Policy meta is exposed on result["meta"]["requestsecurity"] (gapssupported / lookaheadsupported, gapsapplied / lookaheadapplied).
 . Foreign + pre-evaluated expression (UDF result, list/tuple of chart values, non-string expr) without multi-symbol data → na (not chart close as “dividends”).
 . Fundamental / non-equity prefixes (DIVIDEND, FACTSET, EARNINGS, ESD) with no feed hit → na (no mock OHLCV).
 . Bare equity-style string names may still use legacy mock prices for offline demos when no feed is wired.
@@ -11070,7 +11382,7 @@ Compiler overview
 Abstract
 The compile path lowers Pine’s ASDL AST to executable Python that walks bars with an explicit index (baridx) over contiguous numpy arrays—avoiding per-node visitor overhead. Pure numeric scripts wrap the loop in @numba.njit; scripts that touch UDTs, maps, drawings, or strategy select object mode (a tight Python/numpy loop, no AST walk). Numba is required only for numeric mode; object mode runs with numpy alone. once (..) lowers to a persistent _oncefiredN flag; UDF-scoped once forces object mode.
 The public façade is pynescript.compiler.engine (transpile, compilescript, runscript), also reachable as Runtime.run(..., mode="compile") or mode="auto".
-This is an MVP with growing surface—not a full substitute for the interpreter on every script (notably multi-asset request. and full strategy analytics). ..–.. recovered a large object-mode residual class: UDF locals, nopython None/unicode helpers, matrix handles, UDT returns, statement switch assign, drawing/chart.point copy, round() extras, import stubs as na, color type dispatch, and nested UDT method fields. Plot-value MISMATCH vs interpret (Pp) remains a residual, not a missing language surface.
+This is an MVP with growing surface—not a full substitute for the interpreter on every script (notably multi-asset request. and full strategy analytics). ..–.. recovered a large object-mode residual class: UDF locals, nopython None/unicode helpers, matrix handles, UDT returns, statement switch assign, drawing/chart.point copy, round() extras, import stubs as na, color type dispatch, and nested UDT method fields. Official TV builtins are MISMATCH vs interpret (Pp closed on that set); optional setx community corpus is unmeasured, not a missing language surface.
 Conceptual model
 Generated entry point is always:
 ``text
@@ -11294,6 +11606,7 @@ Focused unit tests
 | tests/testparity.py | Strategy event fixtures (not plot allclose) |
 Product path
 Pro API /run defaults to mode=auto: compile when compileeligible passes (no top-level import, no request. token), otherwise interpret with compilefallbackreason. Parity harness always forces explicit interpret vs compile so fallbacks do not hide drift.
+Official TradingView builtins (..): interpret UDF series-parameter history (s[] per call site) closed the remaining Pp plot MISMATCH tail on that set — MISMATCH vs compile. Optional setx community corpus is unmeasured, not a missing language surface.
 What must match
 . Common plot keys — float series after Nonenan normalization.
 . Warm-up na — leading missing samples align (interpret None / compile nan).
@@ -11663,6 +11976,7 @@ ta.sma(x, n)
 plot(f(close, ))
 `
 f is stored as a Python callable that rebinds x/n and visits the function body AST each call.
+UDF series parameters (..): when a caller passes a scalar (or a host-series current) into a function that then reads s[], interpret wraps that parameter as a per-call-site history stream. src = close; updown(src) therefore matches compile — the previous-bar sample is the previous argument at that call site, not an empty scalar. Official TradingView builtin scripts are MISMATCH vs compile on this contract.
 once (August )
 `pine
 //@version=
@@ -11673,6 +11987,8 @@ n :=
 plot(n)
 `
 Equivalent to a var bool latch plus if, but cheaper: the structure is not re-evaluated after it fires on a closed bar. On a forming realtime bar (Runtime.run(..., realtimelastbar=True, realtimeticks=N)), the latch is not committed until barstate.isconfirmed. Compile is historical (isconfirmed always true).
+Intrabar rollback on realtime ticks (..)
+On a forming realtime bar, intermediate ticks snapshot the var scope (context bindings, series currents, declaration set) and restore it after the visit — every tick starts from confirmed state and only the final tick commits. varip names persist across ticks by design. Shallow by design: history pushes, the series-assign map, in-place container mutations, and broker side effects are not rolled back.
 Method multi-dispatch sketch
 `pine
 method log(this, string s) => ...
@@ -11737,6 +12053,7 @@ Host flags and knobs
 | timeoutseconds= | None | Interpret wall-clock budget; checked every bars → timedout + errorkind=runtime |
 | libraries= | [] | {namespace, name, version, source} registered before import (auto forwards into interpret fallback) |
 | realtime | historical | Interpret-only varip / forming-bar simulation (realtimelastbar / ticks / bars / frombar) |
+| Runtime.createsession | interpret | Persistent InterpretSession (..): delta appendbars, forming-bar updatelastbar; compile has no resumable state |
 Interface surface
 | Concern | Start here |
 | --- | --- |
@@ -11750,6 +12067,7 @@ Interface surface
 | alert() / webhooks | Alerts |
 | Numba / object-mode compiler | Compiler overview |
 | Interpret vs compile plot parity | Parity testing |
+| Incremental interpret sessions (createsession) | Evaluate scripts |
 Library callers typically use NodeLiteralEvaluator or the package pynescript.runtime.Runtime (Pro API re-export) rather than wiring the bar loop by hand:
 ``python
 from pynescript.ast.evaluator import NodeLiteralEvaluator
@@ -11761,6 +12079,10 @@ Runtime(symbol="CHART").run(
 source, ohlcvdata=bars, mode="auto",
 timeoutseconds=None, libraries=None,
 )
+Incremental interpret (..):
+sess = Runtime(symbol="CHART").createsession(source, bars)
+sess.appendbars(newclosedbars)
+sess.updatelastbar(formingbar)
 `
 Hosts that own OHLCV (Pro API, workers) use the package host: push bar → fill pending orders → visit(tree) → drain events → collect plots. SoT: src/pynescript/runtime/ (host.py, series.py, evaluator.py). backend.runtime / backend.series / backend.evaluator are identity re-export shims for the Pro API.
 Internals
@@ -11820,7 +12142,7 @@ Alerts — alert() engine + L webhooks
 Pro API runtime bridge
 Interpret compile parity — scripts/compareinterp_compile.py`
 Numerical validation
-Roadmap — H/H/T/T/F/F/L landed; Pp corpus tail remains
+Roadmap — H/H/T/T/F/F/L/Pp official builtins landed; optional setx unmeasured
 pyne-worker
 AXIS docs — optional AXIS for series/drawings
 ---
@@ -11976,6 +12298,8 @@ last = time // copy of current time into series last
 last := last + // mutates only last, never the host time buffer
 `
 Implemented in StatementEvaluator.bindseriesname: if the RHS has .current / .history / .update (a host or tracked series), the RHS is reduced to its current scalar before allocating or updating the LHS series. Same-bar reassignment (x = then x := expr) overwrites the current sample so x[] remains the previous bar’s final value. This prevents scripts such as dividend TTM time tracking from corrupting time[j] history when they rebind through a local.
+UDF series parameters (..)
+A Pine function parameter that is subscripted (s[] inside f(s) => …) is a series of that argument, not a scalar that happens to be named s. Interpret now allocates a per-call-site history wrapper when the caller passed a scalar or a host-series current (src = close; updown(src)). Compile already tracked UDF series state; the two hosts agree on official TradingView builtins (Pp MISMATCH). Nested calls get distinct streams. See Expressions & statements.
 var / varip / const
 | Qualifier | Semantics in PYNE |
 | --- | --- |

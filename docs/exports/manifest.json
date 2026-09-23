@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-05T10:18:21.722Z",
+  "generatedAt": "2026-09-23T18:18:23.888Z",
   "site": "https://hoox.sh",
   "repository": "https://github.com/hoox-sh/pyne",
   "products": {
@@ -15,7 +15,22 @@
       "agents": {
         "llms": "docs/pyne/llms.txt",
         "llm": "docs/pyne/llm.txt",
-        "bytes": 605044
+        "bytes": 629977
+      }
+    },
+    "axis": {
+      "name": "AXIS",
+      "docs": "https://hoox.sh/axis/docs",
+      "marketing": "https://hoox.sh/axis",
+      "pdfs": {},
+      "llm": "/../axis/docs/llm.txt",
+      "llms": "/../axis/docs/llms.txt",
+      "exportLlm": "/exports/axis-llm.txt",
+      "exportLlms": "/exports/axis-llms.txt",
+      "agents": {
+        "llms": "../axis/docs/llms.txt",
+        "llm": "../axis/docs/llm.txt",
+        "bytes": 386451
       }
     }
   }

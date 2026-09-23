@@ -56,7 +56,7 @@ Answers cite:
 ### What is PYNE vs pynescript vs pyne?
 
 - **PYNE** — product documentation brand for the open evaluate stack (grammar → AST → runtime → LSP → Pro API → workers).
-- **`hoox-pyne`** — **PyPI distribution** name ([live](https://pypi.org/project/hoox-pyne/), **0.3.14+**). Install with `pip install hoox-pyne`. Do **not** install plain `pyne`/`PyNE` from PyPI without the `hoox-` prefix (unrelated) or the upstream `pynescript` package (elbakramer).
+- **`hoox-pyne`** — **PyPI distribution** name ([live](https://pypi.org/project/hoox-pyne/), **0.6.7**). Install with `pip install hoox-pyne`. Do **not** install plain `pyne`/`PyNE` from PyPI without the `hoox-` prefix (unrelated) or the upstream `pynescript` package (elbakramer).
 - **`pynescript`** — **import package** (`import pynescript`, including `pynescript.runtime`).
 - **`pyne` / `pyne-lsp`** — preferred console scripts; **`pynescript` / `pynescript-lsp`** remain aliases.
 
@@ -147,7 +147,7 @@ Use the dual-host harness (repo root):
 python scripts/compare_interp_compile.py --bars 1000 --limit 50
 ```
 
-See [Interpret ↔ compile parity](/pyne/docs/runtime/compiler/parity). Prefer `mode=auto` in production; force `interpret` when you need alerts, `input.*` overrides, or full `request.*`.
+See [Interpret ↔ compile parity](/pyne/docs/runtime/compiler/parity). Pro API `POST /run` defaults to `mode=auto`. The library defaults to `interpret`. Force `interpret` when you need alerts, `input.*` overrides, or full `request.*`.
 
 ### What file extension should I use?
 

@@ -19,6 +19,8 @@
 
 # Pynescript Future Roadmap
 
+**Live package:** `hoox-pyne` **0.6.7**. The date below is the last narrative edit of this file, not the current version.
+
 **Last Updated:** 2026-08-19 (0.3.17: UDF round extras / import stubs / color overloads / nested UDT method dispatch; 0.3.16 compile object-mode corpus residuals; 0.3.15 download-builtins + compile set06; 0.3.14 free-tier opt-in + position_avg_price/leverage)
 **Status:** Core v6 language/builtins essentially closed. Remaining work is
 **interpret↔compile plot parity (P1p)** — official builtins closed; optional set0x community corpus unmeasured — not missing syntax.

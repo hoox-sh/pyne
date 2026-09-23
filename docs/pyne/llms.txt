@@ -1,6 +1,6 @@
 # PYNE — llms.txt
 # https://llmstxt.org/ — machine-readable project map for LLMs
-# Generated 2026-09-05
+# Generated 2026-09-23
 
 # PYNE
 > Open-source Pine Script evaluation framework
@@ -91,6 +91,7 @@ Grammar-driven parser, ASDL AST, bar-loop evaluator, LSP, Pro API, and edge work
 - [App Lifecycle](https://hoox.sh/pyne/docs/api/app-lifecycle)
 - [Auth And Keys](https://hoox.sh/pyne/docs/api/auth-and-keys)
 - [Run](https://hoox.sh/pyne/docs/api/endpoints/run)
+- [Runner](https://hoox.sh/pyne/docs/api/endpoints/runner)
 - [Optimize](https://hoox.sh/pyne/docs/api/endpoints/optimize)
 - [Preview](https://hoox.sh/pyne/docs/api/endpoints/preview)
 - [Backtest](https://hoox.sh/pyne/docs/api/endpoints/backtest)
@@ -129,6 +130,7 @@ Grammar-driven parser, ASDL AST, bar-loop evaluator, LSP, Pro API, and edge work
 - [Runtime](https://hoox.sh/pyne/docs/pynets/runtime)
 - [Compile](https://hoox.sh/pyne/docs/pynets/compile)
 - [Parity](https://hoox.sh/pyne/docs/pynets/parity)
+- [Missing Features](https://hoox.sh/pyne/docs/pynets/missing-features)
 - [Overview](https://hoox.sh/pyne/docs/pyne-worker)
 - [Run](https://hoox.sh/pyne/docs/pyne-worker/run)
 - [Deploy](https://hoox.sh/pyne/docs/pyne-worker/deploy)

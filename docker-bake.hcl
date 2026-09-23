@@ -11,9 +11,9 @@
 #   docker buildx bake release          # multi-platform (set REGISTRY to push)
 #
 # Variables (override with --set or env via bake HCL):
-#   TAG=0.3.0 REGISTRY=gcr.io/PROJECT/pynescript docker buildx bake release
-#   TAG=0.3.0 REGISTRY=ghcr.io/hoox-sh/pyne docker buildx bake release
-#     → ghcr.io/hoox-sh/pyne/api:0.3.0, …/cli:0.3.0, …/lsp:0.3.0
+#   TAG=0.6.7 REGISTRY=gcr.io/PROJECT/pynescript docker buildx bake release
+#   TAG=0.6.7 REGISTRY=ghcr.io/hoox-sh/pyne docker buildx bake release
+#     → ghcr.io/hoox-sh/pyne/api:0.6.7, …/cli:0.6.7, …/lsp:0.6.7
 #
 # CI: .github/workflows/ghcr.yml pushes api + cli + lsp multi-arch on v* tags
 # (and workflow_dispatch). Prefer that path over local bake for GHCR.
@@ -32,7 +32,7 @@ variable "REGISTRY" {
 }
 
 variable "PYNESCRIPT_VERSION" {
-  default = "0.3.0"
+  default = "0.6.7"
 }
 
 variable "GIT_SHA" {

@@ -77,7 +77,7 @@ flowchart LR
 | Runtime `timeout_seconds` | ✅ 0.3.6 — wall-clock circuit breaker on interpret |
 | UDT `array.binary_search*` `sort_field` | ✅ 0.3.6 — interpret + compile (Pine August 2026) |
 | `Runtime.run(..., libraries=)` / `POST /run` `libraries` | ✅ 0.3.7+ — AXIS `import ns/Name/ver`; export finalize in 0.3.8; auto fallback keeps libs |
-| pyne-worker 0.6.0 | ✅ edge `/run` libraries + plot_meta/logs; engine vendor 0.3.8 |
+| pyne-worker 0.6.0 | ✅ edge `/run`; vendored engine is inconsistent (`__about__.py` **0.3.8**, dist-info **0.4.4**) and lags PyPI **0.6.7** |
 | PyneTS (`@hoox-sh/pynets`) | ✅ standalone TS library 0.2.0 — interpret + JS compile; Python remains oracle |
 | pyne-agent-worker | ✅ sister NL authoring host (`POST /v1/chat`) |
 | Full TV platform identity | ⚙️ out of scope |

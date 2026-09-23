@@ -39,7 +39,7 @@ If `TRADE_SERVICE` points at a missing `trade-worker`, **delete the `services` b
 npx wrangler deploy
 ```
 
-Skip sync and the edge still runs the last snapshot (may lag `hoox-pyne` 0.3.14+).
+Skip sync and the edge still runs the last snapshot. That tree disagrees with itself: `python_modules/pynescript/__about__.py` says **0.3.8**, and `pynescript-0.4.4.dist-info` says **0.4.4**. Live PyPI `hoox-pyne` is **0.6.7**. The worker package itself is **0.6.0**. Run `./scripts/sync_vendor.sh` before treating the snapshot as current.
 
 ## Script + 1m cron
 

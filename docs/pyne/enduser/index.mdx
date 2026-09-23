@@ -19,12 +19,12 @@
 
 ---
 title: "End User Hub"
-description: "Install PYNE (pip install hoox-pyne), run CLI/library eval with mode=auto, wire editors (.pyne/.pine), and call Pro API alerts + webhooks."
+description: "Install PYNE (pip install hoox-pyne). Library default is interpret, pyne run is compile-only, Pro API /run defaults to auto."
 ---
 
 # End User Hub
 
-This track is for people who **consume** PYNE: parse and reformat Pine Script™, lint before upload, evaluate expressions or full scripts against OHLCV (`mode=auto` / interpret / compile), export **alerts** (optional L2 webhooks), wire an editor via LSP (`.pyne` / `.pine`), or call the HTTP evaluate contract. Contributor internals (grammar regeneration, AST builder, bar-loop semantics) live under [Core](/pyne/docs/core), [Runtime](/pyne/docs/runtime), and [DevOps](/pyne/docs/devops).
+This track is for people who **consume** PYNE: parse and reformat Pine Script™, lint before upload, evaluate expressions or full scripts against OHLCV (library default **interpret**, `pyne run` is compile-only, Pro API `/run` defaults to **auto**), export **alerts** (optional L2 webhooks), wire an editor via LSP (`.pyne` / `.pine`), or call the HTTP evaluate contract. Contributor internals (grammar regeneration, AST builder, bar-loop semantics) live under [Core](/pyne/docs/core), [Runtime](/pyne/docs/runtime), and [DevOps](/pyne/docs/devops).
 
 ## Abstract
 
@@ -34,7 +34,7 @@ PYNE exposes one language pipeline through several thin surfaces:
 .pyne / .pine source
   → parse (ANTLR4 + ASDL AST)
   → optional: dump | unparse | lint | walk/transform
-  → optional: evaluate (literal_eval | Runtime mode=auto|interpret|compile)
+  → optional: evaluate (literal_eval | Runtime default interpret | Pro API mode=auto)
   → plots / fill / events / drawings / alerts / metrics
   → optional L2 webhooks (Pro API / edge)
 ```
@@ -100,7 +100,7 @@ Daily workflows against the same pipeline:
 
 - **[CLI](/pyne/docs/enduser/guides/cli)** — `check`, `format`, `lint`, `compile`, `prewarm`, `run`, `optimize`, `data`, …
 - **[Library API](/pyne/docs/enduser/guides/library-api)** — `parse`, `unparse`, `dump`, `walk`, visitors, transformers, linter, `optimize.run_study`.
-- **[Evaluate scripts](/pyne/docs/enduser/guides/evaluate-scripts)** — Expression eval, bar-loop Runtime (`mode=auto`), strategy events, **alerts export**, mock vs live data.
+- **[Evaluate scripts](/pyne/docs/enduser/guides/evaluate-scripts)** — Expression eval, bar-loop Runtime (library default **interpret**), strategy events, **alerts export**, mock vs live data.
 - **[Editors](/pyne/docs/enduser/guides/editors)** — VS Code (`.pyne` first-class), Neovim, Zed, Emacs, Helix; `clients/` snippets.
 - **[Pro API usage](/pyne/docs/enduser/guides/pro-api-usage)** — `/run` (+ `webhook_url` / L2 webhooks), `/run/batch`, `/optimize`, preview, backtest as a **consumer**.
 - **[Troubleshooting](/pyne/docs/enduser/guides/troubleshooting)** — Parse failures, recursion limits, missing extras, CORS, auth.

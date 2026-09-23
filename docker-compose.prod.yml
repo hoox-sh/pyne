@@ -15,7 +15,7 @@ services:
       dockerfile: Dockerfile
       target: api
       args:
-        PYNESCRIPT_VERSION: ${PYNESCRIPT_VERSION:-0.2.0}
+        PYNESCRIPT_VERSION: ${PYNESCRIPT_VERSION:-0.6.7}
         GIT_SHA: ${GIT_SHA:-unknown}
     image: pynescript-api:${TAG:-latest}
     environment:

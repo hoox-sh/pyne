@@ -21,7 +21,7 @@ services:
       dockerfile: Dockerfile
       target: api-dev
       args:
-        PYNESCRIPT_VERSION: ${PYNESCRIPT_VERSION:-0.2.0}
+        PYNESCRIPT_VERSION: ${PYNESCRIPT_VERSION:-0.6.7}
         GIT_SHA: ${GIT_SHA:-dev}
     image: pynescript-api:dev
     ports:
@@ -88,7 +88,7 @@ services:
       dockerfile: Dockerfile
       target: lsp
       args:
-        PYNESCRIPT_VERSION: ${PYNESCRIPT_VERSION:-0.2.0}
+        PYNESCRIPT_VERSION: ${PYNESCRIPT_VERSION:-0.6.7}
         GIT_SHA: ${GIT_SHA:-dev}
     image: pynescript-lsp:latest
     profiles:
@@ -112,7 +112,7 @@ services:
       dockerfile: Dockerfile
       target: cli
       args:
-        PYNESCRIPT_VERSION: ${PYNESCRIPT_VERSION:-0.2.0}
+        PYNESCRIPT_VERSION: ${PYNESCRIPT_VERSION:-0.6.7}
         GIT_SHA: ${GIT_SHA:-dev}
     image: pynescript-cli:latest
     profiles:
