@@ -51,6 +51,19 @@ from .base import BuiltinDispatchMixin
 from .base import BuiltinHandler
 
 
+def _timestamp_to_ms(ts: float) -> float:
+    """Unix seconds (< 1e11) become milliseconds. Millisecond stamps pass through.
+
+    Chart hosts often store bar opens in seconds. ``hour(time)`` divides by
+    1000, so a seconds stamp collapses a multi-day chart into one clock hour.
+    """
+    if ts != ts:  # NaN
+        return ts
+    if abs(ts) < 1.0e11:
+        return ts * 1000.0
+    return ts
+
+
 def _normalize_year_month(year: int | float, month: int | float) -> tuple[int, int]:
     """Normalize year/month for ``datetime`` construction (shared by timestamp).
 
@@ -432,8 +445,8 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         """Current bar open/close time from context (ms), falling back to *time*."""
         ctx = getattr(self, "context", {}) or {}
         if key in ctx:
-            return int(self._coerce_ctx_number(key, 0))
-        return int(self._coerce_ctx_number("time", 0))
+            return int(_timestamp_to_ms(int(self._coerce_ctx_number(key, 0))))
+        return int(_timestamp_to_ms(int(self._coerce_ctx_number("time", 0))))
 
     def _prev_bar_time_ms(self) -> int | None:
         """Previous bar open time from ``time`` series history, or None on bar 0."""
@@ -539,7 +552,7 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
                 ts = float(ts)  # type: ignore[arg-type]
             except (TypeError, ValueError):
                 return None, tzinfo
-        return float(ts), tzinfo
+        return float(_timestamp_to_ms(ts)), tzinfo
 
     def _dt_from_ts(self, ts: float | None, tzinfo: Any = None):
         """datetime from ms timestamp in *tzinfo* (default UTC), or None if na."""
