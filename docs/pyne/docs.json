@@ -214,7 +214,8 @@
               "pynets/cli",
               "pynets/runtime",
               "pynets/compile",
-              "pynets/parity"
+              "pynets/parity",
+              "pynets/missing-features"
             ]
           },
           {
