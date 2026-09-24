@@ -10,7 +10,8 @@
 	test-lsp test-backend test-cli typecheck build-check build-cli build-package \
 	build-vscode package \
 	corpus-flow corpus-flow-set05 corpus-recompile \
-	deploy-vps deploy-vps-build
+	deploy-vps deploy-vps-build \
+	okf-enrich okf-lint okf-check
 
 help:
 	@echo "pyne — Pine Script™ Python toolchain"
@@ -22,6 +23,8 @@ help:
 	@echo "  test-backend     Backend / Pro API tests"
 	@echo "  lint             ruff check"
 	@echo "  fmt              ruff format"
+	@echo "  okf-enrich       Draft and link the OKF bundle"
+	@echo "  okf-check        Fail if the bundle does not match the tree"
 	@echo "  package          Build sdist + wheel (python -m build)"
 	@echo "  build            Nuitka LSP binary"
 	@echo "  build-cli        Nuitka CLI binary (pyne / pynescript)"
@@ -218,3 +221,12 @@ clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
 	find . -type f -name "*.pyo" -delete 2>/dev/null || true
+
+okf-enrich:
+	bun scripts/okf/cli.ts enrich
+
+okf-lint:
+	bun scripts/okf/cli.ts lint
+
+okf-check:
+	bun scripts/okf/cli.ts enrich --check

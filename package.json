@@ -20,7 +20,13 @@
     "docs:exports:pdfs": "node scripts/docs/generate-exports.mjs --only=pdfs",
     "docs:exports:agents": "node scripts/docs/generate-exports.mjs --only=agents",
     "docs:exports:pyne": "node scripts/docs/generate-exports.mjs --only=pyne",
-    "docs:versions": "node scripts/docs/fetch_versions.mjs"
+    "docs:versions": "node scripts/docs/fetch_versions.mjs",
+    "okf:enrich": "bun scripts/okf/cli.ts enrich",
+    "okf:check": "bun scripts/okf/cli.ts enrich --check",
+    "okf:lint": "bun scripts/okf/cli.ts lint",
+    "okf:query": "bun scripts/okf/cli.ts query",
+    "okf:context": "bun scripts/okf/cli.ts context",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",

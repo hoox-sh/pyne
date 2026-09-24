@@ -1,0 +1,16 @@
+#!/bin/sh
+# Refresh the OKF bundle from the index and stage the generated files.
+# Skip with OKF_SKIP=1. Skip the hook with git commit --no-verify.
+
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+if [ "${OKF_SKIP:-}" = "1" ]; then
+  exit 0
+fi
+
+echo "Refreshing OKF bundle…"
+if ! bun scripts/okf/cli.ts enrich --from-index --stage; then
+  echo "OKF enrich failed. Fix the bundle or commit with OKF_SKIP=1 / --no-verify."
+  exit 1
+fi
+echo "OKF bundle is current."
