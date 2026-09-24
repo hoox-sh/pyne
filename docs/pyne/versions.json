@@ -1,8 +1,8 @@
 {
-  "fetched_at": "2026-09-23T04:08:49.436Z",
+  "fetched_at": "2026-09-24T04:03:40.163Z",
   "packages": {
     "hoox-pyne": "0.6.7",
-    "@hoox-sh/pynets": "0.2.0",
+    "@hoox-sh/pynets": "0.3.0",
     "hoox-sh.pyne": "0.4.4",
     "ghcr.io/hoox-sh/pyne": "0.6.7"
   },
