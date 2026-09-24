@@ -515,13 +515,16 @@ html, body {
 /* Cover — full-bleed dark plate (no Playwright chrome on page 1; see htmlToPdf) */
 .cover {
   page-break-after: always;
-  /* Exactly one A4 portrait frame when @page :first has margin 0 */
-  width: 210mm; min-height: 297mm; height: 297mm;
+  width: 100%;
+  min-height: 100vh;
+  height: 100vh;
   padding: 22mm 20mm 18mm;
   box-sizing: border-box;
   display: flex; flex-direction: column;
   background: #0c0c0c; color: #f2f2f2;
   position: relative; overflow: hidden;
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 .cover-brand-row {
   display: flex; align-items: flex-start; justify-content: space-between;
@@ -530,9 +533,10 @@ html, body {
 .cover-top {
   display: flex; align-items: center; gap: 10px;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
-  font-size: 9pt; letter-spacing: 0.28em; text-transform: uppercase;
+  font-size: 8pt; letter-spacing: 0.14em; text-transform: uppercase;
   color: ${accent};
-  max-width: 70%;
+  max-width: 125mm;
+  flex-wrap: wrap;
 }
 .cover-logo {
   /* Top-right of the cover plate — white mark on dark */
@@ -862,33 +866,50 @@ async function htmlToPdf(htmlPath, pdfPath) {
     // Body = pages 2–end of the chrome PDF (if any)
     let pageCount = 1
     try {
-      const { stdout } = await execFileAsync("qpdf", ["--show-npages", tmpFull], {
-        timeout: 30_000,
-      })
-      pageCount = Math.max(1, parseInt(String(stdout).trim(), 10) || 1)
+      const { stdout } = await execFileAsync("pdfinfo", [tmpFull], { timeout: 30_000 })
+      const match = String(stdout).match(/Pages:\s+(\d+)/)
+      pageCount = Math.max(1, match ? parseInt(match[1], 10) : 1)
     } catch {
       pageCount = 1
     }
 
     if (pageCount <= 1) {
-      // Single-page manual (cover only)
       await copyFile(tmpCover, pdfPath)
     } else if (existsSync("/usr/bin/qpdf")) {
       await execFileAsync(
         "qpdf",
         ["--empty", "--pages", tmpFull, "2-z", "--", tmpBody],
-        { timeout: 60_000 },
+        { timeout: 180_000 },
       )
       await execFileAsync(
         "qpdf",
         ["--empty", "--pages", tmpCover, "1", tmpBody, "1-z", "--", pdfPath],
-        { timeout: 60_000 },
+        { timeout: 180_000 },
       )
     } else {
-      console.warn(
-        "  WARN: qpdf missing — cover may still show page chrome",
+      await execFileAsync(
+        "/usr/bin/gs",
+        [
+          "-dBATCH", "-dNOPAUSE", "-q",
+          "-sDEVICE=pdfwrite",
+          "-dFirstPage=2",
+          `-dLastPage=${pageCount}`,
+          `-sOutputFile=${tmpBody}`,
+          tmpFull,
+        ],
+        { timeout: 180_000 },
       )
-      await copyFile(tmpFull, pdfPath)
+      await execFileAsync(
+        "/usr/bin/gs",
+        [
+          "-dBATCH", "-dNOPAUSE", "-q",
+          "-sDEVICE=pdfwrite",
+          `-sOutputFile=${pdfPath}`,
+          tmpCover,
+          tmpBody,
+        ],
+        { timeout: 180_000 },
+      )
     }
   } finally {
     await browser.close()
