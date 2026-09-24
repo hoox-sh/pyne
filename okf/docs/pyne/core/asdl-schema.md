@@ -7,7 +7,7 @@ tags: [core, doc, docs, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:54:13Z
+  at: 2026-09-24T03:54:45Z
 sources:
   - id: tree
     resource: "docs/pyne/core/asdl-schema.mdx"
@@ -46,5 +46,4 @@ Repo path `docs/pyne/core/asdl-schema.mdx`.
 
 * [src/pynescript/ast](/code/src/pynescript/ast.md)
 * [src/pynescript/ast/grammar/asdl](/code/src/pynescript/ast/grammar/asdl.md)
-* [src/pynescript/ast/grammar/asdl/generated](/code/src/pynescript/ast/grammar/asdl/generated.md)
 * [src/pynescript/ast/grammar/asdl/tool](/code/src/pynescript/ast/grammar/asdl/tool.md)

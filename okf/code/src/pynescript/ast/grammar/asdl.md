@@ -7,7 +7,7 @@ tags: [ast, code, grammar, pynescript]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:54:13Z
+  at: 2026-09-24T03:54:45Z
 sources:
   - id: tree
     resource: "src/pynescript/ast/grammar/asdl"
@@ -22,5 +22,4 @@ okf_lock: generated
 
 # Nested
 
-* [src/pynescript/ast/grammar/asdl/generated](/code/src/pynescript/ast/grammar/asdl/generated.md)
 * [src/pynescript/ast/grammar/asdl/tool](/code/src/pynescript/ast/grammar/asdl/tool.md)

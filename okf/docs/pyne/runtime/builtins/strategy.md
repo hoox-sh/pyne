@@ -7,7 +7,7 @@ tags: [doc, docs, pyne, runtime]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:54:13Z
+  at: 2026-09-24T03:54:45Z
 sources:
   - id: tree
     resource: "docs/pyne/runtime/builtins/strategy.mdx"
@@ -48,4 +48,3 @@ Repo path `docs/pyne/runtime/builtins/strategy.mdx`.
 # Mentions
 
 * [tests](/code/tests.md)
-* [tests/fixtures/parity](/code/tests/fixtures/parity.md)

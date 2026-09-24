@@ -65,7 +65,8 @@ export function classifyPath(path: string): InputFile['kind'] | null {
 }
 
 function underSkipped(path: string): boolean {
-  return path.split('/').some((part) => SKIP_DIRS.has(part) || part.startsWith('.'));
+  if (path.split('/').some((part) => SKIP_DIRS.has(part) || part.startsWith('.'))) return true;
+  return SKIP_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
 }
 
 function walk(dir: string, root: string, out: string[]): void {

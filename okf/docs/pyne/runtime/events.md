@@ -7,7 +7,7 @@ tags: [doc, docs, pyne, runtime]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:54:13Z
+  at: 2026-09-24T03:54:45Z
 sources:
   - id: tree
     resource: "docs/pyne/runtime/events.mdx"
@@ -43,4 +43,3 @@ Repo path `docs/pyne/runtime/events.mdx`.
 * [src/pynescript/ast/evaluator/builtins](/code/src/pynescript/ast/evaluator/builtins.md)
 * [src/pynescript/compiler](/code/src/pynescript/compiler.md)
 * [tests](/code/tests.md)
-* [tests/fixtures/parity](/code/tests/fixtures/parity.md)
