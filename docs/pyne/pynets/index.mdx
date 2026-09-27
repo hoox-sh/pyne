@@ -24,12 +24,12 @@ description: "TypeScript / Bun library port of PYNE — parse, unparse, Runtime.
 
 # PyneTS
 
-**PyneTS** (`@hoox-sh/pynets`, currently **0.2.0**) is the TypeScript / Bun library for Pine Script: `parse`, `unparse`, and `Runtime.run`. Public names match Python `pynescript`. Python `pynescript.runtime` is the **source of truth** — when semantics disagree, Python wins.
+**PyneTS** (`@hoox-sh/pynets`, currently **0.4.0**) is the TypeScript / Bun library for Pine Script: `parse`, `unparse`, and `Runtime.run`. Public names match Python `pynescript`. Python `pynescript.runtime` is the **source of truth** — when semantics disagree, Python wins.
 
 This is **not** a Cloudflare Worker, **not** a Numba compile path, and **not** a TradingView platform substitute.
 
 <Note>
-This PYNE checkout pins the `pynets/` submodule at annotated **v0.2.0** (`@hoox-sh/pynets` **0.2.0** — interpret + JS compile, matching npm). Python `pynescript.runtime` remains the semantic oracle.
+Published npm is **`@hoox-sh/pynets` 0.4.0** (interpret + JS compile, including the wave10 `ta.*` names, strategy-field emit, and drawing-book emit). Python `pynescript.runtime` remains the semantic oracle.
 </Note>
 
 <CardGroup cols={3}>
@@ -49,7 +49,7 @@ This PYNE checkout pins the `pynets/` submodule at annotated **v0.2.0** (`@hoox-
     Compare plots against Python Runtime.run on the same bars.
   </Card>
   <Card title="Missing features" icon="list" href="/pyne/docs/pynets/missing-features">
-    Builtin and host gaps versus Python. Drawings, strategy fields, compile lag.
+    Builtin and host gaps versus Python. Footprint, realtime once, extension analytics.
   </Card>
   <Card title="Ecosystem" icon="mesh" href="/pyne/docs/reference/ecosystem">
     PYNE · PyneTS · pyne-worker · pyne-agent-worker · AXIS · HOOX.

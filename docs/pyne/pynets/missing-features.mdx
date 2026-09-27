@@ -19,7 +19,7 @@
 
 ---
 title: "PyneTS missing features"
-description: "Builtin and host gaps between @hoox-sh/pynets and Python pynescript.runtime. Measured 2026-09-23 on the working tree, not the published 0.2.0 tag."
+description: "Builtin and host gaps between @hoox-sh/pynets 0.4.0 and Python pynescript.runtime. Measured 2026-09-27."
 ---
 
 # PyneTS missing features
@@ -28,7 +28,7 @@ description: "Builtin and host gaps between @hoox-sh/pynets and Python pynescrip
 
 This page is the checklist of what `@hoox-sh/pynets` still does not match in Python `pynescript.runtime`. The oracle is Python `Runtime.run` on the same source and the same bars. It is not a TradingView® certification list.
 
-Measured **2026-09-23** against the PyneTS working tree (interpret tests green: `test/interpret_once.test.ts`, `test/interpret_ta_gap.test.ts`, `test/interpret_matrix_gap.test.ts`, `test/interpret_utility_gap.test.ts`). Published npm **0.2.0** does not include that slice yet.
+Measured **2026-09-27** against `@hoox-sh/pynets` **0.4.0** (interpret and compile tests green, including `test/interpret_wave10a.test.ts`, `test/interpret_wave10b.test.ts`, `test/compile_lag.test.ts`, and `test/compile_wave10.test.ts`). Published npm **0.4.0** includes this slice.
 
 A raw scan of Python `_*_builtin_map` keys finds **706** names. About **280** of those strings are absent from the interpret sources. Many `strategy.*` series are false misses: they are attributes (`strategy.netprofit`), not quoted call names. The lists below are the scan plus that correction.
 
@@ -56,11 +56,11 @@ Do not re-open these as missing.
 | `once [cond]` | Parse, unparse, interpret, compile. Body runs the first time the test is true. Bare `once` runs on bar 0. Nested `once` inside `if` fires once. `na` does not fire. `x = once …` is a syntax error. |
 | Multi-value `switch` | `1, 2 =>` matches any element on interpret and compile. |
 | Matrix row/col | `sum_*`, `avg_*`, `min_*`, `max_*`, `mode_*`, `copy_row` / `copy_col`, `fill_row` / `fill_col` / `fill_diagonal`, `reverse_rows` / `reverse_cols`, `stdev`, `variance`. |
-| TA | `ta.uo`, `ta.rci`, `ta.dpo`, `ta.kst`, `ta.stochrsi`, `ta.donchian`, `ta.ichimoku`, `ta.bb_pct`, `ta.emv`, `ta.fractal`, `ta.atr_stop`, `ta.zigzag`, plus the v3/v4 bare aliases Python registers. Dict results use `__taRecord` (`dc.high`, `stochrsi.signal`, …). |
+| TA | `ta.uo`, `ta.rci`, `ta.dpo`, `ta.kst`, `ta.stochrsi`, `ta.donchian`, `ta.ichimoku`, `ta.bb_pct`, `ta.emv`, `ta.fractal`, `ta.atr_stop`, `ta.zigzag`, plus the bar-mode detectors `ta.hammer`, `ta.gap_detector`, `ta.macd_signal`, `ta.acceleration_factor`, `ta.stoch_smooth`, `ta.engulfing`, `ta.inside_bar_pattern`, `ta.double_top_bottom`, `ta.voi`, `ta.bid_ask_imbalance`, `ta.rsi_oversold_overbought`, `ta.rsi_divergence`, `ta.cumulative_delta`, `ta.volume_momentum`, `ta.volume_profile_high`, `ta.volume_profile_low`, `ta.volume_thrust`, and the v3/v4 bare aliases Python registers. Dict results use `__taRecord` (`dc.high`, `stochrsi.signal`, …). Several detectors are Python’s bar-mode sentinels (`ta.engulfing` is false every bar; `ta.stoch_smooth` is `na` unless both smooth lengths are 1). |
 | Host helpers | `timeframe.change`, `time_close` / `time_close()`, `syminfo.prefix` and `syminfo.prefix(tickerid)`, bare `round_to_mintick`, every Python `array.new*` spelling, `plotcandle` / `plotbar` (primary series is close), `timenow` / `timenow()`, `max_bars_back`, `alertcondition`, `plot.linestyle_*`, bare `random`, bare `security` / `security_lower_tf`. |
-| JS compile | Emit for the TA / matrix / host names in this table so `compileToResult` matches interpret (no per-bar `time_close` column; default path is next open / last+1d). |
-| Drawings | Getters, remaining setters, `*.all`, `*.copy`, remaining deletes, `chart.point.*`, `line.fill`. Constructor coords snapshot so getters after `new` are not `na`. |
-| Strategy | `strategy.cash` is free cash tagged `_pine_qty_type="cash"`; `account_currency`, `position_entry_name`, `default_entry_qty`, `convert_to_*`, `max_contracts_held_*`, closed/open trade time/comment/drawdown/runup/commission/capital_held/`first_index`; `oca.*`, `direction.*`, `commission.*` constants; zero-arg series calls (`strategy.netprofit()`). |
+| JS compile | Emit for the TA / matrix / host / drawing / strategy names in this table, including the bar-mode detectors, so `mode: "compile"` matches interpret. `array.from` collects its arguments. No per-bar `time_close` column; the default path is next open / last+1d. |
+| Drawings | Getters, remaining setters, `*.all`, `*.copy`, remaining deletes, `chart.point.*`, `line.fill`, on interpret and compile. Constructor coords snapshot so getters after `new` are not `na`. |
+| Strategy | `strategy.cash` is free cash tagged `_pine_qty_type="cash"` on interpret and compile; `account_currency`, `position_entry_name`, `default_entry_qty`, `convert_to_*`, `max_contracts_held_*`, closed/open trade time/comment/drawdown/runup/commission/capital_held/`first_index`; `oca.*`, `direction.*`, `commission.*` constants; zero-arg series calls (`strategy.netprofit()`). |
 
 `ta.rci` with length under 2 is a runtime error whose message contains `ta.rci length must be at least 2`.
 
@@ -72,13 +72,11 @@ Do not re-open these as missing.
 
 ### `strategy.*`
 
-Attribute and zero-arg call forms for the main series and the fields listed as closed above are implemented. `strategy.cash` plots as a number; `default_qty_type=strategy.cash` still selects cash sizing.
-
-Compile does not emit the new strategy fields (`strategy.cash` free-cash object, trade-history extras, constants). Use interpret until that emit lands.
+Attribute and zero-arg call forms for the main series and the fields listed as closed above are implemented on interpret and compile. `strategy.cash` plots as a number; `default_qty_type=strategy.cash` still selects cash sizing.
 
 ### Drawings
 
-Interpret now covers the Python `drawing.py` map (getters, setters, `*.all`, `*.copy`, deletes, `chart.point.*`, `line.fill`). `line.copy(na)` is `na` here; Python returns an unregistered `Line`. Compile `DRAW_METHODS` still lags some of the new setters.
+Interpret and compile cover the Python `drawing.py` map that the book already implements (getters, setters, `*.all`, `*.copy`, deletes, `chart.point.*`, `line.fill`). `line.copy(na)` is `na` here; Python returns an unregistered `Line`.
 
 ### `ta.*` still absent
 
@@ -86,9 +84,9 @@ Interpret now covers the Python `drawing.py` map (getters, setters, `*.all`, `*.
 
 `ta.beta`, `ta.r_squared`, `ta.comovement`, `ta.apo`
 
-**Indicators and detectors still unwired** (read `technical_submodules/` and the winning mixin; `AdvancedIndicators` is first in the MRO):
+**Still unwired because a chart-series plot is `na` on every bar** (a windowed port would disagree):
 
-`ta.acceleration_factor`, `ta.atr_normalized`, `ta.bid_ask_imbalance`, `ta.cumulative_delta`, `ta.double_top_bottom`, `ta.engulfing`, `ta.gap_detector`, `ta.garman_klass`, `ta.hammer`, `ta.inside_bar_pattern`, `ta.kurtosis`, `ta.macd_signal`, `ta.parkinson`, `ta.rsi_divergence`, `ta.rsi_oversold_overbought`, `ta.skewness`, `ta.sma_weighted`, `ta.stoch_smooth`, `ta.voi`, `ta.volume_momentum`, `ta.volume_profile_high`, `ta.volume_profile_low`, `ta.volume_thrust`, `ta.volume_weighted_momentum`
+`ta.atr_normalized`, `ta.garman_klass`, `ta.kurtosis`, `ta.parkinson`, `ta.skewness`, `ta.sma_weighted`, `ta.volume_weighted_momentum`
 
 **PYNE extension analytics** (present in the Python map, not the public TradingView `ta.*` reference). Port only when a caller needs that name:
 
@@ -105,13 +103,7 @@ Interpret now covers the Python `drawing.py` map (getters, setters, `*.all`, `*.
 
 ### JS compile lag
 
-TA / matrix / host helpers from the previous interpret slice now emit. Still interpret-only:
-
-- New drawing setters/getters/`*.all`/`chart.point` beyond the older `DRAW_METHODS` table
-- New strategy cash object, trade-history fields, and constants
-- `timenow`, `max_bars_back`, `alertcondition`, `plot.linestyle_*`, bare `random`, bare `security`
-
-`mode: "auto"` prefers compile when emit succeeds. Names compile does not know become `na` even though interpret matches Python.
+The names in the closed table emit, so `mode: "compile"` matches interpret for them. `mode: "auto"` still prefers compile when emit succeeds. A name compile does not know (footprint, the extension-analytics list, the all-`na` indicators above) becomes `na` even when a later interpret port would match Python.
 
 ## Internals
 
@@ -155,17 +147,17 @@ plot(ta.dpo(20))""", [{"close":1},{"close":2},{"close":3}], mode="interpret"))'
 
 Suggested close order:
 
-1. Compile emit for the new drawing, strategy, and host names.
-2. The unwired indicator list. Skip the four bar-mode-`na` names and the extension-analytics list until a script needs them.
-3. Footprint / `volume_row` mocks if a caller needs them.
-4. Realtime `once` rollback (interpret sessions).
+1. Footprint / `volume_row` mocks if a caller needs them.
+2. Realtime `once` rollback (interpret sessions).
+3. The extension-analytics list when a script needs a name.
+4. Leave the all-`na` indicator names unwired unless a Python plot is non-`na`.
 
 ## Failure modes
 
 | Symptom | Cause |
 | --- | --- |
 | `dc.high` is `na` on an old build | `__taRecord` field read is only on this working tree. |
-| Compile plots `na`, interpret matches Python | Name not in `emit_call.ts` (drawings, new strategy fields, `timenow`). |
+| Compile plots `na`, interpret matches Python | Name not in `emit_call.ts` (footprint, extension analytics). |
 | New `ta.beta` port is non-`na` while Python is `na` | Bar-mode one-element series. Revert the port. |
 | `once` fires again on a realtime tick in Python and once in PyneTS | No tick rollback in the TS host. |
 

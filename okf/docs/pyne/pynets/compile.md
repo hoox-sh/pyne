@@ -7,7 +7,7 @@ tags: [doc, docs, pyne, pynets]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-09-27T11:37:17Z
 sources:
   - id: tree
     resource: "docs/pyne/pynets/compile.mdx"
@@ -25,7 +25,7 @@ Repo path `docs/pyne/pynets/compile.mdx`.
 * Abstract
 * Conceptual model
 * Interface surface
-  * What emit covers (0.2.0)
+  * What emit covers
 * Internals
 * Invariants & edge cases
 * Worked examples

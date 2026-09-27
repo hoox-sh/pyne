@@ -2,7 +2,7 @@
   "fetched_at": "2026-09-27T04:39:01.627Z",
   "packages": {
     "hoox-pyne": "0.6.7",
-    "@hoox-sh/pynets": "0.3.0",
+    "@hoox-sh/pynets": "0.4.0",
     "hoox-sh.pyne": "0.4.4",
     "ghcr.io/hoox-sh/pyne": "0.6.7"
   },
