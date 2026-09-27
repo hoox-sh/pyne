@@ -2079,8 +2079,8 @@ def test_evaluator_table_new():
     assert hasattr(result, "rows")
     assert hasattr(result, "columns")
     assert result.position == "top_left"
-    assert result.rows == 3
-    assert result.columns == 4
+    assert result.columns == 3
+    assert result.rows == 4
 
 
 def test_evaluator_table_cell_operations():

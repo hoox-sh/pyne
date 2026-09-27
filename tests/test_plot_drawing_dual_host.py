@@ -395,12 +395,12 @@ plot(close, "c")
     assert {"line", "linefill", "polyline", "table"} <= kinds
     tables = [d for d in ri["drawings"] if _geom_kind(d) == "table"]
     assert len(tables) == 1
-    assert tables[0]["rows"] == 3
-    assert tables[0]["columns"] == 2
+    assert tables[0]["columns"] == 3
+    assert tables[0]["rows"] == 2
     texts = sorted(str(c.get("text") or "") for c in (tables[0].get("cells") or []) if isinstance(c, dict))
     assert texts == ["A", "B"]
-    frame = str(tables[0].get("frame_color") or tables[0].get("color") or "").lower()
-    assert frame and frame not in {"#000000", "000000", "black"}
+    bg = str(tables[0].get("bgcolor") or tables[0].get("bg_color") or "").lower()
+    assert bg and bg not in {"#000000", "000000", "black"}
     cell_a = next(
         c
         for c in (tables[0].get("cells") or [])

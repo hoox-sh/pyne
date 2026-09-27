@@ -2010,17 +2010,21 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
 
     # TABLE HANDLERS
 
-    def _handle_table_new(self, args: list[Any]) -> Table:
-        """table.new(position, rows, columns, ...)"""
-        position = args[0] if len(args) > 0 else "top_left"
-        rows = args[1] if len(args) > 1 else 0
-        columns = args[2] if len(args) > 2 else 0
-        frame_color = args[3] if len(args) > 3 else "#000000"
-        frame_width = args[4] if len(args) > 4 else 1
-        border_color = args[5] if len(args) > 5 else "#000000"
-        border_width = args[6] if len(args) > 6 else 1
-        bgcolor = args[7] if len(args) > 7 else "rgba(255,255,255,255)"
-        force_overlay = args[8] if len(args) > 8 else False
+    def _handle_table_new(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Table:
+        """table.new(position, columns, rows, bgcolor, frame_color, ...).
+
+        Positional order matches Pine: columns then rows, then bgcolor.
+        """
+        kw = kwargs or {}
+        position = kw.get("position", args[0] if len(args) > 0 else "top_left")
+        columns = kw.get("columns", args[1] if len(args) > 1 else 0)
+        rows = kw.get("rows", args[2] if len(args) > 2 else 0)
+        bgcolor = kw.get("bgcolor", args[3] if len(args) > 3 else "rgba(255,255,255,255)")
+        frame_color = kw.get("frame_color", args[4] if len(args) > 4 else "#000000")
+        frame_width = kw.get("frame_width", args[5] if len(args) > 5 else 1)
+        border_color = kw.get("border_color", args[6] if len(args) > 6 else "#000000")
+        border_width = kw.get("border_width", args[7] if len(args) > 7 else 1)
+        force_overlay = kw.get("force_overlay", args[8] if len(args) > 8 else False)
 
         table = Table(
             position,
