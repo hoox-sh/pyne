@@ -282,6 +282,7 @@ _ENUM_NS = frozenset(
         "format",
         "order",
         "text",
+        "font",
         "session",
     }
 )
@@ -494,6 +495,17 @@ _BARE_COLLECTION: dict[str, str] = {
     "concat": "array_concat",
     "put": "map_put",
     "cell": "table_cell",
+}
+
+# Receiver type ids whose ``obj.method()`` form is a host builtin
+# (``label.set_xy``), not a user ``method`` of the same name.
+_DRAWING_TYPE_NS = {
+    "label": "label",
+    "line": "line",
+    "box": "box",
+    "table": "table",
+    "polyline": "polyline",
+    "linefill": "linefill",
 }
 
 _DRAWING_FUNCS = frozenset(
@@ -4647,6 +4659,25 @@ class CompilerVisitor(NodeVisitor):
                     func_name = func.attr
                 else:
                     func_name = f"ta_{func.attr}"
+            elif func.attr in _ARRAY_METHODS and self._call_prefers_array_method(func):
+                # ``labels.push(x)`` is array.push. A user ``method push(label, …)``
+                # must not steal the field call or the wrapper recurses.
+                method_src = self.visit(func.value)
+                func_name = _ARRAY_METHODS[func.attr]
+                self.object_mode = True
+            elif (
+                self.in_function
+                and getattr(self, "_current_func_name", None) == func.attr
+                and (drawing_ns := self._drawing_builtin_ns(func)) is not None
+                and (func.attr.startswith(("set_", "get_")) or func.attr == "delete")
+            ):
+                # ``method set_xy(label id, ...) => id.set_xy(...)`` must call
+                # the host builtin. Routing it back to the user method recurses
+                # on the first bar (RecursionError). Call sites outside the
+                # method still use the user wrapper so chaining keeps the handle.
+                method_src = self.visit(func.value)
+                func_name = f"{drawing_ns}_{func.attr}"
+                self.object_mode = True
             elif func.attr in self.user_funcs and self._udf_formal_count(func.attr) >= 1:
                 # User method: ``x.mg(6)`` / ``Close.linreg(8).mg(6)`` → mg(src, 6)
                 # Only when the UDF has ≥1 formal so the receiver can bind as
@@ -6589,6 +6620,29 @@ class CompilerVisitor(NodeVisitor):
             return "np.nan"
         # Multi-unpack destinations need a sequence; single assign gets None.
         return "None"
+
+    def _call_prefers_array_method(self, func: ast.Attribute) -> bool:
+        """True when ``recv.verb()`` is a collection builtin, not a user method."""
+        recv = func.value
+        if isinstance(recv, ast.Name):
+            ty = self.udt_var_types.get(recv.id) or ""
+            return ty == "array" or ty.startswith("array<") or ty.startswith("array ")
+        return isinstance(recv, (ast.Attribute, ast.Call))
+
+    def _drawing_builtin_ns(self, func: ast.Attribute) -> str | None:
+        """Namespace when ``recv.method()`` is a drawing builtin, not a user method.
+
+        The receiver name is typed while compiling ``method m(label id, …)``
+        (``udt_var_types``). Untyped chart variables still use the user method,
+        whose body then calls this builtin.
+        """
+        recv = func.value
+        if not isinstance(recv, ast.Name):
+            return None
+        ty = self.udt_var_types.get(recv.id)
+        if not ty:
+            return None
+        return _DRAWING_TYPE_NS.get(ty)
 
     def _type_spec_name(self, spec) -> str | None:
         """Coarse Pine type id from a Param/Assign type spec (``series color`` → color)."""
@@ -8793,8 +8847,16 @@ class CompilerVisitor(NodeVisitor):
         ]
         if recv_type:
             self.func_name_map.setdefault(f"{pine_name}__{n_formals}__{recv_type}", func_name)
-        if recv_type and args:
-            self.udt_var_types[args[0]] = recv_type
+        typed_param_restore: list[tuple[str, str | None, bool]] = []
+        for arg in node.args:
+            if not hasattr(arg, "name"):
+                continue
+            ty = self._type_spec_name(getattr(arg, "type", None))
+            if not ty:
+                continue
+            had = arg.name in self.udt_var_types
+            typed_param_restore.append((arg.name, self.udt_var_types.get(arg.name), had))
+            self.udt_var_types[arg.name] = ty
 
         def _bind_func_meta(mapping, value) -> None:
             mapping[func_name] = value
@@ -9238,6 +9300,11 @@ class CompilerVisitor(NodeVisitor):
                     elif is_last and last_is_for and for_ret_name:
                         lines.append(f"    return {for_ret_name}")
         self.functions.append("\n".join(lines))
+        for pname, old_ty, had_ty in typed_param_restore:
+            if had_ty:
+                self.udt_var_types[pname] = old_ty
+            else:
+                self.udt_var_types.pop(pname, None)
         # Restore parent UDF scope (critical for nested FunctionDef demos)
         self.in_function = prev_in_function
         self._current_func_name = prev_func_name

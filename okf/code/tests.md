@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:40:25Z
+  at: 2026-09-27T09:56:52Z
 sources:
   - id: tree
     resource: "tests"
@@ -64,6 +64,7 @@ okf_lock: generated
 * `test_map_collections.py` — TestMapBasics, TestMapCopy, TestMapDifferentKeyTypes, TestMapDifferentValueTypes, TestMapEdgeCases, TestMapPutAll, TestMapQueryMethods
 * `test_matrix_collections.py` — TestMatrixAggregations, TestMatrixColumnOperations, TestMatrixCore, TestMatrixFilling, TestMatrixRowOperations, TestMatrixTransformations
 * `test_matrix_v6_surface.py` — test_array_binary_search_udt_method_form, test_array_binary_search_udt_sort_field, test_array_sort_udt_sort_field, test_input_text_area_returns_value, test_matrix_add_row_inserts_not_only_appends, test_matrix_eval_dispatch_det_and_avg, test_matrix_linear_algebra_det_inv_trace, test_matrix_new_empty_and_add_row_at_index, test_matrix_predicates_and_sort, test_matrix_sort_order_descending_numeric, test_matrix_sort_udt_sort_field, test_order_ascending_descending_constants
+* `test_method_drawing_builtin.py` — test_array_field_push_is_not_the_user_method, test_font_family_constants_are_strings, test_label_set_xy_wrapper_calls_builtin, test_line_and_label_set_color_overloads_do_not_recurse
 * `test_multi_plot_cross.py` — test_crossover_strategy_events, test_dual_host_visual_series_keys, test_fill_background_series_keys_compile_matches_interpret, test_hline_in_series_and_plot_meta, test_hline_series_keys_compile_matches_interpret, test_kwargs_titled_plots_column_length_no_append_growth, test_lazy_first_non_null_plot_color, test_multi_plot_series_and_colors, test_plot_na_exports_none_not_zero, test_plotshape_bgcolor_keys_via_materialize_match_interpret
 * `test_numba_builtins_direct.py` — f64, test_abs_max_min_scalars, test_array_abs_every_some, test_array_mode_range, test_array_percentiles, test_array_sort_and_fill, test_array_standardize_normalized_sort_indices, test_barssince, test_bb_constant_series, test_bb_warmup_is_nan, test_binary_search_variants, test_cci_flat_is_zero
 * `test_oca_commission.py` — test_commission_percent_on_entry, test_compile_entry_commission_matches_interpret, test_compile_pyramiding_matches_interpret, test_exit_slippage_worsens_close_both_paths, test_futures_avg_price_model_add_and_sticky_partial_dual_path, test_greedy_oca_positional_args_parse, test_invalid_qty_and_direction_do_not_fill, test_leverage_cash_qty_and_margin_dual_path, test_oca_constants_resolve, test_oca_reduce_cancels_sibling_on_full_fill, test_slippage_ticks_worsens_entry, test_strategy_declaration_sets_initial_capital
