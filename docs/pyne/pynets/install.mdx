@@ -28,7 +28,7 @@ description: "Add @hoox-sh/pynets with Bun, npm, or esm.sh. CLI requires Bun. No
 
 `@hoox-sh/pynets` is published to the npm registry. Bun imports TypeScript source. Node 20+ and browsers consume the ESM bundle in `dist/`. The `pynets` CLI is a Bun script.
 
-Package: [npmjs.com/package/@hoox-sh/pynets](https://www.npmjs.com/package/@hoox-sh/pynets) · source: [github.com/hoox-sh/pynets](https://github.com/hoox-sh/pynets). Current version **0.4.0**.
+Package: [npmjs.com/package/@hoox-sh/pynets](https://www.npmjs.com/package/@hoox-sh/pynets) · source: [github.com/hoox-sh/pynets](https://github.com/hoox-sh/pynets). Current version **0.5.0**.
 
 ## Conceptual model
 
@@ -97,7 +97,7 @@ bun install
 bun test
 ```
 
-Published npm is **`@hoox-sh/pynets` 0.4.0** (interpret + JS compile). `dist/` is gitignored — run `bun run build` in the library checkout if you need the Node/browser ESM bundle. Python Runtime remains the oracle.
+Published npm is **`@hoox-sh/pynets` 0.5.0** (interpret + JS compile). `dist/` is gitignored — run `bun run build` in the library checkout if you need the Node/browser ESM bundle. Python Runtime remains the oracle.
 
 ### Develop the library
 
@@ -144,7 +144,7 @@ Local tooling is **Bun only**. Do not add npm/yarn/pnpm lockfiles. The npm regis
 
 ```bash
 bunx pynets info --json
-# { "name": "pynets", "package": "@hoox-sh/pynets", "version": "0.4.0", ... }
+# { "name": "pynets", "package": "@hoox-sh/pynets", "version": "0.5.0", ... }
 
 echo 'indicator("x")
 plot(close)' > /tmp/x.pine

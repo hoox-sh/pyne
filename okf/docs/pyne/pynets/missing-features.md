@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "PyneTS missing features"
-description: "Builtin and host gaps between @hoox-sh/pynets 0.4.0 and Python pynescript.runtime. Measured 2026-09-27."
+description: "Builtin and host gaps between @hoox-sh/pynets 0.5.0 and Python pynescript.runtime. Measured 2026-09-27."
 resource: "docs/pyne/pynets/missing-features.mdx"
 tags: [doc, docs, pyne, pynets]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-27T11:37:17Z
+  at: 2026-09-27T20:17:40Z
 sources:
   - id: tree
     resource: "docs/pyne/pynets/missing-features.mdx"
@@ -30,7 +30,7 @@ Repo path `docs/pyne/pynets/missing-features.mdx`.
   * strategy.
   * Drawings
   * ta. still absent
-  * Request, footprint
+  * Request
   * JS compile lag
 * Internals
 * Invariants & edge cases

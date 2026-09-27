@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "Runtime modes"
-description: "interpret / compile / auto defaults differ by surface. Library interpret, POST /run auto, pyne run compile-only. PyneTS 0.4.0 has interpret + JS compile."
+description: "interpret / compile / auto defaults differ by surface. Library interpret, POST /run auto, pyne run compile-only. PyneTS 0.5.0 has interpret + JS compile."
 resource: "docs/pyne/enduser/reference/modes.mdx"
 tags: [doc, docs, enduser, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-27T11:37:17Z
+  at: 2026-09-27T20:17:40Z
 sources:
   - id: tree
     resource: "docs/pyne/enduser/reference/modes.mdx"

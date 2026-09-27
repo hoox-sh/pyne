@@ -28,7 +28,7 @@ description: "JS bar-loop emit for mode compile | auto. Python object-mode analo
 
 PyneTS compile (`mode: "compile"` / `"auto"`) **emits a JavaScript bar-loop function**. It is the analog of Python **object-mode** compile, **not** Numba nopython. There is no LLVM, no `numba`, no disk IR cache like `PYNE_COMPILE_CACHE_DIR`.
 
-Landed in **`@hoox-sh/pynets` 0.2.0**. **0.4.0** emits the later TA, matrix, drawing, strategy, and host names as well. Python Runtime remains the oracle.
+Landed in **`@hoox-sh/pynets` 0.2.0**. **0.4.0** emits the later TA, matrix, drawing, strategy, and host names. **0.5.0** emits footprint mocks, `plot.style_*`, and `alert.freq_*`. Python Runtime remains the oracle.
 
 ## Conceptual model
 
@@ -82,6 +82,8 @@ CLI: `pynets run script.pine --mode compile` or `--mode auto`.
 **0.2.0.** Strategy object-mode (`__h.strategy` / fills / events), UDF series state (`src[1]`, `var` locals), array / map / matrix, UDT (`Type.new`, field get-set, `method`), drawings (`label` / `line` / `box`), named UDF kwargs, input overrides, `color.*`, enums, `request.security` same-symbol passthrough (foreign → `na`), `barstate.*` / `syminfo` stubs, calendar, `str.*` / `str.format`, `import` (inline registered sources; unresolved → `na`), `session.*` / `chart.*`, `log.*`, `ticker.new` / `standard` / `heikinashi`, `request.currency_rate`, `alertcondition`.
 
 **0.4.0.** The later interpret names: `ta.uo` / `rci` / `dpo` / `kst` / `stochrsi` / `donchian` / `ichimoku` / `bb_pct` / `emv` / `fractal` / `atr_stop` / `zigzag`, the bar-mode detectors (`hammer`, `gap_detector`, `macd_signal`, `acceleration_factor`, `stoch_smooth`, `engulfing`, `inside_bar_pattern`, `double_top_bottom`, `voi`, `bid_ask_imbalance`, `rsi_oversold_overbought`, `rsi_divergence`, `cumulative_delta`, `volume_momentum`, `volume_profile_high` / `low`, `volume_thrust`), matrix row/col stats, `strategy.cash` free cash and trade-history fields, `timenow`, `max_bars_back`, `plot.linestyle_*`, bare `random`, bare `security_lower_tf`, and drawing getters / `*.all` / `*.copy` / `chart.point.*` / `line.fill`. `array.from` collects its arguments.
+
+**0.5.0.** `request.footprint` mock, `footprint.*` / `volume_row.*` accessors, `request.seed`, `plot.style_*`, `alert.freq_*`.
 
 `mode: "auto"` no longer skips compile when inputs are set.
 
