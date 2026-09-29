@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **OKF bundle**: `okf/` is an Open Knowledge Format v0.2 cache of the package, the Pro API, and the docs. The pre-commit hook drafts, links, and lints it. Generated parsers and the Pine corpora are left out of the map.
 
+### Fixed
+
+- **VPS Pro API memory growth**: gunicorn workers now recycle (``--max-requests``) on both the Hetzner systemd unit and the Docker entrypoint (``GUNICORN_MAX_REQUESTS``). Without recycling, workers grew past 1.6 GB each on the 3.8 GB VPS until swap filled 100% and even ``GET /health`` took 6–14 s, so AXIS reported the engine as down. The unit is now versioned at ``deploy/pynescript-api.service`` (+ ``cors.conf`` drop-in) and ``scripts/deploy_vps.sh`` installs it before restart.
+
 ## [0.6.7] - 2026-09-23
 
 Faster interpret dispatch, and `ta.uo` on both the incremental kernel and compile.

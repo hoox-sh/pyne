@@ -23,6 +23,10 @@ WORKERS="${GUNICORN_WORKERS:-2}"
 THREADS="${GUNICORN_THREADS:-4}"
 TIMEOUT="${GUNICORN_TIMEOUT:-120}"
 BIND="${GUNICORN_BIND:-0.0.0.0:${PORT}}"
+# Worker recycling bounds per-worker memory growth across requests
+# (Numba / caches). 0 disables. Mirrors the VPS systemd unit.
+MAX_REQUESTS="${GUNICORN_MAX_REQUESTS:-500}"
+MAX_REQUESTS_JITTER="${GUNICORN_MAX_REQUESTS_JITTER:-50}"
 
 # Ensure IR / Numba disk cache directory exists on the data volume (best-effort).
 CACHE_DIR="${PYNE_COMPILE_CACHE_DIR:-/data/compile-cache}"
@@ -38,6 +42,8 @@ exec gunicorn \
   --workers "${WORKERS}" \
   --threads "${THREADS}" \
   --timeout "${TIMEOUT}" \
+  --max-requests "${MAX_REQUESTS}" \
+  --max-requests-jitter "${MAX_REQUESTS_JITTER}" \
   --access-logfile "-" \
   --error-logfile "-" \
   backend.app:app

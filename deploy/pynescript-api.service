@@ -1,0 +1,37 @@
+# Copyright (C) 2024-2026 jango_blockchained
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# systemd unit for the PYNE Pro API on the Hetzner VPS (pynescript.online).
+# Installed by scripts/deploy_vps.sh into /etc/systemd/system/ (together with
+# the pynescript-api.service.d/cors.conf drop-in). Assumes the /root/pynescript
+# checkout layout with a .venv beside it.
+#
+# Worker recycling (--max-requests) is load-bearing, not tuning trivia:
+# gevent workers accumulate memory across compile/backtest requests (Numba,
+# result caches). Without recycling two workers grew past 1.6 GB each on a
+# 3.8 GB box, swap filled 100%, and even GET /health took 6–14 s — AXIS
+# reported the engine as down. Recycle bounds growth; steady state is << 1 GB.
+
+[Unit]
+Description=Pynescript Pro API
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/pynescript
+Environment=HOST=127.0.0.1
+Environment=PORT=5002
+Environment="ALLOWED_ORIGINS=https://pynescript.online,https://axis.hoox.sh,https://hoox.sh,https://hoox.sh/axis"
+ExecStart=/root/pynescript/.venv/bin/gunicorn -k gevent -w 2 --preload -b 127.0.0.1:5002 --timeout 180 --graceful-timeout 30 --keep-alive 15 --worker-connections 1000 --max-requests 200 --max-requests-jitter 50 backend.app:app
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+Environment=MPLCONFIGDIR=/root/.cache/pynescript/mpl
+ReadWritePaths=/root/pynescript /root/.cache/pynescript /root/.gunicorn /tmp
+
+[Install]
+WantedBy=multi-user.target

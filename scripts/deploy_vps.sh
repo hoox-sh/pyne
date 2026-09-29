@@ -155,6 +155,17 @@ else
   echo "no .venv/bin/pip — skip install" >&2
 fi
 systemctl reset-failed axis-pwa.service 2>/dev/null || true
+# Install the versioned systemd units (worker recycling is load-bearing:
+# without --max-requests the workers grow until swap fills and /health stalls).
+if [[ -f "${VPS_PATH}/deploy/pynescript-api.service" ]]; then
+  echo "install pynescript-api.service units"
+  install -m 644 "${VPS_PATH}/deploy/pynescript-api.service" /etc/systemd/system/pynescript-api.service
+  if [[ -f "${VPS_PATH}/deploy/pynescript-api.service.d/cors.conf" ]]; then
+    mkdir -p /etc/systemd/system/pynescript-api.service.d
+    install -m 644 "${VPS_PATH}/deploy/pynescript-api.service.d/cors.conf" /etc/systemd/system/pynescript-api.service.d/cors.conf
+  fi
+  systemctl daemon-reload
+fi
 systemctl restart pynescript-api.service
 # AXIS PWA is on CF Pages; axis-pwa.service is optional on this host.
 if systemctl list-unit-files axis-pwa.service >/dev/null 2>&1; then
