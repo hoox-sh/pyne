@@ -197,6 +197,7 @@
             "group": "Status & Parity",
             "pages": [
               "reference/ecosystem",
+              "reference/commercial",
               "reference/compatibility",
               "reference/implementation-status",
               "reference/missing-features",

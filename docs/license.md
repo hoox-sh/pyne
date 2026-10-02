@@ -19,8 +19,15 @@
 
 # License
 
+Default: GNU AGPL-3.0-or-later (`LICENSE`).
+
 ```{literalinclude} ../LICENSE
 ---
 language: none
 ---
 ```
+
+Commercial alternative: one-time EUR 299 per organisation (closed-source
+use + SaaS without AGPL source obligations). Terms:
+`COMMERCIAL-LICENSE.txt`. Buy/checkout + FAQ:
+`docs/pyne/reference/commercial.mdx` (Polar, receipt = proof).

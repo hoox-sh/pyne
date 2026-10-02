@@ -12,7 +12,7 @@
 * [gcp_cost_estimate.md](gcp_cost_estimate.md) - CI/CD: Cloud Build → Artifact Registry → Cloud Run (already configured in cloudbuild.yaml).
 * [index.md](index.md) - docs/index.md document.
 * [Known divergences from reference Pine semantics](known_divergences.md) - Status: intentional or residual gaps; track until closed or product-scoped.
-* [license.md](license.md) - docs/license.md document.
+* [license.md](license.md) - Default: GNU AGPL-3.0-or-later (LICENSE).
 * [missing_features.md](missing_features.md) - Live package: hoox-pyne 0.6.7 (src/pynescript/about.py). The paragraph below is the 2026-08-19 narrative (then 0.3.17), not the current version stamp.
 * [numerical_validation_report.md](numerical_validation_report.md) - Validation Period: 15-20 November 2025.
 * [optimization_notes.md](optimization_notes.md) - This document describes the performance optimizations applied to PyneScript core features to improve parsing, evaluation, and AST manipulation efficiency.

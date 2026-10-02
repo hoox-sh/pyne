@@ -1,0 +1,67 @@
+PYNE COMMERCIAL LICENCE — v1.0
+Copyright (c) 2024-2026 jango_blockchained / HOOX
+https://github.com/hoox-sh/pyne — https://hoox.sh/pyne
+
+Price: EUR 299 one-time, per organisation, lifetime. Ex-VAT.
+Checkout: Polar.sh (Merchant-of-Record). Receipt = proof. No keys, no activation.
+
+1. WHAT THIS IS
+   PYNE is otherwise licensed under AGPL-3.0-or-later (see LICENSE).
+   This Commercial Licence is an alternative to the AGPL for holders
+   of a valid purchase receipt. You may choose EITHER the AGPL OR this
+   Commercial Licence for the same code — you do not need both.
+
+2. WHAT YOU MAY DO (without AGPL obligations)
+   (a) Use, modify, and run PYNE inside closed-source products.
+   (b) Distribute PYNE (source or binary, modified or not) inside
+       closed-source products without publishing your changes.
+   (c) Run PYNE as a hosted service / SaaS / API without offering
+       Corresponding Source to network users (AGPL s13 waived
+       between licensor and you).
+   (d) Keep internal modifications private.
+
+3. SCOPE
+   (a) One legal entity (company, sole trader, or individual) per purchase.
+   (b) Unlimited developers, products, servers, and deployments
+       within that entity.
+   (c) Lifetime: all versions released up to and including purchase date,
+       plus all future 0.x / 1.x patch and minor releases of the same
+       product line. A future paid major (2.x) may require a new licence.
+   (d) Subsidiaries and clients need their own licence. No resale of the
+       licence itself.
+
+4. WHAT YOU MAY NOT DO
+   (a) Remove copyright notices.
+   (b) Claim endorsement by HOOX / PYNE / jango_blockchained.
+   (c) Use TradingView(R) / Pine Script(TM) marks beyond nominative
+       interoperability references. PYNE is independent and unaffiliated
+       with TradingView, Inc.
+   (d) Sublicense or resell this licence standalone.
+
+5. WHAT YOU DO NOT GET
+   No warranty, no support, no SLA, no hosted service, no API quota.
+   Hosted Pro API quotas (hobby/pro/team) are a separate product.
+   This licence is a legal permission only — "buy once, own the
+   permission, nothing else to do". Software is provided AS IS.
+
+6. PROOF
+   Your Polar receipt (order ID + purchaser email + date) IS the licence
+   certificate. Keep it. No licence keys, no activation servers, no
+   callbacks in the code. There is nothing to integrate.
+
+7. AGPL REMAINS
+   The public code stays AGPL for everyone else. Your commercial use
+   does not relicense the upstream project and does not oblige you to
+   contribute anything back (contributions welcome under AGPL + CLA).
+
+8. TERMINATION
+   Licence terminates automatically on chargeback fraud or transfer
+   in breach of 3(d). On termination, AGPL terms continue to apply
+   to any further use.
+
+9. LAW
+   Governing law: Germany (EU). Place of jurisdiction: licensor domicile.
+   VAT handled by Polar as Merchant-of-Record.
+
+Questions: licensing via https://hoox.sh/pyne — buy link on
+/pyne/docs/reference/commercial. Replacement receipt: Polar customer portal.
