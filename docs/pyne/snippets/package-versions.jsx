@@ -11,7 +11,7 @@ const FALLBACK = {
   "hoox-pyne": "0.6.7",
   "@hoox-sh/pynets": "0.5.0",
   "hoox-sh.pyne": "0.4.4",
-  "ghcr.io/hoox-sh/pyne": null
+  "ghcr.io/hoox-sh/pyne": "0.6.7"
 }
 /* VERSIONS_FALLBACK_END */
 
