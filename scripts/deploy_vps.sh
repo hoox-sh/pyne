@@ -157,13 +157,18 @@ fi
 systemctl reset-failed axis-pwa.service 2>/dev/null || true
 # Install the versioned systemd units (worker recycling is load-bearing:
 # without --max-requests the workers grow until swap fills and /health stalls).
+# 2026-10-03: a stale tuning.conf drop-in overrode the base unit and dropped
+# recycling → OOM loop. Install versioned drop-ins (cors.conf, tuning.conf);
+# local-only drop-ins (oauth.conf, runner.conf) are left untouched.
 if [[ -f "${VPS_PATH}/deploy/pynescript-api.service" ]]; then
   echo "install pynescript-api.service units"
   install -m 644 "${VPS_PATH}/deploy/pynescript-api.service" /etc/systemd/system/pynescript-api.service
-  if [[ -f "${VPS_PATH}/deploy/pynescript-api.service.d/cors.conf" ]]; then
-    mkdir -p /etc/systemd/system/pynescript-api.service.d
-    install -m 644 "${VPS_PATH}/deploy/pynescript-api.service.d/cors.conf" /etc/systemd/system/pynescript-api.service.d/cors.conf
-  fi
+  mkdir -p /etc/systemd/system/pynescript-api.service.d
+  for dropin in cors.conf tuning.conf; do
+    if [[ -f "${VPS_PATH}/deploy/pynescript-api.service.d/${dropin}" ]]; then
+      install -m 644 "${VPS_PATH}/deploy/pynescript-api.service.d/${dropin}" "/etc/systemd/system/pynescript-api.service.d/${dropin}"
+    fi
+  done
   systemctl daemon-reload
 fi
 systemctl restart pynescript-api.service
