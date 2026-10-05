@@ -7,7 +7,7 @@ tags: [doc, readme]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-10-05T14:26:27Z
 sources:
   - id: tree
     resource: "README.md"
@@ -24,7 +24,7 @@ Repo path `README.md`.
 
 * Ecosystem
 * Abstract
-  * Corpus snapshot (set01–04 · local measurement · 2026-08-09)
+  * Corpus snapshot (set01–04 · local measurement · 2026-08-09 — snapshot, not live CI)
 * Capabilities
   * Language front-end
   * Runtime

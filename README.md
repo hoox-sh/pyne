@@ -59,9 +59,9 @@ The same pipeline underlies the desk CLI, the Language Server Protocol (LSP) bin
 
 Coverage and known gaps are documented under [compatibility](https://hoox.sh/pyne/docs/reference/compatibility) and [implementation status](https://hoox.sh/pyne/docs/reference/implementation-status). This repository does **not** ship third-party script corpora or TradingView® builtin downloads.
 
-### Corpus snapshot (set01–04 · local measurement · 2026-08-09)
+### Corpus snapshot (set01–04 · local measurement · 2026-08-09 — snapshot, not live CI)
 
-Open-source Pine regression sets (**2477** scripts; not shipped in git) under parse+unparse and Runtime interpret (50 bars, 12s timeout):
+Open-source Pine regression sets (**2477** scripts at snapshot time; not shipped in git) under parse+unparse and Runtime interpret (50 bars, 12s timeout). Newer runs use `SETS=set05` (see `Makefile` `corpus-flow`) — re-measure before quoting current coverage.
 
 | Suite | Rate | Detail |
 | --- | ---: | --- |
@@ -199,6 +199,11 @@ Self-hosted (or managed) HTTP surface for script evaluation and previews:
 | `POST /preview/chart` | Chart thumbnail |
 | `POST /preview/indicator` | Indicator chart (SMA, EMA, RSI, MACD, …) |
 | `POST /backtest/quick` | Quick backtest with equity curve |
+| `POST /optimize` | Strategy `input.*` search (see `OPTIMIZE_SCHEMA`) |
+| `POST /lsp/convert` + `/lsp/diagnostics|completion|hover` | Convert older Pine to v6; editor LSP over HTTP |
+| `GET /datafeed/ohlcv|markets|health` + `POST|DELETE /datafeed/session` + WS `/datafeed/watch` | CCXT datafeed gateway (mirrored by the AXIS sidecar) |
+| `POST /api/git/oauth/device/start|poll` | GitHub/GitLab device-flow bridge |
+| `GET|POST /scripts`, `GET|DELETE /scripts/:id`, `GET|PUT /cron/jobs`, `POST /cron/run` | Optional hosted runner (`PYNE_RUNNER=1`, scheduler `PYNE_RUNNER_SCHEDULER=1`) |
 
 `/run` accepts `mode` ∈ {`auto`, `compile`, `interpret`}, returns structured errors (`error_kind`, `error_type`, `error_bar`), and can forward last-bar alert firings to an optional webhook (`webhook_url` or server `ALERT_WEBHOOK_URL`).
 
@@ -240,11 +245,13 @@ class Renamer(NodeTransformer):
 |---------|---------|
 | `check <file>` | Parse-only validation |
 | `format <file>` | Format via parse → unparse |
+| `convert <file> --to 6` | Rewrite older Pine (v1–v5, missing pragma = v1) toward v6 namespaces/pragmas (source-level, not a semantic migrator) |
 | `lint <file>` | Static analysis |
-| `parse-and-dump <file>` | Print AST |
-| `parse-and-unparse <file>` | Normalize source |
+| `parse-and-dump <file>` | Print AST (aliases: `dump`, `ast`) |
+| `parse-and-unparse <file>` | Normalize source (alias: `unparse`) |
 | `compile <file>` | Numba host pipeline / emit |
 | `run <file>` | Execute on synthetic (or provided) OHLCV |
+| `runner deploy|tick …` | Deploy / tick hosted scripts on the Pro API (`PYNE_RUNNER`) |
 | `prewarm [PATH…]` | Warm compile caches |
 | `data <symbol>` | Fetch market data |
 | `info` | Version and optional extras |
