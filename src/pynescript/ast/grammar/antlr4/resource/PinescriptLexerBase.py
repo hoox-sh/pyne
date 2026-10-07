@@ -116,6 +116,9 @@ class PinescriptLexerBase(Lexer):
 
         # track last pending token types
         self._lastPendingTokenType: int = 0
+
+        # track open square brackets for indentation flexibility
+        self._numSqBrackets: int = 0
         self._lastPendingTokenTypeFromDefaultChannel: int = 0
 
         # track number of opens
@@ -152,11 +155,17 @@ class PinescriptLexerBase(Lexer):
         tok_type = self._currentToken.type
         # Hot path: most tokens are identifiers / keywords / numbers / ops.
         # if/elif is slightly cheaper than match for dense integer dispatch.
-        if tok_type == self.LPAR or tok_type == self.LSQB:
+        if tok_type == self.LPAR:
             self._numOpens += 1
             self._addPendingToken(self._currentToken)
-        elif tok_type == self.RPAR or tok_type == self.RSQB:
+        elif tok_type == self.LSQB:
+            self._numSqBrackets += 1
+            self._addPendingToken(self._currentToken)
+        elif tok_type == self.RPAR:
             self._numOpens -= 1
+            self._addPendingToken(self._currentToken)
+        elif tok_type == self.RSQB:
+            self._numSqBrackets -= 1
             self._addPendingToken(self._currentToken)
         elif tok_type == self.NEWLINE:
             self._handle_NEWLINE_token()
@@ -259,7 +268,7 @@ class PinescriptLexerBase(Lexer):
             indentation_length: int = (
                 0 if following_type == Token.EOF else self._getIndentationLength(self._currentToken.text)
             )
-            if indentation_length % self._indentLength == 0:
+            if (self._numOpens > 0 or self._numSqBrackets > 0) or indentation_length % self._indentLength == 0:
                 self._addPendingToken(nl_token)
                 self._addPendingToken(self._currentToken)
                 self._insertIndentOrDedentToken(indentation_length)

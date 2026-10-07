@@ -15,9 +15,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **VPS Pro API memory growth**: gunicorn workers now recycle (``--max-requests``) on both the Hetzner systemd unit and the Docker entrypoint (``GUNICORN_MAX_REQUESTS``). Without recycling, workers grew past 1.6 GB each on the 3.8 GB VPS until swap filled 100% and even ``GET /health`` took 6–14 s, so AXIS reported the engine as down. The unit is now versioned at ``deploy/pynescript-api.service`` (+ ``cors.conf`` drop-in) and ``scripts/deploy_vps.sh`` installs it before restart.
 
-## [0.6.7] - 2026-09-23
+## [0.6.8] - 2026-09-26
 
-Faster interpret dispatch, and `ta.uo` on both the incremental kernel and compile.
+### Added
+
+- **Tables in the bottom panel**: Users can now move tables drawn by a script into a separate tab in the chart's bottom panel. To move a script's tables to the panel, open the "More" menu in the script's status line and select the "Move tables to bottom" option. To move the tables back to the chart, select "Move tables to chart" from the "More" menu or from the context menu opened at the top of the panel's tab. Tables in the bottom panel have different positioning and cell-sizing rules from those on the chart. All tables stack vertically in order from first to last, regardless of the position and force_overlay arguments of each table.new() call. The cells of each table also stretch as necessary to fit the allocated width and height within the pane, without truncating the displayed text. Additionally, users can select and copy the text from tables in the bottom panel, unlike tables displayed on the chart.
+
+- **Improved line wrapping in square brackets**: We've improved the line wrapping behaviors for code within square brackets ([ ]). Previously, all line-wrapped history-referencing operations or tuples required indenting each line after the first by any number of spaces that was not a multiple of four. The only exception was for square brackets enclosed in a set of parentheses, because code within parentheses can contain any amount of indentation, whether zero or a multiple of four spaces. We've extended the indentation flexibility for code in parentheses to all code between square brackets. Now, wrapped code within square brackets can use any amount of indentation without restriction.
+
+### Fixed
+
+- None
 
 ### Changed
 
