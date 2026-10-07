@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-27T09:56:52Z
+  at: 2026-10-07T00:40:48Z
 sources:
   - id: tree
     resource: "tests"
@@ -56,7 +56,7 @@ okf_lock: generated
 * `test_langserver.py` — TestApplyTextEdit, TestDiagnostics, TestTrailingIdent, TestWorkspace
 * `test_langserver_extras_coverage.py` — TestAsdlgen, TestAstMain, TestCollectWorkspaceSymbols, TestConfigExtras, TestDebounceSeconds, TestGenerateTools, TestInlayHints, TestJupyter, TestLangserverMain, TestMetadataDecrypt, TestNautilusStrategy, TestNodeTransformer
 * `test_lazy_calendar_plots.py` — TestLazyCalendarContext, TestLightPlots, TestRuntimeLazyCalendar
-* `test_lexer_corpus_fixes.py` — test_bare_name_equal_is_assign_not_reassign, test_bitwise_ops_shift_and_or, test_blank_lines_between_arrow_and_indented_method_body, test_c_style_block_comment, test_color_literal_still_parses_after_hash_comment_rule, test_hash_line_comment_not_color, test_inline_block_comment, test_markdown_backticks_ignored, test_multiline_ternary_after_question_with_trailing_spaces, test_multiline_triple_quoted_string_roundtrip, test_multiline_type_new_nested_map_new, test_nested_generic_array_new
+* `test_lexer_corpus_fixes.py` — test_bare_name_equal_is_assign_not_reassign, test_bitwise_ops_shift_and_or, test_blank_lines_between_arrow_and_indented_method_body, test_bracket_wrap_any_indent_parity_with_parens, test_c_style_block_comment, test_color_literal_still_parses_after_hash_comment_rule, test_hash_line_comment_not_color, test_inline_block_comment, test_markdown_backticks_ignored, test_multiline_ternary_after_question_with_trailing_spaces, test_multiline_triple_quoted_string_roundtrip, test_multiline_type_new_nested_map_new
 * `test_library_export_import.py` — TestExportConstParse, TestLibraryExportConstRuntime, TestLibraryExportTypeAndEnum, TestLibraryImportRuntime, TestRuntimeGitPublishLibraries
 * `test_linter.py` — TestPineLinter, TestRetiredRules
 * `test_lsp_features.py` — TestBuiltinMetadata, TestCapabilities, TestCompletionHandler, TestCompletionList, TestConvertToV6, TestDefinitionHandler, TestDocumentSymbolsHandler, TestFormattingHandler, TestHoverHandler, TestReferencesHandler, TestSemanticTokensHandler

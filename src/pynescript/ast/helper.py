@@ -106,7 +106,7 @@ class _ThreadParseEngine:
 
     ``bind`` retargets the input and clears indent/token/parser state via
     ANTLR ``reset`` / ``setTokenSource`` so consecutive scripts cannot leak
-    ``_numOpens`` or leftover tokens.
+    ``_numOpens`` / ``_numSqBrackets`` or leftover tokens.
     """
 
     __slots__ = ("lexer", "tokens", "parser")
@@ -124,6 +124,10 @@ class _ThreadParseEngine:
     def bind(self, stream: InputStream) -> tuple[PinescriptLexer, CommonTokenStream, PinescriptParser]:
         """Point the reused engine at *stream* and return (lexer, tokens, parser)."""
         self.lexer.inputStream = stream
+        # Full lexer reset: clears _numOpens/_numSqBrackets, indent stack,
+        # pending tokens and ANTLR hitEOF/mode state. Preserves SLL DFA.
+        # Must run after inputStream swap (reset seeks the new stream to 0).
+        self.lexer.reset()
         self.tokens.setTokenSource(self.lexer)
         self.parser.setTokenStream(self.tokens)
         return self.lexer, self.tokens, self.parser

@@ -11,6 +11,11 @@
 # result caches). Without recycling two workers grew past 1.6 GB each on a
 # 3.8 GB box, swap filled 100%, and even GET /health took 6–14 s — AXIS
 # reported the engine as down. Recycle bounds growth; steady state is << 1 GB.
+#
+# NOTE: keep ExecStart in sync with
+# deploy/pynescript-api.service.d/tuning.conf (drop-in wins on conflict).
+# Both must contain --max-requests so a stale drop-in can never disable
+# recycling (2026-10-03 outage). scripts/deploy_vps.sh installs both.
 
 [Unit]
 Description=Pynescript Pro API

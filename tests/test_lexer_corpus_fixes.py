@@ -396,3 +396,36 @@ d = array.new<map<string, float>>()
 plot(1)
 """
     )
+
+
+def test_bracket_wrap_any_indent_parity_with_parens():
+    """Wrapped ``[...]`` allows any indent (1/2/3/4/8 spaces), like ``(...)``.
+
+    Newlines inside square brackets are hidden — no INDENT/DEDENT is
+    emitted mid-expression — so history-refs and tuples survive wrapping.
+    """
+    import pytest
+
+    for n in (1, 2, 3, 4, 8):
+        pad = " " * n
+        _roundtrip(f'//@version=5\nindicator("t")\nx = close[\n{pad}1]\nplot(x)\n')
+        _roundtrip(f'//@version=5\nindicator("t")\nx = close[1 +\n{pad}2]\nplot(x)\n')
+        _roundtrip(f'//@version=5\nindicator("t")\n[a, b] = [close,\n{pad}open]\nplot(a)\n')
+    # Newline directly before the closing bracket (no trailing indent).
+    _roundtrip('//@version=5\nindicator("t")\nx = close[1\n]\nplot(x)\n')
+    # Unbalanced brackets must not poison the thread-reused lexer: a failing
+    # parse followed by a good one still succeeds with clean counters.
+    from pynescript.ast import error as pine_error
+    from pynescript.ast.helper import clear_parse_cache
+
+    clear_parse_cache()
+    with pytest.raises(pine_error.SyntaxError):
+        parse('//@version=5\nindicator("t")\nplot(close[1)\n')
+    clear_parse_cache()
+    _roundtrip('//@version=5\nindicator("t")\nplot(close)\n')
+    # Counters reset via bind() and never go negative.
+    from pynescript.ast.helper import _thread_parse_engine
+
+    eng = _thread_parse_engine()
+    assert eng.lexer._numOpens == 0
+    assert eng.lexer._numSqBrackets == 0

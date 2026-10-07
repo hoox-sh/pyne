@@ -137,6 +137,7 @@ class PinescriptLexerBase(Lexer):
         self._lastPendingTokenType = 0
         self._lastPendingTokenTypeFromDefaultChannel = 0
         self._numOpens = 0
+        self._numSqBrackets = 0
         self._indentLengthStack = deque()
         self._inputStarted = False
 
@@ -162,10 +163,10 @@ class PinescriptLexerBase(Lexer):
             self._numSqBrackets += 1
             self._addPendingToken(self._currentToken)
         elif tok_type == self.RPAR:
-            self._numOpens -= 1
+            self._numOpens = max(0, self._numOpens - 1)
             self._addPendingToken(self._currentToken)
         elif tok_type == self.RSQB:
-            self._numSqBrackets -= 1
+            self._numSqBrackets = max(0, self._numSqBrackets - 1)
             self._addPendingToken(self._currentToken)
         elif tok_type == self.NEWLINE:
             self._handle_NEWLINE_token()
@@ -248,7 +249,14 @@ class PinescriptLexerBase(Lexer):
         # Use last *default-channel* token so trailing spaces after operators
         # (e.g. `x = cond ? <spaces>\n  cont`) still line-join. Hidden WS must
         # not clear the operator-continuation state.
-        if self._numOpens > 0 or self._lastPendingTokenTypeFromDefaultChannel in self._operators:
+        # Newlines inside (...) or [...] are hidden (true parity): wrapped
+        # history-refs / tuples may use any indentation without emitting
+        # INDENT/DEDENT mid-expression.
+        if (
+            self._numOpens > 0
+            or self._numSqBrackets > 0
+            or self._lastPendingTokenTypeFromDefaultChannel in self._operators
+        ):
             self._hideAndAddPendingToken(self._currentToken)
             return
 
@@ -268,7 +276,9 @@ class PinescriptLexerBase(Lexer):
             indentation_length: int = (
                 0 if following_type == Token.EOF else self._getIndentationLength(self._currentToken.text)
             )
-            if (self._numOpens > 0 or self._numSqBrackets > 0) or indentation_length % self._indentLength == 0:
+            # Inside (...) / [...] already returned above (hidden), so only
+            # block-indent (multiple of 4) emits NEWLINE + INDENT/DEDENT here.
+            if indentation_length % self._indentLength == 0:
                 self._addPendingToken(nl_token)
                 self._addPendingToken(self._currentToken)
                 self._insertIndentOrDedentToken(indentation_length)

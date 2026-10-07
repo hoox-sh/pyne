@@ -23,10 +23,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Improved line wrapping in square brackets**: We've improved the line wrapping behaviors for code within square brackets ([ ]). Previously, all line-wrapped history-referencing operations or tuples required indenting each line after the first by any number of spaces that was not a multiple of four. The only exception was for square brackets enclosed in a set of parentheses, because code within parentheses can contain any amount of indentation, whether zero or a multiple of four spaces. We've extended the indentation flexibility for code in parentheses to all code between square brackets. Now, wrapped code within square brackets can use any amount of indentation without restriction.
 
-### Fixed
-
-- None
-
 ### Changed
 
 - Interpret hot path loads call-site, assignment, and TA state by attribute
@@ -662,6 +658,7 @@ First public **PYNE** release. PyPI distribution name is **`hoox-pyne`**
 - Dead `technical_refactored.py` and internal refactoring notes from the published package tree.
 - Broken AXIS-only GitHub workflows (`axis-nightly`, PWA/e2e jobs) — AXIS CI lives in [jango-blockchained/axis](https://github.com/jango-blockchained/axis).
 
+[0.6.8]: https://github.com/hoox-sh/pyne/compare/v0.6.7...v0.6.8
 [0.6.7]: https://github.com/hoox-sh/pyne/compare/v0.6.6...v0.6.7
 [0.6.6]: https://github.com/hoox-sh/pyne/compare/v0.6.5...v0.6.6
 [0.6.5]: https://github.com/hoox-sh/pyne/compare/v0.6.4...v0.6.5
