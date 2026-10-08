@@ -932,6 +932,16 @@ class DrawingRegistry:
                         "width": int(_num(item.get("border_width", item.get("width"))) or 1),
                         "text": str(item.get("text") or ""),
                         "force_overlay": bool(item.get("force_overlay", False)),
+                        "extend": _extend(item.get("extend")),
+                        "border_style": str(item.get("border_style", item.get("borderStyle", "solid")) or "solid"),
+                        "text_color": _color(item.get("text_color", item.get("textColor", "#000000"))),
+                        "text_halign": str(item.get("text_halign", item.get("halign", "center")) or "center"),
+                        "text_valign": str(item.get("text_valign", item.get("valign", "center")) or "center"),
+                        "text_size": item.get("text_size", item.get("textSize", "auto")) or "auto",
+                        "text_wrap": str(item.get("text_wrap", item.get("textWrap", "none")) or "none"),
+                        "text_font_family": str(
+                            item.get("text_font_family", item.get("fontFamily", "default")) or "default"
+                        ),
                     }
                 )
                 continue
