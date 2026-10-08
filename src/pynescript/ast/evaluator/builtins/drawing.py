@@ -761,15 +761,24 @@ class DrawingRegistry:
                 continue
             cells: list[dict[str, Any]] = []
             for (row, col), cell in (getattr(tb, "cells", None) or {}).items():
-                cells.append(
-                    {
-                        "row": row,
-                        "col": col,
-                        "text": str(getattr(cell, "text", "") or ""),
-                        "text_color": _color(getattr(cell, "text_color", "#000000")),
-                        "bgcolor": _color(getattr(cell, "bgcolor", "rgba(255,255,255,255)")),
-                    }
-                )
+                cell_out: dict[str, Any] = {
+                    "row": row,
+                    "col": col,
+                    "text": str(getattr(cell, "text", "") or ""),
+                    "text_color": _color(getattr(cell, "text_color", "#000000")),
+                    "bgcolor": _color(getattr(cell, "bgcolor", "rgba(255,255,255,255)")),
+                    "text_halign": str(getattr(cell, "text_halign", "center") or "center"),
+                    "text_valign": str(getattr(cell, "text_valign", "center") or "center"),
+                    "text_size": getattr(cell, "text_size", "auto") or "auto",
+                    "tooltip": str(getattr(cell, "tooltip", "") or ""),
+                }
+                width = getattr(cell, "width", None)
+                height = getattr(cell, "height", None)
+                if width is not None:
+                    cell_out["width"] = width
+                if height is not None:
+                    cell_out["height"] = height
+                cells.append(cell_out)
             pos = str(getattr(tb, "position", "top_right") or "top_right")
             pos = pos.replace("position.", "")
             out.append(
@@ -784,6 +793,7 @@ class DrawingRegistry:
                     "border_color": _color(getattr(tb, "border_color", "#000000")),
                     "border_width": int(getattr(tb, "border_width", 1) or 1),
                     "bgcolor": _color(getattr(tb, "bgcolor", "rgba(255,255,255,255)")),
+                    "force_overlay": bool(getattr(tb, "force_overlay", False)),
                     "merged_cells": [[m[0], m[1], m[2], m[3]] for m in getattr(tb, "merged", ())],
                     "t1": 0,
                     "p1": 0,

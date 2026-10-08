@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-08T15:31:29Z
+  at: 2026-10-08T15:32:25Z
 sources:
   - id: tree
     resource: "tests"
@@ -119,7 +119,7 @@ okf_lock: generated
 * `test_ta_indicators_7.py` — TestAdvancedBreakoutDetector, TestBreakevenLevel, TestCorrelationFilter, TestDrawdownRecoveryLevel, TestEdgeCases, TestIntegration, TestMarketStructurePivot, TestMarketTimingIndex, TestMeanReversionEntry, TestMultiTimeframeSignal, TestOptimalEntryZone, TestPositionSizingScore
 * `test_ta_indicators_8.py` — TestConfidenceScoring, TestEdgeCases, TestIntegration, TestMarketContextAnalysis, TestOutputFormat, TestRiskProfileAdaptation, TestSignalAggregation, evaluator
 * `test_ta_state_vector_bounds.py` — test_alloc_fixed_state_covers_kernel_max_index, test_median_inc_state_too_short_falls_back
-* `test_table_export_parity.py` — TestTableCellStorage
+* `test_table_export_parity.py` — TestInterpretTableExport, TestTableCellStorage
 * `test_technical_submodules_direct.py` — TestBasicAverages, TestBasicRanges, TestCommonCrossTrend, TestCommonPivotsUtils, TestCommonStats, TestEconomics, TestMovingAverages, TestOscillators, TestPatterns, TestSynthesizer, TestVolatility, ev
 * `test_time_parts.py` — test_apply_utc_parts_to_context, test_pine_dayofweek_sunday_is_one, test_utc_parts_matches_datetime_samples
 * `test_timeframe_change.py` — test_bucket_id_daily_and_hourly, test_builtin_uses_syminfo_timezone, test_calendar_bad_timezone_falls_back_utc, test_calendar_change_runtime_ny_dst_parity, test_calendar_day_dst_spring_forward, test_calendar_month_lengths_leap_year, test_calendar_tf_routing, test_calendar_week_starts_monday, test_missing_prev_after_bar_0_is_false, test_standalone_timeframe_change_still_false, test_timeframe_change_at_threads_timezone, test_timeframe_change_compile_matches_interpret
