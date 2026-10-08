@@ -1001,12 +1001,16 @@ class DrawingRegistry:
                         "color": _color(item.get("color") or "#000000"),
                         "width": int(_num(item.get("width")) or 1),
                         "style": str(item.get("style") or "solid"),
+                        "curved": bool(item.get("curved", False)),
+                        "force_overlay": bool(item.get("force_overlay", item.get("forceOverlay", False))),
                         "t1": pts_out[0]["time"],
                         "p1": pts_out[0]["price"],
                         "t2": pts_out[-1]["time"],
                         "p2": pts_out[-1]["price"],
                     }
                 )
+                if item.get("fill_color"):
+                    out[-1]["fill_color"] = _color(item.get("fill_color"))
                 continue
 
             if kind == "linefill":
