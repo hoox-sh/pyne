@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Table export parity**: ``table.cell`` now stores all v6 style kwargs (width, height, halign, valign, size, font, formatting, tooltip) with v6 positional order + v5 12-arg compat, and both export paths (``export_for_api``, ``export_compile_events_for_api``) emit cell style, ``force_overlay``, frame/border widths, and ``merged_cells`` — AXIS bottom-panel tables get proportional columns, tooltips, and merges without a wire change on its side.
+- **Table export parity**: ``table.cell`` now stores all v6 style kwargs (width, height, halign, valign, size, font, formatting, tooltip) in reference positional order (``width, height, text_color, halign, valign, size, bgcolor, tooltip, font_family, formatting``), and both export paths (``export_for_api``, ``export_compile_events_for_api``) emit cell style, ``force_overlay``, frame/border widths, and ``merged_cells`` — AXIS bottom-panel tables get proportional columns, tooltips, and merges without a wire change on its side.
+- **Compile drawing extras**: ``export_compile_events_for_api`` now emits the box text/border extras, label tooltip/text extras, and polyline curve/overlay/fill fields the interpret host already emitted. Also adds the missing ``text.align_*`` enum constants (halign + valign) and stores ``box.new`` text kwargs — both hosts produce identical dicts for AXIS paint.
 - **OKF bundle**: `okf/` is an Open Knowledge Format v0.2 cache of the package, the Pro API, and the docs. The pre-commit hook drafts, links, and lints it. Generated parsers and the Pine corpora are left out of the map.
 
 ### Fixed
