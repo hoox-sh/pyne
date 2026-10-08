@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Table export parity**: ``table.cell`` now stores all v6 style kwargs (width, height, halign, valign, size, font, formatting, tooltip) with v6 positional order + v5 12-arg compat, and both export paths (``export_for_api``, ``export_compile_events_for_api``) emit cell style, ``force_overlay``, frame/border widths, and ``merged_cells`` — AXIS bottom-panel tables get proportional columns, tooltips, and merges without a wire change on its side.
 - **OKF bundle**: `okf/` is an Open Knowledge Format v0.2 cache of the package, the Pro API, and the docs. The pre-commit hook drafts, links, and lints it. Generated parsers and the Pine corpora are left out of the map.
 
 ### Fixed
