@@ -52,8 +52,10 @@ class TestTableCellStorage:
         mixin = DrawingBuiltinsMixin()
         tb = Table(position="top_right", rows=2, columns=2)
         DrawingRegistry.tables.append(tb)
+        # Reference order: column, row, text, width, height, text_color,
+        # halign, valign, size, bgcolor, tooltip, font_family, formatting.
         mixin._handle_table_cell(
-            [tb, 0, 1, "p", 10, 20, "#ff0000", "right", "top", "small", "monospace", "bold", "#00ff00", "tt"],
+            [tb, 0, 1, "p", 10, 20, "#ff0000", "right", "top", "small", "#00ff00", "tt", "monospace", "bold"],
             {},
         )
         cell = tb.cells[(1, 0)]
@@ -64,6 +66,8 @@ class TestTableCellStorage:
         assert cell.text_size == "small"
         assert cell.bgcolor == "#00ff00"
         assert cell.tooltip == "tt"
+        assert cell.text_font_family == "monospace"
+        assert cell.text_formatting == "bold"
 
     def test_cell_v5_positional_compat(self) -> None:
         from pynescript.ast.evaluator.builtins.drawing import DrawingBuiltinsMixin
@@ -94,8 +98,13 @@ class TestInterpretTableExport:
             force_overlay=True,
         )
         tb.cells[(0, 0)] = TableCell(
-            text="a", width=10, height=20, text_halign="right",
-            text_valign="top", text_size="small", tooltip="tip",
+            text="a",
+            width=10,
+            height=20,
+            text_halign="right",
+            text_valign="top",
+            text_size="small",
+            tooltip="tip",
         )
         tb.cells[(0, 1)] = TableCell(text="b")
         tb.merged.append((0, 0, 0, 1))
@@ -133,9 +142,14 @@ class TestCompileTableExport:
                 "merged_cells": [[0, 0, 0, 1]],
                 "cells": [
                     {
-                        "row": 0, "col": 0, "text": "a", "width": 10,
-                        "height": 20, "text_halign": "right",
-                        "text_valign": "top", "text_size": "small",
+                        "row": 0,
+                        "col": 0,
+                        "text": "a",
+                        "width": 10,
+                        "height": 20,
+                        "text_halign": "right",
+                        "text_valign": "top",
+                        "text_size": "small",
                         "tooltip": "tip",
                     },
                     {"row": 0, "col": 1, "text": "b"},

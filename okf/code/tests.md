@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-08T15:52:37Z
+  at: 2026-10-08T16:01:57Z
 sources:
   - id: tree
     resource: "tests"
@@ -30,7 +30,7 @@ okf_lock: generated
 * `test_cli.py` — pine_file, runner, test_alias_dump, test_check_directory, test_check_fail, test_check_fail_verbose, test_check_missing_file, test_check_ok, test_check_ok_verbose, test_check_stdin, test_check_stdin_quiet_bad, test_compile
 * `test_cli_util_coverage.py` — bad_file, get_provider_default_mock, pine_file, runner, test_alias_help, test_alphavantage_missing_dependency, test_alphavantage_stub_client, test_bad_flag, test_bind_ta_stubs, test_broker_insufficient_balance_and_sell_with_position, test_broker_market_and_limit_fills, test_broker_run_with_finite_feed
 * `test_collections.py` — TestArrayEdgeCorrectness, TestMapEvaluatorIntegration, TestMatrixEvaluatorIntegration, TestRound8SoftNaAndV6Indices
-* `test_compile_drawings_extras.py` — TestCompileBoxExtras, TestCompileLabelExtras, TestCompilePolylineExtras
+* `test_compile_drawings_extras.py` — TestCompileBoxExtras, TestCompileLabelExtras, TestCompilePolylineExtras, TestExtrasDualHost
 * `test_compiler_engine_r8.py` — TestEndToEndDuplicateTitles, TestIrShareMetadataGate, TestLegacyArityAndCache, TestNormalizeAndCoerce, TestTranspileTitlesMatchRun, TestUniquifyAndPack
 * `test_compiler_numba.py` — TestAdxDmiBuiltinScriptPlotParity, TestCompileAndRun, TestCompileCoverageSprint, TestCompileCoverageSprint3, TestCompileCoverageSprint4, TestCompileCoverageSprint5, TestCompileCoverageSprint6Materialize, TestCompileCoverageSprint6TaBuiltins, TestCompileEngineRound6, TestCompileRound4IncKernels, TestCompileRound5IncKernels, TestCompileRound6DmiSupertrendAlma
 * `test_compiler_objects.py` — TestCollectionObjectModeParity, TestDrawingCompile, TestMapCompile, TestNumericStillNumba, TestObjectModeNaArithmetic, TestSet05MissingNames, TestUDTCompile

@@ -77,6 +77,14 @@ _MATH_CONSTANTS = {
     "text.formatting.bold": "bold",
     "text.formatting.italic": "italic",
     "text.formatting.bold_italic": "bold italic",
+    # v6 text alignment constants (table.cell / box / label halign + valign).
+    # Value is the suffix after the first dot, matching position.* convention
+    # (position.top_left -> "top_left"); AXIS matches on the suffix.
+    "text.align_left": "align_left",
+    "text.align_center": "align_center",
+    "text.align_right": "align_right",
+    "text.align_top": "align_top",
+    "text.align_bottom": "align_bottom",
     # v6 text size constants (can be used as int or str; int for points in v6)
     "size.auto": "auto",
     "size.tiny": 8,

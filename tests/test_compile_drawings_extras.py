@@ -53,7 +53,8 @@ class TestCompileLabelExtras:
         events = [
             {
                 "kind": "label",
-                "x": 1, "y": 105.0,
+                "x": 1,
+                "y": 105.0,
                 "text": "hi",
                 "color": "#123456",
                 "textcolor": "#ffffff",
@@ -102,3 +103,31 @@ class TestCompilePolylineExtras:
         assert d["curved"] is True
         assert d["force_overlay"] is True
         assert d["fill_color"] == "#00ff00"
+
+
+class TestExtrasDualHost:
+    def test_box_label_polyline_key_sets_match(self) -> None:
+        from tests.test_plot_drawing_dual_host import (
+            _assert_drawings_equal,
+            _bars,
+            _geom_kind,
+            _run_dual,
+        )
+
+        src = """
+//@version=6
+indicator("extras", overlay=true)
+if barstate.islast
+    b = box.new(bar_index - 2, high, bar_index, low, bgcolor=color.new(color.green, 80), border_color=color.red, text="zone", text_halign=text.align_right, text_size=size.small)
+    lb = label.new(bar_index, high, "hi", style=label.style_label_down, tooltip="tip", text_formatting=text.format_bold)
+    polyline.new(array.from(chart.point.from_index(bar_index - 2, low), chart.point.from_index(bar_index, high)), false, color=color.blue, curved=true)
+plot(close, "c")
+"""
+        ri, rc = _run_dual(src, _bars(10))
+        _assert_drawings_equal(ri, rc)
+        by_kind = {}
+        for d in ri["drawings"]:
+            by_kind.setdefault(_geom_kind(d), d)
+        assert by_kind["box"]["text_halign"] == "align_right"
+        assert by_kind["label"]["tooltip"] == "tip"
+        assert by_kind["polyline"]["curved"] is True
