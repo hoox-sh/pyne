@@ -19,16 +19,16 @@
 
 ---
 title: "Missing features"
-description: "Known gaps and closed Pine Script™ v6 items — 0.6.7 interpret dispatch and compile ta.uo; 0.6.6 last-sample TA and convert/for-n safety; 0.6.5 convert-to-v6 UDF-safe prefixes; 0.6.4 convert-to-v6; 0.6.3 hosted runner; 0.6.2 P1p official builtins 0 MISMATCH."
+description: "Known gaps and closed Pine Script™ v6 items — what is implemented, what is partial by design, and what is out of scope."
 ---
 
 # Missing features
 
 ## Abstract
 
-“Missing” in PYNE is a **moving frontier**. As of **2026-09-23** (`hoox-pyne` **0.6.7**), core v6 support remains very high (~99%+ for core language), with post-launch TV items closed (multiline strings, library `export const`, footprint mocks, risk enforcement, matrix LA, compile-mode strategy, drawing GC, …) **plus** open-source corpus parse/Runtime hardening, **incremental bar-mode TA** (including 0.3.10–0.3.12 kernels), **alert engine + L2 webhooks**, **series caps**, **warm-compile**, **pending-fill** averaging, **`timeframe.change` (intraday buckets + 0.6.0 D/W/M exchange calendar)**, **package Runtime SoT** (`pynescript.runtime`; `backend.runtime` is a shim), **compile object-mode residual recovery** (UDF locals, nopython `None`/unicode, matrix handles, UDT returns, `x = switch`, drawing copy, `int(na)`, `round()` extras, import stubs, color type dispatch, nested UDT methods), **type-aware intraday risk enforcement on both brokers**, **intrabar `var` rollback on realtime ticks**, **`request.security` barmerge on HTF resample paths**, and **linter legacy-rule retirements**. Remaining gaps cluster into **optional set0x community-corpus plot parity (P1p official builtins closed)**, **by-design platform differences**, and **editor-only features**. Incremental `ta.nvi`/`ta.pvi`/`aroon`/`dpo`/`donchian`/`kst` and Supertrend mid±factor·ATR goldens have landed.
+“Missing” in PYNE is a **moving frontier**. Core v6 support is ~99%+ for core language, with post-launch TV items closed (multiline strings, library `export const`, footprint mocks, risk enforcement, matrix LA, compile-mode strategy, drawing GC, bottom-panel table fields, square-bracket wrapping, …) **plus** open-source corpus parse/Runtime hardening, **incremental bar-mode TA**, **alert engine + L2 webhooks**, **series caps**, **warm-compile**, **pending-fill** averaging, **`timeframe.change`** (intraday buckets + D/W/M exchange calendar), **package Runtime SoT** (`pynescript.runtime`; `backend.runtime` is a shim), **compile object-mode residual recovery** (UDF locals, nopython `None`/unicode, matrix handles, UDT returns, `x = switch`, drawing copy, `int(na)`, `round()` extras, import stubs, color type dispatch, nested UDT methods), **type-aware intraday risk enforcement on both brokers**, **intrabar `var` rollback on realtime ticks**, **`request.security` barmerge on HTF resample paths**, **linter legacy-rule retirements**, and **drawing export parity** (table/box/label/polyline style fields on both hosts). Remaining gaps cluster into **optional set0x community-corpus plot parity (P1p official builtins closed)**, **by-design platform differences**, and **editor-only features**.
 
-Authoritative narrative: `docs/missing_features.md`. Canonical IDs: `docs/ROADMAP.md` (**2026-08-17**).
+Authoritative narrative: `docs/missing_features.md`. Canonical IDs: `docs/ROADMAP.md`.
 
 ## Conceptual model
 
@@ -66,17 +66,17 @@ Summarized — full prose in source doc:
 | Multiline `"""` / `'''` | Lexer + LexerBase + unparser |
 | Library `export const` + types/enums | Parse/AST/runtime registry |
 | UDT `sort_field` on array/matrix sort | Implemented |
-| UDT `sort_field` on `array.binary_search*` (August 2026) | Implemented (interpret + compile, 0.3.6) |
-| **`once` conditional structure** (August 2026) | Implemented in **0.4.4** — parse/unparse, interpret (confirmed-bar latch + realtime re-fire), compile historical flags. Statement-only. |
+| UDT `sort_field` on `array.binary_search*` | Implemented (interpret + compile) |
+| **`once` conditional structure** | Implemented — parse/unparse, interpret (confirmed-bar latch + realtime re-fire), compile historical flags. Statement-only. |
 | `input.*.active` | Metadata-driven |
 | Dynamic `request.*` | Shared resolvers; mock/feed scaling |
 | Enums runtime + input.enum | Type kind + LSP partial |
 | Strategy open/closed trades, risk, OCA, commission | Golden tests |
 | Drawing `*.all`, plot registry, **`max_*_count` GC** | Effects recorded; GC on package + Pro + AXIS |
 | Numba compile + object mode + **warm-compile (H2)** | Disk IR cache, prewarm API/CLI, deploy defaults |
-| **Compile object-mode residuals (0.3.16–0.3.17)** | UDF locals / free-series, nopython `None`/`timestamp`, matrix handles, UDT returns, `x = switch`, drawing copy, `pine_int(na)`, sanitize chrome, `round()` extras, import stubs as `na`, color type dispatch, nested UDT methods |
+| **Compile object-mode residuals** | UDF locals / free-series, nopython `None`/`timestamp`, matrix handles, UDT returns, `x = switch`, drawing copy, `pine_int(na)`, sanitize chrome, `round()` extras, import stubs as `na`, color type dispatch, nested UDT methods |
 | Official matrix LA & predicates | det/inv/eigen/… |
-| **0 missing** vs public TV v6 function reference list (434 symbols, 2026-07-25) |
+| **0 missing** vs public TV v6 function reference list (434 symbols) |
 | Runtime `_pine_defs_locked` + append-only `current_series` | Host hygiene (backend + pyne-worker) |
 | Incremental `ta.*` (MAs, oscillators, `bb`/`kama`/`stochrsi`, volume `obv`/`wad`/`cmf`/`klinger`/`nvi`/`pvi`) | Bar mode; `PYNE_TA_INCREMENTAL=0` to disable |
 | **Series caps (T1)** | `PYNE_SERIES_CAP` default ON + goldens |
@@ -85,6 +85,8 @@ Summarized — full prose in source doc:
 | **`request.security` foreign-na policy** | Foreign/complex → `na` both backends; same-symbol OHLCV passthrough |
 | **Plot parity harness (P1p)** | `scripts/compare_interp_compile.py`, first-party goldens + official TV builtins **0 MISMATCH** |
 | `fill()` export for AXIS | series + `plot_meta` / compile `__drawings` |
+| Square-bracket wrapping | Any-indent line wrapping inside `[…]`; `table.new` columns-then-rows |
+| Drawing export parity | `table.cell` style storage + reference positional order; cell style/width/height/tooltip, `force_overlay`, `merged_cells` both hosts; box/label text extras; polyline curve/fill; `text.align_*` constants |
 
 ### Still incomplete / by design
 
@@ -99,10 +101,10 @@ Summarized — full prose in source doc:
 | PyneTS full builtin parity (**L3**) | ⚙️ interpret + JS compile landed in `@hoox-sh/pynets` 0.5.0; Python remains oracle. Open rows: [PyneTS missing features](/pyne/docs/pynets/missing-features) |
 | Bit-identical every recursive smoother vs TV | Numerical bounds, not bits |
 | Dual Runtime host copies (**H1**) | ✅ **largely done** — package `pynescript.runtime` SoT + `backend.*` shims + pyne-worker thin wrap. Residual = worker-only extras (logs/profile, CF first-plot), not a forked bar loop |
-| Warm-compile product path (**H2**) | ✅ SLOs / prewarm / deploy IR cache defaults (2026-08) |
-| Runtime residual (**C1**) | ✅ set01–04 Runtime interpret **100%** excl. EXPECTED_FAIL (2026-08-09); third-party corpus not shipped |
+| Warm-compile product path (**H2**) | ✅ SLOs / prewarm / deploy IR cache defaults |
+| Runtime residual (**C1**) | ✅ set01–04 Runtime interpret **100%** excl. EXPECTED_FAIL; third-party corpus not shipped |
 | Series cap (**T1**) | ✅ `PYNE_SERIES_CAP` default ON |
-| Residual TA inc (**T2**) | ✅ R7 bb/kama/cmo/stochrsi + wma/hma/linreg; **0.3.10** `obv`/`wad`/`cmf`/`klinger`; **0.3.11** `nvi`/`pvi`; **0.3.12** `aroon`/`dpo`/`donchian`/`kst` |
+| Residual TA inc (**T2**) | ✅ R7 bb/kama/cmo/stochrsi + wma/hma/linreg; volume `obv`/`wad`/`cmf`/`klinger`; `nvi`/`pvi`; `aroon`/`dpo`/`donchian`/`kst` |
 | Pending-fill (**F2**) | ✅ R7 interpret + compile goldens |
 | Plot parity residual (**P1p**) | ✅ Harness + first-party goldens + official TV builtins **0 MISMATCH**; optional set0x community corpus unmeasured |
 | Compile leftover library stubs | ⚙️ Some `float(None)` / UDF arity on missing `import` libraries; INV expected-fail fixtures stay fail |
@@ -113,9 +115,9 @@ Summarized — full prose in source doc:
 
 v6 launch items (dynamic requests, strict bool, enums, polylines, `log.*`, negative indices, truediv, …) are largely supported or intentionally stubbed where platform-bound.
 
-2025–2026 monthly TV updates introduced footprint types, `active` inputs, multiline strings, `export const`, UDT sort fields — tracked and largely closed in this repo’s July 2026 work.
+2025–2026 monthly TV updates introduced footprint types, `active` inputs, multiline strings, `export const`, UDT sort fields — tracked and largely closed.
 
-### Corpus + performance snapshot (2026-08-09)
+### Corpus + performance snapshot
 
 Open-source set01–04 (**2477** scripts; measured locally, **not shipped** in-repo):
 
@@ -131,7 +133,7 @@ Open-source set01–04 (**2477** scripts; measured locally, **not shipped** in-r
 
 Not TradingView® platform parity. OK% excludes only path-listed intentional demos (never soft-suppress unknown failures).
 
-Plans: `.opencode/plans/2026-07-28-runtime-performance.md`. Skill: `.grok/skills/pynescript-perf/`. Golden: `tests/test_ta_incremental.py`, `tests/test_series_cap.py`.
+Golden: `tests/test_ta_incremental.py`, `tests/test_series_cap.py`.
 
 ## Internals
 
@@ -193,7 +195,7 @@ PYNE_TA_INCREMENTAL=0 python -c "from pynescript.runtime import Runtime; ..."
 | Import member missing | Library export registration |
 | Empty footprint rows | Mock seed / data_feed not configured |
 | Risk not blocking entry | Old runtime path; ensure risk kwargs applied |
-| Runtime TIMEOUT on method-heavy scripts | Missing `_pine_defs_locked` on host (fixed 2026-07-28) |
+| Runtime TIMEOUT on method-heavy scripts | Missing `_pine_defs_locked` on host |
 | Corpus PARSE_FAIL mid-block | Truncated scrape — not a grammar hole |
 
 ## See also

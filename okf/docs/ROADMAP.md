@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "ROADMAP.md"
-description: "Live package: hoox-pyne 0.6.7. The date below is the last narrative edit of this file, not the current version."
+description: "Status: Core v6 language/builtins essentially closed. Remaining work is."
 resource: "docs/ROADMAP.md"
 tags: [doc, docs, roadmap]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-10-08T18:28:09Z
 sources:
   - id: tree
     resource: "docs/ROADMAP.md"
@@ -27,7 +27,7 @@ Repo path `docs/ROADMAP.md`.
   * Quick Wins (All Done ✅)
   * Short-term (All Done ✅)
   * Medium-term (All Done ✅)
-* Recent Additions (July 2026 consolidation)
+* Recent Additions
 * Roadmap: Remaining Work (actionable)
   * Open backlog (IDs stable for agents)
   * Phase map

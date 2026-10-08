@@ -7,7 +7,7 @@ tags: [doc, docs, pyne, reference]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-10-08T18:28:09Z
 sources:
   - id: tree
     resource: "docs/pyne/reference/pine-v6-surface.mdx"
@@ -26,7 +26,7 @@ Repo path `docs/pyne/reference/pine-v6-surface.mdx`.
 * Conceptual model
 * Interface surface
   * Status schema
-  * Summary counts (2026-07-25)
+  * Summary counts (2026-10-08)
   * Top namespaces by dispatch keys
   * Kinds covered
 * Internals

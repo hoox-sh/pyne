@@ -19,14 +19,14 @@
 
 ---
 title: "Compatibility guarantee"
-description: "Grouped map of what PYNE implements for Pine Script™ v5/v6 — working, partial, residual, and by-design out of scope. hoox-pyne 0.6.7."
+description: "Grouped map of what PYNE implements for Pine Script™ v5/v6 — working, partial, residual, and by-design out of scope. hoox-pyne 0.6.8."
 ---
 
 # Compatibility guarantee
 
 ## Abstract
 
-PYNE implements Pine Script™ **v5/v6 language core** as an inspectable pipeline: parse → AST → bar-loop evaluate. The map below is the product-facing compatibility surface for **`hoox-pyne` 0.6.7**. It is **not** TradingView® platform identity (chart host, proprietary data, editor-only UI) and **not** bit-identical results vs the hosted platform on every script or bar.
+PYNE implements Pine Script™ **v5/v6 language core** as an inspectable pipeline: parse → AST → bar-loop evaluate. The map below is the product-facing compatibility surface for **`hoox-pyne` 0.6.8**. It is **not** TradingView® platform identity (chart host, proprietary data, editor-only UI) and **not** bit-identical results vs the hosted platform on every script or bar.
 
 Name-level dispatch lives in [Pine v6 surface](/pyne/docs/reference/pine-v6-surface) (`docs/pine_v6_full_surface_inventory.md`). Gaps: [Missing features](/pyne/docs/reference/missing-features). Checkmarks: [Implementation status](/pyne/docs/reference/implementation-status).
 
@@ -79,7 +79,7 @@ flowchart TB
 | **Residual** | Known open hole on an otherwise landed surface |
 | **Out of scope** | Intentionally not a TV platform clone |
 
-Dispatch snapshot (2026-07-25): **640** callables, **0 missing** vs the public TV v6 function list (434 symbols). A registered name is not the same as hosted-platform semantics.
+Dispatch snapshot (2026-10-08): **941** callables, **10** partial-heuristic, **0 missing** vs the public TV v6 function list (434 symbols). A registered name is not the same as hosted-platform semantics.
 
 <CardGroup cols={4}>
   <Card title="Working" icon="check">
@@ -120,12 +120,13 @@ EXPECTED_FAIL are path-listed demos (`runtime.error` library guards, lower-TF se
     | Parse → unparse | Working | Structural fidelity; whitespace may differ |
     | `var` / `varip` / `:=` | Working | Execution-site init; start-of-bar carry |
     | Functions, methods, type annotations | Working | |
-    | Control flow, `switch`, `once`, enums | Working | Strict bool; `na` is false in conditions. `once` (0.4.4) is statement-only |
-    | UDTs + `.new` | Working | Field defaults on compile (0.3.8) |
+    | Control flow, `switch`, `once`, enums | Working | Strict bool; `na` is false in conditions. `once` is statement-only |
+    | UDTs + `.new` | Working | Field defaults on compile |
     | Libraries `export` / `import ns/Name/ver` | Working | In-process `register_library_source`; `Runtime.run(..., libraries=)` |
     | String interpolation, tuple unpack, method chaining | Working | |
     | Series `[]` history | Working | OOB / negative → `na` (not wrap) |
-    | `timeframe.change` | Working | Intraday fixed-width buckets; D/W/M on the exchange calendar (0.6.0, `syminfo.timezone`, UTC default) |
+    | Line wrapping | Working | Any indent inside `(…)` and `[…]`; `table.new` is columns-then-rows (Pine order) |
+    | `timeframe.change` | Working | Intraday fixed-width buckets; D/W/M on the exchange calendar (`syminfo.timezone`, UTC default) |
   </Accordion>
 
   <Accordion title="Bar-loop host — working">
@@ -134,7 +135,7 @@ EXPECTED_FAIL are path-listed demos (`runtime.error` library guards, lower-TF se
     | `pynescript.runtime.Runtime` | Working | Package SoT; `backend.runtime` re-exports |
     | Modes `interpret` / `compile` / `auto` | Working | Defaults differ by surface — [modes](/pyne/docs/enduser/reference/modes) |
     | Series caps | Working | `PYNE_SERIES_CAP` default **on** |
-    | Incremental `ta.*` | Working | Default **on**; `PYNE_TA_INCREMENTAL=0` full recompute. **0.3.12** `aroon`/`dpo`/`donchian`/`kst` |
+    | Incremental `ta.*` | Working | Default **on**; `PYNE_TA_INCREMENTAL=0` full recompute |
     | Derived OHLCV skip | Working | Unused `hl2`/`hlc3`/`ohlc4`/`tr` not written; `ta.vwap` still updates `hlc3` |
     | `timeout_seconds` | Working | Library / edge / Flask `/run` + `/run/batch` (omit = no budget) |
     | Ring buffer | Residual | `PYNE_SERIES_RING` default **off** |
@@ -144,8 +145,8 @@ EXPECTED_FAIL are path-listed demos (`runtime.error` library guards, lower-TF se
     | Area | Status | Notes |
     | --- | --- | --- |
     | MAs | Working | `sma`/`ema`/`rma`/`wma`/`hma`/`vwma`/`kama`/`dema`/`tema`/`alma` incremental |
-    | Oscillators | Working | `rsi`/`macd`/`stoch`/`cci`/`cmo`/`tsi`/`roc`/`wpr`; **0.3.12** incremental `aroon`/`dpo`/`kst` |
-    | Volatility / structure | Working | `atr` (Wilder `rma(tr)`), `bb`, `kc`, `stdev`, `highest`/`lowest`, `linreg`, `adx`/`dmi`, `supertrend`, `sar`; **0.3.12** incremental `donchian` |
+    | Oscillators | Working | `rsi`/`macd`/`stoch`/`cci`/`cmo`/`tsi`/`roc`/`wpr`; incremental `aroon`/`dpo`/`kst` |
+    | Volatility / structure | Working | `atr` (Wilder `rma(tr)`), `bb`, `kc`, `stdev`, `highest`/`lowest`, `linreg`, `adx`/`dmi`, `supertrend`, `sar`; incremental `donchian` |
     | Volume | Working | Incremental `obv`/`wad`/`wvad`/`cmf`/`klinger`/`mfi`/`vwap`/`nvi`/`pvi` |
     | Supertrend | Working | Locked mid±factor·ATR (inc ≡ compile ≡ Numba). TV band ratchet is out of scope |
   </Accordion>
@@ -177,6 +178,7 @@ EXPECTED_FAIL are path-listed demos (`runtime.error` library guards, lower-TF se
     | --- | --- | --- |
     | `plot` / `plotshape` / `plotchar` / `plotarrow` / `hline` / `bgcolor` / `barcolor` / `fill` / `plotbar` / `plotcandle` | Working | Registry + columnar capture; plotshape off = `None` (dual-host) |
     | `line` / `box` / `label` / `table` / `polyline` / `linefill` | Working | Coordinates snapshotted at create/set; compile `__drawings` normalized to geometry-only AXIS export |
+    | Drawing export parity | Working | Both hosts emit cell style/width/height/tooltip, `force_overlay`, `merged_cells`; box/label text extras; polyline curve/fill; `text.align_*` constants; `table.cell` reference positional order |
     | `max_*_count` GC | Working | Interpret registry |
     | `force_overlay` | Working | Export payload |
     | Pixel paint | Out of scope | AXIS / clients consume series + drawings |
@@ -201,7 +203,7 @@ EXPECTED_FAIL are path-listed demos (`runtime.error` library guards, lower-TF se
     | L2 webhooks | Working | `webhook_url` / `ALERT_WEBHOOK_URL` |
     | Compile alerts | Partial | Interpret is the alert oracle |
     | Numba + object-mode compile | Working | `mode=auto` falls back; `import` / `request.*` / `inputs=` skip compile |
-    | Warm compile / disk IR | Working | Prewarm CLI/API; cache meta v16 |
+    | Warm compile / disk IR | Working | Prewarm CLI/API; cache meta v18 |
     | Interp ↔ compile plot parity | Working | Harness + first-party goldens + official TV builtins **0 MISMATCH** (P1p); optional set0x community corpus unmeasured |
     | CLI / LSP / Pro API / Docker | Working | `pyne` / `pyne-lsp`; Flask `/run` |
     | Flask `/run` `libraries` | Working | Max 32; also `/run/batch` |
@@ -215,7 +217,7 @@ EXPECTED_FAIL are path-listed demos (`runtime.error` library guards, lower-TF se
     | --- | --- | --- |
     | Python Runtime | Working | Language oracle |
     | PyneTS `@hoox-sh/pynets` 0.5.0 | Partial | Interpret + JS compile on npm; Python Runtime is the oracle |
-    | pyne-worker | Working | Thin Python CF host; vendors engine (may lag 0.3.16). Docs: [pyne-worker](/pyne/docs/pyne-worker) |
+    | pyne-worker | Working | Thin Python CF host; vendors engine (may lag PyPI). Docs: [pyne-worker](/pyne/docs/pyne-worker) |
     | pyne-agent-worker | Working | NL authoring; optional `/run` validate. Docs: [agent](/pyne/docs/agent) |
   </Accordion>
 </AccordionGroup>

@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "Roadmap"
-description: "PYNE forward plan — dual-host residual, runtime residual, plot parity harness; H2/T1/F2/L2 landed (2026-08)."
+description: "PYNE forward plan — dual-host residual, runtime residual, plot parity harness; drawing export parity landed."
 resource: "docs/pyne/reference/roadmap.mdx"
 tags: [doc, docs, pyne, reference]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-10-08T18:28:09Z
 sources:
   - id: tree
     resource: "docs/pyne/reference/roadmap.mdx"
@@ -29,7 +29,7 @@ Repo path `docs/pyne/reference/roadmap.mdx`.
   * Completed themes (do not re-plan as greenfield)
   * Open backlog (IDs stable)
   * Priority recommendation
-  * Landed residual notes (2026-08)
+  * Landed residual notes
 * Internals
 * Invariants & edge cases
 * Worked examples

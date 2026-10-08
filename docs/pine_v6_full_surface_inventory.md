@@ -19,7 +19,7 @@
 
 # Pine Script v6 — Full Surface Inventory (pynescript)
 
-**Generated:** 2026-07-25  
+**Generated:** 2026-10-08  
 **Scope:** Every registered evaluator builtin, major series/variables, language constructs, and known gaps.  
 **Sources:** live `NodeLiteralEvaluator` dispatch map, `builtin_metadata.json`, base context constants, design docs.
 
@@ -51,49 +51,47 @@ Status values are intentionally coarse. They distinguish fully usable paths from
 
 ## Summary counts
 
-Regenerated from live `NodeLiteralEvaluator._build_builtin_map()` on 2026-07-25.
+Regenerated from live `NodeLiteralEvaluator._build_builtin_map()` on 2026-10-08.
 
 | Metric | Count |
 |--------|------:|
-| Dispatch builtins (callable) | 640 |
-| Dispatch partial-heuristic (docstring stub/mock) | 8 |
-| Namespaces (top-level prefixes) | 60 |
+| Dispatch builtins (callable) | 941 |
+| Dispatch partial-heuristic (docstring stub/mock) | 10 |
+| Namespaces (top-level prefixes) | 255 |
 
 ### By namespace (dispatch keys)
 
 | Namespace | Count |
 |-----------|------:|
-| `ta` | 159 |
+| `ta` | 165 |
+| `strategy` | 95 |
 | `matrix` | 74 |
-| `strategy` | 70 |
-| `array` | 56 |
-| `box` | 31 |
-| `label` | 28 |
-| `table` | 26 |
-| `math` | 24 |
-| `line` | 22 |
+| `array` | 68 |
+| `box` | 32 |
+| `label` | 29 |
+| `table` | 27 |
+| `color` | 26 |
+| `math` | 25 |
+| `line` | 24 |
 | `str` | 19 |
+| `plot` | 15 |
+| `timeframe` | 15 |
 | `input` | 14 |
+| `polyline` | 14 |
 | `map` | 11 |
 | `request` | 11 |
 | `footprint` | 9 |
 | `ticker` | 9 |
-| `color` | 8 |
 | `volume_row` | 8 |
 | `linefill` | 6 |
 | `chart` | 5 |
-| `plot` | 4 |
-| `log` | 3 |
-| `polyline` | 3 |
-| `timeframe` | 3 |
-| `abs` | 1 |
-| `alert` | 1 |
+| `alert` | 4 |
+| `log` | 4 |
+| `syminfo` | 2 |
 
 ### Official TV v6 reference coverage
 
-Against the public Pine v6 function reference list (434 symbols): **0 missing** in dispatch (verified 2026-07-25).
-
-Strategy performance series, matrix linear algebra, linefill, table/box/label setters, and risk builtins are registered.
+Against the public Pine v6 function reference list (434 symbols): **0 missing** in dispatch.
 
 
 ## Architecture graph

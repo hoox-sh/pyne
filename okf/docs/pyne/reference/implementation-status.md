@@ -7,7 +7,7 @@ tags: [doc, docs, pyne, reference]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-10-08T18:28:09Z
 sources:
   - id: tree
     resource: "docs/pyne/reference/implementation-status.mdx"
@@ -28,7 +28,7 @@ Repo path `docs/pyne/reference/implementation-status.mdx`.
   * Legend
   * Component rollup
   * Series & context (illustrative ✅ families)
-  * July 2026 enhancements called out in source
+  * Notable capabilities
 * Internals
 * Invariants & edge cases
 * Worked examples

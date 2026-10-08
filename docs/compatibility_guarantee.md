@@ -19,11 +19,6 @@
 
 # PyneScript Compatibility Guarantee
 
-**Version:** 1.2  
-**Last Updated:** 2026-08-03  
-**Pine Script Target:** v5/v6  
-**Test Coverage:** 1100+ automated tests (full suite; re-run `make test` for live counts)
-
 Product map (working / partial / residual / out of scope):
 [docs/pyne/reference/compatibility.mdx](pyne/reference/compatibility.mdx).
 Repo-root distillation: [COMPATIBILITY.md](../COMPATIBILITY.md).
@@ -423,12 +418,6 @@ This compatibility guarantee applies to PyneScript library:
 - **Documentation:** https://pynescript.readthedocs.io/
 - **GitHub:** https://github.com/hoox-sh/pyne
 - **Issues:** https://github.com/hoox-sh/pyne/issues
-
----
-
-**Last Updated:** 20 November 2025  
-**Version:** 1.0  
-**Next Review:** Quarterly (or on Pine Script v7 release)
 
 ---
 

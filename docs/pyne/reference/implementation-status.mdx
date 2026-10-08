@@ -57,11 +57,11 @@ flowchart LR
 
 ### Component rollup
 
-| Component | Posture (2026-07 consolidation) |
+| Component | Posture |
 | --- | --- |
-| Parser (ANTLR4) | Complete for v5/v6 core + multiline / export / **`once` (0.4.4)** |
+| Parser (ANTLR4) | Complete for v5/v6 core + multiline / export / `once` / square-bracket wrap |
 | Evaluator | Full bar-loop with var/varip, reassignment |
-| Builtins | 224+ historical count; **640 callables** on live dispatch inventory (2026-07-25) |
+| Builtins | 224+ historical count; **941 callables** on live dispatch inventory (2026-10-08) |
 | TA | 150+ `ta.*` keys in inventory |
 | Collections | array / matrix / map complete on exercised surface |
 | Strategy events | `StrategyEvent`, parity corpus, risk enforcement |
@@ -72,9 +72,10 @@ flowchart LR
 | PyneTS | `@hoox-sh/pynets` **0.5.0** on npm — interpret + JS compile. Python Runtime remains the oracle — see [PyneTS](/pyne/docs/pynets) |
 | pyne-worker | Python Cloudflare evaluate host (sister repo) — [docs](/pyne/docs/pyne-worker) |
 | pyne-agent-worker | NL authoring host (sister repo) — [docs](/pyne/docs/agent) |
-| Numba compile path | MVP + object-mode fallback; **0.3.16–0.3.17** UDT/switch/matrix/drawing/round/color residual recovery |
-| Incremental `ta.*` | Default on (`PYNE_TA_INCREMENTAL`); **0.3.10** volume `obv`/`wad`/`cmf`/`klinger`; **0.3.11** `nvi`/`pvi`; **0.3.12** `aroon`/`dpo`/`donchian`/`kst` |
-| Interpret bar-loop | **0.3.10** dispatch inlining + unused derived-series skip |
+| Numba compile path | MVP + object-mode fallback with residual recovery (UDT/switch/matrix/drawing/round/color) |
+| Incremental `ta.*` | Default on (`PYNE_TA_INCREMENTAL`); volume `obv`/`wad`/`cmf`/`klinger`, `nvi`/`pvi`, `aroon`/`dpo`/`donchian`/`kst` |
+| Interpret bar-loop | Dispatch inlining + unused derived-series skip |
+| Drawing export | Cell style/width/height/tooltip, `force_overlay`, `merged_cells` on both hosts; box/label text extras; polyline curve/fill; `text.align_*` constants |
 
 ### Series & context (illustrative ✅ families)
 
@@ -87,13 +88,15 @@ Fully listed in the source doc; representative groups:
 - **session.*** / **dividends.*** / **earnings.*** context fields tracked as ✅
 - **strategy.*** position, trades, equity, risk, OCA, commission constants
 
-### July 2026 enhancements called out in source
+### Notable capabilities
 
 - Full strategy event emission with bar context
 - `strategy.long` / `strategy.short` constants
 - `var` / `varip` + `:=` reassignment
 - Parity fixtures for cross-implementation validation
 - Risk helpers and performance series expansion
+- `table.new` columns-then-rows (Pine order); `table.cell` reference positional order
+- Disk IR cache meta **v18**
 
 ## Internals
 

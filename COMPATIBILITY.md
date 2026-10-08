@@ -1,7 +1,5 @@
 # Compatibility — PYNE grouped map
 
-**hoox-pyne 0.6.7** · import `pynescript` · CLIs `pyne` / `pyne-lsp`
-
 Product page (visual map): [compatibility](https://hoox.sh/pyne/docs/reference/compatibility).
 
 PYNE implements Pine Script™ v5/v6 **language core** (parse → AST → bar-loop). It does **not** claim TradingView® certification, platform identity (chart / proprietary data / editor UI), or bit-identical bars vs the hosted platform.
@@ -13,7 +11,7 @@ PYNE implements Pine Script™ v5/v6 **language core** (parse → AST → bar-lo
 | **Residual** | Known hole on an otherwise landed surface |
 | **Out of scope** | Not a TV platform clone |
 
-Dispatch (2026-07-25): **640** callables, **0 missing** vs the public TV v6 function list (434 names). A registered name ≠ hosted semantics.
+Dispatch: **941** callables, **0 missing** vs the public TV v6 function list (434 names). A registered name ≠ hosted semantics.
 
 ```mermaid
 flowchart TB
@@ -56,12 +54,12 @@ flowchart TB
 |---|---|---|---|---|
 | Role | Language SoT | TS / Bun library | Python CF isolate | Legacy TS CF Worker |
 | Repo | this repo | [hoox-sh/pynets](https://github.com/hoox-sh/pynets) | [hoox-sh/pyne-worker](https://github.com/hoox-sh/pyne-worker) | [hoox-sh/pine-worker](https://github.com/hoox-sh/pine-worker) |
-| In this checkout? | yes | `pynets/` submodule (**v0.2.0** interpret + JS compile) | no | **no** |
-| Status | **Working** (oracle) | **Partial** (Python oracle; pin matches npm **0.2.0**) | **Working** (thin wrap; vendor may lag) | **Partial** |
+| In this checkout? | yes | standalone repo | no | **no** |
+| Status | **Working** (oracle) | **Partial** (Python oracle) | **Working** (thin wrap; vendor may lag) | **Partial** |
 
 ---
 
-## Corpus (set01–04 · 2477 scripts · 2026-08-09)
+## Corpus (set01–04 · 2477 scripts)
 
 Not shipped in git. Not a TV platform score.
 
@@ -86,7 +84,7 @@ Not shipped in git. Not a TV platform score.
 | **Strategy** | entry/exit/close, OCA, tick `profit`/`loss`, `from_entry`, `qty_percent`, risk cascade, F2 pending-fill, OHLC trail |
 | **Draw / plot** | plot*/hline/fill/bgcolor/barcolor; line/box/label/table/polyline/linefill; GC; `force_overlay`; compile drawings geometry-only; key sets match interpret |
 | **Alerts** | `alert` / `alertcondition` + L2 webhooks |
-| **Compile** | Numba + object mode; warm IR cache; `auto` fallback; **0.3.16–0.3.17** UDT/switch/matrix/drawing/round/color-overload residuals |
+| **Compile** | Numba + object mode; warm IR cache; `auto` fallback; UDT/switch/matrix/drawing/round/color-overload residuals |
 | **Surfaces** | CLI `pyne` / `pyne-lsp` / `pyne optimize`; Pro `POST /run` + `/run/batch` + `POST /optimize` |
 
 ### Partial

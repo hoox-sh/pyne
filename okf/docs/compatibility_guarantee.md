@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "compatibility_guarantee.md"
-description: "Test Coverage: 1100+ automated tests (full suite; re-run make test for live counts)."
+description: "Product map (working / partial / residual / out of scope):."
 resource: "docs/compatibility_guarantee.md"
 tags: [compatibility-guarantee, doc, docs]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-10-08T18:28:09Z
 sources:
   - id: tree
     resource: "docs/compatibility_guarantee.md"
