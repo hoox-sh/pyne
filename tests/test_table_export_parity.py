@@ -154,3 +154,32 @@ class TestCompileTableExport:
         assert cells[0]["width"] == 10
         assert cells[0]["tooltip"] == "tip"
         assert cells[0]["text_halign"] == "right"
+
+
+class TestStyledTableDualHost:
+    def test_styled_table_identical_both_hosts(self) -> None:
+        from tests.test_plot_drawing_dual_host import (
+            _assert_drawings_equal,
+            _bars,
+            _geom_kind,
+            _run_dual,
+        )
+
+        src = """
+//@version=6
+indicator("styled table", overlay=true)
+if barstate.islast
+    t = table.new(position.top_right, 2, 1, bgcolor=color.gray, force_overlay=true)
+    table.cell(t, 0, 0, "A", width=10, text_color=color.white, text_halign=text.align_right, tooltip="first")
+    table.cell(t, 1, 0, "B", width=30, text_size=size.small)
+    table.merge_cells(t, 0, 0, 0, 1)
+plot(close, "c")
+"""
+        ri, rc = _run_dual(src, _bars(10))
+        _assert_drawings_equal(ri, rc)
+        tables = [d for d in ri["drawings"] if _geom_kind(d) == "table"]
+        assert len(tables) == 1
+        cells = {c["col"]: c for c in tables[0]["cells"]}
+        assert cells[0]["width"] == 10
+        assert cells[0]["tooltip"] == "first"
+        assert tables[0]["force_overlay"] is True
