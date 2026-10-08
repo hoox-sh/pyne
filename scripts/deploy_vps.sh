@@ -165,8 +165,8 @@ if [[ -f "${VPS_PATH}/deploy/pynescript-api.service" ]]; then
   install -m 644 "${VPS_PATH}/deploy/pynescript-api.service" /etc/systemd/system/pynescript-api.service
   mkdir -p /etc/systemd/system/pynescript-api.service.d
   for dropin in cors.conf tuning.conf; do
-    if [[ -f "${VPS_PATH}/deploy/pynescript-api.service.d/${dropin}" ]]; then
-      install -m 644 "${VPS_PATH}/deploy/pynescript-api.service.d/${dropin}" "/etc/systemd/system/pynescript-api.service.d/${dropin}"
+    if [[ -f "${VPS_PATH}/deploy/pynescript-api.service.d/\${dropin}" ]]; then
+      install -m 644 "${VPS_PATH}/deploy/pynescript-api.service.d/\${dropin}" "/etc/systemd/system/pynescript-api.service.d/\${dropin}"
     fi
   done
   systemctl daemon-reload
