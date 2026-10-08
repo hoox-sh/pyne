@@ -970,6 +970,13 @@ class DrawingRegistry:
                         "style": str(item.get("style") or "label_center"),
                         "yloc": yloc_raw,
                         "size": size_raw if isinstance(size_raw, (int, float)) else str(size_raw),
+                        "tooltip": str(item.get("tooltip") or ""),
+                        "text_halign": str(item.get("text_halign", item.get("halign", "center")) or "center"),
+                        "text_valign": str(item.get("text_valign", item.get("valign", "center")) or "center"),
+                        "text_font_family": str(
+                            item.get("text_font_family", item.get("fontFamily", "default")) or "default"
+                        ),
+                        "text_formatting": str(item.get("text_formatting", item.get("formatting", "")) or ""),
                     }
                 )
                 continue
