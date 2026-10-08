@@ -2057,9 +2057,27 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         column = kw.get("column", args[1] if len(args) > 1 else 0)
         row = kw.get("row", args[2] if len(args) > 2 else 0)
         text = kw.get("text", args[3] if len(args) > 3 else None)
+        # v6 positional order: width=4 height=5 text_color=6 halign=7 valign=8
+        # size=9 font_family=10 formatting=11 bgcolor=12 tooltip=13.
+        # v5 12-arg shape has bgcolor=10 tooltip=11 — keep that mapping when
+        # no font/formatting data is present.
+        has_v6_font = "text_font_family" in kw or "text_formatting" in kw or len(args) > 12
+        width = kw.get("width", args[4] if len(args) > 4 else None)
+        height = kw.get("height", args[5] if len(args) > 5 else None)
         text_color = kw.get("text_color", args[6] if len(args) > 6 else None)
-        bgcolor = kw.get("bgcolor", args[10] if len(args) > 10 else None)
-        tooltip = kw.get("tooltip", args[11] if len(args) > 11 else None)
+        text_halign = kw.get("text_halign", args[7] if len(args) > 7 else None)
+        text_valign = kw.get("text_valign", args[8] if len(args) > 8 else None)
+        text_size = kw.get("text_size", args[9] if len(args) > 9 else None)
+        if has_v6_font:
+            text_font_family = kw.get("text_font_family", args[10] if len(args) > 10 else None)
+            text_formatting = kw.get("text_formatting", args[11] if len(args) > 11 else None)
+            bgcolor = kw.get("bgcolor", args[12] if len(args) > 12 else None)
+            tooltip = kw.get("tooltip", args[13] if len(args) > 13 else None)
+        else:
+            text_font_family = kw.get("text_font_family", None)
+            text_formatting = kw.get("text_formatting", None)
+            bgcolor = kw.get("bgcolor", args[10] if len(args) > 10 else None)
+            tooltip = kw.get("tooltip", args[11] if len(args) > 11 else None)
 
         try:
             col_i = int(column)
@@ -2080,6 +2098,20 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
                 cell.bgcolor = str(bgcolor)
             if tooltip is not None:
                 cell.tooltip = str(tooltip)
+            if width is not None:
+                cell.width = width
+            if height is not None:
+                cell.height = height
+            if text_halign is not None:
+                cell.text_halign = str(text_halign)
+            if text_valign is not None:
+                cell.text_valign = str(text_valign)
+            if text_size is not None:
+                cell.text_size = text_size if isinstance(text_size, (int, float)) else str(text_size)
+            if text_font_family is not None:
+                cell.text_font_family = str(text_font_family)
+            if text_formatting is not None:
+                cell.text_formatting = str(text_formatting)
             return cell
         return TableCell()
 
