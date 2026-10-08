@@ -160,3 +160,6 @@ src/pynescript/ast/grammar/antlr4/generated/src/
 .agent-sync-notice.md
 .agent_sync*.md
 .agent-sync/
+
+# Git worktrees (local isolation only)
+.worktrees/
