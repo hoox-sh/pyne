@@ -114,3 +114,43 @@ class TestInterpretTableExport:
         assert cells[0]["text_size"] == "small"
         assert cells[0]["tooltip"] == "tip"
         assert cells[1]["text"] == "b"
+
+
+class TestCompileTableExport:
+    def test_compile_events_carry_style(self) -> None:
+        events = [
+            {
+                "kind": "table",
+                "position": "top_right",
+                "rows": 1,
+                "columns": 2,
+                "bgcolor": "#333333",
+                "frame_color": "#111111",
+                "frame_width": 2,
+                "border_color": "#222222",
+                "border_width": 1,
+                "force_overlay": True,
+                "merged_cells": [[0, 0, 0, 1]],
+                "cells": [
+                    {
+                        "row": 0, "col": 0, "text": "a", "width": 10,
+                        "height": 20, "text_halign": "right",
+                        "text_valign": "top", "text_size": "small",
+                        "tooltip": "tip",
+                    },
+                    {"row": 0, "col": 1, "text": "b"},
+                ],
+            }
+        ]
+        out = DrawingRegistry.export_compile_events_for_api(events, [1_700_000_000])
+        assert len(out) == 1
+        d = out[0]
+        assert d["type"] == "table"
+        assert d["force_overlay"] is True
+        assert d["frame_width"] == 2
+        assert d["border_width"] == 1
+        assert d["merged_cells"] == [[0, 0, 0, 1]]
+        cells = {c["col"]: c for c in d["cells"]}
+        assert cells[0]["width"] == 10
+        assert cells[0]["tooltip"] == "tip"
+        assert cells[0]["text_halign"] == "right"

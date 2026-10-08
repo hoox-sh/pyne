@@ -1047,15 +1047,22 @@ class DrawingRegistry:
                 if isinstance(cells_raw, list):
                     for cell in cells_raw:
                         if isinstance(cell, dict):
-                            cells.append(
-                                {
-                                    "row": cell.get("row", 0),
-                                    "col": cell.get("col", cell.get("column", 0)),
-                                    "text": str(cell.get("text") or ""),
-                                    "text_color": _color(cell.get("text_color", "#000000")),
-                                    "bgcolor": _color(cell.get("bgcolor", "rgba(255,255,255,255)")),
-                                }
-                            )
+                            cell_out: dict[str, Any] = {
+                                "row": cell.get("row", 0),
+                                "col": cell.get("col", cell.get("column", 0)),
+                                "text": str(cell.get("text") or ""),
+                                "text_color": _color(cell.get("text_color", cell.get("textColor", "#000000"))),
+                                "bgcolor": _color(cell.get("bgcolor", "rgba(255,255,255,255)")),
+                                "text_halign": str(cell.get("text_halign", cell.get("halign", "center")) or "center"),
+                                "text_valign": str(cell.get("text_valign", cell.get("valign", "center")) or "center"),
+                                "text_size": cell.get("text_size", cell.get("textSize", "auto")) or "auto",
+                                "tooltip": str(cell.get("tooltip") or ""),
+                            }
+                            if cell.get("width") is not None:
+                                cell_out["width"] = cell.get("width")
+                            if cell.get("height") is not None:
+                                cell_out["height"] = cell.get("height")
+                            cells.append(cell_out)
                 frame = item.get("frame_color", item.get("color", "#000000"))
                 out.append(
                     {
@@ -1065,7 +1072,12 @@ class DrawingRegistry:
                         "columns": cols_i,
                         "cells": cells,
                         "frame_color": _color(frame),
+                        "frame_width": int(item.get("frame_width", item.get("frameWidth", 1)) or 1),
+                        "border_color": _color(item.get("border_color", item.get("borderColor", "#000000"))),
+                        "border_width": int(item.get("border_width", item.get("borderWidth", 1)) or 1),
                         "bgcolor": _color(item.get("bgcolor", "rgba(255,255,255,255)")),
+                        "force_overlay": bool(item.get("force_overlay", item.get("forceOverlay", False))),
+                        "merged_cells": list(item.get("merged_cells", item.get("mergedCells", [])) or []),
                         "t1": 0,
                         "p1": 0,
                         "color": _color(frame),
