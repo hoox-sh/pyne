@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "Commercial Licence"
-description: "One-time €299 AGPL escape hatch per organisation — closed-source use and SaaS without source disclosure. Polar checkout, receipt is proof."
+description: "AGPL escape hatch per organisation — closed-source use and SaaS without source disclosure. Licence sales opening soon."
 resource: "docs/pyne/reference/commercial.mdx"
 tags: [doc, docs, pyne, reference]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-02T18:33:52Z
+  at: 2026-10-09T09:31:08Z
 sources:
   - id: tree
     resource: "docs/pyne/reference/commercial.mdx"

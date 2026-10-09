@@ -2,7 +2,7 @@
 
 # Concepts
 
-* [Commercial Licence](commercial.md) - One-time €299 AGPL escape hatch per organisation — closed-source use and SaaS without source disclosure. Polar checkout, receipt is proof.
+* [Commercial Licence](commercial.md) - AGPL escape hatch per organisation — closed-source use and SaaS without source disclosure. Licence sales opening soon.
 * [Compatibility guarantee](compatibility.md) - Grouped map of what PYNE implements for Pine Script™ v5/v6 — working, partial, residual, and by-design out of scope. hoox-pyne 0.6.8.
 * [Ecosystem](ecosystem.md) - PYNE, PyneTS, pyne-worker, pyne-agent-worker, AXIS, and HOOX — what each one is and is not.
 * [Implementation status](implementation-status.md) - Checklist-style status of Pine Script™ series, strategy, builtins, and language constructs in PYNE.

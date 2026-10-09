@@ -1,23 +1,22 @@
-// PYNE Commercial checkout button (Polar.sh, zero-ops).
-// Usage in MDX: import { PolarCheckout } from "/snippets/polar-checkout.jsx"
-// Set NEXT_PUBLIC_POLAR_CHECKOUT_URL or default below after creating the
-// Polar product (one product: PYNE Commercial Licence, EUR 299 one-time).
+// PYNE Commercial checkout button — RETIRED until launch.
+// Commercial licensing is upcoming (see reference/commercial.mdx).
+// This snippet renders a disabled placeholder so any lingering import
+// stays safe. Do not point it at a live checkout before launch.
 export function PolarCheckout() {
-  const url =
-    (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_POLAR_CHECKOUT_URL) ||
-    "https://polar.sh/hoox/checkout/pyne-commercial";
   return (
-    <a
-      href={url}
+    <span
+      aria-disabled="true"
       style={{
         display: "inline-block",
         padding: "12px 22px",
         borderRadius: 10,
         fontWeight: 700,
         textDecoration: "none",
+        opacity: 0.55,
+        cursor: "not-allowed",
       }}
     >
-      Buy Commercial Licence — €299 one-time
-    </a>
+      Commercial Licence — Upcoming
+    </span>
   );
 }
