@@ -44,6 +44,7 @@ from sys import intern
 from typing import Any
 
 from pynescript import stats as _stats
+from pynescript.ast.evaluator.builtins.timeframe import _period_flags
 from pynescript.ast.helper import _scrub_pine_call_sites
 from pynescript.ast.helper import parse
 from pynescript.debug import scope_enabled as _debug_scope
@@ -1866,6 +1867,44 @@ class Timeframe:
     is_seconds: bool = False
 
 
+def _chart_timeframe(period: str | None) -> Timeframe:
+    """Chart ``timeframe`` namespace for *period* (``"15"``, ``"30S"``, ``"240"``, ``"D"``, …).
+
+    ``None`` keeps the class defaults (a daily chart).
+    """
+    tf = Timeframe()
+    p = "" if period is None else str(period).strip()
+    if not p:
+        return tf
+    for key, value in _period_flags(p).items():
+        setattr(tf, key, value)
+    tf.current = tf.period
+    tf.is_daily = tf.isdaily
+    tf.is_weekly = tf.isweekly
+    tf.is_monthly = tf.ismonthly
+    tf.is_seconds = tf.isseconds
+    return tf
+
+
+def _timeframe_context(tf: Timeframe) -> dict[str, Any]:
+    """Flat ``timeframe.*`` context keys (names.py exact-key fast path)."""
+    return {
+        "timeframe": tf,
+        "timeframe.period": tf.period,
+        "timeframe.main_period": tf.main_period,
+        "timeframe.multiplier": tf.multiplier,
+        "timeframe.isintraday": tf.isintraday,
+        "timeframe.isdaily": tf.isdaily,
+        "timeframe.isweekly": tf.isweekly,
+        "timeframe.ismonthly": tf.ismonthly,
+        "timeframe.isseconds": tf.isseconds,
+        "timeframe.isinseconds": tf.isinseconds,
+        "timeframe.isminutes": tf.isminutes,
+        "timeframe.ishours": tf.ishours,
+        "timeframe.isdwm": tf.isdwm,
+    }
+
+
 class Barstate:
     """Bar state information namespace for Pine Script builtins."""
 
@@ -2005,7 +2044,7 @@ class InterpretSession:
         self.time_series = make_pine_series(history_length=_ps_hist)
         self.time_close_series = make_pine_series(history_length=_ps_hist)
 
-        tf = Timeframe()
+        tf = _chart_timeframe(getattr(runtime, "timeframe", None))
         barstate = Barstate()
         self._barstate = barstate
         context: LazyCalendarContext = LazyCalendarContext(
@@ -2020,19 +2059,9 @@ class InterpretSession:
                 "ohlc4": self.ohlc4_series,
                 "tr": self.tr_series,
                 "syminfo": runtime._syminfo,
-                "timeframe": tf,
                 "barstate": barstate,
                 "chart": runtime._make_chart(ohlcv_data),
-                "timeframe.period": tf.period,
-                "timeframe.main_period": tf.main_period,
-                "timeframe.multiplier": tf.multiplier,
-                "timeframe.isintraday": tf.isintraday,
-                "timeframe.isdaily": tf.isdaily,
-                "timeframe.isweekly": tf.isweekly,
-                "timeframe.ismonthly": tf.ismonthly,
-                "timeframe.isseconds": tf.isseconds,
-                "timeframe.isinseconds": tf.isinseconds,
-                "timeframe.isdwm": tf.isdwm,
+                **_timeframe_context(tf),
                 "bar_index": 0,
                 "time": self.time_series,
                 "time_close": self.time_close_series,
@@ -3040,14 +3069,18 @@ class Runtime:
     JSON-friendly result dict for AXIS and the Pro API.
     """
 
-    def __init__(self, symbol: str = "AAPL", run_id: str | None = None):
+    def __init__(self, symbol: str = "AAPL", run_id: str | None = None, timeframe: str | None = None):
         """Initialize the runtime with optional symbol configuration.
 
         Args:
             symbol: The symbol to use for the runtime (default: "AAPL")
             run_id: Optional unique run identifier. Generated if not provided.
+            timeframe: Chart timeframe of the bars in Pine ``timeframe.period``
+                form (``"30S"``, ``"15"``, ``"240"``, ``"D"``, ``"W"``, ``"M"``).
+                Drives ``timeframe.*`` on both hosts; ``None`` is a daily chart.
         """
         self.symbol = symbol
+        self.timeframe = timeframe
         self._run_id = run_id or uuid.uuid4().hex[:16]
         self._syminfo = Syminfo()
         self._syminfo.tickerid = symbol
@@ -3350,9 +3383,9 @@ class Runtime:
         time_series = make_pine_series(history_length=_ps_hist)
         time_close_series = make_pine_series(history_length=_ps_hist)
 
-        # Context initialization (daily chart defaults).
+        # Context initialization (daily chart unless the host set ``timeframe``).
         # LazyCalendarContext: calendar series (year/month/…) materialise on read.
-        tf = Timeframe()
+        tf = _chart_timeframe(getattr(self, "timeframe", None))
         barstate = Barstate()
         context: LazyCalendarContext = LazyCalendarContext(
             {
@@ -3367,19 +3400,9 @@ class Runtime:
                 "tr": tr_series,
                 # Symbol info namespace (November 2025: syminfo.isin, July 2025: syminfo.current_contract)
                 "syminfo": self._syminfo,
-                "timeframe": tf,
                 "barstate": barstate,
                 "chart": self._make_chart(ohlcv_data),
-                "timeframe.period": tf.period,
-                "timeframe.main_period": tf.main_period,
-                "timeframe.multiplier": tf.multiplier,
-                "timeframe.isintraday": tf.isintraday,
-                "timeframe.isdaily": tf.isdaily,
-                "timeframe.isweekly": tf.isweekly,
-                "timeframe.ismonthly": tf.ismonthly,
-                "timeframe.isseconds": tf.isseconds,
-                "timeframe.isinseconds": tf.isinseconds,
-                "timeframe.isdwm": tf.isdwm,
+                **_timeframe_context(tf),
                 # Per-bar counters updated in the loop below.
                 # last_bar_time is filled after shared OHLCV packing (synthetic time
                 # when host omits bar times — same as compile time_arr).
@@ -4412,6 +4435,7 @@ class Runtime:
         try:
             try:
                 from pynescript.compiler.numba_builtins import set_chart_identity
+                from pynescript.compiler.numba_builtins import set_chart_timeframe
 
                 set_chart_identity(
                     ticker=getattr(self._syminfo, "ticker", None) or self.symbol,
@@ -4419,6 +4443,7 @@ class Runtime:
                     prefix=getattr(self._syminfo, "prefix", "") or "",
                     timezone=getattr(self._syminfo, "timezone", None) or "UTC",
                 )
+                set_chart_timeframe(getattr(self, "timeframe", None))
             except Exception as _exc:
                 _swallow(_exc, what="set chart identity for the compiled script")
             n_bars_run = len(closes) if closes is not None else 0

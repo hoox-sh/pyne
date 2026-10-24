@@ -3838,23 +3838,9 @@ class CompilerVisitor(NodeVisitor):
             return "np.nan"
         if node.id.startswith("timeframe_"):
             attr = node.id[len("timeframe_") :]
-            if attr == "period":
-                self.object_mode = True
-                return repr("1D")
-            if attr == "multiplier":
-                return "1"
-            if attr in (
-                "isintraday",
-                "isdaily",
-                "isweekly",
-                "ismonthly",
-                "isseconds",
-                "isminutes",
-                "ishours",
-            ):
-                return "True" if attr == "isdaily" else "False"
-            if attr == "in_seconds":
-                return "86400.0"
+            ident = self._timeframe_compile_expr(attr)
+            if ident is not None:
+                return ident
             self.object_mode = True
             return repr(attr)
         if node.id in (
@@ -4055,24 +4041,13 @@ class CompilerVisitor(NodeVisitor):
                 return ident
             # Missing fundamentals (target_price_*, employees, …) are na, not 0.
             return "np.nan"
-        # timeframe.* compile-time stubs
+        # timeframe.* — chart timeframe installed by the host at run time
         if isinstance(node.value, ast.Name) and node.value.id == "timeframe":
-            if node.attr == "period":
-                return repr("1D")
-            if node.attr in (
-                "isintraday",
-                "isdaily",
-                "isweekly",
-                "ismonthly",
-                "isseconds",
-                "isminutes",
-                "ishours",
-            ):
-                return "False" if node.attr != "isdaily" else "True"
-            if node.attr == "multiplier":
-                return "1"
             if node.attr == "in_seconds":
                 return "timeframe_in_seconds"
+            ident = self._timeframe_compile_expr(node.attr)
+            if ident is not None:
+                return ident
             return repr(node.attr)
         if isinstance(node.value, ast.Name) and node.value.id == "chart":
             if node.attr in ("fg_color", "foreground_color"):
@@ -4831,6 +4806,38 @@ class CompilerVisitor(NodeVisitor):
         self.object_mode = True
         self.uses_strategy = True
         return f"__strategy.{attr}"
+
+    _TIMEFRAME_ATTRS = frozenset(
+        {
+            "period",
+            "main_period",
+            "multiplier",
+            "isintraday",
+            "isdaily",
+            "isweekly",
+            "ismonthly",
+            "isseconds",
+            "isinseconds",
+            "isminutes",
+            "ishours",
+            "isdwm",
+        }
+    )
+
+    def _timeframe_compile_expr(self, attr: str) -> str | None:
+        """Lower ``timeframe.*`` / flattened ``timeframe_*`` to a run-time chart lookup.
+
+        The host installs the chart period (``set_chart_timeframe``) before the
+        run, so generated code is timeframe-agnostic and stays cacheable by
+        source. Unknown attributes return ``None``.
+        """
+        if attr == "in_seconds":
+            self.object_mode = True
+            return "chart_timeframe_in_seconds()"
+        if attr in self._TIMEFRAME_ATTRS:
+            self.object_mode = True
+            return f"chart_timeframe({attr!r})"
+        return None
 
     def _syminfo_compile_expr(self, attr: str) -> str | None:
         """Lower ``syminfo.*`` / flattened ``syminfo_*`` to a compile expression.
@@ -5594,7 +5601,9 @@ class CompilerVisitor(NodeVisitor):
         if func_name in ("time_close",):
             return self._use_time_close()
         if func_name == "timeframe_from_seconds":
-            return repr("1D")
+            self.object_mode = True
+            seconds = args[0] if args else kwargs.get("seconds", "np.nan")
+            return f"chart_timeframe_from_seconds({seconds})"
         if func_name == "timeframe_change":
             tf_expr = args[0] if args else repr("D")
             # Bare D/W/M resolve on the exchange calendar (tz-aware Python),
@@ -5843,8 +5852,19 @@ class CompilerVisitor(NodeVisitor):
 
         # timeframe.in_seconds(...)
         if func_name == "timeframe_in_seconds":
-            # stub: treat as daily-ish (86400s); enough for comparisons / ratios
-            return "86400.0"
+            tf_expr = args[0] if args else kwargs.get("timeframe")
+            s = (tf_expr or "").strip()
+            inner = s[1:-1] if len(s) >= 2 and s[0] == s[-1] and s[0] in {"'", '"'} else None
+            if inner:
+                # Literal frame folds to a constant, so nopython stays available.
+                try:
+                    from pynescript.ast.evaluator.builtins.timeframe import timeframe_in_seconds
+
+                    return repr(float(timeframe_in_seconds(inner)))
+                except ValueError:
+                    pass
+            self.object_mode = True
+            return f"chart_timeframe_in_seconds({tf_expr or ''})"
 
         # bare v3 security(...) / request.security — same-symbol allowlisted
         # HTF resample (OHLCV / offset / simple ta.*) via object-mode helpers;

@@ -214,6 +214,7 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
             "last_bar_time": self._builtin_last_bar_time,
             "timenow": self._builtin_timenow,
             "timeframe.change": self._builtin_timeframe_change,
+            "timeframe.in_seconds": self._builtin_timeframe_in_seconds,
             "max_bars_back": self._builtin_max_bars_back,
             # Community / v3-style series shift (Ichimoku lead lines, etc.)
             "offset": self._builtin_offset,
@@ -466,6 +467,19 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
             return int(float(prev))
         except (TypeError, ValueError):
             return None
+
+    def _builtin_timeframe_in_seconds(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> int:
+        """``timeframe.in_seconds(tf)`` — *tf* defaults to the chart ``timeframe.period``."""
+        kw = kwargs or {}
+        raw = args[0] if args else kw.get("timeframe")
+        current = getattr(raw, "current", None)
+        if current is not None and not isinstance(raw, (int, float, bool, str)):
+            raw = current
+        from .timeframe import _chart_period
+        from .timeframe import timeframe_in_seconds
+
+        tf = "" if raw is None else str(raw).strip()
+        return timeframe_in_seconds(tf or _chart_period(self))
 
     def _builtin_timeframe_change(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> bool:
         """``timeframe.change(tf)`` — true on the first bar of a new *tf* period.

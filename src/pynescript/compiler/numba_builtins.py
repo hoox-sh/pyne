@@ -2258,6 +2258,42 @@ def chart_timezone():
     return _CHART_TIMEZONE
 
 
+# Host chart timeframe for compile-mode ``timeframe.*``. Read at run time, so
+# the generated code (and its source-keyed caches) stays timeframe-agnostic.
+_CHART_TF_FLAGS: dict = {}
+
+
+def set_chart_timeframe(period=None):
+    """Install the chart timeframe for the next compiled run; ``None`` is a daily chart."""
+    global _CHART_TF_FLAGS
+    from pynescript.ast.evaluator.builtins.timeframe import _period_flags
+
+    p = "" if period is None else str(period).strip()
+    _CHART_TF_FLAGS = _period_flags(p or "1D")
+
+
+def chart_timeframe(attr):
+    """Pine ``timeframe.<attr>`` of the chart (``period``, ``multiplier``, ``isdaily``, …)."""
+    if not _CHART_TF_FLAGS:
+        set_chart_timeframe()
+    return _CHART_TF_FLAGS[attr]
+
+
+def chart_timeframe_in_seconds(timeframe_str=None):
+    """Pine ``timeframe.in_seconds(tf)``; *tf* defaults to the chart period."""
+    from pynescript.ast.evaluator.builtins.timeframe import timeframe_in_seconds
+
+    tf = "" if timeframe_str is None else str(timeframe_str).strip()
+    return float(timeframe_in_seconds(tf or chart_timeframe("period")))
+
+
+def chart_timeframe_from_seconds(seconds):
+    """Pine ``timeframe.from_seconds(seconds)`` (same helper as interpret)."""
+    from pynescript.ast.evaluator.builtins.timeframe import timeframe_from_seconds
+
+    return timeframe_from_seconds(int(seconds))
+
+
 def compile_security_htf_value(
     kind,
     field,

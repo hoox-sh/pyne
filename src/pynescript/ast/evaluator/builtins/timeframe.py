@@ -50,6 +50,7 @@ SECONDS_PER_MONTH = 2592000  # Approximate 30 days
 
 # Timeframe format mappings
 TIMEFRAME_SUFFIXES = {
+    "S": 1,
     "M": SECONDS_PER_MONTH,
     "H": SECONDS_PER_HOUR,
     "D": SECONDS_PER_DAY,
@@ -439,7 +440,7 @@ def register_timeframe_functions(namespace: dict) -> None:
     # Prefer a bound mixin handler when the dispatcher already registered one.
     namespace.setdefault("timeframe.change", timeframe_change)
     namespace["timeframe.from_seconds"] = timeframe_from_seconds
-    namespace["timeframe.in_seconds"] = timeframe_in_seconds
+    namespace.setdefault("timeframe.in_seconds", timeframe_in_seconds)
 
     # Property defaults (non-callable constants, like color.red). Hosts should
     # still inject flat context keys so local vars that shadow ``timeframe``
