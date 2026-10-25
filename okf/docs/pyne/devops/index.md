@@ -3,9 +3,8 @@
 # Concepts
 
 * [Continuous integration](ci.md) - GitHub Actions for lint, Python 3.10–3.13 tests, package build, Docker api+cli smoke, and VS Code extension.
-* [Docker](docker.md) - Buildx multi-target images, Compose profiles, and Cloud Run production contract for the PYNE Pro API.
-* [GCP & Cloud Run](gcp.md) - Self-host the Pro API on Cloud Run with the checked-in Cloud Build pipeline — timeouts, memory, and app-layer API keys.
-* [DevOps](index.md) - CI matrices, containers, Nuitka LSP binaries, metadata crypto, Cloud Run, and operational invariants for PYNE.
+* [Docker](docker.md) - Buildx multi-target images and Compose profiles for the PYNE Pro API.
+* [DevOps](index.md) - CI matrices, containers, Nuitka LSP binaries, metadata crypto, and operational invariants for PYNE.
 * [Local development](local-dev.md) - Install, test, lint, package, and run PYNE — Make targets after AXIS extraction.
 * [Metadata encryption](metadata-crypto.md) - Fernet-encrypted LSP builtinmetadata.json — key lifecycle, CI secrets, integrity hashes, and runtime decrypt.
 * [Nuitka build (LSP + CLI)](nuitka-build.md) - Compile pyne-lsp and pyne CLI with Nuitka — onefile vs standalone, CI build script, Anaconda quirks, and artifact layout.

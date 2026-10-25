@@ -1,5 +1,5 @@
 PYNE CONSOLIDATED DOCUMENTATION — LLM CONTEXT PACK
-Generated: 2026-10-19
+Generated: 2026-10-25
 Source: github.com/hoox-sh/pyne/docs/pyne
 Public: https://hoox.sh/pyne/docs
 Repository: https://github.com/hoox-sh/pyne
@@ -944,7 +944,7 @@ Invariants
 1. Always interpret (input overrides skip compile).
 2. Train and test are bar slices, not trade filters on a full-sample run.
 3. In-sample mode is allowed and warned.
-4. Ranking prefers OOS score when validation is holdout or walk-forward.
+4. Ranking prefers OOS score when validation is holdout or walk-forward. TPE's good/bad split uses that same score (oos_score when the trial has one, otherwise is_score).
 CLI
 `bash
 pyne optimize strat.pine --trials 20 --sampler tpe \
@@ -1751,9 +1751,9 @@ Compile path
 6. Lift __drawings / __events; GC compile drawings by declaration caps; merge visual series (bgcolor / plotshape / …) into titled keys.
 7. Envelope: mode: "compile", alerts: [], object_mode, compile_cached, compile_ms. generated_code only when PYNESCRIPT_RETURN_GENERATED_CODE=1.
 PineSeries (pynescript.runtime.series)
-History deque (default maxlen 1000, raised by max_bars_back / PYNE_SERIES_MAX). PYNE_SERIES_CAP default on (list-length trim). PYNE_SERIES_RING default off (chronological O(1) lookback when 1). series[0] current / series[n] lookback, arithmetic on current values, None propagates as na-like absence. Negative indices raise — Pine Script does not allow them. backend.series re-exports the package type.
+History deque (default maxlen 1000, raised by max_bars_back / PYNE_SERIES_MAX). PYNE_SERIES_CAP default on (list-length trim). PYNE_SERIES_RING default off (chronological O(1) lookback when 1). series[0] current / series[n] lookback, arithmetic on current values, None propagates as na-like absence. Negative indices raise — Pine Script™ does not allow them. backend.series re-exports the package type.
 Context namespaces
-Defined on the host: Syminfo, Chartinfo, Timeframe, Barstate, Chart — attribute names aim at Pine Script v5–v6 surface (timeframe.isdaily, syminfo.isin, …).
+Defined on the host: Syminfo, Chartinfo, Timeframe, Barstate, Chart — attribute names aim at Pine Script™ v5–v6 surface (timeframe.isdaily, syminfo.isin, …).
 Internals
 | Path | Role |
 | --- | --- |
@@ -2959,7 +2959,7 @@ src/pynescript/ast/linter.py exports:
 LintWarning — dataclass (code, message, line, column, severity)
 PineLinter — stateful runner accumulating warnings
 lint_script(source, filename) / lint_file(filepath) — convenience entry points
-Rules run in fixed order: syntax → version → deprecated patterns → naming → style. Syntax failures become severity "error" with code E001; other rules are mostly "warning".
+Rules run in fixed order: syntax → version → deprecated patterns → naming → style → v6 migration (AST-based). Syntax failures become severity "error" with code E001; other rules are mostly "warning".
 Conceptual model
 Interface surface
 ``python
@@ -3008,7 +3008,7 @@ Dependencies:
 pynescript.ast.parse (re-exported path via from pynescript.ast import parse — subject to the helper sha256 LRU)
 Standard library re, dataclasses
 Design stance
-The linter intentionally uses regex over AST for several rules so it still partially works when parse fails (version/deprecations/style still run after a failed syntax check — note: _check_syntax records E001 but does not abort the pipeline). That means:
+The linter intentionally uses regex over AST for version/deprecation/naming/style rules so it still partially works when parse fails (those rules still run after a failed syntax check — note: _check_syntax records E001 but does not abort the pipeline). The v6-migration rules (W104/W105) are AST-based instead and are skipped when parsing fails. That means:
 False positives/negatives on fancy formatting are possible.
 Deep semantic issues (wrong series type, undefined names) belong to evaluator/LSP diagnostics, not these codes.
 Integration points
@@ -3608,7 +3608,7 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-3.0-or-later
 ---
 title: "Docker"
-description: "Buildx multi-target images, Compose profiles, and Cloud Run production contract for the PYNE Pro API."
+description: "Buildx multi-target images and Compose profiles for the PYNE Pro API."
 ---
 Docker
 Abstract
@@ -3632,7 +3632,7 @@ docker buildx bake lsp # LSP image → pynescript-lsp:latest (ENTRYPOINT: pyne-l
 docker buildx bake # default group: api + api-dev
 docker buildx bake all # api + api-dev + lsp + cli
 Multi-platform (amd64 + arm64). Set REGISTRY to push:
-REGISTRY=ghcr.io/hoox-sh/pyne TAG=0.6.14 docker buildx bake release
+REGISTRY=ghcr.io/hoox-sh/pyne TAG=0.6.22 docker buildx bake release
 release group = api-release + cli-release + lsp-release
 → ghcr.io/hoox-sh/pyne/{api,cli,lsp}:0.6.14
 Prefer: make docker-push-ghcr (workflow GHCR on v tags)
@@ -3694,16 +3694,10 @@ Environment variables
 Published image names
 GitHub Container Registry (workflow GHCR, tags v):
 `
-ghcr.io/hoox-sh/pyne/api:0.6.14
-ghcr.io/hoox-sh/pyne/cli:0.6.14
-ghcr.io/hoox-sh/pyne/lsp:0.6.14
+ghcr.io/hoox-sh/pyne/api:0.6.22
+ghcr.io/hoox-sh/pyne/cli:0.6.22
+ghcr.io/hoox-sh/pyne/lsp:0.6.22
 `
-Cloud Build (cloudbuild.yaml, --target api only):
-`
-gcr.io/$PROJECT_ID/pynescript/pynescript-pro-api:$COMMIT_SHA
-gcr.io/$PROJECT_ID/pynescript/pynescript-pro-api:latest
-`
-Substitution _PYNESCRIPT_VERSION in that YAML defaults to 0.6.14, matching about.py.
 Internals
 Build stages
 1. base-os / base — slim image, non-root appuser; API/LSP base also installs curl + freetype/png
@@ -3712,7 +3706,7 @@ Build stages
 4. cli-builder — pip install ".[compile,data]" only (no Flask stack)
 5. runtime / api / api-dev / lsp / cli — final CMDs / ENTRYPOINTs and healthchecks (lsp has none — stdio)
 .dockerignore
-Keeps context small by excluding tests/ (corpus), docs/, brand/, node modules, compiler .nbc/*.nbi caches, venvs, and IDE cruft.
+Keeps context small by excluding tests/ (corpus), docs/, node modules, compiler .nbc/*.nbi caches, venvs, and IDE cruft.
 Compose healthchecks
 API: curl -fsS http://127.0.0.1:8080/. Redis: redis-cli ping.
 Invariants & edge cases
@@ -3720,10 +3714,9 @@ Invariants & edge cases
 2. Read-only mounts in compose mean dependency changes need image rebuild; source edits are visible via PYTHONPATH precedence.
 3. Production target is immutable — no live mounts; use the prod overlay or Cloud Run.
 4. Non-root appuser cannot write arbitrary paths; keep API_KEY_STORE under /data.
-5. Cloud Build always builds --target api (gunicorn). Do not point it at api-dev.
-6. LSP is stdio — not an HTTP service; use docker compose run --rm lsp rather than expecting a published port.
-7. CLI is ephemeral — entrypoint-cli.sh execs pyne (fallback pynescript); pass subcommands after the image name. Workdir defaults to /work (compose mounts the repo there).
-8. Prod overlay is fail-closed — ADMIN_TOKEN is required (:? interpolation); volumes: !override drops the dev source binds so only api_data:/data remains.
+5. LSP is stdio — not an HTTP service; use docker compose run --rm lsp rather than expecting a published port.
+6. CLI is ephemeral — entrypoint-cli.sh execs pyne (fallback pynescript); pass subcommands after the image name. Workdir defaults to /work (compose mounts the repo there).
+7. Prod overlay is fail-closed — ADMIN_TOKEN is required (:? interpolation); volumes: !override drops the dev source binds so only api_data:/data remains.
 Worked examples
 Production-like local API (bake)
 `bash
@@ -3768,99 +3761,9 @@ Failure modes
 | CORS failures from PWA | Origin not allowed | Set ALLOWED_ORIGINS |
 | Huge build context | Missing .dockerignore | Ensure .dockerignore` is present (corpus/docs excluded) |
 See also
-GCP
 Security
 Pro API lifecycle
 Local development
----
-FILE: docs/pyne/devops/gcp.mdx
-Copyright (C) 2024-2026 jango_blockchained
-This file is part of pynescript.
-pynescript is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-pynescript is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-You should have received a copy of the GNU Affero General Public License
-along with pynescript. If not, see .
-SPDX-License-Identifier: AGPL-3.0-or-later
----
-title: "GCP & Cloud Run"
-description: "Self-host the Pro API on Cloud Run with the checked-in Cloud Build pipeline — timeouts, memory, and app-layer API keys."
----
-GCP & Cloud Run
-Abstract
-Self-host the Pro API on Google Cloud Run, fed by Cloud Build (cloudbuild.yaml). The pipeline builds a container, pushes multi-tags to Container Registry, deploys a managed service, and can optionally compile the LSP binary in the same build graph.
-This page matches the as-checked-in YAML: Cloud Run timeouts and memory, unauthenticated invoke at the platform, and app-layer API keys in Flask.
-Conceptual model
-Interface surface
-Substitutions (cloudbuild.yaml)
-| Substitution | Default | Meaning |
-| --- | --- | --- |
-| _SERVICE_NAME | pynescript-pro-api | Cloud Run service |
-| _REGION | us-central1 | Deploy region |
-| _REPOSITORY | pynescript | Image path segment |
-| _METADATA_KEY | (optional subst) | Passed to the LSP compile step as CRYPTO_KEY=${_METADATA_KEY} |
-| _PYNESCRIPT_VERSION | "0.6.14" | OCI label. Matches src/pynescript/about.py. |
-Build steps
-1. build — docker build with BuildKit; tags $COMMIT_SHA + latest; cache-from latest
-2. push — docker push --all-tags
-3. deploy — gcloud run deploy with managed platform flags
-4. build-lsp — python:3.12-slim image runs scripts/build/ci_build.py --jobs=4 with CRYPTO_KEY=${_METADATA_KEY}
-Cloud Run flags (as configured)
-| Flag | Value | Rationale |
-| --- | --- | --- |
-| --allow-unauthenticated | on | Public HTTP API (auth via API keys at app layer) |
-| --min-instances | 0 | Scale to zero |
-| --max-instances | 10 | Upper bound on concurrent instances |
-| --memory | 512Mi | Evaluator headroom |
-| --cpu | 1 | Single vCPU per instance |
-| --concurrency | 10 | Parallel requests per instance |
-| --timeout | 60s | Platform kill. Entrypoint gunicorn default is 120s (GUNICORN_TIMEOUT); set the env to 60 on Cloud Run or long evals die at the platform first. |
-| --set-env-vars | FLASK_ENV=production | App mode |
-Build options
-``yaml
-options:
-machineType: E2_HIGHCPU_8
-logging: CLOUD_LOGGING_ONLY
-timeout: 1200s
-`
-Internals
-| Path | Role |
-| --- | --- |
-| cloudbuild.yaml | Pipeline definition |
-| Dockerfile target api | Production image recipe used by Cloud Build |
-| backend/app.py | Health /, CORS, body size limit |
-Invariants & edge cases
-1. App-layer auth still required when Cloud Run allows unauthenticated invoke — see Security.
-2. Scale-to-zero cold starts add latency; min-instances=1 keeps a warm instance.
-3. LSP build step does not deploy the binary to Cloud Run; it is a release-adjacent compile in the same YAML.
-4. 512Mi may be tight for large OHLCV payloads — watch OOM kills; raise memory before raising concurrency.
-Worked examples
-Submit Cloud Build
-`bash
-gcloud builds submit --config cloudbuild.yaml
-`
-Smoke health after deploy
-`bash
-curl -s "https://SERVICE-URL/"
-expect JSON status healthy, service pynescript-pro-api
-``
-Failure modes
-| Symptom | Cause | Fix |
-| --- | --- | --- |
-| Deploy timeout | Nuitka step + docker on 20 min Cloud Build timeout | Split LSP compile to release pipeline |
-| 429 / queue | max-instances or concurrency | Raise caps carefully; add queue |
-| Auth bypass illusion | Unauthenticated Cloud Run | Enforce API keys in Flask |
-| Image pull errors | Wrong project / registry perms | IAM on GCR + Cloud Run service agent |
-See also
-Docker
-Observability
-Security
-Pro API
 ---
 FILE: docs/pyne/devops/index.mdx
 Copyright (C) 2024-2026 jango_blockchained
@@ -3878,14 +3781,14 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-3.0-or-later
 ---
 title: "DevOps"
-description: "CI matrices, containers, Nuitka LSP binaries, metadata crypto, Cloud Run, and operational invariants for PYNE."
+description: "CI matrices, containers, Nuitka LSP binaries, metadata crypto, and operational invariants for PYNE."
 ---
 DevOps
 Abstract
-PYNE is a multi-surface product: pure-Python library + Click CLI (pyne / alias pynescript), pygls Language Server (pyne-lsp), Flask Pro API, VS Code extension (hoox-sh.pyne 0.4.4; the Python package is 0.6.14), and Docker targets (api / cli / lsp). Edge workers and the AXIS charting PWA are sister repos — not built in this tree.
-This tab documents the operational graph: local loops, GitHub Actions, release tags, Docker images, Nuitka CLI/LSP binaries, Fernet-encrypted LSP metadata, GCP Cloud Build/Run, observability hooks, and security controls.
+PYNE is a multi-surface product: pure-Python library + Click CLI (pyne / alias pynescript), pygls Language Server (pyne-lsp), Flask Pro API, VS Code extension (hoox-sh.pyne 0.4.5; the Python package is 0.6.22), and Docker targets (api / cli / lsp). Edge workers and the AXIS charting PWA are sister repos — not built in this tree.
+This tab documents the operational graph: local loops, GitHub Actions, release tags, Docker images, Nuitka CLI/LSP binaries, Fernet-encrypted LSP metadata, observability hooks, and security controls.
 Conceptual model
-Invariant: CI green on main is necessary but not sufficient for a full release. Tag v fires Build & Release (binaries + VSIX + GitHub Release), Publish (hoox-pyne from about.py, currently 0.6.14, to PyPI), and GHCR (ghcr.io/hoox-sh/pyne/{api,cli,lsp}). Cloud Build deploys the API image separately.
+Invariant: CI green on main is necessary but not sufficient for a full release. Tag v fires Build & Release (binaries + VSIX + GitHub Release), Publish (hoox-pyne from about.py, currently 0.6.22, to PyPI), and GHCR (ghcr.io/hoox-sh/pyne/{api,cli,lsp}).
 Interface surface
 | Concern | Entry | Doc |
 | --- | --- | --- |
@@ -3897,8 +3800,7 @@ Interface surface
 | Containers | Dockerfile targets api/api-dev/lsp/cli | Docker |
 | Compiled CLI / LSP | scripts/build/compile.py --target | Nuitka build |
 | Builtin metadata crypto | Fernet key + .enc | Metadata crypto |
-| Cloud Run | cloudbuild.yaml | GCP |
-| Logs / health | Flask /, gunicorn, Cloud Logging | Observability |
+| Logs / health | Flask /, gunicorn | Observability |
 | Auth, CORS, secrets | backend/middleware/auth.py | Security |
 Internals (repo map)
 | Path | Role |
@@ -3910,7 +3812,6 @@ Internals (repo map)
 | scripts/generate_builtin_metadata.py | Regenerates LSP builtin_metadata.json from live builtins |
 | Dockerfile / docker-bake.hcl | Multi-target Buildx images (api, api-dev, lsp) |
 | docker-compose.yml | Local API (+ optional Redis / LSP profiles) |
-| cloudbuild.yaml | Build → GCR push → Cloud Run deploy; optional LSP compile |
 | vscode-extension/ | Node 22 extension package / vsce |
 Invariants & edge cases
 1. Two console scripts, two entrypoints. Preferred: pyne (Click) ≠ pyne-lsp (pygls). Aliases: pynescript / pynescript-lsp. Ops scripts must not conflate them.
@@ -4022,7 +3923,7 @@ make run # Pro API
 From PyPI (no checkout)
 `bash
 pip install "hoox-pyne[lsp,compile]"
-pyne --version # 0.6.14
+pyne --version # 0.6.22
 `
 Internals
 | Path | Why it matters |
@@ -4191,7 +4092,7 @@ Both the Language Server and the Click CLI can run as pure Python or as Nuitka-c
 | --- | --- | --- |
 | pynescript-lsp (PATH name; product CLI is pyne-lsp) | langserver/main.py | Editors / VSIX |
 | pynescript (PATH name; product CLI is pyne) | pynescript/main.py | Shell / CI gates |
-Primary tools: scripts/build/compile.py (local) and scripts/build/ci_build.py (CI/Cloud Build). Both accept --target lsp|cli|all.
+Primary tools: scripts/build/compile.py (local) and scripts/build/ci_build.py (CI). Both accept --target lsp|cli|all.
 Conceptual model
 Interface surface
 Commands
@@ -4245,7 +4146,7 @@ or rely on --static-libpython=no (already the default in compile.py)
 `
 Invariants & edge cases
 1. C compiler required (gcc/clang/MSVC). Containers need build-essential or equivalent if compiling inside Docker.
-2. Python 3.10+; release workflow pins 3.11 with nuitka>=2.5.1,<2.8. Local/Cloud Build sketches often use 3.12.
+2. Python 3.10+; release workflow pins 3.11 with nuitka>=2.5.1,<2.8. Local sketches often use 3.12.
 3. Providers data dir must ship — completion/hover collapse without metadata.
 4. Onefile startup cost includes extract-to-temp; standalone is snappier for local soak tests.
 5. Do not commit scripts/build/.metadata.key.
@@ -4337,6 +4238,7 @@ What it traces:
 | Prewarm | Builtins warm duration, per-script results, totals, failures |
 | Delta calculation | append_bars delta size + start index; update_last_bar tick duration |
 | Datafeed | CCXT Pro connect/subscribe/first updates/reconnects; REST fetch_ohlcv symbol normalization and bar counts; the /datafeed/ gateway; WS /datafeed/watch connect/close |
+| Best-effort host plumbing | Intentionally swallowed errors surface as ignored () in () — metrics, realtime scope snapshot/restore, plot-column extension, strategy-history commit, drawing/alert export |
 | HTTP | Every request: method, path, status, duration; slow requests flagged |
 PYNE_DEBUG=1 POST /run on a fresh process, for example:
 `text
@@ -4375,14 +4277,12 @@ docker-compose.prod.yml: GUNICORN_TIMEOUT default 60
 | --- | --- |
 | workers | Process isolation; multiplies memory |
 | threads | Concurrent requests within worker |
-| timeout | Entrypoint default 120s. Cloud Run --timeout=60s is tighter unless you raise the platform flag or lower GUNICORN_TIMEOUT. |
+| timeout | Entrypoint default 120s. A platform request limit tighter than that wins unless GUNICORN_TIMEOUT matches it. |
 Logs
 | Environment | Where logs go |
 | --- | --- |
 | Local make run | Process stdout/stderr |
 | Docker | Container logs (docker logs, compose) |
-| Cloud Build | logging: CLOUD_LOGGING_ONLY |
-| Cloud Run | Cloud Logging (request + container) |
 Application modules use standard library / Flask logging patterns; there is no mandatory structured-log schema enforced repo-wide. if a future branch introduces OpenTelemetry exporters.
 CI / quality signals
 | Signal | Source |
@@ -4411,12 +4311,11 @@ Internals
 | backend/middleware/sessions.py | Live-session store + lifecycle counters |
 | backend/services/backtest.py | Backtest metrics objects for API responses |
 | Dockerfile (api target) | HEALTHCHECK + gunicorn entrypoint |
-| cloudbuild.yaml | Cloud Logging-only build logs |
 | logs/ (repo) | Local combined/error log files if generated by tools — not the production contract |
 Invariants & edge cases
 1. Health ≠ readiness of evaluator warm caches. A 200 on / does not mean the first /run will be fast (cold import / JIT / numba). Check compile.host_prewarmed / call POST /compile/prewarm.
 2. /stats is per-process, not fleet-wide. Behind a load balancer each worker counts only its own slice. Aggregate per worker, or run single-worker (which live sessions require anyway).
-3. Timeouts double-bind. Cloud Run 60s vs gunicorn default 120s — the platform limit wins on Cloud Run unless you set GUNICORN_TIMEOUT=60.
+3. Timeouts double-bind. A platform request limit shorter than gunicorn's default 120s wins unless GUNICORN_TIMEOUT is set to that limit.
 4. Scale-to-zero hides idle metrics. No traffic ⇒ no samples; use synthetic uptime checks if SLOs matter.
 5. Coverage artifacts expire (7–14 days retention on Actions uploads).
 6. Do not scrape secrets from logs. API keys and admin tokens must never be logged at info level. PYNE_DEBUG logs whether* credentials were supplied, never their values.
@@ -4447,10 +4346,6 @@ Docker health
 `bash
 docker inspect --format='{{json .State.Health}}' CONTAINER
 `
-Tail Cloud Run (gcloud)
-`bash
-gcloud run services logs read pynescript-pro-api --region us-central1 --limit 50
-`
 Failure modes
 | Symptom | Cause | Fix |
 | --- | --- | --- |
@@ -4463,9 +4358,7 @@ Failure modes
 | Worker kills | Soft timeout | Optimize script / raise timeout consistently |
 | Missing CI artifact | Path wrong / tests passed | if-no-files-found: ignore` hides absence |
 | Rate limit false positives | Shared key / limit too low | Adjust tier limits; multi-key |
-| Silent deploy failure | Build logging-only + unread | Check Cloud Build history UI |
 See also
-GCP
 Docker
 Security
 API lifecycle
@@ -4555,7 +4448,7 @@ Release asset contract (from release body)
 | pynescript-lsp-linux-x86_64 | chmod +x → /usr/local/bin/pynescript-lsp |
 | pynescript-lsp-windows-x86_64.exe | Place on PATH |
 | pynescript-lsp-macos-arm64 | Place on PATH (Apple Silicon runners) |
-| pyne-vscode-.vsix (hoox-sh.pyne 0.4.4) | code --install-extension pyne-vscode-*.vsix · site: hoox.sh/pyne-vscode.vsix (unversioned) |
+| pyne-vscode-.vsix (hoox-sh.pyne 0.4.5) | code --install-extension pyne-vscode-*.vsix · site: hoox.sh/pyne-vscode.vsix (unversioned) |
 Invariants & edge cases
 1. CRYPTO_KEY must be stable across builds if you care about byte-identical builtin_metadata.json.enc. Supply secrets.METADATA_KEY.
 2. Tag name is the version source for the GitHub Release title (v prefix stripped).
@@ -4569,8 +4462,8 @@ Cut a release
 ensure main is green
 git checkout main && git pull
 bump versions in extension / about as needed
-git tag -a v0.6.14 -m "v0.6.14"
-git push origin v0.6.14
+git tag -a v0.6.22 -m "v0.6.22"
+git push origin v0.6.22
 watch Actions → Build & Release, Publish, GHCR
 `
 Smoke-test a downloaded binary
@@ -4701,7 +4594,6 @@ See also
 Auth and keys (API)
 Metadata crypto
 Docker
-GCP
 ---
 FILE: docs/pyne/enduser/getting-started/configuration.mdx
 Copyright (C) 2024-2026 jango_blockchained
@@ -4946,7 +4838,7 @@ description: "Install hoox-pyne from PyPI (live) or a source checkout — CLI, L
 ---
 Installation
 Abstract
-PYNE is live on PyPI as hoox-pyne (currently 0.6.14). The import package remains pynescript (src-layout under src/pynescript/). Preferred console scripts are pyne / pyne-lsp; legacy pynescript / pynescript-lsp remain installed as aliases.
+PYNE is live on PyPI as hoox-pyne (currently 0.6.22). The import package remains pynescript (src-layout under src/pynescript/). Preferred console scripts are pyne / pyne-lsp; legacy pynescript / pynescript-lsp remain installed as aliases.
 Do not install:
 plain pyne / PyNE from PyPI without the hoox- prefix — unrelated 0.1.0 process-networking library (our wheel is hoox-pyne)
 upstream pynescript (elbakramer) — different project
@@ -5103,7 +4995,7 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-3.0-or-later
 ---
 title: "Quick Start"
-description: "Parse, dump, unparse, lint, and evaluate Pine Script with the pyne CLI and library in under ten minutes."
+description: "Parse, dump, unparse, lint, and evaluate Pine Script™ with the pyne CLI and library in under ten minutes."
 ---
 Quick Start
 Abstract
@@ -5112,7 +5004,7 @@ Conceptual model
 Interface surface
 Assumes:
 ``bash
-pip install hoox-pyne # https://pypi.org/project/hoox-pyne/ · 0.6.14
+pip install hoox-pyne # https://pypi.org/project/hoox-pyne/ · 0.6.22
 optional:
 pip install "hoox-pyne[lsp]" # editors
 pip install "hoox-pyne[compile]" # compile / run / prewarm
@@ -5483,7 +5375,7 @@ description: "Wire pyne-lsp into VS Code, Neovim, Zed, Emacs, Helix, and other L
 ---
 Editors & LSP
 Abstract
-pyne-lsp (alias pynescript-lsp) is a stdio Language Server (pygls) over the same parse/lint/metadata stack as the desk tools. Editors do not reimplement Pine Script intelligence; they speak LSP. This guide covers install, client configs in clients/, and feature expectations. Server architecture is documented under LSP.
+pyne-lsp (alias pynescript-lsp) is a stdio Language Server (pygls) over the same parse/lint/metadata stack as the desk tools. Editors do not reimplement Pine Script™ intelligence; they speak LSP. This guide covers install, client configs in clients/, and feature expectations. Server architecture is documented under LSP.
 Conceptual model
 | Feature | Role |
 | --- | --- |
@@ -5517,7 +5409,7 @@ npm run compile
 package: npx vsce package (or make build-vscode)
 `
 2. Open a .pyne (preferred for HOOX / PYNE stack sources), .pine, .pinev5, .pinev6, or .pinescript file — LSP activates when enabled. The VS Code extension also activates on workspaceContains:*/.{pyne,pine,…}.
-Marketplace / VSIX: extension id hoox-sh.pyne (publisher hoox-sh, package name pyne). VS Marketplace. Site download: hoox.sh/pyne-vscode.vsix (unversioned alias). Local package: cd vscode-extension && npm ci && npm run package then code --install-extension pyne-vscode-0.4.4.vsix. The VSIX is self-contained; you still need pip install "hoox-pyne[lsp]" (or a pyne-lsp binary) on the machine.
+Marketplace / VSIX: extension id hoox-sh.pyne (publisher hoox-sh, package name pyne). VS Marketplace. Site download: hoox.sh/pyne-vscode.vsix (unversioned alias). Local package: cd vscode-extension && npm ci && npm run package then code --install-extension pyne-vscode-0.4.5.vsix. The VSIX is self-contained; you still need pip install "hoox-pyne[lsp]" (or a pyne-lsp binary) on the machine.
 Settings (from vscode-extension/package.json):
 | Key | Default | Notes |
 | --- | --- | --- |
@@ -5850,7 +5742,7 @@ tick = session.update_last_bar(forming_bar) # overwrite last bar in place
 | create_session(source, ohlcv, …) | Parse once, evaluate the initial bars, return an InterpretSession. mode must be omitted or "interpret" (compile has no resumable evaluator state). |
 | append_bars(new_bars, realtime_ticks=1, …) | Confirm the previous last bar, then visit only the appended batch. Realtime window params apply to this batch, not previously committed bars. |
 | update_last_bar(bar) | Re-tick the forming last bar with revised OHLCV. Bar count does not advance. var scope and incremental TA windows roll back to bar-open (varip persists). |
-Streaming contract: already-committed bars keep their values (like TradingView confirmed history). Scripts that branch on barstate.islast will diverge from a full Runtime.run replay for the previously last bar — that bar was committed with islast=True. Prefer islastconfirmedhistory / historical logic for append-parity, or re-run full Runtime.run when exact islast replay is required. PYNE_SERIES_RING must stay off (the default). Tests: tests/test_runtime_session.py.
+Streaming contract: already-committed bars keep their values (like TradingView® confirmed history). Scripts that branch on barstate.islast will diverge from a full Runtime.run replay for the previously last bar — that bar was committed with islast=True. Prefer islastconfirmedhistory / historical logic for append-parity, or re-run full Runtime.run when exact islast replay is required. PYNE_SERIES_RING must stay off (the default). Tests: tests/test_runtime_session.py.
 Data providers and feeds
 Historical CLI/library:
 `python
@@ -5978,7 +5870,7 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-3.0-or-later
 ---
 title: "Library API"
-description: "Embed pynescript: parse, dump, unparse, walk, transform, and lint Pine Script from Python."
+description: "Embed pynescript: parse, dump, unparse, walk, transform, and lint Pine Script™ from Python."
 ---
 Library API
 Abstract
@@ -6635,7 +6527,7 @@ Ensure the editor’s command matches the venv. For Neovim, confirm filetypes in
 pyne data AAPL --provider mock
 `
 12. Version / parity confusion
-PYNE is independent of TradingView. Behavioral gaps are expected for edge builtins, broker emulators, and UI-only calls. Use compatibility.
+PYNE is independent of TradingView®. Behavioral gaps are expected for edge builtins, broker emulators, and UI-only calls. Use compatibility.
 Failure modes (quick matrix)
 | Symptom | Layer | First check |
 | --- | --- | --- |
@@ -6682,7 +6574,7 @@ title: "End User Hub"
 description: "Install PYNE (pip install hoox-pyne). Library default is interpret, pyne run is compile-only, pyne execute is Runtime.run, Pro API /run defaults to auto."
 ---
 End User Hub
-This track is for people who consume PYNE: parse and reformat Pine Script, lint before upload, evaluate expressions or full scripts against OHLCV (library default interpret, pyne run is compile-only, pyne execute is Runtime.run, Pro API /run defaults to auto), export alerts (optional L2 webhooks), wire an editor via LSP (.pyne / .pine), call MCP tools from the CLI or a stdio host, or call the HTTP evaluate contract. Contributor internals (grammar regeneration, AST builder, bar-loop semantics) live under Core, Runtime, and DevOps.
+This track is for people who consume PYNE: parse and reformat Pine Script™, lint before upload, evaluate expressions or full scripts against OHLCV (library default interpret, pyne run is compile-only, pyne execute is Runtime.run, Pro API /run defaults to auto), export alerts (optional L2 webhooks), wire an editor via LSP (.pyne / .pine), call MCP tools from the CLI or a stdio host, or call the HTTP evaluate contract. Contributor internals (grammar regeneration, AST builder, bar-loop semantics) live under Core, Runtime, and DevOps.
 Abstract
 PYNE exposes one language pipeline through several thin surfaces:
 ``
@@ -6841,7 +6733,7 @@ Machine-oriented reference for every command on the preferred pyne Click group
 (pip install hoox-pyne). For workflows see the CLI guide.
 The language server is a separate console script (pyne-lsp; alias pynescript-lsp).
 Version option: pyne --version / -V reports pynescript.about.version
-(e.g. 0.6.14). Global --no-color honors NO_COLOR.
+(e.g. 0.6.22). Global --no-color honors NO_COLOR.
 Command index
 | Command | Aliases | Purpose |
 | --- | --- | --- |
@@ -7211,7 +7103,7 @@ Trademark disclaimer lives on the product index once — not repeated here in fu
 Questions
 What is PYNE vs pynescript vs pyne?
 PYNE — product documentation brand for the open evaluate stack (grammar → AST → runtime → LSP → Pro API → workers).
-hoox-pyne — PyPI distribution name (live, 0.6.14). Install with pip install hoox-pyne. Do not install plain pyne/PyNE from PyPI without the hoox- prefix (unrelated) or the upstream pynescript package (elbakramer).
+hoox-pyne — PyPI distribution name (live, 0.6.22). Install with pip install hoox-pyne. Do not install plain pyne/PyNE from PyPI without the hoox- prefix (unrelated) or the upstream pynescript package (elbakramer).
 pynescript — import package (import pynescript, including pynescript.runtime).
 pyne / pyne-lsp — preferred console scripts; pynescript / pynescript-lsp remain aliases.
 What Python versions are supported?
@@ -7231,9 +7123,9 @@ The registered entry point is the separate script pynescript-lsp. Some docs hist
 Which Pine versions are supported?
 v6 is the recommended surface (declare //@version=6); v5 remains fully supported. See missing features and pine v6 surface.
 Does PYNE support the once keyword?
-Yes, as of hoox-pyne 0.4.4 (TradingView August 2026). once [cond] runs its block the first time the condition is true on a closed bar. It is not an expression — you cannot assign its result. See Expressions & statements.
+Yes, as of hoox-pyne 0.4.4 (TradingView® August 2026). once [cond] runs its block the first time the condition is true on a closed bar. It is not an expression — you cannot assign its result. See Expressions & statements.
 Is this affiliated with TradingView?
-No. Independent open-source toolchain. Pine Script and TradingView are trademarks of TradingView, Inc.
+No. Independent open-source toolchain. Pine Script™ and TradingView® are trademarks of TradingView, Inc.
 Will my TradingView strategy produce identical PnL?
 Not guaranteed. Broker emulator rules, fill models, request. data, and some builtins differ. Use PYNE for offline analysis, CI, and self-hosted evaluate; validate critical strategies numerically (numerical validation).
 Can I format Pine like Black?
@@ -7270,7 +7162,7 @@ See Interpret compile parity. Pro API POST /run defaults to mode=auto. The libra
 What file extension should I use?
 Prefer .pyne for HOOX / PYNE stack sources. .pine / .pinev5 / .pinev6 remain supported by the VS Code extension and parsers.
 How complete is real-world script runtime?
-PYNE aims for practical fidelity on first-party fixtures and unit tests. It does not claim 100% TradingView platform parity (chart host, proprietary data, every edge-case builtin). See Compatibility. Third-party script corpora are not shipped in this repository.
+PYNE aims for practical fidelity on first-party fixtures and unit tests. It does not claim 100% TradingView® platform parity (chart host, proprietary data, every edge-case builtin). See Compatibility. Third-party script corpora are not shipped in this repository.
 How do I self-host the API?
 Install backend requirements, set API_KEY_STORE / ALLOWED_ORIGINS / optional ADMIN_TOKEN, run python -m backend.app or make run. See configuration and Pro API usage.
 What is AXIS?
@@ -7377,7 +7269,7 @@ Internals (repo paths)
 | LSP | src/pynescript/langserver/ |
 | HTTP | backend/app.py |
 Invariants & edge cases
-Pine Script / TradingView are trademarks of TradingView, Inc. PYNE is independent (see product index).
+Pine Script™ / TradingView® are trademarks of TradingView, Inc. PYNE is independent (see product index).
 “Parity” is empirical (tests/corpus), not a legal claim of equivalence.
 Terms
 ASDL
@@ -7541,6 +7433,8 @@ These also run from the CLI (pyne mcp call TOOL, plus first-class commands where
 | pyne_signature | pyne mcp call signature PATH | signature help for the enclosing call |
 | pyne_builtin | pyne builtin ta.sma | builtin_metadata.json row (ta.sma, …) |
 | pyne_diagnostics | pyne diagnostics PATH | parse errors + lint in one list |
+| pyne_axb1 | pyne mcp call axb1 | AXB1 encoder vs golden vectors (hex-exact) + fnv1a32 + reject rules |
+| pyne_sessions | pyne mcp call sessions | pooled live sessions: anchor vs store window, zombie suspects |
 pyne_execute plot cells: {len, last, na_count, sample} (sample default 8, max 64). Timeout default 30s, cap 120s. Bars cap 5000.
 Resources and prompts
 | URI / name | Kind |
@@ -7690,13 +7584,13 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-3.0-or-later
 ---
 title: "PYNE Documentation"
-description: "Open-source Pine Script evaluation — grammar, AST, interpret/compile runtime, alerts + webhooks, LSP, Pro API. pip install hoox-pyne · github.com/hoox-sh/pyne"
+description: "Open-source Pine Script™ evaluation — grammar, AST, interpret/compile runtime, alerts + webhooks, LSP, Pro API. pip install hoox-pyne · github.com/hoox-sh/pyne"
 ---
 import { PackageVersions } from "/snippets/package-versions.jsx"
 PYNE Documentation
-PYNE is the open evaluation stack for TradingView Pine Script: a formal ANTLR4 grammar, an ASDL algebraic AST, a deterministic bar-loop evaluator (interpret / compile / mode=auto), a Language Server Protocol surface, a Flask Pro API, and edge workers that share one evaluate contract — including alerts and optional L2 webhooks.
-For natural-language authoring (PYNE Agent), see the sister project pyne-agent-worker — standalone Cloudflare Workers AI agent with optional AXIS plugin; does not require pyne-worker.
-Pine Script and TradingView are trademarks of TradingView, Inc. This project is independent and not affiliated with or endorsed by TradingView, Inc. Cloudflare is a trademark of Cloudflare, Inc.
+PYNE is the open evaluation stack for TradingView® Pine Script™: a formal ANTLR4 grammar, an ASDL algebraic AST, a deterministic bar-loop evaluator (interpret / compile / mode=auto), a Language Server Protocol surface, a Flask Pro API, and edge workers that share one evaluate contract — including alerts and optional L2 webhooks.
+For natural-language authoring (PYNE Agent), see the sister project pyne-agent-worker — standalone Cloudflare® Workers AI™ agent with optional AXIS plugin; does not require pyne-worker.
+Pine Script™ and TradingView® are trademarks of TradingView, Inc. This project is independent and not affiliated with or endorsed by TradingView, Inc. Cloudflare® is a trademark of Cloudflare, Inc.
 Abstract
 Where closed hosts couple the language to a proprietary charting host, PYNE treats the language as an inspectable pipeline:
 ``
@@ -7713,7 +7607,7 @@ pip install "hoox-pyne[lsp]"
 pyne --version
 aliases: pynescript / pynescript-lsp
 `
-The same pipeline powers the desk CLI, the LSP binary, the Pro API, browser Pyodide (via AXIS), and Cloudflare workers. Round-trip fidelity (parse → unparse) and interpretcompile plot parity are first-class invariants — see compatibility. Local open-corpus set01–04 (2026-08-09): parse 99.96%, Runtime interpret 100% excl. intentional demos (set01 249/249). The repository does not ship third-party script corpora.
+The same pipeline powers the desk CLI, the LSP binary, the Pro API, browser Pyodide (via AXIS), and Cloudflare® workers. Round-trip fidelity (parse → unparse) and interpretcompile plot parity are first-class invariants — see compatibility. Local open-corpus set01–04 (2026-08-09): parse 99.96%, Runtime interpret 100% excl. intentional demos (set01 249/249). The repository does not ship third-party script corpora.
 TypeScript consumers import PyneTS (@hoox-sh/pynets) — same public names; Python remains the oracle.
 Release notes: GitHub releases · compatibility.
 How to use
@@ -7744,7 +7638,7 @@ Reference
 Compatibility guarantees, missing surface, numerical validation, PyneTS, ecosystem map, roadmap.
 Sister surfaces
 PyneTS — TypeScript / Bun library. Standalone hoox-sh/pynets / @hoox-sh/pynets. See PyneTS.
-pyne-worker (sister repo) — Python Cloudflare Worker for production POST /run (alerts + cron + R2).
+pyne-worker (sister repo) — Python Cloudflare® Worker for production POST /run (alerts + cron + R2).
 pyne-agent-worker (sister repo) — NL authoring host (POST /v1/chat); optional validate via pyne-worker.
 AXIS — installable PWA; documented at hoox.sh/axis/docs.
 Family map — Ecosystem · modes.
@@ -7805,7 +7699,7 @@ pynescript-lsp = "pynescript.langserver.main:main" # alias
 `
 Server class
 PynescriptLanguageServer (server.py):
-Subclasses pygls.lsp.server.LanguageServer with name="Pynescript" and version=version from src/pynescript/about.py (0.6.14).
+Subclasses pygls.lsp.server.LanguageServer with name="Pynescript" and version=version from src/pynescript/about.py (0.6.22). initialize reports serverInfo.name = "Pynescript Language Server" with the same version.
 Instantiates self.pine_workspace = Workspace().
 Registers handlers in setup_method_handlers() via @self.feature(...).
 Document sync
@@ -7821,20 +7715,23 @@ open_close=True
 save with include_text=True
 will_save / will_save_wait_until off
 Capability set (declared)
-From config.py:
+From config.py (get_server_capabilities):
 Diagnostic provider (identifier="pynescript-diagnostics", workspace_diagnostics=False in options; workspace pull handler still exists)
 Completion: trigger ".", resolve_provider=True
 Hover, definition, references, document highlight
-Rename with prepareProvider (same-document; keywords / builtin namespaces refused)
+Linked editing (linked_editing_range_provider=True) — same-document user ident ranges; keywords / builtin namespaces refused
+Rename with prepareProvider (every open workspace document that contains the ident; keywords / builtin namespaces refused)
 Document + workspace symbols
-Full + range formatting
-Code action (Convert to Pine v6 RefactorRewrite, W001 QuickFix inserting //@version=6) + executeCommand pynescript.convertToV6
-Inlay hints (resolve_provider=False)
+Full + range formatting, plus on-type (documentOnTypeFormattingProvider, first_trigger_character="\n")
 Folding ranges (folding_range_provider=True) for blocks, type/enum/function bodies, and //#region
 Selection ranges (selection_range_provider=True) from ident / smallest AST node to enclosing statement and block
-Semantic tokens full (legend of standard token types/modifiers; range=false)
+Color provider (color_provider=True) — textDocument/documentColor + colorPresentation for #hex, named color., color.rgb / color.new / color(), and literal color.from_gradient
+Document links (DocumentLinkOptions(resolve_provider=True)) — http:// / https:// URLs in comments (//, / /, hash # …) and string literals. documentLink/resolve fills tooltip with the URL when tooltip is unset
+Code action (QuickFix + RefactorRewrite): Convert to Pine v6, W001 insert //@version=6, W002 replace old pragma, C002 format-on-long-line + executeCommand pynescript.convertToV6
+Inlay hints (InlayHintOptions(resolve_provider=True)): assignment type labels and parameter-name hints on dotted builtin calls (ta.sma(close, 14) → source: / length:). inlayHint/resolve fills type textEdits; parameter hints are display-only
+Semantic tokens full and range (range=true, full=true; legend of standard token types/modifiers)
 Signature help (( / ,)
-File filters (get_filter_options): .pine, .pinev5, *.pinev6 under language id pinescript. .pyne is not in this helper — VS Code still maps it via the extension contribution (extensions: .pyne first).
+File filters (get_filter_options): .pine, .pinev5, .pinev6 under language id pinescript. .pyne is not in this helper — VS Code still maps it via the extension contribution (extensions: .pyne first).
 Internals
 Workspace
 Workspace (workspace.py) maps uri → TextDocumentState:
@@ -7861,7 +7758,7 @@ def text_completion(params):
 source = self.pine_workspace.get_source(params.text_document.uri)
 return completion_feature.handle_completion(params, source)
 `
-Definition / references / symbols / hover / completion / inlay / semantic tokens receive the workspace-cached AST (tree=doc.ast) so they skip a redundant parse. Pass tree=None when the last parse failed. Omit tree only in isolated tests (handler then parses from source).
+Definition / references / symbols / hover / completion / inlay / semantic tokens (full and range) / linked editing / document links / formatting (including on-type) receive the workspace-cached AST (tree=doc.ast) so they skip a redundant parse. Pass tree=None when the last parse failed. Omit tree only in isolated tests (handler then parses from source).
 Pull diagnostics
 textDocument/diagnostic → RelatedFullDocumentDiagnosticReport with result_id=f"{uri}-{version}".
 workspace/diagnostic → one full report per open document from get_all_diagnostics().
@@ -7891,9 +7788,15 @@ Failure modes
 | No diagnostics on open | Client did not send didOpen or language id is not pinescript |
 | Completions empty | Metadata file missing/undecryptable; see builtin metadata |
 | Format no-ops | Parse error (handler returns []) or unparsed text equals source |
-| Extension can't spawn server | pynescript-lsp not on PATH`; check VS Code extension |
+| Extension can't spawn server | pynescript-lsp not on PATH; check VS Code extension |
 See also
 Diagnostics
+Linked editing
+Formatting — full, range, and on-type
+Semantic tokens — full and range
+Inlay hints — types, param names, resolve
+Document links — http(s) URLs; documentLink/resolve fills tooltip
+Document color — #hex / color.*` / literal color calls
 Builtin metadata
 VS Code extension
 Nuitka build
@@ -8132,7 +8035,7 @@ pyne-lsp
 aliases:
 pynescript-lsp --stdio
 container (stdio):
-docker run --rm -i -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/lsp:0.6.14
+docker run --rm -i -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/lsp:0.6.22
 `
 Point the host’s “external language server” command at that binary. Cursor users can also load the VS Code extension (hoox-sh.pyne) in compatible mode when packaged as VSIX.
 Internals
@@ -8322,6 +8225,224 @@ Linter (core)
 Error model
 Architecture
 ---
+FILE: docs/pyne/lsp/features/document-color.mdx
+Copyright (C) 2024-2026 jango_blockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-3.0-or-later
+---
+title: "Document color"
+description: "textDocument/documentColor and colorPresentation for #hex, color., and literal color calls."
+---
+Document color
+Abstract
+textDocument/documentColor reports editor color swatches for Pine color literals. Each hit is a 0–1 RGBA ColorInformation covering the AST node. textDocument/colorPresentation rewrites the requested range as #rrggbb (or #rrggbbaa when alpha ≠ 1), including when the original text was a color. name. Empty source or parse failure returns [].
+Conceptual model
+Only literal values become swatches. A color.rgb(x, 0, 0) whose x is a name is skipped; a nested color.blue inside a skipped call still gets its own swatch.
+Interface surface
+| Method | Handler |
+| --- | --- |
+| textDocument/documentColor | handle_document_color |
+| textDocument/colorPresentation | handle_color_presentation |
+Capability: color_provider=True (config.py). handle_document_color receives the workspace-cached AST (tree=doc.ast).
+Returns [] for empty source, parse failure, or tree=None. Never None.
+Reported swatches
+| Form | Example | Notes |
+| --- | --- | --- |
+| Lexer COLOR token | #ff0000, #00ff00aa, #f0a | Constant with kind="#"; #rgb expands each nibble (#f0a → ff00aaff) |
+| Quoted hex string | "#ff0000", "#00ff00aa" | Constant with kind is None; range includes the quotes |
+| Named color. | color.red, color.green | Attribute on Name("color"); palette from _NAMED_COLORS |
+| color.rgb | color.rgb(255, 0, 0[, transp]) | Numeric literals only; optional Pine transp 0–100 (0 = opaque) |
+| color.new | color.new(color.white, 50) | Both args literals (named / #hex / quoted hex + numeric transp) |
+| color() | color(#ff0000, 25) | Pine alias of color.new |
+| color.from_gradient | color.from_gradient(5, 0, 10, #000000, #ffffff) | All five args literals; interpolation matches interpret color.from_gradient |
+#rrggbb is opaque (alpha 1). #rrggbbaa sets alpha from the last byte. Channels are 0–255, divided by 255 for the LSP Color.
+Pine transparency
+color.rgb / color.new / color() take transp 0–100, where 0 is opaque. Alpha byte = round(255 (1 - transp / 100)). Example: transp 50 → alpha 128; transp 95 → alpha 13.
+Keyword aliases on color.rgb: r/g/b/t for red/green/blue/transp. from_gradient accepts evaluator aliases (min / max / color1 / color2, …).
+colorPresentation
+Rewrites params.range as hex. source is unused — the client already sent the color and range.
+| Alpha | Label / newText |
+| --- | --- |
+| 1 (255) | #rrggbb (lowercase) |
+| otherwise | #rrggbbaa |
+Picking a color on color.red therefore replaces the name with #f23645. There is no presentation that keeps the color. spelling.
+Internals
+| Path | Role |
+| --- | --- |
+| src/pynescript/langserver/features/document_color.py | Walk + RGBA conversion + presentation |
+| src/pynescript/ast/evaluator/builtins/color.py | _NAMED_COLORS, color_from_gradient |
+| src/pynescript/langserver/config.py | color_provider=True |
+| src/pynescript/langserver/server.py | TEXT_DOCUMENT_DOCUMENT_COLOR / TEXT_DOCUMENT_COLOR_PRESENTATION; color list cached on doc.feature_cache["document_color"] |
+Named palette (hex as stored): red #F23645, green #22AB94, blue #2962FF, black, white, gray/grey, orange, purple, yellow, aqua, fuchsia, lime, maroon, navy, olive, silver, teal.
+from_gradient lerp matches interpret: RGBA interpolate, clamp value to [min, max], equal min/max → color1.
+Tests: tests/test_lsp_features.py (TestDocumentColorHandler).
+Invariants and edge cases
+1. Empty / unparsed → []. Missing source, parse exception, or tree=None.
+2. Non-literal args skip the call, not nested literals. color.rgb(x, 0, 0) is not a swatch; color.blue inside a skipped color.rgb(color.r(color.blue), …) still is.
+3. Unknown color.foo / color.r are not swatches. Only names in _NAMED_COLORS.
+4. color.new / color() need both args. One-arg color.new(color.white) is skipped. Extra args skip the call. Nested color.rgb(...) as the color arg is not a literal color.
+5. Quoted non-hex strings are ignored. "not-a-color" and "ff0000" (no #) are not swatches.
+6. Presentation always hex. Named ranges become #rrggbb / #rrggbbaa; the handler does not emit color.red as a presentation label.
+7. Hash comments vs colors. #ff0000 is a color token; # hash … is a comment (see document links).
+Worked example
+``pinescript
+//@version=6
+indicator("T")
+c1 = #ff0000
+c2 = #00ff00aa
+plot(close, color=#2962FF)
+bgcolor(#22AB94)
+plot(close, title="#ff00ff")
+col = color.red
+c = color.rgb(255, 0, 0)
+d = color.rgb(33, 150, 243, 95)
+n = color.new(color.white, 50)
+g = color.from_gradient(5, 0, 10, #000000, #ffffff)
+`
+Expected swatches (0–1 RGBA, 8-bit shown):
+| Text | RGB (alpha) |
+| --- | --- |
+| #ff0000 | 255, 0, 0 (255) |
+| #00ff00aa | 0, 255, 0 (170) |
+| #2962FF | 41, 98, 255 |
+| #22AB94 | 34, 171, 148 |
+| "#ff00ff" | 255, 0, 255 (range includes quotes) |
+| color.red | 242, 54, 69 (#F23645) |
+| color.rgb(255, 0, 0) | 255, 0, 0 |
+| color.rgb(33, 150, 243, 95) | 33, 150, 243 (13) |
+| color.new(color.white, 50) | 255, 255, 255 (128) |
+| color.from_gradient(5, 0, 10, #000000, #ffffff) | 127, 127, 127 (midpoint) |
+colorPresentation on #ff0000 with opaque red yields label #ff0000. On color.red with the palette red, the edit replaces the name with #f23645.
+Not swatches: color.rgb(x, 0, 0), color.from_gradient(close, 0, 100, color.red, color.green), color.new(color.white) (missing transp).
+Failure modes
+| Symptom | Cause |
+| --- | --- |
+| No swatches on file | Parse error → [] |
+| color.rgb(close, 0, 0) has no picker | Non-literal args — expected skip |
+| Picking a color on color.red rewrites hex | Expected: presentation is always #rrggbb / #rrggbbaa |
+| Quoted "#ff0000" picker covers the quotes | Expected: range is the whole string Constant |
+| Gradient swatch disagrees with chart | Call args were not all literals, or min/max equal (then color1) |
+See also
+Document links — hash comments vs #hex tokens
+Inlay hints — color. return types on assignments
+Architecture — color_provider=True`
+---
+FILE: docs/pyne/lsp/features/document-link.mdx
+Copyright (C) 2024-2026 jango_blockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-3.0-or-later
+---
+title: "Document links"
+description: "textDocument/documentLink for http(s) URLs in comments and strings, and documentLink/resolve tooltip."
+---
+Document links
+Abstract
+textDocument/documentLink reports http:// / https:// URLs found in comments (//, / /, hash # …) and string literals. Each match is a DocumentLink whose range is the URL (not the surrounding quotes or comment markers) and whose target is that URL. Empty source or parse failure returns []. The first response leaves tooltip unset; documentLink/resolve copies the URL onto tooltip when it is unset so clients can show it on hover. Advertised as DocumentLinkOptions(resolve_provider=True).
+Conceptual model
+Comments are scanned from the raw buffer so they do not need AST nodes. String URLs come from Constant nodes whose value is a str. Hash comments are distinguished from #rgb color tokens: # followed by a hex digit is a color, not a comment.
+Interface surface
+| Method | Capability |
+| --- | --- |
+| textDocument/documentLink | DocumentLinkOptions(resolve_provider=True) |
+| documentLink/resolve | fills tooltip with the URL when tooltip is unset |
+Handlers: features/document_link.py → handle_document_link (receives cached tree=doc.ast) and handle_document_link_resolve.
+Each initial result:
+| Field | Value |
+| --- | --- |
+| range | LSP range covering the URL text |
+| target | The URL string (http:// or https://) |
+| tooltip | unset (None) until resolve |
+Returns [] for empty source, parse failure, or tree=None.
+Where URLs are collected
+| Region | Source |
+| --- | --- |
+| // line comments | Raw buffer, through the newline (or EOF) |
+| / / block comments | Raw buffer, including the closers; unclosed blocks run to EOF |
+| Hash # … comments | Raw buffer, when # is not a #rgb color token |
+| String literals | AST Constant with a str value; range is the URL inside the quotes |
+The matcher is http:// or https:// followed by non-whitespace characters excluding <>"' and `. Trailing .,;:!? is stripped from both the range and the target (// see https://example.com/end. → https://example.com/end).
+Not collected:
+ftp://…, scheme-less www.example.com, or other non-http(s) schemes
+URLs in identifier / number tokens (only comments and string Constants)
+#hex color literals (they are not hash comments)
+Resolve
+documentLink/resolve fills tooltip with the link target URL:
+1. An existing tooltip is kept (already-resolved links are returned unchanged).
+2. When tooltip is unset and target is a non-empty string, tooltip is set to that URL.
+3. Empty or malformed links are returned unchanged (never raises).
+Initial textDocument/documentLink responses already carry target. Resolve copies that URL onto tooltip so clients can show it on hover.
+Internals
+| Path | Role |
+| --- | --- |
+| src/pynescript/langserver/features/document_link.py | Comment scan + string walk + resolve |
+| src/pynescript/langserver/config.py | DocumentLinkOptions(resolve_provider=True) |
+| src/pynescript/langserver/server.py | TEXT_DOCUMENT_DOCUMENT_LINK (cached on doc.feature_cache["document_link"]); DOCUMENT_LINK_RESOLVE |
+The workspace cache supplies tree=doc.ast. Pass tree=None when the last parse failed (skips a redundant re-parse). Omit tree only in isolated tests (handler then parses from source). Comments need the source text; a pre-parsed tree with source=None still yields string-literal links.
+Tests: tests/test_lsp_features.py (TestDocumentLinkHandler).
+Invariants and edge cases
+1. Empty / unparsed → []. Missing source, parse exception, or tree=None never returns None.
+2. Range is the URL, not the quotes. "https://example.com" highlights https://example.com.
+3. Trailing punctuation is not part of the link. https://example.com/end. strips the period.
+4. Hash comments vs colors. # hash https://… is a comment; #ff0000 is a color token and is not scanned as a comment.
+5. Results are sorted by start line, then start column.
+6. Workspace cache. The server stores the textDocument/documentLink result on feature_cache until the buffer changes. Resolve is not cached; it fills tooltip on the link the client sends back.
+7. Resolve fills tooltip only when unset. An existing tooltip is kept; empty or malformed links are returned as-is and never throw.
+Worked example
+`pinescript
+//@version=6
+indicator("T")
+// docs: https://example.com/pine
+url = "https://tradingview.com/pine-script-docs"
+also = 'http://example.org/path'
+/ block https://example.com/block and https://example.com/two */
+hash https://example.com/hash
+// trailing https://example.com/end.
+plot(close)
+`
+Expected links (target equals the range text; tooltip is unset until resolve):
+https://example.com/pine
+https://tradingview.com/pine-script-docs
+http://example.org/path
+https://example.com/block
+https://example.com/two
+https://example.com/hash
+https://example.com/end (period not included)
+After documentLink/resolve, each of those links has tooltip equal to target (for example https://example.com/pine). A client that already set a tooltip keeps that string.
+ftp://example.com and www.example.com in a comment produce no links.
+Failure modes
+| Symptom | Cause |
+| --- | --- |
+| No clickable URLs | Parse failed ([]), or the URL is not http(s) |
+| Link includes a trailing period | Client ignored the range and used line text; the server strips .,;:!? |
+| Comment URL missing, string URL present | Handler ran with source=None and a cached tree — comments need the buffer |
+| #ff0000 not a link | Expected: hash color tokens are not comments |
+| Hover over a link shows no tooltip | Client skipped documentLink/resolve, or the link had no target |
+| Tooltip overwritten | Not expected: resolve keeps an existing tooltip |
+See also
+Document color — #hex` vs hash comments
+Architecture — declared capabilities and AST cache
+Hover — Pine v6 function-reference links on builtin cards
+---
 FILE: docs/pyne/lsp/features/folding.mdx
 Copyright (C) 2024-2026 jango_blockchained
 This file is part of pynescript.
@@ -8386,18 +8507,19 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-3.0-or-later
 ---
 title: "Formatting"
-description: "Document and range formatting via AST parse → NodeUnparser round-trip."
+description: "Document, range, and on-type formatting via AST parse → NodeUnparser round-trip."
 ---
 Formatting
 Abstract
-Formatting is canonical unparse, not a style linter. The handler parses the buffer, runs NodeUnparser, and if the result differs from the source, replaces the document (or the requested line range) with a single TextEdit. There is no prettier-like option matrix; FormattingOptions from the client are currently unused.
+Formatting is canonical unparse, not a style linter. The handler parses the buffer, runs NodeUnparser, and if the result differs from the source, replaces the document (or the requested line range, or the just-completed line) with a single TextEdit. There is no prettier-like option matrix; FormattingOptions from the client are currently unused.
 Conceptual model
 Interface surface
 | Method | Handler |
 | --- | --- |
 | textDocument/formatting | handle_formatting |
 | textDocument/rangeFormatting | handle_range_formatting |
-Capabilities: both providers True in config.py.
+| textDocument/onTypeFormatting | handle_on_type_formatting |
+Capabilities (config.py): both document providers True; on-type advertised as documentOnTypeFormattingProvider with firstTriggerCharacter = "\n".
 Full document
 1. Parse with filename "".
 2. formatted = NodeUnparser().visit(tree).
@@ -8409,19 +8531,28 @@ Range
 3. If the in-range slices match → [].
 4. Else replace params.range with the formatted line slice.
 This is line-aligned, not AST-node-aligned: partial mid-line ranges may produce surprising splices when unparse changes line structure.
+On-type (after \n)
+After the client inserts a newline, params.position is the cursor on the new line and params.ch is "\n". The handler formats the previous line (or line 0) via the same NodeUnparser and, when that line differs, returns one TextEdit covering only that source line.
+1. Empty source, ch != "\n", or tree=None (workspace parse already failed) → [].
+2. Unparse the whole document.
+3. target = max(0, params.position.line - 1).
+4. If the target is past either line list, or the formatted line equals the source line → [].
+5. Else replace [target, 0) → [target, len(source_line)) with the formatted line.
+Triggers other than newline are ignored. The advertised trigger is "\n".
 Internals
 | Path | Role |
 | --- | --- |
 | features/formatting.py | LSP handlers |
 | src/pynescript/ast/helper.py | parse |
 | src/pynescript/ast/unparser.py | NodeUnparser |
-VS Code command pynescript.formatDocument delegates to editor.action.formatDocument, which hits this provider when the language client is active.
+VS Code command pynescript.formatDocument delegates to editor.action.formatDocument, which hits this provider when the language client is active. Format-on-type is the client’s onTypeFormatting request after Enter.
 Invariants and edge cases
-1. Parse failure → [] (no partial format; silent no-op from the client’s perspective).
+1. Parse failure → [] (no partial format; silent no-op from the client’s perspective). On-type also no-ops when the workspace already failed to parse (tree=None).
 2. Idempotence goal: format twice should stabilize if unparse is canonical; any non-idempotent unparse is a core bug, not an LSP bug.
 3. Comments / trivia: fidelity is whatever the unparser preserves — not a full CST pretty-printer.
-4. Range formatting still requires a full successful parse of the whole file.
+4. Range and on-type still require a full successful parse of the whole file; only the edit span is clipped.
 5. Tab size / insert spaces from FormattingOptions are ignored today.
+6. On-type is previous-line only — the new empty line under the cursor is not rewritten.
 Worked example
 Before:
 ``pinescript
@@ -8436,11 +8567,13 @@ indicator("x")
 plot(close)
 `
 If source already matches unparse output, the server returns an empty edit list and the editor leaves the buffer alone.
+On-type: typing Enter after a compact assignment length=14 (cursor now at the start of the next line) yields one edit on that assignment line: length = 14.
 Failure modes
 | Symptom | Cause |
 | --- | --- |
 | Format does nothing on broken syntax | Expected: exception → []` |
 | Range format rewrites wrong lines | Unparse shifted line count; prefer full-document format |
+| On-type after Enter does nothing | Unknown trigger, unparsed buffer, or the previous line already matches unparse |
 | Client “format on save” loops | Unparse not idempotent — fix unparser, not client |
 See also
 Unparser
@@ -8463,57 +8596,74 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-3.0-or-later
 ---
 title: "Hover"
-description: "textDocument/hover — Markdown documentation cards for Pine builtins from metadata."
+description: "textDocument/hover — Markdown cards for builtins, types, namespaces, keywords, and user declarations."
 ---
 Hover
 Abstract
-Hover answers “what is this identifier?” for builtins, then user enums, then keywords. The handler extracts the word under the cursor (including dotted forms), looks up metadata / enum members / PINE_KEYWORDS, and returns a Markdown card. Local functions and variables still return null (use definition).
+Hover answers “what is this identifier?” in a fixed lookup order: namespace prefix, type / qualifier, builtin metadata, user enums, user declarations (functions, methods, types, enums, assigns), then keywords. The handler extracts the word under the cursor (including dotted forms) and returns a Markdown card. Builtin cards for dotted labels (ta.sma, strategy.entry, line.fill) append a Pine v6 function-reference markdown link. Keywords, types, namespaces, and user declarations stay link-free.
 Conceptual model
 Interface surface
 Method: textDocument/hover
 Capability: hover_provider=True
-Handler: features/hover.py → handle_hover
+Handler: features/hover.py → handle_hover (receives cached tree=doc.ast and optional per-version feature_cache for the user-decl walk)
 Lookup order
-1. Exact word at cursor via get_word_at_position (identifiers may include .).
-2. Builtin lookup: full word, then leaf after ., then module.word if the preceding token ends with ..
-3. Else user-enum type or Enum.member from the cached AST.
-4. Else keyword brief from PINE_KEYWORDS.
-5. Build hover with range covering start, end) of the word on the line.
-Card structure
-``markdown
+1. Identifier segment at cursor via get_identifier_segment_at_position (identifiers may include .).
+2. Namespace: cursor on a module name (ta in ta.sma, or bare ta / math). Types that share a name (line, array, color) and callables (strategy(, input() fall through.
+3. Type or qualifier (int, float, series, var, …) when the segment is not followed by (.
+4. Builtin lookup: full word, then leaf after ., then module.word if the preceding token ends with ..
+5. Else user-enum type or Enum.member from the cached AST.
+6. Else user declaration: FunctionDef / TypeDef / EnumDef / Assign (including tuple targets). First declaration of a name wins. Card fence is the source line snippet; brief is User-defined {function|method|type|enum|variable}.
+7. Else keyword brief from PINE_KEYWORDS.
+8. Build hover with range covering start, end) of the word on the line.
+Builtin card structure
+```markdown
 `pinescript
-{detail}
+{signature}
 `
 {brief}
+Parameters: … (when metadata includes params)
 ---
 {first documentation paragraph, ≤500 chars}
 Example: …
 See also: ta.ema, …
-`
-Examples and related maps are hardcoded for a small high-value set (ta.sma, ta.ema, ta.rsi, ta.macd, strategy entry/exit, etc.). Others show signature + brief only.
-External TradingView doc links are intentionally omitted (_build_docs_link returns empty) to keep hover self-contained.
+[Pine v6: ta.sma
+``
+Examples and related maps are hardcoded for a small high-value set (ta.sma, ta.ema, ta.rsi, ta.macd, strategy entry/exit, etc.). Others show signature + brief (and the docs link when the label is dotted).
+_build_docs_link emits that markdown link only for dotted builtin labels with a namespace (ta.sma, strategy.entry, line.fill). Empty, undotted (sma), or whitespace-only names return "". Keyword, type, namespace, and user-declaration cards never include the TradingView URL.
 Internals
 | Path | Role |
 | --- | --- |
 | features/hover.py | Word resolution + Markdown assembly |
 | providers/builtin_metadata.py | get_builtin |
-| protocol/utils.py | Word extraction |
+| protocol/utils.py | Identifier segment extraction |
+The workspace feature_cache memos the user-declaration walk so each hover does not re-walk the whole AST.
 Invariants and edge cases
 1. No source → null. Missing buffer aborts early.
 2. Line OOB → null. Cursor past last line is ignored.
 3. Empty word → null. Whitespace / punctuation yields no hover.
-4. User functions / locals / UDTs are not inferred for hover (enums are). Use [definition / outline instead.
-5. Documentation truncation is first-paragraph / 500-char only — full docs live in metadata and completion resolve.
+4. User functions, assigns, types, and enums are hovered — locals are not “null”. Use definition when you need a jump, not a card.
+5. Docs links are dotted builtins only. Keywords, types, namespaces, and user decls stay link-free.
+6. Documentation truncation is first-paragraph / 500-char only — full docs live in metadata and completion resolve.
 Worked example
 Cursor on sma in plot(ta.sma(close, 14)):
 Word may be ta.sma if the dotted identifier is one match, or sma with module recovery from ta..
-Response contents.kind = markdown with fence of the metadata detail line.
+Response contents.kind = markdown with a fence of the metadata signature, plus Pine v6: ta.sma.
+Cursor on foo in:
+`pinescript
+//@version=6
+indicator("T")
+foo(a) => a
+plot(foo(1))
+`
+Declaration and use both hover as a user-defined function with fence foo(a) => a.
+No Pine v6 URL.
 Failure modes
 | Symptom | Cause |
 | --- | --- |
-| Hover never appears | Metadata empty or word not in catalog |
-| Wrong symbol | Identifier regex swallowed neighboring text — rare with _.` pattern |
+| Hover never appears | Metadata empty or word not in catalog / AST |
+| Wrong symbol | Identifier regex swallowed neighboring text — rare with _. pattern |
 | Stale docs after adding builtin | Regenerate metadata — builtin metadata |
+| User local shows no card | Parse failed (tree=None`) so the decl walk is skipped |
 See also
 Completion
 Builtin metadata
@@ -8535,30 +8685,50 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-3.0-or-later
 ---
 title: "Inlay Hints"
-description: "Inferred type annotations on simple assignments — const, series, and input kinds."
+description: "Assignment type annotations, builtin parameter names, and inlayHint/resolve textEdits that insert the type."
 ---
 Inlay Hints
 Abstract
-Inlay hints surface inferred types next to simple name = expr assignments when no explicit type annotation is present. Inference is deliberately shallow: constants, bare series builtins (close, …), input. constructors, and ta/math/str/color calls whose metadata detail contains a → return type. Ambiguous operators are skipped rather than guessed wrong.
+Inlay hints surface two things: inferred types next to simple name = expr assignments when no explicit type annotation is present, and parameter names before positional arguments of dotted builtin calls (ta.sma(close, 14) → source: / length:). Inference is deliberately shallow: constants, bare series builtins (close, …), input. constructors, and ta/math/str/color calls whose metadata detail contains a → return type. Ambiguous operators are skipped rather than guessed wrong. inlayHint/resolve fills textEdits that insert the type annotation; parameter-name hints do not insert text.
 Conceptual model
 Example mental model (from module docstring):
 ``text
 length = 14 → length: const int
 rsi = ta.rsi(close, 14) → rsi: series float (from metadata detail)
 n = input.int(5, "n") → n: input int
+ta.sma(close, 14) → ta.sma(source: close, length: 14)
 `
 Interface surface
-Method: textDocument/inlayHint
-Capability: InlayHintOptions(resolve_provider=False)
-Handler: features/inlay_hints.py → handle_inlay_hints (receives cached tree=doc.ast)
-Each hint:
+| Method | Capability |
+| --- | --- |
+| textDocument/inlayHint | InlayHintOptions(resolve_provider=True) |
+| inlayHint/resolve | fills textEdits on type hints |
+Handlers: features/inlay_hints.py → handle_inlay_hints (receives cached tree=doc.ast) and handle_inlay_hint_resolve.
+Assignment type hints
 | Field | Value |
 | --- | --- |
 | position | End of target identifier (lineno-1, col_offset + len(id)) |
 | label | ": {type_label}" |
 | kind | InlayHintKind.Type |
 | tooltip | Inferred type: {type_label} |
-Returns [] for empty source, None if parse fails (client typically treats as no hints).
+| data | same insert text, so resolve does not re-parse |
+Parameter-name hints
+Emitted for positional args of module.attr(...) when get_builtin("module.attr") hits. Real snippet placeholder names win; generic paramN snippets fall through to the longest of the detail signature, documentation, and a well-known Pine v6 map (ta.sma/ema/rsi → source/length, ta.atr → length, ta.correlation → source1/source2/length, strategy.entry → id/direction/qty, input.int → defval/title, plus ta.cci/roc/mom/linreg/adx/mfi/bbw/dpo/crossover/crossunder).
+| Field | Value |
+| --- | --- |
+| position | Start of the positional argument |
+| label | "{name}: " |
+| kind | InlayHintKind.Parameter |
+| data | omitted |
+Named kwargs (length=14) skip the matching slot. Parameter hints have no insertable type annotation.
+handle_inlay_hints returns [] for empty source, None if parse fails (client typically treats as no hints).
+Resolve
+inlayHint/resolve inserts the type annotation at the hint position:
+1. Already-resolved hints (existing textEdits) are returned unchanged.
+2. InlayHintKind.Parameter is a no-op — must not splice names into the call.
+3. Insert text comes from hint.data (preferred) or the label string / label parts.
+4. Only strings that start with ": " are treated as type annotations.
+5. One TextEdit with a zero-width range at hint.position.
 Internals
 Constant mapping
 | Python value | Label |
@@ -8573,17 +8743,18 @@ Calls
 input.{int,float,bool,string,color,symbol,session,source,time,timeframe,price} → input {attr}
 ta|math|str|color.{attr} → parse detail after →, else fallback "series"
 Walk
-Recursive over _fields (same pattern as workspace symbol collection) — not limited to script top-level; nested function assigns can receive hints.
+Recursive over _fields (same pattern as workspace symbol collection) — not limited to script top-level; nested function assigns and nested calls can receive hints.
 | Path | Role |
 | --- | --- |
-| features/inlay_hints.py | Collection + inference |
-| providers/builtin_metadata.py | Return-type detail for modules |
+| features/inlay_hints.py | Collection + inference + resolve |
+| providers/builtin_metadata.py | Return-type detail and parameter names |
 Invariants and edge cases
-1. Explicit name: type = … suppresses hints (node.type is not None).
-2. Tuple / attribute targets are ignored.
+1. Explicit name: type = … suppresses type hints (node.type is not None).
+2. Tuple / attribute targets are ignored for type hints.
 3. BinOp / Compare / Conditional return None — no speculative arithmetic types.
-4. Metadata quality bounds accuracy — missing → in detail yields coarse series.
-5. No resolve step — tooltips are final.
+4. Metadata quality bounds accuracy — missing → in detail yields coarse series; missing param names yields no parameter hints.
+5. Resolve inserts types only — parameter labels (source: ) are display-only.
+6. Malformed / empty resolve input does not throw — the hint is returned as-is.
 Worked example
 `pinescript
 //@version=6
@@ -8594,21 +8765,96 @@ avg = ta.sma(src, length)
 period = input.int(20, "Period")
 `
 Expected hints (when parse + metadata succeed):
-length → : const int
+length → : const int (type; resolve inserts : const int at the end of length)
 src → : series float
 avg → type from ta.sma detail (typically series float) or series
 period → : input int
-avg will not get a hint derived from length’s type through the call graph — only the call’s known return shape.
+ta.sma(src, length) → source: before src, length: before length
+avg will not get a hint derived from length’s type through the call graph — only the call’s known return shape. Resolve on a parameter hint leaves the call text unchanged.
 Failure modes
 | Symptom | Cause |
 | --- | --- |
 | No hints on file | Parse error → None |
 | ta. always : series | Metadata detail lacks → segment |
+| No source: / length: on a builtin call | Not a dotted builtin, named kwargs, or metadata/snippet names missing |
+| Apply-type-inlay does nothing on a param hint | Expected: resolve skips InlayHintKind.Parameter |
 | Hints mid-identifier | Incorrect col_offset` on AST node — builder issue |
 See also
 Completion
 Builtin metadata
 Type system
+---
+FILE: docs/pyne/lsp/features/linked-editing.mdx
+Copyright (C) 2024-2026 jango_blockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-3.0-or-later
+---
+title: "Linked editing"
+description: "textDocument/linkedEditingRange — live multi-cursor ranges for user identifiers."
+---
+Linked editing
+Abstract
+textDocument/linkedEditingRange returns same-document ranges for the user identifier under the cursor so the client can drive live multi-cursor edits (rename-as-you-type). Keywords and builtin namespaces stay unlinked — the same refusal set as rename. Empty buffers, unparsed documents, and non-renamable tokens return null.
+Conceptual model
+Interface surface
+Method: textDocument/linkedEditingRange
+Capability: linked_editing_range_provider=True
+Handler: features/linked_editing.py → handle_linked_editing_range (receives cached tree=doc.ast)
+Response:
+| Field | Value |
+| --- | --- |
+| ranges | Character-precise Range list for every same-document occurrence of the ident |
+| wordPattern | [A-Za-z_][A-Za-z0-9_] |
+Unlike textDocument/rename, linked editing is one document — it does not walk other open buffers.
+What is unlinked
+is_renamable_ident (shared with highlight / rename) returns false for:
+Empty or invalid tokens (not a single Pine ident)
+Keywords from PINE_KEYWORDS (if, plot, enum, …)
+Builtin namespaces (ta, strategy, math, input, request, str, array, matrix, map, color, line, label, box, table, polyline, log, chart, runtime, session, time, barstate, syminfo, timeframe, ticker, alert, hline, …)
+Dotted words whose head is a builtin namespace (ta.sma as a whole)
+Hits are collected with include_builtin_attrs=False, so library attributes are not linked when the cursor is on a user ident.
+Internals
+| Path | Role |
+| --- | --- |
+| features/linked_editing.py | LSP handler + WORD_PATTERN |
+| features/highlight.py | cursor_ident, is_renamable_ident, collect_ident_hits, resolve_tree |
+| config.py | linked_editing_range_provider=True |
+| server.py | TEXT_DOCUMENT_LINKED_EDITING_RANGE |
+Tests: tests/test_lsp_features.py (TestLinkedEditingRangeHandler).
+Invariants and edge cases
+1. No source → null. Missing or empty buffer aborts early.
+2. Keywords and builtin namespaces never link. Cursor on ta, plot, or if yields null.
+3. Parse failure → null. tree=None (workspace already failed) skips a redundant re-parse.
+4. Same-document only. Cross-file live edits are rename’s job (open documents), not linked editing.
+5. wordPattern is the Pine ident token — the client should not extend the edit into . or digits-leading junk.
+Worked example
+``pinescript
+//@version=6
+indicator("t")
+length = 14
+plot(ta.sma(close, length))
+`
+Cursor on either length: two ranges (the assignment target and the call argument), wordPattern [A-Za-z_][A-Za-z0-9_]. Cursor on ta or plot: null.
+Failure modes
+| Symptom | Cause |
+| --- | --- |
+| Linked editing never starts | Cursor on a keyword / builtin namespace, or parse failed |
+| Only one occurrence linked | Other hits are a different ident, or builtin attrs excluded |
+| Edit spills into neighboring text | Client ignored wordPattern` |
+See also
+Navigation — highlight and rename share the ident collector
+Architecture
+Hover — builtins vs user symbols
 ---
 FILE: docs/pyne/lsp/features/navigation.mdx
 Copyright (C) 2024-2026 jango_blockchained
@@ -8766,11 +9012,11 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-3.0-or-later
 ---
 title: "Semantic Tokens"
-description: "textDocument/semanticTokens/full — AST visitor, custom legend, and LSP delta encoding."
+description: "textDocument/semanticTokens/full and /range — AST visitor, custom legend, and LSP delta encoding."
 ---
 Semantic Tokens
 Abstract
-Semantic tokens let the server paint identifiers with roles richer than TextMate scopes (library namespaces vs user variables, function defs vs properties). PYNE advertises a full semantic-tokens provider with a short custom legend (not the full LSP standard set) and implements textDocument/semanticTokens/full by walking the workspace AST.
+Semantic tokens let the server paint identifiers with roles richer than TextMate scopes (library namespaces vs user variables, function defs vs properties). PYNE advertises a full and range semantic-tokens provider with a short custom legend (not the full LSP standard set). textDocument/semanticTokens/full walks the workspace AST; textDocument/semanticTokens/range clips the same legend to tokens whose start falls inside the requested range.
 Conceptual model
 Interface surface
 Capability (config.py → semantic_tokens_provider):
@@ -8780,11 +9026,14 @@ namespace, type, class, function, method, variable,
 parameter, property, keyword, string, number, operator, comment
 legend.token_modifiers (bit 0 = declaration):
 declaration, definition, readonly, defaultLibrary
-range: false
+range: true
 full: true
 `
-Handler: features/semantic_tokens.py → handle_semantic_tokens(params, source, tree=…).
-Response type: lsp.SemanticTokens(data=[...]) — LSP-encoded five-tuples as a flat int array (relative line/character deltas).
+| Method | Handler |
+| --- | --- |
+| textDocument/semanticTokens/full | handle_semantic_tokens |
+| textDocument/semanticTokens/range | handle_semantic_tokens_range |
+Both take (params, source, tree=…) and return lsp.SemanticTokens(data=[...]) — LSP-encoded five-tuples as a flat int array (relative line/character deltas). Range uses the same legend as full: collect, sort, then keep tokens whose start (line, col) is in params.range (inclusive start, exclusive end) before encoding.
 What is emitted
 | AST | Token type | Modifiers |
 | --- | --- | --- |
@@ -8798,16 +9047,16 @@ Builtin namespace set (_BUILTIN_NS): ta, math, str, array, matrix, map, strategy
 Internals
 | Path | Role |
 | --- | --- |
-| features/semantic_tokens.py | Collector + _encode |
+| features/semantic_tokens.py | Collector + _encode + range clip |
 | config.py | Legend + capability — indices must match _TT |
-| server.py | TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL; passes cached doc.ast |
+| server.py | TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL / _RANGE; passes cached doc.ast |
 Attribute columns prefer end_col_offset - len(attr) when present; otherwise parent col_offset (approximate).
 TextMate from vscode-extension/syntaxes/pinescript.tmLanguage.json still colors keywords, strings, and comments — the visitor does not emit those yet even though the legend reserves the slots.
 Invariants and edge cases
 1. Never throws — missing source, tree=None, or parse exception yields empty data.
-2. No range provider — clients must not request semanticTokens/range.
+2. Range is a clip of full — same types/modifiers; tokens whose start is outside the range are dropped. A range token stream is a subsequence of the full stream.
 3. Legend is fixed at initialize; changing indices later would break cached clients.
-4. Empty data is valid protocol (empty file or parse failure), not an error.
+4. Empty data is valid protocol (empty file, parse failure, or no tokens in range), not an error.
 5. Tokens are sorted by (line, col) before delta encoding.
 Worked example
 `pinescript
@@ -8816,13 +9065,14 @@ indicator("tok")
 length = 14
 plot(ta.sma(close, length))
 `
-Expect tokens for length (variable/declaration), ta (namespace/defaultLibrary), sma (method/defaultLibrary). Keywords such as indicator remain TextMate-only.
+Full document: tokens for length (variable/declaration), ta (namespace/defaultLibrary), sma (method/defaultLibrary). Keywords such as indicator remain TextMate-only.
+Range covering only the plot(ta.sma…) line keeps ta / sma (and any other starts on that line) and drops the length assignment. A range covering only the //@version=6 pragma yields no namespace token.
 Failure modes
 | Symptom | Cause |
 | --- | --- |
 | Semantic highlighting off despite tokens | Client editor.semanticHighlighting.enabled false |
 | Colors look “shifted” after a legend edit | Client cached old type indices — restart the language client |
-| Client errors on range request | range=False in capabilities; client should not call it |
+| Range request returns empty data | Parse failure, empty buffer, or no token starts in range — not a capability miss |
 | Attribute token sits on the wrong column | Missing end_col_offset` on the AST node — approximate path |
 See also
 VS Code extension — TextMate grammar
@@ -8856,7 +9106,7 @@ Editors want static intelligence at typing cadence. Evaluation over OHLCV is dyn
 | LSP (pyne-lsp) | keystroke / open / save | parse, lint, unparse, builtin metadata |
 | Pro API (backend.app) | request / batch | parse, evaluate, plots / events / alerts |
 | CLI / library | batch / embed | same AST + evaluator |
-The LSP publishes diagnostics from the linter and parse errors, completes and hovers from Fernet-ready builtin metadata (plus keywords and user enums), navigates user symbols via AST visitors, emits semantic tokens from the cached tree, and formats by round-tripping through the unparser. Feature modules live under src/pynescript/langserver/features/; the VS Code extension (hoox-sh.pyne 0.4.4) and clients/ configs are thin protocol hosts — VS Code maps .pyne first, then legacy Pine suffixes, to language id pinescript. The stdio image is ghcr.io/hoox-sh/pyne/lsp.
+The LSP publishes diagnostics from the linter and parse errors, completes and hovers from Fernet-ready builtin metadata (plus keywords and user enums), navigates user symbols via AST visitors, emits semantic tokens (full and range) from the cached tree, and formats by round-tripping through the unparser (including on-type after newline). Inlay hints cover assignment types and builtin parameter names; linked editing, document links, and document color round out the editor surface. Feature modules live under src/pynescript/langserver/features/; the VS Code extension (hoox-sh.pyne 0.4.5) and clients/ configs are thin protocol hosts — VS Code maps .pyne first, then legacy Pine suffixes, to language id pinescript. The stdio image is ghcr.io/hoox-sh/pyne/lsp.
 Conceptual model
 Invariant: open/change/close always re-parse and re-lint the in-memory buffer. Features that need an AST re-parse on demand if the workspace cache is missing source.
 Interface surface
@@ -8869,13 +9119,16 @@ Interface surface
 | Signature help | textDocument/signatureHelp | features/signature_help.py |
 | Definition / references | textDocument/definition, textDocument/references | definitions.py, references.py |
 | Highlight / rename | textDocument/documentHighlight, prepareRename, rename | highlight.py, rename.py |
+| Linked editing | textDocument/linkedEditingRange | features/linked_editing.py |
 | Symbols | textDocument/documentSymbol, workspace/symbol | symbols.py, server.py |
-| Formatting | textDocument/formatting, rangeFormatting | features/formatting.py |
-| Inlay hints | textDocument/inlayHint | features/inlay_hints.py |
+| Formatting | textDocument/formatting, rangeFormatting, onTypeFormatting | features/formatting.py |
+| Inlay hints | textDocument/inlayHint, inlayHint/resolve (types + builtin param names) | features/inlay_hints.py |
 | Folding | textDocument/foldingRange | features/folding.py |
 | Selection range | textDocument/selectionRange | features/selection_range.py |
-| Code action | textDocument/codeAction | convert.py (Convert-to-v6 + W001 QuickFix) |
-| Semantic tokens | textDocument/semanticTokens/full | features/semantic_tokens.py |
+| Document color | textDocument/documentColor, colorPresentation | features/document_color.py |
+| Document links | textDocument/documentLink, documentLink/resolve (tooltip) | features/document_link.py |
+| Code action | textDocument/codeAction | convert.py (Convert-to-v6 + W001/W002/C002 QuickFix) |
+| Semantic tokens | textDocument/semanticTokens/full, textDocument/semanticTokens/range | features/semantic_tokens.py |
 Declared capabilities: src/pynescript/langserver/config.py (get_server_capabilities).
 Internals
 | Path | Role |
@@ -8886,15 +9139,18 @@ Internals
 | src/pynescript/langserver/features/ | Per-method handlers |
 | src/pynescript/langserver/providers/ | Metadata + completion builders |
 | src/pynescript/langserver/main.py | STDIO entry (pyne-lsp / alias pynescript-lsp) |
-| vscode-extension/ | Language client + TextMate grammar (hoox-sh.pyne 0.4.4) |
+| vscode-extension/ | Language client + TextMate grammar (hoox-sh.pyne 0.4.5) |
 | clients/ | Neovim, Zed, Emacs snippets (Helix / Sublime are documented, not files) |
 Console scripts are separate: pyne (Click CLI; alias pynescript) vs pyne-lsp (pygls; alias pynescript-lsp). Do not conflate them — see architecture.
 Tracks in this tab
 1. Architecture — server lifecycle, workspace, capabilities
 2. Diagnostics through Selection range — feature manuals
-3. Builtin metadata — generation + Fernet .enc / CRYPTO_KEY
-4. VS Code extension — client packaging
-5. Clients — Neovim, Zed, Emacs, Helix, Sublime
+3. Linked editing — same-document live ident ranges
+4. Document links — http(s) URLs in comments and strings; resolve fills tooltip
+5. Document color — #hex / color.* / literal color.rgb swatches
+6. Builtin metadata — generation + Fernet .enc / CRYPTO_KEY
+7. VS Code extension — client packaging
+8. Clients — Neovim, Zed, Emacs, Helix, Sublime
 See also
 Pro API — HTTP evaluate path sharing the same AST
 Evaluate contract
@@ -8918,11 +9174,11 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-3.0-or-later
 ---
 title: "VS Code Extension"
-description: "PYNE VS Code extension: HOOX branding, TextMate grammar, LanguageClient wiring, settings, and VSIX build."
+description: "PYNE VS Code extension: LanguageClient host for pyne-lsp, TextMate grammar, settings, and VSIX 0.4.5."
 ---
 VS Code Extension
 Abstract
-PYNE (hoox-sh.pyne 0.4.4) is a LanguageClient host plus a rich TextMate grammar, branded as part of the HOOX open trading stack. It does not reimplement diagnostics or completion in TypeScript; it resolves pyne-lsp (then alias pynescript-lsp, then python -m pynescript.langserver) or a configured command over STDIO via vscode-languageclient, maps .pyne (first-class) plus .pine / .pinev5 / .pinev6 / .pinescript to language id pinescript, and exposes a small settings surface for enablement and feature toggles.
+PYNE (hoox-sh.pyne 0.4.5) is a LanguageClient host plus a rich TextMate grammar, branded as part of the HOOX open trading stack. It does not reimplement language intelligence in TypeScript — vscode-languageclient speaks STDIO to pyne-lsp (then alias pynescript-lsp, then python -m pynescript.langserver) and forwards whatever that process advertises in initialize. The VSIX stays 0.4.5; the hosted Python server is hoox-pyne 0.6.22 (src/pynescript/about.py). The extension maps .pyne (first-class) plus .pine / .pinev5 / .pinev6 / .pinescript to language id pinescript, and exposes a small pynescript. settings surface.
 Conceptual model
 Interface surface
 Package identity
@@ -8931,7 +9187,7 @@ From vscode-extension/package.json:
 | --- | --- |
 | name | pyne |
 | displayName | PYNE Language Support |
-| version | 0.4.4 |
+| version | 0.4.5 |
 | publisher | hoox-sh |
 | extension id | hoox-sh.pyne |
 | icon | media/icon.png (HOOX mark) |
@@ -8945,10 +9201,32 @@ aliases: PYNE, pyne, pinescript, Pine
 extensions: .pyne (first), .pine, .pinev5, .pinev6, .pinescript
 configuration: language-configuration.json
 grammar: syntaxes/pinescript.tmLanguage.json (scopeName: source.pinescript) — namespaces, annotations, hex colors, UDT/enum, multiline strings, plot/strategy builtins
+Hosted pyne-lsp methods (not reimplemented in TypeScript)
+The LanguageClient negotiates capabilities from src/pynescript/langserver/config.py (get_server_capabilities). The hosted server now advertises the following; the 0.4.5 extension is still only a host.
+| LSP method | What the editor gets | Feature page |
+| --- | --- | --- |
+| textDocument/semanticTokens/full + /range | Same legend, range clipped to the viewport | Semantic tokens |
+| textDocument/onTypeFormatting | Format the just-completed line; trigger "\n" | Formatting |
+| textDocument/linkedEditingRange | Same-document live ranges for a user ident (keywords / builtin namespaces refused) | Linked editing |
+| textDocument/inlayHint + inlayHint/resolve | Assignment type labels; parameter-name hints on dotted builtin calls (ta.sma(close, 14) → source: / length:). Resolve fills type textEdits only | Inlay hints |
+| textDocument/documentLink + documentLink/resolve | http:// / https:// URLs in comments (//, / /, hash # …) and string literals. Resolve fills tooltip with the URL when tooltip is unset | Document links |
+| textDocument/documentColor + colorPresentation | #hex (and named color. / literal color.rgb / color.new / color() / color.from_gradient) swatches; presentation rewrites as #rrggbb / #rrggbbaa | Document color |
+Also advertised (unchanged host path): diagnostics, completion + resolve, hover, signature help, definition / references, highlight + rename, document / workspace symbols, full + range formatting, folding, selection range, Convert-to-v6 / W001 / W002 / C002 code actions. Capability table: Architecture.
+[pinescript] configuration defaults already set editor.semanticHighlighting.enabled to true and editor.defaultFormatter to hoox-sh.pyne. Format-on-type and linked-editing UX are standard VS Code editor settings (editor.formatOnType, editor.linkedEditing) — they are not pynescript. keys. Enable them if you want Enter to hit onTypeFormatting or rename-as-you-type to hit linkedEditingRange.
 Activation
 ``text
 onLanguage:pinescript
-workspaceContains:*/.pyne
+onCommand:pynescript.restartServer
+onCommand:pynescript.formatDocument
+onCommand:pynescript.showLspOutput
+onCommand:pynescript.showLspCommand
+onCommand:pynescript.convertToV6
+onCommand:pynescript.diagnosticsToggle
+onCommand:pynescript.completionToggle
+onCommand:pynescript.inlayHintsToggle
+onCommand:pynescript.foldingToggle
+onCommand:pynescript.colorPreviewToggle
+workspaceContains:/.pyne
 workspaceContains:*/.pine
 workspaceContains:*/.pinev5
 workspaceContains:*/.pinev6
@@ -8956,8 +9234,8 @@ workspaceContains:*/.pinev6
 Settings (pynescript.)
 | Key | Default | Meaning |
 | --- | --- | --- |
-| lsp.enabled | true | Skip activation when false |
-| lsp.command | auto | auto = PATH pyne-lsp → pynescript-lsp → python -m pynescript.langserver. Or an absolute path. "docker" plus lsp.args can launch ghcr.io/hoox-sh/pyne/lsp (${workspaceFolder} is expanded). |
+| lsp.enabled | true | Do not start the language client when false (commands still register) |
+| lsp.command | auto | auto = PATH pyne-lsp → pynescript-lsp → python -m pynescript.langserver. Or an absolute path. "docker" plus lsp.args can launch ghcr.io/hoox-sh/pyne/lsp:0.6.22 (${workspaceFolder} is expanded). |
 | lsp.python | python3 | Interpreter for module launch when neither binary is on PATH (pip install "hoox-pyne[lsp]") |
 | lsp.args | [] | Extra server args |
 | formatting.enabled | true | Passed as init option |
@@ -8972,6 +9250,18 @@ Initialization options object:
 }
 `
 The Python server does not read these flags today. They are client-side documentation for hosts; capability advertisement is unconditional in config.py.
+Docker stdio example (lsp.command = docker):
+`json
+{
+"pynescript.lsp.command": "docker",
+"pynescript.lsp.args": [
+"run", "--rm", "-i",
+"-v", "${workspaceFolder}:/work", "-w", "/work",
+"ghcr.io/hoox-sh/pyne/lsp:0.6.22"
+]
+}
+`
+That image is the Python language server (0.6.22), not the VSIX.
 Commands
 | Command palette | ID | Action |
 | --- | --- | --- |
@@ -8980,6 +9270,11 @@ Commands
 | PYNE: Convert to Pine v6 | pynescript.convertToV6 | Rewrite v1-v5 source toward v6 (LSP command or local Python) |
 | PYNE: Show Language Server Output | pynescript.showLspOutput | Open Output channel / status-bar target |
 | PYNE: Show Resolved LSP Launch Command | pynescript.showLspCommand | Show and copy resolved pyne-lsp launch |
+| PYNE: Toggle Diagnostics | pynescript.diagnosticsToggle | Flip pynescript.diagnostics.enabled (client swallows squiggles when off) |
+| PYNE: Toggle Completion | pynescript.completionToggle | Flip pynescript.completion.snippets (restarts the language client) |
+| PYNE: Toggle Inlay Hints | pynescript.inlayHintsToggle | Flip [pinescript].editor.inlayHints.enabled |
+| PYNE: Toggle Folding | pynescript.foldingToggle | Flip [pinescript].editor.folding |
+| PYNE: Toggle Color Preview | pynescript.colorPreviewToggle | Flip [pinescript].editor.colorDecorators |
 Client options
 Document selector: pinescript for file and untitled schemes
 File watcher: /.{pyne,pine,pinev5,pinev6,pinescript}
@@ -8998,40 +9293,50 @@ Server launch (resolveLspLaunch in extension.ts):
 2. Else try pyne-lsp, then pynescript-lsp, on PATH.
 3. Else try pynescript.lsp.python (then python3 / python) with -m pynescript.langserver.
 4. Else status-bar error: install hoox-pyne[lsp].
-No --parent-dir / PYTHONPATH rewrite. Transport is STDIO. Release packaging expects pyne-lsp on PATH (pip, Nuitka onefile, or docker run -i ghcr.io/hoox-sh/pyne/lsp:0.4.4).
+No --parent-dir / PYTHONPATH rewrite. Transport is STDIO. Release packaging expects pyne-lsp on PATH (pip, Nuitka onefile, or docker run --rm -i ghcr.io/hoox-sh/pyne/lsp:0.6.22). The VSIX stays 0.4.5; the GHCR tag tracks the Python package (about.py 0.6.22), not the extension version.
 Build
 `bash
 cd vscode-extension
 npm ci
 npm run compile # esbuild.mjs → out/extension.js
-npm run package # pyne-vscode-0.4.4.vsix
+npm run package # pyne-vscode-0.4.5.vsix
 or monorepo:
 make build-vscode
 `
 Requires Node 22. compile:tsc is typecheck-only (tsc --noEmit).
-Site download: https://hoox.sh/pyne-vscode.vsix (unversioned alias). Versioned pyne-vscode-0.4.4.vsix is built in-tree (vscode-extension/) and on GitHub Releases.
+Site download: https://hoox.sh/pyne-vscode.vsix (unversioned alias). Versioned pyne-vscode-0.4.5.vsix is built in-tree (vscode-extension/) and on GitHub Releases.
 Invariants and edge cases
-1. lsp.enabled === false short-circuits activate — no client, no restart command registration beyond early return (commands not registered).
+1. lsp.enabled === false skips starting the client — output channel, status bar, and palette commands still register so the palette never shows “command not found”; restart then no-ops until the setting is true.
 2. Binary vs module: production users should install hoox-pyne[lsp] or the Nuitka onefile (pynescript-lsp- on GitHub Releases) and set pynescript.lsp.command if not on PATH.
 3. Grammar works without LSP — open a .pyne or .pine file offline and still get TextMate highlighting.
 4. .pyne is first-class in package.json extensions + activation; legacy .pine / .pinescript remain fully supported.
 5. File watcher covers every associated suffix (pyne, pine, pinev5, pinev6, pinescript).
+6. VSIX 0.4.5 does not pin server methods. Range tokens, on-type format, linked editing, inlay resolve / param names, document links + resolve tooltip, and document color appear only when the spawned pyne-lsp is new enough to advertise them (this tree: 0.6.22).
 Worked example — extension development
 `bash
 pip install -e ".[lsp]"
 cd vscode-extension && npm ci && npm run compile
 Launch Extension Development Host pointing at vscode-extension
 `
-Open a fixture .pine file; confirm Problems panel shows parse/lint diagnostics from the Python server.
+Open a fixture .pine file; confirm Problems panel shows parse/lint diagnostics from the Python server. With a current pyne-lsp, also expect #hex color swatches, clickable https:// links in comments, source: / length: inlay labels on ta.sma(close, 14), and range semantic tokens while scrolling.
 Failure modes
 | Symptom | Cause |
 | --- | --- |
 | “Language client failed to start” | pyne-lsp missing / wrong command |
 | No squiggles, highlighting OK | LSP disabled or server crash; check Output → PYNE Language Server |
-| Restart does nothing | Client never started (lsp.enabled` false) |
+| Restart does nothing | Client never started (lsp.enabled false) |
+| No inlay param names / color swatches / document links | Spawned pyne-lsp is older than this tree (need 0.6.22) |
+| Enter does not reformat the previous line | editor.formatOnType is off (not a pynescript. key) |
+| Identifiers do not multi-cursor as you type | editor.linkedEditing is off (not a pynescript. key) |
 See also
+Architecture — declared ServerCapabilities
+Semantic tokens — full and range
+Formatting — full, range, and on-type (\n)
+Linked editing
+Inlay hints — types, param names, resolve
+Document links — http(s)` URLs; resolve fills tooltip
+Document color
 Clients — non-VS Code hosts
-Architecture
 Nuitka build
 Editors guide
 ---
@@ -9063,7 +9368,7 @@ Vendor sync
 ./scripts/sync_vendor.sh
 npx wrangler deploy
 `
-Skip sync and the edge still runs the last snapshot. That tree disagrees with itself: python_modules/pynescript/about.py says 0.3.8, and pynescript-0.4.4.dist-info says 0.4.4. Live PyPI hoox-pyne is 0.6.14. The worker package itself is 0.6.0. Run ./scripts/sync_vendor.sh before treating the snapshot as current.
+Skip sync and the edge still runs the last snapshot. That tree disagrees with itself: python_modules/pynescript/about.py says 0.3.8, and pynescript-0.4.4.dist-info says 0.4.4. Live PyPI hoox-pyne is 0.6.22. The worker package itself is 0.6.0. Run ./scripts/sync_vendor.sh before treating the snapshot as current.
 Script + 1m cron
 `bash
 export WORKER=https://pyne-worker..workers.dev
@@ -9695,7 +10000,7 @@ description: "Builtin and host gaps between @hoox-sh/pynets 0.5.0 and Python pyn
 ---
 PyneTS missing features
 Abstract
-This page is the checklist of what @hoox-sh/pynets still does not match in Python pynescript.runtime. The oracle is Python Runtime.run on the same source and the same bars. It is not a TradingView certification list.
+This page is the checklist of what @hoox-sh/pynets still does not match in Python pynescript.runtime. The oracle is Python Runtime.run on the same source and the same bars. It is not a TradingView® certification list.
 Measured 2026-09-27 against @hoox-sh/pynets 0.5.0 (interpret and compile tests green, including test/interpret_footprint.test.ts, test/compile_footprint.test.ts, test/interpret_alert_freq.test.ts, and test/compile_plot_alert_const.test.ts). Published npm 0.5.0 includes this slice.
 A raw scan of Python __builtin_map keys finds 706 names. About 280 of those strings are absent from the interpret sources. Many strategy. series are false misses: they are attributes (strategy.netprofit), not quoted call names. The lists below are the scan plus that correction.
 Conceptual model
@@ -10075,11 +10380,11 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-3.0-or-later
 ---
 title: "Compatibility guarantee"
-description: "Grouped map of what PYNE implements for Pine Script v5/v6 — working, partial, residual, and by-design out of scope. hoox-pyne 0.6.14."
+description: "Grouped map of what PYNE implements for Pine Script™ v5/v6 — working, partial, residual, and by-design out of scope. hoox-pyne 0.6.22."
 ---
 Compatibility guarantee
 Abstract
-PYNE implements Pine Script v5/v6 language core as an inspectable pipeline: parse → AST → bar-loop evaluate. The map below is the product-facing compatibility surface for hoox-pyne 0.6.14. It is not TradingView platform identity (chart host, proprietary data, editor-only UI) and not bit-identical results vs the hosted platform on every script or bar.
+PYNE implements Pine Script™ v5/v6 language core as an inspectable pipeline: parse → AST → bar-loop evaluate. The map below is the product-facing compatibility surface for hoox-pyne 0.6.22. It is not TradingView® platform identity (chart host, proprietary data, editor-only UI) and not bit-identical results vs the hosted platform on every script or bar.
 Name-level dispatch lives in Pine v6 surface (docs/pine_v6_full_surface_inventory.md). Gaps: Missing features.
 Conceptual model
 Legend
@@ -10096,7 +10401,7 @@ Plot MISMATCH corpus tail (P1p), PYNE_SERIES_RING default off.
 Pixel chart, editor UX, foreign live data, bit-identical TV bars.
 Interface surface
 Corpus (set01–04 · 2477 scripts · 2026-08-09)
-Open-source sets, not shipped in git. Not a TradingView platform score.
+Open-source sets, not shipped in git. Not a TradingView® platform score.
 | Suite | Rate | Notes |
 | --- | ---: | --- |
 | Parse + unparse | 99.96% (2476/2477) | Residual: one intentional invalid line-wrap demo |
@@ -10277,8 +10582,8 @@ The HOOX family splits language, chart, and execution. Mixing the names is the m
 | --- | --- | --- |
 | PYNE (hoox-pyne, import pynescript) | Python language SoT: parse, LSP, MCP (pyne-mcp), Pro API, Runtime.run | this site |
 | PyneTS (@hoox-sh/pynets) | TypeScript / Bun library + CLI | PyneTS |
-| pyne-worker | Python Cloudflare isolate — POST /run | pyne-worker · HOOX isolate |
-| pyne-agent-worker | NL → Pine (Workers AI) | agent · AXIS plugin |
+| pyne-worker | Python Cloudflare® isolate — POST /run | pyne-worker · HOOX isolate |
+| pyne-agent-worker | NL → Pine (Workers AI™) | agent · AXIS plugin |
 | AXIS | Charting PWA (engines call Python) | AXIS |
 | HOOX | Edge trade mesh | HOOX |
 Conceptual model
@@ -10288,7 +10593,7 @@ Published versions (static snapshot; refresh manually with bun run docs:versions
 Checkouts (this repo vs sisters)
 | Checkout | What you open |
 | --- | --- |
-| hoox-sh/pyne | PYNE SoT (hoox-pyne 0.6.14) |
+| hoox-sh/pyne | PYNE SoT (hoox-pyne 0.6.22) |
 | hoox-sh/pynets | Standalone @hoox-sh/pynets 0.5.0 (JS compile + stream) |
 | hoox-sh/pyne-worker | Python edge /run |
 | hoox-sh/pyne-agent-worker | NL authoring (not in this tree) |
@@ -10305,13 +10610,13 @@ Docs are authored in product trees and synced to hoox.sh:
 | hoox/docs/* | /docs |
 Do not author in hoox-landing-page/content/ — that is a sync artifact.
 Invariants & edge cases
-1. Python wins language semantics. PyneTS does not invent TradingView behaviour.
+1. Python wins language semantics. PyneTS does not invent TradingView® behaviour.
 2. AXIS ≠ engine. AXIS never embeds a closed interpreter; engines are plugins.
 3. AXIS ≠ execution. Drawing a strategy on AXIS does not call trade-worker.
 4. Alerts ≠ orders. alert() webhooks are not StrategyEvent forwards unless you point them at the HOOX gateway yourself.
 5. Do not pip install pyne or pip install pynescript for this project. Dist name is hoox-pyne.
 6. Do not npm install pynets for this project. The published package is @hoox-sh/pynets from the standalone hoox-sh/pynets repo. Python Runtime remains the oracle.
-7. pine-worker is a leftover TypeScript Cloudflare experiment (hoox-sh/pine-worker). It is not a product evaluate host and has no pages on this site.
+7. pine-worker is a leftover TypeScript Cloudflare® experiment (hoox-sh/pine-worker). It is not a product evaluate host and has no pages on this site.
 Worked examples
 Pick a surface
 | You want | Use |
@@ -10355,11 +10660,11 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-3.0-or-later
 ---
 title: "Missing features"
-description: "Known gaps and closed Pine Script v6 items — what is implemented, what is partial by design, and what is out of scope. hoox-pyne 0.6.14."
+description: "Known gaps and closed Pine Script™ v6 items — what is implemented, what is partial by design, and what is out of scope. hoox-pyne 0.6.22."
 ---
 Missing features
 Abstract
-"Missing" in PYNE is a moving frontier. Core v6 support is ~99%+ for core language, with post-launch TV items closed (multiline strings, library export const, footprint mocks, risk enforcement, matrix LA, compile-mode strategy, drawing GC, bottom-panel table fields, square-bracket wrapping) plus open-source corpus parse/Runtime hardening, incremental bar-mode TA, alert engine + L2 webhooks, series caps, warm-compile, pending-fill averaging, timeframe.change (intraday buckets + D/W/M exchange calendar), package Runtime SoT (pynescript.runtime; backend.runtime is a shim), compile object-mode residual recovery (UDF locals, nopython None/unicode, matrix handles, UDT returns, x = switch, drawing copy, int(na), round() extras, import stubs, color type dispatch, nested UDT methods), type-aware intraday risk enforcement on both brokers, intrabar var rollback on realtime ticks, request.security barmerge on HTF resample paths, linter legacy-rule retirements, and drawing export parity (table/box/label/polyline style fields on both hosts). 0.6.10-0.6.14: engine-owned live plane (WS /ws/live), refcount-pooled shared sessions (F-29), opt-in delta envelopes, gevent WebSocket worker (F-30), CCXT provider caching + tick-walk sharing, live session persistence (SQLite journal), production profile + PYNE_DATA_DIR, Docker prod on VPS, Redis unpublished + opt-in auth, CORS for AXIS authenticated requests. Remaining gaps cluster into optional set0x community-corpus plot parity (P1p official builtins closed), by-design platform differences, and editor-only features.
+"Missing" in PYNE is a moving frontier. Core v6 support is ~99%+ for core language, with post-launch TV items closed (multiline strings, library export const, footprint mocks, risk enforcement, matrix LA, compile-mode strategy, drawing GC, bottom-panel table fields, square-bracket wrapping) plus open-source corpus parse/Runtime hardening, incremental bar-mode TA, alert engine + L2 webhooks, series caps, warm-compile, pending-fill averaging, timeframe.change (intraday buckets + D/W/M exchange calendar), package Runtime SoT (pynescript.runtime; backend.runtime is a shim), compile object-mode residual recovery (UDF locals, nopython None/unicode, matrix handles, UDT returns, x = switch, drawing copy, int(na), round() extras, import stubs, color type dispatch, nested UDT methods), type-aware intraday risk enforcement on both brokers, intrabar var rollback on realtime ticks, request.security barmerge on HTF resample paths, linter legacy-rule retirements, and drawing export parity (table/box/label/polyline style fields on both hosts). 0.6.10-0.6.22: engine-owned live plane (WS /ws/live), refcount-pooled shared sessions (F-29), opt-in delta envelopes, gevent WebSocket worker (F-30), CCXT provider caching + tick-walk sharing, live session persistence (SQLite journal), production profile + PYNE_DATA_DIR, Docker prod on VPS, Redis unpublished + opt-in auth, CORS for AXIS authenticated requests. Remaining gaps cluster into optional set0x community-corpus plot parity (P1p official builtins closed), by-design platform differences, and editor-only features.
 Authoritative narrative: docs/missing_features.md. Canonical IDs: docs/ROADMAP.md.
 Conceptual model
 Interface surface
@@ -10426,7 +10731,7 @@ Open-source set01-04 (2477 scripts; measured locally, not shipped in-repo):
 | ta_sma bar loop (≈3.2k bars) | ~9.5× vs full recompute |
 | ta_atr bar loop | ~10× |
 | macd+atr+rsi+sma combo | ~8.5× |
-Not TradingView platform parity. OK% excludes only path-listed intentional demos (never soft-suppress unknown failures).
+Not TradingView® platform parity. OK% excludes only path-listed intentional demos (never soft-suppress unknown failures).
 Golden: tests/test_ta_incremental.py, tests/test_series_cap.py.
 Internals
 | Path | Role |
@@ -10502,11 +10807,11 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-3.0-or-later
 ---
 title: "Numerical validation"
-description: "Methodology and error bounds for PYNE technical and math builtins versus reference Pine Script implementations."
+description: "Methodology and error bounds for PYNE technical and math builtins versus reference Pine Script™ implementations."
 ---
 Numerical validation
 Abstract
-PYNE’s technical and mathematical builtins are validated for numerical agreement with reference Pine Script implementations under IEEE 754 realities. The long-form report (docs/numerical_validation_report.md, v1.0, Nov 2025) documents methodology, per-family error tables, and edge cases.
+PYNE’s technical and mathematical builtins are validated for numerical agreement with reference Pine Script™ implementations under IEEE 754 realities. The long-form report (docs/numerical_validation_report.md, v1.0, Nov 2025) documents methodology, per-family error tables, and edge cases.
 Headline (from that report): max observed relative error 0.0022% (ADX, extreme volatility); average error &lt; 0.0005%; deterministic ops (SMA, OBV, discrete math) often exact.
 Treat percentages as report-era measurements, not eternal SLAs — re-validate after changing smoothers or bar-mode semantics.
 Conceptual model
@@ -10609,11 +10914,11 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-3.0-or-later
 ---
 title: "Pine v6 surface inventory"
-description: "Summary of the full Pine Script v6 surface inventory — dispatch counts, namespaces, status schema — with pointer to the large source document. hoox-pyne 0.6.14."
+description: "Summary of the full Pine Script™ v6 surface inventory — dispatch counts, namespaces, status schema — with pointer to the large source document. hoox-pyne 0.6.22."
 ---
 Pine v6 surface inventory
 Abstract
-The full surface inventory enumerates every registered evaluator builtin, major series/variable, language construct, and known gap against Pine Script v6. It is deliberately large (tens of thousands of tokens when fully expanded). This page is the navigable summary; the exhaustive tables live in-repo at:
+The full surface inventory enumerates every registered evaluator builtin, major series/variable, language construct, and known gap against Pine Script™ v6. It is deliberately large (tens of thousands of tokens when fully expanded). This page is the navigable summary; the exhaustive tables live in-repo at:
 docs/pine_v6_full_surface_inventory.md
 Generated snapshot referenced here: 2026-10-08, from live NodeLiteralEvaluator dispatch, builtin_metadata.json, and design docs.
 Do not paste the entire inventory into product docs — regenerate and link.
@@ -10712,11 +11017,11 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-3.0-or-later
 ---
 title: "Roadmap"
-description: "PYNE forward plan — dual-host residual, runtime residual, plot parity harness; drawing export parity landed. hoox-pyne 0.6.14."
+description: "PYNE forward plan — dual-host residual, runtime residual, plot parity harness; drawing export parity landed. hoox-pyne 0.6.22."
 ---
 Roadmap
 Abstract
-The roadmap is a living prioritization document, not a contract. Source: docs/ROADMAP.md. Core v6 language/builtins are essentially closed. Product warm-compile (H2), series caps (T1), pending-fill (F2), L2 webhooks, corpus Runtime residual (C1), package Runtime SoT (H1 largely done) and drawing export parity have landed (set01–04 parse 99.96%, Runtime interpret 100% excl. intentional demos). 0.6.10–0.6.14: engine-owned live plane (WS /ws/live), refcount-pooled shared sessions (F-29), opt-in delta envelopes, gevent WebSocket worker (F-30), CCXT provider caching, live session persistence (SQLite journal), production profile + PYNE_DATA_DIR, Docker prod on VPS, Redis unpublished + opt-in auth. What remains: H1 worker-only extras. P1p official TV builtins are 0 MISMATCH (optional set0x community corpus unmeasured). Incremental TA and Supertrend goldens have landed.
+The roadmap is a living prioritization document, not a contract. Source: docs/ROADMAP.md. Core v6 language/builtins are essentially closed. Product warm-compile (H2), series caps (T1), pending-fill (F2), L2 webhooks, corpus Runtime residual (C1), package Runtime SoT (H1 largely done) and drawing export parity have landed (set01–04 parse 99.96%, Runtime interpret 100% excl. intentional demos). 0.6.10–0.6.22: engine-owned live plane (WS /ws/live), refcount-pooled shared sessions (F-29), opt-in delta envelopes, gevent WebSocket worker (F-30), CCXT provider caching, live session persistence (SQLite journal), production profile + PYNE_DATA_DIR, Docker prod on VPS, Redis unpublished + opt-in auth. What remains: H1 worker-only extras. P1p official TV builtins are 0 MISMATCH (optional set0x community corpus unmeasured). Incremental TA and Supertrend goldens have landed.
 Conceptual model
 ``text
 P0 docs honesty → P1 dual-host H1 (package SoT + shims + worker thin wrap)
@@ -10735,7 +11040,7 @@ Status snapshot
 | Strategy events + broker (OCA, commission, risk) | |
 | Numba + object-mode compile | MVP+ (disk IR cache, mode=auto, time_arr, cache recovery; UDT/switch/matrix/drawing/round/color residuals) |
 | Pro API + auth + Docker | (mode default auto; targets api / api-dev / lsp / cli) |
-| PyPI hoox-pyne | live 0.6.14 (pypi.org/project/hoox-pyne); CLIs pyne / pyne-lsp |
+| PyPI hoox-pyne | live 0.6.22 (pypi.org/project/hoox-pyne); CLIs pyne / pyne-lsp |
 | CLI surface (check/format/compile/run/prewarm/…) | + Nuitka binaries + CLI Docker image |
 | Alert engine + L2 webhooks | dual-host export + outbound webhooks |
 | Drawing max__count GC | package + Pro API + AXIS Pyodide |
@@ -11179,7 +11484,7 @@ DrawingRegistry.reset() # clears drawings + PlotRegistry
 `
 Hosts must reset at run start so labels from a previous evaluation do not leak.
 Drawing GC (max__count)
-Interpret path enforces TradingView-style garbage collection on drawing factories (line.new, label.new, box.new, polyline.new, …):
+Interpret path enforces TradingView®-style garbage collection on drawing factories (line.new, label.new, box.new, polyline.new, …):
 | Declaration kwargs (indicator / strategy) | Default | Hard cap |
 | --- | --- | --- |
 | max_lines_count | 50 | 500 |
@@ -12058,7 +12363,7 @@ Focused unit tests
 | tests/test_parity.py | Strategy event fixtures (not plot allclose) |
 Product path
 Pro API /run defaults to mode=auto: compile when _compile_eligible passes (no top-level import, no request. token), otherwise interpret with compile_fallback_reason. Parity harness always forces explicit interpret vs compile so fallbacks do not hide drift.
-Official TradingView builtins (0.6.2): interpret UDF series-parameter history (s[1] per call site) closed the remaining P1p plot MISMATCH tail on that set — 0 MISMATCH vs compile. Optional set0x community corpus is unmeasured, not a missing language surface.
+Official TradingView® builtins (0.6.2): interpret UDF series-parameter history (s[1] per call site) closed the remaining P1p plot MISMATCH tail on that set — 0 MISMATCH vs compile. Optional set0x community corpus is unmeasured, not a missing language surface.
 What must match
 1. Common plot keys — float series after Nonenan normalization.
 2. Warm-up na — leading missing samples align (interpret None / compile nan).
@@ -12428,7 +12733,7 @@ ta.sma(x, n)
 plot(f(close, 14))
 `
 f is stored as a Python callable that rebinds x/n and visits the function body AST each call.
-UDF series parameters (0.6.2): when a caller passes a scalar (or a host-series current) into a function that then reads s[1], interpret wraps that parameter as a per-call-site history stream. src = close; updown(src) therefore matches compile — the previous-bar sample is the previous argument at that call site, not an empty scalar. Official TradingView builtin scripts are 0 MISMATCH vs compile on this contract.
+UDF series parameters (0.6.2): when a caller passes a scalar (or a host-series current) into a function that then reads s[1], interpret wraps that parameter as a per-call-site history stream. src = close; updown(src) therefore matches compile — the previous-bar sample is the previous argument at that call site, not an empty scalar. Official TradingView® builtin scripts are 0 MISMATCH vs compile on this contract.
 once (August 2026)
 `pine
 //@version=6
@@ -12751,7 +13056,7 @@ last := last + 1 // mutates only last, never the host time buffer
 `
 Implemented in StatementEvaluator._bind_series_name: if the RHS has .current / .history / .update (a host or tracked series), the RHS is reduced to its current scalar before allocating or updating the LHS series. Same-bar reassignment (x = 0 then x := expr) overwrites the current sample so x[1] remains the previous bar’s final value. This prevents scripts such as dividend TTM time tracking from corrupting time[j] history when they rebind through a local.
 UDF series parameters (0.6.2)
-A Pine function parameter that is subscripted (s[1] inside f(s) => …) is a series of that argument, not a scalar that happens to be named s. Interpret now allocates a per-call-site history wrapper when the caller passed a scalar or a host-series current (src = close; updown(src)). Compile already tracked UDF series state; the two hosts agree on official TradingView builtins (P1p 0 MISMATCH). Nested calls get distinct streams. See Expressions & statements.
+A Pine function parameter that is subscripted (s[1] inside f(s) => …) is a series of that argument, not a scalar that happens to be named s. Interpret now allocates a per-call-site history wrapper when the caller passed a scalar or a host-series current (src = close; updown(src)). Compile already tracked UDF series state; the two hosts agree on official TradingView® builtins (P1p 0 MISMATCH). Nested calls get distinct streams. See Expressions & statements.
 var / varip / const
 | Qualifier | Semantics in PYNE |
 | --- | --- |

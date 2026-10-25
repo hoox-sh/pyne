@@ -1,6 +1,6 @@
 # PYNE — llms.txt
 # https://llmstxt.org/ — machine-readable project map for LLMs
-# Generated 2026-10-19
+# Generated 2026-10-25
 
 # PYNE
 > Open-source Pine Script evaluation framework
@@ -80,9 +80,12 @@ Grammar-driven parser, ASDL AST, bar-loop evaluator, LSP, Pro API, and edge work
 - [Completion](https://hoox.sh/pyne/docs/lsp/features/completion)
 - [Hover](https://hoox.sh/pyne/docs/lsp/features/hover)
 - [Navigation](https://hoox.sh/pyne/docs/lsp/features/navigation)
+- [Linked Editing](https://hoox.sh/pyne/docs/lsp/features/linked-editing)
 - [Formatting](https://hoox.sh/pyne/docs/lsp/features/formatting)
 - [Semantic Tokens](https://hoox.sh/pyne/docs/lsp/features/semantic-tokens)
 - [Inlay Hints](https://hoox.sh/pyne/docs/lsp/features/inlay-hints)
+- [Document Link](https://hoox.sh/pyne/docs/lsp/features/document-link)
+- [Document Color](https://hoox.sh/pyne/docs/lsp/features/document-color)
 - [Folding](https://hoox.sh/pyne/docs/lsp/features/folding)
 - [Selection Range](https://hoox.sh/pyne/docs/lsp/features/selection-range)
 - [Builtin Metadata](https://hoox.sh/pyne/docs/lsp/builtin-metadata)
@@ -115,7 +118,6 @@ Grammar-driven parser, ASDL AST, bar-loop evaluator, LSP, Pro API, and edge work
 - [Docker](https://hoox.sh/pyne/docs/devops/docker)
 - [Nuitka Build](https://hoox.sh/pyne/docs/devops/nuitka-build)
 - [Metadata Crypto](https://hoox.sh/pyne/docs/devops/metadata-crypto)
-- [Gcp](https://hoox.sh/pyne/docs/devops/gcp)
 - [Observability](https://hoox.sh/pyne/docs/devops/observability)
 - [Security](https://hoox.sh/pyne/docs/devops/security)
 

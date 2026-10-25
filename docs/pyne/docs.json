@@ -191,7 +191,6 @@
               "devops/docker",
               "devops/nuitka-build",
               "devops/metadata-crypto",
-              "devops/gcp",
               "devops/observability",
               "devops/security"
             ]
@@ -251,6 +250,7 @@
     { "source": "/pine-worker/converter", "destination": "/pyne-worker" },
     { "source": "/pine-worker/testing", "destination": "/pyne-worker" },
     { "source": "/devops/pypi-publish", "destination": "/contributing" },
-    { "source": "/devops/publish-checklist", "destination": "/contributing" }
+    { "source": "/devops/publish-checklist", "destination": "/contributing" },
+    { "source": "/devops/gcp", "destination": "/devops/docker" }
   ]
 }

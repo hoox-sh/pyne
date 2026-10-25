@@ -107,7 +107,7 @@ def _resolve_fernet_key() -> bytes:
     """Resolve a stable Fernet key for metadata encryption.
 
     Priority:
-    1. ``CRYPTO_KEY`` env (CI: GitHub ``secrets.METADATA_KEY``, Cloud Build ``_METADATA_KEY``)
+    1. ``CRYPTO_KEY`` env (CI: GitHub ``secrets.METADATA_KEY``)
     2. ``PYNESCRIPT_METADATA_KEY`` env (runtime decrypt fallback, same material)
     3. ``METADATA_KEY`` env
     4. Existing ``scripts/build/.metadata.key``

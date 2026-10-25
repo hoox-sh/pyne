@@ -1,7 +1,7 @@
 ---
 type: "Document"
 title: "Docker"
-description: "Buildx multi-target images, Compose profiles, and Cloud Run production contract for the PYNE Pro API."
+description: "Buildx multi-target images and Compose profiles for the PYNE Pro API."
 resource: "docs/pyne/devops/docker.mdx"
 tags: [devops, doc, docs, pyne]
 status: stable

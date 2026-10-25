@@ -19,7 +19,7 @@
 
 ---
 title: "DevOps"
-description: "CI matrices, containers, Nuitka LSP binaries, metadata crypto, Cloud Run, and operational invariants for PYNE."
+description: "CI matrices, containers, Nuitka LSP binaries, metadata crypto, and operational invariants for PYNE."
 ---
 
 # DevOps
@@ -28,7 +28,7 @@ description: "CI matrices, containers, Nuitka LSP binaries, metadata crypto, Clo
 
 PYNE is a **multi-surface product**: pure-Python library + Click CLI (`pyne` / alias `pynescript`), pygls Language Server (`pyne-lsp`), Flask Pro API, VS Code extension (`hoox-sh.pyne` 0.4.5; the Python package is 0.6.22), and Docker targets (`api` / `cli` / `lsp`). Edge workers and the AXIS charting PWA are **sister repos** — not built in this tree.
 
-This tab documents the **operational graph**: local loops, GitHub Actions, release tags, Docker images, Nuitka CLI/LSP binaries, Fernet-encrypted LSP metadata, GCP Cloud Build/Run, observability hooks, and security controls.
+This tab documents the **operational graph**: local loops, GitHub Actions, release tags, Docker images, Nuitka CLI/LSP binaries, Fernet-encrypted LSP metadata, observability hooks, and security controls.
 
 ## Conceptual model
 
@@ -54,7 +54,6 @@ flowchart TB
     IMG[GHCR api + cli + lsp]
   end
   subgraph Deploy
-    CR[Cloud Run Pro API]
     PYPI[PyPI hoox-pyne]
     REL[GitHub Release]
   end
@@ -65,10 +64,9 @@ flowchart TB
   REL --> CLIBIN
   REL --> LSPBIN
   REL --> VSIXART
-  IMG --> CR
 ```
 
-**Invariant:** CI green on `main` is necessary but not sufficient for a full release. Tag `v*` fires **Build & Release** (binaries + VSIX + GitHub Release), **Publish** (`hoox-pyne` from `__about__.py`, currently 0.6.22, to PyPI), and **GHCR** (`ghcr.io/hoox-sh/pyne/{api,cli,lsp}`). Cloud Build deploys the API image separately.
+**Invariant:** CI green on `main` is necessary but not sufficient for a full release. Tag `v*` fires **Build & Release** (binaries + VSIX + GitHub Release), **Publish** (`hoox-pyne` from `__about__.py`, currently 0.6.22, to PyPI), and **GHCR** (`ghcr.io/hoox-sh/pyne/{api,cli,lsp}`).
 
 ## Interface surface
 
@@ -82,8 +80,7 @@ flowchart TB
 | Containers | `Dockerfile` targets api/api-dev/lsp/**cli** | [Docker](/pyne/docs/devops/docker) |
 | Compiled CLI / LSP | `scripts/build/compile.py --target` | [Nuitka build](/pyne/docs/devops/nuitka-build) |
 | Builtin metadata crypto | Fernet key + `.enc` | [Metadata crypto](/pyne/docs/devops/metadata-crypto) |
-| Cloud Run | `cloudbuild.yaml` | [GCP](/pyne/docs/devops/gcp) |
-| Logs / health | Flask `/`, gunicorn, Cloud Logging | [Observability](/pyne/docs/devops/observability) |
+| Logs / health | Flask `/`, gunicorn | [Observability](/pyne/docs/devops/observability) |
 | Auth, CORS, secrets | `backend/middleware/auth.py` | [Security](/pyne/docs/devops/security) |
 
 ## Internals (repo map)
@@ -97,7 +94,6 @@ flowchart TB
 | `scripts/generate_builtin_metadata.py` | Regenerates LSP `builtin_metadata.json` from live builtins |
 | `Dockerfile` / `docker-bake.hcl` | Multi-target Buildx images (api, api-dev, lsp) |
 | `docker-compose.yml` | Local API (+ optional Redis / LSP profiles) |
-| `cloudbuild.yaml` | Build → GCR push → Cloud Run deploy; optional LSP compile |
 | `vscode-extension/` | Node 22 extension package / vsce |
 
 ## Invariants & edge cases

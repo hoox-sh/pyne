@@ -6,8 +6,6 @@
 
 <div align="center">
 
-![FAILURE IS LOCAL. RESILIENCE IS GLOBAL.](brand/png/tagline-failure-is-local-github-1280x640-br-split-dark.png)
-
 [![CI](https://img.shields.io/github/actions/workflow/status/hoox-sh/pyne/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/hoox-sh/pyne/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/hoox-sh/pyne/graph/badge.svg)](https://codecov.io/gh/hoox-sh/pyne)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776ab?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)

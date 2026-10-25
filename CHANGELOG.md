@@ -2,6 +2,7 @@
 
 ### Fixed
 
+- **Docs no longer describe the brand kit or Cloud Build.** The README banner, the GCP page, and the `cloudbuild.yaml` sections are gone. `/devops/gcp` redirects to the Docker page.
 - **Optimizer TPE follows the out-of-sample score.** Holdout and walk-forward trials were split into TPE's good and bad sets by in-sample score, so the next suggestions walked the training peak. The split now uses `oos_score` when the trial has one, and `is_score` only when it does not.
 - **Cloudflare Container setup.** The readiness probe is `localhost/health` (`http://${pingEndpoint}`; a bare `/health` never reached Flask). Gunicorn in the container matches the production entrypoint (`gthread`, 1 worker, 100 threads, 120s timeout, max-requests 5000). A Worker `ADMIN_TOKEN` secret is copied into the container when the instance starts. Wrangler in `cf/` is 4.152.0.
 

@@ -7,7 +7,7 @@ tags: [devops, doc, docs, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-18T20:54:58Z
+  at: 2026-10-25T19:46:42Z
 sources:
   - id: tree
     resource: "docs/pyne/devops/observability.mdx"
@@ -39,7 +39,6 @@ Repo path `docs/pyne/devops/observability.mdx`.
   * Explain a slow run
   * Inspect live-session delta stats
   * Docker health
-  * Tail Cloud Run (gcloud)
 * Failure modes
 * See also
 

@@ -1,7 +1,7 @@
 ---
 type: "Code Module"
 title: "scripts/build"
-description: "GitHub Actions / Cloud Build compilation script."
+description: "GitHub Actions compilation script."
 resource: "scripts/build"
 tags: [build, code, scripts]
 status: stable

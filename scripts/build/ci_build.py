@@ -18,7 +18,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""GitHub Actions / Cloud Build compilation script.
+"""GitHub Actions compilation script.
 
 This script is optimized for CI environments with:
 - High parallelism
@@ -32,11 +32,6 @@ Usage (GitHub Actions):
 
     - name: Build CLI binary
       run: python scripts/build/ci_build.py --target cli --jobs 4
-
-Usage (Cloud Build):
-    steps:
-      - name: python
-        args: [python, scripts/build/ci_build.py, --target, lsp, --jobs, 4]
 """
 
 from __future__ import annotations

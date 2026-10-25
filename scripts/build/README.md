@@ -31,7 +31,7 @@ python scripts/build/compile.py --target cli --standalone
 ## Files
 
 - `compile.py` — Main build script with options for dev/CI use (`--target lsp|cli|all`)
-- `ci_build.py` — Optimized CI build script (GitHub Actions, Cloud Build)
+- `ci_build.py` — Optimized CI build script (GitHub Actions)
 
 ## What Gets Built
 
@@ -125,11 +125,6 @@ gh secret set METADATA_KEY -R hoox-sh/pyne < scripts/build/.metadata.key
 gh secret set CRYPTO_KEY -R hoox-sh/pyne < scripts/build/.metadata.key
 ```
 
-### Google Cloud Build
-
-Set substitution `_METADATA_KEY` to the same Fernet key string (see `cloudbuild.yaml`:
-`CRYPTO_KEY=${_METADATA_KEY}`).
-
 ## CI/CD
 
 ### GitHub Actions
@@ -142,16 +137,6 @@ Set substitution `_METADATA_KEY` to the same Fernet key string (see `cloudbuild.
 
 - name: Build CLI binary
   run: python scripts/build/ci_build.py --target cli --jobs 4 --skip-metadata --skip-vsix
-```
-
-### Google Cloud Build
-
-```yaml
-steps:
-  - name: python
-    args: [python, scripts/build/ci_build.py, --jobs=4]
-    env:
-      - 'CRYPTO_KEY=${_METADATA_KEY}'
 ```
 
 ## Build Time

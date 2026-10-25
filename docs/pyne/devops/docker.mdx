@@ -19,7 +19,7 @@
 
 ---
 title: "Docker"
-description: "Buildx multi-target images, Compose profiles, and Cloud Run production contract for the PYNE Pro API."
+description: "Buildx multi-target images and Compose profiles for the PYNE Pro API."
 ---
 
 # Docker
@@ -163,15 +163,6 @@ ghcr.io/hoox-sh/pyne/cli:0.6.22
 ghcr.io/hoox-sh/pyne/lsp:0.6.22
 ```
 
-Cloud Build (`cloudbuild.yaml`, **`--target api`** only):
-
-```
-gcr.io/$PROJECT_ID/pynescript/pynescript-pro-api:$COMMIT_SHA
-gcr.io/$PROJECT_ID/pynescript/pynescript-pro-api:latest
-```
-
-Substitution `_PYNESCRIPT_VERSION` in that YAML defaults to **0.6.22**, matching `__about__.py`.
-
 ## Internals
 
 ### Build stages
@@ -184,7 +175,7 @@ Substitution `_PYNESCRIPT_VERSION` in that YAML defaults to **0.6.22**, matching
 
 ### `.dockerignore`
 
-Keeps context small by excluding `tests/` (corpus), `docs/`, `brand/`, node modules, compiler `*.nbc`/`*.nbi` caches, venvs, and IDE cruft.
+Keeps context small by excluding `tests/` (corpus), `docs/`, node modules, compiler `*.nbc`/`*.nbi` caches, venvs, and IDE cruft.
 
 ### Compose healthchecks
 
@@ -196,10 +187,9 @@ API: `curl -fsS http://127.0.0.1:8080/`. Redis: `redis-cli ping`.
 2. **Read-only mounts in compose** mean dependency changes need image rebuild; source edits are visible via `PYTHONPATH` precedence.
 3. **Production target is immutable** — no live mounts; use the prod overlay or Cloud Run.
 4. **Non-root `appuser`** cannot write arbitrary paths; keep `API_KEY_STORE` under `/data`.
-5. **Cloud Build always builds `--target api`** (gunicorn). Do not point it at `api-dev`.
-6. **LSP is stdio** — not an HTTP service; use `docker compose run --rm lsp` rather than expecting a published port.
-7. **CLI is ephemeral** — `entrypoint-cli.sh` execs `pyne` (fallback `pynescript`); pass subcommands after the image name. Workdir defaults to `/work` (compose mounts the repo there).
-8. **Prod overlay is fail-closed** — `ADMIN_TOKEN` is required (`:?` interpolation); `volumes: !override` drops the dev source binds so only `api_data:/data` remains.
+5. **LSP is stdio** — not an HTTP service; use `docker compose run --rm lsp` rather than expecting a published port.
+6. **CLI is ephemeral** — `entrypoint-cli.sh` execs `pyne` (fallback `pynescript`); pass subcommands after the image name. Workdir defaults to `/work` (compose mounts the repo there).
+7. **Prod overlay is fail-closed** — `ADMIN_TOKEN` is required (`:?` interpolation); `volumes: !override` drops the dev source binds so only `api_data:/data` remains.
 
 ## Worked examples
 
@@ -259,7 +249,6 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
 
 ## See also
 
-- [GCP](/pyne/docs/devops/gcp)
 - [Security](/pyne/docs/devops/security)
 - [Pro API lifecycle](/pyne/docs/api/app-lifecycle)
 - [Local development](/pyne/docs/devops/local-dev)
