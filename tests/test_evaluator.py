@@ -2685,3 +2685,74 @@ def test_strategy_entry_qualified_path_still_dispatches():
         assert site[1] == "strategy.entry"
     else:
         raise AssertionError(f"unexpected site kind {kind}: {site!r}")
+
+
+def test_udf_plain_local_does_not_clobber_caller():
+    """``int i`` inside a UDF must not overwrite the caller's ``i``."""
+    src = """
+//@version=6
+indicator("scope")
+int i = 1
+f() =>
+    int i = 7
+    int j = 3
+    i
+f()
+"""
+    ev = NodeLiteralEvaluator()
+    ev.visit(helper.parse(src))
+    assert ev.context["i"] == 1
+    assert "j" not in ev.context
+
+
+def test_udf_local_does_not_clobber_caller_loop_counter():
+    """A UDF local used to replace ``for i`` so the sum became 7+7+7."""
+    src = """
+//@version=6
+indicator("loop")
+f() =>
+    int i = 7
+    i
+int seen = 0
+for i = 0 to 2
+    f()
+    seen := seen + i
+"""
+    ev = NodeLiteralEvaluator()
+    ev.visit(helper.parse(src))
+    assert ev.context["seen"] == 3
+
+
+def test_udf_reassign_of_outer_name_still_writes_caller():
+    """``i :=`` with no local declaration still updates the caller's ``i``."""
+    src = """
+//@version=6
+indicator("re")
+int i = 1
+f() =>
+    i := i + 1
+    i
+f()
+"""
+    ev = NodeLiteralEvaluator()
+    ev.visit(helper.parse(src))
+    assert ev.context["i"] == 2
+
+
+def test_udf_var_local_persists_across_visits():
+    """``var`` inside a UDF stays on the shared context across bars."""
+    src = """
+//@version=6
+indicator("v")
+cnt() =>
+    var int n = 0
+    n := n + 1
+    n
+k = cnt()
+"""
+    ev = NodeLiteralEvaluator()
+    tree = helper.parse(src)
+    ev.visit(tree)
+    assert ev.context["k"] == 1
+    ev.visit(tree)
+    assert ev.context["k"] == 2

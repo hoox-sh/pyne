@@ -422,6 +422,33 @@ plot(f(), "prev")
     _assert_finite_match(iv, cv, key="prev", allow_interp_zero_warmup=True)
 
 
+def test_udf_local_scope_interp_compile() -> None:
+    """A UDF ``int i`` must not overwrite the caller's ``i`` or ``for i`` on either host."""
+    src = """
+//@version=6
+indicator("udf_scope")
+f() =>
+    int i = 99
+    i
+int i = 1
+int seen = 0
+for k = 0 to 2
+    f()
+    seen := seen + k
+f()
+plot(i, "i")
+plot(seen, "seen")
+"""
+    n = 6
+    interp, compiled = _run_dual(src, _ohlcv(n))
+    if compiled is None:
+        pytest.skip("numba compile path unavailable")
+    assert interp["series"]["i"] == [1] * n
+    assert interp["series"]["seen"] == [3] * n
+    _assert_finite_match(interp["series"]["i"], compiled["series"]["i"], key="i")
+    _assert_finite_match(interp["series"]["seen"], compiled["series"]["seen"], key="seen")
+
+
 def test_seasonality_last_bar_table_does_not_crash() -> None:
     """table.merge_cells with na coords must not TypeError (builtin seasonality)."""
     from pathlib import Path

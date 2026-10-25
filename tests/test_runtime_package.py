@@ -442,3 +442,27 @@ plot(close, "c")
         assert len(getattr(st2, "_size_hist", [])) == 8
     finally:
         CustomEvaluator.__init__ = real_init  # type: ignore[method-assign]
+
+
+def test_udf_local_does_not_crash_caller_array_remove() -> None:
+    """UDF ``int i`` used to overwrite ``for i`` and crash ``array.remove``."""
+    src = """
+//@version=6
+strategy("scope")
+var array<float> st = array.new<float>(1000, 0.0)
+f_add(int p) =>
+    int i = 700 + p
+    st.set(i, st.get(i) + 1)
+    true
+var array<int> trades = array.new<int>()
+trades.push(bar_index)
+if trades.size() > 0
+    for i = trades.size() - 1 to 0
+        f_add(bar_index % 10)
+        if trades.size() > 3
+            trades.remove(i)
+plot(trades.size())
+"""
+    out = Runtime(symbol="TEST").run(src, _bars(12), mode="interpret")
+    assert "error" not in out, out.get("error")
+    assert out["plots"][-1] == 3

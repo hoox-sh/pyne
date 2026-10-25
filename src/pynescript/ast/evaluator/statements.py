@@ -29,8 +29,9 @@
   (e.g. ``var`` inside ``if barstate.islast``).
 - **``FunctionDef`` / ``TypeDef`` / ``Import``** may be skipped after the host
   sets ``_pine_defs_locked`` (avoids multi-dispatch table growth O(bars²)).
-- **UDF bodies** rebind parameters on the live ``context`` dict and restore
-  them on return (never replace ``self.context`` with a copy).
+- **UDF bodies** rebind parameters and plain locals on the live ``context``
+  dict and restore them on return (never replace ``self.context`` with a
+  copy). ``var`` / ``varip`` locals stay on that dict across calls.
 - **``na``** is ``None``; unresolved optional args are normalized via
   :func:`_normalize_na`.
 """
@@ -441,6 +442,50 @@ def _pick_method_overload(overloads: list, receiver: Any, rest_args: tuple | lis
 
     _generic_tostring.__pine_method__ = True  # type: ignore[attr-defined]
     return _generic_tostring
+
+
+def _assign_target_names(target: Any) -> list[str]:
+    """Name ids written by an assign target or a ``for`` target."""
+    if isinstance(target, ast.Name):
+        return [target.id]
+    if isinstance(target, ast.Tuple):
+        return [elt.id for elt in target.elts if isinstance(elt, ast.Name)]
+    return []
+
+
+def _udf_plain_locals(func: ast.FunctionDef) -> frozenset[str]:
+    """Names a UDF body declares that belong to the function scope.
+
+    The call shares one ``context`` dict with the caller, so these names
+    (``int i = …``, ``for`` targets) are snapshotted and restored around the
+    call. ``:=`` targets are not declarations and keep writing the caller's
+    binding.
+
+    ``var`` / ``varip`` locals are omitted: they persist on the shared dict
+    (``_var_declarations``), and restoring them would reset that state on
+    every call. Parameters are restored by the call binder.
+    """
+    params = {arg.name for arg in func.args if isinstance(arg, ast.Param)}
+    persistent: set[str] = set()
+    plain: set[str] = set()
+    stack: list[Any] = [func]
+    while stack:
+        current = stack.pop()
+        if isinstance(current, ast.Assign):
+            names = _assign_target_names(current.target)
+            if isinstance(getattr(current, "mode", None), (ast.Var, ast.VarIp)):
+                persistent.update(names)
+            else:
+                plain.update(names)
+        elif isinstance(current, (ast.ForTo, ast.ForIn)):
+            plain.update(_assign_target_names(current.target))
+        for field in getattr(current, "_fields", ()):
+            child = getattr(current, field, None)
+            if isinstance(child, list):
+                stack.extend(c for c in child if hasattr(c, "_fields"))
+            elif hasattr(child, "_fields"):
+                stack.append(child)
+    return frozenset(plain - params - persistent)
 
 
 class BreakLoop(Exception):
@@ -1603,8 +1648,9 @@ class StatementEvaluator:
         - After the first bar, hosts set ``_pine_defs_locked`` so this visitor
           no-ops and multi-dispatch tables do not grow O(bars²).
 
-        The generated callable rebinds parameters **in place** on ``context``
-        and restores prior values in ``finally`` (see nested ``user_function``).
+        The generated callable rebinds parameters and plain locals **in place**
+        on ``context`` and restores prior values in ``finally`` (see nested
+        ``user_function``). ``var`` / ``varip`` locals are left on the dict.
         """
         # Already bound on a prior bar — keep existing callables.
         if getattr(self, "_pine_defs_locked", False):
@@ -1639,6 +1685,7 @@ class StatementEvaluator:
         # when the caller passed a scalar (``src = close`` is not in
         # ``_history_names`` unless ``src`` itself is indexed).
         series_params_t = frozenset(history_in_fn & param_name_set)
+        plain_locals_t = _udf_plain_locals(node)
         fsl: dict[str, frozenset[str]] = getattr(self, "_func_series_locals", None)  # type: ignore[attr-defined]
         if fsl is None:
             fsl = {}
@@ -1655,15 +1702,16 @@ class StatementEvaluator:
             __fname=func_name,
             __series_locals=series_locals_t,
             __series_params=series_params_t,
+            __plain_locals=plain_locals_t,
             **kwargs,
         ):
             """Invoke a UDF with in-place param rebind on the live context.
 
             Hosts mutate the *same* ``context`` dict each bar (``bar_index``,
             ``time``, OHLCV). Replacing ``self.context`` with ``dict.copy()``
-            would orphan those updates (every call would see bar 0). Only
-            parameter names are scoped; other keys — including ``var``
-            locals — remain on the shared dict across bars.
+            would orphan those updates (every call would see bar 0). Parameter
+            names and plain locals are scoped. ``var`` / ``varip`` locals stay
+            on the shared dict across bars and across calls.
 
             The function name itself is always snapshotted: Pine scripts often
             reuse the UDF name as a local series (``kama() => kama = 0.0; …``).
@@ -1696,6 +1744,11 @@ class StatementEvaluator:
                 site_store = all_stores.setdefault((__fname, site), {})
 
             try:
+                # Snapshot before series restore / param bind so the caller's
+                # value wins over the per-site series that the body writes.
+                for n in __plain_locals:
+                    saved[n] = ctx[n] if n in ctx else missing
+
                 # Protect UDF binding from body series init of the same name.
                 if __fname not in saved:
                     saved[__fname] = ctx[__fname] if __fname in ctx else missing
