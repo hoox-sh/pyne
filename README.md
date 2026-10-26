@@ -13,6 +13,8 @@ Pine is usually executed inside a host chart. PYNE models the language as an ins
 
 <div align="center">
 
+![PYNE — Parse the language](brand/png/tagline-parse-the-language-github-1280x640-br-split-dark.png)
+
 [![CI](https://img.shields.io/github/actions/workflow/status/hoox-sh/pyne/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/hoox-sh/pyne/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/hoox-sh/pyne/graph/badge.svg)](https://codecov.io/gh/hoox-sh/pyne)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776ab?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
