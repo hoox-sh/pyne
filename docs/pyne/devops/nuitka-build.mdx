@@ -42,7 +42,7 @@ flowchart TB
   META[generate_builtin_metadata.py] --> JSON[builtin_metadata.json]
   JSON --> ENC[Fernet encrypt → .enc + .sha256]
   JSON --> PLAIN[plaintext for dev]
-  SRC[src/pynescript/langserver] --> NUITKA[nuitka --onefile|--standalone]
+  SRC[src/pynescript/langserver] --> NUITKA["nuitka --onefile|--standalone"]
   ENC --> NUITKA
   NUITKA --> BIN[dist/…/pynescript-lsp]
   BIN --> VSIX[optional VSIX bundle]

@@ -19,7 +19,7 @@
 
 ---
 title: "CLI Guide"
-description: "Use the pyne Click CLI to check, format, lint, compile, run, execute (Runtime.run), call MCP tools, optimize, prewarm, and fetch data."
+description: "Use the pyne Click CLI to check, format, lint, compile, run, execute (Runtime.run), corpus-test sets, call MCP tools, optimize, prewarm, and fetch data."
 ---
 
 # CLI Guide
@@ -42,6 +42,7 @@ flowchart LR
   C --> MCP[mcp call / tools]
   C --> OPT[optimize]
   C --> M[data]
+  C --> CORP[corpus]
   C --> RN[runner]
   C --> I[info]
 ```
@@ -56,6 +57,7 @@ flowchart LR
 | `compile` / `prewarm` / `run` | `pynescript.compiler` (+ `[compile]` extra) |
 | `optimize` | `pynescript.optimize.run_study` |
 | `data` | `pynescript.util.data.get_provider` |
+| `corpus` | `pynescript.util.corpus_runtime` (Rich UI over set01–set06) |
 | `runner` | HTTP client for Flask `/scripts` + `/cron/run` (`PYNE_RUNNER`) |
 | `info` | version + optional extras |
 | `execute` / `symbols` / `parity` / `diagnostics` / `builtin` | MCP ops (`Runtime.run`, outline, last-value parity) |

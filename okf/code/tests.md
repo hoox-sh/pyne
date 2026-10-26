@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-26T04:56:48Z
+  at: 2026-10-26T09:58:21Z
 sources:
   - id: tree
     resource: "tests"
@@ -53,6 +53,7 @@ okf_lock: generated
 * `test_compiler_realtime.py` — test_historical_default_compile_isrealtime_false, test_numeric_nopython_stays_historical_without_object_features, test_object_mode_execute_keeps_six_arg_positional, test_object_mode_tick_snapshot_copies_inner_lists, test_once_unconfirmed_ticks_can_refire, test_realtime_bars_default_zero_keeps_historical, test_realtime_from_bar_window, test_realtime_last_bar_sets_isrealtime_on_compile, test_realtime_last_bar_single_tick_sets_isrealtime, test_realtime_ticks_implies_last_bar_realtime, test_var_array_push_rolls_back_unconfirmed_ticks_dual_host, test_var_nested_array_push_rolls_back_unconfirmed_ticks_dual_host
 * `test_compiler_strategy.py` — TestCompileBrokerCommissionParity, TestCompileExitAndSeriesParity, TestCompileRiskDayResume, TestCompileStrategyRun, TestCompileStrategyTranspile, TestCompileTradeQueries, TestStrategyRiskAndQtyNameErrors, test_compile_mode_still_works_for_numeric_sma
 * `test_compiler_switch_udt_coverage.py` — TestAssignFormsCompile, TestCollectionsCompile, TestInterpretParitySmoke, TestStrategyCompile, TestSwitchCompile, TestUDTCompile
+* `test_corpus_cli.py` — runner, test_corpus_help, test_corpus_list_json, test_corpus_list_plain, test_corpus_rel_path_and_data_root, test_corpus_run_help, test_corpus_run_parse_mini_set, test_is_expected_fail_helpers, test_root_help_mentions_corpus, test_run_corpus_api_parse
 * `test_corpus_collections_r8.py` — TestArrayNegativeIndexRuntime, TestArraySoftNaRuntime, TestIntentionalRuntimeErrorStillFails, TestMapMatrixSoftNaRuntime, TestStrMatchAndPosRuntime
 * `test_corpus_runtime_expected_fail.py` — test_corpus_rel_path_normalizes_under_tests_data, test_expected_fail_rels_includes_docs_demos, test_is_expected_fail_accepts_absolute_and_basename, test_is_expected_fail_does_not_promote_unknown_paths, test_is_expected_fail_path_and_error_required, test_parse_and_timeout_routes_would_classify_listed_only
 * `test_corpus_runtime_residuals.py` — TestCorpusPerceptronDmiScripts, TestCustomMethodDmiDualNamespace, TestIntentionalRuntimeErrorDemos, TestLineGetPriceSoftNaAndSeries, TestTaChangeUnary, TestTaDmiNaLengthSoft, test_corpus_0886_reading_line_values_demo, test_corpus_0951_getprice

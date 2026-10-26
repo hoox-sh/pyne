@@ -1,3 +1,13 @@
+## [0.6.24] — 2026-10-26
+
+### Added
+
+- **`pyne corpus` CLI.** Rich front-end over the Runtime corpus engine (`list` + `run`) for set01–set06. Modes: interpret / compile / auto / parse. Shared engine lives in `pynescript.util.corpus_runtime` (scripts/corpus_run_runtime.py is a thin wrapper).
+
+### Changed
+
+- **Rich CLI volt palette.** Shared `pynescript.util.rich_theme` tracks the HOOX landing `/pyne` `data-color-pack=volt` tokens (accent `#B7EF09`, muted `#9E9F98`, border `#3D3E37`, fg `#EEEEEE`). Used by `pyne` / `corpus` / `download-builtins` / `scripts/showcase.py`.
+
 ## [0.6.23] — 2026-10-26
 
 ### Fixed

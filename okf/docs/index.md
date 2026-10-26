@@ -6,17 +6,17 @@
 * [PROGRESS_REPORT.md](PROGRESS_REPORT.md) - PYNE is a complete Pine Script™ v5/v6 toolchain: ANTLR4 grammar → ASDL AST → bar-loop evaluator (interpret / compile / mode=auto), Language Server Protocol, Flask Pro API, and…
 * [README.md](README.md) - Self-hosted product manuals (HOOX-style MDX) for this monorepo.
 * [REFACTORING_EXECUTIVE_SUMMARY.md](REFACTORING_EXECUTIVE_SUMMARY.md) - Status: ✅ PHASE 1 COMPLETE (85% Overall).
-* [ROADMAP.md](ROADMAP.md) - Live package: hoox-pyne 0.6.23.
+* [ROADMAP.md](ROADMAP.md) - Live package: hoox-pyne 0.6.24.
 * [WRITING.md](WRITING.md) - Source of truth for agents authoring MDX under docs/pyne/ and docs/axis/.
 * [compatibility_guarantee.md](compatibility_guarantee.md) - Product map (working / partial / residual / out of scope):.
 * [index.md](index.md) - docs/index.md document.
 * [Known divergences from reference Pine semantics](known_divergences.md) - Status: intentional or residual gaps; track until closed or product-scoped.
 * [license.md](license.md) - Default: GNU AGPL-3.0-or-later (LICENSE).
-* [missing_features.md](missing_features.md) - Live package: hoox-pyne 0.6.23 (src/pynescript/about.py).
+* [missing_features.md](missing_features.md) - Live package: hoox-pyne 0.6.24 (src/pynescript/about.py).
 * [numerical_validation_report.md](numerical_validation_report.md) - Validation Period: 15–20 November 2025.
 * [optimization_notes.md](optimization_notes.md) - This document describes the performance optimizations applied to PyneScript core features to improve parsing, evaluation, and AST manipulation efficiency.
 * [pine_v6_full_surface_inventory.md](pine_v6_full_surface_inventory.md) - Scope: Every registered evaluator builtin, major series/variables, language constructs, and known gaps.
-* [pinescript_implementation_status.md](pinescript_implementation_status.md) - Live package: hoox-pyne 0.6.23.
+* [pinescript_implementation_status.md](pinescript_implementation_status.md) - Live package: hoox-pyne 0.6.24.
 * [rating.md](rating.md) - This rating is based on the published claims and evidence in docs/compatibilityguarantee.md.
 * [reference.md](reference.md) - The following pages are generated directly from the source tree with sphinx-apidoc. Regenerate them by running hatch run docs:build after making code changes.
 * [usage.md](usage.md) - Install the latest release from PyPI (hoox-pyne). The distribution name is hoox-pyne; the import package remains pynescript; preferred CLIs are pyne / pyne-lsp (aliases:…

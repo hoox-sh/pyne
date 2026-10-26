@@ -560,56 +560,19 @@ def _write_summary(stats: PhaseStats, sets: list[str], kind: str) -> Path | None
 
 
 # ---------------------------------------------------------------------------
-# Rich UI — PYNE volt palette (hoox-landing-page app/globals.css)
-#
-# Product packs (lib/products.ts): HOOX=signal(orange) · PYNE=volt(lime) · AXIS=void
-# CSS tokens → hex for Rich (oklch → sRGB), data-color-pack="volt":
-#   --accent           oklch(0.88 0.22 125) → #B7EF09  volt lime
-#   --foreground       oklch(0.95 0.01 110) → #EFEFE8
-#   --muted-foreground oklch(0.84 0.02 110) → #CBCCBD
-#   --border           oklch(0.46 0.02 110) → #58594C
-#   --destructive      oklch(0.577 0.245 27)→ #E7000B
-#   accent_dim (pulse) oklch(0.65 0.18 125) → #76A000
-#   warn (terminal)    oklch(0.78 0.14 75)  → #EBA941  amber
+# Rich UI — PYNE volt palette (shared with ``pynescript.util.rich_theme``)
 # ---------------------------------------------------------------------------
 
-# Brand hex — match /pyne volt pack on hoox-landing-page
-_PYNE_ACCENT = "#B7EF09"
-_PYNE_ACCENT_DIM = "#76A000"
-_PYNE_FG = "#EFEFE8"
-_PYNE_MUTED = "#CBCCBD"
-_PYNE_BORDER = "#58594C"
-_PYNE_FAIL = "#E7000B"
-_PYNE_OK = "#B7EF09"  # success = brand volt (same family as CTAs on /pyne)
-_PYNE_WARN = "#EBA941"
-
-
-def _has_rich() -> bool:
-    try:
-        import rich  # noqa: F401
-
-        return True
-    except ImportError:
-        return False
-
-
-def _pyne_theme() -> Any:
-    """Rich Theme aligned with hoox-landing-page PYNE volt pack."""
-    from rich.theme import Theme
-
-    return Theme(
-        {
-            "pyne.accent": f"bold {_PYNE_ACCENT}",
-            "pyne.accent_dim": _PYNE_ACCENT_DIM,
-            "pyne.fg": _PYNE_FG,
-            "pyne.muted": _PYNE_MUTED,
-            "pyne.ok": f"bold {_PYNE_OK}",
-            "pyne.fail": f"bold {_PYNE_FAIL}",
-            "pyne.warn": f"bold {_PYNE_WARN}",
-            "pyne.border": _PYNE_BORDER,
-            "pyne.pulse": f"bold {_PYNE_ACCENT}",
-        }
-    )
+from pynescript.util.rich_theme import ACCENT as _PYNE_ACCENT
+from pynescript.util.rich_theme import ACCENT_DIM as _PYNE_ACCENT_DIM
+from pynescript.util.rich_theme import BORDER as _PYNE_BORDER
+from pynescript.util.rich_theme import FAIL as _PYNE_FAIL
+from pynescript.util.rich_theme import FG as _PYNE_FG
+from pynescript.util.rich_theme import MUTED as _PYNE_MUTED
+from pynescript.util.rich_theme import OK as _PYNE_OK
+from pynescript.util.rich_theme import WARN as _PYNE_WARN
+from pynescript.util.rich_theme import has_rich as _has_rich
+from pynescript.util.rich_theme import rich_theme as _pyne_theme
 
 
 def _build_layout(state: FlowState) -> Any:

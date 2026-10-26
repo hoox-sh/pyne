@@ -1,7 +1,7 @@
 ---
 type: "Document"
 title: "pinescript_implementation_status.md"
-description: "Live package: hoox-pyne 0.6.23."
+description: "Live package: hoox-pyne 0.6.24."
 resource: "docs/pinescript_implementation_status.md"
 tags: [doc, docs, pinescript-implementation-status]
 status: stable

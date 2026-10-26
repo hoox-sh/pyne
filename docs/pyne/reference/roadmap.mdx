@@ -19,14 +19,14 @@
 
 ---
 title: "Roadmap"
-description: "PYNE forward plan — dual-host residual, runtime residual, plot parity harness; drawing export parity landed. hoox-pyne 0.6.23."
+description: "PYNE forward plan — dual-host residual, runtime residual, plot parity harness; drawing export parity landed. hoox-pyne 0.6.24."
 ---
 
 # Roadmap
 
 ## Abstract
 
-The roadmap is a **living prioritization document**, not a contract. Source: `docs/ROADMAP.md`. Core v6 language/builtins are essentially closed. Product **warm-compile (H2)**, **series caps (T1)**, **pending-fill (F2)**, **L2 webhooks**, **corpus Runtime residual (C1)**, **package Runtime SoT (H1 largely done)** and **drawing export parity** have **landed** (set01–04 parse **99.96%**, Runtime interpret **100%** excl. intentional demos). **0.6.10–0.6.23:** engine-owned live plane (WS `/ws/live`), refcount-pooled shared sessions (F-29), opt-in delta envelopes, gevent WebSocket worker (F-30), CCXT provider caching, live session persistence (SQLite journal), production profile + `PYNE_DATA_DIR`, Docker prod on VPS, Redis unpublished + opt-in auth. What remains: **H1 worker-only extras**. **P1p** official TV builtins are **0 MISMATCH** (optional set0x community corpus unmeasured). Incremental TA and Supertrend goldens have landed.
+The roadmap is a **living prioritization document**, not a contract. Source: `docs/ROADMAP.md`. Core v6 language/builtins are essentially closed. Product **warm-compile (H2)**, **series caps (T1)**, **pending-fill (F2)**, **L2 webhooks**, **corpus Runtime residual (C1)**, **package Runtime SoT (H1 largely done)** and **drawing export parity** have **landed** (set01–04 parse **99.96%**, Runtime interpret **100%** excl. intentional demos). **0.6.10–0.6.24:** engine-owned live plane (WS `/ws/live`), refcount-pooled shared sessions (F-29), opt-in delta envelopes, gevent WebSocket worker (F-30), CCXT provider caching, live session persistence (SQLite journal), production profile + `PYNE_DATA_DIR`, Docker prod on VPS, Redis unpublished + opt-in auth. What remains: **H1 worker-only extras**. **P1p** official TV builtins are **0 MISMATCH** (optional set0x community corpus unmeasured). Incremental TA and Supertrend goldens have landed.
 
 ## Conceptual model
 
@@ -60,7 +60,7 @@ flowchart LR
 | Strategy events + broker (OCA, commission, risk) | |
 | Numba + object-mode compile | MVP+ (disk IR cache, `mode=auto`, `time_arr`, cache recovery; UDT/switch/matrix/drawing/round/color residuals) |
 | Pro API + auth + Docker | (`mode` default `auto`; targets api / api-dev / lsp / **cli**) |
-| PyPI **`hoox-pyne`** | live **0.6.23** ([pypi.org/project/hoox-pyne](https://pypi.org/project/hoox-pyne/)); CLIs `pyne` / `pyne-lsp` |
+| PyPI **`hoox-pyne`** | live **0.6.24** ([pypi.org/project/hoox-pyne](https://pypi.org/project/hoox-pyne/)); CLIs `pyne` / `pyne-lsp` |
 | CLI surface (`check`/`format`/`compile`/`run`/`prewarm`/…) | + Nuitka binaries + CLI Docker image |
 | Alert engine + L2 webhooks | dual-host export + outbound webhooks |
 | Drawing `max_*_count` GC | package + Pro API + AXIS Pyodide |

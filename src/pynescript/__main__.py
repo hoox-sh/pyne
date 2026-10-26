@@ -40,6 +40,7 @@ Commands
 - ``runner`` — deploy / tick hosted scripts on the Pro API (``PYNE_RUNNER``)
 - ``data`` — fetch market bars (mock / Yahoo / …)
 - ``download-builtins`` — fetch TradingView builtin Pine templates
+- ``corpus`` — test Runtime against Pine corpus sets (set01–set06)
 - ``info`` — version and optional extras (numba, rich, …)
 - ``execute`` — ``Runtime.run`` (MCP ``pyne_execute``: interpret / compile / auto)
 - ``symbols`` / ``parity`` / ``diagnostics`` / ``builtin`` — MCP-backed JSON tools
@@ -66,6 +67,10 @@ import click
 from pynescript.__about__ import __version__ as _cli_version
 from pynescript.mcp.cli import mcp_group
 from pynescript.mcp.cli import register_cli_commands
+from pynescript.util.corpus_cli import corpus_group
+from pynescript.util.rich_theme import ACCENT as _ACCENT
+from pynescript.util.rich_theme import console as _rich_console
+from pynescript.util.rich_theme import has_rich as _has_rich
 from pynescript.util.runner_cli import runner_group
 
 
@@ -89,15 +94,8 @@ _configure_stdio()
 
 
 # ---------------------------------------------------------------------------
-# Theme (PYNE volt) + optional Rich
+# Theme (PYNE volt — shared with corpus / download-builtins / showcase)
 # ---------------------------------------------------------------------------
-
-_ACCENT = "#B7EF09"
-_MUTED = "#CBCCBD"
-_OK = "#B7EF09"
-_FAIL = "#E7000B"
-_WARN = "#EBA941"
-_FG = "#EFEFE8"
 
 _EPILOG = """\
 \b
@@ -114,6 +112,8 @@ Examples:
   pyne data AAPL --provider yahoo --period 6mo
   pyne download-builtins --list
   pyne download-builtins --yes
+  pyne corpus list
+  pyne corpus run --sets set01,set02 --mode compile
   pyne info
   pyne execute script.pine --mode interpret --bars 50
   pyne builtin ta.sma
@@ -133,15 +133,6 @@ Docs:             https://hoox.sh/pyne
 """
 
 
-def _has_rich() -> bool:
-    try:
-        import rich  # noqa: F401
-
-        return True
-    except ImportError:
-        return False
-
-
 def _has_mcp_sdk() -> bool:
     try:
         import mcp  # noqa: F401
@@ -152,29 +143,7 @@ def _has_mcp_sdk() -> bool:
 
 def _console(*, force: bool = False) -> Any | None:
     """Rich console when TTY + rich available; honors ``NO_COLOR``."""
-    import os
-
-    if os.environ.get("NO_COLOR"):
-        return None
-    if not _has_rich():
-        return None
-    if not force and not sys.stdout.isatty():
-        return None
-    from rich.console import Console
-    from rich.theme import Theme
-
-    return Console(
-        theme=Theme(
-            {
-                "pyne.accent": f"bold {_ACCENT}",
-                "pyne.ok": f"bold {_OK}",
-                "pyne.fail": f"bold {_FAIL}",
-                "pyne.warn": f"bold {_WARN}",
-                "pyne.muted": _MUTED,
-                "pyne.fg": _FG,
-            }
-        )
-    )
+    return _rich_console(force=force)
 
 
 def _echo(msg: str = "", *, err: bool = False) -> None:
@@ -1412,6 +1381,7 @@ def download_builtins_cmd(
 
 cli.add_command(runner_group)
 cli.add_command(mcp_group)
+cli.add_command(corpus_group)
 register_cli_commands(cli)
 
 

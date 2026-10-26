@@ -42,17 +42,17 @@ Implemented in `backend/datastore/series.py` and `backend/api/data_series.py`, w
 ```mermaid
 flowchart LR
   CLI[Client / AXIS] --> AUTH{{require_api_key}}
-  AUTH --> SRV[/data/series, /data/series/bars]
-  AUTH --> PROV[/data/series/provide]
-  AUTH --> FETCH[/data/series/fetch]
-  AUTH --> DSESS[/data/session]
+  AUTH --> SRV["/data/series, /data/series/bars"]
+  AUTH --> PROV["/data/series/provide"]
+  AUTH --> FETCH["/data/series/fetch"]
+  AUTH --> DSESS["/data/session"]
   FETCH --> CCXT[CCXT fetch_ohlcv]
   PROV --> DB[(ohlcv.sqlite3)]
   FETCH --> DB
   SRV --> DB
   DSESS --> DB
   DSESS --> SESS[InterpretSession]
-  TICK[/data/session/id/tick] --> CCXT
+  TICK["/data/session/id/tick"] --> CCXT
   TICK --> SESS
 ```
 

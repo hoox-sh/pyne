@@ -33,7 +33,7 @@ Semantic tokens let the server paint identifiers with roles richer than TextMate
 ```mermaid
 flowchart LR
   REQ["semanticTokens/full or /range"] --> AST{cached tree?}
-  AST -->|missing source / parse fail| EMPTY[SemanticTokens data=[]]
+  AST -->|missing source / parse fail| EMPTY["SemanticTokens data=[]"]
   AST -->|ok| WALK[_collect FunctionDef TypeDef EnumDef Assign Attribute]
   WALK --> SORT[sort by line, col]
   SORT --> CLIP{range request?}

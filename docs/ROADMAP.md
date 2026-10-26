@@ -19,7 +19,7 @@
 
 # PYNE Roadmap
 
-**Live package:** `hoox-pyne` **0.6.23**.
+**Live package:** `hoox-pyne` **0.6.24**.
 
 ---
 

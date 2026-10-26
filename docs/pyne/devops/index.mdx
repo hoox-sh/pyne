@@ -26,7 +26,7 @@ description: "CI matrices, containers, Nuitka LSP binaries, metadata crypto, and
 
 ## Abstract
 
-PYNE is a **multi-surface product**: pure-Python library + Click CLI (`pyne` / alias `pynescript`), pygls Language Server (`pyne-lsp`), Flask Pro API, VS Code extension (`hoox-sh.pyne` 0.4.5; the Python package is 0.6.23), and Docker targets (`api` / `cli` / `lsp`). Edge workers and the AXIS charting PWA are **sister repos** — not built in this tree.
+PYNE is a **multi-surface product**: pure-Python library + Click CLI (`pyne` / alias `pynescript`), pygls Language Server (`pyne-lsp`), Flask Pro API, VS Code extension (`hoox-sh.pyne` 0.4.5; the Python package is 0.6.24), and Docker targets (`api` / `cli` / `lsp`). Edge workers and the AXIS charting PWA are **sister repos** — not built in this tree.
 
 This tab documents the **operational graph**: local loops, GitHub Actions, release tags, Docker images, Nuitka CLI/LSP binaries, Fernet-encrypted LSP metadata, observability hooks, and security controls.
 
@@ -66,7 +66,7 @@ flowchart TB
   REL --> VSIXART
 ```
 
-**Invariant:** CI green on `main` is necessary but not sufficient for a full release. Tag `v*` fires **Build & Release** (binaries + VSIX + GitHub Release), **Publish** (`hoox-pyne` from `__about__.py`, currently 0.6.23, to PyPI), and **GHCR** (`ghcr.io/hoox-sh/pyne/{api,cli,lsp}`).
+**Invariant:** CI green on `main` is necessary but not sufficient for a full release. Tag `v*` fires **Build & Release** (binaries + VSIX + GitHub Release), **Publish** (`hoox-pyne` from `__about__.py`, currently 0.6.24, to PyPI), and **GHCR** (`ghcr.io/hoox-sh/pyne/{api,cli,lsp}`).
 
 ## Interface surface
 

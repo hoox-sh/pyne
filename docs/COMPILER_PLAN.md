@@ -54,7 +54,7 @@ Disk IR cache with prewarm API/CLI. Cache meta v18. Corrupt-cache recovery for N
 
 ## Implementation Status
 
-As of **hoox-pyne 0.6.23** (late 2026), the plan is no longer purely prospective: an MVP compile path is landed and covered by automated tests (`tests/test_compiler_numba.py`, `tests/test_compiler_objects.py`). Follow-on sprints and residual passes (through 2026-10) expanded numeric/object coverage, host warm-compile (H2), and interpret-to-compile series parity tooling.
+As of **hoox-pyne 0.6.24** (late 2026), the plan is no longer purely prospective: an MVP compile path is landed and covered by automated tests (`tests/test_compiler_numba.py`, `tests/test_compiler_objects.py`). Follow-on sprints and residual passes (through 2026-10) expanded numeric/object coverage, host warm-compile (H2), and interpret-to-compile series parity tooling.
 
 ### Landed Correctness and Host Surface
 

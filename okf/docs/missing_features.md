@@ -1,7 +1,7 @@
 ---
 type: "Document"
 title: "missing_features.md"
-description: "Live package: hoox-pyne 0.6.23 (src/pynescript/about.py)."
+description: "Live package: hoox-pyne 0.6.24 (src/pynescript/about.py)."
 resource: "docs/missing_features.md"
 tags: [doc, docs, missing-features]
 status: stable

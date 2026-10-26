@@ -7,7 +7,7 @@ tags: [doc, docs, enduser, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-19T19:06:56Z
+  at: 2026-10-26T09:58:21Z
 sources:
   - id: tree
     resource: "docs/pyne/enduser/reference/cli-commands.mdx"
@@ -35,6 +35,7 @@ Repo path `docs/pyne/enduser/reference/cli-commands.mdx`.
   * pyne run
   * pyne optimize
   * pyne data
+  * pyne corpus
   * pyne runner
   * pyne info (ls)
   * pyne execute
@@ -48,6 +49,8 @@ Repo path `docs/pyne/enduser/reference/cli-commands.mdx`.
 
 # Mentions
 
+* [scripts](/code/scripts.md)
 * [src/pynescript](/code/src/pynescript.md)
 * [src/pynescript/ast](/code/src/pynescript/ast.md)
 * [src/pynescript/util](/code/src/pynescript/util.md)
+* [tests](/code/tests.md)
