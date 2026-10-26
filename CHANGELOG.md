@@ -1,10 +1,18 @@
-## [Unreleased]
+## [0.6.23] — 2026-10-26
 
 ### Fixed
 
+- **`ticker.new(prefix, ticker)` TV idiom.** `ticker_new` now follows TradingView's `(prefix, ticker, session, adjustment)` signature and joins to `PREFIX:TICKER` (one-arg full-symbol shorthand still works). `request.security(ticker.new(syminfo.prefix, syminfo.ticker), …)` matches the chart symbol instead of returning foreign na. Compile emit joins two-arg `ticker.new` the same way.
+- **`mode=compile` no longer swallows parse errors.** `compile_script` refuses the corpus `_MINIMAL_STUB` substitution when the raw input is not already that stub, so garbage like `@@@not pine` fails with `error_kind=parse` under both interpret and compile.
 - **Docs no longer describe the brand kit or Cloud Build.** The README banner, the GCP page, and the `cloudbuild.yaml` sections are gone. `/devops/gcp` redirects to the Docker page.
 - **Optimizer TPE follows the out-of-sample score.** Holdout and walk-forward trials were split into TPE's good and bad sets by in-sample score, so the next suggestions walked the training peak. The split now uses `oos_score` when the trial has one, and `is_score` only when it does not.
 - **Cloudflare Container setup.** The readiness probe is `localhost/health` (`http://${pingEndpoint}`; a bare `/health` never reached Flask). Gunicorn in the container matches the production entrypoint (`gthread`, 1 worker, 100 threads, 120s timeout, max-requests 5000). A Worker `ADMIN_TOKEN` secret is copied into the container when the instance starts. Wrangler in `cf/` is 4.152.0.
+
+### Tests
+
+- **Coverage wave 3.** Compiler emit/engine edges (array/matrix/map/UDT/switch/strategy compile scripts + interpret↔compile parity smokes), deeper `request.*` / host packing paths, arrays/strategy/TA-core helpers, backend app auth/404/stats edges. `tests/test_known_bugs_regression.py` locks the two defects fixed above.
+- **Coverage wave 2.** Direct `numba_builtins` `*_inc` kernels (SMA/EMA/RSI/MACD/ATR/…), `request.*` / drawing / Runtime host edge suites, LSP `server.py` handler coverage (~99%), TA `common.py` helpers, statements/expressions Runtime edges, plus host/pine_facade pure helpers.
+- **Broad unit coverage expansion.** New suites pin previously thin modules: shared `strategy_risk_core`, MCP serialize/catalog/dispatch/ops (optimize/runner/builtins), Redis/SQLite key-store fakes, backend services (backtest/chart render) + schema `validate()`, optimize space/objective/events edges, chronological `series_buffer`, LSP protocol utils/workspace helpers, corpus sanitizer pure helpers, datafeed util/poll paths, runner CLI HTTP client, numeric/string/timeframe/utility Runtime edges, and AST error/visitor/collector/type_system.
 
 ## [0.6.22] — 2026-10-25
 

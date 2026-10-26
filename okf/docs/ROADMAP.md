@@ -1,7 +1,7 @@
 ---
 type: "Document"
 title: "ROADMAP.md"
-description: "Live package: hoox-pyne 0.6.22."
+description: "Live package: hoox-pyne 0.6.23."
 resource: "docs/ROADMAP.md"
 tags: [doc, docs, roadmap]
 status: stable

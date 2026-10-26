@@ -20,7 +20,7 @@
 
 PYNE is a complete Pine Script™ v5/v6 toolchain: ANTLR4 grammar → ASDL AST → bar-loop evaluator (interpret / compile / `mode=auto`), Language Server Protocol, Flask Pro API, and edge workers sharing one evaluate contract. The project is **not** a TradingView® platform clone — it is an independent, inspectable language engine whose canonical claim is **language coverage**, not bit-identical platform parity.
 
-Live package: **`hoox-pyne` 0.6.22** (`src/pynescript/__about__.py`). Import package: `pynescript`. CLIs: **`pyne`** / **`pyne-lsp`** (aliases `pynescript` / `pynescript-lsp`).
+Live package: **`hoox-pyne` 0.6.23** (`src/pynescript/__about__.py`). Import package: `pynescript`. CLIs: **`pyne`** / **`pyne-lsp`** (aliases `pynescript` / `pynescript-lsp`).
 
 ## Components Status
 
@@ -53,7 +53,7 @@ EXPECTED_FAIL scripts are path-listed intentional demos (library `runtime.error`
 
 ## Recently Completed Themes (do not re-plan as greenfield)
 
-- **0.6.10–0.6.22**: engine-owned live plane (WS `/ws/live`), refcount-pooled shared sessions (F-29), opt-in delta envelopes, gevent WebSocket worker (F-30), CCXT provider caching + tick-walk sharing, live session persistence (SQLite journal), production profile + `PYNE_DATA_DIR`, Docker prod on VPS, Redis unpublished + opt-in auth, CORS for AXIS authenticated requests.
+- **0.6.10–0.6.23**: engine-owned live plane (WS `/ws/live`), refcount-pooled shared sessions (F-29), opt-in delta envelopes, gevent WebSocket worker (F-30), CCXT provider caching + tick-walk sharing, live session persistence (SQLite journal), production profile + `PYNE_DATA_DIR`, Docker prod on VPS, Redis unpublished + opt-in auth, CORS for AXIS authenticated requests.
 - **0.6.7–0.6.9**: response windowing (`from_bar`/`to_bar`), live evaluation sessions (O(1) tick / O(delta) append), engine-owned OHLCV store, `GET /stats`, `PYNE_DEBUG`, faster interpret dispatch, compile `ta.uo`.
 - **Earlier**: interpret↔compile plot parity harness (official TV builtins **0 MISMATCH**), series caps (`PYNE_SERIES_CAP`, T1), pending-fill averaging (F2), Supertrend goldens (F1), `timeframe.change` D/W/M exchange calendar, UDT `sort_field` on `array.binary_search*`, `export const`/types/enums, multiline strings, square-bracket wrapping, drawing export parity.
 
@@ -74,9 +74,9 @@ Longer horizon (not next): ML wrappers, automatic refactor, parallel/distributed
 
 | Doc | Role | Status |
 |-----|------|--------|
-| `docs/pyne/index.mdx` | Product hub + what's new | Current (0.6.22) |
-| `docs/missing_features.md` | Living gap analysis | Current (0.6.22) |
-| `docs/pinescript_implementation_status.md` | High-level impl summary | Current (0.6.22) |
+| `docs/pyne/index.mdx` | Product hub + what's new | Current (0.6.23) |
+| `docs/missing_features.md` | Living gap analysis | Current (0.6.23) |
+| `docs/pinescript_implementation_status.md` | High-level impl summary | Current (0.6.23) |
 | `docs/pyne/reference/compatibility.mdx` | Grouped compatibility map | Current (honest "working / partial / by design") |
 | `docs/pyne/reference/missing-features.mdx` | Product-facing gap annex | Current |
 | `docs/pyne/reference/pine-v6-surface.mdx` | Name-level dispatch summary | Current (941 / 255 / 0 missing) |

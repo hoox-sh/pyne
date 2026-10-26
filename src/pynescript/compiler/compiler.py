@@ -5230,7 +5230,18 @@ class CompilerVisitor(NodeVisitor):
         if func_name in ("ticker_heikinashi", "heikinashi"):
             self._ensure_heikinashi_arrays()
             return repr("__HEIKINASHI__")
-        # ticker.heikinashi / ticker.new / ticker.standard / …
+        # ticker.new — TV (prefix, ticker[, session, adjustment]) joins PREFIX:TICKER
+        if func_name == "ticker_new":
+            self.object_mode = True
+            if len(args) >= 2:
+                return f"(str({args[0]}) + ':' + str({args[1]}))"
+            if args:
+                return f"str({args[0]})"
+            sym_kw = kwargs.get("symbol") or kwargs.get("ticker")
+            if sym_kw is not None:
+                return f"str({sym_kw})"
+            return repr("SYMBOL")
+        # ticker.heikinashi / ticker.standard / ticker.renko / …
         if func_name.startswith("ticker_"):
             self.object_mode = True
             if args:

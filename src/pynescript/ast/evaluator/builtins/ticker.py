@@ -87,31 +87,59 @@ class TickerInfo:
 
 
 def ticker_new(
-    symbol: str = "",
+    prefix: str | None = None,
+    ticker: str | None = None,
     session: str | None = None,
-    adjust: str | None = None,
+    adjustment: str | None = None,
     *extra: object,
     **kwargs: object,
 ) -> TickerInfo:
-    """Create a new ticker object.
+    """Create a ticker id (TradingView ``ticker.new``).
 
-    Creates a ticker symbol with optional session and adjustment parameters.
-    Extra positional/keyword args (reference has more overloads) are ignored.
+    Reference signature::
 
-    Args:
-        symbol: The ticker symbol (e.g., "AAPL", "EURUSD")
-        session: Trading session ("regular", "extended", etc.)
-        adjust: Adjustment type ("splits", "dividends", etc.)
+        ticker.new(prefix, ticker, session, adjustment) → simple string
+
+    Forms:
+
+    - ``ticker.new(prefix, ticker[, session[, adjustment]])`` → ``"PREFIX:TICKER"``
+    - ``ticker.new(full_symbol)`` — one-arg shorthand (bare or ``EXCHANGE:SYM``)
+    - kwargs: ``symbol=`` (full-id shorthand), ``session=``, ``adjustment=`` / ``adjust=``
+
+    Extra positional/keyword args are ignored so arity drift does not TypeError.
 
     Returns:
-        TickerInfo object representing the configured ticker
+        TickerInfo whose ``.symbol`` is the ticker id string (``str()``-able).
     """
+    sym_kw: object | None = None
     if kwargs:
         session = kwargs.get("session", session)  # type: ignore[assignment]
-        adjust = kwargs.get("adjustment", kwargs.get("adjust", adjust))  # type: ignore[assignment]
-        if not symbol and "symbol" in kwargs:
-            symbol = str(kwargs["symbol"])
-    return TickerInfo(str(symbol) if symbol is not None else "", session, adjust)
+        adjustment = kwargs.get(  # type: ignore[assignment]
+            "adjustment", kwargs.get("adjust", adjustment)
+        )
+        if prefix is None and kwargs.get("prefix") is not None:
+            prefix = str(kwargs["prefix"])
+        if ticker is None and kwargs.get("ticker") is not None:
+            ticker = str(kwargs["ticker"])
+        sym_kw = kwargs.get("symbol")
+
+    p = str(prefix).strip() if prefix is not None else ""
+    t = str(ticker).strip() if ticker is not None else ""
+
+    if p and t:
+        # TV two-or-more-arg form: exchange prefix + ticker name.
+        symbol = f"{p}:{t}"
+    elif t:
+        symbol = t
+    elif p:
+        # One-arg shorthand: full symbol (or bare ticker) in the first slot.
+        symbol = p
+    elif sym_kw is not None:
+        symbol = str(sym_kw)
+    else:
+        symbol = ""
+
+    return TickerInfo(symbol, session, adjustment)
 
 
 def ticker_modify(

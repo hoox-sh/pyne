@@ -4382,11 +4382,22 @@ class Runtime:
                 compile_ms = (time.perf_counter() - t_compile0) * 1000.0
                 _dbg("compile: FAILED src=%s in %.2fms: %s", cache_key[:12], compile_ms, e)
                 _stats.count("compile.errors")
+                # Parse failures inside compile_script are typed as CompileEmitError
+                # with a "parse failed:" prefix (or a SyntaxError cause). Surface
+                # them as error_kind=parse so interpret/compile agree on garbage input.
+                cause = e.__cause__ if isinstance(getattr(e, "__cause__", None), BaseException) else None
+                is_parse = (
+                    "parse failed" in str(e).lower()
+                    or isinstance(cause, SyntaxError)
+                    or isinstance(e, SyntaxError)
+                )
+                kind = ERROR_KIND_PARSE if is_parse else ERROR_KIND_COMPILE
+                prefix = "Parse Error" if is_parse else "Compile Error"
                 return _attach_logs_profile(
                     _error_payload(
-                        _format_exc_message("Compile Error", e),
-                        kind=ERROR_KIND_COMPILE,
-                        exc=e,
+                        _format_exc_message(prefix, cause if (is_parse and cause is not None) else e),
+                        kind=kind,
+                        exc=cause if (is_parse and cause is not None) else e,
                     ),
                     total_ms=(time.perf_counter() - t_total0) * 1000.0,
                     bars=n_bars_hint,

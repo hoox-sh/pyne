@@ -9,7 +9,7 @@ An independent open toolchain for the Pine Script™ language: ANTLR4 grammar, A
 
 Pine is usually executed inside a host chart. PYNE models the language as an inspectable pipeline — source through parse, AST, and deterministic bar-loop evaluation — so the same scripts can be analysed and run outside any particular UI. Import `pynescript`. CLIs: `pyne`, `pyne-lsp`, `pyne-mcp` (aliases `pynescript`, `pynescript-lsp`).
 
-**0.6.22** · PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/)
+**0.6.23** · PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/)
 
 <div align="center">
 
@@ -90,14 +90,14 @@ pip install -e ".[lsp,pro]"
 GHCR multi-arch images on `v*` tags:
 
 ```bash
-docker pull ghcr.io/hoox-sh/pyne/cli:0.6.22
-docker run --rm -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/cli:0.6.22 check script.pine
+docker pull ghcr.io/hoox-sh/pyne/cli:0.6.23
+docker run --rm -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/cli:0.6.23 check script.pine
 
-docker pull ghcr.io/hoox-sh/pyne/lsp:0.6.22
-docker run --rm -i -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/lsp:0.6.22
+docker pull ghcr.io/hoox-sh/pyne/lsp:0.6.23
+docker run --rm -i -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/lsp:0.6.23
 
-docker pull ghcr.io/hoox-sh/pyne/api:0.6.22
-docker run --rm -p 5002:8080 -e ADMIN_TOKEN=… ghcr.io/hoox-sh/pyne/api:0.6.22
+docker pull ghcr.io/hoox-sh/pyne/api:0.6.23
+docker run --rm -p 5002:8080 -e ADMIN_TOKEN=… ghcr.io/hoox-sh/pyne/api:0.6.23
 ```
 
 Packages: [ghcr.io/hoox-sh/pyne](https://github.com/hoox-sh/pyne/pkgs/container/pyne%2Fcli).

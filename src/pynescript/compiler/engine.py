@@ -1451,11 +1451,27 @@ def _share_compiled(
 
 
 def _sanitize_source(source: str) -> str:
-    """Best-effort corpus sanitize; keep raw source if sanitize fails."""
+    """Best-effort corpus sanitize; keep raw source if sanitize fails.
+
+    Refuse the corpus ``_MINIMAL_STUB`` substitution when the caller's raw
+    input is not already that stub. Soft-stubbing non-Pine input would turn
+    parse failures into a synthetic ``plot(close)`` success under
+    ``mode=compile``. Corpus tooling that wants the stub calls
+    :func:`sanitize_corpus_source` directly.
+    """
     try:
+        from pynescript.util.corpus_sanitize import _MINIMAL_STUB
         from pynescript.util.corpus_sanitize import sanitize_corpus_source
 
-        return sanitize_corpus_source(source)
+        cleaned = sanitize_corpus_source(source)
+        stub_norm = _MINIMAL_STUB.rstrip("\n")
+        cleaned_norm = cleaned.rstrip("\n")
+        if cleaned_norm == stub_norm and source.rstrip("\n") != stub_norm:
+            _log.debug(
+                "sanitize_corpus_source returned minimal stub; keeping raw so parse fails honestly"
+            )
+            return source
+        return cleaned
     except Exception as exc:
         _log.debug("sanitize_corpus_source failed (using raw): %s", exc)
         return source

@@ -79,7 +79,7 @@ docker buildx bake                     # default group: api + api-dev
 docker buildx bake all                 # api + api-dev + lsp + cli
 
 # Multi-platform (amd64 + arm64). Set REGISTRY to push:
-REGISTRY=ghcr.io/hoox-sh/pyne TAG=0.6.22 docker buildx bake release
+REGISTRY=ghcr.io/hoox-sh/pyne TAG=0.6.23 docker buildx bake release
 # release group = api-release + cli-release + lsp-release
 # → ghcr.io/hoox-sh/pyne/{api,cli,lsp}:0.6.14
 # Prefer: make docker-push-ghcr  (workflow GHCR on v* tags)
@@ -158,9 +158,9 @@ Production overlay (`docker-compose.prod.yml`): target `api`, **`volumes: !overr
 GitHub Container Registry (workflow **GHCR**, tags `v*`):
 
 ```
-ghcr.io/hoox-sh/pyne/api:0.6.22
-ghcr.io/hoox-sh/pyne/cli:0.6.22
-ghcr.io/hoox-sh/pyne/lsp:0.6.22
+ghcr.io/hoox-sh/pyne/api:0.6.23
+ghcr.io/hoox-sh/pyne/cli:0.6.23
+ghcr.io/hoox-sh/pyne/lsp:0.6.23
 ```
 
 ## Internals
