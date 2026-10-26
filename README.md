@@ -13,15 +13,18 @@ Pine is usually executed inside a host chart. PYNE models the language as an ins
 
 <div align="center">
 
-![PYNE — Parse the language](brand/png/tagline-parse-the-language-github-1280x640-br-split-dark.png)
+![HOOX — Distributed by design](brand/png/tagline-distributed-by-design-github-1280x640-br-split-dark.png)
 
+[![HOOX](https://img.shields.io/badge/HOOX-mesh-f38020?style=flat-square)](https://github.com/hoox-sh/hoox)
+[![PYNE](https://img.shields.io/badge/PYNE-engine-3776ab?style=flat-square)](https://github.com/hoox-sh/pyne)
+[![AXIS](https://img.shields.io/badge/AXIS-chart-5a0fc8?style=flat-square)](https://github.com/hoox-sh/axis)
 [![CI](https://img.shields.io/github/actions/workflow/status/hoox-sh/pyne/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/hoox-sh/pyne/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/hoox-sh/pyne/graph/badge.svg)](https://codecov.io/gh/hoox-sh/pyne)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776ab?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![PyPI](https://img.shields.io/pypi/v/hoox-pyne?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/hoox-pyne/)
-[![License](https://img.shields.io/github/license/hoox-sh/pyne?style=flat-square)](LICENSE)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-6b7280?style=flat-square)](LICENSE)
 
-[hoox.sh/pyne](https://hoox.sh/pyne) · [docs](https://hoox.sh/pyne/docs) · [CHANGELOG](CHANGELOG.md)
+[hoox.sh](https://hoox.sh) · [hoox.sh/pyne](https://hoox.sh/pyne) · [docs](https://hoox.sh/pyne/docs) · [CHANGELOG](CHANGELOG.md)
 
 </div>
 
