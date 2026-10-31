@@ -138,7 +138,7 @@ const PYNE_THEMES: Record<string, { label: string; description: string }> = {
 };
 
 /** Quick-pick items: None first, then the three product themes. */
-function themeChoices(): Array<{ id: string; label: string; description: string }> {
+function themeChoices() {
   return [
     { id: 'none', label: 'None', description: 'Use user/system settings' },
     ...Object.entries(PYNE_THEMES).map(([id, theme]) => ({
@@ -149,12 +149,12 @@ function themeChoices(): Array<{ id: string; label: string; description: string 
   ];
 }
 
-function currentThemeId(): string {
+function currentThemeId() {
   const id = (cfg<string>('theme') || 'none').toLowerCase();
   return id === 'none' || id in PYNE_THEMES ? id : 'none';
 }
 
-function currentSyntaxId(): string {
+function currentSyntaxId() {
   const id = (cfg<string>('syntaxHighlighting') || 'void').toLowerCase();
   return id === 'none' || id in PYNE_THEMES ? id : 'void';
 }
@@ -163,7 +163,7 @@ function currentSyntaxId(): string {
  * Workbench theme (UI chrome + hover cards). `none` leaves the user/system
  * theme untouched.
  */
-async function applyPyneTheme(): Promise<void> {
+async function applyPyneTheme() {
   const id = currentThemeId();
   if (id === 'none') {
     log('PYNE workbench theme: none (keeping user/system theme).');
@@ -208,7 +208,7 @@ function loadThemeJson(
  * `editor.semanticTokenColorCustomizations` for `pinescript`; `none` removes
  * the overrides so the active theme's colors apply.
  */
-async function applyPyneSyntax(): Promise<void> {
+async function applyPyneSyntax() {
   const id = currentSyntaxId();
   const editorConfig = workspace.getConfiguration('editor', { languageId: 'pinescript' });
   if (id === 'none') {
