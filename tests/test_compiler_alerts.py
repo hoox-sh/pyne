@@ -182,6 +182,64 @@ plot(close)
         assert [_alert_core(a) for a in calerts] == [_alert_core(a) for a in interp.get("alerts") or []]
 
 
+class TestCompileAlertsInUDF:
+    """``alert()`` / ``alertcondition()`` inside a user-defined function.
+
+    Regression: ``__emit_alert`` used to be nested inside
+    ``execute_script_compiled``, so a UDF calling ``alert()`` raised
+    ``NameError: name '__emit_alert' is not defined``. The helper is now
+    module-scoped and shared by the bar loop and every UDF.
+    """
+
+    def test_alert_inside_udf_fires(self) -> None:
+        src = """//@version=6
+indicator("u")
+method bullish() =>
+    close > open
+if bullish()
+    alert("bullish", alert.freq_all)
+plot(close)
+"""
+        interp, compiled = _run_dual(src, _bars(6))
+        calerts = list(compiled.get("alerts") or [])
+        ialerts = list(interp.get("alerts") or [])
+        assert calerts
+        assert all(a.get("message") == "bullish" for a in calerts)
+        assert [_alert_core(a) for a in calerts] == [_alert_core(a) for a in ialerts]
+
+    def test_alertcondition_inside_udf_fires(self) -> None:
+        src = """//@version=6
+indicator("u")
+method up() =>
+    close > open
+if up()
+    alertcondition(true, "Up", "Fired")
+plot(close)
+"""
+        interp, compiled = _run_dual(src, _bars(6))
+        calerts = list(compiled.get("alerts") or [])
+        assert calerts
+        assert all(a.get("source") == "alertcondition" for a in calerts)
+        assert [_alert_core(a) for a in calerts] == [_alert_core(a) for a in interp.get("alerts") or []]
+
+    def test_transpile_emits_module_level_emit_alert(self) -> None:
+        src = """//@version=6
+indicator("u")
+method f() =>
+    alert("x")
+f()
+plot(close)
+"""
+        clear_compile_cache()
+        clear_disk_compile_cache()
+        code = transpile(src)
+        assert "__alerts = []" in code
+        assert "__alert_fire_bars = {}" in code
+        assert "def __emit_alert(" in code
+        compiled = compile_script(src)
+        assert compiled.object_mode is True
+
+
 class TestCompileAlertsNumericEligible:
     def test_scripts_without_alert_return_empty_and_stay_numeric(self) -> None:
         src = """//@version=6

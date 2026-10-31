@@ -26,9 +26,16 @@ import re
 import numpy as np
 import pytest
 
+from pynescript.ast.helper import clear_parse_cache
+from pynescript.compiler.engine import clear_compile_cache
 from pynescript.compiler.engine import compile_script
 from pynescript.compiler.engine import has_numba
 from pynescript.compiler.engine import transpile
+
+
+def _clear_caches() -> None:
+    clear_parse_cache()
+    clear_compile_cache()
 
 
 pytestmark = pytest.mark.skipif(not has_numba(), reason="numba not installed")
@@ -4651,3 +4658,55 @@ plot(w, title="w")
                 assert np.isnan(inc), i
             else:
                 assert abs(float(full) - float(inc)) < 1e-10, i
+
+
+class TestCompileRequestSecurityInUDF:
+    """``request.security`` inside a UDF must thread ``data_feed``/``data_provider``.
+
+    Regression: the emitted UDF did not receive ``execute_script_compiled``'s
+    ``data_feed``/``data_provider`` locals, raising
+    ``NameError: name 'data_feed' is not defined`` at call time.
+    """
+
+    def test_security_inside_udf_runs_without_name_error(self) -> None:
+        _clear_caches()
+        src = """//@version=6
+indicator("s")
+method tf_close(tf) =>
+    request.security(syminfo.tickerid, tf, close)
+c = tf_close(timeframe.period)
+plot(c, title="c")
+"""
+        compiled = compile_script(src)
+        assert compiled.object_mode is True
+        o, h, l, c, v = _ohlcv(50)
+        out = compiled.run(o, h, l, c, v)
+        assert "error" not in out, out.get("error")
+        # request.security without lookahead returns the last completed bar.
+        assert np.allclose(out["c"][1:], c[:-1], equal_nan=True)
+
+
+class TestCompileArrayNamedUDF:
+    """User UDFs named ``array_*``/``matrix_*`` must not be stolen by builtin stubs.
+
+    Regression: ``array_set_divs(div_pointer, index)=>`` was routed to the
+    ``array_*`` builtin stub, dropping its free-variable / chart-context
+    arguments and raising ``TypeError: ... missing ... required positional
+    arguments`` at call time.
+    """
+
+    def test_array_prefixed_udf_runs(self) -> None:
+        _clear_caches()
+        src = """//@version=6
+indicator("a")
+array_set_divs(div_pointer, index)=>
+    array.set(div_pointer, index, 1.0)
+v = array.new_float(4)
+array_set_divs(v, 0)
+plot(array.get(v, 0), title="v0")
+"""
+        compiled = compile_script(src)
+        o, h, l, c, vv = _ohlcv(10)
+        out = compiled.run(o, h, l, c, vv)
+        assert "error" not in out, out.get("error")
+        assert list(out["v0"]) == [1.0] * 10

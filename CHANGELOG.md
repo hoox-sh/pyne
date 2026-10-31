@@ -1,3 +1,18 @@
+## [0.6.25] — 2026-10-31
+
+### Fixed
+
+- **Selector-UDF string misclassification.** A single UDF whose first param merely selects by string (`ma(type, src, len)`) was misclassified as string-returning by the overload branch of `_call_returns_string`, so the result series became a string buffer and `close > upperk` compared Float64 vs Str (`UFuncTypeError: ufunc 'greater'`) — or leaked an object array into an njit call (`TypingError: non-precise array(pyobject)`). Only a genuine multi-impl overload set now trips the string branch. (7 set05 scripts)
+- **Tuple-returning builtin stored to a single var.** `macdValue = ta.macd(...)` treated the raw tuple as a float64 scalar → `ValueError: setting an array element with a sequence`. `_is_safe_numeric_expr` now rejects tuple-returning numba builtins (macd/dmi/supertrend/bb/kc/stochrsi/aroon/vwap) unless the expr is explicitly indexed `(...)[k]`, wrapping the store in `safe_float` (first element). (3 set05 scripts)
+- **UDF declared after a same-named input.** `maType = input.string(...)` followed by `maType(src, ...) =>` rebound the Python def, so every `maType(...)` call raised `'str' object is not callable`. Top-level UDF names are now hoisted before the body walk so the input renames to `maType__loc` while calls still resolve to the function. (2 set05 scripts)
+- **Drawing/table handle classified as a UDT series.** A `{'kind': …}` drawing/table dict tripped `_looks_like_object_handle_expr` and went through the UDT *series* branch (`t_arr[__bar_idx]`) before the drawing branch could make it a scalar handle. The UDT branch now skips drawing RHS. (1 set05 script)
+- **Crossover with a `None` level.** A security-tuple stub level of `None` crashed `float(None)` in `_cross_pair`. Object mode now emits `na_num(level)` (None → nan); njit numeric levels stay a bare `float()` cast. (2 set05 scripts)
+- **User array named `X_arr` colliding with a series buffer.** `var float[] ph_arr` and the series buffer for `bool ph` (also `ph_arr`) lowered to the same Python identifier, so the per-bar `ph_arr[__bar_idx]` write hit `IndexError: list assignment index out of range` on the user's short list. The user handle is renamed to `X_arr__hdl` and threaded via `ident_map`. (8 set05 scripts)
+
+### Tests
+
+- **`tests/test_set05_corpus_regressions.py`.** Locks all five compiler defects above with minimal reproduction cases (transpile assertions + compile/run parity), bringing 22 previously-failing set05 corpus scripts to green.
+
 ## [0.6.24] — 2026-10-26
 
 ### Added
