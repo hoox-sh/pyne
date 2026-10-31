@@ -6,7 +6,7 @@
 * [Builtin Metadata](builtin-metadata.md) - JSON catalog for LSP completion and hover; generation pipeline; Fernet encryption, CRYPTOKEY / METADATAKEY, and decrypt path.
 * [Editor Clients](clients.md) - Wire pyne-lsp into Neovim, Zed, Emacs, Helix, Sublime, and generic LSP hosts.
 * [Language Server](index.md) - PYNE Language Server Protocol — diagnostics, completion, hover, formatting for .pyne / .pine and editor clients.
-* [VS Code Extension](vscode-extension.md) - PYNE VS Code extension: LanguageClient host for pyne-lsp, TextMate grammar, snippets, settings, and VSIX 0.5.0.
+* [VS Code Extension](vscode-extension.md) - PYNE VS Code extension: LanguageClient host for pyne-lsp, TextMate grammar, snippets, settings, and VSIX 0.5.1.
 
 # Nested
 

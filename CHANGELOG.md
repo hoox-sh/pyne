@@ -1,3 +1,16 @@
+## [0.6.26] — 2026-10-31
+
+### Added
+
+- **VS Code extension 0.5.1.** Library annotation hover cards (`//@function`, `//@param`, `//@returns`, `//@type`, `//@field`, `//@variable`, `//@description`) with multi-line Markdown continuation; per-feature settings and toggle commands for every LSP capability; Pine snippets; semantic-token theme defaults; diagnostics severity mapping; format-on-save; auto-install of `hoox-pyne[lsp]` with automatic venv creation for PEP 668 Python; backend URL + hosted `pynescript.online` toggle; Install/Start/Test Backend commands; ESLint flat config and `@vscode/test-electron` tests.
+- **`hoox-pyne-backend` wheel.** Standalone backend distribution (`packages/backend`) that packages `backend/` and exposes the `pyne-backend` console script; `backend.app:main()` and `backend/__main__.py` make `python -m backend` work from a pip install.
+- **Pyodide engine 0.6.26.** AXIS vendors the rebuilt `pynescript-0.6.26` browser wheel.
+
+### Changed
+
+- **`make package`** builds the main sdist/wheel and the backend wheel; new `make build-backend-wheel`.
+- **Docs** updated for the extension release, backend wheel, and library annotation hover.
+
 ## [0.6.25] — 2026-10-31
 
 ### Fixed

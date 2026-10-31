@@ -11,6 +11,14 @@ Part of the **[HOOX](https://hoox.sh) open trading stack** — sister products: 
 > Independent, unofficial extension. **Not** affiliated with, endorsed by, or sponsored by TradingView, Inc.  
 > Pine Script™ and TradingView® are trademarks of TradingView, Inc.
 
+## What's new in 0.5.1
+
+- **Library annotation hover** — `//@function`, `//@param`, `//@returns`, `//@type`, `//@field`, `//@variable`, and `//@description` now render as rich Markdown cards, including multi-line `//` continuation (headings, lists, code fences, blockquotes, tables, links).
+- **Auto-install** of `hoox-pyne[lsp]` (and the full backend extras) with pip, including automatic virtualenv creation for PEP 668 (externally managed) Python.
+- **Backend integration** — `backend.url`, `backend.useHosted` (`pynescript.online`), plus **Install Backend**, **Start Backend**, and **Test Backend Connection** commands.
+- **Snippets**, per-feature toggles, semantic-token theme defaults, diagnostics severity mapping, and format-on-save.
+- New standalone **`hoox-pyne-backend`** wheel (`pyne-backend` / `python -m backend`).
+
 ## Features
 
 | Feature | Details |
@@ -23,11 +31,13 @@ Part of the **[HOOX](https://hoox.sh) open trading stack** — sister products: 
 | **Inlay hints** | Assignment types, parameter-name hints on dotted builtin calls (`ta.sma(close, 14)` → `source:` / `length:`) |
 | **Document links** | Clickable `http(s)` URLs in comments and string literals |
 | **Document color** | `#hex` swatches with `colorPresentation` rewrite |
+| **Library annotation hover** | `//@function` / `//@param` / `//@returns` / `//@type` / `//@field` / `//@variable` render as Markdown cards — headings, lists, code fences, blockquotes, tables, links, two-space line breaks |
 | **Status bar** | `PYNE LSP` indicator (click → server output) |
 | **Auto-detect LSP** | `pyne-lsp` (or alias `pynescript-lsp`) on `PATH`, or `python3 -m pynescript.langserver` |
 | **Auto-install server** | Prompts (or auto-installs) `hoox-pyne[lsp]` with pip when the server is missing |
 | **Pro API** | `PYNE: Run on Pro` — POST active script to your backend `/run` (local or hosted `pynescript.online`) |
 | **Backend** | `PYNE: Install Backend (Pro API)`, `PYNE: Start Backend`, `PYNE: Test Backend Connection` |
+| **Backend wheel** | `pip install hoox-pyne-backend` → `pyne-backend` / `python -m backend` |
 
 Every LSP feature above has a `pynescript.<feature>.enabled` setting and a `PYNE: Toggle <Feature>` palette command, so you can turn individual features off without restarting the server.
 
@@ -81,7 +91,7 @@ npm run package
 code --install-extension pyne-*.vsix
 ```
 
-Site download: [https://hoox.sh/pyne-vscode.vsix](https://hoox.sh/pyne-vscode.vsix) (unversioned alias). Versioned `pyne-vscode-0.5.0.vsix` is built in this folder and on GitHub Releases.
+Site download: [https://hoox.sh/pyne-vscode.vsix](https://hoox.sh/pyne-vscode.vsix) (unversioned alias). Versioned `pyne-vscode-0.5.1.vsix` is built in this folder and on GitHub Releases.
 
 > The VSIX is **self-contained** (esbuild bundles `vscode-languageclient`). You still need the **language server** on the machine (`pip install "hoox-pyne[lsp]"`).
 
@@ -179,6 +189,13 @@ Palette toggles: **Toggle Diagnostics** / **Toggle Completion** / **Toggle Hover
 - **PYNE: Start Backend** — runs `python -m backend.app` from `pynescript.backend.path` (or the workspace folder) in a terminal, with `PORT` taken from `backend.url`. Requires a PYNE checkout containing `backend/app.py`.
 - **PYNE: Test Backend Connection** — GETs `{backend}/health` and reports the status.
 
+You can also install the backend as its own wheel (no checkout needed):
+
+```bash
+pip install hoox-pyne-backend
+pyne-backend          # or: python -m backend
+```
+
 For the hosted service you do not need to install or start anything — just enable `backend.useHosted` and set your Pro API key.
 
 ## Docker (optional)
@@ -186,7 +203,7 @@ For the hosted service you do not need to install or start anything — just ena
 You do **not** need a local Python install if you run the language server from the **LSP image**. The VSIX is still installed in the editor; only the server process is containerized.
 
 ```bash
-docker pull ghcr.io/hoox-sh/pyne/lsp:0.6.24
+docker pull ghcr.io/hoox-sh/pyne/lsp:0.6.26
 # local bake:  make docker-build-lsp
 ```
 
@@ -199,7 +216,7 @@ Pin the extension to Docker (`-i` keeps stdio open). `${workspaceFolder}` is exp
     "run", "-i", "--rm",
     "-v", "${workspaceFolder}:/work",
     "-w", "/work",
-    "ghcr.io/hoox-sh/pyne/lsp:0.6.24"
+    "ghcr.io/hoox-sh/pyne/lsp:0.6.26"
   ]
 }
 ```
@@ -262,7 +279,7 @@ pyne-lsp
 | Extension id | `hoox-sh.pyne` |
 | Package name | `pyne` |
 | Display name | **PYNE Language Support** |
-| Version | 0.5.0 |
+| Version | 0.5.1 |
 
 ## License
 
