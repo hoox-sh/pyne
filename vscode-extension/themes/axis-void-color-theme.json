@@ -1,6 +1,6 @@
 {
   "$schema": "vscode://schemas/color-theme",
-  "name": "PYNE Void",
+  "name": "AXIS Void",
   "type": "dark",
   "colors": {
     "editor.background": "#030304",

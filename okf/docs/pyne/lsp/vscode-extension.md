@@ -7,7 +7,7 @@ tags: [doc, docs, lsp, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-31T20:03:42Z
+  at: 2026-10-31T20:31:47Z
 sources:
   - id: tree
     resource: "docs/pyne/lsp/vscode-extension.mdx"
@@ -30,14 +30,7 @@ Repo path `docs/pyne/lsp/vscode-extension.mdx`.
   * Hosted pyne-lsp methods (not reimplemented in TypeScript)
   * Activation
   * Settings (pynescript.)
-  * Commands
-  * Client options
-* Internals
-  * Automatic install
-  * Build
-  * Snippets
-  * Backend and Pro (Run on Pro)
-  * Themes (Void / Volt / Orange)
+  * Themes (AXIS Void / Hoox Signal / PYNE Volt)
 * Invariants and edge cases
 * Worked example — extension development
 * Failure modes

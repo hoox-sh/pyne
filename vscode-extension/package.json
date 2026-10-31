@@ -72,7 +72,6 @@
     "onCommand:pynescript.openDocumentLink",
     "onCommand:pynescript.runOnPro",
     "onCommand:pynescript.installLanguageServer",
-    "onCommand:pynescript.selectTheme",
     "onCommand:pynescript.selectSyntax",
     "onCommand:pynescript.installBackend",
     "onCommand:pynescript.startBackend",
@@ -122,19 +121,19 @@
     ],
     "themes": [
       {
-        "label": "PYNE Void",
+        "label": "AXIS Void",
         "uiTheme": "vs-dark",
-        "path": "./themes/pyne-void-color-theme.json"
+        "path": "./themes/axis-void-color-theme.json"
+      },
+      {
+        "label": "Hoox Signal",
+        "uiTheme": "vs-dark",
+        "path": "./themes/hoox-signal-color-theme.json"
       },
       {
         "label": "PYNE Volt",
         "uiTheme": "vs-dark",
         "path": "./themes/pyne-volt-color-theme.json"
-      },
-      {
-        "label": "PYNE Orange",
-        "uiTheme": "vs-dark",
-        "path": "./themes/pyne-orange-color-theme.json"
       }
     ],
     "configurationDefaults": {
@@ -149,208 +148,212 @@
         "files.insertFinalNewline": true
       }
     },
-    "configuration": {
-      "type": "object",
-      "title": "PYNE",
-      "properties": {
-        "pynescript.lsp.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable the PYNE language server (completion, hover, diagnostics, symbols)."
-        },
-        "pynescript.lsp.command": {
-          "type": "string",
-          "default": "auto",
-          "description": "LSP launch command. Use \"auto\" to try pyne-lsp (then pynescript-lsp) on PATH, then python -m pynescript.langserver. Or set an absolute path, or \"docker\" with lsp.args for ghcr.io/hoox-sh/pyne/lsp. ${workspaceFolder} is expanded."
-        },
-        "pynescript.lsp.python": {
-          "type": "string",
-          "default": "python3",
-          "description": "Python interpreter used when lsp.command is auto and neither pyne-lsp nor pynescript-lsp is on PATH (must have: pip install \"hoox-pyne[lsp]\")."
-        },
-        "pynescript.lsp.args": {
-          "type": "array",
-          "items": {
-            "type": "string"
+    "configuration": [
+      {
+        "title": "PYNE: Appearance",
+        "properties": {
+          "pynescript.syntaxHighlighting": {
+            "type": "string",
+            "enum": [
+              "none",
+              "void",
+              "signal",
+              "volt"
+            ],
+            "default": "void",
+            "markdownDescription": "Pine token palette for the TextMate grammar and language-server semantic tokens. Independent of `#pynescript.theme#`; select `none` to inherit the active theme's colors.",
+            "enumDescriptions": [
+              "None \u2014 inherit the active theme's Pine colors.",
+              "AXIS Void \u2014 periwinkle and grey tokens.",
+              "Hoox Signal \u2014 signal-orange and grey tokens.",
+              "PYNE Volt \u2014 lime and grey tokens."
+            ]
+          }
+        }
+      },
+      {
+        "title": "PYNE: Language Server",
+        "properties": {
+          "pynescript.lsp.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Start the PYNE language server for Pine files. Turn this off to keep only syntax highlighting, snippets, and themes."
           },
-          "default": [],
-          "description": "Extra arguments passed to the language server process."
-        },
-        "pynescript.theme": {
-          "type": "string",
-          "enum": [
-            "none",
-            "void",
-            "volt",
-            "orange"
-          ],
-          "enumDescriptions": [
-            "None — keep the user/system workbench theme.",
-            "PYNE Void — indigo accent, near-black surfaces.",
-            "PYNE Volt — lime accent, neutral surfaces.",
-            "PYNE Orange — signal orange accent."
-          ],
-          "default": "none",
-          "description": "Workbench theme (UI chrome + hover cards). `none` keeps your current user/system theme."
-        },
-        "pynescript.syntaxHighlighting": {
-          "type": "string",
-          "enum": [
-            "none",
-            "void",
-            "volt",
-            "orange"
-          ],
-          "enumDescriptions": [
-            "None — use the active theme's Pine token colors.",
-            "PYNE Void — AXIS void token palette.",
-            "PYNE Volt — AXIS volt token palette.",
-            "PYNE Orange — AXIS orange token palette."
-          ],
-          "default": "void",
-          "description": "Pine syntax highlighting palette (TextMate + semantic tokens). Independent of pynescript.theme; `none` uses the active theme's colors."
-        },
-        "pynescript.install.autoInstall": {
-          "type": "boolean",
-          "default": false,
-          "description": "When the language server is missing, install it automatically with pip (no prompt). Requires a Python 3.10+ interpreter with pip."
-        },
-        "pynescript.install.autoPrompt": {
-          "type": "boolean",
-          "default": true,
-          "description": "When the language server is missing and autoInstall is off, show a one-time prompt offering to install it with pip."
-        },
-        "pynescript.install.package": {
-          "type": "string",
-          "default": "hoox-pyne[lsp]",
-          "description": "pip requirement spec installed by “PYNE: Install Language Server” (default: hoox-pyne[lsp])."
-        },
-        "pynescript.install.python": {
-          "type": "string",
-          "default": "",
-          "description": "Python interpreter used for pip install (and as an LSP module-launch candidate). Empty = fall back to pynescript.lsp.python, then python3 / python / py."
-        },
-        "pynescript.install.args": {
-          "type": "array",
-          "items": {
-            "type": "string"
+          "pynescript.lsp.command": {
+            "type": "string",
+            "default": "auto",
+            "markdownDescription": "How to launch `pyne-lsp`. `auto` tries `pyne-lsp`, then `pynescript-lsp` on `PATH`, then `python -m pynescript.langserver`. Use an absolute path for a custom binary, or `docker` to run the GHCR image with `#pynescript.lsp.args#`. `${workspaceFolder}` is expanded."
           },
-          "default": [],
-          "description": "Extra arguments passed to pip install (e.g. [\"--no-cache-dir\"])."
-        },
-        "pynescript.install.createVenv": {
-          "type": "boolean",
-          "default": true,
-          "description": "When the resolved Python is externally managed (PEP 668), create an isolated virtualenv under the extension storage and install there."
-        },
-        "pynescript.install.venv": {
-          "type": "string",
-          "default": "",
-          "description": "Explicit virtualenv directory to create/use for the language server. Empty = auto (extension storage) when needed."
-        },
-        "pynescript.formatting.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable formatting support (when the server supports it)."
-        },
-        "pynescript.diagnostics.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable diagnostic squiggles from the language server."
-        },
-        "pynescript.diagnostics.severity": {
-          "type": "object",
-          "default": {},
-          "description": "Override diagnostic severity by lint code prefix, e.g. {\"W\": \"Hint\"} demotes W001-style warnings to hints. Keys are code prefixes; values are Error / Warning / Information / Hint."
-        },
-        "pynescript.completion.snippets": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable snippet completions for builtin functions."
-        },
-        "pynescript.hover.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Show hover information for identifiers, builtins, and types."
-        },
-        "pynescript.signatureHelp.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Show function signature help when typing call arguments."
-        },
-        "pynescript.semanticTokens.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Colorize tokens by language type (namespace, function, variable, keyword, …) via the language server."
-        },
-        "pynescript.documentHighlight.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Highlight all occurrences of the identifier under the cursor."
-        },
-        "pynescript.linkedEditing.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable linked editing (rename-as-you-type) for the same identifier in one document. Also requires the editor's linkedEditing setting."
-        },
-        "pynescript.selectionRange.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable smart selection (expand/shrink selection around the cursor)."
-        },
-        "pynescript.documentLink.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Detect http(s) links in comments and string literals and make them clickable."
-        },
-        "pynescript.codeAction.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Offer code actions such as Convert to Pine v6 and the W001 QuickFix."
-        },
-        "pynescript.formatOnSave.enabled": {
-          "type": "boolean",
-          "default": false,
-          "description": "Format the document on save using the language server (requires pynescript.formatting.enabled)."
-        },
-        "pynescript.pro.enabled": {
-          "type": "boolean",
-          "default": false,
-          "description": "Enable PYNE Pro integration (Run on Pro). Requires pynescript.pro.apiKey and a backend URL (pynescript.backend.url or the hosted backend)."
-        },
-        "pynescript.pro.apiKey": {
-          "type": "string",
-          "default": "",
-          "password": true,
-          "description": "Pro API key (minted via POST /auth/create_key on your Pro instance). Stored in VS Code settings only."
-        },
-        "pynescript.backend.url": {
-          "type": "string",
-          "default": "http://127.0.0.1:5002",
-          "description": "PYNE backend base URL (no trailing /run), e.g. http://127.0.0.1:5002 or a self-hosted Pro API."
-        },
-        "pynescript.backend.useHosted": {
-          "type": "boolean",
-          "default": false,
-          "description": "Use the hosted pynescript.online backend with PYNE Pro instead of pynescript.backend.url."
-        },
-        "pynescript.backend.hostedUrl": {
-          "type": "string",
-          "default": "https://pynescript.online",
-          "description": "Hosted backend base URL used when pynescript.backend.useHosted is on."
-        },
-        "pynescript.backend.package": {
-          "type": "string",
-          "default": "hoox-pyne[pro,lsp]",
-          "description": "pip requirement spec installed by “PYNE: Install Backend (Pro API)” (default: hoox-pyne[pro,lsp])."
-        },
-        "pynescript.backend.path": {
-          "type": "string",
-          "default": "",
-          "description": "Path to a PYNE checkout containing backend/app.py, used by “PYNE: Start Backend”. Empty = first workspace folder."
+          "pynescript.lsp.python": {
+            "type": "string",
+            "default": "python3",
+            "markdownDescription": "Python interpreter used by `auto` when no `pyne-lsp` or `pynescript-lsp` executable is on `PATH`. It must have `pip install \"hoox-pyne[lsp]\"`."
+          },
+          "pynescript.lsp.args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "markdownDescription": "Extra arguments appended to the language server process. With `\"docker\"`, these are the `docker run` arguments."
+          }
+        }
+      },
+      {
+        "title": "PYNE: Editor Features",
+        "properties": {
+          "pynescript.formatting.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable document formatting \u2014 full document, selection, and on-type \u2014 from the language server."
+          },
+          "pynescript.formatOnSave.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "Format Pine files when saving. Requires `#pynescript.formatting.enabled#`."
+          },
+          "pynescript.diagnostics.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Show errors, warnings, and hints from the language server."
+          },
+          "pynescript.diagnostics.severity": {
+            "type": "object",
+            "default": {},
+            "markdownDescription": "Remap diagnostic severity by lint-code prefix, e.g. `{\"W\": \"Hint\"}` renders `W001`-style warnings as hints. Allowed values: `Error`, `Warning`, `Information`, `Hint`."
+          },
+          "pynescript.completion.snippets": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include snippets for builtin functions and declarations in autocomplete."
+          },
+          "pynescript.hover.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Show hover cards with signatures, documentation, and type information."
+          },
+          "pynescript.signatureHelp.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Show parameter hints while typing function arguments."
+          },
+          "pynescript.semanticTokens.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Colorize identifiers by semantic type (namespace, function, variable, keyword, \u2026) from language-server tokens."
+          },
+          "pynescript.documentHighlight.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Highlight other occurrences of the identifier under the cursor."
+          },
+          "pynescript.linkedEditing.enabled": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "Rename matching identifiers as you type. Also requires the editor setting `editor.linkedEditing`."
+          },
+          "pynescript.selectionRange.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable smart expand/shrink selection around the cursor."
+          },
+          "pynescript.documentLink.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Make http(s) URLs in comments and strings clickable."
+          },
+          "pynescript.codeAction.enabled": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "Offer code actions such as **Convert to Pine v6** and the `W001` quick fix."
+          }
+        }
+      },
+      {
+        "title": "PYNE: Installation",
+        "properties": {
+          "pynescript.install.autoInstall": {
+            "type": "boolean",
+            "default": false,
+            "description": "Install the language server with pip automatically when it is missing, without prompting. Requires Python 3.10+ with pip."
+          },
+          "pynescript.install.autoPrompt": {
+            "type": "boolean",
+            "default": true,
+            "description": "Ask once whether to install the language server when it is missing and automatic install is off."
+          },
+          "pynescript.install.package": {
+            "type": "string",
+            "default": "hoox-pyne[lsp]",
+            "markdownDescription": "pip requirement installed by **PYNE: Install Language Server**."
+          },
+          "pynescript.install.python": {
+            "type": "string",
+            "default": "",
+            "markdownDescription": "Python interpreter used for `pip install` and as a fallback server launcher. Empty = `#pynescript.lsp.python#`, then `python3`, `python`, `py`."
+          },
+          "pynescript.install.args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "markdownDescription": "Extra arguments for `pip install`, e.g. `[\"--no-cache-dir\"]`."
+          },
+          "pynescript.install.createVenv": {
+            "type": "boolean",
+            "default": true,
+            "description": "Create an isolated virtualenv in extension storage when the system Python is externally managed (PEP 668)."
+          },
+          "pynescript.install.venv": {
+            "type": "string",
+            "default": "",
+            "description": "Explicit virtualenv directory to create or reuse for the language server. Empty = automatic (extension storage) when needed."
+          }
+        }
+      },
+      {
+        "title": "PYNE: Pro & Backend",
+        "properties": {
+          "pynescript.pro.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "Enable PYNE Pro features such as **Run on Pro**. Requires `#pynescript.pro.apiKey#` and a reachable backend."
+          },
+          "pynescript.pro.apiKey": {
+            "type": "string",
+            "default": "",
+            "password": true,
+            "markdownDescription": "Pro API key minted with `POST /auth/create_key` on your Pro instance. Stored in VS Code settings in plain text."
+          },
+          "pynescript.backend.url": {
+            "type": "string",
+            "default": "http://127.0.0.1:5002",
+            "markdownDescription": "Self-hosted backend base URL without the `/run` suffix, e.g. `http://127.0.0.1:5002`."
+          },
+          "pynescript.backend.useHosted": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "Use the hosted `pynescript.online` backend instead of `#pynescript.backend.url#`."
+          },
+          "pynescript.backend.hostedUrl": {
+            "type": "string",
+            "default": "https://pynescript.online",
+            "markdownDescription": "Hosted backend base URL used when `#pynescript.backend.useHosted#` is enabled."
+          },
+          "pynescript.backend.package": {
+            "type": "string",
+            "default": "hoox-pyne[pro,lsp]",
+            "markdownDescription": "pip requirement installed by **PYNE: Install Backend (Pro API)**."
+          },
+          "pynescript.backend.path": {
+            "type": "string",
+            "default": "",
+            "description": "Path to a PYNE checkout containing `backend/app.py`, used by **PYNE: Start Backend**. Empty = first workspace folder."
+          }
         }
       }
-    },
+    ],
     "commands": [
       {
         "command": "pynescript.restartServer",
@@ -485,18 +488,6 @@
         "description": "Install or upgrade hoox-pyne[lsp] with pip"
       },
       {
-        "command": "pynescript.selectTheme",
-        "title": "Select Workbench Theme (None / Void / Volt / Orange)",
-        "category": "PYNE",
-        "description": "Switch the PYNE workbench theme, or none to keep the user/system theme"
-      },
-      {
-        "command": "pynescript.selectSyntax",
-        "title": "Select Syntax Highlighting (None / Void / Volt / Orange)",
-        "category": "PYNE",
-        "description": "Switch the Pine syntax highlighting palette"
-      },
-      {
         "command": "pynescript.installBackend",
         "title": "Install Backend (Pro API)",
         "category": "PYNE",
@@ -586,9 +577,6 @@
         },
         {
           "command": "pynescript.installLanguageServer"
-        },
-        {
-          "command": "pynescript.selectTheme"
         },
         {
           "command": "pynescript.selectSyntax"

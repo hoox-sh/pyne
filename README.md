@@ -59,7 +59,7 @@ The same contract underlies the desk CLI, `pyne-lsp`, Flask `POST /run`, AXIS in
 | **CLI** | `check`, `format`, `lint`, `compile`, `run`, `execute`, `data`, `prewarm`, `mcp` |
 | **MCP** | Stdio server + `pyne mcp call` for parse / lint / convert / compile / run |
 | **Backends** | Flask Pro API (`/run`, batch, preview, backtest, optimize), Cloudflare Workers, Pyodide |
-| **Editors** | VS Code (Void / Volt / Orange themes), Neovim, Zed, Emacs |
+| **Editors** | VS Code (AXIS Void / Hoox Signal / PYNE Volt themes), Neovim, Zed, Emacs |
 
 ---
 

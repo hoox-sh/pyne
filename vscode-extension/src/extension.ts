@@ -131,11 +131,20 @@ function resolveBackendUrl(): string {
 }
 
 /** PYNE product themes (contributed color themes under `themes/`). */
-const PYNE_THEMES: Record<string, { label: string; description: string }> = {
-  void: { label: 'PYNE Void', description: 'Indigo accent · near-black surfaces' },
-  volt: { label: 'PYNE Volt', description: 'Lime accent · neutral surfaces' },
-  orange: { label: 'PYNE Orange', description: 'Signal orange accent' },
+const PYNE_THEMES: Record<string, { label: string; file: string; description: string }> = {
+  void: { label: 'AXIS Void', file: 'axis-void', description: 'Periwinkle accent · dark grey surfaces' },
+  signal: { label: 'Hoox Signal', file: 'hoox-signal', description: 'Signal-orange accent · near-black surfaces' },
+  volt: { label: 'PYNE Volt', file: 'pyne-volt', description: 'Lime accent · neutral near-black surfaces' },
 };
+
+/** Legacy ids kept working for users who saved them before the rename. */
+const THEME_ALIASES: Record<string, string> = { orange: 'signal' };
+
+function normalizeThemeId(value: string | undefined, fallback: string): string {
+  const raw = (value || fallback).toLowerCase();
+  const id = THEME_ALIASES[raw] ?? raw;
+  return id === 'none' || id in PYNE_THEMES ? id : fallback;
+}
 
 /** Quick-pick items: None first, then the three product themes. */
 function themeChoices() {
@@ -149,50 +158,54 @@ function themeChoices() {
   ];
 }
 
-function currentThemeId() {
-  const id = (cfg<string>('theme') || 'none').toLowerCase();
-  return id === 'none' || id in PYNE_THEMES ? id : 'none';
-}
+// NOTE: workbench theme switching is disabled for now. The extension never
+// changes `workbench.colorTheme`; users pick AXIS Void / Hoox Signal /
+// PYNE Volt from the normal VS Code Color Theme picker. The contributed
+// themes still ship, and `pynescript.syntaxHighlighting` is unaffected.
+//
+// function currentThemeId() {
+//   return normalizeThemeId(cfg<string>('theme'), 'none');
+// }
 
 function currentSyntaxId() {
-  const id = (cfg<string>('syntaxHighlighting') || 'void').toLowerCase();
-  return id === 'none' || id in PYNE_THEMES ? id : 'void';
+  return normalizeThemeId(cfg<string>('syntaxHighlighting'), 'void');
 }
 
-/**
- * Workbench theme (UI chrome + hover cards). `none` leaves the user/system
- * theme untouched.
- */
-async function applyPyneTheme() {
-  const id = currentThemeId();
-  if (id === 'none') {
-    log('PYNE workbench theme: none (keeping user/system theme).');
-    return;
-  }
-  const theme = PYNE_THEMES[id];
-  const current = workspace.getConfiguration('workbench').get<string>('colorTheme');
-  if (current === theme.label) {
-    return;
-  }
-  try {
-    await workspace
-      .getConfiguration('workbench')
-      .update('colorTheme', theme.label, ConfigurationTarget.Global);
-    log(`Applied workbench theme: ${theme.label}`);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    log(`Could not apply theme ${theme.label}: ${msg}`);
-  }
-}
+// /**
+//  * Workbench theme (UI chrome + hover cards). `none` leaves the user/system
+//  * theme untouched.
+//  */
+// async function applyPyneTheme() {
+//   const id = currentThemeId();
+//   if (id === 'none') {
+//     log('PYNE workbench theme: none (keeping user/system theme).');
+//     return;
+//   }
+//   const theme = PYNE_THEMES[id];
+//   const current = workspace.getConfiguration('workbench').get<string>('colorTheme');
+//   if (current === theme.label) {
+//     return;
+//   }
+//   try {
+//     await workspace
+//       .getConfiguration('workbench')
+//       .update('colorTheme', theme.label, ConfigurationTarget.Global);
+//     log(`Applied workbench theme: ${theme.label}`);
+//   } catch (err) {
+//     const msg = err instanceof Error ? err.message : String(err);
+//     log(`Could not apply theme ${theme.label}: ${msg}`);
+//   }
+// }
 
-/** Read the bundled `themes/pyne-<id>-color-theme.json`. */
+/** Read the bundled `themes/<file>-color-theme.json`. */
 function loadThemeJson(
   id: string,
 ): { tokenColors?: unknown[]; semanticTokenColors?: Record<string, unknown> } | undefined {
-  if (!extensionPath || !(id in PYNE_THEMES)) {
+  const theme = PYNE_THEMES[id];
+  if (!extensionPath || !theme) {
     return undefined;
   }
-  const file = path.join(extensionPath, 'themes', `pyne-${id}-color-theme.json`);
+  const file = path.join(extensionPath, 'themes', `${theme.file}-color-theme.json`);
   try {
     return JSON.parse(fs.readFileSync(file, 'utf8'));
   } catch (err) {
@@ -1021,22 +1034,26 @@ function registerCommands(context: ExtensionContext): void {
     }),
   );
 
-  context.subscriptions.push(
-    commands.registerCommand(COMMANDS.selectTheme, async () => {
-      const pick = await window.showQuickPick(themeChoices(), {
-        placeHolder: 'Select a PYNE workbench theme (None = user/system)',
-        matchOnDescription: true,
-      });
-      if (!pick) {
-        return;
-      }
-      await workspace
-        .getConfiguration('pynescript')
-        .update('theme', pick.id, ConfigurationTarget.Global);
-      await applyPyneTheme();
-      void window.showInformationMessage(`PYNE workbench theme: ${pick.label}.`);
-    }),
-  );
+  // Workbench theme switching is disabled — see the note above
+  // `currentSyntaxId`. Users select the contributed themes from the normal
+  // VS Code Color Theme picker instead.
+  //
+  // context.subscriptions.push(
+  //   commands.registerCommand(COMMANDS.selectTheme, async () => {
+  //     const pick = await window.showQuickPick(themeChoices(), {
+  //       placeHolder: 'Select a PYNE workbench theme (None = user/system)',
+  //       matchOnDescription: true,
+  //     });
+  //     if (!pick) {
+  //       return;
+  //     }
+  //     await workspace
+  //       .getConfiguration('pynescript')
+  //       .update('theme', pick.id, ConfigurationTarget.Global);
+  //     await applyPyneTheme();
+  //     void window.showInformationMessage(`PYNE workbench theme: ${pick.label}.`);
+  //   }),
+  // );
 
   context.subscriptions.push(
     commands.registerCommand(COMMANDS.selectSyntax, async () => {
@@ -1416,9 +1433,12 @@ export async function activate(context: ExtensionContext): Promise<void> {
 
   context.subscriptions.push(
     workspace.onDidChangeConfiguration(async (e) => {
-      if (e.affectsConfiguration('pynescript.theme')) {
-        await applyPyneTheme();
-      }
+      // Workbench theme switching is disabled (see the note near
+      // `currentSyntaxId`); only the Pine syntax palette is applied.
+      //
+      // if (e.affectsConfiguration('pynescript.theme')) {
+      //   await applyPyneTheme();
+      // }
       if (e.affectsConfiguration('pynescript.syntaxHighlighting')) {
         await applyPyneSyntax();
       }
@@ -1438,9 +1458,9 @@ export async function activate(context: ExtensionContext): Promise<void> {
     }),
   );
 
-  // Workbench theme (`none` keeps the user/system theme) and the independent
-  // Pine syntax palette (`none` uses the active theme's colors).
-  await applyPyneTheme();
+  // Only the Pine syntax palette is applied on activation. The workbench
+  // theme is never changed automatically — users pick AXIS Void / Hoox Signal
+  // / PYNE Volt from the VS Code Color Theme picker.
   await applyPyneSyntax();
 
   try {

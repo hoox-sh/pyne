@@ -38,7 +38,6 @@ const EXPECTED_COMMANDS = [
   'pynescript.installBackend',
   'pynescript.startBackend',
   'pynescript.testBackend',
-  'pynescript.selectTheme',
   'pynescript.selectSyntax',
 ];
 
@@ -74,7 +73,6 @@ const EXPECTED_SETTINGS = [
   'pynescript.install.args',
   'pynescript.install.createVenv',
   'pynescript.install.venv',
-  'pynescript.theme',
   'pynescript.syntaxHighlighting',
 ];
 
@@ -94,10 +92,16 @@ suite('PYNE Extension Structure', () => {
   });
 
   test('contributes all expected settings', () => {
-    const settings = Object.keys(pkg.contributes.configuration.properties);
+    const configuration = Array.isArray(pkg.contributes.configuration)
+      ? pkg.contributes.configuration
+      : [pkg.contributes.configuration];
+    const settings = configuration.flatMap((group: { properties: Record<string, unknown> }) =>
+      Object.keys(group.properties),
+    );
     for (const key of EXPECTED_SETTINGS) {
       assert.ok(settings.includes(key), `Missing setting: ${key}`);
     }
+    assert.strictEqual(new Set(settings).size, settings.length, 'Duplicate setting key');
   });
 
   test('snippets file is valid JSON', () => {
@@ -162,7 +166,6 @@ suite('PYNE Extension Activation', () => {
     assert.strictEqual(config.get('install.autoPrompt'), true);
     assert.strictEqual(config.get('install.package'), 'hoox-pyne[lsp]');
     assert.strictEqual(config.get('install.createVenv'), true);
-    assert.strictEqual(config.get('theme'), 'none');
     assert.strictEqual(config.get('syntaxHighlighting'), 'void');
   });
 

@@ -13,7 +13,7 @@ Part of the **[HOOX](https://hoox.sh) open trading stack** — sister products: 
 
 ## What's new in 0.5.3
 
-- **Two independent appearance options** — **workbench theme** (`pynescript.theme`: `none` / `void` / `volt` / `orange`, default `none` = keep your user/system theme) and **Pine syntax highlighting** (`pynescript.syntaxHighlighting`: `none` / `void` / `volt` / `orange`, default `void`). Switch them with **PYNE: Select Workbench Theme** and **PYNE: Select Syntax Highlighting**; `none` hands control back to your own settings.
+- **Pine syntax highlighting** — `pynescript.syntaxHighlighting` (`none` / `void` / `signal` / `volt`, default `void`) applies AXIS-style Pine token colors on top of any workbench theme. Switch it with **PYNE: Select Syntax Highlighting**. The three contributed themes (**AXIS Void**, **Hoox Signal**, **PYNE Volt**) are picked from VS Code's own Color Theme picker; the extension never switches your workbench theme.
 - **Calm, AXIS-matched token roles** — keywords and functions → the theme accent, strings → a light accent tint, numbers → foreground, comments / punctuation / series builtins → neutral gray. Comments are always gray, in every theme.
 - **Library annotation hover** — `//@function`, `//@param`, `//@returns`, `//@type`, `//@field`, `//@variable`, and `//@description` render as rich Markdown cards, including multi-line `//` continuation.
 - **Auto-install** of `hoox-pyne[lsp]` (and the full backend extras) with pip, including automatic virtualenv creation for PEP 668 Python.
@@ -38,7 +38,7 @@ Part of the **[HOOX](https://hoox.sh) open trading stack** — sister products: 
 | **Pro API** | `PYNE: Run on Pro` — POST active script to your backend `/run` (local or hosted `pynescript.online`) |
 | **Backend** | `PYNE: Install Backend (Pro API)`, `PYNE: Start Backend`, `PYNE: Test Backend Connection` |
 | **Backend wheel** | `pip install hoox-pyne-backend` → `pyne-backend` / `python -m backend` |
-| **Themes** | **PYNE Void / Volt / Orange** — AXIS-matched syntax highlighting + hover cards |
+| **Themes** | **AXIS Void / Hoox Signal / PYNE Volt** — AXIS-matched syntax highlighting + hover cards |
 
 Every LSP feature above has a `pynescript.<feature>.enabled` setting and a `PYNE: Toggle <Feature>` palette command, so you can turn individual features off without restarting the server.
 
@@ -108,41 +108,62 @@ code --extensionDevelopmentPath=.
 
 ## Settings
 
+### Appearance
+
 | Setting | Default | Description |
-|---------|---------|-------------|
-| `pynescript.lsp.enabled` | `true` | Master switch — start the language client |
-| `pynescript.lsp.command` | `auto` | Binary path, or `auto` |
+| --- | --- | --- |
+| `pynescript.syntaxHighlighting` | `void` | Pine token palette (TextMate + semantic tokens), independent of the workbench theme. `none` inherits the active theme. |
+
+### Language server
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `pynescript.lsp.enabled` | `true` | Start the language client |
+| `pynescript.lsp.command` | `auto` | `auto` (PATH → module), an absolute binary path, or `docker` |
 | `pynescript.lsp.python` | `python3` | Interpreter for `-m pynescript.langserver` |
-| `pynescript.lsp.args` | `[]` | Extra server args |
-| `pynescript.diagnostics.enabled` | `true` | Squiggles |
-| `pynescript.diagnostics.severity` | `{}` | Override severity by lint code prefix, e.g. `{"W": "Hint"}` |
-| `pynescript.formatting.enabled` | `true` | Format document |
-| `pynescript.completion.snippets` | `true` | Snippet inserts |
+| `pynescript.lsp.args` | `[]` | Extra server arguments (`docker run` arguments when `command` is `docker`) |
+
+### Editor features
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `pynescript.formatting.enabled` | `true` | Formatting — full document, selection, on-type |
 | `pynescript.formatOnSave.enabled` | `false` | Format on save (requires `formatting.enabled`) |
-| `pynescript.hover.enabled` | `true` | Hover information |
-| `pynescript.signatureHelp.enabled` | `true` | Signature help on call arguments |
-| `pynescript.semanticTokens.enabled` | `true` | Token colorization by type |
-| `pynescript.documentHighlight.enabled` | `true` | Highlight identifier occurrences |
-| `pynescript.linkedEditing.enabled` | `true` | Rename-as-you-type |
-| `pynescript.selectionRange.enabled` | `true` | Smart selection |
-| `pynescript.documentLink.enabled` | `true` | Clickable http(s) links |
-| `pynescript.codeAction.enabled` | `true` | Code actions (Convert to v6, W001) |
-| `pynescript.pro.enabled` | `false` | PYNE Pro integration (Run on Pro) |
-| `pynescript.pro.apiKey` | `""` | Pro API key (password-masked) |
-| `pynescript.backend.url` | `http://127.0.0.1:5002` | Backend base URL (local or self-hosted) |
-| `pynescript.backend.useHosted` | `false` | Use `pynescript.online` (hosted PYNE Pro) instead of `backend.url` |
-| `pynescript.backend.hostedUrl` | `https://pynescript.online` | Hosted backend URL |
-| `pynescript.backend.package` | `hoox-pyne[pro,lsp]` | pip spec for the backend install |
-| `pynescript.backend.path` | `""` | PYNE checkout for `Start Backend` (empty = workspace folder) |
-| `pynescript.install.autoInstall` | `false` | Install `hoox-pyne[lsp]` automatically when missing (no prompt) |
-| `pynescript.install.autoPrompt` | `true` | Offer to install the server when missing |
-| `pynescript.install.package` | `hoox-pyne[lsp]` | pip requirement spec to install |
-| `pynescript.install.python` | `""` | Python used for pip (empty = `lsp.python` → `python3` → `python` → `py`) |
-| `pynescript.install.args` | `[]` | Extra pip args (e.g. `["--no-cache-dir"]`) |
-| `pynescript.install.createVenv` | `true` | Auto-create an isolated venv for PEP 668 Python |
+| `pynescript.diagnostics.enabled` | `true` | Errors, warnings, and hints |
+| `pynescript.diagnostics.severity` | `{}` | Remap severity by lint-code prefix, e.g. `{"W": "Hint"}` |
+| `pynescript.completion.snippets` | `true` | Snippets for builtins and declarations |
+| `pynescript.hover.enabled` | `true` | Hover cards (signature, docs, types) |
+| `pynescript.signatureHelp.enabled` | `true` | Parameter hints while typing a call |
+| `pynescript.semanticTokens.enabled` | `true` | Semantic token colorization |
+| `pynescript.documentHighlight.enabled` | `true` | Highlight other occurrences of an identifier |
+| `pynescript.linkedEditing.enabled` | `true` | Rename-as-you-type (needs `editor.linkedEditing`) |
+| `pynescript.selectionRange.enabled` | `true` | Smart expand/shrink selection |
+| `pynescript.documentLink.enabled` | `true` | Clickable `http(s)` URLs in comments and strings |
+| `pynescript.codeAction.enabled` | `true` | Code actions (Convert to v6, `W001` quick fix) |
+
+### Installation
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `pynescript.install.autoInstall` | `false` | Install the server with pip when missing, without prompting |
+| `pynescript.install.autoPrompt` | `true` | Ask once before installing a missing server |
+| `pynescript.install.package` | `hoox-pyne[lsp]` | pip requirement installed by **PYNE: Install Language Server** |
+| `pynescript.install.python` | `""` | Python for pip (empty = `lsp.python` → `python3` → `python` → `py`) |
+| `pynescript.install.args` | `[]` | Extra pip arguments (e.g. `["--no-cache-dir"]`) |
+| `pynescript.install.createVenv` | `true` | Isolated venv when the system Python is PEP 668 managed |
 | `pynescript.install.venv` | `""` | Explicit venv directory (empty = extension storage) |
-| `pynescript.theme` | `none` | Workbench theme: `none` (user/system) / `void` / `volt` / `orange` |
-| `pynescript.syntaxHighlighting` | `void` | Pine syntax palette: `none` (active theme) / `void` / `volt` / `orange` |
+
+### Pro & backend
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `pynescript.pro.enabled` | `false` | Enable PYNE Pro (`Run on Pro`) |
+| `pynescript.pro.apiKey` | `""` | Pro API key, minted with `POST /auth/create_key`; stored in settings in plain text |
+| `pynescript.backend.url` | `http://127.0.0.1:5002` | Self-hosted backend base URL (no `/run`) |
+| `pynescript.backend.useHosted` | `false` | Use `pynescript.online` instead of `backend.url` |
+| `pynescript.backend.hostedUrl` | `https://pynescript.online` | Hosted backend base URL |
+| `pynescript.backend.package` | `hoox-pyne[pro,lsp]` | pip requirement installed by **PYNE: Install Backend (Pro API)** |
+| `pynescript.backend.path` | `""` | PYNE checkout for **PYNE: Start Backend** (empty = first workspace folder) |
 
 Palette toggles: **Toggle Diagnostics** / **Toggle Completion** / **Toggle Hover** / **Toggle Signature Help** / **Toggle Semantic Tokens** / **Toggle Document Highlight** / **Toggle Linked Editing** / **Toggle Selection Range** / **Toggle Document Links** / **Toggle Code Actions** / **Toggle Format on Save** flip the `pynescript.*` keys above.
 
@@ -201,31 +222,34 @@ pyne-backend          # or: python -m backend
 
 For the hosted service you do not need to install or start anything — just enable `backend.useHosted` and set your Pro API key.
 
-## Themes
+### Themes (AXIS Void / Hoox Signal / PYNE Volt)
 
-Two **independent** options:
+The extension contributes three color themes. Pick one from the normal VS Code
+**Preferences: Color Theme** picker — the extension never changes
+`workbench.colorTheme` automatically, not on activation and not on install.
+
+| Theme | Accent | Surfaces |
+| --- | --- | --- |
+| **AXIS Void** | periwinkle `#939FFF` | Near-black with a whisper of indigo; dark-grey panels |
+| **Hoox Signal** | signal orange `#FE6A00` | Near-black, neutral surfaces |
+| **PYNE Volt** | lime `#B7EF09` | Near-black with a whisper of lime |
+
+Comments are always neutral gray in every theme. Keywords and functions take the accent, strings a light accent tint, numbers the foreground, and punctuation / series builtins gray — so a file stays calm even with a vivid accent.
+
+Pine syntax highlighting is independent of the workbench theme:
 
 | Option | Setting | Values | `none` means |
 | --- | --- | --- | --- |
-| **Workbench theme** | `pynescript.theme` | `none` · `void` · `volt` · `orange` | Keep your user/system theme |
-| **Syntax highlighting** | `pynescript.syntaxHighlighting` | `none` · `void` · `volt` · `orange` | Use the active theme's Pine colors |
+| **Syntax highlighting** | `pynescript.syntaxHighlighting` | `none` · `void` · `signal` · `volt` | Use the active theme's Pine colors |
 
-The workbench theme sets the UI chrome and **hover cards** (`editorHoverWidget.*`, `editorSuggestWidget.*`). The syntax option sets only the Pine TextMate + semantic token colors (keywords and functions → accent, strings → accent tint, numbers → foreground, comments/punctuation/series builtins → neutral gray), so you can keep your own editor theme and still get AXIS Pine highlighting.
-
-| Theme | Accent | Notes |
-| --- | --- | --- |
-| **PYNE Void** | indigo `#939FFF` | Near-black surfaces |
-| **PYNE Volt** | lime `#B7EF09` | Neutral surfaces with a whisper of lime |
-| **PYNE Orange** | signal orange `#FE6A00` | Warm signal accent |
-
-Switch with **PYNE: Select Workbench Theme** / **PYNE: Select Syntax Highlighting**, or set the two keys directly. Defaults: workbench `none`, syntax `void`.
+It writes language-scoped `[pinescript]` token colors, so it composes with any workbench theme — including your own. Switch it with **PYNE: Select Syntax Highlighting** or set the key directly. Default: `void`.
 
 ## Docker (optional)
 
 You do **not** need a local Python install if you run the language server from the **LSP image**. The VSIX is still installed in the editor; only the server process is containerized.
 
 ```bash
-docker pull ghcr.io/hoox-sh/pyne/lsp:0.6.26
+docker pull ghcr.io/hoox-sh/pyne/lsp:0.6.28
 # local bake:  make docker-build-lsp
 ```
 
@@ -238,7 +262,7 @@ Pin the extension to Docker (`-i` keeps stdio open). `${workspaceFolder}` is exp
     "run", "-i", "--rm",
     "-v", "${workspaceFolder}:/work",
     "-w", "/work",
-    "ghcr.io/hoox-sh/pyne/lsp:0.6.26"
+    "ghcr.io/hoox-sh/pyne/lsp:0.6.28"
   ]
 }
 ```
@@ -282,8 +306,7 @@ Search for **PYNE**:
 | **PYNE: Install Backend (Pro API)** | `pynescript.installBackend` | Install `hoox-pyne[pro,lsp]` (full backend extras) |
 | **PYNE: Start Backend** | `pynescript.startBackend` | Run `python -m backend.app` from a checkout |
 | **PYNE: Test Backend Connection** | `pynescript.testBackend` | GET `{backend}/health` |
-| **PYNE: Select Workbench Theme (None / Void / Volt / Orange)** | `pynescript.selectTheme` | Workbench UI + hover cards |
-| **PYNE: Select Syntax Highlighting (None / Void / Volt / Orange)** | `pynescript.selectSyntax` | Pine token colors |
+| **PYNE: Select Syntax Highlighting** | `pynescript.selectSyntax` | None / AXIS Void / Hoox Signal / PYNE Volt |
 
 From the CLI / developer host you can also run:
 

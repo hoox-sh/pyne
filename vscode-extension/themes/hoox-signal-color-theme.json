@@ -1,6 +1,6 @@
 {
   "$schema": "vscode://schemas/color-theme",
-  "name": "PYNE Orange",
+  "name": "Hoox Signal",
   "type": "dark",
   "colors": {
     "editor.background": "#030303",

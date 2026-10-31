@@ -3,6 +3,9 @@
 ### Changed
 
 - **VS Code themes tuned for calm reading.** Brand accents stay exact (void indigo `#939FFF`, volt lime `#B7EF09`, orange signal `#FE6A00`); the extra green / cyan / amber token hues are gone. Comments — including `//@…` annotations — are neutral gray italic in every theme, strings are a light accent tint, numbers use the foreground, and punctuation / series builtins are gray. Surfaces and hairline borders are darker, and the hover / autocomplete widgets sit on dark-grey panels.
+- **Themes renamed to the product names** — **AXIS Void**, **Hoox Signal**, **PYNE Volt** (`pynescript.syntaxHighlighting` values: `none` · `void` · `signal` · `volt`; legacy `orange` still resolves to `signal`).
+- **Workbench theme switching disabled.** The extension no longer writes `workbench.colorTheme` on activation, install, or settings change. `pynescript.theme` and the **PYNE: Select Workbench Theme** command are commented out for now; the three themes remain contributed and selectable from VS Code's own **Preferences: Color Theme** picker.
+- **Settings regrouped and rewritten** into `PYNE: Appearance`, `PYNE: Language Server`, `PYNE: Editor Features`, `PYNE: Installation`, and `PYNE: Pro & Backend`, ordered by how often they are changed. Descriptions now state the default, the `none` behaviour, and cross-link related keys.
 
 ## [0.6.28] — 2026-10-31
 
