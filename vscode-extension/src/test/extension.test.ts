@@ -39,6 +39,7 @@ const EXPECTED_COMMANDS = [
   'pynescript.startBackend',
   'pynescript.testBackend',
   'pynescript.selectTheme',
+  'pynescript.selectSyntax',
 ];
 
 const EXPECTED_SETTINGS = [
@@ -74,7 +75,7 @@ const EXPECTED_SETTINGS = [
   'pynescript.install.createVenv',
   'pynescript.install.venv',
   'pynescript.theme',
-  'pynescript.theme.applyWorkbench',
+  'pynescript.syntaxHighlighting',
 ];
 
 suite('PYNE Extension Structure', () => {
@@ -161,8 +162,8 @@ suite('PYNE Extension Activation', () => {
     assert.strictEqual(config.get('install.autoPrompt'), true);
     assert.strictEqual(config.get('install.package'), 'hoox-pyne[lsp]');
     assert.strictEqual(config.get('install.createVenv'), true);
-    assert.strictEqual(config.get('theme'), 'void');
-    assert.strictEqual(config.get('theme.applyWorkbench'), true);
+    assert.strictEqual(config.get('theme'), 'none');
+    assert.strictEqual(config.get('syntaxHighlighting'), 'void');
   });
 
   test('toggle commands change their settings', async () => {

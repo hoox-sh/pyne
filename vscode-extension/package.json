@@ -2,7 +2,7 @@
   "name": "pyne",
   "displayName": "PYNE Language Support",
   "description": "Syntax highlighting, diagnostics, autocomplete, hover, and formatting for .pyne / .pine sources. Powered by hoox-pyne. Part of the HOOX open trading stack. Unofficial — not affiliated with TradingView, Inc.",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "publisher": "hoox-sh",
   "license": "AGPL-3.0-or-later",
   "author": {
@@ -73,6 +73,7 @@
     "onCommand:pynescript.runOnPro",
     "onCommand:pynescript.installLanguageServer",
     "onCommand:pynescript.selectTheme",
+    "onCommand:pynescript.selectSyntax",
     "onCommand:pynescript.installBackend",
     "onCommand:pynescript.startBackend",
     "onCommand:pynescript.testBackend",
@@ -178,22 +179,36 @@
         "pynescript.theme": {
           "type": "string",
           "enum": [
+            "none",
             "void",
             "volt",
             "orange"
           ],
           "enumDescriptions": [
-            "PYNE Void — indigo accent, near-black surfaces (default).",
+            "None — keep the user/system workbench theme.",
+            "PYNE Void — indigo accent, near-black surfaces.",
             "PYNE Volt — lime accent, neutral surfaces.",
             "PYNE Orange — signal orange accent."
           ],
-          "default": "void",
-          "description": "PYNE product theme. Applies the matching color theme (syntax highlighting + hover cards) when pynescript.theme.applyWorkbench is on."
+          "default": "none",
+          "description": "Workbench theme (UI chrome + hover cards). `none` keeps your current user/system theme."
         },
-        "pynescript.theme.applyWorkbench": {
-          "type": "boolean",
-          "default": true,
-          "description": "Switch the VS Code workbench theme to the selected PYNE theme (PYNE Void / PYNE Volt / PYNE Orange)."
+        "pynescript.syntaxHighlighting": {
+          "type": "string",
+          "enum": [
+            "none",
+            "void",
+            "volt",
+            "orange"
+          ],
+          "enumDescriptions": [
+            "None — use the active theme's Pine token colors.",
+            "PYNE Void — AXIS void token palette.",
+            "PYNE Volt — AXIS volt token palette.",
+            "PYNE Orange — AXIS orange token palette."
+          ],
+          "default": "void",
+          "description": "Pine syntax highlighting palette (TextMate + semantic tokens). Independent of pynescript.theme; `none` uses the active theme's colors."
         },
         "pynescript.install.autoInstall": {
           "type": "boolean",
@@ -471,9 +486,15 @@
       },
       {
         "command": "pynescript.selectTheme",
-        "title": "Select Theme (Void / Volt / Orange)",
+        "title": "Select Workbench Theme (None / Void / Volt / Orange)",
         "category": "PYNE",
-        "description": "Switch between the PYNE product themes"
+        "description": "Switch the PYNE workbench theme, or none to keep the user/system theme"
+      },
+      {
+        "command": "pynescript.selectSyntax",
+        "title": "Select Syntax Highlighting (None / Void / Volt / Orange)",
+        "category": "PYNE",
+        "description": "Switch the Pine syntax highlighting palette"
       },
       {
         "command": "pynescript.installBackend",
@@ -568,6 +589,9 @@
         },
         {
           "command": "pynescript.selectTheme"
+        },
+        {
+          "command": "pynescript.selectSyntax"
         },
         {
           "command": "pynescript.installBackend"

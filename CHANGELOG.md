@@ -1,8 +1,19 @@
+## [0.6.28] — 2026-10-31
+
+### Added
+
+- **VS Code extension 0.5.3 — separate workbench theme and syntax highlighting.** `pynescript.theme` (workbench UI + hover cards; `none` / `void` / `volt` / `orange`, default `none` = keep the user/system theme) and `pynescript.syntaxHighlighting` (Pine TextMate + semantic tokens; `none` / `void` / `volt` / `orange`, default `void`, `none` = active theme) are now independent settings with their own commands: **PYNE: Select Workbench Theme** and **PYNE: Select Syntax Highlighting**. Both accept `none`.
+
+### Changed
+
+- Removed `pynescript.theme.applyWorkbench`; setting `pynescript.theme` to `none` supersedes it.
+- Syntax palettes are applied as language-scoped `[pinescript]` `editor.tokenColorCustomizations` / `editor.semanticTokenColorCustomizations` loaded from the bundled theme JSON, so they work with any workbench theme.
+
 ## [0.6.27] — 2026-10-31
 
 ### Added
 
-- **VS Code extension 0.5.2 — PYNE product themes.** Contributed **PYNE Void**, **PYNE Volt**, and **PYNE Orange** color themes matching the HOOX color packs and the AXIS editor's syntax roles (keyword → accent, string → green, number → amber, builtin → cyan, library → purple, type → amber). Hover and autocomplete widgets use the selected theme; `pynescript.theme` + **PYNE: Select Theme** switch between them, and `pynescript.theme.applyWorkbench` opts out of switching the workbench theme.
+- **VS Code extension 0.5.2 — PYNE product themes.** Contributed **PYNE Void**, **PYNE Volt**, and **PYNE Orange** color themes matching the HOOX color packs and the AXIS editor's syntax roles (keyword → accent, string → green, number → amber, builtin → cyan, library → purple, type → amber). Hover and autocomplete widgets use the selected theme; `pynescript.theme` + **PYNE: Select Theme** switch between them.
 - **README**: Mermaid pipeline diagram, compact feature table, dedicated MCP section; removed the dated corpus snapshot.
 
 ### Changed
