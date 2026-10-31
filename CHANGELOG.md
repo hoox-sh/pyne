@@ -1,3 +1,14 @@
+## [0.6.27] — 2026-10-31
+
+### Added
+
+- **VS Code extension 0.5.2 — PYNE product themes.** Contributed **PYNE Void**, **PYNE Volt**, and **PYNE Orange** color themes matching the HOOX color packs and the AXIS editor's syntax roles (keyword → accent, string → green, number → amber, builtin → cyan, library → purple, type → amber). Hover and autocomplete widgets use the selected theme; `pynescript.theme` + **PYNE: Select Theme** switch between them, and `pynescript.theme.applyWorkbench` opts out of switching the workbench theme.
+- **README**: Mermaid pipeline diagram, compact feature table, dedicated MCP section; removed the dated corpus snapshot.
+
+### Changed
+
+- Extension token colors now come from the contributed themes instead of hardcoded `editor.tokenColorCustomizations`.
+
 ## [0.6.26] — 2026-10-31
 
 ### Added

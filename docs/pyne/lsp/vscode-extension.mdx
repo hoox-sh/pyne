@@ -19,14 +19,14 @@
 
 ---
 title: "VS Code Extension"
-description: "PYNE VS Code extension: LanguageClient host for pyne-lsp, TextMate grammar, snippets, settings, and VSIX 0.5.1."
+description: "PYNE VS Code extension: LanguageClient host for pyne-lsp, TextMate grammar, snippets, settings, and VSIX 0.5.2."
 ---
 
 # VS Code Extension
 
 ## Abstract
 
-**PYNE** (`hoox-sh.pyne` **0.5.1**) is a **LanguageClient host** plus a rich TextMate grammar, branded as part of the **HOOX open trading stack**. It does **not** reimplement language intelligence in TypeScript — `vscode-languageclient` speaks STDIO to `pyne-lsp` (then alias `pynescript-lsp`, then `python -m pynescript.langserver`) and forwards whatever that process advertises in `initialize`. The VSIX stays **0.5.1**; the hosted Python server is **`hoox-pyne` 0.6.26** (`src/pynescript/__about__.py`). The extension maps **`.pyne` (first-class)** plus `*.pine` / `*.pinev5` / `*.pinev6` / `*.pinescript` to language id `pinescript`, ships **snippets**, and exposes a broad `pynescript.*` settings surface with per-feature toggles.
+**PYNE** (`hoox-sh.pyne` **0.5.2**) is a **LanguageClient host** plus a rich TextMate grammar, branded as part of the **HOOX open trading stack**. It does **not** reimplement language intelligence in TypeScript — `vscode-languageclient` speaks STDIO to `pyne-lsp` (then alias `pynescript-lsp`, then `python -m pynescript.langserver`) and forwards whatever that process advertises in `initialize`. The VSIX stays **0.5.2**; the hosted Python server is **`hoox-pyne` 0.6.27** (`src/pynescript/__about__.py`). The extension maps **`.pyne` (first-class)** plus `*.pine` / `*.pinev5` / `*.pinev6` / `*.pinescript` to language id `pinescript`, ships **snippets**, and exposes a broad `pynescript.*` settings surface with per-feature toggles.
 
 ## Conceptual model
 
@@ -34,7 +34,7 @@ description: "PYNE VS Code extension: LanguageClient host for pyne-lsp, TextMate
 flowchart LR
   VS[VS Code] --> EXT[extension.ts activate]
   EXT --> LC[LanguageClient]
-  LC -->|stdio| LSP[pyne-lsp 0.6.26]
+  LC -->|stdio| LSP[pyne-lsp 0.6.27]
   EXT --> TM[TextMate grammar]
   TM --> HL[Token colors]
   LSP --> CAP[advertised ServerCapabilities]
@@ -51,7 +51,7 @@ From `vscode-extension/package.json`:
 | --- | --- |
 | name | `pyne` |
 | displayName | `PYNE Language Support` |
-| version | `0.5.1` |
+| version | `0.5.2` |
 | publisher | `hoox-sh` |
 | extension id | `hoox-sh.pyne` |
 | icon | `media/icon.png` (HOOX mark) |
@@ -71,7 +71,7 @@ From `vscode-extension/package.json`:
 
 ### Hosted `pyne-lsp` methods (not reimplemented in TypeScript)
 
-The LanguageClient negotiates capabilities from `src/pynescript/langserver/config.py` (`get_server_capabilities`). The hosted server now advertises the following; the 0.5.1 extension is still only a host, but adds client-side **feature gates** so each capability can be toggled without restarting the server.
+The LanguageClient negotiates capabilities from `src/pynescript/langserver/config.py` (`get_server_capabilities`). The hosted server now advertises the following; the 0.5.2 extension is still only a host, but adds client-side **feature gates** so each capability can be toggled without restarting the server.
 
 | LSP method | What the editor gets | Feature page |
 | --- | --- | --- |
@@ -115,6 +115,7 @@ onCommand:pynescript.installLanguageServer
 onCommand:pynescript.installBackend
 onCommand:pynescript.startBackend
 onCommand:pynescript.testBackend
+onCommand:pynescript.selectTheme
 workspaceContains:**/*.pyne
 workspaceContains:**/*.pine
 workspaceContains:**/*.pinev5
@@ -126,7 +127,7 @@ workspaceContains:**/*.pinev6
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `lsp.enabled` | `true` | Do not start the language client when false (commands still register) |
-| `lsp.command` | `auto` | `auto` = PATH `pyne-lsp` → `pynescript-lsp` → `python -m pynescript.langserver`. Or an absolute path. `"docker"` plus `lsp.args` can launch `ghcr.io/hoox-sh/pyne/lsp:0.6.26` (`${workspaceFolder}` is expanded). |
+| `lsp.command` | `auto` | `auto` = PATH `pyne-lsp` → `pynescript-lsp` → `python -m pynescript.langserver`. Or an absolute path. `"docker"` plus `lsp.args` can launch `ghcr.io/hoox-sh/pyne/lsp:0.6.27` (`${workspaceFolder}` is expanded). |
 | `lsp.python` | `python3` | Interpreter for module launch when neither binary is on PATH (`pip install "hoox-pyne[lsp]"`) |
 | `lsp.args` | `[]` | Extra server args |
 | `formatting.enabled` | `true` | Enable formatting support |
@@ -156,6 +157,8 @@ workspaceContains:**/*.pinev6
 | `install.args` | `[]` | Extra pip args (e.g. `["--no-cache-dir"]`) |
 | `install.createVenv` | `true` | Auto-create an isolated venv for PEP 668 Python |
 | `install.venv` | `""` | Explicit venv directory (empty = extension storage) |
+| `theme` | `void` | Product theme: `void` / `volt` / `orange` |
+| `theme.applyWorkbench` | `true` | Switch the workbench to the selected PYNE theme |
 
 Feature gates are enforced **client-side** by middleware that reads the setting live, so toggling a `pynescript.*.enabled` key takes effect immediately — no server restart. Diagnostics, completion snippets, and formatting are passed as initialization options too.
 
@@ -177,12 +180,12 @@ Docker stdio example (`lsp.command` = `docker`):
   "pynescript.lsp.args": [
     "run", "--rm", "-i",
     "-v", "${workspaceFolder}:/work", "-w", "/work",
-    "ghcr.io/hoox-sh/pyne/lsp:0.6.26"
+    "ghcr.io/hoox-sh/pyne/lsp:0.6.27"
   ]
 }
 ```
 
-That image is the Python language server (**0.6.26**), not the VSIX.
+That image is the Python language server (**0.6.27**), not the VSIX.
 
 ### Commands
 
@@ -213,6 +216,7 @@ That image is the Python language server (**0.6.26**), not the VSIX.
 | **PYNE: Install Backend (Pro API)** | `pynescript.installBackend` | Install `hoox-pyne[pro,lsp]` (full backend extras) |
 | **PYNE: Start Backend** | `pynescript.startBackend` | Run `python -m backend.app` from a checkout |
 | **PYNE: Test Backend Connection** | `pynescript.testBackend` | GET `{backend}/health` |
+| **PYNE: Select Theme (Void / Volt / Orange)** | `pynescript.selectTheme` | Switch between the PYNE product themes |
 
 ### Client options
 
@@ -240,7 +244,7 @@ Server launch (`resolveLspLaunch` in `extension.ts`):
 3. Else try `pynescript.lsp.python`, then `pynescript.install.python`, then `python3` / `python` / `py` with `-m pynescript.langserver`.
 4. Else status-bar error and the install offer (below).
 
-No `--parent-dir` / `PYTHONPATH` rewrite. Transport is STDIO. Release packaging expects `pyne-lsp` on `PATH` (pip, Nuitka onefile, or `docker run --rm -i ghcr.io/hoox-sh/pyne/lsp:0.6.26`). The **VSIX stays 0.5.1**; the GHCR tag tracks the Python package (`__about__.py` **0.6.26**), not the extension version.
+No `--parent-dir` / `PYTHONPATH` rewrite. Transport is STDIO. Release packaging expects `pyne-lsp` on `PATH` (pip, Nuitka onefile, or `docker run --rm -i ghcr.io/hoox-sh/pyne/lsp:0.6.27`). The **VSIX stays 0.5.2**; the GHCR tag tracks the Python package (`__about__.py` **0.6.27**), not the extension version.
 
 ### Automatic install
 
@@ -266,14 +270,14 @@ When the resolved Python is **externally managed** (PEP 668 — common on Debian
 cd vscode-extension
 npm ci
 npm run compile          # esbuild.mjs → out/extension.js
-npm run package          # pyne-vscode-0.5.1.vsix
+npm run package          # pyne-vscode-0.5.2.vsix
 # or monorepo:
 make build-vscode
 ```
 
 Requires Node 22. `compile:tsc` is typecheck-only (`tsc --noEmit`). `npm test` compiles tests with `tsc` and runs them via `@vscode/test-electron` (needs a VS Code download and a display / xvfb).
 
-Site download: [https://hoox.sh/pyne-vscode.vsix](https://hoox.sh/pyne-vscode.vsix) (unversioned alias). Versioned `pyne-vscode-0.5.1.vsix` is built in-tree (`vscode-extension/`) and on GitHub Releases.
+Site download: [https://hoox.sh/pyne-vscode.vsix](https://hoox.sh/pyne-vscode.vsix) (unversioned alias). Versioned `pyne-vscode-0.5.2.vsix` is built in-tree (`vscode-extension/`) and on GitHub Releases.
 
 ### Snippets
 
@@ -322,6 +326,18 @@ The extension talks to a PYNE backend for `Run on Pro`. Two modes:
 - **PYNE: Start Backend** runs `python -m backend.app` from `backend.path` (or the workspace folder) in a terminal, with `PORT` taken from the backend URL. Requires a PYNE checkout containing `backend/app.py`.
 - **PYNE: Test Backend Connection** GETs `{backend}/health`.
 
+### Themes (Void / Volt / Orange)
+
+Three contributed color themes match the HOOX product packs and the AXIS editor's syntax roles:
+
+| Theme | Accent | Notes |
+| --- | --- | --- |
+| **PYNE Void** | indigo `#939FFF` | Default; near-black surfaces; hover cards use the void palette |
+| **PYNE Volt** | lime `#B7EF09` | Neutral surfaces with a whisper of lime |
+| **PYNE Orange** | signal orange `#FE6A00` | Warm signal accent |
+
+`pynescript.theme` selects the theme and **PYNE: Select Theme** switches it. The themes set the Pine TextMate + semantic token colors (keyword → accent, string → green, number → amber, builtin → cyan, library → purple, type → amber) and the hover / autocomplete widget surfaces. Set `pynescript.theme.applyWorkbench` to `false` to keep the current workbench theme; the PYNE themes remain in the normal theme picker.
+
 ## Invariants and edge cases
 
 1. **`lsp.enabled === false` skips starting the client** — output channel, status bar, and palette commands still register so the palette never shows “command not found”; restart then no-ops until the setting is true.
@@ -329,7 +345,7 @@ The extension talks to a PYNE backend for `Run on Pro`. Two modes:
 3. **Grammar works without LSP** — open a `.pyne` or `.pine` file offline and still get TextMate highlighting.
 4. **`.pyne` is first-class** in `package.json` extensions + activation; legacy `.pine*` / `.pinescript` remain fully supported.
 5. File watcher covers every associated suffix (`pyne`, `pine`, `pinev5`, `pinev6`, `pinescript`).
-6. **VSIX 0.5.1 does not pin server methods.** Range tokens, on-type format, linked editing, inlay resolve / param names, document links + resolve tooltip, and document color appear only when the spawned `pyne-lsp` is new enough to advertise them (this tree: **0.6.26**). Feature gates are client-side and read live settings.
+6. **VSIX 0.5.2 does not pin server methods.** Range tokens, on-type format, linked editing, inlay resolve / param names, document links + resolve tooltip, and document color appear only when the spawned `pyne-lsp` is new enough to advertise them (this tree: **0.6.27**). Feature gates are client-side and read live settings.
 
 ## Worked example — extension development
 
@@ -348,7 +364,7 @@ Open a fixture `.pine` file; confirm Problems panel shows parse/lint diagnostics
 | “Language client failed to start” | `pyne-lsp` missing / wrong command |
 | No squiggles, highlighting OK | LSP disabled or server crash; check Output → PYNE Language Server |
 | Restart does nothing | Client never started (`lsp.enabled` false) |
-| No inlay param names / color swatches / document links | Spawned `pyne-lsp` is older than this tree (need **0.6.26**) |
+| No inlay param names / color swatches / document links | Spawned `pyne-lsp` is older than this tree (need **0.6.27**) |
 | Enter does not reformat the previous line | `editor.formatOnType` is off (not a `pynescript.*` key) |
 | Identifiers do not multi-cursor as you type | `editor.linkedEditing` is off (not a `pynescript.*` key) |
 | A feature does nothing after toggling | Its `pynescript.<feature>.enabled` key is `false` |

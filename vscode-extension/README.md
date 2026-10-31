@@ -11,7 +11,7 @@ Part of the **[HOOX](https://hoox.sh) open trading stack** — sister products: 
 > Independent, unofficial extension. **Not** affiliated with, endorsed by, or sponsored by TradingView, Inc.  
 > Pine Script™ and TradingView® are trademarks of TradingView, Inc.
 
-## What's new in 0.5.1
+## What's new in 0.5.2
 
 - **Library annotation hover** — `//@function`, `//@param`, `//@returns`, `//@type`, `//@field`, `//@variable`, and `//@description` now render as rich Markdown cards, including multi-line `//` continuation (headings, lists, code fences, blockquotes, tables, links).
 - **Auto-install** of `hoox-pyne[lsp]` (and the full backend extras) with pip, including automatic virtualenv creation for PEP 668 (externally managed) Python.
@@ -38,6 +38,7 @@ Part of the **[HOOX](https://hoox.sh) open trading stack** — sister products: 
 | **Pro API** | `PYNE: Run on Pro` — POST active script to your backend `/run` (local or hosted `pynescript.online`) |
 | **Backend** | `PYNE: Install Backend (Pro API)`, `PYNE: Start Backend`, `PYNE: Test Backend Connection` |
 | **Backend wheel** | `pip install hoox-pyne-backend` → `pyne-backend` / `python -m backend` |
+| **Themes** | **PYNE Void / Volt / Orange** — AXIS-matched syntax highlighting + hover cards |
 
 Every LSP feature above has a `pynescript.<feature>.enabled` setting and a `PYNE: Toggle <Feature>` palette command, so you can turn individual features off without restarting the server.
 
@@ -91,7 +92,7 @@ npm run package
 code --install-extension pyne-*.vsix
 ```
 
-Site download: [https://hoox.sh/pyne-vscode.vsix](https://hoox.sh/pyne-vscode.vsix) (unversioned alias). Versioned `pyne-vscode-0.5.1.vsix` is built in this folder and on GitHub Releases.
+Site download: [https://hoox.sh/pyne-vscode.vsix](https://hoox.sh/pyne-vscode.vsix) (unversioned alias). Versioned `pyne-vscode-0.5.2.vsix` is built in this folder and on GitHub Releases.
 
 > The VSIX is **self-contained** (esbuild bundles `vscode-languageclient`). You still need the **language server** on the machine (`pip install "hoox-pyne[lsp]"`).
 
@@ -140,6 +141,8 @@ code --extensionDevelopmentPath=.
 | `pynescript.install.args` | `[]` | Extra pip args (e.g. `["--no-cache-dir"]`) |
 | `pynescript.install.createVenv` | `true` | Auto-create an isolated venv for PEP 668 Python |
 | `pynescript.install.venv` | `""` | Explicit venv directory (empty = extension storage) |
+| `pynescript.theme` | `void` | Product theme: `void` / `volt` / `orange` |
+| `pynescript.theme.applyWorkbench` | `true` | Switch the workbench to the selected PYNE theme |
 
 Palette toggles: **Toggle Diagnostics** / **Toggle Completion** / **Toggle Hover** / **Toggle Signature Help** / **Toggle Semantic Tokens** / **Toggle Document Highlight** / **Toggle Linked Editing** / **Toggle Selection Range** / **Toggle Document Links** / **Toggle Code Actions** / **Toggle Format on Save** flip the `pynescript.*` keys above.
 
@@ -197,6 +200,20 @@ pyne-backend          # or: python -m backend
 ```
 
 For the hosted service you do not need to install or start anything — just enable `backend.useHosted` and set your Pro API key.
+
+## Themes
+
+The extension ships three color themes that match the HOOX product packs and the AXIS editor's syntax roles:
+
+| Theme | Accent | Notes |
+| --- | --- | --- |
+| **PYNE Void** | indigo `#939FFF` | Default; near-black surfaces; hover cards use the void palette |
+| **PYNE Volt** | lime `#B7EF09` | Neutral surfaces with a whisper of lime |
+| **PYNE Orange** | signal orange `#FE6A00` | Warm signal accent |
+
+Pick one with **PYNE: Select Theme (Void / Volt / Orange)** or set `pynescript.theme`. The themes define the Pine TextMate + semantic token colors (same roles as the AXIS editor: keyword → accent, string → green, number → amber, builtin → cyan, library → purple, type → amber) and the hover / autocomplete widget surfaces.
+
+Set `pynescript.theme.applyWorkbench` to `false` to keep your current workbench theme — the PYNE themes stay available in the normal theme picker.
 
 ## Docker (optional)
 
@@ -260,6 +277,7 @@ Search for **PYNE**:
 | **PYNE: Install Backend (Pro API)** | `pynescript.installBackend` | Install `hoox-pyne[pro,lsp]` (full backend extras) |
 | **PYNE: Start Backend** | `pynescript.startBackend` | Run `python -m backend.app` from a checkout |
 | **PYNE: Test Backend Connection** | `pynescript.testBackend` | GET `{backend}/health` |
+| **PYNE: Select Theme (Void / Volt / Orange)** | `pynescript.selectTheme` | Switch product theme |
 
 From the CLI / developer host you can also run:
 
@@ -279,7 +297,7 @@ pyne-lsp
 | Extension id | `hoox-sh.pyne` |
 | Package name | `pyne` |
 | Display name | **PYNE Language Support** |
-| Version | 0.5.1 |
+| Version | 0.5.2 |
 
 ## License
 

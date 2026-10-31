@@ -2,7 +2,7 @@
   "name": "pyne",
   "displayName": "PYNE Language Support",
   "description": "Syntax highlighting, diagnostics, autocomplete, hover, and formatting for .pyne / .pine sources. Powered by hoox-pyne. Part of the HOOX open trading stack. Unofficial — not affiliated with TradingView, Inc.",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "publisher": "hoox-sh",
   "license": "AGPL-3.0-or-later",
   "author": {
@@ -72,6 +72,7 @@
     "onCommand:pynescript.openDocumentLink",
     "onCommand:pynescript.runOnPro",
     "onCommand:pynescript.installLanguageServer",
+    "onCommand:pynescript.selectTheme",
     "onCommand:pynescript.installBackend",
     "onCommand:pynescript.startBackend",
     "onCommand:pynescript.testBackend",
@@ -118,6 +119,23 @@
         "path": "./snippets/pine.code-snippets"
       }
     ],
+    "themes": [
+      {
+        "label": "PYNE Void",
+        "uiTheme": "vs-dark",
+        "path": "./themes/pyne-void-color-theme.json"
+      },
+      {
+        "label": "PYNE Volt",
+        "uiTheme": "vs-dark",
+        "path": "./themes/pyne-volt-color-theme.json"
+      },
+      {
+        "label": "PYNE Orange",
+        "uiTheme": "vs-dark",
+        "path": "./themes/pyne-orange-color-theme.json"
+      }
+    ],
     "configurationDefaults": {
       "[pinescript]": {
         "editor.semanticHighlighting.enabled": true,
@@ -127,90 +145,7 @@
         "editor.insertSpaces": true,
         "editor.wordBasedSuggestions": "off",
         "editor.defaultFormatter": "hoox-sh.pyne",
-        "files.insertFinalNewline": true,
-        "editor.tokenColorCustomizations": {
-          "textMateRules": [
-            {
-              "scope": "semantic.token.namespace",
-              "settings": {
-                "foreground": "#569CD6"
-              }
-            },
-            {
-              "scope": "semantic.token.type",
-              "settings": {
-                "foreground": "#4EC9B0"
-              }
-            },
-            {
-              "scope": "semantic.token.class",
-              "settings": {
-                "foreground": "#4EC9B0"
-              }
-            },
-            {
-              "scope": "semantic.token.function",
-              "settings": {
-                "foreground": "#DCDCAA"
-              }
-            },
-            {
-              "scope": "semantic.token.method",
-              "settings": {
-                "foreground": "#DCDCAA"
-              }
-            },
-            {
-              "scope": "semantic.token.variable",
-              "settings": {
-                "foreground": "#9CDCFE"
-              }
-            },
-            {
-              "scope": "semantic.token.parameter",
-              "settings": {
-                "foreground": "#9CDCFE"
-              }
-            },
-            {
-              "scope": "semantic.token.property",
-              "settings": {
-                "foreground": "#CE9178"
-              }
-            },
-            {
-              "scope": "semantic.token.keyword",
-              "settings": {
-                "foreground": "#569CD6"
-              }
-            },
-            {
-              "scope": "semantic.token.string",
-              "settings": {
-                "foreground": "#CE9178"
-              }
-            },
-            {
-              "scope": "semantic.token.number",
-              "settings": {
-                "foreground": "#B5CEA8"
-              }
-            },
-            {
-              "scope": "semantic.token.operator",
-              "settings": {
-                "foreground": "#D4D4D4"
-              }
-            },
-            {
-              "scope": "semantic.token.comment",
-              "settings": {
-                "foreground": "#6A9955",
-                "fontStyle": "italic"
-              }
-            }
-          ]
-        }
+        "files.insertFinalNewline": true
       }
     },
     "configuration": {
@@ -239,6 +174,26 @@
           },
           "default": [],
           "description": "Extra arguments passed to the language server process."
+        },
+        "pynescript.theme": {
+          "type": "string",
+          "enum": [
+            "void",
+            "volt",
+            "orange"
+          ],
+          "enumDescriptions": [
+            "PYNE Void — indigo accent, near-black surfaces (default).",
+            "PYNE Volt — lime accent, neutral surfaces.",
+            "PYNE Orange — signal orange accent."
+          ],
+          "default": "void",
+          "description": "PYNE product theme. Applies the matching color theme (syntax highlighting + hover cards) when pynescript.theme.applyWorkbench is on."
+        },
+        "pynescript.theme.applyWorkbench": {
+          "type": "boolean",
+          "default": true,
+          "description": "Switch the VS Code workbench theme to the selected PYNE theme (PYNE Void / PYNE Volt / PYNE Orange)."
         },
         "pynescript.install.autoInstall": {
           "type": "boolean",
@@ -515,6 +470,12 @@
         "description": "Install or upgrade hoox-pyne[lsp] with pip"
       },
       {
+        "command": "pynescript.selectTheme",
+        "title": "Select Theme (Void / Volt / Orange)",
+        "category": "PYNE",
+        "description": "Switch between the PYNE product themes"
+      },
+      {
         "command": "pynescript.installBackend",
         "title": "Install Backend (Pro API)",
         "category": "PYNE",
@@ -604,6 +565,9 @@
         },
         {
           "command": "pynescript.installLanguageServer"
+        },
+        {
+          "command": "pynescript.selectTheme"
         },
         {
           "command": "pynescript.installBackend"

@@ -9,7 +9,7 @@ An independent open toolchain for the Pine Script™ language: ANTLR4 grammar, A
 
 Pine is usually executed inside a host chart. PYNE models the language as an inspectable pipeline — source through parse, AST, and deterministic bar-loop evaluation — so the same scripts can be analysed and run outside any particular UI. Import `pynescript`. CLIs: `pyne`, `pyne-lsp`, `pyne-mcp` (aliases `pynescript`, `pynescript-lsp`).
 
-**0.6.24** · PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/)
+**0.6.27** · PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/)
 
 <div align="center">
 
@@ -34,28 +34,32 @@ PYNE is the **language engine**. [HOOX](https://github.com/hoox-sh/hoox) is the 
 
 ## Pipeline
 
-```text
-Source (.pyne / .pine)
-  → ANTLR4 lexer / parser
-  → ASDL AST
-  → bar-loop  (interpret | compile | auto)
-  → plots · fills · drawings · strategy events · alerts
-  → CLI · LSP · Pro API · Pyodide · Cloudflare Workers
+```mermaid
+flowchart LR
+  S["Source<br/>.pyne / .pine"] --> P["ANTLR4 lexer / parser"]
+  P --> A["ASDL AST"]
+  A --> R["Bar-loop<br/>interpret · compile · auto"]
+  R --> O["Plots · fills · drawings<br/>strategy events · alerts"]
+  O --> C["CLI"]
+  O --> L["LSP"]
+  O --> H["Pro API"]
+  O --> Y["Pyodide"]
+  O --> W["Cloudflare Workers"]
 ```
 
 The same contract underlies the desk CLI, `pyne-lsp`, Flask `POST /run`, AXIS in-browser Pyodide, and [pyne-worker](https://github.com/hoox-sh/pyne-worker) (`POST /run` at the edge). Coverage and gaps: [compatibility](https://hoox.sh/pyne/docs/reference/compatibility) · [missing features](https://hoox.sh/pyne/docs/reference/missing-features). This tree does not ship third-party script corpora or TradingView® builtin downloads.
 
-### Corpus snapshot (set01–04 · local · 2026-08-09)
+## Features
 
-Open-source Pine regression sets (**2477** scripts at snapshot time; not in git) under parse+unparse and Runtime interpret (50 bars, 12 s timeout). Newer runs use `SETS=set05` (`Makefile` `corpus-flow`) — re-measure before quoting live coverage.
-
-| Suite | Rate | Detail |
-| --- | ---: | --- |
-| **Parse + unparse** | **99.96%** | 2476 / 2477 OK — residual is one intentional invalid line-wrap demo |
-| **Runtime interpret** | **100%** excl. EXPECTED | 2466 OK + **11** intentional demos (`runtime.error` guards, lower-TF security, pathological loops) |
-| set01 Runtime | **100%** | **249 / 249** OK |
-
-Internal interpret ↔ compile series alignment is harness-tested. That is engine consistency, not TradingView® platform certification.
+| Area | What you get |
+| --- | --- |
+| **Parser** | ANTLR4 v5/v6 grammar, ASDL AST, parse ↔ unparse, structural linter |
+| **Runtime** | Deterministic bar-loop interpret + Numba compile (`auto`), sessions, strategies, alerts, drawings |
+| **Language server** | Diagnostics, completion (~800+ builtins), hover, navigation, semantic tokens, formatting, Convert to v6 |
+| **CLI** | `check`, `format`, `lint`, `compile`, `run`, `execute`, `data`, `prewarm`, `mcp` |
+| **MCP** | Stdio server + `pyne mcp call` for parse / lint / convert / compile / run |
+| **Backends** | Flask Pro API (`/run`, batch, preview, backtest, optimize), Cloudflare Workers, Pyodide |
+| **Editors** | VS Code (Void / Volt / Orange themes), Neovim, Zed, Emacs |
 
 ---
 
@@ -95,14 +99,14 @@ pip install -e ".[lsp,pro]"
 GHCR multi-arch images on `v*` tags:
 
 ```bash
-docker pull ghcr.io/hoox-sh/pyne/cli:0.6.24
-docker run --rm -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/cli:0.6.24 check script.pine
+docker pull ghcr.io/hoox-sh/pyne/cli:0.6.27
+docker run --rm -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/cli:0.6.27 check script.pine
 
-docker pull ghcr.io/hoox-sh/pyne/lsp:0.6.24
-docker run --rm -i -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/lsp:0.6.24
+docker pull ghcr.io/hoox-sh/pyne/lsp:0.6.27
+docker run --rm -i -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/lsp:0.6.27
 
-docker pull ghcr.io/hoox-sh/pyne/api:0.6.24
-docker run --rm -p 5002:8080 -e ADMIN_TOKEN=… ghcr.io/hoox-sh/pyne/api:0.6.24
+docker pull ghcr.io/hoox-sh/pyne/api:0.6.27
+docker run --rm -p 5002:8080 -e ADMIN_TOKEN=… ghcr.io/hoox-sh/pyne/api:0.6.27
 ```
 
 Packages: [ghcr.io/hoox-sh/pyne](https://github.com/hoox-sh/pyne/pkgs/container/pyne%2Fcli).
@@ -171,6 +175,43 @@ curl -s http://127.0.0.1:5002/run \
 ```
 
 Also: `/run/batch`, `/compile/prewarm`, `/preview/chart`, `/backtest/quick`, `/optimize`, `/lsp/*`, CCXT datafeed, optional hosted runner (`PYNE_RUNNER=1`). Docs: [POST /run](https://hoox.sh/pyne/docs/api/endpoints/run) · [API](https://hoox.sh/pyne/docs/api).
+
+---
+
+## MCP
+
+PYNE ships a [Model Context Protocol](https://modelcontextprotocol.io) server so agents and editors can parse, lint, convert, compile, and run Pine without shelling out.
+
+```bash
+pip install "hoox-pyne[mcp]"
+pyne mcp tools                  # list every tool
+pyne mcp config                 # print the mcpServers JSON
+pyne mcp                        # stdio server (pyne-mcp)
+pyne mcp call lint script.pine  # in-process call, no server
+```
+
+| Tool | Purpose |
+| --- | --- |
+| `pyne_parse` / `pyne_check` | Parse source → AST / diagnostics |
+| `pyne_lint` / `pyne_format` | Structural lint and format |
+| `pyne_convert` | Convert Pine v1–v5 toward v6 |
+| `pyne_compile` / `pyne_prewarm` | Compile to the Numba IR / warm caches |
+| `pyne_run` / `pyne_execute` | `Runtime.run` over OHLCV (`interpret` / `compile` / `auto`) |
+| `pyne_hover` / `pyne_complete` / `pyne_signature` | Language intelligence for editors |
+| `pyne_optimize` | Strategy HPO |
+| `pyne_runner_*` | Hosted script registry + bar-close ticks |
+
+Client config (`pyne mcp config` prints this):
+
+```json
+{
+  "mcpServers": {
+    "pyne": { "command": "pyne-mcp" }
+  }
+}
+```
+
+Full catalog: [MCP tools](https://hoox.sh/pyne/docs/enduser/reference/mcp-tools) · [MCP guide](https://hoox.sh/pyne/docs/enduser/guides/mcp).
 
 ---
 

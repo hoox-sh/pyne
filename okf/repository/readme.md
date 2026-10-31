@@ -7,7 +7,7 @@ tags: [doc, readme]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-26T04:20:03Z
+  at: 2026-10-31T15:14:28Z
 sources:
   - id: tree
     resource: "README.md"
@@ -23,11 +23,12 @@ Repo path `README.md`.
 # Outline
 
 * Pipeline
-  * Corpus snapshot (set01–04 · local · 2026-08-09)
+* Features
 * Surfaces
 * Install
 * Quickstart
   * Pro API
+* MCP
 * Compatibility
 * Documentation
 * Ecosystem
