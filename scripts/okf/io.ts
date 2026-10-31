@@ -4,6 +4,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import type { Dirent } from 'node:fs';
 import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 
@@ -70,9 +71,9 @@ function underSkipped(path: string): boolean {
 }
 
 function walk(dir: string, root: string, out: string[]): void {
-  let entries: ReturnType<typeof readdirSync>;
+  let entries: Dirent[];
   try {
-    entries = readdirSync(dir, { withFileTypes: true });
+    entries = readdirSync(dir, { withFileTypes: true, encoding: 'utf8' });
   } catch {
     return;
   }
@@ -205,9 +206,9 @@ function readExisting(dir: string): Map<string, string> {
 }
 
 function walkMd(dir: string, root: string, into: Map<string, string>): void {
-  let entries: ReturnType<typeof readdirSync>;
+  let entries: Dirent[];
   try {
-    entries = readdirSync(dir, { withFileTypes: true });
+    entries = readdirSync(dir, { withFileTypes: true, encoding: 'utf8' });
   } catch {
     return;
   }
@@ -250,9 +251,9 @@ export function readBundleFromIndex(root: string, bundleRel = 'okf'): Map<string
 }
 
 function pruneEmpty(dir: string): void {
-  let entries: ReturnType<typeof readdirSync>;
+  let entries: Dirent[];
   try {
-    entries = readdirSync(dir, { withFileTypes: true });
+    entries = readdirSync(dir, { withFileTypes: true, encoding: 'utf8' });
   } catch {
     return;
   }

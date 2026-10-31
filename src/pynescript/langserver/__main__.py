@@ -35,11 +35,35 @@ calls ``start_io()`` (JSON-RPC over stdin/stdout). This is separate from the
 
 from __future__ import annotations
 
+import logging
+
 from pynescript.langserver.server import PynescriptLanguageServer
+
+
+class _DropBenignCancelNoise(logging.Filter):
+    """Drop pygls' "unknown message id" cancel warnings.
+
+    Clients routinely cancel a request that has already completed (for
+    example hover or semantic-tokens requests while typing). pygls looks up
+    the future, finds none, and logs a warning; the request is already
+    answered, so this is harmless. The server writes logs to stderr, which
+    VS Code surfaces as an error, so keep the channel quiet.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not record.getMessage().startswith("Cancel notification for unknown message id")
+
+
+def _configure_logging() -> None:
+    """Install the pygls noise filter once per process."""
+    logger = logging.getLogger("pygls.protocol.json_rpc")
+    if not any(isinstance(existing, _DropBenignCancelNoise) for existing in logger.filters):
+        logger.addFilter(_DropBenignCancelNoise())
 
 
 def main() -> None:
     """Start the Language Server on stdio (blocking until the client exits)."""
+    _configure_logging()
     server = PynescriptLanguageServer()
     server.start_io()
 

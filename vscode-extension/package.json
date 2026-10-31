@@ -163,10 +163,10 @@
             "default": "void",
             "markdownDescription": "Pine token palette for the TextMate grammar and language-server semantic tokens. Independent of `#pynescript.theme#`; select `none` to inherit the active theme's colors.",
             "enumDescriptions": [
-              "None \u2014 inherit the active theme's Pine colors.",
-              "AXIS Void \u2014 periwinkle and grey tokens.",
-              "Hoox Signal \u2014 signal-orange and grey tokens.",
-              "PYNE Volt \u2014 lime and grey tokens."
+              "None — inherit the active theme's Pine colors.",
+              "AXIS Void — periwinkle and grey tokens.",
+              "Hoox Signal — signal-orange and grey tokens.",
+              "PYNE Volt — lime and grey tokens."
             ]
           }
         }
@@ -205,7 +205,7 @@
           "pynescript.formatting.enabled": {
             "type": "boolean",
             "default": true,
-            "description": "Enable document formatting \u2014 full document, selection, and on-type \u2014 from the language server."
+            "description": "Enable document formatting — full document, selection, and on-type — from the language server."
           },
           "pynescript.formatOnSave.enabled": {
             "type": "boolean",
@@ -240,7 +240,7 @@
           "pynescript.semanticTokens.enabled": {
             "type": "boolean",
             "default": true,
-            "description": "Colorize identifiers by semantic type (namespace, function, variable, keyword, \u2026) from language-server tokens."
+            "description": "Colorize identifiers by semantic type (namespace, function, variable, keyword, …) from language-server tokens."
           },
           "pynescript.documentHighlight.enabled": {
             "type": "boolean",
@@ -608,7 +608,7 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "node esbuild.mjs",
-    "compile:tsc": "tsc -p ./ --noEmit",
+    "check": "tsc -p ./ --noEmit",
     "watch": "node esbuild.mjs --watch",
     "package": "npm run compile && node -e \"const v=require('./package.json').version; require('child_process').execSync('npx --yes @vscode/vsce package --no-dependencies --no-git-tag-version --out pyne-vscode-'+v+'.vsix',{stdio:'inherit'})\"",
     "lint": "eslint src",

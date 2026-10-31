@@ -13,6 +13,7 @@
  * consumers must tolerate not-yet-written targets.
  */
 
+import type { Dirent } from 'node:fs';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, posix } from 'node:path';
 import { ACTOR, asList, type Frontmatter, isRecord, ISO_8601, parseYaml, splitFrontmatter } from './yaml';
@@ -392,9 +393,9 @@ function cmpFinding(a: Finding, b: Finding): number {
 }
 
 function walkMarkdown(dir: string, root: string, into: Map<string, string>): void {
-  let entries: ReturnType<typeof readdirSync>;
+  let entries: Dirent[];
   try {
-    entries = readdirSync(dir, { withFileTypes: true });
+    entries = readdirSync(dir, { withFileTypes: true, encoding: 'utf8' });
   } catch {
     return;
   }

@@ -16,6 +16,7 @@
   },
   "scripts": {
     "docs:exports": "node scripts/docs/generate-exports.mjs",
+    "check": "tsc --noEmit",
     "docs:exports:all": "node scripts/docs/generate-exports.mjs --only=all",
     "docs:exports:pdfs": "node scripts/docs/generate-exports.mjs --only=pdfs",
     "docs:exports:agents": "node scripts/docs/generate-exports.mjs --only=agents",
