@@ -2376,7 +2376,12 @@ def server_error(e):
     ), 500
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Run the Flask dev server.
+
+    Entry point for ``python -m backend.app``, ``python -m backend`` and the
+    ``pyne-backend`` console script shipped by the ``hoox-pyne-backend`` wheel.
+    """
     # Audit 2026-07-05 / S11: default to localhost for the dev runner. Use
     # HOST=0.0.0.0 to expose the dev server to other machines if needed.
     import logging
@@ -2397,3 +2402,7 @@ if __name__ == "__main__":
         _policy["enabled"],
     )
     app.run(host=host, port=port, debug=False)
+
+
+if __name__ == "__main__":
+    main()

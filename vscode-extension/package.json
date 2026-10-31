@@ -2,7 +2,7 @@
   "name": "pyne",
   "displayName": "PYNE Language Support",
   "description": "Syntax highlighting, diagnostics, autocomplete, hover, and formatting for .pyne / .pine sources. Powered by hoox-pyne. Part of the HOOX open trading stack. Unofficial — not affiliated with TradingView, Inc.",
-  "version": "0.4.5",
+  "version": "0.5.0",
   "publisher": "hoox-sh",
   "license": "AGPL-3.0-or-later",
   "author": {
@@ -60,6 +60,21 @@
     "onCommand:pynescript.inlayHintsToggle",
     "onCommand:pynescript.foldingToggle",
     "onCommand:pynescript.colorPreviewToggle",
+    "onCommand:pynescript.toggleHover",
+    "onCommand:pynescript.toggleSignatureHelp",
+    "onCommand:pynescript.toggleSemanticTokens",
+    "onCommand:pynescript.toggleDocumentHighlight",
+    "onCommand:pynescript.toggleLinkedEditing",
+    "onCommand:pynescript.toggleSelectionRange",
+    "onCommand:pynescript.toggleDocumentLink",
+    "onCommand:pynescript.toggleCodeAction",
+    "onCommand:pynescript.toggleFormatOnSave",
+    "onCommand:pynescript.openDocumentLink",
+    "onCommand:pynescript.runOnPro",
+    "onCommand:pynescript.installLanguageServer",
+    "onCommand:pynescript.installBackend",
+    "onCommand:pynescript.startBackend",
+    "onCommand:pynescript.testBackend",
     "workspaceContains:**/*.pyne",
     "workspaceContains:**/*.pine",
     "workspaceContains:**/*.pinev5",
@@ -97,6 +112,12 @@
         "path": "./syntaxes/pinescript.tmLanguage.json"
       }
     ],
+    "snippets": [
+      {
+        "language": "pinescript",
+        "path": "./snippets/pine.code-snippets"
+      }
+    ],
     "configurationDefaults": {
       "[pinescript]": {
         "editor.semanticHighlighting.enabled": true,
@@ -106,7 +127,90 @@
         "editor.insertSpaces": true,
         "editor.wordBasedSuggestions": "off",
         "editor.defaultFormatter": "hoox-sh.pyne",
-        "files.insertFinalNewline": true
+        "files.insertFinalNewline": true,
+        "editor.tokenColorCustomizations": {
+          "textMateRules": [
+            {
+              "scope": "semantic.token.namespace",
+              "settings": {
+                "foreground": "#569CD6"
+              }
+            },
+            {
+              "scope": "semantic.token.type",
+              "settings": {
+                "foreground": "#4EC9B0"
+              }
+            },
+            {
+              "scope": "semantic.token.class",
+              "settings": {
+                "foreground": "#4EC9B0"
+              }
+            },
+            {
+              "scope": "semantic.token.function",
+              "settings": {
+                "foreground": "#DCDCAA"
+              }
+            },
+            {
+              "scope": "semantic.token.method",
+              "settings": {
+                "foreground": "#DCDCAA"
+              }
+            },
+            {
+              "scope": "semantic.token.variable",
+              "settings": {
+                "foreground": "#9CDCFE"
+              }
+            },
+            {
+              "scope": "semantic.token.parameter",
+              "settings": {
+                "foreground": "#9CDCFE"
+              }
+            },
+            {
+              "scope": "semantic.token.property",
+              "settings": {
+                "foreground": "#CE9178"
+              }
+            },
+            {
+              "scope": "semantic.token.keyword",
+              "settings": {
+                "foreground": "#569CD6"
+              }
+            },
+            {
+              "scope": "semantic.token.string",
+              "settings": {
+                "foreground": "#CE9178"
+              }
+            },
+            {
+              "scope": "semantic.token.number",
+              "settings": {
+                "foreground": "#B5CEA8"
+              }
+            },
+            {
+              "scope": "semantic.token.operator",
+              "settings": {
+                "foreground": "#D4D4D4"
+              }
+            },
+            {
+              "scope": "semantic.token.comment",
+              "settings": {
+                "foreground": "#6A9955",
+                "fontStyle": "italic"
+              }
+            }
+          ]
+        }
       }
     },
     "configuration": {
@@ -136,6 +240,44 @@
           "default": [],
           "description": "Extra arguments passed to the language server process."
         },
+        "pynescript.install.autoInstall": {
+          "type": "boolean",
+          "default": false,
+          "description": "When the language server is missing, install it automatically with pip (no prompt). Requires a Python 3.10+ interpreter with pip."
+        },
+        "pynescript.install.autoPrompt": {
+          "type": "boolean",
+          "default": true,
+          "description": "When the language server is missing and autoInstall is off, show a one-time prompt offering to install it with pip."
+        },
+        "pynescript.install.package": {
+          "type": "string",
+          "default": "hoox-pyne[lsp]",
+          "description": "pip requirement spec installed by “PYNE: Install Language Server” (default: hoox-pyne[lsp])."
+        },
+        "pynescript.install.python": {
+          "type": "string",
+          "default": "",
+          "description": "Python interpreter used for pip install (and as an LSP module-launch candidate). Empty = fall back to pynescript.lsp.python, then python3 / python / py."
+        },
+        "pynescript.install.args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Extra arguments passed to pip install (e.g. [\"--no-cache-dir\"])."
+        },
+        "pynescript.install.createVenv": {
+          "type": "boolean",
+          "default": true,
+          "description": "When the resolved Python is externally managed (PEP 668), create an isolated virtualenv under the extension storage and install there."
+        },
+        "pynescript.install.venv": {
+          "type": "string",
+          "default": "",
+          "description": "Explicit virtualenv directory to create/use for the language server. Empty = auto (extension storage) when needed."
+        },
         "pynescript.formatting.enabled": {
           "type": "boolean",
           "default": true,
@@ -146,10 +288,96 @@
           "default": true,
           "description": "Enable diagnostic squiggles from the language server."
         },
+        "pynescript.diagnostics.severity": {
+          "type": "object",
+          "default": {},
+          "description": "Override diagnostic severity by lint code prefix, e.g. {\"W\": \"Hint\"} demotes W001-style warnings to hints. Keys are code prefixes; values are Error / Warning / Information / Hint."
+        },
         "pynescript.completion.snippets": {
           "type": "boolean",
           "default": true,
           "description": "Enable snippet completions for builtin functions."
+        },
+        "pynescript.hover.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show hover information for identifiers, builtins, and types."
+        },
+        "pynescript.signatureHelp.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show function signature help when typing call arguments."
+        },
+        "pynescript.semanticTokens.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Colorize tokens by language type (namespace, function, variable, keyword, …) via the language server."
+        },
+        "pynescript.documentHighlight.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Highlight all occurrences of the identifier under the cursor."
+        },
+        "pynescript.linkedEditing.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable linked editing (rename-as-you-type) for the same identifier in one document. Also requires the editor's linkedEditing setting."
+        },
+        "pynescript.selectionRange.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable smart selection (expand/shrink selection around the cursor)."
+        },
+        "pynescript.documentLink.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Detect http(s) links in comments and string literals and make them clickable."
+        },
+        "pynescript.codeAction.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Offer code actions such as Convert to Pine v6 and the W001 QuickFix."
+        },
+        "pynescript.formatOnSave.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Format the document on save using the language server (requires pynescript.formatting.enabled)."
+        },
+        "pynescript.pro.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable PYNE Pro integration (Run on Pro). Requires pynescript.pro.apiKey and a backend URL (pynescript.backend.url or the hosted backend)."
+        },
+        "pynescript.pro.apiKey": {
+          "type": "string",
+          "default": "",
+          "password": true,
+          "description": "Pro API key (minted via POST /auth/create_key on your Pro instance). Stored in VS Code settings only."
+        },
+        "pynescript.backend.url": {
+          "type": "string",
+          "default": "http://127.0.0.1:5002",
+          "description": "PYNE backend base URL (no trailing /run), e.g. http://127.0.0.1:5002 or a self-hosted Pro API."
+        },
+        "pynescript.backend.useHosted": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use the hosted pynescript.online backend with PYNE Pro instead of pynescript.backend.url."
+        },
+        "pynescript.backend.hostedUrl": {
+          "type": "string",
+          "default": "https://pynescript.online",
+          "description": "Hosted backend base URL used when pynescript.backend.useHosted is on."
+        },
+        "pynescript.backend.package": {
+          "type": "string",
+          "default": "hoox-pyne[pro,lsp]",
+          "description": "pip requirement spec installed by “PYNE: Install Backend (Pro API)” (default: hoox-pyne[pro,lsp])."
+        },
+        "pynescript.backend.path": {
+          "type": "string",
+          "default": "",
+          "description": "Path to a PYNE checkout containing backend/app.py, used by “PYNE: Start Backend”. Empty = first workspace folder."
         }
       }
     },
@@ -213,6 +441,96 @@
         "title": "Toggle Color Preview",
         "category": "PYNE",
         "description": "Toggle Color Preview command"
+      },
+      {
+        "command": "pynescript.toggleHover",
+        "title": "Toggle Hover",
+        "category": "PYNE",
+        "description": "Toggle hover information"
+      },
+      {
+        "command": "pynescript.toggleSignatureHelp",
+        "title": "Toggle Signature Help",
+        "category": "PYNE",
+        "description": "Toggle function signature help"
+      },
+      {
+        "command": "pynescript.toggleSemanticTokens",
+        "title": "Toggle Semantic Tokens",
+        "category": "PYNE",
+        "description": "Toggle token colorization by language type"
+      },
+      {
+        "command": "pynescript.toggleDocumentHighlight",
+        "title": "Toggle Document Highlight",
+        "category": "PYNE",
+        "description": "Toggle highlighting of identifier occurrences"
+      },
+      {
+        "command": "pynescript.toggleLinkedEditing",
+        "title": "Toggle Linked Editing",
+        "category": "PYNE",
+        "description": "Toggle rename-as-you-type for the same identifier"
+      },
+      {
+        "command": "pynescript.toggleSelectionRange",
+        "title": "Toggle Selection Range",
+        "category": "PYNE",
+        "description": "Toggle smart selection around the cursor"
+      },
+      {
+        "command": "pynescript.toggleDocumentLink",
+        "title": "Toggle Document Links",
+        "category": "PYNE",
+        "description": "Toggle clickable http(s) links in comments and strings"
+      },
+      {
+        "command": "pynescript.toggleCodeAction",
+        "title": "Toggle Code Actions",
+        "category": "PYNE",
+        "description": "Toggle code actions such as Convert to Pine v6"
+      },
+      {
+        "command": "pynescript.toggleFormatOnSave",
+        "title": "Toggle Format on Save",
+        "category": "PYNE",
+        "description": "Toggle formatting the document on save"
+      },
+      {
+        "command": "pynescript.openDocumentLink",
+        "title": "Open Document Link",
+        "category": "PYNE",
+        "description": "Open the http(s) link under the cursor"
+      },
+      {
+        "command": "pynescript.runOnPro",
+        "title": "Run on Pro",
+        "category": "PYNE",
+        "description": "Send the active script to the PYNE Pro API /run endpoint"
+      },
+      {
+        "command": "pynescript.installLanguageServer",
+        "title": "Install Language Server",
+        "category": "PYNE",
+        "description": "Install or upgrade hoox-pyne[lsp] with pip"
+      },
+      {
+        "command": "pynescript.installBackend",
+        "title": "Install Backend (Pro API)",
+        "category": "PYNE",
+        "description": "Install the full backend extras (hoox-pyne[pro,lsp]) with pip"
+      },
+      {
+        "command": "pynescript.startBackend",
+        "title": "Start Backend",
+        "category": "PYNE",
+        "description": "Run the PYNE backend from a checkout (python -m backend.app)"
+      },
+      {
+        "command": "pynescript.testBackend",
+        "title": "Test Backend Connection",
+        "category": "PYNE",
+        "description": "Ping the configured backend /health endpoint"
       }
     ],
     "menus": {
@@ -248,6 +566,53 @@
         },
         {
           "command": "pynescript.colorPreviewToggle"
+        },
+        {
+          "command": "pynescript.toggleHover"
+        },
+        {
+          "command": "pynescript.toggleSignatureHelp"
+        },
+        {
+          "command": "pynescript.toggleSemanticTokens"
+        },
+        {
+          "command": "pynescript.toggleDocumentHighlight"
+        },
+        {
+          "command": "pynescript.toggleLinkedEditing"
+        },
+        {
+          "command": "pynescript.toggleSelectionRange"
+        },
+        {
+          "command": "pynescript.toggleDocumentLink"
+        },
+        {
+          "command": "pynescript.toggleCodeAction"
+        },
+        {
+          "command": "pynescript.toggleFormatOnSave"
+        },
+        {
+          "command": "pynescript.openDocumentLink",
+          "when": "editorLangId == pinescript"
+        },
+        {
+          "command": "pynescript.runOnPro",
+          "when": "editorLangId == pinescript && config.pynescript.pro.enabled"
+        },
+        {
+          "command": "pynescript.installLanguageServer"
+        },
+        {
+          "command": "pynescript.installBackend"
+        },
+        {
+          "command": "pynescript.startBackend"
+        },
+        {
+          "command": "pynescript.testBackend"
         }
       ],
       "editor/context": [
@@ -270,14 +635,18 @@
     "compile:tsc": "tsc -p ./ --noEmit",
     "watch": "node esbuild.mjs --watch",
     "package": "npm run compile && node -e \"const v=require('./package.json').version; require('child_process').execSync('npx --yes @vscode/vsce package --no-dependencies --no-git-tag-version --out pyne-vscode-'+v+'.vsix',{stdio:'inherit'})\"",
-    "lint": "eslint src --ext ts"
+    "lint": "eslint src",
+    "test": "npx tsc -p . && npm run compile && node out/test/runTest.js"
   },
   "devDependencies": {
     "@types/node": "^26.4.0",
     "@types/vscode": "1.91.0",
     "@vscode/test-electron": "^3.1.0",
     "esbuild": "^0.28.2",
-    "typescript": "^7.0.2"
+    "eslint": "^10.14.0",
+    "@typescript/native": "npm:typescript@^7.0.2",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "typescript-eslint": "^8.72.1"
   },
   "dependencies": {
     "vscode-languageclient": "^10.1.1"

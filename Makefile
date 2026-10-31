@@ -8,7 +8,7 @@
 	docker-up docker-up-full docker-prod docker-down docker-logs docker-smoke \
 	docker-cli \
 	test-lsp test-backend test-cli typecheck build-check build-cli build-package \
-	build-vscode package \
+	build-vscode package build-backend-wheel \
 	corpus-flow corpus-flow-set05 corpus-recompile \
 	deploy-vps deploy-vps-build \
 	okf-enrich okf-lint okf-check
@@ -25,7 +25,8 @@ help:
 	@echo "  fmt              ruff format"
 	@echo "  okf-enrich       Draft and link the OKF bundle"
 	@echo "  okf-check        Fail if the bundle does not match the tree"
-	@echo "  package          Build sdist + wheel (python -m build)"
+	@echo "  package          Build sdist + main wheel + backend wheel"
+	@echo "  build-backend-wheel  Standalone hoox-pyne-backend wheel"
 	@echo "  build            Nuitka LSP binary"
 	@echo "  build-cli        Nuitka CLI binary (pyne / pynescript)"
 	@echo "  build-check      Fast import check (no compile)"
@@ -85,15 +86,22 @@ lint:
 fmt:
 	ruff format src/ tests/ backend/
 
-# sdist + wheel. Twine is optional so CI/local packaging works without it.
+# sdist + wheel (main package) and the separate backend wheel.
 package:
 	@python -c "import build" 2>/dev/null || (echo "error: need 'build' (pip install build)" >&2; exit 1)
 	python -m build
+	python -m build --wheel packages/backend
 	@if python -c "import twine" 2>/dev/null; then \
-		python -m twine check dist/*; \
+		python -m twine check dist/* packages/backend/dist/*; \
 	else \
 		echo "twine not installed — skipped check (pip install twine)"; \
 	fi
+
+# Standalone backend wheel (hoox-pyne-backend). Packages the repo's backend/.
+build-backend-wheel:
+	@python -c "import build" 2>/dev/null || (echo "error: need 'build' (pip install build)" >&2; exit 1)
+	python -m build --wheel packages/backend
+	@echo "backend wheel: packages/backend/dist/"
 
 build:
 	python scripts/build/compile.py --target lsp --jobs=4

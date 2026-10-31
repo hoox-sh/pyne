@@ -26,7 +26,9 @@ description: "textDocument/hover — Markdown cards for builtins, types, namespa
 
 ## Abstract
 
-Hover answers “what is this identifier?” in a fixed lookup order: **namespace** prefix, **type / qualifier**, **builtin** metadata, **user enums**, **user declarations** (functions, methods, types, enums, assigns), then **keywords**. The handler extracts the word under the cursor (including dotted forms) and returns a Markdown card. Builtin cards for dotted labels (`ta.sma`, `strategy.entry`, `line.fill`) append a Pine v6 function-reference markdown link. Keywords, types, namespaces, and user declarations stay link-free.
+Hover answers “what is this identifier?” in a fixed lookup order: **namespace** prefix, **type / qualifier**, **library** declaration, **user enums**, **user declarations** (functions, methods, types, enums, assigns), then **builtin** metadata, then **keywords**. The handler extracts the word under the cursor (including dotted forms) and returns a Markdown card. Builtin cards for dotted labels (`ta.sma`, `strategy.entry`, `line.fill`) append a Pine v6 function-reference markdown link. Keywords, types, namespaces, and user declarations stay link-free.
+
+**Library annotations become rich Markdown cards.** The comment block directly above an exported declaration is parsed as Pine library annotations (`// @function`, `// @param`, `// @returns`, `// @type`, `// @field`, `// @variable`, `// @description`). Everything after the tag — including continuation `//` lines — is rendered verbatim as Markdown, so headings, bold/italic, strikethrough, blockquotes, horizontal rules, lists, code fences, tables, links, images, and two-space line breaks all appear in the hover. User-defined functions, methods, and types shadow builtin metadata, so a library function named like a builtin alias (e.g. `bb`) still shows its own docs.
 
 ## Conceptual model
 
@@ -37,13 +39,17 @@ flowchart LR
   NS -->|hit| CARD[MarkupContent Markdown]
   NS -->|miss| TYP[_TYPE_DOCS / _QUALIFIER_DOCS]
   TYP -->|hit| CARD
-  TYP -->|miss| META{get_builtin}
-  META -->|hit| CARD
-  META -->|miss| ENUM[collect_user_enums]
+  TYP -->|miss| LIB{library + //@description}
+  LIB -->|hit| CARD
+  LIB -->|miss| ENUM[collect_user_enums]
   ENUM -->|hit| CARD
   ENUM -->|miss| DECL[_collect_user_decls]
-  DECL -->|hit| CARD
-  DECL -->|miss| KW[PINE_KEYWORDS]
+  DECL -->|user fn/type| CARD
+  DECL -->|else| META{get_builtin}
+  META -->|hit| CARD
+  META -->|miss| DECL2[user variable decl]
+  DECL2 -->|hit| CARD
+  DECL2 -->|miss| KW[PINE_KEYWORDS]
   KW -->|hit| CARD
   KW -->|miss| NULL[null]
 ```
@@ -59,11 +65,13 @@ flowchart LR
 1. Identifier segment at cursor via `get_identifier_segment_at_position` (identifiers may include `.`).
 2. Namespace: cursor on a module name (`ta` in `ta.sma`, or bare `ta` / `math`). Types that share a name (`line`, `array`, `color`) and callables (`strategy(`, `input(`) fall through.
 3. Type or qualifier (`int`, `float`, `series`, `var`, …) when the segment is **not** followed by `(`.
-4. Builtin lookup: full word, then leaf after `.`, then `module.word` if the preceding token ends with `.`.
-5. Else user-enum type or `Enum.member` from the cached AST.
-6. Else user declaration: `FunctionDef` / `TypeDef` / `EnumDef` / `Assign` (including tuple targets). First declaration of a name wins. Card fence is the source line snippet; brief is `User-defined {function|method|type|enum|variable}.`
-7. Else keyword brief from `PINE_KEYWORDS`.
-8. Build hover with range covering `[start, end)` of the word on the line.
+4. `library` with a script-level `// @description` → library card.
+5. User enum type or `Enum.member` from the cached AST.
+6. User declaration lookup (`FunctionDef` / `TypeDef` / `EnumDef` / `Assign`, including tuple targets). First declaration of a name wins.
+7. Builtin lookup: full word, then leaf after `.`, then `module.word` if the preceding token ends with `.`. A user **function / method / type** with the same name wins over the builtin.
+8. Remaining user declarations (variables) after builtins.
+9. Else keyword brief from `PINE_KEYWORDS`.
+10. Build hover with range covering `[start, end)` of the word on the line.
 
 ### Builtin card structure
 
@@ -88,6 +96,39 @@ Examples and related maps are **hardcoded** for a small high-value set (`ta.sma`
 
 `_build_docs_link` emits that markdown link only for dotted builtin labels with a namespace (`ta.sma`, `strategy.entry`, `line.fill`). Empty, undotted (`sma`), or whitespace-only names return `""`. Keyword, type, namespace, and user-declaration cards never include the TradingView URL.
 
+### Library annotation cards
+
+Pine libraries document exported functions, methods, types, and variables with annotation comments directly above the declaration. The block is read from source (tag line **plus** every following `//` line until a non-comment line), so multi-line Markdown is preserved:
+
+```pinescript
+// @function Creates bollinger bands out of any specified moving average
+//
+// #### Usage
+// ___
+// ```
+// [bb_up, bb_mid, bb_dn] = bb(close, ta.sma(close, 50), 50, 4)
+// ```
+// ___
+// @param src   The source of the standard deviation. `Optional`
+// @param mult  The multiplier of the offsets. `Required`
+// @returns `Bollinger bands` of the specified moving average.
+export bb(series float src, series float movingAverage, series int maLength, series float mult) =>
+    dev = mult * ta.stdev(src, maLength)
+    [movingAverage, movingAverage + dev, movingAverage - dev]
+```
+
+Hovering `bb` renders the fenced signature, the Markdown description (headings, code fence, horizontal rules), a **Parameters** list from `// @param`, and a **Returns** line. Supported tags:
+
+| Tag | Card section |
+| --- | --- |
+| `// @function` / `// @type` / `// @variable` / `// @enum` | Description (Markdown body) |
+| `// @param <name> <desc>` | **Parameters** bullet |
+| `// @field <name> <desc>` | **Fields** bullet |
+| `// @returns <desc>` | **Returns** line |
+| `// @description` | Library card (hovering `library`) |
+
+Markdown is passed through verbatim, so the TradingView [Markdown in the Pine Editor](https://www.tradingview.com/script/b6aw56xH-Markdown-The-Pine-Editor-s-Hidden-Gem/) formatting works: `#` headings, `**bold**` / `*italic*` / `~~strike~~`, `>` blockquotes, `___` / `***` rules, `1.` / `-` / `+` / `*` lists, ```` ``` ```` code fences, `` `code` ``, `|` tables, `[text](url)` links, `![alt](url)` images, and two trailing spaces for a line break. Both `//@function` and `// @function` spellings are accepted. Cards without a known tag fall back to `User-defined {kind}.`
+
 ## Internals
 
 | Path | Role |
@@ -106,6 +147,9 @@ The workspace `feature_cache` memos the user-declaration walk so each hover does
 4. **User functions, assigns, types, and enums are hovered** — locals are not “null”. Use [definition](/pyne/docs/lsp/features/navigation) when you need a jump, not a card.
 5. **Docs links are dotted builtins only.** Keywords, types, namespaces, and user decls stay link-free.
 6. Documentation truncation is first-paragraph / 500-char only — full docs live in metadata and completion resolve.
+7. **Annotation blocks are contiguous.** The block is the run of `//` lines immediately above the declaration. A blank line or code line ends it. Plain comments without a known `// @tag` are ignored (fallback card).
+8. **User callables/types shadow builtins.** A user `function` / `method` / `type` with a builtin name wins so library docs render; user variables still defer to builtin metadata.
+9. **Markdown is never escaped or sanitized** — it is emitted as `MarkupContent(kind=Markdown)`, so clients render the author's formatting.
 
 ## Worked example
 
@@ -125,6 +169,21 @@ plot(foo(1))
 
 - Declaration and use both hover as a user-defined function with fence `foo(a) => a`.
 - No Pine v6 URL.
+
+Cursor on an annotated library function:
+
+```pinescript
+// @function **Bold** heading
+// #### Usage
+// ```
+// x = foo(1)
+// ```
+// @param a The first.
+// @returns The result.
+export foo(a) => a
+```
+
+- Card = fenced signature + the Markdown body (`**Bold** heading`, `#### Usage`, code fence) + `**Parameters:** - \`a\`: The first.` + `**Returns:** The result.`
 
 ## Failure modes
 

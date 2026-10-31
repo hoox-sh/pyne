@@ -7,7 +7,7 @@ tags: [code, vscode-extension]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-10-31T14:46:08Z
 sources:
   - id: tree
     resource: "vscode-extension/src"
@@ -22,4 +22,8 @@ okf_lock: generated
 
 # Packages
 
-`child_process`, `fs`, `vscode`, `vscode-languageclient/node`
+`child_process`, `fs`, `path`, `vscode`, `vscode-languageclient/node`
+
+# Nested
+
+* [vscode-extension/src/test](/code/vscode-extension/src/test.md)
