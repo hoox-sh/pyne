@@ -14,7 +14,7 @@ Part of the **[HOOX](https://hoox.sh) open trading stack** — sister products: 
 ## What's new in 0.5.3
 
 - **Two independent appearance options** — **workbench theme** (`pynescript.theme`: `none` / `void` / `volt` / `orange`, default `none` = keep your user/system theme) and **Pine syntax highlighting** (`pynescript.syntaxHighlighting`: `none` / `void` / `volt` / `orange`, default `void`). Switch them with **PYNE: Select Workbench Theme** and **PYNE: Select Syntax Highlighting**; `none` hands control back to your own settings.
-- **AXIS-matched token roles** — keyword → accent, string → green, number → amber, builtin → cyan, library → purple, type → amber, comment → faint italic.
+- **Calm, AXIS-matched token roles** — keywords and functions → the theme accent, strings → a light accent tint, numbers → foreground, comments / punctuation / series builtins → neutral gray. Comments are always gray, in every theme.
 - **Library annotation hover** — `//@function`, `//@param`, `//@returns`, `//@type`, `//@field`, `//@variable`, and `//@description` render as rich Markdown cards, including multi-line `//` continuation.
 - **Auto-install** of `hoox-pyne[lsp]` (and the full backend extras) with pip, including automatic virtualenv creation for PEP 668 Python.
 - **Backend integration** — `backend.url`, `backend.useHosted` (`pynescript.online`), plus **Install Backend**, **Start Backend**, and **Test Backend Connection** commands.
@@ -210,7 +210,7 @@ Two **independent** options:
 | **Workbench theme** | `pynescript.theme` | `none` · `void` · `volt` · `orange` | Keep your user/system theme |
 | **Syntax highlighting** | `pynescript.syntaxHighlighting` | `none` · `void` · `volt` · `orange` | Use the active theme's Pine colors |
 
-The workbench theme sets the UI chrome and **hover cards** (`editorHoverWidget.*`, `editorSuggestWidget.*`). The syntax option sets only the Pine TextMate + semantic token colors (keyword → accent, string → green, number → amber, builtin → cyan, library → purple, type → amber), so you can keep your own editor theme and still get AXIS Pine highlighting.
+The workbench theme sets the UI chrome and **hover cards** (`editorHoverWidget.*`, `editorSuggestWidget.*`). The syntax option sets only the Pine TextMate + semantic token colors (keywords and functions → accent, strings → accent tint, numbers → foreground, comments/punctuation/series builtins → neutral gray), so you can keep your own editor theme and still get AXIS Pine highlighting.
 
 | Theme | Accent | Notes |
 | --- | --- | --- |

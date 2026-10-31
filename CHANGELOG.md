@@ -1,3 +1,9 @@
+## [Unreleased]
+
+### Changed
+
+- **VS Code themes tuned for calm reading.** Brand accents stay exact (void indigo `#939FFF`, volt lime `#B7EF09`, orange signal `#FE6A00`); the extra green / cyan / amber token hues are gone. Comments — including `//@…` annotations — are neutral gray italic in every theme, strings are a light accent tint, numbers use the foreground, and punctuation / series builtins are gray. Surfaces and hairline borders are darker, and the hover / autocomplete widgets sit on dark-grey panels.
+
 ## [0.6.28] — 2026-10-31
 
 ### Added
