@@ -85,6 +85,7 @@ export const COMMANDS = {
   installBackend: 'pynescript.installBackend',
   startBackend: 'pynescript.startBackend',
   testBackend: 'pynescript.testBackend',
+  selectTheme: 'pynescript.selectTheme',
 } as const;
 
 let client: LanguageClient | undefined;
@@ -124,6 +125,45 @@ function resolveBackendUrl(): string {
     ? (cfg<string>('backend.hostedUrl') || 'https://pynescript.online')
     : (cfg<string>('backend.url') || 'http://127.0.0.1:5002');
   return raw.trim().replace(/\/+$/, '');
+}
+
+/** PYNE product themes (contributed color themes under `themes/`). */
+const PYNE_THEMES: Record<string, { label: string; description: string }> = {
+  void: { label: 'PYNE Void', description: 'Indigo accent · near-black surfaces' },
+  volt: { label: 'PYNE Volt', description: 'Lime accent · neutral surfaces' },
+  orange: { label: 'PYNE Orange', description: 'Signal orange accent' },
+};
+
+function currentPyneThemeId(): string {
+  const id = (cfg<string>('theme') || 'void').toLowerCase();
+  return id in PYNE_THEMES ? id : 'void';
+}
+
+/**
+ * Apply the selected PYNE color theme to the workbench.
+ *
+ * @param force Apply even when `pynescript.theme.applyWorkbench` is false
+ *   (used by the explicit Select Theme command).
+ */
+async function applyPyneTheme(force = false): Promise<void> {
+  if (!force && cfg<boolean>('theme.applyWorkbench') === false) {
+    return;
+  }
+  const id = currentPyneThemeId();
+  const theme = PYNE_THEMES[id];
+  const current = workspace.getConfiguration('workbench').get<string>('colorTheme');
+  if (current === theme.label && !force) {
+    return;
+  }
+  try {
+    await workspace
+      .getConfiguration('workbench')
+      .update('colorTheme', theme.label, ConfigurationTarget.Global);
+    log(`Applied PYNE theme: ${theme.label}`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log(`Could not apply theme ${theme.label}: ${msg}`);
+  }
 }
 
 async function togglePyneBool(key: string, label: string): Promise<boolean> {
@@ -904,6 +944,28 @@ function registerCommands(context: ExtensionContext): void {
   );
 
   context.subscriptions.push(
+    commands.registerCommand(COMMANDS.selectTheme, async () => {
+      const items = Object.entries(PYNE_THEMES).map(([id, theme]) => ({
+        label: theme.label,
+        description: theme.description,
+        id,
+      }));
+      const pick = await window.showQuickPick(items, {
+        placeHolder: 'Select a PYNE product theme',
+        matchOnDescription: true,
+      });
+      if (!pick) {
+        return;
+      }
+      await workspace
+        .getConfiguration('pynescript')
+        .update('theme', pick.id, ConfigurationTarget.Global);
+      await applyPyneTheme(true);
+      void window.showInformationMessage(`PYNE theme: ${pick.label}.`);
+    }),
+  );
+
+  context.subscriptions.push(
     commands.registerCommand(COMMANDS.restartServer, async () => {
       try {
         await withClientLock(async () => {
@@ -1263,6 +1325,9 @@ export async function activate(context: ExtensionContext): Promise<void> {
 
   context.subscriptions.push(
     workspace.onDidChangeConfiguration(async (e) => {
+      if (e.affectsConfiguration('pynescript.theme')) {
+        await applyPyneTheme();
+      }
       if (
         e.affectsConfiguration('pynescript.lsp') ||
         e.affectsConfiguration('pynescript.formatting') ||
@@ -1278,6 +1343,10 @@ export async function activate(context: ExtensionContext): Promise<void> {
       }
     }),
   );
+
+  // Adopt the selected PYNE product theme (void by default) unless the user
+  // opted out via pynescript.theme.applyWorkbench.
+  await applyPyneTheme();
 
   try {
     await withClientLock(() => startClient());
