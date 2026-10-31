@@ -5,8 +5,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
 
 from pynescript.ast import parse
@@ -70,7 +68,7 @@ class TestVisitorAndCollector:
         seen: list[str] = []
 
         class V(NodeVisitor):
-            def visit_Name(self, node):  # noqa: N802
+            def visit_Name(self, node):
                 seen.append(node.id)
                 return node.id
 
@@ -96,7 +94,7 @@ class TestTransformer:
         tree = parse('//@version=6\nindicator("t")\nx = close\nplot(x)\n')
 
         class Rename(NodeTransformer):
-            def visit_Name(self, node):  # noqa: N802
+            def visit_Name(self, node):
                 if node.id == "x":
                     node.id = "y"
                 return node

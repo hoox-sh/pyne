@@ -247,7 +247,9 @@ class TestWorkspaceThinHelpers:
         assert _lint_warning_to_diagnostic(w4, "").severity == lsp.DiagnosticSeverity.Hint  # type: ignore[union-attr]
         w5 = LintWarning(code="X", message="x", severity="weird", line=1, column=0)
         assert _lint_warning_to_diagnostic(w5, "").severity == lsp.DiagnosticSeverity.Warning  # type: ignore[union-attr]
-        assert _lint_warning_to_diagnostic(LintWarning(code="Z", message="z", severity="warning", line=None), src) is None
+        assert (
+            _lint_warning_to_diagnostic(LintWarning(code="Z", message="z", severity="warning", line=None), src) is None
+        )
 
     def test_apply_text_edit_pad_and_multiline(self) -> None:
         # append past EOF

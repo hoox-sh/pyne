@@ -46,7 +46,7 @@ def test_strip_line_chrome_unwraps_blockquote_code() -> None:
 
 
 def test_polish_and_semicolon_and_unicode_ops() -> None:
-    polished = cs._polish_code_line('plot(close)          Next Strategies')
+    polished = cs._polish_code_line("plot(close)          Next Strategies")
     assert "Next" not in polished
     assert polished.startswith("plot(close)")
     assert cs._polish_code_line("plot(close)`").endswith(")")
@@ -70,7 +70,7 @@ def test_mustache_replacements() -> None:
     assert "na" in out
     assert "0" in out
     assert cs._replace_mustache_in_line("// {{KEEP}}") == "// {{KEEP}}"
-    assert "{{" not in cs._replace_mustache_placeholders('x={{LEN}}\n')
+    assert "{{" not in cs._replace_mustache_placeholders("x={{LEN}}\n")
 
 
 def test_score_and_foreign_detection() -> None:
@@ -97,7 +97,7 @@ def test_extract_fenced_heredoc_and_tv_blocks() -> None:
     lines = [
         "prose",
         "```pine",
-        '//@version=5',
+        "//@version=5",
         'indicator("x")',
         "plot(close)",
         "```",
@@ -112,7 +112,7 @@ def test_extract_fenced_heredoc_and_tv_blocks() -> None:
         "Pine Script",
         "Copied",
         "",
-        '//@version=5',
+        "//@version=5",
         'indicator("t")',
         "plot(close)",
         "Note that: more prose",
@@ -122,7 +122,7 @@ def test_extract_fenced_heredoc_and_tv_blocks() -> None:
 
     heredoc = [
         "cat <<'EOF'",
-        '//@version=5',
+        "//@version=5",
         'indicator("h")',
         "plot(close)",
         "EOF",
@@ -136,7 +136,7 @@ def test_provenance_split_and_compose() -> None:
         "// set05 corpus",
         "// source_repo: example",
         "",
-        '//@version=5',
+        "//@version=5",
         'indicator("x")',
     ]
     prov, body = cs._split_provenance(lines)
@@ -175,7 +175,7 @@ def test_var_comma_and_paren_helpers() -> None:
 
 def test_looks_like_prose_and_pine_start() -> None:
     assert cs._is_pine_start_line("plot(close)")
-    assert cs._is_pine_start_line("indicator(\"x\")")
+    assert cs._is_pine_start_line('indicator("x")')
     assert not cs._is_pine_start_line("if [ -f x ]")
     assert cs._looks_like_prose_line("Note that: this is docs")
     assert cs._looks_like_prose_line("You can also use")
@@ -183,7 +183,7 @@ def test_looks_like_prose_and_pine_start() -> None:
 
 def test_sanitize_tiny_strings_many_branches() -> None:
     assert "indicator" in sanitize_corpus_source("")
-    fenced = "```pine\n//@version=5\nindicator(\"x\")\nplot(close)\n```\n"
+    fenced = '```pine\n//@version=5\nindicator("x")\nplot(close)\n```\n'
     cleaned = sanitize_corpus_source(fenced)
     assert "```" not in cleaned
     assert "indicator" in cleaned
@@ -216,7 +216,7 @@ def test_dedent_rst_literal_and_docs_nav() -> None:
     dedented = cs._dedent_rst_literal_body(rst)
     assert "p1 = plot" in dedented
     # leading indent under study should shrink when stop line present
-    body_line = [ln for ln in dedented.splitlines() if "p1 =" in ln][0]
+    body_line = next(ln for ln in dedented.splitlines() if "p1 =" in ln)
     assert not body_line.startswith("    p1")
 
     nav = cs._polish_code_line("label.new(bar_index, high, 'x')          Previous On this page junk")

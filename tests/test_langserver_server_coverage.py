@@ -54,7 +54,7 @@ def server(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         srv,
         "text_document_publish_diagnostics",
-        lambda params: published.append(params),
+        published.append,
     )
     srv._published = published  # type: ignore[attr-defined]
     try:
@@ -189,9 +189,7 @@ class TestDocumentSync:
                 lsp.DidChangeTextDocumentParams(
                     text_document=lsp.VersionedTextDocumentIdentifier(uri=URI, version=2),
                     content_changes=[
-                        lsp.TextDocumentContentChangeWholeDocument(
-                            text='//@version=5\nindicator("U")\n'
-                        ),
+                        lsp.TextDocumentContentChangeWholeDocument(text='//@version=5\nindicator("U")\n'),
                     ],
                 )
             )
@@ -282,16 +280,12 @@ class TestPullDiagnostics:
         assert present.result_id.startswith(URI)
 
     def test_workspace_diagnostics(self, server: PynescriptLanguageServer) -> None:
-        empty = _handler(server, lsp.WORKSPACE_DIAGNOSTIC)(
-            lsp.WorkspaceDiagnosticParams(previous_result_ids=[])
-        )
+        empty = _handler(server, lsp.WORKSPACE_DIAGNOSTIC)(lsp.WorkspaceDiagnosticParams(previous_result_ids=[]))
         assert empty.items == []
 
         _open(server)
         _open(server, uri="file:///other.pine", text='indicator("no version")\n')
-        report = _handler(server, lsp.WORKSPACE_DIAGNOSTIC)(
-            lsp.WorkspaceDiagnosticParams(previous_result_ids=[])
-        )
+        report = _handler(server, lsp.WORKSPACE_DIAGNOSTIC)(lsp.WorkspaceDiagnosticParams(previous_result_ids=[]))
         uris = {item.uri for item in report.items}
         assert URI in uris
         assert "file:///other.pine" in uris
@@ -317,7 +311,9 @@ class TestScheduleCancelDiagnostics:
 
         asyncio.run(_run())
 
-    def test_publish_after_exception_swallowed(self, server: PynescriptLanguageServer, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_publish_after_exception_swallowed(
+        self, server: PynescriptLanguageServer, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         async def _run() -> None:
             _open(server)
             doc = server.pine_workspace.get_document(URI)
@@ -441,9 +437,7 @@ class TestFeatureHandlersAndCache:
         item = lsp.CompletionItem(label="sma")
         assert _handler(server, lsp.COMPLETION_ITEM_RESOLVE)(item) is not None
 
-        hover = _handler(server, lsp.TEXT_DOCUMENT_HOVER)(
-            self._pos_params(lsp.HoverParams, line=3, character=5)
-        )
+        hover = _handler(server, lsp.TEXT_DOCUMENT_HOVER)(self._pos_params(lsp.HoverParams, line=3, character=5))
         _ = hover
         _handler(server, lsp.TEXT_DOCUMENT_HOVER)(
             lsp.HoverParams(
@@ -462,9 +456,7 @@ class TestFeatureHandlersAndCache:
             )
         )
 
-        _handler(server, lsp.TEXT_DOCUMENT_DEFINITION)(
-            self._pos_params(lsp.DefinitionParams, line=2, character=1)
-        )
+        _handler(server, lsp.TEXT_DOCUMENT_DEFINITION)(self._pos_params(lsp.DefinitionParams, line=2, character=1))
         _handler(server, lsp.TEXT_DOCUMENT_DEFINITION)(
             lsp.DefinitionParams(
                 text_document=lsp.TextDocumentIdentifier(uri="file:///missing.pine"),
@@ -522,9 +514,7 @@ class TestFeatureHandlersAndCache:
             lsp.DocumentSymbolParams(text_document=lsp.TextDocumentIdentifier(uri=URI))
         )
         _handler(server, lsp.TEXT_DOCUMENT_DOCUMENT_SYMBOL)(
-            lsp.DocumentSymbolParams(
-                text_document=lsp.TextDocumentIdentifier(uri="file:///missing.pine")
-            )
+            lsp.DocumentSymbolParams(text_document=lsp.TextDocumentIdentifier(uri="file:///missing.pine"))
         )
 
         fmt = lsp.FormattingOptions(tab_size=4, insert_spaces=True)
@@ -620,9 +610,7 @@ class TestFeatureHandlersAndCache:
             is fr
         )
         _handler(server, lsp.TEXT_DOCUMENT_FOLDING_RANGE)(
-            lsp.FoldingRangeParams(
-                text_document=lsp.TextDocumentIdentifier(uri="file:///missing.pine")
-            )
+            lsp.FoldingRangeParams(text_document=lsp.TextDocumentIdentifier(uri="file:///missing.pine"))
         )
 
         _handler(server, lsp.TEXT_DOCUMENT_SELECTION_RANGE)(
@@ -649,9 +637,7 @@ class TestFeatureHandlersAndCache:
             is colors
         )
         _handler(server, lsp.TEXT_DOCUMENT_DOCUMENT_COLOR)(
-            lsp.DocumentColorParams(
-                text_document=lsp.TextDocumentIdentifier(uri="file:///missing.pine")
-            )
+            lsp.DocumentColorParams(text_document=lsp.TextDocumentIdentifier(uri="file:///missing.pine"))
         )
         _handler(server, lsp.TEXT_DOCUMENT_COLOR_PRESENTATION)(
             lsp.ColorPresentationParams(
@@ -685,9 +671,7 @@ class TestFeatureHandlersAndCache:
             is links
         )
         _handler(server, lsp.TEXT_DOCUMENT_DOCUMENT_LINK)(
-            lsp.DocumentLinkParams(
-                text_document=lsp.TextDocumentIdentifier(uri="file:///missing.pine")
-            )
+            lsp.DocumentLinkParams(text_document=lsp.TextDocumentIdentifier(uri="file:///missing.pine"))
         )
         if links:
             _handler(server, lsp.DOCUMENT_LINK_RESOLVE)(links[0])
@@ -703,9 +687,7 @@ class TestFeatureHandlersAndCache:
             is tokens
         )
         _handler(server, lsp.TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL)(
-            lsp.SemanticTokensParams(
-                text_document=lsp.TextDocumentIdentifier(uri="file:///missing.pine")
-            )
+            lsp.SemanticTokensParams(text_document=lsp.TextDocumentIdentifier(uri="file:///missing.pine"))
         )
         _handler(server, lsp.TEXT_DOCUMENT_SEMANTIC_TOKENS_RANGE)(
             lsp.SemanticTokensRangeParams(

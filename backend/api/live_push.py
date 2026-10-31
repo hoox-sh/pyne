@@ -97,6 +97,7 @@ def notify_session_gone(
             sent += 1
     return sent
 
+
 # Forming re-ticks (same bar slot) coalesce on the feed thread. Closes and
 # multi-slot batches flush immediately so seq / close frames stay ordered.
 CONFLATE_MS = 75

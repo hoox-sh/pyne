@@ -1280,7 +1280,7 @@ def test_ccxtpro_binance_params_and_close(monkeypatch: pytest.MonkeyPatch) -> No
     _FakeProExchange.last_params = None
 
     async def _go() -> None:
-        feed = CCXTProDataFeed(exchange="binance", api_key="k", secret="s", password="p", sandbox=True)  # noqa: S106 - dummy test creds
+        feed = CCXTProDataFeed(exchange="binance", api_key="k", secret="s", password="p", sandbox=True)
         async with feed:
             assert feed._exchange is not None
         params = _FakeProExchange.last_params or {}

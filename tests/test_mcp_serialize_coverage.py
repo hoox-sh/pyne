@@ -5,12 +5,6 @@
 
 from __future__ import annotations
 
-import math
-
-from types import SimpleNamespace
-
-import pytest
-
 from pynescript.mcp import serialize as ser
 
 

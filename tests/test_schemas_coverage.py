@@ -24,7 +24,7 @@ from __future__ import annotations
 import pytest
 
 from backend.app import app
-from backend.middleware import schemas as S
+from backend.middleware import schemas as S  # noqa: N812
 
 
 @pytest.fixture

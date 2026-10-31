@@ -107,9 +107,7 @@ def _print_summary_rich(console: Any, result: CorpusRunResult) -> None:
         Text("elapsed", style="pyne.muted"),
         Text(f"{result.elapsed_s:.1f}s", style="pyne.fg"),
     )
-    console.print(
-        Panel(head, title="[pyne.accent]summary[/]", border_style=_BORDER, padding=(0, 1))
-    )
+    console.print(Panel(head, title="[pyne.accent]summary[/]", border_style=_BORDER, padding=(0, 1)))
 
     by = Table(title="[pyne.accent]by set[/]", show_header=True, header_style="pyne.accent", box=None)
     by.add_column("set")
@@ -169,7 +167,7 @@ def _parse_sets(sets_opt: str | None, sets_args: tuple[str, ...]) -> list[str]:
 
 @click.group(
     "corpus",
-    short_help="Test the Runtime engine against Pine corpus sets (set01–set06).",
+    short_help="Test the Runtime engine against Pine corpus sets (set01-set06).",
     invoke_without_command=True,
 )
 @click.pass_context
@@ -387,9 +385,7 @@ def run_cmd(
             )
             if p.status not in ("OK", "EXPECTED_FAIL"):
                 style = _status_style(p.status)
-                console.print(
-                    f"  [{style}]{p.status:14}[/] [pyne.muted]{p.ms}ms[/] {p.rel}"
-                )
+                console.print(f"  [{style}]{p.status:14}[/] [pyne.muted]{p.ms}ms[/] {p.rel}")
         else:
             click.echo(
                 f"  [{p.done_new}/{p.total_new}] OK={p.ok} EXP={p.expected_fail} "

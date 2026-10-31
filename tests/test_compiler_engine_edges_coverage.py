@@ -24,6 +24,7 @@ from __future__ import annotations
 import os
 import pickle
 import tempfile
+
 from pathlib import Path
 
 import numpy as np
@@ -42,8 +43,8 @@ from pynescript.compiler.engine import _pack_plot_sequence
 from pynescript.compiler.engine import _sha256_text
 from pynescript.compiler.engine import _uniquify_series_key
 from pynescript.compiler.engine import _uniquify_title_list
-from pynescript.compiler.engine import clear_disk_compile_cache
 from pynescript.compiler.engine import clear_compile_cache
+from pynescript.compiler.engine import clear_disk_compile_cache
 from pynescript.compiler.engine import compile_cache_stats
 from pynescript.compiler.engine import compile_script
 from pynescript.runtime import Runtime

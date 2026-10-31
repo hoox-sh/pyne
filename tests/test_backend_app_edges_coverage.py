@@ -29,7 +29,7 @@ from backend.app import app
 from backend.middleware.auth import reset_key_store
 
 
-_TEST_ADMIN_TOKEN = "test-admin-token-for-backend-edges"  # noqa: S105
+_TEST_ADMIN_TOKEN = "test-admin-token-for-backend-edges"
 _ADMIN_HEADERS = {"X-Admin-Token": _TEST_ADMIN_TOKEN, "Content-Type": "application/json"}
 
 

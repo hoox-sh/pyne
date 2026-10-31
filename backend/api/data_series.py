@@ -466,9 +466,7 @@ def sync_data_session(
     with store.key_lock(key.text):
         if is_alive is not None and not is_alive():
             raise DataError("SESSION_GONE", "Session was released while the tick was in flight.", 404)
-        return live.sync_session(
-            session, binding, candles, now_s, stale=stale or hole, on_apply=on_apply
-        )
+        return live.sync_session(session, binding, candles, now_s, stale=stale or hole, on_apply=on_apply)
 
 
 def _key_from_args(args: Any) -> SeriesKey:

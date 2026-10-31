@@ -17,7 +17,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Corpus Runtime engine: run set01–set06 Pine through ``Runtime``.
+"""Corpus Runtime engine: run set01-set06 Pine through ``Runtime``.
 
 Shared by ``scripts/corpus_run_runtime.py`` and the ``pyne corpus`` CLI.
 """
@@ -29,12 +29,14 @@ import multiprocessing as mp
 import os
 import time
 import traceback
+
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
 from typing import Any
+
 
 # Intentional demos / guards / truncated docs scrapes.
 # Classified as EXPECTED_FAIL so OK% is not inflated.
@@ -194,7 +196,7 @@ def _run_one(args: tuple[str, str, int]) -> tuple[str, str, str, int]:
                     return path_str, "OK", "", ms
             return path_str, "RUN_FAIL", err_s, ms
         return path_str, "OK", "", ms
-    except Exception as e:  # noqa: BLE001 — worker must never crash the pool
+    except Exception as e:
         ms = int((time.perf_counter() - t0) * 1000)
         msg = f"{type(e).__name__}: {str(e).split(chr(10))[0][:180]}"
         if is_expected_fail(path_str, msg):
@@ -228,7 +230,7 @@ def _load_done(csv_path: Path) -> set[str]:
                 f = (row.get("file") or "").strip()
                 if f:
                     done.add(f)
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
     return done
 
@@ -368,6 +370,7 @@ def run_corpus(
     Parameters mirror ``scripts/corpus_run_runtime.py``. *on_progress* is called
     on interesting completions (failures, every *progress_every*, first/last).
     """
+
     def _echo(msg: str) -> None:
         if echo is not None:
             echo(msg)
@@ -494,11 +497,11 @@ def run_corpus(
         nonlocal pool
         try:
             pool.terminate()
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
         try:
             pool.join()
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
 
     try:
@@ -536,7 +539,7 @@ def run_corpus(
                     p, ar, t0 = in_flight.pop(completed_idx)
                     try:
                         _path, status, error, ms = ar.get(timeout=0)
-                    except Exception as e:  # noqa: BLE001
+                    except Exception as e:
                         status = "FAIL"
                         error = f"{type(e).__name__}: {e}"[:200]
                         ms = int((time.perf_counter() - t0) * 1000)
@@ -564,7 +567,7 @@ def run_corpus(
                         pool = new_pool()
                         for rp in reversed(rest):
                             queue.insert(0, rp)
-                    except Exception as e:  # noqa: BLE001
+                    except Exception as e:
                         status = "FAIL"
                         error = f"{type(e).__name__}: {e}"[:200]
                         ms = int((time.perf_counter() - t0) * 1000)
@@ -599,9 +602,7 @@ def run_corpus(
                     fail += 1
                     err_bucket[error[:100]] += 1
 
-                w.writerow(
-                    {"file": rel, "set": set_name, "status": status, "ms": ms, "error": error}
-                )
+                w.writerow({"file": rel, "set": set_name, "status": status, "ms": ms, "error": error})
                 done_new += 1
                 if done_new % 10 == 0:
                     fp.flush()
@@ -616,8 +617,7 @@ def run_corpus(
                 interesting = (
                     done_new % progress_every == 0
                     or status not in ("OK", "EXPECTED_FAIL")
-                    or done_new == 1
-                    or done_new == total_new
+                    or done_new in (1, total_new)
                 )
                 if interesting:
                     prog = CorpusProgress(

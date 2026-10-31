@@ -437,16 +437,10 @@ class TestSpaceEdges:
         n = grid_size(space, max_points=8)
         assert n == 2 * 3 * 4 * 8
 
-        stepped = space_from_payload(
-            {"params": [{"name": "X", "kind": "float", "min": 0, "max": 1, "step": 0.5}]}
-        )
+        stepped = space_from_payload({"params": [{"name": "X", "kind": "float", "min": 0, "max": 1, "step": 0.5}]})
         assert grid_size(stepped, max_points=32) == 3
 
         huge = space_from_payload(
-            {
-                "params": [
-                    {"name": f"P{i}", "kind": "int", "min": 1, "max": 100} for i in range(6)
-                ]
-            }
+            {"params": [{"name": f"P{i}", "kind": "int", "min": 1, "max": 100} for i in range(6)]}
         )
         assert grid_size(huge, max_points=32) > 10_000_000

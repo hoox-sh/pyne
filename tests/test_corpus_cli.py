@@ -6,9 +6,11 @@
 from __future__ import annotations
 
 import json
+
 from pathlib import Path
 
 import pytest
+
 from click.testing import CliRunner
 
 from pynescript.__main__ import cli
@@ -65,9 +67,7 @@ def test_corpus_list_json(runner: CliRunner, tmp_path: Path) -> None:
 
 def test_corpus_list_plain(runner: CliRunner, tmp_path: Path) -> None:
     (tmp_path / "set01").mkdir()
-    (tmp_path / "set01" / "x.pine").write_text(
-        '//@version=5\nindicator("x")\nplot(1)\n', encoding="utf-8"
-    )
+    (tmp_path / "set01" / "x.pine").write_text('//@version=5\nindicator("x")\nplot(1)\n', encoding="utf-8")
     r = runner.invoke(cli, ["corpus", "list", "--data", str(tmp_path), "--plain"])
     assert r.exit_code == 0, r.output
     assert "set01" in r.output
@@ -78,9 +78,7 @@ def test_corpus_run_parse_mini_set(runner: CliRunner, tmp_path: Path) -> None:
     """End-to-end ``pyne corpus run`` on a tiny synthetic set (parse mode)."""
     pine_dir = tmp_path / "data" / "set01" / "indicators"
     pine_dir.mkdir(parents=True)
-    (pine_dir / "ok.pine").write_text(
-        '//@version=5\nindicator("ok")\nplot(close)\n', encoding="utf-8"
-    )
+    (pine_dir / "ok.pine").write_text('//@version=5\nindicator("ok")\nplot(close)\n', encoding="utf-8")
     cache = tmp_path / "cache"
     out = cache / "mini.csv"
     r = runner.invoke(

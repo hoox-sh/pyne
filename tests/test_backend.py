@@ -40,7 +40,7 @@ from backend.services.chart_renderer import render_line_chart
 
 
 # Admin minting is fail-closed without ADMIN_TOKEN; tests set a fixed value.
-_TEST_ADMIN_TOKEN = "test-admin-token-for-backend-suite"  # noqa: S105
+_TEST_ADMIN_TOKEN = "test-admin-token-for-backend-suite"
 _ADMIN_HEADERS = {"X-Admin-Token": _TEST_ADMIN_TOKEN, "Content-Type": "application/json"}
 
 

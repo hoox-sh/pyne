@@ -40,7 +40,7 @@ Commands
 - ``runner`` — deploy / tick hosted scripts on the Pro API (``PYNE_RUNNER``)
 - ``data`` — fetch market bars (mock / Yahoo / …)
 - ``download-builtins`` — fetch TradingView builtin Pine templates
-- ``corpus`` — test Runtime against Pine corpus sets (set01–set06)
+- ``corpus`` - test Runtime against Pine corpus sets (set01-set06)
 - ``info`` — version and optional extras (numba, rich, …)
 - ``execute`` — ``Runtime.run`` (MCP ``pyne_execute``: interpret / compile / auto)
 - ``symbols`` / ``parity`` / ``diagnostics`` / ``builtin`` — MCP-backed JSON tools

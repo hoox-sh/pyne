@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+
 from types import SimpleNamespace
 from typing import Any
 
@@ -214,7 +215,7 @@ def test_yahoo_and_alphavantage_stubs_without_network(monkeypatch: pytest.Monkey
         yf._get_yf()
 
     av = AlphaVantageProvider(api_key="demo")
-    assert av._api_key == "demo"  # noqa: SLF001
+    assert av._api_key == "demo"
     with pytest.raises(DataProviderError, match="alpha-vantage"):
 
         def fake_av_import(name: str, *args: Any, **kwargs: Any) -> Any:

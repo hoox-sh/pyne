@@ -9,7 +9,6 @@ from typing import Any
 
 import pytest
 
-from backend.middleware import key_store_redis as mod
 from backend.middleware.key_store_redis import RedisKeyStore
 from backend.middleware.key_store_redis import _decode_record
 from backend.middleware.key_store_redis import _encode

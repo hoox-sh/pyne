@@ -110,9 +110,7 @@ class TestPureHelpers:
         assert _Common._mode(ev, [1.0], 3) is None
         assert _Common._mode(ev, [None, None], 2) is None
 
-    def test_mode_statistics_error_fallback(
-        self, ev: NodeLiteralEvaluator, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_mode_statistics_error_fallback(self, ev: NodeLiteralEvaluator, monkeypatch: pytest.MonkeyPatch) -> None:
         def _boom(_values: Any) -> float:
             raise statistics.StatisticsError("no unique mode")
 
@@ -272,7 +270,7 @@ class TestBuiltinEdges:
             _Common._builtin_ta_dmi(ev, [14])
         assert _Common._builtin_ta_dmi(ev, [0, 14]) == (None, None, None)
         high, low, close = ev.current_series["high"], ev.current_series["low"], ev.current_series["close"]
-        plus, minus, adx = _Common._builtin_ta_dmi(ev, [high, low, close, 10])
+        plus, minus, _adx = _Common._builtin_ta_dmi(ev, [high, low, close, 10])
         assert plus is not None and minus is not None
         assert _Common._builtin_ta_dmi(ev, [high, low, close, 0]) == (None, None, None)
         assert _Common._builtin_ta_dmi(ev, [None, low, close, 5]) == (None, None, None)
@@ -299,12 +297,10 @@ class TestBuiltinEdges:
             _Common._builtin_ta_zigzag(ev, [[1.0]])
         assert _Common._builtin_ta_zigzag(ev, [[1.0], 5.0])[2] == 0
         assert _Common._builtin_ta_zigzag(ev, [[None, None], 5.0])[2] == 0
-        hi, lo, d = _Common._builtin_ta_zigzag(ev, [[10.0, 11.0], 0.01])
+        hi, lo, _d = _Common._builtin_ta_zigzag(ev, [[10.0, 11.0], 0.01])
         assert hi == pytest.approx(11.0) and lo == pytest.approx(10.0)
 
-        assert _Common._builtin_ta_adx(ev, [14, 14]) == pytest.approx(
-            _Common._builtin_ta_adx(ev, [14]), abs=1e-6
-        )
+        assert _Common._builtin_ta_adx(ev, [14, 14]) == pytest.approx(_Common._builtin_ta_adx(ev, [14]), abs=1e-6)
 
 
 # ---------------------------------------------------------------------------

@@ -24,11 +24,11 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from pynescript.ast.evaluator import NodeLiteralEvaluator
-from pynescript.ast.evaluator.builtins.alerts import AlertCondition
-from pynescript.ast.evaluator.builtins.alerts import AlertEvent
 from pynescript.ast.evaluator.builtins.alerts import FREQ_ALL
 from pynescript.ast.evaluator.builtins.alerts import FREQ_ONCE_PER_BAR
 from pynescript.ast.evaluator.builtins.alerts import FREQ_ONCE_PER_BAR_CLOSE
+from pynescript.ast.evaluator.builtins.alerts import AlertCondition
+from pynescript.ast.evaluator.builtins.alerts import AlertEvent
 from pynescript.ast.evaluator.builtins.alerts import export_alerts_from_evaluator
 from pynescript.ast.evaluator.builtins.alerts import normalize_alert_freq
 from pynescript.runtime import Runtime

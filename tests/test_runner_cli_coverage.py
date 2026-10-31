@@ -5,12 +5,14 @@ from __future__ import annotations
 import io
 import json
 import urllib.error
+
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
 import click
 import pytest
+
 from click.testing import CliRunner
 
 from pynescript.util import runner_cli

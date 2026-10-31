@@ -217,7 +217,7 @@ class TestNewestFirstHistoryView:
         assert buf.chronological()[0] == 7
         view.appendleft(100)
         assert buf.lookback(0) == 100
-        assert list(view)[0] == 100
+        assert next(iter(view)) == 100
 
     def test_setitem_errors(self) -> None:
         buf = ChronologicalSeriesBuffer()

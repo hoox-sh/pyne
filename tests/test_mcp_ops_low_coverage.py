@@ -5,8 +5,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
 
 from pynescript.mcp.ops import builtins as builtins_ops

@@ -264,9 +264,7 @@ plot(array.size(footprint.rows(fp)), "nrows")
         out = _run(src, _bars(3))
         assert out["series"]["buy"][-1] > 0
         assert out["series"]["sell"][-1] > 0
-        assert out["series"]["tot"][-1] == pytest.approx(
-            out["series"]["buy"][-1] + out["series"]["sell"][-1], rel=1e-6
-        )
+        assert out["series"]["tot"][-1] == pytest.approx(out["series"]["buy"][-1] + out["series"]["sell"][-1], rel=1e-6)
         assert out["series"]["nrows"][-1] == 4
 
     def test_footprint_handlers_direct(self) -> None:

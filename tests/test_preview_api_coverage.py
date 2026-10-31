@@ -32,7 +32,7 @@ from backend.app import app
 from backend.middleware.auth import reset_key_store
 
 
-_TEST_ADMIN_TOKEN = "test-admin-token-for-preview-coverage"  # noqa: S105
+_TEST_ADMIN_TOKEN = "test-admin-token-for-preview-coverage"
 _ADMIN_HEADERS = {"X-Admin-Token": _TEST_ADMIN_TOKEN, "Content-Type": "application/json"}
 
 _TINY_SCRIPT = """//@version=6

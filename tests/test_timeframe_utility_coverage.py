@@ -21,7 +21,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
 from types import SimpleNamespace
@@ -346,7 +345,7 @@ class TestUtilityDirectMixin:
         hist = SimpleNamespace(history=[9, 8, 7], current=9)
         assert ev._builtin_offset([hist, 1]) == 8
         ev._builtin_max_bars_back([hist, 50])
-        assert getattr(ev, "_max_bars_back_decls")[-1]["num"] == 50
+        assert ev._max_bars_back_decls[-1]["num"] == 50
 
     def test_syminfo_prefix_ticker_and_standard(self) -> None:
         ev = _ev(**{"syminfo.tickerid": "NASDAQ:AAPL", "syminfo.prefix": "NASDAQ", "syminfo.ticker": "AAPL"})

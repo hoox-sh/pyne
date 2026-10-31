@@ -189,7 +189,7 @@ class TestSession:
         assert resp.status_code == 204
         health = client.get("/datafeed/health")
         assert "bybit" in health.json["active_sessions"]
-        assert datafeed_mod._sessions["bybit"]["password"] == "pp"  # noqa: S105
+        assert datafeed_mod._sessions["bybit"]["password"] == "pp"
         assert datafeed_mod._sessions["ccxt:bybit"]["uid"] == "uid-1"
 
         resp = client.delete("/datafeed/session?cred=ccxt:bybit")
@@ -217,8 +217,8 @@ class TestSession:
         assert resp.status_code == 200
         kwargs = mock_cls.call_args.kwargs
         assert kwargs["api_key"] == "k"
-        assert kwargs["secret"] == "s"  # noqa: S105
-        assert kwargs["password"] == "passphrase"  # noqa: S105
+        assert kwargs["secret"] == "s"
+        assert kwargs["password"] == "passphrase"
         assert kwargs["uid"] == "u1"
 
 
@@ -382,8 +382,8 @@ class TestCcxtProviderPassThrough:
     def test_constructor_stores_password_uid(self) -> None:
         from pynescript.util.data import CCXTProvider
 
-        p = CCXTProvider(exchange="okx", api_key="k", secret="s", password="pp", uid="u")  # noqa: S106
-        assert p._password == "pp"  # noqa: S105
+        p = CCXTProvider(exchange="okx", api_key="k", secret="s", password="pp", uid="u")
+        assert p._password == "pp"
         assert p._uid == "u"
 
     def test_fetch_ohlcv_forwards_since_limit_timeframe(self) -> None:

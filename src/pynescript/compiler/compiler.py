@@ -369,6 +369,7 @@ _METHOD_TA = frozenset(
     }
 )
 
+
 def _is_chart_point_namespace(recv: object) -> bool:
     """Whether ``recv`` is the ``chart.point`` namespace (not a value).
 
@@ -1519,12 +1520,9 @@ class CompilerVisitor(NodeVisitor):
         lines.append("                    vol_arr[__bar_idx] = __polled[5]")
         if self.uses_strategy:
             lines.append("            if __bar_rt:")
+            lines.append("                __strategy.ratchet_trails(high_arr[__bar_idx], low_arr[__bar_idx])")
             lines.append(
-                "                __strategy.ratchet_trails(high_arr[__bar_idx], low_arr[__bar_idx])"
-            )
-            lines.append(
-                "                __strategy.update_open_trade_extremes("
-                "high_arr[__bar_idx], low_arr[__bar_idx])"
+                "                __strategy.update_open_trade_extremes(high_arr[__bar_idx], low_arr[__bar_idx])"
             )
         lines.append("            if __bar_rt and __tick_i < __n_ticks - 1:")
         if self.uses_strategy:
@@ -1540,12 +1538,9 @@ class CompilerVisitor(NodeVisitor):
         lines.append("            if __bar_rt and __tick_i < __n_ticks - 1:")
         if self.uses_strategy:
             lines.append("                __strategy.restore(__st_snap)")
+            lines.append("                __strategy.ratchet_trails(high_arr[__bar_idx], low_arr[__bar_idx])")
             lines.append(
-                "                __strategy.ratchet_trails(high_arr[__bar_idx], low_arr[__bar_idx])"
-            )
-            lines.append(
-                "                __strategy.update_open_trade_extremes("
-                "high_arr[__bar_idx], low_arr[__bar_idx])"
+                "                __strategy.update_open_trade_extremes(high_arr[__bar_idx], low_arr[__bar_idx])"
             )
         self._emit_rt_tick_restore(lines, indent="                ")
         if self.uses_strategy:
@@ -2108,8 +2103,7 @@ class CompilerVisitor(NodeVisitor):
                 sl_arr = self._series_local_arr(name)
                 if is_var or name in getattr(self, "var_locals", set()):
                     return (
-                        f"{sl_arr}[__bar_idx] = {val} if {self._var_init_cond(is_varip)} "
-                        f"else {sl_arr}[__bar_idx - 1]"
+                        f"{sl_arr}[__bar_idx] = {val} if {self._var_init_cond(is_varip)} else {sl_arr}[__bar_idx - 1]"
                     )
                 return f"{sl_arr}[__bar_idx] = {val}"
             if self._is_map_new(node.value) or self._is_typed_map(type_node):
@@ -2314,18 +2308,15 @@ class CompilerVisitor(NodeVisitor):
         # drawing branch below), never a per-bar series.
         rhs_is_drawing = self._is_drawing_new(node.value) or self._looks_like_drawing_handle_expr(val)
         rhs_is_udt_name = isinstance(node.value, ast.Name) and node.value.id in self.udt_vars
-        if (
-            not rhs_is_drawing
-            and (
-                name in self.udt_vars
-                or self._looks_like_udt_ctor(node.value)
-                or self._looks_like_udt_copy(node.value)
-                or self._looks_like_object_handle_expr(val)
-                or self._val_looks_like_udt_dict(val)
-                or self._call_returns_udt(node.value)
-                or self._infer_udt_type(node.value) is not None
-                or rhs_is_udt_name
-            )
+        if not rhs_is_drawing and (
+            name in self.udt_vars
+            or self._looks_like_udt_ctor(node.value)
+            or self._looks_like_udt_copy(node.value)
+            or self._looks_like_object_handle_expr(val)
+            or self._val_looks_like_udt_dict(val)
+            or self._call_returns_udt(node.value)
+            or self._infer_udt_type(node.value) is not None
+            or rhs_is_udt_name
         ):
             self.object_mode = True
             inferred = self._infer_udt_type(node.value)
@@ -2391,10 +2382,7 @@ class CompilerVisitor(NodeVisitor):
             self.object_mode = True
             self.arrays.add(f"{name}_arr")
             if is_var:
-                return (
-                    f"{name}_arr[__bar_idx] = {val} if {self._var_init_cond(is_varip)} "
-                    f"else {name}_arr[__bar_idx-1]"
-                )
+                return f"{name}_arr[__bar_idx] = {val} if {self._var_init_cond(is_varip)} else {name}_arr[__bar_idx-1]"
             return f"{name}_arr[__bar_idx] = {val}"
 
         if not val:
@@ -2417,8 +2405,7 @@ class CompilerVisitor(NodeVisitor):
             self.const_like_values[name] = store_val
         if is_var:
             return (
-                f"{name}_arr[__bar_idx] = {store_val} if {self._var_init_cond(is_varip)} "
-                f"else {name}_arr[__bar_idx-1]"
+                f"{name}_arr[__bar_idx] = {store_val} if {self._var_init_cond(is_varip)} else {name}_arr[__bar_idx-1]"
             )
         return f"{name}_arr[__bar_idx] = {store_val}"
 
@@ -5668,10 +5655,9 @@ class CompilerVisitor(NodeVisitor):
             return "np.nan"
 
         # Drawing surface → event list (object mode)
-        if (
-            func_name in _DRAWING_FUNCS
-            or (func_name.endswith("_new")
-            and any(func_name.startswith(p) for p in ("label", "line", "box", "table", "polyline")))
+        if func_name in _DRAWING_FUNCS or (
+            func_name.endswith("_new")
+            and any(func_name.startswith(p) for p in ("label", "line", "box", "table", "polyline"))
         ):
             self.object_mode = True
             return self._emit_drawing(func_name, args, kwargs)
@@ -5684,8 +5670,11 @@ class CompilerVisitor(NodeVisitor):
         # array.* / matrix.* → object mode stubs, *unless* a user UDF is named
         # array_*/matrix_* (e.g. ``array_set_divs(div_pointer, index)=>`` closes
         # over script-level arrays); user defs win over builtin stubs.
-        if (func_name.startswith("array_") or func_name.startswith("matrix_")) and \
-           func_name not in self.user_funcs and self._safe_ident(func_name) not in self.user_funcs:
+        if (
+            (func_name.startswith("array_") or func_name.startswith("matrix_"))
+            and func_name not in self.user_funcs
+            and self._safe_ident(func_name) not in self.user_funcs
+        ):
             self.object_mode = True
             return self._emit_array_or_matrix(func_name, args, kwargs)
 
@@ -6697,10 +6686,7 @@ class CompilerVisitor(NodeVisitor):
                 )
             if len(args) >= 2:
                 src = _arr(args[0])
-                return (
-                    f"numba_mfi_inc({src}, {src}, {src}, vol_arr, "
-                    f"{self._emit_period(args[1])}, __bar_idx, {st})"
-                )
+                return f"numba_mfi_inc({src}, {src}, {src}, vol_arr, {self._emit_period(args[1])}, __bar_idx, {st})"
             length = args[0] if args else "14"
             return f"numba_mfi_inc(high_arr, low_arr, close_arr, vol_arr, {self._emit_period(length)}, __bar_idx, {st})"
         if func_name == "ta_rising":
@@ -8006,9 +7992,7 @@ class CompilerVisitor(NodeVisitor):
             if self._is_plot_or_hline_call(n)
         ]
         recent = [
-            str(p.get("title"))
-            for p in self.plots
-            if p.get("kind") in (None, "plot", "hline") and p.get("title")
+            str(p.get("title")) for p in self.plots if p.get("kind") in (None, "plot", "hline") and p.get("title")
         ]
         call_titles = recent[-len(call_nodes) :] if call_nodes else []
         ci = 0

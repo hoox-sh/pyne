@@ -2,8 +2,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 from __future__ import annotations
 
-import json
-
 from pathlib import Path
 
 import click
@@ -81,7 +79,7 @@ def test_coerce_cli_value_and_parse_kv() -> None:
     assert coerce_cli_value("24") == 24
     assert coerce_cli_value("true") is True
     assert coerce_cli_value("null") is None
-    assert coerce_cli_value('[1, 2]') == [1, 2]
+    assert coerce_cli_value("[1, 2]") == [1, 2]
     assert coerce_cli_value('{"a": 1}') == {"a": 1}
     assert coerce_cli_value("interpret") == "interpret"
     assert coerce_cli_value(" not-json ") == " not-json "
@@ -241,9 +239,7 @@ def test_synthetic_ohlcv_and_declaration_helpers() -> None:
 def test_cli_payload_helpers(tmp_path: Path) -> None:
     assert mcp_cli._payload_has_errors({"ok": True, "error_count": 2}) is True
     assert mcp_cli._payload_has_errors({"ok": True, "error_count": 0}) is False
-    assert mcp_cli._payload_has_errors(
-        {"findings": [{"severity": "warning"}, {"severity": "error"}]}
-    )
+    assert mcp_cli._payload_has_errors({"findings": [{"severity": "warning"}, {"severity": "error"}]})
     assert mcp_cli._payload_has_errors({"diagnostics": [{"severity": "error"}]})
     assert mcp_cli._payload_has_errors({"findings": "nope"}) is False
     assert mcp_cli._payload_has_errors({}) is False

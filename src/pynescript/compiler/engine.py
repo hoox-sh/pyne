@@ -1467,9 +1467,7 @@ def _sanitize_source(source: str) -> str:
         stub_norm = _MINIMAL_STUB.rstrip("\n")
         cleaned_norm = cleaned.rstrip("\n")
         if cleaned_norm == stub_norm and source.rstrip("\n") != stub_norm:
-            _log.debug(
-                "sanitize_corpus_source returned minimal stub; keeping raw so parse fails honestly"
-            )
+            _log.debug("sanitize_corpus_source returned minimal stub; keeping raw so parse fails honestly")
             return source
         return cleaned
     except Exception as exc:

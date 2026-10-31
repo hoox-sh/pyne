@@ -4387,9 +4387,7 @@ class Runtime:
                 # them as error_kind=parse so interpret/compile agree on garbage input.
                 cause = e.__cause__ if isinstance(getattr(e, "__cause__", None), BaseException) else None
                 is_parse = (
-                    "parse failed" in str(e).lower()
-                    or isinstance(cause, SyntaxError)
-                    or isinstance(e, SyntaxError)
+                    "parse failed" in str(e).lower() or isinstance(cause, SyntaxError) or isinstance(e, SyntaxError)
                 )
                 kind = ERROR_KIND_PARSE if is_parse else ERROR_KIND_COMPILE
                 prefix = "Parse Error" if is_parse else "Compile Error"

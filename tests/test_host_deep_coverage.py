@@ -90,7 +90,7 @@ class TestOhlcvPackCache:
 
     def test_pack_ohlcv_columns_non_dict_and_missing_keys(self) -> None:
         packed = host_mod._pack_ohlcv_columns([{"close": 1.5}, "bad", {"open": 1, "high": 2, "low": 0, "close": 1}])  # type: ignore[list-item]
-        o, h, low, c, v, t = packed
+        o, _h, _low, c, v, t = packed
         assert len(o) == 3
         assert o[1] == 0.0 and v[1] == 1.0
         assert c[0] == pytest.approx(1.5)
@@ -147,7 +147,7 @@ class TestPackInterpretPlotColumns:
         assert primary == series["a"]
 
     def test_pack_fill_and_plotcandle_components(self) -> None:
-        series, meta, _ = host_mod._pack_interpret_plot_columns(
+        _series, meta, _ = host_mod._pack_interpret_plot_columns(
             [[1, 2, 3], [4, 5, 6], [None, None, None]],
             [
                 {"title": "p1", "kind": "plot"},

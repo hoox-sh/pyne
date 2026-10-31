@@ -352,9 +352,7 @@ def test_valuewhen_inc_occ0_and_rewind():
     assert outs[1] == pytest.approx(20.0)
     assert outs[4] == pytest.approx(50.0)
     assert outs[-1] == pytest.approx(70.0)
-    assert rewind == pytest.approx(nb.numba_valuewhen(cond, src, occ, len(cond) // 2)) or (
-        _isnan(rewind)
-    )
+    assert rewind == pytest.approx(nb.numba_valuewhen(cond, src, occ, len(cond) // 2)) or (_isnan(rewind))
 
 
 # ---------------------------------------------------------------------------
@@ -708,9 +706,7 @@ def test_sar_batch_warmup_path():
     h = f64([10, 11, 12, 13, 14])
     l = f64([8, 9, 9, 10, 11])
     assert _finite(nb.numba_sar(h, l, 0.02, 0.02, 0.2, 4))
-    assert _finite(nb.numba_sar(h, l, 0.02, 0.02, 0.2, 0)) or _isnan(
-        nb.numba_sar(h, l, 0.02, 0.02, 0.2, 0)
-    )
+    assert _finite(nb.numba_sar(h, l, 0.02, 0.02, 0.2, 0)) or _isnan(nb.numba_sar(h, l, 0.02, 0.02, 0.2, 0))
 
 
 def test_adx_dmi_batch_invalid_period():
@@ -864,9 +860,7 @@ def test_gap_macd_bb_kc_dmi_stochrsi_supertrend_dema_tema_hma():
     assert isinstance(nb.numba_supertrend_inc(_HIGH, _LOW, _CLOSE, 3.0, 5, mid, s), tuple)
 
     s, e1 = st(3), st(n)
-    assert _finite(nb.numba_dema_inc(_SRC, 3, end, s, e1)) or _isnan(
-        nb.numba_dema_inc(_SRC, 3, end, st(3), st(n))
-    )
+    assert _finite(nb.numba_dema_inc(_SRC, 3, end, s, e1)) or _isnan(nb.numba_dema_inc(_SRC, 3, end, st(3), st(n)))
     s, e1 = st(3), st(n)
     nb.numba_dema_inc(_SRC, 3, end, s, e1)
     nb.numba_dema_inc(_SRC, 3, mid, s, e1)
