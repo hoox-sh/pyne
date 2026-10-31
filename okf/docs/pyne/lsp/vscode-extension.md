@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "VS Code Extension"
-description: "PYNE VS Code extension: LanguageClient host for pyne-lsp, TextMate grammar, settings, and VSIX 0.4.5."
+description: "PYNE VS Code extension: LanguageClient host for pyne-lsp, TextMate grammar, snippets, settings, and VSIX 0.5.0."
 resource: "docs/pyne/lsp/vscode-extension.mdx"
 tags: [doc, docs, lsp, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-25T14:47:55Z
+  at: 2026-10-31T14:46:08Z
 sources:
   - id: tree
     resource: "docs/pyne/lsp/vscode-extension.mdx"
@@ -33,7 +33,10 @@ Repo path `docs/pyne/lsp/vscode-extension.mdx`.
   * Commands
   * Client options
 * Internals
+  * Automatic install
   * Build
+  * Snippets
+  * Backend and Pro (Run on Pro)
 * Invariants and edge cases
 * Worked example — extension development
 * Failure modes

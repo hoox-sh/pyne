@@ -37,7 +37,7 @@
         },
         {
           "name": "comment.line.double-slash.pinescript",
-          "match": "//(?!@).*$"
+          "match": "//(?!\\s*@).*$"
         }
       ]
     },
@@ -45,7 +45,7 @@
       "patterns": [
         {
           "name": "meta.annotation.version.pinescript",
-          "match": "(//@(version))\\s*(=)\\s*(\\d+)",
+          "match": "(//\\s*@(version))\\s*(=)\\s*(\\d+)",
           "captures": {
             "1": { "name": "keyword.control.directive.pinescript" },
             "2": { "name": "entity.name.tag.directive.pinescript" },
@@ -55,7 +55,7 @@
         },
         {
           "name": "meta.annotation.pinescript",
-          "begin": "(//@(?:description|strategy_alert_message|type|function|variable|enum|field|param|returns))",
+          "begin": "(//\\s*@(?:description|strategy_alert_message|type|function|variable|enum|field|param|returns))",
           "beginCaptures": {
             "1": { "name": "keyword.control.directive.pinescript" }
           },
@@ -70,7 +70,7 @@
         },
         {
           "name": "keyword.control.directive.pinescript",
-          "match": "//@\\w+"
+          "match": "//\\s*@\\w+"
         }
       ]
     },

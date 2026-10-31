@@ -541,6 +541,119 @@ s = Side.buy
         assert "foo(a)" in use_hover.contents.value
         assert "https://www.tradingview.com/pine-script-reference/v6/" not in use_hover.contents.value
 
+    def test_handle_hover_library_annotations_markdown(self) -> None:
+        """Library ``// @function`` annotations render multi-line Markdown."""
+        source = """//@version=6
+library("Lib")
+
+// @function **Bold** heading
+// #### Usage
+// ```
+// x = foo(1)
+// ```
+// @param a The first.
+// @returns The result.
+export foo(a) => a
+
+plot(foo(1))
+"""
+        params = lsp.HoverParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=12, character=6),  # on "foo" in plot(foo(1))
+        )
+        result = handle_hover(params, source)
+        assert result is not None
+        assert isinstance(result.contents, lsp.MarkupContent)
+        value = result.contents.value
+        assert "**Bold** heading" in value
+        assert "#### Usage" in value
+        assert "```" in value
+        assert "`a`: The first." in value
+        assert "**Returns:** The result." in value
+
+    def test_handle_hover_library_description(self) -> None:
+        """``// @description`` on a library renders when hovering ``library``."""
+        source = """//@version=6
+// @description A **markdown** library.
+// second line.
+library("Lib")
+"""
+        params = lsp.HoverParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=3, character=2),  # on "library"
+        )
+        result = handle_hover(params, source)
+        assert result is not None
+        assert isinstance(result.contents, lsp.MarkupContent)
+        value = result.contents.value
+        assert "**markdown** library." in value
+        assert "second line." in value
+
+    def test_handle_hover_type_annotations(self) -> None:
+        """``// @type`` + ``// @field`` render a type hover card."""
+        source = """//@version=6
+indicator("T")
+
+// @type A point.
+// @field x The x coordinate.
+// @field y The y coordinate.
+export type Point
+    float x
+    float y
+"""
+        params = lsp.HoverParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=6, character=13),  # on "Point"
+        )
+        result = handle_hover(params, source)
+        assert result is not None
+        assert isinstance(result.contents, lsp.MarkupContent)
+        value = result.contents.value
+        assert "A point." in value
+        assert "`x`: The x coordinate." in value
+        assert "`y`: The y coordinate." in value
+
+    def test_handle_hover_variable_annotation(self) -> None:
+        """``// @variable`` renders as a variable hover card."""
+        source = """//@version=6
+indicator("T")
+
+// @variable An array of averages.
+export myVar = array.new<float>()
+"""
+        params = lsp.HoverParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=4, character=9),  # on "myVar"
+        )
+        result = handle_hover(params, source)
+        assert result is not None
+        assert isinstance(result.contents, lsp.MarkupContent)
+        assert "An array of averages." in result.contents.value
+
+    def test_handle_hover_user_function_shadows_builtin(self) -> None:
+        """A user function named like a builtin alias shows its annotation card."""
+        source = """//@version=6
+library("Lib")
+
+// @function Custom bands.
+// @param src Source series.
+// @returns Bands.
+export bb(series float src) => src
+
+plot(bb(close))
+"""
+        params = lsp.HoverParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=8, character=6),  # on "bb" in plot(bb(close))
+        )
+        result = handle_hover(params, source)
+        assert result is not None
+        assert isinstance(result.contents, lsp.MarkupContent)
+        value = result.contents.value
+        assert "Custom bands." in value
+        assert "`src`: Source series." in value
+        assert "**Returns:** Bands." in value
+
     def test_build_docs_link_only_dotted_labels(self) -> None:
         """Docs links are dotted-namespace builtins only; empty / undotted stay blank."""
         from pynescript.langserver.features.hover import _build_docs_link

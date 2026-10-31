@@ -7,7 +7,7 @@ tags: [doc, docs, lsp, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-20T13:53:03Z
+  at: 2026-10-31T14:46:08Z
 sources:
   - id: tree
     resource: "docs/pyne/lsp/features/hover.mdx"
@@ -27,6 +27,7 @@ Repo path `docs/pyne/lsp/features/hover.mdx`.
 * Interface surface
   * Lookup order
   * Builtin card structure
+  * Library annotation cards
 * Internals
 * Invariants and edge cases
 * Worked example

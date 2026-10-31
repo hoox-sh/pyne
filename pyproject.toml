@@ -118,6 +118,8 @@ exclude = [
   "/reports",
   "/vscode-extension/node_modules",
   "/.host",
+  "/packages/backend/dist",
+  "/packages/backend/build",
 ]
 
 [tool.hatch.build.targets.wheel]

@@ -99,6 +99,29 @@ _NAMESPACE_DOCS: dict[str, str] = {
 
 _SNIPPET_PLACEHOLDER = re.compile(r"\$\{(\d+):([^}]+)\}|\$\{(\d+)\}|\$(\d+)")
 
+# Known Pine library annotation tags. Any other ``//`` line inside an
+# annotation block is Markdown continuation content.
+_KNOWN_ANNOTATION_TAGS = frozenset(
+    {
+        "version",
+        "description",
+        "function",
+        "returns",
+        "type",
+        "variable",
+        "param",
+        "field",
+        "enum",
+        "strategy_alert_message",
+    }
+)
+
+# Tags whose content is the node's description (function / type / variable).
+_DESCRIPTION_TAGS = frozenset({"function", "type", "variable", "description", "enum"})
+
+# ``@tag …`` line inside a comment block (leading ``//`` already stripped).
+_ANNOTATION_TAG_RE = re.compile(r"^@\s*([A-Za-z_]+)(?:\s+(.*))?$")
+
 
 def handle_hover(
     params: lsp.HoverParams,
@@ -144,19 +167,32 @@ def handle_hover(
     if type_hover is not None:
         return type_hover
 
-    builtin_hover = _hover_builtin(word, line_text, seg_start, position.line, seg_end)
-    if builtin_hover is not None:
-        return builtin_hover
-
+    # The library declaration is a builtin-shaped call; prefer a script-level
+    # //@description card when one exists.
     resolved = _resolve_tree(source, tree)
+    if word == "library":
+        library_hover = _hover_library(word, resolved, source, position.line, seg_start, seg_end)
+        if library_hover is not None:
+            return library_hover
+
+    # User enums get a richer member-aware card than the generic decl card.
     enums = collect_user_enums(resolved, source)
     enum_hover = _hover_user_enum(word, enums, position.line, seg_start, seg_end)
     if enum_hover is not None:
         return enum_hover
 
-    decl_hover = _hover_user_decl(segment, resolved, source, position.line, seg_start, seg_end, cache=cache)
-    if decl_hover is not None:
-        return decl_hover
+    decl_info = _lookup_user_decl(segment, resolved, source, cache)
+
+    builtin_hover = _hover_builtin(word, line_text, seg_start, position.line, seg_end)
+    if builtin_hover is not None:
+        # User-defined functions/methods/types shadow builtin metadata so
+        # library ``//@function`` docs render for colliding names (e.g. ``bb``).
+        if decl_info is not None and decl_info.get("kind") in {"function", "method", "type"}:
+            return _build_user_decl_hover(decl_info, position.line, seg_start, seg_end)
+        return builtin_hover
+
+    if decl_info is not None:
+        return _build_user_decl_hover(decl_info, position.line, seg_start, seg_end)
 
     return _hover_keyword(segment, position.line, seg_start, seg_end)
 
@@ -217,16 +253,13 @@ def _hover_type_or_qualifier(
     return None
 
 
-def _hover_user_decl(
+def _lookup_user_decl(
     name: str,
     tree: Any | None,
     source: str,
-    line: int,
-    start: int,
-    end: int,
     cache: dict[str, Any] | None = None,
-) -> lsp.Hover | None:
-    """Hover for a user function, assignment, type, or enum from the AST."""
+) -> dict[str, Any] | None:
+    """Return the collected declaration info for *name*, or ``None``."""
     if not name or tree is None:
         return None
     try:
@@ -238,25 +271,219 @@ def _hover_user_decl(
                 cache["user_decls"] = decls
     except Exception:
         return None
-    info = decls.get(name)
-    if info is None:
+    return decls.get(name)
+
+
+def _strip_comment_prefix(line: str) -> str | None:
+    """Return the text after ``//`` (one leading space removed), or ``None``.
+
+    Trailing whitespace is preserved: Pine Markdown uses two trailing spaces to
+    force a line break.
+    """
+    text = line.lstrip()
+    if not text.startswith("//"):
         return None
+    body = text[2:]
+    if body.startswith(" "):
+        body = body[1:]
+    return body
+
+
+def _extract_comment_block(lines: list[str], lineno: int | None) -> list[str]:
+    """Return the contiguous ``//`` comment block immediately above *lineno*.
+
+    Args:
+        lines: Document text split by ``\\n``.
+        lineno: 1-based declaration line, or ``None``.
+
+    Returns:
+        Raw comment lines (top-to-bottom), or ``[]`` when the line above the
+        declaration is not a ``//`` comment.
+    """
+    if not lines or not lineno:
+        return []
+    idx = lineno - 2
+    if idx < 0 or not lines[idx].lstrip().startswith("//"):
+        return []
+    start = idx
+    while start > 0 and lines[start - 1].lstrip().startswith("//"):
+        start -= 1
+    return lines[start : idx + 1]
+
+
+def _extract_comment_block_at(lines: list[str], idx: int) -> list[str]:
+    """Return the contiguous ``//`` comment block containing line *idx*."""
+    if not lines or idx < 0 or idx >= len(lines) or not lines[idx].lstrip().startswith("//"):
+        return []
+    start = idx
+    while start > 0 and lines[start - 1].lstrip().startswith("//"):
+        start -= 1
+    end = idx
+    while end + 1 < len(lines) and lines[end + 1].lstrip().startswith("//"):
+        end += 1
+    return lines[start : end + 1]
+
+
+def _parse_annotation_entries(block: list[str] | None) -> list[tuple[str, str | None, str]]:
+    """Parse a ``//`` comment block into ``(tag, name, content)`` entries.
+
+    A known tag line starts a new entry (``@function``, ``@param name …``,
+    ``@returns``, …); every following plain ``//`` line is Markdown
+    continuation content for that tag. Markdown (headings, lists, code fences,
+    blockquotes, tables, links, inline formatting, and two-space line breaks)
+    is preserved verbatim so the hover renders it.
+
+    Args:
+        block: Raw comment lines (each starting with ``//``), or ``None``.
+
+    Returns:
+        Ordered ``(tag, name, content)`` entries. ``name`` is set for
+        ``param`` / ``field``. Empty when the block has no known tag.
+    """
+    entries: list[list[Any]] = []
+    current: list[Any] | None = None
+    for raw in block or []:
+        body = _strip_comment_prefix(raw)
+        if body is None:
+            continue
+        match = _ANNOTATION_TAG_RE.match(body.lstrip())
+        tag = match.group(1).lower() if match else ""
+        if match and tag in _KNOWN_ANNOTATION_TAGS:
+            if current is not None:
+                entries.append(current)
+            rest = match.group(2) or ""
+            if tag in {"param", "field"}:
+                parts = rest.split(None, 1)
+                name = parts[0] if parts else ""
+                desc = parts[1] if len(parts) > 1 else ""
+                current = [tag, name, [desc] if desc else []]
+            else:
+                current = [tag, None, [rest] if rest else []]
+        elif current is not None:
+            current[2].append(body)
+    if current is not None:
+        entries.append(current)
+    return [(entry[0], entry[1], "\n".join(entry[2]).rstrip("\n")) for entry in entries]
+
+
+def _annotation_sections(
+    entries: list[tuple[str, str | None, str]],
+) -> tuple[str | None, list[tuple[str, str]], str | None, list[tuple[str, str]]]:
+    """Split annotation entries into description, params, returns, and fields."""
+    description: str | None = None
+    returns: str | None = None
+    params: list[tuple[str, str]] = []
+    fields: list[tuple[str, str]] = []
+    for tag, field_name, content in entries:
+        if tag in _DESCRIPTION_TAGS:
+            if content:
+                description = content
+        elif tag == "param" and field_name:
+            params.append((field_name, content))
+        elif tag == "field" and field_name:
+            fields.append((field_name, content))
+        elif tag == "returns" and content:
+            returns = content
+    return description, params, returns, fields
+
+
+def _format_named_list(title: str, items: list[tuple[str, str]]) -> str:
+    """Render a Markdown bullet list of ``name``/``description`` pairs."""
+    lines = [f"**{title}:**"]
+    for item_name, item_desc in items:
+        if item_desc:
+            lines.append(f"- `{item_name}`: {item_desc}")
+        else:
+            lines.append(f"- `{item_name}`")
+    return "\n".join(lines)
+
+
+def _build_user_decl_hover(info: dict[str, Any], line: int, start: int, end: int) -> lsp.Hover:
+    """Build a Markdown hover card from a declaration's annotations.
+
+    The card mirrors TradingView's library hover: a fenced signature, then the
+    ``//@function`` / ``//@type`` / ``//@variable`` description rendered as
+    Markdown, followed by ``//@field``, ``//@param``, and ``//@returns``
+    sections. Without annotations it falls back to a one-line note.
+    """
     kind = info.get("kind", "declaration")
-    signature = info.get("signature") or name
-    return _markdown_hover(signature, f"User-defined {kind}.", line, start, end)
+    signature = info.get("signature") or info.get("name") or kind
+    entries = _parse_annotation_entries(info.get("annotations"))
+    description, params, returns, fields = _annotation_sections(entries)
+
+    parts = [f"```pinescript\n{signature}\n```"]
+    if description:
+        parts.append(description)
+    if fields:
+        parts.append(_format_named_list("Fields", fields))
+    if params:
+        parts.append(_format_named_list("Parameters", params))
+    if returns:
+        parts.append(f"**Returns:** {returns}")
+    if len(parts) == 1:
+        parts.append(f"User-defined {kind}.")
+
+    return lsp.Hover(
+        contents=lsp.MarkupContent(kind=lsp.MarkupKind.Markdown, value="\n\n".join(parts) + "\n"),
+        range=lsp.Range(
+            start=lsp.Position(line=line, character=start),
+            end=lsp.Position(line=line, character=end),
+        ),
+    )
 
 
-def _collect_user_decls(tree: Any, source: str) -> dict[str, dict[str, str]]:
-    """Map identifier → first declaration (kind + source signature)."""
-    found: dict[str, dict[str, str]] = {}
+def _hover_library(
+    word: str,
+    tree: Any | None,
+    source: str | None,
+    line: int,
+    start: int,
+    end: int,
+) -> lsp.Hover | None:
+    """Hover the ``library`` declaration using the script-level ``//@description``."""
+    if word != "library" or tree is None or not source:
+        return None
+    raw = getattr(tree, "annotations", None) or []
+    if not any("description" in item for item in raw):
+        return None
+    lines = source.split("\n")
+    for idx, text in enumerate(lines):
+        if not re.match(r"^\s*//\s*@\s*description\b", text):
+            continue
+        entries = _parse_annotation_entries(_extract_comment_block_at(lines, idx))
+        description = next(
+            (content for tag, _name, content in entries if tag == "description" and content),
+            None,
+        )
+        if description:
+            content = f"```pinescript\nlibrary\n```\n\n{description}\n"
+            return lsp.Hover(
+                contents=lsp.MarkupContent(kind=lsp.MarkupKind.Markdown, value=content),
+                range=lsp.Range(
+                    start=lsp.Position(line=line, character=start),
+                    end=lsp.Position(line=line, character=end),
+                ),
+            )
+    return None
+
+
+def _collect_user_decls(tree: Any, source: str) -> dict[str, dict[str, Any]]:
+    """Map identifier → first declaration (kind, source signature, annotations)."""
+    found: dict[str, dict[str, Any]] = {}
     # Split once — a per-declaration split is O(decls x doc-size).
     lines = source.split("\n") if source else []
 
     def add(name: str | None, kind: str, node: Any, fallback: str) -> None:
         if not name or name in found:
             return
-        snippet = _snippet_from_lines(lines, getattr(node, "lineno", None))
-        found[name] = {"kind": kind, "signature": snippet or fallback}
+        lineno = getattr(node, "lineno", None)
+        snippet = _snippet_from_lines(lines, lineno)
+        found[name] = {
+            "kind": kind,
+            "signature": snippet or fallback,
+            # Full contiguous comment block (tag + Markdown continuation lines).
+            "annotations": _extract_comment_block(lines, lineno),
+        }
 
     def walk(node: Any) -> None:
         if node is None:

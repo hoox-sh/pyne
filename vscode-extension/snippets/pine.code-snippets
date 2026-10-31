@@ -1,0 +1,142 @@
+{
+  "PYNE: indicator()": {
+    "prefix": "indicator",
+    "body": "//@version=6\nindicator(\"${1:name}\", shorttitle=\"${2:short}\", overlay=${3:false}, timeframe=\"${4:}\", timeframe_gaps=${5:true})\n\n${6:// your code here}",
+    "description": "Pine v6 indicator declaration"
+  },
+  "PYNE: strategy()": {
+    "prefix": "strategy",
+    "body": "//@version=6\nstrategy(\"${1:name}\", overlay=${2:false}, initial_capital=${3:1000}, default_qty_type=${4:strategy.cash}, default_qty_value=${5:1000})\n\n${6:// your code here}",
+    "description": "Pine v6 strategy declaration"
+  },
+  "PYNE: library()": {
+    "prefix": "library",
+    "body": "//@version=6\nlibrary(\"${1:name}\")\n\n${2:// your functions here}",
+    "description": "Pine v6 library declaration"
+  },
+  "PYNE: type declaration": {
+    "prefix": "type",
+    "body": "type ${1:TypeName}\n    ${2:field1}: int\n    ${3:field2}: float\n\n${4:// methods here}",
+    "description": "Pine v6 user-defined type"
+  },
+  "PYNE: enum declaration": {
+    "prefix": "enum",
+    "body": "enum ${1:EnumName}\n    ${2:VALUE_A}\n    ${3:VALUE_B}\n\n${4:// usage: myEnum = EnumName.VALUE_A}",
+    "description": "Pine v6 user-defined enum"
+  },
+  "PYNE: input.int": {
+    "prefix": "input.int",
+    "body": "input.int(${1:14}, \"${2:length}\", min=${3:1})",
+    "description": "Pine v6 integer input"
+  },
+  "PYNE: input.float": {
+    "prefix": "input.float",
+    "body": "input.float(${1:14.0}, \"${2:length}\", min=${3:0.0}, step=${4:0.1})",
+    "description": "Pine v6 float input"
+  },
+  "PYNE: input.string": {
+    "prefix": "input.string",
+    "body": "input.string(\"${1:close}\", \"${2:source}\", options=[\"${3:open}\", \"${4:high}\", \"${5:low}\", \"${6:close}\"])",
+    "description": "Pine v6 string input with options"
+  },
+  "PYNE: input.bool": {
+    "prefix": "input.bool",
+    "body": "input.bool(${1:true}, \"${2:show}\")",
+    "description": "Pine v6 boolean input"
+  },
+  "PYNE: input.source": {
+    "prefix": "input.source",
+    "body": "input.source(close, \"${1:source}\")",
+    "description": "Pine v6 source input"
+  },
+  "PYNE: plot()": {
+    "prefix": "plot",
+    "body": "plot(${1:series}, \"${2:title}\", color=color.${3:blue}, linewidth=${4:1})",
+    "description": "Pine v6 plot"
+  },
+  "PYNE: plotshape()": {
+    "prefix": "plotshape",
+    "body": "plotshape(${1:condition}, \"${2:title}\", shape=shape.${3:labelup}, location=location.${4:abovebar}, color=color.${5:green}, size=size.${6:small})",
+    "description": "Pine v6 plotshape"
+  },
+  "PYNE: ta.sma": {
+    "prefix": "ta.sma",
+    "body": "ta.sma(${1:source}, ${2:length})",
+    "description": "ta.sma(source, length)"
+  },
+  "PYNE: ta.ema": {
+    "prefix": "ta.ema",
+    "body": "ta.ema(${1:source}, ${2:length})",
+    "description": "ta.ema(source, length)"
+  },
+  "PYNE: ta.rsi": {
+    "prefix": "ta.rsi",
+    "body": "ta.rsi(${1:source}, ${2:length})",
+    "description": "ta.rsi(source, length)"
+  },
+  "PYNE: ta.atr": {
+    "prefix": "ta.atr",
+    "body": "ta.atr(${1:length})",
+    "description": "ta.atr(length)"
+  },
+  "PYNE: ta.stdev": {
+    "prefix": "ta.stdev",
+    "body": "ta.stdev(${1:source}, ${2:length})",
+    "description": "ta.stdev(source, length)"
+  },
+  "PYNE: ta.crossover": {
+    "prefix": "ta.crossover",
+    "body": "ta.crossover(${1:series1}, ${2:series2})",
+    "description": "ta.crossover(series1, series2)"
+  },
+  "PYNE: ta.crossunder": {
+    "prefix": "ta.crossunder",
+    "body": "ta.crossunder(${1:series1}, ${2:series2})",
+    "description": "ta.crossunder(series1, series2)"
+  },
+  "PYNE: strategy.entry": {
+    "prefix": "strategy.entry",
+    "body": "strategy.entry(\"${1:id}\", ${2:strategy.long}, limit=${3:na}, stop=${4:na})",
+    "description": "strategy.entry(id, direction, limit, stop)"
+  },
+  "PYNE: strategy.close": {
+    "prefix": "strategy.close",
+    "body": "strategy.close(\"${1:id}\", comment=\"${2:}\")",
+    "description": "strategy.close(id, comment)"
+  },
+  "PYNE: if / else": {
+    "prefix": "pineif",
+    "body": "if ${1:condition}\n    ${2:// then block}\nelse\n    ${3:// else block}",
+    "description": "Pine if / else block"
+  },
+  "PYNE: for loop": {
+    "prefix": "pinefor",
+    "body": "for ${1:i} = ${2:0} to ${3:10} by ${4:1}\n    ${5:// loop body}",
+    "description": "Pine for loop"
+  },
+  "PYNE: switch": {
+    "prefix": "pineswitch",
+    "body": "switch ${1:expression}\n    ${2:case1} => ${3:value1}\n    ${4:case2} => ${5:value2}\n    => ${6:default}",
+    "description": "Pine switch expression"
+  },
+  "PYNE: request.security": {
+    "prefix": "request.security",
+    "body": "request.security(${1:\"SYMBOL\"}, ${2:\"timeframe\"}, ${3:expression})",
+    "description": "request.security(symbol, timeframe, expression)"
+  },
+  "PYNE: label.new": {
+    "prefix": "label.new",
+    "body": "label.new(x=${1:bar_index}, y=${2:price}, text=\"${3:label}\", color=color.${4:blue}, textcolor=color.${5:white}, style=label.style.${6:label_up})",
+    "description": "label.new drawing"
+  },
+  "PYNE: array.new<float>": {
+    "prefix": "array.new",
+    "body": "array.new<${1:float}>(${2:size}, ${3:na})",
+    "description": "array.new<type>(size, initial)"
+  },
+  "PYNE: multiline string": {
+    "prefix": "triplequote",
+    "body": "\"\"\"\n${1:multiline text}\n\"\"\"",
+    "description": "Pine v6 triple-quoted multiline string"
+  }
+}

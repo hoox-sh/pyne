@@ -3,11 +3,14 @@
 src/**
 node_modules/**
 .git/**
+.gitignore
 **/*.ts
 **/*.map
-!out/**/*.js
+out/**
+!out/extension.js
 tsconfig.json
 esbuild.mjs
+eslint.config.mjs
 .vscodeignore
 package-lock.json
 **/*.vsix
