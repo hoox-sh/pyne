@@ -86,6 +86,7 @@ export const COMMANDS = {
   startBackend: 'pynescript.startBackend',
   testBackend: 'pynescript.testBackend',
   selectTheme: 'pynescript.selectTheme',
+  selectSyntax: 'pynescript.selectSyntax',
 } as const;
 
 let client: LanguageClient | undefined;
@@ -99,6 +100,8 @@ let installInFlight: Promise<void> | null = null;
 let installPromptDismissed = false;
 /** Extension global storage (for the auto-created virtualenv). */
 let globalStorageDir: string | undefined;
+/** Extension install root (to read the bundled `themes/*.json`). */
+let extensionPath: string | undefined;
 
 function log(msg: string): void {
   const line = `[PYNE] ${msg}`;
@@ -134,35 +137,110 @@ const PYNE_THEMES: Record<string, { label: string; description: string }> = {
   orange: { label: 'PYNE Orange', description: 'Signal orange accent' },
 };
 
-function currentPyneThemeId(): string {
-  const id = (cfg<string>('theme') || 'void').toLowerCase();
-  return id in PYNE_THEMES ? id : 'void';
+/** Quick-pick items: None first, then the three product themes. */
+function themeChoices(): Array<{ id: string; label: string; description: string }> {
+  return [
+    { id: 'none', label: 'None', description: 'Use user/system settings' },
+    ...Object.entries(PYNE_THEMES).map(([id, theme]) => ({
+      id,
+      label: theme.label,
+      description: theme.description,
+    })),
+  ];
+}
+
+function currentThemeId(): string {
+  const id = (cfg<string>('theme') || 'none').toLowerCase();
+  return id === 'none' || id in PYNE_THEMES ? id : 'none';
+}
+
+function currentSyntaxId(): string {
+  const id = (cfg<string>('syntaxHighlighting') || 'void').toLowerCase();
+  return id === 'none' || id in PYNE_THEMES ? id : 'void';
 }
 
 /**
- * Apply the selected PYNE color theme to the workbench.
- *
- * @param force Apply even when `pynescript.theme.applyWorkbench` is false
- *   (used by the explicit Select Theme command).
+ * Workbench theme (UI chrome + hover cards). `none` leaves the user/system
+ * theme untouched.
  */
-async function applyPyneTheme(force = false): Promise<void> {
-  if (!force && cfg<boolean>('theme.applyWorkbench') === false) {
+async function applyPyneTheme(): Promise<void> {
+  const id = currentThemeId();
+  if (id === 'none') {
+    log('PYNE workbench theme: none (keeping user/system theme).');
     return;
   }
-  const id = currentPyneThemeId();
   const theme = PYNE_THEMES[id];
   const current = workspace.getConfiguration('workbench').get<string>('colorTheme');
-  if (current === theme.label && !force) {
+  if (current === theme.label) {
     return;
   }
   try {
     await workspace
       .getConfiguration('workbench')
       .update('colorTheme', theme.label, ConfigurationTarget.Global);
-    log(`Applied PYNE theme: ${theme.label}`);
+    log(`Applied workbench theme: ${theme.label}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     log(`Could not apply theme ${theme.label}: ${msg}`);
+  }
+}
+
+/** Read the bundled `themes/pyne-<id>-color-theme.json`. */
+function loadThemeJson(
+  id: string,
+): { tokenColors?: unknown[]; semanticTokenColors?: Record<string, unknown> } | undefined {
+  if (!extensionPath || !(id in PYNE_THEMES)) {
+    return undefined;
+  }
+  const file = path.join(extensionPath, 'themes', `pyne-${id}-color-theme.json`);
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (err) {
+    log(`Could not read ${file}: ${err instanceof Error ? err.message : String(err)}`);
+    return undefined;
+  }
+}
+
+/**
+ * Pine syntax highlighting, independent of the workbench theme.
+ *
+ * Writes language-scoped `editor.tokenColorCustomizations` and
+ * `editor.semanticTokenColorCustomizations` for `pinescript`; `none` removes
+ * the overrides so the active theme's colors apply.
+ */
+async function applyPyneSyntax(): Promise<void> {
+  const id = currentSyntaxId();
+  const editorConfig = workspace.getConfiguration('editor', { languageId: 'pinescript' });
+  if (id === 'none') {
+    try {
+      await editorConfig.update('tokenColorCustomizations', undefined, ConfigurationTarget.Global, true);
+      await editorConfig.update('semanticTokenColorCustomizations', undefined, ConfigurationTarget.Global, true);
+      log('Cleared Pine syntax overrides (using active theme).');
+    } catch (err) {
+      log(`Could not clear Pine syntax overrides: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    return;
+  }
+  const theme = loadThemeJson(id);
+  if (!theme) {
+    return;
+  }
+  try {
+    await editorConfig.update(
+      'tokenColorCustomizations',
+      { textMateRules: theme.tokenColors ?? [] },
+      ConfigurationTarget.Global,
+      true,
+    );
+    await editorConfig.update(
+      'semanticTokenColorCustomizations',
+      { enabled: true, rules: theme.semanticTokenColors ?? {} },
+      ConfigurationTarget.Global,
+      true,
+    );
+    log(`Applied Pine syntax highlighting: ${id}`);
+  } catch (err) {
+    log(`Could not apply Pine syntax ${id}: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
@@ -945,13 +1023,8 @@ function registerCommands(context: ExtensionContext): void {
 
   context.subscriptions.push(
     commands.registerCommand(COMMANDS.selectTheme, async () => {
-      const items = Object.entries(PYNE_THEMES).map(([id, theme]) => ({
-        label: theme.label,
-        description: theme.description,
-        id,
-      }));
-      const pick = await window.showQuickPick(items, {
-        placeHolder: 'Select a PYNE product theme',
+      const pick = await window.showQuickPick(themeChoices(), {
+        placeHolder: 'Select a PYNE workbench theme (None = user/system)',
         matchOnDescription: true,
       });
       if (!pick) {
@@ -960,8 +1033,25 @@ function registerCommands(context: ExtensionContext): void {
       await workspace
         .getConfiguration('pynescript')
         .update('theme', pick.id, ConfigurationTarget.Global);
-      await applyPyneTheme(true);
-      void window.showInformationMessage(`PYNE theme: ${pick.label}.`);
+      await applyPyneTheme();
+      void window.showInformationMessage(`PYNE workbench theme: ${pick.label}.`);
+    }),
+  );
+
+  context.subscriptions.push(
+    commands.registerCommand(COMMANDS.selectSyntax, async () => {
+      const pick = await window.showQuickPick(themeChoices(), {
+        placeHolder: 'Select a Pine syntax highlighting palette (None = active theme)',
+        matchOnDescription: true,
+      });
+      if (!pick) {
+        return;
+      }
+      await workspace
+        .getConfiguration('pynescript')
+        .update('syntaxHighlighting', pick.id, ConfigurationTarget.Global);
+      await applyPyneSyntax();
+      void window.showInformationMessage(`PYNE syntax highlighting: ${pick.label}.`);
     }),
   );
 
@@ -1309,6 +1399,7 @@ function convertViaPython(source: string): string {
 
 export async function activate(context: ExtensionContext): Promise<void> {
   globalStorageDir = context.globalStorageUri.fsPath;
+  extensionPath = context.extensionPath;
   output = window.createOutputChannel('PYNE Language Server', { log: true });
   context.subscriptions.push(output);
   log('Activating PYNE extension…');
@@ -1328,6 +1419,9 @@ export async function activate(context: ExtensionContext): Promise<void> {
       if (e.affectsConfiguration('pynescript.theme')) {
         await applyPyneTheme();
       }
+      if (e.affectsConfiguration('pynescript.syntaxHighlighting')) {
+        await applyPyneSyntax();
+      }
       if (
         e.affectsConfiguration('pynescript.lsp') ||
         e.affectsConfiguration('pynescript.formatting') ||
@@ -1344,9 +1438,10 @@ export async function activate(context: ExtensionContext): Promise<void> {
     }),
   );
 
-  // Adopt the selected PYNE product theme (void by default) unless the user
-  // opted out via pynescript.theme.applyWorkbench.
+  // Workbench theme (`none` keeps the user/system theme) and the independent
+  // Pine syntax palette (`none` uses the active theme's colors).
   await applyPyneTheme();
+  await applyPyneSyntax();
 
   try {
     await withClientLock(() => startClient());
