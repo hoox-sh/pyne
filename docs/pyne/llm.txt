@@ -8203,7 +8203,7 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-3.0-or-later
 ---
 title: "Diagnostics"
-description: "Push and pull diagnostics: parse errors, lint rules, opt-in semantic checks, severity mapping, and W001/W002/W104/W105/C002 QuickFixes."
+description: "Push and pull diagnostics: parse errors, lint rules, opt-in semantic checks, severity mapping, and W001/W002/W101/W104/W105/C002 QuickFixes."
 ---
 Diagnostics
 Abstract
@@ -8273,7 +8273,7 @@ Synthetic diagnostic code E001, severity Error
 Range from SyntaxErrorDetails (lineno/offset/end_), clamped to a
 non-empty span on the last non-empty line for EOF errors
 Quick fixes (feature module)
-create_quick_fix is wired through textDocument/codeAction (server.py → convert.handle_code_action) for W001, W002, W104, W105, and C002:
+create_quick_fix is wired through textDocument/codeAction (server.py → convert.handle_code_action) for W001, W002, W101, W104, W105, and C002:
 W001 (missing //@version) → QuickFix inserting //@version=6\n at document start (line 0, character 0). Offered even when Convert-to-v6 is also available (undeclared version is treated as v1 for convert).
 W002 (//@version=N with N "
 }

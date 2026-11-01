@@ -133,7 +133,7 @@ def handle_code_action(
     if warnings:
         seen: set[tuple[str, int | None, int | None]] = set()
         for warning in warnings:
-            if warning.code not in {"W104", "W105"}:
+            if warning.code not in {"W101", "W104", "W105"}:
                 continue
             key = (warning.code, warning.line, warning.column)
             if key in seen:

@@ -262,6 +262,12 @@ def create_quick_fix(
             is_preferred=True,
         )
 
+    if warning.code == "W101":
+        edit = _deprecated_call_edit(source, warning)
+        if edit is None:
+            return None
+        return _single_edit_action("Use request.security()", uri, edit)
+
     if warning.code == "W104":
         edit = _removed_kwarg_edit(source, warning, tree)
         if edit is None:
@@ -351,6 +357,26 @@ def _single_edit_action(title: str, uri: str, edit: lsp.TextEdit) -> lsp.CodeAct
         ),
         is_preferred=True,
     )
+
+
+def _deprecated_call_edit(source: str, warning: LintWarning) -> lsp.TextEdit | None:
+    """Rewrite a v4 ``security(...)`` call to ``request.security(...)``."""
+    if warning.line is None or warning.column is None:
+        return None
+    lines = source.split("\n")
+    line_index = int(warning.line) - 1
+    if not (0 <= line_index < len(lines)):
+        return None
+    start = int(warning.column)
+    line = lines[line_index]
+    if line[start : start + len("security")].lower() != "security":
+        return None
+    end = warning.end_column if warning.end_column is not None else start + len("security")
+    edit = lsp.TextEdit(
+        range=_range_between((line_index, start), (line_index, int(end))),
+        new_text="request.security",
+    )
+    return edit if _edit_parses(source, edit) else None
 
 
 def _removed_kwarg_edit(source: str, warning: LintWarning, tree: Any | None) -> lsp.TextEdit | None:

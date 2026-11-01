@@ -518,6 +518,12 @@ def _actions_for(source: str) -> list[lsp.CodeAction]:
 
 
 class TestQuickFixes:
+    def test_w101_rewrites_security(self) -> None:
+        source = '//@version=6\nindicator("T")\nx = security("NASDAQ:AAPL", "D", close)\n'
+        action = next(a for a in _actions_for(source) if a.title == "Use request.security()")
+        fixed = _apply_action(source, action)
+        assert 'x = request.security("NASDAQ:AAPL", "D", close)' in fixed
+
     def test_w104_removes_middle_argument(self) -> None:
         source = '//@version=6\nindicator("T")\nplot(close, transp=20, color=color.red)\n'
         action = next(a for a in _actions_for(source) if a.title == "Remove removed v6 argument")
