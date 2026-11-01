@@ -233,7 +233,7 @@
           "pynescript.diagnostics.semantic": {
             "type": "boolean",
             "default": false,
-            "description": "Reserved: enable opt-in unknown-symbol and arity checks. Off by default so incomplete edits never produce speculative errors."
+            "description": "Enable opt-in semantic checks: unknown fields/methods on user types, unknown enum members, and user-function argument mismatches. Off by default so incomplete edits never produce speculative errors."
           },
           "pynescript.completion.snippets": {
             "type": "boolean",

@@ -8,6 +8,7 @@
 - **Live editor settings.** `initializationOptions` and `workspace/didChangeConfiguration` now drive formatting, snippets, diagnostics, inlay-hint types/parameters, and semantic-diagnostic gates without restarting the client.
 - **Inlay hints** are filtered to the requested range, support user function/method parameter names, and use real metadata signatures.
 - **Semantic tokens** include user references, parameters, fields, methods, enum members, and imports in addition to declarations.
+- **Opt-in semantic diagnostics.** `pynescript.diagnostics.semantic` enables `S001` (unknown field/method on a user `type`, unknown member on a user `enum`) and `S002` (user-function call arity or parameter-name mismatch). Builtin calls and unknown receiver types are skipped, so the checks stay quiet on incomplete catalogs.
 - **Metadata generator** derives signatures/snippets/parameters from handler introspection, `_KWARG_ORDER`, `_TA_KWARG_ORDERS`, and docstrings; regenerated plaintext + Fernet artifacts.
 
 ### Fixed
@@ -15,6 +16,8 @@
 - **Stale-AST race.** `didChange` updates source immediately; features no longer combine the new text with the previous AST. Parse results commit only if the document version/source still match, and published diagnostics carry the document version.
 - **Destructive formatting.** The unparser drops prose/block comments; formatting now returns no edits when such comments are present instead of deleting them. Range/on-type formatting also refuses line-structure changes.
 - **Parse diagnostics** use structured `SyntaxErrorDetails` with a non-empty range instead of a zero-width error at column 0.
+- **W104/W105 QuickFixes.** W104 deletes the v6-removed `transp=` / `when=` argument (multi-line calls included) and refuses when the removed span contains a comment; W105 rewrites the numeric condition as `literal != 0`. Both are verified by re-parsing before being offered.
+- **W105 ranges** now underline the numeric literal instead of the `if`/`while` keyword.
 - **Signature help** no longer falls back from `obj.sma(` to `ta.sma`; it resolves exact builtins and UDT methods, and clamps the active parameter.
 - **Fuzzy completion cache** now actually caches the item list and lowercase fields instead of rebuilding them per keystroke.
 - **Format on save** runs before the write via `vscode.executeFormatDocumentProvider` rather than formatting after the file is saved.

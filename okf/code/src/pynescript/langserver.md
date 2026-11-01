@@ -7,7 +7,7 @@ tags: [code, langserver, pynescript]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-01T01:18:26Z
+  at: 2026-11-01T01:43:09Z
 sources:
   - id: tree
     resource: "src/pynescript/langserver"
@@ -20,7 +20,7 @@ okf_lock: generated
 
 * `__init__.py`
 * `__main__.py` — main
-* `analysis.py` — MemberRef, Occurrence, Scope, Symbol, SymbolIndex, build_symbol_index, ensure_symbol_index, infer_type, iter_symbols
+* `analysis.py` — MemberRef, Occurrence, Scope, Symbol, SymbolIndex, base_type_name, build_symbol_index, ensure_symbol_index, infer_type, iter_symbols
 * `config.py` — get_filter_options, get_server_capabilities, semantic_token_modifiers, semantic_token_types
 * `server.py` — PynescriptLanguageServer
 * `workspace.py` — TextDocumentState, Workspace

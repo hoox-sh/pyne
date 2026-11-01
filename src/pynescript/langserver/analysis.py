@@ -1381,6 +1381,15 @@ def _specialize_args(node: Any) -> list[Any]:
     return flattened
 
 
+def base_type_name(type_label: str | None) -> str | None:
+    """Strip Pine type qualifiers and generic arguments from *type_label*.
+
+    ``series array<float>`` → ``array``; ``Point`` → ``Point``; ``None`` →
+    ``None``. Public wrapper used by semantic diagnostics and features.
+    """
+    return _base_type_name(type_label)
+
+
 def _base_type_name(type_label: str | None) -> str | None:
     if not type_label:
         return None

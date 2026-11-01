@@ -47,6 +47,7 @@ from pynescript.ast.linter import LintWarning
 from pynescript.ast.linter import lint_script
 from pynescript.langserver.analysis import SymbolIndex
 from pynescript.langserver.analysis import build_symbol_index
+from pynescript.langserver.features import semantic_diagnostics
 from pynescript.langserver.features.diagnostics import lint_warnings_to_diagnostics
 
 
@@ -136,8 +137,9 @@ class Workspace:
             style_diagnostics: Publish C001/C002/C004 findings. The VS Code
                 extension defaults this off to keep the Problems panel focused
                 on correctness.
-            semantic_diagnostics: Reserved for opt-in unknown-symbol/arity
-                checks. Off by default (under-report rather than guess).
+            semantic_diagnostics: Publish opt-in S001/S002 checks (unknown
+                user-type/enum members and user-function arity). Off by
+                default: under-report rather than guess.
         """
         self._documents: dict[str, TextDocumentState] = {}
         self._parse_errors: set[str] = set()
@@ -296,6 +298,9 @@ class Workspace:
         if not self.style_diagnostics:
             warnings = [warning for warning in warnings if warning.code not in _STYLE_CODES]
         diagnostics = lint_warnings_to_diagnostics(warnings, doc.source)
+
+        if self.semantic_diagnostics:
+            diagnostics.extend(semantic_diagnostics.collect(doc.valid_analysis))
 
         if doc.parse_error:
             rng = _parse_error_range(doc.source, doc.parse_error_details, doc.parse_error_line)

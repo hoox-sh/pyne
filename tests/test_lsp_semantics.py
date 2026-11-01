@@ -32,6 +32,7 @@ from pynescript.ast.helper import parse
 from pynescript.ast.linter import lint_script
 from pynescript.langserver.analysis import build_symbol_index
 from pynescript.langserver.features.completion import handle_completion
+from pynescript.langserver.features.convert import handle_code_action
 from pynescript.langserver.features.definitions import handle_definition
 from pynescript.langserver.features.formatting import handle_formatting
 from pynescript.langserver.features.highlight import handle_document_highlight
@@ -359,3 +360,146 @@ y = p.x
         symbol = index.resolve("y")
         assert symbol is not None
         assert symbol.type_label == "float"
+
+
+# ---------------------------------------------------------------------------
+# Opt-in semantic diagnostics
+# ---------------------------------------------------------------------------
+
+
+_SEMANTIC_SOURCE = """//@version=6
+indicator("T")
+
+type Point
+    float x
+    float y
+
+enum Side
+    Buy
+    Sell
+
+add(a, b) => a + b
+addDefault(a, b = 2) => a + b
+
+method describe(Point self) =>
+    str.tostring(self.x)
+
+p = Point.new(1.0, 2.0)
+ok = p.x + p.y
+badField = p.distnace
+badEnum = Side.Selll
+missing = add(1)
+tooMany = add(1, 2, 3)
+typoKwarg = add(1, lenght=2)
+defaulted = addDefault(1)
+builtin = ta.sma(close)
+methodCall = p.describe(1)
+plot(ok)
+"""
+
+
+def _semantic_diagnostics(*, enabled: bool) -> list[lsp.Diagnostic]:
+    workspace = Workspace(style_diagnostics=False, semantic_diagnostics=enabled)
+    workspace.put_document("file:///semantics.pine", _SEMANTIC_SOURCE)
+    return workspace.get_all_diagnostics()["file:///semantics.pine"]
+
+
+class TestSemanticDiagnostics:
+    def test_off_by_default(self) -> None:
+        assert not [diag for diag in _semantic_diagnostics(enabled=False) if str(diag.code).startswith("S")]
+
+    def test_unknown_udt_member(self) -> None:
+        diagnostic = next(diag for diag in _semantic_diagnostics(enabled=True) if diag.code == "S001")
+        assert "distnace" in diagnostic.message
+        assert "Point" in diagnostic.message
+        assert diagnostic.range.start.line == 19
+        assert diagnostic.range.start.character == _SEMANTIC_SOURCE.split("\n")[19].index("distnace")
+
+    def test_unknown_enum_member(self) -> None:
+        messages = [diag.message for diag in _semantic_diagnostics(enabled=True) if diag.code == "S001"]
+        assert any("Selll" in message and "Side" in message for message in messages)
+
+    def test_user_function_arity(self) -> None:
+        messages = [diag.message for diag in _semantic_diagnostics(enabled=True) if diag.code == "S002"]
+        assert any("missing required argument" in message and "'b'" in message for message in messages)
+        assert any("expects at most 2" in message for message in messages)
+        assert any("no parameter named 'lenght'" in message for message in messages)
+
+    def test_valid_calls_and_builtins_are_quiet(self) -> None:
+        diagnostics = [diag for diag in _semantic_diagnostics(enabled=True) if diag.code == "S002"]
+        messages = " ".join(diag.message for diag in diagnostics)
+        assert "addDefault" not in messages
+        assert "ta.sma" not in messages
+        assert "describe" not in messages
+
+    def test_known_fields_and_enum_members_are_quiet(self) -> None:
+        messages = " ".join(diag.message for diag in _semantic_diagnostics(enabled=True))
+        assert "p.x" not in messages
+        assert "'Buy'" not in messages
+
+
+# ---------------------------------------------------------------------------
+# W104 / W105 quick fixes
+# ---------------------------------------------------------------------------
+
+
+def _apply_action(source: str, action: lsp.CodeAction) -> str:
+    document_changes = action.edit.document_changes or []
+    edits = document_changes[0].edits
+    assert isinstance(edits, list)
+    lines = source.split("\n")
+
+    def offset(position: lsp.Position) -> int:
+        return sum(len(text) + 1 for text in lines[: position.line]) + position.character
+
+    edit = edits[0]
+    return source[: offset(edit.range.start)] + edit.new_text + source[offset(edit.range.end) :]
+
+
+def _actions_for(source: str) -> list[lsp.CodeAction]:
+    tree = parse(source)
+    warnings = lint_script(source, tree=tree)
+    params = lsp.CodeActionParams(
+        text_document=lsp.TextDocumentIdentifier(uri="file:///fixes.pine"),
+        range=lsp.Range(start=lsp.Position(line=0, character=0), end=lsp.Position(line=0, character=0)),
+        context=lsp.CodeActionContext(diagnostics=[]),
+    )
+    return handle_code_action(params, source, warnings, tree=tree)
+
+
+class TestQuickFixes:
+    def test_w104_removes_middle_argument(self) -> None:
+        source = '//@version=6\nindicator("T")\nplot(close, transp=20, color=color.red)\n'
+        action = next(a for a in _actions_for(source) if a.title == "Remove removed v6 argument")
+        fixed = _apply_action(source, action)
+        assert fixed == '//@version=6\nindicator("T")\nplot(close, color=color.red)\n'
+
+    def test_w104_removes_last_argument(self) -> None:
+        source = '//@version=6\nindicator("T")\nplot(close, transp=20)\n'
+        action = next(a for a in _actions_for(source) if a.title == "Remove removed v6 argument")
+        assert _apply_action(source, action) == '//@version=6\nindicator("T")\nplot(close)\n'
+
+    def test_w104_removes_strategy_when(self) -> None:
+        source = '//@version=6\nstrategy("T")\nstrategy.entry("L", strategy.long, when = close > open)\n'
+        action = next(a for a in _actions_for(source) if a.title == "Remove removed v6 argument")
+        fixed = _apply_action(source, action)
+        assert fixed == '//@version=6\nstrategy("T")\nstrategy.entry("L", strategy.long)\n'
+
+    def test_w104_refuses_to_delete_a_comment(self) -> None:
+        source = '//@version=6\nindicator("T")\nplot(close, transp=20, // keep\n     color=color.red)\n'
+        titles = [action.title for action in _actions_for(source)]
+        assert "Remove removed v6 argument" not in titles
+
+    def test_w104_absent_on_v5(self) -> None:
+        source = '//@version=5\nindicator("T")\nplot(close, transp=20)\n'
+        assert "Remove removed v6 argument" not in [action.title for action in _actions_for(source)]
+
+    def test_w105_compares_with_zero(self) -> None:
+        source = '//@version=6\nindicator("T")\nif 1\n    x = 2\n'
+        action = next(a for a in _actions_for(source) if a.title == "Compare numeric condition with 0")
+        assert _apply_action(source, action) == '//@version=6\nindicator("T")\nif 1 != 0\n    x = 2\n'
+
+    def test_w105_ternary_literal(self) -> None:
+        source = '//@version=6\nindicator("T")\ny = 1 ? 2 : 3\n'
+        action = next(a for a in _actions_for(source) if a.title == "Compare numeric condition with 0")
+        assert _apply_action(source, action) == '//@version=6\nindicator("T")\ny = 1 != 0 ? 2 : 3\n'

@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "Diagnostics"
-description: "Push and pull diagnostics: parse errors, lint rules, severity mapping, and the W001/W002/C002 QuickFixes."
+description: "Push and pull diagnostics: parse errors, lint rules, opt-in semantic checks, severity mapping, and W001/W002/W104/W105/C002 QuickFixes."
 resource: "docs/pyne/lsp/features/diagnostics.mdx"
 tags: [doc, docs, lsp, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-01T01:18:26Z
+  at: 2026-11-01T01:43:09Z
 sources:
   - id: tree
     resource: "docs/pyne/lsp/features/diagnostics.mdx"
@@ -32,6 +32,7 @@ Repo path `docs/pyne/lsp/features/diagnostics.mdx`.
   * Severity map
   * Version gating
   * Style diagnostics
+  * Semantic diagnostics (opt-in)
   * Parse errors
   * Quick fixes (feature module)
 * Invariants and edge cases

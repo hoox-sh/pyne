@@ -132,7 +132,7 @@ code --extensionDevelopmentPath=.
 | `pynescript.diagnostics.enabled` | `true` | Errors, warnings, and hints |
 | `pynescript.diagnostics.severity` | `{}` | Remap severity by lint-code prefix, e.g. `{"W": "Hint"}` |
 | `pynescript.diagnostics.style` | `false` | Show C001/C002/C004 style findings |
-| `pynescript.diagnostics.semantic` | `false` | Reserved opt-in unknown-symbol/arity checks |
+| `pynescript.diagnostics.semantic` | `false` | Opt-in UDT/enum member and user-function arity checks |
 | `pynescript.completion.snippets` | `true` | Snippets for builtins and declarations |
 | `pynescript.hover.enabled` | `true` | Hover cards (signature, docs, types) |
 | `pynescript.inlayHints.types` | `true` | Inferred type hints |

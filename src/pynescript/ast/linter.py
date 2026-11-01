@@ -418,15 +418,19 @@ class PineLinter:
                 continue
             test = node.test
             if isinstance(test, Constant) and isinstance(test.value, (int, float)) and not isinstance(test.value, bool):
-                line = getattr(node, "lineno", None)
-                column = getattr(node, "col_offset", None)
+                line = getattr(test, "lineno", None) or getattr(node, "lineno", None)
+                column = getattr(test, "col_offset", None)
+                end_line = getattr(test, "end_lineno", None) or line
+                end_column = getattr(test, "end_col_offset", None)
+                if column is not None and end_column is None:
+                    end_column = column + 1
                 self._add_warning(
                     code="W105",
                     message="Numeric literal in boolean condition; use an explicit comparison or bool() cast",
                     line=line,
                     column=column,
-                    end_line=line,
-                    end_column=(column + 1) if isinstance(column, int) else None,
+                    end_line=end_line,
+                    end_column=end_column,
                 )
 
     def _check_naming(self, source: str) -> None:

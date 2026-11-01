@@ -82,8 +82,9 @@ def handle_code_action(
     params: lsp.CodeActionParams,
     source: str | None,
     warnings: list[LintWarning] | None = None,
+    tree: Any | None = None,
 ) -> list[lsp.CodeAction]:
-    """Offer Convert-to-v6, W001/W002 version QuickFixes, and C002 format."""
+    """Offer Convert-to-v6, version/argument/condition QuickFixes, and C002 format."""
     if not source:
         return []
     declared = detect_version(source)
@@ -130,6 +131,17 @@ def handle_code_action(
         if fix is not None:
             actions.append(fix)
     if warnings:
+        seen: set[tuple[str, int | None, int | None]] = set()
+        for warning in warnings:
+            if warning.code not in {"W104", "W105"}:
+                continue
+            key = (warning.code, warning.line, warning.column)
+            if key in seen:
+                continue
+            seen.add(key)
+            fix = create_quick_fix(warning, uri, source, tree=tree)
+            if fix is not None:
+                actions.append(fix)
         c002 = next((w for w in warnings if w.code == "C002"), None)
         if c002 is not None:
             fix = create_quick_fix(c002, uri, source)

@@ -3,7 +3,7 @@
 # Concepts
 
 * [Completion](completion.md) - textDocument/completion and completionItem/resolve from builtin metadata, module-dot triggers, and fuzzy filter.
-* [Diagnostics](diagnostics.md) - Push and pull diagnostics: parse errors, lint rules, severity mapping, and the W001/W002/C002 QuickFixes.
+* [Diagnostics](diagnostics.md) - Push and pull diagnostics: parse errors, lint rules, opt-in semantic checks, severity mapping, and W001/W002/W104/W105/C002 QuickFixes.
 * [Document color](document-color.md) - textDocument/documentColor and colorPresentation for hex, color., and literal color calls.
 * [Document links](document-link.md) - textDocument/documentLink for http(s) URLs in comments and strings, and documentLink/resolve tooltip.
 * [Folding ranges](folding.md) - textDocument/foldingRange for Pine blocks, type/enum/function bodies, and //region comments.

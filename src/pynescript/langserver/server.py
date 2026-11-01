@@ -408,12 +408,12 @@ class PynescriptLanguageServer(LanguageServer):
 
         @self.feature(lsp.TEXT_DOCUMENT_CODE_ACTION)
         def code_action(params: lsp.CodeActionParams) -> list[lsp.CodeAction]:
-            """Offer Convert-to-v6 and a W001 QuickFix (insert ``//@version=6``)."""
+            """Offer Convert-to-v6 and lint QuickFixes for the current buffer."""
             uri = params.text_document.uri
             doc = self.pine_workspace.get_document(uri)
             source = doc.source if doc else None
             warnings = doc.diagnostics if doc else None
-            return convert_feature.handle_code_action(params, source, warnings)
+            return convert_feature.handle_code_action(params, source, warnings, tree=doc.valid_ast if doc else None)
 
         @self.feature(lsp.TEXT_DOCUMENT_COMPLETION)
         def text_completion(
