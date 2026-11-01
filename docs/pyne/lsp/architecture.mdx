@@ -113,7 +113,7 @@ From `config.py` (`get_server_capabilities`):
 - Color provider (`color_provider=True`) — `textDocument/documentColor` + `colorPresentation` for `#hex`, named `color.*`, `color.rgb` / `color.new` / `color()`, and literal `color.from_gradient`
 - Document links (`DocumentLinkOptions(resolve_provider=True)`) — `http://` / `https://` URLs in comments (`//`, `/* */`, hash `# …`) and string literals. `documentLink/resolve` fills `tooltip` with the URL when tooltip is unset
 - Code action (`QuickFix` + `RefactorRewrite`): Convert to Pine v6, W001 insert `//@version=6`, W002 replace old pragma, C002 format-on-long-line + executeCommand `pynescript.convertToV6`
-- Inlay hints (`InlayHintOptions(resolve_provider=False)`): display-only assignment type labels and parameter-name hints on dotted builtin calls (`ta.sma(close, 14)` → `source:` / `length:`). No `inlayHint/resolve`, no `data`, no `textEdits`
+- Inlay hints (`InlayHintOptions(resolve_provider=False)`): display-only parameter-name hints on builtin calls (`ta.sma(close, 14)` → `source:` / `length:`). No `inlayHint/resolve`, no `data`, no `textEdits`
 - Semantic tokens full **and range** (`range=true`, `full=true`; legend of standard token types/modifiers)
 - Signature help (`(` / `,`)
 

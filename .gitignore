@@ -165,3 +165,6 @@ src/pynescript/ast/grammar/antlr4/generated/src/
 
 # Git worktrees (local isolation only)
 .worktrees/
+
+# OpenCode session temp
+.tmp/

@@ -36,7 +36,7 @@ Editors want *static* intelligence at typing cadence. Evaluation over OHLCV is *
 | **Pro API** (`backend.app`) | request / batch | parse, evaluate, plots / events / alerts |
 | **CLI / library** | batch / embed | same AST + evaluator |
 
-The LSP publishes diagnostics from the linter and parse errors, completes and hovers from Fernet-ready builtin metadata (plus keywords and user enums), navigates user symbols via AST visitors, emits semantic tokens (full and range) from the cached tree, and formats by round-tripping through the unparser (including on-type after newline). Inlay hints cover assignment types and builtin parameter names; linked editing, document links, and document color round out the editor surface. Feature modules live under `src/pynescript/langserver/features/`; the VS Code extension (`hoox-sh.pyne` **0.4.5**) and `clients/` configs are thin protocol hosts — VS Code maps **`.pyne` first**, then legacy Pine suffixes, to language id `pinescript`. The stdio image is **`ghcr.io/hoox-sh/pyne/lsp`**.
+The LSP publishes diagnostics from the linter and parse errors, completes and hovers from Fernet-ready builtin metadata (plus keywords and user enums), navigates user symbols via AST visitors, emits semantic tokens (full and range) from the cached tree, and formats by round-tripping through the unparser (including on-type after newline). Inlay hints cover builtin parameter names; linked editing, document links, and document color round out the editor surface. Feature modules live under `src/pynescript/langserver/features/`; the VS Code extension (`hoox-sh.pyne` **0.4.5**) and `clients/` configs are thin protocol hosts — VS Code maps **`.pyne` first**, then legacy Pine suffixes, to language id `pinescript`. The stdio image is **`ghcr.io/hoox-sh/pyne/lsp`**.
 
 ## Conceptual model
 
@@ -82,7 +82,7 @@ flowchart TB
 | Linked editing | `textDocument/linkedEditingRange` | `features/linked_editing.py` |
 | Symbols | `textDocument/documentSymbol`, `workspace/symbol` | `symbols.py`, `server.py` |
 | Formatting | `textDocument/formatting`, `rangeFormatting`, `onTypeFormatting` | `features/formatting.py` |
-| Inlay hints | `textDocument/inlayHint` (display-only types + builtin param names) | `features/inlay_hints.py` |
+| Inlay hints | `textDocument/inlayHint` (display-only builtin param names) | `features/inlay_hints.py` |
 | Folding | `textDocument/foldingRange` | `features/folding.py` |
 | Selection range | `textDocument/selectionRange` | `features/selection_range.py` |
 | [Document color](/pyne/docs/lsp/features/document-color) | `textDocument/documentColor`, `colorPresentation` | `features/document_color.py` |

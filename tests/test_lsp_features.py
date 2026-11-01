@@ -2514,7 +2514,7 @@ class TestInlayHintParameters:
         assert handle_inlay_hints(self._params(), "") == []
         assert handle_inlay_hints(self._params(), None) == []
 
-    def test_sma_parameter_names_and_assignment_type(self) -> None:
+    def test_sma_parameter_names(self) -> None:
         hints = handle_inlay_hints(self._params(), self.SRC)
         assert hints is not None
         param_hints = [h for h in hints if h.kind == lsp.InlayHintKind.Parameter]
@@ -2522,15 +2522,12 @@ class TestInlayHintParameters:
         assert len(param_hints) >= 2
         assert any("source" in label for label in labels)
         assert any("length" in label for label in labels)
-        for hint in param_hints:
-            assert hint.data is None
-            assert isinstance(hint.label, str)
-            assert hint.label.endswith(" ")
-        type_labels = [h.label for h in hints if h.kind == lsp.InlayHintKind.Type]
-        assert ": const int" in type_labels
         for hint in hints:
             assert hint.data is None
+            assert isinstance(hint.label, str)
             assert hint.text_edits is None
+        # Inferred type hints were removed entirely — no Type-kind hints.
+        assert not any(h.kind == lsp.InlayHintKind.Type for h in hints)
 
     def test_named_kwargs_skipped(self) -> None:
         hints = handle_inlay_hints(self._params(), self.KWARGS_SRC)

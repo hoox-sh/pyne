@@ -370,7 +370,7 @@ class TestSignatureAndInlaySemantics:
         assert result is None
 
     def test_inlay_hints_are_range_filtered(self) -> None:
-        source = '//@version=6\nindicator("T")\na = close\nb = 1\nc = "x"\n'
+        source = '//@version=6\nindicator("T")\nplot(ta.sma(close, 14))\nplot(ta.ema(close, 14))\n'
         hints = handle_inlay_hints(
             lsp.InlayHintParams(
                 text_document=lsp.TextDocumentIdentifier(uri="file:///ih.pine"),
@@ -382,7 +382,7 @@ class TestSignatureAndInlaySemantics:
             source,
         )
         assert hints is not None
-        assert [hint.position.line for hint in hints] == [3]
+        assert {hint.position.line for hint in hints} == {3}
 
     def test_symbol_index_infers_collection_element_type(self) -> None:
         source = """//@version=6

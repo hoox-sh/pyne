@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "Inlay Hints"
-description: "Display-only assignment type annotations and builtin parameter names. Hints never insert text or modify the document."
+description: "Display-only builtin parameter names. Hints never insert text or modify the document."
 resource: "docs/pyne/lsp/features/inlay-hints.mdx"
 tags: [doc, docs, lsp, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-01T12:40:11Z
+  at: 2026-11-01T19:12:12Z
 sources:
   - id: tree
     resource: "docs/pyne/lsp/features/inlay-hints.mdx"
@@ -25,12 +25,8 @@ Repo path `docs/pyne/lsp/features/inlay-hints.mdx`.
 * Abstract
 * Conceptual model
 * Interface surface
-  * Assignment type hints
   * Parameter-name hints
 * Internals
-  * Constant mapping
-  * Builtin bare names
-  * Calls
   * Walk
 * Invariants and edge cases
 * Worked example

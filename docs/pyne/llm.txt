@@ -4734,7 +4734,6 @@ VS Code extension keys (from clients/README.md):
 | pynescript.diagnostics.enabled | true | Lint squiggles |
 | pynescript.diagnostics.style | false | Show C001/C002/C004 style findings |
 | pynescript.completion.snippets | true | Snippet completions |
-| pynescript.inlayHints.types | true | Inferred type hints |
 | pynescript.inlayHints.parameters | true | Parameter-name hints |
 Extension id: hoox-sh.pyne.
 Neovim (clients/neovim.lua):
@@ -7758,7 +7757,7 @@ Selection ranges (selection_range_provider=True) from ident / smallest AST node 
 Color provider (color_provider=True) — textDocument/documentColor + colorPresentation for #hex, named color., color.rgb / color.new / color(), and literal color.from_gradient
 Document links (DocumentLinkOptions(resolve_provider=True)) — http:// / https:// URLs in comments (//, / /, hash # …) and string literals. documentLink/resolve fills tooltip with the URL when tooltip is unset
 Code action (QuickFix + RefactorRewrite): Convert to Pine v6, W001 insert //@version=6, W002 replace old pragma, C002 format-on-long-line + executeCommand pynescript.convertToV6
-Inlay hints (InlayHintOptions(resolve_provider=False)): display-only assignment type labels and parameter-name hints on dotted builtin calls (ta.sma(close, 14) → source: / length:). No inlayHint/resolve, no data, no textEdits
+Inlay hints (InlayHintOptions(resolve_provider=False)): display-only parameter-name hints on builtin calls (ta.sma(close, 14) → source: / length:). No inlayHint/resolve, no data, no textEdits
 Semantic tokens full and range (range=true, full=true; legend of standard token types/modifiers)
 Signature help (( / ,)
 File filters (get_filter_options): .pine, .pinev5, .pinev6 under language id pinescript. .pyne is not in this helper — VS Code still maps it via the extension contribution (extensions: .pyne first).
@@ -8339,7 +8338,7 @@ Rewrites params.range as hex. source is unused — the client already sent the c
 | --- | --- |
 | 1 (255) | #rrggbb (lowercase) |
 | otherwise | #rrggbbaa |
-Picking a color on color.red therefore replaces the name with #f23645. There is no presentation that keeps the color. spelling.
+Picking a color on color.red therefore replaces the name with #f23645. There is no presentation that keeps the color.* spelling.
 Internals
 | Path | Role |
 | --- | --- |
@@ -8398,7 +8397,7 @@ Failure modes
 | Gradient swatch disagrees with chart | Call args were not all literals, or min/max equal (then color1) |
 See also
 Document links — hash comments vs #hex tokens
-Inlay hints — color. return types on assignments
+Inlay hints — parameter-name labels in calls
 Architecture — color_provider=True`
 ---
 FILE: docs/pyne/lsp/features/document-link.mdx
@@ -8795,17 +8794,14 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-3.0-or-later
 ---
 title: "Inlay Hints"
-description: "Display-only assignment type annotations and builtin parameter names. Hints never insert text or modify the document."
+description: "Display-only builtin parameter names. Hints never insert text or modify the document."
 ---
 Inlay Hints
 Abstract
-Inlay hints surface two things: inferred types next to simple name = expr assignments when no explicit type annotation is present, and parameter names before positional arguments of builtin and user function/method calls (ta.sma(close, 14) → source: / length:). Inference uses the scope-aware symbol index first (annotated declarations, UDT fields/methods, user return types, builtin metadata) and falls back to the shallow constant/input./ta. rules. Ambiguous operators are skipped rather than guessed wrong. Hints are filtered to the client's requested range. Hints are display-only: the server does not advertise or implement inlayHint/resolve, emits no data, and never sets textEdits, so an inferred type can never be injected into the source.
+Inlay hints surface parameter names before positional arguments of builtin and user function/method calls (ta.sma(close, 14) → source: / length:). Only confident cases are emitted: ambiguous receivers are skipped rather than guessed wrong. Hints are filtered to the client's requested range. Hints are display-only: the server does not advertise or implement inlayHint/resolve, emits no data, and never sets textEdits, so a hint can never be injected into the source. Inferred assignment type hints were removed entirely — the server never annotates declarations.
 Conceptual model
 Example mental model (from module docstring):
 ``text
-length = 14 → length: const int
-rsi = ta.rsi(close, 14) → rsi: series float (from metadata detail)
-n = input.int(5, "n") → n: input int
 ta.sma(close, 14) → ta.sma(source: close, length: 14)
 `
 Interface surface
@@ -8813,15 +8809,6 @@ Interface surface
 | --- | --- |
 | textDocument/inlayHint | InlayHintOptions(resolve_provider=False) |
 Handler: features/inlay_hints.py → handle_inlay_hints (receives the version-matched tree=doc.valid_ast). There is no inlayHint/resolve handler and no document mutation path.
-Assignment type hints
-| Field | Value |
-| --- | --- |
-| position | End of target identifier (lineno-1, col_offset + len(id)) |
-| label | ": {type_label}" |
-| kind | InlayHintKind.Type |
-| tooltip | Inferred type: {type_label} |
-| data | omitted |
-| textEdits | omitted (display-only) |
 Parameter-name hints
 Emitted for positional args of module.attr(...) when get_builtin("module.attr") hits. Real snippet placeholder names win; generic paramN snippets fall through to the longest of the detail signature, documentation, and a well-known Pine v6 map (ta.sma/ema/rsi → source/length, ta.atr → length, ta.correlation → source1/source2/length, strategy.entry → id/direction/qty, input.int → defval/title, plus ta.cci/roc/mom/linreg/adx/mfi/bbw/dpo/crossover/crossunder).
 | Field | Value |
@@ -8834,31 +8821,17 @@ Emitted for positional args of module.attr(...) when get_builtin("module.attr") 
 Named kwargs (length=14) skip the matching slot.
 handle_inlay_hints returns [] for empty source, None if parse fails (client typically treats as no hints).
 Internals
-Constant mapping
-| Python value | Label |
-| --- | --- |
-| bool | const bool |
-| int | const int |
-| float | const float |
-| str | const string |
-Builtin bare names
-open, high, low, close, volume, hl2, hlc3, ohlc4 → series float; time / bar index vars → series int; na → na.
-Calls
-input.{int,float,bool,string,color,symbol,session,source,time,timeframe,price} → input {attr}
-ta|math|str|color.{attr} → parse detail after →, else fallback "series"
 Walk
-Recursive over _fields (same pattern as workspace symbol collection) — not limited to script top-level; nested function assigns and nested calls can receive hints.
+Recursive over _fields (same pattern as workspace symbol collection) — not limited to script top-level; nested calls can receive hints.
 | Path | Role |
 | --- | --- |
-| features/inlay_hints.py | Collection + inference (display-only) |
-| providers/builtin_metadata.py | Return-type detail and parameter names |
+| features/inlay_hints.py | Collection (display-only) |
+| providers/builtin_metadata.py | Parameter names |
 Invariants and edge cases
-1. Explicit name: type = … suppresses type hints (node.type is not None).
-2. Tuple / attribute targets are ignored for type hints.
-3. BinOp / Compare / Conditional return None — no speculative arithmetic types.
-4. Metadata quality bounds accuracy — missing → in detail yields coarse series; missing param names yields no parameter hints.
-5. Hints never mutate the document. No textEdits, no data, no resolve handler; applying a hint is a client-side display action only.
-6. Malformed input does not throw — unparsable or empty sources return None / [].
+1. Metadata quality bounds accuracy — missing param names yields no parameter hints.
+2. Hints never mutate the document. No textEdits, no data, no resolve handler; applying a hint is a client-side display action only.
+3. No inferred type hints. The server never annotates declarations — the show_types path and its inference helpers were removed.
+4. Malformed input does not throw — unparsable or empty sources return None / [].
 Worked example
 `pinescript
 //@version=6
@@ -9214,7 +9187,7 @@ Editors want static intelligence at typing cadence. Evaluation over OHLCV is dyn
 | LSP (pyne-lsp) | keystroke / open / save | parse, lint, unparse, builtin metadata |
 | Pro API (backend.app) | request / batch | parse, evaluate, plots / events / alerts |
 | CLI / library | batch / embed | same AST + evaluator |
-The LSP publishes diagnostics from the linter and parse errors, completes and hovers from Fernet-ready builtin metadata (plus keywords and user enums), navigates user symbols via AST visitors, emits semantic tokens (full and range) from the cached tree, and formats by round-tripping through the unparser (including on-type after newline). Inlay hints cover assignment types and builtin parameter names; linked editing, document links, and document color round out the editor surface. Feature modules live under src/pynescript/langserver/features/; the VS Code extension (hoox-sh.pyne 0.4.5) and clients/ configs are thin protocol hosts — VS Code maps .pyne first, then legacy Pine suffixes, to language id pinescript. The stdio image is ghcr.io/hoox-sh/pyne/lsp.
+The LSP publishes diagnostics from the linter and parse errors, completes and hovers from Fernet-ready builtin metadata (plus keywords and user enums), navigates user symbols via AST visitors, emits semantic tokens (full and range) from the cached tree, and formats by round-tripping through the unparser (including on-type after newline). Inlay hints cover builtin parameter names; linked editing, document links, and document color round out the editor surface. Feature modules live under src/pynescript/langserver/features/; the VS Code extension (hoox-sh.pyne 0.4.5) and clients/ configs are thin protocol hosts — VS Code maps .pyne first, then legacy Pine suffixes, to language id pinescript. The stdio image is ghcr.io/hoox-sh/pyne/lsp.
 Conceptual model
 Invariant: open/change/close always re-parse and re-lint the in-memory buffer. Features that need an AST re-parse on demand if the workspace cache is missing source.
 Interface surface
@@ -9230,7 +9203,7 @@ Interface surface
 | Linked editing | textDocument/linkedEditingRange | features/linked_editing.py |
 | Symbols | textDocument/documentSymbol, workspace/symbol | symbols.py, server.py |
 | Formatting | textDocument/formatting, rangeFormatting, onTypeFormatting | features/formatting.py |
-| Inlay hints | textDocument/inlayHint (display-only types + builtin param names) | features/inlay_hints.py |
+| Inlay hints | textDocument/inlayHint (display-only builtin param names) | features/inlay_hints.py |
 | Folding | textDocument/foldingRange | features/folding.py |
 | Selection range | textDocument/selectionRange | features/selection_range.py |
 | Document color | textDocument/documentColor, colorPresentation | features/document_color.py |
@@ -9282,11 +9255,11 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-3.0-or-later
 ---
 title: "VS Code Extension"
-description: "PYNE VS Code extension: LanguageClient host for pyne-lsp, TextMate grammar, snippets, settings, and VSIX 0.5.3."
+description: "PYNE VS Code extension: LanguageClient host for pyne-lsp, TextMate grammar, snippets, settings, and VSIX 0.5.4."
 ---
 VS Code Extension
 Abstract
-PYNE (hoox-sh.pyne 0.5.3) is a LanguageClient host plus a rich TextMate grammar, branded as part of the HOOX open trading stack. It does not reimplement language intelligence in TypeScript — vscode-languageclient speaks STDIO to pyne-lsp (then alias pynescript-lsp, then python -m pynescript.langserver) and forwards whatever that process advertises in initialize. The VSIX stays 0.5.3; the hosted Python server is hoox-pyne 0.6.28 (src/pynescript/about.py). The extension maps .pyne (first-class) plus .pine / .pinev5 / .pinev6 / .pinescript to language id pinescript, ships snippets, and exposes a broad pynescript. settings surface with per-feature toggles.
+PYNE (hoox-sh.pyne 0.5.4) is a LanguageClient host plus a rich TextMate grammar, branded as part of the HOOX open trading stack. It does not reimplement language intelligence in TypeScript — vscode-languageclient speaks STDIO to pyne-lsp (then alias pynescript-lsp, then python -m pynescript.langserver) and forwards whatever that process advertises in initialize. The VSIX stays 0.5.4; the hosted Python server is hoox-pyne 0.6.29 (src/pynescript/about.py). The extension maps .pyne (first-class) plus .pine / .pinev5 / .pinev6 / .pinescript to language id pinescript, ships snippets, and exposes a broad pynescript. settings surface with per-feature toggles.
 Conceptual model
 Interface surface
 Package identity
@@ -9295,7 +9268,7 @@ From vscode-extension/package.json:
 | --- | --- |
 | name | pyne |
 | displayName | PYNE Language Support |
-| version | 0.5.3 |
+| version | 0.5.4 |
 | publisher | hoox-sh |
 | extension id | hoox-sh.pyne |
 | icon | media/icon.png (HOOX mark) |
@@ -9311,13 +9284,13 @@ configuration: language-configuration.json
 grammar: syntaxes/pinescript.tmLanguage.json (scopeName: source.pinescript) — namespaces, annotations, hex colors, UDT/enum, multiline strings, plot/strategy builtins
 snippets: snippets/pine.code-snippets — indicator, strategy, library, type, enum, input., plot, plotshape, ta., strategy.entry/close, if/for/switch, request.security, label.new, array.new<>, multiline string
 Hosted pyne-lsp methods (not reimplemented in TypeScript)
-The LanguageClient negotiates capabilities from src/pynescript/langserver/config.py (get_server_capabilities). The hosted server now advertises the following; the 0.5.3 extension is still only a host, but adds client-side feature gates so each capability can be toggled without restarting the server.
+The LanguageClient negotiates capabilities from src/pynescript/langserver/config.py (get_server_capabilities). The hosted server now advertises the following; the 0.5.4 extension is still only a host, but adds client-side feature gates so each capability can be toggled without restarting the server.
 | LSP method | What the editor gets | Feature page |
 | --- | --- | --- |
 | textDocument/semanticTokens/full + /range | Same legend, range clipped to the viewport | Semantic tokens |
 | textDocument/onTypeFormatting | Format the just-completed line; trigger "\n" | Formatting |
 | textDocument/linkedEditingRange | Same-document live ranges for a user ident (keywords / builtin namespaces refused) | Linked editing |
-| textDocument/inlayHint | Display-only assignment type labels; parameter-name hints on dotted builtin calls (ta.sma(close, 14) → source: / length:). Hints never insert text | Inlay hints |
+| textDocument/inlayHint | Display-only parameter-name hints on builtin calls (ta.sma(close, 14) → source: / length:). Hints never insert text | Inlay hints |
 | textDocument/documentLink + documentLink/resolve | http:// / https:// URLs in comments (//, / /, hash # …) and string literals. Resolve fills tooltip with the URL when tooltip is unset | Document links |
 | textDocument/documentColor + colorPresentation | #hex (and named color. / literal color.rgb / color.new / color() / color.from_gradient) swatches; presentation rewrites as #rrggbb / #rrggbbaa | Document color |
 Also advertised (unchanged host path): diagnostics, completion + resolve, hover, signature help, definition / references, highlight + rename, document / workspace symbols, full + range formatting, folding, selection range, Convert-to-v6 / W001 / W002 / C002 code actions. Capability table: Architecture.
@@ -9379,7 +9352,6 @@ Editor features
 | pynescript.diagnostics.semantic | false | Opt-in UDT/enum member and user-function arity checks |
 | pynescript.completion.snippets | true | Snippets for builtins and declarations |
 | pynescript.hover.enabled | true | Hover cards (signature, docs, types) |
-| pynescript.inlayHints.types | true | Inferred type hints |
 | pynescript.inlayHints.parameters | true | Parameter-name hints in calls |
 | pynescript.signatureHelp.enabled | true | Parameter hints while typing a call |
 | pynescript.semanticTokens.enabled | true | Semantic token colorization |
@@ -9430,7 +9402,7 @@ Invariants and edge cases
 3. Grammar works without LSP — open a .pyne or .pine file offline and still get TextMate highlighting.
 4. .pyne is first-class in package.json extensions + activation; legacy .pine / .pinescript remain fully supported.
 5. File watcher covers every associated suffix (pyne, pine, pinev5, pinev6, pinescript).
-6. VSIX 0.5.3 does not pin server methods. Range tokens, on-type format, linked editing, inlay resolve / param names, document links + resolve tooltip, and document color appear only when the spawned pyne-lsp is new enough to advertise them (this tree: 0.6.28). Feature gates are client-side and read live settings.
+6. VSIX 0.5.4 does not pin server methods. Range tokens, on-type format, linked editing, inlay resolve / param names, document links + resolve tooltip, and document color appear only when the spawned pyne-lsp is new enough to advertise them (this tree: 0.6.29). Feature gates are client-side and read live settings.
 Worked example — extension development
 `bash
 pip install -e ".[lsp]"
@@ -9444,7 +9416,7 @@ Failure modes
 | “Language client failed to start” | pyne-lsp missing / wrong command |
 | No squiggles, highlighting OK | LSP disabled or server crash; check Output → PYNE Language Server |
 | Restart does nothing | Client never started (lsp.enabled false) |
-| No inlay param names / color swatches / document links | Spawned pyne-lsp is older than this tree (need 0.6.28) |
+| No inlay param names / color swatches / document links | Spawned pyne-lsp is older than this tree (need 0.6.29) |
 | Enter does not reformat the previous line | editor.formatOnType is off (not a pynescript. key) |
 | Identifiers do not multi-cursor as you type | editor.linkedEditing is off (not a pynescript. key) |
 | A feature does nothing after toggling | Its pynescript..enabled key is false |

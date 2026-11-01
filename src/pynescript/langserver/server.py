@@ -107,7 +107,6 @@ _DEFAULT_SETTINGS: dict[str, Any] = {
     "diagnosticsEnabled": True,
     "styleDiagnostics": False,
     "semanticDiagnostics": False,
-    "inlayHintsTypes": True,
     "inlayHintsParameters": True,
     "completionUserSymbols": True,
 }
@@ -679,7 +678,6 @@ class PynescriptLanguageServer(LanguageServer):
                 params.range.start.character,
                 params.range.end.line,
                 params.range.end.character,
-                self.settings.get("inlayHintsTypes", True),
                 self.settings.get("inlayHintsParameters", True),
             )
             cached = doc.feature_cache.get("inlay_hints")
@@ -690,7 +688,6 @@ class PynescriptLanguageServer(LanguageServer):
                 doc.source,
                 tree=doc.valid_ast,
                 analysis=doc.valid_analysis,
-                show_types=self.settings.get("inlayHintsTypes", True),
                 show_parameters=self.settings.get("inlayHintsParameters", True),
             )
             doc.feature_cache["inlay_hints"] = (cache_key, result)
@@ -835,7 +832,6 @@ class PynescriptLanguageServer(LanguageServer):
         self.settings["diagnosticsEnabled"] = bool(pick("diagnosticsEnabled", "diagnostics.enabled", True))
         self.settings["styleDiagnostics"] = bool(pick("styleDiagnostics", "diagnostics.style", False))
         self.settings["semanticDiagnostics"] = bool(pick("semanticDiagnostics", "diagnostics.semantic", False))
-        self.settings["inlayHintsTypes"] = bool(pick("inlayHintsTypes", "inlayHints.types", True))
         self.settings["inlayHintsParameters"] = bool(pick("inlayHintsParameters", "inlayHints.parameters", True))
         self.settings["completionUserSymbols"] = bool(pick("completionUserSymbols", "completion.userSymbols", True))
 

@@ -155,63 +155,18 @@ class TestInlayHints:
         monkeypatch.setattr(ih, "parse", _boom)
         assert ih.handle_inlay_hints(_ih_params(), "x = 1") is None
 
-    def test_const_int_hint(self) -> None:
+    def test_const_int_hint_removed(self) -> None:
+        """Inferred assignment type hints were removed — only param hints remain."""
         from pynescript.langserver.features.inlay_hints import handle_inlay_hints
 
         hints = handle_inlay_hints(_ih_params(), '//@version=5\nindicator("T")\nlength = 14\n')
-        assert hints is not None and len(hints) == 1
-        hint = hints[0]
-        assert hint.label == ": const int"
-        assert hint.kind == lsp.InlayHintKind.Type
-        assert hint.tooltip == "Inferred type: const int"
-        assert hint.position.line == 2
-        assert hint.position.character == len("length")
-
-    def test_explicit_type_skipped(self) -> None:
-        from pynescript.langserver.features.inlay_hints import handle_inlay_hints
-
-        hints = handle_inlay_hints(_ih_params(), '//@version=6\nindicator("T")\nint length = 14\n')
         assert hints == []
-
-    def test_builtin_var_and_input(self) -> None:
-        from pynescript.langserver.features.inlay_hints import handle_inlay_hints
-
-        hints = handle_inlay_hints(_ih_params(), '//@version=6\nindicator("T")\nc = close\nn = input.int(5, "n")\n')
-        assert hints is not None
-        type_labels = {h.label for h in hints if h.kind == lsp.InlayHintKind.Type}
-        assert type_labels == {": series float", ": input int"}
 
     def test_unknown_rhs_no_hint(self) -> None:
         from pynescript.langserver.features.inlay_hints import handle_inlay_hints
 
         hints = handle_inlay_hints(_ih_params(), '//@version=5\nindicator("T")\nx = a + b\n')
         assert hints == []
-
-    def test_constant_types(self) -> None:
-        from pynescript.langserver.features.inlay_hints import _constant_type
-
-        true_value = True
-        assert _constant_type(true_value) == "const bool"
-        assert _constant_type(3) == "const int"
-        assert _constant_type(3.5) == "const float"
-        assert _constant_type("s") == "const string"
-        assert _constant_type(None) is None
-        assert _constant_type((1, 2)) is None
-
-    def test_call_type_unknown_module(self) -> None:
-        from pynescript.ast import node as ast
-        from pynescript.langserver.features.inlay_hints import _call_type
-
-        call = ast.Call(func=ast.Attribute(value=ast.Name(id="foo"), attr="bar"), args=[])
-        assert _call_type(call) is None
-        plain = ast.Call(func=ast.Name(id="plot"), args=[])
-        assert _call_type(plain) is None
-
-    def test_infer_name_unknown(self) -> None:
-        from pynescript.ast import node as ast
-        from pynescript.langserver.features.inlay_hints import _infer_type
-
-        assert _infer_type(ast.Name(id="something_unknown")) is None
 
     def test_parameter_hints_on_ta_sma(self) -> None:
         from pynescript.langserver.features.inlay_hints import handle_inlay_hints
@@ -223,7 +178,7 @@ class TestInlayHints:
         labels = " ".join(h.label if isinstance(h.label, str) else "" for h in param_hints)
         assert "source" in labels
         assert "length" in labels
-        assert any(h.label == ": const int" for h in hints if h.kind == lsp.InlayHintKind.Type)
+        assert not any(h.kind == lsp.InlayHintKind.Type for h in hints)
         for hint in param_hints:
             assert hint.data is None
 

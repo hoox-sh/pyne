@@ -19,25 +19,18 @@
 
 """Inlay hints — ``textDocument/inlayHint`` (display-only).
 
-Public handler: :func:`handle_inlay_hints` — assignment types and builtin
-parameter names. Hints never modify the document: no ``text_edits`` and no
-``data`` payload, so there is no inferred-type injection or resolve step.
+Public handler: :func:`handle_inlay_hints` — parameter names only. Hints
+never modify the document: no ``text_edits`` and no ``data`` payload, so
+there is no inferred-type injection or resolve step.
 
-Shows simple inferred types next to variable declarations, e.g.::
-
-    length = 14                       →   length: const int = 14
-    rsi   = ta.rsi(close, 14)         →   rsi:   series float = ta.rsi(close, 14)
-    n     = input.int(5, "n")         →   n:     input int = input.int(5, "n")
-
-and parameter names before positional args of dotted builtins::
+Shows parameter names before positional args of dotted builtins::
 
     ta.sma(close, 14)                 →   ta.sma(source: close, length: 14)
 
-Type hints sit at the end of the target identifier (just before ``=``).
-Parameter hints sit at the start of each positional argument. Inference is
-shape-based on the RHS (literals, builtins, ``ta.*`` / ``input.*`` metadata);
-only confident cases are emitted. Hints are display-only; the server does not
-advertise or implement ``inlayHint/resolve``.
+Parameter hints sit at the start of each positional argument. Only
+confident cases are emitted. Hints are display-only; the server does not
+advertise or implement ``inlayHint/resolve``. Inferred assignment type
+hints were removed — the server never annotates declarations.
 """
 
 from __future__ import annotations
@@ -98,32 +91,12 @@ _WELL_KNOWN_PARAMS: dict[str, tuple[str, ...]] = {
 # from context). 2-arg forms keep the map above except ``ta.bbw(length, mult)``.
 _LENGTH_ONLY_1ARG: frozenset[str] = frozenset({"ta.adx", "ta.cci", "ta.mfi", "ta.bbw"})
 
-# Built-in variable → return type. Only the ones the parser/builder treats as
-# plain `Name` nodes (so they can appear bare on the RHS of an Assign).
-_BUILTIN_VAR_TYPES: dict[str, str] = {
-    "open": "series float",
-    "high": "series float",
-    "low": "series float",
-    "close": "series float",
-    "volume": "series float",
-    "hl2": "series float",
-    "hlc3": "series float",
-    "ohlc4": "series float",
-    "time": "series int",
-    "time_close": "series int",
-    "bar_index": "series int",
-    "last_bar_index": "series int",
-    "na": "na",
-}
-
-
 def handle_inlay_hints(
     params: lsp.InlayHintParams,
     source: str | None,
     tree: Any | None = ...,
     *,
     analysis: SymbolIndex | None = None,
-    show_types: bool = True,
     show_parameters: bool = True,
 ) -> list[lsp.InlayHint] | None:
     """Handle textDocument/inlayHint request.
@@ -135,12 +108,11 @@ def handle_inlay_hints(
             workspace already failed to parse (skips a redundant re-parse).
             Omit (default ``...``) to parse from *source*.
         analysis: Pre-built symbol index for *tree*.
-        show_types: Emit inferred assignment type hints.
         show_parameters: Emit parameter-name hints.
 
     Returns:
-        A list of `lsp.InlayHint` for inferred assignment types and parameter
-        names, or None if the document could not be parsed.
+        A list of `lsp.InlayHint` for parameter names, or None if the
+        document could not be parsed.
     """
     if tree is ...:
         if not source:
@@ -155,13 +127,7 @@ def handle_inlay_hints(
 
     index = ensure_symbol_index(source, tree, analysis)
     hints: list[lsp.InlayHint] = []
-    _collect_hints(
-        tree,
-        hints,
-        index=index,
-        show_types=show_types,
-        show_parameters=show_parameters,
-    )
+    _collect_hints(tree, hints, index=index, show_parameters=show_parameters)
     # The client asks for the visible range; returning every hint in a large
     # script is wasted work and can make the editor feel sluggish.
     start = params.range.start
@@ -180,18 +146,13 @@ def _collect_hints(
     hints: list[lsp.InlayHint],
     *,
     index: SymbolIndex | None = None,
-    show_types: bool = True,
     show_parameters: bool = True,
 ) -> None:
-    """Walk an AST node, adding type and parameter inlay hints."""
+    """Walk an AST node, adding parameter-name inlay hints."""
     if node is None:
         return
 
-    if show_types and isinstance(node, ast.Assign):
-        hint = _hint_for_assign(node, index)
-        if hint is not None:
-            hints.append(hint)
-    elif show_parameters and isinstance(node, ast.Call):
+    if show_parameters and isinstance(node, ast.Call):
         _collect_call_param_hints(node, hints, index)
 
     # Recurse into all child AST nodes (matches the simple visitor pattern used
@@ -202,57 +163,9 @@ def _collect_hints(
         if isinstance(child, list):
             for item in child:
                 if isinstance(item, ast.AST):
-                    _collect_hints(
-                        item,
-                        hints,
-                        index=index,
-                        show_types=show_types,
-                        show_parameters=show_parameters,
-                    )
+                    _collect_hints(item, hints, index=index, show_parameters=show_parameters)
         elif isinstance(child, ast.AST):
-            _collect_hints(
-                child,
-                hints,
-                index=index,
-                show_types=show_types,
-                show_parameters=show_parameters,
-            )
-
-
-def _hint_for_assign(
-    node: ast.Assign,
-    index: SymbolIndex | None = None,
-) -> lsp.InlayHint | None:
-    """Build an inlay hint for a single `Assign`, or None if not inferable."""
-    # Only emit hints for simple `name = expr` (no tuple destructuring, no
-    # attribute targets, no explicit type annotation that we could be wrong
-    # about).
-    if not isinstance(node.target, ast.Name):
-        return None
-    if node.type is not None:
-        # User wrote an explicit `name: type = ...`; let the code stand.
-        return None
-    if node.value is None:
-        return None
-
-    type_label = None
-    if index is not None:
-        scope = index.scope_at(node.target.lineno - 1, node.target.col_offset)
-        type_label = index.infer_type(node.value, scope)
-    if type_label is None:
-        type_label = _infer_type(node.value)
-    if type_label is None:
-        return None
-
-    # Position the hint at the end of the target identifier (just before `=`).
-    line = node.target.lineno - 1
-    col = node.target.col_offset + len(node.target.id or "")
-    return lsp.InlayHint(
-        position=lsp.Position(line=line, character=col),
-        label=f": {type_label}",
-        kind=lsp.InlayHintKind.Type,
-        tooltip=f"Inferred type: {type_label}",
-    )
+            _collect_hints(child, hints, index=index, show_parameters=show_parameters)
 
 
 def _collect_call_param_hints(
@@ -461,70 +374,3 @@ def _ident_from_param_chunk(chunk: str) -> str | None:
 def _split_top_level_args(inner: str) -> list[str]:
     """Split a flat ``(a, b, c)`` param list; metadata signatures are un-nested."""
     return [part.strip() for part in inner.split(",") if part.strip()]
-
-
-def _infer_type(value: ast.expr) -> str | None:
-    """Return a human-readable type label for a value expression, or None."""
-    if isinstance(value, ast.Constant):
-        return _constant_type(value.value)
-    if isinstance(value, ast.Name):
-        return _BUILTIN_VAR_TYPES.get(value.id or "")
-    if isinstance(value, ast.Call):
-        return _call_type(value)
-    # BinOp, BoolOp, UnaryOp, Compare, Conditional: skip — too easy to be
-    # wrong without running the evaluator.
-    return None
-
-
-def _constant_type(v: object) -> str | None:
-    """Map a Python literal to a Pine Script type label."""
-    if isinstance(v, bool):
-        return "const bool"
-    if isinstance(v, int):
-        return "const int"
-    if isinstance(v, float):
-        return "const float"
-    if isinstance(v, str):
-        return "const string"
-    return None
-
-
-def _call_type(call: ast.Call) -> str | None:
-    """Map a Call to a type label, when the function is recognisable."""
-    if not isinstance(call.func, ast.Attribute):
-        return None
-    if not isinstance(call.func.value, ast.Name):
-        return None
-
-    module = call.func.value.id
-    attr = call.func.attr
-
-    # `input.int(...)` → `input int`, `input.float(...)` → `input float`, etc.
-    if module == "input":
-        if attr in (
-            "int",
-            "float",
-            "bool",
-            "string",
-            "color",
-            "symbol",
-            "session",
-            "source",
-            "time",
-            "timeframe",
-            "price",
-        ):
-            return f"input {attr}"
-
-    # `ta.sma(...)` etc.: look up the metadata's `label` and `detail` for the
-    # return type. Fall back to `series` if not in metadata.
-    if module in ("ta", "math", "str", "color"):
-        info = get_builtin(f"{module}.{attr}")
-        if info is not None:
-            detail = info.get("detail", "")
-            # `ta.sma(series, int) → series float` — take everything after `→`.
-            if "→" in detail:
-                return str(detail).split("→", 1)[1].strip()
-        return "series"
-
-    return None

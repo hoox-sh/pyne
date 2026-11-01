@@ -1,0 +1,47 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "lsp": {
+    "enabled": true
+  },
+  "formatter": {
+    "enabled": false
+  },
+  "crossReferences": [
+    {
+      "name": "hoox",
+      "path": "/home/jango/Git/hoox"
+    },
+    {
+      "name": "axis",
+      "path": "/home/jango/Git/axis"
+    }
+  ],
+  "mcp": {
+    "pynescript": {
+      "type": "local",
+      "enabled": true,
+      "command": [
+        "pyne-mcp"
+      ]
+    },
+    "hoox": {
+      "type": "local",
+      "enabled": true,
+      "command": [
+        "bun",
+        "/home/jango/Git/hoox/packages/mcp/bin/hoox-mcp.js"
+      ]
+    },
+    "axis": {
+      "type": "local",
+      "enabled": true,
+      "command": [
+        "axis",
+        "mcp"
+      ],
+      "env": {
+        "AXIS_API_KEY": "${AXIS_API_KEY}"
+      }
+    }
+  }
+}

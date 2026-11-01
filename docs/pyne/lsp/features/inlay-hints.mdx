@@ -19,37 +19,29 @@
 
 ---
 title: "Inlay Hints"
-description: "Display-only assignment type annotations and builtin parameter names. Hints never insert text or modify the document."
+description: "Display-only builtin parameter names. Hints never insert text or modify the document."
 ---
 
 # Inlay Hints
 
 ## Abstract
 
-Inlay hints surface two things: **inferred types** next to simple `name = expr` assignments when no explicit type annotation is present, and **parameter names** before positional arguments of builtin and user function/method calls (`ta.sma(close, 14)` → `source:` / `length:`). Inference uses the scope-aware symbol index first (annotated declarations, UDT fields/methods, user return types, builtin metadata) and falls back to the shallow constant/`input.*`/`ta.*` rules. Ambiguous operators are skipped rather than guessed wrong. Hints are filtered to the client's requested range. **Hints are display-only:** the server does not advertise or implement `inlayHint/resolve`, emits no `data`, and never sets `textEdits`, so an inferred type can never be injected into the source.
+Inlay hints surface **parameter names** before positional arguments of builtin and user function/method calls (`ta.sma(close, 14)` → `source:` / `length:`). Only confident cases are emitted: ambiguous receivers are skipped rather than guessed wrong. Hints are filtered to the client's requested range. **Hints are display-only:** the server does not advertise or implement `inlayHint/resolve`, emits no `data`, and never sets `textEdits`, so a hint can never be injected into the source. Inferred assignment type hints were removed entirely — the server never annotates declarations.
 
 ## Conceptual model
 
 ```mermaid
 flowchart TD
-  PARSE[parse source] --> WALK[walk Assign and Call]
-  WALK --> ASG{simple Name target, no type, has value?}
-  ASG -->|yes| INF[_infer_type RHS]
-  INF -->|const / series / input / → type| THINT[": type_label" at end of name]
-  INF -->|None| SKIP[skip]
-  ASG -->|no| SKIP
-  WALK --> CALL{dotted builtin Call?}
+  PARSE[parse source] --> WALK[walk Call nodes]
+  WALK --> CALL{dotted builtin or resolvable user call?}
   CALL -->|yes| NAMES[_param_names_from_info]
   NAMES --> PHINT["name:  at start of positional arg"]
-  CALL -->|no| SKIP
+  CALL -->|no| SKIP[skip]
 ```
 
 Example mental model (from module docstring):
 
 ```text
-length = 14                 →  length: const int
-rsi = ta.rsi(close, 14)     →  rsi: series float   (from metadata detail)
-n = input.int(5, "n")       →  n: input int
 ta.sma(close, 14)           →  ta.sma(source: close, length: 14)
 ```
 
@@ -60,17 +52,6 @@ ta.sma(close, 14)           →  ta.sma(source: close, length: 14)
 | `textDocument/inlayHint` | `InlayHintOptions(resolve_provider=False)` |
 
 Handler: `features/inlay_hints.py` → `handle_inlay_hints` (receives the version-matched `tree=doc.valid_ast`). There is no `inlayHint/resolve` handler and no document mutation path.
-
-### Assignment type hints
-
-| Field | Value |
-| --- | --- |
-| `position` | End of target identifier (`lineno-1`, `col_offset + len(id)`) |
-| `label` | `": {type_label}"` |
-| `kind` | `InlayHintKind.Type` |
-| `tooltip` | `Inferred type: {type_label}` |
-| `data` | omitted |
-| `textEdits` | omitted (display-only) |
 
 ### Parameter-name hints
 
@@ -90,41 +71,21 @@ Named kwargs (`length=14`) skip the matching slot.
 
 ## Internals
 
-### Constant mapping
-
-| Python value | Label |
-| --- | --- |
-| `bool` | `const bool` |
-| `int` | `const int` |
-| `float` | `const float` |
-| `str` | `const string` |
-
-### Builtin bare names
-
-`open`, `high`, `low`, `close`, `volume`, `hl2`, `hlc3`, `ohlc4` → `series float`; time / bar index vars → `series int`; `na` → `na`.
-
-### Calls
-
-- `input.{int,float,bool,string,color,symbol,session,source,time,timeframe,price}` → `input {attr}`
-- `ta|math|str|color.{attr}` → parse `detail` after `→`, else fallback `"series"`
-
 ### Walk
 
-Recursive over `_fields` (same pattern as workspace symbol collection) — not limited to script top-level; nested function assigns and nested calls can receive hints.
+Recursive over `_fields` (same pattern as workspace symbol collection) — not limited to script top-level; nested calls can receive hints.
 
 | Path | Role |
 | --- | --- |
-| `features/inlay_hints.py` | Collection + inference (display-only) |
-| `providers/builtin_metadata.py` | Return-type detail and parameter names |
+| `features/inlay_hints.py` | Collection (display-only) |
+| `providers/builtin_metadata.py` | Parameter names |
 
 ## Invariants and edge cases
 
-1. **Explicit `name: type = …` suppresses type hints** (`node.type is not None`).
-2. **Tuple / attribute targets** are ignored for type hints.
-3. **BinOp / Compare / Conditional** return `None` — no speculative arithmetic types.
-4. **Metadata quality bounds accuracy** — missing `→` in detail yields coarse `series`; missing param names yields no parameter hints.
-5. **Hints never mutate the document.** No `textEdits`, no `data`, no resolve handler; applying a hint is a client-side display action only.
-6. **Malformed input does not throw** — unparsable or empty sources return `None` / `[]`.
+1. **Metadata quality bounds accuracy** — missing param names yields no parameter hints.
+2. **Hints never mutate the document.** No `textEdits`, no `data`, no resolve handler; applying a hint is a client-side display action only.
+3. **No inferred type hints.** The server never annotates declarations — the `show_types` path and its inference helpers were removed.
+4. **Malformed input does not throw** — unparsable or empty sources return `None` / `[]`.
 
 ## Worked example
 
