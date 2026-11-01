@@ -103,13 +103,20 @@ def _bar(ts: int, close: float) -> dict[str, float | int]:
 
 
 def _ny_resume_bars() -> list[dict[str, float | int]]:
-    """Enter/close on 2024-01-02 NY; bar 2 is still 2 Jan in NY (3 Jan UTC)."""
-    return [
-        _bar(_ny_ms(2024, 1, 2, 10), 100.0),  # enter
-        _bar(_ny_ms(2024, 1, 2, 15), 80.0),  # close, -$2000 = -2%
-        _bar(_ny_ms(2024, 1, 2, 20), 80.0),  # 01:00 UTC Jan 3; still Jan 2 NY
+    """Enter/close on 2024-01-02 NY; bar 2 is still 2 Jan in NY (3 Jan UTC).
+
+    Market orders fill one bar after placement, so bar 1 opens at the entry
+    price (100) and bar 2 opens at the exit price (80, -$2000 = -2%).
+    """
+    bars = [
+        _bar(_ny_ms(2024, 1, 2, 10), 100.0),  # entry placed
+        _bar(_ny_ms(2024, 1, 2, 15), 80.0),  # entry fills @100; close placed
+        _bar(_ny_ms(2024, 1, 2, 20), 80.0),  # close fills @80; 01:00 UTC Jan 3
         _bar(_ny_ms(2024, 1, 3, 0, 30), 80.0),  # first NY calendar day after
+        _bar(_ny_ms(2024, 1, 3, 1, 30), 80.0),  # resume entry fills here
     ]
+    bars[1]["open"] = 100.0
+    return bars
 
 
 def _run(src: str, bars: list[dict[str, float | int]], mode: str, timezone: str = "UTC") -> list[float]:
@@ -160,6 +167,8 @@ class TestInterpretDayResume:
         e.context["time"] = day1 + 86_400_000
         e.context["bar_index"] = 1
         m["strategy.entry"](["L2", "long", 1.0])
+        e.context["bar_index"] = 2
+        e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
         assert e._strategy_state.position_direction == "long"
         assert e._strategy_state.entries_blocked is False
 
@@ -178,6 +187,8 @@ class TestInterpretDayResume:
         e.context["time"] = _ny_ms(2024, 1, 3, 0, 30)
         e.context["bar_index"] = 2
         m["strategy.entry"](["L3", "long", 1.0])
+        e.context["bar_index"] = 3
+        e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
         assert e._strategy_state.position_direction == "long"
         assert e._strategy_state.entries_blocked is False
 
@@ -217,6 +228,7 @@ class TestCompileBrokerDayResume:
         assert b.entries_blocked is True
         b.begin_bar(1, 100.0, 100.0, 100.0, 100.0, bar_time=day1 + 86_400_000)
         b.entry("L2", "long", 1.0)
+        b.begin_bar(2, 100.0, 100.0, 100.0, 100.0, bar_time=day1 + 86_400_000 + 60_000)
         assert b.position_size == 1.0
         assert b.entries_blocked is False
 
@@ -235,6 +247,7 @@ class TestCompileBrokerDayResume:
         assert b.entries_blocked is True
         b.begin_bar(2, 100.0, 100.0, 100.0, 100.0, bar_time=_ny_ms(2024, 1, 3, 0, 30))
         b.entry("L3", "long", 1.0)
+        b.begin_bar(3, 100.0, 100.0, 100.0, 100.0, bar_time=_ny_ms(2024, 1, 3, 1, 30))
         assert b.position_size == 1.0
         assert b.entries_blocked is False
 
@@ -261,15 +274,18 @@ def test_intraday_loss_resumes_next_ny_day_dual_host() -> None:
     pi = _run(_RESUME_SRC, bars, "interpret", _NY)
     pc = _run(_RESUME_SRC, bars, "compile", _NY)
     assert pi == pc
-    assert pi[0] == 100.0
-    assert pi[1] == 0.0
+    assert pi[0] == 0.0
+    assert pi[1] == 100.0
     assert pi[2] == 0.0
-    assert pi[3] == 100.0
+    assert pi[3] == 0.0
+    assert pi[4] == 100.0
 
 
 @pytest.mark.skipif(ZoneInfo is None, reason="zoneinfo/tzdata unavailable")
 def test_utc_vs_ny_disagree_on_resume_bar_dual_host() -> None:
-    """Same stamps: UTC resumes at the 20:00 bar; NY waits until local midnight."""
+    """Same stamps: the close fills at the 20:00 bar (01:00 UTC Jan 3), so the
+    loss lands on Jan 3 for UTC (blocked through these bars) but on Jan 2 for
+    NY, which resumes at local midnight and fills on the last bar."""
     bars = _ny_resume_bars()
     pi_utc = _run(_RESUME_SRC, bars, "interpret", "UTC")
     pc_utc = _run(_RESUME_SRC, bars, "compile", "UTC")
@@ -277,10 +293,14 @@ def test_utc_vs_ny_disagree_on_resume_bar_dual_host() -> None:
     pc_ny = _run(_RESUME_SRC, bars, "compile", _NY)
     assert pi_utc == pc_utc
     assert pi_ny == pc_ny
-    assert pi_utc[2] == 100.0
+    assert pi_utc[2] == 0.0
     assert pi_ny[2] == 0.0
-    assert pi_utc[3] == 100.0
-    assert pi_ny[3] == 100.0
+    assert pi_utc[3] == 0.0
+    assert pi_ny[3] == 0.0
+    # NY's loss belongs to Jan 2 → resumes at local midnight (bar 3) and the
+    # entry fills at bar 4's open. UTC's loss lands on Jan 3 → still blocked.
+    assert pi_utc[4] == 0.0
+    assert pi_ny[4] == 100.0
 
 
 @pytest.mark.skipif(ZoneInfo is None, reason="zoneinfo/tzdata unavailable")
@@ -289,10 +309,11 @@ def test_max_drawdown_halt_survives_ny_day_roll_dual_host() -> None:
     pi = _run(_DRAWDOWN_SRC, bars, "interpret", _NY)
     pc = _run(_DRAWDOWN_SRC, bars, "compile", _NY)
     assert pi == pc
-    assert pi[0] == 100.0
-    assert pi[1] == 0.0
+    assert pi[0] == 0.0
+    assert pi[1] == 100.0
     assert pi[2] == 0.0
     assert pi[3] == 0.0
+    assert pi[4] == 0.0
 
 
 @pytest.mark.skipif(ZoneInfo is None, reason="zoneinfo/tzdata unavailable")
@@ -303,11 +324,16 @@ def test_fills_cap_uses_ny_calendar_bucket_dual_host() -> None:
         _bar(_ny_ms(2024, 1, 2, 15), 100.0),
         _bar(_ny_ms(2024, 1, 2, 20), 100.0),
         _bar(_ny_ms(2024, 1, 3, 0, 30), 100.0),
+        _bar(_ny_ms(2024, 1, 3, 1, 30), 100.0),
     ]
     pi = _run(_FILLS_TZ_SRC, bars, "interpret", _NY)
     pc = _run(_FILLS_TZ_SRC, bars, "compile", _NY)
     assert pi == pc
-    assert pi[0] == 1.0
-    assert pi[1] == 0.0
+    # Bar 0 places the entry (fills bar 1); bar 1 places the close (fills
+    # bar 2); bar 2's entry hits the two-fill cap (still 2 Jan NY); the
+    # bar-3 entry (3 Jan NY) fills at bar 4's open.
+    assert pi[0] == 0.0
+    assert pi[1] == 1.0
     assert pi[2] == 0.0
-    assert pi[3] == 1.0
+    assert pi[3] == 0.0
+    assert pi[4] == 1.0

@@ -1536,11 +1536,14 @@ def _snapshot_ta_state(evaluator: Any) -> tuple[Any, Any] | None:
     try:
         ta = getattr(evaluator, "_ta_inc_state", None)
         cross = getattr(evaluator, "_cross_state", None)
-        if ta is None and cross is None:
+        counts = getattr(evaluator, "_ta_site_counts", None)
+        if ta is None and cross is None and counts is None:
             return None
         ta_copy = {k: _copy_ta_value(v) for k, v in ta.items()} if ta else {}
         cross_copy = dict(cross) if cross else {}
-        return (ta_copy, cross_copy)
+        counts_copy = dict(counts) if counts else {}
+        site_bar = getattr(evaluator, "_ta_site_bar", None)
+        return (ta_copy, cross_copy, counts_copy, site_bar)
     except Exception as _exc:
         _swallow(_exc, what="snapshot TA state")
         return None
@@ -1555,7 +1558,9 @@ def _restore_ta_state(evaluator: Any, snap: tuple[Any, Any] | None) -> None:
     if not snap:
         return
     try:
-        ta_copy, cross_copy = snap
+        ta_copy, cross_copy = snap[0], snap[1]
+        counts_copy = snap[2] if len(snap) > 2 else None
+        site_bar = snap[3] if len(snap) > 3 else None
     except (TypeError, ValueError):
         return
     try:
@@ -1563,6 +1568,9 @@ def _restore_ta_state(evaluator: Any, snap: tuple[Any, Any] | None) -> None:
             evaluator._ta_inc_state = {k: _copy_ta_value(v) for k, v in ta_copy.items()}
         if cross_copy is not None:
             evaluator._cross_state = dict(cross_copy)
+        if counts_copy is not None:
+            evaluator._ta_site_counts = dict(counts_copy)
+            evaluator._ta_site_bar = site_bar
     except Exception as _exc:
         _swallow(_exc, what="restore TA state")
 
@@ -2400,6 +2408,15 @@ class InterpretSession:
             if process_pending is not None and pending_orders:
                 try:
                     process_pending(open_=o, high=h, low=low, close=c)
+                    # Bar-start fills record events before the per-tick
+                    # ``strategy_events.clear()`` — drain them now so they
+                    # survive (rollback still trims via _last_open_event_len).
+                    if self._need_strategy:
+                        for e in strategy_state.drain_events():
+                            d = e.to_dict()
+                            d["script_id"] = self.script_id
+                            d["run_id"] = self.run_id
+                            self._all_events.append(d)
                 except Exception as e:
                     self._error_result = _error_payload(
                         _format_exc_message(
@@ -2822,10 +2839,21 @@ class InterpretSession:
         bar_time = self._col_time[idx] if self._col_time else 0
         _restore_realtime_scope(ev, self._last_open_var_snap)
         _restore_ta_state(ev, self._last_open_ta_snap)
+        # Working orders placed on the forming bar survive confirmation
+        # (reference Pine): only fills / equity roll back to bar-open.
+        working: dict[str, Any] = {}
         if self._last_open_broker_snap is not None:
+            st = ev._strategy_state
+            working = {
+                oid: o
+                for oid, o in getattr(st, "pending_orders", {}).items()
+                if getattr(o, "placed_bar", -1) == idx
+            }
             ev._strategy_state.restore(self._last_open_broker_snap)
             _ratchet_forming_trails(ev, self._col_high[idx], self._col_low[idx])
             _update_forming_trade_extremes(ev, self._col_high[idx], self._col_low[idx])
+            for oid, o in working.items():
+                st.pending_orders.setdefault(oid, o)
         try:
             del self._all_events[self._last_open_event_len :]
         except Exception as _exc:
@@ -3817,6 +3845,15 @@ class Runtime:
             if process_pending is not None and pending_orders:
                 try:
                     process_pending(open_=o, high=h, low=l, close=c)
+                    # Bar-start fills record events before the per-tick
+                    # ``strategy_events.clear()`` — drain them now so they
+                    # survive (rollback still trims via _last_open_event_len).
+                    if strategy_events is not None:
+                        for e in strategy_state.drain_events():
+                            d = e.to_dict()
+                            d["script_id"] = script_id
+                            d["run_id"] = run_id
+                            all_events_append(d)
                 except Exception as e:
                     eval_ms = (time.perf_counter() - t_eval0) * 1000.0
                     return _attach_logs_profile(

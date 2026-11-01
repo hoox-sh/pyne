@@ -100,25 +100,11 @@ def _out(message: str = "") -> None:
 # Why a known divergence is still red.  Used when (re)writing the baseline so
 # the reason travels with the fixture instead of living in someone's head.
 KNOWN_REASONS: dict[str, str] = {
-    "harness_control::probe_and_shortcircuit": "lazy and/or + ta.sma call-site state differs on 305 bars",
-    "harness_control::barssince_cross_up": "ta.barssince returns 0 before the first cross; TradingView returns na until bar 29",
-    "harness_control::valuewhen_cross_up": "ta.valuewhen returns the wrong occurrence/bar on 551 bars",
-    "harness_exits::position_size": "strategy broker fill timing differs; PYNE holds a position when TradingView is flat",
-    "harness_exits::opentrades": "strategy broker fill timing differs; PYNE holds a position when TradingView is flat",
-    "harness_exits::closedtrades": "strategy broker close/fill timing differs",
-    "harness_exits::equity": "strategy() default initial_capital is 100000; TradingView default is 1000000",
-    "harness_exits::entry_avg_price": "na() does not unwrap the series, so the ternary yields na instead of 0.0",
-    "harness_exits::last_exit_price": "strategy.closedtrades exit-price queries differ from TradingView's ledger",
-    "harness_exits::last_entry_price": "strategy.closedtrades entry-price queries differ from TradingView's ledger",
-    "harness_exits::netprofit": "netprofit accumulates from a different initial capital and fill path",
-    "harness_loopargs::published_pattern": "manual loop sum vs ta.sma(close[2], 10) * 3 differs on every bar",
-    "harness_state::sar": "ta.sar seed/trend state differs from TradingView (first bar na, 892 bars differ)",
-    "harness_state::vwap_hlc3": "ta.vwap is cumulative; TradingView resets on the session/anchor",
-    "harness_state::fixnan_up_close": "fixnan returns 0 when the source is na; TradingView carries the last non-na close",
-    "harness_strategy::position_size": "strategy broker fill timing differs; PYNE holds a position when TradingView is flat",
-    "harness_strategy::opentrades": "strategy broker fill timing differs; PYNE holds a position when TradingView is flat",
-    "harness_strategy::equity": "strategy() default initial_capital is 100000; TradingView default is 1000000",
-    "harness_strategy::bars_since_entry_signal": "ta.barssince returns 0 before the first signal; TradingView returns na until bar 92",
+    "harness_loopargs::published_pattern": (
+        "one ta.sma call site reached 3x per bar with different sources: "
+        "TradingView's loop-series semantics match none of the three "
+        "readings the harness probes (each reach / last reach / shared)"
+    ),
 }
 
 

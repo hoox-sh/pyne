@@ -516,9 +516,14 @@ class ExpressionEvaluator:
     def visit_BoolOp(self: EvaluatorProtocol, node: ast.BoolOp):
         """Evaluate boolean operations (and, or).
 
-        Implements short-circuit evaluation:
-        - ``and``: stops at first falsy value
-        - ``or``: stops at first truthy value
+        Pine **v5** evaluates every operand, even when the result is already
+        determined. That keeps series state inside the right operand (e.g.
+        ``close > open and ta.sma(close, 21) > ta.sma(close, 7)``) continuous;
+        v6 changed to lazy evaluation, but v5 scripts are the compatibility
+        target here. Results still follow boolean semantics:
+
+        - ``and``: false if any operand is falsy
+        - ``or``: true if any operand is truthy
 
         ``None`` (na) is falsy in this context. Returns a Python ``bool``.
         Manual loop avoids generator + ``all``/``any`` frame overhead.
@@ -533,16 +538,17 @@ class ExpressionEvaluator:
         values = node.values
         visit = self.visit
         if op_t is ast.And:
-            # Mirror ``all(...)``: na / 0 / False short-circuit to False
+            result = True
             for value in values:
                 if not visit(value):
-                    return False
-            return True
+                    result = False
+            return result
         if op_t is ast.Or:
+            result = False
             for value in values:
                 if visit(value):
-                    return True
-            return False
+                    result = True
+            return result
         msg = f"unexpected node operator: {node.op}"
         raise ValueError(msg)
 
@@ -746,6 +752,20 @@ class ExpressionEvaluator:
         return _OPERATOR_GE
 
     def visit_Call(self: EvaluatorProtocol, node: ast.Call):
+        """Evaluate a call with a stable per-AST call-site token.
+
+        Incremental TA state (``ta.barssince``, ``ta.valuewhen``, …) is keyed
+        by this token so conditional branches cannot shift the state bucket of
+        later call sites. Nested calls restore the outer site on exit.
+        """
+        prev = getattr(self, "_pine_current_call_site", None)
+        self._pine_current_call_site = pine_call_site_id(node)  # type: ignore[attr-defined]
+        try:
+            return self._visit_call(node)
+        finally:
+            self._pine_current_call_site = prev  # type: ignore[attr-defined]
+
+    def _visit_call(self: EvaluatorProtocol, node: ast.Call):
         """Evaluate a function or method call.
 
         Dispatch order (simplified):

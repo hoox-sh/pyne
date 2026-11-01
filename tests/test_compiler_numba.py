@@ -982,7 +982,8 @@ plot(ta.cum(close), title="cum")
         compiled = compile_script(src)
         o, h, l, c, v = _ohlcv(40)
         out = compiled.run(o, h, l, c, v)
-        assert np.isnan(out["tr"][0])
+        # ta.tr(true) seeds bar 0 with high - low (reference Pine).
+        assert abs(out["tr"][0] - 2.0) < 1e-9
         # high-low=2, abs(high-prev_close)=2, abs(low-prev_close)=0 → tr=2
         assert abs(out["tr"][-1] - 2.0) < 1e-9
         # cum(close) over rising series: sum(100..139) for n=40
@@ -1271,12 +1272,12 @@ t = str.format_time(time, "yyyy")
 plot(str.length(t), title="tl")
 """
         code = transpile(src)
-        assert "numba_nz" in code
+        assert "numba_fixnan" in code
         assert "numba_sum" in code
         compiled = compile_script(src)
         o, h, l, c, v = _ohlcv(20)
         out = compiled.run(o, h, l, c, v)
-        assert abs(out["fn"][-1] - 0.0) < 1e-9
+        assert np.isnan(out["fn"][-1])
         # sum of last 3 closes on rising series
         assert abs(out["s"][-1] - float(c[-3:].sum())) < 1e-6
 

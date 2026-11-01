@@ -29,8 +29,12 @@ from pynescript.ast.evaluator import NodeLiteralEvaluator
 def test_allow_entry_in_blocks_opposite_side():
     e = NodeLiteralEvaluator()
     m = e._build_builtin_map()
+    e.context = {"close": 100.0, "bar_index": 0, "time": 0}
     m["strategy.risk.allow_entry_in"](["long"])
     m["strategy.entry"](["L", "long", 1.0])
+    # Market entry fills at the next bar's open (reference Pine).
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
     assert e._strategy_state.position_direction == "long"
     # short blocked
     m["strategy.entry"](["S", "short", 1.0])
@@ -44,8 +48,11 @@ def test_max_position_size_caps_qty():
     e.context = {"close": 100.0, "bar_index": 0, "time": 0}
     m = e._build_builtin_map()
     # 1% of 100k equity at price 100 => max qty 10
+    m["strategy"](["T"], {"initial_capital": 100_000.0})
     m["strategy.risk.max_position_size"]([1.0])
     m["strategy.entry"](["L", "long", 1000.0])
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
     assert e._strategy_state.position_size == 10.0
 
 

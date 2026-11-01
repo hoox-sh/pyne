@@ -434,7 +434,7 @@ def test_supertrend_inc_returns_pair():
 def test_sar_inc_and_batch():
     h = f64([10, 12, 11, 13, 14, 13, 15, 16, 15, 17])
     l = f64([8, 9, 8, 10, 11, 10, 12, 13, 12, 14])
-    state = st(5)
+    state = st(10)  # sar/ep/af/trend/last_i/seen + l1/l2/h1/h2 clamp window
     outs, rewind = walk(
         lambda i: nb.numba_sar_inc(h, l, 0.02, 0.02, 0.2, i, state),
         len(h),
@@ -788,7 +788,7 @@ def test_alma_hma_kama_stochrsi_batch_invalid():
             "sar",
             lambda: (
                 lambda i, s: nb.numba_sar_inc(_HIGH, _LOW, 0.02, 0.02, 0.2, i, s),
-                st(5),
+                st(10),
             ),
         ),
         (

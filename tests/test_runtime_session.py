@@ -312,17 +312,25 @@ plot(strategy.position_size, "ps")
         tick["high"] = max(float(last["high"]), close)
         out = sess.update_last_bar(tick)
         assert "error" not in out, out.get("error")
-        assert out["series"]["ot"][-1] == 1, out["series"]["ot"]
-        assert out["series"]["ps"][-1] == 1, out["series"]["ps"]
+        # Reference Pine: the market entry placed on the forming bar fills at
+        # the NEXT bar's open — during the ticks it stays a working order
+        # (one order event, no per-tick fills).
+        assert out["series"]["ot"][-1] == 0, out["series"]["ot"]
+        assert out["series"]["ps"][-1] == 0, out["series"]["ps"]
         kinds = [str(e.get("kind")) for e in (out.get("events") or [])]
-        assert kinds.count("entry") == 1, kinds
+        assert kinds.count("order") == 1, kinds
+        assert kinds.count("entry") == 0, kinds
     out2 = sess.append_bars(_bars(1, offset=5))
     assert "error" not in out2, out2.get("error")
+    # The pending entry fills at bar 5's open.
     assert out2["series"]["ot"][-1] == 1, out2["series"]["ot"]
     assert out2["series"]["ps"][-1] == 1, out2["series"]["ps"]
     revised = _bars(5)
     revised[-1] = dict(tick)
-    full = Runtime(symbol="TEST").run(src, revised + _bars(1, offset=5), mode="interpret")
+    # Full-run equivalent: the entry is placed on bar 4 (it was the forming
+    # last bar in the session) and fills at bar 5's open.
+    ref_src = src.replace("if barstate.islast", "if bar_index == 4")
+    full = Runtime(symbol="TEST").run(src_ref := ref_src, revised + _bars(1, offset=5), mode="interpret")
     assert "error" not in full, full.get("error")
     assert out2["series"]["ot"] == full["series"]["ot"]
     assert out2["series"]["ps"] == full["series"]["ps"]

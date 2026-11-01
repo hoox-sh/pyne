@@ -1426,8 +1426,6 @@ def _bar_walk_full_barssince(cond: list[bool]) -> list[int | None]:
             if is_true:
                 found = len(condition) - 1 - j
                 break
-        if found is None:
-            found = len(condition) - 1
         out.append(found)
     return out
 

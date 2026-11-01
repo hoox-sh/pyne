@@ -24,8 +24,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from pynescript.ast.helper import parse
+from pynescript.compiler.engine import CompileEmitError
 from pynescript.compiler.engine import compile_script
 from pynescript.compiler.numba_builtins import pine_bool
 from pynescript.compiler.numba_builtins import pine_int
@@ -117,9 +119,12 @@ def test_2492_markdown_planning_sanitized_parses() -> None:
     assert 'indicator("x")' in cleaned
     assert "Reversal Radar" not in cleaned
     parse(cleaned)
-    compiled = compile_script(raw, use_cache=False)
-    out = compiled.run(*_ohlcv(6))
-    assert "plot_0" in out or "close" in out or len(out) >= 1
+    # The doc is a mis-collected planning markdown with no extractable Pine
+    # body, so the sanitizer reduces it to the minimal stub and compile_script
+    # keeps the raw source so the parse fails honestly (fail-honest policy)
+    # instead of quietly running a synthetic script.
+    with pytest.raises(CompileEmitError):
+        compile_script(raw, use_cache=False)
 
 
 def test_14508_jinja_template_sanitized_parses() -> None:

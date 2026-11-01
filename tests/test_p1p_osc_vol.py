@@ -335,8 +335,10 @@ plot(100 * (4*avg7 + 2*avg14 + avg28)/7, "Oscillator")
     if compiled is None:
         pytest.skip("numba compile path unavailable")
     iv, cv = interp["series"]["Oscillator"], compiled["series"]["Oscillator"]
-    assert _first_finite(iv) == 27
-    assert _first_finite(cv) == 27
+    # Reference Pine: math.min/max propagate na, so ``math.min(low, close[1])``
+    # is na on bar 0 and the 28-bar sum first lands at bar 28.
+    assert _first_finite(iv) == 28
+    assert _first_finite(cv) == 28
     _assert_finite_match(iv, cv, key="Oscillator")
 
 

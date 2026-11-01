@@ -255,17 +255,17 @@ def test_trail_offset_long_ratchet_dual_host() -> None:
         compiled,
         ("ps", "ct", "xp", "pnl"),
         golden={
-            "ps": [2.0, 2.0, 2.0, 0.0],
+            "ps": [0.0, 2.0, 2.0, 0.0],
             "ct": [0.0, 0.0, 0.0, 1.0],
-            "xp": [0.0, 0.0, 0.0, 109.0],
-            "pnl": [0.0, 0.0, 0.0, 18.0],
+            "xp": [0.0, 0.0, 0.0, 108.6],
+            "pnl": [0.0, 0.0, 0.0, -1.8],
         },
     )
     _assert_placement_events_match(
         interp,
         compiled,
         expected=[
-            ("entry", "L", "long", 2.0, 0, None),
+            ("entry", "L", "long", 2.0, 1, None),
             ("exit", "XT", None, 2.0, 1, None),
         ],
     )
@@ -287,27 +287,30 @@ def test_trail_offset_short_ratchet_dual_host() -> None:
         compiled,
         ("ps", "ct", "xp", "pnl"),
         golden={
-            "ps": [-2.0, -2.0, -2.0, 0.0],
+            "ps": [0.0, -2.0, -2.0, 0.0],
             "ct": [0.0, 0.0, 0.0, 1.0],
-            "xp": [0.0, 0.0, 0.0, 91.0],
-            "pnl": [0.0, 0.0, 0.0, 18.0],
+            "xp": [0.0, 0.0, 0.0, 91.4],
+            "pnl": [0.0, 0.0, 0.0, -1.8],
         },
     )
     _assert_placement_events_match(
         interp,
         compiled,
         expected=[
-            ("entry", "S", "short", 2.0, 0, None),
+            ("entry", "S", "short", 2.0, 1, None),
             ("exit", "XT", None, 2.0, 1, None),
         ],
     )
 
 
 def test_trail_offset_same_bar_fill_dual_host() -> None:
-    """Place+ratchet+fill on the same bar: both hosts emit fill order at 109."""
+    """Trail placed with the entry bar goes through the pending book and fills
+    at the next bar's stop: entry fills at bar 1 open (109.5), the trail arms
+    on bar 2 (high 108.8 → stop 107.8), low breaks → fill 107.8."""
     bars = [
         _bar(100.0, 100.0, 100.0, 100.0, i=0),
-        _bar(109.5, 110.0, 108.0, 108.5, i=1),  # stop 109, low 108 → fill 109
+        _bar(109.5, 110.0, 108.0, 108.5, i=1),  # entry fills at open; stop 109 inert
+        _bar(108.5, 108.8, 107.5, 108.0, i=2),  # arm 107.8; low breaks → fill
     ]
     interp, compiled = _run_dual(_SRC_LONG, bars)
     _assert_ok(interp, "interpret")
@@ -317,31 +320,33 @@ def test_trail_offset_same_bar_fill_dual_host() -> None:
         compiled,
         ("ps", "ct", "xp", "pnl"),
         golden={
-            "ps": [2.0, 0.0],
-            "ct": [0.0, 1.0],
-            "xp": [0.0, 109.0],
-            "pnl": [0.0, 18.0],
+            "ps": [0.0, 2.0, 0.0],
+            "ct": [0.0, 0.0, 1.0],
+            "xp": [0.0, 0.0, 107.8],
+            "pnl": [0.0, 0.0, -3.4],
         },
     )
     _assert_placement_events_match(
         interp,
         compiled,
         expected=[
-            ("entry", "L", "long", 2.0, 0, None),
+            ("entry", "L", "long", 2.0, 1, None),
             ("exit", "XT", None, 2.0, 1, None),
         ],
     )
     oi = _same_bar_fill_orders(interp)
     oc = _same_bar_fill_orders(compiled)
-    assert len(oi) == 1 and len(oc) == 1
-    assert oi[0].get("id") == "XT"
-    assert oc[0].get("id") == "XT"
-    assert oi[0].get("qty") == pytest.approx(2.0)
-    assert oc[0].get("qty") == pytest.approx(2.0)
-    assert oi[0].get("stop") == pytest.approx(109.0)
-    assert oc[0].get("stop") == pytest.approx(109.0)
-    assert oi[0].get("bar_index") == 1
-    assert oc[0].get("bar_index") == 1
+    # Two fills: the entry (bar 1) and the trail stop (bar 2).
+    assert len(oi) == 2 and len(oc) == 2
+    xt_i, xt_c = oi[1], oc[1]
+    assert xt_i.get("id") == "XT"
+    assert xt_c.get("id") == "XT"
+    assert xt_i.get("qty") == pytest.approx(2.0)
+    assert xt_c.get("qty") == pytest.approx(2.0)
+    assert xt_i.get("stop") == pytest.approx(107.8)
+    assert xt_c.get("stop") == pytest.approx(107.8)
+    assert xt_i.get("bar_index") == 2
+    assert xt_c.get("bar_index") == 2
 
 
 def test_trail_price_activation_dual_host() -> None:
@@ -361,7 +366,7 @@ def test_trail_price_activation_dual_host() -> None:
         compiled,
         ("ps", "ct", "xp", "pnl"),
         golden={
-            "ps": [1.0, 1.0, 1.0, 1.0, 0.0],
+            "ps": [0.0, 1.0, 1.0, 1.0, 0.0],
             "ct": [0.0, 0.0, 0.0, 0.0, 1.0],
             "xp": [0.0, 0.0, 0.0, 0.0, 110.0],
             "pnl": [0.0, 0.0, 0.0, 0.0, 10.0],
@@ -371,7 +376,7 @@ def test_trail_price_activation_dual_host() -> None:
         interp,
         compiled,
         expected=[
-            ("entry", "L", "long", 1.0, 0, None),
+            ("entry", "L", "long", 1.0, 1, None),
             ("exit", "XT", None, 1.0, 1, 110.0),
         ],
     )
@@ -392,17 +397,17 @@ def test_trail_points_wins_over_offset_dual_host() -> None:
         compiled,
         ("ps", "ct", "xp", "pnl"),
         golden={
-            "ps": [2.0, 2.0, 0.0],
+            "ps": [0.0, 2.0, 0.0],
             "ct": [0.0, 0.0, 1.0],
-            "xp": [0.0, 0.0, 109.0],
-            "pnl": [0.0, 0.0, 18.0],
+            "xp": [0.0, 0.0, 108.3],
+            "pnl": [0.0, 0.0, -2.4],
         },
     )
     _assert_placement_events_match(
         interp,
         compiled,
         expected=[
-            ("entry", "L", "long", 2.0, 0, None),
+            ("entry", "L", "long", 2.0, 1, None),
             ("exit", "XT", None, 2.0, 1, None),
         ],
     )
@@ -423,17 +428,17 @@ def test_trail_nonpositive_points_falls_back_to_offset_dual_host() -> None:
         compiled,
         ("ps", "ct", "xp", "pnl"),
         golden={
-            "ps": [2.0, 2.0, 0.0],
+            "ps": [0.0, 2.0, 0.0],
             "ct": [0.0, 0.0, 1.0],
-            "xp": [0.0, 0.0, 109.0],
-            "pnl": [0.0, 0.0, 18.0],
+            "xp": [0.0, 0.0, 108.3],
+            "pnl": [0.0, 0.0, -2.4],
         },
     )
     _assert_placement_events_match(
         interp,
         compiled,
         expected=[
-            ("entry", "L", "long", 2.0, 0, None),
+            ("entry", "L", "long", 2.0, 1, None),
             ("exit", "XT", None, 2.0, 1, None),
         ],
     )
@@ -455,18 +460,18 @@ def test_trail_offset_from_entry_dual_host() -> None:
         compiled,
         ("ps", "ct", "xp", "ot"),
         golden={
-            "ps": [2.0, 6.0, 6.0, 4.0],
+            "ps": [0.0, 2.0, 6.0, 4.0],
             "ct": [0.0, 0.0, 0.0, 1.0],
-            "xp": [0.0, 0.0, 0.0, 109.0],
-            "ot": [1.0, 2.0, 2.0, 1.0],
+            "xp": [0.0, 0.0, 0.0, 108.3],
+            "ot": [0.0, 1.0, 2.0, 1.0],
         },
     )
     _assert_placement_events_match(
         interp,
         compiled,
         expected=[
-            ("entry", "A", "long", 2.0, 0, None),
-            ("entry", "B", "long", 4.0, 1, None),
+            ("entry", "A", "long", 2.0, 1, None),
+            ("entry", "B", "long", 4.0, 2, None),
             ("exit", "XA", None, 2.0, 2, None),
         ],
     )

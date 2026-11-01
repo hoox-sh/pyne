@@ -40,6 +40,8 @@ def test_limit_buy_fills_when_low_touches():
     # limit buy: (id, action, qty, limit)
     m["strategy.order"](["L1", "buy", 2.0, 100.0])
     assert "L1" in e._strategy_state.pending_orders
+    # Reference Pine: orders placed during bar N become active for bar N+1.
+    e.context["bar_index"] = 2
     filled = e.process_pending_orders(open_=105.0, high=106.0, low=99.0, close=101.0)
     assert "L1" in filled
     assert e._strategy_state.position_direction == "long"
@@ -52,15 +54,17 @@ def test_partial_fill_across_bars():
     m = e._build_builtin_map()
     m["strategy.order"]([], {"id": "L", "action": "buy", "qty": 10.0, "limit": 100.0, "max_fill_per_bar": 3.0})
     assert "L" in e._strategy_state.pending_orders
+    e.context["bar_index"] = 1
     e.process_pending_orders(open_=100.0, high=100.0, low=90.0, close=95.0)
     assert e._strategy_state.position_size == 3.0
     assert "L" in e._strategy_state.pending_orders
     assert e._strategy_state.pending_orders["L"].remaining_qty == 7.0
-    e.context["bar_index"] = 1
+    e.context["bar_index"] = 2
     e.process_pending_orders(open_=100.0, high=100.0, low=90.0, close=95.0)
     assert e._strategy_state.position_size == 6.0
     # finish remaining
     e._strategy_state.pending_orders["L"].max_fill_per_bar = 0.0
+    e.context["bar_index"] = 3
     e.process_pending_orders(open_=100.0, high=100.0, low=90.0, close=95.0)
     assert e._strategy_state.position_size == 10.0
     assert "L" not in e._strategy_state.pending_orders
@@ -79,12 +83,15 @@ def test_strategy_exit_pending_between_stop_limit():
     }
     m = e._build_builtin_map()
     m["strategy.entry"](["L", "long", 5.0])
+    # Market entry fills at the next bar's open.
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
     assert e._strategy_state.position_size == 5.0
     m["strategy.exit"]([], {"id": "X", "from_entry": "L", "qty": 5.0, "limit": 110.0, "stop": 90.0})
     assert e._strategy_state.position_size == 5.0
     assert any(k.startswith("X") for k in e._strategy_state.pending_orders)
-    # TP touch
-    e.context.update({"open": 100.0, "high": 112.0, "low": 99.0, "close": 111.0, "bar_index": 1})
+    # TP touch (bracket placed on bar 1, active bar 2)
+    e.context.update({"open": 100.0, "high": 112.0, "low": 99.0, "close": 111.0, "bar_index": 2})
     e.process_pending_orders(open_=100.0, high=112.0, low=99.0, close=111.0)
     assert e._strategy_state.position_direction == "flat"
     assert e._strategy_state.position_size == 0.0
@@ -104,12 +111,18 @@ def test_strategy_exit_from_entry_market_leaves_other_leg():
     m = e._build_builtin_map()
     m["strategy"](["T"], {"pyramiding": 1})
     m["strategy.entry"](["A", "long", 2.0])
-    e.context.update({"close": 110.0, "open": 110.0, "high": 110.0, "low": 110.0, "bar_index": 1})
+    e.context.update({"close": 100.0, "open": 100.0, "high": 100.0, "low": 100.0, "bar_index": 1})
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
     m["strategy.entry"](["B", "long", 3.0])
+    e.context.update({"close": 110.0, "open": 110.0, "high": 110.0, "low": 110.0, "bar_index": 2})
+    e.process_pending_orders(open_=110.0, high=110.0, low=110.0, close=110.0)
     assert e._strategy_state.position_size == 5.0
     assert len(e._strategy_state.open_trades) == 2
-    e.context.update({"close": 120.0, "open": 120.0, "high": 120.0, "low": 120.0, "bar_index": 2})
+    e.context.update({"close": 120.0, "open": 120.0, "high": 120.0, "low": 120.0, "bar_index": 3})
     m["strategy.exit"]([], {"id": "XA", "from_entry": "A"})
+    # The market exit fills at bar 4's open.
+    e.context.update({"close": 120.0, "open": 120.0, "high": 120.0, "low": 120.0, "bar_index": 4})
+    e.process_pending_orders(open_=120.0, high=120.0, low=120.0, close=120.0)
     st = e._strategy_state
     assert st.position_size == 3.0
     assert len(st.open_trades) == 1
@@ -137,6 +150,8 @@ def test_strategy_exit_from_entry_unknown_soft_noop():
     }
     m = e._build_builtin_map()
     m["strategy.entry"](["L", "long", 4.0])
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
     m["strategy.exit"]([], {"id": "X", "from_entry": "NOPE"})
     st = e._strategy_state
     assert st.position_size == 4.0
@@ -160,9 +175,12 @@ def test_strategy_exit_from_entry_pending_stop_limit():
     m = e._build_builtin_map()
     m["strategy"](["T"], {"pyramiding": 1})
     m["strategy.entry"](["A", "long", 2.0])
-    e.context.update({"close": 105.0, "open": 105.0, "high": 105.0, "low": 105.0, "bar_index": 1})
+    e.context.update({"close": 100.0, "open": 100.0, "high": 100.0, "low": 100.0, "bar_index": 1})
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
     m["strategy.entry"](["B", "long", 4.0])
-    # Bracket only against A
+    e.context.update({"close": 105.0, "open": 105.0, "high": 105.0, "low": 105.0, "bar_index": 2})
+    e.process_pending_orders(open_=105.0, high=105.0, low=105.0, close=105.0)
+    # Bracket only against A (placed on bar 2, active bar 3)
     m["strategy.exit"](
         [],
         {"id": "XA", "from_entry": "A", "qty": 2.0, "limit": 120.0, "stop": 90.0},
@@ -174,7 +192,7 @@ def test_strategy_exit_from_entry_pending_stop_limit():
         assert po.from_entry == "A"
         assert po.quantity == 2.0
     # TP fills A only
-    e.context.update({"open": 100.0, "high": 125.0, "low": 99.0, "close": 122.0, "bar_index": 2})
+    e.context.update({"open": 100.0, "high": 125.0, "low": 99.0, "close": 122.0, "bar_index": 3})
     e.process_pending_orders(open_=100.0, high=125.0, low=99.0, close=122.0)
     st = e._strategy_state
     assert st.position_size == 4.0
@@ -188,14 +206,18 @@ def test_stop_sell_closes_long():
     e.context = {"open": 100.0, "high": 110.0, "low": 100.0, "close": 105.0, "bar_index": 0, "time": 0}
     m = e._build_builtin_map()
     m["strategy.entry"](["L", "long", 5.0])
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=110.0, low=100.0, close=105.0)
     assert e._strategy_state.position_size == 5.0
     # stop-only sell: limit=None, stop=95 via kwargs
     m["strategy.order"]([], {"id": "SL", "action": "sell", "qty": 5.0, "stop": 95.0})
     assert "SL" in e._strategy_state.pending_orders
     # bar does not touch 95
+    e.context["bar_index"] = 2
     e.process_pending_orders(open_=100.0, high=102.0, low=98.0, close=101.0)
     assert e._strategy_state.position_direction == "long"
     # bar hits stop
+    e.context["bar_index"] = 3
     e.process_pending_orders(open_=100.0, high=100.0, low=90.0, close=92.0)
     assert e._strategy_state.position_direction == "flat"
     assert len(e._strategy_state.closed_trades) >= 1
@@ -214,7 +236,11 @@ def test_strategy_exit_qty_percent_partial_market():
     }
     m = e._build_builtin_map()
     m["strategy.entry"](["L", "long", 10.0])
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
     m["strategy.exit"]([], {"id": "X", "from_entry": "L", "qty_percent": 50.0})
+    e.context["bar_index"] = 2
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
     st = e._strategy_state
     assert st.position_size == 5.0
     assert st.position_direction == "long"
@@ -237,7 +263,11 @@ def test_strategy_exit_qty_percent_caps_over_100():
     }
     m = e._build_builtin_map()
     m["strategy.entry"](["L", "long", 4.0])
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
     m["strategy.exit"]([], {"id": "X", "qty_percent": 250.0})
+    e.context["bar_index"] = 2
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
     assert e._strategy_state.position_size == 0.0
     assert e._strategy_state.position_direction == "flat"
 
@@ -255,10 +285,14 @@ def test_strategy_exit_qty_percent_zero_noop_na_falls_back():
     }
     m = e._build_builtin_map()
     m["strategy.entry"](["L", "long", 6.0])
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
     m["strategy.exit"]([], {"id": "X0", "qty_percent": 0.0})
     assert e._strategy_state.position_size == 6.0
     # na percent + explicit qty → use qty
     m["strategy.exit"]([], {"id": "Xna", "qty": 2.0, "qty_percent": float("nan")})
+    e.context["bar_index"] = 2
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
     assert e._strategy_state.position_size == 4.0
 
 
@@ -275,8 +309,12 @@ def test_strategy_exit_qty_percent_wins_over_qty():
     }
     m = e._build_builtin_map()
     m["strategy.entry"](["L", "long", 10.0])
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
     # qty alone would close 1; percent 40 closes 4
     m["strategy.exit"]([], {"id": "X", "qty": 1.0, "qty_percent": 40.0})
+    e.context["bar_index"] = 2
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
     assert e._strategy_state.position_size == 6.0
 
 
@@ -294,11 +332,16 @@ def test_strategy_exit_qty_percent_respects_from_entry():
     m = e._build_builtin_map()
     m["strategy"](["T"], {"pyramiding": 1})
     m["strategy.entry"](["A", "long", 4.0])
-    e.context.update({"close": 110.0, "open": 110.0, "high": 110.0, "low": 110.0, "bar_index": 1})
+    e.context.update({"close": 100.0, "open": 100.0, "high": 100.0, "low": 100.0, "bar_index": 1})
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
     m["strategy.entry"](["B", "long", 6.0])
+    e.context.update({"close": 110.0, "open": 110.0, "high": 110.0, "low": 110.0, "bar_index": 2})
+    e.process_pending_orders(open_=110.0, high=110.0, low=110.0, close=110.0)
     assert e._strategy_state.position_size == 10.0
     # 50% of A (4) → close 2; B untouched
     m["strategy.exit"]([], {"id": "XA", "from_entry": "A", "qty_percent": 50.0})
+    e.context.update({"close": 110.0, "open": 110.0, "high": 110.0, "low": 110.0, "bar_index": 3})
+    e.process_pending_orders(open_=110.0, high=110.0, low=110.0, close=110.0)
     st = e._strategy_state
     assert st.position_size == 8.0
     a_legs = [t for t in st.open_trades if t.entry_id == "A"]
@@ -321,6 +364,9 @@ def test_strategy_exit_trail_offset_long_ratchets_and_fills():
     }
     m = e._build_builtin_map()
     m["strategy.entry"](["L", "long", 2.0])
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
+    assert e._strategy_state.position_direction == "long"
     # 100 ticks * 0.01 = $1 trail distance; no activation → active immediately
     m["strategy.exit"]([], {"id": "XT", "trail_offset": 100.0})
     pending = e._strategy_state.pending_orders
@@ -329,18 +375,18 @@ def test_strategy_exit_trail_offset_long_ratchets_and_fills():
     assert trail.is_trail
     assert trail.trail_offset == pytest.approx(1.0)
     # Favorable bar: high 110 → stop 109; low must stay above stop or OHLC fills same bar
-    e.context.update({"open": 109.5, "high": 110.0, "low": 109.2, "close": 109.8, "bar_index": 1})
+    e.context.update({"open": 109.5, "high": 110.0, "low": 109.2, "close": 109.8, "bar_index": 2})
     e.process_pending_orders(open_=109.5, high=110.0, low=109.2, close=109.8)
     assert e._strategy_state.position_direction == "long"
     assert "XT" in e._strategy_state.pending_orders
     assert e._strategy_state.pending_orders["XT"].stop_price == pytest.approx(109.0)
     # Mild pullback still above stop — no fill; trail does not lower
-    e.context.update({"open": 109.5, "high": 109.6, "low": 109.1, "close": 109.2, "bar_index": 2})
+    e.context.update({"open": 109.5, "high": 109.6, "low": 109.1, "close": 109.2, "bar_index": 3})
     e.process_pending_orders(open_=109.5, high=109.6, low=109.1, close=109.2)
     assert e._strategy_state.position_direction == "long"
     assert e._strategy_state.pending_orders["XT"].stop_price == pytest.approx(109.0)
     # Break stop
-    e.context.update({"open": 109.2, "high": 109.3, "low": 108.0, "close": 108.5, "bar_index": 3})
+    e.context.update({"open": 109.2, "high": 109.3, "low": 108.0, "close": 108.5, "bar_index": 4})
     e.process_pending_orders(open_=109.2, high=109.3, low=108.0, close=108.5)
     assert e._strategy_state.position_direction == "flat"
     assert e._strategy_state.position_size == 0.0
@@ -360,23 +406,26 @@ def test_strategy_exit_trail_price_activation_long():
     }
     m = e._build_builtin_map()
     m["strategy.entry"](["L", "long", 1.0])
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
+    assert e._strategy_state.position_direction == "long"
     # Activate at 110; trail 2 ticks (= $2 with mintick 1)
     m["strategy.exit"]([], {"id": "XT", "trail_price": 110.0, "trail_offset": 2.0})
     # Below activation — still open, stop not set (or not fillable)
-    e.context.update({"open": 105.0, "high": 108.0, "low": 104.0, "close": 107.0, "bar_index": 1})
+    e.context.update({"open": 105.0, "high": 108.0, "low": 104.0, "close": 107.0, "bar_index": 2})
     e.process_pending_orders(open_=105.0, high=108.0, low=104.0, close=107.0)
     assert e._strategy_state.position_direction == "long"
     po = e._strategy_state.pending_orders["XT"]
     assert po.trail_active is False
     # Activate: high 112 → stop = 110; low 111 → no fill
-    e.context.update({"open": 109.0, "high": 112.0, "low": 111.0, "close": 111.5, "bar_index": 2})
+    e.context.update({"open": 109.0, "high": 112.0, "low": 111.0, "close": 111.5, "bar_index": 3})
     e.process_pending_orders(open_=109.0, high=112.0, low=111.0, close=111.5)
     assert e._strategy_state.position_direction == "long"
     po = e._strategy_state.pending_orders["XT"]
     assert po.trail_active is True
     assert po.stop_price == pytest.approx(110.0)
     # Fill on pullback through 110
-    e.context.update({"open": 111.0, "high": 111.0, "low": 109.0, "close": 109.5, "bar_index": 3})
+    e.context.update({"open": 111.0, "high": 111.0, "low": 109.0, "close": 109.5, "bar_index": 4})
     e.process_pending_orders(open_=111.0, high=111.0, low=109.0, close=109.5)
     assert e._strategy_state.position_direction == "flat"
 
@@ -395,12 +444,15 @@ def test_strategy_exit_trail_points_wins_over_offset():
     }
     m = e._build_builtin_map()
     m["strategy.entry"](["L", "long", 2.0])
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
+    assert e._strategy_state.position_direction == "long"
     # points=100 → $1; offset=500 would be $5 if it won
     m["strategy.exit"]([], {"id": "XT", "trail_points": 100.0, "trail_offset": 500.0})
     trail = e._strategy_state.pending_orders["XT"]
     assert trail.is_trail
     assert trail.trail_offset == pytest.approx(1.0)
-    e.context.update({"open": 109.5, "high": 110.0, "low": 109.2, "close": 109.8, "bar_index": 1})
+    e.context.update({"open": 109.5, "high": 110.0, "low": 109.2, "close": 109.8, "bar_index": 2})
     e.process_pending_orders(open_=109.5, high=110.0, low=109.2, close=109.8)
     assert e._strategy_state.position_direction == "long"
     assert e._strategy_state.pending_orders["XT"].stop_price == pytest.approx(109.0)
@@ -420,17 +472,23 @@ def test_strategy_exit_trail_nonpositive_points_falls_back_to_offset():
     }
     m = e._build_builtin_map()
     m["strategy.entry"](["L", "long", 1.0])
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
+    assert e._strategy_state.position_direction == "long"
     # 0 "wins" would disable trail and market-close; must fall back to offset=100
     m["strategy.exit"]([], {"id": "XT", "trail_points": 0.0, "trail_offset": 100.0})
-    assert e._strategy_state.position_direction == "long"
     trail = e._strategy_state.pending_orders["XT"]
     assert trail.is_trail
     assert trail.trail_offset == pytest.approx(1.0)
     e2 = NodeLiteralEvaluator()
     e2._strategy_state.mintick = 0.01
     e2.context = dict(e.context)
+    e2.context["bar_index"] = 0
     m2 = e2._build_builtin_map()
     m2["strategy.entry"](["L", "long", 1.0])
+    e2.context["bar_index"] = 1
+    e2.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
+    assert e2._strategy_state.position_direction == "long"
     m2["strategy.exit"]([], {"id": "XT", "trail_points": float("nan"), "trail_offset": 100.0})
     assert e2._strategy_state.pending_orders["XT"].trail_offset == pytest.approx(1.0)
     assert e2._strategy_state.position_direction == "long"
@@ -450,23 +508,26 @@ def test_strategy_exit_trail_offset_short_ratchets_and_fills():
     }
     m = e._build_builtin_map()
     m["strategy.entry"](["S", "short", 2.0])
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
+    assert e._strategy_state.position_direction == "short"
     m["strategy.exit"]([], {"id": "XT", "trail_offset": 100.0})
     trail = e._strategy_state.pending_orders["XT"]
     assert trail.is_trail
     assert trail.direction == "buy"
     assert trail.trail_offset == pytest.approx(1.0)
     # Favorable drop: low 90 → stop 91; high stays below stop
-    e.context.update({"open": 90.5, "high": 90.8, "low": 90.0, "close": 90.2, "bar_index": 1})
+    e.context.update({"open": 90.5, "high": 90.8, "low": 90.0, "close": 90.2, "bar_index": 2})
     e.process_pending_orders(open_=90.5, high=90.8, low=90.0, close=90.2)
     assert e._strategy_state.position_direction == "short"
     assert e._strategy_state.pending_orders["XT"].stop_price == pytest.approx(91.0)
     # Mild bounce still below stop — no fill; trail does not raise
-    e.context.update({"open": 90.5, "high": 90.9, "low": 90.4, "close": 90.8, "bar_index": 2})
+    e.context.update({"open": 90.5, "high": 90.9, "low": 90.4, "close": 90.8, "bar_index": 3})
     e.process_pending_orders(open_=90.5, high=90.9, low=90.4, close=90.8)
     assert e._strategy_state.position_direction == "short"
     assert e._strategy_state.pending_orders["XT"].stop_price == pytest.approx(91.0)
     # Break stop
-    e.context.update({"open": 90.8, "high": 92.0, "low": 90.7, "close": 91.5, "bar_index": 3})
+    e.context.update({"open": 90.8, "high": 92.0, "low": 90.7, "close": 91.5, "bar_index": 4})
     e.process_pending_orders(open_=90.8, high=92.0, low=90.7, close=91.5)
     assert e._strategy_state.position_direction == "flat"
     assert e._strategy_state.position_size == 0.0
@@ -492,18 +553,20 @@ def test_strategy_exit_profit_ticks_long_target():
     """profit=100 ticks from long entry 100 @ mintick 0.01 → limit 101.00."""
     e, m = _exit_eval()
     m["strategy.entry"](["L", "long", 1.0])
-    m["strategy.exit"]([], {"id": "X", "profit": 100.0})
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
     assert e._strategy_state.position_size == 1.0
+    m["strategy.exit"]([], {"id": "X", "profit": 100.0})
     pending = e._strategy_state.pending_orders
     assert "X" in pending
     assert pending["X"].order_type == "limit"
     assert pending["X"].limit_price == pytest.approx(101.00)
     # high 100.5 does not touch 101
-    e.context.update({"open": 100.2, "high": 100.5, "low": 100.0, "close": 100.4, "bar_index": 1})
+    e.context.update({"open": 100.2, "high": 100.5, "low": 100.0, "close": 100.4, "bar_index": 2})
     e.process_pending_orders(open_=100.2, high=100.5, low=100.0, close=100.4)
     assert e._strategy_state.position_size == 1.0
     # high 101.5 fills at 101
-    e.context.update({"open": 100.4, "high": 101.5, "low": 100.2, "close": 101.2, "bar_index": 2})
+    e.context.update({"open": 100.4, "high": 101.5, "low": 100.2, "close": 101.2, "bar_index": 3})
     e.process_pending_orders(open_=100.4, high=101.5, low=100.2, close=101.2)
     assert e._strategy_state.position_size == 0.0
     assert e._strategy_state.closed_trades[0].exit_price == pytest.approx(101.00)
@@ -513,14 +576,17 @@ def test_strategy_exit_loss_ticks_long_stop():
     """loss=50 ticks from long entry 100 @ mintick 0.01 → stop 99.50."""
     e, m = _exit_eval()
     m["strategy.entry"](["L", "long", 1.0])
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
+    assert e._strategy_state.position_size == 1.0
     m["strategy.exit"]([], {"id": "X", "loss": 50.0})
     po = e._strategy_state.pending_orders["X"]
     assert po.order_type == "stop"
     assert po.stop_price == pytest.approx(99.50)
-    e.context.update({"open": 100.0, "high": 100.2, "low": 99.6, "close": 99.8, "bar_index": 1})
+    e.context.update({"open": 100.0, "high": 100.2, "low": 99.6, "close": 99.8, "bar_index": 2})
     e.process_pending_orders(open_=100.0, high=100.2, low=99.6, close=99.8)
     assert e._strategy_state.position_size == 1.0
-    e.context.update({"open": 99.8, "high": 99.9, "low": 99.0, "close": 99.2, "bar_index": 2})
+    e.context.update({"open": 99.8, "high": 99.9, "low": 99.0, "close": 99.2, "bar_index": 3})
     e.process_pending_orders(open_=99.8, high=99.9, low=99.0, close=99.2)
     assert e._strategy_state.position_size == 0.0
     assert e._strategy_state.closed_trades[0].exit_price == pytest.approx(99.50)
@@ -530,14 +596,18 @@ def test_strategy_exit_profit_ticks_short_target():
     """profit=100 ticks from short entry 100 @ mintick 0.01 → limit 99.00."""
     e, m = _exit_eval()
     m["strategy.entry"](["S", "short", 1.0])
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
+    # Raw state qty is a magnitude; the signed accessor negates for shorts.
+    assert e._strategy_state.position_size == 1.0
     m["strategy.exit"]([], {"id": "X", "profit": 100.0})
     po = e._strategy_state.pending_orders["X"]
     assert po.order_type == "limit"
     assert po.limit_price == pytest.approx(99.00)
-    e.context.update({"open": 100.0, "high": 100.2, "low": 99.4, "close": 99.6, "bar_index": 1})
+    e.context.update({"open": 100.0, "high": 100.2, "low": 99.4, "close": 99.6, "bar_index": 2})
     e.process_pending_orders(open_=100.0, high=100.2, low=99.4, close=99.6)
     assert e._strategy_state.position_size == 1.0
-    e.context.update({"open": 99.6, "high": 99.7, "low": 98.5, "close": 98.8, "bar_index": 2})
+    e.context.update({"open": 99.6, "high": 99.7, "low": 98.5, "close": 98.8, "bar_index": 3})
     e.process_pending_orders(open_=99.6, high=99.7, low=98.5, close=98.8)
     assert e._strategy_state.position_size == 0.0
     assert e._strategy_state.closed_trades[0].exit_price == pytest.approx(99.00)
@@ -547,6 +617,9 @@ def test_strategy_exit_limit_stop_remain_absolute_prices():
     """Named limit/stop stay prices; profit/loss do not rewrite them."""
     e, m = _exit_eval()
     m["strategy.entry"](["L", "long", 1.0])
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
+    assert e._strategy_state.position_size == 1.0
     m["strategy.exit"]([], {"id": "X", "limit": 110.0, "stop": 90.0, "profit": 100.0, "loss": 50.0})
     pending = e._strategy_state.pending_orders
     lim = pending["X:limit"]
@@ -559,11 +632,19 @@ def test_strategy_exit_profit_loss_na_and_nonpositive_ignored():
     """na / None / <=0 profit or loss do not place that bracket (no na→0)."""
     e, m = _exit_eval()
     m["strategy.entry"](["L", "long", 2.0])
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
+    assert e._strategy_state.position_size == 2.0
     m["strategy.exit"]([], {"id": "X0", "profit": 0.0, "loss": -10.0})
-    # No levels → market close
+    e.context["bar_index"] = 2
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
+    # No levels → market close (fills next bar open)
     assert e._strategy_state.position_size == 0.0
     e, m = _exit_eval()
     m["strategy.entry"](["L", "long", 2.0])
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
+    assert e._strategy_state.position_size == 2.0
     m["strategy.exit"]([], {"id": "Xna", "profit": float("nan"), "loss": None, "limit": 110.0})
     assert e._strategy_state.position_size == 2.0
     po = e._strategy_state.pending_orders["Xna"]
@@ -577,10 +658,13 @@ def test_strategy_exit_profit_from_entry_uses_that_leg_avg():
     e, m = _exit_eval()
     m["strategy"](["T"], {"pyramiding": 1})
     m["strategy.entry"](["A", "long", 1.0])
-    e.context.update({"open": 110.0, "high": 110.0, "low": 110.0, "close": 110.0, "bar_index": 1})
+    e.context.update({"open": 100.0, "high": 100.0, "low": 100.0, "close": 100.0, "bar_index": 1})
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
     m["strategy.entry"](["B", "long", 1.0])
+    e.context.update({"open": 110.0, "high": 110.0, "low": 110.0, "close": 110.0, "bar_index": 2})
+    e.process_pending_orders(open_=110.0, high=110.0, low=110.0, close=110.0)
     # Drop back below A's 101 target so the bracket stays pending
-    e.context.update({"open": 100.5, "high": 100.8, "low": 100.2, "close": 100.4, "bar_index": 2})
+    e.context.update({"open": 100.5, "high": 100.8, "low": 100.2, "close": 100.4, "bar_index": 3})
     m["strategy.exit"]([], {"id": "XA", "from_entry": "A", "profit": 100.0})
     po = next(p for p in e._strategy_state.pending_orders.values() if p.from_entry == "A")
     assert po.limit_price == pytest.approx(101.00)
@@ -623,12 +707,13 @@ def test_pyramiding0_partial_fills_single_leg_vwap():
     m["strategy"](["T"], {"pyramiding": 0})
     m["strategy.order"]([], {"id": "L", "action": "buy", "qty": 10.0, "limit": 100.0, "max_fill_per_bar": 4.0})
 
+    e.context["bar_index"] = 1
     e.process_pending_orders(open_=100.0, high=100.0, low=90.0, close=95.0)
     assert e._strategy_state.position_size == 4.0
     assert len(e._strategy_state.open_trades) == 1
     assert e._strategy_state.entry_price == 100.0
 
-    e.context["bar_index"] = 1
+    e.context["bar_index"] = 2
     # Second slice fills at limit 100 still (low touches)
     e.process_pending_orders(open_=98.0, high=100.0, low=90.0, close=95.0)
     st = e._strategy_state
@@ -652,6 +737,7 @@ def test_pyramiding0_multiple_pending_orders_vwap_single_leg():
     m["strategy.order"]([], {"id": "A", "action": "buy", "qty": 2.0, "limit": 100.0})
     m["strategy.order"]([], {"id": "B", "action": "buy", "qty": 4.0, "limit": 95.0})
 
+    e.context["bar_index"] = 1
     filled = e.process_pending_orders(open_=105.0, high=110.0, low=90.0, close=100.0)
     assert set(filled) == {"A", "B"}
     st = e._strategy_state
@@ -679,6 +765,7 @@ def test_pyramiding0_limit_entry_pending_single_leg():
     m["strategy"](["T"], {"pyramiding": 0})
     m["strategy.entry"](["E1", "long", 2.0], {"limit": 100.0})
     m["strategy.entry"](["E2", "long", 3.0], {"limit": 100.0})
+    e.context["bar_index"] = 1
     e.process_pending_orders(open_=105.0, high=110.0, low=90.0, close=100.0)
     st = e._strategy_state
     assert st.position_size == 5.0
@@ -695,6 +782,7 @@ def test_pyramiding0_short_pending_fills_vwap():
     m["strategy"](["T"], {"pyramiding": 0})
     m["strategy.order"]([], {"id": "S1", "action": "sell", "qty": 1.0, "limit": 100.0})
     m["strategy.order"]([], {"id": "S2", "action": "sell", "qty": 3.0, "limit": 105.0})
+    e.context["bar_index"] = 1
     e.process_pending_orders(open_=90.0, high=110.0, low=85.0, close=100.0)
     st = e._strategy_state
     assert st.position_direction == "short"
@@ -714,6 +802,7 @@ def test_pyramiding_gt0_pending_still_appends_legs():
     m["strategy"](["T"], {"pyramiding": 1})  # max 2 open trades
     m["strategy.order"]([], {"id": "A", "action": "buy", "qty": 2.0, "limit": 100.0})
     m["strategy.order"]([], {"id": "B", "action": "buy", "qty": 3.0, "limit": 100.0})
+    e.context["bar_index"] = 1
     e.process_pending_orders(open_=105.0, high=110.0, low=90.0, close=100.0)
     st = e._strategy_state
     assert st.position_size == 5.0
@@ -723,6 +812,7 @@ def test_pyramiding_gt0_pending_still_appends_legs():
     assert abs(st.entry_price - 100.0) < 1e-9
     # Third fill blocked at cap (pyramiding+1 == 2)
     m["strategy.order"]([], {"id": "C", "action": "buy", "qty": 1.0, "limit": 100.0})
+    e.context["bar_index"] = 2
     e.process_pending_orders(open_=105.0, high=110.0, low=90.0, close=100.0)
     assert st.position_size == 5.0
     assert len(st.open_trades) == 2
@@ -736,12 +826,15 @@ def test_pyramiding0_pending_vwap_close_uses_avg():
     m["strategy"](["T"], {"pyramiding": 0, "commission_value": 0.0})
     m["strategy.order"]([], {"id": "A", "action": "buy", "qty": 2.0, "limit": 100.0})
     m["strategy.order"]([], {"id": "B", "action": "buy", "qty": 2.0, "limit": 90.0})
+    e.context["bar_index"] = 1
     e.process_pending_orders(open_=105.0, high=110.0, low=90.0, close=100.0)
     # VWAP = (2*100 + 2*90)/4 = 95
     assert abs(e._strategy_state.entry_price - 95.0) < 1e-9
-    e.context["bar_index"] = 1
+    e.context["bar_index"] = 2
     e.context["close"] = 105.0
     m["strategy.close"](["X"])
+    e.context["bar_index"] = 3
+    e.process_pending_orders(open_=105.0, high=110.0, low=90.0, close=105.0)
     assert e._strategy_state.position_direction == "flat"
     assert len(e._strategy_state.closed_trades) == 1
     ct = e._strategy_state.closed_trades[0]
@@ -759,7 +852,8 @@ def test_compile_pyramiding0_pending_fill_vwap():
     b.begin_bar(0, 105.0, 110.0, 90.0, 100.0)
     b.order("A", "long", 2.0, limit=100.0)
     b.order("B", "long", 4.0, limit=95.0)
-    # begin_bar already processed pending empty; place then process
+    # Orders placed on bar 0 become active for bar 1.
+    b.begin_bar(1, 105.0, 110.0, 90.0, 100.0)
     b.process_pending_orders(105.0, 110.0, 90.0, 100.0)
     assert abs(b.position_size - 6.0) < 1e-9
     expected = (2.0 * 100.0 + 4.0 * 95.0) / 6.0

@@ -6603,7 +6603,10 @@ class CompilerVisitor(NodeVisitor):
                 # Materialize anchor as 1.0/0.0 series for incremental reset.
                 anc = _arr(f"(1.0 if ({args[1]}) else 0.0)")
                 return f"numba_vwap_anchor_inc({src}, vol_arr, {anc}, __bar_idx, {st})"
-            return f"numba_vwap_inc({src}, vol_arr, __bar_idx, {st})"
+            # Default anchor is the daily session (reference Pine): reset the
+            # cumulative window on each new UTC day of ``time_arr``.
+            anc = _arr("(1.0 if __bar_idx > 0 and (time_arr[__bar_idx] // 86400000) != (time_arr[__bar_idx - 1] // 86400000) else 0.0)")
+            return f"numba_vwap_anchor_inc({src}, vol_arr, {anc}, __bar_idx, {st})"
         if func_name == "ta_max":
             # ta.max(source) → all-time high of series; ta.max(source, length) → highest
             if not args:
@@ -6630,7 +6633,7 @@ class CompilerVisitor(NodeVisitor):
             start = args[0] if args else "0.02"
             inc = args[1] if len(args) > 1 else "0.02"
             maximum = args[2] if len(args) > 2 else "0.2"
-            st = self._alloc_fixed_state("sar", 5)
+            st = self._alloc_fixed_state("sar", 10)
             if len(args) >= 5 and _is_series_arr(args[0]):
                 return (
                     f"numba_sar_inc({_arr(args[0])}, {_arr(args[1])}, float({args[2]}), "
@@ -6878,26 +6881,17 @@ class CompilerVisitor(NodeVisitor):
                 return f"nz_py({args[0]}, {repl})"
             return f"numba_nz({args[0]}, {repl})"
         if func_name == "fixnan":
-            # Full history carry-forward is expensive; nz(x, 0) stub is enough
-            # for numeric series. Color/string series must not use numba_nz
-            # (TypingError: isnan(unicode_type)).
+            # Reference Pine carries the last non-na sample forward (leading
+            # na stays na). Materialize the argument as a series and scan back.
+            # Color/string series must not reach an njit float kernel.
             if not args:
-                return "0.0"
+                return "np.nan"
             arg = args[0]
-            if (
-                self.object_mode
-                or not self._is_safe_numeric_expr(arg)
-                or self._looks_like_string_expr(arg)
-                or arg in self.string_series
-                or arg in self.string_scalars
-            ):
+            if self._looks_like_string_expr(arg) or arg in self.string_series or arg in self.string_scalars:
                 self.object_mode = True
-                # None replacement keeps color/string na as None (plot skips);
-                # numeric na → 0.0 matches the numeric stub / evaluator.
-                if self._looks_like_string_expr(arg):
-                    return f"nz_py({arg}, None)"
-                return f"nz_py({arg}, 0.0)"
-            return f"numba_nz({arg}, 0.0)"
+                return f"nz_py({arg}, None)"
+            src = self._materialize_series_source(arg)
+            return f"numba_fixnan({src}, __bar_idx)"
         if func_name in ("complex_new", "complex_arr_new"):
             # complex.new(real, imag) → object dict handle
             self.object_mode = True
@@ -10477,8 +10471,12 @@ class CompilerVisitor(NodeVisitor):
         return "continue"
 
     def visit_BoolOp(self, node: ast.BoolOp):
-        op = " and " if isinstance(node.op, ast.And) else " or "
-        return f"({op.join(self.visit(v) for v in node.values)})"
+        # Pine v5 evaluates both operands so series state inside the right
+        # side stays continuous (v6 made and/or lazy). Bitwise ops on bools
+        # evaluate every operand and compile under Numba / object mode.
+        op = " & " if isinstance(node.op, ast.And) else " | "
+        parts = [f"bool({self.visit(v)})" for v in node.values]
+        return f"({op.join(parts)})"
 
     def visit_UnaryOp(self, node: ast.UnaryOp):
         operand = self.visit(node.operand)

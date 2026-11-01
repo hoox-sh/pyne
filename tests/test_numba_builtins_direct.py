@@ -319,9 +319,10 @@ def test_nz_and_safe_div_mod():
 def test_abs_max_min_scalars():
     assert nb.numba_abs(-3.0) == pytest.approx(3.0)
     assert np.isnan(nb.numba_abs(None))
-    assert nb.numba_max(3.0, np.nan) == pytest.approx(3.0)
+    # Reference Pine: math.max/min propagate na.
+    assert np.isnan(nb.numba_max(3.0, np.nan))
     assert np.isnan(nb.numba_max(np.nan, np.nan))
-    assert nb.numba_min(3.0, np.nan) == pytest.approx(3.0)
+    assert np.isnan(nb.numba_min(3.0, np.nan))
     assert np.isnan(nb.numba_min(np.nan, np.nan))
     assert nb.numba_max(1.0, 2.0) == pytest.approx(2.0)
     assert nb.numba_min(1.0, 2.0) == pytest.approx(1.0)

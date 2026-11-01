@@ -125,9 +125,16 @@ def test_ratchet_trails_survives_broker_restore_interpret() -> None:
     }
     m = e._build_builtin_map()
     m["strategy.entry"](["L", "long", 1.0])
-    m["strategy.exit"]([], {"id": "XT", "trail_offset": 100.0})
+    # Bar 1 start: the market entry fills at the open; the trail is placed
+    # against the open leg and arms from this bar's high (101 → stop 100).
+    e.context.update(
+        {"open": 100.5, "high": 101.0, "low": 100.2, "close": 100.8, "bar_index": 1, "time": 60_000}
+    )
     e.process_pending_orders(open_=100.5, high=101.0, low=100.2, close=100.8)
+    m["strategy.exit"]([], {"id": "XT", "trail_offset": 100.0})
     trail = e._strategy_state.pending_orders["XT"]
+    # Arming is deferred to the first ratchet: bar-1 high 101 → stop 100.
+    e.ratchet_trails(101.0, 100.2)
     assert trail.stop_price == pytest.approx(100.0)
     snap = e._strategy_state.snapshot()
     e.ratchet_trails(110.0, 109.5)
@@ -145,9 +152,13 @@ def test_ratchet_trails_survives_broker_restore_compile() -> None:
     b = CompileStrategyBroker(initial_capital=10_000.0, mintick=0.01, commission_value=0.0)
     b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
     b.entry("L", "long", 1.0)
-    b.close(comment="XT", trail_offset=100.0)
+    # Bar 1: the entry fills at the open; the trail is placed against the
+    # open leg and arms from this bar's high (101 → stop 100).
     b.begin_bar(1, 100.5, 101.0, 100.2, 100.8)
+    b.close(comment="XT", trail_offset=100.0)
     trail = next(po for po in b.pending_orders.values() if po.is_trail)
+    # Arming is deferred to the first ratchet: bar-1 high 101 → stop 100.
+    b.ratchet_trails(101.0, 100.2)
     assert trail.stop_price == pytest.approx(100.0)
     snap = b.snapshot()
     b.ratchet_trails(110.0, 109.5)

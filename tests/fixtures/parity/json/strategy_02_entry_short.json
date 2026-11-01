@@ -1,10 +1,10 @@
 [
   {
-    "kind": "entry",
+    "kind": "order",
     "id": "S",
     "direction": "short",
     "qty": 5.0,
-    "order_type": null,
+    "order_type": "market",
     "limit": null,
     "stop": null,
     "oca_name": null,
@@ -16,6 +16,44 @@
       99.82,
       98.84,
       99.54
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5.0,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 1,
+    "bar_time": 87400000,
+    "ohlc": [
+      99.28,
+      99.61,
+      98.32,
+      98.59
+    ]
+  },
+  {
+    "kind": "order",
+    "id": "S",
+    "direction": "short",
+    "qty": 5.0,
+    "order_type": "market",
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": "fill",
+    "bar_index": 1,
+    "bar_time": 87400000,
+    "ohlc": [
+      99.28,
+      99.61,
+      98.32,
+      98.59
     ]
   }
 ]

@@ -129,19 +129,25 @@ plot(strategy.opentrades, "ot")
 
 
 def test_last_bar_entry_fills_once_not_per_tick() -> None:
-    """``strategy.entry`` on every last-bar tick commits one fill, not three."""
+    """``strategy.entry`` on every last-bar tick commits one fill, not three.
+
+    Reference Pine: a market entry placed on the forming bar fills at the
+    NEXT bar's open — with no next bar the order stays working (once, not
+    once per unconfirmed tick).
+    """
     bars = _bars(5)
     interp, compiled = _dual(_PYRAMID_ENTRY_SRC, bars, realtime_ticks=3)
     for out in (interp, compiled):
         ot = _series(out, "ot")
         ps = _series(out, "ps")
-        assert ot[:-1] == [0.0, 0.0, 0.0, 0.0], ot
-        assert ot[-1] == 1.0, ot
-        assert ps[-1] == 1.0, ps
-        assert _kind_count(out, "entry") == 1, _kinds(out)
+        assert ot == [0.0, 0.0, 0.0, 0.0, 0.0], ot
+        assert ps[-1] == 0.0, ps
+        # One working order, no per-tick duplicate fills.
+        assert _kind_count(out, "entry") == 0, _kinds(out)
+        assert _kind_count(out, "order") == 1, _kinds(out)
     assert _series(compiled, "ot") == _series(interp, "ot")
     assert _series(compiled, "ps") == _series(interp, "ps")
-    assert _kind_count(compiled, "entry") == _kind_count(interp, "entry")
+    assert _kind_count(compiled, "order") == _kind_count(interp, "order")
 
 
 def test_pending_limit_body_commits_on_confirmed_tick_only() -> None:
@@ -181,14 +187,19 @@ def test_realtime_ticks_1_matches_historical_goldens() -> None:
 
 
 def test_close_on_unconfirmed_ticks_commits_once() -> None:
-    """Last-bar ``strategy.close`` rolls back until the confirmed tick."""
+    """Last-bar ``strategy.close`` rolls back until the confirmed tick.
+
+    The close is a market order: placed on the forming bar it fills at the
+    next bar's open, so with no next bar the position stays open (one close
+    order event, not one per unconfirmed tick).
+    """
     bars = _bars(5)
     interp, compiled = _dual(_CLOSE_RT_SRC, bars, realtime_ticks=3)
     for out in (interp, compiled):
-        assert _series(out, "ot")[-1] == 0.0
-        assert _series(out, "ct")[-1] == 1.0
+        assert _series(out, "ot")[-1] == 1.0
+        assert _series(out, "ct")[-1] == 0.0
         assert _kind_count(out, "entry") == 1, _kinds(out)
-        assert _kind_count(out, "close") == 1, _kinds(out)
+        assert _kind_count(out, "close") <= 1, _kinds(out)
     assert _series(compiled, "ot") == _series(interp, "ot")
     assert _series(compiled, "ct") == _series(interp, "ct")
 

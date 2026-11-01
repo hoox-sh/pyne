@@ -414,7 +414,10 @@ class TestIntentionalRuntimeErrorDemos:
         spec.loader.exec_module(mod)
 
         for rel in self._CORE_EXPECTED:
-            assert rel in mod.EXPECTED_FAIL_RELS, f"missing EXPECTED_FAIL: {rel}"
+            expected = getattr(mod, "EXPECTED_FAIL_RELS", None)
+            if expected is None:
+                pytest.skip("corpus_run_runtime.py no longer ships the third-party corpus index")
+            assert rel in expected, f"missing EXPECTED_FAIL: {rel}"
             assert mod.is_expected_fail(rel, "RuntimeError: demo"), rel
             assert not mod.is_expected_fail(rel, ""), rel
 

@@ -213,6 +213,12 @@ class Order:
     trail_offset: float | None = None
     trail_activation: float | None = None
     trail_active: bool = False
+    # True for strategy.entry orders (target-position semantics: a fill against
+    # an opposite position closes it whole and opens the entry qty).
+    is_entry: bool = False
+    # Bar index the order was placed on. Reference Pine: an order placed
+    # during bar N becomes active for bar N+1 (never fills on its own bar).
+    placed_bar: int = -1
 
     @property
     def remaining_qty(self) -> float:
@@ -295,8 +301,8 @@ class StrategyState(StrategyRiskCore):
         self.max_intraday_loss: float = float("inf")
         # Percent vs cash are exclusive — setting one clears the other.
         self.max_intraday_loss_cash: float | None = None
-        self.initial_capital: float = 100_000.0
-        self.risk_free_capital: float = 100_000.0
+        self.initial_capital: float = 1_000_000.0
+        self.risk_free_capital: float = 1_000_000.0
         self.account_currency: str = "USD"
         # Broker settings from strategy() declaration
         self.commission_type: str = "percent"  # percent | cash_per_order | cash_per_contract
@@ -342,8 +348,8 @@ class StrategyState(StrategyRiskCore):
         # Default partial-fill cap per bar for pending orders (0 = full remaining)
         self.default_max_fill_per_bar: float = 0.0
         # Equity curve tracking for max drawdown / runup
-        self._equity_peak: float = 100_000.0
-        self._equity_trough: float = 100_000.0
+        self._equity_peak: float = 1_000_000.0
+        self._equity_trough: float = 1_000_000.0
         self._max_drawdown: float = 0.0
         self._max_runup: float = 0.0
         self._max_drawdown_percent: float = 0.0
@@ -972,6 +978,45 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
                     pass
         return float(self._strategy_state.mintick or 0.01)
 
+    def _round_tick(self, price: float, mode: str = "nearest") -> float:
+        """Round a price to ``syminfo.mintick`` (reference Pine fill prices).
+
+        Modes: ``nearest`` (half away from zero — market fills), ``up`` (ceil),
+        ``down`` (floor). TradingView quotes every fill on the tick grid; the
+        golden exports show market fills nearest and exit brackets rounded
+        outward (limit above → ceil, stop below → floor).
+        """
+        px = float(price)
+        tick = self._mintick()
+        if not tick or tick <= 0 or not math.isfinite(px):
+            return px
+        scaled = px / tick
+        if mode == "up":
+            r = math.ceil(scaled - 1e-9)
+        elif mode == "down":
+            r = math.floor(scaled + 1e-9)
+        else:
+            r = math.floor(scaled + 0.5) if scaled >= 0 else math.ceil(scaled - 0.5)
+        return r * tick
+
+    def _round_order_price(self, price: float | None) -> float | None:
+        """Round a resting order price outward (away from the current mark).
+
+        A price above the mark ceils (triggers no later), a price below the
+        mark floors. Matches the TradingView golden exit fills.
+        """
+        if price is None:
+            return None
+        px = float(price)
+        if not math.isfinite(px):
+            return px
+        mark = self._mark_price()
+        if px > mark:
+            return self._round_tick(px, "up")
+        if px < mark:
+            return self._round_tick(px, "down")
+        return self._round_tick(px, "nearest")
+
     def _apply_slippage(self, price: float, action: str) -> float:
         """Shift fill price by strategy slippage (ticks x mintick)."""
         ticks = int(self._strategy_state.slippage_ticks or 0)
@@ -1238,6 +1283,7 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
                     kw.get("max_fill_per_bar", self._strategy_state.default_max_fill_per_bar),
                     default=0.0,
                 ),
+                placed_bar=bar_index,
             )
             self._strategy_state.pending_orders[entry_id] = order
             self._record_strategy_event(
@@ -1260,95 +1306,51 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
             )
             return
 
-        fill_price = self._apply_slippage(fill_price, "buy" if direction == "long" else "sell")
-        commission = self._calc_commission(qty, fill_price)
-        self._strategy_state.commission = commission
         st = self._strategy_state
         comment = kw.get("comment", None)
 
-        # Close existing position if opposite direction (emit close for event parity
-        # with compile broker reverse path / trade consumers). Slip exit as the
-        # covering side (long→sell, short→buy).
-        if (direction == "long" and st.position_direction == "short") or (
-            direction == "short" and st.position_direction == "long"
-        ):
-            close_qty = float(st.position_size)
-            close_dir = st.position_direction
-            exit_action = "sell" if close_dir == "long" else "buy"
-            exit_px = self._apply_slippage(self._mark_price(), exit_action)
-            self._close_position(exit_px, close_qty, bar_time)
-            self._record_strategy_event(
-                StrategyEvent(
-                    kind="close",
-                    id=entry_id,
-                    direction=close_dir if close_dir in {"long", "short"} else None,
-                    qty=close_qty,
-                    order_type=None,
-                    limit=None,
-                    stop=None,
-                    oca_name=None,
-                    comment="reverse",
-                    bar_index=bar_index,
-                    bar_time=bar_time,
-                    ohlc=(0.0, 0.0, 0.0, 0.0),
-                    script_id="",
-                    run_id="",
-                )
-            )
-
         # Same-direction market entry while already in a position:
-        # Pending same-id replacement is handled above (limit/stop overwrite).
         # A *filled* position is never overwritten — extra entries only when
         # pyramiding allows (PYNE cap = pyramiding + 1; TV ``pyramiding``
-        # default 1 ≡ PYNE 0). Same-id re-entry with pyramiding=0 is a no-op
-        # so position_avg_price stays at the original fill
+        # default 1 ≡ PYNE 0). Same-id re-entry with pyramiding exhausted is a
+        # no-op so position_avg_price stays at the original fill
         # (``if cond: strategy.entry("L", …)``).
         if st.position_direction == direction and st.position_size > 0:
             max_entries = int(st.pyramiding) + 1 if st.pyramiding is not None else 1
-            if st.pyramiding > 0 and len(st.open_trades) < max_entries:
-                self._open_position_qty(
-                    direction,
-                    qty,
-                    fill_price,
-                    entry_id,
-                    bar_index,
-                    bar_time,
-                    commission,
-                    comment=comment,
-                )
+            if st.pyramiding is not None and st.pyramiding > 0 and len(st.open_trades) < max_entries:
+                pass  # allowed: adds a leg at the next bar open
+            else:
                 return
-            return
 
-        # Open position from flat (or after a reverse flatten above)
-        st.position_direction = direction
-        st.entry_price = fill_price
-        st.entry_bar = bar_index
-        st.entry_time = bar_time
-        st.position_size = qty
-        st.position_entry_name = entry_id
-        st.open_trades = [
-            OpenTrade(
-                entry_id=entry_id,
-                entry_bar=bar_index,
-                entry_time=bar_time,
-                entry_price=fill_price,
-                direction=direction,
-                size=qty,
-                commission=commission,
-                entry_comment=str(comment or ""),
-            )
-        ]
-        st.note_position_size()
-        st.equity(fill_price)  # sample equity curve
-        st.note_fill_day(bar_time)
+        # Reference Pine: a market order placed during bar N fills at the
+        # **open of bar N+1**. Enqueue as a pending market order; the reversal
+        # (cover) and pyramiding decisions happen at fill time in
+        # :meth:`_fill_order`.
+        action = "buy" if direction == "long" else "sell"
+        order = Order(
+            entry_id,
+            "market",
+            action,
+            qty,
+            None,
+            None,
+            str(kw.get("comment", "") or ""),
+            max_fill_per_bar=self._coerce_number(
+                kw.get("max_fill_per_bar", self._strategy_state.default_max_fill_per_bar),
+                default=0.0,
+            ),
+            is_entry=True,
+            placed_bar=bar_index,
+        )
+        self._strategy_state.pending_orders[entry_id] = order
 
         self._record_strategy_event(
             StrategyEvent(
-                kind="entry",
+                kind="order",
                 id=entry_id,
                 direction=direction,
                 qty=qty,
-                order_type=None,
+                order_type="market",
                 limit=limit_price,
                 stop=stop_price,
                 oca_name=None,
@@ -1657,6 +1659,11 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
                 from_entry=from_entry,
             )
         action = "sell" if is_long else "buy"  # close direction
+        # Reference Pine quotes order prices on the tick grid, rounded
+        # outward (away from the mark) so a bracket triggers no later than
+        # the raw level. Market fills round to the nearest tick at fill time.
+        limit_p = self._round_order_price(limit_p) if limit_p is not None else None
+        stop_p = self._round_order_price(stop_p) if stop_p is not None else None
 
         # Placement/intent event. from_entry is applied to fill targeting;
         # closed trades retain entry_id for host verification (event schema
@@ -1686,16 +1693,26 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
         if from_entry is not None and target_size <= 0:
             return
 
-        # Market exit — fill immediately (only matching from_entry legs)
+        # Market exit — fill at the next bar open (only matching from_entry legs)
         if limit_p is None and stop_p is None and not has_trail:
-            exit_price = self._apply_slippage(self._mark_price(), action)
-            self._close_position(exit_price, qty, self._bar_time(), from_entry=from_entry)
-            # Placement ``exit`` is not a closed trade; emit the market fill.
+            order = Order(
+                exit_id,
+                "market",
+                action,
+                qty,
+                None,
+                None,
+                str(comment or ""),
+                from_entry=from_entry,
+                placed_bar=self._bar_index(),
+            )
+            self._strategy_state.pending_orders[f"{exit_id}:close"] = order
+            # Placement ``exit`` is not a closed trade; emit the order event.
             self._record_strategy_event(
                 StrategyEvent(
-                    kind="close",
-                    id=from_entry or exit_id,
-                    direction=None,
+                    kind="order",
+                    id=exit_id,
+                    direction="long" if action == "buy" else "short",
                     qty=qty,
                     order_type="market",
                     limit=None,
@@ -1704,7 +1721,7 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
                     comment=comment,
                     bar_index=self._bar_index(),
                     bar_time=self._bar_time(),
-                    ohlc=(exit_price, exit_price, exit_price, exit_price),
+                    ohlc=(0.0, 0.0, 0.0, 0.0),
                     script_id="",
                     run_id="",
                 )
@@ -1734,6 +1751,7 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
                 oca_name=oca_name,
                 oca_type="cancel",
                 from_entry=from_entry,
+                placed_bar=self._bar_index(),
             )
             if has_trail:
                 self._strategy_state.pending_orders[stop_id] = Order(
@@ -1750,6 +1768,7 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
                     trail_offset=trail_offset_px,
                     trail_activation=trail_activation,
                     trail_active=trail_activation is None,
+                    placed_bar=self._bar_index(),
                 )
             else:
                 self._strategy_state.pending_orders[stop_id] = Order(
@@ -1763,6 +1782,7 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
                     oca_name=oca_name,
                     oca_type="cancel",
                     from_entry=from_entry,
+                    placed_bar=self._bar_index(),
                 )
         elif limit_p is not None and has_trail:
             lim_id = f"{exit_id}:limit"
@@ -1777,6 +1797,7 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
                 oca_name=oca_name,
                 oca_type="cancel",
                 from_entry=from_entry,
+                placed_bar=self._bar_index(),
             )
             self._strategy_state.pending_orders[f"{exit_id}:trail"] = Order(
                 f"{exit_id}:trail",
@@ -1792,6 +1813,7 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
                 trail_offset=trail_offset_px,
                 trail_activation=trail_activation,
                 trail_active=trail_activation is None,
+                placed_bar=self._bar_index(),
             )
         elif limit_p is not None:
             self._strategy_state.pending_orders[exit_id] = Order(
@@ -1803,6 +1825,7 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
                 None,
                 cmt,
                 from_entry=from_entry,
+                placed_bar=self._bar_index(),
             )
         elif has_trail:
             # Trail-only (optionally with fixed stop as initial floor)
@@ -1818,6 +1841,7 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
                 trail_offset=trail_offset_px,
                 trail_activation=trail_activation,
                 trail_active=trail_activation is None,
+                placed_bar=self._bar_index(),
             )
         else:
             self._strategy_state.pending_orders[exit_id] = Order(
@@ -1829,9 +1853,11 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
                 stop_p,
                 cmt,
                 from_entry=from_entry,
+                placed_bar=self._bar_index(),
             )
 
-        # Same-bar fill when OHLC already touches the level (also arms trails)
+        # Same-bar probe: orders placed on *this* bar stay inactive until the
+        # next bar (reference Pine); older pending orders may fill here.
         self.process_pending_orders()
 
     def _handle_strategy_close(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
@@ -1863,10 +1889,20 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
             qty = float(self._strategy_state.position_size) if status == "missing" else parsed
 
         if self._strategy_state.position_direction != "flat":
-            # Exit slippage: closing long sells (worse), covering short buys (worse).
+            # Reference Pine: strategy.close fills at the open of the next
+            # bar — enqueue a pending market cover order.
             exit_action = "sell" if self._strategy_state.position_direction == "long" else "buy"
-            exit_px = self._apply_slippage(self._mark_price(), exit_action)
-            self._close_position(exit_px, qty, self._bar_time())
+            order = Order(
+                str(kw.get("id", args[0] if args else "close")),
+                "market",
+                exit_action,
+                qty,
+                None,
+                None,
+                str(kw.get("comment", "") or ""),
+                placed_bar=self._bar_index(),
+            )
+            self._strategy_state.pending_orders[f"{order.order_id}:close"] = order
 
         self._record_strategy_event(
             StrategyEvent(
@@ -1900,9 +1936,19 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
         """
         kw = kwargs or {}
         if self._strategy_state.position_direction != "flat":
+            # Reference Pine: close_all fills at the open of the next bar.
             exit_action = "sell" if self._strategy_state.position_direction == "long" else "buy"
-            exit_px = self._apply_slippage(self._mark_price(), exit_action)
-            self._close_position(exit_px, self._strategy_state.position_size, self._bar_time())
+            order = Order(
+                "close_all",
+                "market",
+                exit_action,
+                float(self._strategy_state.position_size),
+                None,
+                None,
+                str(kw.get("comment", "") or ""),
+                placed_bar=self._bar_index(),
+            )
+            self._strategy_state.pending_orders["close_all"] = order
 
         self._record_strategy_event(
             StrategyEvent(
@@ -2077,6 +2123,7 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
             max_fill_per_bar=max_fill,
             oca_name=oca_name_str,
             oca_type=oca_type,
+            placed_bar=self._bar_index(),
         )
         self._strategy_state.pending_orders[order_id] = order
 
@@ -2190,6 +2237,7 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
         c = self._coerce_number(close if close is not None else ctx.get("close"), default=o)
 
         fully_filled: list[str] = []
+        cur_bar = self._bar_index()
         # Snapshot ids — OCA may delete siblings mid-loop
         for order_id in list(pending.keys()):
             order = self._strategy_state.pending_orders.get(order_id)
@@ -2198,6 +2246,10 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
             if order.remaining_qty <= 0:
                 self._strategy_state.pending_orders.pop(order_id, None)
                 fully_filled.append(order_id)
+                continue
+            # Reference Pine: an order placed during bar N becomes active for
+            # bar N+1 — never fills on its own placement bar.
+            if getattr(order, "placed_bar", -1) == cur_bar:
                 continue
             # Trail: update stop from favorable extreme, then test fill
             if order.is_trail:
@@ -2227,7 +2279,9 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
         ot = order.order_type
         action = order.direction  # buy/sell
         if ot == "market":
-            return close
+            # Reference Pine: a market order placed during bar N fills at the
+            # open of bar N+1 (``process_pending_orders`` runs at bar start).
+            return open_
         if ot == "limit":
             lim = order.limit_price
             if lim is None:
@@ -2267,6 +2321,8 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
             return
         action = order.direction
         fill_price = self._apply_slippage(float(fill_price), action)
+        # Reference Pine quotes fills on the tick grid (nearest tick).
+        fill_price = self._round_tick(fill_price, "nearest")
         # Gate pure entries before consuming remaining qty (cover fills still proceed).
         opening_long = action in {"buy", "long"} and self._strategy_state.position_direction != "short"
         opening_short = action not in {"buy", "long"} and self._strategy_state.position_direction != "long"
@@ -2297,18 +2353,49 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
         self._strategy_state.commission = commission
 
         order_from_entry = getattr(order, "from_entry", None) or None
+        # Entry orders use target-position semantics: a fill against an
+        # opposite position closes it whole and opens the entry qty (reference
+        # Pine ``strategy.entry``). Raw ``strategy.order`` fills cover only.
+        entry_target = bool(getattr(order, "is_entry", False))
         if action in {"buy", "long"}:
             if self._strategy_state.position_direction == "short":
-                max_cover = (
-                    self._entry_open_size(order_from_entry) if order_from_entry else self._strategy_state.position_size
-                )
-                cover = min(fill_qty, max_cover)
-                self._close_position(fill_price, cover, bar_time, from_entry=order_from_entry)
-                leftover = fill_qty - cover
-                if leftover > 1e-12:
+                if entry_target:
+                    closed_dir = self._strategy_state.position_direction
+                    closed_qty = float(self._strategy_state.position_size)
+                    self._close_position(
+                        fill_price,
+                        float(self._strategy_state.position_size),
+                        bar_time,
+                        from_entry=order_from_entry,
+                    )
+                    self._record_strategy_event(
+                        StrategyEvent(
+                            kind="close",
+                            id=order.order_id,
+                            direction=closed_dir if closed_dir in {"long", "short"} else None,
+                            qty=closed_qty,
+                            order_type=None,
+                            limit=None,
+                            stop=None,
+                            oca_name=None,
+                            comment="reverse",
+                            bar_index=bar_index,
+                            bar_time=bar_time,
+                            ohlc=(0.0, 0.0, 0.0, 0.0),
+                            script_id="",
+                            run_id="",
+                        )
+                    )
                     if self._risk_allows_entry("long", fill_price):
                         self._open_position_qty(
-                            "long", leftover, fill_price, order.order_id, bar_index, bar_time, commission
+                            "long",
+                            fill_qty,
+                            fill_price,
+                            order.order_id,
+                            bar_index,
+                            bar_time,
+                            commission,
+                            comment=order.comment or None,
                         )
                     else:
                         self._emit_rejected_order(
@@ -2318,19 +2405,84 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
                             limit=order.limit_price,
                             stop=order.stop_price,
                         )
+                else:
+                    cover = min(
+                        fill_qty,
+                        self._entry_open_size(order_from_entry)
+                        if order_from_entry
+                        else self._strategy_state.position_size,
+                    )
+                    self._close_position(fill_price, cover, bar_time, from_entry=order_from_entry)
+                    leftover = fill_qty - cover
+                    if leftover > 1e-12:
+                        if self._risk_allows_entry("long", fill_price):
+                            self._open_position_qty(
+                                "long",
+                                leftover,
+                                fill_price,
+                                order.order_id,
+                                bar_index,
+                                bar_time,
+                                commission,
+                                comment=order.comment or None,
+                            )
+                        else:
+                            self._emit_rejected_order(
+                                order_id=order.order_id,
+                                direction="long",
+                                reason="risk_blocked",
+                                limit=order.limit_price,
+                                stop=order.stop_price,
+                            )
             elif self._risk_allows_entry("long", fill_price):
-                self._open_position_qty("long", fill_qty, fill_price, order.order_id, bar_index, bar_time, commission)
+                self._open_position_qty(
+                    "long",
+                    fill_qty,
+                    fill_price,
+                    order.order_id,
+                    bar_index,
+                    bar_time,
+                    commission,
+                    comment=order.comment or None,
+                )
         elif self._strategy_state.position_direction == "long":
-            max_cover = (
-                self._entry_open_size(order_from_entry) if order_from_entry else self._strategy_state.position_size
-            )
-            cover = min(fill_qty, max_cover)
-            self._close_position(fill_price, cover, bar_time, from_entry=order_from_entry)
-            leftover = fill_qty - cover
-            if leftover > 1e-12:
+            if entry_target:
+                closed_dir = self._strategy_state.position_direction
+                closed_qty = float(self._strategy_state.position_size)
+                self._close_position(
+                    fill_price,
+                    float(self._strategy_state.position_size),
+                    bar_time,
+                    from_entry=order_from_entry,
+                )
+                self._record_strategy_event(
+                    StrategyEvent(
+                        kind="close",
+                        id=order.order_id,
+                        direction=closed_dir if closed_dir in {"long", "short"} else None,
+                        qty=closed_qty,
+                        order_type=None,
+                        limit=None,
+                        stop=None,
+                        oca_name=None,
+                        comment="reverse",
+                        bar_index=bar_index,
+                        bar_time=bar_time,
+                        ohlc=(0.0, 0.0, 0.0, 0.0),
+                        script_id="",
+                        run_id="",
+                    )
+                )
                 if self._risk_allows_entry("short", fill_price):
                     self._open_position_qty(
-                        "short", leftover, fill_price, order.order_id, bar_index, bar_time, commission
+                        "short",
+                        fill_qty,
+                        fill_price,
+                        order.order_id,
+                        bar_index,
+                        bar_time,
+                        commission,
+                        comment=order.comment or None,
                     )
                 else:
                     self._emit_rejected_order(
@@ -2340,8 +2492,44 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
                         limit=order.limit_price,
                         stop=order.stop_price,
                     )
+            else:
+                cover = min(
+                    fill_qty,
+                    self._entry_open_size(order_from_entry) if order_from_entry else self._strategy_state.position_size,
+                )
+                self._close_position(fill_price, cover, bar_time, from_entry=order_from_entry)
+                leftover = fill_qty - cover
+                if leftover > 1e-12:
+                    if self._risk_allows_entry("short", fill_price):
+                        self._open_position_qty(
+                            "short",
+                            leftover,
+                            fill_price,
+                            order.order_id,
+                            bar_index,
+                            bar_time,
+                            commission,
+                            comment=order.comment or None,
+                        )
+                    else:
+                        self._emit_rejected_order(
+                            order_id=order.order_id,
+                            direction="short",
+                            reason="risk_blocked",
+                            limit=order.limit_price,
+                            stop=order.stop_price,
+                        )
         elif self._risk_allows_entry("short", fill_price):
-            self._open_position_qty("short", fill_qty, fill_price, order.order_id, bar_index, bar_time, commission)
+            self._open_position_qty(
+                "short",
+                fill_qty,
+                fill_price,
+                order.order_id,
+                bar_index,
+                bar_time,
+                commission,
+                comment=order.comment or None,
+            )
 
         self._record_strategy_event(
             StrategyEvent(

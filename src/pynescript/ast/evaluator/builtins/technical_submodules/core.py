@@ -111,12 +111,20 @@ class TechnicalHelpers:
         self._pine_ta_inc_cached = result  # type: ignore[attr-defined]
         return result
 
-    def _ta_next_slot(self) -> int:
-        """Per-bar call-site index (reset by Runtime each bar, like crossover).
+    def _ta_next_slot(self) -> Any:
+        """Stable call-site token for incremental TA state.
 
-        Slot identity is call *order*, not the ``ta.`` prefix. Host must
-        zero ``_ta_call_i`` on every bar, including v4 bare ``sma``/``wma``.
+        ``visit_Call`` stamps the active AST call site. Conditional branches
+        (ternary arms, ``if`` blocks, lazy ``and``/``or``) must not shift the
+        state bucket of later calls, so the token is the call-site id plus an
+        invocation ordinal for repeated calls at the same site. Direct helper
+        tests with no active call site keep the legacy per-bar order counter.
         """
+        return self._ta_slot_token()
+
+    def _ta_slot_token(self) -> Any:
+        """Return ``(site_id, invocation)`` or the legacy order index."""
+        sid = getattr(self, "_pine_current_call_site", None)
         try:
             i = self._ta_call_i
         except AttributeError:
@@ -124,7 +132,24 @@ class TechnicalHelpers:
         if type(i) is not int:
             i = int(i or 0)
         self._ta_call_i = i + 1  # type: ignore[attr-defined]
-        return i
+        if sid is None:
+            return i
+        ctx = getattr(self, "context", None)
+        bar = ctx.get("bar_index") if isinstance(ctx, dict) else None
+        counts = getattr(self, "_ta_site_counts", None)
+        if counts is None:
+            counts = {}
+            self._ta_site_counts = counts  # type: ignore[attr-defined]
+            self._ta_site_bar = bar  # type: ignore[attr-defined]
+        elif bar is not None and bar != getattr(self, "_ta_site_bar", None):
+            counts.clear()
+            self._ta_site_bar = bar  # type: ignore[attr-defined]
+        if bar is None:
+            # No bar clock (direct evaluation): stay stable, accept conflation.
+            return (sid, 0)
+        n = counts.get(sid, 0)
+        counts[sid] = n + 1
+        return (sid, n)
 
     def _ta_state_bucket(self) -> dict[tuple[Any, ...], dict[str, Any]]:
         try:
@@ -145,13 +170,7 @@ class TechnicalHelpers:
         different signature, allocates a fresh key and looks that up.
         Slot order matches :meth:`_ta_next_slot` (one increment per call).
         """
-        try:
-            i = self._ta_call_i
-        except AttributeError:
-            i = 0
-        if type(i) is not int:
-            i = int(i or 0)
-        self._ta_call_i = i + 1  # type: ignore[attr-defined]
+        slot = self._ta_slot_token()
         try:
             bucket = self._ta_inc_state
         except AttributeError:
@@ -159,6 +178,10 @@ class TechnicalHelpers:
         if bucket is None:
             bucket = {}
             self._ta_inc_state = bucket  # type: ignore[attr-defined]
+        if type(slot) is not int:
+            # Stable AST call-site token — no order-index cache needed.
+            return bucket, (kind, slot, period)
+        i = slot
         try:
             cache = self._ta_key_cache
         except AttributeError:
@@ -3213,8 +3236,28 @@ class TechnicalHelpers:
         bucket = self._ta_state_bucket()
         st = bucket.get(key)
         if st is None:
-            st = {"cum_pv": 0.0, "cum_v": 0.0, "cum_p2v": 0.0, "value": None, "n": 0}
+            st = {"cum_pv": 0.0, "cum_v": 0.0, "cum_p2v": 0.0, "value": None, "n": 0, "day": None}
             bucket[key] = st
+        # Default anchor is the daily session (reference Pine): reset the
+        # cumulative window when the bar's UTC day changes and no explicit
+        # anchor condition was passed.
+        if anchor is None:
+            ctx = getattr(self, "context", None)
+            t = ctx.get("time") if isinstance(ctx, dict) else None
+            t = self._series_last(t) if t is not None else None
+            if t is not None:
+                try:
+                    day = float(t) // 86_400_000.0
+                except (TypeError, ValueError):
+                    day = None
+                if day is not None and st.get("day") is not None and day != st["day"]:
+                    st["cum_pv"] = 0.0
+                    st["cum_v"] = 0.0
+                    st["cum_p2v"] = 0.0
+                    st["n"] = 0
+                    st["value"] = None
+                if day is not None:
+                    st["day"] = day
         # Anchor reset (ta.vwap(src, anchor)) before adding this bar
         if anchor is not None:
             a = self._series_last(anchor) if not isinstance(anchor, (bool, int, float)) else anchor
@@ -3273,9 +3316,9 @@ class TechnicalHelpers:
     def _barssince_inc_update(self, condition: Any) -> int | None:
         """Incremental ``ta.barssince`` for bar-mode scalar conditions.
 
-        Matches full list-walk semantics when fed one sample per bar:
+        Matches reference Pine when fed one sample per bar:
         - true → 0
-        - never true after *k* bars → *k* - 1
+        - never true → ``na``
         - true then *d* falses → *d*
         """
         slot = self._ta_next_slot()
@@ -3294,8 +3337,8 @@ class TechnicalHelpers:
                 if is_true:
                     st["value"] = len(condition) - 1 - i
                     return int(st["value"])
-            st["value"] = len(condition) - 1 if condition else None
-            return st.get("value")
+            st["value"] = None
+            return None
 
         is_true = condition is True or (condition is not None and condition is not False)
         st["bars_seen"] = int(st["bars_seen"]) + 1
@@ -3308,9 +3351,9 @@ class TechnicalHelpers:
         if st["ever_true"]:
             st["value"] = int(st["bars_since"])
         else:
-            # Never true: list path returns len-1 after k samples → k-1
-            st["value"] = int(st["bars_seen"]) - 1
-        return int(st["value"])
+            # Reference Pine: na until the condition has been true at least once.
+            st["value"] = None
+        return st.get("value")
 
     @staticmethod
     def _linreg_from_valid(window: deque[Any] | list[Any], offset: int) -> float:
@@ -4016,7 +4059,11 @@ class TechnicalHelpers:
     ) -> float | None:
         """Incremental Parabolic SAR matching full ``_sar`` / ``_sar_full`` last value.
 
-        O(1)/bar state machine; skips leading na like the full path.
+        Reference Pine (verified against the TV golden export): the first call
+        seeds ``low[0]`` and returns ``na``; the second call emits the seed
+        value; from the third call on, Wilder's step with EP/AF updated before
+        the reversal check, the reversal taken against the unclamped SAR, and
+        the clamp to the previous two bars' extremes on non-reversal bars.
         """
         slot = self._ta_next_slot()
         key = ("sar", slot, float(start), float(increment), float(maximum))
@@ -4025,6 +4072,7 @@ class TechnicalHelpers:
         if st is None:
             st = {
                 "started": False,
+                "seen": 0,
                 "sar": None,
                 "ep": None,
                 "trend": 1,
@@ -4041,18 +4089,37 @@ class TechnicalHelpers:
                 st["value"] = None
                 return None
             try:
-                sar0 = float(l)
-                ep0 = float(h)
+                st["sar"] = float(l)
+                st["ep"] = float(h)
             except (TypeError, ValueError):
                 st["value"] = None
                 return None
             st["started"] = True
-            st["sar"] = sar0
-            st["ep"] = ep0
             st["trend"] = 1
             st["af"] = float(start)
-            st["value"] = sar0
-            return sar0
+            st["seen"] = 1
+            st["l1"] = float(l)
+            st["l2"] = float(l)
+            st["h1"] = float(h)
+            st["h2"] = float(h)
+            st["value"] = None
+            return None
+
+        seen = int(st["seen"])
+        if seen < 2:
+            # Second valid bar emits the seed value itself (no step), but the
+            # clamp window still advances so the next step sees it.
+            try:
+                emit_h, emit_l = float(h), float(l)
+            except (TypeError, ValueError):
+                emit_h, emit_l = 0.0, 0.0
+            st["seen"] = 2
+            st["l2"] = st.get("l1")
+            st["l1"] = emit_l
+            st["h2"] = st.get("h1")
+            st["h1"] = emit_h
+            st["value"] = st["sar"]
+            return st.get("value")
 
         previous = st["sar"]
         ep = st["ep"]
@@ -4069,26 +4136,47 @@ class TechnicalHelpers:
 
         trend = int(st["trend"])
         af = float(st["af"])
+        l1 = st.get("l1")
+        l2 = st.get("l2")
+        h1 = st.get("h1")
+        h2 = st.get("h2")
+        try:
+            clamp_l1 = float(l1) if l1 is not None else lo_f
+            clamp_l2 = float(l2) if l2 is not None else lo_f
+            clamp_h1 = float(h1) if h1 is not None else hi_f
+            clamp_h2 = float(h2) if h2 is not None else hi_f
+        except (TypeError, ValueError):
+            clamp_l1 = clamp_l2 = lo_f
+            clamp_h1 = clamp_h2 = hi_f
+        sar = prev_f + af * (ep_f - prev_f)
         if trend == 1:
-            sar = prev_f + af * (ep_f - prev_f)
             if hi_f > ep_f:
                 ep_f = hi_f
                 af = min(af + float(increment), float(maximum))
-            if sar > lo_f:
+            if lo_f < sar:
                 trend = -1
                 sar = ep_f
                 ep_f = lo_f
                 af = float(start)
+            else:
+                sar = min(sar, clamp_l1, clamp_l2)
         else:
-            sar = prev_f - af * (prev_f - ep_f)
             if lo_f < ep_f:
                 ep_f = lo_f
                 af = min(af + float(increment), float(maximum))
-            if sar < hi_f:
+            if hi_f > sar:
                 trend = 1
                 sar = ep_f
                 ep_f = hi_f
                 af = float(start)
+            else:
+                sar = max(sar, clamp_h1, clamp_h2)
+
+        # Roll the previous-two-bars extremes for the next bar's clamp.
+        st["l2"] = st.get("l1")
+        st["l1"] = lo_f
+        st["h2"] = st.get("h1")
+        st["h1"] = hi_f
 
         st["sar"] = sar
         st["ep"] = ep_f

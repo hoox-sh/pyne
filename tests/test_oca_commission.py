@@ -45,6 +45,10 @@ def test_oca_reduce_cancels_sibling_on_full_fill():
     }
     m = e._build_builtin_map()
     m["strategy.entry"](["L", "long", 10.0])
+    # Market entry fills at bar 1's open (reference Pine).
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=90.0, close=100.0)
+    assert e._strategy_state.position_direction == "long"
     # TP limit sell + SL stop sell in same OCA reduce group
     m["strategy.order"](
         [],
@@ -69,7 +73,8 @@ def test_oca_reduce_cancels_sibling_on_full_fill():
         },
     )
     assert set(e._strategy_state.pending_orders) == {"TP", "SL"}
-    # High touches TP
+    # High touches TP (orders placed on bar 1, active bar 2)
+    e.context["bar_index"] = 2
     e.process_pending_orders(open_=100.0, high=111.0, low=100.0, close=108.0)
     assert e._strategy_state.position_direction == "flat"
     # SL should be gone via OCA reduce (full fill)
@@ -84,7 +89,9 @@ def test_commission_percent_on_entry():
     # 1% commission on notional
     m["strategy"](["T"], {"commission_type": "percent", "commission_value": 1.0})
     m["strategy.entry"](["L", "long", 10.0])
-    # 10 * 100 * 1% = 10
+    # The market entry fills at the next bar's open (100): 10 * 100 * 1% = 10
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
     assert e._strategy_state.open_trades[0].commission == 10.0
     assert e._strategy_state.commission == 10.0
 
@@ -95,6 +102,8 @@ def test_slippage_ticks_worsens_entry():
     m = e._build_builtin_map()
     m["strategy"](["T"], {"slippage": 2})  # 2 ticks * 0.25 = 0.5
     m["strategy.entry"](["L", "long", 1.0])
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
     assert e._strategy_state.entry_price == 100.5
 
 
@@ -129,9 +138,14 @@ def test_compile_entry_commission_matches_interpret():
     m = e._build_builtin_map()
     m["strategy"](["T"], {"commission_type": "percent", "commission_value": 1.0, "initial_capital": 100_000})
     m["strategy.entry"](["L", "long", 10.0])
+    # Market entry fills at bar 1's open (100); market close at bar 2's open (110).
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
     assert e._strategy_state.equity(100.0) == 99_990.0  # openprofit = -entry commission
-    e.context["close"] = 110.0
+    e.context["bar_index"] = 2
     m["strategy.close"](["L"])
+    e.context["bar_index"] = 3
+    e.process_pending_orders(open_=110.0, high=110.0, low=110.0, close=110.0)
     i_net = e._strategy_state.netprofit()
     # (110-100)*10 - entry 10 - exit 11 = 79
     assert i_net == 79.0
@@ -140,9 +154,11 @@ def test_compile_entry_commission_matches_interpret():
     b = CompileStrategyBroker(initial_capital=100_000, commission_value=1.0, commission_type="percent")
     b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
     b.entry("L", "long", 10.0)
+    assert b.position_size == 0.0
+    b.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
     assert b.equity == 99_990.0
-    b.begin_bar(1, 110.0, 110.0, 110.0, 110.0)
     b.close("L")
+    b.begin_bar(2, 110.0, 110.0, 110.0, 110.0)
     assert b.netprofit == i_net
     assert b.equity == 100_000.0 + i_net
 
@@ -161,9 +177,13 @@ def test_exit_slippage_worsens_close_both_paths():
     m = e._build_builtin_map()
     m["strategy"](["T"], {"slippage": 2})  # 0.5
     m["strategy.entry"](["L", "long", 1.0])
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
     assert e._strategy_state.entry_price == 100.5
-    e.context["close"] = 110.0
+    e.context["bar_index"] = 2
     m["strategy.close"](["L"])
+    e.context["bar_index"] = 3
+    e.process_pending_orders(open_=110.0, high=110.0, low=110.0, close=110.0)
     # exit at 110 - 0.5 = 109.5; profit = 109.5 - 100.5 = 9.0
     assert e._strategy_state.netprofit() == 9.0
     assert e._strategy_state.closed_trades[0].exit_price == 109.5
@@ -171,9 +191,10 @@ def test_exit_slippage_worsens_close_both_paths():
     b = CompileStrategyBroker(slippage_ticks=2, mintick=0.25)
     b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
     b.entry("L", "long", 1.0)
+    b.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
     assert b.position_avg_price == 100.5
-    b.begin_bar(1, 110.0, 110.0, 110.0, 110.0)
     b.close("L")
+    b.begin_bar(2, 110.0, 110.0, 110.0, 110.0)
     assert b.netprofit == 9.0
 
 
@@ -216,7 +237,14 @@ def test_compile_pyramiding_matches_interpret():
     m["strategy"](["T"], {"pyramiding": 1})
     m["strategy.entry"](["L1", "long", 1.0])
     m["strategy.entry"](["L2", "long", 2.0])
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
+    assert e._strategy_state.position_size == 3.0
+    assert len(e._strategy_state.open_trades) == 2
+    # Third entry blocked (pyramiding+1 = 2 legs)
     m["strategy.entry"](["L3", "long", 1.0])
+    e.context["bar_index"] = 2
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
     assert e._strategy_state.position_size == 3.0
     assert len(e._strategy_state.open_trades) == 2
 
@@ -224,14 +252,20 @@ def test_compile_pyramiding_matches_interpret():
     b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
     b.entry("L1", "long", 1.0)
     b.entry("L2", "long", 2.0)
+    b.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
+    assert b.position_size == 3.0
+    assert b.open_entry_count == 2
     b.entry("L3", "long", 1.0)
+    b.begin_bar(2, 100.0, 100.0, 100.0, 100.0)
     assert b.position_size == 3.0
     assert b.open_entry_count == 2
 
     b0 = CompileStrategyBroker(pyramiding=0)
     b0.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
     b0.entry("L1", "long", 1.0)
+    b0.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
     b0.entry("L2", "long", 5.0)
+    b0.begin_bar(2, 100.0, 100.0, 100.0, 100.0)
     assert b0.position_size == 1.0
 
 
@@ -245,14 +279,19 @@ def test_futures_avg_price_model_add_and_sticky_partial_dual_path():
     m = e._build_builtin_map()
     m["strategy"](["T"], {"pyramiding": 1, "avg_price_model": "futures", "commission_value": 0.0})
     m["strategy.entry"](["A", "long", 2.0])
-    e.context["close"] = 110.0
     e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
+    e.context["bar_index"] = 2
     m["strategy.entry"](["B", "long", 4.0])
+    e.context["bar_index"] = 3
+    e.process_pending_orders(open_=110.0, high=110.0, low=110.0, close=110.0)
     expected_avg = (2.0 * 100.0 + 4.0 * 110.0) / 6.0
     assert abs(e._strategy_state.entry_price - expected_avg) < 1e-9
     e.context["close"] = 120.0
-    e.context["bar_index"] = 2
+    e.context["bar_index"] = 4
     m["strategy.close"](["X", 2.0])
+    e.context["bar_index"] = 5
+    e.process_pending_orders(open_=120.0, high=120.0, low=120.0, close=120.0)
     assert abs(e._strategy_state.position_size - 4.0) < 1e-9
     # sticky: still expected_avg
     assert abs(e._strategy_state.entry_price - expected_avg) < 1e-9
@@ -263,11 +302,12 @@ def test_futures_avg_price_model_add_and_sticky_partial_dual_path():
     b = CompileStrategyBroker(pyramiding=1, avg_price_model="futures", commission_value=0.0)
     b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
     b.entry("A", "long", 2.0)
-    b.begin_bar(1, 110.0, 110.0, 110.0, 110.0)
+    b.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
     b.entry("B", "long", 4.0)
+    b.begin_bar(2, 110.0, 110.0, 110.0, 110.0)
     assert abs(b.position_avg_price - expected_avg) < 1e-9
-    b.begin_bar(2, 120.0, 120.0, 120.0, 120.0)
     b.close("X", qty=2.0)
+    b.begin_bar(3, 120.0, 120.0, 120.0, 120.0)
     assert abs(b.position_size - 4.0) < 1e-9
     assert abs(b.position_avg_price - expected_avg) < 1e-9
     assert abs(b.netprofit - (120.0 - expected_avg) * 2.0) < 1e-9
@@ -292,6 +332,8 @@ def test_leverage_cash_qty_and_margin_dual_path():
         },
     )
     m["strategy.entry"](["L", "long"])
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=50.0, high=50.0, low=50.0, close=50.0)
     # qty = 200 * 4 / 50 = 16
     assert abs(e._strategy_state.position_size - 16.0) < 1e-9
     # margin = (50*16)/4 = 200
@@ -306,6 +348,7 @@ def test_leverage_cash_qty_and_margin_dual_path():
     )
     b.begin_bar(0, 50.0, 50.0, 50.0, 50.0)
     b.entry("L", "long", None)
+    b.begin_bar(1, 50.0, 50.0, 50.0, 50.0)
     assert abs(b.position_size - 16.0) < 1e-9
     # cash ≈ equity - notional/lev = 10000 - 800/4 = 9800
     assert abs(b.cash - 9800.0) < 1e-6

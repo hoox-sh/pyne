@@ -21,6 +21,8 @@
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 import pytest
 
@@ -178,19 +180,29 @@ plot(ta.sma(close, 5), title="s")
 
 class TestCompileBrokerCommissionParity:
     def test_compile_commission_openprofit_and_net(self) -> None:
-        """Entry commission reduces open equity; close charges entry+exit commission."""
+        """Entry commission reduces open equity; close charges entry+exit commission.
+
+        Reference Pine fill model: the market entry placed on bar 0 fills at
+        the open of bar 1; the market close placed on bar 1 fills at the open
+        of bar 2.
+        """
         from pynescript.compiler.strategy_broker import CompileStrategyBroker
 
         b = CompileStrategyBroker(initial_capital=10_000.0, commission_value=1.0, commission_type="percent")
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
         b.entry("L", "long", 10.0)
-        # 10 * 100 * 1% = 10 entry commission
-        assert b.openprofit == pytest.approx(-10.0)
-        assert b.equity == pytest.approx(9_990.0)
+        # Placed on bar 0 — still pending, nothing filled yet.
+        assert b.position_size == 0.0
         b.begin_bar(1, 110.0, 110.0, 110.0, 110.0)
+        # Fills at the open: 10 * 110 * 1% = 11 entry commission
+        assert b.openprofit == pytest.approx(-11.0)
+        assert b.equity == pytest.approx(9_989.0)
         b.close("L")
-        # gross 100 - entry 10 - exit 11 = 79
-        assert b.netprofit == pytest.approx(79.0)
+        # Pending until bar 2's open.
+        assert b.position_size == 10.0
+        b.begin_bar(2, 120.0, 120.0, 120.0, 120.0)
+        # gross 100 - entry 11 - exit 12 = 77
+        assert b.netprofit == pytest.approx(77.0)
         assert b.position_size == 0.0
         assert b.position_commission == 0.0
 
@@ -230,8 +242,8 @@ plot(strategy.position_size, title="ps")
         l = list(c)
         out = compiled.run(o, h, l, c, v)
         assert out["__position_size"] == 2.0 or out["ps"][-1] == 2.0
-        # market entry fills at bar 0 close
-        assert abs(out["avg"][-1] - 100.0) < 1e-9
+        # market entry placed on bar 0 fills at bar 1's open (101)
+        assert abs(out["avg"][-1] - 101.0) < 1e-9
 
     def test_compile_same_id_reentry_keeps_avg_price(self) -> None:
         """Repeating ``strategy.entry("L")`` must not reset avg to last close."""
@@ -240,9 +252,11 @@ plot(strategy.position_size, title="ps")
         b = CompileStrategyBroker(pyramiding=0)
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
         b.entry("L", "long", 1.0)
+        b.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
         assert b.position_avg_price == 100.0
-        b.begin_bar(1, 110.0, 110.0, 110.0, 110.0)
+        # Re-entry with pyramiding exhausted is a no-op (avg stays).
         b.entry("L", "long", 1.0)
+        b.begin_bar(2, 110.0, 110.0, 110.0, 110.0)
         assert b.position_size == 1.0
         assert b.position_avg_price == 100.0
         assert sum(1 for e in b.events if e.get("kind") == "entry") == 1
@@ -254,13 +268,15 @@ plot(strategy.position_size, title="ps")
         b = CompileStrategyBroker(pyramiding=1)
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
         b.entry("L", "long", 1.0)
-        b.begin_bar(1, 120.0, 120.0, 120.0, 120.0)
+        b.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
+        assert b.position_size == 1.0
         b.entry("L", "long", 1.0)
+        b.begin_bar(2, 120.0, 120.0, 120.0, 120.0)
         assert b.position_size == 2.0
         assert abs(b.position_avg_price - 110.0) < 1e-9
         assert sum(1 for e in b.events if e.get("kind") == "entry") == 2
-        b.begin_bar(2, 140.0, 140.0, 140.0, 140.0)
         b.entry("L", "long", 1.0)
+        b.begin_bar(3, 140.0, 140.0, 140.0, 140.0)
         assert b.position_size == 2.0
         assert abs(b.position_avg_price - 110.0) < 1e-9
         assert sum(1 for e in b.events if e.get("kind") == "entry") == 2
@@ -312,8 +328,16 @@ plot(strategy.position_size, title="sz")
         for mode in ("interpret", "compile"):
             out = rt.run(src, bars, mode=mode)
             series = out["series"]
-            assert series["sz"] == [1.0] * 6, mode
-            assert series["avg"] == [100.0] * 6, mode
+            # Entry placed on bar 0 fills at bar 1's open (101); pyramiding=0
+            # keeps the position at one leg with that avg price. Flat
+            # position_avg_price is na (interpret None / compile NaN).
+            assert series["sz"] == [0.0, 1.0, 1.0, 1.0, 1.0, 1.0], mode
+            expected = [None, 101.0, 101.0, 101.0, 101.0, 101.0]
+            for i, (got, want) in enumerate(zip(series["avg"], expected, strict=True)):
+                if want is None:
+                    assert got is None or (isinstance(got, float) and math.isnan(got)), (mode, i, got)
+                else:
+                    assert got == pytest.approx(want), (mode, i, got)
             entries = [e for e in (out.get("events") or []) if e.get("kind") == "entry"]
             assert len(entries) == 1, (mode, entries)
 
@@ -472,11 +496,11 @@ plot(strategy.position_size, title="ps")
         b.risk_max_intraday_loss(99.0)
         b.risk_allow_entry_in("long")
         b.entry("S", "short", 2.0)
-        assert b.position_size == 0.0
         blocked = [e for e in b.events if e.get("comment") == "risk_blocked"]
         assert blocked
         # long still allowed
         b.entry("L", "long", 1.0)
+        b.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
         assert b.position_size == pytest.approx(1.0)
         assert b.entries_blocked is False
 
@@ -505,6 +529,7 @@ plot(strategy.position_size, title="ps")
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
         b.risk_max_position_size(10.0)  # 10% of 10k = 1000 → max 10 contracts at 100
         b.entry("L", "long", 50.0)
+        b.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
         assert b.position_size == pytest.approx(10.0)
 
     def test_risk_max_intraday_filled_orders_blocks_entries(self) -> None:
@@ -517,19 +542,23 @@ plot(strategy.position_size, title="ps")
         b.risk_max_intraday_filled_orders(2)
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0, bar_time=day0)
         b.entry("L1", "long", 1.0, comment="e1")
+        # Market entry fills at bar 1's open.
+        b.begin_bar(1, 100.0, 100.0, 100.0, 100.0, bar_time=day0 + 60)
         assert b.position_size == pytest.approx(1.0)
         assert b._day_filled_orders == 1
-        b.begin_bar(1, 110.0, 110.0, 110.0, 110.0, bar_time=day0 + 60)
         b.close("L1", comment="x1")
+        b.begin_bar(2, 110.0, 110.0, 110.0, 110.0, bar_time=day0 + 120)
         assert b.position_size == 0.0
         assert b._day_filled_orders == 2  # entry + exit
         # Third fill attempt (new entry) blocked same day
         b.entry("L2", "long", 1.0)
+        b.begin_bar(3, 110.0, 110.0, 110.0, 110.0, bar_time=day0 + 180)
         assert b.position_size == 0.0
         assert any(e.get("comment") == "risk_blocked" for e in b.events)
         # Next day bucket resets fill counter
-        b.begin_bar(2, 100.0, 100.0, 100.0, 100.0, bar_time=day0 + 86_400)
+        b.begin_bar(4, 100.0, 100.0, 100.0, 100.0, bar_time=day0 + 86_400)
         b.entry("L3", "long", 1.0)
+        b.begin_bar(5, 100.0, 100.0, 100.0, 100.0, bar_time=day0 + 86_400 + 60)
         assert b.position_size == pytest.approx(1.0)
         assert b._day_filled_orders == 1
 
@@ -556,8 +585,10 @@ class TestCompileTradeQueries:
         b = CompileStrategyBroker(initial_capital=10_000.0, pyramiding=1)
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0, bar_time=1_000)
         b.entry("A", "long", 2.0, comment="buyA")
-        b.begin_bar(1, 110.0, 110.0, 110.0, 110.0, bar_time=2_000)
+        # A fills at bar 1's open (100); B placed, fills at bar 2's open (110).
+        b.begin_bar(1, 100.0, 100.0, 100.0, 100.0, bar_time=2_000)
         b.entry("B", "long", 3.0, comment="buyB")
+        b.begin_bar(2, 110.0, 110.0, 110.0, 110.0, bar_time=3_000)
         assert b.open_entry_count == 2
         assert b.opentrades_size(0) == pytest.approx(2.0)
         assert b.opentrades_size(1) == pytest.approx(3.0)
@@ -565,9 +596,9 @@ class TestCompileTradeQueries:
         assert b.opentrades_entry_price(1) == pytest.approx(110.0)
         assert b.opentrades_entry_id(0) == "A"
         assert b.opentrades_entry_id(1) == "B"
-        assert b.opentrades_entry_bar_index(0) == 0
-        assert b.opentrades_entry_bar_index(1) == 1
-        # MTM at bar1 close 110: leg A = (110-100)*2 = 20
+        assert b.opentrades_entry_bar_index(0) == 1
+        assert b.opentrades_entry_bar_index(1) == 2
+        # MTM at bar2 close 110: leg A = (110-100)*2 = 20
         assert b.opentrades_profit(0) == pytest.approx(20.0)
         assert b.opentrades_profit(1) == pytest.approx(0.0)
         assert b.opentrades_entry_comment(0) == "buyA"
@@ -592,8 +623,11 @@ class TestCompileTradeQueries:
         b = CompileStrategyBroker(initial_capital=10_000.0)
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0, bar_time=500)
         b.entry("L", "long", 4.0, comment="entryCmt")
-        b.begin_bar(1, 120.0, 130.0, 110.0, 120.0, bar_time=600)
+        # Market entry fills at bar 1's open (100); market close placed on
+        # bar 1 fills at bar 2's open (120).
+        b.begin_bar(1, 100.0, 130.0, 110.0, 120.0, bar_time=600)
         b.close("L", comment="exitCmt")
+        b.begin_bar(2, 120.0, 130.0, 110.0, 120.0, bar_time=700)
         assert b.closed_trades == 1
         assert len(b.closed_trade_records) == 1
         assert b.closedtrades_profit(0) == pytest.approx(80.0)
@@ -601,8 +635,8 @@ class TestCompileTradeQueries:
         assert b.closedtrades_entry_price(0) == pytest.approx(100.0)
         assert b.closedtrades_exit_price(0) == pytest.approx(120.0)
         assert b.closedtrades_entry_id(0) == "L"
-        assert b.closedtrades_entry_bar_index(0) == 0
-        assert b.closedtrades_exit_bar_index(0) == 1
+        assert b.closedtrades_entry_bar_index(0) == 1
+        assert b.closedtrades_exit_bar_index(0) == 2
         assert b.closedtrades_profit(1) == 0.0  # OOB
         assert b.closedtrades_entry_comment(0) == "entryCmt"
         assert b.closedtrades_exit_comment(0) == "exitCmt"
@@ -668,12 +702,15 @@ plot(strategy.closedtrades.profit(0), title="ctp0")
         # For strategy.close("A") without exit levels, from_entry is not set (not is_exit).
         # So close("A") closes whole position by qty target = whole size.
         # Use broker-level assertions above; here check counts and emitted accessors.
-        assert out["ot"][0] == pytest.approx(1.0)
-        assert out["ot"][1] == pytest.approx(2.0)
+        # Bar 0 places A (fills bar 1 open), bar 1 places B (fills bar 2 open),
+        # bar 2 places close("A") (fills bar 3 open).
+        assert out["ot"][0] == pytest.approx(0.0)
+        assert out["ot"][1] == pytest.approx(1.0)
+        assert out["ot"][2] == pytest.approx(2.0)
         assert out["ct"][-1] >= 1.0
-        # size of first open leg after bar0 entry
-        assert out["osz0"][0] == pytest.approx(2.0)
-        assert out["oep0"][0] == pytest.approx(100.0)
+        # size of first open leg after bar1 fill (bar 1 open = 102)
+        assert out["osz0"][1] == pytest.approx(2.0)
+        assert out["oep0"][1] == pytest.approx(102.0)
 
     def test_compile_closedtrades_profit_after_round_trip(self) -> None:
         src = """//@version=6
@@ -687,9 +724,10 @@ plot(strategy.closedtrades.profit(0), title="p0")
 plot(strategy.closedtrades.size(0), title="sz0")
 """
         compiled = compile_script(src)
-        # force known prices: entry 100 close, exit 110 close
+        # Entry fills at bar 1's open (100); the market close placed on bar 1
+        # fills at bar 2's open (110).
         close = np.array([100.0, 110.0, 110.0, 110.0], dtype=np.float64)
-        open_ = close.copy()
+        open_ = np.array([100.0, 100.0, 110.0, 110.0], dtype=np.float64)
         high = close + 1.0
         low = close - 1.0
         vol = np.ones(4)
@@ -708,6 +746,8 @@ class TestCompileExitAndSeriesParity:
         # high=101, low=99 — neither 110 TP nor 95 SL touched
         b.begin_bar(0, 100.0, 101.0, 99.0, 100.0)
         b.entry("L", "long", 1.0)
+        # Reference Pine: the market entry placed on bar 0 fills at bar 1's open.
+        b.begin_bar(1, 100.0, 101.0, 99.0, 100.0)
         assert b.position_size == 1.0
         b.close(id="L", limit=110.0, stop=95.0, comment="X")
         # Pending bracket — position still open (Wave B TV semantics)
@@ -727,10 +767,14 @@ class TestCompileExitAndSeriesParity:
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
         b.entry("L", "long", 1.0)
         b.begin_bar(1, 100.0, 112.0, 99.0, 111.0)
+        assert b.position_size == 1.0
         # Stop/limit exit: id= still accepted as from_entry filter when is_exit.
+        # The bracket is placed on bar 1 and becomes active for bar 2.
         b.close(id="L", limit=110.0, stop=90.0, comment="tp")
+        b.begin_bar(2, 111.0, 112.0, 99.0, 111.0)
         assert b.position_size == 0.0
-        assert b.netprofit == pytest.approx(10.0)
+        # Bar 2 gaps above the sell limit → TV fills at the better open price.
+        assert b.netprofit == pytest.approx(11.0)
 
     def test_from_entry_closes_only_matching_pyramid_leg(self) -> None:
         """Two pyramid legs; exit from_entry first id leaves the second open."""
@@ -739,16 +783,19 @@ class TestCompileExitAndSeriesParity:
         b = CompileStrategyBroker(initial_capital=10_000.0, pyramiding=1, commission_value=0.0)
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
         b.entry("A", "long", 2.0)
-        b.begin_bar(1, 110.0, 110.0, 110.0, 110.0)
+        # Reference Pine: the market entry placed on bar 0 fills at bar 1's open.
+        b.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
+        assert b.position_size == 2.0
         b.entry("B", "long", 3.0)
+        b.begin_bar(2, 110.0, 110.0, 110.0, 110.0)
         assert b.position_size == 5.0
         assert b.open_entry_count == 2
         assert len(b.open_legs) == 2
         assert [leg.entry_id for leg in b.open_legs] == ["A", "B"]
 
-        b.begin_bar(2, 120.0, 120.0, 120.0, 120.0)
-        # Market exit targeting A only (explicit from_entry)
+        # Market exit targeting A only (explicit from_entry); fills next open.
         b.close(from_entry="A")
+        b.begin_bar(3, 120.0, 120.0, 120.0, 120.0)
         assert b.position_size == 3.0
         assert b.open_entry_count == 1
         assert len(b.open_legs) == 1
@@ -793,15 +840,17 @@ plot(strategy.closedtrades, title="ct")
         ]
         result = Runtime().run(src, ohlcv, mode="compile")
         assert "error" not in result, result.get("error")
-        # After bar 2 market exit of A (qty 2), B (qty 3) remains
-        assert result["series"]["ps"][1] == pytest.approx(5.0)
-        assert result["series"]["ps"][2] == pytest.approx(3.0)
-        assert result["series"]["ct"][2] == pytest.approx(1.0)
+        # Bar 0: A placed; bar 1: A fills (open 110) + B placed; bar 2: B fills
+        # (open 120) + market exit of A placed; bar 3: A closes (open 120).
+        assert result["series"]["ps"][1] == pytest.approx(2.0)
+        assert result["series"]["ps"][2] == pytest.approx(5.0)
+        assert result["series"]["ps"][3] == pytest.approx(3.0)
+        assert result["series"]["ct"][3] == pytest.approx(1.0)
         # Same script under interpret for parity
         ri = Runtime().run(src, ohlcv, mode="interpret")
         assert "error" not in ri, ri.get("error")
-        assert ri["series"]["ps"][2] == pytest.approx(3.0)
-        assert ri["series"]["ct"][2] == pytest.approx(1.0)
+        assert ri["series"]["ps"][3] == pytest.approx(3.0)
+        assert ri["series"]["ct"][3] == pytest.approx(1.0)
 
     def test_from_entry_unknown_soft_noop(self) -> None:
         """Unknown from_entry is a soft no-op (no crash, no size change)."""
@@ -810,11 +859,12 @@ plot(strategy.closedtrades, title="ct")
         b = CompileStrategyBroker(initial_capital=10_000.0)
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
         b.entry("L", "long", 4.0)
+        b.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
+        assert b.position_size == 4.0
         b.close(from_entry="NOPE")
         assert b.position_size == 4.0
         assert b.closed_trades == 0
         assert b.open_entry_count == 1
-        assert not b.pending_orders
         # Placement-style event still recorded with qty=0
         assert any(e.get("kind") in {"close", "exit"} and e.get("qty") == 0.0 for e in b.events)
 
@@ -826,22 +876,24 @@ plot(strategy.closedtrades, title="ct")
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
         b.entry("A", "long", 2.0)
         b.begin_bar(1, 105.0, 105.0, 105.0, 105.0)
+        assert b.position_size == 2.0
         b.entry("B", "long", 4.0)
+        b.begin_bar(2, 105.0, 105.0, 105.0, 105.0)
+        assert b.position_size == 6.0
         # Bracket only against A; mark between levels → pending
         b.close(id="A", qty=2.0, limit=120.0, stop=90.0, comment="XA")
-        assert b.position_size == 6.0
         assert any(k.startswith("A") for k in b.pending_orders)
         for po in b.pending_orders.values():
             assert po.from_entry == "A"
             assert po.quantity == 2.0
         # TP fills A only
-        b.begin_bar(2, 100.0, 125.0, 99.0, 122.0)
+        b.begin_bar(3, 100.0, 125.0, 99.0, 122.0)
         assert b.position_size == 4.0
         assert b.open_entry_count == 1
         assert b.open_legs[0].entry_id == "B"
         assert b.closed_trades == 1
-        # (120 fill limit or min - TP uses limit 120) * 2 vs entry 100
-        assert b.netprofit == pytest.approx(40.0)
+        # A filled at bar 1's open (105); TP limit 120 → (120 - 105) * 2
+        assert b.netprofit == pytest.approx(30.0)
 
     def test_exit_trail_offset_long_ratchets_and_fills(self) -> None:
         """trail_offset (ticks) arms immediately; stop ratchets with high then fills."""
@@ -850,6 +902,10 @@ plot(strategy.closedtrades, title="ct")
         b = CompileStrategyBroker(initial_capital=10_000.0, mintick=0.01, commission_value=0.0)
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
         b.entry("L", "long", 2.0)
+        # Reference Pine: the market entry fills at bar 1's open; the bracket
+        # is placed once the position exists and arms on the next bar.
+        b.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
+        assert b.position_size == 2.0
         # 100 ticks * 0.01 = $1 trail; no activation → active immediately
         b.close(comment="XT", trail_offset=100.0)
         assert "exit" in b.pending_orders or any(po.is_trail for po in b.pending_orders.values())
@@ -857,17 +913,17 @@ plot(strategy.closedtrades, title="ct")
         assert trail.trail_offset == pytest.approx(1.0)
         assert trail.trail_active is True
         # Favorable bar: high 110 → stop 109; low stays above stop
-        b.begin_bar(1, 109.5, 110.0, 109.2, 109.8)
+        b.begin_bar(2, 109.5, 110.0, 109.2, 109.8)
         assert b.position_size == 2.0
         trail = next(po for po in b.pending_orders.values() if po.is_trail)
         assert trail.stop_price == pytest.approx(109.0)
         # Mild pullback still above stop — no fill; trail does not lower
-        b.begin_bar(2, 109.5, 109.6, 109.1, 109.2)
+        b.begin_bar(3, 109.5, 109.6, 109.1, 109.2)
         assert b.position_size == 2.0
         trail = next(po for po in b.pending_orders.values() if po.is_trail)
         assert trail.stop_price == pytest.approx(109.0)
         # Break stop
-        b.begin_bar(3, 109.2, 109.3, 108.0, 108.5)
+        b.begin_bar(4, 109.2, 109.3, 108.0, 108.5)
         assert b.position_size == 0.0
         assert b.closed_trades == 1
 
@@ -878,20 +934,22 @@ plot(strategy.closedtrades, title="ct")
         b = CompileStrategyBroker(initial_capital=10_000.0, mintick=1.0, commission_value=0.0)
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
         b.entry("L", "long", 1.0)
+        b.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
+        assert b.position_size == 1.0
         b.close(comment="XT", trail_price=110.0, trail_offset=2.0)
         # Below activation — still open, trail not active
-        b.begin_bar(1, 105.0, 108.0, 104.0, 107.0)
+        b.begin_bar(2, 105.0, 108.0, 104.0, 107.0)
         assert b.position_size == 1.0
         po = next(p for p in b.pending_orders.values() if p.is_trail)
         assert po.trail_active is False
         # Activate: high 112 → stop = 110; low 111 → no fill
-        b.begin_bar(2, 109.0, 112.0, 111.0, 111.5)
+        b.begin_bar(3, 109.0, 112.0, 111.0, 111.5)
         assert b.position_size == 1.0
         po = next(p for p in b.pending_orders.values() if p.is_trail)
         assert po.trail_active is True
         assert po.stop_price == pytest.approx(110.0)
         # Fill on pullback through 110
-        b.begin_bar(3, 111.0, 111.0, 109.0, 109.5)
+        b.begin_bar(4, 111.0, 111.0, 109.0, 109.5)
         assert b.position_size == 0.0
 
     def test_exit_trail_points_wins_over_offset(self) -> None:
@@ -901,12 +959,14 @@ plot(strategy.closedtrades, title="ct")
         b = CompileStrategyBroker(initial_capital=10_000.0, mintick=0.01, commission_value=0.0)
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
         b.entry("L", "long", 2.0)
+        b.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
+        assert b.position_size == 2.0
         # points=100 → $1; offset=500 would be $5 if it won
         b.close(comment="XT", trail_points=100.0, trail_offset=500.0)
         trail = next(po for po in b.pending_orders.values() if po.is_trail)
         assert trail.trail_offset == pytest.approx(1.0)
         assert trail.trail_active is True
-        b.begin_bar(1, 109.5, 110.0, 109.2, 109.8)
+        b.begin_bar(2, 109.5, 110.0, 109.2, 109.8)
         assert b.position_size == 2.0
         trail = next(po for po in b.pending_orders.values() if po.is_trail)
         assert trail.stop_price == pytest.approx(109.0)
@@ -918,14 +978,16 @@ plot(strategy.closedtrades, title="ct")
         b = CompileStrategyBroker(initial_capital=10_000.0, mintick=0.01, commission_value=0.0)
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
         b.entry("L", "long", 1.0)
+        b.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
+        assert b.position_size == 1.0
         # 0 "wins" would disable trail and market-close; must fall back to offset
         b.close(comment="XT", trail_points=0.0, trail_offset=100.0)
-        assert b.position_size == 1.0
         trail = next(po for po in b.pending_orders.values() if po.is_trail)
         assert trail.trail_offset == pytest.approx(1.0)
         b2 = CompileStrategyBroker(initial_capital=10_000.0, mintick=0.01, commission_value=0.0)
         b2.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
         b2.entry("L", "long", 1.0)
+        b2.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
         b2.close(comment="XT", trail_points=float("nan"), trail_offset=100.0)
         assert b2.position_size == 1.0
         trail2 = next(po for po in b2.pending_orders.values() if po.is_trail)
@@ -938,23 +1000,25 @@ plot(strategy.closedtrades, title="ct")
         b = CompileStrategyBroker(initial_capital=10_000.0, mintick=0.01, commission_value=0.0)
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
         b.entry("S", "short", 2.0)
+        b.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
+        assert b.position_size == -2.0
         b.close(comment="XT", trail_offset=100.0)
         trail = next(po for po in b.pending_orders.values() if po.is_trail)
         assert trail.direction == "long"
         assert trail.trail_offset == pytest.approx(1.0)
         assert trail.trail_active is True
         # Favorable drop: low 90 → stop 91; high stays below stop
-        b.begin_bar(1, 90.5, 90.8, 90.0, 90.2)
+        b.begin_bar(2, 90.5, 90.8, 90.0, 90.2)
         assert b.position_size == -2.0
         trail = next(po for po in b.pending_orders.values() if po.is_trail)
         assert trail.stop_price == pytest.approx(91.0)
         # Mild bounce still below stop — no fill; trail does not raise
-        b.begin_bar(2, 90.5, 90.9, 90.4, 90.8)
+        b.begin_bar(3, 90.5, 90.9, 90.4, 90.8)
         assert b.position_size == -2.0
         trail = next(po for po in b.pending_orders.values() if po.is_trail)
         assert trail.stop_price == pytest.approx(91.0)
         # Break stop
-        b.begin_bar(3, 90.8, 92.0, 90.7, 91.5)
+        b.begin_bar(4, 90.8, 92.0, 90.7, 91.5)
         assert b.position_size == 0.0
         assert b.closed_trades == 1
         assert b.netprofit == pytest.approx((100.0 - 91.0) * 2.0)
@@ -967,19 +1031,21 @@ plot(strategy.closedtrades, title="ct")
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
         b.entry("A", "long", 2.0)
         b.begin_bar(1, 105.0, 105.0, 105.0, 105.0)
+        assert b.position_size == 2.0
         b.entry("B", "long", 4.0)
+        b.begin_bar(2, 105.0, 105.0, 105.0, 105.0)
+        assert b.position_size == 6.0
         # Trail only A (qty defaults to from_entry size = 2)
         b.close(from_entry="A", trail_offset=100.0, comment="XA")
         trail = next(po for po in b.pending_orders.values() if po.is_trail)
         assert trail.from_entry == "A"
         assert trail.quantity == pytest.approx(2.0)
-        assert b.position_size == 6.0
         # Ratchet then fill A only
-        b.begin_bar(2, 109.5, 110.0, 109.2, 109.8)
+        b.begin_bar(3, 109.5, 110.0, 109.2, 109.8)
         assert b.position_size == 6.0
         trail = next(po for po in b.pending_orders.values() if po.is_trail)
         assert trail.stop_price == pytest.approx(109.0)
-        b.begin_bar(3, 109.2, 109.3, 108.0, 108.5)
+        b.begin_bar(4, 109.2, 109.3, 108.0, 108.5)
         assert b.position_size == 4.0
         assert b.open_entry_count == 1
         assert b.open_legs[0].entry_id == "B"
@@ -1005,14 +1071,15 @@ strategy.exit("XT", trail_offset=100, trail_price=110)
         b = CompileStrategyBroker(initial_capital=10_000.0, mintick=0.01, commission_value=0.0)
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
         b.entry("L", "long", 1.0)
-        b.close(comment="X", profit=100.0)
+        b.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
         assert b.position_size == 1.0
+        b.close(comment="X", profit=100.0)
         po = next(iter(b.pending_orders.values()))
         assert po.order_type == "limit"
         assert po.limit_price == pytest.approx(101.00)
-        b.begin_bar(1, 100.2, 100.5, 100.0, 100.4)
+        b.begin_bar(2, 100.2, 100.5, 100.0, 100.4)
         assert b.position_size == 1.0
-        b.begin_bar(2, 100.4, 101.5, 100.2, 101.2)
+        b.begin_bar(3, 100.4, 101.5, 100.2, 101.2)
         assert b.position_size == 0.0
         assert b.closed_trades == 1
         assert b.netprofit == pytest.approx(1.00)
@@ -1024,13 +1091,15 @@ strategy.exit("XT", trail_offset=100, trail_price=110)
         b = CompileStrategyBroker(initial_capital=10_000.0, mintick=0.01, commission_value=0.0)
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
         b.entry("L", "long", 1.0)
+        b.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
+        assert b.position_size == 1.0
         b.close(comment="X", loss=50.0)
         po = next(iter(b.pending_orders.values()))
         assert po.order_type == "stop"
         assert po.stop_price == pytest.approx(99.50)
-        b.begin_bar(1, 100.0, 100.2, 99.6, 99.8)
+        b.begin_bar(2, 100.0, 100.2, 99.6, 99.8)
         assert b.position_size == 1.0
-        b.begin_bar(2, 99.8, 99.9, 99.0, 99.2)
+        b.begin_bar(3, 99.8, 99.9, 99.0, 99.2)
         assert b.position_size == 0.0
         assert b.netprofit == pytest.approx(-0.50)
 
@@ -1041,13 +1110,15 @@ strategy.exit("XT", trail_offset=100, trail_price=110)
         b = CompileStrategyBroker(initial_capital=10_000.0, mintick=0.01, commission_value=0.0)
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
         b.entry("S", "short", 1.0)
+        b.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
+        assert b.position_size == -1.0
         b.close(comment="X", profit=100.0)
         po = next(iter(b.pending_orders.values()))
         assert po.order_type == "limit"
         assert po.limit_price == pytest.approx(99.00)
-        b.begin_bar(1, 100.0, 100.2, 99.4, 99.6)
+        b.begin_bar(2, 100.0, 100.2, 99.4, 99.6)
         assert b.position_size == -1.0
-        b.begin_bar(2, 99.6, 99.7, 98.5, 98.8)
+        b.begin_bar(3, 99.6, 99.7, 98.5, 98.8)
         assert b.position_size == 0.0
         assert b.netprofit == pytest.approx(1.00)
 
@@ -1058,6 +1129,8 @@ strategy.exit("XT", trail_offset=100, trail_price=110)
         b = CompileStrategyBroker(initial_capital=10_000.0, mintick=0.01, commission_value=0.0)
         b.begin_bar(0, 100.0, 101.0, 99.0, 100.0)
         b.entry("L", "long", 1.0)
+        b.begin_bar(1, 100.0, 101.0, 99.0, 100.0)
+        assert b.position_size == 1.0
         b.close(id="L", limit=110.0, stop=90.0, profit=100.0, loss=50.0, comment="X")
         assert b.position_size == 1.0
         prices = {(po.limit_price, po.stop_price) for po in b.pending_orders.values()}
@@ -1104,7 +1177,9 @@ plot(strategy.closedtrades, title="ct")
         for mode in ("interpret", "compile"):
             result = Runtime().run(src, ohlcv, mode=mode)
             assert "error" not in result, (mode, result.get("error"))
-            assert result["series"]["ps"][0] == pytest.approx(1.0)
+            # Bar 0: entry placed; bar 1: entry fills at open 100 + exit
+            # bracket placed; bar 2: bracket active, high 101.5 ≥ limit 101 → fill.
+            assert result["series"]["ps"][0] == pytest.approx(0.0)
             assert result["series"]["ps"][1] == pytest.approx(1.0)
             assert result["series"]["ps"][2] == pytest.approx(0.0)
             assert result["series"]["ct"][2] == pytest.approx(1.0)
@@ -1129,11 +1204,13 @@ strategy.exit("X", from_entry="L", profit=100, loss=50)
         b = CompileStrategyBroker(initial_capital=10_000.0)
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
         b.entry("L", "long", 5.0)
+        b.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
         assert b.max_contracts_held_long == pytest.approx(5.0)
         assert b.max_contracts_held_all == pytest.approx(5.0)
         assert b.max_contracts_held_short == pytest.approx(0.0)
         b.close("L")
         b.entry("S", "short", 3.0)
+        b.begin_bar(2, 100.0, 100.0, 100.0, 100.0)
         assert b.max_contracts_held_short == pytest.approx(3.0)
         assert b.max_contracts_held_all == pytest.approx(5.0)
 
@@ -1162,12 +1239,16 @@ plot(strategy.max_contracts_held_short, "short")
         ]
         result = Runtime().run(src, ohlcv, mode="compile")
         assert "error" not in result, result.get("error")
-        assert result["series"]["all"][0] == pytest.approx(5.0)
-        assert result["series"]["long"][0] == pytest.approx(5.0)
+        # Bar 0: long placed; bar 1: fills (5) + close/short placed; bar 2:
+        # long closed and short fills (3).
+        assert result["series"]["all"][0] == pytest.approx(0.0)
+        assert result["series"]["long"][0] == pytest.approx(0.0)
         assert result["series"]["short"][0] == pytest.approx(0.0)
+        assert result["series"]["all"][1] == pytest.approx(5.0)
+        assert result["series"]["long"][1] == pytest.approx(5.0)
+        assert result["series"]["short"][-1] == pytest.approx(3.0)
         assert result["series"]["all"][-1] == pytest.approx(5.0)
         assert result["series"]["long"][-1] == pytest.approx(5.0)
-        assert result["series"]["short"][-1] == pytest.approx(3.0)
 
     def test_account_currency_and_capital_held_series(self) -> None:
         """AXIS compile plots of remaining strategy series must not AttributeError."""
@@ -1179,8 +1260,10 @@ plot(strategy.max_contracts_held_short, "short")
         assert b.capital_held == pytest.approx(0.0)
         b.begin_bar(0, 50.0, 50.0, 50.0, 50.0)
         b.entry("L", "long", 3.0)
+        b.begin_bar(1, 50.0, 50.0, 50.0, 50.0)
         assert b.capital_held == pytest.approx(150.0)
         b.close("L")
+        b.begin_bar(2, 50.0, 50.0, 50.0, 50.0)
         assert b.closed_trades == 1
         assert b.closedtrades_first_index == 0
 
@@ -1206,7 +1289,9 @@ plot(str.length(strategy.account_currency), "cc")
         ]
         result = Runtime().run(src, ohlcv, mode="compile")
         assert "error" not in result, result.get("error")
-        assert result["series"]["held"][0] == pytest.approx(150.0)
+        # Entry placed on bar 0 fills at bar 1's open (50).
+        assert result["series"]["held"][0] == pytest.approx(0.0)
+        assert result["series"]["held"][1] == pytest.approx(150.0)
         assert result["series"]["cfi"][0] == pytest.approx(0.0)
         assert result["series"]["cc"][0] == pytest.approx(3.0)
 
@@ -1217,13 +1302,16 @@ plot(str.length(strategy.account_currency), "cc")
         b = CompileStrategyBroker(initial_capital=100_000.0)
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
         b.entry("L", "long", 2.0)
-        b.begin_bar(1, 110.0, 110.0, 110.0, 110.0)
+        b.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
+        assert b.openprofit == pytest.approx(0.0)
+        b.begin_bar(2, 110.0, 110.0, 110.0, 110.0)
         assert b.openprofit == pytest.approx(20.0)
         assert b.openprofit_percent == pytest.approx(0.02)
         assert b.netprofit_percent == pytest.approx(0.0)
         # cash ≈ equity - capital held
         assert b.cash == pytest.approx(b.equity - 100.0 * 2.0)
         b.close("L")
+        b.begin_bar(3, 110.0, 110.0, 110.0, 110.0)
         assert b.netprofit == pytest.approx(20.0)
         assert b.netprofit_percent == pytest.approx(0.02)
 
@@ -1238,6 +1326,7 @@ plot(str.length(strategy.account_currency), "cc")
         )
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
         b.entry("L", "long")  # qty omitted → 10% of equity / price = 10
+        b.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
         assert b.position_size == pytest.approx(10.0)
 
     def test_runtime_compile_openprofit_percent_plot(self) -> None:
@@ -1263,10 +1352,11 @@ plot(strategy.netprofit_percent, "npp")
         result = Runtime().run(src, ohlcv, mode="compile")
         assert "error" not in result, result.get("error")
         assert "opp" in result["series"]
-        # bar 0: entry at 100, openprofit 0 → percent 0
+        # Bar 0: entry placed; bar 1: fills at open 100.1, mark 101 →
+        # openprofit (101-100.1)*2 = 1.8 → percent 0.018; bar 2: mark 102.
         assert result["series"]["opp"][0] == pytest.approx(0.0)
-        # bar 1: close=101, openprofit ≈ 2 → percent 0.02
-        assert result["series"]["opp"][1] == pytest.approx(0.02)
+        assert result["series"]["opp"][1] == pytest.approx(0.018)
+        assert result["series"]["opp"][2] == pytest.approx(0.038)
 
     def test_interp_exit_bar_time_is_json_int(self) -> None:
         """exit/cancel events must not put PineSeries into bar_time (JSON parity)."""
@@ -1310,6 +1400,7 @@ class TestCompileRiskDayResume:
         assert b.entries_blocked is True
         b.begin_bar(1, 100.0, 100.0, 100.0, 100.0, bar_time=day1 + 86_400_000)
         b.entry("L2", "long", 1.0)
+        b.begin_bar(2, 100.0, 100.0, 100.0, 100.0, bar_time=day1 + 86_400_000 + 60)
         assert b.position_size == pytest.approx(1.0)
         assert b.entries_blocked is False
 

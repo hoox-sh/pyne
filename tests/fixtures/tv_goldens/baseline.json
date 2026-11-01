@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-01T00:17:53+00:00",
+  "generated_at": "2026-11-01T18:55:26+00:00",
   "tolerance": {
     "rel": 1e-06,
     "abs": 1e-09
@@ -13,116 +13,6 @@
     "harness_strategy": 0
   },
   "columns": {
-    "openpinescript/v5/harness_control.BTCUSDT.1D.log::barssince_cross_up": {
-      "reason": "ta.barssince returns 0 before the first cross; TradingView returns na until bar 29",
-      "compared": 2446,
-      "mismatches": 1018,
-      "nan_mismatches": 29,
-      "first_tv": 29,
-      "first_ours": 0,
-      "worst_rel": 0.9565217391304348,
-      "first_diff": "bar 0 (2020-01-03 ): tradingview='na' ours=0.0"
-    },
-    "openpinescript/v5/harness_control.BTCUSDT.1D.log::probe_and_shortcircuit": {
-      "reason": "lazy and/or + ta.sma call-site state differs on 305 bars",
-      "compared": 2475,
-      "mismatches": 305,
-      "nan_mismatches": 0,
-      "first_tv": 0,
-      "first_ours": 0,
-      "worst_rel": 1.0,
-      "first_diff": "bar 21 (2020-01-24 ): tradingview=1.0 ours=0.0"
-    },
-    "openpinescript/v5/harness_control.BTCUSDT.1D.log::valuewhen_cross_up": {
-      "reason": "ta.valuewhen returns the wrong occurrence/bar on 551 bars",
-      "compared": 2446,
-      "mismatches": 551,
-      "nan_mismatches": 0,
-      "first_tv": 29,
-      "first_ours": 29,
-      "worst_rel": 0.16901003465023412,
-      "first_diff": "bar 55 (2020-02-27 ): tradingview=9325.5037968 ours=9987.4625072"
-    },
-    "openpinescript/v5/harness_exits.BTCUSDT.1D.log::closedtrades": {
-      "reason": "strategy broker close/fill timing differs",
-      "compared": 2474,
-      "mismatches": 82,
-      "nan_mismatches": 0,
-      "first_tv": 0,
-      "first_ours": 0,
-      "worst_rel": 1.0,
-      "first_diff": "bar 93 (2020-04-05 ): tradingview=0.0 ours=1.0"
-    },
-    "openpinescript/v5/harness_exits.BTCUSDT.1D.log::entry_avg_price": {
-      "reason": "na() does not unwrap the series, so the ternary yields na instead of 0.0",
-      "compared": 2474,
-      "mismatches": 2474,
-      "nan_mismatches": 0,
-      "first_tv": 0,
-      "first_ours": 92,
-      "worst_rel": null,
-      "first_diff": "bar 0 (2020-01-03 ): tradingview=0.0 ours=nan"
-    },
-    "openpinescript/v5/harness_exits.BTCUSDT.1D.log::equity": {
-      "reason": "strategy() default initial_capital is 100000; TradingView default is 1000000",
-      "compared": 2474,
-      "mismatches": 2474,
-      "nan_mismatches": 0,
-      "first_tv": 0,
-      "first_ours": 0,
-      "worst_rel": 0.9526561992446171,
-      "first_diff": "bar 0 (2020-01-03 ): tradingview=1000000.0 ours=100000.0"
-    },
-    "openpinescript/v5/harness_exits.BTCUSDT.1D.log::last_entry_price": {
-      "reason": "strategy.closedtrades entry-price queries differ from TradingView's ledger",
-      "compared": 2474,
-      "mismatches": 2265,
-      "nan_mismatches": 0,
-      "first_tv": 0,
-      "first_ours": 0,
-      "worst_rel": 1.0,
-      "first_diff": "bar 93 (2020-04-05 ): tradingview=0.0 ours=6944.80452"
-    },
-    "openpinescript/v5/harness_exits.BTCUSDT.1D.log::last_exit_price": {
-      "reason": "strategy.closedtrades exit-price queries differ from TradingView's ledger",
-      "compared": 2474,
-      "mismatches": 2352,
-      "nan_mismatches": 0,
-      "first_tv": 0,
-      "first_ours": 0,
-      "worst_rel": 1.0,
-      "first_diff": "bar 93 (2020-04-05 ): tradingview=0.0 ours=6736.4603844"
-    },
-    "openpinescript/v5/harness_exits.BTCUSDT.1D.log::netprofit": {
-      "reason": "netprofit accumulates from a different initial capital and fill path",
-      "compared": 2474,
-      "mismatches": 2381,
-      "nan_mismatches": 0,
-      "first_tv": 0,
-      "first_ours": 0,
-      "worst_rel": 1.9808276730807948,
-      "first_diff": "bar 93 (2020-04-05 ): tradingview=0.0 ours=-208.3441356"
-    },
-    "openpinescript/v5/harness_exits.BTCUSDT.1D.log::opentrades": {
-      "reason": "strategy broker fill timing differs; PYNE holds a position when TradingView is flat",
-      "compared": 2474,
-      "mismatches": 91,
-      "nan_mismatches": 0,
-      "first_tv": 0,
-      "first_ours": 0,
-      "worst_rel": 1.0,
-      "first_diff": "bar 92 (2020-04-04 ): tradingview=0.0 ours=1.0"
-    },
-    "openpinescript/v5/harness_exits.BTCUSDT.1D.log::position_size": {
-      "reason": "strategy broker fill timing differs; PYNE holds a position when TradingView is flat",
-      "compared": 2474,
-      "mismatches": 91,
-      "nan_mismatches": 0,
-      "first_tv": 0,
-      "first_ours": 0,
-      "worst_rel": 1.0,
-      "first_diff": "bar 92 (2020-04-04 ): tradingview=0.0 ours=1.0"
-    },
     "openpinescript/v5/harness_loopargs.BTCUSDT.1D.log::published_pattern": {
       "reason": "manual loop sum vs ta.sma(close[2], 10) * 3 differs on every bar",
       "compared": 2175,
@@ -132,76 +22,6 @@
       "first_ours": 11,
       "worst_rel": 0.042002548052967326,
       "first_diff": "bar 300 (2020-10-29 ): tradingview=38067.01074992 ours=38649.71798688"
-    },
-    "openpinescript/v5/harness_state.BTCUSDT.1D.log::fixnan_up_close": {
-      "reason": "fixnan returns 0 when the source is na; TradingView carries the last non-na close",
-      "compared": 2475,
-      "mismatches": 1226,
-      "nan_mismatches": 0,
-      "first_tv": 0,
-      "first_ours": 0,
-      "worst_rel": 1.0,
-      "first_diff": "bar 2 (2020-01-05 ): tradingview=7330.0231982 ours=0.0"
-    },
-    "openpinescript/v5/harness_state.BTCUSDT.1D.log::sar": {
-      "reason": "ta.sar seed/trend state differs from TradingView (first bar na, 892 bars differ)",
-      "compared": 2474,
-      "mismatches": 892,
-      "nan_mismatches": 1,
-      "first_tv": 1,
-      "first_ours": 0,
-      "worst_rel": 0.2873427813992742,
-      "first_diff": "bar 0 (2020-01-03 ): tradingview='na' ours=6946.6297951"
-    },
-    "openpinescript/v5/harness_state.BTCUSDT.1D.log::vwap_hlc3": {
-      "reason": "ta.vwap is cumulative; TradingView resets on the session/anchor",
-      "compared": 2475,
-      "mismatches": 2474,
-      "nan_mismatches": 0,
-      "first_tv": 0,
-      "first_ours": 0,
-      "worst_rel": 0.6966608348741822,
-      "first_diff": "bar 1 (2020-01-04 ): tradingview=7354.2936982 ours=7266.8462268997"
-    },
-    "openpinescript/v5/harness_strategy.BTCUSDT.1D.log::bars_since_entry_signal": {
-      "reason": "ta.barssince returns 0 before the first signal; TradingView returns na until bar 92",
-      "compared": 2382,
-      "mismatches": 0,
-      "nan_mismatches": 92,
-      "first_tv": 92,
-      "first_ours": 0,
-      "worst_rel": 0.0,
-      "first_diff": "bar 0 (2020-01-03 ): tradingview='na' ours=0.0"
-    },
-    "openpinescript/v5/harness_strategy.BTCUSDT.1D.log::equity": {
-      "reason": "strategy() default initial_capital is 100000; TradingView default is 1000000",
-      "compared": 2474,
-      "mismatches": 2474,
-      "nan_mismatches": 0,
-      "first_tv": 0,
-      "first_ours": 0,
-      "worst_rel": 0.9002079793387783,
-      "first_diff": "bar 0 (2020-01-03 ): tradingview=1000000.0 ours=100000.0"
-    },
-    "openpinescript/v5/harness_strategy.BTCUSDT.1D.log::opentrades": {
-      "reason": "strategy broker fill timing differs; PYNE holds a position when TradingView is flat",
-      "compared": 2474,
-      "mismatches": 97,
-      "nan_mismatches": 0,
-      "first_tv": 0,
-      "first_ours": 0,
-      "worst_rel": 1.0,
-      "first_diff": "bar 92 (2020-04-04 ): tradingview=0.0 ours=1.0"
-    },
-    "openpinescript/v5/harness_strategy.BTCUSDT.1D.log::position_size": {
-      "reason": "strategy broker fill timing differs; PYNE holds a position when TradingView is flat",
-      "compared": 2474,
-      "mismatches": 97,
-      "nan_mismatches": 0,
-      "first_tv": 0,
-      "first_ours": 0,
-      "worst_rel": 1.0,
-      "first_diff": "bar 92 (2020-04-04 ): tradingview=0.0 ours=1.0"
     }
   }
 }

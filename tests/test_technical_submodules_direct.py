@@ -498,7 +498,7 @@ class TestPatterns:
     def test_sar(self, ev: NodeLiteralEvaluator) -> None:
         high, low, _close, _vol = _ohlcv()
         out = _Pat._builtin_ta_sar(ev, [high, low, 0.02, 0.02, 0.2])
-        assert isinstance(out, list) and len(out) == len(high) and out[0] == pytest.approx(90.0)
+        assert isinstance(out, list) and len(out) == len(high) and out[0] is None
 
     def test_engulfing_hammer(self, ev: NodeLiteralEvaluator) -> None:
         high, low, close, _vol = _ohlcv()

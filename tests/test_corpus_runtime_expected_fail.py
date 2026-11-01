@@ -21,35 +21,14 @@
 
 from __future__ import annotations
 
-import importlib.util
-import sys
-
 from pathlib import Path
+
+from pynescript.util.corpus_runtime import EXPECTED_FAIL_RELS
+from pynescript.util.corpus_runtime import corpus_rel_path
+from pynescript.util.corpus_runtime import is_expected_fail
 
 
 _ROOT = Path(__file__).resolve().parents[1]
-_SCRIPT = _ROOT / "scripts" / "corpus_run_runtime.py"
-
-
-def _load_corpus_run_runtime():
-    """Load scripts/corpus_run_runtime.py without requiring package install."""
-    if str(_ROOT) not in sys.path:
-        sys.path.insert(0, str(_ROOT))
-    if str(_ROOT / "src") not in sys.path:
-        sys.path.insert(0, str(_ROOT / "src"))
-    name = "corpus_run_runtime_under_test"
-    spec = importlib.util.spec_from_file_location(name, _SCRIPT)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[name] = mod
-    spec.loader.exec_module(mod)
-    return mod
-
-
-_mod = _load_corpus_run_runtime()
-EXPECTED_FAIL_RELS = _mod.EXPECTED_FAIL_RELS
-is_expected_fail = _mod.is_expected_fail
-corpus_rel_path = _mod.corpus_rel_path
 
 
 # Docs demos added for honest residual classification (not soft-OK).

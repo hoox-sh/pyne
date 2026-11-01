@@ -101,20 +101,36 @@ entry has a real reason.
 
 ## Current baseline
 
-After the first parity pass: **93 / 112 columns pass, 19 are documented
-divergences, 0 are unclassified.** Bands, builtins, core, and loops are fully green
-(including population stdev/variance, `ta.bb` tuple order, TSI ratio scale, and
-the ATR/MFI/WPR/percentrank/highestbars warm-ups). The remaining gaps:
+After the second parity pass: **111 / 112 columns pass, 1 is a documented
+divergence, 0 are unclassified.** Everything is green except one deliberately
+ambiguous loop-series probe. Fixed in this pass:
+
+- `ta.stdev` / `ta.variance` population `ddof=0`; `ta.bb` returns
+  `(middle, upper, lower)`; `ta.tsi` returns the raw `[-1, 1]` ratio.
+- Warm-up `na` semantics for `ta.macd` / `ta.wpr` / `ta.mfi` / `ta.atr` /
+  `ta.highestbars` / `ta.lowestbars` / `ta.percentrank` / `ta.barssince`
+  (and `ta.tr(true)` seeding bar 0 with `high - low`).
+- Pine v5 eager `and` / `or` (both operands evaluate so series state inside
+  the right side stays continuous); incremental TA state is keyed by the
+  **AST call site**, so conditional branches no longer shift later calls.
+- `na()` unwraps series; `fixnan` carries the last non-`na` sample forward
+  (leading `na` stays `na`); `math.max` / `math.min` propagate `na`.
+- `ta.sar` matches TradingView exactly (seed at bar 1, EP/AF updated before
+  the reversal check, reversal against the unclamped SAR, two-bar clamp).
+- `ta.vwap` anchors to the daily session by default.
+- Strategy broker: market orders fill at the **next bar's open**, an order
+  never fills on its placement bar, `strategy.entry` uses target-position
+  (reversal) semantics, and all fills/brackets are quoted on the
+  `syminfo.mintick` grid (market nearest; exit brackets rounded outward).
+- `strategy()` default `initial_capital` is 1,000,000 (reference Pine).
+
+The remaining gap:
 
 | Area | Columns | Root cause |
 | --- | --- | --- |
-| Strategy broker | `position_size`, `opentrades`, `closedtrades`, `equity`, `netprofit`, trade-price queries | Fill timing/path, trade ledger, and `initial_capital` default (100,000 vs 1,000,000) |
-| Control flow | `barssince_cross_up`, `valuewhen_cross_up`, `probe_and_shortcircuit` | Cross/`barssince`/`valuewhen` semantics and lazy `and`/`or` call-site state |
-| Series unwrapping | `fixnan_up_close`, `entry_avg_price` | `fixnan` / `na()` see the `PineSeries` wrapper instead of its current sample |
-| Stateful TA | `sar`, `vwap_hlc3` | SAR seed/trend state differs; VWAP is cumulative instead of session-anchored |
-| Loop/history | `published_pattern` | `close[2]` inside a loop differs from the built-in SMA |
+| Loop/history | `published_pattern` | One `ta.sma` call site reached 3× per bar with different sources; TradingView's loop-series semantics match none of the three readings the harness probes (first reach / last reach / shared state) |
 
-These are real findings, not a claim that PYNE is TradingView-certified. The
+This is a real finding, not a claim that PYNE is TradingView-certified. The
 baseline exists so CI can stay green while the list is worked down; run
 `--strict` to see the full red set.
 

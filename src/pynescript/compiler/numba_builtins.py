@@ -475,6 +475,23 @@ def numba_nz(val, replacement):
     return _numba_nz_jit(fv, fr)
 
 
+@numba.njit(cache=True)
+def numba_fixnan(arr, i):
+    """Last non-NaN sample at or before ``i`` (reference Pine ``fixnan``).
+
+    Pine carries the last real value forward and leaves a leading ``na`` run
+    as ``na`` (it does not seed with 0). A backward scan keeps rewind / replay
+    correct without extra per-call-site state.
+    """
+    if i < 0:
+        return np.nan
+    for j in range(i, -1, -1):
+        v = arr[j]
+        if not np.isnan(v):
+            return v
+    return np.nan
+
+
 _register_njit_overload(numba_nz, _numba_nz_jit)
 
 
@@ -1003,45 +1020,50 @@ def numba_vwap(src, vol, i):
 
 @numba.njit(cache=True)
 def numba_sar(high, low, start, increment, maximum, i):
-    """Simple Parabolic SAR rebuilt from bar 0..i (O(i))."""
+    """Parabolic SAR rebuilt from bar 0..i (reference Pine / TradingView).
+
+    Bar 0 is na; bar 1 emits the seed (``low[0]``); from bar 2 on, Wilder's
+    step with EP/AF updated before the reversal check, the reversal taken
+    against the unclamped SAR (``sar = ep``), and the clamp to the previous
+    two bars' extremes on non-reversal bars.
+    """
     if i < 0 or len(high) == 0:
         return np.nan
-    n = i + 1
-    if n < 1:
+    if i == 0:
         return np.nan
-    # Seed: long trend, SAR = first low, EP = first high
     sar = low[0]
     ep = high[0]
     af = start
     trend = 1  # 1 = long, -1 = short
-    if n == 1:
+    if i == 1:
         return sar
-    for idx in range(1, n):
-        hi = high[idx]
-        lo = low[idx]
+    for idx in range(2, i + 1):
         prev = sar
+        sar = prev + af * (ep - prev)
         if trend == 1:
-            sar = prev + af * (ep - prev)
-            if hi > ep:
-                ep = hi
+            if high[idx] > ep:
+                ep = high[idx]
                 af = af + increment
                 af = min(af, maximum)
-            if sar > lo:
+            if low[idx] < sar:
                 trend = -1
                 sar = ep
-                ep = lo
+                ep = low[idx]
                 af = start
+            else:
+                sar = min(sar, low[idx - 1], low[idx - 2])
         else:
-            sar = prev - af * (prev - ep)
-            if lo < ep:
-                ep = lo
+            if low[idx] < ep:
+                ep = low[idx]
                 af = af + increment
                 af = min(af, maximum)
-            if sar < hi:
+            if high[idx] > sar:
                 trend = 1
                 sar = ep
-                ep = hi
+                ep = high[idx]
                 af = start
+            else:
+                sar = max(sar, high[idx - 1], high[idx - 2])
     return sar
 
 
@@ -4618,7 +4640,12 @@ def numba_linreg_inc(arr, length, offset, i, st):
 
 @numba.njit(cache=True)
 def numba_sar_inc(high, low, start, increment, maximum, i, st):
-    """Incremental Parabolic SAR. ``st``: [sar, ep, af, trend, last_i]."""
+    """Incremental Parabolic SAR. ``st``: [sar, ep, af, trend, last_i, seen, l1, l2, h1, h2].
+
+    Reference Pine / TradingView: the first bar seeds (``na`` output), the
+    second emits the seed value, from the third on Wilder's step. See
+    :func:`numba_sar` for the clamp / reversal ordering.
+    """
     if i < 0 or len(high) == 0:
         return np.nan
     if np.isnan(st[4]):
@@ -4627,62 +4654,81 @@ def numba_sar_inc(high, low, start, increment, maximum, i, st):
         last = int(st[4])
     if i < last:
         last = -1
-        st[0] = np.nan
-        st[1] = np.nan
-        st[2] = np.nan
-        st[3] = np.nan
+        for k in range(6):
+            st[k] = np.nan
 
     if last < 0:
-        sar = low[0]
-        ep = high[0]
-        af = start
-        trend = 1.0
-        last = 0
-        st[0] = sar
-        st[1] = ep
-        st[2] = af
-        st[3] = trend
+        st[0] = low[0]
+        st[1] = high[0]
+        st[2] = start
+        st[3] = 1.0
         st[4] = 0.0
+        st[5] = 1.0
+        st[6] = low[0]
+        st[7] = low[0]
+        st[8] = high[0]
+        st[9] = high[0]
+        last = 0
         if i == 0:
-            return sar
-    else:
-        sar = st[0]
-        ep = st[1]
-        af = st[2]
-        trend = st[3]
+            return np.nan
+    sar = st[0]
+    ep = st[1]
+    af = st[2]
+    trend = st[3]
+    seen = int(st[5])
 
     for idx in range(last + 1, i + 1):
         hi = high[idx]
         lo = low[idx]
+        if seen < 2:
+            # Second valid bar emits the seed value itself (no step), but the
+            # clamp window still advances so the next step sees it.
+            seen = 2
+            st[6] = st[7]
+            st[7] = lo
+            st[8] = st[9]
+            st[9] = hi
+            st[4] = float(idx)
+            st[5] = 2.0
+            continue
         prev = sar
+        sar = prev + af * (ep - prev)
         if trend > 0.0:
-            sar = prev + af * (ep - prev)
             if hi > ep:
                 ep = hi
                 af = af + increment
                 af = min(af, maximum)
-            if sar > lo:
+            if lo < sar:
                 trend = -1.0
                 sar = ep
                 ep = lo
                 af = start
+            else:
+                sar = min(sar, st[6], st[7])
         else:
-            sar = prev - af * (prev - ep)
             if lo < ep:
                 ep = lo
                 af = af + increment
                 af = min(af, maximum)
-            if sar < hi:
+            if hi > sar:
                 trend = 1.0
                 sar = ep
                 ep = hi
                 af = start
+            else:
+                sar = max(sar, st[8], st[9])
+        st[6] = st[7]
+        st[7] = lo
+        st[8] = st[9]
+        st[9] = hi
+        seen += 1
 
     st[0] = sar
     st[1] = ep
     st[2] = af
     st[3] = trend
     st[4] = float(i)
+    st[5] = float(seen)
     return sar
 
 

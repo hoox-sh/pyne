@@ -94,6 +94,7 @@ class TestIntradayLossTypeParsing:
 class TestInterpretEnforcement:
     def test_percent_loss_blocks_entry(self) -> None:
         e, m = _evaluator()
+        m["strategy"](["T"], {"initial_capital": 100_000.0})
         m["strategy.risk.max_intraday_loss"]([10.0])
         e._strategy_state._day_pnl = -15_000.0  # 15% of 100k
         m["strategy.entry"](["L", "long", 1.0])
@@ -106,6 +107,8 @@ class TestInterpretEnforcement:
         m["strategy.risk.max_intraday_loss"]([10.0])
         e._strategy_state._day_pnl = -5_000.0  # 5% < 10%
         m["strategy.entry"](["L", "long", 1.0])
+        e.context["bar_index"] = 1
+        e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
         assert e._strategy_state.position_direction == "long"
 
     def test_cash_loss_blocks_entry(self) -> None:
@@ -121,6 +124,8 @@ class TestInterpretEnforcement:
         m["strategy.risk.max_intraday_loss"]([500.0, "cash"])
         e._strategy_state._day_pnl = -400.0
         m["strategy.entry"](["L", "long", 1.0])
+        e.context["bar_index"] = 1
+        e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
         assert e._strategy_state.position_direction == "long"
 
     def test_fills_cap_blocks_and_rolls_next_day(self) -> None:
@@ -135,7 +140,10 @@ class TestInterpretEnforcement:
         assert _risk_blocked(e)
         # Cap is day-scoped: next day bucket admits entries again.
         e.context["time"] = _DAY_MS + 86_400_000
+        e.context["bar_index"] = 1
         m["strategy.entry"](["L2", "long", 1.0])
+        e.context["bar_index"] = 2
+        e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
         assert st.position_direction == "long"
         assert st._day_filled_orders == 1
 
@@ -144,8 +152,12 @@ class TestInterpretEnforcement:
         m["strategy.risk.max_intraday_filled_orders"]([2])
         st = e._strategy_state
         m["strategy.entry"](["L", "long", 1.0])
+        e.context["bar_index"] = 1
+        e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
         assert st._day_filled_orders == 1
         m["strategy.close"](["L"])
+        e.context["bar_index"] = 2
+        e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
         assert st._day_filled_orders == 2
         m["strategy.entry"](["L2", "long", 1.0])
         assert st.position_direction == "flat"
@@ -158,6 +170,7 @@ class TestInterpretEnforcement:
         assert e._strategy_state.position_direction == "flat"
         assert "P" in e._strategy_state.pending_orders
         e._strategy_state._day_pnl = -600.0
+        e.context["bar_index"] = 1
         e.process_pending_orders(open_=100.0, high=130.0, low=100.0, close=125.0)
         assert e._strategy_state.position_direction == "flat"
         assert "P" not in e._strategy_state.pending_orders
@@ -167,12 +180,15 @@ class TestInterpretEnforcement:
         e, m = _evaluator()
         m["strategy.risk.max_intraday_loss"]([500.0, "cash"])
         m["strategy.entry"](["S", "short", 5.0])
+        e.context["bar_index"] = 1
+        e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
         m["strategy.entry"](["L", "long", 10.0], {"limit": 80.0})
         st = e._strategy_state
         assert st.position_direction == "short"
         assert "L" in st.pending_orders
         st._last_trade_day = st._day_bucket(_DAY_MS)
         st._day_pnl = -600.0
+        e.context["bar_index"] = 2
         e.process_pending_orders(open_=100.0, high=100.0, low=70.0, close=80.0)
         assert st.position_direction == "flat"
         assert _risk_blocked(e)
@@ -210,6 +226,7 @@ class TestCompileBrokerParity:
         b.risk_max_intraday_loss(10.0)
         b._day_pnl = -500.0  # 5% < 10%
         b.entry("L", "long", 1.0)
+        b.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
         assert b.position_size == 1.0
 
     def test_pending_entry_fill_blocked_after_halt(self) -> None:
@@ -234,37 +251,44 @@ class TestCompileBrokerParity:
         b.begin_bar(0, 100.0, 100.0, 100.0, 100.0, bar_time=_DAY_MS)
         b.risk_max_intraday_loss(500.0, "cash")
         b.entry("S", "short", 5.0)
+        b.begin_bar(1, 100.0, 100.0, 100.0, 100.0, bar_time=_DAY_MS + 60_000)
         assert b.position_size == -5.0
         b.entry("L", "long", 10.0, limit=80.0)
         assert "L" in b.pending_orders
         b._last_trade_day = b._day_bucket(_DAY_MS)
         b._day_pnl = -600.0
-        b.begin_bar(1, 100.0, 100.0, 70.0, 80.0, bar_time=_DAY_MS + 60_000)
+        b.begin_bar(2, 100.0, 100.0, 70.0, 80.0, bar_time=_DAY_MS + 120_000)
         assert b.position_size == 0.0
         assert any(e.get("comment") == "risk_blocked" for e in b.events)
 
 
 def _losing_bars() -> list[dict[str, float | int]]:
-    # Day 0: enter 100 @ 100. Next UTC day: exit @ 80 (-$2000 = -2% of 100k).
-    # Later bars stay on that close day so the 1% cap still blocks re-entry
-    # (halt resumes only on the next calendar day — see D-02 day-resume tests).
-    closes = [100.0, 80.0, 80.0, 80.0]
+    # Day 0: entry placed (fills at bar 1's open = 100). Next UTC day the
+    # close fills at bar 2's open = 80 (-$2000 = -2% of 100k). Later bars
+    # stay on that close day so the 1% cap still blocks re-entry (halt
+    # resumes only on the next calendar day — see D-02 day-resume tests).
+    ohlcv = [
+        (100.0, 100.0, 100.0, 100.0),
+        (100.0, 100.0, 80.0, 80.0),
+        (80.0, 80.0, 80.0, 80.0),
+        (80.0, 80.0, 80.0, 80.0),
+    ]
     times = [_DAY_MS, _DAY_MS + 86_400_000, _DAY_MS + 86_400_000 + 3_600_000, _DAY_MS + 86_400_000 + 7_200_000]
     return [
         {
             "time": times[i],
-            "open": c,
-            "high": c,
-            "low": c,
+            "open": o,
+            "high": h,
+            "low": low,
             "close": c,
             "volume": 1000.0,
         }
-        for i, c in enumerate(closes)
+        for i, (o, h, low, c) in enumerate(ohlcv)
     ]
 
 
 _LOSING_SRC = """//@version=6
-strategy("riskday", overlay=true)
+strategy("riskday", overlay=true, initial_capital=100000)
 strategy.risk.max_intraday_loss(1.0)
 if bar_index == 0
     strategy.entry("L", strategy.long, 100)
@@ -286,9 +310,10 @@ def test_losing_strategy_blocked_dual_host() -> None:
     pi = [float(v) for v in ri["series"]["ps"]]
     pc = [float(v) for v in rc["series"]["ps"]]
     assert pi == pc
-    # Entered day 0, flat after day-1 close, never re-enters.
-    assert pi[0] == 100.0
-    assert pi[1] == 0.0
+    # Entry fills at bar 1's open (100); the day-1 close fills at bar 2's
+    # open (80); same-day re-entry stays blocked.
+    assert pi[0] == 0.0
+    assert pi[1] == 100.0
     assert pi[2] == 0.0
     assert pi[3] == 0.0
 
@@ -312,18 +337,23 @@ def test_strategy_cash_identifier_dual_host() -> None:
     assert "risk_max_intraday_loss" in code
     assert "__strategy.cash" not in code.split("risk_max_intraday_loss", 1)[1][:120]
     assert "'cash'" in code or '"cash"' in code
-    closes = [100.0, 50.0, 50.0, 50.0]
+    ohlcv = [
+        (100.0, 100.0, 100.0, 100.0),
+        (100.0, 100.0, 50.0, 50.0),
+        (50.0, 50.0, 50.0, 50.0),
+        (50.0, 50.0, 50.0, 50.0),
+    ]
     times = [_DAY_MS, _DAY_MS + 86_400_000, _DAY_MS + 86_400_000 + 3_600_000, _DAY_MS + 86_400_000 + 7_200_000]
     bars = [
         {
             "time": times[i],
-            "open": c,
-            "high": c,
-            "low": c,
+            "open": o,
+            "high": h,
+            "low": low,
             "close": c,
             "volume": 1000.0,
         }
-        for i, c in enumerate(closes)
+        for i, (o, h, low, c) in enumerate(ohlcv)
     ]
     ri = Runtime(symbol="RISK").run(_CASH_ID_SRC, bars, mode="interpret")
     assert "error" not in ri, ri.get("error")
@@ -332,8 +362,8 @@ def test_strategy_cash_identifier_dual_host() -> None:
     pi = [float(v) for v in ri["series"]["ps"]]
     pc = [float(v) for v in rc["series"]["ps"]]
     assert pi == pc
-    assert pi[0] == 10.0
-    assert pi[1] == 0.0
+    assert pi[0] == 0.0
+    assert pi[1] == 10.0
     assert pi[2] == 0.0
     assert pi[3] == 0.0
 
@@ -347,7 +377,7 @@ if bar_index == 1
     strategy.close("L")
 if bar_index == 2
     strategy.entry("L2", strategy.long, 1)
-if bar_index == 3
+if bar_index == 4
     strategy.entry("L3", strategy.long, 1)
 plot(strategy.position_size, "ps")
 """
@@ -359,14 +389,14 @@ def test_fills_cap_rolls_next_day_dual_host() -> None:
     assert "time_arr[__bar_idx]" in code
     bars = [
         {
-            "time": _DAY_MS + (0 if i < 3 else 86_400_000) + i * 60_000,
+            "time": _DAY_MS + (0 if i < 4 else 86_400_000) + i * 60_000,
             "open": 100.0,
             "high": 100.0,
             "low": 100.0,
             "close": 100.0,
             "volume": 1000.0,
         }
-        for i in range(4)
+        for i in range(6)
     ]
     ri = Runtime(symbol="RISK").run(_FILLS_CAP_SRC, bars, mode="interpret")
     assert "error" not in ri, ri.get("error")
@@ -375,10 +405,15 @@ def test_fills_cap_rolls_next_day_dual_host() -> None:
     pi = [float(v) for v in ri["series"]["ps"]]
     pc = [float(v) for v in rc["series"]["ps"]]
     assert pi == pc
-    assert pi[0] == 1.0
-    assert pi[1] == 0.0
+    # Bar 0 places the entry (fills bar 1 open); bar 1 places the close
+    # (fills bar 2 open); bar 2/3 entries hit the same-day fill cap; the
+    # bar-4 entry (next UTC day) fills at bar 5's open.
+    assert pi[0] == 0.0
+    assert pi[1] == 1.0
     assert pi[2] == 0.0
-    assert pi[3] == 1.0
+    assert pi[3] == 0.0
+    assert pi[4] == 0.0
+    assert pi[5] == 1.0
 
 
 _PENDING_RISK_SRC = """//@version=6
@@ -397,8 +432,9 @@ def test_pending_limit_blocked_after_intraday_loss_dual_host() -> None:
     """Pending stop placed before the halt must not fill after the loss."""
     bars = [
         {"time": _DAY_MS, "open": 100.0, "high": 100.0, "low": 100.0, "close": 100.0, "volume": 1000.0},
-        {"time": _DAY_MS + 60_000, "open": 50.0, "high": 50.0, "low": 50.0, "close": 50.0, "volume": 1000.0},
-        {"time": _DAY_MS + 120_000, "open": 120.0, "high": 125.0, "low": 115.0, "close": 122.0, "volume": 1000.0},
+        {"time": _DAY_MS + 60_000, "open": 100.0, "high": 100.0, "low": 100.0, "close": 100.0, "volume": 1000.0},
+        {"time": _DAY_MS + 120_000, "open": 50.0, "high": 50.0, "low": 50.0, "close": 50.0, "volume": 1000.0},
+        {"time": _DAY_MS + 180_000, "open": 100.0, "high": 125.0, "low": 95.0, "close": 122.0, "volume": 1000.0},
     ]
     ri = Runtime(symbol="RISK").run(_PENDING_RISK_SRC, bars, mode="interpret")
     assert "error" not in ri, ri.get("error")
@@ -407,9 +443,13 @@ def test_pending_limit_blocked_after_intraday_loss_dual_host() -> None:
     pi = [float(v) for v in ri["series"]["ps"]]
     pc = [float(v) for v in rc["series"]["ps"]]
     assert pi == pc
-    assert pi[0] == 20.0
-    assert pi[1] == 0.0
+    # Bar 0 places both orders; bar 1 fills the market entry (open 100);
+    # bar 2 fills the close at the open (50) → loss trips the cap; the
+    # pending stop tries to fill on bar 3 and is rejected (risk_blocked).
+    assert pi[0] == 0.0
+    assert pi[1] == 20.0
     assert pi[2] == 0.0
+    assert pi[3] == 0.0
     comments = [str(e.get("comment") or "") for e in (ri.get("events") or [])]
     comments += [str(e.get("comment") or "") for e in (rc.get("events") or [])]
     assert any("risk_blocked" in c for c in comments)

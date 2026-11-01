@@ -179,6 +179,9 @@ class PendingOrder:
     trail_offset: float | None = None
     trail_activation: float | None = None
     trail_active: bool = False
+    # Bar index the order was placed on. Reference Pine: an order placed
+    # during bar N becomes active for bar N+1 (never fills on its own bar).
+    placed_bar: int = -1
 
     @property
     def remaining(self) -> float:
@@ -257,7 +260,7 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
 
     def __init__(
         self,
-        initial_capital: float = 100_000.0,
+        initial_capital: float = 1_000_000.0,
         commission_value: float = 0.0,
         commission_type: str = "percent",
         slippage_ticks: int = 0,
@@ -512,6 +515,7 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
         c: float,
     ) -> list[str]:
         fully: list[str] = []
+        cur_bar = int(getattr(self, "_bar_index", -1))
         # Snapshot keys — OCA may delete siblings mid-loop
         for oid in list(self.pending_orders.keys()):
             order = self.pending_orders.get(oid)
@@ -520,6 +524,10 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
             if order.remaining <= 0:
                 self.pending_orders.pop(oid, None)
                 fully.append(oid)
+                continue
+            # Reference Pine: an order placed during bar N becomes active for
+            # bar N+1 — never fills on its own placement bar.
+            if int(getattr(order, "placed_bar", -1)) == cur_bar:
                 continue
             # Trail: ratchet stop from favorable extreme, then test fill
             if order.is_trail:
@@ -628,7 +636,9 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
         ot = order.order_type
         d = order.direction
         if ot == "market":
-            return close
+            # Reference Pine: a market order placed during bar N fills at the
+            # open of bar N+1 (``_process_pending_ohlc`` runs at bar start).
+            return open_
         if ot == "limit":
             lim = order.limit_price
             if lim is None:
@@ -658,12 +668,47 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
             return None
         return None
 
+    def _round_tick(self, price: float, mode: str = "nearest") -> float:
+        """Round a price to ``mintick`` (reference Pine fill prices).
+
+        Modes: ``nearest`` (half away from zero — market fills), ``up`` (ceil),
+        ``down`` (floor). Dual-host aligned with the interpret broker.
+        """
+        px = float(price)
+        tick = float(self.mintick or 0.01)
+        if tick <= 0 or not math.isfinite(px):
+            return px
+        scaled = px / tick
+        if mode == "up":
+            r = math.ceil(scaled - 1e-9)
+        elif mode == "down":
+            r = math.floor(scaled + 1e-9)
+        else:
+            r = math.floor(scaled + 0.5) if scaled >= 0 else math.ceil(scaled - 0.5)
+        return r * tick
+
+    def _round_order_price(self, price: float | None) -> float | None:
+        """Round a resting order price outward (away from the current mark)."""
+        if price is None:
+            return None
+        px = float(price)
+        if not math.isfinite(px):
+            return px
+        mark = float(self._mark)
+        if px > mark:
+            return self._round_tick(px, "up")
+        if px < mark:
+            return self._round_tick(px, "down")
+        return self._round_tick(px, "nearest")
+
     def _apply_fill(self, order: PendingOrder, fill_price: float, fill_qty: float) -> None:
         fill_qty = min(fill_qty, order.remaining)
         if fill_qty <= 0:
             return
         d = order.direction
         px = self._slip(float(fill_price), d)
+        # Reference Pine quotes fills on the tick grid (nearest tick).
+        px = self._round_tick(px, "nearest")
         fe = order.from_entry
         if order.is_entry:
             covering = (d == "long" and self.position_size < 0) or (d == "short" and self.position_size > 0)
@@ -681,10 +726,13 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
         order.filled_qty += fill_qty
         # Closing opposite / reducing — honor from_entry when set (exit brackets)
         if not order.is_entry:
+            # Market-close orders carry a ``:close`` key suffix; the recorded
+            # exit id is the script-level id (strip the suffix).
+            close_oid = order.order_id.removesuffix(":close")
             # Force close in this direction (sell covers long, buy covers short)
             if d == "short" and self.position_size > 0:
                 self.close(
-                    id=order.order_id,
+                    id=close_oid,
                     qty=fill_qty,
                     price=px,
                     comment=order.comment,
@@ -692,7 +740,7 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
                 )
             elif d == "long" and self.position_size < 0:
                 self.close(
-                    id=order.order_id,
+                    id=close_oid,
                     qty=fill_qty,
                     price=px,
                     comment=order.comment,
@@ -703,11 +751,15 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
         else:
             covering = (d == "long" and self.position_size < 0) or (d == "short" and self.position_size > 0)
             if covering:
-                cover = min(fill_qty, abs(float(self.position_size)))
-                leftover = fill_qty - cover
-                if cover > 0:
-                    self.close(id=order.order_id, qty=cover, price=px, comment="reverse")
-                if leftover > 1e-12:
+                if order.is_entry:
+                    # Target-position semantics (reference Pine strategy.entry):
+                    # close the opposite position whole, open the entry qty.
+                    self.close(
+                        id=order.order_id,
+                        qty=abs(float(self.position_size)),
+                        price=px,
+                        comment="reverse",
+                    )
                     if not self._risk_allows_entry(d):
                         self._emit(
                             "order",
@@ -719,7 +771,25 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
                         )
                         self.pending_orders.pop(order.order_id, None)
                     else:
-                        self._open_or_add(d, leftover, px, order.order_id, order.comment)
+                        self._open_or_add(d, fill_qty, px, order.order_id, order.comment)
+                else:
+                    cover = min(fill_qty, abs(float(self.position_size)))
+                    leftover = fill_qty - cover
+                    if cover > 0:
+                        self.close(id=order.order_id, qty=cover, price=px, comment="reverse")
+                    if leftover > 1e-12:
+                        if not self._risk_allows_entry(d):
+                            self._emit(
+                                "order",
+                                id=order.order_id,
+                                direction=d,
+                                qty=0.0,
+                                order_type="market",
+                                comment="risk_blocked",
+                            )
+                            self.pending_orders.pop(order.order_id, None)
+                        else:
+                            self._open_or_add(d, leftover, px, order.order_id, order.comment)
             else:
                 self._open_or_add(d, fill_qty, px, order.order_id, order.comment)
 
@@ -1427,27 +1497,53 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
                 comment="invalid_qty",
             )
             return
-        # Market fast path: no limit/stop → skip classify + opt_float.
+        # Market fast path → pending: reference Pine fills a market order at
+        # the open of the NEXT bar (never on the placement bar).
         if limit is None and stop is None:
-            px = px_hint
-            if self.slippage_ticks > 0:
-                px = self._slip(px, d)
-            self._open_or_add(d, q, px, str(id), comment, respect_pyramiding=True)
+            # Same-direction entry with pyramiding exhausted is ignored (TV).
+            same_dir = (d == "long" and self.position_size > 0) or (d == "short" and self.position_size < 0)
+            if same_dir:
+                max_entries = int(self.pyramiding) + 1 if self.pyramiding else 1
+                if not (self.pyramiding > 0 and self.open_entry_count < max_entries):
+                    return
+            self.pending_orders[str(id)] = PendingOrder(
+                order_id=str(id),
+                order_type="market",
+                direction=d,
+                quantity=q,
+                limit_price=None,
+                stop_price=None,
+                comment=comment,
+                is_entry=True,
+                placed_bar=int(self._bar_index),
+            )
+            self._emit(
+                "order",
+                id=str(id),
+                direction=d,
+                qty=q,
+                order_type="market",
+                comment=comment,
+            )
             return
 
         ot = self._classify_order_type(limit, stop)
         if ot != "market":
-            # Pending stop/limit entry
+            # Pending stop/limit entry. Order prices are quoted on the tick
+            # grid, rounded outward (away from the mark) per reference Pine.
+            lim_r = self._round_order_price(_opt_float(limit))
+            stop_r = self._round_order_price(_opt_float(stop))
             self.pending_orders[str(id)] = PendingOrder(
                 order_id=str(id),
                 order_type=ot,
                 direction=d,
                 quantity=q,
-                limit_price=_opt_float(limit),
-                stop_price=_opt_float(stop),
+                limit_price=lim_r,
+                stop_price=stop_r,
                 comment=comment,
                 max_fill_per_bar=float(_kwargs.get("max_fill_per_bar") or 0.0),
                 is_entry=True,
+                placed_bar=int(self._bar_index),
             )
             self._emit(
                 "order",
@@ -1455,8 +1551,8 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
                 direction=d,
                 qty=q,
                 order_type=ot if ot == "limit" else "stop",
-                limit=_opt_float(limit),
-                stop=_opt_float(stop),
+                limit=lim_r,
+                stop=stop_r,
                 comment=comment,
             )
             return
@@ -1661,6 +1757,10 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
             close_qty = float(target_size) if status == "missing" else min(abs(float(parsed)), float(target_size))
         if close_qty <= 0 or not math.isfinite(close_qty):
             return
+        # Bracket prices are quoted on the tick grid, rounded outward (away
+        # from the mark) so a bracket triggers no later than the raw level.
+        limit_p = self._round_order_price(limit_p) if limit_p is not None else None
+        stop_p = self._round_order_price(stop_p) if stop_p is not None else None
 
         # Visitor maps strategy.exit id → comment=; use that as the order name
         # when id is omitted so pending keys / placement events match interpret.
@@ -1683,45 +1783,47 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
                 stop=event_stop,
             )
             pending_base = exit_oid if exit_oid is not None else "exit"
-            # Trail always goes through pending + process (ratchet needs bar path).
-            # Fixed stop/limit: fill same-bar when OHLC already touches, else pending.
-            if has_trail:
-                self._place_exit_pending(
-                    base=pending_base,
-                    exit_dir="short" if d == "long" else "long",
-                    close_qty=close_qty,
-                    limit_p=limit_p,
-                    stop_p=stop_p,
-                    comment=comment,
-                    from_entry=from_entry,
-                    trail_offset_px=trail_offset_px,
-                    trail_activation=trail_activation,
-                )
-                self.process_pending_orders()
-                return
-            px = self._exit_fill_price(
+            # Reference Pine: brackets placed during bar N become active for
+            # bar N+1 — always go through the pending book (the placed-bar
+            # gate in ``_process_pending_ohlc`` keeps them inert this bar).
+            self._place_exit_pending(
+                base=pending_base,
+                exit_dir="short" if d == "long" else "long",
+                close_qty=close_qty,
+                limit_p=limit_p,
+                stop_p=stop_p,
+                comment=comment,
+                from_entry=from_entry,
+                trail_offset_px=trail_offset_px,
+                trail_activation=trail_activation,
+            )
+            return
+        elif price is None or _is_na(price):
+            # Reference Pine: a market close placed during bar N fills at the
+            # open of bar N+1 — enqueue a pending market cover order.
+            d_close = "long" if self.position_size < 0 else "short"
+            self.pending_orders[f"{id if id is not None else 'close'}:close"] = PendingOrder(
+                order_id=f"{id if id is not None else 'close'}:close",
+                order_type="market",
+                direction=d_close,
+                quantity=close_qty,
+                limit_price=None,
+                stop_price=None,
+                comment=comment,
+                is_entry=False,
+                from_entry=from_entry,
+                placed_bar=self._bar_index,
+            )
+            self._emit(
+                "close",
+                id=id,
+                qty=close_qty,
+                comment=comment,
+                direction="long" if self.position_size > 0 else "short",
                 limit=limit_p,
                 stop=stop_p,
-                is_long=(d == "long"),
-                is_short=(d == "short"),
             )
-            if px is None:
-                self._place_exit_pending(
-                    base=pending_base,
-                    exit_dir="short" if d == "long" else "long",
-                    close_qty=close_qty,
-                    limit_p=limit_p,
-                    stop_p=stop_p,
-                    comment=comment,
-                    from_entry=from_entry,
-                    trail_offset_px=None,
-                    trail_activation=None,
-                )
-                return
-            # Same-bar fill at touched level — fall through to realize PnL
-        elif price is None or _is_na(price):
-            # Exit slip: long close sells (worse), short cover buys (worse).
-            px = self._slip(self._mark, "short" if d == "long" else "long")
+            return
         else:
             px = float(price)
 
@@ -1784,6 +1886,7 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
                 oca_type="cancel",
                 is_entry=False,
                 from_entry=from_entry,
+                placed_bar=int(self._bar_index),
             )
             # limit+stop → :stop; limit+trail-only → :trail (interpret parity)
             stop_id = f"{base}:stop" if stop_p is not None else f"{base}:trail"
@@ -1800,6 +1903,7 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
                 is_entry=False,
                 from_entry=from_entry,
                 **trail_kw,
+                placed_bar=int(self._bar_index),
             )
         elif limit_p is not None:
             self.pending_orders[base] = PendingOrder(
@@ -1812,6 +1916,7 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
                 comment=cmt,
                 is_entry=False,
                 from_entry=from_entry,
+                placed_bar=int(self._bar_index),
             )
         elif has_trail:
             self.pending_orders[base] = PendingOrder(
@@ -1825,6 +1930,7 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
                 is_entry=False,
                 from_entry=from_entry,
                 **trail_kw,
+                placed_bar=int(self._bar_index),
             )
         else:
             self.pending_orders[base] = PendingOrder(
@@ -1837,6 +1943,7 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
                 comment=cmt,
                 is_entry=False,
                 from_entry=from_entry,
+                placed_bar=int(self._bar_index),
             )
 
     def _realize_close(
@@ -2055,6 +2162,7 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
             oca_type=otype,
             max_fill_per_bar=float(max_fill_per_bar or 0.0),
             is_entry=is_entry,
+            placed_bar=int(self._bar_index),
         )
         self._emit(
             "order",

@@ -217,10 +217,12 @@ if bar_index == 2
     assert "close" in kinds, f"missing close: {kinds}"
 
     # -- bar_index and bar_time are threaded from context -----------------
+    # Reference Pine: the entry placed on bar 0 fills at bar 1's open, so the
+    # entry event carries the fill bar; exit/close placement bars are unchanged.
     entry_ev = next(e for e in events if e["kind"] == "entry")
     exit_ev = next(e for e in events if e["kind"] == "exit")
     close_ev = next(e for e in events if e["kind"] == "close")
-    assert entry_ev["bar_index"] == 0
+    assert entry_ev["bar_index"] == 1
     assert exit_ev["bar_index"] == 1
     assert close_ev["bar_index"] == 2
 

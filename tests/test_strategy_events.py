@@ -38,6 +38,26 @@ from pynescript.ast.evaluator.builtins.base import BuiltinDispatchMixin
 from pynescript.ast.evaluator.events import StrategyEvent
 
 
+def _advance_bar(evaluator: NodeLiteralEvaluator, bar_index: int, price: float = 100.0) -> None:
+    """Simulate the next bar start: pending market orders fill at the open.
+
+    Reference Pine: a market order placed during bar N becomes active for
+    bar N+1 and fills at that bar's open (``process_pending_orders`` runs
+    at bar start, same as the Runtime host).
+    """
+    evaluator.context.update(
+        {
+            "open": price,
+            "high": price,
+            "low": price,
+            "close": price,
+            "bar_index": bar_index,
+            "time": bar_index * 1000,
+        }
+    )
+    evaluator.process_pending_orders()
+
+
 class TestStrategyEventDataclass:
     """Subtask 1.1.1: the frozen StrategyEvent dataclass."""
 
@@ -335,25 +355,27 @@ class TestStrategyHandlersReadKwargs:
 
     def test_strategy_entry_with_kwargs_opens_long_position(self) -> None:
         """``strategy.entry(id=\"L\", direction=\"long\", qty=10)`` should
-        open a long position with qty=10."""
+        open a long position with qty=10 at the next bar's open."""
         ast = helper.parse(
             'strategy.entry(id="L", direction="long", qty=10)',
             mode="eval",
         )
         evaluator = NodeLiteralEvaluator()
         evaluator.visit(ast.body)
+        _advance_bar(evaluator, 1)  # market entry fills at the open
         assert evaluator._strategy_state.position_direction == "long"
         assert evaluator._strategy_state.position_size == 10.0
 
     def test_strategy_entry_with_kwargs_opens_short_position(self) -> None:
         """``strategy.entry(id=\"S\", direction=\"short\", qty=5)`` should
-        open a short position with qty=5."""
+        open a short position with qty=5 at the next bar's open."""
         ast = helper.parse(
             'strategy.entry(id="S", direction="short", qty=5)',
             mode="eval",
         )
         evaluator = NodeLiteralEvaluator()
         evaluator.visit(ast.body)
+        _advance_bar(evaluator, 1)  # market entry fills at the open
         assert evaluator._strategy_state.position_direction == "short"
         assert evaluator._strategy_state.position_size == 5.0
 
@@ -369,6 +391,7 @@ class TestStrategyHandlersReadKwargs:
         )
         evaluator = NodeLiteralEvaluator()
         evaluator.visit(ast.body)
+        _advance_bar(evaluator, 1)  # market entry fills at the open
         assert evaluator._strategy_state.position_direction == "long"
         assert evaluator._strategy_state.position_size == 10.0
 
@@ -400,7 +423,8 @@ class TestStrategyHandlersReadKwargs:
         assert evaluator._strategy_state.entry_price == 101.0
 
     def test_strategy_entry_kwargs_reverse_long_to_short(self) -> None:
-        """A short entry while long should close the long position."""
+        """A short entry while long should close the long position at the
+        next bar's open."""
         evaluator = NodeLiteralEvaluator()
         evaluator._strategy_state.position_direction = "long"
         evaluator._strategy_state.position_size = 5.0
@@ -411,13 +435,14 @@ class TestStrategyHandlersReadKwargs:
             mode="eval",
         )
         evaluator.visit(ast.body)
+        _advance_bar(evaluator, 1)  # reversal fills at the open
 
         assert evaluator._strategy_state.position_direction == "short"
         assert evaluator._strategy_state.position_size == 3.0
 
     def test_strategy_close_with_kwargs_uses_provided_qty(self) -> None:
         """``strategy.close(id=\"x\", qty=2)`` should close only 2
-        units (not the full position)."""
+        units (not the full position) at the next bar's open."""
         evaluator = NodeLiteralEvaluator()
         evaluator._strategy_state.position_direction = "long"
         evaluator._strategy_state.position_size = 10.0
@@ -425,6 +450,7 @@ class TestStrategyHandlersReadKwargs:
 
         ast = helper.parse('strategy.close(id="x", qty=2)', mode="eval")
         evaluator.visit(ast.body)
+        _advance_bar(evaluator, 1)  # pending market cover fills at the open
 
         # Partial close: size drops by 2.
         assert evaluator._strategy_state.position_size == 8.0
@@ -484,7 +510,7 @@ class TestStrategyHandlersReadKwargs:
 
     def test_strategy_close_all_with_kwargs_closes_position(self) -> None:
         """``strategy.close_all()`` should close the current position
-        entirely."""
+        entirely at the next bar's open."""
         evaluator = NodeLiteralEvaluator()
         evaluator._strategy_state.position_direction = "long"
         evaluator._strategy_state.position_size = 5.0
@@ -492,13 +518,14 @@ class TestStrategyHandlersReadKwargs:
 
         ast = helper.parse("strategy.close_all()", mode="eval")
         evaluator.visit(ast.body)
+        _advance_bar(evaluator, 1)  # pending market cover fills at the open
 
         assert evaluator._strategy_state.position_size == 0.0
         assert evaluator._strategy_state.position_direction == "flat"
 
     def test_strategy_exit_with_kwargs_uses_provided_qty(self) -> None:
         """``strategy.exit(id=\"x\", from_entry=\"L\", qty=3)`` should
-        close 3 units of the position."""
+        close 3 units of the position at the next bar's open."""
         evaluator = NodeLiteralEvaluator()
         evaluator._strategy_state.position_direction = "long"
         evaluator._strategy_state.position_size = 10.0
@@ -506,6 +533,7 @@ class TestStrategyHandlersReadKwargs:
 
         ast = helper.parse('strategy.exit(id="x", from_entry="L", qty=3)', mode="eval")
         evaluator.visit(ast.body)
+        _advance_bar(evaluator, 1)  # pending market cover fills at the open
 
         # Partial close: size drops by 3.
         assert evaluator._strategy_state.position_size == 7.0
@@ -517,6 +545,7 @@ class TestStrategyHandlersReadKwargs:
         ast = helper.parse('strategy.entry("L", "long", qty=10)', mode="eval")
         evaluator = NodeLiteralEvaluator()
         evaluator.visit(ast.body)
+        _advance_bar(evaluator, 1)  # market entry fills at the open
         assert evaluator._strategy_state.position_direction == "long"
         assert evaluator._strategy_state.position_size == 10.0
 
@@ -525,7 +554,8 @@ class TestEventCapture:
     """Subtask 1.4: strategy action handlers emit StrategyEvent records."""
 
     def test_entry_emits_event(self) -> None:
-        """strategy.entry() appends a StrategyEvent to the state."""
+        """strategy.entry() emits an ``order`` event at placement and an
+        ``entry`` event when the market order fills at the next bar open."""
         evaluator = NodeLiteralEvaluator()
         ast = helper.parse(
             'strategy.entry(id="L", direction="long", qty=10)',
@@ -534,6 +564,11 @@ class TestEventCapture:
         evaluator.visit(ast.body)
         events = evaluator._strategy_state.drain_events()
         assert len(events) == 1
+        assert events[0].kind == "order"
+        assert events[0].id == "L"
+        _advance_bar(evaluator, 1)  # market entry fills at the open
+        events = evaluator._strategy_state.drain_events()
+        assert [e.kind for e in events] == ["entry", "order"]  # fill + fill notification
         ev = events[0]
         assert ev.kind == "entry"
         assert ev.id == "L"
@@ -574,16 +609,21 @@ class TestEventCapture:
         assert len(second) == 0
 
     def test_multiple_actions_record_multiple_events(self) -> None:
-        """Multiple strategy calls accumulate events."""
+        """Multiple strategy calls accumulate events.
+
+        Placement events arrive immediately (``order`` for the entry,
+        ``close`` for the close intent); fills arrive at the next bar open.
+        """
         evaluator = NodeLiteralEvaluator()
         ast1 = helper.parse('strategy.entry(id="L", direction="long", qty=5)', mode="eval")
         ast2 = helper.parse('strategy.close(id="x", qty=5)', mode="eval")
         evaluator.visit(ast1.body)
         evaluator.visit(ast2.body)
         events = evaluator._strategy_state.drain_events()
-        assert len(events) == 2
-        assert events[0].kind == "entry"
-        assert events[1].kind == "close"
+        assert [e.kind for e in events] == ["order", "close"]
+        _advance_bar(evaluator, 1)  # the market entry fills at the open
+        events += evaluator._strategy_state.drain_events()
+        assert [e.kind for e in events] == ["order", "close", "entry", "order"]
 
     def test_event_carries_bar_index_from_context(self) -> None:
         """Events should carry bar_index from the evaluator context."""
@@ -612,6 +652,7 @@ class TestCrossRequestLeakPrevention:
             mode="eval",
         )
         eval_a.visit(ast_a.body)
+        _advance_bar(eval_a, 1)  # market entry fills at the open
         assert eval_a._strategy_state.position_direction == "long"
         assert eval_a._strategy_state.position_size == 10.0
 
@@ -657,10 +698,12 @@ class TestPerBarEventReset:
     """Subtask 1.6: reset_events() clears the buffer per bar."""
 
     def test_per_bar_event_count(self) -> None:
-        """Same-id ``strategy.entry`` every bar: one fill on bar 0, then no-ops.
+        """Same-id ``strategy.entry`` every bar: the bar-0 order fills on
+        bar 1, later same-id entries are pyramiding-blocked no-ops.
 
-        Default pyramiding is 0, so later same-id market entries do not rewrite
-        the filled position. ``reset_events()`` still clears the buffer each bar.
+        Default pyramiding is 0, so once the position is open the placement
+        gate refuses extra same-id market entries. ``reset_events()`` still
+        clears the buffer each bar.
         """
         evaluator = NodeLiteralEvaluator()
         ast = helper.parse(
@@ -669,11 +712,22 @@ class TestPerBarEventReset:
         )
         num_bars = 5
         for i in range(num_bars):
-            evaluator.context["bar_index"] = i
-            evaluator.context["time"] = i * 1000
+            evaluator.context.update(
+                {
+                    "open": 100.0,
+                    "high": 100.0,
+                    "low": 100.0,
+                    "close": 100.0,
+                    "bar_index": i,
+                    "time": i * 1000,
+                }
+            )
+            if i > 0:
+                # Bar start: pending orders from earlier bars fill at the open.
+                evaluator.process_pending_orders()
             evaluator.visit(ast.body)
             entries = [e for e in evaluator._strategy_state._events if e.kind == "entry"]
-            if i == 0:
+            if i == 1:
                 assert len(entries) == 1
             else:
                 assert len(entries) == 0
@@ -688,7 +742,19 @@ class TestPerBarEventReset:
         evaluator = NodeLiteralEvaluator()
         evaluator._build_builtin_map()["strategy"](["T"], {"pyramiding": 2})
         for i, eid in enumerate(("L1", "L2", "L3")):
-            evaluator.context["bar_index"] = i
+            evaluator.context.update(
+                {
+                    "open": 100.0,
+                    "high": 100.0,
+                    "low": 100.0,
+                    "close": 100.0,
+                    "bar_index": i,
+                    "time": i * 1000,
+                }
+            )
+            if i > 0:
+                # Bar start: pending orders from earlier bars fill at the open.
+                evaluator.process_pending_orders()
             evaluator.visit(
                 helper.parse(
                     f'strategy.entry(id="{eid}", direction="long", qty=1)',
@@ -696,7 +762,9 @@ class TestPerBarEventReset:
                 ).body
             )
 
-        # Without reset, all 3 events should be in the buffer
+        # Without reset, all placement + fill events are in the buffer:
+        # order(L1)@0, entry(L1)@1, order-fill(L1)@1, order(L2)@1,
+        # entry(L2)@2, order-fill(L2)@2, order(L3)@2.
         events = evaluator._strategy_state.drain_events()
-        assert len(events) == 3
-        assert [e.bar_index for e in events] == [0, 1, 2]
+        assert [e.kind for e in events] == ["order", "entry", "order", "order", "entry", "order", "order"]
+        assert [e.bar_index for e in events] == [0, 1, 1, 1, 2, 2, 2]

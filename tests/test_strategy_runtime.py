@@ -36,6 +36,10 @@ def _set_bar(ev: NodeLiteralEvaluator, bar_index: int, close: float, time: int |
     ev.context["high"] = close
     ev.context["low"] = close
     ev.context["time"] = time if time is not None else 1_700_000_000_000 + bar_index * 60_000
+    # Bar-start semantics (same as the Runtime host): pending orders placed on
+    # earlier bars fill at this bar's open.
+    if getattr(ev, "_strategy_state", None) is not None and ev._strategy_state.pending_orders:
+        ev.process_pending_orders()
 
 
 class TestStrategySeriesVariables:
@@ -53,8 +57,10 @@ class TestStrategySeriesVariables:
 
     def test_long_entry_updates_position_and_opentrades(self) -> None:
         ev = NodeLiteralEvaluator()
-        _set_bar(ev, 5, 100.0, time=12345)
+        _set_bar(ev, 4, 100.0)
         _eval_expr(ev, "strategy.entry('L', strategy.long, 2.0)")
+        # Reference Pine: the market entry fills at bar 5's open.
+        _set_bar(ev, 5, 100.0, time=12345)
 
         assert _eval_expr(ev, "strategy.position_size") == 2.0
         assert _eval_expr(ev, "strategy.position_avg_price") == 100.0
@@ -70,6 +76,7 @@ class TestStrategySeriesVariables:
         ev = NodeLiteralEvaluator()
         _set_bar(ev, 0, 50.0)
         _eval_expr(ev, "strategy.entry('S', strategy.short, 3.0)")
+        _set_bar(ev, 1, 50.0)
         assert _eval_expr(ev, "strategy.position_size") == -3.0
         assert _eval_expr(ev, "strategy.opentrades") == 1
 
@@ -77,7 +84,8 @@ class TestStrategySeriesVariables:
         ev = NodeLiteralEvaluator()
         _set_bar(ev, 0, 100.0)
         _eval_expr(ev, "strategy.entry('L', strategy.long, 2.0)")
-        _set_bar(ev, 1, 110.0)
+        _set_bar(ev, 1, 100.0)  # fills at the open (100)
+        _set_bar(ev, 2, 110.0)
         # 2 * (110 - 100) = 20
         assert _eval_expr(ev, "strategy.openprofit") == 20.0
         equity0 = _eval_expr(ev, "strategy.initial_capital")
@@ -87,8 +95,10 @@ class TestStrategySeriesVariables:
         ev = NodeLiteralEvaluator()
         _set_bar(ev, 0, 100.0)
         _eval_expr(ev, "strategy.entry('L', strategy.long, 2.0)")
-        _set_bar(ev, 3, 110.0)
+        _set_bar(ev, 1, 100.0)  # fills at the open (100)
+        _set_bar(ev, 2, 110.0)
         _eval_expr(ev, "strategy.close('L')")
+        _set_bar(ev, 3, 110.0)  # close fills at the open (110)
 
         assert _eval_expr(ev, "strategy.position_size") == 0.0
         assert _eval_expr(ev, "strategy.opentrades") == 0
@@ -103,8 +113,10 @@ class TestStrategySeriesVariables:
         ev = NodeLiteralEvaluator()
         _set_bar(ev, 0, 100.0)
         _eval_expr(ev, "strategy.entry('L', strategy.long, 4.0)")
-        _set_bar(ev, 1, 105.0)
+        _set_bar(ev, 1, 100.0)  # fills at the open (100)
+        _set_bar(ev, 2, 105.0)
         _eval_expr(ev, "strategy.close('L', 1.0)")  # close 1 of 4
+        _set_bar(ev, 3, 105.0)  # close fills at the open (105)
 
         assert _eval_expr(ev, "strategy.position_size") == 3.0
         assert _eval_expr(ev, "strategy.opentrades") == 1
@@ -116,15 +128,20 @@ class TestStrategySeriesVariables:
 class TestStrategyWinLossStats:
     def test_win_and_loss_trade_counts(self) -> None:
         ev = NodeLiteralEvaluator()
-        # Win: long 100 -> 110
+        # Win: long 100 -> 110. Entries fill one bar after placement, so the
+        # entry price is the open of the following bar.
         _set_bar(ev, 0, 100.0)
         _eval_expr(ev, "strategy.entry('L1', strategy.long, 1.0)")
-        _set_bar(ev, 1, 110.0)
+        _set_bar(ev, 1, 100.0)  # L1 fills at the open (100)
+        _set_bar(ev, 2, 110.0)
         _eval_expr(ev, "strategy.close('L1')")
+        _set_bar(ev, 3, 110.0)  # close fills at the open (110)
         # Loss: long 110 -> 100
         _eval_expr(ev, "strategy.entry('L2', strategy.long, 1.0)")
-        _set_bar(ev, 2, 100.0)
+        _set_bar(ev, 4, 110.0)  # L2 fills at the open (110)
+        _set_bar(ev, 5, 100.0)
         _eval_expr(ev, "strategy.close('L2')")
+        _set_bar(ev, 6, 100.0)  # close fills at the open (100)
 
         assert _eval_expr(ev, "strategy.closedtrades") == 2
         assert _eval_expr(ev, "strategy.wintrades") == 1
@@ -153,7 +170,7 @@ class TestStrategyExtendedStats:
         assert _eval_expr(ev, "strategy.account_currency") == "USD"
         assert _eval_expr(ev, "strategy.position_entry_name") == ""
         assert _eval_expr(ev, "strategy.opentrades.capital_held") == 0.0
-        assert _eval_expr(ev, "strategy.cash") == 100_000.0
+        assert _eval_expr(ev, "strategy.cash") == 1_000_000.0
         assert _eval_expr(ev, "strategy.max_drawdown") == 0.0
         assert _eval_expr(ev, "strategy.max_runup") == 0.0
 
@@ -162,53 +179,61 @@ class TestStrategyExtendedStats:
         # Win +10
         _set_bar(ev, 0, 100.0)
         _eval_expr(ev, "strategy.entry('L1', strategy.long, 1.0)")
-        _set_bar(ev, 1, 110.0)
+        _set_bar(ev, 1, 100.0)  # fills at the open (100)
+        _set_bar(ev, 2, 110.0)
         _eval_expr(ev, "strategy.close('L1')")
+        _set_bar(ev, 3, 110.0)  # close fills at the open (110)
         # Loss -5
         _eval_expr(ev, "strategy.entry('L2', strategy.long, 1.0)")
-        _set_bar(ev, 2, 105.0)
+        _set_bar(ev, 4, 110.0)  # fills at the open (110)
+        _set_bar(ev, 5, 105.0)
         _eval_expr(ev, "strategy.close('L2')")
+        _set_bar(ev, 6, 105.0)  # close fills at the open (105)
 
         assert _eval_expr(ev, "strategy.netprofit") == 5.0
         assert _eval_expr(ev, "strategy.avg_trade") == 2.5  # 5/2
         assert _eval_expr(ev, "strategy.avg_winning_trade") == 10.0
         assert _eval_expr(ev, "strategy.avg_losing_trade") == 5.0  # positive loss magnitude
         # percents of initial capital
-        assert abs(_eval_expr(ev, "strategy.netprofit_percent") - 0.005) < 1e-9  # 5/100000*100
-        assert abs(_eval_expr(ev, "strategy.avg_trade_percent") - 0.0025) < 1e-9
-        assert abs(_eval_expr(ev, "strategy.avg_winning_trade_percent") - 0.01) < 1e-9
-        assert abs(_eval_expr(ev, "strategy.avg_losing_trade_percent") - 0.005) < 1e-9
-        assert abs(_eval_expr(ev, "strategy.grossprofit_percent") - 0.01) < 1e-9
-        assert abs(_eval_expr(ev, "strategy.grossloss_percent") - 0.005) < 1e-9
+        assert abs(_eval_expr(ev, "strategy.netprofit_percent") - 0.0005) < 1e-9  # 5/1000000*100
+        assert abs(_eval_expr(ev, "strategy.avg_trade_percent") - 0.00025) < 1e-9
+        assert abs(_eval_expr(ev, "strategy.avg_winning_trade_percent") - 0.001) < 1e-9
+        assert abs(_eval_expr(ev, "strategy.avg_losing_trade_percent") - 0.0005) < 1e-9
+        assert abs(_eval_expr(ev, "strategy.grossprofit_percent") - 0.001) < 1e-9
+        assert abs(_eval_expr(ev, "strategy.grossloss_percent") - 0.0005) < 1e-9
 
     def test_position_entry_name_and_capital_held(self) -> None:
         ev = NodeLiteralEvaluator()
         _set_bar(ev, 0, 50.0)
         _eval_expr(ev, "strategy.entry('MyLong', strategy.long, 3.0)")
+        _set_bar(ev, 1, 50.0)  # fills at the open (50)
         assert _eval_expr(ev, "strategy.position_entry_name") == "MyLong"
         assert _eval_expr(ev, "strategy.opentrades.capital_held") == 150.0  # 50*3
         # cash ≈ initial - capital held + open MTM (0 at entry)
-        assert _eval_expr(ev, "strategy.cash") == 100_000.0 - 150.0
+        assert _eval_expr(ev, "strategy.cash") == 1_000_000.0 - 150.0
 
     def test_openprofit_percent_vs_equity(self) -> None:
         ev = NodeLiteralEvaluator()
         _set_bar(ev, 0, 100.0)
         _eval_expr(ev, "strategy.entry('L', strategy.long, 2.0)")
-        _set_bar(ev, 1, 110.0)
-        # openprofit = 20; realized equity base = initial + net = 100000
-        # openprofit_percent relative to initial capital: 20/100000*100 = 0.02
+        _set_bar(ev, 1, 100.0)  # fills at the open (100)
+        _set_bar(ev, 2, 110.0)
+        # openprofit = 20; realized equity base = initial + net = 1000000
+        # openprofit_percent relative to initial capital: 20/1000000*100 = 0.002
         assert _eval_expr(ev, "strategy.openprofit") == 20.0
-        assert abs(_eval_expr(ev, "strategy.openprofit_percent") - 0.02) < 1e-9
+        assert abs(_eval_expr(ev, "strategy.openprofit_percent") - 0.002) < 1e-9
 
     def test_max_contracts_held(self) -> None:
         ev = NodeLiteralEvaluator()
         _set_bar(ev, 0, 100.0)
         _eval_expr(ev, "strategy.entry('L', strategy.long, 5.0)")
+        _set_bar(ev, 1, 100.0)  # fills at the open (100)
         assert _eval_expr(ev, "strategy.max_contracts_held_long") == 5.0
         assert _eval_expr(ev, "strategy.max_contracts_held_all") == 5.0
         assert _eval_expr(ev, "strategy.max_contracts_held_short") == 0.0
         _eval_expr(ev, "strategy.close('L')")
         _eval_expr(ev, "strategy.entry('S', strategy.short, 3.0)")
+        _set_bar(ev, 2, 100.0)  # close fills, then short fills at the open
         assert _eval_expr(ev, "strategy.max_contracts_held_short") == 3.0
         assert _eval_expr(ev, "strategy.max_contracts_held_all") == 5.0
 
@@ -217,16 +242,17 @@ class TestStrategyExtendedStats:
         # +10 equity runup
         _set_bar(ev, 0, 100.0)
         _eval_expr(ev, "strategy.entry('L', strategy.long, 1.0)")
-        _set_bar(ev, 1, 110.0)
+        _set_bar(ev, 1, 100.0)  # fills at the open (100)
+        _set_bar(ev, 2, 110.0)
         _eval_expr(ev, "strategy.close('L')")
+        _set_bar(ev, 3, 110.0)  # close fills at the open (110)
         assert _eval_expr(ev, "strategy.netprofit") == 10.0
         # Peak equity 100010; then lose 15 from next trade
         _eval_expr(ev, "strategy.entry('L2', strategy.long, 1.0)")
-        _set_bar(ev, 2, 95.0)  # from 110 entry... wait entry at 110
-        # entry at close 110 after first close - when we entry, mark is 110
-        # actually after close bar1 price is 110, then entry L2 at 110
-        # bar2 set to 95: openprofit = -15, equity = 100000+10-15 = 99995
-        # drawdown from peak 100010 is 15
+        _set_bar(ev, 4, 110.0)  # L2 fills at the open (110)
+        _set_bar(ev, 5, 95.0)
+        # bar5: openprofit = -15, equity = 1000000+10-15 = 999995
+        # drawdown from peak 1000010 is 15
         _ = _eval_expr(ev, "strategy.equity")  # update curve
         assert _eval_expr(ev, "strategy.max_runup") >= 10.0
         assert _eval_expr(ev, "strategy.max_drawdown") >= 14.0  # allow float slack
@@ -237,8 +263,9 @@ class TestStrategyExtendedStats:
         ev = NodeLiteralEvaluator()
         _set_bar(ev, 0, 100.0)
         _eval_expr(ev, "strategy.entry('L', strategy.long, 1.0)")
-        _set_bar(ev, 1, 100.0)
+        _set_bar(ev, 1, 100.0)  # entry fills at the open (100)
         _eval_expr(ev, "strategy.close('L')")
+        _set_bar(ev, 2, 100.0)  # close fills at the open (100)
         assert _eval_expr(ev, "strategy.eventrades") == 1
         assert _eval_expr(ev, "strategy.wintrades") == 0
         assert _eval_expr(ev, "strategy.losstrades") == 0
@@ -287,7 +314,7 @@ class TestStrategyGoldenMultiBar:
 strategy.position_size
 """
         ev = NodeLiteralEvaluator()
-        prices = [100.0, 102.0, 108.0]
+        prices = [100.0, 100.0, 108.0, 108.0]
 
         sizes: list[float] = []
         for i, px in enumerate(prices):
@@ -298,7 +325,9 @@ strategy.position_size
                 _eval_expr(ev, body_exit)
             sizes.append(float(_eval_expr(ev, "strategy.position_size")))
 
-        assert sizes == [1.0, 1.0, 0.0]
+        # Bar 0 places the entry; bar 1 fills it at the open (100). Bar 2
+        # places the close; bar 3 fills it at the open (108).
+        assert sizes == [0.0, 1.0, 1.0, 0.0]
         assert _eval_expr(ev, "strategy.netprofit") == 8.0  # 108 - 100
         assert _eval_expr(ev, "strategy.closedtrades") == 1
         assert _eval_expr(ev, "strategy.equity") == _eval_expr(ev, "strategy.initial_capital") + 8.0
@@ -312,6 +341,10 @@ strategy.entry("L", strategy.long, 1.0)
         ev = NodeLiteralEvaluator()
         _set_bar(ev, 0, 42.0)
         ev.evaluate_script(src)
+        # The market entry stays pending on its placement bar (reference
+        # Pine); it fills at the next bar's open.
+        assert _eval_expr(ev, "strategy.position_size") == 0.0
+        _set_bar(ev, 1, 42.0)
         assert _eval_expr(ev, "strategy.position_size") == 1.0
 
 
@@ -324,7 +357,7 @@ class TestStrategyCashAndPyramiding:
         _set_bar(ev, 0, 100.0)
         cash = _eval_expr(ev, "strategy.cash")
         assert isinstance(cash, (int, float))
-        assert cash == 100_000.0
+        assert cash == 1_000_000.0
         # Dual tag still lets default_qty_type=strategy.cash work
         from pynescript.ast.evaluator.builtins.strategy import StrategyCashAmount
 
@@ -339,6 +372,7 @@ class TestStrategyCashAndPyramiding:
         cash_const = m["strategy.cash"]([])
         m["strategy"](["T"], {"default_qty_type": cash_const, "default_qty_value": 500.0})
         m["strategy.entry"](["L", "long"])  # no explicit qty
+        _set_bar(ev, 1, 50.0)  # fills at the open (50)
         # 500 cash / 50 price = 10 contracts
         assert ev._strategy_state.position_size == 10.0
 
@@ -349,10 +383,12 @@ class TestStrategyCashAndPyramiding:
         m["strategy"](["T"], {"pyramiding": 1})
         m["strategy.entry"](["L1", "long", 1.0])
         m["strategy.entry"](["L2", "long", 2.0])
+        _set_bar(ev, 1, 100.0)  # both fill at the open (100)
         assert ev._strategy_state.position_size == 3.0
         assert len(ev._strategy_state.open_trades) == 2
         # Third entry blocked (max = pyramiding+1 = 2)
         m["strategy.entry"](["L3", "long", 1.0])
+        _set_bar(ev, 2, 100.0)
         assert ev._strategy_state.position_size == 3.0
         assert len(ev._strategy_state.open_trades) == 2
 
@@ -363,9 +399,10 @@ class TestStrategyCashAndPyramiding:
         m = ev._build_builtin_map()
         m["strategy"](["T"], {"pyramiding": 0})
         m["strategy.entry"](["L", "long", 1.0])
+        _set_bar(ev, 1, 100.0)  # fills at the open (100)
         assert _eval_expr(ev, "strategy.position_avg_price") == 100.0
-        _set_bar(ev, 1, 110.0)
         m["strategy.entry"](["L", "long", 1.0])
+        _set_bar(ev, 2, 110.0)
         assert ev._strategy_state.position_size == 1.0
         assert _eval_expr(ev, "strategy.position_avg_price") == 100.0
         assert _eval_expr(ev, "strategy.opentrades") == 1
@@ -377,14 +414,15 @@ class TestStrategyCashAndPyramiding:
         m = ev._build_builtin_map()
         m["strategy"](["T"], {"pyramiding": 1})
         m["strategy.entry"](["L", "long", 1.0])
-        _set_bar(ev, 1, 120.0)
+        _set_bar(ev, 1, 100.0)  # fills at the open (100)
         m["strategy.entry"](["L", "long", 1.0])
+        _set_bar(ev, 2, 120.0)  # second leg fills at the open (120)
         assert ev._strategy_state.position_size == 2.0
         assert abs(_eval_expr(ev, "strategy.position_avg_price") - 110.0) < 1e-9
         assert _eval_expr(ev, "strategy.opentrades") == 2
         assert sum(1 for e in ev._strategy_state._events if e.kind == "entry") == 2
-        _set_bar(ev, 2, 140.0)
         m["strategy.entry"](["L", "long", 1.0])
+        _set_bar(ev, 3, 140.0)
         assert ev._strategy_state.position_size == 2.0
         assert abs(_eval_expr(ev, "strategy.position_avg_price") - 110.0) < 1e-9
         assert _eval_expr(ev, "strategy.opentrades") == 2
@@ -420,7 +458,9 @@ class TestStrategyCashAndPyramiding:
         m = ev._build_builtin_map()
         m["strategy"](["T"], {"pyramiding": 0})
         m["strategy.entry"](["L1", "long", 1.0])
+        _set_bar(ev, 1, 100.0)  # fills at the open (100)
         m["strategy.entry"](["L2", "long", 5.0])
+        _set_bar(ev, 2, 100.0)
         assert ev._strategy_state.position_size == 1.0
         assert len(ev._strategy_state.open_trades) == 1
 
@@ -429,8 +469,10 @@ class TestStrategyCashAndPyramiding:
         _set_bar(ev, 0, 100.0)
         m = ev._build_builtin_map()
         m["strategy.entry"](["L", "long", 2.0])
-        _set_bar(ev, 1, 105.0)
+        _set_bar(ev, 1, 100.0)  # long fills at the open (100)
+        _set_bar(ev, 2, 105.0)
         m["strategy.entry"](["S", "short", 2.0])
+        _set_bar(ev, 3, 105.0)  # reversal fills at the open (105)
         kinds = [ev_.kind for ev_ in ev._strategy_state._events]
         assert "close" in kinds
         assert kinds.count("entry") >= 2
@@ -447,11 +489,12 @@ class TestStrategyCashAndPyramiding:
         m = ev._build_builtin_map()
         m["strategy"](["T"], {"pyramiding": 1})
         m["strategy.entry"](["A", "long", 1.0])
-        _set_bar(ev, 1, 110.0)
+        _set_bar(ev, 1, 100.0)  # A fills at the open (100)
         m["strategy.entry"](["B", "long", 2.0])
+        _set_bar(ev, 2, 110.0)  # B fills at the open (110)
         assert ev._strategy_state.position_size == 3.0
-        _set_bar(ev, 2, 115.0)
         m["strategy.exit"](["XA", "A"])  # positional id, from_entry
+        _set_bar(ev, 3, 115.0)  # market exit fills at the open (115)
         assert ev._strategy_state.position_size == 2.0
         assert len(ev._strategy_state.open_trades) == 1
         assert ev._strategy_state.open_trades[0].entry_id == "B"
@@ -464,7 +507,9 @@ class TestStrategyCashAndPyramiding:
         _set_bar(ev, 0, 100.0)
         m = ev._build_builtin_map()
         m["strategy.entry"](["L", "long", 2.0])
+        _set_bar(ev, 1, 100.0)  # fills at the open (100)
         m["strategy.exit"](["X", "missing"])
+        _set_bar(ev, 2, 100.0)
         assert ev._strategy_state.position_size == 2.0
         assert len(ev._strategy_state.closed_trades) == 0
 
@@ -476,6 +521,7 @@ class TestStrategyCashAndPyramiding:
         ev.context["syminfo"] = {"mintick": 0.01}
         m = ev._build_builtin_map()
         m["strategy.entry"](["L", "long", 1.0])
+        _set_bar(ev, 1, 100.0)  # fills at the open (100)
         m["strategy.exit"]([], {"id": "X", "profit": 100.0})
         po = ev._strategy_state.pending_orders["X"]
         assert po.limit_price == 101.0
@@ -519,8 +565,9 @@ class TestAvgPriceModel:
             m = ev._build_builtin_map()
             m["strategy"](["T"], {"pyramiding": 1, "avg_price_model": model})
             m["strategy.entry"](["A", "long", 2.0])
-            _set_bar(ev, 1, 110.0)
+            _set_bar(ev, 1, 100.0)  # fills at the open (100)
             m["strategy.entry"](["B", "long", 4.0])
+            _set_bar(ev, 2, 110.0)  # fills at the open (110)
             assert abs(_eval_expr(ev, "strategy.position_avg_price") - expected) < 1e-9, model
             assert ev._strategy_state.position_size == 6.0
 
@@ -531,11 +578,13 @@ class TestAvgPriceModel:
         m = ev._build_builtin_map()
         m["strategy"](["T"], {"pyramiding": 1, "avg_price_model": "stock", "commission_value": 0.0})
         m["strategy.entry"](["A", "long", 1.0])
-        _set_bar(ev, 1, 120.0)
+        _set_bar(ev, 1, 100.0)  # fills at the open (100)
         m["strategy.entry"](["B", "long", 1.0])
+        _set_bar(ev, 2, 120.0)  # fills at the open (120)
         assert abs(_eval_expr(ev, "strategy.position_avg_price") - 110.0) < 1e-9
-        _set_bar(ev, 2, 130.0)
+        _set_bar(ev, 3, 130.0)
         m["strategy.close"](["A", 1.0])  # close qty 1 — FIFO eats leg A
+        _set_bar(ev, 4, 130.0)  # close fills at the open (130)
         assert ev._strategy_state.position_size == 1.0
         assert abs(_eval_expr(ev, "strategy.position_avg_price") - 120.0) < 1e-9
         # Realized vs leg A entry 100: (130-100)*1 = 30
@@ -549,11 +598,13 @@ class TestAvgPriceModel:
         m = ev._build_builtin_map()
         m["strategy"](["T"], {"pyramiding": 1, "avg_price_model": "futures", "commission_value": 0.0})
         m["strategy.entry"](["A", "long", 1.0])
-        _set_bar(ev, 1, 120.0)
+        _set_bar(ev, 1, 100.0)  # fills at the open (100)
         m["strategy.entry"](["B", "long", 1.0])
+        _set_bar(ev, 2, 120.0)  # fills at the open (120)
         assert abs(_eval_expr(ev, "strategy.position_avg_price") - 110.0) < 1e-9
-        _set_bar(ev, 2, 130.0)
+        _set_bar(ev, 3, 130.0)
         m["strategy.close"](["A", 1.0])
+        _set_bar(ev, 4, 130.0)  # close fills at the open (130)
         assert ev._strategy_state.position_size == 1.0
         assert abs(_eval_expr(ev, "strategy.position_avg_price") - 110.0) < 1e-9
         # Realized vs sticky 110: (130-110)*1 = 20
@@ -568,8 +619,10 @@ class TestAvgPriceModel:
             m = ev._build_builtin_map()
             m["strategy"](["T"], {"avg_price_model": model, "commission_value": 0.0})
             m["strategy.entry"](["L", "long", 4.0])
-            _set_bar(ev, 1, 105.0)
+            _set_bar(ev, 1, 100.0)  # fills at the open (100)
+            _set_bar(ev, 2, 105.0)
             m["strategy.close"](["L", 1.0])
+            _set_bar(ev, 3, 105.0)  # close fills at the open (105)
             assert ev._strategy_state.position_size == 3.0, model
             assert abs(_eval_expr(ev, "strategy.position_avg_price") - 100.0) < 1e-9, model
             assert abs(_eval_expr(ev, "strategy.netprofit") - 5.0) < 1e-9, model
@@ -581,8 +634,10 @@ class TestAvgPriceModel:
         m = ev._build_builtin_map()
         m["strategy"](["T"], {"avg_price_model": "futures"})
         m["strategy.entry"](["L", "long", 2.0])
-        _set_bar(ev, 1, 105.0)
+        _set_bar(ev, 1, 100.0)  # fills at the open (100)
+        _set_bar(ev, 2, 105.0)
         m["strategy.entry"](["S", "short", 2.0])
+        _set_bar(ev, 3, 105.0)  # reversal fills at the open (105)
         assert ev._strategy_state.position_direction == "short"
         assert abs(_eval_expr(ev, "strategy.position_avg_price") - 105.0) < 1e-9
 
@@ -638,6 +693,7 @@ class TestLeverageFuturesUI:
             },
         )
         m["strategy.entry"](["L", "long"])  # no explicit qty
+        _set_bar(ev, 1, 100.0)  # fills at the open (100)
         assert abs(ev._strategy_state.position_size - 100.0) < 1e-9
 
     def test_percent_equity_qty_scales_by_leverage(self) -> None:
@@ -656,6 +712,7 @@ class TestLeverageFuturesUI:
             },
         )
         m["strategy.entry"](["L", "long"])
+        _set_bar(ev, 1, 100.0)  # fills at the open (100)
         assert abs(ev._strategy_state.position_size - 500.0) < 1e-9
 
     def test_fixed_qty_ignores_leverage(self) -> None:
@@ -664,6 +721,7 @@ class TestLeverageFuturesUI:
         m = ev._build_builtin_map()
         m["strategy"](["T"], {"leverage": 20, "default_qty_type": "fixed", "default_qty_value": 3})
         m["strategy.entry"](["L", "long"])
+        _set_bar(ev, 1, 100.0)  # fills at the open (100)
         assert abs(ev._strategy_state.position_size - 3.0) < 1e-9
 
     def test_capital_held_is_notional_over_leverage(self) -> None:
@@ -673,6 +731,7 @@ class TestLeverageFuturesUI:
         m = ev._build_builtin_map()
         m["strategy"](["T"], {"leverage": 10, "initial_capital": 10_000.0, "commission_value": 0.0})
         m["strategy.entry"](["L", "long", 10.0])
+        _set_bar(ev, 1, 100.0)  # fills at the open (100)
         held = _eval_expr(ev, "strategy.opentrades.capital_held")
         assert abs(held - 100.0) < 1e-9
         # cash ≈ equity - margin = 10000 - 100
@@ -686,6 +745,7 @@ class TestLeverageFuturesUI:
         m = ev._build_builtin_map()
         m["strategy"](["T"], {"leverage": 10, "avg_price_model": "futures"})
         m["strategy.entry"](["L", "long", 1.0])
+        _set_bar(ev, 1, 100.0)  # fills at the open (100)
         liq = _eval_expr(ev, "strategy.margin_liquidation_price")
         assert abs(liq - 90.0) < 1e-9
 

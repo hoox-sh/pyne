@@ -159,11 +159,39 @@ class BasicIndicators(TechnicalHelpers):
         # Align volume length
         if len(volume) < len(source):
             volume = volume + [0.0] * (len(source) - len(volume))
-        # Cumulative VWAP over available history
+        # Default anchor is the daily session (reference Pine): reset the
+        # cumulative window when the bar's UTC day changes. Explicit anchor
+        # args (>= 2) are handled by the caller. HTF / direct list inputs
+        # have no bar clock and stay cumulative.
+        times: list[Any] | None = None
+        if self._bar_mode() and len(args) < 2:
+            series_map = getattr(self, "current_series", None) or {}
+            tsrc = series_map.get("time")
+            if tsrc is None:
+                ctx = getattr(self, "context", None)
+                tsrc = ctx.get("time") if isinstance(ctx, dict) else None
+            if tsrc is not None:
+                if isinstance(tsrc, list):
+                    times = tsrc
+                else:
+                    hist = getattr(tsrc, "history", None)
+                    if hist:
+                        times = list(reversed(hist))
         cum_pv = 0.0
         cum_v = 0.0
         last = None
+        last_day: float | None = None
         for i, raw_price in enumerate(source):
+            if times is not None and i < len(times) and times[i] is not None:
+                try:
+                    day = float(times[i]) // 86_400_000.0
+                except (TypeError, ValueError):
+                    day = None
+                if day is not None:
+                    if last_day is not None and day != last_day:
+                        cum_pv = 0.0
+                        cum_v = 0.0
+                    last_day = day
             if raw_price is None:
                 continue
             v = volume[i] if i < len(volume) and volume[i] is not None else 0.0
@@ -1013,7 +1041,7 @@ class BasicIndicators(TechnicalHelpers):
         return self._variance(series, period)
 
     def _builtin_ta_barssince(self, args: list[Any]) -> int | None:
-        """Bars since condition was last true."""
+        """Bars since condition was last true (``na`` if it was never true)."""
         self._require_len(args, 1, "ta.barssince() takes exactly one argument")
         condition = args[0]
         if self._use_incremental_ta():
@@ -1024,12 +1052,12 @@ class BasicIndicators(TechnicalHelpers):
                 is_true = condition[i] is True or (condition[i] is not None and condition[i] is not False)
                 if is_true:
                     return len(condition) - 1 - i
-            return len(condition) - 1
-        # If condition is boolean without bar-mode state, return 0 if true, 1 if false
+            return None
+        # Scalar without bar-mode state: true → 0, false/na → na (never true).
         is_true = condition is True or (condition is not None and condition is not False)
         if is_true:
             return 0
-        return 1
+        return None
 
     @staticmethod
     def _pivot_scalar(value: Any) -> float | None:

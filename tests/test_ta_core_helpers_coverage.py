@@ -232,8 +232,9 @@ class TestCrossCmpRisingFalling:
         assert h._rising([1.0, "x", 3.0], 1) is False
         assert h._highestbars(up, 3) == 0
         assert h._lowestbars(up, 3) == -2
-        assert h._highestbars(up, 99) == -1
-        assert h._highestbars([None, None], 2) == -1
+        # Reference Pine: na when the window is not full or all samples are na.
+        assert h._highestbars(up, 99) is None
+        assert h._highestbars([None, None], 2) is None
         assert h._swma([1.0, 2.0, 3.0, 4.0]) == pytest.approx((1 + 4 + 6 + 4) / 6.0)
         assert h._swma([1.0, 2.0]) is None
         assert h._change(up, 2) == pytest.approx(2.0)

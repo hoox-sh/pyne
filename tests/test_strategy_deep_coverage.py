@@ -45,6 +45,10 @@ def _set_bar(ev: NodeLiteralEvaluator, bar_index: int, close: float, time: int |
     ev.context["high"] = close
     ev.context["low"] = close
     ev.context["time"] = time if time is not None else 1_700_000_000_000 + bar_index * 60_000
+    # Bar-start semantics (same as the Runtime host): pending orders placed on
+    # earlier bars fill at this bar's open.
+    if getattr(ev, "_strategy_state", None) is not None and ev._strategy_state.pending_orders:
+        ev.process_pending_orders()
 
 
 def _eval(ev: NodeLiteralEvaluator, source: str):
@@ -135,6 +139,7 @@ class TestStrategyDeclarationPaths:
         assert ev._strategy_state.default_qty_type == "percent_of_equity"
         assert ev._strategy_state.pyramiding == 2
         m["strategy.entry"](["L", "long"])  # qty from percent_of_equity
+        _set_bar(ev, 1, 100.0)  # market entry fills at the open
         # 10% of 10000 / 100 = 10
         assert ev._strategy_state.position_size == pytest.approx(10.0)
         assert ev._strategy_state.open_trades[0].commission == pytest.approx(1.0)  # 10*100*0.1%
@@ -153,6 +158,7 @@ class TestStrategyDeclarationPaths:
         )
         assert ev._strategy_state.default_qty_type == "cash"
         m["strategy.entry"](["L", "long"])
+        _set_bar(ev, 1, 50.0)  # market entry fills at the open
         # 500 / 50 = 10
         assert ev._strategy_state.position_size == pytest.approx(10.0)
 
@@ -162,6 +168,7 @@ class TestStrategyDeclarationPaths:
         m = _map(ev)
         m["strategy"](["T"], {"commission_type": "cash_per_order", "commission_value": 7.5})
         m["strategy.entry"](["L", "long", 3.0])
+        _set_bar(ev, 1, 100.0)  # market entry fills at the open
         assert ev._strategy_state.open_trades[0].commission == 7.5
 
         ev2 = NodeLiteralEvaluator()
@@ -169,6 +176,7 @@ class TestStrategyDeclarationPaths:
         m2 = _map(ev2)
         m2["strategy"](["T"], {"commission_type": "cash_per_contract", "commission_value": 0.5})
         m2["strategy.entry"](["L", "long", 4.0])
+        _set_bar(ev2, 1, 100.0)  # market entry fills at the open
         assert ev2._strategy_state.open_trades[0].commission == 2.0
 
     def test_soft_pyramiding_unresolved_string(self) -> None:
@@ -196,8 +204,9 @@ class TestStrategyEntryExitOrder:
         _set_bar(ev, 0, 100.0)
         m = _map(ev)
         m["strategy.entry"](["L", "long", 2.0])
-        _set_bar(ev, 1, 110.0)
+        _set_bar(ev, 1, 110.0)  # L fills at the open
         m["strategy.entry"](["S", "short", 2.0])
+        _set_bar(ev, 2, 110.0)  # reversal fills at the open
         assert ev._strategy_state.position_direction == "short"
         assert ev._strategy_state.position_size == 2.0
         assert len(ev._strategy_state.closed_trades) >= 1
@@ -210,9 +219,11 @@ class TestStrategyEntryExitOrder:
         m["strategy.entry"](["L1", "long", 1.0])
         m["strategy.entry"](["L2", "long", 1.0])
         m["strategy.entry"](["L3", "long", 1.0])
+        _set_bar(ev, 1, 100.0)  # all three fill at the open
         # max_entries = pyramiding + 1 = 3
         assert len(ev._strategy_state.open_trades) == 3
-        m["strategy.entry"](["L4", "long", 1.0])
+        m["strategy.entry"](["L4", "long", 1.0])  # pyramiding cap: not queued
+        _set_bar(ev, 2, 100.0)
         assert len(ev._strategy_state.open_trades) == 3
 
     def test_exit_qty_percent_and_bracket(self) -> None:
@@ -220,7 +231,9 @@ class TestStrategyEntryExitOrder:
         _set_bar(ev, 0, 100.0)
         m = _map(ev)
         m["strategy.entry"](["L", "long", 10.0])
+        _set_bar(ev, 1, 100.0)  # L fills at the open
         m["strategy.exit"]([], {"id": "X", "from_entry": "L", "qty_percent": 50.0})
+        _set_bar(ev, 2, 100.0)  # market exit fills at the open
         assert ev._strategy_state.position_size == pytest.approx(5.0)
 
         ev2 = NodeLiteralEvaluator()
@@ -229,9 +242,11 @@ class TestStrategyEntryExitOrder:
         ev2.context["low"] = 100.0
         m2 = _map(ev2)
         m2["strategy.entry"](["L", "long", 1.0])
+        _set_bar(ev2, 1, 100.0)  # L fills at the open — brackets need an open leg
         m2["strategy.exit"]([], {"id": "TP", "from_entry": "L", "limit": 110.0, "stop": 95.0})
         assert "TP:limit" in ev2._strategy_state.pending_orders
         assert "TP:stop" in ev2._strategy_state.pending_orders
+        ev2.context["bar_index"] = 2  # bracket placed on bar 1 activates on bar 2
         ev2.context["high"] = 111.0
         ev2.context["low"] = 100.0
         ev2.context["close"] = 110.0
@@ -243,7 +258,9 @@ class TestStrategyEntryExitOrder:
         _set_bar(ev, 0, 100.0)
         m = _map(ev)
         m["strategy.entry"](["L", "long", 4.0])
+        _set_bar(ev, 1, 100.0)  # L fills at the open
         m["strategy.close"](["L"], {"qty": 1.0, "comment": "partial"})
+        _set_bar(ev, 2, 100.0)  # partial close fills at the open
         assert ev._strategy_state.position_size == 3.0
         m["strategy.order"](
             [],
@@ -256,6 +273,7 @@ class TestStrategyEntryExitOrder:
         m["strategy.cancel_all"]([])
         assert ev._strategy_state.pending_orders == {}
         m["strategy.close_all"]([])
+        _set_bar(ev, 3, 100.0)  # close_all fills at the open
         assert ev._strategy_state.position_direction == "flat"
 
     def test_oca_cancel_on_fill(self) -> None:
@@ -292,6 +310,7 @@ class TestStrategyEntryExitOrder:
                 "oca_type": "cancel",
             },
         )
+        ev.context["bar_index"] = 1  # orders placed on bar 0 activate on bar 1
         ev.process_pending_orders(open_=100.0, high=111.0, low=100.0, close=110.0)
         assert "SL" not in ev._strategy_state.pending_orders
         assert "TP" not in ev._strategy_state.pending_orders
@@ -309,6 +328,7 @@ class TestStrategyEntryExitOrder:
         m = _map(ev)
         m["strategy.entry"]([], {"id": "L", "direction": "long", "qty": 2.0, "limit": 95.0})
         assert "L" in ev._strategy_state.pending_orders
+        ev.context["bar_index"] = 1  # orders placed on bar 0 activate on bar 1
         ev.process_pending_orders(open_=100.0, high=100.0, low=94.0, close=96.0)
         assert ev._strategy_state.position_size == pytest.approx(2.0)
 
@@ -316,10 +336,11 @@ class TestStrategyEntryExitOrder:
 class TestStrategyQueriesAndRuntime:
     def test_closed_and_open_trade_queries(self) -> None:
         ev = NodeLiteralEvaluator()
-        _set_bar(ev, 5, 100.0, time=12345)
+        _set_bar(ev, 4, 100.0)
         m = _map(ev)
         m["strategy"](["T"], {"commission_type": "percent", "commission_value": 1.0})
         m["strategy.entry"]([], {"id": "L", "direction": "long", "qty": 2.0, "comment": "in"})
+        _set_bar(ev, 5, 100.0, time=12345)  # fills at the open — entry bar/time are the fill bar
         assert _eval(ev, "strategy.opentrades.entry_id(0)") == "L"
         assert _eval(ev, "strategy.opentrades.entry_comment(0)") == "in"
         assert _eval(ev, "strategy.opentrades.entry_bar_index(0)") == 5
@@ -327,6 +348,7 @@ class TestStrategyQueriesAndRuntime:
         assert _eval(ev, "strategy.opentrades.commission(0)") == pytest.approx(2.0)
         _set_bar(ev, 6, 110.0, time=99999)
         m["strategy.close"]([], {"id": "L", "comment": "out"})
+        _set_bar(ev, 7, 110.0, time=110000)  # close fills at the open
         assert _eval(ev, "strategy.closedtrades") == 1
         assert _eval(ev, "strategy.closedtrades.entry_id(0)") == "L"
         # exit_comment may be empty depending on close kwargs wiring
@@ -353,6 +375,7 @@ class TestStrategyQueriesAndRuntime:
         assert _eval(ev, "strategy.account_currency") == "EUR"
         assert math.isnan(_eval(ev, "strategy.margin_liquidation_price"))
         m["strategy.entry"](["L", "long", 1.0])
+        _set_bar(ev, 1, 100.0)  # market entry fills at the open
         liq = _eval(ev, "strategy.margin_liquidation_price")
         assert liq == pytest.approx(90.0)
 
@@ -362,6 +385,16 @@ class TestStrategyQueriesAndRuntime:
         ev.context = {"close": series, "bar_index": 0, "time": 0}
         m = _map(ev)
         m["strategy.entry"](["L", "long", 1.0])
+        # Bar-start fill: the market entry opens at the next bar's open (105).
+        ev.context = {
+            "open": 105.0,
+            "high": 105.0,
+            "low": 105.0,
+            "close": 105.0,
+            "bar_index": 1,
+            "time": 1000,
+        }
+        ev.process_pending_orders()
         assert ev._strategy_state.entry_price == pytest.approx(105.0)
         assert ev._coerce_optional_price("na") is None
         assert ev._coerce_optional_price(SimpleNamespace(current=None)) is None
@@ -390,7 +423,8 @@ plot(strategy.closedtrades, "ct")
         out = Runtime(symbol="STR_DEEP").run(src, _bars(8), mode="interpret")
         assert "error" not in out, out.get("error")
         s = out["series"]
-        assert s["psz"][0] == pytest.approx(10.0)
+        assert s["psz"][0] == 0.0  # entry placed on bar 0, fills on bar 1
+        assert s["psz"][1] == pytest.approx(10.0)
         assert s["psz"][-1] == 0.0
         assert s["ct"][-1] == 1
 
@@ -416,10 +450,12 @@ plot(strategy.position_size, "psz")
         _set_bar(ev, 0, 100.0)
         m = _map(ev)
         m["strategy.entry"](["L", "long", 1.0])
+        _set_bar(ev, 1, 100.0)  # L fills at the open
         st = ev._strategy_state
         st.snapshot_bar_series()
-        _set_bar(ev, 1, 110.0)
+        _set_bar(ev, 2, 110.0)
         m["strategy.close"](["L"])
+        _set_bar(ev, 3, 110.0)  # close fills at the open
         st.snapshot_bar_series()
         assert st.series_at("position_size", 0) == 0.0
         assert st.series_at("closedtrades", 0) == 1.0
@@ -431,6 +467,7 @@ plot(strategy.position_size, "psz")
         _set_bar(ev, 0, 100.0)
         m = _map(ev)
         m["strategy.entry"](["L", "long", 2.0])
+        _set_bar(ev, 1, 100.0)  # market entry fills at the open
         st = ev._strategy_state
         st.update_open_trade_extremes(high=120.0, low=90.0)
         assert st.open_trades[0].max_runup == pytest.approx(40.0)

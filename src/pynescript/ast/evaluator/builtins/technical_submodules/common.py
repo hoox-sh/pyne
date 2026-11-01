@@ -415,7 +415,7 @@ class CommonIndicators(TechnicalHelpers):
         return self._vwap(sequence)
 
     def _builtin_ta_barssince(self, args: list[Any]) -> int | None:
-        """Bars since condition was last true."""
+        """Bars since condition was last true (``na`` if it was never true)."""
         self._require_len(args, 1, "ta.barssince() takes exactly one argument")
         condition = args[0]
         if self._use_incremental_ta():
@@ -426,12 +426,12 @@ class CommonIndicators(TechnicalHelpers):
                 is_true = condition[i] is True or (condition[i] is not None and condition[i] is not False)
                 if is_true:
                     return len(condition) - 1 - i
-            return len(condition) - 1
-        # If condition is boolean without bar-mode state, return 0 if true, 1 if false
+            return None
+        # Scalar without bar-mode state: true → 0, false/na → na (never true).
         is_true = condition is True or (condition is not None and condition is not False)
         if is_true:
             return 0
-        return 1
+        return None
 
     # -- Phase 7 Missing Indicators -----------------------------------------
 

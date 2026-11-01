@@ -676,8 +676,8 @@ class TestNumericBuiltins:
         assert ev._builtin_string([None]) == "na"
         assert ev._builtin_string([True]) == "true"
         assert ev._builtin_string(["s"]) == "s"
-        assert ev._builtin_fixnan([None]) == 0
-        assert ev._builtin_fixnan([float("nan")]) == 0
+        assert ev._builtin_fixnan([None]) is None
+        assert ev._builtin_fixnan([float("nan")]) is None
         assert ev._builtin_fixnan([3]) == 3
         assert ev._builtin_math_round_to_mintick([None]) is None
         assert ev._builtin_math_round_to_mintick([1.5]) == pytest.approx(1.5)

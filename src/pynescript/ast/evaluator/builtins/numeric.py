@@ -39,6 +39,7 @@ from typing import Any
 
 from .base import BuiltinDispatchMixin
 from .base import BuiltinHandler
+from .base import _is_na_scalar
 
 
 UNARY = 1
@@ -410,12 +411,15 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
         """Return None (na) or check if a value is na.
 
         - ``na`` → None (the na sentinel value, zero args)
-        - ``na(x)`` → True if x is None, else False
+        - ``na(x)`` → True if the current sample of x is na, else False
+
+        ``x`` may be a ``PineSeries`` / list; Pine evaluates ``na()`` on the
+        current bar's value, so unwrap the wrapper before testing.
         """
         if not args:
             return None
         if len(args) == 1:
-            return args[0] is None
+            return _is_na_scalar(self._as_scalar(args[0]))
         self._error("na() takes 0 or 1 arguments")
 
     def _builtin_nz(self, args: list[Any]) -> Any:
@@ -523,15 +527,48 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
         return str(value)
 
     def _builtin_fixnan(self, args: list[Any]) -> Any:
-        """Replace NaN/None values with previous non-NaN value or 0."""
+        """Replace ``na`` with the last non-``na`` value (reference Pine).
+
+        Pine does **not** seed with 0: a series that starts with ``na`` stays
+        ``na`` until the first real sample. Bar-mode calls carry the last
+        non-``na`` sample per call site, so a ternary that only yields a value
+        on some bars still fills the gaps.
+        """
         self._require_len(args, UNARY, "fixnan() takes one argument")
-        value = args[0]
-        # If the value is None (NA), return 0
-        if value is None:
-            return 0
-        # If it's NaN (float NaN), return 0
+        raw = args[0]
+        # Full-series argument: return a carry-forward series.
+        if isinstance(raw, list):
+            out: list[Any] = []
+            last: Any = None
+            for item in raw:
+                scalar = self._as_scalar(item)
+                if scalar is None or (isinstance(scalar, float) and math.isnan(scalar)):
+                    out.append(last)
+                else:
+                    last = scalar
+                    out.append(last)
+            return out
+
+        value = self._as_scalar(raw)
         if isinstance(value, float) and math.isnan(value):
-            return 0
+            value = None
+
+        slot_fn = getattr(self, "_ta_next_slot", None)
+        slot = slot_fn() if callable(slot_fn) else 0
+        bucket_fn = getattr(self, "_ta_state_bucket", None)
+        if callable(bucket_fn):
+            bucket = bucket_fn()
+        else:
+            bucket = self.__dict__.setdefault("_fixnan_state", {})
+        key = ("fixnan", slot)
+        st = bucket.get(key)
+        if st is None:
+            st = {"last": None}
+            bucket[key] = st
+
+        if value is None:
+            return st.get("last")
+        st["last"] = value
         return value
 
     def _builtin_math_round_to_mintick(self, args: list[Any]) -> float | None:

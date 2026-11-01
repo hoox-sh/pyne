@@ -248,9 +248,20 @@ plot(show_viz ? strategy.position_avg_price : na, "pe")
         assert rc["series"]["pe"][0] is None or (
             isinstance(rc["series"]["pe"][0], float) and rc["series"]["pe"][0] != rc["series"]["pe"][0]
         )
-        # Bar 1+: prior size available; pe tracks entry while short
-        assert ri["series"]["sz1"][1] == -1.0
-        assert rc["series"]["sz1"][1] == -1.0
+        # Bar 0: order placed, no fill yet → size 0; [1] is na → -999
+        assert ri["series"]["sz1"][0] == -999
+        assert rc["series"]["sz1"][0] == -999.0
+        assert ri["series"]["py"][0] == 0
+        assert rc["series"]["py"][0] == 0.0
+        assert ri["series"]["pe"][0] is None
+        assert rc["series"]["pe"][0] is None or (
+            isinstance(rc["series"]["pe"][0], float) and rc["series"]["pe"][0] != rc["series"]["pe"][0]
+        )
+        # Bar 1: the short fills at the open → size -1; prior-bar size (bar 0) is 0
+        assert ri["series"]["sz1"][1] == 0.0
+        assert rc["series"]["sz1"][1] == 0.0
+        assert ri["series"]["sz1"][2] == -1.0
+        assert rc["series"]["sz1"][2] == -1.0
         assert abs(float(ri["series"]["pe"][1]) - float(rc["series"]["pe"][1])) < 1e-9
 
     def test_multi_vwap_071_parity(self) -> None:
@@ -518,7 +529,9 @@ plot(close, title="c")
                 first_atr = i
             if first_atr is None:
                 continue
-            assert i >= period
+            # ta.atr = RMA(true range); the RMA seeds with an SMA over `period`
+            # samples, so the first non-na ATR lands on bar index period-1.
+            assert i >= period - 1
             mid = float(ri["series"]["mid"][i])
             close = float(ri["series"]["c"][i])
             atr_f = float(atr)
@@ -534,7 +547,8 @@ plot(close, title="c")
             for host, val in (("eval-full", fv), ("eval-inc", iv), ("numba", nv), ("numba-inc", niv)):
                 assert abs(float(val) - exp_st) <= 1e-10, f"{host} bar {i}: {val} != {exp_st}"
             n_formula += 1
-        assert first_atr is not None and first_atr >= period
+        # First non-na ATR lands on bar index period-1 (RMA SMA seed).
+        assert first_atr is not None and first_atr >= period - 1
         assert n_formula >= 10
 
 

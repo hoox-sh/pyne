@@ -245,6 +245,11 @@ if bar_index == 10
 plot(strategy.position_size)
 """
     )
+    # Bar start: the market entry placed on bar 10 fills at bar 11's open.
+    ev.context.update(
+        {"open": 100.0, "high": 100.0, "low": 100.0, "close": 100.0, "bar_index": 11, "time": 11000}
+    )
+    ev.process_pending_orders()
     # 10% of 100000 at price 100 → 100 contracts
     assert abs(float(ev._strategy_state.position_size) - 100.0) < 1e-6
 

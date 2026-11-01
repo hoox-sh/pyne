@@ -238,7 +238,14 @@ class PatternIndicators(TechnicalHelpers):
         increment: float,
         maximum: float,
     ) -> tuple[list[float], int]:
-        """Calculate Parabolic SAR with trend information."""
+        """Calculate Parabolic SAR with trend information (reference Pine).
+
+        TradingView semantics (verified against the TV golden export):
+        bar 0 is ``na``; bar 1 emits the seed (``low[0]``); from bar 2 on,
+        Wilder's step with the SAR clamped to the previous two bars' extremes
+        on non-reversal bars, EP/AF updated *before* the reversal check, and
+        the reversal taken against the unclamped SAR (``sar = ep``).
+        """
         if not highs or not lows:
             return [], 0
         # Skip leading na (empty series / warm-up)
@@ -248,47 +255,55 @@ class PatternIndicators(TechnicalHelpers):
             start_i += 1
         if start_i >= n:
             return [None] * n, 0
-        sar_values: list[float | None] = [None] * start_i
+        sar_values: list[float | None] = [None] * n
         try:
-            sar0 = float(lows[start_i])
+            sar = float(lows[start_i])
             ep = float(highs[start_i])
         except (TypeError, ValueError):
-            return [None] * n, 0
-        sar_values.append(sar0)
+            return sar_values, 0
         trend = 1
-        af = start
+        af = float(start)
+        seen = 1
         for idx in range(start_i + 1, n):
-            previous = sar_values[-1]
             hi, lo = highs[idx], lows[idx]
-            if previous is None or hi is None or lo is None or ep is None:
-                sar_values.append(previous)
+            if hi is None or lo is None:
+                sar_values[idx] = sar_values[idx - 1]
                 continue
             try:
                 hi_f, lo_f = float(hi), float(lo)
             except (TypeError, ValueError):
-                sar_values.append(previous)
+                sar_values[idx] = sar_values[idx - 1]
                 continue
+            if seen < 2:
+                # Second valid bar emits the seed value itself (no step).
+                sar_values[idx] = sar
+                seen = 2
+                continue
+            previous = sar
+            sar = previous + af * (ep - previous)
             if trend == 1:
-                sar = previous + af * (ep - previous)
                 if hi_f > ep:
                     ep = hi_f
                     af = min(af + increment, maximum)
-                if sar > lo_f:
+                if lo_f < sar:
                     trend = -1
                     sar = ep
                     ep = lo_f
                     af = start
+                else:
+                    sar = min(sar, float(lows[idx - 1]), float(lows[idx - 2]))
             else:
-                sar = previous - af * (previous - ep)
                 if lo_f < ep:
                     ep = lo_f
                     af = min(af + increment, maximum)
-                if sar < hi_f:
+                if hi_f > sar:
                     trend = 1
                     sar = ep
                     ep = hi_f
                     af = start
-            sar_values.append(sar)
+                else:
+                    sar = max(sar, float(highs[idx - 1]), float(highs[idx - 2]))
+            sar_values[idx] = sar
         return sar_values, trend
 
     def _engulfing(

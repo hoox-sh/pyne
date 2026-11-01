@@ -150,7 +150,9 @@ plot(str.length(string(true)), "slen")
         assert float(s["i"][-1]) == 2.0
         assert float(s["f"][-1]) == pytest.approx(3.5)
         assert float(s["b"][-1]) == 1.0
-        assert float(s["fn"][-1]) == 0.0
+        # Reference Pine: fixnan carries the last non-na value; a constant na
+        # series stays na (no 0 seed).
+        assert s["fn"][-1] is None
         assert float(s["slen"][-1]) == 4.0  # "true"
 
 
@@ -314,7 +316,7 @@ class TestNumericDirectExtra:
         assert ev._builtin_int([float("nan")]) is None
         with pytest.raises(ValueError):
             ev._builtin_float(["not-a-float"])
-        assert ev._builtin_fixnan([float("nan")]) == 0
+        assert ev._builtin_fixnan([float("nan")]) is None
         assert ev._builtin_fixnan([3]) == 3
         assert ev._builtin_color_new(["red"]) == "color(red)"
 

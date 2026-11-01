@@ -118,6 +118,9 @@ def test_update_open_trade_extremes_survives_broker_restore_interpret() -> None:
     }
     m = e._build_builtin_map()
     m["strategy.entry"](["L", "long", 1.0])
+    # Market entry fills at bar 1's open (reference Pine).
+    e.context["bar_index"] = 1
+    e.process_pending_orders(open_=100.0, high=100.0, low=100.0, close=100.0)
     trade = e._strategy_state.open_trades[0]
     assert trade.max_runup == pytest.approx(0.0)
     assert trade.max_drawdown == pytest.approx(0.0)
@@ -141,6 +144,7 @@ def test_update_open_trade_extremes_survives_broker_restore_compile() -> None:
     b = CompileStrategyBroker(initial_capital=10_000.0, commission_value=0.0)
     b.begin_bar(0, 100.0, 100.0, 100.0, 100.0)
     b.entry("L", "long", 1.0)
+    b.begin_bar(1, 100.0, 100.0, 100.0, 100.0)
     assert b.opentrades_max_runup(0) == pytest.approx(0.0)
     assert b.opentrades_max_drawdown(0) == pytest.approx(0.0)
     snap = b.snapshot()

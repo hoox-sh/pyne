@@ -212,13 +212,13 @@ class TestBuiltinEdges:
         with pytest.raises(Exception):
             _Common._builtin_ta_barssince(ev, [])
         assert _Common._builtin_ta_barssince(ev, [[False, False, True, False]]) == 1
-        assert _Common._builtin_ta_barssince(ev, [[False, False, False]]) == 2
+        assert _Common._builtin_ta_barssince(ev, [[False, False, False]]) is None
         assert _Common._builtin_ta_barssince(ev, [True]) == 0
-        assert _Common._builtin_ta_barssince(ev, [False]) == 1
+        assert _Common._builtin_ta_barssince(ev, [False]) is None
         # Non-bool scalars: anything other than False/None counts as true.
         assert _Common._builtin_ta_barssince(ev, [0]) == 0
         assert _Common._builtin_ta_barssince(ev, [2]) == 0
-        assert _Common._builtin_ta_barssince(ev, [None]) == 1
+        assert _Common._builtin_ta_barssince(ev, [None]) is None
 
     def test_pivothigh_pivotlow_edges(self, ev: NodeLiteralEvaluator) -> None:
         with pytest.raises(Exception):
