@@ -38,7 +38,6 @@ from pynescript.langserver.features.formatting import handle_on_type_formatting
 from pynescript.langserver.features.formatting import handle_range_formatting
 from pynescript.langserver.features.highlight import handle_document_highlight
 from pynescript.langserver.features.hover import handle_hover
-from pynescript.langserver.features.inlay_hints import handle_inlay_hint_resolve
 from pynescript.langserver.features.inlay_hints import handle_inlay_hints
 from pynescript.langserver.features.linked_editing import handle_linked_editing_range
 from pynescript.langserver.features.references import handle_references
@@ -2529,6 +2528,9 @@ class TestInlayHintParameters:
             assert hint.label.endswith(" ")
         type_labels = [h.label for h in hints if h.kind == lsp.InlayHintKind.Type]
         assert ": const int" in type_labels
+        for hint in hints:
+            assert hint.data is None
+            assert hint.text_edits is None
 
     def test_named_kwargs_skipped(self) -> None:
         hints = handle_inlay_hints(self._params(), self.KWARGS_SRC)
@@ -2537,22 +2539,6 @@ class TestInlayHintParameters:
         labels = [h.label if isinstance(h.label, str) else "" for h in param_hints]
         assert any("source" in label for label in labels)
         assert not any("length" in label for label in labels)
-
-    def test_resolve_type_hint_fills_edits_parameter_does_not(self) -> None:
-        hints = handle_inlay_hints(self._params(), self.SRC)
-        assert hints is not None
-        type_hints = [h for h in hints if h.kind == lsp.InlayHintKind.Type]
-        param_hints = [h for h in hints if h.kind == lsp.InlayHintKind.Parameter]
-        assert type_hints
-        assert param_hints
-        resolved_type = handle_inlay_hint_resolve(type_hints[0])
-        assert resolved_type.text_edits is not None
-        assert resolved_type.text_edits[0].new_text == ": const int"
-        resolved_param = handle_inlay_hint_resolve(param_hints[0])
-        assert not resolved_param.text_edits
-        # Parameter labels are "name: ", not insertable type annotations (": type").
-        assert isinstance(resolved_param.label, str)
-        assert not resolved_param.label.startswith(": ")
 
     def _param_labels(self, source: str) -> list[str]:
         hints = handle_inlay_hints(self._params(), source)
@@ -2627,83 +2613,6 @@ class TestInlayHintParameters:
         assert any("mult" in label for label in labels)
 
 
-class TestInlayHintResolve:
-    """inlayHint/resolve fills textEdits that insert the inferred type annotation."""
-
-    SRC = '//@version=5\nindicator("T")\nlength = 14\n'
-
-    def _params(self) -> lsp.InlayHintParams:
-        return lsp.InlayHintParams(
-            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
-            range=lsp.Range(
-                start=lsp.Position(line=0, character=0),
-                end=lsp.Position(line=10, character=0),
-            ),
-        )
-
-    def test_initial_hint_label_and_tooltip(self) -> None:
-        hints = handle_inlay_hints(self._params(), self.SRC)
-        assert hints is not None and len(hints) == 1
-        hint = hints[0]
-        assert hint.label == ": const int"
-        assert hint.tooltip == "Inferred type: const int"
-        assert hint.kind == lsp.InlayHintKind.Type
-
-    def test_resolve_fills_text_edits(self) -> None:
-        hints = handle_inlay_hints(self._params(), self.SRC)
-        assert hints is not None
-        resolved = handle_inlay_hint_resolve(hints[0])
-        assert resolved.text_edits is not None
-        assert len(resolved.text_edits) == 1
-        edit = resolved.text_edits[0]
-        assert edit.new_text == ": const int"
-        assert edit.range.start == hints[0].position
-        assert edit.range.end == hints[0].position
-        assert edit.range.start.line == 2
-        assert edit.range.start.character == len("length")
-
-    def test_already_resolved_returned_as_is(self) -> None:
-        pos = lsp.Position(line=0, character=3)
-        existing = [
-            lsp.TextEdit(
-                range=lsp.Range(start=pos, end=pos),
-                new_text=": already",
-            )
-        ]
-        hint = lsp.InlayHint(position=pos, label=": const int", text_edits=existing)
-        resolved = handle_inlay_hint_resolve(hint)
-        assert resolved is hint
-        assert resolved.text_edits is existing
-
-    def test_empty_label_no_throw(self) -> None:
-        hint = lsp.InlayHint(position=lsp.Position(line=0, character=0), label="")
-        resolved = handle_inlay_hint_resolve(hint)
-        assert resolved is hint
-        assert not resolved.text_edits
-
-    def test_label_parts_joined(self) -> None:
-        pos = lsp.Position(line=2, character=6)
-        hint = lsp.InlayHint(
-            position=pos,
-            label=[
-                lsp.InlayHintLabelPart(value=": "),
-                lsp.InlayHintLabelPart(value="const int"),
-            ],
-        )
-        resolved = handle_inlay_hint_resolve(hint)
-        assert resolved.text_edits is not None
-        assert len(resolved.text_edits) == 1
-        assert resolved.text_edits[0].new_text == ": const int"
-        assert resolved.text_edits[0].range.start == pos
-        assert resolved.text_edits[0].range.end == pos
-
-    def test_malformed_hint_no_throw(self) -> None:
-        from types import SimpleNamespace
-
-        bogus = SimpleNamespace(text_edits=None, label=None, position=None, data=None)
-        assert handle_inlay_hint_resolve(bogus) is bogus  # type: ignore[arg-type]
-
-
 class TestCapabilities:
     """Advertised capabilities must match implemented handlers only."""
 
@@ -2738,7 +2647,7 @@ class TestCapabilities:
         assert caps.document_on_type_formatting_provider is not None
         assert caps.document_on_type_formatting_provider.first_trigger_character == "\n"
         assert caps.inlay_hint_provider is not None
-        assert caps.inlay_hint_provider.resolve_provider is True
+        assert not caps.inlay_hint_provider.resolve_provider
 
 
 def _decode_semantic_tokens(data: list[int]) -> list[tuple[int, int, int, int, int]]:

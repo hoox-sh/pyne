@@ -78,7 +78,7 @@ The LanguageClient negotiates capabilities from `src/pynescript/langserver/confi
 | `textDocument/semanticTokens/full` + `/range` | Same legend, range clipped to the viewport | [Semantic tokens](/pyne/docs/lsp/features/semantic-tokens) |
 | `textDocument/onTypeFormatting` | Format the just-completed line; trigger `"\n"` | [Formatting](/pyne/docs/lsp/features/formatting) |
 | `textDocument/linkedEditingRange` | Same-document live ranges for a user ident (keywords / builtin namespaces refused) | [Linked editing](/pyne/docs/lsp/features/linked-editing) |
-| `textDocument/inlayHint` + `inlayHint/resolve` | Assignment type labels; parameter-name hints on dotted builtin calls (`ta.sma(close, 14)` → `source:` / `length:`). Resolve fills type `textEdits` only | [Inlay hints](/pyne/docs/lsp/features/inlay-hints) |
+| `textDocument/inlayHint` | Display-only assignment type labels; parameter-name hints on dotted builtin calls (`ta.sma(close, 14)` → `source:` / `length:`). Hints never insert text | [Inlay hints](/pyne/docs/lsp/features/inlay-hints) |
 | `textDocument/documentLink` + `documentLink/resolve` | `http://` / `https://` URLs in comments (`//`, `/* */`, hash `# …`) and string literals. Resolve fills `tooltip` with the URL when tooltip is unset | [Document links](/pyne/docs/lsp/features/document-link) |
 | `textDocument/documentColor` + `colorPresentation` | `#hex` (and named `color.*` / literal `color.rgb` / `color.new` / `color()` / `color.from_gradient`) swatches; presentation rewrites as `#rrggbb` / `#rrggbbaa` | [Document color](/pyne/docs/lsp/features/document-color) |
 

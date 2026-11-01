@@ -9,7 +9,7 @@
 * [Folding ranges](folding.md) - textDocument/foldingRange for Pine blocks, type/enum/function bodies, and //region comments.
 * [Formatting](formatting.md) - Document, range, and on-type formatting via AST parse → NodeUnparser round-trip.
 * [Hover](hover.md) - textDocument/hover — Markdown cards for builtins, types, namespaces, keywords, and user declarations.
-* [Inlay Hints](inlay-hints.md) - Assignment type annotations, builtin parameter names, and inlayHint/resolve textEdits that insert the type.
+* [Inlay Hints](inlay-hints.md) - Display-only assignment type annotations and builtin parameter names. Hints never insert text or modify the document.
 * [Linked editing](linked-editing.md) - textDocument/linkedEditingRange — live multi-cursor ranges for user identifiers.
 * [Navigation](navigation.md) - Go-to-definition, find-references, document highlight, rename across open documents, document outline, and workspace symbol search over the ASDL AST.
 * [Selection ranges](selection-range.md) - textDocument/selectionRange expands from an ident or smallest AST node to the enclosing statement and block.

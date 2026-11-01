@@ -38,7 +38,7 @@ Modules:
 - :mod:`.rename` — ``textDocument/prepareRename``, ``textDocument/rename``
 - :mod:`.symbols` — ``textDocument/documentSymbol``
 - :mod:`.semantic_tokens` — ``textDocument/semanticTokens/full``, ``/range``
-- :mod:`.inlay_hints` — ``textDocument/inlayHint``, ``inlayHint/resolve``
+- :mod:`.inlay_hints` — ``textDocument/inlayHint`` (display-only)
 - :mod:`.folding` — ``textDocument/foldingRange``
 - :mod:`.selection_range` — ``textDocument/selectionRange``
 - :mod:`.document_color` — ``textDocument/documentColor``, ``textDocument/colorPresentation``

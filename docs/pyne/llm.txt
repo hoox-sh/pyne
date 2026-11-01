@@ -7758,7 +7758,7 @@ Selection ranges (selection_range_provider=True) from ident / smallest AST node 
 Color provider (color_provider=True) — textDocument/documentColor + colorPresentation for #hex, named color., color.rgb / color.new / color(), and literal color.from_gradient
 Document links (DocumentLinkOptions(resolve_provider=True)) — http:// / https:// URLs in comments (//, / /, hash # …) and string literals. documentLink/resolve fills tooltip with the URL when tooltip is unset
 Code action (QuickFix + RefactorRewrite): Convert to Pine v6, W001 insert //@version=6, W002 replace old pragma, C002 format-on-long-line + executeCommand pynescript.convertToV6
-Inlay hints (InlayHintOptions(resolve_provider=True)): assignment type labels and parameter-name hints on dotted builtin calls (ta.sma(close, 14) → source: / length:). inlayHint/resolve fills type textEdits; parameter hints are display-only
+Inlay hints (InlayHintOptions(resolve_provider=False)): display-only assignment type labels and parameter-name hints on dotted builtin calls (ta.sma(close, 14) → source: / length:). No inlayHint/resolve, no data, no textEdits
 Semantic tokens full and range (range=true, full=true; legend of standard token types/modifiers)
 Signature help (( / ,)
 File filters (get_filter_options): .pine, .pinev5, .pinev6 under language id pinescript. .pyne is not in this helper — VS Code still maps it via the extension contribution (extensions: .pyne first).
@@ -8795,11 +8795,11 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-3.0-or-later
 ---
 title: "Inlay Hints"
-description: "Assignment type annotations, builtin parameter names, and inlayHint/resolve textEdits that insert the type."
+description: "Display-only assignment type annotations and builtin parameter names. Hints never insert text or modify the document."
 ---
 Inlay Hints
 Abstract
-Inlay hints surface two things: inferred types next to simple name = expr assignments when no explicit type annotation is present, and parameter names before positional arguments of builtin and user function/method calls (ta.sma(close, 14) → source: / length:). Inference uses the scope-aware symbol index first (annotated declarations, UDT fields/methods, user return types, builtin metadata) and falls back to the shallow constant/input./ta. rules. Ambiguous operators are skipped rather than guessed wrong. Hints are filtered to the client's requested range. inlayHint/resolve fills textEdits that insert the type annotation; parameter-name hints do not insert text.
+Inlay hints surface two things: inferred types next to simple name = expr assignments when no explicit type annotation is present, and parameter names before positional arguments of builtin and user function/method calls (ta.sma(close, 14) → source: / length:). Inference uses the scope-aware symbol index first (annotated declarations, UDT fields/methods, user return types, builtin metadata) and falls back to the shallow constant/input./ta. rules. Ambiguous operators are skipped rather than guessed wrong. Hints are filtered to the client's requested range. Hints are display-only: the server does not advertise or implement inlayHint/resolve, emits no data, and never sets textEdits, so an inferred type can never be injected into the source.
 Conceptual model
 Example mental model (from module docstring):
 ``text
@@ -8811,9 +8811,8 @@ ta.sma(close, 14) → ta.sma(source: close, length: 14)
 Interface surface
 | Method | Capability |
 | --- | --- |
-| textDocument/inlayHint | InlayHintOptions(resolve_provider=True) |
-| inlayHint/resolve | fills textEdits on type hints |
-Handlers: features/inlay_hints.py → handle_inlay_hints (receives version-matched tree=doc.valid_ast) and handle_inlay_hint_resolve.
+| textDocument/inlayHint | InlayHintOptions(resolve_provider=False) |
+Handler: features/inlay_hints.py → handle_inlay_hints (receives the version-matched tree=doc.valid_ast). There is no inlayHint/resolve handler and no document mutation path.
 Assignment type hints
 | Field | Value |
 | --- | --- |
@@ -8821,7 +8820,8 @@ Assignment type hints
 | label | ": {type_label}" |
 | kind | InlayHintKind.Type |
 | tooltip | Inferred type: {type_label} |
-| data | same insert text, so resolve does not re-parse |
+| data | omitted |
+| textEdits | omitted (display-only) |
 Parameter-name hints
 Emitted for positional args of module.attr(...) when get_builtin("module.attr") hits. Real snippet placeholder names win; generic paramN snippets fall through to the longest of the detail signature, documentation, and a well-known Pine v6 map (ta.sma/ema/rsi → source/length, ta.atr → length, ta.correlation → source1/source2/length, strategy.entry → id/direction/qty, input.int → defval/title, plus ta.cci/roc/mom/linreg/adx/mfi/bbw/dpo/crossover/crossunder).
 | Field | Value |
@@ -8830,15 +8830,9 @@ Emitted for positional args of module.attr(...) when get_builtin("module.attr") 
 | label | "{name}: " |
 | kind | InlayHintKind.Parameter |
 | data | omitted |
-Named kwargs (length=14) skip the matching slot. Parameter hints have no insertable type annotation.
+| textEdits | omitted (display-only) |
+Named kwargs (length=14) skip the matching slot.
 handle_inlay_hints returns [] for empty source, None if parse fails (client typically treats as no hints).
-Resolve
-inlayHint/resolve inserts the type annotation at the hint position:
-1. Already-resolved hints (existing textEdits) are returned unchanged.
-2. InlayHintKind.Parameter is a no-op — must not splice names into the call.
-3. Insert text comes from hint.data (preferred) or the label string / label parts.
-4. Only strings that start with ": " are treated as type annotations.
-5. One TextEdit with a zero-width range at hint.position.
 Internals
 Constant mapping
 | Python value | Label |
@@ -8856,15 +8850,15 @@ Walk
 Recursive over _fields (same pattern as workspace symbol collection) — not limited to script top-level; nested function assigns and nested calls can receive hints.
 | Path | Role |
 | --- | --- |
-| features/inlay_hints.py | Collection + inference + resolve |
+| features/inlay_hints.py | Collection + inference (display-only) |
 | providers/builtin_metadata.py | Return-type detail and parameter names |
 Invariants and edge cases
 1. Explicit name: type = … suppresses type hints (node.type is not None).
 2. Tuple / attribute targets are ignored for type hints.
 3. BinOp / Compare / Conditional return None — no speculative arithmetic types.
 4. Metadata quality bounds accuracy — missing → in detail yields coarse series; missing param names yields no parameter hints.
-5. Resolve inserts types only — parameter labels (source: ) are display-only.
-6. Malformed / empty resolve input does not throw — the hint is returned as-is.
+5. Hints never mutate the document. No textEdits, no data, no resolve handler; applying a hint is a client-side display action only.
+6. Malformed input does not throw — unparsable or empty sources return None / [].
 Worked example
 `pinescript
 //@version=6
@@ -8875,19 +8869,19 @@ avg = ta.sma(src, length)
 period = input.int(20, "Period")
 `
 Expected hints (when parse + metadata succeed):
-length → : const int (type; resolve inserts : const int at the end of length)
+length → : const int (type)
 src → : series float
 avg → type from ta.sma detail (typically series float) or series
 period → : input int
 ta.sma(src, length) → source: before src, length: before length
-avg will not get a hint derived from length’s type through the call graph — only the call’s known return shape. Resolve on a parameter hint leaves the call text unchanged.
+avg will not get a hint derived from length’s type through the call graph — only the call’s known return shape. Clicking a hint never edits the call or the declaration.
 Failure modes
 | Symptom | Cause |
 | --- | --- |
 | No hints on file | Parse error → None |
 | ta.* always : series | Metadata detail lacks → segment |
 | No source: / length: on a builtin call | Not a dotted builtin, named kwargs, or metadata/snippet names missing |
-| Apply-type-inlay does nothing on a param hint | Expected: resolve skips InlayHintKind.Parameter |
+| Applying a hint does nothing | Expected: hints are display-only; there is no type injection |
 | Hints mid-identifier | Incorrect col_offset` on AST node — builder issue |
 See also
 Completion
@@ -9236,7 +9230,7 @@ Interface surface
 | Linked editing | textDocument/linkedEditingRange | features/linked_editing.py |
 | Symbols | textDocument/documentSymbol, workspace/symbol | symbols.py, server.py |
 | Formatting | textDocument/formatting, rangeFormatting, onTypeFormatting | features/formatting.py |
-| Inlay hints | textDocument/inlayHint, inlayHint/resolve (types + builtin param names) | features/inlay_hints.py |
+| Inlay hints | textDocument/inlayHint (display-only types + builtin param names) | features/inlay_hints.py |
 | Folding | textDocument/foldingRange | features/folding.py |
 | Selection range | textDocument/selectionRange | features/selection_range.py |
 | Document color | textDocument/documentColor, colorPresentation | features/document_color.py |
@@ -9323,7 +9317,7 @@ The LanguageClient negotiates capabilities from src/pynescript/langserver/config
 | textDocument/semanticTokens/full + /range | Same legend, range clipped to the viewport | Semantic tokens |
 | textDocument/onTypeFormatting | Format the just-completed line; trigger "\n" | Formatting |
 | textDocument/linkedEditingRange | Same-document live ranges for a user ident (keywords / builtin namespaces refused) | Linked editing |
-| textDocument/inlayHint + inlayHint/resolve | Assignment type labels; parameter-name hints on dotted builtin calls (ta.sma(close, 14) → source: / length:). Resolve fills type textEdits only | Inlay hints |
+| textDocument/inlayHint | Display-only assignment type labels; parameter-name hints on dotted builtin calls (ta.sma(close, 14) → source: / length:). Hints never insert text | Inlay hints |
 | textDocument/documentLink + documentLink/resolve | http:// / https:// URLs in comments (//, / /, hash # …) and string literals. Resolve fills tooltip with the URL when tooltip is unset | Document links |
 | textDocument/documentColor + colorPresentation | #hex (and named color. / literal color.rgb / color.new / color() / color.from_gradient) swatches; presentation rewrites as #rrggbb / #rrggbbaa | Document color |
 Also advertised (unchanged host path): diagnostics, completion + resolve, hover, signature help, definition / references, highlight + rename, document / workspace symbols, full + range formatting, folding, selection range, Convert-to-v6 / W001 / W002 / C002 code actions. Capability table: Architecture.

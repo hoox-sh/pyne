@@ -97,7 +97,7 @@ def get_server_capabilities() -> lsp.ServerCapabilities:
             commands=["pynescript.convertToV6"],
         ),
         inlay_hint_provider=lsp.InlayHintOptions(
-            resolve_provider=True,
+            resolve_provider=False,
         ),
         # Legend indices must match semantic_tokens.TOKEN_TYPES order.
         semantic_tokens_provider=lsp.SemanticTokensOptions(

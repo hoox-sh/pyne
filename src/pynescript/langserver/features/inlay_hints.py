@@ -17,12 +17,11 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Inlay hints — ``textDocument/inlayHint`` and ``inlayHint/resolve``.
+"""Inlay hints — ``textDocument/inlayHint`` (display-only).
 
-Public handlers:
-
-- :func:`handle_inlay_hints` — assignment types and builtin parameter names
-- :func:`handle_inlay_hint_resolve` — fill ``text_edits`` that insert the type
+Public handler: :func:`handle_inlay_hints` — assignment types and builtin
+parameter names. Hints never modify the document: no ``text_edits`` and no
+``data`` payload, so there is no inferred-type injection or resolve step.
 
 Shows simple inferred types next to variable declarations, e.g.::
 
@@ -37,9 +36,8 @@ and parameter names before positional args of dotted builtins::
 Type hints sit at the end of the target identifier (just before ``=``).
 Parameter hints sit at the start of each positional argument. Inference is
 shape-based on the RHS (literals, builtins, ``ta.*`` / ``input.*`` metadata);
-only confident cases are emitted. ``inlayHint/resolve`` inserts type
-annotations only — parameter hints have no ``data`` and resolve is a no-op.
-Capability: ``resolve_provider=True``.
+only confident cases are emitted. Hints are display-only; the server does not
+advertise or implement ``inlayHint/resolve``.
 """
 
 from __future__ import annotations
@@ -177,70 +175,6 @@ def handle_inlay_hints(
     return hints
 
 
-def handle_inlay_hint_resolve(hint: lsp.InlayHint) -> lsp.InlayHint:
-    """Fill ``text_edits`` that insert the type annotation at the hint position.
-
-    Initial ``textDocument/inlayHint`` responses carry ``label`` / ``tooltip``
-    and stash the insert text on ``data`` so resolve does not re-parse. Already
-    resolved, empty/malformed, or parameter-name hints (no insertable type
-    annotation) are returned unchanged.
-
-    Args:
-        hint: The inlay hint to resolve (from the client, possibly with
-            ``data`` round-tripped from the initial response).
-
-    Returns:
-        The same hint with ``text_edits`` set to one insert at ``hint.position``.
-    """
-    try:
-        if getattr(hint, "text_edits", None) is not None:
-            return hint
-        # Parameter-name hints must not insert text into the call.
-        if getattr(hint, "kind", None) == lsp.InlayHintKind.Parameter:
-            return hint
-        insert = _insert_text_for_hint(hint)
-        if not _is_type_annotation_insert(insert):
-            return hint
-        position = getattr(hint, "position", None)
-        if position is None:
-            return hint
-        hint.text_edits = [
-            lsp.TextEdit(
-                range=lsp.Range(start=position, end=position),
-                new_text=insert,
-            )
-        ]
-        return hint
-    except Exception:
-        return hint
-
-
-def _insert_text_for_hint(hint: lsp.InlayHint) -> str:
-    """Insert text from ``hint.data`` (preferred) or the label string/parts."""
-    data = getattr(hint, "data", None)
-    if isinstance(data, str) and data:
-        return data
-    label = getattr(hint, "label", None)
-    if isinstance(label, str):
-        return label
-    if isinstance(label, (list, tuple)):
-        parts: list[str] = []
-        for part in label:
-            if isinstance(part, str):
-                parts.append(part)
-                continue
-            value = getattr(part, "value", None)
-            if isinstance(value, str):
-                parts.append(value)
-        return "".join(parts)
-    return ""
-
-
-def _is_type_annotation_insert(text: str) -> bool:
-    """True when *text* is an assignment type annotation (``": const int"``)."""
-    return bool(text) and text.startswith(": ")
-
-
 def _collect_hints(
     node: ast.AST | None,
     hints: list[lsp.InlayHint],
@@ -313,13 +247,11 @@ def _hint_for_assign(
     # Position the hint at the end of the target identifier (just before `=`).
     line = node.target.lineno - 1
     col = node.target.col_offset + len(node.target.id or "")
-    insert = f": {type_label}"
     return lsp.InlayHint(
         position=lsp.Position(line=line, character=col),
-        label=insert,
+        label=f": {type_label}",
         kind=lsp.InlayHintKind.Type,
         tooltip=f"Inferred type: {type_label}",
-        data=insert,
     )
 
 

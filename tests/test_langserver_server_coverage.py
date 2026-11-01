@@ -596,8 +596,10 @@ class TestFeatureHandlersAndCache:
                 range=full_range,
             )
         )
+        assert lsp.INLAY_HINT_RESOLVE not in server.protocol.fm.features
         if ih:
-            _handler(server, lsp.INLAY_HINT_RESOLVE)(ih[0])
+            assert all(hint.text_edits is None for hint in ih)
+            assert all(hint.data is None for hint in ih)
 
         fr = _handler(server, lsp.TEXT_DOCUMENT_FOLDING_RANGE)(
             lsp.FoldingRangeParams(text_document=lsp.TextDocumentIdentifier(uri=URI))

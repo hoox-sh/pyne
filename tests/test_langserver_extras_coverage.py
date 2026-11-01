@@ -213,41 +213,6 @@ class TestInlayHints:
 
         assert _infer_type(ast.Name(id="something_unknown")) is None
 
-    def test_resolve_fills_text_edits(self) -> None:
-        from pynescript.langserver.features.inlay_hints import handle_inlay_hint_resolve
-        from pynescript.langserver.features.inlay_hints import handle_inlay_hints
-
-        hints = handle_inlay_hints(_ih_params(), '//@version=5\nindicator("T")\nlength = 14\n')
-        assert hints is not None and len(hints) == 1
-        resolved = handle_inlay_hint_resolve(hints[0])
-        assert resolved.text_edits is not None
-        assert len(resolved.text_edits) == 1
-        edit = resolved.text_edits[0]
-        assert edit.new_text == hints[0].label
-        assert edit.range.start == hints[0].position
-        assert edit.range.end == hints[0].position
-        assert resolved.tooltip == "Inferred type: const int"
-
-    def test_resolve_already_set(self) -> None:
-        from pynescript.langserver.features.inlay_hints import handle_inlay_hint_resolve
-
-        pos = lsp.Position(line=1, character=2)
-        existing = [lsp.TextEdit(range=lsp.Range(start=pos, end=pos), new_text=": keep")]
-        hint = lsp.InlayHint(position=pos, label=": const int", text_edits=existing)
-        assert handle_inlay_hint_resolve(hint) is hint
-        assert hint.text_edits is existing
-
-    def test_resolve_empty_and_malformed(self) -> None:
-        from types import SimpleNamespace
-
-        from pynescript.langserver.features.inlay_hints import handle_inlay_hint_resolve
-
-        empty = lsp.InlayHint(position=lsp.Position(line=0, character=0), label="")
-        assert handle_inlay_hint_resolve(empty) is empty
-        assert not empty.text_edits
-        bogus = SimpleNamespace(text_edits=None, label=object(), position=None, data=None)
-        assert handle_inlay_hint_resolve(bogus) is bogus  # type: ignore[arg-type]
-
     def test_parameter_hints_on_ta_sma(self) -> None:
         from pynescript.langserver.features.inlay_hints import handle_inlay_hints
 
@@ -262,17 +227,6 @@ class TestInlayHints:
         for hint in param_hints:
             assert hint.data is None
 
-    def test_resolve_parameter_hint_does_not_insert(self) -> None:
-        from pynescript.langserver.features.inlay_hints import handle_inlay_hint_resolve
-        from pynescript.langserver.features.inlay_hints import handle_inlay_hints
-
-        src = '//@version=5\nindicator("T")\nplot(ta.sma(close, 14))\n'
-        hints = handle_inlay_hints(_ih_params(), src)
-        assert hints is not None
-        param_hints = [h for h in hints if h.kind == lsp.InlayHintKind.Parameter]
-        assert param_hints
-        resolved = handle_inlay_hint_resolve(param_hints[0])
-        assert not resolved.text_edits
 
 
 # ---------------------------------------------------------------------------
@@ -897,7 +851,7 @@ class TestConfigExtras:
         assert caps.text_document_sync and caps.text_document_sync.open_close is True
         assert caps.completion_provider and caps.completion_provider.resolve_provider is True
         assert caps.inlay_hint_provider is not None
-        assert caps.inlay_hint_provider.resolve_provider is True
+        assert not caps.inlay_hint_provider.resolve_provider
         assert caps.document_link_provider is not None
         assert caps.document_link_provider.resolve_provider is True
         assert caps.linked_editing_range_provider

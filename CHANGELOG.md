@@ -6,7 +6,7 @@
 - **Version-gated v6 lint rules.** W104 (`transp=` / `strategy.* when=`) and W105 (numeric boolean conditions) only run on `//@version=6`; v4/v5 scripts no longer get false positives. W101/C001 mask comments and string literals.
 - **Style diagnostics are opt-in.** `pynescript.diagnostics.style` defaults to `false`; C001/C002/C004 remain available to CLI users and editors that enable them.
 - **Live editor settings.** `initializationOptions` and `workspace/didChangeConfiguration` now drive formatting, snippets, diagnostics, inlay-hint types/parameters, and semantic-diagnostic gates without restarting the client.
-- **Inlay hints** are filtered to the requested range, support user function/method parameter names, and use real metadata signatures.
+- **Inlay hints** are filtered to the requested range, support user function/method parameter names, use real metadata signatures, and are **display-only** (no type injection).
 - **Semantic tokens** include user references, parameters, fields, methods, enum members, and imports in addition to declarations.
 - **Opt-in semantic diagnostics.** `pynescript.diagnostics.semantic` enables `S001` (unknown field/method on a user `type`, unknown member on a user `enum`) and `S002` (user-function call arity or parameter-name mismatch). Builtin calls and unknown receiver types are skipped, so the checks stay quiet on incomplete catalogs.
 - **Metadata generator** derives signatures/snippets/parameters from handler introspection, `_KWARG_ORDER`, `_TA_KWARG_ORDERS`, and docstrings; regenerated plaintext + Fernet artifacts.
@@ -23,6 +23,10 @@
 - **Fuzzy completion cache** now actually caches the item list and lowercase fields instead of rebuilding them per keystroke.
 - **Format on save** runs before the write via `vscode.executeFormatDocumentProvider` rather than formatting after the file is saved.
 - **Large documents** (> 40 KB) parse off the event loop on open/save so completion and hover stay responsive.
+
+### Removed
+
+- **Inferred type injection from inlay hints.** `inlayHint/resolve` is no longer advertised or implemented, type hints carry no `data`, and hints never emit `textEdits`. Inlay hints remain display-only (assignment type labels and parameter names), so applying a hint cannot modify the script.
 
 ### Changed
 
