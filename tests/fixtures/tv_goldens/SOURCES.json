@@ -1,0 +1,114 @@
+{
+  "schema": 1,
+  "upstream": {
+    "repo": "https://github.com/be-thomas/OpenPineScript",
+    "commit": "cbf7ce9183cf46221a76a7453cfa78542d220108",
+    "commit_date": "2026-10-23",
+    "license": "GPL-3.0",
+    "license_file": "LICENSE",
+    "directory": "conformance/{v3,v4,v5}/golden",
+    "method": "v5 harnesses export via Pine Logs (log.info); v3/v4 source harnesses use plot() for the CSV route"
+  },
+  "files": {
+    "v3/harness_bands.pine": {
+      "sha256": "ddfb0673e8de5650df137574bc87602316187d663937c07fa13325b649a3072e",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v3/harness_bands.pine"
+    },
+    "v3/harness_control.pine": {
+      "sha256": "cbb508d68eea1c073eaf9ca8e121a771cfd6e53315677bfcde8d05a01a59ed2c",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v3/harness_control.pine"
+    },
+    "v3/harness_core.pine": {
+      "sha256": "2cb4652d4a4a4d627912a25fbe59ee832ba77944100ad149faefc1f442c6e969",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v3/harness_core.pine"
+    },
+    "v3/harness_loops.pine": {
+      "sha256": "269076e5991bb1e7af638bef244651b9cae9726e0d45ebfa2a4885d6e068949c",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v3/harness_loops.pine"
+    },
+    "v3/harness_state.pine": {
+      "sha256": "679377c6e76d7146f8ddb195cee010105fd94fc441715db1723e571575e1d388",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v3/harness_state.pine"
+    },
+    "v3/harness_strategy.pine": {
+      "sha256": "1cd8642fa41ab11aba4ec50ae388ed15d01e6acec71575cf30109d1e72216280",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v3/harness_strategy.pine"
+    },
+    "v4/harness_builtins.pine": {
+      "sha256": "98f86d686f42f6e39d1cebd32ff9035cab36d42db9ec3af9a3621ab3300e8c46",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v4/harness_builtins.pine"
+    },
+    "v5/harness_bands.BTCUSDT.1D.log": {
+      "sha256": "f8b9ebcc943e2b20d1536604ba342005067db5a7b567ed918a029b93f32b986a",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v5/harness_bands.BTCUSDT.1D.log"
+    },
+    "v5/harness_bands.pine": {
+      "sha256": "2abe166dc75426a7bdc9898c06976d0e97875c2dd2dfa1ca80b6c313d4d6dc3e",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v5/harness_bands.pine"
+    },
+    "v5/harness_builtins.BTCUSDT.1D.log": {
+      "sha256": "b86a65445863efb3d737a625619ea27422a3b69a8a9e6fef76c7a0976bf20f3c",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v5/harness_builtins.BTCUSDT.1D.log"
+    },
+    "v5/harness_builtins.pine": {
+      "sha256": "54840627f3a5519da95b0919a05b139301f60a22f9c63a0c70453d2e021b2038",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v5/harness_builtins.pine"
+    },
+    "v5/harness_control.BTCUSDT.1D.log": {
+      "sha256": "faad0376faf1ec1673cdf2d694305a2433862f4c26ce27705c00871c3df00bfc",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v5/harness_control.BTCUSDT.1D.log"
+    },
+    "v5/harness_control.pine": {
+      "sha256": "d0d10e4c39bf26f10ce7da5762bf3043d3f253e167ce87c46353d2ca6fb7dd88",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v5/harness_control.pine"
+    },
+    "v5/harness_core.BTCUSDT.1D.log": {
+      "sha256": "0ffc62dc16b3f39dc99b8e01d2b9bcc006da96bfcaec72e6dd9d785a65f8a62b",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v5/harness_core.BTCUSDT.1D.log"
+    },
+    "v5/harness_core.pine": {
+      "sha256": "ac943dd0047104b05b52182828642ef699230e8ed4e65dbbd20453973d095ad3",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v5/harness_core.pine"
+    },
+    "v5/harness_exits.BTCUSDT.1D.log": {
+      "sha256": "d8ee50cfd2c1f79d1a0fbd9bd788d4e86913eb05c60d4e43fabc45e347c1d925",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v5/harness_exits.BTCUSDT.1D.log"
+    },
+    "v5/harness_exits.pine": {
+      "sha256": "0e6e6047ba0254966b42dc039832f6f1f06a25d4396468455735f1d6a945fc12",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v5/harness_exits.pine"
+    },
+    "v5/harness_loopargs.BTCUSDT.1D.log": {
+      "sha256": "6e59661cb6f505e20f87adda946c214b7759505f3d69df3f4baebe4d0eef7e43",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v5/harness_loopargs.BTCUSDT.1D.log"
+    },
+    "v5/harness_loopargs.pine": {
+      "sha256": "9b59219e5672f812557e9b8dc7e07ff2c915b1a3a3d7857f35489a33dc95f6b4",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v5/harness_loopargs.pine"
+    },
+    "v5/harness_loops.BTCUSDT.1D.log": {
+      "sha256": "dd8fa298d74c36fa77ee736814e1048a99cb204ff53788d82eb7db9c56544db6",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v5/harness_loops.BTCUSDT.1D.log"
+    },
+    "v5/harness_loops.pine": {
+      "sha256": "129472fb88141ee7c33e8370993ae01091e4fa1cda9e1281ddb1abc362ee3aa1",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v5/harness_loops.pine"
+    },
+    "v5/harness_state.BTCUSDT.1D.log": {
+      "sha256": "6b16609c5c66db382e085d16b515f2716b304feb4681d01d74495e3c0450d7f3",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v5/harness_state.BTCUSDT.1D.log"
+    },
+    "v5/harness_state.pine": {
+      "sha256": "b8f4d5a9e13206436fcfd9ec974e5559595876ce59457b8468341d1a65a690e4",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v5/harness_state.pine"
+    },
+    "v5/harness_strategy.BTCUSDT.1D.log": {
+      "sha256": "a9d0d1d01667f315afc43afe9c90f512ddd2df8868412e3ce6323f5df47b8761",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v5/harness_strategy.BTCUSDT.1D.log"
+    },
+    "v5/harness_strategy.pine": {
+      "sha256": "5aee2b08085a783dcfd00f7c45c3276c5d5e2c087b17babf15c914f4a5c2ea4b",
+      "source": "https://raw.githubusercontent.com/be-thomas/OpenPineScript/cbf7ce9183cf46221a76a7453cfa78542d220108/conformance/v5/harness_strategy.pine"
+    }
+  }
+}

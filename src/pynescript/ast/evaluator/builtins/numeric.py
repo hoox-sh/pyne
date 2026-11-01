@@ -169,16 +169,16 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
         return n
 
     def _builtin_math_max(self, args: list[Any]) -> Any:
+        # Reference Pine: math.max() returns na if any argument is na.
         nums = [self._as_num(a) for a in args]
-        nums = [n for n in nums if n is not None]
-        if not nums:
+        if not nums or any(n is None for n in nums):
             return None
         return max(nums)
 
     def _builtin_math_min(self, args: list[Any]) -> Any:
+        # Reference Pine: math.min() returns na if any argument is na.
         nums = [self._as_num(a) for a in args]
-        nums = [n for n in nums if n is not None]
-        if not nums:
+        if not nums or any(n is None for n in nums):
             return None
         return min(nums)
 

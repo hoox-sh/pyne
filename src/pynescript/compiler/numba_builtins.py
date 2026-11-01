@@ -242,7 +242,7 @@ def numba_lowest(arr, period, i):
 
 @numba.njit(cache=True)
 def numba_stdev(arr, period, i):
-    """Sample standard deviation (n-1) over last ``period`` bars ending at ``i``."""
+    """Population standard deviation (n) over last ``period`` bars ending at ``i``."""
     period = int(period)
     if period <= 1 or i < period - 1:
         return np.nan
@@ -254,26 +254,23 @@ def numba_stdev(arr, period, i):
     for j in range(period):
         d = arr[i - j] - mean
         var += d * d
-    var /= period - 1
+    var /= period
     return np.sqrt(var)
 
 
 @numba.njit(cache=True)
 def numba_atr(high, low, close, period, i):
-    """ATR = Wilder RMA of true range (reference ``ta.rma(ta.tr, length)``).
+    """ATR = Wilder RMA of true range (reference ``ta.rma(ta.tr(true), length)``).
 
-    Dual-host aligned with interpret ``_atr`` / ``_atr_inc_update`` (Wave B).
-    First valid bar requires ``period`` TR samples → ``i >= period``.
+    Dual-host aligned with interpret ``_atr`` / ``_atr_inc_update``. The first
+    bar's TR is ``high - low``, so the first ATR lands at ``i == period - 1``.
     """
     period = int(period)
-    if period <= 0 or i < 1:
+    if period <= 0 or i < period - 1:
         return np.nan
-    # Need period TR samples from bars 1..i → i >= period
-    if i < period:
-        return np.nan
-    # SMA seed of first ``period`` TRs (bars 1..period)
-    ssum = 0.0
-    for j in range(1, period + 1):
+    # SMA seed of the first ``period`` TRs (bar 0 = high - low).
+    ssum = high[0] - low[0]
+    for j in range(1, period):
         ssum += max(
             high[j] - low[j],
             abs(high[j] - close[j - 1]),
@@ -281,7 +278,7 @@ def numba_atr(high, low, close, period, i):
         )
     rma = ssum / period
     alpha = 1.0 / period
-    for j in range(period + 1, i + 1):
+    for j in range(period, i + 1):
         tr = max(
             high[j] - low[j],
             abs(high[j] - close[j - 1]),
@@ -348,13 +345,13 @@ def safe_tonumber(x):
 
 @numba.njit(cache=True)
 def numba_bb(arr, period, mult, i):
-    """Return (upper, middle, lower) Bollinger bands."""
+    """Return (middle, upper, lower) Bollinger bands (reference Pine order)."""
     period = int(period)
     mid = numba_sma(arr, period, i)
     sd = numba_stdev(arr, period, i)
     if np.isnan(mid) or np.isnan(sd):
         return np.nan, np.nan, np.nan
-    return mid + mult * sd, mid, mid - mult * sd
+    return mid, mid + mult * sd, mid - mult * sd
 
 
 @numba.njit(cache=True)
@@ -642,20 +639,16 @@ _register_njit_overload(numba_abs, _numba_abs_jit)
 
 @numba.njit(cache=True)
 def _numba_max_jit(a, b):
-    """Scalar maximum; na/NaN args are skipped (Pine ``math.max``)."""
-    a_nan = np.isnan(a)
-    b_nan = np.isnan(b)
-    if a_nan:
-        return b
-    if b_nan:
-        return a
+    """Scalar maximum; na/NaN propagates (reference Pine ``math.max``)."""
+    if np.isnan(a) or np.isnan(b):
+        return np.nan
     if a > b:
         return a
     return b
 
 
 def numba_max(a, b):
-    """Scalar max; None/NA skipped like interpret ``math.max`` (all-na → nan)."""
+    """Scalar max; None/NA propagates like interpret ``math.max``."""
     fa = safe_float(a) if not _is_plain_float(a) else a
     fb = safe_float(b) if not _is_plain_float(b) else b
     return _numba_max_jit(fa, fb)
@@ -666,20 +659,16 @@ _register_njit_overload(numba_max, _numba_max_jit)
 
 @numba.njit(cache=True)
 def _numba_min_jit(a, b):
-    """Scalar minimum; na/NaN args are skipped (Pine ``math.min``)."""
-    a_nan = np.isnan(a)
-    b_nan = np.isnan(b)
-    if a_nan:
-        return b
-    if b_nan:
-        return a
+    """Scalar minimum; na/NaN propagates (reference Pine ``math.min``)."""
+    if np.isnan(a) or np.isnan(b):
+        return np.nan
     if a < b:
         return a
     return b
 
 
 def numba_min(a, b):
-    """Scalar min; None/NA skipped like interpret ``math.min`` (all-na → nan)."""
+    """Scalar min; None/NA propagates like interpret ``math.min``."""
     fa = safe_float(a) if not _is_plain_float(a) else a
     fb = safe_float(b) if not _is_plain_float(b) else b
     return _numba_min_jit(fa, fb)
@@ -721,9 +710,15 @@ def numba_crossunder_scalar(a, level, i):
 
 
 @numba.njit(cache=True)
-def numba_tr(high, low, close, i):
-    """True range at bar ``i`` (NaN on first bar)."""
+def numba_tr(high, low, close, i, handle_na=False):
+    """True range at bar ``i``.
+
+    ``handle_na=True`` seeds bar 0 with ``high - low`` (``ta.tr(true)``);
+    the default leaves bar 0 as NaN.
+    """
     if i < 1:
+        if handle_na and i == 0:
+            return high[0] - low[0]
         return np.nan
     return max(
         high[i] - low[i],
@@ -1149,14 +1144,17 @@ def numba_vwma(src, vol, length, i):
 def numba_mfi(high, low, close, vol, length, i):
     """Money Flow Index over ``length`` money-flow samples ending at ``i``.
 
-    Needs ``length + 1`` typical-price samples (direction vs previous bar).
+    The first value lands at ``i == length - 1`` and ranks ``length - 1``
+    directed samples; full ``length`` pairs follow from the next bar (verified
+    against the TV golden export).
     """
     length = int(length)
-    if length <= 0 or i < length:
+    if length <= 0 or i < length - 1:
         return np.nan
+    pairs = length if i >= length else length - 1
     pos = 0.0
     neg = 0.0
-    for j in range(length):
+    for j in range(pairs):
         k = i - j
         tp = (high[k] + low[k] + close[k]) / 3.0
         tp_prev = (high[k - 1] + low[k - 1] + close[k - 1]) / 3.0
@@ -1243,17 +1241,17 @@ def numba_highestbars(arr, length, i):
     """Offset to highest value in window (reference Pine / interpret parity).
 
     Returns ``0`` if the current bar is highest, ``-1`` if one bar ago, …,
-    down to ``-(length-1)``.  Short history (``i+1 < length``), invalid
-    length, or all-NaN window → ``-1.0`` (same sentinel as interpret).
+    down to ``-(length-1)``. Short history (``i+1 < length``), invalid
+    length, or all-NaN window → ``nan`` (reference Pine ``na``).
 
-    On ties prefers the **oldest** extreme in the window (leftmost; matches
+    On ties prefers the **newest** extreme in the window (rightmost; matches
     interpret ``_highestbars``).
     """
     length = int(length)
     if length <= 0 or i < 0:
-        return -1.0
+        return np.nan
     if i + 1 < length:
-        return -1.0
+        return np.nan
     start = i - length + 1
     best = np.nan
     best_idx = -1
@@ -1261,12 +1259,12 @@ def numba_highestbars(arr, length, i):
         v = arr[k]
         if np.isnan(v):
             continue
-        # strict > → first (oldest) wins ties
-        if np.isnan(best) or v > best:
+        # >= → newest wins ties (reference Pine)
+        if np.isnan(best) or v >= best:
             best = v
             best_idx = k
     if best_idx < 0:
-        return -1.0
+        return np.nan
     return float(-(i - best_idx))
 
 
@@ -1275,13 +1273,13 @@ def numba_lowestbars(arr, length, i):
     """Offset to lowest value in window (reference Pine / interpret parity).
 
     Same contract as :func:`numba_highestbars`: negative bars-back offset,
-    ``-1.0`` when short / invalid / all-NaN; oldest extreme on ties.
+    ``nan`` when short / invalid / all-NaN; newest extreme on ties.
     """
     length = int(length)
     if length <= 0 or i < 0:
-        return -1.0
+        return np.nan
     if i + 1 < length:
-        return -1.0
+        return np.nan
     start = i - length + 1
     best = np.nan
     best_idx = -1
@@ -1289,40 +1287,36 @@ def numba_lowestbars(arr, length, i):
         v = arr[k]
         if np.isnan(v):
             continue
-        if np.isnan(best) or v < best:
+        if np.isnan(best) or v <= best:
             best = v
             best_idx = k
     if best_idx < 0:
-        return -1.0
+        return np.nan
     return float(-(i - best_idx))
 
 
 @numba.njit(cache=True)
 def numba_percentrank(arr, length, i):
-    """Percentrank matching interpret ``_percentrank`` (strict ``<`` / valid-only).
+    """Percentrank matching interpret ``_percentrank``.
 
-    Window is the last ``length`` bars ending at ``i``. Among non-nan samples,
-    returns ``100 * count(v < arr[i]) / n_valid``. Fewer than 2 valid samples
-    → 50.0 (same as interpret). Warm-up / current nan → nan.
+    Window is the previous ``length`` bars (``i-length .. i-1``); the current
+    bar is excluded. Returns ``100 * count(v <= arr[i]) / length``. Warm-up
+    (``i < length``), current nan, or any nan in the window → nan.
     """
     length = int(length)
-    if length <= 0 or i < length - 1:
+    if length <= 0 or i < length:
         return np.nan
     v = arr[i]
     if np.isnan(v):
         return np.nan
-    n_valid = 0
     n_below = 0
-    for j in range(length):
+    for j in range(1, length + 1):
         x = arr[i - j]
         if np.isnan(x):
-            continue
-        n_valid += 1
-        if x < v:
+            return np.nan
+        if x <= v:
             n_below += 1
-    if n_valid < 2:
-        return 50.0
-    return 100.0 * n_below / n_valid
+    return 100.0 * n_below / length
 
 
 @numba.njit(cache=True)
@@ -1459,7 +1453,7 @@ def numba_sum(arr, period, i):
 
 @numba.njit(cache=True)
 def numba_variance(arr, period, i):
-    """Sample variance (n-1) over last ``period`` bars — ``stdev**2``."""
+    """Population variance (n) over last ``period`` bars — ``stdev**2``."""
     period = int(period)
     if period <= 1 or i < period - 1:
         return np.nan
@@ -1474,7 +1468,7 @@ def numba_variance(arr, period, i):
     for j in range(period):
         d = arr[i - j] - mean
         var += d * d
-    return var / (period - 1)
+    return var / period
 
 
 @numba.njit(cache=True)
@@ -1745,8 +1739,8 @@ def numba_tsi(arr, short_len, long_len, i):
     """True Strength Index: double-smoothed momentum / double-smoothed |mom|.
 
     Reference Pine: ``ta.tsi(source, short_length, long_length)`` —
-    ``100 * EMA(EMA(mom, long), short) / EMA(EMA(|mom|, long), short)``.
-    EMAs use SMA seed (same as ``numba_ema``).
+    ``EMA(EMA(mom, long), short) / EMA(EMA(|mom|, long), short)`` (ratio in
+    ``[-1, 1]``). EMAs use SMA seed (same as ``numba_ema``).
     """
     short_len = int(short_len)
     long_len = int(long_len)
@@ -1795,7 +1789,7 @@ def numba_tsi(arr, short_len, long_len, i):
         return np.nan
     if short_a == 0.0:
         return 0.0
-    return 100.0 * (short_m / short_a)
+    return short_m / short_a
 
 
 # ---------------------------------------------------------------------------
@@ -3331,22 +3325,38 @@ def numba_rma_inc(arr, period, i, st):
 def numba_atr_inc(high, low, close, period, i, st):
     """Incremental ATR (Wilder RMA of TR). ``st``: [rma_acc, last_i].
 
-    Matches ``numba_atr``: na until ``i >= period``, then RMA with SMA seed.
+    Matches ``numba_atr``: the first bar's TR is ``high - low``, so the first
+    value lands at ``i == period - 1``.
     """
     period = int(period)
-    if period <= 0 or i < 1:
+    if period <= 0 or i < 0:
         return np.nan
     if np.isnan(st[1]):
-        last = 0
+        last = -1
     else:
         last = int(st[1])
     if i < last:
-        last = 0
+        last = -1
         st[0] = np.nan
 
     alpha = 1.0 / period
-    acc = st[0]
-    start = 1 if last < 1 else last + 1
+    if last < period - 1:
+        if i < period - 1:
+            st[0] = np.nan
+            st[1] = float(i)
+            return np.nan
+        ssum = high[0] - low[0]
+        for j in range(1, period):
+            ssum += max(
+                high[j] - low[j],
+                abs(high[j] - close[j - 1]),
+                abs(low[j] - close[j - 1]),
+            )
+        acc = ssum / period
+        start = period
+    else:
+        acc = st[0]
+        start = last + 1
 
     for j in range(start, i + 1):
         tr = max(
@@ -3354,52 +3364,10 @@ def numba_atr_inc(high, low, close, period, i, st):
             abs(high[j] - close[j - 1]),
             abs(low[j] - close[j - 1]),
         )
-        if j < period:
-            # Accumulate TR sum until seed window is full
-            if j == 1 or np.isnan(acc) or last < 1:
-                s = 0.0
-                for k in range(1, j + 1):
-                    s += max(
-                        high[k] - low[k],
-                        abs(high[k] - close[k - 1]),
-                        abs(low[k] - close[k - 1]),
-                    )
-                acc = s
-            else:
-                acc = acc + tr
-        elif j == period:
-            # Seed = SMA of first ``period`` TRs
-            s = 0.0
-            for k in range(1, period + 1):
-                s += max(
-                    high[k] - low[k],
-                    abs(high[k] - close[k - 1]),
-                    abs(low[k] - close[k - 1]),
-                )
-            acc = s / period
-        elif np.isnan(acc) or last < period:
-            s = 0.0
-            for k in range(1, period + 1):
-                s += max(
-                    high[k] - low[k],
-                    abs(high[k] - close[k - 1]),
-                    abs(low[k] - close[k - 1]),
-                )
-            acc = s / period
-            for k in range(period + 1, j + 1):
-                trk = max(
-                    high[k] - low[k],
-                    abs(high[k] - close[k - 1]),
-                    abs(low[k] - close[k - 1]),
-                )
-                acc = alpha * trk + (1.0 - alpha) * acc
-        else:
-            acc = alpha * tr + (1.0 - alpha) * acc
+        acc = alpha * tr + (1.0 - alpha) * acc
 
     st[0] = acc
     st[1] = float(i)
-    if i < period:
-        return np.nan
     return acc
 
 
@@ -3902,7 +3870,7 @@ def numba_sum_inc(arr, period, i, st):
 
 @numba.njit(cache=True)
 def numba_stdev_inc(arr, period, i, st):
-    """O(1) sample stdev. ``st``: [sum, sumsq, last_i]. Matches ``numba_stdev``."""
+    """O(1) population stdev. ``st``: [sum, sumsq, last_i]. Matches ``numba_stdev``."""
     period = int(period)
     if period <= 1 or i < 0:
         return np.nan
@@ -3963,7 +3931,7 @@ def numba_stdev_inc(arr, period, i, st):
     if i < period - 1 or np.isnan(s):
         return np.nan
     mean = s / period
-    var = (sq - s * mean) / (period - 1)
+    var = (sq - s * mean) / period
     # floating cancellation
     var = max(var, 0.0)
     return np.sqrt(var)
@@ -3971,7 +3939,7 @@ def numba_stdev_inc(arr, period, i, st):
 
 @numba.njit(cache=True)
 def numba_variance_inc(arr, period, i, st):
-    """O(1) sample variance. ``st``: [sum, sumsq, last_i]. Matches ``numba_variance``."""
+    """O(1) population variance. ``st``: [sum, sumsq, last_i]. Matches ``numba_variance``."""
     period = int(period)
     if period <= 1 or i < 0:
         return np.nan
@@ -4032,7 +4000,7 @@ def numba_variance_inc(arr, period, i, st):
     if i < period - 1 or np.isnan(s):
         return np.nan
     mean = s / period
-    var = (sq - s * mean) / (period - 1)
+    var = (sq - s * mean) / period
     var = max(var, 0.0)
     return var
 
@@ -4046,7 +4014,7 @@ def numba_bb_inc(arr, period, mult, i, st):
         return np.nan, np.nan, np.nan
     # st[0] is sum after stdev_inc
     mid = st[0] / period
-    return mid + mult * sd, mid, mid - mult * sd
+    return mid, mid + mult * sd, mid - mult * sd
 
 
 @numba.njit(cache=True)
@@ -4230,7 +4198,7 @@ def numba_tsi_inc(arr, short_len, long_len, i, st):
         return np.nan
     if short_a == 0.0:
         return 0.0
-    return 100.0 * (short_m / short_a)
+    return short_m / short_a
 
 
 @numba.njit(cache=True)
@@ -4319,7 +4287,7 @@ def numba_lowest_inc(arr, period, i, st):
                 v = arr[k]
                 if np.isnan(v):
                     continue
-                if np.isnan(m) or v < m:
+                if np.isnan(m) or v <= m:
                     m = v
                     mi = k
         else:
@@ -4847,7 +4815,11 @@ def numba_dev_inc(arr, period, i, st):
 
 @numba.njit(cache=True)
 def numba_mfi_inc(high, low, close, vol, length, i, st):
-    """O(1) sliding Money Flow Index. ``st``: [pos, neg, last_i]. Matches ``numba_mfi``."""
+    """O(1) sliding Money Flow Index. ``st``: [pos, neg, last_i]. Matches ``numba_mfi``.
+
+    First value lands at ``i == length - 1`` (``length - 1`` directed samples);
+    from ``i == length`` onward the window holds ``length`` pairs.
+    """
     length = int(length)
     if length <= 0 or i < 0:
         return np.nan
@@ -4863,14 +4835,14 @@ def numba_mfi_inc(high, low, close, vol, length, i, st):
     neg = st[1]
 
     for j in range(last + 1, i + 1):
-        if j < length:
+        if j < length - 1:
             pos = np.nan
             neg = np.nan
-        elif j == length:
+        elif j == length - 1:
             pos = 0.0
             neg = 0.0
             ok = True
-            for k in range(j - length + 1, j + 1):
+            for k in range(1, length):
                 tp = (high[k] + low[k] + close[k]) / 3.0
                 tp_prev = (high[k - 1] + low[k - 1] + close[k - 1]) / 3.0
                 vv = vol[k]
@@ -4889,7 +4861,7 @@ def numba_mfi_inc(high, low, close, vol, length, i, st):
             pos = 0.0
             neg = 0.0
             ok = True
-            for k in range(j - length + 1, j + 1):
+            for k in range(max(1, j - length + 1), j + 1):
                 tp = (high[k] + low[k] + close[k]) / 3.0
                 tp_prev = (high[k - 1] + low[k - 1] + close[k - 1]) / 3.0
                 vv = vol[k]
@@ -4905,19 +4877,21 @@ def numba_mfi_inc(high, low, close, vol, length, i, st):
                 pos = np.nan
                 neg = np.nan
         else:
-            k_old = j - length
-            tp = (high[k_old] + low[k_old] + close[k_old]) / 3.0
-            tp_prev = (high[k_old - 1] + low[k_old - 1] + close[k_old - 1]) / 3.0
-            vv = vol[k_old]
-            if np.isnan(tp) or np.isnan(tp_prev) or np.isnan(vv):
-                pos = np.nan
-                neg = np.nan
-            else:
-                mf = tp * vv
-                if tp > tp_prev:
-                    pos -= mf
-                elif tp < tp_prev:
-                    neg -= mf
+            if j > length:
+                k_old = j - length
+                tp = (high[k_old] + low[k_old] + close[k_old]) / 3.0
+                tp_prev = (high[k_old - 1] + low[k_old - 1] + close[k_old - 1]) / 3.0
+                vv = vol[k_old]
+                if np.isnan(tp) or np.isnan(tp_prev) or np.isnan(vv):
+                    pos = np.nan
+                    neg = np.nan
+                else:
+                    mf = tp * vv
+                    if tp > tp_prev:
+                        pos -= mf
+                    elif tp < tp_prev:
+                        neg -= mf
+            if not np.isnan(pos):
                 k = j
                 tp = (high[k] + low[k] + close[k]) / 3.0
                 tp_prev = (high[k - 1] + low[k - 1] + close[k - 1]) / 3.0
@@ -4935,7 +4909,7 @@ def numba_mfi_inc(high, low, close, vol, length, i, st):
     st[0] = pos
     st[1] = neg
     st[2] = float(i)
-    if i < length or np.isnan(pos):
+    if i < length - 1 or np.isnan(pos):
         return np.nan
     if neg == 0.0:
         if pos == 0.0:
@@ -4949,12 +4923,12 @@ def numba_mfi_inc(high, low, close, vol, length, i, st):
 def numba_highestbars_inc(arr, length, i, st):
     """Amortized highestbars. ``st``: [max_val, max_idx, last_i].
 
-    Matches :func:`numba_highestbars` / interpret: negative offset, ``-1.0``
-    while ``i+1 < length`` or all-NaN; oldest extreme on ties (strict ``>``).
+    Matches :func:`numba_highestbars` / interpret: negative offset, ``nan``
+    while ``i+1 < length`` or all-NaN; newest extreme on ties.
     """
     length = int(length)
     if length <= 0 or i < 0:
-        return -1.0
+        return np.nan
     if np.isnan(st[2]):
         last = -1
     else:
@@ -4975,8 +4949,8 @@ def numba_highestbars_inc(arr, length, i, st):
                 v = arr[k]
                 if np.isnan(v):
                     continue
-                # strict > → oldest wins ties
-                if np.isnan(m) or v > m:
+                # >= → newest wins ties
+                if np.isnan(m) or v >= m:
                     m = v
                     mi = k
         else:
@@ -4985,16 +4959,16 @@ def numba_highestbars_inc(arr, length, i, st):
                 if not np.isnan(v):
                     m = v
                     mi = j
-            elif (not np.isnan(v)) and v > m:
+            elif (not np.isnan(v)) and v >= m:
                 m = v
                 mi = j
     st[0] = m
     st[1] = float(mi) if mi >= 0 else np.nan
     st[2] = float(i)
     if i + 1 < length:
-        return -1.0
+        return np.nan
     if np.isnan(m) or mi < 0:
-        return -1.0
+        return np.nan
     return float(-(i - mi))
 
 
@@ -5002,12 +4976,12 @@ def numba_highestbars_inc(arr, length, i, st):
 def numba_lowestbars_inc(arr, length, i, st):
     """Amortized lowestbars. ``st``: [min_val, min_idx, last_i].
 
-    Matches :func:`numba_lowestbars` / interpret: negative offset, ``-1.0``
-    while ``i+1 < length`` or all-NaN; oldest extreme on ties (strict ``<``).
+    Matches :func:`numba_lowestbars` / interpret: negative offset, ``nan``
+    while ``i+1 < length`` or all-NaN; newest extreme on ties.
     """
     length = int(length)
     if length <= 0 or i < 0:
-        return -1.0
+        return np.nan
     if np.isnan(st[2]):
         last = -1
     else:
@@ -5028,7 +5002,7 @@ def numba_lowestbars_inc(arr, length, i, st):
                 v = arr[k]
                 if np.isnan(v):
                     continue
-                if np.isnan(m) or v < m:
+                if np.isnan(m) or v <= m:
                     m = v
                     mi = k
         else:
@@ -5037,16 +5011,16 @@ def numba_lowestbars_inc(arr, length, i, st):
                 if not np.isnan(v):
                     m = v
                     mi = j
-            elif (not np.isnan(v)) and v < m:
+            elif (not np.isnan(v)) and v <= m:
                 m = v
                 mi = j
     st[0] = m
     st[1] = float(mi) if mi >= 0 else np.nan
     st[2] = float(i)
     if i + 1 < length:
-        return -1.0
+        return np.nan
     if np.isnan(m) or mi < 0:
-        return -1.0
+        return np.nan
     return float(-(i - mi))
 
 
@@ -6474,9 +6448,9 @@ def numba_bbw(arr, period, mult, i):
     """Bollinger Band Width: ``(upper - lower) / middle``.
 
     Matches interpret ``_builtin_ta_bbw`` (zero / nan middle → nan).
-    ``numba_bb`` returns ``(upper, middle, lower)``.
+    ``numba_bb`` returns ``(middle, upper, lower)``.
     """
-    upper, mid, lower = numba_bb(arr, period, mult, i)
+    mid, upper, lower = numba_bb(arr, period, mult, i)
     if np.isnan(mid) or mid == 0.0:
         return np.nan
     return (upper - lower) / mid
@@ -6485,7 +6459,7 @@ def numba_bbw(arr, period, mult, i):
 @numba.njit(cache=True)
 def numba_bbw_inc(arr, period, mult, i, st):
     """Incremental BBW. ``st`` shared with ``numba_bb_inc`` (sum/sumsq/last_i)."""
-    upper, mid, lower = numba_bb_inc(arr, period, mult, i, st)
+    mid, upper, lower = numba_bb_inc(arr, period, mult, i, st)
     if np.isnan(mid) or mid == 0.0:
         return np.nan
     return (upper - lower) / mid

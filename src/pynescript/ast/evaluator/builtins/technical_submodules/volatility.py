@@ -128,8 +128,8 @@ class VolatilityIndicators(TechnicalHelpers):
         if len(args) not in {BINARY, TERNARY}:
             self._error(msg)
         # ``_builtin_ta_bb`` MRO may resolve to BasicIndicators; both paths
-        # honor PYNE_TA_INCREMENTAL. BB returns (upper, middle, lower).
-        upper, middle, lower = self._builtin_ta_bb(args)
+        # honor PYNE_TA_INCREMENTAL. Reference Pine returns (middle, upper, lower).
+        middle, upper, lower = self._builtin_ta_bb(args)
         if middle is None or upper is None or lower is None:
             return None
         if middle == 0:
@@ -678,28 +678,31 @@ class VolatilityIndicators(TechnicalHelpers):
     ) -> list[float | None]:
         """ATR = Wilder RMA of true range (reference Pine ``ta.rma(ta.tr, length)``).
 
-        Dual-host aligned with ``numba_atr`` (audit Wave B). Returns a series
-        aligned to the TR samples (length ``len(closes)-1``); leading values
-        before the RMA seed are ``None``.
+        Dual-host aligned with ``numba_atr`` (audit Wave B). Uses
+        ``ta.tr(true)`` semantics: the first bar's TR is ``high - low``, so the
+        first ATR lands at bar ``period - 1`` (reference Pine). Returns a series
+        aligned to the bars; leading values before the RMA seed are ``None``.
         """
         if period <= 0:
             return []
-        tr_values: list[float] = []
-        for idx in range(1, len(closes)):
+        tr_values: list[float | None] = []
+        for idx in range(len(closes)):
             high = highs[idx]
             low = lows[idx]
-            prev_close = closes[idx - 1]
             try:
-                tr_values.append(
-                    max(
-                        float(high) - float(low),
-                        abs(float(high) - float(prev_close)),
-                        abs(float(low) - float(prev_close)),
+                if idx == 0:
+                    tr_values.append(float(high) - float(low))
+                else:
+                    prev_close = closes[idx - 1]
+                    tr_values.append(
+                        max(
+                            float(high) - float(low),
+                            abs(float(high) - float(prev_close)),
+                            abs(float(low) - float(prev_close)),
+                        )
                     )
-                )
             except (TypeError, ValueError):
-                # Soft-fail individual bars: skip non-numeric OHLC
-                continue
+                tr_values.append(None)
         if not tr_values:
             return []
         # Wilder RMA of TR — same formula as ``_rma`` / ``numba_rma``
@@ -722,7 +725,7 @@ class VolatilityIndicators(TechnicalHelpers):
         period: int,
         multiplier: float,
     ) -> tuple[float | None, float | None, float | None]:
-        """Bollinger Bands calculation.
+        """Bollinger Bands calculation, returned as ``(middle, upper, lower)``.
 
         In bar-mode incremental hosts, middle uses call-site SMA state (O(1)
         after warm-up) instead of full-history ``_sma`` each bar.
@@ -736,4 +739,4 @@ class VolatilityIndicators(TechnicalHelpers):
             return None, None, None
         upper = middle + deviation * multiplier
         lower = middle - deviation * multiplier
-        return upper, middle, lower
+        return middle, upper, lower

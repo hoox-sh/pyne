@@ -45,6 +45,95 @@ BINARY = 2
 TERNARY = 3
 
 
+def _format_volume(value: float) -> str:
+    """Pine ``format.volume``: K/M/B/T suffix, three decimals, no suffix below 1K."""
+    if value != value or value in (float("inf"), float("-inf")):
+        return str(value)
+    sign = "-" if value < 0 else ""
+    magnitude = abs(value)
+    for suffix, scale in (("T", 1e12), ("B", 1e9), ("M", 1e6), ("K", 1e3)):
+        if magnitude >= scale:
+            scaled = magnitude / scale
+            # Reference Pine promotes 999.5K to 1000K rather than 1M.
+            text = f"{scaled:.3f}".rstrip("0").rstrip(".")
+            return f"{sign}{text}{suffix}"
+    # Below 1K TradingView rounds to a whole unit (999.5 -> 1000).
+    return f"{sign}{magnitude:.0f}"
+
+
+def _format_pine_number(value: float, fmt: str) -> str | None:
+    """Format ``value`` with a Pine number pattern such as ``#.##########``.
+
+    Pine uses ``#`` for optional digits and ``0`` for required digits.  The
+    format constants (``format.price`` / ``format.mintick`` / ...) arrive as
+    plain names, so map the ones that matter here.  Returns ``None`` when the
+    pattern is not a number pattern (caller falls back to Python formatting).
+    """
+    if value != value:  # NaN
+        return "NaN"
+    if value == float("inf"):
+        return "Infinity"
+    if value == float("-inf"):
+        return "-Infinity"
+
+    pattern = fmt.strip()
+    if not pattern:
+        return None
+    lowered = pattern.lower()
+    if lowered == "volume":
+        return _format_volume(value)
+    if lowered == "percent":
+        pattern = "0.00%"
+    elif lowered in {"mintick", "price"}:
+        pattern = "#.##########"
+    elif lowered == "inherit":
+        return None
+
+    suffix = ""
+    if pattern.endswith("%"):
+        suffix = "%"
+        pattern = pattern[:-1]
+    if not pattern or any(ch not in "#0.," for ch in pattern):
+        return None
+    if pattern.count(".") > 1:
+        return None
+
+    grouping = "," in pattern
+    pattern = pattern.replace(",", "")
+    int_pattern, _, dec_pattern = pattern.partition(".")
+    if not int_pattern and not dec_pattern:
+        return None
+    if not dec_pattern and "." in pattern:
+        # "0." / "#." — integer output with a literal point is not useful.
+        dec_pattern = ""
+
+    decimals = len(dec_pattern)
+    # Round once, then trim only the optional (`#`) decimal positions.
+    text = f"{value:.{decimals}f}" if decimals else f"{value:.0f}"
+    negative = text.startswith("-")
+    if negative:
+        text = text[1:]
+
+    if decimals:
+        int_text, _, frac_text = text.partition(".")
+        trim_from = len(dec_pattern)
+        while trim_from > 0 and dec_pattern[trim_from - 1] == "#" and frac_text.endswith("0"):
+            frac_text = frac_text[:-1]
+            trim_from -= 1
+        text = f"{int_text}.{frac_text}" if frac_text else int_text
+
+    # ``-0.00`` is ``0.00`` in Pine; keep the sign only for non-zero values.
+    if negative and float(text.replace(",", "")) == 0.0:
+        negative = False
+
+    if grouping:
+        int_text, dot, frac_text = text.partition(".")
+        int_text = f"{int(int_text):,}" if int_text else "0"
+        text = f"{int_text}{dot}{frac_text}"
+
+    return f"{'-' if negative else ''}{text}{suffix}"
+
+
 class StringBuiltinsMixin(BuiltinDispatchMixin):
     """``str.*`` string manipulation and conversion builtins.
 
@@ -329,14 +418,25 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         value = args[0]
         if value is None:
             return "NaN"
+        # Builtins receive the series wrapper for chart values such as ``time``
+        # and ``close``; format the current sample, not the wrapper's repr.
+        if hasattr(value, "current") and hasattr(value, "history"):
+            value = value.current
+        if value is None:
+            return "NaN"
+        if hasattr(value, "item") and not isinstance(value, (str, bytes)):
+            try:
+                value = value.item()
+            except (AttributeError, TypeError, ValueError):
+                pass
         if len(args) >= 2 and args[1] is not None:
             fmt = str(args[1])
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                formatted = _format_pine_number(float(value), fmt)
+                if formatted is not None:
+                    return formatted
             try:
-                if isinstance(value, (int, float)):
-                    # Pine format tokens are simplified: # / 0.00 etc.
-                    if "#" in fmt or "0" in fmt:
-                        return f"{float(value):g}"
-                    return format(value, fmt) if fmt else str(value)
+                return format(value, fmt) if fmt else str(value)
             except (ValueError, TypeError):
                 pass
         return str(value)

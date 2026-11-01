@@ -125,7 +125,7 @@ class TestPureHelpers:
         assert _Common._percentrank(ev, [1.0, None], 2) == pytest.approx(50.0)
         assert _Common._percentrank(ev, [1.0, 2.0, None], 3) is None
 
-        assert _Common._variance(ev, series, 5) == pytest.approx(statistics.variance(series))
+        assert _Common._variance(ev, series, 5) == pytest.approx(statistics.pvariance(series))
         assert _Common._variance(ev, series, 1) is None
         assert _Common._variance(ev, [1.0, 2.0], 5) is None
         assert _Common._variance(ev, [1.0, None, 3.0], 3) is None
@@ -329,8 +329,8 @@ class TestIncrementalBranches:
         short = [1.0, 2.0]
         assert isinstance(_Common._builtin_ta_rising(ev, [short, 5]), bool)
         assert isinstance(_Common._builtin_ta_falling(ev, [short, 5]), bool)
-        assert isinstance(_Common._builtin_ta_highestbars(ev, [short, 5]), int)
-        assert isinstance(_Common._builtin_ta_lowestbars(ev, [short, 5]), int)
+        assert _Common._builtin_ta_highestbars(ev, [short, 5]) is None
+        assert _Common._builtin_ta_lowestbars(ev, [short, 5]) is None
 
     def test_stats_and_utils_inc(self, ev: NodeLiteralEvaluator) -> None:
         _enable_incremental(ev)

@@ -6429,10 +6429,11 @@ class CompilerVisitor(NodeVisitor):
             b0 = args[1] if len(args) > 1 else "0.0"
             return f"({_cross_pair(a0, b0, under=False)} or {_cross_pair(a0, b0, under=True)})"
         if func_name == "ta_tr":
-            # ta.tr() / ta.tr(handle_na) — chart high/low/close; optional bool ignored
+            # ta.tr() / ta.tr(handle_na) — chart high/low/close.
             if len(args) >= 3 and _is_series_arr(args[0]):
                 return f"numba_tr({_arr(args[0])}, {_arr(args[1])}, {_arr(args[2])}, __bar_idx)"
-            return "numba_tr(high_arr, low_arr, close_arr, __bar_idx)"
+            handle = "True" if len(args) == 1 and args[0] == "True" else "False"
+            return f"numba_tr(high_arr, low_arr, close_arr, __bar_idx, {handle})"
         if func_name == "ta_cum":
             src = args[0] if args else "close_arr[__bar_idx]"
             if _is_series_arr(src):

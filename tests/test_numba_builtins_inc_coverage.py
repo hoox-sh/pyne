@@ -202,7 +202,8 @@ def test_mfi_inc_warmup_and_invalid():
     h, l, c, v = _HIGH[:12], _LOW[:12], _CLOSE[:12], _VOL[:12]
     state = st(3)
     outs, rewind = walk(lambda i: nb.numba_mfi_inc(h, l, c, v, 5, i, state), len(c), state)
-    assert _isnan(outs[4])
+    assert _isnan(outs[3])
+    assert _finite(outs[4])
     assert _finite(outs[-1])
     assert _finite(rewind) or _isnan(rewind)
     assert _isnan(nb.numba_mfi_inc(h, l, c, v, 0, 6, st(3)))
@@ -263,12 +264,12 @@ def test_highestbars_lowestbars_inc():
     sh, sl = st(3), st(3)
     hb, _ = walk(lambda i: nb.numba_highestbars_inc(arr, 3, i, sh), len(arr), sh)
     lb, _ = walk(lambda i: nb.numba_lowestbars_inc(arr, 3, i, sl), len(arr), sl)
-    assert hb[0] == pytest.approx(-1.0)
-    assert lb[0] == pytest.approx(-1.0)
+    assert _isnan(hb[0])
+    assert _isnan(lb[0])
     assert hb[2] <= 0.0 and lb[2] <= 0.0
     assert _finite(hb[-1]) and _finite(lb[-1])
-    assert nb.numba_highestbars_inc(arr, 0, 3, st(3)) == pytest.approx(-1.0)
-    assert nb.numba_lowestbars_inc(arr, 0, 3, st(3)) == pytest.approx(-1.0)
+    assert _isnan(nb.numba_highestbars_inc(arr, 0, 3, st(3)))
+    assert _isnan(nb.numba_lowestbars_inc(arr, 0, 3, st(3)))
 
 
 def test_running_max_min_inc():
@@ -364,8 +365,8 @@ def test_atr_inc_warmup_and_invalid():
     h, l, c = _HIGH[:10], _LOW[:10], _CLOSE[:10]
     state = st(2)
     outs, rewind = walk(lambda i: nb.numba_atr_inc(h, l, c, 3, i, state), len(c), state)
-    assert _isnan(outs[0]) and _isnan(outs[2])
-    assert outs[3] == pytest.approx(2.0)
+    assert _isnan(outs[0]) and _isnan(outs[1])
+    assert outs[2] == pytest.approx(2.0)
     assert _finite(rewind)
     assert _isnan(nb.numba_atr_inc(h, l, c, 0, 5, st(2)))
 
@@ -453,7 +454,7 @@ def test_bb_inc_tuple():
     arr = _SRC[:12]
     state = st(3)
     outs, rewind = walk(lambda i: nb.numba_bb_inc(arr, 5, 2.0, i, state), len(arr), state)
-    u, m, lo = outs[-1]
+    m, u, lo = outs[-1]
     assert _isnan(outs[3][0])
     assert u > m > lo
     assert all(_isnan(x) or _finite(x) for x in rewind)

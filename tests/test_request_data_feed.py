@@ -1007,7 +1007,7 @@ plot(ta.linreg(close, 3), title="clin")
         for v in day5:
             assert abs(float(v) - ref) < 1e-9
         win3 = daily_closes[-3:]
-        expect_stdev = statistics.stdev(win3)
+        expect_stdev = statistics.pstdev(win3)
         assert abs(float(hstdev[-1]) - expect_stdev) < 1e-9
         # linreg(length=3, offset=0) skip-na OLS endpoint on last 3 completed days.
         n = 3
@@ -1352,7 +1352,7 @@ plot(ta.variance(close, 3), title="cvar")
         expect_med = statistics.median(win3)
         mean = sum(win3) / 3
         expect_dev = sum(abs(v - mean) for v in win3) / 3
-        expect_var = statistics.variance(win3)
+        expect_var = statistics.pvariance(win3)
         assert abs(float(hmed[-1]) - expect_med) < 1e-9
         assert abs(float(hdev[-1]) - expect_dev) < 1e-9
         assert abs(float(hvar[-1]) - expect_var) < 1e-9
@@ -1403,8 +1403,9 @@ plot(ta.change(close, 3), title="cchg")
         except statistics.StatisticsError:
             expect_mode = win3[0]
         current = win3[-1]
-        count_below = sum(1 for v in win3 if v < current)
-        expect_pr = (count_below / len(win3)) * 100.0
+        prev3 = daily_closes[-4:-1]
+        count_below = sum(1 for v in prev3 if v <= current)
+        expect_pr = (count_below / len(prev3)) * 100.0
         expect_chg = daily_closes[-1] - daily_closes[-4]
         assert abs(float(hmode[-1]) - expect_mode) < 1e-9
         assert abs(float(hpr[-1]) - expect_pr) < 1e-9
@@ -1893,8 +1894,9 @@ plot(ta.mfi(3), title="cmfi")
             daily_lows.append(min(float(b["low"]) for b in chunk))
             daily_closes.append(float(chunk[-1]["close"]))
             daily_vols.append(sum(float(b["volume"]) for b in chunk))
-        # mfi(3) needs 4 HTF samples; first output at unique index 3 (during day 4).
-        assert all(_is_na(x) for x in hmfi[1:96])
+        # mfi(3) first value at unique index 2 (during day 3); full 3 pairs from day 4.
+        assert all(_is_na(x) for x in hmfi[1:48])
+        assert any(not _is_na(x) for x in hmfi[48:96])
         day8_adx = hadx[8 * 24 : 9 * 24]
         day8_mfi = hmfi[8 * 24 : 9 * 24]
         assert all(not _is_na(x) for x in day8_adx)

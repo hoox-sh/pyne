@@ -594,7 +594,7 @@ def test_runtime_stdev_bb_hl_wma_incremental_vs_disabled(monkeypatch: pytest.Mon
     ]
     src = """//@version=5
 indicator("stdev bb hl wma")
-[u, m, l] = ta.bb(close, 20, 2.0)
+[m, u, l] = ta.bb(close, 20, 2.0)
 plot(u)
 plot(m)
 plot(l)
@@ -1019,8 +1019,8 @@ def test_rising_falling_highestbars_tolerate_na() -> None:
     assert ev._highestbars([None, None, 1.0], 3) == 0
     assert ev._highestbars([None, 5.0, 1.0], 3) == -1
     assert ev._lowestbars([None, None, 1.0], 3) == 0
-    assert ev._highestbars(all_na, 7) == -1
-    assert ev._lowestbars(all_na, 7) == -1
+    assert ev._highestbars(all_na, 7) is None
+    assert ev._lowestbars(all_na, 7) is None
     # Non-numeric junk must not raise (skip like None)
     assert ev._highestbars([None, "x", 1.0], 3) == 0
     assert ev._lowestbars([None, "x", 1.0], 3) == 0
@@ -1032,9 +1032,9 @@ def test_rising_falling_highestbars_tolerate_na() -> None:
         ev_inc._ta_call_i = 0
         assert ev_inc._falling_inc_update(all_na[: i + 1], 7) is False
         ev_inc._ta_call_i = 0
-        assert ev_inc._highestbars_inc_update(all_na[: i + 1], 7) == -1
+        assert ev_inc._highestbars_inc_update(all_na[: i + 1], 7) is None
         ev_inc._ta_call_i = 0
-        assert ev_inc._lowestbars_inc_update(all_na[: i + 1], 7) == -1
+        assert ev_inc._lowestbars_inc_update(all_na[: i + 1], 7) is None
 
 
 def test_common_indicators_does_not_override_na_safe_helpers() -> None:
@@ -1138,7 +1138,9 @@ plot(mn, title="mn")
     assert any(v == 1.0 for v in r_on["series"]["r"][10:])
     # highestbars/lowestbars produce finite ints (no crash sentinel)
     for key in ("hb", "lb"):
-        assert all(isinstance(v, (int, float)) for v in r_on["series"][key])
+        vals = r_on["series"][key]
+        assert all(v is None or isinstance(v, (int, float)) for v in vals)
+        assert any(isinstance(v, (int, float)) for v in vals)
     # 2-arg max/min of derived SMA now use last-sample kernels (like highest).
     # Disabled full `_highest` on a 1-sample derived series stays na — skip those.
     assert all(v is None for v in r_on["series"]["mx"][:9])
@@ -2654,7 +2656,7 @@ def _bar_walk_full_bbw(src: list[float], period: int, mult: float) -> list[float
     ev = _FullTA()
     out: list[float | None] = []
     for i in range(len(src)):
-        u, m, l = ev._bollinger_bands(src[: i + 1], period, mult)
+        m, u, l = ev._bollinger_bands(src[: i + 1], period, mult)
         if m is None or u is None or l is None or m == 0:
             out.append(None)
         else:
@@ -2667,7 +2669,7 @@ def _bar_walk_inc_bbw(src: list[float], period: int, mult: float) -> list[float 
     out: list[float | None] = []
     for i in range(len(src)):
         ev._ta_call_i = 0
-        u, m, l = ev._bb_inc_update(src[: i + 1], period, mult)
+        m, u, l = ev._bb_inc_update(src[: i + 1], period, mult)
         if m is None or u is None or l is None or m == 0:
             out.append(None)
         else:
@@ -2806,7 +2808,7 @@ def test_runtime_round7_t2_incremental_vs_disabled(monkeypatch: pytest.MonkeyPat
 indicator("round7 t2")
 plot(ta.kama(close, 10))
 plot(ta.cmo(close, 14))
-[u, m, l] = ta.bb(close, 20, 2.0)
+[m, u, l] = ta.bb(close, 20, 2.0)
 plot(u)
 plot(m)
 plot(l)

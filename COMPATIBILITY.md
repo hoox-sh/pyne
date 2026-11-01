@@ -128,6 +128,24 @@ Foreign/complex security → `na`. First-party hline/fill/bgcolor/plotshape keys
 
 ---
 
+## TradingView goldens (external evidence)
+
+Vendored from OpenPineScript (`conformance/v5/golden`, GPL-3.0): nine Pine
+harnesses plus the Pine Logs exports TradingView produced on
+`BINANCE:BTCUSDT` `1D`. The harness is the test program; the export supplies
+the OHLCV bars and the reference columns.
+
+```bash
+make tv-goldens          # known divergences allowed; new ones fail
+make tv-goldens-strict   # every divergence is red
+```
+
+Current baseline: **93 / 112 columns pass**, 19 documented divergences
+(`tests/fixtures/tv_goldens/baseline.json`). Root causes and the capture recipe:
+`tests/fixtures/tv_goldens/README.md`.
+
+---
+
 ## See also
 
 - Product map: `docs/pyne/reference/compatibility.mdx`

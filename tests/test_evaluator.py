@@ -1019,9 +1019,10 @@ def test_evaluator_ta_ema(expression, expected):
     ("expression", "expected"),
     [
         (
-            # Wilder RMA of TR (Wave B): first TR alone cannot seed period=2
+            # Wilder RMA of TR: bar 0 uses high-low (ta.tr(true)), so period=2
+            # seeds at index 1 and produces one value per bar.
             "ta.atr([10, 11, 12], [8, 9, 10], [9, 10, 11], 2)",
-            [None, 2.0],
+            [None, 2.0, 2.0],
         ),
     ],
 )

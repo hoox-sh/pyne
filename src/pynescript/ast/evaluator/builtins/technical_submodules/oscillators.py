@@ -140,7 +140,7 @@ class OscillatorIndicators(TechnicalHelpers):
         except (TypeError, ValueError):
             return None
 
-    def _builtin_ta_macd(self, args: list[Any]) -> tuple[float, float, float]:
+    def _builtin_ta_macd(self, args: list[Any]) -> tuple[float | None, float | None, float | None]:
         """MACD (Moving Average Convergence Divergence).
 
         Reference Pine: ``ta.macd(source, fastlen, slowlen, siglen)`` →
@@ -747,8 +747,8 @@ class OscillatorIndicators(TechnicalHelpers):
         fast: int,
         slow: int,
         signal: int,
-    ) -> tuple[float, float, float]:
-        """MACD calculation."""
+    ) -> tuple[float | None, float | None, float | None]:
+        """MACD calculation (na until both EMAs and the signal window are warm)."""
         ema_fast = self._ema(series, fast)
         ema_slow = self._ema(series, slow)
         macd_line = [
@@ -762,15 +762,15 @@ class OscillatorIndicators(TechnicalHelpers):
         ]
         last_macd = next(
             (value for value in reversed(macd_line) if value is not None),
-            0.0,
+            None,
         )
         last_signal = next(
             (value for value in reversed(signal_line) if value is not None),
-            0.0,
+            None,
         )
         last_hist = next(
             (value for value in reversed(histogram) if value is not None),
-            0.0,
+            None,
         )
         return last_macd, last_signal, last_hist
 
@@ -844,10 +844,10 @@ class OscillatorIndicators(TechnicalHelpers):
         lows: list[float],
         closes: list[float],
         period: int,
-    ) -> float:
-        """Williams %R calculation."""
+    ) -> float | None:
+        """Williams %R calculation (na until the window is full)."""
         if len(closes) < period or period <= 0:
-            return 0.0
+            return None
         highest_high = max(highs[-period:])
         lowest_low = min(lows[-period:])
         if highest_high == lowest_low:
@@ -871,7 +871,8 @@ class OscillatorIndicators(TechnicalHelpers):
         ema_ema_abs = self._ema(ema_abs, short_period)
         if ema_ema_abs[-1] == 0:
             return 0
-        return 100 * (ema_ema_mom[-1] / ema_ema_abs[-1])
+        # Reference Pine ta.tsi returns the raw ratio in [-1, 1], not percent.
+        return ema_ema_mom[-1] / ema_ema_abs[-1]
 
     def _valuewhen(
         self,

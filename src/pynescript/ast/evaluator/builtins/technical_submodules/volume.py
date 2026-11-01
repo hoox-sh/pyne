@@ -1090,12 +1090,13 @@ class VolumeIndicators(TechnicalHelpers):
     ) -> float:
         """Calculate Money Flow Index (reference Pine / numba_mfi parity).
 
-        Needs ``period + 1`` typical-price samples (direction vs previous bar).
-        Returns na until ready; 100 when only positive MF, 0 when only negative.
-        Equal typical prices contribute to neither side.
+        Needs ``period`` typical-price samples for the first value (it ranks
+        ``period - 1`` directed samples); full ``period`` pairs follow from the
+        next bar. Returns na until ready; 100 when only positive MF, 0 when
+        only negative. Equal typical prices contribute to neither side.
         """
         n = min(len(highs), len(lows), len(closes), len(volumes))
-        if period < 1 or n <= period:
+        if period < 1 or n < period:
             return math.nan
         highs = highs[-n:]
         lows = lows[-n:]
@@ -1111,7 +1112,8 @@ class VolumeIndicators(TechnicalHelpers):
 
         pos = 0.0
         neg = 0.0
-        for j in range(period):
+        pairs = min(period, n - 1)
+        for j in range(pairs):
             k = i - j
             tp = _tp(k)
             tp_prev = _tp(k - 1)

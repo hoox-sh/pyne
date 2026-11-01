@@ -555,7 +555,7 @@ class TestNumericBuiltins:
         ev = _ev()
         assert ev._builtin_math_max([None, None]) is None
         assert ev._builtin_math_min([None]) is None
-        assert ev._builtin_math_max([1, None, 2]) == 2.0
+        assert ev._builtin_math_max([1, None, 2]) is None
 
     def test_sqrt_pow_log(self) -> None:
         ev = _ev()
@@ -760,6 +760,17 @@ class TestStringBuiltins:
         ev = _ev()
         assert ev._builtin_str_tostring([None]) == "NaN"
         assert ev._builtin_str_tostring([5, "#"]) == "5"
+        # Pine number patterns: ``#`` is optional, ``0`` is required.
+        assert ev._builtin_str_tostring([1578009600000, "#"]) == "1578009600000"
+        assert ev._builtin_str_tostring([84068.8929999999, "#.##########"]) == "84068.8929999999"
+        assert ev._builtin_str_tostring([2.0, "0.00"]) == "2.00"
+        assert ev._builtin_str_tostring([2.3, "#.##"]) == "2.3"
+        assert ev._builtin_str_tostring([1.234, "#.##"]) == "1.23"
+        assert ev._builtin_str_tostring([-0.0, "0.00"]) == "0.00"
+        assert ev._builtin_str_tostring([1234.5, "#,###.##"]) == "1,234.5"
+        assert ev._builtin_str_tostring([1234567, "volume"]) == "1.235M"
+        assert ev._builtin_str_tostring([999.5, "volume"]) == "1000"
+        assert ev._builtin_str_tostring([0.1234, "percent"]) == "0.12%"
         assert ev._builtin_str_format([None]) == "NaN"
         assert ev._builtin_str_format(["hi {0}", "x"]) == "hi x"
         assert ev._builtin_str_format(["{0,number}", 1.5]) == "1.5"

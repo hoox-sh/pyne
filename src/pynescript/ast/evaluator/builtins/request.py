@@ -2236,8 +2236,8 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         pr_fn = getattr(self, "_percentrank", None)
         if not callable(pr_fn):
             return out
-        for i in range(period - 1, n):
-            window = src[i - period + 1 : i + 1]
+        for i in range(period, n):
+            window = src[i - period : i + 1]
             try:
                 v = pr_fn(window, period)
                 fv = float(v) if v is not None else float("nan")
@@ -2827,7 +2827,7 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
 
     @staticmethod
     def _htf_stdev_full_series(src: list[float | None], period: int) -> list[float | None]:
-        """Full-list sample stdev matching interpret ``_stdev`` (strict window, ddof=1)."""
+        """Full-list population stdev matching interpret ``_stdev`` (strict window, ddof=0)."""
         n = len(src)
         out: list[float | None] = [None] * n
         if n == 0 or period <= 1:
@@ -2849,7 +2849,7 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
                     ok = False
                     break
                 vals.append(fv)
-            out[i] = statistics.stdev(vals) if ok else None
+            out[i] = statistics.pstdev(vals) if ok else None
         return out
 
     def _htf_bbw_full_series(self, src: list[float | None], period: int, mult: int) -> list[float | None]:
@@ -3265,7 +3265,7 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
     ) -> list[float | None]:
         """Full-list MFI via interpret ``_mfi`` on unique HTF prefixes.
 
-        ``_mfi`` is last-sample only (na until ``period + 1`` typical-price
+        ``_mfi`` is last-sample only (first value after ``period`` typical-price
         samples). Prefix walk matches ``ta.mfi(n)`` on those unique bars.
         2-arg source/length and 5-arg explicit-series stay unmatched.
         """
@@ -4192,13 +4192,12 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         out: list[float | None] = [None] * n
         if not callable(atr_fn):
             return out
-        # _atr returns series aligned to TR samples (len ≈ n-1).
+        # _atr returns one value per HTF bar (bar 0 uses ta.tr(true)).
         atr_raw = atr_fn(highs, lows, closes, period)
         if not atr_raw:
             return out
-        # Map ATR[j] → HTF bar j+1 (TR needs a previous close).
         for j, v in enumerate(atr_raw):
-            dest = j + 1
+            dest = j
             if dest >= n:
                 break
             if v is None:

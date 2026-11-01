@@ -10,6 +10,7 @@
 	test-lsp test-backend test-cli typecheck build-check build-cli build-package \
 	build-vscode package build-backend-wheel \
 	corpus-flow corpus-flow-set05 corpus-recompile \
+	tv-goldens tv-goldens-strict \
 	deploy-vps deploy-vps-build \
 	okf-enrich okf-lint okf-check
 
@@ -21,6 +22,8 @@ help:
 	@echo "  test-cli         CLI unit tests (tests/test_cli.py)"
 	@echo "  test-lsp         LSP unit + e2e tests"
 	@echo "  test-backend     Backend / Pro API tests"
+	@echo "  tv-goldens       Compare against vendored TradingView exports (known gaps allowed)"
+	@echo "  tv-goldens-strict  Same, but fail on every TradingView divergence"
 	@echo "  lint             ruff check"
 	@echo "  fmt              ruff format"
 	@echo "  okf-enrich       Draft and link the OKF bundle"
@@ -79,6 +82,12 @@ test-lsp:
 
 test-backend:
 	python -m pytest tests/test_backend.py tests/test_backend_runner.py -v
+
+tv-goldens:
+	python scripts/compare_tv_goldens.py
+
+tv-goldens-strict:
+	python scripts/compare_tv_goldens.py --strict
 
 lint:
 	ruff check src/ tests/ backend/

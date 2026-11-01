@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-31T01:56:08Z
+  at: 2026-11-01T01:16:41Z
 sources:
   - id: tree
     resource: "tests"
@@ -197,6 +197,7 @@ okf_lock: generated
 * `test_timeframe_utility_coverage.py` — TestCalendarHelpers, TestPeriodFlagsAndChartPeriod, TestTimeframeEquivalenceAndBuckets, TestTimeframeInSecondsAndFromSeconds, TestTimeframeRuntime, TestUtilityDirectMixin, TestUtilityTimestampAndParts
 * `test_trail_ohlc_dual_host.py` — test_trail_nonpositive_points_falls_back_to_offset_dual_host, test_trail_offset_from_entry_dual_host, test_trail_offset_long_ratchet_dual_host, test_trail_offset_same_bar_fill_dual_host, test_trail_offset_short_ratchet_dual_host, test_trail_points_wins_over_offset_dual_host, test_trail_price_activation_dual_host
 * `test_trail_realtime_ticks.py` — test_compile_emits_ratchet_after_restore, test_forming_highs_ratchet_trail_dual_host, test_historical_ticks_one_keeps_bar_open_trail, test_ratchet_trails_survives_broker_restore_compile, test_ratchet_trails_survives_broker_restore_interpret, test_update_last_bar_ratchets_forming_high
+* `test_tv_goldens.py` — test_csv_export_route, test_tostring_unwraps_series_and_keeps_precision, test_tv_golden_baseline_has_reasons, test_tv_golden_fixtures_are_paired, test_tv_goldens_have_no_new_failures, test_vendored_fixture_hashes_match_sources
 * `test_udt_instantiation.py` — TestComplexScenarios, TestFieldAccess, TestFieldMutation, TestNestedObjects, TestObjectCopy, TestObjectInstantiation, TestObjectsInArrays
 * `test_udt_methods.py` — TestBarLoopMethodRegistration, TestBareNaAndLabelDelete, TestComplexMethodScenarios, TestMethodDefinition, TestMethodInvocation, TestMethodIssetOnNa, TestMethodReturnValues, TestMultipleMethods, TestTHISBinding, TestUdtFieldCallSyntax, TestUdtNewNameShadowing
 * `test_udt_types.py` — TestField, TestIntegration, TestObjectInstance, TestUserDefinedType

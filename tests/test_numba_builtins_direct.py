@@ -81,9 +81,9 @@ def test_highest_lowest_warmup_and_nan_skip():
     assert nb.numba_lowest(arr2, 3, 2) == pytest.approx(2.0)
 
 
-def test_stdev_sample():
+def test_stdev_population():
     arr = f64([1, 2, 3])
-    assert nb.numba_stdev(arr, 3, 2) == pytest.approx(1.0)
+    assert nb.numba_stdev(arr, 3, 2) == pytest.approx(0.816496580927726)
     assert np.isnan(nb.numba_stdev(arr, 1, 2))
 
 
@@ -136,7 +136,7 @@ def test_sum_basic():
 
 def test_variance_matches_stdev_squared():
     arr = f64([1, 2, 3])
-    assert nb.numba_variance(arr, 3, 2) == pytest.approx(1.0)
+    assert nb.numba_variance(arr, 3, 2) == pytest.approx(0.6666666666666666)
     assert np.isnan(nb.numba_variance(arr, 1, 2))
 
 
@@ -246,14 +246,14 @@ def test_highestbars_lowestbars():
     arr = f64([1, 3, 2])
     assert nb.numba_highestbars(arr, 3, 2) == pytest.approx(-1.0)
     assert nb.numba_lowestbars(arr, 3, 2) == pytest.approx(-2.0)
-    assert nb.numba_highestbars(arr, 3, 1) == pytest.approx(-1.0)
-    assert nb.numba_highestbars(arr, 9, 2) == pytest.approx(-1.0)
+    assert np.isnan(nb.numba_highestbars(arr, 3, 1))
+    assert np.isnan(nb.numba_highestbars(arr, 9, 2))
 
 
 def test_percentrank_top():
-    arr = f64([1, 2, 3])
-    assert nb.numba_percentrank(arr, 3, 2) == pytest.approx(100.0 * 2.0 / 3.0)
-    assert np.isnan(nb.numba_percentrank(arr, 3, 1))
+    arr = f64([1, 2, 3, 4])
+    assert nb.numba_percentrank(arr, 3, 3) == pytest.approx(100.0)
+    assert np.isnan(nb.numba_percentrank(arr, 3, 2))
 
 
 def test_median_odd_even():
@@ -293,7 +293,7 @@ def test_macd_warmup_is_nan():
 
 def test_bb_constant_series():
     arr = f64([5.0] * 5)
-    upper, mid, lower = nb.numba_bb(arr, 3, 2.0, 4)
+    mid, upper, lower = nb.numba_bb(arr, 3, 2.0, 4)
     assert mid == pytest.approx(5.0)
     assert upper == pytest.approx(5.0)
     assert lower == pytest.approx(5.0)
@@ -301,7 +301,7 @@ def test_bb_constant_series():
 
 def test_bb_warmup_is_nan():
     arr = f64([5.0] * 5)
-    upper, mid, lower = nb.numba_bb(arr, 3, 2.0, 1)
+    mid, upper, lower = nb.numba_bb(arr, 3, 2.0, 1)
     assert np.isnan(mid) and np.isnan(upper) and np.isnan(lower)
 
 

@@ -7,7 +7,7 @@ tags: [compatibility, doc]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-08T18:28:09Z
+  at: 2026-11-01T01:16:41Z
 sources:
   - id: tree
     resource: "COMPATIBILITY.md"
@@ -30,6 +30,7 @@ Repo path `COMPATIBILITY.md`.
   * Residual
   * Out of scope
 * Dual-host (interpret ↔ compile)
+* TradingView goldens (external evidence)
 * See also
 
 # Mentions

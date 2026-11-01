@@ -107,8 +107,8 @@ class TestCommonStats:
     def test_mode_percentrank_variance(self, ev: NodeLiteralEvaluator) -> None:
         series = _trend()
         assert _Common._builtin_ta_mode(ev, [series, 5]) == pytest.approx(26.0)
-        assert _Common._builtin_ta_percentrank(ev, [series, 5]) == pytest.approx(80.0)
-        assert _Common._builtin_ta_variance(ev, [series, 5]) == pytest.approx(2.5)
+        assert _Common._builtin_ta_percentrank(ev, [series, 5]) == pytest.approx(100.0)
+        assert _Common._builtin_ta_variance(ev, [series, 5]) == pytest.approx(2.0)
 
     def test_expected_value(self, ev: NodeLiteralEvaluator) -> None:
         assert _Common._builtin_ta_expected_value(ev, [[1.0, 2.0, 3.0], [0.2, 0.3, 0.5]]) == pytest.approx(2.3)
@@ -217,7 +217,7 @@ class TestBasicRanges:
     def test_change_mom_stdev(self, ev: NodeLiteralEvaluator) -> None:
         assert _Basic._builtin_ta_change(ev, [_trend()]) == pytest.approx(1.0)
         assert _Basic._builtin_ta_mom(ev, [_trend(), 10]) == pytest.approx(10.0)
-        assert _Basic._builtin_ta_stdev(ev, [_trend(), 5]) == pytest.approx(1.5811, abs=0.001)
+        assert _Basic._builtin_ta_stdev(ev, [_trend(), 5]) == pytest.approx(1.4142, abs=0.001)
 
     def test_tr_atr(self, ev: NodeLiteralEvaluator) -> None:
         high, low, close, _vol = _ohlcv()
@@ -319,7 +319,7 @@ class TestOscillators:
         assert k == pytest.approx(78.261, abs=0.01)
 
     def test_macd(self, ev: NodeLiteralEvaluator) -> None:
-        macd, signal, hist = _Osc._builtin_ta_macd(ev, [_trend(), 12, 26, 9])
+        macd, signal, hist = _Osc._builtin_ta_macd(ev, [_trend(60), 12, 26, 9])
         assert macd == pytest.approx(7.0)
         assert isinstance(signal, float) and isinstance(hist, float)
 
@@ -340,8 +340,8 @@ class TestOscillators:
         assert (up, down) == (pytest.approx(0.0), pytest.approx(100.0))
 
     def test_tsi(self, ev: NodeLiteralEvaluator) -> None:
-        assert _Osc._builtin_ta_tsi(ev, [_trend(60), 13, 25]) == pytest.approx(100.0)
-        assert _Osc._builtin_ta_tsi(ev, [13, 25]) == pytest.approx(100.0)
+        assert _Osc._builtin_ta_tsi(ev, [_trend(60), 13, 25]) == pytest.approx(1.0)
+        assert _Osc._builtin_ta_tsi(ev, [13, 25]) == pytest.approx(1.0)
 
     def test_valuewhen(self, ev: NodeLiteralEvaluator) -> None:
         _high, _low, close, _vol = _ohlcv()
@@ -380,14 +380,14 @@ class TestOscillators:
 class TestVolatility:
     def test_stdev_atr_tr(self, ev: NodeLiteralEvaluator) -> None:
         high, low, close, _vol = _ohlcv()
-        assert _Vol._builtin_ta_stdev(ev, [_trend(), 5]) == pytest.approx(1.5811, abs=0.001)
+        assert _Vol._builtin_ta_stdev(ev, [_trend(), 5]) == pytest.approx(1.4142, abs=0.001)
         assert _Vol._builtin_ta_atr(ev, [high, low, close, 14])[-1] == pytest.approx(10.0)
         assert _Vol._builtin_ta_tr(ev, [high, low, close])[-1] == pytest.approx(10.0)
 
     def test_bb_family(self, ev: NodeLiteralEvaluator) -> None:
-        upper, basis, lower = _Vol._builtin_ta_bb(ev, [_trend(), 20, 2.0])
+        basis, upper, lower = _Vol._builtin_ta_bb(ev, [_trend(), 20, 2.0])
         assert upper > basis > lower
-        assert _Vol._builtin_ta_bbw(ev, [_trend(), 20, 2.0]) == pytest.approx(1.1544, abs=0.001)
+        assert _Vol._builtin_ta_bbw(ev, [_trend(), 20, 2.0]) == pytest.approx(1.1251, abs=0.001)
         assert _Vol._builtin_ta_bb_pct(ev, [_trend(), 20, 2.0]) == pytest.approx(54.188, abs=0.01)
 
     def test_alma_cmo(self, ev: NodeLiteralEvaluator) -> None:

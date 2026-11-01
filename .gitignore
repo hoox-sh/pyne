@@ -145,6 +145,8 @@ AGENTS.md
 logs/
 data/
 *.log
+# TradingView Pine Logs exports are test fixtures, not runtime logs.
+!tests/fixtures/tv_goldens/**/*.log
 
 # Docker / compose local overrides
 .env.local

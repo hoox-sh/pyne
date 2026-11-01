@@ -256,7 +256,7 @@ class BasicIndicators(TechnicalHelpers):
             return self._lowest_inc_update(series, period)
         return self._lowest(series, period)
 
-    def _builtin_ta_highestbars(self, args: list[Any]) -> int:
+    def _builtin_ta_highestbars(self, args: list[Any]) -> int | None:
         """Offset to highest value."""
         if self._use_incremental_ta():
             if len(args) == 1 and self._is_period_like(args[0]):
@@ -275,7 +275,7 @@ class BasicIndicators(TechnicalHelpers):
             return self._highestbars_inc_update(series, period)
         return self._highestbars(series, period)
 
-    def _builtin_ta_lowestbars(self, args: list[Any]) -> int:
+    def _builtin_ta_lowestbars(self, args: list[Any]) -> int | None:
         """Offset to lowest value."""
         if self._use_incremental_ta():
             if len(args) == 1 and self._is_period_like(args[0]):
@@ -337,18 +337,21 @@ class BasicIndicators(TechnicalHelpers):
         from context). Also accepts the legacy 3-arg form for unit tests.
         """
         if len(args) <= UNARY:
-            # Optional boolean handle_na is ignored for computation; na bars
-            # already yield None via _tr internals.
+            raw_handle = args[0] if len(args) == UNARY else False
+            if hasattr(raw_handle, "current") and hasattr(raw_handle, "history"):
+                raw_handle = raw_handle.current
+            handle_na = bool(raw_handle)
             if self._use_incremental_ta():
                 return self._tr_inc_update(
                     self._context_source("high"),
                     self._context_source("low"),
                     self._context_source("close"),
+                    handle_na,
                 )
             highs = self._context_series("high")
             lows = self._context_series("low")
             closes = self._context_series("close")
-            return self._finalize_series(self._tr(highs, lows, closes))
+            return self._finalize_series(self._tr(highs, lows, closes, handle_na))
         msg = "ta.tr expects high, low, and close (or 0-1 handle_na args)"
         self._require_len(args, TERNARY, msg)
         if self._use_incremental_ta():
@@ -1307,21 +1310,33 @@ class BasicIndicators(TechnicalHelpers):
             return valid_values[0] if valid_values else None
 
     def _percentrank(self, series: list[float], period: int) -> float | None:
-        """Percentile rank of current value in period."""
-        if len(series) < period:
+        """Percentile rank of the current value among the previous ``period`` bars.
+
+        Reference Pine starts at bar ``period`` and excludes the current bar
+        from the ranking window (verified against the TV golden export).
+        """
+        if period <= 0 or len(series) <= period:
             return None
-        window = series[-period:]
-        valid_values = sorted([v for v in window if v is not None])
-        if not valid_values or len(valid_values) < 2:
-            return 50.0
+        window = series[-period - 1 : -1]
         current = series[-1]
         if current is None:
             return None
-        count_below = sum(1 for v in valid_values if v < current)
-        return (count_below / len(valid_values)) * 100
+        vals: list[float] = []
+        for v in window:
+            if v is None:
+                return None
+            try:
+                fv = float(v)
+            except (TypeError, ValueError):
+                return None
+            if fv != fv:
+                return None
+            vals.append(fv)
+        count_below = sum(1 for v in vals if v <= float(current))
+        return (count_below / period) * 100.0
 
     def _variance(self, series: list[float], period: int) -> float | None:
-        """Sample variance over a period (strict window, match compile/reference Pine)."""
+        """Population variance over a period (strict window, reference Pine)."""
         if period <= 1 or len(series) < period:
             return None
         window = series[-period:]
@@ -1336,4 +1351,4 @@ class BasicIndicators(TechnicalHelpers):
             if fv != fv:  # NaN
                 return None
             vals.append(fv)
-        return statistics.variance(vals)
+        return statistics.pvariance(vals)

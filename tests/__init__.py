@@ -22,6 +22,10 @@
 Regression tests use **first-party** inline snippets and
 ``tests/fixtures/`` assets. Third-party Pine corpora and TradingView®
 builtin scrapes are intentionally not shipped.
+
+Exception: ``tests/fixtures/tv_goldens/`` vendors a small, attributed,
+GPL-3.0-compatible OpenPineScript harness set plus its TradingView exports.
+That is numerical parity evidence, not a general corpus; see its README.
 """
 
 from __future__ import annotations

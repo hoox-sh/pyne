@@ -140,7 +140,7 @@ class TestExpandedNumericSurface:
         src = """//@version=5
 indicator("x")
 a = ta.atr(14)
-[u, m, l] = ta.bb(close, 20, 2)
+[m, u, l] = ta.bb(close, 20, 2)
 [macd_line, sig, hist] = ta.macd(close, 12, 26, 9)
 plot(a, title="atr")
 plot(m, title="bb_mid")
@@ -168,7 +168,7 @@ plot(ta.atr(14), title="atr")
     def test_bb_tuple_unpack(self) -> None:
         src = """//@version=5
 indicator("BB")
-[u, m, l] = ta.bb(close, 20, 2)
+[m, u, l] = ta.bb(close, 20, 2)
 plot(m, title="mid")
 plot(u, title="up")
 """
@@ -1350,10 +1350,10 @@ plot(close[math.abs(ta.lowestbars(low, 3))], title="ll")
             lb = numba_lowestbars(low, length, i)
             hb_inc = numba_highestbars_inc(high, length, i, st_h)
             lb_inc = numba_lowestbars_inc(low, length, i, st_l)
-            assert hb == hb_inc, (i, hb, hb_inc)
-            assert lb == lb_inc, (i, lb, lb_inc)
+            assert np.isclose(hb, hb_inc, equal_nan=True), (i, hb, hb_inc)
+            assert np.isclose(lb, lb_inc, equal_nan=True), (i, lb, lb_inc)
             if i + 1 < length:
-                assert hb == -1.0 and lb == -1.0
+                assert np.isnan(hb) and np.isnan(lb)
             else:
                 assert -float(length - 1) <= hb <= 0.0
                 assert -float(length - 1) <= lb <= 0.0
@@ -1507,7 +1507,7 @@ plot(ta.stdev(close, 10), title="sd")
         o, h, l, c, v = _ohlcv(50)
         out = compiled.run(o, h, l, c, v)
         window = c[-10:]
-        expected_var = float(np.var(window, ddof=1))
+        expected_var = float(np.var(window, ddof=0))
         expected_dev = float(np.mean(np.abs(window - np.mean(window))))
         assert abs(out["var"][-1] - expected_var) < 1e-6
         assert abs(out["dev"][-1] - expected_dev) < 1e-6
@@ -3800,12 +3800,13 @@ plot(ta.bbw(close, 15, 2.0), title="bbw")
         for key in ("med", "wpr", "cmo", "bbw"):
             max_err = 0.0
             for i in range(n):
-                a, b = out[key][i], S[key][i]
-                if np.isnan(a) and (b is None or (isinstance(b, float) and np.isnan(b))):
+                a = out[key][i]
+                b = S[key][i]
+                a_val = float("nan") if a is None else float(a)
+                b_val = float("nan") if b is None else float(b)
+                if np.isnan(a_val) and np.isnan(b_val):
                     continue
-                if b is None and np.isnan(a):
-                    continue
-                max_err = max(max_err, abs(float(a) - float(b)))
+                max_err = max(max_err, abs(a_val - b_val))
             assert max_err <= 1e-9, f"{key} max_err={max_err}"
 
 

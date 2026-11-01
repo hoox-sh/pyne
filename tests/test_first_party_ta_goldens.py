@@ -232,9 +232,9 @@ def test_atr_wilder_dual_host(bars: list[dict[str, Any]]) -> None:
     atr = interp["series"]["atr"]
     first = _first_finite_index(atr)
     assert first is not None, "ATR never becomes valid"
-    # Wilder ATR: first valid after ``period`` TR samples → index ``>= period``
-    # (bar 0 has no TR; seed uses TR bars 1..period → first value at index period).
-    assert first >= period, f"ATR first valid at {first}, expected >= {period}"
+    # Wilder ATR uses ``ta.tr(true)``: bar 0's TR is high-low, so the seed uses
+    # TR bars 0..period-1 → first value at index period-1 (reference Pine).
+    assert first == period - 1, f"ATR first valid at {first}, expected {period - 1}"
     assert _all_finite_after(atr, first), f"ATR non-finite after warmup bar {first}"
     # Compile path same warmup
     c_first = _first_finite_index(compiled["series"]["atr"])
@@ -304,7 +304,7 @@ def _assert_simplified_supertrend_contract(
             n_up += 1
         else:
             n_down += 1
-        if i < atr_period:
+        if i < atr_period - 1:
             assert _is_na(atr_raw), f"{host} bar {i}: ATR should still be na"
             assert abs(st_f - mid_f) <= _ATOL + _RTOL * abs(mid_f), f"{host} bar {i}: warmup st {st_f} != mid {mid_f}"
         elif not _is_na(atr_raw) and atr_f > 0:
@@ -326,7 +326,7 @@ def _assert_formula_after_atr_warmup(
     """Explicit golden: after ATR warmup, ``st == mid ± factor * atr``."""
     first_atr = _first_finite_index(atr)
     assert first_atr is not None, f"{host}: ATR never becomes valid"
-    assert first_atr >= atr_period, f"{host}: ATR first valid at {first_atr}, expected >= {atr_period}"
+    assert first_atr == atr_period - 1, f"{host}: ATR first valid at {first_atr}, expected {atr_period - 1}"
     n_checked = 0
     for i in range(first_atr, len(st)):
         assert not _is_na(atr[i]), f"{host} bar {i}: ATR na after warmup"
@@ -662,4 +662,4 @@ plot(ta.atr(10), title="atr")
     _assert_series_present(compiled, ("atr",), len(bars))
     _assert_dual_parity(interp, compiled, ("atr",))
     first = _first_finite_index(interp["series"]["atr"])
-    assert first is not None and first >= 10
+    assert first == 9
