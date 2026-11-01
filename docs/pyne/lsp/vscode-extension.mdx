@@ -26,7 +26,7 @@ description: "PYNE VS Code extension: LanguageClient host for pyne-lsp, TextMate
 
 ## Abstract
 
-**PYNE** (`hoox-sh.pyne` **0.5.4**) is a **LanguageClient host** plus a rich TextMate grammar, branded as part of the **HOOX open trading stack**. It does **not** reimplement language intelligence in TypeScript — `vscode-languageclient` speaks STDIO to `pyne-lsp` (then alias `pynescript-lsp`, then `python -m pynescript.langserver`) and forwards whatever that process advertises in `initialize`. The VSIX stays **0.5.4**; the hosted Python server is **`hoox-pyne` 0.6.29** (`src/pynescript/__about__.py`). The extension maps **`.pyne` (first-class)** plus `*.pine` / `*.pinev5` / `*.pinev6` / `*.pinescript` to language id `pinescript`, ships **snippets**, and exposes a broad `pynescript.*` settings surface with per-feature toggles.
+**PYNE** (`hoox-sh.pyne` **0.5.4**) is a **LanguageClient host** plus a rich TextMate grammar, branded as part of the **HOOX open trading stack**. It does **not** reimplement language intelligence in TypeScript — `vscode-languageclient` speaks STDIO to `pyne-lsp` (then alias `pynescript-lsp`, then `python -m pynescript.langserver`) and forwards whatever that process advertises in `initialize`. The VSIX stays **0.5.4**; the hosted Python server is **`hoox-pyne` 0.6.30** (`src/pynescript/__about__.py`). The extension maps **`.pyne` (first-class)** plus `*.pine` / `*.pinev5` / `*.pinev6` / `*.pinescript` to language id `pinescript`, ships **snippets**, and exposes a broad `pynescript.*` settings surface with per-feature toggles.
 
 ## Conceptual model
 
@@ -34,7 +34,7 @@ description: "PYNE VS Code extension: LanguageClient host for pyne-lsp, TextMate
 flowchart LR
   VS[VS Code] --> EXT[extension.ts activate]
   EXT --> LC[LanguageClient]
-  LC -->|stdio| LSP[pyne-lsp 0.6.29]
+  LC -->|stdio| LSP[pyne-lsp 0.6.30]
   EXT --> TM[TextMate grammar]
   TM --> HL[Token colors]
   LSP --> CAP[advertised ServerCapabilities]
@@ -215,7 +215,7 @@ It writes language-scoped `[pinescript]` token colors, so it composes with any w
 3. **Grammar works without LSP** — open a `.pyne` or `.pine` file offline and still get TextMate highlighting.
 4. **`.pyne` is first-class** in `package.json` extensions + activation; legacy `.pine*` / `.pinescript` remain fully supported.
 5. File watcher covers every associated suffix (`pyne`, `pine`, `pinev5`, `pinev6`, `pinescript`).
-6. **VSIX 0.5.4 does not pin server methods.** Range tokens, on-type format, linked editing, inlay resolve / param names, document links + resolve tooltip, and document color appear only when the spawned `pyne-lsp` is new enough to advertise them (this tree: **0.6.29**). Feature gates are client-side and read live settings.
+6. **VSIX 0.5.4 does not pin server methods.** Range tokens, on-type format, linked editing, inlay resolve / param names, document links + resolve tooltip, and document color appear only when the spawned `pyne-lsp` is new enough to advertise them (this tree: **0.6.30**). Feature gates are client-side and read live settings.
 
 ## Worked example — extension development
 
@@ -234,7 +234,7 @@ Open a fixture `.pine` file; confirm Problems panel shows parse/lint diagnostics
 | “Language client failed to start” | `pyne-lsp` missing / wrong command |
 | No squiggles, highlighting OK | LSP disabled or server crash; check Output → PYNE Language Server |
 | Restart does nothing | Client never started (`lsp.enabled` false) |
-| No inlay param names / color swatches / document links | Spawned `pyne-lsp` is older than this tree (need **0.6.29**) |
+| No inlay param names / color swatches / document links | Spawned `pyne-lsp` is older than this tree (need **0.6.30**) |
 | Enter does not reformat the previous line | `editor.formatOnType` is off (not a `pynescript.*` key) |
 | Identifiers do not multi-cursor as you type | `editor.linkedEditing` is off (not a `pynescript.*` key) |
 | A feature does nothing after toggling | Its `pynescript.<feature>.enabled` key is `false` |

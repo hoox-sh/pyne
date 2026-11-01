@@ -87,7 +87,7 @@ npm run compile
 
 2. Open a **`.pyne`** (preferred for HOOX / PYNE stack sources), `.pine`, `.pinev5`, `.pinev6`, or `.pinescript` file — LSP activates when enabled. The VS Code extension also activates on `workspaceContains:**/*.{pyne,pine,…}`.
 
-**Marketplace / VSIX:** extension id **`hoox-sh.pyne`** (publisher `hoox-sh`, package name `pyne`). [VS Marketplace](https://marketplace.visualstudio.com/items?itemName=hoox-sh.pyne). Site download: [hoox.sh/pyne-vscode.vsix](https://hoox.sh/pyne-vscode.vsix) (unversioned alias). Local package: `cd vscode-extension && npm ci && npm run package` then `code --install-extension pyne-vscode-0.4.5.vsix`. The VSIX is self-contained; you still need `pip install "hoox-pyne[lsp]"` (or a `pyne-lsp` binary) on the machine.
+**Marketplace / VSIX:** extension id **`hoox-sh.pyne`** **0.5.4** (publisher `hoox-sh`, package name `pyne`; ships with **`hoox-pyne` 0.6.30**). [VS Marketplace](https://marketplace.visualstudio.com/items?itemName=hoox-sh.pyne). Site download: [hoox.sh/pyne-vscode.vsix](https://hoox.sh/pyne-vscode.vsix) (unversioned alias). Local package: `cd vscode-extension && npm ci && npm run package` then `code --install-extension pyne-vscode-0.5.4.vsix`. The VSIX is self-contained; you still need `pip install "hoox-pyne[lsp]"` (or a `pyne-lsp` binary) on the machine.
 
 Settings (from `vscode-extension/package.json`):
 
@@ -100,6 +100,8 @@ Settings (from `vscode-extension/package.json`):
 | `pynescript.formatting.enabled` | `true` | |
 | `pynescript.diagnostics.enabled` | `true` | |
 | `pynescript.completion.snippets` | `true` | |
+| `pynescript.syntaxHighlighting` | `void` | Pine TextMate + semantic token palette (`none` / `void` / `signal` / `volt`); independent of the workbench color theme |
+| `pynescript.inlayHints.parameters` | `true` | Parameter-name hints only (type inlays removed in 0.6.29) |
 
 Default formatter id: `hoox-sh.pyne`.
 

@@ -19,14 +19,14 @@
 
 ---
 title: "Compatibility guarantee"
-description: "Grouped map of what PYNE implements for Pine Script™ v5/v6 — working, partial, residual, and by-design out of scope. hoox-pyne 0.6.24."
+description: "Grouped map of what PYNE implements for Pine Script™ v5/v6 — working, partial, residual, and by-design out of scope. hoox-pyne 0.6.30."
 ---
 
 # Compatibility guarantee
 
 ## Abstract
 
-PYNE implements Pine Script™ **v5/v6 language core** as an inspectable pipeline: parse → AST → bar-loop evaluate. The map below is the product-facing compatibility surface for **`hoox-pyne` 0.6.24**. It is **not** TradingView® platform identity (chart host, proprietary data, editor-only UI) and **not** bit-identical results vs the hosted platform on every script or bar.
+PYNE implements Pine Script™ **v5/v6 language core** as an inspectable pipeline: parse → AST → bar-loop evaluate. The map below is the product-facing compatibility surface for **`hoox-pyne` 0.6.30**. It is **not** TradingView® platform identity (chart host, proprietary data, editor-only UI) and **not** bit-identical results vs the hosted platform on every script or bar.
 
 Name-level dispatch lives in [Pine v6 surface](/pyne/docs/reference/pine-v6-surface) (`docs/pine_v6_full_surface_inventory.md`). Gaps: [Missing features](/pyne/docs/reference/missing-features).
 
@@ -170,6 +170,7 @@ EXPECTED_FAIL are path-listed demos (`runtime.error` library guards, lower-TF se
     | Risk cascade | Working | `allow_entry_in`, max size/drawdown/cons-loss-days/intraday |
     | Open/closed trade fields + MAE/MFE | Working | Extremes from bar high/low |
     | Pending-fill average (pyramiding ≤ 0) | Working | F2 |
+    | Next-bar market fills (reference Pine) | Working | Market orders placed on bar N fill at the open of bar N+1; mintick grid + outward resting prices; dual-host lockstep (0.6.29) |
     | Licensed broker / exchange fills | Out of scope | In-process model only |
   </Accordion>
 

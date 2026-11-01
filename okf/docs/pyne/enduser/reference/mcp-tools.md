@@ -7,7 +7,7 @@ tags: [doc, docs, enduser, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-19T20:09:51Z
+  at: 2026-11-01T22:57:04Z
 sources:
   - id: tree
     resource: "docs/pyne/enduser/reference/mcp-tools.mdx"
@@ -27,3 +27,7 @@ Repo path `docs/pyne/enduser/reference/mcp-tools.mdx`.
 * Deeper tools
 * Resources and prompts
 * See also
+
+# Mentions
+
+* [src/pynescript/mcp](/code/src/pynescript/mcp.md)

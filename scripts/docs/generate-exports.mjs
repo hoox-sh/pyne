@@ -502,12 +502,14 @@ function minifyLlmText(content) {
   text = text.replace(/^\s*>\s+/gm, "")
   text = text.replace(/```[a-zA-Z0-9]*\n([\s\S]*?)```/g, "$1")
   try {
-    // `RGI_EMOJI`-only, never bare `\p{Emoji}`. Bare `\p{Emoji}` also matches the
-    // ASCII digits that take part in keycap sequences, so text like
-    // `AGPL-3.0-only` and `ADR-003` was silently shredded into
-    // `AGPL-.-only` / `ADR-` in every generated pack. Strip only codepoints that
-    // are actually pictographic.
-    text = text.replace(/\p{Extended_Pictographic}/gu, "")
+    // `RGI_Emoji`-style strip via Extended_Pictographic — never bare `\p{Emoji}`
+    // (that also matches ASCII digits in keycap sequences and shredded
+    // `AGPL-3.0-only` / `ADR-003`). Keep legal marks © ® ™: Unicode marks them
+    // Extended_Pictographic, but product copy needs TradingView® / Pine Script™.
+    const keepLegal = new Set(["©", "®", "™"])
+    text = text.replace(/\p{Extended_Pictographic}/gu, (ch) =>
+      keepLegal.has(ch) ? ch : "",
+    )
     text = text.replace(/[\u{1F3FB}-\u{1F3FF}\u{FE0E}\u{FE0F}\u{20E3}]/gu, "")
   } catch {
     /* ignore if unicode props unavailable */

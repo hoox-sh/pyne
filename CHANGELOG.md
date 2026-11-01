@@ -1,7 +1,10 @@
 ## [Unreleased]
 
+## [0.6.30] — 2026-11-01
+
 ### Added
 
+- **Visual Studio Marketplace.** First listing of `hoox-sh.pyne` **0.5.4** via `vsce publish` (`VSCE_PAT` on `hoox-sh/pyne`). Open VSX and the GitHub Release VSIX stay in place.
 - **Scope-aware LSP semantic layer.** New `langserver/analysis.py` builds a Pine scope tree, declaration/member index, exact identifier ranges, and conservative type inference from the same ANTLR4 → ASDL AST. Completion now offers local variables/parameters/functions, UDT fields/methods, enum members, type constructors, imports, and built-in variables; hover shows inferred types and UDT members; definition/references/highlight/rename respect shadowing and return precise ranges.
 - **Version-gated v6 lint rules.** W104 (`transp=` / `strategy.* when=`) and W105 (numeric boolean conditions) only run on `//@version=6`; v4/v5 scripts no longer get false positives. W101/C001 mask comments and string literals.
 - **Style diagnostics are opt-in.** `pynescript.diagnostics.style` defaults to `false`; C001/C002/C004 remain available to CLI users and editors that enable them.

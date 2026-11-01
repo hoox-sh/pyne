@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "ROADMAP.md"
-description: "Live package: hoox-pyne 0.6.24."
+description: "Live package: hoox-pyne 0.6.30."
 resource: "docs/ROADMAP.md"
 tags: [doc, docs, roadmap]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-25T14:47:55Z
+  at: 2026-11-01T22:57:04Z
 sources:
   - id: tree
     resource: "docs/ROADMAP.md"

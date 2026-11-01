@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-01T19:09:23.141Z",
+  "generatedAt": "2026-11-01T22:44:14.634Z",
   "site": "https://hoox.sh",
   "repository": "https://github.com/hoox-sh/pyne",
   "products": {
@@ -7,7 +7,15 @@
       "name": "PYNE",
       "docs": "https://hoox.sh/pyne/docs",
       "marketing": "https://hoox.sh/pyne",
-      "pdfs": {},
+      "pdfs": {
+        "enduser": "/exports/pyne-enduser-manual.pdf",
+        "core": "/exports/pyne-core-manual.pdf",
+        "runtime": "/exports/pyne-runtime-manual.pdf",
+        "lsp": "/exports/pyne-lsp-manual.pdf",
+        "api": "/exports/pyne-api-manual.pdf",
+        "devops": "/exports/pyne-devops-manual.pdf",
+        "reference": "/exports/pyne-reference-manual.pdf"
+      },
       "llm": "/pyne/docs/llm.txt",
       "llms": "/pyne/docs/llms.txt",
       "exportLlm": "/exports/pyne-llm.txt",
@@ -15,7 +23,30 @@
       "agents": {
         "llms": "docs/pyne/llms.txt",
         "llm": "docs/pyne/llm.txt",
-        "bytes": 715376
+        "bytes": 716804
+      }
+    },
+    "axis": {
+      "name": "AXIS",
+      "docs": "https://hoox.sh/axis/docs",
+      "marketing": "https://hoox.sh/axis",
+      "pdfs": {
+        "enduser": "/exports/axis-enduser-manual.pdf",
+        "architecture": "/exports/axis-architecture-manual.pdf",
+        "plugins": "/exports/axis-plugins-manual.pdf",
+        "ui": "/exports/axis-ui-manual.pdf",
+        "worker": "/exports/axis-worker-manual.pdf",
+        "devops": "/exports/axis-devops-manual.pdf",
+        "reference": "/exports/axis-reference-manual.pdf"
+      },
+      "llm": "/axis/docs/llm.txt",
+      "llms": "/axis/docs/llms.txt",
+      "exportLlm": "/exports/axis-llm.txt",
+      "exportLlms": "/exports/axis-llms.txt",
+      "agents": {
+        "llms": "../axis/docs/llms.txt",
+        "llm": "../axis/docs/llm.txt",
+        "bytes": 472062
       }
     }
   }

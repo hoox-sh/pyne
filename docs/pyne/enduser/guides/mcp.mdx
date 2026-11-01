@@ -84,11 +84,12 @@ Catalog: [MCP tools](/pyne/docs/enduser/reference/mcp-tools).
 
 ## Internals (repo paths)
 
+- `src/pynescript/mcp/catalog.py` — canonical tool / resource / prompt names (docs + tests)
 - `src/pynescript/mcp/server.py` — `MCPServer`, tool registration
 - `src/pynescript/mcp/dispatch.py` — in-process `call_tool` (CLI `pyne mcp call`)
 - `src/pynescript/mcp/cli.py` — Click `mcp` group + `execute` / `symbols` / `parity` / `diagnostics` / `builtin`
 - `src/pynescript/mcp/ops/` — library-backed operations
-- Extra: `[mcp]` in `pyproject.toml` (`mcp>=2.0,<3`, `lsprotocol`)
+- Extra: `[mcp]` in `pyproject.toml` (`mcp>=2.0,<3`, `lsprotocol`); surfaces `pyne-mcp` / `pyne mcp`
 - Entry: `pyne-mcp = pynescript.mcp.__main__:main`
 
 ## Invariants & edge cases

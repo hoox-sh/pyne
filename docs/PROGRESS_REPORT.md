@@ -20,7 +20,7 @@
 
 PYNE is a complete Pine Script™ v5/v6 toolchain: ANTLR4 grammar → ASDL AST → bar-loop evaluator (interpret / compile / `mode=auto`), Language Server Protocol, Flask Pro API, and edge workers sharing one evaluate contract. The project is **not** a TradingView® platform clone — it is an independent, inspectable language engine whose canonical claim is **language coverage**, not bit-identical platform parity.
 
-Live package: **`hoox-pyne` 0.6.24** (`src/pynescript/__about__.py`). Import package: `pynescript`. CLIs: **`pyne`** / **`pyne-lsp`** (aliases `pynescript` / `pynescript-lsp`).
+Live package: **`hoox-pyne` 0.6.30** (`src/pynescript/__about__.py`). Import package: `pynescript`. CLIs: **`pyne`** / **`pyne-lsp`** (aliases `pynescript` / `pynescript-lsp`).
 
 ## Components Status
 
