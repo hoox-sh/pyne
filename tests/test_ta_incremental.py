@@ -358,9 +358,11 @@ def test_incremental_macd_matches_full() -> None:
         exp = _bar_walk_full_macd(src, *params)
         assert len(got) == len(exp)
         for i, (g, e) in enumerate(zip(got, exp, strict=True)):
-            assert g[0] == pytest.approx(e[0], rel=1e-9, abs=1e-9), f"macd bar {i}"
-            assert g[1] == pytest.approx(e[1], rel=1e-9, abs=1e-9), f"signal bar {i}"
-            assert g[2] == pytest.approx(e[2], rel=1e-9, abs=1e-9), f"hist bar {i}"
+            for name, gv, ev in (("macd", g[0], e[0]), ("signal", g[1], e[1]), ("hist", g[2], e[2])):
+                if ev is None:
+                    assert gv is None, f"{name} bar {i}: expected None, got {gv}"
+                    continue
+                assert gv == pytest.approx(ev, rel=1e-9, abs=1e-9), f"{name} bar {i}"
 
 
 def test_incremental_atr_matches_full() -> None:
