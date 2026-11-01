@@ -7,7 +7,7 @@ tags: [doc, docs, lsp, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-01T01:54:11Z
 sources:
   - id: tree
     resource: "docs/pyne/lsp/architecture.mdx"
@@ -31,6 +31,7 @@ Repo path `docs/pyne/lsp/architecture.mdx`.
   * Capability set (declared)
 * Internals
   * Workspace
+  * Position encoding
   * Feature dispatch pattern
   * Pull diagnostics
   * Workspace symbols

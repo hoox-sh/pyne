@@ -18,6 +18,7 @@
 - **Parse diagnostics** use structured `SyntaxErrorDetails` with a non-empty range instead of a zero-width error at column 0.
 - **W104/W105 QuickFixes.** W104 deletes the v6-removed `transp=` / `when=` argument (multi-line calls included) and refuses when the removed span contains a comment; W105 rewrites the numeric condition as `literal != 0`. Both are verified by re-parsing before being offered.
 - **W105 ranges** now underline the numeric literal instead of the `if`/`while` keyword.
+- **UTF-16 / CRLF positions.** Request positions and result ranges convert at the server boundary, so emoji or other non-BMP characters earlier on a line no longer shift hover/completion/navigation/semantic-token columns. Incremental `didChange` edits convert before slicing, preventing buffer corruption; diagnostics and rename edits across open documents convert per file. ASCII/LF buffers skip the pass.
 - **Signature help** no longer falls back from `obj.sma(` to `ta.sma`; it resolves exact builtins and UDT methods, and clamps the active parameter.
 - **Fuzzy completion cache** now actually caches the item list and lowercase fields instead of rebuilding them per keystroke.
 - **Format on save** runs before the write via `vscode.executeFormatDocumentProvider` rather than formatting after the file is saved.

@@ -42,6 +42,7 @@ from pynescript.ast.helper import walk
 from pynescript.ast.linter import LintWarning
 from pynescript.langserver.features.formatting import handle_formatting
 from pynescript.langserver.features.formatting import has_unpreserved_comments
+from pynescript.langserver.protocol.utils import codepoint_column_to_utf16
 
 
 # Same pattern as ``PineLinter._check_version`` (flexible whitespace).
@@ -122,6 +123,17 @@ def _lint_warning_to_diagnostic(
     if end_line_index == line_index and end_column <= column:
         end_column = min(max(column + 1, 1), max(len(line_text), 1))
     end_column = min(end_column, 2000)
+
+    # Linter columns are Python code-point indices; LSP wants UTF-16 units.
+    content = line_text[:-1] if line_text.endswith("\r") else line_text
+    if content:
+        column = min(max(0, column), len(content))
+        end_column = min(max(column, end_column), len(content))
+        column = codepoint_column_to_utf16(content, column)
+        end_column = codepoint_column_to_utf16(content, end_column)
+    else:
+        column = 0
+        end_column = max(1, end_column)
 
     return lsp.Diagnostic(
         range=lsp.Range(

@@ -42,6 +42,7 @@ from pynescript.langserver.features.inlay_hints import handle_inlay_hints
 from pynescript.langserver.features.references import handle_references
 from pynescript.langserver.features.rename import handle_rename
 from pynescript.langserver.features.signature_help import handle_signature_help
+from pynescript.langserver.server import PynescriptLanguageServer
 from pynescript.langserver.workspace import Workspace
 from pynescript.langserver.workspace_index import WorkspaceIndex
 
@@ -560,3 +561,118 @@ class TestQuickFixes:
             f'plot(close, title="{long_title}")   \n'
         )
         assert "Format document" not in [action.title for action in _actions_for(source)]
+
+
+# ---------------------------------------------------------------------------
+# UTF-16 position handling
+# ---------------------------------------------------------------------------
+
+
+class TestUtf16Positions:
+    def test_incremental_edit_after_emoji(self) -> None:
+        source = 'x = "🚀" + 1\n'
+        workspace = Workspace(style_diagnostics=False)
+        workspace.put_document("file:///utf16.pine", source)
+        # LSP counts UTF-16 code units: the emoji occupies two, so the literal
+        # `1` starts at column 11 (Python index 10).
+        workspace.update_document(
+            "file:///utf16.pine",
+            [
+                lsp.TextDocumentContentChangePartial(
+                    range=lsp.Range(
+                        start=lsp.Position(line=0, character=11),
+                        end=lsp.Position(line=0, character=12),
+                    ),
+                    text="2",
+                )
+            ],
+            version=2,
+        )
+        assert workspace.get_source("file:///utf16.pine") == 'x = "🚀" + 2\n'
+
+    def test_diagnostic_columns_are_utf16(self) -> None:
+        source = '//@version=6\nindicator("T")\nplot(close, title="🚀", transp=20)\n'
+        workspace = Workspace(style_diagnostics=False)
+        workspace.put_document("file:///utf16.pine", source)
+        diagnostic = next(
+            diag for diag in workspace.get_all_diagnostics()["file:///utf16.pine"] if diag.code == "W104"
+        )
+        line = source.split("\n")[2]
+        assert diagnostic.range.start.character == line.index("transp") + 1
+
+    def test_crlf_edit_does_not_consume_carriage_return(self) -> None:
+        source = "plot(close)\r\nplot(open)\r\n"
+        workspace = Workspace(style_diagnostics=False)
+        workspace.put_document("file:///crlf.pine", source)
+        workspace.update_document(
+            "file:///crlf.pine",
+            [
+                lsp.TextDocumentContentChangePartial(
+                    range=lsp.Range(
+                        start=lsp.Position(line=0, character=11),
+                        end=lsp.Position(line=0, character=11),
+                    ),
+                    text=" ",
+                )
+            ],
+            version=2,
+        )
+        assert workspace.get_source("file:///crlf.pine") == "plot(close) \r\nplot(open)\r\n"
+
+    def test_server_hover_and_completion_after_emoji(self) -> None:
+        source = '//@version=6\nindicator("T")\nvalue = 14\ns = "🚀" + str.tostring(value)\nplot(s)\n'
+        line = source.split("\n")[3]
+        codepoint = line.index("value")
+        utf16 = codepoint + 1
+        server = PynescriptLanguageServer()
+        server.text_document_publish_diagnostics = lambda _params: None  # type: ignore[method-assign]
+        try:
+            server.protocol.fm.features[lsp.TEXT_DOCUMENT_DID_OPEN](
+                lsp.DidOpenTextDocumentParams(
+                    text_document=lsp.TextDocumentItem(
+                        uri="file:///utf16.pine",
+                        language_id="pine",
+                        version=1,
+                        text=source,
+                    )
+                )
+            )
+            hover = server.protocol.fm.features[lsp.TEXT_DOCUMENT_HOVER](
+                lsp.HoverParams(
+                    text_document=lsp.TextDocumentIdentifier(uri="file:///utf16.pine"),
+                    position=lsp.Position(line=3, character=utf16),
+                )
+            )
+            assert hover is not None
+            assert hover.range is not None
+            assert hover.range.start.character == utf16
+            assert hover.range.end.character == utf16 + len("value")
+
+            completion = server.protocol.fm.features[lsp.TEXT_DOCUMENT_COMPLETION](
+                lsp.CompletionParams(
+                    text_document=lsp.TextDocumentIdentifier(uri="file:///utf16.pine"),
+                    position=lsp.Position(line=3, character=utf16 + len("val")),
+                )
+            )
+            assert "value" in [item.label for item in completion.items]
+
+            tokens = server.protocol.fm.features[lsp.TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL](
+                lsp.SemanticTokensParams(
+                    text_document=lsp.TextDocumentIdentifier(uri="file:///utf16.pine"),
+                )
+            )
+            assert tokens is not None
+            decoded: list[tuple[int, int, int]] = []
+            line_no = 0
+            column = 0
+            data = tokens.data
+            for index in range(0, len(data), 5):
+                line_no += data[index]
+                column = data[index + 1] if data[index] else column + data[index + 1]
+                decoded.append((line_no, column, data[index + 2]))
+            assert (3, utf16, len("value")) in decoded
+        finally:
+            for task in list(server._pending_diag_tasks.values()):
+                if not task.done():
+                    task.cancel()
+            server._diag_executor.shutdown(wait=False, cancel_futures=True)

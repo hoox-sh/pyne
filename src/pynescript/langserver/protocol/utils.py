@@ -33,6 +33,165 @@ from __future__ import annotations
 
 import re
 
+from collections.abc import Callable
+from typing import Any
+
+import attrs
+
+from lsprotocol import types as lsp
+
+
+def convert_positions(
+    value: Any,
+    lines: list[str],
+    *,
+    to_codepoint: bool,
+    lines_for_uri: Callable[[str], list[str] | None] | None = None,
+) -> Any:
+    """Recursively convert LSP UTF-16 positions to/from Python code points.
+
+    LSP positions count UTF-16 code units; Python strings count code points.
+    The two differ only when a line contains a non-BMP character (emoji, some
+    CJK extensions). Feature handlers operate on Python strings, so server
+    handlers convert params on the way in and results on the way out.
+
+    ``lines_for_uri`` lets URI-bearing containers (``Location``,
+    ``TextDocumentEdit``, ``WorkspaceEdit.changes``) use the right document's
+    lines when a result spans several open files.
+    """
+    if isinstance(value, lsp.Position):
+        return _convert_position(value, lines, to_codepoint)
+    if isinstance(value, lsp.Location):
+        target = lines_for_uri(value.uri) if lines_for_uri is not None else None
+        converted = convert_positions(
+            value.range,
+            target or lines,
+            to_codepoint=to_codepoint,
+            lines_for_uri=lines_for_uri,
+        )
+        return value if converted is value.range else attrs.evolve(value, range=converted)
+    if isinstance(value, lsp.TextDocumentEdit):
+        target = lines_for_uri(value.text_document.uri) if lines_for_uri is not None else None
+        converted = convert_positions(
+            value.edits,
+            target or lines,
+            to_codepoint=to_codepoint,
+            lines_for_uri=lines_for_uri,
+        )
+        return value if converted is value.edits else attrs.evolve(value, edits=converted)
+    if isinstance(value, lsp.WorkspaceEdit):
+        return _convert_workspace_edit(value, lines, to_codepoint=to_codepoint, lines_for_uri=lines_for_uri)
+    if isinstance(value, lsp.FoldingRange):
+        return _convert_folding_range(value, lines, to_codepoint)
+    if isinstance(value, list):
+        converted_items = [
+            convert_positions(item, lines, to_codepoint=to_codepoint, lines_for_uri=lines_for_uri)
+            for item in value
+        ]
+        if all(new is old for new, old in zip(converted_items, value, strict=True)):
+            return value
+        return converted_items
+    if isinstance(value, tuple):
+        return tuple(
+            convert_positions(item, lines, to_codepoint=to_codepoint, lines_for_uri=lines_for_uri)
+            for item in value
+        )
+    if isinstance(value, dict):
+        converted_values = {
+            key: convert_positions(item, lines, to_codepoint=to_codepoint, lines_for_uri=lines_for_uri)
+            for key, item in value.items()
+        }
+        if all(new is value[key] for key, new in converted_values.items()):
+            return value
+        return converted_values
+    if attrs.has(type(value)):
+        updates = {}
+        for field in attrs.fields(type(value)):
+            if not field.init:
+                continue
+            old = getattr(value, field.name)
+            new = convert_positions(
+                old,
+                lines,
+                to_codepoint=to_codepoint,
+                lines_for_uri=lines_for_uri,
+            )
+            if new is not old:
+                updates[field.name] = new
+        return attrs.evolve(value, **updates) if updates else value
+    return value
+
+
+def _convert_position(position: lsp.Position, lines: list[str], to_codepoint: bool) -> lsp.Position:
+    if not (0 <= position.line < len(lines)):
+        return position
+    content = _line_content(lines[position.line])
+    character = (
+        utf16_column_to_codepoint(content, position.character)
+        if to_codepoint
+        else codepoint_column_to_utf16(content, position.character)
+    )
+    if character == position.character:
+        return position
+    return lsp.Position(line=position.line, character=character)
+
+
+def _convert_workspace_edit(
+    edit: lsp.WorkspaceEdit,
+    lines: list[str],
+    *,
+    to_codepoint: bool,
+    lines_for_uri: Callable[[str], list[str] | None] | None,
+) -> lsp.WorkspaceEdit:
+    updates: dict[str, Any] = {}
+    if edit.changes:
+        changes = {}
+        for uri, edits in edit.changes.items():
+            target = lines_for_uri(uri) if lines_for_uri is not None else None
+            changes[uri] = convert_positions(
+                edits,
+                target or lines,
+                to_codepoint=to_codepoint,
+                lines_for_uri=lines_for_uri,
+            )
+        updates["changes"] = changes
+    if edit.document_changes:
+        updates["document_changes"] = [
+            convert_positions(
+                item,
+                lines,
+                to_codepoint=to_codepoint,
+                lines_for_uri=lines_for_uri,
+            )
+            for item in edit.document_changes
+        ]
+    return attrs.evolve(edit, **updates) if updates else edit
+
+
+def _convert_folding_range(
+    value: lsp.FoldingRange,
+    lines: list[str],
+    to_codepoint: bool,
+) -> lsp.FoldingRange:
+    updates: dict[str, Any] = {}
+    for prefix in ("start", "end"):
+        line = getattr(value, f"{prefix}_line", None)
+        character = getattr(value, f"{prefix}_character", None)
+        if line is None or character is None or not (0 <= line < len(lines)):
+            continue
+        content = _line_content(lines[line])
+        updates[f"{prefix}_character"] = (
+            utf16_column_to_codepoint(content, character)
+            if to_codepoint
+            else codepoint_column_to_utf16(content, character)
+        )
+    return attrs.evolve(value, **updates) if updates else value
+
+
+def _line_content(line: str) -> str:
+    """Line text without the CR of a CRLF terminator."""
+    return line[:-1] if line.endswith("\r") else line
+
 
 def position_from_offset(text: str, offset: int) -> tuple[int, int]:
     """Convert a character offset to line/column position.
@@ -216,6 +375,30 @@ def in_comment_or_string(text: str, line: int, column: int) -> bool:
                 continue
         i += 1
     return False
+
+
+def utf16_column_to_codepoint(line: str, column: int) -> int:
+    """Convert an LSP UTF-16 column to a Python codepoint index.
+
+    LSP positions count UTF-16 code units; Python strings count code points.
+    They differ only for non-BMP characters (emoji, some CJK extensions).
+    Columns past the end clamp to ``len(line)``.
+    """
+    if column <= 0 or not line:
+        return 0
+    units = 0
+    for index, char in enumerate(line):
+        if units >= column:
+            return index
+        units += 2 if ord(char) > 0xFFFF else 1
+    return len(line)
+
+
+def codepoint_column_to_utf16(line: str, column: int) -> int:
+    """Convert a Python codepoint index to an LSP UTF-16 column."""
+    if column <= 0 or not line:
+        return 0
+    return sum(2 if ord(char) > 0xFFFF else 1 for char in line[:column])
 
 
 def get_trigger_char(text: str, line: int, column: int) -> str | None:

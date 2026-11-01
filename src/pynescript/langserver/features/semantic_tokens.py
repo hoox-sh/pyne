@@ -42,6 +42,7 @@ from pynescript.ast import node as ast
 from pynescript.langserver.analysis import SymbolIndex
 from pynescript.langserver.analysis import ensure_symbol_index
 from pynescript.langserver.config import semantic_token_types
+from pynescript.langserver.protocol.utils import codepoint_column_to_utf16
 
 
 # Indices into semantic_token_types()
@@ -105,7 +106,7 @@ def handle_semantic_tokens(
         :class:`~lsprotocol.types.SemanticTokens` with encoded ``data``
         (empty list if source missing or parse fails).
     """
-    return lsp.SemanticTokens(data=_encode(_collect_tokens(source, tree, analysis)))
+    return lsp.SemanticTokens(data=_encode(_to_utf16(_collect_tokens(source, tree, analysis), source)))
 
 
 def handle_semantic_tokens_range(
@@ -134,7 +135,7 @@ def handle_semantic_tokens_range(
     """
     raw = _collect_tokens(source, tree, analysis)
     clipped = [t for t in raw if _start_in_range(t[0], t[1], params.range)]
-    return lsp.SemanticTokens(data=_encode(clipped))
+    return lsp.SemanticTokens(data=_encode(_to_utf16(clipped, source)))
 
 
 def _collect_tokens(
@@ -318,6 +319,28 @@ def _emit_attr(
     else:
         col = max(0, int(getattr(node, "col_offset", 0) or 0))
     out.append((line, col, len(attr), token_type, mods))
+
+
+def _to_utf16(
+    tokens: list[tuple[int, int, int, int, int]],
+    source: str | None,
+) -> list[tuple[int, int, int, int, int]]:
+    """Convert token columns/lengths from code points to UTF-16 units."""
+    if not source or not tokens:
+        return tokens
+    lines = source.split("\n")
+    converted: list[tuple[int, int, int, int, int]] = []
+    for line, column, length, token_type, modifiers in tokens:
+        if not (0 <= line < len(lines)):
+            converted.append((line, column, length, token_type, modifiers))
+            continue
+        text = lines[line]
+        if text.endswith("\r"):
+            text = text[:-1]
+        start = codepoint_column_to_utf16(text, column)
+        end = codepoint_column_to_utf16(text, column + length)
+        converted.append((line, start, max(0, end - start), token_type, modifiers))
+    return converted
 
 
 def _encode(tokens: list[tuple[int, int, int, int, int]]) -> list[int]:

@@ -55,6 +55,7 @@ import logging
 import os
 
 from concurrent.futures import ThreadPoolExecutor
+from functools import wraps
 from pathlib import Path
 from typing import Any
 from typing import cast
@@ -83,6 +84,7 @@ from pynescript.langserver.features import selection_range as selection_range_fe
 from pynescript.langserver.features import semantic_tokens as semantic_tokens_feature
 from pynescript.langserver.features import signature_help as signature_help_feature
 from pynescript.langserver.features import symbols as symbols_feature
+from pynescript.langserver.protocol.utils import convert_positions
 from pynescript.langserver.workspace import Workspace
 from pynescript.langserver.workspace_index import WorkspaceIndex
 
@@ -157,6 +159,45 @@ class PynescriptLanguageServer(LanguageServer):
         self._diag_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pine-lsp-parse")
 
         self.setup_method_handlers()
+
+    def _position_feature(self, feature_name: str) -> Any:
+        """Register a handler that converts UTF-16 positions at the boundary.
+
+        Feature handlers work with Python code-point columns. LSP clients send
+        and expect UTF-16 columns; the wrapper converts params on the way in
+        and results on the way out. URI-bearing result containers (rename
+        edits, locations) use their own document's lines when available.
+        """
+
+        def decorator(func: Any) -> Any:
+            @wraps(func)
+            def wrapper(params: Any) -> Any:
+                uri = _params_uri(params)
+                doc = self.pine_workspace.get_document(uri) if uri else None
+                if doc is None:
+                    return func(params)
+                if "\r" not in doc.source and not doc.has_astral:
+                    # ASCII/LF is the common case: UTF-16 and Python columns
+                    # are identical, so skip the recursive conversion.
+                    return func(params)
+                lines = doc.source.split("\n")
+                converted = convert_positions(params, lines, to_codepoint=True)
+                result = func(converted)
+                return convert_positions(
+                    result,
+                    lines,
+                    to_codepoint=False,
+                    lines_for_uri=self._lines_for_uri,
+                )
+
+            return self.feature(feature_name)(wrapper)
+
+        return decorator
+
+    def _lines_for_uri(self, uri: str) -> list[str] | None:
+        """Lines for an open document (``None`` for closed/unknown URIs)."""
+        doc = self.pine_workspace.get_document(uri)
+        return doc.source.split("\n") if doc else None
 
     def setup_method_handlers(self) -> None:
         """Register lifecycle, diagnostics, and feature LSP method handlers."""
@@ -406,7 +447,7 @@ class PynescriptLanguageServer(LanguageServer):
             payload["uri"] = uri
             return payload
 
-        @self.feature(lsp.TEXT_DOCUMENT_CODE_ACTION)
+        @self._position_feature(lsp.TEXT_DOCUMENT_CODE_ACTION)
         def code_action(params: lsp.CodeActionParams) -> list[lsp.CodeAction]:
             """Offer Convert-to-v6 and lint QuickFixes for the current buffer."""
             uri = params.text_document.uri
@@ -415,7 +456,7 @@ class PynescriptLanguageServer(LanguageServer):
             warnings = doc.diagnostics if doc else None
             return convert_feature.handle_code_action(params, source, warnings, tree=doc.valid_ast if doc else None)
 
-        @self.feature(lsp.TEXT_DOCUMENT_COMPLETION)
+        @self._position_feature(lsp.TEXT_DOCUMENT_COMPLETION)
         def text_completion(
             params: lsp.CompletionParams,
         ) -> lsp.CompletionList:
@@ -439,7 +480,7 @@ class PynescriptLanguageServer(LanguageServer):
             """Handle completionItem/resolve request."""
             return completion_feature.handle_completion_resolve(params)
 
-        @self.feature(lsp.TEXT_DOCUMENT_HOVER)
+        @self._position_feature(lsp.TEXT_DOCUMENT_HOVER)
         def text_hover(
             params: lsp.HoverParams,
         ) -> lsp.Hover | None:
@@ -456,7 +497,7 @@ class PynescriptLanguageServer(LanguageServer):
                 analysis=doc.valid_analysis,
             )
 
-        @self.feature(lsp.TEXT_DOCUMENT_SIGNATURE_HELP)
+        @self._position_feature(lsp.TEXT_DOCUMENT_SIGNATURE_HELP)
         def text_signature_help(
             params: lsp.SignatureHelpParams,
         ) -> lsp.SignatureHelp | None:
@@ -472,7 +513,7 @@ class PynescriptLanguageServer(LanguageServer):
                 analysis=doc.valid_analysis,
             )
 
-        @self.feature(lsp.TEXT_DOCUMENT_DEFINITION)
+        @self._position_feature(lsp.TEXT_DOCUMENT_DEFINITION)
         def text_definition(
             params: lsp.DefinitionParams,
         ) -> list[lsp.Location] | None:
@@ -490,7 +531,7 @@ class PynescriptLanguageServer(LanguageServer):
                 analysis=doc.valid_analysis,
             )
 
-        @self.feature(lsp.TEXT_DOCUMENT_REFERENCES)
+        @self._position_feature(lsp.TEXT_DOCUMENT_REFERENCES)
         def text_references(
             params: lsp.ReferenceParams,
         ) -> list[lsp.Location]:
@@ -507,7 +548,7 @@ class PynescriptLanguageServer(LanguageServer):
                 analysis=doc.valid_analysis,
             )
 
-        @self.feature(lsp.TEXT_DOCUMENT_DOCUMENT_HIGHLIGHT)
+        @self._position_feature(lsp.TEXT_DOCUMENT_DOCUMENT_HIGHLIGHT)
         def text_document_highlight(
             params: lsp.DocumentHighlightParams,
         ) -> list[lsp.DocumentHighlight]:
@@ -523,7 +564,7 @@ class PynescriptLanguageServer(LanguageServer):
                 analysis=doc.valid_analysis,
             )
 
-        @self.feature(lsp.TEXT_DOCUMENT_LINKED_EDITING_RANGE)
+        @self._position_feature(lsp.TEXT_DOCUMENT_LINKED_EDITING_RANGE)
         def text_linked_editing_range(
             params: lsp.LinkedEditingRangeParams,
         ) -> lsp.LinkedEditingRanges | None:
@@ -539,7 +580,7 @@ class PynescriptLanguageServer(LanguageServer):
                 analysis=doc.valid_analysis,
             )
 
-        @self.feature(lsp.TEXT_DOCUMENT_PREPARE_RENAME)
+        @self._position_feature(lsp.TEXT_DOCUMENT_PREPARE_RENAME)
         def text_prepare_rename(
             params: lsp.PrepareRenameParams,
         ) -> lsp.Range | None:
@@ -555,7 +596,7 @@ class PynescriptLanguageServer(LanguageServer):
                 analysis=doc.valid_analysis,
             )
 
-        @self.feature(lsp.TEXT_DOCUMENT_RENAME)
+        @self._position_feature(lsp.TEXT_DOCUMENT_RENAME)
         def text_rename(
             params: lsp.RenameParams,
         ) -> lsp.WorkspaceEdit | None:
@@ -573,7 +614,7 @@ class PynescriptLanguageServer(LanguageServer):
                 analysis=doc.valid_analysis,
             )
 
-        @self.feature(lsp.TEXT_DOCUMENT_DOCUMENT_SYMBOL)
+        @self._position_feature(lsp.TEXT_DOCUMENT_DOCUMENT_SYMBOL)
         def text_document_symbol(
             params: lsp.DocumentSymbolParams,
         ) -> list[lsp.DocumentSymbol]:
@@ -584,7 +625,7 @@ class PynescriptLanguageServer(LanguageServer):
                 return symbols_feature.handle_document_symbols(params, None, uri)
             return symbols_feature.handle_document_symbols(params, doc.source, uri, tree=doc.valid_ast)
 
-        @self.feature(lsp.TEXT_DOCUMENT_FORMATTING)
+        @self._position_feature(lsp.TEXT_DOCUMENT_FORMATTING)
         def text_formatting(
             params: lsp.DocumentFormattingParams,
         ) -> list[lsp.TextEdit] | None:
@@ -597,7 +638,7 @@ class PynescriptLanguageServer(LanguageServer):
                 return formatting_feature.handle_formatting(params, None)
             return formatting_feature.handle_formatting(params, doc.source, tree=doc.valid_ast)
 
-        @self.feature(lsp.TEXT_DOCUMENT_RANGE_FORMATTING)
+        @self._position_feature(lsp.TEXT_DOCUMENT_RANGE_FORMATTING)
         def text_range_formatting(
             params: lsp.DocumentRangeFormattingParams,
         ) -> list[lsp.TextEdit] | None:
@@ -610,7 +651,7 @@ class PynescriptLanguageServer(LanguageServer):
                 return formatting_feature.handle_range_formatting(params, None)
             return formatting_feature.handle_range_formatting(params, doc.source, tree=doc.valid_ast)
 
-        @self.feature(lsp.TEXT_DOCUMENT_ON_TYPE_FORMATTING)
+        @self._position_feature(lsp.TEXT_DOCUMENT_ON_TYPE_FORMATTING)
         def text_on_type_formatting(
             params: lsp.DocumentOnTypeFormattingParams,
         ) -> list[lsp.TextEdit] | None:
@@ -623,7 +664,7 @@ class PynescriptLanguageServer(LanguageServer):
                 return formatting_feature.handle_on_type_formatting(params, None)
             return formatting_feature.handle_on_type_formatting(params, doc.source, tree=doc.valid_ast)
 
-        @self.feature(lsp.TEXT_DOCUMENT_INLAY_HINT)
+        @self._position_feature(lsp.TEXT_DOCUMENT_INLAY_HINT)
         def text_inlay_hints(
             params: lsp.InlayHintParams,
         ) -> list[lsp.InlayHint] | None:
@@ -660,7 +701,7 @@ class PynescriptLanguageServer(LanguageServer):
             """Handle inlayHint/resolve request (fill textEdits)."""
             return inlay_hints_feature.handle_inlay_hint_resolve(params)
 
-        @self.feature(lsp.TEXT_DOCUMENT_FOLDING_RANGE)
+        @self._position_feature(lsp.TEXT_DOCUMENT_FOLDING_RANGE)
         def text_folding_range(
             params: lsp.FoldingRangeParams,
         ) -> list[lsp.FoldingRange]:
@@ -676,7 +717,7 @@ class PynescriptLanguageServer(LanguageServer):
             doc.feature_cache["folding_range"] = result
             return result
 
-        @self.feature(lsp.TEXT_DOCUMENT_SELECTION_RANGE)
+        @self._position_feature(lsp.TEXT_DOCUMENT_SELECTION_RANGE)
         def text_selection_range(
             params: lsp.SelectionRangeParams,
         ) -> list[lsp.SelectionRange]:
@@ -687,7 +728,7 @@ class PynescriptLanguageServer(LanguageServer):
                 return selection_range_feature.handle_selection_range(params, None)
             return selection_range_feature.handle_selection_range(params, doc.source, tree=doc.valid_ast)
 
-        @self.feature(lsp.TEXT_DOCUMENT_DOCUMENT_COLOR)
+        @self._position_feature(lsp.TEXT_DOCUMENT_DOCUMENT_COLOR)
         def text_document_color(
             params: lsp.DocumentColorParams,
         ) -> list[lsp.ColorInformation]:
@@ -703,7 +744,7 @@ class PynescriptLanguageServer(LanguageServer):
             doc.feature_cache["document_color"] = result
             return result
 
-        @self.feature(lsp.TEXT_DOCUMENT_COLOR_PRESENTATION)
+        @self._position_feature(lsp.TEXT_DOCUMENT_COLOR_PRESENTATION)
         def text_color_presentation(
             params: lsp.ColorPresentationParams,
         ) -> list[lsp.ColorPresentation]:
@@ -713,7 +754,7 @@ class PynescriptLanguageServer(LanguageServer):
             source = doc.source if doc else None
             return document_color_feature.handle_color_presentation(params, source)
 
-        @self.feature(lsp.TEXT_DOCUMENT_DOCUMENT_LINK)
+        @self._position_feature(lsp.TEXT_DOCUMENT_DOCUMENT_LINK)
         def text_document_link(
             params: lsp.DocumentLinkParams,
         ) -> list[lsp.DocumentLink]:
@@ -734,7 +775,7 @@ class PynescriptLanguageServer(LanguageServer):
             """Handle documentLink/resolve request (fill tooltip)."""
             return document_link_feature.handle_document_link_resolve(params)
 
-        @self.feature(lsp.TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL)
+        @self._position_feature(lsp.TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL)
         def text_semantic_tokens(
             params: lsp.SemanticTokensParams,
         ) -> lsp.SemanticTokens | None:
@@ -756,7 +797,7 @@ class PynescriptLanguageServer(LanguageServer):
             doc.feature_cache["semantic_tokens"] = result
             return result
 
-        @self.feature(lsp.TEXT_DOCUMENT_SEMANTIC_TOKENS_RANGE)
+        @self._position_feature(lsp.TEXT_DOCUMENT_SEMANTIC_TOKENS_RANGE)
         def text_semantic_tokens_range(
             params: lsp.SemanticTokensRangeParams,
         ) -> lsp.SemanticTokens | None:
@@ -865,6 +906,12 @@ class PynescriptLanguageServer(LanguageServer):
         finally:
             if self._pending_diag_tasks.get(uri) is asyncio.current_task():
                 self._pending_diag_tasks.pop(uri, None)
+
+
+def _params_uri(params: Any) -> str | None:
+    """Document URI from any ``textDocument``-bearing LSP params object."""
+    text_document = getattr(params, "text_document", None)
+    return getattr(text_document, "uri", None)
 
 
 def _uri_to_path(uri: str) -> Path | None:

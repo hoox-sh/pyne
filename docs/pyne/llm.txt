@@ -7776,6 +7776,13 @@ _parse_and_lint:
 1. parse(source, filename=uri) — on success, lint_script(source, filename=uri).
 2. On exception: clear AST, store parse_error string, extract line via regex line[:\s]+(\d+).
 Incremental edits: _apply_text_edit splits on \n, pads the line list when the range sits at/past EOF (append without a trailing newline), clamps columns, then replaces the range. Out-of-range positions no longer leave a stale buffer. Whole-document change events replace source wholesale. Identical text after apply skips re-parse/lint (version still updates).
+Position encoding
+LSP positions count UTF-16 code units; Python strings count code points. They differ only for non-BMP characters (emoji, some CJK extensions). The server converts at the boundary:
+request Position/Range values go UTF-16 → code points before a feature handler runs;
+result ranges go back to UTF-16 on the way out (including nested WorkspaceEdit / Location objects, which use each document's own lines);
+diagnostics and incremental didChange edits convert too;
+SemanticTokens columns and lengths are converted before delta encoding.
+ASCII/LF buffers skip the recursive conversion pass entirely. Handlers therefore keep using Python string indices internally.
 Diagnostics conversion (_lint_warnings_to_diagnostics):
 Map severity strings → DiagnosticSeverity.
 Source tag "pyne", code from lint rule.

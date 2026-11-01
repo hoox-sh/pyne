@@ -49,6 +49,8 @@ from pynescript.langserver.analysis import SymbolIndex
 from pynescript.langserver.analysis import build_symbol_index
 from pynescript.langserver.features import semantic_diagnostics
 from pynescript.langserver.features.diagnostics import lint_warnings_to_diagnostics
+from pynescript.langserver.protocol.utils import codepoint_column_to_utf16
+from pynescript.langserver.protocol.utils import utf16_column_to_codepoint
 
 
 # Style-only rules. The language server can hide these by default; the linter
@@ -100,6 +102,15 @@ class TextDocumentState:
     def valid_analysis(self) -> SymbolIndex | None:
         """Symbol index only when it matches the current document version."""
         return self.analysis if self.ast_version == self.version else None
+
+    @property
+    def has_astral(self) -> bool:
+        """True when the buffer contains non-BMP characters (UTF-16 differs)."""
+        cached = self.feature_cache.get("has_astral")
+        if cached is None:
+            cached = any(ord(char) > 0xFFFF for char in self.source)
+            self.feature_cache["has_astral"] = cached
+        return bool(cached)
 
     @property
     def path(self) -> Path | None:
@@ -349,6 +360,16 @@ def _lint_warning_to_diagnostic(warning: LintWarning, source: str) -> lsp.Diagno
         end_column = min(max(column + 1, 1), max(len(line_text), 1))
     end_column = min(end_column, 2000)
 
+    content = line_text[:-1] if line_text.endswith("\r") else line_text
+    if content:
+        column = min(max(0, column), len(content))
+        end_column = min(max(column, end_column), len(content))
+        column = codepoint_column_to_utf16(content, column)
+        end_column = codepoint_column_to_utf16(content, end_column)
+    else:
+        column = 0
+        end_column = max(1, end_column)
+
     return lsp.Diagnostic(
         range=lsp.Range(
             start=lsp.Position(line=line_index, character=column),
@@ -420,15 +441,24 @@ def _parse_error_range(
     # Empty line at EOF: keep a one-character range within the line.
     end_col = max(start_col, end_col)
 
+    content = line_text[:-1] if line_text.endswith("\r") else line_text
+    if content:
+        start_col = codepoint_column_to_utf16(content, min(start_col, len(content)))
+        end_col = codepoint_column_to_utf16(content, min(end_col, len(content)))
+    else:
+        start_col = 0
+        end_col = max(1, end_col)
+
     return lsp.Range(
         start=lsp.Position(line=line_index, character=start_col),
         end=lsp.Position(line=end_index, character=end_col),
     )
 
 
-def _line_content_len(line: str) -> int:
-    """Length of *line* excluding a trailing CR (LSP columns exclude it)."""
-    return len(line) - 1 if line.endswith("\r") else len(line)
+def _utf16_column_to_index(line: str, column: int) -> int:
+    """Convert an LSP UTF-16 column to a Python index (CR excluded)."""
+    content = line[:-1] if line.endswith("\r") else line
+    return utf16_column_to_codepoint(content, column)
 
 
 def _apply_text_edit(source: str, range: lsp.Range, text: str) -> str:
@@ -454,8 +484,10 @@ def _apply_text_edit(source: str, range: lsp.Range, text: str) -> str:
     # Clamp columns so partial edits never raise; clients may send stale cols.
     # LSP columns exclude the line terminator, so a trailing ``\r`` must not
     # consume a column when clamping (otherwise CRLF edits land after the CR).
-    start_col = min(start_col, _line_content_len(lines[start_line]))
-    end_col = min(end_col, _line_content_len(lines[end_line]))
+    # LSP counts UTF-16 code units; convert to Python code points so an emoji
+    # earlier on the line cannot shift the edit into the wrong character.
+    start_col = _utf16_column_to_index(lines[start_line], start_col)
+    end_col = _utf16_column_to_index(lines[end_line], end_col)
 
     start_str = lines[start_line][:start_col]
     end_str = lines[end_line][end_col:]
