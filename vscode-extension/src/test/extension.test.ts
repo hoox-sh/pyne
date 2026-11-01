@@ -50,7 +50,6 @@ const EXPECTED_SETTINGS = [
   'pynescript.diagnostics.severity',
   'pynescript.diagnostics.style',
   'pynescript.diagnostics.semantic',
-  'pynescript.inlayHints.types',
   'pynescript.inlayHints.parameters',
   'pynescript.formatting.enabled',
   'pynescript.completion.snippets',
@@ -158,7 +157,6 @@ suite('PYNE Extension Activation', () => {
     assert.strictEqual(config.get('diagnostics.enabled'), true);
     assert.strictEqual(config.get('diagnostics.style'), false);
     assert.strictEqual(config.get('diagnostics.semantic'), false);
-    assert.strictEqual(config.get('inlayHints.types'), true);
     assert.strictEqual(config.get('inlayHints.parameters'), true);
     assert.strictEqual(config.get('formatting.enabled'), true);
     assert.strictEqual(config.get('completion.snippets'), true);

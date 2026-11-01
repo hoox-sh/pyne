@@ -1,8 +1,8 @@
 # PYNE Language Support
 
-<p align="center">
-  <img src="media/icon-512.png" alt="PYNE" width="128" />
-</p>
+<div align="center">
+  <img src="media/header-tagline.png" alt="HOOX — Distributed by design" width="640" />
+</div>
 
 **VS Code language support** for **`.pyne`** / **`.pine`** sources — syntax highlighting, diagnostics, autocomplete, hover, signature help, semantic tokens, formatting, Convert to v6, document links, inlay hints, and more. Powered by **[PYNE](https://hoox.sh/pyne)** (`hoox-pyne`).
 
@@ -11,7 +11,13 @@ Part of the **[HOOX](https://hoox.sh) open trading stack** — sister products: 
 > Independent, unofficial extension. **Not** affiliated with, endorsed by, or sponsored by TradingView, Inc.  
 > Pine Script™ and TradingView® are trademarks of TradingView, Inc.
 
-## What's new in 0.5.3
+## What's new in 0.5.4
+
+- **Inferred-type inlay hints removed.** The language server never annotates declarations — inlay hints are parameter-name hints only. The `pynescript.inlayHints.types` setting is gone; `inlayHints.parameters` remains.
+- **Deployment-mode feature matrix** in this README: what works with the hosted Pro API key, self-hosted (local / remote / edge `pyne-worker`), or with no backend at all.
+- **PYNE MCP recommended for agents** — register `pyne-mcp` with Copilot agent mode via `.vscode/mcp.json`; language tools run with no backend.
+- **HOOX brand header image** in the extension README.
+- **PYNE: Test Backend Connection**, **Run on Pro**, and the whole LSP surface verified against hosted, self-hosted local/remote/edge, and backend-less setups (`vscode-extension/FEATURES.md`).
 
 - **Pine syntax highlighting** — `pynescript.syntaxHighlighting` (`none` / `void` / `signal` / `volt`, default `void`) applies AXIS-style Pine token colors on top of any workbench theme. Switch it with **PYNE: Select Syntax Highlighting**. The three contributed themes (**AXIS Void**, **Hoox Signal**, **PYNE Volt**) are picked from VS Code's own Color Theme picker; the extension never switches your workbench theme.
 - **Calm, AXIS-matched token roles** — keywords and functions → the theme accent, strings → a light accent tint, numbers → foreground, comments / punctuation / series builtins → neutral gray. Comments are always gray, in every theme.
@@ -28,7 +34,7 @@ Part of the **[HOOX](https://hoox.sh) open trading stack** — sister products: 
 | **Snippets** | `indicator`, `strategy`, `library`, `type`, `enum`, `input.*`, `plot`, `ta.*`, `request.security`, `for`/`if`/`switch`, multiline string, … |
 | **Language Server** | Diagnostics, autocomplete + docs, hover, signature help, document symbols, formatting (full/range/on-type), Convert to v6 (`pip install "hoox-pyne[lsp]"`) |
 | **Semantic tokens** | Colorization by type: namespace, function, variable, keyword, operator, comment, … |
-| **Inlay hints** | Assignment types, parameter-name hints on dotted builtin calls (`ta.sma(close, 14)` → `source:` / `length:`) |
+| **Inlay hints** | Parameter-name hints on builtin and user calls (`ta.sma(close, 14)` → `source:` / `length:`). Inferred type hints were removed — the server never annotates declarations |
 | **Document links** | Clickable `http(s)` URLs in comments and string literals |
 | **Document color** | `#hex` swatches with `colorPresentation` rewrite |
 | **Library annotation hover** | `//@function` / `//@param` / `//@returns` / `//@type` / `//@field` / `//@variable` render as Markdown cards — headings, lists, code fences, blockquotes, tables, links, two-space line breaks |
@@ -38,6 +44,7 @@ Part of the **[HOOX](https://hoox.sh) open trading stack** — sister products: 
 | **Pro API** | `PYNE: Run on Pro` — POST active script to your backend `/run` (local or hosted `pynescript.online`) |
 | **Backend** | `PYNE: Install Backend (Pro API)`, `PYNE: Start Backend`, `PYNE: Test Backend Connection` |
 | **Backend wheel** | `pip install hoox-pyne-backend` → `pyne-backend` / `python -m backend` |
+| **PYNE MCP (recommended)** | Agent-mode tools for Copilot / Claude / Cursor via `pyne-mcp` — see [Recommended: PYNE MCP for agents](#recommended-pyne-mcp-for-agents) |
 | **Themes** | **AXIS Void / Hoox Signal / PYNE Volt** — AXIS-matched syntax highlighting + hover cards |
 
 Every LSP feature above has a `pynescript.<feature>.enabled` setting and a `PYNE: Toggle <Feature>` palette command, so you can turn individual features off without restarting the server.
@@ -48,6 +55,95 @@ Every LSP feature above has a `pynescript.<feature>.enabled` setting and a `PYNE
 2. `pyne-lsp` on `PATH`
 3. `pynescript-lsp` on `PATH` (backward-compatible alias)
 4. `python3 -m pynescript.langserver` (requires `pip install "hoox-pyne[lsp]"`)
+
+## Deployment modes & feature support matrix
+
+The extension has two independent subsystems:
+
+1. **Language server (`pyne-lsp`)** — a local stdio process spawned from your Python environment (`pip install "hoox-pyne[lsp]"`). It never calls a backend.
+2. **Pro API client** — plain `fetch` calls against a configurable backend (**PYNE: Run on Pro** → `POST /run`, **PYNE: Test Backend Connection** → `GET /health`).
+
+Deployment modes:
+
+| Mode | How | Auth |
+| --- | --- | --- |
+| **Hosted Pro (remote)** | `pynescript.backend.useHosted=true` → `https://pynescript.online` | Pro API key required (`pynescript.pro.apiKey`) |
+| **Self-hosted local** | Flask Pro API on `http://127.0.0.1:5002` (`make run`, `make docker-up`, or **PYNE: Start Backend**) | No key for `POST /run` (free-tier endpoint); key accepted if set |
+| **Self-hosted remote** | Same Flask Pro API on your own host (`pynescript.backend.url`) | Same as local (key optional; recommended if exposed) |
+| **Self-hosted edge** | [`pyne-worker`](https://github.com/jango-blockchained/pyne-worker) on Cloudflare — `POST /run`, `/health`, `/scripts`, `/cron/*` | Tenant `Bearer hx_live_…` key when auth is enabled on the worker |
+| **None** | No backend configured | — |
+
+Legend: ✅ supported · ⚠️ partial / conditional · ❌ not available · — not applicable (the extension never calls it)
+
+| Functionality | Hosted Pro (key) | Self-hosted local | Self-hosted remote | Self-hosted edge | No backend |
+| --- | --- | --- | --- | --- | --- |
+| Pine grammar highlighting (`.pyne` / `.pine`) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Color themes (`pyne-volt`, `hoox-signal`, `axis-void`) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Snippets (declaration + builtin) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Diagnostics — parse + lint (pull + push) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Diagnostics — style / semantic (opt-in) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Completion (+ resolve, snippets, user symbols) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Hover cards (builtin metadata, user symbols) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Signature help while typing | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Definition / references / rename (+ prepare) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Document + workspace symbols | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Document highlight / linked editing | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Semantic tokens (full + range) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Folding / selection range | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Document color swatches (`#hex`) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Document links (+ resolve) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Inlay hints — parameter names | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Inlay hints — inferred types | ❌ removed | ❌ removed | ❌ removed | ❌ removed | ❌ removed |
+| Formatting (document / range / on-type / format-on-save) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Convert to v6 (code action + command) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **PYNE:** Restart Server / Show LSP Output / Show LSP Command | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **PYNE:** Install Language Server (`hoox-pyne[lsp]`) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **PYNE: Run on Pro** (`POST /run`, mode `auto`) | ✅ key required | ✅ no key needed | ✅ key optional | ✅ tenant key when auth on | ❌ |
+| **PYNE: Test Backend** (`GET /health`) | ✅ | ✅ | ✅ | ✅ (worker `/health`) | ❌ |
+| **PYNE:** Install Backend (`hoox-pyne[pro,lsp]`) | — not needed | ✅ | ⚠️ installs into the local env only | ⚠️ installs into the local env only | ⚠️ installs, but nothing to start automatically |
+| **PYNE: Start Backend** (`python -m backend.app`) | ❌ blocked by `useHosted` | ✅ | ❌ backend runs elsewhere | ❌ backend runs elsewhere | ✅ (this is how you get one) |
+| Real market data, live sessions (`/data/*`)¹ | ✅ key | ✅ key | ✅ key | ❌ no `/data` on worker | ❌ |
+| Optimize / backtest / preview endpoints¹ | ✅ key | ✅ | ✅ | ❌ | ❌ |
+| Hosted runner (`/scripts`, `/cron/*`)¹ | ✅ key | ✅ admin token to mint | ✅ | ✅ (worker native) | ❌ |
+
+¹ **Not exposed by the extension today** — reachable from the Pro API directly
+(AXIS, agents, `curl`) and via PYNE MCP runner/data tools. Listed for completeness
+because availability differs per deployment.
+
+Notes:
+
+- All LSP features run **inside the editor** against `pyne-lsp`; no column changes for them. The only requirement is a Python env with `hoox-pyne[lsp]`.
+- **PYNE: Run on Pro** sends the full script plus a single synthetic OHLCV bar (`mode: auto`) to the configured backend — hosted, local, remote, or edge.
+- The hosted backend fronts `/run` with the Pro API key; self-hosted Flask `/run` is an open free-tier endpoint. If you expose a self-hosted instance publicly, put auth in front of it.
+
+## Recommended: PYNE MCP for agents
+
+Add **PYNE MCP** to your setup — it complements the extension rather than overlapping it. The extension (LSP) is the human editor UX; `pyne-mcp` is the agent tool surface for **Copilot agent mode**, Claude, Cursor, and friends. Language tools (`pyne_lint`, `pyne_parse`, `pyne_format`, `pyne_convert`, `pyne_run`, `pyne_execute`, `pyne_builtin`, …) run **in-process with no backend**, so they work in every deployment mode above — including "No backend". Only runner/data tools (`pyne_runner_*`, non-mock `pyne_data`, `pyne_download_builtins`) hit the network / Pro API in whatever mode you configured.
+
+**Install the MCP extra once:**
+
+```bash
+pip install "hoox-pyne[mcp]"
+pyne mcp config          # prints the mcpServers JSON below
+pyne mcp tools           # list available tools
+```
+
+**Register with VS Code** (Copilot agent mode, VS Code ≥ 1.99) — cheapest first:
+
+1. **Zero code — `.vscode/mcp.json`** in your workspace:
+
+   ```json
+   {
+     "servers": {
+       "pyne": { "command": "pyne-mcp", "args": [] }
+     }
+   }
+   ```
+
+2. **One-click install URL** — share `vscode:mcp/install?{"name":"pyne","command":"pyne-mcp"}` (URL-encoded) from docs or a walkthrough step.
+3. **Extension-native (planned)** — `contributes.mcpServerDefinitionProviders` in `package.json` + `vscode.lm.registerMcpServerDefinitionProvider` returning a `vscode.McpStdioServerDefinition` for `pyne-mcp`, resolved through the same Python interpreter discovery the LSP uses. Kept decoupled from the LSP process — MCP is a separate stdio server, not an LSP feature.
+
+Full tool catalog: [MCP tools](https://hoox.sh/pyne/docs/enduser/reference/mcp-tools) · [MCP guide](https://hoox.sh/pyne/docs/enduser/guides/mcp).
 
 ## Install language server (required for LSP)
 
@@ -92,7 +188,7 @@ npm run package
 code --install-extension pyne-*.vsix
 ```
 
-Site download: [https://hoox.sh/pyne-vscode.vsix](https://hoox.sh/pyne-vscode.vsix) (unversioned alias). Versioned `pyne-vscode-0.5.3.vsix` is built in this folder and on GitHub Releases.
+Site download: [https://hoox.sh/pyne-vscode.vsix](https://hoox.sh/pyne-vscode.vsix) (unversioned alias). Versioned `pyne-vscode-0.5.4.vsix` is built in this folder and on GitHub Releases.
 
 > The VSIX is **self-contained** (esbuild bundles `vscode-languageclient`). You still need the **language server** on the machine (`pip install "hoox-pyne[lsp]"`).
 
@@ -135,7 +231,6 @@ code --extensionDevelopmentPath=.
 | `pynescript.diagnostics.semantic` | `false` | Opt-in UDT/enum member and user-function arity checks |
 | `pynescript.completion.snippets` | `true` | Snippets for builtins and declarations |
 | `pynescript.hover.enabled` | `true` | Hover cards (signature, docs, types) |
-| `pynescript.inlayHints.types` | `true` | Inferred type hints |
 | `pynescript.inlayHints.parameters` | `true` | Parameter-name hints in calls |
 | `pynescript.signatureHelp.enabled` | `true` | Parameter hints while typing a call |
 | `pynescript.semanticTokens.enabled` | `true` | Semantic token colorization |
@@ -330,7 +425,7 @@ pyne-lsp
 | Extension id | `hoox-sh.pyne` |
 | Package name | `pyne` |
 | Display name | **PYNE Language Support** |
-| Version | 0.5.3 |
+| Version | 0.5.4 |
 
 ## License
 

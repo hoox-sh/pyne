@@ -125,7 +125,6 @@ function serverSettings(): Record<string, unknown> {
     diagnosticsEnabled: cfg<boolean>('diagnostics.enabled') !== false,
     styleDiagnostics: cfg<boolean>('diagnostics.style') === true,
     semanticDiagnostics: cfg<boolean>('diagnostics.semantic') === true,
-    inlayHintsTypes: cfg<boolean>('inlayHints.types') !== false,
     inlayHintsParameters: cfg<boolean>('inlayHints.parameters') !== false,
     completionUserSymbols: true,
   };
@@ -1600,7 +1599,6 @@ export async function activate(context: ExtensionContext): Promise<void> {
     'diagnostics.style',
     'diagnostics.semantic',
     'completion.snippets',
-    'inlayHints.types',
     'inlayHints.parameters',
     'formatOnSave.enabled',
     'hover.enabled',
