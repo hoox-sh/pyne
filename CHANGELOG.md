@@ -35,6 +35,24 @@
 - **Workbench theme switching disabled.** The extension no longer writes `workbench.colorTheme` on activation, install, or settings change. `pynescript.theme` and the **PYNE: Select Workbench Theme** command are commented out for now; the three themes remain contributed and selectable from VS Code's own **Preferences: Color Theme** picker.
 - **Settings regrouped and rewritten** into `PYNE: Appearance`, `PYNE: Language Server`, `PYNE: Editor Features`, `PYNE: Installation`, and `PYNE: Pro & Backend`, ordered by how often they are changed. Descriptions now state the default, the `none` behaviour, and cross-link related keys.
 
+## [0.6.29] — 2026-11-01
+
+### Changed
+
+- **Inferred-type inlay hints removed entirely.** The language server never annotates declarations anymore — inlay hints are parameter names only. The `show_types` path, its inference helpers, and the `inlayHintsTypes` server/extension setting are gone; clients that still send the option are ignored. VS Code extension **0.5.4** drops `pynescript.inlayHints.types`.
+- **Strategy broker parity overhaul (reference Pine).** Market orders placed during bar N fill at the **open of bar N+1** (pending market orders, `process_pending_orders` at bar start); fills quote on the `syminfo.mintick` grid and resting order prices round outward (away from the mark); reversal closes emit a `close` event with `reverse` comment at fill time on both hosts; entry comments propagate to `opentrades.entry_comment`; same-bar orders stay inert on their placement bar; `strategy.exit` brackets placed against a not-yet-filled entry soft-no-op. Event flow per fill: `entry`/`close` then a `fill` order event — **both hosts stay in lockstep**.
+- **Reference-Pine defaults and `na` semantics.** `strategy()` `initial_capital` defaults to 1,000,000; `na(x)` unwraps series/scalar wrappers before testing; `fixnan` carries the last non-`na` sample per call site (Pine does not seed with 0).
+- **Parity fixtures regenerated** (`tests/fixtures/parity/json/*.json`) for the new event flow; the trail/restore goldens, risk day-resume bars, and dual-host lock tests updated to next-bar-fill semantics. ⚠️ The TypeScript event oracle (`pine-worker/src/evaluator/events.ts`) must mirror the new placement/fill flow.
+- **VS Code extension README** uses the HOOX brand header, documents the deployment-mode feature matrix (hosted Pro key / self-hosted local, remote, edge / none), and recommends PYNE MCP for agent hosts; `vscode-extension/FEATURES.md` carries the full matrix.
+
+### Fixed
+
+- **SAR incremental state out-of-bounds write** — `numba_sar_inc` grew to a 10-float state but tests still allocated 5, corrupting the heap on rewind (`double free or corruption` / SIGABRT in the test process).
+- **`tests/test_corpus_runtime_expected_fail.py`** still loaded classification helpers from the old thin CLI script; they moved to `pynescript.util.corpus_runtime` in the parity-harness commit.
+- **Stale supertrend warmup assertion** — `ta.atr`'s RMA seeds via SMA, so the first non-na ATR lands on bar index `period-1`, not `period`.
+- **`2492_ind_pdf_01_reversal_radar_v2` corpus test** — the file is a mis-collected planning markdown with no Pine body; compile now fails honestly per the fail-honest stub policy.
+- Lint clean: PLW2901/PLW3301 fixes in `fixnan` and SAR clamp windows.
+
 ## [0.6.28] — 2026-10-31
 
 ### Added
