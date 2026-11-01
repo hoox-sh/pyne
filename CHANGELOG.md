@@ -14,7 +14,7 @@
 ### Fixed
 
 - **Stale-AST race.** `didChange` updates source immediately; features no longer combine the new text with the previous AST. Parse results commit only if the document version/source still match, and published diagnostics carry the document version.
-- **Destructive formatting.** The unparser drops prose/block comments; formatting now returns no edits when such comments are present instead of deleting them. Range/on-type formatting also refuses line-structure changes.
+- **Destructive formatting.** The unparser drops prose/block comments, so commented buffers now use a safe whitespace pass (trim trailing spaces, normalize the final newline, leave multi-line strings alone) instead of deleting trivia or returning nothing. Range/on-type formatting applies the same pass and still refuses line-structure changes. C002 does not offer a format QuickFix when comments are present.
 - **Parse diagnostics** use structured `SyntaxErrorDetails` with a non-empty range instead of a zero-width error at column 0.
 - **W104/W105 QuickFixes.** W104 deletes the v6-removed `transp=` / `when=` argument (multi-line calls included) and refuses when the removed span contains a comment; W105 rewrites the numeric condition as `literal != 0`. Both are verified by re-parsing before being offered.
 - **W105 ranges** now underline the numeric literal instead of the `if`/`while` keyword.

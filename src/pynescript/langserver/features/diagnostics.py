@@ -41,6 +41,7 @@ from pynescript.ast.helper import parse
 from pynescript.ast.helper import walk
 from pynescript.ast.linter import LintWarning
 from pynescript.langserver.features.formatting import handle_formatting
+from pynescript.langserver.features.formatting import has_unpreserved_comments
 
 
 # Same pattern as ``PineLinter._check_version`` (flexible whitespace).
@@ -262,6 +263,10 @@ def create_quick_fix(
         return _single_edit_action("Compare numeric condition with 0", uri, edit)
 
     if warning.code == "C002":
+        if has_unpreserved_comments(source, tree):
+            # The safe whitespace pass cannot fix a long line; do not offer a
+            # QuickFix that leaves the diagnostic in place.
+            return None
         edits = handle_formatting(
             lsp.DocumentFormattingParams(
                 text_document=lsp.TextDocumentIdentifier(uri=uri),

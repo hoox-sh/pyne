@@ -35,6 +35,8 @@ from pynescript.langserver.features.completion import handle_completion
 from pynescript.langserver.features.convert import handle_code_action
 from pynescript.langserver.features.definitions import handle_definition
 from pynescript.langserver.features.formatting import handle_formatting
+from pynescript.langserver.features.formatting import handle_on_type_formatting
+from pynescript.langserver.features.formatting import handle_range_formatting
 from pynescript.langserver.features.highlight import handle_document_highlight
 from pynescript.langserver.features.inlay_hints import handle_inlay_hints
 from pynescript.langserver.features.references import handle_references
@@ -277,17 +279,64 @@ plot(x)
 # ---------------------------------------------------------------------------
 
 
-class TestFormattingSafety:
-    def test_prose_comment_blocks_formatting(self) -> None:
-        source = '//@version=6\nindicator("T")\n// keep this comment\nx=1\n'
-        edits = handle_formatting(
+def _format(source: str) -> list[lsp.TextEdit]:
+    return list(
+        handle_formatting(
             lsp.DocumentFormattingParams(
                 text_document=lsp.TextDocumentIdentifier(uri="file:///fmt.pine"),
                 options=lsp.FormattingOptions(tab_size=4, insert_spaces=True),
             ),
             source,
         )
-        assert edits == []
+        or []
+    )
+
+
+class TestFormattingSafety:
+    def test_prose_comment_keeps_canonical_format_off(self) -> None:
+        source = '//@version=6\nindicator("T")\n// keep this comment\nx=1\n'
+        assert _format(source) == []
+
+    def test_prose_comment_trims_trailing_whitespace(self) -> None:
+        source = '//@version=6\nindicator("T")\n// keep this comment   \nx=1   \n'
+        edits = _format(source)
+        assert len(edits) == 1
+        assert edits[0].new_text == '//@version=6\nindicator("T")\n// keep this comment\nx=1\n'
+
+    def test_multiline_string_spaces_are_preserved(self) -> None:
+        source = '//@version=6\nindicator("T")\ns = """\na   \nb\n"""\n// note\nplot(close)   \n'
+        edits = _format(source)
+        assert len(edits) == 1
+        assert "a   \nb" in edits[0].new_text
+        assert "// note" in edits[0].new_text
+        assert edits[0].new_text.endswith("plot(close)\n")
+
+    def test_range_formatting_with_comments_trims_only_the_range(self) -> None:
+        source = '//@version=6\nindicator("T")\n// note\nplot(close)   \nplot(open)   \n'
+        edits = handle_range_formatting(
+            lsp.DocumentRangeFormattingParams(
+                text_document=lsp.TextDocumentIdentifier(uri="file:///fmt.pine"),
+                range=lsp.Range(start=lsp.Position(line=4, character=0), end=lsp.Position(line=4, character=0)),
+                options=lsp.FormattingOptions(tab_size=4, insert_spaces=True),
+            ),
+            source,
+        )
+        assert edits
+        assert edits[0].new_text == "plot(open)"
+
+    def test_on_type_formatting_with_comments_trims_previous_line(self) -> None:
+        source = '//@version=6\nindicator("T")\n// note\nplot(close)   \n'
+        edits = handle_on_type_formatting(
+            lsp.DocumentOnTypeFormattingParams(
+                text_document=lsp.TextDocumentIdentifier(uri="file:///fmt.pine"),
+                position=lsp.Position(line=4, character=0),
+                ch="\n",
+                options=lsp.FormattingOptions(tab_size=4, insert_spaces=True),
+            ),
+            source,
+        )
+        assert edits
+        assert edits[0].new_text == "plot(close)"
 
     def test_preserved_annotations_still_format(self) -> None:
         source = '//@version=6\nindicator("T")\n//@function docs\nf(x) => x\n'
@@ -503,3 +552,11 @@ class TestQuickFixes:
         source = '//@version=6\nindicator("T")\ny = 1 ? 2 : 3\n'
         action = next(a for a in _actions_for(source) if a.title == "Compare numeric condition with 0")
         assert _apply_action(source, action) == '//@version=6\nindicator("T")\ny = 1 != 0 ? 2 : 3\n'
+
+    def test_c002_not_offered_with_prose_comments(self) -> None:
+        long_title = "x" * 130
+        source = (
+            '//@version=6\nindicator("T")   \n// keep this comment\n'
+            f'plot(close, title="{long_title}")   \n'
+        )
+        assert "Format document" not in [action.title for action in _actions_for(source)]

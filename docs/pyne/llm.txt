@@ -8569,7 +8569,7 @@ description: "Document, range, and on-type formatting via AST parse → NodeUnpa
 Formatting
 Abstract
 Formatting is canonical unparse, not a style linter. The handler parses the buffer, runs NodeUnparser, and if the result differs from the source, replaces the document (or the requested line range, or the just-completed line) with a single TextEdit. There is no prettier-like option matrix; FormattingOptions from the client are currently unused.
-Safety rule: the ASDL AST keeps Pine annotations (//@version, //@function, …) but not ordinary prose or block comments. If the buffer contains a comment the unparser would drop, formatting returns no edits instead of deleting user text. A comment-preserving formatter is future work.
+Safety rule: the ASDL AST keeps Pine annotations (//@version, //@function, …) but not ordinary prose or block comments. If the buffer contains a comment the unparser would drop, the handler switches to a safe whitespace pass: trailing spaces/tabs are removed and the final newline is normalized, while every comment and string is kept byte-for-byte. Lines inside multi-line strings are never trimmed. Range and on-type formatting apply the same pass to their target line. C002 does not offer a format QuickFix for such buffers because whitespace cleanup cannot shorten a long line. A full comment-preserving CST formatter is future work.
 Conceptual model
 Interface surface
 | Method | Handler |
@@ -8607,7 +8607,7 @@ VS Code command pynescript.formatDocument delegates to editor.action.formatDocum
 Invariants and edge cases
 1. Parse failure → [] (no partial format; silent no-op from the client’s perspective). On-type also no-ops when the workspace already failed to parse (tree=None).
 2. Idempotence goal: format twice should stabilize if unparse is canonical; any non-idempotent unparse is a core bug, not an LSP bug.
-3. Comments / trivia: Pine annotations are preserved; prose/block comments block formatting (no destructive edit). This is not a full CST pretty-printer.
+3. Comments / trivia: Pine annotations are preserved; prose/block comments switch to the safe whitespace pass (never a destructive edit). This is not a full CST pretty-printer.
 4. Range and on-type require a full successful parse and matching line counts; only the edit span is clipped. If unparse changes line structure, no range/on-type edit is returned.
 5. Tab size / insert spaces from FormattingOptions are ignored today.
 6. On-type is previous-line only — the new empty line under the cursor is not rewritten.

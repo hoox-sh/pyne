@@ -96,6 +96,86 @@ def _has_comments(source: str, tree: Any | None = None) -> bool:
     return False
 
 
+def _multiline_string_lines(source: str) -> list[bool]:
+    """Mark lines whose trailing whitespace lives inside a multi-line string."""
+    lines = source.split("\n")
+    flags = [False] * len(lines)
+    i = 0
+    n = len(source)
+    line = 0
+    triple: str | None = None
+    while i < n:
+        ch = source[i]
+        if ch == "\n":
+            line += 1
+            i += 1
+            continue
+        if triple is not None:
+            flags[line] = True
+            if source.startswith(triple, i):
+                triple = None
+                i += 3
+            else:
+                i += 1
+            continue
+        if ch in "\"'":
+            marker = source[i : i + 3]
+            if marker in ('"""', "'''"):
+                triple = marker
+                flags[line] = True
+                i += 3
+                continue
+            quote = ch
+            i += 1
+            while i < n:
+                c = source[i]
+                if c == "\\":
+                    i += 2
+                    continue
+                if c in (quote, "\n"):
+                    i += 1
+                    break
+                i += 1
+            continue
+        i += 1
+    return flags
+
+
+def _safe_whitespace_format(source: str) -> str:
+    """Trim trailing whitespace and normalize the final newline, keeping trivia.
+
+    Used when prose/block comments are present: the canonical unparser would
+    drop them, but a whitespace-only pass is always safe. Lines inside a
+    multi-line string are left untouched so string content is preserved.
+    """
+    lines = source.split("\n")
+    flags = _multiline_string_lines(source)
+    cleaned = [
+        line if (index < len(flags) and flags[index]) else line.rstrip(" \t")
+        for index, line in enumerate(lines)
+    ]
+    text = "\n".join(cleaned)
+    if not text.strip():
+        return source
+    return text.rstrip("\n") + "\n"
+
+
+def has_unpreserved_comments(source: str, tree: Any | None = None) -> bool:
+    """True when canonical formatting would drop comments in *source*.
+
+    Public wrapper for code actions: C002 must not offer a format edit that
+    cannot fix the long line (or would delete trivia).
+    """
+    if tree is None:
+        try:
+            from pynescript.ast.helper import parse
+
+            tree = parse(source, filename="<format>")
+        except Exception:
+            return True
+    return _has_comments(source, tree)
+
+
 def _preserved_annotations(tree: Any | None) -> set[str]:
     """Collect annotation comment lines the AST/unparser preserves."""
     if tree is None:
@@ -121,6 +201,20 @@ def _aligned_lines(source: str, formatted: str) -> tuple[list[str], list[str]] |
     return source_lines, formatted_lines
 
 
+def _whole_document_edit(source: str, formatted: str) -> lsp.TextEdit:
+    """One replace-edit covering the entire document."""
+    lines = source.split("\n")
+    end_line = len(lines) - 1
+    end_col = len(lines[-1]) if lines else 0
+    return lsp.TextEdit(
+        range=lsp.Range(
+            start=lsp.Position(line=0, character=0),
+            end=lsp.Position(line=end_line, character=end_col),
+        ),
+        new_text=formatted,
+    )
+
+
 def handle_formatting(
     params: lsp.DocumentFormattingParams, source: str | None, tree: Any | None = None
 ) -> list[lsp.TextEdit] | None:
@@ -144,29 +238,16 @@ def handle_formatting(
         if tree is None:
             tree = parse(source, filename="<format>")
         if _has_comments(source, tree):
-            # Unparser output has no prose-comment trivia; formatting here
-            # would delete user comments. Prefer no edit over data loss.
-            return []
-
-        unparser = NodeUnparser()
-        formatted = unparser.visit(tree)
+            # Unparser output has no prose-comment trivia. Keep the comments
+            # and apply the safe whitespace pass instead of deleting text.
+            formatted = _safe_whitespace_format(source)
+        else:
+            formatted = NodeUnparser().visit(tree)
 
         if formatted == source:
             return []
 
-        lines = source.split("\n")
-        end_line = len(lines) - 1
-        end_col = len(lines[-1]) if lines else 0
-
-        return [
-            lsp.TextEdit(
-                range=lsp.Range(
-                    start=lsp.Position(line=0, character=0),
-                    end=lsp.Position(line=end_line, character=end_col),
-                ),
-                new_text=formatted,
-            )
-        ]
+        return [_whole_document_edit(source, formatted)]
 
     except Exception:
         return []
@@ -195,10 +276,9 @@ def handle_range_formatting(
         if tree is None:
             tree = parse(source, filename="<format>")
         if _has_comments(source, tree):
-            return []
-
-        unparser = NodeUnparser()
-        formatted = unparser.visit(tree)
+            formatted = _safe_whitespace_format(source)
+        else:
+            formatted = NodeUnparser().visit(tree)
 
         aligned = _aligned_lines(source, formatted)
         if aligned is None:
@@ -261,10 +341,9 @@ def handle_on_type_formatting(
         if tree is ...:
             tree = parse(source, filename="<format>")
         if _has_comments(source, tree):
-            return []
-
-        unparser = NodeUnparser()
-        formatted = unparser.visit(tree)
+            formatted = _safe_whitespace_format(source)
+        else:
+            formatted = NodeUnparser().visit(tree)
 
         aligned = _aligned_lines(source, formatted)
         if aligned is None:
