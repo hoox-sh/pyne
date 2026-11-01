@@ -25,6 +25,8 @@ import pytest
 
 from flask.testing import FlaskClient
 
+from backend.app import _public_exc_message
+from backend.app import _sanitize_error_for_response
 from backend.app import app
 from backend.middleware.auth import reset_key_store
 
@@ -71,6 +73,28 @@ class TestStatsAndNotFound:
         assert body["status"] == "error"
         assert body["code"] == "NOT_FOUND"
         assert "not found" in body["message"].lower()
+
+
+class TestErrorSanitizer:
+    def test_drops_traceback_frames_and_paths(self) -> None:
+        blob = (
+            "Traceback (most recent call last):\n"
+            '  File "/app/backend/app.py", line 12, in tick\n'
+            "    raise RuntimeError('boom')\n"
+            "RuntimeError: undeclared identifier 'foo'"
+        )
+        assert _sanitize_error_for_response(blob) == "RuntimeError: undeclared identifier 'foo'"
+        assert "/app/" not in _sanitize_error_for_response(blob)
+
+    def test_public_exc_uses_type_name_when_only_frames(self) -> None:
+        class _FrameOnly(Exception):
+            def __str__(self) -> str:
+                return 'File "/secret/core.py", line 9, in run'
+
+        msg = _public_exc_message(_FrameOnly())
+        assert msg == "_FrameOnly"
+        assert "secret" not in msg
+        assert "core.py" not in msg
 
 
 class TestAuthFailureShapes:

@@ -53,8 +53,29 @@ from pynescript.ast.node import While
 
 _VERSION_PRAGMA_RE = re.compile(r"(?m)^[ \t]*//\s*@version\s*=\s*(\d+)")
 _ASSIGN_OP_RE = re.compile(r"(?<![=!<>:])=(?!=|>)")
-_TRAILING_IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*$")
 _HEX_DIGITS = frozenset("0123456789abcdefABCDEF")
+
+
+def _trailing_ident_span(s: str) -> tuple[int, int] | None:
+    """ASCII identifier at the end of ``s``, or ``None``.
+
+    Linear scan (not ``[A-Za-z0-9_]*$``) so C001 never runs a user-controlled
+    regex — CodeQL ``py/polynomial-redos``.
+    """
+    end = len(s)
+    i = end
+    while i > 0:
+        c = s[i - 1]
+        if ("A" <= c <= "Z") or ("a" <= c <= "z") or ("0" <= c <= "9") or c == "_":
+            i -= 1
+            continue
+        break
+    if i == end:
+        return None
+    first = s[i]
+    if not (("A" <= first <= "Z") or ("a" <= first <= "z") or first == "_"):
+        return None
+    return i, end
 
 
 def _detect_version(source: str) -> int | None:
@@ -446,10 +467,11 @@ class PineLinter:
             if match is None or match.start() <= 0:
                 continue
             lhs = line[: match.start()].rstrip(" \t")
-            ident = _TRAILING_IDENT_RE.search(lhs)
-            if ident is None:
+            span = _trailing_ident_span(lhs)
+            if span is None:
                 continue
-            var_name = ident.group(0)
+            ident_start, ident_end = span
+            var_name = lhs[ident_start:ident_end]
             rhs = line[match.end() :].lstrip(" \t")
             if not rhs.startswith("ta."):
                 continue
@@ -459,9 +481,9 @@ class PineLinter:
                     code="C001",
                     message=f"Variable '{var_name}' should use camelCase (e.g., '{_to_camel(var_name)}')",
                     line=i,
-                    column=ident.start(),
+                    column=ident_start,
                     end_line=i,
-                    end_column=ident.end(),
+                    end_column=ident_end,
                 )
 
     def _check_style(self, source: str) -> None:

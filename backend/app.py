@@ -52,14 +52,35 @@ def _dbg(msg: str, *args: Any) -> None:
 
 _INTERNAL_PATH_RE = re.compile(r'(?:File ")?[\\/](?:[\w.-]+[\\/])*[\w.-]+\.py(?:", line \d+)?')
 _MAX_ERROR_MSG_LEN = 500
+_TRACE_PREFIXES = (
+    "Traceback ",
+    "File ",
+    "During handling of",
+    "The above exception",
+)
 
 
 def _sanitize_error_for_response(msg: str) -> str:
-    """Strip internal file paths and stack trace details from error messages."""
-    msg = _INTERNAL_PATH_RE.sub("", msg)
-    if len(msg) > _MAX_ERROR_MSG_LEN:
-        msg = msg[:_MAX_ERROR_MSG_LEN] + "..."
-    return msg.strip() or "An error occurred"
+    """One-line client error: drop traceback frames and source paths."""
+    last = ""
+    for line in str(msg).splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        if s.startswith(_TRACE_PREFIXES) or _INTERNAL_PATH_RE.search(s):
+            continue
+        last = s
+    if len(last) > _MAX_ERROR_MSG_LEN:
+        last = last[:_MAX_ERROR_MSG_LEN] + "..."
+    return last or "An error occurred"
+
+
+def _public_exc_message(exc: BaseException) -> str:
+    """Client-facing exception text. Full ``str(exc)`` stays in the server log."""
+    cleaned = _sanitize_error_for_response(str(exc))
+    if cleaned == "An error occurred":
+        return type(exc).__name__
+    return cleaned
 
 
 def _load_env_file() -> bool:
@@ -1367,7 +1388,7 @@ def create_session_route():
             {
                 "status": "error",
                 "code": "SESSION_CREATE_FAILED",
-                "message": _sanitize_error_for_response(str(exc)),
+                "message": _public_exc_message(exc),
             }
         ), 400
 
@@ -1378,7 +1399,7 @@ def create_session_route():
             {
                 "status": "error",
                 "code": "SESSIONS_FULL",
-                "message": _sanitize_error_for_response(str(exc)),
+                "message": _public_exc_message(exc),
             }
         ), 503
 
@@ -1496,7 +1517,7 @@ def session_tick_route(session_id: str):
             {
                 "status": "error",
                 "code": "SESSION_TICK_FAILED",
-                "message": _sanitize_error_for_response(str(exc)),
+                "message": _public_exc_message(exc),
                 "session_id": session_id,
             }
         ), 400
@@ -1544,7 +1565,7 @@ def session_append_route(session_id: str):
             {
                 "status": "error",
                 "code": "SESSION_APPEND_FAILED",
-                "message": _sanitize_error_for_response(str(exc)),
+                "message": _public_exc_message(exc),
                 "session_id": session_id,
             }
         ), 400
@@ -1642,7 +1663,7 @@ def create_data_session_route():
             {
                 "status": "error",
                 "code": "SESSION_CREATE_FAILED",
-                "message": _sanitize_error_for_response(str(exc)),
+                "message": _public_exc_message(exc),
             }
         ), 400
 
@@ -1653,7 +1674,7 @@ def create_data_session_route():
             {
                 "status": "error",
                 "code": "SESSIONS_FULL",
-                "message": _sanitize_error_for_response(str(exc)),
+                "message": _public_exc_message(exc),
             }
         ), 503
 
@@ -1742,7 +1763,7 @@ def data_session_tick_route(session_id: str):
             {
                 "status": "error",
                 "code": "SESSION_TICK_FAILED",
-                "message": _sanitize_error_for_response(str(exc)),
+                "message": _public_exc_message(exc),
                 "session_id": session_id,
             }
         ), 400

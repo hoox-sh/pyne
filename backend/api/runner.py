@@ -171,7 +171,8 @@ def put_script():
     try:
         rec = store.put_script(data)
     except ValueError as exc:
-        return jsonify({"status": "error", "code": "INVALID_SCRIPT", "message": str(exc)}), 400
+        msg = str(exc).splitlines()[-1].strip()[:500] or "Invalid script."
+        return jsonify({"status": "error", "code": "INVALID_SCRIPT", "message": msg}), 400
     return jsonify({"status": "success", "script": rec}), 201
 
 

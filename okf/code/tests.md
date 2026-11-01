@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-01T19:58:08Z
+  at: 2026-11-01T21:14:04Z
 sources:
   - id: tree
     resource: "tests"
@@ -28,7 +28,7 @@ okf_lock: generated
 * `test_ast_infra_coverage.py` — TestSyntaxError, TestTransformer, TestTypeSystem, TestVisitorAndCollector
 * `test_axb1.py` — encode_frame_spec, frame_from_spec, test_close_replies_leave_as_close_verify, test_control_and_idle_frames_stay_json_on_wire, test_encoder_matches_golden_vector, test_envelope_rejects_compression_bit, test_envelope_rejects_oversized_payload, test_envelope_rejects_unaligned_payload, test_error_frames_leave_as_binary_error, test_fnv1a32_matches_shared_hash_checks, test_hub_delta_append_stays_json, test_hub_delta_multi_bar_stays_json
 * `test_backend.py` — TestAuth, TestBacktest, TestBacktestService, TestChartRenderer, TestGitOAuth, TestHealth, TestOptimizeEndpoint, TestPreview, TestRun, api_key, client
-* `test_backend_app_edges_coverage.py` — TestAuthFailureShapes, TestStatsAndNotFound, client
+* `test_backend_app_edges_coverage.py` — TestAuthFailureShapes, TestErrorSanitizer, TestStatsAndNotFound, client
 * `test_backend_runner.py` — TestRunnerCron, TestRunnerDisabled, TestRunnerRegistry, client, off_client
 * `test_backend_services_coverage.py` — TestChartRenderer, TestRunBacktest, TestTradeAndBacktestResult
 * `test_backend_sessions.py` — TestSessionRoutes, TestSessionStore, TestSessionTail, client, test_advertised_session_routes_are_actually_routable, test_health_advertises_every_session_route

@@ -141,8 +141,24 @@ _KNOWN_ANNOTATION_TAGS = frozenset(
 # Tags whose content is the node's description (function / type / variable).
 _DESCRIPTION_TAGS = frozenset({"function", "type", "variable", "description", "enum"})
 
-# ``@tag …`` line inside a comment block (leading ``//`` already stripped).
-_ANNOTATION_TAG_RE = re.compile(r"^@\s*([A-Za-z_]+)(?:\s+(.*))?$")
+def _split_annotation_tag(body: str) -> tuple[str, str] | None:
+    """Parse ``@tag rest`` from a stripped comment line.
+
+    Character scan instead of ``@\\s*([A-Za-z_]+)(?:\\s+(.*))?$`` so hover
+    does not run a user-controlled regex (CodeQL ``py/polynomial-redos``).
+    """
+    if not body.startswith("@"):
+        return None
+    i = 1
+    n = len(body)
+    while i < n and body[i] in " \t":
+        i += 1
+    start = i
+    while i < n and (("A" <= body[i] <= "Z") or ("a" <= body[i] <= "z") or body[i] == "_"):
+        i += 1
+    if i == start:
+        return None
+    return body[start:i], body[i:].lstrip(" \t")
 
 
 def handle_hover(
@@ -473,12 +489,12 @@ def _parse_annotation_entries(block: list[str] | None) -> list[tuple[str, str | 
         body = _strip_comment_prefix(raw)
         if body is None:
             continue
-        match = _ANNOTATION_TAG_RE.match(body.lstrip())
-        tag = match.group(1).lower() if match else ""
-        if match and tag in _KNOWN_ANNOTATION_TAGS:
+        parsed = _split_annotation_tag(body.lstrip())
+        tag = parsed[0].lower() if parsed else ""
+        if parsed and tag in _KNOWN_ANNOTATION_TAGS:
             if current is not None:
                 entries.append(current)
-            rest = match.group(2) or ""
+            rest = parsed[1] or ""
             if tag in {"param", "field"}:
                 parts = rest.split(None, 1)
                 name = parts[0] if parts else ""

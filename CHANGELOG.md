@@ -13,6 +13,10 @@
 
 ### Fixed
 
+- **API error bodies** drop traceback frames and source paths (`_sanitize_error_for_response`); session/runner exception JSON uses a one-line client message.
+- **vscode-extension `minimatch`** is overridden to `^11.0.1` (GHSA-g3hv-75wg-m249 globparts DoS).
+- **CodeQL ReDoS** on C001 trailing identifiers and hover `@tag` lines — both are linear scans now, not user-controlled regex.
+- **PDF mermaid entity decode** unescapes `&amp;` last so `&amp;lt;` is a single-level decode.
 - **TradingView loop-args SMA.** One `ta.sma` call site reached several times per bar with different sources (`ta.sma(close[i], n)` inside a `for`) now shares a single history window and replaces the current-bar sample — TradingView's rule. `published_pattern` on the vendored OpenPineScript goldens is green; **112 / 112 columns pass**.
 - **Stale-AST race.** `didChange` updates source immediately; features no longer combine the new text with the previous AST. Parse results commit only if the document version/source still match, and published diagnostics carry the document version.
 - **Destructive formatting.** The unparser drops prose/block comments, so commented buffers now use a safe whitespace pass (trim trailing spaces, normalize the final newline, leave multi-line strings alone) instead of deleting trivia or returning nothing. Range/on-type formatting applies the same pass and still refuses line-structure changes. C002 does not offer a format QuickFix when comments are present.

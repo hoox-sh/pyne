@@ -755,12 +755,14 @@ async function loadMermaidTheme() {
 }
 
 function decodeHtmlEntities(s) {
+  // Decode ``&amp;`` last so ``&amp;lt;`` stays a single-level unescape
+  // (CodeQL ``js/double-escaping``).
   return String(s)
-    .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
 }
 
 /** Turn marked's language-mermaid fences into mermaid.js run targets. */
