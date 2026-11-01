@@ -47,7 +47,7 @@ Control blocks are expressions (`If`, `ForTo`, `ForIn`, `While`, `Switch`, `Once
 
 - Method: `textDocument/foldingRange`
 - Capability: `folding_range_provider=True`
-- Handler: `features/folding.py` → `handle_folding_range` (receives cached `tree=doc.ast`)
+- Handler: `features/folding.py` → `handle_folding_range` (receives version-matched `tree=doc.valid_ast`)
 
 Each range uses 0-based `start_line` / `end_line`. Region comment pairs set `kind: "region"`.
 

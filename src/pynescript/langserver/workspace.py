@@ -37,13 +37,22 @@ from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote
+from urllib.parse import urlparse
 
 from lsprotocol import types as lsp
 
 from pynescript.ast import parse
 from pynescript.ast.linter import LintWarning
 from pynescript.ast.linter import lint_script
+from pynescript.langserver.analysis import SymbolIndex
+from pynescript.langserver.analysis import build_symbol_index
 from pynescript.langserver.features.diagnostics import lint_warnings_to_diagnostics
+
+
+# Style-only rules. The language server can hide these by default; the linter
+# still emits them for CLI users and for editors that opt in.
+_STYLE_CODES = frozenset({"C001", "C002", "C004"})
 
 
 @dataclass
@@ -58,6 +67,13 @@ class TextDocumentState:
         diagnostics: :class:`~pynescript.ast.linter.LintWarning` list (not LSP types).
         parse_error: Human-readable parse failure message when ``ast`` is ``None``.
         parse_error_line: 1-based line from the error string, if detected.
+        parse_error_details: Structured ``SyntaxErrorDetails`` when available.
+        ast_version: Document version that produced ``ast``. ``valid_ast``
+            returns ``None`` when this differs from :attr:`version`, which
+            prevents features from mixing new text with old positions while a
+            debounced parse is in flight.
+        analysis: Static symbol/scope index for ``ast`` (see
+            :mod:`pynescript.langserver.analysis`).
     """
 
     uri: str
@@ -67,16 +83,39 @@ class TextDocumentState:
     diagnostics: list[LintWarning] = field(default_factory=list)
     parse_error: str | None = None
     parse_error_line: int | None = None
+    parse_error_details: Any | None = None
+    ast_version: int = 0
+    analysis: SymbolIndex | None = None
     # Feature-level memo (semantic tokens, inlay hints, hover decl maps…).
     # Cleared whenever source/AST changes; keys are feature-defined strings.
     feature_cache: dict[str, Any] = field(default_factory=dict)
 
     @property
+    def valid_ast(self) -> Any | None:
+        """AST only when it matches the current document version."""
+        return self.ast if self.ast_version == self.version else None
+
+    @property
+    def valid_analysis(self) -> SymbolIndex | None:
+        """Symbol index only when it matches the current document version."""
+        return self.analysis if self.ast_version == self.version else None
+
+    @property
     def path(self) -> Path | None:
-        """Filesystem path for ``file://`` URIs; otherwise ``None``."""
-        if self.uri.startswith("file://"):
-            return Path(self.uri[7:])
-        return None
+        """Filesystem path for ``file://`` URIs; otherwise ``None``.
+
+        Handles percent-encoding (``%20``) and Windows drive letters.
+        """
+        parsed = urlparse(self.uri)
+        if parsed.scheme != "file":
+            return None
+        path = unquote(parsed.path)
+        if parsed.netloc and parsed.netloc not in ("", "localhost"):
+            # UNC path: file://server/share/file
+            path = f"//{parsed.netloc}{path}"
+        if len(path) >= 3 and path[0] == "/" and path[2] == ":":
+            path = path[1:]
+        return Path(path)
 
 
 class Workspace:
@@ -90,10 +129,20 @@ class Workspace:
     - :meth:`get_all_diagnostics` — LSP diagnostics for every open URI
     """
 
-    def __init__(self) -> None:
-        """Create an empty document store."""
+    def __init__(self, *, style_diagnostics: bool = True, semantic_diagnostics: bool = False) -> None:
+        """Create an empty document store.
+
+        Args:
+            style_diagnostics: Publish C001/C002/C004 findings. The VS Code
+                extension defaults this off to keep the Problems panel focused
+                on correctness.
+            semantic_diagnostics: Reserved for opt-in unknown-symbol/arity
+                checks. Off by default (under-report rather than guess).
+        """
         self._documents: dict[str, TextDocumentState] = {}
         self._parse_errors: set[str] = set()
+        self.style_diagnostics = style_diagnostics
+        self.semantic_diagnostics = semantic_diagnostics
 
     def get_document(self, uri: str) -> TextDocumentState | None:
         """Return state for *uri*, or ``None`` if not open."""
@@ -108,15 +157,21 @@ class Workspace:
         """Return a snapshot of currently open document states."""
         return list(self._documents.values())
 
-    def put_document(self, uri: str, source: str, version: int = 1) -> TextDocumentState:
-        """Insert or replace a document, then parse and lint."""
+    def put_document(self, uri: str, source: str, version: int = 1, *, parse: bool = True) -> TextDocumentState:
+        """Insert or replace a document, then parse and lint.
+
+        Pass ``parse=False`` for very large buffers; the caller can run
+        :meth:`_parse_and_lint` on a worker thread so the event loop stays
+        responsive. ``valid_ast``/``valid_analysis`` stay ``None`` until then.
+        """
         doc = TextDocumentState(
             uri=uri,
             source=source,
             version=version,
         )
         self._documents[uri] = doc
-        self._parse_and_lint(doc)
+        if parse:
+            self._parse_and_lint(doc)
         return doc
 
     def _invalidate_feature_cache(self, doc: TextDocumentState) -> None:
@@ -164,25 +219,50 @@ class Workspace:
             self._invalidate_feature_cache(doc)
             if relint:
                 self._parse_and_lint(doc)
+        else:
+            # Version-only bump: the cached AST/index still describes this text.
+            doc.ast_version = version
         return doc
 
     def _parse_and_lint(self, doc: TextDocumentState) -> None:
-        """Parse the document and run the linter."""
+        """Parse the document and run the linter.
+
+        Captures ``source``/``version`` before parsing and commits results only
+        if the document is still at that version. This closes the race where a
+        cancelled debounce task (or a slow executor job) writes an AST for an
+        older buffer after the user has typed again.
+        """
+        source = doc.source
+        version = doc.version
         self._invalidate_feature_cache(doc)
         try:
-            doc.ast = parse(doc.source, filename=doc.uri)
-            doc.parse_error = None
-            doc.parse_error_line = None
-            # Reuse the fresh tree; lint_script would otherwise re-parse.
-            doc.diagnostics = lint_script(doc.source, filename=doc.uri, tree=doc.ast)
+            tree = parse(source, filename=doc.uri)
+            diagnostics = lint_script(source, filename=doc.uri, tree=tree)
         except Exception as e:
+            if doc.version != version or doc.source != source:
+                return
             doc.ast = None
-            doc.parse_error = str(e)
+            doc.ast_version = version
+            doc.analysis = None
+            doc.parse_error = _short_parse_error(e)
+            doc.parse_error_details = getattr(e, "details", None)
             doc.parse_error_line = self._extract_error_line(str(e))
             doc.diagnostics = []
             self._parse_errors.add(doc.uri)
-        else:
-            self._parse_errors.discard(doc.uri)
+            return
+
+        if doc.version != version or doc.source != source:
+            # A newer edit won; leave the newer document state untouched.
+            return
+        doc.ast = tree
+        doc.ast_version = version
+        doc.analysis = build_symbol_index(tree, source, doc.uri)
+        doc.parse_error = None
+        doc.parse_error_line = None
+        doc.parse_error_details = None
+        # Reuse the fresh tree; lint_script would otherwise re-parse.
+        doc.diagnostics = diagnostics
+        self._parse_errors.discard(doc.uri)
 
     def _extract_error_line(self, error_msg: str) -> int | None:
         """Extract line number from a parse error message."""
@@ -206,24 +286,24 @@ class Workspace:
         return result
 
     def _lint_warnings_to_diagnostics(self, doc: TextDocumentState) -> list[lsp.Diagnostic]:
-        """Convert LintWarning objects to LSP Diagnostic objects."""
-        diagnostics = lint_warnings_to_diagnostics(doc.diagnostics, doc.source)
+        """Convert LintWarning objects to LSP Diagnostic objects.
+
+        Style-only findings are filtered when ``style_diagnostics`` is off.
+        Parse errors use the structured ANTLR location when available and are
+        clamped to a non-empty range so editors can underline the right token.
+        """
+        warnings = doc.diagnostics
+        if not self.style_diagnostics:
+            warnings = [warning for warning in warnings if warning.code not in _STYLE_CODES]
+        diagnostics = lint_warnings_to_diagnostics(warnings, doc.source)
 
         if doc.parse_error:
+            rng = _parse_error_range(doc.source, doc.parse_error_details, doc.parse_error_line)
             diag = lsp.Diagnostic(
-                range=lsp.Range(
-                    start=lsp.Position(
-                        line=max(0, (doc.parse_error_line or 1) - 1),
-                        character=0,
-                    ),
-                    end=lsp.Position(
-                        line=max(0, (doc.parse_error_line or 1) - 1),
-                        character=0,
-                    ),
-                ),
+                range=rng,
                 severity=lsp.DiagnosticSeverity.Error,
                 message=doc.parse_error,
-                source="PineScript",
+                source="pyne",
                 code="E001",
             )
             diagnostics.append(diag)
@@ -252,23 +332,98 @@ def _lint_warning_to_diagnostic(warning: LintWarning, source: str) -> lsp.Diagno
     severity = severity_map.get(warning.severity, lsp.DiagnosticSeverity.Warning)
 
     column = warning.column if warning.column is not None else 0
-    # Highlight from column to end of line (not column + line_len, which overshoots).
-    if line_text:
-        end_column = max(column + 1, len(line_text))
+    end_line_index = max(0, (warning.end_line or warning.line) - 1)
+    if warning.end_column is not None and end_line_index == line_index:
+        end_column = warning.end_column
+    elif line_text:
+        end_column = len(line_text)
     else:
         end_column = column + 1
+    # Never emit an inverted or zero-width range unless the token is at EOL.
+    if end_line_index == line_index and end_column <= column:
+        end_column = min(max(column + 1, 1), max(len(line_text), 1))
     end_column = min(end_column, 2000)
 
     return lsp.Diagnostic(
         range=lsp.Range(
             start=lsp.Position(line=line_index, character=column),
-            end=lsp.Position(line=line_index, character=end_column),
+            end=lsp.Position(line=end_line_index, character=end_column),
         ),
         severity=severity,
         message=warning.message,
-        source="PineScript",
+        source="pyne",
         code=warning.code,
     )
+
+
+def _short_parse_error(error: Exception) -> str:
+    """Return the parser's short message without the caret dump."""
+    message = getattr(error, "message", None)
+    if isinstance(message, str) and message.strip():
+        return message.strip()
+    return str(error).split("\n", 1)[0].strip() or str(error)
+
+
+def _parse_error_range(
+    source: str,
+    details: Any | None,
+    fallback_line: int | None,
+) -> lsp.Range:
+    """Build a non-empty LSP range from structured parse-error details.
+
+    ANTLR reports EOF errors on the line *after* the last source line with an
+    empty text. Clamp those to the last non-empty line and highlight its end so
+    the editor does not place a zero-width error in blank space.
+    """
+    lines = source.split("\n") if source else [""]
+    lineno = getattr(details, "lineno", None) or fallback_line or 1
+    column = getattr(details, "offset", None)
+    end_lineno = getattr(details, "end_lineno", None)
+    end_column = getattr(details, "end_offset", None)
+
+    line_index = max(0, int(lineno) - 1)
+    if line_index >= len(lines) or not lines[line_index].strip():
+        # EOF / blank line: prefer the last line that has content.
+        for candidate in range(min(line_index, len(lines) - 1), -1, -1):
+            if lines[candidate].strip():
+                line_index = candidate
+                column = len(lines[candidate].rstrip("\r"))
+                end_lineno = None
+                end_column = None
+                break
+        else:
+            line_index = 0
+            column = 0
+
+    start_col = max(0, int(column or 0))
+    line_text = lines[line_index] if 0 <= line_index < len(lines) else ""
+    start_col = min(start_col, len(line_text))
+
+    end_index = max(0, int(end_lineno or (line_index + 1)) - 1)
+    end_col = int(end_column or 0)
+    if end_index != line_index:
+        end_index = line_index
+        end_col = len(line_text)
+    end_col = min(end_col, len(line_text))
+    if end_col <= start_col:
+        end_col = min(len(line_text), start_col + 1)
+    if end_col <= start_col and line_text:
+        # EOF errors point at the end of the last non-empty line. Highlight the
+        # final character instead of emitting a zero-width diagnostic.
+        start_col = max(0, len(line_text.rstrip("\r")) - 1)
+        end_col = len(line_text.rstrip("\r"))
+    # Empty line at EOF: keep a one-character range within the line.
+    end_col = max(start_col, end_col)
+
+    return lsp.Range(
+        start=lsp.Position(line=line_index, character=start_col),
+        end=lsp.Position(line=end_index, character=end_col),
+    )
+
+
+def _line_content_len(line: str) -> int:
+    """Length of *line* excluding a trailing CR (LSP columns exclude it)."""
+    return len(line) - 1 if line.endswith("\r") else len(line)
 
 
 def _apply_text_edit(source: str, range: lsp.Range, text: str) -> str:
@@ -292,8 +447,10 @@ def _apply_text_edit(source: str, range: lsp.Range, text: str) -> str:
         lines.append("")
 
     # Clamp columns so partial edits never raise; clients may send stale cols.
-    start_col = min(start_col, len(lines[start_line]))
-    end_col = min(end_col, len(lines[end_line]))
+    # LSP columns exclude the line terminator, so a trailing ``\r`` must not
+    # consume a column when clamping (otherwise CRLF edits land after the CR).
+    start_col = min(start_col, _line_content_len(lines[start_line]))
+    end_col = min(end_col, _line_content_len(lines[end_line]))
 
     start_str = lines[start_line][:start_col]
     end_str = lines[end_line][end_col:]

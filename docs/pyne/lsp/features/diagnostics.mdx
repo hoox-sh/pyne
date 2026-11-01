@@ -61,16 +61,16 @@ Capability: `diagnostic_provider` with `identifier="pynescript-diagnostics"`, `i
 
 | Field | Value |
 | --- | --- |
-| `range` | 0-based line; column from warning or 0; end spans remainder of line (capped) |
+| `range` | Exact token range when the rule supplies `column`/`end_column`; otherwise line start to line end (capped) |
 | `severity` | error / warning / information / hint |
 | `message` | Human-readable lint or parse message |
-| `source` | `"PineScript"` |
+| `source` | `"pyne"` |
 | `code` | Lint code (e.g. `W001`) or `E001` for parse errors |
 
 The richer conversion in `features/diagnostics.py` also supports:
 
 - `code_description` hrefs for codes starting with `E` / `W` (docs URLs)
-- `tags`: `W001` → Unnecessary, `W002` → Deprecated
+- `tags`: `W002` → Deprecated
 
 Push and pull both call `Workspace._lint_warnings_to_diagnostics`, which delegates lint rows to `features/diagnostics.lint_warnings_to_diagnostics` (noise filters + tags) and then appends synthetic **E001** for parse failures.
 
@@ -92,13 +92,31 @@ hint         → Hint
 (default)    → Warning
 ```
 
+### Version gating
+
+Correctness rules that only apply to v6 are gated on `//@version=6`:
+
+- **W104** (`transp=` / `strategy.* when=`) — valid in v4/v5, removed in v6.
+- **W105** (numeric literal in a boolean position) — v6 strictness only.
+
+Unversioned snippets skip both. This prevents the common false-positive flood on
+v5 scripts while still nudging v6 migrations.
+
+### Style diagnostics
+
+C001 (naming), C002 (line length), and C004 (trailing newline) are style-only.
+The VS Code extension defaults `pynescript.diagnostics.style` to `false`; set it
+to `true` to show them. Correctness diagnostics are unaffected.
+
 ### Parse errors
 
 On exception from `parse`:
 
 - `ast = None`, `diagnostics = []` (lint skipped)
-- Message stored as `parse_error`
-- Synthetic diagnostic code **E001**, severity Error, line from regex on the exception text
+- Message stored as the parser's short message (no caret dump)
+- Synthetic diagnostic code **E001**, severity Error
+- Range from `SyntaxErrorDetails` (`lineno`/`offset`/`end_*`), clamped to a
+  non-empty span on the last non-empty line for EOF errors
 
 ### Quick fixes (feature module)
 
@@ -106,7 +124,7 @@ On exception from `parse`:
 
 - **W001** (missing `//@version`) → QuickFix inserting `//@version=6\n` at document start (line 0, character 0). Offered even when Convert-to-v6 is also available (undeclared version is treated as v1 for convert).
 - **W002** (`//@version=N` with N < 5) → QuickFix replacing the existing pragma **line** with `//@version=6` (does not insert a second pragma). v5 does not emit W002; Convert-to-v6 still applies.
-- **C002** (line longer than 120 characters) → QuickFix applying the same whole-document `TextEdit` as `textDocument/formatting` (`handle_formatting` / `NodeUnparser`). Kind is `QuickFix`. Offered only when lint warnings include C002 (not invented). Parse failure or an already-canonical buffer (no edit) yields no C002 fix. Convert-to-v6 / W001 / W002 are unchanged.
+- **C002** (line longer than 120 characters) → QuickFix applying the same whole-document `TextEdit` as `textDocument/formatting` (`handle_formatting` / `NodeUnparser`). Kind is `QuickFix`. Offered only when lint warnings include C002 (not invented). Parse failure, an already-canonical buffer, or a buffer containing prose/block comments (which the unparser would drop) yields no C002 fix. Convert-to-v6 / W001 / W002 are unchanged.
 
 Capability advertises `QuickFix` and `RefactorRewrite` (Convert-to-v6). A v6 script that already has `//@version=6` has no W001/W002; C002 is still offered when the linter reports a long line and formatting would change the buffer.
 
@@ -114,10 +132,11 @@ Capability advertises `QuickFix` and `RefactorRewrite` (Convert-to-v6). A v6 scr
 
 1. **Lint does not run when parse fails** — only E001 is shown.
 2. Warnings without a line number are dropped (`None` conversion).
-3. End column heuristic uses the remainder of the line and clamps to 2000 characters — not a precise token span.
+3. Rules supply exact token columns where practical (W104/W105/W101/C001); otherwise the end column falls back to the remainder of the line and clamps to 2000 characters.
 4. `inter_file_dependencies=False`: no cross-file analysis; each URI is independent.
-5. Push and pull should agree for a given buffer version; both read the same `TextDocumentState`.
-6. **Noise filters:** `C001` on names that already lack `_` (camelCase `fastMA`) is dropped. The `C003` block-`if` noise filter was removed with the rule (retired 0.6.0).
+5. Push and pull should agree for a given buffer version; both read the same `TextDocumentState`. Published diagnostics carry the document `version` so a stale debounce result cannot overwrite a newer buffer.
+6. **Noise filters:** comments and string literals are masked before regex rules (W101/C001); `C001` on names that already lack `_` (camelCase `fastMA`) is dropped. The `C003` block-`if` noise filter was removed with the rule (retired 0.6.0).
+7. **Style rules are opt-in in the extension.** They remain available to CLI users and other LSP clients.
 7. **C002 is not invented** — unlike W001/W002, a format QuickFix is emitted only when `warnings` contains C002, and only when formatting produces an edit.
 
 ## Worked example
@@ -129,7 +148,7 @@ indicator("x")
 plot(close)
 ```
 
-If the linter emits a missing-version warning (code `W001`), the client receives a Warning diagnostic on the relevant line with `source: "PineScript"`. `textDocument/codeAction` also returns a preferred QuickFix that inserts `//@version=6` at the top of the buffer.
+If the linter emits a missing-version warning (code `W001`), the client receives a Warning diagnostic on the relevant line with `source: "pyne"`. `textDocument/codeAction` also returns a preferred QuickFix that inserts `//@version=6` at the top of the buffer.
 
 A script with `//@version=4` gets W002 (deprecated) and a preferred QuickFix that replaces that pragma line with `//@version=6`. Convert-to-v6 remains a separate `RefactorRewrite`. v5 is not W002.
 
@@ -139,7 +158,7 @@ On a hard parse failure at line 3, expect:
 {
   "severity": 1,
   "code": "E001",
-  "source": "PineScript",
+  "source": "pyne",
   "message": "<exception text>"
 }
 ```

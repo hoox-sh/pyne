@@ -26,7 +26,7 @@ description: "Assignment type annotations, builtin parameter names, and inlayHin
 
 ## Abstract
 
-Inlay hints surface two things: **inferred types** next to simple `name = expr` assignments when no explicit type annotation is present, and **parameter names** before positional arguments of dotted builtin calls (`ta.sma(close, 14)` → `source:` / `length:`). Inference is deliberately shallow: constants, bare series builtins (`close`, …), `input.*` constructors, and `ta`/`math`/`str`/`color` calls whose metadata `detail` contains a `→` return type. Ambiguous operators are skipped rather than guessed wrong. `inlayHint/resolve` fills `textEdits` that insert the type annotation; parameter-name hints do not insert text.
+Inlay hints surface two things: **inferred types** next to simple `name = expr` assignments when no explicit type annotation is present, and **parameter names** before positional arguments of builtin and user function/method calls (`ta.sma(close, 14)` → `source:` / `length:`). Inference uses the scope-aware symbol index first (annotated declarations, UDT fields/methods, user return types, builtin metadata) and falls back to the shallow constant/`input.*`/`ta.*` rules. Ambiguous operators are skipped rather than guessed wrong. Hints are filtered to the client's requested range. `inlayHint/resolve` fills `textEdits` that insert the type annotation; parameter-name hints do not insert text.
 
 ## Conceptual model
 
@@ -62,7 +62,7 @@ ta.sma(close, 14)           →  ta.sma(source: close, length: 14)
 | `textDocument/inlayHint` | `InlayHintOptions(resolve_provider=True)` |
 | `inlayHint/resolve` | fills `textEdits` on type hints |
 
-Handlers: `features/inlay_hints.py` → `handle_inlay_hints` (receives cached `tree=doc.ast`) and `handle_inlay_hint_resolve`.
+Handlers: `features/inlay_hints.py` → `handle_inlay_hints` (receives version-matched `tree=doc.valid_ast`) and `handle_inlay_hint_resolve`.
 
 ### Assignment type hints
 

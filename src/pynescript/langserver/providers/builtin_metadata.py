@@ -150,11 +150,16 @@ def get_fuzzy_index() -> tuple[list[dict[str, Any]], list[tuple[str, str, str]]]
 
     ``lowercase_fields[i]`` is ``(label.lower(), category.lower(), brief.lower())``
     for ``items[i]`` — computed once per metadata load instead of per keystroke.
+    The item list is cached by identity; rebuilding it on every call defeated
+    the lowercase-field cache and re-lowered ~900 labels per keystroke.
     """
     metadata = get_metadata()
-    items = list(metadata.values())
-    if _MetadataCache.fuzzy_items is not items or _MetadataCache.fuzzy_fields is None:
+    items = _MetadataCache.fuzzy_items
+    if items is None or len(items) != len(metadata):
+        items = list(metadata.values())
         _MetadataCache.fuzzy_items = items
+        _MetadataCache.fuzzy_fields = None
+    if _MetadataCache.fuzzy_fields is None:
         _MetadataCache.fuzzy_fields = [
             (
                 item.get("label", "").lower(),

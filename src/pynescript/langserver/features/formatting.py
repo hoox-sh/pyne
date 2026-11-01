@@ -35,6 +35,92 @@ from typing import Any
 from lsprotocol import types as lsp
 
 
+_HEX_DIGITS = frozenset("0123456789abcdefABCDEF")
+
+
+def _has_comments(source: str, tree: Any | None = None) -> bool:
+    """True when *source* contains a comment the unparser would drop.
+
+    The ASDL AST retains Pine annotations (``//@version``, ``//@function`` …)
+    but not ordinary prose/block comments. Refusing to format buffers with
+    non-annotation comments is the only non-destructive option until a
+    comment-preserving formatter lands.
+    """
+    preserved = _preserved_annotations(tree)
+    i = 0
+    n = len(source)
+    while i < n:
+        ch = source[i]
+        if ch in "\"'":
+            triple = source[i : i + 3]
+            if triple in ('"""', "'''"):
+                end = source.find(triple, i + 3)
+                i = n if end < 0 else end + 3
+                continue
+            quote = ch
+            j = i + 1
+            while j < n:
+                c = source[j]
+                if c == "\\":
+                    j += 2
+                    continue
+                if c == quote:
+                    j += 1
+                    break
+                if c == "\n":
+                    break
+                j += 1
+            i = j
+            continue
+        if ch == "/" and i + 1 < n:
+            if source[i + 1] == "*":
+                return True
+            if source[i + 1] == "/":
+                # Pine annotations (``//@version``, ``//@function`` …) are
+                # retained by the AST/unparser. Plain prose comments are not.
+                line_end = source.find("\n", i)
+                line_end = n if line_end < 0 else line_end
+                body = source[i + 2 : line_end].lstrip()
+                line_start = source.rfind("\n", 0, i) + 1
+                prefix = source[line_start:i].strip()
+                annotation = source[line_start:line_end].strip()
+                if body.startswith("@") and not prefix and annotation in preserved:
+                    i = line_end
+                    continue
+                return True
+        if ch == "#":
+            nxt = source[i + 1] if i + 1 < n else ""
+            if not nxt or nxt in " \t\f\r\n" or nxt not in _HEX_DIGITS:
+                return True
+        i += 1
+    return False
+
+
+def _preserved_annotations(tree: Any | None) -> set[str]:
+    """Collect annotation comment lines the AST/unparser preserves."""
+    if tree is None:
+        return set()
+    from pynescript.ast.helper import walk
+
+    preserved: set[str] = set()
+    for node in walk(tree):
+        for annotation in getattr(node, "annotations", None) or []:
+            if isinstance(annotation, str):
+                preserved.add(annotation.strip())
+    return preserved
+
+
+def _aligned_lines(source: str, formatted: str) -> tuple[list[str], list[str]] | None:
+    """Return line lists with matching counts, tolerating a trailing newline."""
+    source_lines = source.split("\n")
+    formatted_lines = formatted.split("\n")
+    if len(formatted_lines) == len(source_lines) - 1 and source_lines[-1] == "":
+        formatted_lines.append("")
+    if len(formatted_lines) != len(source_lines):
+        return None
+    return source_lines, formatted_lines
+
+
 def handle_formatting(
     params: lsp.DocumentFormattingParams, source: str | None, tree: Any | None = None
 ) -> list[lsp.TextEdit] | None:
@@ -57,6 +143,10 @@ def handle_formatting(
 
         if tree is None:
             tree = parse(source, filename="<format>")
+        if _has_comments(source, tree):
+            # Unparser output has no prose-comment trivia; formatting here
+            # would delete user comments. Prefer no edit over data loss.
+            return []
 
         unparser = NodeUnparser()
         formatted = unparser.visit(tree)
@@ -104,12 +194,18 @@ def handle_range_formatting(
 
         if tree is None:
             tree = parse(source, filename="<format>")
+        if _has_comments(source, tree):
+            return []
 
         unparser = NodeUnparser()
         formatted = unparser.visit(tree)
 
-        formatted_lines = formatted.split("\n")
-        source_lines = source.split("\n")
+        aligned = _aligned_lines(source, formatted)
+        if aligned is None:
+            # Line-index mapping is unsafe when the canonical form adds or
+            # removes lines; fall back to no range edit.
+            return []
+        source_lines, formatted_lines = aligned
 
         range_start = params.range.start
         range_end = params.range.end
@@ -164,12 +260,16 @@ def handle_on_type_formatting(
 
         if tree is ...:
             tree = parse(source, filename="<format>")
+        if _has_comments(source, tree):
+            return []
 
         unparser = NodeUnparser()
         formatted = unparser.visit(tree)
 
-        formatted_lines = formatted.split("\n")
-        source_lines = source.split("\n")
+        aligned = _aligned_lines(source, formatted)
+        if aligned is None:
+            return []
+        source_lines, formatted_lines = aligned
 
         target = max(0, params.position.line - 1)
         if target >= len(source_lines) or target >= len(formatted_lines):

@@ -53,6 +53,8 @@ from lsprotocol import types as lsp
 
 from pynescript.ast import node as ast
 from pynescript.ast import parse
+from pynescript.langserver.analysis import SymbolIndex
+from pynescript.langserver.analysis import ensure_symbol_index
 from pynescript.langserver.providers.builtin_metadata import get_builtin
 
 
@@ -121,6 +123,10 @@ def handle_inlay_hints(
     params: lsp.InlayHintParams,
     source: str | None,
     tree: Any | None = ...,
+    *,
+    analysis: SymbolIndex | None = None,
+    show_types: bool = True,
+    show_parameters: bool = True,
 ) -> list[lsp.InlayHint] | None:
     """Handle textDocument/inlayHint request.
 
@@ -130,10 +136,13 @@ def handle_inlay_hints(
         tree: Pre-parsed AST from the workspace cache. Pass ``None`` when the
             workspace already failed to parse (skips a redundant re-parse).
             Omit (default ``...``) to parse from *source*.
+        analysis: Pre-built symbol index for *tree*.
+        show_types: Emit inferred assignment type hints.
+        show_parameters: Emit parameter-name hints.
 
     Returns:
-        A list of `lsp.InlayHint` for inferred assignment types and builtin
-        parameter names, or None if the document could not be parsed.
+        A list of `lsp.InlayHint` for inferred assignment types and parameter
+        names, or None if the document could not be parsed.
     """
     if tree is ...:
         if not source:
@@ -146,8 +155,25 @@ def handle_inlay_hints(
     if tree is None:
         return None
 
+    index = ensure_symbol_index(source, tree, analysis)
     hints: list[lsp.InlayHint] = []
-    _collect_hints(tree, hints)
+    _collect_hints(
+        tree,
+        hints,
+        index=index,
+        show_types=show_types,
+        show_parameters=show_parameters,
+    )
+    # The client asks for the visible range; returning every hint in a large
+    # script is wasted work and can make the editor feel sluggish.
+    start = params.range.start
+    end = params.range.end
+    hints = [
+        hint
+        for hint in hints
+        if (hint.position.line, hint.position.character) >= (start.line, start.character)
+        and (hint.position.line, hint.position.character) < (end.line, end.character)
+    ]
     return hints
 
 
@@ -218,17 +244,21 @@ def _is_type_annotation_insert(text: str) -> bool:
 def _collect_hints(
     node: ast.AST | None,
     hints: list[lsp.InlayHint],
+    *,
+    index: SymbolIndex | None = None,
+    show_types: bool = True,
+    show_parameters: bool = True,
 ) -> None:
     """Walk an AST node, adding type and parameter inlay hints."""
     if node is None:
         return
 
-    if isinstance(node, ast.Assign):
-        hint = _hint_for_assign(node)
+    if show_types and isinstance(node, ast.Assign):
+        hint = _hint_for_assign(node, index)
         if hint is not None:
             hints.append(hint)
-    elif isinstance(node, ast.Call):
-        _collect_call_param_hints(node, hints)
+    elif show_parameters and isinstance(node, ast.Call):
+        _collect_call_param_hints(node, hints, index)
 
     # Recurse into all child AST nodes (matches the simple visitor pattern used
     # elsewhere in the langserver; e.g. `_collect_workspace_symbols` in
@@ -238,13 +268,26 @@ def _collect_hints(
         if isinstance(child, list):
             for item in child:
                 if isinstance(item, ast.AST):
-                    _collect_hints(item, hints)
+                    _collect_hints(
+                        item,
+                        hints,
+                        index=index,
+                        show_types=show_types,
+                        show_parameters=show_parameters,
+                    )
         elif isinstance(child, ast.AST):
-            _collect_hints(child, hints)
+            _collect_hints(
+                child,
+                hints,
+                index=index,
+                show_types=show_types,
+                show_parameters=show_parameters,
+            )
 
 
 def _hint_for_assign(
     node: ast.Assign,
+    index: SymbolIndex | None = None,
 ) -> lsp.InlayHint | None:
     """Build an inlay hint for a single `Assign`, or None if not inferable."""
     # Only emit hints for simple `name = expr` (no tuple destructuring, no
@@ -258,7 +301,12 @@ def _hint_for_assign(
     if node.value is None:
         return None
 
-    type_label = _infer_type(node.value)
+    type_label = None
+    if index is not None:
+        scope = index.scope_at(node.target.lineno - 1, node.target.col_offset)
+        type_label = index.infer_type(node.value, scope)
+    if type_label is None:
+        type_label = _infer_type(node.value)
     if type_label is None:
         return None
 
@@ -275,32 +323,80 @@ def _hint_for_assign(
     )
 
 
-def _collect_call_param_hints(call: ast.Call, hints: list[lsp.InlayHint]) -> None:
-    """Append Parameter inlay hints for positional args of a dotted builtin."""
+def _collect_call_param_hints(
+    call: ast.Call,
+    hints: list[lsp.InlayHint],
+    index: SymbolIndex | None = None,
+) -> None:
+    """Append parameter-name hints for positional args of builtins/user calls."""
+    args = list(call.args or [])
+    if not args:
+        return
+    names: list[str] = []
     qualified = _qualified_call_name(call.func)
-    if not qualified:
-        return
-    info = get_builtin(qualified)
-    if not info:
-        return
-    argc = len(call.args or [])
-    names = _param_names_from_info(qualified, info, argc)
+    if qualified:
+        info = get_builtin(qualified)
+        if info:
+            names = _param_names_from_info(qualified, info, len(args))
+    if not names and index is not None:
+        names = _user_call_param_names(call, index)
     if not names:
         return
-    for i, arg in enumerate(call.args or []):
-        if i >= len(names) or getattr(arg, "name", None) or not names[i]:
+
+    positional_index = 0
+    for arg in args:
+        if getattr(arg, "name", None):
+            continue
+        if positional_index >= len(names) or not names[positional_index]:
+            positional_index += 1
             continue
         loc = _arg_start_position(arg)
+        positional_index += 1
         if loc is None:
             continue
         lineno, col = loc
         hints.append(
             lsp.InlayHint(
                 position=lsp.Position(line=lineno - 1, character=col),
-                label=f"{names[i]}: ",
+                label=f"{names[positional_index - 1]}: ",
                 kind=lsp.InlayHintKind.Parameter,
             )
         )
+
+
+def _user_call_param_names(call: ast.Call, index: SymbolIndex) -> list[str]:
+    """Parameter names for a user function/method call, if resolvable."""
+    line = getattr(call, "lineno", 1) or 1
+    col = getattr(call, "col_offset", 0) or 0
+    scope = index.scope_at(line - 1, col)
+    func = call.func
+    node = None
+    method_call = False
+    if isinstance(func, ast.Name):
+        symbol = index.resolve(func.id or "", scope)
+        if symbol is not None and isinstance(symbol.node, ast.FunctionDef):
+            node = symbol.node
+    elif isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
+        base = index.resolve(func.value.id or "", scope)
+        if base is not None and base.type_label:
+            member = index.udt_methods.get(_base_type_name(base.type_label), {}).get(func.attr or "")
+            if member is not None and isinstance(member.node, ast.FunctionDef):
+                node = member.node
+                method_call = True
+    if node is None:
+        return []
+    params = list(node.args or [])
+    if method_call and params:
+        params = params[1:]
+    return [str(param.name) for param in params if getattr(param, "name", None)]  # type: ignore[attr-defined]
+
+
+def _base_type_name(type_label: str) -> str:
+    label = type_label.strip()
+    for qualifier in ("const", "input", "simple", "series"):
+        if label.startswith(qualifier + " "):
+            label = label[len(qualifier) + 1 :].strip()
+    return label.split("<", 1)[0].strip()
 
 
 def _qualified_call_name(func: ast.expr) -> str | None:
@@ -335,13 +431,18 @@ def _param_names_from_info(qualified: str, info: dict[str, Any], argc: int = 0) 
     ``ta.bbw`` use ``length``; 2-arg ``ta.bbw`` uses ``length`` / ``mult``;
     well-known names are sliced to *argc*.
     """
-    snippet_names = _names_from_snippet(info.get("snippet") or "")
-    if snippet_names and not any(_GENERIC_PARAM.fullmatch(n) for n in snippet_names):
-        return snippet_names
+    # Arity-specific overloads must win over a generated one-parameter
+    # signature (``ta.cci(length)`` is the 1-arg form, but 2-arg is
+    # ``ta.cci(source, length)``).
     if argc == 1 and qualified in _LENGTH_ONLY_1ARG:
         return ["length"]
     if argc == 2 and qualified == "ta.bbw":
         return ["length", "mult"]
+    if argc == 2 and qualified in {"ta.cci", "ta.adx", "ta.mfi"}:
+        return list(_WELL_KNOWN_PARAMS.get(qualified) or ())
+    snippet_names = _names_from_snippet(info.get("snippet") or "")
+    if snippet_names and not any(_GENERIC_PARAM.fullmatch(n) for n in snippet_names):
+        return snippet_names
     # Generic ``paramN`` snippets fall through. Prefer the longest positional
     # prefix so well-known 2-arg names beat a 1-arg docs match (e.g. ``ta.cci``).
     candidates = [
@@ -491,7 +592,7 @@ def _call_type(call: ast.Call) -> str | None:
             detail = info.get("detail", "")
             # `ta.sma(series, int) → series float` — take everything after `→`.
             if "→" in detail:
-                return detail.split("→", 1)[1].strip()
+                return str(detail).split("→", 1)[1].strip()
         return "series"
 
     return None

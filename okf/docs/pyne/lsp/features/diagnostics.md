@@ -7,7 +7,7 @@ tags: [doc, docs, lsp, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-19T02:40:14Z
+  at: 2026-11-01T01:18:26Z
 sources:
   - id: tree
     resource: "docs/pyne/lsp/features/diagnostics.mdx"
@@ -30,6 +30,8 @@ Repo path `docs/pyne/lsp/features/diagnostics.mdx`.
   * Diagnostic shape
 * Internals
   * Severity map
+  * Version gating
+  * Style diagnostics
   * Parse errors
   * Quick fixes (feature module)
 * Invariants and edge cases

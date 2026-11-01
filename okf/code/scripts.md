@@ -7,7 +7,7 @@ tags: [code, scripts]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-01T01:16:41Z
+  at: 2026-11-01T01:18:26Z
 sources:
   - id: tree
     resource: "scripts"
@@ -32,10 +32,6 @@ okf_lock: generated
 # Other files
 
 * `deploy_vps.sh`
-
-# Packages
-
-`Signature: func(args)`
 
 # Nested
 

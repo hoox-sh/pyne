@@ -43,7 +43,7 @@ def _infer_category(name: str) -> str:
     """Infer the completion category from the function name."""
     if "." not in name:
         return "builtin"
-    module, _, func = name.partition(".")
+    module, _, _ = name.partition(".")
     categories = {
         "ta": "ta.technical_analysis",
         "strategy": "strategy",
@@ -74,90 +74,137 @@ def _infer_category(name: str) -> str:
     return categories.get(module, module)
 
 
-def _extract_signature(name: str, doc: str) -> str:
-    """Extract signature from docstring or generate one."""
-    # Try to extract from "Signature: func(args)" pattern
-    if "Signature:" in doc:
-        match = re.search(r"Signature:\s*(\w+\([^\)]*\))", doc, re.DOTALL)
+def _extract_signature(name: str, doc: str) -> tuple[str, list[str]]:
+    """Extract a Pine signature and parameter names from a docstring.
+
+    Returns ``(signature, params)``. Falls back to ``name(...)`` / ``[]``.
+    """
+    # 1. Explicit "Signature: func(args)" / "Pine signature:" blocks.
+    for marker in ("Signature:", "Pine signature:"):
+        if marker in doc:
+            match = re.search(
+                rf"{marker}\s*`*([A-Za-z_][\w.]*\s*\([^)]*\))",
+                doc,
+                re.DOTALL,
+            )
+            if match:
+                signature = " ".join(match.group(1).split())
+                return signature, _params_from_signature(signature)
+
+    # 2. First function-shaped line in the docstring. Many handlers start with
+    #    ``strategy.entry(id, direction, qty, ...)`` or ``array.get(id, index)``.
+    parts = name.split(".")
+    leaf = parts[-1]
+    patterns = [re.escape(name), re.escape(leaf)]
+    for pattern in patterns:
+        match = re.search(
+            rf"(?<![\w.])`?{pattern}\s*\(([^)]*)\)",
+            doc,
+            re.DOTALL,
+        )
         if match:
-            # Collapse wrapped lines so the stored signature stays canonical.
-            return " ".join(match.group(1).split())
+            inner = " ".join(match.group(1).split())
+            signature = f"{name}({inner})"
+            return signature, _params_from_signature(signature)
 
-    # Generate based on function type
-    parts = name.split(".")
-    func_name = parts[-1]
-
-    if func_name in ("new", "from", "of"):
-        return f"{name}(...)"
-
-    return f"{name}(...)"
+    # 3. Generated fallback.
+    return f"{name}(...)", []
 
 
-def _generate_snippet(name: str) -> str:
-    """Generate a completion snippet with placeholders."""
-    # Extract parameter names if possible from doc
-    parts = name.split(".")
-    func = parts[-1]
+def _params_from_signature(signature: str) -> list[str]:
+    """Extract clean parameter names from a signature string."""
+    start = signature.find("(")
+    end = signature.rfind(")")
+    if start < 0 or end <= start:
+        return []
+    inner = signature[start + 1 : end].strip()
+    if not inner or inner == "...":
+        return []
+    names: list[str] = []
+    depth = 0
+    current: list[str] = []
+    for char in inner:
+        if char in "([{<":
+            depth += 1
+        elif char in ")]}>":
+            depth = max(0, depth - 1)
+        if char == "," and depth == 0:
+            names.append("".join(current).strip())
+            current = []
+            continue
+        current.append(char)
+    if current:
+        names.append("".join(current).strip())
+    cleaned: list[str] = []
+    for chunk in names:
+        if not chunk or chunk in {"...", "*", "**"}:
+            continue
+        if chunk.startswith(("*", "**")):
+            continue
+        name = chunk.split("=", 1)[0].strip().lstrip("*").strip()
+        token = name.split()[-1] if name else ""
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", token):
+            cleaned.append(token)
+    return cleaned
 
-    # Common parameter patterns
-    param_patterns = {
-        "series": "${1:series}",
-        "length": "${2:length}",
-        "source": "${1:source}",
-        "period": "${2:period}",
-        "cond": "${1:condition}",
-        "message": '"${1:message}"',
-        "title": '"${1:title}"',
-        "value": "${1:value}",
-        "price": "${1:price}",
-    }
 
+def _generate_snippet(name: str, params: list[str] | None = None) -> str:
+    """Generate a completion snippet with placeholders from real parameters."""
     if name in ("line.fill", "linefill.new"):
         return f"{name}(${{1:line1}}, ${{2:line2}}, ${{3:color}})"
-
-    # Generate snippet with numbered placeholders
-    if "." in name:
-        snippet = name + "("
-        parts_count = _count_params(name)
-        for i in range(1, parts_count + 1):
-            snippet += f"${{{i}:param{i}}}"
-            if i < parts_count:
-                snippet += ", "
-        snippet += ")"
-    else:
-        snippet = f"{name}(${{1:arg}})"
-
-    return snippet
+    usable = [param for param in (params or []) if param not in {"args", "kwargs", "extra", "_args"}]
+    if usable:
+        placeholders = ", ".join(f"${{{index}:{param}}}" for index, param in enumerate(usable, 1))
+        return f"{name}({placeholders})"
+    # Unknown arity: insert the bare name rather than a bogus ``name(arg)``.
+    # Many zero-parameter dispatch entries are constants/properties.
+    return name
 
 
-def _count_params(name: str) -> int:
-    """Estimate parameter count based on function name patterns."""
-    # TA functions typically have 2 params
-    if name.startswith("ta."):
-        if name in ("ta.sma", "ta.ema", "ta.rma", "ta.wma", "ta.vwma", "ta.hma", "ta.rsi", "ta.stdev"):
-            return 2
-        if name in ("ta.bb", "ta.macd", "ta.supertrend", "ta.atr"):
-            return 3
-        return 2
+def _handler_params(name: str, handler: Any) -> list[str]:
+    """Best-effort Pine parameter names for one dispatch handler."""
+    order = getattr(handler, "_KWARG_ORDER", None)
+    if order is None:
+        order = getattr(getattr(handler, "__func__", None), "_KWARG_ORDER", None)
+    if order is None and name.startswith("ta."):
+        from pynescript.ast.evaluator.builtins.base import _TA_KWARG_ORDERS
 
-    # Array operations
-    if name.startswith("array."):
-        if name.endswith("new"):
-            return 1
-        if name in ("array.push", "array.pop", "array.shift", "array.unshift"):
-            return 2
-        return 1
+        order = _TA_KWARG_ORDERS.get(name.split(".", 1)[1])
+    if order:
+        return [str(item) for item in order if str(item) not in {"args", "kwargs"}]
+    try:
+        from pynescript.ast.evaluator.builtins.base import _handler_param_names
 
-    # Strategy
-    if name.startswith("strategy."):
-        return 2
+        names = _handler_param_names(handler)
+    except Exception:
+        names = None
+    if names:
+        return [item for item in names if item not in {"args", "kwargs", "self", "extra", "_args"} and not item.startswith("_")]
+    return []
 
-    # Drawing fills (line.fill is an alias of linefill.new)
-    if name in ("line.fill", "linefill.new"):
-        return 3
 
-    # Others
-    return 1
+def _brief_from_doc(name: str, doc: str) -> str:
+    """Pick a short human description, skipping signature/parameter lines."""
+    leaf = name.rsplit(".", 1)[-1]
+    for raw in doc.splitlines():
+        line = raw.strip().lstrip("`").rstrip("`")
+        if not line:
+            continue
+        if line.startswith(("Signature:", "Pine signature:")):
+            continue
+        if re.match(rf"^`?{re.escape(name)}\s*\(", line) or re.match(rf"^`?{re.escape(leaf)}\s*\(", line):
+            # Keep a trailing one-line description after the signature:
+            # ``plot(series, …) → plot id`` / ``array.push(id, value) — append``.
+            tail = line.split(")", 1)[1].strip(" .`") if ")" in line else ""
+            tail = tail.lstrip("→-— ").strip()
+            if tail:
+                return tail[:117] + "..." if len(tail) > 120 else tail
+            continue
+        # Wrapped signature continuation lines (plot's parameter list).
+        if re.match(r"^[a-z_][A-Za-z0-9_]*\s*(,|\))", line) and "," in line:
+            continue
+        return line[:117] + "..." if len(line) > 120 else line
+    return ""
 
 
 def generate_metadata() -> dict[str, Any]:
@@ -165,47 +212,24 @@ def generate_metadata() -> dict[str, Any]:
     from pynescript.ast.evaluator.builtins import BuiltinEvaluator
 
     evaluator = BuiltinEvaluator()
-
-    # Trigger dispatch map build
-    try:
-        evaluator._call_builtin("math.sqrt", [4])
-    except Exception:
-        pass
-
-    dispatch = evaluator._builtin_dispatch
+    dispatch = evaluator._build_builtin_map()
     metadata = {}
 
     for name, handler in sorted(dispatch.items()):
         doc = handler.__doc__ or ""
 
-        # Extract brief description
-        brief = ""
-        if doc:
-            # Take first sentence
-            sentences = doc.split(".")
-            brief = sentences[0].strip()
-            if len(brief) > 100:
-                brief = brief[:97] + "..."
-
-        # Extract full documentation
+        brief = _brief_from_doc(name, doc)
         documentation = doc.strip()
 
-        # Generate signature
-        signature = _extract_signature(name, doc)
+        signature, params = _extract_signature(name, doc)
+        if not params:
+            params = _handler_params(name, handler)
+            if params:
+                signature = f"{name}({', '.join(params)})"
+        snippet = _generate_snippet(name, params)
 
-        # Generate snippet
-        snippet = _generate_snippet(name)
-
-        # Infer category
         category = _infer_category(name)
-
-        # Determine kind
-        if name.startswith("strategy.") or name.startswith("ta."):
-            kind = "function"
-        elif name.startswith("input."):
-            kind = "function"
-        else:
-            kind = "function"
+        kind = "function"
 
         metadata[name] = {
             "label": name,
@@ -214,6 +238,7 @@ def generate_metadata() -> dict[str, Any]:
             "brief": brief,
             "documentation": documentation,
             "snippet": snippet,
+            "params": params,
             "category": category,
         }
 
@@ -232,7 +257,7 @@ def main():
 
     # Print summary
     categories: dict[str, int] = {}
-    for name, info in metadata.items():
+    for info in metadata.values():
         cat = info["category"]
         categories[cat] = categories.get(cat, 0) + 1
 

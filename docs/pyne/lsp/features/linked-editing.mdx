@@ -26,7 +26,7 @@ description: "textDocument/linkedEditingRange — live multi-cursor ranges for u
 
 ## Abstract
 
-`textDocument/linkedEditingRange` returns same-document ranges for the **user identifier** under the cursor so the client can drive live multi-cursor edits (rename-as-you-type). Keywords and builtin namespaces stay unlinked — the same refusal set as [rename](/pyne/docs/lsp/features/navigation). Empty buffers, unparsed documents, and non-renamable tokens return `null`.
+`textDocument/linkedEditingRange` returns same-document ranges for the **resolved user symbol** under the cursor so the client can drive live multi-cursor edits (rename-as-you-type). Resolution uses the scope-aware symbol index, so a shadowed local is not linked to a same-named global. Keywords, builtin namespaces, and unresolved identifiers stay unlinked — the same refusal set as [rename](/pyne/docs/lsp/features/navigation). Empty buffers, unparsed documents, and non-renamable tokens return `null`.
 
 ## Conceptual model
 
@@ -46,7 +46,7 @@ flowchart TD
 
 - Method: `textDocument/linkedEditingRange`
 - Capability: `linked_editing_range_provider=True`
-- Handler: `features/linked_editing.py` → `handle_linked_editing_range` (receives cached `tree=doc.ast`)
+- Handler: `features/linked_editing.py` → `handle_linked_editing_range` (receives version-matched `tree=doc.valid_ast`)
 
 Response:
 
@@ -73,7 +73,8 @@ Hits are collected with `include_builtin_attrs=False`, so library attributes are
 | Path | Role |
 | --- | --- |
 | `features/linked_editing.py` | LSP handler + `WORD_PATTERN` |
-| `features/highlight.py` | `cursor_ident`, `is_renamable_ident`, `collect_ident_hits`, `resolve_tree` |
+| `langserver/analysis.py` | Scope/symbol resolution and exact occurrence ranges |
+| `features/highlight.py` | `cursor_ident`, `is_renamable_ident` |
 | `config.py` | `linked_editing_range_provider=True` |
 | `server.py` | `TEXT_DOCUMENT_LINKED_EDITING_RANGE` |
 

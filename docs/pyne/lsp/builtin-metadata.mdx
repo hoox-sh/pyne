@@ -26,7 +26,7 @@ description: "JSON catalog for LSP completion and hover; generation pipeline; Fe
 
 ## Abstract
 
-Builtin metadata is the **LSP documentation corpus**: a map from fully qualified names (`ta.sma`, `strategy.entry`, …) to labels, signatures, briefs, snippets, and categories. It is generated from code (not hand-edited as source of truth), loaded by the language server for completion/hover/inlay, and optionally **Fernet-encrypted** for Nuitka onefile distribution so casual string extraction does not dump the full catalog.
+Builtin metadata is the **LSP documentation corpus**: a map from fully qualified names (`ta.sma`, `strategy.entry`, …) to labels, signatures, briefs, snippets, parameter names, and categories. It is generated from code (not hand-edited as source of truth): handler docstrings, `inspect.signature`, `_KWARG_ORDER`, and `_TA_KWARG_ORDERS` supply real parameter names where available; unknown arity falls back to the bare name rather than a bogus `name(arg)` snippet. The JSON is loaded by the language server for completion/hover/signature help/inlay and optionally **Fernet-encrypted** for Nuitka onefile distribution so casual string extraction does not dump the full catalog.
 
 This is obscurity for distribution hygiene, not a cryptographic access-control boundary.
 
@@ -59,10 +59,11 @@ Typical entry in `builtin_metadata.json`:
   "ta.sma": {
     "label": "ta.sma",
     "kind": "function",
-    "detail": "ta.sma(series, int) → series float",
-    "brief": "…",
+    "detail": "ta.sma(source, length)",
+    "brief": "Simple Moving Average.",
     "documentation": "…",
-    "snippet": "ta.sma(${1:param1}, ${2:param2})",
+    "snippet": "ta.sma(${1:source}, ${2:length})",
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   }
 }

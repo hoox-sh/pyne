@@ -26,7 +26,7 @@ description: "textDocument/hover — Markdown cards for builtins, types, namespa
 
 ## Abstract
 
-Hover answers “what is this identifier?” in a fixed lookup order: **namespace** prefix, **type / qualifier**, **library** declaration, **user enums**, **user declarations** (functions, methods, types, enums, assigns), then **builtin** metadata, then **keywords**. The handler extracts the word under the cursor (including dotted forms) and returns a Markdown card. Builtin cards for dotted labels (`ta.sma`, `strategy.entry`, `line.fill`) append a Pine v6 function-reference markdown link. Keywords, types, namespaces, and user declarations stay link-free.
+Hover answers “what is this identifier?” using the scope-aware static index first: **local/global symbols** (variables, params, functions, methods, types, enums, enum members, fields, imports) and **type-directed members** (`p.field`, `Point.new`), then **namespace** prefix, **type / qualifier**, **builtin** metadata, built-in variables (`close`, `bar_index`, …), and **keywords**. The handler extracts the word under the cursor (including dotted forms) and returns a Markdown card. User symbols show their inferred type and declaration signature; UDT members show their receiver. Builtin cards for dotted labels (`ta.sma`, `strategy.entry`, `line.fill`) append a Pine v6 function-reference markdown link. Keywords, types, namespaces, and user declarations stay link-free.
 
 **Library annotations become rich Markdown cards.** The comment block directly above an exported declaration is parsed as Pine library annotations (`// @function`, `// @param`, `// @returns`, `// @type`, `// @field`, `// @variable`, `// @description`). Everything after the tag — including continuation `//` lines — is rendered verbatim as Markdown, so headings, bold/italic, strikethrough, blockquotes, horizontal rules, lists, code fences, tables, links, images, and two-space line breaks all appear in the hover. User-defined functions, methods, and types shadow builtin metadata, so a library function named like a builtin alias (e.g. `bb`) still shows its own docs.
 
@@ -58,7 +58,7 @@ flowchart LR
 
 - Method: `textDocument/hover`
 - Capability: `hover_provider=True`
-- Handler: `features/hover.py` → `handle_hover` (receives cached `tree=doc.ast` and optional per-version `feature_cache` for the user-decl walk)
+- Handler: `features/hover.py` → `handle_hover` (receives version-matched `tree=doc.valid_ast` and optional per-version `feature_cache` for the user-decl walk)
 
 ### Lookup order
 
@@ -148,7 +148,7 @@ The workspace `feature_cache` memos the user-declaration walk so each hover does
 5. **Docs links are dotted builtins only.** Keywords, types, namespaces, and user decls stay link-free.
 6. Documentation truncation is first-paragraph / 500-char only — full docs live in metadata and completion resolve.
 7. **Annotation blocks are contiguous.** The block is the run of `//` lines immediately above the declaration. A blank line or code line ends it. Plain comments without a known `// @tag` are ignored (fallback card).
-8. **User callables/types shadow builtins.** A user `function` / `method` / `type` with a builtin name wins so library docs render; user variables still defer to builtin metadata.
+8. **User symbols shadow builtins.** A user variable/function/method/type with a builtin name wins, so a local `color` or library `bb` is described as the user declaration. Unknown identifiers fall through to builtin metadata/keywords.
 9. **Markdown is never escaped or sanitized** — it is emitted as `MarkupContent(kind=Markdown)`, so clients render the author's formatting.
 
 ## Worked example

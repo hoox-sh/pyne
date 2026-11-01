@@ -57,7 +57,7 @@ Only **literal** values become swatches. A `color.rgb(x, 0, 0)` whose `x` is a n
 | `textDocument/documentColor` | `handle_document_color` |
 | `textDocument/colorPresentation` | `handle_color_presentation` |
 
-Capability: `color_provider=True` (`config.py`). `handle_document_color` receives the workspace-cached AST (`tree=doc.ast`).
+Capability: `color_provider=True` (`config.py`). `handle_document_color` receives the version-matched AST (`tree=doc.valid_ast`).
 
 Returns `[]` for empty source, parse failure, or `tree=None`. Never `None`.
 

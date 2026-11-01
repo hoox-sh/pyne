@@ -52,7 +52,7 @@ def get_server_capabilities() -> lsp.ServerCapabilities:
         diagnostic_provider=lsp.DiagnosticOptions(
             identifier="pynescript-diagnostics",
             inter_file_dependencies=False,
-            workspace_diagnostics=False,
+            workspace_diagnostics=True,
         ),
         completion_provider=lsp.CompletionOptions(
             trigger_characters=["."],
@@ -108,6 +108,12 @@ def get_server_capabilities() -> lsp.ServerCapabilities:
             range=True,
             full=True,
         ),
+        workspace=lsp.WorkspaceOptions(
+            workspace_folders=lsp.WorkspaceFoldersServerCapabilities(
+                supported=True,
+                change_notifications=False,
+            ),
+        ),
     )
 
 
@@ -145,6 +151,10 @@ def get_filter_options() -> Any:
     return [
         {
             "language": "pinescript",
+            "pattern": "**/*.pyne",
+        },
+        {
+            "language": "pinescript",
             "pattern": "**/*.pine",
         },
         {
@@ -154,5 +164,9 @@ def get_filter_options() -> Any:
         {
             "language": "pinescript",
             "pattern": "**/*.pinev6",
+        },
+        {
+            "language": "pinescript",
+            "pattern": "**/*.pinescript",
         },
     ]

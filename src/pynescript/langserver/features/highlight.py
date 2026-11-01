@@ -36,7 +36,10 @@ from lsprotocol import types as lsp
 from pynescript.ast import NodeVisitor
 from pynescript.ast import node as ast
 from pynescript.ast.helper import parse
+from pynescript.langserver.analysis import SymbolIndex
+from pynescript.langserver.analysis import ensure_symbol_index
 from pynescript.langserver.protocol.utils import get_identifier_segment_at_position
+from pynescript.langserver.protocol.utils import in_comment_or_string
 from pynescript.langserver.providers.completion_items import PINE_KEYWORDS
 
 
@@ -143,8 +146,13 @@ def handle_document_highlight(
     params: lsp.DocumentHighlightParams,
     source: str | None,
     tree: Any | None = ...,
+    *,
+    analysis: SymbolIndex | None = None,
 ) -> list[lsp.DocumentHighlight]:
     """Highlight same-document occurrences of the ident under the cursor.
+
+    Scope-aware when an analysis index is available: shadowed locals and
+    unrelated same-named fields are not highlighted.
 
     Args:
         params: Client highlight params (position).
@@ -152,14 +160,49 @@ def handle_document_highlight(
         tree: Pre-parsed AST from the workspace cache. Pass ``None`` when the
             workspace already failed to parse. Omit (default ``...``) to parse
             from *source*.
+        analysis: Pre-built symbol index for *tree*.
 
     Returns:
         List of :class:`~lsprotocol.types.DocumentHighlight` (empty if none).
     """
     if not source:
         return []
+    line = params.position.line
+    character = params.position.character
+    if in_comment_or_string(source, line, character):
+        return []
 
-    segment, _start, _end, _full = cursor_ident(source, params.position.line, params.position.character)
+    index = ensure_symbol_index(source, tree, analysis)
+    if index is not None:
+        symbol = index.symbol_at(line, character)
+        if symbol is not None:
+            occurrences = index.occurrences_for(symbol, include_declaration=True)
+            return [
+                lsp.DocumentHighlight(
+                    range=lsp.Range(
+                        start=lsp.Position(line=occ.line, character=occ.column),
+                        end=lsp.Position(line=occ.end_line, character=occ.end_column),
+                    ),
+                    kind=lsp.DocumentHighlightKind.Write if occ.write else lsp.DocumentHighlightKind.Read,
+                )
+                for occ in occurrences
+            ]
+        member = index.member_at(line, character)
+        if member is not None and member.builtin_name:
+            # Highlight other uses of the same builtin member (e.g. ta.sma).
+            return [
+                lsp.DocumentHighlight(
+                    range=lsp.Range(
+                        start=lsp.Position(line=other.line, character=other.column),
+                        end=lsp.Position(line=other.end_line, character=other.end_column),
+                    ),
+                    kind=lsp.DocumentHighlightKind.Read,
+                )
+                for other in index.member_refs
+                if other.builtin_name == member.builtin_name
+            ]
+
+    segment, _start, _end, _full = cursor_ident(source, line, character)
     if not segment:
         return []
 

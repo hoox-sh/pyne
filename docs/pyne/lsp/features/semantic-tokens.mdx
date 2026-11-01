@@ -67,14 +67,17 @@ Both take `(params, source, tree=…)` and return `lsp.SemanticTokens(data=[...]
 
 ### What is emitted
 
-| AST | Token type | Modifiers |
+| Symbol occurrence | Token type | Modifiers |
 | --- | --- | --- |
-| `FunctionDef.name` | function | definition \| declaration |
-| `TypeDef.name` | class | definition \| declaration |
-| `EnumDef.name` | type | definition \| declaration |
-| `Assign` to `Name` | variable | declaration |
-| `Attribute` whose value is a builtin namespace (`ta`, `math`, `strategy`, …) | namespace + method | defaultLibrary (+ readonly on ns) |
-| Other `Attribute.attr` | property | — |
+| Function / method declaration | function / method | definition \| declaration |
+| Type declaration | class | definition \| declaration |
+| Enum declaration | type | definition \| declaration |
+| Enum member / UDT field | property | declaration on the member |
+| Variable declaration and reads | variable | declaration on the binding |
+| Parameter declaration and reads | parameter | declaration on the binding |
+| Import alias and uses | namespace | declaration on the alias |
+| Builtin namespace attribute (`ta.sma`) | namespace + method | defaultLibrary (+ readonly on ns) |
+| Other attribute (unknown receiver) | property | — |
 
 Builtin namespace set (`_BUILTIN_NS`): `ta`, `math`, `str`, `array`, `matrix`, `map`, `strategy`, `request`, `input`, `color`, `line`, `label`, `box`, `table`, `polyline`, `log`, `ticker`, `timeframe`, `chart`, `runtime`, `syminfo`, `barstate`, `session`, `time`.
 
@@ -84,7 +87,7 @@ Builtin namespace set (`_BUILTIN_NS`): `ta`, `math`, `str`, `array`, `matrix`, `
 | --- | --- |
 | `features/semantic_tokens.py` | Collector + `_encode` + range clip |
 | `config.py` | Legend + capability — **indices must match** `_TT` |
-| `server.py` | `TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL` / `_RANGE`; passes cached `doc.ast` |
+| `server.py` | `TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL` / `_RANGE`; passes version-matched `doc.valid_ast` |
 
 Attribute columns prefer `end_col_offset - len(attr)` when present; otherwise parent `col_offset` (approximate).
 

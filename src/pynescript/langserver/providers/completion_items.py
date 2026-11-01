@@ -75,12 +75,18 @@ PINE_KEYWORDS: tuple[tuple[str, str], ...] = (
 )
 
 
-def build_completion_list(prefix: str = "", include_categories: bool = True) -> lsp.CompletionList:
+def build_completion_list(
+    prefix: str = "",
+    include_categories: bool = True,
+    *,
+    snippets: bool = True,
+) -> lsp.CompletionList:
     """Build a completion list for Pine Script.
 
     Args:
         prefix: Optional prefix to filter by (e.g., "ta.").
         include_categories: Include category headers in completion list.
+        snippets: Emit snippet placeholders. When false, insert plain names.
 
     Returns:
         LSP CompletionList with completion items.
@@ -120,12 +126,12 @@ def build_completion_list(prefix: str = "", include_categories: bool = True) -> 
             # Add items in this category
             for item in category_items:
                 if item["label"] not in seen_labels:
-                    completion_items.append(build_completion_item(item))
+                    completion_items.append(build_completion_item(item, snippets=snippets))
                     seen_labels.add(item["label"])
     else:
         for item in items:
             if item["label"] not in seen_labels:
-                completion_items.append(build_completion_item(item))
+                completion_items.append(build_completion_item(item, snippets=snippets))
                 seen_labels.add(item["label"])
 
     return lsp.CompletionList(
@@ -134,11 +140,17 @@ def build_completion_list(prefix: str = "", include_categories: bool = True) -> 
     )
 
 
-def build_completion_item(info: dict, *, insert_leaf: bool = False, module: str = "") -> lsp.CompletionItem:
+def build_completion_item(
+    info: dict,
+    *,
+    insert_leaf: bool = False,
+    module: str = "",
+    snippets: bool = True,
+) -> lsp.CompletionItem:
     """Build a single CompletionItem from metadata.
 
-    Results are memoized per ``(label, insert_leaf, module)`` — items are
-    immutable output of the (static) metadata, so rebuilding them per
+    Results are memoized per ``(label, insert_leaf, module, snippets)`` — items
+    are immutable output of the (static) metadata, so rebuilding them per
     keystroke is pure waste. A returned item must not be mutated by callers.
 
     Args:
@@ -148,12 +160,13 @@ def build_completion_item(info: dict, *, insert_leaf: bool = False, module: str 
             ``ta.ta.sma``). Nested paths keep intermediate segments
             (``strategy.`` + ``risk.max_drawdown``).
         module: Prefix being completed (``ta``, ``strategy``, ``strategy.risk``).
+        snippets: Emit snippet placeholders. When false, insert plain names.
 
     Returns:
         LSP CompletionItem.
     """
     label = info.get("label", "")
-    cache_key = (label, insert_leaf, module)
+    cache_key = (label, insert_leaf, module, snippets)
     cached = _ITEM_CACHE.get(cache_key)
     if cached is not None:
         return cached
@@ -163,8 +176,9 @@ def build_completion_item(info: dict, *, insert_leaf: bool = False, module: str 
     snippet = info.get("snippet", info.get("detail", ""))
     documentation = info.get("documentation", brief)
 
-    # Determine insert text format
-    if "${" in snippet:
+    # Determine insert text format. Plain mode still uses the metadata label
+    # (or leaf after a module trigger), never raw ``${...}`` placeholders.
+    if snippets and "${" in snippet:
         insert_text_format = lsp.InsertTextFormat.Snippet
         insert_text = snippet
     else:
@@ -200,12 +214,13 @@ def build_completion_item(info: dict, *, insert_leaf: bool = False, module: str 
     return item
 
 
-def build_module_completion(module: str, member_prefix: str = "") -> lsp.CompletionList:
+def build_module_completion(module: str, member_prefix: str = "", *, snippets: bool = True) -> lsp.CompletionList:
     """Build completions for a specific module.
 
     Args:
         module: The module name (e.g., "ta", "strategy").
         member_prefix: Optional filter on the member name after the last ``.``.
+        snippets: Emit snippet placeholders when true.
 
     Returns:
         CompletionList with completions for that module.
@@ -227,7 +242,7 @@ def build_module_completion(module: str, member_prefix: str = "") -> lsp.Complet
 
     completion_items = []
     for info in items:
-        completion_items.append(build_completion_item(info, insert_leaf=True, module=module))
+        completion_items.append(build_completion_item(info, insert_leaf=True, module=module, snippets=snippets))
 
     return lsp.CompletionList(
         is_incomplete=False,
@@ -259,7 +274,7 @@ def build_keyword_items(prefix: str = "") -> list[lsp.CompletionItem]:
 
 # Memoized CompletionItems (label, insert_leaf, module) → item. Bounded by the
 # metadata size in practice; cleared if it ever overflows.
-_ITEM_CACHE: dict[tuple[str, bool, str], lsp.CompletionItem] = {}
+_ITEM_CACHE: dict[tuple[str, bool, str, bool], lsp.CompletionItem] = {}
 
 _ENUM_HEADER = re.compile(r"^[ \t]*(?:export[ \t]+)?enum[ \t]+([A-Za-z_][A-Za-z0-9_]*)")
 _ENUM_MEMBER = re.compile(r"^[ \t]+([A-Za-z_][A-Za-z0-9_]*)(?:[ \t]*=[ \t]*([^\n \t]+?))?[ \t]*$")

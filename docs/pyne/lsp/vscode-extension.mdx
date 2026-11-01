@@ -147,8 +147,12 @@ workspaceContains:**/*.pinev6
 | `pynescript.formatOnSave.enabled` | `false` | Format on save (requires `formatting.enabled`) |
 | `pynescript.diagnostics.enabled` | `true` | Errors, warnings, and hints |
 | `pynescript.diagnostics.severity` | `{}` | Remap severity by lint-code prefix, e.g. `{"W": "Hint"}` |
+| `pynescript.diagnostics.style` | `false` | Show C001/C002/C004 style findings |
+| `pynescript.diagnostics.semantic` | `false` | Reserved opt-in unknown-symbol/arity checks |
 | `pynescript.completion.snippets` | `true` | Snippets for builtins and declarations |
 | `pynescript.hover.enabled` | `true` | Hover cards (signature, docs, types) |
+| `pynescript.inlayHints.types` | `true` | Inferred type hints |
+| `pynescript.inlayHints.parameters` | `true` | Parameter-name hints in calls |
 | `pynescript.signatureHelp.enabled` | `true` | Parameter hints while typing a call |
 | `pynescript.semanticTokens.enabled` | `true` | Semantic token colorization |
 | `pynescript.documentHighlight.enabled` | `true` | Highlight other occurrences of an identifier |
@@ -156,6 +160,8 @@ workspaceContains:**/*.pinev6
 | `pynescript.selectionRange.enabled` | `true` | Smart expand/shrink selection |
 | `pynescript.documentLink.enabled` | `true` | Clickable `http(s)` URLs in comments and strings |
 | `pynescript.codeAction.enabled` | `true` | Code actions (Convert to v6, `W001` quick fix) |
+
+Feature settings are sent to the server through `workspace/didChangeConfiguration` and take effect without restarting the client. Only `pynescript.lsp.*` changes restart the language server.
 
 #### Installation
 

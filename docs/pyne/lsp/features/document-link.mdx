@@ -55,7 +55,7 @@ Comments are scanned from the raw buffer so they do not need AST nodes. String U
 | `textDocument/documentLink` | `DocumentLinkOptions(resolve_provider=True)` |
 | `documentLink/resolve` | fills `tooltip` with the URL when tooltip is unset |
 
-Handlers: `features/document_link.py` → `handle_document_link` (receives cached `tree=doc.ast`) and `handle_document_link_resolve`.
+Handlers: `features/document_link.py` → `handle_document_link` (receives version-matched `tree=doc.valid_ast`) and `handle_document_link_resolve`.
 
 Each initial result:
 
@@ -102,7 +102,7 @@ Initial `textDocument/documentLink` responses already carry `target`. Resolve co
 | `src/pynescript/langserver/config.py` | `DocumentLinkOptions(resolve_provider=True)` |
 | `src/pynescript/langserver/server.py` | `TEXT_DOCUMENT_DOCUMENT_LINK` (cached on `doc.feature_cache["document_link"]`); `DOCUMENT_LINK_RESOLVE` |
 
-The workspace cache supplies `tree=doc.ast`. Pass `tree=None` when the last parse failed (skips a redundant re-parse). Omit `tree` only in isolated tests (handler then parses from `source`). Comments need the source text; a pre-parsed tree with `source=None` still yields string-literal links.
+The workspace cache supplies `tree=doc.valid_ast`. Pass `tree=None` when the last parse failed (skips a redundant re-parse). Omit `tree` only in isolated tests (handler then parses from `source`). Comments need the source text; a pre-parsed tree with `source=None` still yields string-literal links.
 
 Tests: `tests/test_lsp_features.py` (`TestDocumentLinkHandler`).
 

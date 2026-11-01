@@ -31,7 +31,9 @@ from lsprotocol import types as lsp
 
 from pynescript.ast import NodeVisitor
 from pynescript.ast import node as ast
-from pynescript.langserver.protocol.utils import get_word_at_position
+from pynescript.langserver.analysis import SymbolIndex
+from pynescript.langserver.analysis import ensure_symbol_index
+from pynescript.langserver.protocol.utils import in_comment_or_string
 
 
 def handle_references(
@@ -39,8 +41,14 @@ def handle_references(
     source: str | None,
     uri: str,
     tree: Any | None = ...,
+    *,
+    analysis: SymbolIndex | None = None,
 ) -> list[lsp.Location]:
     """Collect references to the symbol under the cursor.
+
+    Scope-aware: a local ``x`` does not return references to a script-level
+    ``x`` with the same spelling. UDT fields/methods and enum members use the
+    member index rather than a flat attribute-name match.
 
     Args:
         params: Client reference params (position + includeDeclaration).
@@ -49,38 +57,39 @@ def handle_references(
         tree: Pre-parsed AST from the workspace cache. Pass ``None`` when the
             workspace already failed to parse (skips a redundant re-parse).
             Omit (default ``...``) to parse from *source*.
+        analysis: Pre-built symbol index for *tree*.
 
     Returns:
         List of :class:`~lsprotocol.types.Location` (empty if none / unparsable).
     """
     if not source:
         return []
-
-    position = params.position
-    line = position.line
-    character = position.character
-
-    # Get the word at cursor
-    word, _word_start, _word_end = get_word_at_position(source, line, character)
-    if not word:
+    line = params.position.line
+    character = params.position.character
+    if in_comment_or_string(source, line, character):
         return []
 
-    if tree is ...:
-        try:
-            from pynescript.ast.helper import parse
-
-            tree = parse(source, filename=uri)
-        except Exception:
-            return []
-    if tree is None:
+    index = ensure_symbol_index(source, tree, analysis)
+    if index is None:
+        return []
+    symbol = index.symbol_at(line, character)
+    if symbol is None:
         return []
 
-    # Find all references
-    include_declaration = params.context.include_declaration
-    finder = ReferencesFinder(word, uri, include_declaration)
-    finder.visit(tree)
-
-    return finder.locations
+    occurrences = index.occurrences_for(
+        symbol,
+        include_declaration=params.context.include_declaration,
+    )
+    return [
+        lsp.Location(
+            uri=uri,
+            range=lsp.Range(
+                start=lsp.Position(line=occurrence.line, character=occurrence.column),
+                end=lsp.Position(line=occurrence.end_line, character=occurrence.end_column),
+            ),
+        )
+        for occurrence in occurrences
+    ]
 
 
 class ReferencesFinder(NodeVisitor):

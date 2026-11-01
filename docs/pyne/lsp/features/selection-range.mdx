@@ -49,7 +49,7 @@ Control blocks are expressions (`If`, `ForTo`, `ForIn`, `While`, `Switch`, `Once
 
 - Method: `textDocument/selectionRange`
 - Capability: `selection_range_provider=True`
-- Handler: `features/selection_range.py` → `handle_selection_range` (receives cached `tree=doc.ast`)
+- Handler: `features/selection_range.py` → `handle_selection_range` (receives version-matched `tree=doc.valid_ast`)
 
 Each result is a `SelectionRange` whose `range` contains the requested position and whose optional `parent` is a strictly larger containing range (LSP exclusive-end ranges from AST `lineno` / `end_lineno` / `col_offset` / `end_col_offset`).
 

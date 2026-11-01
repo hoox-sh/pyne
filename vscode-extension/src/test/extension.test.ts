@@ -48,6 +48,10 @@ const EXPECTED_SETTINGS = [
   'pynescript.lsp.args',
   'pynescript.diagnostics.enabled',
   'pynescript.diagnostics.severity',
+  'pynescript.diagnostics.style',
+  'pynescript.diagnostics.semantic',
+  'pynescript.inlayHints.types',
+  'pynescript.inlayHints.parameters',
   'pynescript.formatting.enabled',
   'pynescript.completion.snippets',
   'pynescript.formatOnSave.enabled',
@@ -152,6 +156,10 @@ suite('PYNE Extension Activation', () => {
   test('default settings are present', async () => {
     const config = vscode.workspace.getConfiguration('pynescript');
     assert.strictEqual(config.get('diagnostics.enabled'), true);
+    assert.strictEqual(config.get('diagnostics.style'), false);
+    assert.strictEqual(config.get('diagnostics.semantic'), false);
+    assert.strictEqual(config.get('inlayHints.types'), true);
+    assert.strictEqual(config.get('inlayHints.parameters'), true);
     assert.strictEqual(config.get('formatting.enabled'), true);
     assert.strictEqual(config.get('completion.snippets'), true);
     assert.strictEqual(config.get('hover.enabled'), true);

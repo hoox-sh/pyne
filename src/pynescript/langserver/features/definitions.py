@@ -32,7 +32,10 @@ from lsprotocol import types as lsp
 
 from pynescript.ast import NodeVisitor
 from pynescript.ast import node as ast
-from pynescript.langserver.protocol.utils import get_word_at_position
+from pynescript.langserver.analysis import Symbol
+from pynescript.langserver.analysis import SymbolIndex
+from pynescript.langserver.analysis import ensure_symbol_index
+from pynescript.langserver.protocol.utils import in_comment_or_string
 
 
 def handle_definition(
@@ -40,8 +43,14 @@ def handle_definition(
     source: str | None,
     uri: str,
     tree: Any | None = ...,
+    *,
+    analysis: SymbolIndex | None = None,
 ) -> list[lsp.Location] | None:
     """Find definition location(s) for the symbol under the cursor.
+
+    Scope-aware: a local variable resolves to its own declaration rather than
+    the first same-named assignment in the file. UDT fields/methods, enum
+    members, parameters, and imports resolve through the static symbol index.
 
     Args:
         params: Client definition params (position).
@@ -50,40 +59,56 @@ def handle_definition(
         tree: Pre-parsed AST from the workspace cache. Pass ``None`` when the
             workspace already failed to parse (skips a redundant re-parse).
             Omit (default ``...``) to parse from *source*.
+        analysis: Pre-built symbol index for *tree*.
 
     Returns:
         Non-empty list of locations, or ``None`` if unknown / unparsable.
     """
     if not source:
         return None
-
-    position = params.position
-    line = position.line
-    character = position.character
-
-    # Get the word at cursor
-    word, _word_start, _word_end = get_word_at_position(source, line, character)
-    if not word:
+    line = params.position.line
+    character = params.position.character
+    if in_comment_or_string(source, line, character):
         return None
 
-    if tree is ...:
-        try:
-            from pynescript.ast.helper import parse
-
-            tree = parse(source, filename=uri)
-        except Exception:
-            return None
-    if tree is None:
+    index = ensure_symbol_index(source, tree, analysis)
+    if index is None:
         return None
 
-    # Find the definition
-    finder = DefinitionFinder(word, uri)
-    finder.visit(tree)
+    symbol = index.symbol_at(line, character)
+    if symbol is None:
+        member = index.member_at(line, character)
+        if member is not None and member.kind == "constructor":
+            base = getattr(getattr(member.node, "value", None), "id", None)
+            symbol = index.types.get(base) if base else None
+    if symbol is None:
+        return None
 
-    if finder.locations:
-        return finder.locations
+    declaration = _declaration_occurrence(index, symbol)
+    if declaration is None:
+        return None
+    return [
+        lsp.Location(
+            uri=uri,
+            range=lsp.Range(
+                start=lsp.Position(line=declaration.line, character=declaration.column),
+                end=lsp.Position(line=declaration.end_line, character=declaration.end_column),
+            ),
+        )
+    ]
 
-    return None
+
+def _declaration_occurrence(index: SymbolIndex, symbol: Symbol) -> Any | None:
+    occurrences = index.occurrences_for(symbol, include_declaration=True)
+    if not occurrences:
+        return None
+    for occurrence in occurrences:
+        if occurrence.node is symbol.name_node:
+            return occurrence
+    for occurrence in occurrences:
+        if occurrence.write:
+            return occurrence
+    return occurrences[0]
 
 
 class DefinitionFinder(NodeVisitor):

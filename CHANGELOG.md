@@ -1,5 +1,25 @@
 ## [Unreleased]
 
+### Added
+
+- **Scope-aware LSP semantic layer.** New `langserver/analysis.py` builds a Pine scope tree, declaration/member index, exact identifier ranges, and conservative type inference from the same ANTLR4 → ASDL AST. Completion now offers local variables/parameters/functions, UDT fields/methods, enum members, type constructors, imports, and built-in variables; hover shows inferred types and UDT members; definition/references/highlight/rename respect shadowing and return precise ranges.
+- **Version-gated v6 lint rules.** W104 (`transp=` / `strategy.* when=`) and W105 (numeric boolean conditions) only run on `//@version=6`; v4/v5 scripts no longer get false positives. W101/C001 mask comments and string literals.
+- **Style diagnostics are opt-in.** `pynescript.diagnostics.style` defaults to `false`; C001/C002/C004 remain available to CLI users and editors that enable them.
+- **Live editor settings.** `initializationOptions` and `workspace/didChangeConfiguration` now drive formatting, snippets, diagnostics, inlay-hint types/parameters, and semantic-diagnostic gates without restarting the client.
+- **Inlay hints** are filtered to the requested range, support user function/method parameter names, and use real metadata signatures.
+- **Semantic tokens** include user references, parameters, fields, methods, enum members, and imports in addition to declarations.
+- **Metadata generator** derives signatures/snippets/parameters from handler introspection, `_KWARG_ORDER`, `_TA_KWARG_ORDERS`, and docstrings; regenerated plaintext + Fernet artifacts.
+
+### Fixed
+
+- **Stale-AST race.** `didChange` updates source immediately; features no longer combine the new text with the previous AST. Parse results commit only if the document version/source still match, and published diagnostics carry the document version.
+- **Destructive formatting.** The unparser drops prose/block comments; formatting now returns no edits when such comments are present instead of deleting them. Range/on-type formatting also refuses line-structure changes.
+- **Parse diagnostics** use structured `SyntaxErrorDetails` with a non-empty range instead of a zero-width error at column 0.
+- **Signature help** no longer falls back from `obj.sma(` to `ta.sma`; it resolves exact builtins and UDT methods, and clamps the active parameter.
+- **Fuzzy completion cache** now actually caches the item list and lowercase fields instead of rebuilding them per keystroke.
+- **Format on save** runs before the write via `vscode.executeFormatDocumentProvider` rather than formatting after the file is saved.
+- **Large documents** (> 40 KB) parse off the event loop on open/save so completion and hover stay responsive.
+
 ### Changed
 
 - **VS Code themes tuned for calm reading.** Brand accents stay exact (void indigo `#939FFF`, volt lime `#B7EF09`, orange signal `#FE6A00`); the extra green / cyan / amber token hues are gone. Comments — including `//@…` annotations — are neutral gray italic in every theme, strings are a light accent tint, numbers use the foreground, and punctuation / series builtins are gray. Surfaces and hairline borders are darker, and the hover / autocomplete widgets sit on dark-grey panels.

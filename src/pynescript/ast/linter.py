@@ -51,6 +51,102 @@ from pynescript.ast.node import Name
 from pynescript.ast.node import While
 
 
+_VERSION_PRAGMA_RE = re.compile(r"(?m)^[ \t]*//\s*@version\s*=\s*(\d+)")
+_ASSIGN_OP_RE = re.compile(r"(?<![=!<>:])=(?!=|>)")
+_TRAILING_IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*$")
+_HEX_DIGITS = frozenset("0123456789abcdefABCDEF")
+
+
+def _detect_version(source: str) -> int | None:
+    """Return the declared ``//@version=N``, or ``None`` when absent."""
+    match = _VERSION_PRAGMA_RE.search(source)
+    return int(match.group(1)) if match else None
+
+
+def _mask_comments_and_strings(source: str, *, mask_strings: bool = True) -> str:
+    """Return *source* with comments (and optionally strings) replaced by spaces.
+
+    Newlines are preserved so line/column positions still line up with the
+    original text. Used by regex-based lint rules (W101/C001) so prose in a
+    comment or a URL in a string cannot produce a finding. W101 needs the
+    quoted symbol argument, so it masks comments only.
+    """
+    if not source:
+        return source
+    out = list(source)
+    i = 0
+    n = len(source)
+    while i < n:
+        ch = source[i]
+        if ch in "\"'":
+            triple = source[i : i + 3]
+            if triple in ('"""', "'''"):
+                end = source.find(triple, i + 3)
+                end = n if end < 0 else end + 3
+                if mask_strings:
+                    for j in range(i, end):
+                        if out[j] != "\n":
+                            out[j] = " "
+                i = end
+                continue
+            quote = ch
+            j = i + 1
+            while j < n:
+                c = source[j]
+                if c == "\\":
+                    j += 2
+                    continue
+                if c == quote:
+                    j += 1
+                    break
+                if c == "\n":
+                    break
+                j += 1
+            if mask_strings:
+                for k in range(i, min(j, n)):
+                    if out[k] != "\n":
+                        out[k] = " "
+            i = j
+            continue
+        if ch == "/" and i + 1 < n:
+            nxt = source[i + 1]
+            if nxt == "/":
+                end = source.find("\n", i)
+                end = n if end < 0 else end
+                for j in range(i, end):
+                    out[j] = " "
+                i = end
+                continue
+            if nxt == "*":
+                end = source.find("*/", i + 2)
+                end = n if end < 0 else end + 2
+                for j in range(i, end):
+                    if out[j] != "\n":
+                        out[j] = " "
+                i = end
+                continue
+        if ch == "#":
+            nxt = source[i + 1] if i + 1 < n else ""
+            is_comment = not nxt or nxt in " \t\f\r\n" or nxt not in _HEX_DIGITS
+            if is_comment:
+                end = source.find("\n", i)
+                end = n if end < 0 else end
+                for j in range(i, end):
+                    out[j] = " "
+                i = end
+                continue
+        i += 1
+    return "".join(out)
+
+
+def _kwarg_column(lines: list[str], lineno: int | None, name: str) -> int:
+    """0-based column of ``name=`` on 1-based *lineno*, or 0 when unknown."""
+    if not lineno or lineno < 1 or lineno > len(lines):
+        return 0
+    match = re.search(rf"\b{re.escape(name)}\s*=", lines[lineno - 1])
+    return match.start() if match else 0
+
+
 @dataclass
 class LintWarning:
     """A single lint finding.
@@ -60,7 +156,9 @@ class LintWarning:
         message: Human-readable description.
         line: 1-based line if known.
         column: 0-based column if known.
-        severity: ``"error"`` or ``"warning"`` (default).
+        severity: ``"error"``, ``"warning"``, ``"info"``, or ``"hint"``.
+        end_line: Optional 1-based end line for a precise range.
+        end_column: Optional 0-based exclusive end column.
     """
 
     code: str
@@ -68,6 +166,8 @@ class LintWarning:
     line: int | None = None
     column: int | None = None
     severity: str = "warning"
+    end_line: int | None = None
+    end_column: int | None = None
 
     def __str__(self) -> str:
         location = f"line {self.line}" if self.line else "unknown location"
@@ -100,16 +200,17 @@ class PineLinter:
             List of :class:`LintWarning` (also stored on :attr:`warnings`).
         """
         self.warnings = []
+        version = _detect_version(source)
 
         if tree is None:
             tree = self._check_syntax(source, filename)
         self._check_version(source)
-        self._check_deprecated(source)
+        self._check_deprecated(source, version)
         self._check_naming(source)
         self._check_style(source)
         if tree is not None:
-            self._check_v6_kwargs(tree)
-            self._check_bool_conditions(tree)
+            self._check_v6_kwargs(tree, source, version)
+            self._check_bool_conditions(tree, version)
 
         return self.warnings
 
@@ -120,9 +221,21 @@ class PineLinter:
         line: int | None = None,
         column: int | None = None,
         severity: str = "warning",
+        end_line: int | None = None,
+        end_column: int | None = None,
     ) -> None:
         """Append a :class:`LintWarning` to :attr:`warnings`."""
-        self.warnings.append(LintWarning(code=code, message=message, line=line, column=column, severity=severity))
+        self.warnings.append(
+            LintWarning(
+                code=code,
+                message=message,
+                line=line,
+                column=column,
+                severity=severity,
+                end_line=end_line,
+                end_column=end_column,
+            )
+        )
 
     def _check_syntax(self, source: str, filename: str) -> Any | None:
         """Parse *source*; emit ``E001`` if :func:`~pynescript.ast.helper.parse` fails.
@@ -135,6 +248,8 @@ class PineLinter:
         except Exception as e:
             line: int | None = None
             column: int | None = None
+            end_line: int | None = None
+            end_column: int | None = None
             # Prefer structured location from pynescript.ast.error.SyntaxError
             details = getattr(e, "details", None)
             if details is not None:
@@ -144,6 +259,12 @@ class PineLinter:
                     line = lineno
                 if isinstance(offset, int) and offset >= 0:
                     column = offset
+                end_lineno = getattr(details, "end_lineno", None)
+                end_offset = getattr(details, "end_offset", None)
+                if isinstance(end_lineno, int) and end_lineno > 0:
+                    end_line = end_lineno
+                if isinstance(end_offset, int) and end_offset >= 0:
+                    end_column = end_offset
             if line is None:
                 # Fallback: "line N" / "line: N" in the message
                 match = re.search(r"line[:\s]+(\d+)", str(e), re.IGNORECASE)
@@ -159,45 +280,72 @@ class PineLinter:
                 line=line,
                 column=column,
                 severity="error",
+                end_line=end_line,
+                end_column=end_column,
             )
         return None
 
     def _check_version(self, source: str) -> None:
         """Require ``//@version=…``; warn if version is below 5 (``W001``/``W002``)."""
-        version_match = re.search(r"//\s*@version\s*=\s*(\d+)", source)
+        version_match = _VERSION_PRAGMA_RE.search(source)
         if not version_match:
             self._add_warning(
                 code="W001",
                 message="Missing @version declaration. Add '//@version=6' at the top.",
                 line=1,
+                column=0,
             )
         else:
             version = int(version_match.group(1))
             if version < 5:
+                line_num = source[: version_match.start()].count("\n") + 1
+                line_text = source.split("\n")[line_num - 1]
                 self._add_warning(
                     code="W002",
                     message=f"Pine Script v{version} is deprecated. Consider upgrading to v6.",
-                    line=source[: version_match.start()].count("\n") + 1,
+                    line=line_num,
+                    column=max(0, version_match.start() - source.rfind("\n", 0, version_match.start()) - 1),
+                    end_line=line_num,
+                    end_column=len(line_text),
                 )
 
-    def _check_deprecated(self, source: str) -> None:
+    def _check_deprecated(self, source: str, version: int | None) -> None:
         """Flag known deprecated call patterns (``W101``).
+
+        Only v5/v6 scripts can use ``request.security``; ``security()`` is a
+        v4 spelling. Unversioned snippets are skipped to avoid false
+        positives. Comments and string literals are masked before matching.
 
         Retired: ``W102`` (histogram → plotcandle was wrong guidance —
         plotcandle is not a histogram substitute) and ``W103``
         (``var int x = na`` → 0 changes semantics; na-init is idiomatic).
         Codes stay retired so history stays greppable.
         """
-        deprecated_patterns = [
-            (r"\bsecurity\s*\(\s*'[A-Z]+:[A-Z]+'", "W101", "Use request.security() with explicit parameters"),
-        ]
+        if version is None or version < 5:
+            return
+        # Find ``security`` outside comments/strings via the masked text, then
+        # verify the quoted symbol argument in the original source (the
+        # argument itself is a string, so a single regex cannot do both).
+        masked = _mask_comments_and_strings(source)
+        call_re = re.compile(r"(?<![\w.])security\s*\(", re.IGNORECASE)
+        arg_re = re.compile(r"security\s*\(\s*['\"][A-Z]+:[A-Z]+['\"]", re.IGNORECASE)
+        for match in call_re.finditer(masked):
+            tail = source[match.start() : match.start() + 120]
+            if arg_re.match(tail) is None:
+                continue
+            line_num = source[: match.start()].count("\n") + 1
+            line_start = source.rfind("\n", 0, match.start()) + 1
+            column = match.start() - line_start
+            self._add_warning(
+                "W101",
+                "Use request.security() with explicit parameters",
+                line=line_num,
+                column=column,
+                end_line=line_num,
+                end_column=column + len("security"),
+            )
 
-        for pattern, code, message in deprecated_patterns:
-            for match in re.finditer(pattern, source, re.IGNORECASE):
-                line_num = source[: match.start()].count("\n") + 1
-                self._add_warning(code, message, line=line_num)
-
-    def _check_v6_kwargs(self, tree: Any) -> None:
+    def _check_v6_kwargs(self, tree: Any, source: str, version: int | None) -> None:
         """Flag v6-removed kwargs that the evaluator silently ignores (``W104``).
 
         * ``when=`` on ``strategy.*`` order calls (removed in v6; gate with
@@ -205,7 +353,13 @@ class PineLinter:
         * ``transp=`` on drawing/plot calls (removed in v6; use
           ``color.new(color, transp)`` instead). ``color.new`` / ``color()``
           keep a valid ``transp`` and are never flagged.
+
+        These kwargs are valid in v4/v5, so the rule only runs when the
+        script explicitly declares ``//@version=6``.
         """
+        if version != 6:
+            return
+        lines = source.split("\n")
         for node in walk(tree):
             if not isinstance(node, Call):
                 continue
@@ -222,6 +376,9 @@ class PineLinter:
                     code="W104",
                     message="strategy.* 'when=' was removed in v6 and is ignored; gate with an 'if' block instead",
                     line=line,
+                    column=_kwarg_column(lines, line, "when"),
+                    end_line=line,
+                    end_column=_kwarg_column(lines, line, "when") + len("when="),
                 )
             if "transp" in kwargs and func not in ("color.new", "color"):
                 if head in ("line", "box", "label", "table", "polyline", "linefill") or func in (
@@ -236,46 +393,60 @@ class PineLinter:
                     "barcolor",
                     "hline",
                 ):
+                    column = _kwarg_column(lines, line, "transp")
                     self._add_warning(
                         code="W104",
                         message="'transp=' was removed in v6 and is ignored; use color.new(color, transp) instead",
                         line=line,
+                        column=column,
+                        end_line=line,
+                        end_column=column + len("transp="),
                     )
 
-    def _check_bool_conditions(self, tree: Any) -> None:
+    def _check_bool_conditions(self, tree: Any, version: int | None) -> None:
         """Flag numeric literals in boolean positions (``W105``).
 
         The evaluator stays permissive (``if 1`` runs the body), so v6
         strictness — explicit comparisons or ``bool()`` casts — is nudged
-        here rather than enforced at runtime.
+        here rather than enforced at runtime. v5 allowed numeric truthiness,
+        so the rule is v6-only.
         """
+        if version != 6:
+            return
         for node in walk(tree):
             if not isinstance(node, (If, While, Conditional)):
                 continue
             test = node.test
             if isinstance(test, Constant) and isinstance(test.value, (int, float)) and not isinstance(test.value, bool):
+                line = getattr(node, "lineno", None)
+                column = getattr(node, "col_offset", None)
                 self._add_warning(
                     code="W105",
                     message="Numeric literal in boolean condition; use an explicit comparison or bool() cast",
-                    line=getattr(node, "lineno", None),
+                    line=line,
+                    column=column,
+                    end_line=line,
+                    end_column=(column + 1) if isinstance(column, int) else None,
                 )
 
     def _check_naming(self, source: str) -> None:
-        """Heuristic naming checks for ``ta.*`` assignments (``C001``)."""
-        for i, line in enumerate(source.split("\n"), 1):
-            eq = line.find("=")
-            if eq <= 0:
+        """Heuristic naming checks for ``ta.*`` assignments (``C001``).
+
+        Comments and strings are masked so prose such as
+        ``// old_name = ta.sma(...)`` never produces a finding. Only a real
+        assignment operator (``=``, not ``==`` / ``=>`` / ``:=``) counts.
+        """
+        masked = _mask_comments_and_strings(source)
+        for i, line in enumerate(masked.split("\n"), 1):
+            match = _ASSIGN_OP_RE.search(line)
+            if match is None or match.start() <= 0:
                 continue
-            if line[eq - 1] == ":":
+            lhs = line[: match.start()].rstrip(" \t")
+            ident = _TRAILING_IDENT_RE.search(lhs)
+            if ident is None:
                 continue
-            lhs = line[:eq].rstrip(" \t")
-            j = len(lhs)
-            while j > 0 and (lhs[j - 1].isalnum() or lhs[j - 1] == "_"):
-                j -= 1
-            var_name = lhs[j:]
-            if not var_name:
-                continue
-            rhs = line[eq + 1 :].lstrip(" \t")
+            var_name = ident.group(0)
+            rhs = line[match.end() :].lstrip(" \t")
             if not rhs.startswith("ta."):
                 continue
             # snake_case only — ``fastMA`` / ``sma`` are already camel/short.
@@ -284,6 +455,9 @@ class PineLinter:
                     code="C001",
                     message=f"Variable '{var_name}' should use camelCase (e.g., '{_to_camel(var_name)}')",
                     line=i,
+                    column=ident.start(),
+                    end_line=i,
+                    end_column=ident.end(),
                 )
 
     def _check_style(self, source: str) -> None:
@@ -300,13 +474,22 @@ class PineLinter:
                     code="C002",
                     message=f"Line exceeds 120 characters ({len(line.rstrip())})",
                     line=i,
+                    column=0,
+                    end_line=i,
+                    end_column=len(line.rstrip()),
                 )
 
         # Do not strip() before the check — strip removes the trailing newline.
         if source and not source.endswith("\n"):
+            last_line = len(lines)
+            last_col = len(lines[-1])
             self._add_warning(
                 code="C004",
                 message="File should end with a newline",
+                line=last_line,
+                column=last_col,
+                end_line=last_line,
+                end_column=last_col,
             )
 
 

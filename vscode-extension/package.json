@@ -27,6 +27,9 @@
   "engines": {
     "vscode": "^1.91.0"
   },
+  "extensionKind": [
+    "workspace"
+  ],
   "categories": [
     "Programming Languages",
     "Linters",
@@ -222,6 +225,16 @@
             "default": {},
             "markdownDescription": "Remap diagnostic severity by lint-code prefix, e.g. `{\"W\": \"Hint\"}` renders `W001`-style warnings as hints. Allowed values: `Error`, `Warning`, `Information`, `Hint`."
           },
+          "pynescript.diagnostics.style": {
+            "type": "boolean",
+            "default": false,
+            "description": "Show style-only findings (C001 naming, C002 line length, C004 trailing newline). Correctness diagnostics are always shown when diagnostics are enabled."
+          },
+          "pynescript.diagnostics.semantic": {
+            "type": "boolean",
+            "default": false,
+            "description": "Reserved: enable opt-in unknown-symbol and arity checks. Off by default so incomplete edits never produce speculative errors."
+          },
           "pynescript.completion.snippets": {
             "type": "boolean",
             "default": true,
@@ -231,6 +244,16 @@
             "type": "boolean",
             "default": true,
             "description": "Show hover cards with signatures, documentation, and type information."
+          },
+          "pynescript.inlayHints.types": {
+            "type": "boolean",
+            "default": true,
+            "description": "Show inferred type hints next to variable declarations."
+          },
+          "pynescript.inlayHints.parameters": {
+            "type": "boolean",
+            "default": true,
+            "description": "Show parameter-name hints in function calls."
           },
           "pynescript.signatureHelp.enabled": {
             "type": "boolean",

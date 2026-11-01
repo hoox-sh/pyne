@@ -7716,7 +7716,7 @@ save with include_text=True
 will_save / will_save_wait_until off
 Capability set (declared)
 From config.py (get_server_capabilities):
-Diagnostic provider (identifier="pynescript-diagnostics", workspace_diagnostics=False in options; workspace pull handler still exists)
+Diagnostic provider (identifier="pynescript-diagnostics", workspace_diagnostics=True; push diagnostics carry the document version)
 Completion: trigger ".", resolve_provider=True
 Hover, definition, references, document highlight
 Linked editing (linked_editing_range_provider=True) — same-document user ident ranges; keywords / builtin namespaces refused
@@ -7748,8 +7748,8 @@ _parse_and_lint:
 Incremental edits: _apply_text_edit splits on \n, pads the line list when the range sits at/past EOF (append without a trailing newline), clamps columns, then replaces the range. Out-of-range positions no longer leave a stale buffer. Whole-document change events replace source wholesale. Identical text after apply skips re-parse/lint (version still updates).
 Diagnostics conversion (_lint_warnings_to_diagnostics):
 Map severity strings → DiagnosticSeverity.
-Source tag "PineScript", code from lint rule.
-Append synthetic E001 error for parse failures at the extracted line.
+Source tag "pyne", code from lint rule.
+Append synthetic E001 error for parse failures using structured SyntaxErrorDetails (non-empty range).
 Feature dispatch pattern
 Handlers are functions, not server methods, e.g.:
 `python
@@ -7758,7 +7758,7 @@ def text_completion(params):
 source = self.pine_workspace.get_source(params.text_document.uri)
 return completion_feature.handle_completion(params, source)
 `
-Definition / references / symbols / hover / completion / inlay / semantic tokens (full and range) / linked editing / document links / formatting (including on-type) receive the workspace-cached AST (tree=doc.ast) so they skip a redundant parse. Pass tree=None when the last parse failed. Omit tree only in isolated tests (handler then parses from source).
+Definition / references / symbols / hover / completion / inlay / semantic tokens (full and range) / linked editing / document links / formatting (including on-type) receive the version-matched AST (tree=doc.valid_ast) so they skip a redundant parse. Pass tree=None when the last parse failed. Omit tree only in isolated tests (handler then parses from source).
 Pull diagnostics
 textDocument/diagnostic → RelatedFullDocumentDiagnosticReport with result_id=f"{uri}-{version}".
 workspace/diagnostic → one full report per open document from get_all_diagnostics().
@@ -8127,7 +8127,7 @@ Results sorted by score descending, capped at limit.
 Resolve
 handle_completion_resolve looks up params.label in metadata; if found, rebuilds a full CompletionItem. Unknown labels return unchanged.
 Invariants and edge cases
-1. No local function / variable completion yet — user enums and keywords are included; local myFunc is not, unless it appears in metadata.
+1. Scope-aware user symbols are included: local variables/parameters/functions, UDT fields/methods, enum types/members, imports, and built-in variables. Unknown receiver types produce no member list rather than unrelated builtins.
 2. Empty metadata dict yields an empty list (failed decrypt / missing files).
 3. Module completion uses startswith(module + ".") — nested namespaces beyond one dot still work if labels are fully qualified.
 4. Snippets are generated at metadata build time (scripts/generate_builtin_metadata.py); incompleteness of placeholders is a generator concern, not the LSP handler.
@@ -8180,14 +8180,14 @@ Capability: diagnostic_provider with identifier="pynescript-diagnostics", inter_
 Diagnostic shape
 | Field | Value |
 | --- | --- |
-| range | 0-based line; column from warning or 0; end spans remainder of line (capped) |
+| range | Exact token range when the rule supplies column/end_column; otherwise line start to line end (capped) |
 | severity | error / warning / information / hint |
 | message | Human-readable lint or parse message |
-| source | "PineScript" |
+| source | "pyne" |
 | code | Lint code (e.g. W001) or E001 for parse errors |
 The richer conversion in features/diagnostics.py also supports:
 code_description hrefs for codes starting with E / W (docs URLs)
-tags: W001 → Unnecessary, W002 → Deprecated
+tags: W002 → Deprecated
 Push and pull both call Workspace._lint_warnings_to_diagnostics, which delegates lint rows to features/diagnostics.lint_warnings_to_diagnostics (noise filters + tags) and then appends synthetic E001 for parse failures.
 Internals
 | Path | Role |
@@ -8253,7 +8253,7 @@ Interface surface
 | --- | --- |
 | textDocument/documentColor | handle_document_color |
 | textDocument/colorPresentation | handle_color_presentation |
-Capability: color_provider=True (config.py). handle_document_color receives the workspace-cached AST (tree=doc.ast).
+Capability: color_provider=True (config.py). handle_document_color receives the version-matched AST (tree=doc.valid_ast).
 Returns [] for empty source, parse failure, or tree=None. Never None.
 Reported swatches
 | Form | Example | Notes |
@@ -8365,7 +8365,7 @@ Interface surface
 | --- | --- |
 | textDocument/documentLink | DocumentLinkOptions(resolve_provider=True) |
 | documentLink/resolve | fills tooltip with the URL when tooltip is unset |
-Handlers: features/document_link.py → handle_document_link (receives cached tree=doc.ast) and handle_document_link_resolve.
+Handlers: features/document_link.py → handle_document_link (receives cached tree=doc.valid_ast) and handle_document_link_resolve.
 Each initial result:
 | Field | Value |
 | --- | --- |
@@ -8397,7 +8397,7 @@ Internals
 | src/pynescript/langserver/features/document_link.py | Comment scan + string walk + resolve |
 | src/pynescript/langserver/config.py | DocumentLinkOptions(resolve_provider=True) |
 | src/pynescript/langserver/server.py | TEXT_DOCUMENT_DOCUMENT_LINK (cached on doc.feature_cache["document_link"]); DOCUMENT_LINK_RESOLVE |
-The workspace cache supplies tree=doc.ast. Pass tree=None when the last parse failed (skips a redundant re-parse). Omit tree only in isolated tests (handler then parses from source). Comments need the source text; a pre-parsed tree with source=None still yields string-literal links.
+The workspace cache supplies tree=doc.valid_ast. Pass tree=None when the last parse failed (skips a redundant re-parse). Omit tree only in isolated tests (handler then parses from source). Comments need the source text; a pre-parsed tree with source=None still yields string-literal links.
 Tests: tests/test_lsp_features.py (TestDocumentLinkHandler).
 Invariants and edge cases
 1. Empty / unparsed → []. Missing source, parse exception, or tree=None never returns None.
@@ -8469,7 +8469,7 @@ Control blocks are expressions (If, ForTo, ForIn, While, Switch, Once) and often
 Interface surface
 Method: textDocument/foldingRange
 Capability: folding_range_provider=True
-Handler: features/folding.py → handle_folding_range (receives cached tree=doc.ast)
+Handler: features/folding.py → handle_folding_range (receives cached tree=doc.valid_ast)
 Each range uses 0-based start_line / end_line. Region comment pairs set kind: "region".
 | Construct | Folded |
 | --- | --- |
@@ -8605,7 +8605,7 @@ Conceptual model
 Interface surface
 Method: textDocument/hover
 Capability: hover_provider=True
-Handler: features/hover.py → handle_hover (receives cached tree=doc.ast and optional per-version feature_cache for the user-decl walk)
+Handler: features/hover.py → handle_hover (receives cached tree=doc.valid_ast and optional per-version feature_cache for the user-decl walk)
 Lookup order
 1. Identifier segment at cursor via get_identifier_segment_at_position (identifiers may include .).
 2. Namespace: cursor on a module name (ta in ta.sma, or bare ta / math). Types that share a name (line, array, color) and callables (strategy(, input() fall through.
@@ -8703,7 +8703,7 @@ Interface surface
 | --- | --- |
 | textDocument/inlayHint | InlayHintOptions(resolve_provider=True) |
 | inlayHint/resolve | fills textEdits on type hints |
-Handlers: features/inlay_hints.py → handle_inlay_hints (receives cached tree=doc.ast) and handle_inlay_hint_resolve.
+Handlers: features/inlay_hints.py → handle_inlay_hints (receives cached tree=doc.valid_ast) and handle_inlay_hint_resolve.
 Assignment type hints
 | Field | Value |
 | --- | --- |
@@ -8809,7 +8809,7 @@ Conceptual model
 Interface surface
 Method: textDocument/linkedEditingRange
 Capability: linked_editing_range_provider=True
-Handler: features/linked_editing.py → handle_linked_editing_range (receives cached tree=doc.ast)
+Handler: features/linked_editing.py → handle_linked_editing_range (receives cached tree=doc.valid_ast)
 Response:
 | Field | Value |
 | --- | --- |
@@ -8920,13 +8920,13 @@ Internals
 | features/rename.py | prepareRename (cursor document) + rename across open documents |
 | features/symbols.py | Document outline |
 | server.py | Workspace symbol aggregation |
-Handlers accept the workspace-cached AST (tree=doc.ast from server.py). They re-parse from source only when tree is omitted (tests / isolated calls). Pass tree=None after a failed parse so the handler does not retry.
+Handlers accept the version-matched AST (tree=doc.valid_ast from server.py) and the scope index (analysis=doc.valid_analysis). valid_ast is None while a debounced parse for a newer buffer is in flight. They re-parse from source only when tree is omitted (tests / isolated calls). Pass tree=None after a failed parse so the handler does not retry.
 Invariants and edge cases
 1. Parse failure → empty / null (definition None, others []).
 2. Builtin names have no definition in-file; clients should not expect ta.sma to resolve to a library file URI.
-3. Ranges are line-coarse for definition/reference locations (character=0); highlight and rename use character-precise ident ranges (col_offset / line scan). Selection ranges for document symbols use col_offset when present.
-4. Scope is naive — same identifier in nested functions may collect multiple definitions; no shadowing analysis.
-5. Closed documents disappear from workspace symbol search and from textDocument/rename. Rename updates every currently open buffer that contains the ident; files that are not open are not in the workspace edit. prepareRename stays the cursor document's ident range.
+3. Ranges are character-precise for definition, references, highlight, rename, and document symbols (exact line/column/end_line/end_column).
+4. Scopes are modeled (script, function/method, if/for/while/switch/once, type, enum); shadowing is respected and UDT fields/methods/enum members are separate from script variables.
+5. Closed documents are included in workspace symbol search through a bounded WorkspaceIndex, but not in textDocument/rename or references; those operate on open buffers. prepareRename stays the cursor document's ident range.
 Worked example
 ``pinescript
 //@version=6
@@ -8976,7 +8976,7 @@ Control blocks are expressions (If, ForTo, ForIn, While, Switch, Once) and often
 Interface surface
 Method: textDocument/selectionRange
 Capability: selection_range_provider=True
-Handler: features/selection_range.py → handle_selection_range (receives cached tree=doc.ast)
+Handler: features/selection_range.py → handle_selection_range (receives cached tree=doc.valid_ast)
 Each result is a SelectionRange whose range contains the requested position and whose optional parent is a strictly larger containing range (LSP exclusive-end ranges from AST lineno / end_lineno / col_offset / end_col_offset).
 | Layer | Selected |
 | --- | --- |
@@ -9049,7 +9049,7 @@ Internals
 | --- | --- |
 | features/semantic_tokens.py | Collector + _encode + range clip |
 | config.py | Legend + capability — indices must match _TT |
-| server.py | TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL / _RANGE; passes cached doc.ast |
+| server.py | TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL / _RANGE; passes version-matched doc.valid_ast |
 Attribute columns prefer end_col_offset - len(attr) when present; otherwise parent col_offset (approximate).
 TextMate from vscode-extension/syntaxes/pinescript.tmLanguage.json still colors keywords, strings, and comments — the visitor does not emit those yet even though the legend reserves the slots.
 Invariants and edge cases

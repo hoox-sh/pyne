@@ -26,7 +26,7 @@ description: "Go-to-definition, find-references, document highlight, rename acro
 
 ## Abstract
 
-Navigation features operate on **user AST symbols**, not the builtin catalog. Definition and references walk a freshly parsed tree with `NodeVisitor` subclasses; document highlight and rename reuse the same ident-at-cursor + AST walk with character-precise ranges; rename applies that walk to every **currently open** workspace document; document symbols build a hierarchical outline; workspace symbols scan all **open** documents. Definition/reference locations still anchor to line starts (coarse ranges) — highlight and rename do not.
+Navigation features operate on **user AST symbols**, not the builtin catalog. A shared static index (`langserver/analysis.py`) builds Pine scopes, declarations, member references, exact identifier ranges, and conservative types. Definition/references/highlight/rename resolve the symbol under the cursor through that index, so shadowed locals and unrelated same-named fields are not conflated. Definition and reference locations are character-precise. Rename applies to every **currently open** workspace document (script-level names also match other open scripts); document symbols build a hierarchical outline; workspace symbols include open documents plus a bounded index of closed Pine files under the workspace roots.
 
 ## Conceptual model
 
@@ -90,7 +90,7 @@ Function `detail` is a coarse `function name()` string; assignments may show cal
 
 ### Workspace symbols
 
-Flat `SymbolInformation` for functions, types, and assigned names across open buffers; filtered by lowercase query substring.
+Flat `SymbolInformation` for functions/methods, types, enums + members, imports, and assigned names. Open buffers are authoritative; closed files under workspace roots are searched through `WorkspaceIndex` (bounded). Filter is a lowercase query substring.
 
 ## Internals
 
@@ -103,15 +103,15 @@ Flat `SymbolInformation` for functions, types, and assigned names across open bu
 | `features/symbols.py` | Document outline |
 | `server.py` | Workspace symbol aggregation |
 
-Handlers accept the **workspace-cached AST** (`tree=doc.ast` from `server.py`). They re-parse from `source` only when `tree` is omitted (tests / isolated calls). Pass `tree=None` after a failed parse so the handler does not retry.
+Handlers accept the **version-matched AST** (`tree=doc.valid_ast` from `server.py`). They re-parse from `source` only when `tree` is omitted (tests / isolated calls). Pass `tree=None` after a failed parse so the handler does not retry.
 
 ## Invariants and edge cases
 
 1. **Parse failure → empty / null** (definition `None`, others `[]`).
 2. **Builtin names** have no definition in-file; clients should not expect `ta.sma` to resolve to a library file URI.
-3. **Ranges are line-coarse** for definition/reference locations (`character=0`); highlight and rename use character-precise ident ranges (`col_offset` / line scan). Selection ranges for document symbols use `col_offset` when present.
-4. **Scope is naive** — same identifier in nested functions may collect multiple definitions; no shadowing analysis.
-5. **Closed documents** disappear from workspace symbol search and from `textDocument/rename`. Rename updates every currently open buffer that contains the ident; files that are not open are not in the workspace edit. `prepareRename` stays the cursor document's ident range.
+3. **Ranges are character-precise** for definition, references, highlight, rename, and document symbols. The analysis layer stores each identifier's exact `(line, column, end_line, end_column)`.
+4. **Scopes are modeled** — script, function/method, if/for/while/switch/once, type, and enum. `:=` resolves outward; `=` declares locally. UDT fields/methods and enum members are separate from script variables.
+5. **Closed documents** are included in workspace symbol search through the bounded `WorkspaceIndex`, but not in `textDocument/rename` or `references`; those still operate on open buffers. Rename updates every currently open buffer that contains the symbol (script-level names also match other open scripts). `prepareRename` stays the cursor document's ident range.
 
 ## Worked example
 

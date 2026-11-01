@@ -31,10 +31,11 @@ from typing import Any
 
 from lsprotocol import types as lsp
 
-from pynescript.langserver.features.highlight import collect_ident_hits
+from pynescript.langserver.analysis import SymbolIndex
+from pynescript.langserver.analysis import ensure_symbol_index
 from pynescript.langserver.features.highlight import cursor_ident
 from pynescript.langserver.features.highlight import is_renamable_ident
-from pynescript.langserver.features.highlight import resolve_tree
+from pynescript.langserver.protocol.utils import in_comment_or_string
 
 
 WORD_PATTERN = r"[A-Za-z_][A-Za-z0-9_]*"
@@ -44,8 +45,10 @@ def handle_linked_editing_range(
     params: lsp.LinkedEditingRangeParams,
     source: str | None,
     tree: Any | None = ...,
+    *,
+    analysis: SymbolIndex | None = None,
 ) -> lsp.LinkedEditingRanges | None:
-    """Return same-document ranges for the user ident under the cursor.
+    """Return scope-aware same-document ranges for the symbol under the cursor.
 
     Args:
         params: Client linked-editing params (position).
@@ -53,27 +56,39 @@ def handle_linked_editing_range(
         tree: Pre-parsed AST from the workspace cache. Pass ``None`` when the
             workspace already failed to parse. Omit (default ``...``) to parse
             from *source*.
+        analysis: Pre-built symbol index for *tree*.
 
     Returns:
         :class:`~lsprotocol.types.LinkedEditingRanges` with a Pine ident
-        ``word_pattern``, or ``None`` when there is no renamable ident.
+        ``word_pattern``, or ``None`` when there is no renamable symbol.
     """
     if not source:
         return None
+    line = params.position.line
+    character = params.position.character
+    if in_comment_or_string(source, line, character):
+        return None
 
-    segment, _start, _end, full = cursor_ident(source, params.position.line, params.position.character)
+    segment, _start, _end, full = cursor_ident(source, line, character)
     if not is_renamable_ident(segment, full):
         return None
 
-    resolved = resolve_tree(source, tree)
-    if resolved is None:
+    index = ensure_symbol_index(source, tree, analysis)
+    if index is None:
         return None
-
-    hits = collect_ident_hits(source, resolved, segment, include_builtin_attrs=False)
-    if not hits:
+    symbol = index.symbol_at(line, character)
+    if symbol is None:
         return None
-
+    occurrences = index.occurrences_for(symbol, include_declaration=True)
+    if not occurrences:
+        return None
     return lsp.LinkedEditingRanges(
-        ranges=[hit.range for hit in hits],
+        ranges=[
+            lsp.Range(
+                start=lsp.Position(line=occ.line, character=occ.column),
+                end=lsp.Position(line=occ.end_line, character=occ.end_column),
+            )
+            for occ in occurrences
+        ],
         word_pattern=WORD_PATTERN,
     )

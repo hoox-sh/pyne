@@ -28,6 +28,7 @@ user :class:`~pynescript.ast.node.FunctionDef` nodes. Trigger characters:
 
 from __future__ import annotations
 
+import logging
 import re
 
 from typing import Any
@@ -37,10 +38,14 @@ from lsprotocol import types as lsp
 from pynescript.ast import node as ast
 from pynescript.ast.helper import parse
 from pynescript.ast.helper import walk
+from pynescript.langserver.analysis import SymbolIndex
+from pynescript.langserver.analysis import ensure_symbol_index
 from pynescript.langserver.protocol.utils import offset_from_position
 from pynescript.langserver.protocol.utils import trailing_ident
 from pynescript.langserver.providers.builtin_metadata import get_builtin
 
+
+logger = logging.getLogger(__name__)
 
 _SNIPPET_PLACEHOLDER = re.compile(r"\$\{(\d+):([^}]+)\}|\$\{(\d+)\}|\$(\d+)")
 
@@ -52,6 +57,8 @@ def handle_signature_help(
     params: lsp.SignatureHelpParams,
     source: str | None,
     tree: Any | None = ...,
+    *,
+    analysis: SymbolIndex | None = None,
 ) -> lsp.SignatureHelp | None:
     """Return signature help for the call enclosing the cursor, or ``None``.
 
@@ -61,6 +68,7 @@ def handle_signature_help(
         tree: Pre-parsed AST from the workspace cache. Pass ``None`` when the
             workspace already failed to parse. Omit (default ``...``) to parse
             from *source* when a user function must be resolved.
+        analysis: Pre-built symbol index for *tree* (resolves UDT methods).
 
     Returns:
         :class:`~lsprotocol.types.SignatureHelp`, or ``None`` when the cursor
@@ -78,32 +86,73 @@ def handle_signature_help(
 
     info = _lookup_builtin(name)
     if info is not None:
-        signature = _signature_from_builtin(name, info)
+        signature = _signature_from_builtin(name, info, argc=active_parameter + 1)
+        labels = [param.label for param in (signature.parameters or [])]
         return lsp.SignatureHelp(
             signatures=[signature],
             active_signature=0,
-            active_parameter=active_parameter,
+            active_parameter=_clamp_parameter(active_parameter, labels),
         )
 
-    resolved = _resolve_tree(source, tree)
-    func = _find_function_def(resolved, name)
+    index = ensure_symbol_index(source, tree, analysis)
+    if index is None:
+        index = _best_effort_index(source)
+    func = _resolve_user_call(name, index, source, position)
     if func is None:
         return None
-    signature = _signature_from_function_def(func)
+    signature = _signature_from_function_def(func, method_call=("." in name))
+    labels = [param.label for param in (signature.parameters or [])]
     return lsp.SignatureHelp(
         signatures=[signature],
         active_signature=0,
-        active_parameter=active_parameter,
+        active_parameter=_clamp_parameter(active_parameter, labels),
     )
 
 
 def _lookup_builtin(name: str) -> dict[str, Any] | None:
-    info = get_builtin(name)
-    if info is not None:
-        return info
-    if "." in name:
-        return get_builtin(name.rsplit(".", 1)[-1])
-    return None
+    """Resolve an exact builtin name; never fall back from ``obj.sma`` to ``ta.sma``."""
+    return get_builtin(name)
+
+
+def _clamp_parameter(active: int, labels: list[Any]) -> int:
+    if not labels:
+        return 0
+    return max(0, min(active, len(labels) - 1))
+
+
+def _resolve_user_call(
+    name: str,
+    index: SymbolIndex | None,
+    source: str,
+    position: lsp.Position,
+) -> ast.FunctionDef | None:
+    """Resolve a user function or UDT method named at the call site."""
+    if index is not None:
+        scope = index.scope_at(position.line, position.character)
+        if "." in name:
+            base_name, _, member = name.rpartition(".")
+            base = index.resolve(base_name, scope)
+            if base is not None and base.type_label:
+                method = index.udt_methods.get(_base_type(base.type_label), {}).get(member)
+                if method is not None and isinstance(method.node, ast.FunctionDef):
+                    return method.node
+            # Qualified namespace: ``strategy.risk`` etc. are builtins, not
+            # user methods.
+            return None
+        symbol = index.resolve(name, scope)
+        if symbol is not None and isinstance(symbol.node, ast.FunctionDef):
+            return symbol.node
+        return None
+    tree = _resolve_tree(source, ...)
+    return _find_function_def(tree, name)
+
+
+def _base_type(type_label: str) -> str:
+    label = type_label.strip()
+    for qualifier in ("const", "input", "simple", "series"):
+        if label.startswith(qualifier + " "):
+            label = label[len(qualifier) + 1 :].strip()
+    return label.split("<", 1)[0].strip()
 
 
 def _enclosing_call(source: str, offset: int) -> tuple[str, int] | None:
@@ -121,7 +170,7 @@ def _enclosing_call(source: str, offset: int) -> tuple[str, int] | None:
 
 def _call_stack_at(source: str, offset: int) -> list[tuple[int, int]]:
     """Call/group stack after scanning *source* up to *offset*."""
-    scanner = _CallScanner()
+    scanner = _CallScanner(source)
     i = 0
     n = len(source)
     while i < offset:
@@ -133,19 +182,32 @@ def _call_stack_at(source: str, offset: int) -> list[tuple[int, int]]:
 class _CallScanner:
     """Forward scan that tracks nested ``(`` calls and grouping brackets."""
 
-    __slots__ = ("escape", "in_str", "line_comment", "stack")
+    __slots__ = ("block_comment", "escape", "in_str", "line_comment", "source", "stack", "triple")
 
-    def __init__(self) -> None:
+    def __init__(self, source: str = "") -> None:
+        self.source = source
         self.stack: list[tuple[int, int]] = []
         self.in_str: str | None = None
+        self.triple: str | None = None
         self.escape = False
         self.line_comment = False
+        self.block_comment = False
 
     def feed(self, ch: str, index: int, nxt: str) -> int:
         """Consume *ch* at *index*; return the next index to read."""
+        if self.block_comment:
+            if ch == "*" and nxt == "/":
+                self.block_comment = False
+                return index + 2
+            return index + 1
         if self.line_comment:
             if ch == "\n":
                 self.line_comment = False
+            return index + 1
+        if self.triple is not None:
+            if self.source[index : index + 3] == self.triple:
+                self.triple = None
+                return index + 3
             return index + 1
         if self.in_str is not None:
             self._feed_string(ch)
@@ -153,7 +215,17 @@ class _CallScanner:
         if ch == "/" and nxt == "/":
             self.line_comment = True
             return index + 2
+        if ch == "/" and nxt == "*":
+            self.block_comment = True
+            return index + 2
+        if ch == "#" and (not nxt or nxt in " \t\f\r\n" or not (nxt.isdigit() or nxt.lower() in "abcdef")):
+            self.line_comment = True
+            return index + 1
         if ch in ("'", '"'):
+            triple = self.source[index : index + 3]
+            if triple in ('"""', "'''"):
+                self.triple = triple
+                return index + 3
             self.in_str = ch
             return index + 1
         self._feed_code(ch, index)
@@ -298,23 +370,49 @@ def _signature_label(name: str, info: dict[str, Any], labels: list[str]) -> str:
     return detail or f"{name}(...)"
 
 
-def _signature_from_builtin(name: str, info: dict[str, Any]) -> lsp.SignatureInformation:
+def _signature_from_builtin(
+    name: str,
+    info: dict[str, Any],
+    *,
+    argc: int = 0,
+) -> lsp.SignatureInformation:
     labels = _param_labels_from_info(info)
+    labels = _arity_labels(name, labels, argc)
     parameters = [lsp.ParameterInformation(label=label) for label in labels]
     brief = (info.get("brief") or info.get("documentation") or "").strip()
     documentation = None
     if brief:
         documentation = lsp.MarkupContent(kind=lsp.MarkupKind.Markdown, value=brief)
+    label = f"{name}({', '.join(labels)})" if labels else _signature_label(name, info, labels)
     return lsp.SignatureInformation(
-        label=_signature_label(name, info, labels),
+        label=label,
         documentation=documentation,
         parameters=parameters,
     )
 
 
-def _signature_from_function_def(node: ast.FunctionDef) -> lsp.SignatureInformation:
+def _arity_labels(name: str, labels: list[str], argc: int) -> list[str]:
+    """Apply the few Pine overloads whose arity changes parameter meaning."""
+    if argc == 1 and name in {"ta.cci", "ta.adx", "ta.mfi", "ta.bbw"}:
+        return ["length"]
+    if argc == 2 and name == "ta.bbw":
+        return ["length", "mult"]
+    if argc == 2 and name == "ta.cci":
+        return ["source", "length"]
+    if argc == 2 and name == "ta.adx":
+        return ["diLength", "adxSmoothing"]
+    if argc == 2 and name == "ta.mfi":
+        return ["source", "length"]
+    return labels
+
+
+def _signature_from_function_def(node: ast.FunctionDef, *, method_call: bool = False) -> lsp.SignatureInformation:
+    params = list(node.args or [])
+    if method_call and node.method and params:
+        # The receiver is implicit at the call site.
+        params = params[1:]
     labels: list[str] = []
-    for param in node.args or []:
+    for param in params:
         pname = getattr(param, "name", None)
         if not pname:
             continue
@@ -364,3 +462,26 @@ def _resolve_tree(source: str | None, tree: Any | None) -> Any | None:
         return parse(source)
     except Exception:
         return None
+
+
+def _best_effort_index(source: str) -> SymbolIndex | None:
+    """Build an index from a minimally repaired mid-edit buffer."""
+    from pynescript.langserver.analysis import build_symbol_index
+
+    trimmed = source.rstrip()
+    candidates = [source, trimmed + "\n"]
+    if trimmed.endswith("."):
+        candidates.extend([trimmed + "x", trimmed + "x)"])
+    elif trimmed.endswith(("(", ",", "[")):
+        candidates.extend([trimmed + "x)", trimmed + "0)"])
+    for candidate in candidates:
+        try:
+            tree = parse(candidate)
+        except Exception as exc:
+            logger.debug("signature_help: repair parse failed: %s", exc)
+            continue
+        try:
+            return build_symbol_index(tree, source)
+        except Exception as exc:
+            logger.debug("signature_help: repair index failed: %s", exc)
+    return None

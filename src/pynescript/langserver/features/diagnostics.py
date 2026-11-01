@@ -106,21 +106,25 @@ def _lint_warning_to_diagnostic(
         line_text = lines[line_index]
     else:
         line_text = ""
-    # Highlight from column to end of line (not column + line_len, which overshoots).
-    if line_text:
-        end_column = max(column + 1, len(line_text))
+    end_line_index = max(0, (warning.end_line or warning.line) - 1)
+    if warning.end_column is not None and end_line_index == line_index:
+        end_column = warning.end_column
+    elif line_text:
+        end_column = len(line_text)
     else:
         end_column = column + 1
+    if end_line_index == line_index and end_column <= column:
+        end_column = min(max(column + 1, 1), max(len(line_text), 1))
     end_column = min(end_column, 2000)
 
     return lsp.Diagnostic(
         range=lsp.Range(
             start=lsp.Position(line=line_index, character=column),
-            end=lsp.Position(line=line_index, character=end_column),
+            end=lsp.Position(line=end_line_index, character=end_column),
         ),
         severity=severity,
         message=warning.message,
-        source="PineScript",
+        source="pyne",
         code=warning.code,
         code_description=_build_code_description(warning.code),
         tags=_get_diagnostic_tags(warning.code),
@@ -154,10 +158,8 @@ def _build_code_description(code: str) -> lsp.CodeDescription | None:
 
     For now, returns None. In the future, this could link to docs.
     """
-    if code.startswith("E"):
-        return lsp.CodeDescription(href="https://docs.pynescript.ai/errors")
-    if code.startswith("W"):
-        return lsp.CodeDescription(href="https://docs.pynescript.ai/warnings")
+    if code.startswith(("E", "W", "C")):
+        return lsp.CodeDescription(href="https://hoox.sh/pyne/docs/core/linter")
     return None
 
 
@@ -172,9 +174,6 @@ def _get_diagnostic_tags(code: str) -> list[lsp.DiagnosticTag] | None:
     """
     if code == "W002":
         return [lsp.DiagnosticTag.Deprecated]
-
-    if code == "W001":
-        return [lsp.DiagnosticTag.Unnecessary]
 
     return None
 

@@ -45,6 +45,7 @@ import {
   Range,
   StatusBarAlignment,
   StatusBarItem,
+  TextEdit,
   Uri,
   window,
   workspace,
@@ -114,6 +115,20 @@ function cfg<T>(key: string): T | undefined {
 
 function settingOn(key: string): boolean {
   return cfg<boolean>(key) !== false;
+}
+
+/** Settings mirrored to pyne-lsp (initializationOptions + didChangeConfiguration). */
+function serverSettings(): Record<string, unknown> {
+  return {
+    formattingEnabled: cfg<boolean>('formatting.enabled') !== false,
+    snippetsEnabled: cfg<boolean>('completion.snippets') !== false,
+    diagnosticsEnabled: cfg<boolean>('diagnostics.enabled') !== false,
+    styleDiagnostics: cfg<boolean>('diagnostics.style') === true,
+    semanticDiagnostics: cfg<boolean>('diagnostics.semantic') === true,
+    inlayHintsTypes: cfg<boolean>('inlayHints.types') !== false,
+    inlayHintsParameters: cfg<boolean>('inlayHints.parameters') !== false,
+    completionUserSymbols: true,
+  };
 }
 
 /**
@@ -857,13 +872,12 @@ function buildClientOptions(): LanguageClientOptions {
     ],
     synchronize: {
       fileEvents: workspace.createFileSystemWatcher('**/*.{pyne,pine,pinev5,pinev6,pinescript}'),
+      // The client sends workspace/didChangeConfiguration with the
+      // `pynescript` section; the server applies it live (no restart).
+      configurationSection: 'pynescript',
     },
     diagnosticCollectionName: 'pynescript',
-    initializationOptions: {
-      formattingEnabled: cfg('formatting.enabled') !== false,
-      snippetsEnabled: cfg('completion.snippets') !== false,
-      diagnosticsEnabled: cfg('diagnostics.enabled') !== false,
-    },
+    initializationOptions: serverSettings(),
     middleware: {
       handleDiagnostics(uri, diagnostics, next) {
         if (cfg<boolean>('diagnostics.enabled') === false) {
@@ -1506,18 +1520,23 @@ export async function activate(context: ExtensionContext): Promise<void> {
       if (e.affectsConfiguration('pynescript.syntaxHighlighting')) {
         await applyPyneSyntax();
       }
-      if (
-        e.affectsConfiguration('pynescript.lsp') ||
-        e.affectsConfiguration('pynescript.formatting') ||
-        e.affectsConfiguration('pynescript.diagnostics') ||
-        e.affectsConfiguration('pynescript.completion')
-      ) {
-        log('Configuration changed — restarting LSP.');
+      if (e.affectsConfiguration('pynescript.lsp')) {
+        log('LSP launch configuration changed — restarting client.');
         try {
           await withClientLock(() => startClient());
         } catch {
           /* shown */
         }
+      } else if (
+        e.affectsConfiguration('pynescript.formatting') ||
+        e.affectsConfiguration('pynescript.diagnostics') ||
+        e.affectsConfiguration('pynescript.completion') ||
+        e.affectsConfiguration('pynescript.inlayHints')
+      ) {
+        log('Feature configuration changed — sending workspace/didChangeConfiguration.');
+        client?.sendNotification('workspace/didChangeConfiguration', {
+          settings: serverSettings(),
+        });
       }
     }),
   );
@@ -1533,9 +1552,12 @@ export async function activate(context: ExtensionContext): Promise<void> {
     /* already reported */
   }
 
-  // Format on save: runs the server formatter when the document is saved.
+  // Format on save: resolve the LSP edits before the file is written. Using
+  // the provider directly (rather than `editor.action.formatDocument` after
+  // save) means the saved bytes are already formatted.
   context.subscriptions.push(
-    workspace.onDidSaveTextDocument(async (document) => {
+    workspace.onWillSaveTextDocument((event) => {
+      const { document } = event;
       if (document.languageId !== 'pinescript') {
         return;
       }
@@ -1548,11 +1570,21 @@ export async function activate(context: ExtensionContext): Promise<void> {
       if (!isClientRunning()) {
         return;
       }
-      try {
-        await commands.executeCommand('editor.action.formatDocument');
-      } catch {
-        /* format errors are reported by the format command path */
-      }
+      event.waitUntil(
+        (async () => {
+          try {
+            const edits = await commands.executeCommand<TextEdit[]>(
+              'vscode.executeFormatDocumentProvider',
+              document.uri,
+              { tabSize: 4, insertSpaces: true },
+            );
+            return edits ?? [];
+          } catch (err) {
+            log(`formatOnSave failed: ${err instanceof Error ? err.message : String(err)}`);
+            return [];
+          }
+        })(),
+      );
     }),
   );
 
@@ -1565,7 +1597,11 @@ export async function activate(context: ExtensionContext): Promise<void> {
     'lsp.python',
     'formatting.enabled',
     'diagnostics.enabled',
+    'diagnostics.style',
+    'diagnostics.semantic',
     'completion.snippets',
+    'inlayHints.types',
+    'inlayHints.parameters',
     'formatOnSave.enabled',
     'hover.enabled',
     'signatureHelp.enabled',

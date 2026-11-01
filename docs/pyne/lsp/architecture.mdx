@@ -101,7 +101,7 @@ Sync options (`config.get_server_capabilities`):
 
 From `config.py` (`get_server_capabilities`):
 
-- Diagnostic provider (`identifier="pynescript-diagnostics"`, `workspace_diagnostics=False` in options; workspace pull handler still exists)
+- Diagnostic provider (`identifier="pynescript-diagnostics"`, `workspace_diagnostics=True`; push diagnostics carry the document version)
 - Completion: trigger `"."`, `resolve_provider=True`
 - Hover, definition, references, document highlight
 - Linked editing (`linked_editing_range_provider=True`) — same-document user ident ranges; keywords / builtin namespaces refused
@@ -143,7 +143,7 @@ Incremental edits: `_apply_text_edit` splits on `\n`, pads the line list when th
 Diagnostics conversion (`_lint_warnings_to_diagnostics`):
 
 - Map severity strings → `DiagnosticSeverity`.
-- Source tag `"PineScript"`, code from lint rule.
+- Source tag `"pyne"`, code from lint rule.
 - Append synthetic **E001** error for parse failures at the extracted line.
 
 ### Feature dispatch pattern
@@ -157,7 +157,7 @@ def text_completion(params):
     return completion_feature.handle_completion(params, source)
 ```
 
-Definition / references / symbols / hover / completion / inlay / semantic tokens (full and range) / linked editing / document links / formatting (including on-type) receive the **workspace-cached AST** (`tree=doc.ast`) so they skip a redundant parse. Pass `tree=None` when the last parse failed. Omit `tree` only in isolated tests (handler then parses from `source`).
+Definition / references / symbols / hover / completion / inlay / semantic tokens (full and range) / linked editing / document links / formatting (including on-type) receive the **version-matched AST** (`tree=doc.valid_ast`) and, where useful, the scope index (`analysis=doc.valid_analysis`). `valid_ast` returns `None` while a debounced parse for a newer buffer is in flight, so features never combine new text with old positions. Pass `tree=None` when the last parse failed. Omit `tree` only in isolated tests (handler then parses from `source`).
 
 ### Pull diagnostics
 
@@ -166,7 +166,7 @@ Definition / references / symbols / hover / completion / inlay / semantic tokens
 
 ### Workspace symbols
 
-`workspace/symbol` walks each open document’s AST via `_collect_workspace_symbols`: `FunctionDef` → Function, `TypeDef` → Class, `EnumDef` → Enum, `Assign` to `Name` → Variable. Filter is case-insensitive substring on `params.query`.
+`workspace/symbol` walks open documents through the shared document-outline collector (functions/methods, types, enums + members, imports, variables) and then queries `WorkspaceIndex` for closed `.pyne`/`.pine`/`.pinev5`/`.pinev6`/`.pinescript` files under the workspace roots. The closed-file index is bounded (file count/size, ignored build/VCS/dependency directories, mtime cache, 2 s search budget). Filter is case-insensitive substring on `params.query`.
 
 ## Invariants and edge cases
 

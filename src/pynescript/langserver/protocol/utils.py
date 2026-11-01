@@ -150,6 +150,74 @@ def get_identifier_segment_at_position(text: str, line: int, column: int) -> tup
     return (last, last_start, last_end, word)
 
 
+def in_comment_or_string(text: str, line: int, column: int) -> bool:
+    """True when LSP position (*line*, *column*) is inside a comment or string.
+
+    Completion/hover should stay quiet there: suggesting `ta.sma` inside a
+    comment or a plotted label string is noise. The scanner mirrors the
+    grammar's `//`, `/* */`, `#` comments and single/triple-quoted strings.
+    """
+    if not text:
+        return False
+    offset = offset_from_position(text, line, column)
+    i = 0
+    n = min(offset, len(text))
+    while i < n:
+        ch = text[i]
+        if ch in "\"'":
+            triple = text[i : i + 3]
+            if triple in ('"""', "'''"):
+                end = text.find(triple, i + 3)
+                if end < 0 or end + 3 > offset:
+                    return True
+                i = end + 3
+                continue
+            quote = ch
+            j = i + 1
+            while j < n:
+                c = text[j]
+                if c == "\\":
+                    j += 2
+                    continue
+                if c == quote:
+                    j += 1
+                    break
+                if c == "\n":
+                    break
+                j += 1
+            if j > offset:
+                return True
+            i = j
+            continue
+        if ch == "/" and i + 1 < n:
+            nxt = text[i + 1]
+            if nxt == "/":
+                end = text.find("\n", i)
+                end = n if end < 0 else end
+                if offset <= end:
+                    return True
+                i = end
+                continue
+            if nxt == "*":
+                end = text.find("*/", i + 2)
+                end = n if end < 0 else end + 2
+                if offset <= end:
+                    return True
+                i = end
+                continue
+        if ch == "#":
+            nxt = text[i + 1] if i + 1 < n else ""
+            if not nxt or nxt in " \t\f\r\n" or not (nxt.isdigit() or ("a" <= nxt.lower() <= "f")):
+                end = text.find("\n", i)
+                end = n if end < 0 else end
+                if offset <= end:
+                    return True
+                i = end
+                continue
+        i += 1
+    return False
+
+
 def get_trigger_char(text: str, line: int, column: int) -> str | None:
     """Get the trigger character before the cursor.
 
