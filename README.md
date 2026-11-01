@@ -23,6 +23,7 @@ Pine is usually executed inside a host chart. PYNE models the language as an ins
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776ab?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![PyPI](https://img.shields.io/pypi/v/hoox-pyne?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/hoox-pyne/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-6b7280?style=flat-square)](LICENSE)
+[![TV goldens](https://img.shields.io/badge/TV_goldens-112%2F112-22c55e?style=flat-square)](tests/fixtures/tv_goldens/README.md)
 
 [hoox.sh](https://hoox.sh) · [hoox.sh/pyne](https://hoox.sh/pyne) · [docs](https://hoox.sh/pyne/docs) · [CHANGELOG](CHANGELOG.md)
 
@@ -47,7 +48,7 @@ flowchart LR
   O --> W["Cloudflare Workers"]
 ```
 
-The same contract underlies the desk CLI, `pyne-lsp`, Flask `POST /run`, AXIS in-browser Pyodide, and [pyne-worker](https://github.com/hoox-sh/pyne-worker) (`POST /run` at the edge). Coverage and gaps: [compatibility](https://hoox.sh/pyne/docs/reference/compatibility) · [missing features](https://hoox.sh/pyne/docs/reference/missing-features). This tree does not ship third-party script corpora or TradingView® builtin downloads.
+The same contract underlies the desk CLI, `pyne-lsp`, Flask `POST /run`, AXIS in-browser Pyodide, and [pyne-worker](https://github.com/hoox-sh/pyne-worker) (`POST /run` at the edge). Coverage and gaps: [compatibility](https://hoox.sh/pyne/docs/reference/compatibility) · [missing features](https://hoox.sh/pyne/docs/reference/missing-features). Vendored OpenPineScript TradingView goldens live in `tests/fixtures/tv_goldens/`. Community set0x corpora and official TradingView builtin_scripts stay local-only.
 
 ## Features
 
@@ -60,6 +61,7 @@ The same contract underlies the desk CLI, `pyne-lsp`, Flask `POST /run`, AXIS in
 | **MCP** | Stdio server + `pyne mcp call` for parse / lint / convert / compile / run |
 | **Backends** | Flask Pro API (`/run`, batch, preview, backtest, optimize), Cloudflare Workers, Pyodide |
 | **Editors** | VS Code (AXIS Void / Hoox Signal / PYNE Volt themes), Neovim, Zed, Emacs |
+| **Parity** | 112 / 112 TradingView golden columns (OpenPineScript harnesses, ~2,475 daily bars, rel 1e-6) |
 
 ---
 
@@ -215,9 +217,26 @@ Full catalog: [MCP tools](https://hoox.sh/pyne/docs/enduser/reference/mcp-tools)
 
 ---
 
+## TradingView goldens
+
+Nine Pine harnesses were run **inside TradingView** on `BINANCE:BTCUSDT` `1D`. The Pine Logs exports — OHLCV plus every plot column — ship in-tree. PYNE replays the same scripts on those bars.
+
+**112 columns · ~2,475 bars each · rel 1e-6 / abs 1e-9 · all agree**
+
+That is the same fixture set [OpenPineScript](https://github.com/be-thomas/OpenPineScript) uses: `ta.*`, `math.*`, strategy broker timing, and control-flow / loop probes, compared against TradingView's own per-bar output. Coverage of that slice is 112 / 112. Chart host, remaining builtins, and live data are tracked under compatibility / missing features.
+
+```bash
+make tv-goldens          # 112 columns vs the vendored exports
+make tv-goldens-strict   # fail on any divergence
+```
+
+Recipe, provenance, and GPL-3.0 notice: [`tests/fixtures/tv_goldens/`](./tests/fixtures/tv_goldens/README.md).
+
 ## Compatibility
 
-PYNE targets practical runtime fidelity against first-party fixtures, unit tests, and (when present locally) open-source corpus sets. It does not claim TradingView® certification, complete platform parity (chart host, data model, every builtin, closed UI), or bar-for-bar agreement with the TradingView® platform.
+The goldens above are the numerical check against the platform on that fixture set. Interpret ↔ compile plot parity is gated on first-party TA goldens; official TradingView builtin scripts report 0 MISMATCH when they are present locally.
+
+Foreign / complex `request.security` resolves to `na`. TV Supertrend band ratchet, tick-path broker, and pixel chart UI are out of scope. Map: [compatibility](https://hoox.sh/pyne/docs/reference/compatibility) · [missing features](https://hoox.sh/pyne/docs/reference/missing-features).
 
 Results are for research, development, and self-hosted evaluation. They are not financial advice and are not provided by TradingView, Inc.
 
@@ -236,12 +255,14 @@ Canonical docs: **[hoox.sh/pyne/docs](https://hoox.sh/pyne/docs)**
 | Pro API | [API](https://hoox.sh/pyne/docs/api) |
 | LSP | [Hub](https://hoox.sh/pyne/docs/lsp) · [VS Code](https://hoox.sh/pyne/docs/lsp/vscode-extension) |
 | Coverage | [Compatibility](https://hoox.sh/pyne/docs/reference/compatibility) · [missing](https://hoox.sh/pyne/docs/reference/missing-features) |
+| TradingView goldens | [fixture README](./tests/fixtures/tv_goldens/README.md) · [COMPATIBILITY.md](./COMPATIBILITY.md) |
 | In-tree | [CHANGELOG](./CHANGELOG.md) · [CONTRIBUTING](./CONTRIBUTING.md) · [SECURITY](./SECURITY.md) |
 
 ```bash
-make install   # editable + LSP
-make test      # pytest
-make lint      # ruff
+make install       # editable + LSP
+make test          # pytest
+make lint          # ruff
+make tv-goldens    # 112 columns vs vendored TradingView exports
 ```
 
 ---

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-01T18:55:26+00:00",
+  "generated_at": "2026-11-01T19:40:45+00:00",
   "tolerance": {
     "rel": 1e-06,
     "abs": 1e-09
@@ -12,16 +12,5 @@
     "harness_state": 0,
     "harness_strategy": 0
   },
-  "columns": {
-    "openpinescript/v5/harness_loopargs.BTCUSDT.1D.log::published_pattern": {
-      "reason": "manual loop sum vs ta.sma(close[2], 10) * 3 differs on every bar",
-      "compared": 2175,
-      "mismatches": 2175,
-      "nan_mismatches": 0,
-      "first_tv": 11,
-      "first_ours": 11,
-      "worst_rel": 0.042002548052967326,
-      "first_diff": "bar 300 (2020-10-29 ): tradingview=38067.01074992 ours=38649.71798688"
-    }
-  }
+  "columns": {}
 }

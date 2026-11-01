@@ -140,8 +140,8 @@ make tv-goldens          # known divergences allowed; new ones fail
 make tv-goldens-strict   # every divergence is red
 ```
 
-Current baseline: **111 / 112 columns pass**, 1 documented divergence
-(`tests/fixtures/tv_goldens/baseline.json`). Root causes and the capture recipe:
+Current baseline: **112 / 112 columns pass**, 0 documented divergences
+(`tests/fixtures/tv_goldens/baseline.json`). Capture recipe:
 `tests/fixtures/tv_goldens/README.md`.
 
 ---

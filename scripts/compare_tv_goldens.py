@@ -39,8 +39,9 @@ The comparison mirrors OpenPineScript's ``tradingview_golden.test.ts``:
 * reject all-``na`` and constant columns as vacuous evidence.
 
 Known divergences live in ``tests/fixtures/tv_goldens/baseline.json`` so the
-suite can be green while the remaining gaps are explicit.  ``--strict`` ignores
-the baseline and fails on any difference; ``--update-baseline`` refreshes it.
+suite can stay green while a remaining gap is explicit.  The current red set
+is empty (112 / 112).  ``--strict`` ignores the baseline and fails on any
+difference; ``--update-baseline`` refreshes it.
 
 Usage::
 
@@ -99,13 +100,7 @@ def _out(message: str = "") -> None:
 
 # Why a known divergence is still red.  Used when (re)writing the baseline so
 # the reason travels with the fixture instead of living in someone's head.
-KNOWN_REASONS: dict[str, str] = {
-    "harness_loopargs::published_pattern": (
-        "one ta.sma call site reached 3x per bar with different sources: "
-        "TradingView's loop-series semantics match none of the three "
-        "readings the harness probes (each reach / last reach / shared)"
-    ),
-}
+KNOWN_REASONS: dict[str, str] = {}
 
 
 @dataclass(slots=True)

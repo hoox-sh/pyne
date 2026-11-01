@@ -36,6 +36,7 @@ import json
 import math
 import sys
 
+from collections import deque
 from pathlib import Path
 
 import pytest
@@ -123,6 +124,117 @@ log.info("ROW|" + str.tostring(time, "#") + "," + str.tostring(close, "#.#######
     assert result.get("error") is None
     messages = [entry["message"] for entry in result.get("logs") or []]
     assert messages == ["ROW|1000000,1.5", "ROW|1086400000,2"]
+
+
+def test_sma_same_call_site_overwrites_current_bar() -> None:
+    """One ``ta.sma`` AST site reached several times per bar with different
+    sources shares a window and replaces the live sample (TradingView).
+
+    Committed history is the last source written on each prior bar. Distinct
+    call sites (different periods / AST nodes) stay independent.
+    """
+    from pynescript.ast.evaluator import NodeLiteralEvaluator
+
+    class _Inc(NodeLiteralEvaluator):
+        def __init__(self) -> None:
+            super().__init__()
+            self._pine_bar_mode = True
+            self._pine_ta_incremental = True
+            self._ta_inc_state = {}
+            self._ta_call_i = 0
+            self.context = {"bar_index": 0}
+            self._pine_current_call_site = 7
+
+    closes = [float(i + 1) for i in range(12)]
+    period = 3
+    ev = _Inc()
+    got: list[float | None] = []
+    window: deque[float] = deque()
+    for bar in range(len(closes)):
+        ev.context["bar_index"] = bar
+        ev._ta_call_i = 0
+        total = 0.0
+        any_na = False
+        appended = False
+        for offset in range(3):
+            src = closes[bar - offset] if bar - offset >= 0 else math.nan
+            val = ev._sma_inc_update([src], period)
+            if not appended:
+                window.append(src)
+                appended = True
+            else:
+                window[-1] = src
+            last = list(window)[-period:]
+            if len(last) < period or any(math.isnan(x) for x in last):
+                exp = None
+                any_na = True
+            else:
+                exp = sum(last) / period
+            if val is None:
+                any_na = True
+            else:
+                total += val
+            if exp is None:
+                assert val is None, f"bar {bar} offset {offset}: got {val} expected na"
+            else:
+                assert val == pytest.approx(exp), f"bar {bar} offset {offset}: {val} != {exp}"
+        got.append(None if any_na else total)
+    assert got[-1] is not None
+
+
+def test_loop_sma_close_i_matches_overwrite_model() -> None:
+    """Runtime ``for i = 0 to 2 / ta.sma(close[i], n)`` follows the TV rule."""
+    from pynescript.ast.helper import clear_parse_cache
+    from pynescript.runtime.host import Runtime
+
+    clear_parse_cache()
+    closes = [10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 21.0]
+    bars = [
+        {
+            "time": 1_577_836_800_000 + i * 86_400_000,
+            "open": close,
+            "high": close,
+            "low": close,
+            "close": close,
+            "volume": 1.0,
+        }
+        for i, close in enumerate(closes)
+    ]
+    source = """
+//@version=5
+indicator("loop sma")
+s = 0.0
+for i = 0 to 2
+    s := s + ta.sma(close[i], 3)
+plot(s, "s")
+"""
+    result = Runtime(symbol="T").run(source, bars, mode="interpret")
+    assert result.get("error") is None, result.get("error")
+    series = result.get("series") or {}
+    assert "s" in series, series.keys()
+    window: deque[float] = deque()
+    period = 3
+    for bar in range(len(closes)):
+        total = 0.0
+        any_na = False
+        appended = False
+        for offset in range(3):
+            src = closes[bar - offset] if bar - offset >= 0 else math.nan
+            if not appended:
+                window.append(src)
+                appended = True
+            else:
+                window[-1] = src
+            last = list(window)[-period:]
+            if len(last) < period or any(math.isnan(x) for x in last):
+                any_na = True
+            else:
+                total += sum(last) / period
+        got = series["s"][bar]
+        if any_na:
+            assert got is None or (isinstance(got, float) and math.isnan(got)), f"bar {bar}: {got}"
+        else:
+            assert got == pytest.approx(total), f"bar {bar}: {got} != {total}"
 
 
 def test_csv_export_route(tmp_path: Path) -> None:

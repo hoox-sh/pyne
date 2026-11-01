@@ -7,7 +7,7 @@ tags: [doc, readme]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-31T15:14:28Z
+  at: 2026-11-01T19:58:08Z
 sources:
   - id: tree
     resource: "README.md"
@@ -29,6 +29,7 @@ Repo path `README.md`.
 * Quickstart
   * Pro API
 * MCP
+* TradingView goldens
 * Compatibility
 * Documentation
 * Ecosystem

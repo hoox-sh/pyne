@@ -74,7 +74,8 @@ historical ones, so a 2,475-bar daily export would take years to collect.
    points, and constant columns fail unless they are explicitly
    constant-by-construction (`harness_loops::nested_loops`).
 8. **Known divergences.** `baseline.json` records each remaining red column
-   with a reason. New failures fail the suite; documented ones do not.
+   with a reason. New failures fail the suite; documented ones do not. The
+   current red set is empty.
 
 ## Run it
 
@@ -101,9 +102,12 @@ entry has a real reason.
 
 ## Current baseline
 
-After the second parity pass: **111 / 112 columns pass, 1 is a documented
-divergence, 0 are unclassified.** Everything is green except one deliberately
-ambiguous loop-series probe. Fixed in this pass:
+**112 / 112 columns pass, 0 documented divergences, 0 unclassified.** This is
+measured evidence against the vendored TradingView exports, not a claim that
+PYNE is TradingView-certified. `--strict` stays red if any column regresses;
+`--update-baseline` is a no-op while the red set is empty.
+
+Fixed across the parity passes:
 
 - `ta.stdev` / `ta.variance` population `ddof=0`; `ta.bb` returns
   `(middle, upper, lower)`; `ta.tsi` returns the raw `[-1, 1]` ratio.
@@ -123,16 +127,14 @@ ambiguous loop-series probe. Fixed in this pass:
   (reversal) semantics, and all fills/brackets are quoted on the
   `syminfo.mintick` grid (market nearest; exit brackets rounded outward).
 - `strategy()` default `initial_capital` is 1,000,000 (reference Pine).
-
-The remaining gap:
-
-| Area | Columns | Root cause |
-| --- | --- | --- |
-| Loop/history | `published_pattern` | One `ta.sma` call site reached 3× per bar with different sources; TradingView's loop-series semantics match none of the three readings the harness probes (first reach / last reach / shared state) |
-
-This is a real finding, not a claim that PYNE is TradingView-certified. The
-baseline exists so CI can stay green while the list is worked down; run
-`--strict` to see the full red set.
+- Loop-series `ta.sma`: one call site reached several times per bar with
+  **different sources** (`for i = 0 to 2 / ta.sma(close[i], 10)`) shares a
+  single history window. The first reach of the bar appends; later reaches
+  replace the live sample. Committed history is the last source written on
+  each prior bar. Same-argument extra reaches (the loops harness EMA probe)
+  still return one value. This matches none of the three naive readings
+  (first-wins / last-wins / each-reach-has-its-own-state); it is the fourth
+  rule TradingView actually runs.
 
 ## Adding a fixture
 

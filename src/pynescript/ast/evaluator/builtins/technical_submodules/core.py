@@ -269,24 +269,46 @@ class TechnicalHelpers:
         full series length — safe with ``_SERIES_MAX`` truncation.
 
         Maintains a running sum/count of non-None samples for O(1) updates.
+
+        Extra reaches of the **same AST call site** on the same bar (a loop
+        calling ``ta.sma(close[i], n)``) share this window and **replace** the
+        current-bar sample rather than allocating a new slot. That is
+        TradingView's loop-series rule: committed history is the last source
+        written on each prior bar; intra-bar re-entry only swaps the live
+        sample. Distinct call sites stay independent.
         """
         if period <= 0:
             return None
         bucket, key = self._ta_key1("sma", period)
+        slot = key[1]
+        # Collapse the per-reach ordinal so one AST site has one SMA window.
+        if type(slot) is tuple:
+            key = ("sma", (slot[0], 0), period)
         st = bucket.get(key)
         if st is None:
-            st = {"window": deque(), "sum": 0.0, "count": 0, "value": None}
+            st = {"window": deque(), "sum": 0.0, "count": 0, "value": None, "bar": None}
             bucket[key] = st
         x = self._series_last(series)
+        xf = self._finite_or_none(x)
         window: deque[Any] = st["window"]
-        if len(window) == period:
-            old = window.popleft()
+        ctx = getattr(self, "context", None)
+        bar = ctx.get("bar_index") if isinstance(ctx, dict) else None
+        if bar is not None and st.get("bar") == bar and window:
+            old = window[-1]
             of = self._finite_or_none(old)
             if of is not None:
                 st["sum"] -= of
                 st["count"] -= 1
-        xf = self._finite_or_none(x)
-        window.append(xf)
+            window[-1] = xf
+        else:
+            st["bar"] = bar
+            if len(window) == period:
+                old = window.popleft()
+                of = self._finite_or_none(old)
+                if of is not None:
+                    st["sum"] -= of
+                    st["count"] -= 1
+            window.append(xf)
         if xf is not None:
             st["sum"] += xf
             st["count"] += 1
