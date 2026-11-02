@@ -23,10 +23,10 @@ from __future__ import annotations
 
 
 def main() -> None:
-    """Serve MCP over stdio."""
-    from pynescript.mcp.server import run_stdio
+    """Serve MCP (stdio, or HTTP when ``PYNE_MCP_TRANSPORT`` is set)."""
+    from pynescript.mcp.server import run
 
-    run_stdio()
+    run()
 
 
 if __name__ == "__main__":

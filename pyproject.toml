@@ -62,7 +62,7 @@ compile = [
   "numpy>=1.26.0",
   "numba>=0.59.0",
 ]
-# MCP server (stdio). Language hover/complete reuse lsprotocol types.
+# MCP server (stdio default; sse / streamable-http via PYNE_MCP_TRANSPORT).
 mcp = [
   "mcp>=2.0,<3",
   "lsprotocol>=2024.0.0",

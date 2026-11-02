@@ -33,7 +33,7 @@ import { log, setStatus } from './log';
 import { state } from './state';
 
 /** Default `docker run` when lsp.command is docker and lsp.args is empty. */
-const DEFAULT_DOCKER_ARGS = ['run', '-i', '--rm', 'ghcr.io/hoox-sh/pyne/lsp:0.6.30'];
+const DEFAULT_DOCKER_ARGS = ['run', '-i', '--rm', 'ghcr.io/hoox-sh/pyne/lsp:0.6.31'];
 
 /**
  * Resolve how to spawn the language server.

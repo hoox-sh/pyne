@@ -170,7 +170,7 @@ Match root `CONTRIBUTING.md` and `.github/workflows/publish.yml` / `release.yml`
 4. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 5. **Publish** (`publish.yml`) builds sdist/wheel (`hoox_pyne-*.whl`) and uploads `hoox-pyne` to PyPI on `v*` tags.
 6. **Build & Release** (`release.yml`) attaches Nuitka CLI/LSP binaries + VSIX to the GitHub Release.
-7. **GHCR** (`ghcr.yml`) publishes `ghcr.io/hoox-sh/pyne/{cli,lsp,api}:X.Y.Z` on `v*` tags.
+7. **GHCR** (`ghcr.yml`) publishes `ghcr.io/hoox-sh/pyne/{cli,lsp,api,mcp}:X.Y.Z` on `v*` tags.
 
 Dry-run PyPI: Actions → **Publish** → Run workflow → `dry_run=true`. Local: `python -m build && twine check dist/*`.
 

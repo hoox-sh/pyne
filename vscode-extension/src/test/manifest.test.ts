@@ -220,4 +220,47 @@ describe('grammar and themes', () => {
       assert.ok(fs.existsSync(path.join(EXT_ROOT, theme.path)), theme.path);
     }
   });
+
+  it('gives hover, suggest, peek, and inlay the AXIS card chrome', () => {
+    const required = [
+      'editorHoverWidget.background',
+      'editorHoverWidget.border',
+      'editorHoverWidget.statusBarBackground',
+      'editorHoverWidget.highlightForeground',
+      'editorSuggestWidget.background',
+      'editorSuggestWidget.border',
+      'editorSuggestWidget.selectedBackground',
+      'editorSuggestWidget.selectedForeground',
+      'editorSuggestWidget.selectedIconForeground',
+      'editorSuggestWidget.highlightForeground',
+      'editorSuggestWidget.focusHighlightForeground',
+      'editorSuggestWidgetStatus.foreground',
+      'widget.shadow',
+      'widget.border',
+      'peekView.border',
+      'peekViewTitle.background',
+      'peekViewEditor.background',
+      'peekViewResult.background',
+      'editorInlayHint.foreground',
+      'editorInlayHint.background',
+      'editorInlayHint.parameterForeground',
+      'editorGhostText.foreground',
+      'editorActionList.background',
+      'textCodeBlock.background',
+      'textSeparator.foreground',
+      'keybindingLabel.background',
+      'menu.background',
+      'quickInputList.focusBackground',
+    ];
+    const themes = pkg.contributes.themes as Array<{ path: string; label: string }>;
+    for (const theme of themes) {
+      const json = JSON.parse(fs.readFileSync(path.join(EXT_ROOT, theme.path), 'utf8')) as {
+        colors?: Record<string, string>;
+      };
+      const colors = json.colors ?? {};
+      for (const key of required) {
+        assert.ok(colors[key], `${theme.label} missing ${key}`);
+      }
+    }
+  });
 });

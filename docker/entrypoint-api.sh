@@ -41,6 +41,8 @@ WORKER_CLASS="${GUNICORN_WORKER_CLASS:-gthread}"
 WORKER_CONNECTIONS="${GUNICORN_WORKER_CONNECTIONS:-1000}"
 TIMEOUT="${GUNICORN_TIMEOUT:-120}"
 BIND="${GUNICORN_BIND:-0.0.0.0:${PORT}}"
+# datafeed compose service sets this to backend.datafeed_app:app
+APP="${GUNICORN_APP:-backend.app:app}"
 # Worker recycling bounds per-worker memory growth across requests
 # (Numba / caches). 0 disables. Mirrors the VPS systemd unit.
 # Live WS connections delay recycle; 500 was recycling the worker under AXIS
@@ -72,7 +74,7 @@ case "${WORKER_CLASS}" in
       --max-requests-jitter "${MAX_REQUESTS_JITTER}" \
       --access-logfile "-" \
       --error-logfile "-" \
-      backend.app:app
+      "${APP}"
     ;;
   *)
     # Async workers (gevent/eventlet): --threads does not apply. flask-sock
@@ -89,6 +91,6 @@ case "${WORKER_CLASS}" in
       --max-requests-jitter "${MAX_REQUESTS_JITTER}" \
       --access-logfile "-" \
       --error-logfile "-" \
-      backend.app:app
+      "${APP}"
     ;;
 esac

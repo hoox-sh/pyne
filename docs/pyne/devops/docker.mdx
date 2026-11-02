@@ -19,14 +19,14 @@
 
 ---
 title: "Docker"
-description: "Buildx multi-target images and Compose profiles for the PYNE Pro API."
+description: "Buildx multi-target images and Compose profiles for the PYNE Pro API, datafeed, MCP, CLI, and LSP."
 ---
 
 # Docker
 
 ## Abstract
 
-Containers package the **Pro API** (Flask + evaluator), the **CLI** (`pynescript`), and the **LSP** for reproducible local runs and Cloud Run deploys. A single multi-stage `Dockerfile` exposes named targets; **Docker Buildx Bake** (`docker-bake.hcl`) drives local loads and multi-platform release builds. Compose wires volume mounts and optional Redis/LSP/CLI profiles for desk development, with a production overlay for gunicorn.
+Containers package the **Pro API** (Flask + evaluator), the **CCXT datafeed**, **PYNE MCP**, the **CLI** (`pynescript`), and the **LSP** for reproducible local runs and Cloud Run deploys. A single multi-stage `Dockerfile` exposes named targets; **Docker Buildx Bake** (`docker-bake.hcl`) drives local loads and multi-platform release builds. Compose wires volume mounts and optional Redis/LSP/CLI profiles for desk development, with a production overlay for gunicorn.
 ## Conceptual model
 
 ```mermaid
@@ -39,6 +39,8 @@ flowchart LR
     T2[api-dev Flask]
     T3[lsp stdio]
     T4[cli pynescript]
+    T5[mcp HTTP]
+    T6[datafeed gunicorn]
   end
   subgraph Runtime
     CR[Cloud Run :8080]
@@ -49,9 +51,12 @@ flowchart LR
   B --> T2
   B --> T3
   B --> T4
+  B --> T5
   T1 --> CR
   T2 --> CMP
   T4 --> CLIRUN
+  T5 --> CMP
+  T6 --> CMP
   COMPOSE[docker-compose.yml] --> T2
   PROD[docker-compose.prod.yml] --> T1
 ```
@@ -65,7 +70,10 @@ flowchart LR
 | `api` | `entrypoint-api.sh` → gunicorn (`0.0.0.0:$PORT`) | Production / Cloud Run / compose prod |
 | `api-dev` | `python -m backend.app` with `HOST=0.0.0.0` | Local compose (source mounts) |
 | `lsp` | `ENTRYPOINT pyne-lsp` (stdio) | Compose profile `lsp`; GHCR `ghcr.io/hoox-sh/pyne/lsp` |
+| `mcp` | `ENTRYPOINT pyne-mcp` (`streamable-http` on `:8080`) | Compose daemon `mcp`; GHCR `ghcr.io/hoox-sh/pyne/mcp` |
 | `cli` | `entrypoint-cli.sh` → `pyne` (fallback `pynescript`; ephemeral; `/work` CWD) | CI gates, one-shot parse/lint/compile/run |
+
+Datafeed reuses the `api` / `api-dev` image with `GUNICORN_APP=backend.datafeed_app:app` (prod) or `python -m backend.datafeed_app` (dev). RAM sessions live in that process — do not split `/datafeed/session` and `/datafeed/watch`.
 
 All targets: Python 3.12-slim, non-root `appuser` (uid 1000). API targets also set `API_KEY_STORE=/data/api_keys.json`, `MPLBACKEND=Agg`, healthcheck via `curl`. The **cli** image installs `.[compile,data]` only (no Flask/matplotlib) and is smaller/faster to build than `api`.
 ### Buildx Bake (`docker-bake.hcl`)
@@ -75,13 +83,14 @@ All targets: Python 3.12-slim, non-root `appuser` (uid 1000). API targets also s
 docker buildx bake api                 # production image → pynescript-api:latest
 docker buildx bake cli                 # CLI image → pynescript-cli:latest (ENTRYPOINT: pyne)
 docker buildx bake lsp                 # LSP image → pynescript-lsp:latest (ENTRYPOINT: pyne-lsp)
+docker buildx bake mcp                 # MCP image → pynescript-mcp:latest (ENTRYPOINT: pyne-mcp)
 docker buildx bake                     # default group: api + api-dev
-docker buildx bake all                 # api + api-dev + lsp + cli
+docker buildx bake all                 # api + api-dev + lsp + cli + mcp
 
 # Multi-platform (amd64 + arm64). Set REGISTRY to push:
-REGISTRY=ghcr.io/hoox-sh/pyne TAG=0.6.30 docker buildx bake release
-# release group = api-release + cli-release + lsp-release
-# → ghcr.io/hoox-sh/pyne/{api,cli,lsp}:0.6.30  (or :latest)
+REGISTRY=ghcr.io/hoox-sh/pyne TAG=0.6.31 docker buildx bake release
+# release group = api-release + cli-release + lsp-release + mcp-release
+# → ghcr.io/hoox-sh/pyne/{api,cli,lsp,mcp}:0.6.31  (or :latest)
 # Prefer: make docker-push-ghcr  (workflow GHCR on v* tags)
 ```
 
@@ -91,6 +100,7 @@ Make wrappers:
 make docker-build       # bake api
 make docker-build-cli   # bake cli
 make docker-build-lsp   # bake lsp
+make docker-build-mcp   # bake mcp
 make docker-build-all   # bake all targets
 make docker-buildx      # bake release (multi-platform)
 make docker-push-ghcr   # gh workflow run ghcr.yml
@@ -108,13 +118,13 @@ docker buildx create --use --name pynescript
 ```bash
 cp .env.example .env   # optional overrides
 
-make docker-up         # api-dev on host :5002
-make docker-up-full    # + redis profile (api + redis)
-make docker-prod       # requires ADMIN_TOKEN; gunicorn, no source mounts
+make docker-up         # api-dev on host :5002 (API only)
+make docker-up-full    # daemons: api + redis + datafeed + mcp
+make docker-prod       # requires ADMIN_TOKEN; gunicorn; all services
 make docker-smoke      # curl http://127.0.0.1:5002/
 make docker-down
 
-# stdio LSP (not a long-running compose service)
+# stdio LSP (interactive)
 docker compose --profile lsp run --rm lsp
 
 # CLI (ephemeral; mounts repo at /work)
@@ -125,13 +135,15 @@ docker compose --profile cli run --rm cli check script.pine
 | Service | Profile | Notes |
 | --- | --- | --- |
 | `api` | default | Port `${API_PORT:-5002}:8080`, ro mounts of `src/` + `backend/`, volume `api_data` → `/data` |
-| `redis` | `redis` | redis:7-alpine, AOF, `${REDIS_PORT:-6379}` |
-| `lsp` | `lsp` | stdio; use `docker compose run --rm lsp` (not detached `up`) |
+| `redis` | default | redis:7-alpine, AOF, **no published ports** (internal network only) |
+| `datafeed` | default | Host `127.0.0.1:${DATAFEED_PORT:-5004}`; same API image; `GET /datafeed/health` |
+| `mcp` | default | Host `127.0.0.1:${MCP_PORT:-5003}`; `PYNE_MCP_TRANSPORT=streamable-http`; `GET /mcp` |
+| `lsp` | `lsp` | stdio; `docker compose run --rm lsp` for interactive; prod `up` also starts it |
 | `cli` | `cli` | `entrypoint-cli.sh` → `pyne`; mounts `.:/work` + `src` + `cli_data` |
 
 Network name: `pynescript-dev`.
 
-Production overlay (`docker-compose.prod.yml`): target `api`, **`volumes: !override`** so only `api_data:/data` remains (dev source binds are dropped), SQLite key store on `/data`, mem/cpu caps, requires `ADMIN_TOKEN`.
+Production overlay (`docker-compose.prod.yml`): target `api`, **`volumes: !override`** so only `api_data:/data` remains (dev source binds are dropped), SQLite key store on `/data`, mem/cpu caps, requires `ADMIN_TOKEN`. **`up --build -d` with no service names** (and profiles `lsp` + `cli`) starts the full project — passing `api` leaves the rest down.
 
 ### Environment variables
 
@@ -140,6 +152,11 @@ Production overlay (`docker-compose.prod.yml`): target `api`, **`volumes: !overr
 | `PORT` | `8080` | Listen port inside the container |
 | `HOST` | `0.0.0.0` | Bind address (dev Flask runner) |
 | `API_PORT` | `5002` | Host port published to container `8080` |
+| `DATAFEED_PORT` | `5004` | Host port for the datafeed daemon (`127.0.0.1`) |
+| `MCP_PORT` | `5003` | Host port for MCP streamable-http (`127.0.0.1`) |
+| `PYNE_MCP_TRANSPORT` | `stdio` (CLI) / `streamable-http` (compose) | MCP listen mode |
+| `PYNE_MCP_HOST` / `PYNE_MCP_PORT` | `127.0.0.1` / `8000` | HTTP bind inside the MCP process (compose: `0.0.0.0` / `8080`) |
+| `GUNICORN_APP` | `backend.app:app` | WSGI target; datafeed sets `backend.datafeed_app:app` |
 | `FLASK_ENV` | `production` / `development` | App mode by target |
 | `STORE_BACKEND` | `json` (prod overlay: `sqlite`) | `json` \| `sqlite` \| `redis` |
 | `API_KEY_STORE` | `/data/api_keys.json` | JSON key store path (`STORE_BACKEND=json`) |
@@ -158,10 +175,11 @@ Production overlay (`docker-compose.prod.yml`): target `api`, **`volumes: !overr
 GitHub Container Registry (workflow **GHCR**, tags `v*`):
 
 ```
-ghcr.io/hoox-sh/pyne/api:0.6.30
-ghcr.io/hoox-sh/pyne/cli:0.6.30
-ghcr.io/hoox-sh/pyne/lsp:0.6.30
-# also :latest on the same three repos after a release push
+ghcr.io/hoox-sh/pyne/api:0.6.31
+ghcr.io/hoox-sh/pyne/cli:0.6.31
+ghcr.io/hoox-sh/pyne/lsp:0.6.31
+ghcr.io/hoox-sh/pyne/mcp:0.6.31
+# also :latest on the same repos after a release push
 ```
 
 ## Internals
@@ -172,7 +190,8 @@ ghcr.io/hoox-sh/pyne/lsp:0.6.30
 2. **builder** — `build-essential`, pip cache mounts, install `backend/requirements.txt` then `pip install ".[lsp]"` into `/install`
 3. **lsp-builder** — `pip install ".[lsp]"` only (no Flask / matplotlib)
 4. **cli-builder** — `pip install ".[compile,data]"` only (no Flask stack)
-5. **runtime / api / api-dev / lsp / cli** — final CMDs / ENTRYPOINTs and healthchecks (`lsp` has none — stdio)
+5. **mcp-builder** — `pip install ".[mcp]"` only (uvicorn arrives with the MCP SDK)
+6. **runtime / api / api-dev / lsp / mcp / cli** — final CMDs / ENTRYPOINTs and healthchecks (`lsp` has none — stdio)
 
 ### `.dockerignore`
 
@@ -180,7 +199,7 @@ Keeps context small by excluding `tests/` (corpus), `docs/`, node modules, compi
 
 ### Compose healthchecks
 
-API: `curl -fsS http://127.0.0.1:8080/`. Redis: `redis-cli ping`.
+API: `curl -fsS http://127.0.0.1:8080/`. Datafeed: `curl -fsS http://127.0.0.1:8080/datafeed/health`. MCP: `GET /mcp` with HTTP 200/400/405/406 treated as live. Redis: `redis-cli ping`.
 
 ## Invariants & edge cases
 
@@ -191,6 +210,8 @@ API: `curl -fsS http://127.0.0.1:8080/`. Redis: `redis-cli ping`.
 5. **LSP is stdio** — not an HTTP service; use `docker compose run --rm lsp` rather than expecting a published port.
 6. **CLI is ephemeral** — `entrypoint-cli.sh` execs `pyne` (fallback `pynescript`); pass subcommands after the image name. Workdir defaults to `/work` (compose mounts the repo there).
 7. **Prod overlay is fail-closed** — `ADMIN_TOKEN` is required (`:?` interpolation); `volumes: !override` drops the dev source binds so only `api_data:/data` remains.
+8. **Datafeed sessions are per-process.** Keep `/datafeed/` (including `WS /datafeed/watch`) on the datafeed service. `GUNICORN_WORKERS` must stay `1`.
+9. **MCP HTTP is localhost by default.** Compose publishes `127.0.0.1:5003`. Stdio remains the CLI/editor default (`PYNE_MCP_TRANSPORT` unset).
 
 ## Worked examples
 
@@ -209,7 +230,7 @@ curl -s http://127.0.0.1:8080/ | jq .
 ### Compose with Redis
 
 ```bash
-docker compose --profile redis up --build
+docker compose up --build
 ```
 
 ### Optional LSP container
@@ -233,7 +254,8 @@ make docker-cli ARGS="run script.pine --bars 50"
 
 ```bash
 export ADMIN_TOKEN=change-me
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+docker compose --profile lsp --profile cli \
+  -f docker-compose.yml -f docker-compose.prod.yml up --build -d
 ```
 
 ## Failure modes

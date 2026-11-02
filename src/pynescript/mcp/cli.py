@@ -82,7 +82,8 @@ def _load_json_opt(raw: str, *, label: str) -> Any:
 def mcp_group(ctx: click.Context) -> None:
     """Run the PYNE MCP server, print client JSON, or call a tool in-process.
 
-    ``pyne mcp`` (no subcommand) serves stdio and needs
+    ``pyne mcp`` (no subcommand) serves MCP (stdio by default; HTTP when
+    ``PYNE_MCP_TRANSPORT`` is ``sse`` or ``streamable-http``) and needs
     ``pip install 'hoox-pyne[mcp]'``. ``config``, ``tools``, and ``call``
     work without the extra.
 
@@ -97,9 +98,9 @@ def mcp_group(ctx: click.Context) -> None:
     """
     if ctx.invoked_subcommand is None:
         try:
-            from pynescript.mcp.server import run_stdio
+            from pynescript.mcp.server import run
 
-            run_stdio()
+            run()
         except ImportError as exc:
             raise click.ClickException(str(exc)) from exc
 

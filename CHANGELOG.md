@@ -1,7 +1,12 @@
 ## [Unreleased]
 
+## [0.6.31] — 2026-11-02
+
 ### Added
 
+- **Compose `datafeed` and `mcp` daemons.** Dedicated CCXT gateway (`backend.datafeed_app`, gunicorn `GUNICORN_APP`) on host `:5004` and PYNE MCP (`streamable-http`) on `:5003`. Both start with `docker compose up` / `make docker-prod`. MCP image is Dockerfile target `mcp`.
+- **GHCR `mcp` image.** `v*` tags publish `ghcr.io/hoox-sh/pyne/{api,cli,lsp,mcp}:X.Y.Z` (and `:latest`). Smoke imports `create_server` plus `mcp` / `uvicorn` because `pynescript.mcp` is lazy.
+- **VS Code extension 0.5.5.** Marketplace / Open VSX / GitHub Release VSIX for the AXIS-matched hover, suggest, and peek chrome.
 - **VS Code TextMate bitwise operators.** The Pine grammar now scopes `&`, `|`, `^`, `~`, `<<`, and `>>` (Pine v6) without changing existing comparison/assignment tokens. `#` line comments highlight only when the rest of the token is not a `#hex` color literal.
 - **VS Code snippets.** `ta.macd`, `ta.bb`, `strategy.exit`, `for ... in` (`pineforin`), `input.color`, `input.timeframe`, and `input.session`.
 - **Extension Development Host launch configs.** F5 **PYNE: Run Extension** / **Extension Tests** (`type: extensionHost`) from the repo root or `vscode-extension/`; `npm run edh` / `test:edh` drive the installed `code` the same way.
@@ -11,9 +16,13 @@
 - **`pynescript.selectSyntax`** is now a contributed command (palette entry was previously dangling).
 - **Extension test runner path** and mocha harness (Electron runner skips the node:test manifest suite).
 - **docker `lsp.command`** with empty args gets a default `docker run -i --rm` GHCR image; convert-to-v6 Python fallback recognizes Windows interpreters.
+- **Prod compose starts every service.** `make docker-prod` and `scripts/deploy_vps.sh` passed `api` (optionally `redis`) to `docker compose up`, which left `lsp`/`cli` down and skipped those image builds. They now `up --build -d` the whole project with profiles `lsp` and `cli`. Redis is a default daemon (ports still unpublished).
+- **Datafeed body cap and session recycle.** Standalone `datafeed_app` rejects bodies over 5 MB (same as the Pro API). Prod datafeed sets `GUNICORN_MAX_REQUESTS=0` so in-process RAM sessions survive worker recycle. Nginx reloads only after api + datafeed are healthy.
 
 ### Changed
 
+- **`pyne-mcp` / `pyne mcp`** honor `PYNE_MCP_TRANSPORT` (`stdio` default, `sse` / `streamable-http` with `PYNE_MCP_HOST` / `PYNE_MCP_PORT`). Compose pins `PYNE_API_URL=http://api:8080` so a host export cannot point the container at production.
+- **VS Code hover / suggest / peek chrome** matches AXIS popovers: 1px hairline, void plates, accent selection, AXIS panel shadow, and inlay / ghost / parameter-hint / menu / notification cards across **AXIS Void**, **Hoox Signal**, and **PYNE Volt**. Hover and completion Markdown share a kind kicker, fenced signature, and docs-link footer.
 - **VS Code extension TypeScript host** split into focused modules (`config`, `syntax`, `install`, `backend`, `lsp`); workbench-theme switching remains off.
 - **Mintlify vscode-extension page** pins `vscode-languageclient` ^11 (matches `vscode-extension/package.json`) and documents **PYNE: Select Syntax Highlighting**, bitwise grammar, and the new snippets. Inlay copy no longer implies type hints or `inlayHint/resolve`.
 - **VS Code command descriptions**, categories (Snippets, Themes), `.pinescript` workspaceContains.

@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "Missing features"
-description: "Known gaps and closed Pine Script™ v6 items — what is implemented, what is partial by design, and what is out of scope. hoox-pyne 0.6.30."
+description: "Known gaps and closed Pine Script™ v6 items — what is implemented, what is partial by design, and what is out of scope. hoox-pyne 0.6.31."
 resource: "docs/pyne/reference/missing-features.mdx"
 tags: [doc, docs, pyne, reference]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-01T22:57:04Z
+  at: 2026-11-02T04:39:16Z
 sources:
   - id: tree
     resource: "docs/pyne/reference/missing-features.mdx"

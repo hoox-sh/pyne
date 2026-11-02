@@ -31,7 +31,7 @@ Legend: ✅ supported · ⚠️ partial / conditional · ❌ not available · �
 | Diagnostics — parse + lint (pull + push) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Diagnostics — style / semantic (opt-in) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Completion (+ resolve, snippets, user symbols) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Hover cards (builtin metadata, user symbols) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Hover cards (AXIS Markdown card + builtin/user docs) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Signature help while typing | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Definition / references / rename (+ prepare) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Document + workspace symbols | ✅ | ✅ | ✅ | ✅ | ✅ |

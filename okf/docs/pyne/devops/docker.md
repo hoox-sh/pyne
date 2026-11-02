@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "Docker"
-description: "Buildx multi-target images and Compose profiles for the PYNE Pro API."
+description: "Buildx multi-target images and Compose profiles for the PYNE Pro API, datafeed, MCP, CLI, and LSP."
 resource: "docs/pyne/devops/docker.mdx"
 tags: [devops, doc, docs, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-18T20:54:58Z
+  at: 2026-11-02T04:39:16Z
 sources:
   - id: tree
     resource: "docs/pyne/devops/docker.mdx"

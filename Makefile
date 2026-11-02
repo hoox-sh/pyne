@@ -4,7 +4,7 @@
 # Makefile for pyne (Pine Script Python toolchain) development
 
 .PHONY: help install test lint fmt build run clean \
-	docker-build docker-build-cli docker-build-lsp docker-build-all docker-buildx docker-push-ghcr docker-run \
+	docker-build docker-build-cli docker-build-lsp docker-build-mcp docker-build-all docker-buildx docker-push-ghcr docker-run \
 	docker-up docker-up-full docker-prod docker-down docker-logs docker-smoke \
 	docker-cli \
 	test-lsp test-backend test-cli typecheck build-check build-cli build-package \
@@ -38,13 +38,14 @@ help:
 	@echo "  run-lsp          Language server (stdio)"
 	@echo "  docker-build     buildx bake production API image (load)"
 	@echo "  docker-build-cli buildx bake CLI image (load)"
-	@echo "  docker-build-all buildx bake api + api-dev + lsp + cli"
+	@echo "  docker-build-mcp bake MCP image (load)"
+	@echo "  docker-build-all bake api + api-dev + lsp + cli + mcp"
 	@echo "  docker-buildx    multi-platform release bake (amd64+arm64)"
-	@echo "  docker-push-ghcr trigger GHCR workflow (api+cli+lsp multi-arch)"
+	@echo "  docker-push-ghcr trigger GHCR workflow (api+cli+lsp+mcp multi-arch)"
 	@echo "  docker-cli       run CLI in container (ARGS=... e.g. check x.pine)"
-	@echo "  docker-up        compose up API (dev target, port 5002)"
-	@echo "  docker-up-full   compose up with redis profile (not lsp)"
-	@echo "  docker-prod      compose prod overlay (gunicorn, no source mounts)"
+	@echo "  docker-up        compose up API only (dev target, port 5002)"
+	@echo "  docker-up-full   compose up daemons (api redis datafeed mcp)"
+	@echo "  docker-prod      compose prod overlay, all services (api redis datafeed mcp lsp cli)"
 	@echo "  docker-down      compose down"
 	@echo "  docker-logs      follow API logs"
 	@echo "  docker-smoke     health-check curl against :5002"
@@ -178,6 +179,9 @@ docker-build-cli:
 docker-build-lsp:
 	docker buildx bake lsp $(BAKE_ARGS)
 
+docker-build-mcp:
+	docker buildx bake mcp $(BAKE_ARGS)
+
 docker-build-all:
 	docker buildx bake all $(BAKE_ARGS)
 
@@ -188,7 +192,7 @@ docker-buildx:
 docker-push-ghcr:
 	gh workflow run ghcr.yml -R hoox-sh/pyne
 	@echo "Watch: gh run watch -R hoox-sh/pyne"
-	@echo "Images: ghcr.io/hoox-sh/pyne/api  ghcr.io/hoox-sh/pyne/cli  ghcr.io/hoox-sh/pyne/lsp"
+	@echo "Images: ghcr.io/hoox-sh/pyne/api  ghcr.io/hoox-sh/pyne/cli  ghcr.io/hoox-sh/pyne/lsp  ghcr.io/hoox-sh/pyne/mcp"
 
 docker-up:
 	GIT_SHA=$(GIT_SHA) PYNESCRIPT_VERSION=$(PYNESCRIPT_VERSION) docker compose up --build -d api
@@ -204,15 +208,16 @@ docker-cli:
 	GIT_SHA=$(GIT_SHA) PYNESCRIPT_VERSION=$(PYNESCRIPT_VERSION) \
 		docker compose --profile cli run --rm cli $(ARGS)
 
-# Redis only — LSP/CLI are ephemeral; start with `docker compose run --rm lsp|cli`
+# Daemons (api + redis + datafeed + mcp). LSP/CLI stay profiled.
 docker-up-full:
 	GIT_SHA=$(GIT_SHA) PYNESCRIPT_VERSION=$(PYNESCRIPT_VERSION) \
-		docker compose --profile redis up --build -d
+		docker compose up --build -d
 
 docker-prod:
 	@test -n "$${ADMIN_TOKEN:-}" || (echo "Set ADMIN_TOKEN for production compose" >&2; exit 1)
 	GIT_SHA=$(GIT_SHA) PYNESCRIPT_VERSION=$(PYNESCRIPT_VERSION) \
-		docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d api
+		docker compose --profile redis --profile lsp --profile cli \
+		-f docker-compose.yml -f docker-compose.prod.yml up --build -d
 
 docker-down:
 	docker compose --profile redis --profile lsp --profile cli down

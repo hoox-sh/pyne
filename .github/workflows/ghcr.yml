@@ -7,6 +7,7 @@
 #   ghcr.io/hoox-sh/pyne/api:<version>  (and :latest on tags / default dispatch)
 #   ghcr.io/hoox-sh/pyne/cli:<version>
 #   ghcr.io/hoox-sh/pyne/lsp:<version>
+#   ghcr.io/hoox-sh/pyne/mcp:<version>
 #
 # Triggers:
 #   - push of v* tags
@@ -55,6 +56,8 @@ jobs:
             image: cli
           - target: lsp
             image: lsp
+          - target: mcp
+            image: mcp
     steps:
       - uses: actions/checkout@v7
 
@@ -143,3 +146,12 @@ jobs:
           IMG="${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}"
           docker run --rm --platform linux/amd64 --network=none --entrypoint python "$IMG" \
             -c "import pynescript.langserver; print('lsp-ok')"
+
+      - name: Smoke MCP (amd64, version tag)
+        if: matrix.image == 'mcp'
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMG="${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}"
+          docker run --rm --platform linux/amd64 --network=none --entrypoint python "$IMG" \
+            -c "from pynescript.mcp.server import create_server; create_server(); import mcp, uvicorn; print('mcp-ok')"

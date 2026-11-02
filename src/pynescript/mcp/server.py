@@ -530,9 +530,37 @@ def create_server() -> Any:
     return mcp
 
 
+_HTTP_TRANSPORTS = frozenset({"sse", "streamable-http"})
+
+
+def serve_kwargs_from_env() -> tuple[str, dict[str, Any]]:
+    """Read ``PYNE_MCP_TRANSPORT`` / ``HOST`` / ``PORT`` for ``MCPServer.run``.
+
+    Default is stdio (CLI / editor hosts). Compose sets
+    ``PYNE_MCP_TRANSPORT=streamable-http`` and ``PYNE_MCP_HOST=0.0.0.0``.
+    """
+    import os
+
+    transport = (os.environ.get("PYNE_MCP_TRANSPORT") or "stdio").strip() or "stdio"
+    if transport != "stdio" and transport not in _HTTP_TRANSPORTS:
+        msg = f"Unknown PYNE_MCP_TRANSPORT={transport!r} (stdio|sse|streamable-http)"
+        raise ValueError(msg)
+    if transport == "stdio":
+        return transport, {}
+    host = (os.environ.get("PYNE_MCP_HOST") or "127.0.0.1").strip() or "127.0.0.1"
+    port_raw = (os.environ.get("PYNE_MCP_PORT") or "8000").strip() or "8000"
+    return transport, {"host": host, "port": int(port_raw)}
+
+
 def run_stdio() -> None:
     """Serve MCP over stdio (``pyne-mcp`` / ``pyne mcp``)."""
     create_server().run(transport="stdio")
+
+
+def run() -> None:
+    """Serve MCP using ``PYNE_MCP_TRANSPORT`` (stdio default)."""
+    transport, kwargs = serve_kwargs_from_env()
+    create_server().run(transport=transport, **kwargs)  # type: ignore[arg-type]
 
 
 def client_config(*, module: bool = False) -> dict[str, Any]:

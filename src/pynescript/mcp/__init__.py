@@ -17,7 +17,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""PYNE Model Context Protocol server (stdio).
+"""PYNE Model Context Protocol server (stdio or HTTP).
 
 Install the extra::
 
@@ -32,11 +32,19 @@ from __future__ import annotations
 from typing import Any
 
 
-__all__ = ["call_tool", "client_config", "create_server", "resolve_tool_name", "run_stdio"]
+__all__ = [
+    "call_tool",
+    "client_config",
+    "create_server",
+    "resolve_tool_name",
+    "run",
+    "run_stdio",
+    "serve_kwargs_from_env",
+]
 
 
 def __getattr__(name: str) -> Any:
-    if name in {"client_config", "create_server", "run_stdio"}:
+    if name in {"client_config", "create_server", "run", "run_stdio", "serve_kwargs_from_env"}:
         from pynescript.mcp import server as mcp_server
 
         return getattr(mcp_server, name)

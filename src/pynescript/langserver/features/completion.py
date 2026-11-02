@@ -56,6 +56,7 @@ from pynescript.langserver.providers.completion_items import build_enum_name_ite
 from pynescript.langserver.providers.completion_items import build_keyword_items
 from pynescript.langserver.providers.completion_items import build_module_completion
 from pynescript.langserver.providers.completion_items import collect_user_enums
+from pynescript.langserver.providers.docs_card import format_docs_card
 
 
 logger = logging.getLogger(__name__)
@@ -314,7 +315,11 @@ def _builtin_variable_items(prefix: str) -> list[lsp.CompletionItem]:
                 detail=type_label,
                 documentation=lsp.MarkupContent(
                     kind=lsp.MarkupKind.Markdown,
-                    value=f"Built-in variable (`{type_label}`).",
+                    value=format_docs_card(
+                        kind="variable",
+                        fence=f"{name}: {type_label}",
+                        body=f"Built-in variable (`{type_label}`).",
+                    ),
                 ),
                 insert_text=name,
                 insert_text_format=lsp.InsertTextFormat.PlainText,
@@ -328,7 +333,11 @@ def _builtin_variable_items(prefix: str) -> list[lsp.CompletionItem]:
 def _symbol_item(symbol: Symbol, *, snippets: bool) -> lsp.CompletionItem:
     kind = _SYMBOL_KINDS.get(symbol.kind, lsp.CompletionItemKind.Variable)
     detail = symbol.signature or symbol.type_label or symbol.kind
-    documentation = "\n\n".join(symbol.annotations) if symbol.annotations else f"User-defined {symbol.kind}."
+    documentation = format_docs_card(
+        kind=symbol.kind,
+        fence=detail,
+        body="\n\n".join(symbol.annotations) if symbol.annotations else f"User-defined {symbol.kind}.",
+    )
     insert_text = symbol.name
     insert_format = lsp.InsertTextFormat.PlainText
     if symbol.kind in {"function", "method"} and isinstance(symbol.node, ast.FunctionDef):
@@ -382,7 +391,11 @@ def _type_constructor_items(symbol: Symbol, *, snippets: bool) -> list[lsp.Compl
             detail=f"{symbol.name}.new(...)",
             documentation=lsp.MarkupContent(
                 kind=lsp.MarkupKind.Markdown,
-                value=f"Create a new `{symbol.name}` value.",
+                value=format_docs_card(
+                    kind="constructor",
+                    fence=f"{symbol.name}.new(...)",
+                    body=f"Create a new `{symbol.name}` value.",
+                ),
             ),
             insert_text=insert,
             insert_text_format=lsp.InsertTextFormat.Snippet if snippets and fields else lsp.InsertTextFormat.PlainText,
@@ -412,7 +425,13 @@ def _member_items(members: list[Symbol], prefix: str, *, snippets: bool) -> list
                 detail=symbol.signature or symbol.type_label or symbol.kind,
                 documentation=lsp.MarkupContent(
                     kind=lsp.MarkupKind.Markdown,
-                    value="\n\n".join(symbol.annotations) if symbol.annotations else f"User-defined {symbol.kind}.",
+                    value=format_docs_card(
+                        kind=symbol.kind,
+                        fence=symbol.signature or symbol.type_label or symbol.name,
+                        body="\n\n".join(symbol.annotations)
+                        if symbol.annotations
+                        else f"User-defined {symbol.kind}.",
+                    ),
                 ),
                 insert_text=insert_text,
                 insert_text_format=insert_format,

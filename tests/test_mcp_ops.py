@@ -23,6 +23,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from pynescript.mcp.catalog import TOOL_NAMES
 from pynescript.mcp.dispatch import call_tool
 from pynescript.mcp.dispatch import parse_kv
@@ -48,6 +50,7 @@ from pynescript.mcp.serialize import jsonable
 from pynescript.mcp.serialize import split_plots
 from pynescript.mcp.serialize import strip_secrets
 from pynescript.mcp.server import client_config
+from pynescript.mcp.server import serve_kwargs_from_env
 
 
 MINI = """//@version=5
@@ -80,6 +83,30 @@ def test_client_config() -> None:
     assert cfg["mcpServers"]["pyne"]["command"] == "pyne-mcp"
     mod = client_config(module=True)
     assert mod["mcpServers"]["pyne"]["args"] == ["-m", "pynescript.mcp"]
+
+
+def test_serve_kwargs_from_env_stdio_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("PYNE_MCP_TRANSPORT", raising=False)
+    monkeypatch.delenv("PYNE_MCP_HOST", raising=False)
+    monkeypatch.delenv("PYNE_MCP_PORT", raising=False)
+    transport, kwargs = serve_kwargs_from_env()
+    assert transport == "stdio"
+    assert kwargs == {}
+
+
+def test_serve_kwargs_from_env_streamable_http(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PYNE_MCP_TRANSPORT", "streamable-http")
+    monkeypatch.setenv("PYNE_MCP_HOST", "0.0.0.0")  # noqa: S104 — compose bind
+    monkeypatch.setenv("PYNE_MCP_PORT", "8080")
+    transport, kwargs = serve_kwargs_from_env()
+    assert transport == "streamable-http"
+    assert kwargs == {"host": "0.0.0.0", "port": 8080}  # noqa: S104
+
+
+def test_serve_kwargs_from_env_unknown(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PYNE_MCP_TRANSPORT", "websocket")
+    with pytest.raises(ValueError, match="Unknown PYNE_MCP_TRANSPORT"):
+        serve_kwargs_from_env()
 
 
 def test_parse_ok() -> None:

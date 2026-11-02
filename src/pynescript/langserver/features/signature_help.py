@@ -43,6 +43,7 @@ from pynescript.langserver.analysis import ensure_symbol_index
 from pynescript.langserver.protocol.utils import offset_from_position
 from pynescript.langserver.protocol.utils import trailing_ident
 from pynescript.langserver.providers.builtin_metadata import get_builtin
+from pynescript.langserver.providers.docs_card import format_docs_card
 
 
 logger = logging.getLogger(__name__)
@@ -382,7 +383,10 @@ def _signature_from_builtin(
     brief = (info.get("brief") or info.get("documentation") or "").strip()
     documentation = None
     if brief:
-        documentation = lsp.MarkupContent(kind=lsp.MarkupKind.Markdown, value=brief)
+        documentation = lsp.MarkupContent(
+            kind=lsp.MarkupKind.Markdown,
+            value=format_docs_card(kind="function", body=brief),
+        )
     label = f"{name}({', '.join(labels)})" if labels else _signature_label(name, info, labels)
     return lsp.SignatureInformation(
         label=label,

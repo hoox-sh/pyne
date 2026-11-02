@@ -97,7 +97,7 @@ See `docs/pyne/devops/pypi-publish.mdx` for failure modes.
 5. GitHub Actions on `v*` tags:
    - **Publish** (`publish.yml`) — sdist/wheel → PyPI (`hoox_pyne-*.whl` / `hoox_pyne-*.tar.gz`) via `PYPI_API_TOKEN` or Trusted Publishing OIDC (environment `pypi`).
    - **Build & Release** (`release.yml`) — Nuitka CLI/LSP binaries + VSIX; GitHub Release notes from the matching `CHANGELOG.md` `## [X.Y.Z]` section.
-   - **GHCR** (`ghcr.yml`) — `ghcr.io/hoox-sh/pyne/{cli,lsp,api}:X.Y.Z`.
+   - **GHCR** (`ghcr.yml`) — `ghcr.io/hoox-sh/pyne/{cli,lsp,api,mcp}:X.Y.Z`.
 
 Dry-run (build only, no upload): Actions → **Publish** → Run workflow → `dry_run=true`.
 

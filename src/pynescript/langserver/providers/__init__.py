@@ -23,6 +23,7 @@ Modules:
 
 - :mod:`.builtin_metadata` — load/cache Pine Script builtin docs (JSON / encrypted)
 - :mod:`.completion_items` — build :class:`~lsprotocol.types.CompletionItem` lists
+- :mod:`.docs_card` — shared Markdown card for hover / suggest / signature docs
 - :mod:`.metadata_decrypt` — Fernet decrypt of ``builtin_metadata.json.enc``
 
 Feature handlers (completion, hover, inlay types) import these modules by name;

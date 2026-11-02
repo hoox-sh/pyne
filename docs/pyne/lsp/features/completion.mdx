@@ -26,7 +26,7 @@ description: "textDocument/completion and completionItem/resolve from builtin me
 
 ## Abstract
 
-Completion combines three static sources: builtin metadata (plaintext JSON in development, Fernet-encrypted in compiled binaries), **Pine keywords**, and the **scope-aware symbol index** built from the workspace AST. The index supplies local variables, parameters, functions, methods, UDT fields, enum types/members, and imports. Member completion (`p.`) is type-directed: the receiver type is inferred conservatively and only real fields/methods are offered. Resolve re-hydrates documentation for a single builtin item.
+Completion combines three static sources: builtin metadata (plaintext JSON in development, Fernet-encrypted in compiled binaries), **Pine keywords**, and the **scope-aware symbol index** built from the workspace AST. The index supplies local variables, parameters, functions, methods, UDT fields, enum types/members, and imports. Member completion (`p.`) is type-directed: the receiver type is inferred conservatively and only real fields/methods are offered. Resolve re-hydrates documentation for a single builtin item. Builtin, keyword, and user-item docs use the same AXIS Markdown card as hover (kind kicker, fenced signature, Pine v6 footer).
 
 ## Conceptual model
 

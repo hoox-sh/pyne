@@ -3,8 +3,10 @@
 #
 # Production-ish overlay for the Pro API.
 #
-#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+#   docker compose --profile lsp --profile cli \
+#     -f docker-compose.yml -f docker-compose.prod.yml up --build -d
 #
+# No service-name filter — `up -d api` is what left redis/lsp/cli down.
 # No source mounts (volumes: !override); gunicorn via target `api`; tighter limits.
 # Multi-worker key store defaults to SQLite on the shared /data volume.
 
@@ -29,7 +31,7 @@ services:
       API_KEY_STORE_SQLITE: /data/api_keys.db
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://hoox.sh,https://hoox.sh/axis,https://pynescript.ai,https://app.pynescript.ai}
       ADMIN_TOKEN: ${ADMIN_TOKEN:?ADMIN_TOKEN must be set for production compose}
-      # Only set when STORE_BACKEND=redis (and redis profile / Memorystore is up)
+      # Only set when STORE_BACKEND=redis (compose redis / Memorystore)
       REDIS_URL: ${REDIS_URL:-}
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-1} # 1 = live sessions stay correct (see entrypoint-api.sh)
       # Hard-pin gthread: flask-sock hijacks gunicorn.socket. A leftover
@@ -62,3 +64,67 @@ services:
     restart: unless-stopped
     mem_limit: ${API_MEM_LIMIT:-1g}
     cpus: ${API_CPUS:-1.0}
+    depends_on:
+      redis:
+        condition: service_healthy
+        required: true
+
+  redis:
+    # Always on in prod (base used to hide this behind profile `redis`).
+    profiles: !override []
+
+  lsp:
+    # Image-only: drop the dev `./src` bind so PYTHONPATH uses the baked package.
+    volumes: !override []
+
+  cli:
+    volumes: !override
+      - cli_data:/data
+
+  datafeed:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+      args:
+        PYNESCRIPT_VERSION: ${PYNESCRIPT_VERSION:-0.6.7}
+        GIT_SHA: ${GIT_SHA:-unknown}
+    image: pynescript-api:${TAG:-latest}
+    entrypoint: ["/usr/local/bin/entrypoint-api.sh"]
+    command: !override []
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8080"
+      FLASK_ENV: production
+      FLASK_DEBUG: "0"
+      GUNICORN_APP: backend.datafeed_app:app
+      GUNICORN_WORKERS: "1"
+      GUNICORN_WORKER_CLASS: gthread
+      GUNICORN_THREADS: ${GUNICORN_THREADS:-100}
+      GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-120}
+      GUNICORN_MAX_REQUESTS: "0"
+      GUNICORN_MAX_REQUESTS_JITTER: ${GUNICORN_MAX_REQUESTS_JITTER:-200}
+      PYTHONPATH: /app/src:/app
+    volumes: !override []
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/datafeed/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    mem_limit: ${DATAFEED_MEM_LIMIT:-512m}
+    cpus: ${DATAFEED_CPUS:-0.5}
+
+  mcp:
+    volumes: !override []
+    environment:
+      PYNE_MCP_TRANSPORT: streamable-http
+      PYNE_MCP_HOST: "0.0.0.0"
+      PYNE_MCP_PORT: "8080"
+      PYNE_API_URL: http://api:8080
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?ADMIN_TOKEN must be set for production compose}
+      PYTHONPATH: /app/src
+    restart: unless-stopped
+    mem_limit: ${MCP_MEM_LIMIT:-256m}
+    cpus: ${MCP_CPUS:-0.25}

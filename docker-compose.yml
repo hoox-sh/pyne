@@ -3,14 +3,22 @@
 
 # Local development stack for the PYNE Pro API + CLI.
 #
-#   docker compose up --build api
-#   PYNE_RUNNER=1 PYNE_RUNNER_SCHEDULER=1 docker compose up --build api
-#   docker compose --profile redis up --build
+#   docker compose up --build                 # daemons: api + redis + datafeed + mcp
+#   PYNE_RUNNER=1 PYNE_RUNNER_SCHEDULER=1 docker compose up --build
+#   docker compose --profile lsp --profile cli up --build -d   # + lsp + cli
 #   docker compose --profile lsp run --rm lsp
 #   docker compose --profile cli run --rm cli check script.pine
-#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+#   docker compose --profile lsp --profile cli \
+#     -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+#
+# Do not pass a service name to `up` (e.g. `api` only). That leaves the rest of
+# the project down. `lsp` / `cli` stay behind profiles because they are
+# stdio / one-shot; prod and deploy enable those profiles so the images build
+# and the services start with the stack. `datafeed` and `mcp` are default
+# daemons (like api/redis).
 #
 # Host port defaults to 5002 (AXIS / local docs expect the API there).
+# Datafeed :5004 and MCP :5003 bind 127.0.0.1 (nginx is the public path).
 
 name: pynescript
 
@@ -59,7 +67,7 @@ services:
     restart: unless-stopped
     networks:
       - pynescript
-    # When the redis profile is active, wait for it; otherwise ignore.
+    # Wait for redis when it is in the project; required: false so `up api` still works.
     depends_on:
       redis:
         condition: service_healthy
@@ -67,8 +75,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    profiles:
-      - redis
+    # Default daemon (no profile): `compose up` must start redis with api.
     # No published ports: the key store must never be reachable from the
     # internet (an exposed Redis is wiped within hours — FLUSHALL + cron
     # miner payloads). The API reaches it over the internal network.
@@ -145,6 +152,85 @@ services:
       - ALL
     # Ephemeral — do not restart; use `compose run --rm`
     restart: "no"
+    networks:
+      - pynescript
+
+  # Dedicated CCXT gateway. Same blueprint as the Pro API; RAM sessions live
+  # in this process only — nginx /datafeed/ and /datafeed/watch must hit here.
+  datafeed:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api-dev
+      args:
+        PYNESCRIPT_VERSION: ${PYNESCRIPT_VERSION:-0.6.7}
+        GIT_SHA: ${GIT_SHA:-dev}
+    image: pynescript-api:dev
+    command: ["python", "-m", "backend.datafeed_app"]
+    ports:
+      - "127.0.0.1:${DATAFEED_PORT:-5004}:8080"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8080"
+      FLASK_ENV: development
+      FLASK_DEBUG: "${FLASK_DEBUG:-1}"
+      PYTHONPATH: /app/src:/app
+    volumes:
+      - ./src:/app/src:ro
+      - ./backend:/app/backend:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/datafeed/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - pynescript
+
+  # PYNE MCP over streamable-http. Language tools are in-process; runner tools
+  # call the Pro API. Bind localhost — do not publish 5003 on the public NIC.
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: mcp
+      args:
+        PYNESCRIPT_VERSION: ${PYNESCRIPT_VERSION:-0.6.7}
+        GIT_SHA: ${GIT_SHA:-dev}
+    image: pynescript-mcp:latest
+    ports:
+      - "127.0.0.1:${MCP_PORT:-5003}:8080"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PYNE_MCP_TRANSPORT: streamable-http
+      PYNE_MCP_HOST: "0.0.0.0"
+      PYNE_MCP_PORT: "8080"
+      PYNE_API_URL: "http://api:8080"
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      PYTHONPATH: /app/src
+    volumes:
+      - ./src:/app/src:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "code=$$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/mcp); echo $$code | grep -Eq '^(200|400|405|406)$$'",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+        required: false
     networks:
       - pynescript
 

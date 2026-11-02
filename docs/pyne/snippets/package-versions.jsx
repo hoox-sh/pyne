@@ -8,10 +8,10 @@
 
 /* VERSIONS_FALLBACK_START */
 const FALLBACK = {
-  "hoox-pyne": "0.6.30",
+  "hoox-pyne": "0.6.31",
   "@hoox-sh/pynets": "0.5.0",
-  "hoox-sh.pyne": "0.5.4",
-  "ghcr.io/hoox-sh/pyne": "0.6.30"
+  "hoox-sh.pyne": "0.5.5",
+  "ghcr.io/hoox-sh/pyne": "0.6.31"
 }
 /* VERSIONS_FALLBACK_END */
 
@@ -36,7 +36,7 @@ const ROWS = [
   },
   {
     key: "ghcr.io/hoox-sh/pyne",
-    label: "ghcr.io/hoox-sh/pyne/{api,cli,lsp}",
+    label: "ghcr.io/hoox-sh/pyne/{api,cli,lsp,mcp}",
     via: "GHCR",
     href: "https://github.com/orgs/hoox-sh/packages?repo_name=pyne",
   },

@@ -3,7 +3,7 @@
 # Concepts
 
 * [Continuous integration](ci.md) - GitHub Actions for lint, Python 3.10–3.13 tests, package build, Docker api+cli smoke, and VS Code extension.
-* [Docker](docker.md) - Buildx multi-target images and Compose profiles for the PYNE Pro API.
+* [Docker](docker.md) - Buildx multi-target images and Compose profiles for the PYNE Pro API, datafeed, MCP, CLI, and LSP.
 * [DevOps](index.md) - CI matrices, containers, Nuitka LSP binaries, metadata crypto, and operational invariants for PYNE.
 * [Local development](local-dev.md) - Install, test, lint, package, and run PYNE — Make targets after AXIS extraction.
 * [Metadata encryption](metadata-crypto.md) - Fernet-encrypted LSP builtinmetadata.json — key lifecycle, CI secrets, integrity hashes, and runtime decrypt.

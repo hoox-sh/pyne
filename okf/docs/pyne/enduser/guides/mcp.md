@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "MCP (agents)"
-description: "PYNE MCP: stdio pyne-mcp for LLM hosts, plus in-process pyne mcp call and pyne execute (Runtime.run) with no extra."
+description: "PYNE MCP: stdio or HTTP pyne-mcp for LLM hosts, plus in-process pyne mcp call and pyne execute (Runtime.run) with no extra."
 resource: "docs/pyne/enduser/guides/mcp.mdx"
 tags: [doc, docs, enduser, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-19T20:09:51Z
+  at: 2026-11-02T04:39:16Z
 sources:
   - id: tree
     resource: "docs/pyne/enduser/guides/mcp.mdx"

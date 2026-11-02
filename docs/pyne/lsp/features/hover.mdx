@@ -76,6 +76,8 @@ flowchart LR
 ### Builtin card structure
 
 ````markdown
+*function*
+
 ```pinescript
 {signature}
 ```
@@ -83,14 +85,15 @@ flowchart LR
 {brief}
 
 **Parameters:** …   (when metadata includes params)
-
----
 {first documentation paragraph, ≤500 chars}
-
 **Example:** …
 **See also:** `ta.ema`, …
+
+---
 [Pine v6: ta.sma](https://www.tradingview.com/pine-script-reference/v6/#fun_ta.sma)
 ````
+
+Kind kickers (`*function*`, `*namespace*`, `*type*`, `*qualifier*`, `*keyword*`, …) plus the fenced signature are shared with completion docs so hover and the suggest extra panel read as the same AXIS card.
 
 Examples and related maps are **hardcoded** for a small high-value set (`ta.sma`, `ta.ema`, `ta.rsi`, `ta.macd`, strategy entry/exit, etc.). Others show signature + brief (and the docs link when the label is dotted).
 

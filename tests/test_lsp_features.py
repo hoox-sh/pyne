@@ -129,6 +129,11 @@ class TestCompletionList:
         assert item.label == "ta.sma"
         assert item.kind == lsp.CompletionItemKind.Function
         assert hasattr(item, "detail")
+        assert isinstance(item.documentation, lsp.MarkupContent)
+        docs = item.documentation.value
+        assert docs.startswith("*function*")
+        assert "```pinescript" in docs
+        assert "pine-script-reference" in docs
 
 
 class TestCompletionHandler:
@@ -667,6 +672,42 @@ plot(bb(close))
         assert _build_docs_link("") == ""
         assert _build_docs_link("sma") == ""
         assert _build_docs_link("   ") == ""
+
+    def test_handle_hover_card_kicker(self) -> None:
+        """Hover cards share the AXIS kicker + fence + footer shape."""
+        source = "//@version=6\nindicator('T')\nplot(ta.sma(close, 14))\n"
+        sma = handle_hover(
+            lsp.HoverParams(
+                text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+                position=lsp.Position(line=2, character=10),
+            ),
+            source,
+        )
+        assert sma is not None
+        assert isinstance(sma.contents, lsp.MarkupContent)
+        sma_text = sma.contents.value
+        assert sma_text.startswith("*function*")
+        assert "```pinescript" in sma_text
+        assert sma_text.index("---") < sma_text.index("pine-script-reference")
+
+        ns = handle_hover(
+            lsp.HoverParams(
+                text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+                position=lsp.Position(line=2, character=5),
+            ),
+            source,
+        )
+        assert ns is not None
+        assert isinstance(ns.contents, lsp.MarkupContent)
+        assert ns.contents.value.startswith("*namespace*")
+        assert "pine-script-reference" not in ns.contents.value
+
+    def test_format_docs_card_skips_empty_pieces(self) -> None:
+        from pynescript.langserver.providers.docs_card import format_docs_card
+
+        assert format_docs_card() == ""
+        card = format_docs_card(kind="type", fence="float", body="Floating-point numeric value.")
+        assert card == "*type*\n\n```pinescript\nfloat\n```\n\nFloating-point numeric value.\n"
 
 
 class TestDefinitionHandler:

@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-01T21:14:04Z
+  at: 2026-11-02T04:39:16Z
 sources:
   - id: tree
     resource: "tests"
@@ -61,6 +61,7 @@ okf_lock: generated
 * `test_corpus_sanitize_unit.py` — test_block_comment_and_string_state, test_dedent_rst_literal_and_docs_nav, test_extract_fenced_heredoc_and_tv_blocks, test_fix_truncated_and_empty_script_helpers, test_looks_like_prose_and_pine_start, test_mustache_replacements, test_normalize_chrome_and_html_comments, test_polish_and_semicolon_and_unicode_ops, test_provenance_split_and_compose, test_sanitize_tiny_strings_many_branches, test_score_and_foreign_detection, test_strip_line_chrome_drops_ui_noise
 * `test_data_series.py` — FakeExchange, TestAuth, TestCanonicalKey, TestDataSessionCreate, TestDataSessionTick, TestFetch, TestSeriesRoutes, TestSeriesStore, bar, bound, candle, client
 * `test_datafeed.py` — DummyProExchange, test_ccxtpro_fetch_latest_fills_poll_cache, test_ccxtpro_poll_ohlcv_none_without_cache, test_ccxtpro_poll_ohlcv_returns_cached_watch_sample, test_ccxtpro_sync_wrappers, test_composite_fallback, test_datafeed_broker, test_evaluator_with_datafeed_request_security, test_get_datafeed_mock, test_get_datafeed_unknown, test_mock_datafeed_streams, test_mock_poll_ohlcv_scripted_no_sleep
+* `test_datafeed_app.py` — client, test_cors_echoes_origin, test_health_and_root, test_max_content_length_is_capped, test_options_preflight, test_pro_api_routes_are_absent
 * `test_datafeed_gateway.py` — TestCandleHelpers, TestCcxtProviderPassThrough, TestHealth, TestMarkets, TestOhlcv, TestRunSecretRefusal, TestSession, TestWatchRestPoll, client
 * `test_datafeed_util_coverage.py` — test_chart_ohlcv_provider_symbol_matching, test_composite_poll_prefers_primary_then_fallback, test_get_datafeed_mock_kwargs, test_mock_async_streams_close, test_mock_data_provider_periods_and_quotes, test_mock_datafeed_sync_helpers, test_normalize_ccxt_and_geo_and_tune, test_poll_forming_ohlcv_flat_and_nested, test_poll_forming_ohlcv_malformed, test_poll_forming_ohlcv_mock_scripted_and_synthetic, test_poll_forming_ohlcv_none_and_missing, test_resolve_request_sources_alphavantage_and_explicit
 * `test_datafeed_wiring.py` — test_chart_ohlcv_provider_fetch, test_composite_sync_fetch_delegates, test_evaluator_chart_provider_security_matches_bars, test_get_datafeed_mock_factory, test_resolve_request_sources_chart_default, test_resolve_request_sources_mock_feed, test_runtime_auto_wires_chart_provider_for_request_security, test_runtime_with_explicit_mock_feed

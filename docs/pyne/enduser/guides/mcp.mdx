@@ -19,20 +19,20 @@
 
 ---
 title: "MCP (agents)"
-description: "PYNE MCP: stdio pyne-mcp for LLM hosts, plus in-process pyne mcp call and pyne execute (Runtime.run) with no extra."
+description: "PYNE MCP: stdio or HTTP pyne-mcp for LLM hosts, plus in-process pyne mcp call and pyne execute (Runtime.run) with no extra."
 ---
 
 # MCP (agents)
 
 ## Abstract
 
-The **PYNE MCP server** exposes the Pine toolchain to LLM hosts (Cursor, Claude, Inspector, Grok) over stdio. The same tools run from the shell with **`pyne mcp call`** and first-class **`pyne execute`** (no MCP SDK). Tools call library APIs in-process — they do not shell out. Stdio serving needs `hoox-pyne[mcp]`; `call` / `execute` / `config` / `tools` do not. Tool names are prefixed `pyne_` so they never collide with AXIS `axis_*` / `app_*`.
+The **PYNE MCP server** exposes the Pine toolchain to LLM hosts (Cursor, Claude, Inspector, Grok) over stdio by default, or over HTTP (`sse` / `streamable-http`) when `PYNE_MCP_TRANSPORT` is set. The same tools run from the shell with **`pyne mcp call`** and first-class **`pyne execute`** (no MCP SDK). Tools call library APIs in-process — they do not shell out. Serving needs `hoox-pyne[mcp]`; `call` / `execute` / `config` / `tools` do not. Tool names are prefixed `pyne_` so they never collide with AXIS `axis_*` / `app_*`. Compose publishes streamable-http on host `:5003`.
 
 ## Conceptual model
 
 ```mermaid
 flowchart LR
-  A[MCP host] -->|stdio JSON-RPC| S[pyne-mcp]
+  A[MCP host] -->|stdio or HTTP| S[pyne-mcp]
   CLI["pyne mcp call / pyne execute"] --> D[dispatch.call_tool]
   S --> O[pynescript.mcp.ops]
   D --> O
@@ -61,6 +61,10 @@ pyne execute script.pine --mode interpret --bars 50
 pyne mcp                 # stdio (blocks)
 pyne-mcp                 # same as pyne mcp
 python -m pynescript.mcp
+
+# GHCR streamable-http image (compose also starts this as service mcp)
+docker pull ghcr.io/hoox-sh/pyne/mcp:0.6.31
+docker run --rm -p 5003:8080 ghcr.io/hoox-sh/pyne/mcp:0.6.31
 ```
 
 ```json
@@ -91,6 +95,7 @@ Catalog: [MCP tools](/pyne/docs/enduser/reference/mcp-tools).
 - `src/pynescript/mcp/ops/` — library-backed operations
 - Extra: `[mcp]` in `pyproject.toml` (`mcp>=2.0,<3`, `lsprotocol`); surfaces `pyne-mcp` / `pyne mcp`
 - Entry: `pyne-mcp = pynescript.mcp.__main__:main`
+- Transport: `PYNE_MCP_TRANSPORT` (`stdio` default, `sse`, `streamable-http`) plus `PYNE_MCP_HOST` / `PYNE_MCP_PORT`
 
 ## Invariants & edge cases
 

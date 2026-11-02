@@ -1,13 +1,13 @@
 ---
 type: "Code Module"
 title: "src/pynescript/mcp"
-description: "PYNE Model Context Protocol server (stdio)."
+description: "PYNE Model Context Protocol server (stdio or HTTP)."
 resource: "src/pynescript/mcp"
 tags: [code, mcp, pynescript]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-24T04:17:09Z
+  at: 2026-11-02T04:39:16Z
 sources:
   - id: tree
     resource: "src/pynescript/mcp"

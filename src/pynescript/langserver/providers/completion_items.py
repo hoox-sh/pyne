@@ -42,6 +42,8 @@ from pynescript.langserver.providers.builtin_metadata import fuzzy_filter
 from pynescript.langserver.providers.builtin_metadata import get_all_categories
 from pynescript.langserver.providers.builtin_metadata import get_fuzzy_index
 from pynescript.langserver.providers.builtin_metadata import get_metadata
+from pynescript.langserver.providers.docs_card import format_docs_card
+from pynescript.langserver.providers.docs_card import pine_v6_docs_link
 
 
 # Soft keywords and structural keywords not present in builtin metadata.
@@ -174,7 +176,20 @@ def build_completion_item(
     detail = info.get("detail", "")
     brief = info.get("brief", "")
     snippet = info.get("snippet", info.get("detail", ""))
-    documentation = info.get("documentation", brief)
+    raw_docs = info.get("documentation", brief)
+    extra: list[str] = []
+    if raw_docs and raw_docs != brief:
+        extra.append(str(raw_docs))
+    see_also = _build_see_also(label)
+    if see_also:
+        extra.append(see_also)
+    documentation = format_docs_card(
+        kind="function",
+        fence=detail or label,
+        body=brief or "",
+        sections=extra,
+        footer=pine_v6_docs_link(label),
+    )
 
     # Determine insert text format. Plain mode still uses the metadata label
     # (or leaf after a module trigger), never raw ``${...}`` placeholders.
@@ -262,7 +277,10 @@ def build_keyword_items(prefix: str = "") -> list[lsp.CompletionItem]:
                 label=name,
                 kind=lsp.CompletionItemKind.Keyword,
                 detail=name,
-                documentation=lsp.MarkupContent(kind=lsp.MarkupKind.Markdown, value=brief),
+                documentation=lsp.MarkupContent(
+                    kind=lsp.MarkupKind.Markdown,
+                    value=format_docs_card(kind="keyword", fence=name, body=brief),
+                ),
                 insert_text=name,
                 insert_text_format=lsp.InsertTextFormat.PlainText,
                 filter_text=name,
@@ -388,7 +406,12 @@ def build_enum_name_items(enums: dict[str, dict[str, Any]], prefix: str = "") ->
                 detail=f"enum {name}",
                 documentation=lsp.MarkupContent(
                     kind=lsp.MarkupKind.Markdown,
-                    value=f"User-defined enum.{f' Members: {member_names}' if member_names else ''}",
+                    value=format_docs_card(
+                        kind="enum",
+                        fence=f"enum {name}",
+                        body="User-defined enum."
+                        + (f" Members: {member_names}." if member_names else ""),
+                    ),
                 ),
                 insert_text=name,
                 insert_text_format=lsp.InsertTextFormat.PlainText,
@@ -424,7 +447,11 @@ def build_enum_member_completion(
                 detail=detail,
                 documentation=lsp.MarkupContent(
                     kind=lsp.MarkupKind.Markdown,
-                    value=f"Member of user enum `{enum_name}`.",
+                    value=format_docs_card(
+                        kind="member",
+                        fence=detail,
+                        body=f"Member of user enum `{enum_name}`.",
+                    ),
                 ),
                 insert_text=name,
                 insert_text_format=lsp.InsertTextFormat.PlainText,

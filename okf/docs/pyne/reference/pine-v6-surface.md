@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "Pine v6 surface inventory"
-description: "Summary of the full Pine Script™ v6 surface inventory — dispatch counts, namespaces, status schema — with pointer to the large source document. hoox-pyne 0.6.30."
+description: "Summary of the full Pine Script™ v6 surface inventory — dispatch counts, namespaces, status schema — with pointer to the large source document. hoox-pyne 0.6.31."
 resource: "docs/pyne/reference/pine-v6-surface.mdx"
 tags: [doc, docs, pyne, reference]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-01T22:57:04Z
+  at: 2026-11-02T04:39:16Z
 sources:
   - id: tree
     resource: "docs/pyne/reference/pine-v6-surface.mdx"

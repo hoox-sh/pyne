@@ -11,6 +11,13 @@ Part of the **[HOOX](https://hoox.sh) open trading stack** — sister products: 
 > Independent, unofficial extension. **Not** affiliated with, endorsed by, or sponsored by TradingView, Inc.  
 > Pine Script™ and TradingView® are trademarks of TradingView, Inc.
 
+## What's new in 0.5.5
+
+- **AXIS-matched hover, suggest, and peek chrome** — 1px hairline, void plates, accent selection, and AXIS panel shadow across **AXIS Void**, **Hoox Signal**, and **PYNE Volt**. Hover and completion Markdown share a kind kicker, fenced signature, and docs-link footer.
+- **Pine v6 bitwise operators** in the TextMate grammar (`&`, `|`, `^`, `~`, `<<`, `>>`).
+- **Snippets** for `ta.macd`, `ta.bb`, `strategy.exit`, `for ... in`, `input.color`, `input.timeframe`, and `input.session`.
+- **Extension Development Host** launch configs (F5 **PYNE: Run Extension** / **Extension Tests**) plus `npm run edh` / `test:edh`.
+
 ## What's new in 0.5.4
 
 - **Inferred-type inlay hints removed.** The language server never annotates declarations — inlay hints are parameter-name hints only. The `pynescript.inlayHints.types` setting is gone; `inlayHints.parameters` remains.
@@ -188,7 +195,7 @@ npm run package
 code --install-extension pyne-*.vsix
 ```
 
-Site download: [https://hoox.sh/pyne-vscode.vsix](https://hoox.sh/pyne-vscode.vsix) (unversioned alias). Versioned `pyne-vscode-0.5.4.vsix` is built in this folder and on GitHub Releases.
+Site download: [https://hoox.sh/pyne-vscode.vsix](https://hoox.sh/pyne-vscode.vsix) (unversioned alias). Versioned `pyne-vscode-0.5.5.vsix` is built in this folder and on GitHub Releases.
 
 > The VSIX is **self-contained** (esbuild bundles `vscode-languageclient`). You still need the **language server** on the machine (`pip install "hoox-pyne[lsp]"`).
 
@@ -343,6 +350,8 @@ The extension contributes three color themes. Pick one from the normal VS Code
 | **Hoox Signal** | signal orange `#FE6A00` | Near-black, neutral surfaces |
 | **PYNE Volt** | lime `#B7EF09` | Near-black with a whisper of lime |
 
+Hover cards, autocomplete, peek, inlay hints, and the other floating widgets use the same AXIS popover chrome: 1px hairline, elevated plate, accent selection, and a kind-kicker Markdown card.
+
 Comments are always neutral gray in every theme. Keywords and functions take the accent, strings a light accent tint, numbers the foreground, and punctuation / series builtins gray — so a file stays calm even with a vivid accent.
 
 Pine syntax highlighting is independent of the workbench theme:
@@ -358,7 +367,7 @@ It writes Pine-scoped TextMate and semantic-token rules (`source.pinescript …`
 You do **not** need a local Python install if you run the language server from the **LSP image**. The VSIX is still installed in the editor; only the server process is containerized.
 
 ```bash
-docker pull ghcr.io/hoox-sh/pyne/lsp:0.6.30
+docker pull ghcr.io/hoox-sh/pyne/lsp:0.6.31
 # local bake:  make docker-build-lsp
 ```
 
@@ -371,7 +380,7 @@ Pin the extension to Docker (`-i` keeps stdio open). `${workspaceFolder}` is exp
     "run", "-i", "--rm",
     "-v", "${workspaceFolder}:/work",
     "-w", "/work",
-    "ghcr.io/hoox-sh/pyne/lsp:0.6.30"
+    "ghcr.io/hoox-sh/pyne/lsp:0.6.31"
   ]
 }
 ```
@@ -435,7 +444,7 @@ pyne-lsp
 | Extension id | `hoox-sh.pyne` |
 | Package name | `pyne` |
 | Display name | **PYNE Language Support** |
-| Version | 0.5.4 |
+| Version | 0.5.5 |
 
 ## License
 

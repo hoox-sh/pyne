@@ -25,7 +25,6 @@
 #   VPS_PORT=22
 #   VPS_PATH=/root/pynescript
 #   VPS_IDENTITY_FILE=~/.ssh/id_ed25519
-#   VPS_REDIS=1               # also (re)create redis when 1 (default; prod uses it)
 #   AXIS_REPO=/path/to/axis   (default: sibling ../axis)
 #   AXIS_BUILD=1              # run `bun run build` in AXIS_REPO before rsync
 #   AXIS_SKIP_DIST=1          # skip rsync of axis dist/ (default on this host)
@@ -149,31 +148,51 @@ else
   echo "==> skip AXIS PWA rsync (API-only host; set AXIS_SKIP_DIST=0 to ship dist)"
 fi
 
-echo "==> remote: compose build + recreate (docker prod)"
+echo "==> remote: compose build + recreate (full prod stack)"
 REMOTE bash -s <<EOF
 set -euo pipefail
 cd "${VPS_PATH}"
 # Named volumes (api_data: sessions/keys/series, redis_data) survive recreate —
 # never prune volumes here.
-PROFILE_ARGS=()
-SERVICES="api"
-if [[ "${VPS_REDIS:-1}" == "1" ]]; then
-  PROFILE_ARGS+=(--profile redis)
-  SERVICES="api redis"
-fi
 export GIT_SHA="$(cd "${ROOT}" && git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 export PYNESCRIPT_VERSION="$(cd "${ROOT}" && git describe --tags --abbrev=0 2>/dev/null || echo dev)"
-# shellcheck disable=SC2086
-docker compose "\${PROFILE_ARGS[@]}" -f docker-compose.yml -f docker-compose.prod.yml up --build -d \$SERVICES
-# Wait for the fresh container to report healthy (new image, old data volume).
-for i in \$(seq 1 30); do
-  if [[ "\$(docker inspect -f '{{.State.Health.Status}}' pynescript-api-1 2>/dev/null)" == "healthy" ]]; then
+# No service-name filter: passing a name such as api is what left redis/lsp/cli down.
+# Profiles lsp+cli pull those images into the project; redis/datafeed/mcp are default daemons.
+docker compose --profile redis --profile lsp --profile cli \\
+  -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+# Wait for the daemons with healthchecks (new images, old data volumes).
+# Reload nginx only after datafeed is healthy so /datafeed/ does not 502
+# while the dedicated process is still building.
+for i in \$(seq 1 45); do
+  api_h="\$(docker inspect -f '{{.State.Health.Status}}' pynescript-api-1 2>/dev/null || true)"
+  redis_h="\$(docker inspect -f '{{.State.Health.Status}}' pynescript-redis-1 2>/dev/null || true)"
+  datafeed_h="\$(docker inspect -f '{{.State.Health.Status}}' pynescript-datafeed-1 2>/dev/null || true)"
+  mcp_h="\$(docker inspect -f '{{.State.Health.Status}}' pynescript-mcp-1 2>/dev/null || true)"
+  if [[ "\$api_h" == "healthy" && "\$redis_h" == "healthy" && "\$datafeed_h" == "healthy" && "\$mcp_h" == "healthy" ]]; then
     break
   fi
   sleep 10
 done
-docker inspect -f '{{.Name}} {{.State.Health.Status}} ({{.Config.Image}})' pynescript-api-1
+if [[ "\$api_h" != "healthy" || "\$datafeed_h" != "healthy" ]]; then
+  echo "!! daemons not healthy: api=\$api_h redis=\$redis_h datafeed=\$datafeed_h mcp=\$mcp_h" >&2
+  docker compose --profile redis --profile lsp --profile cli \\
+    -f docker-compose.yml -f docker-compose.prod.yml ps -a
+  exit 1
+fi
+if [[ -f deploy/nginx-pynescript.conf ]]; then
+  install -m 644 deploy/nginx-pynescript.conf /etc/nginx/sites-available/pynescript
+  if [[ -L /etc/nginx/sites-enabled/pynescript ]] || [[ ! -e /etc/nginx/sites-enabled/pynescript ]]; then
+    ln -sfn /etc/nginx/sites-available/pynescript /etc/nginx/sites-enabled/pynescript
+  else
+    install -m 644 deploy/nginx-pynescript.conf /etc/nginx/sites-enabled/pynescript
+  fi
+  nginx -t && systemctl reload nginx
+fi
+docker compose --profile redis --profile lsp --profile cli \\
+  -f docker-compose.yml -f docker-compose.prod.yml ps -a
 curl -s -o /dev/null -w "api=%{http_code}\n" --max-time 10 http://127.0.0.1:5002/ || true
+curl -s -o /dev/null -w "datafeed=%{http_code}\n" --max-time 10 http://127.0.0.1:5004/datafeed/health || true
+curl -s -o /dev/null -w "mcp=%{http_code}\n" --max-time 10 http://127.0.0.1:5003/mcp || true
 EOF
 
 echo "==> done"

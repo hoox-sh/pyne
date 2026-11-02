@@ -42,36 +42,39 @@ from pynescript.langserver.protocol.utils import in_comment_or_string
 from pynescript.langserver.providers.builtin_metadata import get_builtin
 from pynescript.langserver.providers.completion_items import PINE_KEYWORDS
 from pynescript.langserver.providers.completion_items import collect_user_enums
+from pynescript.langserver.providers.docs_card import format_docs_card
+from pynescript.langserver.providers.docs_card import pine_v6_docs_link
 
 
 _KEYWORD_DOCS = dict(PINE_KEYWORDS)
 
-# Built-in types vs type/declaration qualifiers — distinct hover cards.
 _TYPE_DOCS: dict[str, str] = {
-    "int": "Built-in type. Integer numeric value.",
-    "float": "Built-in type. Floating-point numeric value.",
-    "bool": "Built-in type. Boolean value (`true` or `false`).",
-    "string": "Built-in type. Text value.",
-    "color": "Built-in type. RGBA color value.",
-    "array": "Built-in type. Ordered collection (`array.new<type>()`, `array.get`).",
-    "matrix": "Built-in type. Two-dimensional collection (`matrix.new<type>()`).",
-    "map": "Built-in type. Key/value collection (`map.new<key, value>()`).",
-    "line": "Built-in type. Drawing line object (`line.new`).",
-    "linefill": "Built-in type. Fill between two lines (`linefill.new`, `line.fill`).",
-    "label": "Built-in type. Drawing label object (`label.new`).",
-    "box": "Built-in type. Drawing box object (`box.new`).",
-    "table": "Built-in type. Drawing table object (`table.new`).",
-    "polyline": "Built-in type. Multi-point drawing object (`polyline.new`).",
+    "int": "Integer numeric value.",
+    "float": "Floating-point numeric value.",
+    "bool": "Boolean value (`true` or `false`).",
+    "string": "Text value.",
+    "color": "RGBA color value.",
+    "array": "Ordered collection (`array.new<type>()`, `array.get`).",
+    "matrix": "Two-dimensional collection (`matrix.new<type>()`).",
+    "map": "Key/value collection (`map.new<key, value>()`).",
+    "line": "Drawing line object (`line.new`).",
+    "linefill": "Fill between two lines (`linefill.new`, `line.fill`).",
+    "label": "Drawing label object (`label.new`).",
+    "box": "Drawing box object (`box.new`).",
+    "table": "Drawing table object (`table.new`).",
+    "polyline": "Multi-point drawing object (`polyline.new`).",
 }
 
 _QUALIFIER_DOCS: dict[str, str] = {
-    "series": "Type qualifier. The value may change from bar to bar.",
-    "simple": "Type qualifier. The value is fixed for a script execution (not bar-to-bar).",
-    "const": "Type qualifier. The value is known at compile time.",
-    "input": "Type qualifier. The value comes from a script input.",
-    "var": "Declaration mode. Initialized once and kept across bars.",
-    "varip": "Declaration mode. Like `var`, but also updates on every intra-bar tick.",
+    "series": "The value may change from bar to bar.",
+    "simple": "The value is fixed for a script execution (not bar-to-bar).",
+    "const": "The value is known at compile time.",
+    "input": "The value comes from a script input.",
+    "var": "Initialized once and kept across bars.",
+    "varip": "Like `var`, but also updates on every intra-bar tick.",
 }
+
+_MODE_QUALIFIERS = frozenset({"var", "varip"})
 
 # Built-in variables are not callables, so they are absent from the function
 # metadata catalog. Keep a small authoritative table for hover.
@@ -93,30 +96,30 @@ _BUILTIN_VAR_DOCS: dict[str, tuple[str, str]] = {
 
 # Module names shown when the cursor is on the left of ``module.member``.
 _NAMESPACE_DOCS: dict[str, str] = {
-    "ta": "Namespace. Technical-analysis functions (`ta.sma`, `ta.ema`, `ta.rsi`, …).",
-    "math": "Namespace. Mathematical functions (`math.abs`, `math.max`, `math.log`, …).",
-    "str": "Namespace. String helpers (`str.tostring`, `str.format`, …).",
-    "strategy": "Namespace. Strategy orders, positions, and properties.",
-    "input": "Namespace. Script input widgets (`input.int`, `input.float`, …).",
-    "request": "Namespace. Data requests from other contexts (`request.security`, …).",
-    "color": "Namespace. Color constants and helpers (`color.new`, `color.rgb`, `color.red`, …).",
-    "array": "Namespace. Array helpers (`array.new`, `array.get`, `array.push`, …).",
-    "matrix": "Namespace. Matrix helpers (`matrix.new`, `matrix.get`, …).",
-    "map": "Namespace. Map helpers (`map.new`, `map.get`, `map.put`, …).",
-    "line": "Namespace. Line drawings (`line.new`, `line.fill`, `line.set_xy1`, …).",
-    "linefill": "Namespace. Fill between two lines (`linefill.new`, `linefill.delete`, …).",
-    "label": "Namespace. Label drawings (`label.new`, `label.set_text`, …).",
-    "box": "Namespace. Box drawings (`box.new`, `box.set_bgcolor`, …).",
-    "table": "Namespace. Table drawings (`table.new`, `table.cell`, …).",
-    "polyline": "Namespace. Polyline drawings (`polyline.new`, `polyline.delete`, …).",
-    "ticker": "Namespace. Ticker constructors (`ticker.new`, `ticker.heikinashi`, …).",
-    "timeframe": "Namespace. Timeframe helpers (`timeframe.period`, `timeframe.change`, …).",
-    "chart": "Namespace. Chart context (`chart.bg_color`, `chart.point`, …).",
-    "log": "Namespace. Script log helpers (`log.info`, `log.warning`, `log.error`).",
-    "alert": "Namespace. Alert helpers (`alert()`, `alertcondition`, frequency constants).",
-    "syminfo": "Namespace. Symbol metadata (`syminfo.ticker`, `syminfo.tickerid`, …).",
-    "barstate": "Namespace. Bar-state flags (`barstate.islast`, `barstate.ishistory`, …).",
-    "session": "Namespace. Session helpers (`session.ismarket`, `session.regular`, …).",
+    "ta": "Technical-analysis functions (`ta.sma`, `ta.ema`, `ta.rsi`, …).",
+    "math": "Mathematical functions (`math.abs`, `math.max`, `math.log`, …).",
+    "str": "String helpers (`str.tostring`, `str.format`, …).",
+    "strategy": "Strategy orders, positions, and properties.",
+    "input": "Script input widgets (`input.int`, `input.float`, …).",
+    "request": "Data requests from other contexts (`request.security`, …).",
+    "color": "Color constants and helpers (`color.new`, `color.rgb`, `color.red`, …).",
+    "array": "Array helpers (`array.new`, `array.get`, `array.push`, …).",
+    "matrix": "Matrix helpers (`matrix.new`, `matrix.get`, …).",
+    "map": "Map helpers (`map.new`, `map.get`, `map.put`, …).",
+    "line": "Line drawings (`line.new`, `line.fill`, `line.set_xy1`, …).",
+    "linefill": "Fill between two lines (`linefill.new`, `linefill.delete`, …).",
+    "label": "Label drawings (`label.new`, `label.set_text`, …).",
+    "box": "Box drawings (`box.new`, `box.set_bgcolor`, …).",
+    "table": "Table drawings (`table.new`, `table.cell`, …).",
+    "polyline": "Polyline drawings (`polyline.new`, `polyline.delete`, …).",
+    "ticker": "Ticker constructors (`ticker.new`, `ticker.heikinashi`, …).",
+    "timeframe": "Timeframe helpers (`timeframe.period`, `timeframe.change`, …).",
+    "chart": "Chart context (`chart.bg_color`, `chart.point`, …).",
+    "log": "Script log helpers (`log.info`, `log.warning`, `log.error`).",
+    "alert": "Alert helpers (`alert()`, `alertcondition`, frequency constants).",
+    "syminfo": "Symbol metadata (`syminfo.ticker`, `syminfo.tickerid`, …).",
+    "barstate": "Bar-state flags (`barstate.islast`, `barstate.ishistory`, …).",
+    "session": "Session helpers (`session.ismarket`, `session.regular`, …).",
 }
 
 _SNIPPET_PLACEHOLDER = re.compile(r"\$\{(\d+):([^}]+)\}|\$\{(\d+)\}|\$(\d+)")
@@ -259,7 +262,14 @@ def handle_hover(
     builtin_var = _BUILTIN_VAR_DOCS.get(segment)
     if builtin_var is not None and not _followed_by_paren(line_text, seg_end):
         type_label, brief = builtin_var
-        return _markdown_hover(f"{segment}: {type_label}", brief, position.line, seg_start, seg_end)
+        return _markdown_hover(
+            f"{segment}: {type_label}",
+            brief,
+            position.line,
+            seg_start,
+            seg_end,
+            kind="variable",
+        )
 
     return _hover_keyword(segment, position.line, seg_start, seg_end)
 
@@ -331,18 +341,34 @@ def _build_constructor_hover(
         type_name = value.id or ""
     signature = f"{type_name}.new(...)" if type_name else "new(...)"
     brief = f"Create a new `{type_name}` value." if type_name else "Create a new user-defined value."
-    return _markdown_hover(signature, brief, line, start, end)
+    return _markdown_hover(signature, brief, line, start, end, kind="constructor")
 
 
 def _followed_by_paren(line_text: str, end: int) -> bool:
     return line_text[end:].lstrip().startswith("(")
 
 
-def _markdown_hover(fence: str, brief: str, line: int, start: int, end: int) -> lsp.Hover:
+def _markdown_hover(
+    fence: str,
+    brief: str,
+    line: int,
+    start: int,
+    end: int,
+    *,
+    kind: str = "",
+    sections: list[str] | None = None,
+    footer: str = "",
+) -> lsp.Hover:
     return lsp.Hover(
         contents=lsp.MarkupContent(
             kind=lsp.MarkupKind.Markdown,
-            value=f"```pinescript\n{fence}\n```\n\n{brief}\n",
+            value=format_docs_card(
+                kind=kind,
+                fence=fence,
+                body=brief,
+                sections=sections,
+                footer=footer,
+            ),
         ),
         range=lsp.Range(
             start=lsp.Position(line=line, character=start),
@@ -375,7 +401,7 @@ def _hover_namespace(
         # fall through to type / builtin hover.
         if _followed_by_paren(line_text, end) or segment in _TYPE_DOCS or segment in ("strategy", "input"):
             return None
-    return _markdown_hover(segment, brief, line, start, end)
+    return _markdown_hover(segment, brief, line, start, end, kind="namespace")
 
 
 def _hover_type_or_qualifier(
@@ -389,9 +415,10 @@ def _hover_type_or_qualifier(
     if _followed_by_paren(line_text, end):
         return None
     if segment in _TYPE_DOCS:
-        return _markdown_hover(segment, _TYPE_DOCS[segment], line, start, end)
+        return _markdown_hover(segment, _TYPE_DOCS[segment], line, start, end, kind="type")
     if segment in _QUALIFIER_DOCS:
-        return _markdown_hover(segment, _QUALIFIER_DOCS[segment], line, start, end)
+        kind = "mode" if segment in _MODE_QUALIFIERS else "qualifier"
+        return _markdown_hover(segment, _QUALIFIER_DOCS[segment], line, start, end, kind=kind)
     return None
 
 
@@ -554,20 +581,24 @@ def _build_user_decl_hover(info: dict[str, Any], line: int, start: int, end: int
     entries = _parse_annotation_entries(info.get("annotations"))
     description, params, returns, fields = _annotation_sections(entries)
 
-    parts = [f"```pinescript\n{signature}\n```"]
-    if description:
-        parts.append(description)
+    sections: list[str] = []
     if fields:
-        parts.append(_format_named_list("Fields", fields))
+        sections.append(_format_named_list("Fields", fields))
     if params:
-        parts.append(_format_named_list("Parameters", params))
+        sections.append(_format_named_list("Parameters", params))
     if returns:
-        parts.append(f"**Returns:** {returns}")
-    if len(parts) == 1:
-        parts.append(f"User-defined {kind}.")
-
+        sections.append(f"**Returns:** {returns}")
+    body = description or (f"User-defined {kind}." if not sections else "")
     return lsp.Hover(
-        contents=lsp.MarkupContent(kind=lsp.MarkupKind.Markdown, value="\n\n".join(parts) + "\n"),
+        contents=lsp.MarkupContent(
+            kind=lsp.MarkupKind.Markdown,
+            value=format_docs_card(
+                kind=str(kind),
+                fence=str(signature),
+                body=body,
+                sections=sections,
+            ),
+        ),
         range=lsp.Range(
             start=lsp.Position(line=line, character=start),
             end=lsp.Position(line=line, character=end),
@@ -599,14 +630,7 @@ def _hover_library(
             None,
         )
         if description:
-            content = f"```pinescript\nlibrary\n```\n\n{description}\n"
-            return lsp.Hover(
-                contents=lsp.MarkupContent(kind=lsp.MarkupKind.Markdown, value=content),
-                range=lsp.Range(
-                    start=lsp.Position(line=line, character=start),
-                    end=lsp.Position(line=line, character=end),
-                ),
-            )
+            return _markdown_hover("library", description, line, start, end, kind="library")
     return None
 
 
@@ -753,16 +777,7 @@ def _hover_keyword(word: str, line: int, start: int, end: int) -> lsp.Hover | No
     brief = _KEYWORD_DOCS.get(word)
     if brief is None:
         return None
-    return lsp.Hover(
-        contents=lsp.MarkupContent(
-            kind=lsp.MarkupKind.Markdown,
-            value=f"```pinescript\n{word}\n```\n\n{brief}\n",
-        ),
-        range=lsp.Range(
-            start=lsp.Position(line=line, character=start),
-            end=lsp.Position(line=line, character=end),
-        ),
-    )
+    return _markdown_hover(word, brief, line, start, end, kind="keyword")
 
 
 def _build_enum_hover(
@@ -792,16 +807,11 @@ def _build_enum_hover(
         brief = f"Member of user enum `{name}`."
         if value is not None:
             brief += f" Value: `{value!r}`."
+        kind = "member"
     else:
         brief = "User-defined enum."
-    content = f"```pinescript\n{detail}\n```\n\n{brief}\n"
-    return lsp.Hover(
-        contents=lsp.MarkupContent(kind=lsp.MarkupKind.Markdown, value=content),
-        range=lsp.Range(
-            start=lsp.Position(line=line, character=start),
-            end=lsp.Position(line=line, character=end),
-        ),
-    )
+        kind = "enum"
+    return _markdown_hover(detail, brief, line, start, end, kind=kind)
 
 
 def _signature_from_info(info: dict) -> str:
@@ -890,36 +900,29 @@ def _build_builtin_hover(
         if not brief:
             brief = "Built-in property."
 
-    content = f"""```pinescript
-{signature}
-```
-
-{brief}
-
-"""
-
-    params_block = "" if not called else _format_params(info)
-    if params_block:
-        content += params_block
-
+    sections: list[str] = []
+    if called:
+        params_block = _format_params(info)
+        if params_block:
+            sections.append(params_block)
     if documentation and documentation != brief:
-        content += f"---\n{_format_documentation(documentation)}\n\n"
-
-    content += _build_examples(info)
-    content += _build_see_also(info)
-
-    # Add reference Pine docs link
-    content += _build_docs_link(label)
-
-    return lsp.Hover(
-        contents=lsp.MarkupContent(
-            kind=lsp.MarkupKind.Markdown,
-            value=content,
-        ),
-        range=lsp.Range(
-            start=lsp.Position(line=line, character=start),
-            end=lsp.Position(line=line, character=end),
-        ),
+        sections.append(_format_documentation(documentation))
+    examples = _build_examples(info)
+    if examples:
+        sections.append(examples)
+    see_also = _build_see_also(info)
+    if see_also:
+        sections.append(see_also)
+    kind = "function" if called or "(" in signature else "property"
+    return _markdown_hover(
+        signature,
+        brief,
+        line,
+        start,
+        end,
+        kind=kind,
+        sections=sections,
+        footer=_build_docs_link(label),
     )
 
 
@@ -984,10 +987,4 @@ def _build_docs_link(name: str) -> str:
     ``strategy.entry``, ``line.fill``) get a link. Empty, undotted
     (``sma``), or whitespace-only names return ``""``.
     """
-    label = (name or "").strip()
-    if not label or "." not in label:
-        return ""
-    namespace, _, member = label.partition(".")
-    if not namespace or not member:
-        return ""
-    return f"[Pine v6: {label}](https://www.tradingview.com/pine-script-reference/v6/#fun_{label})\n"
+    return pine_v6_docs_link(name)

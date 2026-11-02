@@ -11,7 +11,10 @@
 #   api      — production Pro API (gunicorn, non-root)  [default for Cloud Run]
 #   api-dev  — development Pro API (Flask, HOST=0.0.0.0)
 #   lsp      — language server (stdio; ENTRYPOINT pyne-lsp)
+#   mcp      — PYNE MCP (streamable-http; ENTRYPOINT pyne-mcp)
 #   cli      — pyne Click CLI (parse/lint/format/compile/run; ENTRYPOINT)
+# Keep `cli` as the last stage so a default `docker build` (no --target) stays
+# the CLI image (Cloudflare/Wrangler must still pass --target api).
 #
 # Examples:
 #   docker buildx bake api
@@ -206,6 +209,62 @@ LABEL org.opencontainers.image.title="pynescript-lsp" \
 
 # No HTTP healthcheck — stdio LSP. -i required for docker run / VS Code.
 ENTRYPOINT ["pyne-lsp"]
+
+# ---------------------------------------------------------------------------
+# MCP builder: package + [mcp] only (uvicorn comes in with the mcp SDK).
+# No Flask / matplotlib / ccxt — runner tools hit PYNE_API_URL.
+# ---------------------------------------------------------------------------
+FROM base-os AS mcp-builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml README.md LICENSE NOTICE ./
+COPY src ./src
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --prefix=/install ".[mcp]"
+
+# ---------------------------------------------------------------------------
+# Target: mcp (HTTP MCP — streamable-http on :8080; GHCR ghcr.io/hoox-sh/pyne/mcp)
+# ---------------------------------------------------------------------------
+FROM base-os AS mcp
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=mcp-builder /install /usr/local
+COPY --from=mcp-builder /app/src /app/src
+
+RUN mkdir -p /work \
+    && chown -R appuser:appuser /app /work
+
+ENV PYTHONPATH=/app/src \
+    PYNE_MCP_TRANSPORT=streamable-http \
+    PYNE_MCP_HOST=0.0.0.0 \
+    PYNE_MCP_PORT=8080
+
+USER appuser
+WORKDIR /work
+EXPOSE 8080
+
+ARG PYNESCRIPT_VERSION=0.3.0
+ARG GIT_SHA=unknown
+LABEL org.opencontainers.image.title="pynescript-mcp" \
+      org.opencontainers.image.description="PYNE MCP server (streamable-http) — pyne-mcp" \
+      org.opencontainers.image.version="${PYNESCRIPT_VERSION}" \
+      org.opencontainers.image.revision="${GIT_SHA}" \
+      org.opencontainers.image.licenses="AGPL-3.0-or-later" \
+      org.opencontainers.image.source="https://github.com/hoox-sh/pyne"
+
+# GET /mcp is often 406 without an MCP Accept header — that still means the
+# process is listening. Fail only on connection errors / 5xx.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+    CMD sh -c 'code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:${PYNE_MCP_PORT:-8080}/mcp); echo "$code" | grep -Eq "^(200|400|405|406)$"'
+
+ENTRYPOINT ["pyne-mcp"]
 
 # ---------------------------------------------------------------------------
 # Target: cli (pyne Click console — parse / lint / format / compile / run)

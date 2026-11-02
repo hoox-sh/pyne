@@ -125,6 +125,7 @@ Local runner: `make run` → `python -m backend.app` (default `127.0.0.1:5002`).
 | `backend/api/preview.py` | Preview + backtest blueprints |
 | `backend/api/data_series.py` | Engine-owned OHLCV store routes |
 | `backend/api/datafeed.py` | CCXT gateway + `WS /datafeed/watch` |
+| `backend/datafeed_app.py` | Standalone compose `datafeed` app (same blueprint) |
 | `backend/datastore/*` | SQLite OHLCV store, session ↔ series binding |
 | `backend/middleware/sessions.py` | Process-local live-session store (TTL + capacity) |
 | `backend/middleware/window.py` | `apply_window` — response windowing |

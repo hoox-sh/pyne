@@ -40,7 +40,7 @@ flowchart LR
   BE[backend/] --> API[Flask :5002]
   VSC[vscode-extension/] --> VSIX[vsce package]
   TS[hoox-sh/pynets] --> BUN[bun test]
-  DOCK[Dockerfile] --> IMG[api · cli · lsp]
+  DOCK[Dockerfile] --> IMG[api · cli · lsp · mcp]
 ```
 
 ## Interface surface
@@ -65,13 +65,14 @@ flowchart LR
 | `make docker-build` | bake **api** |
 | `make docker-build-cli` | bake **cli** |
 | `make docker-build-lsp` | bake **lsp** (`pynescript-lsp:latest`; GHCR name `ghcr.io/hoox-sh/pyne/lsp`) |
-| `make docker-build-all` | api + api-dev + lsp + cli |
-| `make docker-buildx` | multi-platform release bake (`api` + `cli` + `lsp`) |
+| `make docker-build-mcp` | bake **mcp** (`pynescript-mcp:latest`; GHCR name `ghcr.io/hoox-sh/pyne/mcp`) |
+| `make docker-build-all` | api + api-dev + lsp + cli + mcp |
+| `make docker-buildx` | multi-platform release bake (`api` + `cli` + `lsp` + `mcp`) |
 | `make docker-push-ghcr` | `gh workflow run ghcr.yml` |
 | `make docker-cli ARGS="…"` | compose profile cli (ephemeral) |
-| `make docker-up` | compose API on `:5002` |
-| `make docker-up-full` | + redis profile |
-| `make docker-prod` | gunicorn overlay (`ADMIN_TOKEN` required) |
+| `make docker-up` | compose API only on `:5002` |
+| `make docker-up-full` | daemons: api + redis + datafeed + mcp |
+| `make docker-prod` | gunicorn overlay, all services (`ADMIN_TOKEN` required) |
 | `make docker-smoke` | curl health on `:5002` |
 | `make docker-down` / `docker-logs` | stop / logs |
 
@@ -102,7 +103,7 @@ make run   # Pro API
 
 ```bash
 pip install "hoox-pyne[lsp,compile]"
-pyne --version   # 0.6.30
+pyne --version   # 0.6.31
 ```
 
 ## Internals

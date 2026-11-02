@@ -7,15 +7,16 @@
 #   docker buildx bake                  # default group: api + api-dev (load local)
 #   docker buildx bake api              # production API only
 #   docker buildx bake cli              # pynescript Click CLI
-#   docker buildx bake api-dev lsp cli  # named targets
+#   docker buildx bake mcp              # PYNE MCP (streamable-http)
+#   docker buildx bake api-dev lsp cli mcp  # named targets
 #   docker buildx bake release          # multi-platform (set REGISTRY to push)
 #
 # Variables (override with --set or env via bake HCL):
 #   TAG=0.6.7 REGISTRY=gcr.io/PROJECT/pynescript docker buildx bake release
 #   TAG=0.6.7 REGISTRY=ghcr.io/hoox-sh/pyne docker buildx bake release
-#     → ghcr.io/hoox-sh/pyne/api:0.6.7, …/cli:0.6.7, …/lsp:0.6.7
+#     → ghcr.io/hoox-sh/pyne/api:0.6.7, …/cli:0.6.7, …/lsp:0.6.7, …/mcp:0.6.7
 #
-# CI: .github/workflows/ghcr.yml pushes api + cli + lsp multi-arch on v* tags
+# CI: .github/workflows/ghcr.yml pushes api + cli + lsp + mcp multi-arch on v* tags
 # (and workflow_dispatch). Prefer that path over local bake for GHCR.
 #
 # Push safety: release targets use output type=registry ONLY when REGISTRY is
@@ -58,11 +59,11 @@ group "default" {
 }
 
 group "all" {
-  targets = ["api", "api-dev", "lsp", "cli"]
+  targets = ["api", "api-dev", "lsp", "cli", "mcp"]
 }
 
 group "release" {
-  targets = ["api-release", "cli-release", "lsp-release"]
+  targets = ["api-release", "cli-release", "lsp-release", "mcp-release"]
 }
 
 target "_common" {
@@ -111,6 +112,16 @@ target "cli" {
   tags = [
     "${image_name("pynescript-cli")}:${TAG}",
     "${image_name("pynescript-cli")}:latest",
+  ]
+  output = ["type=docker"]
+}
+
+target "mcp" {
+  inherits = ["_common"]
+  target   = "mcp"
+  tags = [
+    "${image_name("pynescript-mcp")}:${TAG}",
+    "${image_name("pynescript-mcp")}:latest",
   ]
   output = ["type=docker"]
 }
@@ -177,5 +188,25 @@ target "cli-release" {
   ]
   cache-to = [
     "type=local,dest=/tmp/.buildx-cache-pynescript-cli,mode=max",
+  ]
+}
+
+target "mcp-release" {
+  inherits   = ["_common"]
+  target     = "mcp"
+  platforms  = split(",", PLATFORMS)
+  tags = REGISTRY != "" ? [
+    "${REGISTRY}/mcp:${TAG}",
+    "${REGISTRY}/mcp:latest",
+  ] : [
+    "pynescript-mcp:${TAG}",
+    "pynescript-mcp:latest",
+  ]
+  output = REGISTRY != "" ? ["type=registry"] : ["type=image"]
+  cache-from = [
+    "type=local,src=/tmp/.buildx-cache-pynescript-mcp",
+  ]
+  cache-to = [
+    "type=local,dest=/tmp/.buildx-cache-pynescript-mcp,mode=max",
   ]
 }
