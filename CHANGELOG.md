@@ -1,5 +1,14 @@
 ## [Unreleased]
 
+### Added
+
+- **VS Code TextMate bitwise operators.** The Pine grammar now scopes `&`, `|`, `^`, `~`, `<<`, and `>>` (Pine v6) without changing existing comparison/assignment tokens. `#` line comments highlight only when the rest of the token is not a `#hex` color literal.
+- **VS Code snippets.** `ta.macd`, `ta.bb`, `strategy.exit`, `for ... in` (`pineforin`), `input.color`, `input.timeframe`, and `input.session`.
+
+### Changed
+
+- **Mintlify vscode-extension page** pins `vscode-languageclient` ^11 (matches `vscode-extension/package.json`) and documents **PYNE: Select Syntax Highlighting**, bitwise grammar, and the new snippets. Inlay copy no longer implies type hints or `inlayHint/resolve`.
+
 ## [0.6.30] — 2026-11-01
 
 ### Added

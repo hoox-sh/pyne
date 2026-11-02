@@ -30,8 +30,8 @@ Part of the **[HOOX](https://hoox.sh) open trading stack** — sister products: 
 | Feature | Details |
 |---------|---------|
 | **File types** | **`.pyne`** (primary), `.pine`, `.pinev5`, `.pinev6`, `.pinescript` |
-| **Syntax highlighting** | TextMate grammar — namespaces (`ta.`, `strategy.`, `color.`…), annotations (`//@version=`), colors, history refs, UDTs, multiline strings |
-| **Snippets** | `indicator`, `strategy`, `library`, `type`, `enum`, `input.*`, `plot`, `ta.*`, `request.security`, `for`/`if`/`switch`, multiline string, … |
+| **Syntax highlighting** | TextMate grammar — namespaces (`ta.`, `strategy.`, `color.`…), bitwise ops, annotations (`//@version=`), `#hex` colors, history refs, UDTs, multiline strings |
+| **Snippets** | `indicator`, `strategy`, `library`, `type`, `enum`, `input.*` (incl. color/timeframe/session), `plot`, `ta.*` (incl. macd/bb), `strategy.entry`/`exit`/`close`, `request.security`, `for`/`for in`/`if`/`switch`, multiline string, … |
 | **Language Server** | Diagnostics, autocomplete + docs, hover, signature help, document symbols, formatting (full/range/on-type), Convert to v6 (`pip install "hoox-pyne[lsp]"`) |
 | **Semantic tokens** | Colorization by type: namespace, function, variable, keyword, operator, comment, … |
 | **Inlay hints** | Parameter-name hints on builtin and user calls (`ta.sma(close, 14)` → `source:` / `length:`). Inferred type hints were removed — the server never annotates declarations |

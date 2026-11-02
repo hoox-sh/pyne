@@ -44,6 +44,21 @@
     "body": "input.bool(${1:true}, \"${2:show}\")",
     "description": "Pine v6 boolean input"
   },
+  "PYNE: input.color": {
+    "prefix": "input.color",
+    "body": "input.color(${1:color.blue}, \"${2:color}\")",
+    "description": "Pine v6 color input"
+  },
+  "PYNE: input.timeframe": {
+    "prefix": "input.timeframe",
+    "body": "input.timeframe(\"${1:}\", \"${2:timeframe}\")",
+    "description": "Pine v6 timeframe input"
+  },
+  "PYNE: input.session": {
+    "prefix": "input.session",
+    "body": "input.session(\"${1:0930-1600}\", \"${2:session}\")",
+    "description": "Pine v6 session input"
+  },
   "PYNE: input.source": {
     "prefix": "input.source",
     "body": "input.source(close, \"${1:source}\")",
@@ -84,6 +99,16 @@
     "body": "ta.stdev(${1:source}, ${2:length})",
     "description": "ta.stdev(source, length)"
   },
+  "PYNE: ta.macd": {
+    "prefix": "ta.macd",
+    "body": "[${1:macdLine}, ${2:signalLine}, ${3:histLine}] = ta.macd(${4:close}, ${5:12}, ${6:26}, ${7:9})",
+    "description": "ta.macd(source, fastlen, slowlen, siglen)"
+  },
+  "PYNE: ta.bb": {
+    "prefix": "ta.bb",
+    "body": "[${1:middle}, ${2:upper}, ${3:lower}] = ta.bb(${4:close}, ${5:20}, ${6:2.0})",
+    "description": "ta.bb(source, length, mult)"
+  },
   "PYNE: ta.crossover": {
     "prefix": "ta.crossover",
     "body": "ta.crossover(${1:series1}, ${2:series2})",
@@ -104,6 +129,11 @@
     "body": "strategy.close(\"${1:id}\", comment=\"${2:}\")",
     "description": "strategy.close(id, comment)"
   },
+  "PYNE: strategy.exit": {
+    "prefix": "strategy.exit",
+    "body": "strategy.exit(\"${1:id}\", from_entry=\"${2:entryId}\", profit=${3:na}, loss=${4:na})",
+    "description": "strategy.exit(id, from_entry, profit, loss)"
+  },
   "PYNE: if / else": {
     "prefix": "pineif",
     "body": "if ${1:condition}\n    ${2:// then block}\nelse\n    ${3:// else block}",
@@ -113,6 +143,11 @@
     "prefix": "pinefor",
     "body": "for ${1:i} = ${2:0} to ${3:10} by ${4:1}\n    ${5:// loop body}",
     "description": "Pine for loop"
+  },
+  "PYNE: for ... in": {
+    "prefix": "pineforin",
+    "body": "for ${1:item} in ${2:array}\n    ${3:// loop body}",
+    "description": "Pine for ... in loop"
   },
   "PYNE: switch": {
     "prefix": "pineswitch",

@@ -67,7 +67,7 @@
       }
     },
     {
-      "beforeText": "^\\s*(if|else if|else|for|while|switch|type|enum)\\b.*[^:]$",
+      "beforeText": "^\\s*(if|else if|else|for|while|switch|type|enum|method)\\b.*[^:]$",
       "action": {
         "indent": "indent"
       }

@@ -57,7 +57,7 @@ From `vscode-extension/package.json`:
 | icon | `media/icon.png` (HOOX mark) |
 | engines.vscode | `^1.91.0` |
 | main | `./out/extension.js` (esbuild bundle) |
-| dependency | `vscode-languageclient` ^10 |
+| dependency | `vscode-languageclient` ^11 |
 | galleryBanner | `#050505` dark |
 
 ### Language contribution
@@ -66,8 +66,8 @@ From `vscode-extension/package.json`:
 - **aliases:** `PYNE`, `pyne`, `pinescript`, `Pine`
 - **extensions:** **`.pyne`** (first), `.pine`, `.pinev5`, `.pinev6`, `.pinescript`
 - **configuration:** `language-configuration.json`
-- **grammar:** `syntaxes/pinescript.tmLanguage.json` (`scopeName: source.pinescript`) — namespaces, annotations, hex colors, UDT/enum, multiline strings, plot/strategy builtins
-- **snippets:** `snippets/pine.code-snippets` — `indicator`, `strategy`, `library`, `type`, `enum`, `input.*`, `plot`, `plotshape`, `ta.*`, `strategy.entry`/`close`, `if`/`for`/`switch`, `request.security`, `label.new`, `array.new<>`, multiline string
+- **grammar:** `syntaxes/pinescript.tmLanguage.json` (`scopeName: source.pinescript`) — namespaces, bitwise operators (`&`, `|`, `^`, `~`, `<<`, `>>`), annotations, hex colors, `#` line comments that do not steal `#hex` literals, UDT/enum, multiline strings, plot/strategy builtins
+- **snippets:** `snippets/pine.code-snippets` — `indicator`, `strategy`, `library`, `type`, `enum`, `input.*` (incl. color/timeframe/session), `plot`, `plotshape`, `ta.*` (incl. macd/bb), `strategy.entry`/`exit`/`close`, `if`/`for`/`for in`/`switch`, `request.security`, `label.new`, `array.new<>`, multiline string
 
 ### Hosted `pyne-lsp` methods (not reimplemented in TypeScript)
 
@@ -215,7 +215,7 @@ It writes language-scoped `[pinescript]` token colors, so it composes with any w
 3. **Grammar works without LSP** — open a `.pyne` or `.pine` file offline and still get TextMate highlighting.
 4. **`.pyne` is first-class** in `package.json` extensions + activation; legacy `.pine*` / `.pinescript` remain fully supported.
 5. File watcher covers every associated suffix (`pyne`, `pine`, `pinev5`, `pinev6`, `pinescript`).
-6. **VSIX 0.5.4 does not pin server methods.** Range tokens, on-type format, linked editing, inlay resolve / param names, document links + resolve tooltip, and document color appear only when the spawned `pyne-lsp` is new enough to advertise them (this tree: **0.6.30**). Feature gates are client-side and read live settings.
+6. **VSIX 0.5.4 does not pin server methods.** Range tokens, on-type format, linked editing, inlay parameter names, document links + resolve tooltip, and document color appear only when the spawned `pyne-lsp` is new enough to advertise them (this tree: **0.6.30**). Feature gates are client-side and read live settings.
 
 ## Worked example — extension development
 
@@ -247,7 +247,7 @@ Open a fixture `.pine` file; confirm Problems panel shows parse/lint diagnostics
 - [Semantic tokens](/pyne/docs/lsp/features/semantic-tokens) — full and range
 - [Formatting](/pyne/docs/lsp/features/formatting) — full, range, and on-type (`\n`)
 - [Linked editing](/pyne/docs/lsp/features/linked-editing)
-- [Inlay hints](/pyne/docs/lsp/features/inlay-hints) — types, param names, resolve
+- [Inlay hints](/pyne/docs/lsp/features/inlay-hints) — parameter names only (display-only; inferred types removed)
 - [Document links](/pyne/docs/lsp/features/document-link) — `http(s)` URLs; resolve fills tooltip
 - [Document color](/pyne/docs/lsp/features/document-color)
 - [Clients](/pyne/docs/lsp/clients) — non-VS Code hosts

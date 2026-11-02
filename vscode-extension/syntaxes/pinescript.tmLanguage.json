@@ -38,6 +38,10 @@
         {
           "name": "comment.line.double-slash.pinescript",
           "match": "//(?!\\s*@).*$"
+        },
+        {
+          "name": "comment.line.number-sign.pinescript",
+          "match": "#(?![0-9A-Fa-f]{3}(?:[0-9A-Fa-f]{3}(?:[0-9A-Fa-f]{2})?)?\\b).*$"
         }
       ]
     },
@@ -264,7 +268,7 @@
       "patterns": [
         {
           "name": "meta.namespace.member.pinescript",
-          "match": "\\b(ta|math|str|log|array|matrix|map|request|ticker|timeframe|session|syminfo|barstate|chart|runtime|color|line|linefill|label|box|table|polyline|plot|plotshape|plotchar|plotcandle|plotbar|hline|fill|bgcolor|barcolor|alert|alertcondition|strategy|input|timestamp|year|month|weekofyear|dayofmonth|dayofweek|hour|minute|second)\\s*(\\.)\\s*([A-Za-z_][A-Za-z0-9_]*)",
+          "match": "\\b(ta|math|str|log|array|matrix|map|request|ticker|timeframe|session|syminfo|barstate|chart|runtime|color|line|linefill|label|box|table|polyline|plot|plotshape|plotchar|plotcandle|plotbar|hline|fill|bgcolor|barcolor|alert|alertcondition|strategy|input|shape|location|size|display|format|xloc|yloc|extend|barmerge|currency|position|adjustment|scale|text|timestamp|year|month|weekofyear|dayofmonth|dayofweek|hour|minute|second)\\s*(\\.)\\s*([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
             "1": { "name": "support.module.pinescript" },
             "2": { "name": "punctuation.accessor.dot.pinescript" },
@@ -273,7 +277,7 @@
         },
         {
           "name": "support.module.pinescript",
-          "match": "\\b(ta|math|str|log|array|matrix|map|request|ticker|timeframe|session|syminfo|barstate|chart|runtime|color|strategy|input)\\b(?=\\s*\\.)"
+          "match": "\\b(ta|math|str|log|array|matrix|map|request|ticker|timeframe|session|syminfo|barstate|chart|runtime|color|strategy|input|line|linefill|label|box|table|polyline|shape|location|size|display|format|xloc|yloc|extend|barmerge|currency|position)\\b(?=\\s*\\.)"
         }
       ]
     },
@@ -334,6 +338,10 @@
         {
           "name": "keyword.operator.assignment.pinescript",
           "match": "="
+        },
+        {
+          "name": "keyword.operator.bitwise.pinescript",
+          "match": "<<|>>|&|\\||\\^|~"
         },
         {
           "name": "keyword.operator.comparison.pinescript",
