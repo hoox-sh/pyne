@@ -4,6 +4,7 @@
 
 - **VS Code TextMate bitwise operators.** The Pine grammar now scopes `&`, `|`, `^`, `~`, `<<`, and `>>` (Pine v6) without changing existing comparison/assignment tokens. `#` line comments highlight only when the rest of the token is not a `#hex` color literal.
 - **VS Code snippets.** `ta.macd`, `ta.bb`, `strategy.exit`, `for ... in` (`pineforin`), `input.color`, `input.timeframe`, and `input.session`.
+- **Extension Development Host launch configs.** F5 **PYNE: Run Extension** / **Extension Tests** (`type: extensionHost`) from the repo root or `vscode-extension/`; `npm run edh` / `test:edh` drive the installed `code` the same way.
 
 ### Fixed
 

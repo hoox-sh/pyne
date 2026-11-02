@@ -1,0 +1,30 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}",
+        "${workspaceFolder}/../examples/rsi_strategy.pine"
+      ],
+      "outFiles": ["${workspaceFolder}/out/**/*.js"],
+      "sourceMaps": true,
+      "preLaunchTask": "compile"
+    },
+    {
+      "name": "Extension Tests",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}",
+        "--extensionTestsPath=${workspaceFolder}/out/test/index.js",
+        "--disable-extensions"
+      ],
+      "outFiles": ["${workspaceFolder}/out/test/**/*.js"],
+      "sourceMaps": true,
+      "preLaunchTask": "compile-tests"
+    }
+  ]
+}

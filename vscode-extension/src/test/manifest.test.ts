@@ -185,6 +185,27 @@ describe('language', () => {
   });
 });
 
+describe('Extension Development Host', () => {
+  it('ships extensionHost launch configs', () => {
+    const launchPath = path.join(EXT_ROOT, '.vscode', 'launch.json');
+    assert.ok(fs.existsSync(launchPath), 'vscode-extension/.vscode/launch.json');
+    const launch = JSON.parse(fs.readFileSync(launchPath, 'utf8')) as {
+      configurations?: Array<{ type?: string; args?: string[] }>;
+    };
+    const types = (launch.configurations ?? []).map((c) => c.type);
+    assert.ok(types.includes('extensionHost'), 'missing type: extensionHost');
+    const args = (launch.configurations ?? []).flatMap((c) => c.args ?? []);
+    assert.ok(
+      args.some((a) => a.includes('--extensionDevelopmentPath')),
+      'missing --extensionDevelopmentPath',
+    );
+    assert.ok(
+      args.some((a) => a.includes('--extensionTestsPath')),
+      'missing --extensionTestsPath',
+    );
+  });
+});
+
 describe('grammar and themes', () => {
   it('ships a grammar file', () => {
     const grammar = pkg.contributes.grammars[0] as { path?: string };

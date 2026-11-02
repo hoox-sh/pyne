@@ -194,12 +194,22 @@ Site download: [https://hoox.sh/pyne-vscode.vsix](https://hoox.sh/pyne-vscode.vs
 
 ### Development
 
+The repo ships VS Code **Extension Development Host** launch configs (`type: extensionHost`). F5 uses the VS Code you are already in (`${execPath}`), not a downloaded copy.
+
+| From | Command |
+| --- | --- |
+| PYNE repo root | **Run and Debug → PYNE: Run Extension** (opens `examples/rsi_strategy.pine`) |
+| `vscode-extension/` folder | **Run and Debug → Run Extension** |
+| Tests in the same host | **PYNE: Extension Tests** / **Extension Tests** |
+
 ```bash
 cd vscode-extension
 npm install
 npm run compile   # esbuild bundle → out/extension.js
-# F5 in VS Code with this folder open, or:
-code --extensionDevelopmentPath=.
+npm run edh       # CLI: installed `code` as Extension Development Host
+npm run test:edh  # mocha suite in that host (--wait)
+# equivalent:
+code --extensionDevelopmentPath=. ../examples/rsi_strategy.pine
 ```
 
 ## Settings

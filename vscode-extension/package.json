@@ -609,11 +609,14 @@
     "compile": "node esbuild.mjs",
     "check": "tsc -p ./ --noEmit",
     "compile:tsc": "tsc -p ./ --noEmit",
+    "compile:tests": "tsc -p ./ && node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "package": "npm run compile && node -e \"const v=require('./package.json').version; require('child_process').execSync('npx --yes @vscode/vsce package --no-dependencies --no-git-tag-version --out pyne-vscode-'+v+'.vsix',{stdio:'inherit'})\"",
     "lint": "eslint src",
     "test": "npx tsc -p . && npm run compile && node out/test/runTest.js",
-    "test:unit": "tsc -p ./ --noEmit && tsc -p ./ && node --test out/test/manifest.test.js"
+    "test:unit": "tsc -p ./ --noEmit && tsc -p ./ && node --test out/test/manifest.test.js",
+    "edh": "npm run compile && node ./scripts/edh.mjs",
+    "test:edh": "npm run compile:tests && node ./scripts/edh.mjs --test"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
