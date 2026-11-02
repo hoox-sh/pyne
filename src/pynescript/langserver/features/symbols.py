@@ -69,7 +69,11 @@ def handle_document_symbols(
         return []
 
     collector = DocumentSymbolCollector(uri, source or "")
-    collector.visit(tree)
+    try:
+        collector.visit(tree)
+    except Exception:
+        # Outline must not 32603 the LSP session (partial tree is still useful).
+        return list(collector.symbols)
 
     return collector.symbols
 
@@ -362,6 +366,17 @@ def _get_function_signature(node: ast.FunctionDef) -> str:
     return result
 
 
+def _specialize_arg_nodes(args: Any) -> list[Any]:
+    """``Specialize.args`` is an expr (Name / Tuple / nested Specialize), not a list."""
+    if args is None:
+        return []
+    if isinstance(args, ast.Tuple):
+        return list(args.elts or [])
+    if isinstance(args, (list, tuple)):
+        return list(args)
+    return [args]
+
+
 def _type_name(node: Any) -> str:
     if node is None:
         return ""
@@ -376,8 +391,13 @@ def _type_name(node: Any) -> str:
         return f"{qualifier} {inner}".strip() if inner else qualifier
     if isinstance(node, ast.Specialize):
         base = _type_name(node.value)
-        args = ", ".join(filter(None, (_type_name(arg) for arg in (node.args or []))))
+        args = ", ".join(
+            filter(None, (_type_name(arg) for arg in _specialize_arg_nodes(node.args))),
+        )
         return f"{base}<{args}>" if base and args else base
+    if isinstance(node, ast.Subscript):
+        inner = _type_name(node.value)
+        return f"{inner}[]" if inner else ""
     return ""
 
 

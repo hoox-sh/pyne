@@ -962,6 +962,33 @@ settings = MySettings.new()
                 f"{sym.name}: selection {sym.selection_range} not in full {sym.range}"
             )
 
+    def test_handle_document_symbols_specialize_type_inside_function(self) -> None:
+        """``array<float>`` / ``map<string, float>`` must not crash documentSymbol.
+
+        ``Specialize.args`` is an expr (Name or Tuple), not a list. Outline
+        walks Assign inside FunctionDef — the path that 32603'd the LSP.
+        """
+        source = """//@version=5
+indicator("T")
+f() =>
+    array<float> xs = array.new_float()
+    map<string, float> m = map.new<string, float>()
+    float[] ys = array.new_float()
+    xs
+"""
+        params = lsp.DocumentSymbolParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+        )
+        result = handle_document_symbols(params, source, "file:///test.pine")
+        funcs = [s for s in result if s.kind == lsp.SymbolKind.Function]
+        assert len(funcs) == 1
+        names = [c.name for c in (funcs[0].children or [])]
+        assert "xs" in names
+        assert "m" in names
+        details = {c.name: c.detail for c in (funcs[0].children or [])}
+        assert details.get("xs") == "array<float>"
+        assert details.get("m") == "map<string, float>"
+
     def test_handle_document_symbols_with_type(self) -> None:
         """Test document symbols with user-defined type."""
         source = """//@version=5
