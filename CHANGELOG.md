@@ -9,9 +9,11 @@
 
 - **`pynescript.selectSyntax`** is now a contributed command (palette entry was previously dangling).
 - **Extension test runner path** and mocha harness.
+- **docker `lsp.command`** with empty args gets a default `docker run -i --rm` GHCR image; convert-to-v6 Python fallback recognizes Windows interpreters.
 
 ### Changed
 
+- **VS Code extension TypeScript host** split into focused modules (`config`, `syntax`, `install`, `backend`, `lsp`); workbench-theme switching remains off.
 - **Mintlify vscode-extension page** pins `vscode-languageclient` ^11 (matches `vscode-extension/package.json`) and documents **PYNE: Select Syntax Highlighting**, bitwise grammar, and the new snippets. Inlay copy no longer implies type hints or `inlayHint/resolve`.
 - **VS Code command descriptions**, categories (Snippets, Themes), `.pinescript` workspaceContains.
 
