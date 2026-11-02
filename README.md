@@ -9,7 +9,7 @@ An independent open toolchain for the Pine Script™ language: ANTLR4 grammar, A
 
 Pine is usually executed inside a host chart. PYNE models the language as an inspectable pipeline — source through parse, AST, and deterministic bar-loop evaluation — so the same scripts can be analysed and run outside any particular UI. Import `pynescript`. CLIs: `pyne`, `pyne-lsp`, `pyne-mcp` (aliases `pynescript`, `pynescript-lsp`).
 
-**0.6.31** · PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/)
+**0.6.32** · PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/)
 
 <div align="center">
 

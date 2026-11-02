@@ -1,5 +1,15 @@
 ## [Unreleased]
 
+## [0.6.32] — 2026-11-02
+
+### Fixed
+
+- **documentSymbol on generic types.** Typed locals such as `array<float>` and `map<string, float>` no longer crash `textDocument/documentSymbol` (`Specialize.args` is an expr, not a list). Outline still returns any symbols already collected if a later visitor step fails.
+
+### Added
+
+- **VS Code extension 0.5.6.** VSIX re-pack for the outline fix; language server still comes from `hoox-pyne` (`python3 -m pynescript.langserver`).
+
 ## [0.6.31] — 2026-11-02
 
 ### Added

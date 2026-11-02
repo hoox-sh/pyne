@@ -11,6 +11,10 @@ Part of the **[HOOX](https://hoox.sh) open trading stack** — sister products: 
 > Independent, unofficial extension. **Not** affiliated with, endorsed by, or sponsored by TradingView, Inc.  
 > Pine Script™ and TradingView® are trademarks of TradingView, Inc.
 
+## What's new in 0.5.6
+
+- **documentSymbol** no longer fails on `array<T>` / `map<K,V>` typed locals (language server 0.6.32).
+
 ## What's new in 0.5.5
 
 - **AXIS-matched hover, suggest, and peek chrome** — 1px hairline, void plates, accent selection, and AXIS panel shadow across **AXIS Void**, **Hoox Signal**, and **PYNE Volt**. Hover and completion Markdown share a kind kicker, fenced signature, and docs-link footer.
@@ -195,7 +199,7 @@ npm run package
 code --install-extension pyne-*.vsix
 ```
 
-Site download: [https://hoox.sh/pyne-vscode.vsix](https://hoox.sh/pyne-vscode.vsix) (unversioned alias). Versioned `pyne-vscode-0.5.5.vsix` is built in this folder and on GitHub Releases.
+Site download: [https://hoox.sh/pyne-vscode.vsix](https://hoox.sh/pyne-vscode.vsix) (unversioned alias). Versioned `pyne-vscode-0.5.6.vsix` is built in this folder and on GitHub Releases.
 
 > The VSIX is **self-contained** (esbuild bundles `vscode-languageclient`). You still need the **language server** on the machine (`pip install "hoox-pyne[lsp]"`).
 
@@ -444,7 +448,7 @@ pyne-lsp
 | Extension id | `hoox-sh.pyne` |
 | Package name | `pyne` |
 | Display name | **PYNE Language Support** |
-| Version | 0.5.5 |
+| Version | 0.5.6 |
 
 ## License
 
