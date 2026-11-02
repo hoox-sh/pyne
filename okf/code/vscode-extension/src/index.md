@@ -2,4 +2,4 @@
 
 # Concepts
 
-* [vscode-extension/src/test](test.md) - vscode-extension/src/test contains extension.test.ts, runTest.ts.
+* [vscode-extension/src/test](test.md) - / <reference types="mocha" /.

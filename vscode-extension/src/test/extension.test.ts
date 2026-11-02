@@ -1,11 +1,9 @@
+/// <reference types="mocha" />
+
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-
-// Mocha BDD globals provided by the VS Code test runner at runtime.
-declare function suite(name: string, fn: () => void): void;
-declare function test(name: string, fn: () => void | Promise<void>, opts?: { timeout?: number }): any;
 
 const PACKAGE_PATH = path.resolve(__dirname, '../../package.json');
 const SNIPPETS_PATH = path.resolve(__dirname, '../../snippets/pine.code-snippets');

@@ -9,7 +9,7 @@ async function main() {
     // Download and unzip VS Code into a temp location
     const vscodeExecutablePath = await downloadAndUnzipVSCode();
 
-    const extensionTestsPath = path.resolve(__dirname, './out/test/index.js');
+    const extensionTestsPath = path.resolve(__dirname, './index.js');
 
     await runTests({
       vscodeExecutablePath,

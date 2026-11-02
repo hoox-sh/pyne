@@ -1,13 +1,13 @@
 ---
 type: "Code Module"
 title: "vscode-extension/src/test"
-description: "vscode-extension/src/test contains extension.test.ts, runTest.ts."
+description: "/ <reference types=\"mocha\" /."
 resource: "vscode-extension/src/test"
 tags: [code, test, vscode-extension]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-31T14:46:08Z
+  at: 2026-11-02T03:03:56Z
 sources:
   - id: tree
     resource: "vscode-extension/src/test"
@@ -16,11 +16,17 @@ sources:
 okf_lock: generated
 ---
 
+# Role
+
+/ <reference types="mocha" /
+
 # Files
 
 * `extension.test.ts`
+* `index.ts` — run
+* `manifest.test.ts`
 * `runTest.ts`
 
 # Packages
 
-`@vscode/test-electron`, `assert`, `fs`, `path`, `vscode`
+`@vscode/test-electron`, `assert`, `fs`, `mocha`, `node:assert/strict`, `node:fs`, `node:path`, `node:test`, `path`, `vscode`

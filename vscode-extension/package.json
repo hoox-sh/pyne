@@ -34,7 +34,8 @@
     "Programming Languages",
     "Linters",
     "Formatters",
-    "Other"
+    "Snippets",
+    "Themes"
   ],
   "keywords": [
     "pinescript",
@@ -55,7 +56,8 @@
     "workspaceContains:**/*.pyne",
     "workspaceContains:**/*.pine",
     "workspaceContains:**/*.pinev5",
-    "workspaceContains:**/*.pinev6"
+    "workspaceContains:**/*.pinev6",
+    "workspaceContains:**/*.pinescript"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -137,7 +139,7 @@
               "volt"
             ],
             "default": "void",
-            "markdownDescription": "Pine token palette for the TextMate grammar and language-server semantic tokens. Independent of `#pynescript.theme#`; select `none` to inherit the active theme's colors.",
+            "markdownDescription": "Pine token palette for the TextMate grammar and language-server semantic tokens. Independent of the workbench color theme; select `none` to inherit the active theme's colors.",
             "enumDescriptions": [
               "None — inherit the active theme's Pine colors.",
               "AXIS Void — periwinkle and grey tokens.",
@@ -350,73 +352,73 @@
         "command": "pynescript.restartServer",
         "title": "Restart Language Server",
         "category": "PYNE",
-        "description": "Restart Language Server command"
+        "description": "Restart the PYNE language server"
       },
       {
         "command": "pynescript.formatDocument",
         "title": "Format Document",
         "category": "PYNE",
-        "description": "Format Document command"
+        "description": "Format the active Pine document"
       },
       {
         "command": "pynescript.showLspOutput",
         "title": "Show Language Server Output",
         "category": "PYNE",
-        "description": "Show Language Server Output command"
+        "description": "Open the PYNE language server output channel"
       },
       {
         "command": "pynescript.showLspCommand",
         "title": "Show Resolved LSP Launch Command",
         "category": "PYNE",
-        "description": "Show Resolved LSP Launch Command command"
+        "description": "Show the resolved language-server launch command"
       },
       {
         "command": "pynescript.convertToV6",
         "title": "Convert to Pine v6",
         "category": "PYNE",
-        "description": "Convert to Pine v6 command"
+        "description": "Rewrite the active Pine document toward v6"
       },
       {
         "command": "pynescript.diagnosticsToggle",
         "title": "Toggle Diagnostics",
         "category": "PYNE",
-        "description": "Toggle Diagnostics command"
+        "description": "Toggle errors, warnings, and hints from the language server"
       },
       {
         "command": "pynescript.completionToggle",
         "title": "Toggle Completion",
         "category": "PYNE",
-        "description": "Toggle Completion command"
+        "description": "Toggle builtin and declaration snippets in autocomplete"
       },
       {
         "command": "pynescript.inlayHintsToggle",
         "title": "Toggle Inlay Hints",
         "category": "PYNE",
-        "description": "Toggle Inlay Hints command"
+        "description": "Toggle parameter-name inlay hints for Pine files"
       },
       {
         "command": "pynescript.foldingToggle",
         "title": "Toggle Folding",
         "category": "PYNE",
-        "description": "Toggle Folding command"
+        "description": "Toggle code folding for Pine files"
       },
       {
         "command": "pynescript.colorPreviewToggle",
         "title": "Toggle Color Preview",
         "category": "PYNE",
-        "description": "Toggle Color Preview command"
+        "description": "Toggle color decorator swatches in Pine files"
       },
       {
         "command": "pynescript.toggleHover",
         "title": "Toggle Hover",
         "category": "PYNE",
-        "description": "Toggle hover information"
+        "description": "Toggle hover cards with signatures and documentation"
       },
       {
         "command": "pynescript.toggleSignatureHelp",
         "title": "Toggle Signature Help",
         "category": "PYNE",
-        "description": "Toggle function signature help"
+        "description": "Toggle parameter hints while typing function arguments"
       },
       {
         "command": "pynescript.toggleSemanticTokens",
@@ -440,7 +442,7 @@
         "command": "pynescript.toggleSelectionRange",
         "title": "Toggle Selection Range",
         "category": "PYNE",
-        "description": "Toggle smart selection around the cursor"
+        "description": "Toggle smart expand/shrink selection around the cursor"
       },
       {
         "command": "pynescript.toggleDocumentLink",
@@ -458,7 +460,7 @@
         "command": "pynescript.toggleFormatOnSave",
         "title": "Toggle Format on Save",
         "category": "PYNE",
-        "description": "Toggle formatting the document on save"
+        "description": "Toggle formatting Pine documents on save"
       },
       {
         "command": "pynescript.openDocumentLink",
@@ -477,6 +479,12 @@
         "title": "Install Language Server",
         "category": "PYNE",
         "description": "Install or upgrade hoox-pyne[lsp] with pip"
+      },
+      {
+        "command": "pynescript.selectSyntax",
+        "title": "Select Syntax Highlighting",
+        "category": "PYNE",
+        "description": "Choose AXIS Void, Hoox Signal, PYNE Volt, or inherit the active theme"
       },
       {
         "command": "pynescript.installBackend",
@@ -600,17 +608,21 @@
     "vscode:prepublish": "npm run compile",
     "compile": "node esbuild.mjs",
     "check": "tsc -p ./ --noEmit",
+    "compile:tsc": "tsc -p ./ --noEmit",
     "watch": "node esbuild.mjs --watch",
     "package": "npm run compile && node -e \"const v=require('./package.json').version; require('child_process').execSync('npx --yes @vscode/vsce package --no-dependencies --no-git-tag-version --out pyne-vscode-'+v+'.vsix',{stdio:'inherit'})\"",
     "lint": "eslint src",
-    "test": "npx tsc -p . && npm run compile && node out/test/runTest.js"
+    "test": "npx tsc -p . && npm run compile && node out/test/runTest.js",
+    "test:unit": "tsc -p ./ --noEmit && tsc -p ./ && node --test out/test/manifest.test.js"
   },
   "devDependencies": {
+    "@types/mocha": "^10.0.10",
     "@types/node": "^26.6.6",
     "@types/vscode": "1.91.0",
     "@vscode/test-electron": "^3.1.0",
     "esbuild": "^0.28.2",
     "eslint": "^10.14.0",
+    "mocha": "^11.7.4",
     "@typescript/native": "npm:typescript@^7.0.2",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript-eslint": "^8.72.1"
