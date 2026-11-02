@@ -64,8 +64,10 @@ because availability differs per deployment.
   changes for them. The only requirement is a Python env with `hoox-pyne[lsp]`.
 - Inferred-type inlay hints were removed entirely (v0.5.3 server, extension
   0.5.3+): the server never annotates declarations. Parameter-name hints remain.
-- **PYNE: Select Syntax Highlighting** is local (writes `[pinescript]` token
-  colors). It works in every deployment mode, including no backend.
+- **PYNE: Select Syntax Highlighting** is local (Pine-scoped TextMate /
+  semantic-token rules on the global token color customizations; VS Code
+  rejects a language override for that setting). It works in every
+  deployment mode, including no backend.
 - `PYNE: Run on Pro` sends the full script plus a single synthetic OHLCV bar
   (`mode: auto`) to the configured backend — hosted, local, remote, or edge.
 - The hosted backend fronts `/run` with the Pro API key; self-hosted Flask

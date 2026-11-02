@@ -31,7 +31,9 @@ export function run(): Promise<void> {
 
   const testsRoot = __dirname;
   for (const file of fs.readdirSync(testsRoot)) {
-    if (file.endsWith('.test.js')) {
+    // manifest.test.js is a node:test suite; loading it under mocha would
+    // import `node:test` inside the Electron extension host.
+    if (file.endsWith('.test.js') && file !== 'manifest.test.js') {
       mocha.addFile(path.join(testsRoot, file));
     }
   }

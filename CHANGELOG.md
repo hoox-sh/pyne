@@ -8,7 +8,7 @@
 ### Fixed
 
 - **`pynescript.selectSyntax`** is now a contributed command (palette entry was previously dangling).
-- **Extension test runner path** and mocha harness.
+- **Extension test runner path** and mocha harness (Electron runner skips the node:test manifest suite).
 - **docker `lsp.command`** with empty args gets a default `docker run -i --rm` GHCR image; convert-to-v6 Python fallback recognizes Windows interpreters.
 
 ### Changed

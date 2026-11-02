@@ -341,7 +341,7 @@ Pine syntax highlighting is independent of the workbench theme:
 | --- | --- | --- | --- |
 | **Syntax highlighting** | `pynescript.syntaxHighlighting` | `none` · `void` · `signal` · `volt` | Use the active theme's Pine colors |
 
-It writes language-scoped `[pinescript]` token colors, so it composes with any workbench theme — including your own. Switch it with **PYNE: Select Syntax Highlighting** or set the key directly. Default: `void`.
+It writes Pine-scoped TextMate and semantic-token rules (`source.pinescript …` / `:pinescript`) onto the global token color customizations, so it composes with any workbench theme — including your own. Switch it with **PYNE: Select Syntax Highlighting** or set the key directly. Default: `void`.
 
 ## Docker (optional)
 
