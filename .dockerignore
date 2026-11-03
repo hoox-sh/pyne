@@ -54,7 +54,6 @@ brand
 MARKETING.md
 
 # Sister-tool frontends (not part of the API image)
-vscode-extension
 pine-worker
 clients
 examples

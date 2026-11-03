@@ -7,7 +7,7 @@ tags: [build, code, scripts]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-03T21:18:07Z
 sources:
   - id: tree
     resource: "scripts/build"
@@ -18,8 +18,8 @@ okf_lock: generated
 
 # Files
 
-* `ci_build.py` — compile_onefile, main, package_vsix, run, stage_metadata
-* `compile.py` — build_vsix, encrypt_metadata, generate_metadata, get_nuitka_version, main, nuitka_compile, run
+* `ci_build.py` — compile_onefile, main, run, stage_metadata
+* `compile.py` — encrypt_metadata, generate_metadata, get_nuitka_version, main, nuitka_compile, run
 
 # Other files
 

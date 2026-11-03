@@ -425,7 +425,6 @@ def find_candidates(root: Path) -> list[Path]:
         "pine-worker/src/",
         "pine-worker/scripts/",
         "pine-worker/test/",
-        "vscode-extension/src/",
         "frontend/worker/src/",
         "frontend/src/",
         "Makefile",

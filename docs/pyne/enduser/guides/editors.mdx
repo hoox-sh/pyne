@@ -76,20 +76,21 @@ The process speaks **LSP over stdio** by default (`PynescriptLanguageServer.star
 
 ### VS Code / Cursor / Antigravity
 
-1. Build or install the extension from `vscode-extension/`:
+1. Build or install the extension from [hoox-sh/pyne-lsp-vsce](https://github.com/hoox-sh/pyne-lsp-vsce):
 
 ```bash
-cd vscode-extension
+git clone https://github.com/hoox-sh/pyne-lsp-vsce.git
+cd pyne-lsp-vsce
 npm ci
 npm run compile
-# package: npx vsce package  (or make build-vscode)
+# package: npm run package
 ```
 
 2. Open a **`.pyne`** (preferred for HOOX / PYNE stack sources), `.pine`, `.pinev5`, `.pinev6`, or `.pinescript` file — LSP activates when enabled. The VS Code extension also activates on `workspaceContains:**/*.{pyne,pine,…}`.
 
-**Marketplace / VSIX:** extension id **`hoox-sh.pyne`** **0.5.5** (publisher `hoox-sh`, package name `pyne`; ships with **`hoox-pyne` 0.6.31**). [VS Marketplace](https://marketplace.visualstudio.com/items?itemName=hoox-sh.pyne). Site download: [hoox.sh/pyne-vscode.vsix](https://hoox.sh/pyne-vscode.vsix) (unversioned alias). Local package: `cd vscode-extension && npm ci && npm run package` then `code --install-extension pyne-vscode-0.5.5.vsix`. The VSIX is self-contained; you still need `pip install "hoox-pyne[lsp]"` (or a `pyne-lsp` binary) on the machine.
+**Marketplace / VSIX:** extension id **`hoox-sh.pyne`** **0.5.5** (publisher `hoox-sh`, package name `pyne`; ships with **`hoox-pyne` 0.6.31**). [VS Marketplace](https://marketplace.visualstudio.com/items?itemName=hoox-sh.pyne). Site download: [hoox.sh/pyne-vscode.vsix](https://hoox.sh/pyne-vscode.vsix) (unversioned alias). Local package: `git clone https://github.com/hoox-sh/pyne-lsp-vsce.git && cd pyne-lsp-vsce && npm ci && npm run package` then `code --install-extension pyne-vscode-0.5.5.vsix`. The VSIX is self-contained; you still need `pip install "hoox-pyne[lsp]"` (or a `pyne-lsp` binary) on the machine.
 
-Settings (from `vscode-extension/package.json`):
+Settings (from the extension's `package.json`):
 
 | Key | Default | Notes |
 | --- | --- | --- |
@@ -217,7 +218,7 @@ Transport: stdio
 | `src/pynescript/langserver/features/` | diagnostics, completion, hover, … |
 | `clients/README.md` | Canonical client matrix |
 | `clients/neovim.lua`, `zed.json`, `emacs.el` | Drop-in snippets |
-| `vscode-extension/` | VS Code extension |
+| [`hoox-sh/pyne-lsp-vsce`](https://github.com/hoox-sh/pyne-lsp-vsce) | VS Code extension (separate repo) |
 | `scripts/generate_builtin_metadata.py` | Completion/hover corpus |
 
 ## Invariants & edge cases

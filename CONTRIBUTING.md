@@ -91,12 +91,12 @@ See `docs/pyne/devops/pypi-publish.mdx` for failure modes.
 ### Cut a release
 
 1. Bump `__version__` in `src/pynescript/__about__.py` and move `CHANGELOG.md` `## [Unreleased]` into `## [X.Y.Z] — YYYY-MM-DD`. The GitHub Release body is that section (plus install/binary how-to); tagging without the heading fails **Build & Release**.
-2. Align `vscode-extension/package.json` version when shipping the VSIX together.
+2. The VS Code extension lives in [hoox-sh/pyne-lsp-vsce](https://github.com/hoox-sh/pyne-lsp-vsce) and releases on its own tag cadence — do not bump it from here.
 3. Ensure CI is green on `main`.
 4. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 5. GitHub Actions on `v*` tags:
    - **Publish** (`publish.yml`) — sdist/wheel → PyPI (`hoox_pyne-*.whl` / `hoox_pyne-*.tar.gz`) via `PYPI_API_TOKEN` or Trusted Publishing OIDC (environment `pypi`).
-   - **Build & Release** (`release.yml`) — Nuitka CLI/LSP binaries + VSIX; GitHub Release notes from the matching `CHANGELOG.md` `## [X.Y.Z]` section.
+   - **Build & Release** (`release.yml`) — Nuitka CLI/LSP binaries; GitHub Release notes from the matching `CHANGELOG.md` `## [X.Y.Z]` section.
    - **GHCR** (`ghcr.yml`) — `ghcr.io/hoox-sh/pyne/{cli,lsp,api,mcp}:X.Y.Z`.
 
 Dry-run (build only, no upload): Actions → **Publish** → Run workflow → `dry_run=true`.

@@ -19,7 +19,7 @@
 
 ---
 title: "Release"
-description: "Tag-driven CLI + LSP multi-platform Nuitka binaries, wheels, Docker CLI image, VSIX packaging, GitHub Releases, and Marketplace publish."
+description: "Tag-driven CLI + LSP multi-platform Nuitka binaries, wheels, Docker CLI image, and GitHub Releases."
 ---
 
 # Release
@@ -32,9 +32,8 @@ A PYNE release is a **multi-artifact event**, not a single wheel upload. The pri
 - **CLI** platform-native Nuitka binaries (`pynescript`)
 - **LSP** platform-native Nuitka binaries (`pynescript-lsp`)
 - **CLI Docker image** tarball (`pynescript-cli-image.tar.gz`)
-- **VS Code** VSIX
 
-Assets attach to a GitHub Release; PyPI upload is handled by **Publish** (`publish.yml`). Multi-arch container images are a **separate** workflow (**GHCR** / `ghcr.yml`) — not attached as tarballs except the CLI image save in this workflow. Marketplace / Open VSX publish is optional when those jobs are configured.
+Assets attach to a GitHub Release; PyPI upload is handled by **Publish** (`publish.yml`). Multi-arch container images are a **separate** workflow (**GHCR** / `ghcr.yml`) — not attached as tarballs except the CLI image save in this workflow. The **VS Code extension (VSIX)** is built and published from the separate [hoox-sh/pyne-lsp-vsce](https://github.com/hoox-sh/pyne-lsp-vsce) repo.
 ## Conceptual model
 
 ```mermaid
@@ -45,22 +44,17 @@ sequenceDiagram
   participant CLI as build-cli matrix
   participant LSP as build-lsp matrix
   participant Dock as build-docker-cli
-  participant VSC as build-vscode
   participant Rel as release job
-  participant Mkt as Marketplace
   Dev->>GH: git tag vX.Y.Z && push
   GH->>Pkg: sdist + wheel
   GH->>CLI: linux / windows / macos
   GH->>LSP: linux / windows / macos
   GH->>Dock: pynescript-cli image
-  GH->>VSC: Node 22 vsce package
   Pkg->>Rel: wheels
   CLI->>Rel: CLI binaries
   LSP->>Rel: LSP binaries
   Dock->>Rel: image tarball
-  VSC->>Rel: VSIX
   Rel->>GH: softprops/action-gh-release
-  VSC->>Mkt: vsce publish (on tag)
 ```
 
 ## Interface surface
@@ -80,9 +74,9 @@ sequenceDiagram
 | `build-cli` | ubuntu-latest, windows-latest, macos-latest | `pynescript-cli-linux-x86_64`, `…-windows-x86_64.exe`, `…-macos-arm64` |
 | `build-lsp` | ubuntu-latest, windows-latest, macos-latest | `pynescript-lsp-linux-x86_64`, `…-windows-x86_64.exe`, `…-macos-arm64` |
 | `build-docker-cli` | ubuntu-latest | `pynescript-cli-docker` (gzipped `docker save`) |
-| `build-vscode` | ubuntu-latest | `pynescript-vscode-extension` VSIX |
-| `release` | needs package + vscode success; tag **or** dispatch | GitHub Release body + staged assets (`name: pyne vX.Y.Z`) |
-| `publish-vscode` | needs VSIX; tag **or** dispatch | `vsce publish` / `ovsx publish` when configured |
+| `release` | needs package success; tag **or** dispatch | GitHub Release body + staged assets (`name: pyne vX.Y.Z`) |
+
+The VSIX is built and published by the separate [hoox-sh/pyne-lsp-vsce](https://github.com/hoox-sh/pyne-lsp-vsce) repo on its own tags.
 
 ### Environment
 
@@ -104,7 +98,7 @@ python scripts/build/ci_build.py --target lsp --jobs 4
 # CLI
 pip install -e . "nuitka>=2.5.1,<2.8"
 python scripts/build/compile.py --target cli --check
-python scripts/build/ci_build.py --target cli --jobs 4 --skip-metadata --skip-vsix
+python scripts/build/ci_build.py --target cli --jobs 4 --skip-metadata
 ```
 
 ### Local make-side packaging
@@ -113,11 +107,10 @@ python scripts/build/ci_build.py --target cli --jobs 4 --skip-metadata --skip-vs
 make package        # sdist + wheel (python -m build)
 make build          # Nuitka LSP
 make build-cli      # Nuitka CLI
-make build-vscode   # npm install && compile && vsce package
 make docker-build-cli
 ```
 
-Artifacts land under `dist/`, `dist/lsp/`, `dist/cli/`, `dist/vsix/`, and `vscode-extension/*.vsix` depending on script path.
+Artifacts land under `dist/`, `dist/lsp/`, and `dist/cli/` depending on script path.
 
 ## Internals
 
@@ -126,7 +119,6 @@ Artifacts land under `dist/`, `dist/lsp/`, `dist/cli/`, `dist/vsix/`, and `vscod
 | `.github/workflows/release.yml` | Orchestration |
 | `scripts/build/ci_build.py` | CI-oriented Nuitka + metadata encrypt |
 | `scripts/build/compile.py` | Local/full compile options (`--onefile`, `--standalone`, `--check`) |
-| `vscode-extension/package.json` | Extension version / engines |
 | `src/pynescript/__about__.py` | Hatch dynamic version for Python package |
 
 ### Release asset contract (from release body)
@@ -141,13 +133,14 @@ Artifacts land under `dist/`, `dist/lsp/`, `dist/cli/`, `dist/vsix/`, and `vscod
 | `pynescript-lsp-linux-x86_64` | `chmod +x` → `/usr/local/bin/pynescript-lsp` |
 | `pynescript-lsp-windows-x86_64.exe` | Place on PATH |
 | `pynescript-lsp-macos-arm64` | Place on PATH (Apple Silicon runners) |
-| `pyne-vscode-*.vsix` (`hoox-sh.pyne` 0.5.5) | `code --install-extension pyne-vscode-*.vsix` · site: [hoox.sh/pyne-vscode.vsix](https://hoox.sh/pyne-vscode.vsix) (unversioned) |
+
+The VSIX (`hoox-sh.pyne`) ships from [hoox-sh/pyne-lsp-vsce](https://github.com/hoox-sh/pyne-lsp-vsce) releases — `code --install-extension pyne-vscode-*.vsix`.
 
 ## Invariants & edge cases
 
 1. **`CRYPTO_KEY` must be stable across builds** if you care about byte-identical `builtin_metadata.json.enc`. Supply `secrets.METADATA_KEY`.
 2. **Tag name is the version source** for the GitHub Release title (`v` prefix stripped).
-3. **Marketplace / Open VSX publish is optional.** GitHub Release still attaches the VSIX when those jobs are unconfigured.
+3. **Marketplace / Open VSX publish is handled in `pyne-lsp-vsce`.** This repo's release only ships Python + Nuitka artifacts.
 4. **Artifact retention is short** (5 days on build jobs) — releases must attach files immediately.
 5. **macOS artifact is ARM64** from `macos-latest` — Intel Mac users may need separate builds if required.
 6. **Draft vs prerelease:** workflow currently sets `draft: false`, `prerelease: false` for tag releases.

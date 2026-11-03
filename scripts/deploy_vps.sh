@@ -110,7 +110,6 @@ rsync -az --delete --info=stats1 \
   --exclude 'tests/data/library/' \
   --exclude '.opencode/' \
   --exclude 'logs/' \
-  --exclude 'vscode-extension/*.vsix' \
   --exclude '.git/' \
   --exclude '.env' \
   "${ROOT}/" "${TARGET}"

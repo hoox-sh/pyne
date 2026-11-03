@@ -59,7 +59,6 @@ METADATA_JSON = PROVIDERS_DIR / "builtin_metadata.json"
 KEY_FILE = BUILD_DIR / ".metadata.key"
 LSP_BINARY_NAME = "pynescript-lsp"
 CLI_BINARY_NAME = "pynescript"
-VSCODE_EXT = ROOT / "vscode-extension"
 
 
 def run(cmd: Sequence[str | Path], **kwargs) -> subprocess.CompletedProcess:
@@ -381,37 +380,6 @@ def nuitka_compile(
     return None
 
 
-def build_vsix(binary: Path | None) -> Path | None:
-    """Package VSIX bundle."""
-    if not VSCODE_EXT.exists():
-        print(f"  WARNING: VS Code extension not found at {VSCODE_EXT}")
-        return None
-
-    vsix_file = DIST / "vsix" / f"pynescript-{binary.name if binary else 'lsp'}.vsix"
-    vsix_file.parent.mkdir(parents=True, exist_ok=True)
-
-    with zipfile.ZipFile(vsix_file, "w", zipfile.ZIP_DEFLATED) as zf:
-        for root, dirs, files in os.walk(VSCODE_EXT):
-            dirs[:] = [d for d in dirs if d not in (".git", ".vscode", "node_modules")]
-            for file in files:
-                if file.endswith(".map") or file.endswith(".ts"):
-                    continue
-                filepath = Path(root) / file
-                arcname = filepath.relative_to(VSCODE_EXT)
-                zf.write(filepath, arcname)
-
-        if binary is not None and binary.is_file():
-            lsp_dir = vsix_file.parent / "lsp_bin"
-            lsp_dir.mkdir(parents=True, exist_ok=True)
-            bin_copy = lsp_dir / binary.name
-            shutil.copy2(binary, bin_copy)
-            print(f"  Bundled LSP binary: {bin_copy.name}")
-
-    size_mb = vsix_file.stat().st_size / 1024 / 1024
-    print(f"  VSIX: {vsix_file} ({size_mb:.1f} MB)")
-    return vsix_file
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Compile Pynescript LSP and/or CLI with Nuitka",
@@ -433,7 +401,6 @@ def main() -> None:
     )
     parser.add_argument("--no-encrypt", action="store_true", help="Skip metadata encryption")
     parser.add_argument("--no-metadata", action="store_true", help="Skip metadata generation")
-    parser.add_argument("--no-vsix", action="store_true", help="Skip VSIX packaging (LSP only)")
     parser.add_argument("--clean", action="store_true", help="Clean dist/ before building")
     parser.add_argument("--jobs", type=int, default=None, help="Parallel jobs (default: auto)")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
@@ -472,8 +439,6 @@ def main() -> None:
         steps.append("Encrypt metadata")
     for t in targets:
         steps.append(f"Compile {t} with Nuitka" + (" (check only)" if args.check else ""))
-    if "lsp" in targets and not args.check and not args.no_vsix:
-        steps.append("Build VSIX bundle")
 
     for i, step in enumerate(steps, 1):
         print(f"\n[{i}/{len(steps)}] {step}...")
@@ -514,10 +479,6 @@ def main() -> None:
             if results[t] is None:
                 failed = True
 
-    vsix = None
-    if not failed and "lsp" in targets and not args.check and not args.no_vsix:
-        vsix = build_vsix(results.get("lsp"))
-
     if failed:
         print("\n[FAIL] Build/check failed for one or more targets.")
         for t, path in results.items():
@@ -529,8 +490,6 @@ def main() -> None:
         print("\n[OK] Build complete!")
         for t, path in results.items():
             print(f"  {t.upper()}: {path or 'N/A'}")
-        if "lsp" in targets:
-            print(f"  VSIX: {vsix or 'N/A'}")
         if encrypted:
             print(f"  Key:  {KEY_FILE} (keep this safe!)")
     else:

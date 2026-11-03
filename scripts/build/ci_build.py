@@ -56,7 +56,6 @@ BUILD_DIR = ROOT / "scripts" / "build"
 KEY_FILE = BUILD_DIR / ".metadata.key"
 LSP_BINARY_NAME = "pynescript-lsp"
 CLI_BINARY_NAME = "pynescript"
-VSCODE_EXT = ROOT / "vscode-extension"
 
 
 def run(cmd: Sequence[str | Path], cwd: Path | None = None, env: dict | None = None, capture: bool = False):
@@ -269,31 +268,6 @@ def compile_onefile(jobs: int, *, target: str = "lsp") -> Path:
     return final_binary
 
 
-def package_vsix(binary: Path) -> Path:
-    """Build VSIX bundle."""
-    vsix_file = DIST / "vsix" / "pynescript-lsp.vsix"
-    vsix_file.parent.mkdir(parents=True, exist_ok=True)
-
-    with zipfile.ZipFile(vsix_file, "w", zipfile.ZIP_DEFLATED) as zf:
-        for root, dirs, files in os.walk(VSCODE_EXT):
-            dirs[:] = [d for d in dirs if d not in (".git", ".vscode", "node_modules")]
-            for file in files:
-                if file.endswith((".ts", ".map")):
-                    continue
-                filepath = Path(root) / file
-                arcname = filepath.relative_to(VSCODE_EXT)
-                zf.write(filepath, arcname)
-
-        lsp_dir = vsix_file.parent / "lsp_bin"
-        lsp_dir.mkdir(parents=True, exist_ok=True)
-        bin_copy = lsp_dir / binary.name
-        shutil.copy2(binary, bin_copy)
-        zf.write(bin_copy, f"pynescript-lsp/{binary.name}")
-
-    print(f"  VSIX: {vsix_file} ({vsix_file.stat().st_size / 1024 / 1024:.1f} MB)")
-    return vsix_file
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="CI Nuitka build for Pynescript LSP/CLI")
     parser.add_argument(
@@ -303,7 +277,6 @@ def main() -> None:
         help="Binary to build (default: lsp)",
     )
     parser.add_argument("--jobs", type=int, default=None)
-    parser.add_argument("--skip-vsix", action="store_true")
     parser.add_argument("--skip-metadata", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
@@ -318,7 +291,7 @@ def main() -> None:
     print("=" * 60)
 
     if args.dry_run:
-        print("[dry-run] Would run: metadata + compile + vsix")
+        print("[dry-run] Would run: metadata + compile")
         return
 
     DIST.mkdir(parents=True, exist_ok=True)
@@ -335,13 +308,6 @@ def main() -> None:
         for t in targets:
             print(f"\n[compile:{t}] Compile...")
             results[t] = compile_onefile(jobs, target=t)
-
-        if "lsp" in targets:
-            print("\n[vsix] VSIX...")
-            if not args.skip_vsix:
-                package_vsix(results["lsp"])
-            else:
-                print("  Skipped")
     except (FileNotFoundError, ValueError, OSError) as exc:
         print(f"\n[FAIL] {exc}", file=sys.stderr)
         sys.exit(1)
@@ -350,8 +316,6 @@ def main() -> None:
     print("Build complete!")
     for t, path in results.items():
         print(f"  {t.upper()}: {path}")
-    if "lsp" in targets and not args.skip_vsix:
-        print(f"  VSIX: {DIST / 'vsix' / 'pynescript-lsp.vsix'}")
     print(f"{'=' * 60}")
 
 

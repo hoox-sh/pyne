@@ -136,7 +136,7 @@ gh secret set CRYPTO_KEY -R hoox-sh/pyne < scripts/build/.metadata.key
     CRYPTO_KEY: ${{ secrets.METADATA_KEY }}
 
 - name: Build CLI binary
-  run: python scripts/build/ci_build.py --target cli --jobs 4 --skip-metadata --skip-vsix
+  run: python scripts/build/ci_build.py --target cli --jobs 4 --skip-metadata
 ```
 
 ## Build Time

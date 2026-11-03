@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "Release"
-description: "Tag-driven CLI + LSP multi-platform Nuitka binaries, wheels, Docker CLI image, VSIX packaging, GitHub Releases, and Marketplace publish."
+description: "Tag-driven CLI + LSP multi-platform Nuitka binaries, wheels, Docker CLI image, and GitHub Releases."
 resource: "docs/pyne/devops/release.mdx"
 tags: [devops, doc, docs, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-03T21:18:07Z
 sources:
   - id: tree
     resource: "docs/pyne/devops/release.mdx"

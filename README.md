@@ -72,7 +72,7 @@ The same contract underlies the desk CLI, `pyne-lsp`, Flask `POST /run`, AXIS in
 | **CLI** (`pyne`) | Check, format, lint, compile, `run` (compile smoke), `execute` (`Runtime.run`), data, prewarm, MCP `call` |
 | **LSP** (`pyne-lsp`) | Diagnostics, completion (~800+ builtins), hover, navigation, semantic tokens, formatting |
 | **MCP** (`pyne-mcp` / `pyne mcp`) | Stdio server and in-process `pyne mcp call` — parse / lint / convert / compile / `Runtime.run` |
-| **VS Code** | First-class `.pyne` / `.pine` ([extension](./vscode-extension/)) |
+| **VS Code** | First-class `.pyne` / `.pine` ([extension](https://github.com/hoox-sh/pyne-lsp-vsce)) |
 | **Pro API** | HTTP evaluate, batch, chart preview, quick backtest, `/optimize`, datafeed |
 | **Editors** | Neovim, Zed, Emacs under [`clients/`](./clients/) |
 | **PyneTS** | TypeScript / Bun library [`@hoox-sh/pynets`](https://github.com/hoox-sh/pynets) |
@@ -97,6 +97,12 @@ git clone https://github.com/hoox-sh/pyne.git
 cd pyne
 pip install -e ".[lsp,pro]"
 ```
+
+Editors: the **VS Code** extension lives in its own repo —
+[hoox-sh/pyne-lsp-vsce](https://github.com/hoox-sh/pyne-lsp-vsce). It is a thin
+client for `pyne-lsp` and ships no server of its own; install
+`hoox-pyne[lsp]` (or let the extension prompt for it). Neovim / Zed / Emacs
+configs are in [`clients/`](./clients/).
 
 GHCR multi-arch images on `v*` tags:
 
@@ -161,7 +167,7 @@ pyne mcp                 # stdio
 pyne mcp call execute script.pine --arg bars=50 --arg mode=interpret
 ```
 
-MCP catalog: [tools](https://hoox.sh/pyne/docs/enduser/reference/mcp-tools). Editors: [VS Code](./vscode-extension/); Neovim / Zed / Emacs in [`clients/`](./clients/). CLI map: [commands](https://hoox.sh/pyne/docs/enduser/reference/cli-commands).
+MCP catalog: [tools](https://hoox.sh/pyne/docs/enduser/reference/mcp-tools). Editors: [VS Code](https://github.com/hoox-sh/pyne-lsp-vsce); Neovim / Zed / Emacs in [`clients/`](./clients/). CLI map: [commands](https://hoox.sh/pyne/docs/enduser/reference/cli-commands).
 
 ### Pro API
 

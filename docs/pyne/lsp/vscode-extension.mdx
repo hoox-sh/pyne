@@ -45,7 +45,7 @@ flowchart LR
 
 ### Package identity
 
-From `vscode-extension/package.json`:
+From the extension's `package.json` ([hoox-sh/pyne-lsp-vsce](https://github.com/hoox-sh/pyne-lsp-vsce)):
 
 | Field | Value |
 | --- | --- |
@@ -223,8 +223,9 @@ It writes language-scoped `[pinescript]` token colors, so it composes with any w
 
 ```bash
 pip install -e ".[lsp]"
-cd vscode-extension && npm ci && npm run compile
-# Launch Extension Development Host pointing at vscode-extension
+git clone https://github.com/hoox-sh/pyne-lsp-vsce.git
+cd pyne-lsp-vsce && npm ci && npm run compile
+# Launch Extension Development Host pointing at the pyne-lsp-vsce checkout
 ```
 
 Open a fixture `.pine` file; confirm Problems panel shows parse/lint diagnostics from the Python server. With a current `pyne-lsp`, also expect `#hex` color swatches, clickable `https://` links in comments, `source:` / `length:` inlay labels on `ta.sma(close, 14)`, and range semantic tokens while scrolling.

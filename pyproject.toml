@@ -116,7 +116,6 @@ exclude = [
   "/docs/_build",
   "/logs",
   "/reports",
-  "/vscode-extension/node_modules",
   "/.host",
   "/packages/backend/dist",
   "/packages/backend/build",

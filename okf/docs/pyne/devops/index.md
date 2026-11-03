@@ -9,5 +9,5 @@
 * [Metadata encryption](metadata-crypto.md) - Fernet-encrypted LSP builtinmetadata.json — key lifecycle, CI secrets, integrity hashes, and runtime decrypt.
 * [Nuitka build (LSP + CLI)](nuitka-build.md) - Compile pyne-lsp and pyne CLI with Nuitka — onefile vs standalone, CI build script, Anaconda quirks, and artifact layout.
 * [Observability](observability.md) - PYNEDEBUG logging, GET /stats runtime counters, health endpoints, gunicorn process model, Cloud Logging, and operational signals.
-* [Release](release.md) - Tag-driven CLI + LSP multi-platform Nuitka binaries, wheels, Docker CLI image, VSIX packaging, GitHub Releases, and Marketplace publish.
+* [Release](release.md) - Tag-driven CLI + LSP multi-platform Nuitka binaries, wheels, Docker CLI image, and GitHub Releases.
 * [Security](security.md) - API keys, CORS, body limits, secrets hygiene, Fernet metadata keys, and threat-aware defaults for PYNE ops.

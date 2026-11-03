@@ -165,7 +165,7 @@ Report artifact: `.cache/interp_compile_parity.json`. Value mismatches on shared
 Match root `CONTRIBUTING.md` and `.github/workflows/publish.yml` / `release.yml` / `ghcr.yml`:
 
 1. Bump `__version__` in `src/pynescript/__about__.py` and update `CHANGELOG.md`.
-2. Align `vscode-extension/package.json` when shipping the VSIX together.
+2. The VS Code extension lives in [hoox-sh/pyne-lsp-vsce](https://github.com/hoox-sh/pyne-lsp-vsce) and releases on its own tag cadence.
 3. Ensure CI is green on `main`.
 4. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 5. **Publish** (`publish.yml`) builds sdist/wheel (`hoox_pyne-*.whl`) and uploads `hoox-pyne` to PyPI on `v*` tags.

@@ -4,7 +4,7 @@ This directory contains LSP client configurations for popular editors (`pyne-lsp
 
 ## VS Code
 
-Extension lives in [`../vscode-extension`](../vscode-extension) (**PYNE**, part of the HOOX open trading stack).
+Extension lives in its own repo: **[hoox-sh/pyne-lsp-vsce](https://github.com/hoox-sh/pyne-lsp-vsce)** (**PYNE**, part of the HOOX open trading stack).
 
 **Prerequisite:** language server installed:
 
@@ -24,7 +24,8 @@ Import package remains **`pynescript`** (`import pynescript`).
 **Build & install VSIX:**
 
 ```bash
-cd vscode-extension
+git clone https://github.com/hoox-sh/pyne-lsp-vsce.git
+cd pyne-lsp-vsce
 npm install
 npm run package
 code --install-extension pyne-*.vsix   # 0.2.2+ is self-contained (bundled language client)
@@ -33,7 +34,7 @@ code --install-extension pyne-*.vsix   # 0.2.2+ is self-contained (bundled langu
 **Dev:**
 
 ```bash
-cd vscode-extension && npm run compile
+cd pyne-lsp-vsce && npm run compile
 code --extensionDevelopmentPath=.
 ```
 

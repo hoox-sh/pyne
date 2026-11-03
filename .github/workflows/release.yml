@@ -189,7 +189,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python scripts/build/ci_build.py --target cli --jobs ${{ env.NUITKA_JOBS }} --skip-metadata --skip-vsix
+          python scripts/build/ci_build.py --target cli --jobs ${{ env.NUITKA_JOBS }} --skip-metadata
 
       - name: Find binary and rename to platform artifact name
         id: find_binary
@@ -261,44 +261,6 @@ jobs:
         with:
           name: ${{ matrix.artifact_name }}
           path: ${{ steps.find_binary.outputs.binary }}
-          if-no-files-found: error
-          retention-days: 5
-
-  build-vscode:
-    name: Build VS Code Extension
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: vscode-extension/package-lock.json
-
-      - name: Install dependencies
-        working-directory: vscode-extension
-        run: npm ci
-
-      - name: Compile TypeScript
-        working-directory: vscode-extension
-        run: npm run compile
-
-      - name: Package extension
-        working-directory: vscode-extension
-        run: |
-          set -euo pipefail
-          VER=$(node -p "require('./package.json').version")
-          npx --yes @vscode/vsce package --no-dependencies --no-git-tag-version \
-            --out "pyne-vscode-${VER}.vsix"
-          ls -lh "pyne-vscode-${VER}.vsix"
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: pynescript-vscode-extension
-          path: vscode-extension/pyne-vscode-*.vsix
           if-no-files-found: error
           retention-days: 5
 
@@ -380,9 +342,9 @@ jobs:
 
   release:
     name: Create Release
-    needs: [build-package, build-lsp, build-cli, build-vscode, build-docker-cli]
+    needs: [build-package, build-lsp, build-cli, build-docker-cli]
     runs-on: ubuntu-latest
-    # Ship package+vscode always; platform binaries / docker attach when present
+    # Ship package always; platform binaries / docker attach when present
     # (matrix fail-fast: false). Never create a tag release if package failed.
     if: >
       always() &&
@@ -390,8 +352,7 @@ jobs:
         (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
         github.event_name == 'workflow_dispatch'
       ) &&
-      needs.build-package.result == 'success' &&
-      needs.build-vscode.result == 'success'
+      needs.build-package.result == 'success'
     permissions:
       contents: write
     outputs:
@@ -479,24 +440,7 @@ jobs:
             fi
           done
 
-          # VSIX — prefer pyne-*.vsix, skip tiny junk.
-          if [ ! -d artifacts/pynescript-vscode-extension ]; then
-            echo "ERROR: missing pynescript-vscode-extension artifact" >&2
-            exit 1
-          fi
-          vsix=$(find artifacts/pynescript-vscode-extension -name 'pyne-vscode-*.vsix' -type f | head -1 || true)
-          if [ -z "${vsix:-}" ]; then
-            vsix=$(find artifacts/pynescript-vscode-extension -name 'pyne-*.vsix' -type f | head -1 || true)
-          fi
-          if [ -z "${vsix:-}" ]; then
-            vsix=$(find artifacts/pynescript-vscode-extension -name '*.vsix' -type f -size +50k | head -1 || true)
-          fi
-          if [ -z "${vsix:-}" ]; then
-            echo "ERROR: no .vsix found in vscode extension artifact" >&2
-            ls -laR artifacts/pynescript-vscode-extension || true
-            exit 1
-          fi
-          stage_file "$vsix" "$(basename "$vsix")"
+          # VSIX is published from hoox-sh/pyne-lsp-vsce, not this repo.
 
           # CLI Docker image tarball (optional — docker job may fail independently).
           if [ -d artifacts/pynescript-cli-docker ]; then
@@ -517,8 +461,8 @@ jobs:
             exit 1
           fi
           if [ "$binaries" -eq 0 ]; then
-            # Soft: package + VSIX still constitute a useful release; Nuitka matrices can flake.
-            echo "warning: no CLI/LSP platform binaries staged; release will be package+VSIX(+docker) only" >&2
+            # Soft: package alone still constitutes a useful release; Nuitka matrices can flake.
+            echo "warning: no CLI/LSP platform binaries staged; release will be package(+docker) only" >&2
           fi
 
       - name: Extract CHANGELOG.md for release notes
@@ -547,46 +491,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  publish-vscode:
-    name: Publish to VS Code Marketplace
-    needs: [build-vscode]
-    runs-on: ubuntu-latest
-    if: >
-      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
-      github.event_name == 'workflow_dispatch'
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Download VSIX
-        uses: actions/download-artifact@v8
-        with:
-          name: pynescript-vscode-extension
-          path: .
-
-      - name: Publish to Marketplace
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
-          OVSX_PAT: ${{ secrets.OVSX_PAT }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          VSIX=$(ls pyne-vscode-*.vsix 2>/dev/null | head -1 || true)
-          if [ -z "${VSIX:-}" ]; then
-            VSIX=$(ls *.vsix 2>/dev/null | head -1 || true)
-          fi
-          if [ -z "${VSIX:-}" ]; then
-            echo "No VSIX artifact to publish" >&2
-            exit 1
-          fi
-          if [ -z "${VSCE_PAT:-}" ]; then
-            echo "VSCE_PAT not set — skipping Marketplace publish (VSIX still on GitHub Release)."
-          else
-            npx --yes @vscode/vsce publish --pat "$VSCE_PAT" --packagePath "$VSIX"
-          fi
-          if [ -z "${OVSX_PAT:-}" ]; then
-            echo "OVSX_PAT not set — skipping Open VSX (optional extra package)."
-          elif ! npx --yes ovsx publish "$VSIX" -p "$OVSX_PAT"; then
-            # Namespace must exist on Open VSX (publisher in package.json).
-            # Do not fail the release: VSIX is already on the GitHub Release.
-            echo "Open VSX publish failed (unknown publisher or other). VSIX remains on GitHub Release."
-          fi

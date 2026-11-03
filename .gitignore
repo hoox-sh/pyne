@@ -126,8 +126,6 @@ var/
 .venv
 venv/
 venv.bak/
-vscode-extension/node_modules/
-vscode-extension/out/
 .webassets-cache
 wheels/
 

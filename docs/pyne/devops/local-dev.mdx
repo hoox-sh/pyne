@@ -38,7 +38,7 @@ flowchart LR
   SRC --> LSP[pyne-lsp]
   SRC --> LIB[import pynescript]
   BE[backend/] --> API[Flask :5002]
-  VSC[vscode-extension/] --> VSIX[vsce package]
+  VSC[hoox-sh/pyne-lsp-vsce] --> VSIX[vsce package]
   TS[hoox-sh/pynets] --> BUN[bun test]
   DOCK[Dockerfile] --> IMG[api · cli · lsp · mcp]
 ```
@@ -59,7 +59,6 @@ flowchart LR
 | `make build` | Nuitka **LSP** binary |
 | `make build-cli` | Nuitka **CLI** binary |
 | `make build-check` | import check for lsp+cli (~30s) |
-| `make build-vscode` | compile + package VSIX |
 | `make run` | Flask Pro API (`:5002` typical) |
 | `make run-lsp` | `python -m pynescript.langserver` |
 | `make docker-build` | bake **api** |
@@ -114,7 +113,7 @@ pyne --version   # 0.6.31
 | `tests/conftest.py` | Optional `--example-scripts-dir` only; no third-party corpus shipped |
 | `backend/requirements.txt` | Pro API deps (also covered by `[pro]` extra) |
 | [hoox-sh/pynets](https://github.com/hoox-sh/pynets) | Standalone TS library (`@hoox-sh/pynets`); not an in-tree submodule |
-| `vscode-extension/` | PYNE VS Code extension |
+| [hoox-sh/pyne-lsp-vsce](https://github.com/hoox-sh/pyne-lsp-vsce) | PYNE VS Code extension (separate repo) |
 | `Dockerfile` | targets `api`, `api-dev`, `lsp`, **`cli`** |
 
 ### Python

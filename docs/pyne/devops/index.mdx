@@ -44,13 +44,11 @@ flowchart TB
     PY[test matrix 3.10–3.13]
     PKG[sdist + wheel]
     DOCK[docker api + cli]
-    VSIX[vscode-extension package]
   end
   subgraph Artifacts
     WHEEL[hoox-pyne wheel]
     CLIBIN[Nuitka pynescript CLI]
     LSPBIN[Nuitka pynescript-lsp]
-    VSIXART[*.vsix]
     IMG[GHCR api + cli + lsp + mcp]
   end
   subgraph Deploy
@@ -63,10 +61,9 @@ flowchart TB
   PKG --> WHEEL --> PYPI
   REL --> CLIBIN
   REL --> LSPBIN
-  REL --> VSIXART
 ```
 
-**Invariant:** CI green on `main` is necessary but not sufficient for a full release. Tag `v*` fires **Build & Release** (binaries + VSIX + GitHub Release), **Publish** (`hoox-pyne` from `__about__.py`, currently 0.6.31, to PyPI), and **GHCR** (`ghcr.io/hoox-sh/pyne/{api,cli,lsp,mcp}`).
+**Invariant:** CI green on `main` is necessary but not sufficient for a full release. Tag `v*` fires **Build & Release** (binaries + GitHub Release), **Publish** (`hoox-pyne` from `__about__.py`, currently 0.6.31, to PyPI), and **GHCR** (`ghcr.io/hoox-sh/pyne/{api,cli,lsp,mcp}`). The VSIX releases separately from `pyne-lsp-vsce`.
 
 ## Interface surface
 
@@ -74,7 +71,7 @@ flowchart TB
 | --- | --- | --- |
 | Local install & loops | `Makefile`, hatch envs | [Local development](/pyne/docs/devops/local-dev) |
 | PR / push CI | `.github/workflows/ci.yml` (`name: CI`) | [CI](/pyne/docs/devops/ci) |
-| Versioned CLI + LSP + VSIX | `.github/workflows/release.yml` (`name: Build & Release`) | [Release](/pyne/docs/devops/release) |
+| Versioned CLI + LSP | `.github/workflows/release.yml` (`name: Build & Release`) | [Release](/pyne/docs/devops/release) |
 | PyPI (`hoox-pyne`) | `.github/workflows/publish.yml` (`name: Publish`) | [Contributing](/pyne/docs/contributing) |
 | GHCR images | `.github/workflows/ghcr.yml` (`name: GHCR`) | [Docker](/pyne/docs/devops/docker) |
 | Containers | `Dockerfile` targets api/api-dev/lsp/**cli** | [Docker](/pyne/docs/devops/docker) |
@@ -94,7 +91,6 @@ flowchart TB
 | `scripts/generate_builtin_metadata.py` | Regenerates LSP `builtin_metadata.json` from live builtins |
 | `Dockerfile` / `docker-bake.hcl` | Multi-target Buildx images (api, api-dev, lsp) |
 | `docker-compose.yml` | Local API (+ optional Redis / LSP profiles) |
-| `vscode-extension/` | Node 22 extension package / vsce |
 
 ## Invariants & edge cases
 
@@ -129,7 +125,7 @@ make docker-build
 | CI lint red, local green | Different ruff/mypy versions | Match CI install pins in workflow |
 | Metadata decrypt fails in binary | Missing key at runtime | Set `PYNESCRIPT_METADATA_KEY` or embed key at build |
 | Cloud Run 502 after deploy | Image missing deps / gunicorn bind | Confirm `Dockerfile` target `api` ENTRYPOINT + `PORT` / `GUNICORN_BIND` |
-| VSIX empty / missing | `npm ci` / vsce not run | Use `make build-vscode` or release job artifacts |
+| VSIX empty / missing | `npm ci` / vsce not run | Build in [pyne-lsp-vsce](https://github.com/hoox-sh/pyne-lsp-vsce) (`npm run package`) |
 | Nuitka Anaconda link error | Static libpython missing | `conda install libpython-static` or keep `--static-libpython=no` |
 
 ## See also

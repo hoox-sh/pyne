@@ -8,7 +8,7 @@
 	docker-up docker-up-full docker-prod docker-down docker-logs docker-smoke \
 	docker-cli \
 	test-lsp test-backend test-cli typecheck build-check build-cli build-package \
-	build-vscode package build-backend-wheel \
+	package build-backend-wheel \
 	corpus-flow corpus-flow-set05 corpus-recompile \
 	tv-goldens tv-goldens-strict \
 	deploy-vps deploy-vps-build \
@@ -33,7 +33,6 @@ help:
 	@echo "  build            Nuitka LSP binary"
 	@echo "  build-cli        Nuitka CLI binary (pyne / pynescript)"
 	@echo "  build-check      Fast import check (no compile)"
-	@echo "  build-vscode     Package VS Code extension"
 	@echo "  run              Flask Pro API (:5002)"
 	@echo "  run-lsp          Language server (stdio)"
 	@echo "  docker-build     buildx bake production API image (load)"
@@ -122,9 +121,6 @@ build-cli:
 # Fast import-only check (no Nuitka). Targets match compile.py --target choices.
 build-check:
 	python scripts/build/compile.py --target all --check
-
-build-vscode:
-	cd vscode-extension && npm install && npm run package
 
 run:
 	python -m backend.app
@@ -238,8 +234,6 @@ docker-smoke:
 
 clean:
 	rm -rf dist/
-	rm -rf vscode-extension/out/
-	rm -rf vscode-extension/node_modules/
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
 	find . -type f -name "*.pyo" -delete 2>/dev/null || true

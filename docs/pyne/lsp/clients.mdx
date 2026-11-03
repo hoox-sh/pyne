@@ -26,7 +26,7 @@ description: "Wire pyne-lsp into Neovim, Zed, Emacs, Helix, Sublime, and generic
 
 ## Abstract
 
-Any editor that speaks LSP over STDIO can host PYNE intelligence. First-class snippets live in `clients/` (Neovim Lua, Zed JSON, Emacs Lisp) plus documented Helix/Sublime fragments. The VS Code path is a dedicated extension ([vscode-extension](/pyne/docs/lsp/vscode-extension)); this page covers the rest.
+Any editor that speaks LSP over STDIO can host PYNE intelligence. First-class snippets live in `clients/` (Neovim Lua, Zed JSON, Emacs Lisp) plus documented Helix/Sublime fragments. The VS Code path is a dedicated extension ([pyne-lsp-vsce](https://github.com/hoox-sh/pyne-lsp-vsce)); this page covers the rest.
 
 **Prerequisite:** `pyne-lsp` (or `pynescript-lsp`) on `PATH` (Python 3.10+):
 
@@ -63,7 +63,7 @@ flowchart LR
 | `clients/zed.json` | Zed `settings.json` fragment |
 | `clients/emacs.el` | Emacs `lsp-mode` + `pinescript-mode` |
 | `clients/README.md` | Human-oriented install notes |
-| `vscode-extension/` | VS Code / Cursor-compatible |
+| [`pyne-lsp-vsce`](https://github.com/hoox-sh/pyne-lsp-vsce) | VS Code / Cursor-compatible |
 
 ## Neovim
 
