@@ -7,7 +7,7 @@ tags: [code, pynescript, util]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-26T09:58:21Z
+  at: 2026-11-04T22:51:27Z
 sources:
   - id: tree
     resource: "src/pynescript/util"
@@ -27,7 +27,7 @@ okf_lock: generated
 * `itertools.py` — grouper
 * `pine_convert.py` — convert_pine, convert_to_v6, convert_v3_to_v4, convert_v4_to_v5, convert_v5_to_v6, convert_v6_to_v5, detect_version
 * `rich_theme.py` — console, has_rich, rich_theme, use_rich
-* `runner_cli.py` — api_request, delete_cmd, deploy_cmd, disable_cmd, enable_cmd, jobs_cmd, list_cmd, runner_group, show_cmd, tick_cmd
+* `runner_cli.py` — api_request, delete_cmd, deploy_cmd, disable_cmd, enable_cmd, history_cmd, jobs_cmd, list_cmd, runner_group, show_cmd, tick_cmd
 * `time_parts.py` — UtcParts, apply_utc_parts_to_context, utc_parts_from_ms
 
 # Packages

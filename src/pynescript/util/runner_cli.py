@@ -140,6 +140,7 @@ def runner_group(ctx: click.Context, url: str, token: str) -> None:
       pyne runner deploy script.pine --id demo --symbol BTCUSDT
       pyne runner tick --id demo --force
       pyne runner list
+      pyne runner history --id demo
     """
     ctx.ensure_object(dict)
     ctx.obj["runner_url"] = url.rstrip("/")
@@ -280,6 +281,45 @@ def jobs_cmd(ctx: click.Context, as_json: bool) -> None:
             f"{rec.get('id')}  enabled={rec.get('enabled')}  "
             f"last={cron.get('last_status') or '-'}  bar={cron.get('last_bar_time') or 0}"
         )
+
+
+@runner_group.command("history", short_help="Recent run history (audit log).")
+@click.option("--id", "script_id", default="", help="Filter by script id.")
+@click.option("--limit", default=50, show_default=True, type=int, help="Max rows (server caps at 500).")
+@click.option("--json", "as_json", is_flag=True)
+@click.pass_context
+def history_cmd(ctx: click.Context, script_id: str, limit: int, as_json: bool) -> None:
+    """GET /cron/history — ok / error runs with alerts, errors, and webhook status."""
+    query = f"limit={max(1, limit)}"
+    if script_id.strip():
+        query += f"&script_id={script_id.strip()}"
+    result = _ctx_api(ctx, "GET", f"/cron/history?{query}")
+    if as_json:
+        _echo_json(result)
+        return
+    runs = result.get("runs") or []
+    if not runs:
+        click.echo("no run history")
+        return
+    for run in runs:
+        bits = [
+            str(run.get("ts") or ""),
+            str(run.get("script_id") or ""),
+            str(run.get("status") or ""),
+        ]
+        reason = str(run.get("reason") or "")
+        if reason:
+            bits.append(reason)
+        mode = str(run.get("mode") or "")
+        if mode:
+            bits.append(f"mode={mode}")
+        alerts = run.get("alerts")
+        if alerts:
+            bits.append(f"alerts={alerts}")
+        fwd = str(run.get("forward_status") or "")
+        if fwd:
+            bits.append(f"forward={fwd}")
+        click.echo("  ".join(bits))
 
 
 @runner_group.command("enable", short_help="Enable a hosted script for ticks.")

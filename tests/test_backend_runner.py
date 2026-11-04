@@ -21,11 +21,14 @@
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from flask.testing import FlaskClient
 
 from backend.app import app
+from backend.runner import scheduler
 from backend.runner.store import reset_store
 
 
@@ -180,3 +183,135 @@ class TestRunnerCron:
         assert resp.json["updated"][0]["enabled"] is False
         tick = client.post("/cron/run", json={"force": True})
         assert tick.json.get("jobs") == []
+
+
+class TestRunnerScheduling:
+    """Timeframe due gate, backoff, run history, worker pool, webhook status."""
+
+    def test_history_records_runs(self, client: FlaskClient):
+        assert client.post("/scripts", json=_script_body()).status_code == 201
+        first = client.post("/cron/run", json={"force": True})
+        assert first.json["jobs"][0]["status"] == "ok"
+
+        # Routine no_new_bar skips stay out of the audit log.
+        client.post("/cron/run", json={})
+        hist = client.get("/cron/history")
+        assert hist.status_code == 200
+        assert hist.json["count"] == 1
+        run = hist.json["runs"][0]
+        assert run["script_id"] == "sma-bot"
+        assert run["status"] == "ok"
+        assert run["last_bar_time"] > 0
+
+        empty = client.get("/cron/history?script_id=unknown")
+        assert empty.json["count"] == 0
+
+    def test_backoff_after_fetch_failure(self, client: FlaskClient, monkeypatch):
+        state = {"fail": True}
+        real_fetch = scheduler.fetch_ohlcv
+
+        def flaky(rec):
+            if state["fail"]:
+                raise RuntimeError("feed down")
+            return real_fetch(rec)
+
+        monkeypatch.setattr(scheduler, "fetch_ohlcv", flaky)
+        assert client.post("/scripts", json=_script_body()).status_code == 201
+
+        t1 = client.post("/cron/run", json={})
+        job = t1.json["jobs"][0]
+        assert job["status"] == "error"
+        assert job["reason"] == "fetch_failed"
+        assert job["next_due_at"] > 0
+        cron = client.get("/scripts/sma-bot").json["script"]["cron"]
+        assert cron["consecutive_errors"] == 1
+        assert cron["next_due_at"] > 0
+        # last_bar_time survives the partial error patch (merge semantics)
+        assert cron["last_status"] == "error"
+
+        # Non-forced tick waits out the exponential backoff.
+        t2 = client.post("/cron/run", json={})
+        assert t2.json["jobs"][0]["status"] == "skipped"
+        assert t2.json["jobs"][0]["reason"] == "backoff"
+
+        # Force bypasses backoff; a success resets it.
+        state["fail"] = False
+        t3 = client.post("/cron/run", json={"force": True})
+        assert t3.json["jobs"][0]["status"] == "ok"
+        cron2 = client.get("/scripts/sma-bot").json["script"]["cron"]
+        assert cron2["consecutive_errors"] == 0
+        assert cron2["next_due_at"] == 0
+
+        # A later failure must not wipe last_bar_time (partial-patch merge).
+        state["fail"] = True
+        t4 = client.post("/cron/run", json={"force": True})
+        assert t4.json["jobs"][0]["status"] == "error"
+        cron3 = client.get("/scripts/sma-bot").json["script"]["cron"]
+        assert cron3["last_status"] == "error"
+        assert cron3["last_bar_time"] == cron2["last_bar_time"]
+
+        statuses = sorted(r["status"] for r in client.get("/cron/history").json["runs"])
+        assert statuses == ["error", "error", "ok"]
+
+    def test_timeframe_due_gate_skips_fetch(self, client: FlaskClient, monkeypatch):
+        now_ms = int(time.time() * 1000)
+        bars = [
+            {
+                "time": now_ms - (80 - i) * 3_600_000,
+                "open": 1.0,
+                "high": 2.0,
+                "low": 0.5,
+                "close": 1.5,
+                "volume": 10.0,
+            }
+            for i in range(80)
+        ]
+        calls = {"n": 0}
+
+        def stub(rec):
+            calls["n"] += 1
+            return bars
+
+        monkeypatch.setattr(scheduler, "fetch_ohlcv", stub)
+        assert client.post("/scripts", json=_script_body(timeframe="1w")).status_code == 201
+
+        first = client.post("/cron/run", json={"force": True})
+        assert first.json["jobs"][0]["status"] == "ok"
+        assert calls["n"] == 1
+
+        # Last bar is fresh (< 1w old): the next poll must not even fetch.
+        second = client.post("/cron/run", json={})
+        job = second.json["jobs"][0]
+        assert job["status"] == "skipped"
+        assert job["reason"] == "not_due"
+        assert calls["n"] == 1
+
+    def test_worker_pool_ticks_all_scripts(self, client: FlaskClient, monkeypatch):
+        monkeypatch.setenv("PYNE_RUNNER_WORKERS", "2")
+        for sid in ("a-1", "b-2", "c-3"):
+            assert client.post("/scripts", json=_script_body(id=sid)).status_code == 201
+        resp = client.post("/cron/run", json={"force": True})
+        assert resp.status_code == 200, resp.json
+        assert resp.json["count"] == 3
+        assert [j["script_id"] for j in resp.json["jobs"]] == ["a-1", "b-2", "c-3"]
+        assert all(j["status"] == "ok" for j in resp.json["jobs"])
+        assert resp.json["ok"] == 3
+
+    def test_webhook_failure_recorded(self, client: FlaskClient, monkeypatch):
+        def boom(*args, **kwargs):
+            raise RuntimeError("hook down")
+
+        monkeypatch.setattr(scheduler, "_forward_alerts", boom)
+        assert client.post("/scripts", json=_script_body(webhook_url="https://example.com/hook")).status_code == 201
+
+        resp = client.post("/cron/run", json={"force": True})
+        job = resp.json["jobs"][0]
+        assert job["status"] == "ok"
+        assert job["alert_forward_status"].startswith("error")
+
+        cron = client.get("/scripts/sma-bot").json["script"]["cron"]
+        assert cron["last_status"] == "ok"
+        assert cron["last_forward_status"].startswith("error")
+
+        runs = client.get("/cron/history").json["runs"]
+        assert runs[0]["forward_status"].startswith("error")

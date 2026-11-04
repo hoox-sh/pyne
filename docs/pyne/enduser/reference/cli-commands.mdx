@@ -351,12 +351,14 @@ HTTP client for the optional Flask hosted runner (`PYNE_RUNNER=1`). Group option
 | `delete ID` | `DELETE /scripts/:id` |
 | `tick` | `POST /cron/run` (`--id`, `--force`) |
 | `jobs` | `GET /cron/jobs` |
+| `history` | `GET /cron/history` (`--id`, `--limit`) |
 | `enable ID` / `disable ID` | `PUT /cron/jobs` |
 
 ```bash
 pyne runner deploy script.pine --id demo --symbol BTCUSDT --source mock
 pyne runner tick --id demo --force
 pyne runner list
+pyne runner history --id demo --limit 10
 pyne runner --url http://127.0.0.1:5002 jobs
 ```
 

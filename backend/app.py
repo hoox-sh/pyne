@@ -867,6 +867,7 @@ def _health_payload() -> dict[str, Any]:
     }
     from backend.runner import runner_enabled
     from backend.runner import scheduler_enabled
+    from backend.runner import store_backend
 
     if runner_enabled():
         endpoints["POST /scripts"] = "Deploy a hosted script (optional runner)"
@@ -876,6 +877,7 @@ def _health_payload() -> dict[str, Any]:
         endpoints["GET /cron/jobs"] = "List runner jobs"
         endpoints["PUT /cron/jobs"] = "Enable/disable runner jobs"
         endpoints["POST /cron/run"] = "Tick hosted scripts (bar-close)"
+        endpoints["GET /cron/history"] = "Recent runner run audit log"
     if sock is not None:
         endpoints["WS /ws/run"] = "Run Pine Script over WebSocket (prefer WSS when available)"
         endpoints["WS /ws/live"] = "Engine-owned subscriptions: subscribe → status → full → delta → close"
@@ -901,6 +903,7 @@ def _health_payload() -> dict[str, Any]:
             "free_tier_limits": _free_tier_limits_flag(),
             "script_runner": runner_enabled(),
             "script_runner_scheduler": scheduler_enabled(),
+            "script_runner_store": store_backend(),
             # Engine-owned data plane (AXIS D3): capabilities are read from here.
             "live_modes": ["every-tick", "bar-close"],
             "data_session": True,

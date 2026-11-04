@@ -23,6 +23,19 @@ Fetches OHLCV via ``pynescript.util.data.get_provider``, runs
 ``Runtime.run`` when the last bar time advanced, and forwards last-bar
 alerts through :mod:`backend.alert_forwarder`. A flock keeps multi-worker
 gunicorn from double-ticking.
+
+Per-job scheduling and resilience:
+
+- **Timeframe due gate** — a script is only fetched once its next bar
+  can have closed (``last_bar_time + timeframe interval``), so a ``1w``
+  job is not hammered every poll.
+- **Exponential backoff** — fetch / run failures delay the next attempt
+  (60s doubling, capped at 30min) via ``cron_state.next_due_at``;
+  ``force`` bypasses it.
+- **Run history** — every ok / error run is appended to ``run_history``
+  for auditing (``GET /cron/history``).
+- **Worker pool** — ``PYNE_RUNNER_WORKERS`` job threads isolate slow
+  scripts instead of serializing the whole tick.
 """
 
 from __future__ import annotations
@@ -170,119 +183,200 @@ def _forward_alerts(script: dict[str, Any], result: dict[str, Any], ohlcv: list[
     )
 
 
-def _flock_path() -> str:
-    from backend.runner import db_path
+# Exponential backoff after fetch / run failures: 60s, 120s, 240s ... capped.
+_BACKOFF_BASE_SECONDS = 60.0
+_BACKOFF_MAX_SECONDS = 1800.0
 
-    path = db_path()
-    if path == ":memory:":
-        return os.path.join(os.environ.get("TMPDIR", "/tmp"), "pyne_runner.lock")
-    return path + ".lock"
+
+def _now_ms() -> int:
+    return int(time.time() * 1000)
+
+
+def _backoff_delay_ms(consecutive_errors: int) -> int:
+    if consecutive_errors <= 0:
+        return 0
+    return int(min(_BACKOFF_BASE_SECONDS * (2 ** (consecutive_errors - 1)), _BACKOFF_MAX_SECONDS) * 1000)
+
+
+def _fetch_due(state: dict[str, Any], timeframe: str) -> tuple[bool, int]:
+    """Timeframe-aware due gate: fetch only when the next bar can have closed.
+
+    Returns ``(due, next_due_ms)``. Scripts that never ran are always due.
+    A ``1w`` script is fetched at most once per week instead of every poll.
+    """
+    last_bar = int(state.get("last_bar_time") or 0)
+    if last_bar <= 0:
+        return True, 0
+    interval = _INTERVAL_MS.get(timeframe, 86_400_000)
+    next_due = last_bar + interval
+    return next_due <= _now_ms(), next_due
+
+
+def _record(sid: str, **fields: Any) -> None:
+    from backend.runner import store
+
+    try:
+        store.record_run({"script_id": sid, "ts": _now_ms(), **fields})
+    except Exception:
+        logger.exception("runner history write failed for %s", sid)
+
+
+def _run_job(rec: dict[str, Any], *, force: bool) -> dict[str, Any]:
+    """Fetch + evaluate one script and persist cron state / history."""
+    from backend.runner import store
+
+    sid = str(rec["id"])
+    item: dict[str, Any] = {"script_id": sid, "symbol": rec.get("symbol")}
+    now = _now_ms()
+    prev = store.get_cron_state(sid)
+
+    # Backoff gate: failed scripts wait out their exponential delay.
+    next_due_at = int(prev.get("next_due_at") or 0)
+    if not force and next_due_at > now:
+        item.update({"status": "skipped", "reason": "backoff", "next_due_at": next_due_at})
+        return item
+
+    # Timeframe gate: skip the fetch entirely while the current bar is still forming.
+    due, next_due = _fetch_due(prev, str(rec.get("timeframe") or "1d"))
+    if not force and not due:
+        item.update({"status": "skipped", "reason": "not_due", "next_due_at": next_due})
+        return item
+
+    try:
+        ohlcv = fetch_ohlcv(rec)
+    except Exception as exc:
+        logger.warning("runner fetch %s: %s", sid, exc)
+        errors = int(prev.get("consecutive_errors") or 0) + 1
+        due_at = now + _backoff_delay_ms(errors)
+        store.put_cron_state(
+            sid,
+            {"last_status": "error", "last_error": "fetch_failed", "consecutive_errors": errors, "next_due_at": due_at},
+        )
+        item.update({"status": "error", "reason": "fetch_failed", "next_due_at": due_at})
+        _record(sid, status="error", reason="fetch_failed", error="fetch_failed")
+        return item
+    if not ohlcv:
+        item.update({"status": "skipped", "reason": "no_data"})
+        return item
+    last_t = int(ohlcv[-1].get("time") or 0)
+    if not force and last_t > 0 and last_t <= int(prev.get("last_bar_time") or 0):
+        # Fetch succeeded — clear backoff, keep the bar time for the due gate.
+        store.put_cron_state(sid, {"last_bar_time": last_t, "consecutive_errors": 0, "next_due_at": 0})
+        item.update({"status": "skipped", "reason": "no_new_bar", "last_bar_time": last_t})
+        return item
+    result = _eval_script(rec, ohlcv)
+    if "error" in result:
+        errors = int(prev.get("consecutive_errors") or 0) + 1
+        err_text = str(result.get("error") or "run_failed")[:500]
+        due_at = now + _backoff_delay_ms(errors)
+        store.put_cron_state(
+            sid,
+            {
+                "last_bar_time": last_t,
+                "last_status": "error",
+                "last_error": err_text,
+                "consecutive_errors": errors,
+                "next_due_at": due_at,
+            },
+        )
+        item.update({"status": "error", "reason": err_text[:200], "mode": result.get("mode"), "next_due_at": due_at})
+        _record(
+            sid,
+            status="error",
+            reason="run_failed",
+            last_bar_time=last_t,
+            mode=str(result.get("mode") or ""),
+            error=err_text,
+        )
+        return item
+    alerts = result.get("alerts") or []
+    events = result.get("events") or []
+    n_alerts = len(alerts) if isinstance(alerts, list) else 0
+    n_events = len(events) if isinstance(events, list) else 0
+    fwd = None
+    forward_status = ""
+    try:
+        fwd = _forward_alerts(rec, result, ohlcv)
+        if fwd is not None:
+            forward_status = "ok"
+    except Exception as exc:
+        logger.warning("runner webhook %s: %s", sid, exc)
+        forward_status = f"error: {exc}"[:200]
+    store.put_cron_state(
+        sid,
+        {
+            "last_bar_time": last_t,
+            "last_status": "ok",
+            "last_error": "",
+            "last_alerts": n_alerts,
+            "last_events": n_events,
+            "consecutive_errors": 0,
+            "next_due_at": 0,
+            "last_forward_status": forward_status,
+        },
+    )
+    item.update(
+        {
+            "status": "ok",
+            "last_bar_time": last_t,
+            "mode": result.get("mode"),
+            "alerts": n_alerts,
+            "events": n_events,
+            "count": result.get("count"),
+        }
+    )
+    if fwd is not None:
+        item["alert_forward"] = fwd
+    if forward_status:
+        item["alert_forward_status"] = forward_status
+    _record(
+        sid,
+        status="ok",
+        last_bar_time=last_t,
+        mode=str(result.get("mode") or ""),
+        alerts=n_alerts,
+        events=n_events,
+        forward_status=forward_status,
+    )
+    return item
 
 
 def tick(*, force: bool = False, script_id: str | None = None) -> dict[str, Any]:
-    """Evaluate due deployed scripts. Safe under gunicorn (flock)."""
+    """Evaluate due deployed scripts.
+
+    Serialized across gunicorn workers / replicas by :func:`store.acquire_tick_lock`
+    (flock for the SQLite backend, ``SET NX`` token for Redis).
+    """
+    from backend.runner import runner_workers
     from backend.runner import store
 
-    lock_f = None
-    try:
-        lock_f = open(_flock_path(), "a+b")
-        import fcntl
-
-        fcntl.flock(lock_f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
-        if lock_f is not None:
-            try:
-                lock_f.close()
-            except Exception:
-                pass
+    lock = store.acquire_tick_lock()
+    if lock is None:
         return {"status": "skipped", "reason": "lock_held", "jobs": []}
 
-    jobs: list[dict[str, Any]] = []
     try:
         scripts = store.list_enabled()
         if script_id:
             scripts = [s for s in scripts if s.get("id") == script_id]
-        for rec in scripts:
-            sid = str(rec["id"])
-            item: dict[str, Any] = {"script_id": sid, "symbol": rec.get("symbol")}
-            try:
-                ohlcv = fetch_ohlcv(rec)
-            except Exception as exc:
-                logger.warning("runner fetch %s: %s", sid, exc)
-                item.update({"status": "error", "reason": "fetch_failed"})
-                store.put_cron_state(sid, {"last_status": "error", "last_error": "fetch_failed"})
-                jobs.append(item)
-                continue
-            if not ohlcv:
-                item.update({"status": "skipped", "reason": "no_data"})
-                jobs.append(item)
-                continue
-            last_t = int(ohlcv[-1].get("time") or 0)
-            prev = store.get_cron_state(sid)
-            if not force and last_t > 0 and last_t <= int(prev.get("last_bar_time") or 0):
-                item.update({"status": "skipped", "reason": "no_new_bar", "last_bar_time": last_t})
-                jobs.append(item)
-                continue
-            result = _eval_script(rec, ohlcv)
-            if "error" in result:
-                item.update(
-                    {
-                        "status": "error",
-                        "reason": str(result.get("error") or "run_failed")[:200],
-                        "mode": result.get("mode"),
-                    }
-                )
-                store.put_cron_state(
-                    sid,
-                    {
-                        "last_bar_time": last_t,
-                        "last_status": "error",
-                        "last_error": str(result.get("error") or "")[:500],
-                    },
-                )
-                jobs.append(item)
-                continue
-            alerts = result.get("alerts") or []
-            events = result.get("events") or []
-            fwd = None
-            try:
-                fwd = _forward_alerts(rec, result, ohlcv)
-            except Exception as exc:
-                logger.warning("runner webhook %s: %s", sid, exc)
-            store.put_cron_state(
-                sid,
-                {
-                    "last_bar_time": last_t,
-                    "last_status": "ok",
-                    "last_error": "",
-                    "last_alerts": len(alerts) if isinstance(alerts, list) else 0,
-                    "last_events": len(events) if isinstance(events, list) else 0,
-                },
-            )
-            item.update(
-                {
-                    "status": "ok",
-                    "last_bar_time": last_t,
-                    "mode": result.get("mode"),
-                    "alerts": len(alerts) if isinstance(alerts, list) else 0,
-                    "events": len(events) if isinstance(events, list) else 0,
-                    "count": result.get("count"),
-                }
-            )
-            if fwd is not None:
-                item["alert_forward"] = fwd
-            jobs.append(item)
+        if not scripts:
+            return {"status": "success", "jobs": [], "ok": 0, "count": 0}
+        # Worker pool so one slow script (up to the 25s run timeout) cannot
+        # serialize the rest of the fleet. DB access is serialized by the
+        # store lock, so threads only overlap fetch + evaluation.
+        workers = runner_workers()
+        if workers > 1 and len(scripts) > 1:
+            from concurrent.futures import ThreadPoolExecutor
+
+            with ThreadPoolExecutor(max_workers=min(workers, len(scripts)), thread_name_prefix="pyne-runner-job") as ex:
+                jobs = [f.result() for f in [ex.submit(_run_job, rec, force=force) for rec in scripts]]
+        else:
+            jobs = [_run_job(rec, force=force) for rec in scripts]
+        jobs.sort(key=lambda j: str(j.get("script_id") or ""))
         ok = sum(1 for j in jobs if j.get("status") == "ok")
         return {"status": "success", "jobs": jobs, "ok": ok, "count": len(jobs)}
     finally:
         try:
-            import fcntl
-
-            fcntl.flock(lock_f.fileno(), fcntl.LOCK_UN)
-        except Exception:
-            pass
-        try:
-            lock_f.close()
+            lock.release()
         except Exception:
             pass
 

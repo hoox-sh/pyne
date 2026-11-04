@@ -7,7 +7,7 @@ tags: [code, mcp, ops, pynescript]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-24T04:17:09Z
+  at: 2026-11-04T22:51:27Z
 sources:
   - id: tree
     resource: "src/pynescript/mcp/ops"
@@ -29,5 +29,5 @@ okf_lock: generated
 * `language.py` — check_sources, convert_source, diagnostics_source, dump_source, format_source, lint_source, parse_source, symbols_source, unparse_source
 * `lsp.py` — complete_source, hover_source, signature_source
 * `optimize.py` — optimize_source
-* `runner.py` — runner_delete, runner_deploy, runner_enable, runner_jobs, runner_list, runner_show, runner_tick
+* `runner.py` — runner_delete, runner_deploy, runner_enable, runner_history, runner_jobs, runner_list, runner_show, runner_tick
 * `sessions.py` — inspect_sessions

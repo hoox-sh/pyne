@@ -234,3 +234,21 @@ def cron_run():
     sid = str(data.get("script_id") or "").strip() or None
     result = tick(force=force, script_id=sid)
     return jsonify(result)
+
+
+@bp.route("/cron/history", methods=["GET"])
+@_require_runner
+def get_cron_history():
+    """Recent run audit log (ok / error / fetch_failed; skips are not stored)."""
+    sid = (request.args.get("script_id") or "").strip()
+    if sid and store.validate_script_id(sid):
+        return (
+            jsonify({"status": "error", "code": "INVALID_SCRIPT", "message": "Bad script id."}),
+            400,
+        )
+    try:
+        limit = int(request.args.get("limit") or "50")
+    except ValueError:
+        limit = 50
+    runs = store.list_runs(script_id=sid or None, limit=limit)
+    return jsonify({"status": "success", "runs": runs, "count": len(runs)})

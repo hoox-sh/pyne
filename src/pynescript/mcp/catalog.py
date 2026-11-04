@@ -42,6 +42,7 @@ TOOL_NAMES: tuple[str, ...] = (
     "pyne_runner_delete",
     "pyne_runner_tick",
     "pyne_runner_jobs",
+    "pyne_runner_history",
     "pyne_runner_enable",
     "pyne_runner_disable",
     "pyne_parse",

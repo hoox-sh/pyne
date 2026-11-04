@@ -54,10 +54,18 @@ Each tick fetches OHLCV for the script’s `symbol` / `timeframe` / `data_source
 | `PYNE_RUNNER` | off | Master switch — HTTP registry + `/cron/run` |
 | `PYNE_RUNNER_SCHEDULER` | off | In-process poll loop (needs `PYNE_RUNNER`) |
 | `PYNE_RUNNER_POLL_SECONDS` | `60` | Poll interval (floor 5s) |
-| `PYNE_RUNNER_DB` | `/data/runner.db` if `/data` exists | SQLite file |
+| `PYNE_RUNNER_WORKERS` | `2` | Job threads per tick (floor 1, cap 16) |
+| `PYNE_RUNNER_DB` | `/data/runner.db` if `/data` exists | SQLite file (`sqlite` backend) |
+| `PYNE_RUNNER_STORE_BACKEND` | `sqlite` | `sqlite` (single host) or `redis` (multi-replica, needs `REDIS_URL`) |
 | `ADMIN_TOKEN` | unset | When set, writes require `X-Admin-Token` |
 
 Gunicorn multi-worker: every worker may start a scheduler thread; ticks take a flock on `PYNE_RUNNER_DB.lock`. Prefer `GUNICORN_WORKERS=1` when the scheduler is on.
+
+### Store backends
+
+`sqlite` (default) keeps scripts, cron state, and run history in one local SQLite file and serializes ticks with a filesystem flock — single host only. `PYNE_RUNNER_STORE_BACKEND=redis` shares the same registry across API replicas through `REDIS_URL` and serializes ticks with a `SET NX` token (TTL = 2× the poll interval, floor 120s), so two replicas never double-tick. `/health` reports the active backend as `features.script_runner_store`. Run history keeps the last 100 runs per script (1000 globally); the script record itself always stores source and `webhook_url` in plaintext (reads redact the webhook), so keep Redis private — the compose service never publishes its ports.
+
+Each script is only fetched once its **next bar can have closed** (`last_bar_time` + the timeframe interval), so a `1w` job is not hammered every poll. Failed fetches or runs back off exponentially (60s doubling, capped at 30 min); `force` bypasses both gates. Every ok / error run is appended to the audit log — routine skips (`no_new_bar`, `not_due`) are not recorded.
 
 ### Routes (`PYNE_RUNNER=1`)
 
@@ -70,6 +78,7 @@ Gunicorn multi-worker: every worker may start a scheduler thread; ticks take a f
 | `GET` | `/cron/jobs` | none | Scripts + last tick |
 | `PUT` | `/cron/jobs` | admin if `ADMIN_TOKEN` | `{jobs:[{script_id, enabled}]}` |
 | `POST` | `/cron/run` | admin if `ADMIN_TOKEN` | Tick now (`force`, optional `script_id`) |
+| `GET` | `/cron/history` | none | Run audit log (`script_id`, `limit` ≤ 500) |
 
 ### Deploy body
 
@@ -101,6 +110,7 @@ python -m backend.app   # :5002
 pyne runner deploy script.pine --id demo --symbol BTCUSDT --source mock
 pyne runner tick --id demo --force
 pyne runner list
+pyne runner history --id demo
 ```
 
 Same HTTP without the CLI:
@@ -128,6 +138,8 @@ Cloudflare Container: keep `PYNE_RUNNER=0` in `cf/src/index.ts` unless you want 
 | `RUNNER_DISABLED` 404 | Switch off | `PYNE_RUNNER=1` |
 | `FORBIDDEN` 403 | `ADMIN_TOKEN` set, header missing | `X-Admin-Token` |
 | `skipped` / `no_new_bar` | Last close unchanged | Wait, or `force: true` |
+| `skipped` / `not_due` | Timeframe gate: next bar not closed yet | Wait, or `force: true` |
+| `skipped` / `backoff` | Recent fetch/run failure; retry delayed | Wait, or `force: true` |
 | `fetch_failed` | yahoo/ccxt error | Use `mock` or fix `data_options` |
 | Double ticks | Several gunicorn workers | `GUNICORN_WORKERS=1` or rely on flock |
 

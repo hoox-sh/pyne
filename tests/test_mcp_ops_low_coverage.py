@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from pynescript.mcp.ops import builtins as builtins_ops
@@ -167,3 +169,20 @@ def test_runner_jobs_and_enable(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(runner_ops, "api_request", lambda *a, **k: {"id": "x", "enabled": True})
     r = runner_ops.runner_enable("x", enabled=True)
     assert r["ok"] is True
+
+
+def test_runner_history_ok(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
+
+    def fake(_url: str, _method: str, path: str, **_k: Any) -> dict[str, Any]:
+        calls.append(path)
+        return {"runs": [{"script_id": "demo", "status": "ok"}], "count": 1}
+
+    monkeypatch.setattr(runner_ops, "api_request", fake)
+    r = runner_ops.runner_history(script_id="demo", limit=10)
+    assert r["ok"] is True
+    assert r["count"] == 1
+    assert calls and "script_id=demo" in calls[0] and "limit=10" in calls[0]
+
+    monkeypatch.setattr(runner_ops, "api_request", lambda *a, **k: {"runs": [], "count": 0})
+    assert runner_ops.runner_history()["ok"] is True

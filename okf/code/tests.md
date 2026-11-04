@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-02T04:39:16Z
+  at: 2026-11-04T22:51:27Z
 sources:
   - id: tree
     resource: "tests"
@@ -29,7 +29,7 @@ okf_lock: generated
 * `test_axb1.py` — encode_frame_spec, frame_from_spec, test_close_replies_leave_as_close_verify, test_control_and_idle_frames_stay_json_on_wire, test_encoder_matches_golden_vector, test_envelope_rejects_compression_bit, test_envelope_rejects_oversized_payload, test_envelope_rejects_unaligned_payload, test_error_frames_leave_as_binary_error, test_fnv1a32_matches_shared_hash_checks, test_hub_delta_append_stays_json, test_hub_delta_multi_bar_stays_json
 * `test_backend.py` — TestAuth, TestBacktest, TestBacktestService, TestChartRenderer, TestGitOAuth, TestHealth, TestOptimizeEndpoint, TestPreview, TestRun, api_key, client
 * `test_backend_app_edges_coverage.py` — TestAuthFailureShapes, TestErrorSanitizer, TestStatsAndNotFound, client
-* `test_backend_runner.py` — TestRunnerCron, TestRunnerDisabled, TestRunnerRegistry, client, off_client
+* `test_backend_runner.py` — TestRunnerCron, TestRunnerDisabled, TestRunnerRegistry, TestRunnerScheduling, client, off_client
 * `test_backend_services_coverage.py` — TestChartRenderer, TestRunBacktest, TestTradeAndBacktestResult
 * `test_backend_sessions.py` — TestSessionRoutes, TestSessionStore, TestSessionTail, client, test_advertised_session_routes_are_actually_routable, test_health_advertises_every_session_route
 * `test_backend_window.py` — TestApplyWindow, TestNormalizeWindow, TestSizeReduction
@@ -146,7 +146,8 @@ okf_lock: generated
 * `test_request_foreign_na.py` — TestForeignSecurityNa, TestSameSymbolPassthrough
 * `test_request_fundamentals_honest.py` — test_currency_rate_prefers_feed_pair, test_currency_rate_short_arg_list_does_not_indexerror, test_fundamental_na_records_policy, test_fundamentals_are_na_without_provider, test_fundamentals_na_when_hook_misses, test_fundamentals_use_provider_hook_when_wired, test_request_seed_unchanged
 * `test_request_security_compile_htf.py` — TestCompileHtfBarmerge, TestCompileHtfOhlcvResample, TestCompileHtfSimpleTaResample, TestCompileProviderHtfBarmerge, TestCompileSecurityKeepLimits
-* `test_runner_cli_coverage.py` — pine_file, runner, test_api_request_get_ok_and_empty, test_api_request_http_error_message_and_status, test_api_request_http_error_runner_disabled, test_api_request_post_json_body, test_api_request_rejects_non_http_scheme, test_api_request_url_error_and_bad_json, test_echo_json_helper, test_runner_deploy_with_exchange_and_defaults, test_runner_group_stores_url_and_token, test_runner_jobs_and_tick_formats
+* `test_runner_cli_coverage.py` — pine_file, runner, test_api_request_get_ok_and_empty, test_api_request_http_error_message_and_status, test_api_request_http_error_runner_disabled, test_api_request_post_json_body, test_api_request_rejects_non_http_scheme, test_api_request_url_error_and_bad_json, test_echo_json_helper, test_runner_deploy_with_exchange_and_defaults, test_runner_group_stores_url_and_token, test_runner_history_rows_and_empty
+* `test_runner_store_redis.py` — FakeRedis, TestRedisBackendEndToEnd, TestRedisStoreUnit, redis_store
 * `test_runtime_package.py` — test_backend_runtime_shim_is_host_module, test_derived_hl2_hlc3_ohlc4_time_close_still_correct, test_historical_default_isrealtime_false_var_varip_same, test_import_runtime_from_package, test_indicator_skips_strategy_snapshot_but_strategy_still_events, test_input_source_hl2_override_updates_derived, test_interpret_tiny_script, test_realtime_bars_default_zero_keeps_historical, test_realtime_from_bar_window, test_realtime_last_bar_single_tick_sets_isrealtime, test_realtime_ticks_implies_last_bar_realtime, test_ta_vwap_default_source_uses_live_hlc3
 * `test_runtime_parity_host_r8.py` — TestAutoDoesNotPaperOverValues, TestCompileSeriesEnvelope, TestInterpretCompileHostPackingParity, TestSharedOhlcvPacking
 * `test_runtime_session.py` — test_session_append_equals_full_replay_sma, test_session_append_var_counter, test_session_barstate_historical_defaults_on_append, test_session_empty_init_then_append, test_session_once_restored_on_update_last_bar, test_session_realtime_window_matches_full_run, test_session_strategy_hist_overwrite_on_confirm, test_session_tick_then_append_islast_matches_full_replay, test_session_update_last_bar_confirms_on_append, test_session_update_last_bar_entry_fills_once, test_session_update_last_bar_tick_then_append, test_ta_multitick_matches_single_tick

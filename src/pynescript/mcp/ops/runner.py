@@ -159,3 +159,18 @@ def runner_enable(
         token=token,
         body={"jobs": [{"script_id": script_id.strip(), "enabled": enabled}]},
     )
+
+
+def runner_history(
+    script_id: str = "",
+    *,
+    limit: int = 50,
+    url: str | None = None,
+    token: str | None = None,
+) -> dict[str, Any]:
+    """GET /cron/history — recent ok / error runs (audit log)."""
+    query = f"limit={max(1, min(int(limit or 50), 500))}"
+    sid = script_id.strip()
+    if sid:
+        query += f"&script_id={sid}"
+    return _call("GET", f"/cron/history?{query}", url=url, token=token)

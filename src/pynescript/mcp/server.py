@@ -54,6 +54,7 @@ from pynescript.mcp.ops.optimize import optimize_source
 from pynescript.mcp.ops.runner import runner_delete
 from pynescript.mcp.ops.runner import runner_deploy
 from pynescript.mcp.ops.runner import runner_enable
+from pynescript.mcp.ops.runner import runner_history
 from pynescript.mcp.ops.runner import runner_jobs
 from pynescript.mcp.ops.runner import runner_list
 from pynescript.mcp.ops.runner import runner_show
@@ -286,6 +287,16 @@ def pyne_runner_jobs(url: str | None = None, token: str | None = None) -> dict[s
     return runner_jobs(url=url, token=token)
 
 
+def pyne_runner_history(
+    script_id: str = "",
+    limit: int = 50,
+    url: str | None = None,
+    token: str | None = None,
+) -> dict[str, Any]:
+    """Recent run audit log (GET /cron/history). Network."""
+    return runner_history(script_id=script_id, limit=limit, url=url, token=token)
+
+
 def pyne_runner_enable(script_id: str, url: str | None = None, token: str | None = None) -> dict[str, Any]:
     """Enable ticks for a hosted script. Network."""
     return runner_enable(script_id, enabled=True, url=url, token=token)
@@ -501,6 +512,7 @@ def create_server() -> Any:
         (pyne_runner_list, net),
         (pyne_runner_show, net),
         (pyne_runner_jobs, net),
+        (pyne_runner_history, net),
         (pyne_runner_deploy, write),
         (pyne_runner_delete, write),
         (pyne_runner_tick, write),

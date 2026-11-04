@@ -53,7 +53,10 @@ services:
       PYNE_RUNNER: ${PYNE_RUNNER:-0}
       PYNE_RUNNER_SCHEDULER: ${PYNE_RUNNER_SCHEDULER:-0}
       PYNE_RUNNER_POLL_SECONDS: ${PYNE_RUNNER_POLL_SECONDS:-60}
+      PYNE_RUNNER_WORKERS: ${PYNE_RUNNER_WORKERS:-2}
       PYNE_RUNNER_DB: /data/runner.db
+      # Multi-replica runner state (redis uses REDIS_URL above; sqlite default).
+      PYNE_RUNNER_STORE_BACKEND: ${PYNE_RUNNER_STORE_BACKEND:-sqlite}
     volumes:
       - ./src:/app/src:ro
       - ./backend:/app/backend:ro

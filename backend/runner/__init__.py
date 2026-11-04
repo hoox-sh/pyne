@@ -20,8 +20,10 @@
 """Optional hosted script runner for Flask / Docker / VPS / Containers.
 
 Off unless ``PYNE_RUNNER`` is truthy (``1`` / ``true`` / ``yes`` / ``on``).
-When on: SQLite registry + ``/scripts`` / ``/cron/*``. Background bar-close
-polling is a second switch (``PYNE_RUNNER_SCHEDULER``).
+When on: script registry + ``/scripts`` / ``/cron/*``. Background bar-close
+polling is a second switch (``PYNE_RUNNER_SCHEDULER``). The store backend is
+``PYNE_RUNNER_STORE_BACKEND`` (``sqlite`` default, or ``redis`` for
+multi-replica deployments).
 """
 
 from __future__ import annotations
@@ -52,6 +54,22 @@ def poll_seconds() -> float:
     except ValueError:
         value = 60.0
     return max(5.0, value)
+
+
+def runner_workers() -> int:
+    """Job threads per tick (isolation from slow scripts). Default 2, floor 1, cap 16."""
+    raw = os.environ.get("PYNE_RUNNER_WORKERS", "2").strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        value = 2
+    return max(1, min(value, 16))
+
+
+def store_backend() -> str:
+    """Runner store backend: ``sqlite`` (default) or ``redis`` (needs REDIS_URL)."""
+    raw = (os.environ.get("PYNE_RUNNER_STORE_BACKEND") or "sqlite").strip().lower()
+    return "redis" if raw == "redis" else "sqlite"
 
 
 def db_path() -> str:

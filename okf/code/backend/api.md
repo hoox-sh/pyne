@@ -7,7 +7,7 @@ tags: [api, backend, code]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-25T12:40:52Z
+  at: 2026-11-04T22:51:27Z
 sources:
   - id: tree
     resource: "backend/api"
@@ -28,4 +28,4 @@ okf_lock: generated
 * `live_ws.py` — LiveConnection, LiveRegistry, canonical_series_key, clamp_history_bars, closed_upto, extract_handshake_key, make_close, make_delta, make_full, make_status, map_live_frame, register_live_route
 * `lsp_http.py` — lsp_completion, lsp_convert, lsp_diagnostics, lsp_hover
 * `preview.py` — chart_preview, indicator_preview, quick_backtest
-* `runner.py` — cron_run, delete_script, get_cron_jobs, get_script, list_scripts, put_cron_jobs, put_script
+* `runner.py` — cron_run, delete_script, get_cron_history, get_cron_jobs, get_script, list_scripts, put_cron_jobs, put_script

@@ -241,6 +241,47 @@ def test_runner_jobs_and_tick_formats(runner: CliRunner, monkeypatch: pytest.Mon
     assert payload["jobs"][0]["status"] == "ok"
 
 
+def test_runner_history_rows_and_empty(runner: CliRunner, monkeypatch: pytest.MonkeyPatch) -> None:
+    def handler(_url: str, _method: str, path: str, _body: dict | None) -> dict[str, Any]:
+        assert path.startswith("/cron/history?")
+        return {
+            "runs": [
+                {
+                    "ts": 1_770_000_000_000,
+                    "script_id": "demo",
+                    "status": "ok",
+                    "mode": "interpret",
+                    "alerts": 2,
+                },
+                {
+                    "ts": 1_769_999_999_000,
+                    "script_id": "demo",
+                    "status": "error",
+                    "reason": "fetch_failed",
+                    "forward_status": "error: hook down",
+                },
+            ],
+            "count": 2,
+        }
+
+    calls = _patch_api(monkeypatch, handler)
+    r = runner.invoke(runner_group, ["history", "--id", "demo", "--limit", "10"])
+    assert r.exit_code == 0, r.output
+    assert "script_id=demo" in calls[0][1]
+    assert "limit=10" in calls[0][1]
+    assert "demo" in r.output
+    assert "fetch_failed" in r.output
+    assert "forward=error: hook down" in r.output
+
+    r_json = runner.invoke(runner_group, ["history", "--json"])
+    assert json.loads(r_json.output)["count"] == 2
+
+    _patch_api(monkeypatch, lambda *_a: {"runs": [], "count": 0})
+    r_empty = runner.invoke(runner_group, ["history"])
+    assert r_empty.exit_code == 0
+    assert "no run history" in r_empty.output
+
+
 def test_runner_deploy_with_exchange_and_defaults(
     runner: CliRunner, pine_file: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
