@@ -1,4 +1,14 @@
-## [Unreleased]
+## [0.6.33] — 2026-11-04
+
+### Added
+
+- **Hosted runner resilience + audit.** `PYNE_RUNNER` ticks now schedule per script: a timeframe due gate only fetches once the next bar can have closed (a `1w` job is no longer polled every 60s), failed fetches/runs back off exponentially (60s doubling, capped at 30 min, `force` bypasses), and every ok / error run is appended to a per-script audit log — `GET /cron/history?script_id=&limit=`, `pyne runner history`, and MCP `pyne_runner_history`. New `PYNE_RUNNER_WORKERS` (default 2) runs tick jobs in a thread pool so one slow script cannot serialize the fleet. Webhook forward failures are persisted in cron state (`last_forward_status`) and history instead of only logging.
+- **Redis runner store for multi-replica deployments.** `PYNE_RUNNER_STORE_BACKEND=redis` (`REDIS_URL` required) shares deployed scripts, cron state, and run history across API replicas; ticks serialize with a `SET NX` token instead of the filesystem flock. Default stays `sqlite` (single host). `/health` reports `features.script_runner_store`; `backend/runner/store.py` is now a backend-dispatching facade over its SQLite implementation or `backend/runner/store_redis.py` (fake-client testable).
+- **Runner cron state is now merge-written.** Partial patches (e.g. a `fetch_failed` status) no longer wipe `last_bar_time` / `last_alerts`.
+
+### Fixed
+
+- **Runner `fetch_failed` state reset.** A failed fetch used to clear the recorded last bar time, forcing a needless re-run on the next tick.
 
 ## [0.6.32] — 2026-11-02
 
