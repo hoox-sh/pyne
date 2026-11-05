@@ -1,3 +1,9 @@
+## [Unreleased]
+
+### Added
+
+- **`/ws/live` `encoding: "axb1-full"`.** Opt-in AXB1 mode that also sends script snapshots (`SNAPSHOT_PLOTS`), single-bar plot deltas (`PLOT_TIP`), and multi-bar candle deltas (`APPEND_BARS`, a new columnar opcode). `encoding: "axb1"` remains the safe default with unchanged behavior, and any unsupported shape still falls back to JSON. The shared `tests/data/axb1-vectors.json` golden suite now pins the `APPEND_BARS` layout.
+
 ## [0.6.33] — 2026-11-04
 
 ### Added

@@ -177,6 +177,19 @@ def frame_from_spec(raw: dict) -> dict:
         }
     if opcode == "JSON_BLOB":
         return {"fn": opcode, "header": header, "json_text": rest["json"]}
+    if opcode == "APPEND_BARS":
+        return {
+            "fn": opcode,
+            "header": header,
+            "price_scale": int(rest["price_scale"]),
+            "count": int(rest["count"]),
+            "closed_upto": int(rest["closed_upto"]),
+            "closed_index": int(rest["closed_index"]),
+            "time_s": [int(t) for t in rest["time_s"]],
+            "flags": [int(f) for f in rest["flags"]],
+            "ohlcv": _ohlcv_of(rest, columns=True),
+            "tip": _tip_of(rest["tip"]),
+        }
     raise AssertionError(f"unknown golden-vector opcode {opcode}")
 
 
@@ -234,6 +247,18 @@ def encode_frame_spec(spec: dict) -> bytes:
         return axb1.encode_error(header, code=spec["code"], message=spec["message"], retryable=spec["retryable"])
     if fn == "JSON_BLOB":
         return axb1.encode_json_blob(header, spec["json_text"])
+    if fn == "APPEND_BARS":
+        return axb1.encode_append_bars(
+            header,
+            price_scale=spec["price_scale"],
+            count=spec["count"],
+            closed_upto=spec["closed_upto"],
+            closed_index=spec["closed_index"],
+            time_s=spec["time_s"],
+            flags=spec["flags"],
+            ohlcv=spec["ohlcv"],
+            tip=spec["tip"],
+        )
     raise AssertionError(f"unknown encoder dispatch {fn}")
 
 
@@ -339,6 +364,54 @@ def test_map_script_full_stays_json():
         "series": {"a": [1.0, 2.0]},
     }
     assert map_live_frame(_frame("full", payload)) is None
+
+
+def test_map_script_full_stays_json_in_basic_mode():
+    payload = {
+        "seriesKey": KEY_TEXT,
+        "count": 2,
+        "closed_upto": 0,
+        "plots": [[1.0, 2.0]],
+        "series": {"a": [1.0, 2.0]},
+    }
+    assert map_live_frame(_frame("full", payload), mode="basic") is None
+
+
+def test_map_script_full_becomes_snapshot_plots_in_full_mode():
+    payload = {
+        "seriesKey": KEY_TEXT,
+        "count": 2,
+        "closed_upto": 0,
+        "plots": [[1.0, 2.0]],
+        "series": {"a": [1.0, 2.0]},
+    }
+    out = map_live_frame(_frame("full", payload), mode="full")
+    assert isinstance(out, bytes)
+    assert out[:4] == b"AXB1"
+    assert out[5] == int(axb1.Axb1Opcode.SNAPSHOT_PLOTS)
+
+
+def test_map_delta_multi_bar_becomes_append_bars_in_full_mode():
+    delta = make_delta("sess-7f3a", 7, 8, 10, 2, LAST_TIME, "sub-1", bars=BARS[-2:])
+    out = map_live_frame(delta, last_time=LAST_TIME, mode="full")
+    assert isinstance(out, bytes)
+    assert out[:4] == b"AXB1"
+    assert out[5] == int(axb1.Axb1Opcode.APPEND_BARS)
+
+
+def test_map_script_delta_becomes_plot_tip_in_full_mode():
+    payload = {
+        "base_index": 10,
+        "count": 11,
+        "tail_len": 1,
+        "closed_upto": LAST_TIME,
+        "forming": True,
+        "series": {"myPlot": [1.5]},
+    }
+    out = map_live_frame(_frame("delta", payload), mode="full")
+    assert isinstance(out, bytes)
+    assert out[:4] == b"AXB1"
+    assert out[5] == int(axb1.Axb1Opcode.PLOT_TIP)
 
 
 def test_map_full_with_leftovers_stays_json():
@@ -515,6 +588,38 @@ def test_subscribe_with_axb1_sends_bytes():
         int(axb1.Axb1Opcode.SNAPSHOT_OHLCV),
         int(axb1.Axb1Opcode.STATUS),
     ]
+
+
+def test_subscribe_axb1_full_sends_binary_for_status_and_snapshot():
+    capture = _CaptureSender()
+    hub = _FakeHub()
+    conn = _axb1_conn(capture, hub=hub)
+    replies = conn.handle_dict(_subscribe("axb1-full"))
+    assert len(capture.frames) == 1
+    assert isinstance(capture.frames[0], bytes)
+    assert capture.frames[0][5] == int(axb1.Axb1Opcode.STATUS)
+    wire = [conn.encode_outbound(reply) for reply in replies]
+    assert [f[5] for f in wire] == [
+        int(axb1.Axb1Opcode.STATUS),
+        int(axb1.Axb1Opcode.SNAPSHOT_OHLCV),
+        int(axb1.Axb1Opcode.STATUS),
+    ]
+    send = hub.registered["sub-1"]
+    send(
+        make_delta(
+            "sess-7f3a",
+            12,
+            10,
+            11,
+            1,
+            LAST_TIME,
+            "sub-1",
+            forming=True,
+            series={"myPlot": [1.5]},
+        )
+    )
+    assert isinstance(capture.frames[-1], bytes)
+    assert capture.frames[-1][5] == int(axb1.Axb1Opcode.PLOT_TIP)
 
 
 def test_without_encoding_flag_everything_stays_json():

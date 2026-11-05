@@ -37,6 +37,7 @@ import hashlib
 import itertools
 import json
 import logging
+import math
 import threading
 import time
 
@@ -255,9 +256,10 @@ class LiveConnection:
         if state is None:
             return frame
         prev = state.get("last_time")
+        mode = state.get("mode", "basic")
         encoded: bytes | None = None
         try:
-            encoded = map_live_frame(frame, last_time=prev)
+            encoded = map_live_frame(frame, last_time=prev, mode=mode)
         except Exception:  # a bad frame must never kill the send path
             logger.warning("axb1 encode failed for %s", frame.get("type"), exc_info=True)
         derived = _axb1_cursor_time(frame)
@@ -411,11 +413,14 @@ class LiveConnection:
             return [self._err(None, "subscribe needs an id", "BAD_SUBSCRIBE")]
         client_id = str(req_id)
         token = self.generation(client_id)
-        # AXB1 negotiation (HP PR 7): binary outbound only when the client
-        # explicitly asked for it on subscribe. Resubscribe overwrites, and a
-        # subscribe without the flag drops back to all-JSON for this id.
-        if str(payload.get("encoding") or "") == "axb1":
-            self._axb1_subs[client_id] = {"last_time": None}
+        # AXB1 negotiation (HP PR 7 / axb1-full): binary outbound only when
+        # the client explicitly asked for it on subscribe. Resubscribe
+        # overwrites, and a subscribe without the flag drops back to all-JSON.
+        encoding = str(payload.get("encoding") or "")
+        if encoding == "axb1":
+            self._axb1_subs[client_id] = {"last_time": None, "mode": "basic"}
+        elif encoding == "axb1-full":
+            self._axb1_subs[client_id] = {"last_time": None, "mode": "full"}
         else:
             self._axb1_subs.pop(client_id, None)
         # Tell the client we are fetching before the 4-9s first walk so the
@@ -486,6 +491,14 @@ class LiveConnection:
             ]
         client_id = str(req_id)
         token = self.generation(client_id)
+        # AXB1 re-negotiation on resume: same rules as subscribe.
+        encoding = str(payload.get("encoding") or "") if isinstance(payload, dict) else ""
+        if encoding == "axb1":
+            self._axb1_subs[client_id] = {"last_time": None, "mode": "basic"}
+        elif encoding == "axb1-full":
+            self._axb1_subs[client_id] = {"last_time": None, "mode": "full"}
+        else:
+            self._axb1_subs.pop(client_id, None)
         engine_session_id = record.get("engine_session_id")
         if engine_session_id:
             resumed = self._resume_session(str(engine_session_id))
@@ -1191,11 +1204,156 @@ def _map_error(header: Any, frame: dict[str, Any], payload: dict[str, Any]) -> b
     return _axb1.encode_error(header, code=str(code), message=str(message), retryable=bool(retryable))
 
 
+def _map_full_plots(header: Any, payload: dict[str, Any]) -> bytes | None:
+    """AXB1 SNAPSHOT_PLOTS for a full script frame, JSON fallback = ``None``."""
+    from pynescript.runtime import axb1 as _axb1
+
+    # Only script snapshots (no bars) are eligible; extra metadata keeps JSON.
+    allowed = {"seriesKey", "count", "closed_upto", "series", "plots", "bar_times"}
+    if set(payload) - allowed or "bars" in payload:
+        return None
+    count = payload.get("count")
+    if not isinstance(count, int) or count < 0 or "closed_upto" not in payload:
+        return None
+    closed_upto = int(payload["closed_upto"])
+    series = payload.get("series")
+    plots: list[dict[str, Any]] = []
+    if isinstance(series, dict) and series:
+        # ``series`` maps plot key → equal-length numeric array.
+        for key, values in series.items():
+            if not isinstance(key, str) or not isinstance(values, list) or len(values) != count:
+                return None
+            try:
+                plots.append({"key": key, "kind": _axb1.ValueKind.UnitFloat64, "values": [float(v) for v in values]})
+            except (TypeError, ValueError):
+                return None
+    else:
+        # Legacy ``plots: [[...]]`` fallback: a single non-empty row becomes
+        # plot key "0". Anything else falls back to JSON.
+        plots_list = payload.get("plots")
+        if not isinstance(plots_list, list) or len(plots_list) != 1:
+            return None
+        inner = plots_list[0]
+        if not isinstance(inner, list) or not inner or len(inner) != count:
+            return None
+        try:
+            plots = [{"key": "0", "kind": _axb1.ValueKind.UnitFloat64, "values": [float(v) for v in inner]}]
+        except (TypeError, ValueError):
+            return None
+    if not plots:
+        return None
+    times: list[int] | None = None
+    bar_times = payload.get("bar_times")
+    if isinstance(bar_times, list) and len(bar_times) == count:
+        try:
+            times = [int(t) for t in bar_times]
+        except (TypeError, ValueError):
+            return None
+    return _axb1.encode_snapshot_plots(
+        header,
+        count=count,
+        closed_upto=closed_upto,
+        times=times,
+        plots=plots,
+    )
+
+
+def _map_delta_multi_bar(header: Any, payload: dict[str, Any], scale: int) -> bytes | None:
+    """AXB1 APPEND_BARS for a multi-bar series delta, JSON fallback = ``None``."""
+    from pynescript.runtime import axb1 as _axb1
+
+    bars = payload.get("bars")
+    if not isinstance(bars, list) or len(bars) < 2:
+        return None
+    allowed = {"base_index", "count", "tail_len", "closed_upto", "forming", "bars"}
+    if set(payload) - allowed or payload.get("unchanged") is True:
+        return None
+    count = payload.get("count")
+    if not isinstance(count, int) or count < 1:
+        return None
+    if payload.get("tail_len") != len(bars) or "closed_upto" not in payload:
+        return None
+    closed_upto = int(payload["closed_upto"])
+    time_s: list[int] = []
+    columns: dict[str, list] = {"open": [], "high": [], "low": [], "close": [], "volume": []}
+    try:
+        for bar in bars:
+            if not isinstance(bar, dict):
+                return None
+            time_s.append(int(bar["time"]))
+            for field in ("open", "high", "low", "close"):
+                columns[field].append(_axb1.price_to_ticks(float(bar[field]), scale))
+            columns["volume"].append(float(bar["volume"]))
+    except (KeyError, TypeError, ValueError):
+        return None
+    flags = [1 if t <= closed_upto else 2 for t in time_s]
+    return _axb1.encode_append_bars(
+        header,
+        price_scale=scale,
+        count=len(bars),
+        closed_upto=closed_upto,
+        closed_index=count - 1,
+        time_s=time_s,
+        flags=flags,
+        ohlcv=columns,
+        tip={"mask": 0, "flags": 0},
+    )
+
+
+def _map_delta_plots(header: Any, payload: dict[str, Any]) -> bytes | None:
+    """AXB1 PLOT_TIP for a single-bar script delta, JSON fallback = ``None``."""
+    from pynescript.runtime import axb1 as _axb1
+
+    if payload.get("tail_len") != 1:
+        return None
+    allowed = {"base_index", "count", "tail_len", "closed_upto", "forming", "series", "plots", "bars"}
+    if set(payload) - allowed or payload.get("unchanged") is True or "bars" in payload:
+        return None
+    count = payload.get("count")
+    if not isinstance(count, int) or count < 1:
+        return None
+    series = payload.get("series")
+    tips: list[dict[str, Any]] = []
+    if isinstance(series, dict) and series:
+        for key, values in series.items():
+            if not isinstance(key, str) or not isinstance(values, list) or len(values) != 1:
+                return None
+            try:
+                value = float(values[0])
+            except (TypeError, ValueError):
+                return None
+            if not math.isfinite(value):
+                return None
+            tips.append(
+                {"key_hash": _axb1.fnv1a32(key), "kind": _axb1.ValueKind.UnitFloat64, "value": value}
+            )
+    else:
+        plots_list = payload.get("plots")
+        if not isinstance(plots_list, list) or len(plots_list) != 1:
+            return None
+        inner = plots_list[0]
+        if not isinstance(inner, list) or len(inner) != 1:
+            return None
+        try:
+            value = float(inner[0])
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(value):
+            return None
+        tips.append(
+            {"key_hash": _axb1.fnv1a32("0"), "kind": _axb1.ValueKind.UnitFloat64, "value": value}
+        )
+    if not tips:
+        return None
+    return _axb1.encode_plot_tip(header, tips)
+
+
 def map_live_frame(
     frame: dict[str, Any],
     *,
     last_time: int | None = None,
     price_scale: int | None = None,
+    mode: str = "basic",
 ) -> bytes | None:
     """Map one ``/ws/live`` JSON frame to AXB1 bytes; ``None`` = stay JSON.
 
@@ -1224,9 +1382,17 @@ def map_live_frame(
     if mtype == "status":
         return _map_status(header, payload)
     if mtype == "full":
-        return _map_full(header, payload, scale)
+        out = _map_full(header, payload, scale)
+        if out is None and mode == "full":
+            out = _map_full_plots(header, payload)
+        return out
     if mtype == "delta":
-        return _map_delta(header, payload, last_time, scale)
+        out = _map_delta(header, payload, last_time, scale)
+        if out is None and mode == "full":
+            out = _map_delta_multi_bar(header, payload, scale)
+        if out is None and mode == "full":
+            out = _map_delta_plots(header, payload)
+        return out
     if mtype == "close":
         return _map_close(header, payload, scale)
     if mtype == "error":

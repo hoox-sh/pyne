@@ -72,6 +72,7 @@ class Axb1Opcode(enum.IntEnum):
     ERROR = 0x08
     UNCHANGED = 0x09
     JSON_BLOB = 0x0A
+    APPEND_BARS = 0x0B
 
 
 class TipMask(enum.IntFlag):
@@ -437,6 +438,52 @@ def encode_append_bar(
     _write_tip(w, tip, require_time=False)
     w.pad_to_4()
     return _wrap(Axb1Opcode.APPEND_BAR, header, w.finish())
+
+
+def encode_append_bars(
+    header: Header,
+    *,
+    price_scale: int,
+    count: int,
+    closed_upto: int,
+    closed_index: int,
+    time_s: Sequence[int],
+    flags: Sequence[int],
+    ohlcv: Mapping[str, Sequence[Any]],
+    tip: Mapping[str, Any],
+) -> bytes:
+    """APPEND_BARS: a batch of newly closed bars + an optional forming tip.
+
+    Mirrors :func:`encode_snapshot_ohlcv` columnar layout, prefixed by the
+    batch cursor (closed_upto / closed_index) and an ``has_tip`` flag.
+    """
+    assert_price_scale(price_scale)
+    if len(time_s) != count or len(flags) != count:
+        detail = "APPEND_BARS column length mismatch"
+        raise ValueError(detail)
+    for name in ("open", "high", "low", "close", "volume"):
+        if len(ohlcv[name]) != count:
+            detail = "APPEND_BARS column length mismatch"
+            raise ValueError(detail)
+    has_tip = bool(int(tip.get("mask", 0)) & TipMask.TIME)
+    w = _Writer()
+    w.u8(price_scale)
+    w.pad(3)
+    w.u32(count)
+    w.u32(closed_upto)
+    w.u32(closed_index)
+    w.u32(1 if has_tip else 0)
+    for value in time_s:
+        w.i32(int(value))
+    w.align(8)
+    _write_ohlcv(w, ohlcv, count)
+    for value in flags:
+        w.u8(int(value))
+    w.pad_to_4()
+    if has_tip:
+        _write_tip(w, tip, require_time=False)
+    w.pad_to_4()
+    return _wrap(Axb1Opcode.APPEND_BARS, header, w.finish())
 
 
 def encode_plot_tip(header: Header, plots: Sequence[Mapping[str, Any]]) -> bytes:

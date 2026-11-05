@@ -176,6 +176,19 @@ def frame_from_spec(raw: dict) -> dict:
         }
     if opcode == "JSON_BLOB":
         return {"fn": opcode, "header": header, "json_text": rest["json"]}
+    if opcode == "APPEND_BARS":
+        return {
+            "fn": opcode,
+            "header": header,
+            "price_scale": int(rest["price_scale"]),
+            "count": int(rest["count"]),
+            "closed_upto": int(rest["closed_upto"]),
+            "closed_index": int(rest["closed_index"]),
+            "time_s": [int(t) for t in rest["time_s"]],
+            "flags": [int(f) for f in rest["flags"]],
+            "ohlcv": _ohlcv_of(rest, columns=True),
+            "tip": _tip_of(rest["tip"]),
+        }
     raise ValueError(f"unknown golden-vector opcode {opcode}")
 
 
@@ -233,6 +246,18 @@ def encode_frame_spec(spec: dict) -> bytes:
         return axb1.encode_error(header, code=spec["code"], message=spec["message"], retryable=spec["retryable"])
     if fn == "JSON_BLOB":
         return axb1.encode_json_blob(header, spec["json_text"])
+    if fn == "APPEND_BARS":
+        return axb1.encode_append_bars(
+            header,
+            price_scale=spec["price_scale"],
+            count=spec["count"],
+            closed_upto=spec["closed_upto"],
+            closed_index=spec["closed_index"],
+            time_s=spec["time_s"],
+            flags=spec["flags"],
+            ohlcv=spec["ohlcv"],
+            tip=spec["tip"],
+        )
     raise ValueError(f"unknown encoder dispatch {fn}")
 
 
