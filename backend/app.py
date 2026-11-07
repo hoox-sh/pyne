@@ -799,6 +799,16 @@ def _free_tier_limits_flag() -> bool:
     return free_tier_limits_enabled()
 
 
+def _gap_healer_enabled() -> bool:
+    """Whether the background hole healer may run in this process."""
+    try:
+        from backend.api.gap_healer import enabled
+
+        return enabled()
+    except Exception:  # /health must stay up
+        return False
+
+
 def _compile_health_section() -> dict[str, Any]:
     """Compile capability + cache/prewarm flags for readiness probes (H2)."""
     try:
@@ -909,6 +919,8 @@ def _health_payload() -> dict[str, Any]:
             "data_session": True,
             "session_delta": True,
             "live_stream": True,
+            # Background hole healer for stored series (see backend/api/gap_healer).
+            "gap_healer": _gap_healer_enabled(),
         },
         "compile": _compile_health_section(),
         "endpoints": endpoints,
@@ -2351,16 +2363,6 @@ try:
 except Exception:  # boot must not fail if runner misconfigured
     logger.exception("pyne runner scheduler failed to start")
 
-# Close holes in stored series even when no client session is ticking (a quiet
-# tab used to leave the engine's series short of minutes indefinitely).
-try:
-    from backend.api import gap_healer
-
-    gap_healer.start_gap_healer()
-except Exception:  # boot must not fail if the healer is misconfigured
-    logger.exception("pyne gap healer failed to start")
-
-
 # Apply the PYNE_DEBUG logging policy at import so gunicorn workers, `flask run`
 # and `python -m backend.app` all get the same levels without extra flags.
 try:
@@ -2371,6 +2373,16 @@ try:
 except Exception:  # logging setup must never block boot
     _LOGGING_POLICY = {"enabled": False, "error": "configure_logging failed"}
     logger.warning("logging setup failed; using defaults", exc_info=True)
+
+# Close holes in stored series even when no client session is ticking (a quiet
+# tab used to leave the engine's series short of minutes indefinitely). Started
+# after the logging policy so the healer's own lines are not dropped.
+try:
+    from backend.api import gap_healer
+
+    gap_healer.start_gap_healer()
+except Exception:  # boot must not fail if the healer is misconfigured
+    logger.exception("pyne gap healer failed to start")
 
 
 @app.errorhandler(404)
