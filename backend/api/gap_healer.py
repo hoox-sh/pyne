@@ -72,6 +72,22 @@ ACTIVE_S = 900
 _started = False
 _start_guard = threading.Lock()
 _thread: threading.Thread | None = None
+# Sweep telemetry for `/stats` (in-process; resets with the worker).
+_sweeps = 0
+_filled = 0
+_last_sweep_at = 0.0
+
+
+def stats() -> dict[str, Any]:
+    """Healer state for ``/stats``: armed, sweep count, pages filled, last sweep."""
+    return {
+        "enabled": enabled(),
+        "armed": bool(_started and _thread is not None and _thread.is_alive()),
+        "sweeps": _sweeps,
+        "filled": _filled,
+        "last_sweep_at": int(_last_sweep_at) if _last_sweep_at else None,
+        "sweep_s": _env_float("PYNE_GAP_SWEEP_S", SWEEP_S),
+    }
 
 
 def _env_float(name: str, default: float) -> float:
@@ -134,6 +150,10 @@ def sweep_once(now_s: int | None = None) -> dict[str, Any]:
             )
         except Exception as exc:  # per-series failure never stops the sweep
             logger.warning("gap healer: %s failed: %s", key.text, exc)
+    global _sweeps, _filled, _last_sweep_at
+    _sweeps += 1
+    _filled += int(report["filled"])
+    _last_sweep_at = float(now)
     if report["filled"]:
         logger.info(
             "gap healer: filled %s page(s) across %s series",

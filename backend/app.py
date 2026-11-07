@@ -943,6 +943,7 @@ def get_stats():
     - ``sessions`` — live session store size and lifecycle counters
     - ``datafeed`` / ``provider`` — CCXT realtime + historical fetches
     - ``compile_cache`` — live engine cache sizes (same source as /health)
+    - ``gap_healer`` — background series-hole sweep (armed / sweeps / filled)
     - ``debug`` — current ``PYNE_DEBUG`` configuration
     """
     from backend.logging_setup import debug_report
@@ -960,9 +961,20 @@ def get_stats():
             "gauges": snapshot["gauges"],
             "compile_cache": _compile_cache_snapshot(),
             "sessions": _sessions_snapshot(),
+            "gap_healer": _gap_healer_snapshot(),
             "notes": "in-process counters; reset on worker restart",
         }
     )
+
+
+def _gap_healer_snapshot() -> dict[str, Any]:
+    """Background hole-healer state (armed, sweeps, pages filled), or ``{}``."""
+    try:
+        from backend.api.gap_healer import stats
+
+        return stats()
+    except Exception:  # /stats must stay up
+        return {}
 
 
 def _compile_cache_snapshot() -> dict[str, Any]:

@@ -7,7 +7,7 @@ tags: [api, backend, code]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-07T15:13:52Z
+  at: 2026-11-07T15:22:14Z
 sources:
   - id: tree
     resource: "backend/api"
@@ -22,7 +22,7 @@ okf_lock: generated
 * `data_series.py` — collect_candles, data_error_response, fetch_history, heal_series_gaps, provider_for, series_bars, series_fetch, series_provide, series_purge, series_status, sync_data_session
 * `datafeed.py` — bind_session, fetch_markets, fetch_ohlcv, gateway_health, register_watch_route, run_watch_producer, unbind_session, watch_rest_poll
 * `feed_manager.py` — ExchangeFeed, FeedManager, apply_feed_candles, get_feed_manager, normalize_candles, now_seconds
-* `gap_healer.py` — enabled, start_gap_healer, sweep_once
+* `gap_healer.py` — enabled, start_gap_healer, stats, sweep_once
 * `git_oauth.py` — device_poll, device_start
 * `live_ensure.py` — ensure_live_session, key_text_symbol, parse_live_key, resume_live_session
 * `live_push.py` — PushHub, attach_feed, emit_push_frames, emit_series_push, notify_session_gone, persist_feed_bars

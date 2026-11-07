@@ -205,3 +205,16 @@ class TestSweep:
         # The suite creates holes on purpose; a sweep must not fill them.
         monkeypatch.delenv("PYNE_GAP_HEAL", raising=False)
         assert gap_healer.start_gap_healer() is False
+
+class TestStats:
+    def test_stats_reports_disarmed_and_sweep_counters(self, store, exchange, monkeypatch):
+        before = gap_healer.stats()
+        assert before["armed"] is False  # pytest never arms the thread
+        store.provide(KEY, [bar(NOW + i * MIN) for i in (0, 5)])
+        exchange.candles = [candle(NOW + i * MIN) for i in range(6)]
+        monkeypatch.setattr(data_api, "provider_for", lambda *a, **k: exchange)
+        gap_healer.sweep_once(now_s=NOW)
+        after = gap_healer.stats()
+        assert after["sweeps"] == before["sweeps"] + 1
+        assert after["filled"] == before["filled"] + 1
+        assert after["last_sweep_at"] == NOW
