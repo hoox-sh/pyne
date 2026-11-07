@@ -74,7 +74,12 @@ SOURCE_GAP = "ccxt-gap"
 # A weekend on a session venue, or an upstream that has no candles for the
 # hole, must not refetch the same gap on every tick.
 _GAP_GIVE_UP = 3
-_gap_failures: dict[str, tuple[int, int]] = {}
+# Give-up is a cooldown, not a life sentence: a transient upstream failure used
+# to block that hole forever (the key is the hole start), so a series could sit
+# with missing minutes until an unrelated full fetch happened to cover it.
+_GAP_RETRY_S = 300.0
+# key → (hole start, consecutive failures, monotonic time of the last failure)
+_gap_failures: dict[str, tuple[int, int, float]] = {}
 
 # Short-lived reuse of the upstream tick walk, per series. AXIS ticks one
 # session per script instance (chart + N indicators) against the same series
@@ -346,30 +351,34 @@ def fetch_history(key: SeriesKey, history_bars: int) -> dict[str, Any]:
 
 def _gap_blocked(key_text: str, start: int) -> bool:
     prev = _gap_failures.get(key_text)
-    return prev is not None and prev[0] == start and prev[1] >= _GAP_GIVE_UP
+    if prev is None or prev[0] != start or prev[1] < _GAP_GIVE_UP:
+        return False
+    # The give-up expires: after the cooldown the hole is retried once more, so
+    # a transient upstream failure cannot strand it forever.
+    return time.monotonic() - prev[2] < _GAP_RETRY_S
 
 
 def _gap_failed(key_text: str, start: int) -> None:
     prev = _gap_failures.get(key_text)
     n = prev[1] + 1 if prev is not None and prev[0] == start else 1
-    _gap_failures[key_text] = (start, n)
+    _gap_failures[key_text] = (start, n, time.monotonic())
 
 
-def _fill_one_gap(store: Any, provider: Any, key: SeriesKey, now_s: int) -> bool:
-    """Write one page into the widest hole. True when a hole was seen.
+def _fill_gap_once(store: Any, provider: Any, key: SeriesKey, now_s: int) -> str:
+    """Fill one page into the widest hole.
 
-    The page is at most ``TICK_MAX_BARS``. A hole larger than that shrinks
-    on later ticks instead of one 200-page walk. No candles for that start
-    (a closed market) gives up after ``_GAP_GIVE_UP`` tries.
+    Returns ``"none"`` (series continuous), ``"blocked"`` (the hole gave up
+    after repeated upstream misses — see :data:`_GAP_RETRY_S`), ``"failed"``
+    (the upstream answered nothing for it) or ``"filled"``.
     """
     step = key.interval_seconds
     gap = store.widest_gap(key, step)
     if gap is None:
         _gap_failures.pop(key.text, None)
-        return False
+        return "none"
     start, _end = gap
     if _gap_blocked(key.text, start):
-        return True
+        return "blocked"
     until_s = min(now_s, start + TICK_MAX_BARS * step)
     try:
         candles = _cached_walk(
@@ -382,19 +391,64 @@ def _fill_one_gap(store: Any, provider: Any, key: SeriesKey, now_s: int) -> bool
         )
     except DataError:
         _gap_failed(key.text, start)
-        return True
+        return "failed"
     if not candles:
         _gap_failed(key.text, start)
-        return True
+        return "failed"
     with store.key_lock(key.text):
         before = int(store.status(key)["count"])
         store.provide(key, candles, source=SOURCE_GAP)
         after = int(store.status(key)["count"])
     if after <= before:
         _gap_failed(key.text, start)
-    else:
-        _gap_failures.pop(key.text, None)
-    return True
+        return "failed"
+    _gap_failures.pop(key.text, None)
+    return "filled"
+
+
+def _fill_one_gap(store: Any, provider: Any, key: SeriesKey, now_s: int) -> bool:
+    """Write one page into the widest hole. True when a hole was seen.
+
+    The page is at most ``TICK_MAX_BARS``. A hole larger than that shrinks
+    on later ticks instead of one 200-page walk. No candles for that start
+    (a closed market) gives up after ``_GAP_GIVE_UP`` tries, for
+    :data:`_GAP_RETRY_S`.
+    """
+    return _fill_gap_once(store, provider, key, now_s) != "none"
+
+
+def heal_series_gaps(
+    key: SeriesKey,
+    *,
+    max_pages: int = 2,
+    now_s: int | None = None,
+    provider: Any | None = None,
+) -> int:
+    """Fill up to ``max_pages`` holes of one series from the venue.
+
+    The tick path fills one page per tick, but only while a client session is
+    running — a quiet tab (or a hole the tick gave up on) left the series short
+    of minutes indefinitely. This is the same fill without a session, used by
+    the background healer (:mod:`backend.api.gap_healer`).
+
+    @param key series identity
+    @param max_pages pages to write in this call (one page ≤ ``TICK_MAX_BARS``)
+    @param now_s clock override for tests
+    @param provider provider override for tests
+    @returns number of pages written
+    """
+    prov = provider if provider is not None else provider_for(key.exchange, key.market)
+    if prov is None:
+        return 0
+    store = series_store.get_store()
+    now = series_store.now_seconds() if now_s is None else int(now_s)
+    filled = 0
+    for _ in range(max(0, int(max_pages))):
+        outcome = _fill_gap_once(store, prov, key, now)
+        if outcome != "filled":
+            break
+        filled += 1
+    return filled
 
 
 def sync_data_session(

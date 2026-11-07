@@ -400,6 +400,52 @@ class SeriesStore:
             return None
         return int(row[0]), int(row[1])
 
+    def holes(self, key: SeriesKey, step_s: int, *, limit: int = 8) -> list[tuple[int, int]]:
+        """Every internal hole, oldest first, as ``(bar_before, bar_after)``.
+
+        A *hole* is a jump of more than one interval between adjacent stored
+        bars — minutes the series is missing in the middle. The bounds of the
+        series are not holes (a shorter history is not a defect). Used by the
+        background healer, which fills them one page at a time.
+        """
+        if step_s <= 0 or limit <= 0:
+            return []
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                WITH ordered AS (
+                  SELECT time, LAG(time) OVER (ORDER BY time) AS prev
+                  FROM bars WHERE key = ?
+                )
+                SELECT prev, time FROM ordered
+                WHERE prev IS NOT NULL AND time - prev > ?
+                ORDER BY time ASC
+                LIMIT ?
+                """,
+                (key.text, int(step_s), int(limit)),
+            ).fetchall()
+        return [(int(prev), int(nxt)) for prev, nxt in rows if prev is not None]
+
+    def active_keys(self, *, updated_since: int, limit: int = 50) -> list[SeriesKey]:
+        """Series written since ``updated_since`` (unix seconds), newest first.
+
+        The healer only touches series a client is actually using — a dormant
+        series is not worth an upstream walk.
+        """
+        if limit <= 0:
+            return []
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT exchange, market, symbol, interval FROM series
+                WHERE count > 1 AND updated_at >= ?
+                ORDER BY updated_at DESC
+                LIMIT ?
+                """,
+                (int(updated_since), int(limit)),
+            ).fetchall()
+        return [SeriesKey(exchange=ex, market=mkt, symbol=sym, interval=iv) for ex, mkt, sym, iv in rows]
+
     def _existing_times(self, key_text: str, times: list[int]) -> set[int]:
         found: set[int] = set()
         for start in range(0, len(times), _CHUNK):

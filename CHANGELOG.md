@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Fixed
+
+- **A hole in a stored series is healed without a client session.** Missing minutes in the middle of an engine-owned series (a venue stall the feed jumped over, a walk that started after the stored anchor, a sparse `provide` batch) make every script run over that window emit a Pine `na` — AXIS shows a gap in its indicators and logs "engine series stale (internal gap of N bars)" every minute. The tick path only filled one page per tick, and only while a data session was running: a quiet tab, or a hole the tick had given up on, left the series short of minutes until an unrelated full fetch happened to cover it. Two changes:
+  - **Give-up is now a cooldown, not a life sentence.** `_gap_failures` records when a hole last failed, and `_GAP_RETRY_S` (300s) re-arms it; a transient upstream error used to block that hole start forever.
+  - **Background healer** (`backend/api/gap_healer.py`, started with the app). Every `PYNE_GAP_SWEEP_S` (60s) it takes the recently written series (`PYNE_GAP_ACTIVE_S`, 900s) and fills up to `PYNE_GAP_HEAL_MAX_PAGES` pages into the widest hole (`PYNE_GAP_HEAL_MAX_SERIES`, 4 series/sweep) through the same `heal_series_gaps` used by the tick path. `PYNE_GAP_HEAL=0` opts out; the sweep never raises, never blocks a request, and is skipped under pytest so a test's deliberate hole is never filled mid-case.
+  - `SeriesStore.holes()` / `SeriesStore.active_keys()` expose the internal holes (oldest first; series bounds are not holes) and the recently used series the sweep needs. Pinned by `tests/test_gap_healer.py` (15 cases: hole detection, edges, the cooldown, a session-less fill, upstream failure accounting, sweep selection, the off switch).
+
 ### Added
 
 - **`/ws/live` `encoding: "axb1-full"`.** Opt-in AXB1 mode that also sends script snapshots (`SNAPSHOT_PLOTS`), single-bar plot deltas (`PLOT_TIP`), and multi-bar candle deltas (`APPEND_BARS`, a new columnar opcode). `encoding: "axb1"` remains the safe default with unchanged behavior, and any unsupported shape still falls back to JSON. The shared `tests/data/axb1-vectors.json` golden suite now pins the `APPEND_BARS` layout.

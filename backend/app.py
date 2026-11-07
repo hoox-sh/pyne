@@ -2351,6 +2351,15 @@ try:
 except Exception:  # boot must not fail if runner misconfigured
     logger.exception("pyne runner scheduler failed to start")
 
+# Close holes in stored series even when no client session is ticking (a quiet
+# tab used to leave the engine's series short of minutes indefinitely).
+try:
+    from backend.api import gap_healer
+
+    gap_healer.start_gap_healer()
+except Exception:  # boot must not fail if the healer is misconfigured
+    logger.exception("pyne gap healer failed to start")
+
 
 # Apply the PYNE_DEBUG logging policy at import so gunicorn workers, `flask run`
 # and `python -m backend.app` all get the same levels without extra flags.

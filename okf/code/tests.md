@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-04T22:51:27Z
+  at: 2026-11-07T15:13:52Z
 sources:
   - id: tree
     resource: "tests"
@@ -80,6 +80,7 @@ okf_lock: generated
 * `test_first_party_ta_goldens.py` — bars, make_ohlcv, series_allclose, test_atr_wilder_dual_host, test_fixture_files_shipped, test_inline_atr_compile_object_mode_ok, test_keltner_dual_host, test_supertrend_dual_host, test_supertrend_dual_host_factor_period, test_supertrend_formula_after_atr_warmup, test_supertrend_interpret_compile_inc_numba
 * `test_for_loop_syntax.py` — test_comma_chained_for_structure, test_orderbook_style_typed_for, test_series_typed_for_iterator, test_switch_default_only_arm, test_switch_multi_value_arm, test_typed_for_in_iterator, test_typed_for_to_iterator
 * `test_free_limits.py` — client, test_free_data_source_allowlist, test_free_slot_and_rate_noop_when_limits_off, test_free_tier_limits_disabled_by_default, test_free_tier_limits_opt_in_truthy, test_health_reports_free_tier_limits_flag, test_json_key_store_concurrent_save_stays_valid_json, test_json_key_store_is_hash_only, test_json_key_store_migrates_legacy_raw_keys, test_json_key_store_reload_verifies_persisted_key, test_json_key_store_skips_orphaned_sha256_records, test_run_batch_rejects_ssrf_webhook
+* `test_gap_healer.py` — FakeExchange, TestActiveKeys, TestGiveUpCooldown, TestHealSeriesGaps, TestHoles, TestSweep, bar, candle, exchange, store
 * `test_host_deep_coverage.py` — TestJsonPlotValueAndDiscard, TestLazyCalendarAndAttach, TestOhlcvPackCache, TestPackInterpretPlotColumns, TestSessionRealtimeAndErrors
 * `test_host_edges_coverage.py` — TestHostHelperUnits, TestHostModeAndErrors, TestHostSessionDeltaAndForming
 * `test_host_helpers_coverage.py` — test_build_run_profile_and_record_stats, test_coerce_ohlc_cells, test_compile_plot_meta_and_stamps, test_drop_as_series_cache, test_env_truthy_and_int, test_error_payload_and_format, test_export_logs_and_profile, test_fill_edge_series_key, test_hline_fill_and_series_jsonable, test_json_plot_value_kinds, test_json_safe_number_and_color, test_lazy_calendar_context
