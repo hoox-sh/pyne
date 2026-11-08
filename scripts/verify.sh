@@ -208,7 +208,7 @@ if [ "$MODE" = "all" ] || [ "$MODE" = "pre-push" ]; then
   # broken invocation and run the same suite against this repo's own src, so no
   # passing test is silenced.
   if ! python -c 'import pynescript.ast' >/dev/null 2>&1; then
-    echo "skipped: pytest pre-existing import failure, reproduced on origin/main"
+    echo "skipped: pytest pre-existing import failure (reproduced on origin/main)"
     TEST_CMD='PYTHONPATH=src pytest'
   fi
   run_step test "Tests" "$TEST_CMD"
