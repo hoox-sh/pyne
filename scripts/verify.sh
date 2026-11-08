@@ -201,6 +201,16 @@ run_step typecheck "Typecheck" "$TYPECHECK_CMD"
 run_step okf "OKF" "$OKF_CMD"
 
 if [ "$MODE" = "all" ] || [ "$MODE" = "pre-push" ]; then
+  # Pre-existing environment failure, not this tree: the local editable install
+  # of hoox-pyne points at a checkout that no longer exists, so the bare
+  # `pytest` invocation dies at collection with ModuleNotFoundError:
+  # pynescript.ast. Reproduced on a clean origin/main worktree. Skip only that
+  # broken invocation and run the same suite against this repo's own src, so no
+  # passing test is silenced.
+  if ! python -c 'import pynescript.ast' >/dev/null 2>&1; then
+    echo "skipped: pytest pre-existing import failure, reproduced on origin/main"
+    TEST_CMD='PYTHONPATH=src pytest'
+  fi
   run_step test "Tests" "$TEST_CMD"
 fi
 
