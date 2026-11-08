@@ -5,12 +5,7 @@
     "name": "pyne",
     "description": "pyne \u2014 Pine Script\u2122 Python toolchain (parser, evaluator, LSP, Pro API). Part of HOOX: hoox.sh",
     "kind": "project",
-    "languages": [
-      "Python",
-      "TypeScript",
-      "JavaScript",
-      "Shell"
-    ],
+    "languages": ["Python", "TypeScript", "JavaScript", "Shell"],
     "packageManager": "bun",
     "git": true
   },
@@ -76,13 +71,7 @@
   ],
   "board": {
     "file": "board.md",
-    "statuses": [
-      "Todo",
-      "Working",
-      "Blocked",
-      "Ready for Review",
-      "Done"
-    ],
+    "statuses": ["Todo", "Working", "Blocked", "Ready for Review", "Done"],
     "fields": [
       "task",
       "owner",

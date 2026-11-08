@@ -4,7 +4,7 @@
 > Nothing is done until this file says Done.
 
 | task | owner | status | priority | proof | blockedReason | source |
-| --- | --- | --- | --- | --- | --- | --- |
+| ---- | ----- | ------ | -------- | ----- | ------------- | ------ |
 
 ## Rules
 

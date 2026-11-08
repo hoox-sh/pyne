@@ -25,14 +25,14 @@ host-embedded black box.
 
 ## The team
 
-| Seat | Title | Agent |
-| --- | --- | --- |
-| Chief | Chief of Staff | `oo-chief` |
-| Ops | Head of Operations | `oo-ops` |
-| Checker | Quality Gate | `oo-checker` |
-| Docs | Head of Docs | `oo-spec-1` |
-| Deploy | Head of Deploy | `oo-spec-2` |
-| Misc | General Desk | `oo-misc` |
+| Seat    | Title              | Agent        |
+| ------- | ------------------ | ------------ |
+| Chief   | Chief of Staff     | `oo-chief`   |
+| Ops     | Head of Operations | `oo-ops`     |
+| Checker | Quality Gate       | `oo-checker` |
+| Docs    | Head of Docs       | `oo-spec-1`  |
+| Deploy  | Head of Deploy     | `oo-spec-2`  |
+| Misc    | General Desk       | `oo-misc`    |
 
 ## The board
 

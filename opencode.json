@@ -20,31 +20,21 @@
     "pynescript": {
       "type": "local",
       "enabled": true,
-      "command": [
-        "pyne-mcp"
-      ]
+      "command": ["pyne-mcp"]
     },
     "hoox": {
       "type": "local",
       "enabled": true,
-      "command": [
-        "bun",
-        "/home/jango/Git/hoox/packages/mcp/bin/hoox-mcp.js"
-      ]
+      "command": ["bun", "/home/jango/Git/hoox/packages/mcp/bin/hoox-mcp.js"]
     },
     "axis": {
       "type": "local",
       "enabled": true,
-      "command": [
-        "axis",
-        "mcp"
-      ],
+      "command": ["axis", "mcp"],
       "env": {
         "AXIS_API_KEY": "${AXIS_API_KEY}"
       }
     }
   },
-  "plugins": [
-    "openorchestrate"
-  ]
+  "plugins": ["openorchestrate"]
 }

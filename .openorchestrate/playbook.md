@@ -67,13 +67,13 @@ Ask me before anything outside [approval list].
 
 Keep slow facts. Fetch fast ones.
 
-| Place | Holds | Written by |
-| --- | --- | --- |
-| Description | The job and the hard rules | You |
-| Skill | How to do a repeatable task | Shared |
-| Memory | Stable decisions and definitions | Slow to change |
-| Live source | Status, price, plan, assignee | Fetched |
-| Task state | What this run is doing now | The board |
+| Place       | Holds                            | Written by     |
+| ----------- | -------------------------------- | -------------- |
+| Description | The job and the hard rules       | You            |
+| Skill       | How to do a repeatable task      | Shared         |
+| Memory      | Stable decisions and definitions | Slow to change |
+| Live source | Status, price, plan, assignee    | Fetched        |
+| Task state  | What this run is doing now       | The board      |
 
 If being wrong about a fact could change an action, fetch it. Do not remember it.
 
