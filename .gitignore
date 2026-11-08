@@ -166,3 +166,8 @@ src/pynescript/ast/grammar/antlr4/generated/src/
 
 # OpenCode session temp
 .tmp/
+
+# OpenOrchestrate runtime state
+.openorchestrate/state.db
+.openorchestrate/state.db-*
+.openorchestrate/logs/
