@@ -28,12 +28,6 @@ Autonomy: **draft**
 11. Same answer every time? A script, not a model call.
 12. Wake-ups times re-reads is your bill.
 
-## Optional skills
-
-The public skill-pack catalog is **off** by default. Agents may recommend
-`oo skills enable catalog/…` with a reason. Never auto-install on `oo init`.
-Ask first before `npx skills add` (third-party code).
-
 ## The board
 
 Path: `.openorchestrate/board.md`
@@ -93,3 +87,5 @@ Fix a recurring failure in this order: setup, check, skill or rule, memory.
 ## Friday receipt
 
 For every routine: runs, passed, needed a human, repeated failures, cost per finished job. Keep, fix, or delete. Ask: would I notice if it disappeared tomorrow?
+
+- Command proofs need `--expect` or `--expect-exit`. `exit 0` alone is not proof. `--run` is blocked unless the seat's agent file allows shell.
