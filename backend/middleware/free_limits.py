@@ -33,6 +33,15 @@ enforces:
 **Off by default.** Set ``FREE_TIER_LIMITS=1`` (or ``true`` / ``yes`` / ``on``)
 to turn the suite on. Individual knobs still apply only while the master
 switch is enabled; ``0`` on a numeric knob disables that knob.
+
+Trusted AXIS clients
+--------------------
+Requests from the AXIS PWA / IDE carry ``Origin: https://axis.hoox.sh`` or
+``X-AXIS-Client: pwa|ide``. These signals are **advisory, not
+authentication**: any caller can forge them. They only lift the bar/script/
+data-source caps and the concurrency slot. The per-IP sliding-window rate
+limit is deliberately *not* bypassed and remains the only brake on trusted
+traffic, so the total request budget is unchanged.
 """
 
 from __future__ import annotations
@@ -45,6 +54,8 @@ from collections import defaultdict
 from collections import deque
 from typing import Any
 
+from flask import g
+from flask import has_request_context
 from flask import request
 
 
@@ -73,6 +84,37 @@ def free_tier_limits_enabled() -> bool:
     ``FREE_TIER_LIMITS=1``.
     """
     return _env_truthy("FREE_TIER_LIMITS")
+
+
+# Advisory AXIS trust signals. Not authentication — see the module docstring.
+_AXIS_TRUSTED_ORIGIN = "https://axis.hoox.sh"
+_AXIS_TRUSTED_CLIENTS = frozenset({"pwa", "ide"})
+
+
+def is_trusted_client() -> bool:
+    """True when the request looks like the AXIS PWA or IDE.
+
+    Accepts an exact ``Origin: https://axis.hoox.sh`` or a trimmed,
+    case-insensitive ``X-AXIS-Client: pwa|ide``. These headers are client
+    controlled and **advisory only**; callers must not treat this as
+    authentication.
+    """
+    if not has_request_context():
+        return False
+    origin = (request.headers.get("Origin") or "").strip()
+    if origin == _AXIS_TRUSTED_ORIGIN:
+        return True
+    client = (request.headers.get("X-AXIS-Client") or "").strip().lower()
+    return client in _AXIS_TRUSTED_CLIENTS
+
+
+def trusted_client_bypass() -> bool:
+    """True when the bounds/concurrency caps should be skipped for this request.
+
+    Requires the master switch plus a trusted AXIS signal. The per-IP rate
+    limit is intentionally **not** part of this bypass.
+    """
+    return free_tier_limits_enabled() and is_trusted_client()
 
 
 def max_free_bars() -> int:
@@ -198,15 +240,30 @@ def check_free_rate_limit() -> tuple[dict[str, Any], int] | None:
     )
 
 
+_SLOT_HELD_ATTR = "_free_slot_held"
+
+
+def _slot_held_here() -> bool:
+    """True when this request context actually took a concurrency slot."""
+    return bool(getattr(g, _SLOT_HELD_ATTR, False)) if has_request_context() else False
+
+
 def acquire_free_slot() -> tuple[dict[str, Any], int] | None:
     """Try to take a concurrency slot; return error body or None on success.
 
+    Trusted AXIS clients (advisory header, not auth) skip the slot entirely.
     No-op when :func:`free_tier_limits_enabled` is false (and :func:`release_free_slot`
     remains safe to call).
     """
     if not free_tier_limits_enabled():
         return None
+    if trusted_client_bypass():
+        return None
     if _GATE.try_acquire():
+        # Only record a slot when the gate actually incremented its counter
+        # (a 0 limit is "disabled" and does not take one).
+        if has_request_context() and max_free_concurrent() > 0:
+            setattr(g, _SLOT_HELD_ATTR, True)
         return None
     return (
         {
@@ -221,7 +278,16 @@ def acquire_free_slot() -> tuple[dict[str, Any], int] | None:
 
 
 def release_free_slot() -> None:
-    """Release a slot acquired via :func:`acquire_free_slot`."""
+    """Release a slot acquired via :func:`acquire_free_slot`.
+
+    Only releases a slot this request actually holds, so a trusted bypass (or
+    a duplicate call) cannot free a slot belonging to another request. Outside
+    a request context it keeps the old best-effort release.
+    """
+    if has_request_context():
+        if not _slot_held_here():
+            return
+        setattr(g, _SLOT_HELD_ATTR, False)
     _GATE.release()
 
 
@@ -236,9 +302,12 @@ def validate_free_run_bounds(
 
     Returns ``(error_body, status)`` on violation, else ``None``.
     Bodies are plain dicts (no Flask request context required).
-    No-op when :func:`free_tier_limits_enabled` is false.
+    No-op when :func:`free_tier_limits_enabled` is false or the caller is a
+    trusted AXIS client (:func:`trusted_client_bypass`).
     """
     if not free_tier_limits_enabled():
+        return None
+    if trusted_client_bypass():
         return None
     max_chars = max_free_script_chars()
     if max_chars > 0:
