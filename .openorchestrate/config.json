@@ -92,8 +92,8 @@
         "schedule": "daily at 03:00",
         "job": "Audit the codebase: dead code, load time, bundle size, failing checks. Open small PRs with proof. Never merge.",
         "file": "routines/nightly-audit.md",
-        "enabled": false,
-        "silentOnNoChange": true
+        "enabled": true,
+        "silentOnNoChange": false
       }
     ]
   },
