@@ -148,6 +148,9 @@
     "dir": ".openorchestrate/templates",
     "includeSecrets": false
   },
+  "optionalSkills": {
+    "enabledPacks": []
+  },
   "setup": {
     "createdAt": "2026-11-07T21:13:00.959Z",
     "updatedAt": "2026-11-07T21:13:00.959Z",
