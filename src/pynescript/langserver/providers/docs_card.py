@@ -20,8 +20,9 @@
 """Shared Markdown card for hover, completion, and signature-help docs.
 
 VS Code cannot inject CSS into native hover / suggest / peek widgets, so the
-card is a Markdown convention that matches AXIS popovers: italic kind kicker,
-fenced signature, body, optional sections, hairline footer.
+card is a Markdown convention that matches AXIS popovers: inline-code kind
+chip (theme ``textPreformat``), fenced signature, body, optional sections,
+hairline footer.
 """
 
 from __future__ import annotations
@@ -41,9 +42,9 @@ def format_docs_card(
     reads as the AXIS dialog footer (docs link, etc.).
     """
     parts: list[str] = []
-    kicker = kind.strip()
+    kicker = kind.strip().lower()
     if kicker:
-        parts.append(f"*{kicker}*")
+        parts.append(f"`{kicker}`")
     sig = fence.strip("\n")
     if sig:
         parts.append(f"```pinescript\n{sig}\n```")
@@ -60,6 +61,26 @@ def format_docs_card(
     if not parts:
         return ""
     return "\n\n".join(parts) + "\n"
+
+
+def format_named_table(title: str, items: list[tuple[str, str]]) -> str:
+    """Render a named list as a two-column Markdown table when descriptions exist.
+
+    Name-only lists stay bullets so empty description columns do not dominate
+    the hover card.
+    """
+    if not items:
+        return ""
+    if not any((desc or "").strip() for _name, desc in items):
+        lines = [f"**{title}**", ""]
+        for name, _desc in items:
+            lines.append(f"- `{name}`")
+        return "\n".join(lines)
+    lines = [f"**{title}**", "", "| Name | Description |", "| --- | --- |"]
+    for name, desc in items:
+        safe = (desc or "").replace("\n", " ").replace("|", "\\|").strip()
+        lines.append(f"| `{name}` | {safe} |")
+    return "\n".join(lines)
 
 
 def pine_v6_docs_link(name: str) -> str:

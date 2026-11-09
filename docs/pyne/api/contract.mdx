@@ -67,6 +67,7 @@ flowchart LR
 | `libraries` | `{namespace, name, version, source}[]` | no | In-process `import ns/Name/ver`. Flask `/run` and `/run/batch` accept this (max 32). |
 | `profiler` | bool | no | Per-line interpret timings (forces interpret) |
 | `timeout_seconds` | number | no | Optional wall-clock interpret budget (checked every 32 bars; sets `timed_out`). Flask `/run` and `/run/batch` accept it; omit / `null` / `≤ 0` → no timeout. |
+| `timeframe` | string | no | Chart interval for `Runtime(timeframe=)`. Flask `/run` accepts AXIS `1m`/`1h`/`1d` or Pine periods; empty/omit = daily. |
 | `webhook_url` | string | no | Flask L2 alert webhook (overrides `ALERT_WEBHOOK_URL`) |
 | `data_source` | string | no | Optional external history provider id (free paths: chart / mock only) |
 | `data_options` | object | no | Provider configuration |

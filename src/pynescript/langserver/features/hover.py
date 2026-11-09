@@ -43,6 +43,7 @@ from pynescript.langserver.providers.builtin_metadata import get_builtin
 from pynescript.langserver.providers.completion_items import PINE_KEYWORDS
 from pynescript.langserver.providers.completion_items import collect_user_enums
 from pynescript.langserver.providers.docs_card import format_docs_card
+from pynescript.langserver.providers.docs_card import format_named_table
 from pynescript.langserver.providers.docs_card import pine_v6_docs_link
 
 
@@ -558,14 +559,8 @@ def _annotation_sections(
 
 
 def _format_named_list(title: str, items: list[tuple[str, str]]) -> str:
-    """Render a Markdown bullet list of ``name``/``description`` pairs."""
-    lines = [f"**{title}:**"]
-    for item_name, item_desc in items:
-        if item_desc:
-            lines.append(f"- `{item_name}`: {item_desc}")
-        else:
-            lines.append(f"- `{item_name}`")
-    return "\n".join(lines)
+    """Render a Markdown table (or bullets) of ``name``/``description`` pairs."""
+    return format_named_table(title, items)
 
 
 def _build_user_decl_hover(info: dict[str, Any], line: int, start: int, end: int) -> lsp.Hover:
@@ -856,15 +851,13 @@ def _format_params(info: dict) -> str:
                 entries.append((str(name), f"{extra}{tail}"))
     if not entries:
         return ""
-    lines = ["**Parameters:**"]
+    cleaned: list[tuple[str, str]] = []
     for name, desc in entries:
-        if desc and not desc.startswith(" ") and not desc.startswith(" —"):
-            lines.append(f"- `{name}`: {desc}")
-        elif desc:
-            lines.append(f"- `{name}`{desc}")
-        else:
-            lines.append(f"- `{name}`")
-    return "\n".join(lines) + "\n\n"
+        text = desc.strip()
+        if text.startswith("—"):
+            text = text.lstrip("— ").strip()
+        cleaned.append((name, text))
+    return format_named_table("Parameters", cleaned)
 
 
 def _build_builtin_hover(

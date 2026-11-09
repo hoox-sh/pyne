@@ -82,6 +82,9 @@ RUN_SCHEMA: dict[str, tuple[type, bool, Any]] = {
     # evaluation and Pine parity are unchanged. Omit both for today's behaviour.
     "from_bar": (int, False, None),
     "to_bar": (int, False, None),
+    # Chart interval for Runtime(timeframe=). AXIS sends ``1m``/``1h``/``1d``;
+    # Pine periods (``15``, ``60``, ``D``) also accepted. Empty = omit (daily).
+    "timeframe": (str, False, ""),
 }
 
 # ── Live evaluation sessions ────────────────────────────────────────────────

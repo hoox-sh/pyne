@@ -1,5 +1,13 @@
 ## [Unreleased]
 
+### Changed
+
+- **LSP hover / suggest cards.** Kind kicker is an inline-code chip (`` `function` ``) instead of italics, so AXIS Void / HOOX Signal / PYNE Volt `textPreformat` paints it. Parameter and field lists with descriptions render as two-column Markdown tables.
+
+### Added
+
+- **`POST /run` optional `timeframe`.** AXIS chart intervals (`1m` / `1h` / `1d`) and Pine periods (`15`, `60`, `D`) are accepted on `RUN_SCHEMA` and `WS /ws/run`. Empty/omit keeps the Runtime daily default. Exchange forms map the same way as pyne-worker `to_pine_period` (`1m` → `"1"`, not monthly `"1M"`). Extra keys still → `UNKNOWN_FIELDS`.
+
 ### Fixed
 
 - **CORS preflight covers `/session` and `/data`, and the datafeed allow-list includes `X-AXIS-Client`.** AXIS live sessions hit `POST /session` (outside the previous free CORS prefixes) and the standalone datafeed app omitted the client header from `Access-Control-Allow-Headers`. Pinned by `tests/test_free_limits_trust.py` and `tests/test_datafeed_app.py`.

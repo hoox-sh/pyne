@@ -527,6 +527,57 @@ def _timeout_seconds_kwarg(raw: Any) -> dict[str, float]:
     return {"timeout_seconds": _default_run_timeout()}
 
 
+# Exchange / AXIS interval → Pine ``timeframe.period``. Passing raw ``"1m"``
+# through Runtime would upper-case to ``"1M"`` (monthly). Same map as
+# pyne-worker ``security.to_pine_period``.
+_EXCHANGE_TO_PINE_PERIOD: dict[str, str] = {
+    "1m": "1",
+    "3m": "3",
+    "5m": "5",
+    "15m": "15",
+    "30m": "30",
+    "1h": "60",
+    "2h": "120",
+    "4h": "240",
+    "6h": "360",
+    "8h": "480",
+    "12h": "720",
+    "1d": "D",
+    "3d": "3D",
+    "1w": "W",
+    "1M": "M",
+}
+
+
+def _to_pine_period(timeframe: Any) -> str | None:
+    """Map AXIS/exchange interval to Pine ``timeframe.period``, or None.
+
+    Empty / unknown → ``None`` (Runtime daily default). Already-Pine forms
+    (``"15"``, ``"D"``, ``"30S"``) pass through.
+    """
+    if not timeframe or not isinstance(timeframe, str):
+        return None
+    tf = timeframe.strip()
+    if not tf:
+        return None
+    mapped = _EXCHANGE_TO_PINE_PERIOD.get(tf)
+    if mapped is not None:
+        return mapped
+    if tf.isdigit():
+        return tf
+    u = tf.upper()
+    aliases = {"1D": "D", "1W": "W", "1M": "M"}
+    if u in aliases:
+        return aliases[u]
+    if u in {"D", "W", "M", "3D"}:
+        return u
+    if len(tf) >= 2 and tf[:-1].isdigit() and tf[-1] in "SsHhDdWw":
+        return tf
+    if len(tf) >= 3 and tf[:-2].isdigit() and tf[-2:].upper() == "MO":
+        return tf
+    return None
+
+
 def _blocked_webhook_error(wh_raw: Any) -> tuple[dict[str, Any], int] | None:
     """Return a 400 body when *wh_raw* is a non-empty blocked webhook URL."""
     if not isinstance(wh_raw, str) or not wh_raw.strip():
@@ -661,11 +712,12 @@ def _execute_run_payload_inner(
     profiler = bool(validated.get("profiler"))
     libraries = _parse_run_libraries(validated.get("libraries"))
     timeout_kw = _timeout_seconds_kwarg(validated.get("timeout_seconds"))
+    timeframe = _to_pine_period(validated.get("timeframe"))
 
-    runtime = Runtime(symbol=str(symbol))
+    runtime = Runtime(symbol=str(symbol), timeframe=timeframe)
     _dbg(
         "POST /run symbol=%s mode=%s bars=%d script_chars=%d inputs=%d libraries=%d profiler=%s "
-        "data_source=%s timeout=%s",
+        "data_source=%s timeout=%s timeframe=%s",
         symbol,
         mode,
         len(ohlcv),
@@ -675,6 +727,7 @@ def _execute_run_payload_inner(
         profiler,
         data_source,
         timeout_kw.get("timeout_seconds"),
+        timeframe,
     )
     _t_run0 = time.perf_counter()
     result = runtime.run(
@@ -1939,6 +1992,7 @@ _WS_RUN_OPTIONAL_FIELDS = (
     "timeout_seconds",
     "from_bar",
     "to_bar",
+    "timeframe",
 )
 
 

@@ -138,6 +138,7 @@ EXPECTED_FAIL are path-listed demos (`runtime.error` library guards, lower-TF se
     | Incremental `ta.*` | Working | Default **on**; `PYNE_TA_INCREMENTAL=0` full recompute |
     | Derived OHLCV skip | Working | Unused `hl2`/`hlc3`/`ohlc4`/`tr` not written; `ta.vwap` still updates `hlc3` |
     | `timeout_seconds` | Working | Library / edge / Flask `/run` + `/run/batch` (omit = no budget) |
+    | Flask `timeframe` | Working | Optional on `/run` and `WS /ws/run`; AXIS `1m`/`1h`/`1d` mapped to Pine period |
     | Ring buffer | Residual | `PYNE_SERIES_RING` default **off** |
   </Accordion>
 

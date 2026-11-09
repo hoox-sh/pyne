@@ -92,6 +92,7 @@ curl -s http://127.0.0.1:5002/ | python -m json.tool
 | `inputs` | object | no | `{}` — `input.*` by title (forces interpret under `auto`) |
 | `libraries` | list | no | `[]` — `[{namespace, name, version, source}]`, max 32 |
 | `timeout_seconds` | number | no | omit — interpret wall-clock budget; passed only when set and `> 0` |
+| `timeframe` | string | no | `""` — AXIS `1m`/`1h`/`1d` or Pine period; empty = daily |
 | `profiler` | bool | no | `false` — forces interpret |
 | `webhook_url` | string | no | `""` (else env `ALERT_WEBHOOK_URL`) |
 | `forward_alerts` | bool | no | `true` |

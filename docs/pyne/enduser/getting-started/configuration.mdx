@@ -175,6 +175,7 @@ Pro API `/run` optional fields:
 | `inputs` | object | `input.*` overrides by title (forces interpret under `auto`) |
 | `libraries` | list | `[{namespace, name, version, source}]` — max 32; also on `/run/batch`; interpret / `auto` fallback |
 | `timeout_seconds` | number | Optional interpret wall-clock budget; omit / `null` / `≤ 0` → no timeout |
+| `timeframe` | string | Chart interval (`1m`/`1h`/`1d` or Pine period). Empty/omit → Runtime daily default. Flask `/run` only (not `/run/batch`) |
 | `profiler` | bool | Per-line timings; forces interpret |
 | `webhook_url` | string | Per-request L2 alert webhook (overrides `ALERT_WEBHOOK_URL`) |
 | `forward_alerts` / `alert_last_bar` / `alert_batch` | bool | Webhook delivery controls (see [Alerts](/pyne/docs/runtime/alerts)) |

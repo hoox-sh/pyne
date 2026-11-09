@@ -67,6 +67,8 @@ sequenceDiagram
 | `alert_batch` | bool | no | `true` | One batch POST vs per-alert |
 | `libraries` | list | no | `[]` | `[{namespace, name, version, source}]` — AXIS git-publish emulator (max 32) |
 | `timeout_seconds` | number | no | omit / `null` | Optional interpret wall-clock budget. Passed to `Runtime.run` only when set and `> 0`. Omit = no timeout. |
+| `from_bar` / `to_bar` | int | no | omit / `null` | Inclusive envelope window into `data` (negative = from the end). |
+| `timeframe` | string | no | `""` | Chart interval. AXIS `1m`/`1h`/`1d` or Pine `timeframe.period` (`15`, `60`, `D`). Empty = Runtime daily default. Mapped like pyne-worker `to_pine_period` (`1m` → `"1"`). |
 
 Query `?mode=` is accepted when the body omits `mode`.
 
@@ -224,7 +226,7 @@ Caps at 16 sources. Returns `has_numba`, `builtins_warmed`, `scripts_ok` / `scri
 
 When `flask-sock` is installed: JSON text frames `{type: "run", id, script, data, mode?}`. Reply `{type: "result", …}` or `{type: "error"}`. Ping/pong supported. Same `execute_run_payload` as HTTP `/run`.
 
-The run frame accepts the same optional fields as `POST /run` — `symbol`, `mode`, `data_source`, `data_options`, `inputs`, `profiler`, `libraries`, `timeout_seconds`, `from_bar`, `to_bar` — so published-library imports (`import ns/Name/1`) work over the WebSocket channel exactly as they do over HTTP.
+The run frame accepts the same optional fields as `POST /run` — `symbol`, `mode`, `data_source`, `data_options`, `inputs`, `profiler`, `libraries`, `timeout_seconds`, `from_bar`, `to_bar`, `timeframe` — so published-library imports (`import ns/Name/1`) work over the WebSocket channel exactly as they do over HTTP.
 
 <Note>
   The Pro API container must run gunicorn with the `gthread` (or `sync`) worker: `flask-sock` performs the HTTP→WebSocket upgrade itself. The `geventwebsocket…GeventWebSocketWorker` worker upgrades the same socket a second time, which corrupts the frame stream (clients see close code 1002) while REST keeps working.

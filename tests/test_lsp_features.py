@@ -131,7 +131,7 @@ class TestCompletionList:
         assert hasattr(item, "detail")
         assert isinstance(item.documentation, lsp.MarkupContent)
         docs = item.documentation.value
-        assert docs.startswith("*function*")
+        assert docs.startswith("`function`")
         assert "```pinescript" in docs
         assert "pine-script-reference" in docs
 
@@ -572,7 +572,7 @@ plot(foo(1))
         assert "**Bold** heading" in value
         assert "#### Usage" in value
         assert "```" in value
-        assert "`a`: The first." in value
+        assert "| `a` | The first. |" in value
         assert "**Returns:** The result." in value
 
     def test_handle_hover_library_description(self) -> None:
@@ -614,8 +614,8 @@ export type Point
         assert isinstance(result.contents, lsp.MarkupContent)
         value = result.contents.value
         assert "A point." in value
-        assert "`x`: The x coordinate." in value
-        assert "`y`: The y coordinate." in value
+        assert "| `x` | The x coordinate. |" in value
+        assert "| `y` | The y coordinate. |" in value
 
     def test_handle_hover_variable_annotation(self) -> None:
         """``// @variable`` renders as a variable hover card."""
@@ -655,7 +655,7 @@ plot(bb(close))
         assert isinstance(result.contents, lsp.MarkupContent)
         value = result.contents.value
         assert "Custom bands." in value
-        assert "`src`: Source series." in value
+        assert "| `src` | Source series. |" in value
         assert "**Returns:** Bands." in value
 
     def test_build_docs_link_only_dotted_labels(self) -> None:
@@ -686,7 +686,7 @@ plot(bb(close))
         assert sma is not None
         assert isinstance(sma.contents, lsp.MarkupContent)
         sma_text = sma.contents.value
-        assert sma_text.startswith("*function*")
+        assert sma_text.startswith("`function`")
         assert "```pinescript" in sma_text
         assert sma_text.index("---") < sma_text.index("pine-script-reference")
 
@@ -699,7 +699,7 @@ plot(bb(close))
         )
         assert ns is not None
         assert isinstance(ns.contents, lsp.MarkupContent)
-        assert ns.contents.value.startswith("*namespace*")
+        assert ns.contents.value.startswith("`namespace`")
         assert "pine-script-reference" not in ns.contents.value
 
     def test_format_docs_card_skips_empty_pieces(self) -> None:
@@ -707,7 +707,18 @@ plot(bb(close))
 
         assert format_docs_card() == ""
         card = format_docs_card(kind="type", fence="float", body="Floating-point numeric value.")
-        assert card == "*type*\n\n```pinescript\nfloat\n```\n\nFloating-point numeric value.\n"
+        assert card == "`type`\n\n```pinescript\nfloat\n```\n\nFloating-point numeric value.\n"
+
+    def test_format_named_table_uses_columns_when_described(self) -> None:
+        from pynescript.langserver.providers.docs_card import format_named_table
+
+        table = format_named_table("Parameters", [("src", "Source series"), ("len", "Lookback")])
+        assert table.startswith("**Parameters**")
+        assert "| Name | Description |" in table
+        assert "| `src` | Source series |" in table
+        bullets = format_named_table("Parameters", [("src", ""), ("len", "")])
+        assert "- `src`" in bullets
+        assert "| Name |" not in bullets
 
 
 class TestDefinitionHandler:

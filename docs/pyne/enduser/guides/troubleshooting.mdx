@@ -211,6 +211,7 @@ PYNE is independent of TradingView®. Behavioral gaps are expected for edge buil
 | `pyne run` ≠ `Runtime.run` | modes | `pyne run` is compile-only synthetic; use `pyne execute` for `Runtime.run` (default `auto`); library default is interpret |
 | `MCP extra missing` | extra | `[mcp]` is only for stdio `pyne-mcp`; `pyne execute` / `mcp call` need no extra |
 | `UNKNOWN_FIELDS` + `timeout_seconds` | HTTP | field is valid on `/run` and `/run/batch` (0.3.11+); other extra keys still 400 |
+| `UNKNOWN_FIELDS` + `timeframe` | HTTP | field is valid on Flask `/run` and `WS /ws/run`; other extra keys still 400 |
 | 400 UNKNOWN_FIELDS | HTTP | schema |
 | 403 create_key | HTTP | `ADMIN_TOKEN` |
 | 413 | HTTP | body size |

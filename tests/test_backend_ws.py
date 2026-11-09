@@ -82,6 +82,7 @@ class TestWsEnvelopePayload:
                 "inputs": {"n": 2},
                 "profiler": True,
                 "timeout_seconds": 30.0,
+                "timeframe": "1m",
             }
         )
         assert payload["symbol"] == "BTCUSDT"
@@ -89,6 +90,7 @@ class TestWsEnvelopePayload:
         assert payload["inputs"] == {"n": 2}
         assert payload["profiler"] is True
         assert payload["timeout_seconds"] == 30.0
+        assert payload["timeframe"] == "1m"
 
     def test_omits_null_optionals(self):
         payload = _ws_envelope_to_payload(

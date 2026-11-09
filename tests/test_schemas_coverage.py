@@ -145,6 +145,7 @@ class TestValidateCore:
         assert data["timeout_seconds"] is None
         assert data["from_bar"] is None
         assert data["to_bar"] is None
+        assert data["timeframe"] == ""
         assert data["data_source"] == ""
         assert data["data_options"] == {}
         assert data["webhook_url"] == ""
@@ -175,6 +176,7 @@ class TestRunAndBatchSchemas:
             "timeout_seconds": 1.5,
             "from_bar": -10,
             "to_bar": -1,
+            "timeframe": "1m",
         }
         data, err = S.validate(body, S.RUN_SCHEMA)
         assert err is None
@@ -182,6 +184,40 @@ class TestRunAndBatchSchemas:
         assert data["symbol"] == "BTC"
         assert data["profiler"] is True
         assert data["from_bar"] == -10
+        assert data["timeframe"] == "1m"
+
+    def test_run_timeframe_accepted_unknown_still_rejected(self, ctx) -> None:
+        data, err = S.validate(
+            {"script": "s", "data": [], "timeframe": "1h"},
+            S.RUN_SCHEMA,
+        )
+        assert err is None
+        assert data is not None
+        assert data["timeframe"] == "1h"
+
+        pine, err2 = S.validate(
+            {"script": "s", "data": [], "timeframe": "D"},
+            S.RUN_SCHEMA,
+        )
+        assert err2 is None
+        assert pine is not None
+        assert pine["timeframe"] == "D"
+
+        empty, err3 = S.validate(
+            {"script": "s", "data": [], "timeframe": ""},
+            S.RUN_SCHEMA,
+        )
+        assert err3 is None
+        assert empty is not None
+        assert empty["timeframe"] == ""
+
+        bad, err4 = S.validate(
+            {"script": "s", "data": [], "timeframe": "1m", "nope": 1},
+            S.RUN_SCHEMA,
+        )
+        assert bad is None
+        assert _err_code(err4) == "UNKNOWN_FIELDS"
+        assert "nope" in _err_message(err4)
 
     def test_run_batch_defaults_and_required(self, ctx) -> None:
         data, err = S.validate({"scripts": [{}], "data": []}, S.RUN_BATCH_SCHEMA)

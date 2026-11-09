@@ -7,7 +7,7 @@ tags: [code, langserver, providers, pynescript]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-02T04:39:16Z
+  at: 2026-11-09T20:04:45Z
 sources:
   - id: tree
     resource: "src/pynescript/langserver/providers"
@@ -21,7 +21,7 @@ okf_lock: generated
 * `__init__.py`
 * `builtin_metadata.py` — fuzzy_filter, get_all_categories, get_builtin, get_builtins_by_category, get_fuzzy_index, get_metadata, reset_metadata_cache
 * `completion_items.py` — build_completion_item, build_completion_list, build_enum_member_completion, build_enum_name_items, build_keyword_items, build_module_completion, collect_user_enums
-* `docs_card.py` — format_docs_card, pine_v6_docs_link
+* `docs_card.py` — format_docs_card, format_named_table, pine_v6_docs_link
 * `metadata_decrypt.py` — get_metadata_cached, load_encrypted_metadata
 
 # Other files

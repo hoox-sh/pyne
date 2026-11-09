@@ -348,7 +348,7 @@ plot(x.FOO)
         assert resp.json["plots"] == [102, 105]
 
     def test_run_unknown_field_rejected(self, client: FlaskClient):
-        """Unknown keys stay ``UNKNOWN_FIELDS`` after adding ``timeout_seconds``."""
+        """Unknown keys stay ``UNKNOWN_FIELDS`` after adding ``timeframe``."""
         resp = client.post(
             "/run",
             json={
@@ -357,11 +357,40 @@ plot(x.FOO)
                     {"open": 100, "high": 105, "low": 98, "close": 102, "time": 1},
                 ],
                 "timeout_seconds": 5,
+                "timeframe": "1m",
                 "not_a_real_field": 1,
             },
         )
         assert resp.status_code == 400
         assert resp.json["code"] == "UNKNOWN_FIELDS"
+
+    def test_run_timeframe_maps_to_pine_period(self, client: FlaskClient):
+        """AXIS ``1m``/``1h`` reach Runtime as Pine periods, not monthly ``1M``."""
+        from backend.app import _to_pine_period
+
+        assert _to_pine_period("1m") == "1"
+        assert _to_pine_period("1h") == "60"
+        assert _to_pine_period("1d") == "D"
+        assert _to_pine_period("15") == "15"
+        assert _to_pine_period("D") == "D"
+        assert _to_pine_period("") is None
+        assert _to_pine_period("foo") is None
+
+        bars = [
+            {"open": 100, "high": 105, "low": 98, "close": 102, "time": 1},
+            {"open": 102, "high": 108, "low": 101, "close": 105, "time": 2},
+        ]
+        script = """//@version=6
+indicator("tf")
+plot(timeframe.in_seconds())
+"""
+        resp = client.post(
+            "/run",
+            json={"script": script, "data": bars, "mode": "interpret", "timeframe": "1m"},
+        )
+        assert resp.status_code == 200, resp.json
+        assert resp.json["status"] == "success"
+        assert resp.json["plots"] == [60, 60]
 
     def test_run_exports_alerts(self, client: FlaskClient):
         """alert() firings surface on /run (interpret path)."""
