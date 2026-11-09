@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Hover"
 description: "textDocument/hover — Markdown cards for builtins, types, namespaces, keywords, and user declarations."
 ---
@@ -84,12 +102,13 @@ flowchart LR
 
 {brief}
 
-**Parameters**   (table of Name | Description when metadata includes params)
+**Parameters** (table of Name | Description when metadata includes params)
 {first documentation paragraph, ≤500 chars}
 **Example:** …
 **See also:** `ta.ema`, …
 
 ---
+
 [Pine v6: ta.sma](https://www.tradingview.com/pine-script-reference/v6/#fun_ta.sma)
 ````
 
@@ -103,7 +122,7 @@ Examples and related maps are **hardcoded** for a small high-value set (`ta.sma`
 
 Pine libraries document exported functions, methods, types, and variables with annotation comments directly above the declaration. The block is read from source (tag line **plus** every following `//` line until a non-comment line), so multi-line Markdown is preserved:
 
-```pinescript
+````pinescript
 // @function Creates bollinger bands out of any specified moving average
 //
 // #### Usage
@@ -118,27 +137,27 @@ Pine libraries document exported functions, methods, types, and variables with a
 export bb(series float src, series float movingAverage, series int maLength, series float mult) =>
     dev = mult * ta.stdev(src, maLength)
     [movingAverage, movingAverage + dev, movingAverage - dev]
-```
+````
 
 Hovering `bb` renders the fenced signature, the Markdown description (headings, code fence, horizontal rules), a **Parameters** list from `// @param`, and a **Returns** line. Supported tags:
 
-| Tag | Card section |
-| --- | --- |
-| `// @function` / `// @type` / `// @variable` / `// @enum` | Description (Markdown body) |
-| `// @param <name> <desc>` | **Parameters** bullet |
-| `// @field <name> <desc>` | **Fields** bullet |
-| `// @returns <desc>` | **Returns** line |
-| `// @description` | Library card (hovering `library`) |
+| Tag                                                       | Card section                      |
+| --------------------------------------------------------- | --------------------------------- |
+| `// @function` / `// @type` / `// @variable` / `// @enum` | Description (Markdown body)       |
+| `// @param <name> <desc>`                                 | **Parameters** bullet             |
+| `// @field <name> <desc>`                                 | **Fields** bullet                 |
+| `// @returns <desc>`                                      | **Returns** line                  |
+| `// @description`                                         | Library card (hovering `library`) |
 
-Markdown is passed through verbatim, so the TradingView [Markdown in the Pine Editor](https://www.tradingview.com/script/b6aw56xH-Markdown-The-Pine-Editor-s-Hidden-Gem/) formatting works: `#` headings, `**bold**` / `*italic*` / `~~strike~~`, `>` blockquotes, `___` / `***` rules, `1.` / `-` / `+` / `*` lists, ```` ``` ```` code fences, `` `code` ``, `|` tables, `[text](url)` links, `![alt](url)` images, and two trailing spaces for a line break. Both `//@function` and `// @function` spellings are accepted. Cards without a known tag fall back to `User-defined {kind}.`
+Markdown is passed through verbatim, so the TradingView [Markdown in the Pine Editor](https://www.tradingview.com/script/b6aw56xH-Markdown-The-Pine-Editor-s-Hidden-Gem/) formatting works: `#` headings, `**bold**` / `*italic*` / `~~strike~~`, `>` blockquotes, `___` / `***` rules, `1.` / `-` / `+` / `*` lists, ` ``` ` code fences, `` `code` ``, `|` tables, `[text](url)` links, `![alt](url)` images, and two trailing spaces for a line break. Both `//@function` and `// @function` spellings are accepted. Cards without a known tag fall back to `User-defined {kind}.`
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `features/hover.py` | Word resolution + Markdown assembly |
-| `providers/builtin_metadata.py` | `get_builtin` |
-| `protocol/utils.py` | Identifier segment extraction |
+| Path                            | Role                                |
+| ------------------------------- | ----------------------------------- |
+| `features/hover.py`             | Word resolution + Markdown assembly |
+| `providers/builtin_metadata.py` | `get_builtin`                       |
+| `protocol/utils.py`             | Identifier segment extraction       |
 
 The workspace `feature_cache` memos the user-declaration walk so each hover does not re-walk the whole AST.
 
@@ -175,7 +194,7 @@ plot(foo(1))
 
 Cursor on an annotated library function:
 
-```pinescript
+````pinescript
 // @function **Bold** heading
 // #### Usage
 // ```
@@ -184,18 +203,18 @@ Cursor on an annotated library function:
 // @param a The first.
 // @returns The result.
 export foo(a) => a
-```
+````
 
-- Card = fenced signature + the Markdown body (`**Bold** heading`, `#### Usage`, code fence) + `**Parameters:** - \`a\`: The first.` + `**Returns:** The result.`
+- Card = fenced signature + the Markdown body (`**Bold** heading`, `#### Usage`, code fence) + `**Parameters:** - \`a\`: The first.`+`**Returns:** The result.`
 
 ## Failure modes
 
-| Symptom | Cause |
-| --- | --- |
-| Hover never appears | Metadata empty or word not in catalog / AST |
-| Wrong symbol | Identifier regex swallowed neighboring text — rare with `_.` pattern |
+| Symptom                         | Cause                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------- |
+| Hover never appears             | Metadata empty or word not in catalog / AST                               |
+| Wrong symbol                    | Identifier regex swallowed neighboring text — rare with `_.` pattern      |
 | Stale docs after adding builtin | Regenerate metadata — [builtin metadata](/pyne/docs/lsp/builtin-metadata) |
-| User local shows no card | Parse failed (`tree=None`) so the decl walk is skipped |
+| User local shows no card        | Parse failed (`tree=None`) so the decl walk is skipped                    |
 
 ## See also
 

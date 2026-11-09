@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Evaluate Contract"
 description: "Shared request/response evaluate contract across Flask Pro API, pyne-worker, and in-process Runtime.run (Python + PyneTS)."
 ---
@@ -26,7 +44,7 @@ description: "Shared request/response evaluate contract across Flask Pro API, py
 
 ## Abstract
 
-The **evaluate contract** is the JSON dialect that lets AXIS, HOOX, CLI tools, and edge workers call *any* PYNE-compatible host interchangeably. Flask `POST /run` is the reference implementation; Python **[pyne-worker](/pyne/docs/pyne-worker)** aims for the same HTTP fields. **[PyneTS](/pyne/docs/pynets)** speaks the in-process form (`RuntimeResult`).
+The **evaluate contract** is the JSON dialect that lets AXIS, HOOX, CLI tools, and edge workers call _any_ PYNE-compatible host interchangeably. Flask `POST /run` is the reference implementation; Python **[pyne-worker](/pyne/docs/pyne-worker)** aims for the same HTTP fields. **[PyneTS](/pyne/docs/pynets)** speaks the in-process form (`RuntimeResult`).
 
 This page freezes the semantic envelope — not transport auth headers.
 
@@ -57,65 +75,65 @@ flowchart LR
 
 ### Request (single evaluate)
 
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `script` | string | yes | Full Pine source |
-| `data` | `Bar[]` | yes | Chronological OHLCV (`ohlcv` alias on pyne-worker) |
-| `symbol` | string | no | Default `CHART` / host-specific |
-| `mode` | `"interpret"` \| `"compile"` \| `"auto"` | no | `Runtime.run` default when omitted: `PYNE_RUNTIME_MODE` or `interpret`. Flask `RUN_SCHEMA` default **`auto`** |
-| `inputs` | object | no | `input.*` overrides keyed by title (forces interpret under `auto`) |
-| `libraries` | `{namespace, name, version, source}[]` | no | In-process `import ns/Name/ver`. Flask `/run` and `/run/batch` accept this (max 32). |
-| `profiler` | bool | no | Per-line interpret timings (forces interpret) |
-| `timeout_seconds` | number | no | Optional wall-clock interpret budget (checked every 32 bars; sets `timed_out`). Flask `/run` and `/run/batch` accept it; omit / `null` / `≤ 0` → no timeout. |
-| `timeframe` | string | no | Chart interval for `Runtime(timeframe=)`. Flask `/run` accepts AXIS `1m`/`1h`/`1d` or Pine periods; empty/omit = daily. |
-| `webhook_url` | string | no | Flask L2 alert webhook (overrides `ALERT_WEBHOOK_URL`) |
-| `data_source` | string | no | Optional external history provider id (free paths: chart / mock only) |
-| `data_options` | object | no | Provider configuration |
+| Field             | Type                                     | Required | Description                                                                                                                                                  |
+| ----------------- | ---------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `script`          | string                                   | yes      | Full Pine source                                                                                                                                             |
+| `data`            | `Bar[]`                                  | yes      | Chronological OHLCV (`ohlcv` alias on pyne-worker)                                                                                                           |
+| `symbol`          | string                                   | no       | Default `CHART` / host-specific                                                                                                                              |
+| `mode`            | `"interpret"` \| `"compile"` \| `"auto"` | no       | `Runtime.run` default when omitted: `PYNE_RUNTIME_MODE` or `interpret`. Flask `RUN_SCHEMA` default **`auto`**                                                |
+| `inputs`          | object                                   | no       | `input.*` overrides keyed by title (forces interpret under `auto`)                                                                                           |
+| `libraries`       | `{namespace, name, version, source}[]`   | no       | In-process `import ns/Name/ver`. Flask `/run` and `/run/batch` accept this (max 32).                                                                         |
+| `profiler`        | bool                                     | no       | Per-line interpret timings (forces interpret)                                                                                                                |
+| `timeout_seconds` | number                                   | no       | Optional wall-clock interpret budget (checked every 32 bars; sets `timed_out`). Flask `/run` and `/run/batch` accept it; omit / `null` / `≤ 0` → no timeout. |
+| `timeframe`       | string                                   | no       | Chart interval for `Runtime(timeframe=)`. Flask `/run` accepts AXIS `1m`/`1h`/`1d` or Pine periods; empty/omit = daily.                                      |
+| `webhook_url`     | string                                   | no       | Flask L2 alert webhook (overrides `ALERT_WEBHOOK_URL`)                                                                                                       |
+| `data_source`     | string                                   | no       | Optional external history provider id (free paths: chart / mock only)                                                                                        |
+| `data_options`    | object                                   | no       | Provider configuration                                                                                                                                       |
 
 #### `Bar`
 
-| Field | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `time` | number | recommended | Unix ms preferred |
-| `open` | number | yes | |
-| `high` | number | yes | |
-| `low` | number | yes | |
-| `close` | number | yes | |
-| `volume` | number | no | Default host-dependent |
-| `bid` / `ask` | number | no | Runtime bid/ask hooks |
+| Field         | Type   | Required    | Notes                  |
+| ------------- | ------ | ----------- | ---------------------- |
+| `time`        | number | recommended | Unix ms preferred      |
+| `open`        | number | yes         |                        |
+| `high`        | number | yes         |                        |
+| `low`         | number | yes         |                        |
+| `close`       | number | yes         |                        |
+| `volume`      | number | no          | Default host-dependent |
+| `bid` / `ask` | number | no          | Runtime bid/ask hooks  |
 
 ### Response (success)
 
-| Field | Type | Description |
-| --- | --- | --- |
-| `status` | `"success"` | Flask sets this; workers may omit and use HTTP 200 only — **prefer including it** |
-| `plots` | `(number\|null)[]` | Primary series (plot 0) |
-| `series` | `Record<string, (number\|null)[]>` | Named multi-series |
-| `plot_meta` | `Record<string, PlotMeta>` | Display metadata |
-| `events` | `StrategyEvent[]` | Strategy / trade-like events |
-| `drawings` | `Drawing[]` | line/label/box export |
-| `alerts` | `AlertEvent[]` | `alert()` / true `alertcondition()` firings (interpret and object-mode compile; nopython stays `[]`) |
-| `alert_conditions` | object[] | optional condition evaluations |
-| `alert_forward` | object | optional L2 webhook delivery summary |
-| `count` | number | Bars evaluated |
-| `script_id` | string | Stable hash prefix of source |
-| `run_id` | string | Per-invocation id |
-| `mode` | string | Effective mode (`interpret` \| `compile`) |
-| `auto_backend` | string | `auto` only: which path ran |
-| `compile_fallback_reason` | string | `auto` only: why compile was skipped or failed |
-| `object_mode` | bool | Compile path: pure-Python bar loop (no njit) |
-| `timed_out` | bool | Interpret budget exceeded (`Runtime.run(timeout_seconds=…)`) |
-| `data_source` | string | Flask echo of resolved source label |
+| Field                     | Type                               | Description                                                                                          |
+| ------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `status`                  | `"success"`                        | Flask sets this; workers may omit and use HTTP 200 only — **prefer including it**                    |
+| `plots`                   | `(number\|null)[]`                 | Primary series (plot 0)                                                                              |
+| `series`                  | `Record<string, (number\|null)[]>` | Named multi-series                                                                                   |
+| `plot_meta`               | `Record<string, PlotMeta>`         | Display metadata                                                                                     |
+| `events`                  | `StrategyEvent[]`                  | Strategy / trade-like events                                                                         |
+| `drawings`                | `Drawing[]`                        | line/label/box export                                                                                |
+| `alerts`                  | `AlertEvent[]`                     | `alert()` / true `alertcondition()` firings (interpret and object-mode compile; nopython stays `[]`) |
+| `alert_conditions`        | object[]                           | optional condition evaluations                                                                       |
+| `alert_forward`           | object                             | optional L2 webhook delivery summary                                                                 |
+| `count`                   | number                             | Bars evaluated                                                                                       |
+| `script_id`               | string                             | Stable hash prefix of source                                                                         |
+| `run_id`                  | string                             | Per-invocation id                                                                                    |
+| `mode`                    | string                             | Effective mode (`interpret` \| `compile`)                                                            |
+| `auto_backend`            | string                             | `auto` only: which path ran                                                                          |
+| `compile_fallback_reason` | string                             | `auto` only: why compile was skipped or failed                                                       |
+| `object_mode`             | bool                               | Compile path: pure-Python bar loop (no njit)                                                         |
+| `timed_out`               | bool                               | Interpret budget exceeded (`Runtime.run(timeout_seconds=…)`)                                         |
+| `data_source`             | string                             | Flask echo of resolved source label                                                                  |
 
 #### `PlotMeta` (Flask)
 
 ```json
 {
-  "title": "C",
-  "color": "#2196F3",
-  "linewidth": 1,
-  "index": 0,
-  "kind": "plot"
+    "title": "C",
+    "color": "#2196F3",
+    "linewidth": 1,
+    "index": 0,
+    "kind": "plot"
 }
 ```
 
@@ -127,10 +145,10 @@ Hosts should preserve:
 
 ```json
 {
-  "type": "string",
-  "bar_index": 0,
-  "script_id": "…",
-  "run_id": "…"
+    "type": "string",
+    "bar_index": 0,
+    "script_id": "…",
+    "run_id": "…"
 }
 ```
 
@@ -140,13 +158,13 @@ Additional fields follow evaluator `to_dict()` / TS port parity — treat unknow
 
 ```json
 {
-  "message": "string",
-  "freq": "once_per_bar",
-  "bar_index": 0,
-  "time": 0,
-  "source": "alert",
-  "script_id": "…",
-  "run_id": "…"
+    "message": "string",
+    "freq": "once_per_bar",
+    "bar_index": 0,
+    "time": 0,
+    "source": "alert",
+    "script_id": "…",
+    "run_id": "…"
 }
 ```
 
@@ -158,10 +176,10 @@ Flask `/run`:
 
 ```json
 {
-  "status": "error",
-  "code": "EXECUTION_ERROR",
-  "message": "Runtime Error at bar …",
-  "error_kind": "runtime"
+    "status": "error",
+    "code": "EXECUTION_ERROR",
+    "message": "Runtime Error at bar …",
+    "error_kind": "runtime"
 }
 ```
 
@@ -194,17 +212,17 @@ Workers may implement batch as N single evaluates; AXIS should not assume batch 
 
 ## Internals — reference mapping
 
-| Contract field | Flask source |
-| --- | --- |
-| `plots` / `series` / `plot_meta` | `pynescript.runtime.host.Runtime.run` packing loop |
-| `events` | `evaluator._strategy_state.drain_events()` → `to_dict()` (compile: `__events`) |
-| `drawings` | `DrawingRegistry.export_for_api` (compile: `__drawings`) |
-| `alerts` | `export_alerts_from_evaluator` (interpret); object-mode compile `__alerts` (nopython `[]`) |
-| `alert_forward` | `backend/alert_forwarder.maybe_forward_run_alerts` |
-| `script_id` | `sha256(source)[:16]` |
-| `run_id` | `Runtime._run_id` |
-| `compile_fallback_reason` | `Runtime._run_auto` |
-| `timed_out` | Interpret bar loop vs `timeout_seconds` (Flask `/run` and `/run/batch` when the field is set and `> 0`) |
+| Contract field                   | Flask source                                                                                            |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `plots` / `series` / `plot_meta` | `pynescript.runtime.host.Runtime.run` packing loop                                                      |
+| `events`                         | `evaluator._strategy_state.drain_events()` → `to_dict()` (compile: `__events`)                          |
+| `drawings`                       | `DrawingRegistry.export_for_api` (compile: `__drawings`)                                                |
+| `alerts`                         | `export_alerts_from_evaluator` (interpret); object-mode compile `__alerts` (nopython `[]`)              |
+| `alert_forward`                  | `backend/alert_forwarder.maybe_forward_run_alerts`                                                      |
+| `script_id`                      | `sha256(source)[:16]`                                                                                   |
+| `run_id`                         | `Runtime._run_id`                                                                                       |
+| `compile_fallback_reason`        | `Runtime._run_auto`                                                                                     |
+| `timed_out`                      | Interpret bar loop vs `timeout_seconds` (Flask `/run` and `/run/batch` when the field is set and `> 0`) |
 
 Schema enforcement on Flask free tier: `RUN_SCHEMA` / `RUN_BATCH_SCHEMA` in `backend/middleware/schemas.py` (strict, reject extras). Webhook fields: `webhook_url`, `forward_alerts`, `alert_last_bar`, `alert_batch`. `libraries` and `timeout_seconds` are on both `/run` and `/run/batch`.
 
@@ -212,14 +230,14 @@ Tests: `tests/test_backend.py` (`test_run_success`, `test_run_exports_alerts`, w
 
 ## Divergences to remember
 
-| Surface | Divergence |
-| --- | --- |
-| Preview / backtest | Columnar `data` dict, not `Bar[]`; not the evaluate contract |
-| Compile mode | Extra keys `object_mode`, `compile_cached`, `compile_ms`, `nopython_fallback_reason`. `generated_code` only if `PYNESCRIPT_RETURN_GENERATED_CODE=1` |
-| `timeout_seconds` | In-process `Runtime.run`, edge workers, and Flask `/run` / `/run/batch` (optional; omit = no budget) |
-| Health | Flask `GET /` and `GET /health` (CORS-free); not part of evaluate |
-| Auth | Flask free `/run` open (bar/rate/concurrency caps); workers may require HOOX mTLS / API gateways |
-| Error codes | Flask uses `code` enums; workers should map to stable strings when possible |
+| Surface            | Divergence                                                                                                                                          |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Preview / backtest | Columnar `data` dict, not `Bar[]`; not the evaluate contract                                                                                        |
+| Compile mode       | Extra keys `object_mode`, `compile_cached`, `compile_ms`, `nopython_fallback_reason`. `generated_code` only if `PYNESCRIPT_RETURN_GENERATED_CODE=1` |
+| `timeout_seconds`  | In-process `Runtime.run`, edge workers, and Flask `/run` / `/run/batch` (optional; omit = no budget)                                                |
+| Health             | Flask `GET /` and `GET /health` (CORS-free); not part of evaluate                                                                                   |
+| Auth               | Flask free `/run` open (bar/rate/concurrency caps); workers may require HOOX mTLS / API gateways                                                    |
+| Error codes        | Flask uses `code` enums; workers should map to stable strings when possible                                                                         |
 
 ## Invariants and edge cases
 
@@ -234,38 +252,38 @@ Tests: `tests/test_backend.py` (`test_run_success`, `test_run_exports_alerts`, w
 
 ```typescript
 type EvaluateRequest = {
-  script: string;
-  data: Array<{
-    time: number;
-    open: number;
-    high: number;
-    low: number;
-    close: number;
-    volume?: number;
-  }>;
-  symbol?: string;
-  mode?: "interpret" | "compile" | "auto";
-  libraries?: Array<{
-    namespace: string;
-    name: string;
-    version: number;
-    source: string;
-  }>;
+    script: string;
+    data: Array<{
+        time: number;
+        open: number;
+        high: number;
+        low: number;
+        close: number;
+        volume?: number;
+    }>;
+    symbol?: string;
+    mode?: "interpret" | "compile" | "auto";
+    libraries?: Array<{
+        namespace: string;
+        name: string;
+        version: number;
+        source: string;
+    }>;
 };
 
 type EvaluateSuccess = {
-  plots: Array<number | null>;
-  series: Record<string, Array<number | null>>;
-  plot_meta: Record<string, Record<string, unknown>>;
-  events: Array<Record<string, unknown>>;
-  drawings: Array<Record<string, unknown>>;
-  alerts: Array<Record<string, unknown>>;
-  count: number;
-  script_id: string;
-  run_id: string;
-  mode: string;
-  auto_backend?: "compile" | "interpret";
-  compile_fallback_reason?: string;
+    plots: Array<number | null>;
+    series: Record<string, Array<number | null>>;
+    plot_meta: Record<string, Record<string, unknown>>;
+    events: Array<Record<string, unknown>>;
+    drawings: Array<Record<string, unknown>>;
+    alerts: Array<Record<string, unknown>>;
+    count: number;
+    script_id: string;
+    run_id: string;
+    mode: string;
+    auto_backend?: "compile" | "interpret";
+    compile_fallback_reason?: string;
 };
 ```
 
@@ -273,10 +291,10 @@ POST that body to Flask `/run` or the worker’s evaluate route; branch on `stat
 
 ## Failure modes
 
-| Client bug | Symptom |
-| --- | --- |
-| Sending columnar preview data to `/run` | Schema `data must be a list` |
-| Assuming batch on worker | 404 / unknown field |
+| Client bug                                 | Symptom                               |
+| ------------------------------------------ | ------------------------------------- |
+| Sending columnar preview data to `/run`    | Schema `data must be a list`          |
+| Assuming batch on worker                   | 404 / unknown field                   |
 | Ignoring `series` and only reading `plots` | Multi-plot scripts look single-series |
 
 ## See also

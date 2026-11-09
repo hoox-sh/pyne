@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Configuration"
 description: "Package extras, console scripts, Pro API environment variables, data providers, and editor LSP settings for PYNE."
 ---
@@ -55,26 +73,26 @@ There is no `pynescript.toml` (or similar) for core use. Parse, evaluate, and CL
 
 ### Package extras (`pyproject.toml`)
 
-| Extra | Dependencies | Enables |
-| --- | --- | --- |
-| *(none)* | antlr4-runtime, click, requests, tqdm | CLI + AST + linter + literal_eval + `pynescript.runtime` + `pyne execute` / `mcp call` |
-| `lsp` | pygls, lsprotocol | `pyne-lsp` (alias `pynescript-lsp`) |
-| `dev-lsp` | pygls, lsprotocol, pytest-lsp | LSP + protocol tests |
-| `data` | ccxt | Exchange historical data |
-| `datafeed` | ccxt | Same as `data` (alias for realtime feed paths) |
-| `compile` | numpy, numba | Compile / run / prewarm Numba path |
-| `pro` | Flask stack (+ redis optional) | Self-hosted Pro API |
-| `mcp` | mcp, lsprotocol | Stdio `pyne-mcp` / `pyne mcp`. `execute` / `mcp call` need no extra |
+| Extra      | Dependencies                          | Enables                                                                                |
+| ---------- | ------------------------------------- | -------------------------------------------------------------------------------------- |
+| _(none)_   | antlr4-runtime, click, requests, tqdm | CLI + AST + linter + literal_eval + `pynescript.runtime` + `pyne execute` / `mcp call` |
+| `lsp`      | pygls, lsprotocol                     | `pyne-lsp` (alias `pynescript-lsp`)                                                    |
+| `dev-lsp`  | pygls, lsprotocol, pytest-lsp         | LSP + protocol tests                                                                   |
+| `data`     | ccxt                                  | Exchange historical data                                                               |
+| `datafeed` | ccxt                                  | Same as `data` (alias for realtime feed paths)                                         |
+| `compile`  | numpy, numba                          | Compile / run / prewarm Numba path                                                     |
+| `pro`      | Flask stack (+ redis optional)        | Self-hosted Pro API                                                                    |
+| `mcp`      | mcp, lsprotocol                       | Stdio `pyne-mcp` / `pyne mcp`. `execute` / `mcp call` need no extra                    |
 
 ### Console scripts
 
-| Name | Entry point | Notes |
-| --- | --- | --- |
-| `pyne` | `pynescript.__main__:cli` | Preferred desk CLI (`execute` / `mcp call` included) |
-| `pyne-lsp` | `pynescript.langserver.__main__:main` | Preferred language server |
-| `pyne-mcp` | `pynescript.mcp.__main__:main` | Stdio MCP server (`[mcp]` extra; same as `pyne mcp`) |
-| `pynescript` | same as `pyne` | Legacy alias |
-| `pynescript-lsp` | same as `pyne-lsp` | Legacy alias |
+| Name             | Entry point                           | Notes                                                |
+| ---------------- | ------------------------------------- | ---------------------------------------------------- |
+| `pyne`           | `pynescript.__main__:cli`             | Preferred desk CLI (`execute` / `mcp call` included) |
+| `pyne-lsp`       | `pynescript.langserver.__main__:main` | Preferred language server                            |
+| `pyne-mcp`       | `pynescript.mcp.__main__:main`        | Stdio MCP server (`[mcp]` extra; same as `pyne mcp`) |
+| `pynescript`     | same as `pyne`                        | Legacy alias                                         |
+| `pynescript-lsp` | same as `pyne-lsp`                    | Legacy alias                                         |
 
 Invoke without scripts on PATH:
 
@@ -87,19 +105,19 @@ python -m pynescript.langserver
 
 Per-invocation only (no persistence):
 
-| Command | Notable options |
-| --- | --- |
-| `check` | `--encoding`, `-q/--quiet`, `--ext` (directory walk) |
-| `format` / `fmt` | `-w/--write`, `--check`, `-o/--output-file` |
-| `parse-and-dump` | `--encoding`, `--indent`, `--output-file` |
-| `parse-and-unparse` | `--encoding`, `--output-file` |
-| `lint` | `--encoding`, `--fail-on {errors,warnings,all,never}`, `--json`, `-q` |
-| `compile` | `--emit`, `-o`, `--time/--no-time` |
-| `prewarm` | `--force`, `--json` |
-| `run` | `--bars` (default 50), `--json`, `-q` — **compile-only** synthetic OHLCV |
-| `execute` | `--mode` (default **auto**), `--bars`, `--ohlcv`, `--inputs`, `--timeout` — `Runtime.run` JSON |
-| `mcp call TOOL` | `--arg KEY=VALUE` / `--json` — in-process MCP ops (no `[mcp]` extra) |
-| `data` | `--provider`, `--period`, `--interval`, `--api-key`, `--secret`, `--exchange`, `--format` |
+| Command             | Notable options                                                                                |
+| ------------------- | ---------------------------------------------------------------------------------------------- |
+| `check`             | `--encoding`, `-q/--quiet`, `--ext` (directory walk)                                           |
+| `format` / `fmt`    | `-w/--write`, `--check`, `-o/--output-file`                                                    |
+| `parse-and-dump`    | `--encoding`, `--indent`, `--output-file`                                                      |
+| `parse-and-unparse` | `--encoding`, `--output-file`                                                                  |
+| `lint`              | `--encoding`, `--fail-on {errors,warnings,all,never}`, `--json`, `-q`                          |
+| `compile`           | `--emit`, `-o`, `--time/--no-time`                                                             |
+| `prewarm`           | `--force`, `--json`                                                                            |
+| `run`               | `--bars` (default 50), `--json`, `-q` — **compile-only** synthetic OHLCV                       |
+| `execute`           | `--mode` (default **auto**), `--bars`, `--ohlcv`, `--inputs`, `--timeout` — `Runtime.run` JSON |
+| `mcp call TOOL`     | `--arg KEY=VALUE` / `--json` — in-process MCP ops (no `[mcp]` extra)                           |
+| `data`              | `--provider`, `--period`, `--interval`, `--api-key`, `--secret`, `--exchange`, `--format`      |
 
 `lint` has **no** `--fix`. Structural rewrite is `pyne format -w` (parse → unparse).
 
@@ -107,38 +125,38 @@ Per-invocation only (no persistence):
 
 Consumed by `backend/app.py` and middleware:
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `HOST` | `127.0.0.1` | Bind address when running `__main__` |
-| `PORT` | `5002` | Bind port |
-| `ALLOWED_ORIGINS` | `https://pynescript.ai`, `https://app.pynescript.ai`, plus localhost regex | CORS allowlist (comma-separated; regex allowed). Code also appends localhost, private-LAN, and product-origin (`hoox.sh` / `pynescript.ai` / `pynescript.online`) regexes unless `*` |
-| `ADMIN_TOKEN` | unset | Required for `POST /auth/create_key`; if unset, create returns 403 |
-| `API_KEY_STORE` | `/root/pynescript/data/api_keys.json` | Path for key store (override for local) |
-| `ALERT_WEBHOOK_URL` | unset | Default L2 alert webhook for `/run` when body omits `webhook_url` |
-| `ALERT_WEBHOOK_TIMEOUT` | `10` | Webhook HTTP timeout (seconds) |
+| Variable                | Default                                                                    | Purpose                                                                                                                                                                              |
+| ----------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `HOST`                  | `127.0.0.1`                                                                | Bind address when running `__main__`                                                                                                                                                 |
+| `PORT`                  | `5002`                                                                     | Bind port                                                                                                                                                                            |
+| `ALLOWED_ORIGINS`       | `https://pynescript.ai`, `https://app.pynescript.ai`, plus localhost regex | CORS allowlist (comma-separated; regex allowed). Code also appends localhost, private-LAN, and product-origin (`hoox.sh` / `pynescript.ai` / `pynescript.online`) regexes unless `*` |
+| `ADMIN_TOKEN`           | unset                                                                      | Required for `POST /auth/create_key`; if unset, create returns 403                                                                                                                   |
+| `API_KEY_STORE`         | `/root/pynescript/data/api_keys.json`                                      | Path for key store (override for local)                                                                                                                                              |
+| `ALERT_WEBHOOK_URL`     | unset                                                                      | Default L2 alert webhook for `/run` when body omits `webhook_url`                                                                                                                    |
+| `ALERT_WEBHOOK_TIMEOUT` | `10`                                                                       | Webhook HTTP timeout (seconds)                                                                                                                                                       |
 
 Also relevant:
 
-| Variable | Context |
-| --- | --- |
+| Variable             | Context                                                                           |
+| -------------------- | --------------------------------------------------------------------------------- |
 | `MAX_CONTENT_LENGTH` | Hardcoded 5 MiB on Flask app config (not env) — large OHLCV POSTs fail above this |
 
 ### Runtime / evaluate environment variables
 
 Used by `pynescript.runtime.Runtime` (`src/pynescript/runtime/host.py`) and the compiler host. `backend.runtime` is a compat re-export only.
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `PYNE_RUNTIME_MODE` | `interpret` | Default when `Runtime.run(..., mode=None)` omits mode (**Pro API schema default is still `auto`**; `pyne execute` `--mode` default is **`auto`**; `pyne run` ignores this — compile-only) |
-| `PYNE_SERIES_CAP` | **on** | Trim append-only host series lists; set `0` / `false` / `off` to disable (oracle / debug) |
-| `PYNE_SERIES_MAX` | unset | Absolute series history depth (overrides default 256 + `max_bars_back`) |
-| `PYNE_TA_INCREMENTAL` | **on** | Bar-mode incremental `ta.*` hot path; set `0` to force full recompute |
-| `PYNE_SERIES_RING` | **off** | Chronological tail view; skip dual list write. Keep off unless you need the ring path |
-| `PYNE_PARSE_CACHE` | **on** | Process-local LRU of successful `parse()` trees; set `0` to disable |
-| `PYNE_PARSE_CACHE_MAX` | `128` | Max parse-cache entries |
-| `PYNE_COMPILE_DISK_CACHE` | often `1` in deploy | Persist compiled IR across processes |
-| `PYNE_COMPILE_CACHE_DIR` | XDG cache / Docker `/data/compile-cache` | Disk IR location |
-| `PYNE_COMPILE_PREWARM` | deploy-dependent | Host cold-start prewarm of Numba builtins |
+| Variable                  | Default                                  | Purpose                                                                                                                                                                                   |
+| ------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PYNE_RUNTIME_MODE`       | `interpret`                              | Default when `Runtime.run(..., mode=None)` omits mode (**Pro API schema default is still `auto`**; `pyne execute` `--mode` default is **`auto`**; `pyne run` ignores this — compile-only) |
+| `PYNE_SERIES_CAP`         | **on**                                   | Trim append-only host series lists; set `0` / `false` / `off` to disable (oracle / debug)                                                                                                 |
+| `PYNE_SERIES_MAX`         | unset                                    | Absolute series history depth (overrides default 256 + `max_bars_back`)                                                                                                                   |
+| `PYNE_TA_INCREMENTAL`     | **on**                                   | Bar-mode incremental `ta.*` hot path; set `0` to force full recompute                                                                                                                     |
+| `PYNE_SERIES_RING`        | **off**                                  | Chronological tail view; skip dual list write. Keep off unless you need the ring path                                                                                                     |
+| `PYNE_PARSE_CACHE`        | **on**                                   | Process-local LRU of successful `parse()` trees; set `0` to disable                                                                                                                       |
+| `PYNE_PARSE_CACHE_MAX`    | `128`                                    | Max parse-cache entries                                                                                                                                                                   |
+| `PYNE_COMPILE_DISK_CACHE` | often `1` in deploy                      | Persist compiled IR across processes                                                                                                                                                      |
+| `PYNE_COMPILE_CACHE_DIR`  | XDG cache / Docker `/data/compile-cache` | Disk IR location                                                                                                                                                                          |
+| `PYNE_COMPILE_PREWARM`    | deploy-dependent                         | Host cold-start prewarm of Numba builtins                                                                                                                                                 |
 
 See [Series & history](/pyne/docs/runtime/series-and-history), [Technical builtins](/pyne/docs/runtime/builtins/technical), and [Compiler overview](/pyne/docs/runtime/compiler/overview).
 
@@ -158,27 +176,27 @@ python -m backend.app
 
 CLI `pynescript data` / library providers:
 
-| Provider | Auth | Notes |
-| --- | --- | --- |
-| `mock` | none | Deterministic offline bars (default) |
-| `yahoo` | none | Yahoo Finance path |
-| `alphavantage` | `--api-key` (falls back to `demo`) | Limited with demo key |
-| `ccxt` | optional key/secret; `--exchange` | Requires `[data]` extra |
+| Provider       | Auth                               | Notes                                |
+| -------------- | ---------------------------------- | ------------------------------------ |
+| `mock`         | none                               | Deterministic offline bars (default) |
+| `yahoo`        | none                               | Yahoo Finance path                   |
+| `alphavantage` | `--api-key` (falls back to `demo`) | Limited with demo key                |
+| `ccxt`         | optional key/secret; `--exchange`  | Requires `[data]` extra              |
 
 Pro API `/run` optional fields:
 
-| Field | Values | Role |
-| --- | --- | --- |
-| `data_source` | `""`, `mock`, `ccxt`, `ccxtpro`, `yahoo`, `alphavantage` | Wires `request.*` resolution |
-| `data_options` | object | exchange, api_key, seed, … |
-| `mode` | `auto` (default), `interpret`, `compile` | Prefer warm compile + fallback; strict compile; full interpret |
-| `inputs` | object | `input.*` overrides by title (forces interpret under `auto`) |
-| `libraries` | list | `[{namespace, name, version, source}]` — max 32; also on `/run/batch`; interpret / `auto` fallback |
-| `timeout_seconds` | number | Optional interpret wall-clock budget; omit / `null` / `≤ 0` → no timeout |
-| `timeframe` | string | Chart interval (`1m`/`1h`/`1d` or Pine period). Empty/omit → Runtime daily default. Flask `/run` only (not `/run/batch`) |
-| `profiler` | bool | Per-line timings; forces interpret |
-| `webhook_url` | string | Per-request L2 alert webhook (overrides `ALERT_WEBHOOK_URL`) |
-| `forward_alerts` / `alert_last_bar` / `alert_batch` | bool | Webhook delivery controls (see [Alerts](/pyne/docs/runtime/alerts)) |
+| Field                                               | Values                                                   | Role                                                                                                                     |
+| --------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `data_source`                                       | `""`, `mock`, `ccxt`, `ccxtpro`, `yahoo`, `alphavantage` | Wires `request.*` resolution                                                                                             |
+| `data_options`                                      | object                                                   | exchange, api_key, seed, …                                                                                               |
+| `mode`                                              | `auto` (default), `interpret`, `compile`                 | Prefer warm compile + fallback; strict compile; full interpret                                                           |
+| `inputs`                                            | object                                                   | `input.*` overrides by title (forces interpret under `auto`)                                                             |
+| `libraries`                                         | list                                                     | `[{namespace, name, version, source}]` — max 32; also on `/run/batch`; interpret / `auto` fallback                       |
+| `timeout_seconds`                                   | number                                                   | Optional interpret wall-clock budget; omit / `null` / `≤ 0` → no timeout                                                 |
+| `timeframe`                                         | string                                                   | Chart interval (`1m`/`1h`/`1d` or Pine period). Empty/omit → Runtime daily default. Flask `/run` only (not `/run/batch`) |
+| `profiler`                                          | bool                                                     | Per-line timings; forces interpret                                                                                       |
+| `webhook_url`                                       | string                                                   | Per-request L2 alert webhook (overrides `ALERT_WEBHOOK_URL`)                                                             |
+| `forward_alerts` / `alert_last_bar` / `alert_batch` | bool                                                     | Webhook delivery controls (see [Alerts](/pyne/docs/runtime/alerts))                                                      |
 
 `timeout_seconds` is accepted on `Runtime.run`, `POST /run`, and `POST /run/batch`. Extra keys that are not in the schema still → `UNKNOWN_FIELDS`.
 
@@ -190,18 +208,18 @@ Free-tier Pro API guards (unauthenticated `/run`) are **off by default**. Set `F
 
 VS Code extension keys (from `clients/README.md`):
 
-| Setting | Default | Meaning |
-| --- | --- | --- |
-| `pynescript.lsp.enabled` | `true` | Toggle server |
-| `pynescript.lsp.command` | `auto` | `auto` tries `pyne-lsp` → `pynescript-lsp` → `python3 -m pynescript.langserver`; or an absolute path |
-| `pynescript.lsp.python` | `python3` | Interpreter when command is `auto` and no binary is on PATH |
-| `pynescript.lsp.args` | `[]` | Extra args to the language server |
-| `pynescript.formatting.enabled` | `true` | Format document |
-| `pynescript.diagnostics.enabled` | `true` | Lint squiggles |
-| `pynescript.diagnostics.style` | `false` | Show C001/C002/C004 style findings |
-| `pynescript.completion.snippets` | `true` | Snippet completions |
-| `pynescript.syntaxHighlighting` | `void` | Pine TextMate + semantic token palette (`none` / `void` / `signal` / `volt`); independent of the workbench color theme |
-| `pynescript.inlayHints.parameters` | `true` | Parameter-name hints only (type inlays removed in 0.6.29) |
+| Setting                            | Default   | Meaning                                                                                                                |
+| ---------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `pynescript.lsp.enabled`           | `true`    | Toggle server                                                                                                          |
+| `pynescript.lsp.command`           | `auto`    | `auto` tries `pyne-lsp` → `pynescript-lsp` → `python3 -m pynescript.langserver`; or an absolute path                   |
+| `pynescript.lsp.python`            | `python3` | Interpreter when command is `auto` and no binary is on PATH                                                            |
+| `pynescript.lsp.args`              | `[]`      | Extra args to the language server                                                                                      |
+| `pynescript.formatting.enabled`    | `true`    | Format document                                                                                                        |
+| `pynescript.diagnostics.enabled`   | `true`    | Lint squiggles                                                                                                         |
+| `pynescript.diagnostics.style`     | `false`   | Show C001/C002/C004 style findings                                                                                     |
+| `pynescript.completion.snippets`   | `true`    | Snippet completions                                                                                                    |
+| `pynescript.syntaxHighlighting`    | `void`    | Pine TextMate + semantic token palette (`none` / `void` / `signal` / `volt`); independent of the workbench color theme |
+| `pynescript.inlayHints.parameters` | `true`    | Parameter-name hints only (type inlays removed in 0.6.29)                                                              |
 
 Extension id: **`hoox-sh.pyne`** (VSIX **0.5.5** with **`hoox-pyne` 0.6.31**).
 
@@ -223,26 +241,26 @@ Zed: `language_servers.pynescript.command` / `arguments: ["--stdio"]` — see [E
 
 When running SuperChart Lite PWA against local Flask:
 
-| Make target | Port (typical) |
-| --- | --- |
-| `make run` | API `:5002` |
-| `make run-frontend` | PWA `:8081` |
-| `make worker-dev` | CF Worker `:8787` |
+| Make target         | Port (typical)    |
+| ------------------- | ----------------- |
+| `make run`          | API `:5002`       |
+| `make run-frontend` | PWA `:8081`       |
+| `make worker-dev`   | CF Worker `:8787` |
 
 CORS must allow the PWA origin via `ALLOWED_ORIGINS`.
 
 ## Internals (repo paths)
 
-| Path | Config surface |
-| --- | --- |
-| `pyproject.toml` | extras, scripts, Python requires |
-| `src/pynescript/__main__.py` | CLI options |
-| `src/pynescript/runtime/host.py` | `Runtime.run` (`mode`, `libraries`, `timeout_seconds`, `inputs`) |
-| `backend/app.py` | Flask, CORS, HOST/PORT, body size |
-| `backend/middleware/auth.py` | `API_KEY_STORE`, key tiers |
-| `backend/middleware/schemas.py` | Request field defaults (`mode`, `symbol`, …) |
-| `clients/*.json|lua|el` | Editor LSP wiring |
-| [`pyne-lsp-vsce`](https://github.com/hoox-sh/pyne-lsp-vsce) | Extension contribution points (separate repo) |
+| Path                                                        | Config surface                                                   |
+| ----------------------------------------------------------- | ---------------------------------------------------------------- | --- | ----------------- |
+| `pyproject.toml`                                            | extras, scripts, Python requires                                 |
+| `src/pynescript/__main__.py`                                | CLI options                                                      |
+| `src/pynescript/runtime/host.py`                            | `Runtime.run` (`mode`, `libraries`, `timeout_seconds`, `inputs`) |
+| `backend/app.py`                                            | Flask, CORS, HOST/PORT, body size                                |
+| `backend/middleware/auth.py`                                | `API_KEY_STORE`, key tiers                                       |
+| `backend/middleware/schemas.py`                             | Request field defaults (`mode`, `symbol`, …)                     |
+| `clients/\*.json                                            | lua                                                              | el` | Editor LSP wiring |
+| [`pyne-lsp-vsce`](https://github.com/hoox-sh/pyne-lsp-vsce) | Extension contribution points (separate repo)                    |
 
 ## Invariants & edge cases
 
@@ -292,14 +310,14 @@ pynescript data EUR/USD --provider alphavantage --api-key "$AV_KEY" --period 3mo
 
 ## Failure modes
 
-| Symptom | Config fix |
-| --- | --- |
-| Browser CORS error on `/run` | Add origin to `ALLOWED_ORIGINS` |
-| `create_key` always 403 | Set `ADMIN_TOKEN` and send `X-Admin-Token` |
-| API keys vanish / permission error | Point `API_KEY_STORE` to writable path |
-| Payload too large | Split bars or stay under 5 MiB body limit |
-| Editor “server failed to start” | Fix `pynescript.lsp.command` PATH; install `[lsp]` |
-| `ccxt` import errors | Install `[data]` extra |
+| Symptom                            | Config fix                                         |
+| ---------------------------------- | -------------------------------------------------- |
+| Browser CORS error on `/run`       | Add origin to `ALLOWED_ORIGINS`                    |
+| `create_key` always 403            | Set `ADMIN_TOKEN` and send `X-Admin-Token`         |
+| API keys vanish / permission error | Point `API_KEY_STORE` to writable path             |
+| Payload too large                  | Split bars or stay under 5 MiB body limit          |
+| Editor “server failed to start”    | Fix `pynescript.lsp.command` PATH; install `[lsp]` |
+| `ccxt` import errors               | Install `[data]` extra                             |
 
 ## See also
 

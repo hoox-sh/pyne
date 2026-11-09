@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Troubleshooting"
 description: "Diagnose pynescript install, parse, lint, evaluation, LSP, data providers, and Pro API failures with concrete checks."
 ---
@@ -57,15 +75,15 @@ curl -s http://127.0.0.1:5002/ | head
 
 ## Internals (where errors originate)
 
-| Layer | Path |
-| --- | --- |
-| CLI | `src/pynescript/__main__.py` |
-| Parse | `src/pynescript/ast/helper.py`, ANTLR error listener |
-| Lint | `src/pynescript/ast/linter.py` |
-| Eval | `src/pynescript/ast/evaluator/`, `src/pynescript/runtime/` |
-| Data | `src/pynescript/util/data.py` |
-| LSP | `src/pynescript/langserver/` |
-| HTTP | `backend/app.py`, `backend/middleware/schemas.py` |
+| Layer | Path                                                       |
+| ----- | ---------------------------------------------------------- |
+| CLI   | `src/pynescript/__main__.py`                               |
+| Parse | `src/pynescript/ast/helper.py`, ANTLR error listener       |
+| Lint  | `src/pynescript/ast/linter.py`                             |
+| Eval  | `src/pynescript/ast/evaluator/`, `src/pynescript/runtime/` |
+| Data  | `src/pynescript/util/data.py`                              |
+| LSP   | `src/pynescript/langserver/`                               |
+| HTTP  | `backend/app.py`, `backend/middleware/schemas.py`          |
 
 ## Invariants & edge cases
 
@@ -108,9 +126,9 @@ pyne parse-and-dump broken.pine
 Checks:
 
 - `//@version=6` present (v5 still accepted)
-- Balanced parentheses / indentation (Pine uses line structure)  
-- Multiline strings / v6 features need a package version that includes them  
-- Binary/null bytes in file  
+- Balanced parentheses / indentation (Pine uses line structure)
+- Multiline strings / v6 features need a package version that includes them
+- Binary/null bytes in file
 
 Reduce to a minimal repro; if TV accepts it and PYNE does not, consult [missing features](/pyne/docs/reference/missing-features) and file a grammar issue.
 
@@ -131,11 +149,11 @@ Structural diff empty ⇒ cosmetic only.
 
 ### 5. Lint noise / CI red
 
-| Code | Action |
-| --- | --- |
-| `E001` | Fix syntax first |
-| `W001` | Add `//@version=6` |
-| `W002` | Upgrade version pragma |
+| Code          | Action                                                    |
+| ------------- | --------------------------------------------------------- |
+| `E001`        | Fix syntax first                                          |
+| `W001`        | Add `//@version=6`                                        |
+| `W002`        | Upgrade version pragma                                    |
 | `C001`–`C004` | Style; use `--fail-on errors` if style should not gate CI |
 
 ```bash
@@ -144,9 +162,9 @@ pyne lint script.pine --fail-on errors
 
 ### 6. `literal_eval` fails
 
-- Use `mode="eval"`-compatible **expressions**, not full `strategy()` scripts  
-- Pass series as Python lists inside the expression or via `context`  
-- Missing builtin → incomplete implementation  
+- Use `mode="eval"`-compatible **expressions**, not full `strategy()` scripts
+- Pass series as Python lists inside the expression or via `context`
+- Missing builtin → incomplete implementation
 
 Escalate to `Runtime.run` for multi-bar scripts.
 
@@ -183,12 +201,12 @@ Ensure the editor’s `command` matches the venv. For Neovim, confirm `filetypes
 
 ### 11. Data provider failures
 
-| Provider | Checklist |
-| --- | --- |
-| `mock` | Should always work offline |
-| `yahoo` | Network; symbol format |
-| `alphavantage` | API key; demo limits |
-| `ccxt` | `pip install "hoox-pyne[data]"`; exchange id; symbol `BTC/USDT` |
+| Provider       | Checklist                                                       |
+| -------------- | --------------------------------------------------------------- |
+| `mock`         | Should always work offline                                      |
+| `yahoo`        | Network; symbol format                                          |
+| `alphavantage` | API key; demo limits                                            |
+| `ccxt`         | `pip install "hoox-pyne[data]"`; exchange id; symbol `BTC/USDT` |
 
 ```bash
 pyne data AAPL --provider mock
@@ -200,23 +218,23 @@ PYNE is independent of TradingView®. Behavioral gaps are expected for edge buil
 
 ## Failure modes (quick matrix)
 
-| Symptom | Layer | First check |
-| --- | --- | --- |
-| Command not found | env | `python -m pynescript` |
-| Import error pygls | extra | `[lsp]` |
-| Import error ccxt | extra | `[data]` |
-| SyntaxError | parse | minimal script + version |
-| Lint CI fail | lint | `--fail-on` level |
-| Empty plots | eval | `plot()` present; enough bars |
-| `pyne run` ≠ `Runtime.run` | modes | `pyne run` is compile-only synthetic; use `pyne execute` for `Runtime.run` (default `auto`); library default is interpret |
-| `MCP extra missing` | extra | `[mcp]` is only for stdio `pyne-mcp`; `pyne execute` / `mcp call` need no extra |
-| `UNKNOWN_FIELDS` + `timeout_seconds` | HTTP | field is valid on `/run` and `/run/batch` (0.3.11+); other extra keys still 400 |
-| `UNKNOWN_FIELDS` + `timeframe` | HTTP | field is valid on Flask `/run` and `WS /ws/run`; other extra keys still 400 |
-| 400 UNKNOWN_FIELDS | HTTP | schema |
-| 403 create_key | HTTP | `ADMIN_TOKEN` |
-| 413 | HTTP | body size |
-| Squiggles missing | LSP | diagnostics enabled + filetype |
-| Numerical drift | eval | warmup / parity docs |
+| Symptom                              | Layer | First check                                                                                                               |
+| ------------------------------------ | ----- | ------------------------------------------------------------------------------------------------------------------------- |
+| Command not found                    | env   | `python -m pynescript`                                                                                                    |
+| Import error pygls                   | extra | `[lsp]`                                                                                                                   |
+| Import error ccxt                    | extra | `[data]`                                                                                                                  |
+| SyntaxError                          | parse | minimal script + version                                                                                                  |
+| Lint CI fail                         | lint  | `--fail-on` level                                                                                                         |
+| Empty plots                          | eval  | `plot()` present; enough bars                                                                                             |
+| `pyne run` ≠ `Runtime.run`           | modes | `pyne run` is compile-only synthetic; use `pyne execute` for `Runtime.run` (default `auto`); library default is interpret |
+| `MCP extra missing`                  | extra | `[mcp]` is only for stdio `pyne-mcp`; `pyne execute` / `mcp call` need no extra                                           |
+| `UNKNOWN_FIELDS` + `timeout_seconds` | HTTP  | field is valid on `/run` and `/run/batch` (0.3.11+); other extra keys still 400                                           |
+| `UNKNOWN_FIELDS` + `timeframe`       | HTTP  | field is valid on Flask `/run` and `WS /ws/run`; other extra keys still 400                                               |
+| 400 UNKNOWN_FIELDS                   | HTTP  | schema                                                                                                                    |
+| 403 create_key                       | HTTP  | `ADMIN_TOKEN`                                                                                                             |
+| 413                                  | HTTP  | body size                                                                                                                 |
+| Squiggles missing                    | LSP   | diagnostics enabled + filetype                                                                                            |
+| Numerical drift                      | eval  | warmup / parity docs                                                                                                      |
 
 ## See also
 

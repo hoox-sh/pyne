@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Compatibility guarantee"
 description: "Grouped map of what PYNE implements for Pine Script™ v5/v6 — working, partial, residual, and by-design out of scope. hoox-pyne 0.6.31."
 ---
@@ -72,28 +90,30 @@ flowchart TB
 
 ## Legend
 
-| Mark | Meaning |
-| --- | --- |
-| **Working** | Implemented, usable, covered by first-party tests |
-| **Partial** | Callable but mock, host-bound, or incomplete vs hosted Pine |
-| **Residual** | Known open hole on an otherwise landed surface |
-| **Out of scope** | Intentionally not a TV platform clone |
+| Mark             | Meaning                                                     |
+| ---------------- | ----------------------------------------------------------- |
+| **Working**      | Implemented, usable, covered by first-party tests           |
+| **Partial**      | Callable but mock, host-bound, or incomplete vs hosted Pine |
+| **Residual**     | Known open hole on an otherwise landed surface              |
+| **Out of scope** | Intentionally not a TV platform clone                       |
 
 Dispatch snapshot (2026-10-08): **941** callables, **10** partial-heuristic, **0 missing** vs the public TV v6 function list (434 symbols). A registered name is not the same as hosted-platform semantics.
 
 <CardGroup cols={4}>
-  <Card title="Working" icon="check">
-    Language, series, TA hot path, collections, strategy broker, drawings, alerts, libraries, interpret Runtime.
-  </Card>
-  <Card title="Partial" icon="triangle-alert">
-    `request.*` feeds (honest `na`), compile eligibility, compile alerts, PyneTS vs Python oracle.
-  </Card>
-  <Card title="Residual" icon="circle-dot">
-    Plot MISMATCH corpus tail (P1p), `PYNE_SERIES_RING` default off.
-  </Card>
-  <Card title="Out of scope" icon="ban">
-    Pixel chart, editor UX, foreign live data, bit-identical TV bars.
-  </Card>
+    <Card title="Working" icon="check">
+        Language, series, TA hot path, collections, strategy broker, drawings,
+        alerts, libraries, interpret Runtime.
+    </Card>
+    <Card title="Partial" icon="triangle-alert">
+        `request.*` feeds (honest `na`), compile eligibility, compile alerts,
+        PyneTS vs Python oracle.
+    </Card>
+    <Card title="Residual" icon="circle-dot">
+        Plot MISMATCH corpus tail (P1p), `PYNE_SERIES_RING` default off.
+    </Card>
+    <Card title="Out of scope" icon="ban">
+        Pixel chart, editor UX, foreign live data, bit-identical TV bars.
+    </Card>
 </CardGroup>
 
 ## Interface surface
@@ -102,11 +122,11 @@ Dispatch snapshot (2026-10-08): **941** callables, **10** partial-heuristic, **0
 
 Open-source sets, **not shipped** in git. Not a TradingView® platform score.
 
-| Suite | Rate | Notes |
-| --- | ---: | --- |
-| Parse + unparse | **99.96%** (2476/2477) | Residual: one intentional invalid line-wrap demo |
-| Runtime interpret (50 bars) | **100%** excl. EXPECTED_FAIL | 2466 OK + 11 listed demos |
-| set01 Runtime | **249/249** | Interpret (and prior compile sweep) |
+| Suite                       |                         Rate | Notes                                            |
+| --------------------------- | ---------------------------: | ------------------------------------------------ |
+| Parse + unparse             |       **99.96%** (2476/2477) | Residual: one intentional invalid line-wrap demo |
+| Runtime interpret (50 bars) | **100%** excl. EXPECTED_FAIL | 2466 OK + 11 listed demos                        |
+| set01 Runtime               |                  **249/249** | Interpret (and prior compile sweep)              |
 
 EXPECTED_FAIL are path-listed demos (`runtime.error` library guards, lower-TF security, pathological loops) — not silent suppression.
 
@@ -129,90 +149,101 @@ EXPECTED_FAIL are path-listed demos (`runtime.error` library guards, lower-TF se
     | `timeframe.change` | Working | Intraday fixed-width buckets; D/W/M on the exchange calendar (`syminfo.timezone`, UTC default) |
   </Accordion>
 
-  <Accordion title="Bar-loop host — working">
-    | Area | Status | Notes |
-    | --- | --- | --- |
-    | `pynescript.runtime.Runtime` | Working | Package SoT; `backend.runtime` re-exports |
-    | Modes `interpret` / `compile` / `auto` | Working | Defaults differ by surface — [modes](/pyne/docs/enduser/reference/modes) |
-    | Series caps | Working | `PYNE_SERIES_CAP` default **on** |
-    | Incremental `ta.*` | Working | Default **on**; `PYNE_TA_INCREMENTAL=0` full recompute |
-    | Derived OHLCV skip | Working | Unused `hl2`/`hlc3`/`ohlc4`/`tr` not written; `ta.vwap` still updates `hlc3` |
-    | `timeout_seconds` | Working | Library / edge / Flask `/run` + `/run/batch` (omit = no budget) |
-    | Flask `timeframe` | Working | Optional on `/run` and `WS /ws/run`; AXIS `1m`/`1h`/`1d` mapped to Pine period |
-    | Ring buffer | Residual | `PYNE_SERIES_RING` default **off** |
-  </Accordion>
+<Accordion title="Bar-loop host — working">
+    | Area | Status | Notes | | --- | --- | --- | | `pynescript.runtime.Runtime`
+    | Working | Package SoT; `backend.runtime` re-exports | | Modes `interpret`
+    / `compile` / `auto` | Working | Defaults differ by surface —
+    [modes](/pyne/docs/enduser/reference/modes) | | Series caps | Working |
+    `PYNE_SERIES_CAP` default **on** | | Incremental `ta.*` | Working | Default
+    **on**; `PYNE_TA_INCREMENTAL=0` full recompute | | Derived OHLCV skip |
+    Working | Unused `hl2`/`hlc3`/`ohlc4`/`tr` not written; `ta.vwap` still
+    updates `hlc3` | | `timeout_seconds` | Working | Library / edge / Flask
+    `/run` + `/run/batch` (omit = no budget) | | Flask `timeframe` | Working |
+    Optional on `/run` and `WS /ws/run`; AXIS `1m`/`1h`/`1d` mapped to Pine
+    period | | Ring buffer | Residual | `PYNE_SERIES_RING` default **off** |
+</Accordion>
 
-  <Accordion title="ta.* — working">
-    | Area | Status | Notes |
-    | --- | --- | --- |
-    | MAs | Working | `sma`/`ema`/`rma`/`wma`/`hma`/`vwma`/`kama`/`dema`/`tema`/`alma`/`sma_weighted` incremental |
-    | Oscillators | Working | `rsi`/`macd`/`stoch`/`cci`/`cmo`/`tsi`/`roc`/`wpr`; incremental `aroon`/`dpo`/`kst` |
-    | Volatility / structure | Working | `atr` (Wilder `rma(tr)`), `bb`, `kc`, `stdev`, `highest`/`lowest`, `linreg`, `adx`/`dmi`, `supertrend`, `sar`; incremental `donchian` |
-    | Volume | Working | Incremental `obv`/`wad`/`wvad`/`cmf`/`klinger`/`mfi`/`vwap`/`nvi`/`pvi` |
-    | Supertrend | Working | Locked mid±factor·ATR (inc ≡ compile ≡ Numba). TV band ratchet is out of scope |
-  </Accordion>
+<Accordion title="ta.* — working">
+    | Area | Status | Notes | | --- | --- | --- | | MAs | Working |
+    `sma`/`ema`/`rma`/`wma`/`hma`/`vwma`/`kama`/`dema`/`tema`/`alma`/`sma_weighted`
+    incremental | | Oscillators | Working |
+    `rsi`/`macd`/`stoch`/`cci`/`cmo`/`tsi`/`roc`/`wpr`; incremental
+    `aroon`/`dpo`/`kst` | | Volatility / structure | Working | `atr` (Wilder
+    `rma(tr)`), `bb`, `kc`, `stdev`, `highest`/`lowest`, `linreg`, `adx`/`dmi`,
+    `supertrend`, `sar`; incremental `donchian` | | Volume | Working |
+    Incremental `obv`/`wad`/`wvad`/`cmf`/`klinger`/`mfi`/`vwap`/`nvi`/`pvi` | |
+    Supertrend | Working | Locked mid±factor·ATR (inc ≡ compile ≡ Numba). TV
+    band ratchet is out of scope |
+</Accordion>
 
-  <Accordion title="Collections — working">
-    | Area | Status | Notes |
-    | --- | --- | --- |
-    | `array.*` | Working | Negative indices; UDT `sort_field` + `binary_search*` |
-    | `matrix.*` | Working | LA (`det`/`inv`/`eigen`…), predicates, `sort_field` |
-    | `map.*` | Working | |
-  </Accordion>
+<Accordion title="Collections — working">
+    | Area | Status | Notes | | --- | --- | --- | | `array.*` | Working |
+    Negative indices; UDT `sort_field` + `binary_search*` | | `matrix.*` |
+    Working | LA (`det`/`inv`/`eigen`…), predicates, `sort_field` | | `map.*` |
+    Working | |
+</Accordion>
 
-  <Accordion title="Strategy — working with OHLC-path limits">
-    | Area | Status | Notes |
-    | --- | --- | --- |
-    | `entry` / `close` / `cancel` / events | Working | `StrategyEvent` stream |
-    | `exit` stop/limit + OCA | Working | OHLC path, not tick path |
-    | `profit` / `loss` | Working | Ticks × mintick from entry avg |
-    | `from_entry` / `qty_percent` | Working | Interpret + compile |
-    | Trail | Working | `trail_offset` / `trail_points` / `trail_price` on OHLC high/low (dual-host). Tick path is out of scope |
-    | Risk cascade | Working | `allow_entry_in`, max size/drawdown/cons-loss-days/intraday |
-    | Open/closed trade fields + MAE/MFE | Working | Extremes from bar high/low |
-    | Pending-fill average (pyramiding ≤ 0) | Working | F2 |
-    | Next-bar market fills (reference Pine) | Working | Market orders placed on bar N fill at the open of bar N+1; mintick grid + outward resting prices; dual-host lockstep (0.6.29) |
-    | Licensed broker / exchange fills | Out of scope | In-process model only |
-  </Accordion>
+<Accordion title="Strategy — working with OHLC-path limits">
+    | Area | Status | Notes | | --- | --- | --- | | `entry` / `close` / `cancel`
+    / events | Working | `StrategyEvent` stream | | `exit` stop/limit + OCA |
+    Working | OHLC path, not tick path | | `profit` / `loss` | Working | Ticks ×
+    mintick from entry avg | | `from_entry` / `qty_percent` | Working |
+    Interpret + compile | | Trail | Working | `trail_offset` / `trail_points` /
+    `trail_price` on OHLC high/low (dual-host). Tick path is out of scope | |
+    Risk cascade | Working | `allow_entry_in`, max
+    size/drawdown/cons-loss-days/intraday | | Open/closed trade fields + MAE/MFE
+    | Working | Extremes from bar high/low | | Pending-fill average (pyramiding
+    ≤ 0) | Working | F2 | | Next-bar market fills (reference Pine) | Working |
+    Market orders placed on bar N fill at the open of bar N+1; mintick grid +
+    outward resting prices; dual-host lockstep (0.6.29) | | Licensed broker /
+    exchange fills | Out of scope | In-process model only |
+</Accordion>
 
-  <Accordion title="Drawing and plots — working; renderer external">
-    | Area | Status | Notes |
-    | --- | --- | --- |
-    | `plot` / `plotshape` / `plotchar` / `plotarrow` / `hline` / `bgcolor` / `barcolor` / `fill` / `plotbar` / `plotcandle` | Working | Registry + columnar capture; plotshape off = `None` (dual-host) |
-    | `line` / `box` / `label` / `table` / `polyline` / `linefill` | Working | Coordinates snapshotted at create/set; compile `__drawings` normalized to geometry-only AXIS export |
-    | Drawing export parity | Working | Both hosts emit cell style/width/height/tooltip, `force_overlay`, `merged_cells`; box/label text extras; polyline curve/fill; `text.align_*` constants; `table.cell` reference positional order |
-    | `max_*_count` GC | Working | Interpret registry |
-    | `force_overlay` | Working | Export payload |
-    | Pixel paint | Out of scope | AXIS / clients consume series + drawings |
-    | Compile `hline`/`fill`/`bgcolor`/`plotshape` keys | Working | First-party key sets match interpret. Harness ignore flags stay optional CLI |
-  </Accordion>
+<Accordion title="Drawing and plots — working; renderer external">
+    | Area | Status | Notes | | --- | --- | --- | | `plot` / `plotshape` /
+    `plotchar` / `plotarrow` / `hline` / `bgcolor` / `barcolor` / `fill` /
+    `plotbar` / `plotcandle` | Working | Registry + columnar capture; plotshape
+    off = `None` (dual-host) | | `line` / `box` / `label` / `table` / `polyline`
+    / `linefill` | Working | Coordinates snapshotted at create/set; compile
+    `__drawings` normalized to geometry-only AXIS export | | Drawing export
+    parity | Working | Both hosts emit cell style/width/height/tooltip,
+    `force_overlay`, `merged_cells`; box/label text extras; polyline curve/fill;
+    `text.align_*` constants; `table.cell` reference positional order | |
+    `max_*_count` GC | Working | Interpret registry | | `force_overlay` |
+    Working | Export payload | | Pixel paint | Out of scope | AXIS / clients
+    consume series + drawings | | Compile `hline`/`fill`/`bgcolor`/`plotshape`
+    keys | Working | First-party key sets match interpret. Harness ignore flags
+    stay optional CLI |
+</Accordion>
 
-  <Accordion title="request.* and data — partial by design">
-    | Area | Status | Notes |
-    | --- | --- | --- |
-    | Same-symbol simple OHLCV / HTF | Working | Allowlisted `ta.sma`/`ema`/`rsi`/`atr`/`wma`/`rma` on HTF |
-    | Foreign / complex `request.security` | Partial | Resolves to **`na`** (no invented chart-close) |
-    | `request.footprint` / financial / economic | Partial | Mock / feed-scaled; not a live vendor |
-    | `input.*` including `active` / `enum` | Working | Values + metadata |
-    | Bid/ask omitted | Partial | `na` when host does not supply |
-    | Real multi-symbol market data (B1) | Out of scope | Needs a host adapter |
-  </Accordion>
+<Accordion title="request.* and data — partial by design">
+    | Area | Status | Notes | | --- | --- | --- | | Same-symbol simple OHLCV /
+    HTF | Working | Allowlisted `ta.sma`/`ema`/`rsi`/`atr`/`wma`/`rma` on HTF |
+    | Foreign / complex `request.security` | Partial | Resolves to **`na`** (no
+    invented chart-close) | | `request.footprint` / financial / economic |
+    Partial | Mock / feed-scaled; not a live vendor | | `input.*` including
+    `active` / `enum` | Working | Values + metadata | | Bid/ask omitted |
+    Partial | `na` when host does not supply | | Real multi-symbol market data
+    (B1) | Out of scope | Needs a host adapter |
+</Accordion>
 
-  <Accordion title="Alerts, compile, hosts">
-    | Area | Status | Notes |
-    | --- | --- | --- |
-    | `alert()` / `alertcondition()` | Working | Frequency rules; `/run` export |
-    | L2 webhooks | Working | `webhook_url` / `ALERT_WEBHOOK_URL` |
-    | Compile alerts | Partial | Interpret is the alert oracle |
-    | Numba + object-mode compile | Working | `mode=auto` falls back; `import` / `request.*` / `inputs=` skip compile |
-    | Warm compile / disk IR | Working | Prewarm CLI/API; cache meta v18 |
-    | Interp ↔ compile plot parity | Working | Harness + first-party goldens + official TV builtins **0 MISMATCH** (P1p); optional set0x community corpus unmeasured |
-    | CLI / LSP / Pro API / Docker | Working | `pyne` / `pyne-lsp`; Flask `/run` |
-    | Flask `/run` `libraries` | Working | Max 32; also `/run/batch` |
-    | Flask `timeout_seconds` | Working | Optional on `/run` and `/run/batch`; omit / `≤ 0` = no timeout |
-    | `timeframe.change` | Working | Intraday fixed-width; D/W/M exchange calendar. Interpret + compile (calendar via object mode) |
-    | `POST /optimize` / `pyne optimize` | Working | Strategy `input.*` search — not a Pine builtin |
-  </Accordion>
+<Accordion title="Alerts, compile, hosts">
+    | Area | Status | Notes | | --- | --- | --- | | `alert()` /
+    `alertcondition()` | Working | Frequency rules; `/run` export | | L2
+    webhooks | Working | `webhook_url` / `ALERT_WEBHOOK_URL` | | Compile alerts
+    | Partial | Interpret is the alert oracle | | Numba + object-mode compile |
+    Working | `mode=auto` falls back; `import` / `request.*` / `inputs=` skip
+    compile | | Warm compile / disk IR | Working | Prewarm CLI/API; cache meta
+    v18 | | Interp ↔ compile plot parity | Working | Harness + first-party
+    goldens + official TV builtins **0 MISMATCH** (P1p); optional set0x
+    community corpus unmeasured | | CLI / LSP / Pro API / Docker | Working |
+    `pyne` / `pyne-lsp`; Flask `/run` | | Flask `/run` `libraries` | Working |
+    Max 32; also `/run/batch` | | Flask `timeout_seconds` | Working | Optional
+    on `/run` and `/run/batch`; omit / `≤ 0` = no timeout | | `timeframe.change`
+    | Working | Intraday fixed-width; D/W/M exchange calendar. Interpret +
+    compile (calendar via object mode) | | `POST /optimize` / `pyne optimize` |
+    Working | Strategy `input.*` search — not a Pine builtin |
+</Accordion>
 
   <Accordion title="Sister implementations">
     | Surface | Status | Notes |
@@ -226,16 +257,16 @@ EXPECTED_FAIL are path-listed demos (`runtime.error` library guards, lower-TF se
 
 ### Residual and out of scope (compact)
 
-| Item | Class |
-| --- | --- |
+| Item                                                                 | Class                                   |
+| -------------------------------------------------------------------- | --------------------------------------- |
 | Interpret↔compile value `MISMATCH` (optional set0x community corpus) | Residual (P1p official builtins closed) |
-| `PYNE_SERIES_RING` default-on | Residual (flagged off) |
-| Pixel chart / editor word-wrap / TV UI | Out of scope |
-| Foreign live fundamentals without a feed | Out of scope |
-| TV Supertrend band ratchet | Out of scope |
-| Tick-path trail / broker | Out of scope |
-| Bit-identical every recursive smoother vs TV | Out of scope |
-| Parallel bars / whole-script vectorization | Out of scope |
+| `PYNE_SERIES_RING` default-on                                        | Residual (flagged off)                  |
+| Pixel chart / editor word-wrap / TV UI                               | Out of scope                            |
+| Foreign live fundamentals without a feed                             | Out of scope                            |
+| TV Supertrend band ratchet                                           | Out of scope                            |
+| Tick-path trail / broker                                             | Out of scope                            |
+| Bit-identical every recursive smoother vs TV                         | Out of scope                            |
+| Parallel bars / whole-script vectorization                           | Out of scope                            |
 
 ```mermaid
 flowchart LR
@@ -266,12 +297,12 @@ flowchart LR
 
 Same script + OHLCV under `mode="interpret"` and `mode="compile"`; series compared with nan-aware allclose (`rtol=1e-5`, `atol=1e-6`).
 
-| Artifact | Role |
-| --- | --- |
-| `scripts/compare_interp_compile.py` | Corpus harness → `.cache/interp_compile_parity.json` |
-| `tests/test_interp_compile_parity.py` | Always-on smoke |
-| `tests/test_first_party_ta_goldens.py` | ATR / Supertrend / Keltner dual-host |
-| `scripts/compare_tv_goldens.py` | Vendored TradingView Pine Logs exports — **112 / 112 columns** |
+| Artifact                               | Role                                                           |
+| -------------------------------------- | -------------------------------------------------------------- |
+| `scripts/compare_interp_compile.py`    | Corpus harness → `.cache/interp_compile_parity.json`           |
+| `tests/test_interp_compile_parity.py`  | Always-on smoke                                                |
+| `tests/test_first_party_ta_goldens.py` | ATR / Supertrend / Keltner dual-host                           |
+| `scripts/compare_tv_goldens.py`        | Vendored TradingView Pine Logs exports — **112 / 112 columns** |
 
 Known **contract** differences (not silent value bugs):
 
@@ -281,13 +312,13 @@ Known **contract** differences (not silent value bugs):
 
 ## Internals
 
-| Artifact | Role |
-| --- | --- |
-| `docs/compatibility_guarantee.md` | Historical long-form; this page is the map |
-| `COMPATIBILITY.md` | Repo-root distillation of this map |
-| `docs/pine_v6_full_surface_inventory.md` | Name-level dispatch tables |
-| `docs/known_divergences.md` | Semantic deltas vs public Pine docs |
-| `tests/fixtures/parity/` | First-party strategy fixtures |
+| Artifact                                 | Role                                       |
+| ---------------------------------------- | ------------------------------------------ |
+| `docs/compatibility_guarantee.md`        | Historical long-form; this page is the map |
+| `COMPATIBILITY.md`                       | Repo-root distillation of this map         |
+| `docs/pine_v6_full_surface_inventory.md` | Name-level dispatch tables                 |
+| `docs/known_divergences.md`              | Semantic deltas vs public Pine docs        |
+| `tests/fixtures/parity/`                 | First-party strategy fixtures              |
 
 ## Invariants & edge cases
 
@@ -319,14 +350,14 @@ pytest tests/test_interp_compile_parity.py -q
 
 ## Failure modes
 
-| Observation | Read as |
-| --- | --- |
-| Parse error on a new TV release-notes feature | Surface gap — [Missing features](/pyne/docs/reference/missing-features) |
-| Numerical drift on a custom smoother | Bar-mode vs list-mode; `na`; [known divergences](https://github.com/hoox-sh/pyne/blob/main/docs/known_divergences.md) |
-| Interpret vs compile series mismatch | Foreign `request.*`, UDF last-assign `na`, leftover corpus keys |
-| Strategy equity ≠ TV | Commission / slippage / OHLC vs tick path |
-| `import` unresolved | Library not in `libraries=` / registry |
-| `/run` 400 `UNKNOWN_FIELDS` | Extra key not in `RUN_SCHEMA` |
+| Observation                                   | Read as                                                                                                               |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Parse error on a new TV release-notes feature | Surface gap — [Missing features](/pyne/docs/reference/missing-features)                                               |
+| Numerical drift on a custom smoother          | Bar-mode vs list-mode; `na`; [known divergences](https://github.com/hoox-sh/pyne/blob/main/docs/known_divergences.md) |
+| Interpret vs compile series mismatch          | Foreign `request.*`, UDF last-assign `na`, leftover corpus keys                                                       |
+| Strategy equity ≠ TV                          | Commission / slippage / OHLC vs tick path                                                                             |
+| `import` unresolved                           | Library not in `libraries=` / registry                                                                                |
+| `/run` 400 `UNKNOWN_FIELDS`                   | Extra key not in `RUN_SCHEMA`                                                                                         |
 
 ## See also
 
