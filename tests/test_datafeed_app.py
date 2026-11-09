@@ -81,3 +81,5 @@ def test_options_preflight(client: FlaskClient) -> None:
     )
     assert resp.status_code == 204
     assert resp.headers.get("Access-Control-Allow-Origin") == "https://axis.hoox.sh"
+    allowed = resp.headers.get("Access-Control-Allow-Headers", "").lower()
+    assert "x-axis-client" in allowed

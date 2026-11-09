@@ -159,6 +159,23 @@ def test_axis_preflight_allows_client_header(client) -> None:
     assert "x-axis-client" in allowed
 
 
+def test_session_preflight_is_free_cors(client) -> None:
+    """Live-session create is on the free CORS surface (any browser Origin)."""
+    resp = client.options(
+        "/session",
+        headers={
+            "Origin": "https://preview.example",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+    assert resp.status_code in (200, 204)
+    assert resp.headers.get("Access-Control-Allow-Origin") == "https://preview.example"
+    allowed = resp.headers.get("Access-Control-Allow-Headers", "").lower()
+    assert "content-type" in allowed
+    assert "x-axis-client" in allowed
+
+
 def test_is_trusted_client_header_semantics(monkeypatch) -> None:
     """Exact origin; trimmed/case-insensitive client header; nothing else."""
     monkeypatch.setenv("FREE_TIER_LIMITS", "1")

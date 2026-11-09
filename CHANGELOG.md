@@ -2,6 +2,7 @@
 
 ### Fixed
 
+- **CORS preflight covers `/session` and `/data`, and the datafeed allow-list includes `X-AXIS-Client`.** AXIS live sessions hit `POST /session` (outside the previous free CORS prefixes) and the standalone datafeed app omitted the client header from `Access-Control-Allow-Headers`. Pinned by `tests/test_free_limits_trust.py` and `tests/test_datafeed_app.py`.
 - **A hole in a stored series is healed without a client session.** Missing minutes in the middle of an engine-owned series (a venue stall the feed jumped over, a walk that started after the stored anchor, a sparse `provide` batch) make every script run over that window emit a Pine `na` — AXIS shows a gap in its indicators and logs "engine series stale (internal gap of N bars)" every minute. The tick path only filled one page per tick, and only while a data session was running: a quiet tab, or a hole the tick had given up on, left the series short of minutes until an unrelated full fetch happened to cover it. Two changes:
   - **Give-up is now a cooldown, not a life sentence.** `_gap_failures` records when a hole last failed, and `_GAP_RETRY_S` (300s) re-arms it; a transient upstream error used to block that hole start forever.
   - **Background healer** (`backend/api/gap_healer.py`, started with the app). Every `PYNE_GAP_SWEEP_S` (60s) it takes the recently written series (`PYNE_GAP_ACTIVE_S`, 900s) and fills up to `PYNE_GAP_HEAL_MAX_PAGES` pages into the widest hole (`PYNE_GAP_HEAL_MAX_SERIES`, 4 series/sweep) through the same `heal_series_gaps` used by the tick path. `PYNE_GAP_HEAL=0` opts out; the sweep never raises, never blocks a request, and is skipped under pytest so a test's deliberate hole is never filled mid-case.
@@ -163,7 +164,7 @@
 - **Selector-UDF string misclassification.** A single UDF whose first param merely selects by string (`ma(type, src, len)`) was misclassified as string-returning by the overload branch of `_call_returns_string`, so the result series became a string buffer and `close > upperk` compared Float64 vs Str (`UFuncTypeError: ufunc 'greater'`) — or leaked an object array into an njit call (`TypingError: non-precise array(pyobject)`). Only a genuine multi-impl overload set now trips the string branch. (7 set05 scripts)
 - **Tuple-returning builtin stored to a single var.** `macdValue = ta.macd(...)` treated the raw tuple as a float64 scalar → `ValueError: setting an array element with a sequence`. `_is_safe_numeric_expr` now rejects tuple-returning numba builtins (macd/dmi/supertrend/bb/kc/stochrsi/aroon/vwap) unless the expr is explicitly indexed `(...)[k]`, wrapping the store in `safe_float` (first element). (3 set05 scripts)
 - **UDF declared after a same-named input.** `maType = input.string(...)` followed by `maType(src, ...) =>` rebound the Python def, so every `maType(...)` call raised `'str' object is not callable`. Top-level UDF names are now hoisted before the body walk so the input renames to `maType__loc` while calls still resolve to the function. (2 set05 scripts)
-- **Drawing/table handle classified as a UDT series.** A `{'kind': …}` drawing/table dict tripped `_looks_like_object_handle_expr` and went through the UDT *series* branch (`t_arr[__bar_idx]`) before the drawing branch could make it a scalar handle. The UDT branch now skips drawing RHS. (1 set05 script)
+- **Drawing/table handle classified as a UDT series.** A `{'kind': …}` drawing/table dict tripped `_looks_like_object_handle_expr` and went through the UDT _series_ branch (`t_arr[__bar_idx]`) before the drawing branch could make it a scalar handle. The UDT branch now skips drawing RHS. (1 set05 script)
 - **Crossover with a `None` level.** A security-tuple stub level of `None` crashed `float(None)` in `_cross_pair`. Object mode now emits `na_num(level)` (None → nan); njit numeric levels stay a bare `float()` cast. (2 set05 scripts)
 - **User array named `X_arr` colliding with a series buffer.** `var float[] ph_arr` and the series buffer for `bool ph` (also `ph_arr`) lowered to the same Python identifier, so the per-bar `ph_arr[__bar_idx]` write hit `IndexError: list assignment index out of range` on the user's short list. The user handle is renamed to `X_arr__hdl` and threaded via `ident_map`. (8 set05 scripts)
 
@@ -302,7 +303,7 @@
 
 ### Fixed
 
-- **`WS /ws/live` no longer tears the plane down on a quiet socket.** `simple_websocket` returns `None` on a receive *timeout* (it does not raise) — the live loop read that as a disconnect and closed the socket ~50 ms after the handshake. A slow history ensure or the gap between client heartbeats therefore dropped the subscription before its snapshot arrived (the client saw "no snapshot" and fell back to venue + REST). A timeout now keeps the socket alive; a real disconnect still closes it.
+- **`WS /ws/live` no longer tears the plane down on a quiet socket.** `simple_websocket` returns `None` on a receive _timeout_ (it does not raise) — the live loop read that as a disconnect and closed the socket ~50 ms after the handshake. A slow history ensure or the gap between client heartbeats therefore dropped the subscription before its snapshot arrived (the client saw "no snapshot" and fell back to venue + REST). A timeout now keeps the socket alive; a real disconnect still closes it.
 
 ## [0.6.16] — 2026-10-19
 
@@ -324,9 +325,9 @@
 ### Fixed
 
 - **`pyne mcp call` exits non-zero on error findings.** `pyne lint` fails on errors by default (`--fail-on errors`); the MCP call path only failed when the envelope had `ok: false`, so a script with a syntax error passed CI. `pyne mcp call lint` (and `pyne diagnostics`) now exit 1 when the payload carries error-severity findings.
-- **The compile packer keeps `__alerts` a list.** An *empty* alert list was coerced to an empty float64 array, which broke truthiness checks in hosts (`ValueError: The truth value of an empty array is ambiguous`) and could drop the alert payload. `__alerts` now passes through like `__drawings` / `__events`.
+- **The compile packer keeps `__alerts` a list.** An _empty_ alert list was coerced to an empty float64 array, which broke truthiness checks in hosts (`ValueError: The truth value of an empty array is ambiguous`) and could drop the alert payload. `__alerts` now passes through like `__drawings` / `__events`.
 - **`WS /ws/run` forwards the whole run envelope (`libraries` included).** Published-library imports (`import ns/Name/1`) resolved over `POST /run` but failed over the WebSocket channel: the WS envelope mapper dropped `libraries` (and `timeout_seconds` / `from_bar` / `to_bar`). The mapping is now a shared helper (`backend.app._ws_envelope_to_payload`) that mirrors `RUN_SCHEMA`, so the WS channel has the same surface as HTTP.
-- **The Pro API image can no longer ship a broken WebSocket.** gunicorn's `geventwebsocket…GeventWebSocketWorker` upgrades the socket *and* flask-sock upgrades it again — two `101` handshakes, a desynced frame stream, and every WS frame dropped (clients see close code 1002) while REST kept working. The image default is `gthread` (flask-sock owns the upgrade), the prod compose pins it, a repo guard (`tests/test_docker_entrypoint.py`) keeps every deploy path off the gevent worker, and CI now smokes `WS /ws/run` against the built image.
+- **The Pro API image can no longer ship a broken WebSocket.** gunicorn's `geventwebsocket…GeventWebSocketWorker` upgrades the socket _and_ flask-sock upgrades it again — two `101` handshakes, a desynced frame stream, and every WS frame dropped (clients see close code 1002) while REST kept working. The image default is `gthread` (flask-sock owns the upgrade), the prod compose pins it, a repo guard (`tests/test_docker_entrypoint.py`) keeps every deploy path off the gevent worker, and CI now smokes `WS /ws/run` against the built image.
 - **`WS /ws/live` history ensure no longer blocks the socket loop.** `subscribe`/`resume`/`repair` run `_ensure()` on a worker so ping/pong keep moving. Per-id generation tokens skip late `_attach` after unsubscribe/close; a resubscribe is not treated as a duplicate of a stale worker.
 - **`request.security` resamples allowlisted `ta.cum(source)` / 1-arg `ta.ao(fast)` on HTF (D-06).** Same-symbol `ta.cum(close)` (running sum on unique HTF bars; `na` as 0) / `ta.ao(5)` (HTF hl2, SMA fast − SMA 34) on a coarser TF run the interpret TA helper on unique completed HTF bars (interpret **and** object-mode compile), with the same `gaps_on` / `lookahead_on` as `ta.sma`. Nested `ta.*` stay `na`. Disk IR cache v34.
 - **`request.security` resamples allowlisted 1-arg `ta.change(source)` on HTF (D-06).** Same-symbol `ta.change(close)` (length defaults to 1) on a coarser TF run the interpret TA helper on unique completed HTF bars (interpret **and** object-mode compile), with the same `gaps_on` / `lookahead_on` as `ta.sma`. Nested `ta.*` stay `na`. Disk IR cache v35.
@@ -410,7 +411,7 @@
 ### Fixed
 
 - **Compile-mode `request.security` resamples the same allowlisted HTF shapes as interpret (D-06).** Same-symbol simple OHLCV, `close[1]`, and `ta.sma/ema/rsi/atr/wma/rma` on a coarser TF now go through the interpret HTF helpers in object mode (`gaps_on` / `lookahead_on` honored on those paths) instead of chart passthrough or `na`. Nested `ta.*`, foreign tickers, LTF, and unparseable TFs are unchanged.
-- **A `kind: series` subscription now keeps its series store — and its socket — moving.** The engine's live feed advanced *sessions* walk-free (`apply_feed_candles`) but never the series store, and a `subscribe` for `kind: series` returned `session_id: None`, so `LiveConnection._attach` bailed before any feed listener existed. A series therefore reported `newest` frozen at the bar its history was ensured at: `GET /data/series` lagged the venue forever, every re-subscribe answered the same stale `full` snapshot, and the bars that would have healed it streamed past on the feed with nowhere to land (observed live: a 1m SOLUSDT series reporting `newest` exactly three bars behind the market at every repair, so an AXIS chart could only advance when the client's staleness repair ran). Two halves of one fix: `_emit_ready` now attaches the feed for series-kind subscriptions under the registry's own live id — stable per client + series, so a re-subscribe replaces the listener instead of stacking one per frame — and `attach_feed` upserts every batch into the store (`persist_feed_bars`, throttled per series to `PERSIST_MIN_MS` because a kline stream pushes the forming bar on every trade: a new slot always persists, a re-tick of the current one at most once per window). Upserts are by time and never raise — a store failure logs and leaves the feed alive — and the same sink also keeps the store advancing for script-kind feed subscriptions. Covered by four tests in `tests/test_live_push.py` (bounds advance, forming row upserted + throttle honoured, fail-soft store, and end-to-end subscribe → listener → delta frame + store bounds).
+- **A `kind: series` subscription now keeps its series store — and its socket — moving.** The engine's live feed advanced _sessions_ walk-free (`apply_feed_candles`) but never the series store, and a `subscribe` for `kind: series` returned `session_id: None`, so `LiveConnection._attach` bailed before any feed listener existed. A series therefore reported `newest` frozen at the bar its history was ensured at: `GET /data/series` lagged the venue forever, every re-subscribe answered the same stale `full` snapshot, and the bars that would have healed it streamed past on the feed with nowhere to land (observed live: a 1m SOLUSDT series reporting `newest` exactly three bars behind the market at every repair, so an AXIS chart could only advance when the client's staleness repair ran). Two halves of one fix: `_emit_ready` now attaches the feed for series-kind subscriptions under the registry's own live id — stable per client + series, so a re-subscribe replaces the listener instead of stacking one per frame — and `attach_feed` upserts every batch into the store (`persist_feed_bars`, throttled per series to `PERSIST_MIN_MS` because a kline stream pushes the forming bar on every trade: a new slot always persists, a re-tick of the current one at most once per window). Upserts are by time and never raise — a store failure logs and leaves the feed alive — and the same sink also keeps the store advancing for script-kind feed subscriptions. Covered by four tests in `tests/test_live_push.py` (bounds advance, forming row upserted + throttle honoured, fail-soft store, and end-to-end subscribe → listener → delta frame + store bounds).
 
 ### Security
 
@@ -421,7 +422,7 @@
 
 ### Fixed
 
-- **`WS /ws/run`, `WS /ws/live` and `/datafeed/watch` now actually exchange frames (F-30 correction).** The 0.6.11 default — `geventwebsocket.gunicorn.workers.GeventWebSocketWorker` — completed the HTTP→WS upgrade but then corrupted every frame: that worker's handler upgrades the socket itself (`wsgi.websocket`) while flask-sock ignores `wsgi.websocket` and hijacks `gunicorn.socket` to re-frame the same socket. The app raised immediately after the `101`, so Werkzeug's HTTP error response was written where a WS frame belonged. Clients saw it as a protocol error after a *successful* handshake — Chromium reports `Invalid frame header`, and a strict client aborts with `1002 reserved bits must be 0` (the first byte of `HTTP/...`, `0x48`, sets RSV1). AXIS therefore kept silently falling back to REST, exactly as before F-30, with reconnect churn on top. The default worker class is now `gthread`, which exposes `gunicorn.socket` — the transport flask-sock documents for Gunicorn — and `GUNICORN_THREADS` defaults to 100 (one thread per live WS connection). Verified against the built image: a `gthread` container answers the handshake with a well-formed frame (`{"type":"error","code":"UNAUTHORIZED",…}`) while the gevent-websocket container produces the reserved-bits protocol error. `sync` still cannot upgrade, and `gevent-websocket` remains installed but is no longer selectable by default.
+- **`WS /ws/run`, `WS /ws/live` and `/datafeed/watch` now actually exchange frames (F-30 correction).** The 0.6.11 default — `geventwebsocket.gunicorn.workers.GeventWebSocketWorker` — completed the HTTP→WS upgrade but then corrupted every frame: that worker's handler upgrades the socket itself (`wsgi.websocket`) while flask-sock ignores `wsgi.websocket` and hijacks `gunicorn.socket` to re-frame the same socket. The app raised immediately after the `101`, so Werkzeug's HTTP error response was written where a WS frame belonged. Clients saw it as a protocol error after a _successful_ handshake — Chromium reports `Invalid frame header`, and a strict client aborts with `1002 reserved bits must be 0` (the first byte of `HTTP/...`, `0x48`, sets RSV1). AXIS therefore kept silently falling back to REST, exactly as before F-30, with reconnect churn on top. The default worker class is now `gthread`, which exposes `gunicorn.socket` — the transport flask-sock documents for Gunicorn — and `GUNICORN_THREADS` defaults to 100 (one thread per live WS connection). Verified against the built image: a `gthread` container answers the handshake with a well-formed frame (`{"type":"error","code":"UNAUTHORIZED",…}`) while the gevent-websocket container produces the reserved-bits protocol error. `sync` still cannot upgrade, and `gevent-websocket` remains installed but is no longer selectable by default.
 
 ### Changed
 
@@ -447,7 +448,7 @@
 
 ### Fixed
 
-- **Concurrent session ticks share one upstream walk (singleflight + cross-session reuse).** AXIS ticks one data session per script instance (chart + N indicators) against the same series within seconds of each other; each tick paid its own CCXT walk for identical candles, and on the single gunicorn worker those walks serialized behind each other — the per-tick seconds observed from AXIS live mode. `sync_data_session` now shares the walk per series for `TICK_WALK_REUSE_S` (5 s): concurrent ticks join the in-flight walk instead of stacking round trips, and sequential ticks for *other* sessions reuse a fresh covering walk. The ticking session itself always refetches so forming-bar re-ticks observe every revision; truncated walks (hit `TICK_MAX_BARS`) are never shared. Covered by `test_concurrent_session_ticks_share_one_upstream_walk`, `test_concurrent_ticks_singleflight_one_walk` and `test_walk_cache_expires_for_new_data` in `tests/test_data_series.py`.
+- **Concurrent session ticks share one upstream walk (singleflight + cross-session reuse).** AXIS ticks one data session per script instance (chart + N indicators) against the same series within seconds of each other; each tick paid its own CCXT walk for identical candles, and on the single gunicorn worker those walks serialized behind each other — the per-tick seconds observed from AXIS live mode. `sync_data_session` now shares the walk per series for `TICK_WALK_REUSE_S` (5 s): concurrent ticks join the in-flight walk instead of stacking round trips, and sequential ticks for _other_ sessions reuse a fresh covering walk. The ticking session itself always refetches so forming-bar re-ticks observe every revision; truncated walks (hit `TICK_MAX_BARS`) are never shared. Covered by `test_concurrent_session_ticks_share_one_upstream_walk`, `test_concurrent_ticks_singleflight_one_walk` and `test_walk_cache_expires_for_new_data` in `tests/test_data_series.py`.
 - **Live-session ticks no longer backfill runaway histories (connection-storm fix).** `POST /data/session/<id>/tick` fetched candles from the stored anchor with **no bar cap**, so a stale series (cached restore, failed first fetch, symbol/interval switch) walked CCXT pages across the whole gap — up to `MAX_FETCH_PAGES` × `FETCH_PAGE_LIMIT` = 200,000 bars of sequential upstream round trips per tick. One such tick pinned an HTTP request for 145–240 s, serialized every other request on the same series behind `key_lock`, and wrote ~200k junk bars into the series store per tick; on gunicorn (1 worker × 4 threads, 120 s timeout) a few charts exhausted the pool and the timeout kills dropped every in-flight connection, producing the "connection issues several times a minute" symptom. Now: the walk is capped at `TICK_MAX_BARS` (2,500), a stale anchor is **clamped to a bounded recent window** instead of paging the whole gap, and the tick response flags `stale: true` so AXIS can re-sync history deliberately. The upstream walk also runs **outside** `key_lock` (only the fast local commit — liveness check, persist, session advance — holds it), and a tick aborts with `404 SESSION_GONE` when the session is released mid-flight instead of persisting for a dead session.
 - **Series retention ceiling.** `SeriesStore.provide` now trims the oldest bars beyond `MAX_SERIES_BARS` (200,000 — 2× the largest legit window), so a runaway backfill or a chatty client cannot grow a series without bound.
 - **The PYNE_DEBUG access log was silently dropped under `make run`.** `python -m backend.app` names the module `__main__`, which `backend.logging_setup` does not manage (its prefixes are `pynescript`/`backend`), so the per-request `METHOD /path -> status in ms` lines and the slow-request lines never appeared while engine/datafeed lines did. `backend/app.py` now logs under an explicit `backend.app` logger; gunicorn was already correct.
@@ -473,16 +474,16 @@
 
 ### Changed
 
-- **Docs export minifier no longer shreds identifiers** (`scripts/docs/generate-exports.mjs`). The markdown-emphasis strippers `_([^_]+)_` and `__([^_]+)__` were not word-boundary anchored, so they paired the underscores of *different* identifiers whenever two appeared in one sentence: `PYNE_DEBUG=1 and PYNE_DEBUG_SCOPE=x` matched `_DEBUG=1 and PYNE_` and shipped `PYNEDEBUG=1 and PYNESCOPE=x`. Every generated `llm.txt` therefore lost identifier spellings — `ADMIN_TOKEN` shipped as `ADMINTOKEN` (33 occurrences), plus `PYNEDEBUG`, `frombar`, `sessionid`, and others — degrading the packs AXIS and the agents read for exactly the env-var and field names they need most. Both patterns are now anchored with lookarounds, so real _emphasis_ / __strong__ still collapse while snake_case identifiers, `__bar_idx`, and env-var names survive intact.
+- **Docs export minifier no longer shreds identifiers** (`scripts/docs/generate-exports.mjs`). The markdown-emphasis strippers `_([^_]+)_` and `__([^_]+)__` were not word-boundary anchored, so they paired the underscores of _different_ identifiers whenever two appeared in one sentence: `PYNE_DEBUG=1 and PYNE_DEBUG_SCOPE=x` matched `_DEBUG=1 and PYNE_` and shipped `PYNEDEBUG=1 and PYNESCOPE=x`. Every generated `llm.txt` therefore lost identifier spellings — `ADMIN_TOKEN` shipped as `ADMINTOKEN` (33 occurrences), plus `PYNEDEBUG`, `frombar`, `sessionid`, and others — degrading the packs AXIS and the agents read for exactly the env-var and field names they need most. Both patterns are now anchored with lookarounds, so real _emphasis_ / **strong** still collapse while snake_case identifiers, `__bar_idx`, and env-var names survive intact.
 
 ### Fixed
 
 Six long-standing failures, plus one defect in the docs export pipeline that made every generated LLM context pack lossy.
 
-- **`chart.point.copy(pt)` silently dropped its argument.** `_call_prefers_array_method` returned True for *any* attribute receiver, so `chart.point.copy` was lowered to `array.copy` before the `chart.point` branch could run, emitting `array_copy_value(None)`. The point became `None`, `pt2.price` read through `udt_get_field(None, …)` as NaN, and the strategy/plot silently plotted nothing. The chart.point namespace is now recognised and excluded from the collection-method path (`_is_chart_point_namespace`).
+- **`chart.point.copy(pt)` silently dropped its argument.** `_call_prefers_array_method` returned True for _any_ attribute receiver, so `chart.point.copy` was lowered to `array.copy` before the `chart.point` branch could run, emitting `array_copy_value(None)`. The point became `None`, `pt2.price` read through `udt_get_field(None, …)` as NaN, and the strategy/plot silently plotted nothing. The chart.point namespace is now recognised and excluded from the collection-method path (`_is_chart_point_namespace`).
 - **A numeric multi-return UDF was forced into object mode.** `f(float a, float b) => [a + 1.0, b + 2.0]` is marked `func_returns_sequence` so a single-target `a = f()` keeps the tuple as a handle — but that same marker also demoted the multi-unpack `[u, w] = f()` to object mode, cutting the nopython stay rate for that shape. Such functions are now recognised as numeric-tuple UDFs (excluding string/UDT/import returns) and keep float series. The unpack also emits direct `__tup[i]` indexing: the `isinstance(__tup, (tuple, list))` guard cannot be narrowed by Numba, and it alone was enough to fail the njit warm-up.
-- **Interpret and compile disagreed on every titled `fill()`.** Interpret wrote the per-bar band colour into the `series` column; compile packs series into float64 arrays and therefore *cannot* emit a colour string, so it emitted null. Any script using `fill(..., title="…")` therefore rendered differently depending on mode. The interpret fill column is now null; the band is still described completely by `plot_meta` (`kind="fill"`, `plot1`/`plot2`, `color`), so nothing is lost for the frontend.
-- **The parity harness reported a hard MISMATCH for arbitrarily-titled fills.** `is_fill_background_key` matched series by *name* only, so `fill(p1, p2, title="BE Zone")` fell through to a numeric-parity failure even though the difference was colour-vs-null and there was no number to compare. Fill classification is now value-aware: a column whose every non-NA cell is an `rgb()`/`rgba()` string is a fill series regardless of its title. Numeric parity is unchanged — `_is_nonnumeric_only_difference` still hard-fails any cell that is numeric on both sides.
+- **Interpret and compile disagreed on every titled `fill()`.** Interpret wrote the per-bar band colour into the `series` column; compile packs series into float64 arrays and therefore _cannot_ emit a colour string, so it emitted null. Any script using `fill(..., title="…")` therefore rendered differently depending on mode. The interpret fill column is now null; the band is still described completely by `plot_meta` (`kind="fill"`, `plot1`/`plot2`, `color`), so nothing is lost for the frontend.
+- **The parity harness reported a hard MISMATCH for arbitrarily-titled fills.** `is_fill_background_key` matched series by _name_ only, so `fill(p1, p2, title="BE Zone")` fell through to a numeric-parity failure even though the difference was colour-vs-null and there was no number to compare. Fill classification is now value-aware: a column whose every non-NA cell is an `rgb()`/`rgba()` string is a fill series regardless of its title. Numeric parity is unchanged — `_is_nonnumeric_only_difference` still hard-fails any cell that is numeric on both sides.
 - **Two stale assertions, updated to the invariants that actually hold.** `test_udt_na_field_access_no_scalar_getitem` required the UDT guard to be inlined as `isinstance(__u, dict)`; commit `8bc8f41d` moved that guard into the `udt_get_field` builtin (the inlined walrus is a `SyntaxError` inside list comprehensions), so the test now accepts either spelling. `test_get_price_pine_series_endpoints` asserted `line.new` stores a `PineSeries`; `0ad37af0` began snapshotting endpoints to plain numbers so `export_for_api` could not re-read `.current` on the last bar and diverge from compile — a strictly newer, deliberate change — so the test now asserts the resolved values.
 
 ### Documentation
@@ -496,10 +497,9 @@ Six long-standing failures, plus one defect in the docs export pipeline that mad
 ### Added
 
 - **Response windowing on `POST /run`** — optional `from_bar` / `to_bar` request fields (inclusive bar indices into `data`, negative counts from the end, either side may be omitted). Trims the **serialized envelope only**: the bar loop still runs over every bar, so indicator values, strategy state, NaN warm-up, and Pine parity are untouched. Measured on 20k bars against a local Pro API: **1,068.8 KB → 28.0 KB (38x smaller)** for a 500-bar window, with the windowed series verified byte-equal to the full run's tail.
-  Windowing is a **no-op when the fields are absent** — the unwindowed envelope is unchanged and gains no `window` key. When a window *is* applied the response carries `window: {from_bar, to_bar, bars, total_bars}`, because `count` still reports bars *evaluated*; a client seeing `count=20000` with a 500-long series needs that to tell a window from a short history. `meta.profile.bars` is rewritten to the windowed length and flagged `windowed`.
+  Windowing is a **no-op when the fields are absent** — the unwindowed envelope is unchanged and gains no `window` key. When a window _is_ applied the response carries `window: {from_bar, to_bar, bars, total_bars}`, because `count` still reports bars _evaluated_; a client seeing `count=20000` with a 500-long series needs that to tell a window from a short history. `meta.profile.bars` is rewritten to the windowed length and flagged `windowed`.
   Events and drawings carry `bar_index` and are filtered to the window; objects with only `bar_time` (strategy fills) have no index to match on and are **kept**, so trimming can never silently drop a fill.
   Implemented at the serialization boundary (`backend/middleware/window.py`) rather than inside the runtime, which leaves the compile path and every parity surface untouched.
-
 
 - **Live evaluation sessions over HTTP** — `POST /session`, `GET /session/<id>`, `POST /session/<id>/tick`, `POST /session/<id>/append`, `DELETE /session/<id>`. A session keeps the parsed script, its series, and its TA state alive, so re-ticking the forming bar is O(1) instead of re-evaluating every bar. Measured on 20k bars: full run **1,087.8 ms** → `update_last_bar` **0.130 ms** (**8,343x**) and `append_bars` **0.127 ms** (**8,572x**). Session init costs ~443 ms, so a session breaks even after its **first** tick. Tick and append both accept the same optional `from_bar`/`to_bar` envelope window as `/run`; combined with a 500-bar window the same live update costs **0.227 ms and 37.2 KB**, against 1,087.8 ms and 1,068 KB for a full run. Interpret only — `compile` has no resumable evaluator state and is rejected with `MODE_UNSUPPORTED`.
 
@@ -507,8 +507,8 @@ Six long-standing failures, plus one defect in the docs export pipeline that mad
 
 - **The Pro API now runs a single gunicorn worker** (`-w 1`, was `-w 2`) in `deploy/pynescript-api.service`, `deploy/pynescript-api.service.d/tuning.conf`, `docker/entrypoint-api.sh`, and `docker-compose.prod.yml`. Session state is per-process, so a second worker would 404 on roughly half of all follow-up calls — a session created on one worker is invisible on the other. Correctness, not tuning: gevent still handles thousands of concurrent connections per worker and `--max-requests` recycling is unchanged. **Both** systemd files had to change: the drop-in wins on conflict, so a stale `-w 2` there silently overrides the base unit — exactly the failure mode the file's own comment warns about. The Cloudflare container was already `GUNICORN_WORKERS=1`.
 - Session store bounds: 15-minute idle TTL, 64 concurrent sessions, 30-second sweep. Capacity overflow returns 503 `SESSIONS_FULL` rather than growing until the OOM killer arrives.
-- **Table export parity**: ``table.cell`` now stores all v6 style kwargs (width, height, halign, valign, size, font, formatting, tooltip) in reference positional order (``width, height, text_color, halign, valign, size, bgcolor, tooltip, font_family, formatting``), and both export paths (``export_for_api``, ``export_compile_events_for_api``) emit cell style, ``force_overlay``, frame/border widths, and ``merged_cells`` — AXIS bottom-panel tables get proportional columns, tooltips, and merges without a wire change on its side.
-- **Compile drawing extras**: ``export_compile_events_for_api`` now emits the box text/border extras, label tooltip/text extras, and polyline curve/overlay/fill fields the interpret host already emitted. Also adds the missing ``text.align_*`` enum constants (halign + valign) and stores ``box.new`` text kwargs — both hosts produce identical dicts for AXIS paint.
+- **Table export parity**: `table.cell` now stores all v6 style kwargs (width, height, halign, valign, size, font, formatting, tooltip) in reference positional order (`width, height, text_color, halign, valign, size, bgcolor, tooltip, font_family, formatting`), and both export paths (`export_for_api`, `export_compile_events_for_api`) emit cell style, `force_overlay`, frame/border widths, and `merged_cells` — AXIS bottom-panel tables get proportional columns, tooltips, and merges without a wire change on its side.
+- **Compile drawing extras**: `export_compile_events_for_api` now emits the box text/border extras, label tooltip/text extras, and polyline curve/overlay/fill fields the interpret host already emitted. Also adds the missing `text.align_*` enum constants (halign + valign) and stores `box.new` text kwargs — both hosts produce identical dicts for AXIS paint.
 - **OKF bundle**: `okf/` is an Open Knowledge Format v0.2 cache of the package, the Pro API, and the docs. The pre-commit hook drafts, links, and lints it. Generated parsers and the Pine corpora are left out of the map.
 
 ### Fixed
@@ -516,23 +516,23 @@ Six long-standing failures, plus one defect in the docs export pipeline that mad
 - **`/health` never advertised the live-session endpoints.** `POST /session`, `…/tick`, `…/append`, `GET`/`DELETE /session/<id>` were routable but absent from the health `endpoints` map, so the API reported 28 endpoints and no mention of sessions. `/health` is the discovery surface AXIS and agents read to learn what a host can do, so an unadvertised route reads as a route that does not exist. Two tests now guard it, in both directions: every session route is advertised, and every advertised session route is routable with keys byte-identical to Flask's rule strings so a rename in the decorator cannot desynchronise discovery from routing. Verified the guard fails when the entries are removed.
   The checks are deliberately scoped to the session routes rather than the whole map: `/health` advertises some routes only when a subsystem is enabled (`runner_enabled()` / `scheduler_enabled()`), so a whole-map invariant would flag that intentional conditional advertisement as drift.
 
-- **Interpreter/compile parity harness could not classify bgcolor differences** (7 of 13 outstanding failures). `fill_background_only` was computed solely from keys present on *one* side, so a `Background` series present in **both** runs — with colour strings (`'rgba(...)'`) from interpret and `None` from compile — fell through to a hard `MISMATCH` and was unrepresentable as the known compile-path fill gap. `compare_series_maps` now routes such keys to a separate, reported `fill_value_diffs` bucket and lets them satisfy `fill_background_only`.
+- **Interpreter/compile parity harness could not classify bgcolor differences** (7 of 13 outstanding failures). `fill_background_only` was computed solely from keys present on _one_ side, so a `Background` series present in **both** runs — with colour strings (`'rgba(...)'`) from interpret and `None` from compile — fell through to a hard `MISMATCH` and was unrepresentable as the known compile-path fill gap. `compare_series_maps` now routes such keys to a separate, reported `fill_value_diffs` bucket and lets them satisfy `fill_background_only`.
   The tolerance is deliberately narrow: `_is_nonnumeric_only_difference` returns False the moment any disagreeing cell is numeric on **both** sides, so a genuine numeric difference on a fill key is still a hard mismatch. Only colour/NA cells on fill-shaped keys are absorbed, and they stay visible in the result rather than being dropped.
 - **`array.copy(na)` emitted a dead `list(None)` into generated code.** `array.copy` inlined `list(x) if isinstance(x, (list, tuple, np.ndarray)) else []`, which for a literal `None` argument renders as `pt2 = (list(None) if isinstance(None, ...) else [])`. It never executed — the `isinstance` guard is False — but the text reads like a crash and is what `test_chart_point_copy_not_list_none` guards against. Now routed through an `array_copy_value` builtin, matching how `array_sort` is already handled.
 
-- **Generated docs packs no longer shred digits**: the emoji strip in ``scripts/docs/generate-exports.mjs`` used bare ``\p{Emoji}``, which also matches ASCII digits participating in keycap sequences. Every ``llm.txt`` / ``llms.txt`` therefore shipped mangled text — ``AGPL-3.0-only`` became ``AGPL-.-only``, ``ADR-001`` became ``ADR-``, ``/v/chat`` became ``/v/chat`` with digits eaten. Now strips ``\p{Extended_Pictographic}`` plus the skin-tone / variation / combining-keycap codepoints, so real emoji go and version numbers, ADR ids, and license identifiers survive.
-- **AXIS docs pack pointed at the wrong repository**: the export pipeline hardcoded the PYNE repo URL for every product, so ``/axis/docs/llm.txt`` announced ``Repository: https://github.com/hoox-sh/pyne``. Each product now carries its own ``repoUrl``.
-- **VPS Pro API memory growth**: gunicorn workers now recycle (``--max-requests``) on both the Hetzner systemd unit and the Docker entrypoint (``GUNICORN_MAX_REQUESTS``). Without recycling, workers grew past 1.6 GB each on the 3.8 GB VPS until swap filled 100% and even ``GET /health`` took 6–14 s, so AXIS reported the engine as down. The unit is now versioned at ``deploy/pynescript-api.service`` (+ ``cors.conf`` drop-in) and ``scripts/deploy_vps.sh`` installs it before restart.
+- **Generated docs packs no longer shred digits**: the emoji strip in `scripts/docs/generate-exports.mjs` used bare `\p{Emoji}`, which also matches ASCII digits participating in keycap sequences. Every `llm.txt` / `llms.txt` therefore shipped mangled text — `AGPL-3.0-only` became `AGPL-.-only`, `ADR-001` became `ADR-`, `/v/chat` became `/v/chat` with digits eaten. Now strips `\p{Extended_Pictographic}` plus the skin-tone / variation / combining-keycap codepoints, so real emoji go and version numbers, ADR ids, and license identifiers survive.
+- **AXIS docs pack pointed at the wrong repository**: the export pipeline hardcoded the PYNE repo URL for every product, so `/axis/docs/llm.txt` announced `Repository: https://github.com/hoox-sh/pyne`. Each product now carries its own `repoUrl`.
+- **VPS Pro API memory growth**: gunicorn workers now recycle (`--max-requests`) on both the Hetzner systemd unit and the Docker entrypoint (`GUNICORN_MAX_REQUESTS`). Without recycling, workers grew past 1.6 GB each on the 3.8 GB VPS until swap filled 100% and even `GET /health` took 6–14 s, so AXIS reported the engine as down. The unit is now versioned at `deploy/pynescript-api.service` (+ `cors.conf` drop-in) and `scripts/deploy_vps.sh` installs it before restart.
 
 ### Security
 
-- **undici TLS certificate validation bypass (CVE-2026-84961 / GHSA-w293-vg96-wgc3, high)** and five further undici advisories are closed in ``cf/`` by an ``overrides`` entry pinning ``undici`` to ``^7.29.1`` (resolves 7.30.0). ``BalancedPool`` used to deep-clone its constructor options through ``JSON.parse(JSON.stringify(...))``, which cannot represent functions — a ``connect``/``tls`` option carrying a ``checkServerIdentity`` callback was silently dropped before reaching the TLS layer, so a certificate the caller's validator was written to reject was accepted.
-  ``undici`` reached ``cf/`` only as a transitive dev dependency (``wrangler`` → ``miniflare``); the sole runtime dependency is ``@cloudflare/containers``, so the vulnerable path never shipped. Fixed regardless — a silently-dropped certificate validator is the wrong thing to leave lying in a tree that runs in CI.
-  Verified with a clean ``npm ci``: resolves 7.30.0, ``npm audit`` reports zero undici advisories, and ``wrangler`` still runs.
-- **sharp librsvg CVE-2026-96889 (GHSA-wq5f-xc86-pv6w, high)** closed by pinning ``sharp`` to ``^0.35.5`` (resolves 0.35.5) in ``cf/``. Same ``wrangler`` → ``miniflare`` dev chain; the bump pulls matching ``@img/sharp-libvips-*`` 1.3.4 platform binaries and nothing else.
-- **brace-expansion DoS (2 high, 1 medium)** closed in ``vscode-extension/`` by pinning ``brace-expansion`` to ``^5.0.12`` (resolves 5.0.12) under ``vscode-languageclient`` → ``minimatch``. The three advisories were stack exhaustion via uncontrolled recursion in ``expand_()`` (GHSA-qhr7-859c-m2p7) and ``parseCommaParts()`` (GHSA-6j4f-fj2g-mc7p), and quadratic-time expansion of ``{a},b}`` input (GHSA-q2hr-2g5m-vwhr). 5.0.12 is the strictest floor across all three.
+- **undici TLS certificate validation bypass (CVE-2026-84961 / GHSA-w293-vg96-wgc3, high)** and five further undici advisories are closed in `cf/` by an `overrides` entry pinning `undici` to `^7.29.1` (resolves 7.30.0). `BalancedPool` used to deep-clone its constructor options through `JSON.parse(JSON.stringify(...))`, which cannot represent functions — a `connect`/`tls` option carrying a `checkServerIdentity` callback was silently dropped before reaching the TLS layer, so a certificate the caller's validator was written to reject was accepted.
+  `undici` reached `cf/` only as a transitive dev dependency (`wrangler` → `miniflare`); the sole runtime dependency is `@cloudflare/containers`, so the vulnerable path never shipped. Fixed regardless — a silently-dropped certificate validator is the wrong thing to leave lying in a tree that runs in CI.
+  Verified with a clean `npm ci`: resolves 7.30.0, `npm audit` reports zero undici advisories, and `wrangler` still runs.
+- **sharp librsvg CVE-2026-96889 (GHSA-wq5f-xc86-pv6w, high)** closed by pinning `sharp` to `^0.35.5` (resolves 0.35.5) in `cf/`. Same `wrangler` → `miniflare` dev chain; the bump pulls matching `@img/sharp-libvips-*` 1.3.4 platform binaries and nothing else.
+- **brace-expansion DoS (2 high, 1 medium)** closed in `vscode-extension/` by pinning `brace-expansion` to `^5.0.12` (resolves 5.0.12) under `vscode-languageclient` → `minimatch`. The three advisories were stack exhaustion via uncontrolled recursion in `expand_()` (GHSA-qhr7-859c-m2p7) and `parseCommaParts()` (GHSA-6j4f-fj2g-mc7p), and quadratic-time expansion of `{a},b}` input (GHSA-q2hr-2g5m-vwhr). 5.0.12 is the strictest floor across all three.
 
-  Both trees verified with a clean ``npm ci`` (not an incremental install): ``npm audit`` reports **0 vulnerabilities** in ``cf/`` and ``vscode-extension/``, ``wrangler`` still runs, and the extension still compiles. Dependabot is now at **zero open alerts** for this repository.
+  Both trees verified with a clean `npm ci` (not an incremental install): `npm audit` reports **0 vulnerabilities** in `cf/` and `vscode-extension/`, `wrangler` still runs, and the extension still compiles. Dependabot is now at **zero open alerts** for this repository.
 
 ### Docs
 
@@ -540,7 +540,7 @@ Six long-standing failures, plus one defect in the docs export pipeline that mad
 
 ### Known limitation
 
-Sessions are **interpret-only** (``compile`` has no resumable evaluator state; ``create_session`` rejects it), and **strategy fills are not rolled back across ticks** — fills accumulate and strategy series history is overwritten rather than appended, the same caveat as the realtime tick loop in ``Runtime.run``. Indicators and ``alert()`` conditions are unaffected. A live *strategy* driven through ``/session/<id>/tick`` needs that fixed first.
+Sessions are **interpret-only** (`compile` has no resumable evaluator state; `create_session` rejects it), and **strategy fills are not rolled back across ticks** — fills accumulate and strategy series history is overwritten rather than appended, the same caveat as the realtime tick loop in `Runtime.run`. Indicators and `alert()` conditions are unaffected. A live _strategy_ driven through `/session/<id>/tick` needs that fixed first.
 
 ## [0.6.8] - 2026-09-26
 
@@ -553,18 +553,18 @@ Sessions are **interpret-only** (``compile`` has no resumable evaluator state; `
 ### Changed
 
 - Interpret hot path loads call-site, assignment, and TA state by attribute
-  instead of ``getattr``, reuses each TA dict key across bars, and skips
-  repeated argument checks for steady ``ta.sma`` / ``ema`` / ``rsi`` /
-  ``stdev`` / ``bb`` / ``atr`` / ``highest`` / ``lowest``. Calendar names
-  (``year``, ``month``, …) still materialize on first read. On a 2000-bar
-  interpret bench, mixed TA went from 135 ms to 113 ms and ``plot(close)``
+  instead of `getattr`, reuses each TA dict key across bars, and skips
+  repeated argument checks for steady `ta.sma` / `ema` / `rsi` /
+  `stdev` / `bb` / `atr` / `highest` / `lowest`. Calendar names
+  (`year`, `month`, …) still materialize on first read. On a 2000-bar
+  interpret bench, mixed TA went from 135 ms to 113 ms and `plot(close)`
   from 12.5 ms to 10.0 ms.
 
 ### Fixed
 
-- ``ta.uo`` no longer copies one buying-pressure ratio into all three
+- `ta.uo` no longer copies one buying-pressure ratio into all three
   averages. Interpret uses the three-window incremental kernel. Compile
-  emits ``numba_uo`` in nopython mode.
+  emits `numba_uo` in nopython mode.
 
 ## [0.6.6] - 2026-09-22
 
@@ -572,43 +572,43 @@ Runtime last-sample TA, convert-to-v6 identifier safety, webhook SSRF, LSP neste
 
 ### Fixed
 
-- ``ta.ao()`` no longer rebuilds ``hl2`` every bar when the identifier is
+- `ta.ao()` no longer rebuilds `hl2` every bar when the identifier is
   absent; the full-recompute path returns the last SMA sample instead of
-  ``None``. Period-only ``ta.stoch`` / ``ta.cci`` / ``ta.wpr`` skip series
-  cap-slice copies on the incremental path. Period-only ``ta.dmi`` uses the
-  same last-sample incremental path. Incremental ``ta.bb`` shares one SMA+stdev
-  window instead of two nested deques. ``ta.cog`` / ``ta.mode`` use last-sample
+  `None`. Period-only `ta.stoch` / `ta.cci` / `ta.wpr` skip series
+  cap-slice copies on the incremental path. Period-only `ta.dmi` uses the
+  same last-sample incremental path. Incremental `ta.bb` shares one SMA+stdev
+  window instead of two nested deques. `ta.cog` / `ta.mode` use last-sample
   incremental kernels.
-- Convert-to-v6 leaves ``n`` inside ``for n =`` bodies as the loop variable.
-- Interpret ``color.*`` named constants use the Pine v6 palette (``color.green``
-  is ``#22AB94``), matching compile ``_color_const``.
-- Linter ``C001`` only fires on snake_case ``ta.*`` assignments (``fastMA`` /
-  ``sma`` are quiet; ``pyne lint`` matches the LSP filter).
-- Convert-to-v6 no longer rewrites v5 UDF definitions named ``security`` /
-  ``financial`` / other ``request.*`` leaves to ``request.<name>(...) =>``.
-  v3 ``period =`` / ``for n =`` stay user identifiers; ``n == 0`` still
-  becomes ``bar_index``.
-- LSP ``strategy.`` completion keeps nested ``risk.*`` insert text;
+- Convert-to-v6 leaves `n` inside `for n =` bodies as the loop variable.
+- Interpret `color.*` named constants use the Pine v6 palette (`color.green`
+  is `#22AB94`), matching compile `_color_const`.
+- Linter `C001` only fires on snake_case `ta.*` assignments (`fastMA` /
+  `sma` are quiet; `pyne lint` matches the LSP filter).
+- Convert-to-v6 no longer rewrites v5 UDF definitions named `security` /
+  `financial` / other `request.*` leaves to `request.<name>(...) =>`.
+  v3 `period =` / `for n =` stay user identifiers; `n == 0` still
+  becomes `bar_index`.
+- LSP `strategy.` completion keeps nested `risk.*` insert text;
   completion resolve no longer restores a fully-qualified snippet after
-  ``ta.``. Hover documents additional namespaces and drawing/collection
-  types; bare ``line`` stays a type card.
-- ``line.fill`` is cataloged as an alias of ``linefill.new`` so AXIS pre-eval
-  does not suggest ``line.all``. Compile fill ``plot_meta`` stamps ``plot1`` /
-  ``plot2``; interpret fill color is per-bar.
+  `ta.`. Hover documents additional namespaces and drawing/collection
+  types; bare `line` stays a type card.
+- `line.fill` is cataloged as an alias of `linefill.new` so AXIS pre-eval
+  does not suggest `line.all`. Compile fill `plot_meta` stamps `plot1` /
+  `plot2`; interpret fill color is per-bar.
 
 ### Security
 
 - Alert webhooks unwrap IPv4-mapped / 6to4 / decimal IPv4, refuse HTTP
-  redirects, and re-check the URL at POST time. ``POST /run/batch`` now
-  returns ``WEBHOOK_URL_BLOCKED`` instead of silently skipping.
-- Oversized request bodies return JSON ``PAYLOAD_TOO_LARGE`` (413).
-- Git OAuth device-flow ``verification_uri`` values are allowlisted to
-  ``github.com`` / ``gitlab.com``.
-- Hosted runner GET ``/scripts`` / ``/scripts/:id`` / ``/cron/jobs`` redact
-  ``webhook_url`` when ``ADMIN_TOKEN`` is set and the request is unauthenticated.
-- Client ``timeout_seconds`` is capped (default 120s, ``PYNE_RUN_TIMEOUT_MAX``)
+  redirects, and re-check the URL at POST time. `POST /run/batch` now
+  returns `WEBHOOK_URL_BLOCKED` instead of silently skipping.
+- Oversized request bodies return JSON `PAYLOAD_TOO_LARGE` (413).
+- Git OAuth device-flow `verification_uri` values are allowlisted to
+  `github.com` / `gitlab.com`.
+- Hosted runner GET `/scripts` / `/scripts/:id` / `/cron/jobs` redact
+  `webhook_url` when `ADMIN_TOKEN` is set and the request is unauthenticated.
+- Client `timeout_seconds` is capped (default 120s, `PYNE_RUN_TIMEOUT_MAX`)
   so a huge value cannot hold a gunicorn worker until SIGKILL.
-- ``POST /preview/chart``, ``/preview/indicator``, and ``/backtest/quick``
+- `POST /preview/chart`, `/preview/indicator`, and `/backtest/quick`
   validate against their schemas (unknown fields rejected).
 
 ## [0.6.5] - 2026-09-14
@@ -617,9 +617,9 @@ Convert-to-v6 no longer rewrites user UDF names, parameters, or unpack targets.
 
 ### Fixed
 
-- ``ta.*`` / ``math.*`` / ``ticker.*`` prefixes apply only to **calls**. UDF
-  definitions (``hma(...) =>``), parameters named ``min``/``max``/``mode``, and
-  unpack targets (``[rsi, dev] =``) stay user identifiers. set01–04 scripts
+- `ta.*` / `math.*` / `ticker.*` prefixes apply only to **calls**. UDF
+  definitions (`hma(...) =>`), parameters named `min`/`max`/`mode`, and
+  unpack targets (`[rsi, dev] =`) stay user identifiers. set01–04 scripts
   older than v6 parse 323/323 after convert.
 
 ## [0.6.4] - 2026-09-14
@@ -629,16 +629,16 @@ Convert older Pine to v6 in the editor, LSP, CLI, and HTTP.
 ### Added
 
 - Editor **Convert to Pine v6**: AXIS overflow menu + command palette, VS Code
-  ``PYNE: Convert to Pine v6`` / lightbulb, LSP code action, and
-  ``POST /lsp/convert``. Source-level rewrite from any older version (missing
-  pragma = v1) — colors / ``n`` / timeframe idents, ``ta.*`` / ``math.*`` /
-  ``request.*`` namespaces, ``study(``→``indicator(``, typed ``input.*()``,
-  ``iff`` / ``offset``. Not a semantic v6 migrator.
+  `PYNE: Convert to Pine v6` / lightbulb, LSP code action, and
+  `POST /lsp/convert`. Source-level rewrite from any older version (missing
+  pragma = v1) — colors / `n` / timeframe idents, `ta.*` / `math.*` /
+  `request.*` namespaces, `study(`→`indicator(`, typed `input.*()`,
+  `iff` / `offset`. Not a semantic v6 migrator.
 
 ### Changed
 
-- ``pyne convert --to 6`` now runs the full v1-v5 pipeline, not only
-  leftover ``study(`` / ``request.*`` names.
+- `pyne convert --to 6` now runs the full v1-v5 pipeline, not only
+  leftover `study(` / `request.*` names.
 
 ## [0.6.3] - 2026-09-14
 
@@ -788,7 +788,7 @@ surfaced by the work.
 - `_as_series` same-bar cache could false-hit on a different series (single
   interned-int fingerprint): fingerprint uses the two newest samples and the
   host clears the cache every bar.
-- OHLCV pack cache evicted from the *list* cache, so the pack cache was
+- OHLCV pack cache evicted from the _list_ cache, so the pack cache was
   never bounded.
 - `didChange` without a prior `didOpen` crashed the LSP handler (now treated
   as an empty open); closed documents leaked into the workspace parse-error
@@ -888,11 +888,13 @@ surfaced by the work.
 ## [0.3.17] - 2026-08-19
 
 ### Fixed
+
 - **Compile object-mode residuals** — user `round()` UDF call sites pass free/chart formals; missing library `alias.method(...)` stubs are `na` not Python `None`; same-arity `negate(float|bool|color)` dispatches by argument type so hex colors stay off float64 series; method overloads on UDT fields (`this.wins.getAvgProfit()`) pick the field's type, not the outer receiver.
 
 ## [0.3.16] - 2026-08-19
 
 ### Fixed
+
 - **Compile object-mode corpus residuals (set06)** — UDF `int m = if` stays a local (not script `m_arr`); nested UDFs still receive script-level `a_arr` when a param shadows `a`; UDF `var vol` does not steal chart `vol_arr` (`get_counts` arity); `Type.new()` locals mark UDT returns so `s.strength` is not `float(dict)`; statement-form `x = switch` no longer emits invalid `x = if`; `chart.point.copy` / `box.copy` clone dicts instead of `list(None)`.
 - **Numba object-mode helpers** — `None` no longer TypingErrors `numba_max`/`min`/`abs` and related scalars; `timestamp` skips a leading timezone string; `valuewhen` and running max/min fall back on object arrays; Pine `int(na)` is `na` (`pine_int`, not Python `int(nan)`); `ta.pivothigh` na lengths; `ta.cum` uses `safe_float`.
 - **Matrix handles** — UDF/`kron` results stay list-of-lists objects; builtins do not `len()` a numpy scalar.
@@ -900,29 +902,35 @@ surfaced by the work.
 - **Grammar** — `NEWLINE+` before indented `=>` / if / for / while / switch bodies.
 
 ### Changed
+
 - Docs: missing-features / implementation-status / roadmap / progress report aligned with compile object-mode residual recovery (P1p plot MISMATCH tail still open).
 
 ## [0.3.15] - 2026-08-19
 
 ### Added
+
 - **`pynescript download-builtins`** — catalog + download TradingView builtin Pine templates via pine-facade (`--list` / `--yes` / `--limit`).
 - **`scripts/search_clone_pine_pool.py`** — search and shallow-clone GitHub Pine repos for corpus collection.
 - **`cf/`** — Cloudflare Containers Worker that fronts the Pro API and keeps a named instance warm.
 
 ### Improved
+
 - **LSP hover** — types/qualifiers (`series` / `float`), namespaces (`ta` in `ta.sma`), user functions/assignments/`type`/`enum`, and longer keyword briefs. Builtin cards keep signature fence + params when metadata has them.
 
 ### Fixed
+
 - **Compile set06 residuals** — missing `array`/`map`/`matrix` helpers, `for`+`continue` increment, for/while-as-expression emit, multi-value and default-only `switch`, `/* */` comments, map `for-in` pairs, `ta.dmi` scalar assign, `matrix.set` expression form, `np` unpack shadowing, nopython `TypingError` object-mode retry, tuple/UDT stores off float64 series.
 - **Corpus sanitize** — RST/Hugo/MDX chrome, mustache `{{IDENT}}`, indented `study` bodies, column-1 ternary tails, torn string fixtures.
 
 ## [0.3.14] - 2026-08-18
 
 ### Fixed
+
 - **`strategy.position_avg_price`** — repeating `strategy.entry("L")` no longer overwrites a filled position (avg was tracking last close). Extra same-direction entries only when `pyramiding` allows; interpret and compile.
 - **`strategy()` leverage vs margin** — when `leverage=` is set it wins (margins derived from it). `margin_long` / `margin_short` only apply when leverage is omitted. Compile broker accepts those kwargs the same way.
 
 ### Changed
+
 - Docs / comments: PYNE open-entry cap is `pyramiding + 1` (TV `pyramiding` default 1 ≡ PYNE 0). Unused compile-broker `replace_same_id` kwarg removed.
 - Tests: leverage-vs-margin (both set), compile margin-only 5× cash sizing, same-id pyramid VWAP (third fill blocked), pending same-id limit/stop replacement; free-tier rate/slot no-ops when the switch is off.
 - **Free-tier `/run` guards are opt-in** — `FREE_TIER_LIMITS` (default off). Bar/script/rate/concurrency and chart/mock-only `data_source` apply only when set to `1`/`true`/`yes`/`on`. Production compose still enables them (`FREE_TIER_LIMITS=1`). Health `features.free_tier_limits` reports the flag. Pro API / endpoint abstracts no longer read as always-on.
@@ -931,6 +939,7 @@ surfaced by the work.
 ## [0.3.13] - 2026-08-17
 
 ### Fixed
+
 - Optimize scores broker fills (not `strategy.exit` placements); trail-only exits; warmup pairing; JSON-safe study scores.
 - Walk-forward train+test run cap; HTTP `min_trades=0` / 400 mapping; CLI walk-forward windows; continuous Random/TPE sampling; grid product cap.
 - Incremental `ta.dpo` / `ta.kst` dispatch; `timeframe.change("1M")` is monthly; compile table cells/colors and deleted linefills.
@@ -938,6 +947,7 @@ surfaced by the work.
 ## [0.3.12] - 2026-08-17
 
 ### Added
+
 - **Strategy hyperparameter search** — `pynescript.optimize` (TPE / random / grid, holdout + walk-forward) scores real `Runtime` strategy events. `POST /optimize` (same free-tier gates as `/run`) and `pyne optimize`. Not `/backtest/quick`; not a Pine builtin.
 - Real **`timeframe.change`** on interpret and compile (UTC fixed-width buckets; bar 0 is a new period).
 - HTF `request.security` allowlist includes **`ta.wma`** and **`ta.rma`**.
@@ -947,15 +957,18 @@ surfaced by the work.
 ## [0.3.11] - 2026-08-16
 
 ### Added
+
 - Incremental interpret **`ta.nvi` / `ta.pvi`** plus matching compile `numba_nvi_inc` / `numba_pvi_inc`.
 - Flask `POST /run` `timeout_seconds` and `POST /run/batch` `libraries`.
 - Dual-host goldens: Supertrend mid±factor·ATR, trail OHLC, foreign `request.*` → `na`, compile plot keys.
 
 ### Changed
+
 - Interpret **`ta.pvt` / `ta.vpt`** is cumulative (matches compile / TV). Bar 0 is `0.0`.
 - `pynets/` submodule pin **v0.2.0** (interpret + JS compile). Python Runtime remains the oracle.
 
 ### Fixed
+
 - Compile MACD signal SMA-seeds the MACD line; OBV skips the first close change.
 - Compile `ta.ao` / `ta.aroon` kernels (were all-`na`).
 - Compile foreign `request.security` tuple unpack no longer invents chart close.
@@ -965,26 +978,31 @@ surfaced by the work.
 ## [0.3.10] - 2026-08-16
 
 ### Added
+
 - Incremental interpret kernels for **`ta.obv`**, **`ta.wad`/`wvad`**, **`ta.cmf`**, and **`ta.klinger`** (`PYNE_TA_INCREMENTAL`).
 
 ### Changed
+
 - Runtime interpret hot path (Round 9): direct Assign/`plot`/Call dispatch, skip unused derived OHLCV series, plot bar-reuse. Same-machine bench @ 2000 bars: minimal **2.7×**, `ta_sma` **2.0×**, `ta_combo` **1.45×**. `PYNE_SERIES_RING` still default off.
 - `ta.vwap()` with no source still updates `hlc3` when that identifier is absent from the script.
 
 ## [0.3.9] - 2026-08-16
 
 ### Added
+
 - **`FunctionDef.returns`** — UDF/method return types survive parse → unparse (`int ilog2(...)`).
 - Incremental **`ta.median`** / **`ta.cmo`** Numba kernels; statement **`hline`/`fill`** stay nopython with synthesized drawings.
 - Thread-local ANTLR lexer/parser reuse (warm SLL DFA across distinct sources).
 - **LSP Docker image** `ghcr.io/hoox-sh/pyne/lsp` (stdio `pyne-lsp`, slim `[lsp]` only). Published on `v*` tags with api/cli.
 
 ### Changed
+
 - Grammar left-factors typed names; bare `x =` is `Assign`, `=` reassignment only on attribute/subscript.
 - Evaluator: `var` history carry at bar start; series maxlen matches host ≥1000; `_pine_site_id` for UDF/call-expr history.
 - **pyne-vscode** publisher namespace is **`hoox-sh`** (extension id `hoox-sh.pyne`).
 
 ### Fixed
+
 - **`Runtime.run(mode="auto", libraries=)`** forwards `libraries` into interpret fallback.
 - Windows CLI `--help` no longer crashes on cp1252. Open VSX unknown-publisher no longer fails Build & Release.
 - **CORS** — AXIS product Origins + `/health` free CORS path (also in 0.3.8 notes).
@@ -993,51 +1011,61 @@ surfaced by the work.
 ## [0.3.8] - 2026-08-15
 
 ### Added
+
 - Compile UDT field defaults on `Type.new()` (omitted `bool x = false` stays `False`; `bool(np.nan)` no longer trips flags). Fixes interpret↔compile `071` Entry plot.
 - `register_library_source` finalizes library exports so `Runtime.run(..., libraries=)` / `POST /run` `import ns/Lib/1` actually binds members.
 - Supertrend first-party goldens lock the simplified mid±factor·ATR contract (interpret full/inc + Numba).
 - LSP: user-enum completion/hover/outline; soft-keyword hover; `plot(ta.` leaf insert; drop C001/C003 false positives.
 
 ### Fixed
+
 - `trail_points=0` / `na` no longer disables a valid `trail_offset` (interpret + compile).
 - VPS deploy AXIS health probe uses `:80` (not stale `:8081`).
 
 ### Changed
+
 - Compile disk IR cache meta version **7 → 8** (UDT defaults).
 - Docs honesty: tick-offset `profit`/`loss`, omitted bid/ask `na`, H1 Runtime unify done.
 
 ## [0.3.7] - 2026-08-15
 
 ### Added
+
 - **`Runtime.run(..., libraries=)`** — optional `[{namespace, name, version, source}]` registered via `register_library_source` before interpret so AXIS `import ns/Name/ver` resolves published git folders. Pro API `POST /run` accepts the same `libraries` field.
 
 ### Changed
+
 - Runtime hot path: skip series dual-write when `PYNE_SERIES_RING=1`; tick-offset exits, incremental MA, plot pack, kernels.
 
 ### Removed
+
 - Colocated **`pine-worker/`** TypeScript extra tool (parser/evaluator port). Lives in the sibling `pine-worker` checkout, not this repo.
 
 ## [0.3.6] - 2026-08-13
 
 ### Added
+
 - **Binary search in UDT arrays** (Pine August 2026): `array.binary_search()`, `array.binary_search_leftmost()`, and `array.binary_search_rightmost()` accept `sort_field` (const int field index, default 0, or const string field name) so they can search arrays of user-defined types. The array must be sorted by the same field in ascending order. Interpret + compile object-mode, with dual-host parity tests.
 - **Runtime `timeout_seconds`**: optional wall-clock circuit breaker on interpret (every 32 bars); partial results with `timed_out` + `error_kind=runtime` for edge/cron budgets (shared by Pro API and pyne-worker).
 - **`linefill.new` export** — `DrawingRegistry.export_for_api` serializes line fills as `type: "linefill"` quads (line1 + line2 endpoints) so AXIS can paint the band.
-- **Compile drawing set_* fold** — `fold_compile_drawing_mutations` applies `line.set_*` / `label.set_*` / … onto live handles and drops set events so compile `/run` drawings match interpret final state.
+- _\*Compile drawing set_* fold_* — `fold_compile_drawing_mutations` applies `line.set_*` / `label.set_*` / … onto live handles and drops set events so compile `/run` drawings match interpret final state.
 - **Compile drawing `*.delete`** — `line.delete` / `label.delete` / `box.delete` / `polyline.delete` / `table.delete` emit `kind: 'delete'` events on `__drawings` (target = `*.new` handle); `fold_compile_drawing_mutations` drops deleted objects (was MVP no-op).
 - **`force_overlay` on export** — line/box/label payloads include `force_overlay` for AXIS pane routing.
 
 ### Changed
+
 - **H1 dual-host:** pyne-worker `pynescript_backend` is a thin wrap over package `pynescript.runtime` (strict OHLCV validation only); vendor via `./scripts/sync_vendor.sh`.
 
 ## [0.3.5] - 2026-08-12
 
 ### Fixed
+
 - **Drawing export (`line.new`)** — `export_for_api` no longer drops lines whose `xloc.bar_index` is past the last bar (classic `bar_index + 1` on `barstate.islast`). Extrapolates from series period; empty `bar_times` passes bare bar index for AXIS logical mapping.
 
 ## [0.3.4] - 2026-08-10
 
 ### Added
+
 - **Package Runtime SoT** (`pynescript.runtime`): bar-loop host, series, CustomEvaluator live in the installable package; `backend.*` re-exports for Pro API.
 - **First-party dual-host TA goldens** (ATR / Supertrend / Keltner) and full `test_ta_incremental` CI gate.
 - **Strategy exit surface**: pending stop/limit + OCA; `from_entry` multi-leg (interpret + compile); `qty_percent`; minimal trail (interpret + compile); compile risk halt cascade (`allow_entry_in`, `max_position_size`, `max_drawdown`, `max_cons_loss_days`, `max_intraday_loss`, `max_intraday_filled_orders`); open/closed trade fields + MAE/MFE.
@@ -1049,6 +1077,7 @@ surfaced by the work.
 - Plot host: `plot.style_*` constants, style/linestyle capture, plotshape size export.
 
 ### Fixed
+
 - EMA dual-host seed (full-list SMA seed matches incremental/Numba).
 - `ta.atr` Wilder RMA on interpret + Numba.
 - AugAssign / tuple unpack series binding; unparser `visit_Simple`; linter C004/W002.
@@ -1056,12 +1085,14 @@ surfaced by the work.
 - vscode-extension transitive `brace-expansion` Dependabot high (2.1.4).
 
 ### Changed
+
 - CI Core runtime gates parity, strategy, series, TA incremental, first-party goldens, runtime package, free-limits.
 - Docs: `docs/known_divergences.md`, audit sprint status notes.
 
 ## [0.3.3] - 2026-08-09
 
 ### Fixed
+
 - **Corpus residual (C1, set01–04):** dual-namespace user methods vs bare ta aliases
   (`method dmi` / `float dmi = dmi(...)` no longer mis-routes to `ta.dmi` after series assign);
   `line.get_price` / line getters soft-na on `na` line or endpoints and coerce PineSeries
@@ -1070,6 +1101,7 @@ surfaced by the work.
 - `ta.dmi` soft-na on unresolved / `na` length (aligned with other TA period soft-na).
 
 ### Changed
+
 - Local open-source corpus set01–04 (2477 scripts, not shipped in git): **parse 99.96%**
   (2476/2477) and **Runtime interpret 100% excl. EXPECTED_FAIL** (2466 OK + 11 intentional
   demos); set01 Runtime **249/249**. Harness classifies path-listed intentional demos
@@ -1080,6 +1112,7 @@ surfaced by the work.
 ## [0.3.2] - 2026-08-09
 
 ### Changed
+
 - **Console scripts**: preferred names are **`pyne`** and **`pyne-lsp`**.
   Legacy **`pynescript`** / **`pynescript-lsp`** remain installed as aliases
   (same callables). Import package is still `pynescript`; PyPI dist is
@@ -1089,6 +1122,7 @@ surfaced by the work.
 ## [0.3.1] - 2026-08-09
 
 ### Added
+
 - **Strategy average-price models** (pynescript extension): `strategy(..., avg_price_model=)`
   - `"stock"` (default) — multi-leg FIFO reweight of `position_avg_price` on partial close (TV-like)
   - `"futures"` — sticky net AEP until flat (linear USDT-M / BTCUSDT-style)
@@ -1104,11 +1138,13 @@ surfaced by the work.
 - Docs: stock vs futures avg semantics; TV vs PYNE notes on `input` before `strategy()`
 
 ### Fixed
+
 - Compile broker ctor no longer emits `name_arr[__bar_idx]` for strategy kwargs
   (undefined at ctor time). Const-like input/literal defvals fold into ctor
   (e.g. `lev = input.float(10)` then `strategy(..., leverage=lev)` → `leverage=10`).
 
 ### Changed
+
 - Compile emit allowlist also wires `default_qty_type` / `default_qty_value` into
   `CompileStrategyBroker(...)`.
 
@@ -1119,6 +1155,7 @@ First public **PYNE** release. PyPI distribution name is **`hoox-pyne`**
 `pynescript` / `pynescript-lsp`). Install: `pip install "hoox-pyne[lsp]"`.
 
 ### Added
+
 - **Alert engine** (`AlertsMixin`): TV-style `alert.freq_*` normalization, once-per-bar dedup, once-per-bar-close gating, `alertcondition` fire-on-true, host helpers `export_alerts` / `export_alerts_from_evaluator`.
 - **Dual-host alerts export**: Pro API + pyne-worker `Runtime` clear/export `alerts` (and optional `alert_conditions`) on interpret `/run`.
 - **L2 alert webhooks**: Pro API `backend/alert_forwarder.py` (`webhook_url`, `ALERT_WEBHOOK_URL`, last-bar filter, batch JSON); pyne-worker edge webhooks + cron last-bar delivery. Docs: `docs/pyne/runtime/alerts.mdx`.
@@ -1138,6 +1175,7 @@ First public **PYNE** release. PyPI distribution name is **`hoox-pyne`**
 - Runtime structured errors: `error_kind` (`parse|compile|runtime|data|order|mode`), `error_type`, `error_bar` (API `/run` forwards).
 
 ### Changed
+
 - GitHub / package metadata for org **`hoox-sh/pyne`**: project URLs, Docker image source label, docs, CONTRIBUTING, and PyPI Trusted Publisher owner. See `docs/pyne/devops/publish-checklist.mdx`.
 - **PyPI distribution name is `hoox-pyne`** (import/CLIs remain `pynescript` / `pynescript-lsp`). Avoids collision with upstream elbakramer `pynescript` and the unrelated pre-existing `pyne`/`PyNE` project on PyPI.
 - Default image version labels / bake / Cloud Build substitution aligned to **0.3.0**.
@@ -1154,6 +1192,7 @@ First public **PYNE** release. PyPI distribution name is **`hoox-pyne`**
 - Updated documentation (ROADMAP, missing_features, implementation status, LSP plan, devops Docker) to reflect current state.
 
 ### Fixed
+
 - **R8/R9 interpret↔compile corpus parity**: foreign-na / MTF `request.security`, Heikin-Ashi security, TA call-site slots, UDF series locals per Call site, series assign bar key `(site, name)`, PineSeries snapshot for typed float/`nz`/`array.set` (BBI ring buffer), `ta.vwap(hlc3[, anchor])`, `time(...)[1]` call-expr history, strategy `position_size`/`avg`/`closedtrades[n]` end-of-bar history, Pine `==`/`!=` with `na` (`na==na` True; other na compares False via `numba_pine_eq`/`ne`).
 - Builtin kwargs merge no longer drops explicit trailing `None` / Pine `na` (e.g. `array.push(id=a, value=na)`), unblocking many corpus library scripts.
 - Corpus C1 8-agent residual pass: `str.replace` 4-arg/occurrence + coerce; richer `timestamp` date strings + TZ-first; series negative/na/OOB index → `na`; TA float/series periods; color hex/string channels; `syminfo.prefix`/`ticker` dual-mode; array get/set soft index + `index_2d_to_1d` stub polyfill; `hour`/`dayofmonth`/… series+timezone arity.
@@ -1181,6 +1220,7 @@ First public **PYNE** release. PyPI distribution name is **`hoox-pyne`**
 - CI Ruff E,F,W gate: F821/`Any` imports and F401 unused imports cleaned for green CI on main.
 
 ### Removed
+
 - Stale `Dockerfile.api` (folded into multi-target `Dockerfile`).
 - Dead `technical_refactored.py` and internal refactoring notes from the published package tree.
 - Broken AXIS-only GitHub workflows (`axis-nightly`, PWA/e2e jobs) — AXIS CI lives in [jango-blockchained/axis](https://github.com/jango-blockchained/axis).

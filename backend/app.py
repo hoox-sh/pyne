@@ -221,6 +221,8 @@ _FREE_CORS_PATH_PREFIXES = (
     "/",
     "/health",
     "/run",
+    "/session",
+    "/data",
     "/optimize",
     "/compile",
     "/lsp/",
