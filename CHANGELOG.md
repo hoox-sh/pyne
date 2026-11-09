@@ -1,12 +1,6 @@
 ## [Unreleased]
 
-### Changed
-
-- **LSP hover / suggest cards.** Kind kicker is an inline-code chip (`` `function` ``) instead of italics, so AXIS Void / HOOX Signal / PYNE Volt `textPreformat` paints it. Parameter and field lists with descriptions render as two-column Markdown tables.
-
-### Added
-
-- **`POST /run` optional `timeframe`.** AXIS chart intervals (`1m` / `1h` / `1d`) and Pine periods (`15`, `60`, `D`) are accepted on `RUN_SCHEMA` and `WS /ws/run`. Empty/omit keeps the Runtime daily default. Exchange forms map the same way as pyne-worker `to_pine_period` (`1m` → `"1"`, not monthly `"1M"`). Extra keys still → `UNKNOWN_FIELDS`.
+## [0.6.34] — 2026-11-09
 
 ### Fixed
 
@@ -19,7 +13,12 @@
 
 ### Added
 
+- **`POST /run` optional `timeframe`.** AXIS chart intervals (`1m` / `1h` / `1d`) and Pine periods (`15`, `60`, `D`) are accepted on `RUN_SCHEMA` and `WS /ws/run`. Empty/omit keeps the Runtime daily default. Exchange forms map the same way as pyne-worker `to_pine_period` (`1m` → `"1"`, not monthly `"1M"`). Extra keys still → `UNKNOWN_FIELDS`.
 - **`/ws/live` `encoding: "axb1-full"`.** Opt-in AXB1 mode that also sends script snapshots (`SNAPSHOT_PLOTS`), single-bar plot deltas (`PLOT_TIP`), and multi-bar candle deltas (`APPEND_BARS`, a new columnar opcode). `encoding: "axb1"` remains the safe default with unchanged behavior, and any unsupported shape still falls back to JSON. The shared `tests/data/axb1-vectors.json` golden suite now pins the `APPEND_BARS` layout.
+
+### Changed
+
+- **LSP hover / suggest cards.** Kind kicker is an inline-code chip (`` `function` ``) instead of italics, so AXIS Void / HOOX Signal / PYNE Volt `textPreformat` paints it. Parameter and field lists with descriptions render as two-column Markdown tables.
 
 ## [0.6.33] — 2026-11-04
 
