@@ -538,26 +538,20 @@ class LiveConnection:
         frames: list[dict[str, Any]] = [make_status(session["session_id"], "datafeed-ready", client_id)]
         bars: list[dict[str, Any]] = []
         full_kwargs: dict[str, Any] = {}
+        full_count: int | None = None
         if kind == "script" and ensured.get("session_id"):
             resumed = self._resume_session(str(ensured["session_id"]))
             live_session = resumed.get("session")
-            try:
-                result = live_session.result() if live_session is not None else {}
-            except Exception:
-                result = {}
             bars = self._bars_of(live_session)
-            full_kwargs = {
-                "plots": result.get("plots"),
-                "series": result.get("series"),
-                "bar_times": [b["time"] for b in bars],
-                "plot_meta": result.get("plot_meta"),
-                "events": result.get("events"),
-                "drawings": result.get("drawings"),
-            }
+            # full.count must match evaluated columns / delta numbering
+            # (result.count), not the ensure-window length. A longer declared
+            # count makes AXIS reject every delta and resubscribe.
+            full_count, full_kwargs = self._script_full_columns(live_session, bars)
             frames.append(make_status(session["session_id"], "calculating", client_id))
         else:
             bars = self._store_window(series_key, int(ensured.get("count") or 0))
             full_kwargs = {"bars": bars}
+            full_count = len(bars)
         self._registry.attach(client_id, ensured.get("session_id"), bars)
         # A series-kind subscription has no engine session (its bars serve
         # straight from the store), but it still needs the feed: without an
@@ -582,7 +576,7 @@ class LiveConnection:
                 session["session_id"],
                 seq,
                 series_key,
-                int(ensured.get("count") or len(bars)),
+                int(full_count if full_count is not None else len(bars)),
                 watermark,
                 client_id,
                 **full_kwargs,
@@ -606,10 +600,7 @@ class LiveConnection:
             return []
         session_id = str(record.get("engine_session_id") or "")
         bars = self._bars_of(live_session)
-        try:
-            result = live_session.result() if live_session is not None else {}
-        except Exception:
-            result = {}
+        count, full_kwargs = self._script_full_columns(live_session, bars)
         key = parse_live_key(str(record.get("series_key") or ""))
         watermark = closed_upto(bars, int(key.interval_seconds) if key else 60, int(time.time()))
         seq = self._registry.next_seq(client_id)
@@ -618,15 +609,10 @@ class LiveConnection:
                 session_id,
                 seq,
                 str(record.get("series_key") or ""),
-                len(bars),
+                count,
                 watermark,
                 client_id,
-                plots=result.get("plots"),
-                series=result.get("series"),
-                bar_times=[b["time"] for b in bars],
-                plot_meta=result.get("plot_meta"),
-                events=result.get("events"),
-                drawings=result.get("drawings"),
+                **full_kwargs,
             ),
             make_status(session_id, "live", client_id),
         ]
@@ -636,6 +622,42 @@ class LiveConnection:
         bars = getattr(live_session, "_ohlcv_data", None) if live_session is not None else None
         return list(bars) if isinstance(bars, list) else []
 
+    @staticmethod
+    def _script_full_columns(
+        live_session: Any, bars: list[dict[str, Any]]
+    ) -> tuple[int, dict[str, Any]]:
+        """Build script ``full`` columns keyed to the evaluated prefix length.
+
+        ``LiveSession.result()`` reports ``count`` / ``times`` / plots for bars
+        actually evaluated. The session window (``_ohlcv_data`` / ensure count)
+        can be longer. Deltas are numbered from ``result["count"]``, so the
+        opening ``full`` must declare that same length or the client cannot
+        splice and falls into a full-snapshot loop every tick.
+        """
+        try:
+            result = live_session.result() if live_session is not None else {}
+        except Exception:
+            result = {}
+        if not isinstance(result, dict):
+            result = {}
+        result_count = result.get("count")
+        if isinstance(result_count, int) and result_count >= 0:
+            count = result_count
+        else:
+            count = len(bars)
+        times = result.get("times")
+        if isinstance(times, list) and len(times) == count:
+            bar_times: list[Any] = list(times)
+        else:
+            bar_times = [b["time"] for b in bars[:count]]
+        return count, {
+            "plots": result.get("plots"),
+            "series": result.get("series"),
+            "bar_times": bar_times,
+            "plot_meta": result.get("plot_meta"),
+            "events": result.get("events"),
+            "drawings": result.get("drawings"),
+        }
     def _store_window(self, series_key: str, limit: int) -> list[dict[str, Any]]:
         if self._store_window_fn is not None:
             return list(self._store_window_fn(series_key, limit))

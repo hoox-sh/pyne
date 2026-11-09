@@ -6,6 +6,7 @@
 | task                                                         | owner      | status | priority | proof                                                                                                                                                                                                             | blockedReason | source | updated    |
 | ------------------------------------------------------------ | ---------- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ------ | ---------- |
 | Flask RUN_SCHEMA: add timeframe so AXIS POST /run is not 400 | oo-checker | Done   |          | `.venv/bin/python -m pytest tests/test_schemas_coverage.py tests/test_backend.py::TestRun tests/test_backend_ws.py::TestWsEnvelopePayload -v --tb=short` → 54 passed, exit 0. Handoff: from oo-misc → oo-checker. |               | AXIS   | 2026-11-09 |
+| /ws/live script full.count matches evaluated prefix (AXIS lag loop) | pyne / HQ | Done | P0 | `PYTHONPATH=src .venv/bin/python -m pytest tests/test_live_ws.py -q --tb=short` → 22 passed. Handoff: `.openorchestrate/handoff/pyne-live-full-count.md`. | | AXIS | 2026-11-09 |
 
 ## Rules
 

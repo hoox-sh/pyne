@@ -244,12 +244,20 @@ def test_frame_builders_carry_seq_and_watermark():
 
 
 class _FakeSession:
-    def __init__(self, bars):
+    def __init__(self, bars, *, evaluated: int | None = None):
         self._ohlcv_data = list(bars)
+        # Evaluated prefix can lag the session window (warmup / ensure length).
+        self._evaluated = len(self._ohlcv_data) if evaluated is None else int(evaluated)
 
     def result(self):
-        n = len(self._ohlcv_data)
-        return {"plots": [[1.0] * n], "series": {"a": [1.0] * n}, "count": n}
+        n = max(0, min(self._evaluated, len(self._ohlcv_data)))
+        times = [b["time"] for b in self._ohlcv_data[:n]]
+        return {
+            "plots": [[1.0] * n],
+            "series": {"a": [1.0] * n},
+            "count": n,
+            "times": times,
+        }
 
 
 def _bars10():
@@ -259,16 +267,17 @@ def _bars10():
     ]
 
 
-def _ready_conn():
+def _ready_conn(*, evaluated: int | None = None, ensure_count: int | None = None):
     bars = _bars10()
-    session = _FakeSession(bars)
+    session = _FakeSession(bars, evaluated=evaluated)
+    ensured_n = len(bars) if ensure_count is None else int(ensure_count)
 
     def ensurer(kind, key, history, **kw):
-        return {"outcome": "ready", "session_id": "ses-1", "count": len(bars), "newest": bars[-1]["time"]}
+        return {"outcome": "ready", "session_id": "ses-1", "count": ensured_n, "newest": bars[-1]["time"]}
 
     def resumer(session_id):
         return (
-            {"outcome": "ready", "session": session, "count": len(bars)}
+            {"outcome": "ready", "session": session, "count": ensured_n}
             if session_id == "ses-1"
             else {"outcome": "gone"}
         )
@@ -303,6 +312,30 @@ def test_subscribe_ready_emits_ready_calculating_full_live():
     assert full["payload"]["bar_times"] == [b["time"] for b in bars]
     assert len(full["payload"]["series"]["a"]) == 10
 
+
+def test_script_full_count_matches_evaluated_prefix_not_ensure_window():
+    """full.count must equal evaluated columns so deltas can splice.
+
+    Regression for the AXIS live lag loop: ensure window 10, evaluated 8 →
+    declared count 10 rejected every delta (base_index/count from result)
+    and forced a full resubscribe every tick.
+    """
+    conn, bars = _ready_conn(evaluated=8, ensure_count=10)
+    replies = conn.handle_dict(
+        {"type": "subscribe", "id": "sub-1", "payload": {"kind": "script", "meta": META, "script": "indicator() {}"}}
+    )
+    full = next(r for r in replies if r.get("type") == "full")
+    payload = full["payload"]
+    assert payload["count"] == 8
+    assert payload["bar_times"] == [b["time"] for b in bars[:8]]
+    assert len(payload["series"]["a"]) == 8
+    assert len(payload["plots"][0]) == 8
+    # A forming tip delta numbered from the evaluated count must agree.
+    from backend.api.live_ws import make_delta
+
+    tip = make_delta("ses-1", 2, 7, 8, 1, payload["bar_times"][-1], plots=[[1.0]], series={"a": [1.0]})
+    assert tip["payload"]["count"] == payload["count"]
+    assert tip["payload"]["base_index"] == payload["count"] - 1
 
 def test_series_subscribe_carries_bars_not_plots():
     conn, bars = _ready_conn()
