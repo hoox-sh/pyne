@@ -515,7 +515,14 @@ _register_njit_overload(numba_safe_div, _numba_safe_div_jit)
 
 @numba.njit(cache=True)
 def _numba_safe_mod_jit(a, b):
-    """Pine modulo: zero / non-finite divisor → na. Single-eval of both args."""
+    """Pine modulo: zero / non-finite divisor → na. Single-eval of both args.
+
+    Cast to float64 before ``np.fmod``. Numba's integer ``fmod`` is wrong
+    (``fmod(-7, 3)`` lowers to ``0``, ``fmod(7, -3)`` to ``7``). Dividend sign
+    matches Pine / C ``fmod``, not Python's divisor-signed ``%``.
+    """
+    a = np.float64(a)
+    b = np.float64(b)
     if b == 0.0 or np.isnan(b):
         return np.nan
     return np.fmod(a, b)
@@ -1955,6 +1962,35 @@ def pine_bool(x):
 
 
 _register_njit_overload(pine_bool, _pine_bool_jit)
+
+
+@numba.njit(cache=True)
+def _pine_not_jit(x):
+    """nopython Pine ``not``: NaN stays NaN; otherwise 0.0 / 1.0."""
+    if x != x:
+        return np.nan
+    return 0.0 if x != 0.0 else 1.0
+
+
+def pine_not(x):
+    """Pine ``not``: ``na`` propagates; otherwise ``0.0`` / ``1.0``.
+
+    Python ``not np.nan`` is ``False`` because NaN is truthy. Pine ``not na``
+    is ``na``. The numeric result is what plots and ``na()`` already expect
+    (``1`` / ``0`` / ``na``), and :func:`pine_bool` treats the NaN as false
+    when the value is used as a condition.
+    """
+    if x is None:
+        return np.nan
+    if isinstance(x, (bool, np.bool_)):
+        return 0.0 if x else 1.0
+    if isinstance(x, str):
+        return 0.0 if x else 1.0
+    fv = x if _is_plain_float(x) else safe_float(x)
+    return _pine_not_jit(fv)
+
+
+_register_njit_overload(pine_not, _pine_not_jit)
 
 
 def pine_string(x):

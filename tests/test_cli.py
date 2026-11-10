@@ -176,6 +176,17 @@ def test_check_directory(runner: CliRunner, tmp_path: Path) -> None:
     assert r.exit_code == 0
 
 
+def test_check_directory_includes_pyne(runner: CliRunner, tmp_path: Path) -> None:
+    """``.pyne`` is a first-class suffix; a directory of only those files is checked."""
+    (tmp_path / "a.pyne").write_text(MINI, encoding="utf-8")
+    r = runner.invoke(cli, ["check", str(tmp_path), "-q"])
+    assert r.exit_code == 0
+    bad = tmp_path / "bad.pyne"
+    bad.write_text("//@version=6\nindicator(\n", encoding="utf-8")
+    r = runner.invoke(cli, ["check", str(tmp_path), "-q"])
+    assert r.exit_code == 1
+
+
 # ---------------------------------------------------------------------------
 # parse / dump / format
 # ---------------------------------------------------------------------------

@@ -3057,6 +3057,9 @@ class CompilerVisitor(NodeVisitor):
                 "range",
                 "numba_store",
                 "numba_store_src",
+                # na-safe bool/not. Overloaded for nopython; result is 0/1/bool.
+                "pine_bool",
+                "pine_not",
             }
         )
         _KW_NOT_CALLS = frozenset({"if", "else", "and", "or", "not", "in", "is", "for", "while", "lambda"})
@@ -3106,6 +3109,8 @@ class CompilerVisitor(NodeVisitor):
                 "sum",
                 "len",
                 "range",
+                "pine_bool",
+                "pine_not",
                 "__bar_idx",
                 "n_bars",
                 # barstate flags: plain bools (loop locals or UDF ctx params)
@@ -7035,7 +7040,10 @@ class CompilerVisitor(NodeVisitor):
                 return f"(({args[0]}) is None or ({args[0]}) != ({args[0]}))"
             return "True"
         if func_name == "iff":
-            # v3 iff(cond, then, else)
+            # v3 iff(cond, then, else). Lazy in the condition (one eval).
+            # Interpret returns na when the condition is na, which this
+            # ternary does not (``if np.nan`` is true). Kept as a ternary so
+            # the branches stay lazy.
             if len(args) >= 3:
                 return f"({args[1]} if {args[0]} else {args[2]})"
             return "np.nan"
@@ -8268,7 +8276,9 @@ class CompilerVisitor(NodeVisitor):
         if isinstance(node.op, ast.Div):
             return f"numba_safe_div({left}, {right})"
         if isinstance(node.op, ast.Mod):
-            return f"numba_safe_mod({left}, {right})"
+            # Promote before the call so nopython sees float64. Numba's
+            # integer np.fmod is wrong (-7 % 3 → 0); the helper also casts.
+            return f"numba_safe_mod((({left}) + 0.0), (({right}) + 0.0))"
         op = {
             ast.Add: "+",
             ast.Sub: "-",
@@ -8951,16 +8961,29 @@ class CompilerVisitor(NodeVisitor):
         rhs = self.visit(stmt.value)
         return f"({py} := ({self._dmi_as_scalar(rhs)}))"
 
-    def _switch_arm_cond(self, subject: str | None, pat) -> str:
-        """Equality / truth test for a switch arm, including multi-value tuples."""
+    def _switch_eq_expr(self, subject: str, subject_node, pat) -> str:
+        """Pine ``==`` for a switch arm. ``na == na`` is true; strings stay ``==``."""
+        pat_v = self.visit(pat)
+        sub_str = self._is_stringy_value(subject_node) or self._looks_like_string_expr(subject)
+        pat_str = self._is_stringy_value(pat) or self._looks_like_string_expr(pat_v)
+        if sub_str or pat_str:
+            return f"({subject}) == ({pat_v})"
+        return f"numba_pine_eq({self._na_wrap_num(subject)}, {self._na_wrap_num(pat_v)})"
+
+    def _switch_arm_cond(self, subject: str | None, pat, subject_node=None) -> str:
+        """Equality / truth test for a switch arm, including multi-value tuples.
+
+        Numeric arms use :func:`numba_pine_eq` so ``switch na`` matches the
+        ``na`` arm (IEEE ``nan == nan`` is false). Boolean arms (no subject)
+        go through :func:`pine_bool` so a NaN pattern is not truthy.
+        """
         if isinstance(pat, ast.Tuple) and getattr(pat, "elts", None):
             if subject is not None:
-                return "(" + " or ".join(f"({subject}) == ({self.visit(e)})" for e in pat.elts) + ")"
-            return "(" + " or ".join(f"({self.visit(e)})" for e in pat.elts) + ")"
-        pat_v = self.visit(pat)
+                return "(" + " or ".join(self._switch_eq_expr(subject, subject_node, e) for e in pat.elts) + ")"
+            return "(" + " or ".join(f"pine_bool({self.visit(e)})" for e in pat.elts) + ")"
         if subject is not None:
-            return f"({subject}) == ({pat_v})"
-        return f"({pat_v})"
+            return self._switch_eq_expr(subject, subject_node, pat)
+        return f"pine_bool({self.visit(pat)})"
 
     def visit_Switch(self, node: ast.Switch):
         """Lower ``switch`` / ``switch subject``.
@@ -8971,7 +8994,8 @@ class CompilerVisitor(NodeVisitor):
         so they mutate the same storage as the declaration.
         Arms with if/for/side-effect blocks → if/elif statement chain.
         """
-        subject = self.visit(node.subject) if getattr(node, "subject", None) is not None else None
+        subject_node = getattr(node, "subject", None)
+        subject = self.visit(subject_node) if subject_node is not None else None
         cases = list(node.cases or [])
         pure = all(self._switch_case_is_expr(c) for c in cases)
 
@@ -9023,7 +9047,7 @@ class CompilerVisitor(NodeVisitor):
                     # defaults overwrite first here; first-in-source wins.
                     expr = case_val
                     continue
-                cond = self._switch_arm_cond(subject, pat)
+                cond = self._switch_arm_cond(subject, pat, subject_node)
                 expr = f"({case_val} if {cond} else {expr})"
             return expr
 
@@ -9043,7 +9067,7 @@ class CompilerVisitor(NodeVisitor):
                 continue
             if seen_default:
                 continue
-            cond = self._switch_arm_cond(subject, pat)
+            cond = self._switch_arm_cond(subject, pat, subject_node)
             lines.append(f"if {cond}:" if first else f"elif {cond}:")
             first = False
             emitted = 0
@@ -9068,26 +9092,38 @@ class CompilerVisitor(NodeVisitor):
             return "np.nan"
         return "\n".join(lines) if lines else "np.nan"
 
-    def _as_bool_cond(self, expr: str, *, node=None) -> str:
-        """Coerce a condition so bare series arrays never hit Python truth tests.
+    def _pine_bool_expr(self, expr: str) -> str:
+        """Wrap a condition so Pine ``na`` (NaN / None) is false.
 
-        - Full series buffers (``foo_arr``, ``close_arr``) → ``bool(foo_arr[__bar_idx])``
-        - Already indexed / scalar comparisons pass through.
-        - Defensive: ndarray truth is never taken (np.any for multi-element).
+        Python treats ``np.nan`` as true (``bool(np.nan) is True``, ``if np.nan``
+        takes the body). :func:`pine_bool` maps NaN and ``None`` to false and
+        is overloaded for nopython.
         """
         e = (expr or "").strip()
         if not e:
             return "False"
-        # Already a comparison / boolean op / unary not — leave alone
-        if any(op in e for op in ("==", "!=", "<=", ">=", " < ", " > ", " and ", " or ")):
-            # Still may be `(arr) != 0` where arr is full series from a bad free-scalar
-            # pass-through; wrap only plain `name_arr` tokens used as the sole test.
-            pass
-        if e.endswith("[__bar_idx]"):
+        if e in ("True", "False"):
             return e
+        if e.startswith("pine_bool("):
+            return e
+        return f"pine_bool({e})"
+
+    def _as_bool_cond(self, expr: str, *, node=None) -> str:
+        """Coerce a condition so bare series arrays never hit Python truth tests.
+
+        - Full series buffers (``foo_arr``, ``close_arr``) → current-bar value.
+        - Every result goes through :meth:`_pine_bool_expr` (``na`` is false).
+        - Defensive: ndarray truth is never taken (index the current bar).
+        """
+        e = (expr or "").strip()
+        if not e:
+            return "False"
+        # Already a comparison / boolean op / unary not — still na-coerce below.
+        if e.endswith("[__bar_idx]"):
+            return self._pine_bool_expr(e)
         # Bare series array identifier
         if self._is_series_array_base(e) and not e.endswith("[__bar_idx]"):
-            return f"bool({e}[__bar_idx])"
+            return self._pine_bool_expr(f"{e}[__bar_idx]")
         # Name that is a tracked series → index current bar
         if node is not None and isinstance(node, ast.Name):
             nid = node.id
@@ -9095,20 +9131,20 @@ class CompilerVisitor(NodeVisitor):
             # (``bool showMetrics = …`` then ``countRows(showMetrics) => if showMetrics``).
             if self.in_function and nid in self.local_vars:
                 if nid in self.series_params:
-                    return f"bool({self._py_ident(nid)}[__bar_idx])"
+                    return self._pine_bool_expr(f"{self._py_ident(nid)}[__bar_idx]")
                 if nid in self.series_locals:
-                    return f"bool({self._py_ident(nid)}_arr[__bar_idx])"
-                return e
+                    return self._pine_bool_expr(f"{self._py_ident(nid)}_arr[__bar_idx]")
+                return self._pine_bool_expr(e)
             if f"{nid}_arr" in self.arrays or nid in self.string_series:
-                return f"bool({nid}_arr[__bar_idx])"
+                return self._pine_bool_expr(f"{nid}_arr[__bar_idx]")
             if nid in self.series_params:
-                return f"bool({self._py_ident(nid)}[__bar_idx])"
+                return self._pine_bool_expr(f"{self._py_ident(nid)}[__bar_idx]")
             if nid in self.series_locals:
-                return f"bool({self._py_ident(nid)}_arr[__bar_idx])"
+                return self._pine_bool_expr(f"{self._py_ident(nid)}_arr[__bar_idx]")
         # Identifier ending in _arr without index (free var / param mishap)
         if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*_arr", e):
-            return f"bool({e}[__bar_idx])"
-        return e
+            return self._pine_bool_expr(f"{e}[__bar_idx]")
+        return self._pine_bool_expr(e)
 
     def _try_if_as_ternary(self, node: ast.If) -> str | None:
         """Emit a Python ternary when every branch is a single pure expression.
@@ -9236,7 +9272,8 @@ class CompilerVisitor(NodeVisitor):
 
     def _emit_switch_assign(self, target_store: str, node: ast.Switch) -> str:
         """Statement-form switch that writes ``target_store = <arm tail>``."""
-        subject = self.visit(node.subject) if getattr(node, "subject", None) is not None else None
+        subject_node = getattr(node, "subject", None)
+        subject = self.visit(subject_node) if subject_node is not None else None
         cases = list(node.cases or [])
         self.object_mode = True
         lines: list[str] = []
@@ -9281,7 +9318,7 @@ class CompilerVisitor(NodeVisitor):
                 continue
             if seen_default:
                 continue
-            cond = self._switch_arm_cond(subject, pat)
+            cond = self._switch_arm_cond(subject, pat, subject_node)
             lines.append(f"if {cond}:" if first else f"elif {cond}:")
             first = False
             lines.extend(_emit_arm(body))
@@ -10316,9 +10353,12 @@ class CompilerVisitor(NodeVisitor):
             self.scalar_vars.add(target)
             added_scalar = True
         end_tmp = f"__end_{target}"
+        # Constant ``to`` cannot change. A name / call is re-read each iteration
+        # (Pine v6). Step direction stays the value captured at loop entry.
+        dynamic_end = not isinstance(node.end, ast.Constant)
         if has_explicit_step:
             step_expr = step if step is not None else "1"
-        # Evaluate end once; auto-step from start vs end at loop entry.
+        # Auto-step from start vs end at loop entry.
         # Numeric path: bare compare (na_num is Python-only — breaks njit).
         elif self.object_mode:
             step_expr = f"(1 if (na_num({target}) <= na_num({end_tmp})) else -1)"
@@ -10336,6 +10376,11 @@ class CompilerVisitor(NodeVisitor):
             ]
         )
         inc = f"{target} += __step_{target}"
+        if dynamic_end:
+            # Re-read ``to`` while the counter still has this iteration's value,
+            # then increment. Refreshing after ``i += step`` makes ``for i = 0 to i``
+            # chase itself. ``continue`` uses the same snippet.
+            inc = f"{end_tmp} = {end}\n{inc}"
         self._loop_inc_stack.append(inc)
         try:
             body = list(node.body or [])
@@ -10347,7 +10392,7 @@ class CompilerVisitor(NodeVisitor):
         finally:
             self._loop_inc_stack.pop()
             self.loop_counters.discard(target)
-        lines.append(f"    {inc}")
+        lines.append("    " + inc.replace("\n", "\n    "))
         if added_local:
             self.local_vars.discard(target)
         if added_scalar:
@@ -10445,7 +10490,7 @@ class CompilerVisitor(NodeVisitor):
         return "\n".join(lines)
 
     def visit_While(self, node: ast.While):
-        test = self.visit(node.test)
+        test = self._as_bool_cond(self.visit(node.test), node=node.test)
         # Keep ambient in_function; do not force True (same rationale as ForTo).
         lines = [f"while {test}:"]
         if self._loop_result_target:
@@ -10474,14 +10519,16 @@ class CompilerVisitor(NodeVisitor):
         # Pine v5 evaluates both operands so series state inside the right
         # side stays continuous (v6 made and/or lazy). Bitwise ops on bools
         # evaluate every operand and compile under Numba / object mode.
+        # pine_bool, not bool: Python bool(nan) is True.
         op = " & " if isinstance(node.op, ast.And) else " | "
-        parts = [f"bool({self.visit(v)})" for v in node.values]
+        parts = [f"pine_bool({self.visit(v)})" for v in node.values]
         return f"({op.join(parts)})"
 
     def visit_UnaryOp(self, node: ast.UnaryOp):
         operand = self.visit(node.operand)
         if isinstance(node.op, ast.Not):
-            return f"(not {operand})"
+            # pine_not(na) is na. Python ``not np.nan`` is False.
+            return f"pine_not({operand})"
         # Object-mode: ``-None`` / ``+None`` must not TypeError
         if isinstance(node.op, (ast.UAdd, ast.USub)):
             operand = self._na_wrap_num(operand)
@@ -10492,7 +10539,8 @@ class CompilerVisitor(NodeVisitor):
         return operand
 
     def visit_Conditional(self, node: ast.Conditional):
-        return f"({self.visit(node.body)} if {self.visit(node.test)} else {self.visit(node.orelse)})"
+        test = self._pine_bool_expr(self.visit(node.test))
+        return f"({self.visit(node.body)} if {test} else {self.visit(node.orelse)})"
 
     def visit_Tuple(self, node: ast.Tuple):
         return "(" + ", ".join(self.visit(e) for e in node.elts) + ")"

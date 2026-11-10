@@ -66,17 +66,19 @@ _CONTEXT_MISSING: Any = object()
 _BINOP_RAW: Any = None
 _elementwise_binary: Any = None
 _switch_case_matches: Any = None
+_pine_is_true: Any = None
 
 
 def _load_expression_helpers() -> None:
     """Bind lazy expression helpers once (first hot-path use)."""
-    global _BINOP_RAW, _elementwise_binary, _switch_case_matches
+    global _BINOP_RAW, _elementwise_binary, _switch_case_matches, _pine_is_true
     if _BINOP_RAW is None:
         from pynescript.ast.evaluator import expressions as _expr_mod
 
         _BINOP_RAW = _expr_mod._BINOP_RAW
         _elementwise_binary = _expr_mod._elementwise_binary
         _switch_case_matches = _expr_mod._switch_case_matches
+        _pine_is_true = _expr_mod._pine_is_true
 
 
 # Top-level declarations that are no-ops after the host locks defs (bar 1+).
@@ -1423,9 +1425,9 @@ class StatementEvaluator:
         while iters < max_iters:
             iters += 1
             test_val = self.visit(node.test)  # type: ignore[attr-defined]
-            if test_val is None:
-                test_val = False
-            if not bool(test_val):
+            if _pine_is_true is None:
+                _load_expression_helpers()
+            if not _pine_is_true(test_val):
                 break
             result, should_break = self._execute_loop_body(node.body)
             if result is not None:
@@ -2142,9 +2144,9 @@ class StatementEvaluator:
         MRO, so its ``visit_If`` is the one that actually runs.
         """
         test_val = self.visit(node.test)  # type: ignore[attr-defined]
-        if test_val is None:
-            test_val = False
-        if bool(test_val):
+        if _pine_is_true is None:
+            _load_expression_helpers()
+        if _pine_is_true(test_val):
             return self._execute_block(node.body)
         elif node.orelse:
             if isinstance(node.orelse, list):

@@ -384,9 +384,9 @@ def info_cmd(as_json: bool) -> None:
 @click.option("-q", "--quiet", is_flag=True, help="Only set exit code; no per-file lines.")
 @click.option(
     "--ext",
-    default=".pine",
+    default=".pine,.pyne",
     show_default=True,
-    help="When PATH is a directory, only check files with this suffix.",
+    help="When PATH is a directory, comma-separated suffixes to check.",
 )
 def check_cmd(paths: tuple[str, ...], encoding: str, quiet: bool, ext: str) -> None:
     """Validate that PATH(s) parse as Pine Script.
@@ -429,7 +429,21 @@ def check_cmd(paths: tuple[str, ...], encoding: str, quiet: bool, ext: str) -> N
         raise SystemExit(1)
 
 
+def _suffixes(ext: str) -> tuple[str, ...]:
+    """Normalize a comma-separated ``--ext`` list to ``.suffix`` values."""
+    out: list[str] = []
+    for part in ext.split(","):
+        suffix = part.strip()
+        if not suffix:
+            continue
+        if not suffix.startswith("."):
+            suffix = f".{suffix}"
+        out.append(suffix)
+    return tuple(out) or (".pine", ".pyne")
+
+
 def _expand_paths(paths: tuple[str, ...], *, ext: str) -> list[str]:
+    suffixes = _suffixes(ext)
     out: list[str] = []
     for raw in paths:
         if raw == "-":
@@ -437,7 +451,7 @@ def _expand_paths(paths: tuple[str, ...], *, ext: str) -> list[str]:
             continue
         p = Path(raw)
         if p.is_dir():
-            out.extend(str(f) for f in sorted(p.rglob(f"*{ext}")) if f.is_file())
+            out.extend(str(f) for f in sorted(p.rglob("*")) if f.is_file() and f.suffix in suffixes)
         elif p.is_file():
             out.append(str(p))
         else:

@@ -218,6 +218,23 @@ def test_split_plots_compiled_map() -> None:
     assert extras["__events_count"] == 2
 
 
+def test_execute_timeframe_reaches_the_runtime() -> None:
+    """``--timeframe 1m`` is one minute, not a label and not monthly ``1M``."""
+    src = """//@version=6
+indicator("tf")
+plot(timeframe.isintraday ? 1 : 0, "intra")
+plot(timeframe.ismonthly ? 1 : 0, "month")
+"""
+    minute = execute_source(src, bars=4, mode="interpret", timeframe="1m")
+    assert minute["ok"] is True
+    assert minute["timeframe"] == "1m"
+    assert minute["plots"]["intra"]["last"] == 1
+    assert minute["plots"]["month"]["last"] == 0
+    daily = execute_source(src, bars=4, mode="interpret", timeframe="1d")
+    assert daily["plots"]["intra"]["last"] == 0
+    assert daily["plots"]["month"]["last"] == 0
+
+
 def test_execute_interpret() -> None:
     result = execute_source(MINI, bars=20, mode="interpret", sample=4)
     assert result["ok"] is True
