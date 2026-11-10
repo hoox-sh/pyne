@@ -117,10 +117,13 @@ decidable from declarations in the current file:
 | --- | --- |
 | `S001` | Unknown field/method on a user `type`, or unknown member on a user `enum` |
 | `S002` | User-function call mismatch: too many positional arguments, missing required arguments, unknown named argument |
+| `S003` | Value is too weak for a declared qualifier or base (`simple float x = close`, `const int n = bar_index`, `series` passed to a `simple` parameter) |
+| `S004` | `na` has no contextual type (`x = na`). `na` beside a typed operand, or under an annotation, adopts that type and is not reported |
 
 Builtin calls, member access on inferred-but-unknown receivers, and method
 calls are deliberately skipped. The catalog is incomplete for some host
-builtins, so under-reporting is preferred to a speculative error. Semantic
+builtins (it does not record parameter qualifiers such as `ta.sma`'s `simple int`
+length), so under-reporting is preferred to a speculative error. Semantic
 checks only run when the buffer parses.
 
 ### Parse errors

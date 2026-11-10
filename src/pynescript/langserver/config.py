@@ -133,6 +133,10 @@ def semantic_token_types() -> tuple[str, ...]:
         "number",
         "operator",
         "comment",
+        # Custom types contributed by the VS Code extension (package.json
+        # semanticTokenTypes). Names must stay ``series`` and ``simple``.
+        "series",
+        "simple",
     )
 
 

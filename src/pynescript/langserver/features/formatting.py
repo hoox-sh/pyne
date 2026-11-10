@@ -25,11 +25,16 @@ Public handlers:
 - :func:`handle_range_formatting` — same unparser, edit limited to the requested range
 - :func:`handle_on_type_formatting` — same unparser, edit limited to the just-completed line
 
+Prose comments are not on the ASDL tree. After the canonical unparse, comments
+are spliced back onto the matching tokens so formatting stays lossless and
+idempotent (line comments, trailing comments, and block comments).
+
 Parse failures yield an empty edit list (no throw to the client).
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from lsprotocol import types as lsp
@@ -151,8 +156,7 @@ def _safe_whitespace_format(source: str) -> str:
     lines = source.split("\n")
     flags = _multiline_string_lines(source)
     cleaned = [
-        line if (index < len(flags) and flags[index]) else line.rstrip(" \t")
-        for index, line in enumerate(lines)
+        line if (index < len(flags) and flags[index]) else line.rstrip(" \t") for index, line in enumerate(lines)
     ]
     text = "\n".join(cleaned)
     if not text.strip():
@@ -161,11 +165,14 @@ def _safe_whitespace_format(source: str) -> str:
 
 
 def has_unpreserved_comments(source: str, tree: Any | None = None) -> bool:
-    """True when canonical formatting would drop comments in *source*.
+    """True when formatting would drop a comment in *source*.
 
-    Public wrapper for code actions: C002 must not offer a format edit that
-    cannot fix the long line (or would delete trivia).
+    Public wrapper for code actions. Comment-preserving format returns
+    ``False`` so C002 can offer a real pretty-print. Parse failures and a
+    splice that still loses trivia return ``True``.
     """
+    if not source:
+        return False
     if tree is None:
         try:
             from pynescript.ast.helper import parse
@@ -173,7 +180,335 @@ def has_unpreserved_comments(source: str, tree: Any | None = None) -> bool:
             tree = parse(source, filename="<format>")
         except Exception:
             return True
-    return _has_comments(source, tree)
+    try:
+        formatted = _format_text(source, tree)
+    except Exception:
+        return True
+    return not _comments_preserved(source, formatted)
+
+
+def _format_text(source: str, tree: Any) -> str:
+    """Canonical unparse, with comments spliced back in when present."""
+    from pynescript.ast.unparser import NodeUnparser
+
+    formatted = NodeUnparser().visit(tree)
+    if not formatted:
+        return _safe_whitespace_format(source) if _has_comments(source, tree) else formatted
+    if not _has_comments(source, tree):
+        return formatted
+    try:
+        return _splice_comments(source, formatted)
+    except Exception:
+        return _safe_whitespace_format(source)
+
+
+@dataclass
+class _Lexeme:
+    text: str
+    start: int
+    end: int
+    line: int
+    comment: bool
+
+
+@dataclass
+class _SpanEdit:
+    start: int
+    end: int
+    text: str
+
+
+def _lexemes(source: str) -> list[_Lexeme]:
+    """Lex *source*, keeping comments and significant tokens."""
+    from antlr4 import CommonTokenStream
+    from antlr4 import InputStream
+
+    from pynescript.ast.grammar.antlr4.lexer import PinescriptLexer
+
+    lexer = PinescriptLexer(InputStream(source))
+    stream = CommonTokenStream(lexer)
+    stream.fill()
+    skip = {
+        PinescriptLexer.WS,
+        PinescriptLexer.NEWLINE,
+        PinescriptLexer.INDENT,
+        PinescriptLexer.DEDENT,
+    }
+    lexemes: list[_Lexeme] = []
+    for token in stream.tokens:
+        if token.type == -1 or token.type in skip:
+            continue
+        text = token.text or ""
+        start = int(token.start)
+        lexemes.append(
+            _Lexeme(
+                text=text,
+                start=start,
+                end=start + len(text),
+                line=max(0, int(token.line) - 1),
+                comment=token.type == PinescriptLexer.COMMENT,
+            )
+        )
+    return lexemes
+
+
+def _is_own_line(source: str, start: int) -> bool:
+    line_start = source.rfind("\n", 0, start) + 1
+    return source[line_start:start].strip() == ""
+
+
+def _find_comment(text: str, needle: str, start: int) -> int | None:
+    """Return the index after a whole-comment match of *needle*, or ``None``."""
+    if not needle:
+        return None
+    idx = start
+    while True:
+        found = text.find(needle, idx)
+        if found < 0:
+            return None
+        after = found + len(needle)
+        before_ok = found == 0 or text[found - 1] in "\n\r \t"
+        after_ok = after >= len(text) or text[after] in "\n\r \t"
+        if before_ok and after_ok:
+            return after
+        idx = found + 1
+
+
+def _count_comment(text: str, needle: str) -> int:
+    count = 0
+    cursor = 0
+    while True:
+        found = _find_comment(text, needle, cursor)
+        if found is None:
+            return count
+        count += 1
+        cursor = found
+
+
+def _comments_preserved(source: str, formatted: str) -> bool:
+    try:
+        comments = [item.text.rstrip() for item in _lexemes(source) if item.comment]
+    except Exception:
+        return False
+    return all(_count_comment(formatted, comment) >= _count_comment(source, comment) for comment in comments)
+
+
+def _splice_comments(source: str, formatted: str) -> str:
+    """Insert comments from *source* into canonical *formatted* text.
+
+    Significant tokens are aligned (the unparser may drop redundant
+    parentheses or respell a literal). Line comments stay on their own line
+    ahead of the next token, trailing ``//`` / ``#`` comments stay at the end
+    of the line that owns them, and inline block comments stay between the
+    surrounding tokens. A comment that cannot be placed is appended so the
+    format is lossless.
+    """
+    original = _lexemes(source)
+    formatted_lex = _lexemes(formatted)
+    orig_sig = [item for item in original if not item.comment]
+    fmt_sig = [item for item in formatted_lex if not item.comment]
+    orig_to_fmt = _align_tokens(orig_sig, fmt_sig)
+
+    own_before: dict[int, list[str]] = {}
+    inline_before: dict[int, list[str]] = {}
+    trailing_on_line: dict[int, list[str]] = {}
+    end_own: list[str] = []
+
+    def line_of(token: _Lexeme) -> int:
+        return formatted.count("\n", 0, token.start)
+
+    for comment in original:
+        if not comment.comment:
+            continue
+        text = comment.text.rstrip()
+        if not text:
+            continue
+        prev_i, next_i = _comment_neighbors(comment, orig_sig)
+        kind = _comment_kind(source, comment)
+        next_fmt = _mapped(orig_to_fmt, next_i, forward=True)
+        prev_fmt = _mapped(orig_to_fmt, prev_i, forward=False)
+        if kind == "inline":
+            if next_fmt is None:
+                end_own.append(text)
+            else:
+                inline_before.setdefault(next_fmt, []).append(text)
+            continue
+        if kind == "own":
+            if next_fmt is None:
+                end_own.append(text)
+            else:
+                own_before.setdefault(next_fmt, []).append(text)
+            continue
+        if prev_fmt is not None and next_fmt is not None and line_of(fmt_sig[prev_fmt]) == line_of(fmt_sig[next_fmt]):
+            target = line_of(fmt_sig[next_fmt])
+        elif prev_fmt is not None:
+            target = line_of(fmt_sig[prev_fmt])
+        elif next_fmt is not None:
+            target = line_of(fmt_sig[next_fmt])
+        else:
+            end_own.append(text)
+            continue
+        trailing_on_line.setdefault(target, []).append(text)
+
+    for index, comments in list(own_before.items()):
+        own_before[index] = _subtract_present(comments, _gap_before(formatted, fmt_sig, index))
+    for index, comments in list(inline_before.items()):
+        inline_before[index] = _subtract_present(comments, _gap_before(formatted, fmt_sig, index))
+
+    edits: list[_SpanEdit] = []
+    for index, token in enumerate(fmt_sig):
+        own = own_before.get(index) or []
+        inline = inline_before.get(index) or []
+        if own:
+            edits.append(_own_line_edit(formatted, token.start, own, inline))
+        elif inline:
+            edits.append(_inline_edit(formatted, token.start, inline))
+    for line_index, comments in trailing_on_line.items():
+        edit = _trailing_edit(formatted, line_index, comments)
+        if edit is not None:
+            edits.append(edit)
+
+    result = _apply_edits(formatted, edits)
+    if end_own:
+        suffix = "\n".join(end_own)
+        result = result + ("" if result.endswith("\n") else "\n") + suffix + "\n"
+    result = _append_missing(source, result)
+    return result
+
+
+def _align_tokens(orig_sig: list[_Lexeme], fmt_sig: list[_Lexeme]) -> list[int | None]:
+    from difflib import SequenceMatcher
+
+    mapping: list[int | None] = [None] * len(orig_sig)
+    matcher = SequenceMatcher(
+        a=[item.text for item in orig_sig],
+        b=[item.text for item in fmt_sig],
+        autojunk=False,
+    )
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            for offset in range(i2 - i1):
+                mapping[i1 + offset] = j1 + offset
+        elif tag == "replace":
+            for offset in range(min(i2 - i1, j2 - j1)):
+                mapping[i1 + offset] = j1 + offset
+    return mapping
+
+
+def _comment_neighbors(comment: _Lexeme, sigs: list[_Lexeme]) -> tuple[int | None, int | None]:
+    prev_i: int | None = None
+    next_i: int | None = None
+    for index, token in enumerate(sigs):
+        if token.end <= comment.start:
+            prev_i = index
+        elif token.start >= comment.end and next_i is None:
+            next_i = index
+            break
+    return prev_i, next_i
+
+
+def _mapped(mapping: list[int | None], index: int | None, *, forward: bool) -> int | None:
+    if index is None:
+        return None
+    if forward:
+        for cursor in range(index, len(mapping)):
+            if mapping[cursor] is not None:
+                return mapping[cursor]
+        return None
+    for cursor in range(index, -1, -1):
+        if mapping[cursor] is not None:
+            return mapping[cursor]
+    return None
+
+
+def _comment_kind(source: str, comment: _Lexeme) -> str:
+    if _is_own_line(source, comment.start):
+        return "own"
+    if comment.text.startswith("/*"):
+        return "inline"
+    return "trailing"
+
+
+def _gap_before(formatted: str, fmt_sig: list[_Lexeme], index: int) -> str:
+    start = 0 if index == 0 else fmt_sig[index - 1].end
+    return formatted[start : fmt_sig[index].start]
+
+
+def _subtract_present(comments: list[str], gap: str) -> list[str]:
+    kept: list[str] = []
+    cursor = 0
+    for comment in comments:
+        found = _find_comment(gap, comment, cursor)
+        if found is None:
+            kept.append(comment)
+        else:
+            cursor = found
+    return kept
+
+
+def _own_line_edit(formatted: str, token_start: int, comments: list[str], inline: list[str]) -> _SpanEdit:
+    line_start = formatted.rfind("\n", 0, token_start) + 1
+    cursor = line_start
+    while cursor < len(formatted) and formatted[cursor] in " \t":
+        cursor += 1
+    indent = formatted[line_start:cursor]
+    if token_start <= cursor:
+        block = "".join(f"{indent}{comment}\n" for comment in comments)
+        return _SpanEdit(line_start, line_start, block)
+    cont = indent + "    "
+    gap = token_start
+    while gap > line_start and formatted[gap - 1] in " \t":
+        gap -= 1
+    body = "\n".join(f"{cont}{comment}" for comment in comments)
+    prefix = cont
+    if inline:
+        prefix = f"{cont}{' '.join(inline)} "
+    return _SpanEdit(gap, token_start, f"\n{body}\n{prefix}")
+
+
+def _inline_edit(formatted: str, token_start: int, comments: list[str]) -> _SpanEdit:
+    line_start = formatted.rfind("\n", 0, token_start) + 1
+    gap = token_start
+    while gap > line_start and formatted[gap - 1] in " \t":
+        gap -= 1
+    return _SpanEdit(gap, token_start, f" {' '.join(comments)} ")
+
+
+def _trailing_edit(formatted: str, line_index: int, comments: list[str]) -> _SpanEdit | None:
+    lines = formatted.split("\n")
+    if line_index < 0 or line_index >= len(lines):
+        return None
+    start = sum(len(lines[i]) + 1 for i in range(line_index))
+    content = lines[line_index]
+    trimmed = content.rstrip(" \t")
+    suffix = "".join(f"  {comment}" for comment in comments)
+    if not suffix or trimmed.endswith(suffix):
+        return None
+    return _SpanEdit(start + len(trimmed), start + len(content), suffix)
+
+
+def _apply_edits(formatted: str, edits: list[_SpanEdit]) -> str:
+    ordered = sorted(edits, key=lambda edit: (edit.start, edit.end), reverse=True)
+    result = formatted
+    for edit in ordered:
+        result = result[: edit.start] + edit.text + result[edit.end :]
+    return result
+
+
+def _append_missing(source: str, formatted: str) -> str:
+    """Append any comment the splice failed to place (lossless fallback)."""
+    try:
+        comments = [item.text.rstrip() for item in _lexemes(source) if item.comment and item.text.rstrip()]
+    except Exception:
+        return formatted
+    missing: list[str] = []
+    for comment in comments:
+        if _count_comment(formatted, comment) < _count_comment(source, comment):
+            missing.append(comment)
+            formatted = formatted + "\n" + comment
+    if missing and not formatted.endswith("\n"):
+        formatted += "\n"
+    return formatted
 
 
 def _preserved_annotations(tree: Any | None) -> set[str]:
@@ -233,16 +568,10 @@ def handle_formatting(
 
     try:
         from pynescript.ast.helper import parse
-        from pynescript.ast.unparser import NodeUnparser
 
         if tree is None:
             tree = parse(source, filename="<format>")
-        if _has_comments(source, tree):
-            # Unparser output has no prose-comment trivia. Keep the comments
-            # and apply the safe whitespace pass instead of deleting text.
-            formatted = _safe_whitespace_format(source)
-        else:
-            formatted = NodeUnparser().visit(tree)
+        formatted = _format_text(source, tree)
 
         if formatted == source:
             return []
@@ -271,14 +600,10 @@ def handle_range_formatting(
 
     try:
         from pynescript.ast.helper import parse
-        from pynescript.ast.unparser import NodeUnparser
 
         if tree is None:
             tree = parse(source, filename="<format>")
-        if _has_comments(source, tree):
-            formatted = _safe_whitespace_format(source)
-        else:
-            formatted = NodeUnparser().visit(tree)
+        formatted = _format_text(source, tree)
 
         aligned = _aligned_lines(source, formatted)
         if aligned is None:
@@ -336,14 +661,10 @@ def handle_on_type_formatting(
 
     try:
         from pynescript.ast.helper import parse
-        from pynescript.ast.unparser import NodeUnparser
 
         if tree is ...:
             tree = parse(source, filename="<format>")
-        if _has_comments(source, tree):
-            formatted = _safe_whitespace_format(source)
-        else:
-            formatted = NodeUnparser().visit(tree)
+        formatted = _format_text(source, tree)
 
         aligned = _aligned_lines(source, formatted)
         if aligned is None:
