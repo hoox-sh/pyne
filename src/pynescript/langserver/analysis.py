@@ -32,6 +32,15 @@ The model is deliberately conservative: unknown types stay ``None`` and are
 never guessed. That keeps hover/inlay/completion useful without inventing
 semantics that Pine does not have.
 
+Qualifier propagation follows the Pine lattice (strong → weak)
+``const`` > ``input`` > ``simple`` > ``series``. A stronger qualifier may be
+used where a weaker one is required; an expression that mixes qualifiers
+takes the weaker one, so ``series`` contaminates ``simple`` / ``const``.
+``na`` adopts the type of the surrounding context (the other operand, the
+other ternary branch, or an explicit annotation) instead of forcing
+``series``. This pass is the language server's own inference — the compiler
+and :class:`pynescript.ast.type_system.Type` do not share it.
+
 Public API:
     :class:`Symbol`, :class:`Scope`, :class:`SymbolIndex`,
     :func:`build_symbol_index`, :func:`infer_type`.
@@ -345,6 +354,8 @@ class SymbolIndex:
             return None
         scope = scope or self.script_scope
         if isinstance(expr, ast.Constant):
+            if getattr(expr, "kind", None) == "#":
+                return "const color"
             return _constant_type(expr.value)
         if isinstance(expr, ast.Name):
             symbol = self.resolve(expr.id or "", scope)
@@ -356,18 +367,37 @@ class SymbolIndex:
         if isinstance(expr, ast.Call):
             return self._infer_call(expr, scope, depth + 1)
         if isinstance(expr, ast.Subscript):
-            return self.infer_type(expr.value, scope, depth + 1)
+            return self._infer_subscript(expr, scope, depth + 1)
         if isinstance(expr, ast.BinOp):
-            return _infer_binop(
-                self.infer_type(expr.left, scope, depth + 1),
-                self.infer_type(expr.right, scope, depth + 1),
+            op_name = type(expr.op).__name__ if getattr(expr, "op", None) is not None else ""
+            op = "/" if op_name == "Div" else "+" if op_name == "Add" else None
+            return combine_types(
+                [
+                    self.infer_type(expr.left, scope, depth + 1),
+                    self.infer_type(expr.right, scope, depth + 1),
+                ],
+                op=op,
             )
         if isinstance(expr, ast.UnaryOp):
-            return self.infer_type(expr.operand, scope, depth + 1)
-        if isinstance(expr, (ast.Compare, ast.BoolOp)):
-            return "series bool"
+            inner = self.infer_type(expr.operand, scope, depth + 1)
+            if type(getattr(expr, "op", None)).__name__ == "Not":
+                return _bool_type(inner)
+            return inner
+        if isinstance(expr, ast.Compare):
+            parts = [self.infer_type(expr.left, scope, depth + 1)]
+            parts.extend(self.infer_type(item, scope, depth + 1) for item in (expr.comparators or []))
+            return _bool_type(combine_types(parts))
+        if isinstance(expr, ast.BoolOp):
+            parts = [self.infer_type(item, scope, depth + 1) for item in (expr.values or [])]
+            return _bool_type(combine_types(parts))
         if isinstance(expr, ast.Conditional):
-            return self.infer_type(expr.body, scope, depth + 1) or self.infer_type(expr.orelse, scope, depth + 1)
+            branch = combine_types(
+                [
+                    self.infer_type(expr.body, scope, depth + 1),
+                    self.infer_type(expr.orelse, scope, depth + 1),
+                ]
+            )
+            return _with_qualifier(branch, qualifier_of(self.infer_type(expr.test, scope, depth + 1)))
         if isinstance(expr, ast.Qualify):
             inner = self.infer_type(expr.value, scope, depth + 1)
             qualifier = _node_name(expr.qualifier)
@@ -393,7 +423,7 @@ class SymbolIndex:
         name = expr.attr or ""
         if not base_type:
             if isinstance(expr.value, ast.Name) and expr.value.id == "color":
-                return "series color"
+                return "const color"
             return None
         base = _base_type_name(base_type)
         if not base:
@@ -404,7 +434,7 @@ class SymbolIndex:
         if base in self.enums:
             return base
         if base == "color" or _is_namespace(base, "color"):
-            return "series color"
+            return "const color"
         return None
 
     def _infer_call(self, expr: ast.Call, scope: Scope, depth: int) -> str | None:
@@ -420,10 +450,13 @@ class SymbolIndex:
                 return f"map<{args[0]}, {args[1]}>"
             return None
         if isinstance(func, ast.Name):
-            symbol = self.resolve(func.id or "", scope)
+            fname = func.id or ""
+            if fname in {"na", "nz", "fixnan"}:
+                return self._infer_na_family(fname, expr, scope, depth)
+            symbol = self.resolve(fname, scope)
             if symbol is not None:
                 return _function_return_type(symbol, self)
-            return _builtin_return_type(func.id or "")
+            return self._finalize_builtin(fname, expr, scope, depth, _builtin_return_type(fname))
         if isinstance(func, ast.Attribute):
             name = func.attr or ""
             base_expr = func.value
@@ -446,7 +479,14 @@ class SymbolIndex:
                     collection_type = _collection_result(base_name, name, receiver_type or base_type)
                     if collection_type:
                         return collection_type
-                    return _builtin_return_type(f"{base_name}.{name}")
+                    qualified_name = f"{base_name}.{name}"
+                    return self._finalize_builtin(
+                        qualified_name,
+                        expr,
+                        scope,
+                        depth,
+                        _builtin_return_type(qualified_name),
+                    )
             if base_type:
                 base = _base_type_name(base_type)
                 if base:
@@ -459,8 +499,79 @@ class SymbolIndex:
                     if collection_type:
                         return collection_type
             qualified = _qualified_name(func)
-            return _builtin_return_type(qualified) if qualified else None
+            if not qualified:
+                return None
+            return self._finalize_builtin(qualified, expr, scope, depth, _builtin_return_type(qualified))
         return None
+
+    def _infer_subscript(self, expr: ast.Subscript, scope: Scope, depth: int) -> str | None:
+        """History ``[]`` is ``series``; a tuple slice keeps the receiver type.
+
+        Matrix/map indexing uses a tuple slice. A single index is Pine history,
+        which is bar-varying even when the receiver was ``const`` or ``simple``.
+        """
+        inner = self.infer_type(expr.value, scope, depth)
+        if isinstance(getattr(expr, "slice", None), ast.Tuple):
+            return inner
+        _qualifier, base = split_qualified_type(inner)
+        if base is None or base == "na":
+            return inner
+        return join_qualified_type("series", base)
+
+    def _infer_na_family(self, name: str, expr: ast.Call, scope: Scope, depth: int) -> str | None:
+        """Type ``na`` / ``nz`` / ``fixnan``.
+
+        ``na`` with no argument is the untyped missing value. ``na(x)`` is a
+        bool predicate. ``nz`` / ``fixnan`` keep the value type, and ``na``
+        adopts the replacement or the other operand.
+        """
+        arg_types = self._arg_types(expr, scope, depth)
+        if name == "na":
+            if not arg_types:
+                return "na"
+            return _bool_type(combine_types(arg_types))
+        if name == "fixnan":
+            return arg_types[0] if arg_types else None
+        if not arg_types:
+            return None
+        if len(arg_types) == 1:
+            return None if arg_types[0] == "na" else arg_types[0]
+        return combine_types(arg_types)
+
+    def _arg_types(self, expr: ast.Call, scope: Scope, depth: int) -> list[str | None]:
+        types: list[str | None] = []
+        for arg in expr.args or []:
+            value = getattr(arg, "value", arg)
+            types.append(self.infer_type(value, scope, depth))
+        return types
+
+    def _finalize_builtin(
+        self,
+        name: str,
+        expr: ast.Call,
+        scope: Scope,
+        depth: int,
+        return_type: str | None,
+    ) -> str | None:
+        """Re-qualify pure ``math.*`` results from their arguments.
+
+        ``ta.*`` stays on the catalog type (a moving average of constants is
+        still ``series``). ``math.*`` is pure: ``math.abs(1)`` is ``const``,
+        and ``math.abs(close)`` is ``series``.
+        """
+        if not return_type or not name.startswith("math."):
+            return return_type
+        arg_types = self._arg_types(expr, scope, depth)
+        if not arg_types or any(item is None for item in arg_types):
+            return return_type
+        combined = combine_types(arg_types)
+        if combined is None or combined == "na":
+            return return_type
+        qualifier, _base = split_qualified_type(combined)
+        _ignored, base = split_qualified_type(return_type)
+        if not base:
+            return return_type
+        return join_qualified_type(qualifier, base)
 
     # ------------------------------------------------------------------
     # Build
@@ -638,7 +749,9 @@ class SymbolIndex:
         return symbol
 
     def _declare_assign_targets(self, node: ast.Assign, scope: Scope) -> None:
-        type_label = _type_expr_name(node.type) or self.infer_type(node.value, scope)
+        declared = _type_expr_name(node.type)
+        inferred = self.infer_type(node.value, scope)
+        type_label = binding_type(declared, inferred)
         mode = _mode_name(node.mode)
         for target in _assign_targets(node):
             if not isinstance(target, ast.Name):
@@ -673,27 +786,7 @@ class SymbolIndex:
             symbol = scope.symbols.get(node.name or "")
             if symbol is not None:
                 self._add_occurrence(symbol, node, node.name or "", scope, write=True)
-            fn_scope = self._make_scope("function", node, scope)
-            self._scope_for_node[id(node)] = fn_scope
-            for param in node.args or []:
-                self._walk_type_expr(getattr(param, "type", None), fn_scope)
-                default = getattr(param, "default", None)
-                if default is not None:
-                    self._walk_expr(default, fn_scope)
-                param_name = getattr(param, "name", None)
-                if not param_name:
-                    continue
-                param_symbol = self._new_symbol(
-                    param_name,
-                    "param",
-                    param,
-                    fn_scope,
-                    name_node=param,
-                    type_label=_type_expr_name(getattr(param, "type", None)),
-                    signature=_param_signature(param),
-                )
-                fn_scope.define(param_symbol)
-            self._walk_type_expr(node.returns, fn_scope)
+            fn_scope = self._prepare_function_scope(node, scope)
             self._predeclare(node.body, fn_scope)
             self._walk_body(node.body, fn_scope)
             return
@@ -761,6 +854,40 @@ class SymbolIndex:
         # Unknown statement shape: walk children as expressions.
         for child in iter_child_nodes(node):
             self._walk_expr(child, scope)
+
+    def _prepare_function_scope(self, node: ast.FunctionDef, parent: Scope) -> Scope:
+        """Create the function scope and its parameters once.
+
+        Return-type inference can run while later assignments are still being
+        predeclared, before :meth:`_walk_stmt` reaches the function. Parameters
+        have to exist then so ``length + close`` sees ``length``'s qualifier.
+        """
+        existing = self._scope_for_node.get(id(node))
+        if existing is not None:
+            return existing
+        fn_scope = self._make_scope("function", node, parent)
+        self._scope_for_node[id(node)] = fn_scope
+        for param in node.args or []:
+            self._walk_type_expr(getattr(param, "type", None), fn_scope)
+            default = getattr(param, "default", None)
+            if default is not None:
+                self._walk_expr(default, fn_scope)
+            param_name = getattr(param, "name", None)
+            if not param_name:
+                continue
+            param_symbol = self._new_symbol(
+                param_name,
+                "param",
+                param,
+                fn_scope,
+                name_node=param,
+                type_label=_type_expr_name(getattr(param, "type", None)),
+                signature=_param_signature(param),
+            )
+            fn_scope.define(param_symbol)
+            self._add_occurrence(param_symbol, param, param_name, fn_scope, write=True)
+        self._walk_type_expr(node.returns, fn_scope)
+        return fn_scope
 
     def _declare_loop_target(self, target: Any, scope: Scope) -> None:
         """Declare a ``for`` target in the loop scope."""
@@ -1144,11 +1271,7 @@ def _find_ident(
         return None
     end = len(line) if end is None else min(len(line), max(0, end))
     start = max(0, min(start, end))
-    matches = [
-        (match.start(), match.end())
-        for match in _IDENT_RE.finditer(line, start, end)
-        if match.group(0) == name
-    ]
+    matches = [(match.start(), match.end()) for match in _IDENT_RE.finditer(line, start, end) if match.group(0) == name]
     if not matches:
         return None
     return matches[-1] if last else matches[0]
@@ -1242,6 +1365,178 @@ def _assign_targets(node: ast.Assign) -> list[Any]:
     return [target]
 
 
+# Strong → weak. A stronger qualifier may be used as a weaker one.
+# The result of mixing qualifiers is the weaker (higher rank) one.
+_QUALIFIER_RANK: dict[str, int] = {"const": 0, "input": 1, "simple": 2, "series": 3}
+_NUMERIC_BASES = frozenset({"int", "float"})
+
+
+def split_qualified_type(label: str | None) -> tuple[str | None, str | None]:
+    """Split ``series float`` into ``("series", "float")``.
+
+    Unqualified labels return ``(None, label)``. The bare missing value
+    ``na`` is ``(None, "na")``.
+    """
+    if not label:
+        return None, None
+    text = label.strip()
+    if text == "na":
+        return None, "na"
+    for qualifier in ("const", "input", "simple", "series"):
+        prefix = qualifier + " "
+        if text.startswith(prefix):
+            base = text[len(prefix) :].strip()
+            return qualifier, base or None
+    return None, text
+
+
+def qualifier_of(label: str | None) -> str | None:
+    """Return the Pine qualifier of *label*, or ``None`` when it has none."""
+    return split_qualified_type(label)[0]
+
+
+def join_qualified_type(qualifier: str | None, base: str | None) -> str | None:
+    """Render a qualifier and base as a Pine type label."""
+    if not base:
+        return None
+    if base == "na":
+        return "na"
+    if qualifier:
+        return f"{qualifier} {base}"
+    return base
+
+
+def _weaker_qualifier(left: str | None, right: str | None) -> str | None:
+    """Return the weaker of two qualifiers (``series`` contaminates)."""
+    if left is None:
+        return right
+    if right is None:
+        return left
+    return left if _QUALIFIER_RANK[left] >= _QUALIFIER_RANK[right] else right
+
+
+def _promote_base(bases: list[str], op: str | None) -> str | None:
+    """Numeric / string promotion for one operator.
+
+    Pine ``/`` of ints is float. ``+`` of strings concatenates. Mixed
+    string/number is left unknown rather than guessed.
+    """
+    if not bases:
+        return None
+    if op == "/" and all(base in _NUMERIC_BASES for base in bases):
+        return "float"
+    if all(base == "string" for base in bases):
+        return "string"
+    if any(base == "string" for base in bases):
+        return None
+    if all(base in _NUMERIC_BASES for base in bases):
+        return "float" if any(base == "float" for base in bases) else "int"
+    if all(base == "bool" for base in bases):
+        return "bool"
+    if all(base == "color" for base in bases):
+        return "color"
+    if len(set(bases)) == 1:
+        return bases[0]
+    return None
+
+
+def combine_types(types: list[str | None], *, op: str | None = None) -> str | None:
+    """Combine operand types under the Pine qualifier lattice.
+
+    ``na`` adopts the other operand's type. The result qualifier is the
+    weakest known qualifier, so a ``series`` operand contaminates ``simple``
+    and ``const``. Unknown (``None``) operands are ignored; if nothing
+    concrete remains the result is ``None`` (or ``na`` when every operand is
+    ``na``).
+    """
+    present = [item for item in types if item]
+    if not present:
+        return None
+    concrete = [item for item in present if split_qualified_type(item)[1] != "na"]
+    if not concrete:
+        return "na"
+    qualifier: str | None = None
+    bases: list[str] = []
+    for item in concrete:
+        item_qualifier, base = split_qualified_type(item)
+        if base:
+            bases.append(base)
+        qualifier = _weaker_qualifier(qualifier, item_qualifier)
+    base = _promote_base(bases, op)
+    if base is None:
+        return None
+    return join_qualified_type(qualifier, base)
+
+
+def _with_qualifier(label: str | None, extra: str | None) -> str | None:
+    """Weaken *label*'s qualifier with *extra* without changing its base."""
+    if label is None or extra is None or label == "na":
+        return label
+    qualifier, base = split_qualified_type(label)
+    if base == "na":
+        return label
+    return join_qualified_type(_weaker_qualifier(qualifier, extra), base)
+
+
+def _bool_type(label: str | None) -> str | None:
+    """Bool with the same qualifier as *label* (``na`` stays ``na``)."""
+    if label is None:
+        return None
+    if label == "na" or split_qualified_type(label)[1] == "na":
+        return "na"
+    qualifier, _base = split_qualified_type(label)
+    return join_qualified_type(qualifier, "bool")
+
+
+def types_compatible(actual: str | None, expected: str | None) -> bool:
+    """Whether *actual* may be used where *expected* is required.
+
+    Unknown types are compatible (the diagnostic pass under-reports). ``na``
+    adopts *expected*. A stronger qualifier may be used as a weaker one.
+    ``int`` may be used as ``float``; the reverse is not allowed.
+    """
+    if not actual or not expected:
+        return True
+    actual_qualifier, actual_base = split_qualified_type(actual)
+    expected_qualifier, expected_base = split_qualified_type(expected)
+    if actual_base == "na" or expected_base is None:
+        return True
+    if not _base_compatible(actual_base, expected_base):
+        return False
+    if expected_qualifier is None or actual_qualifier is None:
+        return True
+    return _QUALIFIER_RANK[actual_qualifier] <= _QUALIFIER_RANK[expected_qualifier]
+
+
+def _base_compatible(actual: str | None, expected: str | None) -> bool:
+    if actual is None or expected is None or actual == "na":
+        return True
+    if actual == expected:
+        return True
+    return actual == "int" and expected == "float"
+
+
+def binding_type(declared: str | None, inferred: str | None) -> str | None:
+    """Type stored on a binding from its annotation and initializer.
+
+    An explicit qualifier wins. Otherwise the initializer's qualifier is
+    kept, so ``int x = 1`` is ``const int`` and ``float x = close`` is
+    ``series float``. Bare ``na`` adopts the annotated base; with no
+    explicit qualifier that base is ``series`` because ``na`` is not a
+    compile-time constant.
+    """
+    if not declared:
+        return inferred
+    declared_qualifier, declared_base = split_qualified_type(declared)
+    inferred_qualifier, inferred_base = split_qualified_type(inferred)
+    if inferred_base == "na" or not inferred:
+        qualifier = declared_qualifier or "series"
+        return join_qualified_type(qualifier, declared_base)
+    base = declared_base or inferred_base
+    qualifier = declared_qualifier if declared_qualifier else inferred_qualifier
+    return join_qualified_type(qualifier, base)
+
+
 def _constant_type(value: Any) -> str | None:
     if isinstance(value, bool):
         return "const bool"
@@ -1252,20 +1547,6 @@ def _constant_type(value: Any) -> str | None:
     if isinstance(value, str):
         return "const string"
     return None
-
-
-def _infer_binop(left: str | None, right: str | None) -> str | None:
-    if left is None and right is None:
-        return None
-    if left == "series string" or right == "series string":
-        return "series string"
-    if (left and "string" in left) or (right and "string" in right):
-        return "string"
-    if (left and "float" in left) or (right and "float" in right):
-        return "series float"
-    if (left and "int" in left) or (right and "int" in right):
-        return "series int"
-    return left or right
 
 
 def _collection_result(base: str | None, member: str, base_type: str | None) -> str | None:
@@ -1296,7 +1577,7 @@ def _function_return_type(symbol: Symbol, index: SymbolIndex) -> str | None:
     value = last.value if isinstance(last, ast.Expr) else None
     if value is None:
         return None
-    fn_scope = index._scope_for_node.get(id(node), symbol.scope)
+    fn_scope = index._prepare_function_scope(node, symbol.scope)
     return index.infer_type(value, fn_scope)
 
 
@@ -1316,7 +1597,19 @@ def _builtin_return_type(name: str) -> str | None:
     # says ``→ int value``. Keep this ahead of generic doc parsing.
     if name.startswith("input."):
         leaf = name.split(".", 1)[1]
-        if leaf in {"int", "float", "bool", "string", "color", "symbol", "session", "source", "time", "timeframe", "price"}:
+        if leaf in {
+            "int",
+            "float",
+            "bool",
+            "string",
+            "color",
+            "symbol",
+            "session",
+            "source",
+            "time",
+            "timeframe",
+            "price",
+        }:
             return f"input {leaf}"
         return "input"
     detail = str(info.get("detail") or "")
@@ -1485,8 +1778,14 @@ __all__ = [
     "Scope",
     "Symbol",
     "SymbolIndex",
+    "binding_type",
     "build_symbol_index",
+    "combine_types",
     "ensure_symbol_index",
     "infer_type",
     "iter_symbols",
+    "join_qualified_type",
+    "qualifier_of",
+    "split_qualified_type",
+    "types_compatible",
 ]

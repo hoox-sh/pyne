@@ -44,12 +44,13 @@ flowchart LR
 
 ## Interface surface
 
-Capability (`config.py` → `semantic_tokens_provider`):
+Capability: pygls 2 rebuilds `semanticTokensProvider` from the options on the `textDocument/semanticTokens/full` and `/range` registrations. Those options are a `SemanticTokensLegend` (`config.semantic_tokens_legend`). Without it, `initialize` omits the provider and the client never requests tokens.
 
 ```text
-legend.token_types (index order is contract):
+legend.token_types (index order is contract; new types are appended):
   namespace, type, class, function, method, variable,
-  parameter, property, keyword, string, number, operator, comment
+  parameter, property, keyword, string, number, operator, comment,
+  series, simple
 
 legend.token_modifiers (bit 0 = declaration):
   declaration, definition, readonly, defaultLibrary
@@ -78,6 +79,10 @@ Both take `(params, source, tree=…)` and return `lsp.SemanticTokens(data=[...]
 | Import alias and uses | namespace | declaration on the alias |
 | Builtin namespace attribute (`ta.sma`) | namespace + method | defaultLibrary (+ readonly on ns) |
 | Other attribute (unknown receiver) | property | — |
+| Qualifier keyword `series` / `simple` | series / simple | — |
+| Variable or parameter whose resolved qualifier is `series` / `simple`, including OHLCV builtins (`open`, `high`, `low`, `close`, `volume`, `hl2`, `hlc3`, `ohlc4`) and `time` / `bar_index` | series / simple | declaration on the binding; readonly on builtins |
+
+The type names `series` and `simple` match the custom `semanticTokenTypes` contributed by the VS Code extension. They are appended so existing legend indices stay stable.
 
 Builtin namespace set (`_BUILTIN_NS`): `ta`, `math`, `str`, `array`, `matrix`, `map`, `strategy`, `request`, `input`, `color`, `line`, `label`, `box`, `table`, `polyline`, `log`, `ticker`, `timeframe`, `chart`, `runtime`, `syminfo`, `barstate`, `session`, `time`.
 
@@ -97,7 +102,7 @@ TextMate from the extension repo's `syntaxes/pinescript.tmLanguage.json` still c
 
 1. **Never throws** — missing source, `tree=None`, or parse exception yields empty `data`.
 2. **Range is a clip of full** — same types/modifiers; tokens whose start is outside the range are dropped. A range token stream is a subsequence of the full stream.
-3. **Legend is fixed** at initialize; changing indices later would break cached clients.
+3. **Legend indices are stable.** `series` and `simple` are appended. Inserting a type earlier in the list would shift cached clients.
 4. Empty `data` is valid protocol (empty file, parse failure, or no tokens in range), not an error.
 5. Tokens are sorted by `(line, col)` before delta encoding.
 
@@ -110,7 +115,7 @@ length = 14
 plot(ta.sma(close, length))
 ```
 
-Full document: tokens for `length` (variable/declaration), `ta` (namespace/defaultLibrary), `sma` (method/defaultLibrary). Keywords such as `indicator` remain TextMate-only.
+Full document: tokens for `length` (variable/declaration when it is `const`), `close` (`series`), `ta` (namespace/defaultLibrary), `sma` (method/defaultLibrary). A `simple int` binding and the `simple` keyword use the `simple` token type. Keywords such as `indicator` remain TextMate-only.
 
 Range covering only the `plot(ta.sma…)` line keeps `ta` / `sma` (and any other starts on that line) and drops the `length` assignment. A range covering only the `//@version=6` pragma yields no namespace token.
 

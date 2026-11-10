@@ -28,7 +28,7 @@ description: "Document, range, and on-type formatting via AST parse → NodeUnpa
 
 Formatting is **canonical unparse**, not a style linter. The handler parses the buffer, runs `NodeUnparser`, and if the result differs from the source, replaces the document (or the requested line range, or the just-completed line) with a single `TextEdit`. There is no prettier-like option matrix; `FormattingOptions` from the client are currently unused.
 
-**Safety rule:** the ASDL AST keeps Pine annotations (`//@version`, `//@function`, …) but not ordinary prose or block comments. If the buffer contains a comment the unparser would drop, the handler switches to a **safe whitespace pass**: trailing spaces/tabs are removed and the final newline is normalized, while every comment and string is kept byte-for-byte. Lines inside multi-line strings are never trimmed. Range and on-type formatting apply the same pass to their target line. C002 does not offer a format QuickFix for such buffers because whitespace cleanup cannot shorten a long line. A full comment-preserving CST formatter is future work.
+**Comments:** the ASDL AST keeps Pine annotations (`//@version`, `//@function`, …) but not ordinary prose or block comments. Formatting still pretty-prints those buffers. After `NodeUnparser`, comments are spliced back onto the aligned tokens: full-line `//`, `#`, and `/* */` comments stay on their own line ahead of the next token; trailing `//` / `#` comments stay at the end of the line that owns them; inline block comments stay between the surrounding tokens. The result is lossless and idempotent. If token alignment cannot place a comment, it is appended rather than dropped. A whitespace-only trim remains the fallback when the splice itself fails. Range and on-type formatting use the same text, clipped to the requested lines when the line counts still match.
 
 ## Conceptual model
 
@@ -37,7 +37,8 @@ flowchart LR
   SRC[Source] --> PARSE[parse]
   PARSE --> AST[ASDL]
   AST --> UNP[NodeUnparser.visit]
-  UNP --> OUT[Formatted text]
+  UNP --> SPLICE[splice comments]
+  SPLICE --> OUT[Formatted text]
   OUT -->|equals source| EMPTY[empty edit list]
   OUT -->|full differs| EDIT[TextEdit replace document]
   OUT -->|range differs| REDIT[TextEdit replace range lines]
@@ -57,13 +58,13 @@ Capabilities (`config.py`): both document providers `True`; on-type advertised a
 ### Full document
 
 1. Parse with filename `"<format>"`.
-2. `formatted = NodeUnparser().visit(tree)`.
+2. `formatted = NodeUnparser().visit(tree)`, then splice original comments back onto the aligned tokens.
 3. If identical to source → `[]`.
 4. Else one `TextEdit` spanning `(0,0)` → last line/col with `new_text=formatted`.
 
 ### Range
 
-1. Unparse the **entire** document.
+1. Unparse the **entire** document (comments included).
 2. Slice **formatted** lines and **source** lines by the client range’s start/end line indices.
 3. If the in-range slices match → `[]`.
 4. Else replace `params.range` with the formatted line slice.
@@ -72,10 +73,10 @@ This is line-aligned, not AST-node-aligned: partial mid-line ranges may produce 
 
 ### On-type (after `\n`)
 
-After the client inserts a newline, `params.position` is the cursor on the **new** line and `params.ch` is `"\n"`. The handler formats the **previous** line (or line 0) via the same `NodeUnparser` and, when that line differs, returns one `TextEdit` covering only that source line.
+After the client inserts a newline, `params.position` is the cursor on the **new** line and `params.ch` is `"\n"`. The handler formats the **previous** line (or line 0) via the same comment-preserving unparse and, when that line differs, returns one `TextEdit` covering only that source line.
 
 1. Empty source, `ch != "\n"`, or `tree=None` (workspace parse already failed) → `[]`.
-2. Unparse the whole document.
+2. Unparse the whole document and splice comments.
 3. `target = max(0, params.position.line - 1)`.
 4. If the target is past either line list, or the formatted line equals the source line → `[]`.
 5. Else replace `[target, 0) → [target, len(source_line))` with the formatted line.
@@ -96,7 +97,7 @@ VS Code command `pynescript.formatDocument` delegates to `editor.action.formatDo
 
 1. **Parse failure → `[]`** (no partial format; silent no-op from the client’s perspective). On-type also no-ops when the workspace already failed to parse (`tree=None`).
 2. **Idempotence goal:** format twice should stabilize if unparse is canonical; any non-idempotent unparse is a core bug, not an LSP bug.
-3. **Comments / trivia:** Pine annotations are preserved; prose/block comments switch to the safe whitespace pass (never a destructive edit). This is not a full CST pretty-printer.
+3. **Comments / trivia:** annotations, prose line comments, trailing comments, and block comments survive formatting. Blank-line layout that the unparser does not emit is not restored.
 4. **Range and on-type** require a full successful parse and matching line counts; only the edit span is clipped. If unparse changes line structure, no range/on-type edit is returned.
 5. Tab size / insert spaces from `FormattingOptions` are ignored today.
 6. **On-type is previous-line only** — the new empty line under the cursor is not rewritten.

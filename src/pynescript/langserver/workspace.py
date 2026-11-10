@@ -148,9 +148,10 @@ class Workspace:
             style_diagnostics: Publish C001/C002/C004 findings. The VS Code
                 extension defaults this off to keep the Problems panel focused
                 on correctness.
-            semantic_diagnostics: Publish opt-in S001/S002 checks (unknown
-                user-type/enum members and user-function arity). Off by
-                default: under-report rather than guess.
+            semantic_diagnostics: Publish opt-in S001-S004 checks (unknown
+                user-type/enum members, user-function arity, qualifier
+                mismatches, and untyped ``na``). Off by default: under-report
+                rather than guess.
         """
         self._documents: dict[str, TextDocumentState] = {}
         self._parse_errors: set[str] = set()
