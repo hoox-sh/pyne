@@ -293,16 +293,47 @@ def _format(source: str) -> list[lsp.TextEdit]:
     )
 
 
+def _formatted(source: str) -> str:
+    edits = _format(source)
+    return source if not edits else edits[0].new_text
+
+
 class TestFormattingSafety:
-    def test_prose_comment_keeps_canonical_format_off(self) -> None:
+    def test_prose_comment_is_pretty_printed_in_place(self) -> None:
         source = '//@version=6\nindicator("T")\n// keep this comment\nx=1\n'
-        assert _format(source) == []
+        text = _formatted(source)
+        assert text == '//@version=6\nindicator("T")\n// keep this comment\nx = 1'
+        assert _formatted(text) == text
 
     def test_prose_comment_trims_trailing_whitespace(self) -> None:
         source = '//@version=6\nindicator("T")\n// keep this comment   \nx=1   \n'
-        edits = _format(source)
-        assert len(edits) == 1
-        assert edits[0].new_text == '//@version=6\nindicator("T")\n// keep this comment\nx=1\n'
+        text = _formatted(source)
+        assert text == '//@version=6\nindicator("T")\n// keep this comment\nx = 1'
+        assert _formatted(text) == text
+
+    def test_trailing_block_and_hash_comments_round_trip(self) -> None:
+        samples = [
+            '//@version=6\nindicator("T")\nplot(ta.sma(close,14)) // trailing\n',
+            '//@version=6\nindicator("T")\nx = close /* mid */ + open\n',
+            '//@version=6\nindicator("T")\n/* block\n   note */\nx=1\n',
+            '//@version=6\nindicator("T")\n# hash note\nx=close+1\n',
+            '//@version=6\nindicator("T")\nf(x) =>\n    // note\n    x\n',
+        ]
+        for source in samples:
+            once = _formatted(source)
+            assert "//@version=6" in once
+            assert _formatted(once) == once
+        trailing = _formatted(samples[0])
+        assert "plot(ta.sma(close, 14))  // trailing" in trailing
+        inline = _formatted(samples[1])
+        assert "close /* mid */ + open" in inline
+        block = _formatted(samples[2])
+        assert "/* block\n   note */" in block
+        hashed = _formatted(samples[3])
+        assert "# hash note" in hashed
+        nested = _formatted(samples[4])
+        assert "// note" in nested
+        assert "f(x) =>" in nested
 
     def test_multiline_string_spaces_are_preserved(self) -> None:
         source = '//@version=6\nindicator("T")\ns = """\na   \nb\n"""\n// note\nplot(close)   \n'
@@ -310,7 +341,7 @@ class TestFormattingSafety:
         assert len(edits) == 1
         assert "a   \nb" in edits[0].new_text
         assert "// note" in edits[0].new_text
-        assert edits[0].new_text.endswith("plot(close)\n")
+        assert edits[0].new_text.rstrip("\n").endswith("plot(close)")
 
     def test_range_formatting_with_comments_trims_only_the_range(self) -> None:
         source = '//@version=6\nindicator("T")\n// note\nplot(close)   \nplot(open)   \n'
@@ -500,6 +531,134 @@ class TestSemanticDiagnostics:
         assert "'Buy'" not in messages
 
 
+_QUALIFIER_SOURCE = """//@version=6
+indicator("T")
+simple int a = 1
+b = a + 2
+c = a + close
+d = close + na
+e = 1 + na
+branch = bar_index > 0 ? 1 : 2
+g = true ? na : close
+h = true ? na : 1
+bare = na
+float adopted = na
+simple float z = na
+series float ok = close
+simple float bad = close
+const int n = bar_index
+const int fixed = 1
+fixed := close
+ma = math.abs(1)
+drift = math.abs(close)
+ratio = 1 / 2
+lag = close[1]
+need_simple(simple int length) => length
+need_simple(close)
+need_simple(14)
+"""
+
+
+class TestQualifierPropagation:
+    """Series contamination and ``na`` context, matching Pine's qualifier lattice."""
+
+    def _index(self):
+        return build_symbol_index(parse(_QUALIFIER_SOURCE), _QUALIFIER_SOURCE)
+
+    def test_series_contaminates_simple(self) -> None:
+        index = self._index()
+        assert index.resolve("a").type_label == "simple int"
+        assert index.resolve("b").type_label == "simple int"
+        assert index.resolve("c").type_label == "series float"
+        assert index.resolve("branch").type_label == "series int"
+        assert index.resolve("lag").type_label == "series float"
+
+    def test_na_adopts_context(self) -> None:
+        index = self._index()
+        assert index.resolve("d").type_label == "series float"
+        assert index.resolve("e").type_label == "const int"
+        assert index.resolve("g").type_label == "series float"
+        assert index.resolve("h").type_label == "const int"
+        assert index.resolve("adopted").type_label == "series float"
+        assert index.resolve("z").type_label == "simple float"
+        assert index.resolve("bare").type_label == "na"
+
+    def test_user_function_return_uses_parameter_qualifiers(self) -> None:
+        source = """//@version=6
+indicator("T")
+add_close(simple int length) => length + close
+y = add_close(14)
+keep(simple int length) => length + 1
+z = keep(14)
+"""
+        index = build_symbol_index(parse(source), source)
+        assert index.resolve("y").type_label == "series float"
+        assert index.resolve("z").type_label == "simple int"
+
+    def test_const_math_and_division(self) -> None:
+        index = self._index()
+        assert index.resolve("ma").type_label == "const float"
+        assert index.resolve("drift").type_label == "series float"
+        assert index.resolve("ratio").type_label == "const float"
+        assert index.resolve("ok").type_label == "series float"
+
+    def test_diagnostics_for_weak_qualifier_and_bare_na(self) -> None:
+        workspace = Workspace(style_diagnostics=False, semantic_diagnostics=True)
+        workspace.put_document("file:///qual.pine", _QUALIFIER_SOURCE)
+        diagnostics = workspace.get_all_diagnostics()["file:///qual.pine"]
+        mismatches = [diag.message for diag in diagnostics if diag.code == "S003"]
+        na_notes = [diag.message for diag in diagnostics if diag.code == "S004"]
+        assert any("series float" in message and "simple float" in message for message in mismatches)
+        assert any("series int" in message and "const int" in message for message in mismatches)
+        assert any("simple int" in message and "series float" in message for message in mismatches)
+        assert any("Cannot determine the type of 'na'" in message for message in na_notes)
+        quiet = " ".join(mismatches)
+        assert "series float ok" not in quiet
+        assert "'const int' is required" in quiet
+        # ``fixed := close`` is the const reassignment; ``const int n = bar_index`` is separate.
+        assert sum("const int" in message for message in mismatches) >= 2
+
+
+class TestSeriesSimpleSemanticTokens:
+    def test_legend_and_emitted_types_match_the_extension(self) -> None:
+        from pynescript.langserver.config import semantic_token_types
+        from pynescript.langserver.features.semantic_tokens import handle_semantic_tokens
+
+        legend = semantic_token_types()
+        assert legend[-2:] == ("series", "simple")
+        source = """//@version=6
+indicator("T")
+simple int length = 14
+series float x = close
+y = length + open
+"""
+        result = handle_semantic_tokens(
+            lsp.SemanticTokensParams(text_document=lsp.TextDocumentIdentifier(uri="file:///tok.pine")),
+            source,
+        )
+        assert result is not None
+        lines = source.split("\n")
+        found: dict[str, str] = {}
+        line = 0
+        column = 0
+        data = result.data
+        for index in range(0, len(data), 5):
+            line += data[index]
+            column = data[index + 1] if data[index] else column + data[index + 1]
+            length = data[index + 2]
+            token_type = legend[data[index + 3]]
+            text = lines[line][column : column + length]
+            found[f"{line}:{text}"] = token_type
+        assert found["2:simple"] == "simple"
+        assert found["2:length"] == "simple"
+        assert found["3:series"] == "series"
+        assert found["3:x"] == "series"
+        assert found["3:close"] == "series"
+        assert found["4:y"] == "series"
+        assert found["4:length"] == "simple"
+        assert found["4:open"] == "series"
+
+
 # ---------------------------------------------------------------------------
 # W104 / W105 quick fixes
 # ---------------------------------------------------------------------------
@@ -572,13 +731,14 @@ class TestQuickFixes:
         action = next(a for a in _actions_for(source) if a.title == "Compare numeric condition with 0")
         assert _apply_action(source, action) == '//@version=6\nindicator("T")\ny = 1 != 0 ? 2 : 3\n'
 
-    def test_c002_not_offered_with_prose_comments(self) -> None:
+    def test_c002_format_keeps_prose_comments(self) -> None:
         long_title = "x" * 130
-        source = (
-            '//@version=6\nindicator("T")   \n// keep this comment\n'
-            f'plot(close, title="{long_title}")   \n'
-        )
-        assert "Format document" not in [action.title for action in _actions_for(source)]
+        source = f'//@version=6\nindicator("T")   \n// keep this comment\nplot(close, title="{long_title}")   \n'
+        action = next(action for action in _actions_for(source) if action.title == "Format document")
+        text = _apply_action(source, action)
+        assert "// keep this comment" in text
+        assert 'indicator("T")\n' in text
+        assert f'title="{long_title}"' in text
 
 
 # ---------------------------------------------------------------------------
@@ -612,9 +772,7 @@ class TestUtf16Positions:
         source = '//@version=6\nindicator("T")\nplot(close, title="🚀", transp=20)\n'
         workspace = Workspace(style_diagnostics=False)
         workspace.put_document("file:///utf16.pine", source)
-        diagnostic = next(
-            diag for diag in workspace.get_all_diagnostics()["file:///utf16.pine"] if diag.code == "W104"
-        )
+        diagnostic = next(diag for diag in workspace.get_all_diagnostics()["file:///utf16.pine"] if diag.code == "W104")
         line = source.split("\n")[2]
         assert diagnostic.range.start.character == line.index("transp") + 1
 

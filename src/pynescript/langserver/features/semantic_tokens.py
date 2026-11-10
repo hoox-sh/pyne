@@ -39,8 +39,10 @@ import lsprotocol.types as lsp
 
 from pynescript.ast import helper as ast_helper
 from pynescript.ast import node as ast
+from pynescript.langserver.analysis import BUILTIN_VAR_TYPES
 from pynescript.langserver.analysis import SymbolIndex
 from pynescript.langserver.analysis import ensure_symbol_index
+from pynescript.langserver.analysis import qualifier_of
 from pynescript.langserver.config import semantic_token_types
 from pynescript.langserver.protocol.utils import codepoint_column_to_utf16
 
@@ -162,6 +164,8 @@ def _collect_tokens(
         _collect_builtin_attrs(tree, raw)
     else:
         _collect(tree, raw)
+    # ``series`` / ``simple`` qualifier keywords are not identifier occurrences.
+    _collect_qualifiers(tree, raw)
     raw.sort(key=lambda t: (t[0], t[1], -t[4]))
     return _dedupe(raw)
 
@@ -183,17 +187,18 @@ def _collect_from_index(index: SymbolIndex, out: list[tuple[int, int, int, int, 
     """Emit declaration/reference tokens from the static symbol index."""
     for occurrence in index.occurrences:
         symbol = occurrence.symbol
-        if symbol is None:
-            continue
-        token_type = _TOKEN_TYPE_BY_KIND.get(symbol.kind)
+        token_type = _occurrence_token_type(symbol, occurrence.name)
         if token_type is None:
             continue
         mods = 0
-        is_declaration = occurrence.write and occurrence.node is symbol.name_node
-        if is_declaration:
-            mods |= _MOD_DECLARATION
-            if symbol.kind in {"function", "method", "type", "enum"}:
-                mods |= _MOD_DEFINITION
+        if symbol is None:
+            mods |= _MOD_READONLY
+        else:
+            is_declaration = occurrence.write and occurrence.node is symbol.name_node
+            if is_declaration:
+                mods |= _MOD_DECLARATION
+                if symbol.kind in {"function", "method", "type", "enum"}:
+                    mods |= _MOD_DEFINITION
         out.append(
             (
                 occurrence.line,
@@ -203,6 +208,39 @@ def _collect_from_index(index: SymbolIndex, out: list[tuple[int, int, int, int, 
                 mods,
             )
         )
+
+
+def _occurrence_token_type(symbol: Any, name: str) -> str | None:
+    """Token type for one identifier, preferring ``series`` / ``simple``.
+
+    Qualifier keywords are emitted separately. Identifiers use ``series`` or
+    ``simple`` when that is the resolved qualifier — including OHLCV builtins
+    (``open``, ``high``, ``low``, ``close``, ``volume``, ``hl2``, ``hlc3``,
+    ``ohlc4``) and user bindings such as ``simple int length``.
+    """
+    if symbol is None:
+        qualifier = qualifier_of(BUILTIN_VAR_TYPES.get(name))
+        if qualifier in {"series", "simple"}:
+            return qualifier
+        return None
+    qualifier = qualifier_of(symbol.type_label)
+    if symbol.kind in {"variable", "param"} and qualifier in {"series", "simple"}:
+        return qualifier
+    return _TOKEN_TYPE_BY_KIND.get(symbol.kind)
+
+
+def _collect_qualifiers(tree: Any, out: list[tuple[int, int, int, int, int]]) -> None:
+    """Emit ``series`` / ``simple`` tokens for qualifier keywords."""
+    for node in ast_helper.walk(tree):
+        if not isinstance(node, ast.Qualify):
+            continue
+        qualifier = getattr(node, "qualifier", None)
+        name = type(qualifier).__name__.lower() if qualifier is not None else ""
+        if name not in {"series", "simple"}:
+            continue
+        line = max(0, int(getattr(node, "lineno", 1) or 1) - 1)
+        col = max(0, int(getattr(node, "col_offset", 0) or 0))
+        out.append((line, col, len(name), _TT[name], 0))
 
 
 _TOKEN_TYPE_BY_KIND: dict[str, str] = {

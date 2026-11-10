@@ -41,8 +41,9 @@
 - documentLink (+ resolve tooltip) (``http(s)`` URLs in comments and string literals)
 - codeAction (Convert-to-v6 + W001 QuickFix) + ``pynescript.convertToV6`` executeCommand
 
-Advertised capabilities come from :func:`pynescript.langserver.config.get_server_capabilities`
-— only list methods that have implementations here.
+pygls 2 rebuilds advertised capabilities from registered feature options.
+Semantic tokens must be registered with :func:`pynescript.langserver.config.semantic_tokens_legend`
+or ``initialize`` omits ``semanticTokensProvider``.
 
 Entry: :func:`pynescript.langserver.__main__.main` or construct this class and
 call ``start_io()``.
@@ -159,13 +160,17 @@ class PynescriptLanguageServer(LanguageServer):
 
         self.setup_method_handlers()
 
-    def _position_feature(self, feature_name: str) -> Any:
+    def _position_feature(self, feature_name: str, options: Any | None = None) -> Any:
         """Register a handler that converts UTF-16 positions at the boundary.
 
         Feature handlers work with Python code-point columns. LSP clients send
         and expect UTF-16 columns; the wrapper converts params on the way in
         and results on the way out. URI-bearing result containers (rename
         edits, locations) use their own document's lines when available.
+
+        *options* is forwarded to pygls. Semantic-token methods need a
+        :class:`~lsprotocol.types.SemanticTokensLegend` here; without it pygls
+        omits ``semanticTokensProvider`` from the ``initialize`` result.
         """
 
         def decorator(func: Any) -> Any:
@@ -189,7 +194,7 @@ class PynescriptLanguageServer(LanguageServer):
                     lines_for_uri=self._lines_for_uri,
                 )
 
-            return self.feature(feature_name)(wrapper)
+            return self.feature(feature_name, options)(wrapper)
 
         return decorator
 
@@ -381,9 +386,7 @@ class PynescriptLanguageServer(LanguageServer):
         ) -> lsp.WorkspaceDiagnosticReport:
             """Handle workspace diagnostics pull."""
             all_diags = (
-                self.pine_workspace.get_all_diagnostics()
-                if self.settings.get("diagnosticsEnabled", True)
-                else {}
+                self.pine_workspace.get_all_diagnostics() if self.settings.get("diagnosticsEnabled", True) else {}
             )
 
             items = []
@@ -767,7 +770,13 @@ class PynescriptLanguageServer(LanguageServer):
             """Handle documentLink/resolve request (fill tooltip)."""
             return document_link_feature.handle_document_link_resolve(params)
 
-        @self._position_feature(lsp.TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL)
+        # pygls reads this legend off the feature options when it builds the
+        # initialize capabilities. Both methods carry the same legend; the
+        # builder uses the first one it finds and sets full/range from which
+        # methods are registered.
+        semantic_legend = config.semantic_tokens_legend()
+
+        @self._position_feature(lsp.TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL, semantic_legend)
         def text_semantic_tokens(
             params: lsp.SemanticTokensParams,
         ) -> lsp.SemanticTokens | None:
@@ -789,7 +798,7 @@ class PynescriptLanguageServer(LanguageServer):
             doc.feature_cache["semantic_tokens"] = result
             return result
 
-        @self._position_feature(lsp.TEXT_DOCUMENT_SEMANTIC_TOKENS_RANGE)
+        @self._position_feature(lsp.TEXT_DOCUMENT_SEMANTIC_TOKENS_RANGE, semantic_legend)
         def text_semantic_tokens_range(
             params: lsp.SemanticTokensRangeParams,
         ) -> lsp.SemanticTokens | None:

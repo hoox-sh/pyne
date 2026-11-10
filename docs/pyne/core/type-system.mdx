@@ -199,7 +199,7 @@ Consumers (outside this doc’s page set, for orientation):
 
 ### Compatibility
 
-`Type.is_compatible_with` is currently shallow: `BuiltinType` compares by equality; the base method returns `False` for other pairs. Treat richer subtyping (series/simple lattice, numeric promotion) as **not fully encoded** here — bar-loop semantics still own much of the coercion behavior.
+`Type.is_compatible_with` is currently shallow: `BuiltinType` compares by equality; the base method returns `False` for other pairs. The Pine qualifier lattice used by the language server (strong → weak: `const` > `input` > `simple` > `series`, with `na` adopting its context) lives in `langserver/analysis.py`, not in this class and not in the compiler. Bar-loop semantics still own runtime coercion.
 
 ### `na` and `enum`
 
