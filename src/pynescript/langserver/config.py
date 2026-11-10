@@ -19,9 +19,14 @@
 
 """Advertised LSP server capabilities and semantic-token legend.
 
-:func:`get_server_capabilities` is returned from the ``initialize`` handler in
-:mod:`pynescript.langserver.server`. Only declare providers that have working
-handlers. Code actions expose Convert-to-v6 and the W001 QuickFix.
+:func:`get_server_capabilities` mirrors the providers this server implements.
+pygls 2 does **not** send that object on the wire: after the user
+``initialize`` handler returns, it rebuilds ``ServerCapabilities`` from
+registered feature options. Semantic tokens are omitted unless the
+``textDocument/semanticTokens/*`` handlers are registered with a
+:class:`~lsprotocol.types.SemanticTokensLegend` (see
+:func:`semantic_tokens_legend`). Code actions expose Convert-to-v6 and the
+W001 QuickFix.
 
 Semantic token type/modifier order in :func:`semantic_token_types` /
 :func:`semantic_token_modifiers` **must** stay aligned with indices used by
@@ -99,12 +104,10 @@ def get_server_capabilities() -> lsp.ServerCapabilities:
         inlay_hint_provider=lsp.InlayHintOptions(
             resolve_provider=False,
         ),
-        # Legend indices must match semantic_tokens.TOKEN_TYPES order.
+        # Kept in sync with the legend passed to the semantic-token feature
+        # registrations. pygls rebuilds the wire capability from that legend.
         semantic_tokens_provider=lsp.SemanticTokensOptions(
-            legend=lsp.SemanticTokensLegend(
-                token_types=list(semantic_token_types()),
-                token_modifiers=list(semantic_token_modifiers()),
-            ),
+            legend=semantic_tokens_legend(),
             range=True,
             full=True,
         ),
@@ -114,6 +117,22 @@ def get_server_capabilities() -> lsp.ServerCapabilities:
                 change_notifications=False,
             ),
         ),
+    )
+
+
+def semantic_tokens_legend() -> lsp.SemanticTokensLegend:
+    """Legend passed as the semantic-token feature options.
+
+    pygls 2 treats this object (not :class:`~lsprotocol.types.SemanticTokensOptions`)
+    as the registration options for ``textDocument/semanticTokens/full``,
+    ``/full/delta``, and ``/range``. It then advertises
+    ``semanticTokensProvider`` with this legend and sets ``full`` / ``range``
+    from which of those methods are registered. Registering the handlers
+    without this legend drops the capability from ``initialize``.
+    """
+    return lsp.SemanticTokensLegend(
+        token_types=list(semantic_token_types()),
+        token_modifiers=list(semantic_token_modifiers()),
     )
 
 

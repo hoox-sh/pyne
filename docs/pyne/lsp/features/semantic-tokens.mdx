@@ -44,7 +44,7 @@ flowchart LR
 
 ## Interface surface
 
-Capability (`config.py` → `semantic_tokens_provider`):
+Capability: pygls 2 rebuilds `semanticTokensProvider` from the options on the `textDocument/semanticTokens/full` and `/range` registrations. Those options are a `SemanticTokensLegend` (`config.semantic_tokens_legend`). Without it, `initialize` omits the provider and the client never requests tokens.
 
 ```text
 legend.token_types (index order is contract; new types are appended):

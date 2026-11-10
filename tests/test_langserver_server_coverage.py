@@ -45,6 +45,20 @@ def _handler(server: PynescriptLanguageServer, method: str):
     return server.protocol.fm.features[method]
 
 
+def _drive_generator(gen: Any) -> Any:
+    """Run a pygls builtin generator handler to its ``InitializeResult``."""
+    try:
+        handler, args, kwargs = next(gen)
+    except StopIteration as stop:
+        return stop.value
+    while True:
+        result = handler(*(args or ()), **(kwargs or {}))
+        try:
+            handler, args, kwargs = gen.send(result)
+        except StopIteration as stop:
+            return stop.value
+
+
 @pytest.fixture()
 def server(monkeypatch: pytest.MonkeyPatch):
     """Language server with publish-diagnostics captured into a list."""
@@ -146,6 +160,53 @@ class TestLifecycle:
     def test_initialized_and_shutdown(self, server: PynescriptLanguageServer) -> None:
         assert _handler(server, lsp.INITIALIZED)(lsp.InitializedParams()) is None
         assert _handler(server, lsp.SHUTDOWN)(None) is None
+
+    def test_pygls_initialize_advertises_semantic_token_legend(self, server: PynescriptLanguageServer) -> None:
+        """Drive pygls' builtin initialize, which rebuilds capabilities.
+
+        The user ``initialize`` handler's ``ServerCapabilities`` are discarded.
+        Semantic tokens are advertised only when the full/range handlers were
+        registered with a ``SemanticTokensLegend``.
+        """
+        from pynescript.__about__ import __version__
+        from pynescript.langserver.config import semantic_token_modifiers
+        from pynescript.langserver.config import semantic_token_types
+
+        params = lsp.InitializeParams(
+            process_id=None,
+            capabilities=lsp.ClientCapabilities(
+                text_document=lsp.TextDocumentClientCapabilities(
+                    semantic_tokens=lsp.SemanticTokensClientCapabilities(
+                        requests=lsp.ClientSemanticTokensRequestOptions(range=True, full=True),
+                        token_types=[],
+                        token_modifiers=[],
+                        formats=[lsp.TokenFormat.Relative],
+                    )
+                )
+            ),
+            client_info=lsp.ClientInfo(name="handshake", version="0"),
+        )
+        builtin = server.protocol.fm.builtin_features[lsp.INITIALIZE]
+        result = _drive_generator(builtin(params))
+        assert isinstance(result, lsp.InitializeResult)
+        assert result.server_info is not None
+        assert result.server_info.version == __version__ == "0.6.35"
+
+        provider = result.capabilities.semantic_tokens_provider
+        assert isinstance(provider, lsp.SemanticTokensOptions)
+        assert list(provider.legend.token_types) == list(semantic_token_types())
+        assert list(provider.legend.token_types[-2:]) == ["series", "simple"]
+        assert list(provider.legend.token_modifiers) == list(semantic_token_modifiers())
+        assert provider.full is True
+        assert provider.range is True
+
+    def test_pyne_lsp_version_flag(self, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:
+        from pynescript.__about__ import __version__
+        from pynescript.langserver.__main__ import main
+
+        monkeypatch.setattr("sys.argv", ["pyne-lsp", "--version"])
+        main()
+        assert capsys.readouterr().out.strip() == __version__ == "0.6.35"
 
 
 # ---------------------------------------------------------------------------

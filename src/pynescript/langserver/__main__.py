@@ -36,7 +36,9 @@ calls ``start_io()`` (JSON-RPC over stdin/stdout). This is separate from the
 from __future__ import annotations
 
 import logging
+import sys
 
+from pynescript.__about__ import __version__
 from pynescript.langserver.server import PynescriptLanguageServer
 
 
@@ -62,7 +64,14 @@ def _configure_logging() -> None:
 
 
 def main() -> None:
-    """Start the Language Server on stdio (blocking until the client exits)."""
+    """Start the Language Server on stdio (blocking until the client exits).
+
+    ``pyne-lsp --version`` prints :data:`pynescript.__version__` and returns.
+    The same string is the ``initialize`` ``serverInfo.version``.
+    """
+    if "--version" in sys.argv[1:]:
+        sys.stdout.write(__version__ + "\n")
+        return
     _configure_logging()
     server = PynescriptLanguageServer()
     server.start_io()
