@@ -465,6 +465,18 @@ class TestSemanticDiagnostics:
         assert diagnostic.range.start.line == 19
         assert diagnostic.range.start.character == _SEMANTIC_SOURCE.split("\n")[19].index("distnace")
 
+    def test_semantic_ranges_are_utf16(self) -> None:
+        """A non-BMP character before the squiggle must not shift the range."""
+        source = '//@version=6\ntype P\n    float x\np = P.new()\ny = "🚀" + p.bad\n'
+        workspace = Workspace(style_diagnostics=False, semantic_diagnostics=True)
+        workspace.put_document("file:///utf16-sem.pine", source)
+        diagnostic = next(d for d in workspace.get_all_diagnostics()["file:///utf16-sem.pine"] if d.code == "S001")
+        line = source.split("\n")[4]
+        codepoint = line.index("bad")
+        # 🚀 is U+1F680, one Python code point and two UTF-16 units.
+        assert diagnostic.range.start.character == codepoint + 1
+        assert diagnostic.range.end.character == codepoint + 1 + len("bad")
+
     def test_unknown_enum_member(self) -> None:
         messages = [diag.message for diag in _semantic_diagnostics(enabled=True) if diag.code == "S001"]
         assert any("Selll" in message and "Side" in message for message in messages)

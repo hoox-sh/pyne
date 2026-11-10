@@ -44,6 +44,7 @@ from pynescript.ast import node as ast
 from pynescript.ast.helper import walk
 from pynescript.langserver.analysis import SymbolIndex
 from pynescript.langserver.analysis import base_type_name
+from pynescript.langserver.protocol.utils import codepoint_column_to_utf16
 
 
 CODE_UNKNOWN_MEMBER = "S001"
@@ -53,12 +54,17 @@ _UNKNOWN_MEMBER_MESSAGE = "Unknown {member_kind} '{name}' on {container_kind} '{
 
 
 def collect(index: SymbolIndex | None) -> list[lsp.Diagnostic]:
-    """Return semantic diagnostics for *index* (empty when unavailable)."""
+    """Return semantic diagnostics for *index* (empty when unavailable).
+
+    Columns are LSP UTF-16 code units. The symbol index stores Python
+    code-point offsets; a non-BMP character earlier on the line (emoji)
+    shifts the published range if that conversion is skipped.
+    """
     if index is None:
         return []
     diagnostics = _unknown_members(index)
     diagnostics.extend(_call_arity(index))
-    return diagnostics
+    return [_diagnostic_utf16(index, item) for item in diagnostics if item is not None]
 
 
 def _unknown_members(index: SymbolIndex) -> list[lsp.Diagnostic]:
@@ -189,6 +195,26 @@ def _diagnostic(rng: lsp.Range | None, message: str) -> lsp.Diagnostic | None:
         source="pyne",
         code=CODE_CALL_ARITY,
     )
+
+
+def _diagnostic_utf16(index: SymbolIndex, diagnostic: lsp.Diagnostic) -> lsp.Diagnostic:
+    """Convert a diagnostic's code-point columns to UTF-16."""
+    rng = diagnostic.range
+    diagnostic.range = lsp.Range(
+        start=lsp.Position(line=rng.start.line, character=_column_utf16(index, rng.start.line, rng.start.character)),
+        end=lsp.Position(line=rng.end.line, character=_column_utf16(index, rng.end.line, rng.end.character)),
+    )
+    return diagnostic
+
+
+def _column_utf16(index: SymbolIndex, line: int, column: int) -> int:
+    if column <= 0 or not index.lines or line < 0 or line >= len(index.lines):
+        return max(0, column)
+    text = index.lines[line]
+    if text.endswith("\r"):
+        text = text[:-1]
+    column = min(column, len(text))
+    return codepoint_column_to_utf16(text, column)
 
 
 def _line_index(node: Any) -> int:

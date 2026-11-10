@@ -314,6 +314,11 @@ def test_nz_and_safe_div_mod():
     assert np.isnan(nb.numba_safe_div(1.0, None))
     assert nb.numba_safe_mod(5.0, 3.0) == pytest.approx(2.0)
     assert np.isnan(nb.numba_safe_mod(1.0, 0.0))
+    # Dividend sign, including the integer overload Numba's np.fmod gets wrong.
+    assert nb.numba_safe_mod(-7.0, 3.0) == pytest.approx(-1.0)
+    assert nb.numba_safe_mod(7.0, -3.0) == pytest.approx(1.0)
+    assert nb.numba_safe_mod(-7, 3) == pytest.approx(-1.0)
+    assert nb.numba_safe_mod(7, -3) == pytest.approx(1.0)
 
 
 def test_abs_max_min_scalars():

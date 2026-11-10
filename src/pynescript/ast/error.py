@@ -77,12 +77,15 @@ class SyntaxError(Exception):  # noqa: A001
 
     def __str__(self) -> str:
         """Human-readable message including file, line, and caret underline."""
+        details = getattr(self, "details", None)
+        if details is None:
+            return self.message
         f = StringIO()
-        code = self.details.text.lstrip()
-        offset = self.details.offset + len(code) - len(self.details.text)
+        code = details.text.lstrip()
+        offset = details.offset + len(code) - len(details.text)
         f.write(self.message)
         f.write("\n")
-        f.write(f'  File "{self.details.filename}", line {self.details.lineno}\n')
+        f.write(f'  File "{details.filename}", line {details.lineno}\n')
         f.write(f"    {code}")
         f.write("    ")
         f.write(" " * offset)

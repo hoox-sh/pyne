@@ -35,6 +35,7 @@ Cross-cutting rules used throughout this module:
 
 from __future__ import annotations
 
+import math
 import operator
 
 from collections.abc import Callable
@@ -303,16 +304,14 @@ def _switch_case_matches(has_subject: bool, subject_val: Any, pattern_val: Any) 
     """
     if not has_subject:
         if isinstance(pattern_val, (list, tuple)):
-            return any(bool(p) for p in pattern_val)
-        return bool(pattern_val)
+            return any(_pine_is_true(p) for p in pattern_val)
+        return _pine_is_true(pattern_val)
     # Multi-value arm ``1, 2 => …`` — match any element.
     if isinstance(pattern_val, (list, tuple)):
         return any(_switch_case_matches(has_subject, subject_val, p) for p in pattern_val)
-    # Subject form: na only equals na; otherwise Python equality (try-soft).
-    if subject_val is None and pattern_val is None:
-        return True
-    if subject_val is None or pattern_val is None:
-        return False
+    # Subject form: na only equals na (None or NaN); otherwise Python equality.
+    if _is_pine_na(subject_val) or _is_pine_na(pattern_val):
+        return _is_pine_na(subject_val) and _is_pine_na(pattern_val)
     try:
         return subject_val == pattern_val
     except Exception:
@@ -451,8 +450,55 @@ def _safe_truediv(a, b):
         return None
 
 
+def _pine_mod(a, b):
+    """Remainder whose sign follows the dividend (C ``fmod`` / Pine ``%``).
+
+    Python ``%`` follows the divisor (``-7 % 3`` is ``2``). Pine and the
+    compile helper :func:`numba_safe_mod` follow the dividend (``-1``).
+    Zero or non-finite operands yield ``na``. Integer pairs stay exact.
+    """
+    try:
+        if b == 0 or (isinstance(b, float) and b != b) or (isinstance(a, float) and a != a):
+            return None
+    except TypeError:
+        return None
+    try:
+        if type(a) is int and type(b) is int:
+            r = a % b
+            if r and (a < 0) != (b < 0):
+                r -= b
+            return r
+        r = math.fmod(a, b)
+        if isinstance(r, float) and r != r:
+            return None
+        return r
+    except (TypeError, ZeroDivisionError, OverflowError, ValueError):
+        return None
+
+
+def _pine_is_true(value: Any) -> bool:
+    """Pine condition: ``na`` (None or NaN) is false; numbers are nonzero."""
+    if value is None:
+        return False
+    t = type(value)
+    if t is bool:
+        return value
+    if t is int:
+        return value != 0
+    if t is float or isinstance(value, float):
+        return value == value and value != 0.0
+    return bool(value)
+
+
+def _is_pine_na(value: Any) -> bool:
+    """True for Pine ``na``: ``None`` or a NaN float (including ``np.float64``)."""
+    if value is None:
+        return True
+    return isinstance(value, float) and value != value
+
+
 _OPERATOR_DIV = _na_safe_binary(_safe_truediv)
-_OPERATOR_MOD = _na_safe_binary(operator.mod)
+_OPERATOR_MOD = _na_safe_binary(_pine_mod)
 _OPERATOR_NOT = _na_safe_unary(operator.not_)
 _OPERATOR_POS = _na_safe_unary(operator.pos)
 _OPERATOR_NEG = _na_safe_unary(operator.neg)
@@ -464,7 +510,7 @@ _BINOP_RAW: dict[type, Callable[[Any, Any], Any]] = {
     ast.Sub: operator.sub,
     ast.Mult: operator.mul,
     ast.Div: _safe_truediv,
-    ast.Mod: operator.mod,
+    ast.Mod: _pine_mod,
 }
 _CMPOP_RAW: dict[type, Callable[[Any, Any], Any]] = {
     ast.Eq: operator.eq,
@@ -540,13 +586,13 @@ class ExpressionEvaluator:
         if op_t is ast.And:
             result = True
             for value in values:
-                if not visit(value):
+                if not _pine_is_true(visit(value)):
                     result = False
             return result
         if op_t is ast.Or:
             result = False
             for value in values:
-                if visit(value):
+                if _pine_is_true(visit(value)):
                     result = True
             return result
         msg = f"unexpected node operator: {node.op}"
@@ -596,10 +642,7 @@ class ExpressionEvaluator:
                 if op_t is ast.Div:
                     return _safe_truediv(left, right)
                 if op_t is ast.Mod:
-                    try:
-                        return left % right
-                    except ZeroDivisionError:
-                        return None
+                    return _pine_mod(left, right)
             elif right is None:
                 return None
         elif left is None:
@@ -638,6 +681,9 @@ class ExpressionEvaluator:
             if op_t is ast.UAdd:
                 return +operand
             if op_t is ast.Not:
+                # float('nan') is truthy in Python; Pine ``not na`` is na.
+                if t is float and operand != operand:
+                    return None
                 return not operand
         if operand is None:
             # Pine: unary ops on na propagate na (including ``not na`` → na)
@@ -655,7 +701,7 @@ class ExpressionEvaluator:
         ``orelse`` (Python truthiness: ``None`` and ``0`` are false).
         """
         visit = self.visit
-        if visit(node.test):
+        if _pine_is_true(visit(node.test)):
             return visit(node.body)
         return visit(node.orelse)
 
@@ -1832,7 +1878,7 @@ class ExpressionEvaluator:
         Returns:
             Last expression value of the taken branch, or ``None``
         """
-        if self.visit(node.test):
+        if _pine_is_true(self.visit(node.test)):
             return self._eval_local_block(node.body)
         return self._eval_local_block(node.orelse)
 

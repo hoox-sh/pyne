@@ -371,6 +371,57 @@ def _chart_period(evaluator: object | None = None) -> str:
     return "D"
 
 
+# Exchange / AXIS interval → Pine ``timeframe.period``. Passing raw ``"1m"``
+# through Runtime upper-cases to ``"1M"`` (monthly). Same map as pyne-worker.
+_EXCHANGE_TO_PINE_PERIOD: dict[str, str] = {
+    "1m": "1",
+    "3m": "3",
+    "5m": "5",
+    "15m": "15",
+    "30m": "30",
+    "1h": "60",
+    "2h": "120",
+    "4h": "240",
+    "6h": "360",
+    "8h": "480",
+    "12h": "720",
+    "1d": "D",
+    "3d": "3D",
+    "1w": "W",
+    "1M": "M",
+}
+
+
+def to_pine_period(timeframe: object) -> str | None:
+    """Map an AXIS/exchange interval to Pine ``timeframe.period``.
+
+    Empty or unknown values return ``None`` (Runtime's daily default).
+    Already-Pine forms (``"15"``, ``"D"``, ``"30S"``) pass through.
+    ``"1m"`` becomes ``"1"`` so it is not read as monthly ``"1M"``.
+    """
+    if not timeframe or not isinstance(timeframe, str):
+        return None
+    tf = timeframe.strip()
+    if not tf:
+        return None
+    mapped = _EXCHANGE_TO_PINE_PERIOD.get(tf)
+    if mapped is not None:
+        return mapped
+    if tf.isdigit():
+        return tf
+    u = tf.upper()
+    aliases = {"1D": "D", "1W": "W", "1M": "M"}
+    if u in aliases:
+        return aliases[u]
+    if u in {"D", "W", "M", "3D"}:
+        return u
+    if len(tf) >= 2 and tf[:-1].isdigit() and tf[-1] in "SsHhDdWw":
+        return tf
+    if len(tf) >= 3 and tf[:-2].isdigit() and tf[-2:].upper() == "MO":
+        return tf
+    return None
+
+
 def _period_flags(period: str) -> dict[str, bool | int | str]:
     """Derive Pine timeframe.* boolean flags from a period string."""
     p = (period or "D").strip().upper()

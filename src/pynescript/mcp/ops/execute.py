@@ -68,6 +68,7 @@ def execute_source(
     timeframe: str = "1m",
 ) -> dict[str, Any]:
     """Run Pine through :class:`~pynescript.runtime.Runtime`."""
+    from pynescript.ast.evaluator.builtins.timeframe import to_pine_period
     from pynescript.runtime import Runtime
 
     loaded = load_source(source, path, encoding=encoding)
@@ -81,7 +82,7 @@ def execute_source(
     if mode_norm not in ("interpret", "compile", "auto"):
         return fail("mode must be interpret, compile, or auto", kind="io")
     timeout = clamp_timeout(timeout_seconds)
-    host = Runtime(symbol=ticker)
+    host = Runtime(symbol=ticker, timeframe=to_pine_period(timeframe))
     t0 = time.perf_counter()
     try:
         result = host.run(
