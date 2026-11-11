@@ -60,7 +60,12 @@ class _FakeSession:
 
     def result(self):
         n = len(self._ohlcv_data)
-        return {"plots": [[1.0] * n], "series": {"a": [1.0] * n}, "count": n}
+        return {
+            "plots": [[1.0] * n],
+            "series": {"a": [1.0] * n},
+            "count": n,
+            "times": [int(b["time"]) for b in self._ohlcv_data],
+        }
 
 
 class _Outcome:
@@ -238,6 +243,12 @@ def test_feed_batch_emits_delta_to_socket(monkeypatch):
     assert delta["seq"] == 2
     assert delta["payload"]["tail_len"] == 1
     assert delta["payload"]["closed_upto"] == 0 or isinstance(delta["payload"]["closed_upto"], int)
+    # The tail's bar-time axis travels with the delta (no axis = the client can
+    # only trust its own chart, which is how a cross-timeframe merge goes
+    # unnoticed). It is the evaluated result's own tail, never the feed batch.
+    assert delta["payload"]["times"] == [int(tick["time"])]
+    # And the frame names its timeframe so a client can assert before joining.
+    assert delta["payload"]["interval"] == "1m"
 
 
 def test_serve_loop_subscribe_over_fake_socket():

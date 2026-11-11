@@ -579,6 +579,7 @@ class LiveConnection:
                 int(full_count if full_count is not None else len(bars)),
                 watermark,
                 client_id,
+                interval=getattr(key, "interval", None) if key else None,
                 **full_kwargs,
             )
         )
@@ -612,6 +613,7 @@ class LiveConnection:
                 count,
                 watermark,
                 client_id,
+                interval=getattr(key, "interval", None) if key else None,
                 **full_kwargs,
             ),
             make_status(session_id, "live", client_id),
@@ -932,6 +934,7 @@ def make_full(
     events: Any = None,
     drawings: Any = None,
     meta: dict[str, Any] | None = None,
+    interval: str | None = None,
 ) -> dict[str, Any]:
     if not isinstance(seq, int) or seq < 1:
         raise ValueError("full frames need a positive seq")
@@ -956,6 +959,11 @@ def make_full(
         payload["drawings"] = drawings
     if meta is not None:
         payload["meta"] = meta
+    # Timeframe of the evaluated window. A client can assert it against its
+    # chart before joining: a pooled session left on another interval would
+    # otherwise land values on the wrong bars with nothing to catch it.
+    if interval:
+        payload["interval"] = interval
     out: dict[str, Any] = {
         "type": "full",
         "sessionId": session_id,
@@ -980,6 +988,8 @@ def make_delta(
     plots: Any = None,
     series: dict[str, Any] | None = None,
     bars: list[dict[str, Any]] | None = None,
+    times: list[int] | None = None,
+    interval: str | None = None,
 ) -> dict[str, Any]:
     if not isinstance(seq, int) or seq < 1:
         raise ValueError("delta frames need a positive seq")
@@ -999,6 +1009,13 @@ def make_delta(
         payload["series"] = series
     if bars is not None:
         payload["bars"] = bars
+    # Bar-time axis of the tail, same splice as plots/series. Without it the
+    # client has to trust its own chart axis for the bar each tip belongs to.
+    if times is not None:
+        payload["times"] = times
+    # Timeframe of the evaluated window (see make_full).
+    if interval:
+        payload["interval"] = interval
     out: dict[str, Any] = {
         "type": "delta",
         "sessionId": session_id,

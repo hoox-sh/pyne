@@ -24,6 +24,8 @@ from backend.api.live_ws import LiveRegistry
 from backend.api.live_ws import canonical_series_key
 from backend.api.live_ws import clamp_history_bars
 from backend.api.live_ws import extract_handshake_key
+from backend.api.live_ws import make_delta
+from backend.api.live_ws import make_full
 from backend.api.live_ws import serve_live_ws
 
 
@@ -336,6 +338,34 @@ def test_script_full_count_matches_evaluated_prefix_not_ensure_window():
     tip = make_delta("ses-1", 2, 7, 8, 1, payload["bar_times"][-1], plots=[[1.0]], series={"a": [1.0]})
     assert tip["payload"]["count"] == payload["count"]
     assert tip["payload"]["base_index"] == payload["count"] - 1
+
+
+def test_delta_and_full_frames_name_the_timeframe():
+    """A frame carries `interval` (and a delta its tail `times`).
+
+    A pooled session can outlive a client's interval switch; without the
+    timeframe on the frame the client can only trust its own chart axis and
+    would land values on the wrong bars.
+    """
+    full = make_full(
+        "ses-1", 1, "binance|spot|BTC/USDT|1m", 3, 0, "sub-1", interval="1m",
+        bar_times=[100, 160, 220],
+    )
+    assert full["payload"]["interval"] == "1m"
+
+    delta = make_delta(
+        "ses-1", 2, 2, 3, 1, 0, "sub-1", times=[220], interval="1m",
+        plots=[[1.0]], series={"a": [1.0]},
+    )
+    assert delta["payload"]["times"] == [220]
+    assert delta["payload"]["interval"] == "1m"
+    assert delta["payload"]["tail_len"] == 1
+    # Omitting the axis keeps the old shape (no empty `times` key to trip a
+    # client that treats present-but-empty as a mismatch).
+    bare = make_delta("ses-1", 3, 2, 3, 1, 0, "sub-1", plots=[[2.0]], series={"a": [2.0]})
+    assert "times" not in bare["payload"]
+    assert "interval" not in bare["payload"]
+
 
 def test_series_subscribe_carries_bars_not_plots():
     conn, bars = _ready_conn()

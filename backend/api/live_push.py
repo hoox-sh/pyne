@@ -201,7 +201,16 @@ def emit_push_frames(
         return []
     delta_block = envelope["delta"]
     interval_s = int(binding.key.interval_seconds)
+    interval = getattr(binding.key, "interval", None)
     watermark = closed_upto(candles, interval_s, now_s)
+    # The tail's bar-time axis travels with the delta (same splice as
+    # plots/series). AXIS joins by time, so a delta without it can only trust
+    # the chart axis — a session on another interval would go unnoticed.
+    # Only a tail-length axis is usable: an invented one would be worse than
+    # none, so a short/empty slice drops the field instead of guessing.
+    times = envelope.get("times")
+    if not isinstance(times, list) or len(times) != int(delta_block["tail_len"]):
+        times = None
     emitted: list[dict[str, Any]] = []
     seq = registry.next_seq(client_id)
     emitted.append(
@@ -216,6 +225,8 @@ def emit_push_frames(
             forming=bool(getattr(outcome, "forming", False)),
             plots=envelope.get("plots"),
             series=envelope.get("series") if isinstance(envelope.get("series"), dict) else None,
+            times=times,
+            interval=interval,
         )
     )
     count = int(delta_block["count"])
@@ -288,6 +299,7 @@ def emit_series_push(
                 watermark,
                 client_id,
                 bars=[tip],
+                interval=getattr(key, "interval", None) if key else None,
             )
         ]
     else:
@@ -308,6 +320,7 @@ def emit_series_push(
                 watermark,
                 client_id,
                 bars=new_bars,
+                interval=getattr(key, "interval", None) if key else None,
             )
         ]
     if watermark > 0:

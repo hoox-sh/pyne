@@ -7,7 +7,7 @@ tags: [ast, code, evaluator, pynescript]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-18T20:34:59Z
+  at: 2026-11-11T18:36:33Z
 sources:
   - id: tree
     resource: "src/pynescript/ast/evaluator/builtins"
@@ -40,7 +40,7 @@ okf_lock: generated
 * `strings.py` — StringBuiltinsMixin
 * `technical.py` — TechnicalAnalysisMixin
 * `ticker.py` — TickerInfo, extract_prefix, extract_ticker, register_ticker_functions, split_symbol, ticker_heikinashi, ticker_inherit, ticker_kagi, ticker_linebreak, ticker_modify, ticker_new, ticker_pointfigure
-* `timeframe.py` — calendar_day_bucket, register_timeframe_functions, timeframe_bucket_id, timeframe_bucket_ms, timeframe_calendar_id, timeframe_change, timeframe_from_seconds, timeframe_in_seconds, timeframe_is_calendar_tf, timeframe_period_changed, timeframes_equivalent
+* `timeframe.py` — calendar_day_bucket, register_timeframe_functions, timeframe_bucket_id, timeframe_bucket_ms, timeframe_calendar_id, timeframe_change, timeframe_from_seconds, timeframe_in_seconds, timeframe_is_calendar_tf, timeframe_period_changed, timeframes_equivalent, to_pine_period
 * `utility.py` — UtilityFunctionsMixin
 
 # Nested

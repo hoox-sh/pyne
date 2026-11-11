@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Fixed
+
+- **`/ws/live` script deltas carry the tail's bar-time axis and name their timeframe.** `_delta_envelope` already computed `times` for the tail, but `make_delta` had no parameter for it and the push loop never passed it, so every script delta arrived without an axis. A client could then only trust its own chart axis for the bar each tip belongs to — a pooled session left on another interval would land values on the wrong bars silently. `make_delta` / `make_full` now take `times` (a tail-length axis only; anything else is dropped rather than invented) and `interval`, and `emit_push_frames` / `emit_series_push` / `_emit_ready` / `_emit_snapshot` pass both. Pinned by `tests/test_live_push.py::test_feed_batch_emits_delta_to_socket` and `tests/test_live_ws.py::test_delta_and_full_frames_name_the_timeframe`.
+
 ## [0.6.34] — 2026-11-09
 
 ### Fixed
