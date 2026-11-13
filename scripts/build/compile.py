@@ -45,9 +45,10 @@ import os
 import shutil
 import subprocess
 import sys
-import zipfile
+
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
+
 
 ROOT = Path(__file__).parent.parent.parent.resolve()
 DIST = ROOT / "dist"
@@ -66,8 +67,8 @@ def run(cmd: Sequence[str | Path], **kwargs) -> subprocess.CompletedProcess:
     if len(cmd_str) > 200:
         cmd_str = cmd_str[:200] + "..."
     print(f"  $ {cmd_str}")
-    kwargs.setdefault("check", False)
-    return subprocess.run(list(cmd), **kwargs)
+    check = kwargs.pop("check", False)
+    return subprocess.run(list(cmd), check=check, **kwargs)
 
 
 def get_nuitka_version() -> str:
@@ -76,6 +77,7 @@ def get_nuitka_version() -> str:
             [sys.executable, "-m", "nuitka", "--version"],
             capture_output=True,
             text=True,
+            check=False,
         )
         for line in result.stdout.splitlines():
             if "Version" in line:
@@ -179,7 +181,7 @@ def _package_version() -> str:
 
 def _product_version(version: str) -> str:
     """Nuitka Windows version resource requires dotted numeric product/file version."""
-    version_core = version.split("+")[0].split("a")[0].split("b")[0].split("rc")[0]
+    version_core = version.split("+", maxsplit=1)[0].split("a", maxsplit=1)[0].split("b", maxsplit=1)[0].split("rc", maxsplit=1)[0]
     parts = [p for p in version_core.split(".") if p.isdigit()]
     while len(parts) < 3:
         parts.append("0")
@@ -268,6 +270,7 @@ def nuitka_compile(
             ],
             cwd=ROOT,
             env=env,
+            check=False,
         )
         if check.returncode != 0:
             print(f"  ERROR: Import check failed (exit {check.returncode})")
@@ -285,6 +288,7 @@ def nuitka_compile(
                 text=True,
                 encoding="utf-8",
                 errors="replace",
+                check=False,
             )
             if help_check.returncode != 0:
                 print(f"  ERROR: CLI --help failed (exit {help_check.returncode})")
