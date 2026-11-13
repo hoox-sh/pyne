@@ -2,7 +2,7 @@
 
 Project: **pyne**
 Owner: the person running this project
-Autonomy: **draft**
+Autonomy: **autopilot**
 
 ## The team
 

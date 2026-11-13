@@ -65,7 +65,7 @@
       "agentFile": ".opencode/agents/oo-misc.md"
     }
   ],
-  "autonomy": "draft",
+  "autonomy": "autopilot",
   "gates": [
     "Ask first before spending money or buying anything.",
     "Ask first before changing permissions or logins.",
