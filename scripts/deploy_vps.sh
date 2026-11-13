@@ -42,6 +42,12 @@ VPS_PATH="${VPS_PATH:-/root/pynescript}"
 AXIS_REPO="${AXIS_REPO:-$(cd "${ROOT}/../axis" 2>/dev/null && pwd || true)}"
 TARGET="${VPS_USER}@${VPS_HOST}:${VPS_PATH}/"
 
+# Build identity is resolved HERE, not on the VPS: the rsync excludes .git, so a
+# remote `git rev-parse` always degrades to "unknown" and /health could not say
+# which commit is live. VERSION is the package version (__about__.__version__).
+GIT_SHA="${GIT_SHA:-$(git -C "${ROOT}" rev-parse --short HEAD 2>/dev/null || echo unknown)}"
+PYNESCRIPT_VERSION="${PYNESCRIPT_VERSION:-$(cat "${ROOT}/VERSION" 2>/dev/null || echo unknown)}"
+
 # Expand ~ in identity path; default ed25519 key used for namecheap VPS.
 _default_id="${HOME}/.ssh/id_ed25519"
 VPS_IDENTITY_FILE="${VPS_IDENTITY_FILE:-$_default_id}"
@@ -153,8 +159,10 @@ set -euo pipefail
 cd "${VPS_PATH}"
 # Named volumes (api_data: sessions/keys/series, redis_data) survive recreate —
 # never prune volumes here.
-export GIT_SHA="$(cd "${ROOT}" && git rev-parse --short HEAD 2>/dev/null || echo unknown)"
-export PYNESCRIPT_VERSION="$(cd "${ROOT}" && git describe --tags --abbrev=0 2>/dev/null || echo dev)"
+# Build identity comes from the deploying checkout (expanded locally), overriding
+# whatever stale GIT_SHA/PYNESCRIPT_VERSION the VPS .env still carries.
+export GIT_SHA="${GIT_SHA}"
+export PYNESCRIPT_VERSION="${PYNESCRIPT_VERSION}"
 # No service-name filter: passing a name such as api is what left redis/lsp/cli down.
 # Profiles lsp+cli pull those images into the project; redis/datafeed/mcp are default daemons.
 docker compose --profile redis --profile lsp --profile cli \\

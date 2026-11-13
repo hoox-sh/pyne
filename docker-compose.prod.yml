@@ -25,6 +25,10 @@ services:
       PORT: "8080"
       FLASK_ENV: production
       FLASK_DEBUG: "0"
+      # Build identity surfaced by /health and /stats (deploy_vps.sh resolves
+      # these from the deploying checkout; a stale host .env must not win).
+      GIT_SHA: ${GIT_SHA:-unknown}
+      PYNESCRIPT_VERSION: ${PYNESCRIPT_VERSION:-unknown}
       # sqlite is multi-worker safe on a shared volume; use redis for multi-host
       STORE_BACKEND: ${STORE_BACKEND:-sqlite}
       API_KEY_STORE: /data/api_keys.json
