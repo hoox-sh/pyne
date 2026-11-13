@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Added
+
+- **MCP Code Mode (opt-in).** `PYNE_MCP_CODE_MODE=1` adds `search` and `execute` to the MCP server. `search` filters the live ops catalog with JavaScript; `execute` calls `pyne.<group>.<op>` through the same re-resolved, risk-classified dispatch path as the direct tools. With the flag unset the tool list stays byte-identical (33 tools, unchanged schema hash). Code runs in a bubblewrap sandbox with a cleared environment, no network, and no host filesystem (`process`, `require`, and `Function`-from-string escapes are blocked); `PYNE_MCP_CODE_MODE_SANDBOX=subprocess` is the documented weaker mode. Destructive (`risk=write`) calls stay fail-closed: the operator enables them with `PYNE_MCP_CODE_MODE_ALLOW_DESTRUCTIVE=1`, and each call still needs a `confirm_token` bound to the resolved tool and canonical arguments — the first call returns `confirmation_required` plus the token, and a token minted for different arguments or a different tool is rejected. Pinned by `tests/test_mcp_codemode.py` (including cross-tool/argument token rejection).
+
 ### Fixed
 
 - **`/ws/live` script deltas carry the tail's bar-time axis and name their timeframe.** `_delta_envelope` already computed `times` for the tail, but `make_delta` had no parameter for it and the push loop never passed it, so every script delta arrived without an axis. A client could then only trust its own chart axis for the bar each tip belongs to — a pooled session left on another interval would land values on the wrong bars silently. `make_delta` / `make_full` now take `times` (a tail-length axis only; anything else is dropped rather than invented) and `interval`, and `emit_push_frames` / `emit_series_push` / `_emit_ready` / `_emit_snapshot` pass both. Pinned by `tests/test_live_push.py::test_feed_batch_emits_delta_to_socket` and `tests/test_live_ws.py::test_delta_and_full_frames_name_the_timeframe`.
