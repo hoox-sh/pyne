@@ -1,5 +1,5 @@
 PYNE CONSOLIDATED DOCUMENTATION — LLM CONTEXT PACK
-Generated: 2026-11-02
+Generated: 2026-11-13
 Source: github.com/hoox-sh/pyne/docs/pyne
 Public: https://hoox.sh/pyne/docs
 Repository: https://github.com/hoox-sh/pyne
@@ -210,7 +210,9 @@ GET / and GET /health are the same handler. AXIS Settings probes /health. Payloa
 {
 "status": "healthy",
 "service": "pynescript-pro-api",
-"version": "1.0.0",
+"version": "0.6.35",
+"api_version": "1.0.0",
+"git_sha": "abc1234",
 "timestamp": 0,
 "websocket": true,
 "features": {
@@ -230,7 +232,7 @@ GET / and GET /health are the same handler. AXIS Settings probes /health. Payloa
 "endpoints": { "…": "…" }
 }
 `
-version here is the API service label (1.0.0), not the hoox-pyne package version.
+version is the running hoox-pyne package version (VERSION / pynescript.about.version), so a probe tells you which release is live. api_version keeps the frozen API-envelope label (1.0.0) for clients that pinned it, and git_sha is the short commit baked in by the deploy (GIT_SHA; unknown outside Docker).
 Hard limits
 *MAX_CONTENT_LENGTH = 5 1024 1024 — reject oversized bodies before JSON parse fills memory (audit 2026-07-05 / S1).
 Free compute is optionally gated by backend/middleware/free_limits.py when FREE_TIER_LIMITS is truthy (default off): max bars (FREE_MAX_BARS, 5000), script chars (FREE_MAX_SCRIPT_CHARS, 256 KiB), per-IP rate (FREE_RATE_LIMIT / FREE_RATE_WINDOW_SEC, 60 / 60s), concurrency (FREE_MAX_CONCURRENT, 4). Chart/mock data sources only. Production compose sets FREE_TIER_LIMITS=1.
@@ -439,7 +441,7 @@ Invariant: given the same script + OHLCV + mode, hosts should agree on plot seri
 Interface surface
 Request (single evaluate)
 | Field | Type | Required | Description |
-| --- | --- | --- | --- |
+| ----------------- | ---------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | script | string | yes | Full Pine source |
 | data | Bar[] | yes | Chronological OHLCV (ohlcv alias on pyne-worker) |
 | symbol | string | no | Default CHART / host-specific |
@@ -448,12 +450,13 @@ Request (single evaluate)
 | libraries | {namespace, name, version, source}[] | no | In-process import ns/Name/ver. Flask /run and /run/batch accept this (max 32). |
 | profiler | bool | no | Per-line interpret timings (forces interpret) |
 | timeout_seconds | number | no | Optional wall-clock interpret budget (checked every 32 bars; sets timed_out). Flask /run and /run/batch accept it; omit / null / ≤ 0 → no timeout. |
+| timeframe | string | no | Chart interval for Runtime(timeframe=). Flask /run accepts AXIS 1m/1h/1d or Pine periods; empty/omit = daily. |
 | webhook_url | string | no | Flask L2 alert webhook (overrides ALERT_WEBHOOK_URL) |
 | data_source | string | no | Optional external history provider id (free paths: chart / mock only) |
 | data_options | object | no | Provider configuration |
 Bar
 | Field | Type | Required | Notes |
-| --- | --- | --- | --- |
+| ------------- | ------ | ----------- | ---------------------- |
 | time | number | recommended | Unix ms preferred |
 | open | number | yes | |
 | high | number | yes | |
@@ -463,7 +466,7 @@ Bar
 | bid / ask | number | no | Runtime bid/ask hooks |
 Response (success)
 | Field | Type | Description |
-| --- | --- | --- |
+| ------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | status | "success" | Flask sets this; workers may omit and use HTTP 200 only — prefer including it |
 | plots | (number\|null)[] | Primary series (plot 0) |
 | series | Record | Named multi-series |
@@ -547,7 +550,7 @@ Response:
 Workers may implement batch as N single evaluates; AXIS should not assume batch exists on every host.
 Internals — reference mapping
 | Contract field | Flask source |
-| --- | --- |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | plots / series / plot_meta | pynescript.runtime.host.Runtime.run packing loop |
 | events | evaluator._strategy_state.drain_events() → to_dict() (compile: __events) |
 | drawings | DrawingRegistry.export_for_api (compile: __drawings) |
@@ -561,7 +564,7 @@ Schema enforcement on Flask free tier: RUN_SCHEMA / RUN_BATCH_SCHEMA in backend/
 Tests: tests/test_backend.py (test_run_success, test_run_exports_alerts, webhook cases), tests/test_alert_forwarder.py.
 Divergences to remember
 | Surface | Divergence |
-| --- | --- |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Preview / backtest | Columnar data dict, not Bar[]; not the evaluate contract |
 | Compile mode | Extra keys object_mode, compile_cached, compile_ms, nopython_fallback_reason. generated_code only if PYNESCRIPT_RETURN_GENERATED_CODE=1 |
 | timeout_seconds | In-process Runtime.run, edge workers, and Flask /run / /run/batch (optional; omit = no budget) |
@@ -602,7 +605,7 @@ compile_fallback_reason?: string;
 POST that body to Flask /run or the worker’s evaluate route; branch on status / error.
 Failure modes
 | Client bug | Symptom |
-| --- | --- |
+| ------------------------------------------ | ------------------------------------- |
 | Sending columnar preview data to /run | Schema data must be a list |
 | Assuming batch on worker | 404 / unknown field |
 | Ignoring series and only reading plots` | Multi-plot scripts look single-series |
@@ -1108,7 +1111,7 @@ Interface surface
 POST /run
 Request (RUN_SCHEMA)
 | Field | Type | Required | Default | Notes |
-| --- | --- | --- | --- | --- |
+| --------------------- | ------ | -------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | script | string | yes | | Pine source |
 | data | list | yes | | OHLCV bar objects |
 | symbol | string | no | "CHART" | Syminfo / request wiring |
@@ -1123,6 +1126,8 @@ Request (RUN_SCHEMA)
 | alert_batch | bool | no | true | One batch POST vs per-alert |
 | libraries | list | no | [] | [{namespace, name, version, source}] — AXIS git-publish emulator (max 32) |
 | timeout_seconds | number | no | omit / null | Optional interpret wall-clock budget. Passed to Runtime.run only when set and > 0. Omit = no timeout. |
+| from_bar / to_bar | int | no | omit / null | Inclusive envelope window into data (negative = from the end). |
+| timeframe | string | no | "" | Chart interval. AXIS 1m/1h/1d or Pine timeframe.period (15, 60, D). Empty = Runtime daily default. Mapped like pyne-worker to_pine_period (1m → "1"). |
 Query ?mode= is accepted when the body omits mode.
 Unknown fields → UNKNOWN_FIELDS 400. Empty script/data still checked after schema with NO_SCRIPT / NO_DATA. import and any request. token are compile-ineligible; mode=auto falls back to interpret and keeps libraries on that path.
 Bar shape (runtime expectation):
@@ -1156,7 +1161,7 @@ Success response
 }
 `
 | Field | Meaning |
-| --- | --- |
+| ----------------------------------------------- | ------------------------------------------------------------------------- |
 | plots | Primary series (first plot) — backward compatible list |
 | series | Named multi-plot map title → values per bar |
 | plot_meta | Per-title color, linewidth, index |
@@ -1173,7 +1178,7 @@ Success response
 | nopython_fallback_reason | Numeric JIT failed; engine re-emitted object mode (still compile) |
 Errors
 | HTTP | code | When |
-| --- | --- | --- |
+| ---- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | 400 | MISSING_FIELD / INVALID_FIELD / UNKNOWN_FIELDS / INVALID_BODY | Schema |
 | 400 | NO_SCRIPT / NO_DATA | Empty after defaults |
 | 400 | DATA_SOURCE_ERROR | resolve_request_sources failed |
@@ -1185,7 +1190,7 @@ Errors
 POST /run/batch
 Request (RUN_BATCH_SCHEMA)
 | Field | Type | Required | Notes |
-| --- | --- | --- | --- |
+| ------------------------------------------------------------------- | -------- | ------------------------------------------------------------ | ---------------------------------------------------------------------- |
 | scripts | list | yes | strings or {id, script} objects |
 | data | list | yes | Shared OHLCV |
 | symbol / data_source / data_options / mode / profiler | optional | same as /run (no inputs) |
@@ -1234,7 +1239,7 @@ curl -s http://127.0.0.1:5002/run \
 `
 Failure modes
 | Symptom | Cause |
-| --- | --- |
+| ----------------------- | -------------------------------------------------------- |
 | UNKNOWN_FIELDS | Typo’d property (e.g. ohlcv instead of data) |
 | Parse errors in message | Invalid Pine — same engine as CLI |
 | Batch status: partial | At least one script failed; inspect results[i].message |
@@ -1246,8 +1251,12 @@ Free readiness hook (same rate/concurrency gates). Body optional:
 Caps at 16 sources. Returns has_numba, builtins_warmed, scripts_ok / scripts_failed, prewarm_ms. Does not execute on OHLCV.
 WS /ws/run
 When flask-sock is installed: JSON text frames {type: "run", id, script, data, mode?}. Reply {type: "result", …} or {type: "error"}. Ping/pong supported. Same execute_run_payload as HTTP /run.
-The run frame accepts the same optional fields as POST /run — symbol, mode, data_source, data_options, inputs, profiler, libraries, timeout_seconds, from_bar, to_bar — so published-library imports (import ns/Name/1) work over the WebSocket channel exactly as they do over HTTP.
-The Pro API container must run gunicorn with the gthread (or sync) worker: flask-sock performs the HTTP→WebSocket upgrade itself. The geventwebsocket…GeventWebSocketWorker worker upgrades the same socket a second time, which corrupts the frame stream (clients see close code 1002) while REST keeps working.
+The run frame accepts the same optional fields as POST /run — symbol, mode, data_source, data_options, inputs, profiler, libraries, timeout_seconds, from_bar, to_bar, timeframe — so published-library imports (import ns/Name/1) work over the WebSocket channel exactly as they do over HTTP.
+The Pro API container must run gunicorn with the gthread (or sync)
+worker: flask-sock performs the HTTP→WebSocket upgrade itself. The
+geventwebsocket…GeventWebSocketWorker worker upgrades the same socket a
+second time, which corrupts the frame stream (clients see close code 1002)
+while REST keeps working.
 Alert webhooks (L2)
 `bash
 Server default (optional)
@@ -1303,9 +1312,14 @@ Environment
 | PYNE_RUNNER | off | Master switch — HTTP registry + /cron/run |
 | PYNE_RUNNER_SCHEDULER | off | In-process poll loop (needs PYNE_RUNNER) |
 | PYNE_RUNNER_POLL_SECONDS | 60 | Poll interval (floor 5s) |
-| PYNE_RUNNER_DB | /data/runner.db if /data exists | SQLite file |
+| PYNE_RUNNER_WORKERS | 2 | Job threads per tick (floor 1, cap 16) |
+| PYNE_RUNNER_DB | /data/runner.db if /data exists | SQLite file (sqlite backend) |
+| PYNE_RUNNER_STORE_BACKEND | sqlite | sqlite (single host) or redis (multi-replica, needs REDIS_URL) |
 | ADMIN_TOKEN | unset | When set, writes require X-Admin-Token |
 Gunicorn multi-worker: every worker may start a scheduler thread; ticks take a flock on PYNE_RUNNER_DB.lock. Prefer GUNICORN_WORKERS=1 when the scheduler is on.
+Store backends
+sqlite (default) keeps scripts, cron state, and run history in one local SQLite file and serializes ticks with a filesystem flock — single host only. PYNE_RUNNER_STORE_BACKEND=redis shares the same registry across API replicas through REDIS_URL and serializes ticks with a SET NX token (TTL = 2× the poll interval, floor 120s), so two replicas never double-tick. /health reports the active backend as features.script_runner_store. Run history keeps the last 100 runs per script (1000 globally); the script record itself always stores source and webhook_url in plaintext (reads redact the webhook), so keep Redis private — the compose service never publishes its ports.
+Each script is only fetched once its next bar can have closed (last_bar_time + the timeframe interval), so a 1w job is not hammered every poll. Failed fetches or runs back off exponentially (60s doubling, capped at 30 min); force bypasses both gates. Every ok / error run is appended to the audit log — routine skips (no_new_bar, not_due) are not recorded.
 Routes (PYNE_RUNNER=1)
 | Method | Path | Auth | Role |
 | --- | --- | --- | --- |
@@ -1316,6 +1330,7 @@ Routes (PYNE_RUNNER=1)
 | GET | /cron/jobs | none | Scripts + last tick |
 | PUT | /cron/jobs | admin if ADMIN_TOKEN | {jobs:[{script_id, enabled}]} |
 | POST | /cron/run | admin if ADMIN_TOKEN | Tick now (force, optional script_id) |
+| GET | /cron/history | none | Run audit log (script_id, limit ≤ 500) |
 Deploy body
 ``json
 {
@@ -1341,6 +1356,7 @@ python -m backend.app # :5002
 pyne runner deploy script.pine --id demo --symbol BTCUSDT --source mock
 pyne runner tick --id demo --force
 pyne runner list
+pyne runner history --id demo
 `
 Same HTTP without the CLI:
 `bash
@@ -1360,6 +1376,8 @@ Failure modes
 | RUNNER_DISABLED 404 | Switch off | PYNE_RUNNER=1 |
 | FORBIDDEN 403 | ADMIN_TOKEN set, header missing | X-Admin-Token |
 | skipped / no_new_bar | Last close unchanged | Wait, or force: true |
+| skipped / not_due | Timeframe gate: next bar not closed yet | Wait, or force: true |
+| skipped / backoff | Recent fetch/run failure; retry delayed | Wait, or force: true |
 | fetch_failed | yahoo/ccxt error | Use mock or fix data_options |
 | Double ticks | Several gunicorn workers | GUNICORN_WORKERS=1` or rely on flock |
 See also
@@ -1513,7 +1531,9 @@ GET /stats
 {
 "status": "ok",
 "service": "pynescript-pro-api",
-"version": "1.0.0",
+"version": "0.6.35",
+"api_version": "1.0.0",
+"git_sha": "abc1234",
 "timestamp": 1791968289,
 "debug": { "env": "PYNE_DEBUG", "enabled": true, "scopes": [], "level": "DEBUG" },
 "counters": { "run.total": { "total": 4 }, "run.by_mode": { "total": 2, "by": { "auto": 2 } } },
@@ -1526,6 +1546,7 @@ GET /stats
 "notes": "in-process counters; reset on worker restart"
 }
 `
+version is the running hoox-pyne package version (same value /health reports); api_version is the frozen API-envelope label and git_sha the deployed commit.
 Three metric kinds
 | Kind | Shape | Notes |
 | --- | --- | --- |
@@ -1987,7 +2008,7 @@ Voice for docs: academic nerdy-cool per docs/WRITING.md — no empty marketing a
 Release (this repo)
 Match root CONTRIBUTING.md and .github/workflows/publish.yml / release.yml / ghcr.yml:
 1. Bump version in src/pynescript/about.py and update CHANGELOG.md.
-2. Align vscode-extension/package.json when shipping the VSIX together.
+2. The VS Code extension lives in hoox-sh/pyne-lsp-vsce and releases on its own tag cadence.
 3. Ensure CI is green on main.
 4. Tag and push: git tag vX.Y.Z && git push origin vX.Y.Z.
 5. Publish (publish.yml) builds sdist/wheel (hoox_pyne-.whl) and uploads hoox-pyne to PyPI on v tags.
@@ -3173,7 +3194,7 @@ Consumers (outside this doc’s page set, for orientation):
 Evaluator UDT / collection code (evaluator/builtins/, matrix_evaluator, etc.)
 Future/static analysis hooks (LSP hover may grow toward this model)
 Compatibility
-Type.is_compatible_with is currently shallow: BuiltinType compares by equality; the base method returns False for other pairs. Treat richer subtyping (series/simple lattice, numeric promotion) as not fully encoded here — bar-loop semantics still own much of the coercion behavior.
+Type.is_compatible_with is currently shallow: BuiltinType compares by equality; the base method returns False for other pairs. The Pine qualifier lattice used by the language server (strong → weak: const > input > simple > series, with na adopting its context) lives in langserver/analysis.py, not in this class and not in the compiler. Bar-loop semantics still own runtime coercion.
 na and enum
 Registered as builtin kinds for name lookup. Enum definitions* in scripts appear as AST EnumDef; linking enum members into BuiltinTypeKind.ENUM instances is evaluator-side work.
 Invariants
@@ -3806,13 +3827,13 @@ Abstract
 PYNE is a multi-surface product: pure-Python library + Click CLI (pyne / alias pynescript), pygls Language Server (pyne-lsp), Flask Pro API, VS Code extension (hoox-sh.pyne 0.5.5; the Python package is 0.6.31), and Docker targets (api / cli / lsp / mcp). Edge workers and the AXIS charting PWA are sister repos — not built in this tree.
 This tab documents the operational graph: local loops, GitHub Actions, release tags, Docker images, Nuitka CLI/LSP binaries, Fernet-encrypted LSP metadata, observability hooks, and security controls.
 Conceptual model
-Invariant: CI green on main is necessary but not sufficient for a full release. Tag v fires Build & Release (binaries + VSIX + GitHub Release), Publish (hoox-pyne from about.py, currently 0.6.31, to PyPI), and GHCR (ghcr.io/hoox-sh/pyne/{api,cli,lsp,mcp}).
+Invariant: CI green on main is necessary but not sufficient for a full release. Tag v fires Build & Release (binaries + GitHub Release), Publish (hoox-pyne from about.py, currently 0.6.31, to PyPI), and GHCR (ghcr.io/hoox-sh/pyne/{api,cli,lsp,mcp}). The VSIX releases separately from pyne-lsp-vsce.
 Interface surface
 | Concern | Entry | Doc |
 | --- | --- | --- |
 | Local install & loops | Makefile, hatch envs | Local development |
 | PR / push CI | .github/workflows/ci.yml (name: CI) | CI |
-| Versioned CLI + LSP + VSIX | .github/workflows/release.yml (name: Build & Release) | Release |
+| Versioned CLI + LSP | .github/workflows/release.yml (name: Build & Release) | Release |
 | PyPI (hoox-pyne) | .github/workflows/publish.yml (name: Publish) | Contributing |
 | GHCR images | .github/workflows/ghcr.yml (name: GHCR) | Docker |
 | Containers | Dockerfile targets api/api-dev/lsp/cli | Docker |
@@ -3830,7 +3851,6 @@ Internals (repo map)
 | scripts/generate_builtin_metadata.py | Regenerates LSP builtin_metadata.json from live builtins |
 | Dockerfile / docker-bake.hcl | Multi-target Buildx images (api, api-dev, lsp) |
 | docker-compose.yml | Local API (+ optional Redis / LSP profiles) |
-| vscode-extension/ | Node 22 extension package / vsce |
 Invariants & edge cases
 1. Two console scripts, two entrypoints. Preferred: pyne (Click) ≠ pyne-lsp (pygls). Aliases: pynescript / pynescript-lsp. Ops scripts must not conflate them.
 2. Generated artifacts are not hand-edited. ANTLR/ASDL under generated/ and builtin_metadata.json are code-derived.
@@ -3857,7 +3877,7 @@ Failure modes
 | CI lint red, local green | Different ruff/mypy versions | Match CI install pins in workflow |
 | Metadata decrypt fails in binary | Missing key at runtime | Set PYNESCRIPT_METADATA_KEY or embed key at build |
 | Cloud Run 502 after deploy | Image missing deps / gunicorn bind | Confirm Dockerfile target api ENTRYPOINT + PORT / GUNICORN_BIND |
-| VSIX empty / missing | npm ci / vsce not run | Use make build-vscode or release job artifacts |
+| VSIX empty / missing | npm ci / vsce not run | Build in pyne-lsp-vsce (npm run package) |
 | Nuitka Anaconda link error | Static libpython missing | conda install libpython-static or keep --static-libpython=no` |
 See also
 Contributing
@@ -3904,7 +3924,6 @@ Make targets (primary)
 | make build | Nuitka LSP binary |
 | make build-cli | Nuitka CLI binary |
 | make build-check | import check for lsp+cli (~30s) |
-| make build-vscode | compile + package VSIX |
 | make run | Flask Pro API (:5002 typical) |
 | make run-lsp | python -m pynescript.langserver |
 | make docker-build | bake api |
@@ -3951,7 +3970,7 @@ Internals
 | tests/conftest.py | Optional --example-scripts-dir only; no third-party corpus shipped |
 | backend/requirements.txt | Pro API deps (also covered by [pro] extra) |
 | hoox-sh/pynets | Standalone TS library (@hoox-sh/pynets); not an in-tree submodule |
-| vscode-extension/ | PYNE VS Code extension |
+| hoox-sh/pyne-lsp-vsce | PYNE VS Code extension (separate repo) |
 | Dockerfile | targets api, api-dev, lsp, cli |
 Python
 Requires-Python: >=3.10
@@ -4130,7 +4149,7 @@ make build-check
 Explicit modes
 python scripts/build/compile.py --target cli --standalone
 python scripts/build/compile.py --target all --jobs 8
-python scripts/build/ci_build.py --target cli --jobs=4 --skip-metadata --skip-vsix
+python scripts/build/ci_build.py --target cli --jobs=4 --skip-metadata
 `
 Build modes (approx. wall time)
 | Mode | Time | Notes |
@@ -4398,7 +4417,7 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-3.0-or-later
 ---
 title: "Release"
-description: "Tag-driven CLI + LSP multi-platform Nuitka binaries, wheels, Docker CLI image, VSIX packaging, GitHub Releases, and Marketplace publish."
+description: "Tag-driven CLI + LSP multi-platform Nuitka binaries, wheels, Docker CLI image, and GitHub Releases."
 ---
 Release
 Abstract
@@ -4407,8 +4426,7 @@ PyPI sdist + wheel (hoox-pyne) with CLI smoke
 CLI platform-native Nuitka binaries (pynescript)
 LSP platform-native Nuitka binaries (pynescript-lsp)
 CLI Docker image tarball (pynescript-cli-image.tar.gz)
-VS Code VSIX
-Assets attach to a GitHub Release; PyPI upload is handled by Publish (publish.yml). Multi-arch container images are a separate workflow (GHCR / ghcr.yml) — not attached as tarballs except the CLI image save in this workflow. Marketplace / Open VSX publish is optional when those jobs are configured.
+Assets attach to a GitHub Release; PyPI upload is handled by Publish (publish.yml). Multi-arch container images are a separate workflow (GHCR / ghcr.yml) — not attached as tarballs except the CLI image save in this workflow. The VS Code extension (VSIX) is built and published from the separate hoox-sh/pyne-lsp-vsce repo.
 Conceptual model
 Interface surface
 Triggers
@@ -4423,9 +4441,8 @@ Jobs
 | build-cli | ubuntu-latest, windows-latest, macos-latest | pynescript-cli-linux-x86_64, …-windows-x86_64.exe, …-macos-arm64 |
 | build-lsp | ubuntu-latest, windows-latest, macos-latest | pynescript-lsp-linux-x86_64, …-windows-x86_64.exe, …-macos-arm64 |
 | build-docker-cli | ubuntu-latest | pynescript-cli-docker (gzipped docker save) |
-| build-vscode | ubuntu-latest | pynescript-vscode-extension VSIX |
-| release | needs package + vscode success; tag or dispatch | GitHub Release body + staged assets (name: pyne vX.Y.Z) |
-| publish-vscode | needs VSIX; tag or dispatch | vsce publish / ovsx publish when configured |
+| release | needs package success; tag or dispatch | GitHub Release body + staged assets (name: pyne vX.Y.Z) |
+The VSIX is built and published by the separate hoox-sh/pyne-lsp-vsce repo on its own tags.
 Environment
 ``yaml
 env:
@@ -4437,24 +4454,22 @@ Build steps rely on:
 LSP
 pip install -e ".[lsp]" "nuitka>=2.5.1,=2.5.1,<2.8"
 python scripts/build/compile.py --target cli --check
-python scripts/build/ci_build.py --target cli --jobs 4 --skip-metadata --skip-vsix
+python scripts/build/ci_build.py --target cli --jobs 4 --skip-metadata
 `
 Local make-side packaging
 `bash
 make package # sdist + wheel (python -m build)
 make build # Nuitka LSP
 make build-cli # Nuitka CLI
-make build-vscode # npm install && compile && vsce package
 make docker-build-cli
 `
-Artifacts land under dist/, dist/lsp/, dist/cli/, dist/vsix/, and vscode-extension/.vsix depending on script path.
+Artifacts land under dist/, dist/lsp/, and dist/cli/ depending on script path.
 Internals
 | Path | Role |
 | --- | --- |
 | .github/workflows/release.yml | Orchestration |
 | scripts/build/ci_build.py | CI-oriented Nuitka + metadata encrypt |
 | scripts/build/compile.py | Local/full compile options (--onefile, --standalone, --check) |
-| vscode-extension/package.json | Extension version / engines |
 | src/pynescript/about.py | Hatch dynamic version for Python package |
 Release asset contract (from release body)
 | Artifact | Install sketch |
@@ -4467,11 +4482,11 @@ Release asset contract (from release body)
 | pynescript-lsp-linux-x86_64 | chmod +x → /usr/local/bin/pynescript-lsp |
 | pynescript-lsp-windows-x86_64.exe | Place on PATH |
 | pynescript-lsp-macos-arm64 | Place on PATH (Apple Silicon runners) |
-| pyne-vscode-.vsix (hoox-sh.pyne 0.5.5) | code --install-extension pyne-vscode-*.vsix · site: hoox.sh/pyne-vscode.vsix (unversioned) |
+The VSIX (hoox-sh.pyne) ships from hoox-sh/pyne-lsp-vsce releases — code --install-extension pyne-vscode-*.vsix.
 Invariants & edge cases
 1. CRYPTO_KEY must be stable across builds if you care about byte-identical builtin_metadata.json.enc. Supply secrets.METADATA_KEY.
 2. Tag name is the version source for the GitHub Release title (v prefix stripped).
-3. Marketplace / Open VSX publish is optional. GitHub Release still attaches the VSIX when those jobs are unconfigured.
+3. Marketplace / Open VSX publish is handled in pyne-lsp-vsce. This repo's release only ships Python + Nuitka artifacts.
 4. Artifact retention is short (5 days on build jobs) — releases must attach files immediately.
 5. macOS artifact is ARM64 from macos-latest — Intel Mac users may need separate builds if required.
 6. Draft vs prerelease: workflow currently sets draft: false, prerelease: false for tag releases.
@@ -4640,7 +4655,7 @@ There is no pynescript.toml (or similar) for core use. Parse, evaluate, and CLI 
 Interface surface
 Package extras (pyproject.toml)
 | Extra | Dependencies | Enables |
-| --- | --- | --- |
+| ---------- | ------------------------------------- | -------------------------------------------------------------------------------------- |
 | (none) | antlr4-runtime, click, requests, tqdm | CLI + AST + linter + literal_eval + pynescript.runtime + pyne execute / mcp call |
 | lsp | pygls, lsprotocol | pyne-lsp (alias pynescript-lsp) |
 | dev-lsp | pygls, lsprotocol, pytest-lsp | LSP + protocol tests |
@@ -4651,7 +4666,7 @@ Package extras (pyproject.toml)
 | mcp | mcp, lsprotocol | Stdio pyne-mcp / pyne mcp. execute / mcp call need no extra |
 Console scripts
 | Name | Entry point | Notes |
-| --- | --- | --- |
+| ---------------- | ------------------------------------- | ---------------------------------------------------- |
 | pyne | pynescript.main:cli | Preferred desk CLI (execute / mcp call included) |
 | pyne-lsp | pynescript.langserver.main:main | Preferred language server |
 | pyne-mcp | pynescript.mcp.main:main | Stdio MCP server ([mcp] extra; same as pyne mcp) |
@@ -4665,7 +4680,7 @@ python -m pynescript.langserver
 CLI flags that act as “config”
 Per-invocation only (no persistence):
 | Command | Notable options |
-| --- | --- |
+| ------------------- | ---------------------------------------------------------------------------------------------- |
 | check | --encoding, -q/--quiet, --ext (directory walk) |
 | format / fmt | -w/--write, --check, -o/--output-file |
 | parse-and-dump | --encoding, --indent, --output-file |
@@ -4681,7 +4696,7 @@ lint has no --fix. Structural rewrite is pyne format -w (parse → unparse).
 Pro API environment variables
 Consumed by backend/app.py and middleware:
 | Variable | Default | Purpose |
-| --- | --- | --- |
+| ----------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | HOST | 127.0.0.1 | Bind address when running main |
 | PORT | 5002 | Bind port |
 | ALLOWED_ORIGINS | https://pynescript.ai, https://app.pynescript.ai, plus localhost regex | CORS allowlist (comma-separated; regex allowed). Code also appends localhost, private-LAN, and product-origin (hoox.sh / pynescript.ai / pynescript.online) regexes unless |
@@ -4691,12 +4706,12 @@ Consumed by backend/app.py and middleware:
 | ALERT_WEBHOOK_TIMEOUT | 10 | Webhook HTTP timeout (seconds) |
 Also relevant:
 | Variable | Context |
-| --- | --- |
+| -------------------- | --------------------------------------------------------------------------------- |
 | MAX_CONTENT_LENGTH | Hardcoded 5 MiB on Flask app config (not env) — large OHLCV POSTs fail above this |
 Runtime / evaluate environment variables
 Used by pynescript.runtime.Runtime (src/pynescript/runtime/host.py) and the compiler host. backend.runtime is a compat re-export only.
 | Variable | Default | Purpose |
-| --- | --- | --- |
+| ------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | PYNE_RUNTIME_MODE | interpret | Default when Runtime.run(..., mode=None) omits mode (Pro API schema default is still auto; pyne execute --mode default is auto; pyne run ignores this — compile-only) |
 | PYNE_SERIES_CAP | on | Trim append-only host series lists; set 0 / false / off to disable (oracle / debug) |
 | PYNE_SERIES_MAX | unset | Absolute series history depth (overrides default 256 + max_bars_back) |
@@ -4721,20 +4736,21 @@ or: make run
 Data providers
 CLI pynescript data / library providers:
 | Provider | Auth | Notes |
-| --- | --- | --- |
+| -------------- | ---------------------------------- | ------------------------------------ |
 | mock | none | Deterministic offline bars (default) |
 | yahoo | none | Yahoo Finance path |
 | alphavantage | --api-key (falls back to demo) | Limited with demo key |
 | ccxt | optional key/secret; --exchange | Requires [data] extra |
 Pro API /run optional fields:
 | Field | Values | Role |
-| --- | --- | --- |
+| --------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | data_source | "", mock, ccxt, ccxtpro, yahoo, alphavantage | Wires request. resolution |
 | data_options | object | exchange, api_key, seed, … |
 | mode | auto (default), interpret, compile | Prefer warm compile + fallback; strict compile; full interpret |
 | inputs | object | input. overrides by title (forces interpret under auto) |
 | libraries | list | [{namespace, name, version, source}] — max 32; also on /run/batch; interpret / auto fallback |
 | timeout_seconds | number | Optional interpret wall-clock budget; omit / null / ≤ 0 → no timeout |
+| timeframe | string | Chart interval (1m/1h/1d or Pine period). Empty/omit → Runtime daily default. Flask /run only (not /run/batch) |
 | profiler | bool | Per-line timings; forces interpret |
 | webhook_url | string | Per-request L2 alert webhook (overrides ALERT_WEBHOOK_URL) |
 | forward_alerts / alert_last_bar / alert_batch | bool | Webhook delivery controls (see Alerts) |
@@ -4744,7 +4760,7 @@ Free-tier Pro API guards (unauthenticated /run) are off by default. Set FREE_TIE
 Editor / LSP client settings
 VS Code extension keys (from clients/README.md):
 | Setting | Default | Meaning |
-| --- | --- | --- |
+| ---------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------- |
 | pynescript.lsp.enabled | true | Toggle server |
 | pynescript.lsp.command | auto | auto tries pyne-lsp → pynescript-lsp → python3 -m pynescript.langserver; or an absolute path |
 | pynescript.lsp.python | python3 | Interpreter when command is auto and no binary is on PATH |
@@ -4770,22 +4786,22 @@ Zed: language_servers.pynescript.command / arguments: ["--stdio"] — see Editor
 AXIS / frontend coupling (optional)
 When running SuperChart Lite PWA against local Flask:
 | Make target | Port (typical) |
-| --- | --- |
+| ------------------- | ----------------- |
 | make run | API :5002 |
 | make run-frontend | PWA :8081 |
 | make worker-dev | CF Worker :8787 |
 CORS must allow the PWA origin via ALLOWED_ORIGINS.
 Internals (repo paths)
 | Path | Config surface |
-| --- | --- |
+| ----------------------------------------------------------- | ---------------------------------------------------------------- | --- | ----------------- |
 | pyproject.toml | extras, scripts, Python requires |
 | src/pynescript/main.py | CLI options |
 | src/pynescript/runtime/host.py | Runtime.run (mode, libraries, timeout_seconds, inputs) |
 | backend/app.py | Flask, CORS, HOST/PORT, body size |
 | backend/middleware/auth.py | API_KEY_STORE, key tiers |
 | backend/middleware/schemas.py | Request field defaults (mode, symbol, …) |
-| clients/*.json|lua|el | Editor LSP wiring |
-| vscode-extension/ | Extension contribution points |
+| clients/\*.json | lua | el | Editor LSP wiring |
+| pyne-lsp-vsce | Extension contribution points (separate repo) |
 Invariants & edge cases
 Unknown JSON fields on Pro API are rejected (UNKNOWN_FIELDS) — schemas are strict.
 CORS defaults exclude arbitrary production domains — set ALLOWED_ORIGINS deliberately.
@@ -4823,7 +4839,7 @@ pynescript data EUR/USD --provider alphavantage --api-key "$AV_KEY" --period 3mo
 `
 Failure modes
 | Symptom | Config fix |
-| --- | --- |
+| ---------------------------------- | -------------------------------------------------- |
 | Browser CORS error on /run | Add origin to ALLOWED_ORIGINS |
 | create_key always 403 | Set ADMIN_TOKEN and send X-Admin-Token |
 | API keys vanish / permission error | Point API_KEY_STORE to writable path |
@@ -5424,16 +5440,17 @@ python -m pynescript.langserver # equivalent entry
 `
 The process speaks LSP over stdio by default (PynescriptLanguageServer.start_io()). Do not expect a useful interactive TTY UI.
 VS Code / Cursor / Antigravity
-1. Build or install the extension from vscode-extension/:
+1. Build or install the extension from hoox-sh/pyne-lsp-vsce:
 `bash
-cd vscode-extension
+git clone https://github.com/hoox-sh/pyne-lsp-vsce.git
+cd pyne-lsp-vsce
 npm ci
 npm run compile
-package: npx vsce package (or make build-vscode)
+package: npm run package
 `
 2. Open a .pyne (preferred for HOOX / PYNE stack sources), .pine, .pinev5, .pinev6, or .pinescript file — LSP activates when enabled. The VS Code extension also activates on workspaceContains:*/.{pyne,pine,…}.
-Marketplace / VSIX: extension id hoox-sh.pyne 0.5.5 (publisher hoox-sh, package name pyne; ships with hoox-pyne 0.6.31). VS Marketplace. Site download: hoox.sh/pyne-vscode.vsix (unversioned alias). Local package: cd vscode-extension && npm ci && npm run package then code --install-extension pyne-vscode-0.5.5.vsix. The VSIX is self-contained; you still need pip install "hoox-pyne[lsp]" (or a pyne-lsp binary) on the machine.
-Settings (from vscode-extension/package.json):
+Marketplace / VSIX: extension id hoox-sh.pyne 0.5.5 (publisher hoox-sh, package name pyne; ships with hoox-pyne 0.6.31). VS Marketplace. Site download: hoox.sh/pyne-vscode.vsix (unversioned alias). Local package: git clone https://github.com/hoox-sh/pyne-lsp-vsce.git && cd pyne-lsp-vsce && npm ci && npm run package then code --install-extension pyne-vscode-0.5.5.vsix. The VSIX is self-contained; you still need pip install "hoox-pyne[lsp]" (or a pyne-lsp binary) on the machine.
+Settings (from the extension's package.json):
 | Key | Default | Notes |
 | --- | --- | --- |
 | pynescript.lsp.enabled | true | Master switch |
@@ -5537,7 +5554,7 @@ Internals (repo paths)
 | src/pynescript/langserver/features/ | diagnostics, completion, hover, … |
 | clients/README.md | Canonical client matrix |
 | clients/neovim.lua, zed.json, emacs.el | Drop-in snippets |
-| vscode-extension/ | VS Code extension |
+| hoox-sh/pyne-lsp-vsce | VS Code extension (separate repo) |
 | scripts/generate_builtin_metadata.py | Completion/hover corpus |
 Invariants & edge cases
 Python 3.10+ required on the machine running the server.
@@ -6144,6 +6161,44 @@ pyne mcp config --module uses python -m pynescript.mcp instead of the console sc
 pyne mcp call and pyne execute / symbols / parity / diagnostics / builtin invoke the same ops in-process and print JSON (no stdio host, no mcp extra). TOOL may be pyne_lint or the short alias lint. Extra arguments: --arg KEY=VALUE (JSON-coerced) or --json '{"bars":50}'.
 Every tool returns { "ok": true, ... } or { "ok": false, "error", "kind", "line?", "column?" }. Pine syntax errors are tool results, not protocol failures. Prefer source= (pasted script) over path=. Plot series are truncated (last N samples). Default data provider is mock. Runner tools use PYNE_API_URL / ADMIN_TOKEN and hit the network.
 Catalog: MCP tools.
+Code Mode (opt-in)
+Set PYNE_MCP_CODE_MODE=1 on the server process to add exactly two tools,
+search and execute. With the flag unset the tool list is unchanged. Both
+tools take one code string: a JavaScript async arrow function with no
+parameters.
+`text
+search: async () => catalog.filter((x) => x.group === "language" && x.short === "lint")
+execute: async () => { const r = await pyne.language.lint({source}); return {ok: r.ok}; }
+`
+search receives a compact array of {tool, short, group, risk, destructive,
+summary, args, required} and returns only the rows the code selects. execute
+receives a pyne client:
+| Binding | Meaning |
+| --- | --- |
+| pyne.call(tool, args) | call one catalog tool |
+| pyne.describe(tool) | full signature for one tool |
+| pyne..(args) | namespaced call, e.g. pyne.language.lint |
+Every call is re-resolved and re-dispatched through the same
+dispatch.call_tool path as the direct tools. Destructive tools
+(risk=write, the pyne_runner_* mutations) are refused in Code Mode unless
+the operator also sets PYNE_MCP_CODE_MODE_ALLOW_DESTRUCTIVE=1.
+Sandbox
+The code runs in a separate process, not in the Python server. The default
+boundary is bubblewrap (bwrap): a new user/pid/net/ipc/uts/cgroup namespace,
+a cleared environment, read-only binds of only the JavaScript runtime and its
+shared libraries, a private tmpfs, and no host filesystem. The parent never
+trusts the child; only JSON strings cross the bridge.
+Code Mode needs a JavaScript runtime with node:vm (Node.js >= 18, or Bun) and
+bwrap. If bwrap is absent the server fails closed with an explicit error.
+Setting PYNE_MCP_CODE_MODE_SANDBOX=subprocess accepts a weaker, documented
+mode: a plain child process with a cleared environment and a throwaway cwd, but
+host filesystem reads are still possible. That opt-in is an operator
+decision, not a security boundary. The streamable-http image ships nodejs and
+bubblewrap; a container whose outer seccomp profile blocks user namespaces
+still fails closed unless the operator chooses the weaker mode.
+The sandbox never inherits the server environment, so ADMIN_TOKEN and API
+keys stay in the parent. Reading process.env, require, or constructing a
+function from a string fails inside the JavaScript context.
 Internals (repo paths)
 src/pynescript/mcp/catalog.py — canonical tool / resource / prompt names (docs + tests)
 src/pynescript/mcp/server.py — MCPServer, tool registration
@@ -6203,7 +6258,7 @@ Abstract
 The Pro API is the HTTP evaluate contract for PYNE: POST Pine source plus OHLCV, receive plots, series, events, drawings, and alerts. Free-tier evaluate endpoints (/run, /run/batch) are usable without a key. Bar/script/rate/concurrency and chart/mock-only data guards apply only when FREE_TIER_LIMITS is truthy (1 / true / yes / on); default off. Production compose sets ${FREE_TIER_LIMITS:-1}. Webhook URLs stay SSRF-safe regardless. Optional L2 alert webhooks POST last-bar firings to webhook_url or ALERT_WEBHOOK_URL. Pro preview/backtest routes track usage via API keys. This page is for callers (AXIS, scripts, workers). Server lifecycle and auth design are under API.
 Conceptual model
 | Endpoint | Auth | Purpose |
-| --- | --- | --- |
+| ------------------------------------------ | --------------- | -------------------------------------------------------------------------- |
 | GET / / GET /health | none | Health + endpoint map (default_run_mode: auto) |
 | POST /run | none (free) | Single script evaluate |
 | POST /run/batch | none (free) | ≤8 scripts, shared OHLCV |
@@ -6234,7 +6289,7 @@ curl -s http://127.0.0.1:5002/ | python -m json.tool
 POST /run
 Schema (RUN_SCHEMA):
 | Field | Type | Required | Default |
-| --- | --- | --- | --- |
+| ----------------- | ----------------- | -------- | ------------------------------------------------------------------ |
 | script | string | yes | |
 | data | list (OHLCV bars) | yes | |
 | symbol | string | no | "CHART" |
@@ -6244,6 +6299,7 @@ Schema (RUN_SCHEMA):
 | inputs | object | no | {} — input. by title (forces interpret under auto) |
 | libraries | list | no | [] — [{namespace, name, version, source}], max 32 |
 | timeout_seconds | number | no | omit — interpret wall-clock budget; passed only when set and > 0 |
+| timeframe | string | no | "" — AXIS 1m/1h/1d or Pine period; empty = daily |
 | profiler | bool | no | false — forces interpret |
 | webhook_url | string | no | "" (else env ALERT_WEBHOOK_URL) |
 | forward_alerts | bool | no | true |
@@ -6289,8 +6345,14 @@ Shared OHLCV, multiple scripts (max 8). Envelope:
 `json
 {
 "scripts": [
-{"id": "sma", "script": "//@version=6\nindicator(\"s\")\nplot(ta.sma(close, 5))"},
-{"id": "rsi", "script": "//@version=6\nindicator(\"r\")\nplot(ta.rsi(close, 14))"}
+{
+"id": "sma",
+"script": "//@version=6\nindicator(\"s\")\nplot(ta.sma(close, 5))"
+},
+{
+"id": "rsi",
+"script": "//@version=6\nindicator(\"r\")\nplot(ta.rsi(close, 14))"
+}
 ],
 "data": [/ bars /],
 "symbol": "AAPL",
@@ -6303,7 +6365,7 @@ POST /preview/chart (Pro)
 `json
 {
 "script": "",
-"data": {"close": [100, 101, 102], "volume": [1, 2, 3]},
+"data": { "close": [100, 101, 102], "volume": [1, 2, 3] },
 "options": {
 "type": "line",
 "color": "#2196F3",
@@ -6318,7 +6380,7 @@ POST /preview/indicator (Pro)
 `json
 {
 "expression": "ta.sma(close, 20)",
-"data": {"close": [/ ... /]},
+"data": { "close": [/ ... /] },
 "options": {}
 }
 `
@@ -6356,7 +6418,7 @@ Send Pro requests with the key as required by middleware (Authorization: Bearer 
 There is no pynescript.api.PynescriptAPI client in this package. Call the HTTP contract with requests / curl as above.
 Internals (repo paths)
 | Path | Role |
-| --- | --- |
+| ------------------------------------ | ----------------------------------------------------------- |
 | backend/app.py | Routes /, /run, /run/batch, /compile/prewarm, auth |
 | backend/api/preview.py | /preview/, /backtest/quick |
 | backend/middleware/schemas.py | Strict request schemas (mode default auto, alert flags) |
@@ -6452,13 +6514,13 @@ Wire optional CCXT data source
 "data": [/ chart bars */],
 "symbol": "BTC/USDT",
 "data_source": "ccxt",
-"data_options": {"exchange": "binance"}
+"data_options": { "exchange": "binance" }
 }
 `
 Requires server environment with ccxt installed.
 Failure modes
 | Code / HTTP | Meaning | Action |
-| --- | --- | --- |
+| ----------------------- | ------------------------- | ------------------------------ |
 | 400 MISSING_FIELD | No script/data | Fix body |
 | 400 UNKNOWN_FIELDS | Extra keys | Strip undocumented fields |
 | 400 DATA_SOURCE_ERROR | Provider config | Fix data_options / deps |
@@ -6513,7 +6575,7 @@ diff -u /tmp/a.ast /tmp/a2.ast
 Structural diff empty ⇒ cosmetic only.
 5. Lint noise / CI red
 | Code | Action |
-| --- | --- |
+| ------------- | --------------------------------------------------------- |
 | E001 | Fix syntax first |
 | W001 | Add //@version=6 |
 | W002 | Upgrade version pragma |
@@ -6548,7 +6610,7 @@ Run with editor logging enabled; check stderr for import traces
 Ensure the editor’s command matches the venv. For Neovim, confirm filetypes include your buffer’s filetype.
 11. Data provider failures
 | Provider | Checklist |
-| --- | --- |
+| -------------- | --------------------------------------------------------------- |
 | mock | Should always work offline |
 | yahoo | Network; symbol format |
 | alphavantage | API key; demo limits |
@@ -6560,7 +6622,7 @@ pyne data AAPL --provider mock
 PYNE is independent of TradingView®. Behavioral gaps are expected for edge builtins, broker emulators, and UI-only calls. Use compatibility.
 Failure modes (quick matrix)
 | Symptom | Layer | First check |
-| --- | --- | --- |
+| ------------------------------------ | ----- | ------------------------------------------------------------------------------------------------------------------------- |
 | Command not found | env | python -m pynescript |
 | Import error pygls | extra | [lsp] |
 | Import error ccxt | extra | [data] |
@@ -6570,6 +6632,7 @@ Failure modes (quick matrix)
 | pyne run ≠ Runtime.run | modes | pyne run is compile-only synthetic; use pyne execute for Runtime.run (default auto); library default is interpret |
 | MCP extra missing | extra | [mcp] is only for stdio pyne-mcp; pyne execute / mcp call need no extra |
 | UNKNOWN_FIELDS + timeout_seconds | HTTP | field is valid on /run and /run/batch (0.3.11+); other extra keys still 400 |
+| UNKNOWN_FIELDS + timeframe | HTTP | field is valid on Flask /run and WS /ws/run; other extra keys still 400 |
 | 400 UNKNOWN_FIELDS | HTTP | schema |
 | 403 create_key | HTTP | ADMIN_TOKEN` |
 | 413 | HTTP | body size |
@@ -6691,7 +6754,7 @@ Consumer-relevant code only — deeper design is linked from each guide:
 | backend/runtime.py | Compat shim → pynescript.runtime |
 | examples/ | Worked scripts (parse, RSI strategy, datafeed) |
 | clients/ | Editor client configs (Neovim, Zed, Emacs) |
-| vscode-extension/ | VS Code extension package |
+| pyne-lsp-vsce | VS Code extension package (separate repo) |
 Invariants & edge cases
 Round-trip is first-class. parse → unparse should preserve semantics; use it to normalize formatting, not as a semantic rewrite.
 Mode split. parse(..., mode="exec") yields a script tree; mode="eval" parses a single expression (used by literal_eval).
@@ -7012,11 +7075,13 @@ HTTP client for the optional Flask hosted runner (PYNE_RUNNER=1). Group options 
 | delete ID | DELETE /scripts/:id |
 | tick | POST /cron/run (--id, --force) |
 | jobs | GET /cron/jobs |
+| history | GET /cron/history (--id, --limit) |
 | enable ID / disable ID | PUT /cron/jobs |
 `bash
 pyne runner deploy script.pine --id demo --symbol BTCUSDT --source mock
 pyne runner tick --id demo --force
 pyne runner list
+pyne runner history --id demo --limit 10
 pyne runner --url http://127.0.0.1:5002 jobs
 `
 Full HTTP contract: hosted runner.
@@ -7482,7 +7547,7 @@ These also run from the CLI (pyne mcp call TOOL, plus first-class commands where
 | Tool | CLI | Result |
 | --- | --- | --- |
 | pyne_parse | pyne mcp call parse PATH | {version, kind, title, errors[{line,column,message}]} |
-| pyne_symbols | pyne symbols PATH | functions, types, enums, input.*, plots, strategy.entry |
+| pyne_symbols | pyne symbols PATH | functions, types, enums, input., plots, strategy.entry |
 | pyne_execute | pyne execute PATH | Runtime.run; caller ohlcv rows; truncated plots; strategy extras |
 | pyne_parity | pyne parity PATH | interpret vs compile last values (rtol=1e-5, atol=1e-6) |
 | pyne_hover | pyne mcp call hover PATH --arg line=0 --arg character=0 | markdown at 0-based line / character |
@@ -7502,6 +7567,18 @@ Resources and prompts
 | review_pine | prompt — lint + convert-to-v6 |
 | debug_pine | prompt — parse, lint, 50-bar run |
 | convert_to_v6 | prompt — convert + remaining W002/C002 |
+Code Mode (opt-in)
+PYNE_MCP_CODE_MODE=1 adds exactly two tools; they are not part of the
+pyne_ catalog and are absent when the flag is unset.
+| Tool | Input | Result |
+| --- | --- | --- |
+| search | {code} — JS async arrow function | rows selected from the compact catalog |
+| execute | {code} — JS async arrow function | whatever the code returns, through pyne.* calls |
+search filters a catalog array; execute gets pyne.call, pyne.describe,
+and pyne... Destructive calls stay fail-closed unless the operator
+sets PYNE_MCP_CODE_MODE_ALLOW_DESTRUCTIVE=1. The sandbox boundary and the
+PYNE_MCP_CODE_MODE_SANDBOX=subprocess caveat are documented in
+MCP (agents).
 See also
 MCP (agents)
 CLI commands
@@ -8001,7 +8078,7 @@ description: "Wire pyne-lsp into Neovim, Zed, Emacs, Helix, Sublime, and generic
 ---
 Editor Clients
 Abstract
-Any editor that speaks LSP over STDIO can host PYNE intelligence. First-class snippets live in clients/ (Neovim Lua, Zed JSON, Emacs Lisp) plus documented Helix/Sublime fragments. The VS Code path is a dedicated extension (vscode-extension); this page covers the rest.
+Any editor that speaks LSP over STDIO can host PYNE intelligence. First-class snippets live in clients/ (Neovim Lua, Zed JSON, Emacs Lisp) plus documented Helix/Sublime fragments. The VS Code path is a dedicated extension (pyne-lsp-vsce); this page covers the rest.
 Prerequisite: pyne-lsp (or pynescript-lsp) on PATH (Python 3.10+):
 ``bash
 pip install "hoox-pyne[lsp]"
@@ -8016,7 +8093,7 @@ Interface surface — repo files
 | clients/zed.json | Zed settings.json fragment |
 | clients/emacs.el | Emacs lsp-mode + pinescript-mode |
 | clients/README.md | Human-oriented install notes |
-| vscode-extension/ | VS Code / Cursor-compatible |
+| pyne-lsp-vsce | VS Code / Cursor-compatible |
 Neovim
 Return table from clients/neovim.lua:
 `lua
@@ -8121,6 +8198,41 @@ See also
 VS Code extension
 Architecture
 End-user editors guide
+---
+FILE: docs/pyne/lsp/features/code-lens.mdx
+Copyright (C) 2024-2026 jango_blockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-3.0-or-later
+---
+title: "Code lens"
+description: "textDocument/codeLens adds Convert to v6 / Smoke /run commands above indicator(), strategy(), and library() headers."
+---
+Code lens
+Abstract
+textDocument/codeLens places one lens row above each top-level indicator(...) / strategy(...) / library(...) call. Lenses are client commands, not server executions: clients that do not register the commands can ignore them.
+Interface surface
+Method: textDocument/codeLens
+Capability: code_lens_provider with CodeLensOptions(resolve_provider=False)
+Handler: features/code_lens.py → handle_code_lens (version-matched tree=doc.valid_ast)
+Setting: codeLensEnabled (default true); toggles send workspace/codeLens/refresh when the client advertises workspace.codeLens.refreshSupport
+| Lens | Shown when | Command |
+| --- | --- | --- |
+| Convert to v6 | buffer version is not v6 | pynescript.convertToV6 |
+| Smoke /run | editor reports Pro enabled (proEnabled) | pynescript.runOnPro |
+The handler scans the AST for declaration calls (function bodies are ignored) and falls back to a line scan when the buffer does not parse, so the header lens survives mid-edit parse failures.
+See also
+Navigation — same declaration collector
+Diagnostics — Convert-to-v6 QuickFix
 ---
 FILE: docs/pyne/lsp/features/completion.mdx
 Copyright (C) 2024-2026 jango_blockchained
@@ -8245,6 +8357,7 @@ Pull
 | textDocument/diagnostic | RelatedFullDocumentDiagnosticReport with kind=full, result_id="{uri}-{version}" |
 | workspace/diagnostic | One WorkspaceFullDocumentDiagnosticReport per open URI |
 Capability: diagnostic_provider with identifier="pynescript-diagnostics", inter_file_dependencies=False.
+Pull handlers re-parse when the cached AST belongs to an older document version, so a request that races the debounced didChange parse returns the current findings rather than the previous version's. After every push (open/change/save/close/config), the server sends workspace/diagnostic/refresh when the client advertised workspace.diagnostics.refreshSupport. Pull-model clients keep diagnostics in a collection separate from the push collection; without the refresh they would never re-request and a fixed error would stay visible.
 Diagnostic shape
 | Field | Value |
 | --- | --- |
@@ -8288,9 +8401,12 @@ decidable from declarations in the current file:
 | --- | --- |
 | S001 | Unknown field/method on a user type, or unknown member on a user enum |
 | S002 | User-function call mismatch: too many positional arguments, missing required arguments, unknown named argument |
+| S003 | Value is too weak for a declared qualifier or base (simple float x = close, const int n = bar_index, series passed to a simple parameter) |
+| S004 | na has no contextual type (x = na). na beside a typed operand, or under an annotation, adopts that type and is not reported |
 Builtin calls, member access on inferred-but-unknown receivers, and method
 calls are deliberately skipped. The catalog is incomplete for some host
-builtins, so under-reporting is preferred to a speculative error. Semantic
+builtins (it does not record parameter qualifiers such as ta.sma's simple int
+length), so under-reporting is preferred to a speculative error. Semantic
 checks only run when the buffer parses.
 Parse errors
 On exception from parse:
@@ -8309,6 +8425,7 @@ Failure modes
 | Symptom | Cause |
 | --- | --- |
 | Stale squiggles after edit | Client using full-document sync incorrectly, or version mismatch |
+| Stale squiggles only in a pull-capable client (VS Code, AXIS) | Client did not answer workspace/diagnostic/refresh; check workspace.diagnostics.refreshSupport in initialize |
 | Empty diagnostics on broken file | Unexpected: parse errors should still emit E001 — check client filter on source` |
 | No workspace pull results | Only open documents are tracked; closed files are absent |
 See also
@@ -8603,7 +8720,7 @@ description: "Document, range, and on-type formatting via AST parse → NodeUnpa
 Formatting
 Abstract
 Formatting is canonical unparse, not a style linter. The handler parses the buffer, runs NodeUnparser, and if the result differs from the source, replaces the document (or the requested line range, or the just-completed line) with a single TextEdit. There is no prettier-like option matrix; FormattingOptions from the client are currently unused.
-Safety rule: the ASDL AST keeps Pine annotations (//@version, //@function, …) but not ordinary prose or block comments. If the buffer contains a comment the unparser would drop, the handler switches to a safe whitespace pass: trailing spaces/tabs are removed and the final newline is normalized, while every comment and string is kept byte-for-byte. Lines inside multi-line strings are never trimmed. Range and on-type formatting apply the same pass to their target line. C002 does not offer a format QuickFix for such buffers because whitespace cleanup cannot shorten a long line. A full comment-preserving CST formatter is future work.
+Comments: the ASDL AST keeps Pine annotations (//@version, //@function, …) but not ordinary prose or block comments. Formatting still pretty-prints those buffers. After NodeUnparser, comments are spliced back onto the aligned tokens: full-line //, #, and / / comments stay on their own line ahead of the next token; trailing // / # comments stay at the end of the line that owns them; inline block comments stay between the surrounding tokens. The result is lossless and idempotent. If token alignment cannot place a comment, it is appended rather than dropped. A whitespace-only trim remains the fallback when the splice itself fails. Range and on-type formatting use the same text, clipped to the requested lines when the line counts still match.
 Conceptual model
 Interface surface
 | Method | Handler |
@@ -8614,19 +8731,19 @@ Interface surface
 Capabilities (config.py): both document providers True; on-type advertised as documentOnTypeFormattingProvider with firstTriggerCharacter = "\n".
 Full document
 1. Parse with filename "".
-2. formatted = NodeUnparser().visit(tree).
+2. formatted = NodeUnparser().visit(tree), then splice original comments back onto the aligned tokens.
 3. If identical to source → [].
 4. Else one TextEdit spanning (0,0) → last line/col with new_text=formatted.
 Range
-1. Unparse the entire document.
+1. Unparse the entire document (comments included).
 2. Slice formatted lines and source lines by the client range’s start/end line indices.
 3. If the in-range slices match → [].
 4. Else replace params.range with the formatted line slice.
 This is line-aligned, not AST-node-aligned: partial mid-line ranges may produce surprising splices when unparse changes line structure.
 On-type (after \n)
-After the client inserts a newline, params.position is the cursor on the new line and params.ch is "\n". The handler formats the previous line (or line 0) via the same NodeUnparser and, when that line differs, returns one TextEdit covering only that source line.
+After the client inserts a newline, params.position is the cursor on the new line and params.ch is "\n". The handler formats the previous line (or line 0) via the same comment-preserving unparse and, when that line differs, returns one TextEdit covering only that source line.
 1. Empty source, ch != "\n", or tree=None (workspace parse already failed) → [].
-2. Unparse the whole document.
+2. Unparse the whole document and splice comments.
 3. target = max(0, params.position.line - 1).
 4. If the target is past either line list, or the formatted line equals the source line → [].
 5. Else replace [target, 0) → [target, len(source_line)) with the formatted line.
@@ -8641,7 +8758,7 @@ VS Code command pynescript.formatDocument delegates to editor.action.formatDocum
 Invariants and edge cases
 1. Parse failure → [] (no partial format; silent no-op from the client’s perspective). On-type also no-ops when the workspace already failed to parse (tree=None).
 2. Idempotence goal: format twice should stabilize if unparse is canonical; any non-idempotent unparse is a core bug, not an LSP bug.
-3. Comments / trivia: Pine annotations are preserved; prose/block comments switch to the safe whitespace pass (never a destructive edit). This is not a full CST pretty-printer.
+3. Comments / trivia: annotations, prose line comments, trailing comments, and block comments survive formatting. Blank-line layout that the unparser does not emit is not restored.
 4. Range and on-type require a full successful parse and matching line counts; only the edit span is clipped. If unparse changes line structure, no range/on-type edit is returned.
 5. Tab size / insert spaces from FormattingOptions are ignored today.
 6. On-type is previous-line only — the new empty line under the cursor is not rewritten.
@@ -8717,19 +8834,19 @@ function
 {signature}
 `
 {brief}
-Parameters: … (when metadata includes params)
+Parameters (table of Name | Description when metadata includes params)
 {first documentation paragraph, ≤500 chars}
 Example: …
 See also: ta.ema, …
 ---
 [Pine v6: ta.sma
 ``
-Kind kickers (function, namespace, type, qualifier, keyword, …) plus the fenced signature are shared with completion docs so hover and the suggest extra panel read as the same AXIS card.
+Kind kickers ( function , namespace , type , qualifier , keyword , …) plus the fenced signature are shared with completion docs so hover and the suggest extra panel read as the same AXIS card. The kicker is inline code so AXIS / HOOX / PYNE themes color it with textPreformat.
 Examples and related maps are hardcoded for a small high-value set (ta.sma, ta.ema, ta.rsi, ta.macd, strategy entry/exit, etc.). Others show signature + brief (and the docs link when the label is dotted).
 _build_docs_link emits that markdown link only for dotted builtin labels with a namespace (ta.sma, strategy.entry, line.fill). Empty, undotted (sma), or whitespace-only names return "". Keyword, type, namespace, and user-declaration cards never include the TradingView URL.
 Library annotation cards
 Pine libraries document exported functions, methods, types, and variables with annotation comments directly above the declaration. The block is read from source (tag line plus every following // line until a non-comment line), so multi-line Markdown is preserved:
-`pinescript
+``pinescript
 // @function Creates bollinger bands out of any specified moving average
 //
 // #### Usage
@@ -8744,19 +8861,19 @@ Pine libraries document exported functions, methods, types, and variables with a
 export bb(series float src, series float movingAverage, series int maLength, series float mult) =>
 dev = mult ta.stdev(src, maLength)
 [movingAverage, movingAverage + dev, movingAverage - dev]
-`
+``
 Hovering bb renders the fenced signature, the Markdown description (headings, code fence, horizontal rules), a Parameters list from // @param, and a Returns line. Supported tags:
 | Tag | Card section |
-| --- | --- |
+| --------------------------------------------------------- | --------------------------------- |
 | // @function / // @type / // @variable / // @enum | Description (Markdown body) |
 | // @param | Parameters bullet |
 | // @field | Fields bullet |
 | // @returns | Returns line |
 | // @description | Library card (hovering library) |
-Markdown is passed through verbatim, so the TradingView Markdown in the Pine Editor formatting works: # headings, bold / italic / ~~strike~~, > blockquotes, ___ / * rules, 1. / - / + / lists, `` ` `` code fences, code , | tables, text links, !alt images, and two trailing spaces for a line break. Both //@function and // @function spellings are accepted. Cards without a known tag fall back to User-defined {kind}.
+Markdown is passed through verbatim, so the TradingView Markdown in the Pine Editor formatting works: # headings, bold / italic / ~~strike~~, > blockquotes, ___ / * rules, 1. / - / + / lists, `` code fences, ` code , | tables, text links, !alt images, and two trailing spaces for a line break. Both //@function and // @function spellings are accepted. Cards without a known tag fall back to User-defined {kind}.
 Internals
 | Path | Role |
-| --- | --- |
+| ------------------------------- | ----------------------------------- |
 | features/hover.py | Word resolution + Markdown assembly |
 | providers/builtin_metadata.py | get_builtin |
 | protocol/utils.py | Identifier segment extraction |
@@ -8785,7 +8902,7 @@ plot(foo(1))
 Declaration and use both hover as a user-defined function with fence foo(a) => a.
 No Pine v6 URL.
 Cursor on an annotated library function:
-`pinescript
+``pinescript
 // @function Bold heading
 // #### Usage
 // `
@@ -8794,11 +8911,11 @@ Cursor on an annotated library function:
 // @param a The first.
 // @returns The result.
 export foo(a) => a
-`
-Card = fenced signature + the Markdown body (Bold heading, #### Usage, code fence) + Parameters: - \a\: The first. + Returns: The result.
+``
+Card = fenced signature + the Markdown body (Bold heading, #### Usage, code fence) + Parameters: - \a\: The first.+Returns: The result.
 Failure modes
 | Symptom | Cause |
-| --- | --- |
+| ------------------------------- | ------------------------------------------------------------------------- |
 | Hover never appears | Metadata empty or word not in catalog / AST |
 | Wrong symbol | Identifier regex swallowed neighboring text — rare with _. pattern |
 | Stale docs after adding builtin | Regenerate metadata — builtin metadata |
@@ -8890,6 +9007,41 @@ See also
 Completion
 Builtin metadata
 Type system
+---
+FILE: docs/pyne/lsp/features/inline-completion.mdx
+Copyright (C) 2024-2026 jango_blockchained
+This file is part of pynescript.
+pynescript is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+pynescript is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with pynescript. If not, see .
+SPDX-License-Identifier: AGPL-3.0-or-later
+---
+title: "Inline completion"
+description: "textDocument/inlineCompletion (LSP 3.18) inserts curated argument lists for common builtins after an empty opening paren."
+---
+Inline completion
+Abstract
+textDocument/inlineCompletion (LSP 3.18) offers one ghost-text suggestion for a curated set of builtins when the cursor sits immediately after an empty ( — e.g. ta.sma( suggests close, 14). It is deterministic and model-free; no network calls, no speculation.
+Interface surface
+Method: textDocument/inlineCompletion
+Capability: inline_completion_provider (InlineCompletionOptions)
+Handler: features/inline_completion.py → handle_inline_completion
+Setting: inlineCompletionEnabled (default false — opt-in; never competes with the normal completion list)
+Behavior notes:
+Fires only when the argument list is empty and no ) follows on the line.
+Suppressed inside comments and strings (including unterminated ones at the cursor).
+Returns None for unknown callees and for non-empty argument lists.
+Works on the line prefix only, so it responds while the buffer does not parse.
+See also
+Completion — the full completion list
+Code lens — header-level commands
 ---
 FILE: docs/pyne/lsp/features/linked-editing.mdx
 Copyright (C) 2024-2026 jango_blockchained
@@ -8990,19 +9142,41 @@ Interface surface
 | Method | Handler | Returns |
 | --- | --- | --- |
 | textDocument/definition | definitions.handle_definition | list[Location] \| None |
+| textDocument/declaration | definitions.handle_declaration | list[Location] \| None (same target as definition) |
+| textDocument/typeDefinition | definitions.handle_type_definition | list[Location] \| None (UDT declaration) |
+| textDocument/prepareCallHierarchy | call_hierarchy.handle_prepare_call_hierarchy | list[CallHierarchyItem] \| None |
+| callHierarchy/incomingCalls | call_hierarchy.handle_incoming_calls | list[CallHierarchyIncomingCall] |
+| callHierarchy/outgoingCalls | call_hierarchy.handle_outgoing_calls | list[CallHierarchyOutgoingCall] |
 | textDocument/references | references.handle_references | list[Location] (possibly empty) |
 | textDocument/documentHighlight | highlight.handle_document_highlight | list[DocumentHighlight] |
 | textDocument/prepareRename | rename.handle_prepare_rename | Range \| None |
 | textDocument/rename | rename.handle_rename | WorkspaceEdit \| None (all open documents) |
 | textDocument/documentSymbol | symbols.handle_document_symbols | list[DocumentSymbol] |
 | workspace/symbol | server._collect_workspace_symbols | list[SymbolInformation] |
-Capabilities: definition_provider, references_provider, document_highlight_provider, rename_provider (prepare_provider=True), document + workspace symbol options with work-done progress flags.
+Capabilities: definition_provider, declaration_provider, type_definition_provider, call_hierarchy_provider, references_provider, document_highlight_provider, rename_provider (prepare_provider=True), document + workspace symbol options with work-done progress flags.
 Definition (DefinitionFinder)
 Matches target word against:
 FunctionDef.name
 TypeDef.name
 Assign targets (Name or nested names)
 Ignores mere call sites (visit_Call returns early when the callee name matches).
+Declaration
+Pine has no separate declaration and definition spans: x = 1, f() =>, and
+type T declare their name where they define it. textDocument/declaration
+delegates to the same scope-aware resolver as definition.
+Type definition
+Resolves the user-defined type of the symbol under the cursor:
+a variable whose annotation or inferred value is a UDT (Point p = …, p = Point.new(…))
+a UDT field or parameter with a UDT type label
+Type.new(...) and member receivers
+Builtin types (series float, array) have no source declaration, so the
+handler returns None rather than inventing a location.
+Call hierarchy
+Same-document, user functions and methods only. prepareCallHierarchy returns
+the function at the cursor (its name, a call site, or the enclosing body).
+Incoming calls group call sites by caller (script or function); outgoing calls
+list user functions called by the item's body. Builtin calls and UDT
+constructors are skipped — they have no Pine body to navigate to.
 References (ReferencesFinder)
 Name with Load / Store contexts
 Function and type definitions when include_declaration is true
@@ -9127,11 +9301,12 @@ Abstract
 Semantic tokens let the server paint identifiers with roles richer than TextMate scopes (library namespaces vs user variables, function defs vs properties). PYNE advertises a full and range semantic-tokens provider with a short custom legend (not the full LSP standard set). textDocument/semanticTokens/full walks the workspace AST; textDocument/semanticTokens/range clips the same legend to tokens whose start falls inside the requested range.
 Conceptual model
 Interface surface
-Capability (config.py → semantic_tokens_provider):
+Capability: pygls 2 rebuilds semanticTokensProvider from the options on the textDocument/semanticTokens/full and /range registrations. Those options are a SemanticTokensLegend (config.semantic_tokens_legend). Without it, initialize omits the provider and the client never requests tokens.
 ``text
-legend.token_types (index order is contract):
+legend.token_types (index order is contract; new types are appended):
 namespace, type, class, function, method, variable,
-parameter, property, keyword, string, number, operator, comment
+parameter, property, keyword, string, number, operator, comment,
+series, simple
 legend.token_modifiers (bit 0 = declaration):
 declaration, definition, readonly, defaultLibrary
 range: true
@@ -9154,6 +9329,9 @@ What is emitted
 | Import alias and uses | namespace | declaration on the alias |
 | Builtin namespace attribute (ta.sma) | namespace + method | defaultLibrary (+ readonly on ns) |
 | Other attribute (unknown receiver) | property | — |
+| Qualifier keyword series / simple | series / simple | — |
+| Variable or parameter whose resolved qualifier is series / simple, including OHLCV builtins (open, high, low, close, volume, hl2, hlc3, ohlc4) and time / bar_index | series / simple | declaration on the binding; readonly on builtins |
+The type names series and simple match the custom semanticTokenTypes contributed by the VS Code extension. They are appended so existing legend indices stay stable.
 Builtin namespace set (_BUILTIN_NS): ta, math, str, array, matrix, map, strategy, request, input, color, line, label, box, table, polyline, log, ticker, timeframe, chart, runtime, syminfo, barstate, session, time.
 Internals
 | Path | Role |
@@ -9162,11 +9340,11 @@ Internals
 | config.py | Legend + capability — indices must match _TT |
 | server.py | TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL / _RANGE; passes version-matched doc.valid_ast |
 Attribute columns prefer end_col_offset - len(attr) when present; otherwise parent col_offset (approximate).
-TextMate from vscode-extension/syntaxes/pinescript.tmLanguage.json still colors keywords, strings, and comments — the visitor does not emit those yet even though the legend reserves the slots.
+TextMate from the extension repo's syntaxes/pinescript.tmLanguage.json still colors keywords, strings, and comments — the visitor does not emit those yet even though the legend reserves the slots.
 Invariants and edge cases
 1. Never throws — missing source, tree=None, or parse exception yields empty data.
 2. Range is a clip of full — same types/modifiers; tokens whose start is outside the range are dropped. A range token stream is a subsequence of the full stream.
-3. Legend is fixed at initialize; changing indices later would break cached clients.
+3. Legend indices are stable. series and simple are appended. Inserting a type earlier in the list would shift cached clients.
 4. Empty data is valid protocol (empty file, parse failure, or no tokens in range), not an error.
 5. Tokens are sorted by (line, col) before delta encoding.
 Worked example
@@ -9176,7 +9354,7 @@ indicator("tok")
 length = 14
 plot(ta.sma(close, length))
 `
-Full document: tokens for length (variable/declaration), ta (namespace/defaultLibrary), sma (method/defaultLibrary). Keywords such as indicator remain TextMate-only.
+Full document: tokens for length (variable/declaration when it is const), close (series), ta (namespace/defaultLibrary), sma (method/defaultLibrary). A simple int binding and the simple keyword use the simple token type. Keywords such as indicator remain TextMate-only.
 Range covering only the plot(ta.sma…) line keeps ta / sma (and any other starts on that line) and drops the length assignment. A range covering only the //@version=6 pragma yields no namespace token.
 Failure modes
 | Symptom | Cause |
@@ -9236,6 +9414,8 @@ Interface surface
 | Inlay hints | textDocument/inlayHint (display-only builtin param names) | features/inlay_hints.py |
 | Folding | textDocument/foldingRange | features/folding.py |
 | Selection range | textDocument/selectionRange | features/selection_range.py |
+| Code lens | textDocument/codeLens | features/code_lens.py |
+| Inline completion | textDocument/inlineCompletion | features/inline_completion.py |
 | Document color | textDocument/documentColor, colorPresentation | features/document_color.py |
 | Document links | textDocument/documentLink, documentLink/resolve (tooltip) | features/document_link.py |
 | Code action | textDocument/codeAction | convert.py (Convert-to-v6 + W001/W002/C002 QuickFix) |
@@ -9250,12 +9430,12 @@ Internals
 | src/pynescript/langserver/features/ | Per-method handlers |
 | src/pynescript/langserver/providers/ | Metadata + completion builders |
 | src/pynescript/langserver/main.py | STDIO entry (pyne-lsp / alias pynescript-lsp) |
-| vscode-extension/ | Language client + TextMate grammar (hoox-sh.pyne 0.5.5) |
+| pyne-lsp-vsce | Language client + TextMate grammar (hoox-sh.pyne 0.5.5) — separate repo |
 | clients/ | Neovim, Zed, Emacs snippets (Helix / Sublime are documented, not files) |
 Console scripts are separate: pyne (Click CLI; alias pynescript) vs pyne-lsp (pygls; alias pynescript-lsp). Do not conflate them — see architecture.
 Tracks in this tab
 1. Architecture — server lifecycle, workspace, capabilities
-2. Diagnostics through Selection range — feature manuals
+2. Diagnostics through Selection range, Code lens, Inline completion — feature manuals
 3. Linked editing — same-document live ident ranges
 4. Document links — http(s) URLs in comments and strings; resolve fills tooltip
 5. Document color — #hex / color.* / literal color.rgb swatches
@@ -9293,7 +9473,7 @@ PYNE (hoox-sh.pyne 0.5.5) is a LanguageClient host plus a rich TextMate grammar,
 Conceptual model
 Interface surface
 Package identity
-From vscode-extension/package.json:
+From the extension's package.json (hoox-sh/pyne-lsp-vsce):
 | Field | Value |
 | --- | --- |
 | name | pyne |
@@ -9437,8 +9617,9 @@ Invariants and edge cases
 Worked example — extension development
 `bash
 pip install -e ".[lsp]"
-cd vscode-extension && npm ci && npm run compile
-Launch Extension Development Host pointing at vscode-extension
+git clone https://github.com/hoox-sh/pyne-lsp-vsce.git
+cd pyne-lsp-vsce && npm ci && npm run compile
+Launch Extension Development Host pointing at the pyne-lsp-vsce checkout
 `
 Open a fixture .pine file; confirm Problems panel shows parse/lint diagnostics from the Python server. With a current pyne-lsp, also expect #hex color swatches, clickable https:// links in comments, source: / length: inlay labels on ta.sma(close, 14), and range semantic tokens while scrolling.
 Failure modes
@@ -10514,21 +10695,23 @@ Name-level dispatch lives in Pine v6 surface (docs/pine_v6_full_surface_inventor
 Conceptual model
 Legend
 | Mark | Meaning |
-| --- | --- |
+| ---------------- | ----------------------------------------------------------- |
 | Working | Implemented, usable, covered by first-party tests |
 | Partial | Callable but mock, host-bound, or incomplete vs hosted Pine |
 | Residual | Known open hole on an otherwise landed surface |
 | Out of scope | Intentionally not a TV platform clone |
 Dispatch snapshot (2026-10-08): 941 callables, 10 partial-heuristic, 0 missing vs the public TV v6 function list (434 symbols). A registered name is not the same as hosted-platform semantics.
-Language, series, TA hot path, collections, strategy broker, drawings, alerts, libraries, interpret Runtime.
-request. feeds (honest na), compile eligibility, compile alerts, PyneTS vs Python oracle.
+Language, series, TA hot path, collections, strategy broker, drawings,
+alerts, libraries, interpret Runtime.
+request. feeds (honest na), compile eligibility, compile alerts,
+PyneTS vs Python oracle.
 Plot MISMATCH corpus tail (P1p), PYNE_SERIES_RING default off.
 Pixel chart, editor UX, foreign live data, bit-identical TV bars.
 Interface surface
 Corpus (set01–04 · 2477 scripts · 2026-08-09)
 Open-source sets, not shipped in git. Not a TradingView® platform score.
 | Suite | Rate | Notes |
-| --- | ---: | --- |
+| --------------------------- | ---------------------------: | ------------------------------------------------ |
 | Parse + unparse | 99.96% (2476/2477) | Residual: one intentional invalid line-wrap demo |
 | Runtime interpret (50 bars) | 100% excl. EXPECTED_FAIL | 2466 OK + 11 listed demos |
 | set01 Runtime | 249/249 | Interpret (and prior compile sweep) |
@@ -10547,69 +10730,81 @@ Grouped map
 | Series [] history | Working | OOB / negative → na (not wrap) |
 | Line wrapping | Working | Any indent inside (…) and […]; table.new is columns-then-rows (Pine order) |
 | timeframe.change | Working | Intraday fixed-width buckets; D/W/M on the exchange calendar (syminfo.timezone, UTC default) |
-| Area | Status | Notes |
-| --- | --- | --- |
-| pynescript.runtime.Runtime | Working | Package SoT; backend.runtime re-exports |
-| Modes interpret / compile / auto | Working | Defaults differ by surface — modes |
-| Series caps | Working | PYNE_SERIES_CAP default on |
-| Incremental ta. | Working | Default on; PYNE_TA_INCREMENTAL=0 full recompute |
-| Derived OHLCV skip | Working | Unused hl2/hlc3/ohlc4/tr not written; ta.vwap still updates hlc3 |
-| timeout_seconds | Working | Library / edge / Flask /run + /run/batch (omit = no budget) |
-| Ring buffer | Residual | PYNE_SERIES_RING default off |
-| Area | Status | Notes |
-| --- | --- | --- |
-| MAs | Working | sma/ema/rma/wma/hma/vwma/kama/dema/tema/alma/sma_weighted incremental |
-| Oscillators | Working | rsi/macd/stoch/cci/cmo/tsi/roc/wpr; incremental aroon/dpo/kst |
-| Volatility / structure | Working | atr (Wilder rma(tr)), bb, kc, stdev, highest/lowest, linreg, adx/dmi, supertrend, sar; incremental donchian |
-| Volume | Working | Incremental obv/wad/wvad/cmf/klinger/mfi/vwap/nvi/pvi |
-| Supertrend | Working | Locked mid±factor·ATR (inc ≡ compile ≡ Numba). TV band ratchet is out of scope |
-| Area | Status | Notes |
-| --- | --- | --- |
-| array. | Working | Negative indices; UDT sort_field + binary_search |
-| matrix. | Working | LA (det/inv/eigen…), predicates, sort_field |
-| map. | Working | |
-| Area | Status | Notes |
-| --- | --- | --- |
-| entry / close / cancel / events | Working | StrategyEvent stream |
-| exit stop/limit + OCA | Working | OHLC path, not tick path |
-| profit / loss | Working | Ticks × mintick from entry avg |
-| from_entry / qty_percent | Working | Interpret + compile |
-| Trail | Working | trail_offset / trail_points / trail_price on OHLC high/low (dual-host). Tick path is out of scope |
-| Risk cascade | Working | allow_entry_in, max size/drawdown/cons-loss-days/intraday |
-| Open/closed trade fields + MAE/MFE | Working | Extremes from bar high/low |
-| Pending-fill average (pyramiding ≤ 0) | Working | F2 |
-| Next-bar market fills (reference Pine) | Working | Market orders placed on bar N fill at the open of bar N+1; mintick grid + outward resting prices; dual-host lockstep (0.6.29) |
-| Licensed broker / exchange fills | Out of scope | In-process model only |
-| Area | Status | Notes |
-| --- | --- | --- |
-| plot / plotshape / plotchar / plotarrow / hline / bgcolor / barcolor / fill / plotbar / plotcandle | Working | Registry + columnar capture; plotshape off = None (dual-host) |
-| line / box / label / table / polyline / linefill | Working | Coordinates snapshotted at create/set; compile __drawings normalized to geometry-only AXIS export |
-| Drawing export parity | Working | Both hosts emit cell style/width/height/tooltip, force_overlay, merged_cells; box/label text extras; polyline curve/fill; text.align_ constants; table.cell reference positional order |
-| max__count GC | Working | Interpret registry |
-| force_overlay | Working | Export payload |
-| Pixel paint | Out of scope | AXIS / clients consume series + drawings |
-| Compile hline/fill/bgcolor/plotshape keys | Working | First-party key sets match interpret. Harness ignore flags stay optional CLI |
-| Area | Status | Notes |
-| --- | --- | --- |
-| Same-symbol simple OHLCV / HTF | Working | Allowlisted ta.sma/ema/rsi/atr/wma/rma on HTF |
-| Foreign / complex request.security | Partial | Resolves to na (no invented chart-close) |
-| request.footprint / financial / economic | Partial | Mock / feed-scaled; not a live vendor |
-| input. including active / enum | Working | Values + metadata |
-| Bid/ask omitted | Partial | na when host does not supply |
-| Real multi-symbol market data (B1) | Out of scope | Needs a host adapter |
-| Area | Status | Notes |
-| --- | --- | --- |
-| alert() / alertcondition() | Working | Frequency rules; /run export |
-| L2 webhooks | Working | webhook_url / ALERT_WEBHOOK_URL |
-| Compile alerts | Partial | Interpret is the alert oracle |
-| Numba + object-mode compile | Working | mode=auto falls back; import / request. / inputs= skip compile |
-| Warm compile / disk IR | Working | Prewarm CLI/API; cache meta v18 |
-| Interp compile plot parity | Working | Harness + first-party goldens + official TV builtins 0 MISMATCH (P1p); optional set0x community corpus unmeasured |
-| CLI / LSP / Pro API / Docker | Working | pyne / pyne-lsp; Flask /run |
-| Flask /run libraries | Working | Max 32; also /run/batch |
-| Flask timeout_seconds | Working | Optional on /run and /run/batch; omit / ≤ 0 = no timeout |
-| timeframe.change | Working | Intraday fixed-width; D/W/M exchange calendar. Interpret + compile (calendar via object mode) |
-| POST /optimize / pyne optimize | Working | Strategy input. search — not a Pine builtin |
+| Area | Status | Notes | | --- | --- | --- | | pynescript.runtime.Runtime
+| Working | Package SoT; backend.runtime re-exports | | Modes interpret
+/ compile / auto | Working | Defaults differ by surface —
+modes | | Series caps | Working |
+PYNE_SERIES_CAP default on | | Incremental ta. | Working | Default
+on; PYNE_TA_INCREMENTAL=0 full recompute | | Derived OHLCV skip |
+Working | Unused hl2/hlc3/ohlc4/tr not written; ta.vwap still
+updates hlc3 | | timeout_seconds | Working | Library / edge / Flask
+/run + /run/batch (omit = no budget) | | Flask timeframe | Working |
+Optional on /run and WS /ws/run; AXIS 1m/1h/1d mapped to Pine
+period | | Ring buffer | Residual | PYNE_SERIES_RING default off |
+| Area | Status | Notes | | --- | --- | --- | | MAs | Working |
+sma/ema/rma/wma/hma/vwma/kama/dema/tema/alma/sma_weighted
+incremental | | Oscillators | Working |
+rsi/macd/stoch/cci/cmo/tsi/roc/wpr; incremental
+aroon/dpo/kst | | Volatility / structure | Working | atr (Wilder
+rma(tr)), bb, kc, stdev, highest/lowest, linreg, adx/dmi,
+supertrend, sar; incremental donchian | | Volume | Working |
+Incremental obv/wad/wvad/cmf/klinger/mfi/vwap/nvi/pvi | |
+Supertrend | Working | Locked mid±factor·ATR (inc ≡ compile ≡ Numba). TV
+band ratchet is out of scope |
+| Area | Status | Notes | | --- | --- | --- | | array. | Working |
+Negative indices; UDT sort_field + binary_search | | matrix. |
+Working | LA (det/inv/eigen…), predicates, sort_field | | map. |
+Working | |
+| Area | Status | Notes | | --- | --- | --- | | entry / close / cancel
+/ events | Working | StrategyEvent stream | | exit stop/limit + OCA |
+Working | OHLC path, not tick path | | profit / loss | Working | Ticks ×
+mintick from entry avg | | from_entry / qty_percent | Working |
+Interpret + compile | | Trail | Working | trail_offset / trail_points /
+trail_price on OHLC high/low (dual-host). Tick path is out of scope | |
+Risk cascade | Working | allow_entry_in, max
+size/drawdown/cons-loss-days/intraday | | Open/closed trade fields + MAE/MFE
+| Working | Extremes from bar high/low | | Pending-fill average (pyramiding
+≤ 0) | Working | F2 | | Next-bar market fills (reference Pine) | Working |
+Market orders placed on bar N fill at the open of bar N+1; mintick grid +
+outward resting prices; dual-host lockstep (0.6.29) | | Licensed broker /
+exchange fills | Out of scope | In-process model only |
+| Area | Status | Notes | | --- | --- | --- | | plot / plotshape /
+plotchar / plotarrow / hline / bgcolor / barcolor / fill /
+plotbar / plotcandle | Working | Registry + columnar capture; plotshape
+off = None (dual-host) | | line / box / label / table / polyline
+/ linefill | Working | Coordinates snapshotted at create/set; compile
+__drawings normalized to geometry-only AXIS export | | Drawing export
+parity | Working | Both hosts emit cell style/width/height/tooltip,
+force_overlay, merged_cells; box/label text extras; polyline curve/fill;
+text.align_ constants; table.cell reference positional order | |
+max__count GC | Working | Interpret registry | | force_overlay |
+Working | Export payload | | Pixel paint | Out of scope | AXIS / clients
+consume series + drawings | | Compile hline/fill/bgcolor/plotshape
+keys | Working | First-party key sets match interpret. Harness ignore flags
+stay optional CLI |
+| Area | Status | Notes | | --- | --- | --- | | Same-symbol simple OHLCV /
+HTF | Working | Allowlisted ta.sma/ema/rsi/atr/wma/rma on HTF |
+| Foreign / complex request.security | Partial | Resolves to na (no
+invented chart-close) | | request.footprint / financial / economic |
+Partial | Mock / feed-scaled; not a live vendor | | input. including
+active / enum | Working | Values + metadata | | Bid/ask omitted |
+Partial | na when host does not supply | | Real multi-symbol market data
+(B1) | Out of scope | Needs a host adapter |
+| Area | Status | Notes | | --- | --- | --- | | alert() /
+alertcondition() | Working | Frequency rules; /run export | | L2
+webhooks | Working | webhook_url / ALERT_WEBHOOK_URL | | Compile alerts
+| Partial | Interpret is the alert oracle | | Numba + object-mode compile |
+Working | mode=auto falls back; import / request. / inputs= skip
+compile | | Warm compile / disk IR | Working | Prewarm CLI/API; cache meta
+v18 | | Interp compile plot parity | Working | Harness + first-party
+goldens + official TV builtins 0 MISMATCH (P1p); optional set0x
+community corpus unmeasured | | CLI / LSP / Pro API / Docker | Working |
+pyne / pyne-lsp; Flask /run | | Flask /run libraries | Working |
+Max 32; also /run/batch | | Flask timeout_seconds | Working | Optional
+on /run and /run/batch; omit / ≤ 0 = no timeout | | timeframe.change
+| Working | Intraday fixed-width; D/W/M exchange calendar. Interpret +
+compile (calendar via object mode) | | POST /optimize / pyne optimize |
+Working | Strategy input. search — not a Pine builtin |
 | Surface | Status | Notes |
 | --- | --- | --- |
 | Python Runtime | Working | Language oracle |
@@ -10618,7 +10813,7 @@ Grouped map
 | pyne-agent-worker | Working | NL authoring; optional /run validate. Docs: agent |
 Residual and out of scope (compact)
 | Item | Class |
-| --- | --- |
+| -------------------------------------------------------------------- | --------------------------------------- |
 | Interpretcompile value MISMATCH (optional set0x community corpus) | Residual (P1p official builtins closed) |
 | PYNE_SERIES_RING default-on | Residual (flagged off) |
 | Pixel chart / editor word-wrap / TV UI | Out of scope |
@@ -10630,7 +10825,7 @@ Residual and out of scope (compact)
 Dual-host plot parity
 Same script + OHLCV under mode="interpret" and mode="compile"; series compared with nan-aware allclose (rtol=1e-5, atol=1e-6).
 | Artifact | Role |
-| --- | --- |
+| -------------------------------------- | -------------------------------------------------------------- |
 | scripts/compare_interp_compile.py | Corpus harness → .cache/interp_compile_parity.json |
 | tests/test_interp_compile_parity.py | Always-on smoke |
 | tests/test_first_party_ta_goldens.py | ATR / Supertrend / Keltner dual-host |
@@ -10641,7 +10836,7 @@ Known contract differences (not silent value bugs):
 3. Pivot-starved Auto Fib → matching runtime.error (both_error_same), not invented pivots.
 Internals
 | Artifact | Role |
-| --- | --- |
+| ---------------------------------------- | ------------------------------------------ |
 | docs/compatibility_guarantee.md | Historical long-form; this page is the map |
 | COMPATIBILITY.md | Repo-root distillation of this map |
 | docs/pine_v6_full_surface_inventory.md | Name-level dispatch tables |
@@ -10669,7 +10864,7 @@ pytest tests/test_interp_compile_parity.py -q
 `
 Failure modes
 | Observation | Read as |
-| --- | --- |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | Parse error on a new TV release-notes feature | Surface gap — Missing features |
 | Numerical drift on a custom smoother | Bar-mode vs list-mode; na; known divergences |
 | Interpret vs compile series mismatch | Foreign request., UDF last-assign na, leftover corpus keys |

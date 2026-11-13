@@ -1,6 +1,6 @@
 # PYNE — llms.txt
 # https://llmstxt.org/ — machine-readable project map for LLMs
-# Generated 2026-11-02
+# Generated 2026-11-13
 
 # PYNE
 > Open-source Pine Script evaluation framework
@@ -88,6 +88,8 @@ Grammar-driven parser, ASDL AST, bar-loop evaluator, LSP, Pro API, and edge work
 - [Document Color](https://hoox.sh/pyne/docs/lsp/features/document-color)
 - [Folding](https://hoox.sh/pyne/docs/lsp/features/folding)
 - [Selection Range](https://hoox.sh/pyne/docs/lsp/features/selection-range)
+- [Code Lens](https://hoox.sh/pyne/docs/lsp/features/code-lens)
+- [Inline Completion](https://hoox.sh/pyne/docs/lsp/features/inline-completion)
 - [Builtin Metadata](https://hoox.sh/pyne/docs/lsp/builtin-metadata)
 - [Vscode Extension](https://hoox.sh/pyne/docs/lsp/vscode-extension)
 - [Clients](https://hoox.sh/pyne/docs/lsp/clients)

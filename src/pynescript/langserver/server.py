@@ -68,6 +68,8 @@ from pygls.lsp.server import LanguageServer
 
 from pynescript.__about__ import __version__
 from pynescript.langserver import config
+from pynescript.langserver.features import call_hierarchy as call_hierarchy_feature
+from pynescript.langserver.features import code_lens as code_lens_feature
 from pynescript.langserver.features import completion as completion_feature
 from pynescript.langserver.features import convert as convert_feature
 from pynescript.langserver.features import definitions as definitions_feature
@@ -78,6 +80,7 @@ from pynescript.langserver.features import formatting as formatting_feature
 from pynescript.langserver.features import highlight as highlight_feature
 from pynescript.langserver.features import hover as hover_feature
 from pynescript.langserver.features import inlay_hints as inlay_hints_feature
+from pynescript.langserver.features import inline_completion as inline_completion_feature
 from pynescript.langserver.features import linked_editing as linked_editing_feature
 from pynescript.langserver.features import references as references_feature
 from pynescript.langserver.features import rename as rename_feature
@@ -110,6 +113,9 @@ _DEFAULT_SETTINGS: dict[str, Any] = {
     "semanticDiagnostics": False,
     "inlayHintsParameters": True,
     "completionUserSymbols": True,
+    "codeLensEnabled": True,
+    "inlineCompletionEnabled": False,
+    "proEnabled": False,
 }
 
 
@@ -133,6 +139,16 @@ def _sync_parse_max() -> int:
         except ValueError:
             pass
     return _SYNC_PARSE_MAX_DEFAULT
+
+
+def _consume_future_exception(future: Any) -> None:
+    """Retrieve a future's exception so asyncio does not log it as unhandled."""
+    if future.cancelled():
+        return
+    try:
+        future.exception()
+    except Exception:  # pragma: no cover - defensive
+        pass
 
 
 class PynescriptLanguageServer(LanguageServer):
@@ -203,6 +219,18 @@ class PynescriptLanguageServer(LanguageServer):
         doc = self.pine_workspace.get_document(uri)
         return doc.source.split("\n") if doc else None
 
+    def _to_client_positions(self, value: Any, uri: str) -> Any:
+        """Convert code-point positions in *value* to UTF-16 for *uri*."""
+        doc = self.pine_workspace.get_document(uri)
+        if doc is None or ("\r" not in doc.source and not doc.has_astral):
+            return value
+        return convert_positions(
+            value,
+            doc.source.split("\n"),
+            to_codepoint=False,
+            lines_for_uri=self._lines_for_uri,
+        )
+
     def setup_method_handlers(self) -> None:
         """Register lifecycle, diagnostics, and feature LSP method handlers."""
 
@@ -224,6 +252,7 @@ class PynescriptLanguageServer(LanguageServer):
                 )
             elif doc is not None:
                 self._schedule_diagnostics(uri, doc, version, delay=0.0)
+            self._request_diagnostic_refresh()
 
             logger.info(f"Opened document: {uri}")
 
@@ -256,6 +285,7 @@ class PynescriptLanguageServer(LanguageServer):
             self._cancel_pending_diagnostics(uri)
             self.pine_workspace.remove_document(uri)
             self.text_document_publish_diagnostics(lsp.PublishDiagnosticsParams(uri=uri, diagnostics=[]))
+            self._request_diagnostic_refresh()
             logger.info(f"Closed document: {uri}")
 
         @self.feature(lsp.TEXT_DOCUMENT_DID_SAVE)
@@ -277,6 +307,7 @@ class PynescriptLanguageServer(LanguageServer):
                     self.text_document_publish_diagnostics(
                         lsp.PublishDiagnosticsParams(uri=uri, diagnostics=lsp_diags, version=doc.version)
                     )
+                self._request_diagnostic_refresh()
             logger.info(f"Saved document: {uri}")
 
         @self.feature(lsp.INITIALIZE)
@@ -316,6 +347,7 @@ class PynescriptLanguageServer(LanguageServer):
         @self.feature(lsp.WORKSPACE_DID_CHANGE_CONFIGURATION)
         def did_change_configuration(params: lsp.DidChangeConfigurationParams) -> None:
             """Apply live editor settings without restarting the server."""
+            previous_code_lens = {key: self.settings.get(key) for key in ("codeLensEnabled", "proEnabled")}
             self._apply_settings(params.settings)
             # Style/diagnostics toggles should take effect immediately, not on
             # the next keystroke.
@@ -328,10 +360,9 @@ class PynescriptLanguageServer(LanguageServer):
                 self.text_document_publish_diagnostics(
                     lsp.PublishDiagnosticsParams(uri=uri, diagnostics=diagnostics, version=doc.version)
                 )
-            try:
-                self.workspace_diagnostic_refresh(None)
-            except Exception:
-                logger.debug("workspace/diagnostic/refresh not supported by client", exc_info=True)
+            self._request_diagnostic_refresh()
+            if any(self.settings.get(key) != value for key, value in previous_code_lens.items()):
+                self._request_code_lens_refresh()
 
         @self.feature(lsp.WORKSPACE_DID_CHANGE_WATCHED_FILES)
         def did_change_watched_files(params: lsp.DidChangeWatchedFilesParams) -> None:
@@ -354,10 +385,16 @@ class PynescriptLanguageServer(LanguageServer):
         # Note: EXIT is handled by the base class via lsp_exit
 
         @self.feature(lsp.TEXT_DOCUMENT_DIAGNOSTIC)
-        def text_document_diagnostic(
+        async def text_document_diagnostic(
             params: lsp.DocumentDiagnosticParams,
         ) -> lsp.DocumentDiagnosticReport:
-            """Handle pull diagnostics (LSP 3.16+)."""
+            """Handle pull diagnostics (LSP 3.16+).
+
+            Pull requests can arrive while the debounced ``didChange`` parse is
+            still pending. Serving the cached list then returns the *previous*
+            version's findings, so a corrected error never clears. Parse the
+            current buffer version before converting.
+            """
             uri = params.text_document.uri
             doc = self.pine_workspace.get_document(uri)
 
@@ -368,6 +405,7 @@ class PynescriptLanguageServer(LanguageServer):
                     items=[],
                 )
 
+            await self._ensure_diagnostics_current(doc)
             lsp_diags = (
                 self.pine_workspace._lint_warnings_to_diagnostics(doc)
                 if self.settings.get("diagnosticsEnabled", True)
@@ -381,13 +419,15 @@ class PynescriptLanguageServer(LanguageServer):
             )
 
         @self.feature(lsp.WORKSPACE_DIAGNOSTIC)
-        def workspace_diagnostics(
+        async def workspace_diagnostics(
             params: lsp.WorkspaceDiagnosticParams,
         ) -> lsp.WorkspaceDiagnosticReport:
             """Handle workspace diagnostics pull."""
-            all_diags = (
-                self.pine_workspace.get_all_diagnostics() if self.settings.get("diagnosticsEnabled", True) else {}
-            )
+            if self.settings.get("diagnosticsEnabled", True) is False:
+                return lsp.WorkspaceDiagnosticReport(items=[])
+            for doc in self.pine_workspace.list_open_documents():
+                await self._ensure_diagnostics_current(doc)
+            all_diags = self.pine_workspace.get_all_diagnostics()
 
             items = []
             for doc_uri, diags in all_diags.items():
@@ -533,6 +573,93 @@ class PynescriptLanguageServer(LanguageServer):
                 analysis=doc.valid_analysis,
             )
 
+        @self._position_feature(lsp.TEXT_DOCUMENT_DECLARATION)
+        def text_declaration(
+            params: lsp.DeclarationParams,
+        ) -> list[lsp.Location] | None:
+            """Handle textDocument/declaration request (same span as definition)."""
+            uri = params.text_document.uri
+            doc = self.pine_workspace.get_document(uri)
+            if not doc:
+                return definitions_feature.handle_declaration(params, None, uri)
+            return definitions_feature.handle_declaration(
+                params,
+                doc.source,
+                uri,
+                tree=doc.valid_ast,
+                analysis=doc.valid_analysis,
+            )
+
+        @self._position_feature(lsp.TEXT_DOCUMENT_TYPE_DEFINITION)
+        def text_type_definition(
+            params: lsp.TypeDefinitionParams,
+        ) -> list[lsp.Location] | None:
+            """Handle textDocument/typeDefinition request (UDT declarations)."""
+            uri = params.text_document.uri
+            doc = self.pine_workspace.get_document(uri)
+            if not doc:
+                return definitions_feature.handle_type_definition(params, None, uri)
+            return definitions_feature.handle_type_definition(
+                params,
+                doc.source,
+                uri,
+                tree=doc.valid_ast,
+                analysis=doc.valid_analysis,
+            )
+
+        @self._position_feature(lsp.TEXT_DOCUMENT_PREPARE_CALL_HIERARCHY)
+        def text_prepare_call_hierarchy(
+            params: lsp.CallHierarchyPrepareParams,
+        ) -> list[lsp.CallHierarchyItem] | None:
+            """Handle textDocument/prepareCallHierarchy request."""
+            uri = params.text_document.uri
+            doc = self.pine_workspace.get_document(uri)
+            if not doc:
+                return None
+            return call_hierarchy_feature.handle_prepare_call_hierarchy(
+                params,
+                doc.source,
+                uri,
+                tree=doc.valid_ast,
+                analysis=doc.valid_analysis,
+            )
+
+        @self.feature(lsp.CALL_HIERARCHY_INCOMING_CALLS)
+        def text_incoming_calls(
+            params: lsp.CallHierarchyIncomingCallsParams,
+        ) -> list[lsp.CallHierarchyIncomingCall]:
+            """Handle callHierarchy/incomingCalls request."""
+            uri = params.item.uri
+            doc = self.pine_workspace.get_document(uri)
+            if not doc:
+                return []
+            result = call_hierarchy_feature.handle_incoming_calls(
+                params,
+                doc.source,
+                uri,
+                tree=doc.valid_ast,
+                analysis=doc.valid_analysis,
+            )
+            return cast(list[lsp.CallHierarchyIncomingCall], self._to_client_positions(result, uri))
+
+        @self.feature(lsp.CALL_HIERARCHY_OUTGOING_CALLS)
+        def text_outgoing_calls(
+            params: lsp.CallHierarchyOutgoingCallsParams,
+        ) -> list[lsp.CallHierarchyOutgoingCall]:
+            """Handle callHierarchy/outgoingCalls request."""
+            uri = params.item.uri
+            doc = self.pine_workspace.get_document(uri)
+            if not doc:
+                return []
+            result = call_hierarchy_feature.handle_outgoing_calls(
+                params,
+                doc.source,
+                uri,
+                tree=doc.valid_ast,
+                analysis=doc.valid_analysis,
+            )
+            return cast(list[lsp.CallHierarchyOutgoingCall], self._to_client_positions(result, uri))
+
         @self._position_feature(lsp.TEXT_DOCUMENT_REFERENCES)
         def text_references(
             params: lsp.ReferenceParams,
@@ -626,6 +753,45 @@ class PynescriptLanguageServer(LanguageServer):
             if not doc:
                 return symbols_feature.handle_document_symbols(params, None, uri)
             return symbols_feature.handle_document_symbols(params, doc.source, uri, tree=doc.valid_ast)
+
+        @self._position_feature(lsp.TEXT_DOCUMENT_CODE_LENS)
+        def text_code_lens(
+            params: lsp.CodeLensParams,
+        ) -> list[lsp.CodeLens]:
+            """Handle textDocument/codeLens request."""
+            if self.settings.get("codeLensEnabled", True) is False:
+                return []
+            uri = params.text_document.uri
+            doc = self.pine_workspace.get_document(uri)
+            if not doc:
+                return []
+            return code_lens_feature.handle_code_lens(
+                params,
+                doc.source,
+                uri,
+                tree=doc.valid_ast,
+                analysis=doc.valid_analysis,
+                pro_enabled=bool(self.settings.get("proEnabled", False)),
+            )
+
+        @self._position_feature(lsp.TEXT_DOCUMENT_INLINE_COMPLETION, lsp.InlineCompletionOptions())
+        def text_inline_completion(
+            params: lsp.InlineCompletionParams,
+        ) -> lsp.InlineCompletionList | None:
+            """Handle textDocument/inlineCompletion request (LSP 3.18)."""
+            if self.settings.get("inlineCompletionEnabled", False) is False:
+                return None
+            uri = params.text_document.uri
+            doc = self.pine_workspace.get_document(uri)
+            if not doc:
+                return None
+            return inline_completion_feature.handle_inline_completion(
+                params,
+                doc.source,
+                uri,
+                tree=doc.valid_ast,
+                enabled=True,
+            )
 
         @self._position_feature(lsp.TEXT_DOCUMENT_FORMATTING)
         def text_formatting(
@@ -843,10 +1009,88 @@ class PynescriptLanguageServer(LanguageServer):
         self.settings["semanticDiagnostics"] = bool(pick("semanticDiagnostics", "diagnostics.semantic", False))
         self.settings["inlayHintsParameters"] = bool(pick("inlayHintsParameters", "inlayHints.parameters", True))
         self.settings["completionUserSymbols"] = bool(pick("completionUserSymbols", "completion.userSymbols", True))
+        self.settings["codeLensEnabled"] = bool(pick("codeLensEnabled", "codeLens.enabled", True))
+        self.settings["inlineCompletionEnabled"] = bool(
+            pick("inlineCompletionEnabled", "inlineCompletion.enabled", False)
+        )
+        self.settings["proEnabled"] = bool(pick("proEnabled", "pro.enabled", False))
 
         self.pine_workspace.style_diagnostics = self.settings["styleDiagnostics"]
         self.pine_workspace.semantic_diagnostics = self.settings["semanticDiagnostics"]
         logger.debug("Applied LSP settings: %s", self.settings)
+
+    def _client_supports_diagnostic_refresh(self) -> bool:
+        """True when the client advertised ``workspace.diagnostics.refreshSupport``."""
+        capabilities = getattr(self.protocol, "client_capabilities", None)
+        workspace_caps = getattr(capabilities, "workspace", None)
+        diagnostics_caps = getattr(workspace_caps, "diagnostics", None)
+        return bool(getattr(diagnostics_caps, "refresh_support", False))
+
+    def _client_supports_code_lens_refresh(self) -> bool:
+        """True when the client advertised ``workspace.codeLens.refreshSupport``."""
+        capabilities = getattr(self.protocol, "client_capabilities", None)
+        workspace_caps = getattr(capabilities, "workspace", None)
+        code_lens_caps = getattr(workspace_caps, "code_lens", None)
+        return bool(getattr(code_lens_caps, "refresh_support", False))
+
+    def _request_code_lens_refresh(self) -> None:
+        """Ask the client to re-request code lenses after a settings change.
+
+        Lenses depend on ``codeLensEnabled`` / ``proEnabled``; without this
+        request the editor keeps the previous lens set until the buffer is
+        edited.
+        """
+        if not self._client_supports_code_lens_refresh():
+            return
+        try:
+            future = self.workspace_code_lens_refresh(None)
+        except Exception:  # pragma: no cover - client rejected the request
+            logger.debug("workspace/codeLens/refresh failed", exc_info=True)
+            return
+        add_done_callback = getattr(future, "add_done_callback", None)
+        if add_done_callback is not None:
+            add_done_callback(_consume_future_exception)
+
+    def _request_diagnostic_refresh(self) -> None:
+        """Ask pull-model clients to re-request diagnostics after a push.
+
+        A client that supports pull diagnostics keeps them in its own
+        collection and only re-pulls when the server asks. Without this
+        request, an error shown by the pull collection stays after the user
+        fixes it, even though the push channel published an empty list.
+        """
+        if not self._client_supports_diagnostic_refresh():
+            return
+        try:
+            future = self.workspace_diagnostic_refresh(None)
+        except Exception:  # pragma: no cover - client rejected the request
+            logger.debug("workspace/diagnostic/refresh failed", exc_info=True)
+            return
+        add_done_callback = getattr(future, "add_done_callback", None)
+        if add_done_callback is not None:
+            add_done_callback(_consume_future_exception)
+
+    async def _ensure_diagnostics_current(self, doc: Any) -> None:
+        """Make *doc*'s cached parse/lint describe its current buffer version.
+
+        A pull request can race the debounced ``didChange`` task: the source
+        and version are already updated, but ``doc.diagnostics`` still belongs
+        to the previous version. Parse on the diagnostics worker (serialized
+        with any in-flight debounce parse) before converting.
+
+        Do not await the pending task here: it may still be inside its debounce
+        window, and a pull must not block on it. Re-check after each parse
+        because an edit can land while the executor is running; a bounded retry
+        avoids spinning while the user types continuously.
+        """
+        loop = asyncio.get_running_loop()
+        for _ in range(3):
+            if doc.ast_version == doc.version:
+                return
+            version = doc.version
+            await loop.run_in_executor(self._diag_executor, self.pine_workspace._parse_and_lint, doc)
+            if doc.version == version:
+                return
 
     def _schedule_diagnostics(
         self,
@@ -888,8 +1132,10 @@ class PynescriptLanguageServer(LanguageServer):
         """
         try:
             await asyncio.sleep(_debounce_seconds() if delay is None else delay)
-            loop = asyncio.get_running_loop()
-            await loop.run_in_executor(self._diag_executor, self.pine_workspace._parse_and_lint, doc)
+            # A pull request may already have parsed the current version.
+            if doc.ast_version != doc.version:
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(self._diag_executor, self.pine_workspace._parse_and_lint, doc)
             if expected_version is not None and doc.version != expected_version:
                 return
             if self.settings.get("diagnosticsEnabled", True) is False:
@@ -899,6 +1145,9 @@ class PynescriptLanguageServer(LanguageServer):
             self.text_document_publish_diagnostics(
                 lsp.PublishDiagnosticsParams(uri=uri, diagnostics=lsp_diags, version=doc.version)
             )
+            # Fire-and-forget: never let a slow client response hold the
+            # debounce task (and anything awaiting it) open.
+            self._request_diagnostic_refresh()
         except asyncio.CancelledError:
             raise
         except Exception:

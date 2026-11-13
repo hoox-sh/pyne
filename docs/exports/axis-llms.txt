@@ -1,6 +1,6 @@
 # AXIS — llms.txt
 # https://llmstxt.org/ — machine-readable project map for LLMs
-# Generated 2026-11-01
+# Generated 2026-11-13
 
 # AXIS
 > Open charting PWA — own the axes, swap the engine
@@ -34,7 +34,6 @@ Installable AXIS for price and time. Orthogonal plugins: sources, streams, engin
 - [Script Library](https://hoox.sh/axis/docs/enduser/guides/script-library)
 - [Builtin Scripts](https://hoox.sh/axis/docs/enduser/guides/builtin-scripts)
 - [Strategy And Results](https://hoox.sh/axis/docs/enduser/guides/strategy-and-results)
-- [Hyperparameter Optimisation](https://hoox.sh/axis/docs/enduser/guides/hyperparameter-optimisation)
 - [Drawings](https://hoox.sh/axis/docs/enduser/guides/drawings)
 - [Alerts](https://hoox.sh/axis/docs/enduser/guides/alerts)
 - [Mcp](https://hoox.sh/axis/docs/enduser/guides/mcp)

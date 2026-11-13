@@ -7,7 +7,7 @@ tags: [doc, docs, lsp, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-18T22:26:17Z
+  at: 2026-11-13T12:21:55Z
 sources:
   - id: tree
     resource: "docs/pyne/lsp/features/navigation.mdx"
@@ -26,6 +26,9 @@ Repo path `docs/pyne/lsp/features/navigation.mdx`.
 * Conceptual model
 * Interface surface
   * Definition (DefinitionFinder)
+  * Declaration
+  * Type definition
+  * Call hierarchy
   * References (ReferencesFinder)
   * Document symbols
   * Workspace symbols

@@ -147,6 +147,8 @@
               "lsp/features/document-color",
               "lsp/features/folding",
               "lsp/features/selection-range",
+              "lsp/features/code-lens",
+              "lsp/features/inline-completion",
               "lsp/builtin-metadata",
               "lsp/vscode-extension",
               "lsp/clients"

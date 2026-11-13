@@ -85,6 +85,8 @@ flowchart TB
 | Inlay hints | `textDocument/inlayHint` (display-only builtin param names) | `features/inlay_hints.py` |
 | Folding | `textDocument/foldingRange` | `features/folding.py` |
 | Selection range | `textDocument/selectionRange` | `features/selection_range.py` |
+| [Code lens](/pyne/docs/lsp/features/code-lens) | `textDocument/codeLens` | `features/code_lens.py` |
+| [Inline completion](/pyne/docs/lsp/features/inline-completion) | `textDocument/inlineCompletion` | `features/inline_completion.py` |
 | [Document color](/pyne/docs/lsp/features/document-color) | `textDocument/documentColor`, `colorPresentation` | `features/document_color.py` |
 | [Document links](/pyne/docs/lsp/features/document-link) | `textDocument/documentLink`, `documentLink/resolve` (tooltip) | `features/document_link.py` |
 | Code action | `textDocument/codeAction` | `convert.py` (Convert-to-v6 + W001/W002/C002 QuickFix) |
@@ -110,7 +112,7 @@ Console scripts are separate: `pyne` (Click CLI; alias `pynescript`) vs `pyne-ls
 ## Tracks in this tab
 
 1. [Architecture](/pyne/docs/lsp/architecture) — server lifecycle, workspace, capabilities
-2. [Diagnostics](/pyne/docs/lsp/features/diagnostics) through [Selection range](/pyne/docs/lsp/features/selection-range) — feature manuals
+2. [Diagnostics](/pyne/docs/lsp/features/diagnostics) through [Selection range](/pyne/docs/lsp/features/selection-range), [Code lens](/pyne/docs/lsp/features/code-lens), [Inline completion](/pyne/docs/lsp/features/inline-completion) — feature manuals
 3. [Linked editing](/pyne/docs/lsp/features/linked-editing) — same-document live ident ranges
 4. [Document links](/pyne/docs/lsp/features/document-link) — `http(s)` URLs in comments and strings; resolve fills tooltip
 5. [Document color](/pyne/docs/lsp/features/document-color) — `#hex` / `color.*` / literal `color.rgb` swatches

@@ -1,0 +1,48 @@
+# Copyright (C) 2024-2026 jango_blockchained
+#
+# This file is part of pynescript.
+#
+# pynescript is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# pynescript is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+---
+title: "Inline completion"
+description: "textDocument/inlineCompletion (LSP 3.18) inserts curated argument lists for common builtins after an empty opening paren."
+---
+
+# Inline completion
+
+## Abstract
+
+`textDocument/inlineCompletion` (LSP 3.18) offers one ghost-text suggestion for a curated set of builtins when the cursor sits immediately after an empty `(` — e.g. `ta.sma(` suggests `close, 14)`. It is deterministic and model-free; no network calls, no speculation.
+
+## Interface surface
+
+- Method: `textDocument/inlineCompletion`
+- Capability: `inline_completion_provider` (`InlineCompletionOptions`)
+- Handler: `features/inline_completion.py` → `handle_inline_completion`
+- Setting: `inlineCompletionEnabled` (default `false` — opt-in; never competes with the normal completion list)
+
+Behavior notes:
+
+- Fires only when the argument list is empty and no `)` follows on the line.
+- Suppressed inside comments and strings (including unterminated ones at the cursor).
+- Returns `None` for unknown callees and for non-empty argument lists.
+- Works on the line prefix only, so it responds while the buffer does not parse.
+
+## See also
+
+- [Completion](/pyne/docs/lsp/features/completion) — the full completion list
+- [Code lens](/pyne/docs/lsp/features/code-lens) — header-level commands

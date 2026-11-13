@@ -57,6 +57,8 @@ Triggered from `server.py` on `didOpen`, `didChange`, `didSave`. Close clears di
 
 Capability: `diagnostic_provider` with `identifier="pynescript-diagnostics"`, `inter_file_dependencies=False`.
 
+Pull handlers re-parse when the cached AST belongs to an older document version, so a request that races the debounced `didChange` parse returns the current findings rather than the previous version's. After every push (open/change/save/close/config), the server sends `workspace/diagnostic/refresh` when the client advertised `workspace.diagnostics.refreshSupport`. Pull-model clients keep diagnostics in a collection separate from the push collection; without the refresh they would never re-request and a fixed error would stay visible.
+
 ### Diagnostic shape
 
 | Field | Value |
@@ -190,6 +192,7 @@ On a hard parse failure at line 3, expect:
 | Symptom | Cause |
 | --- | --- |
 | Stale squiggles after edit | Client using full-document sync incorrectly, or version mismatch |
+| Stale squiggles **only** in a pull-capable client (VS Code, AXIS) | Client did not answer `workspace/diagnostic/refresh`; check `workspace.diagnostics.refreshSupport` in `initialize` |
 | Empty diagnostics on broken file | Unexpected: parse errors should still emit E001 — check client filter on `source` |
 | No workspace pull results | Only **open** documents are tracked; closed files are absent |
 

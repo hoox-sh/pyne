@@ -26,6 +26,7 @@ import hashlib
 import json
 import os
 import shutil
+import time
 
 from typing import Any
 
@@ -37,6 +38,7 @@ from pynescript.mcp.catalog import TOOL_GROUP
 from pynescript.mcp.catalog import TOOL_NAMES
 from pynescript.mcp.catalog import TOOL_RISK
 from pynescript.mcp.catalog import WRITE_TOOLS
+from pynescript.mcp.codemode.bridge import _ConfirmTokenCodec
 from pynescript.mcp.codemode.bridge import create_handlers
 from pynescript.mcp.codemode.protocol import CodeModeLimits
 from pynescript.mcp.codemode.protocol import SandboxRequest
@@ -255,6 +257,11 @@ def test_confirm_token_is_bound_to_tool_and_arguments() -> None:
     env = dict(SUB, PYNE_MCP_CODE_MODE_ALLOW_DESTRUCTIVE="1")
     call = create_handlers(spy, env=env)["call"]
 
+    def mint(tool: str, args: dict[str, Any]) -> str:
+        minted = call(tool, args)
+        assert minted["kind"] == "confirmation_required"
+        return minted["confirm_token"]
+
     first = call("pyne_runner_delete", {"script_id": "abc"})
     assert first["kind"] == "confirmation_required"
     token = first["confirm_token"]
@@ -264,12 +271,18 @@ def test_confirm_token_is_bound_to_tool_and_arguments() -> None:
     assert seen == [("pyne_runner_delete", {"script_id": "abc"})]
     seen.clear()
 
-    different_args = call("pyne_runner_delete", {"script_id": "other", "confirm_token": token})
+    different_args = call(
+        "pyne_runner_delete",
+        {"script_id": "other", "confirm_token": mint("pyne_runner_delete", {"script_id": "abc"})},
+    )
     assert different_args["ok"] is False
     assert different_args["kind"] == "confirmation_required"
     assert seen == []
 
-    different_tool = call("pyne_runner_enable", {"script_id": "abc", "confirm_token": token})
+    different_tool = call(
+        "pyne_runner_enable",
+        {"script_id": "abc", "confirm_token": mint("pyne_runner_delete", {"script_id": "abc"})},
+    )
     assert different_tool["ok"] is False
     assert different_tool["kind"] == "confirmation_required"
     assert seen == []
@@ -278,6 +291,42 @@ def test_confirm_token_is_bound_to_tool_and_arguments() -> None:
     assert forged["ok"] is False
     assert forged["kind"] == "confirmation_required"
     assert seen == []
+
+
+def test_confirm_token_is_single_use() -> None:
+    seen: list[tuple[str, dict[str, Any]]] = []
+
+    def spy(name: str, args: dict[str, Any] | None) -> dict[str, Any]:
+        seen.append((name, args or {}))
+        return {"ok": True}
+
+    env = dict(SUB, PYNE_MCP_CODE_MODE_ALLOW_DESTRUCTIVE="1")
+    call = create_handlers(spy, env=env)["call"]
+
+    first = call("pyne_runner_delete", {"script_id": "abc"})
+    token = first["confirm_token"]
+
+    assert call("pyne_runner_delete", {"script_id": "abc", "confirm_token": token}) == {"ok": True}
+    replay = call("pyne_runner_delete", {"script_id": "abc", "confirm_token": token})
+    assert replay["ok"] is False
+    assert replay["kind"] == "confirmation_required"
+    assert seen == [("pyne_runner_delete", {"script_id": "abc"})]
+
+
+def test_confirm_token_expired_fails() -> None:
+    codec = _ConfirmTokenCodec(ttl_s=-1)
+    token, _ = codec.issue("pyne_runner_delete", {"script_id": "abc"})
+    assert codec.verify(token, "pyne_runner_delete", {"script_id": "abc"}) is False
+
+
+def test_confirm_token_nonce_store_is_pruned() -> None:
+    codec = _ConfirmTokenCodec(ttl_s=300)
+    token, expires_at = codec.issue("pyne_runner_delete", {"script_id": "abc"})
+    assert codec.verify(token, "pyne_runner_delete", {"script_id": "abc"}) is True
+    assert len(codec._used) == 1
+    codec._used["stale-signature"] = expires_at - 301
+    codec._prune(int(time.time()))
+    assert "stale-signature" not in codec._used
 
 
 @requires_runtime

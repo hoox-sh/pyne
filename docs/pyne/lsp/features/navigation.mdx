@@ -48,6 +48,11 @@ flowchart TB
 | Method | Handler | Returns |
 | --- | --- | --- |
 | `textDocument/definition` | `definitions.handle_definition` | `list[Location] \| None` |
+| `textDocument/declaration` | `definitions.handle_declaration` | `list[Location] \| None` (same target as definition) |
+| `textDocument/typeDefinition` | `definitions.handle_type_definition` | `list[Location] \| None` (UDT declaration) |
+| `textDocument/prepareCallHierarchy` | `call_hierarchy.handle_prepare_call_hierarchy` | `list[CallHierarchyItem] \| None` |
+| `callHierarchy/incomingCalls` | `call_hierarchy.handle_incoming_calls` | `list[CallHierarchyIncomingCall]` |
+| `callHierarchy/outgoingCalls` | `call_hierarchy.handle_outgoing_calls` | `list[CallHierarchyOutgoingCall]` |
 | `textDocument/references` | `references.handle_references` | `list[Location]` (possibly empty) |
 | `textDocument/documentHighlight` | `highlight.handle_document_highlight` | `list[DocumentHighlight]` |
 | `textDocument/prepareRename` | `rename.handle_prepare_rename` | `Range \| None` |
@@ -55,7 +60,7 @@ flowchart TB
 | `textDocument/documentSymbol` | `symbols.handle_document_symbols` | `list[DocumentSymbol]` |
 | `workspace/symbol` | `server._collect_workspace_symbols` | `list[SymbolInformation]` |
 
-Capabilities: `definition_provider`, `references_provider`, `document_highlight_provider`, `rename_provider` (`prepare_provider=True`), document + workspace symbol options with work-done progress flags.
+Capabilities: `definition_provider`, `declaration_provider`, `type_definition_provider`, `call_hierarchy_provider`, `references_provider`, `document_highlight_provider`, `rename_provider` (`prepare_provider=True`), document + workspace symbol options with work-done progress flags.
 
 ### Definition (`DefinitionFinder`)
 
@@ -66,6 +71,31 @@ Matches target word against:
 - `Assign` targets (`Name` or nested names)
 
 Ignores mere call sites (`visit_Call` returns early when the callee name matches).
+
+### Declaration
+
+Pine has no separate declaration and definition spans: `x = 1`, `f() =>`, and
+`type T` declare their name where they define it. `textDocument/declaration`
+delegates to the same scope-aware resolver as definition.
+
+### Type definition
+
+Resolves the user-defined type of the symbol under the cursor:
+
+- a variable whose annotation or inferred value is a UDT (`Point p = …`, `p = Point.new(…)`)
+- a UDT field or parameter with a UDT type label
+- `Type.new(...)` and member receivers
+
+Builtin types (`series float`, `array<float>`) have no source declaration, so the
+handler returns `None` rather than inventing a location.
+
+### Call hierarchy
+
+Same-document, user functions and methods only. `prepareCallHierarchy` returns
+the function at the cursor (its name, a call site, or the enclosing body).
+Incoming calls group call sites by caller (script or function); outgoing calls
+list user functions called by the item's body. Builtin calls and UDT
+constructors are skipped — they have no Pine body to navigate to.
 
 ### References (`ReferencesFinder`)
 

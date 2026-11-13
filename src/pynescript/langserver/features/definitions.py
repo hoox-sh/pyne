@@ -27,6 +27,7 @@ the cursor (same-document only).
 from __future__ import annotations
 
 from typing import Any
+from typing import cast
 
 from lsprotocol import types as lsp
 
@@ -34,6 +35,7 @@ from pynescript.ast import NodeVisitor
 from pynescript.ast import node as ast
 from pynescript.langserver.analysis import Symbol
 from pynescript.langserver.analysis import SymbolIndex
+from pynescript.langserver.analysis import base_type_name
 from pynescript.langserver.analysis import ensure_symbol_index
 from pynescript.langserver.protocol.utils import in_comment_or_string
 
@@ -96,6 +98,106 @@ def handle_definition(
             ),
         )
     ]
+
+
+def handle_declaration(
+    params: lsp.DeclarationParams,
+    source: str | None,
+    uri: str,
+    tree: Any | None = ...,
+    *,
+    analysis: SymbolIndex | None = None,
+) -> list[lsp.Location] | None:
+    """Find declaration location(s) for the symbol under the cursor.
+
+    Pine does not distinguish a declaration from a definition: ``x = 1``,
+    ``f() =>``, and ``type T`` all declare their name at the same span. This
+    delegates to :func:`handle_definition` so clients that ask for
+    ``textDocument/declaration`` get the same scope-aware result.
+    """
+    return handle_definition(
+        cast("lsp.DefinitionParams", params),
+        source,
+        uri,
+        tree,
+        analysis=analysis,
+    )
+
+
+def handle_type_definition(
+    params: lsp.TypeDefinitionParams,
+    source: str | None,
+    uri: str,
+    tree: Any | None = ...,
+    *,
+    analysis: SymbolIndex | None = None,
+) -> list[lsp.Location] | None:
+    """Resolve the user-defined type of the symbol under the cursor.
+
+    Handles a variable whose value/annotation is a UDT, a UDT field, a
+    parameter, and ``Type.new(...)``. Returns the ``type`` declaration only:
+    builtin types (``series float``, ``array<float>``) have no source location.
+    """
+    if not source:
+        return None
+    line = params.position.line
+    character = params.position.character
+    if in_comment_or_string(source, line, character):
+        return None
+
+    index = ensure_symbol_index(source, tree, analysis)
+    if index is None:
+        return None
+
+    type_label = _type_label_at(index, line, character)
+    base = base_type_name(type_label)
+    if not base:
+        return None
+    type_symbol = index.types.get(base)
+    if type_symbol is None:
+        return None
+
+    declaration = _declaration_occurrence(index, type_symbol)
+    if declaration is None:
+        return None
+    return [
+        lsp.Location(
+            uri=uri,
+            range=lsp.Range(
+                start=lsp.Position(line=declaration.line, character=declaration.column),
+                end=lsp.Position(line=declaration.end_line, character=declaration.end_column),
+            ),
+        )
+    ]
+
+
+def _type_label_at(index: SymbolIndex, line: int, character: int) -> str | None:
+    """Type label for the symbol/member at the cursor, or ``None``."""
+    symbol = index.symbol_at(line, character)
+    if symbol is not None:
+        label = _symbol_type_label(index, symbol)
+        if label:
+            return label
+
+    member = index.member_at(line, character)
+    if member is None:
+        return None
+    if member.kind == "constructor":
+        base = getattr(getattr(member.node, "value", None), "id", None)
+        return base if isinstance(base, str) else None
+    if member.symbol is not None:
+        return _symbol_type_label(index, member.symbol)
+    return None
+
+
+def _symbol_type_label(index: SymbolIndex, symbol: Symbol) -> str | None:
+    """Declared or inferred type label for *symbol*."""
+    if symbol.kind in {"type", "enum"}:
+        return symbol.name
+    label = symbol.type_label
+    if not label and symbol.kind == "variable" and isinstance(symbol.node, ast.Assign):
+        label = index.infer_type(symbol.node.value, symbol.scope)
+    return label
 
 
 def _declaration_occurrence(index: SymbolIndex, symbol: Symbol) -> Any | None:

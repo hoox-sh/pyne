@@ -1,0 +1,48 @@
+# Copyright (C) 2024-2026 jango_blockchained
+#
+# This file is part of pynescript.
+#
+# pynescript is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# pynescript is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+---
+title: "Code lens"
+description: "textDocument/codeLens adds Convert to v6 / Smoke /run commands above indicator(), strategy(), and library() headers."
+---
+
+# Code lens
+
+## Abstract
+
+`textDocument/codeLens` places one lens row above each top-level `indicator(...)` / `strategy(...)` / `library(...)` call. Lenses are client commands, not server executions: clients that do not register the commands can ignore them.
+
+## Interface surface
+
+- Method: `textDocument/codeLens`
+- Capability: `code_lens_provider` with `CodeLensOptions(resolve_provider=False)`
+- Handler: `features/code_lens.py` → `handle_code_lens` (version-matched `tree=doc.valid_ast`)
+- Setting: `codeLensEnabled` (default `true`); toggles send `workspace/codeLens/refresh` when the client advertises `workspace.codeLens.refreshSupport`
+
+| Lens | Shown when | Command |
+| --- | --- | --- |
+| Convert to v6 | buffer version is not v6 | `pynescript.convertToV6` |
+| Smoke /run | editor reports Pro enabled (`proEnabled`) | `pynescript.runOnPro` |
+
+The handler scans the AST for declaration calls (function bodies are ignored) and falls back to a line scan when the buffer does not parse, so the header lens survives mid-edit parse failures.
+
+## See also
+
+- [Navigation](/pyne/docs/lsp/features/navigation) — same declaration collector
+- [Diagnostics](/pyne/docs/lsp/features/diagnostics) — Convert-to-v6 QuickFix

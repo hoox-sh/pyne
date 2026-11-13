@@ -22,6 +22,12 @@
 The parent is the policy enforcement point. It never trusts the child: every
 request is resolved, risk-classified, and dispatched through the same
 ``dispatch.call_tool`` path the direct tools use.
+
+Confirm tokens are single-use. The set of consumed token signatures lives in
+process memory only (an in-memory nonce store, no external store); a restart
+revokes every outstanding token. Consumed nonces are pruned once their token
+expiry has passed, so the store stays bounded by the number of tokens minted
+within one TTL window.
 """
 
 from __future__ import annotations
@@ -62,11 +68,17 @@ class _ConfirmTokenCodec:
 
     The secret lives in the parent process only. The child sandbox receives a
     token string, never the secret, so a forged or re-bound token fails.
+
+    Verification is single-use: a successfully verified token signature is
+    recorded in an in-memory nonce set and rejected on any replay. The store is
+    process-local (a restart revokes all outstanding tokens) and is pruned of
+    entries whose token expiry has passed, so it cannot grow without bound.
     """
 
     def __init__(self, ttl_s: int = _CONFIRM_TOKEN_TTL_S) -> None:
         self._secret = secrets.token_bytes(32)
         self._ttl_s = ttl_s
+        self._used: dict[str, int] = {}
 
     def issue(self, tool: str, payload: dict[str, Any]) -> tuple[str, int]:
         expires_at = int(time.time()) + self._ttl_s
@@ -79,9 +91,21 @@ class _ConfirmTokenCodec:
         if not separator or not expires_raw.isdigit():
             return False
         expires_at = int(expires_raw)
-        if expires_at < int(time.time()):
+        now = int(time.time())
+        if expires_at < now:
             return False
-        return hmac.compare_digest(signature, self._sign(tool, payload, expires_at))
+        if not hmac.compare_digest(signature, self._sign(tool, payload, expires_at)):
+            return False
+        self._prune(now)
+        if signature in self._used:
+            return False
+        self._used[signature] = expires_at
+        return True
+
+    def _prune(self, now: int) -> None:
+        expired = [sig for sig, expires_at in self._used.items() if expires_at < now]
+        for sig in expired:
+            del self._used[sig]
 
     def _sign(self, tool: str, payload: dict[str, Any], expires_at: int) -> str:
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
