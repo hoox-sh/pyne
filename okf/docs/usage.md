@@ -7,7 +7,7 @@ tags: [doc, docs, usage]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/usage.md"
@@ -22,11 +22,11 @@ Repo path `docs/usage.md`.
 
 # Outline
 
-* Command-Line Interface
-* Library Quickstart
-* Walking The AST
-* Evaluate (bar loop)
+- Command-Line Interface
+- Library Quickstart
+- Walking The AST
+- Evaluate (bar loop)
 
 # Mentions
 
-* [scripts](/code/scripts.md)
+- [scripts](/code/scripts.md)

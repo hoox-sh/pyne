@@ -7,7 +7,7 @@ tags: [doc, docs, missing-features]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-02T04:39:16Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/missing_features.md"
@@ -22,34 +22,34 @@ Repo path `docs/missing_features.md`.
 
 # Outline
 
-* Summary
-* Architecture
-* What Is Implemented
-  * Language Core
-  * Builtins and Technical Analysis
-  * Strategy and Broker
-  * Collections
-  * Drawing and Plotting
-  * Alerts and Webhooks
-  * Data and Requests
-  * Compiler
-* What Is Partial or by Design
-  * Request Data
-  * Auto Fib and Pivot-Heavy Scripts
-  * Platform-Specific Features
-  * PyneTS
-* Corpus Performance
-* Recent Releases (0.6.10–0.6.14)
-  * 0.6.10 — Observability and Engine Parity
-  * 0.6.11 — Live Plane and Sessions
-  * 0.6.12 — Production Hardening
-  * 0.6.13 — Dual-host HTF, LSP, host hardening
-  * 0.6.19 — HTF allowlist, incremental TA, LSP
-  * 0.6.14 — HTF allowlist, incremental TA, LSP
-* Recommendations
+- Summary
+- Architecture
+- What Is Implemented
+  - Language Core
+  - Builtins and Technical Analysis
+  - Strategy and Broker
+  - Collections
+  - Drawing and Plotting
+  - Alerts and Webhooks
+  - Data and Requests
+  - Compiler
+- What Is Partial or by Design
+  - Request Data
+  - Auto Fib and Pivot-Heavy Scripts
+  - Platform-Specific Features
+  - PyneTS
+- Corpus Performance
+- Recent Releases (0.6.10–0.6.14)
+  - 0.6.10 — Observability and Engine Parity
+  - 0.6.11 — Live Plane and Sessions
+  - 0.6.12 — Production Hardening
+  - 0.6.13 — Dual-host HTF, LSP, host hardening
+  - 0.6.19 — HTF allowlist, incremental TA, LSP
+  - 0.6.14 — HTF allowlist, incremental TA, LSP
+- Recommendations
 
 # Mentions
 
-* [scripts](/code/scripts.md)
-* [src/pynescript](/code/src/pynescript.md)
-* [src/pynescript/ast](/code/src/pynescript/ast.md)
+- [scripts](/code/scripts.md)
+- [src/pynescript](/code/src/pynescript.md)
+- [src/pynescript/ast](/code/src/pynescript/ast.md)

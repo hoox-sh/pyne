@@ -7,7 +7,7 @@ tags: [doc, docs, pyne, pynets]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/pynets/install.mdx"
@@ -22,23 +22,23 @@ Repo path `docs/pyne/pynets/install.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Bun (recommended)
-  * Node 20+
-  * Browser (esm.sh)
-  * From a PYNE checkout
-  * Develop the library
-* Internals
-* Invariants & edge cases
-* Worked examples
-  * Smoke the CLI
-  * Library one-liner
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Bun (recommended)
+  - Node 20+
+  - Browser (esm.sh)
+  - From a PYNE checkout
+  - Develop the library
+- Internals
+- Invariants & edge cases
+- Worked examples
+  - Smoke the CLI
+  - Library one-liner
+- Failure modes
+- See also
 
 # Mentions
 
-* [scripts](/code/scripts.md)
-* [scripts/build](/code/scripts/build.md)
+- [scripts](/code/scripts.md)
+- [scripts/build](/code/scripts/build.md)

@@ -7,7 +7,7 @@ tags: [doc, docs, rating]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/rating.md"
@@ -22,7 +22,7 @@ Repo path `docs/rating.md`.
 
 # Outline
 
-* Overall Value: 4/5 (Strong for Tooling)
-* Why This Is High Value
-* Best-Fit Use Cases
-* Caveats (Value Still High)
+- Overall Value: 4/5 (Strong for Tooling)
+- Why This Is High Value
+- Best-Fit Use Cases
+- Caveats (Value Still High)

@@ -7,7 +7,7 @@ tags: [doc, docs, pyne, pynets]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-19T20:09:51Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/pynets/cli.mdx"
@@ -22,13 +22,13 @@ Repo path `docs/pyne/pynets/cli.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Path resolution
-  * Synthetic bars
-* Internals
-* Invariants & edge cases
-* Worked examples
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Path resolution
+  - Synthetic bars
+- Internals
+- Invariants & edge cases
+- Worked examples
+- Failure modes
+- See also

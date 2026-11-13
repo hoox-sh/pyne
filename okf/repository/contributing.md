@@ -7,7 +7,7 @@ tags: [contributing, doc]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "CONTRIBUTING.md"
@@ -22,15 +22,15 @@ Repo path `CONTRIBUTING.md`.
 
 # Outline
 
-* Getting Started
-* Development Workflow
-* Code Style
-* Reporting Issues
-* Release / PyPI publication
-  * One-time PyPI setup (personal account)
-  * Cut a release
+- Getting Started
+- Development Workflow
+- Code Style
+- Reporting Issues
+- Release / PyPI publication
+  - One-time PyPI setup (personal account)
+  - Cut a release
 
 # Mentions
 
-* [scripts/build](/code/scripts/build.md)
-* [src/pynescript](/code/src/pynescript.md)
+- [scripts/build](/code/scripts/build.md)
+- [src/pynescript](/code/src/pynescript.md)

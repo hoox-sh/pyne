@@ -7,7 +7,7 @@ tags: [doc, docs, enduser, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/enduser/getting-started/configuration.mdx"
@@ -22,28 +22,28 @@ Repo path `docs/pyne/enduser/getting-started/configuration.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Package extras (pyproject.toml)
-  * Console scripts
-  * CLI flags that act as “config”
-  * Pro API environment variables
-  * Runtime / evaluate environment variables
-  * Data providers
-  * Editor / LSP client settings
-  * AXIS / frontend coupling (optional)
-* Internals (repo paths)
-* Invariants & edge cases
-* Worked examples
-  * Desk-only machine
-  * Editor workstation
-  * Local API + AXIS
-  * Scripted Alpha Vantage fetch
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Package extras (pyproject.toml)
+  - Console scripts
+  - CLI flags that act as “config”
+  - Pro API environment variables
+  - Runtime / evaluate environment variables
+  - Data providers
+  - Editor / LSP client settings
+  - AXIS / frontend coupling (optional)
+- Internals (repo paths)
+- Invariants & edge cases
+- Worked examples
+  - Desk-only machine
+  - Editor workstation
+  - Local API + AXIS
+  - Scripted Alpha Vantage fetch
+- Failure modes
+- See also
 
 # Mentions
 
-* [src/pynescript](/code/src/pynescript.md)
-* [src/pynescript/runtime](/code/src/pynescript/runtime.md)
+- [src/pynescript](/code/src/pynescript.md)
+- [src/pynescript/runtime](/code/src/pynescript/runtime.md)

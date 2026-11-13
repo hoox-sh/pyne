@@ -7,7 +7,7 @@ tags: [doc, docs, readme]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/README.md"
@@ -22,7 +22,7 @@ Repo path `docs/README.md`.
 
 # Outline
 
-* Layout
-* Host wiring (hoox-landing-page)
-* Exports (PDF + LLM packs)
-* Quick open
+- Layout
+- Host wiring (hoox-landing-page)
+- Exports (PDF + LLM packs)
+- Quick open

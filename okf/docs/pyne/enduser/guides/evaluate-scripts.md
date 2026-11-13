@@ -7,7 +7,7 @@ tags: [doc, docs, enduser, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-19T20:09:51Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/enduser/guides/evaluate-scripts.mdx"
@@ -22,38 +22,38 @@ Repo path `docs/pyne/enduser/guides/evaluate-scripts.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Runtime modes (interpret | compile | auto)
-  * Warm compile / prewarm
-  * When compile falls back (or is skipped)
-  * Plot series parity
-  * Compare interpret vs compile (corpus harness)
-* Interface surface
-  * Expression evaluation
-  * Script evaluation helper
-  * Bar-loop Runtime (package SoT · HTTP contract shape)
-  * Persistent interpret sessions (0.6.1)
-  * Data providers and feeds
-  * Educational bar executor
-* Internals (repo paths)
-* Invariants & edge cases
-* Worked examples
-  * RSI on a synthetic series
-  * Multi-indicator expressions
-  * Full script via Runtime
-  * Strategy event inspection
-  * request. with resolved sources
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Runtime modes (interpret | compile | auto)
+  - Warm compile / prewarm
+  - When compile falls back (or is skipped)
+  - Plot series parity
+  - Compare interpret vs compile (corpus harness)
+- Interface surface
+  - Expression evaluation
+  - Script evaluation helper
+  - Bar-loop Runtime (package SoT · HTTP contract shape)
+  - Persistent interpret sessions (0.6.1)
+  - Data providers and feeds
+  - Educational bar executor
+- Internals (repo paths)
+- Invariants & edge cases
+- Worked examples
+  - RSI on a synthetic series
+  - Multi-indicator expressions
+  - Full script via Runtime
+  - Strategy event inspection
+  - request. with resolved sources
+- Failure modes
+- See also
 
 # Mentions
 
-* [scripts](/code/scripts.md)
-* [src/pynescript](/code/src/pynescript.md)
-* [src/pynescript/ast](/code/src/pynescript/ast.md)
-* [src/pynescript/ast/evaluator](/code/src/pynescript/ast/evaluator.md)
-* [src/pynescript/mcp](/code/src/pynescript/mcp.md)
-* [src/pynescript/runtime](/code/src/pynescript/runtime.md)
-* [src/pynescript/util](/code/src/pynescript/util.md)
-* [tests](/code/tests.md)
+- [scripts](/code/scripts.md)
+- [src/pynescript](/code/src/pynescript.md)
+- [src/pynescript/ast](/code/src/pynescript/ast.md)
+- [src/pynescript/ast/evaluator](/code/src/pynescript/ast/evaluator.md)
+- [src/pynescript/mcp](/code/src/pynescript/mcp.md)
+- [src/pynescript/runtime](/code/src/pynescript/runtime.md)
+- [src/pynescript/util](/code/src/pynescript/util.md)
+- [tests](/code/tests.md)

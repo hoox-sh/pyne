@@ -7,7 +7,7 @@ tags: [code, ext, nautilus-trader, pynescript]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:40:25Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "src/pynescript/ext/nautilus_trader"
@@ -18,5 +18,5 @@ okf_lock: generated
 
 # Files
 
-* `__init__.py`
-* `strategy.py` — PinescriptStrategy, PinescriptStrategyConfig
+- `__init__.py`
+- `strategy.py` — PinescriptStrategy, PinescriptStrategyConfig

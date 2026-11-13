@@ -7,7 +7,7 @@ tags: [doc, docs, enduser, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-19T20:09:51Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/enduser/getting-started/quick-start.mdx"
@@ -22,25 +22,25 @@ Repo path `docs/pyne/enduser/getting-started/quick-start.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-* Internals (repo paths)
-* Invariants & edge cases
-* Worked examples
-  * 1. Parse and dump the AST
-  * 2. Round-trip unparse (normalize)
-  * 3. Lint before upload
-  * 4. Evaluate expressions
-  * 5. Fetch sample market data (CLI)
-  * 6. Optional: local Pro API /run
-  * 7. Library bar-loop vs CLI smoke
-  * 8. Optional: MCP tools from the CLI
-  * 9. Optional: start LSP for editors
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+- Internals (repo paths)
+- Invariants & edge cases
+- Worked examples
+  - 1. Parse and dump the AST
+  - 2. Round-trip unparse (normalize)
+  - 3. Lint before upload
+  - 4. Evaluate expressions
+  - 5. Fetch sample market data (CLI)
+  - 6. Optional: local Pro API /run
+  - 7. Library bar-loop vs CLI smoke
+  - 8. Optional: MCP tools from the CLI
+  - 9. Optional: start LSP for editors
+- Failure modes
+- See also
 
 # Mentions
 
-* [src/pynescript](/code/src/pynescript.md)
-* [src/pynescript/ast](/code/src/pynescript/ast.md)
+- [src/pynescript](/code/src/pynescript.md)
+- [src/pynescript/ast](/code/src/pynescript/ast.md)

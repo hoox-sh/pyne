@@ -7,7 +7,7 @@ tags: [api, doc, docs, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-14T09:03:07Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/api/endpoints/data-plane.mdx"
@@ -22,17 +22,17 @@ Repo path `docs/pyne/api/endpoints/data-plane.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Series key
-* Interface surface
-  * GET /data/series
-  * GET /data/series/bars
-  * POST /data/series/provide
-  * POST /data/series/fetch
-  * POST /data/session
-  * POST /data/session/<sessionid/tick
-* Storage
-* Failure modes
-* Internals (map)
-* See also
+- Abstract
+- Conceptual model
+- Series key
+- Interface surface
+  - GET /data/series
+  - GET /data/series/bars
+  - POST /data/series/provide
+  - POST /data/series/fetch
+  - POST /data/session
+  - POST /data/session/<sessionid/tick
+- Storage
+- Failure modes
+- Internals (map)
+- See also

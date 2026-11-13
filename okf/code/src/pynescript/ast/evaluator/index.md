@@ -2,8 +2,8 @@
 
 # Concepts
 
-* [src/pynescript/ast/evaluator/builtins](builtins.md) - Pine Script evaluator builtins package (dispatch aggregate).
+- [src/pynescript/ast/evaluator/builtins](builtins.md) - Pine Script evaluator builtins package (dispatch aggregate).
 
 # Nested
 
-* [builtins](builtins/) - Pine Script evaluator builtins package (dispatch aggregate).
+- [builtins](builtins/) - Pine Script evaluator builtins package (dispatch aggregate).

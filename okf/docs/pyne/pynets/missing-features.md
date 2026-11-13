@@ -7,7 +7,7 @@ tags: [doc, docs, pyne, pynets]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-27T20:17:40Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/pynets/missing-features.mdx"
@@ -22,22 +22,22 @@ Repo path `docs/pyne/pynets/missing-features.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Closed on this working tree
-  * Language the host does not have
-  * strategy.
-  * Drawings
-  * ta. still absent
-  * Request
-  * JS compile lag
-* Internals
-* Invariants & edge cases
-* Worked examples
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Closed on this working tree
+  - Language the host does not have
+  - strategy.
+  - Drawings
+  - ta. still absent
+  - Request
+  - JS compile lag
+- Internals
+- Invariants & edge cases
+- Worked examples
+- Failure modes
+- See also
 
 # Mentions
 
-* [src/pynescript/ast/evaluator](/code/src/pynescript/ast/evaluator.md)
+- [src/pynescript/ast/evaluator](/code/src/pynescript/ast/evaluator.md)

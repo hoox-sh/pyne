@@ -84,7 +84,7 @@ export function renderContext(files: Map<string, string>, start: string, depth: 
       if (!neighbor) continue;
       const title = field(neighbor.frontmatter, 'title') || id;
       const description = field(neighbor.frontmatter, 'description');
-      blurbs.push(`* ${title} (\`/${neighbor.path}\`) — ${description}`);
+      blurbs.push(`- ${title} (\`/${neighbor.path}\`) — ${description}`);
     }
     if (blurbs.length > 0) {
       parts.push('', '# Linked concepts', '', ...blurbs);

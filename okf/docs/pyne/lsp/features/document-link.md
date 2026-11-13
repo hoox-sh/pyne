@@ -7,7 +7,7 @@ tags: [doc, docs, lsp, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-20T21:40:21Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/lsp/features/document-link.mdx"
@@ -22,19 +22,19 @@ Repo path `docs/pyne/lsp/features/document-link.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Where URLs are collected
-  * Resolve
-* Internals
-* Invariants and edge cases
-* Worked example
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Where URLs are collected
+  - Resolve
+- Internals
+- Invariants and edge cases
+- Worked example
+- Failure modes
+- See also
 
 # Mentions
 
-* [src/pynescript/langserver](/code/src/pynescript/langserver.md)
-* [src/pynescript/langserver/features](/code/src/pynescript/langserver/features.md)
-* [tests](/code/tests.md)
+- [src/pynescript/langserver](/code/src/pynescript/langserver.md)
+- [src/pynescript/langserver/features](/code/src/pynescript/langserver/features.md)
+- [tests](/code/tests.md)

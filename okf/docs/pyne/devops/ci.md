@@ -7,7 +7,7 @@ tags: [devops, doc, docs, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/devops/ci.mdx"
@@ -22,19 +22,19 @@ Repo path `docs/pyne/devops/ci.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Triggers
-  * ci.yml jobs (current)
-  * Not in this repo’s CI
-* Internals
-  * Secrets
-* Invariants
-* Worked examples
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Triggers
+  - ci.yml jobs (current)
+  - Not in this repo’s CI
+- Internals
+  - Secrets
+- Invariants
+- Worked examples
+- Failure modes
+- See also
 
 # Mentions
 
-* [tests](/code/tests.md)
+- [tests](/code/tests.md)

@@ -7,7 +7,7 @@ tags: [doc, docs, pyne, reference]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-02T04:39:16Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/reference/roadmap.mdx"
@@ -22,24 +22,24 @@ Repo path `docs/pyne/reference/roadmap.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Status snapshot
-  * Completed themes (do not re-plan as greenfield)
-  * Open backlog (IDs stable)
-  * Priority recommendation
-  * Landed residual notes
-* Internals
-* Invariants & edge cases
-* Worked examples
-  * Track a roadmap item with a test
-  * Plot parity smoke
-  * TypeScript library gate (PyneTS)
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Status snapshot
+  - Completed themes (do not re-plan as greenfield)
+  - Open backlog (IDs stable)
+  - Priority recommendation
+  - Landed residual notes
+- Internals
+- Invariants & edge cases
+- Worked examples
+  - Track a roadmap item with a test
+  - Plot parity smoke
+  - TypeScript library gate (PyneTS)
+- Failure modes
+- See also
 
 # Mentions
 
-* [scripts](/code/scripts.md)
-* [tests](/code/tests.md)
+- [scripts](/code/scripts.md)
+- [tests](/code/tests.md)

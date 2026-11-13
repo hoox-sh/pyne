@@ -7,7 +7,7 @@ tags: [devops, doc, docs, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/devops/local-dev.mdx"
@@ -22,21 +22,21 @@ Repo path `docs/pyne/devops/local-dev.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Make targets (primary)
-  * Hatch
-  * Quick desk loop
-  * From PyPI (no checkout)
-* Internals
-  * Python
-  * Optional extras
-* Invariants
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Make targets (primary)
+  - Hatch
+  - Quick desk loop
+  - From PyPI (no checkout)
+- Internals
+  - Python
+  - Optional extras
+- Invariants
+- Failure modes
+- See also
 
 # Mentions
 
-* [src/pynescript](/code/src/pynescript.md)
-* [tests](/code/tests.md)
+- [src/pynescript](/code/src/pynescript.md)
+- [tests](/code/tests.md)

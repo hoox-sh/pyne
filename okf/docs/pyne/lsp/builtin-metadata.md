@@ -7,7 +7,7 @@ tags: [doc, docs, lsp, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/lsp/builtin-metadata.mdx"
@@ -22,23 +22,23 @@ Repo path `docs/pyne/lsp/builtin-metadata.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface (metadata record)
-  * Loader API
-  * Consumers
-* Internals
-  * Generation
-  * Encryption (build)
-  * Decrypt path
-* Invariants and edge cases
-* Worked example — local dev
-* Worked example — encrypted binary path
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface (metadata record)
+  - Loader API
+  - Consumers
+- Internals
+  - Generation
+  - Encryption (build)
+  - Decrypt path
+- Invariants and edge cases
+- Worked example — local dev
+- Worked example — encrypted binary path
+- Failure modes
+- See also
 
 # Mentions
 
-* [scripts](/code/scripts.md)
-* [scripts/build](/code/scripts/build.md)
-* [src/pynescript/langserver/providers](/code/src/pynescript/langserver/providers.md)
+- [scripts](/code/scripts.md)
+- [scripts/build](/code/scripts/build.md)
+- [src/pynescript/langserver/providers](/code/src/pynescript/langserver/providers.md)

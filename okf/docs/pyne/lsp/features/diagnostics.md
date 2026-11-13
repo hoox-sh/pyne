@@ -7,7 +7,7 @@ tags: [doc, docs, lsp, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-01T01:55:41Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/lsp/features/diagnostics.mdx"
@@ -22,26 +22,26 @@ Repo path `docs/pyne/lsp/features/diagnostics.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Push (always on)
-  * Pull
-  * Diagnostic shape
-* Internals
-  * Severity map
-  * Version gating
-  * Style diagnostics
-  * Semantic diagnostics (opt-in)
-  * Parse errors
-  * Quick fixes (feature module)
-* Invariants and edge cases
-* Worked example
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Push (always on)
+  - Pull
+  - Diagnostic shape
+- Internals
+  - Severity map
+  - Version gating
+  - Style diagnostics
+  - Semantic diagnostics (opt-in)
+  - Parse errors
+  - Quick fixes (feature module)
+- Invariants and edge cases
+- Worked example
+- Failure modes
+- See also
 
 # Mentions
 
-* [src/pynescript/ast](/code/src/pynescript/ast.md)
-* [src/pynescript/langserver](/code/src/pynescript/langserver.md)
-* [src/pynescript/langserver/features](/code/src/pynescript/langserver/features.md)
+- [src/pynescript/ast](/code/src/pynescript/ast.md)
+- [src/pynescript/langserver](/code/src/pynescript/langserver.md)
+- [src/pynescript/langserver/features](/code/src/pynescript/langserver/features.md)

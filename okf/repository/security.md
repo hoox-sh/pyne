@@ -7,7 +7,7 @@ tags: [doc, security]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "SECURITY.md"
@@ -22,6 +22,6 @@ Repo path `SECURITY.md`.
 
 # Outline
 
-* Supported versions
-* Reporting a vulnerability
-* Scope
+- Supported versions
+- Reporting a vulnerability
+- Scope

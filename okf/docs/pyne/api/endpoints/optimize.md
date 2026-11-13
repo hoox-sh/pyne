@@ -7,7 +7,7 @@ tags: [api, doc, docs, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/api/endpoints/optimize.mdx"
@@ -22,11 +22,11 @@ Repo path `docs/pyne/api/endpoints/optimize.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Request
-* Success
-* Errors
-* Invariants
-* CLI
-* See also
+- Abstract
+- Conceptual model
+- Request
+- Success
+- Errors
+- Invariants
+- CLI
+- See also

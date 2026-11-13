@@ -7,7 +7,7 @@ tags: [doc, docs, enduser, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-26T09:58:21Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/enduser/guides/cli.mdx"
@@ -22,26 +22,26 @@ Repo path `docs/pyne/enduser/guides/cli.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-* Install options
-* Internals (repo paths)
-* Invariants & edge cases
-* Worked examples
-  * Inspect structure of a strategy
-  * Format / normalize
-  * Lint gate in CI
-  * Market data smoke checks
-  * Compile, prewarm, synthetic run
-  * Compose with library for evaluation
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+- Install options
+- Internals (repo paths)
+- Invariants & edge cases
+- Worked examples
+  - Inspect structure of a strategy
+  - Format / normalize
+  - Lint gate in CI
+  - Market data smoke checks
+  - Compile, prewarm, synthetic run
+  - Compose with library for evaluation
+- Failure modes
+- See also
 
 # Mentions
 
-* [src/pynescript](/code/src/pynescript.md)
-* [src/pynescript/ast](/code/src/pynescript/ast.md)
-* [src/pynescript/mcp](/code/src/pynescript/mcp.md)
-* [src/pynescript/util](/code/src/pynescript/util.md)
-* [tests](/code/tests.md)
+- [src/pynescript](/code/src/pynescript.md)
+- [src/pynescript/ast](/code/src/pynescript/ast.md)
+- [src/pynescript/mcp](/code/src/pynescript/mcp.md)
+- [src/pynescript/util](/code/src/pynescript/util.md)
+- [tests](/code/tests.md)

@@ -7,7 +7,7 @@ tags: [doc, docs, enduser, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-19T17:27:04Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/enduser/getting-started/installation.mdx"
@@ -22,24 +22,24 @@ Repo path `docs/pyne/enduser/getting-started/installation.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Prerequisites
-  * Core install (PyPI)
-  * Extras
-  * Source checkout
-  * Docker CLI
-  * Console scripts
-* Internals (repo paths)
-* Invariants & edge cases
-* Worked examples
-  * Smoke-test CLI and library
-  * Monorepo desk + Pro API
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Prerequisites
+  - Core install (PyPI)
+  - Extras
+  - Source checkout
+  - Docker CLI
+  - Console scripts
+- Internals (repo paths)
+- Invariants & edge cases
+- Worked examples
+  - Smoke-test CLI and library
+  - Monorepo desk + Pro API
+- Failure modes
+- See also
 
 # Mentions
 
-* [src/pynescript](/code/src/pynescript.md)
-* [src/pynescript/langserver](/code/src/pynescript/langserver.md)
+- [src/pynescript](/code/src/pynescript.md)
+- [src/pynescript/langserver](/code/src/pynescript/langserver.md)

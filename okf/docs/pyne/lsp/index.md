@@ -2,12 +2,12 @@
 
 # Concepts
 
-* [LSP Architecture](architecture.md) - PynescriptLanguageServer lifecycle, Workspace document model, capability declaration, and STDIO transport.
-* [Builtin Metadata](builtin-metadata.md) - JSON catalog for LSP completion and hover; generation pipeline; Fernet encryption, CRYPTOKEY / METADATAKEY, and decrypt path.
-* [Editor Clients](clients.md) - Wire pyne-lsp into Neovim, Zed, Emacs, Helix, Sublime, and generic LSP hosts.
-* [Language Server](index.md) - PYNE Language Server Protocol — diagnostics, completion, hover, formatting for .pyne / .pine and editor clients.
-* [VS Code Extension](vscode-extension.md) - PYNE VS Code extension: LanguageClient host for pyne-lsp, TextMate grammar, snippets, settings, and VSIX 0.5.5.
+- [LSP Architecture](architecture.md) - PynescriptLanguageServer lifecycle, Workspace document model, capability declaration, and STDIO transport.
+- [Builtin Metadata](builtin-metadata.md) - JSON catalog for LSP completion and hover; generation pipeline; Fernet encryption, CRYPTOKEY / METADATAKEY, and decrypt path.
+- [Editor Clients](clients.md) - Wire pyne-lsp into Neovim, Zed, Emacs, Helix, Sublime, and generic LSP hosts.
+- [Language Server](index.md) - PYNE Language Server Protocol — diagnostics, completion, hover, formatting for .pyne / .pine and editor clients.
+- [VS Code Extension](vscode-extension.md) - PYNE VS Code extension: LanguageClient host for pyne-lsp, TextMate grammar, snippets, settings, and VSIX 0.5.5.
 
 # Nested
 
-* [features](features/) - Nested concepts.
+- [features](features/) - Nested concepts.

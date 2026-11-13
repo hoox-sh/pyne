@@ -7,7 +7,7 @@ tags: [doc, docs, pyne, runtime]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/runtime/builtins/technical.mdx"
@@ -22,26 +22,26 @@ Repo path `docs/pyne/runtime/builtins/technical.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-  * Incremental hot path
-* Interface surface
-  * Argument conventions
-  * Stateful crosses
-* Internals
-* Interpret ↔ compile parity
-  * Parity harness
-* Invariants & edge cases
-* Worked examples
-  * Classic overlay
-  * Cross entry signal
-  * Multi-value unpack
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+  - Incremental hot path
+- Interface surface
+  - Argument conventions
+  - Stateful crosses
+- Internals
+- Interpret ↔ compile parity
+  - Parity harness
+- Invariants & edge cases
+- Worked examples
+  - Classic overlay
+  - Cross entry signal
+  - Multi-value unpack
+- Failure modes
+- See also
 
 # Mentions
 
-* [scripts](/code/scripts.md)
-* [src/pynescript/ast/evaluator/builtins](/code/src/pynescript/ast/evaluator/builtins.md)
-* [src/pynescript/compiler](/code/src/pynescript/compiler.md)
-* [tests](/code/tests.md)
+- [scripts](/code/scripts.md)
+- [src/pynescript/ast/evaluator/builtins](/code/src/pynescript/ast/evaluator/builtins.md)
+- [src/pynescript/compiler](/code/src/pynescript/compiler.md)
+- [tests](/code/tests.md)

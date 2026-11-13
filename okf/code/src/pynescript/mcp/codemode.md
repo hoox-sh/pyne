@@ -7,7 +7,7 @@ tags: [code, codemode, mcp, pynescript]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T10:52:37Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "src/pynescript/mcp/codemode"
@@ -18,13 +18,13 @@ okf_lock: generated
 
 # Files
 
-* `__init__.py` — code_mode_enabled
-* `bridge.py` — create_handlers, destructive_allowed
-* `harness.mjs`
-* `protocol.py` — CodeModeLimits, SandboxRequest, SandboxResult
-* `sandbox.py` — PlanError, SandboxPlan, build_bwrap_plan, build_subprocess_plan, default_plan, harness_path, redact_text, resolve_js_runtime, resolve_sandbox_kind, run_in_sandbox
-* `tools.py` — register_code_mode
-* `view.py` — CatalogEntry, build_catalog, build_namespaces, compact_catalog, describe_tool
+- `__init__.py` — code_mode_enabled
+- `bridge.py` — create_handlers, destructive_allowed
+- `harness.mjs`
+- `protocol.py` — CodeModeLimits, SandboxRequest, SandboxResult
+- `sandbox.py` — PlanError, SandboxPlan, build_bwrap_plan, build_subprocess_plan, default_plan, harness_path, redact_text, resolve_js_runtime, resolve_sandbox_kind, run_in_sandbox
+- `tools.py` — register_code_mode
+- `view.py` — CatalogEntry, build_catalog, build_namespaces, compact_catalog, describe_tool
 
 # Packages
 

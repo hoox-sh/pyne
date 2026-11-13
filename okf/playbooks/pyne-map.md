@@ -18,11 +18,11 @@ sources:
 
 The package import name is `pynescript`. The console scripts are `pyne` and `pyne-lsp`.
 
-* [src/pynescript/ast](/code/src/pynescript/ast.md) is the grammar and AST. The evaluator lives under it.
-* [src/pynescript/compiler](/code/src/pynescript/compiler.md) lowers Pine to a bar-loop module.
-* [src/pynescript/runtime](/code/src/pynescript/runtime.md) is the runtime support next to the compiler.
-* [src/pynescript/langserver](/code/src/pynescript/langserver.md) is the language server.
-* [backend](/code/backend.md) is the Pro API on port 5002.
+- [src/pynescript/ast](/code/src/pynescript/ast.md) is the grammar and AST. The evaluator lives under it.
+- [src/pynescript/compiler](/code/src/pynescript/compiler.md) lowers Pine to a bar-loop module.
+- [src/pynescript/runtime](/code/src/pynescript/runtime.md) is the runtime support next to the compiler.
+- [src/pynescript/langserver](/code/src/pynescript/langserver.md) is the language server.
+- [backend](/code/backend.md) is the Pro API on port 5002.
 
 Do not edit `src/pynescript/ast/grammar/antlr4/generated/` or `asdl/generated/`. Those trees are regenerated and are not in this bundle. Grammar sources stay under `src/pynescript/ast/grammar/`.
 

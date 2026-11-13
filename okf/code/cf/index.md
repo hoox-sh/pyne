@@ -2,4 +2,4 @@
 
 # Concepts
 
-* [cf/src](src.md) - cf/src contains index.ts.
+- [cf/src](src.md) - cf/src contains index.ts.

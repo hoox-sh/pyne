@@ -7,7 +7,7 @@ tags: [doc, docs, lsp, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:43:10Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/lsp/features/code-lens.mdx"
@@ -22,6 +22,6 @@ Repo path `docs/pyne/lsp/features/code-lens.mdx`.
 
 # Outline
 
-* Abstract
-* Interface surface
-* See also
+- Abstract
+- Interface surface
+- See also

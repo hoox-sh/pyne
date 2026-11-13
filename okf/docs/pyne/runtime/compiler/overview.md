@@ -7,7 +7,7 @@ tags: [doc, docs, pyne, runtime]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:54:45Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/runtime/compiler/overview.mdx"
@@ -22,28 +22,28 @@ Repo path `docs/pyne/runtime/compiler/overview.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * CompiledScript.run signature
-  * Warm compile (product defaults)
-  * Mode selection
-  * What numeric mode lowers today
-  * Object mode extras
-  * Compile-path limits (notable)
-* Internals
-  * Data layout
-  * Caches and corrupt-Numba recovery
-* Invariants & edge cases
-* Worked example
-  * Interpret↔compile parity
-* Failure modes
-* Remaining work (summary)
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - CompiledScript.run signature
+  - Warm compile (product defaults)
+  - Mode selection
+  - What numeric mode lowers today
+  - Object mode extras
+  - Compile-path limits (notable)
+- Internals
+  - Data layout
+  - Caches and corrupt-Numba recovery
+- Invariants & edge cases
+- Worked example
+  - Interpret↔compile parity
+- Failure modes
+- Remaining work (summary)
+- See also
 
 # Mentions
 
-* [scripts](/code/scripts.md)
-* [src/pynescript/compiler](/code/src/pynescript/compiler.md)
-* [src/pynescript/runtime](/code/src/pynescript/runtime.md)
-* [tests](/code/tests.md)
+- [scripts](/code/scripts.md)
+- [src/pynescript/compiler](/code/src/pynescript/compiler.md)
+- [src/pynescript/runtime](/code/src/pynescript/runtime.md)
+- [tests](/code/tests.md)

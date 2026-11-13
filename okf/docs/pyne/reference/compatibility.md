@@ -7,7 +7,7 @@ tags: [doc, docs, pyne, reference]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-02T04:39:16Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/reference/compatibility.mdx"
@@ -22,23 +22,23 @@ Repo path `docs/pyne/reference/compatibility.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Legend
-* Interface surface
-  * Corpus (set01–04 · 2477 scripts · 2026-08-09)
-  * Grouped map
-  * Residual and out of scope (compact)
-  * Dual-host plot parity
-* Internals
-* Invariants & edge cases
-* Worked examples
-  * Round-trip
-  * Interpret ↔ compile
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Legend
+- Interface surface
+  - Corpus (set01–04 · 2477 scripts · 2026-08-09)
+  - Grouped map
+  - Residual and out of scope (compact)
+  - Dual-host plot parity
+- Internals
+- Invariants & edge cases
+- Worked examples
+  - Round-trip
+  - Interpret ↔ compile
+- Failure modes
+- See also
 
 # Mentions
 
-* [scripts](/code/scripts.md)
-* [tests](/code/tests.md)
+- [scripts](/code/scripts.md)
+- [tests](/code/tests.md)

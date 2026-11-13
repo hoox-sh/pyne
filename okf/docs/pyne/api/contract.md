@@ -7,7 +7,7 @@ tags: [api, doc, docs, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/api/contract.mdx"
@@ -22,20 +22,20 @@ Repo path `docs/pyne/api/contract.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Request (single evaluate)
-  * Response (success)
-  * Response (failure)
-  * Batch evaluate (Flask extension)
-* Internals — reference mapping
-* Divergences to remember
-* Invariants and edge cases
-* Worked example — host-agnostic client sketch
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Request (single evaluate)
+  - Response (success)
+  - Response (failure)
+  - Batch evaluate (Flask extension)
+- Internals — reference mapping
+- Divergences to remember
+- Invariants and edge cases
+- Worked example — host-agnostic client sketch
+- Failure modes
+- See also
 
 # Mentions
 
-* [tests](/code/tests.md)
+- [tests](/code/tests.md)

@@ -2,10 +2,10 @@
 
 # Concepts
 
-* [End User Hub](index.md) - Install PYNE (pip install hoox-pyne). Library default is interpret, pyne run is compile-only, pyne execute is Runtime.run, Pro API /run defaults to auto.
+- [End User Hub](index.md) - Install PYNE (pip install hoox-pyne). Library default is interpret, pyne run is compile-only, pyne execute is Runtime.run, Pro API /run defaults to auto.
 
 # Nested
 
-* [getting-started](getting-started/) - Nested concepts.
-* [guides](guides/) - Nested concepts.
-* [reference](reference/) - Nested concepts.
+- [getting-started](getting-started/) - Nested concepts.
+- [guides](guides/) - Nested concepts.
+- [reference](reference/) - Nested concepts.

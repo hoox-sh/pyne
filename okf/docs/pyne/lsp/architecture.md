@@ -7,7 +7,7 @@ tags: [doc, docs, lsp, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-01T01:54:11Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/lsp/architecture.mdx"
@@ -22,25 +22,25 @@ Repo path `docs/pyne/lsp/architecture.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Process entry
-  * Server class
-  * Document sync
-  * Capability set (declared)
-* Internals
-  * Workspace
-  * Position encoding
-  * Feature dispatch pattern
-  * Pull diagnostics
-  * Workspace symbols
-* Invariants and edge cases
-* Worked example — minimal initialize
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Process entry
+  - Server class
+  - Document sync
+  - Capability set (declared)
+- Internals
+  - Workspace
+  - Position encoding
+  - Feature dispatch pattern
+  - Pull diagnostics
+  - Workspace symbols
+- Invariants and edge cases
+- Worked example — minimal initialize
+- Failure modes
+- See also
 
 # Mentions
 
-* [src/pynescript](/code/src/pynescript.md)
-* [src/pynescript/langserver](/code/src/pynescript/langserver.md)
+- [src/pynescript](/code/src/pynescript.md)
+- [src/pynescript/langserver](/code/src/pynescript/langserver.md)

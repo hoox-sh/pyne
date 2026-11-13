@@ -7,7 +7,7 @@ tags: [core, doc, docs, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/core/helper-api.mdx"
@@ -22,32 +22,32 @@ Repo path `docs/pyne/core/helper-api.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * parse(source, filename="<unknown", mode="exec") - AST
-  * Parse cache
-  * unparse(node) - str
-  * dump(node, , annotatefields=True, includeattributes=False, indent=None) - str
-  * literaleval(nodeorstring, context=None, datafeed=None, dataprovider=None) - Any
-  * Tree navigation
-  * Location utilities
-  * all export list
-* Internals
-  * Path
-  * Parse pipeline (parse)
-  * Annotation algorithm (addannotations)
-  * Stream helpers
-* Invariants
-* Worked examples
-  * Inspect a tree
-  * Source segment
-  * Literal evaluation
-  * Parse cache
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - parse(source, filename="<unknown", mode="exec") - AST
+  - Parse cache
+  - unparse(node) - str
+  - dump(node, , annotatefields=True, includeattributes=False, indent=None) - str
+  - literaleval(nodeorstring, context=None, datafeed=None, dataprovider=None) - Any
+  - Tree navigation
+  - Location utilities
+  - all export list
+- Internals
+  - Path
+  - Parse pipeline (parse)
+  - Annotation algorithm (addannotations)
+  - Stream helpers
+- Invariants
+- Worked examples
+  - Inspect a tree
+  - Source segment
+  - Literal evaluation
+  - Parse cache
+- Failure modes
+- See also
 
 # Mentions
 
-* [src/pynescript/ast](/code/src/pynescript/ast.md)
-* [src/pynescript/ast/evaluator](/code/src/pynescript/ast/evaluator.md)
+- [src/pynescript/ast](/code/src/pynescript/ast.md)
+- [src/pynescript/ast/evaluator](/code/src/pynescript/ast/evaluator.md)

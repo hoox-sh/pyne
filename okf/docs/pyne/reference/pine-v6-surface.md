@@ -7,7 +7,7 @@ tags: [doc, docs, pyne, reference]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-02T04:39:16Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/reference/pine-v6-surface.mdx"
@@ -22,22 +22,22 @@ Repo path `docs/pyne/reference/pine-v6-surface.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Status schema
-  * Summary counts (2026-10-08)
-  * Top namespaces by dispatch keys
-  * Kinds covered
-* Internals
-  * How to use the full file
-* Invariants & edge cases
-* Worked examples
-  * Quote coverage honestly
-  * Programmatic check (sketch)
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Status schema
+  - Summary counts (2026-10-08)
+  - Top namespaces by dispatch keys
+  - Kinds covered
+- Internals
+  - How to use the full file
+- Invariants & edge cases
+- Worked examples
+  - Quote coverage honestly
+  - Programmatic check (sketch)
+- Failure modes
+- See also
 
 # Mentions
 
-* [scripts](/code/scripts.md)
+- [scripts](/code/scripts.md)

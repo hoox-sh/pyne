@@ -7,7 +7,7 @@ tags: [doc, docs, pyne, reference]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-09T09:31:08Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/reference/commercial.mdx"
@@ -22,7 +22,7 @@ Repo path `docs/pyne/reference/commercial.mdx`.
 
 # Outline
 
-* What it removes
-* Scope
-* Buy
-* FAQ
+- What it removes
+- Scope
+- Buy
+- FAQ

@@ -7,7 +7,7 @@ tags: [design, doc]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-17T03:22:02Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "DESIGN.md"
@@ -22,18 +22,18 @@ Repo path `DESIGN.md`.
 
 # Outline
 
-* 1. Mission
-* 2. System Architecture
-* 3. Evaluation Pipeline
-  * Lexing and Parsing
-  * Building
-  * Evaluation
-  * Compilation
-* 4. Key Design Decisions
-  * Bar-Loop Semantics
-  * Honest NA
-  * Interpret is the Oracle
-  * Python Wins
-* 5. Data Flow
-* 6. Testing Strategy
-* 7. Deployment
+- 1. Mission
+- 2. System Architecture
+- 3. Evaluation Pipeline
+  - Lexing and Parsing
+  - Building
+  - Evaluation
+  - Compilation
+- 4. Key Design Decisions
+  - Bar-Loop Semantics
+  - Honest NA
+  - Interpret is the Oracle
+  - Python Wins
+- 5. Data Flow
+- 6. Testing Strategy
+- 7. Deployment

@@ -7,7 +7,7 @@ tags: [contributing, doc, docs, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/contributing.mdx"
@@ -22,35 +22,35 @@ Repo path `docs/pyne/contributing.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Baseline workflow
-  * Everyday commands
-* Hard constraints
-  * Grammar & generated code
-  * No stale backups
-  * Future annotations
-  * Console scripts
-  * Optional example-script fixture
-  * Builtin metadata
-  * Interpret / compile parity
-  * Secrets & crypto
-* Internals (where to change what)
-* Style
-* Release (this repo)
-* PyneTS contributions
-* Failure modes for contributors
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Baseline workflow
+  - Everyday commands
+- Hard constraints
+  - Grammar & generated code
+  - No stale backups
+  - Future annotations
+  - Console scripts
+  - Optional example-script fixture
+  - Builtin metadata
+  - Interpret / compile parity
+  - Secrets & crypto
+- Internals (where to change what)
+- Style
+- Release (this repo)
+- PyneTS contributions
+- Failure modes for contributors
+- See also
 
 # Mentions
 
-* [scripts](/code/scripts.md)
-* [scripts/build](/code/scripts/build.md)
-* [src/pynescript](/code/src/pynescript.md)
-* [src/pynescript/ast](/code/src/pynescript/ast.md)
-* [src/pynescript/ast/evaluator](/code/src/pynescript/ast/evaluator.md)
-* [src/pynescript/ast/grammar/antlr4](/code/src/pynescript/ast/grammar/antlr4.md)
-* [src/pynescript/langserver](/code/src/pynescript/langserver.md)
-* [src/pynescript/runtime](/code/src/pynescript/runtime.md)
-* [tests](/code/tests.md)
+- [scripts](/code/scripts.md)
+- [scripts/build](/code/scripts/build.md)
+- [src/pynescript](/code/src/pynescript.md)
+- [src/pynescript/ast](/code/src/pynescript/ast.md)
+- [src/pynescript/ast/evaluator](/code/src/pynescript/ast/evaluator.md)
+- [src/pynescript/ast/grammar/antlr4](/code/src/pynescript/ast/grammar/antlr4.md)
+- [src/pynescript/langserver](/code/src/pynescript/langserver.md)
+- [src/pynescript/runtime](/code/src/pynescript/runtime.md)
+- [tests](/code/tests.md)

@@ -7,7 +7,7 @@ tags: [doc, docs, pyne, runtime]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/runtime/builtins/drawing-plotting.mdx"
@@ -22,31 +22,31 @@ Repo path `docs/pyne/runtime/builtins/drawing-plotting.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Plotting (PlottingFunctionsMixin)
-  * Title defaults and series keys
-  * hline — constant series (both modes)
-  * fill — titled series key for key-set parity (both modes)
-  * Import stubs must not leak as series strings
-  * Drawing objects (DrawingBuiltinsMixin)
-  * Registry lifecycle
-  * Drawing GC (maxcount)
-  * fill + plotmeta for AXIS
-* Internals
-  * Compile object-mode notes
-* Invariants & edge cases
-* Worked examples
-  * Dual plot + fill
-  * Label on last bar
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Plotting (PlottingFunctionsMixin)
+  - Title defaults and series keys
+  - hline — constant series (both modes)
+  - fill — titled series key for key-set parity (both modes)
+  - Import stubs must not leak as series strings
+  - Drawing objects (DrawingBuiltinsMixin)
+  - Registry lifecycle
+  - Drawing GC (maxcount)
+  - fill + plotmeta for AXIS
+- Internals
+  - Compile object-mode notes
+- Invariants & edge cases
+- Worked examples
+  - Dual plot + fill
+  - Label on last bar
+- Failure modes
+- See also
 
 # Mentions
 
-* [src/pynescript/ast/evaluator](/code/src/pynescript/ast/evaluator.md)
-* [src/pynescript/ast/evaluator/builtins](/code/src/pynescript/ast/evaluator/builtins.md)
-* [src/pynescript/compiler](/code/src/pynescript/compiler.md)
-* [src/pynescript/runtime](/code/src/pynescript/runtime.md)
-* [tests](/code/tests.md)
+- [src/pynescript/ast/evaluator](/code/src/pynescript/ast/evaluator.md)
+- [src/pynescript/ast/evaluator/builtins](/code/src/pynescript/ast/evaluator/builtins.md)
+- [src/pynescript/compiler](/code/src/pynescript/compiler.md)
+- [src/pynescript/runtime](/code/src/pynescript/runtime.md)
+- [tests](/code/tests.md)

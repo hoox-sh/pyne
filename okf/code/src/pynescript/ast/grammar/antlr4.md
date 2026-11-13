@@ -7,7 +7,7 @@ tags: [ast, code, grammar, pynescript]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:54:45Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "src/pynescript/ast/grammar/antlr4"
@@ -18,14 +18,14 @@ okf_lock: generated
 
 # Files
 
-* `__init__.py`
-* `error_listener.py` — PinescriptErrorListener
-* `lexer.py`
-* `listener.py`
-* `parser.py`
-* `visitor.py`
+- `__init__.py`
+- `error_listener.py` — PinescriptErrorListener
+- `lexer.py`
+- `listener.py`
+- `parser.py`
+- `visitor.py`
 
 # Nested
 
-* [src/pynescript/ast/grammar/antlr4/resource](/code/src/pynescript/ast/grammar/antlr4/resource.md)
-* [src/pynescript/ast/grammar/antlr4/tool](/code/src/pynescript/ast/grammar/antlr4/tool.md)
+- [src/pynescript/ast/grammar/antlr4/resource](/code/src/pynescript/ast/grammar/antlr4/resource.md)
+- [src/pynescript/ast/grammar/antlr4/tool](/code/src/pynescript/ast/grammar/antlr4/tool.md)

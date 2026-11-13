@@ -7,7 +7,7 @@ tags: [doc, docs, lsp, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/lsp/features/completion.mdx"
@@ -22,19 +22,19 @@ Repo path `docs/pyne/lsp/features/completion.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Trigger logic
-  * Item fields
-* Internals
-  * Fuzzy filter scores
-  * Resolve
-* Invariants and edge cases
-* Worked example
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Trigger logic
+  - Item fields
+- Internals
+  - Fuzzy filter scores
+  - Resolve
+- Invariants and edge cases
+- Worked example
+- Failure modes
+- See also
 
 # Mentions
 
-* [scripts](/code/scripts.md)
+- [scripts](/code/scripts.md)

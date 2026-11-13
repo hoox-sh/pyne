@@ -7,7 +7,7 @@ tags: [core, doc, docs, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/core/visitor-transformer.mdx"
@@ -22,23 +22,23 @@ Repo path `docs/pyne/core/visitor-transformer.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * NodeVisitor
-  * NodeTransformer
-  * StatementCollector
-* Internals
-  * Paths
-  * Dispatch cache
-  * In-place lists
-* Invariants
-* Worked examples
-  * Strip all Expr statements that call plot
-  * Collect all string constants
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - NodeVisitor
+  - NodeTransformer
+  - StatementCollector
+- Internals
+  - Paths
+  - Dispatch cache
+  - In-place lists
+- Invariants
+- Worked examples
+  - Strip all Expr statements that call plot
+  - Collect all string constants
+- Failure modes
+- See also
 
 # Mentions
 
-* [src/pynescript/ast](/code/src/pynescript/ast.md)
+- [src/pynescript/ast](/code/src/pynescript/ast.md)

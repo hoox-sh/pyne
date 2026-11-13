@@ -7,7 +7,7 @@ tags: [doc, docs, pyne, pynets]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/pynets/parity.mdx"
@@ -22,20 +22,20 @@ Repo path `docs/pyne/pynets/parity.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Commands
-  * What to compare
-* Internals
-* Invariants & edge cases
-* Worked examples
-  * Minimal Python vs TS
-  * Adding a builtin
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Commands
+  - What to compare
+- Internals
+- Invariants & edge cases
+- Worked examples
+  - Minimal Python vs TS
+  - Adding a builtin
+- Failure modes
+- See also
 
 # Mentions
 
-* [src/pynescript/ast/evaluator](/code/src/pynescript/ast/evaluator.md)
-* [tests](/code/tests.md)
+- [src/pynescript/ast/evaluator](/code/src/pynescript/ast/evaluator.md)
+- [tests](/code/tests.md)

@@ -2,4 +2,4 @@
 
 # Concepts
 
-* [README.md](README.md) - AXIS (charting PWA) lives in its own repository and on the HOOX site:.
+- [README.md](README.md) - AXIS (charting PWA) lives in its own repository and on the HOOX site:.

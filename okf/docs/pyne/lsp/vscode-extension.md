@@ -7,7 +7,7 @@ tags: [doc, docs, lsp, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-02T04:39:16Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/lsp/vscode-extension.mdx"
@@ -22,21 +22,21 @@ Repo path `docs/pyne/lsp/vscode-extension.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Package identity
-  * Language contribution
-  * Hosted pyne-lsp methods (not reimplemented in TypeScript)
-  * Activation
-  * Settings (pynescript.)
-  * Themes (AXIS Void / Hoox Signal / PYNE Volt)
-* Invariants and edge cases
-* Worked example — extension development
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Package identity
+  - Language contribution
+  - Hosted pyne-lsp methods (not reimplemented in TypeScript)
+  - Activation
+  - Settings (pynescript.)
+  - Themes (AXIS Void / Hoox Signal / PYNE Volt)
+- Invariants and edge cases
+- Worked example — extension development
+- Failure modes
+- See also
 
 # Mentions
 
-* [src/pynescript](/code/src/pynescript.md)
-* [src/pynescript/langserver](/code/src/pynescript/langserver.md)
+- [src/pynescript](/code/src/pynescript.md)
+- [src/pynescript/langserver](/code/src/pynescript/langserver.md)

@@ -7,7 +7,7 @@ tags: [doc, docs, pyne, reference]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-02T04:39:16Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/reference/missing-features.mdx"
@@ -22,23 +22,23 @@ Repo path `docs/pyne/reference/missing-features.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Recently completed (do not re-open as "missing")
-  * Still incomplete / by design
-  * Post-v6 launch themes (historical gap list)
-  * Corpus + performance snapshot
-* Internals
-* Invariants & edge cases
-* Worked examples
-  * Detect multiline string support
-  * Footprint mock call
-  * Incremental TA parity smoke
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Recently completed (do not re-open as "missing")
+  - Still incomplete / by design
+  - Post-v6 launch themes (historical gap list)
+  - Corpus + performance snapshot
+- Internals
+- Invariants & edge cases
+- Worked examples
+  - Detect multiline string support
+  - Footprint mock call
+  - Incremental TA parity smoke
+- Failure modes
+- See also
 
 # Mentions
 
-* [scripts](/code/scripts.md)
-* [tests](/code/tests.md)
+- [scripts](/code/scripts.md)
+- [tests](/code/tests.md)

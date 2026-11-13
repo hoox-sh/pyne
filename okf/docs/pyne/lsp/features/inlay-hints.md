@@ -7,7 +7,7 @@ tags: [doc, docs, lsp, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-01T19:12:12Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/lsp/features/inlay-hints.mdx"
@@ -22,13 +22,13 @@ Repo path `docs/pyne/lsp/features/inlay-hints.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Parameter-name hints
-* Internals
-  * Walk
-* Invariants and edge cases
-* Worked example
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Parameter-name hints
+- Internals
+  - Walk
+- Invariants and edge cases
+- Worked example
+- Failure modes
+- See also

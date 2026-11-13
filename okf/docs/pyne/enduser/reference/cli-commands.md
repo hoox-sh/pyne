@@ -7,7 +7,7 @@ tags: [doc, docs, enduser, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-26T09:58:21Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/enduser/reference/cli-commands.mdx"
@@ -22,35 +22,35 @@ Repo path `docs/pyne/enduser/reference/cli-commands.mdx`.
 
 # Outline
 
-* Abstract
-* Command index
-  * pyne check
-  * pyne format (fmt)
-  * pyne convert
-  * pyne parse-and-dump (dump / ast)
-  * pyne parse-and-unparse (unparse)
-  * pyne lint
-  * pyne compile
-  * pyne prewarm
-  * pyne run
-  * pyne optimize
-  * pyne data
-  * pyne corpus
-  * pyne runner
-  * pyne info (ls)
-  * pyne execute
-  * pyne symbols / parity / diagnostics / builtin
-  * pyne mcp
-  * Related: pyne-lsp (not a subcommand)
-* Internals
-* Invariants
-* Failure modes
-* See also
+- Abstract
+- Command index
+  - pyne check
+  - pyne format (fmt)
+  - pyne convert
+  - pyne parse-and-dump (dump / ast)
+  - pyne parse-and-unparse (unparse)
+  - pyne lint
+  - pyne compile
+  - pyne prewarm
+  - pyne run
+  - pyne optimize
+  - pyne data
+  - pyne corpus
+  - pyne runner
+  - pyne info (ls)
+  - pyne execute
+  - pyne symbols / parity / diagnostics / builtin
+  - pyne mcp
+  - Related: pyne-lsp (not a subcommand)
+- Internals
+- Invariants
+- Failure modes
+- See also
 
 # Mentions
 
-* [scripts](/code/scripts.md)
-* [src/pynescript](/code/src/pynescript.md)
-* [src/pynescript/ast](/code/src/pynescript/ast.md)
-* [src/pynescript/util](/code/src/pynescript/util.md)
-* [tests](/code/tests.md)
+- [scripts](/code/scripts.md)
+- [src/pynescript](/code/src/pynescript.md)
+- [src/pynescript/ast](/code/src/pynescript/ast.md)
+- [src/pynescript/util](/code/src/pynescript/util.md)
+- [tests](/code/tests.md)

@@ -7,7 +7,7 @@ tags: [doc, docs, pyne, reference]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/reference/numerical-validation.mdx"
@@ -22,24 +22,24 @@ Repo path `docs/pyne/reference/numerical-validation.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Acceptable thresholds (report)
-  * Metric definitions
-  * Category highlights
-  * Dual-host formula alignment (interpret ↔ compile)
-  * Error distribution (report aggregate)
-* Internals
-  * Methodology (report)
-* Invariants & edge cases
-* Worked examples
-  * Relative error helper
-  * Run TA tests
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Acceptable thresholds (report)
+  - Metric definitions
+  - Category highlights
+  - Dual-host formula alignment (interpret ↔ compile)
+  - Error distribution (report aggregate)
+- Internals
+  - Methodology (report)
+- Invariants & edge cases
+- Worked examples
+  - Relative error helper
+  - Run TA tests
+- Failure modes
+- See also
 
 # Mentions
 
-* [scripts](/code/scripts.md)
-* [tests](/code/tests.md)
+- [scripts](/code/scripts.md)
+- [tests](/code/tests.md)

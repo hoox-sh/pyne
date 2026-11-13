@@ -7,7 +7,7 @@ tags: [doc, docs, pinescript-implementation-status]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-02T04:39:16Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pinescript_implementation_status.md"
@@ -22,19 +22,19 @@ Repo path `docs/pinescript_implementation_status.md`.
 
 # Outline
 
-* Overview
-* Language Core
-* Builtins
-  * Technical Analysis (ta.)
-  * Strategy (strategy.)
-  * Collections
-  * Drawing and Plotting
-  * Other Namespaces
-* Strategy Broker
-* Compiler
-  * Numeric Mode (Numba)
-  * Object Mode
-  * Warm-Compile
-* Hosts
-* Data Providers
-* Corpus Performance
+- Overview
+- Language Core
+- Builtins
+  - Technical Analysis (ta.)
+  - Strategy (strategy.)
+  - Collections
+  - Drawing and Plotting
+  - Other Namespaces
+- Strategy Broker
+- Compiler
+  - Numeric Mode (Numba)
+  - Object Mode
+  - Warm-Compile
+- Hosts
+- Data Providers
+- Corpus Performance

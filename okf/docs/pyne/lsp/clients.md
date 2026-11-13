@@ -7,7 +7,7 @@ tags: [doc, docs, lsp, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/lsp/clients.mdx"
@@ -22,20 +22,20 @@ Repo path `docs/pyne/lsp/clients.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface — repo files
-* Neovim
-* Zed
-* Emacs
-* Helix
-* Sublime Text
-* Generic / Cursor
-* Internals
-* Invariants and edge cases
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface — repo files
+- Neovim
+- Zed
+- Emacs
+- Helix
+- Sublime Text
+- Generic / Cursor
+- Internals
+- Invariants and edge cases
+- Failure modes
+- See also
 
 # Mentions
 
-* [tests](/code/tests.md)
+- [tests](/code/tests.md)

@@ -7,7 +7,7 @@ tags: [api, doc, docs, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/api/endpoints/preview.mdx"
@@ -22,14 +22,14 @@ Repo path `docs/pyne/api/endpoints/preview.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Auth
-  * POST /preview/chart
-  * POST /preview/indicator
-* Internals
-* Invariants and edge cases
-* Worked example
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Auth
+  - POST /preview/chart
+  - POST /preview/indicator
+- Internals
+- Invariants and edge cases
+- Worked example
+- Failure modes
+- See also

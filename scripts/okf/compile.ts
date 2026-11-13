@@ -473,7 +473,7 @@ function mdDest(url: string): string {
 }
 
 function linkList(dirs: string[], label: (dir: string) => string): string {
-  return dirs.map((dir) => `* [${label(dir)}](${mdDest(`/${moduleId(dir)}.md`)})`).join('\n');
+  return dirs.map((dir) => `- [${label(dir)}](${mdDest(`/${moduleId(dir)}.md`)})`).join('\n');
 }
 
 function renderModule(mod: Module, now: string): string {
@@ -495,11 +495,11 @@ function renderModule(mod: Module, now: string): string {
   for (const file of mod.files) {
     const name = posix.basename(file.path);
     const exports = file.exports.length > 0 ? ` — ${file.exports.join(', ')}` : '';
-    lines.push(`* \`${name}\`${exports}`);
+    lines.push(`- \`${name}\`${exports}`);
   }
   if (mod.others.length > 0) {
     lines.push('', '# Other files', '');
-    for (const name of mod.others) lines.push(`* \`${name}\``);
+    for (const name of mod.others) lines.push(`- \`${name}\``);
   }
   if (mod.packages.length > 0) {
     lines.push('', '# Packages', '', mod.packages.map((name) => `\`${name}\``).join(', '));
@@ -536,7 +536,7 @@ function renderDoc(doc: DocConcept, now: string): string {
   if (doc.headings.length > 0) {
     lines.push('# Outline', '');
     for (const heading of doc.headings) {
-      lines.push(`${heading.depth === 3 ? '  ' : ''}* ${heading.text}`);
+      lines.push(`${heading.depth === 3 ? '  ' : ''}- ${heading.text}`);
     }
     lines.push('');
   }
@@ -585,7 +585,7 @@ function renderIndexes(items: Indexed[], human: Indexed[]): Map<string, string> 
     if (concepts.length > 0) {
       lines.push('# Concepts', '');
       for (const concept of concepts) {
-        lines.push(`* [${concept.title}](${mdDest(posix.basename(concept.path))}) - ${concept.description}`);
+        lines.push(`- [${concept.title}](${mdDest(posix.basename(concept.path))}) - ${concept.description}`);
       }
       lines.push('');
     }
@@ -594,7 +594,7 @@ function renderIndexes(items: Indexed[], human: Indexed[]): Map<string, string> 
       for (const child of children) {
         const nestedConcept = all.find((item) => item.path === `${child}.md`);
         const blurb = nestedConcept?.description ?? 'Nested concepts.';
-        lines.push(`* [${posix.basename(child)}](${mdDest(`${posix.basename(child)}/`)}) - ${blurb}`);
+        lines.push(`- [${posix.basename(child)}](${mdDest(`${posix.basename(child)}/`)}) - ${blurb}`);
       }
       lines.push('');
     }
@@ -629,12 +629,12 @@ function renderRoot(dirs: Set<string>, all: Indexed[]): string {
   for (const name of top) {
     lines.push(`# ${name[0]?.toUpperCase()}${name.slice(1)}`, '');
     if (dirs.has(name)) {
-      lines.push(`* [${name}](${mdDest(`${name}/`)}) - ${blurbs[name] ?? 'Concepts in this section.'}`);
+      lines.push(`- [${name}](${mdDest(`${name}/`)}) - ${blurbs[name] ?? 'Concepts in this section.'}`);
     }
     const rooted = all.filter((item) => item.path === `${name}.md` || posix.dirname(item.path) === name);
     if (!dirs.has(name)) {
       for (const item of rooted) {
-        lines.push(`* [${item.title}](${mdDest(posix.basename(item.path))}) - ${item.description}`);
+        lines.push(`- [${item.title}](${mdDest(posix.basename(item.path))}) - ${item.description}`);
       }
     }
     lines.push('');
@@ -646,7 +646,7 @@ function renderLog(previous: string | undefined, digest: string, now: string, mo
   if (previous?.includes(`digest \`${digest}\``)) return previous;
   const day = now.slice(0, 10);
   const verb = previous ? 'Update' : 'Initialization';
-  const bullet = `* **${verb}**: Compiled ${modules} code modules and ${docs} documents (digest \`${digest}\`).`;
+  const bullet = `- **${verb}**: Compiled ${modules} code modules and ${docs} documents (digest \`${digest}\`).`;
   const kept = previous
     ? previous
         .replace(/\r\n/g, '\n')
@@ -654,7 +654,7 @@ function renderLog(previous: string | undefined, digest: string, now: string, mo
         .replace(/^# .+\n+/, '')
         .trim()
     : '';
-  const sections = [`## ${day}`, bullet];
+  const sections = [`## ${day}`, '', bullet];
   if (kept) sections.push('', kept);
   return `# Bundle update log\n\n${sections.join('\n')}\n`;
 }

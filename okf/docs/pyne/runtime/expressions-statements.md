@@ -7,7 +7,7 @@ tags: [doc, docs, pyne, runtime]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/runtime/expressions-statements.mdx"
@@ -22,24 +22,24 @@ Repo path `docs/pyne/runtime/expressions-statements.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Expressions (ExpressionEvaluator)
-  * Names (NameEvaluator)
-  * Statements (StatementEvaluator)
-  * Calls and multi-dispatch
-* Internals
-* Invariants & edge cases
-* Worked examples
-  * Ternary and comparison chain
-  * User function with series
-  * once (August 2026)
-  * Intrabar rollback on realtime ticks (0.6.0)
-  * Method multi-dispatch sketch
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Expressions (ExpressionEvaluator)
+  - Names (NameEvaluator)
+  - Statements (StatementEvaluator)
+  - Calls and multi-dispatch
+- Internals
+- Invariants & edge cases
+- Worked examples
+  - Ternary and comparison chain
+  - User function with series
+  - once (August 2026)
+  - Intrabar rollback on realtime ticks (0.6.0)
+  - Method multi-dispatch sketch
+- Failure modes
+- See also
 
 # Mentions
 
-* [src/pynescript/ast/evaluator](/code/src/pynescript/ast/evaluator.md)
+- [src/pynescript/ast/evaluator](/code/src/pynescript/ast/evaluator.md)

@@ -7,7 +7,7 @@ tags: [doc, docs, pyne, pyne-worker]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/pyne-worker/deploy.mdx"
@@ -22,12 +22,12 @@ Repo path `docs/pyne/pyne-worker/deploy.mdx`.
 
 # Outline
 
-* Abstract
-* Quick start
-* Vendor sync
-* Script + 1m cron
-* See also
+- Abstract
+- Quick start
+- Vendor sync
+- Script + 1m cron
+- See also
 
 # Mentions
 
-* [scripts](/code/scripts.md)
+- [scripts](/code/scripts.md)

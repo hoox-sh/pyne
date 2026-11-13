@@ -7,7 +7,7 @@ tags: [doc, docs, enduser, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:38:48Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/enduser/guides/pro-api-usage.mdx"
@@ -22,28 +22,28 @@ Repo path `docs/pyne/enduser/guides/pro-api-usage.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Run the server (local)
-  * Health
-  * POST /run
-  * POST /run/batch
-  * POST /preview/chart (Pro)
-  * POST /preview/indicator (Pro)
-  * POST /backtest/quick (Pro)
-  * POST /compile/prewarm (free)
-  * Auth helpers
-* Internals (repo paths)
-* Invariants & edge cases
-* Worked examples
-  * Python requests client for /run
-  * Batch two indicators
-  * Bind published libraries
-  * Wire optional CCXT data source
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Run the server (local)
+  - Health
+  - POST /run
+  - POST /run/batch
+  - POST /preview/chart (Pro)
+  - POST /preview/indicator (Pro)
+  - POST /backtest/quick (Pro)
+  - POST /compile/prewarm (free)
+  - Auth helpers
+- Internals (repo paths)
+- Invariants & edge cases
+- Worked examples
+  - Python requests client for /run
+  - Batch two indicators
+  - Bind published libraries
+  - Wire optional CCXT data source
+- Failure modes
+- See also
 
 # Mentions
 
-* [src/pynescript/runtime](/code/src/pynescript/runtime.md)
+- [src/pynescript/runtime](/code/src/pynescript/runtime.md)

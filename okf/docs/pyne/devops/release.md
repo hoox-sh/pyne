@@ -7,7 +7,7 @@ tags: [devops, doc, docs, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-03T21:18:07Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/devops/release.mdx"
@@ -22,23 +22,23 @@ Repo path `docs/pyne/devops/release.mdx`.
 
 # Outline
 
-* Abstract
-* Conceptual model
-* Interface surface
-  * Triggers
-  * Jobs
-  * Environment
-  * Local make-side packaging
-* Internals
-  * Release asset contract (from release body)
-* Invariants & edge cases
-* Worked examples
-  * Cut a release
-  * Smoke-test a downloaded binary
-* Failure modes
-* See also
+- Abstract
+- Conceptual model
+- Interface surface
+  - Triggers
+  - Jobs
+  - Environment
+  - Local make-side packaging
+- Internals
+  - Release asset contract (from release body)
+- Invariants & edge cases
+- Worked examples
+  - Cut a release
+  - Smoke-test a downloaded binary
+- Failure modes
+- See also
 
 # Mentions
 
-* [scripts/build](/code/scripts/build.md)
-* [src/pynescript](/code/src/pynescript.md)
+- [scripts/build](/code/scripts/build.md)
+- [src/pynescript](/code/src/pynescript.md)

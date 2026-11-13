@@ -2,4 +2,4 @@
 
 # Concepts
 
-* [src/pynescript/ast/grammar/asdl/tool](tool.md) - ASDL Code Generation Tools.
+- [src/pynescript/ast/grammar/asdl/tool](tool.md) - ASDL Code Generation Tools.

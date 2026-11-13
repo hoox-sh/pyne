@@ -7,7 +7,7 @@ tags: [compatibility-guarantee, doc, docs]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-18T00:12:55Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/compatibility_guarantee.md"
@@ -22,18 +22,18 @@ Repo path `docs/compatibility_guarantee.md`.
 
 # Outline
 
-* Executive Summary
-* Compatibility Metrics
-* Grouped Map (distilled)
-* Key Guarantees (honestly scoped)
-* Known Limitations
-  * By design (not compatibility issues)
-* Verification Resources
-  * Run tests yourself
-* License
-* Contact
+- Executive Summary
+- Compatibility Metrics
+- Grouped Map (distilled)
+- Key Guarantees (honestly scoped)
+- Known Limitations
+  - By design (not compatibility issues)
+- Verification Resources
+  - Run tests yourself
+- License
+- Contact
 
 # Mentions
 
-* [scripts](/code/scripts.md)
-* [tests](/code/tests.md)
+- [scripts](/code/scripts.md)
+- [tests](/code/tests.md)

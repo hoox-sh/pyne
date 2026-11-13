@@ -7,7 +7,7 @@ tags: [api, doc, docs, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-10-14T09:03:07Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "docs/pyne/api/endpoints/stats.mdx"
@@ -22,16 +22,16 @@ Repo path `docs/pyne/api/endpoints/stats.mdx`.
 
 # Outline
 
-* Abstract
-* Interface surface
-  * Three metric kinds
-  * What is tracked
-* Relationship to other surfaces
-* Cardinality
-* Failure modes
-* Internals (map)
-* See also
+- Abstract
+- Interface surface
+  - Three metric kinds
+  - What is tracked
+- Relationship to other surfaces
+- Cardinality
+- Failure modes
+- Internals (map)
+- See also
 
 # Mentions
 
-* [src/pynescript](/code/src/pynescript.md)
+- [src/pynescript](/code/src/pynescript.md)

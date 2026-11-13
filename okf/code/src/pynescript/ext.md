@@ -7,7 +7,7 @@ tags: [code, ext, pynescript]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-09-24T03:40:25Z
+  at: 2026-11-13T13:46:36Z
 sources:
   - id: tree
     resource: "src/pynescript/ext"
@@ -18,10 +18,10 @@ okf_lock: generated
 
 # Files
 
-* `__init__.py`
-* `jupyter.py` — create_sample_data, display_indicator_table, evaluate_indicator, load_ipython_extension
+- `__init__.py`
+- `jupyter.py` — create_sample_data, display_indicator_table, evaluate_indicator, load_ipython_extension
 
 # Nested
 
-* [src/pynescript/ext/nautilus_trader](/code/src/pynescript/ext/nautilus_trader.md)
-* [src/pynescript/ext/pygments](/code/src/pynescript/ext/pygments.md)
+- [src/pynescript/ext/nautilus_trader](/code/src/pynescript/ext/nautilus_trader.md)
+- [src/pynescript/ext/pygments](/code/src/pynescript/ext/pygments.md)
