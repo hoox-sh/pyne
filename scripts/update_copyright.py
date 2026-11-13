@@ -307,10 +307,7 @@ def strip_leading_license_blocks(lines: list[str]) -> list[str]:
                     break
                 j += 1
             blob = "".join(block)
-            if any(
-                m in blob
-                for m in ("Copyright", "SPDX", "License", "jango", "Yunseong", "AGPL", "LGPL")
-            ):
+            if any(m in blob for m in ("Copyright", "SPDX", "License", "jango", "Yunseong", "AGPL", "LGPL")):
                 i = j
                 continue
             break

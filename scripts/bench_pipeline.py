@@ -380,8 +380,10 @@ def pipeline_cost_breakdown(
 def fmt_table(headers: list[str], rows: list[list[Any]]) -> str:
     cols = list(zip(*([headers] + [[str(c) for c in r] for r in rows]), strict=False))
     widths = [max(len(x) for x in col) for col in cols]
+
     def line(cells: list[str]) -> str:
         return "| " + " | ".join(c.ljust(w) for c, w in zip(cells, widths, strict=False)) + " |"
+
     out = [line(headers), "| " + " | ".join("-" * w for w in widths) + " |"]
     for r in rows:
         out.append(line([str(c) for c in r]))
@@ -431,7 +433,7 @@ def main() -> int:
                 [
                     name,
                     f"{r['median_ms']:.2f}",
-                    f"{r['ms_per_bar']*1000:.2f} µs",
+                    f"{r['ms_per_bar'] * 1000:.2f} µs",
                     f"{r['bars_per_sec']:.0f}",
                     f"{r['min_ms']:.2f}-{r['max_ms']:.2f}",
                 ]

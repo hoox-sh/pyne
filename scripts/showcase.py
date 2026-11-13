@@ -700,9 +700,7 @@ def _build_layout(state: FlowState) -> Any:
                     Text(st_s.strip(), style=f"bold {style}"),
                     Text(rest.strip(), style=_PYNE_MUTED),
                 )
-            body_parts.append(
-                Panel(recent, title=f"[{_PYNE_MUTED}]recent[/]", border_style=_PYNE_BORDER, height=8)
-            )
+            body_parts.append(Panel(recent, title=f"[{_PYNE_MUTED}]recent[/]", border_style=_PYNE_BORDER, height=8))
 
         # Top errors
         if cur.err_bucket:
@@ -711,9 +709,7 @@ def _build_layout(state: FlowState) -> Any:
             err_t.add_column("error", style=_PYNE_MUTED, overflow="ellipsis")
             for msg, n in cur.err_bucket.most_common(5):
                 err_t.add_row(str(n), msg[:90])
-            body_parts.append(
-                Panel(err_t, title=f"[bold {_PYNE_FAIL}]top errors[/]", border_style=_PYNE_FAIL)
-            )
+            body_parts.append(Panel(err_t, title=f"[bold {_PYNE_FAIL}]top errors[/]", border_style=_PYNE_FAIL))
 
     if state.message:
         body_parts.append(Text(f"\n  {state.message}", style=f"italic {_PYNE_FG}"))
@@ -742,9 +738,7 @@ def _build_layout(state: FlowState) -> Any:
                 f"{st.elapsed:.0f}s",
                 str(st.csv_path.name) if st.csv_path else "—",
             )
-        body_parts.append(
-            Panel(foot, title=f"[bold {_PYNE_OK}]pipeline[/]", border_style=_PYNE_OK)
-        )
+        body_parts.append(Panel(foot, title=f"[bold {_PYNE_OK}]pipeline[/]", border_style=_PYNE_OK))
 
     return Panel(
         Group(*body_parts),
@@ -980,18 +974,13 @@ def main() -> int:
                 ok_files = ok_files[: args.recompile_limit]
             mode = args.recompile_mode
             if not ok_files:
-                state.message = (
-                    f"phase 4 · recompile skip — no OK rows in {src_csv.name if src_csv else '?'}"
-                )
+                state.message = f"phase 4 · recompile skip — no OK rows in {src_csv.name if src_csv else '?'}"
                 st.total = 0
                 st.finished = True
                 st.csv_path = recompile_csv
                 refresh()
             else:
-                state.message = (
-                    f"phase 4 · recompile {len(ok_files):,} prior OK · mode={mode} "
-                    f"(from {src_csv.name})"
-                )
+                state.message = f"phase 4 · recompile {len(ok_files):,} prior OK · mode={mode} (from {src_csv.name})"
                 # Always fresh CSV for this verification pass
                 if recompile_csv.exists():
                     recompile_csv.unlink()
@@ -1008,10 +997,7 @@ def main() -> int:
                     on_progress=refresh,
                 )
                 _write_summary(st, sets, f"recompile_{mode}")
-                state.message = (
-                    f"recompile done · {st.ok:,}/{st.total:,} still OK "
-                    f"({st.rate_pct:.1f}%) · mode={mode}"
-                )
+                state.message = f"recompile done · {st.ok:,}/{st.total:,} still OK ({st.rate_pct:.1f}%) · mode={mode}"
                 refresh()
 
         # ---- REPORT ----

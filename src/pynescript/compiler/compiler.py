@@ -6610,7 +6610,9 @@ class CompilerVisitor(NodeVisitor):
                 return f"numba_vwap_anchor_inc({src}, vol_arr, {anc}, __bar_idx, {st})"
             # Default anchor is the daily session (reference Pine): reset the
             # cumulative window on each new UTC day of ``time_arr``.
-            anc = _arr("(1.0 if __bar_idx > 0 and (time_arr[__bar_idx] // 86400000) != (time_arr[__bar_idx - 1] // 86400000) else 0.0)")
+            anc = _arr(
+                "(1.0 if __bar_idx > 0 and (time_arr[__bar_idx] // 86400000) != (time_arr[__bar_idx - 1] // 86400000) else 0.0)"
+            )
             return f"numba_vwap_anchor_inc({src}, vol_arr, {anc}, __bar_idx, {st})"
         if func_name == "ta_max":
             # ta.max(source) → all-time high of series; ta.max(source, length) → highest

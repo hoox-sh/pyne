@@ -2845,9 +2845,7 @@ class InterpretSession:
         if self._last_open_broker_snap is not None:
             st = ev._strategy_state
             working = {
-                oid: o
-                for oid, o in getattr(st, "pending_orders", {}).items()
-                if getattr(o, "placed_bar", -1) == idx
+                oid: o for oid, o in getattr(st, "pending_orders", {}).items() if getattr(o, "placed_bar", -1) == idx
             }
             ev._strategy_state.restore(self._last_open_broker_snap)
             _ratchet_forming_trails(ev, self._col_high[idx], self._col_low[idx])

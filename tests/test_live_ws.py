@@ -348,14 +348,29 @@ def test_delta_and_full_frames_name_the_timeframe():
     would land values on the wrong bars.
     """
     full = make_full(
-        "ses-1", 1, "binance|spot|BTC/USDT|1m", 3, 0, "sub-1", interval="1m",
+        "ses-1",
+        1,
+        "binance|spot|BTC/USDT|1m",
+        3,
+        0,
+        "sub-1",
+        interval="1m",
         bar_times=[100, 160, 220],
     )
     assert full["payload"]["interval"] == "1m"
 
     delta = make_delta(
-        "ses-1", 2, 2, 3, 1, 0, "sub-1", times=[220], interval="1m",
-        plots=[[1.0]], series={"a": [1.0]},
+        "ses-1",
+        2,
+        2,
+        3,
+        1,
+        0,
+        "sub-1",
+        times=[220],
+        interval="1m",
+        plots=[[1.0]],
+        series={"a": [1.0]},
     )
     assert delta["payload"]["times"] == [220]
     assert delta["payload"]["interval"] == "1m"

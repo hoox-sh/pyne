@@ -190,11 +190,7 @@ def compile_onefile(jobs: int, *, target: str = "lsp") -> Path:
         raise FileNotFoundError(f"Entry not found: {entry}")
 
     product_version = _product_version(_package_version())
-    file_description = (
-        "PYNE Pine Script Language Server"
-        if target == "lsp"
-        else "PYNE Pine Script CLI"
-    )
+    file_description = "PYNE Pine Script Language Server" if target == "lsp" else "PYNE Pine Script CLI"
 
     # Use the *installed* package (pip -e .) so Nuitka keeps pynescript.ast
     # distinct from stdlib ast. Prepending src/ on PYTHONPATH made onefile
@@ -256,9 +252,7 @@ def compile_onefile(jobs: int, *, target: str = "lsp") -> Path:
 
     binary = _find_binary(output_dir, binary_name)
     if binary is None:
-        raise FileNotFoundError(
-            f"Binary not found under {output_dir} (looked for exact {binary_name} / .bin / .exe)"
-        )
+        raise FileNotFoundError(f"Binary not found under {output_dir} (looked for exact {binary_name} / .bin / .exe)")
 
     final_binary = DIST / binary.name
     DIST.mkdir(parents=True, exist_ok=True)

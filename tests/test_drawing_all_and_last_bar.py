@@ -98,8 +98,6 @@ class TestRiskMaxPositionSize:
         _eval(ev, "strategy.risk.max_position_size(1.0)")
         _eval(ev, "strategy.entry('L', strategy.long, 150.0)")
         # Bar start: the market entry fills at the next bar's open (100).
-        ev.context.update(
-            {"open": 100.0, "high": 100.0, "low": 100.0, "close": 100.0, "bar_index": 1, "time": 1000}
-        )
+        ev.context.update({"open": 100.0, "high": 100.0, "low": 100.0, "close": 100.0, "bar_index": 1, "time": 1000})
         ev.process_pending_orders()
         assert _eval(ev, "strategy.position_size") == 100.0

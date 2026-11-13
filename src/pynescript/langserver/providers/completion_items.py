@@ -409,8 +409,7 @@ def build_enum_name_items(enums: dict[str, dict[str, Any]], prefix: str = "") ->
                     value=format_docs_card(
                         kind="enum",
                         fence=f"enum {name}",
-                        body="User-defined enum."
-                        + (f" Members: {member_names}." if member_names else ""),
+                        body="User-defined enum." + (f" Members: {member_names}." if member_names else ""),
                     ),
                 ),
                 insert_text=name,

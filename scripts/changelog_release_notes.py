@@ -64,8 +64,7 @@ def extract_changelog_section(text: str, version: str) -> str:
             break
     if start is None:
         raise ValueError(
-            f"CHANGELOG.md has no ## [{ver}] section. "
-            "Move ## [Unreleased] into that heading before tagging."
+            f"CHANGELOG.md has no ## [{ver}] section. Move ## [Unreleased] into that heading before tagging."
         )
     end = len(lines)
     for j in range(start + 1, len(lines)):

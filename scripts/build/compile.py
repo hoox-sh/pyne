@@ -250,11 +250,7 @@ def nuitka_compile(
         jobs = max(1, multiprocessing.cpu_count() - 1)
 
     product_version = _product_version(_package_version())
-    file_description = (
-        "PYNE Pine Script Language Server"
-        if target == "lsp"
-        else "PYNE Pine Script CLI"
-    )
+    file_description = "PYNE Pine Script Language Server" if target == "lsp" else "PYNE Pine Script CLI"
 
     env = os.environ.copy()
     # Do not prepend src/ — that makes Nuitka onefile extract pynescript.ast

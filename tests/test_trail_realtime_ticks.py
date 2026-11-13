@@ -127,9 +127,7 @@ def test_ratchet_trails_survives_broker_restore_interpret() -> None:
     m["strategy.entry"](["L", "long", 1.0])
     # Bar 1 start: the market entry fills at the open; the trail is placed
     # against the open leg and arms from this bar's high (101 → stop 100).
-    e.context.update(
-        {"open": 100.5, "high": 101.0, "low": 100.2, "close": 100.8, "bar_index": 1, "time": 60_000}
-    )
+    e.context.update({"open": 100.5, "high": 101.0, "low": 100.2, "close": 100.8, "bar_index": 1, "time": 60_000})
     e.process_pending_orders(open_=100.5, high=101.0, low=100.2, close=100.8)
     m["strategy.exit"]([], {"id": "XT", "trail_offset": 100.0})
     trail = e._strategy_state.pending_orders["XT"]

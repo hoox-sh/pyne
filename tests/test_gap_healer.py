@@ -206,6 +206,7 @@ class TestSweep:
         monkeypatch.delenv("PYNE_GAP_HEAL", raising=False)
         assert gap_healer.start_gap_healer() is False
 
+
 class TestStats:
     def test_stats_reports_disarmed_and_sweep_counters(self, store, exchange, monkeypatch):
         before = gap_healer.stats()

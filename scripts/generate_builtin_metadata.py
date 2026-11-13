@@ -179,7 +179,11 @@ def _handler_params(name: str, handler: Any) -> list[str]:
     except Exception:
         names = None
     if names:
-        return [item for item in names if item not in {"args", "kwargs", "self", "extra", "_args"} and not item.startswith("_")]
+        return [
+            item
+            for item in names
+            if item not in {"args", "kwargs", "self", "extra", "_args"} and not item.startswith("_")
+        ]
     return []
 
 

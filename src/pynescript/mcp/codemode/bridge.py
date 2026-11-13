@@ -153,8 +153,7 @@ def create_handlers(
                     "confirm_token": issued_token,
                     "expires_at": expires_at,
                     "error": (
-                        f"{resolved} is destructive. Call again with {_CONFIRM_FIELD} "
-                        f"to confirm these exact arguments."
+                        f"{resolved} is destructive. Call again with {_CONFIRM_FIELD} to confirm these exact arguments."
                     ),
                     "hint": (
                         f"Pass the returned {_CONFIRM_FIELD} back on a second call; the "

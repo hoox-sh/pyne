@@ -2132,9 +2132,7 @@ def test_evaluator_strategy_entry():
     evaluator.visit(ast.body)
 
     # Bar start: the market entry fills at this bar's open.
-    evaluator.context.update(
-        {"open": 100.0, "high": 100.0, "low": 100.0, "close": 100.0, "bar_index": 1, "time": 1000}
-    )
+    evaluator.context.update({"open": 100.0, "high": 100.0, "low": 100.0, "close": 100.0, "bar_index": 1, "time": 1000})
     evaluator.process_pending_orders()
 
     state = evaluator._strategy_state
@@ -2148,9 +2146,7 @@ def test_evaluator_strategy_exit():
     ast_entry = helper.parse("strategy.entry('long_1', 'long', 1.0)", mode="eval")
     evaluator = NodeLiteralEvaluator()
     evaluator.visit(ast_entry.body)
-    evaluator.context.update(
-        {"open": 100.0, "high": 100.0, "low": 100.0, "close": 100.0, "bar_index": 1, "time": 1000}
-    )
+    evaluator.context.update({"open": 100.0, "high": 100.0, "low": 100.0, "close": 100.0, "bar_index": 1, "time": 1000})
     evaluator.process_pending_orders()
 
     assert evaluator._strategy_state.position_size == 1.0
@@ -2158,9 +2154,7 @@ def test_evaluator_strategy_exit():
     # Now exit
     ast_exit = helper.parse("strategy.exit('exit_1', 'long_1', 1.0)", mode="eval")
     evaluator.visit(ast_exit.body)
-    evaluator.context.update(
-        {"open": 100.0, "high": 100.0, "low": 100.0, "close": 100.0, "bar_index": 2, "time": 2000}
-    )
+    evaluator.context.update({"open": 100.0, "high": 100.0, "low": 100.0, "close": 100.0, "bar_index": 2, "time": 2000})
     evaluator.process_pending_orders()
 
     assert evaluator._strategy_state.position_direction == "flat"
@@ -2172,9 +2166,7 @@ def test_evaluator_strategy_close_all():
     ast_entry = helper.parse("strategy.entry('long_1', 'long', 5.0)", mode="eval")
     evaluator = NodeLiteralEvaluator()
     evaluator.visit(ast_entry.body)
-    evaluator.context.update(
-        {"open": 100.0, "high": 100.0, "low": 100.0, "close": 100.0, "bar_index": 1, "time": 1000}
-    )
+    evaluator.context.update({"open": 100.0, "high": 100.0, "low": 100.0, "close": 100.0, "bar_index": 1, "time": 1000})
     evaluator.process_pending_orders()
 
     assert evaluator._strategy_state.position_size == 5.0
@@ -2182,9 +2174,7 @@ def test_evaluator_strategy_close_all():
     # Close all
     ast_close = helper.parse("strategy.close_all()", mode="eval")
     evaluator.visit(ast_close.body)
-    evaluator.context.update(
-        {"open": 100.0, "high": 100.0, "low": 100.0, "close": 100.0, "bar_index": 2, "time": 2000}
-    )
+    evaluator.context.update({"open": 100.0, "high": 100.0, "low": 100.0, "close": 100.0, "bar_index": 2, "time": 2000})
     evaluator.process_pending_orders()
 
     assert evaluator._strategy_state.position_direction == "flat"

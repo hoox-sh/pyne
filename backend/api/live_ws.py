@@ -625,9 +625,7 @@ class LiveConnection:
         return list(bars) if isinstance(bars, list) else []
 
     @staticmethod
-    def _script_full_columns(
-        live_session: Any, bars: list[dict[str, Any]]
-    ) -> tuple[int, dict[str, Any]]:
+    def _script_full_columns(live_session: Any, bars: list[dict[str, Any]]) -> tuple[int, dict[str, Any]]:
         """Build script ``full`` columns keyed to the evaluated prefix length.
 
         ``LiveSession.result()`` reports ``count`` / ``times`` / plots for bars
@@ -660,6 +658,7 @@ class LiveConnection:
             "events": result.get("events"),
             "drawings": result.get("drawings"),
         }
+
     def _store_window(self, series_key: str, limit: int) -> list[dict[str, Any]]:
         if self._store_window_fn is not None:
             return list(self._store_window_fn(series_key, limit))
@@ -1363,9 +1362,7 @@ def _map_delta_plots(header: Any, payload: dict[str, Any]) -> bytes | None:
                 return None
             if not math.isfinite(value):
                 return None
-            tips.append(
-                {"key_hash": _axb1.fnv1a32(key), "kind": _axb1.ValueKind.UnitFloat64, "value": value}
-            )
+            tips.append({"key_hash": _axb1.fnv1a32(key), "kind": _axb1.ValueKind.UnitFloat64, "value": value})
     else:
         plots_list = payload.get("plots")
         if not isinstance(plots_list, list) or len(plots_list) != 1:
@@ -1379,9 +1376,7 @@ def _map_delta_plots(header: Any, payload: dict[str, Any]) -> bytes | None:
             return None
         if not math.isfinite(value):
             return None
-        tips.append(
-            {"key_hash": _axb1.fnv1a32("0"), "kind": _axb1.ValueKind.UnitFloat64, "value": value}
-        )
+        tips.append({"key_hash": _axb1.fnv1a32("0"), "kind": _axb1.ValueKind.UnitFloat64, "value": value})
     if not tips:
         return None
     return _axb1.encode_plot_tip(header, tips)

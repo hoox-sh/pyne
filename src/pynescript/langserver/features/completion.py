@@ -261,8 +261,7 @@ def _module_completion(
                 info = {
                     "name": symbol.name,
                     "members": [
-                        {"name": member.name, "value": None}
-                        for member in index.enum_member_symbols(symbol.name)
+                        {"name": member.name, "value": None} for member in index.enum_member_symbols(symbol.name)
                     ],
                 }
                 return build_enum_member_completion(info, member_prefix=member_prefix)
@@ -364,9 +363,7 @@ def _function_insert(node: ast.FunctionDef, *, snippets: bool) -> tuple[str, lsp
         params = params[1:]
     if not snippets or not params:
         return name, lsp.InsertTextFormat.PlainText
-    placeholders = ", ".join(
-        f"${{{index}:{getattr(param, 'name', 'arg')}}}" for index, param in enumerate(params, 1)
-    )
+    placeholders = ", ".join(f"${{{index}:{getattr(param, 'name', 'arg')}}}" for index, param in enumerate(params, 1))
     return f"{name}({placeholders})", lsp.InsertTextFormat.Snippet
 
 
@@ -428,9 +425,7 @@ def _member_items(members: list[Symbol], prefix: str, *, snippets: bool) -> list
                     value=format_docs_card(
                         kind=symbol.kind,
                         fence=symbol.signature or symbol.type_label or symbol.name,
-                        body="\n\n".join(symbol.annotations)
-                        if symbol.annotations
-                        else f"User-defined {symbol.kind}.",
+                        body="\n\n".join(symbol.annotations) if symbol.annotations else f"User-defined {symbol.kind}.",
                     ),
                 ),
                 insert_text=insert_text,

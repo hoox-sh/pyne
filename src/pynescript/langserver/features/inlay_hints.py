@@ -91,6 +91,7 @@ _WELL_KNOWN_PARAMS: dict[str, tuple[str, ...]] = {
 # from context). 2-arg forms keep the map above except ``ta.bbw(length, mult)``.
 _LENGTH_ONLY_1ARG: frozenset[str] = frozenset({"ta.adx", "ta.cci", "ta.mfi", "ta.bbw"})
 
+
 def handle_inlay_hints(
     params: lsp.InlayHintParams,
     source: str | None,

@@ -159,11 +159,7 @@ class WorkspaceIndex:
             if not root.is_dir():
                 continue
             for dirpath, dirnames, filenames in os.walk(root):
-                dirnames[:] = [
-                    name
-                    for name in dirnames
-                    if name not in _IGNORED_DIRS and not name.startswith(".")
-                ]
+                dirnames[:] = [name for name in dirnames if name not in _IGNORED_DIRS and not name.startswith(".")]
                 for filename in filenames:
                     if Path(filename).suffix.lower() not in PINE_SUFFIXES:
                         continue

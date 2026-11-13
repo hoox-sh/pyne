@@ -145,6 +145,7 @@ _KNOWN_ANNOTATION_TAGS = frozenset(
 # Tags whose content is the node's description (function / type / variable).
 _DESCRIPTION_TAGS = frozenset({"function", "type", "variable", "description", "enum"})
 
+
 def _split_annotation_tag(body: str) -> tuple[str, str] | None:
     """Parse ``@tag rest`` from a stripped comment line.
 

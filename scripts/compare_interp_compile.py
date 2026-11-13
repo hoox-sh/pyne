@@ -322,9 +322,7 @@ def series_allclose(
             fx, fy = _to_float_or_none(x), _to_float_or_none(y)
             if fx is None and fy is None:
                 if x != y:
-                    return False, format_mismatch_detail(
-                        index=i, left=x, right=y, kind="non-numeric"
-                    )
+                    return False, format_mismatch_detail(index=i, left=x, right=y, kind="non-numeric")
                 aa[i] = 0.0
                 bb[i] = 0.0
                 continue
@@ -508,8 +506,10 @@ def compare_series_maps(
 
     only_keys = only_interp + only_compile
     fill_background_only = (
-        bool(only_keys) or bool(fill_value_diffs)
-    ) and all(is_fill_background_key(k) for k in only_keys) and not mismatches
+        (bool(only_keys) or bool(fill_value_diffs))
+        and all(is_fill_background_key(k) for k in only_keys)
+        and not mismatches
+    )
 
     return {
         "only_interp": only_interp,
@@ -812,9 +812,7 @@ _SUMMARY_BUCKET_ORDER = (
 )
 
 # Statuses that do not fail the process by default (unless --strict-*).
-_NON_FATAL_STATUSES = frozenset(
-    {"OK", "fill_background_only", "both_error_same", "expected_error"}
-)
+_NON_FATAL_STATUSES = frozenset({"OK", "fill_background_only", "both_error_same", "expected_error"})
 _ERROR_STATUSES = frozenset(
     {
         "interp_error",
@@ -1019,8 +1017,7 @@ def main(argv: list[str] | None = None) -> int:
             results.append(r)
             if i % max(1, args.progress_every) == 0 or i == len(payloads):
                 print(
-                    f"  [{i}/{len(payloads)}] {r.get('status'):22} {r.get('file')} "
-                    f"({r.get('ms_total')}ms)",
+                    f"  [{i}/{len(payloads)}] {r.get('status'):22} {r.get('file')} ({r.get('ms_total')}ms)",
                     flush=True,
                 )
     else:
@@ -1041,8 +1038,7 @@ def main(argv: list[str] | None = None) -> int:
             done += 1
             if done % max(1, args.progress_every) == 0 or done == n_payloads:
                 print(
-                    f"  [{done}/{n_payloads}] {r.get('status'):22} "
-                    f"{r.get('file')} ({r.get('ms_total')}ms)",
+                    f"  [{done}/{n_payloads}] {r.get('status'):22} {r.get('file')} ({r.get('ms_total')}ms)",
                     flush=True,
                 )
 
@@ -1061,9 +1057,7 @@ def main(argv: list[str] | None = None) -> int:
             remaining: dict[int, tuple[mp.Process, str, float]] = {}
             for payload in batch:
                 path_str = str(payload[0])
-                p = ctx.Process(
-                    target=_proc_target, args=(payload, result_q), daemon=True
-                )
+                p = ctx.Process(target=_proc_target, args=(payload, result_q), daemon=True)
                 p.start()
                 remaining[id(p)] = (p, path_str, time.perf_counter())
 
@@ -1142,22 +1136,16 @@ def main(argv: list[str] | None = None) -> int:
         print("\nFill/background-only structural (first 10):", flush=True)
         for r in fill_only[:10]:
             print(
-                f"  {r.get('file')}: only_interp={r.get('only_interp')[:5]} "
-                f"only_compile={r.get('only_compile')[:5]}",
+                f"  {r.get('file')}: only_interp={r.get('only_interp')[:5]} only_compile={r.get('only_compile')[:5]}",
                 flush=True,
             )
 
-    structural = [
-        r
-        for r in results
-        if r.get("status") == "OK" and (r.get("only_interp") or r.get("only_compile"))
-    ]
+    structural = [r for r in results if r.get("status") == "OK" and (r.get("only_interp") or r.get("only_compile"))]
     if structural:
         print("\nOther structural key diffs (warning, first 10):", flush=True)
         for r in structural[:10]:
             print(
-                f"  {r.get('file')}: only_interp={r.get('only_interp')[:5]} "
-                f"only_compile={r.get('only_compile')[:5]}",
+                f"  {r.get('file')}: only_interp={r.get('only_interp')[:5]} only_compile={r.get('only_compile')[:5]}",
                 flush=True,
             )
 

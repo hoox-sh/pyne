@@ -85,16 +85,14 @@ def convert_positions(
         return _convert_folding_range(value, lines, to_codepoint)
     if isinstance(value, list):
         converted_items = [
-            convert_positions(item, lines, to_codepoint=to_codepoint, lines_for_uri=lines_for_uri)
-            for item in value
+            convert_positions(item, lines, to_codepoint=to_codepoint, lines_for_uri=lines_for_uri) for item in value
         ]
         if all(new is old for new, old in zip(converted_items, value, strict=True)):
             return value
         return converted_items
     if isinstance(value, tuple):
         return tuple(
-            convert_positions(item, lines, to_codepoint=to_codepoint, lines_for_uri=lines_for_uri)
-            for item in value
+            convert_positions(item, lines, to_codepoint=to_codepoint, lines_for_uri=lines_for_uri) for item in value
         )
     if isinstance(value, dict):
         converted_values = {
