@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Diagnostics"
 description: "Push and pull diagnostics: parse errors, lint rules, opt-in semantic checks, severity mapping, and W001/W002/W101/W104/W105/C002 QuickFixes."
 ---
@@ -50,10 +68,10 @@ Triggered from `server.py` on `didOpen`, `didChange`, `didSave`. Close clears di
 
 ### Pull
 
-| Method | Response |
-| --- | --- |
+| Method                    | Response                                                                              |
+| ------------------------- | ------------------------------------------------------------------------------------- |
 | `textDocument/diagnostic` | `RelatedFullDocumentDiagnosticReport` with `kind=full`, `result_id="{uri}-{version}"` |
-| `workspace/diagnostic` | One `WorkspaceFullDocumentDiagnosticReport` per open URI |
+| `workspace/diagnostic`    | One `WorkspaceFullDocumentDiagnosticReport` per open URI                              |
 
 Capability: `diagnostic_provider` with `identifier="pynescript-diagnostics"`, `inter_file_dependencies=False`.
 
@@ -61,13 +79,13 @@ Pull handlers re-parse when the cached AST belongs to an older document version,
 
 ### Diagnostic shape
 
-| Field | Value |
-| --- | --- |
-| `range` | Exact token range when the rule supplies `column`/`end_column`; otherwise line start to line end (capped) |
-| `severity` | error / warning / information / hint |
-| `message` | Human-readable lint or parse message |
-| `source` | `"pyne"` |
-| `code` | Lint code (e.g. `W001`) or `E001` for parse errors |
+| Field      | Value                                                                                                     |
+| ---------- | --------------------------------------------------------------------------------------------------------- |
+| `range`    | Exact token range when the rule supplies `column`/`end_column`; otherwise line start to line end (capped) |
+| `severity` | error / warning / information / hint                                                                      |
+| `message`  | Human-readable lint or parse message                                                                      |
+| `source`   | `"pyne"`                                                                                                  |
+| `code`     | Lint code (e.g. `W001`) or `E001` for parse errors                                                        |
 
 The richer conversion in `features/diagnostics.py` also supports:
 
@@ -78,11 +96,11 @@ Push and pull both call `Workspace._lint_warnings_to_diagnostics`, which delegat
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `src/pynescript/langserver/workspace.py` | `_parse_and_lint`, E001 append, incremental edits |
+| Path                                                | Role                                                         |
+| --------------------------------------------------- | ------------------------------------------------------------ |
+| `src/pynescript/langserver/workspace.py`            | `_parse_and_lint`, E001 append, incremental edits            |
 | `src/pynescript/langserver/features/diagnostics.py` | Lint conversion, C001 noise filter, tags, `create_quick_fix` |
-| `src/pynescript/ast/linter.py` | Rule engine producing `LintWarning` |
+| `src/pynescript/ast/linter.py`                      | Rule engine producing `LintWarning`                          |
 
 ### Severity map
 
@@ -115,12 +133,12 @@ to `true` to show them. Correctness diagnostics are unaffected.
 `pynescript.diagnostics.semantic` (default `false`) enables checks that are
 decidable from declarations in the current file:
 
-| Code | Finding |
-| --- | --- |
-| `S001` | Unknown field/method on a user `type`, or unknown member on a user `enum` |
-| `S002` | User-function call mismatch: too many positional arguments, missing required arguments, unknown named argument |
+| Code   | Finding                                                                                                                                           |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `S001` | Unknown field/method on a user `type`, or unknown member on a user `enum`                                                                         |
+| `S002` | User-function call mismatch: too many positional arguments, missing required arguments, unknown named argument                                    |
 | `S003` | Value is too weak for a declared qualifier or base (`simple float x = close`, `const int n = bar_index`, `series` passed to a `simple` parameter) |
-| `S004` | `na` has no contextual type (`x = na`). `na` beside a typed operand, or under an annotation, adopts that type and is not reported |
+| `S004` | `na` has no contextual type (`x = na`). `na` beside a typed operand, or under an annotation, adopts that type and is not reported                 |
 
 Builtin calls, member access on inferred-but-unknown receivers, and method
 calls are deliberately skipped. The catalog is incomplete for some host
@@ -180,21 +198,21 @@ On a hard parse failure at line 3, expect:
 
 ```json
 {
-  "severity": 1,
-  "code": "E001",
-  "source": "pyne",
-  "message": "<exception text>"
+    "severity": 1,
+    "code": "E001",
+    "source": "pyne",
+    "message": "<exception text>"
 }
 ```
 
 ## Failure modes
 
-| Symptom | Cause |
-| --- | --- |
-| Stale squiggles after edit | Client using full-document sync incorrectly, or version mismatch |
+| Symptom                                                           | Cause                                                                                                              |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Stale squiggles after edit                                        | Client using full-document sync incorrectly, or version mismatch                                                   |
 | Stale squiggles **only** in a pull-capable client (VS Code, AXIS) | Client did not answer `workspace/diagnostic/refresh`; check `workspace.diagnostics.refreshSupport` in `initialize` |
-| Empty diagnostics on broken file | Unexpected: parse errors should still emit E001 — check client filter on `source` |
-| No workspace pull results | Only **open** documents are tracked; closed files are absent |
+| Empty diagnostics on broken file                                  | Unexpected: parse errors should still emit E001 — check client filter on `source`                                  |
+| No workspace pull results                                         | Only **open** documents are tracked; closed files are absent                                                       |
 
 ## See also
 

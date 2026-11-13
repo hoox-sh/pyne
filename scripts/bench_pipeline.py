@@ -43,8 +43,10 @@ import pstats
 import statistics
 import sys
 import time
+
 from pathlib import Path
 from typing import Any
+
 
 # Prefer repo layout
 _REPO = Path(__file__).resolve().parents[1]
@@ -188,7 +190,8 @@ def _bench(fn, warmup: int = 2, iters: int = 7) -> dict[str, float]:
 
 
 def bench_parse_unparse(size_scripts: dict[str, tuple[str, str, int]]) -> dict[str, Any]:
-    from pynescript.ast.helper import parse, unparse
+    from pynescript.ast.helper import parse
+    from pynescript.ast.helper import unparse
 
     results: dict[str, Any] = {}
     for label, (name, src, nbytes) in size_scripts.items():
@@ -227,7 +230,7 @@ def bench_interpret(
     for name, src in scripts.items():
         rt = Runtime(symbol="BENCH")
 
-        def run_once(source=src, runtime=rt):
+        def run_once(source=src, runtime=rt, name=name):
             out = runtime.run(source, ohlcv, mode="interpret")
             if isinstance(out, dict) and out.get("error"):
                 raise RuntimeError(f"{name}: {out['error']}")
@@ -259,7 +262,9 @@ def bench_compile_execute(
 ) -> dict[str, Any]:
     import numpy as np
 
-    from pynescript.compiler.engine import clear_compile_cache, compile_script, has_numba
+    from pynescript.compiler.engine import clear_compile_cache
+    from pynescript.compiler.engine import compile_script
+    from pynescript.compiler.engine import has_numba
 
     results: dict[str, Any] = {"has_numba": has_numba()}
     ohlcv = _make_ohlcv(n_bars)
@@ -313,7 +318,7 @@ def bench_compile_execute(
                 if isinstance(out, dict) and out.get("error"):
                     raise RuntimeError(out["error"])
             host_stats = _bench(
-                lambda: rt.run(src, ohlcv, mode="compile"),
+                lambda rt=rt, src=src: rt.run(src, ohlcv, mode="compile"),
                 warmup=1,
                 iters=5,
             )

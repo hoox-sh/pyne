@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Navigation"
 description: "Go-to-definition, find-references, document highlight, rename across open documents, document outline, and workspace symbol search over the ASDL AST."
 ---
@@ -45,20 +63,20 @@ flowchart TB
 
 ## Interface surface
 
-| Method | Handler | Returns |
-| --- | --- | --- |
-| `textDocument/definition` | `definitions.handle_definition` | `list[Location] \| None` |
-| `textDocument/declaration` | `definitions.handle_declaration` | `list[Location] \| None` (same target as definition) |
-| `textDocument/typeDefinition` | `definitions.handle_type_definition` | `list[Location] \| None` (UDT declaration) |
-| `textDocument/prepareCallHierarchy` | `call_hierarchy.handle_prepare_call_hierarchy` | `list[CallHierarchyItem] \| None` |
-| `callHierarchy/incomingCalls` | `call_hierarchy.handle_incoming_calls` | `list[CallHierarchyIncomingCall]` |
-| `callHierarchy/outgoingCalls` | `call_hierarchy.handle_outgoing_calls` | `list[CallHierarchyOutgoingCall]` |
-| `textDocument/references` | `references.handle_references` | `list[Location]` (possibly empty) |
-| `textDocument/documentHighlight` | `highlight.handle_document_highlight` | `list[DocumentHighlight]` |
-| `textDocument/prepareRename` | `rename.handle_prepare_rename` | `Range \| None` |
-| `textDocument/rename` | `rename.handle_rename` | `WorkspaceEdit \| None` (all open documents) |
-| `textDocument/documentSymbol` | `symbols.handle_document_symbols` | `list[DocumentSymbol]` |
-| `workspace/symbol` | `server._collect_workspace_symbols` | `list[SymbolInformation]` |
+| Method                              | Handler                                        | Returns                                              |
+| ----------------------------------- | ---------------------------------------------- | ---------------------------------------------------- |
+| `textDocument/definition`           | `definitions.handle_definition`                | `list[Location] \| None`                             |
+| `textDocument/declaration`          | `definitions.handle_declaration`               | `list[Location] \| None` (same target as definition) |
+| `textDocument/typeDefinition`       | `definitions.handle_type_definition`           | `list[Location] \| None` (UDT declaration)           |
+| `textDocument/prepareCallHierarchy` | `call_hierarchy.handle_prepare_call_hierarchy` | `list[CallHierarchyItem] \| None`                    |
+| `callHierarchy/incomingCalls`       | `call_hierarchy.handle_incoming_calls`         | `list[CallHierarchyIncomingCall]`                    |
+| `callHierarchy/outgoingCalls`       | `call_hierarchy.handle_outgoing_calls`         | `list[CallHierarchyOutgoingCall]`                    |
+| `textDocument/references`           | `references.handle_references`                 | `list[Location]` (possibly empty)                    |
+| `textDocument/documentHighlight`    | `highlight.handle_document_highlight`          | `list[DocumentHighlight]`                            |
+| `textDocument/prepareRename`        | `rename.handle_prepare_rename`                 | `Range \| None`                                      |
+| `textDocument/rename`               | `rename.handle_rename`                         | `WorkspaceEdit \| None` (all open documents)         |
+| `textDocument/documentSymbol`       | `symbols.handle_document_symbols`              | `list[DocumentSymbol]`                               |
+| `workspace/symbol`                  | `server._collect_workspace_symbols`            | `list[SymbolInformation]`                            |
 
 Capabilities: `definition_provider`, `declaration_provider`, `type_definition_provider`, `call_hierarchy_provider`, `references_provider`, `document_highlight_provider`, `rename_provider` (`prepare_provider=True`), document + workspace symbol options with work-done progress flags.
 
@@ -109,12 +127,12 @@ constructors are skipped — they have no Pine body to navigate to.
 
 Hierarchical:
 
-| AST | SymbolKind | Children |
-| --- | --- | --- |
-| `FunctionDef` | Function | Variables assigned inside body |
-| `TypeDef` | Class | Fields (`Assign` targets) |
-| `EnumDef` | Enum | Members |
-| Top-level `Assign` | Variable | — |
+| AST                | SymbolKind | Children                       |
+| ------------------ | ---------- | ------------------------------ |
+| `FunctionDef`      | Function   | Variables assigned inside body |
+| `TypeDef`          | Class      | Fields (`Assign` targets)      |
+| `EnumDef`          | Enum       | Members                        |
+| Top-level `Assign` | Variable   | —                              |
 
 Function `detail` is a coarse `function name()` string; assignments may show callee module attribute as detail when RHS is a call.
 
@@ -124,14 +142,14 @@ Flat `SymbolInformation` for functions/methods, types, enums + members, imports,
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `features/definitions.py` | Go-to-definition visitor |
-| `features/references.py` | Find-all-references visitor |
-| `features/highlight.py` | Document highlight + ident occurrence collector |
-| `features/rename.py` | prepareRename (cursor document) + rename across open documents |
-| `features/symbols.py` | Document outline |
-| `server.py` | Workspace symbol aggregation |
+| Path                      | Role                                                           |
+| ------------------------- | -------------------------------------------------------------- |
+| `features/definitions.py` | Go-to-definition visitor                                       |
+| `features/references.py`  | Find-all-references visitor                                    |
+| `features/highlight.py`   | Document highlight + ident occurrence collector                |
+| `features/rename.py`      | prepareRename (cursor document) + rename across open documents |
+| `features/symbols.py`     | Document outline                                               |
+| `server.py`               | Workspace symbol aggregation                                   |
 
 Handlers accept the **version-matched AST** (`tree=doc.valid_ast` from `server.py`). They re-parse from `source` only when `tree` is omitted (tests / isolated calls). Pass `tree=None` after a failed parse so the handler does not retry.
 
@@ -160,11 +178,11 @@ v = mySma(close, length)
 
 ## Failure modes
 
-| Symptom | Cause |
-| --- | --- |
-| Jump lands column 0 | Expected with current Location encoding |
+| Symptom                                                            | Cause                                                                                                                                                                    |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Jump lands column 0                                                | Expected with current Location encoding                                                                                                                                  |
 | Missing references inside function when targeting another function | `visit_FunctionDef` only walks body when the def name **differs** from target — intentional for declaration handling; calls inside same-named functions are a known edge |
-| Empty outline | Parse error or empty source |
+| Empty outline                                                      | Parse error or empty source                                                                                                                                              |
 
 ## See also
 

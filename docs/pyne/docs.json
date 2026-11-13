@@ -237,11 +237,7 @@
           },
           {
             "group": "pyne-agent-worker",
-            "pages": [
-              "agent/index",
-              "agent/chat",
-              "agent/deploy"
-            ]
+            "pages": ["agent/index", "agent/chat", "agent/deploy"]
           }
         ]
       }
