@@ -40,7 +40,9 @@ GET /stats
 {
   "status": "ok",
   "service": "pynescript-pro-api",
-  "version": "1.0.0",
+  "version": "0.6.35",
+  "api_version": "1.0.0",
+  "git_sha": "abc1234",
   "timestamp": 1791968289,
   "debug": { "env": "PYNE_DEBUG", "enabled": true, "scopes": [], "level": "DEBUG" },
   "counters":   { "run.total": { "total": 4 }, "run.by_mode": { "total": 2, "by": { "auto": 2 } } },
@@ -53,6 +55,8 @@ GET /stats
   "notes": "in-process counters; reset on worker restart"
 }
 ```
+
+`version` is the running `hoox-pyne` package version (same value `/health` reports); `api_version` is the frozen API-envelope label and `git_sha` the deployed commit.
 
 ### Three metric kinds
 

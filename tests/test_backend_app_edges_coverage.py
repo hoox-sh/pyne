@@ -66,6 +66,23 @@ class TestStatsAndNotFound:
         body = resp.json
         assert body.get("status") in {"healthy", "ok", "up"} or "version" in body or "features" in body
 
+    def test_health_reports_package_version(self, client: FlaskClient, monkeypatch) -> None:
+        """``/health`` identifies the live build, not the frozen API label."""
+        from pynescript.__about__ import __version__
+
+        monkeypatch.setenv("GIT_SHA", "abc1234")
+        body = client.get("/health").json
+        assert body["version"] == __version__
+        assert body["api_version"] == "1.0.0"
+        assert body["git_sha"] == "abc1234"
+
+    def test_stats_reports_package_version(self, client: FlaskClient) -> None:
+        from pynescript.__about__ import __version__
+
+        body = client.get("/stats").json
+        assert body["version"] == __version__
+        assert body["api_version"] == "1.0.0"
+
     def test_unknown_path_json_404(self, client: FlaskClient) -> None:
         resp = client.get("/no/such/endpoint/xyz")
         assert resp.status_code == 404

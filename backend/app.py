@@ -815,6 +815,27 @@ def _execute_run_payload_inner(
     return resp, 200
 
 
+def _package_version() -> str:
+    """Installed ``hoox-pyne`` release, or ``"unknown"`` if it cannot be read.
+
+    ``/health`` is what ops polls to confirm *which build* is live, so it must
+    report the package version (``VERSION`` / ``__about__.__version__``) rather
+    than a frozen API-envelope label. The envelope label stays available as
+    ``api_version``.
+    """
+    try:
+        from pynescript.__about__ import __version__
+
+        return str(__version__)
+    except Exception:  # health must stay up
+        return "unknown"
+
+
+def _git_sha() -> str:
+    """Short commit baked in by the deploy (compose ``GIT_SHA``), else ``unknown``."""
+    return (os.environ.get("GIT_SHA") or "unknown").strip() or "unknown"
+
+
 def _free_tier_limits_flag() -> bool:
     """Whether unauthenticated /run guards are opted in (off by default)."""
     from backend.middleware.free_limits import free_tier_limits_enabled
@@ -923,7 +944,9 @@ def _health_payload() -> dict[str, Any]:
     return {
         "status": "healthy",
         "service": "pynescript-pro-api",
-        "version": "1.0.0",
+        "version": _package_version(),
+        "api_version": "1.0.0",
+        "git_sha": _git_sha(),
         "timestamp": int(time.time()),
         "websocket": sock is not None,
         "features": {
@@ -976,7 +999,9 @@ def get_stats():
         {
             "status": "ok",
             "service": "pynescript-pro-api",
-            "version": "1.0.0",
+            "version": _package_version(),
+            "api_version": "1.0.0",
+            "git_sha": _git_sha(),
             "timestamp": int(time.time()),
             "debug": debug_report(),
             "counters": snapshot["counters"],

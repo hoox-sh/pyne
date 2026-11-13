@@ -75,7 +75,9 @@ Environment:
 {
   "status": "healthy",
   "service": "pynescript-pro-api",
-  "version": "1.0.0",
+  "version": "0.6.35",
+  "api_version": "1.0.0",
+  "git_sha": "abc1234",
   "timestamp": 0,
   "websocket": true,
   "features": {
@@ -96,7 +98,7 @@ Environment:
 }
 ```
 
-`version` here is the **API service** label (`1.0.0`), not the `hoox-pyne` package version.
+`version` is the running **`hoox-pyne` package version** (`VERSION` / `pynescript.__about__.__version__`), so a probe tells you which release is live. `api_version` keeps the frozen API-envelope label (`1.0.0`) for clients that pinned it, and `git_sha` is the short commit baked in by the deploy (`GIT_SHA`; `unknown` outside Docker).
 
 ### Hard limits
 
