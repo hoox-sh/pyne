@@ -27,6 +27,7 @@ import json
 from typing import Any
 
 from pynescript import __version__
+from pynescript.mcp.catalog import TOOL_RISK
 from pynescript.mcp.ops.axb1 import verify_axb1_vectors
 from pynescript.mcp.ops.builtins import list_builtins
 from pynescript.mcp.ops.builtins import list_facade_templates
@@ -484,41 +485,45 @@ def create_server() -> Any:
     net = ToolAnnotations(read_only_hint=True, open_world_hint=True)
     write = ToolAnnotations(read_only_hint=False, open_world_hint=True, destructive_hint=True, idempotent_hint=False)
 
-    for fn, hint in (
-        (pyne_info, ro),
-        (pyne_check, ro),
-        (pyne_format, ro),
-        (pyne_convert, ro),
-        (pyne_dump, ro),
-        (pyne_unparse, ro),
-        (pyne_lint, ro),
-        (pyne_compile, ro),
-        (pyne_prewarm, ro),
-        (pyne_run, ro),
-        (pyne_optimize, ro),
-        (pyne_parse, ro),
-        (pyne_symbols, ro),
-        (pyne_execute, ro),
-        (pyne_parity, ro),
-        (pyne_hover, ro),
-        (pyne_complete, ro),
-        (pyne_signature, ro),
-        (pyne_builtin, ro),
-        (pyne_diagnostics, ro),
-        (pyne_axb1, ro),
-        (pyne_sessions, ro),
-        (pyne_data, net),
-        (pyne_download_builtins, net),
-        (pyne_runner_list, net),
-        (pyne_runner_show, net),
-        (pyne_runner_jobs, net),
-        (pyne_runner_history, net),
-        (pyne_runner_deploy, write),
-        (pyne_runner_delete, write),
-        (pyne_runner_tick, write),
-        (pyne_runner_enable, write),
-        (pyne_runner_disable, write),
+    # Order is part of the public tool list; keep it stable. The hint comes
+    # from the shared risk map so Code Mode and the direct tools cannot drift.
+    for fn in (
+        pyne_info,
+        pyne_check,
+        pyne_format,
+        pyne_convert,
+        pyne_dump,
+        pyne_unparse,
+        pyne_lint,
+        pyne_compile,
+        pyne_prewarm,
+        pyne_run,
+        pyne_optimize,
+        pyne_parse,
+        pyne_symbols,
+        pyne_execute,
+        pyne_parity,
+        pyne_hover,
+        pyne_complete,
+        pyne_signature,
+        pyne_builtin,
+        pyne_diagnostics,
+        pyne_axb1,
+        pyne_sessions,
+        pyne_data,
+        pyne_download_builtins,
+        pyne_runner_list,
+        pyne_runner_show,
+        pyne_runner_jobs,
+        pyne_runner_history,
+        pyne_runner_deploy,
+        pyne_runner_delete,
+        pyne_runner_tick,
+        pyne_runner_enable,
+        pyne_runner_disable,
     ):
+        risk = TOOL_RISK[fn.__name__]
+        hint = ro if risk == "read" else net if risk == "network" else write
         mcp.add_tool(fn, annotations=hint)
 
     @mcp.resource("pyne://info", mime_type="application/json")
@@ -539,6 +544,14 @@ def create_server() -> Any:
     mcp.prompt()(review_pine)
     mcp.prompt()(debug_pine)
     mcp.prompt()(convert_to_v6)
+
+    # Opt-in, additive: with PYNE_MCP_CODE_MODE unset this import and the two
+    # extra tools never happen, so the tool list stays byte-identical.
+    from pynescript.mcp.codemode import code_mode_enabled
+    from pynescript.mcp.codemode import register_code_mode
+
+    if code_mode_enabled():
+        register_code_mode(mcp)
     return mcp
 
 

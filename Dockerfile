@@ -231,8 +231,15 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # ---------------------------------------------------------------------------
 FROM base-os AS mcp
 
+# nodejs + bubblewrap are only used when PYNE_MCP_CODE_MODE=1. The image ships
+# them so the opt-in flag works on this transport; with the flag unset they are
+# inert. Inside a restrictive container bwrap may be blocked by the outer
+# seccomp profile, in which case Code Mode fails closed unless the operator
+# sets PYNE_MCP_CODE_MODE_SANDBOX=subprocess (documented weaker mode).
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
+        nodejs \
+        bubblewrap \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=mcp-builder /install /usr/local

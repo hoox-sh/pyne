@@ -124,6 +124,11 @@ jobs:
           FREE_MAX_CONCURRENT: "0"
           ADMIN_TOKEN: ci-test-admin-token
 
+      - name: MCP Code Mode tests (requires Node.js)
+        run: |
+          command -v node >/dev/null || { echo "Node.js is required for Code Mode tests"; exit 1; }
+          python -m pytest tests/test_mcp_codemode.py -q --tb=short
+
       - name: LSP tests
         run: |
           python -m pytest \

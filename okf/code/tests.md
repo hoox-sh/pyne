@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-11T18:36:33Z
+  at: 2026-11-13T10:52:37Z
 sources:
   - id: tree
     resource: "tests"
@@ -111,6 +111,7 @@ okf_lock: generated
 * `test_matrix_v6_surface.py` — test_array_binary_search_udt_method_form, test_array_binary_search_udt_sort_field, test_array_sort_udt_sort_field, test_input_text_area_returns_value, test_matrix_add_row_inserts_not_only_appends, test_matrix_eval_dispatch_det_and_avg, test_matrix_linear_algebra_det_inv_trace, test_matrix_new_empty_and_add_row_at_index, test_matrix_predicates_and_sort, test_matrix_sort_order_descending_numeric, test_matrix_sort_udt_sort_field, test_order_ascending_descending_constants
 * `test_mcp.py` — test_builtin_resource, test_call_execute_and_parity, test_call_lint_and_parse, test_call_run_truncated, test_list_tools_covers_catalog, test_resources_and_prompts
 * `test_mcp_catalog_dispatch_coverage.py` — test_bind_filters_unknown_kwargs, test_call_tool_bad_convert_target_and_empty_builtin, test_call_tool_happy_paths_inline_source, test_call_tool_lint_alias_and_missing_source, test_call_tool_unknown_returns_ok_false, test_cli_echo_payload_exits_on_fail, test_cli_payload_helpers, test_coerce_cli_value_and_parse_kv, test_handlers_cover_every_catalog_tool, test_load_source_helpers, test_ops_direct_happy_paths, test_resolve_tool_name_variants
+* `test_mcp_codemode.py` — test_bwrap_plan_is_fail_closed, test_bwrap_run_when_available, test_call_limit_is_enforced, test_code_size_limit_fails_before_spawn, test_compact_catalog_shape, test_confirm_token_is_bound_to_tool_and_arguments, test_constructor_escape_is_blocked, test_execute_describe_returns_the_full_signature, test_execute_refuses_a_destructive_op_without_the_operator_gate, test_execute_requires_a_confirm_token_for_a_destructive_op, test_execute_runs_a_read_only_op, test_flag_off_tool_list_is_byte_identical
 * `test_mcp_ops.py` — test_builtin_lookup, test_call_axb1_only_filter_and_alias, test_call_axb1_verifies_bundled_vectors, test_call_sessions_inspects_pool_and_flags_zombie, test_call_sessions_sees_journaled_nonresident, test_call_tool_covers_catalog, test_call_tool_execute_and_unknown, test_call_tool_lint_and_alias, test_check_source_and_path, test_client_config, test_compile_emit, test_complete_ta_dot
 * `test_mcp_ops_low_coverage.py` — test_list_builtins_filter_and_limit, test_list_facade_templates_network_failure, test_list_facade_templates_ok, test_lookup_builtin_known_and_ta_prefix, test_lookup_builtin_requires_name, test_lookup_builtin_unknown, test_optimize_bad_space_json, test_optimize_happy_path_in_sample, test_optimize_requires_space, test_optimize_walk_forward_too_short, test_runner_call_network_and_ok, test_runner_deploy_and_tick
 * `test_mcp_serialize_coverage.py` — test_clamp_helpers, test_is_runtime_envelope, test_jsonable_bytes_dict_list_and_depth, test_jsonable_numpy_like_item_and_tolist, test_jsonable_scalars_and_nan, test_ok_and_fail_shapes, test_put_list_extra_non_iterable, test_split_plots_compiled_map, test_split_plots_empty, test_split_plots_runtime_envelope, test_split_plots_runtime_fallback_to_plots_list, test_strip_secrets_nested
@@ -219,7 +220,7 @@ okf_lock: generated
 
 # Packages
 
-`fumadocs-ui/components/callout`, `fumadocs-ui/components/steps`, `nextra`, `x`
+`fumadocs-ui/components/callout`, `fumadocs-ui/components/steps`, `nextra`, `node:fs`, `x`
 
 # Nested
 

@@ -88,6 +88,22 @@ These also run from the CLI (`pyne mcp call TOOL`, plus first-class commands whe
 | `debug_pine` | prompt — parse, lint, 50-bar run |
 | `convert_to_v6` | prompt — convert + remaining W002/C002 |
 
+## Code Mode (opt-in)
+
+`PYNE_MCP_CODE_MODE=1` adds exactly two tools; they are not part of the
+`pyne_*` catalog and are absent when the flag is unset.
+
+| Tool | Input | Result |
+| --- | --- | --- |
+| `search` | `{code}` — JS async arrow function | rows selected from the compact catalog |
+| `execute` | `{code}` — JS async arrow function | whatever the code returns, through `pyne.*` calls |
+
+`search` filters a `catalog` array; `execute` gets `pyne.call`, `pyne.describe`,
+and `pyne.<group>.<op>`. Destructive calls stay fail-closed unless the operator
+sets `PYNE_MCP_CODE_MODE_ALLOW_DESTRUCTIVE=1`. The sandbox boundary and the
+`PYNE_MCP_CODE_MODE_SANDBOX=subprocess` caveat are documented in
+[MCP (agents)](/pyne/docs/enduser/guides/mcp#code-mode-opt-in).
+
 ## See also
 
 - [MCP (agents)](/pyne/docs/enduser/guides/mcp)

@@ -86,6 +86,54 @@ Every tool returns `{ "ok": true, ... }` or `{ "ok": false, "error", "kind", "li
 
 Catalog: [MCP tools](/pyne/docs/enduser/reference/mcp-tools).
 
+## Code Mode (opt-in)
+
+Set `PYNE_MCP_CODE_MODE=1` on the server process to add exactly two tools,
+`search` and `execute`. With the flag unset the tool list is unchanged. Both
+tools take one `code` string: a JavaScript async arrow function with no
+parameters.
+
+```text
+search:  async () => catalog.filter((x) => x.group === "language" && x.short === "lint")
+execute: async () => { const r = await pyne.language.lint({source}); return {ok: r.ok}; }
+```
+
+`search` receives a compact array of `{tool, short, group, risk, destructive,
+summary, args, required}` and returns only the rows the code selects. `execute`
+receives a `pyne` client:
+
+| Binding | Meaning |
+| --- | --- |
+| `pyne.call(tool, args)` | call one catalog tool |
+| `pyne.describe(tool)` | full signature for one tool |
+| `pyne.<group>.<op>(args)` | namespaced call, e.g. `pyne.language.lint` |
+
+Every call is re-resolved and re-dispatched through the same
+`dispatch.call_tool` path as the direct tools. Destructive tools
+(`risk=write`, the `pyne_runner_*` mutations) are refused in Code Mode unless
+the operator also sets `PYNE_MCP_CODE_MODE_ALLOW_DESTRUCTIVE=1`.
+
+### Sandbox
+
+The code runs in a separate process, not in the Python server. The default
+boundary is bubblewrap (`bwrap`): a new user/pid/net/ipc/uts/cgroup namespace,
+a cleared environment, read-only binds of only the JavaScript runtime and its
+shared libraries, a private tmpfs, and no host filesystem. The parent never
+trusts the child; only JSON strings cross the bridge.
+
+Code Mode needs a JavaScript runtime with `node:vm` (Node.js >= 18, or Bun) and
+`bwrap`. If `bwrap` is absent the server fails closed with an explicit error.
+Setting `PYNE_MCP_CODE_MODE_SANDBOX=subprocess` accepts a weaker, documented
+mode: a plain child process with a cleared environment and a throwaway cwd, but
+**host filesystem reads are still possible**. That opt-in is an operator
+decision, not a security boundary. The streamable-http image ships `nodejs` and
+`bubblewrap`; a container whose outer seccomp profile blocks user namespaces
+still fails closed unless the operator chooses the weaker mode.
+
+The sandbox never inherits the server environment, so `ADMIN_TOKEN` and API
+keys stay in the parent. Reading `process.env`, `require`, or constructing a
+function from a string fails inside the JavaScript context.
+
 ## Internals (repo paths)
 
 - `src/pynescript/mcp/catalog.py` — canonical tool / resource / prompt names (docs + tests)

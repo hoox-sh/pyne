@@ -7,7 +7,7 @@ tags: [code, mcp, pynescript]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-02T04:39:16Z
+  at: 2026-11-13T10:52:37Z
 sources:
   - id: tree
     resource: "src/pynescript/mcp"
@@ -28,4 +28,5 @@ okf_lock: generated
 
 # Nested
 
+* [src/pynescript/mcp/codemode](/code/src/pynescript/mcp/codemode.md)
 * [src/pynescript/mcp/ops](/code/src/pynescript/mcp/ops.md)

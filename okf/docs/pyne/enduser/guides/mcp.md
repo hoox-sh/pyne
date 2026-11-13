@@ -7,7 +7,7 @@ tags: [doc, docs, enduser, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-02T04:39:16Z
+  at: 2026-11-13T10:52:37Z
 sources:
   - id: tree
     resource: "docs/pyne/enduser/guides/mcp.mdx"
@@ -25,6 +25,8 @@ Repo path `docs/pyne/enduser/guides/mcp.mdx`.
 * Abstract
 * Conceptual model
 * Interface surface
+* Code Mode (opt-in)
+  * Sandbox
 * Internals (repo paths)
 * Invariants & edge cases
 * Worked examples
