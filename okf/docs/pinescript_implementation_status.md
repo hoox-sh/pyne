@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "pinescript_implementation_status.md"
-description: "Live package: hoox-pyne 0.6.31."
+description: "This document provides a high-level summary of Pine Script™ v6 implementation status in PYNE. For the dispatch-oriented inventory with per-namespace counts, see…"
 resource: "docs/pinescript_implementation_status.md"
 tags: [doc, docs, pinescript-implementation-status]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-13T16:49:18Z
 sources:
   - id: tree
     resource: "docs/pinescript_implementation_status.md"

@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "Compatibility guarantee"
-description: "Grouped map of what PYNE implements for Pine Script™ v5/v6 — working, partial, residual, and by-design out of scope. hoox-pyne 0.6.31."
+description: "Grouped map of what PYNE implements for Pine Script™ v5/v6 — working, partial, residual, and by-design out of scope. hoox-pyne 0.7.0."
 resource: "docs/pyne/reference/compatibility.mdx"
 tags: [doc, docs, pyne, reference]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-13T16:49:18Z
 sources:
   - id: tree
     resource: "docs/pyne/reference/compatibility.mdx"

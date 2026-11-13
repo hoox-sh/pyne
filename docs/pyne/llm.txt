@@ -210,7 +210,7 @@ GET / and GET /health are the same handler. AXIS Settings probes /health. Payloa
 {
 "status": "healthy",
 "service": "pynescript-pro-api",
-"version": "0.6.35",
+"version": "0.7.0",
 "api_version": "1.0.0",
 "git_sha": "abc1234",
 "timestamp": 0,
@@ -1531,7 +1531,7 @@ GET /stats
 {
 "status": "ok",
 "service": "pynescript-pro-api",
-"version": "0.6.35",
+"version": "0.7.0",
 "api_version": "1.0.0",
 "git_sha": "abc1234",
 "timestamp": 1791968289,
@@ -3657,9 +3657,9 @@ docker buildx bake mcp # MCP image → pynescript-mcp:latest (ENTRYPOINT: pyne-m
 docker buildx bake # default group: api + api-dev
 docker buildx bake all # api + api-dev + lsp + cli + mcp
 Multi-platform (amd64 + arm64). Set REGISTRY to push:
-REGISTRY=ghcr.io/hoox-sh/pyne TAG=0.6.31 docker buildx bake release
+REGISTRY=ghcr.io/hoox-sh/pyne TAG=0.7.0 docker buildx bake release
 release group = api-release + cli-release + lsp-release + mcp-release
-→ ghcr.io/hoox-sh/pyne/{api,cli,lsp,mcp}:0.6.31 (or :latest)
+→ ghcr.io/hoox-sh/pyne/{api,cli,lsp,mcp}:0.7.0 (or :latest)
 Prefer: make docker-push-ghcr (workflow GHCR on v tags)
 `
 Make wrappers:
@@ -3727,10 +3727,10 @@ Environment variables
 Published image names
 GitHub Container Registry (workflow GHCR, tags v):
 `
-ghcr.io/hoox-sh/pyne/api:0.6.31
-ghcr.io/hoox-sh/pyne/cli:0.6.31
-ghcr.io/hoox-sh/pyne/lsp:0.6.31
-ghcr.io/hoox-sh/pyne/mcp:0.6.31
+ghcr.io/hoox-sh/pyne/api:0.7.0
+ghcr.io/hoox-sh/pyne/cli:0.7.0
+ghcr.io/hoox-sh/pyne/lsp:0.7.0
+ghcr.io/hoox-sh/pyne/mcp:0.7.0
 also :latest on the same repos after a release push
 `
 Internals
@@ -3824,10 +3824,10 @@ description: "CI matrices, containers, Nuitka LSP binaries, metadata crypto, and
 ---
 DevOps
 Abstract
-PYNE is a multi-surface product: pure-Python library + Click CLI (pyne / alias pynescript), pygls Language Server (pyne-lsp), Flask Pro API, VS Code extension (hoox-sh.pyne 0.5.5; the Python package is 0.6.31), and Docker targets (api / cli / lsp / mcp). Edge workers and the AXIS charting PWA are sister repos — not built in this tree.
+PYNE is a multi-surface product: pure-Python library + Click CLI (pyne / alias pynescript), pygls Language Server (pyne-lsp), Flask Pro API, VS Code extension (hoox-sh.pyne 0.5.5; the Python package is 0.7.0), and Docker targets (api / cli / lsp / mcp). Edge workers and the AXIS charting PWA are sister repos — not built in this tree.
 This tab documents the operational graph: local loops, GitHub Actions, release tags, Docker images, Nuitka CLI/LSP binaries, Fernet-encrypted LSP metadata, observability hooks, and security controls.
 Conceptual model
-Invariant: CI green on main is necessary but not sufficient for a full release. Tag v fires Build & Release (binaries + GitHub Release), Publish (hoox-pyne from about.py, currently 0.6.31, to PyPI), and GHCR (ghcr.io/hoox-sh/pyne/{api,cli,lsp,mcp}). The VSIX releases separately from pyne-lsp-vsce.
+Invariant: CI green on main is necessary but not sufficient for a full release. Tag v fires Build & Release (binaries + GitHub Release), Publish (hoox-pyne from about.py, currently 0.7.0, to PyPI), and GHCR (ghcr.io/hoox-sh/pyne/{api,cli,lsp,mcp}). The VSIX releases separately from pyne-lsp-vsce.
 Interface surface
 | Concern | Entry | Doc |
 | --- | --- | --- |
@@ -3961,7 +3961,7 @@ make run # Pro API
 From PyPI (no checkout)
 `bash
 pip install "hoox-pyne[lsp,compile]"
-pyne --version # 0.6.31
+pyne --version # 0.7.0
 `
 Internals
 | Path | Why it matters |
@@ -4771,7 +4771,7 @@ VS Code extension keys (from clients/README.md):
 | pynescript.completion.snippets | true | Snippet completions |
 | pynescript.syntaxHighlighting | void | Pine TextMate + semantic token palette (none / void / signal / volt); independent of the workbench color theme |
 | pynescript.inlayHints.parameters | true | Parameter-name hints only (type inlays removed in 0.6.29) |
-Extension id: hoox-sh.pyne (VSIX 0.5.5 with hoox-pyne 0.6.31).
+Extension id: hoox-sh.pyne (VSIX 0.5.5 with hoox-pyne 0.7.0).
 Neovim (clients/neovim.lua):
 `lua
 settings = {
@@ -4876,7 +4876,7 @@ description: "Install hoox-pyne from PyPI (live) or a source checkout — CLI, L
 ---
 Installation
 Abstract
-PYNE is live on PyPI as hoox-pyne (currently 0.6.31). The import package remains pynescript (src-layout under src/pynescript/). Preferred console scripts are pyne / pyne-lsp; legacy pynescript / pynescript-lsp remain installed as aliases.
+PYNE is live on PyPI as hoox-pyne (currently 0.7.0). The import package remains pynescript (src-layout under src/pynescript/). Preferred console scripts are pyne / pyne-lsp; legacy pynescript / pynescript-lsp remain installed as aliases.
 Do not install:
 plain pyne / PyNE from PyPI without the hoox- prefix — unrelated 0.1.0 process-networking library (our wheel is hoox-pyne)
 upstream pynescript (elbakramer) — different project
@@ -5042,7 +5042,7 @@ Conceptual model
 Interface surface
 Assumes:
 ``bash
-pip install hoox-pyne # https://pypi.org/project/hoox-pyne/ · 0.6.31
+pip install hoox-pyne # https://pypi.org/project/hoox-pyne/ · 0.7.0
 optional:
 pip install "hoox-pyne[lsp]" # editors
 pip install "hoox-pyne[compile]" # compile / run / prewarm
@@ -5054,7 +5054,7 @@ pyne info
 pyne check script.pine
 pyne lint script.pine
 aliases still work: pynescript info …
-hoox-pyne 0.6.31 (live on PyPI)
+hoox-pyne 0.7.0 (live on PyPI)
 `
 Sample script in-tree: examples/rsi_strategy.pine. Prefer //@version=6 and .pyne / .pine for new work (.pinev5 remains a supported legacy association).
 Internals (repo paths)
@@ -5449,7 +5449,7 @@ npm run compile
 package: npm run package
 `
 2. Open a .pyne (preferred for HOOX / PYNE stack sources), .pine, .pinev5, .pinev6, or .pinescript file — LSP activates when enabled. The VS Code extension also activates on workspaceContains:*/.{pyne,pine,…}.
-Marketplace / VSIX: extension id hoox-sh.pyne 0.5.5 (publisher hoox-sh, package name pyne; ships with hoox-pyne 0.6.31). VS Marketplace. Site download: hoox.sh/pyne-vscode.vsix (unversioned alias). Local package: git clone https://github.com/hoox-sh/pyne-lsp-vsce.git && cd pyne-lsp-vsce && npm ci && npm run package then code --install-extension pyne-vscode-0.5.5.vsix. The VSIX is self-contained; you still need pip install "hoox-pyne[lsp]" (or a pyne-lsp binary) on the machine.
+Marketplace / VSIX: extension id hoox-sh.pyne 0.5.5 (publisher hoox-sh, package name pyne; ships with hoox-pyne 0.7.0). VS Marketplace. Site download: hoox.sh/pyne-vscode.vsix (unversioned alias). Local package: git clone https://github.com/hoox-sh/pyne-lsp-vsce.git && cd pyne-lsp-vsce && npm ci && npm run package then code --install-extension pyne-vscode-0.5.5.vsix. The VSIX is self-contained; you still need pip install "hoox-pyne[lsp]" (or a pyne-lsp binary) on the machine.
 Settings (from the extension's package.json):
 | Key | Default | Notes |
 | --- | --- | --- |
@@ -6144,8 +6144,8 @@ pyne mcp # stdio (blocks)
 pyne-mcp # same as pyne mcp
 python -m pynescript.mcp
 GHCR streamable-http image (compose also starts this as service mcp)
-docker pull ghcr.io/hoox-sh/pyne/mcp:0.6.31
-docker run --rm -p 5003:8080 ghcr.io/hoox-sh/pyne/mcp:0.6.31
+docker pull ghcr.io/hoox-sh/pyne/mcp:0.7.0
+docker run --rm -p 5003:8080 ghcr.io/hoox-sh/pyne/mcp:0.7.0
 `
 `json
 {
@@ -6826,7 +6826,7 @@ Machine-oriented reference for every command on the preferred pyne Click group
 (pip install hoox-pyne). For workflows see the CLI guide.
 The language server is a separate console script (pyne-lsp; alias pynescript-lsp).
 Version option: pyne --version / -V reports pynescript.about.version
-(e.g. 0.6.31). Global --no-color honors NO_COLOR.
+(e.g. 0.7.0). Global --no-color honors NO_COLOR.
 Command index
 | Command | Aliases | Purpose |
 | --- | --- | --- |
@@ -7224,7 +7224,7 @@ Trademark disclaimer lives on the product index once — not repeated here in fu
 Questions
 What is PYNE vs pynescript vs pyne?
 PYNE — product documentation brand for the open evaluate stack (grammar → AST → runtime → LSP → Pro API → workers).
-hoox-pyne — PyPI distribution name (live, 0.6.31). Install with pip install hoox-pyne. Do not install plain pyne/PyNE from PyPI without the hoox- prefix (unrelated) or the upstream pynescript package (elbakramer).
+hoox-pyne — PyPI distribution name (live, 0.7.0). Install with pip install hoox-pyne. Do not install plain pyne/PyNE from PyPI without the hoox- prefix (unrelated) or the upstream pynescript package (elbakramer).
 pynescript — import package (import pynescript, including pynescript.runtime).
 pyne / pyne-lsp — preferred console scripts; pynescript / pynescript-lsp remain aliases.
 What Python versions are supported?
@@ -7833,7 +7833,7 @@ pynescript-lsp = "pynescript.langserver.main:main" # alias
 `
 Server class
 PynescriptLanguageServer (server.py):
-Subclasses pygls.lsp.server.LanguageServer with name="Pynescript" and version=version from src/pynescript/about.py (0.6.31). initialize reports serverInfo.name = "Pynescript Language Server" with the same version.
+Subclasses pygls.lsp.server.LanguageServer with name="Pynescript" and version=version from src/pynescript/about.py (0.7.0). initialize reports serverInfo.name = "Pynescript Language Server" with the same version.
 Instantiates self.pine_workspace = Workspace().
 Registers handlers in setup_method_handlers() via @self.feature(...).
 Document sync
@@ -8177,7 +8177,7 @@ pyne-lsp
 aliases:
 pynescript-lsp --stdio
 container (stdio):
-docker run --rm -i -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/lsp:0.6.31
+docker run --rm -i -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/lsp:0.7.0
 `
 Point the host’s “external language server” command at that binary. Cursor users can also load the VS Code extension (hoox-sh.pyne) in compatible mode when packaged as VSIX.
 Internals
@@ -8226,7 +8226,7 @@ Capability: code_lens_provider with CodeLensOptions(resolve_provider=False)
 Handler: features/code_lens.py → handle_code_lens (version-matched tree=doc.valid_ast)
 Setting: codeLensEnabled (default true); toggles send workspace/codeLens/refresh when the client advertises workspace.codeLens.refreshSupport
 | Lens | Shown when | Command |
-| --- | --- | --- |
+| ------------- | ----------------------------------------- | ------------------------ |
 | Convert to v6 | buffer version is not v6 | pynescript.convertToV6 |
 | Smoke /run | editor reports Pro enabled (proEnabled) | pynescript.runOnPro |
 The handler scans the AST for declaration calls (function bodies are ignored) and falls back to a line scan when the buffer does not parse, so the header lens survives mid-edit parse failures.
@@ -8353,14 +8353,14 @@ Push (always on)
 Triggered from server.py on didOpen, didChange, didSave. Close clears diagnostics (items=[]).
 Pull
 | Method | Response |
-| --- | --- |
+| ------------------------- | ------------------------------------------------------------------------------------- |
 | textDocument/diagnostic | RelatedFullDocumentDiagnosticReport with kind=full, result_id="{uri}-{version}" |
 | workspace/diagnostic | One WorkspaceFullDocumentDiagnosticReport per open URI |
 Capability: diagnostic_provider with identifier="pynescript-diagnostics", inter_file_dependencies=False.
 Pull handlers re-parse when the cached AST belongs to an older document version, so a request that races the debounced didChange parse returns the current findings rather than the previous version's. After every push (open/change/save/close/config), the server sends workspace/diagnostic/refresh when the client advertised workspace.diagnostics.refreshSupport. Pull-model clients keep diagnostics in a collection separate from the push collection; without the refresh they would never re-request and a fixed error would stay visible.
 Diagnostic shape
 | Field | Value |
-| --- | --- |
+| ---------- | --------------------------------------------------------------------------------------------------------- |
 | range | Exact token range when the rule supplies column/end_column; otherwise line start to line end (capped) |
 | severity | error / warning / information / hint |
 | message | Human-readable lint or parse message |
@@ -8372,7 +8372,7 @@ tags: W002 → Deprecated
 Push and pull both call Workspace._lint_warnings_to_diagnostics, which delegates lint rows to features/diagnostics.lint_warnings_to_diagnostics (noise filters + tags) and then appends synthetic E001 for parse failures.
 Internals
 | Path | Role |
-| --- | --- |
+| --------------------------------------------------- | ------------------------------------------------------------ |
 | src/pynescript/langserver/workspace.py | _parse_and_lint, E001 append, incremental edits |
 | src/pynescript/langserver/features/diagnostics.py | Lint conversion, C001 noise filter, tags, create_quick_fix |
 | src/pynescript/ast/linter.py | Rule engine producing LintWarning |
@@ -8398,7 +8398,7 @@ Semantic diagnostics (opt-in)
 pynescript.diagnostics.semantic (default false) enables checks that are
 decidable from declarations in the current file:
 | Code | Finding |
-| --- | --- |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | S001 | Unknown field/method on a user type, or unknown member on a user enum |
 | S002 | User-function call mismatch: too many positional arguments, missing required arguments, unknown named argument |
 | S003 | Value is too weak for a declared qualifier or base (simple float x = close, const int n = bar_index, series passed to a simple parameter) |
@@ -8423,7 +8423,7 @@ W002 (//@version=N with N "
 `
 Failure modes
 | Symptom | Cause |
-| --- | --- |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | Stale squiggles after edit | Client using full-document sync incorrectly, or version mismatch |
 | Stale squiggles only in a pull-capable client (VS Code, AXIS) | Client did not answer workspace/diagnostic/refresh; check workspace.diagnostics.refreshSupport in initialize |
 | Empty diagnostics on broken file | Unexpected: parse errors should still emit E001 — check client filter on source` |
@@ -9140,7 +9140,7 @@ Navigation features operate on user AST symbols, not the builtin catalog. A shar
 Conceptual model
 Interface surface
 | Method | Handler | Returns |
-| --- | --- | --- |
+| ----------------------------------- | ---------------------------------------------- | ---------------------------------------------------- |
 | textDocument/definition | definitions.handle_definition | list[Location] \| None |
 | textDocument/declaration | definitions.handle_declaration | list[Location] \| None (same target as definition) |
 | textDocument/typeDefinition | definitions.handle_type_definition | list[Location] \| None (UDT declaration) |
@@ -9185,7 +9185,7 @@ params.context.include_declaration controls whether declarations appear.
 Document symbols
 Hierarchical:
 | AST | SymbolKind | Children |
-| --- | --- | --- |
+| ------------------ | ---------- | ------------------------------ |
 | FunctionDef | Function | Variables assigned inside body |
 | TypeDef | Class | Fields (Assign targets) |
 | EnumDef | Enum | Members |
@@ -9195,7 +9195,7 @@ Workspace symbols
 Flat SymbolInformation for functions/methods, types, enums + members, imports, and assigned names. Open buffers are authoritative; closed files under workspace roots are searched through WorkspaceIndex (bounded). Filter is a lowercase query substring.
 Internals
 | Path | Role |
-| --- | --- |
+| ------------------------- | -------------------------------------------------------------- |
 | features/definitions.py | Go-to-definition visitor |
 | features/references.py | Find-all-references visitor |
 | features/highlight.py | Document highlight + ident occurrence collector |
@@ -9223,7 +9223,7 @@ References on length → assign + call argument (and declaration if included).
 Outline → length variable, mySma function (with locals), v variable.
 Failure modes
 | Symptom | Cause |
-| --- | --- |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Jump lands column 0 | Expected with current Location encoding |
 | Missing references inside function when targeting another function | visit_FunctionDef` only walks body when the def name differs from target — intentional for declaration handling; calls inside same-named functions are a known edge |
 | Empty outline | Parse error or empty source |
@@ -9391,7 +9391,7 @@ The PYNE Language Server is the editor-facing half of the evaluation stack: a py
 Abstract
 Editors want static intelligence at typing cadence. Evaluation over OHLCV is dynamic and bar-loop expensive. PYNE therefore splits the stack:
 | Process | Cadence | Shared substrate |
-| --- | --- | --- |
+| --------------------------- | ----------------------- | ---------------------------------------- |
 | LSP (pyne-lsp) | keystroke / open / save | parse, lint, unparse, builtin metadata |
 | Pro API (backend.app) | request / batch | parse, evaluate, plots / events / alerts |
 | CLI / library | batch / embed | same AST + evaluator |
@@ -9400,8 +9400,8 @@ Conceptual model
 Invariant: open/change/close always re-parse and re-lint the in-memory buffer. Features that need an AST re-parse on demand if the workspace cache is missing source.
 Interface surface
 | Capability | LSP method(s) | Module |
-| --- | --- | --- |
-| Sync | textDocument/didOpen|didChange|didClose|didSave | server.py + workspace.py |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------ | -------- | -------- | ---------------------------- |
+| Sync | textDocument/didOpen | didChange | didClose | didSave | server.py + workspace.py |
 | Diagnostics (push + pull) | publishDiagnostics, textDocument/diagnostic | workspace.py, features/diagnostics.py |
 | Completion (+ resolve) | textDocument/completion, completionItem/resolve | features/completion.py |
 | Hover | textDocument/hover | features/hover.py |
@@ -9423,7 +9423,7 @@ Interface surface
 Declared capabilities: src/pynescript/langserver/config.py (get_server_capabilities).
 Internals
 | Path | Role |
-| --- | --- |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------- |
 | src/pynescript/langserver/server.py | PynescriptLanguageServer, method registration |
 | src/pynescript/langserver/workspace.py | Document map, incremental edits, parse+lint |
 | src/pynescript/langserver/config.py | ServerCapabilities |
@@ -9469,7 +9469,7 @@ description: "PYNE VS Code extension: LanguageClient host for pyne-lsp, TextMate
 ---
 VS Code Extension
 Abstract
-PYNE (hoox-sh.pyne 0.5.5) is a LanguageClient host plus a rich TextMate grammar, branded as part of the HOOX open trading stack. It does not reimplement language intelligence in TypeScript — vscode-languageclient speaks STDIO to pyne-lsp (then alias pynescript-lsp, then python -m pynescript.langserver) and forwards whatever that process advertises in initialize. The VSIX stays 0.5.5; the hosted Python server is hoox-pyne 0.6.31 (src/pynescript/about.py). The extension maps .pyne (first-class) plus .pine / .pinev5 / .pinev6 / .pinescript to language id pinescript, ships snippets, and exposes a broad pynescript. settings surface with per-feature toggles.
+PYNE (hoox-sh.pyne 0.5.5) is a LanguageClient host plus a rich TextMate grammar, branded as part of the HOOX open trading stack. It does not reimplement language intelligence in TypeScript — vscode-languageclient speaks STDIO to pyne-lsp (then alias pynescript-lsp, then python -m pynescript.langserver) and forwards whatever that process advertises in initialize. The VSIX stays 0.5.5; the hosted Python server is hoox-pyne 0.7.0 (src/pynescript/about.py). The extension maps .pyne (first-class) plus .pine / .pinev5 / .pinev6 / .pinescript to language id pinescript, ships snippets, and exposes a broad pynescript. settings surface with per-feature toggles.
 Conceptual model
 Interface surface
 Package identity
@@ -9613,7 +9613,7 @@ Invariants and edge cases
 3. Grammar works without LSP — open a .pyne or .pine file offline and still get TextMate highlighting.
 4. .pyne is first-class in package.json extensions + activation; legacy .pine / .pinescript remain fully supported.
 5. File watcher covers every associated suffix (pyne, pine, pinev5, pinev6, pinescript).
-6. VSIX 0.5.5 does not pin server methods. Range tokens, on-type format, linked editing, inlay parameter names, document links + resolve tooltip, and document color appear only when the spawned pyne-lsp is new enough to advertise them (this tree: 0.6.31). Feature gates are client-side and read live settings.
+6. VSIX 0.5.5 does not pin server methods. Range tokens, on-type format, linked editing, inlay parameter names, document links + resolve tooltip, and document color appear only when the spawned pyne-lsp is new enough to advertise them (this tree: 0.7.0). Feature gates are client-side and read live settings.
 Worked example — extension development
 `bash
 pip install -e ".[lsp]"
@@ -9628,7 +9628,7 @@ Failure modes
 | “Language client failed to start” | pyne-lsp missing / wrong command |
 | No squiggles, highlighting OK | LSP disabled or server crash; check Output → PYNE Language Server |
 | Restart does nothing | Client never started (lsp.enabled false) |
-| No inlay param names / color swatches / document links | Spawned pyne-lsp is older than this tree (need 0.6.31) |
+| No inlay param names / color swatches / document links | Spawned pyne-lsp is older than this tree (need 0.7.0) |
 | Enter does not reformat the previous line | editor.formatOnType is off (not a pynescript. key) |
 | Identifiers do not multi-cursor as you type | editor.linkedEditing is off (not a pynescript. key) |
 | A feature does nothing after toggling | Its pynescript..enabled key is false |
@@ -9674,7 +9674,7 @@ Vendor sync
 ./scripts/sync_vendor.sh
 npx wrangler deploy
 `
-Skip sync and the edge still runs the last snapshot. That tree disagrees with itself: python_modules/pynescript/about.py says 0.3.8, and pynescript-0.4.4.dist-info says 0.4.4. Live PyPI hoox-pyne is 0.6.31. The worker package itself is 0.6.0. Run ./scripts/sync_vendor.sh before treating the snapshot as current.
+Skip sync and the edge still runs the last snapshot. That tree disagrees with itself: python_modules/pynescript/about.py says 0.3.8, and pynescript-0.4.4.dist-info says 0.4.4. Live PyPI hoox-pyne is 0.7.0. The worker package itself is 0.6.0. Run ./scripts/sync_vendor.sh before treating the snapshot as current.
 Script + 1m cron
 `bash
 export WORKER=https://pyne-worker..workers.dev
@@ -10686,11 +10686,11 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-3.0-or-later
 ---
 title: "Compatibility guarantee"
-description: "Grouped map of what PYNE implements for Pine Script™ v5/v6 — working, partial, residual, and by-design out of scope. hoox-pyne 0.6.31."
+description: "Grouped map of what PYNE implements for Pine Script™ v5/v6 — working, partial, residual, and by-design out of scope. hoox-pyne 0.7.0."
 ---
 Compatibility guarantee
 Abstract
-PYNE implements Pine Script™ v5/v6 language core as an inspectable pipeline: parse → AST → bar-loop evaluate. The map below is the product-facing compatibility surface for hoox-pyne 0.6.31. It is not TradingView® platform identity (chart host, proprietary data, editor-only UI) and not bit-identical results vs the hosted platform on every script or bar.
+PYNE implements Pine Script™ v5/v6 language core as an inspectable pipeline: parse → AST → bar-loop evaluate. The map below is the product-facing compatibility surface for hoox-pyne 0.7.0. It is not TradingView® platform identity (chart host, proprietary data, editor-only UI) and not bit-identical results vs the hosted platform on every script or bar.
 Name-level dispatch lives in Pine v6 surface (docs/pine_v6_full_surface_inventory.md). Gaps: Missing features.
 Conceptual model
 Legend
@@ -10915,7 +10915,7 @@ Published versions (static snapshot; refresh manually with bun run docs:versions
 Checkouts (this repo vs sisters)
 | Checkout | What you open |
 | --- | --- |
-| hoox-sh/pyne | PYNE SoT (hoox-pyne 0.6.31; VS Code hoox-sh.pyne 0.5.5) |
+| hoox-sh/pyne | PYNE SoT (hoox-pyne 0.7.0; VS Code hoox-sh.pyne 0.5.5) |
 | hoox-sh/pynets | Standalone @hoox-sh/pynets 0.5.0 (JS compile + stream) |
 | hoox-sh/pyne-worker | Python edge /run |
 | hoox-sh/pyne-agent-worker | NL authoring (not in this tree) |
@@ -10982,7 +10982,7 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-3.0-or-later
 ---
 title: "Missing features"
-description: "Known gaps and closed Pine Script™ v6 items — what is implemented, what is partial by design, and what is out of scope. hoox-pyne 0.6.31."
+description: "Known gaps and closed Pine Script™ v6 items — what is implemented, what is partial by design, and what is out of scope. hoox-pyne 0.7.0."
 ---
 Missing features
 Abstract
@@ -11236,7 +11236,7 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-3.0-or-later
 ---
 title: "Pine v6 surface inventory"
-description: "Summary of the full Pine Script™ v6 surface inventory — dispatch counts, namespaces, status schema — with pointer to the large source document. hoox-pyne 0.6.31."
+description: "Summary of the full Pine Script™ v6 surface inventory — dispatch counts, namespaces, status schema — with pointer to the large source document. hoox-pyne 0.7.0."
 ---
 Pine v6 surface inventory
 Abstract
@@ -11339,7 +11339,7 @@ along with pynescript. If not, see .
 SPDX-License-Identifier: AGPL-3.0-or-later
 ---
 title: "Roadmap"
-description: "PYNE forward plan — dual-host residual, runtime residual, plot parity harness; drawing export parity landed. hoox-pyne 0.6.31."
+description: "PYNE forward plan — dual-host residual, runtime residual, plot parity harness; drawing export parity landed. hoox-pyne 0.7.0."
 ---
 Roadmap
 Abstract
@@ -11362,7 +11362,7 @@ Status snapshot
 | Strategy events + broker (OCA, commission, risk) | |
 | Numba + object-mode compile | MVP+ (disk IR cache, mode=auto, time_arr, cache recovery; UDT/switch/matrix/drawing/round/color residuals) |
 | Pro API + auth + Docker | (mode default auto; targets api / api-dev / lsp / cli) |
-| PyPI hoox-pyne | live 0.6.31 (pypi.org/project/hoox-pyne); CLIs pyne / pyne-lsp; VS Code hoox-sh.pyne 0.5.5 |
+| PyPI hoox-pyne | live 0.7.0 (pypi.org/project/hoox-pyne); CLIs pyne / pyne-lsp; VS Code hoox-sh.pyne 0.5.5 |
 | CLI surface (check/format/compile/run/prewarm/…) | + Nuitka binaries + CLI Docker image |
 | Alert engine + L2 webhooks | dual-host export + outbound webhooks |
 | Drawing max__count GC | package + Pro API + AXIS Pyodide |

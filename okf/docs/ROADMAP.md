@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "ROADMAP.md"
-description: "Live package: hoox-pyne 0.6.31."
+description: "PYNE has reached a mature stage of development. The core Pine Script™ v6 language, builtins, strategy broker, collections, drawing surface, and compiler are fully functional. The…"
 resource: "docs/ROADMAP.md"
 tags: [doc, docs, roadmap]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-13T16:49:18Z
 sources:
   - id: tree
     resource: "docs/ROADMAP.md"

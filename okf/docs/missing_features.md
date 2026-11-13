@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "missing_features.md"
-description: "Live package: hoox-pyne 0.6.31 (src/pynescript/about.py)."
+description: "Live package: hoox-pyne 0.7.0 (src/pynescript/about.py)."
 resource: "docs/missing_features.md"
 tags: [doc, docs, missing-features]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-13T16:49:18Z
 sources:
   - id: tree
     resource: "docs/missing_features.md"
