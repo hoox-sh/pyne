@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.7.0] — 2026-11-13
+
 ### Added
 
 - **LSP navigation and editing extras.** `textDocument/declaration` (same scope-aware target as definition), `textDocument/typeDefinition` (UDT variable/field/parameter → `type` declaration, including `Type.new`), and call hierarchy (`prepareCallHierarchy`, incoming/outgoing) for user functions and methods. Code lenses above `indicator()` / `strategy()` / `library()` offer **Convert to v6** (v<6) and **Smoke /run** when the editor reports Pro enabled. Opt-in `textDocument/inlineCompletion` (LSP 3.18) suggests curated argument lists for common builtins (`ta.sma(` → `close, 14)`), off by default via `inlineCompletionEnabled`. Pinned by `tests/test_lsp_navigation_extras.py` and `TestNewLanguageFeatures`.
@@ -11,6 +13,7 @@
 - **LSP settings and pull edge cases.** Code-lens settings changes now send `workspace/codeLens/refresh` (guarded by client capability), `workspace/diagnostic` skips parsing when diagnostics are disabled, and the pull freshness check retries when an edit lands during the executor parse. Inline completion no longer fires inside comments or strings.
 - **LSP pull diagnostics no longer stick after a fix.** The server advertises `diagnosticProvider`, so LSP 3.17 clients (VS Code, AXIS) keep pull diagnostics in their own collection and re-request them only when the server asks. The server never sent `workspace/diagnostic/refresh`, and `textDocument/diagnostic` answered from the last completed parse — so an error stayed in the Problems panel after the buffer was corrected, even though the push channel published an empty list. Pull now parses the current buffer version when the cached AST is stale, and every push (open/change/save/close/config) requests a refresh from clients that advertise `workspace.diagnostics.refreshSupport`. Pinned by `tests/test_langserver_server_coverage.py::TestPullDiagnostics::test_pull_after_change_is_not_stale` and `TestDiagnosticRefresh`.
 - **`/ws/live` script deltas carry the tail's bar-time axis and name their timeframe.** `_delta_envelope` already computed `times` for the tail, but `make_delta` had no parameter for it and the push loop never passed it, so every script delta arrived without an axis. A client could then only trust its own chart axis for the bar each tip belongs to — a pooled session left on another interval would land values on the wrong bars silently. `make_delta` / `make_full` now take `times` (a tail-length axis only; anything else is dropped rather than invented) and `interval`, and `emit_push_frames` / `emit_series_push` / `_emit_ready` / `_emit_snapshot` pass both. Pinned by `tests/test_live_push.py::test_feed_batch_emits_delta_to_socket` and `tests/test_live_ws.py::test_delta_and_full_frames_name_the_timeframe`.
+- **Fix AXB1 projection: tolerate redundant interval/times on live frames instead of dropping binary SNAPSHOT_OHLCV encoding** (`backend/api/live_ws.py`).
 
 ## [0.6.34] — 2026-11-09
 

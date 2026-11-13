@@ -190,7 +190,7 @@ class TestLifecycle:
         result = _drive_generator(builtin(params))
         assert isinstance(result, lsp.InitializeResult)
         assert result.server_info is not None
-        assert result.server_info.version == __version__ == "0.6.35"
+        assert result.server_info.version == __version__ == "0.7.0"
 
         provider = result.capabilities.semantic_tokens_provider
         assert isinstance(provider, lsp.SemanticTokensOptions)
@@ -206,7 +206,7 @@ class TestLifecycle:
 
         monkeypatch.setattr("sys.argv", ["pyne-lsp", "--version"])
         main()
-        assert capsys.readouterr().out.strip() == __version__ == "0.6.35"
+        assert capsys.readouterr().out.strip() == __version__ == "0.7.0"
 
 
 # ---------------------------------------------------------------------------
