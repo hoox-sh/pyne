@@ -1099,7 +1099,10 @@ def _map_full(header: Any, payload: dict[str, Any], scale: int) -> bytes | None:
     bars = payload.get("bars")
     if not isinstance(bars, list) or not bars:
         return None  # script snapshots (plots/series/bar_times/…) stay JSON
-    if set(payload) - {"seriesKey", "count", "closed_upto", "bars"}:
+    # `interval` is asserted by the client at subscribe time and embedded in
+    # seriesKey; SNAPSHOT_OHLCV has no field for it, so it is dropped — never
+    # carried into the binary frame, and never a reason to fall back to JSON.
+    if set(payload) - {"seriesKey", "count", "closed_upto", "bars", "interval"}:
         return None  # any structured leftover stays JSON, never JSON_BLOB
     count = payload.get("count")
     if not isinstance(count, int) or count != len(bars) or "closed_upto" not in payload:
@@ -1141,8 +1144,12 @@ def _map_delta(header: Any, payload: dict[str, Any], last_time: int | None, scal
         return _axb1.encode_unchanged(header)
     if not isinstance(bars, list) or len(bars) != 1 or payload.get("tail_len") != 1:
         return None  # script deltas (no bars) and multi-bar tails are not representable
-    if set(payload) - {"base_index", "count", "tail_len", "closed_upto", "forming", "bars"}:
+    # `interval` is redundant (subscribe-time assertion, embedded in seriesKey)
+    # and `times` must equal the single bar's time — both validated below, so a
+    # mismatched tail axis still falls back to JSON rather than being dropped.
+    if set(payload) - {"base_index", "count", "tail_len", "closed_upto", "forming", "bars", "times", "interval"}:
         return None
+    times = payload.get("times")
     bar = bars[0]
     if not isinstance(bar, dict) or "time" not in bar:
         return None
@@ -1150,6 +1157,12 @@ def _map_delta(header: Any, payload: dict[str, Any], last_time: int | None, scal
         bar_time = int(bar["time"])
     except (TypeError, ValueError):
         return None
+    if times is not None:
+        try:
+            if [int(t) for t in times] != [bar_time]:
+                return None  # a tail axis that disagrees with the bar is not droppable
+        except (TypeError, ValueError):
+            return None
     # Re-tick vs append: pyne's delta envelope is byte-identical for both
     # (base_index == count - 1, tail_len == 1), so base/count/tail cannot
     # classify them — the cursor (newest bar time) is the only discriminator.
@@ -1247,7 +1260,8 @@ def _map_full_plots(header: Any, payload: dict[str, Any]) -> bytes | None:
     from pynescript.runtime import axb1 as _axb1
 
     # Only script snapshots (no bars) are eligible; extra metadata keeps JSON.
-    allowed = {"seriesKey", "count", "closed_upto", "series", "plots", "bar_times"}
+    # `interval` is redundant (see _map_full); SNAPSHOT_PLOTS has no field for it.
+    allowed = {"seriesKey", "count", "closed_upto", "series", "plots", "bar_times", "interval"}
     if set(payload) - allowed or "bars" in payload:
         return None
     count = payload.get("count")
@@ -1303,7 +1317,9 @@ def _map_delta_multi_bar(header: Any, payload: dict[str, Any], scale: int) -> by
     bars = payload.get("bars")
     if not isinstance(bars, list) or len(bars) < 2:
         return None
-    allowed = {"base_index", "count", "tail_len", "closed_upto", "forming", "bars"}
+    # `interval` is redundant (see _map_delta); `times` must match the emitted
+    # bars exactly — anything else stays JSON rather than being dropped.
+    allowed = {"base_index", "count", "tail_len", "closed_upto", "forming", "bars", "times", "interval"}
     if set(payload) - allowed or payload.get("unchanged") is True:
         return None
     count = payload.get("count")
@@ -1324,6 +1340,13 @@ def _map_delta_multi_bar(header: Any, payload: dict[str, Any], scale: int) -> by
             columns["volume"].append(float(bar["volume"]))
     except (KeyError, TypeError, ValueError):
         return None
+    times = payload.get("times")
+    if times is not None:
+        try:
+            if [int(t) for t in times] != time_s:
+                return None
+        except (TypeError, ValueError):
+            return None
     flags = [1 if t <= closed_upto else 2 for t in time_s]
     return _axb1.encode_append_bars(
         header,
