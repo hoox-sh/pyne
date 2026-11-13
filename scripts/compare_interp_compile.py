@@ -84,8 +84,6 @@ import re
 import sys
 import time
 
-from concurrent.futures import ProcessPoolExecutor
-from concurrent.futures import as_completed
 from pathlib import Path
 from typing import Any
 
@@ -314,7 +312,7 @@ def series_allclose(
         aa = np.empty(len(a), dtype=np.float64)
         bb = np.empty(len(b), dtype=np.float64)
         type_bad: list[int] = []
-        for i, (x, y) in enumerate(zip(a, b)):
+        for i, (x, y) in enumerate(zip(a, b, strict=True)):
             if _is_na(x) and _is_na(y):
                 aa[i] = np.nan
                 bb[i] = np.nan
@@ -350,7 +348,7 @@ def series_allclose(
             close = np.isclose(aa, bb, rtol=rtol, atol=atol, equal_nan=True)
             bad = np.where(~close)[0]
             i0 = int(bad[0]) if len(bad) else 0
-            n_bad = int(len(bad))
+            n_bad = len(bad)
             # max abs among finite pairs only
             max_abs: float | None = None
             if n_bad:
@@ -372,7 +370,7 @@ def series_allclose(
     n_bad = 0
     first: tuple[int, Any, Any, str] | None = None
     max_abs = 0.0
-    for i, (x, y) in enumerate(zip(a, b)):
+    for i, (x, y) in enumerate(zip(a, b, strict=True)):
         if _is_na(x) and _is_na(y):
             continue
         fx, fy = _to_float_or_none(x), _to_float_or_none(y)
@@ -390,8 +388,7 @@ def series_allclose(
         diff = abs(fx - fy)
         if diff > atol + rtol * abs(fy):
             n_bad += 1
-            if diff > max_abs:
-                max_abs = diff
+            max_abs = max(max_abs, diff)
             if first is None:
                 first = (i, fx, fy, "value")
     if first is not None:
@@ -419,7 +416,7 @@ def _is_nonnumeric_only_difference(a: list[Any], b: list[Any]) -> bool:
     if len(a) != len(b):
         return False
     saw_difference = False
-    for x, y in zip(a, b):
+    for x, y in zip(a, b, strict=True):
         if _is_na(x) and _is_na(y):
             continue
         fx, fy = _to_float_or_none(x), _to_float_or_none(y)
@@ -587,7 +584,7 @@ def run_one_script(
             src = sanitize_corpus_source(raw)
         else:
             src = raw
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         result["status"] = "interp_error"
         result["interp_error"] = f"read/sanitize: {type(e).__name__}: {e}"
         result["normalized_interp_error"] = normalize_error(result["interp_error"])
@@ -603,14 +600,14 @@ def run_one_script(
     ti0 = time.perf_counter()
     try:
         ri = Runtime(symbol="PARITY").run(src, bars, mode="interpret")
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         ri = {"error": f"{type(e).__name__}: {e}", "series": {}}
     result["ms_interp"] = int((time.perf_counter() - ti0) * 1000)
 
     tc0 = time.perf_counter()
     try:
         rc = Runtime(symbol="PARITY").run(src, bars, mode="compile")
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         rc = {"error": f"{type(e).__name__}: {e}", "series": {}}
     result["ms_compile"] = int((time.perf_counter() - tc0) * 1000)
 
@@ -696,7 +693,7 @@ def _proc_target(payload: tuple[Any, ...], q: Any) -> None:
     """Module-level worker for spawn (must be picklable)."""
     try:
         q.put(_worker_job(payload))
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         q.put(
             {
                 "file": payload[0],
@@ -771,7 +768,7 @@ def select_scripts(
 def default_workers() -> int:
     try:
         cpu = os.cpu_count() or 1
-    except Exception:  # noqa: BLE001
+    except Exception:
         cpu = 1
     return max(1, min(8, cpu))
 
@@ -828,7 +825,7 @@ _ERROR_STATUSES = frozenset(
 
 def summarize(results: list[dict[str, Any]]) -> dict[str, int]:
     """Count status buckets; structural_only is derived (other key-only on OK)."""
-    counts: dict[str, int] = {k: 0 for k in _SUMMARY_BUCKET_ORDER}
+    counts: dict[str, int] = dict.fromkeys(_SUMMARY_BUCKET_ORDER, 0)
     for r in results:
         st = r.get("status") or "OK"
         if st in counts:

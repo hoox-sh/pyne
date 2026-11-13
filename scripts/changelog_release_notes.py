@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+
 from pathlib import Path
 
 
@@ -86,7 +87,7 @@ def build_release_notes(changelog: str, version: str, *, install: bool = True) -
     return (
         notes
         + "\n---\n\n"
-        + f"## Install (Python package / CLI)\n\n"
+        + "## Install (Python package / CLI)\n\n"
         + "```bash\n"
         + f'pip install "hoox-pyne=={ver}"\n'
         + "# with LSP:\n"

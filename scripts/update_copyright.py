@@ -242,7 +242,7 @@ def extract_shebang_and_coding(lines: list[str]) -> tuple[list[str], list[str]]:
     prefix: list[str] = []
     remaining: list[str] = []
     coding_re = re.compile(r"^#.*coding[:=]")
-    for i, line in enumerate(lines):
+    for _i, line in enumerate(lines):
         if line.startswith("#!") and not prefix:
             prefix.append(line)
             continue

@@ -55,11 +55,15 @@ import csv
 import multiprocessing as mp
 import sys
 import time
-from collections import Counter, deque
-from dataclasses import dataclass, field
+
+from collections import Counter
+from collections import deque
+from collections.abc import Callable
+from dataclasses import dataclass
+from dataclasses import field
 from pathlib import Path
 from typing import Any
-from typing import Callable
+
 
 _HERE = Path(__file__).resolve().parent
 _ROOT = _HERE.parent
@@ -79,14 +83,15 @@ CACHE = _ROOT / ".cache"
 def _parse_one(path_str: str) -> tuple[str, str, str, int]:
     t0 = time.perf_counter()
     try:
-        from pynescript.ast.helper import parse, unparse
+        from pynescript.ast.helper import parse
+        from pynescript.ast.helper import unparse
         from pynescript.util.corpus_sanitize import sanitize_corpus_source
 
         raw = Path(path_str).read_text(encoding="utf-8", errors="replace")
         src = sanitize_corpus_source(raw)
         unparse(parse(src))
         return path_str, "OK", "", int((time.perf_counter() - t0) * 1000)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         ms = int((time.perf_counter() - t0) * 1000)
         msg = str(e).split("\n")[0][:200]
         return path_str, "FAIL", f"{type(e).__name__}: {msg}", ms
@@ -128,7 +133,8 @@ def _runtime_one(args: tuple[str, str, int]) -> tuple[str, str, str, int]:
 
     t0 = time.perf_counter()
     try:
-        from pynescript.ast.helper import parse, unparse
+        from pynescript.ast.helper import parse
+        from pynescript.ast.helper import unparse
         from pynescript.util.corpus_sanitize import sanitize_corpus_source
 
         raw = Path(path_str).read_text(encoding="utf-8", errors="replace")
@@ -165,7 +171,7 @@ def _runtime_one(args: tuple[str, str, int]) -> tuple[str, str, str, int]:
                     return path_str, "OK", "", ms
             return path_str, "RUN_FAIL", err_s, ms
         return path_str, "OK", "", ms
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         ms = int((time.perf_counter() - t0) * 1000)
         msg = f"{type(e).__name__}: {str(e).split(chr(10))[0][:180]}"
         if "/libraries/" in path_str.replace("\\", "/") and "Compile Error" not in msg:
@@ -202,7 +208,7 @@ def _load_done(csv_path: Path) -> set[str]:
                 f = (row.get("file") or "").strip()
                 if f:
                     done.add(f)
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
     return done
 
@@ -268,7 +274,7 @@ def _spark(values: deque[float], width: int = 24) -> str:
 
 def _bar(frac: float, width: int = 36, filled: str = "█", empty: str = "░") -> str:
     frac = max(0.0, min(1.0, frac))
-    n = int(round(frac * width))
+    n = round(frac * width)
     return filled * n + empty * (width - n)
 
 
@@ -414,7 +420,7 @@ def _run_pool(
         try:
             pool.terminate()
             pool.join()
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
 
     in_flight: list[tuple[Path, Any, float]] = []
@@ -424,14 +430,13 @@ def _run_pool(
         # worker is always a top-level function; args is either path or runtime tuple
         if worker is _runtime_one:
             ar = pool.apply_async(_runtime_one, (args,))
+        # parse / generic: worker_args returns (path_str,) or path_str
+        elif isinstance(args, tuple) and len(args) == 1:
+            ar = pool.apply_async(worker, args)
+        elif isinstance(args, tuple):
+            ar = pool.apply_async(worker, (args,))
         else:
-            # parse / generic: worker_args returns (path_str,) or path_str
-            if isinstance(args, tuple) and len(args) == 1:
-                ar = pool.apply_async(worker, args)
-            elif isinstance(args, tuple):
-                ar = pool.apply_async(worker, (args,))
-            else:
-                ar = pool.apply_async(worker, (args,))
+            ar = pool.apply_async(worker, (args,))
         in_flight.append((p, ar, time.perf_counter()))
 
     def fill() -> None:
@@ -462,7 +467,7 @@ def _run_pool(
                     p, ar, t0 = in_flight.pop(completed_idx)
                     try:
                         _path, status, error, ms = ar.get(timeout=0)
-                    except Exception as e:  # noqa: BLE001
+                    except Exception as e:
                         status = "FAIL"
                         error = f"{type(e).__name__}: {e}"[:200]
                         ms = int((time.perf_counter() - t0) * 1000)
@@ -484,7 +489,7 @@ def _run_pool(
                         pool = new_pool()
                         for rp in reversed(rest):
                             queue.insert(0, rp)
-                    except Exception as e:  # noqa: BLE001
+                    except Exception as e:
                         status = "FAIL"
                         error = f"{type(e).__name__}: {e}"[:200]
                         ms = int((time.perf_counter() - t0) * 1000)

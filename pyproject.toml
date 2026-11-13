@@ -213,6 +213,8 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
+# En-dash is used deliberately in the changelog heading regex (`[—–-]`).
+allowed-confusables = ["–"]
 select = [
   "A",
   "ARG",
@@ -299,6 +301,12 @@ required-imports = ["from __future__ import annotations"]
 "scripts/bench_pipeline.py" = ["T201"]
 "scripts/build/ci_build.py" = ["T201", "S603"]
 "scripts/build/compile.py" = ["T201", "S603"]
+# CLI scripts whose job is to print to stdout.
+"scripts/changelog_release_notes.py" = ["T201"]
+"scripts/compare_interp_compile.py" = ["T201"]
+"scripts/generate_builtin_metadata.py" = ["T201"]
+"scripts/showcase.py" = ["T201"]
+"scripts/update_copyright.py" = ["T201"]
 "tests/**/*" = ["ARG001", "ARG005", "B017", "C901", "F841", "PLR0912", "PLR2004", "S101", "S105", "S106", "T201", "TID252", "PLC0415"]
 # The Code Mode sandbox assertions name the private /tmp mount on purpose.
 "tests/test_mcp_codemode.py" = ["S108"]
