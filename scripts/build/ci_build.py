@@ -43,9 +43,10 @@ import os
 import shutil
 import subprocess
 import sys
-import zipfile
+
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
+
 
 ROOT = Path(__file__).parent.parent.parent.resolve()
 DIST = ROOT / "dist"
@@ -60,11 +61,11 @@ CLI_BINARY_NAME = "pynescript"
 
 def run(cmd: Sequence[str | Path], cwd: Path | None = None, env: dict | None = None, capture: bool = False):
     print(f"  $ {' '.join(str(c) for c in cmd)}")
-    kwargs: dict = dict(cwd=cwd, env=env or os.environ)
+    kwargs: dict = {"cwd": cwd, "env": env or os.environ}
     if capture:
         kwargs["capture_output"] = True
         kwargs["text"] = True
-    result = subprocess.run(list(cmd), **kwargs)
+    result = subprocess.run(list(cmd), check=False, **kwargs)
     if result.returncode != 0:
         print(f"  FAILED: exit {result.returncode}", file=sys.stderr)
         if capture and result.stderr:
@@ -139,7 +140,7 @@ def _package_version() -> str:
 def _product_version(version: str) -> str:
     # Nuitka Windows version resource requires dotted numeric product/file version.
     # Accept pep440-ish versions by taking the leading X.Y.Z.
-    version_core = version.split("+")[0].split("a")[0].split("b")[0].split("rc")[0]
+    version_core = version.split("+", maxsplit=1)[0].split("a", maxsplit=1)[0].split("b", maxsplit=1)[0].split("rc", maxsplit=1)[0]
     parts = [p for p in version_core.split(".") if p.isdigit()]
     while len(parts) < 3:
         parts.append("0")
