@@ -24,7 +24,8 @@ esac
 
 # oo:commands — detected by `oo init`; edit freely.
 FORMAT_CMD='bun fmt --check'
-LINT_CMD='ruff check .'
+# Keep LINT_CMD aligned with `make lint` (ruff check src/ tests/ backend/).
+LINT_CMD='ruff check src/ tests/ backend/'
 TYPECHECK_CMD='bun run check'
 TEST_CMD='pytest'
 OKF_CMD='okn --no-telemetry validate --spec 0.2 okf'
@@ -47,7 +48,7 @@ OKF_CMD='okn --no-telemetry validate --spec 0.2 okf'
 # The file list is only appended to a direct tool invocation: a file list after
 # a script wrapper (npm run lint) is silently ignored, which would pass without
 # checking anything. An empty *_FILES_CMD keeps the full-tree command.
-# LINT_FILES_CMD drops the trailing '.' from `ruff check .`; ruff takes paths,
+# LINT_FILES_CMD drops the trailing path list from `ruff check src/ tests/ backend/`; ruff takes paths,
 # and ruff only reads Python, so the lint set is Python-only.
 FORMAT_EXT='js|jsx|ts|tsx|mjs|cjs|json|jsonc|md|mdx|css|scss|html|yml|yaml'
 LINT_EXT='py|pyi'
