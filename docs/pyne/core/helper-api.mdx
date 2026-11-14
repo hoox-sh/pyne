@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Helper API"
 description: "parse, sha256 LRU cache, unparse, dump, walk, literal_eval, and location utilities — the public AST surface."
 ---
@@ -69,11 +87,11 @@ flowchart TB
 
 ### `parse(source, filename="<unknown>", mode="exec") -> AST`
 
-| Parameter | Meaning |
-| --- | --- |
-| `source` | Full script or expression text |
-| `filename` | Error reporting name; resolved to absolute path if the file exists |
-| `mode` | `"exec"` → `start_script` → `Script`; `"eval"` → `start_expression` → `Expression` |
+| Parameter  | Meaning                                                                            |
+| ---------- | ---------------------------------------------------------------------------------- |
+| `source`   | Full script or expression text                                                     |
+| `filename` | Error reporting name; resolved to absolute path if the file exists                 |
+| `mode`     | `"exec"` → `start_script` → `Script`; `"eval"` → `start_expression` → `Expression` |
 
 Raises:
 
@@ -91,12 +109,12 @@ Side effects during exec mode:
 
 Successful trees are stored in a process-local, thread-safe `OrderedDict` LRU keyed by `(sha256(source.encode("utf-8")), mode)`.
 
-| Control | Default | Meaning |
-| --- | --- | --- |
-| `PYNE_PARSE_CACHE` | **on** | `0` / `false` / `off` / `no` disables |
-| `PYNE_PARSE_CACHE_MAX` | `128` | Max entries (must be ≥ 1) |
-| `clear_parse_cache()` | — | Drop all entries and reset hit/miss counters |
-| `parse_cache_info()` | — | `{enabled, size, maxsize, hits, misses}` |
+| Control                | Default | Meaning                                      |
+| ---------------------- | ------- | -------------------------------------------- |
+| `PYNE_PARSE_CACHE`     | **on**  | `0` / `false` / `off` / `no` disables        |
+| `PYNE_PARSE_CACHE_MAX` | `128`   | Max entries (must be ≥ 1)                    |
+| `clear_parse_cache()`  | —       | Drop all entries and reset hit/miss counters |
+| `parse_cache_info()`   | —       | `{enabled, size, maxsize, hits, misses}`     |
 
 On a cache **hit**, the same AST object is returned (after scrubbing stale `_pine_call_site` attrs). Treat it as read-only: a `NodeTransformer` or `increment_lineno` mutates the cached entry for every later caller. After intentional mutation, call `clear_parse_cache()` or parse with the cache disabled.
 
@@ -116,19 +134,19 @@ Recursive pretty-print of node trees. With `indent` (int spaces or string), mult
 
 ### Tree navigation
 
-| Function | Behavior |
-| --- | --- |
-| `iter_fields(node)` | Yields `(name, value)` for set `_fields` |
-| `iter_child_nodes(node)` | Direct AST children (incl. list items) |
-| `walk(node)` | BFS over the full subtree |
+| Function                 | Behavior                                 |
+| ------------------------ | ---------------------------------------- |
+| `iter_fields(node)`      | Yields `(name, value)` for set `_fields` |
+| `iter_child_nodes(node)` | Direct AST children (incl. list items)   |
+| `walk(node)`             | BFS over the full subtree                |
 
 ### Location utilities
 
-| Function | Behavior |
-| --- | --- |
-| `copy_location(new, old)` | Copy lineno/col/end_* when both define the attribute |
-| `fix_missing_locations(node)` | Fill gaps from parent defaults starting at `(1, 0)` |
-| `increment_lineno(node, n=1)` | Shift all line numbers |
+| Function                                            | Behavior                                                      |
+| --------------------------------------------------- | ------------------------------------------------------------- |
+| `copy_location(new, old)`                           | Copy lineno/col/end\_\* when both define the attribute        |
+| `fix_missing_locations(node)`                       | Fill gaps from parent defaults starting at `(1, 0)`           |
+| `increment_lineno(node, n=1)`                       | Shift all line numbers                                        |
 | `get_source_segment(source, node, *, padded=False)` | Slice original source by node span; `None` if incomplete ends |
 
 ### `__all__` export list
@@ -170,11 +188,11 @@ Comment **nodes** are not left in `Script.body`; only string annotation lists ar
 
 ### Stream helpers
 
-| Internal | Role |
-| --- | --- |
+| Internal             | Role                                             |
+| -------------------- | ------------------------------------------------ |
 | `_parse_inputstream` | `InputStream(source)` + `stream.name = filename` |
-| `_parse_filestream` | `FileStream` for on-disk scripts |
-| `_get_absolute_path` | Resolve existing paths; leave `<unknown>` alone |
+| `_parse_filestream`  | `FileStream` for on-disk scripts                 |
+| `_get_absolute_path` | Resolve existing paths; leave `<unknown>` alone  |
 
 ## Invariants
 
@@ -236,15 +254,15 @@ clear_parse_cache()
 
 ## Failure modes
 
-| Failure | Notes |
-| --- | --- |
-| Deeply nested ternaries hit recursion | Mitigated by temporary limit ≥ 5000; pathological depth can still fail |
-| `get_source_segment` returns `None` | Missing `end_lineno` / `end_col_offset` |
-| `literal_eval` raises | Non-literal AST (names, calls beyond allowed set) |
-| Filename `<unknown>` in errors | Expected when parsing pure strings without a path |
-| Annotations missing | Comment not `@…` form, or not immediately preceding eligible stmt |
+| Failure                                    | Notes                                                                   |
+| ------------------------------------------ | ----------------------------------------------------------------------- |
+| Deeply nested ternaries hit recursion      | Mitigated by temporary limit ≥ 5000; pathological depth can still fail  |
+| `get_source_segment` returns `None`        | Missing `end_lineno` / `end_col_offset`                                 |
+| `literal_eval` raises                      | Non-literal AST (names, calls beyond allowed set)                       |
+| Filename `<unknown>` in errors             | Expected when parsing pure strings without a path                       |
+| Annotations missing                        | Comment not `@…` form, or not immediately preceding eligible stmt       |
 | Transformer “leaks” across `parse()` calls | Cache hit returned the same object you mutated — clear or disable cache |
-| `PYNE_PARSE_CACHE_MAX` ignored | Non-integer or `< 1` falls back to 128 |
+| `PYNE_PARSE_CACHE_MAX` ignored             | Non-integer or `< 1` falls back to 128                                  |
 
 ## See also
 

@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Linked editing"
 description: "textDocument/linkedEditingRange — live multi-cursor ranges for user identifiers."
 ---
@@ -50,10 +68,10 @@ flowchart TD
 
 Response:
 
-| Field | Value |
-| --- | --- |
-| `ranges` | Character-precise `Range` list for every same-document occurrence of the ident |
-| `wordPattern` | `[A-Za-z_][A-Za-z0-9_]*` |
+| Field         | Value                                                                          |
+| ------------- | ------------------------------------------------------------------------------ |
+| `ranges`      | Character-precise `Range` list for every same-document occurrence of the ident |
+| `wordPattern` | `[A-Za-z_][A-Za-z0-9_]*`                                                       |
 
 Unlike `textDocument/rename`, linked editing is **one document** — it does not walk other open buffers.
 
@@ -70,13 +88,13 @@ Hits are collected with `include_builtin_attrs=False`, so library attributes are
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `features/linked_editing.py` | LSP handler + `WORD_PATTERN` |
-| `langserver/analysis.py` | Scope/symbol resolution and exact occurrence ranges |
-| `features/highlight.py` | `cursor_ident`, `is_renamable_ident` |
-| `config.py` | `linked_editing_range_provider=True` |
-| `server.py` | `TEXT_DOCUMENT_LINKED_EDITING_RANGE` |
+| Path                         | Role                                                |
+| ---------------------------- | --------------------------------------------------- |
+| `features/linked_editing.py` | LSP handler + `WORD_PATTERN`                        |
+| `langserver/analysis.py`     | Scope/symbol resolution and exact occurrence ranges |
+| `features/highlight.py`      | `cursor_ident`, `is_renamable_ident`                |
+| `config.py`                  | `linked_editing_range_provider=True`                |
+| `server.py`                  | `TEXT_DOCUMENT_LINKED_EDITING_RANGE`                |
 
 Tests: `tests/test_lsp_features.py` (`TestLinkedEditingRangeHandler`).
 
@@ -101,11 +119,11 @@ Cursor on either `length`: two ranges (the assignment target and the call argume
 
 ## Failure modes
 
-| Symptom | Cause |
-| --- | --- |
-| Linked editing never starts | Cursor on a keyword / builtin namespace, or parse failed |
-| Only one occurrence linked | Other hits are a different ident, or builtin attrs excluded |
-| Edit spills into neighboring text | Client ignored `wordPattern` |
+| Symptom                           | Cause                                                       |
+| --------------------------------- | ----------------------------------------------------------- |
+| Linked editing never starts       | Cursor on a keyword / builtin namespace, or parse failed    |
+| Only one occurrence linked        | Other hits are a different ident, or builtin attrs excluded |
+| Edit spills into neighboring text | Client ignored `wordPattern`                                |
 
 ## See also
 

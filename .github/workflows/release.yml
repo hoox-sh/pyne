@@ -3,7 +3,7 @@ name: Build & Release
 on:
   push:
     tags:
-      - "v*"  # e.g., v1.0.0
+      - "v*" # e.g., v1.0.0
   workflow_dispatch:
     inputs:
       version:
@@ -490,4 +490,3 @@ jobs:
           files: release-assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-

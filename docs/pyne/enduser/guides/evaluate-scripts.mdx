@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Evaluate Scripts"
 description: "Run Pine expressions and multi-bar scripts with literal_eval, pynescript.runtime.Runtime (libraries=, timeout_seconds, mode), data providers, and strategy events."
 ---
@@ -28,9 +46,9 @@ description: "Run Pine expressions and multi-bar scripts with literal_eval, pyne
 
 Evaluation is the second half of the PYNE pipeline: given an AST (or source) and **market context**, produce plots, series, strategy events, and drawings. End users typically choose among three graded tools:
 
-1. **`literal_eval`** — pure/builtin expressions, optional series context  
-2. **AST evaluator** (`NodeLiteralEvaluator` / full evaluator mixins) — script-shaped evaluation in-process  
-3. **`pynescript.runtime.Runtime`** (package SoT; `backend.runtime` re-exports), **CLI `pyne execute`**, or **Pro API `POST /run`** — bar-loop over OHLCV with shared evaluate contract. TypeScript: **`@hoox-sh/pynets` `Runtime.run`** — [PyneTS](/pyne/docs/pynets). Defaults differ by surface — [modes](/pyne/docs/enduser/reference/modes).  
+1. **`literal_eval`** — pure/builtin expressions, optional series context
+2. **AST evaluator** (`NodeLiteralEvaluator` / full evaluator mixins) — script-shaped evaluation in-process
+3. **`pynescript.runtime.Runtime`** (package SoT; `backend.runtime` re-exports), **CLI `pyne execute`**, or **Pro API `POST /run`** — bar-loop over OHLCV with shared evaluate contract. TypeScript: **`@hoox-sh/pynets` `Runtime.run`** — [PyneTS](/pyne/docs/pynets). Defaults differ by surface — [modes](/pyne/docs/enduser/reference/modes).
 
 This guide stays at the consumer level; series semantics and builtin inventories are under [Runtime](/pyne/docs/runtime).
 
@@ -53,23 +71,23 @@ flowchart TB
   DF --> LE
 ```
 
-| Mode | Bar loop | Strategy | Typical use |
-| --- | --- | --- | --- |
-| `literal_eval` | no (single shot) | limited | TA on arrays, math, strings |
-| Evaluator in tests / tools | optional | yes via state | Unit tests, notebooks |
-| `Runtime.run` / `/run` | yes | yes | Charts, AXIS, backtests |
-| `mode="compile"` | yes (numeric + object) | yes (object mode) | Faster bar loop when eligible |
-| `mode="auto"` | yes | yes | Prefer compile; fall back to interpret |
+| Mode                       | Bar loop               | Strategy          | Typical use                            |
+| -------------------------- | ---------------------- | ----------------- | -------------------------------------- |
+| `literal_eval`             | no (single shot)       | limited           | TA on arrays, math, strings            |
+| Evaluator in tests / tools | optional               | yes via state     | Unit tests, notebooks                  |
+| `Runtime.run` / `/run`     | yes                    | yes               | Charts, AXIS, backtests                |
+| `mode="compile"`           | yes (numeric + object) | yes (object mode) | Faster bar loop when eligible          |
+| `mode="auto"`              | yes                    | yes               | Prefer compile; fall back to interpret |
 
 ## Runtime modes (`interpret` | `compile` | `auto`)
 
 `pynescript.runtime.Runtime.run` accepts a `mode` argument that selects how the bar loop executes:
 
-| Mode | Behavior |
-| --- | --- |
-| `interpret` | AST walker (full host semantics: `input.*` overrides, `request.*`, libraries, profiler). |
-| `compile` | Transpile to a Numba numeric kernel when possible, otherwise a pure-Python **object-mode** bar loop. Requires the compiler package. |
-| `auto` | Try compile first; on eligibility failure, compile error, or compiled runtime error, **fall back to interpret**. |
+| Mode        | Behavior                                                                                                                            |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `interpret` | AST walker (full host semantics: `input.*` overrides, `request.*`, libraries, profiler).                                            |
+| `compile`   | Transpile to a Numba numeric kernel when possible, otherwise a pure-Python **object-mode** bar loop. Requires the compiler package. |
+| `auto`      | Try compile first; on eligibility failure, compile error, or compiled runtime error, **fall back to interpret**.                    |
 
 **Defaults differ by surface:**
 
@@ -119,14 +137,14 @@ From **0.3.10**, interpret also skips unused derived OHLCV (`hl2` / `hlc3` / `oh
 
 `mode="auto"` (and explicit prefilters) skip or abandon compile for stable reasons. Common `compile_fallback_reason` values:
 
-| Reason (examples) | Why |
-| --- | --- |
-| `input.* overrides require interpret path` | Non-empty `inputs=` are interpret-only; compile does not apply overrides. |
-| `import statements not supported in compile path` | Library `import` needs the interpreter registry. |
-| `request.* not supported in compile path` | Multi-symbol / external data plumbing is interpret-only. |
-| `compiler package unavailable` | `pynescript.compiler` not importable in this install. |
-| `Compile Error: …` / Numba required messages | Deterministic transpile/env failures (cached per source for auto). |
-| Compiled runtime errors | Data-dependent failures still fall back once; not permanently cached as “never compile.” |
+| Reason (examples)                                 | Why                                                                                      |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `input.* overrides require interpret path`        | Non-empty `inputs=` are interpret-only; compile does not apply overrides.                |
+| `import statements not supported in compile path` | Library `import` needs the interpreter registry.                                         |
+| `request.* not supported in compile path`         | Multi-symbol / external data plumbing is interpret-only.                                 |
+| `compiler package unavailable`                    | `pynescript.compiler` not importable in this install.                                    |
+| `Compile Error: …` / Numba required messages      | Deterministic transpile/env failures (cached per source for auto).                       |
+| Compiled runtime errors                           | Data-dependent failures still fall back once; not permanently cached as “never compile.” |
 
 Other force-interpret paths:
 
@@ -254,11 +272,11 @@ result = session.append_bars(new_closed_bars)         # O(delta)
 tick = session.update_last_bar(forming_bar)           # overwrite last bar in place
 ```
 
-| Method | Role |
-| --- | --- |
-| `create_session(source, ohlcv, …)` | Parse once, evaluate the initial bars, return an `InterpretSession`. `mode` must be omitted or `"interpret"` (compile has no resumable evaluator state). |
-| `append_bars(new_bars, realtime_ticks=1, …)` | Confirm the previous last bar, then visit only the appended batch. Realtime window params apply to **this batch**, not previously committed bars. |
-| `update_last_bar(bar)` | Re-tick the forming last bar with revised OHLCV. Bar count does not advance. `var` scope and incremental TA windows roll back to bar-open (`varip` persists). |
+| Method                                       | Role                                                                                                                                                          |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create_session(source, ohlcv, …)`           | Parse once, evaluate the initial bars, return an `InterpretSession`. `mode` must be omitted or `"interpret"` (compile has no resumable evaluator state).      |
+| `append_bars(new_bars, realtime_ticks=1, …)` | Confirm the previous last bar, then visit only the appended batch. Realtime window params apply to **this batch**, not previously committed bars.             |
+| `update_last_bar(bar)`                       | Re-tick the forming last bar with revised OHLCV. Bar count does not advance. `var` scope and incremental TA windows roll back to bar-open (`varip` persists). |
 
 Streaming contract: already-committed bars keep their values (like TradingView® confirmed history). Scripts that branch on `barstate.islast` will diverge from a full `Runtime.run` replay for the previously last bar — that bar was committed with `islast=True`. Prefer `islastconfirmedhistory` / historical logic for append-parity, or re-run full `Runtime.run` when exact `islast` replay is required. `PYNE_SERIES_RING` must stay off (the default). Tests: `tests/test_runtime_session.py`.
 
@@ -291,25 +309,25 @@ feed = get_datafeed("ccxtpro", exchange="binance")
 
 ## Internals (repo paths)
 
-| Path | Role |
-| --- | --- |
-| `src/pynescript/ast/helper.py` | `literal_eval` |
-| `src/pynescript/ast/evaluator/base.py` | Context, series, visitor base |
-| `src/pynescript/ast/evaluator/__init__.py` | `NodeLiteralEvaluator` composition |
-| `src/pynescript/ast/evaluator/builtins/` | `ta.*`, `strategy.*`, arrays, … |
-| `src/pynescript/ast/evaluator/events.py` | Event emission hooks |
-| `src/pynescript/runtime/host.py` | Multi-bar `Runtime.run` SoT (`interpret` / `compile` / `auto`, `timeout_seconds`) plus `InterpretSession` (`create_session` / `append_bars` / `update_last_bar`) |
-| `src/pynescript/mcp/cli.py` | CLI `pyne execute` / `parity` → `Runtime.run` |
-| `src/pynescript/runtime/series.py` | `PineSeries` history model |
-| `backend/runtime.py` / `backend/series.py` | Compat re-exports of package Runtime |
-| `src/pynescript/compiler/` | Transpile + Numba/object bar loops |
-| `src/pynescript/util/data.py` | Providers + `resolve_request_sources` |
-| `src/pynescript/util/datafeed.py` | Realtime feeds |
-| `scripts/compare_interp_compile.py` | Interpret vs compile series parity harness |
-| `tests/test_interp_compile_parity.py` | Always-on smoke + optional full mark |
-| `examples/evaluate_expressions.py` | Expression gallery |
-| `examples/execute_script.py` | Didactic strategy loop |
-| `examples/rsi_strategy.pine` | Sample strategy source |
+| Path                                       | Role                                                                                                                                                             |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/pynescript/ast/helper.py`             | `literal_eval`                                                                                                                                                   |
+| `src/pynescript/ast/evaluator/base.py`     | Context, series, visitor base                                                                                                                                    |
+| `src/pynescript/ast/evaluator/__init__.py` | `NodeLiteralEvaluator` composition                                                                                                                               |
+| `src/pynescript/ast/evaluator/builtins/`   | `ta.*`, `strategy.*`, arrays, …                                                                                                                                  |
+| `src/pynescript/ast/evaluator/events.py`   | Event emission hooks                                                                                                                                             |
+| `src/pynescript/runtime/host.py`           | Multi-bar `Runtime.run` SoT (`interpret` / `compile` / `auto`, `timeout_seconds`) plus `InterpretSession` (`create_session` / `append_bars` / `update_last_bar`) |
+| `src/pynescript/mcp/cli.py`                | CLI `pyne execute` / `parity` → `Runtime.run`                                                                                                                    |
+| `src/pynescript/runtime/series.py`         | `PineSeries` history model                                                                                                                                       |
+| `backend/runtime.py` / `backend/series.py` | Compat re-exports of package Runtime                                                                                                                             |
+| `src/pynescript/compiler/`                 | Transpile + Numba/object bar loops                                                                                                                               |
+| `src/pynescript/util/data.py`              | Providers + `resolve_request_sources`                                                                                                                            |
+| `src/pynescript/util/datafeed.py`          | Realtime feeds                                                                                                                                                   |
+| `scripts/compare_interp_compile.py`        | Interpret vs compile series parity harness                                                                                                                       |
+| `tests/test_interp_compile_parity.py`      | Always-on smoke + optional full mark                                                                                                                             |
+| `examples/evaluate_expressions.py`         | Expression gallery                                                                                                                                               |
+| `examples/execute_script.py`               | Didactic strategy loop                                                                                                                                           |
+| `examples/rsi_strategy.pine`               | Sample strategy source                                                                                                                                           |
 
 ## Invariants & edge cases
 
@@ -366,27 +384,27 @@ for ev in out.get("events", []):
     print(ev)
 ```
 
-### request.* with resolved sources
+### request.\* with resolved sources
 
 When calling `/run` or Runtime, pass `data_source` / providers so `request.security` and friends resolve; without configuration they may use chart bars or mocks.
 
 ## Failure modes
 
-| Symptom | Interpretation |
-| --- | --- |
-| `NotImplementedError` / incomplete builtin | Expression outside supported surface — check [missing features](/pyne/docs/reference/missing-features) |
-| `{"error": "Parse Error: ..."}` | Runtime caught parse failure |
-| `{"error": …}` with `mode="compile"` | Strict compile path failed — retry with `auto` or `interpret`, or fix unsupported construct |
-| `compile_fallback_reason` set under `auto` | Compile skipped/failed; result is from interpret if no top-level `error` |
-| `EXECUTION_ERROR` via HTTP | Exception during bar loop |
-| Empty plots | No `plot`/`plotshape` executed; wrong declaration type |
-| Numerical mismatch vs TV | Warmup, float path, or builtin parity gap — [numerical validation](/pyne/docs/reference/numerical-validation) |
-| Interpret vs compile series MISMATCH | Run `scripts/compare_interp_compile.py` on the script; check report buckets |
-| `timed_out` + partial plots | `timeout_seconds` budget exceeded on interpret |
-| `create_session supports interpret only` | `mode="compile"` / `"auto"` passed to `create_session` — sessions are interpret-only |
-| `UNKNOWN_FIELDS` | Extra key not in `RUN_SCHEMA` / `RUN_BATCH_SCHEMA` |
-| `DataProviderError` | Provider misconfig |
-| Async feed errors | Missing ccxt.pro / network |
+| Symptom                                    | Interpretation                                                                                                |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `NotImplementedError` / incomplete builtin | Expression outside supported surface — check [missing features](/pyne/docs/reference/missing-features)        |
+| `{"error": "Parse Error: ..."}`            | Runtime caught parse failure                                                                                  |
+| `{"error": …}` with `mode="compile"`       | Strict compile path failed — retry with `auto` or `interpret`, or fix unsupported construct                   |
+| `compile_fallback_reason` set under `auto` | Compile skipped/failed; result is from interpret if no top-level `error`                                      |
+| `EXECUTION_ERROR` via HTTP                 | Exception during bar loop                                                                                     |
+| Empty plots                                | No `plot`/`plotshape` executed; wrong declaration type                                                        |
+| Numerical mismatch vs TV                   | Warmup, float path, or builtin parity gap — [numerical validation](/pyne/docs/reference/numerical-validation) |
+| Interpret vs compile series MISMATCH       | Run `scripts/compare_interp_compile.py` on the script; check report buckets                                   |
+| `timed_out` + partial plots                | `timeout_seconds` budget exceeded on interpret                                                                |
+| `create_session supports interpret only`   | `mode="compile"` / `"auto"` passed to `create_session` — sessions are interpret-only                          |
+| `UNKNOWN_FIELDS`                           | Extra key not in `RUN_SCHEMA` / `RUN_BATCH_SCHEMA`                                                            |
+| `DataProviderError`                        | Provider misconfig                                                                                            |
+| Async feed errors                          | Missing ccxt.pro / network                                                                                    |
 
 ## See also
 

@@ -1,20 +1,37 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 # PineScript v6 Implementation Status
@@ -127,14 +144,14 @@ Disk IR cache with prewarm API/CLI. Cache meta v18. Corrupt-cache recovery for N
 
 ## Hosts
 
-| Host | Description |
-| --- | --- |
-| **Package Runtime** | `pynescript.runtime.Runtime` — the language oracle |
-| **Pro API** | Flask REST API with auth, rate limiting, Docker |
-| **pyne-worker** | Python Cloudflare Worker — edge `POST /run` |
-| **pyne-agent-worker** | NL authoring host — `POST /v1/chat` |
-| **CLI** | `pyne` and `pyne-lsp` with Nuitka binaries |
-| **LSP** | Full language server — diagnostics, completion, hover, formatting, navigation |
+| Host                  | Description                                                                   |
+| --------------------- | ----------------------------------------------------------------------------- |
+| **Package Runtime**   | `pynescript.runtime.Runtime` — the language oracle                            |
+| **Pro API**           | Flask REST API with auth, rate limiting, Docker                               |
+| **pyne-worker**       | Python Cloudflare Worker — edge `POST /run`                                   |
+| **pyne-agent-worker** | NL authoring host — `POST /v1/chat`                                           |
+| **CLI**               | `pyne` and `pyne-lsp` with Nuitka binaries                                    |
+| **LSP**               | Full language server — diagnostics, completion, hover, formatting, navigation |
 
 ---
 
@@ -152,14 +169,14 @@ Disk IR cache with prewarm API/CLI. Cache meta v18. Corrupt-cache recovery for N
 
 Open-source sets 01-04 (2,477 scripts, measured locally, not shipped in git):
 
-| Stage | Result |
-| --- | --- |
-| Parse + unparse | 99.96% (2,476/2,477) |
+| Stage                       | Result                              |
+| --------------------------- | ----------------------------------- |
+| Parse + unparse             | 99.96% (2,476/2,477)                |
 | Runtime interpret (50 bars) | 100% excluding 11 intentional demos |
-| Set 01 runtime | 249/249 (100%) |
+| Set 01 runtime              | 249/249 (100%)                      |
 
 The 11 EXPECTED_FAIL scripts are intentional demos of error paths, not silent suppressions.
 
 ---
 
-*This document is maintained alongside the codebase.*
+_This document is maintained alongside the codebase._

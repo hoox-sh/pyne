@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "ASDL Schema"
 description: "Algebraic AST definition in Pinescript.asdl, generated dataclasses, and how schema changes flow into the pipeline."
 ---
@@ -61,24 +79,24 @@ Each product sum type becomes a Python class hierarchy under `AST` with:
 
 ### Module roots (`mod`)
 
-| Constructor | Fields | Use |
-| --- | --- | --- |
-| `Script` | `stmt* body`, `string* annotations` | Full file (`mode="exec"`) |
-| `Expression` | `expr body` | Single expression (`mode="eval"`) |
+| Constructor  | Fields                              | Use                               |
+| ------------ | ----------------------------------- | --------------------------------- |
+| `Script`     | `stmt* body`, `string* annotations` | Full file (`mode="exec"`)         |
+| `Expression` | `expr body`                         | Single expression (`mode="eval"`) |
 
 ### Statements (`stmt`)
 
-| Constructor | Notable fields |
-| --- | --- |
-| `FunctionDef` | `name`, `param* args`, `body`, **`expr? returns`**, `method?`, `export?`, `annotations` |
-| `TypeDef` | UDT `type Name` body (fields + methods as stmts) |
-| `EnumDef` | `enum Name` members |
-| `Assign` | `target`, optional `value`/`type`/`mode` (`Var`/`VarIp`), `export?`, `annotations` |
-| `ReAssign` | `target := value`, or `obj.f =` / `a[i] =` (not bare `name =`) |
-| `AugAssign` | `+=` … ops |
-| `Import` | `namespace/name/version`, optional `alias` |
-| `Expr` | Expression statement |
-| `Break` / `Continue` | Loop control |
+| Constructor          | Notable fields                                                                          |
+| -------------------- | --------------------------------------------------------------------------------------- |
+| `FunctionDef`        | `name`, `param* args`, `body`, **`expr? returns`**, `method?`, `export?`, `annotations` |
+| `TypeDef`            | UDT `type Name` body (fields + methods as stmts)                                        |
+| `EnumDef`            | `enum Name` members                                                                     |
+| `Assign`             | `target`, optional `value`/`type`/`mode` (`Var`/`VarIp`), `export?`, `annotations`      |
+| `ReAssign`           | `target := value`, or `obj.f =` / `a[i] =` (not bare `name =`)                          |
+| `AugAssign`          | `+=` … ops                                                                              |
+| `Import`             | `namespace/name/version`, optional `alias`                                              |
+| `Expr`               | Expression statement                                                                    |
+| `Break` / `Continue` | Loop control                                                                            |
 
 All `stmt` and most other attributed products carry location attributes.
 
@@ -95,14 +113,14 @@ Operators and primaries:
 
 ### Auxiliaries
 
-| Product | Role |
-| --- | --- |
-| `decl_mode` | `Var` \| `VarIp` |
-| `type_qual` | `Const` \| `Input` \| `Simple` \| `Series` |
-| `expr_context` | `Load` \| `Store` |
-| `param` | Function/method parameter |
-| `arg` | Call argument (optional keyword `name`) |
-| `case` | Switch arm (`pattern?`, `body`) |
+| Product            | Role                                                        |
+| ------------------ | ----------------------------------------------------------- |
+| `decl_mode`        | `Var` \| `VarIp`                                            |
+| `type_qual`        | `Const` \| `Input` \| `Simple` \| `Series`                  |
+| `expr_context`     | `Load` \| `Store`                                           |
+| `param`            | Function/method parameter                                   |
+| `arg`              | Call argument (optional keyword `name`)                     |
+| `case`             | Switch arm (`pattern?`, `body`)                             |
 | `cmnt` / `Comment` | Comment with `value` and `kind` (annotation classification) |
 
 Operators are empty product constructors used as tags — the unparser maps class names back to tokens:
@@ -130,12 +148,12 @@ Prefer constructing via `parse()` unless synthesizing trees for tests.
 
 ### Paths
 
-| Path | Edit? |
-| --- | --- |
-| `src/pynescript/ast/grammar/asdl/resource/Pinescript.asdl` | **Yes** — schema source of truth |
-| `src/pynescript/ast/grammar/asdl/generated/PinescriptASTNode.py` | **No** — regenerated |
-| `src/pynescript/ast/grammar/asdl/tool/generate.py` | Generator entry |
-| `src/pynescript/ast/node.py` | Thin re-export (`from .grammar.asdl.generated import *`) |
+| Path                                                             | Edit?                                                    |
+| ---------------------------------------------------------------- | -------------------------------------------------------- |
+| `src/pynescript/ast/grammar/asdl/resource/Pinescript.asdl`       | **Yes** — schema source of truth                         |
+| `src/pynescript/ast/grammar/asdl/generated/PinescriptASTNode.py` | **No** — regenerated                                     |
+| `src/pynescript/ast/grammar/asdl/tool/generate.py`               | Generator entry                                          |
+| `src/pynescript/ast/node.py`                                     | Thin re-export (`from .grammar.asdl.generated import *`) |
 
 ### Generated class shape
 
@@ -156,7 +174,7 @@ class FunctionDef(stmt):
     ]
 ```
 
-`stmt` base injects location `_attributes`. Hashability is forced to `object.__hash__` so nodes can live in sets/maps by identity when needed. `returns` is the optional leading type spec (`int f(x) => …`), not a runtime return *value*.
+`stmt` base injects location `_attributes`. Hashability is forced to `object.__hash__` so nodes can live in sets/maps by identity when needed. `returns` is the optional leading type spec (`int f(x) => …`), not a runtime return _value_.
 
 ### Regeneration
 
@@ -223,12 +241,12 @@ for name, value in iter_fields(tree):
 
 ## Failure modes
 
-| Failure | Cause |
-| --- | --- |
-| `AttributeError` on new field | Schema regenerated but consumer not updated |
-| Builder constructs wrong product | ASDL and grammar out of sync |
-| Unparser omits new node | Missing `visit_NewNode` → `generic_visit` may emit nothing useful |
-| Hand-edit of generated nodes lost | Edited `generated/` instead of `.asdl` |
+| Failure                           | Cause                                                             |
+| --------------------------------- | ----------------------------------------------------------------- |
+| `AttributeError` on new field     | Schema regenerated but consumer not updated                       |
+| Builder constructs wrong product  | ASDL and grammar out of sync                                      |
+| Unparser omits new node           | Missing `visit_NewNode` → `generic_visit` may emit nothing useful |
+| Hand-edit of generated nodes lost | Edited `generated/` instead of `.asdl`                            |
 
 ## See also
 

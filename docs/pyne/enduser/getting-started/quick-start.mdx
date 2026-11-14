@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Quick Start"
 description: "Parse, dump, unparse, lint, and evaluate Pine Script™ with the pyne CLI and library in under ten minutes."
 ---
@@ -74,14 +92,14 @@ Sample script in-tree: `examples/rsi_strategy.pine`. Prefer **`//@version=6`** a
 
 ## Internals (repo paths)
 
-| Step | Implementation |
-| --- | --- |
-| CLI parse/dump | `src/pynescript/__main__.py` → `parse_and_dump` |
-| CLI unparse | `parse_and_unparse` |
-| CLI lint | `lint` → `pynescript.ast.linter.lint_script` |
-| Library helpers | `src/pynescript/ast/helper.py` |
+| Step                 | Implementation                                                       |
+| -------------------- | -------------------------------------------------------------------- |
+| CLI parse/dump       | `src/pynescript/__main__.py` → `parse_and_dump`                      |
+| CLI unparse          | `parse_and_unparse`                                                  |
+| CLI lint             | `lint` → `pynescript.ast.linter.lint_script`                         |
+| Library helpers      | `src/pynescript/ast/helper.py`                                       |
 | Bar-loop Runtime SoT | `src/pynescript/runtime/` (`from pynescript.runtime import Runtime`) |
-| Example scripts | `examples/parse_dump_unparse.py`, `examples/evaluate_expressions.py` |
+| Example scripts      | `examples/parse_dump_unparse.py`, `examples/evaluate_expressions.py` |
 
 ## Invariants & edge cases
 
@@ -263,13 +281,13 @@ Wire Neovim / Zed / Emacs using [Editors](/pyne/docs/enduser/guides/editors) and
 
 ## Failure modes
 
-| Step fails | Check |
-| --- | --- |
-| Dump raises `SyntaxError` | Script version / unsupported construct — try a minimal `indicator` + `plot(close)` |
-| Unparse output differs cosmetically | Expected; compare semantic structure via dump |
-| Lint exits non-zero | `--fail-on` threshold; inspect codes `E001`, `W001`, … |
-| `literal_eval` `NotImplementedError` | Expression not in literal/builtin subset; use full Runtime |
-| `data` provider error | Network, API key, missing `ccxt` extra |
+| Step fails                           | Check                                                                              |
+| ------------------------------------ | ---------------------------------------------------------------------------------- |
+| Dump raises `SyntaxError`            | Script version / unsupported construct — try a minimal `indicator` + `plot(close)` |
+| Unparse output differs cosmetically  | Expected; compare semantic structure via dump                                      |
+| Lint exits non-zero                  | `--fail-on` threshold; inspect codes `E001`, `W001`, …                             |
+| `literal_eval` `NotImplementedError` | Expression not in literal/builtin subset; use full Runtime                         |
+| `data` provider error                | Network, API key, missing `ccxt` extra                                             |
 
 ## See also
 

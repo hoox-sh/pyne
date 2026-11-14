@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "GET /stats"
 description: "Public process-wide runtime statistics — engine, compile, prewarm, deltas, sessions, datafeed and HTTP counters."
 ---
@@ -28,7 +46,7 @@ description: "Public process-wide runtime statistics — engine, compile, prewar
 
 `GET /stats` is a public (no API key) snapshot of what this worker has been doing since it started: request counts and latency, execution-engine runs, compile cache outcomes, prewarm results, live-session delta sizes, and datafeed traffic.
 
-It is **process-local**. Counters reset when the worker restarts — which is honest for the single-worker gunicorn setup live sessions require, but means the numbers describe *this process, since it booted*, not a durable time series. Export them if you need dashboards.
+It is **process-local**. Counters reset when the worker restarts — which is honest for the single-worker gunicorn setup live sessions require, but means the numbers describe _this process, since it booted_, not a durable time series. Export them if you need dashboards.
 
 ## Interface surface
 
@@ -60,28 +78,28 @@ GET /stats
 
 ### Three metric kinds
 
-| Kind | Shape | Notes |
-| --- | --- | --- |
-| `counters` | `{total, by?}` | Monotonic. `by` is a dimension breakdown (mode, endpoint, status class, fallback reason). |
+| Kind        | Shape                                                       | Notes                                                                                                                                   |
+| ----------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `counters`  | `{total, by?}`                                              | Monotonic. `by` is a dimension breakdown (mode, endpoint, status class, fallback reason).                                               |
 | `latencies` | `{count, total_ms, avg_ms, min_ms, max_ms, p50_ms, p95_ms}` | Percentiles come from a bounded reservoir of the **last 512 samples** per metric, so they describe recent behaviour, not the whole run. |
-| `gauges` | number | Last value — in-flight requests, active sessions, cache entries. |
+| `gauges`    | number                                                      | Last value — in-flight requests, active sessions, cache entries.                                                                        |
 
 Metric names are dotted (`run.total`, `delta.bars_appended`, `http.request`) so the payload groups naturally.
 
 ### What is tracked
 
-| Namespace | Examples |
-| --- | --- |
-| `http` | `requests`, `by_endpoint`, `by_status_class`, `client_errors`, `server_errors`, `slow_requests`; `in_flight` gauge |
-| `run` | `total`, `bars`, `by_mode`, `mode_resolved`, `auto_backend`, `errors`, `error_kind`, `timed_out`, `compile_cached`, `compile_fallback_reasons` |
-| `interpret` | `bars`, `bar_loop` latency, `errors` by kind, `timeouts` |
-| `compile` | `attempts`, `eligibility`, `host_cache` (hit/miss), `errors`, `run` / `total` latency |
-| `compile_script` | `cache` split by `memory_raw` / `memory_sanitized` / `disk` / `ir_share` / `miss` |
-| `prewarm` | `calls`, `builtin_warm`, `scripts_ok`, `scripts_failed`, total latency |
-| `delta` | `append_calls`, `bars_appended`, `update_last_bar_calls`; `bars_per_append_max` gauge |
-| `session` / `sessions` | engine `created` and `parse`; store `created`, `dropped`, `evicted`, `active`, `capacity`, `active_max` |
-| `datafeed` | `streams`, `exchanges_connected`, `reconnects`, `errors`, `session_binds`, `watch_connections`, `watch_bars`, gateway `ohlcv` / `markets` counters and latency |
-| `provider` | `created`, `fetches`, `bars_fetched`, `fetch_errors` |
+| Namespace              | Examples                                                                                                                                                       |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `http`                 | `requests`, `by_endpoint`, `by_status_class`, `client_errors`, `server_errors`, `slow_requests`; `in_flight` gauge                                             |
+| `run`                  | `total`, `bars`, `by_mode`, `mode_resolved`, `auto_backend`, `errors`, `error_kind`, `timed_out`, `compile_cached`, `compile_fallback_reasons`                 |
+| `interpret`            | `bars`, `bar_loop` latency, `errors` by kind, `timeouts`                                                                                                       |
+| `compile`              | `attempts`, `eligibility`, `host_cache` (hit/miss), `errors`, `run` / `total` latency                                                                          |
+| `compile_script`       | `cache` split by `memory_raw` / `memory_sanitized` / `disk` / `ir_share` / `miss`                                                                              |
+| `prewarm`              | `calls`, `builtin_warm`, `scripts_ok`, `scripts_failed`, total latency                                                                                         |
+| `delta`                | `append_calls`, `bars_appended`, `update_last_bar_calls`; `bars_per_append_max` gauge                                                                          |
+| `session` / `sessions` | engine `created` and `parse`; store `created`, `dropped`, `evicted`, `active`, `capacity`, `active_max`                                                        |
+| `datafeed`             | `streams`, `exchanges_connected`, `reconnects`, `errors`, `session_binds`, `watch_connections`, `watch_bars`, gateway `ohlcv` / `markets` counters and latency |
+| `provider`             | `created`, `fetches`, `bars_fetched`, `fetch_errors`                                                                                                           |
 
 ## Relationship to other surfaces
 
@@ -99,22 +117,22 @@ Dimension values come from closed sets — route rules, `interpret`/`compile`/`a
 
 ## Failure modes
 
-| Symptom | Cause | Fix |
-| --- | --- | --- |
-| All counters reset | Worker restarted / redeployed | Expected — counters are in-process |
-| Counters look low behind a load balancer | Multiple workers, each counting its own slice | Aggregate per worker, or run with `GUNICORN_WORKERS=1` |
-| `p95_ms` disagrees with `max_ms` | Percentiles use a 512-sample reservoir | Treat p95 as recent-window; `max_ms` is all-time |
-| `compile_cache` or `sessions` shows `error` | Engine import failed | The rest of the payload still serves — `/stats` never fails the request |
+| Symptom                                     | Cause                                         | Fix                                                                     |
+| ------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------- |
+| All counters reset                          | Worker restarted / redeployed                 | Expected — counters are in-process                                      |
+| Counters look low behind a load balancer    | Multiple workers, each counting its own slice | Aggregate per worker, or run with `GUNICORN_WORKERS=1`                  |
+| `p95_ms` disagrees with `max_ms`            | Percentiles use a 512-sample reservoir        | Treat p95 as recent-window; `max_ms` is all-time                        |
+| `compile_cache` or `sessions` shows `error` | Engine import failed                          | The rest of the payload still serves — `/stats` never fails the request |
 
 ## Internals (map)
 
-| Path | Role |
-| --- | --- |
-| `src/pynescript/stats.py` | Thread-safe counter / latency / gauge registry |
-| `src/pynescript/debug.py` | `PYNE_DEBUG` toggle (reported under `debug`) |
-| `backend/logging_setup.py` | `debug_report()` |
-| `backend/app.py` | `/stats` route, request hooks |
-| `backend/api/datafeed.py`, `backend/middleware/sessions.py` | Datafeed + session counters |
+| Path                                                        | Role                                           |
+| ----------------------------------------------------------- | ---------------------------------------------- |
+| `src/pynescript/stats.py`                                   | Thread-safe counter / latency / gauge registry |
+| `src/pynescript/debug.py`                                   | `PYNE_DEBUG` toggle (reported under `debug`)   |
+| `backend/logging_setup.py`                                  | `debug_report()`                               |
+| `backend/app.py`                                            | `/stats` route, request hooks                  |
+| `backend/api/datafeed.py`, `backend/middleware/sessions.py` | Datafeed + session counters                    |
 
 ## See also
 

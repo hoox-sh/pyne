@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Chart Renderer"
 description: "Matplotlib Agg PNG services: line charts, OHLCV candles, equity curves, base64 encoding."
 ---
@@ -42,15 +60,15 @@ flowchart LR
 
 ### `render_line_chart`
 
-| Param | Default | Role |
-| --- | --- | --- |
-| `values` | required | Y series; `None` → NaN gaps |
-| `dates` | `None` | Optional x tick labels (≤ ~6 ticks) |
-| `title` | `"Chart"` | Title string |
-| `color` | `#2196F3` | Line + fill |
+| Param              | Default   | Role                                                                                                                                                  |
+| ------------------ | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `values`           | required  | Y series; `None` → NaN gaps                                                                                                                           |
+| `dates`            | `None`    | Optional x tick labels (≤ ~6 ticks)                                                                                                                   |
+| `title`            | `"Chart"` | Title string                                                                                                                                          |
+| `color`            | `#2196F3` | Line + fill                                                                                                                                           |
 | `height` / `width` | 300 / 600 | `width` → figsize inches (`width/100`); **`height` is unused** for figsize — line charts use 3.0″ (3.5″ with volume), OHLCV 3.5″, empty 2.5″. dpi 100 |
-| `show_volume` | false | Twin axis bars from `ohlcv["volume"]` |
-| `ohlcv` | `None` | Volume source when enabled |
+| `show_volume`      | false     | Twin axis bars from `ohlcv["volume"]`                                                                                                                 |
+| `ohlcv`            | `None`    | Volume source when enabled                                                                                                                            |
 
 Empty / all-null values → `_render_empty_chart` placeholder.
 
@@ -72,18 +90,18 @@ data:image/png;base64,{chart}
 
 ## Internals
 
-| Detail | Implementation |
-| --- | --- |
-| Backend | `matplotlib.use("Agg")` before pyplot import |
-| Theme | fig `#1E1E1E`, axes `#252526`, muted grids |
-| Cleanup | `plt.close(fig)` after `savefig` |
-| Empty state | Centered “No data available” text |
+| Detail      | Implementation                               |
+| ----------- | -------------------------------------------- |
+| Backend     | `matplotlib.use("Agg")` before pyplot import |
+| Theme       | fig `#1E1E1E`, axes `#252526`, muted grids   |
+| Cleanup     | `plt.close(fig)` after `savefig`             |
+| Empty state | Centered “No data available” text            |
 
-| Path | Role |
-| --- | --- |
-| `backend/services/chart_renderer.py` | Renderers |
-| `backend/api/preview.py` | Consumers |
-| `backend/services/backtest.py` | Equity chart hook |
+| Path                                 | Role              |
+| ------------------------------------ | ----------------- |
+| `backend/services/chart_renderer.py` | Renderers         |
+| `backend/api/preview.py`             | Consumers         |
+| `backend/services/backtest.py`       | Equity chart hook |
 
 ## Invariants and edge cases
 
@@ -104,11 +122,11 @@ assert isinstance(b64, str) and len(b64) > 100
 
 ## Failure modes
 
-| Symptom | Cause |
-| --- | --- |
-| ImportError Agg | Incomplete matplotlib install |
-| Huge base64 | High width/height — routes clamp preview sizes |
-| Blank image | Empty input path succeeded with placeholder |
+| Symptom         | Cause                                          |
+| --------------- | ---------------------------------------------- |
+| ImportError Agg | Incomplete matplotlib install                  |
+| Huge base64     | High width/height — routes clamp preview sizes |
+| Blank image     | Empty input path succeeded with placeholder    |
 
 ## See also
 

@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Completion"
 description: "textDocument/completion and completionItem/resolve from builtin metadata, module-dot triggers, and fuzzy filter."
 ---
@@ -44,10 +62,10 @@ flowchart TD
 
 ## Interface surface
 
-| Method | Capability |
-| --- | --- |
+| Method                    | Capability                                           |
+| ------------------------- | ---------------------------------------------------- |
 | `textDocument/completion` | `trigger_characters=["."]`, returns `CompletionList` |
-| `completionItem/resolve` | `resolve_provider=True` |
+| `completionItem/resolve`  | `resolve_provider=True`                              |
 
 Handler: `features/completion.py` → `handle_completion` / `handle_completion_resolve`.
 
@@ -57,10 +75,10 @@ Handler: `features/completion.py` → `handle_completion` / `handle_completion_r
 2. Suppress completion inside comments and string literals (`in_comment_or_string`).
 3. `get_trigger_char` — if the previous character is `.` (or `(`, `,`, space), treat as trigger.
 4. If the last token contains `.` (e.g. `ta.`, `Side.`, `p.`, `Point.`):
-   - user-enum prefix → enum members
-   - UDT type prefix (`Point.`) → `new` constructor
-   - receiver with an inferred UDT type (`p.`) → fields + methods
-   - catalog namespace (`ta.`, `strategy.risk.`) → `build_module_completion`
+    - user-enum prefix → enum members
+    - UDT type prefix (`Point.`) → `new` constructor
+    - receiver with an inferred UDT type (`p.`) → fields + methods
+    - catalog namespace (`ta.`, `strategy.risk.`) → `build_module_completion`
 5. Else merge user symbols visible in the current scope, `build_keyword_items`, enum names, builtin variables (`close`, `bar_index`, …), and `build_completion_list(prefix=prefix)`.
 
 Word boundaries for Pine identifiers: `[a-zA-Z_][a-zA-Z0-9_.]*` (`protocol/utils.py`).
@@ -69,39 +87,39 @@ Word boundaries for Pine identifiers: `[a-zA-Z_][a-zA-Z0-9_.]*` (`protocol/utils
 
 Built by `providers/completion_items.py`:
 
-| Field | Source |
-| --- | --- |
-| `label` | metadata `label` (e.g. `ta.sma`) |
-| `kind` | `CompletionItemKind.Function` |
-| `detail` | signature / detail string |
-| `documentation` | Markdown from metadata |
-| `insert_text` | Snippet if `${...}` present, else plain label |
-| `insert_text_format` | Snippet or PlainText |
-| `filter_text` | dotted parts + brief |
-| `sort_text` | modules first (`\x01…`), root second (`\x02…`) |
+| Field                | Source                                         |
+| -------------------- | ---------------------------------------------- |
+| `label`              | metadata `label` (e.g. `ta.sma`)               |
+| `kind`               | `CompletionItemKind.Function`                  |
+| `detail`             | signature / detail string                      |
+| `documentation`      | Markdown from metadata                         |
+| `insert_text`        | Snippet if `${...}` present, else plain label  |
+| `insert_text_format` | Snippet or PlainText                           |
+| `filter_text`        | dotted parts + brief                           |
+| `sort_text`          | modules first (`\x01…`), root second (`\x02…`) |
 
 Category headers may appear as Folder-kind items with empty insert text and labels like `--- Technical Analysis (ta.*) (N) ---`.
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `features/completion.py` | Request context + dispatch |
-| `providers/completion_items.py` | List / item / module builders |
+| Path                            | Role                                      |
+| ------------------------------- | ----------------------------------------- |
+| `features/completion.py`        | Request context + dispatch                |
+| `providers/completion_items.py` | List / item / module builders             |
 | `providers/builtin_metadata.py` | Load cache, `fuzzy_filter`, `get_builtin` |
-| `protocol/utils.py` | Word + trigger helpers |
+| `protocol/utils.py`             | Word + trigger helpers                    |
 
 ### Fuzzy filter scores
 
 `fuzzy_filter(query, items, limit=50)`:
 
-| Match | Score |
-| --- | --- |
-| Exact label | 1000 |
-| Prefix | 500 |
-| Substring in label | 100 |
-| Category | 50 |
-| Brief | 25 |
+| Match              | Score |
+| ------------------ | ----- |
+| Exact label        | 1000  |
+| Prefix             | 500   |
+| Substring in label | 100   |
+| Category           | 50    |
+| Brief              | 25    |
 
 Results sorted by score descending, capped at `limit`.
 
@@ -127,10 +145,10 @@ Resolve on `ta.sma` reloads full documentation markup for the detail pane.
 
 ## Failure modes
 
-| Symptom | Cause |
-| --- | --- |
-| Zero items always | Metadata not loaded — check [builtin metadata](/pyne/docs/lsp/builtin-metadata) |
-| Dot trigger ignored | Client did not set completion trigger characters from server capabilities |
+| Symptom               | Cause                                                                               |
+| --------------------- | ----------------------------------------------------------------------------------- |
+| Zero items always     | Metadata not loaded — check [builtin metadata](/pyne/docs/lsp/builtin-metadata)     |
+| Dot trigger ignored   | Client did not set completion trigger characters from server capabilities           |
 | Snippets inserted raw | Client disabled snippet support; extension setting `pynescript.completion.snippets` |
 
 ## See also

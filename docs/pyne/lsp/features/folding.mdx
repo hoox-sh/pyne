@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Folding ranges"
 description: "textDocument/foldingRange for Pine blocks, type/enum/function bodies, and //#region comments."
 ---
@@ -51,23 +69,23 @@ Control blocks are expressions (`If`, `ForTo`, `ForIn`, `While`, `Switch`, `Once
 
 Each range uses 0-based `start_line` / `end_line`. Region comment pairs set `kind: "region"`.
 
-| Construct | Folded |
-| --- | --- |
-| `if` / `else if` / `else` | keyword line through the last indented body line |
-| `for` … `to` / `for` … `in` | same |
-| `while` / `switch` / `once` | same |
-| `FunctionDef` / `TypeDef` / `EnumDef` | declaration through last body line |
-| `//#region` … `//#endregion` | start through end marker (`# region` / `# endregion` too) |
+| Construct                             | Folded                                                    |
+| ------------------------------------- | --------------------------------------------------------- |
+| `if` / `else if` / `else`             | keyword line through the last indented body line          |
+| `for` … `to` / `for` … `in`           | same                                                      |
+| `while` / `switch` / `once`           | same                                                      |
+| `FunctionDef` / `TypeDef` / `EnumDef` | declaration through last body line                        |
+| `//#region` … `//#endregion`          | start through end marker (`# region` / `# endregion` too) |
 
 Returns `[]` for empty source, parse failure, or `tree=None`.
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
+| Path                                            | Role                                  |
+| ----------------------------------------------- | ------------------------------------- |
 | `src/pynescript/langserver/features/folding.py` | AST walk + indent clamp + region scan |
-| `src/pynescript/langserver/config.py` | `folding_range_provider=True` |
-| `src/pynescript/langserver/server.py` | `TEXT_DOCUMENT_FOLDING_RANGE` handler |
+| `src/pynescript/langserver/config.py`           | `folding_range_provider=True`         |
+| `src/pynescript/langserver/server.py`           | `TEXT_DOCUMENT_FOLDING_RANGE` handler |
 
 Tests: `tests/test_lsp_features.py`.
 

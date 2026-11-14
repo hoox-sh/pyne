@@ -1,20 +1,37 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 # Pine Script to Numba Compiler Plan
@@ -60,14 +77,14 @@ As of **hoox-pyne 0.6.24** (late 2026), the plan is no longer purely prospective
 
 These are implementation status notes for constructs that previously diverged from the interpret oracle or lacked host plumbing. They do not change the four-layer architecture above.
 
-| Area | Status |
-| --- | --- |
-| **`time_arr`** | Compiled `execute_script_compiled(..., time_arr)` always receives bar-open Unix ms. Hosts (Runtime) pass real OHLCV timestamps; engine synthesizes `bar * 60_000` when time is omitted. Bare `time` / `time_close` / calendar parts / viewport times lower against `time_arr` (not a separate synthetic calendar). |
-| **`request.security` policy** | Compile lowers same-symbol simple OHLCV expressions as chart series passthrough only. Foreign tickers and complex expressions (UDFs, `year_sum(close)`, ...) emit `na` — no inventing chart close as dividends/fundamentals. Aligns with interpret foreign-na policy (`request.py` + `ChartOHLCVProvider` chart-symbol filter). |
-| **RSI Wilder** | `numba_rsi` / `numba_rsi_inc` use Wilder seed (SMA of first `period` deltas) then RMA of gain/loss (`alpha = 1/period`), matching interpret `_rsi` / `_rsi_inc_update` and TV `ta.rsi` (no longer a simple rolling window average of gains). |
-| **`highestbars` / `lowestbars`** | Negative bars-back offsets (TV / interpret contract); all-na window → `-1.0`. History indexing uses NaN-safe int coercion so `high[ta.highestbars(...)]` and `high[-highestbars(...)]` stay in-bounds. |
-| **`fill()` series** | Titled `fill(plot1, plot2, ...)` exports a series key for interpret/compile plot-key parity and AXIS band wiring; compile leaves the fill series as float NaN (band color/plot refs remain in plot meta / drawings as applicable). |
-| **Object-mode residuals** | UDF `if`/for-in locals, nested UDF free-series, nopython `None`/timezone `timestamp`, object `valuewhen`/`running_max`, matrix UDF/`kron` handles, statement `x = switch`, UDT `Type.new()` returns, `chart.point.copy`/`box.copy`, `pine_int(na)`, sanitize of Hugo/`/* */`/jinja chrome, `round()` extras, import stubs as `na`, color type dispatch, nested UDT methods. |
+| Area                             | Status                                                                                                                                                                                                                                                                                                                                                                      |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`time_arr`**                   | Compiled `execute_script_compiled(..., time_arr)` always receives bar-open Unix ms. Hosts (Runtime) pass real OHLCV timestamps; engine synthesizes `bar * 60_000` when time is omitted. Bare `time` / `time_close` / calendar parts / viewport times lower against `time_arr` (not a separate synthetic calendar).                                                          |
+| **`request.security` policy**    | Compile lowers same-symbol simple OHLCV expressions as chart series passthrough only. Foreign tickers and complex expressions (UDFs, `year_sum(close)`, ...) emit `na` — no inventing chart close as dividends/fundamentals. Aligns with interpret foreign-na policy (`request.py` + `ChartOHLCVProvider` chart-symbol filter).                                             |
+| **RSI Wilder**                   | `numba_rsi` / `numba_rsi_inc` use Wilder seed (SMA of first `period` deltas) then RMA of gain/loss (`alpha = 1/period`), matching interpret `_rsi` / `_rsi_inc_update` and TV `ta.rsi` (no longer a simple rolling window average of gains).                                                                                                                                |
+| **`highestbars` / `lowestbars`** | Negative bars-back offsets (TV / interpret contract); all-na window → `-1.0`. History indexing uses NaN-safe int coercion so `high[ta.highestbars(...)]` and `high[-highestbars(...)]` stay in-bounds.                                                                                                                                                                      |
+| **`fill()` series**              | Titled `fill(plot1, plot2, ...)` exports a series key for interpret/compile plot-key parity and AXIS band wiring; compile leaves the fill series as float NaN (band color/plot refs remain in plot meta / drawings as applicable).                                                                                                                                          |
+| **Object-mode residuals**        | UDF `if`/for-in locals, nested UDF free-series, nopython `None`/timezone `timestamp`, object `valuewhen`/`running_max`, matrix UDF/`kron` handles, statement `x = switch`, UDT `Type.new()` returns, `chart.point.copy`/`box.copy`, `pine_int(na)`, sanitize of Hugo/`/* */`/jinja chrome, `round()` extras, import stubs as `na`, color type dispatch, nested UDT methods. |
 
 ### Performance
 
@@ -108,4 +125,4 @@ Allowlisted HTF `ta.*` resample through `vwap` / `ao(fast, slow)` / 3-arg `linre
 
 ---
 
-*This document is maintained alongside the codebase.*
+_This document is maintained alongside the codebase._

@@ -1,10 +1,15 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "pyne-agent-worker"
 description: "Natural-language PYNE Agent on Cloudflare Workers AI. Standalone chat, optional pyne-worker validate loop, AXIS plugin. Sister repo."
 ---
@@ -15,13 +20,13 @@ description: "Natural-language PYNE Agent on Cloudflare Workers AI. Standalone c
 
 **pyne-agent-worker** is the edge **authoring** host: natural language in, Pine source out. It is a **sister repository** — it does **not** live in this PYNE checkout.
 
-| | |
-| --- | --- |
-| **Repo** | [hoox-sh/pyne-agent-worker](https://github.com/hoox-sh/pyne-agent-worker) |
-| **Role** | Write scripts via chat (PYNE Agent) + optional RAG |
-| **Runtime** | Cloudflare Workers (TypeScript) + Workers AI |
-| **AXIS** | `GET /plugin/axis-pine-agent.js` |
-| **In this repo?** | **No** |
+|                   |                                                                           |
+| ----------------- | ------------------------------------------------------------------------- |
+| **Repo**          | [hoox-sh/pyne-agent-worker](https://github.com/hoox-sh/pyne-agent-worker) |
+| **Role**          | Write scripts via chat (PYNE Agent) + optional RAG                        |
+| **Runtime**       | Cloudflare Workers (TypeScript) + Workers AI                              |
+| **AXIS**          | `GET /plugin/axis-pine-agent.js`                                          |
+| **In this repo?** | **No**                                                                    |
 
 You do **not** need [pyne-worker](/pyne/docs/pyne-worker), trade-worker, or the HOOX mesh to chat. The agent **writes** source. It does not import [PyneTS](/pyne/docs/pynets) and it does not run the bar-loop.
 
@@ -36,21 +41,21 @@ flowchart TB
   PYW -->|errors| AG
 ```
 
-| Mode | Requirement | Behavior |
-| --- | --- | --- |
-| **Standalone** | AI binding (+ optional KB) | `POST /v1/chat` → Pine; validation skipped |
-| **HOOX-enhanced** | + pyne-worker URL or service binding | generate → `POST /run` → fix retries |
+| Mode              | Requirement                          | Behavior                                   |
+| ----------------- | ------------------------------------ | ------------------------------------------ |
+| **Standalone**    | AI binding (+ optional KB)           | `POST /v1/chat` → Pine; validation skipped |
+| **HOOX-enhanced** | + pyne-worker URL or service binding | generate → `POST /run` → fix retries       |
 
 `GET /health` reports `"mode": "standalone" | "hoox"`.
 
 ### Taxonomy
 
-| Name | What it is |
-| --- | --- |
-| **PYNE** | Language SoT (this repo) |
-| **[PyneTS](/pyne/docs/pynets)** | TypeScript **library** (`@hoox-sh/pynets`) — `parse` / `Runtime.run` |
-| **[pyne-worker](/pyne/docs/pyne-worker)** | Python Cloudflare **evaluate** host |
-| **pyne-agent-worker** | NL **authoring** host (this Worker) |
+| Name                                      | What it is                                                           |
+| ----------------------------------------- | -------------------------------------------------------------------- |
+| **PYNE**                                  | Language SoT (this repo)                                             |
+| **[PyneTS](/pyne/docs/pynets)**           | TypeScript **library** (`@hoox-sh/pynets`) — `parse` / `Runtime.run` |
+| **[pyne-worker](/pyne/docs/pyne-worker)** | Python Cloudflare **evaluate** host                                  |
+| **pyne-agent-worker**                     | NL **authoring** host (this Worker)                                  |
 
 ## Hard rule
 

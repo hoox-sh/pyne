@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "CLI Commands Reference"
 description: "Complete option reference for the pyne Click CLI: check, format, lint, compile, run, optimize, prewarm, data, info, and more."
 ---
@@ -36,27 +54,27 @@ The language server is a **separate** console script (`pyne-lsp`; alias `pynescr
 
 ## Command index
 
-| Command | Aliases | Purpose |
-| --- | --- | --- |
-| `check` | | Parse-only validation (CI-friendly exit codes) |
-| `format` | `fmt` | Parse → unparse (structural format) |
-| `convert` | | Rewrite older Pine toward v5 or v6 |
-| `parse-and-dump` | `dump`, `ast` | AST dump |
-| `parse-and-unparse` | `unparse` | Round-trip source |
-| `lint` | | Static diagnostics (JSON / fail-on) |
-| `compile` | | Transpile or compile-check (Numba path) |
-| `prewarm` | | Warm Numba builtins / script IR caches (H2) |
-| `run` | | Compile + execute on synthetic OHLCV |
-| `execute` | | `Runtime.run` JSON (MCP `pyne_execute`) |
-| `symbols` | | Outline functions / inputs / plots |
-| `parity` | | Interpret vs compile last plot values |
-| `diagnostics` | | Parse errors + lint in one JSON list |
-| `builtin` | | Look up one Pine builtin (`ta.sma`) |
-| `optimize` | | Search `input.*` values over N interpret Runtime runs |
-| `data` | | Fetch market bars |
-| `runner` | | Hosted scripts on the Pro API (`deploy` / `tick` / `list`) |
-| `info` | `ls` | Version + optional extras |
-| `mcp` | | Stdio server, `config`, `tools`, in-process `call` |
+| Command             | Aliases       | Purpose                                                    |
+| ------------------- | ------------- | ---------------------------------------------------------- |
+| `check`             |               | Parse-only validation (CI-friendly exit codes)             |
+| `format`            | `fmt`         | Parse → unparse (structural format)                        |
+| `convert`           |               | Rewrite older Pine toward v5 or v6                         |
+| `parse-and-dump`    | `dump`, `ast` | AST dump                                                   |
+| `parse-and-unparse` | `unparse`     | Round-trip source                                          |
+| `lint`              |               | Static diagnostics (JSON / fail-on)                        |
+| `compile`           |               | Transpile or compile-check (Numba path)                    |
+| `prewarm`           |               | Warm Numba builtins / script IR caches (H2)                |
+| `run`               |               | Compile + execute on synthetic OHLCV                       |
+| `execute`           |               | `Runtime.run` JSON (MCP `pyne_execute`)                    |
+| `symbols`           |               | Outline functions / inputs / plots                         |
+| `parity`            |               | Interpret vs compile last plot values                      |
+| `diagnostics`       |               | Parse errors + lint in one JSON list                       |
+| `builtin`           |               | Look up one Pine builtin (`ta.sma`)                        |
+| `optimize`          |               | Search `input.*` values over N interpret Runtime runs      |
+| `data`              |               | Fetch market bars                                          |
+| `runner`            |               | Hosted scripts on the Pro API (`deploy` / `tick` / `list`) |
+| `info`              | `ls`          | Version + optional extras                                  |
+| `mcp`               |               | Stdio server, `config`, `tools`, in-process `call`         |
 
 ```bash
 pyne --help
@@ -71,12 +89,12 @@ pyne <command> -h
 
 Validate that path(s) parse as Pine Script.
 
-| Kind | Name | Default | Description |
-| --- | --- | --- | --- |
-| argument | `PATHS…` | (optional) | Files and/or directories; omit or `-` → stdin |
-| option | `--encoding` | `utf-8` | Text encoding |
-| option | `-q, --quiet` | off | Exit code only |
-| option | `--ext` | `.pine` | When PATH is a directory, only this suffix |
+| Kind     | Name          | Default    | Description                                   |
+| -------- | ------------- | ---------- | --------------------------------------------- |
+| argument | `PATHS…`      | (optional) | Files and/or directories; omit or `-` → stdin |
+| option   | `--encoding`  | `utf-8`    | Text encoding                                 |
+| option   | `-q, --quiet` | off        | Exit code only                                |
+| option   | `--ext`       | `.pine`    | When PATH is a directory, only this suffix    |
 
 ```bash
 pyne check script.pine
@@ -93,13 +111,13 @@ cat x.pine | pyne check -
 
 Canonicalize Pine by parse → unparse (structural, not a full style formatter).
 
-| Kind | Name | Default | Description |
-| --- | --- | --- | --- |
-| argument | `PATH` | required | File or `-` (stdin) |
-| option | `--encoding` | `utf-8` | |
-| option | `-w, --write` | off | Write back to PATH (not for stdin) |
-| option | `--check` | off | Exit `1` if format would change (no write) |
-| option | `-o, --output-file` | `-` | Output when not using `--write` |
+| Kind     | Name                | Default  | Description                                |
+| -------- | ------------------- | -------- | ------------------------------------------ |
+| argument | `PATH`              | required | File or `-` (stdin)                        |
+| option   | `--encoding`        | `utf-8`  |                                            |
+| option   | `-w, --write`       | off      | Write back to PATH (not for stdin)         |
+| option   | `--check`           | off      | Exit `1` if format would change (no write) |
+| option   | `-o, --output-file` | `-`      | Output when not using `--write`            |
 
 ```bash
 pyne format script.pine            # stdout
@@ -116,13 +134,13 @@ Rewrite older Pine toward v5 or v6. `--to 6` converts **any** older version
 `math.*` / `request.*` namespaces, `study(` → `indicator(`, typed `input.*()`,
 `iff` / `offset`. Not a semantic v6 migrator (bool-as-int, `na`).
 
-| Kind | Name | Default | Description |
-| --- | --- | --- | --- |
-| argument | `PATH` | required | File or `-` (stdin) |
-| option | `--to` | required | `5` / `6` / `v5` / `v6` |
-| option | `--encoding` | `utf-8` | |
-| option | `-w, --write` | off | Write back to PATH (not for stdin) |
-| option | `-o, --output-file` | `-` | Output when not using `--write` |
+| Kind     | Name                | Default  | Description                        |
+| -------- | ------------------- | -------- | ---------------------------------- |
+| argument | `PATH`              | required | File or `-` (stdin)                |
+| option   | `--to`              | required | `5` / `6` / `v5` / `v6`            |
+| option   | `--encoding`        | `utf-8`  |                                    |
+| option   | `-w, --write`       | off      | Write back to PATH (not for stdin) |
+| option   | `-o, --output-file` | `-`      | Output when not using `--write`    |
 
 ```bash
 pyne convert old.pine --to 6
@@ -133,12 +151,12 @@ pyne convert strategy.pine --to 6 -w
 
 ### `pyne parse-and-dump` (`dump` / `ast`)
 
-| Kind | Name | Default | Description |
-| --- | --- | --- | --- |
-| argument | `PATH` | required | Input file |
-| option | `--encoding` | `utf-8` | |
-| option | `--indent` | `2` | Dump indent |
-| option | `-o, --output-file` | `-` | Output path |
+| Kind     | Name                | Default  | Description |
+| -------- | ------------------- | -------- | ----------- |
+| argument | `PATH`              | required | Input file  |
+| option   | `--encoding`        | `utf-8`  |             |
+| option   | `--indent`          | `2`      | Dump indent |
+| option   | `-o, --output-file` | `-`      | Output path |
 
 ```bash
 pyne dump strategy.pine
@@ -149,11 +167,11 @@ pyne parse-and-dump strategy.pine --indent 4 -o tree.txt
 
 ### `pyne parse-and-unparse` (`unparse`)
 
-| Kind | Name | Default | Description |
-| --- | --- | --- | --- |
-| argument | `PATH` | required | Input file |
-| option | `--encoding` | `utf-8` | |
-| option | `-o, --output-file` | `-` | Output path |
+| Kind     | Name                | Default  | Description |
+| -------- | ------------------- | -------- | ----------- |
+| argument | `PATH`              | required | Input file  |
+| option   | `--encoding`        | `utf-8`  |             |
+| option   | `-o, --output-file` | `-`      | Output path |
 
 ```bash
 pyne unparse messy.pine -o clean.pine
@@ -163,13 +181,13 @@ pyne unparse messy.pine -o clean.pine
 
 ### `pyne lint`
 
-| Kind | Name | Default | Description |
-| --- | --- | --- | --- |
-| argument | `PATH` | optional | File; omit or `-` → stdin |
-| option | `--encoding` | `utf-8` | |
-| option | `--fail-on` | `errors` | `errors` \| `warnings` \| `all` \| `never` |
-| option | `--json` | off | JSON array of findings |
-| option | `-q, --quiet` | off | Summary only |
+| Kind     | Name          | Default  | Description                                |
+| -------- | ------------- | -------- | ------------------------------------------ |
+| argument | `PATH`        | optional | File; omit or `-` → stdin                  |
+| option   | `--encoding`  | `utf-8`  |                                            |
+| option   | `--fail-on`   | `errors` | `errors` \| `warnings` \| `all` \| `never` |
+| option   | `--json`      | off      | JSON array of findings                     |
+| option   | `-q, --quiet` | off      | Summary only                               |
 
 ```bash
 pyne lint strategy.pine
@@ -185,13 +203,13 @@ cat strategy.pine | pyne lint -
 Compile via `pynescript.compiler.compile_script`. Requires
 `pip install "hoox-pyne[compile]"` for full Numba path; `--emit` works without JIT.
 
-| Kind | Name | Default | Description |
-| --- | --- | --- | --- |
-| argument | `PATH` | required | Pine file |
-| option | `--encoding` | `utf-8` | |
-| option | `--emit` | off | Print generated Python only (no exec/JIT) |
-| option | `-o, --output-file` | `-` | Where to write `--emit` output |
-| option | `--time / --no-time` | time on | Print compile timing |
+| Kind     | Name                 | Default  | Description                               |
+| -------- | -------------------- | -------- | ----------------------------------------- |
+| argument | `PATH`               | required | Pine file                                 |
+| option   | `--encoding`         | `utf-8`  |                                           |
+| option   | `--emit`             | off      | Print generated Python only (no exec/JIT) |
+| option   | `-o, --output-file`  | `-`      | Where to write `--emit` output            |
+| option   | `--time / --no-time` | time on  | Print compile timing                      |
 
 ```bash
 pyne compile script.pine --emit
@@ -205,12 +223,12 @@ pyne compile script.pine            # warm load / compile-check
 
 H2 warm-compile product path: pay cold JIT before first interactive run.
 
-| Kind | Name | Default | Description |
-| --- | --- | --- | --- |
-| argument | `PATH…` | optional | Pine files to compile into IR caches |
-| option | `--encoding` | `utf-8` | |
-| option | `--force` | off | Re-run builtin warm-up |
-| option | `--json` | off | Machine-readable summary |
+| Kind     | Name         | Default  | Description                          |
+| -------- | ------------ | -------- | ------------------------------------ |
+| argument | `PATH…`      | optional | Pine files to compile into IR caches |
+| option   | `--encoding` | `utf-8`  |                                      |
+| option   | `--force`    | off      | Re-run builtin warm-up               |
+| option   | `--json`     | off      | Machine-readable summary             |
 
 ```bash
 pyne prewarm                    # shared Numba kernels only
@@ -227,13 +245,13 @@ Pro API `mode=compile`). **No `--mode`.** Does **not** call `Runtime.run`. Prefe
 package `pynescript.runtime.Runtime` / Pro API for real bars, `libraries=`, and
 `timeout_seconds`.
 
-| Kind | Name | Default | Description |
-| --- | --- | --- | --- |
-| argument | `PATH` | required | Pine file |
-| option | `--encoding` | `utf-8` | |
-| option | `--bars` | `50` | Synthetic bar count |
-| option | `--json` | off | Plot series summary as JSON |
-| option | `-q, --quiet` | off | Errors / exit only |
+| Kind     | Name          | Default  | Description                 |
+| -------- | ------------- | -------- | --------------------------- |
+| argument | `PATH`        | required | Pine file                   |
+| option   | `--encoding`  | `utf-8`  |                             |
+| option   | `--bars`      | `50`     | Synthetic bar count         |
+| option   | `--json`      | off      | Plot series summary as JSON |
+| option   | `-q, --quiet` | off      | Errors / exit only          |
 
 ```bash
 pyne run strategy.pine --bars 100
@@ -246,22 +264,22 @@ pyne run strategy.pine --json
 
 Search `input.*` values for a **`strategy()`** script. Loops interpret `Runtime` (not `/backtest/quick`). Requires `--space` JSON.
 
-| Kind | Name | Default | Description |
-| --- | --- | --- | --- |
-| argument | `PATH` | required | Pine file (`-` = stdin) |
-| option | `--encoding` | `utf-8` | |
-| option | `--bars` | `120` | Synthetic bar count (min 8) |
-| option | `--trials` | `20` | Trial budget (max 200) |
-| option | `--space` | required | JSON `{"params":[{"name","kind","min","max"}]}` |
-| option | `--sampler` | `auto` | `auto` \| `random` \| `tpe` \| `grid` |
-| option | `--objective` | `composite` | `composite` \| `net_pnl` \| `profit_factor` \| `calmar` |
-| option | `--validation` | `holdout` | `holdout` \| `walk-forward` \| `in-sample` |
-| option | `--train-bars` | derive | Walk-forward train window |
-| option | `--test-bars` | derive | Walk-forward test window |
-| option | `--step-bars` | derive | Walk-forward step (default: the test window) |
-| option | `--holdout-frac` | `0.3` | Holdout test fraction |
-| option | `--seed` | unset | RNG seed |
-| option | `--json` | off | Full study JSON |
+| Kind     | Name             | Default     | Description                                             |
+| -------- | ---------------- | ----------- | ------------------------------------------------------- |
+| argument | `PATH`           | required    | Pine file (`-` = stdin)                                 |
+| option   | `--encoding`     | `utf-8`     |                                                         |
+| option   | `--bars`         | `120`       | Synthetic bar count (min 8)                             |
+| option   | `--trials`       | `20`        | Trial budget (max 200)                                  |
+| option   | `--space`        | required    | JSON `{"params":[{"name","kind","min","max"}]}`         |
+| option   | `--sampler`      | `auto`      | `auto` \| `random` \| `tpe` \| `grid`                   |
+| option   | `--objective`    | `composite` | `composite` \| `net_pnl` \| `profit_factor` \| `calmar` |
+| option   | `--validation`   | `holdout`   | `holdout` \| `walk-forward` \| `in-sample`              |
+| option   | `--train-bars`   | derive      | Walk-forward train window                               |
+| option   | `--test-bars`    | derive      | Walk-forward test window                                |
+| option   | `--step-bars`    | derive      | Walk-forward step (default: the test window)            |
+| option   | `--holdout-frac` | `0.3`       | Holdout test fraction                                   |
+| option   | `--seed`         | unset       | RNG seed                                                |
+| option   | `--json`         | off         | Full study JSON                                         |
 
 `--validation walk-forward` derives windows from `--bars` when the bar flags are omitted: `train=max(8, bars*2//3)`, `test=max(4, bars//6)`, `step=max(1, test)` (so default `--bars 120` → 80/20/20). Explicit `--train-bars` / `--test-bars` / `--step-bars` override that. The CLI refuses walk-forward when `--bars < train+test`. All-errored studies exit 1 even if the study status is `success`.
 
@@ -280,16 +298,16 @@ Library: `pynescript.optimize.run_study`. HTTP: [POST /optimize](/pyne/docs/api/
 
 ### `pyne data`
 
-| Kind | Name | Default | Description |
-| --- | --- | --- | --- |
-| argument | `SYMBOL` | required | Ticker / market symbol |
-| option | `--provider` | `mock` | `mock` \| `yahoo` \| `alphavantage` \| `ccxt` |
-| option | `--period` | `1y` | e.g. `6mo`, `1y` |
-| option | `--interval` | `1d` | e.g. `1h`, `1d` |
-| option | `--api-key` / `--secret` | empty | Provider credentials |
-| option | `--exchange` | `binance` | CCXT exchange id |
-| option | `--format` | `table` | `table` \| `json` \| `csv` |
-| option | `-o, --output-file` | `-` | Output path |
+| Kind     | Name                     | Default   | Description                                   |
+| -------- | ------------------------ | --------- | --------------------------------------------- |
+| argument | `SYMBOL`                 | required  | Ticker / market symbol                        |
+| option   | `--provider`             | `mock`    | `mock` \| `yahoo` \| `alphavantage` \| `ccxt` |
+| option   | `--period`               | `1y`      | e.g. `6mo`, `1y`                              |
+| option   | `--interval`             | `1d`      | e.g. `1h`, `1d`                               |
+| option   | `--api-key` / `--secret` | empty     | Provider credentials                          |
+| option   | `--exchange`             | `binance` | CCXT exchange id                              |
+| option   | `--format`               | `table`   | `table` \| `json` \| `csv`                    |
+| option   | `-o, --output-file`      | `-`       | Output path                                   |
 
 ```bash
 pyne data AAPL
@@ -305,24 +323,24 @@ CCXT needs `pip install "hoox-pyne[data]"`.
 
 Rich front-end over the open-source Pine corpus (`tests/data/set0N`). Runs scripts through `Runtime` (or parse-only) and writes CSV + summary under `.cache/`.
 
-| Subcommand | Role |
-| --- | --- |
-| `list` | Show available sets and `.pine` counts (`--json`, `--data`) |
-| `run` | Execute sets (`--sets`, positional set names, `--mode`, `--workers`, …) |
+| Subcommand | Role                                                                    |
+| ---------- | ----------------------------------------------------------------------- |
+| `list`     | Show available sets and `.pine` counts (`--json`, `--data`)             |
+| `run`      | Execute sets (`--sets`, positional set names, `--mode`, `--workers`, …) |
 
-| Kind | Name | Default | Description |
-| --- | --- | --- | --- |
-| option | `--sets` | `set01,set02,set03` | Comma-separated corpus sets |
-| argument | `SETS_ARGS` | optional | Extra set names (`pyne corpus run set01 set02`) |
-| option | `--mode` | `compile` | `interpret` \| `compile` \| `auto` \| `run` \| `parse` |
-| option | `--timeout` | `20` | Per-script seconds |
-| option | `--bars` | `50` | Synthetic OHLCV length |
-| option | `--workers` | `6` | Process pool size |
-| option | `--out` | `.cache/runtime_corpus_…csv` | Results CSV |
-| option | `--resume` | off | Skip files already in `--out` |
-| option | `--data` | `tests/data` / `$PYNE_CORPUS_DATA` | Corpus root |
-| option | `--plain` / `--rich` | auto | Disable or force Rich |
-| option | `--strict` / `--no-strict` | strict | Exit 1 on residual failures |
+| Kind     | Name                       | Default                            | Description                                            |
+| -------- | -------------------------- | ---------------------------------- | ------------------------------------------------------ |
+| option   | `--sets`                   | `set01,set02,set03`                | Comma-separated corpus sets                            |
+| argument | `SETS_ARGS`                | optional                           | Extra set names (`pyne corpus run set01 set02`)        |
+| option   | `--mode`                   | `compile`                          | `interpret` \| `compile` \| `auto` \| `run` \| `parse` |
+| option   | `--timeout`                | `20`                               | Per-script seconds                                     |
+| option   | `--bars`                   | `50`                               | Synthetic OHLCV length                                 |
+| option   | `--workers`                | `6`                                | Process pool size                                      |
+| option   | `--out`                    | `.cache/runtime_corpus_…csv`       | Results CSV                                            |
+| option   | `--resume`                 | off                                | Skip files already in `--out`                          |
+| option   | `--data`                   | `tests/data` / `$PYNE_CORPUS_DATA` | Corpus root                                            |
+| option   | `--plain` / `--rich`       | auto                               | Disable or force Rich                                  |
+| option   | `--strict` / `--no-strict` | strict                             | Exit 1 on residual failures                            |
 
 ```bash
 pyne corpus list
@@ -338,21 +356,21 @@ Engine module: `pynescript.util.corpus_runtime` (also used by `scripts/corpus_ru
 
 HTTP client for the optional Flask hosted runner (`PYNE_RUNNER=1`). Group options apply to every subcommand.
 
-| Kind | Name | Default | Description |
-| --- | --- | --- | --- |
-| option | `--url` | `http://127.0.0.1:5002` | Pro API origin (`PYNE_API_URL`) |
-| option | `--token` | empty | `X-Admin-Token` (`ADMIN_TOKEN`) |
+| Kind   | Name      | Default                 | Description                     |
+| ------ | --------- | ----------------------- | ------------------------------- |
+| option | `--url`   | `http://127.0.0.1:5002` | Pro API origin (`PYNE_API_URL`) |
+| option | `--token` | empty                   | `X-Admin-Token` (`ADMIN_TOKEN`) |
 
-| Subcommand | Role |
-| --- | --- |
-| `deploy PATH` | Read a `.pine` / `.pyne` file and `POST /scripts` |
-| `list` | `GET /scripts` |
-| `show ID` | `GET /scripts/:id` |
-| `delete ID` | `DELETE /scripts/:id` |
-| `tick` | `POST /cron/run` (`--id`, `--force`) |
-| `jobs` | `GET /cron/jobs` |
-| `history` | `GET /cron/history` (`--id`, `--limit`) |
-| `enable ID` / `disable ID` | `PUT /cron/jobs` |
+| Subcommand                 | Role                                              |
+| -------------------------- | ------------------------------------------------- |
+| `deploy PATH`              | Read a `.pine` / `.pyne` file and `POST /scripts` |
+| `list`                     | `GET /scripts`                                    |
+| `show ID`                  | `GET /scripts/:id`                                |
+| `delete ID`                | `DELETE /scripts/:id`                             |
+| `tick`                     | `POST /cron/run` (`--id`, `--force`)              |
+| `jobs`                     | `GET /cron/jobs`                                  |
+| `history`                  | `GET /cron/history` (`--id`, `--limit`)           |
+| `enable ID` / `disable ID` | `PUT /cron/jobs`                                  |
 
 ```bash
 pyne runner deploy script.pine --id demo --symbol BTCUSDT --source mock
@@ -368,8 +386,8 @@ Full HTTP contract: [hosted runner](/pyne/docs/api/endpoints/runner).
 
 ### `pyne info` (`ls`)
 
-| Kind | Name | Description |
-| --- | --- | --- |
+| Kind   | Name     | Description              |
+| ------ | -------- | ------------------------ |
 | option | `--json` | Machine-readable payload |
 
 Prints package version, Python, platform, and whether `numba` / `rich` / `mcp` are available.
@@ -380,17 +398,17 @@ Prints package version, Python, platform, and whether `numba` / `rich` / `mcp` a
 
 `Runtime.run` on PATH (MCP `pyne_execute`). Prints the JSON envelope. Unlike `pyne run`, this is interpret/compile/auto with optional caller OHLCV rows.
 
-| Kind | Name | Default | Description |
-| --- | --- | --- | --- |
-| argument | PATH | | File or `-` (stdin) |
-| option | `--mode` | `auto` | `interpret` / `compile` / `auto` |
-| option | `--bars` | `50` | Synthetic bars when `--ohlcv` is omitted |
-| option | `--ohlcv` | | JSON array of `{time,open,high,low,close,volume?}` rows, or a file |
-| option | `--inputs` | | JSON object of `input.*` overrides, or a file |
-| option | `--timeout` | 30s (cap 120) | Seconds |
-| option | `--sample` | `8` | Trailing plot samples (max 64) |
-| option | `--trades` | | Include strategy trade extras |
-| option | `--ticker` / `--timeframe` | `MCP` / `1m` | Runtime identity |
+| Kind     | Name                       | Default       | Description                                                        |
+| -------- | -------------------------- | ------------- | ------------------------------------------------------------------ |
+| argument | PATH                       |               | File or `-` (stdin)                                                |
+| option   | `--mode`                   | `auto`        | `interpret` / `compile` / `auto`                                   |
+| option   | `--bars`                   | `50`          | Synthetic bars when `--ohlcv` is omitted                           |
+| option   | `--ohlcv`                  |               | JSON array of `{time,open,high,low,close,volume?}` rows, or a file |
+| option   | `--inputs`                 |               | JSON object of `input.*` overrides, or a file                      |
+| option   | `--timeout`                | 30s (cap 120) | Seconds                                                            |
+| option   | `--sample`                 | `8`           | Trailing plot samples (max 64)                                     |
+| option   | `--trades`                 |               | Include strategy trade extras                                      |
+| option   | `--ticker` / `--timeframe` | `MCP` / `1m`  | Runtime identity                                                   |
 
 ```bash
 pyne execute script.pine --mode interpret --bars 50
@@ -418,17 +436,17 @@ pyne builtin ta.sma
 
 Stdio Model Context Protocol server, plus in-process tool execution. Serving stdio requires `pip install "hoox-pyne[mcp]"`. `config`, `tools`, and `call` do not.
 
-| Kind | Name | Description |
-| --- | --- | --- |
-| (no args) | | Serve MCP on stdio (`pyne-mcp`) |
-| subcommand | `config` | Print `mcpServers.pyne` JSON |
-| subcommand | `tools` | List catalog tool names (`--json` array) |
-| subcommand | `call TOOL [PATH]` | Run a tool in-process and print JSON |
-| option | `--module` | `config` only: `python -m pynescript.mcp` |
-| option | `--source` / `-s` | `call`: inline Pine (overrides PATH) |
-| option | `--arg` / `-a` | `call`: `KEY=VALUE` (JSON-coerced; repeatable) |
-| option | `--json` | `call`: extra arguments object (inline or file) |
-| option | `--name` | `call`: shortcut for `--arg name=` (`pyne_builtin`) |
+| Kind       | Name               | Description                                         |
+| ---------- | ------------------ | --------------------------------------------------- |
+| (no args)  |                    | Serve MCP on stdio (`pyne-mcp`)                     |
+| subcommand | `config`           | Print `mcpServers.pyne` JSON                        |
+| subcommand | `tools`            | List catalog tool names (`--json` array)            |
+| subcommand | `call TOOL [PATH]` | Run a tool in-process and print JSON                |
+| option     | `--module`         | `config` only: `python -m pynescript.mcp`           |
+| option     | `--source` / `-s`  | `call`: inline Pine (overrides PATH)                |
+| option     | `--arg` / `-a`     | `call`: `KEY=VALUE` (JSON-coerced; repeatable)      |
+| option     | `--json`           | `call`: extra arguments object (inline or file)     |
+| option     | `--name`           | `call`: shortcut for `--arg name=` (`pyne_builtin`) |
 
 ```bash
 pip install "hoox-pyne[mcp]"
@@ -456,16 +474,16 @@ python -m pynescript.langserver
 
 ## Internals
 
-| Item | Path |
-| --- | --- |
-| CLI group | `src/pynescript/__main__.py` |
-| Entry | `pyproject.toml` → `pyne` / `pynescript` = `pynescript.__main__:cli` |
-| MCP | `src/pynescript/mcp/` · `pyne-mcp` |
-| parse/dump/unparse | `src/pynescript/ast/helper.py` |
-| lint | `src/pynescript/ast/linter.py` |
-| compile / prewarm | `src/pynescript/compiler/` |
-| optimize | `src/pynescript/optimize/` |
-| data | `src/pynescript/util/data.py` |
+| Item               | Path                                                                 |
+| ------------------ | -------------------------------------------------------------------- |
+| CLI group          | `src/pynescript/__main__.py`                                         |
+| Entry              | `pyproject.toml` → `pyne` / `pynescript` = `pynescript.__main__:cli` |
+| MCP                | `src/pynescript/mcp/` · `pyne-mcp`                                   |
+| parse/dump/unparse | `src/pynescript/ast/helper.py`                                       |
+| lint               | `src/pynescript/ast/linter.py`                                       |
+| compile / prewarm  | `src/pynescript/compiler/`                                           |
+| optimize           | `src/pynescript/optimize/`                                           |
+| data               | `src/pynescript/util/data.py`                                        |
 
 ## Invariants
 
@@ -477,14 +495,14 @@ python -m pynescript.langserver
 
 ## Failure modes
 
-| Situation | Result |
-| --- | --- |
-| Parse failure (`check` / dump) | Non-zero exit |
-| Format `--check` drift | Exit `1` |
-| Lint threshold | Non-zero per `--fail-on` |
-| Compile without numba (full path) | Clear error; `--emit` still works |
-| Provider failure | Click error with message |
-| Missing `ccxt` for data | Import/provider error → install `[data]` |
+| Situation                         | Result                                   |
+| --------------------------------- | ---------------------------------------- |
+| Parse failure (`check` / dump)    | Non-zero exit                            |
+| Format `--check` drift            | Exit `1`                                 |
+| Lint threshold                    | Non-zero per `--fail-on`                 |
+| Compile without numba (full path) | Clear error; `--emit` still works        |
+| Provider failure                  | Click error with message                 |
+| Missing `ccxt` for data           | Import/provider error → install `[data]` |
 
 ## See also
 

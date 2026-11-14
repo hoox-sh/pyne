@@ -1,17 +1,31 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 # Numerical Validation Report
@@ -30,12 +44,12 @@ PYNE's technical and mathematical builtins were validated for **numerical agreem
 
 ### Key findings (from this report)
 
-| Finding | Value |
-|---------|-------|
-| Maximum observed relative error | **0.0022%** (ADX, extreme volatility) |
-| Average observed error | **< 0.0005%** across all functions |
-| Deterministic ops (SMA, sums, counts) | **Exact** |
-| Systematic bias | **None detected** (signed errors ≈ 0) |
+| Finding                               | Value                                 |
+| ------------------------------------- | ------------------------------------- |
+| Maximum observed relative error       | **0.0022%** (ADX, extreme volatility) |
+| Average observed error                | **< 0.0005%** across all functions    |
+| Deterministic ops (SMA, sums, counts) | **Exact**                             |
+| Systematic bias                       | **None detected** (signed errors ≈ 0) |
 
 **Interpretation:** These are report-era measurements from November 2025. Re-validate after changing smoothers or bar-mode semantics — they are not product SLAs. The current product-facing summary lives at [`docs/pyne/reference/numerical-validation.mdx`](/pyne/docs/reference/numerical-validation), which carries forward these numbers with the same caveat.
 
@@ -52,12 +66,14 @@ Interpret and compile now **share formulas** for several hot kernels (where fixe
 #### 1. Market data sources
 
 **Synthetic data (primary):**
+
 - Generated 1,000-bar OHLCV datasets
 - Multiple market conditions: trending, ranging, volatile, calm
 - Price ranges: $10–$10,000 to test scaling
 - Volume patterns: consistent, increasing, decreasing, random
 
 **Real market data (validation):**
+
 - S&P 500 Index (SPX): 5 years daily data
 - Bitcoin (BTC/USD): 3 years hourly data
 - EUR/USD Forex: 2 years 15-minute data
@@ -66,6 +82,7 @@ Interpret and compile now **share formulas** for several hot kernels (where fixe
 #### 2. Test scenarios
 
 Each indicator tested across:
+
 - **Normal market** (gentle trends)
 - **High volatility** (rapid price swings)
 - **Strong trends** (consistent directional movement)
@@ -98,12 +115,12 @@ Each indicator tested across:
 
 ### Acceptable thresholds
 
-| Error Level | Threshold | Status |
-|-------------|-----------|--------|
-| Excellent | < 0.001% | Pass |
-| Good | < 0.01% | Pass |
-| Acceptable | < 0.1% | Review |
-| Unacceptable | ≥ 0.1% | Fail |
+| Error Level  | Threshold | Status |
+| ------------ | --------- | ------ |
+| Excellent    | < 0.001%  | Pass   |
+| Good         | < 0.01%   | Pass   |
+| Acceptable   | < 0.1%    | Review |
+| Unacceptable | ≥ 0.1%    | Fail   |
 
 ---
 
@@ -111,97 +128,97 @@ Each indicator tested across:
 
 ### 1. Moving averages
 
-| Indicator | Test Cases | Max Error | Mean Error | Std Dev | Status |
-|-----------|-----------|-----------|------------|---------|--------|
-| `ta.sma()` | 100 | 0.0000% | 0.0000% | 0.0000% | Exact |
-| `ta.ema()` | 100 | 0.00008% | 0.00002% | 0.00001% | Excellent |
-| `ta.wma()` | 100 | 0.00005% | 0.00001% | 0.00001% | Excellent |
-| `ta.vwma()` | 100 | 0.00009% | 0.00003% | 0.00002% | Excellent |
-| `ta.hma()` | 100 | 0.00015% | 0.00005% | 0.00003% | Excellent |
-| `ta.alma()` | 100 | 0.00012% | 0.00004% | 0.00002% | Excellent |
-| `ta.swma()` | 100 | 0.00006% | 0.00002% | 0.00001% | Excellent |
-| `ta.dema()` | 100 | 0.00018% | 0.00006% | 0.00004% | Excellent |
-| `ta.tema()` | 100 | 0.00025% | 0.00008% | 0.00005% | Excellent |
+| Indicator   | Test Cases | Max Error | Mean Error | Std Dev  | Status    |
+| ----------- | ---------- | --------- | ---------- | -------- | --------- |
+| `ta.sma()`  | 100        | 0.0000%   | 0.0000%    | 0.0000%  | Exact     |
+| `ta.ema()`  | 100        | 0.00008%  | 0.00002%   | 0.00001% | Excellent |
+| `ta.wma()`  | 100        | 0.00005%  | 0.00001%   | 0.00001% | Excellent |
+| `ta.vwma()` | 100        | 0.00009%  | 0.00003%   | 0.00002% | Excellent |
+| `ta.hma()`  | 100        | 0.00015%  | 0.00005%   | 0.00003% | Excellent |
+| `ta.alma()` | 100        | 0.00012%  | 0.00004%   | 0.00002% | Excellent |
+| `ta.swma()` | 100        | 0.00006%  | 0.00002%   | 0.00001% | Excellent |
+| `ta.dema()` | 100        | 0.00018%  | 0.00006%   | 0.00004% | Excellent |
+| `ta.tema()` | 100        | 0.00025%  | 0.00008%   | 0.00005% | Excellent |
 
 **Analysis:** SMA is exact (pure summation/division). EMA shows tiny recursive floating-point error. All errors well within excellent limits (< 0.001%).
 
 ### 2. Oscillators
 
-| Indicator | Test Cases | Max Error | Mean Error | Std Dev | Status |
-|-----------|-----------|-----------|------------|---------|--------|
-| `ta.rsi()` | 100 | 0.0012% | 0.0003% | 0.0002% | Excellent |
-| `ta.stoch()` | 100 | 0.0018% | 0.0005% | 0.0003% | Excellent |
-| `ta.cci()` | 100 | 0.0009% | 0.0002% | 0.0001% | Excellent |
-| `ta.wpr()` | 100 | 0.0015% | 0.0004% | 0.0003% | Excellent |
-| `ta.roc()` | 100 | 0.0005% | 0.0001% | 0.0001% | Excellent |
-| `ta.cmo()` | 100 | 0.0011% | 0.0003% | 0.0002% | Excellent |
-| `ta.mfi()` | 100 | 0.0016% | 0.0004% | 0.0003% | Excellent |
-| `ta.cog()` | 100 | 0.0008% | 0.0002% | 0.0001% | Excellent |
+| Indicator    | Test Cases | Max Error | Mean Error | Std Dev | Status    |
+| ------------ | ---------- | --------- | ---------- | ------- | --------- |
+| `ta.rsi()`   | 100        | 0.0012%   | 0.0003%    | 0.0002% | Excellent |
+| `ta.stoch()` | 100        | 0.0018%   | 0.0005%    | 0.0003% | Excellent |
+| `ta.cci()`   | 100        | 0.0009%   | 0.0002%    | 0.0001% | Excellent |
+| `ta.wpr()`   | 100        | 0.0015%   | 0.0004%    | 0.0003% | Excellent |
+| `ta.roc()`   | 100        | 0.0005%   | 0.0001%    | 0.0001% | Excellent |
+| `ta.cmo()`   | 100        | 0.0011%   | 0.0003%    | 0.0002% | Excellent |
+| `ta.mfi()`   | 100        | 0.0016%   | 0.0004%    | 0.0003% | Excellent |
+| `ta.cog()`   | 100        | 0.0008%   | 0.0002%    | 0.0001% | Excellent |
 
 **Analysis:** RSI shows slightly higher error due to smoothing calculations. Stochastic has more variation due to min/max operations. All well within excellent range (< 0.002%).
 
 ### 3. Trend indicators
 
-| Indicator | Test Cases | Max Error | Mean Error | Std Dev | Status |
-|-----------|-----------|-----------|------------|---------|--------|
-| `ta.macd()` | 100 | 0.0015% | 0.0004% | 0.0003% | Excellent |
-| `ta.bb()` | 100 | 0.0009% | 0.0002% | 0.0001% | Excellent |
-| `ta.kc()` | 100 | 0.0012% | 0.0003% | 0.0002% | Excellent |
-| `ta.adx()` | 100 | 0.0022% | 0.0007% | 0.0005% | Excellent |
-| `ta.atr()` | 100 | 0.0006% | 0.0001% | 0.0001% | Excellent |
-| `ta.supertrend()` | 100 | 0.0014% | 0.0004% | 0.0003% | Excellent |
-| `ta.dmi()` | 100 | 0.0019% | 0.0006% | 0.0004% | Excellent |
-| `ta.linreg()` | 100 | 0.0007% | 0.0002% | 0.0001% | Excellent |
+| Indicator         | Test Cases | Max Error | Mean Error | Std Dev | Status    |
+| ----------------- | ---------- | --------- | ---------- | ------- | --------- |
+| `ta.macd()`       | 100        | 0.0015%   | 0.0004%    | 0.0003% | Excellent |
+| `ta.bb()`         | 100        | 0.0009%   | 0.0002%    | 0.0001% | Excellent |
+| `ta.kc()`         | 100        | 0.0012%   | 0.0003%    | 0.0002% | Excellent |
+| `ta.adx()`        | 100        | 0.0022%   | 0.0007%    | 0.0005% | Excellent |
+| `ta.atr()`        | 100        | 0.0006%   | 0.0001%    | 0.0001% | Excellent |
+| `ta.supertrend()` | 100        | 0.0014%   | 0.0004%    | 0.0003% | Excellent |
+| `ta.dmi()`        | 100        | 0.0019%   | 0.0006%    | 0.0004% | Excellent |
+| `ta.linreg()`     | 100        | 0.0007%   | 0.0002%    | 0.0001% | Excellent |
 
 **Analysis:** ADX shows highest error (0.0022%) due to complex Wilder smoothing. All trend indicators well within spec.
 
 ### 4. Volume indicators
 
-| Indicator | Test Cases | Max Error | Mean Error | Std Dev | Status |
-|-----------|-----------|-----------|------------|---------|--------|
-| `ta.obv()` | 100 | 0.0000% | 0.0000% | 0.0000% | Exact |
-| `ta.mfi()` | 100 | 0.0016% | 0.0004% | 0.0003% | Excellent |
-| `ta.vwap()` | 100 | 0.0008% | 0.0002% | 0.0001% | Excellent |
-| `ta.pvt()` | 100 | 0.0010% | 0.0003% | 0.0002% | Excellent |
+| Indicator   | Test Cases | Max Error | Mean Error | Std Dev | Status    |
+| ----------- | ---------- | --------- | ---------- | ------- | --------- |
+| `ta.obv()`  | 100        | 0.0000%   | 0.0000%    | 0.0000% | Exact     |
+| `ta.mfi()`  | 100        | 0.0016%   | 0.0004%    | 0.0003% | Excellent |
+| `ta.vwap()` | 100        | 0.0008%   | 0.0002%    | 0.0001% | Excellent |
+| `ta.pvt()`  | 100        | 0.0010%   | 0.0003%    | 0.0002% | Excellent |
 
 **Analysis:** OBV is exact (pure cumulative sum). Volume indicators generally very precise.
 
 ### 5. Statistical functions
 
-| Function | Test Cases | Max Error | Mean Error | Std Dev | Status |
-|----------|-----------|-----------|------------|---------|--------|
-| `ta.stdev()` | 100 | 0.0004% | 0.0001% | 0.0001% | Excellent |
-| `ta.variance()` | 100 | 0.0008% | 0.0002% | 0.0001% | Excellent |
-| `ta.correlation()` | 100 | 0.0011% | 0.0003% | 0.0002% | Excellent |
-| `ta.percentile_*()` | 100 | 0.0006% | 0.0002% | 0.0001% | Excellent |
-| `ta.percentrank()` | 100 | 0.0000% | 0.0000% | 0.0000% | Exact |
+| Function            | Test Cases | Max Error | Mean Error | Std Dev | Status    |
+| ------------------- | ---------- | --------- | ---------- | ------- | --------- |
+| `ta.stdev()`        | 100        | 0.0004%   | 0.0001%    | 0.0001% | Excellent |
+| `ta.variance()`     | 100        | 0.0008%   | 0.0002%    | 0.0001% | Excellent |
+| `ta.correlation()`  | 100        | 0.0011%   | 0.0003%    | 0.0002% | Excellent |
+| `ta.percentile_*()` | 100        | 0.0006%   | 0.0002%    | 0.0001% | Excellent |
+| `ta.percentrank()`  | 100        | 0.0000%   | 0.0000%    | 0.0000% | Exact     |
 
 **Analysis:** Statistical functions highly accurate. Percentrank exact due to ranking algorithm.
 
 ### 6. Math functions
 
-| Function | Test Cases | Max Error | Mean Error | Std Dev | Status |
-|----------|-----------|-----------|------------|---------|--------|
-| `math.abs()` | 100 | 0.0000% | 0.0000% | 0.0000% | Exact |
-| `math.max()`, `math.min()` | 100 | 0.0000% | 0.0000% | 0.0000% | Exact |
-| `math.pow()` | 100 | < 1e-15 | < 1e-15 | < 1e-15 | Excellent |
-| `math.sqrt()` | 100 | < 1e-15 | < 1e-15 | < 1e-15 | Excellent |
-| `math.log()` | 100 | < 1e-14 | < 1e-14 | < 1e-14 | Excellent |
-| `math.sin()`, `math.cos()` | 100 | < 1e-15 | < 1e-15 | < 1e-15 | Excellent |
-| `math.round()`, `math.floor()` | 100 | 0.0000% | 0.0000% | 0.0000% | Exact |
+| Function                       | Test Cases | Max Error | Mean Error | Std Dev | Status    |
+| ------------------------------ | ---------- | --------- | ---------- | ------- | --------- |
+| `math.abs()`                   | 100        | 0.0000%   | 0.0000%    | 0.0000% | Exact     |
+| `math.max()`, `math.min()`     | 100        | 0.0000%   | 0.0000%    | 0.0000% | Exact     |
+| `math.pow()`                   | 100        | < 1e-15   | < 1e-15    | < 1e-15 | Excellent |
+| `math.sqrt()`                  | 100        | < 1e-15   | < 1e-15    | < 1e-15 | Excellent |
+| `math.log()`                   | 100        | < 1e-14   | < 1e-14    | < 1e-14 | Excellent |
+| `math.sin()`, `math.cos()`     | 100        | < 1e-15   | < 1e-15    | < 1e-15 | Excellent |
+| `math.round()`, `math.floor()` | 100        | 0.0000%   | 0.0000%    | 0.0000% | Exact     |
 
 **Analysis:** Basic math operations exact. Transcendentals limited by IEEE 754 precision.
 
 ### 7. Array operations
 
-| Function | Test Cases | Max Error | Mean Error | Std Dev | Status |
-|----------|-----------|-----------|------------|---------|--------|
-| `array.sum()` | 100 | 0.0000% | 0.0000% | 0.0000% | Exact |
-| `array.avg()` | 100 | < 1e-15 | < 1e-15 | < 1e-15 | Exact |
-| `array.min()`, `array.max()` | 100 | 0.0000% | 0.0000% | 0.0000% | Exact |
-| `array.stdev()` | 100 | 0.0004% | 0.0001% | 0.0001% | Excellent |
-| `array.variance()` | 100 | 0.0008% | 0.0002% | 0.0001% | Excellent |
-| `array.percentile_*()` | 100 | 0.0006% | 0.0002% | 0.0001% | Excellent |
+| Function                     | Test Cases | Max Error | Mean Error | Std Dev | Status    |
+| ---------------------------- | ---------- | --------- | ---------- | ------- | --------- |
+| `array.sum()`                | 100        | 0.0000%   | 0.0000%    | 0.0000% | Exact     |
+| `array.avg()`                | 100        | < 1e-15   | < 1e-15    | < 1e-15 | Exact     |
+| `array.min()`, `array.max()` | 100        | 0.0000%   | 0.0000%    | 0.0000% | Exact     |
+| `array.stdev()`              | 100        | 0.0004%   | 0.0001%    | 0.0001% | Excellent |
+| `array.variance()`           | 100        | 0.0008%   | 0.0002%    | 0.0001% | Excellent |
+| `array.percentile_*()`       | 100        | 0.0006%   | 0.0002%    | 0.0001% | Excellent |
 
 ---
 
@@ -209,31 +226,31 @@ Each indicator tested across:
 
 ### Extreme values
 
-| Test Case | Input Range | Max Error | Status |
-|-----------|------------|-----------|--------|
-| Very small prices | $0.001 – $0.01 | 0.0008% | Pass |
-| Very large prices | $10,000 – $100,000 | 0.0009% | Pass |
-| Near-zero values | $0.0001 – $0.001 | 0.0015% | Pass |
-| Extreme volatility | σ=10 | 0.0020% | Pass |
+| Test Case          | Input Range        | Max Error | Status |
+| ------------------ | ------------------ | --------- | ------ |
+| Very small prices  | $0.001 – $0.01     | 0.0008%   | Pass   |
+| Very large prices  | $10,000 – $100,000 | 0.0009%   | Pass   |
+| Near-zero values   | $0.0001 – $0.001   | 0.0015%   | Pass   |
+| Extreme volatility | σ=10               | 0.0020%   | Pass   |
 
 ### Special cases
 
-| Test Case | Description | Result | Status |
-|-----------|-------------|--------|--------|
-| All-same prices | 100 bars @ $100 | Exact match | Pass |
-| Zero volume | Volume = 0 throughout | Exact match | Pass |
-| Single bar | Period = 1 | Exact match | Pass |
-| NaN handling | NaN inputs | Correct `na` propagation | Pass |
-| Empty arrays | `[]` input | Correct `na` return | Pass |
+| Test Case       | Description           | Result                   | Status |
+| --------------- | --------------------- | ------------------------ | ------ |
+| All-same prices | 100 bars @ $100       | Exact match              | Pass   |
+| Zero volume     | Volume = 0 throughout | Exact match              | Pass   |
+| Single bar      | Period = 1            | Exact match              | Pass   |
+| NaN handling    | NaN inputs            | Correct `na` propagation | Pass   |
+| Empty arrays    | `[]` input            | Correct `na` return      | Pass   |
 
 ### Boundary conditions
 
-| Test Case | Description | Max Error | Status |
-|-----------|-------------|-----------|--------|
-| Period = data length | SMA(close, 1000) on 1000 bars | 0.0000% | Pass |
-| Period > data length | SMA(close, 2000) on 1000 bars | `na` (correct) | Pass |
-| Very short period | SMA(close, 2) | 0.0000% | Pass |
-| Negative prices | Error handling | Correct error | Pass |
+| Test Case            | Description                   | Max Error      | Status |
+| -------------------- | ----------------------------- | -------------- | ------ |
+| Period = data length | SMA(close, 1000) on 1000 bars | 0.0000%        | Pass   |
+| Period > data length | SMA(close, 2000) on 1000 bars | `na` (correct) | Pass   |
+| Very short period    | SMA(close, 2)                 | 0.0000%        | Pass   |
+| Negative prices      | Error handling                | Correct error  | Pass   |
 
 ---
 
@@ -241,15 +258,15 @@ Each indicator tested across:
 
 ### Histogram of relative errors (all indicators)
 
-| Error Range | Count | Percentage |
-|-------------|-------|------------|
-| 0.0000% (Exact) | 3,245 | 38.2% |
-| < 0.0001% | 3,890 | 45.8% |
-| 0.0001% – 0.001% | 1,180 | 13.9% |
-| 0.001% – 0.01% | 165 | 1.9% |
-| 0.01% – 0.1% | 15 | 0.2% |
-| ≥ 0.1% | 0 | 0.0% |
-| **Total** | **8,495** | **100.0%** |
+| Error Range      | Count     | Percentage |
+| ---------------- | --------- | ---------- |
+| 0.0000% (Exact)  | 3,245     | 38.2%      |
+| < 0.0001%        | 3,890     | 45.8%      |
+| 0.0001% – 0.001% | 1,180     | 13.9%      |
+| 0.001% – 0.01%   | 165       | 1.9%       |
+| 0.01% – 0.1%     | 15        | 0.2%       |
+| ≥ 0.1%           | 0         | 0.0%       |
+| **Total**        | **8,495** | **100.0%** |
 
 ### Error distribution statistics
 
@@ -267,16 +284,16 @@ Each indicator tested across:
 
 For each indicator, the mean of signed errors across all test cases was calculated:
 
-| Indicator | Mean Signed Error | Bias Detected? |
-|-----------|------------------|----------------|
-| `ta.sma()` | +0.0000000% | No |
-| `ta.ema()` | −0.0000001% | No |
-| `ta.rsi()` | +0.0000002% | No |
-| `ta.macd()` | −0.0000001% | No |
-| `ta.bb()` | +0.0000000% | No |
-| `ta.atr()` | −0.0000001% | No |
-| `ta.stoch()` | +0.0000003% | No |
-| `ta.adx()` | +0.0000004% | No |
+| Indicator    | Mean Signed Error | Bias Detected? |
+| ------------ | ----------------- | -------------- |
+| `ta.sma()`   | +0.0000000%       | No             |
+| `ta.ema()`   | −0.0000001%       | No             |
+| `ta.rsi()`   | +0.0000002%       | No             |
+| `ta.macd()`  | −0.0000001%       | No             |
+| `ta.bb()`    | +0.0000000%       | No             |
+| `ta.atr()`   | −0.0000001%       | No             |
+| `ta.stoch()` | +0.0000003%       | No             |
+| `ta.adx()`   | +0.0000004%       | No             |
 
 **Conclusion:** No systematic bias detected in any indicator. All signed errors are negligible and consistent with random floating-point rounding.
 
@@ -295,11 +312,11 @@ No algorithmic differences were found between the validated PYNE kernels and the
 ### Accumulation in long series
 
 | Series Length | SMA Error | EMA Error | RSI Error |
-|---------------|-----------|-----------|-----------|
-| 10 bars | 0.0000% | 0.00001% | 0.00020% |
-| 100 bars | 0.0000% | 0.00003% | 0.00045% |
-| 1,000 bars | 0.0000% | 0.00008% | 0.00089% |
-| 10,000 bars | 0.0000% | 0.00025% | 0.00201% |
+| ------------- | --------- | --------- | --------- |
+| 10 bars       | 0.0000%   | 0.00001%  | 0.00020%  |
+| 100 bars      | 0.0000%   | 0.00003%  | 0.00045%  |
+| 1,000 bars    | 0.0000%   | 0.00008%  | 0.00089%  |
+| 10,000 bars   | 0.0000%   | 0.00025%  | 0.00201%  |
 
 **Observation:** SMA shows no accumulation (each calculation independent); EMA shows linear accumulation (recursive); RSI shows more accumulation (smoothing + ratio). Even at 10k bars, all well within 0.01%.
 
@@ -316,16 +333,16 @@ No algorithmic differences were found between the validated PYNE kernels and the
 
 ## Comparison: PYNE vs. TradingView®
 
-| Feature | TradingView® | PYNE | Notes |
-|---------|-------------|------|-------|
-| Syntax parsing | ✅ | ✅ | ANTLR4 v5/v6 grammar |
-| Built-in functions | 434 (public ref) | 941 callables / 255 namespaces | 0 missing vs public ref list |
-| Numerical precision | IEEE 754 | IEEE 754 | Best-effort, not bit-identical |
-| Collections | Full | Full | `array`/`matrix`/`map` |
-| UDTs | Full | Full | User-defined types |
-| Chart rendering | ✅ Real-time | ❌ Not this runtime | Pixels are AXIS / clients |
-| Live market data | ✅ Live feeds | ⚠️ Mock / same-symbol / honest `na` | Foreign → `na` policy |
-| Strategy execution | ✅ Broker integration | ⚠️ OHLC-path simulation | In-process model only |
+| Feature             | TradingView®          | PYNE                                | Notes                          |
+| ------------------- | --------------------- | ----------------------------------- | ------------------------------ |
+| Syntax parsing      | ✅                    | ✅                                  | ANTLR4 v5/v6 grammar           |
+| Built-in functions  | 434 (public ref)      | 941 callables / 255 namespaces      | 0 missing vs public ref list   |
+| Numerical precision | IEEE 754              | IEEE 754                            | Best-effort, not bit-identical |
+| Collections         | Full                  | Full                                | `array`/`matrix`/`map`         |
+| UDTs                | Full                  | Full                                | User-defined types             |
+| Chart rendering     | ✅ Real-time          | ❌ Not this runtime                 | Pixels are AXIS / clients      |
+| Live market data    | ✅ Live feeds         | ⚠️ Mock / same-symbol / honest `na` | Foreign → `na` policy          |
+| Strategy execution  | ✅ Broker integration | ⚠️ OHLC-path simulation             | In-process model only          |
 
 ---
 

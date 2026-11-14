@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "Collections"
-description: "array., matrix., and map. runtime semantics, method dispatch, and type tags."
+description: "Pine collections—arrays, matrices, and maps—are mutable values that live in the evaluator context (often under var so identity persists across bars). PYNE maps them to Python…"
 resource: "docs/pyne/runtime/builtins/collections.mdx"
 tags: [doc, docs, pyne, runtime]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-14T19:45:25Z
 sources:
   - id: tree
     resource: "docs/pyne/runtime/builtins/collections.mdx"

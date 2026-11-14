@@ -1,39 +1,56 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 # AXIS docs moved
 
 **AXIS** (charting PWA) lives in its own repository and on the HOOX site:
 
-| | |
-|--|--|
-| **Repo** | [hoox-sh/axis](https://github.com/hoox-sh/axis) |
-| **Product** | [hoox.sh/axis](https://hoox.sh/axis) |
-| **Docs** | [hoox.sh/axis/docs](https://hoox.sh/axis/docs) |
+|             |                                                 |
+| ----------- | ----------------------------------------------- |
+| **Repo**    | [hoox-sh/axis](https://github.com/hoox-sh/axis) |
+| **Product** | [hoox.sh/axis](https://hoox.sh/axis)            |
+| **Docs**    | [hoox.sh/axis/docs](https://hoox.sh/axis/docs)  |
 
 Stack siblings:
 
-| Product | Website | Repo |
-|---------|---------|------|
-| **HOOX** | [hoox.sh](https://hoox.sh) | [hoox](https://github.com/hoox-sh/hoox) |
+| Product              | Website                              | Repo                                    |
+| -------------------- | ------------------------------------ | --------------------------------------- |
+| **HOOX**             | [hoox.sh](https://hoox.sh)           | [hoox](https://github.com/hoox-sh/hoox) |
 | **PYNE** (this repo) | [hoox.sh/pyne](https://hoox.sh/pyne) | [pyne](https://github.com/hoox-sh/pyne) |
-| **AXIS** | [hoox.sh/axis](https://hoox.sh/axis) | [axis](https://github.com/hoox-sh/axis) |
+| **AXIS**             | [hoox.sh/axis](https://hoox.sh/axis) | [axis](https://github.com/hoox-sh/axis) |
 
 ```bash
 git clone https://github.com/hoox-sh/axis.git ../axis

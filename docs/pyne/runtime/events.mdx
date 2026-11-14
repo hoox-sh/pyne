@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Strategy events"
 description: "StrategyEvent shape, emission points, parity corpus, and host serialization."
 ---
@@ -48,21 +66,21 @@ flowchart LR
 
 Defined in `src/pynescript/ast/evaluator/events.py`:
 
-| Field | Type (logical) | Notes |
-| --- | --- | --- |
-| `kind` | `entry` \| `exit` \| `close` \| `close_all` \| `cancel` \| `cancel_all` \| `order` | Discriminator |
-| `id` | `str \| None` | Order / entry id |
-| `direction` | `long` \| `short` \| `None` | |
-| `qty` | `float \| None` | |
-| `order_type` | `market` \| `limit` \| `stop` \| `None` | Stop-limit may appear as composite handling elsewhere |
-| `limit` / `stop` | `float \| None` | Prices when relevant |
-| `oca_name` | `str \| None` | OCA group |
-| `comment` | `str \| None` | Includes system comments (`risk_blocked`, `fill:…`) |
-| `bar_index` | `int` | From context at emit |
-| `bar_time` | `int` | From context |
-| `ohlc` | 4-tuple → list in JSON | Bar snapshot |
-| `script_id` | `str` | Host-stamped (source hash) |
-| `run_id` | `str` | Host-stamped run uuid |
+| Field            | Type (logical)                                                                     | Notes                                                 |
+| ---------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `kind`           | `entry` \| `exit` \| `close` \| `close_all` \| `cancel` \| `cancel_all` \| `order` | Discriminator                                         |
+| `id`             | `str \| None`                                                                      | Order / entry id                                      |
+| `direction`      | `long` \| `short` \| `None`                                                        |                                                       |
+| `qty`            | `float \| None`                                                                    |                                                       |
+| `order_type`     | `market` \| `limit` \| `stop` \| `None`                                            | Stop-limit may appear as composite handling elsewhere |
+| `limit` / `stop` | `float \| None`                                                                    | Prices when relevant                                  |
+| `oca_name`       | `str \| None`                                                                      | OCA group                                             |
+| `comment`        | `str \| None`                                                                      | Includes system comments (`risk_blocked`, `fill:…`)   |
+| `bar_index`      | `int`                                                                              | From context at emit                                  |
+| `bar_time`       | `int`                                                                              | From context                                          |
+| `ohlc`           | 4-tuple → list in JSON                                                             | Bar snapshot                                          |
+| `script_id`      | `str`                                                                              | Host-stamped (source hash)                            |
+| `run_id`         | `str`                                                                              | Host-stamped run uuid                                 |
 
 Frozen dataclass → `to_dict()` always includes keys (JSON nulls for unspecified fields) so parity diffs are stable.
 
@@ -92,14 +110,14 @@ for ev in evaluator._strategy_state.drain_events():
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `src/pynescript/ast/evaluator/events.py` | `StrategyEvent` |
+| Path                                                | Role                        |
+| --------------------------------------------------- | --------------------------- |
+| `src/pynescript/ast/evaluator/events.py`            | `StrategyEvent`             |
 | `src/pynescript/ast/evaluator/builtins/strategy.py` | Emit sites + `drain_events` |
-| `src/pynescript/compiler/strategy_broker.py` | Compile-mode `_emit` |
-| `tests/test_strategy_events.py` | Unit behavior |
-| `tests/test_parity.py` + `tests/fixtures/parity/` | Cross-port oracle |
-| `pynets/src/runtime/interpret.ts` `StrategyEvent` | TS library twin |
+| `src/pynescript/compiler/strategy_broker.py`        | Compile-mode `_emit`        |
+| `tests/test_strategy_events.py`                     | Unit behavior               |
+| `tests/test_parity.py` + `tests/fixtures/parity/`   | Cross-port oracle           |
+| `pynets/src/runtime/interpret.ts` `StrategyEvent`   | TS library twin             |
 
 Parity corpus scripts (`strategy_01_entry_long.pine`, …) regenerate expected JSON via:
 
@@ -125,12 +143,12 @@ Script enters long on a fixed bar; fixture JSON lists one event:
 
 ```json
 {
-  "kind": "entry",
-  "id": "L",
-  "direction": "long",
-  "qty": 1.0,
-  "order_type": "market",
-  "bar_index": 5
+    "kind": "entry",
+    "id": "L",
+    "direction": "long",
+    "qty": 1.0,
+    "order_type": "market",
+    "bar_index": 5
 }
 ```
 
@@ -142,12 +160,12 @@ Fill of one OCA sibling yields `cancel` events for others with `comment` reflect
 
 ## Failure modes
 
-| Symptom | Cause |
-| --- | --- |
-| Empty events with live strategy | Forgot drain; or strategy never called |
-| Parity flake on ids | Comparing `script_id`/`run_id` |
-| TS/Python mismatch | Field rename without dual update |
-| Duplicate events | Not clearing buffer; double `process_pending_orders` |
+| Symptom                         | Cause                                                |
+| ------------------------------- | ---------------------------------------------------- |
+| Empty events with live strategy | Forgot drain; or strategy never called               |
+| Parity flake on ids             | Comparing `script_id`/`run_id`                       |
+| TS/Python mismatch              | Field rename without dual update                     |
+| Duplicate events                | Not clearing buffer; double `process_pending_orders` |
 
 ## See also
 

@@ -49,9 +49,9 @@ TradingView® exports.
 Open-source regression corpus, sets 01–04 — 2,477 real-world scripts
 (not shipped in git; the harness is):
 
-| Suite | Rate |
-| --- | ---: |
-| Parse + unparse round-trip | **99.96%** (2,476/2,477 — the one residual is an intentional invalid-syntax demo) |
+| Suite                       |                                                                                                       Rate |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------: |
+| Parse + unparse round-trip  |                          **99.96%** (2,476/2,477 — the one residual is an intentional invalid-syntax demo) |
 | Runtime interpret (50 bars) | **100%** excl. 11 intentional demos (`runtime.error` guards, lower-timeframe security, pathological loops) |
 
 The hot loop got the full treatment in 0.5.0: slotted AST nodes (no
@@ -70,7 +70,7 @@ parity is verified by harness, not vibes.
   `request.security` policy, for example, is deliberately conservative
   (same-symbol simple OHLCV, foreign/complex resolves to `na` — no
   invented foreign closes, ever).
-- Coverage percentages are measurements of *my* corpus on *my*
+- Coverage percentages are measurements of _my_ corpus on _my_
   machine, not a certification of anything.
 - Single author + AI assistance, built as a research artifact. Review
   the grammar and the runtime before trusting either with money —
@@ -82,9 +82,9 @@ parity is verified by harness, not vibes.
   free-tier edge isolate (30s wall clock, 100 KB script, 100 K bars —
   physics is physics).
 - `pyne-worker` (edge `POST /run` on Cloudflare® Workers) is the
-  *wrap*, not the toolchain: no CLI, no LSP, no corpus harness. Those
+  _wrap_, not the toolchain: no CLI, no LSP, no corpus harness. Those
   live in the main repo.
-- No history ceilings in the engine, but *your* box still has RAM —
+- No history ceilings in the engine, but _your_ box still has RAM —
   series caps are on by default for a reason.
 
 ## It ships with siblings (the other 5%)
@@ -108,8 +108,8 @@ get the best answers.
 
 ---
 
-*Disclaimers (please read):*
-*Pine Script™ and TradingView® are trademarks of TradingView, Inc.
+_Disclaimers (please read):_
+_Pine Script™ and TradingView® are trademarks of TradingView, Inc.
 Cloudflare® is a registered trademark of Cloudflare, Inc. Workers AI™
 is a trademark of Cloudflare, Inc. PYNE, AXIS, and HOOX are independent,
 unofficial open-source projects — not affiliated with, authorized by,
@@ -118,10 +118,10 @@ official TradingView® products, services, or platform substitutes, and
 no substitute for a hosted platform account. Language references are for
 interoperability/compatibility documentation only; nothing here
 redistributes proprietary TradingView® platform software, charting UI,
-or closed data services.*
-*Risk: algorithmic trading involves substantial risk of loss, including
+or closed data services._
+_Risk: algorithmic trading involves substantial risk of loss, including
 total loss. Past performance — mine, yours, or a backtest's — is not
 indicative of future results. Paper-trade before real funds; start
 small; assume every bug is yours until proven otherwise. The authors
 accept no liability for financial losses. This is a research artifact,
-not financial advice.*
+not financial advice._

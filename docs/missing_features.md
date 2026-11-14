@@ -1,20 +1,37 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 # Missing Features — Pine Script v6 Implementation
@@ -120,11 +137,11 @@ The TypeScript library (`@hoox-sh/pynets` 0.5.0) provides interpret and JS compi
 
 Open-source sets 01–04 (2,477 scripts, measured locally, not shipped in git):
 
-| Stage | Result |
-| --- | --- |
-| Parse + unparse | 99.96% (2,476/2,477) |
+| Stage                       | Result                              |
+| --------------------------- | ----------------------------------- |
+| Parse + unparse             | 99.96% (2,476/2,477)                |
 | Runtime interpret (50 bars) | 100% excluding 11 intentional demos |
-| Set 01 runtime | 249/249 (100%) |
+| Set 01 runtime              | 249/249 (100%)                      |
 
 The 11 EXPECTED_FAIL scripts are intentional demos: library `runtime.error` guards, lower-TF security, invalid line-wrap documentation, pathological loops, and truncated mid-call scrapes. These are not silent suppressions — they are path-listed in test fixtures.
 
@@ -185,4 +202,4 @@ Engine parity improvements, observability tooling, and documentation refresh.
 
 ---
 
-*This document is maintained alongside the codebase. For the dispatch-oriented inventory, see `docs/pine_v6_full_surface_inventory.md`. For the product-facing summary, see `docs/pyne/reference/missing-features.mdx`.*
+_This document is maintained alongside the codebase. For the dispatch-oriented inventory, see `docs/pine_v6_full_surface_inventory.md`. For the product-facing summary, see `docs/pyne/reference/missing-features.mdx`._

@@ -52,30 +52,30 @@ The same contract underlies the desk CLI, `pyne-lsp`, Flask `POST /run`, AXIS in
 
 ## Features
 
-| Area | What you get |
-| --- | --- |
-| **Parser** | ANTLR4 v5/v6 grammar, ASDL AST, parse ↔ unparse, structural linter |
-| **Runtime** | Deterministic bar-loop interpret + Numba compile (`auto`), sessions, strategies, alerts, drawings |
+| Area                | What you get                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Parser**          | ANTLR4 v5/v6 grammar, ASDL AST, parse ↔ unparse, structural linter                                      |
+| **Runtime**         | Deterministic bar-loop interpret + Numba compile (`auto`), sessions, strategies, alerts, drawings       |
 | **Language server** | Diagnostics, completion (~800+ builtins), hover, navigation, semantic tokens, formatting, Convert to v6 |
-| **CLI** | `check`, `format`, `lint`, `compile`, `run`, `execute`, `data`, `prewarm`, `mcp` |
-| **MCP** | Stdio server + `pyne mcp call` for parse / lint / convert / compile / run |
-| **Backends** | Flask Pro API (`/run`, batch, preview, backtest, optimize), Cloudflare Workers, Pyodide |
-| **Editors** | VS Code (AXIS Void / Hoox Signal / PYNE Volt themes), Neovim, Zed, Emacs |
-| **Parity** | 112 / 112 TradingView golden columns (OpenPineScript harnesses, ~2,475 daily bars, rel 1e-6) |
+| **CLI**             | `check`, `format`, `lint`, `compile`, `run`, `execute`, `data`, `prewarm`, `mcp`                        |
+| **MCP**             | Stdio server + `pyne mcp call` for parse / lint / convert / compile / run                               |
+| **Backends**        | Flask Pro API (`/run`, batch, preview, backtest, optimize), Cloudflare Workers, Pyodide                 |
+| **Editors**         | VS Code (AXIS Void / Hoox Signal / PYNE Volt themes), Neovim, Zed, Emacs                                |
+| **Parity**          | 112 / 112 TradingView golden columns (OpenPineScript harnesses, ~2,475 daily bars, rel 1e-6)            |
 
 ---
 
 ## Surfaces
 
-| Surface | Role |
-| --- | --- |
-| **CLI** (`pyne`) | Check, format, lint, compile, `run` (compile smoke), `execute` (`Runtime.run`), data, prewarm, MCP `call` |
-| **LSP** (`pyne-lsp`) | Diagnostics, completion (~800+ builtins), hover, navigation, semantic tokens, formatting |
-| **MCP** (`pyne-mcp` / `pyne mcp`) | Stdio server and in-process `pyne mcp call` — parse / lint / convert / compile / `Runtime.run` |
-| **VS Code** | First-class `.pyne` / `.pine` ([extension](https://github.com/hoox-sh/pyne-lsp-vsce)) |
-| **Pro API** | HTTP evaluate, batch, chart preview, quick backtest, `/optimize`, datafeed |
-| **Editors** | Neovim, Zed, Emacs under [`clients/`](./clients/) |
-| **PyneTS** | TypeScript / Bun library [`@hoox-sh/pynets`](https://github.com/hoox-sh/pynets) |
+| Surface                           | Role                                                                                                      |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| **CLI** (`pyne`)                  | Check, format, lint, compile, `run` (compile smoke), `execute` (`Runtime.run`), data, prewarm, MCP `call` |
+| **LSP** (`pyne-lsp`)              | Diagnostics, completion (~800+ builtins), hover, navigation, semantic tokens, formatting                  |
+| **MCP** (`pyne-mcp` / `pyne mcp`) | Stdio server and in-process `pyne mcp call` — parse / lint / convert / compile / `Runtime.run`            |
+| **VS Code**                       | First-class `.pyne` / `.pine` ([extension](https://github.com/hoox-sh/pyne-lsp-vsce))                     |
+| **Pro API**                       | HTTP evaluate, batch, chart preview, quick backtest, `/optimize`, datafeed                                |
+| **Editors**                       | Neovim, Zed, Emacs under [`clients/`](./clients/)                                                         |
+| **PyneTS**                        | TypeScript / Bun library [`@hoox-sh/pynets`](https://github.com/hoox-sh/pynets)                           |
 
 **Front-end.** Approximate Pine v5–v6 via ANTLR4 resource grammars; ASDL AST with visitor/transformer; parse → unparse; structural linter.
 
@@ -201,16 +201,16 @@ pyne mcp                        # stdio server (pyne-mcp)
 pyne mcp call lint script.pine  # in-process call, no server
 ```
 
-| Tool | Purpose |
-| --- | --- |
-| `pyne_parse` / `pyne_check` | Parse source → AST / diagnostics |
-| `pyne_lint` / `pyne_format` | Structural lint and format |
-| `pyne_convert` | Convert Pine v1–v5 toward v6 |
-| `pyne_compile` / `pyne_prewarm` | Compile to the Numba IR / warm caches |
-| `pyne_run` / `pyne_execute` | `Runtime.run` over OHLCV (`interpret` / `compile` / `auto`) |
-| `pyne_hover` / `pyne_complete` / `pyne_signature` | Language intelligence for editors |
-| `pyne_optimize` | Strategy HPO |
-| `pyne_runner_*` | Hosted script registry + bar-close ticks |
+| Tool                                              | Purpose                                                     |
+| ------------------------------------------------- | ----------------------------------------------------------- |
+| `pyne_parse` / `pyne_check`                       | Parse source → AST / diagnostics                            |
+| `pyne_lint` / `pyne_format`                       | Structural lint and format                                  |
+| `pyne_convert`                                    | Convert Pine v1–v5 toward v6                                |
+| `pyne_compile` / `pyne_prewarm`                   | Compile to the Numba IR / warm caches                       |
+| `pyne_run` / `pyne_execute`                       | `Runtime.run` over OHLCV (`interpret` / `compile` / `auto`) |
+| `pyne_hover` / `pyne_complete` / `pyne_signature` | Language intelligence for editors                           |
+| `pyne_optimize`                                   | Strategy HPO                                                |
+| `pyne_runner_*`                                   | Hosted script registry + bar-close ticks                    |
 
 Client config (`pyne mcp config` prints this):
 
@@ -255,17 +255,17 @@ Results are for research, development, and self-hosted evaluation. They are not 
 
 Canonical docs: **[hoox.sh/pyne/docs](https://hoox.sh/pyne/docs)**
 
-| Topic | Link |
-| --- | --- |
-| Install · quick start | [Getting started](https://hoox.sh/pyne/docs/enduser/getting-started/installation) |
-| CLI | [Guide](https://hoox.sh/pyne/docs/enduser/guides/cli) · [commands](https://hoox.sh/pyne/docs/enduser/reference/cli-commands) |
-| MCP | [Guide](https://hoox.sh/pyne/docs/enduser/guides/mcp) · [tools](https://hoox.sh/pyne/docs/enduser/reference/mcp-tools) |
-| Runtime | [Evaluate](https://hoox.sh/pyne/docs/enduser/guides/evaluate-scripts) · [alerts](https://hoox.sh/pyne/docs/runtime/alerts) · [compiler](https://hoox.sh/pyne/docs/runtime/compiler/overview) |
-| Pro API | [API](https://hoox.sh/pyne/docs/api) |
-| LSP | [Hub](https://hoox.sh/pyne/docs/lsp) · [VS Code](https://hoox.sh/pyne/docs/lsp/vscode-extension) |
-| Coverage | [Compatibility](https://hoox.sh/pyne/docs/reference/compatibility) · [missing](https://hoox.sh/pyne/docs/reference/missing-features) |
-| TradingView goldens | [fixture README](./tests/fixtures/tv_goldens/README.md) · [COMPATIBILITY.md](./COMPATIBILITY.md) |
-| In-tree | [CHANGELOG](./CHANGELOG.md) · [CONTRIBUTING](./CONTRIBUTING.md) · [SECURITY](./SECURITY.md) |
+| Topic                 | Link                                                                                                                                                                                         |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Install · quick start | [Getting started](https://hoox.sh/pyne/docs/enduser/getting-started/installation)                                                                                                            |
+| CLI                   | [Guide](https://hoox.sh/pyne/docs/enduser/guides/cli) · [commands](https://hoox.sh/pyne/docs/enduser/reference/cli-commands)                                                                 |
+| MCP                   | [Guide](https://hoox.sh/pyne/docs/enduser/guides/mcp) · [tools](https://hoox.sh/pyne/docs/enduser/reference/mcp-tools)                                                                       |
+| Runtime               | [Evaluate](https://hoox.sh/pyne/docs/enduser/guides/evaluate-scripts) · [alerts](https://hoox.sh/pyne/docs/runtime/alerts) · [compiler](https://hoox.sh/pyne/docs/runtime/compiler/overview) |
+| Pro API               | [API](https://hoox.sh/pyne/docs/api)                                                                                                                                                         |
+| LSP                   | [Hub](https://hoox.sh/pyne/docs/lsp) · [VS Code](https://hoox.sh/pyne/docs/lsp/vscode-extension)                                                                                             |
+| Coverage              | [Compatibility](https://hoox.sh/pyne/docs/reference/compatibility) · [missing](https://hoox.sh/pyne/docs/reference/missing-features)                                                         |
+| TradingView goldens   | [fixture README](./tests/fixtures/tv_goldens/README.md) · [COMPATIBILITY.md](./COMPATIBILITY.md)                                                                                             |
+| In-tree               | [CHANGELOG](./CHANGELOG.md) · [CONTRIBUTING](./CONTRIBUTING.md) · [SECURITY](./SECURITY.md)                                                                                                  |
 
 ```bash
 make install       # editable + LSP

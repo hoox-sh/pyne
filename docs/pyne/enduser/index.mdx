@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "End User Hub"
 description: "Install PYNE (pip install hoox-pyne). Library default is interpret, pyne run is compile-only, pyne execute is Runtime.run, Pro API /run defaults to auto."
 ---
@@ -74,15 +92,15 @@ flowchart TB
   OUT --> HOOX[HOOX trade-worker]
 ```
 
-| Surface | Entry | Typical job |
-| --- | --- | --- |
-| CLI | `pyne …` (alias `pynescript`) | One-shot parse, format, lint, compile, `run`, `optimize`, prewarm, data |
-| Library | `from pynescript.ast import parse, unparse` | Embed parse/transform/eval in tools |
-| PyneTS | `import { parse, Runtime } from "@hoox-sh/pynets"` | Same names in TypeScript / Bun |
-| LSP | `pyne-lsp` (alias `pynescript-lsp`) | Diagnostics, completion, hover (`.pyne` / `.pine`) |
-| Pro API | `POST /run` · `POST /optimize` | Evaluate contract + strategy `input.*` search |
-| AXIS | separate product | Chart PWA AXIS over evaluate results |
-| HOOX | separate product | Edge execution mesh after strategy events |
+| Surface | Entry                                              | Typical job                                                             |
+| ------- | -------------------------------------------------- | ----------------------------------------------------------------------- |
+| CLI     | `pyne …` (alias `pynescript`)                      | One-shot parse, format, lint, compile, `run`, `optimize`, prewarm, data |
+| Library | `from pynescript.ast import parse, unparse`        | Embed parse/transform/eval in tools                                     |
+| PyneTS  | `import { parse, Runtime } from "@hoox-sh/pynets"` | Same names in TypeScript / Bun                                          |
+| LSP     | `pyne-lsp` (alias `pynescript-lsp`)                | Diagnostics, completion, hover (`.pyne` / `.pine`)                      |
+| Pro API | `POST /run` · `POST /optimize`                     | Evaluate contract + strategy `input.*` search                           |
+| AXIS    | separate product                                   | Chart PWA AXIS over evaluate results                                    |
+| HOOX    | separate product                                   | Edge execution mesh after strategy events                               |
 
 ## Choose your path
 
@@ -116,34 +134,34 @@ Daily workflows against the same pipeline:
 
 ## Interface surface (consumer map)
 
-| Want | Command / import | Docs |
-| --- | --- | --- |
-| Install core | `pip install hoox-pyne` (import `pynescript`) | [Installation](/pyne/docs/enduser/getting-started/installation) |
-| Install LSP | `pip install "hoox-pyne[lsp]"` | [Editors](/pyne/docs/enduser/guides/editors) |
-| Install market data deps | `pip install "hoox-pyne[data]"` | [CLI data](/pyne/docs/enduser/guides/cli) |
-| Parse file | `pyne parse-and-dump path.pyne` | [CLI](/pyne/docs/enduser/guides/cli) |
-| Normalize source | `pyne parse-and-unparse path.pine` | [CLI](/pyne/docs/enduser/guides/cli) |
-| Lint | `pyne lint path.pine` | [CLI](/pyne/docs/enduser/guides/cli) |
-| Library parse | `from pynescript.ast import parse, unparse` | [Library API](/pyne/docs/enduser/guides/library-api) |
-| Expression eval | `from pynescript.ast.helper import literal_eval` | [Evaluate](/pyne/docs/enduser/guides/evaluate-scripts) |
-| Bar-loop eval | `from pynescript.runtime import Runtime` (`mode` default **interpret**) | [Evaluate](/pyne/docs/enduser/guides/evaluate-scripts) · [modes](/pyne/docs/enduser/reference/modes) |
-| Incremental interpret | `Runtime.create_session` → `append_bars` / `update_last_bar` (0.6.1) | [Evaluate](/pyne/docs/enduser/guides/evaluate-scripts) |
-| Compile-only smoke | `pyne run script.pine --bars 50` | [CLI](/pyne/docs/enduser/guides/cli) |
-| `Runtime.run` from CLI | `pyne execute script.pine --mode interpret --bars 50` | [CLI](/pyne/docs/enduser/guides/cli) · [MCP](/pyne/docs/enduser/guides/mcp) |
-| Call an MCP tool | `pyne mcp call lint script.pine` | [MCP tools](/pyne/docs/enduser/reference/mcp-tools) |
-| Warm Numba / IR | `pyne prewarm` / `POST /compile/prewarm` | [CLI](/pyne/docs/enduser/guides/cli) |
-| Strategy HPO | `pyne optimize` / `POST /optimize` / `pynescript.optimize.run_study` | [Optimize](/pyne/docs/api/endpoints/optimize) |
-| Alerts + webhooks | `/run` → `alerts[]` / `webhook_url` | [Alerts](/pyne/docs/runtime/alerts) |
-| Start LSP | `pyne-lsp` (stdio) | [Editors](/pyne/docs/enduser/guides/editors) |
-| Local Pro API | `make run` / `python -m backend.app` | [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage) |
+| Want                     | Command / import                                                        | Docs                                                                                                 |
+| ------------------------ | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Install core             | `pip install hoox-pyne` (import `pynescript`)                           | [Installation](/pyne/docs/enduser/getting-started/installation)                                      |
+| Install LSP              | `pip install "hoox-pyne[lsp]"`                                          | [Editors](/pyne/docs/enduser/guides/editors)                                                         |
+| Install market data deps | `pip install "hoox-pyne[data]"`                                         | [CLI data](/pyne/docs/enduser/guides/cli)                                                            |
+| Parse file               | `pyne parse-and-dump path.pyne`                                         | [CLI](/pyne/docs/enduser/guides/cli)                                                                 |
+| Normalize source         | `pyne parse-and-unparse path.pine`                                      | [CLI](/pyne/docs/enduser/guides/cli)                                                                 |
+| Lint                     | `pyne lint path.pine`                                                   | [CLI](/pyne/docs/enduser/guides/cli)                                                                 |
+| Library parse            | `from pynescript.ast import parse, unparse`                             | [Library API](/pyne/docs/enduser/guides/library-api)                                                 |
+| Expression eval          | `from pynescript.ast.helper import literal_eval`                        | [Evaluate](/pyne/docs/enduser/guides/evaluate-scripts)                                               |
+| Bar-loop eval            | `from pynescript.runtime import Runtime` (`mode` default **interpret**) | [Evaluate](/pyne/docs/enduser/guides/evaluate-scripts) · [modes](/pyne/docs/enduser/reference/modes) |
+| Incremental interpret    | `Runtime.create_session` → `append_bars` / `update_last_bar` (0.6.1)    | [Evaluate](/pyne/docs/enduser/guides/evaluate-scripts)                                               |
+| Compile-only smoke       | `pyne run script.pine --bars 50`                                        | [CLI](/pyne/docs/enduser/guides/cli)                                                                 |
+| `Runtime.run` from CLI   | `pyne execute script.pine --mode interpret --bars 50`                   | [CLI](/pyne/docs/enduser/guides/cli) · [MCP](/pyne/docs/enduser/guides/mcp)                          |
+| Call an MCP tool         | `pyne mcp call lint script.pine`                                        | [MCP tools](/pyne/docs/enduser/reference/mcp-tools)                                                  |
+| Warm Numba / IR          | `pyne prewarm` / `POST /compile/prewarm`                                | [CLI](/pyne/docs/enduser/guides/cli)                                                                 |
+| Strategy HPO             | `pyne optimize` / `POST /optimize` / `pynescript.optimize.run_study`    | [Optimize](/pyne/docs/api/endpoints/optimize)                                                        |
+| Alerts + webhooks        | `/run` → `alerts[]` / `webhook_url`                                     | [Alerts](/pyne/docs/runtime/alerts)                                                                  |
+| Start LSP                | `pyne-lsp` (stdio)                                                      | [Editors](/pyne/docs/enduser/guides/editors)                                                         |
+| Local Pro API            | `make run` / `python -m backend.app`                                    | [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage)                                             |
 
 Preferred console scripts (aliases in parentheses) are registered in `pyproject.toml`:
 
-| Script | Module | Role |
-| --- | --- | --- |
-| `pyne` (`pynescript`) | `pynescript.__main__:cli` | Desk CLI (Click group) |
-| `pyne-lsp` (`pynescript-lsp`) | `pynescript.langserver.__main__:main` | Language server (pygls) |
-| `pyne-mcp` | `pynescript.mcp.__main__:main` | Stdio MCP server (`[mcp]` extra; same as `pyne mcp`) |
+| Script                        | Module                                | Role                                                 |
+| ----------------------------- | ------------------------------------- | ---------------------------------------------------- |
+| `pyne` (`pynescript`)         | `pynescript.__main__:cli`             | Desk CLI (Click group)                               |
+| `pyne-lsp` (`pynescript-lsp`) | `pynescript.langserver.__main__:main` | Language server (pygls)                              |
+| `pyne-mcp`                    | `pynescript.mcp.__main__:main`        | Stdio MCP server (`[mcp]` extra; same as `pyne mcp`) |
 
 Do not conflate them: lint, parse, and `execute` live on `pyne`; editor features live on `pyne-lsp`; LLM stdio lives on `pyne-mcp`.
 
@@ -151,21 +169,21 @@ Do not conflate them: lint, parse, and `execute` live on `pyne`; editor features
 
 Consumer-relevant code only — deeper design is linked from each guide:
 
-| Path | Role |
-| --- | --- |
-| `src/pynescript/__main__.py` | Click CLI: check, format, lint, compile, prewarm, run, execute, mcp, optimize, data, info |
-| `src/pynescript/mcp/cli.py` | `pyne execute` / `mcp call` (in-process MCP ops) |
-| `src/pynescript/ast/helper.py` | Public `parse`, `unparse`, `dump`, `walk`, `literal_eval` |
-| `src/pynescript/ast/linter.py` | `lint_script` / `PineLinter` |
-| `src/pynescript/ast/evaluator/` | Bar-aware and literal evaluators |
-| `src/pynescript/runtime/` | Package Runtime SoT (bar-loop host, series, CustomEvaluator) |
-| `src/pynescript/langserver/` | LSP features and server |
-| `src/pynescript/util/data.py` | Historical data providers (mock, yahoo, alphavantage, ccxt) |
-| `backend/app.py` | Flask Pro API entry (`/run`, auth, blueprints) |
-| `backend/runtime.py` | Compat shim → `pynescript.runtime` |
-| `examples/` | Worked scripts (parse, RSI strategy, datafeed) |
-| `clients/` | Editor client configs (Neovim, Zed, Emacs) |
-| [`pyne-lsp-vsce`](https://github.com/hoox-sh/pyne-lsp-vsce) | VS Code extension package (separate repo) |
+| Path                                                        | Role                                                                                      |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `src/pynescript/__main__.py`                                | Click CLI: check, format, lint, compile, prewarm, run, execute, mcp, optimize, data, info |
+| `src/pynescript/mcp/cli.py`                                 | `pyne execute` / `mcp call` (in-process MCP ops)                                          |
+| `src/pynescript/ast/helper.py`                              | Public `parse`, `unparse`, `dump`, `walk`, `literal_eval`                                 |
+| `src/pynescript/ast/linter.py`                              | `lint_script` / `PineLinter`                                                              |
+| `src/pynescript/ast/evaluator/`                             | Bar-aware and literal evaluators                                                          |
+| `src/pynescript/runtime/`                                   | Package Runtime SoT (bar-loop host, series, CustomEvaluator)                              |
+| `src/pynescript/langserver/`                                | LSP features and server                                                                   |
+| `src/pynescript/util/data.py`                               | Historical data providers (mock, yahoo, alphavantage, ccxt)                               |
+| `backend/app.py`                                            | Flask Pro API entry (`/run`, auth, blueprints)                                            |
+| `backend/runtime.py`                                        | Compat shim → `pynescript.runtime`                                                        |
+| `examples/`                                                 | Worked scripts (parse, RSI strategy, datafeed)                                            |
+| `clients/`                                                  | Editor client configs (Neovim, Zed, Emacs)                                                |
+| [`pyne-lsp-vsce`](https://github.com/hoox-sh/pyne-lsp-vsce) | VS Code extension package (separate repo)                                                 |
 
 ## Invariants & edge cases
 
@@ -208,13 +226,13 @@ curl -s http://127.0.0.1:5002/ \
 
 ## Failure modes
 
-| Symptom | Likely cause | Where to go |
-| --- | --- | --- |
-| `pyne: command not found` | Package not on PATH / venv inactive | [Installation](/pyne/docs/enduser/getting-started/installation) |
-| `pyne-lsp` missing | Installed without `[lsp]` extra | [Editors](/pyne/docs/enduser/guides/editors) |
-| `SyntaxError` on parse | Grammar mismatch or truncated source | [Troubleshooting](/pyne/docs/enduser/guides/troubleshooting) |
-| `/run` 400 `NO_DATA` | Missing OHLCV list | [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage) |
-| Numerical drift vs TradingView | Builtin / series edge case | [Compatibility](/pyne/docs/reference/compatibility) |
+| Symptom                        | Likely cause                         | Where to go                                                     |
+| ------------------------------ | ------------------------------------ | --------------------------------------------------------------- |
+| `pyne: command not found`      | Package not on PATH / venv inactive  | [Installation](/pyne/docs/enduser/getting-started/installation) |
+| `pyne-lsp` missing             | Installed without `[lsp]` extra      | [Editors](/pyne/docs/enduser/guides/editors)                    |
+| `SyntaxError` on parse         | Grammar mismatch or truncated source | [Troubleshooting](/pyne/docs/enduser/guides/troubleshooting)    |
+| `/run` 400 `NO_DATA`           | Missing OHLCV list                   | [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage)        |
+| Numerical drift vs TradingView | Builtin / series edge case           | [Compatibility](/pyne/docs/reference/compatibility)             |
 
 ## See also
 

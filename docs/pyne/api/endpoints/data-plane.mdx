@@ -1,25 +1,43 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Data plane"
-description: "Engine-owned OHLCV series store and data-bound live sessions — /data/series* and /data/session*."
+description: "Engine-owned OHLCV series store and data-bound live sessions — /data/series\* and /data/session\*."
 ---
 
 # Data plane
@@ -60,19 +78,22 @@ flowchart LR
 
 Every route takes the same four fields. `market` is optional and defaults to `spot`.
 
-| Field | Rule | Example |
-| --- | --- | --- |
-| `exchange` | CCXT id, letters/digits/`-`/`_`, lowercased | `binance` |
-| `market` | one of the supported markets, default `spot` | `spot` |
-| `symbol` | a pair, uppercased | `BTC/USDT` |
-| `interval` | canonicalized | `1h` |
+| Field      | Rule                                         | Example    |
+| ---------- | -------------------------------------------- | ---------- |
+| `exchange` | CCXT id, letters/digits/`-`/`_`, lowercased  | `binance`  |
+| `market`   | one of the supported markets, default `spot` | `spot`     |
+| `symbol`   | a pair, uppercased                           | `BTC/USDT` |
+| `interval` | canonicalized                                | `1h`       |
 
 Responses echo the normalized key text, e.g. `binance|spot|BTC/USDT|1h`.
 
 ## Interface surface
 
 <Note>
-All `/data/*` routes require an **API key** (`Authorization: Bearer …`, `X-API-Key`, or `?api_key=`). They move and persist user market data, so they are not on the free path. Unauthenticated calls return `401 UNAUTHORIZED`.
+    All `/data/*` routes require an **API key** (`Authorization: Bearer …`,
+    `X-API-Key`, or `?api_key=`). They move and persist user market data, so
+    they are not on the free path. Unauthenticated calls return `401
+    UNAUTHORIZED`.
 </Note>
 
 ### `GET /data/series`
@@ -80,8 +101,14 @@ All `/data/*` routes require an **API key** (`Authorization: Bearer …`, `X-API
 Stored bounds for one series. Unknown series report count `0` rather than `404`.
 
 ```json
-{ "status": "success", "key": "binance|spot|BTC/USDT|1h",
-  "count": 30, "oldest": 1700000000, "newest": 1700104400, "updated_at": 1791968289 }
+{
+    "status": "success",
+    "key": "binance|spot|BTC/USDT|1h",
+    "count": 30,
+    "oldest": 1700000000,
+    "newest": 1700104400,
+    "updated_at": 1791968289
+}
 ```
 
 ### `GET /data/series/bars`
@@ -99,8 +126,14 @@ Newest stored bars, **ascending**. `limit` defaults to the store window default 
 Upload closed bars. At most **5,000** per request; over that is `413 BATCH_TOO_LARGE` — split the upload into chunks.
 
 ```json
-{ "status": "success", "key": "binance|spot|BTC/USDT|1h",
-  "added": 30, "updated": 0, "count": 30, "newest": 1700104400 }
+{
+    "status": "success",
+    "key": "binance|spot|BTC/USDT|1h",
+    "added": 30,
+    "updated": 0,
+    "count": 30,
+    "newest": 1700104400
+}
 ```
 
 ### `POST /data/series/fetch`
@@ -119,9 +152,17 @@ Build a live interpret session over the stored window and bind it to the series 
 Returns the `/session` envelope plus `session_id`, `cache`, and `data`:
 
 ```json
-{ "status": "success", "session_id": "49564cd995514ef48254eb9dd5322e90",
-  "count": 20, "cache": "hit",
-  "data": { "key": "binance|spot|BTC/USDT|1h", "count": 30, "newest": 1700104400 } }
+{
+    "status": "success",
+    "session_id": "49564cd995514ef48254eb9dd5322e90",
+    "count": 20,
+    "cache": "hit",
+    "data": {
+        "key": "binance|spot|BTC/USDT|1h",
+        "count": 30,
+        "newest": 1700104400
+    }
+}
 ```
 
 When the store holds fewer than `history_bars` bars it returns `409 DATA_MISS` with `have` and `need` rather than silently evaluating a short history:
@@ -137,45 +178,51 @@ Takes `{ exchange, symbol }` only — the series binding is already established.
 The response adds `appended`, `forming`, and `unchanged`:
 
 ```json
-{ "status": "success", "session_id": "…", "count": 31,
-  "appended": 1, "forming": true, "unchanged": false }
+{
+    "status": "success",
+    "session_id": "…",
+    "count": 31,
+    "appended": 1,
+    "forming": true,
+    "unchanged": false
+}
 ```
 
 `409 SESSION_KEY_MISMATCH` guards a session bound to another series. Upstream failure is `502 UPSTREAM` and **keeps** the session.
 
 ## Storage
 
-| Property | Value |
-| --- | --- |
-| Backend | SQLite (`ohlcv.sqlite3`), single connection |
-| Directory | `PYNE_DATA_DIR`, default `data/` |
-| Identity | `exchange\|market\|SYMBOL\|interval` |
-| Upsert key | unix-second `time`; later write wins |
+| Property   | Value                                       |
+| ---------- | ------------------------------------------- |
+| Backend    | SQLite (`ohlcv.sqlite3`), single connection |
+| Directory  | `PYNE_DATA_DIR`, default `data/`            |
+| Identity   | `exchange\|market\|SYMBOL\|interval`        |
+| Upsert key | unix-second `time`; later write wins        |
 
 The store writes through a single connection, so the data plane has the same **single-worker** constraint as live sessions (`GUNICORN_WORKERS=1`). Serving it from more than one worker without a shared volume will silently split history.
 
 ## Failure modes
 
-| Symptom | Code / status | Cause | Fix |
-| --- | --- | --- | --- |
-| `401` | `UNAUTHORIZED` | No API key | Send `Authorization: Bearer` |
-| `400` | `INVALID_KEY` | Missing/malformed `exchange` / `symbol` | Use a CCXT id and a pair |
-| `400` | `INVALID_MARKET` | Unsupported market | Use `spot` (default) |
-| `413` | `BATCH_TOO_LARGE` | >5,000 bars in one upload | Chunk the upload |
-| `409` | `DATA_MISS` | Store shorter than `history_bars` | `/data/series/fetch` or `provide` first |
-| `409` | `SESSION_KEY_MISMATCH` | Wrong series for this session | Release and rebind |
-| `502` | `UPSTREAM` | CCXT fetch failed | Check creds / connectivity; session kept |
-| `503` | `CCXT_UNAVAILABLE` | `ccxt` not installed | `pip install 'pyne[datafeed]'` |
+| Symptom | Code / status          | Cause                                   | Fix                                      |
+| ------- | ---------------------- | --------------------------------------- | ---------------------------------------- |
+| `401`   | `UNAUTHORIZED`         | No API key                              | Send `Authorization: Bearer`             |
+| `400`   | `INVALID_KEY`          | Missing/malformed `exchange` / `symbol` | Use a CCXT id and a pair                 |
+| `400`   | `INVALID_MARKET`       | Unsupported market                      | Use `spot` (default)                     |
+| `413`   | `BATCH_TOO_LARGE`      | >5,000 bars in one upload               | Chunk the upload                         |
+| `409`   | `DATA_MISS`            | Store shorter than `history_bars`       | `/data/series/fetch` or `provide` first  |
+| `409`   | `SESSION_KEY_MISMATCH` | Wrong series for this session           | Release and rebind                       |
+| `502`   | `UPSTREAM`             | CCXT fetch failed                       | Check creds / connectivity; session kept |
+| `503`   | `CCXT_UNAVAILABLE`     | `ccxt` not installed                    | `pip install 'pyne[datafeed]'`           |
 
 ## Internals (map)
 
-| Path | Role |
-| --- | --- |
+| Path                          | Role                                                  |
+| ----------------------------- | ----------------------------------------------------- |
 | `backend/datastore/series.py` | SQLite OHLCV store, `SeriesKey`, upsert/window/status |
-| `backend/datastore/live.py` | Session ↔ series binding + `sync_session` |
-| `backend/api/data_series.py` | `/data/series*` routes, CCXT page walk |
-| `backend/app.py` | `/data/session`, `/data/session/<id>/tick` |
-| `backend/api/datafeed.py` | Shared CCXT provider + candle mapping |
+| `backend/datastore/live.py`   | Session ↔ series binding + `sync_session`             |
+| `backend/api/data_series.py`  | `/data/series*` routes, CCXT page walk                |
+| `backend/app.py`              | `/data/session`, `/data/session/<id>/tick`            |
+| `backend/api/datafeed.py`     | Shared CCXT provider + candle mapping                 |
 
 ## See also
 

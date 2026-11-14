@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Docker"
 description: "Buildx multi-target images and Compose profiles for the PYNE Pro API, datafeed, MCP, CLI, and LSP."
 ---
@@ -27,6 +45,7 @@ description: "Buildx multi-target images and Compose profiles for the PYNE Pro A
 ## Abstract
 
 Containers package the **Pro API** (Flask + evaluator), the **CCXT datafeed**, **PYNE MCP**, the **CLI** (`pynescript`), and the **LSP** for reproducible local runs and Cloud Run deploys. A single multi-stage `Dockerfile` exposes named targets; **Docker Buildx Bake** (`docker-bake.hcl`) drives local loads and multi-platform release builds. Compose wires volume mounts and optional Redis/LSP/CLI profiles for desk development, with a production overlay for gunicorn.
+
 ## Conceptual model
 
 ```mermaid
@@ -65,17 +84,18 @@ flowchart LR
 
 ### Dockerfile targets
 
-| Target | Process model | Audience |
-| --- | --- | --- |
-| `api` | `entrypoint-api.sh` → gunicorn (`0.0.0.0:$PORT`) | Production / Cloud Run / compose prod |
-| `api-dev` | `python -m backend.app` with `HOST=0.0.0.0` | Local compose (source mounts) |
-| `lsp` | `ENTRYPOINT pyne-lsp` (stdio) | Compose profile `lsp`; GHCR `ghcr.io/hoox-sh/pyne/lsp` |
-| `mcp` | `ENTRYPOINT pyne-mcp` (`streamable-http` on `:8080`) | Compose daemon `mcp`; GHCR `ghcr.io/hoox-sh/pyne/mcp` |
-| `cli` | `entrypoint-cli.sh` → `pyne` (fallback `pynescript`; ephemeral; `/work` CWD) | CI gates, one-shot parse/lint/compile/run |
+| Target    | Process model                                                                | Audience                                               |
+| --------- | ---------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `api`     | `entrypoint-api.sh` → gunicorn (`0.0.0.0:$PORT`)                             | Production / Cloud Run / compose prod                  |
+| `api-dev` | `python -m backend.app` with `HOST=0.0.0.0`                                  | Local compose (source mounts)                          |
+| `lsp`     | `ENTRYPOINT pyne-lsp` (stdio)                                                | Compose profile `lsp`; GHCR `ghcr.io/hoox-sh/pyne/lsp` |
+| `mcp`     | `ENTRYPOINT pyne-mcp` (`streamable-http` on `:8080`)                         | Compose daemon `mcp`; GHCR `ghcr.io/hoox-sh/pyne/mcp`  |
+| `cli`     | `entrypoint-cli.sh` → `pyne` (fallback `pynescript`; ephemeral; `/work` CWD) | CI gates, one-shot parse/lint/compile/run              |
 
 Datafeed reuses the `api` / `api-dev` image with `GUNICORN_APP=backend.datafeed_app:app` (prod) or `python -m backend.datafeed_app` (dev). RAM sessions live in that process — do not split `/datafeed/session` and `/datafeed/watch`.
 
 All targets: Python 3.12-slim, non-root `appuser` (uid 1000). API targets also set `API_KEY_STORE=/data/api_keys.json`, `MPLBACKEND=Agg`, healthcheck via `curl`. The **cli** image installs `.[compile,data]` only (no Flask/matplotlib) and is smaller/faster to build than `api`.
+
 ### Buildx Bake (`docker-bake.hcl`)
 
 ```bash
@@ -132,14 +152,14 @@ docker compose --profile cli run --rm cli check script.pine
 # ≡ make docker-cli ARGS="check script.pine"
 ```
 
-| Service | Profile | Notes |
-| --- | --- | --- |
-| `api` | default | Port `${API_PORT:-5002}:8080`, ro mounts of `src/` + `backend/`, volume `api_data` → `/data` |
-| `redis` | default | redis:7-alpine, AOF, **no published ports** (internal network only) |
-| `datafeed` | default | Host `127.0.0.1:${DATAFEED_PORT:-5004}`; same API image; `GET /datafeed/health` |
-| `mcp` | default | Host `127.0.0.1:${MCP_PORT:-5003}`; `PYNE_MCP_TRANSPORT=streamable-http`; `GET /mcp` |
-| `lsp` | `lsp` | stdio; `docker compose run --rm lsp` for interactive; prod `up` also starts it |
-| `cli` | `cli` | `entrypoint-cli.sh` → `pyne`; mounts `.:/work` + `src` + `cli_data` |
+| Service    | Profile | Notes                                                                                        |
+| ---------- | ------- | -------------------------------------------------------------------------------------------- |
+| `api`      | default | Port `${API_PORT:-5002}:8080`, ro mounts of `src/` + `backend/`, volume `api_data` → `/data` |
+| `redis`    | default | redis:7-alpine, AOF, **no published ports** (internal network only)                          |
+| `datafeed` | default | Host `127.0.0.1:${DATAFEED_PORT:-5004}`; same API image; `GET /datafeed/health`              |
+| `mcp`      | default | Host `127.0.0.1:${MCP_PORT:-5003}`; `PYNE_MCP_TRANSPORT=streamable-http`; `GET /mcp`         |
+| `lsp`      | `lsp`   | stdio; `docker compose run --rm lsp` for interactive; prod `up` also starts it               |
+| `cli`      | `cli`   | `entrypoint-cli.sh` → `pyne`; mounts `.:/work` + `src` + `cli_data`                          |
 
 Network name: `pynescript-dev`.
 
@@ -147,28 +167,28 @@ Production overlay (`docker-compose.prod.yml`): target `api`, **`volumes: !overr
 
 ### Environment variables
 
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `PORT` | `8080` | Listen port inside the container |
-| `HOST` | `0.0.0.0` | Bind address (dev Flask runner) |
-| `API_PORT` | `5002` | Host port published to container `8080` |
-| `DATAFEED_PORT` | `5004` | Host port for the datafeed daemon (`127.0.0.1`) |
-| `MCP_PORT` | `5003` | Host port for MCP streamable-http (`127.0.0.1`) |
-| `PYNE_MCP_TRANSPORT` | `stdio` (CLI) / `streamable-http` (compose) | MCP listen mode |
-| `PYNE_MCP_HOST` / `PYNE_MCP_PORT` | `127.0.0.1` / `8000` | HTTP bind inside the MCP process (compose: `0.0.0.0` / `8080`) |
-| `GUNICORN_APP` | `backend.app:app` | WSGI target; datafeed sets `backend.datafeed_app:app` |
-| `FLASK_ENV` | `production` / `development` | App mode by target |
-| `STORE_BACKEND` | `json` (prod overlay: `sqlite`) | `json` \| `sqlite` \| `redis` |
-| `API_KEY_STORE` | `/data/api_keys.json` | JSON key store path (`STORE_BACKEND=json`) |
-| `API_KEY_STORE_SQLITE` | `/data/api_keys.db` | SQLite path (`STORE_BACKEND=sqlite`) |
-| `ALLOWED_ORIGINS` | compose default includes `https://hoox.sh`, `https://hoox.sh/axis`, and **local AXIS `:8081`** | CORS allow-list |
-| `ADMIN_TOKEN` | unset | Required for `POST /auth/create_key` (`X-Admin-Token`) and prod compose |
-| `PYNE_RUNNER` | `0` | Optional hosted runner ([docs](/pyne/docs/api/endpoints/runner)). `1` enables `/scripts` + `/cron/*` |
-| `PYNE_RUNNER_SCHEDULER` | `0` | In-process bar-close poll. Prefer `GUNICORN_WORKERS=1` when on |
-| `PYNE_RUNNER_DB` | `/data/runner.db` | SQLite on the `api_data` volume |
-| `REDIS_URL` | empty in prod; compose dev default `redis://redis:6379/0` | Required when `STORE_BACKEND=redis` |
-| `GUNICORN_WORKERS` / `GUNICORN_THREADS` / `GUNICORN_TIMEOUT` | `1` / `100` / **`120`** (entrypoint + prod compose; worker class hard-pinned `gthread`) | Prod entrypoint knobs |
-| `GUNICORN_BIND` | `0.0.0.0:${PORT}` | Optional gunicorn bind override |
+| Variable                                                     | Default                                                                                        | Meaning                                                                                              |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `PORT`                                                       | `8080`                                                                                         | Listen port inside the container                                                                     |
+| `HOST`                                                       | `0.0.0.0`                                                                                      | Bind address (dev Flask runner)                                                                      |
+| `API_PORT`                                                   | `5002`                                                                                         | Host port published to container `8080`                                                              |
+| `DATAFEED_PORT`                                              | `5004`                                                                                         | Host port for the datafeed daemon (`127.0.0.1`)                                                      |
+| `MCP_PORT`                                                   | `5003`                                                                                         | Host port for MCP streamable-http (`127.0.0.1`)                                                      |
+| `PYNE_MCP_TRANSPORT`                                         | `stdio` (CLI) / `streamable-http` (compose)                                                    | MCP listen mode                                                                                      |
+| `PYNE_MCP_HOST` / `PYNE_MCP_PORT`                            | `127.0.0.1` / `8000`                                                                           | HTTP bind inside the MCP process (compose: `0.0.0.0` / `8080`)                                       |
+| `GUNICORN_APP`                                               | `backend.app:app`                                                                              | WSGI target; datafeed sets `backend.datafeed_app:app`                                                |
+| `FLASK_ENV`                                                  | `production` / `development`                                                                   | App mode by target                                                                                   |
+| `STORE_BACKEND`                                              | `json` (prod overlay: `sqlite`)                                                                | `json` \| `sqlite` \| `redis`                                                                        |
+| `API_KEY_STORE`                                              | `/data/api_keys.json`                                                                          | JSON key store path (`STORE_BACKEND=json`)                                                           |
+| `API_KEY_STORE_SQLITE`                                       | `/data/api_keys.db`                                                                            | SQLite path (`STORE_BACKEND=sqlite`)                                                                 |
+| `ALLOWED_ORIGINS`                                            | compose default includes `https://hoox.sh`, `https://hoox.sh/axis`, and **local AXIS `:8081`** | CORS allow-list                                                                                      |
+| `ADMIN_TOKEN`                                                | unset                                                                                          | Required for `POST /auth/create_key` (`X-Admin-Token`) and prod compose                              |
+| `PYNE_RUNNER`                                                | `0`                                                                                            | Optional hosted runner ([docs](/pyne/docs/api/endpoints/runner)). `1` enables `/scripts` + `/cron/*` |
+| `PYNE_RUNNER_SCHEDULER`                                      | `0`                                                                                            | In-process bar-close poll. Prefer `GUNICORN_WORKERS=1` when on                                       |
+| `PYNE_RUNNER_DB`                                             | `/data/runner.db`                                                                              | SQLite on the `api_data` volume                                                                      |
+| `REDIS_URL`                                                  | empty in prod; compose dev default `redis://redis:6379/0`                                      | Required when `STORE_BACKEND=redis`                                                                  |
+| `GUNICORN_WORKERS` / `GUNICORN_THREADS` / `GUNICORN_TIMEOUT` | `1` / `100` / **`120`** (entrypoint + prod compose; worker class hard-pinned `gthread`)        | Prod entrypoint knobs                                                                                |
+| `GUNICORN_BIND`                                              | `0.0.0.0:${PORT}`                                                                              | Optional gunicorn bind override                                                                      |
 
 ### Published image names
 
@@ -260,15 +280,15 @@ docker compose --profile lsp --profile cli \
 
 ## Failure modes
 
-| Symptom | Cause | Fix |
-| --- | --- | --- |
-| Healthcheck fails | process not listening / curl missing | Use image targets from this Dockerfile; check `docker compose logs api` |
-| Connection refused on host port | Flask bound to `127.0.0.1` | Dev target sets `HOST=0.0.0.0`; do not override to localhost |
-| Permission denied writing keys | Running as `appuser` outside `/data` | Set `API_KEY_STORE=/data/...` and mount `api_data` |
-| Import errors after mount | PYTHONPATH / stale site-packages | `PYTHONPATH=/app/src:/app`; rebuild after dependency changes |
-| OOM under load | Small memory cap | Raise `API_MEM_LIMIT` / Cloud Run memory; reduce concurrency |
-| CORS failures from PWA | Origin not allowed | Set `ALLOWED_ORIGINS` |
-| Huge build context | Missing `.dockerignore` | Ensure `.dockerignore` is present (corpus/docs excluded) |
+| Symptom                         | Cause                                | Fix                                                                     |
+| ------------------------------- | ------------------------------------ | ----------------------------------------------------------------------- |
+| Healthcheck fails               | process not listening / curl missing | Use image targets from this Dockerfile; check `docker compose logs api` |
+| Connection refused on host port | Flask bound to `127.0.0.1`           | Dev target sets `HOST=0.0.0.0`; do not override to localhost            |
+| Permission denied writing keys  | Running as `appuser` outside `/data` | Set `API_KEY_STORE=/data/...` and mount `api_data`                      |
+| Import errors after mount       | PYTHONPATH / stale site-packages     | `PYTHONPATH=/app/src:/app`; rebuild after dependency changes            |
+| OOM under load                  | Small memory cap                     | Raise `API_MEM_LIMIT` / Cloud Run memory; reduce concurrency            |
+| CORS failures from PWA          | Origin not allowed                   | Set `ALLOWED_ORIGINS`                                                   |
+| Huge build context              | Missing `.dockerignore`              | Ensure `.dockerignore` is present (corpus/docs excluded)                |
 
 ## See also
 

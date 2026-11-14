@@ -17,13 +17,13 @@ harnesses ran on `BINANCE:BTCUSDT` `1D` (2,474–2,475 daily bars,
 
 ## What other projects do
 
-| Project | How it proves TradingView parity | Reused here |
-| --- | --- | --- |
-| **OpenPineScript** (GPL-3.0) | A `.pine` harness plus the actual TV export (CSV or Pine Logs). The harness is the test program; the export carries OHLCV and plot columns. Comparator matches columns, warm-up, first non-`na`, and vacuity guards. | **Yes** — harnesses, exports, comparison contract |
-| **PineTS** (AGPL-3.0) | Compatibility tests are self-generated baselines (regression protection, not external proof). Its strategy broker tests are hand-pinned to values measured on TV runs, but raw exports are not shipped. | Methodology only |
-| **talipp** (MIT) | Hard-coded expected values in unit tests; no TradingView exports or capture recipe in-tree. | No |
-| **pineforge-backtest-mcp** (MIT) | Consumes a user's TradingView strategy export (List of Trades) and grades a local engine; no bundled fixture. | Methodology only |
-| **Healy218/HealysBacktester** (unlicensed) | A runbook for capturing a user CSV and comparing scoped columns; no bundled fixture. | Methodology only |
+| Project                                    | How it proves TradingView parity                                                                                                                                                                                     | Reused here                                       |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| **OpenPineScript** (GPL-3.0)               | A `.pine` harness plus the actual TV export (CSV or Pine Logs). The harness is the test program; the export carries OHLCV and plot columns. Comparator matches columns, warm-up, first non-`na`, and vacuity guards. | **Yes** — harnesses, exports, comparison contract |
+| **PineTS** (AGPL-3.0)                      | Compatibility tests are self-generated baselines (regression protection, not external proof). Its strategy broker tests are hand-pinned to values measured on TV runs, but raw exports are not shipped.              | Methodology only                                  |
+| **talipp** (MIT)                           | Hard-coded expected values in unit tests; no TradingView exports or capture recipe in-tree.                                                                                                                          | No                                                |
+| **pineforge-backtest-mcp** (MIT)           | Consumes a user's TradingView strategy export (List of Trades) and grades a local engine; no bundled fixture.                                                                                                        | Methodology only                                  |
+| **Healy218/HealysBacktester** (unlicensed) | A runbook for capturing a user CSV and comparing scoped columns; no bundled fixture.                                                                                                                                 | Methodology only                                  |
 
 OpenPineScript is the only surveyed project that ships the **scripts and the
 post-run TradingView data together**, which is what makes a reproducible
@@ -38,11 +38,11 @@ TradingView publishes no API for indicator values, and scripting the UI would
 breach their terms. A human has to run the harness once per fixture. Two routes
 work:
 
-* **Pine Logs (free)** — `log.info()` runs on historical bars. The generated
+- **Pine Logs (free)** — `log.info()` runs on historical bars. The generated
   `v5` harnesses emit one tagged row per bar (`OPSHEAD|` for the header,
   `OPS|` for each row). Copy the whole pane and save it as
   `<harness>.<SYMBOL>.<TF>.log`.
-* **Export chart data (PRO+/Premium)** — the `v3`/`v4` source harnesses
+- **Export chart data (PRO+/Premium)** — the `v3`/`v4` source harnesses
   `plot()` the same values. Export the chart data as CSV next to the harness.
   Those source harnesses are vendored too; only the v5 log exports are
   compared today.
@@ -151,10 +151,10 @@ Fixed across the parity passes:
 
 ## Provenance and license
 
-* Upstream: `https://github.com/be-thomas/OpenPineScript`
-* Commit: `cbf7ce9183cf46221a76a7453cfa78542d220108` (2026-10-23)
-* License: GPL-3.0 (`openpinescript/LICENSE`)
-* Per-file SHA-256 and raw URLs: `SOURCES.json`
+- Upstream: `https://github.com/be-thomas/OpenPineScript`
+- Commit: `cbf7ce9183cf46221a76a7453cfa78542d220108` (2026-10-23)
+- License: GPL-3.0 (`openpinescript/LICENSE`)
+- Per-file SHA-256 and raw URLs: `SOURCES.json`
 
 The GPL-3.0 files are combined with this AGPL-3.0-or-later project under
 GPL-3.0 §13; the combined work is distributed under AGPL-3.0-or-later. Keep

@@ -76,10 +76,7 @@
     "brief": "Send an alert notification.",
     "documentation": "Send an alert notification.\n\nSignature: ``alert(message, freq)``.\n\nZero-arg ``alert()`` (linter signature demos / truncated scrapes) is a\nsoft no-op rather than a hard Runtime Error so residual corpus scripts\nkeep evaluating other statements.",
     "snippet": "alert(${1:message}, ${2:freq})",
-    "params": [
-      "message",
-      "freq"
-    ],
+    "params": ["message", "freq"],
     "category": "builtin"
   },
   "alert.freq_all": {
@@ -119,11 +116,7 @@
     "brief": "Define / evaluate an alert condition.",
     "documentation": "Define / evaluate an alert condition.\n\nSignature: ``alertcondition(condition, title, message)``\n\nOn each bar where *condition* is true, the engine records the condition\nand fires a host alert (``source=alertcondition``) with\n``freq_once_per_bar`` semantics so cron / API consumers see firings.",
     "snippet": "alertcondition(${1:condition}, ${2:title}, ${3:message})",
-    "params": [
-      "condition",
-      "title",
-      "message"
-    ],
+    "params": ["condition", "title", "message"],
     "category": "builtin"
   },
   "alma": {
@@ -183,9 +176,7 @@
     "brief": "",
     "documentation": "",
     "snippet": "array.avg(${1:id})",
-    "params": [
-      "id"
-    ],
+    "params": ["id"],
     "category": "array"
   },
   "array.binary_search": {
@@ -195,10 +186,7 @@
     "brief": "index or ``-1",
     "documentation": "``array.binary_search(id, value, sort_field?)`` — index or ``-1``.\n\nAugust 2026: UDT arrays compare ``sort_field`` (const int index, default\n0, or const string name). Array must be sorted by that field ascending.",
     "snippet": "array.binary_search(${1:id}, ${2:value})",
-    "params": [
-      "id",
-      "value"
-    ],
+    "params": ["id", "value"],
     "category": "array"
   },
   "array.binary_search_leftmost": {
@@ -208,10 +196,7 @@
     "brief": "first match or ``-1",
     "documentation": "``array.binary_search_leftmost(id, value, sort_field?)`` — first match or ``-1``.",
     "snippet": "array.binary_search_leftmost(${1:id}, ${2:value})",
-    "params": [
-      "id",
-      "value"
-    ],
+    "params": ["id", "value"],
     "category": "array"
   },
   "array.binary_search_rightmost": {
@@ -221,10 +206,7 @@
     "brief": "last match or ``-1",
     "documentation": "``array.binary_search_rightmost(id, value, sort_field?)`` — last match or ``-1``.",
     "snippet": "array.binary_search_rightmost(${1:id}, ${2:value})",
-    "params": [
-      "id",
-      "value"
-    ],
+    "params": ["id", "value"],
     "category": "array"
   },
   "array.clear": {
@@ -234,9 +216,7 @@
     "brief": "clear in place; ``na`` id → no-op",
     "documentation": "``array.clear(id)`` — clear in place; ``na`` id → no-op.",
     "snippet": "array.clear(${1:id})",
-    "params": [
-      "id"
-    ],
+    "params": ["id"],
     "category": "array"
   },
   "array.concat": {
@@ -266,11 +246,7 @@
     "brief": "covariance of two arrays",
     "documentation": "``array.covariance(id1, id2, biased=true)`` — covariance of two arrays.\n\nreference Pine signature is two equal-length arrays plus optional ``biased``\n(default true = population / n; false = sample / n-1). Older internal\nternary form ``(series1, series2, length)`` is still accepted when the\nthird argument is an int length (not a bool).",
     "snippet": "array.covariance(${1:id1}, ${2:id2}, ${3:biased})",
-    "params": [
-      "id1",
-      "id2",
-      "biased"
-    ],
+    "params": ["id1", "id2", "biased"],
     "category": "array"
   },
   "array.every": {
@@ -280,10 +256,7 @@
     "brief": "or unary ``id.every()`` on bool arrays",
     "documentation": "``array.every(id, predicate)`` or unary ``id.every()`` on bool arrays.\n\nUnary form (corpus: ``array.every(arr)`` / ``arr.every()``) treats the\narray as a bool series and returns whether every element is truthy.",
     "snippet": "array.every(${1:id}, ${2:predicate})",
-    "params": [
-      "id",
-      "predicate"
-    ],
+    "params": ["id", "predicate"],
     "category": "array"
   },
   "array.fill": {
@@ -293,10 +266,7 @@
     "brief": "or ``array.fill(id, value, index_from, index_to)",
     "documentation": "``array.fill(id, value)`` or ``array.fill(id, value, index_from, index_to)``.\n\nRange form fills half-open ``[index_from, index_to)`` (reference Pine).\nMissing / na bounds fill the whole array; OOB bounds are clamped.",
     "snippet": "array.fill(${1:id}, ${2:value})",
-    "params": [
-      "id",
-      "value"
-    ],
+    "params": ["id", "value"],
     "category": "array"
   },
   "array.first": {
@@ -306,9 +276,7 @@
     "brief": "first element; ``na`` id → ``na``; empty still errors",
     "documentation": "``array.first(id)`` — first element; ``na`` id → ``na``; empty still errors.",
     "snippet": "array.first(${1:id})",
-    "params": [
-      "id"
-    ],
+    "params": ["id"],
     "category": "array"
   },
   "array.from": {
@@ -328,10 +296,7 @@
     "brief": "reference v6 negative index from end; OOB/na → na",
     "documentation": "``array.get(id, index)`` — reference v6 negative index from end; OOB/na → na.",
     "snippet": "array.get(${1:id}, ${2:index})",
-    "params": [
-      "id",
-      "index"
-    ],
+    "params": ["id", "index"],
     "category": "array"
   },
   "array.includes": {
@@ -361,11 +326,7 @@
     "brief": "insert at index (append if index ≥ size)",
     "documentation": "``array.insert(id, index, value)`` — insert at index (append if index ≥ size).\n\nreference v6: negative *index* counts from the end. ``na`` id → no-op.",
     "snippet": "array.insert(${1:id}, ${2:index}, ${3:value})",
-    "params": [
-      "id",
-      "index",
-      "value"
-    ],
+    "params": ["id", "index", "value"],
     "category": "array"
   },
   "array.join": {
@@ -375,9 +336,7 @@
     "brief": "/ id.join(separator?) → concatenated string",
     "documentation": "array.join(id, separator?) / id.join(separator?) → concatenated string.\n\nSeparator defaults to ``\"\"`` when omitted (common in motion: ``this.join()``).\n``na`` elements are stringified as empty. ``na`` id → ``na``.",
     "snippet": "array.join(${1:id})",
-    "params": [
-      "id"
-    ],
+    "params": ["id"],
     "category": "array"
   },
   "array.last": {
@@ -387,9 +346,7 @@
     "brief": "last element; ``na`` id → ``na``; empty still errors",
     "documentation": "``array.last(id)`` — last element; ``na`` id → ``na``; empty still errors.",
     "snippet": "array.last(${1:id})",
-    "params": [
-      "id"
-    ],
+    "params": ["id"],
     "category": "array"
   },
   "array.lastindexof": {
@@ -409,10 +366,7 @@
     "brief": "",
     "documentation": "",
     "snippet": "array.max(${1:id}, ${2:nth})",
-    "params": [
-      "id",
-      "nth"
-    ],
+    "params": ["id", "nth"],
     "category": "array"
   },
   "array.median": {
@@ -432,10 +386,7 @@
     "brief": "",
     "documentation": "",
     "snippet": "array.min(${1:id}, ${2:nth})",
-    "params": [
-      "id",
-      "nth"
-    ],
+    "params": ["id", "nth"],
     "category": "array"
   },
   "array.mode": {
@@ -455,10 +406,7 @@
     "brief": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "snippet": "array.new(${1:size}, ${2:initial_value})",
-    "params": [
-      "size",
-      "initial_value"
-    ],
+    "params": ["size", "initial_value"],
     "category": "array"
   },
   "array.new_bool": {
@@ -468,10 +416,7 @@
     "brief": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "snippet": "array.new_bool(${1:size}, ${2:initial_value})",
-    "params": [
-      "size",
-      "initial_value"
-    ],
+    "params": ["size", "initial_value"],
     "category": "array"
   },
   "array.new_box": {
@@ -481,10 +426,7 @@
     "brief": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "snippet": "array.new_box(${1:size}, ${2:initial_value})",
-    "params": [
-      "size",
-      "initial_value"
-    ],
+    "params": ["size", "initial_value"],
     "category": "array"
   },
   "array.new_chart.point": {
@@ -494,10 +436,7 @@
     "brief": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "snippet": "array.new_chart.point(${1:size}, ${2:initial_value})",
-    "params": [
-      "size",
-      "initial_value"
-    ],
+    "params": ["size", "initial_value"],
     "category": "array"
   },
   "array.new_color": {
@@ -507,10 +446,7 @@
     "brief": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "snippet": "array.new_color(${1:size}, ${2:initial_value})",
-    "params": [
-      "size",
-      "initial_value"
-    ],
+    "params": ["size", "initial_value"],
     "category": "array"
   },
   "array.new_float": {
@@ -520,10 +456,7 @@
     "brief": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "snippet": "array.new_float(${1:size}, ${2:initial_value})",
-    "params": [
-      "size",
-      "initial_value"
-    ],
+    "params": ["size", "initial_value"],
     "category": "array"
   },
   "array.new_int": {
@@ -533,10 +466,7 @@
     "brief": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "snippet": "array.new_int(${1:size}, ${2:initial_value})",
-    "params": [
-      "size",
-      "initial_value"
-    ],
+    "params": ["size", "initial_value"],
     "category": "array"
   },
   "array.new_label": {
@@ -546,10 +476,7 @@
     "brief": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "snippet": "array.new_label(${1:size}, ${2:initial_value})",
-    "params": [
-      "size",
-      "initial_value"
-    ],
+    "params": ["size", "initial_value"],
     "category": "array"
   },
   "array.new_line": {
@@ -559,10 +486,7 @@
     "brief": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "snippet": "array.new_line(${1:size}, ${2:initial_value})",
-    "params": [
-      "size",
-      "initial_value"
-    ],
+    "params": ["size", "initial_value"],
     "category": "array"
   },
   "array.new_linefill": {
@@ -572,10 +496,7 @@
     "brief": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "snippet": "array.new_linefill(${1:size}, ${2:initial_value})",
-    "params": [
-      "size",
-      "initial_value"
-    ],
+    "params": ["size", "initial_value"],
     "category": "array"
   },
   "array.new_polyline": {
@@ -585,10 +506,7 @@
     "brief": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "snippet": "array.new_polyline(${1:size}, ${2:initial_value})",
-    "params": [
-      "size",
-      "initial_value"
-    ],
+    "params": ["size", "initial_value"],
     "category": "array"
   },
   "array.new_string": {
@@ -598,10 +516,7 @@
     "brief": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "snippet": "array.new_string(${1:size}, ${2:initial_value})",
-    "params": [
-      "size",
-      "initial_value"
-    ],
+    "params": ["size", "initial_value"],
     "category": "array"
   },
   "array.new_table": {
@@ -611,10 +526,7 @@
     "brief": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "snippet": "array.new_table(${1:size}, ${2:initial_value})",
-    "params": [
-      "size",
-      "initial_value"
-    ],
+    "params": ["size", "initial_value"],
     "category": "array"
   },
   "array.newbool": {
@@ -624,10 +536,7 @@
     "brief": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "snippet": "array.newbool(${1:size}, ${2:initial_value})",
-    "params": [
-      "size",
-      "initial_value"
-    ],
+    "params": ["size", "initial_value"],
     "category": "array"
   },
   "array.newbox": {
@@ -637,10 +546,7 @@
     "brief": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "snippet": "array.newbox(${1:size}, ${2:initial_value})",
-    "params": [
-      "size",
-      "initial_value"
-    ],
+    "params": ["size", "initial_value"],
     "category": "array"
   },
   "array.newcolor": {
@@ -650,10 +556,7 @@
     "brief": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "snippet": "array.newcolor(${1:size}, ${2:initial_value})",
-    "params": [
-      "size",
-      "initial_value"
-    ],
+    "params": ["size", "initial_value"],
     "category": "array"
   },
   "array.newfloat": {
@@ -663,10 +566,7 @@
     "brief": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "snippet": "array.newfloat(${1:size}, ${2:initial_value})",
-    "params": [
-      "size",
-      "initial_value"
-    ],
+    "params": ["size", "initial_value"],
     "category": "array"
   },
   "array.newint": {
@@ -676,10 +576,7 @@
     "brief": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "snippet": "array.newint(${1:size}, ${2:initial_value})",
-    "params": [
-      "size",
-      "initial_value"
-    ],
+    "params": ["size", "initial_value"],
     "category": "array"
   },
   "array.newlabel": {
@@ -689,10 +586,7 @@
     "brief": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "snippet": "array.newlabel(${1:size}, ${2:initial_value})",
-    "params": [
-      "size",
-      "initial_value"
-    ],
+    "params": ["size", "initial_value"],
     "category": "array"
   },
   "array.newline": {
@@ -702,10 +596,7 @@
     "brief": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "snippet": "array.newline(${1:size}, ${2:initial_value})",
-    "params": [
-      "size",
-      "initial_value"
-    ],
+    "params": ["size", "initial_value"],
     "category": "array"
   },
   "array.newlinefill": {
@@ -715,10 +606,7 @@
     "brief": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "snippet": "array.newlinefill(${1:size}, ${2:initial_value})",
-    "params": [
-      "size",
-      "initial_value"
-    ],
+    "params": ["size", "initial_value"],
     "category": "array"
   },
   "array.newpolyline": {
@@ -728,10 +616,7 @@
     "brief": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "snippet": "array.newpolyline(${1:size}, ${2:initial_value})",
-    "params": [
-      "size",
-      "initial_value"
-    ],
+    "params": ["size", "initial_value"],
     "category": "array"
   },
   "array.newstring": {
@@ -741,10 +626,7 @@
     "brief": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "snippet": "array.newstring(${1:size}, ${2:initial_value})",
-    "params": [
-      "size",
-      "initial_value"
-    ],
+    "params": ["size", "initial_value"],
     "category": "array"
   },
   "array.newtable": {
@@ -754,10 +636,7 @@
     "brief": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "documentation": "Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``.",
     "snippet": "array.newtable(${1:size}, ${2:initial_value})",
-    "params": [
-      "size",
-      "initial_value"
-    ],
+    "params": ["size", "initial_value"],
     "category": "array"
   },
   "array.percentile_linear_interpolation": {
@@ -797,9 +676,7 @@
     "brief": "remove last; ``na`` id / empty → ``na`` (soft)",
     "documentation": "``array.pop(id)`` — remove last; ``na`` id / empty → ``na`` (soft).",
     "snippet": "array.pop(${1:id})",
-    "params": [
-      "id"
-    ],
+    "params": ["id"],
     "category": "array"
   },
   "array.push": {
@@ -809,10 +686,7 @@
     "brief": "append value; soft-na / incomplete call resilience",
     "documentation": "``array.push(id, value)`` — append value; soft-na / incomplete call resilience.\n\nCorpus residuals (set05):\n- Zero-arg ``array.push()`` left by truncated reference docs demos → no-op.\n- ``array.push(id=na, value=…)`` / na receiver → no-op (reference soft-na).\n- Kwargs ``id=`` / ``value=`` via ``_KWARG_ORDER`` (including ``value=na``).",
     "snippet": "array.push(${1:id}, ${2:value})",
-    "params": [
-      "id",
-      "value"
-    ],
+    "params": ["id", "value"],
     "category": "array"
   },
   "array.range": {
@@ -822,9 +696,7 @@
     "brief": "difference between max and min of array values",
     "documentation": "``array.range(id)`` — difference between max and min of array values.\n\nreference Pine statistical helper (not Python ``range``). Empty / all-na → na.",
     "snippet": "array.range(${1:id})",
-    "params": [
-      "id"
-    ],
+    "params": ["id"],
     "category": "array"
   },
   "array.remove": {
@@ -834,10 +706,7 @@
     "brief": "reference v6 negative index from end",
     "documentation": "``array.remove(id, index)`` — reference v6 negative index from end.\n\n``na`` id → ``na``; invalid index still hard-errors (library guards).",
     "snippet": "array.remove(${1:id}, ${2:index})",
-    "params": [
-      "id",
-      "index"
-    ],
+    "params": ["id", "index"],
     "category": "array"
   },
   "array.reverse": {
@@ -857,11 +726,7 @@
     "brief": "reference v6 negative index from end",
     "documentation": "``array.set(id, index, value)`` — reference v6 negative index from end.\n\n* ``na`` id / index → no-op\n* Negative in-range → set from end (``-1`` = last)\n* Positive OOB → soft-grow (ring-buffer UDF recovery)",
     "snippet": "array.set(${1:id}, ${2:index}, ${3:value})",
-    "params": [
-      "id",
-      "index",
-      "value"
-    ],
+    "params": ["id", "index", "value"],
     "category": "array"
   },
   "array.shift": {
@@ -871,9 +736,7 @@
     "brief": "remove first; ``na`` id / empty → ``na",
     "documentation": "``array.shift(id)`` — remove first; ``na`` id / empty → ``na``.",
     "snippet": "array.shift(${1:id})",
-    "params": [
-      "id"
-    ],
+    "params": ["id"],
     "category": "array"
   },
   "array.size": {
@@ -883,9 +746,7 @@
     "brief": "size of array; ``na`` id → ``na`` (reference)",
     "documentation": "``array.size(id)`` — size of array; ``na`` id → ``na`` (reference).",
     "snippet": "array.size(${1:id})",
-    "params": [
-      "id"
-    ],
+    "params": ["id"],
     "category": "array"
   },
   "array.slice": {
@@ -895,11 +756,7 @@
     "brief": "half-open ``[from, to)",
     "documentation": "``array.slice(id, index_from, index_to)`` — half-open ``[from, to)``.\n\nReference Pine: na bounds → empty result rather than a hard runtime error when\nintermediate length math produces na (common in NN weight slicing).",
     "snippet": "array.slice(${1:id}, ${2:index_from}, ${3:index_to})",
-    "params": [
-      "id",
-      "index_from",
-      "index_to"
-    ],
+    "params": ["id", "index_from", "index_to"],
     "category": "array"
   },
   "array.some": {
@@ -909,10 +766,7 @@
     "brief": "or unary ``id.some()`` on bool arrays",
     "documentation": "``array.some(id, predicate)`` or unary ``id.some()`` on bool arrays.\n\nCorpus residual (confluence alerts): ``array.from(cond_1, …).some()``\nwithout a predicate treats the array as bool series and returns whether\nany element is truthy. Full form still requires a callable predicate.",
     "snippet": "array.some(${1:id}, ${2:predicate})",
-    "params": [
-      "id",
-      "predicate"
-    ],
+    "params": ["id", "predicate"],
     "category": "array"
   },
   "array.sort": {
@@ -922,11 +776,7 @@
     "brief": "",
     "documentation": "",
     "snippet": "array.sort(${1:id}, ${2:order}, ${3:sort_field})",
-    "params": [
-      "id",
-      "order",
-      "sort_field"
-    ],
+    "params": ["id", "order", "sort_field"],
     "category": "array"
   },
   "array.sort_indices": {
@@ -936,11 +786,7 @@
     "brief": "Return indices that would sort the array (``na`` indices last).",
     "documentation": "Return indices that would sort the array (``na`` indices last).\n\nHonors optional *order* and *sort_field* (UDT field name or index).\n``na`` id → ``na``.",
     "snippet": "array.sort_indices(${1:id}, ${2:order}, ${3:sort_field})",
-    "params": [
-      "id",
-      "order",
-      "sort_field"
-    ],
+    "params": ["id", "order", "sort_field"],
     "category": "array"
   },
   "array.standardize": {
@@ -960,9 +806,7 @@
     "brief": "| array.stdev(id, biased) → float",
     "documentation": "array.stdev(id) | array.stdev(id, biased) → float.\n\nreference ``biased``: true → population (n); false → sample (n-1). Default true.\n``na`` id → ``na``.",
     "snippet": "array.stdev(${1:id})",
-    "params": [
-      "id"
-    ],
+    "params": ["id"],
     "category": "array"
   },
   "array.sum": {
@@ -972,9 +816,7 @@
     "brief": "",
     "documentation": "",
     "snippet": "array.sum(${1:id})",
-    "params": [
-      "id"
-    ],
+    "params": ["id"],
     "category": "array"
   },
   "array.unshift": {
@@ -984,10 +826,7 @@
     "brief": "prepend; ``na`` id → no-op",
     "documentation": "``array.unshift(id, value)`` — prepend; ``na`` id → no-op.",
     "snippet": "array.unshift(${1:id}, ${2:value})",
-    "params": [
-      "id",
-      "value"
-    ],
+    "params": ["id", "value"],
     "category": "array"
   },
   "array.variance": {
@@ -997,9 +836,7 @@
     "brief": "| array.variance(id, biased) → float; na id → na",
     "documentation": "array.variance(id) | array.variance(id, biased) → float; na id → na.",
     "snippet": "array.variance(${1:id})",
-    "params": [
-      "id"
-    ],
+    "params": ["id"],
     "category": "array"
   },
   "asin": {
@@ -1069,14 +906,7 @@
     "brief": "Set the color of the chart bars.",
     "documentation": "Set the color of the chart bars.\n\nSignature: barcolor(color, offset, editable, show_last, title, display)",
     "snippet": "barcolor(${1:color}, ${2:offset}, ${3:editable}, ${4:show_last}, ${5:title}, ${6:display})",
-    "params": [
-      "color",
-      "offset",
-      "editable",
-      "show_last",
-      "title",
-      "display"
-    ],
+    "params": ["color", "offset", "editable", "show_last", "title", "display"],
     "category": "builtin"
   },
   "barssince": {
@@ -1136,14 +966,7 @@
     "brief": "Set the chart background color.",
     "documentation": "Set the chart background color.\n\nSignature: bgcolor(color, offset, editable, show_last, title, display)",
     "snippet": "bgcolor(${1:color}, ${2:offset}, ${3:editable}, ${4:show_last}, ${5:title}, ${6:display})",
-    "params": [
-      "color",
-      "offset",
-      "editable",
-      "show_last",
-      "title",
-      "display"
-    ],
+    "params": ["color", "offset", "editable", "show_last", "title", "display"],
     "category": "builtin"
   },
   "bid_ask_imbalance": {
@@ -1193,9 +1016,7 @@
     "brief": "",
     "documentation": "box.copy(box)",
     "snippet": "box.copy(${1:box})",
-    "params": [
-      "box"
-    ],
+    "params": ["box"],
     "category": "box"
   },
   "box.delete": {
@@ -1205,9 +1026,7 @@
     "brief": "",
     "documentation": "box.delete(box)",
     "snippet": "box.delete(${1:box})",
-    "params": [
-      "box"
-    ],
+    "params": ["box"],
     "category": "box"
   },
   "box.get_bottom": {
@@ -1217,9 +1036,7 @@
     "brief": "",
     "documentation": "box.get_bottom(box)",
     "snippet": "box.get_bottom(${1:box})",
-    "params": [
-      "box"
-    ],
+    "params": ["box"],
     "category": "box"
   },
   "box.get_left": {
@@ -1229,9 +1046,7 @@
     "brief": "",
     "documentation": "box.get_left(box)",
     "snippet": "box.get_left(${1:box})",
-    "params": [
-      "box"
-    ],
+    "params": ["box"],
     "category": "box"
   },
   "box.get_right": {
@@ -1241,9 +1056,7 @@
     "brief": "",
     "documentation": "box.get_right(box)",
     "snippet": "box.get_right(${1:box})",
-    "params": [
-      "box"
-    ],
+    "params": ["box"],
     "category": "box"
   },
   "box.get_top": {
@@ -1253,9 +1066,7 @@
     "brief": "",
     "documentation": "box.get_top(box)",
     "snippet": "box.get_top(${1:box})",
-    "params": [
-      "box"
-    ],
+    "params": ["box"],
     "category": "box"
   },
   "box.new": {
@@ -1283,10 +1094,7 @@
     "brief": "",
     "documentation": "box.set_bgcolor(box, color)",
     "snippet": "box.set_bgcolor(${1:box}, ${2:color})",
-    "params": [
-      "box",
-      "color"
-    ],
+    "params": ["box", "color"],
     "category": "box"
   },
   "box.set_border_color": {
@@ -1296,10 +1104,7 @@
     "brief": "",
     "documentation": "box.set_border_color(box, color)",
     "snippet": "box.set_border_color(${1:box}, ${2:color})",
-    "params": [
-      "box",
-      "color"
-    ],
+    "params": ["box", "color"],
     "category": "box"
   },
   "box.set_border_style": {
@@ -1309,10 +1114,7 @@
     "brief": "",
     "documentation": "box.set_border_style(box, style)",
     "snippet": "box.set_border_style(${1:box}, ${2:style})",
-    "params": [
-      "box",
-      "style"
-    ],
+    "params": ["box", "style"],
     "category": "box"
   },
   "box.set_border_width": {
@@ -1322,10 +1124,7 @@
     "brief": "",
     "documentation": "box.set_border_width(box, width)",
     "snippet": "box.set_border_width(${1:box}, ${2:width})",
-    "params": [
-      "box",
-      "width"
-    ],
+    "params": ["box", "width"],
     "category": "box"
   },
   "box.set_bottom": {
@@ -1335,10 +1134,7 @@
     "brief": "",
     "documentation": "box.set_bottom(box, bottom)",
     "snippet": "box.set_bottom(${1:box}, ${2:bottom})",
-    "params": [
-      "box",
-      "bottom"
-    ],
+    "params": ["box", "bottom"],
     "category": "box"
   },
   "box.set_bottom_right_point": {
@@ -1358,10 +1154,7 @@
     "brief": "",
     "documentation": "box.set_closed(box, closed)",
     "snippet": "box.set_closed(${1:box}, ${2:closed})",
-    "params": [
-      "box",
-      "closed"
-    ],
+    "params": ["box", "closed"],
     "category": "box"
   },
   "box.set_extend": {
@@ -1371,10 +1164,7 @@
     "brief": "",
     "documentation": "box.set_extend(box, extend)",
     "snippet": "box.set_extend(${1:box}, ${2:extend})",
-    "params": [
-      "box",
-      "extend"
-    ],
+    "params": ["box", "extend"],
     "category": "box"
   },
   "box.set_left": {
@@ -1384,10 +1174,7 @@
     "brief": "",
     "documentation": "box.set_left(box, left)",
     "snippet": "box.set_left(${1:box}, ${2:left})",
-    "params": [
-      "box",
-      "left"
-    ],
+    "params": ["box", "left"],
     "category": "box"
   },
   "box.set_lefttop": {
@@ -1407,10 +1194,7 @@
     "brief": "",
     "documentation": "box.set_right(box, right)",
     "snippet": "box.set_right(${1:box}, ${2:right})",
-    "params": [
-      "box",
-      "right"
-    ],
+    "params": ["box", "right"],
     "category": "box"
   },
   "box.set_rightbottom": {
@@ -1510,10 +1294,7 @@
     "brief": "",
     "documentation": "box.set_top(box, top)",
     "snippet": "box.set_top(${1:box}, ${2:top})",
-    "params": [
-      "box",
-      "top"
-    ],
+    "params": ["box", "top"],
     "category": "box"
   },
   "box.set_top_left_point": {
@@ -1533,12 +1314,7 @@
     "brief": "Set the left and right coordinates of the box borders.",
     "documentation": "box.set_xloc(box, left, right, xloc)\n\nSet the left and right coordinates of the box borders.\nAdded March 2025: Full parameter support for left, right, and xloc.\n\nParameters:\n    box: The box object to modify\n    left: Left coordinate (bar index or timestamp based on xloc)\n    right: Right coordinate (bar index or timestamp based on xloc)\n    xloc: Coordinate type (\"bar_index\" or \"time\")\n\nReturns the modified box.",
     "snippet": "box.set_xloc(${1:box}, ${2:left}, ${3:right}, ${4:xloc})",
-    "params": [
-      "box",
-      "left",
-      "right",
-      "xloc"
-    ],
+    "params": ["box", "left", "right", "xloc"],
     "category": "box"
   },
   "breakeven_level": {
@@ -1598,9 +1374,7 @@
     "brief": "Create a copy of a chart point",
     "documentation": "chart.point.copy(point) - Create a copy of a chart point",
     "snippet": "chart.point.copy(${1:point})",
-    "params": [
-      "point"
-    ],
+    "params": ["point"],
     "category": "chart"
   },
   "chart.point.from_index": {
@@ -1610,10 +1384,7 @@
     "brief": "Create a point from bar index and price",
     "documentation": "chart.point.from_index(index, price) - Create a point from bar index and price",
     "snippet": "chart.point.from_index(${1:index}, ${2:price})",
-    "params": [
-      "index",
-      "price"
-    ],
+    "params": ["index", "price"],
     "category": "chart"
   },
   "chart.point.from_time": {
@@ -1623,10 +1394,7 @@
     "brief": "Create a point from timestamp and price",
     "documentation": "chart.point.from_time(time, price) - Create a point from timestamp and price",
     "snippet": "chart.point.from_time(${1:time}, ${2:price})",
-    "params": [
-      "time",
-      "price"
-    ],
+    "params": ["time", "price"],
     "category": "chart"
   },
   "chart.point.new": {
@@ -1636,10 +1404,7 @@
     "brief": "Create a point from time and price",
     "documentation": "chart.point.new(time, price) - Create a point from time and price",
     "snippet": "chart.point.new(${1:time}, ${2:price})",
-    "params": [
-      "time",
-      "price"
-    ],
+    "params": ["time", "price"],
     "category": "chart"
   },
   "chart.point.now": {
@@ -1649,9 +1414,7 @@
     "brief": "Create a point at current bar with given price",
     "documentation": "chart.point.now(price) - Create a point at current bar with given price",
     "snippet": "chart.point.now(${1:price})",
-    "params": [
-      "price"
-    ],
+    "params": ["price"],
     "category": "chart"
   },
   "cmf": {
@@ -1691,9 +1454,7 @@
     "brief": "Create a new color with optional transparency.",
     "documentation": "Create a new color with optional transparency.\n\nArgs:\n    color: Color value as integer, hex string, Color, or ``na`` (None)\n    transp: Transparency percentage (0-100, where 100 is fully transparent)\n    *extra/**kwargs: ignored (scripts sometimes leak plot() kwargs into color.new)\n\nReturns:\n    Color object, or None when *color* is na (``color(na)`` → na)",
     "snippet": "color(${1:na})",
-    "params": [
-      "na"
-    ],
+    "params": ["na"],
     "category": "builtin"
   },
   "color.aqua": {
@@ -1713,9 +1474,7 @@
     "brief": "Get the blue component of a color.",
     "documentation": "Get the blue component of a color.\n\nArgs:\n    c: Color object, hex/named/rgb(a) string, or int color\n\nReturns:\n    Blue component (0-255)",
     "snippet": "color.b(${1:c})",
-    "params": [
-      "c"
-    ],
+    "params": ["c"],
     "category": "color"
   },
   "color.black": {
@@ -1745,13 +1504,7 @@
     "brief": "Create a color gradient between two colors.",
     "documentation": "Create a color gradient between two colors.\n\nInterpolates linearly between two colors based on the value position\nbetween min_val and max_val.\n\nArgs:\n    value: The value to interpolate\n    min_val: Minimum value (maps to color1)\n    max_val: Maximum value (maps to color2)\n    color1: Start color\n    color2: End color\n\nReturns:\n    Interpolated Color object",
     "snippet": "color.from_gradient(${1:value}, ${2:min_val}, ${3:max_val}, ${4:color1}, ${5:color2})",
-    "params": [
-      "value",
-      "min_val",
-      "max_val",
-      "color1",
-      "color2"
-    ],
+    "params": ["value", "min_val", "max_val", "color1", "color2"],
     "category": "color"
   },
   "color.fuchsia": {
@@ -1771,9 +1524,7 @@
     "brief": "Get the green component of a color.",
     "documentation": "Get the green component of a color.\n\nArgs:\n    c: Color object, hex/named/rgb(a) string, or int color\n\nReturns:\n    Green component (0-255)",
     "snippet": "color.g(${1:c})",
-    "params": [
-      "c"
-    ],
+    "params": ["c"],
     "category": "color"
   },
   "color.gray": {
@@ -1843,10 +1594,7 @@
     "brief": "Create a new color with optional transparency.",
     "documentation": "Create a new color with optional transparency.\n\nArgs:\n    color: Color value as integer, hex string, Color, or ``na`` (None)\n    transp: Transparency percentage (0-100, where 100 is fully transparent)\n    *extra/**kwargs: ignored (scripts sometimes leak plot() kwargs into color.new)\n\nReturns:\n    Color object, or None when *color* is na (``color(na)`` → na)",
     "snippet": "color.new(${1:color}, ${2:transp})",
-    "params": [
-      "color",
-      "transp"
-    ],
+    "params": ["color", "transp"],
     "category": "color"
   },
   "color.olive": {
@@ -1886,9 +1634,7 @@
     "brief": "Get the red component of a color.",
     "documentation": "Get the red component of a color.\n\nArgs:\n    c: Color object, hex/named/rgb(a) string, or int color\n\nReturns:\n    Red component (0-255)",
     "snippet": "color.r(${1:c})",
-    "params": [
-      "c"
-    ],
+    "params": ["c"],
     "category": "color"
   },
   "color.red": {
@@ -1908,12 +1654,7 @@
     "brief": "Create a color from RGB components.",
     "documentation": "Create a color from RGB components.\n\nPine Script ``color.rgb(r, g, b, transp)`` uses transparency 0-100\n(0 = opaque, 100 = fully transparent). The internal Color model stores\nalpha 0-255.\n\nArgs:\n    r: Red component (0-255)\n    g: Green component (0-255)\n    b: Blue component (0-255)\n    transp: Optional Pine transparency 0-100 (preferred 4th arg)\n    a: Optional alpha 0-255 (legacy / internal)\n\nReturns:\n    Color object",
     "snippet": "color.rgb(${1:r}, ${2:g}, ${3:b}, ${4:transp})",
-    "params": [
-      "r",
-      "g",
-      "b",
-      "transp"
-    ],
+    "params": ["r", "g", "b", "transp"],
     "category": "color"
   },
   "color.silver": {
@@ -1933,9 +1674,7 @@
     "brief": "Get the transparency of a color.",
     "documentation": "Get the transparency of a color.\n\nArgs:\n    c: Color object, hex/named/rgb(a) string, or int color\n\nReturns:\n    Transparency value (0-100, where 100 is fully transparent)",
     "snippet": "color.t(${1:c})",
-    "params": [
-      "c"
-    ],
+    "params": ["c"],
     "category": "color"
   },
   "color.teal": {
@@ -2085,10 +1824,7 @@
     "brief": "Extract day of month from timestamp (1-31; bare form uses chart time).",
     "documentation": "Extract day of month from timestamp (1-31; bare form uses chart time).",
     "snippet": "dayofmonth(${1:time}, ${2:timezone})",
-    "params": [
-      "time",
-      "timezone"
-    ],
+    "params": ["time", "timezone"],
     "category": "builtin"
   },
   "dayofweek": {
@@ -2098,10 +1834,7 @@
     "brief": "Extract day of week from timestamp (1=Sunday, 7=Saturday).",
     "documentation": "Extract day of week from timestamp (1=Sunday, 7=Saturday).",
     "snippet": "dayofweek(${1:time}, ${2:timezone})",
-    "params": [
-      "time",
-      "timezone"
-    ],
+    "params": ["time", "timezone"],
     "category": "builtin"
   },
   "dema": {
@@ -2311,9 +2044,7 @@
     "brief": "Convert value to float. ``float(na)`` → na (None).",
     "documentation": "Convert value to float. ``float(na)`` → na (None).",
     "snippet": "float(${1:na})",
-    "params": [
-      "na"
-    ],
+    "params": ["na"],
     "category": "builtin"
   },
   "floor": {
@@ -2333,9 +2064,7 @@
     "brief": "Get total buy volume from footprint",
     "documentation": "footprint.buy_volume(footprint) - Get total buy volume from footprint.",
     "snippet": "footprint.buy_volume(${1:footprint})",
-    "params": [
-      "footprint"
-    ],
+    "params": ["footprint"],
     "category": "footprint"
   },
   "footprint.delta": {
@@ -2345,9 +2074,7 @@
     "brief": "Get volume delta from footprint",
     "documentation": "footprint.delta(footprint) - Get volume delta from footprint.",
     "snippet": "footprint.delta(${1:footprint})",
-    "params": [
-      "footprint"
-    ],
+    "params": ["footprint"],
     "category": "footprint"
   },
   "footprint.get_row_by_price": {
@@ -2367,9 +2094,7 @@
     "brief": "Get Point of Control row from footprint",
     "documentation": "footprint.poc(footprint) - Get Point of Control row from footprint.",
     "snippet": "footprint.poc(${1:footprint})",
-    "params": [
-      "footprint"
-    ],
+    "params": ["footprint"],
     "category": "footprint"
   },
   "footprint.rows": {
@@ -2389,9 +2114,7 @@
     "brief": "Get total sell volume from footprint",
     "documentation": "footprint.sell_volume(footprint) - Get total sell volume from footprint.",
     "snippet": "footprint.sell_volume(${1:footprint})",
-    "params": [
-      "footprint"
-    ],
+    "params": ["footprint"],
     "category": "footprint"
   },
   "footprint.total_volume": {
@@ -2411,9 +2134,7 @@
     "brief": "Get Value Area High row from footprint",
     "documentation": "footprint.vah(footprint) - Get Value Area High row from footprint.",
     "snippet": "footprint.vah(${1:footprint})",
-    "params": [
-      "footprint"
-    ],
+    "params": ["footprint"],
     "category": "footprint"
   },
   "footprint.val": {
@@ -2423,9 +2144,7 @@
     "brief": "Get Value Area Low row from footprint",
     "documentation": "footprint.val(footprint) - Get Value Area Low row from footprint.",
     "snippet": "footprint.val(${1:footprint})",
-    "params": [
-      "footprint"
-    ],
+    "params": ["footprint"],
     "category": "footprint"
   },
   "fractal": {
@@ -2553,10 +2272,7 @@
     "brief": "Extract hour from timestamp (0-23; bare form uses chart time).",
     "documentation": "Extract hour from timestamp (0-23; bare form uses chart time).",
     "snippet": "hour(${1:time}, ${2:timezone})",
-    "params": [
-      "time",
-      "timezone"
-    ],
+    "params": ["time", "timezone"],
     "category": "builtin"
   },
   "ichimoku": {
@@ -2576,11 +2292,7 @@
     "brief": "Pine v4 ``iff(condition, if_true, if_false)`` — ternary expression.",
     "documentation": "Pine v4 ``iff(condition, if_true, if_false)`` — ternary expression.",
     "snippet": "iff(${1:condition}, ${2:if_true}, ${3:if_false})",
-    "params": [
-      "condition",
-      "if_true",
-      "if_false"
-    ],
+    "params": ["condition", "if_true", "if_false"],
     "category": "builtin"
   },
   "iii": {
@@ -2638,10 +2350,7 @@
     "brief": "bool value",
     "documentation": "input.bool(defval, title, ...) → bool value.",
     "snippet": "input.bool(${1:defval}, ${2:title})",
-    "params": [
-      "defval",
-      "title"
-    ],
+    "params": ["defval", "title"],
     "category": "input"
   },
   "input.color": {
@@ -2669,10 +2378,7 @@
     "brief": "selected enum value",
     "documentation": "input.enum(defval, title, options?, ...) → selected enum value.\n\nPine signature (v5/v6)::\n\n    input.enum(defval, title, options, tooltip, inline, group, confirm, display, active)\n\n``options`` is optional. When omitted, reference Pine populates the dropdown\nfrom the enum type of ``defval``. Keyword-only calls like\n``input.enum(Easing.linear, title=\"…\", group=\"…\")`` leave a sparse\nkwargs merge hole at the ``options`` slot (``None``), which must not be\ntreated as an iterable.",
     "snippet": "input.enum(${1:defval}, ${2:title})",
-    "params": [
-      "defval",
-      "title"
-    ],
+    "params": ["defval", "title"],
     "category": "input"
   },
   "input.float": {
@@ -2682,13 +2388,7 @@
     "brief": "float value",
     "documentation": "input.float(defval, title, minval, maxval, step, ...) → float value.",
     "snippet": "input.float(${1:defval}, ${2:title}, ${3:minval}, ${4:maxval}, ${5:step})",
-    "params": [
-      "defval",
-      "title",
-      "minval",
-      "maxval",
-      "step"
-    ],
+    "params": ["defval", "title", "minval", "maxval", "step"],
     "category": "input"
   },
   "input.int": {
@@ -2698,13 +2398,7 @@
     "brief": "int value",
     "documentation": "input.int(defval, title, minval, maxval, step, ...) → int value.",
     "snippet": "input.int(${1:defval}, ${2:title}, ${3:minval}, ${4:maxval}, ${5:step})",
-    "params": [
-      "defval",
-      "title",
-      "minval",
-      "maxval",
-      "step"
-    ],
+    "params": ["defval", "title", "minval", "maxval", "step"],
     "category": "input"
   },
   "input.price": {
@@ -2807,10 +2501,7 @@
     "brief": "multiline string value",
     "documentation": "input.text_area(defval, title, ...) → multiline string value.",
     "snippet": "input.text_area(${1:defval}, ${2:title})",
-    "params": [
-      "defval",
-      "title"
-    ],
+    "params": ["defval", "title"],
     "category": "input"
   },
   "input.time": {
@@ -2866,9 +2557,7 @@
     "brief": "Convert value to integer. ``int(na)`` / non-numeric → na (None).",
     "documentation": "Convert value to integer. ``int(na)`` / non-numeric → na (None).\n\nreference Pine soft-fails non-numeric strings (enum labels, unresolved\nname leaks such as ``\"pyramid_val\"``) to ``na`` rather than aborting\nthe bar. Numeric strings accept a float step so ``int(\"2.01\")`` → 2.",
     "snippet": "int(${1:na})",
-    "params": [
-      "na"
-    ],
+    "params": ["na"],
     "category": "builtin"
   },
   "intelligent_strategy_synthesizer": {
@@ -2968,9 +2657,7 @@
     "brief": "Identity cast for drawing types: ``line(na)``, ``label(x)``, etc.",
     "documentation": "Identity cast for drawing types: ``line(na)``, ``label(x)``, etc.",
     "snippet": "label(${1:x})",
-    "params": [
-      "x"
-    ],
+    "params": ["x"],
     "category": "builtin"
   },
   "label.all": {
@@ -2990,9 +2677,7 @@
     "brief": "",
     "documentation": "label.copy(label)",
     "snippet": "label.copy(${1:label})",
-    "params": [
-      "label"
-    ],
+    "params": ["label"],
     "category": "label"
   },
   "label.delete": {
@@ -3002,9 +2687,7 @@
     "brief": "",
     "documentation": "label.delete(label)",
     "snippet": "label.delete(${1:label})",
-    "params": [
-      "label"
-    ],
+    "params": ["label"],
     "category": "label"
   },
   "label.get_text": {
@@ -3014,9 +2697,7 @@
     "brief": "",
     "documentation": "label.get_text(label)",
     "snippet": "label.get_text(${1:label})",
-    "params": [
-      "label"
-    ],
+    "params": ["label"],
     "category": "label"
   },
   "label.get_x": {
@@ -3026,9 +2707,7 @@
     "brief": "",
     "documentation": "label.get_x(label)",
     "snippet": "label.get_x(${1:label})",
-    "params": [
-      "label"
-    ],
+    "params": ["label"],
     "category": "label"
   },
   "label.get_y": {
@@ -3038,9 +2717,7 @@
     "brief": "",
     "documentation": "label.get_y(label)",
     "snippet": "label.get_y(${1:label})",
-    "params": [
-      "label"
-    ],
+    "params": ["label"],
     "category": "label"
   },
   "label.new": {
@@ -3050,11 +2727,7 @@
     "brief": "or label.new(point, text, ...)",
     "documentation": "label.new(x, y, text, ...) or label.new(point, text, ...).\n\nPine v5+ accepts ``label.new(point = chart.point.now(), ...)`` where\n*point* supplies both coordinates. Without expanding ChartPoint here,\n``label.x`` stored the object and ``get_x()`` returned it — Console's\n``chart.point.tostring()`` (label.new → get_x → x.tostring) then\nrecursed forever.",
     "snippet": "label.new(${1:x}, ${2:y}, ${3:text})",
-    "params": [
-      "x",
-      "y",
-      "text"
-    ],
+    "params": ["x", "y", "text"],
     "category": "label"
   },
   "label.set_border_color": {
@@ -3064,10 +2737,7 @@
     "brief": "",
     "documentation": "label.set_border_color(label, color)",
     "snippet": "label.set_border_color(${1:label}, ${2:color})",
-    "params": [
-      "label",
-      "color"
-    ],
+    "params": ["label", "color"],
     "category": "label"
   },
   "label.set_border_style": {
@@ -3077,10 +2747,7 @@
     "brief": "",
     "documentation": "label.set_border_style(label, style)",
     "snippet": "label.set_border_style(${1:label}, ${2:style})",
-    "params": [
-      "label",
-      "style"
-    ],
+    "params": ["label", "style"],
     "category": "label"
   },
   "label.set_border_width": {
@@ -3090,10 +2757,7 @@
     "brief": "",
     "documentation": "label.set_border_width(label, width)",
     "snippet": "label.set_border_width(${1:label}, ${2:width})",
-    "params": [
-      "label",
-      "width"
-    ],
+    "params": ["label", "width"],
     "category": "label"
   },
   "label.set_color": {
@@ -3103,10 +2767,7 @@
     "brief": "",
     "documentation": "label.set_color(label, color)",
     "snippet": "label.set_color(${1:label}, ${2:color})",
-    "params": [
-      "label",
-      "color"
-    ],
+    "params": ["label", "color"],
     "category": "label"
   },
   "label.set_point": {
@@ -3136,10 +2797,7 @@
     "brief": "",
     "documentation": "label.set_style(label, style)",
     "snippet": "label.set_style(${1:label}, ${2:style})",
-    "params": [
-      "label",
-      "style"
-    ],
+    "params": ["label", "style"],
     "category": "label"
   },
   "label.set_text": {
@@ -3149,10 +2807,7 @@
     "brief": "",
     "documentation": "label.set_text(label, text)",
     "snippet": "label.set_text(${1:label}, ${2:text})",
-    "params": [
-      "label",
-      "text"
-    ],
+    "params": ["label", "text"],
     "category": "label"
   },
   "label.set_text_font_family": {
@@ -3162,10 +2817,7 @@
     "brief": "",
     "documentation": "label.set_text_font_family(label, font_family)",
     "snippet": "label.set_text_font_family(${1:label}, ${2:font_family})",
-    "params": [
-      "label",
-      "font_family"
-    ],
+    "params": ["label", "font_family"],
     "category": "label"
   },
   "label.set_text_formatting": {
@@ -3175,10 +2827,7 @@
     "brief": "# v6",
     "documentation": "label.set_text_formatting(label, formatting)  # v6",
     "snippet": "label.set_text_formatting(${1:label}, ${2:formatting})",
-    "params": [
-      "label",
-      "formatting"
-    ],
+    "params": ["label", "formatting"],
     "category": "label"
   },
   "label.set_text_halign": {
@@ -3188,10 +2837,7 @@
     "brief": "",
     "documentation": "label.set_text_halign(label, halign)",
     "snippet": "label.set_text_halign(${1:label}, ${2:halign})",
-    "params": [
-      "label",
-      "halign"
-    ],
+    "params": ["label", "halign"],
     "category": "label"
   },
   "label.set_text_size": {
@@ -3201,10 +2847,7 @@
     "brief": "# v6 int (points) or const supported",
     "documentation": "label.set_text_size(label, size)  # v6 int (points) or const supported",
     "snippet": "label.set_text_size(${1:label}, ${2:size})",
-    "params": [
-      "label",
-      "size"
-    ],
+    "params": ["label", "size"],
     "category": "label"
   },
   "label.set_text_valign": {
@@ -3214,10 +2857,7 @@
     "brief": "",
     "documentation": "label.set_text_valign(label, valign)",
     "snippet": "label.set_text_valign(${1:label}, ${2:valign})",
-    "params": [
-      "label",
-      "valign"
-    ],
+    "params": ["label", "valign"],
     "category": "label"
   },
   "label.set_textalign": {
@@ -3237,10 +2877,7 @@
     "brief": "",
     "documentation": "label.set_textcolor(label, color)",
     "snippet": "label.set_textcolor(${1:label}, ${2:color})",
-    "params": [
-      "label",
-      "color"
-    ],
+    "params": ["label", "color"],
     "category": "label"
   },
   "label.set_tooltip": {
@@ -3250,10 +2887,7 @@
     "brief": "",
     "documentation": "label.set_tooltip(label, tooltip)",
     "snippet": "label.set_tooltip(${1:label}, ${2:tooltip})",
-    "params": [
-      "label",
-      "tooltip"
-    ],
+    "params": ["label", "tooltip"],
     "category": "label"
   },
   "label.set_x": {
@@ -3263,10 +2897,7 @@
     "brief": "",
     "documentation": "label.set_x(label, x)",
     "snippet": "label.set_x(${1:label}, ${2:x})",
-    "params": [
-      "label",
-      "x"
-    ],
+    "params": ["label", "x"],
     "category": "label"
   },
   "label.set_xloc": {
@@ -3276,10 +2907,7 @@
     "brief": "",
     "documentation": "label.set_xloc(label, xloc)",
     "snippet": "label.set_xloc(${1:label}, ${2:xloc})",
-    "params": [
-      "label",
-      "xloc"
-    ],
+    "params": ["label", "xloc"],
     "category": "label"
   },
   "label.set_xy": {
@@ -3289,11 +2917,7 @@
     "brief": "",
     "documentation": "label.set_xy(label, x, y)",
     "snippet": "label.set_xy(${1:label}, ${2:x}, ${3:y})",
-    "params": [
-      "label",
-      "x",
-      "y"
-    ],
+    "params": ["label", "x", "y"],
     "category": "label"
   },
   "label.set_y": {
@@ -3303,10 +2927,7 @@
     "brief": "",
     "documentation": "label.set_y(label, y)",
     "snippet": "label.set_y(${1:label}, ${2:y})",
-    "params": [
-      "label",
-      "y"
-    ],
+    "params": ["label", "y"],
     "category": "label"
   },
   "label.set_yloc": {
@@ -3316,10 +2937,7 @@
     "brief": "",
     "documentation": "label.set_yloc(label, yloc)",
     "snippet": "label.set_yloc(${1:label}, ${2:yloc})",
-    "params": [
-      "label",
-      "yloc"
-    ],
+    "params": ["label", "yloc"],
     "category": "label"
   },
   "last_bar_index": {
@@ -3359,9 +2977,7 @@
     "brief": "Identity cast for drawing types: ``line(na)``, ``label(x)``, etc.",
     "documentation": "Identity cast for drawing types: ``line(na)``, ``label(x)``, etc.",
     "snippet": "line(${1:na})",
-    "params": [
-      "na"
-    ],
+    "params": ["na"],
     "category": "builtin"
   },
   "line.all": {
@@ -3381,9 +2997,7 @@
     "brief": "Returns a new line with same properties",
     "documentation": "line.copy(line) - Returns a new line with same properties",
     "snippet": "line.copy(${1:line})",
-    "params": [
-      "line"
-    ],
+    "params": ["line"],
     "category": "line"
   },
   "line.delete": {
@@ -3393,9 +3007,7 @@
     "brief": "",
     "documentation": "line.delete(line)",
     "snippet": "line.delete(${1:line})",
-    "params": [
-      "line"
-    ],
+    "params": ["line"],
     "category": "line"
   },
   "line.fill": {
@@ -3405,11 +3017,7 @@
     "brief": "Fill the region between two lines.",
     "documentation": "Fill the region between two lines.\n\nSignature: linefill.new(line1, line2, color)\n\n``line.fill`` is an alias of ``linefill.new``.",
     "snippet": "line.fill(${1:line1}, ${2:line2}, ${3:color})",
-    "params": [
-      "line1",
-      "line2",
-      "color"
-    ],
+    "params": ["line1", "line2", "color"],
     "category": "line"
   },
   "line.get_price": {
@@ -3419,10 +3027,7 @@
     "brief": "interpolate Y at X between endpoints",
     "documentation": "line.get_price(id, x) — interpolate Y at X between endpoints.\n\nreference soft-na: ``na`` line, ``na`` sample *x*, or any na endpoint → ``na``.\nPineSeries / series-wrapper endpoints are coerced to their current\nscalar (bar-mode ``high`` / ``hlc3`` often land unwrapped only later).",
     "snippet": "line.get_price(${1:id}, ${2:x})",
-    "params": [
-      "id",
-      "x"
-    ],
+    "params": ["id", "x"],
     "category": "line"
   },
   "line.get_x1": {
@@ -3432,9 +3037,7 @@
     "brief": "soft-na when id/endpoint is na; unwrap series",
     "documentation": "line.get_x1(line) — soft-na when id/endpoint is na; unwrap series.",
     "snippet": "line.get_x1(${1:line})",
-    "params": [
-      "line"
-    ],
+    "params": ["line"],
     "category": "line"
   },
   "line.get_x2": {
@@ -3444,9 +3047,7 @@
     "brief": "soft-na when id/endpoint is na; unwrap series",
     "documentation": "line.get_x2(line) — soft-na when id/endpoint is na; unwrap series.",
     "snippet": "line.get_x2(${1:line})",
-    "params": [
-      "line"
-    ],
+    "params": ["line"],
     "category": "line"
   },
   "line.get_y1": {
@@ -3456,9 +3057,7 @@
     "brief": "soft-na when id/endpoint is na; unwrap series",
     "documentation": "line.get_y1(line) — soft-na when id/endpoint is na; unwrap series.",
     "snippet": "line.get_y1(${1:line})",
-    "params": [
-      "line"
-    ],
+    "params": ["line"],
     "category": "line"
   },
   "line.get_y2": {
@@ -3468,9 +3067,7 @@
     "brief": "soft-na when id/endpoint is na; unwrap series",
     "documentation": "line.get_y2(line) — soft-na when id/endpoint is na; unwrap series.",
     "snippet": "line.get_y2(${1:line})",
-    "params": [
-      "line"
-    ],
+    "params": ["line"],
     "category": "line"
   },
   "line.new": {
@@ -3500,10 +3097,7 @@
     "brief": "",
     "documentation": "line.set_color(line, color)",
     "snippet": "line.set_color(${1:line}, ${2:color})",
-    "params": [
-      "line",
-      "color"
-    ],
+    "params": ["line", "color"],
     "category": "line"
   },
   "line.set_extend": {
@@ -3513,10 +3107,7 @@
     "brief": "",
     "documentation": "line.set_extend(line, extend)",
     "snippet": "line.set_extend(${1:line}, ${2:extend})",
-    "params": [
-      "line",
-      "extend"
-    ],
+    "params": ["line", "extend"],
     "category": "line"
   },
   "line.set_first_point": {
@@ -3526,10 +3117,7 @@
     "brief": "where point is ChartPoint",
     "documentation": "line.set_first_point(id, point) where point is ChartPoint.",
     "snippet": "line.set_first_point(${1:id}, ${2:point})",
-    "params": [
-      "id",
-      "point"
-    ],
+    "params": ["id", "point"],
     "category": "line"
   },
   "line.set_second_point": {
@@ -3549,10 +3137,7 @@
     "brief": "",
     "documentation": "line.set_style(line, style)",
     "snippet": "line.set_style(${1:line}, ${2:style})",
-    "params": [
-      "line",
-      "style"
-    ],
+    "params": ["line", "style"],
     "category": "line"
   },
   "line.set_width": {
@@ -3562,10 +3147,7 @@
     "brief": "",
     "documentation": "line.set_width(line, width)",
     "snippet": "line.set_width(${1:line}, ${2:width})",
-    "params": [
-      "line",
-      "width"
-    ],
+    "params": ["line", "width"],
     "category": "line"
   },
   "line.set_x1": {
@@ -3575,10 +3157,7 @@
     "brief": "",
     "documentation": "line.set_x1(line, x1)",
     "snippet": "line.set_x1(${1:line}, ${2:x1})",
-    "params": [
-      "line",
-      "x1"
-    ],
+    "params": ["line", "x1"],
     "category": "line"
   },
   "line.set_x2": {
@@ -3588,10 +3167,7 @@
     "brief": "",
     "documentation": "line.set_x2(line, x2)",
     "snippet": "line.set_x2(${1:line}, ${2:x2})",
-    "params": [
-      "line",
-      "x2"
-    ],
+    "params": ["line", "x2"],
     "category": "line"
   },
   "line.set_xloc": {
@@ -3601,10 +3177,7 @@
     "brief": "",
     "documentation": "line.set_xloc(line, xloc)",
     "snippet": "line.set_xloc(${1:line}, ${2:xloc})",
-    "params": [
-      "line",
-      "xloc"
-    ],
+    "params": ["line", "xloc"],
     "category": "line"
   },
   "line.set_xy1": {
@@ -3634,10 +3207,7 @@
     "brief": "",
     "documentation": "line.set_y1(line, y1)",
     "snippet": "line.set_y1(${1:line}, ${2:y1})",
-    "params": [
-      "line",
-      "y1"
-    ],
+    "params": ["line", "y1"],
     "category": "line"
   },
   "line.set_y2": {
@@ -3647,10 +3217,7 @@
     "brief": "",
     "documentation": "line.set_y2(line, y2)",
     "snippet": "line.set_y2(${1:line}, ${2:y2})",
-    "params": [
-      "line",
-      "y2"
-    ],
+    "params": ["line", "y2"],
     "category": "line"
   },
   "linebreak": {
@@ -3710,11 +3277,7 @@
     "brief": "Fill the region between two lines.",
     "documentation": "Fill the region between two lines.\n\nSignature: linefill.new(line1, line2, color)\n\n``line.fill`` is an alias of ``linefill.new``.",
     "snippet": "linefill.new(${1:line1}, ${2:line2}, ${3:color})",
-    "params": [
-      "line1",
-      "line2",
-      "color"
-    ],
+    "params": ["line1", "line2", "color"],
     "category": "linefill"
   },
   "linefill.set_color": {
@@ -3824,12 +3387,7 @@
     "brief": "MACD (Moving Average Convergence Divergence).",
     "documentation": "MACD (Moving Average Convergence Divergence).\n\nReference Pine: ``ta.macd(source, fastlen, slowlen, siglen)`` →\n``[macdLine, signalLine, histLine]``.\n\nAccepts:\n- Full form with series + three lengths (defaults 12/26/9 if omitted).\n- Series may be a list, PineSeries, or scalar wrapper (bar-mode input).\n- Extra / unknown kwargs are ignored by the call site (ta.* path).",
     "snippet": "macd(${1:source}, ${2:fastlen}, ${3:slowlen}, ${4:siglen})",
-    "params": [
-      "source",
-      "fastlen",
-      "slowlen",
-      "siglen"
-    ],
+    "params": ["source", "fastlen", "slowlen", "siglen"],
     "category": "builtin"
   },
   "macd_signal": {
@@ -3849,9 +3407,7 @@
     "brief": "> void",
     "documentation": "map.clear(map) -> void\n\nRemoves all entries from map. ``na`` map → no-op.",
     "snippet": "map.clear(${1:map})",
-    "params": [
-      "map"
-    ],
+    "params": ["map"],
     "category": "map"
   },
   "map.contains": {
@@ -3861,10 +3417,7 @@
     "brief": "> bool; ``na`` map → ``na",
     "documentation": "map.contains(map, key) -> bool; ``na`` map → ``na``.",
     "snippet": "map.contains(${1:map}, ${2:key})",
-    "params": [
-      "map",
-      "key"
-    ],
+    "params": ["map", "key"],
     "category": "map"
   },
   "map.copy": {
@@ -3874,9 +3427,7 @@
     "brief": "> Map; ``na`` map → ``na",
     "documentation": "map.copy(map) -> Map; ``na`` map → ``na``.",
     "snippet": "map.copy(${1:map})",
-    "params": [
-      "map"
-    ],
+    "params": ["map"],
     "category": "map"
   },
   "map.get": {
@@ -3886,10 +3437,7 @@
     "brief": "> value",
     "documentation": "map.get(map, key) -> value\n\nReturns value for key, or None if not found. ``na`` map → ``na``.",
     "snippet": "map.get(${1:map}, ${2:key})",
-    "params": [
-      "map",
-      "key"
-    ],
+    "params": ["map", "key"],
     "category": "map"
   },
   "map.keys": {
@@ -3899,9 +3447,7 @@
     "brief": "> array; ``na`` map → ``na",
     "documentation": "map.keys(map) -> array; ``na`` map → ``na``.",
     "snippet": "map.keys(${1:map})",
-    "params": [
-      "map"
-    ],
+    "params": ["map"],
     "category": "map"
   },
   "map.new": {
@@ -3921,11 +3467,7 @@
     "brief": "> void",
     "documentation": "map.put(map, key, value) -> void\n\nInserts or updates key-value pair. ``na`` map → no-op.",
     "snippet": "map.put(${1:map}, ${2:key}, ${3:value})",
-    "params": [
-      "map",
-      "key",
-      "value"
-    ],
+    "params": ["map", "key", "value"],
     "category": "map"
   },
   "map.put_all": {
@@ -3935,10 +3477,7 @@
     "brief": "> void",
     "documentation": "map.put_all(map, other_map) -> void\n\nInserts all key-value pairs from another map. ``na`` either → no-op.",
     "snippet": "map.put_all(${1:map}, ${2:other_map})",
-    "params": [
-      "map",
-      "other_map"
-    ],
+    "params": ["map", "other_map"],
     "category": "map"
   },
   "map.remove": {
@@ -3948,10 +3487,7 @@
     "brief": "> previous value or na",
     "documentation": "map.remove(map, key) -> previous value or na\n\nRemoves key and returns the prior value (reference). Missing key / na map → na.",
     "snippet": "map.remove(${1:map}, ${2:key})",
-    "params": [
-      "map",
-      "key"
-    ],
+    "params": ["map", "key"],
     "category": "map"
   },
   "map.size": {
@@ -3961,9 +3497,7 @@
     "brief": "> int; ``na`` map → ``na`` (reference soft-na)",
     "documentation": "map.size(map) -> int; ``na`` map → ``na`` (reference soft-na).",
     "snippet": "map.size(${1:map})",
-    "params": [
-      "map"
-    ],
+    "params": ["map"],
     "category": "map"
   },
   "map.values": {
@@ -3973,9 +3507,7 @@
     "brief": "> array; ``na`` map → ``na",
     "documentation": "map.values(map) -> array; ``na`` map → ``na``.",
     "snippet": "map.values(${1:map})",
-    "params": [
-      "map"
-    ],
+    "params": ["map"],
     "category": "map"
   },
   "market_condition": {
@@ -4055,10 +3587,7 @@
     "brief": "Average of array, or of multiple scalar/series args (reference ``math.avg(a,b,...)``).",
     "documentation": "Average of array, or of multiple scalar/series args (reference ``math.avg(a,b,...)``).",
     "snippet": "math.avg(${1:a}, ${2:b})",
-    "params": [
-      "a",
-      "b"
-    ],
+    "params": ["a", "b"],
     "category": "math"
   },
   "math.ceil": {
@@ -4108,9 +3637,7 @@
     "brief": "True when *x* is finite; ``na`` → ``na",
     "documentation": "``math.isfinite(x)`` — True when *x* is finite; ``na`` → ``na``.",
     "snippet": "math.isfinite(${1:x})",
-    "params": [
-      "x"
-    ],
+    "params": ["x"],
     "category": "math"
   },
   "math.log": {
@@ -4230,10 +3757,7 @@
     "brief": "Sum of array, or rolling sum ``math.sum(source, length)`` (reference).",
     "documentation": "Sum of array, or rolling sum ``math.sum(source, length)`` (reference).",
     "snippet": "math.sum(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "math"
   },
   "math.tan": {
@@ -4273,9 +3797,7 @@
     "brief": "| matrix.add_col(id, array) | matrix.add_col(id, column, array)",
     "documentation": "matrix.add_col(id) | matrix.add_col(id, array) | matrix.add_col(id, column, array).",
     "snippet": "matrix.add_col(${1:id})",
-    "params": [
-      "id"
-    ],
+    "params": ["id"],
     "category": "matrix"
   },
   "matrix.add_row": {
@@ -4285,9 +3807,7 @@
     "brief": "| matrix.add_row(id, array) | matrix.add_row(id, row, array)",
     "documentation": "matrix.add_row(id) | matrix.add_row(id, array) | matrix.add_row(id, row, array).\n\nReference Pine: omitting the array appends a row of ``na`` (None) values. Instance\nform ``m.add_row()`` is common in scripts such as seasonality.\nThree-arg form inserts at *row* index (not always append).",
     "snippet": "matrix.add_row(${1:id})",
-    "params": [
-      "id"
-    ],
+    "params": ["id"],
     "category": "matrix"
   },
   "matrix.avg": {
@@ -4307,9 +3827,7 @@
     "brief": "> float",
     "documentation": "matrix.avg_all(matrix) -> float",
     "snippet": "matrix.avg_all(${1:matrix})",
-    "params": [
-      "matrix"
-    ],
+    "params": ["matrix"],
     "category": "matrix"
   },
   "matrix.avg_col": {
@@ -4319,10 +3837,7 @@
     "brief": "> float",
     "documentation": "matrix.avg_col(matrix, index) -> float",
     "snippet": "matrix.avg_col(${1:matrix}, ${2:index})",
-    "params": [
-      "matrix",
-      "index"
-    ],
+    "params": ["matrix", "index"],
     "category": "matrix"
   },
   "matrix.avg_row": {
@@ -4332,10 +3847,7 @@
     "brief": "> float",
     "documentation": "matrix.avg_row(matrix, index) -> float",
     "snippet": "matrix.avg_row(${1:matrix}, ${2:index})",
-    "params": [
-      "matrix",
-      "index"
-    ],
+    "params": ["matrix", "index"],
     "category": "matrix"
   },
   "matrix.col": {
@@ -4355,9 +3867,7 @@
     "brief": "> int; ``na`` → ``na",
     "documentation": "matrix.columns(matrix) -> int; ``na`` → ``na``.",
     "snippet": "matrix.columns(${1:matrix})",
-    "params": [
-      "matrix"
-    ],
+    "params": ["matrix"],
     "category": "matrix"
   },
   "matrix.concat": {
@@ -4367,11 +3877,7 @@
     "brief": "> Matrix",
     "documentation": "matrix.concat(matrix1, matrix2, axis) -> Matrix",
     "snippet": "matrix.concat(${1:matrix1}, ${2:matrix2}, ${3:axis})",
-    "params": [
-      "matrix1",
-      "matrix2",
-      "axis"
-    ],
+    "params": ["matrix1", "matrix2", "axis"],
     "category": "matrix"
   },
   "matrix.copy": {
@@ -4381,9 +3887,7 @@
     "brief": "> Matrix",
     "documentation": "matrix.copy(matrix) -> Matrix",
     "snippet": "matrix.copy(${1:matrix})",
-    "params": [
-      "matrix"
-    ],
+    "params": ["matrix"],
     "category": "matrix"
   },
   "matrix.copy_col": {
@@ -4393,10 +3897,7 @@
     "brief": "> array",
     "documentation": "matrix.copy_col(matrix, index) -> array",
     "snippet": "matrix.copy_col(${1:matrix}, ${2:index})",
-    "params": [
-      "matrix",
-      "index"
-    ],
+    "params": ["matrix", "index"],
     "category": "matrix"
   },
   "matrix.copy_row": {
@@ -4406,10 +3907,7 @@
     "brief": "> array",
     "documentation": "matrix.copy_row(matrix, index) -> array",
     "snippet": "matrix.copy_row(${1:matrix}, ${2:index})",
-    "params": [
-      "matrix",
-      "index"
-    ],
+    "params": ["matrix", "index"],
     "category": "matrix"
   },
   "matrix.det": {
@@ -4459,9 +3957,7 @@
     "brief": "> int; ``na`` → ``na",
     "documentation": "matrix.elements_count(matrix) -> int; ``na`` → ``na``.",
     "snippet": "matrix.elements_count(${1:matrix})",
-    "params": [
-      "matrix"
-    ],
+    "params": ["matrix"],
     "category": "matrix"
   },
   "matrix.fill": {
@@ -4471,9 +3967,7 @@
     "brief": "> void",
     "documentation": "matrix.fill(id, value[, from_row, to_row, from_column, to_column]) -> void.\n\nreference region form uses half-open ``[from_row, to_row)`` x ``[from_col, to_col)``.\n``na`` matrix → no-op; ``na`` region bound → full extent for that edge.",
     "snippet": "matrix.fill(${1:id})",
-    "params": [
-      "id"
-    ],
+    "params": ["id"],
     "category": "matrix"
   },
   "matrix.fill_col": {
@@ -4483,11 +3977,7 @@
     "brief": "> void",
     "documentation": "matrix.fill_col(matrix, index, value) -> void",
     "snippet": "matrix.fill_col(${1:matrix}, ${2:index}, ${3:value})",
-    "params": [
-      "matrix",
-      "index",
-      "value"
-    ],
+    "params": ["matrix", "index", "value"],
     "category": "matrix"
   },
   "matrix.fill_diagonal": {
@@ -4497,10 +3987,7 @@
     "brief": "> void",
     "documentation": "matrix.fill_diagonal(matrix, value) -> void",
     "snippet": "matrix.fill_diagonal(${1:matrix}, ${2:value})",
-    "params": [
-      "matrix",
-      "value"
-    ],
+    "params": ["matrix", "value"],
     "category": "matrix"
   },
   "matrix.fill_row": {
@@ -4510,11 +3997,7 @@
     "brief": "> void",
     "documentation": "matrix.fill_row(matrix, index, value) -> void",
     "snippet": "matrix.fill_row(${1:matrix}, ${2:index}, ${3:value})",
-    "params": [
-      "matrix",
-      "index",
-      "value"
-    ],
+    "params": ["matrix", "index", "value"],
     "category": "matrix"
   },
   "matrix.get": {
@@ -4524,11 +4007,7 @@
     "brief": "> value",
     "documentation": "matrix.get(matrix, row, col) -> value\n\n``na`` matrix / row / col → ``na``. Hard OOB still errors (real bounds).\nWrong non-na type still hard-errors.",
     "snippet": "matrix.get(${1:matrix}, ${2:row}, ${3:col})",
-    "params": [
-      "matrix",
-      "row",
-      "col"
-    ],
+    "params": ["matrix", "row", "col"],
     "category": "matrix"
   },
   "matrix.inv": {
@@ -4668,9 +4147,7 @@
     "brief": "> value",
     "documentation": "matrix.max_all(matrix) -> value",
     "snippet": "matrix.max_all(${1:matrix})",
-    "params": [
-      "matrix"
-    ],
+    "params": ["matrix"],
     "category": "matrix"
   },
   "matrix.max_col": {
@@ -4680,10 +4157,7 @@
     "brief": "> value",
     "documentation": "matrix.max_col(matrix, index) -> value",
     "snippet": "matrix.max_col(${1:matrix}, ${2:index})",
-    "params": [
-      "matrix",
-      "index"
-    ],
+    "params": ["matrix", "index"],
     "category": "matrix"
   },
   "matrix.max_row": {
@@ -4693,10 +4167,7 @@
     "brief": "> value",
     "documentation": "matrix.max_row(matrix, index) -> value",
     "snippet": "matrix.max_row(${1:matrix}, ${2:index})",
-    "params": [
-      "matrix",
-      "index"
-    ],
+    "params": ["matrix", "index"],
     "category": "matrix"
   },
   "matrix.median": {
@@ -4726,9 +4197,7 @@
     "brief": "> value",
     "documentation": "matrix.min_all(matrix) -> value",
     "snippet": "matrix.min_all(${1:matrix})",
-    "params": [
-      "matrix"
-    ],
+    "params": ["matrix"],
     "category": "matrix"
   },
   "matrix.min_col": {
@@ -4738,10 +4207,7 @@
     "brief": "> value",
     "documentation": "matrix.min_col(matrix, index) -> value",
     "snippet": "matrix.min_col(${1:matrix}, ${2:index})",
-    "params": [
-      "matrix",
-      "index"
-    ],
+    "params": ["matrix", "index"],
     "category": "matrix"
   },
   "matrix.min_row": {
@@ -4751,10 +4217,7 @@
     "brief": "> value",
     "documentation": "matrix.min_row(matrix, index) -> value",
     "snippet": "matrix.min_row(${1:matrix}, ${2:index})",
-    "params": [
-      "matrix",
-      "index"
-    ],
+    "params": ["matrix", "index"],
     "category": "matrix"
   },
   "matrix.mode": {
@@ -4774,9 +4237,7 @@
     "brief": "> value",
     "documentation": "matrix.mode_all(matrix) -> value",
     "snippet": "matrix.mode_all(${1:matrix})",
-    "params": [
-      "matrix"
-    ],
+    "params": ["matrix"],
     "category": "matrix"
   },
   "matrix.mode_col": {
@@ -4786,10 +4247,7 @@
     "brief": "> value",
     "documentation": "matrix.mode_col(matrix, index) -> value",
     "snippet": "matrix.mode_col(${1:matrix}, ${2:index})",
-    "params": [
-      "matrix",
-      "index"
-    ],
+    "params": ["matrix", "index"],
     "category": "matrix"
   },
   "matrix.mode_row": {
@@ -4799,10 +4257,7 @@
     "brief": "> value",
     "documentation": "matrix.mode_row(matrix, index) -> value",
     "snippet": "matrix.mode_row(${1:matrix}, ${2:index})",
-    "params": [
-      "matrix",
-      "index"
-    ],
+    "params": ["matrix", "index"],
     "category": "matrix"
   },
   "matrix.mult": {
@@ -4822,11 +4277,7 @@
     "brief": "| matrix.new(rows, cols, default_value?) -> Matrix",
     "documentation": "matrix.new() | matrix.new(rows, cols, default_value?) -> Matrix.\n\nZero-arg form creates an empty 0x0 matrix (reference ``matrix.new<T>()``).\nSoft: ``na`` rows/cols → empty 0x0 (unresolved size inputs).",
     "snippet": "matrix.new(${1:rows}, ${2:columns}, ${3:initial_value})",
-    "params": [
-      "rows",
-      "columns",
-      "initial_value"
-    ],
+    "params": ["rows", "columns", "initial_value"],
     "category": "matrix"
   },
   "matrix.pinv": {
@@ -4866,10 +4317,7 @@
     "brief": "> void",
     "documentation": "matrix.remove_col(matrix, index) -> void",
     "snippet": "matrix.remove_col(${1:matrix}, ${2:index})",
-    "params": [
-      "matrix",
-      "index"
-    ],
+    "params": ["matrix", "index"],
     "category": "matrix"
   },
   "matrix.remove_row": {
@@ -4879,10 +4327,7 @@
     "brief": "> void",
     "documentation": "matrix.remove_row(matrix, index) -> void",
     "snippet": "matrix.remove_row(${1:matrix}, ${2:index})",
-    "params": [
-      "matrix",
-      "index"
-    ],
+    "params": ["matrix", "index"],
     "category": "matrix"
   },
   "matrix.reshape": {
@@ -4892,11 +4337,7 @@
     "brief": "> Matrix",
     "documentation": "matrix.reshape(matrix, rows, cols) -> Matrix",
     "snippet": "matrix.reshape(${1:matrix}, ${2:rows}, ${3:cols})",
-    "params": [
-      "matrix",
-      "rows",
-      "cols"
-    ],
+    "params": ["matrix", "rows", "cols"],
     "category": "matrix"
   },
   "matrix.reverse": {
@@ -4916,9 +4357,7 @@
     "brief": "> void",
     "documentation": "matrix.reverse_cols(matrix) -> void",
     "snippet": "matrix.reverse_cols(${1:matrix})",
-    "params": [
-      "matrix"
-    ],
+    "params": ["matrix"],
     "category": "matrix"
   },
   "matrix.reverse_rows": {
@@ -4928,9 +4367,7 @@
     "brief": "> void",
     "documentation": "matrix.reverse_rows(matrix) -> void",
     "snippet": "matrix.reverse_rows(${1:matrix})",
-    "params": [
-      "matrix"
-    ],
+    "params": ["matrix"],
     "category": "matrix"
   },
   "matrix.row": {
@@ -4950,9 +4387,7 @@
     "brief": "> int; ``na`` → ``na",
     "documentation": "matrix.rows(matrix) -> int; ``na`` → ``na``.",
     "snippet": "matrix.rows(${1:matrix})",
-    "params": [
-      "matrix"
-    ],
+    "params": ["matrix"],
     "category": "matrix"
   },
   "matrix.set": {
@@ -4962,12 +4397,7 @@
     "brief": "> void",
     "documentation": "matrix.set(matrix, row, col, value) -> void\n\n``na`` matrix / row / col → no-op. Hard OOB still errors.",
     "snippet": "matrix.set(${1:matrix}, ${2:row}, ${3:col}, ${4:value})",
-    "params": [
-      "matrix",
-      "row",
-      "col",
-      "value"
-    ],
+    "params": ["matrix", "row", "col", "value"],
     "category": "matrix"
   },
   "matrix.sort": {
@@ -4977,9 +4407,7 @@
     "brief": "UDT sort_field supported",
     "documentation": "matrix.sort(id, column?, order?, sort_field?) — UDT sort_field supported.",
     "snippet": "matrix.sort(${1:id})",
-    "params": [
-      "id"
-    ],
+    "params": ["id"],
     "category": "matrix"
   },
   "matrix.sort_indices": {
@@ -4989,9 +4417,7 @@
     "brief": "UDT sort_field supported",
     "documentation": "matrix.sort_indices(id, column?, order?, sort_field?) — UDT sort_field supported.",
     "snippet": "matrix.sort_indices(${1:id})",
-    "params": [
-      "id"
-    ],
+    "params": ["id"],
     "category": "matrix"
   },
   "matrix.stdev": {
@@ -5021,9 +4447,7 @@
     "brief": "sum_all; matrix.sum(id1, id2) → element-wise add",
     "documentation": "matrix.sum(id) → sum_all; matrix.sum(id1, id2) → element-wise add.",
     "snippet": "matrix.sum(${1:id})",
-    "params": [
-      "id"
-    ],
+    "params": ["id"],
     "category": "matrix"
   },
   "matrix.sum_all": {
@@ -5033,9 +4457,7 @@
     "brief": "> float",
     "documentation": "matrix.sum_all(matrix) -> float",
     "snippet": "matrix.sum_all(${1:matrix})",
-    "params": [
-      "matrix"
-    ],
+    "params": ["matrix"],
     "category": "matrix"
   },
   "matrix.sum_col": {
@@ -5045,10 +4467,7 @@
     "brief": "> float",
     "documentation": "matrix.sum_col(matrix, index) -> float",
     "snippet": "matrix.sum_col(${1:matrix}, ${2:index})",
-    "params": [
-      "matrix",
-      "index"
-    ],
+    "params": ["matrix", "index"],
     "category": "matrix"
   },
   "matrix.sum_row": {
@@ -5058,10 +4477,7 @@
     "brief": "> float",
     "documentation": "matrix.sum_row(matrix, index) -> float",
     "snippet": "matrix.sum_row(${1:matrix}, ${2:index})",
-    "params": [
-      "matrix",
-      "index"
-    ],
+    "params": ["matrix", "index"],
     "category": "matrix"
   },
   "matrix.swap_columns": {
@@ -5101,9 +4517,7 @@
     "brief": "> Matrix",
     "documentation": "matrix.transpose(matrix) -> Matrix",
     "snippet": "matrix.transpose(${1:matrix})",
-    "params": [
-      "matrix"
-    ],
+    "params": ["matrix"],
     "category": "matrix"
   },
   "matrix.variance": {
@@ -5133,10 +4547,7 @@
     "brief": "declare history buffer depth for a series",
     "documentation": "max_bars_back(var, num) — declare history buffer depth for a series.\n\nRuntime effect: recorded on evaluator for hosts; evaluation itself is\nunbounded within available OHLCV history.",
     "snippet": "max_bars_back(${1:var}, ${2:num})",
-    "params": [
-      "var",
-      "num"
-    ],
+    "params": ["var", "num"],
     "category": "builtin"
   },
   "max_loss_level": {
@@ -5186,9 +4597,7 @@
     "brief": "Money Flow Index.",
     "documentation": "Money Flow Index.\n\nForms:\n- ``ta.mfi(length)`` / bare ``mfi(length)`` — hlc3 + volume from context\n- ``ta.mfi(source, length)`` — source as typical price + context volume\n- legacy 5-arg HLC+volume+length",
     "snippet": "mfi(${1:length})",
-    "params": [
-      "length"
-    ],
+    "params": ["length"],
     "category": "builtin"
   },
   "min": {
@@ -5208,10 +4617,7 @@
     "brief": "Extract minute from timestamp (0-59; bare form uses chart time).",
     "documentation": "Extract minute from timestamp (0-59; bare form uses chart time).",
     "snippet": "minute(${1:time}, ${2:timezone})",
-    "params": [
-      "time",
-      "timezone"
-    ],
+    "params": ["time", "timezone"],
     "category": "builtin"
   },
   "mode": {
@@ -5261,10 +4667,7 @@
     "brief": "Extract month from timestamp (1-12; bare form uses chart time).",
     "documentation": "Extract month from timestamp (1-12; bare form uses chart time).",
     "snippet": "month(${1:time}, ${2:timezone})",
-    "params": [
-      "time",
-      "timezone"
-    ],
+    "params": ["time", "timezone"],
     "category": "builtin"
   },
   "multi_timeframe_signal": {
@@ -5284,9 +4687,7 @@
     "brief": "Return None (na) or check if a value is na.",
     "documentation": "Return None (na) or check if a value is na.\n\n- ``na`` → None (the na sentinel value, zero args)\n- ``na(x)`` → True if x is None, else False",
     "snippet": "na(${1:x})",
-    "params": [
-      "x"
-    ],
+    "params": ["x"],
     "category": "builtin"
   },
   "nvi": {
@@ -5306,9 +4707,7 @@
     "brief": "Replace None with default value (0 if not specified).",
     "documentation": "Replace None with default value (0 if not specified).\n\nUnwraps series wrappers so ``nz(close)`` / ``nz(series_param)`` yield the\ncurrent scalar (bar-mode). Returning a live ``PineSeries`` would make\n``float x = nz(close)`` alias the host series and break array rings.",
     "snippet": "nz(${1:close})",
-    "params": [
-      "close"
-    ],
+    "params": ["close"],
     "category": "builtin"
   },
   "obv": {
@@ -5328,10 +4727,7 @@
     "brief": "series lookback, equivalent to ``source[length]",
     "documentation": "``offset(source, length)`` — series lookback, equivalent to ``source[length]``.\n\nUsed by community scripts (esp. Ichimoku) as a bare helper. Pine has no\nofficial global ``offset()``; plot ``offset=`` is display-only. When the\nsource is a :class:`PineSeries` (or list), return the value *length* bars\nago; scalars with no history return themselves for ``length==0`` and\n``na`` otherwise.",
     "snippet": "offset(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "builtin"
   },
   "optimal_entry_zone": {
@@ -5688,9 +5084,7 @@
     "brief": "new polyline with copied fields",
     "documentation": "polyline.copy(id) → new polyline with copied fields.",
     "snippet": "polyline.copy(${1:id})",
-    "params": [
-      "id"
-    ],
+    "params": ["id"],
     "category": "polyline"
   },
   "polyline.delete": {
@@ -5700,9 +5094,7 @@
     "brief": "",
     "documentation": "polyline.delete(polyline)",
     "snippet": "polyline.delete(${1:polyline})",
-    "params": [
-      "polyline"
-    ],
+    "params": ["polyline"],
     "category": "polyline"
   },
   "polyline.get_points": {
@@ -5712,9 +5104,7 @@
     "brief": "array of chart.point",
     "documentation": "polyline.get_points(id) → array of chart.point.",
     "snippet": "polyline.get_points(${1:id})",
-    "params": [
-      "id"
-    ],
+    "params": ["id"],
     "category": "polyline"
   },
   "polyline.new": {
@@ -5724,14 +5114,7 @@
     "brief": "",
     "documentation": "polyline.new(points, closed=..., xloc=..., color=..., width=..., style=...).",
     "snippet": "polyline.new(${1:points}, ${2:closed}, ${3:xloc}, ${4:color}, ${5:width}, ${6:style})",
-    "params": [
-      "points",
-      "closed",
-      "xloc",
-      "color",
-      "width",
-      "style"
-    ],
+    "params": ["points", "closed", "xloc", "color", "width", "style"],
     "category": "polyline"
   },
   "polyline.set_closed": {
@@ -5811,10 +5194,7 @@
     "brief": "",
     "documentation": "polyline.set_points(id, points).",
     "snippet": "polyline.set_points(${1:id}, ${2:points})",
-    "params": [
-      "id",
-      "points"
-    ],
+    "params": ["id", "points"],
     "category": "polyline"
   },
   "polyline.set_xloc": {
@@ -5964,10 +5344,7 @@
     "brief": "Request exchange rate between two currencies.",
     "documentation": "request.currency_rate(from_currency, to_currency)\n\nRequest exchange rate between two currencies.\n\nParameters:\n    from_currency: Source currency code (str, e.g., \"USD\")\n    to_currency: Target currency code (str, e.g., \"EUR\")\n\nReturns the live feed pair rate when available, else a hooked\nfetch_fundamental(\"currency_rate\", pair, ...) value, else na —\nnever an invented static table.",
     "snippet": "request.currency_rate(${1:from_currency}, ${2:to_currency})",
-    "params": [
-      "from_currency",
-      "to_currency"
-    ],
+    "params": ["from_currency", "to_currency"],
     "category": "request"
   },
   "request.dividends": {
@@ -5977,10 +5354,7 @@
     "brief": "Request dividend information for a symbol.",
     "documentation": "request.dividends(symbol, currency)\n\nRequest dividend information for a symbol.\n\nParameters:\n    symbol: Symbol/ticker string (str)\n    currency: Currency code (str or None)\n\nReturns the dividend amount, or na when no host supplies\nfundamentals via fetch_fundamental(\"dividends\", symbol, ...).",
     "snippet": "request.dividends(${1:symbol}, ${2:currency})",
-    "params": [
-      "symbol",
-      "currency"
-    ],
+    "params": ["symbol", "currency"],
     "category": "request"
   },
   "request.earnings": {
@@ -5990,10 +5364,7 @@
     "brief": "Request earnings information for a symbol.",
     "documentation": "request.earnings(symbol, currency)\n\nRequest earnings information for a symbol.\n\nParameters:\n    symbol: Symbol/ticker string (str)\n    currency: Currency code (str or None)\n\nReturns earnings per share, or na when no host supplies\nfundamentals via fetch_fundamental(\"earnings\", symbol, ...).",
     "snippet": "request.earnings(${1:symbol}, ${2:currency})",
-    "params": [
-      "symbol",
-      "currency"
-    ],
+    "params": ["symbol", "currency"],
     "category": "request"
   },
   "request.economic": {
@@ -6003,10 +5374,7 @@
     "brief": "Request economic indicator data (e.g., unemployment, inflation).",
     "documentation": "request.economic(country, indicator_code)\n\nRequest economic indicator data (e.g., unemployment, inflation).\n\nParameters:\n    country: Country code (str, e.g., \"US\", \"EU\")\n    indicator_code: Economic indicator code (str)\n\nReturns the indicator series, or na when no host supplies data\nvia fetch_fundamental(\"economic\", country, ...).",
     "snippet": "request.economic(${1:country}, ${2:indicator_code})",
-    "params": [
-      "country",
-      "indicator_code"
-    ],
+    "params": ["country", "indicator_code"],
     "category": "request"
   },
   "request.financial": {
@@ -6016,11 +5384,7 @@
     "brief": "Request financial statement data (from SEC filings).",
     "documentation": "request.financial(symbol, financial_id, period)\n\nRequest financial statement data (from SEC filings).\n\nParameters:\n    symbol: Symbol/ticker string (str)\n    financial_id: Financial metric identifier (str)\n    period: Reporting period (str, e.g., \"FQ\", \"FY\")\n\nReturns the financial metric value, or na when no host supplies\nfundamentals via fetch_fundamental(\"financial\", symbol, ...).",
     "snippet": "request.financial(${1:symbol}, ${2:financial_id}, ${3:period})",
-    "params": [
-      "symbol",
-      "financial_id",
-      "period"
-    ],
+    "params": ["symbol", "financial_id", "period"],
     "category": "request"
   },
   "request.footprint": {
@@ -6030,10 +5394,7 @@
     "brief": "Request volume footprint data for the current bar.",
     "documentation": "request.footprint(num_ticks, va_percentage)\n\nRequest volume footprint data for the current bar.\nAdded in Pine Script v6 (January 2026).\n\nNow supports symbol (dynamic) and data_feed for volume scaling.",
     "snippet": "request.footprint(${1:num_ticks}, ${2:va_percentage})",
-    "params": [
-      "num_ticks",
-      "va_percentage"
-    ],
+    "params": ["num_ticks", "va_percentage"],
     "category": "request"
   },
   "request.quandl": {
@@ -6043,10 +5404,7 @@
     "brief": "Request data from Quandl database.",
     "documentation": "request.quandl(quandl_code, column)\n\nRequest data from Quandl database.\n\nParameters:\n    quandl_code: Quandl dataset code (str)\n    column: Column name within dataset (str)\n\nReturns the dataset series, or na when no host supplies data\nvia fetch_fundamental(\"quandl\", quandl_code, ...).",
     "snippet": "request.quandl(${1:quandl_code}, ${2:column})",
-    "params": [
-      "quandl_code",
-      "column"
-    ],
+    "params": ["quandl_code", "column"],
     "category": "request"
   },
   "request.security": {
@@ -6056,13 +5414,7 @@
     "brief": "Request data from another symbol or timeframe.",
     "documentation": "request.security(symbol, timeframe, expression, gaps, lookahead)\n\nRequest data from another symbol or timeframe.\n\nv6+: Supports real data via context['data_provider'] (historical)\nor context['data_feed'] (CCXTProDataFeed for live/latest data).\n\nPolicy (parity with compile foreign-na / same-symbol simple OHLCV):\n\n- **Foreign** without a multi-symbol feed hit → ``na`` (never invent chart\n  series or legacy mock OHLCV as foreign fundamentals when a host chart\n  identity is wired). Standalone unit eval without chart identity may\n  still use legacy mock prices for bare string series names.\n- **Same-symbol + simple OHLCV** on a **coarser** TF with bar times →\n  timestamp resample of chart OHLCV (``htf_ohlcv_resample``): last\n  completed HTF bar by default; ``gaps_on`` / ``lookahead_on`` honored\n  on this path (bucket-start na-gaps / historical final-from-period-start).\n- **Provider/feed simple OHLCV** already coarser than the chart, with\n  bar times that align to chart bars → same merge (``provider_htf_ohlcv``).\n  Chart-length / no-timestamp provider series stay stubs\n  (``provider_ohlcv`` / ``provider_ohlcv_chart_stub``) with unused merge.\n- **Same-symbol + allowlisted simple ta.*** (``ta.sma/ema/rsi/atr/wma/rma/cmo/stdev/linreg/cci/roc/mom/hma/vwma/dema/tema/highest/lowest/range/median/dev/variance/mode/percentrank/change/cog/highestbars/lowestbars/kama/rising/falling/swma/ao/vwap/cum``\n  with bare OHLCV source + const length; 1-arg ``ta.cci(n)`` uses HTF hlc3;\n  1-arg ``ta.wpr(n)`` uses HTF high/low/close; 1-arg ``ta.adx(n)`` uses HTF\n  high/low/close; 1-arg ``ta.mfi(n)`` uses HTF high/low/close/volume;\n  0-arg ``ta.obv()`` uses HTF close+volume; 1-arg ``ta.cmf(n)`` uses HTF\n  high/low/close/volume; 0-arg ``ta.vpt()`` / ``ta.pvt()`` uses HTF\n  close+volume; 1-arg ``ta.wvad(n)`` uses HTF high/low/close/volume;\n  3-arg ``ta.uo(n1, n2, n3)`` uses HTF high/low/close (extra packs\n  n2*1000+n3); 3-arg ``ta.apo(source, fast, slow)`` uses HTF source\n  (extra=fast, length=slow); 1-arg ``ta.emv(n)`` uses HTF\n  high/low/volume;\n  1-arg ``ta.highest(n)`` /\n  ``ta.lowest(n)`` / ``ta.highestbars(n)`` / ``ta.lowestbars(n)`` use HTF\n  high / low; 1-arg ``ta.range(n)`` is HTF high-low; 1-arg ``ta.swma``\n  is fixed 4-period; 0-arg ``ta.ao()`` is SMA(hl2,5)-SMA(hl2,34);\n  1-arg ``ta.ao(fast)`` uses HTF hl2 with slow=34; 2-arg\n  ``ta.ao(fast, slow)`` uses HTF hl2 at those periods;\n  1-arg ``ta.stoch(n)`` / 2-arg ``ta.stoch(k, d)`` is %K on HTF\n  high/low/close (dPeriod stored unused);\n  3-arg ``ta.linreg(source, n, offset)`` honors ``extra`` as offset;\n  2-arg ``ta.kama`` uses Kaufman fast=2, slow=30;\n  1-arg ``ta.cum(source)`` is the running sum on unique HTF bars;\n  1-arg ``ta.change(source)`` defaults length to 1) on a\n  **coarser** TF → run the\n  interpret TA helper on resampled HTF bars (``htf_simple_ta_resample``).\n- **Same-symbol + simple OHLCV** otherwise → chart passthrough /\n  provider series (``chart_passthrough_htf_stub`` / same-TF eval).\n- **Same-symbol Heikin-Ashi** (``ticker.heikinashi``) → transform chart\n  OHLCV to HA (do not return raw chart candles or all-``na``).\n- **Same-symbol + complex pre-eval** (UDF / nested / multi-arg ta) on a\n  **different** TF → ``na`` without full multi-TF re-eval.\n- **Same-symbol + same TF** pre-eval → chart eval is correct; allow.\n- **gaps / lookahead** (``barmerge.*``) are honored on the HTF resample\n  paths above (chart and provider-backed coarser OHLCV) and\n  accepted-but-unused elsewhere (passthrough, chart-length provider\n  stubs, complex/foreign na, LTF). Presence vs effect is recorded in\n  policy metadata (``gaps_lookahead_provided`` vs ``gaps_applied`` /\n  ``lookahead_applied``) rather than silently affecting values.",
     "snippet": "request.security(${1:symbol}, ${2:timeframe}, ${3:expression}, ${4:gaps}, ${5:lookahead})",
-    "params": [
-      "symbol",
-      "timeframe",
-      "expression",
-      "gaps",
-      "lookahead"
-    ],
+    "params": ["symbol", "timeframe", "expression", "gaps", "lookahead"],
     "category": "request"
   },
   "request.security_lower_tf": {
@@ -6072,11 +5424,7 @@
     "brief": "Request lower timeframe data within the current timeframe.",
     "documentation": "request.security_lower_tf(symbol, timeframe, expression)\n\nRequest lower timeframe data within the current timeframe.\nNow supports data_feed / data_provider when wired (reuses latest for demo).",
     "snippet": "request.security_lower_tf(${1:symbol}, ${2:timeframe}, ${3:expression})",
-    "params": [
-      "symbol",
-      "timeframe",
-      "expression"
-    ],
+    "params": ["symbol", "timeframe", "expression"],
     "category": "request"
   },
   "request.seed": {
@@ -6086,9 +5434,7 @@
     "brief": "Seed the random number generator for reproducible request data.",
     "documentation": "request.seed(seed_value)\n\nSeed the random number generator for reproducible request data.\nStores the seed on evaluator context and optional numpy RNG.",
     "snippet": "request.seed(${1:seed_value})",
-    "params": [
-      "seed_value"
-    ],
+    "params": ["seed_value"],
     "category": "request"
   },
   "request.splits": {
@@ -6098,10 +5444,7 @@
     "brief": "Request stock split information for a symbol.",
     "documentation": "request.splits(symbol, currency)\n\nRequest stock split information for a symbol.\n\nParameters:\n    symbol: Symbol/ticker string (str)\n    currency: Currency code (str or None)\n\nReturns the split ratio, or na when no host supplies\nfundamentals via fetch_fundamental(\"splits\", symbol, ...).",
     "snippet": "request.splits(${1:symbol}, ${2:currency})",
-    "params": [
-      "symbol",
-      "currency"
-    ],
+    "params": ["symbol", "currency"],
     "category": "request"
   },
   "rising": {
@@ -6231,10 +5574,7 @@
     "brief": "Extract second from timestamp (0-59; bare form uses chart time).",
     "documentation": "Extract second from timestamp (0-59; bare form uses chart time).",
     "snippet": "second(${1:time}, ${2:timezone})",
-    "params": [
-      "time",
-      "timezone"
-    ],
+    "params": ["time", "timezone"],
     "category": "builtin"
   },
   "security": {
@@ -6394,10 +5734,7 @@
     "brief": "Reference Pine: ``str.contains(source, str)`` → bool; either arg ``na`` → ``na``.",
     "documentation": "Reference Pine: ``str.contains(source, str)`` → bool; either arg ``na`` → ``na``.\n\nSoft-coerces non-strings (numbers / series scalars) via ``str(...)`` so\ncorpus residual paths that leak non-string types do not hard-fail.",
     "snippet": "str.contains(${1:source}, ${2:str})",
-    "params": [
-      "source",
-      "str"
-    ],
+    "params": ["source", "str"],
     "category": "str"
   },
   "str.endswith": {
@@ -6407,10 +5744,7 @@
     "brief": "Reference Pine: ``str.endswith(source, str)`` → bool; either arg ``na`` → ``na``.",
     "documentation": "Reference Pine: ``str.endswith(source, str)`` → bool; either arg ``na`` → ``na``.",
     "snippet": "str.endswith(${1:source}, ${2:str})",
-    "params": [
-      "source",
-      "str"
-    ],
+    "params": ["source", "str"],
     "category": "str"
   },
   "str.format": {
@@ -6420,9 +5754,7 @@
     "brief": "Pine ``str.format(fmt, ...)`` — Java MessageFormat-ish placeholders.",
     "documentation": "Pine ``str.format(fmt, ...)`` — Java MessageFormat-ish placeholders.\n\nSupports ``{0}``, ``{1,number}``, ``{0,number,#.####}``. Falls back to\na best-effort string when the placeholder is unknown (Console.show uses\n``{0,number,#####}`` for bar indices).\n\nArity edges:\n- 0 args → error\n- 1 arg (format only, or corpus-sanitize ``str.format(na)``) → format\n  with empty placeholders / ``\"NaN\"`` when the sole arg is ``na``\n- 2+ args → normal MessageFormat path",
     "snippet": "str.format(${1:fmt})",
-    "params": [
-      "fmt"
-    ],
+    "params": ["fmt"],
     "category": "str"
   },
   "str.format_time": {
@@ -6442,10 +5774,7 @@
     "brief": "join stringified items",
     "documentation": "``str.join(array, separator)`` — join stringified items.\n\n``na`` array → ``na``; ``na`` separator → ``\"\"``; ``na`` elements → empty.",
     "snippet": "str.join(${1:array}, ${2:separator})",
-    "params": [
-      "array",
-      "separator"
-    ],
+    "params": ["array", "separator"],
     "category": "str"
   },
   "str.length": {
@@ -6455,9 +5784,7 @@
     "brief": "int, or ``na`` when *string* is ``na",
     "documentation": "str.length(string) → int, or ``na`` when *string* is ``na``.\n\nMotion uses ``str.length(seqArr.get(pointer))``; out-of-range / unset\n``array.get`` yields ``na`` and must not hard-fail the bar.",
     "snippet": "str.length(${1:string})",
-    "params": [
-      "string"
-    ],
+    "params": ["string"],
     "category": "str"
   },
   "str.lower": {
@@ -6467,9 +5794,7 @@
     "brief": "lowercased string; ``na`` → ``na",
     "documentation": "``str.lower(string)`` → lowercased string; ``na`` → ``na``.",
     "snippet": "str.lower(${1:string})",
-    "params": [
-      "string"
-    ],
+    "params": ["string"],
     "category": "str"
   },
   "str.match": {
@@ -6479,10 +5804,7 @@
     "brief": "Reference Pine: ``str.match(source, regex)`` → first matching substring or ``na``.",
     "documentation": "Reference Pine: ``str.match(source, regex)`` → first matching substring or ``na``.\n\nNote: returns the matched *string* (not a bool). Either arg ``na`` → ``na``.\nInvalid regex → ``na`` rather than hard-fail (corpus residual resilience).",
     "snippet": "str.match(${1:source}, ${2:regex})",
-    "params": [
-      "source",
-      "regex"
-    ],
+    "params": ["source", "regex"],
     "category": "str"
   },
   "str.pos": {
@@ -6492,10 +5814,7 @@
     "brief": "Reference Pine: ``str.pos(source, str)`` → first index of *str* in *source*, or ``-1``.",
     "documentation": "Reference Pine: ``str.pos(source, str)`` → first index of *str* in *source*, or ``-1``.\n\nEither arg ``na`` → ``na`` (reference soft-na). Aligns with compile emit\n``str(source).find(str(needle))``.",
     "snippet": "str.pos(${1:source}, ${2:str})",
-    "params": [
-      "source",
-      "str"
-    ],
+    "params": ["source", "str"],
     "category": "str"
   },
   "str.repeat": {
@@ -6505,10 +5824,7 @@
     "brief": "string, or ``na`` if either arg is ``na",
     "documentation": "str.repeat(source, num) → string, or ``na`` if either arg is ``na``.",
     "snippet": "str.repeat(${1:source}, ${2:num})",
-    "params": [
-      "source",
-      "num"
-    ],
+    "params": ["source", "num"],
     "category": "str"
   },
   "str.replace": {
@@ -6518,12 +5834,7 @@
     "brief": "Reference Pine: ``str.replace(source, target, replacement, occurrence=0)``.",
     "documentation": "Reference Pine: ``str.replace(source, target, replacement, occurrence=0)``.\n\nAccepts 3 or 4 arguments. Optional *occurrence* (int, 0-based) selects\nwhich match to replace; default ``0`` replaces the first match only.",
     "snippet": "str.replace(${1:source}, ${2:target}, ${3:replacement}, ${4:occurrence})",
-    "params": [
-      "source",
-      "target",
-      "replacement",
-      "occurrence"
-    ],
+    "params": ["source", "target", "replacement", "occurrence"],
     "category": "str"
   },
   "str.replace_all": {
@@ -6533,11 +5844,7 @@
     "brief": "Reference Pine: ``str.replace_all(source, target, replacement)``.",
     "documentation": "Reference Pine: ``str.replace_all(source, target, replacement)``.",
     "snippet": "str.replace_all(${1:source}, ${2:target}, ${3:replacement})",
-    "params": [
-      "source",
-      "target",
-      "replacement"
-    ],
+    "params": ["source", "target", "replacement"],
     "category": "str"
   },
   "str.split": {
@@ -6547,9 +5854,7 @@
     "brief": "array of substrings",
     "documentation": "str.split(source, separator?) → array of substrings.\n\nAligns with :func:`pynescript.compiler.numba_builtins.str_split`:\n\n- ``na`` / ``None`` source → empty string (so ``x.isset(str.split(na, …))``\n  patterns in motion/console libraries do not hard-fail while evaluating\n  the fallback).\n- empty separator → split into characters (Python forbids ``\"\".split(\"\")``).",
     "snippet": "str.split(${1:source})",
-    "params": [
-      "source"
-    ],
+    "params": ["source"],
     "category": "str"
   },
   "str.startswith": {
@@ -6559,10 +5864,7 @@
     "brief": "Reference Pine: ``str.startswith(source, str)`` → bool; either arg ``na`` → ``na``.",
     "documentation": "Reference Pine: ``str.startswith(source, str)`` → bool; either arg ``na`` → ``na``.",
     "snippet": "str.startswith(${1:source}, ${2:str})",
-    "params": [
-      "source",
-      "str"
-    ],
+    "params": ["source", "str"],
     "category": "str"
   },
   "str.substring": {
@@ -6572,10 +5874,7 @@
     "brief": "substring or ``na",
     "documentation": "str.substring(source, begin_pos, end_pos?) → substring or ``na``.\n\nAny ``na`` argument propagates ``na`` (motion: ``sub_start`` /\n``sub_length`` often unset → end becomes ``na``).",
     "snippet": "str.substring(${1:source}, ${2:begin_pos})",
-    "params": [
-      "source",
-      "begin_pos"
-    ],
+    "params": ["source", "begin_pos"],
     "category": "str"
   },
   "str.tonumber": {
@@ -6585,9 +5884,7 @@
     "brief": "Reference Pine: ``str.tonumber(string)`` → float, or ``na`` when not parseable.",
     "documentation": "Reference Pine: ``str.tonumber(string)`` → float, or ``na`` when not parseable.\n\nPlaceholder defaults such as ``\"YYYY-MM\"`` must not raise — scripts\nlike seasonality push rounded tonumber results into arrays and rely\non na propagation.\n\nSoft-coerces ``na`` / non-string (array.get miss, numbers) → ``na`` or\n``float(value)`` rather than hard-failing ``takes a string argument``.",
     "snippet": "str.tonumber(${1:string})",
-    "params": [
-      "string"
-    ],
+    "params": ["string"],
     "category": "str"
   },
   "str.tostring": {
@@ -6597,9 +5894,7 @@
     "brief": "Reference Pine: ``str.tostring(value)`` or ``str.tostring(value, format)``.",
     "documentation": "Reference Pine: ``str.tostring(value)`` or ``str.tostring(value, format)``.",
     "snippet": "str.tostring(${1:value})",
-    "params": [
-      "value"
-    ],
+    "params": ["value"],
     "category": "str"
   },
   "str.trim": {
@@ -6609,9 +5904,7 @@
     "brief": "strip whitespace; ``na`` → ``na",
     "documentation": "``str.trim(string)`` → strip whitespace; ``na`` → ``na``.",
     "snippet": "str.trim(${1:string})",
-    "params": [
-      "string"
-    ],
+    "params": ["string"],
     "category": "str"
   },
   "str.upper": {
@@ -6621,9 +5914,7 @@
     "brief": "uppercased string; ``na`` → ``na",
     "documentation": "``str.upper(string)`` → uppercased string; ``na`` → ``na``.",
     "snippet": "str.upper(${1:string})",
-    "params": [
-      "string"
-    ],
+    "params": ["string"],
     "category": "str"
   },
   "strategy": {
@@ -6743,10 +6034,7 @@
     "brief": "Cancel a specific pending order.",
     "documentation": "strategy.cancel(id, alert)\n\nCancel a specific pending order.\n\nParameters:\n    id: Order identifier (str)\n    alert: Alert on cancellation (bool or None)\n\nReturns None.",
     "snippet": "strategy.cancel(${1:id}, ${2:alert})",
-    "params": [
-      "id",
-      "alert"
-    ],
+    "params": ["id", "alert"],
     "category": "strategy"
   },
   "strategy.cancel_all": {
@@ -6756,9 +6044,7 @@
     "brief": "Cancel all pending orders.",
     "documentation": "strategy.cancel_all(alert)\n\nCancel all pending orders.\n\nParameters:\n    alert: Alert on cancellation (bool or None)\n\nReturns None.",
     "snippet": "strategy.cancel_all(${1:alert})",
-    "params": [
-      "alert"
-    ],
+    "params": ["alert"],
     "category": "strategy"
   },
   "strategy.cash": {
@@ -6778,12 +6064,7 @@
     "brief": "Close current position or reduce it.",
     "documentation": "strategy.close(id, qty, comment, alert, ...)\n\nClose current position or reduce it.\n\nParameters:\n    id: Order identifier (str)\n    qty: Quantity to close (float or None for all)\n    comment: Order comment (str)\n\nReturns None.",
     "snippet": "strategy.close(${1:id}, ${2:qty}, ${3:comment}, ${4:alert})",
-    "params": [
-      "id",
-      "qty",
-      "comment",
-      "alert"
-    ],
+    "params": ["id", "qty", "comment", "alert"],
     "category": "strategy"
   },
   "strategy.close_all": {
@@ -6793,10 +6074,7 @@
     "brief": "Close entire position at market.",
     "documentation": "strategy.close_all(comment, alert, ...)\n\nClose entire position at market.\n\nParameters:\n    comment: Order comment (str)\n\nReturns None.",
     "snippet": "strategy.close_all(${1:comment}, ${2:alert})",
-    "params": [
-      "comment",
-      "alert"
-    ],
+    "params": ["comment", "alert"],
     "category": "strategy"
   },
   "strategy.closedtrades": {
@@ -6816,9 +6094,7 @@
     "brief": "",
     "documentation": "strategy.closedtrades.commission(trade_index)",
     "snippet": "strategy.closedtrades.commission(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.closedtrades.entry_bar_index": {
@@ -6828,9 +6104,7 @@
     "brief": "",
     "documentation": "strategy.closedtrades.entry_bar_index(trade_index)",
     "snippet": "strategy.closedtrades.entry_bar_index(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.closedtrades.entry_comment": {
@@ -6840,9 +6114,7 @@
     "brief": "",
     "documentation": "strategy.closedtrades.entry_comment(trade_index)",
     "snippet": "strategy.closedtrades.entry_comment(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.closedtrades.entry_id": {
@@ -6852,9 +6124,7 @@
     "brief": "",
     "documentation": "strategy.closedtrades.entry_id(trade_index)",
     "snippet": "strategy.closedtrades.entry_id(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.closedtrades.entry_price": {
@@ -6864,9 +6134,7 @@
     "brief": "",
     "documentation": "strategy.closedtrades.entry_price(trade_index)",
     "snippet": "strategy.closedtrades.entry_price(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.closedtrades.entry_time": {
@@ -6876,9 +6144,7 @@
     "brief": "",
     "documentation": "strategy.closedtrades.entry_time(trade_index)",
     "snippet": "strategy.closedtrades.entry_time(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.closedtrades.exit_bar_index": {
@@ -6888,9 +6154,7 @@
     "brief": "",
     "documentation": "strategy.closedtrades.exit_bar_index(trade_index)",
     "snippet": "strategy.closedtrades.exit_bar_index(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.closedtrades.exit_comment": {
@@ -6900,9 +6164,7 @@
     "brief": "",
     "documentation": "strategy.closedtrades.exit_comment(trade_index)",
     "snippet": "strategy.closedtrades.exit_comment(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.closedtrades.exit_id": {
@@ -6912,9 +6174,7 @@
     "brief": "",
     "documentation": "strategy.closedtrades.exit_id(trade_index)",
     "snippet": "strategy.closedtrades.exit_id(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.closedtrades.exit_price": {
@@ -6924,9 +6184,7 @@
     "brief": "",
     "documentation": "strategy.closedtrades.exit_price(trade_index)",
     "snippet": "strategy.closedtrades.exit_price(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.closedtrades.exit_time": {
@@ -6936,9 +6194,7 @@
     "brief": "",
     "documentation": "strategy.closedtrades.exit_time(trade_index)",
     "snippet": "strategy.closedtrades.exit_time(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.closedtrades.first_index": {
@@ -6958,9 +6214,7 @@
     "brief": "",
     "documentation": "strategy.closedtrades.max_drawdown(trade_index)",
     "snippet": "strategy.closedtrades.max_drawdown(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.closedtrades.max_runup": {
@@ -6970,9 +6224,7 @@
     "brief": "",
     "documentation": "strategy.closedtrades.max_runup(trade_index)",
     "snippet": "strategy.closedtrades.max_runup(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.closedtrades.profit": {
@@ -6982,9 +6234,7 @@
     "brief": "",
     "documentation": "strategy.closedtrades.profit(trade_index)",
     "snippet": "strategy.closedtrades.profit(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.closedtrades.size": {
@@ -6994,9 +6244,7 @@
     "brief": "",
     "documentation": "strategy.closedtrades.size(trade_index)",
     "snippet": "strategy.closedtrades.size(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.commission.cash_per_contract": {
@@ -7036,11 +6284,7 @@
     "brief": "Convert quantity/price from symbol to account currency/units.",
     "documentation": "strategy.convert_to_account(value, symbol, timeframe)\n\nConvert quantity/price from symbol to account currency/units.\n\nParameters:\n    value: Value to convert (float)\n    symbol: Source symbol (str)\n    timeframe: Timeframe (str)\n\nReturns converted value.",
     "snippet": "strategy.convert_to_account(${1:value}, ${2:symbol}, ${3:timeframe})",
-    "params": [
-      "value",
-      "symbol",
-      "timeframe"
-    ],
+    "params": ["value", "symbol", "timeframe"],
     "category": "strategy"
   },
   "strategy.convert_to_symbol": {
@@ -7050,11 +6294,7 @@
     "brief": "Convert quantity/price from account to symbol units.",
     "documentation": "strategy.convert_to_symbol(value, symbol, timeframe)\n\nConvert quantity/price from account to symbol units.\n\nParameters:\n    value: Value to convert (float)\n    symbol: Target symbol (str)\n    timeframe: Timeframe (str)\n\nReturns converted value.",
     "snippet": "strategy.convert_to_symbol(${1:value}, ${2:symbol}, ${3:timeframe})",
-    "params": [
-      "value",
-      "symbol",
-      "timeframe"
-    ],
+    "params": ["value", "symbol", "timeframe"],
     "category": "strategy"
   },
   "strategy.default_entry_qty": {
@@ -7064,9 +6304,7 @@
     "brief": "Calculate default entry quantity based on equity percentage.",
     "documentation": "strategy.default_entry_qty(percent_equity)\n\nCalculate default entry quantity based on equity percentage.\n\nParameters:\n    percent_equity: Percentage of equity to use (float)\n\nReturns default quantity.",
     "snippet": "strategy.default_entry_qty(${1:percent_equity})",
-    "params": [
-      "percent_equity"
-    ],
+    "params": ["percent_equity"],
     "category": "strategy"
   },
   "strategy.direction.all": {
@@ -7106,15 +6344,7 @@
     "brief": "Create entry order for strategy.",
     "documentation": "strategy.entry(id, direction, qty, limit, stop, comment, alert, ...)\n\nCreate entry order for strategy.\n\nParameters:\n    id: Order identifier (str)\n    direction: \"long\" or \"short\" (str)\n    qty: Order quantity (float)\n    limit: Limit price (float or None)\n    stop: Stop price (float or None)\n    comment: Order comment (str)\n\nReturns None. Records trade in strategy state.\n\nArgs are read positionally; kwargs take precedence and are the\ncanonical Pine form (``strategy.entry(id=\"L\",\ndirection=\"long\", qty=10)``). See subtask 1.3 of the\npine-worker-strategy-events plan.",
     "snippet": "strategy.entry(${1:id}, ${2:direction}, ${3:qty}, ${4:limit}, ${5:stop}, ${6:comment}, ${7:alert})",
-    "params": [
-      "id",
-      "direction",
-      "qty",
-      "limit",
-      "stop",
-      "comment",
-      "alert"
-    ],
+    "params": ["id", "direction", "qty", "limit", "stop", "comment", "alert"],
     "category": "strategy"
   },
   "strategy.equity": {
@@ -7426,9 +6656,7 @@
     "brief": "",
     "documentation": "strategy.opentrades.commission(trade_index)",
     "snippet": "strategy.opentrades.commission(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.opentrades.entry_bar_index": {
@@ -7438,9 +6666,7 @@
     "brief": "",
     "documentation": "strategy.opentrades.entry_bar_index(trade_index)",
     "snippet": "strategy.opentrades.entry_bar_index(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.opentrades.entry_comment": {
@@ -7450,9 +6676,7 @@
     "brief": "",
     "documentation": "strategy.opentrades.entry_comment(trade_index)",
     "snippet": "strategy.opentrades.entry_comment(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.opentrades.entry_id": {
@@ -7462,9 +6686,7 @@
     "brief": "",
     "documentation": "strategy.opentrades.entry_id(trade_index)",
     "snippet": "strategy.opentrades.entry_id(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.opentrades.entry_price": {
@@ -7474,9 +6696,7 @@
     "brief": "",
     "documentation": "strategy.opentrades.entry_price(trade_index)",
     "snippet": "strategy.opentrades.entry_price(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.opentrades.entry_time": {
@@ -7486,9 +6706,7 @@
     "brief": "",
     "documentation": "strategy.opentrades.entry_time(trade_index)",
     "snippet": "strategy.opentrades.entry_time(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.opentrades.max_drawdown": {
@@ -7498,9 +6716,7 @@
     "brief": "",
     "documentation": "strategy.opentrades.max_drawdown(trade_index)",
     "snippet": "strategy.opentrades.max_drawdown(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.opentrades.max_runup": {
@@ -7510,9 +6726,7 @@
     "brief": "",
     "documentation": "strategy.opentrades.max_runup(trade_index)",
     "snippet": "strategy.opentrades.max_runup(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.opentrades.profit": {
@@ -7522,9 +6736,7 @@
     "brief": "mark-to-market vs close",
     "documentation": "strategy.opentrades.profit(trade_index) — mark-to-market vs close.",
     "snippet": "strategy.opentrades.profit(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.opentrades.size": {
@@ -7534,9 +6746,7 @@
     "brief": "",
     "documentation": "strategy.opentrades.size(trade_index)",
     "snippet": "strategy.opentrades.size(${1:trade_index})",
-    "params": [
-      "trade_index"
-    ],
+    "params": ["trade_index"],
     "category": "strategy"
   },
   "strategy.order": {
@@ -7605,9 +6815,7 @@
     "brief": "'all' | 'long' | 'short'",
     "documentation": "strategy.risk.allow_entry_in(value) — 'all' | 'long' | 'short'.",
     "snippet": "strategy.risk.allow_entry_in(${1:value})",
-    "params": [
-      "value"
-    ],
+    "params": ["value"],
     "category": "strategy"
   },
   "strategy.risk.max_cons_loss_days": {
@@ -7617,9 +6825,7 @@
     "brief": "stop after N consecutive loss days",
     "documentation": "strategy.risk.max_cons_loss_days(days) — stop after N consecutive loss days.",
     "snippet": "strategy.risk.max_cons_loss_days(${1:days})",
-    "params": [
-      "days"
-    ],
+    "params": ["days"],
     "category": "strategy"
   },
   "strategy.risk.max_drawdown": {
@@ -7629,10 +6835,7 @@
     "brief": "cap overall drawdown risk",
     "documentation": "strategy.risk.max_drawdown(value, type) — cap overall drawdown risk.\n\nWhen ``type`` is percent (or value looks like a small percentage flag\nvia kwargs), store as percent-of-peak; otherwise absolute currency.",
     "snippet": "strategy.risk.max_drawdown(${1:value}, ${2:type})",
-    "params": [
-      "value",
-      "type"
-    ],
+    "params": ["value", "type"],
     "category": "strategy"
   },
   "strategy.risk.max_intraday_filled_orders": {
@@ -7642,9 +6845,7 @@
     "brief": "day fill cap",
     "documentation": "strategy.risk.max_intraday_filled_orders(max_orders) — day fill cap.\n\nCounts entry + exit fills per bar-time day bucket; further entries\nare blocked once the cap is hit (day-scoped, no permanent halt).",
     "snippet": "strategy.risk.max_intraday_filled_orders(${1:max_orders})",
-    "params": [
-      "max_orders"
-    ],
+    "params": ["max_orders"],
     "category": "strategy"
   },
   "strategy.risk.max_intraday_loss": {
@@ -7654,10 +6855,7 @@
     "brief": "halt on day loss",
     "documentation": "strategy.risk.max_intraday_loss(value, type) — halt on day loss.\n\n``type`` is percent-of-initial-capital by default\n(``percent`` / ``percentage`` / ``strategy.percent_of_equity`` / ``%``)\nor absolute account-currency cash (``cash`` / ``strategy.cash``,\nlike max_drawdown). Cash values are interpreted in the strategy\naccount currency — no FX conversion. Percent and cash are mutually\nexclusive; setting one clears the other.",
     "snippet": "strategy.risk.max_intraday_loss(${1:value}, ${2:type})",
-    "params": [
-      "value",
-      "type"
-    ],
+    "params": ["value", "type"],
     "category": "strategy"
   },
   "strategy.risk.max_position_size": {
@@ -7667,9 +6865,7 @@
     "brief": "Default: maximum position size as percentage of account equity.",
     "documentation": "strategy.risk.max_position_size(value)\n\nDefault: maximum position size as percentage of account equity.\nSubsequent entries cap qty so (qty * price) <= equity * percent/100.\n\nWith ``PYNE_STRATEGY_RISK_CONTRACTS=1`` the value is an absolute\ncontracts cap (reference Pine semantics) instead; invalid values\nare ignored.",
     "snippet": "strategy.risk.max_position_size(${1:value})",
-    "params": [
-      "value"
-    ],
+    "params": ["value"],
     "category": "strategy"
   },
   "strategy.short": {
@@ -7759,9 +6955,7 @@
     "brief": "syminfo.prefix`` / ``syminfo.prefix(tickerid)``.",
     "documentation": "``syminfo.prefix`` / ``syminfo.prefix(tickerid)``.\n\nZero-arg returns the chart exchange prefix; one-arg parses the given\nticker id (``\"NASDAQ:AAPL\"`` → ``\"NASDAQ\"``).",
     "snippet": "syminfo.prefix(${1:tickerid})",
-    "params": [
-      "tickerid"
-    ],
+    "params": ["tickerid"],
     "category": "syminfo"
   },
   "syminfo.ticker": {
@@ -7771,9 +6965,7 @@
     "brief": "syminfo.ticker`` / ``syminfo.ticker(tickerid)``.",
     "documentation": "``syminfo.ticker`` / ``syminfo.ticker(tickerid)``.\n\nZero-arg returns the chart ticker without exchange; one-arg parses the\ngiven ticker id (``\"NASDAQ:AAPL\"`` → ``\"AAPL\"``).",
     "snippet": "syminfo.ticker(${1:tickerid})",
-    "params": [
-      "tickerid"
-    ],
+    "params": ["tickerid"],
     "category": "syminfo"
   },
   "ta.accdist": {
@@ -7793,10 +6985,7 @@
     "brief": "Acceleration Factor - Momentum acceleration/deceleration.",
     "documentation": "Acceleration Factor - Momentum acceleration/deceleration.\n\nta.acceleration_factor(momentum_list, period)\nReturns: Factor (-2.0 to 2.0)\n\nBar-mode incremental last sample uses ``_acceleration_factor_inc_update``.",
     "snippet": "ta.acceleration_factor(${1:momentum_list}, ${2:period})",
-    "params": [
-      "momentum_list",
-      "period"
-    ],
+    "params": ["momentum_list", "period"],
     "category": "ta.technical_analysis"
   },
   "ta.ad": {
@@ -7832,9 +7021,7 @@
     "brief": "Average Directional Index.",
     "documentation": "Average Directional Index.\n\nForms:\n- ``ta.adx(length)`` / ``ta.adx(diLength, adxSmoothing)`` — chart OHLC\n- ``ta.adx(high, low, close, length)`` — legacy explicit series",
     "snippet": "ta.adx(${1:length})",
-    "params": [
-      "length"
-    ],
+    "params": ["length"],
     "category": "ta.technical_analysis"
   },
   "ta.alma": {
@@ -7844,12 +7031,7 @@
     "brief": "Arnaud Legoux Moving Average.",
     "documentation": "Arnaud Legoux Moving Average.\n\nta.alma(series, length, offset=0.85, sigma=6)",
     "snippet": "ta.alma(${1:series}, ${2:length}, ${3:offset}, ${4:sigma})",
-    "params": [
-      "series",
-      "length",
-      "offset",
-      "sigma"
-    ],
+    "params": ["series", "length", "offset", "sigma"],
     "category": "ta.technical_analysis"
   },
   "ta.ao": {
@@ -7869,11 +7051,7 @@
     "brief": "Absolute Price Oscillator.",
     "documentation": "Absolute Price Oscillator.\n\nta.apo(series, fast_period, slow_period)\nAPO = EMA(fast) - EMA(slow)\nReturns APO series (full) or last scalar (incremental bar mode).",
     "snippet": "ta.apo(${1:series}, ${2:fast_period}, ${3:slow_period})",
-    "params": [
-      "series",
-      "fast_period",
-      "slow_period"
-    ],
+    "params": ["series", "fast_period", "slow_period"],
     "category": "ta.technical_analysis"
   },
   "ta.aroon": {
@@ -7883,9 +7061,7 @@
     "brief": "Aroon oscillator pair: ``[aroonDown, aroonUp]`` (reference Pine ``ta.aroon(length)``).",
     "documentation": "Aroon oscillator pair: ``[aroonDown, aroonUp]`` (reference Pine ``ta.aroon(length)``).\n\n``aroonUp = 100 * (length - bars_since_hh) / length``\n``aroonDown = 100 * (length - bars_since_ll) / length``",
     "snippet": "ta.aroon(${1:length})",
-    "params": [
-      "length"
-    ],
+    "params": ["length"],
     "category": "ta.technical_analysis"
   },
   "ta.atr": {
@@ -7895,9 +7071,7 @@
     "brief": "Average True Range. reference Pine: ``ta.atr(length)``; also legacy 4-arg form.",
     "documentation": "Average True Range. reference Pine: ``ta.atr(length)``; also legacy 4-arg form.",
     "snippet": "ta.atr(${1:length})",
-    "params": [
-      "length"
-    ],
+    "params": ["length"],
     "category": "ta.technical_analysis"
   },
   "ta.atr_normalized": {
@@ -7907,12 +7081,7 @@
     "brief": "Normalized ATR - ATR as percentage of current price.",
     "documentation": "Normalized ATR - ATR as percentage of current price.\n\nta.atr_normalized(high, low, close, period)\nReturns ATR as a percentage of price for comparable analysis.",
     "snippet": "ta.atr_normalized(${1:high}, ${2:low}, ${3:close}, ${4:period})",
-    "params": [
-      "high",
-      "low",
-      "close",
-      "period"
-    ],
+    "params": ["high", "low", "close", "period"],
     "category": "ta.technical_analysis"
   },
   "ta.atr_stop": {
@@ -7922,10 +7091,7 @@
     "brief": "ATR-based Stop Loss.",
     "documentation": "ATR-based Stop Loss.\n\nta.atr_stop(atr_value, multiplier)\nCalculate stop levels based on ATR.\nBar-mode incremental last sample uses ``_atr_stop_inc_update``.",
     "snippet": "ta.atr_stop(${1:atr_value}, ${2:multiplier})",
-    "params": [
-      "atr_value",
-      "multiplier"
-    ],
+    "params": ["atr_value", "multiplier"],
     "category": "ta.technical_analysis"
   },
   "ta.barssince": {
@@ -7945,11 +7111,7 @@
     "brief": "Bollinger Bands. ``ta.bb(source, length, mult)`` or ``ta.bb(length, mult)``.",
     "documentation": "Bollinger Bands. ``ta.bb(source, length, mult)`` or ``ta.bb(length, mult)``.",
     "snippet": "ta.bb(${1:source}, ${2:length}, ${3:mult})",
-    "params": [
-      "source",
-      "length",
-      "mult"
-    ],
+    "params": ["source", "length", "mult"],
     "category": "ta.technical_analysis"
   },
   "ta.bb_pct": {
@@ -7959,10 +7121,7 @@
     "brief": "Bollinger Band Percentage.",
     "documentation": "Bollinger Band Percentage.\n\nta.bb_pct(length, std_dev)\nPosition between upper and lower bands (0-100).",
     "snippet": "ta.bb_pct(${1:length}, ${2:std_dev})",
-    "params": [
-      "length",
-      "std_dev"
-    ],
+    "params": ["length", "std_dev"],
     "category": "ta.technical_analysis"
   },
   "ta.bbw": {
@@ -7972,11 +7131,7 @@
     "brief": "Bollinger Band Width: (upper - lower) / middle.",
     "documentation": "Bollinger Band Width: (upper - lower) / middle.\n\nForms: ``ta.bbw(source, length, mult)`` or ``ta.bbw(length, mult)``.",
     "snippet": "ta.bbw(${1:source}, ${2:length}, ${3:mult})",
-    "params": [
-      "source",
-      "length",
-      "mult"
-    ],
+    "params": ["source", "length", "mult"],
     "category": "ta.technical_analysis"
   },
   "ta.beta": {
@@ -7986,11 +7141,7 @@
     "brief": "Beta Coefficient.",
     "documentation": "Beta Coefficient.\n\nta.beta(series1, series2, length)\nCorrelation measure between two series.",
     "snippet": "ta.beta(${1:series1}, ${2:series2}, ${3:length})",
-    "params": [
-      "series1",
-      "series2",
-      "length"
-    ],
+    "params": ["series1", "series2", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.bid_ask_imbalance": {
@@ -8000,12 +7151,7 @@
     "brief": "Bid-Ask Imbalance.",
     "documentation": "Bid-Ask Imbalance.\n\nta.bid_ask_imbalance(bid_size, ask_size, bid_price, ask_price)\nMeasures market microstructure imbalance.",
     "snippet": "ta.bid_ask_imbalance(${1:bid_size}, ${2:ask_size}, ${3:bid_price}, ${4:ask_price})",
-    "params": [
-      "bid_size",
-      "ask_size",
-      "bid_price",
-      "ask_price"
-    ],
+    "params": ["bid_size", "ask_size", "bid_price", "ask_price"],
     "category": "ta.technical_analysis"
   },
   "ta.breakeven_level": {
@@ -8041,9 +7187,7 @@
     "brief": "Commodity Channel Index.",
     "documentation": "Commodity Channel Index.\n\nForms:\n- ``ta.cci(length)`` — typical price (hlc3) from context\n- ``ta.cci(source, length)``\n- legacy ``(high, low, close, length)``",
     "snippet": "ta.cci(${1:length})",
-    "params": [
-      "length"
-    ],
+    "params": ["length"],
     "category": "ta.technical_analysis"
   },
   "ta.change": {
@@ -8053,10 +7197,7 @@
     "brief": "Change over period (1 or 2 args; period defaults to 1).",
     "documentation": "Change over period (1 or 2 args; period defaults to 1).",
     "snippet": "ta.change(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.cmf": {
@@ -8066,9 +7207,7 @@
     "brief": "Chaikin Money Flow indicator.",
     "documentation": "Chaikin Money Flow indicator.\n\nForms:\n- ``ta.cmf(period)`` — H/L/C/V from chart context\n- ``ta.cmf(close, high, low, volume, period)`` — explicit series",
     "snippet": "ta.cmf(${1:period})",
-    "params": [
-      "period"
-    ],
+    "params": ["period"],
     "category": "ta.technical_analysis"
   },
   "ta.cmo": {
@@ -8078,10 +7217,7 @@
     "brief": "Chande Momentum Oscillator.",
     "documentation": "Chande Momentum Oscillator.\n\nta.cmo(source, length)",
     "snippet": "ta.cmo(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.cog": {
@@ -8091,10 +7227,7 @@
     "brief": "Center of Gravity oscillator.",
     "documentation": "Center of Gravity oscillator.",
     "snippet": "ta.cog(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.comovement": {
@@ -8104,11 +7237,7 @@
     "brief": "Comovement Index.",
     "documentation": "Comovement Index.\n\nta.comovement(series1, series2, length)\nSynchronicity between two series.",
     "snippet": "ta.comovement(${1:series1}, ${2:series2}, ${3:length})",
-    "params": [
-      "series1",
-      "series2",
-      "length"
-    ],
+    "params": ["series1", "series2", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.contrarian_signal": {
@@ -8118,11 +7247,7 @@
     "brief": "Contrarian Signal - Contrarian trading opportunity detection.",
     "documentation": "Contrarian Signal - Contrarian trading opportunity detection.\n\nta.contrarian_signal(sentiment, volatility, time_since_extreme)\nReturns: dict with signal, strength, confidence",
     "snippet": "ta.contrarian_signal(${1:sentiment}, ${2:volatility}, ${3:time_since_extreme})",
-    "params": [
-      "sentiment",
-      "volatility",
-      "time_since_extreme"
-    ],
+    "params": ["sentiment", "volatility", "time_since_extreme"],
     "category": "ta.technical_analysis"
   },
   "ta.correlation": {
@@ -8132,11 +7257,7 @@
     "brief": "Pearson correlation of two series over length.",
     "documentation": "Pearson correlation of two series over length.\n\nta.correlation(source1, source2, length)",
     "snippet": "ta.correlation(${1:source1}, ${2:source2}, ${3:length})",
-    "params": [
-      "source1",
-      "source2",
-      "length"
-    ],
+    "params": ["source1", "source2", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.correlation_filter": {
@@ -8162,10 +7283,7 @@
     "brief": "Cross check (either direction).",
     "documentation": "Cross check (either direction).",
     "snippet": "ta.cross(${1:source1}, ${2:source2})",
-    "params": [
-      "source1",
-      "source2"
-    ],
+    "params": ["source1", "source2"],
     "category": "ta.technical_analysis"
   },
   "ta.crossover": {
@@ -8175,10 +7293,7 @@
     "brief": "Crossover check (works with full series or bar-mode last-sample).",
     "documentation": "Crossover check (works with full series or bar-mode last-sample).",
     "snippet": "ta.crossover(${1:source1}, ${2:source2})",
-    "params": [
-      "source1",
-      "source2"
-    ],
+    "params": ["source1", "source2"],
     "category": "ta.technical_analysis"
   },
   "ta.crossunder": {
@@ -8188,10 +7303,7 @@
     "brief": "Crossunder check (works with full series or bar-mode last-sample).",
     "documentation": "Crossunder check (works with full series or bar-mode last-sample).",
     "snippet": "ta.crossunder(${1:source1}, ${2:source2})",
-    "params": [
-      "source1",
-      "source2"
-    ],
+    "params": ["source1", "source2"],
     "category": "ta.technical_analysis"
   },
   "ta.crowd_sentiment": {
@@ -8201,11 +7313,7 @@
     "brief": "Crowd Sentiment - Crowd consensus strength.",
     "documentation": "Crowd Sentiment - Crowd consensus strength.\n\nta.crowd_sentiment(price_agreement, volume_agreement, time_agreement)\nReturns: Score (0-100)\n\nBar-mode incremental last sample uses ``_crowd_sentiment_inc_update``.",
     "snippet": "ta.crowd_sentiment(${1:price_agreement}, ${2:volume_agreement}, ${3:time_agreement})",
-    "params": [
-      "price_agreement",
-      "volume_agreement",
-      "time_agreement"
-    ],
+    "params": ["price_agreement", "volume_agreement", "time_agreement"],
     "category": "ta.technical_analysis"
   },
   "ta.cum": {
@@ -8215,9 +7323,7 @@
     "brief": "Cumulative sum. reference Pine: ``ta.cum(source)`` — ``na`` treated as 0.",
     "documentation": "Cumulative sum. reference Pine: ``ta.cum(source)`` — ``na`` treated as 0.",
     "snippet": "ta.cum(${1:source})",
-    "params": [
-      "source"
-    ],
+    "params": ["source"],
     "category": "ta.technical_analysis"
   },
   "ta.cumulative_delta": {
@@ -8227,11 +7333,7 @@
     "brief": "Cumulative Delta - Buy-sell volume delta.",
     "documentation": "Cumulative Delta - Buy-sell volume delta.\n\nta.cumulative_delta(close, volume, period)\nReturns: Cumulative signed volume\nDuplicate of ``EconomicsIndicators._builtin_ta_cumulative_delta`` — keep in sync.\nBar-mode incremental last sample uses ``_cumulative_delta_inc_update``.",
     "snippet": "ta.cumulative_delta(${1:close}, ${2:volume}, ${3:period})",
-    "params": [
-      "close",
-      "volume",
-      "period"
-    ],
+    "params": ["close", "volume", "period"],
     "category": "ta.technical_analysis"
   },
   "ta.dema": {
@@ -8251,10 +7353,7 @@
     "brief": "Deviation from mean (mean absolute deviation).",
     "documentation": "Deviation from mean (mean absolute deviation).",
     "snippet": "ta.dev(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.divergence_detector": {
@@ -8274,10 +7373,7 @@
     "brief": "Directional Movement Index.",
     "documentation": "Directional Movement Index.\n\nReference Pine: ``ta.dmi(diLength, adxSmoothing) → [+DI, -DI, ADX]`` using\nchart high/low/close. Legacy 4-arg ``(high, low, close, length)`` still\naccepted (adxSmoothing defaults to diLength).\n\nPeriod soft-na (corpus residual): ``na`` / unresolved length names →\n``[na, na, na]`` rather than hard-fail (matches ``ta.sma`` / ``_expect_period``).",
     "snippet": "ta.dmi(${1:diLength}, ${2:adxSmoothing})",
-    "params": [
-      "diLength",
-      "adxSmoothing"
-    ],
+    "params": ["diLength", "adxSmoothing"],
     "category": "ta.technical_analysis"
   },
   "ta.donchian": {
@@ -8297,11 +7393,7 @@
     "brief": "Double Top/Bottom Pattern - Identifies classic reversal patterns.",
     "documentation": "Double Top/Bottom Pattern - Identifies classic reversal patterns.\n\nta.double_top_bottom(high, low, period)\nReturns: {pattern_type, strength, breakout_level}.",
     "snippet": "ta.double_top_bottom(${1:high}, ${2:low}, ${3:period})",
-    "params": [
-      "high",
-      "low",
-      "period"
-    ],
+    "params": ["high", "low", "period"],
     "category": "ta.technical_analysis"
   },
   "ta.dpo": {
@@ -8321,12 +7413,7 @@
     "brief": "Drawdown Recovery Level.",
     "documentation": "Drawdown Recovery Level.\n\nta.drawdown_recovery_level(peak, current, recovery_factor, period)",
     "snippet": "ta.drawdown_recovery_level(${1:peak}, ${2:current}, ${3:recovery_factor}, ${4:period})",
-    "params": [
-      "peak",
-      "current",
-      "recovery_factor",
-      "period"
-    ],
+    "params": ["peak", "current", "recovery_factor", "period"],
     "category": "ta.technical_analysis"
   },
   "ta.economic_impact_score": {
@@ -8336,11 +7423,7 @@
     "brief": "Economic Impact Score - Economic data impact on price.",
     "documentation": "Economic Impact Score - Economic data impact on price.\n\nta.economic_impact_score(price_change, volatility, volume_change)\nReturns: Score (0-100)",
     "snippet": "ta.economic_impact_score(${1:price_change}, ${2:volatility}, ${3:volume_change})",
-    "params": [
-      "price_change",
-      "volatility",
-      "volume_change"
-    ],
+    "params": ["price_change", "volatility", "volume_change"],
     "category": "ta.technical_analysis"
   },
   "ta.ema": {
@@ -8350,10 +7433,7 @@
     "brief": "Exponential Moving Average.",
     "documentation": "Exponential Moving Average.",
     "snippet": "ta.ema(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.ema_cross_signal": {
@@ -8363,11 +7443,7 @@
     "brief": "EMA Cross Signal - Signal generation from EMA crossover.",
     "documentation": "EMA Cross Signal - Signal generation from EMA crossover.\n\nta.ema_cross_signal(fast_ema, slow_ema, threshold)\nReturns: dict with signal, strength, trend_direction",
     "snippet": "ta.ema_cross_signal(${1:fast_ema}, ${2:slow_ema}, ${3:threshold})",
-    "params": [
-      "fast_ema",
-      "slow_ema",
-      "threshold"
-    ],
+    "params": ["fast_ema", "slow_ema", "threshold"],
     "category": "ta.technical_analysis"
   },
   "ta.employment_cycle_indicator": {
@@ -8377,11 +7453,7 @@
     "brief": "Employment Cycle Indicator - Employment cycle detection.",
     "documentation": "Employment Cycle Indicator - Employment cycle detection.\n\nta.employment_cycle_indicator(cyclical_stocks, defensive_stocks, unemployment_proxy)\nReturns: \"early_cycle\" | \"mid_cycle\" | \"late_cycle\" | \"recession\"",
     "snippet": "ta.employment_cycle_indicator(${1:cyclical_stocks}, ${2:defensive_stocks}, ${3:unemployment_proxy})",
-    "params": [
-      "cyclical_stocks",
-      "defensive_stocks",
-      "unemployment_proxy"
-    ],
+    "params": ["cyclical_stocks", "defensive_stocks", "unemployment_proxy"],
     "category": "ta.technical_analysis"
   },
   "ta.emv": {
@@ -8391,9 +7463,7 @@
     "brief": "Ease of Movement.",
     "documentation": "Ease of Movement.\n\nta.emv(length)\nMeasures ease of price movement relative to volume.",
     "snippet": "ta.emv(${1:length})",
-    "params": [
-      "length"
-    ],
+    "params": ["length"],
     "category": "ta.technical_analysis"
   },
   "ta.engulfing": {
@@ -8403,12 +7473,7 @@
     "brief": "Engulfing Pattern Detector.",
     "documentation": "Engulfing Pattern Detector.\n\nta.engulfing(open, high, low, close)\nIdentifies bullish/bearish engulfing patterns.",
     "snippet": "ta.engulfing(${1:open}, ${2:high}, ${3:low}, ${4:close})",
-    "params": [
-      "open",
-      "high",
-      "low",
-      "close"
-    ],
+    "params": ["open", "high", "low", "close"],
     "category": "ta.technical_analysis"
   },
   "ta.expected_value": {
@@ -8418,10 +7483,7 @@
     "brief": "Expected Value.",
     "documentation": "Expected Value.\n\nta.expected_value(returns, probabilities)\nCalculates statistical expected value.",
     "snippet": "ta.expected_value(${1:returns}, ${2:probabilities})",
-    "params": [
-      "returns",
-      "probabilities"
-    ],
+    "params": ["returns", "probabilities"],
     "category": "ta.technical_analysis"
   },
   "ta.falling": {
@@ -8431,10 +7493,7 @@
     "brief": "Falling check.",
     "documentation": "Falling check.",
     "snippet": "ta.falling(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.fear_greed_index": {
@@ -8444,12 +7503,7 @@
     "brief": "Fear Greed Index - Market psychology measurement.",
     "documentation": "Fear Greed Index - Market psychology measurement.\n\nta.fear_greed_index(rsi, vix_proxy, put_call_ratio, breadth)\nReturns: Score (-100 to 100)\n\nBar-mode incremental last sample uses ``_fear_greed_index_inc_update``.",
     "snippet": "ta.fear_greed_index(${1:rsi}, ${2:vix_proxy}, ${3:put_call_ratio}, ${4:breadth})",
-    "params": [
-      "rsi",
-      "vix_proxy",
-      "put_call_ratio",
-      "breadth"
-    ],
+    "params": ["rsi", "vix_proxy", "put_call_ratio", "breadth"],
     "category": "ta.technical_analysis"
   },
   "ta.fractal": {
@@ -8459,9 +7513,7 @@
     "brief": "Fractal Pattern Detector.",
     "documentation": "Fractal Pattern Detector.\n\nta.fractal(period)\nIdentifies high/low fractals.",
     "snippet": "ta.fractal(${1:period})",
-    "params": [
-      "period"
-    ],
+    "params": ["period"],
     "category": "ta.technical_analysis"
   },
   "ta.gamma_levels": {
@@ -8481,11 +7533,7 @@
     "brief": "Gap Pattern Detector.",
     "documentation": "Gap Pattern Detector.\n\nta.gap_detector(high, low, prev_close)\nIdentifies and measures price gaps.",
     "snippet": "ta.gap_detector(${1:high}, ${2:low}, ${3:prev_close})",
-    "params": [
-      "high",
-      "low",
-      "prev_close"
-    ],
+    "params": ["high", "low", "prev_close"],
     "category": "ta.technical_analysis"
   },
   "ta.garman_klass": {
@@ -8495,12 +7543,7 @@
     "brief": "Garman-Klass Volatility.",
     "documentation": "Garman-Klass Volatility.\n\nta.garman_klass(high, low, close, open)\nVolatility using OHLC data.",
     "snippet": "ta.garman_klass(${1:high}, ${2:low}, ${3:close}, ${4:open})",
-    "params": [
-      "high",
-      "low",
-      "close",
-      "open"
-    ],
+    "params": ["high", "low", "close", "open"],
     "category": "ta.technical_analysis"
   },
   "ta.gdp_growth_proxy": {
@@ -8510,11 +7553,7 @@
     "brief": "GDP Growth Proxy - GDP growth estimation from market signals.",
     "documentation": "GDP Growth Proxy - GDP growth estimation from market signals.\n\nta.gdp_growth_proxy(market_breadth, market_volume, price_momentum)\nReturns: Growth estimate (-2 to 4)",
     "snippet": "ta.gdp_growth_proxy(${1:market_breadth}, ${2:market_volume}, ${3:price_momentum})",
-    "params": [
-      "market_breadth",
-      "market_volume",
-      "price_momentum"
-    ],
+    "params": ["market_breadth", "market_volume", "price_momentum"],
     "category": "ta.technical_analysis"
   },
   "ta.hammer": {
@@ -8524,12 +7563,7 @@
     "brief": "Hammer/Doji Pattern Detector.",
     "documentation": "Hammer/Doji Pattern Detector.\n\nta.hammer(open, high, low, close)\nIdentifies hammer and doji patterns.",
     "snippet": "ta.hammer(${1:open}, ${2:high}, ${3:low}, ${4:close})",
-    "params": [
-      "open",
-      "high",
-      "low",
-      "close"
-    ],
+    "params": ["open", "high", "low", "close"],
     "category": "ta.technical_analysis"
   },
   "ta.highest": {
@@ -8539,10 +7573,7 @@
     "brief": "Highest value. ``ta.highest(source, length)`` or ``ta.highest(length)`` → high.",
     "documentation": "Highest value. ``ta.highest(source, length)`` or ``ta.highest(length)`` → high.",
     "snippet": "ta.highest(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.highestbars": {
@@ -8552,10 +7583,7 @@
     "brief": "Offset to highest value.",
     "documentation": "Offset to highest value.",
     "snippet": "ta.highestbars(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.hma": {
@@ -8565,10 +7593,7 @@
     "brief": "Hull Moving Average.",
     "documentation": "Hull Moving Average.",
     "snippet": "ta.hma(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.ichimoku": {
@@ -8598,11 +7623,7 @@
     "brief": "Inflation Proxy Indicator - Inflation estimation from technicals.",
     "documentation": "Inflation Proxy Indicator - Inflation estimation from technicals.\n\nta.inflation_proxy_indicator(usd_index, commodity_prices, bond_yields)\nReturns: Score (-100 to 100)",
     "snippet": "ta.inflation_proxy_indicator(${1:usd_index}, ${2:commodity_prices}, ${3:bond_yields})",
-    "params": [
-      "usd_index",
-      "commodity_prices",
-      "bond_yields"
-    ],
+    "params": ["usd_index", "commodity_prices", "bond_yields"],
     "category": "ta.technical_analysis"
   },
   "ta.inside_bar_pattern": {
@@ -8639,12 +7660,7 @@
     "brief": "Kaufman's Adaptive Moving Average.",
     "documentation": "Kaufman's Adaptive Moving Average.\n\nreference / community form: ``ta.kama(source, length, fastLength=2, slowLength=30)``.\nAccepts 2-4 positional args (fast/slow default to Kaufman's 2/30).",
     "snippet": "ta.kama(${1:source}, ${2:length}, ${3:fastLength}, ${4:slowLength})",
-    "params": [
-      "source",
-      "length",
-      "fastLength",
-      "slowLength"
-    ],
+    "params": ["source", "length", "fastLength", "slowLength"],
     "category": "ta.technical_analysis"
   },
   "ta.kc": {
@@ -8654,11 +7670,7 @@
     "brief": "Keltner Channels (returns middle, upper, lower).",
     "documentation": "Keltner Channels (returns middle, upper, lower).\n\nReference Pine: ``ta.kc(series, length, mult)``; legacy ``(high, low, close, length)``.",
     "snippet": "ta.kc(${1:series}, ${2:length}, ${3:mult})",
-    "params": [
-      "series",
-      "length",
-      "mult"
-    ],
+    "params": ["series", "length", "mult"],
     "category": "ta.technical_analysis"
   },
   "ta.kcw": {
@@ -8668,11 +7680,7 @@
     "brief": "Keltner Channels Width.",
     "documentation": "Keltner Channels Width.",
     "snippet": "ta.kcw(${1:source}, ${2:length}, ${3:mult})",
-    "params": [
-      "source",
-      "length",
-      "mult"
-    ],
+    "params": ["source", "length", "mult"],
     "category": "ta.technical_analysis"
   },
   "ta.kelly_criterion": {
@@ -8692,14 +7700,7 @@
     "brief": "Klinger Oscillator.",
     "documentation": "Klinger Oscillator.\n\nta.klinger(high, low, close, volume, fast_period, slow_period)\nVolume-based momentum oscillator.\nReturns KO series (full) or last scalar (incremental bar mode).",
     "snippet": "ta.klinger(${1:high}, ${2:low}, ${3:close}, ${4:volume}, ${5:fast_period}, ${6:slow_period})",
-    "params": [
-      "high",
-      "low",
-      "close",
-      "volume",
-      "fast_period",
-      "slow_period"
-    ],
+    "params": ["high", "low", "close", "volume", "fast_period", "slow_period"],
     "category": "ta.technical_analysis"
   },
   "ta.kst": {
@@ -8719,10 +7720,7 @@
     "brief": "Kurtosis.",
     "documentation": "Kurtosis.\n\nta.kurtosis(series, period)\nMeasures tail risk and peakedness.",
     "snippet": "ta.kurtosis(${1:series}, ${2:period})",
-    "params": [
-      "series",
-      "period"
-    ],
+    "params": ["series", "period"],
     "category": "ta.technical_analysis"
   },
   "ta.linreg": {
@@ -8732,11 +7730,7 @@
     "brief": "Linear Regression value.",
     "documentation": "Linear Regression value.\n\nReference Pine: ``ta.linreg(source, length, offset)`` — offset is optional (default 0).\nLength < 2 is soft-na (reference returns na rather than hard-error for short length).",
     "snippet": "ta.linreg(${1:source}, ${2:length}, ${3:offset})",
-    "params": [
-      "source",
-      "length",
-      "offset"
-    ],
+    "params": ["source", "length", "offset"],
     "category": "ta.technical_analysis"
   },
   "ta.liquidity_score": {
@@ -8746,12 +7740,7 @@
     "brief": "Liquidity Score - Market liquidity measurement.",
     "documentation": "Liquidity Score - Market liquidity measurement.\n\nta.liquidity_score(volume, volatility, bid_ask_spread, period)\nReturns: Score (0-100)\n\nBar-mode incremental last sample uses ``_liquidity_score_inc_update``.",
     "snippet": "ta.liquidity_score(${1:volume}, ${2:volatility}, ${3:bid_ask_spread}, ${4:period})",
-    "params": [
-      "volume",
-      "volatility",
-      "bid_ask_spread",
-      "period"
-    ],
+    "params": ["volume", "volatility", "bid_ask_spread", "period"],
     "category": "ta.technical_analysis"
   },
   "ta.lowest": {
@@ -8761,10 +7750,7 @@
     "brief": "Lowest value. ``ta.lowest(source, length)`` or ``ta.lowest(length)`` → low.",
     "documentation": "Lowest value. ``ta.lowest(source, length)`` or ``ta.lowest(length)`` → low.",
     "snippet": "ta.lowest(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.lowestbars": {
@@ -8774,10 +7760,7 @@
     "brief": "Offset to lowest value.",
     "documentation": "Offset to lowest value.",
     "snippet": "ta.lowestbars(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.macd": {
@@ -8787,12 +7770,7 @@
     "brief": "MACD (Moving Average Convergence Divergence).",
     "documentation": "MACD (Moving Average Convergence Divergence).\n\nReference Pine: ``ta.macd(source, fastlen, slowlen, siglen)`` →\n``[macdLine, signalLine, histLine]``.\n\nAccepts:\n- Full form with series + three lengths (defaults 12/26/9 if omitted).\n- Series may be a list, PineSeries, or scalar wrapper (bar-mode input).\n- Extra / unknown kwargs are ignored by the call site (ta.* path).",
     "snippet": "ta.macd(${1:source}, ${2:fastlen}, ${3:slowlen}, ${4:siglen})",
-    "params": [
-      "source",
-      "fastlen",
-      "slowlen",
-      "siglen"
-    ],
+    "params": ["source", "fastlen", "slowlen", "siglen"],
     "category": "ta.technical_analysis"
   },
   "ta.macd_signal": {
@@ -8822,13 +7800,7 @@
     "brief": "Market Structure Pivot - Fractal/Swing/Block detection.",
     "documentation": "Market Structure Pivot - Fractal/Swing/Block detection.\n\nta.market_structure_pivot(high_list, low_list, close_list, period, mode)\nReturns: dict with pivot_price, strength, structure",
     "snippet": "ta.market_structure_pivot(${1:high_list}, ${2:low_list}, ${3:close_list}, ${4:period}, ${5:mode})",
-    "params": [
-      "high_list",
-      "low_list",
-      "close_list",
-      "period",
-      "mode"
-    ],
+    "params": ["high_list", "low_list", "close_list", "period", "mode"],
     "category": "ta.technical_analysis"
   },
   "ta.market_timing_index": {
@@ -8838,12 +7810,7 @@
     "brief": "Market Timing Index.",
     "documentation": "Market Timing Index.\n\nta.market_timing_index(trend, momentum, volatility, sentiment)",
     "snippet": "ta.market_timing_index(${1:trend}, ${2:momentum}, ${3:volatility}, ${4:sentiment})",
-    "params": [
-      "trend",
-      "momentum",
-      "volatility",
-      "sentiment"
-    ],
+    "params": ["trend", "momentum", "volatility", "sentiment"],
     "category": "ta.technical_analysis"
   },
   "ta.max": {
@@ -8853,9 +7820,7 @@
     "brief": "Maximum value over a period (alias for ta.highest).",
     "documentation": "Maximum value over a period (alias for ta.highest).\n\nAlso accepts a single series arg (extension methods like\n``method max(float data) => ta.max(data)``) — returns the max of\navailable history, or the scalar itself. 1-arg stays full-path.",
     "snippet": "ta.max(${1:data})",
-    "params": [
-      "data"
-    ],
+    "params": ["data"],
     "category": "ta.technical_analysis"
   },
   "ta.max_loss_level": {
@@ -8865,11 +7830,7 @@
     "brief": "Maximum Loss Stop - Calculates stop for max loss.",
     "documentation": "Maximum Loss Stop - Calculates stop for max loss.\n\nta.max_loss_level(entry, account, max_loss_pct)\nReturns: Stop price.\n\nBar-mode incremental last sample uses ``_max_loss_level_inc_update``.",
     "snippet": "ta.max_loss_level(${1:entry}, ${2:account}, ${3:max_loss_pct})",
-    "params": [
-      "entry",
-      "account",
-      "max_loss_pct"
-    ],
+    "params": ["entry", "account", "max_loss_pct"],
     "category": "ta.technical_analysis"
   },
   "ta.mean_reversion_entry": {
@@ -8879,13 +7840,7 @@
     "brief": "Mean Reversion Entry.",
     "documentation": "Mean Reversion Entry.\n\nta.mean_reversion_entry(price, sma, stdev, period, threshold)",
     "snippet": "ta.mean_reversion_entry(${1:price}, ${2:sma}, ${3:stdev}, ${4:period}, ${5:threshold})",
-    "params": [
-      "price",
-      "sma",
-      "stdev",
-      "period",
-      "threshold"
-    ],
+    "params": ["price", "sma", "stdev", "period", "threshold"],
     "category": "ta.technical_analysis"
   },
   "ta.mean_reversion_score": {
@@ -8895,12 +7850,7 @@
     "brief": "Mean Reversion Score - Probability of price reverting to mean.",
     "documentation": "Mean Reversion Score - Probability of price reverting to mean.\n\nta.mean_reversion_score(close, sma, stdev, period)\nReturns: Score (0-100)\n\nBar-mode incremental last sample uses ``_mean_reversion_score_inc_update``.",
     "snippet": "ta.mean_reversion_score(${1:close}, ${2:sma}, ${3:stdev}, ${4:period})",
-    "params": [
-      "close",
-      "sma",
-      "stdev",
-      "period"
-    ],
+    "params": ["close", "sma", "stdev", "period"],
     "category": "ta.technical_analysis"
   },
   "ta.median": {
@@ -8910,10 +7860,7 @@
     "brief": "Median value over a period.",
     "documentation": "Median value over a period.",
     "snippet": "ta.median(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.mfi": {
@@ -8923,9 +7870,7 @@
     "brief": "Money Flow Index.",
     "documentation": "Money Flow Index.\n\nForms:\n- ``ta.mfi(length)`` / bare ``mfi(length)`` — hlc3 + volume from context\n- ``ta.mfi(source, length)`` — source as typical price + context volume\n- legacy 5-arg HLC+volume+length",
     "snippet": "ta.mfi(${1:length})",
-    "params": [
-      "length"
-    ],
+    "params": ["length"],
     "category": "ta.technical_analysis"
   },
   "ta.min": {
@@ -8935,10 +7880,7 @@
     "brief": "Minimum value over a period (alias for ta.lowest).",
     "documentation": "Minimum value over a period (alias for ta.lowest).\n\nSingle-arg form mirrors ``ta.max`` (full-history min / scalar).\n1-arg stays full-path.",
     "snippet": "ta.min(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.mode": {
@@ -8948,10 +7890,7 @@
     "brief": "Mode (most frequent value) over a period.",
     "documentation": "Mode (most frequent value) over a period.",
     "snippet": "ta.mode(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.mom": {
@@ -8961,10 +7900,7 @@
     "brief": "Momentum.",
     "documentation": "Momentum.",
     "snippet": "ta.mom(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.momentum_divergence": {
@@ -8974,11 +7910,7 @@
     "brief": "Momentum Divergence - Multi-timeframe momentum divergence.",
     "documentation": "Momentum Divergence - Multi-timeframe momentum divergence.\n\nta.momentum_divergence(price, momentum_fast, momentum_slow)\nReturns: dict with divergence_type, strength, bars_since",
     "snippet": "ta.momentum_divergence(${1:price}, ${2:momentum_fast}, ${3:momentum_slow})",
-    "params": [
-      "price",
-      "momentum_fast",
-      "momentum_slow"
-    ],
+    "params": ["price", "momentum_fast", "momentum_slow"],
     "category": "ta.technical_analysis"
   },
   "ta.momentum_filter": {
@@ -8988,11 +7920,7 @@
     "brief": "Momentum Filter - Adaptive momentum filtering.",
     "documentation": "Momentum Filter - Adaptive momentum filtering.\n\nta.momentum_filter(momentum_raw, volume, period)\nReturns: Filtered momentum value\n\nBar-mode incremental last sample uses ``_momentum_filter_inc_update``.",
     "snippet": "ta.momentum_filter(${1:momentum_raw}, ${2:volume}, ${3:period})",
-    "params": [
-      "momentum_raw",
-      "volume",
-      "period"
-    ],
+    "params": ["momentum_raw", "volume", "period"],
     "category": "ta.technical_analysis"
   },
   "ta.multi_timeframe_signal": {
@@ -9029,10 +7957,7 @@
     "brief": "On-Balance Volume.",
     "documentation": "On-Balance Volume.\n\nForms:\n- ``ta.obv`` / ``ta.obv()`` — chart close + volume\n- ``ta.obv(close, volume)`` — explicit series",
     "snippet": "ta.obv(${1:source}, ${2:volume})",
-    "params": [
-      "source",
-      "volume"
-    ],
+    "params": ["source", "volume"],
     "category": "ta.technical_analysis"
   },
   "ta.optimal_entry_zone": {
@@ -9042,12 +7967,7 @@
     "brief": "Optimal Entry Zone.",
     "documentation": "Optimal Entry Zone.\n\nta.optimal_entry_zone(high, low, close, period)",
     "snippet": "ta.optimal_entry_zone(${1:high}, ${2:low}, ${3:close}, ${4:period})",
-    "params": [
-      "high",
-      "low",
-      "close",
-      "period"
-    ],
+    "params": ["high", "low", "close", "period"],
     "category": "ta.technical_analysis"
   },
   "ta.order_flow_imbalance": {
@@ -9067,10 +7987,7 @@
     "brief": "Parkinson Volatility.",
     "documentation": "Parkinson Volatility.\n\nta.parkinson(high, low)\nCalculates volatility from high-low range.",
     "snippet": "ta.parkinson(${1:high}, ${2:low})",
-    "params": [
-      "high",
-      "low"
-    ],
+    "params": ["high", "low"],
     "category": "ta.technical_analysis"
   },
   "ta.percentile_linear_interpolation": {
@@ -9080,11 +7997,7 @@
     "brief": "",
     "documentation": "ta.percentile_linear_interpolation(source, length, percentage).",
     "snippet": "ta.percentile_linear_interpolation(${1:source}, ${2:length}, ${3:percentage})",
-    "params": [
-      "source",
-      "length",
-      "percentage"
-    ],
+    "params": ["source", "length", "percentage"],
     "category": "ta.technical_analysis"
   },
   "ta.percentile_nearest_rank": {
@@ -9094,11 +8007,7 @@
     "brief": "",
     "documentation": "ta.percentile_nearest_rank(source, length, percentage).",
     "snippet": "ta.percentile_nearest_rank(${1:source}, ${2:length}, ${3:percentage})",
-    "params": [
-      "source",
-      "length",
-      "percentage"
-    ],
+    "params": ["source", "length", "percentage"],
     "category": "ta.technical_analysis"
   },
   "ta.percentrank": {
@@ -9108,10 +8017,7 @@
     "brief": "Percentile rank of current value in period.",
     "documentation": "Percentile rank of current value in period.",
     "snippet": "ta.percentrank(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.pivot_point_levels": {
@@ -9121,10 +8027,7 @@
     "brief": "Calculate pivot point levels.",
     "documentation": "Calculate pivot point levels.\n\nReference Pine: ``ta.pivot_point_levels(type, anchor, developing?)`` → array of floats\nusing chart high/low/close. Legacy: ``(high, low, close, is_traditional)``.",
     "snippet": "ta.pivot_point_levels(${1:type}, ${2:anchor})",
-    "params": [
-      "type",
-      "anchor"
-    ],
+    "params": ["type", "anchor"],
     "category": "ta.technical_analysis"
   },
   "ta.pivothigh": {
@@ -9134,10 +8037,7 @@
     "brief": "Find the highest point (pivot high) in a window.",
     "documentation": "Find the highest point (pivot high) in a window.\n\nReference Pine: ``ta.pivothigh(leftbars, rightbars)`` (source=high) or\n``ta.pivothigh(source, leftbars, rightbars)``.\n\nSource may be a list (``current_series``), a ``PineSeries`` from the\nruntime host, or a bare scalar; always materialize before float().",
     "snippet": "ta.pivothigh(${1:leftbars}, ${2:rightbars})",
-    "params": [
-      "leftbars",
-      "rightbars"
-    ],
+    "params": ["leftbars", "rightbars"],
     "category": "ta.technical_analysis"
   },
   "ta.pivotlow": {
@@ -9147,10 +8047,7 @@
     "brief": "Find the lowest point (pivot low) in a window.",
     "documentation": "Find the lowest point (pivot low) in a window.\n\nReference Pine: ``ta.pivotlow(leftbars, rightbars)`` (source=low) or\n``ta.pivotlow(source, leftbars, rightbars)``.\n\nSource may be a list, ``PineSeries``, or scalar — see pivothigh.",
     "snippet": "ta.pivotlow(${1:leftbars}, ${2:rightbars})",
-    "params": [
-      "leftbars",
-      "rightbars"
-    ],
+    "params": ["leftbars", "rightbars"],
     "category": "ta.technical_analysis"
   },
   "ta.position_sizing": {
@@ -9170,12 +8067,7 @@
     "brief": "Position Sizing Score.",
     "documentation": "Position Sizing Score.\n\nta.position_sizing_score(account_risk, volatility, conviction, correlation)",
     "snippet": "ta.position_sizing_score(${1:account_risk}, ${2:volatility}, ${3:conviction}, ${4:correlation})",
-    "params": [
-      "account_risk",
-      "volatility",
-      "conviction",
-      "correlation"
-    ],
+    "params": ["account_risk", "volatility", "conviction", "correlation"],
     "category": "ta.technical_analysis"
   },
   "ta.probability_of_movement": {
@@ -9195,12 +8087,7 @@
     "brief": "Profit Lock Level - Dynamic trailing stop.",
     "documentation": "Profit Lock Level - Dynamic trailing stop.\n\nta.profit_lock_level(entry, current, trail_pct, direction)\nDirection: 1 for long, -1 for short.\nReturns: Stop price that trails behind price.\n\nBar-mode incremental last sample uses ``_profit_lock_level_inc_update``.",
     "snippet": "ta.profit_lock_level(${1:entry}, ${2:current}, ${3:trail_pct}, ${4:direction})",
-    "params": [
-      "entry",
-      "current",
-      "trail_pct",
-      "direction"
-    ],
+    "params": ["entry", "current", "trail_pct", "direction"],
     "category": "ta.technical_analysis"
   },
   "ta.pullback_bounce_level": {
@@ -9246,11 +8133,7 @@
     "brief": "R-Squared (Coefficient of Determination).",
     "documentation": "R-Squared (Coefficient of Determination).\n\nta.r_squared(series1, series2, length)\nMeasures fit quality (0-1).",
     "snippet": "ta.r_squared(${1:series1}, ${2:series2}, ${3:length})",
-    "params": [
-      "series1",
-      "series2",
-      "length"
-    ],
+    "params": ["series1", "series2", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.range": {
@@ -9260,10 +8143,7 @@
     "brief": "Range = highest - lowest over a period.",
     "documentation": "Range = highest - lowest over a period.\n\n2-arg ``ta.range(source, n)``; 1-arg ``ta.range(n)`` is high - low.",
     "snippet": "ta.range(${1:source}, ${2:n})",
-    "params": [
-      "source",
-      "n"
-    ],
+    "params": ["source", "n"],
     "category": "ta.technical_analysis"
   },
   "ta.rci": {
@@ -9298,10 +8178,7 @@
     "brief": "Rising check.",
     "documentation": "Rising check.",
     "snippet": "ta.rising(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.risk_reward_asymmetry": {
@@ -9311,12 +8188,7 @@
     "brief": "Risk Reward Asymmetry.",
     "documentation": "Risk Reward Asymmetry.\n\nta.risk_reward_asymmetry(entry, stop, target, win_rate)",
     "snippet": "ta.risk_reward_asymmetry(${1:entry}, ${2:stop}, ${3:target}, ${4:win_rate})",
-    "params": [
-      "entry",
-      "stop",
-      "target",
-      "win_rate"
-    ],
+    "params": ["entry", "stop", "target", "win_rate"],
     "category": "ta.technical_analysis"
   },
   "ta.risk_reward_ratio": {
@@ -9336,10 +8208,7 @@
     "brief": "Rolling Moving Average.",
     "documentation": "Rolling Moving Average.",
     "snippet": "ta.rma(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.roc": {
@@ -9349,10 +8218,7 @@
     "brief": "Rate of Change.",
     "documentation": "Rate of Change.",
     "snippet": "ta.roc(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.rsi": {
@@ -9362,10 +8228,7 @@
     "brief": "Relative Strength Index.",
     "documentation": "Relative Strength Index.",
     "snippet": "ta.rsi(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.rsi_divergence": {
@@ -9385,11 +8248,7 @@
     "brief": "RSI Oversold/Overbought Levels - Custom RSI threshold detection.",
     "documentation": "RSI Oversold/Overbought Levels - Custom RSI threshold detection.\n\nta.rsi_oversold_overbought(rsi_series, oversold_level, overbought_level)\nReturns boolean flags for oversold/overbought conditions.\nBar-mode incremental last sample uses ``_rsi_oversold_overbought_inc_update``.",
     "snippet": "ta.rsi_oversold_overbought(${1:rsi_series}, ${2:oversold_level}, ${3:overbought_level})",
-    "params": [
-      "rsi_series",
-      "oversold_level",
-      "overbought_level"
-    ],
+    "params": ["rsi_series", "oversold_level", "overbought_level"],
     "category": "ta.technical_analysis"
   },
   "ta.sar": {
@@ -9399,11 +8258,7 @@
     "brief": "Parabolic SAR. reference Pine: ``ta.sar(start, inc, max)`` using high/low context.",
     "documentation": "Parabolic SAR. reference Pine: ``ta.sar(start, inc, max)`` using high/low context.",
     "snippet": "ta.sar(${1:start}, ${2:inc}, ${3:max})",
-    "params": [
-      "start",
-      "inc",
-      "max"
-    ],
+    "params": ["start", "inc", "max"],
     "category": "ta.technical_analysis"
   },
   "ta.signal_confluence": {
@@ -9423,10 +8278,7 @@
     "brief": "Skewness.",
     "documentation": "Skewness.\n\nta.skewness(series, period)\nMeasures asymmetry in distribution.",
     "snippet": "ta.skewness(${1:series}, ${2:period})",
-    "params": [
-      "series",
-      "period"
-    ],
+    "params": ["series", "period"],
     "category": "ta.technical_analysis"
   },
   "ta.sma": {
@@ -9436,10 +8288,7 @@
     "brief": "Simple Moving Average.",
     "documentation": "Simple Moving Average.",
     "snippet": "ta.sma(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.sma_weighted": {
@@ -9459,12 +8308,7 @@
     "brief": "Smart Money Flow - Institutional money flow estimation.",
     "documentation": "Smart Money Flow - Institutional money flow estimation.\n\nta.smart_money_flow(price_change, volume, time_since_high, time_since_low)\nReturns: Flow intensity (-1.0 to 1.0)\n\nBar-mode incremental last sample uses ``_smart_money_flow_inc_update``.",
     "snippet": "ta.smart_money_flow(${1:price_change}, ${2:volume}, ${3:time_since_high}, ${4:time_since_low})",
-    "params": [
-      "price_change",
-      "volume",
-      "time_since_high",
-      "time_since_low"
-    ],
+    "params": ["price_change", "volume", "time_since_high", "time_since_low"],
     "category": "ta.technical_analysis"
   },
   "ta.spread_analysis": {
@@ -9474,11 +8318,7 @@
     "brief": "Spread Analysis - Bid-ask spread tracking.",
     "documentation": "Spread Analysis - Bid-ask spread tracking.\n\nta.spread_analysis(bid, ask, period)",
     "snippet": "ta.spread_analysis(${1:bid}, ${2:ask}, ${3:period})",
-    "params": [
-      "bid",
-      "ask",
-      "period"
-    ],
+    "params": ["bid", "ask", "period"],
     "category": "ta.technical_analysis"
   },
   "ta.stdev": {
@@ -9488,10 +8328,7 @@
     "brief": "Standard Deviation (delegates to core helper / incremental path).",
     "documentation": "Standard Deviation (delegates to core helper / incremental path).\n\nAdvancedIndicators wins MRO over Volatility/Basic for this name; keep\nsemantics aligned with ``_stdev`` / ``_stdev_inc_update``.",
     "snippet": "ta.stdev(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.stoch": {
@@ -9501,9 +8338,7 @@
     "brief": "Stochastic %K.",
     "documentation": "Stochastic %K.\n\nForms:\n- ``ta.stoch(length)`` — source=close, high/low from context\n- ``ta.stoch(source, high, low, length)`` → float %K\n- Legacy: ``(high, low, close, length, smooth)``",
     "snippet": "ta.stoch(${1:length})",
-    "params": [
-      "length"
-    ],
+    "params": ["length"],
     "category": "ta.technical_analysis"
   },
   "ta.stoch_smooth": {
@@ -9513,14 +8348,7 @@
     "brief": "Smoothed Stochastic Oscillator.",
     "documentation": "Smoothed Stochastic Oscillator.\n\n``ta.stoch_smooth(high, low, close, period, smooth_k, smooth_d)``:\nraw stochastic per bar, then ``EMA(stoch, smooth_k)``, then\n``EMA(that, smooth_d)``. Bar-mode incremental returns the last\nsample of the second EMA.",
     "snippet": "ta.stoch_smooth(${1:high}, ${2:low}, ${3:close}, ${4:period}, ${5:smooth_k}, ${6:smooth_d})",
-    "params": [
-      "high",
-      "low",
-      "close",
-      "period",
-      "smooth_k",
-      "smooth_d"
-    ],
+    "params": ["high", "low", "close", "period", "smooth_k", "smooth_d"],
     "category": "ta.technical_analysis"
   },
   "ta.stochrsi": {
@@ -9550,10 +8378,7 @@
     "brief": "Rolling sum ``ta.sum(source, length)`` — alias of ``math.sum(source, length)``.",
     "documentation": "Rolling sum ``ta.sum(source, length)`` — alias of ``math.sum(source, length)``.\n\nCommunity scripts often use ``ta.sum``; reference documents ``math.sum`` for the\nsame rolling window sum over a series.",
     "snippet": "ta.sum(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.supertrend": {
@@ -9563,10 +8388,7 @@
     "brief": "``[supertrend, direction]",
     "documentation": "``ta.supertrend(factor, atrPeriod)`` → ``[supertrend, direction]``.\n\nAlso accepts legacy ``(high, low, length, multiplier)``.\nFull path uses :meth:`_supertrend`; incremental uses\n:meth:`_supertrend_inc_update`. Same simplified contract as Numba.",
     "snippet": "ta.supertrend(${1:factor}, ${2:atrPeriod})",
-    "params": [
-      "factor",
-      "atrPeriod"
-    ],
+    "params": ["factor", "atrPeriod"],
     "category": "ta.technical_analysis"
   },
   "ta.swma": {
@@ -9576,9 +8398,7 @@
     "brief": "Symmetric Weighted Moving Average (reference Pine: one-arg source).",
     "documentation": "Symmetric Weighted Moving Average (reference Pine: one-arg source).",
     "snippet": "ta.swma(${1:source})",
-    "params": [
-      "source"
-    ],
+    "params": ["source"],
     "category": "ta.technical_analysis"
   },
   "ta.tema": {
@@ -9598,9 +8418,7 @@
     "brief": "True Range.",
     "documentation": "True Range.\n\nReference Pine: ``ta.tr(handle_na)`` with 0-1 args (uses high/low/close\nfrom context). Also accepts the legacy 3-arg form for unit tests.",
     "snippet": "ta.tr(${1:handle_na})",
-    "params": [
-      "handle_na"
-    ],
+    "params": ["handle_na"],
     "category": "ta.technical_analysis"
   },
   "ta.trailing_exit_level": {
@@ -9610,13 +8428,7 @@
     "brief": "Trailing Exit Level.",
     "documentation": "Trailing Exit Level.\n\nta.trailing_exit_level(entry, current, atr, multiplier, step)",
     "snippet": "ta.trailing_exit_level(${1:entry}, ${2:current}, ${3:atr}, ${4:multiplier}, ${5:step})",
-    "params": [
-      "entry",
-      "current",
-      "atr",
-      "multiplier",
-      "step"
-    ],
+    "params": ["entry", "current", "atr", "multiplier", "step"],
     "category": "ta.technical_analysis"
   },
   "ta.trend_confirmation_score": {
@@ -9653,10 +8465,7 @@
     "brief": "True Strength Index.",
     "documentation": "True Strength Index.\n\nForms:\n- ``ta.tsi(short, long)`` — source defaults to close\n- ``ta.tsi(source, short, long)`` — reference order (short then long)\n- Also accepts legacy ``(source, long, short)`` when 3 period-like after series",
     "snippet": "ta.tsi(${1:short}, ${2:long})",
-    "params": [
-      "short",
-      "long"
-    ],
+    "params": ["short", "long"],
     "category": "ta.technical_analysis"
   },
   "ta.uo": {
@@ -9676,11 +8485,7 @@
     "brief": "Get value when condition was true. reference Pine: ``ta.valuewhen(cond, source, occurrence=0)``.",
     "documentation": "Get value when condition was true. reference Pine: ``ta.valuewhen(cond, source, occurrence=0)``.",
     "snippet": "ta.valuewhen(${1:cond}, ${2:source}, ${3:occurrence})",
-    "params": [
-      "cond",
-      "source",
-      "occurrence"
-    ],
+    "params": ["cond", "source", "occurrence"],
     "category": "ta.technical_analysis"
   },
   "ta.variance": {
@@ -9690,10 +8495,7 @@
     "brief": "Variance over a period.",
     "documentation": "Variance over a period.",
     "snippet": "ta.variance(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.voi": {
@@ -9703,10 +8505,7 @@
     "brief": "Volume of Imbalance.",
     "documentation": "Volume of Imbalance.\n\nta.voi(buy_volume, sell_volume)\nMeasures imbalance in buy vs sell volume.",
     "snippet": "ta.voi(${1:buy_volume}, ${2:sell_volume})",
-    "params": [
-      "buy_volume",
-      "sell_volume"
-    ],
+    "params": ["buy_volume", "sell_volume"],
     "category": "ta.technical_analysis"
   },
   "ta.volatility_regime": {
@@ -9726,12 +8525,7 @@
     "brief": "Volatility Regime Score - Regime classification.",
     "documentation": "Volatility Regime Score - Regime classification.\n\nta.volatility_regime_score(atr_list, volatility_list, vix_list, threshold)\nReturns: dict with regime, volatility_score, momentum",
     "snippet": "ta.volatility_regime_score(${1:atr_list}, ${2:volatility_list}, ${3:vix_list}, ${4:threshold})",
-    "params": [
-      "atr_list",
-      "volatility_list",
-      "vix_list",
-      "threshold"
-    ],
+    "params": ["atr_list", "volatility_list", "vix_list", "threshold"],
     "category": "ta.technical_analysis"
   },
   "ta.volume_momentum": {
@@ -9741,10 +8535,7 @@
     "brief": "Volume Momentum - Rate of change of volume.",
     "documentation": "Volume Momentum - Rate of change of volume.\n\nta.volume_momentum(volume, period)\nReturns: Momentum (-100 to 100)\nDuplicate of ``EconomicsIndicators._builtin_ta_volume_momentum`` — keep in sync.\nBar-mode incremental last sample uses ``_volume_momentum_inc_update``.",
     "snippet": "ta.volume_momentum(${1:volume}, ${2:period})",
-    "params": [
-      "volume",
-      "period"
-    ],
+    "params": ["volume", "period"],
     "category": "ta.technical_analysis"
   },
   "ta.volume_profile_high": {
@@ -9764,12 +8555,7 @@
     "brief": "Volume Profile Low - Lowest volume price level.",
     "documentation": "Volume Profile Low - Lowest volume price level.\n\nta.volume_profile_low(close, volume, period, levels)\nReturns: Price level with lowest volume",
     "snippet": "ta.volume_profile_low(${1:close}, ${2:volume}, ${3:period}, ${4:levels})",
-    "params": [
-      "close",
-      "volume",
-      "period",
-      "levels"
-    ],
+    "params": ["close", "volume", "period", "levels"],
     "category": "ta.technical_analysis"
   },
   "ta.volume_thrust": {
@@ -9779,12 +8565,7 @@
     "brief": "Volume Thrust - Volume surge pattern detection.",
     "documentation": "Volume Thrust - Volume surge pattern detection.\n\nta.volume_thrust(close, volume, volume_sma, sensitivity)\nReturns: bool\n\nBar-mode incremental last sample uses ``_volume_thrust_inc_update``.",
     "snippet": "ta.volume_thrust(${1:close}, ${2:volume}, ${3:volume_sma}, ${4:sensitivity})",
-    "params": [
-      "close",
-      "volume",
-      "volume_sma",
-      "sensitivity"
-    ],
+    "params": ["close", "volume", "volume_sma", "sensitivity"],
     "category": "ta.technical_analysis"
   },
   "ta.volume_weighted_momentum": {
@@ -9794,11 +8575,7 @@
     "brief": "Volume Weighted Momentum.",
     "documentation": "Volume Weighted Momentum.\n\nta.volume_weighted_momentum(series, volume, length)\nReturns: Momentum value weighted by volume",
     "snippet": "ta.volume_weighted_momentum(${1:series}, ${2:volume}, ${3:length})",
-    "params": [
-      "series",
-      "volume",
-      "length"
-    ],
+    "params": ["series", "volume", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.vpt": {
@@ -9818,9 +8595,7 @@
     "brief": "Volume Weighted Average Price.",
     "documentation": "Volume Weighted Average Price.\n\nReference Pine: ``ta.vwap(source)`` or ``ta.vwap`` (defaults to hlc3).\nOptional second arg is an anchor condition that resets the window.\nThree-arg ``ta.vwap(source, anchor, stdev_mult)`` returns\n``(vwap, upper, lower)`` with volume-weighted stdev bands.",
     "snippet": "ta.vwap(${1:source})",
-    "params": [
-      "source"
-    ],
+    "params": ["source"],
     "category": "ta.technical_analysis"
   },
   "ta.vwma": {
@@ -9830,10 +8605,7 @@
     "brief": "Volume Weighted Moving Average.",
     "documentation": "Volume Weighted Moving Average.\n\n``ta.vwma(source, length)``, ``ta.vwma(length)``, or community\n``ta.vwma(source, volume, length)``.",
     "snippet": "ta.vwma(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.wad": {
@@ -9863,10 +8635,7 @@
     "brief": "Weighted Moving Average.",
     "documentation": "Weighted Moving Average.",
     "snippet": "ta.wma(${1:source}, ${2:length})",
-    "params": [
-      "source",
-      "length"
-    ],
+    "params": ["source", "length"],
     "category": "ta.technical_analysis"
   },
   "ta.wpr": {
@@ -9876,9 +8645,7 @@
     "brief": "Williams %R. reference Pine: ``ta.wpr(length)`` or legacy 4-arg form.",
     "documentation": "Williams %R. reference Pine: ``ta.wpr(length)`` or legacy 4-arg form.",
     "snippet": "ta.wpr(${1:length})",
-    "params": [
-      "length"
-    ],
+    "params": ["length"],
     "category": "ta.technical_analysis"
   },
   "ta.wvad": {
@@ -9888,9 +8655,7 @@
     "brief": "Williams Volume Accumulation/Distribution - normalized WAD.",
     "documentation": "Williams Volume Accumulation/Distribution - normalized WAD.\n\nForms:\n- ``ta.wvad(period)`` — H/L/C/V from context\n- ``ta.wvad(high, low, close, volume, period?)``",
     "snippet": "ta.wvad(${1:period})",
-    "params": [
-      "period"
-    ],
+    "params": ["period"],
     "category": "ta.technical_analysis"
   },
   "ta.zigzag": {
@@ -9930,12 +8695,7 @@
     "brief": "reference Pine order is **column then row** (not row, column).",
     "documentation": "table.cell(table_id, column, row, text, ...).\n\nreference Pine order is **column then row** (not row, column).\nOptional text and style kwargs update the cell in place.",
     "snippet": "table.cell(${1:table_id}, ${2:column}, ${3:row}, ${4:text})",
-    "params": [
-      "table_id",
-      "column",
-      "row",
-      "text"
-    ],
+    "params": ["table_id", "column", "row", "text"],
     "category": "table"
   },
   "table.cell_get_text": {
@@ -9945,11 +8705,7 @@
     "brief": "",
     "documentation": "table.cell_get_text(table, row, column)",
     "snippet": "table.cell_get_text(${1:table}, ${2:row}, ${3:column})",
-    "params": [
-      "table",
-      "row",
-      "column"
-    ],
+    "params": ["table", "row", "column"],
     "category": "table"
   },
   "table.cell_set_bgcolor": {
@@ -9959,12 +8715,7 @@
     "brief": "",
     "documentation": "table.cell_set_bgcolor(table, row, column, color)",
     "snippet": "table.cell_set_bgcolor(${1:table}, ${2:row}, ${3:column}, ${4:color})",
-    "params": [
-      "table",
-      "row",
-      "column",
-      "color"
-    ],
+    "params": ["table", "row", "column", "color"],
     "category": "table"
   },
   "table.cell_set_border_color": {
@@ -9974,12 +8725,7 @@
     "brief": "",
     "documentation": "table.cell_set_border_color(table, row, column, color)",
     "snippet": "table.cell_set_border_color(${1:table}, ${2:row}, ${3:column}, ${4:color})",
-    "params": [
-      "table",
-      "row",
-      "column",
-      "color"
-    ],
+    "params": ["table", "row", "column", "color"],
     "category": "table"
   },
   "table.cell_set_border_width": {
@@ -9989,12 +8735,7 @@
     "brief": "",
     "documentation": "table.cell_set_border_width(table, row, column, width)",
     "snippet": "table.cell_set_border_width(${1:table}, ${2:row}, ${3:column}, ${4:width})",
-    "params": [
-      "table",
-      "row",
-      "column",
-      "width"
-    ],
+    "params": ["table", "row", "column", "width"],
     "category": "table"
   },
   "table.cell_set_height": {
@@ -10014,12 +8755,7 @@
     "brief": "",
     "documentation": "table.cell_set_text(table, row, column, text)",
     "snippet": "table.cell_set_text(${1:table}, ${2:row}, ${3:column}, ${4:text})",
-    "params": [
-      "table",
-      "row",
-      "column",
-      "text"
-    ],
+    "params": ["table", "row", "column", "text"],
     "category": "table"
   },
   "table.cell_set_text_color": {
@@ -10029,12 +8765,7 @@
     "brief": "",
     "documentation": "table.cell_set_text_color(table, row, column, color)",
     "snippet": "table.cell_set_text_color(${1:table}, ${2:row}, ${3:column}, ${4:color})",
-    "params": [
-      "table",
-      "row",
-      "column",
-      "color"
-    ],
+    "params": ["table", "row", "column", "color"],
     "category": "table"
   },
   "table.cell_set_text_font_family": {
@@ -10114,13 +8845,7 @@
     "brief": "",
     "documentation": "table.clear(table, start_row, start_col, end_row, end_col)",
     "snippet": "table.clear(${1:table}, ${2:start_row}, ${3:start_col}, ${4:end_row}, ${5:end_col})",
-    "params": [
-      "table",
-      "start_row",
-      "start_col",
-      "end_row",
-      "end_col"
-    ],
+    "params": ["table", "start_row", "start_col", "end_row", "end_col"],
     "category": "table"
   },
   "table.delete": {
@@ -10130,9 +8855,7 @@
     "brief": "",
     "documentation": "table.delete(table)",
     "snippet": "table.delete(${1:table})",
-    "params": [
-      "table"
-    ],
+    "params": ["table"],
     "category": "table"
   },
   "table.merge_cells": {
@@ -10142,13 +8865,7 @@
     "brief": "",
     "documentation": "table.merge_cells(table, start_row, start_col, end_row, end_col)",
     "snippet": "table.merge_cells(${1:table}, ${2:start_row}, ${3:start_col}, ${4:end_row}, ${5:end_col})",
-    "params": [
-      "table",
-      "start_row",
-      "start_col",
-      "end_row",
-      "end_col"
-    ],
+    "params": ["table", "start_row", "start_col", "end_row", "end_col"],
     "category": "table"
   },
   "table.new": {
@@ -10158,13 +8875,7 @@
     "brief": "Positional order matches Pine: columns then rows, then bgcolor.",
     "documentation": "table.new(position, columns, rows, bgcolor, frame_color, ...).\n\nPositional order matches Pine: columns then rows, then bgcolor.",
     "snippet": "table.new(${1:position}, ${2:columns}, ${3:rows}, ${4:bgcolor}, ${5:frame_color})",
-    "params": [
-      "position",
-      "columns",
-      "rows",
-      "bgcolor",
-      "frame_color"
-    ],
+    "params": ["position", "columns", "rows", "bgcolor", "frame_color"],
     "category": "table"
   },
   "table.set_bgcolor": {
@@ -10264,9 +8975,7 @@
     "brief": "Inherit chart properties for a ticker (session/adjust from main chart).",
     "documentation": "Inherit chart properties for a ticker (session/adjust from main chart).\n\nPine forms:\n- ``ticker.inherit(symbol)`` — inherit chart session/adjust for *symbol*\n- ``ticker.inherit(from, symbol)`` — inherit from *from* ticker for *symbol*\n  (used by reference Pine sample scripts such as Performance)",
     "snippet": "ticker.inherit(${1:symbol})",
-    "params": [
-      "symbol"
-    ],
+    "params": ["symbol"],
     "category": "ticker"
   },
   "ticker.kagi": {
@@ -10296,11 +9005,7 @@
     "brief": "Modify an existing ticker object.",
     "documentation": "Modify an existing ticker object.\n\nCreates a copy of the ticker with modified parameters.\n\nreference Pine forms::\n\n    ticker.modify(tickerid, session, adjustment)\n    ticker.modify(syminfo.tickerid, adjustment=adjustment.dividends)\n\n``adjustment`` is accepted as a kw alias for ``adjust`` (corpus demos).\nExtra positional/keyword args are ignored so arity drift does not TypeError.\n\nArgs:\n    ticker: The original ticker object (or raw symbol string)\n    symbol: New symbol (or None to keep original)\n    session: New session (or None to keep original)\n    adjust: New adjustment (or None to keep original)\n\nReturns:\n    New TickerInfo object with modified parameters",
     "snippet": "ticker.modify(${1:tickerid}, ${2:session}, ${3:adjustment})",
-    "params": [
-      "tickerid",
-      "session",
-      "adjustment"
-    ],
+    "params": ["tickerid", "session", "adjustment"],
     "category": "ticker"
   },
   "ticker.new": {
@@ -10310,12 +9015,7 @@
     "brief": "Create a ticker id (TradingView ``ticker.new``).",
     "documentation": "Create a ticker id (TradingView ``ticker.new``).\n\nReference signature::\n\n    ticker.new(prefix, ticker, session, adjustment) → simple string\n\nForms:\n\n- ``ticker.new(prefix, ticker[, session[, adjustment]])`` → ``\"PREFIX:TICKER\"``\n- ``ticker.new(full_symbol)`` — one-arg shorthand (bare or ``EXCHANGE:SYM``)\n- kwargs: ``symbol=`` (full-id shorthand), ``session=``, ``adjustment=`` / ``adjust=``\n\nExtra positional/keyword args are ignored so arity drift does not TypeError.\n\nReturns:\n    TickerInfo whose ``.symbol`` is the ticker id string (``str()``-able).",
     "snippet": "ticker.new(${1:prefix}, ${2:ticker}, ${3:session}, ${4:adjustment})",
-    "params": [
-      "prefix",
-      "ticker",
-      "session",
-      "adjustment"
-    ],
+    "params": ["prefix", "ticker", "session", "adjustment"],
     "category": "ticker"
   },
   "ticker.pointfigure": {
@@ -10325,10 +9025,7 @@
     "brief": "Create a Point and Figure chart ticker from a symbol.",
     "documentation": "Create a Point and Figure chart ticker from a symbol.\n\nreference Pine forms:\n\n- ``ticker.pointfigure(symbol, boxsize)`` / ``(..., boxsize, style)``\n  (legacy short form)\n- ``ticker.pointfigure(symbol, source, style, param, reversal)``\n  e.g. ``ticker.pointfigure(syminfo.tickerid, \"hl\", \"Traditional\", 1, 3)``\n  or ``(..., \"hl\", \"ATR\", 14, 3)``\n\nExtra positional args are ignored so corpus arity does not TypeError.",
     "snippet": "ticker.pointfigure(${1:symbol}, ${2:boxsize})",
-    "params": [
-      "symbol",
-      "boxsize"
-    ],
+    "params": ["symbol", "boxsize"],
     "category": "ticker"
   },
   "ticker.renko": {
@@ -10358,10 +9055,7 @@
     "brief": "Pine v3/v4 bare ``tickerid(prefix, ticker)`` constructor.",
     "documentation": "Pine v3/v4 bare ``tickerid(prefix, ticker)`` constructor.\n\nBuilds an exchange:symbol identifier string. Replaced in v5+ by\n``ticker.new`` / ``syminfo.tickerid``.\n\nForms:\n- ``tickerid(prefix, ticker)`` → ``\"PREFIX:TICKER\"``\n- ``tickerid(ticker)`` → ``\"TICKER\"`` (single-arg form)",
     "snippet": "tickerid(${1:prefix}, ${2:ticker})",
-    "params": [
-      "prefix",
-      "ticker"
-    ],
+    "params": ["prefix", "ticker"],
     "category": "builtin"
   },
   "time": {
@@ -10401,9 +9095,7 @@
     "brief": "true on the first bar of a new *tf* period",
     "documentation": "``timeframe.change(tf)`` — true on the first bar of a new *tf* period.\n\nBare ``D`` / ``W`` / ``M`` resolve on the exchange calendar in\n``syminfo.timezone`` (UTC when the host leaves it unset); all other\nframes keep fixed-width UTC buckets. Bar 0 is a new period.\nMissing times / unusable tf → False.",
     "snippet": "timeframe.change(${1:tf})",
-    "params": [
-      "tf"
-    ],
+    "params": ["tf"],
     "category": "timeframe"
   },
   "timeframe.from_seconds": {
@@ -10413,9 +9105,7 @@
     "brief": "Convert seconds to timeframe string format.",
     "documentation": "Convert seconds to timeframe string format.\n\nConverts the number of seconds to the timeframe string format.\n\nArgs:\n    seconds: Number of seconds\n\nReturns:\n    Timeframe string (e.g., \"5\" for 5 minutes, \"H\" for 1 hour)",
     "snippet": "timeframe.from_seconds(${1:seconds})",
-    "params": [
-      "seconds"
-    ],
+    "params": ["seconds"],
     "category": "timeframe"
   },
   "timeframe.in_seconds": {
@@ -10425,9 +9115,7 @@
     "brief": "*tf* defaults to the chart ``timeframe.period",
     "documentation": "``timeframe.in_seconds(tf)`` — *tf* defaults to the chart ``timeframe.period``.",
     "snippet": "timeframe.in_seconds(${1:tf})",
-    "params": [
-      "tf"
-    ],
+    "params": ["tf"],
     "category": "timeframe"
   },
   "timeframe.isdaily": {
@@ -10567,15 +9255,7 @@
     "brief": "Create Unix timestamp from date/time components or a date string.",
     "documentation": "Create Unix timestamp from date/time components or a date string.\n\nForms:\n- ``timestamp(\"Dec 01 2021 23:59:59\")``\n- ``timestamp(\"01 Jan 2000 00:00:00 GMT+10\")``\n- ``timestamp(year, month, day[, hour, minute, second])``\n- ``timestamp(timezone, year, month, day[, hour, minute, second])``\n  e.g. ``timestamp(\"GMT\", 2019, 8, 5, 12, 0)`` or\n  ``timestamp(syminfo.timezone, y, m, d, 0, 0)``\n- kwargs: ``timestamp(timezone=…, year=…, month=…, day=…, …)``\n\nAccepts overflow/underflow on month/day/hour/minute/second (e.g.\nmonth=0 → January, month=13 → next Jan, day=40, hour=24, minute=60)\nvia calendar rollover, matching reference Pine ``timestamp`` arithmetic\nused by dividend_yield and backtest windows (``ToYear=9999`` /\n``999999`` clamped to 9999).\n\n``na`` year/month/day soft-returns ``na`` (None) rather than hard-failing\n(set05 residual: ``year(timenow)`` before ``timenow`` was wired).\n\nTimezone-first form interprets components in that zone and returns UTC ms.",
     "snippet": "timestamp(${1:timezone}, ${2:year}, ${3:month}, ${4:day}, ${5:hour}, ${6:minute}, ${7:second})",
-    "params": [
-      "timezone",
-      "year",
-      "month",
-      "day",
-      "hour",
-      "minute",
-      "second"
-    ],
+    "params": ["timezone", "year", "month", "day", "hour", "minute", "second"],
     "category": "builtin"
   },
   "tonumber": {
@@ -10755,9 +9435,7 @@
     "brief": "Get lower price of volume row",
     "documentation": "volume_row.down_price(volume_row) - Get lower price of volume row.",
     "snippet": "volume_row.down_price(${1:volume_row})",
-    "params": [
-      "volume_row"
-    ],
+    "params": ["volume_row"],
     "category": "volume_row"
   },
   "volume_row.has_buy_imbalance": {
@@ -10807,9 +9485,7 @@
     "brief": "Get upper price of volume row",
     "documentation": "volume_row.up_price(volume_row) - Get upper price of volume row.",
     "snippet": "volume_row.up_price(${1:volume_row})",
-    "params": [
-      "volume_row"
-    ],
+    "params": ["volume_row"],
     "category": "volume_row"
   },
   "volume_thrust": {
@@ -10879,10 +9555,7 @@
     "brief": "Get week number of the year (1-53; bare form uses chart time).",
     "documentation": "Get week number of the year (1-53; bare form uses chart time).",
     "snippet": "weekofyear(${1:time}, ${2:timezone})",
-    "params": [
-      "time",
-      "timezone"
-    ],
+    "params": ["time", "timezone"],
     "category": "builtin"
   },
   "willr": {
@@ -10932,10 +9605,7 @@
     "brief": "Extract year from timestamp (bare form uses chart time).",
     "documentation": "Extract year from timestamp (bare form uses chart time).",
     "snippet": "year(${1:time}, ${2:timezone})",
-    "params": [
-      "time",
-      "timezone"
-    ],
+    "params": ["time", "timezone"],
     "category": "builtin"
   },
   "zigzag": {

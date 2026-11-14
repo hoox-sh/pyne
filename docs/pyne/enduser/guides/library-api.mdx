@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Library API"
 description: "Embed pynescript: parse, dump, unparse, walk, transform, and lint Pine Script™ from Python."
 ---
@@ -60,11 +78,11 @@ from pynescript.ast.linter import lint_script, lint_file, PineLinter, LintWarnin
 
 ### `parse(source, filename="<unknown>", mode="exec") -> AST`
 
-| Arg | Meaning |
-| --- | --- |
-| `source` | Full script or expression text |
-| `filename` | Error reporting; absolutized if file exists |
-| `mode` | `"exec"` → script statements; `"eval"` → single expression |
+| Arg        | Meaning                                                    |
+| ---------- | ---------------------------------------------------------- |
+| `source`   | Full script or expression text                             |
+| `filename` | Error reporting; absolutized if file exists                |
+| `mode`     | `"exec"` → script statements; `"eval"` → single expression |
 
 Raises `ValueError` on bad mode; `SyntaxError` (via error listener) on grammar failure.
 
@@ -104,13 +122,13 @@ names = [n for n in walk(tree) if n.__class__.__name__ == "Name"]
 
 ### Location helpers
 
-| Function | Role |
-| --- | --- |
-| `copy_location(new, old)` | Copy lineno/col offsets |
-| `fix_missing_locations(node)` | Fill missing positions |
-| `increment_lineno(node, n=1)` | Shift lines |
-| `get_source_segment(source, node, *, padded=False)` | Slice original text |
-| `iter_fields` / `iter_child_nodes` | Schema-aware iteration |
+| Function                                            | Role                    |
+| --------------------------------------------------- | ----------------------- |
+| `copy_location(new, old)`                           | Copy lineno/col offsets |
+| `fix_missing_locations(node)`                       | Fill missing positions  |
+| `increment_lineno(node, n=1)`                       | Shift lines             |
+| `get_source_segment(source, node, *, padded=False)` | Slice original text     |
+| `iter_fields` / `iter_child_nodes`                  | Schema-aware iteration  |
 
 ### Visitors and transformers
 
@@ -146,11 +164,11 @@ for w in warnings:
     print(w.code, w.severity, w.line, w.message)
 ```
 
-| Code family | Examples |
-| --- | --- |
-| `E001` | Syntax error (error severity) |
-| `W001`–`W002` | Missing / old `@version` |
-| `W101` | Deprecated `security('EXCHANGE:SYM')` (W102/W103 retired) |
+| Code family              | Examples                                                            |
+| ------------------------ | ------------------------------------------------------------------- |
+| `E001`                   | Syntax error (error severity)                                       |
+| `W001`–`W002`            | Missing / old `@version`                                            |
+| `W101`                   | Deprecated `security('EXCHANGE:SYM')` (W102/W103 retired)           |
 | `C001` / `C002` / `C004` | Naming / style (line length 120, trailing newline). `C003` retired. |
 
 `PineLinter.lint` runs: syntax → version → deprecated → naming → style.
@@ -168,18 +186,18 @@ Optional `data_feed` / `data_provider` for `request.*` in literal contexts.
 
 ## Internals (repo paths)
 
-| Path | Role |
-| --- | --- |
-| `src/pynescript/ast/helper.py` | Public parse/dump/walk/unparse/literal_eval |
-| `src/pynescript/ast/builder.py` | Parse tree → ASDL nodes |
-| `src/pynescript/ast/unparser.py` | `NodeUnparser` |
-| `src/pynescript/ast/visitor.py` | `NodeVisitor` |
-| `src/pynescript/ast/transformer.py` | `NodeTransformer` |
-| `src/pynescript/ast/node.py` | Node re-exports / helpers |
-| `src/pynescript/ast/grammar/asdl/resource/Pinescript.asdl` | Algebraic schema |
-| `src/pynescript/ast/linter.py` | Static rules |
-| `src/pynescript/ast/error.py` | Error types |
-| `examples/parse_dump_unparse.py` | Round-trip demo |
+| Path                                                       | Role                                        |
+| ---------------------------------------------------------- | ------------------------------------------- |
+| `src/pynescript/ast/helper.py`                             | Public parse/dump/walk/unparse/literal_eval |
+| `src/pynescript/ast/builder.py`                            | Parse tree → ASDL nodes                     |
+| `src/pynescript/ast/unparser.py`                           | `NodeUnparser`                              |
+| `src/pynescript/ast/visitor.py`                            | `NodeVisitor`                               |
+| `src/pynescript/ast/transformer.py`                        | `NodeTransformer`                           |
+| `src/pynescript/ast/node.py`                               | Node re-exports / helpers                   |
+| `src/pynescript/ast/grammar/asdl/resource/Pinescript.asdl` | Algebraic schema                            |
+| `src/pynescript/ast/linter.py`                             | Static rules                                |
+| `src/pynescript/ast/error.py`                              | Error types                                 |
+| `examples/parse_dump_unparse.py`                           | Round-trip demo                             |
 
 Pipeline inside `parse`:
 
@@ -275,13 +293,13 @@ print(dump(parse("ta.rsi(close, 14)", mode="eval"), indent=2))
 
 ## Failure modes
 
-| Exception / result | Meaning |
-| --- | --- |
-| `SyntaxError` | Lexer/parser rejection |
-| `ValueError: invalid argument mode` | mode not in `{exec,eval}` |
-| Empty / odd tree | Empty body scripts; annotations-only edge cases |
-| Unparse mismatch | Node kinds without unparser support — file issue against unparser |
-| Linter false positives | Style rules are heuristic (regex naming) — treat `C00x` as advisory |
+| Exception / result                  | Meaning                                                             |
+| ----------------------------------- | ------------------------------------------------------------------- |
+| `SyntaxError`                       | Lexer/parser rejection                                              |
+| `ValueError: invalid argument mode` | mode not in `{exec,eval}`                                           |
+| Empty / odd tree                    | Empty body scripts; annotations-only edge cases                     |
+| Unparse mismatch                    | Node kinds without unparser support — file issue against unparser   |
+| Linter false positives              | Style rules are heuristic (regex naming) — treat `C00x` as advisory |
 
 ## See also
 

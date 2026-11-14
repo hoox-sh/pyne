@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Libraries"
 description: "In-process library export/import, LibraryRegistry, and evaluate-order requirements."
 ---
@@ -102,14 +120,14 @@ Dataclass with `title`, optional `namespace`/`version`, and `exports: dict[str, 
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `src/pynescript/ast/evaluator/libraries.py` | `LibraryModule`, `LibraryRegistry` |
+| Path                                         | Role                                                |
+| -------------------------------------------- | --------------------------------------------------- |
+| `src/pynescript/ast/evaluator/libraries.py`  | `LibraryModule`, `LibraryRegistry`                  |
 | `src/pynescript/ast/evaluator/statements.py` | export registration, import visit, library finalize |
-| `src/pynescript/ast/evaluator/base.py` | registry fields on `BaseEvaluator` |
-| `src/pynescript/ast/evaluator/__init__.py` | `register_library_source`, `lookup_library` |
-| `src/pynescript/runtime/host.py` | `Runtime.run(..., libraries=)` + auto-mode forward |
-| `tests/test_library_export_import.py` | Round-trip coverage |
+| `src/pynescript/ast/evaluator/base.py`       | registry fields on `BaseEvaluator`                  |
+| `src/pynescript/ast/evaluator/__init__.py`   | `register_library_source`, `lookup_library`         |
+| `src/pynescript/runtime/host.py`             | `Runtime.run(..., libraries=)` + auto-mode forward  |
+| `tests/test_library_export_import.py`        | Round-trip coverage                                 |
 
 Exportable values include callables (user functions), constants, and type-related bindings depending on declaration paths. Exported methods participate in the same call machinery as local functions once retrieved from the module.
 
@@ -142,12 +160,12 @@ ev.register_library_source("user", "MyMath", 1, library_source)
 
 ## Failure modes
 
-| Symptom | Cause |
-| --- | --- |
-| Import resolves to nothing | Library never registered / wrong title |
-| `Library 'X' has no exported member 'y'` | Missing `export` or typo |
-| Stale exports | Re-evaluated library without re-import; host cache |
-| Version conflict | Multiple libs same title—last `register` wins for title key |
+| Symptom                                  | Cause                                                       |
+| ---------------------------------------- | ----------------------------------------------------------- |
+| Import resolves to nothing               | Library never registered / wrong title                      |
+| `Library 'X' has no exported member 'y'` | Missing `export` or typo                                    |
+| Stale exports                            | Re-evaluated library without re-import; host cache          |
+| Version conflict                         | Multiple libs same title—last `register` wins for title key |
 
 ## See also
 

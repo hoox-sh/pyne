@@ -7,14 +7,14 @@ Full academic-grade manuscripts describing the **PYNE** (`pynescript` / `hoox-py
 
 ## Series overview
 
-| # | Directory | Title | Primary subjects |
-|---|-----------|-------|------------------|
-| 01 | [`paper01-architecture/`](paper01-architecture/) | **PYNE: An Open Dual-Engine Toolchain for Offline Pine Script Evaluation** | cs.PL, cs.SE |
-| 02 | [`paper02-compiler/`](paper02-compiler/) | **Compiling Bar-Oriented Trading DSLs to Numba: Source-to-Source Lowering, Object-Mode Fallback, and Warm IR Caches** | cs.PL |
-| 03 | [`paper03-series-runtime/`](paper03-series-runtime/) | **Efficient Series History and Incremental Technical Analysis for Bar-Loop Interpreters** | cs.PF, cs.DS |
-| 04 | [`paper04-grammar/`](paper04-grammar/) | **Formalizing a Charting DSL: ANTLR4 Grammar Engineering and ASDL Intermediate Representations for Pine Script** | cs.PL |
-| 05 | [`paper05-parity-strategy/`](paper05-parity-strategy/) | **Numerical Parity and Strategy Semantics for Independent Pine Script Runtimes** | cs.CE, q-fin.CP |
-| 06 | [`paper06-lsp-tooling/`](paper06-lsp-tooling/) | **Language Tooling for Financial DSLs: An LSP Architecture for Pine Script with Multi-Editor Delivery** | cs.SE |
+| #   | Directory                                              | Title                                                                                                                 | Primary subjects |
+| --- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| 01  | [`paper01-architecture/`](paper01-architecture/)       | **PYNE: An Open Dual-Engine Toolchain for Offline Pine Script Evaluation**                                            | cs.PL, cs.SE     |
+| 02  | [`paper02-compiler/`](paper02-compiler/)               | **Compiling Bar-Oriented Trading DSLs to Numba: Source-to-Source Lowering, Object-Mode Fallback, and Warm IR Caches** | cs.PL            |
+| 03  | [`paper03-series-runtime/`](paper03-series-runtime/)   | **Efficient Series History and Incremental Technical Analysis for Bar-Loop Interpreters**                             | cs.PF, cs.DS     |
+| 04  | [`paper04-grammar/`](paper04-grammar/)                 | **Formalizing a Charting DSL: ANTLR4 Grammar Engineering and ASDL Intermediate Representations for Pine Script**      | cs.PL            |
+| 05  | [`paper05-parity-strategy/`](paper05-parity-strategy/) | **Numerical Parity and Strategy Semantics for Independent Pine Script Runtimes**                                      | cs.CE, q-fin.CP  |
+| 06  | [`paper06-lsp-tooling/`](paper06-lsp-tooling/)         | **Language Tooling for Financial DSLs: An LSP Architecture for Pine Script with Multi-Editor Delivery**               | cs.SE            |
 
 Each paper is self-contained with abstract, introduction, technical body, evaluation, related work, limitations, conclusion, TikZ/pgfplots figures, algorithms, and bibliography.
 
@@ -60,11 +60,11 @@ make check          # verify main.tex exists
 
 **Complete volume** (all pages, one file):
 
-| Artifact | Description |
-|----------|-------------|
-| [`series-complete/main.tex`](series-complete/main.tex) | LaTeX binder (`pdfpages`) |
-| `series-complete/main.pdf` | Built volume (cover + TOC + papers 01–06) |
-| `PYNE-paper-series-complete.pdf` | Convenience copy at `.papers/` root |
+| Artifact                                               | Description                               |
+| ------------------------------------------------------ | ----------------------------------------- |
+| [`series-complete/main.tex`](series-complete/main.tex) | LaTeX binder (`pdfpages`)                 |
+| `series-complete/main.pdf`                             | Built volume (cover + TOC + papers 01–06) |
+| `PYNE-paper-series-complete.pdf`                       | Convenience copy at `.papers/` root       |
 
 With Tectonic (recommended on minimal hosts):
 

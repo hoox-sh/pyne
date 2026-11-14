@@ -1,10 +1,15 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "pyne-worker evaluate"
 description: "POST /run, libraries, alerts, scripts, ingest, and 1m cron on the Python edge host."
 ---
@@ -19,19 +24,19 @@ Sister repo: [hoox-sh/pyne-worker](https://github.com/hoox-sh/pyne-worker). Cont
 
 ## Endpoints
 
-| Method | Path | Auth | Role |
-| --- | --- | --- | --- |
-| `GET` | `/health` | no | Liveness + binding flags |
-| `POST` | `/run` | yes | Evaluate (`script` or `script_id`) |
-| `POST` | `/ingest` | yes | Upload OHLCV to R2 |
-| `POST` | `/scripts` | yes | Deploy a script |
-| `GET` | `/scripts` | yes | List deployed scripts |
-| `GET` | `/scripts/:id` | yes | Get deployed script |
-| `DELETE` | `/scripts/:id` | yes | Delete deployed script |
-| `GET` | `/cron/jobs` | yes | List bar-close jobs |
-| `PUT` | `/cron/jobs` | yes | Replace job list |
-| `POST` | `/cron/run` | yes | Trigger scheduler |
-| `POST` | `/feed/refresh` | yes | Pull klines into R2 |
+| Method   | Path            | Auth | Role                               |
+| -------- | --------------- | ---- | ---------------------------------- |
+| `GET`    | `/health`       | no   | Liveness + binding flags           |
+| `POST`   | `/run`          | yes  | Evaluate (`script` or `script_id`) |
+| `POST`   | `/ingest`       | yes  | Upload OHLCV to R2                 |
+| `POST`   | `/scripts`      | yes  | Deploy a script                    |
+| `GET`    | `/scripts`      | yes  | List deployed scripts              |
+| `GET`    | `/scripts/:id`  | yes  | Get deployed script                |
+| `DELETE` | `/scripts/:id`  | yes  | Delete deployed script             |
+| `GET`    | `/cron/jobs`    | yes  | List bar-close jobs                |
+| `PUT`    | `/cron/jobs`    | yes  | Replace job list                   |
+| `POST`   | `/cron/run`     | yes  | Trigger scheduler                  |
+| `POST`   | `/feed/refresh` | yes  | Pull klines into R2                |
 
 ## `POST /run`
 
@@ -39,26 +44,33 @@ Accepts `data` (Pro API name) or `ohlcv`. Omit bars and pass `symbol` + `timefra
 
 ```json
 {
-  "script": "//@version=5\nindicator(\"t\")\nplot(close)",
-  "ohlcv": [
-    {"open": 100, "high": 105, "low": 95, "close": 102, "time": 1000, "volume": 1000}
-  ],
-  "symbol": "BTCUSDT",
-  "mode": "auto"
+    "script": "//@version=5\nindicator(\"t\")\nplot(close)",
+    "ohlcv": [
+        {
+            "open": 100,
+            "high": 105,
+            "low": 95,
+            "close": 102,
+            "time": 1000,
+            "volume": 1000
+        }
+    ],
+    "symbol": "BTCUSDT",
+    "mode": "auto"
 }
 ```
 
-| Field | Notes |
-| --- | --- |
-| `script` | Inline Pine |
-| `script_id` | Load a deployed script instead of `script` |
-| `ohlcv` / `data` | Bars; or omit and use R2 |
-| `mode` | `interpret` (default) · `compile` · `auto` |
-| `inputs` | `input.*` overrides (forces interpret under `auto`) |
-| `libraries` | `[{namespace, name, version, source}]` — max 32 |
-| `profiler` | Per-line interpret timings |
-| `timeout_seconds` | Wall budget (default 30, cap 30) |
-| `webhook_url` | Per-job L2 alert URL (else `ALERT_WEBHOOK_URL`) |
+| Field             | Notes                                               |
+| ----------------- | --------------------------------------------------- |
+| `script`          | Inline Pine                                         |
+| `script_id`       | Load a deployed script instead of `script`          |
+| `ohlcv` / `data`  | Bars; or omit and use R2                            |
+| `mode`            | `interpret` (default) · `compile` · `auto`          |
+| `inputs`          | `input.*` overrides (forces interpret under `auto`) |
+| `libraries`       | `[{namespace, name, version, source}]` — max 32     |
+| `profiler`        | Per-line interpret timings                          |
+| `timeout_seconds` | Wall budget (default 30, cap 30)                    |
+| `webhook_url`     | Per-job L2 alert URL (else `ALERT_WEBHOOK_URL`)     |
 
 Success includes `status`, `plots`, `series`, `plot_meta`, `alerts`, `events`, `drawings`, `inputs`, `logs`, `meta`. Failures use `error` / `error_kind`.
 
@@ -72,13 +84,13 @@ Deployed scripts can store `libraries` and `inputs`. `script_id` and cron reuse 
 
 ## Limits
 
-| Cap | Value |
-| --- | --- |
-| Script | 100 KB |
-| Bars | 100K |
-| Envelope | 5 MB |
-| `/run` wall | 30 s |
-| Rate | 100 req / 60 s |
+| Cap         | Value          |
+| ----------- | -------------- |
+| Script      | 100 KB         |
+| Bars        | 100K           |
+| Envelope    | 5 MB           |
+| `/run` wall | 30 s           |
+| Rate        | 100 req / 60 s |
 
 ## See also
 

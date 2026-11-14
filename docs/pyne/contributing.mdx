@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Contributing"
 description: "Hard constraints, workflow, and style rules for contributors and agents working on PYNE."
 ---
@@ -54,16 +72,16 @@ Official short form also lives in root `CONTRIBUTING.md`.
 
 ### Everyday commands
 
-| Goal | Command |
-| --- | --- |
-| Editable install + LSP | `make install` |
-| Full tests | `make test` |
-| LSP only | `make test-lsp` |
-| Backend only | `make test-backend` |
-| Lint / format | `make lint` / `make fmt` |
-| Fast build sanity | `make build-check` |
-| API | `make run` |
-| LSP process | `make run-lsp` |
+| Goal                   | Command                  |
+| ---------------------- | ------------------------ |
+| Editable install + LSP | `make install`           |
+| Full tests             | `make test`              |
+| LSP only               | `make test-lsp`          |
+| Backend only           | `make test-backend`      |
+| Lint / format          | `make lint` / `make fmt` |
+| Fast build sanity      | `make build-check`       |
+| API                    | `make run`               |
+| LSP process            | `make run-lsp`           |
 
 ## Hard constraints
 
@@ -89,9 +107,9 @@ Enforced by ruff isort `required-imports`.
 
 ### Console scripts
 
-| Preferred | Alias | Role |
-| --- | --- | --- |
-| `pyne` | `pynescript` | Click CLI |
+| Preferred  | Alias            | Role                    |
+| ---------- | ---------------- | ----------------------- |
+| `pyne`     | `pynescript`     | Click CLI               |
 | `pyne-lsp` | `pynescript-lsp` | Language Server (pygls) |
 
 Import package remains `pynescript`. Do not conflate CLI and LSP entrypoints in docs, packaging, or process managers.
@@ -141,17 +159,17 @@ Report artifact: `.cache/interp_compile_parity.json`. Value mismatches on shared
 
 ## Internals (where to change what)
 
-| Want to… | Look at |
-| --- | --- |
-| Parse / unparse | `src/pynescript/ast/helper.py` |
-| Add builtin | `src/pynescript/ast/evaluator/builtins/<ns>.py` + metadata generator |
-| LSP feature | `src/pynescript/langserver/features/` + `server.py` |
-| CLI subcommand | `src/pynescript/__main__.py` |
-| Grammar | `resource/*.g4` then regenerate |
-| Pro API route | `backend/api/preview.py`, `backend/app.py` |
-| Runtime modes / compile fallback | `src/pynescript/runtime/host.py` (`Runtime.run`); `backend/runtime.py` is a shim |
-| Interp/compile series parity | `scripts/compare_interp_compile.py`, `tests/test_interp_compile_parity.py` |
-| TS library | sister repo [hoox-sh/pynets](https://github.com/hoox-sh/pynets) / `@hoox-sh/pynets` |
+| Want to…                         | Look at                                                                             |
+| -------------------------------- | ----------------------------------------------------------------------------------- |
+| Parse / unparse                  | `src/pynescript/ast/helper.py`                                                      |
+| Add builtin                      | `src/pynescript/ast/evaluator/builtins/<ns>.py` + metadata generator                |
+| LSP feature                      | `src/pynescript/langserver/features/` + `server.py`                                 |
+| CLI subcommand                   | `src/pynescript/__main__.py`                                                        |
+| Grammar                          | `resource/*.g4` then regenerate                                                     |
+| Pro API route                    | `backend/api/preview.py`, `backend/app.py`                                          |
+| Runtime modes / compile fallback | `src/pynescript/runtime/host.py` (`Runtime.run`); `backend/runtime.py` is a shim    |
+| Interp/compile series parity     | `scripts/compare_interp_compile.py`, `tests/test_interp_compile_parity.py`          |
+| TS library                       | sister repo [hoox-sh/pynets](https://github.com/hoox-sh/pynets) / `@hoox-sh/pynets` |
 
 ## Style
 
@@ -186,14 +204,14 @@ AXIS charting releases live in [hoox-sh/axis](https://github.com/hoox-sh/axis).
 
 ## Failure modes for contributors
 
-| Mistake | Fallout |
-| --- | --- |
-| Editing generated ANTLR/ASDL | Overwritten / review hell |
-| Skipping corpus cost awareness | 10-minute “unit” tests |
-| Hand-editing metadata JSON | Drift from dispatch |
+| Mistake                                      | Fallout                                |
+| -------------------------------------------- | -------------------------------------- |
+| Editing generated ANTLR/ASDL                 | Overwritten / review hell              |
+| Skipping corpus cost awareness               | 10-minute “unit” tests                 |
+| Hand-editing metadata JSON                   | Drift from dispatch                    |
 | Changing compile/export without parity check | Silent chart/series drift vs interpret |
-| Committing `.metadata.key` | Secret leak; rotate immediately |
-| PR without lint | CI red on ruff/mypy |
+| Committing `.metadata.key`                   | Secret leak; rotate immediately        |
+| PR without lint                              | CI red on ruff/mypy                    |
 
 ## See also
 

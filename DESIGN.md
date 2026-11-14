@@ -1,7 +1,7 @@
 # Design
 
-A high-level look at **how pynescript is put together and why**. For *what to
-run* read [`AGENTS.md`](./AGENTS.md). For *deep reference* read
+A high-level look at **how pynescript is put together and why**. For _what to
+run_ read [`AGENTS.md`](./AGENTS.md). For _deep reference_ read
 [`.opencode/context/`](./.opencode/context/navigation.md). For the LSP
 implementation timeline read
 [`.opencode/plans/pynescript-lsp-implementation.md`](./.opencode/plans/pynescript-lsp-implementation.md).
@@ -174,15 +174,15 @@ flowchart LR
 
 ## 7. Deployment
 
-| Surface | Technology | Notes |
-| --- | --- | --- |
-| Package | `hoox-pyne` on PyPI | `pip install "hoox-pyne[lsp]"` |
-| CLI | Nuitka binaries | `pyne` / `pyne-lsp` |
-| Pro API | Flask + Docker | Auth, rate limiting, gevent worker |
-| pyne-worker | Cloudflare Worker | Edge `POST /run` |
-| pyne-agent-worker | Cloudflare Worker | NL authoring, Workers AI |
-| AXIS | PWA + Pyodide | Charting, engine proxy |
+| Surface           | Technology          | Notes                              |
+| ----------------- | ------------------- | ---------------------------------- |
+| Package           | `hoox-pyne` on PyPI | `pip install "hoox-pyne[lsp]"`     |
+| CLI               | Nuitka binaries     | `pyne` / `pyne-lsp`                |
+| Pro API           | Flask + Docker      | Auth, rate limiting, gevent worker |
+| pyne-worker       | Cloudflare Worker   | Edge `POST /run`                   |
+| pyne-agent-worker | Cloudflare Worker   | NL authoring, Workers AI           |
+| AXIS              | PWA + Pyodide       | Charting, engine proxy             |
 
 ---
 
-*This document is maintained alongside the codebase. For the product-facing summary, see `docs/pyne/reference/ecosystem.mdx`.*
+_This document is maintained alongside the codebase. For the product-facing summary, see `docs/pyne/reference/ecosystem.mdx`._

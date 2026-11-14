@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Formatting"
 description: "Document, range, and on-type formatting via AST parse → NodeUnparser round-trip."
 ---
@@ -47,10 +65,10 @@ flowchart LR
 
 ## Interface surface
 
-| Method | Handler |
-| --- | --- |
-| `textDocument/formatting` | `handle_formatting` |
-| `textDocument/rangeFormatting` | `handle_range_formatting` |
+| Method                          | Handler                     |
+| ------------------------------- | --------------------------- |
+| `textDocument/formatting`       | `handle_formatting`         |
+| `textDocument/rangeFormatting`  | `handle_range_formatting`   |
 | `textDocument/onTypeFormatting` | `handle_on_type_formatting` |
 
 Capabilities (`config.py`): both document providers `True`; on-type advertised as `documentOnTypeFormattingProvider` with `firstTriggerCharacter = "\n"`.
@@ -85,10 +103,10 @@ Triggers other than newline are ignored. The advertised trigger is `"\n"`.
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `features/formatting.py` | LSP handlers |
-| `src/pynescript/ast/helper.py` | `parse` |
+| Path                             | Role           |
+| -------------------------------- | -------------- |
+| `features/formatting.py`         | LSP handlers   |
+| `src/pynescript/ast/helper.py`   | `parse`        |
 | `src/pynescript/ast/unparser.py` | `NodeUnparser` |
 
 VS Code command `pynescript.formatDocument` delegates to `editor.action.formatDocument`, which hits this provider when the language client is active. Format-on-type is the client’s `onTypeFormatting` request after Enter.
@@ -126,12 +144,12 @@ On-type: typing Enter after a compact assignment `length=14` (cursor now at the 
 
 ## Failure modes
 
-| Symptom | Cause |
-| --- | --- |
-| Format does nothing on broken syntax | Expected: exception → `[]` |
-| Range format rewrites wrong lines | Unparse shifted line count; prefer full-document format |
-| On-type after Enter does nothing | Unknown trigger, unparsed buffer, or the previous line already matches unparse |
-| Client “format on save” loops | Unparse not idempotent — fix unparser, not client |
+| Symptom                              | Cause                                                                          |
+| ------------------------------------ | ------------------------------------------------------------------------------ |
+| Format does nothing on broken syntax | Expected: exception → `[]`                                                     |
+| Range format rewrites wrong lines    | Unparse shifted line count; prefer full-document format                        |
+| On-type after Enter does nothing     | Unknown trigger, unparsed buffer, or the previous line already matches unparse |
+| Client “format on save” loops        | Unparse not idempotent — fix unparser, not client                              |
 
 ## See also
 

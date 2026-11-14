@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "VS Code Extension"
 description: "PYNE VS Code extension: LanguageClient host for pyne-lsp, TextMate grammar, snippets, settings, and VSIX 0.5.5."
 ---
@@ -47,18 +65,18 @@ flowchart LR
 
 From the extension's `package.json` ([hoox-sh/pyne-lsp-vsce](https://github.com/hoox-sh/pyne-lsp-vsce)):
 
-| Field | Value |
-| --- | --- |
-| name | `pyne` |
-| displayName | `PYNE Language Support` |
-| version | `0.5.5` |
-| publisher | `hoox-sh` |
-| extension id | `hoox-sh.pyne` |
-| icon | `media/icon.png` (HOOX mark) |
-| engines.vscode | `^1.91.0` |
-| main | `./out/extension.js` (esbuild bundle) |
-| dependency | `vscode-languageclient` ^11 |
-| galleryBanner | `#050505` dark |
+| Field          | Value                                 |
+| -------------- | ------------------------------------- |
+| name           | `pyne`                                |
+| displayName    | `PYNE Language Support`               |
+| version        | `0.5.5`                               |
+| publisher      | `hoox-sh`                             |
+| extension id   | `hoox-sh.pyne`                        |
+| icon           | `media/icon.png` (HOOX mark)          |
+| engines.vscode | `^1.91.0`                             |
+| main           | `./out/extension.js` (esbuild bundle) |
+| dependency     | `vscode-languageclient` ^11           |
+| galleryBanner  | `#050505` dark                        |
 
 ### Language contribution
 
@@ -73,14 +91,14 @@ From the extension's `package.json` ([hoox-sh/pyne-lsp-vsce](https://github.com/
 
 The LanguageClient negotiates capabilities from `src/pynescript/langserver/config.py` (`get_server_capabilities`). The hosted server now advertises the following; the 0.5.5 extension is still only a host, but adds client-side **feature gates** so each capability can be toggled without restarting the server.
 
-| LSP method | What the editor gets | Feature page |
-| --- | --- | --- |
-| `textDocument/semanticTokens/full` + `/range` | Same legend, range clipped to the viewport | [Semantic tokens](/pyne/docs/lsp/features/semantic-tokens) |
-| `textDocument/onTypeFormatting` | Format the just-completed line; trigger `"\n"` | [Formatting](/pyne/docs/lsp/features/formatting) |
-| `textDocument/linkedEditingRange` | Same-document live ranges for a user ident (keywords / builtin namespaces refused) | [Linked editing](/pyne/docs/lsp/features/linked-editing) |
-| `textDocument/inlayHint` | Display-only parameter-name hints on builtin calls (`ta.sma(close, 14)` → `source:` / `length:`). Hints never insert text | [Inlay hints](/pyne/docs/lsp/features/inlay-hints) |
-| `textDocument/documentLink` + `documentLink/resolve` | `http://` / `https://` URLs in comments (`//`, `/* */`, hash `# …`) and string literals. Resolve fills `tooltip` with the URL when tooltip is unset | [Document links](/pyne/docs/lsp/features/document-link) |
-| `textDocument/documentColor` + `colorPresentation` | `#hex` (and named `color.*` / literal `color.rgb` / `color.new` / `color()` / `color.from_gradient`) swatches; presentation rewrites as `#rrggbb` / `#rrggbbaa` | [Document color](/pyne/docs/lsp/features/document-color) |
+| LSP method                                           | What the editor gets                                                                                                                                            | Feature page                                               |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `textDocument/semanticTokens/full` + `/range`        | Same legend, range clipped to the viewport                                                                                                                      | [Semantic tokens](/pyne/docs/lsp/features/semantic-tokens) |
+| `textDocument/onTypeFormatting`                      | Format the just-completed line; trigger `"\n"`                                                                                                                  | [Formatting](/pyne/docs/lsp/features/formatting)           |
+| `textDocument/linkedEditingRange`                    | Same-document live ranges for a user ident (keywords / builtin namespaces refused)                                                                              | [Linked editing](/pyne/docs/lsp/features/linked-editing)   |
+| `textDocument/inlayHint`                             | Display-only parameter-name hints on builtin calls (`ta.sma(close, 14)` → `source:` / `length:`). Hints never insert text                                       | [Inlay hints](/pyne/docs/lsp/features/inlay-hints)         |
+| `textDocument/documentLink` + `documentLink/resolve` | `http://` / `https://` URLs in comments (`//`, `/* */`, hash `# …`) and string literals. Resolve fills `tooltip` with the URL when tooltip is unset             | [Document links](/pyne/docs/lsp/features/document-link)    |
+| `textDocument/documentColor` + `colorPresentation`   | `#hex` (and named `color.*` / literal `color.rgb` / `color.new` / `color()` / `color.from_gradient`) swatches; presentation rewrites as `#rrggbb` / `#rrggbbaa` | [Document color](/pyne/docs/lsp/features/document-color)   |
 
 Also advertised (unchanged host path): diagnostics, completion + resolve, hover, signature help, definition / references, highlight + rename, document / workspace symbols, full + range formatting, folding, selection range, Convert-to-v6 / W001 / W002 / C002 code actions. Capability table: [Architecture](/pyne/docs/lsp/architecture).
 
@@ -126,65 +144,65 @@ workspaceContains:**/*.pinev6
 
 #### Appearance
 
-| Key | Default | Meaning |
-| --- | --- | --- |
-| `pynescript.syntaxHighlighting` | `void` | Pine token palette (TextMate + semantic tokens), independent of the workbench theme. `none` inherits the active theme. |
+| Key                             | Default | Meaning                                                                                                                |
+| ------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `pynescript.syntaxHighlighting` | `void`  | Pine token palette (TextMate + semantic tokens), independent of the workbench theme. `none` inherits the active theme. |
 
 #### Language server
 
-| Key | Default | Meaning |
-| --- | --- | --- |
-| `pynescript.lsp.enabled` | `true` | Start the language client |
-| `pynescript.lsp.command` | `auto` | `auto` (PATH → module), an absolute binary path, or `docker` |
-| `pynescript.lsp.python` | `python3` | Interpreter for `-m pynescript.langserver` |
-| `pynescript.lsp.args` | `[]` | Extra server arguments (`docker run` arguments when `command` is `docker`) |
+| Key                      | Default   | Meaning                                                                    |
+| ------------------------ | --------- | -------------------------------------------------------------------------- |
+| `pynescript.lsp.enabled` | `true`    | Start the language client                                                  |
+| `pynescript.lsp.command` | `auto`    | `auto` (PATH → module), an absolute binary path, or `docker`               |
+| `pynescript.lsp.python`  | `python3` | Interpreter for `-m pynescript.langserver`                                 |
+| `pynescript.lsp.args`    | `[]`      | Extra server arguments (`docker run` arguments when `command` is `docker`) |
 
 #### Editor features
 
-| Key | Default | Meaning |
-| --- | --- | --- |
-| `pynescript.formatting.enabled` | `true` | Formatting — full document, selection, on-type |
-| `pynescript.formatOnSave.enabled` | `false` | Format on save (requires `formatting.enabled`) |
-| `pynescript.diagnostics.enabled` | `true` | Errors, warnings, and hints |
-| `pynescript.diagnostics.severity` | `{}` | Remap severity by lint-code prefix, e.g. `{"W": "Hint"}` |
-| `pynescript.diagnostics.style` | `false` | Show C001/C002/C004 style findings |
-| `pynescript.diagnostics.semantic` | `false` | Opt-in UDT/enum member and user-function arity checks |
-| `pynescript.completion.snippets` | `true` | Snippets for builtins and declarations |
-| `pynescript.hover.enabled` | `true` | Hover cards (signature, docs, types) |
-| `pynescript.inlayHints.parameters` | `true` | Parameter-name hints in calls |
-| `pynescript.signatureHelp.enabled` | `true` | Parameter hints while typing a call |
-| `pynescript.semanticTokens.enabled` | `true` | Semantic token colorization |
-| `pynescript.documentHighlight.enabled` | `true` | Highlight other occurrences of an identifier |
-| `pynescript.linkedEditing.enabled` | `true` | Rename-as-you-type (needs `editor.linkedEditing`) |
-| `pynescript.selectionRange.enabled` | `true` | Smart expand/shrink selection |
-| `pynescript.documentLink.enabled` | `true` | Clickable `http(s)` URLs in comments and strings |
-| `pynescript.codeAction.enabled` | `true` | Code actions (Convert to v6, `W001` quick fix) |
+| Key                                    | Default | Meaning                                                  |
+| -------------------------------------- | ------- | -------------------------------------------------------- |
+| `pynescript.formatting.enabled`        | `true`  | Formatting — full document, selection, on-type           |
+| `pynescript.formatOnSave.enabled`      | `false` | Format on save (requires `formatting.enabled`)           |
+| `pynescript.diagnostics.enabled`       | `true`  | Errors, warnings, and hints                              |
+| `pynescript.diagnostics.severity`      | `{}`    | Remap severity by lint-code prefix, e.g. `{"W": "Hint"}` |
+| `pynescript.diagnostics.style`         | `false` | Show C001/C002/C004 style findings                       |
+| `pynescript.diagnostics.semantic`      | `false` | Opt-in UDT/enum member and user-function arity checks    |
+| `pynescript.completion.snippets`       | `true`  | Snippets for builtins and declarations                   |
+| `pynescript.hover.enabled`             | `true`  | Hover cards (signature, docs, types)                     |
+| `pynescript.inlayHints.parameters`     | `true`  | Parameter-name hints in calls                            |
+| `pynescript.signatureHelp.enabled`     | `true`  | Parameter hints while typing a call                      |
+| `pynescript.semanticTokens.enabled`    | `true`  | Semantic token colorization                              |
+| `pynescript.documentHighlight.enabled` | `true`  | Highlight other occurrences of an identifier             |
+| `pynescript.linkedEditing.enabled`     | `true`  | Rename-as-you-type (needs `editor.linkedEditing`)        |
+| `pynescript.selectionRange.enabled`    | `true`  | Smart expand/shrink selection                            |
+| `pynescript.documentLink.enabled`      | `true`  | Clickable `http(s)` URLs in comments and strings         |
+| `pynescript.codeAction.enabled`        | `true`  | Code actions (Convert to v6, `W001` quick fix)           |
 
 Feature settings are sent to the server through `workspace/didChangeConfiguration` and take effect without restarting the client. Only `pynescript.lsp.*` changes restart the language server.
 
 #### Installation
 
-| Key | Default | Meaning |
-| --- | --- | --- |
-| `pynescript.install.autoInstall` | `false` | Install the server with pip when missing, without prompting |
-| `pynescript.install.autoPrompt` | `true` | Ask once before installing a missing server |
-| `pynescript.install.package` | `hoox-pyne[lsp]` | pip requirement installed by **PYNE: Install Language Server** |
-| `pynescript.install.python` | `""` | Python for pip (empty = `lsp.python` → `python3` → `python` → `py`) |
-| `pynescript.install.args` | `[]` | Extra pip arguments (e.g. `["--no-cache-dir"]`) |
-| `pynescript.install.createVenv` | `true` | Isolated venv when the system Python is PEP 668 managed |
-| `pynescript.install.venv` | `""` | Explicit venv directory (empty = extension storage) |
+| Key                              | Default          | Meaning                                                             |
+| -------------------------------- | ---------------- | ------------------------------------------------------------------- |
+| `pynescript.install.autoInstall` | `false`          | Install the server with pip when missing, without prompting         |
+| `pynescript.install.autoPrompt`  | `true`           | Ask once before installing a missing server                         |
+| `pynescript.install.package`     | `hoox-pyne[lsp]` | pip requirement installed by **PYNE: Install Language Server**      |
+| `pynescript.install.python`      | `""`             | Python for pip (empty = `lsp.python` → `python3` → `python` → `py`) |
+| `pynescript.install.args`        | `[]`             | Extra pip arguments (e.g. `["--no-cache-dir"]`)                     |
+| `pynescript.install.createVenv`  | `true`           | Isolated venv when the system Python is PEP 668 managed             |
+| `pynescript.install.venv`        | `""`             | Explicit venv directory (empty = extension storage)                 |
 
 #### Pro & backend
 
-| Key | Default | Meaning |
-| --- | --- | --- |
-| `pynescript.pro.enabled` | `false` | Enable PYNE Pro (`Run on Pro`) |
-| `pynescript.pro.apiKey` | `""` | Pro API key, minted with `POST /auth/create_key`; stored in settings in plain text |
-| `pynescript.backend.url` | `http://127.0.0.1:5002` | Self-hosted backend base URL (no `/run`) |
-| `pynescript.backend.useHosted` | `false` | Use `pynescript.online` instead of `backend.url` |
-| `pynescript.backend.hostedUrl` | `https://pynescript.online` | Hosted backend base URL |
-| `pynescript.backend.package` | `hoox-pyne[pro,lsp]` | pip requirement installed by **PYNE: Install Backend (Pro API)** |
-| `pynescript.backend.path` | `""` | PYNE checkout for **PYNE: Start Backend** (empty = first workspace folder) |
+| Key                            | Default                     | Meaning                                                                            |
+| ------------------------------ | --------------------------- | ---------------------------------------------------------------------------------- |
+| `pynescript.pro.enabled`       | `false`                     | Enable PYNE Pro (`Run on Pro`)                                                     |
+| `pynescript.pro.apiKey`        | `""`                        | Pro API key, minted with `POST /auth/create_key`; stored in settings in plain text |
+| `pynescript.backend.url`       | `http://127.0.0.1:5002`     | Self-hosted backend base URL (no `/run`)                                           |
+| `pynescript.backend.useHosted` | `false`                     | Use `pynescript.online` instead of `backend.url`                                   |
+| `pynescript.backend.hostedUrl` | `https://pynescript.online` | Hosted backend base URL                                                            |
+| `pynescript.backend.package`   | `hoox-pyne[pro,lsp]`        | pip requirement installed by **PYNE: Install Backend (Pro API)**                   |
+| `pynescript.backend.path`      | `""`                        | PYNE checkout for **PYNE: Start Backend** (empty = first workspace folder)         |
 
 ### Themes (AXIS Void / Hoox Signal / PYNE Volt)
 
@@ -192,11 +210,11 @@ The extension contributes three color themes. Pick one from the normal VS Code
 **Preferences: Color Theme** picker — the extension never changes
 `workbench.colorTheme` automatically, not on activation and not on install.
 
-| Theme | Accent | Surfaces |
-| --- | --- | --- |
-| **AXIS Void** | periwinkle `#939FFF` | Near-black with a whisper of indigo; dark-grey panels |
-| **Hoox Signal** | signal orange `#FE6A00` | Near-black, neutral surfaces |
-| **PYNE Volt** | lime `#B7EF09` | Near-black with a whisper of lime |
+| Theme           | Accent                  | Surfaces                                              |
+| --------------- | ----------------------- | ----------------------------------------------------- |
+| **AXIS Void**   | periwinkle `#939FFF`    | Near-black with a whisper of indigo; dark-grey panels |
+| **Hoox Signal** | signal orange `#FE6A00` | Near-black, neutral surfaces                          |
+| **PYNE Volt**   | lime `#B7EF09`          | Near-black with a whisper of lime                     |
 
 Hover, suggest, peek, inlay, and the other floating widgets share AXIS popover chrome (1px hairline, elevated plate, accent selection). Hover and completion Markdown use the same kind-kicker card.
 
@@ -204,8 +222,8 @@ Comments are always neutral gray in every theme. Keywords and functions take the
 
 Pine syntax highlighting is independent of the workbench theme:
 
-| Option | Setting | Values | `none` means |
-| --- | --- | --- | --- |
+| Option                  | Setting                         | Values                              | `none` means                       |
+| ----------------------- | ------------------------------- | ----------------------------------- | ---------------------------------- |
 | **Syntax highlighting** | `pynescript.syntaxHighlighting` | `none` · `void` · `signal` · `volt` | Use the active theme's Pine colors |
 
 It writes language-scoped `[pinescript]` token colors, so it composes with any workbench theme — including your own. Switch it with **PYNE: Select Syntax Highlighting** or set the key directly. Default: `void`.
@@ -232,17 +250,17 @@ Open a fixture `.pine` file; confirm Problems panel shows parse/lint diagnostics
 
 ## Failure modes
 
-| Symptom | Cause |
-| --- | --- |
-| “Language client failed to start” | `pyne-lsp` missing / wrong command |
-| No squiggles, highlighting OK | LSP disabled or server crash; check Output → PYNE Language Server |
-| Restart does nothing | Client never started (`lsp.enabled` false) |
-| No inlay param names / color swatches / document links | Spawned `pyne-lsp` is older than this tree (need **0.7.0**) |
-| Enter does not reformat the previous line | `editor.formatOnType` is off (not a `pynescript.*` key) |
-| Identifiers do not multi-cursor as you type | `editor.linkedEditing` is off (not a `pynescript.*` key) |
-| A feature does nothing after toggling | Its `pynescript.<feature>.enabled` key is `false` |
-| **Run on Pro** says “disabled” | Set `pynescript.pro.enabled` (and `pro.apiKey` for hosted) |
-| **Run on Pro** request fails | Check `pynescript.backend.url` / `backend.useHosted` (base URL, no `/run`) and that the backend is reachable |
+| Symptom                                                | Cause                                                                                                        |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| “Language client failed to start”                      | `pyne-lsp` missing / wrong command                                                                           |
+| No squiggles, highlighting OK                          | LSP disabled or server crash; check Output → PYNE Language Server                                            |
+| Restart does nothing                                   | Client never started (`lsp.enabled` false)                                                                   |
+| No inlay param names / color swatches / document links | Spawned `pyne-lsp` is older than this tree (need **0.7.0**)                                                  |
+| Enter does not reformat the previous line              | `editor.formatOnType` is off (not a `pynescript.*` key)                                                      |
+| Identifiers do not multi-cursor as you type            | `editor.linkedEditing` is off (not a `pynescript.*` key)                                                     |
+| A feature does nothing after toggling                  | Its `pynescript.<feature>.enabled` key is `false`                                                            |
+| **Run on Pro** says “disabled”                         | Set `pynescript.pro.enabled` (and `pro.apiKey` for hosted)                                                   |
+| **Run on Pro** request fails                           | Check `pynescript.backend.url` / `backend.useHosted` (base URL, no `/run`) and that the backend is reachable |
 
 ## See also
 

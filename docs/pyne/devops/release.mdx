@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Release"
 description: "Tag-driven CLI + LSP multi-platform Nuitka binaries, wheels, Docker CLI image, and GitHub Releases."
 ---
@@ -34,6 +52,7 @@ A PYNE release is a **multi-artifact event**, not a single wheel upload. The pri
 - **CLI Docker image** tarball (`pynescript-cli-image.tar.gz`)
 
 Assets attach to a GitHub Release; PyPI upload is handled by **Publish** (`publish.yml`). Multi-arch container images are a **separate** workflow (**GHCR** / `ghcr.yml`) — not attached as tarballs except the CLI image save in this workflow. The **VS Code extension (VSIX)** is built and published from the separate [hoox-sh/pyne-lsp-vsce](https://github.com/hoox-sh/pyne-lsp-vsce) repo.
+
 ## Conceptual model
 
 ```mermaid
@@ -61,20 +80,20 @@ sequenceDiagram
 
 ### Triggers
 
-| Event | Behavior |
-| --- | --- |
-| Push tag matching `v*` | Full build + create release + marketplace/Open VSX publish |
+| Event                                    | Behavior                                                           |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| Push tag matching `v*`                   | Full build + create release + marketplace/Open VSX publish         |
 | `workflow_dispatch` with `version` input | Same jobs; **Create Release** also runs on dispatch (not tag-only) |
 
 ### Jobs
 
-| Job | Matrix / OS | Output |
-| --- | --- | --- |
-| `build-package` | ubuntu-latest | `hoox-pyne-dist` (sdist + wheel) |
-| `build-cli` | ubuntu-latest, windows-latest, macos-latest | `pynescript-cli-linux-x86_64`, `…-windows-x86_64.exe`, `…-macos-arm64` |
-| `build-lsp` | ubuntu-latest, windows-latest, macos-latest | `pynescript-lsp-linux-x86_64`, `…-windows-x86_64.exe`, `…-macos-arm64` |
-| `build-docker-cli` | ubuntu-latest | `pynescript-cli-docker` (gzipped `docker save`) |
-| `release` | needs package success; tag **or** dispatch | GitHub Release body + staged assets (`name: pyne vX.Y.Z`) |
+| Job                | Matrix / OS                                 | Output                                                                 |
+| ------------------ | ------------------------------------------- | ---------------------------------------------------------------------- |
+| `build-package`    | ubuntu-latest                               | `hoox-pyne-dist` (sdist + wheel)                                       |
+| `build-cli`        | ubuntu-latest, windows-latest, macos-latest | `pynescript-cli-linux-x86_64`, `…-windows-x86_64.exe`, `…-macos-arm64` |
+| `build-lsp`        | ubuntu-latest, windows-latest, macos-latest | `pynescript-lsp-linux-x86_64`, `…-windows-x86_64.exe`, `…-macos-arm64` |
+| `build-docker-cli` | ubuntu-latest                               | `pynescript-cli-docker` (gzipped `docker save`)                        |
+| `release`          | needs package success; tag **or** dispatch  | GitHub Release body + staged assets (`name: pyne vX.Y.Z`)              |
 
 The VSIX is built and published by the separate [hoox-sh/pyne-lsp-vsce](https://github.com/hoox-sh/pyne-lsp-vsce) repo on its own tags.
 
@@ -82,8 +101,8 @@ The VSIX is built and published by the separate [hoox-sh/pyne-lsp-vsce](https://
 
 ```yaml
 env:
-  PYTHON_VERSION: "3.11"   # Nuitka 2.5–2.7 graph; comment in workflow
-  NUITKA_JOBS: 4
+    PYTHON_VERSION: "3.11" # Nuitka 2.5–2.7 graph; comment in workflow
+    NUITKA_JOBS: 4
 ```
 
 Build steps rely on:
@@ -114,25 +133,25 @@ Artifacts land under `dist/`, `dist/lsp/`, and `dist/cli/` depending on script p
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `.github/workflows/release.yml` | Orchestration |
-| `scripts/build/ci_build.py` | CI-oriented Nuitka + metadata encrypt |
-| `scripts/build/compile.py` | Local/full compile options (`--onefile`, `--standalone`, `--check`) |
-| `src/pynescript/__about__.py` | Hatch dynamic version for Python package |
+| Path                            | Role                                                                |
+| ------------------------------- | ------------------------------------------------------------------- |
+| `.github/workflows/release.yml` | Orchestration                                                       |
+| `scripts/build/ci_build.py`     | CI-oriented Nuitka + metadata encrypt                               |
+| `scripts/build/compile.py`      | Local/full compile options (`--onefile`, `--standalone`, `--check`) |
+| `src/pynescript/__about__.py`   | Hatch dynamic version for Python package                            |
 
 ### Release asset contract (from release body)
 
-| Artifact | Install sketch |
-| --- | --- |
-| `hoox_pyne-*.whl` / `*.tar.gz` | `pip install ./hoox_pyne-*.whl` |
-| `pynescript-cli-linux-x86_64` | `chmod +x` → `/usr/local/bin/pynescript` |
-| `pynescript-cli-windows-x86_64.exe` | Place on PATH as `pynescript.exe` |
-| `pynescript-cli-macos-arm64` | Place on PATH (Apple Silicon runners) |
-| `pynescript-cli-image.tar.gz` | `gunzip -c … \| docker load` → `pynescript-cli:latest` |
-| `pynescript-lsp-linux-x86_64` | `chmod +x` → `/usr/local/bin/pynescript-lsp` |
-| `pynescript-lsp-windows-x86_64.exe` | Place on PATH |
-| `pynescript-lsp-macos-arm64` | Place on PATH (Apple Silicon runners) |
+| Artifact                            | Install sketch                                         |
+| ----------------------------------- | ------------------------------------------------------ |
+| `hoox_pyne-*.whl` / `*.tar.gz`      | `pip install ./hoox_pyne-*.whl`                        |
+| `pynescript-cli-linux-x86_64`       | `chmod +x` → `/usr/local/bin/pynescript`               |
+| `pynescript-cli-windows-x86_64.exe` | Place on PATH as `pynescript.exe`                      |
+| `pynescript-cli-macos-arm64`        | Place on PATH (Apple Silicon runners)                  |
+| `pynescript-cli-image.tar.gz`       | `gunzip -c … \| docker load` → `pynescript-cli:latest` |
+| `pynescript-lsp-linux-x86_64`       | `chmod +x` → `/usr/local/bin/pynescript-lsp`           |
+| `pynescript-lsp-windows-x86_64.exe` | Place on PATH                                          |
+| `pynescript-lsp-macos-arm64`        | Place on PATH (Apple Silicon runners)                  |
 
 The VSIX (`hoox-sh.pyne`) ships from [hoox-sh/pyne-lsp-vsce](https://github.com/hoox-sh/pyne-lsp-vsce) releases — `code --install-extension pyne-vscode-*.vsix`.
 
@@ -172,13 +191,13 @@ chmod +x pynescript-lsp-linux-x86_64
 
 ## Failure modes
 
-| Symptom | Cause | Fix |
-| --- | --- | --- |
-| Binary not found after Nuitka | Path layout drift in `ci_build.py` | Inspect `dist/`; fix finder step |
-| Decrypt errors in field | Key mismatch between encrypt and runtime | Align `METADATA_KEY` with embedded key strategy |
-| Empty GitHub Release assets | Artifact download path mismatch | Match `files:` globs to download-artifact layout |
-| Marketplace 401 | Missing or expired marketplace credentials | Reconfigure the publish job |
-| Windows `.exe` not marked executable | Finder uses `-type f -executable` | Fallback non-executable find branch in workflow |
+| Symptom                              | Cause                                      | Fix                                              |
+| ------------------------------------ | ------------------------------------------ | ------------------------------------------------ |
+| Binary not found after Nuitka        | Path layout drift in `ci_build.py`         | Inspect `dist/`; fix finder step                 |
+| Decrypt errors in field              | Key mismatch between encrypt and runtime   | Align `METADATA_KEY` with embedded key strategy  |
+| Empty GitHub Release assets          | Artifact download path mismatch            | Match `files:` globs to download-artifact layout |
+| Marketplace 401                      | Missing or expired marketplace credentials | Reconfigure the publish job                      |
+| Windows `.exe` not marked executable | Finder uses `-type f -executable`          | Fallback non-executable find branch in workflow  |
 
 ## See also
 

@@ -8,31 +8,31 @@ never strips the disclaimers.
 ## 0. Pre-flight checklist (do all of these first)
 
 - [ ] Links resolve: `github.com/hoox-sh/pyne`, `hoox.sh/pyne/docs`,
-  `github.com/hoox-sh/axis`, `hoox.sh`. Open each in a private window.
+      `github.com/hoox-sh/axis`, `hoox.sh`. Open each in a private window.
 - [ ] `pip install hoox-pyne` works from a clean venv (the first comment
-  *will* try it). Note the import name (`pynescript`) vs the PyPI name.
+      _will_ try it). Note the import name (`pynescript`) vs the PyPI name.
 - [ ] Screenshots/GIFs ready if a sub allows images: AXIS hero
-  (`docs/images/landing/axis-hero.png`), one `pyne dump` AST screenshot,
-  one corpus-results screenshot. No TradingView® UI in any image, ever.
+      (`docs/images/landing/axis-hero.png`), one `pyne dump` AST screenshot,
+      one corpus-results screenshot. No TradingView® UI in any image, ever.
 - [ ] Read each target sub's self-promotion rules (most require a 9:1 or
-  10:1 participation ratio — be a commenter first, poster second).
+      10:1 participation ratio — be a commenter first, poster second).
 - [ ] Decide the posting account: main account with history beats a fresh
-  `hoox-sh` brand account. Never cross-post the same hour, never ask
-  anyone to upvote (brigading bans are permanent and embarrassing).
+      `hoox-sh` brand account. Never cross-post the same hour, never ask
+      anyone to upvote (brigading bans are permanent and embarrassing).
 - [ ] Keep a text file with the exact posted body + URLs for the
-  "Threats to validity" crowd — you will link it, not retype it.
+      "Threats to validity" crowd — you will link it, not retype it.
 
 ## 1. Where to post (order matters)
 
-| # | Subreddit | Angle / title | Notes |
-|---|-----------|---------------|-------|
-| 1 | r/algotrading | *I built an open Pine Script™ toolchain (grammar → AST → bar-loop runtime), 2,477-script corpus at 99.96% parse — PYNE 0.5.0, AGPL* | Primary launch. Weekday 14:00–16:00 UTC (US morning). Flair `Strategy`/`Infrastructure` if available. Body as-is. |
-| 2 | r/Python | *PYNE: ANTLR4 + ASDL + Numba pipeline that parses and runs Pine Script™ v6 — 100% runtime on a 2.4k-script corpus* | Lead with implementation (slotted dataclasses, monotonic-deque TA, object-mode fallback). Trim trading talk, keep the pipeline + numbers. |
-| 3 | r/quantfinance | Same core, drier tone: lead with corpus methodology + `known_divergences.md` honesty | Hype gets downvoted here; lead with Threats-to-validity. |
-| 4 | r/selfhosted | *Self-host your Pine runtime: one `pip install`, or edge-deploy on Cloudflare® free tier* | Lead with AGPL + self-host + Docker/Compose. |
-| 5 | r/opensource | *AGPL Pine toolchain + offline charting PWA + edge framework, single-author research artifact* | Project-story angle. |
-| 6 | r/sideproject | *I spent a year teaching Python to speak Pine — show me where it breaks* | Casual, Friday-friendly. "Break my parser" is a great CTA. |
-| 7 | r/TradingView, r/pinescript | **Only if rules allow tool posts** — check first, ModMail before posting | Highest trademark sensitivity. If in doubt, skip; a removal there costs nothing, a fight costs reputation. |
+| #   | Subreddit                   | Angle / title                                                                                                                       | Notes                                                                                                                                     |
+| --- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | r/algotrading               | _I built an open Pine Script™ toolchain (grammar → AST → bar-loop runtime), 2,477-script corpus at 99.96% parse — PYNE 0.5.0, AGPL_ | Primary launch. Weekday 14:00–16:00 UTC (US morning). Flair `Strategy`/`Infrastructure` if available. Body as-is.                         |
+| 2   | r/Python                    | _PYNE: ANTLR4 + ASDL + Numba pipeline that parses and runs Pine Script™ v6 — 100% runtime on a 2.4k-script corpus_                  | Lead with implementation (slotted dataclasses, monotonic-deque TA, object-mode fallback). Trim trading talk, keep the pipeline + numbers. |
+| 3   | r/quantfinance              | Same core, drier tone: lead with corpus methodology + `known_divergences.md` honesty                                                | Hype gets downvoted here; lead with Threats-to-validity.                                                                                  |
+| 4   | r/selfhosted                | _Self-host your Pine runtime: one `pip install`, or edge-deploy on Cloudflare® free tier_                                           | Lead with AGPL + self-host + Docker/Compose.                                                                                              |
+| 5   | r/opensource                | _AGPL Pine toolchain + offline charting PWA + edge framework, single-author research artifact_                                      | Project-story angle.                                                                                                                      |
+| 6   | r/sideproject               | _I spent a year teaching Python to speak Pine — show me where it breaks_                                                            | Casual, Friday-friendly. "Break my parser" is a great CTA.                                                                                |
+| 7   | r/TradingView, r/pinescript | **Only if rules allow tool posts** — check first, ModMail before posting                                                            | Highest trademark sensitivity. If in doubt, skip; a removal there costs nothing, a fight costs reputation.                                |
 
 Post #1 first, wait 48–72h, mine the best questions into an FAQ edit,
 then #2–#4 staggered (one per day max). #5–#7 only if energy remains.
@@ -81,7 +81,7 @@ never say "TradingView® killer".
 - No TradingView® screenshots, builtin script pastes, or exported
   `.pine` corpora anywhere (post, comments, or linked repos).
 - No "100% compatible / full parity" phrasing — anywhere, ever. The
-  honest numbers *are* the marketing.
+  honest numbers _are_ the marketing.
 - No financial-advice framing: no returns, no "profitable strategies",
   no PnL screenshots. Risk disclaimer stays attached on every cross-post.
 - No simultaneous multi-sub blast, no vote asks, no alt-account seeding.

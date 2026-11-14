@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "Document color"
-description: "textDocument/documentColor and colorPresentation for hex, color., and literal color calls."
+description: "textDocument/documentColor reports editor color swatches for Pine color literals. Each hit is a 0–1 RGBA ColorInformation covering the AST node. textDocument/colorPresentation…"
 resource: "docs/pyne/lsp/features/document-color.mdx"
 tags: [doc, docs, lsp, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-14T19:45:25Z
 sources:
   - id: tree
     resource: "docs/pyne/lsp/features/document-color.mdx"

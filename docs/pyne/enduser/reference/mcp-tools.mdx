@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "MCP Tools"
 description: "Catalog of PYNE MCP tools, resources, and prompts. Every tool runs from pyne mcp call; execute / symbols / parity / diagnostics / builtin are first-class CLI commands."
 ---
@@ -30,30 +48,30 @@ Machine-oriented catalog for the **PYNE MCP server** (`pyne-mcp` / `pyne mcp`) a
 
 ## CLI parity
 
-| Tool | CLI | Notes |
-| --- | --- | --- |
-| `pyne_info` | `pyne info --json` | version, numba, mcp extra, entry points |
-| `pyne_check` | `pyne check` | parse-only; `source` / `path` / `paths` |
-| `pyne_format` | `pyne format` | returns formatted source (no write) |
-| `pyne_convert` | `pyne convert --to` | `to` 5 or 6 |
-| `pyne_dump` | `pyne parse-and-dump` | dump text + JSON tree |
-| `pyne_unparse` | `pyne parse-and-unparse` | round-trip source |
-| `pyne_lint` | `pyne lint --json` | findings array |
-| `pyne_compile` | `pyne compile` | `emit` prints generated Python |
-| `pyne_prewarm` | `pyne prewarm` | Numba / IR warm |
-| `pyne_run` | `pyne run` | synthetic OHLCV, compile pipeline |
-| `pyne_optimize` | `pyne optimize` | `space` object or `space_json` |
-| `pyne_data` | `pyne data` | default provider `mock` |
-| `pyne_download_builtins` | `pyne download-builtins --list` | list only (network) |
-| `pyne_runner_deploy` | `pyne runner deploy` | POST `/scripts` |
-| `pyne_runner_list` | `pyne runner list` | |
-| `pyne_runner_show` | `pyne runner show` | |
-| `pyne_runner_delete` | `pyne runner delete` | |
-| `pyne_runner_tick` | `pyne runner tick` | POST `/cron/run` |
-| `pyne_runner_jobs` | `pyne runner jobs` | |
-| `pyne_runner_history` | `pyne runner history` | GET `/cron/history` |
-| `pyne_runner_enable` | `pyne runner enable` | |
-| `pyne_runner_disable` | `pyne runner disable` | |
+| Tool                     | CLI                             | Notes                                   |
+| ------------------------ | ------------------------------- | --------------------------------------- |
+| `pyne_info`              | `pyne info --json`              | version, numba, mcp extra, entry points |
+| `pyne_check`             | `pyne check`                    | parse-only; `source` / `path` / `paths` |
+| `pyne_format`            | `pyne format`                   | returns formatted source (no write)     |
+| `pyne_convert`           | `pyne convert --to`             | `to` 5 or 6                             |
+| `pyne_dump`              | `pyne parse-and-dump`           | dump text + JSON tree                   |
+| `pyne_unparse`           | `pyne parse-and-unparse`        | round-trip source                       |
+| `pyne_lint`              | `pyne lint --json`              | findings array                          |
+| `pyne_compile`           | `pyne compile`                  | `emit` prints generated Python          |
+| `pyne_prewarm`           | `pyne prewarm`                  | Numba / IR warm                         |
+| `pyne_run`               | `pyne run`                      | synthetic OHLCV, compile pipeline       |
+| `pyne_optimize`          | `pyne optimize`                 | `space` object or `space_json`          |
+| `pyne_data`              | `pyne data`                     | default provider `mock`                 |
+| `pyne_download_builtins` | `pyne download-builtins --list` | list only (network)                     |
+| `pyne_runner_deploy`     | `pyne runner deploy`            | POST `/scripts`                         |
+| `pyne_runner_list`       | `pyne runner list`              |                                         |
+| `pyne_runner_show`       | `pyne runner show`              |                                         |
+| `pyne_runner_delete`     | `pyne runner delete`            |                                         |
+| `pyne_runner_tick`       | `pyne runner tick`              | POST `/cron/run`                        |
+| `pyne_runner_jobs`       | `pyne runner jobs`              |                                         |
+| `pyne_runner_history`    | `pyne runner history`           | GET `/cron/history`                     |
+| `pyne_runner_enable`     | `pyne runner enable`            |                                         |
+| `pyne_runner_disable`    | `pyne runner disable`           |                                         |
 
 Runner tools read `PYNE_API_URL` / `ADMIN_TOKEN`. They never echo tokens or webhook URLs.
 
@@ -61,41 +79,41 @@ Runner tools read `PYNE_API_URL` / `ADMIN_TOKEN`. They never echo tokens or webh
 
 These also run from the CLI (`pyne mcp call TOOL`, plus first-class commands where listed).
 
-| Tool | CLI | Result |
-| --- | --- | --- |
-| `pyne_parse` | `pyne mcp call parse PATH` | `{version, kind, title, errors[{line,column,message}]}` |
-| `pyne_symbols` | `pyne symbols PATH` | functions, types, enums, `input.*`, plots, `strategy.entry` |
-| `pyne_execute` | `pyne execute PATH` | `Runtime.run`; caller `ohlcv` rows; truncated plots; strategy extras |
-| `pyne_parity` | `pyne parity PATH` | interpret vs compile last values (`rtol=1e-5`, `atol=1e-6`) |
-| `pyne_hover` | `pyne mcp call hover PATH --arg line=0 --arg character=0` | markdown at 0-based `line` / `character` |
-| `pyne_complete` | `pyne mcp call complete PATH` | completion items at cursor |
-| `pyne_signature` | `pyne mcp call signature PATH` | signature help for the enclosing call |
-| `pyne_builtin` | `pyne builtin ta.sma` | `builtin_metadata.json` row (`ta.sma`, …) |
-| `pyne_diagnostics` | `pyne diagnostics PATH` | parse errors + lint in one list |
-| `pyne_axb1` | `pyne mcp call axb1` | AXB1 encoder vs golden vectors (hex-exact) + fnv1a32 + reject rules |
-| `pyne_sessions` | `pyne mcp call sessions` | pooled live sessions: anchor vs store window, zombie suspects |
+| Tool               | CLI                                                       | Result                                                               |
+| ------------------ | --------------------------------------------------------- | -------------------------------------------------------------------- |
+| `pyne_parse`       | `pyne mcp call parse PATH`                                | `{version, kind, title, errors[{line,column,message}]}`              |
+| `pyne_symbols`     | `pyne symbols PATH`                                       | functions, types, enums, `input.*`, plots, `strategy.entry`          |
+| `pyne_execute`     | `pyne execute PATH`                                       | `Runtime.run`; caller `ohlcv` rows; truncated plots; strategy extras |
+| `pyne_parity`      | `pyne parity PATH`                                        | interpret vs compile last values (`rtol=1e-5`, `atol=1e-6`)          |
+| `pyne_hover`       | `pyne mcp call hover PATH --arg line=0 --arg character=0` | markdown at 0-based `line` / `character`                             |
+| `pyne_complete`    | `pyne mcp call complete PATH`                             | completion items at cursor                                           |
+| `pyne_signature`   | `pyne mcp call signature PATH`                            | signature help for the enclosing call                                |
+| `pyne_builtin`     | `pyne builtin ta.sma`                                     | `builtin_metadata.json` row (`ta.sma`, …)                            |
+| `pyne_diagnostics` | `pyne diagnostics PATH`                                   | parse errors + lint in one list                                      |
+| `pyne_axb1`        | `pyne mcp call axb1`                                      | AXB1 encoder vs golden vectors (hex-exact) + fnv1a32 + reject rules  |
+| `pyne_sessions`    | `pyne mcp call sessions`                                  | pooled live sessions: anchor vs store window, zombie suspects        |
 
 `pyne_execute` plot cells: `{len, last, na_count, sample}` (`sample` default 8, max 64). Timeout default 30s, cap 120s. Bars cap 5000.
 
 ## Resources and prompts
 
-| URI / name | Kind |
-| --- | --- |
-| `pyne://info` | resource — same as `pyne_info` |
-| `pyne://builtins` | resource — compact catalog |
-| `pyne://builtins/{name}` | resource — one builtin |
-| `review_pine` | prompt — lint + convert-to-v6 |
-| `debug_pine` | prompt — parse, lint, 50-bar run |
-| `convert_to_v6` | prompt — convert + remaining W002/C002 |
+| URI / name               | Kind                                   |
+| ------------------------ | -------------------------------------- |
+| `pyne://info`            | resource — same as `pyne_info`         |
+| `pyne://builtins`        | resource — compact catalog             |
+| `pyne://builtins/{name}` | resource — one builtin                 |
+| `review_pine`            | prompt — lint + convert-to-v6          |
+| `debug_pine`             | prompt — parse, lint, 50-bar run       |
+| `convert_to_v6`          | prompt — convert + remaining W002/C002 |
 
 ## Code Mode (opt-in)
 
 `PYNE_MCP_CODE_MODE=1` adds exactly two tools; they are not part of the
 `pyne_*` catalog and are absent when the flag is unset.
 
-| Tool | Input | Result |
-| --- | --- | --- |
-| `search` | `{code}` — JS async arrow function | rows selected from the compact catalog |
+| Tool      | Input                              | Result                                            |
+| --------- | ---------------------------------- | ------------------------------------------------- |
+| `search`  | `{code}` — JS async arrow function | rows selected from the compact catalog            |
 | `execute` | `{code}` — JS async arrow function | whatever the code returns, through `pyne.*` calls |
 
 `search` filters a `catalog` array; `execute` gets `pyne.call`, `pyne.describe`,

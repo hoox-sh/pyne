@@ -1,13 +1,13 @@
 ---
 type: "Document"
-title: "POST /optimize"
-description: "Strategy hyperparameter search — N interpret Runtime runs with input. overrides, TPE/random/grid, holdout or walk-forward."
+title: "POST `/optimize`"
+description: "/optimize searches Pine input. values for a strategy() script. It loops the package Runtime (same interpret path as /run) with different overrides, scores closed trades, and…"
 resource: "docs/pyne/api/endpoints/optimize.mdx"
 tags: [api, doc, docs, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-14T19:45:25Z
 sources:
   - id: tree
     resource: "docs/pyne/api/endpoints/optimize.mdx"

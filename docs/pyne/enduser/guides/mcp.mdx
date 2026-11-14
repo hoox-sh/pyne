@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "MCP (agents)"
 description: "PYNE MCP: stdio or HTTP pyne-mcp for LLM hosts, plus in-process pyne mcp call and pyne execute (Runtime.run) with no extra."
 ---
@@ -41,11 +59,11 @@ flowchart LR
   O --> LSP[hover / complete / builtins]
 ```
 
-| Surface | Role |
-| --- | --- |
-| PYNE MCP | Language + runtime: parse, lint, convert, compile, execute, builtins |
-| AXIS MCP | Chart PWA + Worker APIs (`POST /mcp`, optional tab bridge) |
-| `pyne-lsp` | Editor language server (separate stdio process) |
+| Surface    | Role                                                                 |
+| ---------- | -------------------------------------------------------------------- |
+| PYNE MCP   | Language + runtime: parse, lint, convert, compile, execute, builtins |
+| AXIS MCP   | Chart PWA + Worker APIs (`POST /mcp`, optional tab bridge)           |
+| `pyne-lsp` | Editor language server (separate stdio process)                      |
 
 Clients may enable PYNE MCP and AXIS MCP together.
 
@@ -69,12 +87,12 @@ docker run --rm -p 5003:8080 ghcr.io/hoox-sh/pyne/mcp:0.7.0
 
 ```json
 {
-  "mcpServers": {
-    "pyne": {
-      "command": "pyne-mcp",
-      "args": []
+    "mcpServers": {
+        "pyne": {
+            "command": "pyne-mcp",
+            "args": []
+        }
     }
-  }
 }
 ```
 
@@ -102,10 +120,10 @@ execute: async () => { const r = await pyne.language.lint({source}); return {ok:
 summary, args, required}` and returns only the rows the code selects. `execute`
 receives a `pyne` client:
 
-| Binding | Meaning |
-| --- | --- |
-| `pyne.call(tool, args)` | call one catalog tool |
-| `pyne.describe(tool)` | full signature for one tool |
+| Binding                   | Meaning                                    |
+| ------------------------- | ------------------------------------------ |
+| `pyne.call(tool, args)`   | call one catalog tool                      |
+| `pyne.describe(tool)`     | full signature for one tool                |
 | `pyne.<group>.<op>(args)` | namespaced call, e.g. `pyne.language.lint` |
 
 Every call is re-resolved and re-dispatched through the same
@@ -166,12 +184,12 @@ Agent: pyne_builtin({name: "ta.sma"})
 
 ## Failure modes
 
-| Symptom | Cause |
-| --- | --- |
-| `MCP extra missing` | `pip install "hoox-pyne[mcp]"` for stdio. `pyne execute` / `mcp call` run without the extra |
-| `ok: false`, `kind: parse` | Syntax error; `line` / `column` set when known |
-| `kind: network` | Runner / non-mock `pyne_data` / facade list |
-| Large plot dumps | Raise `sample` only as needed (max 64) |
+| Symptom                    | Cause                                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------------------- |
+| `MCP extra missing`        | `pip install "hoox-pyne[mcp]"` for stdio. `pyne execute` / `mcp call` run without the extra |
+| `ok: false`, `kind: parse` | Syntax error; `line` / `column` set when known                                              |
+| `kind: network`            | Runner / non-mock `pyne_data` / facade list                                                 |
+| Large plot dumps           | Raise `sample` only as needed (max 64)                                                      |
 
 ## See also
 

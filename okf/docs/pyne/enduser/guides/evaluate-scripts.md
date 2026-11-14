@@ -7,7 +7,7 @@ tags: [doc, docs, enduser, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-14T19:45:25Z
 sources:
   - id: tree
     resource: "docs/pyne/enduser/guides/evaluate-scripts.mdx"
@@ -43,7 +43,7 @@ Repo path `docs/pyne/enduser/guides/evaluate-scripts.mdx`.
   - Multi-indicator expressions
   - Full script via Runtime
   - Strategy event inspection
-  - request. with resolved sources
+  - request.\ with resolved sources
 - Failure modes
 - See also
 

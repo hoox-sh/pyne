@@ -42,65 +42,65 @@ let pendingJob = null;
 let jobWaiter = null;
 
 function send(message) {
-  process.stdout.write(`${JSON.stringify(message)}\n`);
+    process.stdout.write(`${JSON.stringify(message)}\n`);
 }
 
 function dispatch(line) {
-  let parsed;
-  try {
-    parsed = JSON.parse(line);
-  } catch {
-    return;
-  }
-  if (parsed.type === "reply") {
-    const id = typeof parsed.id === "number" ? parsed.id : -1;
-    const resolve = replies.get(id);
-    if (resolve) {
-      replies.delete(id);
-      resolve(parsed);
+    let parsed;
+    try {
+        parsed = JSON.parse(line);
+    } catch {
+        return;
     }
-    return;
-  }
-  if (parsed.type === "job") {
-    if (jobWaiter) {
-      const wake = jobWaiter;
-      jobWaiter = null;
-      wake(parsed);
-    } else {
-      pendingJob = parsed;
+    if (parsed.type === "reply") {
+        const id = typeof parsed.id === "number" ? parsed.id : -1;
+        const resolve = replies.get(id);
+        if (resolve) {
+            replies.delete(id);
+            resolve(parsed);
+        }
+        return;
     }
-  }
+    if (parsed.type === "job") {
+        if (jobWaiter) {
+            const wake = jobWaiter;
+            jobWaiter = null;
+            wake(parsed);
+        } else {
+            pendingJob = parsed;
+        }
+    }
 }
 
 async function readLoop() {
-  for await (const chunk of process.stdin) {
-    buffer += decoder.decode(chunk, { stream: true });
-    let at = buffer.indexOf("\n");
-    while (at >= 0) {
-      const line = buffer.slice(0, at);
-      buffer = buffer.slice(at + 1);
-      if (line.length > 0) dispatch(line);
-      at = buffer.indexOf("\n");
+    for await (const chunk of process.stdin) {
+        buffer += decoder.decode(chunk, { stream: true });
+        let at = buffer.indexOf("\n");
+        while (at >= 0) {
+            const line = buffer.slice(0, at);
+            buffer = buffer.slice(at + 1);
+            if (line.length > 0) dispatch(line);
+            at = buffer.indexOf("\n");
+        }
     }
-  }
-  closed = true;
-  if (jobWaiter) {
-    const wake = jobWaiter;
-    jobWaiter = null;
-    wake(null);
-  }
+    closed = true;
+    if (jobWaiter) {
+        const wake = jobWaiter;
+        jobWaiter = null;
+        wake(null);
+    }
 }
 
 function nextJob() {
-  if (pendingJob) {
-    const value = pendingJob;
-    pendingJob = null;
-    return Promise.resolve(value);
-  }
-  if (closed) return Promise.resolve(null);
-  return new Promise((resolve) => {
-    jobWaiter = resolve;
-  });
+    if (pendingJob) {
+        const value = pendingJob;
+        pendingJob = null;
+        return Promise.resolve(value);
+    }
+    if (closed) return Promise.resolve(null);
+    return new Promise((resolve) => {
+        jobWaiter = resolve;
+    });
 }
 
 let nextId = 1;
@@ -111,24 +111,27 @@ let nextId = 1;
  * and `error.constructor` is a host Function.
  */
 async function callHost(method, target, args) {
-  const id = nextId;
-  nextId += 1;
-  const reply = new Promise((resolve) => {
-    replies.set(id, resolve);
-  });
-  send({ type: "call", id, method, target, args });
-  let message;
-  try {
-    message = await reply;
-  } catch {
-    return JSON.stringify({ __error: "host call failed" });
-  }
-  if (!message.ok) {
-    return JSON.stringify({
-      __error: typeof message.json === "string" ? message.json : "host call failed",
+    const id = nextId;
+    nextId += 1;
+    const reply = new Promise((resolve) => {
+        replies.set(id, resolve);
     });
-  }
-  return typeof message.json === "string" ? message.json : "null";
+    send({ type: "call", id, method, target, args });
+    let message;
+    try {
+        message = await reply;
+    } catch {
+        return JSON.stringify({ __error: "host call failed" });
+    }
+    if (!message.ok) {
+        return JSON.stringify({
+            __error:
+                typeof message.json === "string"
+                    ? message.json
+                    : "host call failed",
+        });
+    }
+    return typeof message.json === "string" ? message.json : "null";
 }
 
 /**
@@ -206,81 +209,81 @@ const CONTEXT_SOURCE = `(function (host, mode, catalogJson, namespacesJson, maxC
 })`;
 
 async function run(job) {
-  const context = vm.createContext(Object.create(null), {
-    codeGeneration: { strings: false, wasm: false },
-  });
-
-  const build = vm.runInContext(CONTEXT_SOURCE, context);
-  const built = build(
-    { call: callHost },
-    job.mode,
-    job.catalog,
-    job.namespaces,
-    job.maxCalls
-  );
-  context.pyne = built.api;
-  context.console = built.console;
-  if (built.catalog !== null) context.catalog = built.catalog;
-
-  const source = `(${job.code.trim().replace(/;+$/, "")}\n)`;
-  let fn;
-  try {
-    fn = vm.runInContext(source, context);
-  } catch (err) {
-    send({
-      type: "error",
-      message: `code must be a JavaScript async arrow function: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
+    const context = vm.createContext(Object.create(null), {
+        codeGeneration: { strings: false, wasm: false },
     });
-    return;
-  }
-  if (typeof fn !== "function") {
-    send({ type: "error", message: "code did not evaluate to a function" });
-    return;
-  }
 
-  let value;
-  try {
-    value = await fn();
-  } catch (err) {
+    const build = vm.runInContext(CONTEXT_SOURCE, context);
+    const built = build(
+        { call: callHost },
+        job.mode,
+        job.catalog,
+        job.namespaces,
+        job.maxCalls,
+    );
+    context.pyne = built.api;
+    context.console = built.console;
+    if (built.catalog !== null) context.catalog = built.catalog;
+
+    const source = `(${job.code.trim().replace(/;+$/, "")}\n)`;
+    let fn;
+    try {
+        fn = vm.runInContext(source, context);
+    } catch (err) {
+        send({
+            type: "error",
+            message: `code must be a JavaScript async arrow function: ${
+                err instanceof Error ? err.message : String(err)
+            }`,
+        });
+        return;
+    }
+    if (typeof fn !== "function") {
+        send({ type: "error", message: "code did not evaluate to a function" });
+        return;
+    }
+
+    let value;
+    try {
+        value = await fn();
+    } catch (err) {
+        send({
+            type: "error",
+            message: err instanceof Error ? err.message : String(err),
+        });
+        return;
+    }
+
+    let json;
+    try {
+        const encoded = JSON.stringify(value === undefined ? null : value);
+        json = encoded === undefined ? "null" : encoded;
+    } catch (err) {
+        send({
+            type: "error",
+            message: `result is not JSON-serializable: ${
+                err instanceof Error ? err.message : String(err)
+            }`,
+        });
+        return;
+    }
+
     send({
-      type: "error",
-      message: err instanceof Error ? err.message : String(err),
+        type: "done",
+        json,
+        calls: built.calls(),
+        logs: built.logs.slice(0, MAX_LOGS),
     });
-    return;
-  }
-
-  let json;
-  try {
-    const encoded = JSON.stringify(value === undefined ? null : value);
-    json = encoded === undefined ? "null" : encoded;
-  } catch (err) {
-    send({
-      type: "error",
-      message: `result is not JSON-serializable: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-    });
-    return;
-  }
-
-  send({
-    type: "done",
-    json,
-    calls: built.calls(),
-    logs: built.logs.slice(0, MAX_LOGS),
-  });
 }
 
 async function main() {
-  void readLoop();
-  const job = await nextJob();
-  if (!job) {
-    send({ type: "error", message: "sandbox received no job" });
-    return;
-  }
-  await run(job);
+    void readLoop();
+    const job = await nextJob();
+    if (!job) {
+        send({ type: "error", message: "sandbox received no job" });
+        return;
+    }
+    await run(job);
 }
 
 await main();

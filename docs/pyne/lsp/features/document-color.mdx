@@ -1,25 +1,43 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Document color"
-description: "textDocument/documentColor and colorPresentation for #hex, color.*, and literal color calls."
+description: "textDocument/documentColor and colorPresentation for #hex, color.\*, and literal color calls."
 ---
 
 # Document color
@@ -52,9 +70,9 @@ Only **literal** values become swatches. A `color.rgb(x, 0, 0)` whose `x` is a n
 
 ## Interface surface
 
-| Method | Handler |
-| --- | --- |
-| `textDocument/documentColor` | `handle_document_color` |
+| Method                           | Handler                     |
+| -------------------------------- | --------------------------- |
+| `textDocument/documentColor`     | `handle_document_color`     |
 | `textDocument/colorPresentation` | `handle_color_presentation` |
 
 Capability: `color_provider=True` (`config.py`). `handle_document_color` receives the version-matched AST (`tree=doc.valid_ast`).
@@ -63,14 +81,14 @@ Returns `[]` for empty source, parse failure, or `tree=None`. Never `None`.
 
 ### Reported swatches
 
-| Form | Example | Notes |
-| --- | --- | --- |
-| Lexer `COLOR` token | `#ff0000`, `#00ff00aa`, `#f0a` | `Constant` with `kind="#"`; `#rgb` expands each nibble (`#f0a` → `ff00aaff`) |
-| Quoted hex string | `"#ff0000"`, `"#00ff00aa"` | `Constant` with `kind is None`; range **includes the quotes** |
-| Named `color.*` | `color.red`, `color.green` | `Attribute` on `Name("color")`; palette from `_NAMED_COLORS` |
-| `color.rgb` | `color.rgb(255, 0, 0[, transp])` | Numeric literals only; optional Pine transp 0–100 (0 = opaque) |
-| `color.new` | `color.new(color.white, 50)` | Both args literals (named / `#hex` / quoted hex + numeric transp) |
-| `color()` | `color(#ff0000, 25)` | Pine alias of `color.new` |
+| Form                  | Example                                           | Notes                                                                         |
+| --------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Lexer `COLOR` token   | `#ff0000`, `#00ff00aa`, `#f0a`                    | `Constant` with `kind="#"`; `#rgb` expands each nibble (`#f0a` → `ff00aaff`)  |
+| Quoted hex string     | `"#ff0000"`, `"#00ff00aa"`                        | `Constant` with `kind is None`; range **includes the quotes**                 |
+| Named `color.*`       | `color.red`, `color.green`                        | `Attribute` on `Name("color")`; palette from `_NAMED_COLORS`                  |
+| `color.rgb`           | `color.rgb(255, 0, 0[, transp])`                  | Numeric literals only; optional Pine transp 0–100 (0 = opaque)                |
+| `color.new`           | `color.new(color.white, 50)`                      | Both args literals (named / `#hex` / quoted hex + numeric transp)             |
+| `color()`             | `color(#ff0000, 25)`                              | Pine alias of `color.new`                                                     |
 | `color.from_gradient` | `color.from_gradient(5, 0, 10, #000000, #ffffff)` | All five args literals; interpolation matches interpret `color.from_gradient` |
 
 `#rrggbb` is opaque (alpha 1). `#rrggbbaa` sets alpha from the last byte. Channels are 0–255, divided by 255 for the LSP `Color`.
@@ -85,21 +103,21 @@ Keyword aliases on `color.rgb`: `r`/`g`/`b`/`t` for `red`/`green`/`blue`/`transp
 
 Rewrites `params.range` as hex. `source` is unused — the client already sent the color and range.
 
-| Alpha | Label / `newText` |
-| --- | --- |
+| Alpha     | Label / `newText`     |
+| --------- | --------------------- |
 | 1 (`255`) | `#rrggbb` (lowercase) |
-| otherwise | `#rrggbbaa` |
+| otherwise | `#rrggbbaa`           |
 
 Picking a color on `color.red` therefore replaces the name with `#f23645`. There is no presentation that keeps the `color.*` spelling.
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `src/pynescript/langserver/features/document_color.py` | Walk + RGBA conversion + presentation |
-| `src/pynescript/ast/evaluator/builtins/color.py` | `_NAMED_COLORS`, `color_from_gradient` |
-| `src/pynescript/langserver/config.py` | `color_provider=True` |
-| `src/pynescript/langserver/server.py` | `TEXT_DOCUMENT_DOCUMENT_COLOR` / `TEXT_DOCUMENT_COLOR_PRESENTATION`; color list cached on `doc.feature_cache["document_color"]` |
+| Path                                                   | Role                                                                                                                            |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `src/pynescript/langserver/features/document_color.py` | Walk + RGBA conversion + presentation                                                                                           |
+| `src/pynescript/ast/evaluator/builtins/color.py`       | `_NAMED_COLORS`, `color_from_gradient`                                                                                          |
+| `src/pynescript/langserver/config.py`                  | `color_provider=True`                                                                                                           |
+| `src/pynescript/langserver/server.py`                  | `TEXT_DOCUMENT_DOCUMENT_COLOR` / `TEXT_DOCUMENT_COLOR_PRESENTATION`; color list cached on `doc.feature_cache["document_color"]` |
 
 Named palette (hex as stored): `red` `#F23645`, `green` `#22AB94`, `blue` `#2962FF`, `black`, `white`, `gray`/`grey`, `orange`, `purple`, `yellow`, `aqua`, `fuchsia`, `lime`, `maroon`, `navy`, `olive`, `silver`, `teal`.
 
@@ -136,18 +154,18 @@ g = color.from_gradient(5, 0, 10, #000000, #ffffff)
 
 Expected swatches (0–1 RGBA, 8-bit shown):
 
-| Text | RGB (alpha) |
-| --- | --- |
-| `#ff0000` | 255, 0, 0 (255) |
-| `#00ff00aa` | 0, 255, 0 (170) |
-| `#2962FF` | 41, 98, 255 |
-| `#22AB94` | 34, 171, 148 |
-| `"#ff00ff"` | 255, 0, 255 (range includes quotes) |
-| `color.red` | 242, 54, 69 (`#F23645`) |
-| `color.rgb(255, 0, 0)` | 255, 0, 0 |
-| `color.rgb(33, 150, 243, 95)` | 33, 150, 243 (13) |
-| `color.new(color.white, 50)` | 255, 255, 255 (128) |
-| `color.from_gradient(5, 0, 10, #000000, #ffffff)` | 127, 127, 127 (midpoint) |
+| Text                                              | RGB (alpha)                         |
+| ------------------------------------------------- | ----------------------------------- |
+| `#ff0000`                                         | 255, 0, 0 (255)                     |
+| `#00ff00aa`                                       | 0, 255, 0 (170)                     |
+| `#2962FF`                                         | 41, 98, 255                         |
+| `#22AB94`                                         | 34, 171, 148                        |
+| `"#ff00ff"`                                       | 255, 0, 255 (range includes quotes) |
+| `color.red`                                       | 242, 54, 69 (`#F23645`)             |
+| `color.rgb(255, 0, 0)`                            | 255, 0, 0                           |
+| `color.rgb(33, 150, 243, 95)`                     | 33, 150, 243 (13)                   |
+| `color.new(color.white, 50)`                      | 255, 255, 255 (128)                 |
+| `color.from_gradient(5, 0, 10, #000000, #ffffff)` | 127, 127, 127 (midpoint)            |
 
 `colorPresentation` on `#ff0000` with opaque red yields label `#ff0000`. On `color.red` with the palette red, the edit replaces the name with `#f23645`.
 
@@ -155,13 +173,13 @@ Not swatches: `color.rgb(x, 0, 0)`, `color.from_gradient(close, 0, 100, color.re
 
 ## Failure modes
 
-| Symptom | Cause |
-| --- | --- |
-| No swatches on file | Parse error → `[]` |
-| `color.rgb(close, 0, 0)` has no picker | Non-literal args — expected skip |
-| Picking a color on `color.red` rewrites hex | Expected: presentation is always `#rrggbb` / `#rrggbbaa` |
-| Quoted `"#ff0000"` picker covers the quotes | Expected: range is the whole string Constant |
-| Gradient swatch disagrees with chart | Call args were not all literals, or min/max equal (then color1) |
+| Symptom                                     | Cause                                                           |
+| ------------------------------------------- | --------------------------------------------------------------- |
+| No swatches on file                         | Parse error → `[]`                                              |
+| `color.rgb(close, 0, 0)` has no picker      | Non-literal args — expected skip                                |
+| Picking a color on `color.red` rewrites hex | Expected: presentation is always `#rrggbb` / `#rrggbbaa`        |
+| Quoted `"#ff0000"` picker covers the quotes | Expected: range is the whole string Constant                    |
+| Gradient swatch disagrees with chart        | Call args were not all literals, or min/max equal (then color1) |
 
 ## See also
 

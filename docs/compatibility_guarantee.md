@@ -1,17 +1,31 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 # PyneScript Compatibility Guarantee
@@ -38,15 +52,15 @@ Repo-root distillation of the same map.
 
 The product-facing numbers below come from the live dispatch surface and the open-source corpus (set01–04, measured locally, **not shipped** in git):
 
-| Category | Result | Notes |
-|----------|--------|-------|
-| Dispatch builtins (callable) | **941** | Live `NodeLiteralEvaluator` map |
-| Dispatch namespaces | **255** | `ta`, `strategy`, `array`, `matrix`, … |
-| Official TV v6 function reference | **434 symbols — 0 missing** | A registered name is not the same as hosted-platform semantics |
-| Partial-heuristic dispatch entries | **10** | Stub/mock docstrings; real partials may be higher |
-| Parse + unparse (set01–04) | **99.96%** (2,476/2,477) | Residual: 1 intentional invalid line-wrap demo |
-| Runtime interpret (50 bars) | **100%** excl. EXPECTED_FAIL | 2466 OK + 11 intentional demos |
-| set01 Runtime | **249/249** (100%) | |
+| Category                           | Result                       | Notes                                                          |
+| ---------------------------------- | ---------------------------- | -------------------------------------------------------------- |
+| Dispatch builtins (callable)       | **941**                      | Live `NodeLiteralEvaluator` map                                |
+| Dispatch namespaces                | **255**                      | `ta`, `strategy`, `array`, `matrix`, …                         |
+| Official TV v6 function reference  | **434 symbols — 0 missing**  | A registered name is not the same as hosted-platform semantics |
+| Partial-heuristic dispatch entries | **10**                       | Stub/mock docstrings; real partials may be higher              |
+| Parse + unparse (set01–04)         | **99.96%** (2,476/2,477)     | Residual: 1 intentional invalid line-wrap demo                 |
+| Runtime interpret (50 bars)        | **100%** excl. EXPECTED_FAIL | 2466 OK + 11 intentional demos                                 |
+| set01 Runtime                      | **249/249** (100%)           |                                                                |
 
 EXPECTED_FAIL scripts are path-listed intentional demos — not silent suppression.
 
@@ -54,12 +68,12 @@ EXPECTED_FAIL scripts are path-listed intentional demos — not silent suppressi
 
 ## Grouped Map (distilled)
 
-| Class | Scope | Examples |
-|-------|-------|----------|
-| **Working** | Implemented, usable, covered by first-party tests | Language core, series, TA hot path, collections, strategy broker, drawings, alerts, libraries, interpret Runtime |
-| **Partial** | Callable but mock, host-bound, or incomplete vs hosted Pine | `request.*` feeds (honest `na`), compile eligibility, nopython compile alerts (`[]`; object-mode compile exports firings), PyneTS vs Python oracle |
-| **Residual** | Known open hole on an otherwise landed surface | Plot MISMATCH corpus tail (P1p official builtins closed), `PYNE_SERIES_RING` default off |
-| **Out of scope** | Intentionally not a TV platform clone | Pixel chart, editor UX, foreign live fundamentals, bit-identical TV bars |
+| Class            | Scope                                                       | Examples                                                                                                                                           |
+| ---------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Working**      | Implemented, usable, covered by first-party tests           | Language core, series, TA hot path, collections, strategy broker, drawings, alerts, libraries, interpret Runtime                                   |
+| **Partial**      | Callable but mock, host-bound, or incomplete vs hosted Pine | `request.*` feeds (honest `na`), compile eligibility, nopython compile alerts (`[]`; object-mode compile exports firings), PyneTS vs Python oracle |
+| **Residual**     | Known open hole on an otherwise landed surface              | Plot MISMATCH corpus tail (P1p official builtins closed), `PYNE_SERIES_RING` default off                                                           |
+| **Out of scope** | Intentionally not a TV platform clone                       | Pixel chart, editor UX, foreign live fundamentals, bit-identical TV bars                                                                           |
 
 ---
 
@@ -77,13 +91,13 @@ EXPECTED_FAIL scripts are path-listed intentional demos — not silent suppressi
 
 ### By design (not compatibility issues)
 
-| Area | Limitation | Reason |
-|------|-----------|--------|
-| Real-time data | No live market feeds | Library design; use external data provider |
-| Plot rendering | No chart visualization | AST focus; pixels are AXIS / clients |
-| Request functions | Mock / same-symbol; foreign → `na` | Requires external API integration; honest NA policy |
-| Strategy backtesting | OHLC-path broker simulation, not tick-path | In-process model only |
-| Pixel chart / editor UI | Not this runtime | AXIS / editor clients are separate products |
+| Area                    | Limitation                                 | Reason                                              |
+| ----------------------- | ------------------------------------------ | --------------------------------------------------- |
+| Real-time data          | No live market feeds                       | Library design; use external data provider          |
+| Plot rendering          | No chart visualization                     | AST focus; pixels are AXIS / clients                |
+| Request functions       | Mock / same-symbol; foreign → `na`         | Requires external API integration; honest NA policy |
+| Strategy backtesting    | OHLC-path broker simulation, not tick-path | In-process model only                               |
+| Pixel chart / editor UI | Not this runtime                           | AXIS / editor clients are separate products         |
 
 ---
 

@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "PyneTS missing features"
 description: "Builtin and host gaps between @hoox-sh/pynets 0.5.0 and Python pynescript.runtime. Measured 2026-09-27."
 ---
@@ -51,24 +69,24 @@ Port order when closing an item: read the winning Python method (mixin MRO, not 
 
 Do not re-open these as missing.
 
-| Area | What landed |
-| --- | --- |
-| `once [cond]` | Parse, unparse, interpret, compile. Body runs the first time the test is true. Bare `once` runs on bar 0. Nested `once` inside `if` fires once. `na` does not fire. `x = once …` is a syntax error. |
-| Multi-value `switch` | `1, 2 =>` matches any element on interpret and compile. |
-| Matrix row/col | `sum_*`, `avg_*`, `min_*`, `max_*`, `mode_*`, `copy_row` / `copy_col`, `fill_row` / `fill_col` / `fill_diagonal`, `reverse_rows` / `reverse_cols`, `stdev`, `variance`. |
-| TA | `ta.uo`, `ta.rci`, `ta.dpo`, `ta.kst`, `ta.stochrsi`, `ta.donchian`, `ta.ichimoku`, `ta.bb_pct`, `ta.emv`, `ta.fractal`, `ta.atr_stop`, `ta.zigzag`, plus the bar-mode detectors `ta.hammer`, `ta.gap_detector`, `ta.macd_signal`, `ta.acceleration_factor`, `ta.stoch_smooth`, `ta.engulfing`, `ta.inside_bar_pattern`, `ta.double_top_bottom`, `ta.voi`, `ta.bid_ask_imbalance`, `ta.rsi_oversold_overbought`, `ta.rsi_divergence`, `ta.cumulative_delta`, `ta.volume_momentum`, `ta.volume_profile_high`, `ta.volume_profile_low`, `ta.volume_thrust`, and the v3/v4 bare aliases Python registers. Dict results use `__taRecord` (`dc.high`, `stochrsi.signal`, …). Several detectors are Python’s bar-mode sentinels (`ta.engulfing` is false every bar; `ta.stoch_smooth` is `na` unless both smooth lengths are 1). |
-| Host helpers | `timeframe.change`, `time_close` / `time_close()`, `syminfo.prefix` and `syminfo.prefix(tickerid)`, bare `round_to_mintick`, every Python `array.new*` spelling, `plotcandle` / `plotbar` (primary series is close), `timenow` / `timenow()`, `max_bars_back`, `alertcondition`, `plot.linestyle_*`, `plot.style_*`, `alert.freq_*`, `alert()` frequency gating (default once per bar, `"all"` every call, zero-arg is a no-op), bare `random`, bare `security` / `security_lower_tf`. |
-| Footprint | `request.footprint` Python mock on interpret and compile. `footprint.*` and `volume_row.*` call accessors. `request.seed` seeds the mock RNG. Missing id is 0 / empty / `na` as Python. |
-| JS compile | Emit for the TA / matrix / host / drawing / strategy / footprint names in this table, including the bar-mode detectors, so `mode: "compile"` matches interpret. `array.from` collects its arguments. No per-bar `time_close` column; the default path is next open / last+1d. |
-| Drawings | Getters, remaining setters, `*.all`, `*.copy`, remaining deletes, `chart.point.*`, `line.fill`, on interpret and compile. Constructor coords snapshot so getters after `new` are not `na`. |
-| Strategy | `strategy.cash` is free cash tagged `_pine_qty_type="cash"` on interpret and compile; `account_currency`, `position_entry_name`, `default_entry_qty`, `convert_to_*`, `max_contracts_held_*`, closed/open trade time/comment/drawdown/runup/commission/capital_held/`first_index`; `oca.*`, `direction.*`, `commission.*` constants; zero-arg series calls (`strategy.netprofit()`). |
+| Area                 | What landed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `once [cond]`        | Parse, unparse, interpret, compile. Body runs the first time the test is true. Bare `once` runs on bar 0. Nested `once` inside `if` fires once. `na` does not fire. `x = once …` is a syntax error.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Multi-value `switch` | `1, 2 =>` matches any element on interpret and compile.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Matrix row/col       | `sum_*`, `avg_*`, `min_*`, `max_*`, `mode_*`, `copy_row` / `copy_col`, `fill_row` / `fill_col` / `fill_diagonal`, `reverse_rows` / `reverse_cols`, `stdev`, `variance`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| TA                   | `ta.uo`, `ta.rci`, `ta.dpo`, `ta.kst`, `ta.stochrsi`, `ta.donchian`, `ta.ichimoku`, `ta.bb_pct`, `ta.emv`, `ta.fractal`, `ta.atr_stop`, `ta.zigzag`, plus the bar-mode detectors `ta.hammer`, `ta.gap_detector`, `ta.macd_signal`, `ta.acceleration_factor`, `ta.stoch_smooth`, `ta.engulfing`, `ta.inside_bar_pattern`, `ta.double_top_bottom`, `ta.voi`, `ta.bid_ask_imbalance`, `ta.rsi_oversold_overbought`, `ta.rsi_divergence`, `ta.cumulative_delta`, `ta.volume_momentum`, `ta.volume_profile_high`, `ta.volume_profile_low`, `ta.volume_thrust`, and the v3/v4 bare aliases Python registers. Dict results use `__taRecord` (`dc.high`, `stochrsi.signal`, …). Several detectors are Python’s bar-mode sentinels (`ta.engulfing` is false every bar; `ta.stoch_smooth` is `na` unless both smooth lengths are 1). |
+| Host helpers         | `timeframe.change`, `time_close` / `time_close()`, `syminfo.prefix` and `syminfo.prefix(tickerid)`, bare `round_to_mintick`, every Python `array.new*` spelling, `plotcandle` / `plotbar` (primary series is close), `timenow` / `timenow()`, `max_bars_back`, `alertcondition`, `plot.linestyle_*`, `plot.style_*`, `alert.freq_*`, `alert()` frequency gating (default once per bar, `"all"` every call, zero-arg is a no-op), bare `random`, bare `security` / `security_lower_tf`.                                                                                                                                                                                                                                                                                                                                     |
+| Footprint            | `request.footprint` Python mock on interpret and compile. `footprint.*` and `volume_row.*` call accessors. `request.seed` seeds the mock RNG. Missing id is 0 / empty / `na` as Python.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| JS compile           | Emit for the TA / matrix / host / drawing / strategy / footprint names in this table, including the bar-mode detectors, so `mode: "compile"` matches interpret. `array.from` collects its arguments. No per-bar `time_close` column; the default path is next open / last+1d.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Drawings             | Getters, remaining setters, `*.all`, `*.copy`, remaining deletes, `chart.point.*`, `line.fill`, on interpret and compile. Constructor coords snapshot so getters after `new` are not `na`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Strategy             | `strategy.cash` is free cash tagged `_pine_qty_type="cash"` on interpret and compile; `account_currency`, `position_entry_name`, `default_entry_qty`, `convert_to_*`, `max_contracts_held_*`, closed/open trade time/comment/drawdown/runup/commission/capital_held/`first_index`; `oca.*`, `direction.*`, `commission.*` constants; zero-arg series calls (`strategy.netprofit()`).                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 `ta.rci` with length under 2 is a runtime error whose message contains `ta.rci length must be at least 2`.
 
 ### Language the host does not have
 
-| Item | Python | PyneTS |
-| --- | --- | --- |
+| Item            | Python                                                                                       | PyneTS                                                                                                           |
+| --------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | Realtime `once` | Unconfirmed ticks do not commit the fired flag; rollback can re-fire. Confirmed bar latches. | `barstate.isrealtime` is `0`. The flag commits as soon as the body runs. No interpret session, no tick rollback. |
 
 ### `strategy.*`
@@ -103,14 +121,14 @@ The names in the closed table emit, so `mode: "compile"` matches interpret for t
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| PYNE `src/pynescript/ast/evaluator/builtins/` | Handler source of truth. `TechnicalAnalysisMixin` MRO: Advanced, Basic, Common, MovingAverage, Oscillator, Pattern, Economics, Strategies, Synthesizer, Volatility, Volume. |
-| PYNE `technical_submodules/core.py` | Incremental kernels (`_use_incremental_ta`). |
-| `pynets/src/runtime/interpret.ts` | `evalCall` and `eval*Call`. |
-| `pynets/src/runtime/ta.ts`, `matrix.ts`, `drawings.ts`, `strategy.ts`, `timeframe.ts`, `footprint.ts` | State and values. |
-| `pynets/src/runtime/compile/emit_call.ts` | Compile dispatch. Do not edit it in the same change as `interpret.ts`. |
-| `pynets/test/interpret_*.test.ts` | Focused parity tests. |
+| Path                                                                                                  | Role                                                                                                                                                                        |
+| ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PYNE `src/pynescript/ast/evaluator/builtins/`                                                         | Handler source of truth. `TechnicalAnalysisMixin` MRO: Advanced, Basic, Common, MovingAverage, Oscillator, Pattern, Economics, Strategies, Synthesizer, Volatility, Volume. |
+| PYNE `technical_submodules/core.py`                                                                   | Incremental kernels (`_use_incremental_ta`).                                                                                                                                |
+| `pynets/src/runtime/interpret.ts`                                                                     | `evalCall` and `eval*Call`.                                                                                                                                                 |
+| `pynets/src/runtime/ta.ts`, `matrix.ts`, `drawings.ts`, `strategy.ts`, `timeframe.ts`, `footprint.ts` | State and values.                                                                                                                                                           |
+| `pynets/src/runtime/compile/emit_call.ts`                                                             | Compile dispatch. Do not edit it in the same change as `interpret.ts`.                                                                                                      |
+| `pynets/test/interpret_*.test.ts`                                                                     | Focused parity tests.                                                                                                                                                       |
 
 `last_bar_index`, `last_bar_time`, and `syminfo.ticker` are not missing. The first two are written in `beginBar`. `syminfo.ticker` / `tickerid` return the runtime symbol.
 
@@ -149,12 +167,12 @@ Suggested close order:
 
 ## Failure modes
 
-| Symptom | Cause |
-| --- | --- |
-| `dc.high` is `na` on an old build | `__taRecord` field read is only on this working tree. |
-| Compile plots `na`, interpret matches Python | Name not in `emit_call.ts` (extension analytics). |
-| New `ta.beta` port is non-`na` while Python is `na` | Bar-mode one-element series. Revert the port. |
-| `once` fires again on a realtime tick in Python and once in PyneTS | No tick rollback in the TS host. |
+| Symptom                                                            | Cause                                                 |
+| ------------------------------------------------------------------ | ----------------------------------------------------- |
+| `dc.high` is `na` on an old build                                  | `__taRecord` field read is only on this working tree. |
+| Compile plots `na`, interpret matches Python                       | Name not in `emit_call.ts` (extension analytics).     |
+| New `ta.beta` port is non-`na` while Python is `na`                | Bar-mode one-element series. Revert the port.         |
+| `once` fires again on a realtime tick in Python and once in PyneTS | No tick rollback in the TS host.                      |
 
 ## See also
 

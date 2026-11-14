@@ -51,10 +51,10 @@ flowchart TD
 
 ### Target differences
 
-| Target | Entry | Includes | Excludes |
-| --- | --- | --- | --- |
-| `lsp` | `langserver/__main__.py` | pygls + providers metadata | evaluator, compiler, numba |
-| `cli` | `pynescript/__main__.py` | Click CLI + evaluator (interpret) | langserver, flask, numba |
+| Target | Entry                    | Includes                          | Excludes                   |
+| ------ | ------------------------ | --------------------------------- | -------------------------- |
+| `lsp`  | `langserver/__main__.py` | pygls + providers metadata        | evaluator, compiler, numba |
+| `cli`  | `pynescript/__main__.py` | Click CLI + evaluator (interpret) | langserver, flask, numba   |
 
 Portable Nuitka builds intentionally **do not** embed Numba; `compile` / Numba
 paths work in the Docker CLI image (`pip install ".[compile,data]"`) and from
@@ -80,10 +80,10 @@ flowchart TD
 
 `compile.py` and `ci_build.py` resolve the key in this order:
 
-1. `CRYPTO_KEY` env  
-2. `PYNESCRIPT_METADATA_KEY` env  
-3. `METADATA_KEY` env  
-4. Existing `scripts/build/.metadata.key`  
+1. `CRYPTO_KEY` env
+2. `PYNESCRIPT_METADATA_KEY` env
+3. `METADATA_KEY` env
+4. Existing `scripts/build/.metadata.key`
 5. Generate a new key and write `.metadata.key` (local first-time only)
 
 Use the **same** key in every CI run so `.enc` blobs stay reproducible across
@@ -114,10 +114,10 @@ LSP build when you intentionally want a new ciphertext.
 
 Store the **same** key bytes as repository secrets:
 
-| Secret name | Used as |
-|-------------|---------|
+| Secret name    | Used as                                                 |
+| -------------- | ------------------------------------------------------- |
 | `METADATA_KEY` | `CRYPTO_KEY: ${{ secrets.METADATA_KEY }}` in release/CI |
-| `CRYPTO_KEY` | optional alias (same value) |
+| `CRYPTO_KEY`   | optional alias (same value)                             |
 
 ```bash
 # After scripts/build/.metadata.key exists:
@@ -141,12 +141,12 @@ gh secret set CRYPTO_KEY -R hoox-sh/pyne < scripts/build/.metadata.key
 
 ## Build Time
 
-| Mode | Time | Notes |
-|------|------|-------|
-| `--check` | ~30s | Import resolution only |
-| `--standalone` | 5–15min | Faster, no onefile packaging |
-| `--onefile` | 10–30min | Full self-extracting binary |
-| CI (8 cores) | 5–15min | High parallelism, cached builds |
+| Mode           | Time     | Notes                           |
+| -------------- | -------- | ------------------------------- |
+| `--check`      | ~30s     | Import resolution only          |
+| `--standalone` | 5–15min  | Faster, no onefile packaging    |
+| `--onefile`    | 10–30min | Full self-extracting binary     |
+| CI (8 cores)   | 5–15min  | High parallelism, cached builds |
 
 ## Dependencies
 

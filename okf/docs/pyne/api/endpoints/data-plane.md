@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "Data plane"
-description: "Engine-owned OHLCV series store and data-bound live sessions — /data/series and /data/session."
+description: "POST /run takes its bars in the request. That is fine for a one-shot evaluate, but a live chart re-sends the entire history on every tick and asks the exchange for bars the…"
 resource: "docs/pyne/api/endpoints/data-plane.mdx"
 tags: [api, doc, docs, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-14T19:45:25Z
 sources:
   - id: tree
     resource: "docs/pyne/api/endpoints/data-plane.mdx"

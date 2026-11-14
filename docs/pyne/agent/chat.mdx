@@ -1,10 +1,15 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "pyne-agent-worker chat"
 description: "POST /v1/chat, search, sessions, and the optional pyne-worker validate loop."
 ---
@@ -19,17 +24,17 @@ Sister repo: [hoox-sh/pyne-agent-worker](https://github.com/hoox-sh/pyne-agent-w
 
 ## Endpoints
 
-| Method | Path | Auth | Role |
-| --- | --- | --- | --- |
-| `GET` | `/health` | no | Liveness + `mode` |
-| `GET` | `/` | no | Demo chat UI |
-| `POST` | `/v1/chat` | yes* | NL → Pine |
-| `GET`/`POST` | `/v1/search` | yes* | Vectorize search |
-| `POST` | `/v1/sessions` | yes* | Create session |
-| `GET` | `/v1/sessions/:id` | yes* | Session + messages |
-| `POST` | `/v1/admin/embed` | yes | Batch embeddings |
-| `POST` | `/v1/admin/index` | yes | Embed + R2 + Vectorize |
-| `GET` | `/plugin/axis-pine-agent.js` | no | AXIS plugin module |
+| Method       | Path                         | Auth  | Role                   |
+| ------------ | ---------------------------- | ----- | ---------------------- |
+| `GET`        | `/health`                    | no    | Liveness + `mode`      |
+| `GET`        | `/`                          | no    | Demo chat UI           |
+| `POST`       | `/v1/chat`                   | yes\* | NL → Pine              |
+| `GET`/`POST` | `/v1/search`                 | yes\* | Vectorize search       |
+| `POST`       | `/v1/sessions`               | yes\* | Create session         |
+| `GET`        | `/v1/sessions/:id`           | yes\* | Session + messages     |
+| `POST`       | `/v1/admin/embed`            | yes   | Batch embeddings       |
+| `POST`       | `/v1/admin/index`            | yes   | Embed + R2 + Vectorize |
+| `GET`        | `/plugin/axis-pine-agent.js` | no    | AXIS plugin module     |
 
 \* Required when `API_KEY` is set.
 
@@ -37,12 +42,12 @@ Sister repo: [hoox-sh/pyne-agent-worker](https://github.com/hoox-sh/pyne-agent-w
 
 ```json
 {
-  "message": "v6 RSI strategy with ATR trailing stop",
-  "pine_version": "v6",
-  "style": "strategy",
-  "session_id": null,
-  "validate": true,
-  "max_retries": 2
+    "message": "v6 RSI strategy with ATR trailing stop",
+    "pine_version": "v6",
+    "style": "strategy",
+    "session_id": null,
+    "validate": true,
+    "max_retries": 2
 }
 ```
 
@@ -52,13 +57,13 @@ Response includes `reply`, extracted `pine`, `validation` (attempts / pyne-worke
 
 Only when `PYNE_SERVICE` or `PYNE_WORKER_URL` is set:
 
-```text
+````text
 generate (Workers AI)
   → extract ```pine
   → POST pyne-worker /run (synthetic OHLCV)
   → ok? return
   → else fix prompt + retry (max_retries)
-```
+````
 
 Without a binding, `validation.available` is `false` and the Worker returns the first draft.
 

@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Editors & LSP"
 description: "Wire pyne-lsp into VS Code, Neovim, Zed, Emacs, Helix, and other LSP clients for diagnostics, completion, hover, and formatting."
 ---
@@ -44,16 +62,16 @@ sequenceDiagram
   LSP-->>Ed: LSP responses
 ```
 
-| Feature | Role |
-| --- | --- |
-| Diagnostics | Lint rules + parse errors as squiggles |
-| Completion | Builtins (`ta.*`, `strategy.*`, …) + snippets |
-| Hover | Signature / docs from metadata |
-| Definition / references | Symbol index in document |
-| Document symbols | Outline / breadcrumb |
-| Formatting | Full document + range via unparser path |
-| Folding | `if` / `for` / `while` / `switch` / `once`, types, `//#region` |
-| Code action | Convert-to-v6; W001 QuickFix inserts `//@version=6` |
+| Feature                 | Role                                                           |
+| ----------------------- | -------------------------------------------------------------- |
+| Diagnostics             | Lint rules + parse errors as squiggles                         |
+| Completion              | Builtins (`ta.*`, `strategy.*`, …) + snippets                  |
+| Hover                   | Signature / docs from metadata                                 |
+| Definition / references | Symbol index in document                                       |
+| Document symbols        | Outline / breadcrumb                                           |
+| Formatting              | Full document + range via unparser path                        |
+| Folding                 | `if` / `for` / `while` / `switch` / `once`, types, `//#region` |
+| Code action             | Convert-to-v6; W001 QuickFix inserts `//@version=6`            |
 
 Builtin metadata is generated (`scripts/generate_builtin_metadata.py`); encrypted blobs may appear in release builds.
 
@@ -92,17 +110,17 @@ npm run compile
 
 Settings (from the extension's `package.json`):
 
-| Key | Default | Notes |
-| --- | --- | --- |
-| `pynescript.lsp.enabled` | `true` | Master switch |
-| `pynescript.lsp.command` | `auto` | `auto` → `pyne-lsp` → `pynescript-lsp` → `python3 -m pynescript.langserver`; or an absolute path / `docker` |
-| `pynescript.lsp.python` | `python3` | Interpreter when command is `auto` and no binary is on PATH |
-| `pynescript.lsp.args` | `[]` | Extra server args |
-| `pynescript.formatting.enabled` | `true` | |
-| `pynescript.diagnostics.enabled` | `true` | |
-| `pynescript.completion.snippets` | `true` | |
-| `pynescript.syntaxHighlighting` | `void` | Pine TextMate + semantic token palette (`none` / `void` / `signal` / `volt`); independent of the workbench color theme |
-| `pynescript.inlayHints.parameters` | `true` | Parameter-name hints only (type inlays removed in 0.6.29) |
+| Key                                | Default   | Notes                                                                                                                  |
+| ---------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `pynescript.lsp.enabled`           | `true`    | Master switch                                                                                                          |
+| `pynescript.lsp.command`           | `auto`    | `auto` → `pyne-lsp` → `pynescript-lsp` → `python3 -m pynescript.langserver`; or an absolute path / `docker`            |
+| `pynescript.lsp.python`            | `python3` | Interpreter when command is `auto` and no binary is on PATH                                                            |
+| `pynescript.lsp.args`              | `[]`      | Extra server args                                                                                                      |
+| `pynescript.formatting.enabled`    | `true`    |                                                                                                                        |
+| `pynescript.diagnostics.enabled`   | `true`    |                                                                                                                        |
+| `pynescript.completion.snippets`   | `true`    |                                                                                                                        |
+| `pynescript.syntaxHighlighting`    | `void`    | Pine TextMate + semantic token palette (`none` / `void` / `signal` / `volt`); independent of the workbench color theme |
+| `pynescript.inlayHints.parameters` | `true`    | Parameter-name hints only (type inlays removed in 0.6.29)                                                              |
 
 Default formatter id: `hoox-sh.pyne`.
 
@@ -142,17 +160,17 @@ Merge `clients/zed.json` or:
 
 ```json
 {
-  "languages": {
-    "Pine Script": {
-      "language_servers": ["pynescript"]
+    "languages": {
+        "Pine Script": {
+            "language_servers": ["pynescript"]
+        }
+    },
+    "language_servers": {
+        "pynescript": {
+            "command": "pyne-lsp",
+            "arguments": ["--stdio"]
+        }
     }
-  },
-  "language_servers": {
-    "pynescript": {
-      "command": "pyne-lsp",
-      "arguments": ["--stdio"]
-    }
-  }
 }
 ```
 
@@ -189,13 +207,13 @@ args = ["--stdio"]
 
 ```json
 {
-  "clients": {
-    "pynescript": {
-      "command": ["pyne-lsp", "--stdio"],
-      "selector": "source.pinescript",
-      "initializationOptions": {}
+    "clients": {
+        "pynescript": {
+            "command": ["pyne-lsp", "--stdio"],
+            "selector": "source.pinescript",
+            "initializationOptions": {}
+        }
     }
-  }
 }
 ```
 
@@ -211,15 +229,15 @@ Transport: stdio
 
 ## Internals (repo paths)
 
-| Path | Role |
-| --- | --- |
-| `src/pynescript/langserver/__main__.py` | CLI entry `main()` |
-| `src/pynescript/langserver/server.py` | `PynescriptLanguageServer` |
-| `src/pynescript/langserver/features/` | diagnostics, completion, hover, … |
-| `clients/README.md` | Canonical client matrix |
-| `clients/neovim.lua`, `zed.json`, `emacs.el` | Drop-in snippets |
+| Path                                                                | Role                              |
+| ------------------------------------------------------------------- | --------------------------------- |
+| `src/pynescript/langserver/__main__.py`                             | CLI entry `main()`                |
+| `src/pynescript/langserver/server.py`                               | `PynescriptLanguageServer`        |
+| `src/pynescript/langserver/features/`                               | diagnostics, completion, hover, … |
+| `clients/README.md`                                                 | Canonical client matrix           |
+| `clients/neovim.lua`, `zed.json`, `emacs.el`                        | Drop-in snippets                  |
 | [`hoox-sh/pyne-lsp-vsce`](https://github.com/hoox-sh/pyne-lsp-vsce) | VS Code extension (separate repo) |
-| `scripts/generate_builtin_metadata.py` | Completion/hover corpus |
+| `scripts/generate_builtin_metadata.py`                              | Completion/hover corpus           |
 
 ## Invariants & edge cases
 
@@ -258,20 +276,20 @@ vim.api.nvim_create_autocmd("FileType", {
 
 ```json
 {
-  "pynescript.lsp.command": "/home/you/project/.venv/bin/pyne-lsp"
+    "pynescript.lsp.command": "/home/you/project/.venv/bin/pyne-lsp"
 }
 ```
 
 ## Failure modes
 
-| Symptom | Fix |
-| --- | --- |
-| Client: executable not found | Install `[lsp]`; fix PATH / command setting |
-| `No module named pygls` | Reinstall extra in the same env as the command |
-| No diagnostics | Enable diagnostics; confirm filetype; check server logs |
-| Stale completions | Regenerate metadata in dev builds; restart server |
-| Format does nothing | Enable formatting; ensure document is valid enough to parse |
-| High CPU on huge files | Split libraries; wait for parse; check for pathological nesting |
+| Symptom                      | Fix                                                             |
+| ---------------------------- | --------------------------------------------------------------- |
+| Client: executable not found | Install `[lsp]`; fix PATH / command setting                     |
+| `No module named pygls`      | Reinstall extra in the same env as the command                  |
+| No diagnostics               | Enable diagnostics; confirm filetype; check server logs         |
+| Stale completions            | Regenerate metadata in dev builds; restart server               |
+| Format does nothing          | Enable formatting; ensure document is valid enough to parse     |
+| High CPU on huge files       | Split libraries; wait for parse; check for pathological nesting |
 
 ## See also
 

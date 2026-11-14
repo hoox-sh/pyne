@@ -14,10 +14,10 @@ pip install "hoox-pyne[lsp]"
 
 Console scripts after install:
 
-| Preferred | Alias (compat) |
-|-----------|----------------|
+| Preferred  | Alias (compat)   |
+| ---------- | ---------------- |
 | `pyne-lsp` | `pynescript-lsp` |
-| `pyne` | `pynescript` |
+| `pyne`     | `pynescript`     |
 
 Import package remains **`pynescript`** (`import pynescript`).
 
@@ -39,6 +39,7 @@ code --extensionDevelopmentPath=.
 ```
 
 **Features:**
+
 - File associations: **`.pyne`**, `.pine`, `.pinev5`, `.pinev6`, `.pinescript`
 - Syntax highlighting (TextMate grammar)
 - LSP diagnostics, autocomplete, hover, symbols, formatting
@@ -46,6 +47,7 @@ code --extensionDevelopmentPath=.
 - Install language server: `pip install "hoox-pyne[lsp]"`
 
 **Configuration:**
+
 - `pynescript.lsp.enabled` — Toggle LSP (default: true)
 - `pynescript.lsp.command` — `auto` (default) or path to binary
 - `pynescript.lsp.python` — Python for module launch (default: `python3`)
@@ -76,6 +78,7 @@ require('lspconfig').pynescript.setup(pynescript)
 The sample config uses `cmd = { 'pyne-lsp' }` (alias: `pynescript-lsp`).
 
 **Keybindings (when using on_attach):**
+
 - `gd` — Go to definition
 - `gr` — Find references
 - `K` — Hover documentation
@@ -102,6 +105,7 @@ Add to your Zed settings (`~/.config/zed/settings.json`):
 ```
 
 Or use the provided config snippet in `clients/zed.json`:
+
 ```bash
 cat clients/zed.json >> ~/.config/zed/settings.json
 ```
@@ -127,6 +131,7 @@ Add to `~/.emacs.d/init.el`:
 ```
 
 **Keybindings:**
+
 - `C-c C-c` — Format document
 - `M-.` — Go to definition
 - `M-?` — Find references

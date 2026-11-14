@@ -25,62 +25,67 @@
  * Wired as: bun run docs:exports
  */
 
-import { createRequire } from "node:module"
-import { execFile } from "node:child_process"
-import { promisify } from "node:util"
+import { createRequire } from "node:module";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import {
-  mkdir,
-  readFile,
-  writeFile,
-  readdir,
-  unlink,
-  copyFile,
-} from "node:fs/promises"
-import { existsSync, readFileSync } from "node:fs"
-import path from "node:path"
-import { fileURLToPath, pathToFileURL } from "node:url"
+    mkdir,
+    readFile,
+    writeFile,
+    readdir,
+    unlink,
+    copyFile,
+} from "node:fs/promises";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const execFileAsync = promisify(execFile)
+const execFileAsync = promisify(execFile);
 
-const require = createRequire(import.meta.url)
-const matter = require("gray-matter")
-const { marked } = require("marked")
+const require = createRequire(import.meta.url);
+const matter = require("gray-matter");
+const { marked } = require("marked");
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const ROOT = path.resolve(__dirname, "../..")
-const DOCS = path.join(ROOT, "docs")
-const OUT_DIR = path.join(DOCS, "exports")
-const CACHE = path.join(ROOT, ".cache", "docs-exports")
-const BRAND = path.join(DOCS, "assets", "brand")
-const SITE = "https://hoox.sh"
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(__dirname, "../..");
+const DOCS = path.join(ROOT, "docs");
+const OUT_DIR = path.join(DOCS, "exports");
+const CACHE = path.join(ROOT, ".cache", "docs-exports");
+const BRAND = path.join(DOCS, "assets", "brand");
+const SITE = "https://hoox.sh";
 /** This repo (PYNE) — the default when a product does not override `repoUrl`. */
-const REPO = "https://github.com/hoox-sh/pyne"
+const REPO = "https://github.com/hoox-sh/pyne";
 
-const args = process.argv.slice(2)
-const onlyArg = args.find((a) => a.startsWith("--only="))?.split("=")[1] ?? "all"
-const productArg = args.find((a) => a.startsWith("--product="))?.split("=")[1] ?? null
-const SKIP_PDF = args.includes("--skip-pdf")
+const args = process.argv.slice(2);
+const onlyArg =
+    args.find((a) => a.startsWith("--only="))?.split("=")[1] ?? "all";
+const productArg =
+    args.find((a) => a.startsWith("--product="))?.split("=")[1] ?? null;
+const SKIP_PDF = args.includes("--skip-pdf");
 
 /** data: URIs for HOOX logos (light = white mark for dark cover; dark = black mark for paper). */
 function loadLogoDataUri(filename) {
-  const candidates = [
-    path.join(BRAND, filename),
-    path.join(ROOT, "docs/assets/brand", filename),
-    // sibling landing repo brand pack
-    path.resolve(ROOT, "../hoox-landing-page/public/brand", filename),
-    path.resolve("/home/jango/Git/hoox-landing-page/public/brand", filename),
-  ]
-  for (const p of candidates) {
-    if (existsSync(p)) {
-      const buf = readFileSync(p)
-      return `data:image/svg+xml;base64,${buf.toString("base64")}`
+    const candidates = [
+        path.join(BRAND, filename),
+        path.join(ROOT, "docs/assets/brand", filename),
+        // sibling landing repo brand pack
+        path.resolve(ROOT, "../hoox-landing-page/public/brand", filename),
+        path.resolve(
+            "/home/jango/Git/hoox-landing-page/public/brand",
+            filename,
+        ),
+    ];
+    for (const p of candidates) {
+        if (existsSync(p)) {
+            const buf = readFileSync(p);
+            return `data:image/svg+xml;base64,${buf.toString("base64")}`;
+        }
     }
-  }
-  return null
+    return null;
 }
 
-const LOGO_LIGHT = loadLogoDataUri("hoox-logo-light.svg")
-const LOGO_DARK = loadLogoDataUri("hoox-logo-dark.svg")
+const LOGO_LIGHT = loadLogoDataUri("hoox-logo-light.svg");
+const LOGO_DARK = loadLogoDataUri("hoox-logo-dark.svg");
 
 // ── Resolve product docs roots ──────────────────────────────────────────────
 // AXIS MDX lives in the sister `axis` repo; `docs/axis` here is only a stub
@@ -88,443 +93,467 @@ const LOGO_DARK = loadLogoDataUri("hoox-logo-dark.svg")
 // local stub if it ever gains a real docs.json.
 
 function resolveAxisDocsRoot() {
-  const candidates = [
-    process.env.AXIS_DOCS,
-    path.resolve(ROOT, "../axis/docs"),
-    path.resolve(ROOT, "../../axis/docs"),
-    "/home/jango/Git/axis/docs",
-    path.join(DOCS, "axis"),
-  ].filter(Boolean)
-  for (const c of candidates) {
-    if (existsSync(path.join(c, "docs.json"))) return c
-  }
-  return path.join(DOCS, "axis")
+    const candidates = [
+        process.env.AXIS_DOCS,
+        path.resolve(ROOT, "../axis/docs"),
+        path.resolve(ROOT, "../../axis/docs"),
+        "/home/jango/Git/axis/docs",
+        path.join(DOCS, "axis"),
+    ].filter(Boolean);
+    for (const c of candidates) {
+        if (existsSync(path.join(c, "docs.json"))) return c;
+    }
+    return path.join(DOCS, "axis");
 }
 
-const AXIS_DOCS_ROOT = resolveAxisDocsRoot()
+const AXIS_DOCS_ROOT = resolveAxisDocsRoot();
 
 // ── Product definitions ─────────────────────────────────────────────────────
 
 const PRODUCTS = {
-  pyne: {
-    id: "pyne",
-    name: "PYNE",
-    tagline: "Open-source Pine Script evaluation framework",
-    blurb:
-      "Grammar-driven parser, ASDL AST, bar-loop evaluator, LSP, Pro API, and edge workers. Self-host the runtime.",
-    docsRoot: path.join(DOCS, "pyne"),
-    publicBase: "/pyne/docs",
-    publicUrl: `${SITE}/pyne/docs`,
-    repoPath: "docs/pyne",
-    repoUrl: REPO,
-    accent: "#A3E635",
-    accentDark: "#65A30D",
-    brandPack: "volt",
-    marketing: `${SITE}/pyne`,
-    manuals: {
-      enduser: {
-        id: "enduser",
-        title: "End User Manual",
-        subtitle: "Install, CLI, library API, editors, and Pro API as a consumer",
-        filename: "pyne-enduser-manual.pdf",
-        audience: "Script authors · Library consumers · Editor users",
-        tabMatch: /end\s*user/i,
-        pathPrefixes: ["enduser/", "index"],
-        includeProductIndex: true,
-      },
-      core: {
-        id: "core",
-        title: "Language Core Manual",
-        subtitle: "ANTLR4 grammar, ASDL AST, builder, unparser, type system, linter",
-        filename: "pyne-core-manual.pdf",
-        audience: "Language implementers · Contributors",
-        tabMatch: /^core$/i,
-        pathPrefixes: ["core/"],
-      },
-      runtime: {
-        id: "runtime",
-        title: "Runtime Manual",
-        subtitle: "Evaluator, series model, builtins, strategy, compiler",
-        filename: "pyne-runtime-manual.pdf",
-        audience: "Runtime engineers · Strategy authors",
-        tabMatch: /runtime/i,
-        pathPrefixes: ["runtime/"],
-      },
-      lsp: {
-        id: "lsp",
-        title: "Language Server Manual",
-        subtitle: "LSP features, builtin metadata, VS Code, editor clients",
-        filename: "pyne-lsp-manual.pdf",
-        audience: "Editor integrators · IDE authors",
-        tabMatch: /^lsp$/i,
-        pathPrefixes: ["lsp/"],
-      },
-      api: {
-        id: "api",
-        title: "Pro API Manual",
-        subtitle: "Flask Pro API, auth, /run contract, preview, backtest",
-        filename: "pyne-api-manual.pdf",
-        audience: "API clients · Backend operators",
-        tabMatch: /^api$/i,
-        pathPrefixes: ["api/"],
-      },
-      devops: {
-        id: "devops",
-        title: "DevOps Manual",
-        subtitle: "CI, Docker, Nuitka, metadata crypto, GCP, security",
-        filename: "pyne-devops-manual.pdf",
-        audience: "Platform engineers · Release operators",
-        tabMatch: /devops/i,
-        pathPrefixes: ["devops/"],
-      },
-      reference: {
-        id: "reference",
-        title: "Reference Manual",
-        subtitle: "Compatibility, status, gaps, numerical validation, pine-worker",
-        filename: "pyne-reference-manual.pdf",
-        audience: "Auditors · Contributors · Parity hunters",
-        tabMatch: /reference/i,
-        pathPrefixes: ["reference/", "pine-worker/", "contributing"],
-      },
+    pyne: {
+        id: "pyne",
+        name: "PYNE",
+        tagline: "Open-source Pine Script evaluation framework",
+        blurb: "Grammar-driven parser, ASDL AST, bar-loop evaluator, LSP, Pro API, and edge workers. Self-host the runtime.",
+        docsRoot: path.join(DOCS, "pyne"),
+        publicBase: "/pyne/docs",
+        publicUrl: `${SITE}/pyne/docs`,
+        repoPath: "docs/pyne",
+        repoUrl: REPO,
+        accent: "#A3E635",
+        accentDark: "#65A30D",
+        brandPack: "volt",
+        marketing: `${SITE}/pyne`,
+        manuals: {
+            enduser: {
+                id: "enduser",
+                title: "End User Manual",
+                subtitle:
+                    "Install, CLI, library API, editors, and Pro API as a consumer",
+                filename: "pyne-enduser-manual.pdf",
+                audience: "Script authors · Library consumers · Editor users",
+                tabMatch: /end\s*user/i,
+                pathPrefixes: ["enduser/", "index"],
+                includeProductIndex: true,
+            },
+            core: {
+                id: "core",
+                title: "Language Core Manual",
+                subtitle:
+                    "ANTLR4 grammar, ASDL AST, builder, unparser, type system, linter",
+                filename: "pyne-core-manual.pdf",
+                audience: "Language implementers · Contributors",
+                tabMatch: /^core$/i,
+                pathPrefixes: ["core/"],
+            },
+            runtime: {
+                id: "runtime",
+                title: "Runtime Manual",
+                subtitle:
+                    "Evaluator, series model, builtins, strategy, compiler",
+                filename: "pyne-runtime-manual.pdf",
+                audience: "Runtime engineers · Strategy authors",
+                tabMatch: /runtime/i,
+                pathPrefixes: ["runtime/"],
+            },
+            lsp: {
+                id: "lsp",
+                title: "Language Server Manual",
+                subtitle:
+                    "LSP features, builtin metadata, VS Code, editor clients",
+                filename: "pyne-lsp-manual.pdf",
+                audience: "Editor integrators · IDE authors",
+                tabMatch: /^lsp$/i,
+                pathPrefixes: ["lsp/"],
+            },
+            api: {
+                id: "api",
+                title: "Pro API Manual",
+                subtitle:
+                    "Flask Pro API, auth, /run contract, preview, backtest",
+                filename: "pyne-api-manual.pdf",
+                audience: "API clients · Backend operators",
+                tabMatch: /^api$/i,
+                pathPrefixes: ["api/"],
+            },
+            devops: {
+                id: "devops",
+                title: "DevOps Manual",
+                subtitle: "CI, Docker, Nuitka, metadata crypto, GCP, security",
+                filename: "pyne-devops-manual.pdf",
+                audience: "Platform engineers · Release operators",
+                tabMatch: /devops/i,
+                pathPrefixes: ["devops/"],
+            },
+            reference: {
+                id: "reference",
+                title: "Reference Manual",
+                subtitle:
+                    "Compatibility, status, gaps, numerical validation, pine-worker",
+                filename: "pyne-reference-manual.pdf",
+                audience: "Auditors · Contributors · Parity hunters",
+                tabMatch: /reference/i,
+                pathPrefixes: ["reference/", "pine-worker/", "contributing"],
+            },
+        },
     },
-  },
-  axis: {
-    id: "axis",
-    name: "AXIS",
-    tagline: "Open charting PWA — own the axes, swap the engine",
-    blurb:
-      "Installable AXIS for price and time. Orthogonal plugins: sources, streams, engines, storage. Full Pine surface via PYNE.",
-    docsRoot: AXIS_DOCS_ROOT,
-    publicBase: "/axis/docs",
-    publicUrl: `${SITE}/axis/docs`,
-    // Repo-relative docs path inside the axis repository (for GitHub tree
-    // links and llm.txt FILE: prefixes) — not a filesystem path.
-    repoPath: "docs",
-    // AXIS docs live in the axis repo — emitting the pyne URL here sent readers
-    // and agents to the wrong repository.
-    repoUrl: "https://github.com/hoox-sh/axis",
-    accent: "#A78BFA",
-    accentDark: "#7C3AED",
-    brandPack: "void",
-    marketing: `${SITE}/axis`,
-    manuals: {
-      enduser: {
-        id: "enduser",
-        title: "End User Manual",
-        subtitle: "Install the PWA, compose plugins, research workflows",
-        filename: "axis-enduser-manual.pdf",
-        audience: "Traders · Researchers · Self-hosters",
-        tabMatch: /end\s*user/i,
-        pathPrefixes: ["enduser/", "index"],
-        includeProductIndex: true,
-      },
-      architecture: {
-        id: "architecture",
-        title: "Architecture Manual",
-        subtitle: "ADRs, topologies, state namespaces, AXIS ≠ engine",
-        filename: "axis-architecture-manual.pdf",
-        audience: "Systems engineers · Contributors",
-        tabMatch: /architecture/i,
-        pathPrefixes: ["architecture/"],
-      },
-      plugins: {
-        id: "plugins",
-        title: "Plugins Manual",
-        subtitle: "Contracts, registry, sources, streams, engines, storage",
-        filename: "axis-plugins-manual.pdf",
-        audience: "Plugin authors · Integrators",
-        tabMatch: /plugins?/i,
-        pathPrefixes: ["plugins/"],
-      },
-      ui: {
-        id: "ui",
-        title: "UI Manual",
-        subtitle: "Chart, editor, UI shell, indicators, results, store",
-        filename: "axis-ui-manual.pdf",
-        audience: "Frontend engineers · UX contributors",
-        tabMatch: /^ui$/i,
-        pathPrefixes: ["ui/"],
-      },
-      worker: {
-        id: "worker",
-        title: "Worker Manual",
-        subtitle: "Cloudflare Worker, Durable Objects, KV, D1, R2, auth",
-        filename: "axis-worker-manual.pdf",
-        audience: "Edge operators · Worker authors",
-        tabMatch: /worker/i,
-        pathPrefixes: ["worker/"],
-      },
-      devops: {
-        id: "devops",
-        title: "DevOps Manual",
-        subtitle: "Local dev, build/serve, Cloudflare, VPS, CORS, CI",
-        filename: "axis-devops-manual.pdf",
-        audience: "Platform engineers · Deployers",
-        tabMatch: /devops/i,
-        pathPrefixes: ["devops/"],
-      },
-      reference: {
-        id: "reference",
-        title: "Reference Manual",
-        subtitle: "Feature atlas, legacy shell, testing, plugin examples",
-        filename: "axis-reference-manual.pdf",
-        audience: "Auditors · QA · Contributors",
-        tabMatch: /reference/i,
-        pathPrefixes: ["reference/"],
-      },
+    axis: {
+        id: "axis",
+        name: "AXIS",
+        tagline: "Open charting PWA — own the axes, swap the engine",
+        blurb: "Installable AXIS for price and time. Orthogonal plugins: sources, streams, engines, storage. Full Pine surface via PYNE.",
+        docsRoot: AXIS_DOCS_ROOT,
+        publicBase: "/axis/docs",
+        publicUrl: `${SITE}/axis/docs`,
+        // Repo-relative docs path inside the axis repository (for GitHub tree
+        // links and llm.txt FILE: prefixes) — not a filesystem path.
+        repoPath: "docs",
+        // AXIS docs live in the axis repo — emitting the pyne URL here sent readers
+        // and agents to the wrong repository.
+        repoUrl: "https://github.com/hoox-sh/axis",
+        accent: "#A78BFA",
+        accentDark: "#7C3AED",
+        brandPack: "void",
+        marketing: `${SITE}/axis`,
+        manuals: {
+            enduser: {
+                id: "enduser",
+                title: "End User Manual",
+                subtitle:
+                    "Install the PWA, compose plugins, research workflows",
+                filename: "axis-enduser-manual.pdf",
+                audience: "Traders · Researchers · Self-hosters",
+                tabMatch: /end\s*user/i,
+                pathPrefixes: ["enduser/", "index"],
+                includeProductIndex: true,
+            },
+            architecture: {
+                id: "architecture",
+                title: "Architecture Manual",
+                subtitle: "ADRs, topologies, state namespaces, AXIS ≠ engine",
+                filename: "axis-architecture-manual.pdf",
+                audience: "Systems engineers · Contributors",
+                tabMatch: /architecture/i,
+                pathPrefixes: ["architecture/"],
+            },
+            plugins: {
+                id: "plugins",
+                title: "Plugins Manual",
+                subtitle:
+                    "Contracts, registry, sources, streams, engines, storage",
+                filename: "axis-plugins-manual.pdf",
+                audience: "Plugin authors · Integrators",
+                tabMatch: /plugins?/i,
+                pathPrefixes: ["plugins/"],
+            },
+            ui: {
+                id: "ui",
+                title: "UI Manual",
+                subtitle: "Chart, editor, UI shell, indicators, results, store",
+                filename: "axis-ui-manual.pdf",
+                audience: "Frontend engineers · UX contributors",
+                tabMatch: /^ui$/i,
+                pathPrefixes: ["ui/"],
+            },
+            worker: {
+                id: "worker",
+                title: "Worker Manual",
+                subtitle:
+                    "Cloudflare Worker, Durable Objects, KV, D1, R2, auth",
+                filename: "axis-worker-manual.pdf",
+                audience: "Edge operators · Worker authors",
+                tabMatch: /worker/i,
+                pathPrefixes: ["worker/"],
+            },
+            devops: {
+                id: "devops",
+                title: "DevOps Manual",
+                subtitle: "Local dev, build/serve, Cloudflare, VPS, CORS, CI",
+                filename: "axis-devops-manual.pdf",
+                audience: "Platform engineers · Deployers",
+                tabMatch: /devops/i,
+                pathPrefixes: ["devops/"],
+            },
+            reference: {
+                id: "reference",
+                title: "Reference Manual",
+                subtitle:
+                    "Feature atlas, legacy shell, testing, plugin examples",
+                filename: "axis-reference-manual.pdf",
+                audience: "Auditors · QA · Contributors",
+                tabMatch: /reference/i,
+                pathPrefixes: ["reference/"],
+            },
+        },
     },
-  },
-}
+};
 
 // ── CLI plan ────────────────────────────────────────────────────────────────
 
 function productsToRun() {
-  if (productArg) {
-    if (!PRODUCTS[productArg]) {
-      throw new Error(`Unknown --product=${productArg} (pyne|axis)`)
+    if (productArg) {
+        if (!PRODUCTS[productArg]) {
+            throw new Error(`Unknown --product=${productArg} (pyne|axis)`);
+        }
+        return [productArg];
     }
-    return [productArg]
-  }
-  if (onlyArg === "pyne" || onlyArg === "axis") return [onlyArg]
-  return ["pyne", "axis"]
+    if (onlyArg === "pyne" || onlyArg === "axis") return [onlyArg];
+    return ["pyne", "axis"];
 }
 
 function planForProduct(productId) {
-  const product = PRODUCTS[productId]
-  const manualIds = Object.keys(product.manuals)
+    const product = PRODUCTS[productId];
+    const manualIds = Object.keys(product.manuals);
 
-  switch (onlyArg) {
-    case "agents":
-      return { manuals: [], agents: true }
-    case "pdfs":
-      return { manuals: manualIds, agents: false }
-    case "pyne":
-    case "axis":
-    case "all":
-      return { manuals: manualIds, agents: true }
-    default:
-      // track id for a single product
-      if (product.manuals[onlyArg]) {
-        return { manuals: [onlyArg], agents: false }
-      }
-      return { manuals: manualIds, agents: true }
-  }
+    switch (onlyArg) {
+        case "agents":
+            return { manuals: [], agents: true };
+        case "pdfs":
+            return { manuals: manualIds, agents: false };
+        case "pyne":
+        case "axis":
+        case "all":
+            return { manuals: manualIds, agents: true };
+        default:
+            // track id for a single product
+            if (product.manuals[onlyArg]) {
+                return { manuals: [onlyArg], agents: false };
+            }
+            return { manuals: manualIds, agents: true };
+    }
 }
 
 // ── Docs JSON / filesystem ──────────────────────────────────────────────────
 
 function flattenPages(pages, out = []) {
-  for (const p of pages) {
-    if (typeof p === "string") out.push(p)
-    else if (p?.pages) flattenPages(p.pages, out)
-  }
-  return out
+    for (const p of pages) {
+        if (typeof p === "string") out.push(p);
+        else if (p?.pages) flattenPages(p.pages, out);
+    }
+    return out;
 }
 
 function loadDocsJson(docsRoot) {
-  return JSON.parse(
-    require("fs").readFileSync(path.join(docsRoot, "docs.json"), "utf8"),
-  )
+    return JSON.parse(
+        require("fs").readFileSync(path.join(docsRoot, "docs.json"), "utf8"),
+    );
 }
 
 function pagesForManual(product, manual, docsJson) {
-  const tabs = docsJson.navigation?.tabs ?? []
-  const tab = tabs.find((t) => manual.tabMatch.test(String(t.tab ?? "")))
-  let pages = []
-  if (tab?.groups?.length) {
-    for (const g of tab.groups) flattenPages(g.pages ?? [], pages)
-  }
-
-  pages = pages.filter((p) => {
-    if (manual.includeProductIndex && (p === "index" || p === "docs/index")) {
-      return true
+    const tabs = docsJson.navigation?.tabs ?? [];
+    const tab = tabs.find((t) => manual.tabMatch.test(String(t.tab ?? "")));
+    let pages = [];
+    if (tab?.groups?.length) {
+        for (const g of tab.groups) flattenPages(g.pages ?? [], pages);
     }
-    return manual.pathPrefixes.some((pref) => {
-      if (pref.endsWith("/")) return p === pref.slice(0, -1) || p.startsWith(pref)
-      return p === pref || p.startsWith(pref + "/")
-    })
-  })
 
-  // Deduplicate while preserving order
-  const seen = new Set()
-  pages = pages.filter((p) => {
-    if (seen.has(p)) return false
-    seen.add(p)
-    return true
-  })
+    pages = pages.filter((p) => {
+        if (
+            manual.includeProductIndex &&
+            (p === "index" || p === "docs/index")
+        ) {
+            return true;
+        }
+        return manual.pathPrefixes.some((pref) => {
+            if (pref.endsWith("/"))
+                return p === pref.slice(0, -1) || p.startsWith(pref);
+            return p === pref || p.startsWith(pref + "/");
+        });
+    });
 
-  if (pages.length) return pages
+    // Deduplicate while preserving order
+    const seen = new Set();
+    pages = pages.filter((p) => {
+        if (seen.has(p)) return false;
+        seen.add(p);
+        return true;
+    });
 
-  // Fallback: walk filesystem under prefixes
-  return null
+    if (pages.length) return pages;
+
+    // Fallback: walk filesystem under prefixes
+    return null;
 }
 
 async function walkMdx(dir, acc = []) {
-  let entries
-  try {
-    entries = await readdir(dir, { withFileTypes: true })
-  } catch {
-    return acc
-  }
-  for (const e of entries) {
-    const full = path.join(dir, e.name)
-    if (e.isDirectory()) await walkMdx(full, acc)
-    else if (e.name.endsWith(".mdx") || e.name.endsWith(".md")) acc.push(full)
-  }
-  return acc
+    let entries;
+    try {
+        entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+        return acc;
+    }
+    for (const e of entries) {
+        const full = path.join(dir, e.name);
+        if (e.isDirectory()) await walkMdx(full, acc);
+        else if (e.name.endsWith(".mdx") || e.name.endsWith(".md"))
+            acc.push(full);
+    }
+    return acc;
 }
 
 function pageKeyToFile(docsRoot, pageKey) {
-  const rel = pageKey.replace(/^docs\//, "")
-  const base = path.join(docsRoot, rel)
-  for (const ext of [".mdx", ".md"]) {
-    if (existsSync(base + ext)) return base + ext
-  }
-  if (existsSync(path.join(base, "index.mdx"))) return path.join(base, "index.mdx")
-  if (rel === "index" && existsSync(path.join(docsRoot, "index.mdx"))) {
-    return path.join(docsRoot, "index.mdx")
-  }
-  return null
+    const rel = pageKey.replace(/^docs\//, "");
+    const base = path.join(docsRoot, rel);
+    for (const ext of [".mdx", ".md"]) {
+        if (existsSync(base + ext)) return base + ext;
+    }
+    if (existsSync(path.join(base, "index.mdx")))
+        return path.join(base, "index.mdx");
+    if (rel === "index" && existsSync(path.join(docsRoot, "index.mdx"))) {
+        return path.join(docsRoot, "index.mdx");
+    }
+    return null;
 }
 
 async function resolvePageKeys(product, manual, docsJson) {
-  let pageKeys = pagesForManual(product, manual, docsJson)
-  if (pageKeys?.length) return pageKeys
+    let pageKeys = pagesForManual(product, manual, docsJson);
+    if (pageKeys?.length) return pageKeys;
 
-  const keys = []
-  for (const pref of manual.pathPrefixes) {
-    if (pref === "index") {
-      if (existsSync(path.join(product.docsRoot, "index.mdx"))) keys.push("index")
-      continue
-    }
-    const dir = path.join(
-      product.docsRoot,
-      pref.endsWith("/") ? pref.slice(0, -1) : pref,
-    )
-    if (pref.endsWith("/") || existsSync(dir + ".mdx") === false) {
-      if (existsSync(dir) && require("fs").statSync(dir).isDirectory()) {
-        const files = await walkMdx(dir)
-        for (const f of files) {
-          const rel = path.relative(product.docsRoot, f).replace(/\\/g, "/")
-          keys.push(rel.replace(/\.mdx?$/, ""))
+    const keys = [];
+    for (const pref of manual.pathPrefixes) {
+        if (pref === "index") {
+            if (existsSync(path.join(product.docsRoot, "index.mdx")))
+                keys.push("index");
+            continue;
         }
-      } else if (existsSync(dir + ".mdx")) {
-        keys.push(pref.replace(/\/$/, ""))
-      }
-    } else if (existsSync(path.join(product.docsRoot, pref + ".mdx"))) {
-      keys.push(pref)
+        const dir = path.join(
+            product.docsRoot,
+            pref.endsWith("/") ? pref.slice(0, -1) : pref,
+        );
+        if (pref.endsWith("/") || existsSync(dir + ".mdx") === false) {
+            if (existsSync(dir) && require("fs").statSync(dir).isDirectory()) {
+                const files = await walkMdx(dir);
+                for (const f of files) {
+                    const rel = path
+                        .relative(product.docsRoot, f)
+                        .replace(/\\/g, "/");
+                    keys.push(rel.replace(/\.mdx?$/, ""));
+                }
+            } else if (existsSync(dir + ".mdx")) {
+                keys.push(pref.replace(/\/$/, ""));
+            }
+        } else if (existsSync(path.join(product.docsRoot, pref + ".mdx"))) {
+            keys.push(pref);
+        }
     }
-  }
-  return [...new Set(keys)].sort()
+    return [...new Set(keys)].sort();
 }
 
 // ── MDX transforms ──────────────────────────────────────────────────────────
 
 function mdxToMarkdown(raw, product) {
-  const { data, content } = matter(raw)
-  let body = content
-    .replace(/^import\s+.+;?\s*$/gm, "")
-    .replace(/^export\s+.+;?\s*$/gm, "")
-    .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
-    .replace(/<([A-Z][A-Za-z0-9.]*)[^>]*\/>/g, "")
-    .replace(/<([A-Z][A-Za-z0-9.]*)[^>]*>[\s\S]*?<\/\1>/g, (m) => {
-      // Loop until stable to avoid incomplete multi-character sanitization
-      let prev
-      do {
-        prev = m
-        m = m.replace(/<[^>]+>/g, "")
-      } while (m !== prev)
-      return m
-    })
-    .replace(/<(?:br|hr)\s*\/?>/gi, "\n\n")
-    .replace(/\]\((?!https?:|\/|#|mailto:)([^)]+)\)/g, (m, p1) => {
-      const clean = p1.replace(/^\.\//, "").replace(/\.mdx?$/, "")
-      return `](${SITE}${product.publicBase}/${clean})`
-    })
-    .replace(/\n{3,}/g, "\n\n")
-    .trim()
+    const { data, content } = matter(raw);
+    let body = content
+        .replace(/^import\s+.+;?\s*$/gm, "")
+        .replace(/^export\s+.+;?\s*$/gm, "")
+        .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
+        .replace(/<([A-Z][A-Za-z0-9.]*)[^>]*\/>/g, "")
+        .replace(/<([A-Z][A-Za-z0-9.]*)[^>]*>[\s\S]*?<\/\1>/g, (m) => {
+            // Loop until stable to avoid incomplete multi-character sanitization
+            let prev;
+            do {
+                prev = m;
+                m = m.replace(/<[^>]+>/g, "");
+            } while (m !== prev);
+            return m;
+        })
+        .replace(/<(?:br|hr)\s*\/?>/gi, "\n\n")
+        .replace(/\]\((?!https?:|\/|#|mailto:)([^)]+)\)/g, (m, p1) => {
+            const clean = p1.replace(/^\.\//, "").replace(/\.mdx?$/, "");
+            return `](${SITE}${product.publicBase}/${clean})`;
+        })
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
 
-  return {
-    title: data.title || null,
-    description: data.description || null,
-    body,
-  }
+    return {
+        title: data.title || null,
+        description: data.description || null,
+        body,
+    };
 }
 
 function titleFromKey(pageKey) {
-  const last = pageKey.replace(/^docs\//, "").split("/").pop()
-  if (last === "index") return "Overview"
-  return last
-    .split("-")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ")
+    const last = pageKey
+        .replace(/^docs\//, "")
+        .split("/")
+        .pop();
+    if (last === "index") return "Overview";
+    return last
+        .split("-")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
 }
 
 function pageKeyToHref(product, pageKey) {
-  if (pageKey === "index" || pageKey === "docs/index") return product.publicBase
-  const without = pageKey.replace(/^docs\//, "")
-  if (without.endsWith("/index")) {
-    const base = without.replace(/\/index$/, "")
-    return base ? `${product.publicBase}/${base}` : product.publicBase
-  }
-  return `${product.publicBase}/${without}`
+    if (pageKey === "index" || pageKey === "docs/index")
+        return product.publicBase;
+    const without = pageKey.replace(/^docs\//, "");
+    if (without.endsWith("/index")) {
+        const base = without.replace(/\/index$/, "");
+        return base ? `${product.publicBase}/${base}` : product.publicBase;
+    }
+    return `${product.publicBase}/${without}`;
 }
 
 /** Minified full-corpus text (hoox-setup llm.txt style). */
 function minifyLlmText(content) {
-  let text = content.replace(/^---[\s\S]*?---/, "")
-  text = text.replace(/```mermaid[\s\S]*?```/g, "")
-  text = text.replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
-  text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-  text = text.replace(/<svg[\s\S]*?<\/svg>/g, "")
-  // Loop until stable to avoid incomplete multi-character sanitization
-  {
-    let prev
-    do {
-      prev = text
-      text = text.replace(/<[^>]+>/g, "")
-    } while (text !== prev)
-  }
-  text = text.replace(/^#+\s+/gm, "")
-  text = text.replace(/\*\*([^*]+)\*\*/g, "$1")
-  text = text.replace(/\*([^*]+)\*/g, "$1")
-  // Emphasis must be word-boundary anchored. A bare `_([^_]+)_` pairs the
-  // underscores of *different* identifiers whenever two appear in one
-  // sentence: "PYNE_DEBUG=1 and PYNE_DEBUG_SCOPE=x" matched `_DEBUG=1 and
-  // PYNE_` and shipped `PYNEDEBUG=1 and PYNESCOPE=x`. Same for `ADMIN_TOKEN`,
-  // `session_id`, `from_bar`, `__bar_idx`. Requiring a non-word (or backslash)
-  // before the opening `_` and a non-word after the closing `_` keeps real
-  // _emphasis_ / __strong__ while leaving snake_case identifiers intact.
-  text = text.replace(/(?<![\\\w])__([^_\n]+)__(?!\w)/g, "$1")
-  text = text.replace(/(?<![\\\w])_([^_\n]+)_(?!\w)/g, "$1")
-  text = text.replace(/`([^`]+)`/g, "$1")
-  text = text.replace(/^\s*[-*+]\s+/gm, "")
-  text = text.replace(/^\s*>\s+/gm, "")
-  text = text.replace(/```[a-zA-Z0-9]*\n([\s\S]*?)```/g, "$1")
-  try {
-    // `RGI_Emoji`-style strip via Extended_Pictographic — never bare `\p{Emoji}`
-    // (that also matches ASCII digits in keycap sequences and shredded
-    // `AGPL-3.0-only` / `ADR-003`). Keep legal marks © ® ™: Unicode marks them
-    // Extended_Pictographic, but product copy needs TradingView® / Pine Script™.
-    const keepLegal = new Set(["©", "®", "™"])
-    text = text.replace(/\p{Extended_Pictographic}/gu, (ch) =>
-      keepLegal.has(ch) ? ch : "",
-    )
-    text = text.replace(/[\u{1F3FB}-\u{1F3FF}\u{FE0E}\u{FE0F}\u{20E3}]/gu, "")
-  } catch {
-    /* ignore if unicode props unavailable */
-  }
-  const compressedLines = text
-    .split("\n")
-    .map((line) => line.trim().replace(/\s+/g, " "))
-    .filter((line) => line.length > 0)
-  return compressedLines.join("\n")
+    let text = content.replace(/^---[\s\S]*?---/, "");
+    text = text.replace(/```mermaid[\s\S]*?```/g, "");
+    text = text.replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
+    text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+    text = text.replace(/<svg[\s\S]*?<\/svg>/g, "");
+    // Loop until stable to avoid incomplete multi-character sanitization
+    {
+        let prev;
+        do {
+            prev = text;
+            text = text.replace(/<[^>]+>/g, "");
+        } while (text !== prev);
+    }
+    text = text.replace(/^#+\s+/gm, "");
+    text = text.replace(/\*\*([^*]+)\*\*/g, "$1");
+    text = text.replace(/\*([^*]+)\*/g, "$1");
+    // Emphasis must be word-boundary anchored. A bare `_([^_]+)_` pairs the
+    // underscores of *different* identifiers whenever two appear in one
+    // sentence: "PYNE_DEBUG=1 and PYNE_DEBUG_SCOPE=x" matched `_DEBUG=1 and
+    // PYNE_` and shipped `PYNEDEBUG=1 and PYNESCOPE=x`. Same for `ADMIN_TOKEN`,
+    // `session_id`, `from_bar`, `__bar_idx`. Requiring a non-word (or backslash)
+    // before the opening `_` and a non-word after the closing `_` keeps real
+    // _emphasis_ / __strong__ while leaving snake_case identifiers intact.
+    text = text.replace(/(?<![\\\w])__([^_\n]+)__(?!\w)/g, "$1");
+    text = text.replace(/(?<![\\\w])_([^_\n]+)_(?!\w)/g, "$1");
+    text = text.replace(/`([^`]+)`/g, "$1");
+    text = text.replace(/^\s*[-*+]\s+/gm, "");
+    text = text.replace(/^\s*>\s+/gm, "");
+    text = text.replace(/```[a-zA-Z0-9]*\n([\s\S]*?)```/g, "$1");
+    try {
+        // `RGI_Emoji`-style strip via Extended_Pictographic — never bare `\p{Emoji}`
+        // (that also matches ASCII digits in keycap sequences and shredded
+        // `AGPL-3.0-only` / `ADR-003`). Keep legal marks © ® ™: Unicode marks them
+        // Extended_Pictographic, but product copy needs TradingView® / Pine Script™.
+        const keepLegal = new Set(["©", "®", "™"]);
+        text = text.replace(/\p{Extended_Pictographic}/gu, (ch) =>
+            keepLegal.has(ch) ? ch : "",
+        );
+        text = text.replace(
+            /[\u{1F3FB}-\u{1F3FF}\u{FE0E}\u{FE0F}\u{20E3}]/gu,
+            "",
+        );
+    } catch {
+        /* ignore if unicode props unavailable */
+    }
+    const compressedLines = text
+        .split("\n")
+        .map((line) => line.trim().replace(/\s+/g, " "))
+        .filter((line) => line.length > 0);
+    return compressedLines.join("\n");
 }
 
 // ── Print CSS (product-accent) ──────────────────────────────────────────────
 
 function printCss(accent) {
-  return `
+    return `
 @page { size: A4; margin: 16mm 14mm 18mm 14mm; }
 @page :first { margin: 0; }
 * { box-sizing: border-box; }
@@ -694,22 +723,22 @@ html, body {
 }
 .content a { color: ${accentDark(accent)}; text-decoration: none; }
 .content hr { border: none; border-top: 1px solid #e5e5e5; margin: 1.4em 0; }
-`
+`;
 }
 
 function accentDark(accent) {
-  if (accent === "#A3E635") return "#4d7c0f"
-  if (accent === "#A78BFA") return "#6d28d9"
-  if (accent === "#F97316") return "#c2410c"
-  return "#333"
+    if (accent === "#A3E635") return "#4d7c0f";
+    if (accent === "#A78BFA") return "#6d28d9";
+    if (accent === "#F97316") return "#c2410c";
+    return "#333";
 }
 
 function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
+    return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
 }
 
 // ── Mermaid diagrams (printed as SVG plates) ────────────────────────────────
@@ -719,68 +748,71 @@ function escapeHtml(s) {
 // helpers) is available, fences are converted to `pre.mermaid`, rendered in the
 // browser before printing, and captured as vector graphics in the PDF.
 
-const MERMAID_FONT = '"IBM Plex Sans", "Segoe UI", sans-serif'
-let MERMAID_ENABLED = false
-let MERMAID_HELPERS = null
+const MERMAID_FONT = '"IBM Plex Sans", "Segoe UI", sans-serif';
+let MERMAID_ENABLED = false;
+let MERMAID_HELPERS = null;
 
 /** Locate a mermaid.min.js bundle: local deps, sibling landing repo, or env. */
 function findMermaidJs() {
-  const candidates = [
-    process.env.MERMAID_JS,
-    path.join(ROOT, "node_modules/mermaid/dist/mermaid.min.js"),
-    path.join(ROOT, "../hoox-landing-page/node_modules/mermaid/dist/mermaid.min.js"),
-    "/home/jango/Git/hoox-landing-page/node_modules/mermaid/dist/mermaid.min.js",
-    path.join(ROOT, "../axis/node_modules/mermaid/dist/mermaid.min.js"),
-  ].filter(Boolean)
-  for (const p of candidates) {
-    if (existsSync(p)) return p
-  }
-  return null
+    const candidates = [
+        process.env.MERMAID_JS,
+        path.join(ROOT, "node_modules/mermaid/dist/mermaid.min.js"),
+        path.join(
+            ROOT,
+            "../hoox-landing-page/node_modules/mermaid/dist/mermaid.min.js",
+        ),
+        "/home/jango/Git/hoox-landing-page/node_modules/mermaid/dist/mermaid.min.js",
+        path.join(ROOT, "../axis/node_modules/mermaid/dist/mermaid.min.js"),
+    ].filter(Boolean);
+    for (const p of candidates) {
+        if (existsSync(p)) return p;
+    }
+    return null;
 }
 
 /** Optional palette helpers — shared with the landing-page export pipeline. */
 async function loadMermaidTheme() {
-  const candidates = [
-    process.env.MERMAID_THEME_MODULE,
-    path.join(ROOT, "../hoox-landing-page/lib/mermaid-theme.mjs"),
-    "/home/jango/Git/hoox-landing-page/lib/mermaid-theme.mjs",
-  ].filter(Boolean)
-  for (const p of candidates) {
-    if (!existsSync(p)) continue
-    try {
-      return await import(pathToFileURL(p).href)
-    } catch {
-      /* fall through to default theme */
+    const candidates = [
+        process.env.MERMAID_THEME_MODULE,
+        path.join(ROOT, "../hoox-landing-page/lib/mermaid-theme.mjs"),
+        "/home/jango/Git/hoox-landing-page/lib/mermaid-theme.mjs",
+    ].filter(Boolean);
+    for (const p of candidates) {
+        if (!existsSync(p)) continue;
+        try {
+            return await import(pathToFileURL(p).href);
+        } catch {
+            /* fall through to default theme */
+        }
     }
-  }
-  return null
+    return null;
 }
 
 function decodeHtmlEntities(s) {
-  // Decode ``&amp;`` last so ``&amp;lt;`` stays a single-level unescape
-  // (CodeQL ``js/double-escaping``).
-  return String(s)
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, "&")
+    // Decode ``&amp;`` last so ``&amp;lt;`` stays a single-level unescape
+    // (CodeQL ``js/double-escaping``).
+    return String(s)
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&amp;/g, "&");
 }
 
 /** Turn marked's language-mermaid fences into mermaid.js run targets. */
 function injectMermaidBlocks(html, accent) {
-  if (!MERMAID_ENABLED) return html
-  const palette = MERMAID_HELPERS?.pdfMermaidPalette?.(accent)
-  return String(html).replace(
-    /<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/gi,
-    (_, code) => {
-      let src = decodeHtmlEntities(code).trim()
-      if (palette && MERMAID_HELPERS?.recolorMermaidSource) {
-        src = MERMAID_HELPERS.recolorMermaidSource(src, palette)
-      }
-      return `<pre class="mermaid">${escapeHtml(src)}</pre>`
-    },
-  )
+    if (!MERMAID_ENABLED) return html;
+    const palette = MERMAID_HELPERS?.pdfMermaidPalette?.(accent);
+    return String(html).replace(
+        /<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/gi,
+        (_, code) => {
+            let src = decodeHtmlEntities(code).trim();
+            if (palette && MERMAID_HELPERS?.recolorMermaidSource) {
+                src = MERMAID_HELPERS.recolorMermaidSource(src, palette);
+            }
+            return `<pre class="mermaid">${escapeHtml(src)}</pre>`;
+        },
+    );
 }
 
 /**
@@ -792,47 +824,50 @@ function injectMermaidBlocks(html, accent) {
  * Only visible text is touched; element markup and attributes stay intact.
  */
 function hardenTableCells(html) {
-  const MIN_RUN = 26
-  const CHUNK = 24
-  const breakText = (text) =>
-    String(text)
-      .replace(/([^\s<>&;]{26,})/g, (run) =>
-        run.replace(/([/._\-:,?=&@+])/g, "$1<wbr>"),
-      )
-      .replace(/([^\s<>&;]{26,})/g, (run) =>
-        run.replace(new RegExp(`(.{${CHUNK}})`, "g"), "$1<wbr>"),
-      )
-  const breakCell = (inner) =>
-    String(inner)
-      .split(/(<[^>]*>)/g)
-      .map((part) => (part && part[0] === "<" ? part : breakText(part)))
-      .join("")
-  return String(html).replace(
-    /(<t[dh]\b[^>]*>)([\s\S]*?)(<\/t[dh]>)/gi,
-    (_m, open, inner, close) => open + breakCell(inner) + close,
-  )
+    const MIN_RUN = 26;
+    const CHUNK = 24;
+    const breakText = (text) =>
+        String(text)
+            .replace(/([^\s<>&;]{26,})/g, (run) =>
+                run.replace(/([/._\-:,?=&@+])/g, "$1<wbr>"),
+            )
+            .replace(/([^\s<>&;]{26,})/g, (run) =>
+                run.replace(new RegExp(`(.{${CHUNK}})`, "g"), "$1<wbr>"),
+            );
+    const breakCell = (inner) =>
+        String(inner)
+            .split(/(<[^>]*>)/g)
+            .map((part) => (part && part[0] === "<" ? part : breakText(part)))
+            .join("");
+    return String(html).replace(
+        /(<t[dh]\b[^>]*>)([\s\S]*?)(<\/t[dh]>)/gi,
+        (_m, open, inner, close) => open + breakCell(inner) + close,
+    );
 }
 
 /** Boot script injected before </body> when mermaid rendering is enabled. */
 function mermaidBootMarkup(accent) {
-  if (!MERMAID_ENABLED) return ""
-  const options = {
-    startOnLoad: false,
-    securityLevel: "loose",
-    fontFamily: MERMAID_FONT,
-  }
-  const palette = MERMAID_HELPERS?.pdfMermaidPalette?.(accent)
-  if (palette && MERMAID_HELPERS?.mermaidThemeVariables) {
-    options.theme = "base"
-    options.look = "classic"
-    options.themeVariables = MERMAID_HELPERS.mermaidThemeVariables(palette, {
-      fontFamily: MERMAID_FONT,
-      darkMode: false,
-    })
-  } else {
-    options.theme = "neutral"
-  }
-  return `<script src="./mermaid.min.js"></script>
+    if (!MERMAID_ENABLED) return "";
+    const options = {
+        startOnLoad: false,
+        securityLevel: "loose",
+        fontFamily: MERMAID_FONT,
+    };
+    const palette = MERMAID_HELPERS?.pdfMermaidPalette?.(accent);
+    if (palette && MERMAID_HELPERS?.mermaidThemeVariables) {
+        options.theme = "base";
+        options.look = "classic";
+        options.themeVariables = MERMAID_HELPERS.mermaidThemeVariables(
+            palette,
+            {
+                fontFamily: MERMAID_FONT,
+                darkMode: false,
+            },
+        );
+    } else {
+        options.theme = "neutral";
+    }
+    return `<script src="./mermaid.min.js"></script>
 <script>
   (function () {
     function done() { document.documentElement.dataset.mermaid = "ready"; }
@@ -844,21 +879,21 @@ function mermaidBootMarkup(accent) {
       else done();
     } catch (e) { done(); }
   })();
-</script>`
+</script>`;
 }
 
 function wrapHtml({ product, title, subtitle, audience, chapters, dateIso }) {
-  const tocItems = chapters
-    .map(
-      (c, i) =>
-        `<li><span><span class="num">${String(i + 1).padStart(2, "0")}</span><span class="t">${escapeHtml(c.title)}</span></span></li>`,
-    )
-    .join("\n")
+    const tocItems = chapters
+        .map(
+            (c, i) =>
+                `<li><span><span class="num">${String(i + 1).padStart(2, "0")}</span><span class="t">${escapeHtml(c.title)}</span></span></li>`,
+        )
+        .join("\n");
 
-  const body = chapters
-    .map((c, i) => {
-      const num = String(i + 1).padStart(2, "0")
-      return `
+    const body = chapters
+        .map((c, i) => {
+            const num = String(i + 1).padStart(2, "0");
+            return `
 <section class="chapter">
   <header class="chapter-head">
     <div class="chapter-meta">${num} · ${escapeHtml(c.section || "Chapter")}</div>
@@ -866,18 +901,18 @@ function wrapHtml({ product, title, subtitle, audience, chapters, dateIso }) {
     ${c.description ? `<p class="desc">${escapeHtml(c.description)}</p>` : ""}
   </header>
   <div class="content">${c.html}</div>
-</section>`
-    })
-    .join("\n")
+</section>`;
+        })
+        .join("\n");
 
-  const coverLogo = LOGO_LIGHT
-    ? `<img class="cover-logo" src="${LOGO_LIGHT}" alt="HOOX" />`
-    : ""
-  const tagline = product.tagline
-    ? `<p class="cover-tagline">${escapeHtml(product.tagline)}</p>`
-    : ""
+    const coverLogo = LOGO_LIGHT
+        ? `<img class="cover-logo" src="${LOGO_LIGHT}" alt="HOOX" />`
+        : "";
+    const tagline = product.tagline
+        ? `<p class="cover-tagline">${escapeHtml(product.tagline)}</p>`
+        : "";
 
-  return `<!DOCTYPE html>
+    return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -918,59 +953,61 @@ function wrapHtml({ product, title, subtitle, audience, chapters, dateIso }) {
   ${body}
   ${mermaidBootMarkup(product.accent)}
 </body>
-</html>`
+</html>`;
 }
 
 // ── Playwright PDF (logo header + page numbers) ─────────────────────────────
 
 function findChrome() {
-  if (process.env.CHROME_PATH && existsSync(process.env.CHROME_PATH)) {
-    return process.env.CHROME_PATH
-  }
-  for (const p of [
-    "/usr/bin/chromium",
-    "/usr/bin/chromium-browser",
-    "/usr/bin/google-chrome",
-    "/usr/bin/google-chrome-stable",
-    "/snap/bin/chromium",
-  ]) {
-    if (existsSync(p)) return p
-  }
-  return null
+    if (process.env.CHROME_PATH && existsSync(process.env.CHROME_PATH)) {
+        return process.env.CHROME_PATH;
+    }
+    for (const p of [
+        "/usr/bin/chromium",
+        "/usr/bin/chromium-browser",
+        "/usr/bin/google-chrome",
+        "/usr/bin/google-chrome-stable",
+        "/snap/bin/chromium",
+    ]) {
+        if (existsSync(p)) return p;
+    }
+    return null;
 }
 
 async function loadPlaywright() {
-  const candidates = [
-    path.join(ROOT, "../axis/node_modules/playwright-core/index.js"),
-    path.join(ROOT, "node_modules/playwright-core/index.js"),
-    path.join(ROOT, "node_modules/playwright-core/index.js"),
-    path.resolve("/home/jango/Git/axis/node_modules/playwright-core/index.js"),
-  ]
-  for (const p of candidates) {
-    if (existsSync(p)) {
-      return import(pathToFileURL(p).href)
+    const candidates = [
+        path.join(ROOT, "../axis/node_modules/playwright-core/index.js"),
+        path.join(ROOT, "node_modules/playwright-core/index.js"),
+        path.join(ROOT, "node_modules/playwright-core/index.js"),
+        path.resolve(
+            "/home/jango/Git/axis/node_modules/playwright-core/index.js",
+        ),
+    ];
+    for (const p of candidates) {
+        if (existsSync(p)) {
+            return import(pathToFileURL(p).href);
+        }
     }
-  }
-  throw new Error(
-    "playwright-core not found (expected under ../axis/node_modules or root). Install axis deps for PDF exports.",
-  )
+    throw new Error(
+        "playwright-core not found (expected under ../axis/node_modules or root). Install axis deps for PDF exports.",
+    );
 }
 
 /** Playwright header: small HOOX mark, top-right of every page. */
 function headerTemplate() {
-  const logo = LOGO_DARK
-    ? `<img src="${LOGO_DARK}" style="height:11px;width:auto;display:block;opacity:0.85;" />`
-    : `<span style="font-family:monospace;font-size:8px;color:#666;">HOOX</span>`
-  return `<div style="width:100%;box-sizing:border-box;padding:0 14mm;display:flex;justify-content:flex-end;align-items:center;font-size:8px;">${logo}</div>`
+    const logo = LOGO_DARK
+        ? `<img src="${LOGO_DARK}" style="height:11px;width:auto;display:block;opacity:0.85;" />`
+        : `<span style="font-family:monospace;font-size:8px;color:#666;">HOOX</span>`;
+    return `<div style="width:100%;box-sizing:border-box;padding:0 14mm;display:flex;justify-content:flex-end;align-items:center;font-size:8px;">${logo}</div>`;
 }
 
 /** Playwright footer: centered page number. */
 function footerTemplate() {
-  return `<div style="width:100%;box-sizing:border-box;padding:0 14mm;display:flex;justify-content:center;align-items:center;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:8px;color:#6b7280;letter-spacing:0.08em;">
+    return `<div style="width:100%;box-sizing:border-box;padding:0 14mm;display:flex;justify-content:center;align-items:center;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:8px;color:#6b7280;letter-spacing:0.08em;">
     <span class="pageNumber"></span>
     <span style="margin:0 4px;opacity:0.5;">/</span>
     <span class="totalPages"></span>
-  </div>`
+  </div>`;
 }
 
 /**
@@ -983,419 +1020,456 @@ function footerTemplate() {
  * then stitch cover + body (pages 2–end) with qpdf.
  */
 async function htmlToPdf(htmlPath, pdfPath) {
-  const chrome = findChrome()
-  if (!chrome) {
-    throw new Error(
-      "No Chromium/Chrome found. Install chromium or set CHROME_PATH.",
-    )
-  }
-  await mkdir(path.dirname(pdfPath), { recursive: true })
-  const pw = await loadPlaywright()
-  const chromium = pw.chromium ?? pw.default?.chromium
-  if (!chromium?.launch) {
-    throw new Error("playwright-core loaded but chromium.launch is unavailable")
-  }
-  const browser = await chromium.launch({
-    executablePath: chrome,
-    headless: true,
-    args: ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
-  })
-  const tmpFull = `${pdfPath}.full.tmp.pdf`
-  const tmpCover = `${pdfPath}.cover.tmp.pdf`
-  const tmpBody = `${pdfPath}.body.tmp.pdf`
-  try {
-    const page = await browser.newPage()
-    await page.goto(pathToFileURL(htmlPath).href, {
-      waitUntil: "networkidle",
-      timeout: 120_000,
-    })
-    // Give webfonts a beat
-    await new Promise((r) => setTimeout(r, 500))
-
-    // Wait for mermaid diagrams to finish rendering (no-op when none exist)
+    const chrome = findChrome();
+    if (!chrome) {
+        throw new Error(
+            "No Chromium/Chrome found. Install chromium or set CHROME_PATH.",
+        );
+    }
+    await mkdir(path.dirname(pdfPath), { recursive: true });
+    const pw = await loadPlaywright();
+    const chromium = pw.chromium ?? pw.default?.chromium;
+    if (!chromium?.launch) {
+        throw new Error(
+            "playwright-core loaded but chromium.launch is unavailable",
+        );
+    }
+    const browser = await chromium.launch({
+        executablePath: chrome,
+        headless: true,
+        args: ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+    });
+    const tmpFull = `${pdfPath}.full.tmp.pdf`;
+    const tmpCover = `${pdfPath}.cover.tmp.pdf`;
+    const tmpBody = `${pdfPath}.body.tmp.pdf`;
     try {
-      await page.waitForFunction(
-        () => {
-          const blocks = document.querySelectorAll("pre.mermaid")
-          if (blocks.length === 0) return true
-          if (document.documentElement.dataset.mermaid === "ready") return true
-          return Array.from(blocks).every((el) => el.querySelector("svg"))
-        },
-        { timeout: 45_000 },
-      )
-    } catch {
-      console.warn("  mermaid wait timed out — printing anyway")
-    }
+        const page = await browser.newPage();
+        await page.goto(pathToFileURL(htmlPath).href, {
+            waitUntil: "networkidle",
+            timeout: 120_000,
+        });
+        // Give webfonts a beat
+        await new Promise((r) => setTimeout(r, 500));
 
-    const contentMargins = {
-      top: "16mm",
-      bottom: "14mm",
-      left: "14mm",
-      right: "14mm",
-    }
+        // Wait for mermaid diagrams to finish rendering (no-op when none exist)
+        try {
+            await page.waitForFunction(
+                () => {
+                    const blocks = document.querySelectorAll("pre.mermaid");
+                    if (blocks.length === 0) return true;
+                    if (document.documentElement.dataset.mermaid === "ready")
+                        return true;
+                    return Array.from(blocks).every((el) =>
+                        el.querySelector("svg"),
+                    );
+                },
+                { timeout: 45_000 },
+            );
+        } catch {
+            console.warn("  mermaid wait timed out — printing anyway");
+        }
 
-    // Full doc with chrome (page numbers / running logo on body pages)
-    await page.pdf({
-      path: tmpFull,
-      format: "A4",
-      printBackground: true,
-      preferCSSPageSize: false,
-      displayHeaderFooter: true,
-      headerTemplate: headerTemplate(),
-      footerTemplate: footerTemplate(),
-      margin: contentMargins,
-    })
+        const contentMargins = {
+            top: "16mm",
+            bottom: "14mm",
+            left: "14mm",
+            right: "14mm",
+        };
 
-    // Cover only: no header/footer, zero margin so the dark plate is full-bleed
-    await page.pdf({
-      path: tmpCover,
-      format: "A4",
-      printBackground: true,
-      preferCSSPageSize: false,
-      displayHeaderFooter: false,
-      pageRanges: "1",
-      margin: { top: "0", bottom: "0", left: "0", right: "0" },
-    })
+        // Full doc with chrome (page numbers / running logo on body pages)
+        await page.pdf({
+            path: tmpFull,
+            format: "A4",
+            printBackground: true,
+            preferCSSPageSize: false,
+            displayHeaderFooter: true,
+            headerTemplate: headerTemplate(),
+            footerTemplate: footerTemplate(),
+            margin: contentMargins,
+        });
 
-    // Body = pages 2–end of the chrome PDF (if any)
-    let pageCount = 1
-    try {
-      const { stdout } = await execFileAsync("pdfinfo", [tmpFull], { timeout: 30_000 })
-      const match = String(stdout).match(/Pages:\s+(\d+)/)
-      pageCount = Math.max(1, match ? parseInt(match[1], 10) : 1)
-    } catch {
-      pageCount = 1
-    }
+        // Cover only: no header/footer, zero margin so the dark plate is full-bleed
+        await page.pdf({
+            path: tmpCover,
+            format: "A4",
+            printBackground: true,
+            preferCSSPageSize: false,
+            displayHeaderFooter: false,
+            pageRanges: "1",
+            margin: { top: "0", bottom: "0", left: "0", right: "0" },
+        });
 
-    if (pageCount <= 1) {
-      await copyFile(tmpCover, pdfPath)
-    } else if (existsSync("/usr/bin/qpdf")) {
-      await execFileAsync(
-        "qpdf",
-        ["--empty", "--pages", tmpFull, "2-z", "--", tmpBody],
-        { timeout: 180_000 },
-      )
-      await execFileAsync(
-        "qpdf",
-        ["--empty", "--pages", tmpCover, "1", tmpBody, "1-z", "--", pdfPath],
-        { timeout: 180_000 },
-      )
-    } else {
-      await execFileAsync(
-        "/usr/bin/gs",
-        [
-          "-dBATCH", "-dNOPAUSE", "-q",
-          "-sDEVICE=pdfwrite",
-          "-dFirstPage=2",
-          `-dLastPage=${pageCount}`,
-          `-sOutputFile=${tmpBody}`,
-          tmpFull,
-        ],
-        { timeout: 180_000 },
-      )
-      await execFileAsync(
-        "/usr/bin/gs",
-        [
-          "-dBATCH", "-dNOPAUSE", "-q",
-          "-sDEVICE=pdfwrite",
-          `-sOutputFile=${pdfPath}`,
-          tmpCover,
-          tmpBody,
-        ],
-        { timeout: 180_000 },
-      )
+        // Body = pages 2–end of the chrome PDF (if any)
+        let pageCount = 1;
+        try {
+            const { stdout } = await execFileAsync("pdfinfo", [tmpFull], {
+                timeout: 30_000,
+            });
+            const match = String(stdout).match(/Pages:\s+(\d+)/);
+            pageCount = Math.max(1, match ? parseInt(match[1], 10) : 1);
+        } catch {
+            pageCount = 1;
+        }
+
+        if (pageCount <= 1) {
+            await copyFile(tmpCover, pdfPath);
+        } else if (existsSync("/usr/bin/qpdf")) {
+            await execFileAsync(
+                "qpdf",
+                ["--empty", "--pages", tmpFull, "2-z", "--", tmpBody],
+                { timeout: 180_000 },
+            );
+            await execFileAsync(
+                "qpdf",
+                [
+                    "--empty",
+                    "--pages",
+                    tmpCover,
+                    "1",
+                    tmpBody,
+                    "1-z",
+                    "--",
+                    pdfPath,
+                ],
+                { timeout: 180_000 },
+            );
+        } else {
+            await execFileAsync(
+                "/usr/bin/gs",
+                [
+                    "-dBATCH",
+                    "-dNOPAUSE",
+                    "-q",
+                    "-sDEVICE=pdfwrite",
+                    "-dFirstPage=2",
+                    `-dLastPage=${pageCount}`,
+                    `-sOutputFile=${tmpBody}`,
+                    tmpFull,
+                ],
+                { timeout: 180_000 },
+            );
+            await execFileAsync(
+                "/usr/bin/gs",
+                [
+                    "-dBATCH",
+                    "-dNOPAUSE",
+                    "-q",
+                    "-sDEVICE=pdfwrite",
+                    `-sOutputFile=${pdfPath}`,
+                    tmpCover,
+                    tmpBody,
+                ],
+                { timeout: 180_000 },
+            );
+        }
+    } finally {
+        await browser.close();
+        for (const p of [tmpFull, tmpCover, tmpBody]) {
+            try {
+                if (existsSync(p)) await unlink(p);
+            } catch {
+                /* ignore */
+            }
+        }
     }
-  } finally {
-    await browser.close()
-    for (const p of [tmpFull, tmpCover, tmpBody]) {
-      try {
-        if (existsSync(p)) await unlink(p)
-      } catch {
-        /* ignore */
-      }
-    }
-  }
 }
 
 // ── Manual build ────────────────────────────────────────────────────────────
 
 async function buildManual(product, manual, docsJson) {
-  console.log(`\n→ [${product.name}] Manual: ${manual.title}`)
-  const pageKeys = await resolvePageKeys(product, manual, docsJson)
-  const chapters = []
+    console.log(`\n→ [${product.name}] Manual: ${manual.title}`);
+    const pageKeys = await resolvePageKeys(product, manual, docsJson);
+    const chapters = [];
 
-  for (const key of pageKeys) {
-    const file = pageKeyToFile(product.docsRoot, key)
-    if (!file) {
-      console.warn(`  skip missing: ${key}`)
-      continue
+    for (const key of pageKeys) {
+        const file = pageKeyToFile(product.docsRoot, key);
+        if (!file) {
+            console.warn(`  skip missing: ${key}`);
+            continue;
+        }
+        const raw = await readFile(file, "utf8");
+        const { title, description, body } = mdxToMarkdown(raw, product);
+        const html = hardenTableCells(
+            injectMermaidBlocks(
+                marked.parse(body, { gfm: true, breaks: false }),
+                product.accent,
+            ),
+        );
+        const parts = key
+            .replace(/^docs\//, "")
+            .split("/")
+            .slice(0, -1)
+            .filter(
+                (s) =>
+                    !manual.pathPrefixes.some(
+                        (p) => p.replace(/\/$/, "") === s,
+                    ),
+            );
+        const section =
+            parts
+                .map((s) =>
+                    s
+                        .split("-")
+                        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                        .join(" "),
+                )
+                .join(" / ") || manual.title;
+
+        chapters.push({
+            title: title || titleFromKey(key),
+            description,
+            section,
+            html,
+            key,
+        });
+        console.log(`  + ${key}`);
     }
-    const raw = await readFile(file, "utf8")
-    const { title, description, body } = mdxToMarkdown(raw, product)
-    const html = hardenTableCells(
-      injectMermaidBlocks(
-        marked.parse(body, { gfm: true, breaks: false }),
-        product.accent,
-      ),
-    )
-    const parts = key
-      .replace(/^docs\//, "")
-      .split("/")
-      .slice(0, -1)
-      .filter((s) => !manual.pathPrefixes.some((p) => p.replace(/\/$/, "") === s))
-    const section =
-      parts
-        .map((s) =>
-          s
-            .split("-")
-            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-            .join(" "),
-        )
-        .join(" / ") || manual.title
 
-    chapters.push({
-      title: title || titleFromKey(key),
-      description,
-      section,
-      html,
-      key,
-    })
-    console.log(`  + ${key}`)
-  }
+    if (!chapters.length) {
+        console.warn(`  WARN: no chapters for ${product.id}/${manual.id}`);
+        return { htmlPath: null, pdfPath: null, chapters: [] };
+    }
 
-  if (!chapters.length) {
-    console.warn(`  WARN: no chapters for ${product.id}/${manual.id}`)
-    return { htmlPath: null, pdfPath: null, chapters: [] }
-  }
+    const dateIso = new Date().toISOString().slice(0, 10);
+    const html = wrapHtml({
+        product,
+        title: manual.title,
+        subtitle: manual.subtitle,
+        audience: manual.audience,
+        chapters,
+        dateIso,
+    });
 
-  const dateIso = new Date().toISOString().slice(0, 10)
-  const html = wrapHtml({
-    product,
-    title: manual.title,
-    subtitle: manual.subtitle,
-    audience: manual.audience,
-    chapters,
-    dateIso,
-  })
+    await mkdir(CACHE, { recursive: true });
+    await mkdir(OUT_DIR, { recursive: true });
+    const htmlPath = path.join(CACHE, `${product.id}-${manual.id}.html`);
+    const pdfPath = path.join(OUT_DIR, manual.filename);
+    await writeFile(htmlPath, html, "utf8");
+    console.log(`  wrote ${path.relative(ROOT, htmlPath)}`);
 
-  await mkdir(CACHE, { recursive: true })
-  await mkdir(OUT_DIR, { recursive: true })
-  const htmlPath = path.join(CACHE, `${product.id}-${manual.id}.html`)
-  const pdfPath = path.join(OUT_DIR, manual.filename)
-  await writeFile(htmlPath, html, "utf8")
-  console.log(`  wrote ${path.relative(ROOT, htmlPath)}`)
+    if (SKIP_PDF) {
+        console.log("  skip PDF (--skip-pdf)");
+        return { htmlPath, pdfPath: null, chapters };
+    }
+    if (!findChrome()) {
+        console.warn(
+            "  WARN: no Chromium — HTML written, PDF skipped (set CHROME_PATH)",
+        );
+        return { htmlPath, pdfPath: null, chapters };
+    }
 
-  if (SKIP_PDF) {
-    console.log("  skip PDF (--skip-pdf)")
-    return { htmlPath, pdfPath: null, chapters }
-  }
-  if (!findChrome()) {
-    console.warn(
-      "  WARN: no Chromium — HTML written, PDF skipped (set CHROME_PATH)",
-    )
-    return { htmlPath, pdfPath: null, chapters }
-  }
-
-  await htmlToPdf(htmlPath, pdfPath)
-  console.log(`  wrote ${path.relative(ROOT, pdfPath)}`)
-  return { htmlPath, pdfPath, chapters }
+    await htmlToPdf(htmlPath, pdfPath);
+    console.log(`  wrote ${path.relative(ROOT, pdfPath)}`);
+    return { htmlPath, pdfPath, chapters };
 }
 
 // ── Agent files: llms.txt + llm.txt ─────────────────────────────────────────
 
 async function buildAgentFiles(product, docsJson) {
-  console.log(`\n→ [${product.name}] Agent files: llms.txt + llm.txt`)
-  const dateIso = new Date().toISOString().slice(0, 10)
-  const tabs = docsJson.navigation?.tabs ?? []
+    console.log(`\n→ [${product.name}] Agent files: llms.txt + llm.txt`);
+    const dateIso = new Date().toISOString().slice(0, 10);
+    const tabs = docsJson.navigation?.tabs ?? [];
 
-  // ── llms.txt (index map) ──
-  const linesLlms = [
-    `# ${product.name} — llms.txt`,
-    `# https://llmstxt.org/ — machine-readable project map for LLMs`,
-    `# Generated ${dateIso}`,
-    ``,
-    `# ${product.name}`,
-    `> ${product.tagline}`,
-    ``,
-    product.blurb,
-    ``,
-    `## Primary`,
-    ``,
-    `- [Marketing](${product.marketing}): Product landing`,
-    `- [Docs](${product.publicUrl}): Full documentation hub`,
-    `- [Repository](${product.repoUrl ?? REPO}): Source monorepo`,
-    `- [Docs tree](${product.repoUrl ?? REPO}/tree/main/${product.repoPath}): MDX source of truth`,
-    `- [llm.txt](${product.publicUrl}/llm.txt): Full-corpus minified context`,
-    `- [llms.txt](${product.publicUrl}/llms.txt): This file`,
-    product.id === "pyne"
-      ? `- [AXIS docs](${SITE}/axis/docs): Charting PWA (separate product)`
-      : `- [PYNE docs](${SITE}/pyne/docs): Language runtime (separate product)`,
-    `- [HOOX docs](${SITE}/docs): Edge trade mesh`,
-    ``,
-    `## Documentation tracks`,
-    ``,
-  ]
+    // ── llms.txt (index map) ──
+    const linesLlms = [
+        `# ${product.name} — llms.txt`,
+        `# https://llmstxt.org/ — machine-readable project map for LLMs`,
+        `# Generated ${dateIso}`,
+        ``,
+        `# ${product.name}`,
+        `> ${product.tagline}`,
+        ``,
+        product.blurb,
+        ``,
+        `## Primary`,
+        ``,
+        `- [Marketing](${product.marketing}): Product landing`,
+        `- [Docs](${product.publicUrl}): Full documentation hub`,
+        `- [Repository](${product.repoUrl ?? REPO}): Source monorepo`,
+        `- [Docs tree](${product.repoUrl ?? REPO}/tree/main/${product.repoPath}): MDX source of truth`,
+        `- [llm.txt](${product.publicUrl}/llm.txt): Full-corpus minified context`,
+        `- [llms.txt](${product.publicUrl}/llms.txt): This file`,
+        product.id === "pyne"
+            ? `- [AXIS docs](${SITE}/axis/docs): Charting PWA (separate product)`
+            : `- [PYNE docs](${SITE}/pyne/docs): Language runtime (separate product)`,
+        `- [HOOX docs](${SITE}/docs): Edge trade mesh`,
+        ``,
+        `## Documentation tracks`,
+        ``,
+    ];
 
-  for (const tab of tabs) {
-    const name = String(tab.tab ?? "")
-    if (!tab.groups?.length) continue
-    linesLlms.push(`### ${name}`, ``)
-    const pages = []
-    for (const g of tab.groups) flattenPages(g.pages ?? [], pages)
-    const seen = new Set()
-    for (const p of pages) {
-      if (seen.has(p)) continue
-      seen.add(p)
-      const href = pageKeyToHref(product, p)
-      const label = titleFromKey(p)
-      linesLlms.push(`- [${label}](${SITE}${href})`)
+    for (const tab of tabs) {
+        const name = String(tab.tab ?? "");
+        if (!tab.groups?.length) continue;
+        linesLlms.push(`### ${name}`, ``);
+        const pages = [];
+        for (const g of tab.groups) flattenPages(g.pages ?? [], pages);
+        const seen = new Set();
+        for (const p of pages) {
+            if (seen.has(p)) continue;
+            seen.add(p);
+            const href = pageKeyToHref(product, p);
+            const label = titleFromKey(p);
+            linesLlms.push(`- [${label}](${SITE}${href})`);
+        }
+        linesLlms.push(``);
     }
-    linesLlms.push(``)
-  }
 
-  linesLlms.push(`## PDF manuals`, ``)
-  for (const manual of Object.values(product.manuals)) {
+    linesLlms.push(`## PDF manuals`, ``);
+    for (const manual of Object.values(product.manuals)) {
+        linesLlms.push(
+            `- [${manual.title} (A4 PDF)](${SITE}/exports/${manual.filename})`,
+        );
+    }
     linesLlms.push(
-      `- [${manual.title} (A4 PDF)](${SITE}/exports/${manual.filename})`,
-    )
-  }
-  linesLlms.push(
-    ``,
-    `## Optional`,
-    ``,
-    `- [HOOX llms.txt](${SITE}/llms.txt)`,
-    `- [HOOX ai.txt](${SITE}/ai.txt)`,
-    `- [Exports manifest](${SITE}/exports/manifest.json)`,
-    ``,
-  )
+        ``,
+        `## Optional`,
+        ``,
+        `- [HOOX llms.txt](${SITE}/llms.txt)`,
+        `- [HOOX ai.txt](${SITE}/ai.txt)`,
+        `- [Exports manifest](${SITE}/exports/manifest.json)`,
+        ``,
+    );
 
-  const llmsPath = path.join(product.docsRoot, "llms.txt")
-  await writeFile(llmsPath, linesLlms.join("\n"), "utf8")
-  console.log(`  wrote ${path.relative(ROOT, llmsPath)}`)
+    const llmsPath = path.join(product.docsRoot, "llms.txt");
+    await writeFile(llmsPath, linesLlms.join("\n"), "utf8");
+    console.log(`  wrote ${path.relative(ROOT, llmsPath)}`);
 
-  // Also mirror under exports for hosting convenience
-  await mkdir(OUT_DIR, { recursive: true })
-  await writeFile(
-    path.join(OUT_DIR, `${product.id}-llms.txt`),
-    linesLlms.join("\n"),
-    "utf8",
-  )
+    // Also mirror under exports for hosting convenience
+    await mkdir(OUT_DIR, { recursive: true });
+    await writeFile(
+        path.join(OUT_DIR, `${product.id}-llms.txt`),
+        linesLlms.join("\n"),
+        "utf8",
+    );
 
-  // ── llm.txt (full minified corpus) ──
-  const allFiles = await walkMdx(product.docsRoot)
-  allFiles.sort()
-  const chunks = [
-    `${product.name} CONSOLIDATED DOCUMENTATION — LLM CONTEXT PACK`,
-    `Generated: ${dateIso}`,
-    `Source: ${(product.repoUrl ?? REPO).replace(/^https?:\/\//, "")}/${product.repoPath}`,
-    `Public: ${product.publicUrl}`,
-    `Repository: ${product.repoUrl ?? REPO}`,
-    ``,
-  ]
+    // ── llm.txt (full minified corpus) ──
+    const allFiles = await walkMdx(product.docsRoot);
+    allFiles.sort();
+    const chunks = [
+        `${product.name} CONSOLIDATED DOCUMENTATION — LLM CONTEXT PACK`,
+        `Generated: ${dateIso}`,
+        `Source: ${(product.repoUrl ?? REPO).replace(/^https?:\/\//, "")}/${product.repoPath}`,
+        `Public: ${product.publicUrl}`,
+        `Repository: ${product.repoUrl ?? REPO}`,
+        ``,
+    ];
 
-  for (const file of allFiles) {
-    const rel = path.relative(product.docsRoot, file).replace(/\\/g, "/")
-    if (rel === "llm.txt" || rel === "llms.txt") continue
-    const raw = await readFile(file, "utf8")
-    const body = minifyLlmText(raw)
-    if (!body.trim()) continue
-    chunks.push(`FILE: ${product.repoPath}/${rel}`)
-    chunks.push(body)
-    chunks.push("---")
-  }
+    for (const file of allFiles) {
+        const rel = path.relative(product.docsRoot, file).replace(/\\/g, "/");
+        if (rel === "llm.txt" || rel === "llms.txt") continue;
+        const raw = await readFile(file, "utf8");
+        const body = minifyLlmText(raw);
+        if (!body.trim()) continue;
+        chunks.push(`FILE: ${product.repoPath}/${rel}`);
+        chunks.push(body);
+        chunks.push("---");
+    }
 
-  const llmText = chunks.join("\n") + "\n"
-  const llmPath = path.join(product.docsRoot, "llm.txt")
-  await writeFile(llmPath, llmText, "utf8")
-  console.log(
-    `  wrote ${path.relative(ROOT, llmPath)} (${(llmText.length / 1024).toFixed(1)} KB)`,
-  )
-  await writeFile(path.join(OUT_DIR, `${product.id}-llm.txt`), llmText, "utf8")
+    const llmText = chunks.join("\n") + "\n";
+    const llmPath = path.join(product.docsRoot, "llm.txt");
+    await writeFile(llmPath, llmText, "utf8");
+    console.log(
+        `  wrote ${path.relative(ROOT, llmPath)} (${(llmText.length / 1024).toFixed(1)} KB)`,
+    );
+    await writeFile(
+        path.join(OUT_DIR, `${product.id}-llm.txt`),
+        llmText,
+        "utf8",
+    );
 
-  return {
-    llms: path.relative(ROOT, llmsPath),
-    llm: path.relative(ROOT, llmPath),
-    bytes: llmText.length,
-  }
+    return {
+        llms: path.relative(ROOT, llmsPath),
+        llm: path.relative(ROOT, llmPath),
+        bytes: llmText.length,
+    };
 }
 
 // ── Main ────────────────────────────────────────────────────────────────────
 
 async function main() {
-  const t0 = Date.now()
-  console.log("PYNE + AXIS docs export pipeline")
-  console.log(`  only=${onlyArg}  product=${productArg || "both"}  skipPdf=${SKIP_PDF}`)
-  console.log(`  chrome=${findChrome() || "(none)"}`)
-  console.log(`  axis docsRoot=${AXIS_DOCS_ROOT}`)
+    const t0 = Date.now();
+    console.log("PYNE + AXIS docs export pipeline");
+    console.log(
+        `  only=${onlyArg}  product=${productArg || "both"}  skipPdf=${SKIP_PDF}`,
+    );
+    console.log(`  chrome=${findChrome() || "(none)"}`);
+    console.log(`  axis docsRoot=${AXIS_DOCS_ROOT}`);
 
-  await mkdir(OUT_DIR, { recursive: true })
-  await mkdir(CACHE, { recursive: true })
+    await mkdir(OUT_DIR, { recursive: true });
+    await mkdir(CACHE, { recursive: true });
 
-  // Mermaid: render ```mermaid fences as SVG in the PDFs when a bundle exists.
-  const mermaidJs = findMermaidJs()
-  if (mermaidJs) {
-    MERMAID_HELPERS = await loadMermaidTheme()
-    MERMAID_ENABLED = true
-    await copyFile(mermaidJs, path.join(CACHE, "mermaid.min.js"))
-    console.log(`  mermaid bundle: ${mermaidJs}`)
-  } else {
-    console.warn("  mermaid.min.js not found — diagrams print as source text")
-  }
-
-  const manifest = {
-    generatedAt: new Date().toISOString(),
-    site: SITE,
-    repository: REPO,
-    products: {},
-  }
-
-  for (const productId of productsToRun()) {
-    const product = PRODUCTS[productId]
-    if (!existsSync(path.join(product.docsRoot, "docs.json"))) {
-      console.warn(`skip ${productId}: missing docs.json`)
-      continue
-    }
-    const docsJson = loadDocsJson(product.docsRoot)
-    const plan = planForProduct(productId)
-    const pdfs = {}
-
-    for (const mid of plan.manuals) {
-      const manual = product.manuals[mid]
-      const result = await buildManual(product, manual, docsJson)
-      if (result.pdfPath) {
-        pdfs[mid] = `/exports/${manual.filename}`
-      }
+    // Mermaid: render ```mermaid fences as SVG in the PDFs when a bundle exists.
+    const mermaidJs = findMermaidJs();
+    if (mermaidJs) {
+        MERMAID_HELPERS = await loadMermaidTheme();
+        MERMAID_ENABLED = true;
+        await copyFile(mermaidJs, path.join(CACHE, "mermaid.min.js"));
+        console.log(`  mermaid bundle: ${mermaidJs}`);
+    } else {
+        console.warn(
+            "  mermaid.min.js not found — diagrams print as source text",
+        );
     }
 
-    let agents = null
-    if (plan.agents) {
-      agents = await buildAgentFiles(product, docsJson)
+    const manifest = {
+        generatedAt: new Date().toISOString(),
+        site: SITE,
+        repository: REPO,
+        products: {},
+    };
+
+    for (const productId of productsToRun()) {
+        const product = PRODUCTS[productId];
+        if (!existsSync(path.join(product.docsRoot, "docs.json"))) {
+            console.warn(`skip ${productId}: missing docs.json`);
+            continue;
+        }
+        const docsJson = loadDocsJson(product.docsRoot);
+        const plan = planForProduct(productId);
+        const pdfs = {};
+
+        for (const mid of plan.manuals) {
+            const manual = product.manuals[mid];
+            const result = await buildManual(product, manual, docsJson);
+            if (result.pdfPath) {
+                pdfs[mid] = `/exports/${manual.filename}`;
+            }
+        }
+
+        let agents = null;
+        if (plan.agents) {
+            agents = await buildAgentFiles(product, docsJson);
+        }
+
+        manifest.products[productId] = {
+            name: product.name,
+            docs: product.publicUrl,
+            marketing: product.marketing,
+            pdfs,
+            llm: `${product.publicBase}/llm.txt`,
+            llms: `${product.publicBase}/llms.txt`,
+            exportLlm: `/exports/${productId}-llm.txt`,
+            exportLlms: `/exports/${productId}-llms.txt`,
+            agents,
+        };
     }
 
-    manifest.products[productId] = {
-      name: product.name,
-      docs: product.publicUrl,
-      marketing: product.marketing,
-      pdfs,
-      llm: `${product.publicBase}/llm.txt`,
-      llms: `${product.publicBase}/llms.txt`,
-      exportLlm: `/exports/${productId}-llm.txt`,
-      exportLlms: `/exports/${productId}-llms.txt`,
-      agents,
-    }
-  }
-
-  await writeFile(
-    path.join(OUT_DIR, "manifest.json"),
-    JSON.stringify(manifest, null, 2) + "\n",
-    "utf8",
-  )
-  console.log(`\n  wrote ${path.relative(ROOT, path.join(OUT_DIR, "manifest.json"))}`)
-  console.log(`\nDone in ${((Date.now() - t0) / 1000).toFixed(1)}s`)
-  console.log(`Artifacts → ${path.relative(ROOT, OUT_DIR)}/ + docs/{pyne,axis}/llm(s).txt`)
+    await writeFile(
+        path.join(OUT_DIR, "manifest.json"),
+        JSON.stringify(manifest, null, 2) + "\n",
+        "utf8",
+    );
+    console.log(
+        `\n  wrote ${path.relative(ROOT, path.join(OUT_DIR, "manifest.json"))}`,
+    );
+    console.log(`\nDone in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    console.log(
+        `Artifacts → ${path.relative(ROOT, OUT_DIR)}/ + docs/{pyne,axis}/llm(s).txt`,
+    );
 }
 
 main().catch((err) => {
-  console.error("\nExport failed:", err)
-  process.exit(1)
-})
+    console.error("\nExport failed:", err);
+    process.exit(1);
+});

@@ -1,20 +1,37 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """
@@ -26,12 +43,14 @@ originally from the monolithic technical.py file.
 ## Module Structure
 
 ### Core Module
+
 - core.py: Shared validation, error handling, and foundational calculations
   - Shared by all indicator modules via inheritance
   - Contains TechnicalHelpers base class
   - Provides _sma, _ema, _rma, _wma, _tr, crossover, etc.
 
 ### Indicator Modules
+
 - moving_averages.py: Moving average indicators (SMA, EMA, KAMA, DEMA, TEMA, HMA, VWMA, SWMA)
 - oscillators.py: Momentum oscillators (RSI, STOCH, MACD, CCI, ROC, WPR, TSI)
 - volatility.py: Volatility indicators (ATR, Bollinger Bands, Keltner, StochRSI, LinReg, RCI, DPO)
@@ -42,6 +61,7 @@ originally from the monolithic technical.py file.
 ## Architecture
 
 ### Inheritance Pattern
+
 ```
 TechnicalHelpers (core.py - shared validation & math)
     ↓
@@ -56,6 +76,7 @@ TechnicalAnalysisMixin (composition wrapper - __init__.py)
 ```
 
 ### Key Features
+
 - 100% backward compatible with original API
 - All original function signatures preserved
 - All return types unchanged
@@ -65,6 +86,7 @@ TechnicalAnalysisMixin (composition wrapper - __init__.py)
 ## Usage
 
 ### Example: Using Individual Indicators
+
 ```python
 from technical.moving_averages import MovingAverageIndicators
 
@@ -76,6 +98,7 @@ result = analyzer._builtin_ta_sma([1, 2, 3, 4, 5], 2)
 ```
 
 ### Example: Using Full Mixin (After Integration)
+
 ```python
 from technical import TechnicalAnalysisMixin
 
@@ -90,6 +113,7 @@ atr = strategy._builtin_ta_atr(high_series, low_series, close_series, 14)
 ## Development Guidelines
 
 ### Adding New Indicators
+
 1. Determine category (moving_average, oscillator, volume, etc.)
 2. Add to appropriate module
 3. Inherit from TechnicalHelpers for shared methods
@@ -99,11 +123,13 @@ atr = strategy._builtin_ta_atr(high_series, low_series, close_series, 14)
 7. Update module documentation
 
 ### Naming Conventions
+
 - Public API: `_builtin_ta_<name>` (matches original API)
 - Helper methods: `_<name>` (private)
 - Constants: `UPPERCASE_WITH_UNDERSCORES`
 
 ### Documentation Requirements
+
 - Module docstring at top of file
 - Class docstring explaining purpose
 - Function docstrings with:
@@ -115,6 +141,7 @@ atr = strategy._builtin_ta_atr(high_series, low_series, close_series, 14)
 ## Status
 
 ### Completed (Phase 1)
+
 ✅ core.py (228 lines)
 ✅ moving_averages.py (210 lines)
 ✅ oscillators.py (407 lines)
@@ -124,11 +151,13 @@ atr = strategy._builtin_ta_atr(high_series, low_series, close_series, 14)
 ✅ Documentation & guides
 
 ### In Progress (Phase 2)
+
 ⏳ advanced.py (60+ Tier 5-8 functions)
-⏳ Integration wrapper (__init__.py)
+⏳ Integration wrapper (**init**.py)
 ⏳ Full test suite validation
 
 ### Timeline
+
 - Phase 1: COMPLETE ✅ (1,877 lines)
 - Phase 2: 3-4 hours remaining
 - Total estimated: 7-9 hours of effort
@@ -137,6 +166,7 @@ atr = strategy._builtin_ta_atr(high_series, low_series, close_series, 14)
 ## References
 
 See documentation files for more details:
+
 - REFACTORING_GUIDE.md - Comprehensive implementation guide
 - COMPLETION_SUMMARY.md - Work completion status
 - REFACTORING_PROGRESS.md - Detailed progress metrics
@@ -145,17 +175,20 @@ See documentation files for more details:
 ## Testing
 
 ### Run All Tests
+
 ```bash
 pytest tests/ -v
 ```
 
 ### Run Module-Specific Tests
+
 ```bash
 pytest tests/test_ta_indicators_1.py::TestMovingAverages -v
 pytest tests/test_ta_indicators_2.py::TestOscillators -v
 ```
 
 ### Run Coverage Report
+
 ```bash
 pytest tests/ --cov=pynescript/ast/evaluator/builtins/technical --cov-report=html
 ```
@@ -163,11 +196,13 @@ pytest tests/ --cov=pynescript/ast/evaluator/builtins/technical --cov-report=htm
 ## Performance Notes
 
 ### Current State
+
 - Each module independently loadable
 - Clear separation of concerns
 - Reduced cognitive load (300-500 lines per file vs 5,142)
 
 ### Future Optimization Opportunities
+
 - Lazy loading by indicator category
 - Parallel import of independent modules
 - Granular CI/CD optimization by module type
@@ -176,21 +211,26 @@ pytest tests/ --cov=pynescript/ast/evaluator/builtins/technical --cov-report=htm
 ## Questions & Troubleshooting
 
 ### Q: How do I add a new technical indicator?
+
 A: See "Adding New Indicators" section above, or check existing module for pattern.
 
 ### Q: Will this break my existing code?
+
 A: No. 100% backward compatible. All original API endpoints preserved.
 
 ### Q: How do I test my changes?
+
 A: Run `pytest tests/ -v` to verify no regressions across all 150+ indicators.
 
 ### Q: What if a function depends on multiple categories?
+
 A: Place in "advanced" module if Tier 5+, or in the most appropriate module.
-   Helper functions can be shared via core.py.
+Helper functions can be shared via core.py.
 
 ## Contributing
 
 When contributing new indicators:
+
 1. Follow established patterns in existing modules
 2. Add comprehensive docstrings
 3. Include type hints

@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Live sessions"
 description: "POST /session and friends — O(1) forming-bar ticks, O(delta) appends, and response windowing on /run."
 ---
@@ -26,20 +44,23 @@ description: "POST /session and friends — O(1) forming-bar ticks, O(delta) app
 
 ## Abstract
 
-A `POST /run` call is **stateless**: it parses the script and walks every bar on every request. That is the right shape for batch and history work, and the wrong shape for a live chart, where the same script is re-evaluated dozens of times a second against a *growing* bar list.
+A `POST /run` call is **stateless**: it parses the script and walks every bar on every request. That is the right shape for batch and history work, and the wrong shape for a live chart, where the same script is re-evaluated dozens of times a second against a _growing_ bar list.
 
 A **session** keeps the parsed tree, its series, and its TA state alive between requests. Advancing it costs work proportional to what actually changed:
 
-| Operation | Complexity | Measured (20k bars) |
-| --- | --- | --- |
-| `POST /run` (full re-walk) | O(n) | 1,087.8 ms |
-| `POST /session/<id>/tick` | **O(1)** | **0.130 ms** (8,343×) |
+| Operation                   | Complexity   | Measured (20k bars)   |
+| --------------------------- | ------------ | --------------------- |
+| `POST /run` (full re-walk)  | O(n)         | 1,087.8 ms            |
+| `POST /session/<id>/tick`   | **O(1)**     | **0.130 ms** (8,343×) |
 | `POST /session/<id>/append` | **O(delta)** | **0.127 ms** (8,572×) |
 
 Session init costs roughly 443 ms (parse + first walk), so a session breaks even after its **first** tick.
 
 <Note>
-Sessions are **interpret only**. The compile path has no resumable evaluator state — the generated bar loop is a single `njit` function over the whole array, with nothing to roll back. `mode: "compile"` on `POST /session` is rejected with `MODE_UNSUPPORTED`.
+    Sessions are **interpret only**. The compile path has no resumable evaluator
+    state — the generated bar loop is a single `njit` function over the whole
+    array, with nothing to roll back. `mode: "compile"` on `POST /session` is
+    rejected with `MODE_UNSUPPORTED`.
 </Note>
 
 ## Conceptual model
@@ -68,15 +89,15 @@ sequenceDiagram
 
 ### `POST /session`
 
-| Field | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `script` | string | yes | Pine source |
-| `data` | list | yes | Initial OHLCV bar objects |
-| `symbol` | string | no | Syminfo / request wiring, default `"CHART"` |
-| `inputs` | object | no | `input.*` overrides (interpret only) |
-| `realtime_ticks` | int | no | Re-visits per bar in the realtime window |
-| `realtime_bars` / `realtime_from_bar` | int | no | Realtime window extent |
-| `mode` | string | no | Must be omitted or `"interpret"` |
+| Field                                 | Type   | Required | Notes                                       |
+| ------------------------------------- | ------ | -------- | ------------------------------------------- |
+| `script`                              | string | yes      | Pine source                                 |
+| `data`                                | list   | yes      | Initial OHLCV bar objects                   |
+| `symbol`                              | string | no       | Syminfo / request wiring, default `"CHART"` |
+| `inputs`                              | object | no       | `input.*` overrides (interpret only)        |
+| `realtime_ticks`                      | int    | no       | Re-visits per bar in the realtime window    |
+| `realtime_bars` / `realtime_from_bar` | int    | no       | Realtime window extent                      |
+| `mode`                                | string | no       | Must be omitted or `"interpret"`            |
 
 Returns the standard `/run` envelope plus **`session_id`**, `count`, and `mode`.
 
@@ -94,11 +115,11 @@ Small status blob — never the full state:
 
 ```json
 {
-  "status": "success",
-  "session_id": "f8e72bcf652c4cafbc4ac79b057784ce",
-  "bars": 10,
-  "idle_seconds": 0.002,
-  "ttl_seconds": 900.0
+    "status": "success",
+    "session_id": "f8e72bcf652c4cafbc4ac79b057784ce",
+    "bars": 10,
+    "idle_seconds": 0.002,
+    "ttl_seconds": 900.0
 }
 ```
 
@@ -110,7 +131,7 @@ Small status blob — never the full state:
 
 `tick` is not an append of one bar. The host:
 
-1. Restores `var` scope and TA windows to the snapshot taken at **bar-open** — `varip` deliberately *persists*, matching Pine's intrabar `varip` semantics.
+1. Restores `var` scope and TA windows to the snapshot taken at **bar-open** — `varip` deliberately _persists_, matching Pine's intrabar `varip` semantics.
 2. Drops this bar's events, alerts and alert conditions so the re-visit re-emits them.
 3. Overwrites the packed column cells **in place** — no append, so bar count is unchanged.
 4. Re-visits the tree once and finishes bar plots at the same slot.
@@ -130,22 +151,29 @@ curl -s -X POST http://127.0.0.1:5002/run \
 ```
 
 ```json
-{ "count": 20, "window": { "bars": 5, "from_bar": 10, "to_bar": 14, "total_bars": 20 } }
+{
+    "count": 20,
+    "window": { "bars": 5, "from_bar": 10, "to_bar": 14, "total_bars": 20 }
+}
 ```
 
 <Warning>
-`count` still reports bars **evaluated**, not bars serialized. A client seeing `count=20000` with a 500-long series needs the `window` block to tell a window from a short history. The window block is **only present when a window was actually applied** — the unwindowed envelope is unchanged and gains no `window` key.
+    `count` still reports bars **evaluated**, not bars serialized. A client
+    seeing `count=20000` with a 500-long series needs the `window` block to tell
+    a window from a short history. The window block is **only present when a
+    window was actually applied** — the unwindowed envelope is unchanged and
+    gains no `window` key.
 </Warning>
 
 Events and drawings are filtered to the window when they carry `bar_index`. Objects with only `bar_time` (strategy fills) have no index to match on and are **kept**, so trimming can never silently drop a fill.
 
 ## Capacity, TTL, and the single-worker constraint
 
-| Property | Value |
-| --- | --- |
-| Idle TTL | 900 s (15 min), swept at most every 30 s (`SESSION_TTL_SECONDS`) |
-| Capacity | 64 concurrent sessions (`SESSION_MAX_SESSIONS`) |
-| Full | `503 SESSIONS_FULL` — back off rather than retrying into a growing pile |
+| Property | Value                                                                   |
+| -------- | ----------------------------------------------------------------------- |
+| Idle TTL | 900 s (15 min), swept at most every 30 s (`SESSION_TTL_SECONDS`)        |
+| Capacity | 64 concurrent sessions (`SESSION_MAX_SESSIONS`)                         |
+| Full     | `503 SESSIONS_FULL` — back off rather than retrying into a growing pile |
 
 Sessions live in a **process-local** `SessionStore`. They only resolve on the single gunicorn worker, which is why `GUNICORN_WORKERS` defaults to `1`. `/health` still advertises the routes (they are part of the capability surface), and `features.live_modes` reports `["every-tick", "bar-close"]` for AXIS capability detection.
 
@@ -159,25 +187,25 @@ For live data sourced from an exchange rather than the request body, see [Data p
 
 ## Failure modes
 
-| Symptom | Cause | Fix |
-| --- | --- | --- |
-| `MODE_UNSUPPORTED` | `mode: "compile"` on `/session` | Drop `mode`; sessions are interpret only |
-| `SESSIONS_FULL` | 64 live sessions held | `DELETE` finished ones, or wait for TTL |
-| `404` on tick/append | Session swept (idle TTL) | Create a new session |
-| First tick after restart is slow | Session rebuilt (one full re-evaluation) | Expected; subsequent ticks are O(1) again |
-| `409` on `/data/session/<id>/tick` | Session bound to a different series | Release and rebind |
-| `503 CCXT_UNAVAILABLE` | `ccxt` not installed on the host | `pip install 'pyne[datafeed]'` |
+| Symptom                            | Cause                                    | Fix                                       |
+| ---------------------------------- | ---------------------------------------- | ----------------------------------------- |
+| `MODE_UNSUPPORTED`                 | `mode: "compile"` on `/session`          | Drop `mode`; sessions are interpret only  |
+| `SESSIONS_FULL`                    | 64 live sessions held                    | `DELETE` finished ones, or wait for TTL   |
+| `404` on tick/append               | Session swept (idle TTL)                 | Create a new session                      |
+| First tick after restart is slow   | Session rebuilt (one full re-evaluation) | Expected; subsequent ticks are O(1) again |
+| `409` on `/data/session/<id>/tick` | Session bound to a different series      | Release and rebind                        |
+| `503 CCXT_UNAVAILABLE`             | `ccxt` not installed on the host         | `pip install 'pyne[datafeed]'`            |
 
 ## Internals (map)
 
-| Path | Role |
-| --- | --- |
-| `backend/app.py` | `/session` routes, window application |
-| `backend/middleware/sessions.py` | TTL + capacity `SessionStore` (process-local) |
-| `backend/datastore/session_log.py` | SQLite session journal (restart recovery) |
-| `backend/middleware/window.py` | `apply_window` — serialization-boundary trim |
-| `backend/datastore/live.py` | Session ↔ stored-series binding + sync |
-| `src/pynescript/runtime/host.py` | `InterpretSession`, `append_bars`, `update_last_bar` |
+| Path                               | Role                                                 |
+| ---------------------------------- | ---------------------------------------------------- |
+| `backend/app.py`                   | `/session` routes, window application                |
+| `backend/middleware/sessions.py`   | TTL + capacity `SessionStore` (process-local)        |
+| `backend/datastore/session_log.py` | SQLite session journal (restart recovery)            |
+| `backend/middleware/window.py`     | `apply_window` — serialization-boundary trim         |
+| `backend/datastore/live.py`        | Session ↔ stored-series binding + sync               |
+| `src/pynescript/runtime/host.py`   | `InterpretSession`, `append_bars`, `update_last_bar` |
 
 ## See also
 

@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Glossary"
 description: "Definitions of PYNE end-user terms: AST, ASDL, bar-loop, series, Runtime, LSP, Pro API, extras, and related concepts."
 ---
@@ -32,9 +50,9 @@ Shared vocabulary for the End User track. Terms are defined as **used in this re
 
 Terms fall into four buckets:
 
-1. **Language representation** — grammar, AST, unparser  
-2. **Execution** — series, bar-loop, builtins, strategy events  
-3. **Surfaces** — CLI, library, LSP, Pro API  
+1. **Language representation** — grammar, AST, unparser
+2. **Execution** — series, bar-loop, builtins, strategy events
+3. **Surfaces** — CLI, library, LSP, Pro API
 4. **Ecosystem** — AXIS, HOOX, PyneTS, pyne-worker, pyne-agent-worker
 
 ```mermaid
@@ -65,13 +83,13 @@ This page is pure reference — no commands required.
 
 ## Internals (repo paths)
 
-| Term cluster | Primary paths |
-| --- | --- |
-| Parse / AST | `src/pynescript/ast/helper.py`, `builder.py`, `grammar/` |
-| Evaluate | `src/pynescript/ast/evaluator/`, `src/pynescript/runtime/` (`backend/runtime.py` is a compat shim) |
-| Lint | `src/pynescript/ast/linter.py` |
-| LSP | `src/pynescript/langserver/` |
-| HTTP | `backend/app.py` |
+| Term cluster | Primary paths                                                                                      |
+| ------------ | -------------------------------------------------------------------------------------------------- |
+| Parse / AST  | `src/pynescript/ast/helper.py`, `builder.py`, `grammar/`                                           |
+| Evaluate     | `src/pynescript/ast/evaluator/`, `src/pynescript/runtime/` (`backend/runtime.py` is a compat shim) |
+| Lint         | `src/pynescript/ast/linter.py`                                                                     |
+| LSP          | `src/pynescript/langserver/`                                                                       |
+| HTTP         | `backend/app.py`                                                                                   |
 
 ## Invariants & edge cases
 
@@ -249,13 +267,13 @@ events --HOOX--> exchange orders
 
 Misusing terms often causes support confusion:
 
-| Confused pair | Distinction |
-| --- | --- |
-| dump vs unparse | dump is debug AST text; unparse is Pine source |
-| literal_eval vs Runtime | single-shot expressions vs multi-bar scripts |
-| pyne vs pyne-lsp | desk CLI vs language server (aliases: pynescript*) |
-| AXIS vs PYNE | AXIS vs evaluate engine |
-| data provider vs data feed | historical fetch vs realtime stream |
+| Confused pair              | Distinction                                         |
+| -------------------------- | --------------------------------------------------- |
+| dump vs unparse            | dump is debug AST text; unparse is Pine source      |
+| literal_eval vs Runtime    | single-shot expressions vs multi-bar scripts        |
+| pyne vs pyne-lsp           | desk CLI vs language server (aliases: pynescript\*) |
+| AXIS vs PYNE               | AXIS vs evaluate engine                             |
+| data provider vs data feed | historical fetch vs realtime stream                 |
 
 ## See also
 

@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Installation"
 description: "Install hoox-pyne from PyPI (live) or a source checkout — CLI, LSP, compile, data, Pro API, and MCP extras."
 ---
@@ -65,17 +83,17 @@ flowchart LR
   CORE --> EXTRA_MCP
 ```
 
-| Install flavor | What you get | When |
-| --- | --- | --- |
-| `pip install hoox-pyne` | CLI + library (`pynescript.runtime` SoT) | Desk use, scripts, CI lint |
-| `pip install "hoox-pyne[lsp]"` | + pygls LSP server | Editors |
-| `pip install "hoox-pyne[compile]"` | + numpy / numba | `compile` / `prewarm` / `run` Numba modes |
-| `pip install "hoox-pyne[data]"` | + ccxt | Exchange data providers |
-| `pip install "hoox-pyne[pro]"` | + Flask Pro API stack | Self-hosted `/run` |
-| `pip install "hoox-pyne[mcp]"` | + stdio `pyne-mcp` / `pyne mcp` | LLM hosts (Cursor, Claude, Inspector). `pyne execute` / `pyne mcp call` work without this extra |
-| `pip install -e ".[dev-lsp]"` | Editable + LSP test harness | Contributing to LSP |
-| Docker CLI image | Full CLI image | CI gates / isolated runs |
-| Hatch env | Matrix tests, lint, docs | Full monorepo workflow |
+| Install flavor                     | What you get                             | When                                                                                            |
+| ---------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `pip install hoox-pyne`            | CLI + library (`pynescript.runtime` SoT) | Desk use, scripts, CI lint                                                                      |
+| `pip install "hoox-pyne[lsp]"`     | + pygls LSP server                       | Editors                                                                                         |
+| `pip install "hoox-pyne[compile]"` | + numpy / numba                          | `compile` / `prewarm` / `run` Numba modes                                                       |
+| `pip install "hoox-pyne[data]"`    | + ccxt                                   | Exchange data providers                                                                         |
+| `pip install "hoox-pyne[pro]"`     | + Flask Pro API stack                    | Self-hosted `/run`                                                                              |
+| `pip install "hoox-pyne[mcp]"`     | + stdio `pyne-mcp` / `pyne mcp`          | LLM hosts (Cursor, Claude, Inspector). `pyne execute` / `pyne mcp call` work without this extra |
+| `pip install -e ".[dev-lsp]"`      | Editable + LSP test harness              | Contributing to LSP                                                                             |
+| Docker CLI image                   | Full CLI image                           | CI gates / isolated runs                                                                        |
+| Hatch env                          | Matrix tests, lint, docs                 | Full monorepo workflow                                                                          |
 
 ## Interface surface
 
@@ -133,13 +151,13 @@ docker run --rm -v "$PWD:/work" -w /work pynescript-cli:latest check script.pine
 
 ### Console scripts
 
-| Command | Purpose |
-| --- | --- |
-| `pyne` | Preferred Click CLI (check, format, lint, compile, prewarm, run, execute, mcp call, data, info) |
-| `pyne-lsp` | Preferred language server (requires `[lsp]`) |
-| `pyne-mcp` | Stdio MCP server (requires `[mcp]`; same as `pyne mcp`) |
-| `pynescript` | Alias of `pyne` (same callable) |
-| `pynescript-lsp` | Alias of `pyne-lsp` (same callable) |
+| Command          | Purpose                                                                                         |
+| ---------------- | ----------------------------------------------------------------------------------------------- |
+| `pyne`           | Preferred Click CLI (check, format, lint, compile, prewarm, run, execute, mcp call, data, info) |
+| `pyne-lsp`       | Preferred language server (requires `[lsp]`)                                                    |
+| `pyne-mcp`       | Stdio MCP server (requires `[mcp]`; same as `pyne mcp`)                                         |
+| `pynescript`     | Alias of `pyne` (same callable)                                                                 |
+| `pynescript-lsp` | Alias of `pyne-lsp` (same callable)                                                             |
 
 ```bash
 pyne --version
@@ -152,17 +170,17 @@ Standalone binaries and a CLI image tarball also ship on [GitHub Releases](https
 
 ## Internals (repo paths)
 
-| Path | Role |
-| --- | --- |
-| `pyproject.toml` | Package metadata (`name = "hoox-pyne"`), extras, scripts |
-| `src/pynescript/` | Library + CLI + LSP package tree |
-| `src/pynescript/__about__.py` | `__version__` |
-| `src/pynescript/__main__.py` | CLI implementation |
-| `src/pynescript/runtime/` | Package Runtime SoT (bar-loop host, series, evaluator) |
-| `src/pynescript/langserver/__main__.py` | `pyne-lsp` entry |
-| `Dockerfile` target `cli` | Ephemeral CLI image |
-| `Makefile` | `package`, `docker-build-cli`, `install`, … |
-| `CONTRIBUTING.md` | Publish / Hatch workflow |
+| Path                                    | Role                                                     |
+| --------------------------------------- | -------------------------------------------------------- |
+| `pyproject.toml`                        | Package metadata (`name = "hoox-pyne"`), extras, scripts |
+| `src/pynescript/`                       | Library + CLI + LSP package tree                         |
+| `src/pynescript/__about__.py`           | `__version__`                                            |
+| `src/pynescript/__main__.py`            | CLI implementation                                       |
+| `src/pynescript/runtime/`               | Package Runtime SoT (bar-loop host, series, evaluator)   |
+| `src/pynescript/langserver/__main__.py` | `pyne-lsp` entry                                         |
+| `Dockerfile` target `cli`               | Ephemeral CLI image                                      |
+| `Makefile`                              | `package`, `docker-build-cli`, `install`, …              |
+| `CONTRIBUTING.md`                       | Publish / Hatch workflow                                 |
 
 ## Invariants & edge cases
 
@@ -205,15 +223,15 @@ make run   # Flask on :5002
 
 ## Failure modes
 
-| Failure | Diagnosis | Fix |
-| --- | --- | --- |
-| `ModuleNotFoundError: pynescript` | Wrong env / not installed | Activate venv; `pip install hoox-pyne` |
-| `No module named 'pygls'` | LSP without extra | `pip install "hoox-pyne[lsp]"` |
-| `No module named 'numba'` | compile path without extra | `pip install "hoox-pyne[compile]"` |
-| `No module named 'ccxt'` | data path without extra | `pip install "hoox-pyne[data]"` |
-| `MCP extra missing` | stdio `pyne mcp` / `pyne-mcp` without extra | `pip install "hoox-pyne[mcp]"` (`execute` / `mcp call` work without it) |
-| Wrong package / missing APIs | Installed upstream `pynescript` or plain `pyne` | `pip uninstall pynescript pyne` then `pip install hoox-pyne` |
-| `pyne` / `pynescript` not found | Scripts not on PATH | `python -m pynescript` or fix venv `bin/` |
+| Failure                           | Diagnosis                                       | Fix                                                                     |
+| --------------------------------- | ----------------------------------------------- | ----------------------------------------------------------------------- |
+| `ModuleNotFoundError: pynescript` | Wrong env / not installed                       | Activate venv; `pip install hoox-pyne`                                  |
+| `No module named 'pygls'`         | LSP without extra                               | `pip install "hoox-pyne[lsp]"`                                          |
+| `No module named 'numba'`         | compile path without extra                      | `pip install "hoox-pyne[compile]"`                                      |
+| `No module named 'ccxt'`          | data path without extra                         | `pip install "hoox-pyne[data]"`                                         |
+| `MCP extra missing`               | stdio `pyne mcp` / `pyne-mcp` without extra     | `pip install "hoox-pyne[mcp]"` (`execute` / `mcp call` work without it) |
+| Wrong package / missing APIs      | Installed upstream `pynescript` or plain `pyne` | `pip uninstall pynescript pyne` then `pip install hoox-pyne`            |
+| `pyne` / `pynescript` not found   | Scripts not on PATH                             | `python -m pynescript` or fix venv `bin/`                               |
 
 ## See also
 

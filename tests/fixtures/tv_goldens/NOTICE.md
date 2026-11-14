@@ -2,11 +2,11 @@
 
 The files under `openpinescript/` are copied from:
 
-* **Project:** OpenPineScript
-* **Repository:** https://github.com/be-thomas/OpenPineScript
-* **Path:** `conformance/v5/golden`
-* **Commit:** `cbf7ce9183cf46221a76a7453cfa78542d220108` (2026-10-23)
-* **License:** GNU General Public License, version 3 (see `openpinescript/LICENSE`)
+- **Project:** OpenPineScript
+- **Repository:** https://github.com/be-thomas/OpenPineScript
+- **Path:** `conformance/v5/golden`
+- **Commit:** `cbf7ce9183cf46221a76a7453cfa78542d220108` (2026-10-23)
+- **License:** GNU General Public License, version 3 (see `openpinescript/LICENSE`)
 
 The `.pine` harnesses and their `.log` exports are included unchanged. The
 per-file SHA-256 hashes and raw source URLs are in `SOURCES.json`.

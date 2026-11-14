@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Auth and Keys"
 description: "API key model, tiers, require_api_key / track_usage decorators, JSON/SQLite/Redis stores, and admin create_key."
 ---
@@ -45,13 +63,13 @@ flowchart LR
 
 ### Tiers (`_TIER_LIMITS`)
 
-| Tier | `calls_limit` |
-| --- | --- |
-| `free` | `0` (treated as unlimited in `is_rate_limited` — limit 0 means “no cap”) |
-| `hobby` | 5 000 |
-| `pro` | 50 000 |
-| `team` | 200 000 |
-| `enterprise` | `inf` |
+| Tier         | `calls_limit`                                                            |
+| ------------ | ------------------------------------------------------------------------ |
+| `free`       | `0` (treated as unlimited in `is_rate_limited` — limit 0 means “no cap”) |
+| `hobby`      | 5 000                                                                    |
+| `pro`        | 50 000                                                                   |
+| `team`       | 200 000                                                                  |
+| `enterprise` | `inf`                                                                    |
 
 `calls_remaining()` returns `inf` when limit is 0.
 
@@ -65,11 +83,11 @@ Response:
 
 ```json
 {
-  "status": "success",
-  "api_key": "pyn_…",
-  "key_id": "12hexchars",
-  "tier": "hobby",
-  "message": "Store this API key securely. It will not be shown again."
+    "status": "success",
+    "api_key": "pyn_…",
+    "key_id": "12hexchars",
+    "tier": "hobby",
+    "message": "Store this API key securely. It will not be shown again."
 }
 ```
 
@@ -89,11 +107,11 @@ Body: `{ "api_key": "…" }` — validates without incrementing usage. Returns t
 
 ### Decorators
 
-| Decorator | Behavior |
-| --- | --- |
-| `require_api_key` | Resolve key → 401 / 429 or set `g.api_key` |
-| `track_usage` | Wraps `require_api_key`; increments calls when response status &lt; 400 (tuple responses) or always for bare Response |
-| `require_admin_token` | Fail-closed admin gate (`ADMIN_TOKEN` + `X-Admin-Token`) |
+| Decorator             | Behavior                                                                                                              |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `require_api_key`     | Resolve key → 401 / 429 or set `g.api_key`                                                                            |
+| `track_usage`         | Wraps `require_api_key`; increments calls when response status &lt; 400 (tuple responses) or always for bare Response |
+| `require_admin_token` | Fail-closed admin gate (`ADMIN_TOKEN` + `X-Admin-Token`)                                                              |
 
 ### Client presentation
 
@@ -114,19 +132,19 @@ Helpers: `is_active()` (always True today), `is_rate_limited()`, `get_tier_info(
 
 ### Stores
 
-| Module | Use |
-| --- | --- |
+| Module                                                   | Use                                         |
+| -------------------------------------------------------- | ------------------------------------------- |
 | `middleware/auth.py` → `APIKeyStore` + `get_key_store()` | Facade; selects backend via `STORE_BACKEND` |
-| `middleware/key_store_sqlite.py` | Hash-only rows, WAL, multi-worker friendly |
-| `middleware/key_store_redis.py` | Hash-only Redis; multi-replica |
+| `middleware/key_store_sqlite.py`                         | Hash-only rows, WAL, multi-worker friendly  |
+| `middleware/key_store_redis.py`                          | Hash-only Redis; multi-replica              |
 
 `get_key_store()` backends (`STORE_BACKEND`):
 
-| Value | Persistence |
-| --- | --- |
+| Value            | Persistence                                                                                                                                                                         |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `json` (default) | File at `API_KEY_STORE` (default `/data/api_keys.json`); **hash-only** object keys. Legacy files keyed by the raw `pyn_…` secret are migrated on load and the raw secret is dropped |
-| `sqlite` | `API_KEY_STORE_SQLITE` (or `.db` beside JSON path); hash-only |
-| `redis` | `REDIS_URL` required; hash-only |
+| `sqlite`         | `API_KEY_STORE_SQLITE` (or `.db` beside JSON path); hash-only                                                                                                                       |
+| `redis`          | `REDIS_URL` required; hash-only                                                                                                                                                     |
 
 Prod compose defaults to `sqlite` on `/data/api_keys.db` so gunicorn workers share state.
 
@@ -168,13 +186,13 @@ curl -s -X POST http://127.0.0.1:5002/auth/validate \
 
 ## Failure modes
 
-| Code | Meaning |
-| --- | --- |
-| `UNAUTHORIZED` | Missing/invalid key |
-| `RATE_LIMITED` | `calls_used >= calls_limit` (finite limits) |
-| `FORBIDDEN` | `ADMIN_TOKEN` unset or `X-Admin-Token` mismatch (fail-closed) |
-| `INVALID_TIER` | create_key with unknown tier string |
-| `INVALID_KEY` | validate endpoint miss |
+| Code           | Meaning                                                       |
+| -------------- | ------------------------------------------------------------- |
+| `UNAUTHORIZED` | Missing/invalid key                                           |
+| `RATE_LIMITED` | `calls_used >= calls_limit` (finite limits)                   |
+| `FORBIDDEN`    | `ADMIN_TOKEN` unset or `X-Admin-Token` mismatch (fail-closed) |
+| `INVALID_TIER` | create_key with unknown tier string                           |
+| `INVALID_KEY`  | validate endpoint miss                                        |
 
 ## See also
 

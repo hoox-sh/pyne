@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Numerical validation"
 description: "Methodology and error bounds for PYNE technical and math builtins versus reference Pine Script™ implementations."
 ---
@@ -51,12 +69,12 @@ sequenceDiagram
 
 ### Acceptable thresholds (report)
 
-| Band | Relative error | Verdict |
-| --- | --- | --- |
-| Excellent | &lt; 0.001% | Pass |
-| Good | &lt; 0.01% | Pass |
-| Acceptable | &lt; 0.1% | Review |
-| Unacceptable | ≥ 0.1% | Fail |
+| Band         | Relative error | Verdict |
+| ------------ | -------------- | ------- |
+| Excellent    | &lt; 0.001%    | Pass    |
+| Good         | &lt; 0.01%     | Pass    |
+| Acceptable   | &lt; 0.1%      | Review  |
+| Unacceptable | ≥ 0.1%         | Fail    |
 
 ### Metric definitions
 
@@ -66,49 +84,49 @@ sequenceDiagram
 
 ### Category highlights
 
-| Family | Notes |
-| --- | --- |
-| Moving averages | SMA exact; EMA/WMA/… tiny FP error |
-| Oscillators | RSI/stoch slightly higher smoothing error still ≪ 0.01% |
-| Trend | ADX highest in report (0.0022% max) |
-| Volume | OBV exact cumulative; MFI inherits typical-price FP |
-| Stats | percentrank exact; variance/stdev excellent |
-| Math | Discrete exact; transcendentals ~1e-15 class |
+| Family          | Notes                                                   |
+| --------------- | ------------------------------------------------------- |
+| Moving averages | SMA exact; EMA/WMA/… tiny FP error                      |
+| Oscillators     | RSI/stoch slightly higher smoothing error still ≪ 0.01% |
+| Trend           | ADX highest in report (0.0022% max)                     |
+| Volume          | OBV exact cumulative; MFI inherits typical-price FP     |
+| Stats           | percentrank exact; variance/stdev excellent             |
+| Math            | Discrete exact; transcendentals ~1e-15 class            |
 
 ### Dual-host formula alignment (interpret ↔ compile)
 
 Where fixed, these kernels **share one formula contract** across interpret (evaluator / incremental) and compile (`numba_builtins`) so plot series match bit-identical or maxdiff ≈ 0 on dual-run goldens:
 
-| Builtin | Shared contract (summary) |
-| --- | --- |
-| `ta.rsi` | Wilder: SMA seed of first `period` deltas, then RMA gain/loss; first valid at bar `period` |
-| `ta.roc` | Standard lookback % change; `na` until lookback (no early `0.0`) |
-| `ta.wma` | Full non-`na` window required; no partial-window reweight (nested ROC/WMA safe) |
-| `ta.cum` | Running sum; NaNs as 0; user series (`ad = ta.cum(...)`) must not alias builtin A/D |
-| `ta.highestbars` / `lowestbars` | Negative bars-back offset; short/all-NaN → `-1`; oldest extreme on ties |
+| Builtin                         | Shared contract (summary)                                                                  |
+| ------------------------------- | ------------------------------------------------------------------------------------------ |
+| `ta.rsi`                        | Wilder: SMA seed of first `period` deltas, then RMA gain/loss; first valid at bar `period` |
+| `ta.roc`                        | Standard lookback % change; `na` until lookback (no early `0.0`)                           |
+| `ta.wma`                        | Full non-`na` window required; no partial-window reweight (nested ROC/WMA safe)            |
+| `ta.cum`                        | Running sum; NaNs as 0; user series (`ad = ta.cum(...)`) must not alias builtin A/D        |
+| `ta.highestbars` / `lowestbars` | Negative bars-back offset; short/all-NaN → `-1`; oldest extreme on ties                    |
 
 Goldens: `tests/test_compiler_numba.py` (`TestInterpCompilePlotParityFixes`) and `scripts/compare_interp_compile.py`. Residual dual-host drift (if any) tends to cluster in **nested EMA seed families** (DEMA/TEMA SMA-seed vs first-value) rather than these aligned kernels — see [Compatibility](/pyne/docs/reference/compatibility).
 
 ### Error distribution (report aggregate)
 
-| Error range | Share (approx.) |
-| --- | --- |
-| Exact 0 | ~38% |
-| &lt; 0.0001% | ~46% |
-| 0.0001–0.001% | ~14% |
-| 0.001–0.01% | ~2% |
-| ≥ 0.1% | 0% |
+| Error range   | Share (approx.) |
+| ------------- | --------------- |
+| Exact 0       | ~38%            |
+| &lt; 0.0001%  | ~46%            |
+| 0.0001–0.001% | ~14%            |
+| 0.001–0.01%   | ~2%             |
+| ≥ 0.1%        | 0%              |
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `docs/numerical_validation_report.md` | Full tables + bias analysis |
-| `tests/test_ta_indicators_*.py` | Executable TA tests |
-| `tests/test_indicators.py` / builtins tests | Additional numeric guards |
-| `tests/test_compiler_numba.py` | Interpret ↔ compile formula goldens (RSI/ROC/WMA/…) |
-| `scripts/compare_interp_compile.py` | Corpus plot-series parity harness |
-| Bar-mode vs list-mode (`_pine_bar_mode`) | Scalar-per-bar vs full series — compare like with like |
+| Path                                        | Role                                                   |
+| ------------------------------------------- | ------------------------------------------------------ |
+| `docs/numerical_validation_report.md`       | Full tables + bias analysis                            |
+| `tests/test_ta_indicators_*.py`             | Executable TA tests                                    |
+| `tests/test_indicators.py` / builtins tests | Additional numeric guards                              |
+| `tests/test_compiler_numba.py`              | Interpret ↔ compile formula goldens (RSI/ROC/WMA/…)    |
+| `scripts/compare_interp_compile.py`         | Corpus plot-series parity harness                      |
+| Bar-mode vs list-mode (`_pine_bar_mode`)    | Scalar-per-bar vs full series — compare like with like |
 
 ### Methodology (report)
 
@@ -145,12 +163,12 @@ pytest tests/test_ta_indicators_1.py tests/test_ta_indicators_2.py -q
 
 ## Failure modes
 
-| Symptom | Investigation |
-| --- | --- |
-| Sudden ADX drift | Check Wilder smoothing / seed bars |
-| SMA not exact | Off-by-one window or float input casts |
-| Good unit tests, bad TV export compare | Timezone/session alignment of bars |
-| Only bar 0 differs | Warm-up / `na` initialization |
+| Symptom                                | Investigation                          |
+| -------------------------------------- | -------------------------------------- |
+| Sudden ADX drift                       | Check Wilder smoothing / seed bars     |
+| SMA not exact                          | Off-by-one window or float input casts |
+| Good unit tests, bad TV export compare | Timezone/session alignment of bars     |
+| Only bar 0 differs                     | Warm-up / `na` initialization          |
 
 ## See also
 

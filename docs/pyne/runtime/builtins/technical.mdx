@@ -1,25 +1,43 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-title: "Technical analysis (ta.*)"
-description: "ta.* indicators: series helpers, bar mode, interpret↔compile parity, and submodule layout."
+
+title: "Technical analysis (ta._)"
+description: "ta._ indicators: series helpers, bar mode, interpret↔compile parity, and submodule layout."
 ---
 
 # Technical analysis (`ta.*`)
@@ -49,13 +67,13 @@ Hosts in production set bar mode so indicator calls return **scalars for the act
 
 When `_pine_bar_mode` and `_pine_ta_incremental` are enabled (Runtime default; disable with **`PYNE_TA_INCREMENTAL=0`**), hot `ta.*` builtins update **call-site state** once per bar instead of recomputing full history. Call sites are indexed like crossovers (`_ta_call_i` reset each bar). Nested forms such as `ta.ema(ta.sma(close, 14), 10)` stay correct because each call keeps its own slot. Golden suite: `tests/test_ta_incremental.py` (incremental last values ≡ full recompute).
 
-| Family | Incremental builtins (non-exhaustive) |
-| --- | --- |
-| Moving averages | `sma`, `ema`, `rma`, `wma`, `hma`, `vwma`, `swma`, `kama`, `dema`, `tema`, `alma`, `sma_weighted` |
-| Oscillators | `rsi`, `macd`, `stoch`/`stochrsi`, `cci`, `cmo`, `tsi`, `roc`, `wpr`, `aroon`, `dpo`, `kst` |
-| Volatility / structure | `atr`, `tr`, `stdev`, `bb`, `highest`/`lowest`, `linreg`, `adx`/`dmi`, `supertrend`, `kc`, `sar`, `donchian` |
-| Volume (**0.3.10–0.3.11**) | `obv`, `wad`/`wvad`, `cmf`, `klinger`, `mfi`, `vwap`, `accdist`, `nvi`, `pvi` |
-| Other | `change`/`mom`/`cum`, `median`, `percentrank`, `rising`/`falling`, `barssince`, pivots |
+| Family                     | Incremental builtins (non-exhaustive)                                                                        |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Moving averages            | `sma`, `ema`, `rma`, `wma`, `hma`, `vwma`, `swma`, `kama`, `dema`, `tema`, `alma`, `sma_weighted`            |
+| Oscillators                | `rsi`, `macd`, `stoch`/`stochrsi`, `cci`, `cmo`, `tsi`, `roc`, `wpr`, `aroon`, `dpo`, `kst`                  |
+| Volatility / structure     | `atr`, `tr`, `stdev`, `bb`, `highest`/`lowest`, `linreg`, `adx`/`dmi`, `supertrend`, `kc`, `sar`, `donchian` |
+| Volume (**0.3.10–0.3.11**) | `obv`, `wad`/`wvad`, `cmf`, `klinger`, `mfi`, `vwap`, `accdist`, `nvi`, `pvi`                                |
+| Other                      | `change`/`mom`/`cum`, `median`, `percentrank`, `rising`/`falling`, `barssince`, pivots                       |
 
 `ta.nvi` / `ta.pvi` are incremental (O(1)/bar; `PYNE_TA_INCREMENTAL=0` full-list). **`ta.atr` is Wilder RMA of true range** on interpret (full + incremental) and Numba (`ta.rma(ta.tr, length)` — 0.3.4+). Supertrend is locked mid±factor·ATR (not the TV band ratchet).
 
@@ -63,16 +81,16 @@ When `_pine_bar_mode` and `_pine_ta_incremental` are enabled (Runtime default; d
 
 Dispatch keys (non-exhaustive; map is authoritative in `technical.py`):
 
-| Family | Examples |
-| --- | --- |
-| Moving averages | `ta.sma`, `ta.ema`, `ta.wma`, `ta.rma`, `ta.hma`, `ta.vwma`, `ta.swma`, `ta.alma`, `ta.sma_weighted` |
-| Oscillators | `ta.rsi`, `ta.stoch`, `ta.cci`, `ta.cmo`, `ta.mfi`, `ta.roc`, `ta.wpr`, `ta.tsi`, `ta.rci` |
-| Trend / channels | `ta.macd`, `ta.adx`, `ta.dmi`, `ta.supertrend`, `ta.sar`, `ta.linreg` |
-| Volatility | `ta.atr`, `ta.tr`, `ta.bb`, `ta.bbw`, `ta.kc`, `ta.kcw`, `ta.stdev`, `ta.variance` |
-| Volume | `ta.obv`, `ta.vwap`, `ta.mfi` (shared), volume submodule helpers |
-| Structure | `ta.highest` / `lowest` / `highestbars` / `lowestbars`, `ta.pivothigh` / `pivotlow` |
-| Predicates | `ta.crossover`, `ta.crossunder`, `ta.cross`, `ta.rising`, `ta.falling` |
-| Stats / other | `ta.change`, `ta.mom`, `ta.cum`, `ta.median`, `ta.mode`, percentiles, `ta.barssince`, `ta.valuewhen`, `ta.correlation` |
+| Family           | Examples                                                                                                               |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Moving averages  | `ta.sma`, `ta.ema`, `ta.wma`, `ta.rma`, `ta.hma`, `ta.vwma`, `ta.swma`, `ta.alma`, `ta.sma_weighted`                   |
+| Oscillators      | `ta.rsi`, `ta.stoch`, `ta.cci`, `ta.cmo`, `ta.mfi`, `ta.roc`, `ta.wpr`, `ta.tsi`, `ta.rci`                             |
+| Trend / channels | `ta.macd`, `ta.adx`, `ta.dmi`, `ta.supertrend`, `ta.sar`, `ta.linreg`                                                  |
+| Volatility       | `ta.atr`, `ta.tr`, `ta.bb`, `ta.bbw`, `ta.kc`, `ta.kcw`, `ta.stdev`, `ta.variance`                                     |
+| Volume           | `ta.obv`, `ta.vwap`, `ta.mfi` (shared), volume submodule helpers                                                       |
+| Structure        | `ta.highest` / `lowest` / `highestbars` / `lowestbars`, `ta.pivothigh` / `pivotlow`                                    |
+| Predicates       | `ta.crossover`, `ta.crossunder`, `ta.cross`, `ta.rising`, `ta.falling`                                                 |
+| Stats / other    | `ta.change`, `ta.mom`, `ta.cum`, `ta.median`, `ta.mode`, percentiles, `ta.barssince`, `ta.valuewhen`, `ta.correlation` |
 
 ### Argument conventions
 
@@ -87,20 +105,20 @@ Dispatch keys (non-exhaustive; map is authoritative in `technical.py`):
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `src/pynescript/ast/evaluator/builtins/technical.py` | Dispatch map aggregation |
-| `.../technical_submodules/core.py` | Series coerce, expect helpers, bar finalize, **incremental kernels** |
-| `.../moving_averages.py`, `oscillators.py`, `volatility.py`, `volume.py`, … | Kernels + inc wiring |
-| `.../common.py`, `basic.py`, `advanced.py`, `patterns.py`, `strategies.py`, `synthesizer.py`, `economics.py` | Additional families |
-| `src/pynescript/compiler/numba_builtins.py` | Compile-path Numba kernels (must track interpret formulas) |
-| `tests/test_ta_indicators_*.py`, `tests/test_indicators.py` | Regression |
-| `tests/test_ta_incremental.py` | Inc ≡ full recompute golden (full CI gate) |
-| `tests/test_first_party_ta_goldens.py` | Dual-host first-party goldens (ATR / Supertrend / Keltner) |
-| `tests/test_interp_compile_parity.py` | Always-on dual-host smoke + full-corpus mark |
-| `scripts/compare_interp_compile.py` | Corpus harness (report under `.cache/interp_compile_parity.json`) |
-| `tests/test_compiler_numba.py` (`TestInterpCompilePlotParityFixes`, highestbars offsets, …) | Targeted formula locks |
-| `docs/numerical_validation_report.md` | Published precision summary (TV / IEEE bounds) |
+| Path                                                                                                         | Role                                                                 |
+| ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| `src/pynescript/ast/evaluator/builtins/technical.py`                                                         | Dispatch map aggregation                                             |
+| `.../technical_submodules/core.py`                                                                           | Series coerce, expect helpers, bar finalize, **incremental kernels** |
+| `.../moving_averages.py`, `oscillators.py`, `volatility.py`, `volume.py`, …                                  | Kernels + inc wiring                                                 |
+| `.../common.py`, `basic.py`, `advanced.py`, `patterns.py`, `strategies.py`, `synthesizer.py`, `economics.py` | Additional families                                                  |
+| `src/pynescript/compiler/numba_builtins.py`                                                                  | Compile-path Numba kernels (must track interpret formulas)           |
+| `tests/test_ta_indicators_*.py`, `tests/test_indicators.py`                                                  | Regression                                                           |
+| `tests/test_ta_incremental.py`                                                                               | Inc ≡ full recompute golden (full CI gate)                           |
+| `tests/test_first_party_ta_goldens.py`                                                                       | Dual-host first-party goldens (ATR / Supertrend / Keltner)           |
+| `tests/test_interp_compile_parity.py`                                                                        | Always-on dual-host smoke + full-corpus mark                         |
+| `scripts/compare_interp_compile.py`                                                                          | Corpus harness (report under `.cache/interp_compile_parity.json`)    |
+| `tests/test_compiler_numba.py` (`TestInterpCompilePlotParityFixes`, highestbars offsets, …)                  | Targeted formula locks                                               |
+| `docs/numerical_validation_report.md`                                                                        | Published precision summary (TV / IEEE bounds)                       |
 
 History for wrapper series is reversed to chronological order and may be truncated (`_SERIES_MAX`) before full kernels run. Incremental path only needs `series[-1]` per call, so truncation does not freeze state.
 
@@ -108,17 +126,17 @@ History for wrapper series is reversed to chronological order and may be truncat
 
 Numba kernels are **separate code** from the interpreter, but the dual-host contract is **same formula, same warm-up mask, same `na` rules** for the surface below. Drift is a bug, not an allowed “approx compile.” Prove regressions with the [interp↔compile harness](#parity-harness) and the [numerical validation](/pyne/docs/reference/numerical-validation) page (TV / IEEE bounds).
 
-| Topic | Shared behavior |
-| --- | --- |
-| **`ta.rsi`** | **Wilder** on both hosts: SMA seed of the first `period` deltas, then RMA of gains/losses. First finite bar is index `period` (`period` deltas need `period+1` prices). Not a simple window average. |
-| **`ta.roc`** | Standard TV formula `100 * (src - src[length]) / src[length]`. Warm-up is **`na`**, never an early `0.0`. Zero or missing baseline → `na`. Interpret no longer used a wrong lookback denominator or early zero. |
-| **`ta.wma`** | Requires a **full non-`na` window** of length `N`. Nested forms such as `ta.wma(ta.roc(...), …)` stay `na` until the inner series has produced `N` finite samples (no partial-window reweight). |
-| **`ta.cum`** | Running sum; Pine **`na` / IEEE NaN treated as 0** (skipped contribution), matching TradingView cumulative-sum semantics. |
+| Topic                                  | Shared behavior                                                                                                                                                                                                                                                                            |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`ta.rsi`**                           | **Wilder** on both hosts: SMA seed of the first `period` deltas, then RMA of gains/losses. First finite bar is index `period` (`period` deltas need `period+1` prices). Not a simple window average.                                                                                       |
+| **`ta.roc`**                           | Standard TV formula `100 * (src - src[length]) / src[length]`. Warm-up is **`na`**, never an early `0.0`. Zero or missing baseline → `na`. Interpret no longer used a wrong lookback denominator or early zero.                                                                            |
+| **`ta.wma`**                           | Requires a **full non-`na` window** of length `N`. Nested forms such as `ta.wma(ta.roc(...), …)` stay `na` until the inner series has produced `N` finite samples (no partial-window reweight).                                                                                            |
+| **`ta.cum`**                           | Running sum; Pine **`na` / IEEE NaN treated as 0** (skipped contribution), matching TradingView cumulative-sum semantics.                                                                                                                                                                  |
 | **`ta.highestbars` / `ta.lowestbars`** | Return **negative bars-back offsets**: `0` if the extreme is the current bar, `-1` one bar ago, …, `-(length-1)` at the far edge. Short history (`i + 1 < length`) returns `-1`. Matches Aroon-style scripts that index with `high[ta.highestbars(...)]` / `math.abs(ta.lowestbars(...))`. |
-| **`math.avg` (multi-arg)** | Arithmetic mean of the arguments. **Any `na` argument → `na`** (do not skip). Not a rolling `ta.sma`. |
-| **`ta.linreg`** | Least-squares fit over the window; **endpoint at `x = n−1` when `offset=0`** (TV): `mean_y + slope * ((n−1) − mean_x)` / compile `intercept + slope * (n − 1 − offset)`. Length &lt; 2 → `na`. |
-| **`ta.mfi`** | Warm-up aligned on both hosts: needs **`length + 1` typical-price samples** (direction vs previous bar). Equal typical prices contribute to neither side; only-pos / only-neg MF → 100 / 0 (or 50 when both empty). |
-| **`ta.rci`** | Rank Correlation Index (Spearman of time vs value ranks) is implemented on the **compile path** (`numba_rci`) as well as interpret; stays in numeric mode when called. |
+| **`math.avg` (multi-arg)**             | Arithmetic mean of the arguments. **Any `na` argument → `na`** (do not skip). Not a rolling `ta.sma`.                                                                                                                                                                                      |
+| **`ta.linreg`**                        | Least-squares fit over the window; **endpoint at `x = n−1` when `offset=0`** (TV): `mean_y + slope * ((n−1) − mean_x)` / compile `intercept + slope * (n − 1 − offset)`. Length &lt; 2 → `na`.                                                                                             |
+| **`ta.mfi`**                           | Warm-up aligned on both hosts: needs **`length + 1` typical-price samples** (direction vs previous bar). Equal typical prices contribute to neither side; only-pos / only-neg MF → 100 / 0 (or 50 when both empty).                                                                        |
+| **`ta.rci`**                           | Rank Correlation Index (Spearman of time vs value ranks) is implemented on the **compile path** (`numba_rci`) as well as interpret; stays in numeric mode when called.                                                                                                                     |
 
 **0.3.4+:** `ta.atr` is Wilder RMA of TR on interpret + Numba (not EMA-of-TR). EMA dual-host seed is full-list SMA seed matching incremental/Numba. First-party dual-host goldens (ATR / Supertrend / Keltner) and `test_ta_incremental` gate residual drift. Any remaining gaps are tracked under [missing features](/pyne/docs/reference/missing-features)—not as silent “close enough” for the rows above.
 
@@ -185,15 +203,15 @@ plot(hist)
 
 ## Failure modes
 
-| Symptom | Cause |
-| --- | --- |
-| Always `na` | Length longer than available history; or series not updated |
-| Wrong vs TV by large margin | Wrong source series; mock OHLCV; or non-bar-mode list composition bug |
-| Cross never fires | Call-index state not reset / shared incorrectly across bars |
-| Compile diverges from interpret | Kernel drift in `numba_builtins.py` (RSI must stay Wilder; ROC warm-up must stay `na`; WMA full window; highestbars sign; `math.avg` na rule)—re-run the [parity harness](#parity-harness) |
-| Early ROC / nested WMA finite too soon | Legacy quirks: ROC returned `0.0` before lookback, or WMA reweighted partial/`na` windows—fixed on both hosts |
-| `high[ta.highestbars(...)]` mostly `na` | Offsets are **negative**; only offset `0` indexes the current bar without `math.abs` |
-| `math.avg` finite when an arg is `na` | Bug: multi-arg avg must propagate `na`, not skip |
+| Symptom                                 | Cause                                                                                                                                                                                      |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Always `na`                             | Length longer than available history; or series not updated                                                                                                                                |
+| Wrong vs TV by large margin             | Wrong source series; mock OHLCV; or non-bar-mode list composition bug                                                                                                                      |
+| Cross never fires                       | Call-index state not reset / shared incorrectly across bars                                                                                                                                |
+| Compile diverges from interpret         | Kernel drift in `numba_builtins.py` (RSI must stay Wilder; ROC warm-up must stay `na`; WMA full window; highestbars sign; `math.avg` na rule)—re-run the [parity harness](#parity-harness) |
+| Early ROC / nested WMA finite too soon  | Legacy quirks: ROC returned `0.0` before lookback, or WMA reweighted partial/`na` windows—fixed on both hosts                                                                              |
+| `high[ta.highestbars(...)]` mostly `na` | Offsets are **negative**; only offset `0` indexes the current bar without `math.abs`                                                                                                       |
+| `math.avg` finite when an arg is `na`   | Bug: multi-arg avg must propagate `na`, not skip                                                                                                                                           |
 
 ## See also
 

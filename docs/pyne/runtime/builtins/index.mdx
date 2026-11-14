@@ -1,25 +1,43 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Builtins"
-description: "Dispatch architecture for ta.*, strategy.*, collections, plotting, request.*, and other standard namespaces."
+description: "Dispatch architecture for ta._, strategy._, collections, plotting, request.\*, and other standard namespaces."
 ---
 
 # Builtins
@@ -47,21 +65,21 @@ flowchart LR
 
 ## Interface surface
 
-| Namespace / area | Mixin / module | Docs |
-| --- | --- | --- |
-| `ta.*` | `TechnicalAnalysisMixin` + `technical_submodules/*` | [Technical](/pyne/docs/runtime/builtins/technical) |
-| `strategy.*` | `StrategyBuiltinsMixin`, `StrategyConstantsMixin` | [Strategy](/pyne/docs/runtime/builtins/strategy) |
-| `array.*` / `matrix.*` / `map.*` | `ArrayBuiltinsMixin`, matrix/map evaluators | [Collections](/pyne/docs/runtime/builtins/collections) |
-| `plot*` / `hline` / `line` / `label` / … | `PlottingFunctionsMixin`, `DrawingBuiltinsMixin` | [Drawing & plotting](/pyne/docs/runtime/builtins/drawing-plotting) |
-| `request.*` / `input.*` | `RequestBuiltinsMixin`, `InputBuiltinsMixin` | [Request & input](/pyne/docs/runtime/builtins/request-input) |
-| `math.*`, min/max, `nz`, … | `NumericBuiltinsMixin` | (this page) |
-| `str.*` | `StringBuiltinsMixin` | (this page) |
-| `color.*` | `register_color_functions` | (this page) |
-| `syminfo` / `ticker.*` | `register_ticker_functions` | (this page) |
-| `timeframe.*` | `register_timeframe_functions` | (this page) |
-| `alert` / logging | `AlertsMixin`, `register_logging_functions` | [Alerts](/pyne/docs/runtime/alerts) |
-| `indicator` / `strategy` / `library` | `register_script_declaration_functions` | [Libraries](/pyne/docs/runtime/libraries) |
-| Footprint / volume_row | `FootprintBuiltinsMixin` | [Request & input](/pyne/docs/runtime/builtins/request-input) |
+| Namespace / area                         | Mixin / module                                      | Docs                                                               |
+| ---------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------ |
+| `ta.*`                                   | `TechnicalAnalysisMixin` + `technical_submodules/*` | [Technical](/pyne/docs/runtime/builtins/technical)                 |
+| `strategy.*`                             | `StrategyBuiltinsMixin`, `StrategyConstantsMixin`   | [Strategy](/pyne/docs/runtime/builtins/strategy)                   |
+| `array.*` / `matrix.*` / `map.*`         | `ArrayBuiltinsMixin`, matrix/map evaluators         | [Collections](/pyne/docs/runtime/builtins/collections)             |
+| `plot*` / `hline` / `line` / `label` / … | `PlottingFunctionsMixin`, `DrawingBuiltinsMixin`    | [Drawing & plotting](/pyne/docs/runtime/builtins/drawing-plotting) |
+| `request.*` / `input.*`                  | `RequestBuiltinsMixin`, `InputBuiltinsMixin`        | [Request & input](/pyne/docs/runtime/builtins/request-input)       |
+| `math.*`, min/max, `nz`, …               | `NumericBuiltinsMixin`                              | (this page)                                                        |
+| `str.*`                                  | `StringBuiltinsMixin`                               | (this page)                                                        |
+| `color.*`                                | `register_color_functions`                          | (this page)                                                        |
+| `syminfo` / `ticker.*`                   | `register_ticker_functions`                         | (this page)                                                        |
+| `timeframe.*`                            | `register_timeframe_functions`                      | (this page)                                                        |
+| `alert` / logging                        | `AlertsMixin`, `register_logging_functions`         | [Alerts](/pyne/docs/runtime/alerts)                                |
+| `indicator` / `strategy` / `library`     | `register_script_declaration_functions`             | [Libraries](/pyne/docs/runtime/libraries)                          |
+| Footprint / volume_row                   | `FootprintBuiltinsMixin`                            | [Request & input](/pyne/docs/runtime/builtins/request-input)       |
 
 ### Numeric and string essentials
 
@@ -82,18 +100,18 @@ Full detail: [Alerts](/pyne/docs/runtime/alerts).
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `src/pynescript/ast/evaluator/builtins/__init__.py` | `BuiltinEvaluator` composition |
-| `src/pynescript/ast/evaluator/builtins/base.py` | Dispatch mixin, `_call_builtin`, registration |
-| `src/pynescript/ast/evaluator/builtins/*.py` | Category implementations |
-| `scripts/generate_builtin_metadata.py` | LSP/metadata surface (not hand-edited JSON) |
+| Path                                                | Role                                          |
+| --------------------------------------------------- | --------------------------------------------- |
+| `src/pynescript/ast/evaluator/builtins/__init__.py` | `BuiltinEvaluator` composition                |
+| `src/pynescript/ast/evaluator/builtins/base.py`     | Dispatch mixin, `_call_builtin`, registration |
+| `src/pynescript/ast/evaluator/builtins/*.py`        | Category implementations                      |
+| `scripts/generate_builtin_metadata.py`              | LSP/metadata surface (not hand-edited JSON)   |
 
 Handlers are looked up by the fully qualified string built during name/attribute evaluation. Zero-arg series (e.g. `strategy.equity`) are registered as builtins that ignore empty args.
 
 ## Invariants & edge cases
 
-1. **One map, many mixins.** New builtins require a map entry *and* (usually) metadata regeneration for LSP.
+1. **One map, many mixins.** New builtins require a map entry _and_ (usually) metadata regeneration for LSP.
 2. **Kwargs and positionals.** Handlers accept both; Pine named arguments arrive as kwargs when the call AST carries them.
 3. **Bar mode.** Stateful `ta.crossover` / similar use per-bar call indices reset by the host (`_cross_call_i`). Incremental `ta.*` (`PYNE_TA_INCREMENTAL`, default on) uses a sibling `_ta_call_i` slot.
 4. **Mock fallbacks.** Bare equity-style `request.security` strings may still mock offline; foreign / fundamental prefixes and complex expressions return **`na`** (see [request / input](/pyne/docs/runtime/builtins/request-input)).
@@ -112,12 +130,12 @@ plot(ta.sma(close, 14))
 
 ## Failure modes
 
-| Symptom | Fix |
-| --- | --- |
-| `Unknown built-in function` | Typo, version surface gap, or failed attribute chain |
-| Always mock prices | Wire `data_feed` / `data_provider` into evaluator context |
+| Symptom                            | Fix                                                                                              |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `Unknown built-in function`        | Typo, version surface gap, or failed attribute chain                                             |
+| Always mock prices                 | Wire `data_feed` / `data_provider` into evaluator context                                        |
 | LSP knows a function runtime lacks | Metadata ahead of implementation—check [missing features](/pyne/docs/reference/missing-features) |
-| Handler arity errors | Positional vs keyword mismatch in script |
+| Handler arity errors               | Positional vs keyword mismatch in script                                                         |
 
 ## See also
 

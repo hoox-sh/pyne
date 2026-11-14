@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Security"
 description: "API keys, CORS, body limits, secrets hygiene, Fernet metadata keys, and threat-aware defaults for PYNE ops."
 ---
@@ -46,13 +64,13 @@ flowchart TB
 
 ### HTTP application controls (`backend/app.py`)
 
-| Control | Default / mechanism |
-| --- | --- |
-| Body size | `MAX_CONTENT_LENGTH = 5 * 1024 * 1024` (5 MiB) — DoS/OOM mitigation |
-| CORS | `ALLOWED_ORIGINS` env (comma-separated); default includes product hosts + localhost regex |
-| Methods | GET, POST only via flask-cors config |
-| Headers | `Content-Type`, `Authorization`, `X-Admin-Token` |
-| Credentials | `supports_credentials=False` |
+| Control     | Default / mechanism                                                                       |
+| ----------- | ----------------------------------------------------------------------------------------- |
+| Body size   | `MAX_CONTENT_LENGTH = 5 * 1024 * 1024` (5 MiB) — DoS/OOM mitigation                       |
+| CORS        | `ALLOWED_ORIGINS` env (comma-separated); default includes product hosts + localhost regex |
+| Methods     | GET, POST only via flask-cors config                                                      |
+| Headers     | `Content-Type`, `Authorization`, `X-Admin-Token`                                          |
+| Credentials | `supports_credentials=False`                                                              |
 
 ### API keys (`backend/middleware/auth.py`)
 
@@ -63,11 +81,11 @@ flowchart TB
 
 ### Build / release secrets
 
-| Secret | Purpose |
-| --- | --- |
+| Secret                           | Purpose                                    |
+| -------------------------------- | ------------------------------------------ |
 | `METADATA_KEY` / `_METADATA_KEY` | Stable Fernet key for LSP metadata encrypt |
-| `GITHUB_TOKEN` | Release asset upload |
-| `PYNESCRIPT_METADATA_KEY` | Runtime decrypt env fallback |
+| `GITHUB_TOKEN`                   | Release asset upload                       |
+| `PYNESCRIPT_METADATA_KEY`        | Runtime decrypt env fallback               |
 
 ### Container hardening (`Dockerfile` target `api`)
 
@@ -84,23 +102,23 @@ flowchart TB
 
 ### Key store backends (`STORE_BACKEND`)
 
-| Value | Use |
-| --- | --- |
-| `json` (default) | Single-process / tests; file may hold raw keys |
-| `sqlite` | Multi-worker single host (shared volume); **hash-only** |
-| `redis` | Multi-replica; needs `REDIS_URL`; **hash-only** |
+| Value            | Use                                                     |
+| ---------------- | ------------------------------------------------------- |
+| `json` (default) | Single-process / tests; file may hold raw keys          |
+| `sqlite`         | Multi-worker single host (shared volume); **hash-only** |
+| `redis`          | Multi-replica; needs `REDIS_URL`; **hash-only**         |
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `backend/app.py` | CORS, body limit, blueprint registration |
-| `backend/middleware/auth.py` | Key store selection, tiers, decorators, admin gate |
-| `backend/middleware/key_store_redis.py` / `key_store_sqlite.py` | Hash-only shared stores |
-| `backend/middleware/schemas.py` | Request validation schemas |
-| `src/pynescript/langserver/providers/metadata_decrypt.py` | Encrypted metadata load |
-| `.github/workflows/*.yml` | Secret consumption (`METADATA_KEY`) |
-| AXIS PWA security tests | Sister repo [hoox-sh/axis](https://github.com/hoox-sh/axis) — not in this tree |
+| Path                                                            | Role                                                                           |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `backend/app.py`                                                | CORS, body limit, blueprint registration                                       |
+| `backend/middleware/auth.py`                                    | Key store selection, tiers, decorators, admin gate                             |
+| `backend/middleware/key_store_redis.py` / `key_store_sqlite.py` | Hash-only shared stores                                                        |
+| `backend/middleware/schemas.py`                                 | Request validation schemas                                                     |
+| `src/pynescript/langserver/providers/metadata_decrypt.py`       | Encrypted metadata load                                                        |
+| `.github/workflows/*.yml`                                       | Secret consumption (`METADATA_KEY`)                                            |
+| AXIS PWA security tests                                         | Sister repo [hoox-sh/axis](https://github.com/hoox-sh/axis) — not in this tree |
 
 ### Audit notes encoded in source
 
@@ -140,14 +158,14 @@ export API_KEY_STORE=/data/api_keys.json
 
 ## Failure modes
 
-| Symptom | Cause | Fix |
-| --- | --- | --- |
-| Browser CORS error | Origin not listed | Set `ALLOWED_ORIGINS` |
-| 413 Payload Too Large | Body > 5MB | Reduce OHLCV batch; raise limit knowingly |
-| 401/403 on `/run` | Missing/invalid key | Check `Authorization` header scheme |
-| Rate limited | Tier exhausted | Upgrade tier / wait reset |
-| Secret in fork PR logs | Misconfigured workflow echo | Never `echo` secrets; use masked env |
-| Root-owned files in volume | Old image ran as root | Align UID with `appuser` |
+| Symptom                    | Cause                       | Fix                                       |
+| -------------------------- | --------------------------- | ----------------------------------------- |
+| Browser CORS error         | Origin not listed           | Set `ALLOWED_ORIGINS`                     |
+| 413 Payload Too Large      | Body > 5MB                  | Reduce OHLCV batch; raise limit knowingly |
+| 401/403 on `/run`          | Missing/invalid key         | Check `Authorization` header scheme       |
+| Rate limited               | Tier exhausted              | Upgrade tier / wait reset                 |
+| Secret in fork PR logs     | Misconfigured workflow echo | Never `echo` secrets; use masked env      |
+| Root-owned files in volume | Old image ran as root       | Align UID with `appuser`                  |
 
 ## See also
 

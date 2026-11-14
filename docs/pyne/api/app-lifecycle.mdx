@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "App Lifecycle"
 description: "Flask application setup: MAX_CONTENT_LENGTH, CORS policy, blueprints, error handlers, and process entry."
 ---
@@ -53,17 +71,17 @@ python -m backend.app
 
 Environment:
 
-| Variable | Default | Role |
-| --- | --- | --- |
-| `HOST` | `127.0.0.1` | Bind address (localhost-first for dev) |
-| `PORT` | `5002` | Listen port |
-| `ALLOWED_ORIGINS` | `https://pynescript.ai`, `https://app.pynescript.ai`, localhost regex | CORS origins (comma-separated; regex allowed). `*` / `any` opens all. Code **always appends** localhost, private-LAN, and product (`hoox.sh` / `pynescript.ai` / `pynescript-axis.pages.dev`) regexes unless the value is `*` |
-| `API_KEY_STORE` | `/data/api_keys.json` | JSON key-store path (`auth.APIKeyStore` default) |
-| `ADMIN_TOKEN` | unset | Fail-closed admin minting (see [auth](/pyne/docs/api/auth-and-keys)). When set, hosted-runner writes also require it |
-| `PYNE_RUNNER` | off | Optional hosted script registry + `/cron/run` ([runner](/pyne/docs/api/endpoints/runner)) |
-| `PYNE_RUNNER_SCHEDULER` | off | In-process bar-close poll (requires `PYNE_RUNNER`) |
-| `PYNE_RUNNER_POLL_SECONDS` | `60` | Scheduler interval |
-| `PYNE_RUNNER_DB` | `/data/runner.db` or temp | SQLite registry path |
+| Variable                   | Default                                                               | Role                                                                                                                                                                                                                          |
+| -------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HOST`                     | `127.0.0.1`                                                           | Bind address (localhost-first for dev)                                                                                                                                                                                        |
+| `PORT`                     | `5002`                                                                | Listen port                                                                                                                                                                                                                   |
+| `ALLOWED_ORIGINS`          | `https://pynescript.ai`, `https://app.pynescript.ai`, localhost regex | CORS origins (comma-separated; regex allowed). `*` / `any` opens all. Code **always appends** localhost, private-LAN, and product (`hoox.sh` / `pynescript.ai` / `pynescript-axis.pages.dev`) regexes unless the value is `*` |
+| `API_KEY_STORE`            | `/data/api_keys.json`                                                 | JSON key-store path (`auth.APIKeyStore` default)                                                                                                                                                                              |
+| `ADMIN_TOKEN`              | unset                                                                 | Fail-closed admin minting (see [auth](/pyne/docs/api/auth-and-keys)). When set, hosted-runner writes also require it                                                                                                          |
+| `PYNE_RUNNER`              | off                                                                   | Optional hosted script registry + `/cron/run` ([runner](/pyne/docs/api/endpoints/runner))                                                                                                                                     |
+| `PYNE_RUNNER_SCHEDULER`    | off                                                                   | In-process bar-close poll (requires `PYNE_RUNNER`)                                                                                                                                                                            |
+| `PYNE_RUNNER_POLL_SECONDS` | `60`                                                                  | Scheduler interval                                                                                                                                                                                                            |
+| `PYNE_RUNNER_DB`           | `/data/runner.db` or temp                                             | SQLite registry path                                                                                                                                                                                                          |
 
 `debug=False` always on the dev runner.
 
@@ -73,28 +91,28 @@ Environment:
 
 ```json
 {
-  "status": "healthy",
-  "service": "pynescript-pro-api",
-  "version": "0.7.0",
-  "api_version": "1.0.0",
-  "git_sha": "abc1234",
-  "timestamp": 0,
-  "websocket": true,
-  "features": {
-    "alerts": true,
-    "alert_webhooks": true,
-    "warm_compile": true,
-    "default_run_mode": "auto",
-    "script_runner": false,
-    "script_runner_scheduler": false
-  },
-  "compile": {
-    "has_numba": true,
-    "disk_cache_enabled": true,
-    "prewarm_enabled": true,
-    "default_mode": "auto"
-  },
-  "endpoints": { "…": "…" }
+    "status": "healthy",
+    "service": "pynescript-pro-api",
+    "version": "0.7.0",
+    "api_version": "1.0.0",
+    "git_sha": "abc1234",
+    "timestamp": 0,
+    "websocket": true,
+    "features": {
+        "alerts": true,
+        "alert_webhooks": true,
+        "warm_compile": true,
+        "default_run_mode": "auto",
+        "script_runner": false,
+        "script_runner_scheduler": false
+    },
+    "compile": {
+        "has_numba": true,
+        "disk_cache_enabled": true,
+        "prewarm_enabled": true,
+        "default_mode": "auto"
+    },
+    "endpoints": { "…": "…" }
 }
 ```
 
@@ -131,23 +149,23 @@ Preview + backtest live in `backend/api/preview.py`. Optional `flask-sock` regis
 
 ### Error handlers
 
-| Code | Body code | Message |
-| --- | --- | --- |
-| 404 | `NOT_FOUND` | `Endpoint {path} not found.` |
-| 500 | `INTERNAL_ERROR` | `Internal server error.` |
+| Code | Body code        | Message                      |
+| ---- | ---------------- | ---------------------------- |
+| 404  | `NOT_FOUND`      | `Endpoint {path} not found.` |
+| 500  | `INTERNAL_ERROR` | `Internal server error.`     |
 
 Both return JSON with `status: "error"`.
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `backend/app.py` | App object, free routes, auth routes, CORS, health |
-| `backend/api/preview.py` | Pro preview + backtest blueprints |
-| `backend/api/lsp_http.py` | Free AXIS LSP-HTTP |
-| `backend/middleware/schemas.py` | Request validation for `/run*` and auth |
+| Path                                | Role                                                                 |
+| ----------------------------------- | -------------------------------------------------------------------- |
+| `backend/app.py`                    | App object, free routes, auth routes, CORS, health                   |
+| `backend/api/preview.py`            | Pro preview + backtest blueprints                                    |
+| `backend/api/lsp_http.py`           | Free AXIS LSP-HTTP                                                   |
+| `backend/middleware/schemas.py`     | Request validation for `/run*` and auth                              |
 | `backend/middleware/free_limits.py` | Optional bar / script / rate / concurrency caps (`FREE_TIER_LIMITS`) |
-| `backend/requirements.txt` | Flask, flask-cors, numpy, matplotlib, … |
+| `backend/requirements.txt`          | Flask, flask-cors, numpy, matplotlib, …                              |
 
 Recommended production: gunicorn/uvicorn-class WSGI with multiple workers; for multi-worker key consistency prefer SQLite/Redis stores over the default in-memory/file singleton assumptions — see [auth](/pyne/docs/api/auth-and-keys).
 
@@ -168,10 +186,10 @@ curl -s http://127.0.0.1:5002/health | jq '.status, .features.default_run_mode'
 
 ## Failure modes
 
-| Symptom | Cause |
-| --- | --- |
-| Browser CORS errors | Origin not in `ALLOWED_ORIGINS` |
-| 413 on large OHLCV | Exceeded 5 MB — downsample or paginate |
+| Symptom                      | Cause                                                            |
+| ---------------------------- | ---------------------------------------------------------------- |
+| Browser CORS errors          | Origin not in `ALLOWED_ORIGINS`                                  |
+| 413 on large OHLCV           | Exceeded 5 MB — downsample or paginate                           |
 | Import errors for matplotlib | Missing backend deps — `pip install -r backend/requirements.txt` |
 
 ## See also

@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "Drawing and plotting"
-description: "plot side effects, DrawingRegistry objects, and export shapes for hosts and AXIS."
+description: "Visual effects in Pine are side channels: they do not change pure arithmetic results, but they are first-class runtime outputs. PYNE records plots in PlotRegistry and drawing…"
 resource: "docs/pyne/runtime/builtins/drawing-plotting.mdx"
 tags: [doc, docs, pyne, runtime]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-14T19:45:25Z
 sources:
   - id: tree
     resource: "docs/pyne/runtime/builtins/drawing-plotting.mdx"

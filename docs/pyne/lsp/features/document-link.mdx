@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Document links"
 description: "textDocument/documentLink for http(s) URLs in comments and strings, and documentLink/resolve tooltip."
 ---
@@ -50,31 +68,31 @@ Comments are scanned from the raw buffer so they do not need AST nodes. String U
 
 ## Interface surface
 
-| Method | Capability |
-| --- | --- |
-| `textDocument/documentLink` | `DocumentLinkOptions(resolve_provider=True)` |
-| `documentLink/resolve` | fills `tooltip` with the URL when tooltip is unset |
+| Method                      | Capability                                         |
+| --------------------------- | -------------------------------------------------- |
+| `textDocument/documentLink` | `DocumentLinkOptions(resolve_provider=True)`       |
+| `documentLink/resolve`      | fills `tooltip` with the URL when tooltip is unset |
 
 Handlers: `features/document_link.py` → `handle_document_link` (receives version-matched `tree=doc.valid_ast`) and `handle_document_link_resolve`.
 
 Each initial result:
 
-| Field | Value |
-| --- | --- |
-| `range` | LSP range covering the URL text |
-| `target` | The URL string (`http://` or `https://`) |
-| `tooltip` | unset (`None`) until resolve |
+| Field     | Value                                    |
+| --------- | ---------------------------------------- |
+| `range`   | LSP range covering the URL text          |
+| `target`  | The URL string (`http://` or `https://`) |
+| `tooltip` | unset (`None`) until resolve             |
 
 Returns `[]` for empty source, parse failure, or `tree=None`.
 
 ### Where URLs are collected
 
-| Region | Source |
-| --- | --- |
-| `//` line comments | Raw buffer, through the newline (or EOF) |
-| `/* */` block comments | Raw buffer, including the closers; unclosed blocks run to EOF |
-| Hash `# …` comments | Raw buffer, when `#` is not a `#rgb` color token |
-| String literals | AST `Constant` with a `str` value; range is the URL inside the quotes |
+| Region                 | Source                                                                |
+| ---------------------- | --------------------------------------------------------------------- |
+| `//` line comments     | Raw buffer, through the newline (or EOF)                              |
+| `/* */` block comments | Raw buffer, including the closers; unclosed blocks run to EOF         |
+| Hash `# …` comments    | Raw buffer, when `#` is not a `#rgb` color token                      |
+| String literals        | AST `Constant` with a `str` value; range is the URL inside the quotes |
 
 The matcher is `http://` or `https://` followed by non-whitespace characters excluding `<>"'` and `*`. Trailing `.,;:!?` is stripped from both the range and the `target` (`// see https://example.com/end.` → `https://example.com/end`).
 
@@ -96,11 +114,11 @@ Initial `textDocument/documentLink` responses already carry `target`. Resolve co
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `src/pynescript/langserver/features/document_link.py` | Comment scan + string walk + resolve |
-| `src/pynescript/langserver/config.py` | `DocumentLinkOptions(resolve_provider=True)` |
-| `src/pynescript/langserver/server.py` | `TEXT_DOCUMENT_DOCUMENT_LINK` (cached on `doc.feature_cache["document_link"]`); `DOCUMENT_LINK_RESOLVE` |
+| Path                                                  | Role                                                                                                    |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `src/pynescript/langserver/features/document_link.py` | Comment scan + string walk + resolve                                                                    |
+| `src/pynescript/langserver/config.py`                 | `DocumentLinkOptions(resolve_provider=True)`                                                            |
+| `src/pynescript/langserver/server.py`                 | `TEXT_DOCUMENT_DOCUMENT_LINK` (cached on `doc.feature_cache["document_link"]`); `DOCUMENT_LINK_RESOLVE` |
 
 The workspace cache supplies `tree=doc.valid_ast`. Pass `tree=None` when the last parse failed (skips a redundant re-parse). Omit `tree` only in isolated tests (handler then parses from `source`). Comments need the source text; a pre-parsed tree with `source=None` still yields string-literal links.
 
@@ -146,14 +164,14 @@ After `documentLink/resolve`, each of those links has `tooltip` equal to `target
 
 ## Failure modes
 
-| Symptom | Cause |
-| --- | --- |
-| No clickable URLs | Parse failed (`[]`), or the URL is not `http(s)` |
-| Link includes a trailing period | Client ignored the range and used line text; the server strips `.,;:!?` |
+| Symptom                                 | Cause                                                                       |
+| --------------------------------------- | --------------------------------------------------------------------------- |
+| No clickable URLs                       | Parse failed (`[]`), or the URL is not `http(s)`                            |
+| Link includes a trailing period         | Client ignored the range and used line text; the server strips `.,;:!?`     |
 | Comment URL missing, string URL present | Handler ran with `source=None` and a cached tree — comments need the buffer |
-| `#ff0000` not a link | Expected: hash color tokens are not comments |
-| Hover over a link shows no tooltip | Client skipped `documentLink/resolve`, or the link had no `target` |
-| Tooltip overwritten | Not expected: resolve keeps an existing tooltip |
+| `#ff0000` not a link                    | Expected: hash color tokens are not comments                                |
+| Hover over a link shows no tooltip      | Client skipped `documentLink/resolve`, or the link had no `target`          |
+| Tooltip overwritten                     | Not expected: resolve keeps an existing tooltip                             |
 
 ## See also
 

@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "CLI Guide"
 description: "Use the pyne Click CLI to check, format, lint, compile, run, execute (Runtime.run), corpus-test sets, call MCP tools, optimize, prewarm, and fetch data."
 ---
@@ -47,21 +65,21 @@ flowchart LR
   C --> I[info]
 ```
 
-| CLI | Library / subsystem |
-| --- | --- |
-| `check` | `parse` only (exit codes) |
-| `format` / `fmt` | `parse` + `unparse` |
-| `convert` | `pynescript.util.pine_convert` (any older version → v6) |
-| `parse-and-dump` / `dump` | `parse` + `dump` |
-| `lint` | `lint_script` |
-| `compile` / `prewarm` / `run` | `pynescript.compiler` (+ `[compile]` extra) |
-| `optimize` | `pynescript.optimize.run_study` |
-| `data` | `pynescript.util.data.get_provider` |
-| `corpus` | `pynescript.util.corpus_runtime` (Rich UI over set01–set06) |
-| `runner` | HTTP client for Flask `/scripts` + `/cron/run` (`PYNE_RUNNER`) |
-| `info` | version + optional extras |
-| `execute` / `symbols` / `parity` / `diagnostics` / `builtin` | MCP ops (`Runtime.run`, outline, last-value parity) |
-| `mcp` | `pynescript.mcp` stdio server, `tools`, in-process `call` ([MCP](/pyne/docs/enduser/guides/mcp)) |
+| CLI                                                          | Library / subsystem                                                                              |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| `check`                                                      | `parse` only (exit codes)                                                                        |
+| `format` / `fmt`                                             | `parse` + `unparse`                                                                              |
+| `convert`                                                    | `pynescript.util.pine_convert` (any older version → v6)                                          |
+| `parse-and-dump` / `dump`                                    | `parse` + `dump`                                                                                 |
+| `lint`                                                       | `lint_script`                                                                                    |
+| `compile` / `prewarm` / `run`                                | `pynescript.compiler` (+ `[compile]` extra)                                                      |
+| `optimize`                                                   | `pynescript.optimize.run_study`                                                                  |
+| `data`                                                       | `pynescript.util.data.get_provider`                                                              |
+| `corpus`                                                     | `pynescript.util.corpus_runtime` (Rich UI over set01–set06)                                      |
+| `runner`                                                     | HTTP client for Flask `/scripts` + `/cron/run` (`PYNE_RUNNER`)                                   |
+| `info`                                                       | version + optional extras                                                                        |
+| `execute` / `symbols` / `parity` / `diagnostics` / `builtin` | MCP ops (`Runtime.run`, outline, last-value parity)                                              |
+| `mcp`                                                        | `pynescript.mcp` stdio server, `tools`, in-process `call` ([MCP](/pyne/docs/enduser/guides/mcp)) |
 
 ## Interface surface
 
@@ -72,36 +90,36 @@ pyne <command> --help
 # alias: pynescript …
 ```
 
-| Command | Input | Output |
-| --- | --- | --- |
-| `check PATHS…` | files / dirs / stdin | ok/fail lines + exit code |
-| `format PATH` | file or `-` | formatted source (`-w` / `--check`) |
-| `convert PATH --to 6` | file or `-` | rewritten v6 source (`-w`) |
-| `parse-and-dump PATH` | file | AST dump |
-| `parse-and-unparse PATH` | file | Pine source |
-| `lint [PATH\|-]` | file or stdin | diagnostics (`--json`) |
-| `compile PATH` | file | emit Python or compile-check |
-| `prewarm [PATH…]` | optional files | warm Numba / IR cache |
-| `run PATH` | file | synthetic-bar execute |
-| `execute PATH` | file | `Runtime.run` JSON (`--mode interpret\|compile\|auto`) |
-| `symbols` / `parity` / `diagnostics` / `builtin` | file / name | MCP-backed JSON |
-| `optimize PATH` | file + `--space` JSON | strategy hyperparameter search |
-| `data SYMBOL` | symbol + provider opts | table / json / csv |
-| `runner …` | file / id | hosted deploy + tick ([runner](/pyne/docs/api/endpoints/runner)) |
-| `info` | — | version + extras |
-| `mcp` | — | stdio MCP server; `config` / `tools` / `call TOOL` |
+| Command                                          | Input                  | Output                                                           |
+| ------------------------------------------------ | ---------------------- | ---------------------------------------------------------------- |
+| `check PATHS…`                                   | files / dirs / stdin   | ok/fail lines + exit code                                        |
+| `format PATH`                                    | file or `-`            | formatted source (`-w` / `--check`)                              |
+| `convert PATH --to 6`                            | file or `-`            | rewritten v6 source (`-w`)                                       |
+| `parse-and-dump PATH`                            | file                   | AST dump                                                         |
+| `parse-and-unparse PATH`                         | file                   | Pine source                                                      |
+| `lint [PATH\|-]`                                 | file or stdin          | diagnostics (`--json`)                                           |
+| `compile PATH`                                   | file                   | emit Python or compile-check                                     |
+| `prewarm [PATH…]`                                | optional files         | warm Numba / IR cache                                            |
+| `run PATH`                                       | file                   | synthetic-bar execute                                            |
+| `execute PATH`                                   | file                   | `Runtime.run` JSON (`--mode interpret\|compile\|auto`)           |
+| `symbols` / `parity` / `diagnostics` / `builtin` | file / name            | MCP-backed JSON                                                  |
+| `optimize PATH`                                  | file + `--space` JSON  | strategy hyperparameter search                                   |
+| `data SYMBOL`                                    | symbol + provider opts | table / json / csv                                               |
+| `runner …`                                       | file / id              | hosted deploy + tick ([runner](/pyne/docs/api/endpoints/runner)) |
+| `info`                                           | —                      | version + extras                                                 |
+| `mcp`                                            | —                      | stdio MCP server; `config` / `tools` / `call TOOL`               |
 
 **Not** part of this Click group: language server — use **`pyne-lsp`** (alias `pynescript-lsp`). MCP also has console script **`pyne-mcp`**.
 
 ## Install options
 
-| Method | When |
-| --- | --- |
-| `pip install hoox-pyne` | Default desk / CI use |
-| `pip install "hoox-pyne[compile]"` | Need Numba `compile` / `run` modes |
-| `pip install "hoox-pyne[mcp]"` | Stdio MCP server (`pyne-mcp` / `pyne mcp`). `pyne execute` / `mcp call` need no extra |
-| GitHub Release binary `pynescript-cli-*` | No Python install |
-| Docker `pynescript-cli` | Isolated CI / one-shot checks |
+| Method                                   | When                                                                                  |
+| ---------------------------------------- | ------------------------------------------------------------------------------------- |
+| `pip install hoox-pyne`                  | Default desk / CI use                                                                 |
+| `pip install "hoox-pyne[compile]"`       | Need Numba `compile` / `run` modes                                                    |
+| `pip install "hoox-pyne[mcp]"`           | Stdio MCP server (`pyne-mcp` / `pyne mcp`). `pyne execute` / `mcp call` need no extra |
+| GitHub Release binary `pynescript-cli-*` | No Python install                                                                     |
+| Docker `pynescript-cli`                  | Isolated CI / one-shot checks                                                         |
 
 ```bash
 # Docker
@@ -118,17 +136,17 @@ chmod +x pynescript-cli-linux-x86_64
 
 ## Internals (repo paths)
 
-| Path | Role |
-| --- | --- |
-| `src/pynescript/__main__.py` | Click group; registers `mcp` + first-class execute/symbols/parity |
-| `src/pynescript/mcp/cli.py` | `pyne mcp` group, `execute`, `symbols`, `parity`, `diagnostics`, `builtin` |
-| `src/pynescript/ast/helper.py` | `parse`, `dump`, `unparse` |
-| `src/pynescript/ast/linter.py` | `lint_script` |
-| `src/pynescript/compiler/` | `compile` / `prewarm` / `run` |
-| `src/pynescript/util/data.py` | providers + `DataProviderError` |
-| `src/pynescript/util/runner_cli.py` | `pyne runner` HTTP client |
-| `examples/` | sample `.pine` inputs |
-| `tests/test_cli.py` | CLI unit suite (CI) |
+| Path                                | Role                                                                       |
+| ----------------------------------- | -------------------------------------------------------------------------- |
+| `src/pynescript/__main__.py`        | Click group; registers `mcp` + first-class execute/symbols/parity          |
+| `src/pynescript/mcp/cli.py`         | `pyne mcp` group, `execute`, `symbols`, `parity`, `diagnostics`, `builtin` |
+| `src/pynescript/ast/helper.py`      | `parse`, `dump`, `unparse`                                                 |
+| `src/pynescript/ast/linter.py`      | `lint_script`                                                              |
+| `src/pynescript/compiler/`          | `compile` / `prewarm` / `run`                                              |
+| `src/pynescript/util/data.py`       | providers + `DataProviderError`                                            |
+| `src/pynescript/util/runner_cli.py` | `pyne runner` HTTP client                                                  |
+| `examples/`                         | sample `.pine` inputs                                                      |
+| `tests/test_cli.py`                 | CLI unit suite (CI)                                                        |
 
 ## Invariants & edge cases
 
@@ -223,13 +241,13 @@ PY
 
 ## Failure modes
 
-| Exit / message | Cause | Mitigation |
-| --- | --- | --- |
-| Click path errors | missing file | check `PATH` exists and is a file |
-| Parse exception during dump | invalid syntax | fix source; use smaller repro |
-| `Lint failed with errors.` | `--fail-on` threshold | read `E00x` / `W00x` lines |
-| `DataProviderError` → ClickException | network / auth / missing dep | install `[data]`, fix keys |
-| Empty dump / unexpected tree | `mode` always exec for CLI | expression-only needs library `mode="eval"` |
+| Exit / message                       | Cause                        | Mitigation                                  |
+| ------------------------------------ | ---------------------------- | ------------------------------------------- |
+| Click path errors                    | missing file                 | check `PATH` exists and is a file           |
+| Parse exception during dump          | invalid syntax               | fix source; use smaller repro               |
+| `Lint failed with errors.`           | `--fail-on` threshold        | read `E00x` / `W00x` lines                  |
+| `DataProviderError` → ClickException | network / auth / missing dep | install `[data]`, fix keys                  |
+| Empty dump / unexpected tree         | `mode` always exec for CLI   | expression-only needs library `mode="eval"` |
 
 ## See also
 

@@ -1,13 +1,13 @@
 ---
 type: "Document"
-title: "request.* and input.*"
-description: "Multi-symbol/timeframe requests, fundamental na semantics, host series bind, and input parameter resolution."
+title: "`request.*` and `input.*`"
+description: "Two namespaces couple scripts to the host environment: input. declares parameters (with defaults and UI metadata), and request. pulls data from other symbols, timeframes, or…"
 resource: "docs/pyne/runtime/builtins/request-input.mdx"
 tags: [doc, docs, pyne, runtime]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-14T19:45:25Z
 sources:
   - id: tree
     resource: "docs/pyne/runtime/builtins/request-input.mdx"

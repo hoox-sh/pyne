@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Compiler overview"
 description: "Source-to-source compilation: CompilerVisitor, numeric vs object mode, run(time=…), and engine API."
 ---
@@ -65,17 +83,17 @@ result = cs.run(open, high, low, close, volume, time=None)
 # result: dict of plot title → float64 array, optional __drawings, __events, …
 ```
 
-| API | Role |
-| --- | --- |
-| `transpile` | Parse + visit → source string (inspect/debug) |
-| `compile_script` | `exec` generated code, warm-up call, return `CompiledScript` |
-| `run_script` | One-shot compile+run (prefer cache `CompiledScript` for batches) |
-| `has_numba` | Whether numeric (njit) mode can load |
-| `prewarm_numba_builtins` / `prewarm_scripts` | Host cold-start (H2 warm path) |
-| `compile_cache_stats` / `compile_deploy_config` | Cache + deploy diagnostics |
-| `clear_compile_cache` | In-process LRU only |
-| `clear_disk_compile_cache` | Disk IR / index under cache dir |
-| `clear_numba_function_caches` | Purge Numba `.nbi`/`.nbc` under known dirs |
+| API                                             | Role                                                             |
+| ----------------------------------------------- | ---------------------------------------------------------------- |
+| `transpile`                                     | Parse + visit → source string (inspect/debug)                    |
+| `compile_script`                                | `exec` generated code, warm-up call, return `CompiledScript`     |
+| `run_script`                                    | One-shot compile+run (prefer cache `CompiledScript` for batches) |
+| `has_numba`                                     | Whether numeric (njit) mode can load                             |
+| `prewarm_numba_builtins` / `prewarm_scripts`    | Host cold-start (H2 warm path)                                   |
+| `compile_cache_stats` / `compile_deploy_config` | Cache + deploy diagnostics                                       |
+| `clear_compile_cache`                           | In-process LRU only                                              |
+| `clear_disk_compile_cache`                      | Disk IR / index under cache dir                                  |
+| `clear_numba_function_caches`                   | Purge Numba `.nbi`/`.nbc` under known dirs                       |
 
 `CompiledScript` fields: `source`, `generated_code`, `execute`, `plot_titles`, `plot_kinds` (per-plot `plot` / `hline` / `fill` tags used to synthesize numeric-mode `__drawings`), `object_mode`, optional `nopython_fallback_reason`.
 
@@ -90,17 +108,19 @@ def run(
 ) -> dict[str, Any]:
 ```
 
-| Argument | Behavior |
-| --- | --- |
-| OHLCV | Coerced to contiguous `float64`; lengths must match (`ValueError` otherwise) |
-| `volume=None` | Filled with ones |
-| `time=None` | Synthetic `bar_index * 60_000` ms (unit-test / pure-compile default) |
-| `time=arr` | Real bar-open timestamps; length must match OHLCV |
+| Argument      | Behavior                                                                     |
+| ------------- | ---------------------------------------------------------------------------- |
+| OHLCV         | Coerced to contiguous `float64`; lengths must match (`ValueError` otherwise) |
+| `volume=None` | Filled with ones                                                             |
+| `time=None`   | Synthetic `bar_index * 60_000` ms (unit-test / pure-compile default)         |
+| `time=arr`    | Real bar-open timestamps; length must match OHLCV                            |
 
 `Runtime._run_compiled` packs OHLCV dicts and **passes real bar times** so calendar/`time`/`timestamp`/`time[n]` stay aligned with interpret. Pure `cs.run(o,h,l,c)` without `time=` is fine for pure-price scripts and fixtures.
 
 <Note>
-When `time` is omitted, the engine synthesizes `np.arange(n) * 60000.0` (1-minute bar opens from epoch). Hosts that care about `year`/`month`/`time[n]` must pass bar-open Unix ms.
+    When `time` is omitted, the engine synthesizes `np.arange(n) * 60000.0`
+    (1-minute bar opens from epoch). Hosts that care about
+    `year`/`month`/`time[n]` must pass bar-open Unix ms.
 </Note>
 
 ### Warm compile (product defaults)
@@ -126,7 +146,9 @@ Otherwise **numeric mode** is preferred. Numeric mode **requires Numba** at load
 On numeric warm-up **TypingError** / nopython failure, the engine re-emits with `force_object_mode=True` and records `nopython_fallback_reason`—so `mode="compile"` can still run without hard-failing on partial numeric coverage.
 
 <Note>
-Numba is **not** a hard requirement for all compile. Object-mode scripts (strategy, drawings, UDT, maps) execute without it. Only a pure-numeric emit that never flips to object mode needs Numba installed.
+    Numba is **not** a hard requirement for all compile. Object-mode scripts
+    (strategy, drawings, UDT, maps) execute without it. Only a pure-numeric emit
+    that never flips to object mode needs Numba installed.
 </Note>
 
 ### What numeric mode lowers today
@@ -142,30 +164,34 @@ Series assigns, arithmetic/logic, history (`close[n]`), `if`/`for`/`while`, sele
 
 ### Compile-path limits (notable)
 
-| Construct | Compile behavior |
-| --- | --- |
+| Construct                                                                           | Compile behavior                                                                                                                                                                                                                        |
+| ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `request.security` / bare `security` / `request.security_lower_tf` / `request.seed` | **Same-symbol, simple OHLCV expression only** (chart identity + bare `close`/`high`/… style). Foreign symbol or complex expression → `np.nan` (no inventing chart close as foreign data). Other `request.*` → object-mode `np.nan` stub |
-| Bare builtins vs user series | User-defined series arrays win in `visit_Name`: `ad = ta.cum(...)` / `tr = …` shadow bare `ad`/`tr` formulas so `plot(ad)` is not silently re-bound to the builtin |
-| `hline(...)` | Statement-form + numeric price → **nopython** constant series (`hline`, `hline_2`, …) + synthesized `__drawings`. Assigned / non-numeric handles → object mode |
-| `fill(..., title=…)` | Statement-form → **nopython** all-`nan` series key (band color in `plot_meta` / drawings). Expression-form / mixed object scripts emit `__drawings` in-loop |
+| Bare builtins vs user series                                                        | User-defined series arrays win in `visit_Name`: `ad = ta.cum(...)` / `tr = …` shadow bare `ad`/`tr` formulas so `plot(ad)` is not silently re-bound to the builtin                                                                      |
+| `hline(...)`                                                                        | Statement-form + numeric price → **nopython** constant series (`hline`, `hline_2`, …) + synthesized `__drawings`. Assigned / non-numeric handles → object mode                                                                          |
+| `fill(..., title=…)`                                                                | Statement-form → **nopython** all-`nan` series key (band color in `plot_meta` / drawings). Expression-form / mixed object scripts emit `__drawings` in-loop                                                                             |
 
 <Warning>
-Compile-path `request.security` never invents foreign OHLCV from chart close. Foreign tickers and complex expressions (UDFs, `ta.*` inside the third arg, multi-value constructs beyond simple chart series) lower to `np.nan`. Use interpret + a real `data_feed` / `data_provider` for multi-asset work.
+    Compile-path `request.security` never invents foreign OHLCV from chart
+    close. Foreign tickers and complex expressions (UDFs, `ta.*` inside the
+    third arg, multi-value constructs beyond simple chart series) lower to
+    `np.nan`. Use interpret + a real `data_feed` / `data_provider` for
+    multi-asset work.
 </Warning>
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `src/pynescript/compiler/compiler.py` | `CompilerVisitor`, emit numeric/object, security/name/fill/hline lowering |
-| `src/pynescript/compiler/numba_builtins.py` | JIT kernels + object-mode `safe_*` |
-| `src/pynescript/compiler/strategy_broker.py` | Compile broker |
-| `src/pynescript/compiler/engine.py` | Façade, caches, `CompiledScript.run`, Numba cache recovery |
-| `src/pynescript/runtime/host.py` | Package SoT `Runtime._run_compiled` envelope; packs OHLCV + `time=` |
-| `backend/runtime.py` | Compat re-export of `pynescript.runtime.host` |
-| `scripts/compare_interp_compile.py` | Interpret↔compile series parity harness |
-| `tests/test_compiler_numba.py`, `test_compiler_objects.py`, `test_compiler_strategy.py` | Coverage |
-| `docs/COMPILER_PLAN.md` | Design history and remaining work (repo, not hosted) |
+| Path                                                                                    | Role                                                                      |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `src/pynescript/compiler/compiler.py`                                                   | `CompilerVisitor`, emit numeric/object, security/name/fill/hline lowering |
+| `src/pynescript/compiler/numba_builtins.py`                                             | JIT kernels + object-mode `safe_*`                                        |
+| `src/pynescript/compiler/strategy_broker.py`                                            | Compile broker                                                            |
+| `src/pynescript/compiler/engine.py`                                                     | Façade, caches, `CompiledScript.run`, Numba cache recovery                |
+| `src/pynescript/runtime/host.py`                                                        | Package SoT `Runtime._run_compiled` envelope; packs OHLCV + `time=`       |
+| `backend/runtime.py`                                                                    | Compat re-export of `pynescript.runtime.host`                             |
+| `scripts/compare_interp_compile.py`                                                     | Interpret↔compile series parity harness                                   |
+| `tests/test_compiler_numba.py`, `test_compiler_objects.py`, `test_compiler_strategy.py` | Coverage                                                                  |
+| `docs/COMPILER_PLAN.md`                                                                 | Design history and remaining work (repo, not hosted)                      |
 
 ### Data layout
 
@@ -261,17 +287,17 @@ Writes `.cache/interp_compile_parity.json`. First-party `hline` / `fill` / `bgco
 
 ## Failure modes
 
-| Symptom | Cause |
-| --- | --- |
-| `numba is required for numeric compile mode` (`CompileNumbaRequiredError`) | Install numba **or** force/land in object mode (drawings/UDT/strategy already do) |
-| Empty generated code | Visitor returned blank—unsupported top-level shape (`CompileEmitError`) |
-| Missing `execute_script_compiled` | Emit bug or failed `exec` (`CompileLoadError`) |
-| `EOFError` / `UnpicklingError` during JIT load | Corrupt Numba `.nb*`—engine purges and retries; if stuck, call `clear_numba_function_caches` |
-| Silent semantic drift | Kernel seed differences—run `scripts/compare_interp_compile.py` |
-| All-`nan` from `request.security` | Foreign symbol or non-simple expression on compile path (by design) |
-| Wrong values for `ad` / `tr` after assignment | Fixed by user-series shadowing; if stale, clear compile/Numba caches |
-| Strategy metrics missing | Use interpret or inspect `__events` / broker fields only |
-| Calendar/`time` off by hours | Host omitted `time=`; synthetic 1m bar opens used |
+| Symptom                                                                    | Cause                                                                                        |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `numba is required for numeric compile mode` (`CompileNumbaRequiredError`) | Install numba **or** force/land in object mode (drawings/UDT/strategy already do)            |
+| Empty generated code                                                       | Visitor returned blank—unsupported top-level shape (`CompileEmitError`)                      |
+| Missing `execute_script_compiled`                                          | Emit bug or failed `exec` (`CompileLoadError`)                                               |
+| `EOFError` / `UnpicklingError` during JIT load                             | Corrupt Numba `.nb*`—engine purges and retries; if stuck, call `clear_numba_function_caches` |
+| Silent semantic drift                                                      | Kernel seed differences—run `scripts/compare_interp_compile.py`                              |
+| All-`nan` from `request.security`                                          | Foreign symbol or non-simple expression on compile path (by design)                          |
+| Wrong values for `ad` / `tr` after assignment                              | Fixed by user-series shadowing; if stale, clear compile/Numba caches                         |
+| Strategy metrics missing                                                   | Use interpret or inspect `__events` / broker fields only                                     |
+| Calendar/`time` off by hours                                               | Host omitted `time=`; synthetic 1m bar opens used                                            |
 
 ## Remaining work (summary)
 
@@ -283,5 +309,5 @@ Expand Numba `ta.*` surface, richer drawings, nested UDT methods, broader `reque
 - [Strategy broker](/pyne/docs/runtime/compiler/strategy-broker)
 - [Interpret ↔ compile parity](/pyne/docs/runtime/compiler/parity)
 - [Runtime hub](/pyne/docs/runtime)
-- [request.* / input.* (interpret)](/pyne/docs/runtime/builtins/request-input)
+- [request.\* / input.\* (interpret)](/pyne/docs/runtime/builtins/request-input)
 - [Numerical validation](/pyne/docs/reference/numerical-validation)

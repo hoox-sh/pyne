@@ -1,28 +1,45 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 # Documentation (PYNE + AXIS)
 
 Self-hosted product manuals (HOOX-style MDX) for this monorepo.
 
-| Product | Source tree | Intended public URL |
-| --- | --- | --- |
+| Product  | Source tree           | Intended public URL       |
+| -------- | --------------------- | ------------------------- |
 | **PYNE** | [`docs/pyne/`](pyne/) | https://hoox.sh/pyne/docs |
 | **AXIS** | [`docs/axis/`](axis/) | https://hoox.sh/axis/docs |
 
@@ -78,12 +95,12 @@ bun run docs:exports:axis
 bun run docs:versions           # PyPI / npm / Open VSX / GitHub release → versions.json
 ```
 
-| Artifact | Location |
-| --- | --- |
-| Track PDFs | [`exports/`](exports/) e.g. `pyne-enduser-manual.pdf`, `axis-plugins-manual.pdf` |
-| Full-corpus LLM pack | [`pyne/llm.txt`](pyne/llm.txt), [`axis/llm.txt`](axis/llm.txt) |
-| LLM site map | [`pyne/llms.txt`](pyne/llms.txt), [`axis/llms.txt`](axis/llms.txt) |
-| Manifest | [`exports/manifest.json`](exports/manifest.json) |
+| Artifact             | Location                                                                         |
+| -------------------- | -------------------------------------------------------------------------------- |
+| Track PDFs           | [`exports/`](exports/) e.g. `pyne-enduser-manual.pdf`, `axis-plugins-manual.pdf` |
+| Full-corpus LLM pack | [`pyne/llm.txt`](pyne/llm.txt), [`axis/llm.txt`](axis/llm.txt)                   |
+| LLM site map         | [`pyne/llms.txt`](pyne/llms.txt), [`axis/llms.txt`](axis/llms.txt)               |
+| Manifest             | [`exports/manifest.json`](exports/manifest.json)                                 |
 
 Requires Chromium for PDFs (`/usr/bin/chromium` or `CHROME_PATH`). Intermediate HTML lands in `.cache/docs-exports/` (gitignored).
 

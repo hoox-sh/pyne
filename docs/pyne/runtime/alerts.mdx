@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Alerts"
 description: "alert() / alertcondition() engine, host export, and L2 HTTP webhooks (Pro API + pyne-worker)."
 ---
@@ -39,12 +57,12 @@ flowchart LR
   R --> WH[HTTP webhook batch]
 ```
 
-| Layer | Module |
-| --- | --- |
-| Engine | `src/pynescript/ast/evaluator/builtins/alerts.py` (`export_alerts` / `export_alerts_from_evaluator`) |
-| Package host | `src/pynescript/runtime/host.py` (`clear_alerts` per run, `alerts` on the envelope) |
-| Pro API webhook | `backend/alert_forwarder.py` (`backend/runtime.py` is only a Runtime re-export) |
-| Edge host | sibling pyne-worker `alert_engine.py` + `alert_forwarder.py` |
+| Layer           | Module                                                                                               |
+| --------------- | ---------------------------------------------------------------------------------------------------- |
+| Engine          | `src/pynescript/ast/evaluator/builtins/alerts.py` (`export_alerts` / `export_alerts_from_evaluator`) |
+| Package host    | `src/pynescript/runtime/host.py` (`clear_alerts` per run, `alerts` on the envelope)                  |
+| Pro API webhook | `backend/alert_forwarder.py` (`backend/runtime.py` is only a Runtime re-export)                      |
+| Edge host       | sibling pyne-worker `alert_engine.py` + `alert_forwarder.py`                                         |
 
 ## Pine surface
 
@@ -65,12 +83,12 @@ flowchart LR
 
 ```json
 {
-  "message": "cross up",
-  "freq": "once_per_bar",
-  "bar_index": 42,
-  "time": 1700000000000,
-  "title": "optional",
-  "source": "alert"
+    "message": "cross up",
+    "freq": "once_per_bar",
+    "bar_index": 42,
+    "time": 1700000000000,
+    "title": "optional",
+    "source": "alert"
 }
 ```
 
@@ -94,19 +112,19 @@ flowchart LR
 
 Both hosts POST JSON to an HTTPS endpoint.
 
-| Host | Default URL | Per-request / per-job |
-| --- | --- | --- |
-| Pro API | env `ALERT_WEBHOOK_URL` | body `webhook_url` |
+| Host        | Default URL                    | Per-request / per-job    |
+| ----------- | ------------------------------ | ------------------------ |
+| Pro API     | env `ALERT_WEBHOOK_URL`        | body `webhook_url`       |
 | pyne-worker | secret/var `ALERT_WEBHOOK_URL` | script/job `webhook_url` |
 
 ### Pro API request flags
 
-| Field | Default | Meaning |
-| --- | --- | --- |
-| `webhook_url` | `""` | Override destination |
-| `forward_alerts` | `true` | Skip POST when false |
-| `alert_last_bar` | `true` | Only firings on the last OHLCV bar |
-| `alert_batch` | `true` | One batch body vs one POST per alert |
+| Field            | Default | Meaning                              |
+| ---------------- | ------- | ------------------------------------ |
+| `webhook_url`    | `""`    | Override destination                 |
+| `forward_alerts` | `true`  | Skip POST when false                 |
+| `alert_last_bar` | `true`  | Only firings on the last OHLCV bar   |
+| `alert_batch`    | `true`  | One batch body vs one POST per alert |
 
 Optional timeout: env `ALERT_WEBHOOK_TIMEOUT` (seconds, default 10).
 
@@ -114,21 +132,21 @@ Optional timeout: env `ALERT_WEBHOOK_TIMEOUT` (seconds, default 10).
 
 ```json
 {
-  "type": "pine_alert_batch",
-  "source": "pyne-pro-api",
-  "count": 1,
-  "content": "cross up",
-  "alerts": [
-    {
-      "type": "pine_alert",
-      "source": "pyne-pro-api",
-      "message": "cross up",
-      "freq": "once_per_bar",
-      "alert_source": "alert",
-      "bar_index": 42,
-      "time": 1700000000000
-    }
-  ]
+    "type": "pine_alert_batch",
+    "source": "pyne-pro-api",
+    "count": 1,
+    "content": "cross up",
+    "alerts": [
+        {
+            "type": "pine_alert",
+            "source": "pyne-pro-api",
+            "message": "cross up",
+            "freq": "once_per_bar",
+            "alert_source": "alert",
+            "bar_index": 42,
+            "time": 1700000000000
+        }
+    ]
 }
 ```
 

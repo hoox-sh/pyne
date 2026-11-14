@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Runtime modes"
 description: "interpret / compile / auto defaults differ by surface. Library interpret, POST /run auto, pyne run compile-only, pyne execute is Runtime.run. PyneTS 0.5.0 has interpret + JS compile."
 ---
@@ -50,24 +68,24 @@ flowchart TB
 
 ### What each mode means
 
-| Mode | Python | PyneTS (this checkout) |
-| --- | --- | --- |
-| `interpret` | AST walker. Full host: `input.*`, `request.*`, libraries, profiler, alerts | AST walker only (`pynets/src/runtime/interpret.ts`). Result `mode` is always `"interpret"` |
-| `compile` | Numba nopython **or** object-mode Python loop | **Not implemented** — no `src/runtime/compile/` in this tree |
-| `auto` | Try compile; on ineligibility / compile error / compiled runtime error → interpret | **Not implemented** |
+| Mode        | Python                                                                             | PyneTS (this checkout)                                                                     |
+| ----------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `interpret` | AST walker. Full host: `input.*`, `request.*`, libraries, profiler, alerts         | AST walker only (`pynets/src/runtime/interpret.ts`). Result `mode` is always `"interpret"` |
+| `compile`   | Numba nopython **or** object-mode Python loop                                      | **Not implemented** — no `src/runtime/compile/` in this tree                               |
+| `auto`      | Try compile; on ineligibility / compile error / compiled runtime error → interpret | **Not implemented**                                                                        |
 
 ### Defaults by surface
 
-| Surface | Default `mode` | Calls `Runtime.run`? |
-| --- | --- | --- |
-| `pynescript.runtime.Runtime.run(..., mode=None)` | `PYNE_RUNTIME_MODE` else **`interpret`** | yes |
-| Pro API `POST /run` body omits `mode` | schema **`auto`** | yes (host wrap) |
-| `?mode=` query (legacy) | overrides body | yes |
-| CLI `pyne run` | **compile only** — not `Runtime.run` | **no** |
-| CLI `pyne execute` | `--mode` default **`auto`** (MCP `pyne_execute`) | **yes** |
-| `new Runtime()` / `pynets run` | **interpret only** (no `--mode`; `--bars` default **20**) | yes |
-| AXIS engine `server` | whatever you pass; UI default often `auto` | HTTP `/run` |
-| AXIS engine `pyodide` | object-mode in Wasm (no Numba) | in-browser Python |
+| Surface                                          | Default `mode`                                            | Calls `Runtime.run`? |
+| ------------------------------------------------ | --------------------------------------------------------- | -------------------- |
+| `pynescript.runtime.Runtime.run(..., mode=None)` | `PYNE_RUNTIME_MODE` else **`interpret`**                  | yes                  |
+| Pro API `POST /run` body omits `mode`            | schema **`auto`**                                         | yes (host wrap)      |
+| `?mode=` query (legacy)                          | overrides body                                            | yes                  |
+| CLI `pyne run`                                   | **compile only** — not `Runtime.run`                      | **no**               |
+| CLI `pyne execute`                               | `--mode` default **`auto`** (MCP `pyne_execute`)          | **yes**              |
+| `new Runtime()` / `pynets run`                   | **interpret only** (no `--mode`; `--bars` default **20**) | yes                  |
+| AXIS engine `server`                             | whatever you pass; UI default often `auto`                | HTTP `/run`          |
+| AXIS engine `pyodide`                            | object-mode in Wasm (no Numba)                            | in-browser Python    |
 
 ### `Runtime.run` (Python, exact)
 
@@ -89,14 +107,14 @@ Runtime(symbol="AAPL").run(
 )
 ```
 
-| Argument | Surfaces | Effect on `mode` |
-| --- | --- | --- |
-| `mode` | library / `POST /run` / `pyne execute` | See defaults table. `pyne run` has no `--mode`. |
-| `inputs` | library / `POST /run` | Non-empty overrides **force interpret** (compile does not apply them). |
-| `libraries` | library / `POST /run` / `POST /run/batch` (max 32) | `[{namespace, name, version, source}]` for `import ns/Name/ver`. Compile-ineligible; `auto` keeps the list on interpret fallback. **Not** on `pyne run`. |
-| `timeout_seconds` | library / `POST /run` / `POST /run/batch` | Interpret wall-clock budget. Exceeded → partial plots + `timed_out`. Omit / `null` / `≤ 0` → no timeout. **Not** on `pyne run`. |
-| `profiler` | library / `POST /run` | Forces interpret (line timings). |
-| `realtime_*` | library only | Interpret forming-bar window (`realtime_last_bar`, `realtime_ticks`, `realtime_bars`, `realtime_from_bar`). |
+| Argument          | Surfaces                                           | Effect on `mode`                                                                                                                                         |
+| ----------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mode`            | library / `POST /run` / `pyne execute`             | See defaults table. `pyne run` has no `--mode`.                                                                                                          |
+| `inputs`          | library / `POST /run`                              | Non-empty overrides **force interpret** (compile does not apply them).                                                                                   |
+| `libraries`       | library / `POST /run` / `POST /run/batch` (max 32) | `[{namespace, name, version, source}]` for `import ns/Name/ver`. Compile-ineligible; `auto` keeps the list on interpret fallback. **Not** on `pyne run`. |
+| `timeout_seconds` | library / `POST /run` / `POST /run/batch`          | Interpret wall-clock budget. Exceeded → partial plots + `timed_out`. Omit / `null` / `≤ 0` → no timeout. **Not** on `pyne run`.                          |
+| `profiler`        | library / `POST /run`                              | Forces interpret (line timings).                                                                                                                         |
+| `realtime_*`      | library only                                       | Interpret forming-bar window (`realtime_last_bar`, `realtime_ticks`, `realtime_bars`, `realtime_from_bar`).                                              |
 
 `inputs` / `profiler` / `libraries` / `timeout_seconds` / `realtime_*` force or keep the **interpret** host (or force interpret after compile miss).
 
@@ -111,14 +129,14 @@ There is **no** constructor/`extra.mode` and **no** `libraries` option on this h
 
 ## Internals
 
-| Surface | Implementation |
-| --- | --- |
-| Python library | `src/pynescript/runtime/host.py` |
-| Python CLI `run` | `src/pynescript/__main__.py` → `compile_script` + synthetic bars |
-| Python CLI `execute` | `src/pynescript/mcp/cli.py` → `Runtime.run` (MCP `pyne_execute`) |
-| Pro API | `backend/app.py` `RUN_SCHEMA` default `auto` |
-| PyneTS | `@hoox-sh/pynets` **0.5.0** — interpret + JS compile (`mode` `interpret` / `compile` / `auto`). Python remains the oracle |
-| PyneTS CLI | `pynets/src/cli.ts` → `new Runtime("AAPL", { broker }).run` |
+| Surface              | Implementation                                                                                                            |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Python library       | `src/pynescript/runtime/host.py`                                                                                          |
+| Python CLI `run`     | `src/pynescript/__main__.py` → `compile_script` + synthetic bars                                                          |
+| Python CLI `execute` | `src/pynescript/mcp/cli.py` → `Runtime.run` (MCP `pyne_execute`)                                                          |
+| Pro API              | `backend/app.py` `RUN_SCHEMA` default `auto`                                                                              |
+| PyneTS               | `@hoox-sh/pynets` **0.5.0** — interpret + JS compile (`mode` `interpret` / `compile` / `auto`). Python remains the oracle |
+| PyneTS CLI           | `pynets/src/cli.ts` → `new Runtime("AAPL", { broker }).run`                                                               |
 
 ## Invariants & edge cases
 
@@ -153,12 +171,12 @@ pynets run script.pine --bars 50
 
 ## Failure modes
 
-| Symptom | Cause | Fix |
-| --- | --- | --- |
-| Pro API "misses" an input | `auto` compiled a path that drops overrides | Pass `mode: "interpret"` |
-| `pyne run` ≠ notebook `Runtime.run` | Different host | Use `pyne execute`, the library, or Pro API |
-| Expect PyneTS ≡ Python compile | JS emit is object-mode analog, not Numba | Treat Python Runtime as the oracle |
-| `mode` omitted, two hosts disagree | Different defaults | Set `mode` explicitly |
+| Symptom                             | Cause                                       | Fix                                         |
+| ----------------------------------- | ------------------------------------------- | ------------------------------------------- |
+| Pro API "misses" an input           | `auto` compiled a path that drops overrides | Pass `mode: "interpret"`                    |
+| `pyne run` ≠ notebook `Runtime.run` | Different host                              | Use `pyne execute`, the library, or Pro API |
+| Expect PyneTS ≡ Python compile      | JS emit is object-mode analog, not Numba    | Treat Python Runtime as the oracle          |
+| `mode` omitted, two hosts disagree  | Different defaults                          | Set `mode` explicitly                       |
 
 ## See also
 

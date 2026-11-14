@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "DevOps"
 description: "CI matrices, containers, Nuitka LSP binaries, metadata crypto, and operational invariants for PYNE."
 ---
@@ -67,30 +85,30 @@ flowchart TB
 
 ## Interface surface
 
-| Concern | Entry | Doc |
-| --- | --- | --- |
-| Local install & loops | `Makefile`, hatch envs | [Local development](/pyne/docs/devops/local-dev) |
-| PR / push CI | `.github/workflows/ci.yml` (`name: CI`) | [CI](/pyne/docs/devops/ci) |
-| Versioned CLI + LSP | `.github/workflows/release.yml` (`name: Build & Release`) | [Release](/pyne/docs/devops/release) |
-| PyPI (`hoox-pyne`) | `.github/workflows/publish.yml` (`name: Publish`) | [Contributing](/pyne/docs/contributing) |
-| GHCR images | `.github/workflows/ghcr.yml` (`name: GHCR`) | [Docker](/pyne/docs/devops/docker) |
-| Containers | `Dockerfile` targets api/api-dev/lsp/**cli** | [Docker](/pyne/docs/devops/docker) |
-| Compiled CLI / LSP | `scripts/build/compile.py --target` | [Nuitka build](/pyne/docs/devops/nuitka-build) |
-| Builtin metadata crypto | Fernet key + `.enc` | [Metadata crypto](/pyne/docs/devops/metadata-crypto) |
-| Logs / health | Flask `/`, gunicorn | [Observability](/pyne/docs/devops/observability) |
-| Auth, CORS, secrets | `backend/middleware/auth.py` | [Security](/pyne/docs/devops/security) |
+| Concern                 | Entry                                                     | Doc                                                  |
+| ----------------------- | --------------------------------------------------------- | ---------------------------------------------------- |
+| Local install & loops   | `Makefile`, hatch envs                                    | [Local development](/pyne/docs/devops/local-dev)     |
+| PR / push CI            | `.github/workflows/ci.yml` (`name: CI`)                   | [CI](/pyne/docs/devops/ci)                           |
+| Versioned CLI + LSP     | `.github/workflows/release.yml` (`name: Build & Release`) | [Release](/pyne/docs/devops/release)                 |
+| PyPI (`hoox-pyne`)      | `.github/workflows/publish.yml` (`name: Publish`)         | [Contributing](/pyne/docs/contributing)              |
+| GHCR images             | `.github/workflows/ghcr.yml` (`name: GHCR`)               | [Docker](/pyne/docs/devops/docker)                   |
+| Containers              | `Dockerfile` targets api/api-dev/lsp/**cli**              | [Docker](/pyne/docs/devops/docker)                   |
+| Compiled CLI / LSP      | `scripts/build/compile.py --target`                       | [Nuitka build](/pyne/docs/devops/nuitka-build)       |
+| Builtin metadata crypto | Fernet key + `.enc`                                       | [Metadata crypto](/pyne/docs/devops/metadata-crypto) |
+| Logs / health           | Flask `/`, gunicorn                                       | [Observability](/pyne/docs/devops/observability)     |
+| Auth, CORS, secrets     | `backend/middleware/auth.py`                              | [Security](/pyne/docs/devops/security)               |
 
 ## Internals (repo map)
 
-| Path | Role |
-| --- | --- |
-| `Makefile` | Human-facing orthography: install, test, lint, build, docker, worker |
-| `pyproject.toml` | Hatch envs (`test`, `lint`, `docs`), optional extras (`lsp`, `data`) |
-| `.github/workflows/` | `ci.yml`, `release.yml`, `publish.yml`, `ghcr.yml` |
-| `scripts/build/` | Nuitka compile + CI build + Fernet metadata stage |
-| `scripts/generate_builtin_metadata.py` | Regenerates LSP `builtin_metadata.json` from live builtins |
-| `Dockerfile` / `docker-bake.hcl` | Multi-target Buildx images (api, api-dev, lsp) |
-| `docker-compose.yml` | Local API (+ optional Redis / LSP profiles) |
+| Path                                   | Role                                                                 |
+| -------------------------------------- | -------------------------------------------------------------------- |
+| `Makefile`                             | Human-facing orthography: install, test, lint, build, docker, worker |
+| `pyproject.toml`                       | Hatch envs (`test`, `lint`, `docs`), optional extras (`lsp`, `data`) |
+| `.github/workflows/`                   | `ci.yml`, `release.yml`, `publish.yml`, `ghcr.yml`                   |
+| `scripts/build/`                       | Nuitka compile + CI build + Fernet metadata stage                    |
+| `scripts/generate_builtin_metadata.py` | Regenerates LSP `builtin_metadata.json` from live builtins           |
+| `Dockerfile` / `docker-bake.hcl`       | Multi-target Buildx images (api, api-dev, lsp)                       |
+| `docker-compose.yml`                   | Local API (+ optional Redis / LSP profiles)                          |
 
 ## Invariants & edge cases
 
@@ -120,13 +138,13 @@ make docker-build
 
 ## Failure modes
 
-| Symptom | Likely cause | Fix |
-| --- | --- | --- |
-| CI lint red, local green | Different ruff/mypy versions | Match CI install pins in workflow |
-| Metadata decrypt fails in binary | Missing key at runtime | Set `PYNESCRIPT_METADATA_KEY` or embed key at build |
-| Cloud Run 502 after deploy | Image missing deps / gunicorn bind | Confirm `Dockerfile` target `api` ENTRYPOINT + `PORT` / `GUNICORN_BIND` |
-| VSIX empty / missing | `npm ci` / vsce not run | Build in [pyne-lsp-vsce](https://github.com/hoox-sh/pyne-lsp-vsce) (`npm run package`) |
-| Nuitka Anaconda link error | Static libpython missing | `conda install libpython-static` or keep `--static-libpython=no` |
+| Symptom                          | Likely cause                       | Fix                                                                                    |
+| -------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------- |
+| CI lint red, local green         | Different ruff/mypy versions       | Match CI install pins in workflow                                                      |
+| Metadata decrypt fails in binary | Missing key at runtime             | Set `PYNESCRIPT_METADATA_KEY` or embed key at build                                    |
+| Cloud Run 502 after deploy       | Image missing deps / gunicorn bind | Confirm `Dockerfile` target `api` ENTRYPOINT + `PORT` / `GUNICORN_BIND`                |
+| VSIX empty / missing             | `npm ci` / vsce not run            | Build in [pyne-lsp-vsce](https://github.com/hoox-sh/pyne-lsp-vsce) (`npm run package`) |
+| Nuitka Anaconda link error       | Static libpython missing           | `conda install libpython-static` or keep `--static-libpython=no`                       |
 
 ## See also
 

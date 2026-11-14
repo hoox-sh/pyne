@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Error Model"
 description: "SyntaxError, IndentationError, SyntaxErrorDetails, and PinescriptErrorListener bridge from ANTLR to diagnostics."
 ---
@@ -61,14 +79,14 @@ sequenceDiagram
 
 ### `SyntaxErrorDetails` (NamedTuple)
 
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `filename` | `str` | Path or `<unknown>` |
-| `lineno` | `int` | 1-based line |
-| `offset` | `int` | 0-based column |
-| `text` | `str` | Source line (or excerpt) |
-| `end_lineno` | `int \| None` | Multi-line span end |
-| `end_offset` | `int \| None` | End column |
+| Field        | Type          | Meaning                  |
+| ------------ | ------------- | ------------------------ |
+| `filename`   | `str`         | Path or `<unknown>`      |
+| `lineno`     | `int`         | 1-based line             |
+| `offset`     | `int`         | 0-based column           |
+| `text`       | `str`         | Source line (or excerpt) |
+| `end_lineno` | `int \| None` | Multi-line span end      |
+| `end_offset` | `int \| None` | End column               |
 
 ### `SyntaxError(Exception)`
 
@@ -111,12 +129,12 @@ parser.removeErrorListeners()
 parser.addErrorListener(listener)
 ```
 
-| Method | Role |
-| --- | --- |
-| `syntaxError(...)` | Build details; raise `SyntaxError` |
-| `_getFilenameFrom(recognizer)` | Walk Parser → TokenStream → Lexer → InputStream/FileStream |
-| `_getInputTextFrom(recognizer, lineno)` | Full buffer or single line |
-| `_splitLines` | Portable newline split (`\r\n`/`\n`/`\r`) |
+| Method                                  | Role                                                       |
+| --------------------------------------- | ---------------------------------------------------------- |
+| `syntaxError(...)`                      | Build details; raise `SyntaxError`                         |
+| `_getFilenameFrom(recognizer)`          | Walk Parser → TokenStream → Lexer → InputStream/FileStream |
+| `_getInputTextFrom(recognizer, lineno)` | Full buffer or single line                                 |
+| `_splitLines`                           | Portable newline split (`\r\n`/`\n`/`\r`)                  |
 
 If the ANTLR exception `e` is already a project `SyntaxError`, its `details` are updated; otherwise the new error’s `__cause__` is set to `e`.
 
@@ -124,12 +142,12 @@ If the ANTLR exception `e` is already a project `SyntaxError`, its `details` are
 
 ### Paths
 
-| Path | Role |
-| --- | --- |
-| `src/pynescript/ast/error.py` | Exception types |
-| `src/pynescript/ast/grammar/antlr4/error_listener.py` | ANTLR bridge |
+| Path                                                                | Role                                                             |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `src/pynescript/ast/error.py`                                       | Exception types                                                  |
+| `src/pynescript/ast/grammar/antlr4/error_listener.py`               | ANTLR bridge                                                     |
 | `src/pynescript/ast/grammar/antlr4/resource/PinescriptLexerBase.py` | May raise `IndentationError` / `SyntaxError` during tokenization |
-| `src/pynescript/ast/helper.py` | Wires listener; maps filename onto streams |
+| `src/pynescript/ast/helper.py`                                      | Wires listener; maps filename onto streams                       |
 
 ### Filename resolution order (InputStream)
 
@@ -158,12 +176,12 @@ Mirrors the builder’s location math so diagnostics and AST spans speak the sam
 
 Adapters typically map:
 
-| Exception field | LSP `Diagnostic` |
-| --- | --- |
-| `lineno` / `offset` | `Range.start` |
-| `end_lineno` / `end_offset` | `Range.end` |
-| `message` | `message` |
-| IndentationError | same, possibly different `code` |
+| Exception field             | LSP `Diagnostic`                |
+| --------------------------- | ------------------------------- |
+| `lineno` / `offset`         | `Range.start`                   |
+| `end_lineno` / `end_offset` | `Range.end`                     |
+| `message`                   | `message`                       |
+| IndentationError            | same, possibly different `code` |
 
 ## Invariants
 
@@ -215,14 +233,14 @@ assert "^" in str(err)
 
 ## Failure modes
 
-| Failure | Cause |
-| --- | --- |
-| `TypeError: unexpected type of input` | Listener received a recognizer/stream combo it does not support |
-| Caret misaligned | Tabs vs spaces; display strips leading WS while offset counts raw |
-| Filename always `<unknown>` | Stream name not set (bypassed helper) |
-| Exception swallowed as generic `E001` | Only used linter path (line/column may still be filled from `details`) |
-| `except SyntaxError` misses Pine errors | Caught builtin only |
-| Partial trees | Not available via `parse()` after error — redesign would need recovery listeners |
+| Failure                                 | Cause                                                                            |
+| --------------------------------------- | -------------------------------------------------------------------------------- |
+| `TypeError: unexpected type of input`   | Listener received a recognizer/stream combo it does not support                  |
+| Caret misaligned                        | Tabs vs spaces; display strips leading WS while offset counts raw                |
+| Filename always `<unknown>`             | Stream name not set (bypassed helper)                                            |
+| Exception swallowed as generic `E001`   | Only used linter path (line/column may still be filled from `details`)           |
+| `except SyntaxError` misses Pine errors | Caught builtin only                                                              |
+| Partial trees                           | Not available via `parse()` after error — redesign would need recovery listeners |
 
 ## See also
 

@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "PyneTS parity"
 description: "How to compare @hoox-sh/pynets Runtime.run plots against Python pynescript.runtime. Python wins ties."
 ---
@@ -65,24 +83,24 @@ Use `/pynets-parity` when adding or fixing builtins. Use `/pynets-generate` when
 
 ### What to compare
 
-| Field | Rule |
-| --- | --- |
-| `plots` / `series` | Equal length; `null` ↔ Python `None`; finite numbers match |
-| `events` | Kind, direction, bar, id — same contract as [strategy events](/pyne/docs/runtime/events) |
-| `error_kind` | Same class of failure (`parse` vs `runtime`) |
-| TradingView screenshots | **Out of scope** as an oracle |
+| Field                   | Rule                                                                                     |
+| ----------------------- | ---------------------------------------------------------------------------------------- |
+| `plots` / `series`      | Equal length; `null` ↔ Python `None`; finite numbers match                               |
+| `events`                | Kind, direction, bar, id — same contract as [strategy events](/pyne/docs/runtime/events) |
+| `error_kind`            | Same class of failure (`parse` vs `runtime`)                                             |
+| TradingView screenshots | **Out of scope** as an oracle                                                            |
 
 `na` encoding: Python interpret uses `None`; JSON / TS uses `null`; Python Numba uses `nan`. Compare after normalizing non-finite → `na`.
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `test/interpret_*.test.ts` | Focused interpret cases |
-| `test/compile_*.test.ts` | JS emit vs interpret |
-| `test/helpers/first_party.ts` | First-party fixtures (live in PYNE) |
-| PYNE `src/pynescript/ast/evaluator/builtins/` | Handler SoT |
-| PYNE `tests/test_first_party_ta_goldens.py` | Python goldens |
+| Path                                          | Role                                |
+| --------------------------------------------- | ----------------------------------- |
+| `test/interpret_*.test.ts`                    | Focused interpret cases             |
+| `test/compile_*.test.ts`                      | JS emit vs interpret                |
+| `test/helpers/first_party.ts`                 | First-party fixtures (live in PYNE) |
+| PYNE `src/pynescript/ast/evaluator/builtins/` | Handler SoT                         |
+| PYNE `tests/test_first_party_ta_goldens.py`   | Python goldens                      |
 
 Do **not** treat historical `pine-worker/test/parity/` JSON as the PyneTS harness. That tree lives in the leftover TypeScript Worker sister ([hoox-sh/pine-worker](https://github.com/hoox-sh/pine-worker)), not here.
 
@@ -132,13 +150,13 @@ Last-bar plot should be `10` on both.
 
 ## Failure modes
 
-| Symptom | Cause | Fix |
-| --- | --- | --- |
-| Off-by-one vs Python | Lookback / bar_index | Match `PineSeries` to Python |
-| `null` vs `0` | `na` collapsed | Keep `null`; do not coerce |
-| Foreign security equals chart | Invented bars | Return `na` |
-| Compile matches interpret, both wrong | Shared host bug | Fix interpret first (Python SoT) |
-| Copied sources into PYNE | Submodule rule | PYNE consumes `pynets/` only |
+| Symptom                               | Cause                | Fix                              |
+| ------------------------------------- | -------------------- | -------------------------------- |
+| Off-by-one vs Python                  | Lookback / bar_index | Match `PineSeries` to Python     |
+| `null` vs `0`                         | `na` collapsed       | Keep `null`; do not coerce       |
+| Foreign security equals chart         | Invented bars        | Return `na`                      |
+| Compile matches interpret, both wrong | Shared host bug      | Fix interpret first (Python SoT) |
+| Copied sources into PYNE              | Submodule rule       | PYNE consumes `pynets/` only     |
 
 ## See also
 

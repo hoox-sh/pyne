@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Builtin Metadata"
 description: "JSON catalog for LSP completion and hover; generation pipeline; Fernet encryption, CRYPTO_KEY / METADATA_KEY, and decrypt path."
 ---
@@ -56,31 +74,31 @@ Typical entry in `builtin_metadata.json`:
 
 ```json
 {
-  "ta.sma": {
-    "label": "ta.sma",
-    "kind": "function",
-    "detail": "ta.sma(source, length)",
-    "brief": "Simple Moving Average.",
-    "documentation": "…",
-    "snippet": "ta.sma(${1:source}, ${2:length})",
-    "params": ["source", "length"],
-    "category": "ta.technical_analysis"
-  }
+    "ta.sma": {
+        "label": "ta.sma",
+        "kind": "function",
+        "detail": "ta.sma(source, length)",
+        "brief": "Simple Moving Average.",
+        "documentation": "…",
+        "snippet": "ta.sma(${1:source}, ${2:length})",
+        "params": ["source", "length"],
+        "category": "ta.technical_analysis"
+    }
 }
 ```
 
-Categories drive completion headers (`ta.technical_analysis` → “Technical Analysis (ta.*)”, `builtin` → “Built-in Variables”, etc.).
+Categories drive completion headers (`ta.technical_analysis` → “Technical Analysis (ta.\*)”, `builtin` → “Built-in Variables”, etc.).
 
 ### Loader API
 
 `providers/builtin_metadata.py`:
 
-| Function | Behavior |
-| --- | --- |
-| `get_metadata()` | Singleton cache; **plaintext JSON first**, else `.enc` decrypt, else `{}` |
-| `get_builtin(name)` | Single entry or `None` |
-| `get_builtins_by_category` / `get_all_categories` | Category queries |
-| `fuzzy_filter` | Scored substring match for completion |
+| Function                                          | Behavior                                                                  |
+| ------------------------------------------------- | ------------------------------------------------------------------------- |
+| `get_metadata()`                                  | Singleton cache; **plaintext JSON first**, else `.enc` decrypt, else `{}` |
+| `get_builtin(name)`                               | Single entry or `None`                                                    |
+| `get_builtins_by_category` / `get_all_categories` | Category queries                                                          |
+| `fuzzy_filter`                                    | Scored substring match for completion                                     |
 
 ### Consumers
 
@@ -90,16 +108,16 @@ Categories drive completion headers (`ta.technical_analysis` → “Technical An
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `scripts/generate_builtin_metadata.py` | Introspect builtins → JSON |
-| `src/pynescript/langserver/providers/builtin_metadata.json` | Dev plaintext |
-| `…/builtin_metadata.json.enc` | Encrypted blob for release |
-| `…/builtin_metadata.json.sha256` | First 16 hex chars of SHA-256 of **plaintext** |
-| `…/metadata_decrypt.py` | Fernet load + integrity check |
-| `scripts/build/compile.py` | `encrypt_metadata()`, Nuitka include of providers dir |
-| `scripts/build/ci_build.py` | `stage_metadata()` for CI |
-| `scripts/build/.metadata.key` | **Gitignored** Fernet key material |
+| Path                                                        | Role                                                  |
+| ----------------------------------------------------------- | ----------------------------------------------------- |
+| `scripts/generate_builtin_metadata.py`                      | Introspect builtins → JSON                            |
+| `src/pynescript/langserver/providers/builtin_metadata.json` | Dev plaintext                                         |
+| `…/builtin_metadata.json.enc`                               | Encrypted blob for release                            |
+| `…/builtin_metadata.json.sha256`                            | First 16 hex chars of SHA-256 of **plaintext**        |
+| `…/metadata_decrypt.py`                                     | Fernet load + integrity check                         |
+| `scripts/build/compile.py`                                  | `encrypt_metadata()`, Nuitka include of providers dir |
+| `scripts/build/ci_build.py`                                 | `stage_metadata()` for CI                             |
+| `scripts/build/.metadata.key`                               | **Gitignored** Fernet key material                    |
 
 ### Generation
 
@@ -162,12 +180,12 @@ export PYNESCRIPT_METADATA_KEY="$(cat scripts/build/.metadata.key)"
 
 ## Failure modes
 
-| Symptom | Cause |
-| --- | --- |
-| Completions empty in release binary | Missing key / wrong `PYNESCRIPT_METADATA_KEY` |
-| `Metadata integrity check failed` | `.enc` and `.sha256` out of sync |
-| CI churn on `.enc` | New random key each build without `CRYPTO_KEY` / `METADATA_KEY` |
-| Stale docs for new `ta.*` | Forgot to re-run generator |
+| Symptom                             | Cause                                                           |
+| ----------------------------------- | --------------------------------------------------------------- |
+| Completions empty in release binary | Missing key / wrong `PYNESCRIPT_METADATA_KEY`                   |
+| `Metadata integrity check failed`   | `.enc` and `.sha256` out of sync                                |
+| CI churn on `.enc`                  | New random key each build without `CRYPTO_KEY` / `METADATA_KEY` |
+| Stale docs for new `ta.*`           | Forgot to re-run generator                                      |
 
 ## See also
 

@@ -1,30 +1,48 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Type System"
 description: "Pine v6 type model: qualifiers, builtins, collections, UDTs, TypeRegistry, and MethodResolver."
 ---
 
 # Type System
 
-PYNE’s type layer models Pine’s *qualified* types and user-defined types (UDTs) as Python objects usable by analysis and evaluation — not as a full independent typechecker IR (yet), but as the shared vocabulary for “what kind of value is this?”
+PYNE’s type layer models Pine’s _qualified_ types and user-defined types (UDTs) as Python objects usable by analysis and evaluation — not as a full independent typechecker IR (yet), but as the shared vocabulary for “what kind of value is this?”
 
 ## Abstract
 
@@ -110,13 +128,13 @@ from pynescript.ast.type_system import (
 t = float_type(TypeQualifier.SERIES)  # "series float"
 ```
 
-| Factory | Kind |
-| --- | --- |
-| `int_type` | `INT` |
-| `float_type` | `FLOAT` |
-| `bool_type` | `BOOL` |
+| Factory       | Kind     |
+| ------------- | -------- |
+| `int_type`    | `INT`    |
+| `float_type`  | `FLOAT`  |
+| `bool_type`   | `BOOL`   |
 | `string_type` | `STRING` |
-| `color_type` | `COLOR` |
+| `color_type`  | `COLOR`  |
 
 ### Collections
 
@@ -167,22 +185,22 @@ resolver = MethodResolver(reg)
 copy = resolver.resolve_method(inst, "copy", [])
 ```
 
-| Method name | Behavior |
-| --- | --- |
-| `new` | Construct instance; positional args fill fields in declaration order |
-| `copy` | Shallow copy of field dict |
-| other | Lookup `UserDefinedType.methods`; missing → `AttributeError` |
+| Method name | Behavior                                                             |
+| ----------- | -------------------------------------------------------------------- |
+| `new`       | Construct instance; positional args fill fields in declaration order |
+| `copy`      | Shallow copy of field dict                                           |
+| other       | Lookup `UserDefinedType.methods`; missing → `AttributeError`         |
 
 Unknown field get/set on `ObjectInstance` raises `AttributeError` with type name context.
 
 ### Relation to ASDL `type_qual`
 
-| ASDL | `TypeQualifier` |
-| --- | --- |
-| `Const` | `CONST` |
-| `Input` | `INPUT` |
-| `Simple` | `SIMPLE` |
-| `Series` | `SERIES` |
+| ASDL     | `TypeQualifier` |
+| -------- | --------------- |
+| `Const`  | `CONST`         |
+| `Input`  | `INPUT`         |
+| `Simple` | `SIMPLE`        |
+| `Series` | `SERIES`        |
 
 Builder produces `Qualify(qualifier=…, value=…)` for annotated types in the AST; the type system module is used when those need runtime/type-registry meaning (especially UDTs in builtins/evaluator).
 
@@ -203,7 +221,7 @@ Consumers (outside this doc’s page set, for orientation):
 
 ### `na` and `enum`
 
-Registered as builtin kinds for name lookup. Enum *definitions* in scripts appear as AST `EnumDef`; linking enum members into `BuiltinTypeKind.ENUM` instances is evaluator-side work.
+Registered as builtin kinds for name lookup. Enum _definitions_ in scripts appear as AST `EnumDef`; linking enum members into `BuiltinTypeKind.ENUM` instances is evaluator-side work.
 
 ## Invariants
 
@@ -245,12 +263,12 @@ assert str(float_type(TypeQualifier.SERIES)) == "series float"
 
 ## Failure modes
 
-| Failure | Cause |
-| --- | --- |
-| `AttributeError: Field '…' not found` | Typo or outdated UDT schema |
-| `AttributeError: Method '…' not found` | Method never `add_method`’d; not `new`/`copy` |
-| Silent type confusion | `is_compatible_with` too weak — do not rely on it alone for safety |
-| Name shadowing | UDT registered with a builtin name is unreachable via `get_type` |
+| Failure                                | Cause                                                              |
+| -------------------------------------- | ------------------------------------------------------------------ |
+| `AttributeError: Field '…' not found`  | Typo or outdated UDT schema                                        |
+| `AttributeError: Method '…' not found` | Method never `add_method`’d; not `new`/`copy`                      |
+| Silent type confusion                  | `is_compatible_with` too weak — do not rely on it alone for safety |
+| Name shadowing                         | UDT registered with a builtin name is unreachable via `get_type`   |
 
 ## See also
 

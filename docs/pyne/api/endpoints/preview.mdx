@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Preview Endpoints"
 description: "Pro chart and indicator thumbnail routes under /preview with usage tracking."
 ---
@@ -56,54 +74,58 @@ Both routes: `@track_usage` → must pass `require_api_key` and consume one call
 
 ```json
 {
-  "script": "optional string",
-  "data": {
-    "open": [], "high": [], "low": [], "close": [], "volume": []
-  },
-  "options": {
-    "type": "line",
-    "color": "#2196F3",
-    "show_volume": false,
-    "width": 600,
-    "height": 300
-  }
+    "script": "optional string",
+    "data": {
+        "open": [],
+        "high": [],
+        "low": [],
+        "close": [],
+        "volume": []
+    },
+    "options": {
+        "type": "line",
+        "color": "#2196F3",
+        "show_volume": false,
+        "width": 600,
+        "height": 300
+    }
 }
 ```
 
-| Option | Default | Clamp |
-| --- | --- | --- |
-| `type` | `"line"` | `"ohlcv"` selects candlestick renderer |
-| `color` | `#2196F3` | line chart only |
-| `width` | 600 | max 1200 |
-| `height` | 300 | max 600 |
-| `show_volume` | false | twin-axis volume on line chart |
+| Option        | Default   | Clamp                                  |
+| ------------- | --------- | -------------------------------------- |
+| `type`        | `"line"`  | `"ohlcv"` selects candlestick renderer |
+| `color`       | `#2196F3` | line chart only                        |
+| `width`       | 600       | max 1200                               |
+| `height`      | 300       | max 600                                |
+| `show_volume` | false     | twin-axis volume on line chart         |
 
 #### Success
 
 ```json
 {
-  "status": "success",
-  "chart": "<base64 png>",
-  "meta": {
-    "type": "line",
-    "bars": 252,
-    "last_value": 0,
-    "first_value": 0,
-    "change": 0,
-    "change_pct": 0,
-    "rendered_at": 0
-  },
-  "tier_info": {}
+    "status": "success",
+    "chart": "<base64 png>",
+    "meta": {
+        "type": "line",
+        "bars": 252,
+        "last_value": 0,
+        "first_value": 0,
+        "change": 0,
+        "change_pct": 0,
+        "rendered_at": 0
+    },
+    "tier_info": {}
 }
 ```
 
 #### Errors
 
-| code | When |
-| --- | --- |
-| `NO_DATA` | Missing `data` (both preview routes) |
-| `NO_CLOSE_DATA` | Empty `close` array (chart **and** indicator) |
-| `RENDER_ERROR` | matplotlib / renderer exception (`/preview/chart` only; indicator parse/render exceptions fall back to plotting `close`) |
+| code            | When                                                                                                                     |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `NO_DATA`       | Missing `data` (both preview routes)                                                                                     |
+| `NO_CLOSE_DATA` | Empty `close` array (chart **and** indicator)                                                                            |
+| `RENDER_ERROR`  | matplotlib / renderer exception (`/preview/chart` only; indicator parse/render exceptions fall back to plotting `close`) |
 
 Note: `script` is accepted for API symmetry but **not executed** on this path today — the chart is pure data visualization.
 
@@ -113,31 +135,31 @@ Note: `script` is accepted for API symmetry but **not executed** on this path to
 
 ```json
 {
-  "expression": "ta.sma(close, 14)",
-  "data": { "close": [/* … */] },
-  "options": { "color": "#FF9800", "width": 600, "height": 300 }
+    "expression": "ta.sma(close, 14)",
+    "data": { "close": [/* … */] },
+    "options": { "color": "#FF9800", "width": 600, "height": 300 }
 }
 ```
 
 Supported expression prefixes in `_compute_indicator`:
 
-| Expression | Series |
-| --- | --- |
-| `ta.sma(…, period)` | SMA of close |
-| `ta.ema(…, period)` | EMA |
-| `ta.rsi(…, period)` | RSI |
-| `ta.macd(…)` | MACD histogram (12/26/9) |
-| other | falls back to raw `close` |
+| Expression          | Series                    |
+| ------------------- | ------------------------- |
+| `ta.sma(…, period)` | SMA of close              |
+| `ta.ema(…, period)` | EMA                       |
+| `ta.rsi(…, period)` | RSI                       |
+| `ta.macd(…)`        | MACD histogram (12/26/9)  |
+| other               | falls back to raw `close` |
 
 Parse failures in the helper fall back to plotting `close`.
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `backend/api/preview.py` | Route handlers + indicator math |
-| `backend/services/chart_renderer.py` | PNG encode |
-| `backend/middleware/auth.py` | `track_usage` |
+| Path                                 | Role                            |
+| ------------------------------------ | ------------------------------- |
+| `backend/api/preview.py`             | Route handlers + indicator math |
+| `backend/services/chart_renderer.py` | PNG encode                      |
+| `backend/middleware/auth.py`         | `track_usage`                   |
 
 Schemas `PREVIEW_*` in `schemas.py` document intended validation; current handlers use `request.get_json() or {}` directly.
 
@@ -162,10 +184,10 @@ curl -s http://127.0.0.1:5002/preview/chart \
 
 ## Failure modes
 
-| Symptom | Cause |
-| --- | --- |
-| 401 | Missing key |
-| 429 | Tier limit |
+| Symptom           | Cause                                          |
+| ----------------- | ---------------------------------------------- |
+| 401               | Missing key                                    |
+| 429               | Tier limit                                     |
 | Empty-looking PNG | Renderer empty-chart path when all values null |
 
 ## See also

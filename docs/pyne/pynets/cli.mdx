@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "PyneTS CLI"
 description: "pynets check / format / run / dump / info — Rich TTY, JSON on pipes. run calls Runtime.run (Python equivalent is pyne execute)."
 ---
@@ -53,28 +71,28 @@ usage: pynets <check|format|run|dump|info> [file] [--bars N]
               [--json] [--plain] [--rich] [--full] [--indent N]
 ```
 
-| Command | Action | File required |
-| --- | --- | --- |
-| `check` | Parse-only validation | yes |
-| `format` | Parse → unparse (pretty on TTY) | yes |
-| `run` | `Runtime.run` on synthetic OHLCV | yes |
-| `dump` | ASDL-shaped AST | yes |
-| `info` | Version and runtime extras | no |
-| `help` / `-h` | Usage | no |
+| Command       | Action                           | File required |
+| ------------- | -------------------------------- | ------------- |
+| `check`       | Parse-only validation            | yes           |
+| `format`      | Parse → unparse (pretty on TTY)  | yes           |
+| `run`         | `Runtime.run` on synthetic OHLCV | yes           |
+| `dump`        | ASDL-shaped AST                  | yes           |
+| `info`        | Version and runtime extras       | no            |
+| `help` / `-h` | Usage                            | no            |
 
-| Flag | Meaning |
-| --- | --- |
-| `--bars N` | Synthetic bar count for `run` (default **20**, max **100000**) |
-| `--mode MODE` | `interpret` (default) \| `compile` \| `auto` |
-| `--commission N` | Broker commission fraction (e.g. `0.001`) |
-| `--slippage N` | Broker slippage in price units |
-| `--pyramiding N` | Max same-direction adds |
-| `--json` | Machine-readable `run` / `info` |
-| `--indent N` | AST dump indent (default 2) |
-| `--full` | Print the full dump (no 80-line cap) |
-| `--plain` | Disable Rich (wins over `FORCE_COLOR`) |
-| `--rich` | Force Rich (put **after** the command) |
-| `-h, --help` | Help |
+| Flag             | Meaning                                                        |
+| ---------------- | -------------------------------------------------------------- |
+| `--bars N`       | Synthetic bar count for `run` (default **20**, max **100000**) |
+| `--mode MODE`    | `interpret` (default) \| `compile` \| `auto`                   |
+| `--commission N` | Broker commission fraction (e.g. `0.001`)                      |
+| `--slippage N`   | Broker slippage in price units                                 |
+| `--pyramiding N` | Max same-direction adds                                        |
+| `--json`         | Machine-readable `run` / `info`                                |
+| `--indent N`     | AST dump indent (default 2)                                    |
+| `--full`         | Print the full dump (no 80-line cap)                           |
+| `--plain`        | Disable Rich (wins over `FORCE_COLOR`)                         |
+| `--rich`         | Force Rich (put **after** the command)                         |
+| `-h, --help`     | Help                                                           |
 
 ### Path resolution
 
@@ -86,11 +104,11 @@ usage: pynets <check|format|run|dump|info> [file] [--bars N]
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `src/cli.ts` | Arg parse, commands, exit codes |
-| `src/cli/rich.ts` | TTY paint, help, tables, sparkline |
-| `src/index.ts` | `parse` / `unparse` / `dump` / `Runtime` |
+| Path              | Role                                     |
+| ----------------- | ---------------------------------------- |
+| `src/cli.ts`      | Arg parse, commands, exit codes          |
+| `src/cli/rich.ts` | TTY paint, help, tables, sparkline       |
+| `src/index.ts`    | `parse` / `unparse` / `dump` / `Runtime` |
 
 `run` constructs `new Runtime("AAPL", { broker, mode }).run(source, syntheticBars(bars))`.
 
@@ -124,13 +142,13 @@ pynets check script.pine
 
 ## Failure modes
 
-| Symptom | Cause | Fix |
-| --- | --- | --- |
-| Exit 2 `missing file` | No path / ENOENT | Pass a real file |
-| Exit 1 on `check` | Syntax error | Read the ANTLR message |
-| `run` JSON has `error` / `error_kind: parse` | Script does not parse | `pynets check` first |
-| Expected compile-only like `pyne run` | Different CLI | Use Python `pyne run` for compile smoke; `pynets run` is `Runtime.run` like `pyne execute`. See [modes](/pyne/docs/enduser/reference/modes) |
-| Rich garbage in logs | TTY detected | `--plain` or pipe |
+| Symptom                                      | Cause                 | Fix                                                                                                                                         |
+| -------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exit 2 `missing file`                        | No path / ENOENT      | Pass a real file                                                                                                                            |
+| Exit 1 on `check`                            | Syntax error          | Read the ANTLR message                                                                                                                      |
+| `run` JSON has `error` / `error_kind: parse` | Script does not parse | `pynets check` first                                                                                                                        |
+| Expected compile-only like `pyne run`        | Different CLI         | Use Python `pyne run` for compile smoke; `pynets run` is `Runtime.run` like `pyne execute`. See [modes](/pyne/docs/enduser/reference/modes) |
+| Rich garbage in logs                         | TTY detected          | `--plain` or pipe                                                                                                                           |
 
 ## See also
 

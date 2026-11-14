@@ -39,13 +39,13 @@ If you find a bug or have a feature request, please open an issue on GitHub.
 
 ## Release / PyPI publication
 
-| | |
-|---|---|
-| **PyPI distribution name** | [`hoox-pyne`](https://pypi.org/project/hoox-pyne/) |
-| **Import package** | `pynescript` (unchanged) |
-| **Console scripts** | **`pyne`**, **`pyne-lsp`** (aliases: `pynescript`, `pynescript-lsp`) |
-| **Product / repo** | **pyne** · [hoox-sh/pyne](https://github.com/hoox-sh/pyne) |
-| **GitHub org** | [`hoox-sh`](https://github.com/hoox-sh) (hoox.sh) |
+|                            |                                                                      |
+| -------------------------- | -------------------------------------------------------------------- |
+| **PyPI distribution name** | [`hoox-pyne`](https://pypi.org/project/hoox-pyne/)                   |
+| **Import package**         | `pynescript` (unchanged)                                             |
+| **Console scripts**        | **`pyne`**, **`pyne-lsp`** (aliases: `pynescript`, `pynescript-lsp`) |
+| **Product / repo**         | **pyne** · [hoox-sh/pyne](https://github.com/hoox-sh/pyne)           |
+| **GitHub org**             | [`hoox-sh`](https://github.com/hoox-sh) (hoox.sh)                    |
 
 > Historical collisions on PyPI: `pynescript` is
 > [elbakramer/pynescript](https://github.com/elbakramer/pynescript); plain
@@ -78,13 +78,13 @@ gh secret set CRYPTO_KEY   -R hoox-sh/pyne < scripts/build/.metadata.key
 If `PYPI_API_TOKEN` is **unset**, the workflow uses OIDC. On PyPI (logged in as
 `jango-blockchained`) → **Publishing** → pending publisher:
 
-| Field | Value |
-| --- | --- |
-| PyPI project name | `hoox-pyne` |
-| Owner | **`hoox-sh`** (GitHub **repo** owner — not your PyPI username) |
-| Repository | `pyne` |
-| Workflow name | `publish.yml` |
-| Environment name | `pypi` |
+| Field             | Value                                                          |
+| ----------------- | -------------------------------------------------------------- |
+| PyPI project name | `hoox-pyne`                                                    |
+| Owner             | **`hoox-sh`** (GitHub **repo** owner — not your PyPI username) |
+| Repository        | `pyne`                                                         |
+| Workflow name     | `publish.yml`                                                  |
+| Environment name  | `pypi`                                                         |
 
 See `docs/pyne/devops/pypi-publish.mdx` for failure modes.
 

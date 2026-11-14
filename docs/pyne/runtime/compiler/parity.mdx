@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Interpret ↔ compile parity"
 description: "Plot-series parity between Runtime interpret and compile modes: harness, tolerances, and known sentinel differences."
 ---
@@ -55,22 +73,22 @@ python scripts/compare_interp_compile.py --bars 1000 --limit 50
 python scripts/compare_interp_compile.py --files tests/fixtures/parity/pine/strategy_01_entry_long.pine
 ```
 
-| Flag / output | Role |
-| --- | --- |
+| Flag / output  | Role                                              |
+| -------------- | ------------------------------------------------- |
 | Default inputs | `tests/fixtures/parity/pine/*.pine` (first-party) |
-| Tolerances | `rtol=1e-5`, `atol=1e-6` (nan-aware) |
-| Report | `.cache/interp_compile_parity.json` |
-| Exit 0 | No value/`nan` mismatches on common series keys |
+| Tolerances     | `rtol=1e-5`, `atol=1e-6` (nan-aware)              |
+| Report         | `.cache/interp_compile_parity.json`               |
+| Exit 0         | No value/`nan` mismatches on common series keys   |
 
 **Buckets:** `OK`, `fill_background_only`, `both_error_same`, `expected_error`, `both_error`, `MISMATCH`, `interp_error`, `compile_error`, `structural_only`. Matched errors on both backends (`both_error_same`) and intentional demo failures (`expected_error`, e.g. auto-fib / pivot-depth) count as success unless `--strict-errors`. First-party `hline` / `fill` / `bgcolor` / `plotshape` / `barcolor` / `plotarrow` / `plotbar` / `plotcandle` keys match interpret ↔ compile (0.3.12); `drawings` is geometry-only. `--ignore-hline-keys` / `--ignore-fill-keys` remain optional for leftover **corpus** key noise; `--strict-keys` fails on any one-sided key.
 
 ### Focused unit tests
 
-| Test | Scope |
-| --- | --- |
+| Test                                  | Scope                                                         |
+| ------------------------------------- | ------------------------------------------------------------- |
 | `tests/test_dividend_yield_parity.py` | Host-series copy-on-assign + time history (interpret/compile) |
-| `tests/test_compiler_numba.py` | Kernel-level numeric correctness |
-| `tests/test_parity.py` | Strategy **event** fixtures (not plot allclose) |
+| `tests/test_compiler_numba.py`        | Kernel-level numeric correctness                              |
+| `tests/test_parity.py`                | Strategy **event** fixtures (not plot allclose)               |
 
 ### Product path
 
@@ -87,24 +105,24 @@ Pro API `/run` defaults to **`mode=auto`**: compile when `_compile_eligible` pas
 
 ## Intentional / soft differences
 
-| Topic | Policy |
-| --- | --- |
-| Sentinels | Interpret: `None`; Numba: `np.nan`. Compare with nan-aware equality, not `==`. |
-| Hline / fill / bgcolor keys | May appear on one mode only; ignore with harness flags unless you need strict key sets. |
-| Unresolved imports / stubs | Non-numeric plot cells serialize as `na` (null)—not string stubs. |
-| Outside compile surface | UDT-heavy / full `request.*` / rich strategy analytics stay interpret-first; `auto` falls back. |
-| Disk / Numba caches | Stale IR after kernel edits can fake mismatches—clear compile + Numba caches (see harness docstring). |
+| Topic                       | Policy                                                                                                |
+| --------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Sentinels                   | Interpret: `None`; Numba: `np.nan`. Compare with nan-aware equality, not `==`.                        |
+| Hline / fill / bgcolor keys | May appear on one mode only; ignore with harness flags unless you need strict key sets.               |
+| Unresolved imports / stubs  | Non-numeric plot cells serialize as `na` (null)—not string stubs.                                     |
+| Outside compile surface     | UDT-heavy / full `request.*` / rich strategy analytics stay interpret-first; `auto` falls back.       |
+| Disk / Numba caches         | Stale IR after kernel edits can fake mismatches—clear compile + Numba caches (see harness docstring). |
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `scripts/compare_interp_compile.py` | End-to-end series compare |
-| `tests/test_interp_compile_parity.py` | Always-on smoke + harness flag tests |
-| `src/pynescript/runtime/host.py` | `_run_compiled`, OHLCV + `time_arr` packing |
-| `backend/runtime.py` | Compat re-export of the package host |
-| `src/pynescript/compiler/engine.py` | Compile façade + result normalize |
-| `src/pynescript/compiler/numba_builtins.py` | JIT kernels under test |
+| Path                                        | Role                                        |
+| ------------------------------------------- | ------------------------------------------- |
+| `scripts/compare_interp_compile.py`         | End-to-end series compare                   |
+| `tests/test_interp_compile_parity.py`       | Always-on smoke + harness flag tests        |
+| `src/pynescript/runtime/host.py`            | `_run_compiled`, OHLCV + `time_arr` packing |
+| `backend/runtime.py`                        | Compat re-export of the package host        |
+| `src/pynescript/compiler/engine.py`         | Compile façade + result normalize           |
+| `src/pynescript/compiler/numba_builtins.py` | JIT kernels under test                      |
 
 ## Worked example
 
@@ -117,12 +135,12 @@ python scripts/compare_interp_compile.py \
 
 ## Failure modes
 
-| Symptom | Likely cause |
-| --- | --- |
-| Systematic offset after warm-up | EMA/RSI seed or window clamp drift in a kernel |
-| Only-compile empty plots | Script still object-mode / plot not lowered; or cache corruption |
-| `time` diverges | Host omitted times on one path only; check `time_arr` packing |
-| Structural-only keys | hline/fill/background naming — use ignore flags or align collectors |
+| Symptom                         | Likely cause                                                        |
+| ------------------------------- | ------------------------------------------------------------------- |
+| Systematic offset after warm-up | EMA/RSI seed or window clamp drift in a kernel                      |
+| Only-compile empty plots        | Script still object-mode / plot not lowered; or cache corruption    |
+| `time` diverges                 | Host omitted times on one path only; check `time_arr` packing       |
+| Structural-only keys            | hline/fill/background naming — use ignore flags or align collectors |
 
 ## See also
 

@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Pro API"
 description: "Flask Pro API — /run with mode=auto, /optimize strategy search, plot_meta/fill, alerts + L2 webhooks, preview, backtest, and shared evaluate contract."
 ---
@@ -28,7 +46,7 @@ The PYNE **Pro API** is a Flask HTTP service that runs Pine scripts over caller-
 
 ## Abstract
 
-Where the LSP answers *static* editor questions, the Pro API answers *dynamic* evaluate questions:
+Where the LSP answers _static_ editor questions, the Pro API answers _dynamic_ evaluate questions:
 
 ```text
 POST JSON { script, data: OHLCV[], mode?, libraries?, webhook_url?, … }
@@ -69,41 +87,41 @@ flowchart TB
 
 ## Interface surface
 
-| Method | Path | Auth | Role |
-| --- | --- | --- | --- |
-| `GET` | `/` · `/health` | none | Health + endpoint map + compile cache section |
-| `GET` | `/stats` | none | Process runtime counters, latencies, gauges ([docs](/pyne/docs/api/endpoints/stats)) |
-| `POST` | `/run` | none (free) | Single-script evaluate (`mode` default `auto`; `libraries[]`; `from_bar`/`to_bar`; alerts + optional webhooks) |
-| `POST` | `/run/batch` | none (free) | ≤8 scripts, shared OHLCV |
-| `POST` | `/session` | none (free) | Live session — O(1) ticks, O(delta) appends ([docs](/pyne/docs/api/endpoints/sessions)) |
-| `GET`/`POST`/`DELETE` | `/session/<id>` · `…/tick` · `…/append` | none (free) | Advance / inspect / release a live session |
-| `GET`/`POST` | `/data/series` · `/data/series/bars` · `/data/series/provide` · `/data/series/fetch` | **API key** | Engine-owned OHLCV store ([docs](/pyne/docs/api/endpoints/data-plane)) |
-| `POST` | `/data/session` · `/data/session/<id>/tick` | **API key** | Live session bound to a stored series |
-| `POST` | `/scripts` · `/cron/*` | optional runner | Hosted scripts + bar-close — **off** unless `PYNE_RUNNER=1` ([runner](/pyne/docs/api/endpoints/runner)) |
-| `POST` | `/optimize` | none (free) | Strategy `input.*` search — N interpret Runtime runs ([docs](/pyne/docs/api/endpoints/optimize)) |
-| `WS` | `/ws/run` | none (free) | Same evaluate contract over JSON frames (`flask-sock` optional) |
-| `POST` | `/preview/chart` | API key + usage | Line / OHLCV PNG |
-| `POST` | `/preview/indicator` | API key + usage | Expression series PNG |
-| `POST` | `/backtest/quick` | API key + usage | Quick strategy metrics + equity PNG |
-| `POST` | `/auth/create_key` | admin decorator | Mint `pyn_…` key (fail-closed `ADMIN_TOKEN`) |
-| `GET` | `/auth/usage` | API key | Usage counters |
-| `POST` | `/auth/validate` | none (body key) | Validate without consuming quota |
-| `POST` | `/compile/prewarm` | none (free, rate-gated) | Product warm-compile — skip cold Numba JIT |
-| `POST` | `/lsp/*` | none (free) | AXIS editor completion / hover / diagnostics |
-| `POST` | `/api/git/oauth/device/*` | none (device flow) | Optional GitHub/GitLab device OAuth for SPA git (blueprint) |
+| Method                | Path                                                                                 | Auth                    | Role                                                                                                           |
+| --------------------- | ------------------------------------------------------------------------------------ | ----------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `GET`                 | `/` · `/health`                                                                      | none                    | Health + endpoint map + compile cache section                                                                  |
+| `GET`                 | `/stats`                                                                             | none                    | Process runtime counters, latencies, gauges ([docs](/pyne/docs/api/endpoints/stats))                           |
+| `POST`                | `/run`                                                                               | none (free)             | Single-script evaluate (`mode` default `auto`; `libraries[]`; `from_bar`/`to_bar`; alerts + optional webhooks) |
+| `POST`                | `/run/batch`                                                                         | none (free)             | ≤8 scripts, shared OHLCV                                                                                       |
+| `POST`                | `/session`                                                                           | none (free)             | Live session — O(1) ticks, O(delta) appends ([docs](/pyne/docs/api/endpoints/sessions))                        |
+| `GET`/`POST`/`DELETE` | `/session/<id>` · `…/tick` · `…/append`                                              | none (free)             | Advance / inspect / release a live session                                                                     |
+| `GET`/`POST`          | `/data/series` · `/data/series/bars` · `/data/series/provide` · `/data/series/fetch` | **API key**             | Engine-owned OHLCV store ([docs](/pyne/docs/api/endpoints/data-plane))                                         |
+| `POST`                | `/data/session` · `/data/session/<id>/tick`                                          | **API key**             | Live session bound to a stored series                                                                          |
+| `POST`                | `/scripts` · `/cron/*`                                                               | optional runner         | Hosted scripts + bar-close — **off** unless `PYNE_RUNNER=1` ([runner](/pyne/docs/api/endpoints/runner))        |
+| `POST`                | `/optimize`                                                                          | none (free)             | Strategy `input.*` search — N interpret Runtime runs ([docs](/pyne/docs/api/endpoints/optimize))               |
+| `WS`                  | `/ws/run`                                                                            | none (free)             | Same evaluate contract over JSON frames (`flask-sock` optional)                                                |
+| `POST`                | `/preview/chart`                                                                     | API key + usage         | Line / OHLCV PNG                                                                                               |
+| `POST`                | `/preview/indicator`                                                                 | API key + usage         | Expression series PNG                                                                                          |
+| `POST`                | `/backtest/quick`                                                                    | API key + usage         | Quick strategy metrics + equity PNG                                                                            |
+| `POST`                | `/auth/create_key`                                                                   | admin decorator         | Mint `pyn_…` key (fail-closed `ADMIN_TOKEN`)                                                                   |
+| `GET`                 | `/auth/usage`                                                                        | API key                 | Usage counters                                                                                                 |
+| `POST`                | `/auth/validate`                                                                     | none (body key)         | Validate without consuming quota                                                                               |
+| `POST`                | `/compile/prewarm`                                                                   | none (free, rate-gated) | Product warm-compile — skip cold Numba JIT                                                                     |
+| `POST`                | `/lsp/*`                                                                             | none (free)             | AXIS editor completion / hover / diagnostics                                                                   |
+| `POST`                | `/api/git/oauth/device/*`                                                            | none (device flow)      | Optional GitHub/GitLab device OAuth for SPA git (blueprint)                                                    |
 
 ### `/run` response highlights
 
-| Field | Role |
-| --- | --- |
-| `series` / `plots` / `plot_meta` | Bar values + display meta (color, linewidth, `kind`, `fill` band refs) |
-| `events` | Strategy broker events |
-| `drawings` | Drawing registry / compile `__drawings` |
-| `alerts` | Structured `alert()` / `alertcondition()` firings |
-| `mode` / `auto_backend` | Effective path (`interpret` \| `compile`) |
-| `compile_fallback_reason` | Why `auto` chose interpret (eligibility or compile error) |
-| `alert_forward` | Present when a webhook URL was configured |
-| `error_kind` | On failure: `parse` \| `compile` \| `runtime` \| `data` \| `order` \| `mode` |
+| Field                            | Role                                                                         |
+| -------------------------------- | ---------------------------------------------------------------------------- |
+| `series` / `plots` / `plot_meta` | Bar values + display meta (color, linewidth, `kind`, `fill` band refs)       |
+| `events`                         | Strategy broker events                                                       |
+| `drawings`                       | Drawing registry / compile `__drawings`                                      |
+| `alerts`                         | Structured `alert()` / `alertcondition()` firings                            |
+| `mode` / `auto_backend`          | Effective path (`interpret` \| `compile`)                                    |
+| `compile_fallback_reason`        | Why `auto` chose interpret (eligibility or compile error)                    |
+| `alert_forward`                  | Present when a webhook URL was configured                                    |
+| `error_kind`                     | On failure: `parse` \| `compile` \| `runtime` \| `data` \| `order` \| `mode` |
 
 Local runner: `make run` → `python -m backend.app` (default `127.0.0.1:5002`).
 
@@ -119,26 +137,26 @@ Local runner: `make run` → `python -m backend.app` (default `127.0.0.1:5002`).
 
 ## Internals (map)
 
-| Path | Role |
-| --- | --- |
-| `backend/app.py` | App object, `/run*`, `/session*`, `/data/session*`, `/health`, `/stats`, `/compile/prewarm`, `/auth*`, CORS |
-| `backend/api/preview.py` | Preview + backtest blueprints |
-| `backend/api/data_series.py` | Engine-owned OHLCV store routes |
-| `backend/api/datafeed.py` | CCXT gateway + `WS /datafeed/watch` |
-| `backend/datafeed_app.py` | Standalone compose `datafeed` app (same blueprint) |
-| `backend/datastore/*` | SQLite OHLCV store, session ↔ series binding |
-| `backend/middleware/sessions.py` | Process-local live-session store (TTL + capacity) |
-| `backend/middleware/window.py` | `apply_window` — response windowing |
-| `backend/logging_setup.py` | `PYNE_DEBUG` level policy |
-| `backend/api/git_oauth.py` | Optional device OAuth for SPA git |
-| `backend/api/lsp_http.py` | Free AXIS editor LSP-HTTP |
-| `backend/middleware/*` | Auth, schemas, free_limits, optional Redis/SQLite key stores |
-| `src/pynescript/runtime/host.py` | Package SoT bar-loop (`mode=auto`, sessions, alerts pack) |
-| `src/pynescript/stats.py` | Runtime counter / latency / gauge registry |
-| `backend/runtime.py` | Compat re-export of the package host |
-| `backend/alert_forwarder.py` | L2 HTTP webhook delivery |
-| `backend/evaluator.py` / `backend/series.py` | Compat shims |
-| `backend/services/*` | Charts + backtest simulation |
+| Path                                         | Role                                                                                                        |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `backend/app.py`                             | App object, `/run*`, `/session*`, `/data/session*`, `/health`, `/stats`, `/compile/prewarm`, `/auth*`, CORS |
+| `backend/api/preview.py`                     | Preview + backtest blueprints                                                                               |
+| `backend/api/data_series.py`                 | Engine-owned OHLCV store routes                                                                             |
+| `backend/api/datafeed.py`                    | CCXT gateway + `WS /datafeed/watch`                                                                         |
+| `backend/datafeed_app.py`                    | Standalone compose `datafeed` app (same blueprint)                                                          |
+| `backend/datastore/*`                        | SQLite OHLCV store, session ↔ series binding                                                                |
+| `backend/middleware/sessions.py`             | Process-local live-session store (TTL + capacity)                                                           |
+| `backend/middleware/window.py`               | `apply_window` — response windowing                                                                         |
+| `backend/logging_setup.py`                   | `PYNE_DEBUG` level policy                                                                                   |
+| `backend/api/git_oauth.py`                   | Optional device OAuth for SPA git                                                                           |
+| `backend/api/lsp_http.py`                    | Free AXIS editor LSP-HTTP                                                                                   |
+| `backend/middleware/*`                       | Auth, schemas, free_limits, optional Redis/SQLite key stores                                                |
+| `src/pynescript/runtime/host.py`             | Package SoT bar-loop (`mode=auto`, sessions, alerts pack)                                                   |
+| `src/pynescript/stats.py`                    | Runtime counter / latency / gauge registry                                                                  |
+| `backend/runtime.py`                         | Compat re-export of the package host                                                                        |
+| `backend/alert_forwarder.py`                 | L2 HTTP webhook delivery                                                                                    |
+| `backend/evaluator.py` / `backend/series.py` | Compat shims                                                                                                |
+| `backend/services/*`                         | Charts + backtest simulation                                                                                |
 
 ## See also
 

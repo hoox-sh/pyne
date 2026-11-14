@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "LSP Architecture"
 description: "PynescriptLanguageServer lifecycle, Workspace document model, capability declaration, and STDIO transport."
 ---
@@ -83,12 +101,12 @@ pynescript-lsp = "pynescript.langserver.__main__:main"   # alias
 
 ### Document sync
 
-| Event | Behavior |
-| --- | --- |
-| `didOpen` | `put_document` → parse/lint → push diagnostics |
+| Event       | Behavior                                                          |
+| ----------- | ----------------------------------------------------------------- |
+| `didOpen`   | `put_document` → parse/lint → push diagnostics                    |
 | `didChange` | Incremental or full-text apply → re-parse/lint → push diagnostics |
-| `didClose` | Remove document; publish empty diagnostic list |
-| `didSave` | Re-publish diagnostics for current buffer |
+| `didClose`  | Remove document; publish empty diagnostic list                    |
+| `didSave`   | Re-publish diagnostics for current buffer                         |
 
 Sync options (`config.get_server_capabilities`):
 
@@ -193,11 +211,11 @@ Client → server (conceptual):
 
 ```json
 {
-  "method": "initialize",
-  "params": {
-    "capabilities": {},
-    "clientInfo": { "name": "example", "version": "1" }
-  }
+    "method": "initialize",
+    "params": {
+        "capabilities": {},
+        "clientInfo": { "name": "example", "version": "1" }
+    }
 }
 ```
 
@@ -205,12 +223,12 @@ Server returns `InitializeResult` with `serverInfo.name = "Pynescript Language S
 
 ## Failure modes
 
-| Symptom | Likely cause |
-| --- | --- |
-| No diagnostics on open | Client did not send `didOpen` or language id is not `pinescript` |
-| Completions empty | Metadata file missing/undecryptable; see [builtin metadata](/pyne/docs/lsp/builtin-metadata) |
-| Format no-ops | Parse error (handler returns `[]`) or unparsed text equals source |
-| Extension can't spawn server | `pynescript-lsp` not on `PATH`; check [VS Code extension](/pyne/docs/lsp/vscode-extension) |
+| Symptom                      | Likely cause                                                                                 |
+| ---------------------------- | -------------------------------------------------------------------------------------------- |
+| No diagnostics on open       | Client did not send `didOpen` or language id is not `pinescript`                             |
+| Completions empty            | Metadata file missing/undecryptable; see [builtin metadata](/pyne/docs/lsp/builtin-metadata) |
+| Format no-ops                | Parse error (handler returns `[]`) or unparsed text equals source                            |
+| Extension can't spawn server | `pynescript-lsp` not on `PATH`; check [VS Code extension](/pyne/docs/lsp/vscode-extension)   |
 
 ## See also
 

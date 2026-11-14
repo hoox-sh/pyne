@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Runtime"
 description: "Bar-loop evaluator — series caps, incremental TA, alerts, fill export, foreign request.security → na, and interpret↔compile parity."
 ---
@@ -65,11 +83,11 @@ flowchart TB
 
 **Execution modes** share the same parse tree (Pro API / `Runtime` also expose `auto`):
 
-| Mode | Entry | Bar loop | Typical use |
-| --- | --- | --- | --- |
-| **Interpret** | `NodeLiteralEvaluator.visit(tree)` per bar | Host updates `PineSeries` / context, re-visits AST | Full language surface, strategy, drawings, alerts, `request.*` |
-| **Compile** | `pynescript.compiler.engine.compile_script` | Generated `for __bar_idx in range(n)` over OHLCV + **`time_arr`** | Numeric indicators (Numba) or object-mode subset |
-| **Auto** | `Runtime.run(..., mode="auto")` | Compile when safe; interpret on fallback | Pro API default — prefer throughput without hard-failing exotic scripts |
+| Mode          | Entry                                       | Bar loop                                                          | Typical use                                                             |
+| ------------- | ------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| **Interpret** | `NodeLiteralEvaluator.visit(tree)` per bar  | Host updates `PineSeries` / context, re-visits AST                | Full language surface, strategy, drawings, alerts, `request.*`          |
+| **Compile**   | `pynescript.compiler.engine.compile_script` | Generated `for __bar_idx in range(n)` over OHLCV + **`time_arr`** | Numeric indicators (Numba) or object-mode subset                        |
+| **Auto**      | `Runtime.run(..., mode="auto")`             | Compile when safe; interpret on fallback                          | Pro API default — prefer throughput without hard-failing exotic scripts |
 
 Compile inputs are contiguous arrays: `open_arr` … `vol_arr` plus **`time_arr`** (bar-open Unix ms; synthetic `bar_index * 60_000` when the host omits times) so `time` / calendar builtins match the interpret `time` series. Disk IR cache + product warm-compile (prewarm API/CLI) cut cold JIT latency. See [Compiler overview](/pyne/docs/runtime/compiler/overview) and [Interpret ↔ compile parity](/pyne/docs/runtime/compiler/parity).
 
@@ -81,33 +99,33 @@ Compile inputs are contiguous arrays: `open_arr` … `vol_arr` plus **`time_arr`
 
 ### Host flags and knobs
 
-| Knob | Default | Effect |
-| --- | --- | --- |
-| `PYNE_SERIES_CAP` | **on** | Trim chronological `current_series` lists (`max_bars_back` / 256) |
-| `PYNE_TA_INCREMENTAL` | **on** | Call-site incremental `ta.*` in bar mode |
-| `PYNE_SERIES_RING` | **off** | Chronological ring lookback; skip dual list write when on |
-| `PYNE_LIGHT_PLOTS` | **off** | Skip plot columns + input meta (corpus OK/fail only) |
-| `PYNE_RUNTIME_MODE` | `interpret` | Default when `Runtime.run(mode=)` is omitted (`auto` is the Pro API body default) |
-| `timeout_seconds=` | `None` | Interpret wall-clock budget; checked every 32 bars → `timed_out` + `error_kind=runtime` |
-| `libraries=` | `[]` | `{namespace, name, version, source}` registered before `import` (auto forwards into interpret fallback) |
-| `realtime_*` | historical | Interpret-only `varip` / forming-bar simulation (`realtime_last_bar` / `ticks` / `bars` / `from_bar`) |
-| `Runtime.create_session` | interpret | Persistent `InterpretSession` (0.6.1): delta `append_bars`, forming-bar `update_last_bar`; compile has no resumable state |
+| Knob                     | Default     | Effect                                                                                                                    |
+| ------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `PYNE_SERIES_CAP`        | **on**      | Trim chronological `current_series` lists (`max_bars_back` / 256)                                                         |
+| `PYNE_TA_INCREMENTAL`    | **on**      | Call-site incremental `ta.*` in bar mode                                                                                  |
+| `PYNE_SERIES_RING`       | **off**     | Chronological ring lookback; skip dual list write when on                                                                 |
+| `PYNE_LIGHT_PLOTS`       | **off**     | Skip plot columns + input meta (corpus OK/fail only)                                                                      |
+| `PYNE_RUNTIME_MODE`      | `interpret` | Default when `Runtime.run(mode=)` is omitted (`auto` is the Pro API body default)                                         |
+| `timeout_seconds=`       | `None`      | Interpret wall-clock budget; checked every 32 bars → `timed_out` + `error_kind=runtime`                                   |
+| `libraries=`             | `[]`        | `{namespace, name, version, source}` registered before `import` (auto forwards into interpret fallback)                   |
+| `realtime_*`             | historical  | Interpret-only `varip` / forming-bar simulation (`realtime_last_bar` / `ticks` / `bars` / `from_bar`)                     |
+| `Runtime.create_session` | interpret   | Persistent `InterpretSession` (0.6.1): delta `append_bars`, forming-bar `update_last_bar`; compile has no resumable state |
 
 ## Interface surface
 
-| Concern | Start here |
-| --- | --- |
-| Series history, `[]`, `var`/`varip`, `PYNE_SERIES_CAP`, `na` | [Series & history](/pyne/docs/runtime/series-and-history) |
-| Expressions, statements, control flow | [Expressions & statements](/pyne/docs/runtime/expressions-statements) |
-| Builtin namespaces (`ta.*`, `strategy.*`, …) | [Builtins hub](/pyne/docs/runtime/builtins) |
-| Drawing / `plot` / `fill` / `max_*_count` GC | [Drawing & plotting](/pyne/docs/runtime/builtins/drawing-plotting) |
-| `request.*` / `input.*` (foreign → `na`) | [request / input](/pyne/docs/runtime/builtins/request-input) |
-| Library `export` / `import` | [Libraries](/pyne/docs/runtime/libraries) |
-| `StrategyEvent` parity contract | [Events](/pyne/docs/runtime/events) |
-| `alert()` / webhooks | [Alerts](/pyne/docs/runtime/alerts) |
-| Numba / object-mode compiler | [Compiler overview](/pyne/docs/runtime/compiler/overview) |
-| Interpret vs compile plot parity | [Parity testing](/pyne/docs/runtime/compiler/parity) |
-| Incremental interpret sessions (`create_session`) | [Evaluate scripts](/pyne/docs/enduser/guides/evaluate-scripts) |
+| Concern                                                      | Start here                                                            |
+| ------------------------------------------------------------ | --------------------------------------------------------------------- |
+| Series history, `[]`, `var`/`varip`, `PYNE_SERIES_CAP`, `na` | [Series & history](/pyne/docs/runtime/series-and-history)             |
+| Expressions, statements, control flow                        | [Expressions & statements](/pyne/docs/runtime/expressions-statements) |
+| Builtin namespaces (`ta.*`, `strategy.*`, …)                 | [Builtins hub](/pyne/docs/runtime/builtins)                           |
+| Drawing / `plot` / `fill` / `max_*_count` GC                 | [Drawing & plotting](/pyne/docs/runtime/builtins/drawing-plotting)    |
+| `request.*` / `input.*` (foreign → `na`)                     | [request / input](/pyne/docs/runtime/builtins/request-input)          |
+| Library `export` / `import`                                  | [Libraries](/pyne/docs/runtime/libraries)                             |
+| `StrategyEvent` parity contract                              | [Events](/pyne/docs/runtime/events)                                   |
+| `alert()` / webhooks                                         | [Alerts](/pyne/docs/runtime/alerts)                                   |
+| Numba / object-mode compiler                                 | [Compiler overview](/pyne/docs/runtime/compiler/overview)             |
+| Interpret vs compile plot parity                             | [Parity testing](/pyne/docs/runtime/compiler/parity)                  |
+| Incremental interpret sessions (`create_session`)            | [Evaluate scripts](/pyne/docs/enduser/guides/evaluate-scripts)        |
 
 Library callers typically use `NodeLiteralEvaluator` or the package **`pynescript.runtime.Runtime`** (Pro API re-export) rather than wiring the bar loop by hand:
 
@@ -133,14 +151,14 @@ Hosts that own OHLCV (Pro API, workers) use the package host: push bar → fill 
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `src/pynescript/runtime/` | Package Runtime SoT — host, series, CustomEvaluator |
-| `src/pynescript/ast/evaluator/` | Mixin evaluators (base, names, expressions, statements, libraries, events) |
-| `src/pynescript/ast/evaluator/builtins/` | Builtin dispatch tables |
-| `src/pynescript/compiler/` | `CompilerVisitor`, Numba builtins, strategy broker, engine façade |
-| `backend/runtime.py` | Compat re-export (`sys.modules` alias) of `pynescript.runtime.host` |
-| `tests/test_evaluator.py`, `tests/test_parity.py`, `tests/test_strategy_*.py`, `tests/test_first_party_ta_goldens.py` | Semantic oracles + dual-host TA goldens |
+| Path                                                                                                                  | Role                                                                       |
+| --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `src/pynescript/runtime/`                                                                                             | Package Runtime SoT — host, series, CustomEvaluator                        |
+| `src/pynescript/ast/evaluator/`                                                                                       | Mixin evaluators (base, names, expressions, statements, libraries, events) |
+| `src/pynescript/ast/evaluator/builtins/`                                                                              | Builtin dispatch tables                                                    |
+| `src/pynescript/compiler/`                                                                                            | `CompilerVisitor`, Numba builtins, strategy broker, engine façade          |
+| `backend/runtime.py`                                                                                                  | Compat re-export (`sys.modules` alias) of `pynescript.runtime.host`        |
+| `tests/test_evaluator.py`, `tests/test_parity.py`, `tests/test_strategy_*.py`, `tests/test_first_party_ta_goldens.py` | Semantic oracles + dual-host TA goldens                                    |
 
 Composition of the full interpreter:
 
@@ -185,14 +203,14 @@ Compile mode collapses this into one generated function over full arrays (`open_
 
 ## Failure modes
 
-| Symptom | Likely cause |
-| --- | --- |
-| `unexpected type of node: …` | AST node not implemented in any mixin’s `visit_*` |
-| `Unknown built-in function: …` | Missing dispatch key or wrong qualified-name resolution |
-| Divergent strategy events vs TV | Partial-fill / OCA / risk settings, or fill timing vs bar |
-| Numba path raises / falls back | Script uses UDT/map/drawing → object mode; or Numba not installed |
-| Plots empty but no error | Host forgot to collect `plot_outputs` / `PlotRegistry` after visit; or `PYNE_LIGHT_PLOTS=1` |
-| `timed_out` + partial series | `timeout_seconds` elapsed (checked every 32 interpret bars) |
+| Symptom                         | Likely cause                                                                                |
+| ------------------------------- | ------------------------------------------------------------------------------------------- |
+| `unexpected type of node: …`    | AST node not implemented in any mixin’s `visit_*`                                           |
+| `Unknown built-in function: …`  | Missing dispatch key or wrong qualified-name resolution                                     |
+| Divergent strategy events vs TV | Partial-fill / OCA / risk settings, or fill timing vs bar                                   |
+| Numba path raises / falls back  | Script uses UDT/map/drawing → object mode; or Numba not installed                           |
+| Plots empty but no error        | Host forgot to collect `plot_outputs` / `PlotRegistry` after visit; or `PYNE_LIGHT_PLOTS=1` |
+| `timed_out` + partial series    | `timeout_seconds` elapsed (checked every 32 interpret bars)                                 |
 
 ## See also
 

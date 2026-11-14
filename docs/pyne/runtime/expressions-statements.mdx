@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Expressions and statements"
 description: "How the AST walker evaluates operations, calls, control flow, assignments, and user definitions."
 ---
@@ -50,41 +68,41 @@ flowchart TB
 
 ### Expressions (`ExpressionEvaluator`)
 
-| Node | Behavior |
-| --- | --- |
+| Node                    | Behavior                                                                                                                      |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `BoolOp` (`and` / `or`) | Manual short-circuit: `and` stops at first falsy (`na` / `0` / `False`); `or` stops at first truthy. Returns a Python `bool`. |
-| `BinOp` | NA-safe `+ - * / %`; division by zero → `na` |
-| `UnaryOp` | `not`, unary `+`/`-` with NA and list map |
-| `Compare` | Chained comparisons with NA-safe operators |
-| `IfExp` | Ternary: condition, then, else |
-| `Call` | Builtin dispatch, user functions, methods, multi-dispatch overloads |
-| `Tuple` / lists | Literal sequences for unpacking and multi-arg returns |
+| `BinOp`                 | NA-safe `+ - * / %`; division by zero → `na`                                                                                  |
+| `UnaryOp`               | `not`, unary `+`/`-` with NA and list map                                                                                     |
+| `Compare`               | Chained comparisons with NA-safe operators                                                                                    |
+| `IfExp`                 | Ternary: condition, then, else                                                                                                |
+| `Call`                  | Builtin dispatch, user functions, methods, multi-dispatch overloads                                                           |
+| `Tuple` / lists         | Literal sequences for unpacking and multi-arg returns                                                                         |
 
 Binary ops coerce `PineSeries`-like objects to `.current` before operating. List operands broadcast or zip with trailing alignment (see [Series & history](/pyne/docs/runtime/series-and-history)).
 
 ### Names (`NameEvaluator`)
 
-| Node | Behavior |
-| --- | --- |
-| `Name` | Context lookup; bare series builtins (`na`, `year`, …); else string id (lazy) |
+| Node        | Behavior                                                                                                                                                       |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Name`      | Context lookup; bare series builtins (`na`, `year`, …); else string id (lazy)                                                                                  |
 | `Attribute` | Qualified context keys, builtins (`strategy.position_size`), library modules, UDT fields/methods, array/drawing/matrix method markers, Python getattr fallback |
-| `Subscript` | Series history / array / matrix indexing |
+| `Subscript` | Series history / array / matrix indexing                                                                                                                       |
 
 **Critical:** qualified names like `strategy.opentrades.entry_price` are resolved via AST path construction (`ast_qualified_name`) **without** evaluating intermediate zero-arg series that would collapse the path to an int.
 
 ### Statements (`StatementEvaluator`)
 
-| Construct | Behavior |
-| --- | --- |
-| `Script` | Walk body; finalize library exports if `library(...)` active |
-| `Assign` | `var`/`varip` once-per-declaration; `const`; ordinary assign; tuple unpack; `export` registration. History-tracked `var` series get a start-of-bar carry so `x[1]` is the prior persist. |
-| `ReAssign` (`:=`) | Update existing binding (and UDT fields) |
-| `If` / `For` / `While` | Standard control flow; loop variables in context |
-| `Once` | Fire body the first time `test` is true (omit `test` → `true`) on a **confirmed** bar, then skip. Unconfirmed realtime ticks may re-run until `barstate.isconfirmed` commits the fired flag. Does not return a value. |
-| `FunctionDef` | Store callable in context; multi-dispatch overload lists; `export`; methods tagged `__pine_method__`. After bar 0 the host walks a **hot body** that skips Function/Type/Enum/Import (already bound). |
-| `TypeDef` / `EnumDef` | Type registry / enum member dicts |
-| `Import` | Resolve `LibraryRegistry` → bind alias to `LibraryModule` |
-| Declarations | `indicator` / `strategy` / `library` via declaration builtins |
+| Construct              | Behavior                                                                                                                                                                                                              |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Script`               | Walk body; finalize library exports if `library(...)` active                                                                                                                                                          |
+| `Assign`               | `var`/`varip` once-per-declaration; `const`; ordinary assign; tuple unpack; `export` registration. History-tracked `var` series get a start-of-bar carry so `x[1]` is the prior persist.                              |
+| `ReAssign` (`:=`)      | Update existing binding (and UDT fields)                                                                                                                                                                              |
+| `If` / `For` / `While` | Standard control flow; loop variables in context                                                                                                                                                                      |
+| `Once`                 | Fire body the first time `test` is true (omit `test` → `true`) on a **confirmed** bar, then skip. Unconfirmed realtime ticks may re-run until `barstate.isconfirmed` commits the fired flag. Does not return a value. |
+| `FunctionDef`          | Store callable in context; multi-dispatch overload lists; `export`; methods tagged `__pine_method__`. After bar 0 the host walks a **hot body** that skips Function/Type/Enum/Import (already bound).                 |
+| `TypeDef` / `EnumDef`  | Type registry / enum member dicts                                                                                                                                                                                     |
+| `Import`               | Resolve `LibraryRegistry` → bind alias to `LibraryModule`                                                                                                                                                             |
+| Declarations           | `indicator` / `strategy` / `library` via declaration builtins                                                                                                                                                         |
 
 Function invocation binds parameters into context (with restore of prior bindings on exit) so nested calls and bar-local state interact cleanly. After bar 0, hosts set `_pine_defs_locked` so re-visiting the script does not re-register overload tables. The locked walk inlines `Assign` and `Expr(Call)` (no generic `visit` frame) and UDF/call-expression history keys use `_pine_site_id` stamped on the AST.
 
@@ -92,25 +110,25 @@ Function invocation binds parameters into context (with restore of prior binding
 
 Method markers returned from attribute evaluation:
 
-| Marker | Meaning |
-| --- | --- |
-| `("_method_call", instance, name)` | UDT method |
-| `("_array_method", list, name)` | `array.<name>(self, …)` |
-| `("_ns_method", obj, "label.get_text")` | Drawing/matrix namespace method |
-| `("_ext_method", receiver, name)` | Free `method` with receiver as first arg |
+| Marker                                  | Meaning                                  |
+| --------------------------------------- | ---------------------------------------- |
+| `("_method_call", instance, name)`      | UDT method                               |
+| `("_array_method", list, name)`         | `array.<name>(self, …)`                  |
+| `("_ns_method", obj, "label.get_text")` | Drawing/matrix namespace method          |
+| `("_ext_method", receiver, name)`       | Free `method` with receiver as first arg |
 
 Overloads with typed first parameters (e.g. `matrix.float` vs `array.label`) select via coarse type tags; `na` receivers deliberately exclude matrix/array/drawing tags so optional UDT fields do not mis-dispatch to `tostring` on collections.
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `src/pynescript/ast/evaluator/expressions.py` | Ops, calls, conditionals |
-| `src/pynescript/ast/evaluator/names.py` | Names, attributes, subscripts |
-| `src/pynescript/ast/evaluator/statements.py` | Script structure, assign, defs, import |
-| `src/pynescript/ast/evaluator/literals.py` | Constants, colors, strings |
-| `src/pynescript/ast/evaluator/base.py` | Context, math constants, library registry hook |
-| `src/pynescript/ast/evaluator/types.py` | `EvaluatorProtocol` typing for mixins |
+| Path                                          | Role                                           |
+| --------------------------------------------- | ---------------------------------------------- |
+| `src/pynescript/ast/evaluator/expressions.py` | Ops, calls, conditionals                       |
+| `src/pynescript/ast/evaluator/names.py`       | Names, attributes, subscripts                  |
+| `src/pynescript/ast/evaluator/statements.py`  | Script structure, assign, defs, import         |
+| `src/pynescript/ast/evaluator/literals.py`    | Constants, colors, strings                     |
+| `src/pynescript/ast/evaluator/base.py`        | Context, math constants, library registry hook |
+| `src/pynescript/ast/evaluator/types.py`       | `EvaluatorProtocol` typing for mixins          |
 
 ## Invariants & edge cases
 
@@ -175,13 +193,13 @@ Both register under the same name with `__pine_overloads__`; call sites pick by 
 
 ## Failure modes
 
-| Error | Meaning |
-| --- | --- |
-| `unexpected type of node` | Missing `visit_*` for an AST construct |
-| `Unsupported binary operator` | Op class not in the dispatch table |
-| History `series[-1]` is `na` | Negative Pine offsets **soft-fail** to `None` (not Python wraparound, not a raise) |
-| Wrong overload / destroyed receiver | Historical `na` string path; now normalized—report residual mismatches as bugs |
-| Stack overflow | Deep recursion in user functions |
+| Error                               | Meaning                                                                            |
+| ----------------------------------- | ---------------------------------------------------------------------------------- |
+| `unexpected type of node`           | Missing `visit_*` for an AST construct                                             |
+| `Unsupported binary operator`       | Op class not in the dispatch table                                                 |
+| History `series[-1]` is `na`        | Negative Pine offsets **soft-fail** to `None` (not Python wraparound, not a raise) |
+| Wrong overload / destroyed receiver | Historical `na` string path; now normalized—report residual mismatches as bugs     |
+| Stack overflow                      | Deep recursion in user functions                                                   |
 
 ## See also
 

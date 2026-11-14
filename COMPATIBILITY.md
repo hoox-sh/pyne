@@ -4,12 +4,12 @@ Product page (visual map): [compatibility](https://hoox.sh/pyne/docs/reference/c
 
 PYNE implements Pine Script™ v5/v6 **language core** (parse → AST → bar-loop). It does **not** claim TradingView® certification, platform identity (chart / proprietary data / editor UI), or bit-identical bars vs the hosted platform.
 
-| Mark | Meaning |
-| --- | --- |
-| **Working** | Implemented, usable, first-party tests |
-| **Partial** | Callable but mock, host-bound, or incomplete vs hosted Pine |
-| **Residual** | Known hole on an otherwise landed surface |
-| **Out of scope** | Not a TV platform clone |
+| Mark             | Meaning                                                     |
+| ---------------- | ----------------------------------------------------------- |
+| **Working**      | Implemented, usable, first-party tests                      |
+| **Partial**      | Callable but mock, host-bound, or incomplete vs hosted Pine |
+| **Residual**     | Known hole on an otherwise landed surface                   |
+| **Out of scope** | Not a TV platform clone                                     |
 
 Dispatch: **941** callables, **0 missing** vs the public TV v6 function list (434 names). A registered name ≠ hosted semantics.
 
@@ -50,12 +50,12 @@ flowchart TB
 
 ## Implementations
 
-| | **PYNE** | **PyneTS** | **pyne-worker** | **pine-worker** |
-|---|---|---|---|---|
-| Role | Language SoT | TS / Bun library | Python CF isolate | Legacy TS CF Worker |
-| Repo | this repo | [hoox-sh/pynets](https://github.com/hoox-sh/pynets) | [hoox-sh/pyne-worker](https://github.com/hoox-sh/pyne-worker) | [hoox-sh/pine-worker](https://github.com/hoox-sh/pine-worker) |
-| In this checkout? | yes | standalone repo | no | **no** |
-| Status | **Working** (oracle) | **Partial** (Python oracle) | **Working** (thin wrap; vendor may lag) | **Partial** |
+|                   | **PYNE**             | **PyneTS**                                          | **pyne-worker**                                               | **pine-worker**                                               |
+| ----------------- | -------------------- | --------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------- |
+| Role              | Language SoT         | TS / Bun library                                    | Python CF isolate                                             | Legacy TS CF Worker                                           |
+| Repo              | this repo            | [hoox-sh/pynets](https://github.com/hoox-sh/pynets) | [hoox-sh/pyne-worker](https://github.com/hoox-sh/pyne-worker) | [hoox-sh/pine-worker](https://github.com/hoox-sh/pine-worker) |
+| In this checkout? | yes                  | standalone repo                                     | no                                                            | **no**                                                        |
+| Status            | **Working** (oracle) | **Partial** (Python oracle)                         | **Working** (thin wrap; vendor may lag)                       | **Partial**                                                   |
 
 ---
 
@@ -63,11 +63,11 @@ flowchart TB
 
 Not shipped in git. Not a TV platform score.
 
-| Suite | Rate |
-| --- | ---: |
-| Parse + unparse | **99.96%** (2476 / 2477) |
+| Suite             |                                                     Rate |
+| ----------------- | -------------------------------------------------------: |
+| Parse + unparse   |                                 **99.96%** (2476 / 2477) |
 | Runtime interpret | **100%** excl. EXPECTED_FAIL (2466 OK + 11 listed demos) |
-| set01 Runtime | **249 / 249** |
+| set01 Runtime     |                                            **249 / 249** |
 
 ---
 
@@ -75,45 +75,45 @@ Not shipped in git. Not a TV platform score.
 
 ### Working
 
-| Group | What |
-| --- | --- |
-| **Language** | v5/v6 grammar, round-trip, `var`/`varip`/`:=`, UDTs, enums, libraries, history `[]` → `na` OOB; `timeframe.change` (UTC buckets) |
-| **Host** | `pynescript.runtime.Runtime`; series caps on; incremental TA on; derived OHLCV skip; `timeout_seconds` on library/edge/Flask `/run` + `/run/batch` |
-| **ta.*** | Incremental MAs, oscillators (incl. `aroon`/`dpo`/`kst`), ATR (Wilder `rma(tr)`), BB, `donchian`, volume `obv`/`wad`/`cmf`/`klinger`/`mfi`/`vwap`/`nvi`/`pvi`; Supertrend mid±factor·ATR locked |
-| **Collections** | `array` / `matrix` / `map`; UDT `sort_field` + `binary_search*` |
-| **Strategy** | entry/exit/close, OCA, tick `profit`/`loss`, `from_entry`, `qty_percent`, risk cascade, F2 pending-fill, OHLC trail |
-| **Draw / plot** | plot*/hline/fill/bgcolor/barcolor; line/box/label/table/polyline/linefill; GC; `force_overlay`; compile drawings geometry-only; key sets match interpret |
-| **Alerts** | `alert` / `alertcondition` + L2 webhooks |
-| **Compile** | Numba + object mode; warm IR cache; `auto` fallback; UDT/switch/matrix/drawing/round/color-overload residuals |
-| **Surfaces** | CLI `pyne` / `pyne-lsp` / `pyne optimize`; Pro `POST /run` + `/run/batch` + `POST /optimize` |
+| Group           | What                                                                                                                                                                                            |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Language**    | v5/v6 grammar, round-trip, `var`/`varip`/`:=`, UDTs, enums, libraries, history `[]` → `na` OOB; `timeframe.change` (UTC buckets)                                                                |
+| **Host**        | `pynescript.runtime.Runtime`; series caps on; incremental TA on; derived OHLCV skip; `timeout_seconds` on library/edge/Flask `/run` + `/run/batch`                                              |
+| **ta.***        | Incremental MAs, oscillators (incl. `aroon`/`dpo`/`kst`), ATR (Wilder `rma(tr)`), BB, `donchian`, volume `obv`/`wad`/`cmf`/`klinger`/`mfi`/`vwap`/`nvi`/`pvi`; Supertrend mid±factor·ATR locked |
+| **Collections** | `array` / `matrix` / `map`; UDT `sort_field` + `binary_search*`                                                                                                                                 |
+| **Strategy**    | entry/exit/close, OCA, tick `profit`/`loss`, `from_entry`, `qty_percent`, risk cascade, F2 pending-fill, OHLC trail                                                                             |
+| **Draw / plot** | plot*/hline/fill/bgcolor/barcolor; line/box/label/table/polyline/linefill; GC; `force_overlay`; compile drawings geometry-only; key sets match interpret                                        |
+| **Alerts**      | `alert` / `alertcondition` + L2 webhooks                                                                                                                                                        |
+| **Compile**     | Numba + object mode; warm IR cache; `auto` fallback; UDT/switch/matrix/drawing/round/color-overload residuals                                                                                   |
+| **Surfaces**    | CLI `pyne` / `pyne-lsp` / `pyne optimize`; Pro `POST /run` + `/run/batch` + `POST /optimize`                                                                                                    |
 
 ### Partial
 
-| Group | What |
-| --- | --- |
-| **request.*** | Same-symbol OHLCV/HTF works (`ta.sma`/`ema`/`rsi`/`atr`/`wma`/`rma`); foreign/complex → **`na`** (locked both hosts); footprint/financial mocks |
-| **Compile alerts** | Interpret is the alert oracle |
-| **Bid/ask** | `na` unless the host supplies them |
-| **PyneTS** | Sister TS library; pin **v0.2.0** matches npm. Python Runtime remains the oracle |
+| Group              | What                                                                                                                                            |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **request.***      | Same-symbol OHLCV/HTF works (`ta.sma`/`ema`/`rsi`/`atr`/`wma`/`rma`); foreign/complex → **`na`** (locked both hosts); footprint/financial mocks |
+| **Compile alerts** | Interpret is the alert oracle                                                                                                                   |
+| **Bid/ask**        | `na` unless the host supplies them                                                                                                              |
+| **PyneTS**         | Sister TS library; pin **v0.2.0** matches npm. Python Runtime remains the oracle                                                                |
 
 ### Residual
 
-| Item | ID |
-| --- | --- |
+| Item                                                            | ID                                  |
+| --------------------------------------------------------------- | ----------------------------------- |
 | Interp↔compile value MISMATCH (optional set0x community corpus) | P1p ✅ official builtins 0 MISMATCH |
-| `PYNE_SERIES_RING` default off | flagged |
+| `PYNE_SERIES_RING` default off                                  | flagged                             |
 
 ### Out of scope
 
-| Item | Why |
-| --- | --- |
-| Pixel chart / editor UX | AXIS / editors |
-| Foreign live fundamentals | Needs a feed adapter (B1) |
-| TV Supertrend band ratchet | Locked mid±factor·ATR; not TV-identical |
-| Tick-path trail / broker | OHLC high/low only |
-| Bit-identical TV bars | Numerical bounds, not bits |
-| Parallel bars / vectorize whole scripts | Breaks `var` / fills |
-| Licensed broker | In-process model only |
+| Item                                    | Why                                     |
+| --------------------------------------- | --------------------------------------- |
+| Pixel chart / editor UX                 | AXIS / editors                          |
+| Foreign live fundamentals               | Needs a feed adapter (B1)               |
+| TV Supertrend band ratchet              | Locked mid±factor·ATR; not TV-identical |
+| Tick-path trail / broker                | OHLC high/low only                      |
+| Bit-identical TV bars                   | Numerical bounds, not bits              |
+| Parallel bars / vectorize whole scripts | Breaks `var` / fills                    |
+| Licensed broker                         | In-process model only                   |
 
 ---
 

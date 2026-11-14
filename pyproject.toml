@@ -13,74 +13,53 @@ readme = "README.md"
 license = { text = "AGPL-3.0-or-later" }
 requires-python = ">=3.10"
 keywords = ["python", "tradingview", "pinescript", "pyne", "hoox", "lsp"]
-authors = [
-  { name = "jango_blockchained" },
-]
-maintainers = [
-  { name = "jango_blockchained" },
-]
+authors = [{ name = "jango_blockchained" }]
+maintainers = [{ name = "jango_blockchained" }]
 classifiers = [
-  "Development Status :: 3 - Alpha",
-  "Intended Audience :: Developers",
-  "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
-  "Operating System :: OS Independent",
-  "Programming Language :: Python",
-  "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12",
-  "Programming Language :: Python :: 3.13",
-  "Topic :: Software Development :: Compilers",
-  "Topic :: Software Development :: Libraries :: Python Modules",
-  "Typing :: Typed",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Compilers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
 ]
 dependencies = [
-  "antlr4-python3-runtime>=4.13.1",
-  "click>=8.1.7",
-  "requests",
-  "tqdm",
+    "antlr4-python3-runtime>=4.13.1",
+    "click>=8.1.7",
+    "requests",
+    "tqdm",
 ]
 
 [project.optional-dependencies]
-lsp = [
-  "pygls>=2.0.0",
-  "lsprotocol>=2024.0.0",
-]
-dev-lsp = [
-  "pygls>=2.0.0",
-  "lsprotocol>=2024.0.0",
-  "pytest-lsp>=0.1.0",
-]
-data = [
-  "ccxt>=4.0.0",
-]
-datafeed = [
-  "ccxt>=4.0.0",
-]
+lsp = ["pygls>=2.0.0", "lsprotocol>=2024.0.0"]
+dev-lsp = ["pygls>=2.0.0", "lsprotocol>=2024.0.0", "pytest-lsp>=0.1.0"]
+data = ["ccxt>=4.0.0"]
+datafeed = ["ccxt>=4.0.0"]
 # Numba JIT path for Runtime.run(mode="compile"|"auto") / AXIS Execution mode
-compile = [
-  "numpy>=1.26.0",
-  "numba>=0.59.0",
-]
+compile = ["numpy>=1.26.0", "numba>=0.59.0"]
 # MCP server (stdio default; sse / streamable-http via PYNE_MCP_TRANSPORT).
-mcp = [
-  "mcp>=2.0,<3",
-  "lsprotocol>=2024.0.0",
-]
+mcp = ["mcp>=2.0,<3", "lsprotocol>=2024.0.0"]
 # Pro API stack (Flask + compile path + optional Redis key store)
 pro = [
-  "flask>=3.0.0",
-  "flask-cors>=4.0.0",
-  "flask-sock>=0.7.0",
-  "simple-websocket>=1.0.0",
-  "python-dotenv>=1.0.0",
-  "numpy>=1.26.0",
-  "numba>=0.59.0",
-  "matplotlib>=3.8.0",
-  "gunicorn>=21.0.0",
-  "gevent>=24.0.0",
-  "gevent-websocket>=0.10.1",
-  "redis>=5.0.0",
+    "flask>=3.0.0",
+    "flask-cors>=4.0.0",
+    "flask-sock>=0.7.0",
+    "simple-websocket>=1.0.0",
+    "python-dotenv>=1.0.0",
+    "numpy>=1.26.0",
+    "numba>=0.59.0",
+    "matplotlib>=3.8.0",
+    "gunicorn>=21.0.0",
+    "gevent>=24.0.0",
+    "gevent-websocket>=0.10.1",
+    "redis>=5.0.0",
 ]
 
 [project.urls]
@@ -107,18 +86,18 @@ path = "src/pynescript/__about__.py"
 
 [tool.hatch.build.targets.sdist]
 exclude = [
-  "/.github",
-  "/.opencode",
-  "/.private",
-  "/.cache",
-  "/brand",
-  "/docs/exports",
-  "/docs/_build",
-  "/logs",
-  "/reports",
-  "/.host",
-  "/packages/backend/dist",
-  "/packages/backend/build",
+    "/.github",
+    "/.opencode",
+    "/.private",
+    "/.cache",
+    "/brand",
+    "/docs/exports",
+    "/docs/_build",
+    "/logs",
+    "/reports",
+    "/.host",
+    "/packages/backend/dist",
+    "/packages/backend/build",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -126,38 +105,36 @@ packages = ["src/pynescript"]
 
 [tool.hatch.envs.test]
 dependencies = [
-  "coverage[toml]>=7.4.2",
-  "pytest>=8.0.1",
-  "pytest-cov>=4.1.0",
-  "pytest-xdist>=3.5.0",
-  "flask>=3.0.0",
-  "flask-cors>=4.0.0",
-  "flask-sock>=0.7.0",
-  "simple-websocket>=1.0.0",
-  "gunicorn>=21.0.0",
-  "gevent>=24.0.0",
-  "gevent-websocket>=0.10.1",
-  "matplotlib>=3.8.0",
-  "redis>=5.0.0",
-  "lsprotocol>=2024.0.0",
-  "pygls>=2.0.0",
-  "pytest-lsp>=0.1.0",
-  "numpy>=1.26.0",
-  "numba>=0.59.0",
-  "mcp>=2.0,<3",
+    "coverage[toml]>=7.4.2",
+    "pytest>=8.0.1",
+    "pytest-cov>=4.1.0",
+    "pytest-xdist>=3.5.0",
+    "flask>=3.0.0",
+    "flask-cors>=4.0.0",
+    "flask-sock>=0.7.0",
+    "simple-websocket>=1.0.0",
+    "gunicorn>=21.0.0",
+    "gevent>=24.0.0",
+    "gevent-websocket>=0.10.1",
+    "matplotlib>=3.8.0",
+    "redis>=5.0.0",
+    "lsprotocol>=2024.0.0",
+    "pygls>=2.0.0",
+    "pytest-lsp>=0.1.0",
+    "numpy>=1.26.0",
+    "numba>=0.59.0",
+    "mcp>=2.0,<3",
 ]
 [tool.hatch.envs.test.scripts]
-test = [
-  "pytest {args}",
-]
+test = ["pytest {args}"]
 test-cov = [
-  "pytest -n auto -d --cov=src/pynescript --cov=tests --cov-report=term --cov-report=lcov {args:tests}",
+    "pytest -n auto -d --cov=src/pynescript --cov=tests --cov-report=term --cov-report=lcov {args:tests}",
 ]
 cov = [
-  "coverage run -m pytest {args:tests}",
-  "coverage combine",
-  "coverage lcov",
-  "coverage report",
+    "coverage run -m pytest {args:tests}",
+    "coverage combine",
+    "coverage lcov",
+    "coverage report",
 ]
 
 [[tool.hatch.envs.test.matrix]]
@@ -166,11 +143,11 @@ python = ["3.10", "3.11", "3.12"]
 [tool.hatch.envs.lint]
 detached = true
 dependencies = [
-  "antlr4-cli",
-  "black>=24.2.0",
-  "mypy>=1.8.0",
-  "pyasdl>=0.3.1",
-  "ruff>=0.2.2",
+    "antlr4-cli",
+    "black>=24.2.0",
+    "mypy>=1.8.0",
+    "pyasdl>=0.3.1",
+    "ruff>=0.2.2",
 ]
 [tool.hatch.envs.lint.scripts]
 gen-parser = "antlr4 {args}"
@@ -181,23 +158,21 @@ format = "ruff format {args}"
 [tool.hatch.envs.docs]
 detached = true
 dependencies = [
-  "furo>=2024.1.29",
-  "myst-parser>=2.0.0",
-  "pygments>=2.17.2",
-  "sphinx>=7.2.6",
-  "sphinx-click>=5.1.0",
-  "sphinx-autobuild>=2024.2.4",
-  "antlr4-python3-runtime>=4.13.1",
+    "furo>=2024.1.29",
+    "myst-parser>=2.0.0",
+    "pygments>=2.17.2",
+    "sphinx>=7.2.6",
+    "sphinx-click>=5.1.0",
+    "sphinx-autobuild>=2024.2.4",
+    "antlr4-python3-runtime>=4.13.1",
 ]
 
 [tool.hatch.envs.docs.scripts]
-build = [
-  "sphinx-build docs docs/_build",
-]
+build = ["sphinx-build docs docs/_build"]
 
 [tool.pytest.ini_options]
 markers = [
-  "interp_compile_full: longer interpret vs compile parity subset (optional)",
+    "interp_compile_full: longer interpret vs compile parity subset (optional)",
 ]
 
 [tool.black]
@@ -208,86 +183,84 @@ skip-string-normalization = true
 [tool.ruff]
 target-version = "py310"
 line-length = 120
-extend-exclude = [
-  "generated",
-]
+extend-exclude = ["generated"]
 
 [tool.ruff.lint]
 # En-dash is used deliberately in the changelog heading regex (`[—–-]`).
 allowed-confusables = ["–"]
 select = [
-  "A",
-  "ARG",
-  "B",
-  "C",
-  "DTZ",
-  "E",
-  "EM",
-  "F",
-  "FBT",
-  "I",
-  "ICN",
-  "ISC",
-  "N",
-  "PLC",
-  "PLE",
-  "PLR",
-  "PLW",
-  "Q",
-  "RUF",
-  "S",
-  "T",
-  "TID",
-  "UP",
-  "W",
-  "YTT",
+    "A",
+    "ARG",
+    "B",
+    "C",
+    "DTZ",
+    "E",
+    "EM",
+    "F",
+    "FBT",
+    "I",
+    "ICN",
+    "ISC",
+    "N",
+    "PLC",
+    "PLE",
+    "PLR",
+    "PLW",
+    "Q",
+    "RUF",
+    "S",
+    "T",
+    "TID",
+    "UP",
+    "W",
+    "YTT",
 ]
 ignore = [
-  "ISC001",
-  "S311",
-  "ARG002",
-  # --- Domain-specific families kept off project-wide -------------------------
-  # Long lines are generated Pine→Python source strings / data tables that the
-  # formatter cannot split.
-  "E501",
-  # Pine OHLC shorthand (`l` for low, `O`/`I` for matrices) is deliberate.
-  "E741",
-  # Numeric thresholds, Pine style constants, and matrix indices.
-  "PLR2004",
-  # NaN detection is written as the `x != x` idiom throughout the evaluator.
-  "PLR0124",
-  # Evaluator/compiler dispatch tables and code generators are intentionally
-  # large; splitting them hurts readability more than it helps.
-  "C901",
-  "PLR0911",
-  "PLR0912",
-  "PLR0913",
-  "PLR0915",
-  # Optional deps (numpy/numba/ccxt/pygls) are imported lazily on purpose.
-  "PLC0415",
-  # Imports follow sys.path / optional-dependency bootstrapping in entrypoints.
-  "E402",
-  # Pine-facing API names (plotshape, ta_*, …) intentionally mirror TradingView.
-  "N802",
-  # Math-style local variable names (N, M, X) mirror the formulas.
-  "N806",
-  # Domain exception names (BreakLoop, TooManyRuns) predate the rule.
-  "N818",
-  # Pine builtin argument names (open, id, type, range) must match the language.
-  "A002",
-  # Boolean flags are positional throughout the evaluator/host API surface.
-  "FBT001",
-  "FBT002",
-  "FBT003",
-  # Swallowing errors in feed/recorder loops is deliberate best-effort policy.
-  "S110",
-  # Exception message literals are part of the public error contract.
-  "EM101",
-  "EM102",
-  # Module-level registries/counters are the existing architecture.
-  "PLW0603",
-  # Callbacks/protocol hooks keep stable signatures even when unused.
-  "ARG001",
+    "ISC001",
+    "S311",
+    "ARG002",
+    # --- Domain-specific families kept off project-wide -------------------------
+    # Long lines are generated Pine→Python source strings / data tables that the
+    # formatter cannot split.
+    "E501",
+    # Pine OHLC shorthand (`l` for low, `O`/`I` for matrices) is deliberate.
+    "E741",
+    # Numeric thresholds, Pine style constants, and matrix indices.
+    "PLR2004",
+    # NaN detection is written as the `x != x` idiom throughout the evaluator.
+    "PLR0124",
+    # Evaluator/compiler dispatch tables and code generators are intentionally
+    # large; splitting them hurts readability more than it helps.
+    "C901",
+    "PLR0911",
+    "PLR0912",
+    "PLR0913",
+    "PLR0915",
+    # Optional deps (numpy/numba/ccxt/pygls) are imported lazily on purpose.
+    "PLC0415",
+    # Imports follow sys.path / optional-dependency bootstrapping in entrypoints.
+    "E402",
+    # Pine-facing API names (plotshape, ta_*, …) intentionally mirror TradingView.
+    "N802",
+    # Math-style local variable names (N, M, X) mirror the formulas.
+    "N806",
+    # Domain exception names (BreakLoop, TooManyRuns) predate the rule.
+    "N818",
+    # Pine builtin argument names (open, id, type, range) must match the language.
+    "A002",
+    # Boolean flags are positional throughout the evaluator/host API surface.
+    "FBT001",
+    "FBT002",
+    "FBT003",
+    # Swallowing errors in feed/recorder loops is deliberate best-effort policy.
+    "S110",
+    # Exception message literals are part of the public error contract.
+    "EM101",
+    "EM102",
+    # Module-level registries/counters are the existing architecture.
+    "PLW0603",
+    # Callbacks/protocol hooks keep stable signatures even when unused.
+    "ARG001",
 ]
 
 [tool.ruff.lint.isort]
@@ -307,12 +280,46 @@ required-imports = ["from __future__ import annotations"]
 "scripts/generate_builtin_metadata.py" = ["T201"]
 "scripts/showcase.py" = ["T201"]
 "scripts/update_copyright.py" = ["T201"]
-"tests/**/*" = ["ARG001", "ARG005", "B017", "C901", "F841", "PLR0912", "PLR2004", "S101", "S105", "S106", "T201", "TID252", "PLC0415"]
+"tests/**/*" = [
+    "ARG001",
+    "ARG005",
+    "B017",
+    "C901",
+    "F841",
+    "PLR0912",
+    "PLR2004",
+    "S101",
+    "S105",
+    "S106",
+    "T201",
+    "TID252",
+    "PLC0415",
+]
 # The Code Mode sandbox assertions name the private /tmp mount on purpose.
 "tests/test_mcp_codemode.py" = ["S108"]
 "src/pynescript/__main__.py" = ["ARG001", "EM101", "PLR0913", "B904", "PLC0415"]
-"src/pynescript/mcp/**" = ["PLC0415", "PLR0913", "PLR0917", "FBT001", "FBT002", "C901", "PLR0911", "PLR2004", "S110", "S108", "S603"]
-"src/pynescript/util/runner_cli.py" = ["FBT001", "PLR0913", "PLR0917", "EM101", "EM102", "C901", "S310"]
+"src/pynescript/mcp/**" = [
+    "PLC0415",
+    "PLR0913",
+    "PLR0917",
+    "FBT001",
+    "FBT002",
+    "C901",
+    "PLR0911",
+    "PLR2004",
+    "S110",
+    "S108",
+    "S603",
+]
+"src/pynescript/util/runner_cli.py" = [
+    "FBT001",
+    "PLR0913",
+    "PLR0917",
+    "EM101",
+    "EM102",
+    "C901",
+    "S310",
+]
 "src/pynescript/util/pine_convert.py" = ["C901", "PLR0912", "PLR0915"]
 "src/pynescript/util/data.py" = ["DTZ005", "B904", "PLC0415"]
 "src/pynescript/ast/helper.py" = ["C901", "PLC0415", "PLR1704"]
@@ -327,7 +334,21 @@ required-imports = ["from __future__ import annotations"]
 "src/pynescript/ast/evaluator/builtins/alerts.py" = ["PLR2004"]
 "src/pynescript/ast/evaluator/builtins/input.py" = ["PLR2004"]
 "src/pynescript/ast/evaluator/builtins/numeric.py" = ["PLR2004"]
-"backend/runner/**" = ["PLC0415", "PLR2004", "EM101", "EM102", "C901", "PLR0912", "PLR0915", "S108", "S110", "SIM105", "FBT001", "BLE001", "PLW0603"]
+"backend/runner/**" = [
+    "PLC0415",
+    "PLR2004",
+    "EM101",
+    "EM102",
+    "C901",
+    "PLR0912",
+    "PLR0915",
+    "S108",
+    "S110",
+    "SIM105",
+    "FBT001",
+    "BLE001",
+    "PLW0603",
+]
 "backend/api/runner.py" = ["PLC0415"]
 "backend/datastore/**" = ["EM101", "EM102"]
 "backend/api/data_series.py" = ["EM101", "EM102"]
@@ -337,9 +358,9 @@ source_pkgs = ["pynescript", "tests"]
 branch = true
 parallel = true
 omit = [
-  "src/pynescript/__about__.py",
-  "src/pynescript/ast/grammar/antlr4/generated/*",
-  "src/pynescript/ast/grammar/asdl/generated/*",
+    "src/pynescript/__about__.py",
+    "src/pynescript/ast/grammar/antlr4/generated/*",
+    "src/pynescript/ast/grammar/asdl/generated/*",
 ]
 
 [tool.coverage.paths]
@@ -347,11 +368,7 @@ pynescript = ["src/pynescript", "*/pynescript/src/pynescript"]
 tests = ["tests", "*/pynescript/tests"]
 
 [tool.coverage.report]
-exclude_lines = [
-  "no cov",
-  "if __name__ == .__main__.:",
-  "if TYPE_CHECKING:",
-]
+exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [tool.mypy]
 python_version = "3.10"
@@ -365,51 +382,39 @@ exclude = []
 
 [[tool.mypy.overrides]]
 module = [
-  "pynescript.ast.grammar.antlr4.generated.*",
-  "pynescript.ast.grammar.asdl.generated.*",
-  "pynescript.ast.grammar.antlr4.resource.*",
-  "pynescript.ast.grammar.antlr4.error_listener",
-  "pynescript.ast.grammar.asdl.tool.*",
+    "pynescript.ast.grammar.antlr4.generated.*",
+    "pynescript.ast.grammar.asdl.generated.*",
+    "pynescript.ast.grammar.antlr4.resource.*",
+    "pynescript.ast.grammar.antlr4.error_listener",
+    "pynescript.ast.grammar.asdl.tool.*",
 ]
 ignore_errors = true
 
 [[tool.mypy.overrides]]
-module = [
-  "tests.*",
-]
+module = ["tests.*"]
 check_untyped_defs = false
 ignore_errors = true
 
 [[tool.mypy.overrides]]
-module = [
-  "pynescript.ast.helper",
-  "pynescript.ast.builder",
-]
+module = ["pynescript.ast.helper", "pynescript.ast.builder"]
 disable_error_code = ["no-any-return"]
 
 [[tool.mypy.overrides]]
-module = [
-  "pynescript.ast.evaluator.builtins.*",
-]
+module = ["pynescript.ast.evaluator.builtins.*"]
 warn_return_any = false
 disable_error_code = [
-  "arg-type",
-  "assignment",
-  "attr-defined",
-  "dict-item",
-  "index",
-  "operator",
-  "return-value",
-  "type-var",
-  "union-attr",
-  "var-annotated",
+    "arg-type",
+    "assignment",
+    "attr-defined",
+    "dict-item",
+    "index",
+    "operator",
+    "return-value",
+    "type-var",
+    "union-attr",
+    "var-annotated",
 ]
 
 [[tool.mypy.overrides]]
-module = [
-  "antlr4.*",
-  "pytest.*",
-  "nautilus_trader.*",
-  "pyasdl.*",
-]
+module = ["antlr4.*", "pytest.*", "nautilus_trader.*", "pyasdl.*"]
 ignore_missing_imports = true

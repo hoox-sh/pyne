@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Semantic Tokens"
 description: "textDocument/semanticTokens/full and /range — AST visitor, custom legend, and LSP delta encoding."
 ---
@@ -59,28 +77,28 @@ range: true
 full: true
 ```
 
-| Method | Handler |
-| --- | --- |
-| `textDocument/semanticTokens/full` | `handle_semantic_tokens` |
+| Method                              | Handler                        |
+| ----------------------------------- | ------------------------------ |
+| `textDocument/semanticTokens/full`  | `handle_semantic_tokens`       |
 | `textDocument/semanticTokens/range` | `handle_semantic_tokens_range` |
 
 Both take `(params, source, tree=…)` and return `lsp.SemanticTokens(data=[...])` — LSP-encoded five-tuples as a flat `int` array (relative line/character deltas). Range uses the **same legend** as full: collect, sort, then keep tokens whose start `(line, col)` is in `params.range` (inclusive start, exclusive end) before encoding.
 
 ### What is emitted
 
-| Symbol occurrence | Token type | Modifiers |
-| --- | --- | --- |
-| Function / method declaration | function / method | definition \| declaration |
-| Type declaration | class | definition \| declaration |
-| Enum declaration | type | definition \| declaration |
-| Enum member / UDT field | property | declaration on the member |
-| Variable declaration and reads | variable | declaration on the binding |
-| Parameter declaration and reads | parameter | declaration on the binding |
-| Import alias and uses | namespace | declaration on the alias |
-| Builtin namespace attribute (`ta.sma`) | namespace + method | defaultLibrary (+ readonly on ns) |
-| Other attribute (unknown receiver) | property | — |
-| Qualifier keyword `series` / `simple` | series / simple | — |
-| Variable or parameter whose resolved qualifier is `series` / `simple`, including OHLCV builtins (`open`, `high`, `low`, `close`, `volume`, `hl2`, `hlc3`, `ohlc4`) and `time` / `bar_index` | series / simple | declaration on the binding; readonly on builtins |
+| Symbol occurrence                                                                                                                                                                           | Token type         | Modifiers                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------ |
+| Function / method declaration                                                                                                                                                               | function / method  | definition \| declaration                        |
+| Type declaration                                                                                                                                                                            | class              | definition \| declaration                        |
+| Enum declaration                                                                                                                                                                            | type               | definition \| declaration                        |
+| Enum member / UDT field                                                                                                                                                                     | property           | declaration on the member                        |
+| Variable declaration and reads                                                                                                                                                              | variable           | declaration on the binding                       |
+| Parameter declaration and reads                                                                                                                                                             | parameter          | declaration on the binding                       |
+| Import alias and uses                                                                                                                                                                       | namespace          | declaration on the alias                         |
+| Builtin namespace attribute (`ta.sma`)                                                                                                                                                      | namespace + method | defaultLibrary (+ readonly on ns)                |
+| Other attribute (unknown receiver)                                                                                                                                                          | property           | —                                                |
+| Qualifier keyword `series` / `simple`                                                                                                                                                       | series / simple    | —                                                |
+| Variable or parameter whose resolved qualifier is `series` / `simple`, including OHLCV builtins (`open`, `high`, `low`, `close`, `volume`, `hl2`, `hlc3`, `ohlc4`) and `time` / `bar_index` | series / simple    | declaration on the binding; readonly on builtins |
 
 The type names `series` and `simple` match the custom `semanticTokenTypes` contributed by the VS Code extension. They are appended so existing legend indices stay stable.
 
@@ -88,11 +106,11 @@ Builtin namespace set (`_BUILTIN_NS`): `ta`, `math`, `str`, `array`, `matrix`, `
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `features/semantic_tokens.py` | Collector + `_encode` + range clip |
-| `config.py` | Legend + capability — **indices must match** `_TT` |
-| `server.py` | `TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL` / `_RANGE`; passes version-matched `doc.valid_ast` |
+| Path                          | Role                                                                                    |
+| ----------------------------- | --------------------------------------------------------------------------------------- |
+| `features/semantic_tokens.py` | Collector + `_encode` + range clip                                                      |
+| `config.py`                   | Legend + capability — **indices must match** `_TT`                                      |
+| `server.py`                   | `TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL` / `_RANGE`; passes version-matched `doc.valid_ast` |
 
 Attribute columns prefer `end_col_offset - len(attr)` when present; otherwise parent `col_offset` (approximate).
 
@@ -121,12 +139,12 @@ Range covering only the `plot(ta.sma…)` line keeps `ta` / `sma` (and any other
 
 ## Failure modes
 
-| Symptom | Cause |
-| --- | --- |
-| Semantic highlighting off despite tokens | Client `editor.semanticHighlighting.enabled` false |
-| Colors look “shifted” after a legend edit | Client cached old type indices — restart the language client |
-| Range request returns empty `data` | Parse failure, empty buffer, or no token starts in range — not a capability miss |
-| Attribute token sits on the wrong column | Missing `end_col_offset` on the AST node — approximate path |
+| Symptom                                   | Cause                                                                            |
+| ----------------------------------------- | -------------------------------------------------------------------------------- |
+| Semantic highlighting off despite tokens  | Client `editor.semanticHighlighting.enabled` false                               |
+| Colors look “shifted” after a legend edit | Client cached old type indices — restart the language client                     |
+| Range request returns empty `data`        | Parse failure, empty buffer, or no token starts in range — not a capability miss |
+| Attribute token sits on the wrong column  | Missing `end_col_offset` on the AST node — approximate path                      |
 
 ## See also
 

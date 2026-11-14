@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Language Core"
 description: "ANTLR4 grammar, ASDL AST, builder, visitors, unparser, type system, linter, and error model for PYNE."
 ---
@@ -61,13 +79,13 @@ flowchart TB
   AST --> EVAL
 ```
 
-| Stage | Role | Primary path |
-| --- | --- | --- |
-| Grammar | Concrete syntax | `src/pynescript/ast/grammar/antlr4/resource/*.g4` |
-| ASDL | Algebraic node shape | `src/pynescript/ast/grammar/asdl/resource/Pinescript.asdl` |
-| Builder | CST → AST | `src/pynescript/ast/builder.py` |
-| Helper | Public parse/unparse API | `src/pynescript/ast/helper.py` |
-| Nodes | Re-export generated types | `src/pynescript/ast/node.py` |
+| Stage   | Role                      | Primary path                                               |
+| ------- | ------------------------- | ---------------------------------------------------------- |
+| Grammar | Concrete syntax           | `src/pynescript/ast/grammar/antlr4/resource/*.g4`          |
+| ASDL    | Algebraic node shape      | `src/pynescript/ast/grammar/asdl/resource/Pinescript.asdl` |
+| Builder | CST → AST                 | `src/pynescript/ast/builder.py`                            |
+| Helper  | Public parse/unparse API  | `src/pynescript/ast/helper.py`                             |
+| Nodes   | Re-export generated types | `src/pynescript/ast/node.py`                               |
 
 ## Interface surface
 
@@ -85,24 +103,24 @@ Successful `parse` results are cached by `sha256(source)` + `mode` (default ON; 
 
 Modes:
 
-| `mode` | Entry rule | Root node |
-| --- | --- | --- |
-| `"exec"` (default) | `start_script` | `Script` |
-| `"eval"` | `start_expression` | `Expression` |
+| `mode`             | Entry rule         | Root node    |
+| ------------------ | ------------------ | ------------ |
+| `"exec"` (default) | `start_script`     | `Script`     |
+| `"eval"`           | `start_expression` | `Expression` |
 
 Full page inventory:
 
-| Page | Topic |
-| --- | --- |
-| [Grammar (ANTLR4)](/pyne/docs/core/grammar-antlr4) | Resource vs generated; typed names; `=` vs `:=` |
-| [ASDL schema](/pyne/docs/core/asdl-schema) | Algebraic AST; codegen |
-| [Builder](/pyne/docs/core/builder) | CST visitor → ASDL nodes |
-| [Helper API](/pyne/docs/core/helper-api) | `parse`, cache, `dump`, `walk`, locations |
-| [Unparser](/pyne/docs/core/unparser) | Precedence-aware source regen |
-| [Visitor / transformer](/pyne/docs/core/visitor-transformer) | Read vs rewrite |
-| [Type system](/pyne/docs/core/type-system) | Qualifiers, UDT registry |
-| [Linter](/pyne/docs/core/linter) | Static rules, codes |
-| [Error model](/pyne/docs/core/error-model) | `SyntaxError`, indent, listener |
+| Page                                                         | Topic                                           |
+| ------------------------------------------------------------ | ----------------------------------------------- |
+| [Grammar (ANTLR4)](/pyne/docs/core/grammar-antlr4)           | Resource vs generated; typed names; `=` vs `:=` |
+| [ASDL schema](/pyne/docs/core/asdl-schema)                   | Algebraic AST; codegen                          |
+| [Builder](/pyne/docs/core/builder)                           | CST visitor → ASDL nodes                        |
+| [Helper API](/pyne/docs/core/helper-api)                     | `parse`, cache, `dump`, `walk`, locations       |
+| [Unparser](/pyne/docs/core/unparser)                         | Precedence-aware source regen                   |
+| [Visitor / transformer](/pyne/docs/core/visitor-transformer) | Read vs rewrite                                 |
+| [Type system](/pyne/docs/core/type-system)                   | Qualifiers, UDT registry                        |
+| [Linter](/pyne/docs/core/linter)                             | Static rules, codes                             |
+| [Error model](/pyne/docs/core/error-model)                   | `SyntaxError`, indent, listener                 |
 
 ## Internals
 
@@ -174,13 +192,13 @@ assert literal_eval(expr) == 7
 
 ## Failure modes
 
-| Symptom | Likely cause | Where to look |
-| --- | --- | --- |
-| `SyntaxError` with caret | Lexer/parser reject | [Error model](/pyne/docs/core/error-model) |
-| `IndentationError` | Bad INDENT/DEDENT from LexerBase | `PinescriptLexerBase.py` |
-| Missing `visit_*` after grammar change | Builder not updated for new rule | [Builder](/pyne/docs/core/builder) |
-| Hand-edit of `generated/` lost on regen | Violated resource-only rule | [Grammar](/pyne/docs/core/grammar-antlr4) |
-| Full regen breaks `builder.py` | Parser context accessors changed | Prefer targeted lexer refresh (v6 case study) |
+| Symptom                                 | Likely cause                     | Where to look                                 |
+| --------------------------------------- | -------------------------------- | --------------------------------------------- |
+| `SyntaxError` with caret                | Lexer/parser reject              | [Error model](/pyne/docs/core/error-model)    |
+| `IndentationError`                      | Bad INDENT/DEDENT from LexerBase | `PinescriptLexerBase.py`                      |
+| Missing `visit_*` after grammar change  | Builder not updated for new rule | [Builder](/pyne/docs/core/builder)            |
+| Hand-edit of `generated/` lost on regen | Violated resource-only rule      | [Grammar](/pyne/docs/core/grammar-antlr4)     |
+| Full regen breaks `builder.py`          | Parser context accessors changed | Prefer targeted lexer refresh (v6 case study) |
 
 ## See also
 

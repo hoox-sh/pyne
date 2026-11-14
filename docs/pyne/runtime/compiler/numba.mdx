@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Numba path"
 description: "JIT bar loops, numba_builtins kernels, NA-as-NaN, and performance characteristics."
 ---
@@ -61,19 +79,19 @@ Generated code imports `from pynescript.compiler.numba_builtins import *` so cal
 
 ### Kernel table (interpret-parity highlights)
 
-| Kernel | Semantics |
-| --- | --- |
-| `numba_sma(arr, period, i)` | Mean of last `period` bars ending at `i`; `nan` if warm-up or any window `nan` |
-| `numba_ema` / `numba_ema_inc` | SMA seed, then EMA (`α = 2/(period+1)`). **Inc seed is NaN-safe**: while the accumulator is still `nan` and `j >= period-1`, try SMA over `arr[j-period+1 : j+1]` only when every sample is finite. Nested EMA / DEMA no longer stuck all-NaN after leading NaNs |
-| `numba_rma_inc(arr, period, i, st)` | Wilder RMA with the **same NaN-window-safe SMA seed** as `numba_ema_inc`. After seed, NaN inputs hold the previous RMA. Required for `rma(tr)` / expanded ADX so compile is not all-NaN or ~0 after warm-up |
-| `numba_rsi` / `numba_rsi_inc` | **Wilder RSI**, not rolling simple-window RSI. SMA of first `period` deltas (bars `1..period`), then RMA of gain/loss (`α = 1/period`). First valid bar is **`i == period`** (`period` deltas need `period+1` prices). `avg_loss == 0` → `100.0` |
-| `numba_highest` / `numba_lowest` | Window extrema; full window required (`i >= period-1`); NaN samples skipped |
-| `numba_highestbars` / `numba_lowestbars` (+ `_inc`) | TV **negative** bars-back offsets: `0` if current is extreme, `-1` one bar ago, …, `-(length-1)`. Returns **`-1.0`** when window not full, invalid length, or all-NaN. **Oldest** extreme wins ties (strict `>` / `<`) |
-| `numba_roc(arr, length, i)` | `100 * (src - src[length]) / src[length]` at bar `i`; `nan` if `i < length`, baseline 0/NaN, or src NaN |
-| `numba_timestamp(y, m, d, h=0, mi=0, s=0)` | UTC epoch **ms** from calendar components; month/day overflow normalized (e.g. `month=0` → prior Dec) for TTM-style windows |
-| `numba_utc_parts(ms)` | `(year, month, dayofmonth, hour, minute, second, dayofweek)` floats; Pine `dayofweek` is `1=Sun … 7=Sat` |
-| `numba_nz(val, replacement)` | Replace `nan` |
-| `numba_abs` / `numba_min` / `numba_max` | Scalar helpers |
+| Kernel                                              | Semantics                                                                                                                                                                                                                                                        |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `numba_sma(arr, period, i)`                         | Mean of last `period` bars ending at `i`; `nan` if warm-up or any window `nan`                                                                                                                                                                                   |
+| `numba_ema` / `numba_ema_inc`                       | SMA seed, then EMA (`α = 2/(period+1)`). **Inc seed is NaN-safe**: while the accumulator is still `nan` and `j >= period-1`, try SMA over `arr[j-period+1 : j+1]` only when every sample is finite. Nested EMA / DEMA no longer stuck all-NaN after leading NaNs |
+| `numba_rma_inc(arr, period, i, st)`                 | Wilder RMA with the **same NaN-window-safe SMA seed** as `numba_ema_inc`. After seed, NaN inputs hold the previous RMA. Required for `rma(tr)` / expanded ADX so compile is not all-NaN or ~0 after warm-up                                                      |
+| `numba_rsi` / `numba_rsi_inc`                       | **Wilder RSI**, not rolling simple-window RSI. SMA of first `period` deltas (bars `1..period`), then RMA of gain/loss (`α = 1/period`). First valid bar is **`i == period`** (`period` deltas need `period+1` prices). `avg_loss == 0` → `100.0`                 |
+| `numba_highest` / `numba_lowest`                    | Window extrema; full window required (`i >= period-1`); NaN samples skipped                                                                                                                                                                                      |
+| `numba_highestbars` / `numba_lowestbars` (+ `_inc`) | TV **negative** bars-back offsets: `0` if current is extreme, `-1` one bar ago, …, `-(length-1)`. Returns **`-1.0`** when window not full, invalid length, or all-NaN. **Oldest** extreme wins ties (strict `>` / `<`)                                           |
+| `numba_roc(arr, length, i)`                         | `100 * (src - src[length]) / src[length]` at bar `i`; `nan` if `i < length`, baseline 0/NaN, or src NaN                                                                                                                                                          |
+| `numba_timestamp(y, m, d, h=0, mi=0, s=0)`          | UTC epoch **ms** from calendar components; month/day overflow normalized (e.g. `month=0` → prior Dec) for TTM-style windows                                                                                                                                      |
+| `numba_utc_parts(ms)`                               | `(year, month, dayofmonth, hour, minute, second, dayofweek)` floats; Pine `dayofweek` is `1=Sun … 7=Sat`                                                                                                                                                         |
+| `numba_nz(val, replacement)`                        | Replace `nan`                                                                                                                                                                                                                                                    |
+| `numba_abs` / `numba_min` / `numba_max`             | Scalar helpers                                                                                                                                                                                                                                                   |
 
 Full inventory lives in `src/pynescript/compiler/numba_builtins.py` (njit batch + `*_inc` + pure-Python object-mode helpers).
 
@@ -81,12 +99,12 @@ Full inventory lives in `src/pynescript/compiler/numba_builtins.py` (njit batch 
 
 Bar open time is the host `time_arr` series (synthetic when the runner omits timestamps).
 
-| Pine form | Lowering |
-| --- | --- |
-| bare `year` / `month` / `dayofmonth` / `hour` / `minute` / `second` / `dayofweek` | `numba_utc_parts(time_arr[__bar_idx])[idx]` |
-| `year(t)` … (optional time arg) | `numba_utc_parts(src)[idx]` with `src` defaulting to `time_arr[__bar_idx]` |
-| `timestamp(y, m, d[, h, mi, s])` | `numba_timestamp(...)` (leading timezone string args dropped → UTC stub) |
-| `time` / `time_close` (approx) | `time_arr[__bar_idx]` / `+ 59999` ms |
+| Pine form                                                                         | Lowering                                                                   |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| bare `year` / `month` / `dayofmonth` / `hour` / `minute` / `second` / `dayofweek` | `numba_utc_parts(time_arr[__bar_idx])[idx]`                                |
+| `year(t)` … (optional time arg)                                                   | `numba_utc_parts(src)[idx]` with `src` defaulting to `time_arr[__bar_idx]` |
+| `timestamp(y, m, d[, h, mi, s])`                                                  | `numba_timestamp(...)` (leading timezone string args dropped → UTC stub)   |
+| `time` / `time_close` (approx)                                                    | `time_arr[__bar_idx]` / `+ 59999` ms                                       |
 
 ### History access
 
@@ -100,11 +118,11 @@ Bar open time is the host `time_arr` series (synthetic when the runner omits tim
 
 Three layers interact:
 
-| Layer | Location / key | Role |
-| --- | --- | --- |
-| Source LRU | in-process, sha256 of source | `CompiledScript` reuse |
-| IR LRU | in-process, sha256 of generated Python | share warm callable across comment-only variants |
-| Disk IR | `PYNE_COMPILE_CACHE_DIR` or `$XDG_CACHE_HOME/pynescript/compile` | persist generated modules; disable with `PYNE_COMPILE_DISK_CACHE=0`. Index JSON `"v"` must equal `engine._DISK_META_VERSION` (**9**) |
+| Layer      | Location / key                                                   | Role                                                                                                                                 |
+| ---------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Source LRU | in-process, sha256 of source                                     | `CompiledScript` reuse                                                                                                               |
+| IR LRU     | in-process, sha256 of generated Python                           | share warm callable across comment-only variants                                                                                     |
+| Disk IR    | `PYNE_COMPILE_CACHE_DIR` or `$XDG_CACHE_HOME/pynescript/compile` | persist generated modules; disable with `PYNE_COMPILE_DISK_CACHE=0`. Index JSON `"v"` must equal `engine._DISK_META_VERSION` (**9**) |
 
 **Numba function cache (`.nbi` / `.nbc`):**
 
@@ -120,12 +138,12 @@ clear_disk_compile_cache()
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `src/pynescript/compiler/numba_builtins.py` | Kernels (`cache=True`) |
-| `src/pynescript/compiler/compiler.py` | `_emit_numeric_mode`, call lowering, `time_arr` calendar |
-| `src/pynescript/compiler/engine.py` | Disk IR rewrite, Numba cache recovery, prewarm |
-| `tests/test_compiler_numba.py` | Correctness / parity |
+| Path                                        | Role                                                     |
+| ------------------------------------------- | -------------------------------------------------------- |
+| `src/pynescript/compiler/numba_builtins.py` | Kernels (`cache=True`)                                   |
+| `src/pynescript/compiler/compiler.py`       | `_emit_numeric_mode`, call lowering, `time_arr` calendar |
+| `src/pynescript/compiler/engine.py`         | Disk IR rewrite, Numba cache recovery, prewarm           |
+| `tests/test_compiler_numba.py`              | Correctness / parity                                     |
 
 Expanding coverage is primarily **new kernels + visitor call mapping**, not changes to the bar-loop skeleton.
 
@@ -160,16 +178,16 @@ Converts bar dicts → arrays (including `time=` bar-open ms), compiles, reshape
 
 ## Failure modes
 
-| Symptom | Cause |
-| --- | --- |
-| TypingError from Numba | Unsupported construct leaked into numeric emit |
-| All-`nan` plots | Period longer than series; history index bugs; or (fixed) NaN-poisoned EMA/RMA seed on nested sources |
-| Nested DEMA / `rma(tr)` all-NaN | Pre-fix seed; current kernels sliding-window all-finite SMA seed |
-| RSI diverges vs interpret | Expect Wilder seed/RMA, not rolling window RSI |
-| `highestbars` sign / magnitude off | TV negative offsets; incomplete window → `-1` |
-| `EOFError` / UnpicklingError at load | Corrupt `.nbi`/`.nbc` — engine purges and retries; manual `clear_numba_function_caches()` |
-| ImportError numba | Environment missing dependency |
-| Object mode unexpectedly | Visitor detected drawing/UDT/map—inspect `visitor.object_mode` |
+| Symptom                              | Cause                                                                                                 |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| TypingError from Numba               | Unsupported construct leaked into numeric emit                                                        |
+| All-`nan` plots                      | Period longer than series; history index bugs; or (fixed) NaN-poisoned EMA/RMA seed on nested sources |
+| Nested DEMA / `rma(tr)` all-NaN      | Pre-fix seed; current kernels sliding-window all-finite SMA seed                                      |
+| RSI diverges vs interpret            | Expect Wilder seed/RMA, not rolling window RSI                                                        |
+| `highestbars` sign / magnitude off   | TV negative offsets; incomplete window → `-1`                                                         |
+| `EOFError` / UnpicklingError at load | Corrupt `.nbi`/`.nbc` — engine purges and retries; manual `clear_numba_function_caches()`             |
+| ImportError numba                    | Environment missing dependency                                                                        |
+| Object mode unexpectedly             | Visitor detected drawing/UDT/map—inspect `visitor.object_mode`                                        |
 
 ## Performance notes
 

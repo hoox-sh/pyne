@@ -3,8 +3,8 @@
 # Concepts
 
 - [Backtest Endpoint](backtest.md) - POST /backtest/quick — usage-tracked strategy metrics, equity curve, and optional mock OHLCV.
-- [Data plane](data-plane.md) - Engine-owned OHLCV series store and data-bound live sessions — /data/series and /data/session.
-- [POST /optimize](optimize.md) - Strategy hyperparameter search — N interpret Runtime runs with input. overrides, TPE/random/grid, holdout or walk-forward.
+- [Data plane](data-plane.md) - POST /run takes its bars in the request. That is fine for a one-shot evaluate, but a live chart re-sends the entire history on every tick and asks the exchange for bars the…
+- [POST `/optimize`](optimize.md) - /optimize searches Pine input. values for a strategy() script. It loops the package Runtime (same interpret path as /run) with different overrides, scores closed trades, and…
 - [Preview Endpoints](preview.md) - Pro chart and indicator thumbnail routes under /preview with usage tracking.
 - [POST /run](run.md) - Free evaluate endpoints: single-script /run and multi-script /run/batch over shared OHLCV.
 - [Hosted runner](runner.md) - Optional Flask/container script registry + bar-close scheduler (PYNERUNNER). Off by default.

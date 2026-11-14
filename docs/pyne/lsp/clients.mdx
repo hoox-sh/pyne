@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Editor Clients"
 description: "Wire pyne-lsp into Neovim, Zed, Emacs, Helix, Sublime, and generic LSP hosts."
 ---
@@ -57,13 +75,13 @@ flowchart LR
 
 ## Interface surface — repo files
 
-| File | Editor |
-| --- | --- |
-| `clients/neovim.lua` | Neovim (`nvim-lspconfig` or manual) |
-| `clients/zed.json` | Zed `settings.json` fragment |
-| `clients/emacs.el` | Emacs `lsp-mode` + `pinescript-mode` |
-| `clients/README.md` | Human-oriented install notes |
-| [`pyne-lsp-vsce`](https://github.com/hoox-sh/pyne-lsp-vsce) | VS Code / Cursor-compatible |
+| File                                                        | Editor                               |
+| ----------------------------------------------------------- | ------------------------------------ |
+| `clients/neovim.lua`                                        | Neovim (`nvim-lspconfig` or manual)  |
+| `clients/zed.json`                                          | Zed `settings.json` fragment         |
+| `clients/emacs.el`                                          | Emacs `lsp-mode` + `pinescript-mode` |
+| `clients/README.md`                                         | Human-oriented install notes         |
+| [`pyne-lsp-vsce`](https://github.com/hoox-sh/pyne-lsp-vsce) | VS Code / Cursor-compatible          |
 
 ## Neovim
 
@@ -101,18 +119,18 @@ Merge `clients/zed.json` into `~/.config/zed/settings.json`:
 
 ```json
 {
-  "languages": {
-    "Pine Script": {
-      "language_servers": ["pynescript"]
+    "languages": {
+        "Pine Script": {
+            "language_servers": ["pynescript"]
+        }
+    },
+    "language_servers": {
+        "pynescript": {
+            "command": "pyne-lsp",
+            "arguments": ["--stdio"],
+            "languages": ["Pine Script"]
+        }
     }
-  },
-  "language_servers": {
-    "pynescript": {
-      "command": "pyne-lsp",
-      "arguments": ["--stdio"],
-      "languages": ["Pine Script"]
-    }
-  }
 }
 ```
 
@@ -152,13 +170,13 @@ With Package Control **LSP**:
 
 ```json
 {
-  "clients": {
-    "pynescript": {
-      "command": ["pyne-lsp", "--stdio"],
-      "selector": "source.pinescript",
-      "initializationOptions": {}
+    "clients": {
+        "pynescript": {
+            "command": ["pyne-lsp", "--stdio"],
+            "selector": "source.pinescript",
+            "initializationOptions": {}
+        }
     }
-  }
 }
 ```
 
@@ -189,10 +207,10 @@ Tests: `tests/test_lsp_features.py` (handlers with fake params), `tests/test_lan
 
 ## Failure modes
 
-| Symptom | Cause |
-| --- | --- |
-| Server exits immediately | Missing pygls / incomplete install `.[lsp]` |
-| Filetype never attaches | Extension not mapped to `pinescript` |
+| Symptom                   | Cause                                                               |
+| ------------------------- | ------------------------------------------------------------------- |
+| Server exits immediately  | Missing pygls / incomplete install `.[lsp]`                         |
+| Filetype never attaches   | Extension not mapped to `pinescript`                                |
 | Features missing in Helix | Older Helix without inlay / semantic support — grammar still useful |
 
 ## See also

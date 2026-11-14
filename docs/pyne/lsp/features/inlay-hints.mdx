@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Inlay Hints"
 description: "Display-only builtin parameter names. Hints never insert text or modify the document."
 ---
@@ -47,8 +65,8 @@ ta.sma(close, 14)           →  ta.sma(source: close, length: 14)
 
 ## Interface surface
 
-| Method | Capability |
-| --- | --- |
+| Method                   | Capability                                 |
+| ------------------------ | ------------------------------------------ |
 | `textDocument/inlayHint` | `InlayHintOptions(resolve_provider=False)` |
 
 Handler: `features/inlay_hints.py` → `handle_inlay_hints` (receives the version-matched `tree=doc.valid_ast`). There is no `inlayHint/resolve` handler and no document mutation path.
@@ -57,13 +75,13 @@ Handler: `features/inlay_hints.py` → `handle_inlay_hints` (receives the versio
 
 Emitted for positional args of `module.attr(...)` when `get_builtin("module.attr")` hits. Real snippet placeholder names win; generic `paramN` snippets fall through to the longest of the `detail` signature, documentation, and a well-known Pine v6 map (`ta.sma`/`ema`/`rsi` → `source`/`length`, `ta.atr` → `length`, `ta.correlation` → `source1`/`source2`/`length`, `strategy.entry` → `id`/`direction`/`qty`, `input.int` → `defval`/`title`, plus `ta.cci`/`roc`/`mom`/`linreg`/`adx`/`mfi`/`bbw`/`dpo`/`crossover`/`crossunder`).
 
-| Field | Value |
-| --- | --- |
-| `position` | Start of the positional argument |
-| `label` | `"{name}: "` |
-| `kind` | `InlayHintKind.Parameter` |
-| `data` | omitted |
-| `textEdits` | omitted (display-only) |
+| Field       | Value                            |
+| ----------- | -------------------------------- |
+| `position`  | Start of the positional argument |
+| `label`     | `"{name}: "`                     |
+| `kind`      | `InlayHintKind.Parameter`        |
+| `data`      | omitted                          |
+| `textEdits` | omitted (display-only)           |
 
 Named kwargs (`length=14`) skip the matching slot.
 
@@ -75,10 +93,10 @@ Named kwargs (`length=14`) skip the matching slot.
 
 Recursive over `_fields` (same pattern as workspace symbol collection) — not limited to script top-level; nested calls can receive hints.
 
-| Path | Role |
-| --- | --- |
-| `features/inlay_hints.py` | Collection (display-only) |
-| `providers/builtin_metadata.py` | Parameter names |
+| Path                            | Role                      |
+| ------------------------------- | ------------------------- |
+| `features/inlay_hints.py`       | Collection (display-only) |
+| `providers/builtin_metadata.py` | Parameter names           |
 
 ## Invariants and edge cases
 
@@ -110,13 +128,13 @@ Expected hints (when parse + metadata succeed):
 
 ## Failure modes
 
-| Symptom | Cause |
-| --- | --- |
-| No hints on file | Parse error → `None` |
-| `ta.*` always `: series` | Metadata detail lacks `→` segment |
+| Symptom                                    | Cause                                                                 |
+| ------------------------------------------ | --------------------------------------------------------------------- |
+| No hints on file                           | Parse error → `None`                                                  |
+| `ta.*` always `: series`                   | Metadata detail lacks `→` segment                                     |
 | No `source:` / `length:` on a builtin call | Not a dotted builtin, named kwargs, or metadata/snippet names missing |
-| Applying a hint does nothing | Expected: hints are display-only; there is no type injection |
-| Hints mid-identifier | Incorrect `col_offset` on AST node — builder issue |
+| Applying a hint does nothing               | Expected: hints are display-only; there is no type injection          |
+| Hints mid-identifier                       | Incorrect `col_offset` on AST node — builder issue                    |
 
 ## See also
 

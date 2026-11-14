@@ -1,28 +1,46 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Ecosystem"
 description: "PYNE, PyneTS, pyne-worker, pyne-agent-worker, AXIS, and HOOX — what each one is and is not."
 ---
 
-import { PackageVersions } from "/snippets/package-versions.jsx"
+import { PackageVersions } from "/snippets/package-versions.jsx";
 
 # Ecosystem
 
@@ -30,14 +48,14 @@ import { PackageVersions } from "/snippets/package-versions.jsx"
 
 The HOOX family splits **language**, **chart**, and **execution**. Mixing the names is the most common docs failure: `pyne-worker` is not `pynets`, and AXIS does not place HOOX orders.
 
-| Product | Role | Docs |
-| --- | --- | --- |
-| **PYNE** (`hoox-pyne`, import `pynescript`) | Python language SoT: parse, LSP, MCP (`pyne-mcp`), Pro API, `Runtime.run` | this site |
-| **PyneTS** (`@hoox-sh/pynets`) | TypeScript / Bun **library + CLI** | [PyneTS](/pyne/docs/pynets) |
-| **pyne-worker** | Python Cloudflare® isolate — `POST /run` | [pyne-worker](/pyne/docs/pyne-worker) · [HOOX isolate](/docs/devops/workers/pyne-worker) |
-| **pyne-agent-worker** | NL → Pine (Workers AI™) | [agent](/pyne/docs/agent) · [AXIS plugin](/axis/docs/plugins/pyne-agent) |
-| **AXIS** | Charting PWA (engines call Python) | [AXIS](/axis/docs) |
-| **HOOX** | Edge trade mesh | [HOOX](/docs) |
+| Product                                     | Role                                                                      | Docs                                                                                     |
+| ------------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **PYNE** (`hoox-pyne`, import `pynescript`) | Python language SoT: parse, LSP, MCP (`pyne-mcp`), Pro API, `Runtime.run` | this site                                                                                |
+| **PyneTS** (`@hoox-sh/pynets`)              | TypeScript / Bun **library + CLI**                                        | [PyneTS](/pyne/docs/pynets)                                                              |
+| **pyne-worker**                             | Python Cloudflare® isolate — `POST /run`                                  | [pyne-worker](/pyne/docs/pyne-worker) · [HOOX isolate](/docs/devops/workers/pyne-worker) |
+| **pyne-agent-worker**                       | NL → Pine (Workers AI™)                                                   | [agent](/pyne/docs/agent) · [AXIS plugin](/axis/docs/plugins/pyne-agent)                 |
+| **AXIS**                                    | Charting PWA (engines call Python)                                        | [AXIS](/axis/docs)                                                                       |
+| **HOOX**                                    | Edge trade mesh                                                           | [HOOX](/docs)                                                                            |
 
 ## Conceptual model
 
@@ -80,14 +98,14 @@ Published versions (static snapshot; refresh manually with `bun run docs:version
 
 ### Checkouts (this repo vs sisters)
 
-| Checkout | What you open |
-| --- | --- |
-| [hoox-sh/pyne](https://github.com/hoox-sh/pyne) | PYNE SoT (`hoox-pyne` **0.7.0**; VS Code **`hoox-sh.pyne` 0.5.5**) |
-| [hoox-sh/pynets](https://github.com/hoox-sh/pynets) | Standalone `@hoox-sh/pynets` **0.5.0** (JS compile + stream) |
-| [hoox-sh/pyne-worker](https://github.com/hoox-sh/pyne-worker) | Python edge `/run` |
-| [hoox-sh/pyne-agent-worker](https://github.com/hoox-sh/pyne-agent-worker) | NL authoring (**not** in this tree) |
-| [hoox-sh/axis](https://github.com/hoox-sh/axis) | AXIS PWA |
-| [hoox-sh/hoox](https://github.com/hoox-sh/hoox) | Mesh monorepo |
+| Checkout                                                                  | What you open                                                      |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| [hoox-sh/pyne](https://github.com/hoox-sh/pyne)                           | PYNE SoT (`hoox-pyne` **0.7.0**; VS Code **`hoox-sh.pyne` 0.5.5**) |
+| [hoox-sh/pynets](https://github.com/hoox-sh/pynets)                       | Standalone `@hoox-sh/pynets` **0.5.0** (JS compile + stream)       |
+| [hoox-sh/pyne-worker](https://github.com/hoox-sh/pyne-worker)             | Python edge `/run`                                                 |
+| [hoox-sh/pyne-agent-worker](https://github.com/hoox-sh/pyne-agent-worker) | NL authoring (**not** in this tree)                                |
+| [hoox-sh/axis](https://github.com/hoox-sh/axis)                           | AXIS PWA                                                           |
+| [hoox-sh/hoox](https://github.com/hoox-sh/hoox)                           | Mesh monorepo                                                      |
 
 ### Evaluate contract
 
@@ -97,11 +115,11 @@ Flask `POST /run`, pyne-worker `POST /run`, and in-process `Runtime.run` share t
 
 Docs are authored in product trees and synced to hoox.sh:
 
-| Tree | Public base |
-| --- | --- |
+| Tree                      | Public base  |
+| ------------------------- | ------------ |
 | `pynescript/docs/pyne/**` | `/pyne/docs` |
-| `axis/docs/**` | `/axis/docs` |
-| `hoox/docs/**` | `/docs` |
+| `axis/docs/**`            | `/axis/docs` |
+| `hoox/docs/**`            | `/docs`      |
 
 Do not author in `hoox-landing-page/content/*` — that is a sync artifact.
 
@@ -119,23 +137,23 @@ Do not author in `hoox-landing-page/content/*` — that is a sync artifact.
 
 ### Pick a surface
 
-| You want | Use |
-| --- | --- |
-| Parse / lint / LSP on a laptop | `pip install "hoox-pyne[lsp]"` |
-| Embed evaluate in TypeScript | `bun add @hoox-sh/pynets` |
-| HTTP evaluate at the edge | Deploy **[pyne-worker](/pyne/docs/pyne-worker)** |
+| You want                                       | Use                                                                |
+| ---------------------------------------------- | ------------------------------------------------------------------ |
+| Parse / lint / LSP on a laptop                 | `pip install "hoox-pyne[lsp]"`                                     |
+| Embed evaluate in TypeScript                   | `bun add @hoox-sh/pynets`                                          |
+| HTTP evaluate at the edge                      | Deploy **[pyne-worker](/pyne/docs/pyne-worker)**                   |
 | Upload then keep running (Flask/VPS/container) | `PYNE_RUNNER=1` — [hosted runner](/pyne/docs/api/endpoints/runner) |
-| Chart + editor | AXIS PWA + Flask or Pyodide |
-| Live CEX orders from strategy events | pyne-worker `TRADE_SERVICE` → HOOX |
-| Chat → script | **[pyne-agent-worker](/pyne/docs/agent)** |
+| Chart + editor                                 | AXIS PWA + Flask or Pyodide                                        |
+| Live CEX orders from strategy events           | pyne-worker `TRADE_SERVICE` → HOOX                                 |
+| Chat → script                                  | **[pyne-agent-worker](/pyne/docs/agent)**                          |
 
 ## Failure modes
 
-| Mix-up | What goes wrong |
-| --- | --- |
-| Opening `pyne-worker/` or `pine-worker/` inside PYNE | Directories **do not exist** — clone the sister repos; TS library work is `@hoox-sh/pynets` |
-| Expecting AXIS to flatten a position | No trade-worker hop |
-| Pointing AXIS at pynets as an engine | No such engine. Use Flask / Pyodide / Worker proxy |
+| Mix-up                                                        | What goes wrong                                                                                                                |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Opening `pyne-worker/` or `pine-worker/` inside PYNE          | Directories **do not exist** — clone the sister repos; TS library work is `@hoox-sh/pynets`                                    |
+| Expecting AXIS to flatten a position                          | No trade-worker hop                                                                                                            |
+| Pointing AXIS at pynets as an engine                          | No such engine. Use Flask / Pyodide / Worker proxy                                                                             |
 | `pyne run` vs `pyne execute` vs `Runtime.run` vs `pynets run` | `pyne run` is compile-only; `pyne execute` / `pynets run` call `Runtime.run` — see [modes](/pyne/docs/enduser/reference/modes) |
 
 ## See also

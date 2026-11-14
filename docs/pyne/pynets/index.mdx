@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "PyneTS"
 description: "TypeScript / Bun library port of PYNE — parse, unparse, Runtime.run. Python remains the semantic source of truth."
 ---
@@ -29,31 +47,37 @@ description: "TypeScript / Bun library port of PYNE — parse, unparse, Runtime.
 This is **not** a Cloudflare Worker, **not** a Numba compile path, and **not** a TradingView platform substitute.
 
 <Note>
-Published npm is **`@hoox-sh/pynets` 0.5.0** (interpret + JS compile, including footprint mocks, `plot.style_*` / `alert.freq_*`, and `alert()` gating). Python `pynescript.runtime` remains the semantic oracle.
+    Published npm is **`@hoox-sh/pynets` 0.5.0** (interpret + JS compile,
+    including footprint mocks, `plot.style_*` / `alert.freq_*`, and `alert()`
+    gating). Python `pynescript.runtime` remains the semantic oracle.
 </Note>
 
 <CardGroup cols={3}>
-  <Card title="Install" icon="bolt" href="/pyne/docs/pynets/install">
-    bun add / npm install / esm.sh. CLI still needs Bun.
-  </Card>
-  <Card title="Runtime" icon="cpu" href="/pyne/docs/pynets/runtime">
-    na is null. Lookback, TA call-sites, foreign security → na.
-  </Card>
-  <Card title="CLI" icon="terminal" href="/pyne/docs/pynets/cli">
-    check / format / run / dump / info. Pipes stay JSON.
-  </Card>
-  <Card title="Compile" icon="layers" href="/pyne/docs/pynets/compile">
-    JS bar-loop emit. mode interpret | compile | auto.
-  </Card>
-  <Card title="Parity" icon="crosshair" href="/pyne/docs/pynets/parity">
-    Compare plots against Python Runtime.run on the same bars.
-  </Card>
-  <Card title="Missing features" icon="list" href="/pyne/docs/pynets/missing-features">
-    Builtin and host gaps versus Python. Realtime once, extension analytics.
-  </Card>
-  <Card title="Ecosystem" icon="mesh" href="/pyne/docs/reference/ecosystem">
-    PYNE · PyneTS · pyne-worker · pyne-agent-worker · AXIS · HOOX.
-  </Card>
+    <Card title="Install" icon="bolt" href="/pyne/docs/pynets/install">
+        bun add / npm install / esm.sh. CLI still needs Bun.
+    </Card>
+    <Card title="Runtime" icon="cpu" href="/pyne/docs/pynets/runtime">
+        na is null. Lookback, TA call-sites, foreign security → na.
+    </Card>
+    <Card title="CLI" icon="terminal" href="/pyne/docs/pynets/cli">
+        check / format / run / dump / info. Pipes stay JSON.
+    </Card>
+    <Card title="Compile" icon="layers" href="/pyne/docs/pynets/compile">
+        JS bar-loop emit. mode interpret | compile | auto.
+    </Card>
+    <Card title="Parity" icon="crosshair" href="/pyne/docs/pynets/parity">
+        Compare plots against Python Runtime.run on the same bars.
+    </Card>
+    <Card
+        title="Missing features"
+        icon="list"
+        href="/pyne/docs/pynets/missing-features"
+    >
+        Builtin and host gaps versus Python. Realtime once, extension analytics.
+    </Card>
+    <Card title="Ecosystem" icon="mesh" href="/pyne/docs/reference/ecosystem">
+        PYNE · PyneTS · pyne-worker · pyne-agent-worker · AXIS · HOOX.
+    </Card>
 </CardGroup>
 
 ## Abstract
@@ -82,7 +106,10 @@ const tree = parse(src);
 unparse(tree);
 
 const out = new Runtime("AAPL").run(src, [
-  { close: 1 }, { close: 2 }, { close: 3 }, { close: 4 },
+    { close: 1 },
+    { close: 2 },
+    { close: 3 },
+    { close: 4 },
 ]);
 // out.plots, out.series, out.count
 // new Runtime("AAPL", { mode: "compile" }) — JS bar-loop emit (not Numba)
@@ -110,44 +137,44 @@ flowchart TB
 
 ## Interface surface
 
-| Name | Role |
-| --- | --- |
-| `parse(source)` | ANTLR → ASDL tree. Throws `PinescriptSyntaxError` |
-| `unparse(tree)` | Tree → normalized source |
-| `dump(tree)` | Debug dump |
-| `tokenize(source)` | Lexer tokens |
-| `new Runtime(symbol, options).run(source, bars, extra?)` | Bar-loop evaluate |
-| `Runtime.stream(source)` | Push-driven re-eval |
-| `Runtime.runProvider(source, provider)` | Fetch bars then `run` |
-| `compileScript` / `transpile` | JS emit (not Numba) |
-| CLI `pynets` | `check` `format` `run` `dump` `info` |
+| Name                                                     | Role                                              |
+| -------------------------------------------------------- | ------------------------------------------------- |
+| `parse(source)`                                          | ANTLR → ASDL tree. Throws `PinescriptSyntaxError` |
+| `unparse(tree)`                                          | Tree → normalized source                          |
+| `dump(tree)`                                             | Debug dump                                        |
+| `tokenize(source)`                                       | Lexer tokens                                      |
+| `new Runtime(symbol, options).run(source, bars, extra?)` | Bar-loop evaluate                                 |
+| `Runtime.stream(source)`                                 | Push-driven re-eval                               |
+| `Runtime.runProvider(source, provider)`                  | Fetch bars then `run`                             |
+| `compileScript` / `transpile`                            | JS emit (not Numba)                               |
+| CLI `pynets`                                             | `check` `format` `run` `dump` `info`              |
 
 Default `mode` is **`interpret`**. Constructor and per-call `extra` accept `mode: "interpret" | "compile" | "auto"`.
 
 ### What this is not
 
-| Confused with | Reality |
-| --- | --- |
-| **pyne-worker** | Python Cloudflare Worker. Vendors `pynescript.runtime`. `POST /run`. See [pyne-worker](/pyne/docs/pyne-worker). |
-| **pyne-agent-worker** | NL authoring host. Not an evaluate library. See [agent](/pyne/docs/agent). |
-| **Python `pyne run`** | Compile-only smoke on synthetic bars. Python `pyne execute` and PyneTS `pynets run` call `Runtime.run`. |
-| **Numba** | Python compile backend. PyneTS compile is **JS emit** (object-mode analog). |
-| **AXIS engine** | AXIS does not load this package. |
+| Confused with         | Reality                                                                                                         |
+| --------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **pyne-worker**       | Python Cloudflare Worker. Vendors `pynescript.runtime`. `POST /run`. See [pyne-worker](/pyne/docs/pyne-worker). |
+| **pyne-agent-worker** | NL authoring host. Not an evaluate library. See [agent](/pyne/docs/agent).                                      |
+| **Python `pyne run`** | Compile-only smoke on synthetic bars. Python `pyne execute` and PyneTS `pynets run` call `Runtime.run`.         |
+| **Numba**             | Python compile backend. PyneTS compile is **JS emit** (object-mode analog).                                     |
+| **AXIS engine**       | AXIS does not load this package.                                                                                |
 
 ## Internals (repo paths)
 
 Standalone ([hoox-sh/pynets](https://github.com/hoox-sh/pynets) / [`@hoox-sh/pynets`](https://www.npmjs.com/package/@hoox-sh/pynets)):
 
-| Path | Role |
-| --- | --- |
-| `src/index.ts` | Public barrel — do not re-export generated ANTLR |
-| `src/ast/helper.ts` | `parse` / `unparse` / `dump` / `tokenize` |
-| `src/ast/nodes.ts` | Hand-written ASDL nodes |
-| `src/generated/` | ANTLR TS — **do not hand-edit**; `bun run generate` |
-| `src/runtime/interpret.ts` | `Runtime`, interpret host |
-| `src/runtime/compile/` | JS emit (`transpile` / `compileScript`) |
-| `src/cli.ts` | TTY CLI |
-| `test/interpret_*.test.ts` | Focused interpret tests |
+| Path                       | Role                                                |
+| -------------------------- | --------------------------------------------------- |
+| `src/index.ts`             | Public barrel — do not re-export generated ANTLR    |
+| `src/ast/helper.ts`        | `parse` / `unparse` / `dump` / `tokenize`           |
+| `src/ast/nodes.ts`         | Hand-written ASDL nodes                             |
+| `src/generated/`           | ANTLR TS — **do not hand-edit**; `bun run generate` |
+| `src/runtime/interpret.ts` | `Runtime`, interpret host                           |
+| `src/runtime/compile/`     | JS emit (`transpile` / `compileScript`)             |
+| `src/cli.ts`               | TTY CLI                                             |
+| `test/interpret_*.test.ts` | Focused interpret tests                             |
 
 PYNE checkout: `pynets/` submodule. Grammar SoT stays in PYNE `resource/*.g4`.
 
@@ -176,10 +203,7 @@ plot(na == na ? 1 : 0)`;
 const tree = parse(src);
 console.log(unparse(tree));
 
-const out = new Runtime("TEST").run(src, [
-  { close: 10 },
-  { close: 20 },
-]);
+const out = new Runtime("TEST").run(src, [{ close: 10 }, { close: 20 }]);
 // last bar: plots[0] = 10 (previous close), plots[1] = 1
 ```
 
@@ -191,7 +215,7 @@ import { parse, Runtime } from "@hoox-sh/pynets";
 
 ```html
 <script type="module">
-  import { Runtime } from "https://esm.sh/@hoox-sh/pynets";
+    import { Runtime } from "https://esm.sh/@hoox-sh/pynets";
 </script>
 ```
 
@@ -199,14 +223,14 @@ Bun imports TypeScript source (`package.json` `"bun": "./src/index.ts"`). Node a
 
 ## Failure modes
 
-| Symptom | Cause | Fix |
-| --- | --- | --- |
-| Plots disagree with Python | Port bug or invented host behaviour | Fix TS. Python is the oracle. |
-| `request.security` returns `na` | No foreign/HTF feed | Expected. Do not invent bars. |
-| `mode: "compile"` misses a builtin | JS emit surface lag | Use `mode: "auto"` or `interpret` |
-| Importing in a Worker and expecting `/run` | This is a library | Use [pyne-worker](https://github.com/hoox-sh/pyne-worker) |
-| Editing `src/generated/*` | Overwritten on regen | `bun run generate` after PYNE `.g4` change |
-| `pynets` CLI on Node-only host | `bin` is `src/cli.ts` (Bun) | Run under Bun, or call `Runtime` from Node via `dist/` |
+| Symptom                                    | Cause                               | Fix                                                       |
+| ------------------------------------------ | ----------------------------------- | --------------------------------------------------------- |
+| Plots disagree with Python                 | Port bug or invented host behaviour | Fix TS. Python is the oracle.                             |
+| `request.security` returns `na`            | No foreign/HTF feed                 | Expected. Do not invent bars.                             |
+| `mode: "compile"` misses a builtin         | JS emit surface lag                 | Use `mode: "auto"` or `interpret`                         |
+| Importing in a Worker and expecting `/run` | This is a library                   | Use [pyne-worker](https://github.com/hoox-sh/pyne-worker) |
+| Editing `src/generated/*`                  | Overwritten on regen                | `bun run generate` after PYNE `.g4` change                |
+| `pynets` CLI on Node-only host             | `bin` is `src/cli.ts` (Bun)         | Run under Bun, or call `Runtime` from Node via `dist/`    |
 
 ## See also
 

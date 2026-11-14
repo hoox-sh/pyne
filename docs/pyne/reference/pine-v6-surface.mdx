@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Pine v6 surface inventory"
 description: "Summary of the full Pine Script™ v6 surface inventory — dispatch counts, namespaces, status schema — with pointer to the large source document. hoox-pyne 0.7.0."
 ---
@@ -56,49 +74,49 @@ flowchart TB
 
 ### Status schema
 
-| Status | Definition |
-| --- | --- |
-| Implemented | Handler/parser path exists and is usable |
-| Partial | Mock/stub, incomplete semantics, or metadata-only |
-| Missing | Expected on TV v6; not resolving |
-| By design | Intentionally not full TV platform |
-| N/A | Editor/UI-only |
+| Status      | Definition                                        |
+| ----------- | ------------------------------------------------- |
+| Implemented | Handler/parser path exists and is usable          |
+| Partial     | Mock/stub, incomplete semantics, or metadata-only |
+| Missing     | Expected on TV v6; not resolving                  |
+| By design   | Intentionally not full TV platform                |
+| N/A         | Editor/UI-only                                    |
 
 Each inventory row also carries: **Name**, **Namespace**, **Kind**, **Metadata** (LSP JSON present?), **Source** (e.g. `dispatch`), **Notes**.
 
 ### Summary counts (2026-10-08)
 
-| Metric | Count |
-| --- | ---: |
-| Dispatch builtins (callable) | **941** |
-| Dispatch partial-heuristic (stub/mock docstring) | 10 |
-| Dispatch namespaces | 255 |
-| Official TV v6 function reference list | 434 symbols — **0 missing** in dispatch |
+| Metric                                           |                                   Count |
+| ------------------------------------------------ | --------------------------------------: |
+| Dispatch builtins (callable)                     |                                 **941** |
+| Dispatch partial-heuristic (stub/mock docstring) |                                      10 |
+| Dispatch namespaces                              |                                     255 |
+| Official TV v6 function reference list           | 434 symbols — **0 missing** in dispatch |
 
 ### Top namespaces by dispatch keys
 
-| Namespace | Count |
-| --- | ---: |
-| `ta` | 165 |
-| `strategy` | 95 |
-| `matrix` | 74 |
-| `array` | 68 |
-| `box` | 32 |
-| `label` | 29 |
-| `table` | 27 |
-| `color` | 26 |
-| `math` | 25 |
-| `line` | 24 |
-| `str` | 19 |
-| `plot` | 15 |
-| `timeframe` | 15 |
-| `input` | 14 |
-| `polyline` | 14 |
-| `map` | 11 |
-| `request` | 11 |
-| `footprint` | 9 |
-| `ticker` | 9 |
-| *(remaining namespaces)* | smaller |
+| Namespace                |   Count |
+| ------------------------ | ------: |
+| `ta`                     |     165 |
+| `strategy`               |      95 |
+| `matrix`                 |      74 |
+| `array`                  |      68 |
+| `box`                    |      32 |
+| `label`                  |      29 |
+| `table`                  |      27 |
+| `color`                  |      26 |
+| `math`                   |      25 |
+| `line`                   |      24 |
+| `str`                    |      19 |
+| `plot`                   |      15 |
+| `timeframe`              |      15 |
+| `input`                  |      14 |
+| `polyline`               |      14 |
+| `map`                    |      11 |
+| `request`                |      11 |
+| `footprint`              |       9 |
+| `ticker`                 |       9 |
+| _(remaining namespaces)_ | smaller |
 
 ### Kinds covered
 
@@ -106,12 +124,12 @@ Each inventory row also carries: **Name**, **Namespace**, **Kind**, **Metadata**
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `docs/pine_v6_full_surface_inventory.md` | Full tables + architecture diagrams |
-| `scripts/regenerate_inventory_summary.py` | Regeneration helper |
-| `scripts/generate_builtin_metadata.py` | LSP metadata from live surface |
-| Evaluator `_build_builtin_map()` | Source of dispatch truth |
+| Path                                      | Role                                |
+| ----------------------------------------- | ----------------------------------- |
+| `docs/pine_v6_full_surface_inventory.md`  | Full tables + architecture diagrams |
+| `scripts/regenerate_inventory_summary.py` | Regeneration helper                 |
+| `scripts/generate_builtin_metadata.py`    | LSP metadata from live surface      |
+| Evaluator `_build_builtin_map()`          | Source of dispatch truth            |
 
 ### How to use the full file
 
@@ -142,11 +160,11 @@ python scripts/regenerate_inventory_summary.py
 
 ## Failure modes
 
-| Mistake | Consequence |
-| --- | --- |
+| Mistake                                    | Consequence                |
+| ------------------------------------------ | -------------------------- |
 | Pasting 134KB inventory into Mintlify page | Unreadable docs; broken UX |
-| Citing counts without date | Stale marketing |
-| Equating dispatch hit with TV gold | False precision claims |
+| Citing counts without date                 | Stale marketing            |
+| Equating dispatch hit with TV gold         | False precision claims     |
 
 ## See also
 

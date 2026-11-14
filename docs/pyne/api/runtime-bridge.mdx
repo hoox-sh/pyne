@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Runtime Bridge"
 description: "pynescript.runtime.Runtime — package SoT bar-loop evaluate façade, PineSeries context, compile mode, and result packaging."
 ---
@@ -64,16 +82,16 @@ Helpers: `configure_footprint`, `update_bid_ask`.
 
 ### `run(source_code, ohlcv_data, data_feed=None, data_provider=None, mode="interpret", …)`
 
-| Arg | Role |
-| --- | --- |
-| `source_code` | Pine text |
-| `ohlcv_data` | `list[dict]` with open/high/low/close/time[/volume/bid/ask] |
-| `data_feed` / `data_provider` | `request.*` wiring; auto-resolved from chart bars when unset |
-| `mode` | `"interpret"` (default for direct calls) · `"compile"` · `"auto"` (Pro API schema default) |
-| `timeout_seconds` | Optional wall-clock budget (seconds); interpret path only — partial results + `timed_out` + `error_kind=runtime` when exceeded. Flask `/run` and `/run/batch` accept it (omit / `≤ 0` = no budget) |
-| `libraries` | Optional `[{namespace, name, version, source}]` registered via `register_library_source` before `import ns/Name/ver`. `mode=auto` forwards libs into interpret fallback. Flask `/run` caps at 32 |
-| `inputs` / `profiler` | `input.*` overrides (interpret); non-empty `inputs` or `profiler` force interpret under `auto` (`compile_fallback_reason`) |
-| `realtime_*` | Optional host simulation for `varip` multi-tick tests (`realtime_last_bar`, `realtime_ticks`, `realtime_bars`, `realtime_from_bar`) |
+| Arg                           | Role                                                                                                                                                                                               |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `source_code`                 | Pine text                                                                                                                                                                                          |
+| `ohlcv_data`                  | `list[dict]` with open/high/low/close/time[/volume/bid/ask]                                                                                                                                        |
+| `data_feed` / `data_provider` | `request.*` wiring; auto-resolved from chart bars when unset                                                                                                                                       |
+| `mode`                        | `"interpret"` (default for direct calls) · `"compile"` · `"auto"` (Pro API schema default)                                                                                                         |
+| `timeout_seconds`             | Optional wall-clock budget (seconds); interpret path only — partial results + `timed_out` + `error_kind=runtime` when exceeded. Flask `/run` and `/run/batch` accept it (omit / `≤ 0` = no budget) |
+| `libraries`                   | Optional `[{namespace, name, version, source}]` registered via `register_library_source` before `import ns/Name/ver`. `mode=auto` forwards libs into interpret fallback. Flask `/run` caps at 32   |
+| `inputs` / `profiler`         | `input.*` overrides (interpret); non-empty `inputs` or `profiler` force interpret under `auto` (`compile_fallback_reason`)                                                                         |
+| `realtime_*`                  | Optional host simulation for `varip` multi-tick tests (`realtime_last_bar`, `realtime_ticks`, `realtime_bars`, `realtime_from_bar`)                                                                |
 
 #### Interpret path (default)
 
@@ -82,13 +100,13 @@ Helpers: `configure_footprint`, `update_bid_ask`.
 3. Init `PineSeries` for OHLC + context dict (timeframe daily defaults, barstate, chart colors).
 4. Construct `CustomEvaluator(context=…, data_feed=…, data_provider=…)`, reset var declarations + drawing registry + `clear_alerts()`.
 5. Per bar:
-   - Update series + calendar fields from timestamp
-   - Update barstate flags (`isfirst` / `islast` / history confirmed)
-   - `process_pending_orders` when available
-   - `evaluator.visit(tree)` — on failure `{ "error": "Runtime Error at bar …" }`
-   - Lock pine defs after first bar (`_pine_defs_locked`) to avoid multi-dispatch blow-ups
-   - Drain strategy events; stamp `script_id` / `run_id`
-   - Capture plot outputs
+    - Update series + calendar fields from timestamp
+    - Update barstate flags (`isfirst` / `islast` / history confirmed)
+    - `process_pending_orders` when available
+    - `evaluator.visit(tree)` — on failure `{ "error": "Runtime Error at bar …" }`
+    - Lock pine defs after first bar (`_pine_defs_locked`) to avoid multi-dispatch blow-ups
+    - Drain strategy events; stamp `script_id` / `run_id`
+    - Capture plot outputs
 6. Build `series` / `plot_meta` from all plot indices (disambiguate duplicate titles with `_2` suffixes).
 7. Export drawings via `DrawingRegistry.export_for_api(bar_times)`.
 8. Export alerts via `export_alerts_from_evaluator` (optional `alert_conditions`).
@@ -124,16 +142,16 @@ Defined on the host: `Syminfo`, `Chartinfo`, `Timeframe`, `Barstate`, `Chart` �
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `src/pynescript/runtime/host.py` | Package SoT `Runtime` bar loop |
-| `src/pynescript/runtime/evaluator.py` | `CustomEvaluator` specialization |
-| `src/pynescript/runtime/series.py` | `PineSeries` |
-| `backend/runtime.py` | Compat shim → `pynescript.runtime` |
-| `backend/evaluator.py` / `backend/series.py` | Compat shims |
-| `src/pynescript/ast/helper.py` | `parse` |
-| `src/pynescript/ast/evaluator/**` | Builtin + strategy semantics |
-| `src/pynescript/compiler/engine.py` | Compile mode |
+| Path                                         | Role                               |
+| -------------------------------------------- | ---------------------------------- |
+| `src/pynescript/runtime/host.py`             | Package SoT `Runtime` bar loop     |
+| `src/pynescript/runtime/evaluator.py`        | `CustomEvaluator` specialization   |
+| `src/pynescript/runtime/series.py`           | `PineSeries`                       |
+| `backend/runtime.py`                         | Compat shim → `pynescript.runtime` |
+| `backend/evaluator.py` / `backend/series.py` | Compat shims                       |
+| `src/pynescript/ast/helper.py`               | `parse`                            |
+| `src/pynescript/ast/evaluator/**`            | Builtin + strategy semantics       |
+| `src/pynescript/compiler/engine.py`          | Compile mode                       |
 
 Flask wiring: `backend/app.py` constructs a **fresh** `Runtime` per request (and per batch job) so `run_id` and drawing registries do not leak across users.
 
@@ -164,14 +182,14 @@ assert "C" in out["series"] or "plot_0" in out["series"]
 
 ## Failure modes
 
-| Message prefix | Cause |
-| --- | --- |
-| `Parse Error:` | Grammar / syntax |
-| `Runtime Error at bar` | Evaluator exception |
-| `Order fill error at bar` | Broker sim pending orders |
-| `Compile mode requires numba` / `CompileNumbaRequiredError` | Numeric emit without Numba (object-mode scripts still run) |
-| `Compile Error:` / `Compiled Runtime Error:` | Engine path (`error_kind=compile` / `runtime`) |
-| `Script execution timed out` | `timeout_seconds` exceeded (`timed_out`, `error_kind=runtime`) |
+| Message prefix                                              | Cause                                                          |
+| ----------------------------------------------------------- | -------------------------------------------------------------- |
+| `Parse Error:`                                              | Grammar / syntax                                               |
+| `Runtime Error at bar`                                      | Evaluator exception                                            |
+| `Order fill error at bar`                                   | Broker sim pending orders                                      |
+| `Compile mode requires numba` / `CompileNumbaRequiredError` | Numeric emit without Numba (object-mode scripts still run)     |
+| `Compile Error:` / `Compiled Runtime Error:`                | Engine path (`error_kind=compile` / `runtime`)                 |
+| `Script execution timed out`                                | `timeout_seconds` exceeded (`timed_out`, `error_kind=runtime`) |
 
 ## See also
 

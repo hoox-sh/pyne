@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "FAQ"
 description: "Frequently asked questions about pynescript install, Pine version support, TradingView parity, CLI vs library, LSP, Pro API, licensing, and ecosystem boundaries."
 ---
@@ -40,11 +58,11 @@ No dedicated FAQ API — pointers only.
 
 Answers cite:
 
-- `pyproject.toml` — version, extras, license  
-- `src/pynescript/__main__.py` — CLI reality  
-- `src/pynescript/runtime/host.py` — `Runtime.run`  
-- `docs/missing_features.md` / reference status pages — coverage  
-- `backend/app.py` — HTTP contract  
+- `pyproject.toml` — version, extras, license
+- `src/pynescript/__main__.py` — CLI reality
+- `src/pynescript/runtime/host.py` — `Runtime.run`
+- `docs/missing_features.md` / reference status pages — coverage
+- `backend/app.py` — HTTP contract
 
 ## Invariants & edge cases
 
@@ -98,7 +116,7 @@ No. Independent open-source toolchain. Pine Script™ and TradingView® are trad
 
 ### Will my TradingView strategy produce identical PnL?
 
-Not guaranteed. Broker emulator rules, fill models, request.* data, and some builtins differ. Use PYNE for offline analysis, CI, and self-hosted evaluate; validate critical strategies numerically ([numerical validation](/pyne/docs/reference/numerical-validation)).
+Not guaranteed. Broker emulator rules, fill models, request.\* data, and some builtins differ. Use PYNE for offline analysis, CI, and self-hosted evaluate; validate critical strategies numerically ([numerical validation](/pyne/docs/reference/numerical-validation)).
 
 ### Can I format Pine like Black?
 
@@ -189,12 +207,12 @@ See the [ecosystem map](/pyne/docs/reference/ecosystem) and [modes](/pyne/docs/e
 
 It depends on the surface — this is the usual footgun:
 
-| Surface | Default |
-| --- | --- |
-| `pynescript.runtime.Runtime.run(..., mode=None)` | `PYNE_RUNTIME_MODE` else **interpret** |
-| `POST /run` (body omits `mode`) | **auto** |
-| `pyne execute` | **auto** (`Runtime.run`; pass `--mode`) |
-| `pyne run` | **compile-only** (not `Runtime.run`, no `--mode`) |
+| Surface                                          | Default                                           |
+| ------------------------------------------------ | ------------------------------------------------- |
+| `pynescript.runtime.Runtime.run(..., mode=None)` | `PYNE_RUNTIME_MODE` else **interpret**            |
+| `POST /run` (body omits `mode`)                  | **auto**                                          |
+| `pyne execute`                                   | **auto** (`Runtime.run`; pass `--mode`)           |
+| `pyne run`                                       | **compile-only** (not `Runtime.run`, no `--mode`) |
 
 See [modes](/pyne/docs/enduser/reference/modes).
 
@@ -259,9 +277,9 @@ python -c "import pygls; from pynescript.langserver.server import PynescriptLang
 
 If an FAQ answer appears wrong against your checkout:
 
-1. Check package version (`pynescript --version`).  
-2. Read the cited source file.  
-3. Prefer `__main__.py` / `pyproject.toml` over secondary docs.  
+1. Check package version (`pynescript --version`).
+2. Read the cited source file.
+3. Prefer `__main__.py` / `pyproject.toml` over secondary docs.
 4. Open an issue or PR against the MDX page.
 
 ## See also

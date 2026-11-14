@@ -85,10 +85,21 @@ services:
     # Set REDIS_PASSWORD (and the matching REDIS_URL below) for auth.
     volumes:
       - redis_data:/data
-    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-}"]
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--requirepass",
+        "${REDIS_PASSWORD:-}",
+      ]
     healthcheck:
       # Plain ping first (no password set), then authenticated (password set).
-      test: ["CMD-SHELL", "redis-cli ping 2>/dev/null || redis-cli -a $${REDIS_PASSWORD} ping"]
+      test:
+        [
+          "CMD-SHELL",
+          "redis-cli ping 2>/dev/null || redis-cli -a $${REDIS_PASSWORD} ping",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3

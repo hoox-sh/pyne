@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Local development"
 description: "Install, test, lint, package, and run PYNE — Make targets after AXIS extraction."
 ---
@@ -47,33 +65,33 @@ flowchart LR
 
 ### Make targets (primary)
 
-| Target | Effect |
-| --- | --- |
-| `make install` | `pip install -e ".[lsp,pro]"` |
-| `make test` | full `pytest tests/` |
-| `make test-cli` | `tests/test_cli.py` |
-| `make test-lsp` | langserver + lsp_features |
-| `make test-backend` | `tests/test_backend.py` |
-| `make lint` / `make fmt` | Ruff on `src/`, `tests/`, `backend/` |
-| `make package` | sdist + wheel (`python -m build`) |
-| `make build` | Nuitka **LSP** binary |
-| `make build-cli` | Nuitka **CLI** binary |
-| `make build-check` | import check for lsp+cli (~30s) |
-| `make run` | Flask Pro API (`:5002` typical) |
-| `make run-lsp` | `python -m pynescript.langserver` |
-| `make docker-build` | bake **api** |
-| `make docker-build-cli` | bake **cli** |
-| `make docker-build-lsp` | bake **lsp** (`pynescript-lsp:latest`; GHCR name `ghcr.io/hoox-sh/pyne/lsp`) |
-| `make docker-build-mcp` | bake **mcp** (`pynescript-mcp:latest`; GHCR name `ghcr.io/hoox-sh/pyne/mcp`) |
-| `make docker-build-all` | api + api-dev + lsp + cli + mcp |
-| `make docker-buildx` | multi-platform release bake (`api` + `cli` + `lsp` + `mcp`) |
-| `make docker-push-ghcr` | `gh workflow run ghcr.yml` |
-| `make docker-cli ARGS="…"` | compose profile cli (ephemeral) |
-| `make docker-up` | compose API only on `:5002` |
-| `make docker-up-full` | daemons: api + redis + datafeed + mcp |
-| `make docker-prod` | gunicorn overlay, all services (`ADMIN_TOKEN` required) |
-| `make docker-smoke` | curl health on `:5002` |
-| `make docker-down` / `docker-logs` | stop / logs |
+| Target                             | Effect                                                                       |
+| ---------------------------------- | ---------------------------------------------------------------------------- |
+| `make install`                     | `pip install -e ".[lsp,pro]"`                                                |
+| `make test`                        | full `pytest tests/`                                                         |
+| `make test-cli`                    | `tests/test_cli.py`                                                          |
+| `make test-lsp`                    | langserver + lsp_features                                                    |
+| `make test-backend`                | `tests/test_backend.py`                                                      |
+| `make lint` / `make fmt`           | Ruff on `src/`, `tests/`, `backend/`                                         |
+| `make package`                     | sdist + wheel (`python -m build`)                                            |
+| `make build`                       | Nuitka **LSP** binary                                                        |
+| `make build-cli`                   | Nuitka **CLI** binary                                                        |
+| `make build-check`                 | import check for lsp+cli (~30s)                                              |
+| `make run`                         | Flask Pro API (`:5002` typical)                                              |
+| `make run-lsp`                     | `python -m pynescript.langserver`                                            |
+| `make docker-build`                | bake **api**                                                                 |
+| `make docker-build-cli`            | bake **cli**                                                                 |
+| `make docker-build-lsp`            | bake **lsp** (`pynescript-lsp:latest`; GHCR name `ghcr.io/hoox-sh/pyne/lsp`) |
+| `make docker-build-mcp`            | bake **mcp** (`pynescript-mcp:latest`; GHCR name `ghcr.io/hoox-sh/pyne/mcp`) |
+| `make docker-build-all`            | api + api-dev + lsp + cli + mcp                                              |
+| `make docker-buildx`               | multi-platform release bake (`api` + `cli` + `lsp` + `mcp`)                  |
+| `make docker-push-ghcr`            | `gh workflow run ghcr.yml`                                                   |
+| `make docker-cli ARGS="…"`         | compose profile cli (ephemeral)                                              |
+| `make docker-up`                   | compose API only on `:5002`                                                  |
+| `make docker-up-full`              | daemons: api + redis + datafeed + mcp                                        |
+| `make docker-prod`                 | gunicorn overlay, all services (`ADMIN_TOKEN` required)                      |
+| `make docker-smoke`                | curl health on `:5002`                                                       |
+| `make docker-down` / `docker-logs` | stop / logs                                                                  |
 
 ### Hatch
 
@@ -107,14 +125,14 @@ pyne --version   # 0.7.0
 
 ## Internals
 
-| Path | Why it matters |
-| --- | --- |
-| `src/pynescript/` | Editable package root |
-| `tests/conftest.py` | Optional `--example-scripts-dir` only; no third-party corpus shipped |
-| `backend/requirements.txt` | Pro API deps (also covered by `[pro]` extra) |
-| [hoox-sh/pynets](https://github.com/hoox-sh/pynets) | Standalone TS library (`@hoox-sh/pynets`); not an in-tree submodule |
-| [hoox-sh/pyne-lsp-vsce](https://github.com/hoox-sh/pyne-lsp-vsce) | PYNE VS Code extension (separate repo) |
-| `Dockerfile` | targets `api`, `api-dev`, `lsp`, **`cli`** |
+| Path                                                              | Why it matters                                                       |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `src/pynescript/`                                                 | Editable package root                                                |
+| `tests/conftest.py`                                               | Optional `--example-scripts-dir` only; no third-party corpus shipped |
+| `backend/requirements.txt`                                        | Pro API deps (also covered by `[pro]` extra)                         |
+| [hoox-sh/pynets](https://github.com/hoox-sh/pynets)               | Standalone TS library (`@hoox-sh/pynets`); not an in-tree submodule  |
+| [hoox-sh/pyne-lsp-vsce](https://github.com/hoox-sh/pyne-lsp-vsce) | PYNE VS Code extension (separate repo)                               |
+| `Dockerfile`                                                      | targets `api`, `api-dev`, `lsp`, **`cli`**                           |
 
 ### Python
 
@@ -125,12 +143,12 @@ pyne --version   # 0.7.0
 
 ### Optional extras
 
-| Extra | Adds |
-| --- | --- |
-| `lsp` | pygls / lsprotocol → `pyne-lsp` (alias `pynescript-lsp`) |
-| `compile` | numpy / numba |
-| `data` / `datafeed` | ccxt |
-| `pro` | Flask + gunicorn + matplotlib + redis + compile |
+| Extra               | Adds                                                     |
+| ------------------- | -------------------------------------------------------- |
+| `lsp`               | pygls / lsprotocol → `pyne-lsp` (alias `pynescript-lsp`) |
+| `compile`           | numpy / numba                                            |
+| `data` / `datafeed` | ccxt                                                     |
+| `pro`               | Flask + gunicorn + matplotlib + redis + compile          |
 
 ## Invariants
 
@@ -142,12 +160,12 @@ pyne --version   # 0.7.0
 
 ## Failure modes
 
-| Symptom | Fix |
-| --- | --- |
-| `No module named pynescript` | activate venv; `pip install -e .` or `hoox-pyne` |
-| Pro API ImportError flask | `pip install "hoox-pyne[pro]"` or backend requirements |
-| Nuitka missing | `pip install nuitka`; `make build-check` first |
-| Docker CLI can’t read file | chmod host path; don’t use 0700-only dirs |
+| Symptom                      | Fix                                                    |
+| ---------------------------- | ------------------------------------------------------ |
+| `No module named pynescript` | activate venv; `pip install -e .` or `hoox-pyne`       |
+| Pro API ImportError flask    | `pip install "hoox-pyne[pro]"` or backend requirements |
+| Nuitka missing               | `pip install nuitka`; `make build-check` first         |
+| Docker CLI can’t read file   | chmod host path; don’t use 0700-only dirs              |
 
 ## See also
 

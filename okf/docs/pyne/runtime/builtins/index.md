@@ -2,9 +2,9 @@
 
 # Concepts
 
-- [Collections](collections.md) - array., matrix., and map. runtime semantics, method dispatch, and type tags.
-- [Drawing and plotting](drawing-plotting.md) - plot side effects, DrawingRegistry objects, and export shapes for hosts and AXIS.
-- [Builtins](index.md) - Dispatch architecture for ta., strategy., collections, plotting, request., and other standard namespaces.
-- [request.* and input.*](request-input.md) - Multi-symbol/timeframe requests, fundamental na semantics, host series bind, and input parameter resolution.
+- [Collections](collections.md) - Pine collections—arrays, matrices, and maps—are mutable values that live in the evaluator context (often under var so identity persists across bars). PYNE maps them to Python…
+- [Drawing and plotting](drawing-plotting.md) - Visual effects in Pine are side channels: they do not change pure arithmetic results, but they are first-class runtime outputs. PYNE records plots in PlotRegistry and drawing…
+- [Builtins](index.md) - Pine’s standard library is not a single module: it is a flat qualified-name dispatch table ("ta.sma", "strategy.entry", "array.push", …) assembled from category mixins. Each…
+- [`request.*` and `input.*`](request-input.md) - Two namespaces couple scripts to the host environment: input. declares parameters (with defaults and UI metadata), and request. pulls data from other symbols, timeframes, or…
 - [Strategy builtins](strategy.md) - Orders, fills, OCA, commission, risk gates, position metrics, and StrategyState.
-- [Technical analysis (ta.*)](technical.md) - ta. indicators: series helpers, bar mode, interpret↔compile parity, and submodule layout.
+- [Technical analysis (ta._)](technical.md) - ta. indicators: series helpers, bar mode, interpret↔compile parity, and submodule layout.

@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Missing features"
 description: "Known gaps and closed Pine Script™ v6 items — what is implemented, what is partial by design, and what is out of scope. hoox-pyne 0.7.0."
 ---
@@ -61,55 +79,55 @@ flowchart TB
 
 Summarized — full prose in source doc:
 
-| Area | Notes |
-| --- | --- |
-| Multiline `"""` / `'''` | Lexer + LexerBase + unparser |
-| Library `export const` + types/enums | Parse/AST/runtime registry |
-| UDT `sort_field` on array/matrix sort | Implemented |
-| UDT `sort_field` on `array.binary_search*` | Implemented (interpret + compile) |
-| **`once` conditional structure** | Implemented — parse/unparse, interpret (confirmed-bar latch + realtime re-fire), compile historical flags. Statement-only. |
-| `input.*.active` | Metadata-driven |
-| Dynamic `request.*` | Shared resolvers; mock/feed scaling |
-| Enums runtime + input.enum | Type kind + LSP partial |
-| Strategy open/closed trades, risk, OCA, commission | Golden tests |
-| Drawing `*.all`, plot registry, **`max_*_count` GC** | Effects recorded; GC on package + Pro + AXIS |
-| Numba compile + object mode + **warm-compile (H2)** | Disk IR cache, prewarm API/CLI, deploy defaults |
-| **Compile object-mode residuals** | UDF locals / free-series, nopython `None`/`timestamp`, matrix handles, UDT returns, `x = switch`, drawing copy, `pine_int(na)`, sanitize chrome, `round()` extras, import stubs as `na`, color type dispatch, nested UDT methods |
-| Official matrix LA and predicates | det/inv/eigen/... |
-| **0 missing** vs public TV v6 function reference list (434 symbols) | |
-| Runtime `_pine_defs_locked` + append-only `current_series` | Host hygiene (backend + pyne-worker) |
-| Incremental `ta.*` (MAs, oscillators, `bb`/`kama`/`stochrsi`, volume `obv`/`wad`/`cmf`/`klinger`/`nvi`/`pvi`) | Bar mode; `PYNE_TA_INCREMENTAL=0` to disable |
-| **Series caps (T1)** | `PYNE_SERIES_CAP` default ON + goldens |
-| **Pending-fill averaging (F2)** | Pyramiding ≤ 0; interpret + compile broker goldens |
-| Alert engine + **L2 webhooks (L2)** | Dual-host `/run` export, `ALERT_WEBHOOK_URL` / `webhook_url` |
-| **`request.security` foreign-na policy** | Foreign/complex → `na` both backends; same-symbol OHLCV passthrough |
-| **Plot parity harness (P1p)** | `scripts/compare_interp_compile.py`, first-party goldens + official TV builtins **0 MISMATCH** |
-| `fill()` export for AXIS | series + `plot_meta` / compile `__drawings` |
-| Square-bracket wrapping | Any-indent line wrapping inside `[…]`; `table.new` columns-then-rows |
-| Drawing export parity | `table.cell` style storage + reference positional order; cell style/width/height/tooltip, `force_overlay`, `merged_cells` both hosts; box/label text extras; polyline curve/fill; `text.align_*` constants |
+| Area                                                                                                          | Notes                                                                                                                                                                                                                            |
+| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Multiline `"""` / `'''`                                                                                       | Lexer + LexerBase + unparser                                                                                                                                                                                                     |
+| Library `export const` + types/enums                                                                          | Parse/AST/runtime registry                                                                                                                                                                                                       |
+| UDT `sort_field` on array/matrix sort                                                                         | Implemented                                                                                                                                                                                                                      |
+| UDT `sort_field` on `array.binary_search*`                                                                    | Implemented (interpret + compile)                                                                                                                                                                                                |
+| **`once` conditional structure**                                                                              | Implemented — parse/unparse, interpret (confirmed-bar latch + realtime re-fire), compile historical flags. Statement-only.                                                                                                       |
+| `input.*.active`                                                                                              | Metadata-driven                                                                                                                                                                                                                  |
+| Dynamic `request.*`                                                                                           | Shared resolvers; mock/feed scaling                                                                                                                                                                                              |
+| Enums runtime + input.enum                                                                                    | Type kind + LSP partial                                                                                                                                                                                                          |
+| Strategy open/closed trades, risk, OCA, commission                                                            | Golden tests                                                                                                                                                                                                                     |
+| Drawing `*.all`, plot registry, **`max_*_count` GC**                                                          | Effects recorded; GC on package + Pro + AXIS                                                                                                                                                                                     |
+| Numba compile + object mode + **warm-compile (H2)**                                                           | Disk IR cache, prewarm API/CLI, deploy defaults                                                                                                                                                                                  |
+| **Compile object-mode residuals**                                                                             | UDF locals / free-series, nopython `None`/`timestamp`, matrix handles, UDT returns, `x = switch`, drawing copy, `pine_int(na)`, sanitize chrome, `round()` extras, import stubs as `na`, color type dispatch, nested UDT methods |
+| Official matrix LA and predicates                                                                             | det/inv/eigen/...                                                                                                                                                                                                                |
+| **0 missing** vs public TV v6 function reference list (434 symbols)                                           |                                                                                                                                                                                                                                  |
+| Runtime `_pine_defs_locked` + append-only `current_series`                                                    | Host hygiene (backend + pyne-worker)                                                                                                                                                                                             |
+| Incremental `ta.*` (MAs, oscillators, `bb`/`kama`/`stochrsi`, volume `obv`/`wad`/`cmf`/`klinger`/`nvi`/`pvi`) | Bar mode; `PYNE_TA_INCREMENTAL=0` to disable                                                                                                                                                                                     |
+| **Series caps (T1)**                                                                                          | `PYNE_SERIES_CAP` default ON + goldens                                                                                                                                                                                           |
+| **Pending-fill averaging (F2)**                                                                               | Pyramiding ≤ 0; interpret + compile broker goldens                                                                                                                                                                               |
+| Alert engine + **L2 webhooks (L2)**                                                                           | Dual-host `/run` export, `ALERT_WEBHOOK_URL` / `webhook_url`                                                                                                                                                                     |
+| **`request.security` foreign-na policy**                                                                      | Foreign/complex → `na` both backends; same-symbol OHLCV passthrough                                                                                                                                                              |
+| **Plot parity harness (P1p)**                                                                                 | `scripts/compare_interp_compile.py`, first-party goldens + official TV builtins **0 MISMATCH**                                                                                                                                   |
+| `fill()` export for AXIS                                                                                      | series + `plot_meta` / compile `__drawings`                                                                                                                                                                                      |
+| Square-bracket wrapping                                                                                       | Any-indent line wrapping inside `[…]`; `table.new` columns-then-rows                                                                                                                                                             |
+| Drawing export parity                                                                                         | `table.cell` style storage + reference positional order; cell style/width/height/tooltip, `force_overlay`, `merged_cells` both hosts; box/label text extras; polyline curve/fill; `text.align_*` constants                       |
 
 ### Still incomplete / by design
 
-| Item | Status posture |
-| --- | --- |
-| Real (non-mock) multi-symbol `request.*` market data (**B1**) | By design for library core; feeds optional. **Foreign-na policy landed** (no invent). |
-| **`request.security` foreign data** | **Not filled with real series** — emits `na` for foreign/complex (honest). Same-symbol simple OHLCV may lower. |
-| **Auto Fib / pivot-heavy scripts** | Need real pivot structure (or registered ZigZag lib). Flat synthetic bars → intentional `runtime.error` (insufficient pivots); both hosts should agree (`both_error_same` in parity harness). |
-| Pixel chart host | External (AXIS / clients) |
-| Some unlimited-history / trim edge cases | High-level support; exotic TV behaviors may differ |
-| Editor word-wrap / UI-only release notes | N/A |
-| PyneTS full builtin parity (**L3**) | interpret + JS compile landed in `@hoox-sh/pynets` 0.5.0; Python remains oracle. Open rows: [PyneTS missing features](/pyne/docs/pynets/missing-features) |
-| Bit-identical every recursive smoother vs TV | Numerical bounds, not bits |
-| Dual Runtime host copies (**H1**) | **Largely done** — package `pynescript.runtime` SoT + `backend.*` shims + pyne-worker thin wrap. Residual = worker-only extras (logs/profile, CF first-plot), not a forked bar loop |
-| Warm-compile product path (**H2**) | SLOs / prewarm / deploy IR cache defaults |
-| Runtime residual (**C1**) | set01-04 Runtime interpret **100%** excl. EXPECTED_FAIL; third-party corpus not shipped |
-| Series cap (**T1**) | `PYNE_SERIES_CAP` default ON |
-| Residual TA inc (**T2**) | R7 bb/kama/cmo/stochrsi + wma/hma/linreg; volume `obv`/`wad`/`cmf`/`klinger`; `nvi`/`pvi`; `aroon`/`dpo`/`donchian`/`kst`; `ichimoku`/`apo`/`emv`; `skewness`/`kurtosis`/`beta`; `r_squared`/`comovement`; `volume_weighted_momentum`; `rci`/`bb_pct`/`atr_normalized`; `cumulative_delta`/`volume_momentum`; `sma_weighted`; `range`/`max`/`min`; `stoch_smooth`; `rsi_divergence`; `fractal`; `engulfing`/`hammer`; `double_top_bottom`; `gap_detector`; `inside_bar_pattern`; `ema_cross_signal`; `rsi_oversold_overbought`; `zigzag` landed (other T2 residuals remain) |
-| Pending-fill (**F2**) | R7 interpret + compile goldens |
-| Plot parity residual (**P1p**) | Harness + first-party goldens + official TV builtins **0 MISMATCH**; optional set0x community corpus unmeasured |
-| Compile leftover library stubs | Some `float(None)` / UDF arity on missing `import` libraries; INV expected-fail fixtures stay fail |
-| TV Wilder RMA-ATR / supertrend (**F1**) | interpret ATR is `ta.rma(ta.tr)`; Supertrend mid±factor·ATR locked. TV ratchet is out of scope |
-| Alert webhooks (**L2**) | Pro API + pyne-worker; see [Alerts](/pyne/docs/runtime/alerts) |
+| Item                                                          | Status posture                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Real (non-mock) multi-symbol `request.*` market data (**B1**) | By design for library core; feeds optional. **Foreign-na policy landed** (no invent).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| **`request.security` foreign data**                           | **Not filled with real series** — emits `na` for foreign/complex (honest). Same-symbol simple OHLCV may lower.                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| **Auto Fib / pivot-heavy scripts**                            | Need real pivot structure (or registered ZigZag lib). Flat synthetic bars → intentional `runtime.error` (insufficient pivots); both hosts should agree (`both_error_same` in parity harness).                                                                                                                                                                                                                                                                                                                                                                               |
+| Pixel chart host                                              | External (AXIS / clients)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Some unlimited-history / trim edge cases                      | High-level support; exotic TV behaviors may differ                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Editor word-wrap / UI-only release notes                      | N/A                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| PyneTS full builtin parity (**L3**)                           | interpret + JS compile landed in `@hoox-sh/pynets` 0.5.0; Python remains oracle. Open rows: [PyneTS missing features](/pyne/docs/pynets/missing-features)                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Bit-identical every recursive smoother vs TV                  | Numerical bounds, not bits                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Dual Runtime host copies (**H1**)                             | **Largely done** — package `pynescript.runtime` SoT + `backend.*` shims + pyne-worker thin wrap. Residual = worker-only extras (logs/profile, CF first-plot), not a forked bar loop                                                                                                                                                                                                                                                                                                                                                                                         |
+| Warm-compile product path (**H2**)                            | SLOs / prewarm / deploy IR cache defaults                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Runtime residual (**C1**)                                     | set01-04 Runtime interpret **100%** excl. EXPECTED_FAIL; third-party corpus not shipped                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Series cap (**T1**)                                           | `PYNE_SERIES_CAP` default ON                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Residual TA inc (**T2**)                                      | R7 bb/kama/cmo/stochrsi + wma/hma/linreg; volume `obv`/`wad`/`cmf`/`klinger`; `nvi`/`pvi`; `aroon`/`dpo`/`donchian`/`kst`; `ichimoku`/`apo`/`emv`; `skewness`/`kurtosis`/`beta`; `r_squared`/`comovement`; `volume_weighted_momentum`; `rci`/`bb_pct`/`atr_normalized`; `cumulative_delta`/`volume_momentum`; `sma_weighted`; `range`/`max`/`min`; `stoch_smooth`; `rsi_divergence`; `fractal`; `engulfing`/`hammer`; `double_top_bottom`; `gap_detector`; `inside_bar_pattern`; `ema_cross_signal`; `rsi_oversold_overbought`; `zigzag` landed (other T2 residuals remain) |
+| Pending-fill (**F2**)                                         | R7 interpret + compile goldens                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Plot parity residual (**P1p**)                                | Harness + first-party goldens + official TV builtins **0 MISMATCH**; optional set0x community corpus unmeasured                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Compile leftover library stubs                                | Some `float(None)` / UDF arity on missing `import` libraries; INV expected-fail fixtures stay fail                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| TV Wilder RMA-ATR / supertrend (**F1**)                       | interpret ATR is `ta.rma(ta.tr)`; Supertrend mid±factor·ATR locked. TV ratchet is out of scope                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Alert webhooks (**L2**)                                       | Pro API + pyne-worker; see [Alerts](/pyne/docs/runtime/alerts)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 ### Post-v6 launch themes (historical gap list)
 
@@ -121,15 +139,15 @@ v6 launch items (dynamic requests, strict bool, enums, polylines, `log.*`, negat
 
 Open-source set01-04 (**2477** scripts; measured locally, **not shipped** in-repo):
 
-| Metric | Value |
-| --- | --- |
-| **Parse + unparse** | **99.96%** (2476 / 2477) — residual: 1 intentional invalid line-wrap docs demo |
-| **Runtime interpret** | **100%** excl. EXPECTED_FAIL — 2466 OK + **11** intentional demos |
-| set01 Runtime | **249 / 249 (100%)** |
-| EXPECTED_FAIL class | library `runtime.error` demos, lower-TF security guards, pathological loops, truncated mid-call scrapes |
-| `ta_sma` bar loop (≈3.2k bars) | **~9.5×** vs full recompute |
-| `ta_atr` bar loop | **~10×** |
-| macd+atr+rsi+sma combo | **~8.5×** |
+| Metric                         | Value                                                                                                   |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| **Parse + unparse**            | **99.96%** (2476 / 2477) — residual: 1 intentional invalid line-wrap docs demo                          |
+| **Runtime interpret**          | **100%** excl. EXPECTED_FAIL — 2466 OK + **11** intentional demos                                       |
+| set01 Runtime                  | **249 / 249 (100%)**                                                                                    |
+| EXPECTED_FAIL class            | library `runtime.error` demos, lower-TF security guards, pathological loops, truncated mid-call scrapes |
+| `ta_sma` bar loop (≈3.2k bars) | **~9.5×** vs full recompute                                                                             |
+| `ta_atr` bar loop              | **~10×**                                                                                                |
+| macd+atr+rsi+sma combo         | **~8.5×**                                                                                               |
 
 Not TradingView® platform parity. OK% excludes only path-listed intentional demos (never soft-suppress unknown failures).
 
@@ -137,17 +155,17 @@ Golden: `tests/test_ta_incremental.py`, `tests/test_series_cap.py`.
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `docs/missing_features.md` | Living gap analysis |
-| `tests/test_v6_features.py` | v6 feature coverage |
-| `tests/test_pine_surface_gaps.py` | Surface gap probes |
-| `tests/test_ta_incremental.py` | Incremental TA ≡ full recompute |
-| `tests/test_series_cap.py` | Series cap goldens (T1) |
-| `scripts/compare_interp_compile.py` | Plot parity harness (P1p) |
-| `docs/pine_v6_full_surface_inventory.md` | Full name-level inventory |
-| `resource/*.g4` + builder | Grammar-level feature work |
-| `.../technical_submodules/core.py` | `_sma_inc_update`, `_macd_inc_update`, `_atr_inc_update`, ... |
+| Path                                     | Role                                                          |
+| ---------------------------------------- | ------------------------------------------------------------- |
+| `docs/missing_features.md`               | Living gap analysis                                           |
+| `tests/test_v6_features.py`              | v6 feature coverage                                           |
+| `tests/test_pine_surface_gaps.py`        | Surface gap probes                                            |
+| `tests/test_ta_incremental.py`           | Incremental TA ≡ full recompute                               |
+| `tests/test_series_cap.py`               | Series cap goldens (T1)                                       |
+| `scripts/compare_interp_compile.py`      | Plot parity harness (P1p)                                     |
+| `docs/pine_v6_full_surface_inventory.md` | Full name-level inventory                                     |
+| `resource/*.g4` + builder                | Grammar-level feature work                                    |
+| `.../technical_submodules/core.py`       | `_sma_inc_update`, `_macd_inc_update`, `_atr_inc_update`, ... |
 
 ## Invariants & edge cases
 
@@ -189,14 +207,14 @@ PYNE_TA_INCREMENTAL=0 python -c "from pynescript.runtime import Runtime; ..."
 
 ## Failure modes
 
-| Symptom | Likely gap class |
-| --- | --- |
-| Lexer error on triple quotes | Stale generated lexer (should be fixed on main) |
-| Import member missing | Library export registration |
-| Empty footprint rows | Mock seed / data_feed not configured |
-| Risk not blocking entry | Old runtime path; ensure risk_kwargs applied |
-| Runtime TIMEOUT on method-heavy scripts | Missing `_pine_defs_locked` on host |
-| Corpus PARSE_FAIL mid-block | Truncated scrape — not a grammar hole |
+| Symptom                                 | Likely gap class                                |
+| --------------------------------------- | ----------------------------------------------- |
+| Lexer error on triple quotes            | Stale generated lexer (should be fixed on main) |
+| Import member missing                   | Library export registration                     |
+| Empty footprint rows                    | Mock seed / data_feed not configured            |
+| Risk not blocking entry                 | Old runtime path; ensure risk_kwargs applied    |
+| Runtime TIMEOUT on method-heavy scripts | Missing `_pine_defs_locked` on host             |
+| Corpus PARSE_FAIL mid-block             | Truncated scrape — not a grammar hole           |
 
 ## See also
 

@@ -1,20 +1,37 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 # Documentation writing rules (PYNE + AXIS)
@@ -46,10 +63,10 @@ GitHub orgs are fine.
 
 ## Products
 
-| Tree | Public base | Brand pack (hoox.sh) |
-|------|-------------|----------------------|
-| `docs/pyne/**` | `/pyne/docs` | volt |
-| `docs/axis/**` | `/axis/docs` | void |
+| Tree           | Public base  | Brand pack (hoox.sh) |
+| -------------- | ------------ | -------------------- |
+| `docs/pyne/**` | `/pyne/docs` | volt                 |
+| `docs/axis/**` | `/axis/docs` | void                 |
 
 Never put AXIS pages under `docs/pyne/` or PYNE language theory under `docs/axis/`
 beyond short cross-links.

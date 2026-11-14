@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Unparser"
 description: "NodeUnparser: precedence-aware AST → Pine Script source regeneration."
 ---
@@ -28,7 +46,7 @@ The unparser is the inverse of the builder: ASDL nodes become source text with c
 
 ## Abstract
 
-`src/pynescript/ast/unparser.py` implements `NodeUnparser(NodeVisitor)` and a `Precedence` enum. `helper.unparse(node)` calls `unparse_node`, which reuses a **thread-local** `NodeUnparser` (warm type-visitor cache; `visit` still resets the buffer each call). Output is **semantically faithful**, not a pretty-printer of original trivia: whitespace is normalized; comments that never became annotations are not reconstructed; annotation strings that *were* attached are re-emitted.
+`src/pynescript/ast/unparser.py` implements `NodeUnparser(NodeVisitor)` and a `Precedence` enum. `helper.unparse(node)` calls `unparse_node`, which reuses a **thread-local** `NodeUnparser` (warm type-visitor cache; `visit` still resets the buffer each call). Output is **semantically faithful**, not a pretty-printer of original trivia: whitespace is normalized; comments that never became annotations are not reconstructed; annotation strings that _were_ attached are re-emitted.
 
 Round-trip tests (`parse → unparse → parse`) are the primary oracle for grammar/builder/unparser coherence.
 
@@ -66,52 +84,52 @@ print(unparse(parse(src)))
 
 Matches `IntEnum` order in `unparser.py`:
 
-| Level | Operators / forms |
-| --- | --- |
-| `TEST` | ternary `? :` (weakest) |
-| `OR` | `or` |
-| `AND` | `and` |
-| `BITOR` | `\|` |
-| `BITXOR` | `^` |
-| `BITAND` | `&` |
-| `EQ` | `==` `!=` |
-| `INEQ` / `CMP` | `<` `>` `<=` `>=` |
-| `SHIFT` | `<<` `>>` |
-| `EXPR` | reserved slot (unused by current op tables) |
-| `ARITH` | `+` `-` |
-| `TERM` | `*` `/` `%` |
-| `FACTOR` / `NOT` | unary `+` `-` `not` `~` |
-| `ATOM` | names, literals, calls, subscripts |
+| Level            | Operators / forms                           |
+| ---------------- | ------------------------------------------- |
+| `TEST`           | ternary `? :` (weakest)                     |
+| `OR`             | `or`                                        |
+| `AND`            | `and`                                       |
+| `BITOR`          | `\|`                                        |
+| `BITXOR`         | `^`                                         |
+| `BITAND`         | `&`                                         |
+| `EQ`             | `==` `!=`                                   |
+| `INEQ` / `CMP`   | `<` `>` `<=` `>=`                           |
+| `SHIFT`          | `<<` `>>`                                   |
+| `EXPR`           | reserved slot (unused by current op tables) |
+| `ARITH`          | `+` `-`                                     |
+| `TERM`           | `*` `/` `%`                                 |
+| `FACTOR` / `NOT` | unary `+` `-` `not` `~`                     |
+| `ATOM`           | names, literals, calls, subscripts          |
 
 `Precedence.next()` steps one level tighter for right-hand associativity control. Bitwise tokens are emitted from `visit_BinOp` / `visit_UnaryOp` maps (`BitAnd`/`BitOr`/`BitXor`/`LShift`/`RShift`/`Invert`), not standalone `visit_BitAnd` methods.
 
 ### Buffer helpers (internal but useful when subclassing)
 
-| Method | Role |
-| --- | --- |
-| `write(*text)` | Append fragments |
-| `fill(text="")` | Newline + indent + text |
-| `block()` | Indent context manager |
-| `delimit(start, end)` | Wrap sub-output |
-| `require_parens(prec, node)` | Conditional parentheses |
-| `items_view` / `interleave` | Comma-separated lists |
-| `buffered()` | Capture substring generation |
+| Method                       | Role                         |
+| ---------------------------- | ---------------------------- |
+| `write(*text)`               | Append fragments             |
+| `fill(text="")`              | Newline + indent + text      |
+| `block()`                    | Indent context manager       |
+| `delimit(start, end)`        | Wrap sub-output              |
+| `require_parens(prec, node)` | Conditional parentheses      |
+| `items_view` / `interleave`  | Comma-separated lists        |
+| `buffered()`                 | Capture substring generation |
 
 ### Node coverage (high level)
 
-| Node | Emission sketch |
-| --- | --- |
-| `Script` | annotations then body |
-| `FunctionDef` | optional `export`/`method`, optional `returns` type spec, `name(args) => body` (inline single `Expr` or indented block) |
-| `TypeDef` | `type Name` with fields then methods |
-| `EnumDef` | `enum Name` body |
-| `Assign` | annotations, `export?`, `var`/`varip?`, type?, target `= value` |
-| `ReAssign` | `target := value` |
-| `AugAssign` | `target op= value` |
-| `ForTo` / `ForIn` / `While` / `If` / `Switch` | Pine control syntax; `else if` chain collapse |
-| `Import` | `import ns/name/version as alias?` |
-| `BinOp` / `BoolOp` / `UnaryOp` / `Compare` / `Conditional` | precedence-aware, including bitwise `|` `^` `&` `<<` `>>` `~` |
-| `Call` / `Attribute` / `Subscript` / `Name` / `Constant` / `Tuple` | primaries |
+| Node                                                               | Emission sketch                                                                                                         |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `Script`                                                           | annotations then body                                                                                                   |
+| `FunctionDef`                                                      | optional `export`/`method`, optional `returns` type spec, `name(args) => body` (inline single `Expr` or indented block) |
+| `TypeDef`                                                          | `type Name` with fields then methods                                                                                    |
+| `EnumDef`                                                          | `enum Name` body                                                                                                        |
+| `Assign`                                                           | annotations, `export?`, `var`/`varip?`, type?, target `= value`                                                         |
+| `ReAssign`                                                         | `target := value`                                                                                                       |
+| `AugAssign`                                                        | `target op= value`                                                                                                      |
+| `ForTo` / `ForIn` / `While` / `If` / `Switch`                      | Pine control syntax; `else if` chain collapse                                                                           |
+| `Import`                                                           | `import ns/name/version as alias?`                                                                                      |
+| `BinOp` / `BoolOp` / `UnaryOp` / `Compare` / `Conditional`         | precedence-aware, including bitwise `                                                                                   | ` `^` `&` `<<` `>>` `~` |
+| `Call` / `Attribute` / `Subscript` / `Name` / `Constant` / `Tuple` | primaries                                                                                                               |
 
 ## Internals
 
@@ -178,13 +196,13 @@ print(unparse(parse("1 + 2 * 3", mode="eval")))
 
 ## Failure modes
 
-| Symptom | Cause |
-| --- | --- |
-| Missing `visit_*` output | Falls through `generic_visit` which only walks children — may emit empty string for leaf-like unhandled nodes |
-| Extra parentheses everywhere | Over-conservative precedence |
-| Re-parse differs in binding | Under-parenthesized output |
-| Lost comments | Only annotation strings are stored; plain `//` comments are dropped after parse |
-| Method printed as function | `FunctionDef.method` flag not set by builder |
+| Symptom                      | Cause                                                                                                         |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Missing `visit_*` output     | Falls through `generic_visit` which only walks children — may emit empty string for leaf-like unhandled nodes |
+| Extra parentheses everywhere | Over-conservative precedence                                                                                  |
+| Re-parse differs in binding  | Under-parenthesized output                                                                                    |
+| Lost comments                | Only annotation strings are stored; plain `//` comments are dropped after parse                               |
+| Method printed as function   | `FunctionDef.method` flag not set by builder                                                                  |
 
 ## See also
 

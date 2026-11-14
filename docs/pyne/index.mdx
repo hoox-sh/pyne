@@ -1,28 +1,46 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "PYNE Documentation"
 description: "Open-source Pine Script™ evaluation — grammar, AST, interpret/compile runtime, alerts + webhooks, LSP, Pro API. pip install hoox-pyne · github.com/hoox-sh/pyne"
 ---
 
-import { PackageVersions } from "/snippets/package-versions.jsx"
+import { PackageVersions } from "/snippets/package-versions.jsx";
 
 # PYNE Documentation
 
@@ -63,18 +81,18 @@ Release notes: [GitHub releases](https://github.com/hoox-sh/pyne/releases) · [c
 
 ## How to use
 
-| Surface | Role | Start here |
-| --- | --- | --- |
-| **Library + CLI** | Parse, lint, unparse, evaluate. Library `Runtime.run` defaults to **interpret**; `pyne execute` is CLI `Runtime.run`; `pyne run` is **compile-only** smoke | [End User hub](/pyne/docs/enduser) · [modes](/pyne/docs/enduser/reference/modes) |
-| **Language core** | Grammar, AST, visitors, type system | [Core](/pyne/docs/core) |
-| **Runtime** | Series caps, builtins, strategy, alerts, compiler parity | [Runtime](/pyne/docs/runtime) |
-| **LSP** | Diagnostics, completion, hover, format (`.pyne` / `.pine`) | [LSP](/pyne/docs/lsp) |
-| **MCP** | Stdio `pyne-mcp` plus in-process `pyne mcp call` / `pyne execute` — parse, lint, convert, compile, `Runtime.run`, builtins | [MCP](/pyne/docs/enduser/guides/mcp) |
-| **Pro API** | HTTP `/run` (alerts + L2 webhooks), `/optimize`, preview, backtest | [API](/pyne/docs/api) |
-| **Ops** | CI, Docker, Nuitka, self-host | [DevOps](/pyne/docs/devops) |
-| **PyneTS** | TypeScript / Bun library (`parse` / `unparse` / `Runtime.run`) | [PyneTS](/pyne/docs/pynets) |
-| **AXIS** (separate product) | Charting PWA AXIS | [AXIS docs](/axis/docs) |
-| **HOOX** | Edge trade mesh | [HOOX docs](/docs) |
+| Surface                     | Role                                                                                                                                                       | Start here                                                                       |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| **Library + CLI**           | Parse, lint, unparse, evaluate. Library `Runtime.run` defaults to **interpret**; `pyne execute` is CLI `Runtime.run`; `pyne run` is **compile-only** smoke | [End User hub](/pyne/docs/enduser) · [modes](/pyne/docs/enduser/reference/modes) |
+| **Language core**           | Grammar, AST, visitors, type system                                                                                                                        | [Core](/pyne/docs/core)                                                          |
+| **Runtime**                 | Series caps, builtins, strategy, alerts, compiler parity                                                                                                   | [Runtime](/pyne/docs/runtime)                                                    |
+| **LSP**                     | Diagnostics, completion, hover, format (`.pyne` / `.pine`)                                                                                                 | [LSP](/pyne/docs/lsp)                                                            |
+| **MCP**                     | Stdio `pyne-mcp` plus in-process `pyne mcp call` / `pyne execute` — parse, lint, convert, compile, `Runtime.run`, builtins                                 | [MCP](/pyne/docs/enduser/guides/mcp)                                             |
+| **Pro API**                 | HTTP `/run` (alerts + L2 webhooks), `/optimize`, preview, backtest                                                                                         | [API](/pyne/docs/api)                                                            |
+| **Ops**                     | CI, Docker, Nuitka, self-host                                                                                                                              | [DevOps](/pyne/docs/devops)                                                      |
+| **PyneTS**                  | TypeScript / Bun library (`parse` / `unparse` / `Runtime.run`)                                                                                             | [PyneTS](/pyne/docs/pynets)                                                      |
+| **AXIS** (separate product) | Charting PWA AXIS                                                                                                                                          | [AXIS docs](/axis/docs)                                                          |
+| **HOOX**                    | Edge trade mesh                                                                                                                                            | [HOOX docs](/docs)                                                               |
 
 ## Conceptual model
 
@@ -92,7 +110,7 @@ flowchart LR
   R --> HOOX[HOOX trade-worker]
 ```
 
-**Invariant:** evaluation never requires a proprietary chart host. AXIS is an optional chart; HOOX is an optional *execution mesh*.
+**Invariant:** evaluation never requires a proprietary chart host. AXIS is an optional chart; HOOX is an optional _execution mesh_.
 
 ## Tracks
 
@@ -128,11 +146,11 @@ Compatibility guarantees, missing surface, numerical validation, [PyneTS](/pyne/
 
 Auto-generated like HOOX manuals (`bun run docs:exports`):
 
-| Kind | Path |
-| --- | --- |
-| Full-corpus LLM pack | [`llm.txt`](/pyne/docs/llm.txt) |
-| LLM site map ([llmstxt.org](https://llmstxt.org/)) | [`llms.txt`](/pyne/docs/llms.txt) |
-| Track PDFs (A4) | [`/exports/pyne-*-manual.pdf`](/exports/manifest.json) |
+| Kind                                               | Path                                                   |
+| -------------------------------------------------- | ------------------------------------------------------ |
+| Full-corpus LLM pack                               | [`llm.txt`](/pyne/docs/llm.txt)                        |
+| LLM site map ([llmstxt.org](https://llmstxt.org/)) | [`llms.txt`](/pyne/docs/llms.txt)                      |
+| Track PDFs (A4)                                    | [`/exports/pyne-*-manual.pdf`](/exports/manifest.json) |
 
 ## See also
 

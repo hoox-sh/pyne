@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Install PyneTS"
 description: "Add @hoox-sh/pynets with Bun, npm, or esm.sh. CLI requires Bun. Node and browsers use the ESM bundle."
 ---
@@ -43,12 +61,12 @@ flowchart LR
   BUN --> CLI[pynets CLI]
 ```
 
-| Consumer | Entry | Notes |
-| --- | --- | --- |
-| Bun `>= 1.2` | `./src/index.ts` | No bundle required |
-| Node `>= 20` | `./dist/index.js` | Run `bun run build` / `prepack` |
-| Browser | `./dist/browser.js` | Same package; `exports.browser` |
-| CLI | `./src/cli.ts` | Needs Bun on `PATH` |
+| Consumer     | Entry               | Notes                           |
+| ------------ | ------------------- | ------------------------------- |
+| Bun `>= 1.2` | `./src/index.ts`    | No bundle required              |
+| Node `>= 20` | `./dist/index.js`   | Run `bun run build` / `prepack` |
+| Browser      | `./dist/browser.js` | Same package; `exports.browser` |
+| CLI          | `./src/cli.ts`      | Needs Bun on `PATH`             |
 
 ## Interface surface
 
@@ -80,7 +98,7 @@ import { parse, Runtime } from "@hoox-sh/pynets";
 
 ```html
 <script type="module">
-  import { Runtime } from "https://esm.sh/@hoox-sh/pynets";
+    import { Runtime } from "https://esm.sh/@hoox-sh/pynets";
 </script>
 ```
 
@@ -120,13 +138,13 @@ Resolution order in `scripts/generate-antlr.ts`: `PYNETS_GRAMMAR` → `PYNESCRIP
 
 ## Internals
 
-| Path | Role |
-| --- | --- |
-| `package.json` `exports` | bun → `src/`, types → `dist/index.d.ts`, browser → `dist/browser.js` |
-| `package.json` `bin.pynets` | `./src/cli.ts` |
-| `scripts/build.ts` | Node + browser ESM → `dist/` (gitignored) |
-| `scripts/generate-antlr.ts` | ANTLR TS regen |
-| `.github/workflows/publish.yml` | npm publish on `v*` tags |
+| Path                            | Role                                                                 |
+| ------------------------------- | -------------------------------------------------------------------- |
+| `package.json` `exports`        | bun → `src/`, types → `dist/index.d.ts`, browser → `dist/browser.js` |
+| `package.json` `bin.pynets`     | `./src/cli.ts`                                                       |
+| `scripts/build.ts`              | Node + browser ESM → `dist/` (gitignored)                            |
+| `scripts/generate-antlr.ts`     | ANTLR TS regen                                                       |
+| `.github/workflows/publish.yml` | npm publish on `v*` tags                                             |
 
 Local tooling is **Bun only**. Do not add npm/yarn/pnpm lockfiles. The npm registry is used only to publish.
 
@@ -158,8 +176,8 @@ bunx pynets check /tmp/x.pine
 import { Runtime } from "@hoox-sh/pynets";
 
 const out = new Runtime("AAPL").run(
-  `indicator("sma")\nplot(ta.sma(close, 3))`,
-  [{ close: 1 }, { close: 2 }, { close: 3 }, { close: 4 }],
+    `indicator("sma")\nplot(ta.sma(close, 3))`,
+    [{ close: 1 }, { close: 2 }, { close: 3 }, { close: 4 }],
 );
 if (out.error) throw new Error(out.error);
 console.log(out.plots);
@@ -167,13 +185,13 @@ console.log(out.plots);
 
 ## Failure modes
 
-| Symptom | Cause | Fix |
-| --- | --- | --- |
-| `Cannot find module '@hoox-sh/pynets'` | Typo / old `@hoox/pynets` name | Use `@hoox-sh/pynets` |
-| Node import fails in a fresh clone | `dist/` not built | `bun run build` |
-| `pynets: command not found` | No Bun / not on PATH | `bunx pynets` or `bun run src/cli.ts` |
-| Grammar regen fails | No Java / no PYNE `.g4` | Set `PYNESCRIPT_ROOT` or `PYNETS_GRAMMAR` |
-| AXIS still evaluates via Python | Expected | AXIS does not consume this package |
+| Symptom                                | Cause                          | Fix                                       |
+| -------------------------------------- | ------------------------------ | ----------------------------------------- |
+| `Cannot find module '@hoox-sh/pynets'` | Typo / old `@hoox/pynets` name | Use `@hoox-sh/pynets`                     |
+| Node import fails in a fresh clone     | `dist/` not built              | `bun run build`                           |
+| `pynets: command not found`            | No Bun / not on PATH           | `bunx pynets` or `bun run src/cli.ts`     |
+| Grammar regen fails                    | No Java / no PYNE `.g4`        | Set `PYNESCRIPT_ROOT` or `PYNETS_GRAMMAR` |
+| AXIS still evaluates via Python        | Expected                       | AXIS does not consume this package        |
 
 ## See also
 

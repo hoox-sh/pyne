@@ -1,23 +1,41 @@
 # Copyright (C) 2024-2026 jango_blockchained
+
 #
+
 # This file is part of pynescript.
+
 #
+
 # pynescript is free software: you can redistribute it and/or modify
+
 # it under the terms of the GNU Affero General Public License as published by
+
 # the Free Software Foundation, either version 3 of the License, or
+
 # (at your option) any later version.
+
 #
+
 # pynescript is distributed in the hope that it will be useful,
+
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+
 # GNU Affero General Public License for more details.
+
 #
+
 # You should have received a copy of the GNU Affero General Public License
-# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+
+# along with pynescript. If not, see <https://www.gnu.org/licenses/>.
+
 #
+
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
+
 title: "Visitor & Transformer"
 description: "NodeVisitor and NodeTransformer: read-only traversal vs in-place AST rewrite with caching dispatch."
 ---
@@ -33,12 +51,12 @@ Tree walks in PYNE follow the same dual pattern as CPython’s `ast` module: a v
 
 Specialized visitors elsewhere:
 
-| Class | Path | Role |
-| --- | --- | --- |
-| `PinescriptASTBuilder` | `builder.py` | CST visitor (ANTLR), not `NodeVisitor` |
-| `NodeUnparser` | `unparser.py` | Source emission |
-| `StatementCollector` | `collector.py` | Yield statements for annotations |
-| Evaluator classes | `evaluator/*.py` | Runtime interpretation |
+| Class                  | Path             | Role                                   |
+| ---------------------- | ---------------- | -------------------------------------- |
+| `PinescriptASTBuilder` | `builder.py`     | CST visitor (ANTLR), not `NodeVisitor` |
+| `NodeUnparser`         | `unparser.py`    | Source emission                        |
+| `StatementCollector`   | `collector.py`   | Yield statements for annotations       |
+| Evaluator classes      | `evaluator/*.py` | Runtime interpretation                 |
 
 ## Conceptual model
 
@@ -93,10 +111,10 @@ c.visit(tree)
 assert c.count >= 2
 ```
 
-| Method | Contract |
-| --- | --- |
-| `visit(node)` | Resolve `visit_<type(node).__name__>` with cache; fallback `generic_visit` |
-| `generic_visit(node)` | Recurse into AST fields and lists of AST |
+| Method                | Contract                                                                   |
+| --------------------- | -------------------------------------------------------------------------- |
+| `visit(node)`         | Resolve `visit_<type(node).__name__>` with cache; fallback `generic_visit` |
+| `generic_visit(node)` | Recurse into AST fields and lists of AST                                   |
 
 Returns are whatever the override returns (analysis often returns `None`).
 
@@ -120,12 +138,12 @@ assert "open" in unparse(tree)
 
 Return value semantics when transforming a **list parent** (e.g. `body`):
 
-| Return | Effect |
-| --- | --- |
-| `None` | Remove this element |
-| `AST` | Replace element |
+| Return           | Effect                                |
+| ---------------- | ------------------------------------- |
+| `None`           | Remove this element                   |
+| `AST`            | Replace element                       |
 | non-AST iterable | Splice multiple nodes in place of one |
-| same node | Keep |
+| same node        | Keep                                  |
 
 For a **single AST field**, `None` deletes the attribute (`delattr`); otherwise `setattr` replaces.
 
@@ -148,12 +166,12 @@ stmts = list(StatementCollector().visit(parse("f() => 1\nx = 2")))
 
 ### Paths
 
-| File | Symbols |
-| --- | --- |
-| `src/pynescript/ast/visitor.py` | `NodeVisitor` |
-| `src/pynescript/ast/transformer.py` | `NodeTransformer` |
-| `src/pynescript/ast/collector.py` | `StatementCollector`, `Structure` tuple |
-| `src/pynescript/ast/helper.py` | `iter_fields`, `iter_child_nodes`, `walk` |
+| File                                | Symbols                                   |
+| ----------------------------------- | ----------------------------------------- |
+| `src/pynescript/ast/visitor.py`     | `NodeVisitor`                             |
+| `src/pynescript/ast/transformer.py` | `NodeTransformer`                         |
+| `src/pynescript/ast/collector.py`   | `StatementCollector`, `Structure` tuple   |
+| `src/pynescript/ast/helper.py`      | `iter_fields`, `iter_child_nodes`, `walk` |
 
 ### Dispatch cache
 
@@ -220,13 +238,13 @@ s.visit(parse('indicator("hello")'))
 
 ## Failure modes
 
-| Failure | Cause |
-| --- | --- |
-| `AttributeError: _visitor_cache` | Forgot `super().__init__()` |
-| Transformer silently no-ops | Override returns nothing (`None`) unintentionally → node deleted |
-| Infinite recursion | `visit_X` calls `self.visit(node)` on same node without change |
-| Partial rewrite | Overrode `visit_*` without `generic_visit` — children untouched |
-| Collector misses nested assign | Structure not in `Structure` tuple and not assigned as value |
+| Failure                          | Cause                                                            |
+| -------------------------------- | ---------------------------------------------------------------- |
+| `AttributeError: _visitor_cache` | Forgot `super().__init__()`                                      |
+| Transformer silently no-ops      | Override returns nothing (`None`) unintentionally → node deleted |
+| Infinite recursion               | `visit_X` calls `self.visit(node)` on same node without change   |
+| Partial rewrite                  | Overrode `visit_*` without `generic_visit` — children untouched  |
+| Collector misses nested assign   | Structure not in `Structure` tuple and not assigned as value     |
 
 ## See also
 
