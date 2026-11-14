@@ -189,7 +189,11 @@ def _request(cfg: ExternalFeedConfig, path: str) -> Any:
         raise FeedFetchError("PYNE_FEED_URL is not set (PYNE_FEED_SOURCE=external)")
     if not cfg.url.lower().startswith(("http://", "https://")):
         raise FeedFetchError("PYNE_FEED_URL must be an http(s) URL")
-    headers = {"Accept": "application/json"}
+    headers = {
+        "Accept": "application/json",
+        # Cloudflare blocks python-urllib's default UA outright.
+        "User-Agent": "pyne-feed-client/1.0 (+https://github.com/hoox-sh/pyne)",
+    }
     if cfg.api_key:
         headers["Authorization"] = f"Bearer {cfg.api_key}"
     req = urllib.request.Request(f"{cfg.url}{path}", headers=headers)  # noqa: S310 - operator-configured http(s) feed URL

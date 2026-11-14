@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-14T20:02:10Z
 sources:
   - id: tree
     resource: "tests"
@@ -77,6 +77,7 @@ okf_lock: generated
 - `test_error_handling.py` — TestBodyTypeErrorFailClosed, TestCamarillaPlotLinewidth, TestColorNewKwargsDispatch, TestRequestSoftFailPreserved, TestRuntimeErrorClassification, TestStrategyDeclarationFailClosed, TestTypeErrorHelper
 - `test_evaluator.py` — test_bid_ask_default_na_when_host_omits_quotes, test_bid_ask_host_supplied_quotes_win, test_callee_body_typeerror_fail_closed, test_defs_locked_skips_top_level_indicator_after_first_visit, test_eval_arg_plan_reuses_empty_kwargs_and_scratch, test_evaluator_abs, test_evaluator_array_abs, test_evaluator_array_avg, test_evaluator_array_binary_search, test_evaluator_array_binary_search_leftmost, test_evaluator_array_binary_search_rightmost, test_evaluator_array_concat
 - `test_expr_parity_r8.py` — TestElementwiseSoftConcat, TestPeriodOrNone, TestRuntimeIfBlock, TestRuntimePeriodOrNone, TestRuntimeSoftConcatAndNaArith, TestRuntimeSwitchNa, TestRuntimeUtilityBare, TestSwitchCaseMatchHelper
+- `test_external_feed.py` — FakeResponse, FakeStore, delta_frame, make_bar, test_apply_delta_appends_newer_bars, test_apply_delta_duplicate_seq_is_noop, test_apply_delta_overwrites_forming_tip, test_apply_delta_rejects_length_mismatch, test_apply_delta_rejects_non_increasing_times, test_apply_delta_rejects_older_than_tip, test_apply_delta_rejects_rewrite_of_closed_tip, test_apply_delta_seq_gap_requires_resync
 - `test_feed_manager.py` — test_apply_feed_candles_advances_session_without_walk, test_datafeed_error_falls_back_to_poll, test_dispatch_fans_out_and_isolates_failures, test_fan_in_refreshes_when_membership_changes, test_fan_in_used_when_supported, test_normalize_candles_sorts_dedups_and_converts, test_per_series_fallback_without_fan_in, test_split_key
 - `test_first_party_ta_goldens.py` — bars, make_ohlcv, series_allclose, test_atr_wilder_dual_host, test_fixture_files_shipped, test_inline_atr_compile_object_mode_ok, test_keltner_dual_host, test_supertrend_dual_host, test_supertrend_dual_host_factor_period, test_supertrend_formula_after_atr_warmup, test_supertrend_interpret_compile_inc_numba
 - `test_for_loop_syntax.py` — test_comma_chained_for_structure, test_orderbook_style_typed_for, test_series_typed_for_iterator, test_switch_default_only_arm, test_switch_multi_value_arm, test_typed_for_in_iterator, test_typed_for_to_iterator

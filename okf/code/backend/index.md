@@ -3,6 +3,7 @@
 # Concepts
 
 - [backend/api](api.md) - HTTP API blueprints for the Pro API (beyond core /run routes).
+- [backend/data](data.md) - Pluggable bar-source backends for the engine data plane.
 - [backend/datastore](datastore.md) - Engine-owned OHLCV data plane (PYNE Pro): series store and session binding.
 - [backend/middleware](middleware.md) - Flask middleware helpers for the Pro API.
 - [backend/runner](runner.md) - Optional hosted script runner for Flask / Docker / VPS / Containers.
