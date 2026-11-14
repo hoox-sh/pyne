@@ -117,7 +117,9 @@ _NS = frozenset(
 # linewidth, style, …)).
 _PLOT_ATTR_SPECS: dict[str, tuple[str, ...]] = {
     "plot": ("trackprice", "histbase", "offset", "join", "editable", "show_last", "linewidth", "style", "display"),
-    "hline": ("editable", "linewidth", "display"),
+    # hline color/linestyle are visual metadata; numeric mode synthesizes the
+    # per-bar drawing events after the JIT loop, so they must survive here.
+    "hline": ("editable", "linewidth", "display", "color", "linestyle"),
     "bgcolor": ("offset", "editable", "show_last"),
     "barcolor": ("offset", "editable", "show_last"),
     "plotshape": ("offset", "editable", "show_last"),
@@ -619,6 +621,10 @@ class CompilerVisitor(NodeVisitor):
         # same way; only the final emit path is pinned to object mode.
         self.force_object_mode = bool(force_object_mode)
         self.object_mode = bool(force_object_mode)
+        # True only while resolving plot/fill/hline arguments: literal colors
+        # there are metadata for numeric synthesis. Elsewhere (bgcolor,
+        # drawings, assignments) keep the legacy object-mode helper path.
+        self._fold_literal_color = False
         self.uses_strategy = False
         self.uses_alerts = False
         self.strategy_kwargs: dict[str, str] = {}
@@ -5225,17 +5231,25 @@ class CompilerVisitor(NodeVisitor):
         args: list[str] = []
         kwargs: dict[str, str] = {}
         arg_nodes: list = []
-        for arg in node.args:
-            if hasattr(arg, "value"):
-                expr = self.visit(arg.value)
-                if getattr(arg, "name", None):
-                    kwargs[str(arg.name)] = expr
+        prev_fold_literal_color = self._fold_literal_color
+        # Literal color metadata is foldable only in numeric plot/fill/hline
+        # argument positions. Object-only call sites (bgcolor, drawings) keep
+        # the legacy pine_color_new helper and object mode.
+        self._fold_literal_color = func_name in ("plot", "fill", "hline")
+        try:
+            for arg in node.args:
+                if hasattr(arg, "value"):
+                    expr = self.visit(arg.value)
+                    if getattr(arg, "name", None):
+                        kwargs[str(arg.name)] = expr
+                    else:
+                        args.append(expr)
+                        arg_nodes.append(arg.value)
                 else:
-                    args.append(expr)
-                    arg_nodes.append(arg.value)
-            else:
-                args.append(self.visit(arg))
-                arg_nodes.append(arg)
+                    args.append(self.visit(arg))
+                    arg_nodes.append(arg)
+        finally:
+            self._fold_literal_color = prev_fold_literal_color
         if method_src is not None:
             args = [method_src, *args]
             recv_node = getattr(func, "value", None)
@@ -5714,16 +5728,46 @@ class CompilerVisitor(NodeVisitor):
                 return args[3]
             return repr("#000000")
         if func_name in ("color_new", "color"):
-            # color.new(base, transp) / v3-v4 color(base, transp)
-            self.object_mode = True
-            if not args:
+            # color.new(base, transp) / v3-v4 color(base, transp).
+            # Literal colors are metadata only in numeric plot/fill/hline
+            # argument positions (see _fold_literal_color). Everywhere else
+            # keep the legacy object-mode runtime helper.
+            if not self._fold_literal_color:
+                self.object_mode = True
+                if not args:
+                    return repr("#000000")
+                transp = kwargs.get("transp")
+                if transp is None and len(args) > 1:
+                    transp = args[1]
+                if transp is None:
+                    return args[0]
+                return f"pine_color_new({args[0]}, {transp})"
+            base = args[0] if args else kwargs.get("color")
+            if base is None:
                 return repr("#000000")
             transp = kwargs.get("transp")
             if transp is None and len(args) > 1:
                 transp = args[1]
+            base_val = self._fold_const(base)
+            # Legacy one-arg form: color.new("#RRGGBBAA") / color("#...")
+            # returned the argument unchanged. Keep that text (do not
+            # renormalize alpha through pine_color_new).
+            if base_val is not None and transp is None:
+                return repr(base_val)
+            transp_val = self._fold_const(transp) if transp is not None else None
+            if base_val is not None and transp_val is not None:
+                try:
+                    from pynescript.compiler.numba_builtins import pine_color_new
+
+                    folded = pine_color_new(base_val, transp_val)
+                except Exception:
+                    folded = None
+                if isinstance(folded, str):
+                    return repr(folded)
+            self.object_mode = True
             if transp is None:
-                return args[0]
-            return f"pine_color_new({args[0]}, {transp})"
+                return base
+            return f"pine_color_new({base}, {transp})"
 
         if func_name == "time":
             # time(timeframe) / time() — chart open when no session args
@@ -7926,6 +7970,11 @@ class CompilerVisitor(NodeVisitor):
                 coerced = fv
         elif name in WIRE_BOOL_PARAMS and isinstance(value, (bool, int, float)):
             coerced = bool(value)
+        elif name in ("color", "linestyle") and isinstance(value, str) and value.strip():
+            # hline visual metadata: object mode stores the visited string in
+            # __drawings and the host backfills plot_meta from it. Keep the same
+            # form here so numeric synthesis matches object mode.
+            coerced = value.strip()
         return coerced
 
     def _collect_plot_attrs(self, kind: str, args: list[str], kwargs: dict[str, str]) -> dict[str, Any]:

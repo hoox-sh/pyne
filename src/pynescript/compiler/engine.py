@@ -179,7 +179,7 @@ _BUILTINS_WARMED = False
 # Bump when generated IR semantics change so source→IR disk index is invalidated
 # (source hash alone is stable across compiler fixes, e.g. fill() series keys).
 # v5: strategy series history + Pine na-aware ==/!=
-_DISK_META_VERSION = 53  # v53: na-false conds, switch na==na, dynamic for-to, fmod ints
+_DISK_META_VERSION = 54  # v54: hline plot_attrs color/linestyle for numeric synthesis
 _NJIT_CACHE_FALSE = "@numba.njit(cache=False)"
 _NJIT_CACHE_TRUE = "@numba.njit(cache=True)"
 
@@ -830,13 +830,13 @@ class CompiledScript:
         if _is_plot_sequence(raw):
             packed = _pack_plot_sequence(raw, self.plot_titles)
             if not self.object_mode:
-                drawings = _synthesize_hline_fill_drawings(packed, self.plot_titles, self.plot_kinds)
+                drawings = _synthesize_hline_fill_drawings(packed, self.plot_titles, self.plot_kinds, self.plot_attrs)
                 if drawings:
                     packed["__drawings"] = drawings
             return packed
         packed = _normalize_result(raw)
         if not self.object_mode and "__drawings" not in packed:
-            drawings = _synthesize_hline_fill_drawings(packed, self.plot_titles, self.plot_kinds)
+            drawings = _synthesize_hline_fill_drawings(packed, self.plot_titles, self.plot_kinds, self.plot_attrs)
             if drawings:
                 packed["__drawings"] = drawings
         return packed
@@ -945,8 +945,15 @@ def _synthesize_hline_fill_drawings(
     packed: dict[str, Any],
     titles: list[str],
     kinds: list[str],
+    attrs: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
-    """Per-bar hline/fill events for nopython scripts (no in-loop ``__drawings``)."""
+    """Per-bar hline/fill events for nopython scripts (no in-loop ``__drawings``).
+
+    ``attrs`` is the compiler's constant-folded plot-attrs list (aligned with
+    *titles*). hline color/linestyle/linewidth are copied onto every synthesized
+    event so the host's normal ``__drawings`` → ``plot_meta`` backfill sees the
+    same visual metadata object mode carries.
+    """
     n = 0
     for v in packed.values():
         if isinstance(v, np.ndarray) and v.ndim == 1:
@@ -954,17 +961,23 @@ def _synthesize_hline_fill_drawings(
             break
     if n <= 0 or not kinds:
         return []
+    attr_list = list(attrs or [])
     drawings: list[dict[str, Any]] = []
     for i, kind in enumerate(kinds):
         if kind not in ("hline", "fill"):
             continue
         title = titles[i] if i < len(titles) else f"plot_{i}"
         series = packed.get(title)
+        ev_attrs = attr_list[i] if i < len(attr_list) else {}
         for bar in range(n):
             ev: dict[str, Any] = {"kind": kind, "bar": bar, "title": title}
-            if kind == "hline" and isinstance(series, np.ndarray) and bar < len(series):
-                val = series[bar]
-                ev["price"] = float(val) if val == val else None
+            if kind == "hline":
+                for key in ("color", "linestyle", "linewidth"):
+                    if ev_attrs.get(key) is not None:
+                        ev[key] = ev_attrs[key]
+                if isinstance(series, np.ndarray) and bar < len(series):
+                    val = series[bar]
+                    ev["price"] = float(val) if val == val else None
             drawings.append(ev)
     return drawings
 

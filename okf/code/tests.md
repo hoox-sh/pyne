@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-14T20:02:10Z
+  at: 2026-11-14T21:55:12Z
 sources:
   - id: tree
     resource: "tests"
@@ -46,6 +46,7 @@ okf_lock: generated
 - `test_compile_drawings_extras.py` — TestCompileBoxExtras, TestCompileLabelExtras, TestCompilePolylineExtras, TestExtrasDualHost
 - `test_compile_na_parity.py` — test_expected_values, test_integer_mod_under_njit, test_interpret_matches_compile, test_interpret_nan_is_false_and_mod_sign, test_numeric_if_stays_nopython, test_syntax_error_without_details_is_message
 - `test_compiler_alerts.py` — TestCompileAlertTranspile, TestCompileAlertsDualHost, TestCompileAlertsInUDF, TestCompileAlertsNumericEligible
+- `test_compiler_color_fold.py` — TestLiteralColorNew
 - `test_compiler_emit_edges_coverage.py` — TestArrayMatrixEmit, TestCallCrossUnpackStrategy, TestCompileInterpretParity, TestFoldConstHelpers, TestMapUdtDrawingEmit, TestSwitchIfAssignEmit
 - `test_compiler_engine_edges_coverage.py` — TestEnvDiskCacheAndCompile, TestNumbaCacheAndArityHelpers, TestPlotPackNormalizeCoerce
 - `test_compiler_engine_r8.py` — TestEndToEndDuplicateTitles, TestIrShareMetadataGate, TestLegacyArityAndCache, TestNormalizeAndCoerce, TestTranspileTitlesMatchRun, TestUniquifyAndPack
