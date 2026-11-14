@@ -58,6 +58,14 @@ services:
       PYNE_RUNNER_DB: /data/runner.db
       # Multi-replica runner state (redis uses REDIS_URL above; sqlite default).
       PYNE_RUNNER_STORE_BACKEND: ${PYNE_RUNNER_STORE_BACKEND:-sqlite}
+      # External OHLCV feed (Cloudflare Worker /api/feed). Default internal =
+      # CCXT. Set in the host .env: PYNE_FEED_SOURCE=external,
+      # PYNE_FEED_URL=https://worker.axis.hoox.sh
+      PYNE_FEED_SOURCE: ${PYNE_FEED_SOURCE:-internal}
+      PYNE_FEED_URL: ${PYNE_FEED_URL:-}
+      PYNE_FEED_API_KEY: ${PYNE_FEED_API_KEY:-}
+      PYNE_FEED_POLL_S: ${PYNE_FEED_POLL_S:-1.0}
+      PYNE_FEED_PROVIDE_LIMIT: ${PYNE_FEED_PROVIDE_LIMIT:-1000}
     # Compose merges volumes by mount *target*; !override replaces the base
     # list so ./src and ./backend binds from docker-compose.yml are dropped.
     volumes: !override
