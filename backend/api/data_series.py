@@ -363,7 +363,12 @@ def fetch_history(key: SeriesKey, history_bars: int) -> dict[str, Any]:
     from backend.data import external_feed
 
     if external_feed.enabled():
-        return _fetch_history_external(key)
+        try:
+            return _fetch_history_external(key)
+        except Exception as exc:
+            # A broken/unreachable feed must not take market data down:
+            # fall back to the direct venue path (CCXT) so callers still get bars.
+            logger.warning("external feed unavailable for %s; falling back to venue: %s", key.text, exc)
     provider = provider_for(key.exchange, key.market)
     if provider is None:
         raise _ccxt_unavailable()
