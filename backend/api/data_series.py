@@ -334,8 +334,36 @@ def _collect_or_raise(
         raise DataError("UPSTREAM", f"Failed to fetch OHLCV from {key.exchange}.", 502) from exc
 
 
+def _fetch_history_external(key: SeriesKey) -> dict[str, Any]:
+    """External-feed counterpart of :func:`fetch_history`.
+
+    The external feed owns the window (``PYNE_FEED_PROVIDE_LIMIT`` bars), so
+    ``history_bars`` is not honoured beyond the snapshot cap.
+    """
+    from backend.data import external_feed
+
+    feed_key = external_feed.canonical_feed_key(key.exchange, key.market, key.symbol, key.interval)
+    external_feed.register_watch(feed_key, key)
+    external_feed.start_external_feed()
+    try:
+        result = external_feed.sync_one(feed_key)
+    except Exception as exc:
+        logger.warning("external feed sync failed for %s: %s", key.text, exc)
+        raise DataError("FEED_UNAVAILABLE", f"External feed sync failed for {key.text}.", 502) from exc
+    return {
+        "fetched": int(result.get("fetched") or 0),
+        "count": result.get("count"),
+        "oldest": result.get("oldest"),
+        "newest": result.get("newest"),
+    }
+
+
 def fetch_history(key: SeriesKey, history_bars: int) -> dict[str, Any]:
     """Fetch the newest ``history_bars`` bars for *key* and persist them."""
+    from backend.data import external_feed
+
+    if external_feed.enabled():
+        return _fetch_history_external(key)
     provider = provider_for(key.exchange, key.market)
     if provider is None:
         raise _ccxt_unavailable()
@@ -451,6 +479,37 @@ def heal_series_gaps(
     return filled
 
 
+def _sync_data_session_external(
+    session: Any,
+    binding: live.SeriesBinding,
+    *,
+    is_alive: Callable[[], bool] | None = None,
+    on_apply: Callable[[str, Any], None] | None = None,
+) -> live.SyncOutcome:
+    """External-feed tick path: refresh the store from the feed, then tick.
+
+    No CCXT walk and no gap healer — the external feed owns the window. The
+    session advances from whatever the store holds after the best-effort sync.
+    """
+    key = binding.key
+    from backend.data import external_feed
+
+    feed_key = external_feed.canonical_feed_key(key.exchange, key.market, key.symbol, key.interval)
+    external_feed.register_watch(feed_key, key)
+    external_feed.start_external_feed()
+    try:
+        external_feed.sync_one(feed_key)
+    except Exception as exc:  # the stored window is still servable
+        logger.warning("external feed sync failed for %s: %s", key.text, exc)
+    store = series_store.get_store()
+    now_s = series_store.now_seconds()
+    candles = store.window(key, TICK_MAX_BARS + TICK_OVERLAP_BARS)
+    with store.key_lock(key.text):
+        if is_alive is not None and not is_alive():
+            raise DataError("SESSION_GONE", "Session was released while the tick was in flight.", 404)
+        return live.sync_session(session, binding, candles, now_s, stale=False, on_apply=on_apply)
+
+
 def sync_data_session(
     session: Any,
     binding: live.SeriesBinding,
@@ -476,6 +535,10 @@ def sync_data_session(
     """
     key = binding.key
     interval_s = key.interval_seconds
+    from backend.data import external_feed
+
+    if external_feed.enabled():
+        return _sync_data_session_external(session, binding, is_alive=is_alive, on_apply=on_apply)
     provider = provider_for(key.exchange, key.market)
     if provider is None:
         raise _ccxt_unavailable()

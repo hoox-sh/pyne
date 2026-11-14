@@ -142,6 +142,8 @@ AGENTS.md
 # Local runtime / compose data
 logs/
 data/
+# Engine package (external feed) is source, not runtime data
+!backend/data/
 *.log
 # TradingView Pine Logs exports are test fixtures, not runtime logs.
 !tests/fixtures/tv_goldens/**/*.log

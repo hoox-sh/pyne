@@ -134,9 +134,16 @@ def sweep_once(now_s: int | None = None) -> dict[str, Any]:
     except Exception as exc:  # a store failure must not kill the thread
         logger.warning("gap healer: store unavailable: %s", exc)
         return report
+    try:
+        from backend.data import external_feed
+    except Exception:  # pragma: no cover - defensive
+        external_feed = None
     for key in keys:
         if report["series"] >= max_series:
             break
+        if external_feed is not None and external_feed.is_externally_fed(key.text):
+            # External feed owns the window; holes are the source's problem.
+            continue
         try:
             step = key.interval_seconds
             if not store.holes(key, step, limit=1):

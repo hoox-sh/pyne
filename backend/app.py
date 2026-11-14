@@ -1709,6 +1709,15 @@ def create_data_session_route():
         validated["interval"],
         validated["market"],
     )
+    try:
+        from backend.data import external_feed
+
+        if external_feed.enabled():
+            feed_key = external_feed.canonical_feed_key(key.exchange, key.market, key.symbol, key.interval)
+            external_feed.register_watch(feed_key, key)
+            external_feed.start_external_feed()
+    except Exception:
+        logger.warning("external feed watch registration failed", exc_info=True)
     history = series_store.check_history_bars(validated["history_bars"])
     refused = _data_session_refusal(validated)
     if refused is not None:
