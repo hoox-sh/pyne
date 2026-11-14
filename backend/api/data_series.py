@@ -348,6 +348,9 @@ def _fetch_history_external(key: SeriesKey) -> dict[str, Any]:
     try:
         result = external_feed.sync_one(feed_key)
     except Exception as exc:
+        # Drop the watch so a venue the feed cannot serve is not permanently
+        # cut off from gap-healing / the CCXT fallback.
+        external_feed.unregister_watch(feed_key)
         logger.warning("external feed sync failed for %s: %s", key.text, exc)
         raise DataError("FEED_UNAVAILABLE", f"External feed sync failed for {key.text}.", 502) from exc
     return {
@@ -505,6 +508,9 @@ def _sync_data_session_external(
     try:
         external_feed.sync_one(feed_key)
     except Exception as exc:  # the stored window is still servable
+        # Keep the watch only while the feed actually delivers; otherwise the
+        # gap healer stays disabled for a venue the feed cannot serve.
+        external_feed.unregister_watch(feed_key)
         logger.warning("external feed sync failed for %s: %s", key.text, exc)
     store = series_store.get_store()
     now_s = series_store.now_seconds()
