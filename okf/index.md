@@ -19,3 +19,15 @@ okf_version: "0.2"
 # Repository
 
 - [repository](repository/) - README, contributing, security, and package notes.
+
+# Development
+
+- [Development](development.md) - Setup, checks, and the pre-commit hook.
+
+# Architecture
+
+- [Architecture](architecture.md) - The project shape and the OpenOrchestrate team.
+
+# Security
+
+- [Security](security.md) - Permission model, gates, and secret handling.
