@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-15T11:57:38Z
+  at: 2026-11-15T12:35:18Z
 sources:
   - id: tree
     resource: "tests"
@@ -50,6 +50,7 @@ okf_lock: generated
 - `test_compiler_emit_edges_coverage.py` — TestArrayMatrixEmit, TestCallCrossUnpackStrategy, TestCompileInterpretParity, TestFoldConstHelpers, TestMapUdtDrawingEmit, TestSwitchIfAssignEmit
 - `test_compiler_engine_edges_coverage.py` — TestEnvDiskCacheAndCompile, TestNumbaCacheAndArityHelpers, TestPlotPackNormalizeCoerce
 - `test_compiler_engine_r8.py` — TestEndToEndDuplicateTitles, TestIrShareMetadataGate, TestLegacyArityAndCache, TestNormalizeAndCoerce, TestTranspileTitlesMatchRun, TestUniquifyAndPack
+- `test_compiler_library_fail_closed.py` — test_auto_library_import_still_uses_interpret, test_compile_library_import_fails_closed, test_multiline_string_import_is_not_a_real_import, test_multiline_string_import_keeps_auto_compile_eligible
 - `test_compiler_method_return_types.py` — test_non_udt_overload_does_not_poison_receiver_inference, test_udf_return_udt_dispatches_correct_overload
 - `test_compiler_numba.py` — TestAdxDmiBuiltinScriptPlotParity, TestCompileAndRun, TestCompileArrayNamedUDF, TestCompileCoverageSprint, TestCompileCoverageSprint3, TestCompileCoverageSprint4, TestCompileCoverageSprint5, TestCompileCoverageSprint6Materialize, TestCompileCoverageSprint6TaBuiltins, TestCompileEngineRound6, TestCompileRequestSecurityInUDF, TestCompileRound4IncKernels
 - `test_compiler_objects.py` — TestCollectionObjectModeParity, TestDrawingCompile, TestMapCompile, TestNumericStillNumba, TestObjectModeNaArithmetic, TestSet05MissingNames, TestUDTCompile

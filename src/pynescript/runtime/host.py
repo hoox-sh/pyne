@@ -456,6 +456,26 @@ def _attach_logs_profile(
     return result
 
 
+def _has_top_level_import(source_code: str) -> bool:
+    """True only for a real top-level Pine ``import`` statement.
+
+    The cheap line regex is only a prefilter: a multi-line string can contain a
+    line that starts with ``import``. Parse those candidates and inspect the
+    AST body so eligibility/fail-closed do not reject string contents.
+    """
+    src = source_code or ""
+    if not re.search(r"(?m)^\s*import\s+\S+", src):
+        return False
+    try:
+        tree = parse(src)
+    except Exception:
+        # Unparseable candidate: fail closed (treat as import) so callers do
+        # not silently compile a library-dependent script.
+        return True
+    body = getattr(tree, "body", None) or []
+    return any(type(stmt).__name__ == "Import" for stmt in body)
+
+
 def _json_safe_number(x: Any) -> float | None:
     """Map NaN/±Inf (and numpy scalars) to ``None`` for strict JSON / browsers."""
     if x is None:
@@ -3376,6 +3396,7 @@ class Runtime:
             return self._run_compiled(
                 source_code,
                 ohlcv_data,
+                libraries=libraries,
                 data_feed=data_feed,
                 data_provider=data_provider,
                 realtime_last_bar=realtime_last_bar,
@@ -4255,7 +4276,7 @@ class Runtime:
                 return False, "compiler package unavailable"
         src = source_code or ""
         # Import / request.* need interpreter library + data plumbing
-        if re.search(r"(?m)^\s*import\s+\S+", src):
+        if _has_top_level_import(src):
             return False, "import statements not supported in compile path"
         if "request." in src:
             return False, "request.* not supported in compile path"
@@ -4360,6 +4381,7 @@ class Runtime:
             compiled_result = self._run_compiled(
                 source_code,
                 ohlcv_data,
+                libraries=libraries,
                 data_feed=data_feed,
                 data_provider=data_provider,
                 realtime_last_bar=realtime_last_bar,
@@ -4409,6 +4431,7 @@ class Runtime:
         source_code: str,
         ohlcv_data: list[dict],
         *,
+        libraries: list[dict[str, Any]] | None = None,
         data_feed: Any = None,
         data_provider: Any = None,
         realtime_last_bar: bool = False,
@@ -4447,6 +4470,20 @@ class Runtime:
                     _format_exc_message("Compile mode unavailable", e),
                     kind=ERROR_KIND_COMPILE,
                     exc=e,
+                ),
+                total_ms=(time.perf_counter() - t_total0) * 1000.0,
+                bars=n_bars_hint,
+                mode="compile",
+            )
+
+        if libraries and _has_top_level_import(source_code):
+            # Compile lowers imported library calls to stubs (np.nan/None); a
+            # library-based indicator would silently return na. Fail closed and
+            # point callers at interpret/auto instead of pretending to execute.
+            return _attach_logs_profile(
+                _error_payload(
+                    "Compile mode does not execute library imports; use mode=interpret or auto",
+                    kind=ERROR_KIND_COMPILE,
                 ),
                 total_ms=(time.perf_counter() - t_total0) * 1000.0,
                 bars=n_bars_hint,
