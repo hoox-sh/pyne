@@ -109,24 +109,293 @@ def test_library_constant_use_fails_closed() -> None:
     assert "unsupported name bias" in str(out.get("error") or "").lower()
 
 
-_LIB_INTERNAL_CALL = """//@version=6
+_LIB_INTERNAL = """//@version=6
 library("Lib")
-export helper(float a) =>
-    a
 export add(float a) =>
-    helper(a)
+    helper(a) + 1
+helper(float a) =>
+    a * 2
+"""
+
+_SRC_INTERNAL = """//@version=6
+indicator("internal helper")
+import ns/Lib/1 as lib
+plot(lib.add(close), "x")
 """
 
 
-def test_library_internal_call_fails_closed() -> None:
-    out = Runtime(symbol="TEST").run(
-        _SRC,
+def test_library_internal_helper_inlines() -> None:
+    interp = Runtime(symbol="TEST").run(
+        _SRC_INTERNAL,
+        _bars(),
+        mode="interpret",
+        libraries=[{"namespace": "ns", "name": "Lib", "version": 1, "source": _LIB_INTERNAL}],
+    )
+    compiled = Runtime(symbol="TEST").run(
+        _SRC_INTERNAL,
         _bars(),
         mode="compile",
-        libraries=[{"namespace": "ns", "name": "Lib", "version": 1, "source": _LIB_INTERNAL_CALL}],
+        libraries=[{"namespace": "ns", "name": "Lib", "version": 1, "source": _LIB_INTERNAL}],
+    )
+    assert "error" not in interp, interp.get("error")
+    assert "error" not in compiled, compiled.get("error")
+    assert compiled["series"]["x"] == [202.0, 204.0, 206.0, 208.0]
+    assert compiled["series"] == interp["series"]
+
+
+_LIB_INTERNAL_CHAIN = """//@version=6
+library("Lib")
+export add(float a) =>
+    twice(a) + 1
+export twice(float a) =>
+    deep(a) * 2
+deep(float a) =>
+    a + 0.5
+"""
+
+_SRC_INTERNAL_CHAIN = """//@version=6
+indicator("internal chain")
+import ns/Lib/1 as lib
+plot(lib.add(close), "add")
+plot(lib.twice(close), "twice")
+"""
+
+
+def test_library_internal_chain_and_exported_callee_inline() -> None:
+    interp = Runtime(symbol="TEST").run(
+        _SRC_INTERNAL_CHAIN,
+        _bars(),
+        mode="interpret",
+        libraries=[{"namespace": "ns", "name": "Lib", "version": 1, "source": _LIB_INTERNAL_CHAIN}],
+    )
+    compiled = Runtime(symbol="TEST").run(
+        _SRC_INTERNAL_CHAIN,
+        _bars(),
+        mode="compile",
+        libraries=[{"namespace": "ns", "name": "Lib", "version": 1, "source": _LIB_INTERNAL_CHAIN}],
+    )
+    assert "error" not in interp, interp.get("error")
+    assert "error" not in compiled, compiled.get("error")
+    assert compiled["series"]["add"] == [203.0, 205.0, 207.0, 209.0]
+    assert compiled["series"]["twice"] == [202.0, 204.0, 206.0, 208.0]
+    assert compiled["series"] == interp["series"]
+
+
+_LIB_INTERNAL_DEFAULTS = """//@version=6
+library("Lib")
+export add(float a) =>
+    helper(a)
+helper(float a, float k = 2.0) =>
+    b = a * k
+    b + 1
+"""
+
+
+def test_library_internal_helper_defaults_and_locals() -> None:
+    out = Runtime(symbol="TEST").run(
+        _SRC_INTERNAL,
+        _bars(),
+        mode="compile",
+        libraries=[{"namespace": "ns", "name": "Lib", "version": 1, "source": _LIB_INTERNAL_DEFAULTS}],
+    )
+    assert "error" not in out, out.get("error")
+    assert out["series"]["x"] == [202.0, 204.0, 206.0, 208.0]
+
+
+_LIB_INTERNAL_UNKNOWN = """//@version=6
+library("Lib")
+export add(float a) =>
+    missing(a)
+"""
+
+
+def test_library_unknown_internal_call_fails_closed() -> None:
+    out = Runtime(symbol="TEST").run(
+        _SRC_INTERNAL,
+        _bars(),
+        mode="compile",
+        libraries=[{"namespace": "ns", "name": "Lib", "version": 1, "source": _LIB_INTERNAL_UNKNOWN}],
     )
     assert out.get("error_kind") == "compile"
-    assert "unsupported function helper" in str(out.get("error") or "").lower()
+    assert "unsupported function missing" in str(out.get("error") or "").lower()
+
+
+_LIB_INTERNAL_RECURSIVE = """//@version=6
+library("Lib")
+export add(float a) =>
+    loop(a)
+loop(float a) =>
+    loop(a) + 1
+"""
+
+
+def test_library_recursive_helper_fails_closed() -> None:
+    out = Runtime(symbol="TEST").run(
+        _SRC_INTERNAL,
+        _bars(),
+        mode="compile",
+        libraries=[{"namespace": "ns", "name": "Lib", "version": 1, "source": _LIB_INTERNAL_RECURSIVE}],
+    )
+    assert out.get("error_kind") == "compile"
+    assert "recursive library function loop" in str(out.get("error") or "").lower()
+
+
+_LIB_INTERNAL_UNUSED = """//@version=6
+library("Lib")
+export add(float a) =>
+    a + 1
+unused() =>
+    ta.sma(close, 14)
+"""
+
+
+def test_library_unreachable_unsupported_helper_is_ignored() -> None:
+    out = Runtime(symbol="TEST").run(
+        _SRC_INTERNAL,
+        _bars(),
+        mode="compile",
+        libraries=[{"namespace": "ns", "name": "Lib", "version": 1, "source": _LIB_INTERNAL_UNUSED}],
+    )
+    assert "error" not in out, out.get("error")
+    assert out["series"]["x"] == [101.5, 102.5, 103.5, 104.5]
+
+
+_LIB_DUP_HELPERS = """//@version=6
+library("Lib")
+export add(float a) =>
+    helper(a)
+helper(float a) =>
+    a * 2
+helper(float a, float k) =>
+    a * k
+"""
+
+
+def test_library_duplicate_helper_names_fail_closed() -> None:
+    out = Runtime(symbol="TEST").run(
+        _SRC_INTERNAL,
+        _bars(),
+        mode="compile",
+        libraries=[{"namespace": "ns", "name": "Lib", "version": 1, "source": _LIB_DUP_HELPERS}],
+    )
+    assert out.get("error_kind") == "compile"
+    message = str(out.get("error") or "").lower()
+    assert "overloaded library method" in message
+    assert "helper" in message
+    assert not out.get("series")
+
+
+_LIB_DUP_EXPORTED_HELPER = """//@version=6
+library("Lib")
+export add(float a) =>
+    dup(a)
+export dup(float a) =>
+    a * 2
+dup(float a) =>
+    a * 3
+"""
+
+
+def test_library_duplicate_exported_and_helper_names_fail_closed() -> None:
+    out = Runtime(symbol="TEST").run(
+        _SRC_INTERNAL,
+        _bars(),
+        mode="compile",
+        libraries=[{"namespace": "ns", "name": "Lib", "version": 1, "source": _LIB_DUP_EXPORTED_HELPER}],
+    )
+    assert out.get("error_kind") == "compile"
+    message = str(out.get("error") or "").lower()
+    assert "overloaded library method" in message
+    assert "dup" in message
+    assert not out.get("series")
+
+
+_LIB_DUP_EXPORTED_ARITIES = """//@version=6
+library("Lib")
+export add(float a) =>
+    helper(a)
+export helper(float a) =>
+    a * 2
+export helper(float a, float k) =>
+    a * k
+"""
+
+
+def test_library_duplicate_exported_arities_fail_closed() -> None:
+    out = Runtime(symbol="TEST").run(
+        _SRC_INTERNAL,
+        _bars(),
+        mode="compile",
+        libraries=[{"namespace": "ns", "name": "Lib", "version": 1, "source": _LIB_DUP_EXPORTED_ARITIES}],
+    )
+    assert out.get("error_kind") == "compile"
+    message = str(out.get("error") or "").lower()
+    assert "overloaded library method" in message
+    assert "helper" in message
+    assert not out.get("series")
+
+
+_LIB_HELPER_METHOD_COLLISION = """//@version=6
+library("Lib")
+export add(float a) =>
+    helper(a)
+helper(float a) =>
+    a * 2
+export method helper(float this) =>
+    this * 3
+"""
+
+
+def test_library_helper_and_method_same_name_fail_closed() -> None:
+    out = Runtime(symbol="TEST").run(
+        _SRC_INTERNAL,
+        _bars(),
+        mode="compile",
+        libraries=[{"namespace": "ns", "name": "Lib", "version": 1, "source": _LIB_HELPER_METHOD_COLLISION}],
+    )
+    assert out.get("error_kind") == "compile"
+    message = str(out.get("error") or "").lower()
+    assert "overloaded library method" in message
+    assert "helper" in message
+    assert not out.get("series")
+
+
+_LIB_BARE_REFERENCE = """//@version=6
+library("Lib")
+export add(float a) =>
+    helper
+helper(float a) =>
+    a * 2
+"""
+
+
+def test_library_bare_function_reference_fails_closed() -> None:
+    out = Runtime(symbol="TEST").run(
+        _SRC_INTERNAL,
+        _bars(),
+        mode="compile",
+        libraries=[{"namespace": "ns", "name": "Lib", "version": 1, "source": _LIB_BARE_REFERENCE}],
+    )
+    assert out.get("error_kind") == "compile"
+    assert "uses unsupported name helper" in str(out.get("error") or "").lower()
+
+
+_LIB_BARE_BUILTIN = """//@version=6
+library("Lib")
+export add(float a) =>
+    abs(a)
+"""
+
+
+def test_library_bare_builtin_call_inlines() -> None:
+    out = Runtime(symbol="TEST").run(
+        _SRC_INTERNAL,
+        _bars(),
+        mode="compile",
+        libraries=[{"namespace": "ns", "name": "Lib", "version": 1, "source": _LIB_BARE_BUILTIN}],
+    )
+    assert "error" not in out, out.get("error")
+    assert out["series"]["x"] == [100.5, 101.5, 102.5, 103.5]
 
 
 def test_library_nopython_recovery_passes_libraries(monkeypatch) -> None:

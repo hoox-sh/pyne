@@ -1144,9 +1144,70 @@ class CompilerVisitor(NodeVisitor):
         seen: set[str] = set()
         skipped: set[str] = set()
         accepted: set[str] = set()
+        # Same-library internal calls: every non-method FunctionDef is a
+        # potential callee. Duplicate names are ambiguous (the old dict silently
+        # kept the last one and miscompiled calls), so fail closed eagerly —
+        # matching the exported-overload guard. Only the closure reachable from
+        # an inlined export is validated/emitted, so unused helpers stay inert.
+        local_funcs: dict[str, Any] = {}
+        for stmt in getattr(lib_tree, "body", []) or []:
+            if type(stmt).__name__ != "FunctionDef" or getattr(stmt, "method", 0):
+                continue
+            local_name = str(stmt.name)
+            if local_name in local_funcs:
+                self.library_inline_error = (
+                    f"overloaded library method/function {local_name} is not supported; use mode=interpret or auto"
+                )
+                return ""
+            local_funcs[local_name] = stmt
+        emitted_nodes: set[int] = set()
+        emitted_names: dict[int, str] = {}
+        emitted_by_name: dict[str, str] = {}
+        # emit_local renames shared AST nodes; keep the Pine names for the loop.
+        exported_names = {id(stmt): str(stmt.name) for stmt in exported}
+
+        def emit_local(name: str, stack: tuple[str, ...]) -> str:
+            """Emit a same-library callee (callees first); empty string on error."""
+            if name in stack:
+                self.library_inline_error = (
+                    f"recursive library function {name} is not supported; use mode=interpret or auto"
+                )
+                return ""
+            target = local_funcs.get(name)
+            if target is None:
+                return ""
+            if id(target) in emitted_nodes:
+                return emitted_names[id(target)]
+            emitted_name = self._safe_ident(f"__lib_{alias}_{name}")
+            for callee in self._library_called_names(target):
+                if callee in local_funcs and not emit_local(callee, (*stack, name)):
+                    return ""
+            params = {arg.name for arg in getattr(target, "args", []) or [] if hasattr(arg, "name")}
+            unsupported = self._library_function_unsupported(target, params, set(local_funcs))
+            if unsupported:
+                self.library_inline_error = (
+                    f"library function {name} {unsupported}; use mode=interpret or auto"
+                )
+                return ""
+            self._rewrite_library_calls(target, emitted_by_name)
+            target.name = emitted_name
+            target.export = None
+            self.visit_FunctionDef(target)
+            emitted_nodes.add(id(target))
+            emitted_names[id(target)] = emitted_name
+            emitted_by_name[name] = emitted_name
+            return emitted_name
+
         for fn in exported:
             is_udt_method = False
             if getattr(fn, "method", 0):
+                if str(fn.name) in local_funcs:
+                    # A local free helper and an exported method share the
+                    # mangled name; fail closed instead of letting one win.
+                    self.library_inline_error = (
+                        f"overloaded library method/function {fn.name} is not supported; use mode=interpret or auto"
+                    )
+                    return ""
                 recv = self._type_spec_name(getattr(fn.args[0], "type", None)) if getattr(fn, "args", None) else None
                 if recv not in scalar_receivers and recv not in self.library_type_names:
                     # Receiver is neither a scalar nor an inlined library type.
@@ -1158,7 +1219,15 @@ class CompilerVisitor(NodeVisitor):
                     )
                     continue
                 is_udt_method = recv not in scalar_receivers
-            pine_name = fn.name
+            pine_name = exported_names[id(fn)]
+            if id(fn) in emitted_nodes and not getattr(fn, "method", 0):
+                # This exact node was already emitted as a callee of an earlier
+                # export; expose it instead of emitting a second copy. Identity,
+                # not name: a different same-name node is an overload (above).
+                seen.add(pine_name)
+                accepted.add(pine_name)
+                self.library_methods[(str(alias), str(pine_name))] = emitted_names[id(fn)]
+                continue
             if pine_name in seen or pine_name in skipped:
                 self.library_inline_error = (
                     f"overloaded library method/function {pine_name} is not supported; use mode=interpret or auto"
@@ -1167,12 +1236,18 @@ class CompilerVisitor(NodeVisitor):
             seen.add(pine_name)
             accepted.add(pine_name)
             params = {arg.name for arg in getattr(fn, "args", []) or [] if hasattr(arg, "name")}
-            unsupported = self._library_function_unsupported(fn, params)
+            unsupported = self._library_function_unsupported(fn, params, set(local_funcs))
             if unsupported:
                 self.library_inline_error = (
                     f"library function {pine_name} {unsupported}; use mode=interpret or auto"
                 )
                 return ""
+            # Reachable same-library callees are emitted before this body; the
+            # seed stack catches self-recursion on the entry point.
+            for callee in self._library_called_names(fn):
+                if callee in local_funcs and not emit_local(callee, (str(pine_name),)):
+                    return ""
+            self._rewrite_library_calls(fn, emitted_by_name)
             if is_udt_method:
                 # Keep the Pine name: ``instance.method()`` dispatches through
                 # func_receiver_types / udt_var_types, so a mangled name would
@@ -1182,6 +1257,9 @@ class CompilerVisitor(NodeVisitor):
             else:
                 emitted = self._safe_ident(f"__lib_{alias}_{pine_name}")
                 fn.name = emitted
+                emitted_by_name[str(pine_name)] = emitted
+                emitted_nodes.add(id(fn))
+                emitted_names[id(fn)] = emitted
             fn.export = None
             self.visit_FunctionDef(fn)
             self.library_methods[(str(alias), str(pine_name))] = emitted
@@ -10527,17 +10605,66 @@ class CompilerVisitor(NodeVisitor):
             return isinstance(getattr(node, "operand", None), ast.Constant)
         return isinstance(node, ast.Name) and node.id in ("na", "true", "false")
 
-    def _library_function_unsupported(self, fn, params: set[str]) -> str | None:
+    @staticmethod
+    def _library_called_names(fn) -> list[str]:
+        """Call targets (``Name`` nodes) inside a library function body."""
+        names: list[str] = []
+
+        def walk(node: Any) -> None:
+            if node is None or not hasattr(node, "_fields"):
+                return
+            if isinstance(node, ast.Call):
+                f = node.func
+                if isinstance(f, ast.Specialize):
+                    f = f.value
+                if isinstance(f, ast.Name):
+                    names.append(f.id)
+            for child in _iter_child_values(node):
+                if isinstance(child, list):
+                    for item in child:
+                        walk(item)
+                else:
+                    walk(child)
+
+        for stmt in getattr(fn, "body", []) or []:
+            walk(stmt)
+        return names
+
+    @staticmethod
+    def _rewrite_library_calls(fn, mapping: dict[str, str]) -> None:
+        """Rename local callee ``Name`` nodes to their emitted Python names."""
+        def walk(node) -> None:
+            if node is None or not hasattr(node, "_fields"):
+                return
+            if isinstance(node, ast.Call):
+                f = node.func
+                if isinstance(f, ast.Specialize):
+                    f = f.value
+                if isinstance(f, ast.Name) and f.id in mapping:
+                    f.id = mapping[f.id]
+            for child in _iter_child_values(node):
+                if isinstance(child, list):
+                    for item in child:
+                        walk(item)
+                else:
+                    walk(child)
+
+        for stmt in getattr(fn, "body", []) or []:
+            walk(stmt)
+
+    def _library_function_unsupported(self, fn, params: set[str], local_names: set[str] | None = None) -> str | None:
         """Return why an exported library function is outside this inline slice.
 
-        Allowed: parameters, locals, literals, ``math.*``/``str.*``, and a small
-        set of pure bare builtins. Library constants (free names) and calls to
-        other library functions must fail closed instead of becoming runtime
+        Allowed: parameters, locals, literals, ``math.*``/``str.*``, a small set
+        of pure bare builtins, and calls to same-library functions in
+        *local_names*. Library constants (free names) and calls to functions
+        outside the library must fail closed instead of becoming runtime
         NameErrors or silent na.
         """
         locals_: set[str] = set()
         for stmt in getattr(fn, "body", []) or []:
             self._collect_assigned_names(stmt, locals_)
+        local_names = local_names or set()
         allowed_names = set(params) | locals_ | {"true", "false", "na", "math", "str", "color"}
         allowed_calls = {
             "abs",
@@ -10550,23 +10677,37 @@ class CompilerVisitor(NodeVisitor):
             "nz",
             "na",
             "fixnan",
-        }
+        } | local_names
         allowed_namespaces = {"math", "str"}
 
         def walk(node: Any) -> str | None:
             if node is None or not hasattr(node, "_fields"):
                 return None
-            if isinstance(node, ast.Name) and node.id not in allowed_names:
-                return f"uses unsupported name {node.id}"
             if isinstance(node, ast.Call):
                 f = node.func
                 if isinstance(f, ast.Specialize):
                     f = f.value
-                if isinstance(f, ast.Name) and f.id not in allowed_calls:
-                    return f"calls unsupported function {f.id}"
-                if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name):
+                if isinstance(f, ast.Name):
+                    # A local function name is valid only as a call target; a
+                    # bare reference stays fail-closed (no Python free name).
+                    if f.id not in allowed_calls:
+                        return f"calls unsupported function {f.id}"
+                elif isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name):
                     if f.value.id not in allowed_namespaces:
                         return f"calls unsupported namespace {f.value.id}"
+                else:
+                    err = walk(f)
+                    if err:
+                        return err
+                # Do not walk ``func`` as a value: allowed builtins are not
+                # free names (``abs(a)`` was falsely rejected before).
+                for child in getattr(node, "args", []) or []:
+                    err = walk(child)
+                    if err:
+                        return err
+                return None
+            if isinstance(node, ast.Name) and node.id not in allowed_names:
+                return f"uses unsupported name {node.id}"
             for child in _iter_child_values(node):
                 if isinstance(child, list):
                     for item in child:
