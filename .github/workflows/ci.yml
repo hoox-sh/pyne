@@ -103,6 +103,8 @@ jobs:
         run: |
           python -m pytest \
             tests/test_interp_compile_parity.py \
+            tests/test_compile_na_parity.py \
+            tests/test_compile_expr_parity.py \
             tests/test_parity.py \
             tests/test_expr_parity_r8.py \
             tests/test_strategy_runtime.py \

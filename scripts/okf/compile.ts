@@ -728,7 +728,10 @@ function renderIndexes(
     items: Indexed[],
     human: Indexed[],
 ): Map<string, string> {
-    const all = [...items, ...human];
+    // Readdir order differs between machines. Sort so index.md is stable.
+    const all = [...items, ...human].sort((a, b) =>
+        a.path < b.path ? -1 : a.path > b.path ? 1 : 0,
+    );
     const byParent = new Map<string, Indexed[]>();
     for (const item of all) {
         const parent = posix.dirname(item.path);

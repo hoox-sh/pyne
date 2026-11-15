@@ -45,6 +45,7 @@ from pynescript.langserver.providers.completion_items import collect_user_enums
 from pynescript.langserver.providers.docs_card import format_docs_card
 from pynescript.langserver.providers.docs_card import format_named_table
 from pynescript.langserver.providers.docs_card import pine_v6_docs_link
+from pynescript.langserver.providers.docs_card import pine_v6_docs_url
 
 
 _KEYWORD_DOCS = dict(PINE_KEYWORDS)
@@ -847,9 +848,12 @@ def _format_params(info: dict) -> str:
                     continue
                 typ = item.get("type") or ""
                 desc = item.get("brief") or item.get("documentation") or item.get("detail") or ""
-                extra = f" (`{typ}`)" if typ else ""
-                tail = f" — {desc}" if desc else ""
-                entries.append((str(name), f"{extra}{tail}"))
+                bits: list[str] = []
+                if typ:
+                    bits.append(f"`{typ}`")
+                if desc:
+                    bits.append(desc)
+                entries.append((str(name), " · ".join(bits)))
     if not entries:
         return ""
     cleaned: list[tuple[str, str]] = []
@@ -899,8 +903,9 @@ def _build_builtin_hover(
         params_block = _format_params(info)
         if params_block:
             sections.append(params_block)
-    if documentation and documentation != brief:
-        sections.append(_format_documentation(documentation))
+    doc_text = _strip_brief(documentation, brief, signature, label)
+    if doc_text:
+        sections.append(_format_documentation(doc_text))
     examples = _build_examples(info)
     if examples:
         sections.append(examples)
@@ -920,15 +925,80 @@ def _build_builtin_hover(
     )
 
 
+_DOC_LIMIT = 400
+
+
+_SECTION_HEADERS = (
+    "parameters:",
+    "arguments:",
+    "returns:",
+    "example:",
+    "examples:",
+    "see also:",
+    "fields:",
+)
+
+
+def _strip_brief(
+    documentation: str,
+    brief: str,
+    signature: str = "",
+    label: str = "",
+) -> str:
+    """Drop documentation prefixes that repeat the brief, signature, or label.
+
+    Builtin metadata often embeds a full signature plus a ``Parameters:`` block
+    that the card already renders structurally. After removing the repeated
+    prefixes, a leading section header means there is no extra prose to show.
+    """
+    doc = (documentation or "").strip()
+    summary = (brief or "").strip()
+    sig = (signature or "").strip()
+    if not doc:
+        return ""
+    changed = True
+    while changed:
+        changed = False
+        for prefix in (summary, sig):
+            if prefix and doc.startswith(prefix):
+                doc = doc[len(prefix) :].lstrip(" .:—–-\n")
+                changed = True
+        # Some builtin docs start with their own call signature, e.g.
+        # ``strategy.entry(id, direction, …) More detail.``.
+        if label and doc.startswith(label):
+            after = doc[len(label) :]
+            if after.lstrip().startswith("("):
+                open_index = doc.find("(", len(label))
+                close_index = doc.find(")", open_index + 1)
+                if close_index > open_index:
+                    doc = doc[close_index + 1 :].lstrip(" .:—–-\n")
+                    changed = True
+    if doc.lower().startswith(_SECTION_HEADERS):
+        return ""
+    return "" if doc in {summary, sig} else doc
+
+
+def _truncate_text(text: str, limit: int = _DOC_LIMIT) -> str:
+    """Collapse whitespace and cut at a sentence boundary when possible."""
+    clean = " ".join((text or "").split())
+    if len(clean) <= limit:
+        return clean
+    window = clean[:limit]
+    for separator in (". ", "! ", "? "):
+        index = window.rfind(separator)
+        if index >= limit // 2:
+            return window[: index + 1].rstrip()
+    index = window.rfind(" ")
+    if index > 0:
+        window = window[:index]
+    return window.rstrip(" ,;:") + "…"
+
+
 def _format_documentation(doc: str) -> str:
-    """Format documentation text for display."""
-    # Take first paragraph if it's long
-    paragraphs = doc.split("\n\n")
-    first_para = paragraphs[0] if paragraphs else doc
-    # Limit to 500 chars
-    if len(first_para) > 500:
-        first_para = first_para[:497] + "..."
-    return first_para
+    """First paragraph, whitespace-collapsed, cut at a sentence boundary."""
+    paragraphs = (doc or "").split("\n\n")
+    first_para = paragraphs[0] if paragraphs else (doc or "")
+    return _truncate_text(first_para)
 
 
 def _build_examples(info: dict) -> str:
@@ -948,7 +1018,7 @@ def _build_examples(info: dict) -> str:
 
     example = examples.get(label, "")
     if example:
-        return f"**Example:**\n{example}\n\n"
+        return f"**Example**\n\n{example}"
     return ""
 
 
@@ -970,8 +1040,11 @@ def _build_see_also(info: dict) -> str:
     if not related:
         return ""
 
-    links = ", ".join(f"`{r}`" for r in related)
-    return f"**See also:** {links}\n\n"
+    links: list[str] = []
+    for name in related:
+        url = pine_v6_docs_url(name)
+        links.append(f"[`{name}`]({url})" if url else f"`{name}`")
+    return f"**See also** {', '.join(links)}"
 
 
 def _build_docs_link(name: str) -> str:

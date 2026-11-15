@@ -39,6 +39,10 @@ from pynescript.util.corpus_sanitize import sanitize_corpus_source
 _REPO = Path(__file__).resolve().parents[1]
 _SET06_IND = _REPO / "tests/data/set06/indicators"
 _SET06_LIB = _REPO / "tests/data/set06/libraries"
+_needs_set06 = pytest.mark.skipif(
+    not _SET06_IND.is_dir() or not _SET06_LIB.is_dir(),
+    reason="set06 corpus is local-only and is not part of a fresh clone",
+)
 
 
 def _ohlcv(n: int = 30, start: float = 100.0):
@@ -93,6 +97,7 @@ plot(bool(na) ? 1.0 : 0.0, title="bna")
     assert float(out["bna"][-1]) == 0.0
 
 
+@_needs_set06
 def test_3950_type_cast_basic_int_na_does_not_raise() -> None:
     """set06 3950: ``int(naFloat)`` must not ``ValueError: cannot convert float NaN``."""
     src = (_SET06_IND / "3950_ind_type_cast_basic.pine").read_text(encoding="utf-8")
@@ -102,6 +107,7 @@ def test_3950_type_cast_basic_int_na_does_not_raise() -> None:
     assert isinstance(out, dict)
 
 
+@_needs_set06
 def test_12242_sanitize_keeps_block_comment_and_parses() -> None:
     raw = (_SET06_IND / "12242_ind_test_86.pine").read_text(encoding="utf-8")
     parse(raw)
@@ -113,6 +119,7 @@ def test_12242_sanitize_keeps_block_comment_and_parses() -> None:
     parse(cleaned)
 
 
+@_needs_set06
 def test_2492_markdown_planning_sanitized_parses() -> None:
     raw = (_SET06_IND / "2492_ind_pdf_01_reversal_radar_v2.pine").read_text(encoding="utf-8")
     cleaned = sanitize_corpus_source(raw)
@@ -127,6 +134,7 @@ def test_2492_markdown_planning_sanitized_parses() -> None:
         compile_script(raw, use_cache=False)
 
 
+@_needs_set06
 def test_14508_jinja_template_sanitized_parses() -> None:
     raw = (_SET06_IND / "14508_ind_indicator_2.pine").read_text(encoding="utf-8")
     cleaned = sanitize_corpus_source(raw)
@@ -136,6 +144,7 @@ def test_14508_jinja_template_sanitized_parses() -> None:
     parse(cleaned)
 
 
+@_needs_set06
 def test_0018_library_sanitize_still_parses() -> None:
     raw = (_SET06_LIB / "0018_lib_16.pine").read_text(encoding="utf-8")
     parse(raw)

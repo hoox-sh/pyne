@@ -228,9 +228,13 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
             return None if n is None or n <= 0 else math.log(n)
         if len(args) == BINARY:
             n, base = self._as_num(args[0]), self._as_num(args[1])
-            if n is None or base is None or n <= 0 or base <= 0:
+            # ``math.log(n, 1)`` is a ZeroDivisionError in CPython. Pine yields na.
+            if n is None or base is None or n <= 0 or base <= 0 or base == 1:
                 return None
-            return math.log(n, base)
+            try:
+                return math.log(n, base)
+            except (ValueError, ZeroDivisionError):
+                return None
         self._error("math.log takes one or two arguments")
 
     def _math_unary(self, args: list[Any], name: str, fn) -> Any:

@@ -4,6 +4,7 @@ title: Development
 description: Setup, checks, and the pre-commit hook.
 tags: [development, verification]
 status: stable
+okf_lock: human
 ---
 
 # Development

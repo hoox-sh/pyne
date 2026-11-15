@@ -1370,8 +1370,11 @@ def download_builtins_cmd(
       pyne download-builtins /tmp/pine-builtins --limit 5 --yes
       python -m pynescript.util.pine_facade --list
     """
-    from pynescript.util.pine_facade import DEFAULT_DEST
-    from pynescript.util.pine_facade import download_builtin_scripts
+    try:
+        from pynescript.util.pine_facade import DEFAULT_DEST
+        from pynescript.util.pine_facade import download_builtin_scripts
+    except ImportError as exc:
+        raise click.ClickException("TradingView builtin download was removed from this package.") from exc
 
     summary = download_builtin_scripts(
         dest or DEFAULT_DEST,

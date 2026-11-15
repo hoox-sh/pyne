@@ -4,6 +4,7 @@ title: Architecture
 description: The project shape and the OpenOrchestrate team.
 tags: [architecture, openorchestrate]
 status: stable
+okf_lock: human
 ---
 
 # Architecture
