@@ -915,7 +915,13 @@ function absolutizeLinks(
 ): string {
     return text.replace(
         /(^|[^!])\[([^\]]*)\]\((<[^>]+>|[^)\s]+)(\s+"[^"]*")?\)/g,
-        (full, prefix: string, label: string, target: string, title?: string) => {
+        (
+            full,
+            prefix: string,
+            label: string,
+            target: string,
+            title?: string,
+        ) => {
             const raw =
                 target.startsWith("<") && target.endsWith(">")
                     ? target.slice(1, -1)

@@ -173,8 +173,7 @@ describe("OKF compile", () => {
         expect(bundle.get("index.md")).toContain("](development.md)");
         expect(
             lintFiles(bundle).filter(
-                (finding) =>
-                    finding.rule === "W005" || finding.rule === "W006",
+                (finding) => finding.rule === "W005" || finding.rule === "W006",
             ),
         ).toEqual([]);
     });
