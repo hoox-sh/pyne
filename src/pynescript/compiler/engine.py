@@ -179,7 +179,7 @@ _BUILTINS_WARMED = False
 # Bump when generated IR semantics change so source→IR disk index is invalidated
 # (source hash alone is stable across compiler fixes, e.g. fill() series keys).
 # v5: strategy series history + Pine na-aware ==/!=
-_DISK_META_VERSION = 54  # v54: hline plot_attrs color/linestyle for numeric synthesis
+_DISK_META_VERSION = 55  # v55: iff/na, round precision, log base, pow na, == na, for-to shadow
 _NJIT_CACHE_FALSE = "@numba.njit(cache=False)"
 _NJIT_CACHE_TRUE = "@numba.njit(cache=True)"
 
@@ -704,11 +704,13 @@ class CompiledScript:
         is used (unit-test / pure-compile default). Runtime hosts should pass
         real OHLCV timestamps for calendar/``timestamp``/``time[n]`` parity.
 
-        *rt_first* / *rt_ticks* are object-mode realtime window kwargs (defaults
-        keep historical 6-arg execute). *data_feed* / *feed_symbol* drive
-        last-bar ``poll_forming_ohlcv`` on object-mode ticks. *data_provider*
-        (and *data_feed* OHLCV) feed object-mode HTF ``request.security`` merge.
-        Numeric nopython ignores them.
+        *rt_first* / *rt_ticks* are realtime window kwargs (defaults keep the
+        historical 6-arg execute). Object mode uses them directly. Numeric mode
+        routes an active window (``rt_first is not None``) through a transient
+        object-mode script; historical numeric runs (no ``rt_first``) ignore
+        them. *data_feed* / *feed_symbol* drive last-bar
+        ``poll_forming_ohlcv`` on object-mode ticks. *data_provider* (and
+        *data_feed* OHLCV) feed object-mode HTF ``request.security`` merge.
         """
         o = _as_f64(open_)
         h = _as_f64(high)
@@ -729,6 +731,26 @@ class CompiledScript:
             if len(t) != n:
                 msg = "time array must have the same length as OHLCV"
                 raise ValueError(msg)
+        if rt_first is not None and not self.object_mode:
+            # Numeric emit hardcodes historical barstate flags and has no tick
+            # loop. Do not silently ignore an active realtime window: run this
+            # call through a recovered object-mode script (same contract the
+            # Runtime host applies) and leave ``self`` numeric for later
+            # historical runs.
+            recovered = self._object_mode_for_realtime()
+            return recovered.run(
+                o,
+                h,
+                l,
+                c,
+                v,
+                time=t,
+                rt_first=rt_first,
+                rt_ticks=rt_ticks,
+                data_feed=data_feed,
+                feed_symbol=feed_symbol,
+                data_provider=data_provider,
+            )
         rt_kw: dict[str, Any] = {}
         if self.object_mode:
             rt_kw["rt_first"] = rt_first
@@ -761,6 +783,23 @@ class CompiledScript:
                 data_provider=data_provider,
             )
         return self._pack_result(raw)
+
+    def _object_mode_for_realtime(self) -> CompiledScript:
+        """Re-emit this source as object mode for one realtime run.
+
+        Numeric nopython has no tick loop; object mode owns ``var``/``varip``
+        rollback and ``barstate`` flags. The recovered instance is transient so
+        the numeric cache entry stays numeric for historical runs.
+        """
+        code, titles, kinds, _, attrs = _transpile_once(self.source, force_object_mode=True)
+        return _exec_generated(
+            self.source,
+            code,
+            titles,
+            True,
+            plot_kinds=kinds,
+            plot_attrs=attrs,
+        )
 
     def _recover_nopython_at_run(
         self,
@@ -1150,6 +1189,7 @@ def _transpile_once(
     source: str,
     *,
     force_object_mode: bool = False,
+    libraries: list[dict[str, Any]] | None = None,
 ) -> tuple[str, list[str], list[str], bool, list[dict[str, Any]]]:
     """Parse + emit.
 
@@ -1162,8 +1202,10 @@ def _transpile_once(
     except Exception as exc:
         # Surface parse failures as CompileError so auto-mode reasons stay typed.
         raise CompileEmitError(f"parse failed: {exc}") from exc
-    visitor = CompilerVisitor(force_object_mode=force_object_mode)
+    visitor = CompilerVisitor(force_object_mode=force_object_mode, libraries=libraries)
     code = visitor.visit(tree)
+    if visitor.library_inline_error:
+        raise CompileEmitError(visitor.library_inline_error)
     if not isinstance(code, str) or not code.strip():
         msg = "CompilerVisitor produced empty code"
         raise CompileEmitError(msg)
@@ -1505,6 +1547,7 @@ def _warm_numeric_or_fallback(
     compiled: CompiledScript,
     *,
     ir_key: str,
+    libraries: list[dict[str, Any]] | None = None,
 ) -> tuple[CompiledScript, str]:
     """Warm njit entry; on nopython failure re-emit object mode.
 
@@ -1541,14 +1584,18 @@ def _warm_numeric_or_fallback(
         _log.info("compile nopython → object mode: %s", reason)
         # Structural recovery: re-emit pure-Python object bar loop.
         try:
-            code_o, titles_o, kinds_o, _, attrs_o = _transpile_once(source, force_object_mode=True)
+            code_o, titles_o, kinds_o, _, attrs_o = _transpile_once(
+                source,
+                force_object_mode=True,
+                libraries=libraries,
+            )
             ir_key_o = _sha256_text(code_o)
             recovered = _exec_generated(
                 source,
                 code_o,
                 titles_o,
                 True,
-                ir_key=ir_key_o,
+                ir_key=None if libraries else ir_key_o,
                 nopython_fallback_reason=reason,
                 plot_kinds=kinds_o,
                 plot_attrs=attrs_o,
@@ -1643,7 +1690,13 @@ def _compile_via_disk_index(
     return None
 
 
-def compile_script(source: str, *, use_cache: bool = True, force_object_mode: bool = False) -> CompiledScript:
+def compile_script(
+    source: str,
+    *,
+    use_cache: bool = True,
+    force_object_mode: bool = False,
+    libraries: list[dict[str, Any]] | None = None,
+) -> CompiledScript:
     """Transpile Pine source and load the compiled entry point.
 
     Uses Numba when the script is pure-numeric; object-mode (UDT/map/drawing)
@@ -1670,6 +1723,28 @@ def compile_script(source: str, *, use_cache: bool = True, force_object_mode: bo
     if force_object_mode:
         # Do not poison the numeric cache with a forced object-mode emit.
         use_cache = False
+
+    if libraries:
+        # Library inlining changes generated IR for the same source hash; do
+        # not read/write the source-keyed caches for these runs.
+        source = _sanitize_source(raw_source)
+        code, titles, kinds, object_mode, attrs = _transpile_once(
+            source,
+            force_object_mode=force_object_mode,
+            libraries=libraries,
+        )
+        ir_key = _sha256_text(code)
+        compiled = _exec_generated(
+            source,
+            code,
+            titles,
+            object_mode,
+            ir_key=None,
+            plot_kinds=kinds,
+            plot_attrs=attrs,
+        )
+        compiled, _ = _warm_numeric_or_fallback(source, compiled, ir_key=ir_key, libraries=libraries)
+        return compiled
 
     if use_cache:
         hit = _memory_cache_get(raw_key)

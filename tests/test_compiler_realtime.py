@@ -30,6 +30,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from pynescript.compiler.engine import compile_script
 from pynescript.compiler.engine import transpile
 from pynescript.runtime import Runtime
 
@@ -344,8 +345,6 @@ def test_object_mode_tick_snapshot_copies_inner_lists() -> None:
 
 def test_object_mode_execute_keeps_six_arg_positional() -> None:
     """Existing 6-arg execute_script_compiled calls stay valid (kwargs default)."""
-    from pynescript.compiler.engine import compile_script
-
     src = """
 //@version=5
 indicator("obj")
@@ -364,3 +363,83 @@ plot(close, "c")
     out = compiled.execute(opens, highs, lows, closes, vols, times)
     assert "c" in out
     assert len(out["c"]) == n
+
+
+def _compiled_arrays(bars: list[dict[str, float | int]]) -> tuple[list[float], ...]:
+    return (
+        [float(b["open"]) for b in bars],
+        [float(b["high"]) for b in bars],
+        [float(b["low"]) for b in bars],
+        [float(b["close"]) for b in bars],
+        [float(b["volume"]) for b in bars],
+        [float(b["time"]) for b in bars],
+    )
+
+
+def test_numeric_compiled_run_routes_realtime_to_object_mode() -> None:
+    """Direct numeric CompiledScript.run must not ignore realtime kwargs."""
+    compiled = compile_script(_ISREALTIME_SRC, use_cache=False)
+    assert compiled.object_mode is False
+
+    n = 8
+    bars = _bars(n)
+    opens, highs, lows, closes, vols, times = _compiled_arrays(bars)
+    out = compiled.run(
+        opens,
+        highs,
+        lows,
+        closes,
+        vols,
+        time=times,
+        rt_first=n - 1,
+        rt_ticks=2,
+    )
+
+    assert out["rt"][-1] == 1.0
+    assert list(out["rt"][:-1]) == [0.0] * (n - 1)
+    assert out["cf"][-1] == 1.0
+    assert out["hist"][-1] == 0.0
+    # The numeric cache entry must stay numeric for later historical runs.
+    assert compiled.object_mode is False
+    hist = compiled.run(opens, highs, lows, closes, vols, time=times)
+    assert list(hist["rt"]) == [0.0] * n
+    assert list(hist["hist"]) == [1.0] * n
+
+
+def test_numeric_compiled_run_varip_matches_interpret_realtime() -> None:
+    """Numeric varip must re-init per realtime tick, not behave like var."""
+    n = 8
+    ticks = 3
+    bars = _bars(n)
+    interp = Runtime(symbol="TEST").run(
+        _VAR_VARIP_SRC,
+        bars,
+        mode="interpret",
+        realtime_ticks=ticks,
+    )
+    assert "error" not in interp, interp.get("error")
+    interp_v = _series(interp, "v")
+    interp_vip = _series(interp, "vip")
+
+    compiled = compile_script(_VAR_VARIP_SRC, use_cache=False)
+    assert compiled.object_mode is False
+    opens, highs, lows, closes, vols, times = _compiled_arrays(bars)
+    out = compiled.run(
+        opens,
+        highs,
+        lows,
+        closes,
+        vols,
+        time=times,
+        rt_first=n - 1,
+        rt_ticks=ticks,
+    )
+
+    assert out["v"][-1] == n
+    assert out["vip"][-1] == 1.0
+    assert list(out["v"]) == interp_v
+    assert list(out["vip"]) == interp_vip
+    assert compiled.object_mode is False
+    hist = compiled.run(opens, highs, lows, closes, vols, time=times)
+    assert hist["v"][-1] == n
+    assert hist["vip"][-1] == n

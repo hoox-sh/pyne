@@ -115,6 +115,30 @@ def test_stale_pooled_session_recreates_over_current_store(_isolated):
     assert b["newest"] == 1_700_000_000 + 86_400 + 9 * 60
 
 
+def test_pooled_session_with_covered_hole_recreates(_isolated):
+    """A pooled session whose bars skip a window the store later fills is stale."""
+    from backend.datastore import series as series_store
+
+    key = series_store.make_key("binance", "BTC/USDT", "1m", "spot")
+    holed = [
+        {"time": 1_700_000_000 + i * 60, "open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1.0}
+        for i in list(range(5)) + list(range(8, 12))
+    ]
+    series_store.get_store().provide(key, holed, source="test")
+    script = 'indicator("hole-recreate-probe")'
+    first = ensure_live_session("script", KEY, 9, script=script, symbol="BTCUSDT")
+    assert first["outcome"] == "ready"
+    # The feed later fills the hole; the pooled session must not be resumed.
+    filled = [
+        {"time": 1_700_000_000 + i * 60, "open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1.0}
+        for i in range(5, 8)
+    ]
+    series_store.get_store().provide(key, filled, source="test")
+    second = ensure_live_session("script", KEY, 9, script=script, symbol="BTCUSDT")
+    assert second["outcome"] == "ready"
+    assert second["session_id"] != first["session_id"]
+
+
 def test_healthy_pooled_session_keeps_sharing(_isolated):
     """A pool hit lagging less than the window still shares (no churn)."""
     script = 'indicator("healthy-share-probe")'

@@ -66,6 +66,9 @@ services:
       PYNE_FEED_API_KEY: ${PYNE_FEED_API_KEY:-}
       PYNE_FEED_POLL_S: ${PYNE_FEED_POLL_S:-1.0}
       PYNE_FEED_PROVIDE_LIMIT: ${PYNE_FEED_PROVIDE_LIMIT:-1000}
+      # AXB1 binary frames for /ws/live. Default off; enable on hosted AXIS
+      # deployments that negotiate axb1-full. Self-hosters can leave unset.
+      PYNE_AXB1_ENABLED: ${PYNE_AXB1_ENABLED:-0}
     # Compose merges volumes by mount *target*; !override replaces the base
     # list so ./src and ./backend binds from docker-compose.yml are dropped.
     volumes: !override

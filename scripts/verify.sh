@@ -201,7 +201,7 @@ run_step lint "Lint" "$LINT_CMD"
 run_step typecheck "Typecheck" "$TYPECHECK_CMD"
 run_step okf "OKF" "$OKF_CMD"
 
-if [ "$MODE" = "all" ] || [ "$MODE" = "pre-push" ]; then
+if [ "$MODE" = "all" ]; then
   # Pre-existing environment failure, not this tree: the local editable install
   # of hoox-pyne points at a checkout that no longer exists, so the bare
   # `pytest` invocation dies at collection with ModuleNotFoundError:

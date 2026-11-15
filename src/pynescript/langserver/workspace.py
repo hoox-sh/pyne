@@ -33,6 +33,8 @@ needed; diagnostics are converted to LSP via :meth:`Workspace.get_all_diagnostic
 
 from __future__ import annotations
 
+import logging
+
 from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
@@ -51,6 +53,9 @@ from pynescript.langserver.features import semantic_diagnostics
 from pynescript.langserver.features.diagnostics import lint_warnings_to_diagnostics
 from pynescript.langserver.protocol.utils import codepoint_column_to_utf16
 from pynescript.langserver.protocol.utils import utf16_column_to_codepoint
+
+
+logger = logging.getLogger(__name__)
 
 
 # Style-only rules. The language server can hide these by default; the linter
@@ -89,6 +94,9 @@ class TextDocumentState:
     parse_error_details: Any | None = None
     ast_version: int = 0
     analysis: SymbolIndex | None = None
+    # Set when the buffer parsed but the symbol index raised. Navigation
+    # and semantic checks are then absent; one diagnostic says so.
+    index_error: str | None = None
     # Feature-level memo (semantic tokens, inlay hints, hover decl maps…).
     # Cleared whenever source/AST changes; keys are feature-defined strings.
     feature_cache: dict[str, Any] = field(default_factory=dict)
@@ -270,7 +278,13 @@ class Workspace:
             return
         doc.ast = tree
         doc.ast_version = version
-        doc.analysis = build_symbol_index(tree, source, doc.uri)
+        doc.index_error = None
+        try:
+            doc.analysis = build_symbol_index(tree, source, doc.uri)
+        except Exception:
+            logger.debug("symbol index build failed for %s", doc.uri, exc_info=True)
+            doc.analysis = None
+            doc.index_error = "Symbol index failed; navigation and semantic checks are unavailable."
         doc.parse_error = None
         doc.parse_error_line = None
         doc.parse_error_details = None
@@ -324,6 +338,20 @@ class Workspace:
                 code="E001",
             )
             diagnostics.append(diag)
+
+        if doc.index_error and doc.valid_ast is not None:
+            diagnostics.append(
+                lsp.Diagnostic(
+                    range=lsp.Range(
+                        start=lsp.Position(line=0, character=0),
+                        end=lsp.Position(line=0, character=1),
+                    ),
+                    severity=lsp.DiagnosticSeverity.Error,
+                    message=doc.index_error,
+                    source="pyne",
+                    code="E002",
+                )
+            )
 
         return diagnostics
 

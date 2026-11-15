@@ -13,6 +13,7 @@ after a restart.
 
 from __future__ import annotations
 
+from itertools import pairwise
 from typing import Any
 
 
@@ -59,8 +60,50 @@ def _pooled_window_moved_on(store: Any, key: Any, session: Any, history_bars: An
         if count <= 0:
             return True
         if anchor <= 0 or newest <= anchor:
+            return _pooled_window_has_covered_hole(store, key, session, history_bars)
+        return (newest - anchor) // step > max(1, int(history_bars)) or _pooled_window_has_covered_hole(store, key, session, history_bars)
+    except Exception:
+        return False
+
+
+def _pooled_window_has_covered_hole(store: Any, key: Any, session: Any, history_bars: Any) -> bool:
+    """True when the pooled session skipped slots the store now covers.
+
+    A session created while the store had a transient hole keeps that hole
+    forever, even after the feed fills it — every subscriber then sees a
+    flat/stale segment and the client holds its last good plots. Detect a
+    session with an internal gap whose missing slots exist in the current
+    store window; recreate instead of resuming.
+    """
+    try:
+        bars = getattr(session, "_ohlcv_data", None)
+        if not isinstance(bars, list) or len(bars) < 3:
             return False
-        return (newest - anchor) // step > max(1, int(history_bars))
+        step = int(key.interval_seconds) or 60
+        times: list[int] = []
+        for bar in bars:
+            if not isinstance(bar, dict):
+                return False
+            try:
+                t = int(bar.get("time"))
+            except (TypeError, ValueError):
+                return False
+            times.append(t)
+        holes: list[tuple[int, int]] = []
+        for a, b in pairwise(times):
+            if b - a > step * 1.5:
+                holes.append((a, b))
+        if not holes:
+            return False
+        window = store.window(key, max(len(bars), int(history_bars) if history_bars else len(bars)))
+        have = {int(b.get("time")) for b in window if isinstance(b, dict) and b.get("time") is not None}
+        for start, end in holes:
+            t = start + step
+            while t < end:
+                if t in have:
+                    return True
+                t += step
+        return False
     except Exception:
         return False
 

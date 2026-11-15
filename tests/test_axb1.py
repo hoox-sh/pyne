@@ -42,6 +42,13 @@ from pynescript.runtime import axb1
 
 VECTORS = json.loads((Path(__file__).parent / "data" / "axb1-vectors.json").read_text(encoding="utf-8"))
 
+
+@pytest.fixture(autouse=True)
+def _enable_axb1_for_contract_tests(monkeypatch):
+    # Hosted AXIS deployments opt in with PYNE_AXB1_ENABLED=1; the default
+    # stays JSON for self-hosted pyne installs.
+    monkeypatch.setenv("PYNE_AXB1_ENABLED", "1")
+
 META = {"exchange": "binance", "market": "spot", "symbol": "btc/usdt", "interval": "1m"}
 KEY_TEXT = "binance|spot|BTC/USDT|1m"
 SUB_ID = "series:binance|spot|BTC/USDT|1m"
@@ -414,6 +421,74 @@ def test_map_script_delta_becomes_plot_tip_in_full_mode():
     assert out[5] == int(axb1.Axb1Opcode.PLOT_TIP)
 
 
+def test_map_script_delta_with_times_and_interval_becomes_plot_tip_in_full_mode():
+    # This is the live hot path shape from backend/api/live_push.py: the tail
+    # axis and interval are present for the JSON fallback, but carry no extra
+    # binary payload once the script tip is encoded.
+    payload = {
+        "base_index": 10,
+        "count": 11,
+        "tail_len": 1,
+        "closed_upto": LAST_TIME,
+        "forming": True,
+        "series": {"RMA": [65405.05736073272]},
+        "plots": [65405.05736073272],
+        "times": [LAST_TIME],
+        "interval": "1m",
+    }
+    out = map_live_frame(_frame("delta", payload), mode="full")
+    assert isinstance(out, bytes)
+    assert out[:4] == b"AXB1"
+    assert out[5] == int(axb1.Axb1Opcode.PLOT_TIP)
+
+
+def test_map_empty_script_delta_becomes_zero_tip_plot_tip_in_full_mode():
+    payload = {
+        "base_index": 9504,
+        "count": 9505,
+        "tail_len": 1,
+        "closed_upto": 0,
+        "forming": True,
+        "plots": [],
+        "series": {},
+        "times": [1794745320],
+        "interval": "1m",
+    }
+    out = map_live_frame(_frame("delta", payload), mode="full")
+    assert isinstance(out, bytes)
+    assert out[:4] == b"AXB1"
+    assert out[5] == int(axb1.Axb1Opcode.PLOT_TIP)
+
+
+def test_map_empty_script_delta_stays_json_in_basic_mode():
+    payload = {
+        "base_index": 9504,
+        "count": 9505,
+        "tail_len": 1,
+        "closed_upto": 0,
+        "forming": True,
+        "plots": [],
+        "series": {},
+        "times": [1794745320],
+        "interval": "1m",
+    }
+    assert map_live_frame(_frame("delta", payload), mode="basic") is None
+
+
+def test_map_script_delta_with_bad_times_stays_json():
+    payload = {
+        "base_index": 10,
+        "count": 11,
+        "tail_len": 1,
+        "closed_upto": LAST_TIME,
+        "forming": True,
+        "series": {"RMA": [65405.05736073272]},
+        "times": [LAST_TIME, LAST_TIME + 60],
+        "interval": "1m",
+    }
+    assert map_live_frame(_frame("delta", payload), mode="full") is None
+
+
 def test_map_full_with_leftovers_stays_json():
     payload = {"seriesKey": KEY_TEXT, "count": 1, "closed_upto": 0, "bars": BARS[:1], "meta": {"x": 1}}
     assert map_live_frame(_frame("full", payload)) is None
@@ -571,6 +646,15 @@ def _subscribe(encoding=None) -> dict:
     if encoding is not None:
         payload["encoding"] = encoding
     return {"type": "subscribe", "id": "sub-1", "payload": payload}
+
+
+def test_axb1_is_opt_in(monkeypatch):
+    monkeypatch.setenv("PYNE_AXB1_ENABLED", "0")
+    capture = _CaptureSender()
+    conn = _axb1_conn(capture)
+    replies = conn.handle_dict(_subscribe("axb1-full"))
+    assert isinstance(capture.frames[0], dict)
+    assert [type(frame) for frame in [conn.encode_outbound(reply) for reply in replies]] == [dict, dict, dict]
 
 
 def test_subscribe_with_axb1_sends_bytes():

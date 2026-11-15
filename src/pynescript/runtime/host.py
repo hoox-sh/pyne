@@ -456,6 +456,26 @@ def _attach_logs_profile(
     return result
 
 
+def _has_top_level_import(source_code: str) -> bool:
+    """True only for a real top-level Pine ``import`` statement.
+
+    The cheap line regex is only a prefilter: a multi-line string can contain a
+    line that starts with ``import``. Parse those candidates and inspect the
+    AST body so eligibility/fail-closed do not reject string contents.
+    """
+    src = source_code or ""
+    if not re.search(r"(?m)^\s*import\s+\S+", src):
+        return False
+    try:
+        tree = parse(src)
+    except Exception:
+        # Unparseable candidate: fail closed (treat as import) so callers do
+        # not silently compile a library-dependent script.
+        return True
+    body = getattr(tree, "body", None) or []
+    return any(type(stmt).__name__ == "Import" for stmt in body)
+
+
 def _json_safe_number(x: Any) -> float | None:
     """Map NaN/±Inf (and numpy scalars) to ``None`` for strict JSON / browsers."""
     if x is None:
@@ -1374,6 +1394,59 @@ def _restore_container_contents(target: Any, snap: Any) -> None:
         return
 
 
+def _snapshot_drawing_registry() -> dict[str, Any] | None:
+    """Snapshot interpret DrawingRegistry lists and existing object fields.
+
+    Unconfirmed realtime ticks re-execute the body; drawing setters mutate the
+    same Line/Label/Box/... dataclass objects in place. Compile mode already
+    truncates append-only ``__drawings`` events. This snapshot preserves object
+    identity while allowing the registry to truncate new drawings and restore
+    field mutations (set_xy/set_text/delete).
+    """
+    try:
+        from pynescript.ast.evaluator.builtins.drawing import DrawingRegistry
+
+        snap: dict[str, Any] = {}
+        for name in ("lines", "boxes", "labels", "tables", "polylines", "linefills"):
+            items = getattr(DrawingRegistry, name, None)
+            if not isinstance(items, list):
+                continue
+            states: list[tuple[Any, dict[str, Any]]] = []
+            for obj in items:
+                fields = getattr(obj, "__dict__", None)
+                if isinstance(fields, dict):
+                    states.append((obj, dict(fields)))
+            snap[name] = (len(items), states)
+        return snap
+    except Exception as _exc:
+        _swallow(_exc, what="snapshot drawing registry")
+        return None
+
+
+def _restore_drawing_registry(snap: dict[str, Any] | None) -> None:
+    """Restore drawing list lengths and in-place dataclass fields from a snapshot."""
+    if not snap:
+        return
+    try:
+        from pynescript.ast.evaluator.builtins.drawing import DrawingRegistry
+
+        for name, payload in snap.items():
+            if not isinstance(payload, tuple) or len(payload) != 2:
+                continue
+            length, states = payload
+            items = getattr(DrawingRegistry, name, None)
+            if not isinstance(items, list):
+                continue
+            del items[int(length) :]
+            for obj, fields in states:
+                target = getattr(obj, "__dict__", None)
+                if isinstance(target, dict):
+                    target.clear()
+                    target.update(fields)
+    except Exception as _exc:
+        _swallow(_exc, what="restore drawing registry")
+
+
 def _snapshot_realtime_scope(evaluator: Any) -> dict[str, Any] | None:
     """Snapshot ``var`` scope before an intermediate realtime tick.
 
@@ -1422,6 +1495,7 @@ def _snapshot_realtime_scope(evaluator: Any) -> dict[str, Any] | None:
             "varip_names": varip_names,
             "var_declarations": set(declared) if declared else set(),
             "once_fired": dict(once_fired) if isinstance(once_fired, dict) else {},
+            "drawings": _snapshot_drawing_registry(),
         }
     except Exception as _exc:
         _swallow(_exc, what="snapshot realtime scope")
@@ -1495,6 +1569,10 @@ def _restore_realtime_scope(evaluator: Any, snap: dict[str, Any] | None) -> None
             evaluator._once_fired = dict(restored)
     except Exception as _exc:
         _swallow(_exc, what="restore once-fired flags")
+    try:
+        _restore_drawing_registry(snap.get("drawings"))
+    except Exception as _exc:
+        _swallow(_exc, what="restore drawing registry")
 
 
 def _copy_ta_value(value: Any) -> Any:
@@ -3318,6 +3396,7 @@ class Runtime:
             return self._run_compiled(
                 source_code,
                 ohlcv_data,
+                libraries=libraries,
                 data_feed=data_feed,
                 data_provider=data_provider,
                 realtime_last_bar=realtime_last_bar,
@@ -4197,7 +4276,7 @@ class Runtime:
                 return False, "compiler package unavailable"
         src = source_code or ""
         # Import / request.* need interpreter library + data plumbing
-        if re.search(r"(?m)^\s*import\s+\S+", src):
+        if _has_top_level_import(src):
             return False, "import statements not supported in compile path"
         if "request." in src:
             return False, "request.* not supported in compile path"
@@ -4302,6 +4381,7 @@ class Runtime:
             compiled_result = self._run_compiled(
                 source_code,
                 ohlcv_data,
+                libraries=libraries,
                 data_feed=data_feed,
                 data_provider=data_provider,
                 realtime_last_bar=realtime_last_bar,
@@ -4351,6 +4431,7 @@ class Runtime:
         source_code: str,
         ohlcv_data: list[dict],
         *,
+        libraries: list[dict[str, Any]] | None = None,
         data_feed: Any = None,
         data_provider: Any = None,
         realtime_last_bar: bool = False,
@@ -4406,13 +4487,13 @@ class Runtime:
         # Host short-circuit: raw-source hash → CompiledScript (skips sanitize on hit).
         cache_key = self._source_cache_key(source_code)
         script_id = cache_key[:16]
-        compiled = _HOST_COMPILE_CACHE.get(cache_key)
+        compiled = None if libraries else _HOST_COMPILE_CACHE.get(cache_key)
         was_cached = compiled is not None
 
         t_compile0 = time.perf_counter()
         if compiled is None:
             try:
-                compiled = compile_script(source_code)
+                compiled = compile_script(source_code, libraries=libraries)
             except Exception as e:
                 compile_ms = (time.perf_counter() - t_compile0) * 1000.0
                 _dbg("compile: FAILED src=%s in %.2fms: %s", cache_key[:12], compile_ms, e)
@@ -4438,13 +4519,14 @@ class Runtime:
                     parse_ms=compile_ms,
                     eval_ms=0.0,
                 )
-            if len(_HOST_COMPILE_CACHE) >= _HOST_COMPILE_CACHE_MAX:
-                try:
-                    _HOST_COMPILE_CACHE.pop(next(iter(_HOST_COMPILE_CACHE)))
-                except StopIteration as _exc:
-                    _swallow(_exc)
-            _HOST_COMPILE_CACHE[cache_key] = compiled
-            _HOST_COMPILE_FAIL_CACHE.pop(cache_key, None)
+            if not libraries:
+                if len(_HOST_COMPILE_CACHE) >= _HOST_COMPILE_CACHE_MAX:
+                    try:
+                        _HOST_COMPILE_CACHE.pop(next(iter(_HOST_COMPILE_CACHE)))
+                    except StopIteration as _exc:
+                        _swallow(_exc)
+                _HOST_COMPILE_CACHE[cache_key] = compiled
+                _HOST_COMPILE_FAIL_CACHE.pop(cache_key, None)
         compile_ms = (time.perf_counter() - t_compile0) * 1000.0
         _dbg(
             "compile: %s src=%s script_id=%s in %.2fms host_cache_entries=%d",
@@ -4663,7 +4745,16 @@ class Runtime:
 
         # Series envelope parity with interpret: declaration fields.
         # Style/color for compile is best-effort (engine does not export per-plot meta).
+        # input.* is not executed on this path; fold literal declarations so
+        # the result still lists them (overrides stay interpret-only).
         input_defs: list[dict[str, Any]] = []
+        try:
+            from pynescript.ast.evaluator.builtins.input import collect_input_declarations
+
+            input_defs = collect_input_declarations(source_code or "")
+        except Exception as _exc:
+            _swallow(_exc, what="collect compile input declarations")
+            input_defs = []
         meta_out: dict[str, Any] = {
             "overlay": header["overlay"],
             "script_name": header["script_name"],

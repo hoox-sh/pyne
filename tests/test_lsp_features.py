@@ -572,7 +572,7 @@ plot(foo(1))
         assert "**Bold** heading" in value
         assert "#### Usage" in value
         assert "```" in value
-        assert "| `a` | The first. |" in value
+        assert "- **`a`** — The first." in value
         assert "**Returns:** The result." in value
 
     def test_handle_hover_library_description(self) -> None:
@@ -614,8 +614,8 @@ export type Point
         assert isinstance(result.contents, lsp.MarkupContent)
         value = result.contents.value
         assert "A point." in value
-        assert "| `x` | The x coordinate. |" in value
-        assert "| `y` | The y coordinate. |" in value
+        assert "- **`x`** — The x coordinate." in value
+        assert "- **`y`** — The y coordinate." in value
 
     def test_handle_hover_variable_annotation(self) -> None:
         """``// @variable`` renders as a variable hover card."""
@@ -655,7 +655,7 @@ plot(bb(close))
         assert isinstance(result.contents, lsp.MarkupContent)
         value = result.contents.value
         assert "Custom bands." in value
-        assert "| `src` | Source series. |" in value
+        assert "- **`src`** — Source series." in value
         assert "**Returns:** Bands." in value
 
     def test_build_docs_link_only_dotted_labels(self) -> None:
@@ -688,7 +688,7 @@ plot(bb(close))
         sma_text = sma.contents.value
         assert sma_text.startswith("`function`")
         assert "```pinescript" in sma_text
-        assert sma_text.index("---") < sma_text.index("pine-script-reference")
+        assert "---\n[Pine v6: ta.sma](https://www.tradingview.com/pine-script-reference/v6/#fun_ta.sma)" in sma_text
 
         ns = handle_hover(
             lsp.HoverParams(
@@ -709,16 +709,158 @@ plot(bb(close))
         card = format_docs_card(kind="type", fence="float", body="Floating-point numeric value.")
         assert card == "`type`\n\n```pinescript\nfloat\n```\n\nFloating-point numeric value.\n"
 
-    def test_format_named_table_uses_columns_when_described(self) -> None:
+    def test_format_named_table_uses_bullets_for_short_described_lists(self) -> None:
         from pynescript.langserver.providers.docs_card import format_named_table
 
-        table = format_named_table("Parameters", [("src", "Source series"), ("len", "Lookback")])
+        bullets = format_named_table("Parameters", [("src", "Source series"), ("len", "Lookback")])
+        assert bullets.startswith("**Parameters**")
+        assert "- **`src`** — Source series" in bullets
+        assert "- **`len`** — Lookback" in bullets
+        assert "| Name |" not in bullets
+
+    def test_format_named_table_uses_columns_above_compact_limit(self) -> None:
+        from pynescript.langserver.providers.docs_card import format_named_table
+
+        items = [(f"p{i}", f"Desc {i}") for i in range(5)]
+        table = format_named_table("Parameters", items)
         assert table.startswith("**Parameters**")
         assert "| Name | Description |" in table
-        assert "| `src` | Source series |" in table
+        assert "| `p0` | Desc 0 |" in table
+
+    def test_format_named_table_name_only_lists_stay_bullets(self) -> None:
+        from pynescript.langserver.providers.docs_card import format_named_table
+
         bullets = format_named_table("Parameters", [("src", ""), ("len", "")])
         assert "- `src`" in bullets
         assert "| Name |" not in bullets
+
+    def test_normalize_kind_maps_synonyms(self) -> None:
+        from pynescript.langserver.providers.docs_card import normalize_kind
+
+        assert normalize_kind("func") == "function"
+        assert normalize_kind("prop") == "property"
+        assert normalize_kind("module") == "namespace"
+        assert normalize_kind("class") == "type"
+        assert normalize_kind("field") == "member"
+        assert normalize_kind("  Function  ") == "function"
+        assert normalize_kind("") == ""
+
+    def test_pine_v6_docs_url_only_dotted_labels(self) -> None:
+        from pynescript.langserver.providers.docs_card import pine_v6_docs_url
+
+        assert pine_v6_docs_url("ta.sma") == "https://www.tradingview.com/pine-script-reference/v6/#fun_ta.sma"
+        assert pine_v6_docs_url("strategy.entry").endswith("fun_strategy.entry")
+        assert pine_v6_docs_url("") == ""
+        assert pine_v6_docs_url("sma") == ""
+        assert pine_v6_docs_url("   ") == ""
+
+    def test_format_docs_card_normalizes_kind_and_keeps_footer_rule(self) -> None:
+        from pynescript.langserver.providers.docs_card import format_docs_card
+
+        card = format_docs_card(
+            kind="func",
+            fence="ta.sma(source, length)",
+            body="Simple moving average.",
+            sections=["**Parameters**\n- **`source`** — Series."],
+            footer="[Pine v6: ta.sma](https://example.test)",
+        )
+        assert card.startswith("`function`")
+        assert "```pinescript\nta.sma(source, length)\n```" in card
+        assert "**Parameters**" in card
+        assert "---\n[Pine v6: ta.sma]" in card
+        assert card.endswith("\n")
+
+    def test_format_documentation_cuts_at_sentence_boundary(self) -> None:
+        from pynescript.langserver.features.hover import _format_documentation
+
+        short = _format_documentation("One line.\n\nSecond paragraph.")
+        assert short == "One line."
+
+        long_text = ("First sentence. " * 40).strip()
+        cut = _format_documentation(long_text)
+        assert len(cut) <= 400
+        assert cut.endswith(".")
+        assert not cut.endswith("…")
+
+        no_sentence = "word " * 120
+        cut_words = _format_documentation(no_sentence)
+        assert len(cut_words) <= 401
+        assert cut_words.endswith("…")
+
+    def test_strip_brief_removes_duplicate_prefix(self) -> None:
+        from pynescript.langserver.features.hover import _strip_brief
+
+        assert _strip_brief("Simple moving average. More detail.", "Simple moving average.") == ("More detail.")
+        assert _strip_brief("Simple moving average.", "Simple moving average.") == ""
+        assert _strip_brief("", "Brief") == ""
+        assert _strip_brief("Different text.", "Brief") == "Different text."
+        assert (
+            _strip_brief(
+                "strategy.entry(id, direction, qty) More detail.",
+                "Create entry order.",
+                "strategy.entry(...)",
+                "strategy.entry",
+            )
+            == "More detail."
+        )
+        assert (
+            _strip_brief(
+                "strategy.entry(id, direction, qty)",
+                "Create entry order.",
+                "strategy.entry(...)",
+                "strategy.entry",
+            )
+            == ""
+        )
+        assert (
+            _strip_brief(
+                "strategy.entry creates an order (see below).",
+                "Create entry order.",
+                "strategy.entry(...)",
+                "strategy.entry",
+            )
+            == "strategy.entry creates an order (see below)."
+        )
+        assert (
+            _strip_brief(
+                "strategy.entry(id, direction)\n\nCreate entry order.\n\nParameters:\n    id: Order id",
+                "Create entry order.",
+                "strategy.entry(...)",
+                "strategy.entry",
+            )
+            == ""
+        )
+        assert (
+            _strip_brief(
+                "strategy.entry(id, direction)\n\nCreate entry order.\n\nExtra detail.",
+                "Create entry order.",
+                "strategy.entry(...)",
+                "strategy.entry",
+            )
+            == "Extra detail."
+        )
+
+    def test_builtin_hover_uses_compact_sections_and_links(self) -> None:
+        from pynescript.langserver.features.hover import _build_builtin_hover
+
+        info = {
+            "label": "ta.sma",
+            "brief": "Simple moving average.",
+            "documentation": "Simple moving average. Averages the source over length bars.",
+            "params": [
+                {"name": "source", "type": "series float", "brief": "Series to average."},
+                {"name": "length", "type": "simple int", "brief": "Window length."},
+            ],
+        }
+        hover = _build_builtin_hover(info, 0, 0, 6)
+        assert isinstance(hover.contents, lsp.MarkupContent)
+        value = hover.contents.value
+        assert "- **`source`** — `series float` · Series to average." in value
+        assert "- **`length`** — `simple int` · Window length." in value
+        assert "**Example**" in value
+        assert "[`ta.ema`](https://www.tradingview.com/pine-script-reference/v6/#fun_ta.ema)" in value
+        assert "Averages the source over length bars." in value
+        assert value.count("Simple moving average.") == 1
 
 
 class TestDefinitionHandler:

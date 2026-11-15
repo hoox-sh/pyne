@@ -1,0 +1,102 @@
+# Failing-before transcript — new UDT tests against pristine HEAD 7d22dced compiler
+# command: PYTHONPATH=<src copy with HEAD compiler.py> .venv/bin/python -m pytest tests/test_compiler_library_inline.py -q --tb=line
+# working tree untouched; the src copy only replaces compiler.py with HEAD's version.
+
+## A. 18-test subset (deselects the 2 checker regression tests) -> 7 failed, 11 passed
+# matches checker proof f6f82599
+..........FFFFFFF.                                                       [100%]
+=================================== FAILURES ===================================
+E   assert [None, None, None, None] == [100.5, 101.5, 102.5, 103.5]
+      
+      At index 0 diff: None != 100.5
+      Use -v to get more diff
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_compiler_library_inline.py:294: assert [None, None, None, None] == [100.5, 101.5, 102.5, 103.5]
+E   AssertionError: Compile Error: CompileEmitError: unsupported library method lib.bump; use mode=interpret or auto
+    assert 'error' not in {'error': 'Compile Error: CompileEmitError: unsupported library method lib.bump; use mode=interpret or auto', 'error_kind': 'compile', 'error_type': 'CompileEmitError', 'logs': [], ...}
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_compiler_library_inline.py:302: AssertionError: Compile Error: CompileEmitError: unsupported library method lib.bump; use mode=interpret or auto
+E   assert [None, None, None, None] == [100.5, 101.5, 102.5, 103.5]
+      
+      At index 0 diff: None != 100.5
+      Use -v to get more diff
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_compiler_library_inline.py:332: assert [None, None, None, None] == [100.5, 101.5, 102.5, 103.5]
+E   AssertionError: assert 'outer' in 'compile error: compileemiterror: library imports are not supported: ns/lib has no exported functions; use mode=interpret or auto'
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_compiler_library_inline.py:426: AssertionError: assert 'outer' in 'compile error: compileemiterror: library imports are not supported: ns/lib has no exported functions; use mode=interpret or auto'
+E   AssertionError: assert None == 'compile'
+     +  where None = <built-in method get of dict object at 0x7fd8d05a5540>('error_kind')
+     +    where <built-in method get of dict object at 0x7fd8d05a5540> = {'alerts': [], 'compile_cached': False, 'compile_ms': 38.51, 'count': 4, ...}.get
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_compiler_library_inline.py:443: AssertionError: assert None == 'compile'
+E   AssertionError: assert None == 'compile'
+     +  where None = <built-in method get of dict object at 0x7fd8d0583080>('error_kind')
+     +    where <built-in method get of dict object at 0x7fd8d0583080> = {'alerts': [], 'compile_cached': False, 'compile_ms': 5.22, 'count': 4, ...}.get
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_compiler_library_inline.py:463: AssertionError: assert None == 'compile'
+E   AssertionError: assert 'receiver' in 'compile error: compileemiterror: unsupported library method lib.bump; use mode=interpret or auto'
+     +  where 'compile error: compileemiterror: unsupported library method lib.bump; use mode=interpret or auto' = <built-in method lower of str object at 0x7fd8d071e040>()
+     +    where <built-in method lower of str object at 0x7fd8d071e040> = 'Compile Error: CompileEmitError: unsupported library method lib.bump; use mode=interpret or auto'.lower
+     +      where 'Compile Error: CompileEmitError: unsupported library method lib.bump; use mode=interpret or auto' = str(('Compile Error: CompileEmitError: unsupported library method lib.bump; use mode=interpret or auto'))
+     +        where 'Compile Error: CompileEmitError: unsupported library method lib.bump; use mode=interpret or auto' = <built-in method get of dict object at 0x7fd8d05f4d40>('error')
+     +          where <built-in method get of dict object at 0x7fd8d05f4d40> = {'error': 'Compile Error: CompileEmitError: unsupported library method lib.bump; use mode=interpret or auto', 'error_kind': 'compile', 'error_type': 'CompileEmitError', 'logs': [], ...}.get
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_compiler_library_inline.py:474: AssertionError: assert 'receiver' in 'compile error: compileemiterror: unsupported library method lib.bump; use mode=interpret or auto'
+=========================== short test summary info ============================
+FAILED tests/test_compiler_library_inline.py::test_library_udt_type_constructor_and_method_inline
+FAILED tests/test_compiler_library_inline.py::test_library_udt_method_alias_form_inlines
+FAILED tests/test_compiler_library_inline.py::test_library_udt_typed_declaration_and_udt_param_inline
+FAILED tests/test_compiler_library_inline.py::test_library_udt_with_udt_field_fails_closed
+FAILED tests/test_compiler_library_inline.py::test_script_type_colliding_with_library_type_fails_closed
+FAILED tests/test_compiler_library_inline.py::test_library_udt_method_unsupported_body_fails_closed
+FAILED tests/test_compiler_library_inline.py::test_library_udt_method_wrong_receiver_fails_closed
+7 failed, 11 passed, 2 deselected in 1.59s
+
+## B. Full final 20-test file -> 9 failed, 11 passed
+..........FFFFFFFFF.                                                     [100%]
+=================================== FAILURES ===================================
+E   assert [None, None, None, None] == [100.5, 101.5, 102.5, 103.5]
+      
+      At index 0 diff: None != 100.5
+      Use -v to get more diff
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_compiler_library_inline.py:294: assert [None, None, None, None] == [100.5, 101.5, 102.5, 103.5]
+E   AssertionError: Compile Error: CompileEmitError: unsupported library method lib.bump; use mode=interpret or auto
+    assert 'error' not in {'error': 'Compile Error: CompileEmitError: unsupported library method lib.bump; use mode=interpret or auto', 'error_kind': 'compile', 'error_type': 'CompileEmitError', 'logs': [], ...}
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_compiler_library_inline.py:302: AssertionError: Compile Error: CompileEmitError: unsupported library method lib.bump; use mode=interpret or auto
+E   assert [None, None, None, None] == [100.5, 101.5, 102.5, 103.5]
+      
+      At index 0 diff: None != 100.5
+      Use -v to get more diff
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_compiler_library_inline.py:332: assert [None, None, None, None] == [100.5, 101.5, 102.5, 103.5]
+E   assert [None, None, None, None] == [101.5, 102.5, 103.5, 104.5]
+      
+      At index 0 diff: None != 101.5
+      Use -v to get more diff
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_compiler_library_inline.py:363: assert [None, None, None, None] == [101.5, 102.5, 103.5, 104.5]
+E   assert [None, None, None, None] == [101.5, 102.5, 103.5, 104.5]
+      
+      At index 0 diff: None != 101.5
+      Use -v to get more diff
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_compiler_library_inline.py:395: assert [None, None, None, None] == [101.5, 102.5, 103.5, 104.5]
+E   AssertionError: assert 'outer' in 'compile error: compileemiterror: library imports are not supported: ns/lib has no exported functions; use mode=interpret or auto'
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_compiler_library_inline.py:426: AssertionError: assert 'outer' in 'compile error: compileemiterror: library imports are not supported: ns/lib has no exported functions; use mode=interpret or auto'
+E   AssertionError: assert None == 'compile'
+     +  where None = <built-in method get of dict object at 0x7f742a66c740>('error_kind')
+     +    where <built-in method get of dict object at 0x7f742a66c740> = {'alerts': [], 'compile_cached': False, 'compile_ms': 37.43, 'count': 4, ...}.get
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_compiler_library_inline.py:443: AssertionError: assert None == 'compile'
+E   AssertionError: assert None == 'compile'
+     +  where None = <built-in method get of dict object at 0x7f742a6d7280>('error_kind')
+     +    where <built-in method get of dict object at 0x7f742a6d7280> = {'alerts': [], 'compile_cached': False, 'compile_ms': 5.01, 'count': 4, ...}.get
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_compiler_library_inline.py:463: AssertionError: assert None == 'compile'
+E   AssertionError: assert 'receiver' in 'compile error: compileemiterror: unsupported library method lib.bump; use mode=interpret or auto'
+     +  where 'compile error: compileemiterror: unsupported library method lib.bump; use mode=interpret or auto' = <built-in method lower of str object at 0x7f742a7e56b0>()
+     +    where <built-in method lower of str object at 0x7f742a7e56b0> = 'Compile Error: CompileEmitError: unsupported library method lib.bump; use mode=interpret or auto'.lower
+     +      where 'Compile Error: CompileEmitError: unsupported library method lib.bump; use mode=interpret or auto' = str(('Compile Error: CompileEmitError: unsupported library method lib.bump; use mode=interpret or auto'))
+     +        where 'Compile Error: CompileEmitError: unsupported library method lib.bump; use mode=interpret or auto' = <built-in method get of dict object at 0x7f742a66cc80>('error')
+     +          where <built-in method get of dict object at 0x7f742a66cc80> = {'error': 'Compile Error: CompileEmitError: unsupported library method lib.bump; use mode=interpret or auto', 'error_kind': 'compile', 'error_type': 'CompileEmitError', 'logs': [], ...}.get
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_compiler_library_inline.py:474: AssertionError: assert 'receiver' in 'compile error: compileemiterror: unsupported library method lib.bump; use mode=interpret or auto'
+=========================== short test summary info ============================
+FAILED tests/test_compiler_library_inline.py::test_library_udt_type_constructor_and_method_inline
+FAILED tests/test_compiler_library_inline.py::test_library_udt_method_alias_form_inlines
+FAILED tests/test_compiler_library_inline.py::test_library_udt_typed_declaration_and_udt_param_inline
+FAILED tests/test_compiler_library_inline.py::test_library_udt_color_field_variable_is_not_stringy
+FAILED tests/test_compiler_library_inline.py::test_library_udt_method_named_like_builtin_dispatches
+FAILED tests/test_compiler_library_inline.py::test_library_udt_with_udt_field_fails_closed
+FAILED tests/test_compiler_library_inline.py::test_script_type_colliding_with_library_type_fails_closed
+FAILED tests/test_compiler_library_inline.py::test_library_udt_method_unsupported_body_fails_closed
+FAILED tests/test_compiler_library_inline.py::test_library_udt_method_wrong_receiver_fails_closed
+9 failed, 11 passed in 1.69s

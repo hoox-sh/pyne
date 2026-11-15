@@ -165,6 +165,13 @@ class LiveRegistry:
 _SHARED_REGISTRY = LiveRegistry()
 
 
+def _axb1_enabled() -> bool:
+    """AXB1 is opt-in for self-hosters; hosted deployments enable it via env."""
+    import os
+
+    return os.environ.get("PYNE_AXB1_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 class LiveConnection:
     """Socket-free protocol core: validate + route one parsed frame."""
 
@@ -250,6 +257,8 @@ class LiveConnection:
         then the cursor grows via ``max()`` — it never moves backwards.
         """
         if not isinstance(frame, dict):
+            return frame
+        if not _axb1_enabled():
             return frame
         raw_id = frame.get("id")
         state = self._axb1_subs.get(str(raw_id)) if raw_id is not None else None
@@ -416,7 +425,7 @@ class LiveConnection:
         # AXB1 negotiation (HP PR 7 / axb1-full): binary outbound only when
         # the client explicitly asked for it on subscribe. Resubscribe
         # overwrites, and a subscribe without the flag drops back to all-JSON.
-        encoding = str(payload.get("encoding") or "")
+        encoding = str(payload.get("encoding") or "") if _axb1_enabled() else ""
         if encoding == "axb1":
             self._axb1_subs[client_id] = {"last_time": None, "mode": "basic"}
         elif encoding == "axb1-full":
@@ -492,7 +501,7 @@ class LiveConnection:
         client_id = str(req_id)
         token = self.generation(client_id)
         # AXB1 re-negotiation on resume: same rules as subscribe.
-        encoding = str(payload.get("encoding") or "") if isinstance(payload, dict) else ""
+        encoding = str(payload.get("encoding") or "") if (_axb1_enabled() and isinstance(payload, dict)) else ""
         if encoding == "axb1":
             self._axb1_subs[client_id] = {"last_time": None, "mode": "basic"}
         elif encoding == "axb1-full":
@@ -1367,13 +1376,30 @@ def _map_delta_plots(header: Any, payload: dict[str, Any]) -> bytes | None:
 
     if payload.get("tail_len") != 1:
         return None
-    allowed = {"base_index", "count", "tail_len", "closed_upto", "forming", "series", "plots", "bars"}
+    # `times`/`interval` are redundant for a one-bar tip (the client asserts the
+    # interval at subscribe and times are dropped from the AXB1 payload), but
+    # live_push always attaches them. Accept and ignore the pair instead of
+    # dropping every real script tip back to JSON.
+    allowed = {"base_index", "count", "tail_len", "closed_upto", "forming", "series", "plots", "bars", "times", "interval"}
     if set(payload) - allowed or payload.get("unchanged") is True or "bars" in payload:
+        return None
+    times = payload.get("times")
+    if times is not None:
+        if not isinstance(times, list) or len(times) != 1:
+            return None
+        try:
+            if int(times[0]) <= 0:
+                return None
+        except (TypeError, ValueError):
+            return None
+    interval = payload.get("interval")
+    if interval is not None and not isinstance(interval, str):
         return None
     count = payload.get("count")
     if not isinstance(count, int) or count < 1:
         return None
     series = payload.get("series")
+    plots_list = payload.get("plots")
     tips: list[dict[str, Any]] = []
     if isinstance(series, dict) and series:
         for key, values in series.items():
@@ -1386,9 +1412,15 @@ def _map_delta_plots(header: Any, payload: dict[str, Any]) -> bytes | None:
             if not math.isfinite(value):
                 return None
             tips.append({"key_hash": _axb1.fnv1a32(key), "kind": _axb1.ValueKind.UnitFloat64, "value": value})
+    elif isinstance(series, dict) and not series:
+        # Strategy with no plotted series for this tick: a zero-tip PLOT_TIP is
+        # still a valid AXB1 frame and keeps the seq cursor moving.
+        if plots_list not in (None, []):
+            return None
     else:
-        plots_list = payload.get("plots")
         if not isinstance(plots_list, list) or len(plots_list) != 1:
+            if not plots_list:
+                return _axb1.encode_plot_tip(header, [])
             return None
         inner = plots_list[0]
         if not isinstance(inner, list) or len(inner) != 1:
@@ -1400,8 +1432,6 @@ def _map_delta_plots(header: Any, payload: dict[str, Any]) -> bytes | None:
         if not math.isfinite(value):
             return None
         tips.append({"key_hash": _axb1.fnv1a32("0"), "kind": _axb1.ValueKind.UnitFloat64, "value": value})
-    if not tips:
-        return None
     return _axb1.encode_plot_tip(header, tips)
 
 

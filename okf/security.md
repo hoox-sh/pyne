@@ -4,6 +4,7 @@ title: Security
 description: Permission model, gates, and secret handling.
 tags: [security, gates, secrets]
 status: stable
+okf_lock: human
 ---
 
 # Security

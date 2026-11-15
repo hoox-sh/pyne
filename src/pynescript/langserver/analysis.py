@@ -48,6 +48,7 @@ Public API:
 
 from __future__ import annotations
 
+import logging
 import re
 
 from collections.abc import Iterator
@@ -57,6 +58,9 @@ from typing import Any
 
 from pynescript.ast import node as ast
 from pynescript.ast.helper import iter_child_nodes
+
+
+logger = logging.getLogger(__name__)
 
 
 # Builtin namespaces that behave like modules. Kept local so analysis does not
@@ -1177,12 +1181,14 @@ def ensure_symbol_index(
 
             tree = parse(source)
         except Exception:
+            logger.debug("symbol index parse failed", exc_info=True)
             return None
     if tree is None:
         return None
     try:
         return build_symbol_index(tree, source)
     except Exception:
+        logger.debug("symbol index build failed", exc_info=True)
         return None
 
 

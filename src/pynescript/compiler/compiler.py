@@ -60,6 +60,7 @@ entry points and non-obvious helpers — not every ``visit_*`` leaf.
 from __future__ import annotations
 
 import ast as py_ast
+import copy
 import keyword
 import math
 import re
@@ -604,7 +605,7 @@ class CompilerVisitor(NodeVisitor):
         and :meth:`_emit_user_func_call`.
     """
 
-    def __init__(self, *, force_object_mode: bool = False):
+    def __init__(self, *, force_object_mode: bool = False, libraries: list[dict] | None = None):
         super().__init__()
         self.arrays: set[str] = set()
         # Temp series for history on a call/expression (``ta.lowest(x, n)[k]``).
@@ -621,6 +622,28 @@ class CompilerVisitor(NodeVisitor):
         # same way; only the final emit path is pinned to object mode.
         self.force_object_mode = bool(force_object_mode)
         self.object_mode = bool(force_object_mode)
+        # Library sources supplied by the host; exported free functions are
+        # inlined into the generated module (alias, Pine name) -> py def name.
+        self.libraries = list(libraries or [])
+        self.library_methods: dict[tuple[str, str], str] = {}
+        # Exported library UDTs: (alias, Pine type) -> registered type name.
+        # Types keep their Pine name (methods dispatch by receiver type), so a
+        # same-named script type is a hard collision (fail closed).
+        self.library_types: dict[tuple[str, str], str] = {}
+        # Exported types outside the scalar-field slice: (alias, type) -> reason.
+        self.library_types_skipped: dict[tuple[str, str], str] = {}
+        self.library_type_names: set[str] = set()
+        # UDT-receiver methods outside the slice: Pine name -> reason.
+        self.library_skipped_methods: dict[str, str] = {}
+        # Emitted library methods whose receiver is a UDT (receiver-type guard).
+        self.library_udt_methods: set[str] = set()
+        self._registering_library_type = False
+        # Cross-library inlining: active import chain (cycle guard) and
+        # (namespace, name, version) -> synthetic alias already emitted.
+        self._library_import_stack: list[tuple[str, str, int]] = []
+        self._library_inlined: dict[tuple[str, str, int], str] = {}
+        self._xlib_alias_i = 0
+        self.library_inline_error: str | None = None
         # True only while resolving plot/fill/hline arguments: literal colors
         # there are metadata for numeric synthesis. Elsewhere (bgcolor,
         # drawings, assignments) keep the legacy object-mode helper path.
@@ -690,6 +713,9 @@ class CompilerVisitor(NodeVisitor):
         self.func_tuple_kinds: dict[str, tuple[str, ...]] = {}
         # Last expr is ``Type.new(...)`` / UDT handle — never float(dict).
         self.func_returns_udt: set[str] = set()
+        # UDF name -> UDT type ids it can return. A set lets ambiguous
+        # same-name overloads stay uninferred instead of guessing a receiver.
+        self.func_return_udt_types: dict[str, set[str]] = {}
         self.local_sequence_vars: set[str] = set()
         self._free_scalars_current: set[str] = set()
         self.func_needs_bar: dict[str, bool] = {}
@@ -1050,13 +1076,262 @@ class CompilerVisitor(NodeVisitor):
 
     # ------------------------------------------------------------------ script
     def visit_Import(self, node: ast.Import):
-        """Track ``import … as alias`` so library methods can be stubbed."""
+        """Reject recursive library imports, then inline the library body."""
+        key = (str(node.namespace or ""), str(node.name or ""), int(node.version or 1))
+        if key in self._library_import_stack:
+            self.library_inline_error = (
+                f"recursive library import {key[0]}/{key[1]}/{key[2]} is not supported; use mode=interpret or auto"
+            )
+            return ""
+        incoming_alias = str(node.alias or node.name or "")
+        if incoming_alias in self._library_inlined.values() and key not in self._library_inlined:
+            # A consumer alias equal to one of our synthetic aliases would
+            # hijack another library's calls; fail closed instead.
+            self.library_inline_error = (
+                f"import alias {incoming_alias} collides with an internal library alias; use mode=interpret or auto"
+            )
+            return ""
+        self._library_import_stack.append(key)
+        try:
+            return self._visit_import_inner(node)
+        finally:
+            self._library_import_stack.pop()
+
+    def _next_xlib_alias(self, exclude: set[str] | None = None) -> str:
+        """Return a synthetic import alias no existing or local alias uses."""
+        exclude = exclude or set()
+        while True:
+            self._xlib_alias_i += 1
+            alias = f"__xlib_{self._xlib_alias_i}"
+            if (
+                alias not in self.import_aliases
+                and alias not in self._library_inlined.values()
+                and alias not in exclude
+            ):
+                return alias
+
+    def _visit_import_inner(self, node: ast.Import):
+        """Track the alias and inline exported free functions from library source."""
         alias = node.alias or node.name
         if alias:
             self.import_aliases.add(alias)
             # Module-scope scalar so free-var plumbing can pass np.nan (Pine na)
             self.scalar_vars.add(alias)
         self.object_mode = True
+        if not self.libraries:
+            return ""
+        lib = next(
+            (
+                item
+                for item in self.libraries
+                if str(item.get("namespace") or "") == str(node.namespace or "")
+                and str(item.get("name") or "") == str(node.name or "")
+                and int(item.get("version") or 1) == int(node.version or 1)
+            ),
+            None,
+        )
+        if lib is None:
+            self.library_inline_error = f"library source not supplied for {node.namespace}/{node.name}/{node.version}; use mode=interpret or auto"
+            return ""
+        try:
+            from pynescript.ast.helper import parse as _parse_pine
+
+            # parse() caches trees by source hash; never rename/strip export on
+            # the cached instance or a second consumer sees a mutated library.
+            lib_tree = copy.deepcopy(_parse_pine(str(lib.get("source") or ""), mode="exec"))
+        except Exception as exc:
+            self.library_inline_error = f"library parse failed: {exc}; use mode=interpret or auto"
+            return ""
+        exported = [
+            stmt
+            for stmt in getattr(lib_tree, "body", []) or []
+            if type(stmt).__name__ == "FunctionDef" and getattr(stmt, "export", None)
+        ]
+        exported_types = [
+            stmt
+            for stmt in getattr(lib_tree, "body", []) or []
+            if type(stmt).__name__ == "TypeDef" and getattr(stmt, "export", None)
+        ]
+        if not exported and not exported_types:
+            self.library_inline_error = f"library imports are not supported: {node.namespace}/{node.name} has no exported functions or types; use mode=interpret or auto"
+            return ""
+        # Resolve this library's own imports first: cross-library calls are
+        # rewritten to a synthetic alias that cannot collide with the consumer's
+        # or with this library's local aliases. Rewriting happens once, from a
+        # local-alias -> synthetic map, so a later mapping can never re-rewrite
+        # an earlier synthetic (the sequential-rewrite collision).
+        imports = [stmt for stmt in getattr(lib_tree, "body", []) or [] if type(stmt).__name__ == "Import"]
+        local_aliases = {str(stmt.alias or stmt.name or "") for stmt in imports}
+        cross_namespaces: set[str] = set()
+        alias_map: dict[str, str] = {}
+        for stmt in imports:
+            local_alias = str(stmt.alias or stmt.name or "")
+            target_key = (
+                str(stmt.namespace or ""),
+                str(stmt.name or ""),
+                int(stmt.version or 1),
+            )
+            synthetic = self._library_inlined.get(target_key)
+            if synthetic is None:
+                synthetic = self._next_xlib_alias(local_aliases)
+                stmt.alias = synthetic
+                self.visit_Import(stmt)
+                if self.library_inline_error:
+                    return ""
+                self._library_inlined[target_key] = synthetic
+            cross_namespaces.add(synthetic)
+            if local_alias and local_alias != synthetic:
+                alias_map[local_alias] = synthetic
+        if alias_map:
+            self._rewrite_cross_library_aliases(lib_tree, alias_map)
+        # Types first: constructors and method receivers below need them.
+        scalar_receivers = {"float", "int", "bool", "color", "string"}
+        for td in exported_types:
+            pine_type = str(td.name)
+            if pine_type in self.udt_types:
+                self.library_inline_error = (
+                    f"library type {pine_type} collides with another type of the same name; use mode=interpret or auto"
+                )
+                return ""
+            reason = self._library_type_unsupported(td)
+            if reason:
+                # Keep the alias mapping so a constructor call fails closed with
+                # this reason instead of falling through to silent na.
+                self.library_types_skipped[(str(alias), pine_type)] = reason
+                continue
+            self._registering_library_type = True
+            try:
+                self.visit_TypeDef(td)
+            finally:
+                self._registering_library_type = False
+            self.library_types[(str(alias), pine_type)] = pine_type
+            self.library_type_names.add(pine_type)
+        seen: set[str] = set()
+        skipped: set[str] = set()
+        accepted: set[str] = set()
+        # Same-library internal calls: every non-method FunctionDef is a
+        # potential callee. Duplicate names are ambiguous (the old dict silently
+        # kept the last one and miscompiled calls), so fail closed eagerly —
+        # matching the exported-overload guard. Only the closure reachable from
+        # an inlined export is validated/emitted, so unused helpers stay inert.
+        local_funcs: dict[str, Any] = {}
+        for stmt in getattr(lib_tree, "body", []) or []:
+            if type(stmt).__name__ != "FunctionDef" or getattr(stmt, "method", 0):
+                continue
+            local_name = str(stmt.name)
+            if local_name in local_funcs:
+                self.library_inline_error = (
+                    f"overloaded library method/function {local_name} is not supported; use mode=interpret or auto"
+                )
+                return ""
+            local_funcs[local_name] = stmt
+        emitted_nodes: set[int] = set()
+        emitted_names: dict[int, str] = {}
+        emitted_by_name: dict[str, str] = {}
+        # emit_local renames shared AST nodes; keep the Pine names for the loop.
+        exported_names = {id(stmt): str(stmt.name) for stmt in exported}
+
+        def emit_local(name: str, stack: tuple[str, ...]) -> str:
+            """Emit a same-library callee (callees first); empty string on error."""
+            if name in stack:
+                self.library_inline_error = (
+                    f"recursive library function {name} is not supported; use mode=interpret or auto"
+                )
+                return ""
+            target = local_funcs.get(name)
+            if target is None:
+                return ""
+            if id(target) in emitted_nodes:
+                return emitted_names[id(target)]
+            emitted_name = self._safe_ident(f"__lib_{alias}_{name}")
+            for callee in self._library_called_names(target):
+                if callee in local_funcs and not emit_local(callee, (*stack, name)):
+                    return ""
+            params = {arg.name for arg in getattr(target, "args", []) or [] if hasattr(arg, "name")}
+            unsupported = self._library_function_unsupported(target, params, set(local_funcs), cross_namespaces)
+            if unsupported:
+                self.library_inline_error = (
+                    f"library function {name} {unsupported}; use mode=interpret or auto"
+                )
+                return ""
+            self._rewrite_library_calls(target, emitted_by_name)
+            target.name = emitted_name
+            target.export = None
+            self.visit_FunctionDef(target)
+            emitted_nodes.add(id(target))
+            emitted_names[id(target)] = emitted_name
+            emitted_by_name[name] = emitted_name
+            return emitted_name
+
+        for fn in exported:
+            is_udt_method = False
+            if getattr(fn, "method", 0):
+                if str(fn.name) in local_funcs:
+                    # A local free helper and an exported method share the
+                    # mangled name; fail closed instead of letting one win.
+                    self.library_inline_error = (
+                        f"overloaded library method/function {fn.name} is not supported; use mode=interpret or auto"
+                    )
+                    return ""
+                recv = self._type_spec_name(getattr(fn.args[0], "type", None)) if getattr(fn, "args", None) else None
+                if recv not in scalar_receivers and recv not in self.library_type_names:
+                    # Receiver is neither a scalar nor an inlined library type.
+                    # Track the name so a same-name scalar method cannot silently
+                    # win the overload, and so instance calls fail closed.
+                    skipped.add(fn.name)
+                    self.library_skipped_methods[str(fn.name)] = (
+                        f"receiver type {recv or 'unknown'} is not an inlined library type"
+                    )
+                    continue
+                is_udt_method = recv not in scalar_receivers
+            pine_name = exported_names[id(fn)]
+            if id(fn) in emitted_nodes and not getattr(fn, "method", 0):
+                # This exact node was already emitted as a callee of an earlier
+                # export; expose it instead of emitting a second copy. Identity,
+                # not name: a different same-name node is an overload (above).
+                seen.add(pine_name)
+                accepted.add(pine_name)
+                self.library_methods[(str(alias), str(pine_name))] = emitted_names[id(fn)]
+                continue
+            if pine_name in seen or pine_name in skipped:
+                self.library_inline_error = (
+                    f"overloaded library method/function {pine_name} is not supported; use mode=interpret or auto"
+                )
+                return ""
+            seen.add(pine_name)
+            accepted.add(pine_name)
+            params = {arg.name for arg in getattr(fn, "args", []) or [] if hasattr(arg, "name")}
+            unsupported = self._library_function_unsupported(fn, params, set(local_funcs), cross_namespaces)
+            if unsupported:
+                self.library_inline_error = f"library function {pine_name} {unsupported}; use mode=interpret or auto"
+                return ""
+            # Reachable same-library callees are emitted before this body; the
+            # seed stack catches self-recursion on the entry point.
+            for callee in self._library_called_names(fn):
+                if callee in local_funcs and not emit_local(callee, (str(pine_name),)):
+                    return ""
+            self._rewrite_library_calls(fn, emitted_by_name)
+            if is_udt_method:
+                # Keep the Pine name: ``instance.method()`` dispatches through
+                # func_receiver_types / udt_var_types, so a mangled name would
+                # never be found from the call site.
+                emitted = self._safe_ident(pine_name)
+                self.library_udt_methods.add(emitted)
+            else:
+                emitted = self._safe_ident(f"__lib_{alias}_{pine_name}")
+                fn.name = emitted
+                emitted_by_name[str(pine_name)] = emitted
+                emitted_nodes.add(id(fn))
+                emitted_names[id(fn)] = emitted
+            fn.export = None
+            self.visit_FunctionDef(fn)
+            self.library_methods[(str(alias), str(pine_name))] = emitted
+        if accepted & skipped:
+            name = sorted(accepted & skipped)[0]
+            self.library_inline_error = (
+                f"overloaded library method/function {name} is not supported; use mode=interpret or auto"
+            )
+            return ""
         return ""
 
     def visit_Script(self, node: ast.Script):
@@ -1557,6 +1832,13 @@ class CompilerVisitor(NodeVisitor):
     # ---------------------------------------------------------------- statements
     def visit_TypeDef(self, node: ast.TypeDef):
         """Register UDT field names and defaults; forces object mode. No runtime emit."""
+        if not self._registering_library_type and node.name in self.library_type_names:
+            # Library types keep their Pine name (no mangling), so a script type
+            # of the same name would silently merge two different layouts.
+            self.library_inline_error = (
+                f"script type {node.name} collides with an imported library type; use mode=interpret or auto"
+            )
+            return ""
         self.object_mode = True
         fields: list[str] = []
         defaults: dict[str, str] = {}
@@ -2243,8 +2525,11 @@ class CompilerVisitor(NodeVisitor):
         # Prefer AST stringiness; the visited-string heuristic is only a fallback
         # for color hex that AST missed — never override structured numeric
         # ternaries/switches (``f('SMA') ? sma() : ema()`` has quotes in cond).
+        # A UDT constructor/copy may carry color/string fields; the visited dict
+        # contains quoted hex, which must not classify the *variable* as stringy.
+        is_udt_handle_rhs = self._looks_like_udt_ctor(node.value) or self._looks_like_udt_copy(node.value)
         is_stringy_rhs = False
-        if not typed_numeric:
+        if not typed_numeric and not is_udt_handle_rhs:
             if typed_stringy or self._is_stringy_value(node.value):
                 is_stringy_rhs = True
             elif self._call_returns_string(node.value):
@@ -3063,9 +3348,10 @@ class CompilerVisitor(NodeVisitor):
                 "range",
                 "numba_store",
                 "numba_store_src",
-                # na-safe bool/not. Overloaded for nopython; result is 0/1/bool.
+                # na-safe bool/not/iff. Overloaded for nopython.
                 "pine_bool",
                 "pine_not",
+                "pine_iff",
             }
         )
         _KW_NOT_CALLS = frozenset({"if", "else", "and", "or", "not", "in", "is", "for", "while", "lambda"})
@@ -3117,6 +3403,7 @@ class CompilerVisitor(NodeVisitor):
                 "range",
                 "pine_bool",
                 "pine_not",
+                "pine_iff",
                 "__bar_idx",
                 "n_bars",
                 # barstate flags: plain bools (loop locals or UDF ctx params)
@@ -3585,8 +3872,8 @@ class CompilerVisitor(NodeVisitor):
 
     def _looks_like_udt_ctor(self, node) -> bool:
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-            if node.func.attr == "new" and isinstance(node.func.value, ast.Name):
-                return node.func.value.id in self.udt_types
+            if node.func.attr == "new":
+                return self._library_type_name(node.func.value) is not None
         return False
 
     def _looks_like_udt_copy(self, node) -> bool:
@@ -5035,6 +5322,7 @@ class CompilerVisitor(NodeVisitor):
 
         method_src: str | None = None  # set for method-style TA (expr.rma(p))
         import_lib_method = False  # unknown ``import … as alias`` method call
+        lib_alias = func.value.id if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) else None
         if isinstance(func, ast.Name):
             func_name = func.id
         elif isinstance(func, ast.Attribute):
@@ -5119,6 +5407,25 @@ class CompilerVisitor(NodeVisitor):
                 self.object_mode = True
                 method_src = self.visit(func.value)
                 return f"(dict({method_src}) if isinstance({method_src}, dict) else {{}})"
+            elif (
+                func.attr == "new"
+                and isinstance(func.value, ast.Attribute)
+                and isinstance(func.value.value, ast.Name)
+                and (
+                    (func.value.value.id, func.value.attr) in self.library_types
+                    or (func.value.value.id, func.value.attr) in self.library_types_skipped
+                )
+            ):
+                # ``alias.Type.new(...)`` — exported library UDT constructor.
+                lib_type_alias = func.value.value.id
+                lib_type_name = func.value.attr
+                registered = self.library_types.get((lib_type_alias, lib_type_name))
+                if registered:
+                    return self._emit_udt_new(registered, node)
+                skipped_reason = self.library_types_skipped.get((lib_type_alias, lib_type_name))
+                if skipped_reason:
+                    self.library_inline_error = f"library type {lib_type_alias}.{lib_type_name} is not supported: {skipped_reason}; use mode=interpret or auto"
+                    return "np.nan"
             elif isinstance(func.value, ast.Name) and func.value.id in _NS:
                 func_name = f"{func.value.id}_{func.attr}"
             elif func.attr in _METHOD_TA:
@@ -5222,6 +5529,12 @@ class CompilerVisitor(NodeVisitor):
                 self.object_mode = True
             else:
                 # Unknown method on a value — still call as func(src, …) not ``src_meth``
+                if func.attr in self.library_skipped_methods and func.attr not in self.user_funcs:
+                    self.library_inline_error = (
+                        f"library method {func.attr} is not supported: "
+                        f"{self.library_skipped_methods[func.attr]}; use mode=interpret or auto"
+                    )
+                    return "np.nan"
                 method_src = self.visit(func.value)
                 func_name = func.attr
                 self.object_mode = True
@@ -5254,6 +5567,41 @@ class CompilerVisitor(NodeVisitor):
             args = [method_src, *args]
             recv_node = getattr(func, "value", None)
             arg_nodes = [recv_node, *arg_nodes]
+
+        # Alias calls resolve before any builtin dispatch: a library export named
+        # ``plot``/``alert``/``add`` must not be captured by the builtin handler.
+        if import_lib_method and self.libraries:
+            if self.library_inline_error:
+                # Preserve the first, more specific import/body error.
+                return "np.nan"
+            mapped = self.library_methods.get((str(lib_alias), str(func_name)))
+            if mapped and arg_nodes:
+                # Receiver guard: a library UDT method must not be called with a
+                # scalar (``lib.bump(close)``) — that would silently read a field
+                # off a float and return na.
+                declared = self.func_receiver_types.get(mapped)
+                inferred = self._infer_udf_arg_type(arg_nodes[0], args[0] if args else None)
+                if declared and inferred and self._udf_type_match_score(declared, inferred) < 0:
+                    self.library_inline_error = (
+                        f"library method {lib_alias}.{func_name} expects a {declared} receiver, "
+                        f"got {inferred}; use mode=interpret or auto"
+                    )
+                    return "np.nan"
+            if mapped and not kwargs:
+                return f"{mapped}({', '.join(args)})"
+            if mapped:
+                self.library_inline_error = f"keyword arguments for inlined library method {lib_alias}.{func_name} are not supported; use mode=interpret or auto"
+                return "np.nan"
+            self.library_inline_error = (
+                f"unsupported library method {lib_alias}.{func_name}; use mode=interpret or auto"
+            )
+            return "np.nan"
+
+        # Instance-form UDF/UDT method whose name matches a builtin
+        # (``b.plot()``, ``t.alert()``): the method must win over builtin
+        # lowering, which only sees ``func_name`` and would otherwise hijack it.
+        if method_src is not None and func_name in self.user_funcs:
+            return self._emit_user_func_call(func_name, args, kwargs, arg_nodes=arg_nodes)
 
         # Bare collection verbs: push(arr, x) / put(map, k, v) / cell(...)
         if method_src is None and func_name in _BARE_COLLECTION:
@@ -6983,24 +7331,38 @@ class CompilerVisitor(NodeVisitor):
         if func_name in ("math_exp", "exp"):
             return f"np.exp({args[0]})" if args else "np.nan"
         if func_name in ("math_log", "log"):
-            return f"np.log({args[0]})" if args else "np.nan"
+            if not args:
+                return "np.nan"
+            base = args[1] if len(args) > 1 else kwargs.get("base")
+            # One-arg stays np.log (natural). The base form is na for base 1.
+            if base is None:
+                return f"np.log({args[0]})"
+            return f"numba_log({args[0]}, {base})"
         if func_name in ("math_log10", "log10"):
             return f"np.log10({args[0]})" if args else "np.nan"
         if func_name in ("math_pow", "pow"):
             if not args:
                 return "np.nan"
-            return f"({args[0]} ** {args[1]})" if len(args) > 1 else f"({args[0]} ** 2)"
+            # na ** 0 is 1 in IEEE. numba_pow keeps na.
+            if len(args) > 1:
+                return f"numba_pow({args[0]}, {args[1]})"
+            return f"({args[0]} ** 2)"
         if func_name in ("math_round", "round"):
             # User ``round(value)`` UDF (def ``round_``) must keep extras arity.
             if func_name == "round" and ("round" in self.user_funcs or "round_" in self.user_funcs):
                 return self._emit_user_func_call("round", args, kwargs)
-            if not args:
+            value = args[0] if args else None
+            prec = args[1] if len(args) > 1 else kwargs.get("precision")
+            if value is None:
                 return "0.0"
-            # None / non-numeric → NaN (np.round(None) raises)
-            if self.object_mode or not self._is_safe_numeric_expr(args[0]):
+            # Precision was dropped before (compile rounded to an integer).
+            call = f"numba_round({value}, 0.0)" if prec is None else f"numba_round({value}, {prec})"
+            unsafe = not self._is_safe_numeric_expr(value) or (
+                prec is not None and not self._is_safe_numeric_expr(prec)
+            )
+            if self.object_mode or unsafe:
                 self.object_mode = True
-                return f"safe_float(np.round(safe_float({args[0]})))"
-            return f"float(np.round({args[0]}))"
+            return call
         if func_name in ("math_floor", "floor"):
             return f"float(np.floor({args[0]}))" if args else "0.0"
         if func_name in ("math_ceil", "ceil"):
@@ -7086,12 +7448,13 @@ class CompilerVisitor(NodeVisitor):
                 return f"(({args[0]}) is None or ({args[0]}) != ({args[0]}))"
             return "True"
         if func_name == "iff":
-            # v3 iff(cond, then, else). Lazy in the condition (one eval).
-            # Interpret returns na when the condition is na, which this
-            # ternary does not (``if np.nan`` is true). Kept as a ternary so
-            # the branches stay lazy.
+            # v3 iff(cond, then, else). ``na`` yields na (not the then-branch).
+            # Both branches are evaluated, matching the interpreter: ``iff`` is
+            # a call there, so the arguments run before the builtin. A lazy
+            # ternary does not type-check in nopython when the condition is a
+            # bool (``close > open``).
             if len(args) >= 3:
-                return f"({args[1]} if {args[0]} else {args[2]})"
+                return f"pine_iff({args[0]}, {args[1]}, {args[2]})"
             return "np.nan"
         if func_name == "heikinashi":
             # Bare heikinashi(symbol) — same as ticker.heikinashi (chart HA)
@@ -7166,10 +7529,12 @@ class CompilerVisitor(NodeVisitor):
         # Unknown call: object mode + no-op stub to avoid NameError
         # (external library methods not present in corpus isolation).
         self.object_mode = True
-        # Missing ``alias.method(...)`` is Pine na — never Python None
-        # (``float(None)`` in ta.cross / plot / series stores).
         if import_lib_method:
+            # Library sources are resolved before UDF dispatch; only the legacy
+            # no-source stub reaches this fallback.
             return "np.nan"
+        # Missing non-library call is Pine na — never Python None
+        # (``float(None)`` in ta.cross / plot / series stores).
         # Multi-unpack destinations need a sequence; single assign gets None.
         return "None"
 
@@ -7223,7 +7588,18 @@ class CompilerVisitor(NodeVisitor):
             if isinstance(cur, ast.Name):
                 parts.append(cur.id)
             parts.reverse()
+            if len(parts) == 2 and (parts[0], parts[1]) in self.library_types:
+                # ``lib.Box`` in a declaration/param → registered UDT name.
+                return self.library_types[(parts[0], parts[1])]
             return ".".join(parts) if parts else None
+        return None
+
+    def _library_type_name(self, type_expr) -> str | None:
+        """Resolve ``Type`` / ``alias.Type`` to a registered UDT type name."""
+        if isinstance(type_expr, ast.Name):
+            return type_expr.id if type_expr.id in self.udt_types else None
+        if isinstance(type_expr, ast.Attribute) and isinstance(type_expr.value, ast.Name):
+            return self.library_types.get((type_expr.value.id, type_expr.attr))
         return None
 
     def _infer_udf_arg_type(self, node, expr: str | None = None) -> str | None:
@@ -7356,6 +7732,11 @@ class CompilerVisitor(NodeVisitor):
             if base in self.string_series or base in self.string_scalars:
                 return "string"
             return "float"
+        call = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_]*)\(.*\)", s)
+        if call:
+            return_types = self.func_return_udt_types.get(call.group(1))
+            if return_types and len(return_types) == 1:
+                return next(iter(return_types))
         if s.endswith("[__bar_idx]") or self._is_safe_numeric_expr(s):
             return "float"
         return None
@@ -7480,6 +7861,15 @@ class CompilerVisitor(NodeVisitor):
         if not recv and args:
             recv = self._receiver_type_from_expr(args[0])
         func_name = self._resolve_user_func_overload(pine_key, provided, recv)
+        if func_name in self.library_udt_methods and recv:
+            declared = self.func_receiver_types.get(func_name)
+            if declared and self._udf_type_match_score(declared, recv) < 0:
+                # Instance form of a library UDT method on a non-UDT receiver
+                # (``close.bump()``) must fail closed, not return na.
+                self.library_inline_error = (
+                    f"library method {pine_key} expects a {declared} receiver, got {recv}; use mode=interpret or auto"
+                )
+                return "np.nan"
         py_mapped = self.func_name_map.get(func_name, self.func_name_map.get(pine_key, func_name))
         # Do not fall back to the Pine id after a distinct overload remap —
         # later defs must not leak last-wins metadata onto the first py name.
@@ -8404,7 +8794,10 @@ class CompilerVisitor(NodeVisitor):
                 else:
                     right = self._na_wrap_num(right_raw)
                     if op_str == "==":
-                        parts.append(f"numba_pine_eq({left}, {right})")
+                        # Operator ``==`` is false when either side is na,
+                        # including ``na == na``. Switch arms use numba_pine_eq,
+                        # where an na subject matches an na pattern.
+                        parts.append(f"(({left}) == ({right}))")
                     elif op_str == "!=":
                         parts.append(f"numba_pine_ne({left}, {right})")
                     else:
@@ -9752,6 +10145,12 @@ class CompilerVisitor(NodeVisitor):
         if self._func_body_returns_udt(last_ast):
             self.func_returns_udt.add(pine_name)
             self.func_returns_udt.add(func_name)
+            ret_type = self._infer_udt_type(self._func_last_value_expr(last_ast))
+            if ret_type:
+                # Key by the emitted function name only. Same-name overloads can
+                # return different types; keying by the Pine name would let a
+                # UDT overload poison a non-UDT call (pick(float) vs pick(int)).
+                self.func_return_udt_types.setdefault(func_name, set()).add(ret_type)
             self.object_mode = True
         # Detect string/size-enum returning UDFs (``f_gTS → size.tiny``)
         if not hasattr(self, "func_returns_string"):
@@ -10065,8 +10464,10 @@ class CompilerVisitor(NodeVisitor):
                 return node.id
             return getattr(self, "udt_var_types", {}).get(node.id)
         if isinstance(node, ast.Attribute):
-            if node.attr == "new" and isinstance(node.value, ast.Name) and node.value.id in self.udt_types:
-                return node.value.id
+            if node.attr == "new":
+                resolved = self._library_type_name(node.value)
+                if resolved:
+                    return resolved
             # Chained ctor helpers only — not ``obj.update()`` / arbitrary methods
             if node.attr in ("init", "copy", "new"):
                 return self._infer_udt_type(node.value)
@@ -10252,6 +10653,196 @@ class CompilerVisitor(NodeVisitor):
             else:
                 self._mark_series_params(child)
 
+    def _library_type_unsupported(self, td) -> str | None:
+        """Return why an exported library type is outside this inline slice.
+
+        Only scalar fields with literal defaults are inlined. A UDT/array/map
+        field needs nested type registration, so those types stay fail-closed
+        (the constructor call reports this reason).
+        """
+        scalar = {"float", "int", "bool", "color", "string"}
+        for stmt in getattr(td, "body", []) or []:
+            if not (isinstance(stmt, ast.Assign) and isinstance(stmt.target, ast.Name)):
+                return f"field {type(stmt).__name__} is not a scalar field"
+            tag = self._type_spec_name(getattr(stmt, "type", None))
+            if tag is not None and tag not in scalar:
+                return f"field {stmt.target.id} has non-scalar type {tag}"
+            val = getattr(stmt, "value", None)
+            if val is not None and not self._library_default_literal(val):
+                return f"field {stmt.target.id} has a non-literal default"
+        return None
+
+    @staticmethod
+    def _library_default_literal(node) -> bool:
+        """True for ``1.0`` / ``-1`` / ``na`` / ``true`` / ``false`` defaults."""
+        if isinstance(node, ast.Constant):
+            return isinstance(node.value, (int, float, bool, str)) or node.value is None
+        if isinstance(node, ast.UnaryOp) and isinstance(getattr(node, "op", None), (ast.USub, ast.UAdd)):
+            return isinstance(getattr(node, "operand", None), ast.Constant)
+        return isinstance(node, ast.Name) and node.id in ("na", "true", "false")
+
+    @staticmethod
+    def _library_called_names(fn) -> list[str]:
+        """Call targets (``Name`` nodes) inside a library function body."""
+        names: list[str] = []
+
+        def walk(node: Any) -> None:
+            if node is None or not hasattr(node, "_fields"):
+                return
+            if isinstance(node, ast.Call):
+                f = node.func
+                if isinstance(f, ast.Specialize):
+                    f = f.value
+                if isinstance(f, ast.Name):
+                    names.append(f.id)
+            for child in _iter_child_values(node):
+                if isinstance(child, list):
+                    for item in child:
+                        walk(item)
+                else:
+                    walk(child)
+
+        for stmt in getattr(fn, "body", []) or []:
+            walk(stmt)
+        return names
+
+    @staticmethod
+    def _rewrite_library_calls(fn, mapping: dict[str, str]) -> None:
+        """Rename local callee ``Name`` nodes to their emitted Python names."""
+        def walk(node) -> None:
+            if node is None or not hasattr(node, "_fields"):
+                return
+            if isinstance(node, ast.Call):
+                f = node.func
+                if isinstance(f, ast.Specialize):
+                    f = f.value
+                if isinstance(f, ast.Name) and f.id in mapping:
+                    f.id = mapping[f.id]
+            for child in _iter_child_values(node):
+                if isinstance(child, list):
+                    for item in child:
+                        walk(item)
+                else:
+                    walk(child)
+
+        for stmt in getattr(fn, "body", []) or []:
+            walk(stmt)
+
+    def _rewrite_cross_library_aliases(self, tree, mapping: dict[str, str]) -> None:
+        """Rewrite local import aliases once per function; skip shadowed names."""
+        if not mapping:
+            return
+
+        def walk(node, shadowed: set[str]) -> None:
+            if node is None or not hasattr(node, "_fields"):
+                return
+            if isinstance(node, ast.Call):
+                f = node.func
+                if (
+                    isinstance(f, ast.Attribute)
+                    and isinstance(f.value, ast.Name)
+                    and f.value.id in mapping
+                    and f.value.id not in shadowed
+                ):
+                    f.value.id = mapping[f.value.id]
+            for child in _iter_child_values(node):
+                if isinstance(child, list):
+                    for item in child:
+                        walk(item, shadowed)
+                else:
+                    walk(child, shadowed)
+
+        for stmt in getattr(tree, "body", []) or []:
+            if type(stmt).__name__ != "FunctionDef":
+                continue
+            params = {arg.name for arg in getattr(stmt, "args", []) or [] if hasattr(arg, "name")}
+            locals_: set[str] = set()
+            for body_stmt in getattr(stmt, "body", []) or []:
+                self._collect_assigned_names(body_stmt, locals_)
+            shadowed = params | locals_
+            for body_stmt in getattr(stmt, "body", []) or []:
+                walk(body_stmt, shadowed)
+
+    def _library_function_unsupported(
+        self,
+        fn,
+        params: set[str],
+        local_names: set[str] | None = None,
+        extra_namespaces: set[str] | None = None,
+    ) -> str | None:
+        """Return why an exported library function is outside this inline slice.
+
+        Allowed: parameters, locals, literals, ``math.*``/``str.*``, a small set
+        of pure bare builtins, and calls to same-library functions in
+        *local_names*. Library constants (free names) and calls to functions
+        outside the library must fail closed instead of becoming runtime
+        NameErrors or silent na.
+        """
+        locals_: set[str] = set()
+        for stmt in getattr(fn, "body", []) or []:
+            self._collect_assigned_names(stmt, locals_)
+        local_names = local_names or set()
+        allowed_names = set(params) | locals_ | {"true", "false", "na", "math", "str", "color"}
+        allowed_calls = {
+            "abs",
+            "min",
+            "max",
+            "round",
+            "int",
+            "float",
+            "bool",
+            "nz",
+            "na",
+            "fixnan",
+        } | local_names
+        allowed_namespaces = {"math", "str"} | (extra_namespaces or set())
+
+        def walk(node: Any) -> str | None:
+            if node is None or not hasattr(node, "_fields"):
+                return None
+            if isinstance(node, ast.Call):
+                f = node.func
+                if isinstance(f, ast.Specialize):
+                    f = f.value
+                if isinstance(f, ast.Name):
+                    # A local function name is valid only as a call target; a
+                    # bare reference stays fail-closed (no Python free name).
+                    if f.id not in allowed_calls:
+                        return f"calls unsupported function {f.id}"
+                elif isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name):
+                    if f.value.id not in allowed_namespaces:
+                        return f"calls unsupported namespace {f.value.id}"
+                else:
+                    err = walk(f)
+                    if err:
+                        return err
+                # Do not walk ``func`` as a value: allowed builtins are not
+                # free names (``abs(a)`` was falsely rejected before).
+                for child in getattr(node, "args", []) or []:
+                    err = walk(child)
+                    if err:
+                        return err
+                return None
+            if isinstance(node, ast.Name) and node.id not in allowed_names:
+                return f"uses unsupported name {node.id}"
+            for child in _iter_child_values(node):
+                if isinstance(child, list):
+                    for item in child:
+                        err = walk(item)
+                        if err:
+                            return err
+                else:
+                    err = walk(child)
+                    if err:
+                        return err
+            return None
+
+        for stmt in getattr(fn, "body", []) or []:
+            err = walk(stmt)
+            if err:
+                return err
+        return None
+
     def _collect_assigned_names(self, node, out: set[str]) -> None:
         """Collect Name targets of Assign/ReAssign in a subtree."""
         if node is None or not hasattr(node, "_fields"):
@@ -10378,6 +10969,34 @@ class CompilerVisitor(NodeVisitor):
         val = self.visit(stmt)
         return val or None
 
+    @staticmethod
+    def _for_end_rebinds_counter(node: Any, target: str) -> bool:
+        """True when ``to`` reads *target* and contains no call.
+
+        A second visit after the counter is bound emits the scalar. A call
+        in ``to`` is left alone so TA state is not allocated twice.
+        """
+        stack: list[Any] = [node]
+        saw = False
+        while stack:
+            current = stack.pop()
+            if current is None:
+                continue
+            if isinstance(current, ast.Call):
+                return False
+            if isinstance(current, ast.Name) and current.id == target:
+                saw = True
+            fields = getattr(current, "_fields", None)
+            if not fields:
+                continue
+            for fname in fields:
+                child = getattr(current, fname, None)
+                if isinstance(child, list):
+                    stack.extend(child)
+                elif getattr(child, "_fields", None):
+                    stack.append(child)
+        return saw
+
     def visit_ForTo(self, node: ast.ForTo):
         target = node.target.id if isinstance(node.target, ast.Name) else self.visit(node.target)
         if isinstance(node.target, ast.Name) and target in self._MODULE_SHADOW_IDENTS:
@@ -10403,6 +11022,13 @@ class CompilerVisitor(NodeVisitor):
         elif target not in self.scalar_vars:
             self.scalar_vars.add(target)
             added_scalar = True
+        # Re-read of ``to`` must see the counter, not the series the name
+        # denoted before the loop (``i = 5`` then ``for i = 0 to i``).
+        # The first read stays the pre-bind expression. Calls are not
+        # visited twice — that would allocate a second TA state buffer.
+        end_refresh = end
+        if not isinstance(node.end, ast.Constant) and self._for_end_rebinds_counter(node.end, target):
+            end_refresh = self.visit(node.end)
         end_tmp = f"__end_{target}"
         # Constant ``to`` cannot change. A name / call is re-read each iteration
         # (Pine v6). Step direction stays the value captured at loop entry.
@@ -10420,8 +11046,10 @@ class CompilerVisitor(NodeVisitor):
             lines.append(f"{self._loop_result_target} = np.nan")
         lines.extend(
             [
-                f"{target} = {start}",
+                # First ``to`` sees the pre-loop binding. Assigning the counter
+                # first hides a scalar ``i`` from ``for i = 0 to i``.
                 f"{end_tmp} = {end}",
+                f"{target} = {start}",
                 f"__step_{target} = {step_expr}",
                 f"while ({target} <= {end_tmp}) if __step_{target} > 0 else ({target} >= {end_tmp}):",
             ]
@@ -10431,7 +11059,7 @@ class CompilerVisitor(NodeVisitor):
             # Re-read ``to`` while the counter still has this iteration's value,
             # then increment. Refreshing after ``i += step`` makes ``for i = 0 to i``
             # chase itself. ``continue`` uses the same snippet.
-            inc = f"{end_tmp} = {end}\n{inc}"
+            inc = f"{end_tmp} = {end_refresh}\n{inc}"
         self._loop_inc_stack.append(inc)
         try:
             body = list(node.body or [])

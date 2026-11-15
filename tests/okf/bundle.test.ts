@@ -132,6 +132,52 @@ describe("OKF compile", () => {
         expect(bundle.get("index.md")).toContain("(playbooks/)");
     });
 
+    it("indexes a kept concept and absolutizes its in-bundle links", () => {
+        const kept = [
+            "---",
+            "type: Reference",
+            "title: Architecture",
+            "description: The project shape.",
+            "---",
+            "",
+            "See [Development](development.md).",
+            "",
+        ].join("\n");
+        const other = [
+            "---",
+            "type: Guide",
+            "title: Development",
+            "description: Setup and checks.",
+            "---",
+            "",
+            "Alone.",
+            "",
+        ].join("\n");
+        const bundle = compileBundle({
+            files: [
+                {
+                    path: "src/app.ts",
+                    kind: "code",
+                    text: "export function main() {}\n",
+                },
+            ],
+            existing: new Map([
+                ["architecture.md", kept],
+                ["development.md", other],
+            ]),
+            now: "2026-09-24T00:00:00Z",
+        });
+        expect(bundle.get("architecture.md")).toContain("](/development.md)");
+        expect(bundle.get("development.md")).toBe(other);
+        expect(bundle.get("index.md")).toContain("](architecture.md)");
+        expect(bundle.get("index.md")).toContain("](development.md)");
+        expect(
+            lintFiles(bundle).filter(
+                (finding) => finding.rule === "W005" || finding.rule === "W006",
+            ),
+        ).toEqual([]);
+    });
+
     it("skips license banners and keeps the module sentence", () => {
         const notes = extractNotes(
             [

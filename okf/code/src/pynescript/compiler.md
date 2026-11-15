@@ -7,7 +7,7 @@ tags: [code, compiler, pynescript]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-15T20:54:54Z
 sources:
   - id: tree
     resource: "src/pynescript/compiler"
