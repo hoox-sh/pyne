@@ -42,6 +42,13 @@ from pynescript.runtime import axb1
 
 VECTORS = json.loads((Path(__file__).parent / "data" / "axb1-vectors.json").read_text(encoding="utf-8"))
 
+
+@pytest.fixture(autouse=True)
+def _enable_axb1_for_contract_tests(monkeypatch):
+    # Hosted AXIS deployments opt in with PYNE_AXB1_ENABLED=1; the default
+    # stays JSON for self-hosted pyne installs.
+    monkeypatch.setenv("PYNE_AXB1_ENABLED", "1")
+
 META = {"exchange": "binance", "market": "spot", "symbol": "btc/usdt", "interval": "1m"}
 KEY_TEXT = "binance|spot|BTC/USDT|1m"
 SUB_ID = "series:binance|spot|BTC/USDT|1m"
@@ -606,6 +613,15 @@ def _subscribe(encoding=None) -> dict:
     if encoding is not None:
         payload["encoding"] = encoding
     return {"type": "subscribe", "id": "sub-1", "payload": payload}
+
+
+def test_axb1_is_opt_in(monkeypatch):
+    monkeypatch.setenv("PYNE_AXB1_ENABLED", "0")
+    capture = _CaptureSender()
+    conn = _axb1_conn(capture)
+    replies = conn.handle_dict(_subscribe("axb1-full"))
+    assert isinstance(capture.frames[0], dict)
+    assert [type(frame) for frame in [conn.encode_outbound(reply) for reply in replies]] == [dict, dict, dict]
 
 
 def test_subscribe_with_axb1_sends_bytes():

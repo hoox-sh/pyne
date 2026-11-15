@@ -165,6 +165,13 @@ class LiveRegistry:
 _SHARED_REGISTRY = LiveRegistry()
 
 
+def _axb1_enabled() -> bool:
+    """AXB1 is opt-in for self-hosters; hosted deployments enable it via env."""
+    import os
+
+    return os.environ.get("PYNE_AXB1_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 class LiveConnection:
     """Socket-free protocol core: validate + route one parsed frame."""
 
@@ -250,6 +257,8 @@ class LiveConnection:
         then the cursor grows via ``max()`` — it never moves backwards.
         """
         if not isinstance(frame, dict):
+            return frame
+        if not _axb1_enabled():
             return frame
         raw_id = frame.get("id")
         state = self._axb1_subs.get(str(raw_id)) if raw_id is not None else None
@@ -416,7 +425,7 @@ class LiveConnection:
         # AXB1 negotiation (HP PR 7 / axb1-full): binary outbound only when
         # the client explicitly asked for it on subscribe. Resubscribe
         # overwrites, and a subscribe without the flag drops back to all-JSON.
-        encoding = str(payload.get("encoding") or "")
+        encoding = str(payload.get("encoding") or "") if _axb1_enabled() else ""
         if encoding == "axb1":
             self._axb1_subs[client_id] = {"last_time": None, "mode": "basic"}
         elif encoding == "axb1-full":
@@ -492,7 +501,7 @@ class LiveConnection:
         client_id = str(req_id)
         token = self.generation(client_id)
         # AXB1 re-negotiation on resume: same rules as subscribe.
-        encoding = str(payload.get("encoding") or "") if isinstance(payload, dict) else ""
+        encoding = str(payload.get("encoding") or "") if (_axb1_enabled() and isinstance(payload, dict)) else ""
         if encoding == "axb1":
             self._axb1_subs[client_id] = {"last_time": None, "mode": "basic"}
         elif encoding == "axb1-full":
