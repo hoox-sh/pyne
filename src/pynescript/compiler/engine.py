@@ -704,11 +704,13 @@ class CompiledScript:
         is used (unit-test / pure-compile default). Runtime hosts should pass
         real OHLCV timestamps for calendar/``timestamp``/``time[n]`` parity.
 
-        *rt_first* / *rt_ticks* are object-mode realtime window kwargs (defaults
-        keep historical 6-arg execute). *data_feed* / *feed_symbol* drive
-        last-bar ``poll_forming_ohlcv`` on object-mode ticks. *data_provider*
-        (and *data_feed* OHLCV) feed object-mode HTF ``request.security`` merge.
-        Numeric nopython ignores them.
+        *rt_first* / *rt_ticks* are realtime window kwargs (defaults keep the
+        historical 6-arg execute). Object mode uses them directly. Numeric mode
+        routes an active window (``rt_first is not None``) through a transient
+        object-mode script; historical numeric runs (no ``rt_first``) ignore
+        them. *data_feed* / *feed_symbol* drive last-bar
+        ``poll_forming_ohlcv`` on object-mode ticks. *data_provider* (and
+        *data_feed* OHLCV) feed object-mode HTF ``request.security`` merge.
         """
         o = _as_f64(open_)
         h = _as_f64(high)
@@ -729,6 +731,26 @@ class CompiledScript:
             if len(t) != n:
                 msg = "time array must have the same length as OHLCV"
                 raise ValueError(msg)
+        if rt_first is not None and not self.object_mode:
+            # Numeric emit hardcodes historical barstate flags and has no tick
+            # loop. Do not silently ignore an active realtime window: run this
+            # call through a recovered object-mode script (same contract the
+            # Runtime host applies) and leave ``self`` numeric for later
+            # historical runs.
+            recovered = self._object_mode_for_realtime()
+            return recovered.run(
+                o,
+                h,
+                l,
+                c,
+                v,
+                time=t,
+                rt_first=rt_first,
+                rt_ticks=rt_ticks,
+                data_feed=data_feed,
+                feed_symbol=feed_symbol,
+                data_provider=data_provider,
+            )
         rt_kw: dict[str, Any] = {}
         if self.object_mode:
             rt_kw["rt_first"] = rt_first
@@ -761,6 +783,23 @@ class CompiledScript:
                 data_provider=data_provider,
             )
         return self._pack_result(raw)
+
+    def _object_mode_for_realtime(self) -> CompiledScript:
+        """Re-emit this source as object mode for one realtime run.
+
+        Numeric nopython has no tick loop; object mode owns ``var``/``varip``
+        rollback and ``barstate`` flags. The recovered instance is transient so
+        the numeric cache entry stays numeric for historical runs.
+        """
+        code, titles, kinds, _, attrs = _transpile_once(self.source, force_object_mode=True)
+        return _exec_generated(
+            self.source,
+            code,
+            titles,
+            True,
+            plot_kinds=kinds,
+            plot_attrs=attrs,
+        )
 
     def _recover_nopython_at_run(
         self,
