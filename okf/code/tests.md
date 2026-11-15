@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-15T15:18:17Z
+  at: 2026-11-15T15:35:03Z
 sources:
   - id: tree
     resource: "tests"
@@ -105,7 +105,7 @@ okf_lock: generated
 - `test_library_export_import.py` — TestExportConstParse, TestLibraryExportConstRuntime, TestLibraryExportTypeAndEnum, TestLibraryImportRuntime, TestRuntimeGitPublishLibraries
 - `test_library_export_method.py` — test_export_method_register_library_source, test_export_method_usable_via_import
 - `test_linter.py` — TestBoolConditions, TestPineLinter, TestRetiredRules, TestV6RemovedKwargs
-- `test_live_ensure.py` — test_bad_key_rejected, test_empty_store_window_is_stale, test_healthy_pooled_session_keeps_sharing, test_identical_script_subs_share_one_session, test_purge_drops_journaled_unloaded_session, test_resume_unknown_is_gone, test_script_kind_creates_bound_session, test_script_without_script_rejected, test_series_kind_ready_without_session, test_stale_pooled_session_recreates_over_current_store
+- `test_live_ensure.py` — test_bad_key_rejected, test_empty_store_window_is_stale, test_healthy_pooled_session_keeps_sharing, test_identical_script_subs_share_one_session, test_pooled_session_with_covered_hole_recreates, test_purge_drops_journaled_unloaded_session, test_resume_unknown_is_gone, test_script_kind_creates_bound_session, test_script_without_script_rejected, test_series_kind_ready_without_session, test_stale_pooled_session_recreates_over_current_store
 - `test_live_push.py` — FakeWs, test_attach_feed_gone_session_emits_session_gone, test_feed_batch_emits_delta_to_socket, test_forming_batches_conflate_on_the_feed_thread, test_notify_session_gone_reaches_attached_clients, test_persist_feed_bars_advances_stored_bounds, test_persist_feed_bars_fails_soft, test_persist_feed_bars_updates_the_forming_row_and_throttles_reticks, test_push_hub_routes_and_drops_dead_sockets, test_series_push_emits_bars_delta_and_close, test_series_push_forming_retick_does_not_grow_count, test_series_subscription_attaches_feed_and_persists
 - `test_live_ws.py` — test_bad_auth_token_rejected, test_canonical_key_normalizes_casing, test_delta_and_full_frames_name_the_timeframe, test_frame_builders_carry_seq_and_watermark, test_handshake_key_prefers_bearer_then_query, test_history_bars_clamped, test_next_seq_is_monotonic_per_subscription, test_quiet_socket_does_not_tear_down_the_live_plane, test_repair_of_a_live_sub_resumes, test_repair_unknown_is_gone, test_resubscribe_same_id_is_idempotent, test_resume_replies_snapshot_and_live
 - `test_lsp_features.py` — TestBuiltinMetadata, TestC002QuickFix, TestCapabilities, TestCompletionHandler, TestCompletionList, TestConvertToV6, TestDefinitionHandler, TestDocumentColorHandler, TestDocumentHighlightHandler, TestDocumentLinkHandler, TestDocumentSymbolsHandler, TestFoldingRangeHandler
