@@ -638,6 +638,11 @@ class CompilerVisitor(NodeVisitor):
         # Emitted library methods whose receiver is a UDT (receiver-type guard).
         self.library_udt_methods: set[str] = set()
         self._registering_library_type = False
+        # Cross-library inlining: active import chain (cycle guard) and
+        # (namespace, name, version) -> synthetic alias already emitted.
+        self._library_import_stack: list[tuple[str, str, int]] = []
+        self._library_inlined: dict[tuple[str, str, int], str] = {}
+        self._xlib_alias_i = 0
         self.library_inline_error: str | None = None
         # True only while resolving plot/fill/hline arguments: literal colors
         # there are metadata for numeric synthesis. Elsewhere (bgcolor,
@@ -1071,6 +1076,41 @@ class CompilerVisitor(NodeVisitor):
 
     # ------------------------------------------------------------------ script
     def visit_Import(self, node: ast.Import):
+        """Reject recursive library imports, then inline the library body."""
+        key = (str(node.namespace or ""), str(node.name or ""), int(node.version or 1))
+        if key in self._library_import_stack:
+            self.library_inline_error = (
+                f"recursive library import {key[0]}/{key[1]}/{key[2]} is not supported; use mode=interpret or auto"
+            )
+            return ""
+        incoming_alias = str(node.alias or node.name or "")
+        if incoming_alias in self._library_inlined.values() and key not in self._library_inlined:
+            # A consumer alias equal to one of our synthetic aliases would
+            # hijack another library's calls; fail closed instead.
+            self.library_inline_error = (
+                f"import alias {incoming_alias} collides with an internal library alias; use mode=interpret or auto"
+            )
+            return ""
+        self._library_import_stack.append(key)
+        try:
+            return self._visit_import_inner(node)
+        finally:
+            self._library_import_stack.pop()
+
+    def _next_xlib_alias(self, exclude: set[str] | None = None) -> str:
+        """Return a synthetic import alias no existing or local alias uses."""
+        exclude = exclude or set()
+        while True:
+            self._xlib_alias_i += 1
+            alias = f"__xlib_{self._xlib_alias_i}"
+            if (
+                alias not in self.import_aliases
+                and alias not in self._library_inlined.values()
+                and alias not in exclude
+            ):
+                return alias
+
+    def _visit_import_inner(self, node: ast.Import):
         """Track the alias and inline exported free functions from library source."""
         alias = node.alias or node.name
         if alias:
@@ -1119,6 +1159,35 @@ class CompilerVisitor(NodeVisitor):
                 f"library imports are not supported: {node.namespace}/{node.name} has no exported functions or types; use mode=interpret or auto"
             )
             return ""
+        # Resolve this library's own imports first: cross-library calls are
+        # rewritten to a synthetic alias that cannot collide with the consumer's
+        # or with this library's local aliases. Rewriting happens once, from a
+        # local-alias -> synthetic map, so a later mapping can never re-rewrite
+        # an earlier synthetic (the sequential-rewrite collision).
+        imports = [stmt for stmt in getattr(lib_tree, "body", []) or [] if type(stmt).__name__ == "Import"]
+        local_aliases = {str(stmt.alias or stmt.name or "") for stmt in imports}
+        cross_namespaces: set[str] = set()
+        alias_map: dict[str, str] = {}
+        for stmt in imports:
+            local_alias = str(stmt.alias or stmt.name or "")
+            target_key = (
+                str(stmt.namespace or ""),
+                str(stmt.name or ""),
+                int(stmt.version or 1),
+            )
+            synthetic = self._library_inlined.get(target_key)
+            if synthetic is None:
+                synthetic = self._next_xlib_alias(local_aliases)
+                stmt.alias = synthetic
+                self.visit_Import(stmt)
+                if self.library_inline_error:
+                    return ""
+                self._library_inlined[target_key] = synthetic
+            cross_namespaces.add(synthetic)
+            if local_alias and local_alias != synthetic:
+                alias_map[local_alias] = synthetic
+        if alias_map:
+            self._rewrite_cross_library_aliases(lib_tree, alias_map)
         # Types first: constructors and method receivers below need them.
         scalar_receivers = {"float", "int", "bool", "color", "string"}
         for td in exported_types:
@@ -1183,7 +1252,7 @@ class CompilerVisitor(NodeVisitor):
                 if callee in local_funcs and not emit_local(callee, (*stack, name)):
                     return ""
             params = {arg.name for arg in getattr(target, "args", []) or [] if hasattr(arg, "name")}
-            unsupported = self._library_function_unsupported(target, params, set(local_funcs))
+            unsupported = self._library_function_unsupported(target, params, set(local_funcs), cross_namespaces)
             if unsupported:
                 self.library_inline_error = (
                     f"library function {name} {unsupported}; use mode=interpret or auto"
@@ -1236,7 +1305,7 @@ class CompilerVisitor(NodeVisitor):
             seen.add(pine_name)
             accepted.add(pine_name)
             params = {arg.name for arg in getattr(fn, "args", []) or [] if hasattr(arg, "name")}
-            unsupported = self._library_function_unsupported(fn, params, set(local_funcs))
+            unsupported = self._library_function_unsupported(fn, params, set(local_funcs), cross_namespaces)
             if unsupported:
                 self.library_inline_error = (
                     f"library function {pine_name} {unsupported}; use mode=interpret or auto"
@@ -10652,7 +10721,48 @@ class CompilerVisitor(NodeVisitor):
         for stmt in getattr(fn, "body", []) or []:
             walk(stmt)
 
-    def _library_function_unsupported(self, fn, params: set[str], local_names: set[str] | None = None) -> str | None:
+    def _rewrite_cross_library_aliases(self, tree, mapping: dict[str, str]) -> None:
+        """Rewrite local import aliases once per function; skip shadowed names."""
+        if not mapping:
+            return
+
+        def walk(node, shadowed: set[str]) -> None:
+            if node is None or not hasattr(node, "_fields"):
+                return
+            if isinstance(node, ast.Call):
+                f = node.func
+                if (
+                    isinstance(f, ast.Attribute)
+                    and isinstance(f.value, ast.Name)
+                    and f.value.id in mapping
+                    and f.value.id not in shadowed
+                ):
+                    f.value.id = mapping[f.value.id]
+            for child in _iter_child_values(node):
+                if isinstance(child, list):
+                    for item in child:
+                        walk(item, shadowed)
+                else:
+                    walk(child, shadowed)
+
+        for stmt in getattr(tree, "body", []) or []:
+            if type(stmt).__name__ != "FunctionDef":
+                continue
+            params = {arg.name for arg in getattr(stmt, "args", []) or [] if hasattr(arg, "name")}
+            locals_: set[str] = set()
+            for body_stmt in getattr(stmt, "body", []) or []:
+                self._collect_assigned_names(body_stmt, locals_)
+            shadowed = params | locals_
+            for body_stmt in getattr(stmt, "body", []) or []:
+                walk(body_stmt, shadowed)
+
+    def _library_function_unsupported(
+        self,
+        fn,
+        params: set[str],
+        local_names: set[str] | None = None,
+        extra_namespaces: set[str] | None = None,
+    ) -> str | None:
         """Return why an exported library function is outside this inline slice.
 
         Allowed: parameters, locals, literals, ``math.*``/``str.*``, a small set
@@ -10678,7 +10788,7 @@ class CompilerVisitor(NodeVisitor):
             "na",
             "fixnan",
         } | local_names
-        allowed_namespaces = {"math", "str"}
+        allowed_namespaces = {"math", "str"} | (extra_namespaces or set())
 
         def walk(node: Any) -> str | None:
             if node is None or not hasattr(node, "_fields"):

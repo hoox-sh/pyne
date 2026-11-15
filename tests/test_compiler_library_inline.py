@@ -398,6 +398,282 @@ def test_library_bare_builtin_call_inlines() -> None:
     assert out["series"]["x"] == [100.5, 101.5, 102.5, 103.5]
 
 
+_LIB_CROSS_B = """//@version=6
+library("LibB")
+export twice(float x) =>
+    x * 2
+"""
+
+_LIB_CROSS_A = """//@version=6
+library("LibA")
+import ns/LibB/1 as b
+export add(float x) =>
+    b.twice(x) + 1
+"""
+
+_SRC_CROSS_AB = """//@version=6
+indicator("cross library")
+import ns/LibA/1 as a
+plot(a.add(close), "x")
+"""
+
+_SRC_CROSS_BOTH = """//@version=6
+indicator("cross library both")
+import ns/LibA/1 as a
+import ns/LibB/1 as b2
+plot(a.add(close), "add")
+plot(b2.twice(close), "twice")
+"""
+
+
+def _cross_libs(*sources: str) -> list[dict[str, object]]:
+    names = ["LibA", "LibB"]
+    return [
+        {"namespace": "ns", "name": name, "version": 1, "source": source}
+        for name, source in zip(names, sources, strict=False)
+    ]
+
+
+def test_cross_library_call_inlines() -> None:
+    interp = Runtime(symbol="TEST").run(_SRC_CROSS_AB, _bars(), mode="interpret", libraries=_cross_libs(_LIB_CROSS_A, _LIB_CROSS_B))
+    compiled = Runtime(symbol="TEST").run(_SRC_CROSS_AB, _bars(), mode="compile", libraries=_cross_libs(_LIB_CROSS_A, _LIB_CROSS_B))
+    assert "error" not in interp, interp.get("error")
+    assert "error" not in compiled, compiled.get("error")
+    assert compiled["series"]["x"] == [202.0, 204.0, 206.0, 208.0]
+    assert compiled["series"] == interp["series"]
+
+
+def test_cross_library_alias_scoping() -> None:
+    out = Runtime(symbol="TEST").run(_SRC_CROSS_BOTH, _bars(), mode="compile", libraries=_cross_libs(_LIB_CROSS_A, _LIB_CROSS_B))
+    assert "error" not in out, out.get("error")
+    assert out["series"]["add"] == [202.0, 204.0, 206.0, 208.0]
+    assert out["series"]["twice"] == [201.0, 203.0, 205.0, 207.0]
+
+
+def test_cross_library_missing_source_fails_closed() -> None:
+    out = Runtime(symbol="TEST").run(_SRC_CROSS_AB, _bars(), mode="compile", libraries=_cross_libs(_LIB_CROSS_A))
+    assert out.get("error_kind") == "compile"
+    message = str(out.get("error") or "").lower()
+    assert "library source not supplied" in message
+    assert "libb" in message
+
+
+_LIB_CROSS_A_CYCLE = """//@version=6
+library("LibA")
+import ns/LibB/1 as b
+export add(float x) =>
+    b.twice(x) + 1
+"""
+
+_LIB_CROSS_B_CYCLE = """//@version=6
+library("LibB")
+import ns/LibA/1 as a
+export twice(float x) =>
+    a.add(x)
+"""
+
+
+def test_cross_library_cycle_fails_closed() -> None:
+    out = Runtime(
+        symbol="TEST"
+    ).run(_SRC_CROSS_AB, _bars(), mode="compile", libraries=_cross_libs(_LIB_CROSS_A_CYCLE, _LIB_CROSS_B_CYCLE))
+    assert out.get("error_kind") == "compile"
+    message = str(out.get("error") or "").lower()
+    assert "recursive library import" in message
+    assert "liba" in message
+
+
+_LIB_CROSS_A_UNKNOWN = """//@version=6
+library("LibA")
+import ns/LibB/1 as b
+export add(float x) =>
+    b.missing(x)
+"""
+
+
+def test_cross_library_unknown_export_fails_closed() -> None:
+    out = Runtime(symbol="TEST").run(_SRC_CROSS_AB, _bars(), mode="compile", libraries=_cross_libs(_LIB_CROSS_A_UNKNOWN, _LIB_CROSS_B))
+    assert out.get("error_kind") == "compile"
+    message = str(out.get("error") or "").lower()
+    assert "unsupported library method" in message
+    assert "missing" in message
+
+
+_LIB_TUPLE_B1 = """//@version=6
+library("b_c")
+export fn(float x) =>
+    x + 1
+"""
+
+_LIB_TUPLE_B2 = """//@version=6
+library("c")
+export fn(float x) =>
+    x + 100
+"""
+
+_LIB_TUPLE_A = """//@version=6
+library("LibA")
+import a/b_c/1 as b1
+import a_b/c/1 as b2
+export add(float x) =>
+    b1.fn(x) + b2.fn(x)
+"""
+
+_SRC_TUPLE = """//@version=6
+indicator("tuple collision")
+import ns/LibA/1 as a
+plot(a.add(close), "x")
+"""
+
+_LIB_CROSS_B_FN = """//@version=6
+library("LibB")
+export fn(float x) =>
+    x * 2
+"""
+
+_LIB_CROSS_A_FN = """//@version=6
+library("LibA")
+import ns/LibB/1 as b
+export add(float x) =>
+    b.fn(x) + 1
+"""
+
+_LIB_CONSUMER_D = """//@version=6
+library("LibD")
+export fn(float x) =>
+    x + 100
+"""
+
+_SRC_CONSUMER_ALIAS = """//@version=6
+indicator("consumer alias collision")
+import ns/LibA/1 as a
+import ns/LibD/1 as __xlib_ns_LibB_1
+plot(a.add(close), "add")
+plot(__xlib_ns_LibB_1.fn(close), "d")
+"""
+
+_LIB_PARAM_SHADOW = """//@version=6
+library("LibA")
+import ns/LibB/1 as b
+export add(float b) =>
+    b.fn()
+"""
+
+
+def test_cross_library_synthetic_alias_tuple_collision() -> None:
+    libraries = [
+        {"namespace": "ns", "name": "LibA", "version": 1, "source": _LIB_TUPLE_A},
+        {"namespace": "a", "name": "b_c", "version": 1, "source": _LIB_TUPLE_B1},
+        {"namespace": "a_b", "name": "c", "version": 1, "source": _LIB_TUPLE_B2},
+    ]
+    out = Runtime(symbol="TEST").run(_SRC_TUPLE, _bars(), mode="compile", libraries=libraries)
+    assert "error" not in out, out.get("error")
+    assert out["series"]["x"] == [302.0, 304.0, 306.0, 308.0]
+
+
+def test_cross_library_consumer_alias_lookalike_is_scoped() -> None:
+    libraries = [
+        {"namespace": "ns", "name": "LibA", "version": 1, "source": _LIB_CROSS_A_FN},
+        {"namespace": "ns", "name": "LibB", "version": 1, "source": _LIB_CROSS_B_FN},
+        {"namespace": "ns", "name": "LibD", "version": 1, "source": _LIB_CONSUMER_D},
+    ]
+    out = Runtime(symbol="TEST").run(_SRC_CONSUMER_ALIAS, _bars(), mode="compile", libraries=libraries)
+    assert "error" not in out, out.get("error")
+    assert out["series"]["add"] == [202.0, 204.0, 206.0, 208.0]
+    assert out["series"]["d"] == [200.5, 201.5, 202.5, 203.5]
+
+
+_LIB_LOCAL_C = """//@version=6
+library("LibC")
+export fn(float x) =>
+    x + 1
+"""
+
+_LIB_LOCAL_B = """//@version=6
+library("LibB")
+export fn(float x) =>
+    x + 1000
+"""
+
+_LIB_LOCAL_A = """//@version=6
+library("LibA")
+import ns/LibC/1 as c
+import ns/LibB/1 as __xlib_1
+export add(float x) =>
+    c.fn(x) + __xlib_1.fn(x)
+"""
+
+_SRC_LOCAL_ALIAS = """//@version=6
+indicator("library local alias")
+import ns/LibA/1 as a
+plot(a.add(close), "x")
+"""
+
+_SRC_INCOMING_AFTER = """//@version=6
+indicator("incoming alias after")
+import ns/LibA/1 as a
+import ns/LibD/1 as __xlib_1
+plot(a.add(close), "add")
+"""
+
+_SRC_INCOMING_BEFORE = """//@version=6
+indicator("incoming alias before")
+import ns/LibD/1 as __xlib_1
+import ns/LibA/1 as a
+plot(a.add(close), "add")
+plot(__xlib_1.fn(close), "d")
+"""
+
+
+def test_cross_library_local_alias_collision() -> None:
+    libraries = [
+        {"namespace": "ns", "name": "LibA", "version": 1, "source": _LIB_LOCAL_A},
+        {"namespace": "ns", "name": "LibC", "version": 1, "source": _LIB_LOCAL_C},
+        {"namespace": "ns", "name": "LibB", "version": 1, "source": _LIB_LOCAL_B},
+    ]
+    out = Runtime(symbol="TEST").run(_SRC_LOCAL_ALIAS, _bars(), mode="compile", libraries=libraries)
+    assert "error" not in out, out.get("error")
+    assert out["series"]["x"] == [1202.0, 1204.0, 1206.0, 1208.0]
+
+
+def test_cross_library_incoming_alias_after_a_fails_closed() -> None:
+    libraries = [
+        {"namespace": "ns", "name": "LibA", "version": 1, "source": _LIB_CROSS_A_FN},
+        {"namespace": "ns", "name": "LibB", "version": 1, "source": _LIB_CROSS_B_FN},
+        {"namespace": "ns", "name": "LibD", "version": 1, "source": _LIB_CONSUMER_D},
+    ]
+    out = Runtime(symbol="TEST").run(_SRC_INCOMING_AFTER, _bars(), mode="compile", libraries=libraries)
+    assert out.get("error_kind") == "compile"
+    message = str(out.get("error") or "").lower()
+    assert "import alias __xlib_1 collides" in message
+    assert not out.get("series")
+
+
+def test_cross_library_incoming_alias_before_a_is_skipped() -> None:
+    libraries = [
+        {"namespace": "ns", "name": "LibA", "version": 1, "source": _LIB_CROSS_A_FN},
+        {"namespace": "ns", "name": "LibB", "version": 1, "source": _LIB_CROSS_B_FN},
+        {"namespace": "ns", "name": "LibD", "version": 1, "source": _LIB_CONSUMER_D},
+    ]
+    out = Runtime(symbol="TEST").run(_SRC_INCOMING_BEFORE, _bars(), mode="compile", libraries=libraries)
+    assert "error" not in out, out.get("error")
+    assert out["series"]["add"] == [202.0, 204.0, 206.0, 208.0]
+    assert out["series"]["d"] == [200.5, 201.5, 202.5, 203.5]
+
+
+def test_cross_library_parameter_shadowing_fails_closed() -> None:
+    out = Runtime(symbol="TEST").run(
+        _SRC_CROSS_AB,
+        _bars(),
+        mode="compile",
+        libraries=_cross_libs(_LIB_PARAM_SHADOW, _LIB_CROSS_B_FN),
+    )
+    assert out.get("error_kind") == "compile"
+    message = str(out.get("error") or "").lower()
+    assert "unsupported namespace b" in message
+    assert not out.get("series")
+
+
 def test_library_nopython_recovery_passes_libraries(monkeypatch) -> None:
     """Object-mode recovery must re-emit with libraries and no disk IR key."""
     from types import SimpleNamespace
