@@ -616,6 +616,8 @@ class CompilerVisitor(NodeVisitor):
         self.functions: list[str] = []
         self.in_function = False
         self.local_vars: set[str] = set()
+        # Pine names known numeric in the current function (nz classifier).
+        self.numeric_locals: set[str] = set()
         # Object-mode state
         # force_object_mode: engine recovery when nopython JIT cannot type the
         # generated body (pyobject arrays / unicode ops). Still walks AST the
@@ -2232,6 +2234,10 @@ class CompilerVisitor(NodeVisitor):
             return ""
 
         name = node.target.id
+        if self._ast_is_numeric(getattr(node, "value", None)):
+            self.numeric_locals.add(name)
+        else:
+            self.numeric_locals.discard(name)
         is_var = hasattr(node, "mode") and isinstance(node.mode, (ast.Var, ast.VarIp))
         is_varip = hasattr(node, "mode") and isinstance(node.mode, ast.VarIp)
         if is_varip:
@@ -3432,6 +3438,61 @@ class CompilerVisitor(NodeVisitor):
             return True
         return False
 
+    def _numeric_local_name(self, name: str) -> bool:
+        """True when *name* (Pine or emitted Python) is a known numeric local."""
+        if name in self.numeric_locals:
+            return True
+        return any(pine in self.numeric_locals and py == name for pine, py in self.ident_map.items())
+
+    def _ast_is_numeric(self, node) -> bool:
+        """Conservative AST check for a numeric scalar expression (nz classifier)."""
+        if node is None:
+            return False
+        if isinstance(node, ast.Constant):
+            return isinstance(node.value, (int, float)) and not isinstance(node.value, bool)
+        if isinstance(node, ast.Name):
+            tag = self.udt_var_types.get(node.id)
+            if tag in ("float", "int"):
+                return True
+            if tag is None and self._numeric_local_name(node.id):
+                return True
+            return node.id in ("open", "high", "low", "close", "volume", "hl2", "hlc3", "ohlc4", "hlcc4")
+        if isinstance(node, ast.UnaryOp):
+            return self._ast_is_numeric(getattr(node, "operand", None))
+        if isinstance(node, ast.BinOp):
+            return self._ast_is_numeric(getattr(node, "left", None)) and self._ast_is_numeric(
+                getattr(node, "right", None)
+            )
+        return False
+
+    def _is_numeric_nz_arg(self, node, expr: str) -> bool:
+        """True when an ``nz`` argument can use the njit float helper."""
+        if not expr:
+            return False
+        s = expr.strip()
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", s):
+            tag = self.udt_var_types.get(s)
+            if tag in ("float", "int"):
+                return True
+            return tag is None and self._numeric_local_name(s)
+        if self._is_safe_numeric_expr(s):
+            return True
+        # Bounds-checked history load of a numeric series param:
+        # ``(src[__bar_idx - k] if … else np.nan)``. The base must be a
+        # series param with a numeric/absent type tag.
+        hist = re.match(r"^\(([A-Za-z_][A-Za-z0-9_]*)\[__bar_idx", s)
+        if hist:
+            base = hist.group(1)
+            tag = self.udt_var_types.get(base)
+            if (
+                tag in (None, "float", "int")
+                and base in self.series_params
+                and base not in self.string_series
+                and base not in self.udt_vars
+            ):
+                return True
+        return self._ast_is_numeric(node)
+
     @staticmethod
     def _looks_like_version_string(val: str) -> bool:
         """True for quoted version-like defaults such as '0.0.1' / \"1.2.3\"."""
@@ -3960,6 +4021,12 @@ class CompilerVisitor(NodeVisitor):
             val = self.visit(node.value)
             # UDT field write: p.x := 1 (na-safe for nested handles)
             return f"udt_set_field({obj}, {node.target.attr!r}, {val})"
+        if isinstance(node.target, ast.Name):
+            name = node.target.id
+            if self._ast_is_numeric(getattr(node, "value", None)):
+                self.numeric_locals.add(name)
+            else:
+                self.numeric_locals.discard(name)
         # Series locals must write through their persistent array
         if self.in_function and isinstance(node.target, ast.Name) and node.target.id in self.series_locals:
             sl_arr = self._series_local_arr(node.target.id)
@@ -7267,14 +7334,18 @@ class CompilerVisitor(NodeVisitor):
                 return "0.0"
             repl = args[1] if len(args) > 1 else "0.0"
             # String/object series: avoid numba_nz (isnan on unicode fails)
+            arg_node = arg_nodes[0] if arg_nodes else None
+            repl_node = arg_nodes[1] if len(arg_nodes) > 1 else None
             if (
                 self.object_mode
-                or not self._is_safe_numeric_expr(args[0])
                 or self._looks_like_string_expr(args[0])
                 or self._looks_like_string_expr(repl)
-                or args[0] in self.scalar_vars
                 or args[0] in self.string_series
                 or args[0] in self.string_scalars
+                or repl in self.string_series
+                or repl in self.string_scalars
+                or not self._is_numeric_nz_arg(arg_node, args[0])
+                or not self._is_numeric_nz_arg(repl_node, repl)
             ):
                 self.object_mode = True
                 return f"nz_py({args[0]}, {repl})"
@@ -9977,6 +10048,7 @@ class CompilerVisitor(NodeVisitor):
         prev_param_names = set(self.param_names)
         prev_ident = dict(self.ident_map)
         prev_local_vars = set(self.local_vars)
+        prev_numeric_locals = set(self.numeric_locals)
         prev_history = set(getattr(self, "history_names_current", set()))
         prev_free_scalars = set(getattr(self, "_free_scalars_current", set()))
         prev_func_name = getattr(self, "_current_func_name", None)
@@ -9987,6 +10059,7 @@ class CompilerVisitor(NodeVisitor):
         # Metadata keys use Pine name (call sites resolve via Pine id / attr)
         self._current_func_name = pine_name
         self.local_vars = set(args)
+        self.numeric_locals = set()
         self.local_sequence_vars = set()
         self.if_return_mode = False
         # Capture optional param defaults for call-site fill
@@ -10448,6 +10521,7 @@ class CompilerVisitor(NodeVisitor):
             self.series_locals = prev_series_locals
         self.param_names = prev_param_names
         self.ident_map = prev_ident
+        self.numeric_locals = prev_numeric_locals
         self.history_names_current = prev_history
         self._free_scalars_current = prev_free_scalars
         self.local_sequence_vars = prev_local_seq
