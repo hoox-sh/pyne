@@ -60,6 +60,7 @@ entry points and non-obvious helpers — not every ``visit_*`` leaf.
 from __future__ import annotations
 
 import ast as py_ast
+import copy
 import keyword
 import math
 import re
@@ -604,7 +605,7 @@ class CompilerVisitor(NodeVisitor):
         and :meth:`_emit_user_func_call`.
     """
 
-    def __init__(self, *, force_object_mode: bool = False):
+    def __init__(self, *, force_object_mode: bool = False, libraries: list[dict] | None = None):
         super().__init__()
         self.arrays: set[str] = set()
         # Temp series for history on a call/expression (``ta.lowest(x, n)[k]``).
@@ -621,6 +622,11 @@ class CompilerVisitor(NodeVisitor):
         # same way; only the final emit path is pinned to object mode.
         self.force_object_mode = bool(force_object_mode)
         self.object_mode = bool(force_object_mode)
+        # Library sources supplied by the host; exported free functions are
+        # inlined into the generated module (alias, Pine name) -> py def name.
+        self.libraries = list(libraries or [])
+        self.library_methods: dict[tuple[str, str], str] = {}
+        self.library_inline_error: str | None = None
         # True only while resolving plot/fill/hline arguments: literal colors
         # there are metadata for numeric synthesis. Elsewhere (bgcolor,
         # drawings, assignments) keep the legacy object-mode helper path.
@@ -1053,13 +1059,71 @@ class CompilerVisitor(NodeVisitor):
 
     # ------------------------------------------------------------------ script
     def visit_Import(self, node: ast.Import):
-        """Track ``import … as alias`` so library methods can be stubbed."""
+        """Track the alias and inline exported free functions from library source."""
         alias = node.alias or node.name
         if alias:
             self.import_aliases.add(alias)
             # Module-scope scalar so free-var plumbing can pass np.nan (Pine na)
             self.scalar_vars.add(alias)
         self.object_mode = True
+        if not self.libraries:
+            return ""
+        lib = next(
+            (
+                item
+                for item in self.libraries
+                if str(item.get("namespace") or "") == str(node.namespace or "")
+                and str(item.get("name") or "") == str(node.name or "")
+                and int(item.get("version") or 1) == int(node.version or 1)
+            ),
+            None,
+        )
+        if lib is None:
+            self.library_inline_error = (
+                f"library source not supplied for {node.namespace}/{node.name}/{node.version}; use mode=interpret or auto"
+            )
+            return ""
+        try:
+            from pynescript.ast.helper import parse as _parse_pine
+
+            # parse() caches trees by source hash; never rename/strip export on
+            # the cached instance or a second consumer sees a mutated library.
+            lib_tree = copy.deepcopy(_parse_pine(str(lib.get("source") or ""), mode="exec"))
+        except Exception as exc:
+            self.library_inline_error = f"library parse failed: {exc}; use mode=interpret or auto"
+            return ""
+        exported = [
+            stmt
+            for stmt in getattr(lib_tree, "body", []) or []
+            if type(stmt).__name__ == "FunctionDef" and getattr(stmt, "export", None)
+        ]
+        if not exported:
+            self.library_inline_error = (
+                f"library imports are not supported: {node.namespace}/{node.name} has no exported functions; use mode=interpret or auto"
+            )
+            return ""
+        seen: set[str] = set()
+        for fn in exported:
+            if getattr(fn, "method", 0):
+                # Methods/types are a later slice; fail closed if called.
+                continue
+            pine_name = fn.name
+            if pine_name in seen:
+                self.library_inline_error = f"overloaded library function {pine_name} is not supported; use mode=interpret or auto"
+                return ""
+            seen.add(pine_name)
+            params = {arg.name for arg in getattr(fn, "args", []) or [] if hasattr(arg, "name")}
+            unsupported = self._library_function_unsupported(fn, params)
+            if unsupported:
+                self.library_inline_error = (
+                    f"library function {pine_name} {unsupported}; use mode=interpret or auto"
+                )
+                return ""
+            emitted = self._safe_ident(f"__lib_{alias}_{pine_name}")
+            fn.name = emitted
+            fn.export = None
+            self.visit_FunctionDef(fn)
+            self.library_methods[(str(alias), str(pine_name))] = emitted
         return ""
 
     def visit_Script(self, node: ast.Script):
@@ -5038,6 +5102,11 @@ class CompilerVisitor(NodeVisitor):
 
         method_src: str | None = None  # set for method-style TA (expr.rma(p))
         import_lib_method = False  # unknown ``import … as alias`` method call
+        lib_alias = (
+            func.value.id
+            if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name)
+            else None
+        )
         if isinstance(func, ast.Name):
             func_name = func.id
         elif isinstance(func, ast.Attribute):
@@ -5257,6 +5326,23 @@ class CompilerVisitor(NodeVisitor):
             args = [method_src, *args]
             recv_node = getattr(func, "value", None)
             arg_nodes = [recv_node, *arg_nodes]
+
+        # Alias calls resolve before any builtin dispatch: a library export named
+        # ``plot``/``alert``/``add`` must not be captured by the builtin handler.
+        if import_lib_method and self.libraries:
+            if self.library_inline_error:
+                # Preserve the first, more specific import/body error.
+                return "np.nan"
+            mapped = self.library_methods.get((str(lib_alias), str(func_name)))
+            if mapped and not kwargs:
+                return f"{mapped}({', '.join(args)})"
+            if mapped:
+                self.library_inline_error = (
+                    f"keyword arguments for inlined library method {lib_alias}.{func_name} are not supported; use mode=interpret or auto"
+                )
+                return "np.nan"
+            self.library_inline_error = f"unsupported library method {lib_alias}.{func_name}; use mode=interpret or auto"
+            return "np.nan"
 
         # Bare collection verbs: push(arr, x) / put(map, k, v) / cell(...)
         if method_src is None and func_name in _BARE_COLLECTION:
@@ -7169,10 +7255,12 @@ class CompilerVisitor(NodeVisitor):
         # Unknown call: object mode + no-op stub to avoid NameError
         # (external library methods not present in corpus isolation).
         self.object_mode = True
-        # Missing ``alias.method(...)`` is Pine na — never Python None
-        # (``float(None)`` in ta.cross / plot / series stores).
         if import_lib_method:
+            # Library sources are resolved before UDF dispatch; only the legacy
+            # no-source stub reaches this fallback.
             return "np.nan"
+        # Missing non-library call is Pine na — never Python None
+        # (``float(None)`` in ta.cross / plot / series stores).
         # Multi-unpack destinations need a sequence; single assign gets None.
         return "None"
 
@@ -10265,6 +10353,64 @@ class CompilerVisitor(NodeVisitor):
                     self._mark_series_params(c)
             else:
                 self._mark_series_params(child)
+
+    def _library_function_unsupported(self, fn, params: set[str]) -> str | None:
+        """Return why an exported library function is outside this inline slice.
+
+        Allowed: parameters, locals, literals, ``math.*``/``str.*``, and a small
+        set of pure bare builtins. Library constants (free names) and calls to
+        other library functions must fail closed instead of becoming runtime
+        NameErrors or silent na.
+        """
+        locals_: set[str] = set()
+        for stmt in getattr(fn, "body", []) or []:
+            self._collect_assigned_names(stmt, locals_)
+        allowed_names = set(params) | locals_ | {"true", "false", "na", "math", "str", "color"}
+        allowed_calls = {
+            "abs",
+            "min",
+            "max",
+            "round",
+            "int",
+            "float",
+            "bool",
+            "nz",
+            "na",
+            "fixnan",
+        }
+        allowed_namespaces = {"math", "str"}
+
+        def walk(node: Any) -> str | None:
+            if node is None or not hasattr(node, "_fields"):
+                return None
+            if isinstance(node, ast.Name) and node.id not in allowed_names:
+                return f"uses unsupported name {node.id}"
+            if isinstance(node, ast.Call):
+                f = node.func
+                if isinstance(f, ast.Specialize):
+                    f = f.value
+                if isinstance(f, ast.Name) and f.id not in allowed_calls:
+                    return f"calls unsupported function {f.id}"
+                if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name):
+                    if f.value.id not in allowed_namespaces:
+                        return f"calls unsupported namespace {f.value.id}"
+            for child in _iter_child_values(node):
+                if isinstance(child, list):
+                    for item in child:
+                        err = walk(item)
+                        if err:
+                            return err
+                else:
+                    err = walk(child)
+                    if err:
+                        return err
+            return None
+
+        for stmt in getattr(fn, "body", []) or []:
+            err = walk(stmt)
+            if err:
+                return err
+        return None
 
     def _collect_assigned_names(self, node, out: set[str]) -> None:
         """Collect Name targets of Assign/ReAssign in a subtree."""

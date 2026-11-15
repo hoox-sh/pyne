@@ -4476,20 +4476,6 @@ class Runtime:
                 mode="compile",
             )
 
-        if libraries and _has_top_level_import(source_code):
-            # Compile lowers imported library calls to stubs (np.nan/None); a
-            # library-based indicator would silently return na. Fail closed and
-            # point callers at interpret/auto instead of pretending to execute.
-            return _attach_logs_profile(
-                _error_payload(
-                    "Compile mode does not execute library imports; use mode=interpret or auto",
-                    kind=ERROR_KIND_COMPILE,
-                ),
-                total_ms=(time.perf_counter() - t_total0) * 1000.0,
-                bars=n_bars_hint,
-                mode="compile",
-            )
-
         if not ohlcv_data:
             return _attach_logs_profile(
                 {"plots": [], "events": [], "count": 0, "mode": "compile", "series": {}},
@@ -4501,13 +4487,13 @@ class Runtime:
         # Host short-circuit: raw-source hash → CompiledScript (skips sanitize on hit).
         cache_key = self._source_cache_key(source_code)
         script_id = cache_key[:16]
-        compiled = _HOST_COMPILE_CACHE.get(cache_key)
+        compiled = None if libraries else _HOST_COMPILE_CACHE.get(cache_key)
         was_cached = compiled is not None
 
         t_compile0 = time.perf_counter()
         if compiled is None:
             try:
-                compiled = compile_script(source_code)
+                compiled = compile_script(source_code, libraries=libraries)
             except Exception as e:
                 compile_ms = (time.perf_counter() - t_compile0) * 1000.0
                 _dbg("compile: FAILED src=%s in %.2fms: %s", cache_key[:12], compile_ms, e)
@@ -4533,13 +4519,14 @@ class Runtime:
                     parse_ms=compile_ms,
                     eval_ms=0.0,
                 )
-            if len(_HOST_COMPILE_CACHE) >= _HOST_COMPILE_CACHE_MAX:
-                try:
-                    _HOST_COMPILE_CACHE.pop(next(iter(_HOST_COMPILE_CACHE)))
-                except StopIteration as _exc:
-                    _swallow(_exc)
-            _HOST_COMPILE_CACHE[cache_key] = compiled
-            _HOST_COMPILE_FAIL_CACHE.pop(cache_key, None)
+            if not libraries:
+                if len(_HOST_COMPILE_CACHE) >= _HOST_COMPILE_CACHE_MAX:
+                    try:
+                        _HOST_COMPILE_CACHE.pop(next(iter(_HOST_COMPILE_CACHE)))
+                    except StopIteration as _exc:
+                        _swallow(_exc)
+                _HOST_COMPILE_CACHE[cache_key] = compiled
+                _HOST_COMPILE_FAIL_CACHE.pop(cache_key, None)
         compile_ms = (time.perf_counter() - t_compile0) * 1000.0
         _dbg(
             "compile: %s src=%s script_id=%s in %.2fms host_cache_entries=%d",

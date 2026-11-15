@@ -1189,6 +1189,7 @@ def _transpile_once(
     source: str,
     *,
     force_object_mode: bool = False,
+    libraries: list[dict[str, Any]] | None = None,
 ) -> tuple[str, list[str], list[str], bool, list[dict[str, Any]]]:
     """Parse + emit.
 
@@ -1201,8 +1202,10 @@ def _transpile_once(
     except Exception as exc:
         # Surface parse failures as CompileError so auto-mode reasons stay typed.
         raise CompileEmitError(f"parse failed: {exc}") from exc
-    visitor = CompilerVisitor(force_object_mode=force_object_mode)
+    visitor = CompilerVisitor(force_object_mode=force_object_mode, libraries=libraries)
     code = visitor.visit(tree)
+    if visitor.library_inline_error:
+        raise CompileEmitError(visitor.library_inline_error)
     if not isinstance(code, str) or not code.strip():
         msg = "CompilerVisitor produced empty code"
         raise CompileEmitError(msg)
@@ -1544,6 +1547,7 @@ def _warm_numeric_or_fallback(
     compiled: CompiledScript,
     *,
     ir_key: str,
+    libraries: list[dict[str, Any]] | None = None,
 ) -> tuple[CompiledScript, str]:
     """Warm njit entry; on nopython failure re-emit object mode.
 
@@ -1580,14 +1584,18 @@ def _warm_numeric_or_fallback(
         _log.info("compile nopython → object mode: %s", reason)
         # Structural recovery: re-emit pure-Python object bar loop.
         try:
-            code_o, titles_o, kinds_o, _, attrs_o = _transpile_once(source, force_object_mode=True)
+            code_o, titles_o, kinds_o, _, attrs_o = _transpile_once(
+                source,
+                force_object_mode=True,
+                libraries=libraries,
+            )
             ir_key_o = _sha256_text(code_o)
             recovered = _exec_generated(
                 source,
                 code_o,
                 titles_o,
                 True,
-                ir_key=ir_key_o,
+                ir_key=None if libraries else ir_key_o,
                 nopython_fallback_reason=reason,
                 plot_kinds=kinds_o,
                 plot_attrs=attrs_o,
@@ -1682,7 +1690,13 @@ def _compile_via_disk_index(
     return None
 
 
-def compile_script(source: str, *, use_cache: bool = True, force_object_mode: bool = False) -> CompiledScript:
+def compile_script(
+    source: str,
+    *,
+    use_cache: bool = True,
+    force_object_mode: bool = False,
+    libraries: list[dict[str, Any]] | None = None,
+) -> CompiledScript:
     """Transpile Pine source and load the compiled entry point.
 
     Uses Numba when the script is pure-numeric; object-mode (UDT/map/drawing)
@@ -1709,6 +1723,28 @@ def compile_script(source: str, *, use_cache: bool = True, force_object_mode: bo
     if force_object_mode:
         # Do not poison the numeric cache with a forced object-mode emit.
         use_cache = False
+
+    if libraries:
+        # Library inlining changes generated IR for the same source hash; do
+        # not read/write the source-keyed caches for these runs.
+        source = _sanitize_source(raw_source)
+        code, titles, kinds, object_mode, attrs = _transpile_once(
+            source,
+            force_object_mode=force_object_mode,
+            libraries=libraries,
+        )
+        ir_key = _sha256_text(code)
+        compiled = _exec_generated(
+            source,
+            code,
+            titles,
+            object_mode,
+            ir_key=None,
+            plot_kinds=kinds,
+            plot_attrs=attrs,
+        )
+        compiled, _ = _warm_numeric_or_fallback(source, compiled, ir_key=ir_key, libraries=libraries)
+        return compiled
 
     if use_cache:
         hit = _memory_cache_get(raw_key)
