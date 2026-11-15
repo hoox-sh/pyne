@@ -414,6 +414,41 @@ def test_map_script_delta_becomes_plot_tip_in_full_mode():
     assert out[5] == int(axb1.Axb1Opcode.PLOT_TIP)
 
 
+def test_map_script_delta_with_times_and_interval_becomes_plot_tip_in_full_mode():
+    # This is the live hot path shape from backend/api/live_push.py: the tail
+    # axis and interval are present for the JSON fallback, but carry no extra
+    # binary payload once the script tip is encoded.
+    payload = {
+        "base_index": 10,
+        "count": 11,
+        "tail_len": 1,
+        "closed_upto": LAST_TIME,
+        "forming": True,
+        "series": {"RMA": [65405.05736073272]},
+        "plots": [65405.05736073272],
+        "times": [LAST_TIME],
+        "interval": "1m",
+    }
+    out = map_live_frame(_frame("delta", payload), mode="full")
+    assert isinstance(out, bytes)
+    assert out[:4] == b"AXB1"
+    assert out[5] == int(axb1.Axb1Opcode.PLOT_TIP)
+
+
+def test_map_script_delta_with_bad_times_stays_json():
+    payload = {
+        "base_index": 10,
+        "count": 11,
+        "tail_len": 1,
+        "closed_upto": LAST_TIME,
+        "forming": True,
+        "series": {"RMA": [65405.05736073272]},
+        "times": [LAST_TIME, LAST_TIME + 60],
+        "interval": "1m",
+    }
+    assert map_live_frame(_frame("delta", payload), mode="full") is None
+
+
 def test_map_full_with_leftovers_stays_json():
     payload = {"seriesKey": KEY_TEXT, "count": 1, "closed_upto": 0, "bars": BARS[:1], "meta": {"x": 1}}
     assert map_live_frame(_frame("full", payload)) is None

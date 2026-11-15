@@ -1367,8 +1367,24 @@ def _map_delta_plots(header: Any, payload: dict[str, Any]) -> bytes | None:
 
     if payload.get("tail_len") != 1:
         return None
-    allowed = {"base_index", "count", "tail_len", "closed_upto", "forming", "series", "plots", "bars"}
+    # `times`/`interval` are redundant for a one-bar tip (the client asserts the
+    # interval at subscribe and times are dropped from the AXB1 payload), but
+    # live_push always attaches them. Accept and ignore the pair instead of
+    # dropping every real script tip back to JSON.
+    allowed = {"base_index", "count", "tail_len", "closed_upto", "forming", "series", "plots", "bars", "times", "interval"}
     if set(payload) - allowed or payload.get("unchanged") is True or "bars" in payload:
+        return None
+    times = payload.get("times")
+    if times is not None:
+        if not isinstance(times, list) or len(times) != 1:
+            return None
+        try:
+            if int(times[0]) <= 0:
+                return None
+        except (TypeError, ValueError):
+            return None
+    interval = payload.get("interval")
+    if interval is not None and not isinstance(interval, str):
         return None
     count = payload.get("count")
     if not isinstance(count, int) or count < 1:
