@@ -15,7 +15,9 @@
 import { createHash } from "node:crypto";
 import { posix } from "node:path";
 import type { InputFile } from "./io";
+import { resolveBundleLink } from "./lint";
 import {
+    cmp,
     isRecord,
     parseYaml,
     PRODUCER,
@@ -884,7 +886,6 @@ function humanConcepts(existing: Map<string, string>): {
             continue;
         }
         keep.set(path, text);
-        if (kind !== "human") continue;
         const { yaml } = splitFrontmatter(text);
         let title = path.replace(/\.md$/, "");
         let description = "Curated concept.";
@@ -902,7 +903,38 @@ function humanConcepts(existing: Map<string, string>): {
         }
         indexed.push({ path, title, description: oneLine(description, 180) });
     }
+    indexed.sort((a, b) => cmp(a.path, b.path));
     return { keep, indexed };
+}
+
+/** Kept concepts are not regenerated, but strict check still requires absolute in-bundle links. */
+function absolutizeLinks(
+    path: string,
+    text: string,
+    files: Set<string>,
+): string {
+    return text.replace(
+        /(^|[^!])\[([^\]]*)\]\((<[^>]+>|[^)\s]+)(\s+"[^"]*")?\)/g,
+        (full, prefix: string, label: string, target: string, title?: string) => {
+            const raw =
+                target.startsWith("<") && target.endsWith(">")
+                    ? target.slice(1, -1)
+                    : target;
+            const pathOnly = raw.split("#")[0]?.split("?")[0] ?? "";
+            if (
+                !pathOnly ||
+                pathOnly.startsWith("/") ||
+                pathOnly.startsWith("http://") ||
+                pathOnly.startsWith("https://") ||
+                pathOnly.startsWith("mailto:")
+            )
+                return full;
+            const resolved = resolveBundleLink(path, target, files);
+            if (!resolved || !files.has(resolved)) return full;
+            const suffix = raw.slice(pathOnly.length);
+            return `${prefix}[${label}](/${resolved}${suffix}${title ?? ""})`;
+        },
+    );
 }
 
 export function isHumanConcept(text: string): boolean {
@@ -984,7 +1016,13 @@ export function compileBundle(input: CompileInput): Map<string, string> {
             description: doc.description,
         });
     }
-    for (const [path, text] of humans.keep) next.set(path, text);
+    const known = new Set<string>([...next.keys(), ...humans.keep.keys()]);
+    for (const [path, text] of humans.keep) {
+        next.set(
+            path,
+            isHumanConcept(text) ? text : absolutizeLinks(path, text, known),
+        );
+    }
 
     const indexes = renderIndexes(indexed, humans.indexed);
     for (const [path, text] of indexes) {

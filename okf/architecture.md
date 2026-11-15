@@ -41,5 +41,5 @@ Todo, Working, Blocked, Ready for Review, Done. A card moves to Done only with p
 
 ## Related
 
-- [Development](development.md)
-- [Security](security.md)
+- [Development](/development.md)
+- [Security](/security.md)
