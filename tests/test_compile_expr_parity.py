@@ -26,6 +26,8 @@ series of the same name.
 
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from pynescript.compiler.engine import compile_script
@@ -61,8 +63,8 @@ def _same(src: str, n: int = 4) -> tuple[dict, dict]:
         right = comp[key]
         assert len(left) == len(right)
         for a, b in zip(left, right, strict=True):
-            a_na = a is None or (isinstance(a, float) and a != a)
-            b_na = b is None or (isinstance(b, float) and b != b)
+            a_na = a is None or (isinstance(a, float) and math.isnan(a))
+            b_na = b is None or (isinstance(b, float) and math.isnan(b))
             if a_na or b_na:
                 assert a_na and b_na
             else:

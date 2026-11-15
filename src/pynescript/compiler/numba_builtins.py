@@ -544,9 +544,9 @@ def _numba_round_jit(x, digits):
 
     ``np.round`` is half-to-even, matching the interpreter's ``round``.
     """
-    if x != x:
+    if np.isnan(x):
         return np.nan
-    d = 0.0 if digits != digits else digits
+    d = 0.0 if np.isnan(digits) else digits
     return np.round(x, int(d))
 
 
@@ -561,7 +561,7 @@ _register_njit_overload(numba_round, _numba_round_jit)
 @numba.njit(cache=True)
 def _numba_log_jit(n, base):
     """Change-of-base log. Non-positive args or base 1 → na. Single-eval."""
-    if n != n or base != base or n <= 0.0 or base <= 0.0 or base == 1.0:
+    if np.isnan(n) or np.isnan(base) or n <= 0.0 or base <= 0.0 or base == 1.0:
         return np.nan
     return np.log(n) / np.log(base)
 
@@ -577,7 +577,7 @@ _register_njit_overload(numba_log, _numba_log_jit)
 @numba.njit(cache=True)
 def _numba_pow_jit(a, b):
     """Power with na propagation. IEEE ``nan ** 0`` is 1; Pine ``na`` stays na."""
-    if a != a or b != b:
+    if np.isnan(a) or np.isnan(b):
         return np.nan
     return a**b
 
@@ -598,7 +598,10 @@ def _pine_iff_jit(cond, a, b):
     ternary does not type-check under Numba when the condition is a bool
     (``close > open``).
     """
-    if cond != cond:
+    # ``np.float64`` so a bool condition (``close > open``) is not a NaN,
+    # while a float NaN still is. ``cond != cond`` does not type-check cleanly
+    # across those specializations and trips identical-comparison checks.
+    if np.isnan(np.float64(cond)):
         return np.nan
     if cond:
         return a
@@ -609,11 +612,8 @@ def pine_iff(cond, a, b):
     """``iff`` for object mode (``None`` is na) and as the nopython overload."""
     if cond is None:
         return np.nan
-    try:
-        if cond != cond:
-            return np.nan
-    except Exception:
-        pass
+    if isinstance(cond, (float, np.floating)) and np.isnan(cond):
+        return np.nan
     return a if cond else b
 
 
