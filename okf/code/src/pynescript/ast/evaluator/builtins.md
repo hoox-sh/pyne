@@ -7,7 +7,7 @@ tags: [ast, code, evaluator, pynescript]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-15T19:52:36Z
+  at: 2026-11-15T23:18:57Z
 sources:
   - id: tree
     resource: "src/pynescript/ast/evaluator/builtins"
@@ -27,7 +27,7 @@ okf_lock: generated
 - `drawing.py` — Box, ChartPoint, DrawingBuiltinsMixin, DrawingRegistry, Label, Line, LineFill, Polyline, Table, TableCell
 - `input.py` — InputBuiltinsMixin, collect_input_declarations
 - `logging.py` — Logger, format_log_message, get_logger, log_error, log_info, log_warning, register_logging_functions, runtime_error
-- `map.py` — Map
+- `map.py` — Map, RealtimeSnapshotError
 - `map_evaluator.py` — MapBuiltinsMixin
 - `matrix.py` — Matrix
 - `matrix_evaluator.py` — MatrixBuiltinsMixin

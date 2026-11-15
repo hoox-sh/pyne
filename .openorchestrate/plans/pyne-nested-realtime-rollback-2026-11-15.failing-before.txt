@@ -1,0 +1,43 @@
+# Failing-before transcript — nested Map rollback
+
+## A. Nested map/list values vs pre-fix shallow map.py (HEAD e342328b) -> 2 failed
+# command: PYTHONPATH=<HEAD map.py> .venv/bin/python -m pytest tests/test_realtime_rollback.py -q --tb=line -k 'nested_map_value or nested_list_value'
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+E   assert 3.0 == 1.0
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_realtime_rollback.py:250: assert 3.0 == 1.0
+E   assert [1.0, 1.0, 1.0, 1.0, 4.0] == [1.0, 1.0, 1.0, 1.0, 2.0]
+      
+      At index 4 diff: 4.0 != 2.0
+      Use -v to get more diff
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_realtime_rollback.py:260: assert [1.0, 1.0, 1.0, 1.0, 4.0] == [1.0, 1.0, 1.0, 1.0, 2.0]
+=========================== short test summary info ============================
+FAILED tests/test_realtime_rollback.py::test_var_map_nested_map_value_rolls_back_unconfirmed_ticks
+FAILED tests/test_realtime_rollback.py::test_var_map_nested_list_value_rolls_back_unconfirmed_ticks
+2 failed, 25 deselected in 1.31s
+
+## B. Cycles and removed/replaced containers vs pre-fix recursive map.py -> 5 failed
+# command: PYTHONPATH=<pre-fix map.py> .venv/bin/python -m pytest tests/test_realtime_rollback.py -q --tb=line -k 'cyclic_map_raises or removed_nested or replaced_nested'
+FFFFF                                                                    [100%]
+=================================== FAILURES ===================================
+E   Failed: DID NOT RAISE <class 'pynescript.ast.evaluator.builtins.map.RealtimeSnapshotError'>
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_realtime_rollback.py:523: Failed: DID NOT RAISE <class 'pynescript.ast.evaluator.builtins.map.RealtimeSnapshotError'>
+E   AssertionError: assert False
+     +  where False = isinstance(('dict', {'n': ('value', 7.0)}), Map)
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_realtime_rollback.py:540: AssertionError: assert False
+E   assert False
+     +  where False = isinstance((1, 1, [[7.0]]), Matrix)
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_realtime_rollback.py:551: assert False
+E   AssertionError: assert False
+     +  where False = isinstance({'x': ('value', 7.0)}, ObjectInstance)
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_realtime_rollback.py:565: AssertionError: assert False
+E   AssertionError: assert False
+     +  where False = isinstance(('dict', {'n': ('value', 7.0)}), Map)
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_realtime_rollback.py:574: AssertionError: assert False
+=========================== short test summary info ============================
+FAILED tests/test_realtime_rollback.py::test_snapshot_realtime_scope_cyclic_map_raises
+FAILED tests/test_realtime_rollback.py::test_map_snapshot_restores_removed_nested_map
+FAILED tests/test_realtime_rollback.py::test_map_snapshot_restores_removed_nested_matrix
+FAILED tests/test_realtime_rollback.py::test_map_snapshot_restores_removed_nested_udt
+FAILED tests/test_realtime_rollback.py::test_map_snapshot_restores_replaced_nested_map
+5 failed, 28 deselected in 0.30s

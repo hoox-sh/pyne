@@ -1358,6 +1358,12 @@ def _copy_container_contents(value: Any) -> Any | None:
         if isinstance(fields, dict) and getattr(value, "udt", None) is not None:
             return ("udt", dict(fields))
     except Exception as _exc:
+        from pynescript.ast.evaluator.builtins.map import RealtimeSnapshotError
+
+        if isinstance(_exc, RealtimeSnapshotError):
+            # Cyclic containers cannot be snapshotted safely; do not skip the
+            # snapshot silently (an unconfirmed tick would commit mutations).
+            raise
         _swallow(_exc, what="copy container contents")
         return None
     return None

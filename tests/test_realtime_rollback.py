@@ -28,8 +28,12 @@ from confirmed state; only the final (confirmed) tick commits.
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import Any
+
+import pytest
 
 from pynescript.ast.evaluator.builtins.map import Map
+from pynescript.ast.evaluator.builtins.map import RealtimeSnapshotError
 from pynescript.ast.evaluator.builtins.matrix import Matrix
 from pynescript.ast.type_system import BuiltinType
 from pynescript.ast.type_system import BuiltinTypeKind
@@ -220,6 +224,66 @@ plot(map.size(m), "sz")
     assert "error" not in out, out.get("error")
     sz = [float(v) for v in out["series"]["sz"]]
     assert sz == [0.0, 0.0, 0.0, 0.0, 1.0], sz
+
+
+_NESTED_MAP_SRC = """//@version=6
+indicator("rt nested map")
+var m = map.new<string, map>()
+if barstate.isfirst
+    map.put(m, "k", map.new<string, float>())
+if barstate.isrealtime
+    map.put(map.get(m, "k"), "n", nz(map.get(map.get(m, "k"), "n")) + 1.0)
+plot(map.get(map.get(m, "k"), "n"), "v")
+"""
+
+_NESTED_LIST_SRC = """//@version=6
+indicator("rt nested list")
+var m = map.new<string, list>()
+if barstate.isfirst
+    map.put(m, "k", array.from(0.0))
+if barstate.isrealtime
+    array.push(map.get(m, "k"), 1.0)
+plot(array.size(map.get(m, "k")), "n")
+"""
+
+
+def test_var_map_nested_map_value_rolls_back_unconfirmed_ticks() -> None:
+    """A nested map value must roll back with its owning ``var`` map."""
+    out = Runtime(symbol="RT").run(_NESTED_MAP_SRC, _bars(), mode="interpret", realtime_ticks=3)
+    assert "error" not in out, out.get("error")
+    assert out["series"]["v"][-1] == 1.0
+    compiled = Runtime(symbol="RT").run(_NESTED_MAP_SRC, _bars(), mode="compile", realtime_ticks=3)
+    assert "error" not in compiled, compiled.get("error")
+    assert compiled["series"]["v"][-1] == 1.0
+
+
+_NESTED_MATRIX_SRC = """//@version=6
+indicator("rt nested matrix")
+var m = map.new<string, matrix>()
+if barstate.isfirst
+    map.put(m, "k", matrix.new<float>(1, 1, 0.0))
+if barstate.isrealtime
+    mat = map.get(m, "k")
+    matrix.set(mat, 0, 0, matrix.get(mat, 0, 0) + 1.0)
+plot(matrix.get(map.get(m, "k"), 0, 0), "v")
+"""
+
+
+def test_var_map_nested_matrix_value_rolls_back_unconfirmed_ticks() -> None:
+    """A nested Matrix value rolls back with its owning ``var`` map (interpret)."""
+    out = Runtime(symbol="RT").run(_NESTED_MATRIX_SRC, _bars(), mode="interpret", realtime_ticks=3)
+    assert "error" not in out, out.get("error")
+    assert out["series"]["v"][-1] == 1.0
+
+
+def test_var_map_nested_list_value_rolls_back_unconfirmed_ticks() -> None:
+    """A nested list value must roll back with its owning ``var`` map."""
+    out = Runtime(symbol="RT").run(_NESTED_LIST_SRC, _bars(), mode="interpret", realtime_ticks=3)
+    assert "error" not in out, out.get("error")
+    assert [float(v) for v in out["series"]["n"]] == [1.0, 1.0, 1.0, 1.0, 2.0]
+    compiled = Runtime(symbol="RT").run(_NESTED_LIST_SRC, _bars(), mode="compile", realtime_ticks=3)
+    assert "error" not in compiled, compiled.get("error")
+    assert [float(v) for v in compiled["series"]["n"]] == [1.0, 1.0, 1.0, 1.0, 2.0]
 
 
 def test_var_udt_field_rolls_back_unconfirmed_ticks() -> None:
@@ -445,3 +509,67 @@ class TestScopeHelpers:
         _restore_realtime_scope(ev, snap)
         assert ev.context["s"] is inst
         assert inst.get_field("x") == 0.0
+
+
+def test_snapshot_realtime_scope_cyclic_map_raises() -> None:
+    """A cyclic container fails closed instead of skipping the snapshot."""
+    cyclic = Map()
+    cyclic.data["self"] = cyclic
+    ev = SimpleNamespace(
+        context={"m": cyclic},
+        _var_declarations={"m"},
+        _varip_declarations=set(),
+    )
+    with pytest.raises(RealtimeSnapshotError, match="cyclic container"):
+        _snapshot_realtime_scope(ev)
+
+
+def _nested_map_snapshot() -> tuple[Map, Any]:
+    outer = Map()
+    inner = Map()
+    inner.data["n"] = 7.0
+    outer.data["k"] = inner
+    return outer, outer.copy_contents()
+
+
+def test_map_snapshot_restores_removed_nested_map() -> None:
+    outer, snap = _nested_map_snapshot()
+    outer.data.clear()
+    outer.restore_contents(snap)
+    restored = outer.data["k"]
+    assert isinstance(restored, Map)
+    assert restored.data == {"n": 7.0}
+
+
+def test_map_snapshot_restores_removed_nested_matrix() -> None:
+    outer = Map()
+    outer.data["k"] = Matrix(1, 1, 7.0)
+    snap = outer.copy_contents()
+    outer.data.clear()
+    outer.restore_contents(snap)
+    restored = outer.data["k"]
+    assert isinstance(restored, Matrix)
+    assert restored.data == [[7.0]]
+
+
+def test_map_snapshot_restores_removed_nested_udt() -> None:
+    udt = UserDefinedType("S")
+    udt.add_field(Field("x", BuiltinType(BuiltinTypeKind.FLOAT), 7.0))
+    inst = ObjectInstance(udt)
+    outer = Map()
+    outer.data["k"] = inst
+    snap = outer.copy_contents()
+    outer.data.clear()
+    outer.restore_contents(snap)
+    restored = outer.data["k"]
+    assert isinstance(restored, ObjectInstance)
+    assert restored.fields == {"x": 7.0}
+
+
+def test_map_snapshot_restores_replaced_nested_map() -> None:
+    outer, snap = _nested_map_snapshot()
+    outer.data["k"] = "replacement"
+    outer.restore_contents(snap)
+    restored = outer.data["k"]
+    assert isinstance(restored, Map)
+    assert restored.data == {"n": 7.0}

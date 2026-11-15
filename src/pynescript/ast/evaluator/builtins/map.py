@@ -37,6 +37,96 @@ K = TypeVar("K")
 V = TypeVar("V")
 
 
+class RealtimeSnapshotError(RuntimeError):
+    """Cyclic container encountered while snapshotting realtime state."""
+
+
+def _snapshot_value(value: Any, seen: set[int] | None = None) -> tuple[Any, ...]:
+    """Recursive rollback snapshot node for a map value.
+
+    Nested lists/dicts, Map/Matrix containers and UDT fields are snapshotted
+    recursively. Cycles raise :class:`RealtimeSnapshotError` instead of
+    recursing forever; the host re-raises it so an unconfirmed tick cannot
+    silently commit. Typed/UDT nodes carry the original object so a removed or
+    replaced value is restored with its original type.
+    """
+    if seen is None:
+        seen = set()
+    oid = id(value)
+    if oid in seen:
+        raise RealtimeSnapshotError("cyclic container in realtime rollback snapshot")
+    if isinstance(value, list):
+        seen.add(oid)
+        try:
+            return ("list", [_snapshot_value(item, seen) for item in value])
+        finally:
+            seen.discard(oid)
+    if isinstance(value, dict):
+        seen.add(oid)
+        try:
+            return ("dict", {key: _snapshot_value(item, seen) for key, item in value.items()})
+        finally:
+            seen.discard(oid)
+    if isinstance(value, Map):
+        seen.add(oid)
+        try:
+            return ("typed", _snapshot_value(value.data, seen), value)
+        finally:
+            seen.discard(oid)
+    copy_fn = getattr(value, "copy_contents", None)
+    if callable(copy_fn):
+        return ("typed", copy_fn(), value)
+    fields = getattr(value, "fields", None)
+    if isinstance(fields, dict) and getattr(value, "udt", None) is not None:
+        seen.add(oid)
+        try:
+            return ("udt", {key: _snapshot_value(item, seen) for key, item in fields.items()}, value)
+        finally:
+            seen.discard(oid)
+    return ("value", value)
+
+
+def _restore_value(current: Any, snap: tuple[Any, ...]) -> Any:
+    """Write a snapshot node back, restoring removed/replaced typed values."""
+    if not isinstance(snap, tuple) or len(snap) not in (2, 3):
+        return current
+    kind, payload = snap[0], snap[1]
+    original = snap[2] if len(snap) == 3 else None
+    if kind == "list":
+        if isinstance(current, list):
+            restored = [
+                _restore_value(current[i] if i < len(current) else None, node)
+                for i, node in enumerate(payload)
+            ]
+            current[:] = restored
+            return current
+        return [_restore_value(None, node) for node in payload]
+    if kind == "dict":
+        if isinstance(current, dict):
+            restored = {key: _restore_value(current.get(key), node) for key, node in payload.items()}
+            current.clear()
+            current.update(restored)
+            return current
+        return {key: _restore_value(None, node) for key, node in payload.items()}
+    if kind == "typed":
+        target = original if original is not None else current
+        restore_fn = getattr(target, "restore_contents", None)
+        if callable(restore_fn):
+            restore_fn(payload)
+            return target
+        return current
+    if kind == "udt":
+        target = original if original is not None else current
+        fields = getattr(target, "fields", None)
+        if isinstance(fields, dict):
+            restored = {key: _restore_value(fields.get(key), node) for key, node in payload.items()}
+            fields.clear()
+            fields.update(restored)
+            return target
+        return current
+    return payload
+
+
 class Map(Generic[K, V]):
     """Mutable ordered-preserving key-value map for Pine ``map.*`` operations.
 
@@ -98,14 +188,16 @@ class Map(Generic[K, V]):
         new_map.data = self.data.copy()
         return new_map
 
-    def copy_contents(self) -> dict[Any, Any]:
-        """One-level snapshot of map items (realtime rollback)."""
-        return self.data.copy()
+    def copy_contents(self) -> tuple[str, Any]:
+        """Recursive snapshot of map items (nested containers included)."""
+        return _snapshot_value(self.data)
 
-    def restore_contents(self, snap: dict[Any, Any]) -> None:
-        """Restore from :meth:`copy_contents` into this instance."""
-        self.data.clear()
-        self.data.update(snap)
+    def restore_contents(self, snap: tuple[str, Any]) -> None:
+        """Restore from :meth:`copy_contents`, preserving nested identities."""
+        restored = _restore_value(self.data, snap)
+        if restored is not self.data and isinstance(restored, dict):
+            self.data.clear()
+            self.data.update(restored)
 
     def __repr__(self) -> str:
         """String representation."""
