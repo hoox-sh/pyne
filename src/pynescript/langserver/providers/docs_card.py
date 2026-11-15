@@ -21,11 +21,41 @@
 
 VS Code cannot inject CSS into native hover / suggest / peek widgets, so the
 card is a Markdown convention that matches AXIS popovers: inline-code kind
-chip (theme ``textPreformat``), fenced signature, body, optional sections,
+chip (theme ``textPreformat``), fenced signature, one-paragraph summary,
+compact parameter/field lists, optional example / see-also sections, and a
 hairline footer.
+
+Density rules:
+
+- 1–4 named items render as bullets; more render as a two-column table.
+- Empty pieces are omitted; sections are separated by one blank line.
+- The footer is preceded by a Markdown rule.
 """
 
 from __future__ import annotations
+
+
+# Shared lowercase vocabulary for the kind chip. Synonyms map to the same
+# token so hover, completion, and signature docs read consistently.
+_KIND_LABELS: dict[str, str] = {
+    "class": "type",
+    "const": "variable",
+    "ctor": "constructor",
+    "decl": "declaration",
+    "field": "member",
+    "func": "function",
+    "module": "namespace",
+    "prop": "property",
+}
+
+# Above this many described items, a table aligns better than bullets.
+_COMPACT_ITEM_LIMIT = 4
+
+
+def normalize_kind(kind: str) -> str:
+    """Normalize a card kind to the shared lowercase vocabulary."""
+    token = (kind or "").strip().lower()
+    return _KIND_LABELS.get(token, token)
 
 
 def format_docs_card(
@@ -42,7 +72,7 @@ def format_docs_card(
     reads as the AXIS dialog footer (docs link, etc.).
     """
     parts: list[str] = []
-    kicker = kind.strip().lower()
+    kicker = normalize_kind(kind)
     if kicker:
         parts.append(f"`{kicker}`")
     sig = fence.strip("\n")
@@ -64,23 +94,44 @@ def format_docs_card(
 
 
 def format_named_table(title: str, items: list[tuple[str, str]]) -> str:
-    """Render a named list as a two-column Markdown table when descriptions exist.
+    """Render a named list compactly.
 
-    Name-only lists stay bullets so empty description columns do not dominate
-    the hover card.
+    Name-only lists stay bullets. Described lists use bullets up to
+    :data:`_COMPACT_ITEM_LIMIT` entries and a two-column table above it, so a
+    short parameter list does not wrap in a narrow hover or suggest widget.
     """
     if not items:
         return ""
-    if not any((desc or "").strip() for _name, desc in items):
-        lines = [f"**{title}**", ""]
+    described = any((desc or "").strip() for _name, desc in items)
+    lines = [f"**{title}**", ""]
+    if not described:
         for name, _desc in items:
             lines.append(f"- `{name}`")
         return "\n".join(lines)
-    lines = [f"**{title}**", "", "| Name | Description |", "| --- | --- |"]
+    if len(items) <= _COMPACT_ITEM_LIMIT:
+        for name, desc in items:
+            safe = (desc or "").replace("\n", " ").strip()
+            lines.append(f"- **`{name}`** — {safe}" if safe else f"- **`{name}`**")
+        return "\n".join(lines)
+    lines.extend(["| Name | Description |", "| --- | --- |"])
     for name, desc in items:
         safe = (desc or "").replace("\n", " ").replace("|", "\\|").strip()
         lines.append(f"| `{name}` | {safe} |")
     return "\n".join(lines)
+
+
+def pine_v6_docs_url(name: str) -> str:
+    """Public Pine v6 function-reference URL for a dotted builtin label.
+
+    Empty, undotted (``sma``), or whitespace-only names return ``""``.
+    """
+    label = (name or "").strip()
+    if not label or "." not in label:
+        return ""
+    namespace, _, member = label.partition(".")
+    if not namespace or not member:
+        return ""
+    return f"https://www.tradingview.com/pine-script-reference/v6/#fun_{label}"
 
 
 def pine_v6_docs_link(name: str) -> str:
@@ -90,10 +141,6 @@ def pine_v6_docs_link(name: str) -> str:
     ``strategy.entry``, ``line.fill``) get a link. Empty, undotted
     (``sma``), or whitespace-only names return ``""``.
     """
+    url = pine_v6_docs_url(name)
     label = (name or "").strip()
-    if not label or "." not in label:
-        return ""
-    namespace, _, member = label.partition(".")
-    if not namespace or not member:
-        return ""
-    return f"[Pine v6: {label}](https://www.tradingview.com/pine-script-reference/v6/#fun_{label})\n"
+    return f"[Pine v6: {label}]({url})\n" if url else ""

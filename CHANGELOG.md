@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Changed
+
+- **LSP hover cards are denser and more scannable.** The shared Markdown card now normalizes kind labels (`func` → `function`, `prop` → `property`, …), renders 1–4 parameters/fields as compact bullets and switches to a table above that, makes **See also** entries clickable Pine reference links, drops documentation that repeats the brief or signature, and truncates long prose at a sentence boundary instead of mid-word. Hover, completion docs, and signature help share the same grammar. Pinned by `tests/test_lsp_features.py`.
+
 ## [0.7.0] — 2026-11-13
 
 ### Added
