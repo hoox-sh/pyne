@@ -425,23 +425,11 @@ _CATALOG = [
 ]
 
 
-def test_download_builtins_list_mocked(runner: CliRunner, monkeypatch: pytest.MonkeyPatch) -> None:
-    import pynescript.util.pine_facade as facade
-
-    monkeypatch.setattr(facade, "list_builtin_scripts", lambda session=None: list(_CATALOG))
+def test_download_builtins_removed(runner: CliRunner) -> None:
+    """The facade module was removed; the command must not raise ImportError."""
     r = runner.invoke(cli, ["download-builtins", "--list", "--plain"])
-    assert r.exit_code == 0, _combined(r)
-
-
-def test_download_builtins_full_mocked(runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    import pynescript.util.pine_facade as facade
-
-    monkeypatch.setattr(facade, "list_builtin_scripts", lambda session=None: list(_CATALOG))
-    monkeypatch.setattr(facade, "get_script", lambda *a, **k: {"source": MINI_V6})
-    dest = tmp_path / "builtins"
-    r = runner.invoke(cli, ["download-builtins", str(dest), "--yes", "--limit", "1", "--plain"])
-    assert r.exit_code == 0, _combined(r)
-    assert list(dest.glob("*.pine"))
+    assert r.exit_code != 0
+    assert "removed" in _combined(r).lower()
 
 
 def test_info_text(runner: CliRunner) -> None:
@@ -882,7 +870,7 @@ def test_broker_market_and_limit_fills() -> None:
 
 
 def test_facade_meta_helpers() -> None:
-    from pynescript.util import pine_facade as facade
+    facade = pytest.importorskip("pynescript.util.pine_facade")
 
     assert facade._meta_name({"scriptName": "Kaufman&#039;s X"}) == "Kaufman's X"
     assert facade._meta_name({}) == "unnamed"
@@ -907,7 +895,7 @@ def test_facade_meta_helpers() -> None:
 
 
 def test_facade_existing_and_assign(tmp_path: Path) -> None:
-    from pynescript.util import pine_facade as facade
+    facade = pytest.importorskip("pynescript.util.pine_facade")
 
     assert facade._existing_pines(tmp_path / "missing") == set()
     (tmp_path / "a.pine").write_text("x", encoding="utf-8")
@@ -919,7 +907,7 @@ def test_facade_existing_and_assign(tmp_path: Path) -> None:
 
 
 def test_facade_list_and_get_mocked() -> None:
-    from pynescript.util import pine_facade as facade
+    facade = pytest.importorskip("pynescript.util.pine_facade")
 
     class _Resp:
         def __init__(self, payload) -> None:
@@ -938,7 +926,7 @@ def test_facade_list_and_get_mocked() -> None:
 
 
 def test_facade_download_dry_run_and_empty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from pynescript.util import pine_facade as facade
+    facade = pytest.importorskip("pynescript.util.pine_facade")
 
     monkeypatch.setattr(facade, "list_builtin_scripts", lambda session=None: list(_CATALOG))
     summary = facade.download_builtin_scripts(tmp_path, dry_run=True, plain=True)
@@ -951,7 +939,7 @@ def test_facade_download_dry_run_and_empty(tmp_path: Path, monkeypatch: pytest.M
 
 
 def test_facade_download_skip_existing(tmp_path: Path) -> None:
-    from pynescript.util import pine_facade as facade
+    facade = pytest.importorskip("pynescript.util.pine_facade")
 
     dest = tmp_path / "rsi.pine"
     dest.write_text("old", encoding="utf-8")
@@ -964,7 +952,7 @@ def test_facade_download_skip_existing(tmp_path: Path) -> None:
 
 
 def test_facade_download_failure_branch(tmp_path: Path) -> None:
-    from pynescript.util import pine_facade as facade
+    facade = pytest.importorskip("pynescript.util.pine_facade")
 
     def _session():
         raise RuntimeError("offline")
@@ -976,7 +964,7 @@ def test_facade_download_failure_branch(tmp_path: Path) -> None:
 
 
 def test_facade_main_list(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from pynescript.util import pine_facade as facade
+    facade = pytest.importorskip("pynescript.util.pine_facade")
 
     monkeypatch.setattr(facade, "list_builtin_scripts", lambda session=None: list(_CATALOG))
     assert facade.main(["--list", "--plain", str(tmp_path)]) == 0
@@ -984,7 +972,7 @@ def test_facade_main_list(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
 
 
 def test_facade_render_catalog_plain(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
-    from pynescript.util import pine_facade as facade
+    facade = pytest.importorskip("pynescript.util.pine_facade")
 
     facade.render_catalog(_CATALOG, tmp_path, 2, set(), console=None)
     assert "RSI" in capsys.readouterr().out

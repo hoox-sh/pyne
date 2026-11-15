@@ -1,158 +1,143 @@
-# Pyne engineering review
+# Pyne engineering review (0.7.0)
 
-Reviewed `hoox-pyne` 0.6.34 (parser, interpreter, Numba compiler, CLI, `pyne-lsp`) on Python 3.12. Install was `pip install -e ".[lsp,compile,dev-lsp]"`. Core CI tests (`test_linter`, `test_evaluator`, `test_cli`) passed, 339 tests. A wider slice (evaluator, parity, compiler/Numba, LSP) passed after the fixes below. `examples/rsi_strategy.pine` runs on both hosts and the RSI column matches.
+Reviewed `hoox-pyne` **0.7.0** on Python 3.12 (`main` at `b2f2012f`). Install was `pip install -e ".[lsp,compile,dev-lsp]"`. Numba 0.68.1.
 
-This PR fixes the bugs that were small, reproduced, and covered by regression tests. Larger redesigns are proposals only.
-
-A separate effort already owns three LSP gaps. They are listed at the end and are not changed here: series/simple semantic tokens, comment-preserving formatting, and Pyne Edge series/`na` type propagation.
+[PR #73](https://github.com/hoox-sh/pyne/pull/73) and [PR #72](https://github.com/hoox-sh/pyne/pull/72) are both **merged**. This note does not repeat those fixes (`na` as a false condition, dynamic `for … to`, dividend-signed `%`, UTF-16 S001/S002 columns, `pyne execute --timeframe`, `.pyne` directory checks, `SyntaxError.__str__`, series/simple tokens, comment-preserving format, the LSP qualifier lattice).
 
 ## What was exercised
 
-| Surface                                                | Result                                                                                                                                             |
-| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pyne check examples/rsi_strategy.pine`                | Parses.                                                                                                                                            |
-| `pyne execute … --mode interpret` and `--mode compile` | Both succeed. RSI last value matches (`82.262…`). Compile of this strategy is object mode.                                                         |
-| `pyne info`                                            | 0.6.34, Numba present, Rich and the MCP extra not installed in this environment.                                                                   |
-| `pyne execute --timeframe`                             | The flag was printed and ignored. Fixed in this PR.                                                                                                |
-| `pyne check <directory>`                               | Walked only `*.pine`. Fixed so `*.pyne` is included.                                                                                               |
-| LSP semantic diagnostics                               | S001/S002 work on ASCII. Columns were code points, so an emoji earlier on the line shifted the squiggle. Fixed.                                    |
-| `make test` / corpus files                             | `tests/test_set06_pine_int_na.py` raises `FileNotFoundError` when `tests/data/set06/` is absent. Those files are local-only. CI does not run them. |
+| Surface | Result |
+| --- | --- |
+| `pyne check examples/rsi_strategy.pine` | Parses. |
+| `pyne execute` interpret and compile, 80 synthetic bars | RSI last value matches (`80.057…`). Compile of this strategy is object mode. |
+| `pyne info` / `pyne-lsp --version` | 0.7.0, Numba present. |
+| `pyne execute` input metadata | Interpret and compile both report `inputs_count` 3 and the same three literal declarations (RSI Length, Oversold, Overbought). |
+| Differential scripts | A small interpret-vs-compile harness over arithmetic, `iff`, `math.round` / `math.log` / `math.pow`, comparisons, and `for`. Mismatches below were reproduced, then the low-risk ones were fixed and pinned in `tests/test_compile_expr_parity.py`. |
+| Tests | Evaluator, CLI, linter, LSP, Numba compiler, first-party goldens, and the new parity file: **844 passed**, 9 skipped in the main slice, then strategy/realtime/expr parity **197 passed**. Backend tests need `hoox-pyne[pro]` (Flask); they were not installed here, so that slice was not run. `tests/test_set06_pine_int_na.py` now skips when the local corpus is absent. |
 
-Cold parse of the RSI script is about **6.2 ms**. A cache hit is about **0.07 ms**. A 2,000-bar script plotting `ta.sma`, `ta.ema`, `ta.rsi`, and `ta.atr` ran at about **63k bars/s** interpreted and about **2.3M bars/s** compiled (Numba, after warm-up). `cProfile` puts almost all cold-parse time inside the generated ANTLR parser, and almost all interpret time inside `visit_Call`.
+Uncached parse of `examples/rsi_strategy.pine`, after the parser module is imported, is about **7.1 ms** (mean of ten unique sources). A cache hit is about **0.12 ms**. A 2,000-bar script plotting `ta.sma`, `ta.ema`, `ta.rsi`, and `ta.atr` ran at about **61k bars/s** interpreted and about **2.2M bars/s** compiled (Numba, after warm-up). `cProfile` still puts cold parse time inside the generated ANTLR parser and interpret time inside `visit_Call`.
 
-## Fixes in this PR
+## Fixes in this change
 
-### 1. Compile treated `na` as true — high
+### 1. `iff(na)` took the then-branch on compile — medium
 
-`na` lowers to `np.nan`. Python `bool(np.nan)` is `True`, and `if np.nan` takes the body. Interpret uses `None`, which is false, and `not na` is `na`.
+Interpret returns `na` (`numeric.py` `_builtin_iff`). Compile emitted `a if np.nan else b`, and `bool(nan)` is true, so `iff(na, 1, 0)` plotted `1`.
 
-Repro (before): `na and true`, `na or false`, `na ? 1 : 0`, and `if na` plotted `1` on compile and `0` on interpret. `switch float(na) / na => 1` plotted `3` on compile (IEEE `nan == nan` is false) and `1` on interpret.
+A walrus ternary that returns `na` for a NaN condition does not type-check under Numba when the condition is a bool (`close > open`). `iff` is a call on the interpreter, so both arguments already run before the builtin. Compile now calls `pine_iff`, which is njit-overloaded, returns `na` for a NaN or `None` condition, and stays nopython for `plot(iff(close > open, 1, 0))`.
 
-Location: `compiler.py` `visit_BoolOp`, `visit_UnaryOp`, `visit_Conditional`, `visit_While`, `_as_bool_cond`, `_switch_arm_cond`.
+Location: `compiler.py` `iff` arm, `numba_builtins.py` `pine_iff`.
 
-Fix: conditions go through `pine_bool` (NaN/`None` → false, nopython overload already existed). `not` goes through new `pine_not` (`na` stays `na`). Numeric `switch` arms use `numba_pine_eq` (`na == na`). String arms stay on `==`. `pine_bool` / `pine_not` are on the numeric-expr allow list so `plot(close > open ? 1 : 0)` stays nopython.
+### 2. `math.round` ignored precision on compile — high
 
-Pinned by `tests/test_compile_na_parity.py`.
+`math.round(1.234, 2)` was `1.23` interpreted and `1` compiled. `math.round(123.45, -1)` was `120` vs `123`. `numba_round` passes the precision through `np.round`. A NaN precision rounds to 0 decimals. One-argument half-values stay banker's (`math.round(2.5)` is `2` on both hosts).
 
-### 2. Dynamic `for … to` froze the end on compile — high
+### 3. `math.log` ignored the base, and base 1 aborted interpret — high
 
-Pine v6 re-evaluates `to` every iteration. Interpret does. Compile stored `__end_i` once, so this plotted `3` on compile and `1` on interpret:
+`math.log(100, 10)` was `2` interpreted and `ln(100)` compiled. `math.log(10, 1)` raised `ZeroDivisionError` on interpret and plotted a finite log on compile. Both hosts now return `na` for a non-positive argument or a base of `1`. Compile uses `numba_log` (change of base, one evaluation of each argument).
 
-```pine
-limit = 2
-s = 0.0
-for i = 0 to limit
-    s := s + 1
-    limit := 0
-```
+### 4. `math.pow(na, 0)` was `1` on compile — medium
 
-Fix: re-read `to` at the end of each iteration **before** the counter increments (so `for i = 0 to i` cannot chase itself), including on `continue`. Constant `to` is unchanged. Disk IR schema bumped to 53.
+IEEE `nan ** 0` is `1`. Interpret returns `na`. `numba_pow` propagates `na`.
 
-### 3. Integer `%` on the Numba path was garbage — high
+### 5. Operator `na == na` was true on compile — medium
 
-`np.fmod` on Numba integers returns `0` for `fmod(-7, 3)` and `7` for `fmod(7, -3)`. Float `fmod` is fine (`-1` and `1`). Interpret used Python `%`, whose sign follows the divisor (`-7 % 3` is `2`).
+`na == na ? 1 : 0` plotted `0` interpreted and `1` compiled, because every numeric `==` used `numba_pine_eq` (`na == na` is true). That helper is the right rule for **switch** arms (`switch na` / `na =>`). The operator now uses IEEE `==` after `na` is `np.nan`, so `na == na` is false. `!=` stays on `numba_pine_ne` (`na != 1` is false; IEEE `!=` would be true). Switch is unchanged and still selects the `na` arm.
 
-The compiler helper is documented as dividend-signed remainder (C `fmod` / Pine). Interpret now matches that, exactly for ints. The jit casts to float64 before `fmod`. The emitter also adds `0.0` so a stale Numba cache of an integer call site cannot keep the old lowering.
+### 6. `for i = 0 to i` after `i = 5` ran six times on compile — medium
 
-### 4. Semantic diagnostic columns were not UTF-16 — medium
+Interpret evaluates `to` against the pre-loop binding, then the counter shadows that name, so the loop body runs once (`s` is `1`). Compile stored `i` as `i_arr` and re-read `i_arr` every iteration, so the end stayed `5` (`s` is `6`). The same shape with `i = -3` ran four times on compile and once on interpret.
 
-Lint diagnostics convert code-point columns in `features/diagnostics.py`. S001/S002 in `semantic_diagnostics.py` published the raw code-point index. A line `"🚀" + p.bad` underlined one UTF-16 unit early.
+The first `to` is now emitted before the counter is assigned. When `to` reads the counter and contains no call, the per-iteration re-read is visited again after the counter is bound, so it sees the scalar. A call inside `to` is not visited twice (that would allocate a second TA state buffer). `limit = 2` / `limit := 0` still stops after one iteration.
 
-Fix: `collect()` converts both ends with `codepoint_column_to_utf16`. Pinned in `tests/test_lsp_semantics.py`.
+`for i = 0 to i` with no previous `i` still does not run (both hosts, `s` is `0`).
 
-### 5. `pyne execute --timeframe` did not reach the runtime — medium
+### 7. Compile dropped `input.*` declarations — medium
 
-`Runtime(timeframe=)` drives `timeframe.*`. `execute_source` accepted `--timeframe` (default `1m`), echoed it in JSON, and constructed `Runtime(symbol=ticker)` only. The script still saw a daily chart. Passing the raw string `"1m"` would be worse: `_period_flags` upper-cases it to monthly `"1M"`.
+`Runtime.run(mode="compile")` set `inputs` to `[]`. Interpret recorded the declarations. Literal global `input` / `input.*` calls are now folded with the same keyword order as the handlers (`minval` → `min`, and so on) and copied onto the compile result and `meta.inputs`. Non-literal arguments skip that call rather than inventing a default. Overrides remain interpret-only. `examples/rsi_strategy.pine` matches on both hosts, including through `pyne execute` (`inputs_count` 3).
 
-Fix: `to_pine_period` (the same map `POST /run` already used) now lives in `timeframe.py`. Execute passes `to_pine_period(timeframe)`. Backend `_to_pine_period` calls it. `1m` → `"1"`.
+### 8. Symbol-index failures were silent — medium
 
-### 6. `pyne check <dir>` skipped `.pyne` — low
+`build_symbol_index` exceptions in `ensure_symbol_index` and in `Workspace._parse_and_lint` are logged at debug. When the buffer parsed but the index raised, publish adds one **E002** diagnostic and leaves navigation/semantic checks empty. Pinned by `test_symbol_index_failure_is_a_diagnostic`.
 
-The product accepts `.pine` and `.pyne`. Directory walks used `--ext .pine` only. Default is now `.pine,.pyne` (comma-separated). A single file path is still checked regardless of suffix.
+### 9. README version and CI — low
 
-### 7. `SyntaxError` without a location crashed in `__str__` — low
+`README.md` still said **0.6.32**. The package line is **0.7.0**. Docker examples still pull `0.6.31`; those tags were not changed here. CI's runtime job now runs `tests/test_compile_na_parity.py` and `tests/test_compile_expr_parity.py`. `tests/test_set06_pine_int_na.py` skips the corpus cases when `tests/data/set06/` is absent instead of raising `FileNotFoundError`.
 
-`SyntaxError("boom")` then `str(err)` raised `AttributeError` because `details` is only set when a location is passed. `__str__` now returns the message.
+Disk IR schema is **55** so cached modules from the previous emitter are not reused.
 
-## Findings not fixed
+## Still open
 
-### F1. `iff(na, a, b)` still disagrees — medium
+### F2. v6 `and` / `or` are eager — medium, intentional
 
-Interpret returns `na` when the condition is `na` (`numeric.py` `_builtin_iff`; pinned by `tests/test_builtins_coverage.py`). Compile emits `a if np.nan else b`, which selects `a` because NaN is truthy.
+Both hosts still evaluate every operand (`expressions.py` `visit_BoolOp`, `compiler.py` `visit_BoolOp`) so v5 series state stays continuous. v6 Pine is lazy. Not changed: it moves `ta.*` state inside dead arms and needs goldens.
 
-Not changed here: a function-call helper would evaluate both branches, and Pine `iff` is lazy. The fix is a single-assignment ternary that returns `na` for a NaN condition without forcing object mode. `visit_Conditional` (`? :`) is already `na`-false and lazy.
+### F3. `math.round` ties — low, not switched
 
-### F2. v6 `and` / `or` are never short-circuit — medium, intentional today
+One-argument `math.round(2.5)` is `2` and `math.round(-2.5)` is `-2` on both hosts (Python / NumPy half-to-even). Secondary write-ups disagree on Pine: several say ties go toward +∞ (`2.5` → `3`, `-2.5` → `-2`), which would change only the positive tie relative to today; others say away from zero (`-2.5` → `-3`). There is no vendored TradingView column for the tie. Left as banker's until a golden exists.
 
-Both hosts evaluate every operand so v5 series state stays continuous (`expressions.py` `visit_BoolOp`, `compiler.py` `visit_BoolOp`). v6 Pine is lazy. Scripts that rely on the right-hand side not running will disagree with TradingView. A version-gated lazy path is the fix; it will change `ta.*` state inside dead arms, so it needs goldens, not a drive-by edit.
+### F5. S002 still misses non-name callees — low
 
-### F3. `math.round` is banker's rounding — low
+`semantic_diagnostics.py` `_call_arity` only walks `Call` nodes whose callee is a bare `Name` that resolves to a user function. Reproduced with semantic diagnostics on: `h = f` then `h(1, 2)`, and `ta.sma(close, close)`, produce no diagnostic. Builtin parameter qualifiers are still absent from the catalog (PR #72).
 
-`numeric.py` `_builtin_math_round` uses Python `round`. `math.round(2.5)` is `2`. TradingView half-away-from-zero is often `3`. Both hosts share it, so it is not a dual-host bug. Confirm against a TV golden before switching.
+### F-LSP. Pyne Edge gaps from #72 — still open
 
-### F4. Compile inputs are empty for strategies — low
+Re-checked against current `analysis.py` / `semantic_diagnostics.py`. Still true:
 
-`pyne execute` on `examples/rsi_strategy.pine`: interpret `inputs_count` is 3, compile is 0 and `meta.inputs` is `[]`. Overrides are already documented as interpret-only (`Runtime.run`). The compile result should still report the declared inputs, or the CLI should say they were dropped.
+- Builtin parameter qualifiers are not checked (`ta.sma(close, close)`).
+- No diagnostic suggests `nz()` / `fixnan()` for values that can be `na`. Only untyped `na` is S004.
+- `var` / `varip` persistence is not analyzed.
+- History `[]` promotes to `series` and does not warn when Pine would reject `[]` on a non-series value.
+- Unqualified UDT fields are not treated as `series`.
+- Non-`math` builtin returns follow the catalog. `math.abs(1)` is `const float`, not `const int`.
+- `Type.is_compatible_with` (`type_system.py`) is still equality for `BuiltinType`. The compiler does not use the LSP lattice.
+- Comment formatting does not restore blank lines the unparser drops.
 
-### F5. S002 only sees calls whose callee is a bare name — low
+### F-struct. Two type stories — large, not started
 
-`semantic_diagnostics.py` `_call_arity` skips `h(1)` when `h` is a variable holding a user function, and skips method calls. Under-reporting is the stated policy for builtins. Aliased user functions are a real false negative. Resolve the callee through the symbol index before giving up.
+LSP `analysis.py` infers qualifier strings. The compiler infers overload tags in `compiler.py`. The runtime `Type` / `TypeRegistry` is unused by the language server. Hover, arity, and compile overload choice can drift. Unifying them is a redesign.
 
-### F6. Symbol-index failures are swallowed — medium
+### Other leftovers
 
-`analysis.py` `ensure_symbol_index` returns `None` on any exception from `parse` or `build_symbol_index`. Navigation, rename, and semantic checks then vanish with no log. Log the exception at debug and surface a single diagnostic when the index build fails on a tree that parsed.
-
-### F7. Two lint→diagnostic converters — low
-
-`features/diagnostics.py` `lint_warnings_to_diagnostics` is what the server publishes (code descriptions, tags, UTF-16, C001 filter). `workspace.py` still has a parallel converter used by tests. Delete or forward the workspace copy so they cannot drift.
-
-### F8. README / image versions lag the package — low
-
-`__version__` is `0.6.34`. `README.md` still says **0.6.32** and the docker examples pull `0.6.31`. `pyne info` is the accurate source.
-
-### F9. `for i = 0 to i` first-iteration difference — low
-
-The dynamic-end fix re-reads `to` while the counter still holds this iteration's value. The first evaluation still happens after `i = start`, so a pre-existing `i` is not visible to the first `to` on compile the way it is on interpret. Rare. Eval `to` once before binding the counter only when `to` does not mention the counter.
+- `for` end expressions that both mention the counter **and** call a function still re-read the pre-loop series. A second visit would double-allocate TA state.
+- Compile input metadata skips a call when any argument is not a literal.
+- `docs/optimization_notes.md` still describes an 859-test suite and a one-time ~2% speedup. The code has SLL-then-LL parse, a parse LRU, and the series ring.
+- Other `tests/test_set06_*.py` files still open `tests/data/set06/` and raise `FileNotFoundError` on a fresh clone. Only `test_set06_pine_int_na.py` skips.
+- `pyne download-builtins` and `list_facade_templates` imported `pynescript.util.pine_facade`, which was deleted in `e90563c7`. They now fail closed with "removed" instead of `ImportError`. The downloader was not restored.
+- `mypy src/ --ignore-missing-imports` is still `|| true` in CI.
+- README docker examples still say `0.6.31`.
 
 ## Optimization proposals
 
-Measured on this machine, 2,000 bars, four `ta.*` plots, unless noted.
+Measured on this machine unless noted. 2,000 bars, four `ta.*` plots.
 
-| Rank | Change                                  | Evidence                                                                                                                                                                                                   | Impact                            | Effort                                                                                                         |
-| ---- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| 1    | Keep numeric scripts on compile/`auto`  | Interpret ~63k bars/s, compile ~2.3M bars/s (~37×) after JIT. Profile: `visit_Call` dominates interpret.                                                                                                   | High for numeric studies          | M — widen eligibility, don't change semantics                                                                  |
-| 2    | Do not pay ANTLR on an unchanged buffer | Cold parse ~6.2 ms; cache hit ~0.07 ms. Profile is `PinescriptParser.*`. LSP still reparses the whole buffer on each debounced edit (`workspace.py` `_parse_and_lint`).                                    | High for the editor               | L for an incremental parser. S to avoid hashing the full source before the cache lookup in `helper.py` `parse` |
-| 3    | One series representation               | `runtime/series.py` `apply_bar_sample` appends a newest-first deque **and** a chronological list unless `PYNE_SERIES_RING` is on. TA windows then `list(reversed(hist))` (`technical_submodules/core.py`). | High on long interpret histories  | L — flip the default only with the TA goldens                                                                  |
-| 4    | Index occurrences by line               | `analysis.py` `occurrence_at` / `scope_at` scan every occurrence and every scope. Cheap on the RSI script (27 occurrences, 3.5 ms index+lint). Linear in identifiers per hover.                            | Medium on large files             | S                                                                                                              |
-| 5    | Stop scanning from byte 0 for comments  | `protocol/utils.py` `in_comment_or_string` walks the prefix of the file per request.                                                                                                                       | Medium at EOF of large files      | S — per-line flags                                                                                             |
-| 6    | Realtime snapshots                      | `compiler.py` `_emit_rt_tick_snapshot` copies list/dict state every unconfirmed tick. Idle when `realtime_ticks` is 1.                                                                                     | High only for multi-tick realtime | M                                                                                                              |
-| 7    | `docs/optimization_notes.md` is stale   | It still describes a string-keyed visitor cache and a one-time 2% suite speedup. The code now has SLL-then-LL parse, a parse LRU, a hot script body, and the ring buffer.                                  | Docs only                         | S                                                                                                              |
+| Rank | Change | Evidence | Impact | Effort |
+| --- | --- | --- | --- | --- |
+| 1 | Keep numeric scripts on compile / `auto` | Interpret ~61k bars/s, compile ~2.2M bars/s (~36×) after JIT. Profile: `visit_Call` dominates interpret. | High for numeric studies | M — widen eligibility, don't change semantics |
+| 2 | Do not pay ANTLR on an unchanged buffer | Uncached RSI parse ~7.1 ms; cache hit ~0.12 ms. Profile is `PinescriptParser.*`. LSP still reparses the whole buffer on each debounced edit. | High for the editor | L for an incremental parser. S to avoid hashing the full source before the cache lookup in `helper.py` `parse` |
+| 3 | One series representation | `runtime/series.py` keeps a newest-first deque and a chronological list unless `PYNE_SERIES_RING` is on. TA windows then copy a reversed list. | High on long interpret histories | L — flip the default only with the TA goldens |
+| 4 | Index occurrences by line | `analysis.py` `occurrence_at` / `scope_at` scan every occurrence and every scope. | Medium on large files | S |
+| 5 | Stop scanning from byte 0 for comments | `protocol/utils.py` `in_comment_or_string` walks the prefix of the file per request. | Medium at EOF of large files | S — per-line flags |
+| 6 | Realtime snapshots | `compiler.py` copies list/dict state on unconfirmed ticks. Idle when `realtime_ticks` is 1. | High only for multi-tick realtime | M |
+| 7 | Rewrite `docs/optimization_notes.md` | The 2% suite figure and the 859-test count are stale. | Docs only | S |
 
-`docs/optimization_notes.md` items that are still true: direct location attributes in the builder, module-level operator callables, and precomputed math constants. They are not the bottleneck next to ANTLR and the AST walk.
+No hot-path rewrite landed with these fixes. The new helpers (`pine_iff`, `numba_round`, `numba_log`, `numba_pow`) are njit-overloaded so numeric scripts stay on the fast path.
 
 ## Structure proposals
 
-| Rank | Proposal                                     | Why                                                                                                                                                                                                                                                                                                                                                                                                                     | Effort |
-| ---- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| 1    | One type story                               | LSP `analysis.py` infers string labels (`ta.*` → `"series float"`). The compiler infers overload tags in `compiler.py` (`_infer_udf_arg_type`). The runtime has a real `Type` / `TypeRegistry` in `type_system.py` (372 lines) that the language server does not use. Hover, arity, and compile overload choice can drift. Related series/`na` propagation is already owned elsewhere; the split is the larger problem. | L      |
-| 2    | Split `compiler.py`                          | 10,546 lines: emit, strategy, request, plot wire format, and the numeric-safety heuristic in one visitor. A bug in `_is_safe_numeric_expr` silently forces object mode (this review hit that with `pine_bool`). Split by namespace (plot / strategy / request / expr) behind the same visitor.                                                                                                                          | L      |
-| 3    | Split `numba_builtins.py`                    | 7,637 lines of kernels plus coercion helpers, star-imported by generated modules. Names must stay public. Group TA kernels vs coercion (`pine_bool`, `na_num`, `safe_float`) so the import surface is explicit.                                                                                                                                                                                                         | M      |
-| 4    | CI should run the parity tests this PR added | `.github/workflows/ci.yml` runs a short list (`test_linter`, `test_evaluator`, `test_cli`, a handful of runtime files, two LSP files). `tests/test_lsp_semantics.py`, `tests/test_compile_na_parity.py`, and most compiler tests are local-only. `mypy` is `                                                                                                                                                            |        | true`. | S   |
-| 5    | Corpus tests should skip, not crash          | `test_set06_pine_int_na.py` opens `tests/data/set06/**` with no `pytest.skip` when the tree is absent. `make test` fails on a fresh clone. README already says community corpora stay local.                                                                                                                                                                                                                            | S      |
-| 6    | Delete the second diagnostic converter       | See F7.                                                                                                                                                                                                                                                                                                                                                                                                                 | S      |
+| Rank | Proposal | Why | Effort |
+| --- | --- | --- | --- |
+| 1 | One type story | LSP strings, compiler overload tags, and `type_system.Type` are three models. `is_compatible_with` does not implement the qualifier lattice the LSP already has. | L |
+| 2 | Split `compiler.py` | Emit, strategy, request, plot wire format, and the numeric-safety heuristic live in one visitor. A mistake in `_is_safe_numeric_expr` silently forces object mode. | L |
+| 3 | Split `numba_builtins.py` | Kernels and coercion helpers are star-imported. Names must stay public. Group TA kernels vs coercion so the import surface is explicit. | M |
+| 4 | Skip every local-only corpus test | `test_set06_pine_int_na.py` skips. Sibling `test_set06_*.py` files still crash when `tests/data/set06/` is absent. | S |
+| 5 | Delete or gate the removed facade | `download-builtins` fails closed. Unit tests that imported `pine_facade` skip. The CLI help still advertises the command. Removing the command is a public-API change; left for a deliberate cleanup. | S |
+| 6 | Dead branch in `visit_BinOp` | After `return f"pine_add(...)"` for Name+Name adds inside a function, the following string-arithmetic branch is unreachable. String `+` / `-` on the scripts tried here already match. | S |
 
-`compiler.py` and `host.py` (4,716 lines) are the modules where a small semantic fix is most likely to knock a script off nopython or out of the disk IR cache. The disk schema version (`engine.py` `_DISK_META_VERSION`, now 53) is the right hammer when generated code changes; source hashes alone reuse old IR.
-
-## Out of scope (already assigned)
-
-- Series / `simple` semantic tokens.
-- Comment-preserving formatting (the unparser drops comments; the server falls back to a whitespace pass).
-- Pyne Edge series / `na` type propagation. The LSP string-label inference in F-structure-1 will keep drifting until that work and the compiler share a representation.
+`compiler.py` and `host.py` are still where a small semantic fix is most likely to knock a script off nopython or out of the disk IR cache. Bump `_DISK_META_VERSION` when generated code changes. It is 55.
 
 ## Tests
 
-- `tests/test_compile_na_parity.py` — interpret vs compile for `na` boolean ops, `not na`, `if na`, `switch` on `na` and on strings, dynamic and constant `for`, dividend-signed `%`, and nopython retention.
-- `tests/test_lsp_semantics.py` — S001 column is UTF-16 after an emoji.
-- `tests/test_mcp_ops.py` — `timeframe="1m"` is intraday, not monthly; `1d` is not intraday.
-- `tests/test_cli.py` — a directory of `.pyne` is checked.
-- `tests/test_numba_builtins_direct.py` — negative `numba_safe_mod`, including ints.
+- `tests/test_compile_expr_parity.py` — interpret vs compile for `iff`, round precision, log base, `pow(na, 0)`, `na == na`, switch-on-`na`, shadowed `for`, literal inputs, nopython retention, and E002.
+- `tests/test_compile_na_parity.py` — previous `na` / modulo / `for` pins; still green, now on the CI runtime job.
+- `tests/test_set06_pine_int_na.py` — corpus cases skip when the tree is absent.
+- `tests/test_mcp_ops_low_coverage.py`, `tests/test_cli_util_coverage.py` — removed facade fails closed.

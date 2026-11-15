@@ -9,6 +9,9 @@ from pathlib import Path
 
 import pytest
 
+
+pytest.importorskip("pynescript.util.pine_facade")
+
 from pynescript.util import pine_facade as pf
 
 

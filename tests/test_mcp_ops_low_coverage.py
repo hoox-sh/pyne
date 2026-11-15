@@ -52,29 +52,12 @@ def test_list_builtins_filter_and_limit() -> None:
     assert filtered["count"] == 0
 
 
-def test_list_facade_templates_network_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    def boom():
-        raise RuntimeError("offline")
-
-    monkeypatch.setattr("pynescript.util.pine_facade.list_builtin_scripts", boom)
+def test_list_facade_templates_removed() -> None:
+    """pine_facade was dropped; the tool must fail closed instead of ImportError."""
     r = builtins_ops.list_facade_templates()
     assert r["ok"] is False
-    assert r["kind"] == "network"
-
-
-def test_list_facade_templates_ok(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        "pynescript.util.pine_facade.list_builtin_scripts",
-        lambda: [
-            {"scriptIdPart": "1", "extraKind": "indicator", "version": "6", "scriptName": "A"},
-            "bad",
-            {"scriptId": "2", "kind": "strategy"},
-        ],
-    )
-    r = builtins_ops.list_facade_templates(limit=1)
-    assert r["ok"] is True
-    assert r["count"] == 1
-    assert r["listed"] == 3
+    assert r["kind"] == "unsupported"
+    assert "removed" in r["error"]
 
 
 def test_optimize_requires_space() -> None:

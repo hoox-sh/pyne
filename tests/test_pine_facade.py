@@ -23,9 +23,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from click.testing import CliRunner
 
 from pynescript.__main__ import cli
+
+
+pytest.importorskip("pynescript.util.pine_facade")
+
 from pynescript.util.pine_facade import _meta_kind
 from pynescript.util.pine_facade import _meta_name
 from pynescript.util.pine_facade import _normalize_filename

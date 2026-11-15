@@ -758,3 +758,256 @@ InputBuiltinsMixin._handle_input_text_area._KWARG_ORDER = [
     "confirm",
     "active",
 ]
+
+
+_INPUT_ORDERS: dict[str, tuple[str, list[str]]] = {
+    "input": ("", list(InputBuiltinsMixin._handle_input._KWARG_ORDER)),
+    "input.bool": ("bool", list(InputBuiltinsMixin._handle_input_bool._KWARG_ORDER)),
+    "input.int": ("int", list(InputBuiltinsMixin._handle_input_int._KWARG_ORDER)),
+    "input.float": ("float", list(InputBuiltinsMixin._handle_input_float._KWARG_ORDER)),
+    "input.price": ("price", list(InputBuiltinsMixin._handle_input_price._KWARG_ORDER)),
+    "input.string": ("string", list(InputBuiltinsMixin._handle_input_string._KWARG_ORDER)),
+    "input.symbol": ("symbol", list(InputBuiltinsMixin._handle_input_symbol._KWARG_ORDER)),
+    "input.session": ("session", list(InputBuiltinsMixin._handle_input_session._KWARG_ORDER)),
+    "input.source": ("source", list(InputBuiltinsMixin._handle_input_source._KWARG_ORDER)),
+    "input.time": ("time", list(InputBuiltinsMixin._handle_input_time._KWARG_ORDER)),
+    "input.timeframe": ("timeframe", list(InputBuiltinsMixin._handle_input_timeframe._KWARG_ORDER)),
+    "input.color": ("color", list(InputBuiltinsMixin._handle_input_color._KWARG_ORDER)),
+    "input.enum": ("enum", list(InputBuiltinsMixin._handle_input_enum._KWARG_ORDER)),
+    "input.text_area": ("text_area", list(InputBuiltinsMixin._handle_input_text_area._KWARG_ORDER)),
+}
+
+_STRING_INPUTS = frozenset({"string", "symbol", "session", "timeframe", "color", "text_area"})
+_UNFOLDABLE = object()
+
+
+def _input_callee(func: Any) -> str | None:
+    from pynescript.ast import node as ast
+
+    if isinstance(func, ast.Name):
+        return str(func.id or "")
+    if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
+        return f"{func.value.id}.{func.attr}"
+    return None
+
+
+def _fold_input_expr(node: Any) -> Any:
+    """Fold a literal input argument. ``_UNFOLDABLE`` when it is not a constant."""
+    from pynescript.ast import node as ast
+
+    if node is None:
+        return None
+    if isinstance(node, ast.Constant):
+        return node.value
+    if isinstance(node, ast.Name):
+        if node.id in ("true", "True"):
+            return True
+        if node.id in ("false", "False"):
+            return False
+        if node.id == "na":
+            return None
+        if node.id in _BUILTIN_SOURCE_NAMES:
+            return node.id
+    if isinstance(node, ast.Tuple):
+        folded = []
+        for elt in node.elts or []:
+            value = _fold_input_expr(elt)
+            if value is _UNFOLDABLE:
+                return _UNFOLDABLE
+            folded.append(value)
+        return folded
+    return _UNFOLDABLE
+
+
+def _input_slots(call: Any, order: list[str]) -> dict[str, Any] | None:
+    """Merge positional and named args. None when a provided arg is not a literal."""
+    positionals: list[Any] = []
+    named: dict[str, Any] = {}
+    for arg in call.args or []:
+        value = getattr(arg, "value", arg)
+        name = getattr(arg, "name", None)
+        folded = _fold_input_expr(value)
+        if folded is _UNFOLDABLE:
+            return None
+        if name:
+            named[str(name)] = folded
+        else:
+            positionals.append(folded)
+    merged: list[Any] = list(positionals)
+    provided = set(range(len(positionals)))
+    for key, val in named.items():
+        if key not in order:
+            continue
+        idx = order.index(key)
+        while len(merged) <= idx:
+            merged.append(None)
+        if idx in provided:
+            continue
+        merged[idx] = val
+        provided.add(idx)
+    return {name: (merged[i] if i < len(merged) and i in provided else None) for i, name in enumerate(order)}
+
+
+def _input_record(kind: str, slots: dict[str, Any]) -> dict[str, Any]:
+    """Same metadata shape as the interpret ``input.*`` handlers (no overrides)."""
+    defval = slots.get("defval")
+    if kind == "int":
+        if defval is None and "defval" not in slots:
+            defval = 0
+        value = int(defval) if isinstance(defval, float) and defval == int(defval) else defval
+        if value is None:
+            value = 0
+        return {
+            "type": "int",
+            "default": 0 if defval is None else defval,
+            "value": value,
+            "title": slots.get("title") or "",
+            "min": slots.get("minval"),
+            "max": slots.get("maxval"),
+            "step": 1 if slots.get("step") is None else slots.get("step"),
+            "tooltip": slots.get("tooltip") or "",
+            "inline": slots.get("inline"),
+            "group": slots.get("group"),
+            "confirm": bool(slots.get("confirm") or False),
+            "active": True if slots.get("active") is None else bool(slots.get("active")),
+        }
+    if kind in ("float", "price"):
+        default = 0.0 if defval is None else defval
+        return {
+            "type": kind,
+            "default": default,
+            "value": float(default),
+            "title": slots.get("title") or "",
+            "min": slots.get("minval"),
+            "max": slots.get("maxval"),
+            "step": slots.get("step"),
+            "tooltip": slots.get("tooltip") or "",
+            "inline": slots.get("inline"),
+            "group": slots.get("group"),
+            "confirm": bool(slots.get("confirm") or False),
+            "active": True if slots.get("active") is None else bool(slots.get("active")),
+        }
+    if kind == "bool":
+        default = False if defval is None else defval
+        return {
+            "type": "bool",
+            "default": default,
+            "value": bool(default),
+            "title": slots.get("title") or "",
+            "tooltip": slots.get("tooltip") or "",
+            "inline": slots.get("inline"),
+            "group": slots.get("group"),
+            "confirm": bool(slots.get("confirm") or False),
+            "active": True if slots.get("active") is None else bool(slots.get("active")),
+        }
+    if kind == "source":
+        label = defval if isinstance(defval, str) and defval else "close"
+        return {
+            "type": "source",
+            "default": label,
+            "value": label,
+            "title": slots.get("title") or "",
+            "tooltip": slots.get("tooltip") or "",
+            "inline": slots.get("inline"),
+            "group": slots.get("group"),
+            "confirm": bool(slots.get("confirm") or False),
+            "active": True if slots.get("active") is None else bool(slots.get("active")),
+            "options": list(DEFAULT_SOURCE_OPTIONS),
+        }
+    if kind in _STRING_INPUTS or kind == "enum":
+        default = "" if defval is None else defval
+        meta = {
+            "type": kind,
+            "default": default,
+            "value": "" if default is None else str(default),
+            "title": slots.get("title") or "",
+            "tooltip": slots.get("tooltip") or "",
+            "inline": slots.get("inline"),
+            "group": slots.get("group"),
+            "confirm": bool(slots.get("confirm") or False),
+            "active": True if slots.get("active") is None else bool(slots.get("active")),
+        }
+        if kind == "enum" and slots.get("options") is not None:
+            meta["options"] = list(slots["options"]) if isinstance(slots["options"], list) else slots["options"]
+        return meta
+    if kind == "time":
+        default = 0 if defval is None else defval
+        return {
+            "type": "time",
+            "default": default,
+            "value": default,
+            "title": slots.get("title") or "",
+            "tooltip": slots.get("tooltip") or "",
+            "inline": slots.get("inline"),
+            "group": slots.get("group"),
+            "confirm": bool(slots.get("confirm") or False),
+            "active": True if slots.get("active") is None else bool(slots.get("active")),
+        }
+    # bare input(): type follows the default value
+    return {
+        "type": _infer_type(defval),
+        "default": defval,
+        "value": defval,
+        "title": slots.get("title") or "",
+        "tooltip": slots.get("tooltip") or "",
+        "inline": slots.get("inline"),
+        "group": slots.get("group"),
+        "confirm": bool(slots.get("confirm") or False),
+        "active": True if slots.get("active") is None else bool(slots.get("active")),
+    }
+
+
+def collect_input_declarations(source: str) -> list[dict[str, Any]]:
+    """Literal ``input.*`` metadata for the compile host.
+
+    Interpret records this while executing. Compile never runs those handlers,
+    so the declared inputs were dropped from the result. Global calls with
+    literal arguments are folded here. Calls inside user functions are skipped
+    (Pine rejects ``input.*`` there). A non-literal argument skips that call
+    rather than publishing a guessed default.
+    """
+    if not source or "input" not in source:
+        return []
+    try:
+        from pynescript.ast import node as ast
+        from pynescript.ast.helper import iter_child_nodes
+        from pynescript.ast.helper import parse
+
+        tree = parse(source)
+    except Exception:
+        return []
+
+    found: list[dict[str, Any]] = []
+    stack = [tree]
+    while stack:
+        current = stack.pop()
+        children = list(iter_child_nodes(current))
+        for child in reversed(children):
+            if isinstance(child, ast.FunctionDef):
+                continue
+            stack.append(child)
+        if not isinstance(current, ast.Call):
+            continue
+        name = _input_callee(current.func)
+        spec = _INPUT_ORDERS.get(name or "")
+        if spec is None:
+            continue
+        kind, order = spec
+        slots = _input_slots(current, order)
+        if slots is None:
+            continue
+        try:
+            found.append(_input_record(kind, slots))
+        except (TypeError, ValueError):
+            continue
+
+    deduped: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in found:
+        title = str(item.get("title") or "")
+        if title and title in seen:
+            continue
+        if title:
+            seen.add(title)
+        deduped.append(item)
+    return deduped

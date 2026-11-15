@@ -539,6 +539,95 @@ _register_njit_overload(numba_safe_mod, _numba_safe_mod_jit)
 
 
 @numba.njit(cache=True)
+def _numba_round_jit(x, digits):
+    """Pine ``math.round``. NaN value → na. NaN precision → 0 decimals.
+
+    ``np.round`` is half-to-even, matching the interpreter's ``round``.
+    """
+    if x != x:
+        return np.nan
+    d = 0.0 if digits != digits else digits
+    return np.round(x, int(d))
+
+
+def numba_round(x, digits=0.0):
+    """``math.round``; None/NA → nan (object-mode values)."""
+    return _numba_round_jit(_as_njit_float(x), _as_njit_float(digits))
+
+
+_register_njit_overload(numba_round, _numba_round_jit)
+
+
+@numba.njit(cache=True)
+def _numba_log_jit(n, base):
+    """Change-of-base log. Non-positive args or base 1 → na. Single-eval."""
+    if n != n or base != base or n <= 0.0 or base <= 0.0 or base == 1.0:
+        return np.nan
+    return np.log(n) / np.log(base)
+
+
+def numba_log(n, base):
+    """``math.log(n, base)``; None/NA → nan."""
+    return _numba_log_jit(_as_njit_float(n), _as_njit_float(base))
+
+
+_register_njit_overload(numba_log, _numba_log_jit)
+
+
+@numba.njit(cache=True)
+def _numba_pow_jit(a, b):
+    """Power with na propagation. IEEE ``nan ** 0`` is 1; Pine ``na`` stays na."""
+    if a != a or b != b:
+        return np.nan
+    return a**b
+
+
+def numba_pow(a, b):
+    """``math.pow``; None/NA → nan."""
+    return _numba_pow_jit(_as_njit_float(a), _as_njit_float(b))
+
+
+_register_njit_overload(numba_pow, _numba_pow_jit)
+
+
+@numba.njit(cache=True)
+def _pine_iff_jit(cond, a, b):
+    """``iff``. NaN condition → na. Both branches are already evaluated.
+
+    The interpreter evaluates ``iff`` arguments before the call. A walrus
+    ternary does not type-check under Numba when the condition is a bool
+    (``close > open``).
+    """
+    if cond != cond:
+        return np.nan
+    if cond:
+        return a
+    return b
+
+
+def pine_iff(cond, a, b):
+    """``iff`` for object mode (``None`` is na) and as the nopython overload."""
+    if cond is None:
+        return np.nan
+    try:
+        if cond != cond:
+            return np.nan
+    except Exception:
+        pass
+    return a if cond else b
+
+
+def _ol_pine_iff(cond, a, b):
+    def impl(cond, a, b):
+        return _pine_iff_jit(cond, a, b)
+
+    return impl
+
+
+numba.extending.overload(pine_iff)(_ol_pine_iff)
+
+
+@numba.njit(cache=True)
 def numba_accdist_inc(high, low, close, vol, i, st):
     """Cumulative Chaikin Accumulation/Distribution. ``st``: [sum, last_i].
 

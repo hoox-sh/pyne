@@ -4745,7 +4745,16 @@ class Runtime:
 
         # Series envelope parity with interpret: declaration fields.
         # Style/color for compile is best-effort (engine does not export per-plot meta).
+        # input.* is not executed on this path; fold literal declarations so
+        # the result still lists them (overrides stay interpret-only).
         input_defs: list[dict[str, Any]] = []
+        try:
+            from pynescript.ast.evaluator.builtins.input import collect_input_declarations
+
+            input_defs = collect_input_declarations(source_code or "")
+        except Exception as _exc:
+            _swallow(_exc, what="collect compile input declarations")
+            input_defs = []
         meta_out: dict[str, Any] = {
             "overlay": header["overlay"],
             "script_name": header["script_name"],
